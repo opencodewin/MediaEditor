@@ -37,6 +37,9 @@ include_directories(
     ${PROJECT_BINARY_DIR}
 )
 
+if (APPLE)
+    set(ENV{PKG_CONFIG_PATH} "$ENV{PKG_CONFIG_PATH}:/usr/local/opt/icu4c/lib/pkgconfig")
+endif()
 # Basics
 set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
 find_package(Threads REQUIRED)
@@ -75,6 +78,16 @@ macro_log_feature(GSTREAMER_GL_LIBRARY_FOUND "GStreamerPluginsBase" "GStreamer o
 # Various preprocessor definitions for GST
 add_definitions(-DGST_DISABLE_XML -DGST_DISABLE_LOADSAVE)
 
+#
+# ICU4C
+#
+if (PKG_CONFIG_FOUND)
+    pkg_check_modules(ICU REQUIRED icu-i18n icu-uc icu-io)
+else ()
+    find_package(ICU REQUIRED COMPONENTS i18n io uc)
+endif ()
+macro_log_feature(ICU_FOUND "ICU" "International Components for Unicode" "http://site.icu-project.org" TRUE)
+
 macro_display_feature_log()
 
 #
@@ -91,7 +104,12 @@ include_directories(
     ${GSTREAMER_APP_INCLUDE_DIR}
     ${GSTREAMER_PBUTILS_INCLUDE_DIR}
     ${GSTREAMER_GL_INCLUDE_DIR}
+    ${ICU_INCLUDE_DIRS}
     ${IMGUI_INCLUDE_DIR}
+)
+
+link_directories(
+    ${ICU_LIBRARY_DIRS}
 )
 
 set(MEDIA_EDITOR_BINARY "me")
@@ -105,6 +123,7 @@ add_executable(
     ${MEDIA_EDITOR_SRCS}
 )
 
+target_compile_definitions(${MEDIA_EDITOR_BINARY} PUBLIC APP_NAME="${MEDIA_EDITOR_BINARY}")
 set_property(TARGET ${MEDIA_EDITOR_BINARY} PROPERTY CXX_STANDARD 17)
 set_property(TARGET ${MEDIA_EDITOR_BINARY} PROPERTY C_STANDARD 11)
 target_link_libraries(
@@ -119,20 +138,36 @@ target_link_libraries(
     ${GSTREAMER_VIDEO_LIBRARY}
     ${GSTREAMER_PBUTILS_LIBRARY}
     ${GSTREAMER_GL_LIBRARY}
+    ${ICU_LIBRARIES}
     Threads::Threads
 )
 
 set(MEDIA_PLAYER_BINARY "mp")
 set(MEDIA_PLAYER_SRCS
     player.cpp
+    SystemToolkit.cpp
+    MediaPlayer.cpp
+    BaseToolkit.cpp
+    GstToolkit.cpp
+    Timeline.cpp
     ${IMGUI_APP_ENTRY_SRC}
+)
+
+set(MEDIA_PLAYER_INCS
+    SystemToolkit.h
+    MediaPlayer.h
+    BaseToolkit.h
+    GstToolkit.h
+    Timeline.h
 )
 
 add_executable(
     ${MEDIA_PLAYER_BINARY}
     ${MEDIA_PLAYER_SRCS}
+    ${MEDIA_PLAYER_INCS}
 )
 
+target_compile_definitions(${MEDIA_PLAYER_BINARY} PUBLIC APP_NAME="${MEDIA_PLAYER_BINARY}")
 set_property(TARGET ${MEDIA_PLAYER_BINARY} PROPERTY CXX_STANDARD 17)
 set_property(TARGET ${MEDIA_PLAYER_BINARY} PROPERTY C_STANDARD 11)
 target_link_libraries(
@@ -147,5 +182,6 @@ target_link_libraries(
     ${GSTREAMER_VIDEO_LIBRARY}
     ${GSTREAMER_PBUTILS_LIBRARY}
     ${GSTREAMER_GL_LIBRARY}
+    ${ICU_LIBRARIES}
     Threads::Threads
 )
