@@ -145,13 +145,6 @@ bool Application_Frame(void * handle)
 
         ImGui::SameLine(); ImGui::Dummy(size);
         ImGui::SameLine(); ImGui::Dummy(size);
-        // add speed -2 button
-        ImGui::SameLine();
-        if (ImGui::Button(ICON_SPEED_MINUS_2, size))
-        {
-            if (g_player.isPlaying()) g_player.setPlaySpeed(0.25);
-        }
-        ImGui::ShowTooltipOnHover("1/4 Speed Play");
         // add speed -1 button
         ImGui::SameLine();
         if (ImGui::Button(ICON_SPEED_MINUS_1, size))
@@ -173,13 +166,6 @@ bool Application_Frame(void * handle)
             if (g_player.isPlaying()) g_player.setPlaySpeed(2.0);
         }
         ImGui::ShowTooltipOnHover("2x Speed Play");
-        // add speed +2 button
-        ImGui::SameLine();
-        if (ImGui::Button(ICON_SPEED_PLUS_2, size))
-        {
-            if (g_player.isPlaying()) g_player.setPlaySpeed(4.0);
-        }
-        ImGui::ShowTooltipOnHover("4x Speed Play");
         // add software decode button
         ImGui::SameLine();
         if (ImGui::ToggleButton("SW", &force_software, size))
@@ -200,12 +186,14 @@ bool Application_Frame(void * handle)
         static int left_count = 0;
         static int right_stack = 0;
         static int right_count = 0;
-        //if (is)
-        //{
-        //    ImGui::UvMeter("##lhuvr", ImVec2(panel_size.x, 10), &is->audio_left_channel_level, 0, 96, 200, &left_stack, &left_count);
-        //    ImGui::UvMeter("##rhuvr", ImVec2(panel_size.x, 10), &is->audio_right_channel_level, 0, 96, 200, &right_stack, &right_count);
-        //}
-        //else
+        if (g_player.isOpen())
+        {
+            int l_level = g_player.audio_level(0);
+            int r_level = g_player.audio_level(1);
+            ImGui::UvMeter("##lhuvr", ImVec2(panel_size.x, 10), &l_level, 0, 96, 200, &left_stack, &left_count);
+            ImGui::UvMeter("##rhuvr", ImVec2(panel_size.x, 10), &r_level, 0, 96, 200, &right_stack, &right_count);
+        }
+        else
         {
             int zero_channel_level = 0;
             ImGui::UvMeter("##lhuvr", ImVec2(panel_size.x, 10), &zero_channel_level, 0, 96, 200);

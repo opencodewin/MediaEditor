@@ -14,6 +14,27 @@ using namespace std;
 
 std::list<MediaPlayer*> MediaPlayer::registered_;
 
+template<typename T>
+static int calculate_audio_db(const T* data, int channels, int channel_index, size_t length, const float max_level) 
+{
+    static const float kMaxSquaredLevel = max_level * max_level;
+    constexpr float kMinLevel = -96.f;
+    float sum_square_ = 0;
+    size_t sample_count_ = 0;
+    for (size_t i = 0; i < length; i += channels) 
+    {
+        T audio_data = data[i + channel_index];
+        sum_square_ += audio_data * audio_data;
+    }
+    sample_count_ += length / channels;
+    float rms = sum_square_ / (sample_count_ * kMaxSquaredLevel);
+    rms = 10 * log10(rms);
+    if (rms < kMinLevel)
+        rms = kMinLevel;
+    rms = -kMinLevel + rms;
+    return static_cast<int>(rms + 0.5);
+}
+
 MediaPlayer::MediaPlayer()
 {
     // create unique id
@@ -35,14 +56,20 @@ MediaPlayer::MediaPlayer()
     loop_ = LoopMode::LOOP_REWIND;
 
     // start index in frame_ stack
-    write_index_ = 0;
-    last_index_ = 0;
+    vwrite_index_ = 0;
+    vlast_index_ = 0;
+
+    awrite_index_ = 0;
+    alast_index_ = 0;
 
     // no PBO by default
     pbo_size_ = 0;
 
     // texture
     textureindex_ = 0;
+
+    // audio level
+    audio_channel_level.clear();
 }
 
 MediaPlayer::~MediaPlayer()
@@ -59,10 +86,16 @@ void MediaPlayer::accept(Visitor& v) {
 
 ImTextureID MediaPlayer::texture() const
 {
-    //if (textureindex_ == 0)
-    //    return Resource::getTextureBlack();
-
     return textureindex_;
+}
+
+guint MediaPlayer::audio_level(guint channel) const
+{
+    if (channel < audio_channel_level.size())
+    {
+        return audio_channel_level[channel];
+    }
+    return 0;
 }
 
 #define LIMIT_DISCOVERER
@@ -328,13 +361,18 @@ void MediaPlayer::execute_open()
     }
 
     // set app sink
-    description += "appsink name=sink";
+    description += "appsink name=video_appsink";
 
     // set audio convert and sink
     if (media_.audio_valid)
     {
         //description += " decoder. ! queue ! audioconvert ! tee name=t ! queue ! autoaudiosink t. ! queue ! appsink name=audio_sink";
-        description += " decoder. ! queue ! audioconvert ! autoaudiosink";
+        description += " decoder. ! queue ! audioconvert !";
+        description += " audio/x-raw,channels=" + std::to_string(media_.audio_channels) +
+                       ",format=F32LE,rate=" + std::to_string(media_.audio_sample_rate) + " ! ";
+        description += " tee name=t ! queue !";
+        description += " appsink name=audio_appsink";
+        description += " t. ! queue ! autoaudiosink name=audio_render";
     }
 
     // parse pipeline descriptor
@@ -346,6 +384,7 @@ void MediaPlayer::execute_open()
         failed_ = true;
         return;
     }
+
     // setup pipeline
     g_object_set(G_OBJECT(pipeline_), "name", std::to_string(id_).c_str(), NULL);
     gst_pipeline_set_auto_flush_bus( GST_PIPELINE(pipeline_), true);
@@ -366,22 +405,22 @@ void MediaPlayer::execute_open()
     }
 
     // setup appsink
-    GstElement *sink = gst_bin_get_by_name (GST_BIN (pipeline_), "sink");
-    if (!sink) {
-        Log::Warning("MediaPlayer %s Could not configure  sink", std::to_string(id_).c_str());
+    GstElement *video_appsink = gst_bin_get_by_name (GST_BIN (pipeline_), "video_appsink");
+    if (!video_appsink) {
+        Log::Warning("MediaPlayer %s Could not configure video_appsink", std::to_string(id_).c_str());
         failed_ = true;
         return;
     }
 
     // instruct the sink to send samples synched in time
-    gst_base_sink_set_sync (GST_BASE_SINK(sink), true);
+    gst_base_sink_set_sync (GST_BASE_SINK(video_appsink), true);
 
     // instruct sink to use the required caps
-    gst_app_sink_set_caps (GST_APP_SINK(sink), caps);
+    gst_app_sink_set_caps (GST_APP_SINK(video_appsink), caps);
 
     // Instruct appsink to drop old buffers when the maximum amount of queued buffers is reached.
-    gst_app_sink_set_max_buffers( GST_APP_SINK(sink), 5);
-    gst_app_sink_set_drop (GST_APP_SINK(sink), true);
+    gst_app_sink_set_max_buffers( GST_APP_SINK(video_appsink), 5);
+    gst_app_sink_set_drop (GST_APP_SINK(video_appsink), true);
 
 #ifdef USE_GST_APPSINK_CALLBACKS
     // set the callbacks
@@ -395,50 +434,50 @@ void MediaPlayer::execute_open()
         callbacks.eos = video_callback_end_of_stream;
         callbacks.new_sample = video_callback_new_sample;
     }
-    gst_app_sink_set_callbacks (GST_APP_SINK(sink), &callbacks, this, NULL);
-    gst_app_sink_set_emit_signals (GST_APP_SINK(sink), false);
+    gst_app_sink_set_callbacks (GST_APP_SINK(video_appsink), &callbacks, this, NULL);
+    gst_app_sink_set_emit_signals (GST_APP_SINK(video_appsink), false);
 #else
     // connect video signals callbacks
-    g_signal_connect(G_OBJECT(sink), "new-preroll", G_CALLBACK (video_callback_new_preroll), this);
+    g_signal_connect(G_OBJECT(video_appsink), "new-preroll", G_CALLBACK (video_callback_new_preroll), this);
     if (!media_.isimage) {
-        g_signal_connect(G_OBJECT(sink), "new-sample", G_CALLBACK (video_callback_new_sample), this);
-        g_signal_connect(G_OBJECT(sink), "eos", G_CALLBACK (video_callback_end_of_stream), this);
+        g_signal_connect(G_OBJECT(video_appsink), "new-sample", G_CALLBACK (video_callback_new_sample), this);
+        g_signal_connect(G_OBJECT(video_appsink), "eos", G_CALLBACK (video_callback_end_of_stream), this);
     }
-    gst_app_sink_set_emit_signals (GST_APP_SINK(sink), true);
+    gst_app_sink_set_emit_signals (GST_APP_SINK(video_appsink), true);
 #endif
 
     // done with ref to sink
-    gst_object_unref (sink);
+    gst_object_unref (video_appsink);
     gst_caps_unref (caps);
-/*
+
     if (media_.audio_valid)
     {
-        string audio_capstring = "audio/x-raw-float,channels="+ std::to_string(media_.audio_channels) +
-            ",rate=" + std::to_string(media_.audio_sample_rate) +",depth=" + std::to_string(media_.audio_depth);
-        GstCaps *caps_audio = gst_caps_from_string(audio_capstring.c_str());
-        if (!gst_audio_info_from_caps (&v_frame_audio_info_, caps_audio)) {
-            Log::Warning("MediaPlayer %s Could not configure audio frame info", std::to_string(id_).c_str());
+       gst_audio_info_set_format(&v_frame_audio_info_, GST_AUDIO_FORMAT_F32LE, media_.audio_sample_rate, media_.audio_channels, nullptr);
+       GstCaps *caps_audio = gst_audio_info_to_caps(&v_frame_audio_info_);
+       if (!caps_audio)
+       {
+           Log::Warning("MediaPlayer %s Could not configure audio frame info", std::to_string(id_).c_str());
             failed_ = true;
             return;
-        }
+       }
 
-        // setup audio sink
-        GstElement *audio_sink = gst_bin_get_by_name (GST_BIN (pipeline_), "audio_sink");
-        if (!audio_sink) {
-            Log::Warning("MediaPlayer %s Could not configure audio_sink", std::to_string(id_).c_str());
+        // setup audio app sink
+        GstElement *audio_appsink = gst_bin_get_by_name (GST_BIN (pipeline_), "audio_appsink");
+        if (!audio_appsink) {
+            Log::Warning("MediaPlayer %s Could not get audio_appsink", std::to_string(id_).c_str());
             failed_ = true;
             return;
         }
         
         // instruct the sink to send samples synched in time
-        //gst_base_sink_set_sync (GST_BASE_SINK(audio_sink), true);
+        gst_base_sink_set_sync (GST_BASE_SINK(audio_appsink), true);
 
         // instruct sink to use the required caps
-        //gst_app_sink_set_caps (GST_APP_SINK(audio_sink), caps_audio);
+        gst_app_sink_set_caps (GST_APP_SINK(audio_appsink), caps_audio);
 
         // Instruct appsink to drop old buffers when the maximum amount of queued buffers is reached.
-        gst_app_sink_set_max_buffers( GST_APP_SINK(audio_sink), 5);
-        gst_app_sink_set_drop (GST_APP_SINK(audio_sink), true);
+        gst_app_sink_set_max_buffers( GST_APP_SINK(audio_appsink), 5);
+        gst_app_sink_set_drop (GST_APP_SINK(audio_appsink), true);
 
 #ifdef USE_GST_APPSINK_CALLBACKS
     // set the callbacks
@@ -446,23 +485,38 @@ void MediaPlayer::execute_open()
         callbacks.new_preroll = audio_callback_new_preroll;
         callbacks.eos = audio_callback_end_of_stream;
         callbacks.new_sample = audio_callback_new_sample;
-        gst_app_sink_set_callbacks (GST_APP_SINK(audio_sink), &callbacks, this, NULL);
-        gst_app_sink_set_emit_signals (GST_APP_SINK(audio_sink), false);
+        gst_app_sink_set_callbacks (GST_APP_SINK(audio_appsink), &callbacks, this, NULL);
+        gst_app_sink_set_emit_signals (GST_APP_SINK(audio_appsink), false);
 #else
         // connect video signals callbacks
-        g_signal_connect(G_OBJECT(audio_sink), "new-preroll", G_CALLBACK (audio_callback_new_preroll), this);
-        g_signal_connect(G_OBJECT(audio_sink), "new-sample", G_CALLBACK (audio_callback_new_sample), this);
-        g_signal_connect(G_OBJECT(audio_sink), "eos", G_CALLBACK (audio_callback_end_of_stream), this);
-        gst_app_sink_set_emit_signals (GST_APP_SINK(audio_sink), true);
+        g_signal_connect(G_OBJECT(audio_appsink), "new-preroll", G_CALLBACK (audio_callback_new_preroll), this);
+        g_signal_connect(G_OBJECT(audio_appsink), "new-sample", G_CALLBACK (audio_callback_new_sample), this);
+        g_signal_connect(G_OBJECT(audio_appsink), "eos", G_CALLBACK (audio_callback_end_of_stream), this);
+        gst_app_sink_set_emit_signals (GST_APP_SINK(audio_appsink), true);
 #endif
+        // done with ref to audio appsink
+        gst_object_unref(audio_appsink);
 
-        // done with ref to audio sink
-        gst_object_unref(audio_sink);
+        // setup audio render
+        /*
+        GstElement *audio_render = gst_bin_get_by_name (GST_BIN (pipeline_), "audio_render");
+        if (!audio_render) {
+            Log::Warning("MediaPlayer %s Could not get audio_render", std::to_string(id_).c_str());
+            failed_ = true;
+            return;
+        }
+
+        // done with ref to audio appsink
+        gst_object_unref(audio_render);
+        */
 
         // done with ref to audio caps
         gst_caps_unref(caps_audio);
+
+        // init audio channel level
+        audio_channel_level.resize(media_.audio_channels);
     }
-*/
+
     // set to desired state (PLAY or PAUSE)
     GstStateChangeReturn ret = gst_element_set_state (pipeline_, desired_state_);
     if (ret == GST_STATE_CHANGE_FAILURE) {
@@ -501,10 +555,17 @@ bool MediaPlayer::failed() const
     return failed_;
 }
 
-void MediaPlayer::Frame::unmap()
+void MediaPlayer::VFrame::unmap()
 {
     if ( full )
-        gst_video_frame_unmap(&vframe);
+        gst_video_frame_unmap(&frame);
+    full = false;
+}
+
+void MediaPlayer::AFrame::unmap()
+{
+    if ( full )
+        gst_audio_buffer_unmap(&frame);
     full = false;
 }
 
@@ -539,15 +600,23 @@ void MediaPlayer::close()
         pipeline_ = nullptr;
     }
 
-    // cleanup eventual remaining frame memory
+    // cleanup eventual remaining video frame memory
     for(guint i = 0; i < N_VFRAME; i++) {
-        frame_[i].access.lock();
-        frame_[i].unmap();
-        frame_[i].access.unlock();
+        vframe_[i].access.lock();
+        vframe_[i].unmap();
+        vframe_[i].access.unlock();
     }
-    write_index_ = 0;
-    last_index_ = 0;
+    vwrite_index_ = 0;
+    vlast_index_ = 0;
 
+    // cleanup eventual remaining audio frame memory
+    for(guint i = 0; i < N_AFRAME; i++) {
+        aframe_[i].access.lock();
+        aframe_[i].unmap();
+        aframe_[i].access.unlock();
+    }
+    awrite_index_ = 0;
+    alast_index_ = 0;
 
 #ifdef MEDIA_PLAYER_DEBUG
     Log::Info("MediaPlayer %s closed", std::to_string(id_).c_str());
@@ -842,10 +911,19 @@ void MediaPlayer::init_texture(guint index)
     }
 }
 
-
 void MediaPlayer::fill_texture(guint index)
 {
-    ImGui::ImGenerateOrUpdateTexture(textureindex_, media_.width, media_.height, 4, (const unsigned char *)frame_[index].vframe.data[0]);
+    ImGui::ImGenerateOrUpdateTexture(textureindex_, media_.width, media_.height, 4, (const unsigned char *)vframe_[index].frame.data[0]);
+}
+
+void MediaPlayer::fill_audio(guint index)
+{
+    // deal with the frame at reading index
+    auto data = aframe_[index].frame.planes[0];
+    for (int i = 0; i < v_frame_audio_info_.channels; i++)
+    {
+        audio_channel_level[i] = calculate_audio_db<float>((const float *)data, v_frame_audio_info_.channels, i, aframe_[index].frame.n_samples, 1.0);
+    }
 }
 
 void MediaPlayer::update()
@@ -881,14 +959,15 @@ void MediaPlayer::update()
     if (!enabled_ || (media_.isimage && textureindex_ ) )
         return;
 
+    // video update
     // local variables before trying to update
-    guint read_index = 0;
+    guint v_read_index = 0;
     bool need_loop = false;
 
     // locked access to current index
-    index_lock_.lock();
-    // get the last frame filled from fill_frame()
-    read_index = last_index_;
+    vindex_lock_.lock();
+    // get the last frame filled from fill_video_frame()
+    v_read_index = vlast_index_;
 //    // Do NOT miss and jump directly (after seek) to a pre-roll
 //    for (guint i = 0; i < N_VFRAME; ++i) {
 //        if (frame_[i].status == PREROLL) {
@@ -897,43 +976,98 @@ void MediaPlayer::update()
 //        }
 //    }
     // unlock access to index change
-    index_lock_.unlock();
+    vindex_lock_.unlock();
 
     // lock frame while reading it
-    frame_[read_index].access.lock();
+    vframe_[v_read_index].access.lock();
 
     // do not fill a frame twice
-    if (frame_[read_index].status != INVALID ) {
+    if (vframe_[v_read_index].status != INVALID ) {
 
         // is this an End-of-Stream frame ?
-        if (frame_[read_index].status == EOS )
+        if (vframe_[v_read_index].status == EOS )
         {
             // will execute seek command below (after unlock)
             need_loop = true;
         }
         // otherwise just fill non-empty SAMPLE or PREROLL
-        else if (frame_[read_index].full)
+        else if (vframe_[v_read_index].full)
         {
             // fill the texture with the frame at reading index
-            fill_texture(read_index);
+            fill_texture(v_read_index);
 
             // double update for pre-roll frame and dual PBO (ensure frame is displayed now)
-            if ( (frame_[read_index].status == PREROLL || seeking_ ) && pbo_size_ > 0)
-                fill_texture(read_index);
+            if ( (vframe_[v_read_index].status == PREROLL || seeking_ ) && pbo_size_ > 0)
+                fill_texture(v_read_index);
 
             // free frame
-            frame_[read_index].unmap();
+            vframe_[v_read_index].unmap();
         }
 
         // we just displayed a vframe : set position time to frame PTS
-        position_ = frame_[read_index].position;
+        position_ = vframe_[v_read_index].position;
 
         // avoid reading it again
-        frame_[read_index].status = INVALID;
+        vframe_[v_read_index].status = INVALID;
     }
 
-    // unkock frame after reading it
-    frame_[read_index].access.unlock();
+    // unlock frame after reading it
+    vframe_[v_read_index].access.unlock();
+
+    // audio update
+    // local variables before trying to update
+    guint a_read_index = 0;
+
+    // locked access to current index
+    aindex_lock_.lock();
+    // get the last frame filled from fill_audio_frame()
+    a_read_index = alast_index_;
+//    // Do NOT miss and jump directly (after seek) to a pre-roll
+//    for (guint i = 0; i < N_AFRAME; ++i) {
+//        if (frame_[i].status == PREROLL) {
+//            read_index = i;
+//            break;
+//        }
+//    }
+    // unlock access to index change
+    aindex_lock_.unlock();
+
+    // lock frame while reading it
+    aframe_[a_read_index].access.lock();
+
+    // do not fill a frame twice
+    if (aframe_[a_read_index].status != INVALID ) {
+
+        // is this an End-of-Stream frame ?
+        if (aframe_[a_read_index].status == EOS )
+        {
+            // will execute seek command below (after unlock)
+            need_loop = true;
+        }
+        // otherwise just fill non-empty SAMPLE or PREROLL
+        else if (aframe_[a_read_index].full)
+        {
+            fill_audio(a_read_index);
+
+            // double update for pre-roll frame and dual PBO (ensure frame is displayed now)
+            if ( (aframe_[a_read_index].status == PREROLL || seeking_ ) && pbo_size_ > 0)
+            {
+                fill_audio(a_read_index);
+            }
+
+            // free frame
+            aframe_[a_read_index].unmap();
+        }
+
+        // do we set position time to frame PTS ?
+        position_ = aframe_[a_read_index].position;
+
+        // avoid reading it again
+        aframe_[a_read_index].status = INVALID;
+    }
+
+    // unlock frame after reading it
+    aframe_[a_read_index].access.unlock();
 
     // if already seeking (asynch)
     if (seeking_) {
@@ -1035,7 +1169,6 @@ void MediaPlayer::execute_seek_command(GstClockTime target)
         Log::Info("MediaPlayer %s Seek %ld %.1f", std::to_string(id_).c_str(), seek_pos, rate_);
 #endif
     }
-
 }
 
 void MediaPlayer::setPlaySpeed(double s)
@@ -1073,11 +1206,6 @@ void MediaPlayer::setTimeline(const Timeline &tl)
     timeline_ = tl;
 }
 
-//void MediaPlayer::toggleGapInTimeline(GstClockTime from, GstClockTime to)
-//{
-//    return timeline.toggleGaps(from, to);
-//}
-
 MediaInfo MediaPlayer::media() const
 {
     return media_;
@@ -1106,44 +1234,43 @@ double MediaPlayer::updateFrameRate() const
 
 // CALLBACKS
 
-bool MediaPlayer::fill_frame(GstBuffer *buf, FrameStatus status)
+bool MediaPlayer::fill_video_frame(GstBuffer *buf, FrameStatus status)
 {
     // Do NOT overwrite an unread EOS
-    if ( frame_[write_index_].status == EOS )
-        write_index_ = (write_index_ + 1) % N_VFRAME;
+    if ( vframe_[vwrite_index_].status == EOS )
+        vwrite_index_ = (vwrite_index_ + 1) % N_VFRAME;
 
     // lock access to frame
-    frame_[write_index_].access.lock();
+    vframe_[vwrite_index_].access.lock();
 
     // always empty frame before filling it again
-    frame_[write_index_].unmap();
+    vframe_[vwrite_index_].unmap();
 
     // accept status of frame received
-    frame_[write_index_].status = status;
+    vframe_[vwrite_index_].status = status;
 
     // a buffer is given (not EOS)
     if (buf != NULL) {
-
         // get the frame from buffer
-        if ( !gst_video_frame_map (&frame_[write_index_].vframe, &v_frame_video_info_, buf, GST_MAP_READ ) )
+        if ( !gst_video_frame_map (&vframe_[vwrite_index_].frame, &v_frame_video_info_, buf, GST_MAP_READ ) )
         {
 #ifdef MEDIA_PLAYER_DEBUG
             Log::Info("MediaPlayer %s Failed to map the video buffer", std::to_string(id_).c_str());
 #endif
             // free access to frame & exit
-            frame_[write_index_].status = INVALID;
-            frame_[write_index_].access.unlock();
+            vframe_[vwrite_index_].status = INVALID;
+            vframe_[vwrite_index_].access.unlock();
             return false;
         }
 
         // successfully filled the frame
-        frame_[write_index_].full = true;
+        vframe_[vwrite_index_].full = true;
 
         // validate frame format
-        if( GST_VIDEO_INFO_IS_RGB(&(frame_[write_index_].vframe).info) && GST_VIDEO_INFO_N_PLANES(&(frame_[write_index_].vframe).info) == 1)
+        if( GST_VIDEO_INFO_IS_RGB(&(vframe_[vwrite_index_].frame).info) && GST_VIDEO_INFO_N_PLANES(&(vframe_[vwrite_index_].frame).info) == 1)
         {
             // set presentation time stamp
-            frame_[write_index_].position = buf->pts;
+            vframe_[vwrite_index_].position = buf->pts;
 
             // set the start position (i.e. pts of first frame we got)
             if (timeline_.first() == GST_CLOCK_TIME_NONE) {
@@ -1154,32 +1281,32 @@ bool MediaPlayer::fill_frame(GstBuffer *buf, FrameStatus status)
         // (should never happen)
         else {
 #ifdef MEDIA_PLAYER_DEBUG
-            Log::Info("MediaPlayer %s Received an Invalid frame", std::to_string(id_).c_str());
+            Log::Info("MediaPlayer %s Received an Invalid video frame", std::to_string(id_).c_str());
 #endif
             // free access to frame & exit
-            frame_[write_index_].status = INVALID;
-            frame_[write_index_].access.unlock();
+            vframe_[vwrite_index_].status = INVALID;
+            vframe_[vwrite_index_].access.unlock();
             return false;
         }
     }
     // else; null buffer for EOS: give a position
     else {
-        frame_[write_index_].status = EOS;
-        frame_[write_index_].position = rate_ > 0.0 ? timeline_.end() : timeline_.begin();
+        vframe_[vwrite_index_].status = EOS;
+        vframe_[vwrite_index_].position = rate_ > 0.0 ? timeline_.end() : timeline_.begin();
     }
 
     // unlock access to frame
-    frame_[write_index_].access.unlock();
+    vframe_[vwrite_index_].access.unlock();
 
     // lock access to change current index (very quick)
-    index_lock_.lock();
+    vindex_lock_.lock();
     // indicate update() that this is the last frame filled (and unlocked)
-    last_index_ = write_index_;
+    vlast_index_ = vwrite_index_;
     // unlock access to index change
-    index_lock_.unlock();
+    vindex_lock_.unlock();
 
     // for writing, we will access the next in stack
-    write_index_ = (write_index_ + 1) % N_VFRAME;
+    vwrite_index_ = (vwrite_index_ + 1) % N_VFRAME;
 
     // calculate actual FPS of update
     timecount_.tic();
@@ -1191,7 +1318,7 @@ void MediaPlayer::video_callback_end_of_stream (GstAppSink *, gpointer p)
 {
     MediaPlayer *m = static_cast<MediaPlayer *>(p);
     if (m && m->opened_) {
-        m->fill_frame(NULL, MediaPlayer::EOS);
+        m->fill_video_frame(NULL, MediaPlayer::EOS);
     }
 }
 
@@ -1213,11 +1340,11 @@ GstFlowReturn MediaPlayer::video_callback_new_preroll (GstAppSink *sink, gpointe
             GstBuffer *buf = gst_sample_get_buffer (sample);
 
             // fill frame from buffer
-            if ( !m->fill_frame(buf, MediaPlayer::PREROLL) )
+            if ( !m->fill_video_frame(buf, MediaPlayer::PREROLL) )
                 ret = GST_FLOW_ERROR;
             // loop negative rate: emulate an EOS
             else if (m->playSpeed() < 0.f && !(buf->pts > 0) ) {
-                m->fill_frame(NULL, MediaPlayer::EOS);
+                m->fill_video_frame(NULL, MediaPlayer::EOS);
             }
         }
     }
@@ -1248,11 +1375,11 @@ GstFlowReturn MediaPlayer::video_callback_new_sample (GstAppSink *sink, gpointer
             GstBuffer *buf = gst_sample_get_buffer (sample) ;
 
             // fill frame with buffer
-            if ( !m->fill_frame(buf, MediaPlayer::SAMPLE) )
+            if ( !m->fill_video_frame(buf, MediaPlayer::SAMPLE) )
                 ret = GST_FLOW_ERROR;
             // loop negative rate: emulate an EOS
             else if (m->playSpeed() < 0.f && !(buf->pts > 0) ) {
-                m->fill_frame(NULL, MediaPlayer::EOS);
+                m->fill_video_frame(NULL, MediaPlayer::EOS);
             }
         }
     }
@@ -1265,8 +1392,80 @@ GstFlowReturn MediaPlayer::video_callback_new_sample (GstAppSink *sink, gpointer
     return ret;
 }
 
-bool MediaPlayer::fill_audio(GstBuffer *buf, FrameStatus status)
+bool MediaPlayer::fill_audio_frame(GstBuffer *buf, FrameStatus status)
 {
+    // Do NOT overwrite an unread EOS
+    if ( aframe_[awrite_index_].status == EOS )
+        awrite_index_ = (awrite_index_ + 1) % N_AFRAME;
+
+    // lock access to frame
+    aframe_[awrite_index_].access.lock();
+
+    // always empty frame before filling it again
+    aframe_[awrite_index_].unmap();
+
+    // accept status of frame received
+    aframe_[awrite_index_].status = status;
+
+    // a buffer is given (not EOS)
+    if (buf != NULL) {
+        // get the frame from buffer
+        if ( !gst_audio_buffer_map (&aframe_[awrite_index_].frame, &v_frame_audio_info_, buf, GST_MAP_READ ) )
+        {
+#ifdef MEDIA_PLAYER_DEBUG
+            Log::Info("MediaPlayer %s Failed to map the audio buffer", std::to_string(id_).c_str());
+#endif
+            // free access to frame & exit
+            aframe_[awrite_index_].status = INVALID;
+            aframe_[awrite_index_].access.unlock();
+            return false;
+        }
+
+        // successfully filled the frame
+        aframe_[awrite_index_].full = true;
+
+        // validate frame format
+        if( GST_AUDIO_INFO_IS_FLOAT(&(aframe_[awrite_index_].frame).info) && GST_AUDIO_BUFFER_N_PLANES(&aframe_[awrite_index_].frame) == 1)
+        {
+            // set presentation time stamp
+            aframe_[awrite_index_].position = buf->pts;
+
+            // set the start position (i.e. pts of first frame we got)
+            if (timeline_.first() == GST_CLOCK_TIME_NONE) {
+                timeline_.setFirst(buf->pts);
+            }
+        }
+        // full but invalid frame : will be deleted next iteration
+        // (should never happen)
+        else {
+#ifdef MEDIA_PLAYER_DEBUG
+            Log::Info("MediaPlayer %s Received an Invalid audio frame", std::to_string(id_).c_str());
+#endif
+            // free access to frame & exit
+            aframe_[awrite_index_].status = INVALID;
+            aframe_[awrite_index_].access.unlock();
+            return false;
+        }
+    }
+    // else; null buffer for EOS: give a position
+    else {
+        aframe_[awrite_index_].status = EOS;
+        aframe_[awrite_index_].position = rate_ > 0.0 ? timeline_.end() : timeline_.begin();
+    }
+
+    // unlock access to frame
+    aframe_[awrite_index_].access.unlock();
+
+    // lock access to change current index (very quick)
+    aindex_lock_.lock();
+    // indicate update() that this is the last frame filled (and unlocked)
+    alast_index_ = awrite_index_;
+    // unlock access to index change
+    aindex_lock_.unlock();
+
+    // for writing, we will access the next in stack
+    awrite_index_ = (awrite_index_ + 1) % N_AFRAME;
+
     return true;
 }
 
@@ -1274,7 +1473,7 @@ void MediaPlayer::audio_callback_end_of_stream (GstAppSink *, gpointer p)
 {
     MediaPlayer *m = static_cast<MediaPlayer *>(p);
     if (m && m->opened_) {
-        m->fill_audio(NULL, MediaPlayer::EOS);
+        m->fill_audio_frame(NULL, MediaPlayer::EOS);
     }
 }
 
@@ -1293,11 +1492,11 @@ GstFlowReturn MediaPlayer::audio_callback_new_preroll (GstAppSink *sink, gpointe
             // get buffer from sample
             GstBuffer *buf = gst_sample_get_buffer (sample);
             // fill audio from buffer
-            if ( !m->fill_audio(buf, MediaPlayer::PREROLL) )
+            if ( !m->fill_audio_frame(buf, MediaPlayer::PREROLL) )
                 ret = GST_FLOW_ERROR;
             // loop negative rate: emulate an EOS
             else if (m->playSpeed() < 0.f && !(buf->pts > 0) ) {
-                m->fill_audio(NULL, MediaPlayer::EOS);
+                m->fill_audio_frame(NULL, MediaPlayer::EOS);
             }
         }
     }
@@ -1324,11 +1523,11 @@ GstFlowReturn MediaPlayer::audio_callback_new_sample (GstAppSink *sink, gpointer
             // get buffer from sample (valid until sample is released)
             GstBuffer *buf = gst_sample_get_buffer (sample) ;
             // fill audio with buffer
-            if ( !m->fill_audio(buf, MediaPlayer::SAMPLE) )
+            if ( !m->fill_audio_frame(buf, MediaPlayer::SAMPLE) )
                 ret = GST_FLOW_ERROR;
             // loop negative rate: emulate an EOS
             else if (m->playSpeed() < 0.f && !(buf->pts > 0) ) {
-                m->fill_audio(NULL, MediaPlayer::EOS);
+                m->fill_audio_frame(NULL, MediaPlayer::EOS);
             }
         }
     }

@@ -22,6 +22,7 @@
 #define MAX_PLAY_SPEED 20.0
 #define MIN_PLAY_SPEED 0.1
 #define N_VFRAME 5
+#define N_AFRAME 20
 
 struct MediaInfo
 {
@@ -281,6 +282,10 @@ public:
      */
     guint audio_depth() const;
     /**
+     * Get audio channel levels
+     */
+    guint audio_level(guint channel) const;
+    /**
      * Get the name of the decoder used,
      * return 'software' if no hardware decoder is used
      * NB: perform request on pipeline on first call
@@ -315,11 +320,15 @@ public:
 
 private:
 
-    // video player description
+    // player description
     uint64_t id_;
     std::string filename_;
     std::string uri_;
+
+    // video output
     ImTextureID textureindex_;
+    // audio output
+    std::vector<int> audio_channel_level;
 
     // general properties of media
     MediaInfo media_;
@@ -362,24 +371,47 @@ private:
         INVALID = 3
     } FrameStatus;
 
-    struct Frame {
-        GstVideoFrame vframe;
+    struct VFrame {
+        GstVideoFrame frame;
         FrameStatus status;
         bool full;
         GstClockTime position;
         std::mutex access;
 
-        Frame() {
+        VFrame() {
             full = false;
             status = INVALID;
             position = GST_CLOCK_TIME_NONE;
         }
         void unmap();
     };
-    Frame frame_[N_VFRAME];
-    guint write_index_;
-    guint last_index_;
-    std::mutex index_lock_;
+
+     struct AFrame {
+        GstAudioBuffer frame;
+        FrameStatus status;
+        bool full;
+        GstClockTime position;
+        std::mutex access;
+
+        AFrame() {
+            full = false;
+            status = INVALID;
+            position = GST_CLOCK_TIME_NONE;
+        }
+        void unmap();
+    };
+
+    // for video frame
+    VFrame vframe_[N_VFRAME];
+    guint vwrite_index_;
+    guint vlast_index_;
+    std::mutex vindex_lock_;
+
+    // for audio frame
+    AFrame aframe_[N_AFRAME];
+    guint awrite_index_;
+    guint alast_index_;
+    std::mutex aindex_lock_;
 
     // for PBO
     guint pbo_index_, pbo_next_index_;
@@ -393,8 +425,9 @@ private:
     // gst frame filling
     void init_texture(guint index);
     void fill_texture(guint index);
-    bool fill_frame(GstBuffer *buf, FrameStatus status);
-    bool fill_audio(GstBuffer *buf, FrameStatus status);
+    void fill_audio(guint index);
+    bool fill_video_frame(GstBuffer *buf, FrameStatus status);
+    bool fill_audio_frame(GstBuffer *buf, FrameStatus status);
 
     // gst video callbacks
     static void video_callback_end_of_stream (GstAppSink *, gpointer);
