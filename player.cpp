@@ -8,21 +8,21 @@
 #include <iostream>
 #include <sstream>
 #include <fstream>
+#if IMGUI_VULKAN_SHADER
+#include <ImVulkanShader.h>
+#endif
 #include "MediaPlayer.h"
 #include "Log.h"
 
 #define ICON_STEP_NEXT      "\uf051"
-#define ICON_SPEED_MINUS_2  "\ue3cc"
-#define ICON_SPEED_MINUS_1  "\ue3cb"
-#define ICON_SPEED_ZERO     "\ue3cf"
-#define ICON_SPEED_PLUS_1   "\ue3cd"
-#define ICON_SPEED_PLUS_2   "\ue3ce"
 
 static std::string ini_file = "Media_Player.ini";
 static std::string bookmark_path = "bookmark.ini";
-static bool show_log_window = false; 
+static ImTextureID g_texture = 0;
 MediaPlayer g_player;
-
+#if IMGUI_VULKAN_SHADER
+ImGui::ColorConvert_vulkan * m_yuv2rgb {nullptr};
+#endif
 // Application Framework Functions
 void Application_GetWindowProperties(ApplicationWindowProperty& property)
 {
@@ -50,10 +50,17 @@ void Application_Initialize(void** handle)
 	}
 #endif
     gst_init(nullptr, nullptr);
+    m_yuv2rgb = new ImGui::ColorConvert_vulkan(ImGui::get_default_gpu_index());
 }
 
 void Application_Finalize(void** handle)
 {
+#if IMGUI_VULKAN_SHADER
+    if (m_yuv2rgb) { delete m_yuv2rgb; m_yuv2rgb = nullptr; }
+#endif
+#ifndef VIDEO_FORMAT_RGBA
+    if (g_texture) { ImGui::ImDestroyTexture(g_texture); g_texture = nullptr; }
+#endif
     if (g_player.isOpen())
         g_player.close();
     gst_deinit();
@@ -70,7 +77,9 @@ void Application_Finalize(void** handle)
 
 bool Application_Frame(void * handle)
 {
+    static bool show_log_window = false; 
     static bool force_software = false;
+    static float play_speed = 1.0f;
     bool done = false;
     auto& io = ImGui::GetIO();
     g_player.update();
@@ -132,7 +141,7 @@ bool Application_Frame(void * handle)
         ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
         if (ImGui::BeginPopupModal("##about", NULL, ImGuiWindowFlags_AlwaysAutoResize))
         {
-            ImGui::Text("ImGUI Media Player");
+            ImGui::Text("ImGUI Media Player(GStreamer)");
             ImGui::Separator();
             ImGui::Text("Dicky 2021");
             ImGui::Separator();
@@ -145,27 +154,13 @@ bool Application_Frame(void * handle)
 
         ImGui::SameLine(); ImGui::Dummy(size);
         ImGui::SameLine(); ImGui::Dummy(size);
-        // add speed -1 button
         ImGui::SameLine();
-        if (ImGui::Button(ICON_SPEED_MINUS_1, size))
+        ImGui::PushItemWidth(100);
+        if (ImGui::SliderFloat("Speed", &play_speed, -2.f, 2.f, "%.1f", ImGuiSliderFlags_NoInput))
         {
-            if (g_player.isPlaying()) g_player.setPlaySpeed(0.5);
+            if (g_player.isPlaying()) g_player.setPlaySpeed(play_speed);
         }
-        ImGui::ShowTooltipOnHover("1/2 Speed Play");
-        // add speed normal button
-        ImGui::SameLine();
-        if (ImGui::Button(ICON_SPEED_ZERO, size))
-        {
-            if (g_player.isPlaying()) g_player.setPlaySpeed(1.0);
-        }
-        ImGui::ShowTooltipOnHover("Normal Speed Play");
-        // add speed +1 button
-        ImGui::SameLine();
-        if (ImGui::Button(ICON_SPEED_PLUS_1, size))
-        {
-            if (g_player.isPlaying()) g_player.setPlaySpeed(2.0);
-        }
-        ImGui::ShowTooltipOnHover("2x Speed Play");
+        ImGui::PopItemWidth();
         // add software decode button
         ImGui::SameLine();
         if (ImGui::ToggleButton("SW", &force_software, size))
@@ -295,6 +290,9 @@ bool Application_Frame(void * handle)
 	{
         if (ImGuiFileDialog::Instance()->IsOk())
 		{
+#ifndef VIDEO_FORMAT_RGBA
+            if (g_texture) { ImGui::ImDestroyTexture(g_texture); g_texture = nullptr; }
+#endif
             std::string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
             g_player.open(filePathName);
             g_player.play(true);
@@ -309,10 +307,25 @@ bool Application_Frame(void * handle)
     }
 
     // Video Texture Render
-    if (g_player.texture())
+#ifdef VIDEO_FORMAT_RGBA
+    g_texture = g_player.texture();
+#else
+    ImGui::ImMat vmat = g_player.videoMat();
+    if (!vmat.empty())
+    {
+#if IMGUI_VULKAN_SHADER
+        int video_depth = vmat.type == IM_DT_INT8 ? 8 : vmat.type == IM_DT_INT16 ? 16 : 8;
+        int video_shift = vmat.depth != 0 ? vmat.depth : vmat.type == IM_DT_INT8 ? 8 : vmat.type == IM_DT_INT16 ? 16 : 8;
+        ImGui::ImMat im_RGB; im_RGB.type = IM_DT_INT8;
+        m_yuv2rgb->YUV2RGBA(vmat, im_RGB, vmat.color_format, vmat.color_space, vmat.color_range, video_depth, video_shift);
+        ImGui::ImGenerateOrUpdateTexture(g_texture, im_RGB.w, im_RGB.h, 4, (const unsigned char *)im_RGB.data);
+#endif
+    }
+#endif
+    if (g_texture)
     {
         ImGui::GetBackgroundDrawList ()->AddImage (
-            (void *)g_player.texture(),
+            (void *)g_texture,
             ImVec2 (0, 0),
             io.DisplaySize,
             ImVec2 (0, 0),

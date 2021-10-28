@@ -13,11 +13,13 @@
 #include <gst/app/gstappsink.h>
 
 #include <imgui_helper.h>
+#include <imgui_mat.h>
 
 #include "Timeline.h"
 
-// Forward declare classes referenced
-//class Visitor;
+//#define LIMIT_DISCOVERER
+//#define VIDEO_FORMAT_RGBA
+#define MEDIA_PLAYER_DEBUG
 
 #define MAX_PLAY_SPEED 20.0
 #define MIN_PLAY_SPEED 0.1
@@ -265,10 +267,14 @@ public:
      * NB: can be different than width() / height()
      * */
     float aspectRatio() const;
+#ifdef VIDEO_FORMAT_RGBA
     /**
      * Get the Frame texture
      * */
     ImTextureID texture() const;
+#else
+    ImGui::ImMat videoMat() const;
+#endif
     /**
      * Get audio sample rate
      */
@@ -285,6 +291,9 @@ public:
      * Get audio channel levels
      */
     guint audio_level(guint channel) const;
+#ifndef VIDEO_FORMAT_RGBA
+    ImGui::ImMat audioMat() const;
+#endif
     /**
      * Get the name of the decoder used,
      * return 'software' if no hardware decoder is used
@@ -326,10 +335,16 @@ private:
     std::string uri_;
 
     // video output
+#ifdef VIDEO_FORMAT_RGBA
     ImTextureID textureindex_;
+#else
+    ImGui::ImMat VMat;
+#endif
     // audio output
     std::vector<int> audio_channel_level;
-
+#ifndef VIDEO_FORMAT_RGBA
+    ImGui::ImMat AMat;
+#endif
     // general properties of media
     MediaInfo media_;
     Timeline timeline_;
@@ -413,18 +428,13 @@ private:
     guint alast_index_;
     std::mutex aindex_lock_;
 
-    // for PBO
-    guint pbo_index_, pbo_next_index_;
-    guint pbo_size_;
-
     // gst pipeline control
     void execute_open();
     void execute_loop_command();
     void execute_seek_command(GstClockTime target = GST_CLOCK_TIME_NONE);
 
     // gst frame filling
-    void init_texture(guint index);
-    void fill_texture(guint index);
+    void fill_video(guint index);
     void fill_audio(guint index);
     bool fill_video_frame(GstBuffer *buf, FrameStatus status);
     bool fill_audio_frame(GstBuffer *buf, FrameStatus status);

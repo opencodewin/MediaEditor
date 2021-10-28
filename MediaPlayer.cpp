@@ -10,8 +10,6 @@ using namespace std;
 #include "GstToolkit.h"
 #include "MediaPlayer.h"
 
-#define MEDIA_PLAYER_DEBUG
-
 std::list<MediaPlayer*> MediaPlayer::registered_;
 
 template<typename T>
@@ -62,11 +60,10 @@ MediaPlayer::MediaPlayer()
     awrite_index_ = 0;
     alast_index_ = 0;
 
-    // no PBO by default
-    pbo_size_ = 0;
-
     // texture
+#ifdef VIDEO_FORMAT_RGBA
     textureindex_ = 0;
+#endif
 
     // audio level
     audio_channel_level.clear();
@@ -75,19 +72,22 @@ MediaPlayer::MediaPlayer()
 MediaPlayer::~MediaPlayer()
 {
     close();
+#ifdef VIDEO_FORMAT_RGBA
     if (textureindex_) ImGui::ImDestroyTexture(textureindex_);
+#endif
 }
 
-/*
-void MediaPlayer::accept(Visitor& v) {
-    v.visit(*this);
-}
-*/
-
+#ifdef VIDEO_FORMAT_RGBA
 ImTextureID MediaPlayer::texture() const
 {
     return textureindex_;
 }
+#else
+ImGui::ImMat MediaPlayer::videoMat() const
+{
+    return VMat;
+}
+#endif
 
 guint MediaPlayer::audio_level(guint channel) const
 {
@@ -98,7 +98,12 @@ guint MediaPlayer::audio_level(guint channel) const
     return 0;
 }
 
-#define LIMIT_DISCOVERER
+#ifndef VIDEO_FORMAT_RGBA
+ImGui::ImMat MediaPlayer::audioMat() const
+{
+    return AMat;
+}
+#endif
 
 MediaInfo MediaPlayer::UriDiscoverer(const std::string &uri)
 {
@@ -121,7 +126,7 @@ MediaInfo MediaPlayer::UriDiscoverer(const std::string &uri)
 #endif
     MediaInfo stream_info;
     GError *err = NULL;
-    GstDiscoverer *discoverer = gst_discoverer_new (15 * GST_SECOND, &err);
+    GstDiscoverer *discoverer = gst_discoverer_new (5 * GST_SECOND, &err);
 
     /* Instantiate the Discoverer */
     if (!discoverer) {
@@ -326,8 +331,9 @@ void MediaPlayer::execute_open()
     string description = "uridecodebin name=decoder uri=" + uri_ + " ! queue max-size-time=0 ! ";
     // NB: queue adds some control over the buffer, thereby limiting the frame delay. zero size means no buffering
 
-//    string description = "uridecodebin name=decoder uri=" + uri_ + " decoder. ! ";
-//    description += "audioconvert ! autoaudiosink decoder. ! ";
+#ifdef VIDEO_FORMAT_RGBA
+    // string description = "uridecodebin name=decoder uri=" + uri_ + " decoder. ! ";
+    // description += "audioconvert ! autoaudiosink decoder. ! ";
 
     // video deinterlacing method (if media is interlaced)
     //      tomsmocomp (0) – Motion Adaptive: Motion Search
@@ -352,6 +358,9 @@ void MediaPlayer::execute_open()
     //      Dither with Sierra Lite error diffusion 3
     //      ordered dither using a bayer pattern 4 (default)
     description += "videoconvert chroma-resampler=1 dither=0 ! "; // fast
+#else
+    description += "videoconvert chroma-resampler=0 dither=0 ! ";
+#endif
 
     // hack to compensate for lack of PTS in gif animations
     if (media_.video_codec_name.compare("image/gst-libav-gif") == 0){
@@ -389,9 +398,27 @@ void MediaPlayer::execute_open()
     g_object_set(G_OBJECT(pipeline_), "name", std::to_string(id_).c_str(), NULL);
     gst_pipeline_set_auto_flush_bus( GST_PIPELINE(pipeline_), true);
 
-    // GstCaps *caps = gst_static_caps_get (&frame_render_caps);    
+    // format: { AYUV64, ARGB64, GBRA_12LE, GBRA_12BE, Y412_LE, Y412_BE, A444_10LE, GBRA_10LE, 
+    //           A444_10BE, GBRA_10BE, A422_10LE, A422_10BE, A420_10LE, A420_10BE, RGB10A2_LE, BGR10A2_LE,
+    //           Y410, GBRA, ABGR, VUYA, BGRA, AYUV, ARGB, 
+    //           RGBA, A420, AV12, Y444_16LE, Y444_16BE, v216, P016_LE, P016_BE,
+    //           Y444_12LE, GBR_12LE, Y444_12BE, GBR_12BE, I422_12LE, I422_12BE, Y212_LE, Y212_BE,
+    //           I420_12LE, I420_12BE, P012_LE, P012_BE, Y444_10LE, GBR_10LE, Y444_10BE, GBR_10BE,
+    //           r210, I422_10LE, I422_10BE, NV16_10LE32, Y210, v210, UYVP, I420_10LE,
+    //           I420_10BE, P010_10LE, NV12_10LE32, NV12_10LE40, P010_10BE, Y444, RGBP, GBR,
+    //           BGRP, NV24, xBGR, BGRx, xRGB, RGBx, BGR, IYU2,
+    //           v308, RGB, Y42B, NV61, NV16, VYUY, UYVY, YVYU,
+    //           YUY2, I420, YV12, NV21, NV12, NV12_64Z32, NV12_4L4, NV12_32L32,
+    //           Y41B, IYU1, YVU9, YUV9, RGB16, BGR16, RGB15, BGR15,
+    //           RGB8P, GRAY16_LE, GRAY16_BE, GRAY10_LE32, GRAY8 }
+#ifdef VIDEO_FORMAT_RGBA
     string capstring = "video/x-raw,format=RGBA,width="+ std::to_string(media_.width) +
             ",height=" + std::to_string(media_.height);
+#else
+    int pixel_element_depth = media_.depth / 3;
+    string capstring = "video/x-raw,format=" + (pixel_element_depth == 8 ? std::string("NV12") : std::string("P010_10LE")) + ",width=" + std::to_string(media_.width) +
+            ",height=" + std::to_string(media_.height);
+#endif
     GstCaps *caps = gst_caps_from_string(capstring.c_str());
     if (!gst_video_info_from_caps (&v_frame_video_info_, caps)) {
         Log::Warning("MediaPlayer %s Could not configure video frame info", std::to_string(id_).c_str());
@@ -419,7 +446,8 @@ void MediaPlayer::execute_open()
     gst_app_sink_set_caps (GST_APP_SINK(video_appsink), caps);
 
     // Instruct appsink to drop old buffers when the maximum amount of queued buffers is reached.
-    gst_app_sink_set_max_buffers( GST_APP_SINK(video_appsink), 5);
+    gst_app_sink_set_max_buffers( GST_APP_SINK(video_appsink), N_VFRAME);
+    gst_app_sink_set_buffer_list_support( GST_APP_SINK(video_appsink), true);
     gst_app_sink_set_drop (GST_APP_SINK(video_appsink), true);
 
 #ifdef USE_GST_APPSINK_CALLBACKS
@@ -476,7 +504,8 @@ void MediaPlayer::execute_open()
         gst_app_sink_set_caps (GST_APP_SINK(audio_appsink), caps_audio);
 
         // Instruct appsink to drop old buffers when the maximum amount of queued buffers is reached.
-        gst_app_sink_set_max_buffers( GST_APP_SINK(audio_appsink), 5);
+        gst_app_sink_set_max_buffers( GST_APP_SINK(audio_appsink), N_AFRAME);
+        gst_app_sink_set_buffer_list_support( GST_APP_SINK(audio_appsink), true);
         gst_app_sink_set_drop (GST_APP_SINK(audio_appsink), true);
 
 #ifdef USE_GST_APPSINK_CALLBACKS
@@ -609,14 +638,25 @@ void MediaPlayer::close()
     vwrite_index_ = 0;
     vlast_index_ = 0;
 
-    // cleanup eventual remaining audio frame memory
-    for(guint i = 0; i < N_AFRAME; i++) {
-        aframe_[i].access.lock();
-        aframe_[i].unmap();
-        aframe_[i].access.unlock();
-    }
+    // cleanup eventual remaining audio frame memory ?
+    //for(guint i = 0; i < N_AFRAME; i++) {
+    //    aframe_[i].access.lock();
+    //    aframe_[i].unmap();
+    //    aframe_[i].access.unlock();
+    //}
     awrite_index_ = 0;
     alast_index_ = 0;
+
+#ifdef VIDEO_FORMAT_RGBA
+    if (textureindex_) { ImGui::ImDestroyTexture(textureindex_); textureindex_ = nullptr; }
+#else
+    VMat.release();
+#endif
+
+    audio_channel_level.clear();
+#ifndef VIDEO_FORMAT_RGBA
+    AMat.release();
+#endif
 
 #ifdef MEDIA_PLAYER_DEBUG
     Log::Info("MediaPlayer %s closed", std::to_string(id_).c_str());
@@ -893,27 +933,45 @@ void MediaPlayer::jump()
     gst_element_send_event (pipeline_, gst_event_new_step (GST_FORMAT_BUFFERS, 1, 30.f * ABS(rate_), TRUE,  FALSE));
 }
 
-void MediaPlayer::init_texture(guint index)
+void MediaPlayer::fill_video(guint index)
 {
-    if (!media_.isimage) 
-    {
-        // set pbo image size
-        pbo_size_ = media_.height * media_.width * 4;
-
-//        // now that a frame is ready, and once only, browse into the pipeline
-//        // for possible hadrware decoding plugins used. Empty string means none.
-//        hardware_decoder_ = GstToolkit::used_gpu_decoding_plugins(pipeline_);
-
-#ifdef MEDIA_PLAYER_DEBUG
-        Log::Info("MediaPlayer %s uses OpenGL PBO texturing.", std::to_string(id_).c_str());
-#endif
-
-    }
-}
-
-void MediaPlayer::fill_texture(guint index)
-{
+#ifdef VIDEO_FORMAT_RGBA
     ImGui::ImGenerateOrUpdateTexture(textureindex_, media_.width, media_.height, 4, (const unsigned char *)vframe_[index].frame.data[0]);
+#else
+    int data_shift = media_.depth > 24 ? 1 : 0;
+    int UV_shift_w = 0;
+    int UV_shift_h = 1;
+    VMat.create_type(media_.width, media_.height, 4, data_shift ? IM_DT_INT16 : IM_DT_INT8);
+    ImGui::ImMat mat_Y = VMat.channel(0);
+    {
+        uint8_t* src_data = (uint8_t*)vframe_[index].frame.data[0];
+        uint8_t* dst_data = (uint8_t*)mat_Y.data;
+        for (int i = 0; i < media_.height; i++)
+        {
+            memcpy(dst_data, src_data, media_.width * (data_shift ? 2 : 1));
+            src_data += GST_VIDEO_FRAME_PLANE_STRIDE(&vframe_[index].frame, 0);
+            dst_data += media_.width << data_shift;
+        }
+    }
+    ImGui::ImMat mat_Cb = VMat.channel(1);
+    {
+        uint8_t* src_data = (uint8_t*)vframe_[index].frame.data[1];
+        uint8_t* dst_data = (uint8_t*)mat_Cb.data;
+        for (int i = 0; i < media_.height >> UV_shift_h; i++)
+        {
+            memcpy(dst_data, src_data, (media_.width >> UV_shift_w) * (data_shift ? 2 : 1));
+            src_data += GST_VIDEO_FRAME_PLANE_STRIDE(&vframe_[index].frame, 1);
+            dst_data += (media_.width >> UV_shift_w) << data_shift;
+        }
+    }
+    VMat.time_stamp = vframe_[index].position / (1e+9);             //current_video_pts;
+    VMat.color_space = IM_CS_BT709;                                 // color_space;
+    VMat.color_range = IM_CR_NARROW_RANGE;                          //color_range;
+    VMat.color_format = data_shift ? IM_CF_P010LE : IM_CF_NV12;     // color_format;
+    VMat.depth = media_.depth / 3;
+    VMat.rate = {static_cast<int>(media_.framerate_n), static_cast<int>(media_.framerate_d)};
+    VMat.flags = IM_MAT_FLAGS_VIDEO_FRAME;
+#endif
 }
 
 void MediaPlayer::fill_audio(guint index)
@@ -924,6 +982,20 @@ void MediaPlayer::fill_audio(guint index)
     {
         audio_channel_level[i] = calculate_audio_db<float>((const float *)data, v_frame_audio_info_.channels, i, aframe_[index].frame.n_samples, 1.0);
     }
+    auto total_sample_length = aframe_[index].frame.n_samples / v_frame_audio_info_.channels;
+    AMat.create_type(total_sample_length, 1, v_frame_audio_info_.channels, IM_DT_FLOAT32);
+    float * buffer = (float *)data;
+    for (int i = 0; i < AMat.w; i++)
+    {
+        for (int c = 0; c < AMat.c; c++)
+        {
+            AMat.at<float>(i, 0, c) = (*buffer);
+            buffer ++;
+        }
+    }
+    AMat.time_stamp = aframe_[index].position / 1e+9;
+    AMat.rate = {v_frame_audio_info_.rate, 1};
+    AMat.flags = IM_MAT_FLAGS_AUDIO_FRAME;
 }
 
 void MediaPlayer::update()
@@ -956,8 +1028,16 @@ void MediaPlayer::update()
     }
 
     // prevent unnecessary updates: disabled or already filled image
-    if (!enabled_ || (media_.isimage && textureindex_ ) )
+    if (!enabled_)
         return;
+
+#ifdef VIDEO_FORMAT_RGBA
+    if (media_.isimage && textureindex_ )
+        return;
+#else
+    if (media_.isimage && !VMat.empty())
+        return;
+#endif
 
     // video update
     // local variables before trying to update
@@ -994,11 +1074,11 @@ void MediaPlayer::update()
         else if (vframe_[v_read_index].full)
         {
             // fill the texture with the frame at reading index
-            fill_texture(v_read_index);
+            fill_video(v_read_index);
 
             // double update for pre-roll frame and dual PBO (ensure frame is displayed now)
-            if ( (vframe_[v_read_index].status == PREROLL || seeking_ ) && pbo_size_ > 0)
-                fill_texture(v_read_index);
+            if (vframe_[v_read_index].status == PREROLL || seeking_ )
+                fill_video(v_read_index);
 
             // free frame
             vframe_[v_read_index].unmap();
@@ -1050,7 +1130,7 @@ void MediaPlayer::update()
             fill_audio(a_read_index);
 
             // double update for pre-roll frame and dual PBO (ensure frame is displayed now)
-            if ( (aframe_[a_read_index].status == PREROLL || seeking_ ) && pbo_size_ > 0)
+            if (aframe_[a_read_index].status == PREROLL || seeking_ )
             {
                 fill_audio(a_read_index);
             }
@@ -1060,7 +1140,8 @@ void MediaPlayer::update()
         }
 
         // do we set position time to frame PTS ?
-        position_ = aframe_[a_read_index].position;
+        if (position_ == GST_CLOCK_TIME_NONE)
+            position_ = aframe_[a_read_index].position;
 
         // avoid reading it again
         aframe_[a_read_index].status = INVALID;
@@ -1267,7 +1348,11 @@ bool MediaPlayer::fill_video_frame(GstBuffer *buf, FrameStatus status)
         vframe_[vwrite_index_].full = true;
 
         // validate frame format
+#ifdef VIDEO_FORMAT_RGBA
         if( GST_VIDEO_INFO_IS_RGB(&(vframe_[vwrite_index_].frame).info) && GST_VIDEO_INFO_N_PLANES(&(vframe_[vwrite_index_].frame).info) == 1)
+#else
+        if( GST_VIDEO_INFO_IS_YUV(&(vframe_[vwrite_index_].frame).info) && GST_VIDEO_INFO_N_PLANES(&(vframe_[vwrite_index_].frame).info) == 2) // NV12/NV16
+#endif
         {
             // set presentation time stamp
             vframe_[vwrite_index_].position = buf->pts;
@@ -1401,8 +1486,8 @@ bool MediaPlayer::fill_audio_frame(GstBuffer *buf, FrameStatus status)
     // lock access to frame
     aframe_[awrite_index_].access.lock();
 
-    // always empty frame before filling it again
-    aframe_[awrite_index_].unmap();
+    // always empty frame before filling it again ?
+    //aframe_[awrite_index_].unmap();
 
     // accept status of frame received
     aframe_[awrite_index_].status = status;
