@@ -149,7 +149,9 @@ set(MEDIA_PLAYER_SRCS
     MediaPlayer.cpp
     BaseToolkit.cpp
     GstToolkit.cpp
+    ImGuiToolkit.cpp
     Timeline.cpp
+    Log.cpp
     ${IMGUI_APP_ENTRY_SRC}
 )
 
@@ -158,7 +160,9 @@ set(MEDIA_PLAYER_INCS
     MediaPlayer.h
     BaseToolkit.h
     GstToolkit.h
+    ImGuiToolkit.h
     Timeline.h
+    Log.h
 )
 
 add_executable(

@@ -29,6 +29,7 @@ struct MediaInfo
     guint width;
     guint par_width;  // width to match pixel aspect ratio
     guint height;
+    guint depth;
     guint bitrate;
     guint framerate_n;
     guint framerate_d;
@@ -51,6 +52,7 @@ struct MediaInfo
     MediaInfo() {
         width = par_width = 640;
         height = 480;
+        depth = 8;
         bitrate = 0;
         framerate_n = 1;
         framerate_d = 25;
@@ -78,6 +80,7 @@ struct MediaInfo
             this->width = b.width;
             this->par_width = b.par_width;
             this->height = b.height;
+            this->depth = b.depth;
             this->bitrate = b.bitrate;
             this->framerate_n = b.framerate_n;
             this->framerate_d = b.framerate_d;
@@ -262,10 +265,21 @@ public:
      * */
     float aspectRatio() const;
     /**
-     * Get the OpenGL texture
-     * Must be called in OpenGL context
+     * Get the Frame texture
      * */
     ImTextureID texture() const;
+    /**
+     * Get audio sample rate
+     */
+    guint sample_rate() const;
+    /**
+     * Get audio channels
+     */
+    guint channels() const;
+    /**
+     * Get audio sample depth
+     */
+    guint audio_depth() const;
     /**
      * Get the name of the decoder used,
      * return 'software' if no hardware decoder is used
@@ -319,6 +333,7 @@ private:
     GstState desired_state_;
     GstElement *pipeline_;
     GstVideoInfo v_frame_video_info_;
+    GstAudioInfo v_frame_audio_info_;
     std::atomic<bool> opened_;
     std::atomic<bool> failed_;
     bool seeking_;
@@ -379,11 +394,17 @@ private:
     void init_texture(guint index);
     void fill_texture(guint index);
     bool fill_frame(GstBuffer *buf, FrameStatus status);
+    bool fill_audio(GstBuffer *buf, FrameStatus status);
 
-    // gst callbacks
-    static void callback_end_of_stream (GstAppSink *, gpointer);
-    static GstFlowReturn callback_new_preroll (GstAppSink *, gpointer );
-    static GstFlowReturn callback_new_sample  (GstAppSink *, gpointer);
+    // gst video callbacks
+    static void video_callback_end_of_stream (GstAppSink *, gpointer);
+    static GstFlowReturn video_callback_new_preroll (GstAppSink *, gpointer );
+    static GstFlowReturn video_callback_new_sample  (GstAppSink *, gpointer);
+
+    // gst audio callbacks
+    static void audio_callback_end_of_stream (GstAppSink *, gpointer);
+    static GstFlowReturn audio_callback_new_preroll (GstAppSink *, gpointer );
+    static GstFlowReturn audio_callback_new_sample  (GstAppSink *, gpointer);
 
     // global list of registered media player
     static std::list<MediaPlayer*> registered_;

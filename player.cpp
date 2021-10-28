@@ -9,6 +9,8 @@
 #include <sstream>
 #include <fstream>
 #include "MediaPlayer.h"
+#include "Log.h"
+
 #define ICON_STEP_NEXT      "\uf051"
 #define ICON_SPEED_MINUS_2  "\ue3cc"
 #define ICON_SPEED_MINUS_1  "\ue3cb"
@@ -18,6 +20,7 @@
 
 static std::string ini_file = "Media_Player.ini";
 static std::string bookmark_path = "bookmark.ini";
+static bool show_log_window = false; 
 MediaPlayer g_player;
 
 // Application Framework Functions
@@ -184,6 +187,10 @@ bool Application_Frame(void * handle)
             g_player.setSoftwareDecodingForced(force_software);
         }
         ImGui::ShowTooltipOnHover("Software decoder");
+        // add show log button
+        ImGui::SameLine();
+        ImGui::ToggleButton(ICON_FA5_LIST_UL, &show_log_window, size);
+        ImGui::ShowTooltipOnHover("Show Log");
         // add button end
 
         ImGui::Unindent((i - 32.0f) * 0.4f);
@@ -307,6 +314,13 @@ bool Application_Frame(void * handle)
         ImGuiFileDialog::Instance()->Close();
     }
 
+    // Show Log Window
+    if (show_log_window)
+    {
+        Log::ShowLogWindow(&show_log_window);
+    }
+
+    // Video Texture Render
     if (g_player.texture())
     {
         ImGui::GetBackgroundDrawList ()->AddImage (
