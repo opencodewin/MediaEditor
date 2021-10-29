@@ -430,12 +430,12 @@ void Timeline::clearFading()
     memcpy(fadingArray_, empty_ones, MAX_TIMELINE_ARRAY * sizeof(float));
 }
 
-void Timeline::smoothFading(uint N)
+void Timeline::smoothFading(int N)
 {
     const float kernel[7] = { 2.f, 22.f, 97.f, 159.f, 97.f, 22.f, 2.f};
     float tmparray[MAX_TIMELINE_ARRAY];
 
-    for (uint n = 0; n < N; ++n) {
+    for (int n = 0; n < N; ++n) {
 
         for (long i = 0; i < MAX_TIMELINE_ARRAY; ++i) {
             tmparray[i] = 0.f;
@@ -455,7 +455,7 @@ void Timeline::smoothFading(uint N)
 }
 
 
-void Timeline::autoFading(uint milisecond, FadingCurve curve)
+void Timeline::autoFading(int milisecond, FadingCurve curve)
 {
     // mow many index values of timeline array for this duration?
     size_t N = MAX_TIMELINE_ARRAY -1;
@@ -510,7 +510,7 @@ void Timeline::autoFading(uint milisecond, FadingCurve curve)
 }
 
 
-void Timeline::fadeIn(uint milisecond, FadingCurve curve)
+void Timeline::fadeIn(int milisecond, FadingCurve curve)
 {
     // mow many index values of timeline array for this duration?
     size_t N = MAX_TIMELINE_ARRAY -1;
@@ -553,7 +553,7 @@ void Timeline::fadeIn(uint milisecond, FadingCurve curve)
     }
 }
 
-void Timeline::fadeOut(uint milisecond, FadingCurve curve)
+void Timeline::fadeOut(int milisecond, FadingCurve curve)
 {
     // mow many index values of timeline array for this duration?
     size_t N = MAX_TIMELINE_ARRAY -1;
