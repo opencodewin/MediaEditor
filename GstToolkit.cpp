@@ -176,13 +176,13 @@ string GstToolkit::gst_version()
 
 #if GST_GL_HAVE_PLATFORM_GLX
     // https://gstreamer.freedesktop.org/documentation/nvcodec/index.html?gi-language=c#plugin-nvcodec
-    const char *plugins[10] = { "omxmpeg4videodec", "omxmpeg2dec", "omxh264dec", "vdpaumpegdec",
-                               "nvh264dec", "nvh265dec", "nvmpeg2videodec",
-                               "nvmpeg4videodec", "nvvp8dec", "nvvp9dec"
-                             };
-    const int N = 10;
+    const char *plugins[11] = { "omxmpeg4videodec", "omxmpeg2dec", "omxh264dec", "vdpaumpegdec",
+                                "nvh264dec", "nvh265dec", "nvmpeg2videodec",
+                                "nvmpeg4videodec", "nvvp8dec", "nvvp9dec", "vaapidecodebin"
+                               };
+    const int N = 11;
 #elif GST_GL_HAVE_PLATFORM_CGL
-    const char *plugins[2] = { "vtdec_hw", "vtdechw" };
+    const char *plugins[2] = { "vtdec_hw", "vtdechw"};
     const int N = 2;
 #else
     const char *plugins[0] = { };
@@ -229,7 +229,7 @@ std::string GstToolkit::used_gpu_decoding_plugins(GstElement *gstbin)
             GstElement *e = static_cast<GstElement*>(g_value_peek_pointer(&value));
             if (e) {
                 gchar *name = gst_element_get_name(e);
-                // g_print(" - %s", name);
+                 g_print(" - %s", name);
                 std::string e_name(name);
                 g_free(name);
                 for (int i = 0; i < N; i++) {
@@ -238,6 +238,31 @@ std::string GstToolkit::used_gpu_decoding_plugins(GstElement *gstbin)
                         break;
                     }
                 }
+            }
+        }
+        g_value_unset(&value);
+    }
+    gst_iterator_free(it);
+
+    return found;
+}
+
+
+
+std::string GstToolkit::used_decoding_plugins(GstElement *gstbin)
+{
+    std::string found = "";
+
+    GstIterator* it  = gst_bin_iterate_recurse(GST_BIN(gstbin));
+    GValue value = G_VALUE_INIT;
+    for(GstIteratorResult r = gst_iterator_next(it, &value); r != GST_ITERATOR_DONE; r = gst_iterator_next(it, &value))
+    {
+        if ( r == GST_ITERATOR_OK )
+        {
+            GstElement *e = static_cast<GstElement*>(g_value_peek_pointer(&value));
+            if (e) {
+                gchar *name = gst_element_get_name(e);
+                found += std::string(name) + ", ";
             }
         }
         g_value_unset(&value);

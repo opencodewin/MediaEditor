@@ -306,7 +306,7 @@ void MediaPlayer::reopen()
 }
 
 void MediaPlayer::execute_open() 
-{   
+{
     // Create gstreamer pipeline :
     //         "uridecodebin uri=file:///path_to_file/filename.mp4 ! videoconvert ! appsink "
     // equivalent to command line

@@ -13,6 +13,7 @@
 #endif
 #include "MediaPlayer.h"
 #include "Log.h"
+#include "GstToolkit.h"
 
 #define ICON_STEP_NEXT      "\uf051"
 
@@ -36,6 +37,7 @@ void Application_GetWindowProperties(ApplicationWindowProperty& property)
 
 void Application_Initialize(void** handle)
 {
+    gst_init(nullptr, nullptr);
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     io.IniFilename = ini_file.c_str();
 #ifdef USE_BOOKMARK
@@ -49,7 +51,6 @@ void Application_Initialize(void** handle)
 		docFile.close();
 	}
 #endif
-    gst_init(nullptr, nullptr);
     m_yuv2rgb = new ImGui::ColorConvert_vulkan(ImGui::get_default_gpu_index());
 }
 
@@ -61,7 +62,6 @@ void Application_Finalize(void** handle)
     if (g_texture) { ImGui::ImDestroyTexture(g_texture); g_texture = nullptr; }
     if (g_player.isOpen())
         g_player.close();
-    gst_deinit();
 #ifdef USE_BOOKMARK
 	// save bookmarks
 	std::ofstream configFileWriter(bookmark_path, std::ios::out);
@@ -71,6 +71,7 @@ void Application_Finalize(void** handle)
 		configFileWriter.close();
 	}
 #endif
+    gst_deinit();
 }
 
 bool Application_Frame(void * handle)
@@ -328,12 +329,12 @@ bool Application_Frame(void * handle)
 #if IMGUI_VULKAN_SHADER
         int video_depth = vmat.type == IM_DT_INT8 ? 8 : vmat.type == IM_DT_INT16 ? 16 : 8;
         int video_shift = vmat.depth != 0 ? vmat.depth : vmat.type == IM_DT_INT8 ? 8 : vmat.type == IM_DT_INT16 ? 16 : 8;
-        ImGui::ImMat im_RGB; im_RGB.type = IM_DT_INT8;
 #ifdef VIDEO_FORMAT_RGBA
         ImGui::ImGenerateOrUpdateTexture(g_texture, vmat.w, vmat.h, 4, (const unsigned char *)vmat.data);
 #else
+        ImGui::VkMat im_RGB; im_RGB.type = IM_DT_INT8;
         m_yuv2rgb->YUV2RGBA(vmat, im_RGB, vmat.color_format, vmat.color_space, vmat.color_range, video_depth, video_shift);
-        ImGui::ImGenerateOrUpdateTexture(g_texture, im_RGB.w, im_RGB.h, 4, (const unsigned char *)im_RGB.data);
+        ImGui::ImGenerateOrUpdateTexture(g_texture, im_RGB.w, im_RGB.h, im_RGB.c, im_RGB.buffer_offset() , (const unsigned char *)im_RGB.buffer());
 #endif
 #endif
     }
