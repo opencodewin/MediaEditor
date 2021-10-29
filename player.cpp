@@ -331,10 +331,21 @@ bool Application_Frame(void * handle)
     }
     if (g_texture)
     {
+        ImVec2 window_size = io.DisplaySize;
+        bool bViewisLandscape = window_size.x >= window_size.y ? true : false;
+        bool bRenderisLandscape = g_player.width() >= g_player.height() ? true : false;
+        bool bNeedChangeScreenInfo = bViewisLandscape ^ bRenderisLandscape;
+        float adj_w = bNeedChangeScreenInfo ? window_size.y : window_size.x;
+        float adj_h = bNeedChangeScreenInfo ? window_size.x : window_size.y;
+        float adj_x = adj_h * g_player.aspectRatio();
+        float adj_y = adj_h;
+        if (adj_x > adj_w) { adj_y *= adj_w / adj_x; adj_x = adj_w; }
+        float offset_x = (window_size.x - adj_x) / 2.0;
+        float offset_y = (window_size.y - adj_y) / 2.0;
         ImGui::GetBackgroundDrawList ()->AddImage (
             (void *)g_texture,
-            ImVec2 (0, 0),
-            io.DisplaySize,
+            ImVec2 (offset_x, offset_y),
+            ImVec2 (offset_x + adj_x, offset_y + adj_y),
             ImVec2 (0, 0),
             ImVec2 (1, 1)
         );
