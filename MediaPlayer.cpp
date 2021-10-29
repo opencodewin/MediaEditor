@@ -514,19 +514,6 @@ void MediaPlayer::execute_open()
         // done with ref to audio appsink
         gst_object_unref(audio_appsink);
 
-        // setup audio render
-        /*
-        GstElement *audio_render = gst_bin_get_by_name (GST_BIN (pipeline_), "audio_render");
-        if (!audio_render) {
-            Log::Warning("MediaPlayer %s Could not get audio_render", std::to_string(id_).c_str());
-            failed_ = true;
-            return;
-        }
-
-        // done with ref to audio appsink
-        gst_object_unref(audio_render);
-        */
-
         // done with ref to audio caps
         gst_caps_unref(caps_audio);
 
@@ -812,16 +799,16 @@ void MediaPlayer::play(bool on)
     // all ready, apply state change immediately
     GstStateChangeReturn ret = gst_element_set_state (pipeline_, desired_state_);
     if (ret == GST_STATE_CHANGE_FAILURE) {
-        Log::Warning("MediaPlayer %s Failed to play", std::to_string(id_).c_str());
+        Log::Warning("MediaPlayer %s Failed to set play state", std::to_string(id_).c_str());
         failed_ = true;
-    }    
+    }
+
 #ifdef MEDIA_PLAYER_DEBUG
     else if (on)
         Log::Info("MediaPlayer %s Start", std::to_string(id_).c_str());
     else
         Log::Info("MediaPlayer %s Stop [%ld]", std::to_string(id_).c_str(), position());
 #endif
-
 }
 
 bool MediaPlayer::isPlaying(bool testpipeline) const

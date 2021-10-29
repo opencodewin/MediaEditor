@@ -76,22 +76,41 @@ void Application_Finalize(void** handle)
 
 bool Application_Frame(void * handle)
 {
+    static bool show_ctrlbar = true;
     static bool show_log_window = false; 
     static bool force_software = false;
     static float play_speed = 1.0f;
     static bool muted = false;
     static bool full_screen = false;
     static double volume = 0;
+    static int ctrlbar_hide_count = 0;
     bool done = false;
     auto& io = ImGui::GetIO();
+
     g_player.update();
+
     // Show PlayControl panel
+    if (g_player.isOpen() && (show_ctrlbar && io.FrameCountSinceLastInput))
+    {
+        ctrlbar_hide_count++;
+        if (ctrlbar_hide_count >= 200)
+        {
+            ctrlbar_hide_count = 0;
+            show_ctrlbar = false;
+        }
+    }
+    if (io.FrameCountSinceLastInput == 0)
+    {
+        ctrlbar_hide_count = 0;
+        show_ctrlbar = true;
+    }
+
     ImVec2 center(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.9f);
     ImVec2 panel_size(io.DisplaySize.x - 20.0, 120);
     ImGui::SetNextWindowPos(center, ImGuiCond_Always, ImVec2(0.5f, 0.5f));
     ImGui::SetNextWindowSize(panel_size, ImGuiCond_Always);
     ImGui::SetNextWindowBgAlpha(0.5);
-    if (ImGui::Begin("Control", NULL, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoResize))
+    if (show_ctrlbar && ImGui::Begin("Control", NULL, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoResize))
     {
         int i = ImGui::FindWindowByName("Control")->Size.x;
         ImGui::Indent((i - 32.0f) * 0.4f);
@@ -237,7 +256,7 @@ bool Application_Frame(void * handle)
             ImGui::Text("/ %02d:%02d:%02d.%03d", hours, mins, secs, ms);
 
             ImGui::SameLine();
-            ImGui::Text("[%.3fms %.1ffps]", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+            ImGui::Text("[%.3fms %.1ffps]", 1000.0f / io.Framerate, io.Framerate);
         }
         else
         {
@@ -247,6 +266,7 @@ bool Application_Frame(void * handle)
         }
         ImGui::End();
     }
+
     // handle key event
     if (g_player.isOpen() && !io.KeyCtrl && !io.KeyShift && !io.KeyAlt && ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Space), false))
     {
