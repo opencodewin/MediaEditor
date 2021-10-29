@@ -13,11 +13,11 @@ using namespace std;
 
 #ifdef WIN32
 #include <windows.h>
-#define mkdir(dir, mode) _mkdir(dir)
-#include <include/dirent.h>
-#include <sys/resource.h>
+#include <psapi.h>
+//#define mkdir(dir, mode) _mkdir(dir)
+#include <dirent_portable.h>
 #define PATH_SEP '\\'
-#define PATH_SETTINGS "\\\AppData\\Roaming\\"
+#define PATH_SETTINGS "\\AppData\\Roaming\\"
 #elif defined(LINUX) or defined(APPLE) or defined(__APPLE__)
 #include <sys/resource.h>
 #include <sys/types.h>
@@ -36,9 +36,17 @@ using namespace std;
 #define PATH_SETTINGS "/.config/"
 #endif
 
-#define MINI(a, b)  (((a) < (b)) ? (a) : (b))
-
 #include "SystemToolkit.h"
+#include <fstream>
+#include <sstream>
+#include <iomanip>
+#include <chrono>
+#include <algorithm>
+#include <vector>
+#include <climits>
+using namespace std;
+
+#define MINI(a, b)  (((a) < (b)) ? (a) : (b))
 
 /// The amount of memory currently being used by this process, in bytes.
 /// it will try to report the resident set in RAM
@@ -84,11 +92,13 @@ long SystemToolkit::memory_usage()
 }
 
 long SystemToolkit::memory_max_usage() {
-
+#ifdef WIN32
+    return 0;
+#else
     struct rusage r_usage;
     getrusage(RUSAGE_SELF,&r_usage);
     return 1024 * r_usage.ru_maxrss;
-//    return r_usage.ru_isrss;
+#endif
 }
 
 
@@ -147,12 +157,14 @@ string SystemToolkit::extension_filename(const string& filename)
 std::string SystemToolkit::home_path()
 {
     string homePath;
+#ifndef WIN32
     // try the system user info
     // NB: avoids depending on changes of the $HOME env. variable
     struct passwd* pwd = getpwuid(getuid());
     if (pwd)
         homePath = std::string(pwd->pw_dir);
     else
+#endif
         // try the $HOME environment variable
         homePath = std::string(getenv("HOME"));
 
@@ -173,11 +185,13 @@ std::string SystemToolkit::cwd_path()
 std::string SystemToolkit::username()
 {
     string userName;
+#ifndef WIN32
     // try the system user info
     struct passwd* pwd = getpwuid(getuid());
     if (pwd)
         userName = std::string(pwd->pw_name);
     else
+#endif
         // try the $USER environment variable
         userName = std::string(getenv("USER"));
 
@@ -186,9 +200,11 @@ std::string SystemToolkit::username()
 
 bool SystemToolkit::create_directory(const string& path)
 {
+#ifdef WIN32
+    return !mkdir(path.c_str()) || errno == EEXIST;
+#else
     return !mkdir(path.c_str(), 0755) || errno == EEXIST;
-
-    // TODO : verify WIN32 implementation
+#endif
 }
 
 bool SystemToolkit::remove_file(const string& path)
@@ -325,7 +341,7 @@ void SystemToolkit::execute(const string& command)
 {
     int ignored __attribute__((unused));
 #ifdef WIN32
-        ShellExecuteA( nullptr, nullptr, url.c_str(), nullptr, nullptr, 0 );
+        ShellExecuteA( nullptr, nullptr, command.c_str(), nullptr, nullptr, 0 );
 #elif defined APPLE
     (void) system( command.c_str() );
 #else
