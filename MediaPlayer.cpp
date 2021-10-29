@@ -60,11 +60,6 @@ MediaPlayer::MediaPlayer()
     awrite_index_ = 0;
     alast_index_ = 0;
 
-    // texture
-#ifdef VIDEO_FORMAT_RGBA
-    textureindex_ = 0;
-#endif
-
     // audio level
     audio_channel_level.clear();
 }
@@ -72,22 +67,12 @@ MediaPlayer::MediaPlayer()
 MediaPlayer::~MediaPlayer()
 {
     close();
-#ifdef VIDEO_FORMAT_RGBA
-    if (textureindex_) ImGui::ImDestroyTexture(textureindex_);
-#endif
 }
 
-#ifdef VIDEO_FORMAT_RGBA
-ImTextureID MediaPlayer::texture() const
-{
-    return textureindex_;
-}
-#else
 ImGui::ImMat MediaPlayer::videoMat() const
 {
     return VMat;
 }
-#endif
 
 guint MediaPlayer::audio_level(guint channel) const
 {
@@ -98,12 +83,10 @@ guint MediaPlayer::audio_level(guint channel) const
     return 0;
 }
 
-#ifndef VIDEO_FORMAT_RGBA
 ImGui::ImMat MediaPlayer::audioMat() const
 {
     return AMat;
 }
-#endif
 
 MediaInfo MediaPlayer::UriDiscoverer(const std::string &uri)
 {
@@ -381,7 +364,7 @@ void MediaPlayer::execute_open()
                        ",format=F32LE,rate=" + std::to_string(media_.audio_sample_rate) + " ! ";
         description += " tee name=t ! queue !";
         description += " appsink name=audio_appsink";
-        description += " t. ! queue ! autoaudiosink name=audio_render";
+        description += " t. ! queue ! volume name=audio_volume ! autoaudiosink name=audio_render";
     }
 
     // parse pipeline descriptor
@@ -411,13 +394,18 @@ void MediaPlayer::execute_open()
     //           YUY2, I420, YV12, NV21, NV12, NV12_64Z32, NV12_4L4, NV12_32L32,
     //           Y41B, IYU1, YVU9, YUV9, RGB16, BGR16, RGB15, BGR15,
     //           RGB8P, GRAY16_LE, GRAY16_BE, GRAY10_LE32, GRAY8 }
+    int pixel_element_depth = media_.depth / 3;
 #ifdef VIDEO_FORMAT_RGBA
     string capstring = "video/x-raw,format=RGBA,width="+ std::to_string(media_.width) +
             ",height=" + std::to_string(media_.height);
-#else
-    int pixel_element_depth = media_.depth / 3;
+#elif defined(VIDEO_FORMAT_NV12)
     string capstring = "video/x-raw,format=" + (pixel_element_depth == 8 ? std::string("NV12") : std::string("P010_10LE")) + ",width=" + std::to_string(media_.width) +
             ",height=" + std::to_string(media_.height);
+#elif defined(VIDEO_FORMAT_YV12)
+    string capstring = "video/x-raw,format=" + (pixel_element_depth == 8 ? std::string("I420") : std::string("I420_10LE")) + ",width=" + std::to_string(media_.width) +
+            ",height=" + std::to_string(media_.height);
+#else
+    #error "please define VIDEO_FORMAT_ in header file"
 #endif
     GstCaps *caps = gst_caps_from_string(capstring.c_str());
     if (!gst_video_info_from_caps (&v_frame_video_info_, caps)) {
@@ -647,16 +635,10 @@ void MediaPlayer::close()
     awrite_index_ = 0;
     alast_index_ = 0;
 
-#ifdef VIDEO_FORMAT_RGBA
-    if (textureindex_) { ImGui::ImDestroyTexture(textureindex_); textureindex_ = nullptr; }
-#else
     VMat.release();
-#endif
 
     audio_channel_level.clear();
-#ifndef VIDEO_FORMAT_RGBA
     AMat.release();
-#endif
 
 #ifdef MEDIA_PLAYER_DEBUG
     Log::Info("MediaPlayer %s closed", std::to_string(id_).c_str());
@@ -695,6 +677,25 @@ guint MediaPlayer::channels() const
 guint MediaPlayer::audio_depth() const
 {
     return media_.audio_depth;
+}
+
+double MediaPlayer::volume() const
+{
+    double vol = 0;
+    GstElement *audio_volume = gst_bin_get_by_name (GST_BIN (pipeline_), "audio_volume");
+    if (!audio_volume)
+    {
+        Log::Warning("MediaPlayer %s Could not get audio volume control", std::to_string(id_).c_str());
+        return vol;
+    }
+    g_object_get(audio_volume, "volume", &vol, NULL);
+    gst_object_unref(audio_volume);
+    return vol;
+}
+
+void MediaPlayer::set_volume(double vol)
+{
+    g_object_set(G_OBJECT (gst_bin_get_by_name (GST_BIN (pipeline_), "audio_volume")), "volume", vol,  NULL);
 }
 
 GstClockTime MediaPlayer::position()
@@ -936,10 +937,20 @@ void MediaPlayer::jump()
 void MediaPlayer::fill_video(guint index)
 {
 #ifdef VIDEO_FORMAT_RGBA
-    ImGui::ImGenerateOrUpdateTexture(textureindex_, media_.width, media_.height, 4, (const unsigned char *)vframe_[index].frame.data[0]);
+    int data_shift = media_.depth > 32 ? 1 : 0;
+    VMat.create_type(media_.width, media_.height, 4, data_shift ? IM_DT_INT16 : IM_DT_INT8);
+    uint8_t* src_data = (uint8_t*)vframe_[index].frame.data[0];
+    uint8_t* dst_data = (uint8_t*)VMat.data;
+    memcpy(dst_data, src_data, media_.width * media_.height * (data_shift ? 2 : 1) * 4);
 #else
     int data_shift = media_.depth > 24 ? 1 : 0;
+#ifdef VIDEO_FORMAT_NV12
     int UV_shift_w = 0;
+#elif defined(VIDEO_FORMAT_YV12)
+    int UV_shift_w = 1;
+#else
+    #error "please define VIDEO_FORMAT_ in header file"
+#endif
     int UV_shift_h = 1;
     VMat.create_type(media_.width, media_.height, 4, data_shift ? IM_DT_INT16 : IM_DT_INT8);
     ImGui::ImMat mat_Y = VMat.channel(0);
@@ -964,14 +975,47 @@ void MediaPlayer::fill_video(guint index)
             dst_data += (media_.width >> UV_shift_w) << data_shift;
         }
     }
-    VMat.time_stamp = vframe_[index].position / (1e+9);             //current_video_pts;
-    VMat.color_space = IM_CS_BT709;                                 // color_space;
-    VMat.color_range = IM_CR_NARROW_RANGE;                          //color_range;
-    VMat.color_format = data_shift ? IM_CF_P010LE : IM_CF_NV12;     // color_format;
+#ifdef VIDEO_FORMAT_YV12
+    ImGui::ImMat mat_Cr = VMat.channel(2);
+    {
+        uint8_t* src_data = (uint8_t*)vframe_[index].frame.data[2];
+        uint8_t* dst_data = (uint8_t*)mat_Cr.data;
+        for (int i = 0; i < media_.height >> UV_shift_h; i++)
+        {
+            memcpy(dst_data, src_data, (media_.width >> UV_shift_w) * (data_shift ? 2 : 1));
+            src_data += GST_VIDEO_FRAME_PLANE_STRIDE(&vframe_[index].frame, 2);
+            dst_data += (media_.width >> UV_shift_w) << data_shift;
+        }
+    }
+#endif
+#endif
+    auto color_space = GST_VIDEO_INFO_COLORIMETRY(&vframe_[index].frame.info);
+    auto color_range = GST_VIDEO_INFO_CHROMA_SITE(&vframe_[index].frame.info);
+    VMat.time_stamp = vframe_[index].position / (1e+9);
     VMat.depth = media_.depth / 3;
     VMat.rate = {static_cast<int>(media_.framerate_n), static_cast<int>(media_.framerate_d)};
     VMat.flags = IM_MAT_FLAGS_VIDEO_FRAME;
+#ifdef VIDEO_FORMAT_RGBA
+    VMat.color_space = IM_CS_SRGB;
+    VMat.color_format = IM_CF_ABGR;
+    VMat.color_range = IM_CR_FULL_RANGE;
+#else
+    VMat.color_space = color_space.primaries == GST_VIDEO_COLOR_PRIMARIES_BT709 ? IM_CS_BT709 :
+                       color_space.primaries == GST_VIDEO_COLOR_PRIMARIES_BT2020 ? IM_CS_BT2020 : IM_CS_BT601;
+    VMat.color_range = color_range == GST_VIDEO_CHROMA_SITE_JPEG ? IM_CR_FULL_RANGE : 
+                       color_range == GST_VIDEO_CHROMA_SITE_MPEG2 ? IM_CR_NARROW_RANGE : IM_CR_FULL_RANGE;
+#ifdef VIDEO_FORMAT_NV12
+    VMat.color_format = data_shift ? IM_CF_P010LE : IM_CF_NV12;
+    VMat.flags |= IM_MAT_FLAGS_VIDEO_FRAME_UV;
+#elif defined(VIDEO_FORMAT_YV12)
+    VMat.color_format = IM_CF_YUV420;
+#else
+    #error "please define VIDEO_FORMAT_ in header file"
 #endif
+    if (GST_VIDEO_INFO_IS_INTERLACED(&vframe_[index].frame.info))  VMat.flags |= IM_MAT_FLAGS_VIDEO_INTERLACED;
+#endif
+    if (gst_video_colorimetry_matches(&color_space, GST_VIDEO_COLORIMETRY_BT2100_PQ)) VMat.flags |= IM_MAT_FLAGS_VIDEO_HDR_PQ;
+    if (gst_video_colorimetry_matches(&color_space, GST_VIDEO_COLORIMETRY_BT2100_HLG)) VMat.flags |= IM_MAT_FLAGS_VIDEO_HDR_HLG;
 }
 
 void MediaPlayer::fill_audio(guint index)
@@ -1031,13 +1075,8 @@ void MediaPlayer::update()
     if (!enabled_)
         return;
 
-#ifdef VIDEO_FORMAT_RGBA
-    if (media_.isimage && textureindex_ )
-        return;
-#else
     if (media_.isimage && !VMat.empty())
         return;
-#endif
 
     // video update
     // local variables before trying to update
@@ -1350,8 +1389,12 @@ bool MediaPlayer::fill_video_frame(GstBuffer *buf, FrameStatus status)
         // validate frame format
 #ifdef VIDEO_FORMAT_RGBA
         if( GST_VIDEO_INFO_IS_RGB(&(vframe_[vwrite_index_].frame).info) && GST_VIDEO_INFO_N_PLANES(&(vframe_[vwrite_index_].frame).info) == 1)
-#else
+#elif defined(VIDEO_FORMAT_NV12)
         if( GST_VIDEO_INFO_IS_YUV(&(vframe_[vwrite_index_].frame).info) && GST_VIDEO_INFO_N_PLANES(&(vframe_[vwrite_index_].frame).info) == 2) // NV12/NV16
+#elif defined(VIDEO_FORMAT_YV12)
+        if( GST_VIDEO_INFO_IS_YUV(&(vframe_[vwrite_index_].frame).info) && GST_VIDEO_INFO_N_PLANES(&(vframe_[vwrite_index_].frame).info) == 3) // I420/I420_10LE
+#else
+        #error "please define VIDEO_FORMAT_ in header file"
 #endif
         {
             // set presentation time stamp

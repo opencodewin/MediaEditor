@@ -2,6 +2,7 @@
 #define __GST_MEDIA_PLAYER_H_
 
 #include <string>
+#include <vector>
 #include <atomic>
 #include <mutex>
 #include <future>
@@ -12,13 +13,14 @@
 #include <gst/pbutils/pbutils.h>
 #include <gst/app/gstappsink.h>
 
-#include <imgui_helper.h>
 #include <imgui_mat.h>
 
 #include "Timeline.h"
 
 //#define LIMIT_DISCOVERER
 //#define VIDEO_FORMAT_RGBA
+#define VIDEO_FORMAT_NV12
+//#define VIDEO_FORMAT_YV12
 #define MEDIA_PLAYER_DEBUG
 
 #define MAX_PLAY_SPEED 20.0
@@ -235,6 +237,16 @@ public:
      * */
     void seek(GstClockTime pos);
     /**
+     * Get Audio volume
+     * 0.0-1.0
+     */
+    double volume() const;
+    /**
+     * Set audio volume
+     * 0.0 - 1.0(100%)
+     */
+    void set_volume(double vol);
+    /**
      * @brief timeline contains all info on timing:
      * - start position : timeline.start()
      * - end position   : timeline.end()
@@ -267,14 +279,10 @@ public:
      * NB: can be different than width() / height()
      * */
     float aspectRatio() const;
-#ifdef VIDEO_FORMAT_RGBA
     /**
-     * Get the Frame texture
+     * Get the Frame
      * */
-    ImTextureID texture() const;
-#else
     ImGui::ImMat videoMat() const;
-#endif
     /**
      * Get audio sample rate
      */
@@ -291,9 +299,7 @@ public:
      * Get audio channel levels
      */
     guint audio_level(guint channel) const;
-#ifndef VIDEO_FORMAT_RGBA
     ImGui::ImMat audioMat() const;
-#endif
     /**
      * Get the name of the decoder used,
      * return 'software' if no hardware decoder is used
@@ -335,16 +341,11 @@ private:
     std::string uri_;
 
     // video output
-#ifdef VIDEO_FORMAT_RGBA
-    ImTextureID textureindex_;
-#else
     ImGui::ImMat VMat;
-#endif
     // audio output
     std::vector<int> audio_channel_level;
-#ifndef VIDEO_FORMAT_RGBA
     ImGui::ImMat AMat;
-#endif
+
     // general properties of media
     MediaInfo media_;
     Timeline timeline_;
@@ -365,6 +366,7 @@ private:
     bool rewind_on_disable_;
     bool force_software_decoding_;
     std::string decoder_name_;
+    GstElement *volume_;
 
     // fps counter
     struct TimeCounter {

@@ -58,9 +58,7 @@ void Application_Finalize(void** handle)
 #if IMGUI_VULKAN_SHADER
     if (m_yuv2rgb) { delete m_yuv2rgb; m_yuv2rgb = nullptr; }
 #endif
-#ifndef VIDEO_FORMAT_RGBA
     if (g_texture) { ImGui::ImDestroyTexture(g_texture); g_texture = nullptr; }
-#endif
     if (g_player.isOpen())
         g_player.close();
     gst_deinit();
@@ -80,6 +78,8 @@ bool Application_Frame(void * handle)
     static bool show_log_window = false; 
     static bool force_software = false;
     static float play_speed = 1.0f;
+    static bool muted = false;
+    static double volume = 0;
     bool done = false;
     auto& io = ImGui::GetIO();
     g_player.update();
@@ -123,9 +123,18 @@ bool Application_Frame(void * handle)
         ImGui::ShowTooltipOnHover("Step Next Frame.");
         // add mute button
         ImGui::SameLine();
-        if (ImGui::Button(/*!is ? ICON_FA5_VOLUME_UP : is->muted ? ICON_FA5_VOLUME_MUTE : ICON_FA5_VOLUME_UP*/ICON_FA5_VOLUME_UP, size))
+        if (ImGui::Button(g_player.isOpen() ? muted ? ICON_FA5_VOLUME_MUTE : ICON_FA5_VOLUME_UP : ICON_FA5_VOLUME_UP, size))
         {
-            //if (is) toggle_mute(is);
+            muted = !muted;
+            if (muted)
+            {
+                volume = g_player.volume();
+                g_player.set_volume(0);
+            }
+            else
+            {
+                g_player.set_volume(volume);
+            }
         }
         ImGui::ShowTooltipOnHover("Toggle Audio Mute.");
         // add about button
@@ -290,9 +299,7 @@ bool Application_Frame(void * handle)
 	{
         if (ImGuiFileDialog::Instance()->IsOk())
 		{
-#ifndef VIDEO_FORMAT_RGBA
             if (g_texture) { ImGui::ImDestroyTexture(g_texture); g_texture = nullptr; }
-#endif
             std::string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
             g_player.open(filePathName);
             g_player.play(true);
@@ -307,9 +314,6 @@ bool Application_Frame(void * handle)
     }
 
     // Video Texture Render
-#ifdef VIDEO_FORMAT_RGBA
-    g_texture = g_player.texture();
-#else
     ImGui::ImMat vmat = g_player.videoMat();
     if (!vmat.empty())
     {
@@ -317,11 +321,14 @@ bool Application_Frame(void * handle)
         int video_depth = vmat.type == IM_DT_INT8 ? 8 : vmat.type == IM_DT_INT16 ? 16 : 8;
         int video_shift = vmat.depth != 0 ? vmat.depth : vmat.type == IM_DT_INT8 ? 8 : vmat.type == IM_DT_INT16 ? 16 : 8;
         ImGui::ImMat im_RGB; im_RGB.type = IM_DT_INT8;
+#ifdef VIDEO_FORMAT_RGBA
+        ImGui::ImGenerateOrUpdateTexture(g_texture, vmat.w, vmat.h, 4, (const unsigned char *)vmat.data);
+#else
         m_yuv2rgb->YUV2RGBA(vmat, im_RGB, vmat.color_format, vmat.color_space, vmat.color_range, video_depth, video_shift);
         ImGui::ImGenerateOrUpdateTexture(g_texture, im_RGB.w, im_RGB.h, 4, (const unsigned char *)im_RGB.data);
 #endif
-    }
 #endif
+    }
     if (g_texture)
     {
         ImGui::GetBackgroundDrawList ()->AddImage (
