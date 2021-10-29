@@ -1,16 +1,3 @@
-#include <stdlib.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <fstream>
-#include <sstream>
-#include <iomanip>
-#include <chrono>
-#include <algorithm>
-#include <vector>
-#include <climits>
-
-using namespace std;
-
 #ifdef WIN32
 #include <windows.h>
 #include <psapi.h>
