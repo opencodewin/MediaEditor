@@ -142,7 +142,7 @@ void ImGuiToolkit::HelpMarker(const char* desc, const char* icon, const char* sh
         ToolTip(desc, shortcut);
 }
 
-bool ImGuiToolkit::SliderTiming (const char* label, uint* ms, uint v_min, uint v_max, uint v_step, const char* text_max)
+bool ImGuiToolkit::SliderTiming (const char* label, int* ms, int v_min, int v_max, int v_step, const char* text_max)
 {
     char text_buf[256];
     if ( *ms < v_max || text_max == nullptr)
@@ -480,7 +480,7 @@ void ImGuiToolkit::Timeline (const char* label, guint64 time, guint64 begin, gui
     }
 }
 
-bool ImGuiToolkit::InvisibleSliderInt (const char* label, uint *index, uint min, uint max, ImVec2 size)
+bool ImGuiToolkit::InvisibleSliderInt (const char* label, int *index, int min, int max, ImVec2 size)
 {
     // get window
     ImGuiWindow* window = ImGui::GetCurrentWindow();
@@ -517,8 +517,8 @@ bool ImGuiToolkit::InvisibleSliderInt (const char* label, uint *index, uint min,
     if (ImGui::GetActiveID() == id) {
         // Slider behavior
         ImRect grab_slider_bb;
-        uint _zero = min;
-        uint _end = max;
+        int _zero = min;
+        int _end = max;
         value_changed = ImGui::SliderBehavior(bbox, id, ImGuiDataType_U32, index, &_zero,
                                               &_end, "%ld", ImGuiSliderFlags_None, &grab_slider_bb);
     }
@@ -571,14 +571,14 @@ bool ImGuiToolkit::EditPlotLines (const char* label, float *array, int values_co
     // enter edit if widget is active
     if (ImGui::GetActiveID() == id) {
 
-        static uint previous_index = UINT32_MAX;
+        static int previous_index = UINT32_MAX;
         bg_color = colors[ImGuiCol_FrameBgActive];
 
         // keep active area while mouse is pressed
         if (left_mouse_press)
         {
             float x = (float) values_count * mouse_pos_in_canvas.x / bbox.GetWidth();
-            uint index = CLAMP( (int) floor(x), 0, values_count-1);
+            int index = CLAMP( (int) floor(x), 0, values_count-1);
 
             float y = mouse_pos_in_canvas.y / bbox.GetHeight();
             y = CLAMP( (y * (values_max-values_min)) + values_min, values_min, values_max);
