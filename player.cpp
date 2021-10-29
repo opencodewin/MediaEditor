@@ -79,6 +79,7 @@ bool Application_Frame(void * handle)
     static bool force_software = false;
     static float play_speed = 1.0f;
     static bool muted = false;
+    static bool full_screen = false;
     static double volume = 0;
     bool done = false;
     auto& io = ImGui::GetIO();
@@ -289,6 +290,13 @@ bool Application_Frame(void * handle)
     if (g_player.isOpen() && !io.KeyShift && !io.KeyAlt && ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Z), true))
     {
         g_player.step();
+    }
+
+    // handle screen double click event
+    if (ImGui::IsMouseDoubleClicked(0) && !ImGui::IsAnyItemHovered())
+    {
+        full_screen = !full_screen;
+        Application_FullScreen(full_screen);
     }
 
     // Message Boxes
