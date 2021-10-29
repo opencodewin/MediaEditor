@@ -378,7 +378,7 @@ void MediaPlayer::execute_open()
     }
 
     // setup pipeline
-    g_object_set(G_OBJECT(pipeline_), "name", std::to_string(id_).c_str(), NULL, NULL);
+    g_object_set(G_OBJECT(pipeline_), "name", std::to_string(id_).c_str(), NULL);
     gst_pipeline_set_auto_flush_bus( GST_PIPELINE(pipeline_), true);
 
     // format: { AYUV64, ARGB64, GBRA_12LE, GBRA_12BE, Y412_LE, Y412_BE, A444_10LE, GBRA_10LE, 
