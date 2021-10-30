@@ -51,7 +51,9 @@ void Application_Initialize(void** handle)
 		docFile.close();
 	}
 #endif
+#if IMGUI_VULKAN_SHADER
     m_yuv2rgb = new ImGui::ColorConvert_vulkan(ImGui::get_default_gpu_index());
+#endif
 }
 
 void Application_Finalize(void** handle)
