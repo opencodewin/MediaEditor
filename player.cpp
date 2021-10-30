@@ -10,6 +10,7 @@
 #include <fstream>
 #if IMGUI_VULKAN_SHADER
 #include <ImVulkanShader.h>
+#include <Lut3D.h>
 #endif
 #include "MediaPlayer.h"
 #include "Log.h"
@@ -24,6 +25,7 @@ static ImTextureID g_texture = 0;
 MediaPlayer g_player;
 #if IMGUI_VULKAN_SHADER
 ImGui::ColorConvert_vulkan * m_yuv2rgb {nullptr};
+ImGui::LUT3D_vulkan *        m_lut3d {nullptr};
 #endif
 // Application Framework Functions
 void Application_GetWindowProperties(ApplicationWindowProperty& property)
@@ -61,6 +63,7 @@ void Application_Finalize(void** handle)
 {
 #if IMGUI_VULKAN_SHADER
     if (m_yuv2rgb) { delete m_yuv2rgb; m_yuv2rgb = nullptr; }
+    if (m_lut3d) { delete m_lut3d; m_lut3d = nullptr; }
 #endif
     if (g_texture) { ImGui::ImDestroyTexture(g_texture); g_texture = nullptr; }
     if (g_player.isOpen())
@@ -83,6 +86,8 @@ bool Application_Frame(void * handle)
     static bool show_log_window = false; 
     static bool show_timeline_window = false;
     static bool force_software = false;
+    static bool convert_hdr = false;
+    static bool has_hdr = false;
     static float play_speed = 1.0f;
     static bool muted = false;
     static bool full_screen = false;
@@ -204,6 +209,13 @@ bool Application_Frame(void * handle)
             g_player.setSoftwareDecodingForced(force_software);
         }
         ImGui::ShowTooltipOnHover("Software decoder");
+        // add HDR decode button
+        ImGui::SameLine();
+        if (ImGui::ToggleButton(has_hdr ? "HDR" : "SDR", &convert_hdr, size))
+        {
+            if (!has_hdr) convert_hdr = false;
+        }
+        ImGui::ShowTooltipOnHover("HDR decoder");
         // add show log button
         ImGui::SameLine();
         ImGui::ToggleButton(ICON_FA5_LIST_UL, &show_log_window, size);
@@ -316,6 +328,9 @@ bool Application_Frame(void * handle)
         if (ImGuiFileDialog::Instance()->IsOk())
 		{
             if (g_texture) { ImGui::ImDestroyTexture(g_texture); g_texture = nullptr; }
+            if (m_lut3d) { delete m_lut3d; m_lut3d = nullptr; }
+            has_hdr = false;
+            convert_hdr = false;
             std::string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
             g_player.open(filePathName);
             g_player.play(true);
@@ -412,8 +427,27 @@ bool Application_Frame(void * handle)
 #ifdef VIDEO_FORMAT_RGBA
         ImGui::ImGenerateOrUpdateTexture(g_texture, vmat.w, vmat.h, 4, (const unsigned char *)vmat.data);
 #else
+        ImGui::VkMat in_RGB; in_RGB.type = IM_DT_INT8;
+        m_yuv2rgb->YUV2RGBA(vmat, in_RGB, vmat.color_format, vmat.color_space, vmat.color_range, video_depth, video_shift);
+        if (vmat.color_space == IM_CS_BT2020) has_hdr = true; else has_hdr = false;
+        int lut_mode = vmat.flags & IM_MAT_FLAGS_VIDEO_HDR_HLG ? HDRHLG_SDR709 : vmat.flags & IM_MAT_FLAGS_VIDEO_HDR_PQ ? HDRPQ_SDR709 : NO_DEFAULT;
         ImGui::VkMat im_RGB; im_RGB.type = IM_DT_INT8;
-        m_yuv2rgb->YUV2RGBA(vmat, im_RGB, vmat.color_format, vmat.color_space, vmat.color_range, video_depth, video_shift);
+        if (has_hdr && convert_hdr && lut_mode != NO_DEFAULT)
+        {
+            // Convert HDR to SDR
+            if (!m_lut3d)
+            {
+                m_lut3d = new ImGui::LUT3D_vulkan(lut_mode, IM_INTERPOLATE_TRILINEAR, ImGui::get_default_gpu_index());
+            }
+            if (m_lut3d)
+            {
+                m_lut3d->filter(in_RGB, im_RGB);
+            }
+            else
+                im_RGB = in_RGB;
+        }
+        else
+            im_RGB = in_RGB;
         ImGui::ImGenerateOrUpdateTexture(g_texture, im_RGB.w, im_RGB.h, im_RGB.c, im_RGB.buffer_offset() , (const unsigned char *)im_RGB.buffer());
 #endif
 #else

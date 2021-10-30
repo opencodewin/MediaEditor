@@ -183,6 +183,7 @@ MediaInfo MediaPlayer::UriDiscoverer(const std::string &uri)
                     // try to fill-in the codec information
                     GstCaps *caps = gst_discoverer_stream_info_get_caps (tmpinf);
                     if (caps) {
+                        gst_video_info_from_caps(&stream_info.frame_video_info, caps);
                         gchar *codecstring = gst_pb_utils_get_codec_description(caps);
                         stream_info.video_codec_name = std::string( codecstring );
                         g_free(codecstring);
@@ -217,6 +218,7 @@ MediaInfo MediaPlayer::UriDiscoverer(const std::string &uri)
                     // try to fill-in the codec information
                     GstCaps *caps = gst_discoverer_stream_info_get_caps (tmpinf);
                     if (caps) {
+                        gst_audio_info_from_caps(&stream_info.frame_audio_info, caps);
                         gchar *codecstring = gst_pb_utils_get_codec_description(caps);
                         stream_info.video_codec_name = std::string( codecstring );
                         g_free(codecstring);
@@ -342,7 +344,7 @@ void MediaPlayer::execute_open()
     //      ordered dither using a bayer pattern 4 (default)
     description += "videoconvert chroma-resampler=1 dither=0 ! "; // fast
 #else
-    description += "videoconvert chroma-resampler=0 dither=0 ! ";
+    description += "videoconvert chroma-mode=3 primaries-mode=0 matrix-mode=3 ! ";
 #endif
 
     // hack to compensate for lack of PTS in gif animations
@@ -408,7 +410,7 @@ void MediaPlayer::execute_open()
     #error "please define VIDEO_FORMAT_ in header file"
 #endif
     GstCaps *caps = gst_caps_from_string(capstring.c_str());
-    if (!gst_video_info_from_caps (&v_frame_video_info_, caps)) {
+    if (!gst_video_info_from_caps (&o_frame_video_info_, caps)) {
         Log::Warning("MediaPlayer %s Could not configure video frame info", std::to_string(id_).c_str());
         failed_ = true;
         return;
@@ -468,8 +470,8 @@ void MediaPlayer::execute_open()
 
     if (media_.audio_valid)
     {
-       gst_audio_info_set_format(&v_frame_audio_info_, GST_AUDIO_FORMAT_F32LE, media_.audio_sample_rate, media_.audio_channels, nullptr);
-       GstCaps *caps_audio = gst_audio_info_to_caps(&v_frame_audio_info_);
+       gst_audio_info_set_format(&o_frame_audio_info_, GST_AUDIO_FORMAT_F32LE, media_.audio_sample_rate, media_.audio_channels, nullptr);
+       GstCaps *caps_audio = gst_audio_info_to_caps(&o_frame_audio_info_);
        if (!caps_audio)
        {
            Log::Warning("MediaPlayer %s Could not configure audio frame info", std::to_string(id_).c_str());
@@ -979,8 +981,8 @@ void MediaPlayer::fill_video(guint index)
     }
 #endif
 #endif
-    auto color_space = GST_VIDEO_INFO_COLORIMETRY(&vframe_[index].frame.info);
-    auto color_range = GST_VIDEO_INFO_CHROMA_SITE(&vframe_[index].frame.info);
+    auto color_space = GST_VIDEO_INFO_COLORIMETRY(&media_.frame_video_info);
+    auto color_range = GST_VIDEO_INFO_CHROMA_SITE(&media_.frame_video_info);
     VMat.time_stamp = vframe_[index].position / (1e+9);
     VMat.depth = media_.depth / 3;
     VMat.rate = {static_cast<int>(media_.framerate_n), static_cast<int>(media_.framerate_d)};
@@ -993,7 +995,7 @@ void MediaPlayer::fill_video(guint index)
     VMat.color_space = color_space.primaries == GST_VIDEO_COLOR_PRIMARIES_BT709 ? IM_CS_BT709 :
                        color_space.primaries == GST_VIDEO_COLOR_PRIMARIES_BT2020 ? IM_CS_BT2020 : IM_CS_BT601;
     VMat.color_range = color_range == GST_VIDEO_CHROMA_SITE_JPEG ? IM_CR_FULL_RANGE : 
-                       color_range == GST_VIDEO_CHROMA_SITE_MPEG2 ? IM_CR_NARROW_RANGE : IM_CR_FULL_RANGE;
+                       color_range == GST_VIDEO_CHROMA_SITE_MPEG2 ? IM_CR_NARROW_RANGE : IM_CR_NARROW_RANGE;
 #ifdef VIDEO_FORMAT_NV12
     VMat.color_format = data_shift ? VMat.depth == 10 ? IM_CF_P010LE : IM_CF_NV12 :IM_CF_NV12;
     VMat.flags |= IM_MAT_FLAGS_VIDEO_FRAME_UV;
@@ -1012,12 +1014,12 @@ void MediaPlayer::fill_audio(guint index)
 {
     // deal with the frame at reading index
     auto data = aframe_[index].frame.planes[0];
-    for (int i = 0; i < v_frame_audio_info_.channels; i++)
+    for (int i = 0; i < o_frame_audio_info_.channels; i++)
     {
-        audio_channel_level[i] = calculate_audio_db<float>((const float *)data, v_frame_audio_info_.channels, i, aframe_[index].frame.n_samples, 1.0);
+        audio_channel_level[i] = calculate_audio_db<float>((const float *)data, o_frame_audio_info_.channels, i, aframe_[index].frame.n_samples, 1.0);
     }
-    auto total_sample_length = aframe_[index].frame.n_samples / v_frame_audio_info_.channels;
-    AMat.create_type(total_sample_length, 1, v_frame_audio_info_.channels, IM_DT_FLOAT32);
+    auto total_sample_length = aframe_[index].frame.n_samples / o_frame_audio_info_.channels;
+    AMat.create_type(total_sample_length, 1, o_frame_audio_info_.channels, IM_DT_FLOAT32);
     float * buffer = (float *)data;
     for (int i = 0; i < AMat.w; i++)
     {
@@ -1028,7 +1030,7 @@ void MediaPlayer::fill_audio(guint index)
         }
     }
     AMat.time_stamp = aframe_[index].position / 1e+9;
-    AMat.rate = {v_frame_audio_info_.rate, 1};
+    AMat.rate = {o_frame_audio_info_.rate, 1};
     AMat.flags = IM_MAT_FLAGS_AUDIO_FRAME;
 }
 
@@ -1362,7 +1364,7 @@ bool MediaPlayer::fill_video_frame(GstBuffer *buf, FrameStatus status)
     // a buffer is given (not EOS)
     if (buf != NULL) {
         // get the frame from buffer
-        if ( !gst_video_frame_map (&vframe_[vwrite_index_].frame, &v_frame_video_info_, buf, GST_MAP_READ ) )
+        if ( !gst_video_frame_map (&vframe_[vwrite_index_].frame, &o_frame_video_info_, buf, GST_MAP_READ ) )
         {
 #ifdef MEDIA_PLAYER_DEBUG
             Log::Info("MediaPlayer %s Failed to map the video buffer", std::to_string(id_).c_str());
@@ -1528,7 +1530,7 @@ bool MediaPlayer::fill_audio_frame(GstBuffer *buf, FrameStatus status)
     // a buffer is given (not EOS)
     if (buf != NULL) {
         // get the frame from buffer
-        if ( !gst_audio_buffer_map (&aframe_[awrite_index_].frame, &v_frame_audio_info_, buf, GST_MAP_READ ) )
+        if ( !gst_audio_buffer_map (&aframe_[awrite_index_].frame, &o_frame_audio_info_, buf, GST_MAP_READ ) )
         {
 #ifdef MEDIA_PLAYER_DEBUG
             Log::Info("MediaPlayer %s Failed to map the audio buffer", std::to_string(id_).c_str());

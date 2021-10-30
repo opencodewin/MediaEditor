@@ -42,6 +42,7 @@ struct MediaInfo
     guint framerate_n;
     guint framerate_d;
     std::string video_codec_name;
+    GstVideoInfo frame_video_info;
     bool isimage;
     bool interlaced;
     bool video_valid;
@@ -51,6 +52,7 @@ struct MediaInfo
     guint audio_depth;
     guint audio_bitrate;
     std::string audio_codec_name;
+    GstAudioInfo frame_audio_info;
     bool audio_valid;
     // system info
     bool seekable;
@@ -94,6 +96,7 @@ struct MediaInfo
             this->framerate_d = b.framerate_d;
             this->video_codec_name = b.video_codec_name;
             this->video_valid = b.video_valid;
+            this->frame_video_info = b.frame_video_info;
             this->isimage = b.isimage;
             this->interlaced = b.interlaced;
             this->seekable = b.seekable;
@@ -103,6 +106,7 @@ struct MediaInfo
             this->audio_bitrate = b.audio_bitrate;
             this->audio_codec_name = b.audio_codec_name;
             this->audio_valid = b.audio_valid;
+            this->frame_audio_info = b.frame_audio_info;
         }
         return *this;
     }
@@ -360,8 +364,8 @@ private:
     LoopMode loop_;
     GstState desired_state_;
     GstElement *pipeline_;
-    GstVideoInfo v_frame_video_info_;
-    GstAudioInfo v_frame_audio_info_;
+    GstVideoInfo o_frame_video_info_;
+    GstAudioInfo o_frame_audio_info_;
     std::atomic<bool> opened_;
     std::atomic<bool> failed_;
     bool seeking_;
