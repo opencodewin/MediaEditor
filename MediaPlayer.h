@@ -18,9 +18,12 @@
 #include "Timeline.h"
 
 //#define LIMIT_DISCOVERER
-//#define VIDEO_FORMAT_RGBA
+#if !IMGUI_VULKAN_SHADER
+#define VIDEO_FORMAT_RGBA
+#else
 #define VIDEO_FORMAT_NV12
 //#define VIDEO_FORMAT_YV12
+#endif
 #define MEDIA_PLAYER_DEBUG
 
 #define MAX_PLAY_SPEED 20.0

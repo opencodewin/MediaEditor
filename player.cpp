@@ -358,6 +358,10 @@ bool Application_Frame(void * handle)
         m_yuv2rgb->YUV2RGBA(vmat, im_RGB, vmat.color_format, vmat.color_space, vmat.color_range, video_depth, video_shift);
         ImGui::ImGenerateOrUpdateTexture(g_texture, im_RGB.w, im_RGB.h, im_RGB.c, im_RGB.buffer_offset() , (const unsigned char *)im_RGB.buffer());
 #endif
+#else
+#ifdef VIDEO_FORMAT_RGBA
+        ImGui::ImGenerateOrUpdateTexture(g_texture, vmat.w, vmat.h, 4, (const unsigned char *)vmat.data);
+#endif
 #endif
     }
     if (g_texture)
