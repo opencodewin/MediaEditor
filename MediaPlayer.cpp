@@ -930,7 +930,7 @@ void MediaPlayer::fill_video(guint index)
     uint8_t* dst_data = (uint8_t*)VMat.data;
     memcpy(dst_data, src_data, media_.width * media_.height * (data_shift ? 2 : 1) * 4);
 #else
-    int data_shift = media_.depth > 24 ? 1 : 0;
+    int data_shift = vframe_[index].frame.info.finfo->bits > 8;
 #ifdef VIDEO_FORMAT_NV12
     int UV_shift_w = 0;
 #elif defined(VIDEO_FORMAT_YV12)
@@ -979,7 +979,7 @@ void MediaPlayer::fill_video(guint index)
     auto color_space = GST_VIDEO_INFO_COLORIMETRY(&vframe_[index].frame.info);
     auto color_range = GST_VIDEO_INFO_CHROMA_SITE(&vframe_[index].frame.info);
     VMat.time_stamp = vframe_[index].position / (1e+9);
-    VMat.depth = media_.depth / 3;
+    VMat.depth = vframe_[index].frame.info.finfo->depth[0];
     VMat.rate = {static_cast<int>(media_.framerate_n), static_cast<int>(media_.framerate_d)};
     VMat.flags = IM_MAT_FLAGS_VIDEO_FRAME;
 #ifdef VIDEO_FORMAT_RGBA
