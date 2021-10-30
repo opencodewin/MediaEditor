@@ -925,6 +925,9 @@ void MediaPlayer::fill_video(guint index)
 {
 #ifdef VIDEO_FORMAT_RGBA
     int data_shift = media_.depth > 32 ? 1 : 0;
+#ifdef WIN32
+    data_shift = 0; // WIN32 only support 8bit RGBA?
+#endif
     VMat.create_type(media_.width, media_.height, 4, data_shift ? IM_DT_INT16 : IM_DT_INT8);
     uint8_t* src_data = (uint8_t*)vframe_[index].frame.data[0];
     uint8_t* dst_data = (uint8_t*)VMat.data;
@@ -979,7 +982,7 @@ void MediaPlayer::fill_video(guint index)
     auto color_space = GST_VIDEO_INFO_COLORIMETRY(&vframe_[index].frame.info);
     auto color_range = GST_VIDEO_INFO_CHROMA_SITE(&vframe_[index].frame.info);
     VMat.time_stamp = vframe_[index].position / (1e+9);
-    VMat.depth = vframe_[index].frame.info.finfo->depth[0];
+    VMat.depth = media_.depth / 3;
     VMat.rate = {static_cast<int>(media_.framerate_n), static_cast<int>(media_.framerate_d)};
     VMat.flags = IM_MAT_FLAGS_VIDEO_FRAME;
 #ifdef VIDEO_FORMAT_RGBA
@@ -992,7 +995,7 @@ void MediaPlayer::fill_video(guint index)
     VMat.color_range = color_range == GST_VIDEO_CHROMA_SITE_JPEG ? IM_CR_FULL_RANGE : 
                        color_range == GST_VIDEO_CHROMA_SITE_MPEG2 ? IM_CR_NARROW_RANGE : IM_CR_FULL_RANGE;
 #ifdef VIDEO_FORMAT_NV12
-    VMat.color_format = data_shift ? IM_CF_P010LE : IM_CF_NV12;
+    VMat.color_format = data_shift ? VMat.depth == 10 ? IM_CF_P010LE : IM_CF_NV12 :IM_CF_NV12;
     VMat.flags |= IM_MAT_FLAGS_VIDEO_FRAME_UV;
 #elif defined(VIDEO_FORMAT_YV12)
     VMat.color_format = IM_CF_YUV420;
