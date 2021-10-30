@@ -364,7 +364,7 @@ void MediaPlayer::execute_open()
                        ",format=F32LE,rate=" + std::to_string(media_.audio_sample_rate) + " ! ";
         description += " tee name=t ! queue !";
         description += " appsink name=audio_appsink";
-        description += " t. ! queue ! volume name=audio_volume ! autoaudiosink name=audio_render";
+        description += " t. ! queue ! volume name=audio_volume ! autoaudiosink name=audio_render sync=true";
     }
 
     // parse pipeline descriptor
@@ -434,7 +434,7 @@ void MediaPlayer::execute_open()
     gst_app_sink_set_caps (GST_APP_SINK(video_appsink), caps);
 
     // Instruct appsink to drop old buffers when the maximum amount of queued buffers is reached.
-    gst_app_sink_set_max_buffers( GST_APP_SINK(video_appsink), N_VFRAME);
+    gst_app_sink_set_max_buffers( GST_APP_SINK(video_appsink), 2);
     gst_app_sink_set_buffer_list_support( GST_APP_SINK(video_appsink), true);
     gst_app_sink_set_drop (GST_APP_SINK(video_appsink), true);
 
@@ -492,7 +492,7 @@ void MediaPlayer::execute_open()
         gst_app_sink_set_caps (GST_APP_SINK(audio_appsink), caps_audio);
 
         // Instruct appsink to drop old buffers when the maximum amount of queued buffers is reached.
-        gst_app_sink_set_max_buffers( GST_APP_SINK(audio_appsink), N_AFRAME);
+        gst_app_sink_set_max_buffers( GST_APP_SINK(audio_appsink), 2);
         gst_app_sink_set_buffer_list_support( GST_APP_SINK(audio_appsink), true);
         gst_app_sink_set_drop (GST_APP_SINK(audio_appsink), true);
 
