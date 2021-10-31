@@ -10,8 +10,6 @@
 #include <map>
 
 #include <locale>
-#include <unicode/ustream.h>
-#include <unicode/translit.h>
 
 uint64_t BaseToolkit::uniqueId()
 {
@@ -47,43 +45,6 @@ std::string BaseToolkit::uniqueName(const std::string &basename, std::list<std::
 
     return tentativename;
 }
-
-// Using ICU transliteration :
-// https://unicode-org.github.io/icu/userguide/transforms/general/#icu-transliterators
-
-std::string BaseToolkit::transliterate(const std::string &input)
-{
-    // because icu::Transliterator is slow, we keep a dictionnary of already
-    // transliterated texts to be faster during repeated calls (update of user interface)
-    static std::map<std::string, std::string> dictionnary_;
-    std::map<std::string, std::string>::const_iterator existingentry = dictionnary_.find(input);
-
-    if (existingentry == dictionnary_.cend()) {
-
-        auto ucs = icu::UnicodeString::fromUTF8(input);
-
-        UErrorCode status = U_ZERO_ERROR;
-        icu::Transliterator *firstTrans = icu::Transliterator::createInstance(
-                    "any-NFKD ; [:Nonspacing Mark:] Remove; NFKC; Latin", UTRANS_FORWARD, status);
-        firstTrans->transliterate(ucs);
-        delete firstTrans;
-
-        icu::Transliterator *secondTrans = icu::Transliterator::createInstance(
-                    "any-NFKD ; [:Nonspacing Mark:] Remove; [@!#$*%~] Remove; NFKC", UTRANS_FORWARD, status);
-        secondTrans->transliterate(ucs);
-        delete secondTrans;
-
-        std::ostringstream output;
-        output << ucs;
-
-        // remember for future
-        dictionnary_[input] = output.str();
-    }
-
-    // return remembered transliterated text
-    return dictionnary_[input];
-}
-
 
 std::string BaseToolkit::byte_to_string(long b)
 {

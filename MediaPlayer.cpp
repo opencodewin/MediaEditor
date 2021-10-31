@@ -268,7 +268,7 @@ MediaInfo MediaPlayer::UriDiscoverer(const std::string &uri)
 void MediaPlayer::open (const std::string & filename, const string &uri)
 {
     // set path
-    filename_ = BaseToolkit::transliterate( filename );
+    filename_ = filename;
 
     // set uri to open
     if (uri.empty())

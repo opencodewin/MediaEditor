@@ -78,16 +78,6 @@ macro_log_feature(GSTREAMER_GL_LIBRARY_FOUND "GStreamerPluginsBase" "GStreamer o
 # Various preprocessor definitions for GST
 add_definitions(-DGST_DISABLE_XML -DGST_DISABLE_LOADSAVE)
 
-#
-# ICU4C
-#
-if (PKG_CONFIG_FOUND)
-    pkg_check_modules(ICU REQUIRED icu-i18n icu-uc icu-io)
-else ()
-    find_package(ICU REQUIRED COMPONENTS i18n io uc)
-endif ()
-macro_log_feature(ICU_FOUND "ICU" "International Components for Unicode" "http://site.icu-project.org" TRUE)
-
 macro_display_feature_log()
 
 #
@@ -104,12 +94,7 @@ include_directories(
     ${GSTREAMER_APP_INCLUDE_DIR}
     ${GSTREAMER_PBUTILS_INCLUDE_DIR}
     ${GSTREAMER_GL_INCLUDE_DIR}
-    ${ICU_INCLUDE_DIRS}
     ${IMGUI_INCLUDE_DIR}
-)
-
-link_directories(
-    ${ICU_LIBRARY_DIRS}
 )
 
 set(MEDIA_EDITOR_BINARY "me")
@@ -138,7 +123,6 @@ target_link_libraries(
     ${GSTREAMER_VIDEO_LIBRARY}
     ${GSTREAMER_PBUTILS_LIBRARY}
     ${GSTREAMER_GL_LIBRARY}
-    ${ICU_LIBRARIES}
     Threads::Threads
 )
 
@@ -186,6 +170,5 @@ target_link_libraries(
     ${GSTREAMER_VIDEO_LIBRARY}
     ${GSTREAMER_PBUTILS_LIBRARY}
     ${GSTREAMER_GL_LIBRARY}
-    ${ICU_LIBRARIES}
     Threads::Threads
 )

@@ -104,7 +104,7 @@ bool Application_Frame(void * handle)
     if (g_player.isOpen() && (show_ctrlbar && io.FrameCountSinceLastInput))
     {
         ctrlbar_hide_count++;
-        if (ctrlbar_hide_count >= 200)
+        if (ctrlbar_hide_count >= 100)
         {
             ctrlbar_hide_count = 0;
             show_ctrlbar = false;
@@ -328,9 +328,11 @@ bool Application_Frame(void * handle)
         if (ImGuiFileDialog::Instance()->IsOk())
 		{
             if (g_texture) { ImGui::ImDestroyTexture(g_texture); g_texture = nullptr; }
+#if IMGUI_VULKAN_SHADER
             if (m_lut3d) { delete m_lut3d; m_lut3d = nullptr; }
             has_hdr = false;
             convert_hdr = false;
+#endif
             std::string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
             g_player.open(filePathName);
             g_player.play(true);
