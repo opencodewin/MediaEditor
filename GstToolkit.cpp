@@ -81,11 +81,13 @@ std::string GstToolkit::filename_to_uri(std::string path)
 {
     if (path.empty())
         return path;
-    std::string uri_prefx = "file://";
 #ifdef WIN32
-    uri_prefx += "/";
+    gchar *uritmp = gst_filename_to_uri(path.c_str(), NULL);
+    std::string uri( uritmp );
+    g_free(uritmp);
+#else
+    std::string uri = "file://" + path;
 #endif
-    std::string uri = uri_prefx + path;
     return uri;
 }
 
