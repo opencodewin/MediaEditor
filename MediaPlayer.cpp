@@ -698,6 +698,11 @@ GstClockTime MediaPlayer::position()
     return position_;
 }
 
+GstClockTime MediaPlayer::duration()
+{
+    return timeline_.end();
+}
+
 void MediaPlayer::enable(bool on)
 {
     if ( !opened_ || pipeline_ == nullptr)

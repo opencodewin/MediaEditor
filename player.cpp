@@ -221,6 +221,11 @@ bool Application_Frame(void * handle)
         ImGui::ShowTooltipOnHover("Show Log");
         // add button end
 
+        // show time info
+        ImGui::SameLine(); ImGui::Dummy(size);
+        ImGui::SameLine();
+        ImGui::Text("%s/%s", GstToolkit::time_to_string(g_player.position()).c_str(), GstToolkit::time_to_string(g_player.duration()).c_str());
+
         ImGui::Unindent((i - 32.0f) * 0.4f);
         ImGui::Separator();
         // add audio meter bar
@@ -276,7 +281,7 @@ bool Application_Frame(void * handle)
     {
         auto g_pos = g_player.position();
         if (g_pos == GST_CLOCK_TIME_NONE) g_pos = 0;
-        g_pos -= 1e+9;
+        g_pos -= 5e+9;
         if (g_pos < 0) g_pos = 0;
         g_player.seek(g_pos);
     }
@@ -284,14 +289,14 @@ bool Application_Frame(void * handle)
     {
         auto g_pos = g_player.position();
         if (g_pos == GST_CLOCK_TIME_NONE) g_pos = 0;
-        g_pos += 1e+9;
+        g_pos += 5e+9;
         g_player.seek(g_pos);
     }
     if (g_player.isOpen() && !io.KeyCtrl && !io.KeyShift && !io.KeyAlt && ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_DownArrow), true))
     {
         auto g_pos = g_player.position();
         if (g_pos == GST_CLOCK_TIME_NONE) g_pos = 0;
-        g_pos -= 5e+9;
+        g_pos -= 1e+10;
         if (g_pos < 0) g_pos = 0;
         g_player.seek(g_pos);
     }
@@ -299,7 +304,7 @@ bool Application_Frame(void * handle)
     {
         auto g_pos = g_player.position();
         if (g_pos == GST_CLOCK_TIME_NONE) g_pos = 0;
-        g_pos += 5e+9;
+        g_pos += 1e+10;
         g_player.seek(g_pos);
     }
     if (g_player.isOpen() && !io.KeyShift && !io.KeyAlt && ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Z), true))

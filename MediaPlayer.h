@@ -233,6 +233,11 @@ public:
      * */
     GstClockTime position();
     /**
+     * Get Meida Duration
+     * 
+     */
+    GstClockTime duration();
+    /**
      * go to a valid position in media timeline
      * pos in nanoseconds.
      * return true if seek is performed
