@@ -84,7 +84,6 @@ bool Application_Frame(void * handle)
 {
     static bool show_ctrlbar = true;
     static bool show_log_window = false; 
-    static bool show_timeline_window = false;
     static bool force_software = false;
     static bool convert_hdr = false;
     static bool has_hdr = false;
@@ -116,7 +115,7 @@ bool Application_Frame(void * handle)
         show_ctrlbar = true;
     }
 
-    ImVec2 center(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.8f);
+    ImVec2 center(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.9f);
     ImVec2 panel_size(io.DisplaySize.x - 40.0, 120);
     ImGui::SetNextWindowPos(center, ImGuiCond_Always, ImVec2(0.5f, 0.5f));
     ImGui::SetNextWindowSize(panel_size, ImGuiCond_Always);
@@ -204,26 +203,22 @@ bool Application_Frame(void * handle)
         ImGui::PopItemWidth();
         // add software decode button
         ImGui::SameLine();
-        if (ImGui::ToggleButton("SW", &force_software, size))
+        if (ImGui::ToggleButton("SW", &force_software, size * 0.75))
         {
             g_player.setSoftwareDecodingForced(force_software);
         }
         ImGui::ShowTooltipOnHover("Software decoder");
         // add HDR decode button
         ImGui::SameLine();
-        if (ImGui::ToggleButton(has_hdr ? "HDR" : "SDR", &convert_hdr, size))
+        if (ImGui::ToggleButton(has_hdr ? "HDR" : "SDR", &convert_hdr, size * 0.75))
         {
             if (!has_hdr) convert_hdr = false;
         }
         ImGui::ShowTooltipOnHover("HDR decoder");
         // add show log button
         ImGui::SameLine();
-        ImGui::ToggleButton(ICON_FA5_LIST_UL, &show_log_window, size);
+        ImGui::ToggleButton(ICON_FA5_LIST_UL, &show_log_window, size * 0.75);
         ImGui::ShowTooltipOnHover("Show Log");
-        // add show timeline button
-        ImGui::SameLine();
-        ImGui::ToggleButton("TL", &show_timeline_window, size);
-        ImGui::ShowTooltipOnHover("Show Timeline");
         // add button end
 
         ImGui::Unindent((i - 32.0f) * 0.4f);
@@ -344,79 +339,6 @@ bool Application_Frame(void * handle)
     if (show_log_window)
     {
         Log::ShowLogWindow(&show_log_window);
-    }
-
-    // Show Timeline Window
-    if (show_timeline_window)
-    {
-        if (g_player.isOpen())
-        {
-            ImVec2 pos(0, io.DisplaySize.y * 0.9f);
-            ImGui::SetNextWindowPos(pos, ImGuiCond_Always);
-            ImGui::SetNextWindowSize(ImVec2(io.DisplaySize.x, io.DisplaySize.y * 0.1f), ImGuiCond_Always);
-            if (ImGui::Begin("##media_timeline", NULL, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoResize))
-            {
-                ImGuiWindow* window = ImGui::GetCurrentWindow();
-                Timeline *timeline = g_player.timeline();
-                auto time = g_player.position();
-                float *lines_array = timeline->fadingArray();
-                const guint64 duration = timeline->sectionsDuration();
-                TimeIntervalSet se = timeline->sections();
-                const float cursor_width = 0.5f * g.FontSize;
-                auto timescale_width = io.DisplaySize.x - style.FramePadding.x * 8;
-                const double width_ratio = static_cast<double>(timescale_width) / static_cast<double>(duration);
-                const ImVec2 timeline_size( static_cast<float>( static_cast<double>(duration) * width_ratio ), 2 * g.FontSize);
-                const ImVec2 pos = window->DC.CursorPos;
-                const ImVec2 timescale_pos = pos + ImVec2(style.FramePadding.x, 0.f);
-                const ImRect timeline_bbox( timescale_pos, timescale_pos + timeline_size);
-                // PLOT of opacity is inside the bbox, at the top
-                const ImVec2 plot_pos = pos + style.FramePadding;
-                const ImRect plot_bbox( plot_pos, plot_pos + ImVec2(timeline_size.x, io.DisplaySize.y * 0.1f - 2.f * style.FramePadding.y - timeline_size.y));
-
-                guint64 d = 0;
-                guint64 e = 0;
-                ImVec2 section_bbox_min = timeline_bbox.Min;
-                for (auto section = se.begin(); section != se.end(); ++section) 
-                {
-                    // increment duration to adjust horizontal position
-                    d += section->duration();
-                    e = section->end;
-                    const float percent = static_cast<float>(d) / static_cast<float>(duration) ;
-                    ImVec2 section_bbox_max = ImLerp(timeline_bbox.GetBL(), timeline_bbox.GetBR(), percent);
-                    // adjust bbox of section and render a timeline
-                    ImRect section_bbox(section_bbox_min, section_bbox_max);
-                    ImGuiToolkit::RenderTimeline(window, section_bbox, section->begin, section->end, timeline->step());
-                    // draw the cursor
-                    float time_ = static_cast<float> ( static_cast<double>(time - section->begin) / static_cast<double>(section->duration()) );
-                    if ( time_ > -FLT_EPSILON && time_ < 1.f ) 
-                    {
-                        ImVec2 pos = ImLerp(section_bbox.GetTL(), section_bbox.GetTR(), time_) - ImVec2(cursor_width, 2.f);
-                        ImGui::RenderArrow(window->DrawList, pos, ImGui::GetColorU32(ImGuiCol_SliderGrab), ImGuiDir_Up);
-                    }
-                    // draw plot of lines
-                    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0,0,0,0));
-                    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0.f, 0.f));
-                    ImGui::SetCursorScreenPos(ImVec2(section_bbox_min.x, plot_bbox.Min.y));
-                    // find the index in timeline array of the section start time
-                    size_t i = timeline->fadingIndexAt(section->begin);
-                    // number of values is the index after end time of section (+1), minus the start index
-                    size_t values_count = 1 + timeline->fadingIndexAt(section->end) - i;
-                    ImGui::PlotLines("##linessection", lines_array + i, values_count, 0, NULL, 0.f, 1.f, ImVec2(section_bbox.GetWidth(), plot_bbox.GetHeight()));
-                    ImGui::PopStyleColor(1);
-                    ImGui::PopStyleVar(1);
-
-                    // detect if there was a gap before
-                    if (i > 0)
-                        window->DrawList->AddRectFilled(ImVec2(section_bbox_min.x -2.f, plot_bbox.Min.y), ImVec2(section_bbox_min.x + 2.f, plot_bbox.Max.y), ImGui::GetColorU32(ImGuiCol_TitleBg));
-                    // iterate: next bbox of section starts at end of current
-                    section_bbox_min.x = section_bbox_max.x;
-                }
-                // detect if there is a gap after
-                if (e < timeline->duration())
-                     window->DrawList->AddRectFilled(ImVec2(section_bbox_min.x -2.f, plot_bbox.Min.y), ImVec2(section_bbox_min.x + 2.f, plot_bbox.Max.y), ImGui::GetColorU32(ImGuiCol_TitleBg));
-                ImGui::End();
-            }
-        }
     }
 
     // Video Texture Render
