@@ -17,11 +17,23 @@ using namespace std;
 
 static std::mutex mtx;
 
+typedef enum _tag_log_type : int
+{
+    LOG_UNKNOWN = -1,
+    LOG_INFO = 0,
+    LOG_NOTIFY,
+    LOG_DEBUG,
+    LOG_WARNING,
+    LOG_ERROR,
+    LOG_TYPE_NUM
+} LOG_TYPE;
+
 struct AppLog
 {
     ImGuiTextBuffer     Buf;
     ImGuiTextFilter     Filter;
-    ImVector<int>       LineOffsets; 
+    ImVector<int>       LineOffsets;
+    ImVector<int>       LineTypes;
 
     AppLog()
     {
@@ -34,21 +46,50 @@ struct AppLog
         Buf.clear();
         LineOffsets.clear();
         LineOffsets.push_back(0);
+        LineTypes.clear();
+        LineTypes.push_back(LOG_UNKNOWN);
         mtx.unlock();
     }
 
-    void AddLog(const char* fmt, va_list args)
+    void AddLog(const int type, const char* fmt, va_list args)
     {
         mtx.lock();
         int old_size = Buf.size();
-        Buf.appendf("%04d  ", LineOffsets.size()); // this adds 6 characters to show line number
         Buf.appendfv(fmt, args);
         Buf.append("\n");
 
         for (int new_size = Buf.size(); old_size < new_size; old_size++)
             if (Buf[old_size] == '\n')
+            {
                 LineOffsets.push_back(old_size + 1);
+                LineTypes.push_back(type);
+            }
         mtx.unlock();
+    }
+
+    void DrawIcon(const int type)
+    {
+        switch (type)
+        {
+            case LOG_INFO:      ImGui::Text(ICON_FA5_INFO_CIRCLE); break;
+            case LOG_NOTIFY:    ImGui::Text(ICON_FA5_QUESTION_CIRCLE); break;
+            case LOG_DEBUG:
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.f, 1.f, 0.f, 1.f));
+                ImGui::Text(ICON_FA5_CROSSHAIRS);
+                ImGui::PopStyleColor();
+                break;
+            case LOG_WARNING:
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 1.f, 0.f, 1.f));
+                ImGui::Text(ICON_FA5_EXCLAMATION_CIRCLE);
+                ImGui::PopStyleColor();
+                break;
+            case LOG_ERROR:
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 0.f, 0.f, 1.f));
+                ImGui::Text(ICON_FA5_TIMES_CIRCLE);
+                ImGui::PopStyleColor();
+                break;
+            default: break;
+        };
     }
 
     void Draw(const char* title, bool* p_open = NULL)
@@ -91,7 +132,6 @@ struct AppLog
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
 
         mtx.lock();
-
         const char* buf = Buf.begin();
         const char* buf_end = Buf.end();
         if (Filter.IsActive())
@@ -105,7 +145,12 @@ struct AppLog
                 const char* line_start = buf + LineOffsets[line_no];
                 const char* line_end = (line_no + 1 < LineOffsets.Size) ? (buf + LineOffsets[line_no + 1] - 1) : buf_end;
                 if (Filter.PassFilter(line_start, line_end))
+                {
+                    const int type = LineTypes[line_no + 1];
+                    DrawIcon(type);
+                    ImGui::SameLine();
                     ImGui::TextUnformatted(line_start, line_end);
+                }
             }
         }
         else
@@ -125,8 +170,18 @@ struct AppLog
             {
                 for (int line_no = clipper.DisplayStart; line_no < clipper.DisplayEnd; line_no++)
                 {
-                    const char* line_start = buf + LineOffsets[line_no] + (numbering?0:6);
+                    const char* line_start = buf + LineOffsets[line_no];
                     const char* line_end = (line_no + 1 < LineOffsets.Size) ? (buf + LineOffsets[line_no + 1] - 1) : buf_end;
+                    if (numbering && *line_start != 0)
+                    {
+                        ImGui::Text("%04d  ", line_no + 1); ImGui::SameLine();
+                    }
+                    if (*line_start != 0)
+                    {
+                        const int type = LineTypes[line_no + 1];
+                        DrawIcon(type);
+                        ImGui::SameLine();
+                    }
                     ImGui::TextUnformatted(line_start, line_end);
                 }
             }
@@ -152,18 +207,24 @@ list<string> notifications;
 list<string> warnings;
 float notifications_timeout = 0.f;
 
-void Log::Info(const char* fmt, ...)
+void Log::AddMessage(const int type, const char* fmt, ...)
 {
     va_list args;
     va_start(args, fmt);
-    logs.AddLog(fmt, args);
+    logs.AddLog(type, fmt, args);
     va_end(args);
 }
 
-void Log::ShowLogWindow(bool* p_open)
+void Log::Info(const char* fmt, ...)
 {
-    ImGui::SetNextWindowSize(ImVec2(700, 600), ImGuiCond_FirstUseEver);
-    logs.Draw( ICON_FA5_LIST_UL " Logs", p_open);
+    ImGuiTextBuffer buf;
+
+    va_list args;
+    va_start(args, fmt);
+    buf.appendfv(fmt, args);
+    va_end(args);
+
+    Log::AddMessage(LOG_INFO, " [Info   ] %s", buf.c_str());
 }
 
 void Log::Notify(const char* fmt, ...)
@@ -180,7 +241,23 @@ void Log::Notify(const char* fmt, ...)
     notifications_timeout = 0.f;
 
     // always log
-    Log::Info(ICON_FA5_INFO_CIRCLE " %s", buf.c_str());
+    Log::AddMessage(LOG_NOTIFY, " [Notify ] %s", buf.c_str());
+}
+
+void Log::Debug(const char* fmt, ...)
+{
+    ImGuiTextBuffer buf;
+
+    va_list args;
+    va_start(args, fmt);
+    buf.appendfv(fmt, args);
+    va_end(args);
+
+    // will display a warning dialog
+    warnings.push_back(buf.c_str());
+
+    // always log
+    Log::AddMessage(LOG_DEBUG, " [Debug  ] %s", buf.c_str());
 }
 
 void Log::Warning(const char* fmt, ...)
@@ -196,7 +273,27 @@ void Log::Warning(const char* fmt, ...)
     warnings.push_back(buf.c_str());
 
     // always log
-    Log::Info(ICON_FA5_EXCLAMATION_TRIANGLE " Warning - %s", buf.c_str());
+    Log::AddMessage(LOG_WARNING, " [Warning] %s", buf.c_str());
+}
+
+void Log::Error(const char* fmt, ...)
+{
+    ImGuiTextBuffer buf;
+
+    va_list args;
+    va_start(args, fmt);
+    buf.appendfv(fmt, args);
+    va_end(args);
+
+    //DialogToolkit::ErrorDialog(buf.c_str());
+
+    Log::AddMessage(LOG_ERROR, " [Error  ] %s", buf.c_str());
+}
+
+void Log::ShowLogWindow(bool* p_open)
+{
+    ImGui::SetNextWindowSize(ImVec2(700, 600), ImGuiCond_FirstUseEver);
+    logs.Draw( ICON_FA5_LIST_UL " Logs", p_open);
 }
 
 void Log::Render(bool *showWarnings)
@@ -286,18 +383,3 @@ void Log::Render(bool *showWarnings)
     }
 
 }
-
-void Log::Error(const char* fmt, ...)
-{
-    ImGuiTextBuffer buf;
-
-    va_list args;
-    va_start(args, fmt);
-    buf.appendfv(fmt, args);
-    va_end(args);
-
-    //DialogToolkit::ErrorDialog(buf.c_str());
-
-    Log::Info("Error - %s\n", buf.c_str());
-}
-

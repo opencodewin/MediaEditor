@@ -169,6 +169,7 @@ ImGui::ImMat MediaPlayer::audioMat()
         position_ = aframe_[a_read_index].position;
         // avoid reading it again
         aframe_[a_read_index].status = INVALID;
+        //Log::Info("Audio Frame %d is got", a_read_index);
     }
     else
     {
@@ -183,7 +184,7 @@ ImGui::ImMat MediaPlayer::audioMat()
 MediaInfo MediaPlayer::UriDiscoverer(const std::string &uri)
 {
 #ifdef MEDIA_PLAYER_DEBUG
-    Log::Info("Checking file '%s'", uri.c_str());
+    Log::Debug("Checking file '%s'", uri.c_str());
 #endif
 
 #ifdef LIMIT_DISCOVERER
@@ -725,7 +726,7 @@ void MediaPlayer::close()
     audio_channel_level.clear();
 
 #ifdef MEDIA_PLAYER_DEBUG
-    Log::Info("MediaPlayer %s closed", std::to_string(id_).c_str());
+    Log::Debug("MediaPlayer %s closed", std::to_string(id_).c_str());
 #endif
 
     // unregister media player
@@ -907,9 +908,9 @@ void MediaPlayer::play(bool on)
 
 #ifdef MEDIA_PLAYER_DEBUG
     else if (on)
-        Log::Info("MediaPlayer %s Start", std::to_string(id_).c_str());
+        Log::Debug("MediaPlayer %s Start", std::to_string(id_).c_str());
     else
-        Log::Info("MediaPlayer %s Stop [%ld]", std::to_string(id_).c_str(), position());
+        Log::Debug("MediaPlayer %s Stop [%ld]", std::to_string(id_).c_str(), position());
 #endif
 }
 
@@ -1295,7 +1296,7 @@ void MediaPlayer::execute_seek_command(GstClockTime target)
     else {
         seeking_ = true;
 #ifdef MEDIA_PLAYER_DEBUG
-        Log::Info("MediaPlayer %s Seek %ld %.1f", std::to_string(id_).c_str(), seek_pos, rate_);
+        Log::Debug("MediaPlayer %s Seek %ld %.1f", std::to_string(id_).c_str(), seek_pos, rate_);
 #endif
     }
 }
@@ -1381,7 +1382,7 @@ bool MediaPlayer::fill_video_frame(GstBuffer *buf, FrameStatus status)
         if ( !gst_video_frame_map (&frame, &o_frame_video_info_, buf, GST_MAP_READ ) )
         {
 #ifdef MEDIA_PLAYER_DEBUG
-            Log::Info("MediaPlayer %s Failed to map the video buffer", std::to_string(id_).c_str());
+            Log::Debug("MediaPlayer %s Failed to map the video buffer", std::to_string(id_).c_str());
 #endif
             // free access to frame & exit
             vframe_[vwrite_index_].status = INVALID;
@@ -1416,7 +1417,7 @@ bool MediaPlayer::fill_video_frame(GstBuffer *buf, FrameStatus status)
         // (should never happen)
         else {
 #ifdef MEDIA_PLAYER_DEBUG
-            Log::Info("MediaPlayer %s Received an Invalid video frame", std::to_string(id_).c_str());
+            Log::Debug("MediaPlayer %s Received an Invalid video frame", std::to_string(id_).c_str());
 #endif
             gst_video_frame_unmap(&frame);
             // free access to frame & exit
@@ -1548,7 +1549,7 @@ bool MediaPlayer::fill_audio_frame(GstBuffer *buf, FrameStatus status)
         if ( !gst_audio_buffer_map (&frame, &o_frame_audio_info_, buf, GST_MAP_READ ) )
         {
 #ifdef MEDIA_PLAYER_DEBUG
-            Log::Info("MediaPlayer %s Failed to map the audio buffer", std::to_string(id_).c_str());
+            Log::Debug("MediaPlayer %s Failed to map the audio buffer", std::to_string(id_).c_str());
 #endif
             // free access to frame & exit
             aframe_[awrite_index_].status = INVALID;
@@ -1579,7 +1580,7 @@ bool MediaPlayer::fill_audio_frame(GstBuffer *buf, FrameStatus status)
         // (should never happen)
         else {
 #ifdef MEDIA_PLAYER_DEBUG
-            Log::Info("MediaPlayer %s Received an Invalid audio frame", std::to_string(id_).c_str());
+            Log::Debug("MediaPlayer %s Received an Invalid audio frame", std::to_string(id_).c_str());
 #endif
             // free access to frame & exit
             gst_audio_buffer_unmap(&frame);
