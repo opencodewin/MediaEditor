@@ -16,6 +16,13 @@
 #include "Log.h"
 #include "GstToolkit.h"
 #include "ImGuiToolkit.h"
+#if defined(_WIN32)
+#include <SDL.h>
+#include <SDL_thread.h>
+#else
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_thread.h>
+#endif
 
 #define ICON_STEP_NEXT      "\uf051"
 
@@ -23,10 +30,67 @@ static std::string ini_file = "Media_Player.ini";
 static std::string bookmark_path = "bookmark.ini";
 static ImTextureID g_texture = 0;
 MediaPlayer g_player;
+static SDL_AudioDeviceID g_audio_dev = 0;
 #if IMGUI_VULKAN_SHADER
 ImGui::ColorConvert_vulkan * m_yuv2rgb {nullptr};
 ImGui::LUT3D_vulkan *        m_lut3d {nullptr};
 #endif
+
+#define SDL_AUDIO_MIN_BUFFER_SIZE 1024
+static void sdl_audio_callback(void *opaque, Uint8 *stream, int len)
+{
+    MediaPlayer *player = (MediaPlayer *)opaque;
+    if (!player)
+    {
+        memset(stream, 0, len);
+        return;
+    }
+    Uint8 * stream_data = stream;
+    while (len > 0)
+    {
+        auto mat = player->audioMat();
+        if (mat.empty())
+        {
+            memset(stream_data, 0, len);
+            break;
+        }
+        for (int i = 0; i < mat.w; i++)
+        {
+            for (int c = 0; c < mat.c; c++)
+            {
+#ifdef AUDIO_FORMAT_FLOAT
+                *(float *)stream_data = mat.at<float>(i, 0, c);
+                stream_data += sizeof(float);
+                len -= sizeof(float);
+#else
+                *(int16_t *)stream_data = mat.at<int16_t>(i, 0, c);
+                stream_data += sizeof(int16_t);
+                len -= sizeof(int16_t);
+#endif
+                if (len <= 0) break;
+            }
+            if (len <= 0) break;
+        }
+    }
+}
+
+static bool open_audio_device(int audio_sample_rate, int audio_channels, SDL_AudioFormat format)
+{
+    bool ret = false;
+    if (g_audio_dev) { SDL_ClearQueuedAudio(g_audio_dev); SDL_CloseAudioDevice(g_audio_dev); g_audio_dev = 0; }
+    SDL_AudioSpec wanted_spec, spec;
+    wanted_spec.channels = audio_channels;
+    wanted_spec.freq = audio_sample_rate;
+    wanted_spec.format = format;
+    wanted_spec.silence = 0;
+    wanted_spec.samples = SDL_AUDIO_MIN_BUFFER_SIZE;
+    wanted_spec.callback = sdl_audio_callback;
+    wanted_spec.userdata = &g_player;
+    g_audio_dev = SDL_OpenAudioDevice(NULL, 0, &wanted_spec, &spec, SDL_AUDIO_ALLOW_FREQUENCY_CHANGE | SDL_AUDIO_ALLOW_CHANNELS_CHANGE);
+    if (g_audio_dev) { SDL_PauseAudioDevice(g_audio_dev, 0); ret = true; }
+    return ret;
+}
+
 // Application Framework Functions
 void Application_GetWindowProperties(ApplicationWindowProperty& property)
 {
@@ -34,6 +98,7 @@ void Application_GetWindowProperties(ApplicationWindowProperty& property)
     property.viewport = false;
     property.docking = false;
     property.auto_merge = false;
+    property.power_save = false;
     property.width = 1280;
     property.height = 720;
 }
@@ -57,6 +122,9 @@ void Application_Initialize(void** handle)
 #if IMGUI_VULKAN_SHADER
     m_yuv2rgb = new ImGui::ColorConvert_vulkan(ImGui::get_default_gpu_index());
 #endif
+#if !IMGUI_APPLICATION_PLATFORM_SDL2
+    SDL_Init(SDL_INIT_AUDIO | SDL_INIT_TIMER);
+#endif
 }
 
 void Application_Finalize(void** handle)
@@ -66,8 +134,8 @@ void Application_Finalize(void** handle)
     if (m_lut3d) { delete m_lut3d; m_lut3d = nullptr; }
 #endif
     if (g_texture) { ImGui::ImDestroyTexture(g_texture); g_texture = nullptr; }
-    if (g_player.isOpen())
-        g_player.close();
+    if (g_player.isOpen()) g_player.close();
+    if (g_audio_dev) { SDL_ClearQueuedAudio(g_audio_dev); SDL_CloseAudioDevice(g_audio_dev); g_audio_dev = 0; }
 #ifdef USE_BOOKMARK
 	// save bookmarks
 	std::ofstream configFileWriter(bookmark_path, std::ios::out);
@@ -78,6 +146,9 @@ void Application_Finalize(void** handle)
 	}
 #endif
     gst_deinit();
+#if !IMGUI_APPLICATION_PLATFORM_SDL2
+    SDL_Quit();
+#endif
 }
 
 bool Application_Frame(void * handle)
@@ -98,6 +169,18 @@ bool Application_Frame(void * handle)
     const ImGuiStyle& style = g.Style;
 
     g_player.update();
+    if (g_player.isOpen() && !g_audio_dev)
+    {
+        open_audio_device(
+            g_player.sample_rate(), 
+            g_player.channels(),
+#ifdef AUDIO_FORMAT_FLOAT
+            AUDIO_F32SYS
+#else
+            AUDIO_S16SYS
+#endif
+            );
+    }
 
     // Show PlayControl panel
     if (g_player.isOpen() && (show_ctrlbar && io.FrameCountSinceLastInput))
@@ -141,8 +224,10 @@ bool Application_Frame(void * handle)
         ImGui::SetWindowFontScale(org_scale * 1.5);
         if (ImGui::Button(g_player.isOpen() ? (g_player.isPlaying() ? ICON_FAD_PAUSE : ICON_FAD_PLAY) : ICON_FAD_PLAY, size))
         {
-            if (g_player.isPlaying()) g_player.play(false);
-            else g_player.play(true);
+            if (g_player.isPlaying())
+            {   g_player.play(false); if (g_audio_dev) SDL_PauseAudioDevice(g_audio_dev, 1);}
+            else
+            {   g_player.play(true); if (g_audio_dev) SDL_PauseAudioDevice(g_audio_dev, 0);}
         }
         ImGui::ShowTooltipOnHover("Toggle Play/Pause.");
         // add step next button
@@ -158,14 +243,9 @@ bool Application_Frame(void * handle)
         {
             muted = !muted;
             if (muted)
-            {
-                volume = g_player.volume();
-                g_player.set_volume(0);
-            }
+            {   volume = g_player.volume(); g_player.set_volume(0); }
             else
-            {
-                g_player.set_volume(volume);
-            }
+            {   g_player.set_volume(volume); }
         }
         ImGui::ShowTooltipOnHover("Toggle Audio Mute.");
         // add about button
@@ -269,8 +349,10 @@ bool Application_Frame(void * handle)
     // handle key event
     if (g_player.isOpen() && !io.KeyCtrl && !io.KeyShift && !io.KeyAlt && ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Space), false))
     {
-        if (g_player.isPlaying()) g_player.play(false);
-        else g_player.play(true);
+        if (g_player.isPlaying())
+        {   g_player.play(false); if (g_audio_dev) SDL_PauseAudioDevice(g_audio_dev, 1); }
+        else 
+        {   g_player.play(true); if (g_audio_dev) SDL_PauseAudioDevice(g_audio_dev, 0); }
     }
     if (!io.KeyCtrl && !io.KeyShift && !io.KeyAlt && ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Escape), false))
     {

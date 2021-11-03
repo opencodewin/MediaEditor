@@ -18,6 +18,8 @@
 #include "Timeline.h"
 
 //#define LIMIT_DISCOVERER
+#define AUDIO_FORMAT_FLOAT
+//#define AUDIO_RENDERING_GST
 #if !IMGUI_VULKAN_SHADER
 #define VIDEO_FORMAT_RGBA
 #else
@@ -28,8 +30,8 @@
 
 #define MAX_PLAY_SPEED 20.0
 #define MIN_PLAY_SPEED 0.1
-#define N_VFRAME 5
-#define N_AFRAME 20
+#define N_VFRAME 8
+#define N_AFRAME 128
 
 struct MediaInfo
 {
@@ -187,6 +189,10 @@ public:
      * */
     bool isPlaying(bool testpipeline = false) const;
     /**
+     * True if a media is seeking
+     * */
+    bool isSeeking() const;
+    /**
      * Speed factor for playing
      * Can be negative.
      * */
@@ -294,7 +300,7 @@ public:
     /**
      * Get the Frame
      * */
-    ImGui::ImMat videoMat() const;
+    ImGui::ImMat videoMat();
     /**
      * Get audio sample rate
      */
@@ -311,7 +317,7 @@ public:
      * Get audio channel levels
      */
     guint audio_level(guint channel) const;
-    ImGui::ImMat audioMat() const;
+    ImGui::ImMat audioMat();
     /**
      * Get the name of the decoder used,
      * return 'software' if no hardware decoder is used
@@ -353,10 +359,10 @@ private:
     std::string uri_;
 
     // video output
-    ImGui::ImMat VMat;
+    //ImGui::ImMat VMat;
     // audio output
     std::vector<int> audio_channel_level;
-    ImGui::ImMat AMat;
+    //ImGui::ImMat AMat;
 
     // general properties of media
     MediaInfo media_;
@@ -375,6 +381,7 @@ private:
     std::atomic<bool> failed_;
     bool seeking_;
     bool enabled_;
+    bool need_loop_;
     bool rewind_on_disable_;
     bool force_software_decoding_;
     std::string decoder_name_;
@@ -401,33 +408,35 @@ private:
     } FrameStatus;
 
     struct VFrame {
-        GstVideoFrame frame;
+        ImGui::ImMat frame;
+        //GstVideoFrame frame;
         FrameStatus status;
         bool full;
         GstClockTime position;
+        GstClockTime duration;
         std::mutex access;
-
         VFrame() {
             full = false;
             status = INVALID;
             position = GST_CLOCK_TIME_NONE;
+            duration = GST_CLOCK_TIME_NONE;
         }
-        void unmap();
     };
 
      struct AFrame {
-        GstAudioBuffer frame;
+        ImGui::ImMat frame;
+        //GstAudioBuffer frame;
         FrameStatus status;
         bool full;
         GstClockTime position;
+        GstClockTime duration;
         std::mutex access;
-
         AFrame() {
             full = false;
             status = INVALID;
             position = GST_CLOCK_TIME_NONE;
+            duration = GST_CLOCK_TIME_NONE;
         }
-        void unmap();
     };
 
     // for video frame
@@ -442,14 +451,17 @@ private:
     guint alast_index_;
     std::mutex aindex_lock_;
 
+    // clean internal buffer
+    void clean_buffer();
+
     // gst pipeline control
     void execute_open();
     void execute_loop_command();
     void execute_seek_command(GstClockTime target = GST_CLOCK_TIME_NONE);
 
     // gst frame filling
-    void fill_video(guint index);
-    void fill_audio(guint index);
+    void fill_video(guint index, GstVideoFrame& frame);
+    void fill_audio(guint index, GstAudioBuffer& frame);
     bool fill_video_frame(GstBuffer *buf, FrameStatus status);
     bool fill_audio_frame(GstBuffer *buf, FrameStatus status);
 
