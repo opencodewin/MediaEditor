@@ -54,9 +54,11 @@ MediaPlayer::MediaPlayer()
     loop_ = LoopMode::LOOP_REWIND;
 
     // start index in frame_ stack
+    vread_index_ = 0;
     vwrite_index_ = 0;
     vlast_index_ = 0;
 
+    aread_index_ = 0;
     awrite_index_ = 0;
     alast_index_ = 0;
 
@@ -75,47 +77,101 @@ ImGui::ImMat MediaPlayer::videoMat()
     if (!enabled_  || !opened_ || failed_)
         return mat;
     need_loop_ = false;
-    guint v_read_index = 0;
     vindex_lock_.lock();
-    v_read_index = vlast_index_;
+    vread_index_ = (vread_index_ + 1) % N_VFRAME;
+    if (vread_index_ > vlast_index_) vread_index_ = vlast_index_;
     // Do NOT miss and jump directly (after seek) to a pre-roll
-    for (guint i = 0; i < N_VFRAME; ++i) {
-        if (vframe_[i].status == PREROLL) {
-            v_read_index = i;
-            break;
-        }
-    }
+    //for (guint i = 0; i < N_VFRAME; ++i) {
+    //    if (vframe_[i].status == PREROLL) {
+    //        vread_index_ = i;
+    //        break;
+    //    }
+    //}
     vindex_lock_.unlock();
     // lock frame while reading it
-    vframe_[v_read_index].access.lock();
+    vframe_[vread_index_].access.lock();
     // do not fill a frame twice
-    if (vframe_[v_read_index].status != INVALID ) {
+    if (vframe_[vread_index_].status != INVALID ) {
         // is this an End-of-Stream frame ?
-        if (vframe_[v_read_index].status == EOS )
+        if (vframe_[vread_index_].status == EOS )
         {
             // will execute seek command below (after unlock)
             need_loop_ = true;
         }
          // otherwise just fill non-empty SAMPLE or PREROLL
-        else if (vframe_[v_read_index].full || seeking_)
+        else if (vframe_[vread_index_].full || seeking_)
         {
-            mat = vframe_[v_read_index].frame;
-            vframe_[v_read_index].frame.release();
+            mat = vframe_[vread_index_].frame;
+            vframe_[vread_index_].frame.release();
         }
 
         // we just displayed a vframe : set position time to frame PTS
         if (position_ == GST_CLOCK_TIME_NONE || !media_.audio_valid)
-            position_ = vframe_[v_read_index].position;
+            position_ = vframe_[vread_index_].position;
 
         // avoid reading it again
-        vframe_[v_read_index].status = INVALID;
+        vframe_[vread_index_].status = INVALID;
+        //Log::Info("Video Frame %d is got (vw %d)", vread_index_, vwrite_index_);
     }
     else
     {
-        //Log::Warning("Video Frame %d is invalid, output empty", v_read_index);
+        //Log::Warning("Video Frame %d is invalid, output empty(vw %d)", vread_index_, vwrite_index_);
     }
     // unlock frame after reading it
-    vframe_[v_read_index].access.unlock();
+    vframe_[vread_index_].access.unlock();
+
+    return mat;
+}
+
+ImGui::ImMat MediaPlayer::audioMat()
+{
+    ImGui::ImMat mat;
+    if (!enabled_  || !opened_ || failed_)
+        return mat;
+    need_loop_ = false;
+    aindex_lock_.lock();
+
+    aread_index_ = (aread_index_ + 1) % N_AFRAME;
+    if (aread_index_ > alast_index_) aread_index_ = alast_index_;
+    // Do NOT miss and jump directly (after seek) to a pre-roll
+    for (guint i = 0; i < N_AFRAME; ++i) {
+        if (aframe_[i].status == PREROLL) {
+            aread_index_ = i;
+            break;
+        }
+    }
+    aindex_lock_.unlock();
+
+    // lock frame while reading it
+    aframe_[aread_index_].access.lock();
+
+    // do not fill a frame twice
+    if (aframe_[aread_index_].status != INVALID ) {
+        // is this an End-of-Stream frame ?
+        if (aframe_[aread_index_].status == EOS )
+        {
+            // will execute seek command below (after unlock)
+            need_loop_ = true;
+        }
+        // otherwise just fill non-empty SAMPLE or PREROLL
+        else if (aframe_[aread_index_].full || seeking_)
+        {
+            mat = aframe_[aread_index_].frame;
+            aframe_[aread_index_].frame.release();
+        }
+        // do we set position time to frame PTS ? Sync time to audio
+        //if (position_ == GST_CLOCK_TIME_NONE || !media_.video_valid)
+            position_ = aframe_[aread_index_].position;
+        // avoid reading it again
+        aframe_[aread_index_].status = INVALID;
+        //Log::Info("Audio Frame %d is got (aw %d)", aread_index_, awrite_index_);
+    }
+    else
+    {
+        //Log::Warning("Audio Frame %d is invalid, output empty(aw %d)", aread_index_, awrite_index_);
+    }
+    // unlock frame after reading it
+    aframe_[aread_index_].access.unlock();
 
     return mat;
 }
@@ -127,58 +183,6 @@ guint MediaPlayer::audio_level(guint channel) const
         return audio_channel_level[channel];
     }
     return 0;
-}
-
-ImGui::ImMat MediaPlayer::audioMat()
-{
-    ImGui::ImMat mat;
-    if (!enabled_  || !opened_ || failed_)
-        return mat;
-    need_loop_ = false;
-    guint a_read_index = 0;
-    aindex_lock_.lock();
-    a_read_index = alast_index_;
-    // Do NOT miss and jump directly (after seek) to a pre-roll
-    for (guint i = 0; i < N_AFRAME; ++i) {
-        if (aframe_[i].status == PREROLL) {
-            a_read_index = i;
-            break;
-        }
-    }
-    aindex_lock_.unlock();
-
-    // lock frame while reading it
-    aframe_[a_read_index].access.lock();
-
-    // do not fill a frame twice
-    if (aframe_[a_read_index].status != INVALID ) {
-        // is this an End-of-Stream frame ?
-        if (aframe_[a_read_index].status == EOS )
-        {
-            // will execute seek command below (after unlock)
-            need_loop_ = true;
-        }
-        // otherwise just fill non-empty SAMPLE or PREROLL
-        else if (aframe_[a_read_index].full || seeking_)
-        {
-            mat = aframe_[a_read_index].frame;
-            aframe_[a_read_index].frame.release();
-        }
-        // do we set position time to frame PTS ? Sync time to audio
-        //if (position_ == GST_CLOCK_TIME_NONE)
-        position_ = aframe_[a_read_index].position;
-        // avoid reading it again
-        aframe_[a_read_index].status = INVALID;
-        //Log::Info("Audio Frame %d is got", a_read_index);
-    }
-    else
-    {
-        //Log::Warning("Audio Frame %d is invalid, output empty", a_read_index);
-    }
-    // unlock frame after reading it
-    aframe_[a_read_index].access.unlock();
-
-    return mat;
 }
 
 MediaInfo MediaPlayer::UriDiscoverer(const std::string &uri)
@@ -541,7 +545,7 @@ void MediaPlayer::execute_open()
     gst_app_sink_set_caps (GST_APP_SINK(video_appsink), caps);
 
     // Instruct appsink to drop old buffers when the maximum amount of queued buffers is reached.
-    gst_app_sink_set_max_buffers( GST_APP_SINK(video_appsink), 2);
+    gst_app_sink_set_max_buffers( GST_APP_SINK(video_appsink), N_VFRAME);
     gst_app_sink_set_buffer_list_support( GST_APP_SINK(video_appsink), true);
     gst_app_sink_set_drop (GST_APP_SINK(video_appsink), false);
 
@@ -602,7 +606,7 @@ void MediaPlayer::execute_open()
             gst_app_sink_set_caps (GST_APP_SINK(audio_appsink), caps_audio);
 
             // Instruct appsink to drop old buffers when the maximum amount of queued buffers is reached.
-            gst_app_sink_set_max_buffers( GST_APP_SINK(audio_appsink), 2);
+            gst_app_sink_set_max_buffers( GST_APP_SINK(audio_appsink), N_AFRAME);
             gst_app_sink_set_buffer_list_support( GST_APP_SINK(audio_appsink), true);
             gst_app_sink_set_drop (GST_APP_SINK(audio_appsink), false);
 
@@ -669,7 +673,7 @@ bool MediaPlayer::failed() const
     return failed_;
 }
 
-void MediaPlayer::clean_buffer()
+void MediaPlayer::clean_video_buffer()
 {
     // cleanup eventual remaining video frame memory
     for(guint i = 0; i < N_VFRAME; i++) {
@@ -677,17 +681,32 @@ void MediaPlayer::clean_buffer()
         vframe_[i].frame.release();
         vframe_[i].access.unlock();
     }
+    vindex_lock_.lock();
+    vread_index_ = 0;
     vwrite_index_ = 0;
     vlast_index_ = 0;
+    vindex_lock_.unlock();
+}
 
+void MediaPlayer::clean_audio_buffer()
+{
     // cleanup eventual remaining audio frame memory ?
     for(guint i = 0; i < N_AFRAME; i++) {
         aframe_[i].access.lock();
         aframe_[i].frame.release();
         aframe_[i].access.unlock();
     }
+    aindex_lock_.lock();
+    aread_index_ = 0;
     awrite_index_ = 0;
     alast_index_ = 0;
+    aindex_lock_.unlock();
+}
+
+void MediaPlayer::clean_buffer()
+{
+    clean_video_buffer();
+    clean_audio_buffer();
 }
 
 void MediaPlayer::close()
@@ -1130,9 +1149,6 @@ void MediaPlayer::fill_audio(guint index, GstAudioBuffer& frame)
     auto total_sample_length = frame.n_samples;
 #ifdef AUDIO_FORMAT_FLOAT
     aframe_[index].frame.create_type(total_sample_length, 1, o_frame_audio_info_.channels, IM_DT_FLOAT32);
-#else
-    aframe_[index].frame.create_type(total_sample_length, 1, o_frame_audio_info_.channels, IM_DT_INT16);
-#endif
     float * buffer = (float *)data;
     for (int i = 0; i < aframe_[index].frame.w; i++)
     {
@@ -1142,6 +1158,19 @@ void MediaPlayer::fill_audio(guint index, GstAudioBuffer& frame)
             buffer ++;
         }
     }
+#else
+    aframe_[index].frame.create_type(total_sample_length, 1, o_frame_audio_info_.channels, IM_DT_INT16);
+    int16_t * buffer = (int16_t *)data;
+    for (int i = 0; i < aframe_[index].frame.w; i++)
+    {
+        for (int c = 0; c < aframe_[index].frame.c; c++)
+        {
+            aframe_[index].frame.at<int16_t>(i, 0, c) = (*buffer);
+            buffer ++;
+        }
+    }
+#endif
+
     aframe_[index].frame.time_stamp = aframe_[index].position == GST_CLOCK_TIME_NONE ? NAN : aframe_[index].position / 1e+9;
     aframe_[index].frame.duration = aframe_[index].duration == GST_CLOCK_TIME_NONE ? NAN : aframe_[index].duration / 1e+9;
     aframe_[index].frame.rate = {o_frame_audio_info_.rate, 1};
@@ -1192,7 +1221,7 @@ void MediaPlayer::update()
         GstState state;
         gst_element_get_state (pipeline_, &state, NULL, GST_CLOCK_TIME_NONE);
         // seek should be resolved next frame
-        seeking_ = false;
+        // seeking_ = false; // ?? do in preroll
         // do NOT do another seek yet
     }
     // otherwise check for need to seek (pipeline management)
@@ -1244,51 +1273,38 @@ void MediaPlayer::execute_seek_command(GstClockTime target)
     if ( pipeline_ == nullptr || !media_.seekable )
         return;
 
-    // seek with flush (always)
-    int seek_flags = GST_SEEK_FLAG_FLUSH;
-    GstSeekType start_type = GST_SEEK_TYPE_NONE;
-    GstSeekType stop_type = GST_SEEK_TYPE_END;
-
     // seek position : default to target
-    GstClockTime seek_pos = target == GST_CLOCK_TIME_NONE ? position_ : target;
-
-    GstClockTime start_pos = 0;
-    GstClockTime stop_pos = 0;
-    
-
-    if (rate_ > 0) {
-        start_type = GST_SEEK_TYPE_SET;
-        stop_type = GST_SEEK_TYPE_END;
-        start_pos = seek_pos;
-        stop_pos = 0;
-    }
-    else {
-        start_type = GST_SEEK_TYPE_SET;
-        stop_type = GST_SEEK_TYPE_SET;
-        start_pos = 0;
-        stop_pos = seek_pos;
-    }
+    GstClockTime seek_pos = target;
 
     // no target given
-    if (target == GST_CLOCK_TIME_NONE)
-    {
+    if (target == GST_CLOCK_TIME_NONE) 
         // create seek event with current position (rate changed ?)
-    }
+        seek_pos = position_;
     // target is given but useless
     else if ( ABS_DIFF(target, position_) < timeline_.step()) {
         // ignore request
         return;
     }
 
+    // seek with flush (always)
+    int seek_flags = GST_SEEK_FLAG_FLUSH;
+
     // seek with trick mode if fast speed
-    if ( ABS(rate_) > 2.0 )
+    if ( ABS(rate_) > 1.0 )
         seek_flags |= GST_SEEK_FLAG_TRICKMODE;
     else
         seek_flags |= GST_SEEK_FLAG_ACCURATE;
 
     // create seek event depending on direction
-    GstEvent * seek_event = gst_event_new_seek (rate_, GST_FORMAT_TIME, (GstSeekFlags) seek_flags,
-            start_type, start_pos, stop_type, stop_pos);
+    GstEvent *seek_event = nullptr;
+    if (rate_ > 0) {
+        seek_event = gst_event_new_seek (rate_, GST_FORMAT_TIME, (GstSeekFlags) seek_flags,
+            GST_SEEK_TYPE_SET, seek_pos, GST_SEEK_TYPE_END, 0);
+    }
+    else {
+        seek_event = gst_event_new_seek (rate_, GST_FORMAT_TIME, (GstSeekFlags) seek_flags,
+            GST_SEEK_TYPE_SET, 0, GST_SEEK_TYPE_SET, seek_pos);
+    }
 
     // Send the event (ASYNC)
     if (seek_event && !gst_element_send_event(pipeline_, seek_event) )
@@ -1365,6 +1381,11 @@ double MediaPlayer::updateFrameRate() const
 // CALLBACKS
 bool MediaPlayer::fill_video_frame(GstBuffer *buf, FrameStatus status)
 {
+    if (status == PREROLL)
+    {
+        clean_video_buffer();
+        seeking_ = false;
+    }
     // Do NOT overwrite an unread EOS
     if ( vframe_[vwrite_index_].status == EOS )
         vwrite_index_ = (vwrite_index_ + 1) % N_VFRAME;
@@ -1392,7 +1413,7 @@ bool MediaPlayer::fill_video_frame(GstBuffer *buf, FrameStatus status)
 
         // successfully filled the frame
         vframe_[vwrite_index_].full = true;
-
+        //position_ = buf->pts; // ?
         // validate frame format
 #ifdef VIDEO_FORMAT_RGBA
         if( GST_VIDEO_INFO_IS_RGB(&frame.info) && GST_VIDEO_INFO_N_PLANES(&frame.info) == 1)
@@ -1532,6 +1553,11 @@ GstFlowReturn MediaPlayer::video_callback_new_sample (GstAppSink *sink, gpointer
 
 bool MediaPlayer::fill_audio_frame(GstBuffer *buf, FrameStatus status)
 {
+    if (status == PREROLL)
+    {
+        clean_audio_buffer();
+        seeking_ = false;
+    }
     // Do NOT overwrite an unread EOS
     if ( aframe_[awrite_index_].status == EOS )
         awrite_index_ = (awrite_index_ + 1) % N_AFRAME;
@@ -1559,7 +1585,7 @@ bool MediaPlayer::fill_audio_frame(GstBuffer *buf, FrameStatus status)
 
         // successfully filled the frame
         aframe_[awrite_index_].full = true;
-
+        // position_ = buf->pts; // ?
         // validate frame format
 #ifdef AUDIO_FORMAT_FLOAT
         if( GST_AUDIO_INFO_IS_FLOAT(&frame.info) && GST_AUDIO_BUFFER_N_PLANES(&frame) == 1)
@@ -1680,6 +1706,26 @@ GstFlowReturn MediaPlayer::audio_callback_new_sample (GstAppSink *sink, gpointer
     // release sample
     gst_sample_unref (sample);
 
+    return ret;
+}
+
+float MediaPlayer::video_buffer_extent()
+{
+    float ret = 1.0;
+    if (vread_index_ <= vlast_index_)
+        ret = (float)(vlast_index_ - vread_index_) / (float)N_VFRAME;
+    else
+        ret = (float)(N_VFRAME - vread_index_ + vlast_index_) / (float)N_VFRAME;
+    return ret;
+}
+
+float MediaPlayer::audio_buffer_extent()
+{
+    float ret = 1.0;
+    if (aread_index_ <= alast_index_)
+        ret = (float)(alast_index_ - aread_index_) / (float)N_AFRAME;
+    else
+        ret = (float)(N_AFRAME - aread_index_ + alast_index_) / (float)N_AFRAME;
     return ret;
 }
 

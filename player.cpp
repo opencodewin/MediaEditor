@@ -36,6 +36,68 @@ ImGui::ColorConvert_vulkan * m_yuv2rgb {nullptr};
 ImGui::LUT3D_vulkan *        m_lut3d {nullptr};
 #endif
 
+static size_t Resample_f32(const float *input, float *output, float speed, uint64_t inputSize, uint32_t channels, int max_len)
+{
+    if (input == NULL)
+        return 0;
+    size_t outputSize = (size_t) (inputSize / speed);
+    outputSize -= outputSize % channels;
+    if (outputSize > max_len / sizeof(float) / channels)
+        outputSize = max_len / sizeof(float) / channels;
+    if (output == NULL)
+        return outputSize;
+    float stepDist = speed;
+    const uint32_t fixedFraction = (1LL << 16);
+    const float normFixed = (1.0 / (1LL << 16));
+    uint32_t step = ((uint32_t) (stepDist * fixedFraction + 0.5));
+    uint32_t curOffset = 0;
+    for (uint32_t i = 0; i < outputSize; i += 1)
+    {
+        for (uint32_t c = 0; c < channels; c += 1)
+        {
+            *output++ = (float) (input[c] + (input[c + channels] - input[c]) * (
+                    (float) (curOffset >> 16) + ((curOffset & (fixedFraction - 1)) * normFixed)
+            )
+            );
+        }
+        curOffset += step;
+        input += (curOffset >> 16) * channels;
+        curOffset &= (fixedFraction - 1);
+    }
+    return outputSize;
+}
+
+static size_t Resample_s16(const int16_t *input, int16_t *output, float speed, size_t inputSize, uint32_t channels, int max_len) 
+{
+    if (input == NULL)
+        return 0;
+    size_t outputSize = (size_t) (inputSize / speed);
+    outputSize -= outputSize % channels;
+    if (outputSize > max_len / sizeof(int16_t) / channels)
+        outputSize = max_len / sizeof(int16_t) / channels;
+    if (output == NULL)
+        return outputSize;
+    float stepDist = speed;
+    const uint32_t fixedFraction = (1LL << 16);
+    const float normFixed = (1.0 / (1LL << 16));
+    uint32_t step = ((uint32_t) (stepDist * fixedFraction + 0.5));
+    uint32_t curOffset = 0;
+    for (uint32_t i = 0; i < outputSize; i += 1)
+    {
+        for (uint32_t c = 0; c < channels; c += 1)
+        {
+            *output++ = (int16_t) (input[c] + (input[c + channels] - input[c]) * (
+                    (float) (curOffset >> 16) + ((curOffset & (fixedFraction - 1)) * normFixed)
+            )
+            );
+        }
+        curOffset += step;
+        input += (curOffset >> 16) * channels;
+        curOffset &= (fixedFraction - 1);
+    }
+    return outputSize;
+}
+
 #define SDL_AUDIO_MIN_BUFFER_SIZE 1024
 static void sdl_audio_callback(void *opaque, Uint8 *stream, int len)
 {
@@ -45,6 +107,10 @@ static void sdl_audio_callback(void *opaque, Uint8 *stream, int len)
         memset(stream, 0, len);
         return;
     }
+    float speed = fabs(player->playSpeed());
+    if (speed <= 0.05) speed = 0.1;
+    int input_sample_rate = player->sample_rate();
+    int output_sample_rate = input_sample_rate / speed;
     Uint8 * stream_data = stream;
     while (len > 0)
     {
@@ -54,23 +120,17 @@ static void sdl_audio_callback(void *opaque, Uint8 *stream, int len)
             memset(stream_data, 0, len);
             break;
         }
-        for (int i = 0; i < mat.w; i++)
-        {
-            for (int c = 0; c < mat.c; c++)
-            {
+        ImGui::ImMat packet_mat = mat.transpose();
 #ifdef AUDIO_FORMAT_FLOAT
-                *(float *)stream_data = mat.at<float>(i, 0, c);
-                stream_data += sizeof(float);
-                len -= sizeof(float);
+        auto size = Resample_f32((const float *)packet_mat.data, (float *)stream_data, speed, mat.w, mat.c, len);
+        stream_data += size * sizeof(float) * mat.c;
+        len -= size * sizeof(float) * mat.c;
 #else
-                *(int16_t *)stream_data = mat.at<int16_t>(i, 0, c);
-                stream_data += sizeof(int16_t);
-                len -= sizeof(int16_t);
+        auto size = Resample_s16((const int16_t *)packet_mat.data, (int16_t *)stream_data, speed, mat.w, mat.c, len);
+        stream_data += size * sizeof(int16_t) * mat.c;
+        len -= size * sizeof(int16_t) * mat.c;
 #endif
-                if (len <= 0) break;
-            }
-            if (len <= 0) break;
-        }
+        if (len <= 0) break;
     }
 }
 
@@ -98,7 +158,7 @@ void Application_GetWindowProperties(ApplicationWindowProperty& property)
     property.viewport = false;
     property.docking = false;
     property.auto_merge = false;
-    property.power_save = false;
+    //property.power_save = false;
     property.width = 1280;
     property.height = 720;
 }
@@ -169,6 +229,7 @@ bool Application_Frame(void * handle)
     const ImGuiStyle& style = g.Style;
 
     g_player.update();
+#ifndef AUDIO_RENDERING_GST
     if (g_player.isOpen() && !g_audio_dev)
     {
         open_audio_device(
@@ -181,6 +242,7 @@ bool Application_Frame(void * handle)
 #endif
             );
     }
+#endif
 
     // Show PlayControl panel
     if (g_player.isOpen() && (show_ctrlbar && io.FrameCountSinceLastInput))
@@ -198,8 +260,8 @@ bool Application_Frame(void * handle)
         show_ctrlbar = true;
     }
 
-    ImVec2 center(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.9f);
-    ImVec2 panel_size(io.DisplaySize.x - 40.0, 120);
+    ImVec2 center(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.85f);
+    ImVec2 panel_size(io.DisplaySize.x - 40.0, 160);
     ImGui::SetNextWindowPos(center, ImGuiCond_Always, ImVec2(0.5f, 0.5f));
     ImGui::SetNextWindowSize(panel_size, ImGuiCond_Always);
     ImGui::SetNextWindowBgAlpha(0.5);
@@ -308,6 +370,8 @@ bool Application_Frame(void * handle)
 
         ImGui::Unindent((i - 32.0f) * 0.4f);
         ImGui::Separator();
+
+        float padding = style.FramePadding.x * 16;
         // add audio meter bar
         static int left_stack = 0;
         static int left_count = 0;
@@ -317,18 +381,17 @@ bool Application_Frame(void * handle)
         {
             int l_level = g_player.audio_level(0);
             int r_level = g_player.audio_level(1);
-            ImGui::UvMeter("##lhuvr", ImVec2(panel_size.x, 10), &l_level, 0, 96, 200, &left_stack, &left_count);
-            ImGui::UvMeter("##rhuvr", ImVec2(panel_size.x, 10), &r_level, 0, 96, 200, &right_stack, &right_count);
+            ImGui::UvMeter("##lhuvr", ImVec2(panel_size.x - padding, 10), &l_level, 0, 96, 200, &left_stack, &left_count);
+            ImGui::UvMeter("##rhuvr", ImVec2(panel_size.x - padding, 10), &r_level, 0, 96, 200, &right_stack, &right_count);
         }
         else
         {
             int zero_channel_level = 0;
-            ImGui::UvMeter("##lhuvr", ImVec2(panel_size.x, 10), &zero_channel_level, 0, 96, 200);
-            ImGui::UvMeter("##rhuvr", ImVec2(panel_size.x, 10), &zero_channel_level, 0, 96, 200);
+            ImGui::UvMeter("##lhuvr", ImVec2(panel_size.x - padding, 10), &zero_channel_level, 0, 96, 200);
+            ImGui::UvMeter("##rhuvr", ImVec2(panel_size.x - padding, 10), &zero_channel_level, 0, 96, 200);
         }
         ImGui::Separator();
-
-        auto timescale_width = io.DisplaySize.x - style.FramePadding.x * 8 - 40;
+        auto timescale_width = io.DisplaySize.x - padding;
         if (g_player.isOpen())
         {
             Timeline *timeline = g_player.timeline();
@@ -343,6 +406,14 @@ bool Application_Frame(void * handle)
             guint64 seek_t = 0;
             ImGuiToolkit::TimelineSlider("##timeline", &seek_t, 0, 0, 0, 0, timescale_width);
         }
+        ImGui::Separator();
+
+        // add buffer extent
+        float v_extent = g_player.video_buffer_extent();
+        ImGui::UvMeter("##video_extent", ImVec2(200, 6), &v_extent, 0, 1.0, 200); ImGui::ShowTooltipOnHover("VB extent:%.1f%%", v_extent * 100);
+        float a_extent = g_player.audio_buffer_extent();
+        ImGui::UvMeter("##audio_extent", ImVec2(200, 6), &a_extent, 0, 1.0, 200); ImGui::ShowTooltipOnHover("AB extent:%.1f%%", a_extent * 100);
+        // add buffer extent end
         ImGui::End();
     }
 
@@ -429,43 +500,46 @@ bool Application_Frame(void * handle)
     }
 
     // Video Texture Render
-    ImGui::ImMat vmat = g_player.videoMat();
-    if (!vmat.empty())
+    if (g_player.isPlaying())
     {
-#if IMGUI_VULKAN_SHADER
-        int video_depth = vmat.type == IM_DT_INT8 ? 8 : vmat.type == IM_DT_INT16 ? 16 : 8;
-        int video_shift = vmat.depth != 0 ? vmat.depth : vmat.type == IM_DT_INT8 ? 8 : vmat.type == IM_DT_INT16 ? 16 : 8;
-#ifdef VIDEO_FORMAT_RGBA
-        ImGui::ImGenerateOrUpdateTexture(g_texture, vmat.w, vmat.h, 4, (const unsigned char *)vmat.data);
-#else
-        ImGui::VkMat in_RGB; in_RGB.type = IM_DT_INT8;
-        m_yuv2rgb->YUV2RGBA(vmat, in_RGB, vmat.color_format, vmat.color_space, vmat.color_range, video_depth, video_shift);
-        if (vmat.color_space == IM_CS_BT2020) has_hdr = true; else has_hdr = false;
-        int lut_mode = vmat.flags & IM_MAT_FLAGS_VIDEO_HDR_HLG ? HDRHLG_SDR709 : vmat.flags & IM_MAT_FLAGS_VIDEO_HDR_PQ ? HDRPQ_SDR709 : NO_DEFAULT;
-        ImGui::VkMat im_RGB; im_RGB.type = IM_DT_INT8;
-        if (has_hdr && convert_hdr && lut_mode != NO_DEFAULT)
+        ImGui::ImMat vmat = g_player.videoMat();
+        if (!vmat.empty())
         {
-            // Convert HDR to SDR
-            if (!m_lut3d)
+#if IMGUI_VULKAN_SHADER
+            int video_depth = vmat.type == IM_DT_INT8 ? 8 : vmat.type == IM_DT_INT16 ? 16 : 8;
+            int video_shift = vmat.depth != 0 ? vmat.depth : vmat.type == IM_DT_INT8 ? 8 : vmat.type == IM_DT_INT16 ? 16 : 8;
+#ifdef VIDEO_FORMAT_RGBA
+            ImGui::ImGenerateOrUpdateTexture(g_texture, vmat.w, vmat.h, 4, (const unsigned char *)vmat.data);
+#else
+            ImGui::VkMat in_RGB; in_RGB.type = IM_DT_INT8;
+            m_yuv2rgb->YUV2RGBA(vmat, in_RGB, vmat.color_format, vmat.color_space, vmat.color_range, video_depth, video_shift);
+            if (vmat.color_space == IM_CS_BT2020) has_hdr = true; else has_hdr = false;
+            int lut_mode = vmat.flags & IM_MAT_FLAGS_VIDEO_HDR_HLG ? HDRHLG_SDR709 : vmat.flags & IM_MAT_FLAGS_VIDEO_HDR_PQ ? HDRPQ_SDR709 : NO_DEFAULT;
+            ImGui::VkMat im_RGB; im_RGB.type = IM_DT_INT8;
+            if (has_hdr && convert_hdr && lut_mode != NO_DEFAULT)
             {
-                m_lut3d = new ImGui::LUT3D_vulkan(lut_mode, IM_INTERPOLATE_TRILINEAR, ImGui::get_default_gpu_index());
-            }
-            if (m_lut3d)
-            {
-                m_lut3d->filter(in_RGB, im_RGB);
+                // Convert HDR to SDR
+                if (!m_lut3d)
+                {
+                    m_lut3d = new ImGui::LUT3D_vulkan(lut_mode, IM_INTERPOLATE_TRILINEAR, ImGui::get_default_gpu_index());
+                }
+                if (m_lut3d)
+                {
+                    m_lut3d->filter(in_RGB, im_RGB);
+                }
+                else
+                    im_RGB = in_RGB;
             }
             else
                 im_RGB = in_RGB;
-        }
-        else
-            im_RGB = in_RGB;
-        ImGui::ImGenerateOrUpdateTexture(g_texture, im_RGB.w, im_RGB.h, im_RGB.c, im_RGB.buffer_offset() , (const unsigned char *)im_RGB.buffer());
+            ImGui::ImGenerateOrUpdateTexture(g_texture, im_RGB.w, im_RGB.h, im_RGB.c, im_RGB.buffer_offset() , (const unsigned char *)im_RGB.buffer());
 #endif
 #else
 #ifdef VIDEO_FORMAT_RGBA
-        ImGui::ImGenerateOrUpdateTexture(g_texture, vmat.w, vmat.h, 4, (const unsigned char *)vmat.data);
+            ImGui::ImGenerateOrUpdateTexture(g_texture, vmat.w, vmat.h, 4, (const unsigned char *)vmat.data);
 #endif
 #endif
+        }
     }
     if (g_texture)
     {

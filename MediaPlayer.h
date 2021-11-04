@@ -18,20 +18,21 @@
 #include "Timeline.h"
 
 //#define LIMIT_DISCOVERER
-#define AUDIO_FORMAT_FLOAT
+//#define AUDIO_FORMAT_FLOAT
 //#define AUDIO_RENDERING_GST
 #if !IMGUI_VULKAN_SHADER
 #define VIDEO_FORMAT_RGBA
 #else
 #define VIDEO_FORMAT_NV12
 //#define VIDEO_FORMAT_YV12
+//#define VIDEO_FORMAT_RGBA
 #endif
 #define MEDIA_PLAYER_DEBUG
 
 #define MAX_PLAY_SPEED 20.0
 #define MIN_PLAY_SPEED 0.1
-#define N_VFRAME 8
-#define N_AFRAME 128
+#define N_VFRAME 4
+#define N_AFRAME 16
 
 struct MediaInfo
 {
@@ -298,9 +299,14 @@ public:
      * */
     float aspectRatio() const;
     /**
-     * Get the Frame
+     * Get Video output
      * */
     ImGui::ImMat videoMat();
+    /**
+     * Get Internal video buffer extent
+     * 
+     */
+    float video_buffer_extent();
     /**
      * Get audio sample rate
      */
@@ -317,7 +323,16 @@ public:
      * Get audio channel levels
      */
     guint audio_level(guint channel) const;
+    /**
+     * Get Audio output
+     * 
+     */
     ImGui::ImMat audioMat();
+    /**
+     * Get Internal audio buffer extent
+     * 
+     */
+    float audio_buffer_extent();
     /**
      * Get the name of the decoder used,
      * return 'software' if no hardware decoder is used
@@ -357,13 +372,7 @@ private:
     uint64_t id_;
     std::string filename_;
     std::string uri_;
-
-    // video output
-    //ImGui::ImMat VMat;
-    // audio output
     std::vector<int> audio_channel_level;
-    //ImGui::ImMat AMat;
-
     // general properties of media
     MediaInfo media_;
     Timeline timeline_;
@@ -441,17 +450,21 @@ private:
 
     // for video frame
     VFrame vframe_[N_VFRAME];
+    guint vread_index_;
     guint vwrite_index_;
     guint vlast_index_;
     std::mutex vindex_lock_;
 
     // for audio frame
     AFrame aframe_[N_AFRAME];
+    guint aread_index_;
     guint awrite_index_;
     guint alast_index_;
     std::mutex aindex_lock_;
 
     // clean internal buffer
+    void clean_video_buffer();
+    void clean_audio_buffer();
     void clean_buffer();
 
     // gst pipeline control
