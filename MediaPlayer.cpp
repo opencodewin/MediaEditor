@@ -43,6 +43,7 @@ MediaPlayer::MediaPlayer()
     video_appsink_ = nullptr;
     audio_appsink_ = nullptr;
     opened_ = false;
+    is_camera = false;
     enabled_ = true;
     desired_state_ = GST_STATE_PAUSED;
 
@@ -245,6 +246,7 @@ MediaInfo MediaPlayer::UriDiscoverer(const std::string &uri)
                     }
                     // exit loop
                     // inform that it succeeded
+                    // TODO::Dicky if we need save all streams info?
                     stream_info.video_valid = true;
                 }
             }
@@ -280,6 +282,7 @@ MediaInfo MediaPlayer::UriDiscoverer(const std::string &uri)
                     }
                     // exit loop
                     // inform that it succeeded
+                    // TODO::Dicky if we need save all streams info?
                     stream_info.audio_valid = true;
                 }
             }
@@ -329,19 +332,26 @@ void MediaPlayer::open (const std::string & filename, const string &uri)
     if (isOpen())
         close();
 
-    // start URI discovering thread:
-    discoverer_ = std::async( MediaPlayer::UriDiscoverer, uri_);
-    // wait for discoverer to finish in the future (test in update)
+    if (filename_.compare("camera") == 0)
+    {
+        is_camera = true;
+        execute_open_camera();
+    }
+    else
+    {
+        // start URI discovering thread:
+        discoverer_ = std::async( MediaPlayer::UriDiscoverer, uri_);
+        // wait for discoverer to finish in the future (test in update)
 
-    // debug without thread
-    //media_ = MediaPlayer::UriDiscoverer(uri_);
-    //if (media_.valid) {
-    //    timeline_.setEnd( media_.end );
-    //    timeline_.setStep( media_.dt );
-    //    execute_open();
-    //}
+        // debug without thread
+        //media_ = MediaPlayer::UriDiscoverer(uri_);
+        //if (media_.audio_valid) {
+        //    timeline_.setEnd( media_.end );
+        //    timeline_.setStep( media_.dt );
+        //    execute_open();
+        //}
+    }
 }
-
 
 void MediaPlayer::reopen()
 {
@@ -359,7 +369,7 @@ void MediaPlayer::execute_open()
     //         "uridecodebin uri=file:///path_to_file/filename.mp4 ! videoconvert ! appsink "
     // equivalent to command line
     //         "gst-launch-1.0 uridecodebin uri=file:///path_to_file/filename.mp4 ! videoconvert ! ximagesink"
-    string description = "uridecodebin name=decoder uri=" + uri_ + " use-buffering=true ! queue max-size-time=0 ! ";
+    string description = "uridecodebin3 name=decoder uri=" + uri_ + " use-buffering=true ! queue max-size-time=0 ! ";
     // NB: queue adds some control over the buffer, thereby limiting the frame delay. zero size means no buffering
 
 #ifdef VIDEO_FORMAT_RGBA
@@ -604,6 +614,12 @@ void MediaPlayer::execute_open()
     MediaPlayer::registered_.push_back(this);
 }
 
+void MediaPlayer::execute_open_camera() 
+{
+    // Create gstreamer pipeline
+    // TODO::Dicky
+}
+
 bool MediaPlayer::isOpen() const
 {
     return opened_;
@@ -681,6 +697,7 @@ void MediaPlayer::close()
 
     // un-ready the media player
     opened_ = false;
+    is_camera = false;
     failed_ = false;
     seeking_ = false;
     decoder_name_ = "";
@@ -756,27 +773,6 @@ guint MediaPlayer::audio_depth() const
 {
     return media_.audio_depth;
 }
-
-/*
-double MediaPlayer::volume() const
-{
-    double vol = 0;
-    GstElement *audio_volume = gst_bin_get_by_name (GST_BIN (pipeline_), "audio_volume");
-    if (!audio_volume)
-    {
-        Log::Warning("MediaPlayer %s Could not get audio volume control", std::to_string(id_).c_str());
-        return vol;
-    }
-    g_object_get(audio_volume, "volume", &vol, NULL);
-    gst_object_unref(audio_volume);
-    return vol;
-}
-
-void MediaPlayer::set_volume(double vol)
-{
-    g_object_set(G_OBJECT (gst_bin_get_by_name (GST_BIN (pipeline_), "audio_volume")), "volume", vol,  NULL);
-}
-*/
 
 GstClockTime MediaPlayer::position()
 {

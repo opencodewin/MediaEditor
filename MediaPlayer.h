@@ -361,6 +361,7 @@ private:
     uint64_t id_;
     std::string filename_;
     std::string uri_;
+    bool is_camera;
     std::vector<int> audio_channel_level;
     // general properties of media
     MediaInfo media_;
@@ -372,11 +373,23 @@ private:
     gdouble rate_;
     LoopMode loop_;
     GstState desired_state_;
+
+    /** pipeline and sink elements
+     * we can using g_object_get(element, "volname", &vol, ..., NULL); to get elememt's
+     * properties. Using g_object_set(element, "volname", vol, ..., NULL); to set 
+     * elememt's properties.
+     * If we need get other element in pipeline, then
+     * using GstElement* ele = gst_bin_get_by_name(GST_BIN(pipeline), "ele_name");
+     */
     GstElement *pipeline_;
     GstElement *video_appsink_;
     GstElement *audio_appsink_;
+
+    // output video/audio info
     GstVideoInfo o_frame_video_info_;
     GstAudioInfo o_frame_audio_info_;
+
+    // System status
     std::atomic<bool> opened_;
     std::atomic<bool> failed_;
     bool seeking_;
@@ -385,7 +398,6 @@ private:
     bool rewind_on_disable_;
     bool force_software_decoding_;
     std::string decoder_name_;
-    GstElement *volume_;
 
     // fps counter
     struct TimeCounter {
@@ -420,6 +432,7 @@ private:
 
     // gst pipeline control
     void execute_open();
+    void execute_open_camera();
     void execute_loop_command();
     void execute_seek_command(GstClockTime target = GST_CLOCK_TIME_NONE);
 
