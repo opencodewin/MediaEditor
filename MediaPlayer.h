@@ -31,7 +31,7 @@
 #define MAX_PLAY_SPEED 20.0
 #define MIN_PLAY_SPEED 0.1
 #define N_VFRAME 10
-#define N_AFRAME 32
+#define N_AFRAME 10
 
 struct MediaInfo
 {
@@ -255,16 +255,6 @@ public:
      * */
     void seek(GstClockTime pos);
     /**
-     * Get Audio volume
-     * 0.0-1.0
-     */
-    double volume() const;
-    /**
-     * Set audio volume
-     * 0.0 - 1.0(100%)
-     */
-    void set_volume(double vol);
-    /**
      * @brief timeline contains all info on timing:
      * - start position : timeline.start()
      * - end position   : timeline.end()
@@ -383,6 +373,8 @@ private:
     LoopMode loop_;
     GstState desired_state_;
     GstElement *pipeline_;
+    GstElement *video_appsink_;
+    GstElement *audio_appsink_;
     GstVideoInfo o_frame_video_info_;
     GstAudioInfo o_frame_audio_info_;
     std::atomic<bool> opened_;

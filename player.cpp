@@ -29,6 +29,7 @@ static std::string bookmark_path = "bookmark.ini";
 static ImTextureID g_texture = 0;
 MediaPlayer g_player;
 static SDL_AudioDeviceID g_audio_dev = 0;
+static int g_audio_volume = SDL_MIX_MAXVOLUME;
 #if IMGUI_VULKAN_SHADER
 ImGui::ColorConvert_vulkan * m_yuv2rgb {nullptr};
 ImGui::LUT3D_vulkan *        m_lut3d {nullptr};
@@ -172,16 +173,18 @@ static void sdl_audio_callback(void *opaque, Uint8 *stream, int len)
                 }
                 else
                 {
-                    wait_count ++;
-                    if (wait_count >= 4)
-                    {
-                        memset(audio_buffer + audio_buffer_data_size, 0, len - audio_buffer_data_size);
-                        audio_buffer_data_size = len;
-                    }
+                    memset(audio_buffer + audio_buffer_data_size, 0, len - audio_buffer_data_size);
+                    audio_buffer_data_size = len;
                 }
             }
         }
-        memcpy(stream, audio_buffer, len);
+        //memcpy(stream, audio_buffer, len);
+        memset(stream, 0, len);
+#ifdef AUDIO_FORMAT_FLOAT
+        SDL_MixAudioFormat(stream, audio_buffer, AUDIO_F32SYS, len, g_audio_volume);
+#else
+        SDL_MixAudioFormat(stream, audio_buffer, AUDIO_S16SYS, len, g_audio_volume);
+#endif
         memmove(audio_buffer, audio_buffer + len, len);
         audio_buffer_data_size -= len;
     }
@@ -277,7 +280,6 @@ bool Application_Frame(void * handle)
     static bool has_hdr = false;
     static bool muted = false;
     static bool full_screen = false;
-    static double volume = 0;
     static int ctrlbar_hide_count = 0;
     bool done = false;
     auto& io = ImGui::GetIO();
@@ -364,10 +366,11 @@ bool Application_Frame(void * handle)
         if (ImGui::Button(g_player.isOpen() ? muted ? ICON_FA5_VOLUME_MUTE : ICON_FA5_VOLUME_UP : ICON_FA5_VOLUME_UP, size))
         {
             muted = !muted;
-            if (muted)
-            {   volume = g_player.volume(); g_player.set_volume(0); }
-            else
-            {   g_player.set_volume(volume); }
+            if (g_audio_dev)
+            {
+                if (muted) g_audio_volume = 0;
+                else g_audio_volume = SDL_MIX_MAXVOLUME;
+            }
         }
         ImGui::ShowTooltipOnHover("Toggle Audio Mute.");
         // add about button
@@ -401,7 +404,13 @@ bool Application_Frame(void * handle)
         float play_speed = g_player.playSpeed();
         if (ImGui::SliderFloat("Speed", &play_speed, -2.f, 2.f, "%.1f", ImGuiSliderFlags_NoInput))
         {
-            if (g_player.isOpen()) g_player.setPlaySpeed(play_speed);
+            if (g_player.isOpen())
+            {
+                SDL_PauseAudioDevice(g_audio_dev, 1);
+                audio_buffer_data_size = 0;
+                g_player.setPlaySpeed(play_speed);
+                SDL_PauseAudioDevice(g_audio_dev, 0);
+            }
         }
         ImGui::PopItemWidth();
         // add software decode button
@@ -459,7 +468,10 @@ bool Application_Frame(void * handle)
             guint64 seek_t = g_player.position();
             if (ImGuiToolkit::TimelineSlider("##timeline", &seek_t, timeline->begin(), timeline->first(), timeline->end(), timeline->step(), timescale_width))
             {
+                SDL_PauseAudioDevice(g_audio_dev, 1);
+                audio_buffer_data_size = 0;
                 g_player.seek(seek_t);
+                SDL_PauseAudioDevice(g_audio_dev, 0);
             }
         }
         else

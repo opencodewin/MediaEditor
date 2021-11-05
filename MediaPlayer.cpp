@@ -40,6 +40,8 @@ MediaPlayer::MediaPlayer()
 
     uri_ = "undefined";
     pipeline_ = nullptr;
+    video_appsink_ = nullptr;
+    audio_appsink_ = nullptr;
     opened_ = false;
     enabled_ = true;
     desired_state_ = GST_STATE_PAUSED;
@@ -473,23 +475,23 @@ void MediaPlayer::execute_open()
     }
 
     // setup appsink
-    GstElement *video_appsink = gst_bin_get_by_name (GST_BIN (pipeline_), "video_appsink");
-    if (!video_appsink) {
+    video_appsink_ = gst_bin_get_by_name (GST_BIN (pipeline_), "video_appsink");
+    if (!video_appsink_) {
         Log::Warning("MediaPlayer %s Could not configure video_appsink", std::to_string(id_).c_str());
         failed_ = true;
         return;
     }
 
     // instruct the sink to send samples synched in time
-    gst_base_sink_set_sync (GST_BASE_SINK(video_appsink), true);
+    gst_base_sink_set_sync (GST_BASE_SINK(video_appsink_), true);
 
     // instruct sink to use the required caps
-    gst_app_sink_set_caps (GST_APP_SINK(video_appsink), caps);
+    gst_app_sink_set_caps (GST_APP_SINK(video_appsink_), caps);
 
     // Instruct appsink to drop old buffers when the maximum amount of queued buffers is reached.
-    gst_app_sink_set_max_buffers( GST_APP_SINK(video_appsink), 2);
-    gst_app_sink_set_buffer_list_support( GST_APP_SINK(video_appsink), true);
-    gst_app_sink_set_drop (GST_APP_SINK(video_appsink), false);
+    gst_app_sink_set_max_buffers( GST_APP_SINK(video_appsink_), 2);
+    gst_app_sink_set_buffer_list_support( GST_APP_SINK(video_appsink_), true);
+    gst_app_sink_set_drop (GST_APP_SINK(video_appsink_), false);
 
 #ifdef USE_GST_APPSINK_CALLBACKS
     // set the callbacks
@@ -503,20 +505,19 @@ void MediaPlayer::execute_open()
         callbacks.eos = video_callback_end_of_stream;
         callbacks.new_sample = video_callback_new_sample;
     }
-    gst_app_sink_set_callbacks (GST_APP_SINK(video_appsink), &callbacks, this, NULL);
-    gst_app_sink_set_emit_signals (GST_APP_SINK(video_appsink), false);
+    gst_app_sink_set_callbacks (GST_APP_SINK(video_appsink_), &callbacks, this, NULL);
+    gst_app_sink_set_emit_signals (GST_APP_SINK(video_appsink_), false);
 #else
     // connect video signals callbacks
-    g_signal_connect(G_OBJECT(video_appsink), "new-preroll", G_CALLBACK (video_callback_new_preroll), this);
+    g_signal_connect(G_OBJECT(video_appsink_), "new-preroll", G_CALLBACK (video_callback_new_preroll), this);
     if (!media_.isimage) {
-        g_signal_connect(G_OBJECT(video_appsink), "new-sample", G_CALLBACK (video_callback_new_sample), this);
-        g_signal_connect(G_OBJECT(video_appsink), "eos", G_CALLBACK (video_callback_end_of_stream), this);
+        g_signal_connect(G_OBJECT(video_appsink_), "new-sample", G_CALLBACK (video_callback_new_sample), this);
+        g_signal_connect(G_OBJECT(video_appsink_), "eos", G_CALLBACK (video_callback_end_of_stream), this);
     }
-    gst_app_sink_set_emit_signals (GST_APP_SINK(video_appsink), true);
+    gst_app_sink_set_emit_signals (GST_APP_SINK(video_appsink_), true);
 #endif
 
     // done with ref to sink
-    gst_object_unref (video_appsink);
     gst_caps_unref (caps);
 
     if (media_.audio_valid)
@@ -535,22 +536,22 @@ void MediaPlayer::execute_open()
         }
 
         // setup audio app sink
-        GstElement *audio_appsink = gst_bin_get_by_name (GST_BIN (pipeline_), "audio_appsink");
-        if (!audio_appsink) {
+        audio_appsink_ = gst_bin_get_by_name (GST_BIN (pipeline_), "audio_appsink");
+        if (!audio_appsink_) {
             Log::Warning("MediaPlayer %s Could not get audio_appsink", std::to_string(id_).c_str());
         }
         else
         {
             // instruct the sink to send samples synched in time
-            gst_base_sink_set_sync (GST_BASE_SINK(audio_appsink), true);
+            gst_base_sink_set_sync (GST_BASE_SINK(audio_appsink_), true);
 
             // instruct sink to use the required caps
-            gst_app_sink_set_caps (GST_APP_SINK(audio_appsink), caps_audio);
+            gst_app_sink_set_caps (GST_APP_SINK(audio_appsink_), caps_audio);
 
             // Instruct appsink to drop old buffers when the maximum amount of queued buffers is reached.
-            gst_app_sink_set_max_buffers( GST_APP_SINK(audio_appsink), 20);
-            gst_app_sink_set_buffer_list_support( GST_APP_SINK(audio_appsink), true);
-            gst_app_sink_set_drop (GST_APP_SINK(audio_appsink), false);
+            gst_app_sink_set_max_buffers( GST_APP_SINK(audio_appsink_), 20);
+            gst_app_sink_set_buffer_list_support( GST_APP_SINK(audio_appsink_), true);
+            gst_app_sink_set_drop (GST_APP_SINK(audio_appsink_), false);
 
 #ifdef USE_GST_APPSINK_CALLBACKS
             // set the callbacks
@@ -558,17 +559,15 @@ void MediaPlayer::execute_open()
             callbacks.new_preroll = audio_callback_new_preroll;
             callbacks.eos = audio_callback_end_of_stream;
             callbacks.new_sample = audio_callback_new_sample;
-            gst_app_sink_set_callbacks (GST_APP_SINK(audio_appsink), &callbacks, this, NULL);
-            gst_app_sink_set_emit_signals (GST_APP_SINK(audio_appsink), false);
+            gst_app_sink_set_callbacks (GST_APP_SINK(audio_appsink_), &callbacks, this, NULL);
+            gst_app_sink_set_emit_signals (GST_APP_SINK(audio_appsink_), false);
 #else
             // connect video signals callbacks
-            g_signal_connect(G_OBJECT(audio_appsink), "new-preroll", G_CALLBACK (audio_callback_new_preroll), this);
-            g_signal_connect(G_OBJECT(audio_appsink), "new-sample", G_CALLBACK (audio_callback_new_sample), this);
-            g_signal_connect(G_OBJECT(audio_appsink), "eos", G_CALLBACK (audio_callback_end_of_stream), this);
-            gst_app_sink_set_emit_signals (GST_APP_SINK(audio_appsink), true);
+            g_signal_connect(G_OBJECT(audio_appsink_), "new-preroll", G_CALLBACK (audio_callback_new_preroll), this);
+            g_signal_connect(G_OBJECT(audio_appsink_), "new-sample", G_CALLBACK (audio_callback_new_sample), this);
+            g_signal_connect(G_OBJECT(audio_appsink_), "eos", G_CALLBACK (audio_callback_end_of_stream), this);
+            gst_app_sink_set_emit_signals (GST_APP_SINK(audio_appsink_), true);
 #endif
-            // done with ref to audio appsink
-            gst_object_unref(audio_appsink);
         }
         // done with ref to audio caps
         gst_caps_unref(caps_audio);
@@ -704,6 +703,17 @@ void MediaPlayer::close()
         pipeline_ = nullptr;
     }
 
+    if (video_appsink_ != nullptr)
+    {
+        gst_object_unref (video_appsink_);
+        video_appsink_ = nullptr;
+    }
+    if (audio_appsink_ != nullptr)
+    {
+        gst_object_unref (audio_appsink_);
+        audio_appsink_ = nullptr;
+    }
+
     clean_buffer(true);
 
     audio_channel_level.clear();
@@ -747,6 +757,7 @@ guint MediaPlayer::audio_depth() const
     return media_.audio_depth;
 }
 
+/*
 double MediaPlayer::volume() const
 {
     double vol = 0;
@@ -765,6 +776,7 @@ void MediaPlayer::set_volume(double vol)
 {
     g_object_set(G_OBJECT (gst_bin_get_by_name (GST_BIN (pipeline_), "audio_volume")), "volume", vol,  NULL);
 }
+*/
 
 GstClockTime MediaPlayer::position()
 {
