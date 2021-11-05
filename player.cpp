@@ -24,8 +24,6 @@
 #include <SDL2/SDL_thread.h>
 #endif
 
-#define ICON_STEP_NEXT      "\uf051"
-
 static std::string ini_file = "Media_Player.ini";
 static std::string bookmark_path = "bookmark.ini";
 static ImTextureID g_texture = 0;
@@ -35,6 +33,10 @@ static SDL_AudioDeviceID g_audio_dev = 0;
 ImGui::ColorConvert_vulkan * m_yuv2rgb {nullptr};
 ImGui::LUT3D_vulkan *        m_lut3d {nullptr};
 #endif
+
+#define MAX_AUDIO_BUFFER_SIZE   65536
+static uint8_t audio_buffer[MAX_AUDIO_BUFFER_SIZE];
+static int audio_buffer_data_size = 0;
 
 static size_t Resample_f32(const float *input, float *output, float speed, uint64_t inputSize, uint32_t channels, int max_len)
 {
@@ -111,26 +113,40 @@ static void sdl_audio_callback(void *opaque, Uint8 *stream, int len)
     if (speed <= 0.05) speed = 0.1;
     int input_sample_rate = player->sample_rate();
     int output_sample_rate = input_sample_rate / speed;
-    Uint8 * stream_data = stream;
-    while (len > 0)
+    int wait_count = 0;
+    if (len > 0)
     {
-        auto mat = player->audioMat();
-        if (mat.empty())
+        if (audio_buffer_data_size < len)
         {
-            memset(stream_data, 0, len);
-            break;
-        }
-        ImGui::ImMat packet_mat = mat.transpose();
+            while (audio_buffer_data_size < len)
+            {
+                auto mat = player->audioMat();
+                if (!mat.empty())
+                {
+                    Uint8 * dst = audio_buffer + audio_buffer_data_size;
+                    ImGui::ImMat packet_mat = mat.transpose();
 #ifdef AUDIO_FORMAT_FLOAT
-        auto size = Resample_f32((const float *)packet_mat.data, (float *)stream_data, speed, mat.w, mat.c, len);
-        stream_data += size * sizeof(float) * mat.c;
-        len -= size * sizeof(float) * mat.c;
+                    auto size = Resample_f32((const float *)packet_mat.data, (float *)dst, speed, mat.w, mat.c, MAX_AUDIO_BUFFER_SIZE - audio_buffer_data_size);
+                    audio_buffer_data_size += size * sizeof(float) * mat.c;
 #else
-        auto size = Resample_s16((const int16_t *)packet_mat.data, (int16_t *)stream_data, speed, mat.w, mat.c, len);
-        stream_data += size * sizeof(int16_t) * mat.c;
-        len -= size * sizeof(int16_t) * mat.c;
+                    auto size = Resample_s16((const int16_t *)packet_mat.data, (int16_t *)dst, speed, mat.w, mat.c, MAX_AUDIO_BUFFER_SIZE - audio_buffer_data_size);
+                    audio_buffer_data_size += size * sizeof(int16_t) * mat.c;
 #endif
-        if (len <= 0) break;
+                }
+                else
+                {
+                    wait_count ++;
+                    if (wait_count >= 4)
+                    {
+                        memset(audio_buffer + audio_buffer_data_size, 0, len - audio_buffer_data_size);
+                        audio_buffer_data_size = len;
+                    }
+                }
+            }
+        }
+        memcpy(stream, audio_buffer, len);
+        memmove(audio_buffer, audio_buffer + len, len);
+        audio_buffer_data_size -= len;
     }
 }
 
@@ -182,6 +198,10 @@ void Application_Initialize(void** handle)
 #if IMGUI_VULKAN_SHADER
     m_yuv2rgb = new ImGui::ColorConvert_vulkan(ImGui::get_default_gpu_index());
 #endif
+
+    memset(audio_buffer, 0, MAX_AUDIO_BUFFER_SIZE);
+    audio_buffer_data_size = 0;
+
 #if !IMGUI_APPLICATION_PLATFORM_SDL2
     SDL_Init(SDL_INIT_AUDIO | SDL_INIT_TIMER);
 #endif
@@ -218,7 +238,6 @@ bool Application_Frame(void * handle)
     static bool force_software = false;
     static bool convert_hdr = false;
     static bool has_hdr = false;
-    static float play_speed = 1.0f;
     static bool muted = false;
     static bool full_screen = false;
     static double volume = 0;
@@ -229,7 +248,6 @@ bool Application_Frame(void * handle)
     const ImGuiStyle& style = g.Style;
 
     g_player.update();
-#ifndef AUDIO_RENDERING_GST
     if (g_player.isOpen() && !g_audio_dev)
     {
         open_audio_device(
@@ -242,7 +260,12 @@ bool Application_Frame(void * handle)
 #endif
             );
     }
-#endif
+
+    if (g_player.isOpen() && g_player.isSeeking())
+    {
+        memset(audio_buffer, 0, MAX_AUDIO_BUFFER_SIZE);
+        audio_buffer_data_size = 0;
+    }
 
     // Show PlayControl panel
     if (g_player.isOpen() && (show_ctrlbar && io.FrameCountSinceLastInput))
@@ -294,7 +317,7 @@ bool Application_Frame(void * handle)
         ImGui::ShowTooltipOnHover("Toggle Play/Pause.");
         // add step next button
         ImGui::SameLine();
-        if (ImGui::Button(ICON_STEP_NEXT, size))
+        if (ImGui::Button(ICON_FA5_STEP_FORWARD, size))
         {
             if (g_player.isOpen()) g_player.step();
         }
@@ -338,9 +361,10 @@ bool Application_Frame(void * handle)
         ImGui::SameLine(); ImGui::Dummy(size);
         ImGui::SameLine();
         ImGui::PushItemWidth(100);
+        float play_speed = g_player.playSpeed();
         if (ImGui::SliderFloat("Speed", &play_speed, -2.f, 2.f, "%.1f", ImGuiSliderFlags_NoInput))
         {
-            if (g_player.isPlaying()) g_player.setPlaySpeed(play_speed);
+            if (g_player.isOpen()) g_player.setPlaySpeed(play_speed);
         }
         ImGui::PopItemWidth();
         // add software decode button
@@ -500,7 +524,7 @@ bool Application_Frame(void * handle)
     }
 
     // Video Texture Render
-    if (g_player.isPlaying())
+    if (g_player.isOpen())
     {
         ImGui::ImMat vmat = g_player.videoMat();
         if (!vmat.empty())

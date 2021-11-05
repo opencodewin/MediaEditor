@@ -77,9 +77,11 @@ ImGui::ImMat MediaPlayer::videoMat()
     {
         mat = vframe_.at(0);
         vframe_.erase(vframe_.begin());
+#if 0
         // we just displayed a vframe : set position time to frame PTS
         if (position_ == GST_CLOCK_TIME_NONE || !media_.audio_valid)
             position_ = isnan(mat.time_stamp) ?  GST_CLOCK_TIME_NONE : mat.time_stamp * 1e+9;
+#endif
     }
     else
     {
@@ -108,9 +110,11 @@ ImGui::ImMat MediaPlayer::audioMat()
     {
         mat = aframe_.at(0);
         aframe_.erase(aframe_.begin());
+#if 0
         // do we set position time to frame PTS ? Sync time to audio
         //if (position_ == GST_CLOCK_TIME_NONE || !media_.video_valid)
             position_ = isnan(mat.time_stamp) ? GST_CLOCK_TIME_NONE : mat.time_stamp * 1e+9;
+#endif
     }
     else
     {
@@ -419,11 +423,6 @@ void MediaPlayer::execute_open()
         description += ",format=S16LE";
 #endif
         description += ",rate=" + std::to_string(media_.audio_sample_rate) + " ! ";
-#ifdef AUDIO_RENDERING_GST
-        description += " tee name=t ! queue !";
-        description += " volume name=audio_volume ! autoaudiosink name=audio_render sync=true";
-        description += " t. ! queue ! ";
-#endif
         description += " appsink name=audio_appsink";
     }
 
@@ -1338,7 +1337,7 @@ void MediaPlayer::fill_video(GstVideoFrame* frame, FrameStatus status, GstClockT
 #endif
     }
     vframe_.push_back(mat);
-    // position_ = vframe_.at(0).time_stamp * 1e+9; // need update time_stamp here ?
+    position_ = position;//vframe_.at(0).time_stamp * 1e+9; // need update time_stamp here ?
 }
 
 bool MediaPlayer::fill_video_frame(GstBuffer *buf, FrameStatus status)
@@ -1572,7 +1571,7 @@ void MediaPlayer::fill_audio(GstAudioBuffer* frame, FrameStatus status, GstClock
 #endif
     }
     aframe_.push_back(mat);
-    // position_ = aframe_.at(0).time_stamp * 1e+9; // need update time_stamp here ?
+    position_ = position;//aframe_.at(0).time_stamp * 1e+9; // need update time_stamp here ?
 }
 
 bool MediaPlayer::fill_audio_frame(GstBuffer *buf, FrameStatus status)
