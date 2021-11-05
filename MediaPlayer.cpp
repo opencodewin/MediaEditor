@@ -65,7 +65,6 @@ MediaPlayer::~MediaPlayer()
 ImGui::ImMat MediaPlayer::videoMat()
 {
     ImGui::ImMat mat;
-    need_loop_ = false;
     if (!enabled_  || !opened_ || failed_)
         return mat;
     v_lock_.lock();
@@ -77,11 +76,9 @@ ImGui::ImMat MediaPlayer::videoMat()
     {
         mat = vframe_.at(0);
         vframe_.erase(vframe_.begin());
-#if 0
         // we just displayed a vframe : set position time to frame PTS
         if (position_ == GST_CLOCK_TIME_NONE || !media_.audio_valid)
             position_ = isnan(mat.time_stamp) ?  GST_CLOCK_TIME_NONE : mat.time_stamp * 1e+9;
-#endif
     }
     else
     {
@@ -98,7 +95,6 @@ ImGui::ImMat MediaPlayer::videoMat()
 ImGui::ImMat MediaPlayer::audioMat()
 {
     ImGui::ImMat mat;
-    need_loop_ = false;
     if (!enabled_  || !opened_ || failed_)
         return mat;
     a_lock_.lock();
@@ -110,11 +106,9 @@ ImGui::ImMat MediaPlayer::audioMat()
     {
         mat = aframe_.at(0);
         aframe_.erase(aframe_.begin());
-#if 0
         // do we set position time to frame PTS ? Sync time to audio
         //if (position_ == GST_CLOCK_TIME_NONE || !media_.video_valid)
             position_ = isnan(mat.time_stamp) ? GST_CLOCK_TIME_NONE : mat.time_stamp * 1e+9;
-#endif
     }
     else
     {
@@ -688,7 +682,11 @@ void MediaPlayer::close()
 
     // un-ready the media player
     opened_ = false;
-
+    failed_ = false;
+    seeking_ = false;
+    decoder_name_ = "";
+    rate_ = 1.0;
+    position_ = GST_CLOCK_TIME_NONE;
     // clean up GST
     if (pipeline_ != nullptr) {
 
@@ -1096,6 +1094,7 @@ void MediaPlayer::execute_loop_command()
     else { //LOOP_NONE
         play(false);
     }
+    need_loop_ = false;
 }
 
 void MediaPlayer::execute_seek_command(GstClockTime target)
@@ -1337,7 +1336,6 @@ void MediaPlayer::fill_video(GstVideoFrame* frame, FrameStatus status, GstClockT
 #endif
     }
     vframe_.push_back(mat);
-    position_ = position;//vframe_.at(0).time_stamp * 1e+9; // need update time_stamp here ?
 }
 
 bool MediaPlayer::fill_video_frame(GstBuffer *buf, FrameStatus status)
@@ -1571,7 +1569,6 @@ void MediaPlayer::fill_audio(GstAudioBuffer* frame, FrameStatus status, GstClock
 #endif
     }
     aframe_.push_back(mat);
-    position_ = position;//aframe_.at(0).time_stamp * 1e+9; // need update time_stamp here ?
 }
 
 bool MediaPlayer::fill_audio_frame(GstBuffer *buf, FrameStatus status)
@@ -1601,7 +1598,7 @@ bool MediaPlayer::fill_audio_frame(GstBuffer *buf, FrameStatus status)
         }
 
         // successfully filled the frame
-        // position_ = buf->pts; // ?
+        //position_ = buf->pts; // ?
         // validate frame format
 #ifdef AUDIO_FORMAT_FLOAT
         if( GST_AUDIO_INFO_IS_FLOAT(&frame.info) && GST_AUDIO_BUFFER_N_PLANES(&frame) == 1)

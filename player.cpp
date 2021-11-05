@@ -100,6 +100,38 @@ static size_t Resample_s16(const int16_t *input, int16_t *output, float speed, s
     return outputSize;
 }
 
+static void Reverse_f32(float *input, size_t inputSize, uint32_t channels)
+{
+    float * buffer = (float *)malloc(inputSize * channels * sizeof(float));
+    float * input_data = input + (inputSize - 1) * channels ;
+    float * output_data = buffer;
+    for (int i = 0; i < inputSize; i++)
+    {
+        for (int c = 0; c < channels; c++)
+        {
+            *output_data++ = *input_data--; 
+        }
+    }
+    memcpy(input, buffer, inputSize * channels * sizeof(float));
+    free(buffer);
+}
+
+static void Reverse_s16(int16_t *input, size_t inputSize, uint32_t channels)
+{
+    int16_t * buffer = (int16_t *)malloc(inputSize * channels * sizeof(int16_t));
+    int16_t * input_data = input + (inputSize - 1) * channels ;
+    int16_t * output_data = buffer;
+    for (int i = 0; i < inputSize; i++)
+    {
+        for (int c = 0; c < channels; c++)
+        {
+            *output_data++ = *input_data--; 
+        }
+    }
+    memcpy(input, buffer, inputSize * channels * sizeof(int16_t));
+    free(buffer);
+}
+
 #define SDL_AUDIO_MIN_BUFFER_SIZE 1024
 static void sdl_audio_callback(void *opaque, Uint8 *stream, int len)
 {
@@ -110,6 +142,7 @@ static void sdl_audio_callback(void *opaque, Uint8 *stream, int len)
         return;
     }
     float speed = fabs(player->playSpeed());
+    bool need_reverse = player->playSpeed() < 0;
     if (speed <= 0.05) speed = 0.1;
     int input_sample_rate = player->sample_rate();
     int output_sample_rate = input_sample_rate / speed;
@@ -126,9 +159,13 @@ static void sdl_audio_callback(void *opaque, Uint8 *stream, int len)
                     Uint8 * dst = audio_buffer + audio_buffer_data_size;
                     ImGui::ImMat packet_mat = mat.transpose();
 #ifdef AUDIO_FORMAT_FLOAT
+                    if (need_reverse)
+                        Reverse_f32((float *)packet_mat.data, mat.w, mat.c);
                     auto size = Resample_f32((const float *)packet_mat.data, (float *)dst, speed, mat.w, mat.c, MAX_AUDIO_BUFFER_SIZE - audio_buffer_data_size);
                     audio_buffer_data_size += size * sizeof(float) * mat.c;
 #else
+                    if (need_reverse)
+                        Reverse_s16((int16_t *)packet_mat.data, mat.w, mat.c);
                     auto size = Resample_s16((const int16_t *)packet_mat.data, (int16_t *)dst, speed, mat.w, mat.c, MAX_AUDIO_BUFFER_SIZE - audio_buffer_data_size);
                     audio_buffer_data_size += size * sizeof(int16_t) * mat.c;
 #endif
@@ -505,6 +542,7 @@ bool Application_Frame(void * handle)
         if (ImGuiFileDialog::Instance()->IsOk())
 		{
             if (g_texture) { ImGui::ImDestroyTexture(g_texture); g_texture = nullptr; }
+            if (g_audio_dev) { SDL_ClearQueuedAudio(g_audio_dev); SDL_CloseAudioDevice(g_audio_dev); g_audio_dev = 0; }
 #if IMGUI_VULKAN_SHADER
             if (m_lut3d) { delete m_lut3d; m_lut3d = nullptr; }
             has_hdr = false;
