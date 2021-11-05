@@ -53,15 +53,6 @@ MediaPlayer::MediaPlayer()
     position_ = GST_CLOCK_TIME_NONE;
     loop_ = LoopMode::LOOP_REWIND;
 
-    // start index in frame_ stack
-    vread_index_ = 0;
-    vwrite_index_ = 0;
-    vlast_index_ = 0;
-
-    aread_index_ = 0;
-    awrite_index_ = 0;
-    alast_index_ = 0;
-
     // audio level
     audio_channel_level.clear();
 }
@@ -74,104 +65,62 @@ MediaPlayer::~MediaPlayer()
 ImGui::ImMat MediaPlayer::videoMat()
 {
     ImGui::ImMat mat;
+    need_loop_ = false;
     if (!enabled_  || !opened_ || failed_)
         return mat;
-    need_loop_ = false;
-    vindex_lock_.lock();
-    vread_index_ = (vread_index_ + 1) % N_VFRAME;
-    if (vread_index_ > vlast_index_) vread_index_ = vlast_index_;
-    // Do NOT miss and jump directly (after seek) to a pre-roll
-    //for (guint i = 0; i < N_VFRAME; ++i) {
-    //    if (vframe_[i].status == PREROLL) {
-    //        vread_index_ = i;
-    //        break;
-    //    }
+    v_lock_.lock();
+    // Do we need jump directly (after seek) to a pre-roll ?
+    // if (seeking_)
+    //{
     //}
-    vindex_lock_.unlock();
-    // lock frame while reading it
-    vframe_[vread_index_].access.lock();
-    // do not fill a frame twice
-    if (vframe_[vread_index_].status != INVALID ) {
-        // is this an End-of-Stream frame ?
-        if (vframe_[vread_index_].status == EOS )
-        {
-            // will execute seek command below (after unlock)
-            need_loop_ = true;
-        }
-         // otherwise just fill non-empty SAMPLE or PREROLL
-        else if (vframe_[vread_index_].full || seeking_)
-        {
-            mat = vframe_[vread_index_].frame;
-            vframe_[vread_index_].frame.release();
-        }
-
+    if (!vframe_.empty())
+    {
+        mat = vframe_.at(0);
+        vframe_.erase(vframe_.begin());
         // we just displayed a vframe : set position time to frame PTS
         if (position_ == GST_CLOCK_TIME_NONE || !media_.audio_valid)
-            position_ = vframe_[vread_index_].position;
-
-        // avoid reading it again
-        vframe_[vread_index_].status = INVALID;
-        //Log::Info("Video Frame %d is got (vw %d)", vread_index_, vwrite_index_);
+            position_ = isnan(mat.time_stamp) ?  GST_CLOCK_TIME_NONE : mat.time_stamp * 1e+9;
     }
     else
     {
-        //Log::Warning("Video Frame %d is invalid, output empty(vw %d)", vread_index_, vwrite_index_);
+#ifdef MEDIA_PLAYER_DEBUG
+        Log::Warning("Video Frame queue empty");
+#endif
     }
-    // unlock frame after reading it
-    vframe_[vread_index_].access.unlock();
-
+    if (mat.flags & IM_MAT_FLAGS_CUSTOM_EOS)
+        need_loop_ = true;
+    v_lock_.unlock();
     return mat;
 }
 
 ImGui::ImMat MediaPlayer::audioMat()
 {
     ImGui::ImMat mat;
+    need_loop_ = false;
     if (!enabled_  || !opened_ || failed_)
         return mat;
-    need_loop_ = false;
-    aindex_lock_.lock();
-
-    aread_index_ = (aread_index_ + 1) % N_AFRAME;
-    if (aread_index_ > alast_index_) aread_index_ = alast_index_;
-    // Do NOT miss and jump directly (after seek) to a pre-roll
-    for (guint i = 0; i < N_AFRAME; ++i) {
-        if (aframe_[i].status == PREROLL) {
-            aread_index_ = i;
-            break;
-        }
-    }
-    aindex_lock_.unlock();
-
-    // lock frame while reading it
-    aframe_[aread_index_].access.lock();
-
-    // do not fill a frame twice
-    if (aframe_[aread_index_].status != INVALID ) {
-        // is this an End-of-Stream frame ?
-        if (aframe_[aread_index_].status == EOS )
-        {
-            // will execute seek command below (after unlock)
-            need_loop_ = true;
-        }
-        // otherwise just fill non-empty SAMPLE or PREROLL
-        else if (aframe_[aread_index_].full || seeking_)
-        {
-            mat = aframe_[aread_index_].frame;
-            aframe_[aread_index_].frame.release();
-        }
+    a_lock_.lock();
+    // Do we need jump directly (after seek) to a pre-roll ?
+    // if (seeking_)
+    //{
+    //}
+    if (!aframe_.empty())
+    {
+        mat = aframe_.at(0);
+        aframe_.erase(aframe_.begin());
         // do we set position time to frame PTS ? Sync time to audio
         //if (position_ == GST_CLOCK_TIME_NONE || !media_.video_valid)
-            position_ = aframe_[aread_index_].position;
-        // avoid reading it again
-        aframe_[aread_index_].status = INVALID;
-        //Log::Info("Audio Frame %d is got (aw %d)", aread_index_, awrite_index_);
+            position_ = isnan(mat.time_stamp) ? GST_CLOCK_TIME_NONE : mat.time_stamp * 1e+9;
     }
     else
     {
-        //Log::Warning("Audio Frame %d is invalid, output empty(aw %d)", aread_index_, awrite_index_);
+#ifdef MEDIA_PLAYER_DEBUG
+        Log::Warning("Audio Frame queue empty");
+#endif
     }
-    // unlock frame after reading it
-    aframe_[aread_index_].access.unlock();
+    a_lock_.unlock();
+    if (mat.flags & IM_MAT_FLAGS_CUSTOM_EOS)
+        need_loop_ = true;
 
     return mat;
 }
@@ -545,7 +494,7 @@ void MediaPlayer::execute_open()
     gst_app_sink_set_caps (GST_APP_SINK(video_appsink), caps);
 
     // Instruct appsink to drop old buffers when the maximum amount of queued buffers is reached.
-    gst_app_sink_set_max_buffers( GST_APP_SINK(video_appsink), N_VFRAME);
+    gst_app_sink_set_max_buffers( GST_APP_SINK(video_appsink), 2);
     gst_app_sink_set_buffer_list_support( GST_APP_SINK(video_appsink), true);
     gst_app_sink_set_drop (GST_APP_SINK(video_appsink), false);
 
@@ -606,7 +555,7 @@ void MediaPlayer::execute_open()
             gst_app_sink_set_caps (GST_APP_SINK(audio_appsink), caps_audio);
 
             // Instruct appsink to drop old buffers when the maximum amount of queued buffers is reached.
-            gst_app_sink_set_max_buffers( GST_APP_SINK(audio_appsink), N_AFRAME);
+            gst_app_sink_set_max_buffers( GST_APP_SINK(audio_appsink), 20);
             gst_app_sink_set_buffer_list_support( GST_APP_SINK(audio_appsink), true);
             gst_app_sink_set_drop (GST_APP_SINK(audio_appsink), false);
 
@@ -673,40 +622,58 @@ bool MediaPlayer::failed() const
     return failed_;
 }
 
-void MediaPlayer::clean_video_buffer()
+void MediaPlayer::clean_video_buffer(bool full)
 {
-    // cleanup eventual remaining video frame memory
-    for(guint i = 0; i < N_VFRAME; i++) {
-        vframe_[i].access.lock();
-        vframe_[i].frame.release();
-        vframe_[i].access.unlock();
+    v_lock_.lock();
+    for (auto it = vframe_.begin(); it != vframe_.end();)
+    {
+        if (full)
+        {
+            it->release();
+            it = vframe_.erase(it);
+        }
+        else 
+        {
+            if (!(it->flags & IM_MAT_FLAGS_CUSTOM_PREROLL))
+            {
+                it->release();
+                it = vframe_.erase(it);
+            }
+            else
+                ++it;
+        }
     }
-    vindex_lock_.lock();
-    vread_index_ = 0;
-    vwrite_index_ = 0;
-    vlast_index_ = 0;
-    vindex_lock_.unlock();
+    v_lock_.unlock();
 }
 
-void MediaPlayer::clean_audio_buffer()
+void MediaPlayer::clean_audio_buffer(bool full)
 {
-    // cleanup eventual remaining audio frame memory ?
-    for(guint i = 0; i < N_AFRAME; i++) {
-        aframe_[i].access.lock();
-        aframe_[i].frame.release();
-        aframe_[i].access.unlock();
+    a_lock_.lock();
+    for (auto it = aframe_.begin(); it != aframe_.end();)
+    {
+        if (full)
+        {
+            it->release();
+            it = aframe_.erase(it);
+        }
+        else 
+        {
+            if (!(it->flags & IM_MAT_FLAGS_CUSTOM_PREROLL))
+            {
+                it->release();
+                it = aframe_.erase(it);
+            }
+            else
+                ++it;
+        }
     }
-    aindex_lock_.lock();
-    aread_index_ = 0;
-    awrite_index_ = 0;
-    alast_index_ = 0;
-    aindex_lock_.unlock();
+    a_lock_.unlock();
 }
 
-void MediaPlayer::clean_buffer()
+void MediaPlayer::clean_buffer(bool full)
 {
-    clean_video_buffer();
-    clean_audio_buffer();
+    clean_video_buffer(full);
+    clean_audio_buffer(full);
 }
 
 void MediaPlayer::close()
@@ -740,7 +707,7 @@ void MediaPlayer::close()
         pipeline_ = nullptr;
     }
 
-    clean_buffer();
+    clean_buffer(true);
 
     audio_channel_level.clear();
 
@@ -1046,137 +1013,6 @@ void MediaPlayer::jump()
     gst_element_send_event (pipeline_, gst_event_new_step (GST_FORMAT_BUFFERS, 1, 30.f * ABS(rate_), TRUE,  FALSE));
 }
 
-void MediaPlayer::fill_video(guint index, GstVideoFrame& frame)
-{
-#ifdef VIDEO_FORMAT_RGBA
-    int data_shift = media_.depth > 32 ? 1 : 0;
-#ifdef WIN32
-    data_shift = 0; // WIN32 only support 8bit RGBA?
-#endif
-    vframe_[index].frame.create_type(media_.width, media_.height, 4, data_shift ? IM_DT_INT16 : IM_DT_INT8);
-    uint8_t* src_data = (uint8_t*)frame.data[0];
-    uint8_t* dst_data = (uint8_t*)vframe_[index].frame.data;
-    memcpy(dst_data, src_data, media_.width * media_.height * (data_shift ? 2 : 1) * 4);
-#else
-    int data_shift = frame.info.finfo->bits > 8;
-#ifdef VIDEO_FORMAT_NV12
-    int UV_shift_w = 0;
-#elif defined(VIDEO_FORMAT_YV12)
-    int UV_shift_w = 1;
-#else
-    #error "please define VIDEO_FORMAT_ in header file"
-#endif
-    int UV_shift_h = 1;
-    vframe_[index].frame.create_type(media_.width, media_.height, 4, data_shift ? IM_DT_INT16 : IM_DT_INT8);
-    ImGui::ImMat mat_Y = vframe_[index].frame.channel(0);
-    {
-        uint8_t* src_data = (uint8_t*)frame.data[0];
-        uint8_t* dst_data = (uint8_t*)mat_Y.data;
-        for (int i = 0; i < media_.height; i++)
-        {
-            memcpy(dst_data, src_data, media_.width * (data_shift ? 2 : 1));
-            src_data += GST_VIDEO_FRAME_PLANE_STRIDE(&frame, 0);
-            dst_data += media_.width << data_shift;
-        }
-    }
-    ImGui::ImMat mat_Cb = vframe_[index].frame.channel(1);
-    {
-        uint8_t* src_data = (uint8_t*)frame.data[1];
-        uint8_t* dst_data = (uint8_t*)mat_Cb.data;
-        for (int i = 0; i < media_.height >> UV_shift_h; i++)
-        {
-            memcpy(dst_data, src_data, (media_.width >> UV_shift_w) * (data_shift ? 2 : 1));
-            src_data += GST_VIDEO_FRAME_PLANE_STRIDE(&frame, 1);
-            dst_data += (media_.width >> UV_shift_w) << data_shift;
-        }
-    }
-#ifdef VIDEO_FORMAT_YV12
-    ImGui::ImMat mat_Cr = vframe_[index].frame.channel(2);
-    {
-        uint8_t* src_data = (uint8_t*)frame.data[2];
-        uint8_t* dst_data = (uint8_t*)mat_Cr.data;
-        for (int i = 0; i < media_.height >> UV_shift_h; i++)
-        {
-            memcpy(dst_data, src_data, (media_.width >> UV_shift_w) * (data_shift ? 2 : 1));
-            src_data += GST_VIDEO_FRAME_PLANE_STRIDE(&frame, 2);
-            dst_data += (media_.width >> UV_shift_w) << data_shift;
-        }
-    }
-#endif
-#endif
-    auto color_space = GST_VIDEO_INFO_COLORIMETRY(&media_.frame_video_info);
-    auto color_range = GST_VIDEO_INFO_CHROMA_SITE(&media_.frame_video_info);
-    vframe_[index].frame.time_stamp = vframe_[index].position == GST_CLOCK_TIME_NONE ? NAN : vframe_[index].position / (1e+9);
-    vframe_[index].frame.duration = vframe_[index].duration == GST_CLOCK_TIME_NONE ? NAN : vframe_[index].duration / (1e+9);
-    vframe_[index].frame.depth = media_.depth / 3;
-    vframe_[index].frame.rate = {static_cast<int>(media_.framerate_n), static_cast<int>(media_.framerate_d)};
-    vframe_[index].frame.flags = IM_MAT_FLAGS_VIDEO_FRAME;
-#ifdef VIDEO_FORMAT_RGBA
-    vframe_[index].frame.color_space = IM_CS_SRGB;
-    vframe_[index].frame.color_format = IM_CF_ABGR;
-    vframe_[index].frame.color_range = IM_CR_FULL_RANGE;
-#else
-    vframe_[index].frame.color_space = color_space.primaries == GST_VIDEO_COLOR_PRIMARIES_BT709 ? IM_CS_BT709 :
-                       color_space.primaries == GST_VIDEO_COLOR_PRIMARIES_BT2020 ? IM_CS_BT2020 : IM_CS_BT601;
-    vframe_[index].frame.color_range = color_range == GST_VIDEO_CHROMA_SITE_JPEG ? IM_CR_FULL_RANGE : 
-                       color_range == GST_VIDEO_CHROMA_SITE_MPEG2 ? IM_CR_NARROW_RANGE : IM_CR_NARROW_RANGE;
-#ifdef VIDEO_FORMAT_NV12
-    vframe_[index].frame.color_format = data_shift ? vframe_[index].frame.depth == 10 ? IM_CF_P010LE : IM_CF_NV12 :IM_CF_NV12;
-    vframe_[index].frame.flags |= IM_MAT_FLAGS_VIDEO_FRAME_UV;
-#elif defined(VIDEO_FORMAT_YV12)
-    vframe_[index].frame.color_format = IM_CF_YUV420;
-#else
-    #error "please define VIDEO_FORMAT_ in header file"
-#endif
-    if (GST_VIDEO_INFO_IS_INTERLACED(&frame.info))  vframe_[index].frame.flags |= IM_MAT_FLAGS_VIDEO_INTERLACED;
-#endif
-    if (gst_video_colorimetry_matches(&color_space, GST_VIDEO_COLORIMETRY_BT2100_PQ)) vframe_[index].frame.flags |= IM_MAT_FLAGS_VIDEO_HDR_PQ;
-    if (gst_video_colorimetry_matches(&color_space, GST_VIDEO_COLORIMETRY_BT2100_HLG)) vframe_[index].frame.flags |= IM_MAT_FLAGS_VIDEO_HDR_HLG;
-}
-
-void MediaPlayer::fill_audio(guint index, GstAudioBuffer& frame)
-{
-    // deal with the frame at reading index
-    auto data = frame.planes[0];
-    for (int i = 0; i < o_frame_audio_info_.channels; i++)
-    {
-#ifdef AUDIO_FORMAT_FLOAT
-        audio_channel_level[i] = calculate_audio_db<float>((const float *)data, o_frame_audio_info_.channels, i, frame.n_samples, 1.0f);
-#else
-        audio_channel_level[i] = calculate_audio_db<int16_t>((const int16_t *)data, o_frame_audio_info_.channels, i, frame.n_samples, (float)(1 << 15));
-#endif
-    }
-    auto total_sample_length = frame.n_samples;
-#ifdef AUDIO_FORMAT_FLOAT
-    aframe_[index].frame.create_type(total_sample_length, 1, o_frame_audio_info_.channels, IM_DT_FLOAT32);
-    float * buffer = (float *)data;
-    for (int i = 0; i < aframe_[index].frame.w; i++)
-    {
-        for (int c = 0; c < aframe_[index].frame.c; c++)
-        {
-            aframe_[index].frame.at<float>(i, 0, c) = (*buffer);
-            buffer ++;
-        }
-    }
-#else
-    aframe_[index].frame.create_type(total_sample_length, 1, o_frame_audio_info_.channels, IM_DT_INT16);
-    int16_t * buffer = (int16_t *)data;
-    for (int i = 0; i < aframe_[index].frame.w; i++)
-    {
-        for (int c = 0; c < aframe_[index].frame.c; c++)
-        {
-            aframe_[index].frame.at<int16_t>(i, 0, c) = (*buffer);
-            buffer ++;
-        }
-    }
-#endif
-
-    aframe_[index].frame.time_stamp = aframe_[index].position == GST_CLOCK_TIME_NONE ? NAN : aframe_[index].position / 1e+9;
-    aframe_[index].frame.duration = aframe_[index].duration == GST_CLOCK_TIME_NONE ? NAN : aframe_[index].duration / 1e+9;
-    aframe_[index].frame.rate = {o_frame_audio_info_.rate, 1};
-    aframe_[index].frame.flags = IM_MAT_FLAGS_AUDIO_FRAME;
-}
-
 void MediaPlayer::update()
 {
     // discard
@@ -1209,11 +1045,6 @@ void MediaPlayer::update()
     // prevent unnecessary updates: disabled or already filled image
     if (!enabled_)
         return;
-
-    //if (media_.isimage)
-    //    return;
-
-    //need_loop_ = false;
 
     // if already seeking (asynch)
     if (seeking_) {
@@ -1379,22 +1210,147 @@ double MediaPlayer::updateFrameRate() const
 
 
 // CALLBACKS
+void MediaPlayer::fill_video(GstVideoFrame* frame, FrameStatus status, GstClockTime position, GstClockTime duration)
+{
+    ImGui::ImMat mat;
+    if (!frame)
+    {
+        if (status == INVALID && position == GST_CLOCK_TIME_NONE && duration == GST_CLOCK_TIME_NONE)
+        {
+            // Can't get frame from buffer, ignore
+            return;
+        }
+        else if (status == UNSUPPORTED)
+        {
+            mat.time_stamp = position == GST_CLOCK_TIME_NONE ? NAN : position / (1e+9);
+            mat.duration = duration == GST_CLOCK_TIME_NONE ? NAN : duration / (1e+9);
+            mat.flags |= IM_MAT_FLAGS_VIDEO_FRAME | IM_MAT_FLAGS_CUSTOM_UNSUPPORTED;
+        }
+        else if (status == EOS)
+        {
+            mat.time_stamp = position == GST_CLOCK_TIME_NONE ? NAN : position / (1e+9);
+            mat.flags |= IM_MAT_FLAGS_VIDEO_FRAME | IM_MAT_FLAGS_CUSTOM_EOS;
+        }
+        else
+        {
+            // (should never happen)
+            return;
+        }
+    }
+    else
+    {
+#ifdef VIDEO_FORMAT_RGBA
+        int data_shift = media_.depth > 32 ? 1 : 0;
+#ifdef WIN32
+        data_shift = 0; // WIN32 only support 8bit RGBA?
+#endif
+        mat.create_type(media_.width, media_.height, 4, data_shift ? IM_DT_INT16 : IM_DT_INT8);
+        uint8_t* src_data = (uint8_t*)frame->data[0];
+        uint8_t* dst_data = (uint8_t*)mat.data;
+        memcpy(dst_data, src_data, media_.width * media_.height * (data_shift ? 2 : 1) * 4);
+#else
+        int data_shift = frame->info.finfo->bits > 8;
+#ifdef VIDEO_FORMAT_NV12
+        int UV_shift_w = 0;
+#elif defined(VIDEO_FORMAT_YV12)
+        int UV_shift_w = 1;
+#else
+        #error "please define VIDEO_FORMAT_ in header file"
+#endif
+        int UV_shift_h = 1;
+        mat.create_type(media_.width, media_.height, 4, data_shift ? IM_DT_INT16 : IM_DT_INT8);
+        ImGui::ImMat mat_Y = mat.channel(0);
+        {
+            uint8_t* src_data = (uint8_t*)frame->data[0];
+            uint8_t* dst_data = (uint8_t*)mat_Y.data;
+            for (int i = 0; i < media_.height; i++)
+            {
+                memcpy(dst_data, src_data, media_.width * (data_shift ? 2 : 1));
+                src_data += GST_VIDEO_FRAME_PLANE_STRIDE(frame, 0);
+                dst_data += media_.width << data_shift;
+            }
+        }
+        ImGui::ImMat mat_Cb = mat.channel(1);
+        {
+            uint8_t* src_data = (uint8_t*)frame->data[1];
+            uint8_t* dst_data = (uint8_t*)mat_Cb.data;
+            for (int i = 0; i < media_.height >> UV_shift_h; i++)
+            {
+                memcpy(dst_data, src_data, (media_.width >> UV_shift_w) * (data_shift ? 2 : 1));
+                src_data += GST_VIDEO_FRAME_PLANE_STRIDE(frame, 1);
+                dst_data += (media_.width >> UV_shift_w) << data_shift;
+            }
+        }
+#ifdef VIDEO_FORMAT_YV12
+        ImGui::ImMat mat_Cr = mat.channel(2);
+        {
+            uint8_t* src_data = (uint8_t*)frame->data[2];
+            uint8_t* dst_data = (uint8_t*)mat_Cr.data;
+            for (int i = 0; i < media_.height >> UV_shift_h; i++)
+            {
+                memcpy(dst_data, src_data, (media_.width >> UV_shift_w) * (data_shift ? 2 : 1));
+                src_data += GST_VIDEO_FRAME_PLANE_STRIDE(frame, 2);
+                dst_data += (media_.width >> UV_shift_w) << data_shift;
+            }
+        }
+#endif
+#endif
+        auto color_space = GST_VIDEO_INFO_COLORIMETRY(&media_.frame_video_info);
+        auto color_range = GST_VIDEO_INFO_CHROMA_SITE(&media_.frame_video_info);
+        mat.time_stamp = position == GST_CLOCK_TIME_NONE ? NAN : position / (1e+9);
+        mat.duration = duration == GST_CLOCK_TIME_NONE ? NAN : duration / (1e+9);
+        mat.depth = media_.depth / 3;
+        mat.rate = {static_cast<int>(media_.framerate_n), static_cast<int>(media_.framerate_d)};
+        mat.flags = IM_MAT_FLAGS_VIDEO_FRAME;
+#ifdef VIDEO_FORMAT_RGBA
+        mat.color_space = IM_CS_SRGB;
+        mat.color_format = IM_CF_ABGR;
+        mat.color_range = IM_CR_FULL_RANGE;
+#else
+        mat.color_space = color_space.primaries == GST_VIDEO_COLOR_PRIMARIES_BT709 ? IM_CS_BT709 :
+                        color_space.primaries == GST_VIDEO_COLOR_PRIMARIES_BT2020 ? IM_CS_BT2020 : IM_CS_BT601;
+        mat.color_range = color_range == GST_VIDEO_CHROMA_SITE_JPEG ? IM_CR_FULL_RANGE : 
+                        color_range == GST_VIDEO_CHROMA_SITE_MPEG2 ? IM_CR_NARROW_RANGE : IM_CR_NARROW_RANGE;
+#ifdef VIDEO_FORMAT_NV12
+        mat.color_format = data_shift ? mat.depth == 10 ? IM_CF_P010LE : IM_CF_NV12 :IM_CF_NV12;
+        mat.flags |= IM_MAT_FLAGS_VIDEO_FRAME_UV;
+#elif defined(VIDEO_FORMAT_YV12)
+        mat.color_format = IM_CF_YUV420;
+#else
+        #error "please define VIDEO_FORMAT_ in header file"
+#endif
+        if (GST_VIDEO_INFO_IS_INTERLACED(&frame->info))  mat.flags |= IM_MAT_FLAGS_VIDEO_INTERLACED;
+#endif
+        if (gst_video_colorimetry_matches(&color_space, GST_VIDEO_COLORIMETRY_BT2100_PQ)) mat.flags |= IM_MAT_FLAGS_VIDEO_HDR_PQ;
+        if (gst_video_colorimetry_matches(&color_space, GST_VIDEO_COLORIMETRY_BT2100_HLG)) mat.flags |= IM_MAT_FLAGS_VIDEO_HDR_HLG;
+        if (status == PREROLL) mat.flags |= IM_MAT_FLAGS_CUSTOM_PREROLL;
+        if (status == SAMPLE) mat.flags |= IM_MAT_FLAGS_CUSTOM_NORMAL;
+    }
+
+    // put mat into queue
+    if (vframe_.size() >= N_VFRAME)
+    {
+        auto bmat = vframe_.at(0);
+        bmat.release();
+        vframe_.erase(vframe_.begin());
+#ifdef MEDIA_PLAYER_DEBUG
+        Log::Debug("MediaPlayer %s Video buffer full", std::to_string(id_).c_str());
+#endif
+    }
+    vframe_.push_back(mat);
+    // position_ = vframe_.at(0).time_stamp * 1e+9; // need update time_stamp here ?
+}
+
 bool MediaPlayer::fill_video_frame(GstBuffer *buf, FrameStatus status)
 {
     if (status == PREROLL)
     {
-        clean_video_buffer();
+        clean_video_buffer(true);
         seeking_ = false;
     }
-    // Do NOT overwrite an unread EOS
-    if ( vframe_[vwrite_index_].status == EOS )
-        vwrite_index_ = (vwrite_index_ + 1) % N_VFRAME;
 
     // lock access to frame
-    vframe_[vwrite_index_].access.lock();
-
-    // accept status of frame received
-    vframe_[vwrite_index_].status = status;
+    v_lock_.lock();
 
     // a buffer is given (not EOS)
     if (buf != NULL) {
@@ -1406,13 +1362,12 @@ bool MediaPlayer::fill_video_frame(GstBuffer *buf, FrameStatus status)
             Log::Debug("MediaPlayer %s Failed to map the video buffer", std::to_string(id_).c_str());
 #endif
             // free access to frame & exit
-            vframe_[vwrite_index_].status = INVALID;
-            vframe_[vwrite_index_].access.unlock();
+            fill_video(nullptr, INVALID, GST_CLOCK_TIME_NONE, GST_CLOCK_TIME_NONE);
+            v_lock_.unlock();
             return false;
         }
 
         // successfully filled the frame
-        vframe_[vwrite_index_].full = true;
         //position_ = buf->pts; // ?
         // validate frame format
 #ifdef VIDEO_FORMAT_RGBA
@@ -1425,10 +1380,8 @@ bool MediaPlayer::fill_video_frame(GstBuffer *buf, FrameStatus status)
         #error "please define VIDEO_FORMAT_ in header file"
 #endif
         {
-            // set presentation time stamp
-            vframe_[vwrite_index_].position = buf->pts;
-            vframe_[vwrite_index_].duration = buf->duration;
-            fill_video(vwrite_index_, frame);
+            // put video data into video queue and set presentation time stamp
+            fill_video(&frame, status, buf->pts, buf->duration);
             // set the start position (i.e. pts of first frame we got)
             if (timeline_.first() == GST_CLOCK_TIME_NONE) {
                 timeline_.setFirst(buf->pts);
@@ -1442,30 +1395,19 @@ bool MediaPlayer::fill_video_frame(GstBuffer *buf, FrameStatus status)
 #endif
             gst_video_frame_unmap(&frame);
             // free access to frame & exit
-            vframe_[vwrite_index_].status = INVALID;
-            vframe_[vwrite_index_].access.unlock();
+            fill_video(nullptr, UNSUPPORTED, buf->pts, buf->duration);
+            v_lock_.unlock();
             return false;
         }
         gst_video_frame_unmap(&frame);
     }
     // else; null buffer for EOS: give a position
     else {
-        vframe_[vwrite_index_].status = EOS;
-        vframe_[vwrite_index_].position = rate_ > 0.0 ? timeline_.end() : timeline_.begin();
+        fill_video(nullptr, EOS, rate_ > 0.0 ? timeline_.end() : timeline_.begin(), GST_CLOCK_TIME_NONE);
     }
 
     // unlock access to frame
-    vframe_[vwrite_index_].access.unlock();
-
-    // lock access to change current index (very quick)
-    vindex_lock_.lock();
-    // indicate update() that this is the last frame filled (and unlocked)
-    vlast_index_ = vwrite_index_;
-    // unlock access to index change
-    vindex_lock_.unlock();
-
-    // for writing, we will access the next in stack
-    vwrite_index_ = (vwrite_index_ + 1) % N_VFRAME;
+    v_lock_.unlock();
 
     // calculate actual FPS of update
     timecount_.tic();
@@ -1551,22 +1493,98 @@ GstFlowReturn MediaPlayer::video_callback_new_sample (GstAppSink *sink, gpointer
     return ret;
 }
 
+void MediaPlayer::fill_audio(GstAudioBuffer* frame, FrameStatus status, GstClockTime position, GstClockTime duration)
+{
+    ImGui::ImMat mat;
+    if (!frame)
+    {
+        if (status == INVALID && position == GST_CLOCK_TIME_NONE && duration == GST_CLOCK_TIME_NONE)
+        {
+            // Can't get frame from buffer, ignore
+            return;
+        }
+        else if (status == UNSUPPORTED)
+        {
+            mat.time_stamp = position == GST_CLOCK_TIME_NONE ? NAN : position / (1e+9);
+            mat.duration = duration == GST_CLOCK_TIME_NONE ? NAN : duration / (1e+9);
+            mat.flags |= IM_MAT_FLAGS_AUDIO_FRAME | IM_MAT_FLAGS_CUSTOM_UNSUPPORTED;
+        }
+        else if (status == EOS)
+        {
+            mat.time_stamp = position == GST_CLOCK_TIME_NONE ? NAN : position / (1e+9);
+            mat.flags |= IM_MAT_FLAGS_AUDIO_FRAME | IM_MAT_FLAGS_CUSTOM_EOS;
+        }
+        else
+        {
+            // (should never happen)
+            return;
+        }
+    }
+    else
+    {
+        // deal with the frame at reading index
+        auto data = frame->planes[0];
+        // calculate audio channels' level
+        for (int i = 0; i < o_frame_audio_info_.channels; i++)
+        {
+#ifdef AUDIO_FORMAT_FLOAT
+            audio_channel_level[i] = calculate_audio_db<float>((const float *)data, o_frame_audio_info_.channels, i, frame->n_samples, 1.0f);
+#else
+            audio_channel_level[i] = calculate_audio_db<int16_t>((const int16_t *)data, o_frame_audio_info_.channels, i, frame->n_samples, (float)(1 << 15));
+#endif
+        }
+        auto total_sample_length = frame->n_samples;
+        // change packet mode data to planner data
+#ifdef AUDIO_FORMAT_FLOAT
+        mat.create_type(total_sample_length, 1, o_frame_audio_info_.channels, IM_DT_FLOAT32);
+        float * buffer = (float *)data;
+#else
+        mat.create_type(total_sample_length, 1, o_frame_audio_info_.channels, IM_DT_INT16);
+        int16_t * buffer = (int16_t *)data;
+#endif
+        for (int i = 0; i < mat.w; i++)
+        {
+            for (int c = 0; c < mat.c; c++)
+            {
+#ifdef AUDIO_FORMAT_FLOAT
+                mat.at<float>(i, 0, c) = (*buffer); buffer ++;
+#else
+                mat.at<int16_t>(i, 0, c) = (*buffer); buffer ++;
+#endif
+            }
+        }
+        mat.time_stamp = position == GST_CLOCK_TIME_NONE ? NAN : position / 1e+9;
+        mat.duration = duration == GST_CLOCK_TIME_NONE ? NAN : duration / 1e+9;
+        mat.rate = {o_frame_audio_info_.rate, 1};
+        mat.flags = IM_MAT_FLAGS_AUDIO_FRAME;
+        if (status == PREROLL) mat.flags |= IM_MAT_FLAGS_CUSTOM_PREROLL;
+        if (status == SAMPLE) mat.flags |= IM_MAT_FLAGS_CUSTOM_NORMAL;
+    }
+
+    // put mat into queue
+    if (aframe_.size() >= N_AFRAME)
+    {
+        auto bmat = aframe_.at(0);
+        bmat.release();
+        aframe_.erase(aframe_.begin());
+#ifdef MEDIA_PLAYER_DEBUG
+        Log::Debug("MediaPlayer %s Audio buffer full", std::to_string(id_).c_str());
+#endif
+    }
+    aframe_.push_back(mat);
+    // position_ = aframe_.at(0).time_stamp * 1e+9; // need update time_stamp here ?
+}
+
 bool MediaPlayer::fill_audio_frame(GstBuffer *buf, FrameStatus status)
 {
     if (status == PREROLL)
     {
-        clean_audio_buffer();
+        clean_audio_buffer(true);
         seeking_ = false;
     }
-    // Do NOT overwrite an unread EOS
-    if ( aframe_[awrite_index_].status == EOS )
-        awrite_index_ = (awrite_index_ + 1) % N_AFRAME;
 
     // lock access to frame
-    aframe_[awrite_index_].access.lock();
-
-    // accept status of frame received
-    aframe_[awrite_index_].status = status;
+    a_lock_.lock();
 
     // a buffer is given (not EOS)
     if (buf != NULL) {
@@ -1578,13 +1596,12 @@ bool MediaPlayer::fill_audio_frame(GstBuffer *buf, FrameStatus status)
             Log::Debug("MediaPlayer %s Failed to map the audio buffer", std::to_string(id_).c_str());
 #endif
             // free access to frame & exit
-            aframe_[awrite_index_].status = INVALID;
-            aframe_[awrite_index_].access.unlock();
+            fill_audio(&frame, INVALID, GST_CLOCK_TIME_NONE, GST_CLOCK_TIME_NONE);
+            a_lock_.unlock();
             return false;
         }
 
         // successfully filled the frame
-        aframe_[awrite_index_].full = true;
         // position_ = buf->pts; // ?
         // validate frame format
 #ifdef AUDIO_FORMAT_FLOAT
@@ -1593,10 +1610,8 @@ bool MediaPlayer::fill_audio_frame(GstBuffer *buf, FrameStatus status)
         if( GST_AUDIO_INFO_IS_INTEGER(&frame.info) && GST_AUDIO_BUFFER_N_PLANES(&frame) == 1)
 #endif
         {
-            // set presentation time stamp
-            aframe_[awrite_index_].position = buf->pts;
-            aframe_[awrite_index_].duration = buf->duration;
-            fill_audio(awrite_index_, frame);
+            // put data into audio queue and set presentation time stamp
+            fill_audio(&frame, status, buf->pts, buf->duration);
             // set the start position (i.e. pts of first frame we got)
             if (timeline_.first() == GST_CLOCK_TIME_NONE) {
                 timeline_.setFirst(buf->pts);
@@ -1610,30 +1625,19 @@ bool MediaPlayer::fill_audio_frame(GstBuffer *buf, FrameStatus status)
 #endif
             // free access to frame & exit
             gst_audio_buffer_unmap(&frame);
-            aframe_[awrite_index_].status = INVALID;
-            aframe_[awrite_index_].access.unlock();
+            fill_audio(nullptr, UNSUPPORTED, buf->pts, buf->duration);
+            a_lock_.unlock();
             return false;
         }
         gst_audio_buffer_unmap(&frame);
     }
     // else; null buffer for EOS: give a position
     else {
-        aframe_[awrite_index_].status = EOS;
-        aframe_[awrite_index_].position = rate_ > 0.0 ? timeline_.end() : timeline_.begin();
+        fill_audio(nullptr, EOS, rate_ > 0.0 ? timeline_.end() : timeline_.begin(), GST_CLOCK_TIME_NONE);
     }
 
     // unlock access to frame
-    aframe_[awrite_index_].access.unlock();
-
-    // lock access to change current index (very quick)
-    aindex_lock_.lock();
-    // indicate update() that this is the last frame filled (and unlocked)
-    alast_index_ = awrite_index_;
-    // unlock access to index change
-    aindex_lock_.unlock();
-
-    // for writing, we will access the next in stack
-    awrite_index_ = (awrite_index_ + 1) % N_AFRAME;
+    a_lock_.unlock();
 
     return true;
 }
@@ -1711,21 +1715,15 @@ GstFlowReturn MediaPlayer::audio_callback_new_sample (GstAppSink *sink, gpointer
 
 float MediaPlayer::video_buffer_extent()
 {
-    float ret = 1.0;
-    if (vread_index_ <= vlast_index_)
-        ret = (float)(vlast_index_ - vread_index_) / (float)N_VFRAME;
-    else
-        ret = (float)(N_VFRAME - vread_index_ + vlast_index_) / (float)N_VFRAME;
+    float ret = 0.0;
+    ret = (float)vframe_.size() / (float)N_VFRAME;
     return ret;
 }
 
 float MediaPlayer::audio_buffer_extent()
 {
-    float ret = 1.0;
-    if (aread_index_ <= alast_index_)
-        ret = (float)(alast_index_ - aread_index_) / (float)N_AFRAME;
-    else
-        ret = (float)(N_AFRAME - aread_index_ + alast_index_) / (float)N_AFRAME;
+    float ret = 0.0;
+    ret = (float)aframe_.size() / (float)N_AFRAME;
     return ret;
 }
 

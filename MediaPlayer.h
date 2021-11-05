@@ -31,8 +31,8 @@
 
 #define MAX_PLAY_SPEED 20.0
 #define MIN_PLAY_SPEED 0.1
-#define N_VFRAME 4
-#define N_AFRAME 16
+#define N_VFRAME 10
+#define N_AFRAME 32
 
 struct MediaInfo
 {
@@ -413,59 +413,19 @@ private:
         SAMPLE = 0,
         PREROLL = 1,
         EOS = 2,
-        INVALID = 3
+        INVALID = 3,
+        UNSUPPORTED = 4,
     } FrameStatus;
 
-    struct VFrame {
-        ImGui::ImMat frame;
-        //GstVideoFrame frame;
-        FrameStatus status;
-        bool full;
-        GstClockTime position;
-        GstClockTime duration;
-        std::mutex access;
-        VFrame() {
-            full = false;
-            status = INVALID;
-            position = GST_CLOCK_TIME_NONE;
-            duration = GST_CLOCK_TIME_NONE;
-        }
-    };
-
-     struct AFrame {
-        ImGui::ImMat frame;
-        //GstAudioBuffer frame;
-        FrameStatus status;
-        bool full;
-        GstClockTime position;
-        GstClockTime duration;
-        std::mutex access;
-        AFrame() {
-            full = false;
-            status = INVALID;
-            position = GST_CLOCK_TIME_NONE;
-            duration = GST_CLOCK_TIME_NONE;
-        }
-    };
-
-    // for video frame
-    VFrame vframe_[N_VFRAME];
-    guint vread_index_;
-    guint vwrite_index_;
-    guint vlast_index_;
-    std::mutex vindex_lock_;
-
-    // for audio frame
-    AFrame aframe_[N_AFRAME];
-    guint aread_index_;
-    guint awrite_index_;
-    guint alast_index_;
-    std::mutex aindex_lock_;
+    std::vector<ImGui::ImMat> vframe_;
+    std::vector<ImGui::ImMat> aframe_;
+    std::mutex v_lock_;
+    std::mutex a_lock_;
 
     // clean internal buffer
-    void clean_video_buffer();
-    void clean_audio_buffer();
-    void clean_buffer();
+    void clean_video_buffer(bool full = false);
+    void clean_audio_buffer(bool full = false);
+    void clean_buffer(bool full = false);
 
     // gst pipeline control
     void execute_open();
@@ -473,8 +433,8 @@ private:
     void execute_seek_command(GstClockTime target = GST_CLOCK_TIME_NONE);
 
     // gst frame filling
-    void fill_video(guint index, GstVideoFrame& frame);
-    void fill_audio(guint index, GstAudioBuffer& frame);
+    void fill_video(GstVideoFrame* frame, FrameStatus status, GstClockTime position, GstClockTime duration);
+    void fill_audio(GstAudioBuffer* frame, FrameStatus status, GstClockTime position, GstClockTime duration);
     bool fill_video_frame(GstBuffer *buf, FrameStatus status);
     bool fill_audio_frame(GstBuffer *buf, FrameStatus status);
 
