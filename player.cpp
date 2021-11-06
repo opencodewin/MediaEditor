@@ -339,7 +339,7 @@ bool Application_Frame(void * handle)
         if (ImGui::Button(ICON_IGFD_FOLDER_OPEN, size))
         {
             //ImGui::ShowTooltipOnHover("Open Media File.");
-            const char *filters = "视频文件(*.mp4 *.mov *.mkv *.avi){.mp4,.mov,.mkv,.avi,.MP4,.MOV,.MKV,.AVI},.*";
+            const char *filters = "视频文件(*.mp4 *.mov *.mkv *.webm *.avi){.mp4,.mov,.mkv,.webm,.avi,.MP4,.MOV,.MKV,WEBM,.AVI},.*";
 			ImGuiFileDialog::Instance()->OpenModal("ChooseFileDlgKey", ICON_IGFD_FOLDER_OPEN " 打开视频文件", filters, ".", 1, nullptr, ImGuiFileDialogFlags_ShowBookmark);
         }
         ImGui::ShowTooltipOnHover("Open Media File.");

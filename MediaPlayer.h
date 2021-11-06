@@ -61,7 +61,8 @@ struct MediaInfo
     GstClockTime dt;
     GstClockTime end;
 
-    MediaInfo() {
+    MediaInfo()
+    {
         width = par_width = 640;
         height = 480;
         depth = 8;
@@ -86,7 +87,8 @@ struct MediaInfo
 
     inline MediaInfo& operator = (const MediaInfo& b)
     {
-        if (this != &b) {
+        if (this != &b)
+        {
             this->dt = b.dt;
             this->end = b.end;
             this->width = b.width;
@@ -114,8 +116,8 @@ struct MediaInfo
     }
 };
 
-class MediaPlayer {
-
+class MediaPlayer
+{
 public:
 
     /**
@@ -133,8 +135,8 @@ public:
     /** 
      * Open a media using gstreamer URI 
      * */
-    void open ( const std::string &filename, const std::string &uri = "");
-    void reopen ();
+    void open(const std::string &filename, const std::string &uri = "");
+    void reopen();
     /**
      * Get name of the media
      * */
@@ -205,7 +207,8 @@ public:
     /**
      * Loop Mode: Behavior when reaching an extremity
      * */
-    typedef enum {
+    typedef enum
+    {
         LOOP_NONE = 0,
         LOOP_REWIND = 1,
         LOOP_BIDIRECTIONAL = 2
@@ -400,7 +403,8 @@ private:
     std::string decoder_name_;
 
     // fps counter
-    struct TimeCounter {
+    struct TimeCounter 
+    {
         GTimer *timer;
         gdouble fps;
     public:
@@ -412,7 +416,8 @@ private:
     TimeCounter timecount_;
 
     // frame stack
-    typedef enum  {
+    typedef enum 
+    {
         SAMPLE = 0,
         PREROLL = 1,
         EOS = 2,
@@ -443,19 +448,16 @@ private:
     bool fill_audio_frame(GstBuffer *buf, FrameStatus status);
 
     // gst video callbacks
-    static void video_callback_end_of_stream (GstAppSink *, gpointer);
-    static GstFlowReturn video_callback_new_preroll (GstAppSink *, gpointer );
-    static GstFlowReturn video_callback_new_sample  (GstAppSink *, gpointer);
+    static void video_callback_end_of_stream(GstAppSink *, gpointer);
+    static GstFlowReturn video_callback_new_preroll(GstAppSink *, gpointer);
+    static GstFlowReturn video_callback_new_sample(GstAppSink *, gpointer);
 
     // gst audio callbacks
-    static void audio_callback_end_of_stream (GstAppSink *, gpointer);
-    static GstFlowReturn audio_callback_new_preroll (GstAppSink *, gpointer );
-    static GstFlowReturn audio_callback_new_sample  (GstAppSink *, gpointer);
+    static void audio_callback_end_of_stream(GstAppSink *, gpointer);
+    static GstFlowReturn audio_callback_new_preroll(GstAppSink *, gpointer);
+    static GstFlowReturn audio_callback_new_sample(GstAppSink *, gpointer);
 
     // global list of registered media player
     static std::list<MediaPlayer*> registered_;
 };
-
-
-
 #endif // __GST_MEDIA_PLAYER_H_

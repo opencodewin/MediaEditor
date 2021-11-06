@@ -149,24 +149,29 @@ MediaInfo MediaPlayer::UriDiscoverer(const std::string &uri)
     static std::mutex mtx_primary;
     static std::mutex mtx_secondary;
     bool use_primary = true;
-    if ( !mtx_primary.try_lock() ) { // non-blocking
+    if (!mtx_primary.try_lock())
+    { 
+        // non-blocking
         use_primary = false;
         mtx_secondary.lock(); // blocking
     }
 #endif
     MediaInfo stream_info;
     GError *err = NULL;
-    GstDiscoverer *discoverer = gst_discoverer_new (5 * GST_SECOND, &err);
+    GstDiscoverer *discoverer = gst_discoverer_new(5 * GST_SECOND, &err);
 
     /* Instantiate the Discoverer */
-    if (!discoverer) {
+    if (!discoverer)
+    {
         Log::Warning("MediaPlayer Error creating discoverer instance: %s\n", err->message);
     }
-    else {
+    else 
+    {
         GstDiscovererInfo *info = NULL;
-        info = gst_discoverer_discover_uri (discoverer, uri.c_str(), &err);
-        GstDiscovererResult result = gst_discoverer_info_get_result (info);
-        switch (result) {
+        info = gst_discoverer_discover_uri(discoverer, uri.c_str(), &err);
+        GstDiscovererResult result = gst_discoverer_info_get_result(info);
+        switch (result)
+        {
         case GST_DISCOVERER_URI_INVALID:
             Log::Warning("'%s': Invalid URI", uri.c_str());
             break;
@@ -181,24 +186,26 @@ MediaInfo MediaPlayer::UriDiscoverer(const std::string &uri)
             break;
         case GST_DISCOVERER_MISSING_PLUGINS:
         {
-            const GstStructure *s = gst_discoverer_info_get_misc (info);
-            gchar *str = gst_structure_to_string (s);
+            const GstStructure *s = gst_discoverer_info_get_misc(info);
+            gchar *str = gst_structure_to_string(s);
             Log::Warning("'%s': Unknown file format (%s)", uri.c_str(), str);
-            g_free (str);
+            g_free(str);
         }
             break;
         default:
         case GST_DISCOVERER_OK:
             break;
         }
-        // no error, handle information found
-        if ( result == GST_DISCOVERER_OK ) {
 
+        // no error, handle information found
+        if (result == GST_DISCOVERER_OK)
+        {
             GList *video_streams = gst_discoverer_info_get_video_streams(info);
             GList *tmp;
-            for (tmp = video_streams; tmp && !stream_info.video_valid; tmp = tmp->next ) {
-                GstDiscovererStreamInfo *tmpinf = (GstDiscovererStreamInfo *) tmp->data;
-                if ( !stream_info.video_valid && GST_IS_DISCOVERER_VIDEO_INFO(tmpinf) )
+            for (tmp = video_streams; tmp && !stream_info.video_valid; tmp = tmp->next)
+            {
+                GstDiscovererStreamInfo *tmpinf = (GstDiscovererStreamInfo *)tmp->data;
+                if (!stream_info.video_valid && GST_IS_DISCOVERER_VIDEO_INFO(tmpinf))
                 {
                     // found a video / image stream : fill-in information
                     GstDiscovererVideoInfo* vinfo = GST_DISCOVERER_VIDEO_INFO(tmpinf);
@@ -212,12 +219,14 @@ MediaInfo MediaPlayer::UriDiscoverer(const std::string &uri)
                     stream_info.bitrate = gst_discoverer_video_info_get_bitrate(vinfo);
                     stream_info.isimage = gst_discoverer_video_info_is_image(vinfo);
                     // if its a video, set duration, framerate, etc.
-                    if ( !stream_info.isimage ) {
+                    if (!stream_info.isimage)
+                    {
                         stream_info.end = gst_discoverer_info_get_duration (info) ;
                         stream_info.seekable = gst_discoverer_info_get_seekable (info);
                         stream_info.framerate_n = gst_discoverer_video_info_get_framerate_num(vinfo);
                         stream_info.framerate_d = gst_discoverer_video_info_get_framerate_denom(vinfo);
-                        if (stream_info.framerate_n == 0 || stream_info.framerate_d == 0) {
+                        if (stream_info.framerate_n == 0 || stream_info.framerate_d == 0)
+                        {
                             Log::Info("'%s': No framerate indicated in the file; using default 30fps", uri.c_str());
                             stream_info.framerate_n = 30;
                             stream_info.framerate_d = 1;
@@ -228,18 +237,20 @@ MediaInfo MediaPlayer::UriDiscoverer(const std::string &uri)
                             stream_info.isimage = true;
                     }
                     // try to fill-in the codec information
-                    GstCaps *caps = gst_discoverer_stream_info_get_caps (tmpinf);
-                    if (caps) {
+                    GstCaps *caps = gst_discoverer_stream_info_get_caps(tmpinf);
+                    if (caps)
+                    {
                         gst_video_info_from_caps(&stream_info.frame_video_info, caps);
                         gchar *codecstring = gst_pb_utils_get_codec_description(caps);
-                        stream_info.video_codec_name = std::string( codecstring );
+                        stream_info.video_codec_name = std::string(codecstring);
                         g_free(codecstring);
-                        gst_caps_unref (caps);
+                        gst_caps_unref(caps);
                     }
                     const GstTagList *tags = gst_discoverer_stream_info_get_tags(tmpinf);
-                    if ( tags ) {
+                    if (tags)
+                    {
                         gchar *container = NULL;
-                        if ( gst_tag_list_get_string (tags, GST_TAG_CONTAINER_FORMAT, &container) )
+                        if ( gst_tag_list_get_string(tags, GST_TAG_CONTAINER_FORMAT, &container))
                              stream_info.video_codec_name += ", " + std::string(container);
                         if (container)
                             g_free(container);
@@ -253,9 +264,10 @@ MediaInfo MediaPlayer::UriDiscoverer(const std::string &uri)
             gst_discoverer_stream_info_list_free(video_streams);
 
             GList *audio_streams = gst_discoverer_info_get_audio_streams(info);
-            for (tmp = audio_streams; tmp && !stream_info.audio_valid; tmp = tmp->next ) {
+            for (tmp = audio_streams; tmp && !stream_info.audio_valid; tmp = tmp->next)
+            {
                 GstDiscovererStreamInfo *tmpinf = (GstDiscovererStreamInfo *) tmp->data;
-                if ( !stream_info.audio_valid && GST_IS_DISCOVERER_AUDIO_INFO(tmpinf) )
+                if (!stream_info.audio_valid && GST_IS_DISCOVERER_AUDIO_INFO(tmpinf))
                 {
                     // found a audio stream : fill-in information
                     GstDiscovererAudioInfo* ainfo = GST_DISCOVERER_AUDIO_INFO(tmpinf);
@@ -264,18 +276,20 @@ MediaInfo MediaPlayer::UriDiscoverer(const std::string &uri)
                     stream_info.audio_depth = gst_discoverer_audio_info_get_depth(ainfo);
                     stream_info.audio_bitrate = gst_discoverer_audio_info_get_bitrate(ainfo);
                     // try to fill-in the codec information
-                    GstCaps *caps = gst_discoverer_stream_info_get_caps (tmpinf);
-                    if (caps) {
+                    GstCaps *caps = gst_discoverer_stream_info_get_caps(tmpinf);
+                    if (caps)
+                    {
                         gst_audio_info_from_caps(&stream_info.frame_audio_info, caps);
                         gchar *codecstring = gst_pb_utils_get_codec_description(caps);
-                        stream_info.video_codec_name = std::string( codecstring );
+                        stream_info.video_codec_name = std::string(codecstring);
                         g_free(codecstring);
-                        gst_caps_unref (caps);
+                        gst_caps_unref(caps);
                     }
                     const GstTagList *tags = gst_discoverer_stream_info_get_tags(tmpinf);
-                    if ( tags ) {
+                    if (tags)
+                    {
                         gchar *container = NULL;
-                        if ( gst_tag_list_get_string (tags, GST_TAG_CONTAINER_FORMAT, &container) )
+                        if ( gst_tag_list_get_string(tags, GST_TAG_CONTAINER_FORMAT, &container))
                              stream_info.audio_codec_name += ", " + std::string(container);
                         if (container)
                             g_free(container);
@@ -288,10 +302,12 @@ MediaInfo MediaPlayer::UriDiscoverer(const std::string &uri)
             }
             gst_discoverer_stream_info_list_free(audio_streams);
 
-            if (!stream_info.video_valid) {
+            if (!stream_info.video_valid)
+            {
                 Log::Warning("'%s': No video stream", uri.c_str());
             }
-            if (!stream_info.audio_valid) {
+            if (!stream_info.audio_valid)
+            {
                 Log::Warning("'%s': No audio stream", uri.c_str());
             }
         }
@@ -299,10 +315,11 @@ MediaInfo MediaPlayer::UriDiscoverer(const std::string &uri)
         if (info)
             gst_discoverer_info_unref (info);
 
-        g_object_unref( discoverer );
+        gst_discoverer_stop (discoverer);
+        g_object_unref(discoverer);
     }
 
-    g_clear_error (&err);
+    g_clear_error(&err);
 
 #ifdef LIMIT_DISCOVERER
     if (use_primary)
@@ -314,14 +331,14 @@ MediaInfo MediaPlayer::UriDiscoverer(const std::string &uri)
     return stream_info;
 }
 
-void MediaPlayer::open (const std::string & filename, const string &uri)
+void MediaPlayer::open(const std::string & filename, const string &uri)
 {
     // set path
     filename_ = filename;
 
     // set uri to open
     if (uri.empty())
-        uri_ = GstToolkit::filename_to_uri( filename );
+        uri_ = GstToolkit::filename_to_uri(filename);
     else
         uri_ = uri;
 
@@ -340,12 +357,13 @@ void MediaPlayer::open (const std::string & filename, const string &uri)
     else
     {
         // start URI discovering thread:
-        discoverer_ = std::async( MediaPlayer::UriDiscoverer, uri_);
+        discoverer_ = std::async(MediaPlayer::UriDiscoverer, uri_);
         // wait for discoverer to finish in the future (test in update)
 
         // debug without thread
         //media_ = MediaPlayer::UriDiscoverer(uri_);
-        //if (media_.audio_valid) {
+        //if (media_.audio_valid)
+        //{
         //    timeline_.setEnd( media_.end );
         //    timeline_.setStep( media_.dt );
         //    execute_open();
@@ -356,7 +374,8 @@ void MediaPlayer::open (const std::string & filename, const string &uri)
 void MediaPlayer::reopen()
 {
     // re-openning is meaningfull only if it was already open
-    if (pipeline_ != nullptr) {
+    if (pipeline_ != nullptr)
+    {
         // reload : terminate pipeline and re-create it
         close();
         execute_open();
@@ -404,7 +423,8 @@ void MediaPlayer::execute_open()
 #endif
 
     // hack to compensate for lack of PTS in gif animations
-    if (media_.video_codec_name.compare("image/gst-libav-gif") == 0){
+    if (media_.video_codec_name.compare("image/gst-libav-gif") == 0)
+    {
         description += "videorate ! video/x-raw,framerate=";
         description += std::to_string(media_.framerate_n) + "/";
         description += std::to_string(media_.framerate_d) + " ! ";
@@ -434,10 +454,11 @@ void MediaPlayer::execute_open()
 
     // parse pipeline descriptor
     GError *error = NULL;
-    pipeline_ = gst_parse_launch (description.c_str(), &error);
-    if (error != NULL) {
+    pipeline_ = gst_parse_launch(description.c_str(), &error);
+    if (error != NULL)
+    {
         Log::Warning("MediaPlayer %s Could not construct pipeline %s:\n%s", std::to_string(id_).c_str(), description.c_str(), error->message);
-        g_clear_error (&error);
+        g_clear_error(&error);
         failed_ = true;
         return;
     }
@@ -473,58 +494,64 @@ void MediaPlayer::execute_open()
     #error "please define VIDEO_FORMAT_ in header file"
 #endif
     GstCaps *caps = gst_caps_from_string(capstring.c_str());
-    if (!gst_video_info_from_caps (&o_frame_video_info_, caps)) {
+    if (!gst_video_info_from_caps(&o_frame_video_info_, caps))
+    {
         Log::Warning("MediaPlayer %s Could not configure video frame info", std::to_string(id_).c_str());
         failed_ = true;
         return;
     }
 
     // setup uridecodebin
-    if (force_software_decoding_) {
-        g_object_set (G_OBJECT (gst_bin_get_by_name (GST_BIN (pipeline_), "decoder")), "force-sw-decoders", true,  NULL);
+    if (force_software_decoding_)
+    {
+        g_object_set(G_OBJECT(gst_bin_get_by_name(GST_BIN(pipeline_), "decoder")), "force-sw-decoders", true,  NULL);
     }
 
     // setup appsink
-    video_appsink_ = gst_bin_get_by_name (GST_BIN (pipeline_), "video_appsink");
-    if (!video_appsink_) {
+    video_appsink_ = gst_bin_get_by_name(GST_BIN(pipeline_), "video_appsink");
+    if (!video_appsink_)
+    {
         Log::Warning("MediaPlayer %s Could not configure video_appsink", std::to_string(id_).c_str());
         failed_ = true;
         return;
     }
 
     // instruct the sink to send samples synched in time
-    gst_base_sink_set_sync (GST_BASE_SINK(video_appsink_), true);
+    gst_base_sink_set_sync(GST_BASE_SINK(video_appsink_), true);
 
     // instruct sink to use the required caps
-    gst_app_sink_set_caps (GST_APP_SINK(video_appsink_), caps);
+    gst_app_sink_set_caps(GST_APP_SINK(video_appsink_), caps);
 
     // Instruct appsink to drop old buffers when the maximum amount of queued buffers is reached.
-    gst_app_sink_set_max_buffers( GST_APP_SINK(video_appsink_), 2);
-    gst_app_sink_set_buffer_list_support( GST_APP_SINK(video_appsink_), true);
-    gst_app_sink_set_drop (GST_APP_SINK(video_appsink_), false);
+    gst_app_sink_set_max_buffers(GST_APP_SINK(video_appsink_), 2);
+    gst_app_sink_set_buffer_list_support(GST_APP_SINK(video_appsink_), true);
+    gst_app_sink_set_drop(GST_APP_SINK(video_appsink_), false);
 
 #ifdef USE_GST_APPSINK_CALLBACKS
     // set the callbacks
     GstAppSinkCallbacks callbacks;
     callbacks.new_preroll = video_callback_new_preroll;
-    if (media_.isimage) {
+    if (media_.isimage)
+    {
         callbacks.eos = NULL;
         callbacks.new_sample = NULL;
     }
-    else {
+    else 
+    {
         callbacks.eos = video_callback_end_of_stream;
         callbacks.new_sample = video_callback_new_sample;
     }
-    gst_app_sink_set_callbacks (GST_APP_SINK(video_appsink_), &callbacks, this, NULL);
-    gst_app_sink_set_emit_signals (GST_APP_SINK(video_appsink_), false);
+    gst_app_sink_set_callbacks(GST_APP_SINK(video_appsink_), &callbacks, this, NULL);
+    gst_app_sink_set_emit_signals(GST_APP_SINK(video_appsink_), false);
 #else
     // connect video signals callbacks
-    g_signal_connect(G_OBJECT(video_appsink_), "new-preroll", G_CALLBACK (video_callback_new_preroll), this);
-    if (!media_.isimage) {
-        g_signal_connect(G_OBJECT(video_appsink_), "new-sample", G_CALLBACK (video_callback_new_sample), this);
-        g_signal_connect(G_OBJECT(video_appsink_), "eos", G_CALLBACK (video_callback_end_of_stream), this);
+    g_signal_connect(G_OBJECT(video_appsink_), "new-preroll", G_CALLBACK(video_callback_new_preroll), this);
+    if (!media_.isimage)
+    {
+        g_signal_connect(G_OBJECT(video_appsink_), "new-sample", G_CALLBACK(video_callback_new_sample), this);
+        g_signal_connect(G_OBJECT(video_appsink_), "eos", G_CALLBACK(video_callback_end_of_stream), this);
     }
-    gst_app_sink_set_emit_signals (GST_APP_SINK(video_appsink_), true);
+    gst_app_sink_set_emit_signals(GST_APP_SINK(video_appsink_), true);
 #endif
 
     // done with ref to sink
@@ -546,21 +573,22 @@ void MediaPlayer::execute_open()
         }
 
         // setup audio app sink
-        audio_appsink_ = gst_bin_get_by_name (GST_BIN (pipeline_), "audio_appsink");
-        if (!audio_appsink_) {
+        audio_appsink_ = gst_bin_get_by_name(GST_BIN(pipeline_), "audio_appsink");
+        if (!audio_appsink_)
+        {
             Log::Warning("MediaPlayer %s Could not get audio_appsink", std::to_string(id_).c_str());
         }
         else
         {
             // instruct the sink to send samples synched in time
-            gst_base_sink_set_sync (GST_BASE_SINK(audio_appsink_), true);
+            gst_base_sink_set_sync(GST_BASE_SINK(audio_appsink_), true);
 
             // instruct sink to use the required caps
-            gst_app_sink_set_caps (GST_APP_SINK(audio_appsink_), caps_audio);
+            gst_app_sink_set_caps(GST_APP_SINK(audio_appsink_), caps_audio);
 
             // Instruct appsink to drop old buffers when the maximum amount of queued buffers is reached.
-            gst_app_sink_set_max_buffers( GST_APP_SINK(audio_appsink_), 20);
-            gst_app_sink_set_buffer_list_support( GST_APP_SINK(audio_appsink_), true);
+            gst_app_sink_set_max_buffers(GST_APP_SINK(audio_appsink_), 20);
+            gst_app_sink_set_buffer_list_support(GST_APP_SINK(audio_appsink_), true);
             gst_app_sink_set_drop (GST_APP_SINK(audio_appsink_), false);
 
 #ifdef USE_GST_APPSINK_CALLBACKS
@@ -569,14 +597,14 @@ void MediaPlayer::execute_open()
             callbacks.new_preroll = audio_callback_new_preroll;
             callbacks.eos = audio_callback_end_of_stream;
             callbacks.new_sample = audio_callback_new_sample;
-            gst_app_sink_set_callbacks (GST_APP_SINK(audio_appsink_), &callbacks, this, NULL);
-            gst_app_sink_set_emit_signals (GST_APP_SINK(audio_appsink_), false);
+            gst_app_sink_set_callbacks(GST_APP_SINK(audio_appsink_), &callbacks, this, NULL);
+            gst_app_sink_set_emit_signals(GST_APP_SINK(audio_appsink_), false);
 #else
             // connect video signals callbacks
-            g_signal_connect(G_OBJECT(audio_appsink_), "new-preroll", G_CALLBACK (audio_callback_new_preroll), this);
-            g_signal_connect(G_OBJECT(audio_appsink_), "new-sample", G_CALLBACK (audio_callback_new_sample), this);
-            g_signal_connect(G_OBJECT(audio_appsink_), "eos", G_CALLBACK (audio_callback_end_of_stream), this);
-            gst_app_sink_set_emit_signals (GST_APP_SINK(audio_appsink_), true);
+            g_signal_connect(G_OBJECT(audio_appsink_), "new-preroll", G_CALLBACK(audio_callback_new_preroll), this);
+            g_signal_connect(G_OBJECT(audio_appsink_), "new-sample", G_CALLBACK(audio_callback_new_sample), this);
+            g_signal_connect(G_OBJECT(audio_appsink_), "eos", G_CALLBACK(audio_callback_end_of_stream), this);
+            gst_app_sink_set_emit_signals(GST_APP_SINK(audio_appsink_), true);
 #endif
         }
         // done with ref to audio caps
@@ -587,17 +615,19 @@ void MediaPlayer::execute_open()
     }
 
     // set to desired state (PLAY or PAUSE)
-    GstStateChangeReturn ret = gst_element_set_state (pipeline_, desired_state_);
-    if (ret == GST_STATE_CHANGE_FAILURE) {
+    GstStateChangeReturn ret = gst_element_set_state(pipeline_, desired_state_);
+    if (ret == GST_STATE_CHANGE_FAILURE)
+    {
         Log::Warning("MediaPlayer %s Could not open '%s'", std::to_string(id_).c_str(), uri_.c_str());
         failed_ = true;
         return;
     }
 
     // in case discoverer failed to get duration
-    if (timeline_.end() == GST_CLOCK_TIME_NONE) {
+    if (timeline_.end() == GST_CLOCK_TIME_NONE)
+    {
         gint64 d = GST_CLOCK_TIME_NONE;
-        if ( gst_element_query_duration(pipeline_, GST_FORMAT_TIME, &d) )
+        if (gst_element_query_duration(pipeline_, GST_FORMAT_TIME, &d))
             timeline_.setEnd(d);
     }
 
@@ -687,7 +717,8 @@ void MediaPlayer::clean_buffer(bool full)
 void MediaPlayer::close()
 {
     // not openned?
-    if (!opened_) {
+    if (!opened_)
+    {
         // wait for loading to finish
         if (discoverer_.valid())
             discoverer_.wait();
@@ -704,17 +735,17 @@ void MediaPlayer::close()
     rate_ = 1.0;
     position_ = GST_CLOCK_TIME_NONE;
     // clean up GST
-    if (pipeline_ != nullptr) {
-
+    if (pipeline_ != nullptr)
+    {
         // force flush
         GstState state;
         gst_element_send_event(pipeline_, gst_event_new_seek (1.0, GST_FORMAT_TIME, GST_SEEK_FLAG_FLUSH,
                     GST_SEEK_TYPE_NONE, 0, GST_SEEK_TYPE_NONE, 0) );
-        gst_element_get_state (pipeline_, &state, NULL, GST_CLOCK_TIME_NONE);
+        gst_element_get_state(pipeline_, &state, NULL, GST_CLOCK_TIME_NONE);
 
         // end pipeline
-        gst_element_set_state (pipeline_, GST_STATE_NULL);
-        gst_element_get_state (pipeline_, &state, NULL, GST_CLOCK_TIME_NONE);
+        gst_element_set_state(pipeline_, GST_STATE_NULL);
+        gst_element_get_state(pipeline_, &state, NULL, GST_CLOCK_TIME_NONE);
 
         gst_object_unref (pipeline_);
         pipeline_ = nullptr;
@@ -722,12 +753,12 @@ void MediaPlayer::close()
 
     if (video_appsink_ != nullptr)
     {
-        gst_object_unref (video_appsink_);
+        gst_object_unref(video_appsink_);
         video_appsink_ = nullptr;
     }
     if (audio_appsink_ != nullptr)
     {
-        gst_object_unref (audio_appsink_);
+        gst_object_unref(audio_appsink_);
         audio_appsink_ = nullptr;
     }
 
@@ -776,12 +807,12 @@ guint MediaPlayer::audio_depth() const
 
 GstClockTime MediaPlayer::position()
 {
-    if (position_ == GST_CLOCK_TIME_NONE && pipeline_ != nullptr) {
+    if (position_ == GST_CLOCK_TIME_NONE && pipeline_ != nullptr)
+    {
         gint64 p = GST_CLOCK_TIME_NONE;
-        if ( gst_element_query_position (pipeline_, GST_FORMAT_TIME, &p) )
+        if ( gst_element_query_position(pipeline_, GST_FORMAT_TIME, &p) )
             position_ = p;
     }
-
     return position_;
 }
 
@@ -792,10 +823,11 @@ GstClockTime MediaPlayer::duration()
 
 void MediaPlayer::enable(bool on)
 {
-    if ( !opened_ || pipeline_ == nullptr)
+    if (!opened_ || pipeline_ == nullptr)
         return;
 
-    if ( enabled_ != on ) {
+    if (enabled_ != on)
+    {
 
         // option to automatically rewind each time the player is disabled
         if (!on && rewind_on_disable_ && desired_state_ == GST_STATE_PLAYING)
@@ -812,8 +844,9 @@ void MediaPlayer::enable(bool on)
             requested_state = desired_state_;
 
         //  apply state change
-        GstStateChangeReturn ret = gst_element_set_state (pipeline_, requested_state);
-        if (ret == GST_STATE_CHANGE_FAILURE) {
+        GstStateChangeReturn ret = gst_element_set_state(pipeline_, requested_state);
+        if (ret == GST_STATE_CHANGE_FAILURE)
+        {
             Log::Warning("MediaPlayer %s Failed to enable", std::to_string(id_).c_str());
             failed_ = true;
         }
@@ -834,7 +867,8 @@ bool MediaPlayer::isImage() const
 std::string MediaPlayer::decoderName()
 {
     // decoder_name_ not initialized
-    if (decoder_name_.empty()) {
+    if (decoder_name_.empty())
+    {
         // try to know if it is a hardware decoder
         decoder_name_ = GstToolkit::used_gpu_decoding_plugins(pipeline_);
         // nope, then it is a sofware decoder
@@ -880,19 +914,21 @@ void MediaPlayer::play(bool on)
     desired_state_ = requested_state;
 
     // if not ready yet, the requested state will be handled later
-    if ( pipeline_ == nullptr )
+    if (pipeline_ == nullptr)
         return;
 
     // requesting to play, but stopped at end of stream : rewind first !
-    if ( desired_state_ == GST_STATE_PLAYING) {
+    if (desired_state_ == GST_STATE_PLAYING)
+    {
         if ( ( rate_ < 0.0 && position_ <= timeline_.next(0)  )
              || ( rate_ > 0.0 && position_ >= timeline_.previous(timeline_.last()) ) )
             rewind();
     }
 
     // all ready, apply state change immediately
-    GstStateChangeReturn ret = gst_element_set_state (pipeline_, desired_state_);
-    if (ret == GST_STATE_CHANGE_FAILURE) {
+    GstStateChangeReturn ret = gst_element_set_state(pipeline_, desired_state_);
+    if (ret == GST_STATE_CHANGE_FAILURE)
+    {
         Log::Warning("MediaPlayer %s Failed to set play state", std::to_string(id_).c_str());
         failed_ = true;
     }
@@ -917,7 +953,7 @@ bool MediaPlayer::isPlaying(bool testpipeline) const
 
     // if ready, answer with actual state
     GstState state;
-    gst_element_get_state (pipeline_, &state, NULL, GST_CLOCK_TIME_NONE);
+    gst_element_get_state(pipeline_, &state, NULL, GST_CLOCK_TIME_NONE);
     return state == GST_STATE_PLAYING;
 }
 
@@ -942,25 +978,27 @@ void MediaPlayer::rewind(bool force)
         return;
 
     // playing forward, loop to begin
-    if (rate_ > 0.0) {
+    if (rate_ > 0.0)
+    {
         // begin is the end of a gab which includes the first PTS (if exists)
         // normal case, begin is zero
-        execute_seek_command( timeline_.next(0) );
+        execute_seek_command(timeline_.next(0));
     }
     // playing backward, loop to endTimeInterval gap;
-    else {
+    else
+    {
         // end is the start of a gab which includes the last PTS (if exists)
         // normal case, end is last frame
-        execute_seek_command( timeline_.previous(timeline_.last()) );
+        execute_seek_command(timeline_.previous(timeline_.last()));
     }
 
-    if (force) {
+    if (force)
+    {
         GstState state;
-        gst_element_get_state (pipeline_, &state, NULL, GST_CLOCK_TIME_NONE);
+        gst_element_get_state(pipeline_, &state, NULL, GST_CLOCK_TIME_NONE);
         update();
     }
 }
-
 
 void MediaPlayer::step()
 {
@@ -968,31 +1006,33 @@ void MediaPlayer::step()
     if (!enabled_ || isPlaying())
         return;
 
-    if ( ( rate_ < 0.0 && position_ <= timeline_.next(0)  )
-         || ( rate_ > 0.0 && position_ >= timeline_.previous(timeline_.last()) ) )
+    if ((rate_ < 0.0 && position_ <= timeline_.next(0))
+         || (rate_ > 0.0 && position_ >= timeline_.previous(timeline_.last())))
         rewind();
 
     // step 
-    gst_element_send_event (pipeline_, gst_event_new_step (GST_FORMAT_BUFFERS, 1, ABS(rate_), TRUE,  FALSE));
+    gst_element_send_event(pipeline_, gst_event_new_step(GST_FORMAT_BUFFERS, 1, ABS(rate_), TRUE,  FALSE));
 }
 
 bool MediaPlayer::go_to(GstClockTime pos)
 {
     bool ret = false;
     TimeInterval gap;
-    if (pos != GST_CLOCK_TIME_NONE ) {
-
+    if (pos != GST_CLOCK_TIME_NONE )
+    {
         GstClockTime jumpPts = pos;
-
-        if (timeline_.getGapAt(pos, gap)) {
+        if (timeline_.getGapAt(pos, gap))
+        {
             // if in a gap, find closest seek target
-            if (gap.is_valid()) {
+            if (gap.is_valid())
+            {
                 // jump in one or the other direction
                 jumpPts = (rate_>0.f) ? gap.end : gap.begin;
             }
         }
 
-        if (ABS_DIFF (position_, jumpPts) > 2 * timeline_.step() ) {
+        if (ABS_DIFF(position_, jumpPts) > 2 * timeline_.step())
+        {
             ret = true;
             seek( jumpPts );
         }
@@ -1015,7 +1055,7 @@ void MediaPlayer::jump()
     if (!enabled_ || !isPlaying())
         return;
 
-    gst_element_send_event (pipeline_, gst_event_new_step (GST_FORMAT_BUFFERS, 1, 30.f * ABS(rate_), TRUE,  FALSE));
+    gst_element_send_event(pipeline_, gst_event_new_step(GST_FORMAT_BUFFERS, 1, 30.f * ABS(rate_), TRUE,  FALSE));
 }
 
 void MediaPlayer::update()
@@ -1025,22 +1065,30 @@ void MediaPlayer::update()
         return;
 
     // not ready yet
-    if (!opened_) {
-        if (discoverer_.valid()) {
+    if (!opened_)
+    {
+        if (discoverer_.valid())
+        {
             // try to get info from discoverer
             if (discoverer_.wait_for( std::chrono::milliseconds(4) ) == std::future_status::ready )
             {
                 media_ = discoverer_.get();
                 // if its ok, open the media
-                if (media_.video_valid || media_.audio_valid) {
-                    timeline_.setEnd( media_.end );
-                    timeline_.setStep( media_.dt );
+                if (media_.video_valid || media_.audio_valid)
+                {
+                    timeline_.setEnd(media_.end);
+                    timeline_.setStep(media_.dt);
                     execute_open();
                 }
-                else {
+                else 
+                {
                     Log::Warning("MediaPlayer %s Loading cancelled", std::to_string(id_).c_str());
                     failed_ = true;
                 }
+            }
+            else
+            {
+                Log::Warning("MediaPlayer %s Discoverer not ready", std::to_string(id_).c_str());
             }
         }
         // wait next frame to display
@@ -1052,31 +1100,35 @@ void MediaPlayer::update()
         return;
 
     // if already seeking (asynch)
-    if (seeking_) {
+    if (seeking_)
+    {
         // request status update to pipeline (re-sync gst thread)
         GstState state;
-        gst_element_get_state (pipeline_, &state, NULL, GST_CLOCK_TIME_NONE);
+        gst_element_get_state(pipeline_, &state, NULL, GST_CLOCK_TIME_NONE);
         // seek should be resolved next frame
         // seeking_ = false; // ?? do in preroll
         // do NOT do another seek yet
     }
     // otherwise check for need to seek (pipeline management)
-    else {
+    else 
+    {
         // manage timeline: test if position falls into a gap
         TimeInterval gap;
-        if (position_ != GST_CLOCK_TIME_NONE && timeline_.getGapAt(position_, gap)) {
+        if (position_ != GST_CLOCK_TIME_NONE && timeline_.getGapAt(position_, gap))
+        {
             // if in a gap, seek to next section
-            if (gap.is_valid()) {
+            if (gap.is_valid())
+            {
                 // jump in one or the other direction
                 GstClockTime jumpPts = timeline_.step(); // round jump time to frame pts
-                if ( rate_ > 0.f )
-                    jumpPts *= ( gap.end / timeline_.step() ) + 1; // FWD: go to end of gap
+                if (rate_ > 0.f)
+                    jumpPts *= (gap.end / timeline_.step()) + 1; // FWD: go to end of gap
                 else
-                    jumpPts *= ( gap.begin / timeline_.step() );   // BWD: go to begin of gap
+                    jumpPts *= (gap.begin / timeline_.step());   // BWD: go to begin of gap
                 // (if not beginnig or end of timeline)
                 if (jumpPts > timeline_.first() && jumpPts < timeline_.last())
                     // seek to jump PTS time
-                    seek( jumpPts );
+                    seek(jumpPts);
                 // otherwise, we should loop
                 else
                     need_loop_ = true;
@@ -1085,21 +1137,26 @@ void MediaPlayer::update()
     }
 
     // manage loop mode
-    if (need_loop_) {
+    if (need_loop_)
+    {
         execute_loop_command();
     }
 }
 
 void MediaPlayer::execute_loop_command()
 {
-    if (loop_==LOOP_REWIND) {
+    if (loop_==LOOP_REWIND)
+    {
         rewind();
     } 
-    else if (loop_==LOOP_BIDIRECTIONAL) {
+    else if (loop_==LOOP_BIDIRECTIONAL)
+    {
         rate_ *= - 1.f;
         execute_seek_command();
     }
-    else { //LOOP_NONE
+    else 
+    {
+        //LOOP_NONE
         play(false);
     }
     need_loop_ = false;
@@ -1107,7 +1164,7 @@ void MediaPlayer::execute_loop_command()
 
 void MediaPlayer::execute_seek_command(GstClockTime target)
 {
-    if ( pipeline_ == nullptr || !media_.seekable )
+    if (pipeline_ == nullptr || !media_.seekable)
         return;
 
     // seek position : default to target
@@ -1118,7 +1175,8 @@ void MediaPlayer::execute_seek_command(GstClockTime target)
         // create seek event with current position (rate changed ?)
         seek_pos = position_;
     // target is given but useless
-    else if ( ABS_DIFF(target, position_) < timeline_.step()) {
+    else if (ABS_DIFF(target, position_) < timeline_.step())
+    {
         // ignore request
         return;
     }
@@ -1127,26 +1185,29 @@ void MediaPlayer::execute_seek_command(GstClockTime target)
     int seek_flags = GST_SEEK_FLAG_FLUSH;
 
     // seek with trick mode if fast speed
-    if ( ABS(rate_) > 1.0 )
+    if (ABS(rate_) > 1.0)
         seek_flags |= GST_SEEK_FLAG_TRICKMODE;
     else
         seek_flags |= GST_SEEK_FLAG_ACCURATE;
 
     // create seek event depending on direction
     GstEvent *seek_event = nullptr;
-    if (rate_ > 0) {
-        seek_event = gst_event_new_seek (rate_, GST_FORMAT_TIME, (GstSeekFlags) seek_flags,
+    if (rate_ > 0)
+    {
+        seek_event = gst_event_new_seek(rate_, GST_FORMAT_TIME, (GstSeekFlags) seek_flags,
             GST_SEEK_TYPE_SET, seek_pos, GST_SEEK_TYPE_END, 0);
     }
-    else {
-        seek_event = gst_event_new_seek (rate_, GST_FORMAT_TIME, (GstSeekFlags) seek_flags,
+    else 
+    {
+        seek_event = gst_event_new_seek(rate_, GST_FORMAT_TIME, (GstSeekFlags) seek_flags,
             GST_SEEK_TYPE_SET, 0, GST_SEEK_TYPE_SET, seek_pos);
     }
 
     // Send the event (ASYNC)
-    if (seek_event && !gst_element_send_event(pipeline_, seek_event) )
+    if (seek_event && !gst_element_send_event(pipeline_, seek_event))
         Log::Warning("MediaPlayer %s Seek failed", std::to_string(id_).c_str());
-    else {
+    else 
+    {
         seeking_ = true;
 #ifdef MEDIA_PLAYER_DEBUG
         Log::Debug("MediaPlayer %s Seek %ld %.1f", std::to_string(id_).c_str(), seek_pos, rate_);
@@ -1358,10 +1419,11 @@ bool MediaPlayer::fill_video_frame(GstBuffer *buf, FrameStatus status)
     v_lock_.lock();
 
     // a buffer is given (not EOS)
-    if (buf != NULL) {
+    if (buf != NULL)
+    {
         GstVideoFrame frame;
         // get the frame from buffer
-        if ( !gst_video_frame_map (&frame, &o_frame_video_info_, buf, GST_MAP_READ ) )
+        if ( !gst_video_frame_map(&frame, &o_frame_video_info_, buf, GST_MAP_READ))
         {
 #ifdef MEDIA_PLAYER_DEBUG
             Log::Debug("MediaPlayer %s Failed to map the video buffer", std::to_string(id_).c_str());
@@ -1376,11 +1438,11 @@ bool MediaPlayer::fill_video_frame(GstBuffer *buf, FrameStatus status)
         //position_ = buf->pts; // ?
         // validate frame format
 #ifdef VIDEO_FORMAT_RGBA
-        if( GST_VIDEO_INFO_IS_RGB(&frame.info) && GST_VIDEO_INFO_N_PLANES(&frame.info) == 1)
+        if (GST_VIDEO_INFO_IS_RGB(&frame.info) && GST_VIDEO_INFO_N_PLANES(&frame.info) == 1)
 #elif defined(VIDEO_FORMAT_NV12)
-        if( GST_VIDEO_INFO_IS_YUV(&frame.info) && GST_VIDEO_INFO_N_PLANES(&frame.info) == 2) // NV12/NV16
+        if (GST_VIDEO_INFO_IS_YUV(&frame.info) && GST_VIDEO_INFO_N_PLANES(&frame.info) == 2) // NV12/NV16
 #elif defined(VIDEO_FORMAT_YV12)
-        if( GST_VIDEO_INFO_IS_YUV(&frame.info) && GST_VIDEO_INFO_N_PLANES(&frame.info) == 3) // I420/I420_10LE
+        if (GST_VIDEO_INFO_IS_YUV(&frame.info) && GST_VIDEO_INFO_N_PLANES(&frame.info) == 3) // I420/I420_10LE
 #else
         #error "please define VIDEO_FORMAT_ in header file"
 #endif
@@ -1388,13 +1450,15 @@ bool MediaPlayer::fill_video_frame(GstBuffer *buf, FrameStatus status)
             // put video data into video queue and set presentation time stamp
             fill_video(&frame, status, buf->pts, buf->duration);
             // set the start position (i.e. pts of first frame we got)
-            if (timeline_.first() == GST_CLOCK_TIME_NONE) {
+            if (timeline_.first() == GST_CLOCK_TIME_NONE)
+            {
                 timeline_.setFirst(buf->pts);
             }
         }
-        // full but invalid frame : will be deleted next iteration
-        // (should never happen)
-        else {
+        else 
+        {
+            // full but invalid frame : will be deleted next iteration
+            // (should never happen)
 #ifdef MEDIA_PLAYER_DEBUG
             Log::Debug("MediaPlayer %s Received an Invalid video frame", std::to_string(id_).c_str());
 #endif
@@ -1406,8 +1470,9 @@ bool MediaPlayer::fill_video_frame(GstBuffer *buf, FrameStatus status)
         }
         gst_video_frame_unmap(&frame);
     }
-    // else; null buffer for EOS: give a position
-    else {
+    else 
+    {
+        // else; null buffer for EOS: give a position
         fill_video(nullptr, EOS, rate_ > 0.0 ? timeline_.end() : timeline_.begin(), GST_CLOCK_TIME_NONE);
     }
 
@@ -1420,15 +1485,16 @@ bool MediaPlayer::fill_video_frame(GstBuffer *buf, FrameStatus status)
     return true;
 }
 
-void MediaPlayer::video_callback_end_of_stream (GstAppSink *, gpointer p)
+void MediaPlayer::video_callback_end_of_stream(GstAppSink *, gpointer p)
 {
     MediaPlayer *m = static_cast<MediaPlayer *>(p);
-    if (m && m->opened_) {
+    if (m && m->opened_)
+    {
         m->fill_video_frame(NULL, MediaPlayer::EOS);
     }
 }
 
-GstFlowReturn MediaPlayer::video_callback_new_preroll (GstAppSink *sink, gpointer p)
+GstFlowReturn MediaPlayer::video_callback_new_preroll(GstAppSink *sink, gpointer p)
 {
     GstFlowReturn ret = GST_FLOW_OK;
 
@@ -1436,20 +1502,21 @@ GstFlowReturn MediaPlayer::video_callback_new_preroll (GstAppSink *sink, gpointe
     GstSample *sample = gst_app_sink_pull_preroll(sink);
 
     // if got a valid sample
-    if (sample != NULL) {
-
+    if (sample != NULL)
+    {
         // send frames to media player only if ready
         MediaPlayer *m = static_cast<MediaPlayer *>(p);
-        if (m && m->opened_) {
-
+        if (m && m->opened_)
+        {
             // get buffer from sample
             GstBuffer *buf = gst_sample_get_buffer (sample);
 
             // fill frame from buffer
-            if ( !m->fill_video_frame(buf, MediaPlayer::PREROLL) )
+            if (!m->fill_video_frame(buf, MediaPlayer::PREROLL))
                 ret = GST_FLOW_ERROR;
-            // loop negative rate: emulate an EOS
-            else if (m->playSpeed() < 0.f && !(buf->pts > 0) ) {
+            else if (m->playSpeed() < 0.f && !(buf->pts > 0) ) 
+            {
+                // loop negative rate: emulate an EOS
                 m->fill_video_frame(NULL, MediaPlayer::EOS);
             }
         }
@@ -1458,12 +1525,12 @@ GstFlowReturn MediaPlayer::video_callback_new_preroll (GstAppSink *sink, gpointe
         ret = GST_FLOW_FLUSHING;
 
     // release sample
-    gst_sample_unref (sample);
+    gst_sample_unref(sample);
 
     return ret;
 }
 
-GstFlowReturn MediaPlayer::video_callback_new_sample (GstAppSink *sink, gpointer p)
+GstFlowReturn MediaPlayer::video_callback_new_sample(GstAppSink *sink, gpointer p)
 {
     GstFlowReturn ret = GST_FLOW_OK;
 
@@ -1471,20 +1538,21 @@ GstFlowReturn MediaPlayer::video_callback_new_sample (GstAppSink *sink, gpointer
     GstSample *sample = gst_app_sink_pull_sample(sink);
 
     // if got a valid sample
-    if (sample != NULL && !gst_app_sink_is_eos (sink)) {
-
+    if (sample != NULL && !gst_app_sink_is_eos (sink))
+    {
         // send frames to media player only if ready
         MediaPlayer *m = static_cast<MediaPlayer *>(p);
-        if (m && m->opened_) {
-
+        if (m && m->opened_)
+        {
             // get buffer from sample (valid until sample is released)
             GstBuffer *buf = gst_sample_get_buffer (sample) ;
 
             // fill frame with buffer
-            if ( !m->fill_video_frame(buf, MediaPlayer::SAMPLE) )
+            if (!m->fill_video_frame(buf, MediaPlayer::SAMPLE))
                 ret = GST_FLOW_ERROR;
-            // loop negative rate: emulate an EOS
-            else if (m->playSpeed() < 0.f && !(buf->pts > 0) ) {
+            else if (m->playSpeed() < 0.f && !(buf->pts > 0) )
+            {
+                // loop negative rate: emulate an EOS
                 m->fill_video_frame(NULL, MediaPlayer::EOS);
             }
         }
@@ -1591,10 +1659,11 @@ bool MediaPlayer::fill_audio_frame(GstBuffer *buf, FrameStatus status)
     a_lock_.lock();
 
     // a buffer is given (not EOS)
-    if (buf != NULL) {
+    if (buf != NULL)
+    {
         GstAudioBuffer frame;
         // get the frame from buffer
-        if ( !gst_audio_buffer_map (&frame, &o_frame_audio_info_, buf, GST_MAP_READ ) )
+        if (!gst_audio_buffer_map (&frame, &o_frame_audio_info_, buf, GST_MAP_READ))
         {
 #ifdef MEDIA_PLAYER_DEBUG
             Log::Debug("MediaPlayer %s Failed to map the audio buffer", std::to_string(id_).c_str());
@@ -1609,21 +1678,23 @@ bool MediaPlayer::fill_audio_frame(GstBuffer *buf, FrameStatus status)
         //position_ = buf->pts; // ?
         // validate frame format
 #ifdef AUDIO_FORMAT_FLOAT
-        if( GST_AUDIO_INFO_IS_FLOAT(&frame.info) && GST_AUDIO_BUFFER_N_PLANES(&frame) == 1)
+        if (GST_AUDIO_INFO_IS_FLOAT(&frame.info) && GST_AUDIO_BUFFER_N_PLANES(&frame) == 1)
 #else
-        if( GST_AUDIO_INFO_IS_INTEGER(&frame.info) && GST_AUDIO_BUFFER_N_PLANES(&frame) == 1)
+        if (GST_AUDIO_INFO_IS_INTEGER(&frame.info) && GST_AUDIO_BUFFER_N_PLANES(&frame) == 1)
 #endif
         {
             // put data into audio queue and set presentation time stamp
             fill_audio(&frame, status, buf->pts, buf->duration);
             // set the start position (i.e. pts of first frame we got)
-            if (timeline_.first() == GST_CLOCK_TIME_NONE) {
+            if (timeline_.first() == GST_CLOCK_TIME_NONE) 
+            {
                 timeline_.setFirst(buf->pts);
             }
         }
-        // full but invalid frame : will be deleted next iteration
-        // (should never happen)
-        else {
+        else 
+        {
+            // full but invalid frame : will be deleted next iteration
+            // (should never happen)
 #ifdef MEDIA_PLAYER_DEBUG
             Log::Debug("MediaPlayer %s Received an Invalid audio frame", std::to_string(id_).c_str());
 #endif
@@ -1635,8 +1706,9 @@ bool MediaPlayer::fill_audio_frame(GstBuffer *buf, FrameStatus status)
         }
         gst_audio_buffer_unmap(&frame);
     }
-    // else; null buffer for EOS: give a position
-    else {
+    else 
+    {
+        // else; null buffer for EOS: give a position
         fill_audio(nullptr, EOS, rate_ > 0.0 ? timeline_.end() : timeline_.begin(), GST_CLOCK_TIME_NONE);
     }
 
@@ -1646,33 +1718,36 @@ bool MediaPlayer::fill_audio_frame(GstBuffer *buf, FrameStatus status)
     return true;
 }
 
-void MediaPlayer::audio_callback_end_of_stream (GstAppSink *, gpointer p)
+void MediaPlayer::audio_callback_end_of_stream(GstAppSink *, gpointer p)
 {
     MediaPlayer *m = static_cast<MediaPlayer *>(p);
-    if (m && m->opened_) {
+    if (m && m->opened_)
+    {
         m->fill_audio_frame(NULL, MediaPlayer::EOS);
     }
 }
 
-GstFlowReturn MediaPlayer::audio_callback_new_preroll (GstAppSink *sink, gpointer p)
+GstFlowReturn MediaPlayer::audio_callback_new_preroll(GstAppSink *sink, gpointer p)
 {
     GstFlowReturn ret = GST_FLOW_OK;
     // blocking read pre-roll samples
     GstSample *sample = gst_app_sink_pull_preroll(sink);
 
     // if got a valid sample
-    if (sample != NULL) {
+    if (sample != NULL)
+    {
         // send frames to media player only if ready
         MediaPlayer *m = static_cast<MediaPlayer *>(p);
-        if (m && m->opened_) {
-
+        if (m && m->opened_)
+        {
             // get buffer from sample
             GstBuffer *buf = gst_sample_get_buffer (sample);
             // fill audio from buffer
-            if ( !m->fill_audio_frame(buf, MediaPlayer::PREROLL) )
+            if (!m->fill_audio_frame(buf, MediaPlayer::PREROLL))
                 ret = GST_FLOW_ERROR;
-            // loop negative rate: emulate an EOS
-            else if (m->playSpeed() < 0.f && !(buf->pts > 0) ) {
+            else if (m->playSpeed() < 0.f && !(buf->pts > 0) )
+            {
+                // loop negative rate: emulate an EOS
                 m->fill_audio_frame(NULL, MediaPlayer::EOS);
             }
         }
@@ -1693,17 +1768,20 @@ GstFlowReturn MediaPlayer::audio_callback_new_sample (GstAppSink *sink, gpointer
     GstSample *sample = gst_app_sink_pull_sample(sink);
 
     // if got a valid sample
-    if (sample != NULL && !gst_app_sink_is_eos (sink)) {
+    if (sample != NULL && !gst_app_sink_is_eos(sink))
+    {
         // send frames to media player only if ready
         MediaPlayer *m = static_cast<MediaPlayer *>(p);
-        if (m && m->opened_) {
+        if (m && m->opened_)
+        {
             // get buffer from sample (valid until sample is released)
-            GstBuffer *buf = gst_sample_get_buffer (sample) ;
+            GstBuffer *buf = gst_sample_get_buffer(sample) ;
             // fill audio with buffer
-            if ( !m->fill_audio_frame(buf, MediaPlayer::SAMPLE) )
+            if ( !m->fill_audio_frame(buf, MediaPlayer::SAMPLE))
                 ret = GST_FLOW_ERROR;
-            // loop negative rate: emulate an EOS
-            else if (m->playSpeed() < 0.f && !(buf->pts > 0) ) {
+            else if (m->playSpeed() < 0.f && !(buf->pts > 0))
+            {
+                // loop negative rate: emulate an EOS
                 m->fill_audio_frame(NULL, MediaPlayer::EOS);
             }
         }
@@ -1746,7 +1824,8 @@ void MediaPlayer::TimeCounter::tic ()
     const double dt = g_timer_elapsed (timer, NULL) * 1000.0;
 
     // ignore refresh after too little time
-    if (dt > 3.0){
+    if (dt > 3.0)
+    {
         // restart timer
         g_timer_start(timer);
         // calculate instantaneous framerate
