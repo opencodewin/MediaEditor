@@ -131,7 +131,7 @@ public:
     /**
      * Get unique id
      */
-    inline uint64_t id() const { return id_; }
+    inline uint64_t id() const { return m_id; }
     /** 
      * Open a media using gstreamer URI 
      * */
@@ -216,11 +216,11 @@ public:
     /**
      * Get the current loop mode
      * */
-    LoopMode loop() const;
+    LoopMode loopMode() const;
     /**
      * Set the loop mode
      * */
-    void setLoop(LoopMode mode);
+    void setLoopMode(LoopMode mode);
     /**
      * Seek to next frame when paused
      * (aka next frame)
@@ -342,8 +342,8 @@ public:
      * Option to automatically rewind each time the player is disabled
      * (i.e. when enable(false) is called )
      * */
-    inline void setRewindOnDisabled(bool on) { rewind_on_disable_ = on; }
-    inline bool rewindOnDisabled() const { return rewind_on_disable_; }
+    inline void setRewindOnDisabled(bool on) { m_rewind_on_disable = on; }
+    inline bool rewindOnDisabled() const { return m_rewind_on_disable; }
     /**
      * Accept visitors
      * */
@@ -352,30 +352,30 @@ public:
      * @brief registered
      * @return list of media players currently registered
      */
-    static std::list<MediaPlayer*> registered() { return registered_; }
-    static std::list<MediaPlayer*>::const_iterator begin() { return registered_.cbegin(); }
-    static std::list<MediaPlayer*>::const_iterator end()   { return registered_.cend(); }
+    static std::list<MediaPlayer*> registered() { return m_registered; }
+    static std::list<MediaPlayer*>::const_iterator begin() { return m_registered.cbegin(); }
+    static std::list<MediaPlayer*>::const_iterator end()   { return m_registered.cend(); }
 
     static MediaInfo UriDiscoverer(const std::string &uri);
 
 private:
 
     // player description
-    uint64_t id_;
-    std::string filename_;
-    std::string uri_;
-    bool is_camera;
-    std::vector<int> audio_channel_level;
+    uint64_t m_id;
+    std::string m_filename;
+    std::string m_uri;
+    bool m_is_camera;
+    std::vector<int> m_audio_channel_level;
     // general properties of media
-    MediaInfo media_;
-    Timeline timeline_;
-    std::future<MediaInfo> discoverer_;
+    MediaInfo m_media_info;
+    Timeline m_timeline;
+    std::future<MediaInfo> m_discoverer;
 
     // GST & Play status
-    GstClockTime position_;
-    gdouble rate_;
-    LoopMode loop_;
-    GstState desired_state_;
+    GstClockTime m_position;
+    gdouble m_rate;
+    LoopMode m_loop_mode;
+    GstState m_desired_state;
 
     /** pipeline and sink elements
      * we can using g_object_get(element, "volname", &vol, ..., NULL); to get elememt's
@@ -384,23 +384,23 @@ private:
      * If we need get other element in pipeline, then
      * using GstElement* ele = gst_bin_get_by_name(GST_BIN(pipeline), "ele_name");
      */
-    GstElement *pipeline_;
-    GstElement *video_appsink_;
-    GstElement *audio_appsink_;
+    GstElement *m_pipeline;
+    GstElement *m_video_appsink;
+    GstElement *m_audio_appsink;
 
     // output video/audio info
-    GstVideoInfo o_frame_video_info_;
-    GstAudioInfo o_frame_audio_info_;
+    GstVideoInfo m_frame_video_info;
+    GstAudioInfo m_frame_audio_info;
 
     // System status
-    std::atomic<bool> opened_;
-    std::atomic<bool> failed_;
-    bool seeking_;
-    bool enabled_;
-    bool need_loop_;
-    bool rewind_on_disable_;
-    bool force_software_decoding_;
-    std::string decoder_name_;
+    std::atomic<bool> m_opened;
+    std::atomic<bool> m_failed;
+    std::atomic<bool> m_seeking;
+    bool m_enabled;
+    bool m_need_loop;
+    bool m_rewind_on_disable;
+    bool m_force_software_decoding;
+    std::string m_decoder_name;
 
     // fps counter
     struct TimeCounter 
@@ -413,7 +413,7 @@ private:
         void tic();
         inline gdouble frameRate() const { return fps; }
     };
-    TimeCounter timecount_;
+    TimeCounter m_timecount;
 
     // frame stack
     typedef enum 
@@ -425,10 +425,10 @@ private:
         UNSUPPORTED = 4,
     } FrameStatus;
 
-    std::vector<ImGui::ImMat> vframe_;
-    std::vector<ImGui::ImMat> aframe_;
-    std::mutex v_lock_;
-    std::mutex a_lock_;
+    std::vector<ImGui::ImMat> m_video_frame;
+    std::vector<ImGui::ImMat> m_audio_frame;
+    std::mutex m_video_lock;
+    std::mutex m_audio_lock;
 
     // clean internal buffer
     void clean_video_buffer(bool full = false);
@@ -458,6 +458,6 @@ private:
     static GstFlowReturn audio_callback_new_sample(GstAppSink *, gpointer);
 
     // global list of registered media player
-    static std::list<MediaPlayer*> registered_;
+    static std::list<MediaPlayer*> m_registered;
 };
 #endif // __GST_MEDIA_PLAYER_H_
