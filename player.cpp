@@ -285,7 +285,7 @@ bool Application_Frame(void * handle)
     auto& io = ImGui::GetIO();
     const ImGuiContext& g = *GImGui;
     const ImGuiStyle& style = g.Style;
-
+    Log::Render();
     g_player.update();
     if (g_player.isOpen() && !g_audio_dev)
     {

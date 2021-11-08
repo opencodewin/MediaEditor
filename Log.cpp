@@ -205,6 +205,7 @@ struct AppLog
 AppLog logs;
 list<string> notifications;
 list<string> warnings;
+list<string> errors;
 float notifications_timeout = 0.f;
 
 void Log::AddMessage(const int type, const char* fmt, ...)
@@ -285,7 +286,7 @@ void Log::Error(const char* fmt, ...)
     buf.appendfv(fmt, args);
     va_end(args);
 
-    //DialogToolkit::ErrorDialog(buf.c_str());
+    errors.push_back(buf.c_str());
 
     Log::AddMessage(LOG_ERROR, " [Error  ] %s", buf.c_str());
 }
@@ -296,12 +297,13 @@ void Log::ShowLogWindow(bool* p_open)
     logs.Draw( ICON_FA5_LIST_UL " Logs", p_open);
 }
 
-void Log::Render(bool *showWarnings)
+void Log::Render(bool showWarnings, bool show_notifies, bool show_errors)
 {
-    bool show_warnings = !warnings.empty();
-    bool show_notification = !notifications.empty();
+    bool show_warnings = !warnings.empty() && showWarnings;
+    bool show_notification = !notifications.empty() && show_notifies;
+    bool show_error = !errors.empty() && show_errors;
 
-    if (!show_notification && !show_warnings)
+    if (!show_notification && !show_warnings && !show_error)
         return;
 
     const ImGuiIO& io = ImGui::GetIO();
@@ -341,8 +343,8 @@ void Log::Render(bool *showWarnings)
 
 
     if (show_warnings) {
-        ImGui::OpenPopup("Warning");
-        if (ImGui::BeginPopupModal("Warning", NULL, ImGuiWindowFlags_AlwaysAutoResize))
+        ImGui::OpenPopup("Warning##log_warning");
+        if (ImGui::BeginPopupModal("Warning##log_warning", NULL, ImGuiWindowFlags_AlwaysAutoResize))
         {
             //ImGuiToolkit::Icon(9, 4);
             ImGui::SameLine(0, 10);
@@ -361,8 +363,6 @@ void Log::Render(bool *showWarnings)
             ImGui::Spacing();
             if (ImGui::Button("Show logs", ImVec2(width * 0.2f, 0))) {
                 close = true;
-                if (showWarnings!= nullptr)
-                    *showWarnings = true;
             }
 
             ImGui::SameLine();
@@ -377,6 +377,33 @@ void Log::Render(bool *showWarnings)
                 warnings.clear();
             }
 
+            ImGui::SetItemDefaultFocus();
+            ImGui::EndPopup();
+        }
+    }
+
+    if (show_error)
+    {
+        ImGui::OpenPopup("Error##log_error");
+        auto& io = ImGui::GetIO();
+        ImVec2 center(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f);
+        ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+        if (ImGui::BeginPopupModal("Error##log_error", NULL, ImGuiWindowFlags_AlwaysAutoResize))
+        {
+            ImGui::PushTextWrapPos(ImGui::GetCursorPos().x + width);
+            for (list<string>::iterator it=errors.begin(); it != errors.end(); ++it) {
+                logs.DrawIcon(LOG_ERROR);
+                ImGui::SameLine();
+                ImGui::Text("%s \n", (*it).c_str());
+                ImGui::Separator();
+            }
+            ImGui::PopTextWrapPos();
+
+            if (ImGui::Button("Ok", ImVec2(120, 0)))
+            {
+                ImGui::CloseCurrentPopup();
+                errors.clear();
+            }
             ImGui::SetItemDefaultFocus();
             ImGui::EndPopup();
         }

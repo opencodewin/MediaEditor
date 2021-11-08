@@ -173,22 +173,22 @@ MediaInfo MediaPlayer::UriDiscoverer(const std::string &uri)
         switch (result)
         {
         case GST_DISCOVERER_URI_INVALID:
-            Log::Warning("'%s': Invalid URI", uri.c_str());
+            Log::Error("'%s': Invalid URI", uri.c_str());
             break;
         case GST_DISCOVERER_ERROR:
-            Log::Warning("'%s': %s", uri.c_str(), err->message);
+            Log::Error("'%s': %s", uri.c_str(), err->message);
             break;
         case GST_DISCOVERER_TIMEOUT:
-            Log::Warning("'%s': Timeout loading", uri.c_str());
+            Log::Error("'%s': Timeout loading", uri.c_str());
             break;
         case GST_DISCOVERER_BUSY:
-            Log::Warning("'%s': Busy", uri.c_str());
+            Log::Error("'%s': Busy", uri.c_str());
             break;
         case GST_DISCOVERER_MISSING_PLUGINS:
         {
             const GstStructure *s = gst_discoverer_info_get_misc(info);
             gchar *str = gst_structure_to_string(s);
-            Log::Warning("'%s': Unknown file format (%s)", uri.c_str(), str);
+            Log::Error("'%s': Unknown file format (%s)", uri.c_str(), str);
             g_free(str);
         }
             break;

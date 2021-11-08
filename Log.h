@@ -14,7 +14,7 @@ namespace Log
     // Draw logs
     void ShowLogWindow(bool* p_open = nullptr);
 
-    void Render(bool *showWarnings = nullptr);
+    void Render(bool showWarnings = false, bool show_notifies = false, bool show_errors = true);
 }
 
 #endif // __LOG_H_
