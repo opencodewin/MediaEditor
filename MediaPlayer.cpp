@@ -652,6 +652,7 @@ void MediaPlayer::execute_open_camera()
     m_media_info.framerate_d = 25;
     m_media_info.isimage = false;
     m_media_info.interlaced = false;
+    m_media_info.seekable = false;
     m_media_info.depth = 24;
 
     string description = "";
