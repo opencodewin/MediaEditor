@@ -86,7 +86,7 @@ ImGui::ImMat MediaPlayer::videoMat()
     else
     {
 #ifdef MEDIA_PLAYER_DEBUG
-        Log::Warning("Video Frame queue empty");
+        //Log::Warning("Video Frame queue empty");
 #endif
     }
     if (mat.flags & IM_MAT_FLAGS_CUSTOM_EOS)
@@ -116,7 +116,7 @@ ImGui::ImMat MediaPlayer::audioMat()
     else
     {
 #ifdef MEDIA_PLAYER_DEBUG
-        Log::Warning("Audio Frame queue empty");
+        //Log::Warning("Audio Frame queue empty");
 #endif
     }
     m_audio_lock.unlock();
@@ -644,12 +644,140 @@ void MediaPlayer::execute_open()
 void MediaPlayer::execute_open_camera() 
 {
     // Create gstreamer pipeline
-    // TODO::Dicky
+    // setup m_media_info
+    m_media_info.audio_valid = false;
+    m_media_info.width = m_media_info.par_width = 1280;
+    m_media_info.height = 720;
+    m_media_info.framerate_n = 1;
+    m_media_info.framerate_d = 25;
+    m_media_info.isimage = false;
+    m_media_info.interlaced = false;
+    m_media_info.depth = 24;
+
+    string description = "";
+
+#ifdef __APPLE__
+    description += "avfvideosrc name=camera do-timestamp=true !";
+#elif defined(__linux__)
+    description += "v4l2src name=camera !"; // not test yet
+#elif defined(_WIN32)
+    description += "ksvideosrc name=camera !"; // not test yet
+#else
+    #error "Not supported platform"
+#endif
+
+    description += " videoscale ! videoconvert ! video/x-raw,format=" + std::string("NV12") + ",width=" + std::to_string(m_media_info.width) + ",height=" + std::to_string(m_media_info.height) + " !";
+    
+    description += "appsink name=video_appsink";
+
+    // parse pipeline descriptor
+    GError *error = NULL;
+    m_pipeline = gst_parse_launch(description.c_str(), &error);
+    if (error != NULL)
+    {
+        Log::Warning("MediaPlayer %s Could not construct pipeline %s:\n%s", std::to_string(m_id).c_str(), description.c_str(), error->message);
+        g_clear_error(&error);
+        m_failed = true;
+        return;
+    }
+
+    m_media_info.video_valid = true;
+    int pixel_element_depth = m_media_info.depth / 3;
+    // setup pipeline
+    g_object_set(G_OBJECT(m_pipeline), "name", std::to_string(m_id).c_str(), NULL);
+    gst_pipeline_set_auto_flush_bus( GST_PIPELINE(m_pipeline), true);
+    
+#ifdef VIDEO_FORMAT_RGBA
+    string capstring = "video/x-raw,format=BGRA,width="+ std::to_string(m_media_info.width) +
+            ",height=" + std::to_string(m_media_info.height);
+#elif defined(VIDEO_FORMAT_NV12)
+    string capstring = "video/x-raw,format=" + std::string("NV12") + ",width=" + std::to_string(m_media_info.width) +
+            ",height=" + std::to_string(m_media_info.height);
+#elif defined(VIDEO_FORMAT_YV12)
+    string capstring = "video/x-raw,format=" + (pixel_element_depth == 8 ? std::string("I420") : std::string("I420_10LE")) + ",width=" + std::to_string(m_media_info.width) +
+            ",height=" + std::to_string(m_media_info.height);
+#else
+    #error "please define VIDEO_FORMAT_ in header file"
+#endif
+
+    GstCaps *caps = gst_caps_from_string(capstring.c_str());
+    if (!gst_video_info_from_caps(&m_frame_video_info, caps))
+    {
+        Log::Warning("MediaPlayer %s Could not configure video frame info", std::to_string(m_id).c_str());
+        m_failed = true;
+        return;
+    }
+
+    // done with ref to sink
+    gst_caps_unref (caps);
+
+    // setup appsink
+    m_video_appsink = gst_bin_get_by_name(GST_BIN(m_pipeline), "video_appsink");
+    if (!m_video_appsink)
+    {
+        Log::Warning("MediaPlayer %s Could not configure video_appsink", std::to_string(m_id).c_str());
+        m_failed = true;
+        return;
+    }
+
+    // Instruct appsink to drop old buffers when the maximum amount of queued buffers is reached.
+    gst_app_sink_set_max_buffers(GST_APP_SINK(m_video_appsink), 2);
+    gst_app_sink_set_drop(GST_APP_SINK(m_video_appsink), false);
+
+#ifdef USE_GST_APPSINK_CALLBACKS
+    // set the callbacks
+    GstAppSinkCallbacks callbacks;
+    callbacks.new_preroll = video_callback_new_preroll;
+    if (m_media_info.isimage)
+    {
+        callbacks.eos = NULL;
+        callbacks.new_sample = NULL;
+    }
+    else 
+    {
+        callbacks.eos = video_callback_end_of_stream;
+        callbacks.new_sample = video_callback_new_sample;
+    }
+    gst_app_sink_set_callbacks(GST_APP_SINK(m_video_appsink), &callbacks, this, NULL);
+    gst_app_sink_set_emit_signals(GST_APP_SINK(m_video_appsink), false);
+#else
+    // connect video signals callbacks
+    g_signal_connect(G_OBJECT(m_video_appsink), "new-preroll", G_CALLBACK(video_callback_new_preroll), this);
+    if (!m_media_info.isimage)
+    {
+        g_signal_connect(G_OBJECT(m_video_appsink), "new-sample", G_CALLBACK(video_callback_new_sample), this);
+        g_signal_connect(G_OBJECT(m_video_appsink), "eos", G_CALLBACK(video_callback_end_of_stream), this);
+    }
+    gst_app_sink_set_emit_signals(GST_APP_SINK(m_video_appsink), true);
+#endif
+
+    // set to desired state (PLAY or PAUSE)
+    GstStateChangeReturn ret = gst_element_set_state(m_pipeline, m_desired_state);
+    if (ret == GST_STATE_CHANGE_FAILURE)
+    {
+        Log::Warning("MediaPlayer %s Could not open '%s'", std::to_string(m_id).c_str(), m_uri.c_str());
+        m_failed = true;
+        return;
+    }
+
+    // all good
+    Log::Info("MediaPlayer %s Opened '%s' (%s %d x %d)", std::to_string(m_id).c_str(),
+              m_uri.c_str(), m_media_info.video_codec_name.c_str(), m_media_info.width, m_media_info.height);
+
+
+    m_opened = true;
+    // register media player
+    MediaPlayer::m_registered.push_back(this);
 }
 
 bool MediaPlayer::isOpen() const
 {
     return m_opened;
+}
+
+bool MediaPlayer::isCamera() const
+{
+    return m_is_camera;
 }
 
 bool MediaPlayer::failed() const
@@ -914,6 +1042,11 @@ void MediaPlayer::play(bool on)
     if (m_pipeline == nullptr)
         return;
 
+    if (m_is_camera && !on)
+    {
+        close();
+        return;
+    }
     // requesting to play, but stopped at end of stream : rewind first !
     if (m_desired_state == GST_STATE_PLAYING)
     {

@@ -343,6 +343,21 @@ bool Application_Frame(void * handle)
 			ImGuiFileDialog::Instance()->OpenModal("ChooseFileDlgKey", ICON_IGFD_FOLDER_OPEN " 打开视频文件", filters, ".", 1, nullptr, ImGuiFileDialogFlags_ShowBookmark);
         }
         ImGui::ShowTooltipOnHover("Open Media File.");
+        // add open camera button
+        ImGui::SameLine();
+        if (ImGui::Button(ICON_FA5_VIDEO, size))
+        {
+            if (g_texture) { ImGui::ImDestroyTexture(g_texture); g_texture = nullptr; }
+            if (g_audio_dev) { SDL_ClearQueuedAudio(g_audio_dev); SDL_CloseAudioDevice(g_audio_dev); g_audio_dev = 0; }
+#if IMGUI_VULKAN_SHADER
+            if (m_lut3d) { delete m_lut3d; m_lut3d = nullptr; }
+            has_hdr = false;
+            convert_hdr = false;
+#endif
+            g_player.open("camera");
+            g_player.play(true);
+        }
+        ImGui::ShowTooltipOnHover("Open Camera.");
         // add play button
         ImGui::SameLine();
         ImGui::SetWindowFontScale(org_scale * 1.5);
@@ -462,7 +477,7 @@ bool Application_Frame(void * handle)
         }
         ImGui::Separator();
         auto timescale_width = io.DisplaySize.x - padding;
-        if (g_player.isOpen())
+        if (g_player.isOpen() && !g_player.isCamera())
         {
             Timeline *timeline = g_player.timeline();
             guint64 seek_t = g_player.position();

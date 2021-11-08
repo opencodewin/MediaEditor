@@ -154,6 +154,10 @@ public:
      * */
     bool isOpen() const;
     /**
+     * True if a media was Camera
+     * */
+    bool isCamera() const;
+    /**
      * True if problem occured
      * */
     bool failed() const;
