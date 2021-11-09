@@ -67,7 +67,7 @@ bool Application_Frame(void * handle)
     ImGui::PushID("##Main_Timeline");
     float main_height = size_main_h * window_size.y;
     float timeline_height = size_timeline_h * window_size.y;
-    Splitter(false, 6.0f, &main_height, &timeline_height, 32, 32);
+    Splitter(false, 4.0f, &main_height, &timeline_height, 32, 32);
     size_main_h = main_height / window_size.y;
     size_timeline_h = timeline_height / window_size.y;
     ImGui::PopID();
@@ -83,7 +83,7 @@ bool Application_Frame(void * handle)
         ImGui::PushID("##Bank_Main");
         float bank_w = size_media_bank_w * main_window_size.x;
         float main_w = size_main_w * main_window_size.x;
-        Splitter(true, 6.0f, &bank_w, &main_w, 32, 32);
+        Splitter(true, 4.0f, &bank_w, &main_w, 32, 32);
         size_media_bank_w = bank_w / main_window_size.x;
         size_main_w = main_w / main_window_size.x;
         ImGui::PopID();
