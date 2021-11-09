@@ -5,7 +5,7 @@
 #include <dirent_portable.h>
 #define PATH_SEP '\\'
 #define PATH_SETTINGS "\\AppData\\Roaming\\"
-#elif defined(LINUX) or defined(APPLE) or defined(__APPLE__)
+#elif defined(LINUX) or defined(__linux__) or defined(APPLE) or defined(__APPLE__)
 #include <sys/resource.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -18,7 +18,7 @@
 #define PATH_SETTINGS "/Library/Application Support/"
 #include <mach/task.h>
 #include <mach/mach_init.h>
-#elif defined(LINUX)
+#elif defined(LINUX) or defined(__linux__) 
 #include <sys/sysinfo.h>
 #define PATH_SETTINGS "/.config/"
 #endif
@@ -40,7 +40,7 @@ using namespace std;
 /// it will try to report the resident set in RAM
 long SystemToolkit::memory_usage()
 {
-#if defined(LINUX)
+#if defined(LINUX) or defined(__linux__)
     // Grabbing info directly from the /proc pseudo-filesystem.  Reading from
     // /proc/self/statm gives info on your own process, as one line of
     // numbers that are: virtual mem program size, resident set size,

@@ -1520,8 +1520,12 @@ void MediaPlayer::fill_video(GstVideoFrame* frame, FrameStatus status, GstClockT
 #endif
         if (GST_VIDEO_INFO_IS_INTERLACED(&frame->info))  mat.flags |= IM_MAT_FLAGS_VIDEO_INTERLACED;
 #endif
+#if defined(__linux__)
+        if (gst_video_colorimetry_matches(&color_space, GST_VIDEO_COLORIMETRY_BT2020)) mat.flags |= IM_MAT_FLAGS_VIDEO_HDR_HLG;
+#else
         if (gst_video_colorimetry_matches(&color_space, GST_VIDEO_COLORIMETRY_BT2100_PQ)) mat.flags |= IM_MAT_FLAGS_VIDEO_HDR_PQ;
         if (gst_video_colorimetry_matches(&color_space, GST_VIDEO_COLORIMETRY_BT2100_HLG)) mat.flags |= IM_MAT_FLAGS_VIDEO_HDR_HLG;
+#endif
         if (status == PREROLL) mat.flags |= IM_MAT_FLAGS_CUSTOM_PREROLL;
         if (status == SAMPLE) mat.flags |= IM_MAT_FLAGS_CUSTOM_NORMAL;
     }

@@ -3,7 +3,7 @@
 
 #ifdef WIN32
 #define PATH_SEP '\\'
-#elif defined(LINUX) or defined(APPLE)
+#elif defined(LINUX) or defined(__linux__) or defined(APPLE)
 #define PATH_SEP '/'
 #endif
 
