@@ -1,44 +1,18 @@
 #include <application.h>
 #include <imgui_helper.h>
-#include <gst/gst.h>
-#include <gst/video/video.h>
-#include <gst/app/app.h>
+#include "ImSequencer.h"
 
-// GstVideoTestSrcPattern
-static const char *video_test_patterns[] = {
-  "SMPTE color bars",
-  "Random (television snow)",
-  "100% Black",
-  "100% White",
-  "Red",
-  "Green",
-  "Blue",
-  "Checkers 1px",
-  "Checkers 2px",
-  "Checkers 4px",
-  "Checkers 8px",
-  "Circular",
-  "Blink",
-  "SMPTE 75% color bars",
-  "Zone plate",
-  "Gamut checkers",
-  "Chroma zone plate",
-  "Solid color",
-  "Moving ball",
-  "SMPTE 100% color bars",
-  "Bar",
-  "Pinwheel",
-  "Spokes",
-  "Gradient",
-  "Colors"
-};
-
-#define VIDEO_WIDTH     1920
-#define VIDEO_HEIGHT    1080
-static GstElement *pipeline = nullptr;
-static GstElement *videosrc = nullptr;
-static GstElement *appsink = nullptr;
-static ImTextureID video_texture = nullptr;
+static bool Splitter(bool split_vertically, float thickness, float* size1, float* size2, float min_size1, float min_size2, float splitter_long_axis_size = -1.0f)
+{
+	using namespace ImGui;
+	ImGuiContext& g = *GImGui;
+	ImGuiWindow* window = g.CurrentWindow;
+	ImGuiID id = window->GetID("##Splitter");
+	ImRect bb;
+	bb.Min = window->DC.CursorPos + (split_vertically ? ImVec2(*size1, 0.0f) : ImVec2(0.0f, *size1));
+	bb.Max = bb.Min + CalcItemSize(split_vertically ? ImVec2(thickness, splitter_long_axis_size) : ImVec2(splitter_long_axis_size, thickness), 0.0f, 0.0f);
+	return SplitterBehavior(bb, id, split_vertically ? ImGuiAxis_X : ImGuiAxis_Y, size1, size2, min_size1, min_size2, 1.0f);
+}
 
 void Application_GetWindowProperties(ApplicationWindowProperty& property)
 {
@@ -46,84 +20,110 @@ void Application_GetWindowProperties(ApplicationWindowProperty& property)
     property.viewport = false;
     property.docking = false;
     property.auto_merge = false;
-    property.width = 1280;
-    property.height = 720;
+    property.width = 1440;
+    property.height = 960;
 }
 
 void Application_Initialize(void** handle)
 {
-    gst_init(nullptr, nullptr);
-    pipeline = gst_pipeline_new("pipeline");
-    videosrc = gst_element_factory_make("videotestsrc", "videosrc0");
-    appsink = gst_element_factory_make("appsink", "videosink0");
-    gst_app_sink_set_max_buffers(GST_APP_SINK(appsink), 1);
-    gst_app_sink_set_drop(GST_APP_SINK(appsink), true);
-    gst_bin_add_many(GST_BIN(pipeline), videosrc, appsink, NULL);
-    GstCaps *caps = gst_caps_new_simple(
-        "video/x-raw",
-        "format", G_TYPE_STRING, "RGBA",
-        "width", G_TYPE_INT, VIDEO_WIDTH,
-        "height", G_TYPE_INT, VIDEO_HEIGHT,
-        "framerate", GST_TYPE_FRACTION, 30, 1,
-        NULL);
-    gboolean link_ok = gst_element_link_filtered(videosrc, appsink, caps);
-    g_assert(link_ok);
-    gst_caps_unref(caps);
-    gst_element_set_state(pipeline, GST_STATE_PLAYING);
     ImGuiIO& io = ImGui::GetIO(); (void)io;
 }
 
 void Application_Finalize(void** handle)
 {
-    gst_element_set_state(pipeline, GST_STATE_NULL);
-    gst_object_unref(pipeline);
-    gst_deinit();
-    if (video_texture) { ImGui::ImDestroyTexture(video_texture); video_texture = nullptr; }
 }
 
 bool Application_Frame(void * handle)
 {
-    if (video_texture) { ImGui::ImDestroyTexture(video_texture); video_texture = nullptr; }
-
-    GstSample *videosample = gst_app_sink_try_pull_sample(GST_APP_SINK(appsink), 10 * GST_MSECOND);
-    if (videosample) 
+    static int selectedEntry = -1;
+    static int firstFrame = 0;
+    static int lastFrame = 0;
+    static bool expanded = true;
+    static int currentFrame = 0;
+    static ImSequencer::MediaSequence sequence;
+    static bool play = false;
+    if (sequence.m_Items.size() == 0)
     {
-        GstBuffer *videobuf = gst_sample_get_buffer(videosample);
-        GstMapInfo map;
-
-        gst_buffer_map(videobuf, &map, GST_MAP_READ);
-
-        video_texture = ImGui::ImCreateTexture(map.data, VIDEO_WIDTH, VIDEO_HEIGHT);
-
-        gst_buffer_unmap(videobuf, &map);
-        gst_sample_unref(videosample);
+        sequence.mFrameMin = 0;
+        sequence.mFrameMax = 1000;
+        sequence.m_Items.push_back(ImSequencer::MediaSequence::SequenceItem{"Media1", 0, 200, true});
+        //sequence.m_Items.push_back(ImSequencer::MediaSequence::SequenceItem{"Media2", 0, 200, true});
+        //sequence.m_Items.push_back(ImSequencer::MediaSequence::SequenceItem{"Media3", 0, 200, true});
     }
 
-     ImGui::GetBackgroundDrawList ()->AddImage (
-        (void *) (guintptr) video_texture,
-        ImVec2 (0, 0),
-        ImVec2 (1280, 720),
-        ImVec2 (0, 0),
-        ImVec2 (1, 1)
-        );
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+                        ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | 
+                        ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus;
+    ImGui::SetNextWindowPos(ImVec2(0, 0));
+    ImGui::SetNextWindowSize(io.DisplaySize, ImGuiCond_None);
+    ImGui::Begin("Content", nullptr, flags);
 
-    static ImGuiComboFlags combo_flags = 0;
-    static const char *item_current = video_test_patterns[0];
-    if (ImGui::BeginCombo("Video Test Patterns", item_current, combo_flags))
+    ImVec2 window_size = ImGui::GetWindowSize();
+    static float size_main_h = 0.75;
+    static float size_timeline_h = 0.25;
+    static float old_size_timeline_h = size_timeline_h;
+
+    ImGui::PushID("##Main_Timeline");
+    float main_height = size_main_h * window_size.y;
+    float timeline_height = size_timeline_h * window_size.y;
+    Splitter(false, 6.0f, &main_height, &timeline_height, 32, 32);
+    size_main_h = main_height / window_size.y;
+    size_timeline_h = timeline_height / window_size.y;
+    ImGui::PopID();
+    ImVec2 main_pos(0, 0);
+    ImVec2 main_size(window_size.x, main_height + 4);
+    ImGui::SetNextWindowPos(main_pos, ImGuiCond_Always);
+    ImGui::SetNextWindowSize(main_size, ImGuiCond_Always);
+    if (ImGui::Begin("##Main", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar))
     {
-        for (int i = 0; i < IM_ARRAYSIZE(video_test_patterns); i++)
+        ImVec2 main_window_size = ImGui::GetWindowSize();
+        static float size_media_bank_w = 0.25;
+        static float size_main_w = 0.75;
+        ImGui::PushID("##Bank_Main");
+        float bank_w = size_media_bank_w * main_window_size.x;
+        float main_w = size_main_w * main_window_size.x;
+        Splitter(true, 6.0f, &bank_w, &main_w, 32, 32);
+        size_media_bank_w = bank_w / main_window_size.x;
+        size_main_w = main_w / main_window_size.x;
+        ImGui::PopID();
+        // TODO::Create Bank window
+
+        // TODO::Create Main window
+            // TODO::Splitter Main window and Toolbar window
+        ImGui::End();
+    }
+    
+    ImVec2 panel_pos(0, size_main_h * window_size.y + 12);
+    ImVec2 panel_size(window_size.x, size_timeline_h * window_size.y - 12);
+    ImGui::SetNextWindowPos(panel_pos, ImGuiCond_Always);
+    ImGui::SetNextWindowSize(panel_size, ImGuiCond_Always);
+    bool _expanded = expanded;
+    if (ImGui::Begin("Sequencor", NULL, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar))
+    {
+        ImSequencer::Sequencer(&sequence, &currentFrame, &_expanded, &selectedEntry, &firstFrame, &lastFrame, ImSequencer::SEQUENCER_EDIT_STARTEND | ImSequencer::SEQUENCER_CHANGE_FRAME);
+        if (selectedEntry != -1)
         {
-            bool is_selected = (item_current == video_test_patterns[i]);
-            if (ImGui::Selectable(video_test_patterns[i], is_selected)) 
-            {
-                item_current = video_test_patterns[i];
-                g_object_set(videosrc, "pattern", i, NULL);
-		        GST_INFO("selected %d=%s", i, video_test_patterns[i]);
-            }
-            if (is_selected)
-                ImGui::SetItemDefaultFocus();
+            const ImSequencer::MediaSequence::SequenceItem &item = sequence.m_Items[selectedEntry];
+            ImGui::Text("I am a %s, please edit me", item.mName.c_str());
         }
-        ImGui::EndCombo ();
+        ImGui::End();
+        if (expanded != _expanded)
+        {
+            if (!_expanded)
+            {
+                old_size_timeline_h = size_timeline_h;
+                size_timeline_h = 40.0f / window_size.y;
+                size_main_h = 1 - size_timeline_h;
+            }
+            else
+            {
+                size_timeline_h = old_size_timeline_h;
+                size_main_h = 1.0f - size_timeline_h;
+            }
+            expanded = _expanded;
+        }
     }
+    ImGui::End();
     return false;
 }

@@ -100,12 +100,18 @@ include_directories(
 set(MEDIA_EDITOR_BINARY "me")
 set(MEDIA_EDITOR_SRCS
     main.cpp
+    ImSequencer.cpp
     ${IMGUI_APP_ENTRY_SRC}
+)
+
+set(MEDIA_EDITOR_INCS
+    ImSequencer.h
 )
 
 add_executable(
     ${MEDIA_EDITOR_BINARY}
     ${MEDIA_EDITOR_SRCS}
+    ${MEDIA_EDITOR_INCS}
 )
 
 target_compile_definitions(${MEDIA_EDITOR_BINARY} PUBLIC APP_NAME="${MEDIA_EDITOR_BINARY}")

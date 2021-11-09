@@ -389,7 +389,7 @@ bool ImGuiToolkit::TimelineSlider (const char* label, guint64 *time, guint64 beg
 
     // time Slider behavior
     ImRect grab_slider_bb;
-    ImU32 grab_slider_color = ImGui::GetColorU32(ImGuiCol_SliderGrab);
+    ImU32 grab_slider_color = ImGui::GetColorU32(ImVec4(1.0f, 1.0f, 1.0f, 0.5f));
     float time_slider = time_ * 10.f; // x 10 precision on grab
     float time_zero = 0.f;
     float time_end = 10.f;
@@ -399,7 +399,7 @@ bool ImGuiToolkit::TimelineSlider (const char* label, guint64 *time, guint64 beg
         *time = static_cast<guint64> ( 0.1 * static_cast<double>(time_slider) * static_cast<double>(end - begin) );
         if (first != -1)
             *time -= first;
-        grab_slider_color = ImGui::GetColorU32(ImGuiCol_SliderGrabActive);
+        grab_slider_color = ImGui::GetColorU32(ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
     }
 
     //
@@ -415,12 +415,12 @@ bool ImGuiToolkit::TimelineSlider (const char* label, guint64 *time, guint64 beg
 
     // draw slider grab handle
     if (grab_slider_bb.Max.x > grab_slider_bb.Min.x) {
-        window->DrawList->AddRectFilled(grab_slider_bb.Min, grab_slider_bb.Max, grab_slider_color, style.GrabRounding);
+        window->DrawList->AddRectFilled(grab_slider_bb.Min + ImVec2(2, 0), grab_slider_bb.Max - ImVec2(2, 0), grab_slider_color, style.GrabRounding);
     }
 
     // draw the cursor
     pos = ImLerp(timeline_bbox.GetTL(), timeline_bbox.GetTR(), time_) - ImVec2(cursor_width, 2.f);
-    ImGui::RenderArrow(window->DrawList, pos, ImGui::GetColorU32(ImGuiCol_SliderGrab), ImGuiDir_Up);
+    ImGui::RenderArrow(window->DrawList, pos, ImGui::GetColorU32(ImVec4(0.0f, 1.0f, 0.0f, 1.0f)), ImGuiDir_Down);
 
     return left_mouse_press;
 }
