@@ -66,6 +66,7 @@ bool Sequencer(SequenceInterface *sequence, int *currentFrame, bool *expanded, i
     static bool panningView = false;
     static ImVec2 panningViewSource;
     static int panningViewFrame;
+    ImRect scrollBarRect;
     if (ImGui::IsWindowFocused() && io.KeyAlt && io.MouseDown[2])
     {
         if (!panningView)
@@ -407,7 +408,7 @@ bool Sequencer(SequenceInterface *sequence, int *currentFrame, bool *expanded, i
             ImVec2 scrollBarA(scrollBarMin.x + legendWidth, scrollBarMin.y - 2);
             ImVec2 scrollBarB(scrollBarMin.x + canvas_size.x, scrollBarMax.y - 1);
             draw_list->AddRectFilled(scrollBarA, scrollBarB, 0xFF222222, 0);
-            ImRect scrollBarRect(scrollBarA, scrollBarB);
+            scrollBarRect = ImRect(scrollBarA, scrollBarB);
             bool inScrollBar = scrollBarRect.Contains(io.MousePos);
             draw_list->AddRectFilled(scrollBarA, scrollBarB, 0xFF101010, 8);
             ImVec2 scrollBarC(scrollBarMin.x + legendWidth + startFrameOffset, scrollBarMin.y);
@@ -506,6 +507,7 @@ bool Sequencer(SequenceInterface *sequence, int *currentFrame, bool *expanded, i
     if (regionRect.Contains(io.MousePos))
     {
         bool overCustomDraw = false;
+        bool overScrollBar = false;
         for (auto &custom : customDraws)
         {
             if (custom.customRect.Contains(io.MousePos))
@@ -513,28 +515,48 @@ bool Sequencer(SequenceInterface *sequence, int *currentFrame, bool *expanded, i
                 overCustomDraw = true;
             }
         }
+        if (scrollBarRect.Contains(io.MousePos))
+        {
+            overScrollBar = true;
+        }
         if (overCustomDraw)
         {
         }
         else
         {
-            /*
-            int frameOverCursor = *firstFrame + (int)(visibleFrameCount * ((io.MousePos.x - (float)legendWidth - canvas_pos.x) / (canvas_size.x - legendWidth)));
-            if (io.MouseWheel < -FLT_EPSILON)
+            if (overScrollBar)
             {
-                *firstFrame -= frameOverCursor;
-                *firstFrame = int(*firstFrame * 1.1f);
-                framePixelWidthTarget *= 0.9f;
-                *firstFrame += frameOverCursor;
+                // up-down wheel over scrollbar, scale canvas view
+                int frameOverCursor = *firstFrame + (int)(visibleFrameCount * ((io.MousePos.x - (float)legendWidth - canvas_pos.x) / (canvas_size.x - legendWidth)));
+                if (io.MouseWheel < -FLT_EPSILON)
+                {
+                    *firstFrame -= frameOverCursor;
+                    *firstFrame = int(*firstFrame * 1.1f);
+                    framePixelWidthTarget *= 0.9f;
+                    *firstFrame += frameOverCursor;
+                }
+                if (io.MouseWheel > FLT_EPSILON)
+                {
+                    *firstFrame -= frameOverCursor;
+                    *firstFrame = int(*firstFrame * 0.9f);
+                    framePixelWidthTarget *= 1.1f;
+                    *firstFrame += frameOverCursor;
+                }
             }
-            if (io.MouseWheel > FLT_EPSILON)
+            else
             {
-                *firstFrame -= frameOverCursor;
-                *firstFrame = int(*firstFrame * 0.9f);
-                framePixelWidthTarget *= 1.1f;
-                *firstFrame += frameOverCursor;
+                // left-right wheel over blank area, moving canvas view
+                if (io.MouseWheelH < -FLT_EPSILON)
+                {
+                    *firstFrame -= visibleFrameCount / 4;
+                    *firstFrame = ImClamp(*firstFrame, sequence->GetFrameMin(), ImMax(sequence->GetFrameMax() - visibleFrameCount, sequence->GetFrameMin()));
+                }
+                if (io.MouseWheelH > FLT_EPSILON)
+                {
+                    *firstFrame += visibleFrameCount / 4;
+                    *firstFrame = ImClamp(*firstFrame, sequence->GetFrameMin(), ImMax(sequence->GetFrameMax() - visibleFrameCount, sequence->GetFrameMin()));
+                }
             }
-            */
         }
     }
     if (expanded)
