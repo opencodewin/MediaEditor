@@ -13,7 +13,8 @@
 #include <gst/pbutils/pbutils.h>
 #include <gst/app/gstappsink.h>
 
-#include <imgui_mat.h>
+#include <imgui.h>
+#include <im_mat.h>
 
 #include "Timeline.h"
 
