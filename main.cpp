@@ -42,14 +42,9 @@ bool Application_Frame(void * handle)
     static int currentFrame = 0;
     static ImSequencer::MediaSequence sequence;
     static bool play = false;
-    if (sequence.m_Items.size() == 0)
-    {
-        sequence.mFrameMin = 0;
-        sequence.mFrameMax = 1000;
-        sequence.m_Items.push_back(ImSequencer::MediaSequence::SequenceItem{"Media1", 0, 200, true});
-        //sequence.m_Items.push_back(ImSequencer::MediaSequence::SequenceItem{"Media2", 0, 200, true});
-        //sequence.m_Items.push_back(ImSequencer::MediaSequence::SequenceItem{"Media3", 0, 200, true});
-    }
+    static ImSequencer::MediaSequence::SequenceItem media0_item("Media1", 0, 200, true);
+    sequence.mFrameMin = 0;
+    sequence.mFrameMax = 1000;
 
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
@@ -93,6 +88,13 @@ bool Application_Frame(void * handle)
         if (ImGui::BeginChild("##Bank_Window", bank_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
         {
             ImGui::TextUnformatted("top_left");
+            ImGui::Button("Media0", ImVec2(48, 48));
+            if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
+            {
+                ImGui::SetDragDropPayload("Media_drag_drop", &media0_item, sizeof(media0_item));
+                ImGui::TextUnformatted("This is a drag and drop source");
+                ImGui::EndDragDropSource();
+            }
             ImGui::EndChild();
         }
 
@@ -113,7 +115,7 @@ bool Application_Frame(void * handle)
     bool _expanded = expanded;
     if (ImGui::BeginChild("##Sequencor", panel_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
     {
-        ImSequencer::Sequencer(&sequence, &currentFrame, &_expanded, &selectedEntry, &firstFrame, &lastFrame, ImSequencer::SEQUENCER_EDIT_STARTEND | ImSequencer::SEQUENCER_CHANGE_FRAME);
+        ImSequencer::Sequencer(&sequence, &currentFrame, &_expanded, &selectedEntry, &firstFrame, &lastFrame, ImSequencer::SEQUENCER_EDIT_STARTEND | ImSequencer::SEQUENCER_CHANGE_FRAME | ImSequencer::SEQUENCER_DEL);
         if (selectedEntry != -1)
         {
             //const ImSequencer::MediaSequence::SequenceItem &item = sequence.m_Items[selectedEntry];

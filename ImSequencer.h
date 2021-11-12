@@ -95,6 +95,13 @@ struct MediaSequence : public SequenceInterface
         std::string mName;
         int mFrameStart, mFrameEnd;
         bool mExpanded;
+        SequenceItem(const std::string& name, int start, int end, bool expand)
+        {
+            mName = name;
+            mFrameStart = start;
+            mFrameEnd = end;
+            mExpanded = expand;
+        }
     };
     std::vector<SequenceItem> m_Items;
 };

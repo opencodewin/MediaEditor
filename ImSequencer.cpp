@@ -44,7 +44,7 @@ bool Sequencer(SequenceInterface *sequence, int *currentFrame, bool *expanded, i
     int HeadHeight = 20;
     bool popupOpened = false;
     int sequenceCount = sequence->GetItemCount();
-    if (!sequenceCount) return false;
+    //if (!sequenceCount) return false;
     ImGui::BeginGroup();
     ImDrawList *draw_list = ImGui::GetWindowDrawList();
     ImVec2 canvas_pos = ImGui::GetCursorScreenPos();     // ImDrawList API uses screen coordinates!
@@ -91,9 +91,20 @@ bool Sequencer(SequenceInterface *sequence, int *currentFrame, bool *expanded, i
         *lastFrame = firstFrameUsed + visibleFrameCount;
     // --
 
-    if (expanded && !*expanded)
+    if ((expanded && !*expanded) || !sequenceCount)
     {
         ImGui::InvisibleButton("canvas", ImVec2(canvas_size.x - canvas_pos.x, (float)ItemHeight));
+        if (ImGui::BeginDragDropTarget())
+        {
+            if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("Media_drag_drop"))
+            {
+                // check size?
+                ImSequencer::MediaSequence::SequenceItem * item = (ImSequencer::MediaSequence::SequenceItem*)payload->Data;
+                ImSequencer::MediaSequence * seq = (ImSequencer::MediaSequence *)sequence;
+                seq->m_Items.push_back(*item);
+            }
+            ImGui::EndDragDropTarget();
+        }
         draw_list->AddRectFilled(canvas_pos, ImVec2(canvas_size.x + canvas_pos.x, canvas_pos.y + ItemHeight), 0xFF3D3837, 0);
         char tmps[512];
         ImFormatString(tmps, IM_ARRAYSIZE(tmps), sequence->GetCollapseFmt(), frameCount, sequenceCount);
@@ -107,12 +118,28 @@ bool Sequencer(SequenceInterface *sequence, int *currentFrame, bool *expanded, i
         ImVec2 scrollBarSize(canvas_size.x, 14.f);
         ImGui::InvisibleButton("topBar", headerSize);
         draw_list->AddRectFilled(canvas_pos, canvas_pos + headerSize, 0xFFFF0000, 0);
+        if (!sequenceCount) 
+        {
+            ImGui::EndGroup();
+            return false;
+        }
         ImVec2 childFramePos = ImGui::GetCursorScreenPos();
         ImVec2 childFrameSize(canvas_size.x, canvas_size.y - 8.f - headerSize.y - (hasScrollBar ? scrollBarSize.y : 0));
         ImGui::PushStyleColor(ImGuiCol_FrameBg, 0);
         ImGui::BeginChildFrame(889, childFrameSize, ImGuiWindowFlags_NoScrollbar);
         sequence->focused = ImGui::IsWindowFocused();
         ImGui::InvisibleButton("contentBar", ImVec2(canvas_size.x - 14, float(controlHeight)));
+        if (ImGui::BeginDragDropTarget())
+        {
+            if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("Media_drag_drop"))
+            {
+                // check size?
+                ImSequencer::MediaSequence::SequenceItem * item = (ImSequencer::MediaSequence::SequenceItem*)payload->Data;
+                ImSequencer::MediaSequence * seq = (ImSequencer::MediaSequence *)sequence;
+                seq->m_Items.push_back(*item);
+            }
+            ImGui::EndDragDropTarget();
+        }
         const ImVec2 contentMin = ImGui::GetItemRectMin();
         const ImVec2 contentMax = ImGui::GetItemRectMax();
         const ImRect contentRect(contentMin, contentMax);
@@ -519,43 +546,37 @@ bool Sequencer(SequenceInterface *sequence, int *currentFrame, bool *expanded, i
         {
             overScrollBar = true;
         }
-        if (overCustomDraw)
+        if (overScrollBar)
         {
+            // up-down wheel over scrollbar, scale canvas view
+            int frameOverCursor = *firstFrame + (int)(visibleFrameCount * ((io.MousePos.x - (float)legendWidth - canvas_pos.x) / (canvas_size.x - legendWidth)));
+            if (io.MouseWheel < -FLT_EPSILON)
+            {
+                *firstFrame -= frameOverCursor;
+                *firstFrame = int(*firstFrame * 1.1f);
+                framePixelWidthTarget *= 0.9f;
+                *firstFrame += frameOverCursor;
+            }
+            if (io.MouseWheel > FLT_EPSILON)
+            {
+                *firstFrame -= frameOverCursor;
+                *firstFrame = int(*firstFrame * 0.9f);
+                framePixelWidthTarget *= 1.1f;
+                *firstFrame += frameOverCursor;
+            }
         }
         else
         {
-            if (overScrollBar)
+            // left-right wheel over blank area, moving canvas view
+            if (io.MouseWheelH < -FLT_EPSILON)
             {
-                // up-down wheel over scrollbar, scale canvas view
-                int frameOverCursor = *firstFrame + (int)(visibleFrameCount * ((io.MousePos.x - (float)legendWidth - canvas_pos.x) / (canvas_size.x - legendWidth)));
-                if (io.MouseWheel < -FLT_EPSILON)
-                {
-                    *firstFrame -= frameOverCursor;
-                    *firstFrame = int(*firstFrame * 1.1f);
-                    framePixelWidthTarget *= 0.9f;
-                    *firstFrame += frameOverCursor;
-                }
-                if (io.MouseWheel > FLT_EPSILON)
-                {
-                    *firstFrame -= frameOverCursor;
-                    *firstFrame = int(*firstFrame * 0.9f);
-                    framePixelWidthTarget *= 1.1f;
-                    *firstFrame += frameOverCursor;
-                }
+                *firstFrame -= visibleFrameCount / 4;
+                *firstFrame = ImClamp(*firstFrame, sequence->GetFrameMin(), ImMax(sequence->GetFrameMax() - visibleFrameCount, sequence->GetFrameMin()));
             }
-            else
+            if (io.MouseWheelH > FLT_EPSILON)
             {
-                // left-right wheel over blank area, moving canvas view
-                if (io.MouseWheelH < -FLT_EPSILON)
-                {
-                    *firstFrame -= visibleFrameCount / 4;
-                    *firstFrame = ImClamp(*firstFrame, sequence->GetFrameMin(), ImMax(sequence->GetFrameMax() - visibleFrameCount, sequence->GetFrameMin()));
-                }
-                if (io.MouseWheelH > FLT_EPSILON)
-                {
-                    *firstFrame += visibleFrameCount / 4;
-                    *firstFrame = ImClamp(*firstFrame, sequence->GetFrameMin(), ImMax(sequence->GetFrameMax() - visibleFrameCount, sequence->GetFrameMin()));
-                }
+                *firstFrame += visibleFrameCount / 4;
+                *firstFrame = ImClamp(*firstFrame, sequence->GetFrameMin(), ImMax(sequence->GetFrameMax() - visibleFrameCount, sequence->GetFrameMin()));
             }
         }
     }
