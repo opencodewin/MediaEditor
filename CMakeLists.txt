@@ -23,6 +23,7 @@ include(MacroFindGStreamerLibrary)
 find_package(PkgConfig REQUIRED)
 
 set(IMGUI_ICONS ON CACHE BOOL "Enable Internal Icons Build by Force" FORCE)
+set(IMGUI_VULKAN_SHADER ON CACHE BOOL "Enable Vulkan Shader Build by Force" FORCE)
 add_subdirectory(imgui)
 set_target_properties(
     imgui
