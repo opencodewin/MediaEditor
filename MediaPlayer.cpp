@@ -1307,7 +1307,7 @@ void MediaPlayer::execute_seek_command(GstClockTime target)
         // create seek event with current position (rate changed ?)
         seek_pos = m_position;
     // target is given but useless
-    else if (ABS_DIFF(target, m_position) < m_timeline.step())
+    else if (ABS_DIFF(target, m_position) < m_timeline.step() * 25)
     {
         // ignore request
         return;
