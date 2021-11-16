@@ -37,10 +37,6 @@ include_directories(
     ${PROJECT_BINARY_DIR}
 )
 
-if (APPLE)
-    set(ENV{PKG_CONFIG_PATH} "$ENV{PKG_CONFIG_PATH}:/usr/local/opt/icu4c/lib/pkgconfig")
-endif()
-
 # Basics
 set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
 find_package(Threads REQUIRED)
