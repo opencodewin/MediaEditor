@@ -82,6 +82,7 @@ bool Application_Frame(void * handle)
         size_main_w = main_width / main_window_size.x;
         ImGui::PopID();
         
+        static bool bank_expanded = true;
         ImVec2 bank_pos(4, 0);
         ImVec2 bank_size(bank_width - 4, main_window_size.y - 4);
         ImGui::SetNextWindowPos(bank_pos, ImGuiCond_Always);

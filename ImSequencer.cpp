@@ -108,7 +108,7 @@ bool Sequencer(SequenceInterface *sequence, int *currentFrame, bool *expanded, i
         draw_list->AddRectFilled(canvas_pos, ImVec2(canvas_size.x + canvas_pos.x, canvas_pos.y + ItemHeight), 0xFF3D3837, 0);
         char tmps[512];
         ImFormatString(tmps, IM_ARRAYSIZE(tmps), sequence->GetCollapseFmt(), frameCount, sequenceCount);
-        draw_list->AddText(ImVec2(canvas_pos.x + 16, canvas_pos.y + 2), 0xFFFFFFFF, tmps);
+        draw_list->AddText(ImVec2(canvas_pos.x + 20, canvas_pos.y + 2), 0xFFFFFFFF, tmps);
     }
     else
     {
@@ -117,7 +117,7 @@ bool Sequencer(SequenceInterface *sequence, int *currentFrame, bool *expanded, i
         ImVec2 headerSize(canvas_size.x, (float)HeadHeight);
         ImVec2 scrollBarSize(canvas_size.x, 14.f);
         ImGui::InvisibleButton("topBar", headerSize);
-        draw_list->AddRectFilled(canvas_pos, canvas_pos + headerSize, 0xFFFF0000, 0);
+        draw_list->AddRectFilled(canvas_pos, canvas_pos + headerSize, 0xFF000000, 0);
         if (!sequenceCount) 
         {
             ImGui::EndGroup();

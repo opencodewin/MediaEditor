@@ -23,7 +23,6 @@ include(MacroFindGStreamerLibrary)
 find_package(PkgConfig REQUIRED)
 
 set(IMGUI_ICONS ON CACHE BOOL "Enable Internal Icons Build by Force" FORCE)
-set(IMGUI_VULKAN_SHADER ON CACHE BOOL "Enable Vulkan Shader Build by Force" FORCE)
 add_subdirectory(imgui)
 set_target_properties(
     imgui
@@ -41,6 +40,7 @@ include_directories(
 if (APPLE)
     set(ENV{PKG_CONFIG_PATH} "$ENV{PKG_CONFIG_PATH}:/usr/local/opt/icu4c/lib/pkgconfig")
 endif()
+
 # Basics
 set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
 find_package(Threads REQUIRED)
@@ -51,6 +51,8 @@ macro_log_feature(GLIB2_FOUND "GLib" "GTK general-purpose utility library" "http
 find_package(GObject)
 macro_log_feature(GOBJECT_FOUND "GObject" "GTK object-oriented framework" "http://www.gtk.org" TRUE)
 
+pkg_search_module(SDL2 REQUIRED sdl2)
+pkg_search_module(SDL2_IMAGE REQUIRED SDL2_image>=2.0.0)
 #
 # GSTREAMER
 #
@@ -87,6 +89,7 @@ macro_display_feature_log()
 
 # Setup the environment
 include_directories(
+    ${SDL2_INCLUDE_DIRS}
     ${GLIB2_INCLUDE_DIR}
     ${GSTREAMER_INCLUDE_DIR}
     ${GSTREAMER_AUDIO_INCLUDE_DIR}
