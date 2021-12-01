@@ -83,20 +83,6 @@ macro_display_feature_log()
 #  Application
 #
 
-# Setup the environment
-include_directories(
-    ${SDL2_INCLUDE_DIRS}
-    ${GLIB2_INCLUDE_DIR}
-    ${GSTREAMER_INCLUDE_DIR}
-    ${GSTREAMER_AUDIO_INCLUDE_DIR}
-    ${GSTREAMER_VIDEO_INCLUDE_DIR}
-    ${GSTREAMER_BASE_INCLUDE_DIR}
-    ${GSTREAMER_APP_INCLUDE_DIR}
-    ${GSTREAMER_PBUTILS_INCLUDE_DIR}
-    ${GSTREAMER_GL_INCLUDE_DIR}
-    ${IMGUI_INCLUDE_DIR}
-)
-
 set(MEDIA_EDITOR_BINARY "me")
 set(MEDIA_EDITOR_SRCS
     main.cpp
@@ -113,7 +99,19 @@ add_executable(
     ${MEDIA_EDITOR_SRCS}
     ${MEDIA_EDITOR_INCS}
 )
-
+target_include_directories(
+    ${MEDIA_EDITOR_BINARY} PRIVATE
+    ${SDL2_INCLUDE_DIRS}
+    ${GLIB2_INCLUDE_DIR}
+    ${GSTREAMER_INCLUDE_DIR}
+    ${GSTREAMER_AUDIO_INCLUDE_DIR}
+    ${GSTREAMER_VIDEO_INCLUDE_DIR}
+    ${GSTREAMER_BASE_INCLUDE_DIR}
+    ${GSTREAMER_APP_INCLUDE_DIR}
+    ${GSTREAMER_PBUTILS_INCLUDE_DIR}
+    ${GSTREAMER_GL_INCLUDE_DIR}
+    ${IMGUI_INCLUDE_DIR}
+)
 target_compile_definitions(${MEDIA_EDITOR_BINARY} PUBLIC APP_NAME="${MEDIA_EDITOR_BINARY}")
 set_property(TARGET ${MEDIA_EDITOR_BINARY} PROPERTY CXX_STANDARD 17)
 set_property(TARGET ${MEDIA_EDITOR_BINARY} PROPERTY C_STANDARD 11)
@@ -160,7 +158,19 @@ add_executable(
     ${MEDIA_PLAYER_SRCS}
     ${MEDIA_PLAYER_INCS}
 )
-
+target_include_directories(
+    ${MEDIA_PLAYER_BINARY} PRIVATE
+    ${SDL2_INCLUDE_DIRS}
+    ${GLIB2_INCLUDE_DIR}
+    ${GSTREAMER_INCLUDE_DIR}
+    ${GSTREAMER_AUDIO_INCLUDE_DIR}
+    ${GSTREAMER_VIDEO_INCLUDE_DIR}
+    ${GSTREAMER_BASE_INCLUDE_DIR}
+    ${GSTREAMER_APP_INCLUDE_DIR}
+    ${GSTREAMER_PBUTILS_INCLUDE_DIR}
+    ${GSTREAMER_GL_INCLUDE_DIR}
+    ${IMGUI_INCLUDE_DIR}
+)
 target_compile_definitions(${MEDIA_PLAYER_BINARY} PUBLIC APP_NAME="${MEDIA_PLAYER_BINARY}")
 set_property(TARGET ${MEDIA_PLAYER_BINARY} PROPERTY CXX_STANDARD 17)
 set_property(TARGET ${MEDIA_PLAYER_BINARY} PROPERTY C_STANDARD 11)
@@ -178,3 +188,21 @@ target_link_libraries(
     ${GSTREAMER_GL_LIBRARY}
     Threads::Threads
 )
+
+add_executable(
+    mp_ff
+    player_ff.cpp
+    MediaPlayer_FFImpl.cpp
+    SystemToolkit.cpp
+    ImGuiToolkit_NoGst.cpp
+    Log_NoGst.cpp
+    ${IMGUI_APP_ENTRY_SRC}
+)
+target_link_libraries(
+    mp_ff
+    imgui
+    avformat
+    avutil
+    avcodec
+)
+target_compile_definitions(mp_ff PUBLIC APP_NAME="mp_ff")
