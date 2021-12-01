@@ -41,6 +41,22 @@ struct SequenceInterface
 };
 bool Sequencer(SequenceInterface *sequence, int *currentFrame, bool *expanded, int *selectedEntry, int *firstFrame, int *lastFrame, int sequenceOptions);
 
+struct SequenceItem
+{
+    std::string mName;
+    std::string mPath;
+    int mFrameStart, mFrameEnd;
+    bool mExpanded;
+    SequenceItem(const std::string& name, const std::string& path, int start, int end, bool expand)
+    {
+        mName = name;
+        mPath = path;
+        mFrameStart = start;
+        mFrameEnd = end;
+        mExpanded = expand;
+    }
+};
+
 struct MediaSequence : public SequenceInterface
 {
     MediaSequence() : mFrameMin(0), mFrameMax(0) {}
@@ -69,7 +85,7 @@ struct MediaSequence : public SequenceInterface
         if (name)
             *name = item.mName.c_str();
     }
-    void Add(std::string& name) { m_Items.push_back(SequenceItem{name, 0, 10, false}); };
+    void Add(std::string& name) { m_Items.push_back(SequenceItem{name, "", 0, 10, false}); };
     void Del(int index) { m_Items.erase(m_Items.begin() + index); }
     void Duplicate(int index) { m_Items.push_back(m_Items[index]); }
     size_t GetCustomHeight(int index) { return m_Items[index].mExpanded ? 40 : 0; }
@@ -90,19 +106,6 @@ struct MediaSequence : public SequenceInterface
     }
 
     int mFrameMin, mFrameMax;
-    struct SequenceItem
-    {
-        std::string mName;
-        int mFrameStart, mFrameEnd;
-        bool mExpanded;
-        SequenceItem(const std::string& name, int start, int end, bool expand)
-        {
-            mName = name;
-            mFrameStart = start;
-            mFrameEnd = end;
-            mExpanded = expand;
-        }
-    };
     std::vector<SequenceItem> m_Items;
 };
 
