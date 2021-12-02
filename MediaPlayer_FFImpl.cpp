@@ -31,6 +31,20 @@ public:
     using TimePoint = chrono::time_point<Clock>;
     static const TimePoint CLOCK_MIN;
 
+    MediaPlayer_FFImpl() : m_audByteStream(this) {}
+
+    bool SetAudioRender(AudioRender* audrnd) override
+    {
+        lock_guard<recursive_mutex> lk(m_ctlLock);
+        if (IsPlaying())
+        {
+            m_errMessage = "Can NOT set audio render while the player is playing!";
+            return false;
+        }
+        m_audrnd = audrnd;
+        return true;
+    }
+
     bool Open(const string& url) override
     {
         lock_guard<recursive_mutex> lk(m_ctlLock);
@@ -48,6 +62,19 @@ public:
         WaitAllThreadsQuit();
         FlushAllQueues();
 
+        if (m_audrnd)
+            m_audrnd->CloseDevice();
+        m_audByteStream.Reset();
+        if (m_swrCtx)
+        {
+            swr_free(&m_swrCtx);
+            m_swrCtx = nullptr;
+        }
+        m_swrOutChannels = 0;
+        m_swrOutChnLyt = 0;
+        m_swrOutSmpfmt = AV_SAMPLE_FMT_S16;
+        m_swrOutSampleRate = 0;
+        m_swrPassThrough = false;
         if (m_auddecCtx)
         {
             avcodec_free_context(&m_auddecCtx);
@@ -124,10 +151,15 @@ public:
                 m_viddecThread = thread(&MediaPlayer_FFImpl::DecodeThreadProc, this,
                     m_viddecCtx, &m_viddecEof, &m_vidpktQ, &m_vidpktQLock, &m_vidfrmQ, &m_vidfrmQLock, m_vidfrmQMaxSize);
             if (HasAudio())
+            {
                 m_auddecThread = thread(&MediaPlayer_FFImpl::DecodeThreadProc, this,
                     m_auddecCtx, &m_auddecEof, &m_audpktQ, &m_audpktQLock, &m_audfrmQ, &m_audfrmQLock, m_audfrmQMaxSize);
+                m_audswrThread = thread(&MediaPlayer_FFImpl::SwrThreadProc, this);
+            }
             m_renderThread = thread(&MediaPlayer_FFImpl::RenderThreadProc, this);
         }
+        if (m_audrnd)
+            m_audrnd->Resume();
         m_isPlaying = true;
         return true;
     }
@@ -140,6 +172,8 @@ public:
             m_errMessage = "No media has been opened!";
             return false;
         }
+        if (m_audrnd)
+            m_audrnd->Pause();
         m_pauseStartTp = Clock::now();
         m_isPlaying = false;
         return true;
@@ -154,9 +188,15 @@ public:
             return false;
         }
 
+        if (m_audrnd)
+            m_audrnd->Pause();
+
         WaitAllThreadsQuit();
         FlushAllQueues();
 
+        if (m_audrnd)
+            m_audrnd->Flush();
+        m_audByteStream.Reset();
         if (m_viddecCtx)
             avcodec_flush_buffers(m_viddecCtx);
         if (m_auddecCtx)
@@ -281,7 +321,7 @@ private:
         Log::Info("Open '%s' successfully. %d streams are found.", url.c_str(), m_avfmtCtx->nb_streams);
 
         m_vidStmIdx = av_find_best_stream(m_avfmtCtx, AVMEDIA_TYPE_VIDEO, -1, -1, &m_viddec, 0);
-        // m_audStmIdx = av_find_best_stream(m_avfmtCtx, AVMEDIA_TYPE_AUDIO, -1, -1, &m_auddec, 0);
+        m_audStmIdx = av_find_best_stream(m_avfmtCtx, AVMEDIA_TYPE_AUDIO, -1, -1, &m_auddec, 0);
         if (m_vidStmIdx < 0 && m_audStmIdx < 0)
         {
             ostringstream oss;
@@ -317,6 +357,12 @@ private:
             if (!OpenAudioDecoder())
                 return false;
             m_audpktQMaxSize = 50;
+
+            if (m_audrnd)
+            {
+                if (!OpenAudioRender())
+                    return false;
+            }
         }
         return true;
     }
@@ -428,6 +474,50 @@ private:
         if (fferr < 0)
         {
             SetFFError("avcodec_open2", fferr);
+            return false;
+        }
+
+        // setup sw resampler
+        int inChannels = m_audStream->codecpar->channels;
+        uint64_t inChnLyt = m_audStream->codecpar->channel_layout;
+        int inSampleRate = m_audStream->codecpar->sample_rate;
+        AVSampleFormat inSmpfmt = (AVSampleFormat)m_audStream->codecpar->format;
+        m_swrOutChannels = inChannels > 2 ? 2 : inChannels;
+        m_swrOutChnLyt = av_get_default_channel_layout(m_swrOutChannels);
+        m_swrOutSmpfmt = AV_SAMPLE_FMT_S16;
+        m_swrOutSampleRate = inSampleRate;
+        if (inChnLyt <= 0)
+            inChnLyt = av_get_default_channel_layout(inChannels);
+        if (m_swrOutChnLyt != inChnLyt || m_swrOutSmpfmt != inSmpfmt || m_swrOutSampleRate != inSampleRate)
+        {
+            m_swrCtx = swr_alloc_set_opts(NULL, m_swrOutChnLyt, m_swrOutSmpfmt, m_swrOutSampleRate, inChnLyt, inSmpfmt, inSampleRate, 0, nullptr);
+            if (!m_swrCtx)
+            {
+                m_errMessage = "FAILED to invoke 'swr_alloc_set_opts()' to create 'SwrContext'!";
+                return false;
+            }
+            int fferr = swr_init(m_swrCtx);
+            if (fferr < 0)
+            {
+                SetFFError("swr_init", fferr);
+                return false;
+            }
+            m_swrPassThrough = false;
+        }
+        else
+        {
+            m_swrPassThrough = true;
+        }
+        return true;
+    }
+
+    bool OpenAudioRender()
+    {
+        if (!m_audrnd->OpenDevice(
+                m_swrOutSampleRate, m_swrOutChannels,
+                AudioRender::PcmFormat::SINT16, &m_audByteStream))
+        {
+            m_errMessage = m_audrnd->GetError();
             return false;
         }
         return true;
@@ -596,6 +686,71 @@ private:
                 this_thread::sleep_for(chrono::milliseconds(5));
         }
         *decEof = true;
+    }
+
+    void SwrThreadProc()
+    {
+        while (!m_quitPlay)
+        {
+            bool idleLoop = true;
+            if (!m_audfrmQ.empty())
+            {
+                if (m_swrfrmQ.size() < m_swrfrmQMaxSize)
+                {
+                    AVFrame* srcfrm = m_audfrmQ.front();;
+                    AVFrame* dstfrm = nullptr;
+                    if (m_swrPassThrough)
+                    {
+                        dstfrm = srcfrm;
+                    }
+                    else
+                    {
+                        dstfrm = av_frame_alloc();
+                        if (!dstfrm)
+                        {
+                            m_errMessage = "FAILED to allocate new AVFrame for 'swr_convert()'!";
+                            break;
+                        }
+                        dstfrm->format = (int)m_swrOutSmpfmt;
+                        dstfrm->sample_rate = m_swrOutSampleRate;
+                        dstfrm->channels = m_swrOutChannels;
+                        dstfrm->channel_layout = m_swrOutChnLyt;
+                        dstfrm->nb_samples = swr_get_out_samples(m_swrCtx, srcfrm->nb_samples);
+                        int fferr = av_frame_get_buffer(dstfrm, 0);
+                        if (fferr < 0)
+                        {
+                            SetFFError("av_frame_get_buffer(SwrThreadProc)", fferr);
+                            break;
+                        }
+                        av_frame_copy_props(dstfrm, srcfrm);
+                        dstfrm->pts = swr_next_pts(m_swrCtx, srcfrm->pts);
+                        fferr = swr_convert(m_swrCtx, dstfrm->data, dstfrm->nb_samples, (const uint8_t **)srcfrm->data, srcfrm->nb_samples);
+                        if (fferr < 0)
+                        {
+                            SetFFError("swr_convert(SwrThreadProc)", fferr);
+                            break;
+                        }
+                    }
+                    {
+                        lock_guard<mutex> lk(m_audfrmQLock);
+                        m_audfrmQ.pop_front();
+                    }
+                    {
+                        lock_guard<mutex> lk(m_swrfrmQLock);
+                        m_swrfrmQ.push_back(dstfrm);
+                    }
+                    if (srcfrm != dstfrm)
+                        av_frame_free(&srcfrm);
+                    idleLoop = false;
+                }
+            }
+            else if (m_auddecEof)
+                break;
+
+            if (idleLoop)
+                this_thread::sleep_for(chrono::milliseconds(5));
+        }
+        m_swrEof = true;
     }
 
     void RenderThreadProc()
@@ -788,6 +943,11 @@ private:
             m_auddecThread.join();
             m_auddecThread = thread();
         }
+        if (m_audswrThread.joinable())
+        {
+            m_audswrThread.join();
+            m_audswrThread = thread();
+        }
         if (m_renderThread.joinable())
         {
             m_renderThread.join();
@@ -810,7 +970,110 @@ private:
         for (AVFrame* avfrm : m_audfrmQ)
             av_frame_free(&avfrm);
         m_audfrmQ.clear();
+        for (AVFrame* avfrm : m_swrfrmQ)
+            av_frame_free(&avfrm);
+        m_swrfrmQ.clear();
     }
+
+    class AudioByteStream : public AudioRender::ByteStream
+    {
+    public:
+        AudioByteStream(MediaPlayer_FFImpl* outterThis) : m_outterThis(outterThis) {}
+
+        uint32_t Read(uint8_t* buff, uint32_t buffSize, bool blocking) override
+        {
+            uint32_t loadSize = 0;
+            if (m_unconsumedAudfrm)
+            {
+                uint32_t copySize = m_frmPcmDataSize-m_consumedPcmDataSize;
+                if (copySize > buffSize)
+                    copySize = buffSize;
+                memcpy(buff, m_unconsumedAudfrm->data[0]+m_consumedPcmDataSize, copySize);
+                loadSize += copySize;
+                m_consumedPcmDataSize += copySize;
+                if (m_consumedPcmDataSize >= m_frmPcmDataSize)
+                {
+                    av_frame_free(&m_unconsumedAudfrm);
+                    m_unconsumedAudfrm = nullptr;
+                    m_frmPcmDataSize = 0;
+                    m_consumedPcmDataSize = 0;
+                }
+            }
+            bool tsUpdate = false;
+            Duration audTs;
+            while (loadSize < buffSize)
+            {
+                bool idleLoop = true;
+                AVFrame* audfrm = nullptr;
+                if (m_outterThis->m_swrfrmQ.empty())
+                {
+                    if (m_outterThis->m_auddecEof)
+                        break;
+                }
+                else
+                {
+                    audfrm = m_outterThis->m_swrfrmQ.front();
+                    lock_guard<mutex> lk(m_outterThis->m_swrfrmQLock);
+                    m_outterThis->m_swrfrmQ.pop_front();
+                }
+
+                if (audfrm != nullptr)
+                {
+                    if (m_frameSize == 0)
+                    {
+                        uint32_t bytesPerSample = av_get_bytes_per_sample((AVSampleFormat)audfrm->format);
+                        m_frameSize = bytesPerSample*m_outterThis->m_swrOutChannels;
+                    }
+                    uint32_t frmPcmDataSize = m_frameSize*audfrm->nb_samples;
+                    tsUpdate = true;
+                    audTs = Duration(av_rescale_q(audfrm->pts, m_outterThis->m_audStream->time_base, MediaPlayer_FFImpl::MILLISEC_TIMEBASE));
+
+                    uint32_t copySize = buffSize-loadSize;
+                    if (copySize > frmPcmDataSize)
+                        copySize = frmPcmDataSize;
+                    memcpy(buff+loadSize, audfrm->data[0], copySize);
+                    loadSize += copySize;
+                    if (copySize < frmPcmDataSize)
+                    {
+                        m_unconsumedAudfrm = audfrm;
+                        m_frmPcmDataSize = frmPcmDataSize;
+                        m_consumedPcmDataSize = copySize;
+                    }
+                    else
+                    {
+                        av_frame_free(&audfrm);
+                    }
+                    idleLoop = false;
+                }
+                else if (!blocking)
+                    break;
+                if (idleLoop)
+                    this_thread::sleep_for(chrono::milliseconds(5));
+            }
+            if (tsUpdate)
+                m_outterThis->m_audioTs = audTs;
+            return loadSize;
+        }
+
+        void Reset()
+        {
+            if (m_unconsumedAudfrm)
+            {
+                av_frame_free(&m_unconsumedAudfrm);
+                m_unconsumedAudfrm = nullptr;
+            }
+            m_frmPcmDataSize = 0;
+            m_consumedPcmDataSize = 0;
+            m_frameSize = 0;
+        }
+
+    private:
+        MediaPlayer_FFImpl* m_outterThis;
+        AVFrame* m_unconsumedAudfrm{nullptr};
+        uint32_t m_frmPcmDataSize{0};
+        uint32_t m_consumedPcmDataSize{0};
+        uint32_t m_frameSize{0};
+    };
 
 private:
     string m_errMessage;
@@ -829,6 +1092,11 @@ private:
     AVPixelFormat m_vidHwPixFmt{AV_PIX_FMT_NONE};
     AVHWDeviceType m_viddecDevType{AV_HWDEVICE_TYPE_NONE};
     AVBufferRef* m_viddecHwDevCtx{nullptr};
+    SwrContext* m_swrCtx{nullptr};
+    AVSampleFormat m_swrOutSmpfmt{AV_SAMPLE_FMT_S16};
+    int m_swrOutSampleRate;
+    int m_swrOutChannels;
+    int64_t m_swrOutChnLyt;
 
     // demuxing thread
     thread m_demuxThread;
@@ -852,6 +1120,13 @@ private:
     list<AVFrame*> m_audfrmQ;
     mutex m_audfrmQLock;
     bool m_auddecEof{false};
+    // pcm format conversion thread
+    thread m_audswrThread;
+    int m_swrfrmQMaxSize{4};
+    list<AVFrame*> m_swrfrmQ;
+    mutex m_swrfrmQLock;
+    bool m_swrPassThrough{false};
+    bool m_swrEof{false};
     // rendering thread
     thread m_renderThread;
     bool m_renderEof{false};
@@ -866,6 +1141,8 @@ private:
     TimePoint m_runStartTp{CLOCK_MIN}, m_pauseStartTp{CLOCK_MIN};
 
     ImGui::ImMat m_vidMat;
+    AudioRender* m_audrnd{nullptr};
+    AudioByteStream m_audByteStream;
 };
 
 constexpr MediaPlayer_FFImpl::TimePoint MediaPlayer_FFImpl::CLOCK_MIN = MediaPlayer_FFImpl::Clock::time_point::min();
@@ -887,7 +1164,7 @@ MediaPlayer* CreateMediaPlayer()
     return static_cast<MediaPlayer*>(new MediaPlayer_FFImpl());
 }
 
-void DestroyMediaPlayer(MediaPlayer** player)
+void ReleaseMediaPlayer(MediaPlayer** player)
 {
     if (!player)
         return;

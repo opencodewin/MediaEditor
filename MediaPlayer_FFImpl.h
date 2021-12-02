@@ -2,9 +2,11 @@
 #include <cstdint>
 #include <string>
 #include <immat.h>
+#include "AudioRender.hpp"
 
 struct MediaPlayer
 {
+    virtual bool SetAudioRender(AudioRender* audrnd) = 0;
     virtual bool Open(const std::string& url) = 0;
     virtual bool Close() = 0;
     virtual bool Play() = 0;
@@ -29,4 +31,4 @@ struct MediaPlayer
 };
 
 MediaPlayer* CreateMediaPlayer();
-void DestroyMediaPlayer(MediaPlayer** player);
+void ReleaseMediaPlayer(MediaPlayer** player);

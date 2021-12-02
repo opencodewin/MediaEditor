@@ -15,98 +15,24 @@
 // #include <Lut3D.h>
 #endif
 #include "Log.h"
-#include <SDL.h>
-#include <SDL_thread.h>
+#include "AudioRender.hpp"
 #include "MediaPlayer_FFImpl.h"
 
 static std::string ini_file = "Media_Player.ini";
 // static std::string bookmark_path = "bookmark.ini";
 static ImTextureID g_texture = 0;
+AudioRender* g_audrnd = nullptr;
 MediaPlayer* g_player = nullptr;
-static SDL_AudioDeviceID g_audio_dev = 0;
-static int g_audio_volume = SDL_MIX_MAXVOLUME;
 #if IMGUI_VULKAN_SHADER
 ImGui::ColorConvert_vulkan * m_yuv2rgb {nullptr};
 // ImGui::LUT3D_vulkan *        m_lut3d {nullptr};
 #endif
 
-// #define MAX_AUDIO_BUFFER_SIZE   65536
-// static uint8_t audio_buffer[MAX_AUDIO_BUFFER_SIZE];
-// static int audio_buffer_data_size = 0;
-
-// #define SDL_AUDIO_MIN_BUFFER_SIZE 1024
-// static void sdl_audio_callback(void *opaque, Uint8 *stream, int len)
-// {
-//     MediaPlayer *player = (MediaPlayer *)opaque;
-//     if (!player)
-//     {
-//         memset(stream, 0, len);
-//         return;
-//     }
-//     float speed = fabs(player->GetPlaySpeed());
-//     bool need_reverse = player->GetPlaySpeed() < 0;
-//     if (speed <= 0.05) speed = 0.1;
-//     int input_sample_rate = player->sample_rate();
-//     int output_sample_rate = input_sample_rate / speed;
-//     int wait_count = 0;
-//     if (len > 0)
-//     {
-//         if (audio_buffer_data_size < len)
-//         {
-//             while (audio_buffer_data_size < len)
-//             {
-//                 auto mat = player->audioMat();
-//                 if (!mat.empty())
-//                 {
-//                     Uint8 * dst = audio_buffer + audio_buffer_data_size;
-//                     ImGui::ImMat packet_mat = mat.transpose();
-// #ifdef AUDIO_FORMAT_FLOAT
-//                     if (need_reverse)
-//                         Reverse_f32((float *)packet_mat.data, mat.w, mat.c);
-//                     auto size = Resample_f32((const float *)packet_mat.data, (float *)dst, speed, mat.w, mat.c, MAX_AUDIO_BUFFER_SIZE - audio_buffer_data_size);
-//                     audio_buffer_data_size += size * sizeof(float) * mat.c;
-// #else
-//                     if (need_reverse)
-//                         Reverse_s16((int16_t *)packet_mat.data, mat.w, mat.c);
-//                     auto size = Resample_s16((const int16_t *)packet_mat.data, (int16_t *)dst, speed, mat.w, mat.c, MAX_AUDIO_BUFFER_SIZE - audio_buffer_data_size);
-//                     audio_buffer_data_size += size * sizeof(int16_t) * mat.c;
-// #endif
-//                 }
-//                 else
-//                 {
-//                     memset(audio_buffer + audio_buffer_data_size, 0, len - audio_buffer_data_size);
-//                     audio_buffer_data_size = len;
-//                 }
-//             }
-//         }
-//         //memcpy(stream, audio_buffer, len);
-//         memset(stream, 0, len);
-// #ifdef AUDIO_FORMAT_FLOAT
-//         SDL_MixAudioFormat(stream, audio_buffer, AUDIO_F32SYS, len, g_audio_volume);
-// #else
-//         SDL_MixAudioFormat(stream, audio_buffer, AUDIO_S16SYS, len, g_audio_volume);
-// #endif
-//         memmove(audio_buffer, audio_buffer + len, len);
-//         audio_buffer_data_size -= len;
-//     }
-// }
-
-// static bool open_audio_device(int audio_sample_rate, int audio_channels, SDL_AudioFormat format)
-// {
-//     bool ret = false;
-//     if (g_audio_dev) { SDL_ClearQueuedAudio(g_audio_dev); SDL_CloseAudioDevice(g_audio_dev); g_audio_dev = 0; }
-//     SDL_AudioSpec wanted_spec, spec;
-//     wanted_spec.channels = audio_channels;
-//     wanted_spec.freq = audio_sample_rate;
-//     wanted_spec.format = format;
-//     wanted_spec.silence = 0;
-//     wanted_spec.samples = SDL_AUDIO_MIN_BUFFER_SIZE;
-//     wanted_spec.callback = sdl_audio_callback;
-//     wanted_spec.userdata = &g_player;
-//     g_audio_dev = SDL_OpenAudioDevice(NULL, 0, &wanted_spec, &spec, SDL_AUDIO_ALLOW_FREQUENCY_CHANGE | SDL_AUDIO_ALLOW_CHANNELS_CHANGE);
-//     if (g_audio_dev) { SDL_PauseAudioDevice(g_audio_dev, 0); ret = true; }
-//     return ret;
-// }
+#define CheckPlayerError(funccall) \
+    if (!(funccall)) \
+    { \
+        std::cerr << g_player->GetError() << std::endl; \
+    }
 
 // Application Framework Functions
 void Application_GetWindowProperties(ApplicationWindowProperty& property)
@@ -122,19 +48,19 @@ void Application_GetWindowProperties(ApplicationWindowProperty& property)
 
 void Application_Initialize(void** handle)
 {
+    g_audrnd = CreateAudioRender();
+#if !IMGUI_APPLICATION_PLATFORM_SDL2
+    if (!g_audrnd->Initialize())
+        std::cerr << g_audrnd->GetError() << std::endl;
+#endif
+
     g_player = CreateMediaPlayer();
+    CheckPlayerError(g_player->SetAudioRender(g_audrnd));
 
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     io.IniFilename = ini_file.c_str();
 #if IMGUI_VULKAN_SHADER
     m_yuv2rgb = new ImGui::ColorConvert_vulkan(ImGui::get_default_gpu_index());
-#endif
-
-    // memset(audio_buffer, 0, MAX_AUDIO_BUFFER_SIZE);
-    // audio_buffer_data_size = 0;
-
-#if !IMGUI_APPLICATION_PLATFORM_SDL2
-    SDL_Init(SDL_INIT_AUDIO | SDL_INIT_TIMER);
 #endif
 }
 
@@ -145,13 +71,9 @@ void Application_Finalize(void** handle)
     // if (m_lut3d) { delete m_lut3d; m_lut3d = nullptr; }
 #endif
     if (g_texture) { ImGui::ImDestroyTexture(g_texture); g_texture = nullptr; }
-    g_player->Close();
-    if (g_audio_dev) { SDL_ClearQueuedAudio(g_audio_dev); SDL_CloseAudioDevice(g_audio_dev); g_audio_dev = 0; }
-#if !IMGUI_APPLICATION_PLATFORM_SDL2
-    SDL_Quit();
-#endif
 
-    DestroyMediaPlayer(&g_player);
+    ReleaseMediaPlayer(&g_player);
+    ReleaseAudioRender(&g_audrnd);
 }
 
 bool Application_Frame(void * handle)
@@ -169,25 +91,6 @@ bool Application_Frame(void * handle)
     const ImGuiContext& g = *GImGui;
     const ImGuiStyle& style = g.Style;
     Log::Render();
-
-//     if (g_player->IsOpened() && !g_audio_dev)
-//     {
-//         open_audio_device(
-//             g_player->sample_rate(), 
-//             g_player->channels(),
-// #ifdef AUDIO_FORMAT_FLOAT
-//             AUDIO_F32SYS
-// #else
-//             AUDIO_S16SYS
-// #endif
-//             );
-//     }
-
-    // if (g_player->IsOpened() && g_player->isSeeking())
-    // {
-    //     memset(audio_buffer, 0, MAX_AUDIO_BUFFER_SIZE);
-    //     audio_buffer_data_size = 0;
-    // }
 
     // Show PlayControl panel
     if (g_player->IsOpened() && (show_ctrlbar && io.FrameCountSinceLastInput))
@@ -247,9 +150,9 @@ bool Application_Frame(void * handle)
         if (ImGui::Button(g_player->IsOpened() ? (g_player->IsPlaying() ? ICON_FAD_PAUSE : ICON_FAD_PLAY) : ICON_FAD_PLAY, size))
         {
             if (g_player->IsPlaying())
-            {   g_player->Pause(); if (g_audio_dev) SDL_PauseAudioDevice(g_audio_dev, 1);}
+                g_player->Pause();
             else
-            {   g_player->Play(); if (g_audio_dev) SDL_PauseAudioDevice(g_audio_dev, 0);}
+                g_player->Play();
         }
         ImGui::ShowTooltipOnHover("Toggle Play/Pause.");
         // // add step next button
@@ -264,11 +167,6 @@ bool Application_Frame(void * handle)
         if (ImGui::Button(g_player->IsOpened() ? muted ? ICON_FA5_VOLUME_MUTE : ICON_FA5_VOLUME_UP : ICON_FA5_VOLUME_UP, size))
         {
             muted = !muted;
-            if (g_audio_dev)
-            {
-                if (muted) g_audio_volume = 0;
-                else g_audio_volume = SDL_MIX_MAXVOLUME;
-            }
         }
         ImGui::ShowTooltipOnHover("Toggle Audio Mute.");
         // add about button
@@ -304,10 +202,7 @@ bool Application_Frame(void * handle)
         {
             if (g_player->IsOpened())
             {
-                // SDL_PauseAudioDevice(g_audio_dev, 1);
-                // audio_buffer_data_size = 0;
                 g_player->SetPlaySpeed(play_speed);
-                // SDL_PauseAudioDevice(g_audio_dev, 0);
             }
         }
         ImGui::PopItemWidth();
@@ -368,10 +263,7 @@ bool Application_Frame(void * handle)
             uint64_t step = duration/500;
             if (ImGuiToolkit::TimelineSlider("##timeline", &pos, duration, step, timescale_width))
             {
-                // SDL_PauseAudioDevice(g_audio_dev, 1);
-                // audio_buffer_data_size = 0;
                 g_player->SeekAsync(pos);
-                // SDL_PauseAudioDevice(g_audio_dev, 0);
             }
         }
         else
@@ -394,9 +286,9 @@ bool Application_Frame(void * handle)
     if (g_player->IsOpened() && !io.KeyCtrl && !io.KeyShift && !io.KeyAlt && ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Space), false))
     {
         if (g_player->IsPlaying())
-        {   g_player->Pause(); if (g_audio_dev) SDL_PauseAudioDevice(g_audio_dev, 1); }
+            g_player->Pause();
         else 
-        {   g_player->Play(); if (g_audio_dev) SDL_PauseAudioDevice(g_audio_dev, 0); }
+            g_player->Play();
     }
     if (!io.KeyCtrl && !io.KeyShift && !io.KeyAlt && ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Escape), false))
     {
@@ -454,7 +346,6 @@ bool Application_Frame(void * handle)
         if (ImGuiFileDialog::Instance()->IsOk())
 		{
             if (g_texture) { ImGui::ImDestroyTexture(g_texture); g_texture = nullptr; }
-            if (g_audio_dev) { SDL_ClearQueuedAudio(g_audio_dev); SDL_CloseAudioDevice(g_audio_dev); g_audio_dev = 0; }
 // #if IMGUI_VULKAN_SHADER
 //             if (m_lut3d) { delete m_lut3d; m_lut3d = nullptr; }
 //             has_hdr = false;
