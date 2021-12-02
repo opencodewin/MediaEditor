@@ -220,8 +220,10 @@ std::string ImGuiToolkit::MillisecToString(int64_t millisec)
     uint32_t sec = (uint32_t)(t%60); t /= 60;
     uint32_t min = (uint32_t)(t%60); t /= 60;
     uint32_t hour = (uint32_t)t;
-    oss << std::setfill('0') << std::setw(2) << hour
-        << min << sec << std::setw(3) << milli;
+    oss << std::setfill('0') << std::setw(2) << hour << ':'
+        << std::setw(2) << min << ':'
+        << std::setw(2) << sec << '.'
+        << std::setw(3) << milli;
     return oss.str();
 }
 

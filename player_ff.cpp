@@ -223,7 +223,7 @@ bool Application_Frame(void * handle)
         {
             //ImGui::ShowTooltipOnHover("Open Media File.");
             const char *filters = "视频文件(*.mp4 *.mov *.mkv *.webm *.avi){.mp4,.mov,.mkv,.webm,.avi,.MP4,.MOV,.MKV,WEBM,.AVI},.*";
-			ImGuiFileDialog::Instance()->OpenModal("ChooseFileDlgKey", ICON_IGFD_FOLDER_OPEN " 打开视频文件", filters, ".", 1, nullptr, ImGuiFileDialogFlags_ShowBookmark);
+			ImGuiFileDialog::Instance()->OpenModal("ChooseFileDlgKey", ICON_IGFD_FOLDER_OPEN " 打开视频文件", filters, "/mnt/data2/video/hd/", 1, nullptr, ImGuiFileDialogFlags_ShowBookmark);
         }
         ImGui::ShowTooltipOnHover("Open Media File.");
 //         // add open camera button
@@ -513,6 +513,10 @@ bool Application_Frame(void * handle)
             ImGui::ImGenerateOrUpdateTexture(g_texture, vmat.w, vmat.h, 4, (const unsigned char *)vmat.data);
 #endif
 #endif
+        }
+        else
+        {
+            std::cout << "Empty video ImMat at " << ImGuiToolkit::MillisecToString(g_player->GetPlayPos()) << std::endl;
         }
     }
     if (g_texture)

@@ -232,7 +232,7 @@ public:
 
     uint64_t GetPlayPos() const override
     {
-        return 0;
+        return static_cast<uint64_t>(m_playPos.count());
     }
 
     ImGui::ImMat GetVideo() const override
@@ -664,6 +664,12 @@ private:
             avfrm = swfrm;
         }
 
+        if (desc->nb_components <= 0 || desc->nb_components > 4)
+        {
+            Log::Error("INVALID 'nb_component' value %d of pixel format '%s;, can only support value from 1 ~ 4.", desc->nb_components, desc->name);
+            return false;
+        }
+
 #define ISYUV420P(format)   \
         (format == AV_PIX_FMT_YUV420P || \
         format == AV_PIX_FMT_YUVJ420P || \
@@ -724,48 +730,30 @@ private:
 
         ImGui::ImMat mat_V;
         mat_V.create_type(width, height, 4, bitDepth > 8 ? IM_DT_INT16 : IM_DT_INT8);
-        ImGui::ImMat mat_Y = mat_V.channel(0);
+        for (int i = 0; i < desc->nb_components; i++)
         {
-            uint8_t* src_data = avfrm->data[0]+bytesPerPix*desc->comp[0].offset;
-            uint8_t* dst_data = (uint8_t*)mat_Y.data;
-            int bytesPerLine = width*bytesPerPix*(desc->comp[0].step+1);
-            for (int i = 0; i < height; i++)
+            ImGui::ImMat ch = mat_V.channel(i);
+            int chWidth = width;
+            int chHeight = height;
+            if ((desc->flags&AV_PIX_FMT_FLAG_RGB) == 0 && i > 0)
             {
-                memcpy(dst_data, src_data, bytesPerLine);
-                src_data += avfrm->linesize[0];
-                dst_data += bytesPerLine;
+                chWidth >>= desc->log2_chroma_w;
+                chHeight >>= desc->log2_chroma_h;
+            }
+            if (desc->nb_components > i && desc->comp[i].plane == i)
+            {
+                uint8_t* src_data = avfrm->data[i]+bytesPerPix*desc->comp[i].offset;
+                uint8_t* dst_data = (uint8_t*)ch.data;
+                int bytesPerLine = chWidth*bytesPerPix*desc->comp[i].step;
+                for (int j = 0; j < chHeight; j++)
+                {
+                    memcpy(dst_data, src_data, bytesPerLine);
+                    src_data += avfrm->linesize[i];
+                    dst_data += bytesPerLine;
+                }
             }
         }
-        ImGui::ImMat mat_Cb = mat_V.channel(1);
-        if (desc->nb_components > 1)
-        {
-            uint8_t* src_data = avfrm->data[1]+bytesPerPix*desc->comp[1].offset;
-            uint8_t* dst_data = (uint8_t*)mat_Cb.data;
-            int width1 = width >> desc->log2_chroma_w;
-            int height1 = height >> desc->log2_chroma_h;
-            int bytesPerLine = width1*bytesPerPix*(desc->comp[1].step+1);
-            for (int i = 0; i < height1; i++)
-            {
-                memcpy(dst_data, src_data, bytesPerLine);
-                src_data += avfrm->linesize[1];
-                dst_data += bytesPerLine;
-            }
-        }
-        ImGui::ImMat mat_Cr = mat_V.channel(2);
-        if (desc->nb_components > 2)
-        {
-            uint8_t* src_data = avfrm->data[2]+bytesPerPix*desc->comp[2].offset;
-            uint8_t* dst_data = (uint8_t*)mat_Cr.data;
-            int width1 = width >> desc->log2_chroma_w;
-            int height1 = height >> desc->log2_chroma_h;
-            int bytesPerLine = width1*bytesPerPix*(desc->comp[2].step+1);
-            for (int i = 0; i < height1; i++)
-            {
-                memcpy(dst_data, src_data, bytesPerLine);
-                src_data += avfrm->linesize[1];
-                dst_data += bytesPerLine;
-            }
-        }
+
         mat_V.color_space = color_space;
         mat_V.color_range = color_range;
         mat_V.color_format = color_format;
@@ -826,7 +814,7 @@ private:
 
 private:
     string m_errMessage;
-    bool m_vidPreferUseHw;
+    bool m_vidPreferUseHw{true};
     AVHWDeviceType m_vidUseHwType{AV_HWDEVICE_TYPE_NONE};
 
     AVFormatContext* m_avfmtCtx{nullptr};
