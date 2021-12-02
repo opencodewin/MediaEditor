@@ -39,10 +39,12 @@ string GstToolkit::time_to_string(guint64 t, time_string_mode m)
         if (count < 2) {
             oss << setw(count > 0 ? 2 : 1) << setfill('0') << (s % 3600) % 60;
             count++;
+
+            if (count < 2 )
+                oss << '.'<< setw(1) << setfill('0') << (ms % 1000) / 100 << " sec";
+            else
+                oss << " s";
         }
-        if (count < 2 )
-            oss << '.'<< setw(2) << setfill('0') << (ms % 1000) / 10;
-        oss << " sec";
     }
     // MINIMAL: keep only the 2 higher values (most significant)
     else if (m == TIME_STRING_MINIMAL) {
@@ -184,7 +186,7 @@ string GstToolkit::gst_version()
                                };
     const int N = 11;
 #elif GST_GL_HAVE_PLATFORM_CGL
-    const char *plugins[2] = { "vtdec_hw", "vtdechw"};
+    const char *plugins[2] = { "vtdec_hw", "vtdechw" };
     const int N = 2;
 #else
     const char *plugins[0] = { };
@@ -231,7 +233,7 @@ std::string GstToolkit::used_gpu_decoding_plugins(GstElement *gstbin)
             GstElement *e = static_cast<GstElement*>(g_value_peek_pointer(&value));
             if (e) {
                 gchar *name = gst_element_get_name(e);
-                 g_print(" - %s", name);
+//                 g_print(" - %s", name);
                 std::string e_name(name);
                 g_free(name);
                 for (int i = 0; i < N; i++) {

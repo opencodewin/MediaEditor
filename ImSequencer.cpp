@@ -17,12 +17,12 @@ static bool SequencerAddDelButton(ImDrawList *draw_list, ImVec2 pos, bool add = 
     ImGuiIO &io = ImGui::GetIO();
     ImRect delRect(pos, ImVec2(pos.x + 16, pos.y + 16));
     bool overDel = delRect.Contains(io.MousePos);
-    int delColor = overDel ? 0xFFAAAAAA : 0x77A3B2AA;
+    int delColor = 0xFFFFFFFF; //overDel ? 0xFFAAAAAA : 0x77A3B2AA;
     float midy = pos.y + 16 / 2 - 0.5f;
     float midx = pos.x + 16 / 2 - 0.5f;
     draw_list->AddRect(delRect.Min, delRect.Max, delColor, 4);
-    draw_list->AddLine(ImVec2(delRect.Min.x + 3, midy), ImVec2(delRect.Max.x - 3, midy), delColor, 2);
-    if (add) draw_list->AddLine(ImVec2(midx, delRect.Min.y + 3), ImVec2(midx, delRect.Max.y - 3), delColor, 2);
+    draw_list->AddLine(ImVec2(delRect.Min.x + 3, midy), ImVec2(delRect.Max.x - 4, midy), delColor, 2);
+    if (add) draw_list->AddLine(ImVec2(midx, delRect.Min.y + 3), ImVec2(midx, delRect.Max.y - 4), delColor, 2);
     return overDel;
 }
 
@@ -90,7 +90,6 @@ bool Sequencer(SequenceInterface *sequence, int *currentFrame, bool *expanded, i
     if (lastFrame)
         *lastFrame = firstFrameUsed + visibleFrameCount;
     // --
-
     if ((expanded && !*expanded) || !sequenceCount)
     {
         ImGui::InvisibleButton("canvas", ImVec2(canvas_size.x - canvas_pos.x, (float)ItemHeight));
@@ -99,7 +98,7 @@ bool Sequencer(SequenceInterface *sequence, int *currentFrame, bool *expanded, i
             if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("Media_drag_drop"))
             {
                 // check size?
-                ImSequencer::MediaSequence::SequenceItem * item = (ImSequencer::MediaSequence::SequenceItem*)payload->Data;
+                ImSequencer::SequenceItem * item = (ImSequencer::SequenceItem*)payload->Data;
                 ImSequencer::MediaSequence * seq = (ImSequencer::MediaSequence *)sequence;
                 seq->m_Items.push_back(*item);
             }
@@ -134,8 +133,14 @@ bool Sequencer(SequenceInterface *sequence, int *currentFrame, bool *expanded, i
             if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("Media_drag_drop"))
             {
                 // check size?
-                ImSequencer::MediaSequence::SequenceItem * item = (ImSequencer::MediaSequence::SequenceItem*)payload->Data;
+                ImSequencer::SequenceItem * item = (ImSequencer::SequenceItem*)payload->Data;
                 ImSequencer::MediaSequence * seq = (ImSequencer::MediaSequence *)sequence;
+                auto length = item->mFrameEnd - item->mFrameStart;
+                if (currentFrame && firstFrame && *currentFrame >= *firstFrame && *currentFrame <= sequence->GetFrameMax())
+                    item->mFrameStart = *currentFrame;
+                else
+                    item->mFrameStart = *firstFrame;
+                item->mFrameEnd = item->mFrameStart + length;
                 seq->m_Items.push_back(*item);
             }
             ImGui::EndDragDropTarget();
@@ -143,9 +148,11 @@ bool Sequencer(SequenceInterface *sequence, int *currentFrame, bool *expanded, i
         const ImVec2 contentMin = ImGui::GetItemRectMin();
         const ImVec2 contentMax = ImGui::GetItemRectMax();
         const ImRect contentRect(contentMin, contentMax);
+        const ImRect legendRect(contentMin, ImVec2(contentMin.x + legendWidth, contentMax.y));
         const float contentHeight = contentMax.y - contentMin.y;
         // full background
         draw_list->AddRectFilled(canvas_pos, canvas_pos + canvas_size, 0xFF242424, 0);
+        draw_list->AddRectFilled(legendRect.Min, legendRect.Max, 0xFF121212, 0);
 
         // current frame top
         ImRect topRect(ImVec2(canvas_pos.x + legendWidth, canvas_pos.y), ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + ItemHeight));
@@ -203,7 +210,6 @@ bool Sequencer(SequenceInterface *sequence, int *currentFrame, bool *expanded, i
             int tiretEnd = int(contentMax.y);
             if (px <= (canvas_size.x + canvas_pos.x) && px >= (canvas_pos.x + legendWidth))
             {
-                //draw_list->AddLine(ImVec2((float)px, canvas_pos.y + (float)tiretStart), ImVec2((float)px, canvas_pos.y + (float)tiretEnd - 1), 0xFF606060, 1);
                 draw_list->AddLine(ImVec2(float(px), float(tiretStart)), ImVec2(float(px), float(tiretEnd)), 0x30606060, 1);
             }
         };
@@ -213,6 +219,22 @@ bool Sequencer(SequenceInterface *sequence, int *currentFrame, bool *expanded, i
         }
         drawLine(sequence->GetFrameMin(), HeadHeight);
         drawLine(sequence->GetFrameMax(), HeadHeight);
+        // cursor Arrow
+        if (currentFrame && firstFrame && *currentFrame >= *firstFrame && *currentFrame <= sequence->GetFrameMax())
+        {
+            const float arrowWidth = draw_list->_Data->FontSize;
+            float arrowOffset = contentMin.x + legendWidth + (*currentFrame - firstFrameUsed) * framePixelWidth + framePixelWidth / 2 - arrowWidth * 0.5f - 2;
+            ImGui::RenderArrow(draw_list, ImVec2(arrowOffset, canvas_pos.y), ImGui::GetColorU32(ImVec4(0.0f, 1.0f, 0.0f, 1.0f)), ImGuiDir_Down);
+            ImGui::SetWindowFontScale(0.8);
+            char tmps[512];
+            ImFormatString(tmps, IM_ARRAYSIZE(tmps), "%d", *currentFrame);
+            ImVec2 str_size = ImGui::CalcTextSize(tmps, nullptr, true) * 0.8;
+            float strOffset = contentMin.x + legendWidth + (*currentFrame - firstFrameUsed) * framePixelWidth + framePixelWidth / 2 - str_size.x * 0.5f - 2;
+            ImVec2 str_pos = ImVec2(strOffset, canvas_pos.y + 10);
+            draw_list->AddRectFilled(str_pos + ImVec2(-2, 0), str_pos + str_size + ImVec2(4, 4), ImGui::GetColorU32(ImVec4(0.0f, 0.5f, 0.0f, 0.75f)), 2.0, ImDrawFlags_RoundCornersAll);
+            draw_list->AddText(str_pos, ImGui::GetColorU32(ImVec4(0.0f, 1.0f, 0.0f, 1.0f)), tmps);
+            ImGui::SetWindowFontScale(1.0);
+        }
 
         // clip content
         draw_list->PushClipRect(childFramePos, childFramePos + childFrameSize);
@@ -386,15 +408,12 @@ bool Sequencer(SequenceInterface *sequence, int *currentFrame, bool *expanded, i
                 sequence->EndEdit();
             }
         }
-        // cursor
+        // cursor line
         if (currentFrame && firstFrame && *currentFrame >= *firstFrame && *currentFrame <= sequence->GetFrameMax())
         {
-            static const float cursorWidth = 4.f;
-            float cursorOffset = contentMin.x + legendWidth + (*currentFrame - firstFrameUsed) * framePixelWidth + framePixelWidth / 2 - cursorWidth * 0.5f;
-            draw_list->AddLine(ImVec2(cursorOffset, canvas_pos.y), ImVec2(cursorOffset, contentMax.y), IM_COL32(0, 255, 0, 255), cursorWidth);
-            //char tmps[512];
-            //ImFormatString(tmps, IM_ARRAYSIZE(tmps), "%d", *currentFrame);
-            //draw_list->AddText(ImVec2(cursorOffset, canvas_pos.y + 20), IM_COL32(255, 255, 255, 255), tmps);
+            static const float cursorWidth = 3.f;
+            float cursorOffset = contentMin.x + legendWidth + (*currentFrame - firstFrameUsed) * framePixelWidth + framePixelWidth / 2 - cursorWidth * 0.5f - 1;
+            draw_list->AddLine(ImVec2(cursorOffset, canvas_pos.y), ImVec2(cursorOffset, contentMax.y), IM_COL32(0, 255, 0, 128), cursorWidth);
         }
         draw_list->PopClipRect();
         draw_list->PopClipRect();
@@ -550,7 +569,7 @@ bool Sequencer(SequenceInterface *sequence, int *currentFrame, bool *expanded, i
         {
             // up-down wheel over scrollbar, scale canvas view
             int frameOverCursor = *firstFrame + (int)(visibleFrameCount * ((io.MousePos.x - (float)legendWidth - canvas_pos.x) / (canvas_size.x - legendWidth)));
-            if (io.MouseWheel < -FLT_EPSILON)
+            if (io.MouseWheel < -FLT_EPSILON && visibleFrameCount <= sequence->GetFrameMax())
             {
                 *firstFrame -= frameOverCursor;
                 *firstFrame = int(*firstFrame * 1.1f);
