@@ -12,7 +12,7 @@ struct MediaPlayer
     virtual bool Play() = 0;
     virtual bool Pause() = 0;
     virtual bool Reset() = 0;
-    virtual bool Seek(uint64_t pos) = 0;
+    virtual bool SeekToI(uint64_t pos) = 0;
     virtual bool SeekAsync(uint64_t pos) = 0;
 
     virtual bool IsOpened() const = 0;
@@ -26,6 +26,14 @@ struct MediaPlayer
     virtual uint64_t GetDuration() const = 0;
     virtual uint64_t GetPlayPos() const = 0; 
     virtual ImGui::ImMat GetVideo() const = 0;
+
+    enum class PlayMode
+    {
+        NORMAL = 0,
+        VIDEO_ONLY,
+        AUDIO_ONLY
+    };
+    virtual bool SetPlayMode(PlayMode mode) = 0;
 
     virtual std::string GetError() const = 0;
 };

@@ -1,9 +1,10 @@
 #include <sstream>
+#include <iostream>
+#include <iomanip>
 #include <thread>
 #include <mutex>
 #include <list>
 #include "MediaPlayer_FFImpl.h"
-#include "Log.h"
 extern "C"
 {
     #include "libavutil/avutil.h"
@@ -145,19 +146,7 @@ public:
         }
 
         if (!m_renderThread.joinable())
-        {
-            m_demuxThread = thread(&MediaPlayer_FFImpl::DemuxThreadProc, this);
-            if (HasVideo())
-                m_viddecThread = thread(&MediaPlayer_FFImpl::DecodeThreadProc, this,
-                    m_viddecCtx, &m_viddecEof, &m_vidpktQ, &m_vidpktQLock, &m_vidfrmQ, &m_vidfrmQLock, m_vidfrmQMaxSize);
-            if (HasAudio())
-            {
-                m_auddecThread = thread(&MediaPlayer_FFImpl::DecodeThreadProc, this,
-                    m_auddecCtx, &m_auddecEof, &m_audpktQ, &m_audpktQLock, &m_audfrmQ, &m_audfrmQLock, m_audfrmQMaxSize);
-                m_audswrThread = thread(&MediaPlayer_FFImpl::SwrThreadProc, this);
-            }
-            m_renderThread = thread(&MediaPlayer_FFImpl::RenderThreadProc, this);
-        }
+            StartAllThreads();
         if (m_audrnd)
             m_audrnd->Resume();
         m_isPlaying = true;
@@ -210,14 +199,59 @@ public:
         int fferr = avformat_seek_file(m_avfmtCtx, -1, INT64_MIN, m_avfmtCtx->start_time, m_avfmtCtx->start_time, 0);
         if (fferr < 0)
         {
-            SetFFError("avformat_seek_file", fferr);
+            SetFFError("avformat_seek_file(In Reset)", fferr);
             return false;
         }
         return true;
     }
 
-    bool Seek(uint64_t pos) override
+    bool SeekToI(uint64_t pos) override
     {
+        lock_guard<recursive_mutex> lk(m_ctlLock);
+        if (!IsOpened())
+        {
+            m_errMessage = "No media has been opened!";
+            return false;
+        }
+
+        bool isPlaying = m_isPlaying;
+
+        if (m_audrnd)
+            m_audrnd->Pause();
+
+        WaitAllThreadsQuit();
+        FlushAllQueues();
+
+        if (m_audrnd)
+            m_audrnd->Flush();
+        m_audByteStream.Reset();
+        if (m_viddecCtx)
+            avcodec_flush_buffers(m_viddecCtx);
+        if (m_auddecCtx)
+            avcodec_flush_buffers(m_auddecCtx);
+
+        m_demuxEof = false;
+        m_viddecEof = false;
+        m_auddecEof = false;
+        m_renderEof = false;
+
+        int64_t ffpos = av_rescale_q(pos, MILLISEC_TIMEBASE, FFAV_TIMEBASE);
+        int fferr = avformat_seek_file(m_avfmtCtx, -1, INT64_MIN, ffpos, ffpos, 0);
+        if (fferr < 0)
+        {
+            SetFFError("avformat_seek_file(In SeekToI)", fferr);
+            return false;
+        }
+        cout << "Seek to " << MillisecToString(pos) << endl;
+        m_afterSeeking = true;
+
+        if (isPlaying)
+        {
+            StartAllThreads();
+            if (m_audrnd)
+                m_audrnd->Resume();
+            m_isPlaying = true;
+        }
         return true;
     }
 
@@ -280,6 +314,18 @@ public:
         return m_vidMat;
     }
 
+    bool SetPlayMode(PlayMode mode) override
+    {
+        lock_guard<recursive_mutex> lk(m_ctlLock);
+        if (IsOpened())
+        {
+            m_errMessage = "Can only change play mode when media is not opened!";
+            return false;
+        }
+        m_playMode = mode;
+        return true;
+    }
+
     string GetError() const override
     {
         return m_errMessage;
@@ -292,6 +338,7 @@ public:
 
 private:
     static const AVRational MILLISEC_TIMEBASE;
+    static const AVRational FFAV_TIMEBASE;
 
     void SetFFError(const string& funcname, int fferr)
     {
@@ -318,9 +365,11 @@ private:
             SetFFError("avformat_find_stream_info", fferr);
             return false;
         }
-        Log::Info("Open '%s' successfully. %d streams are found.", url.c_str(), m_avfmtCtx->nb_streams);
+        cout << "Open '" << url << "' successfully. " << m_avfmtCtx->nb_streams << " streams are found." << endl;
 
-        m_vidStmIdx = av_find_best_stream(m_avfmtCtx, AVMEDIA_TYPE_VIDEO, -1, -1, &m_viddec, 0);
+        if (m_playMode != PlayMode::AUDIO_ONLY)
+            m_vidStmIdx = av_find_best_stream(m_avfmtCtx, AVMEDIA_TYPE_VIDEO, -1, -1, &m_viddec, 0);
+        if (m_playMode != PlayMode::VIDEO_ONLY)
         m_audStmIdx = av_find_best_stream(m_avfmtCtx, AVMEDIA_TYPE_AUDIO, -1, -1, &m_auddec, 0);
         if (m_vidStmIdx < 0 && m_audStmIdx < 0)
         {
@@ -391,6 +440,7 @@ private:
             SetFFError("avcodec_open2", fferr);
             return false;
         }
+        cout << "Video decoder '" << m_viddec->name << "' opened." << endl;
         return true;
     }
 
@@ -449,6 +499,7 @@ private:
             SetFFError("avcodec_open2", fferr);
             return false;
         }
+        cout << "Video decoder(HW) '" << m_viddecCtx->codec->name << "' opened." << endl;
         return true;
     }
 
@@ -476,6 +527,7 @@ private:
             SetFFError("avcodec_open2", fferr);
             return false;
         }
+        cout << "Audio decoder '" << m_auddec->name << "' opened." << endl;
 
         // setup sw resampler
         int inChannels = m_audStream->codecpar->channels;
@@ -525,6 +577,7 @@ private:
 
     void DemuxThreadProc()
     {
+        cout << "Enter DemuxThreadProc()..." << endl;
         AVPacket avpkt = {0};
         bool avpktLoaded = false;
         while (!m_quitPlay)
@@ -542,9 +595,9 @@ private:
                 else
                 {
                     if (fferr == AVERROR_EOF)
-                        Log::Info("Demuxer EOF.");
+                        cout << "Demuxer EOF." << endl;
                     else
-                        Log::Error("Demuxer ERROR! 'av_read_frame' returns %d.", fferr);
+                        cerr << "Demuxer ERROR! 'av_read_frame' returns " << fferr << "." << endl;
                     break;
                 }
             }
@@ -556,7 +609,7 @@ private:
                     AVPacket* enqpkt = av_packet_clone(&avpkt);
                     if (!enqpkt)
                     {
-                        Log::Error("FAILED to invoke 'av_packet_clone'!");
+                        cerr << "FAILED to invoke 'av_packet_clone(DemuxThreadProc)'!" << endl;
                         break;
                     }
                     lock_guard<mutex> lk(m_vidpktQLock);
@@ -573,7 +626,7 @@ private:
                     AVPacket* enqpkt = av_packet_clone(&avpkt);
                     if (!enqpkt)
                     {
-                        Log::Error("FAILED to invoke 'av_packet_clone'!");
+                        cerr << "FAILED to invoke 'av_packet_clone(DemuxThreadProc)'!" << endl;
                         break;
                     }
                     lock_guard<mutex> lk(m_audpktQLock);
@@ -593,13 +646,12 @@ private:
                 this_thread::sleep_for(chrono::milliseconds(5));
         }
         m_demuxEof = true;
+        cout << "Leave DemuxThreadProc()." << endl;
     }
 
-    void DecodeThreadProc(
-        AVCodecContext* decCtx, bool* decEof,
-        list<AVPacket*>* inQ, mutex* inQLock,
-        list<AVFrame*>* outQ, mutex* outQLock, int outQMaxSize)
+    void VideoDecodeThreadProc()
     {
+        cout << "Enter VideoDecodeThreadProc()..." << endl;
         AVFrame avfrm = {0};
         bool avfrmLoaded = false;
         bool inputEof = false;
@@ -613,16 +665,22 @@ private:
             do{
                 if (!avfrmLoaded)
                 {
-                    int fferr = avcodec_receive_frame(decCtx, &avfrm);
+                    int fferr = avcodec_receive_frame(m_viddecCtx, &avfrm);
                     if (fferr == 0)
                     {
+                        if (m_afterSeeking)
+                        {
+                            cout << "retrieved VIDEO frame after seek " << MillisecToString(av_rescale_q(avfrm.pts, m_vidStream->time_base, MILLISEC_TIMEBASE)) << endl;
+                            m_afterSeeking = false;
+                        }
                         avfrmLoaded = true;
                         idleLoop = false;
                     }
                     else if (fferr != AVERROR(EAGAIN))
                     {
                         if (fferr != AVERROR_EOF)
-                            Log::Error("FAILED to invoke 'avcodec_receive_frame'(AUDIO)! return code is %d.", fferr);
+                            cerr << "FAILED to invoke 'avcodec_receive_frame'(VideoDecodeThreadProc)! return code is "
+                                << fferr << "." << endl;
                         quitLoop = true;
                         break;
                     }
@@ -631,11 +689,11 @@ private:
                 hasOutput = avfrmLoaded;
                 if (avfrmLoaded)
                 {
-                    if (outQ->size() < outQMaxSize)
+                    if (m_vidfrmQ.size() < m_vidfrmQMaxSize)
                     {
-                        lock_guard<mutex> lk(*outQLock);
+                        lock_guard<mutex> lk(m_vidfrmQLock);
                         AVFrame* enqfrm = av_frame_clone(&avfrm);
-                        outQ->push_back(enqfrm);
+                        m_vidfrmQ.push_back(enqfrm);
                         av_frame_unref(&avfrm);
                         avfrmLoaded = false;
                         idleLoop = false;
@@ -650,14 +708,16 @@ private:
             // input packet to decoder
             if (!inputEof)
             {
-                while (inQ->size() > 0)
+                while (m_vidpktQ.size() > 0)
                 {
-                    AVPacket* avpkt = inQ->front();
-                    int fferr = avcodec_send_packet(decCtx, avpkt);
+                    AVPacket* avpkt = m_vidpktQ.front();
+                    int fferr = avcodec_send_packet(m_viddecCtx, avpkt);
                     if (fferr == 0)
                     {
-                        lock_guard<mutex> lk(*inQLock);
-                        inQ->pop_front();
+                        if (m_afterSeeking)
+                            cout << "decode VIDEO packet after seek " << MillisecToString(av_rescale_q(avpkt->pts, m_vidStream->time_base, MILLISEC_TIMEBASE)) << endl;
+                        lock_guard<mutex> lk(m_vidpktQLock);
+                        m_vidpktQ.pop_front();
                         av_packet_free(&avpkt);
                         idleLoop = false;
                     }
@@ -665,7 +725,8 @@ private:
                     {
                         if (fferr != AVERROR(EAGAIN))
                         {
-                            Log::Error("FAILED to invoke 'avcodec_send_packet'(AUDIO)! return code is %d.", fferr);
+                            cerr << "FAILED to invoke 'avcodec_send_packet'(VideoDecodeThreadProc)! return code is "
+                                << fferr << "." << endl;
                             quitLoop = true;
                         }
                         break;
@@ -674,9 +735,9 @@ private:
                 if (quitLoop)
                     break;
 
-                if (inQ->size() == 0 && m_demuxEof)
+                if (m_vidpktQ.size() == 0 && m_demuxEof)
                 {
-                    avcodec_send_packet(decCtx, nullptr);
+                    avcodec_send_packet(m_viddecCtx, nullptr);
                     idleLoop = false;
                     inputEof = true;
                 }
@@ -685,7 +746,108 @@ private:
             if (idleLoop)
                 this_thread::sleep_for(chrono::milliseconds(5));
         }
-        *decEof = true;
+        m_viddecEof = true;
+        if (avfrmLoaded)
+            av_frame_unref(&avfrm);
+        cout << "Leave VideoDecodeThreadProc()." << endl;
+    }
+
+    void AudioDecodeThreadProc()
+    {
+        cout << "Enter AudioDecodeThreadProc()..." << endl;
+        AVFrame avfrm = {0};
+        bool avfrmLoaded = false;
+        bool inputEof = false;
+        while (!m_quitPlay)
+        {
+            bool idleLoop = true;
+            bool quitLoop = false;
+
+            // retrieve output frame
+            bool hasOutput;
+            do{
+                if (!avfrmLoaded)
+                {
+                    int fferr = avcodec_receive_frame(m_auddecCtx, &avfrm);
+                    if (fferr == 0)
+                    {
+                        avfrmLoaded = true;
+                        idleLoop = false;
+                    }
+                    else if (fferr != AVERROR(EAGAIN))
+                    {
+                        if (fferr != AVERROR_EOF)
+                            cerr << "FAILED to invoke 'avcodec_receive_frame'(AudioDecodeThreadProc)! return code is "
+                                << fferr << "." << endl;
+                        quitLoop = true;
+                        break;
+                    }
+                }
+
+                hasOutput = avfrmLoaded;
+                if (avfrmLoaded)
+                {
+                    if (m_audfrmQ.size() < m_audfrmQMaxSize)
+                    {
+                        lock_guard<mutex> lk(m_audfrmQLock);
+                        AVFrame* enqfrm = av_frame_clone(&avfrm);
+                        m_audfrmQ.push_back(enqfrm);
+                        av_frame_unref(&avfrm);
+                        avfrmLoaded = false;
+                        idleLoop = false;
+                    }
+                    else
+                        break;
+                }
+            } while (hasOutput);
+            if (quitLoop)
+                break;
+
+            // input packet to decoder
+            if (!inputEof)
+            {
+                while (m_audpktQ.size() > 0)
+                {
+                    AVPacket* avpkt = m_audpktQ.front();
+                    int fferr = avcodec_send_packet(m_auddecCtx, avpkt);
+                    if (fferr == 0)
+                    {
+                        if (m_afterSeeking)
+                            cout << "decode AUDIO packet after seek " << MillisecToString(av_rescale_q(avpkt->pts, m_audStream->time_base, MILLISEC_TIMEBASE)) << endl;
+                        lock_guard<mutex> lk(m_audpktQLock);
+                        m_audpktQ.pop_front();
+                        av_packet_free(&avpkt);
+                        idleLoop = false;
+                    }
+                    else
+                    {
+                        if (fferr != AVERROR(EAGAIN))
+                        {
+                            cerr << "FAILED to invoke 'avcodec_send_packet'(AudioDecodeThreadProc)! return code is "
+                                << fferr << "." << endl;
+                            quitLoop = true;
+                        }
+                        break;
+                    }
+                }
+                if (quitLoop)
+                    break;
+
+                if (m_audpktQ.size() == 0 && m_demuxEof)
+                {
+                    avcodec_send_packet(m_auddecCtx, nullptr);
+                    idleLoop = false;
+                    inputEof = true;
+                }
+            }
+
+            if (idleLoop)
+                this_thread::sleep_for(chrono::milliseconds(5));
+        }
+        m_auddecEof = true;
+        if (avfrmLoaded)
+            av_frame_unref(&avfrm);
+        cout << "Leave AudioDecodeThreadProc()." << endl;
     }
 
     void SwrThreadProc()
@@ -821,7 +983,8 @@ private:
 
         if (desc->nb_components <= 0 || desc->nb_components > 4)
         {
-            Log::Error("INVALID 'nb_component' value %d of pixel format '%s;, can only support value from 1 ~ 4.", desc->nb_components, desc->name);
+            cerr << "INVALID 'nb_component' value " << desc->nb_components << " of pixel format '"
+                << desc->name << "', can only support value from 1 ~ 4." << endl;
             return false;
         }
 
@@ -881,7 +1044,7 @@ private:
                                     ISNV12(avfrm->format) ? bitDepth == 10 ? IM_CF_P010LE : IM_CF_NV12 : IM_CF_YUV420;
         const int width = avfrm->width;
         const int height = avfrm->height;
-        int bytesPerPix = bitDepth > 8 ? 2 : 1;
+        // int bytesPerPix = bitDepth > 8 ? 2 : 1;
 
         ImGui::ImMat mat_V;
         mat_V.create_type(width, height, 4, bitDepth > 8 ? IM_DT_INT16 : IM_DT_INT8);
@@ -897,9 +1060,9 @@ private:
             }
             if (desc->nb_components > i && desc->comp[i].plane == i)
             {
-                uint8_t* src_data = avfrm->data[i]+bytesPerPix*desc->comp[i].offset;
+                uint8_t* src_data = avfrm->data[i]+desc->comp[i].offset;
                 uint8_t* dst_data = (uint8_t*)ch.data;
-                int bytesPerLine = chWidth*bytesPerPix*desc->comp[i].step;
+                int bytesPerLine = chWidth*desc->comp[i].step;
                 for (int j = 0; j < chHeight; j++)
                 {
                     memcpy(dst_data, src_data, bytesPerLine);
@@ -923,6 +1086,20 @@ private:
         if (swfrm)
             av_frame_free(&swfrm);
         return true;
+    }
+
+    void StartAllThreads()
+    {
+        m_quitPlay = false;
+        m_demuxThread = thread(&MediaPlayer_FFImpl::DemuxThreadProc, this);
+        if (HasVideo())
+            m_viddecThread = thread(&MediaPlayer_FFImpl::VideoDecodeThreadProc, this);
+        if (HasAudio())
+        {
+            m_auddecThread = thread(&MediaPlayer_FFImpl::AudioDecodeThreadProc, this);
+            m_audswrThread = thread(&MediaPlayer_FFImpl::SwrThreadProc, this);
+        }
+        m_renderThread = thread(&MediaPlayer_FFImpl::RenderThreadProc, this);
     }
 
     void WaitAllThreadsQuit()
@@ -973,6 +1150,26 @@ private:
         for (AVFrame* avfrm : m_swrfrmQ)
             av_frame_free(&avfrm);
         m_swrfrmQ.clear();
+    }
+
+    string MillisecToString(int64_t millisec)
+    {
+        ostringstream oss;
+        if (millisec < 0)
+        {
+            oss << "-";
+            millisec = -millisec;
+        }
+        uint64_t t = (uint64_t) millisec;
+        uint32_t milli = (uint32_t)(t%1000); t /= 1000;
+        uint32_t sec = (uint32_t)(t%60); t /= 60;
+        uint32_t min = (uint32_t)(t%60); t /= 60;
+        uint32_t hour = (uint32_t)t;
+        oss << setfill('0') << setw(2) << hour << ':'
+            << setw(2) << min << ':'
+            << setw(2) << sec << '.'
+            << setw(3) << milli;
+        return oss.str();
     }
 
     class AudioByteStream : public AudioRender::ByteStream
@@ -1026,7 +1223,7 @@ private:
                     }
                     uint32_t frmPcmDataSize = m_frameSize*audfrm->nb_samples;
                     tsUpdate = true;
-                    audTs = Duration(av_rescale_q(audfrm->pts, m_outterThis->m_audStream->time_base, MediaPlayer_FFImpl::MILLISEC_TIMEBASE));
+                    audTs = Duration(av_rescale_q(audfrm->pts, m_outterThis->m_audStream->time_base, MILLISEC_TIMEBASE));
 
                     uint32_t copySize = buffSize-loadSize;
                     if (copySize > frmPcmDataSize)
@@ -1079,6 +1276,7 @@ private:
     string m_errMessage;
     bool m_vidPreferUseHw{true};
     AVHWDeviceType m_vidUseHwType{AV_HWDEVICE_TYPE_NONE};
+    PlayMode m_playMode{PlayMode::NORMAL};
 
     AVFormatContext* m_avfmtCtx{nullptr};
     int m_vidStmIdx{-1};
@@ -1134,6 +1332,11 @@ private:
     recursive_mutex m_ctlLock;
     bool m_quitPlay{false};
     bool m_isPlaying{false};
+    bool m_afterSeeking{false};
+
+    bool m_isSeeking{false};
+    list<uint64_t> m_seekPosList;
+    mutex m_seekPosListLock;
 
     Duration m_audioTs;
     int64_t m_audioOffset{0};
@@ -1147,6 +1350,7 @@ private:
 
 constexpr MediaPlayer_FFImpl::TimePoint MediaPlayer_FFImpl::CLOCK_MIN = MediaPlayer_FFImpl::Clock::time_point::min();
 const AVRational MediaPlayer_FFImpl::MILLISEC_TIMEBASE = { 1, 1000 };
+const AVRational MediaPlayer_FFImpl::FFAV_TIMEBASE = { 1, AV_TIME_BASE };
 
 static AVPixelFormat get_hw_format(AVCodecContext *ctx, const AVPixelFormat *pix_fmts)
 {

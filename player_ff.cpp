@@ -56,6 +56,8 @@ void Application_Initialize(void** handle)
 
     g_player = CreateMediaPlayer();
     CheckPlayerError(g_player->SetAudioRender(g_audrnd));
+    // g_player->SetPreferHwDecoder(false);
+    // g_player->SetPlayMode(MediaPlayer::PlayMode::AUDIO_ONLY);
 
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     io.IniFilename = ini_file.c_str();
@@ -263,7 +265,7 @@ bool Application_Frame(void * handle)
             uint64_t step = duration/500;
             if (ImGuiToolkit::TimelineSlider("##timeline", &pos, duration, step, timescale_width))
             {
-                g_player->SeekAsync(pos);
+                g_player->SeekToI(pos);
             }
         }
         else
@@ -345,6 +347,7 @@ bool Application_Frame(void * handle)
 	{
         if (ImGuiFileDialog::Instance()->IsOk())
 		{
+            g_player->Close();
             if (g_texture) { ImGui::ImDestroyTexture(g_texture); g_texture = nullptr; }
 // #if IMGUI_VULKAN_SHADER
 //             if (m_lut3d) { delete m_lut3d; m_lut3d = nullptr; }
