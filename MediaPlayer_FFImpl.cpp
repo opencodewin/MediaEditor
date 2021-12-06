@@ -4,6 +4,7 @@
 #include <thread>
 #include <mutex>
 #include <list>
+#include <cmath>
 #include "MediaPlayer_FFImpl.h"
 extern "C"
 {
@@ -28,7 +29,7 @@ class MediaPlayer_FFImpl : public MediaPlayer
 {
 public:
     using Clock = chrono::steady_clock;
-    using Duration = chrono::duration<double, milli>;
+    using Duration = chrono::duration<int64_t, milli>;
     using TimePoint = chrono::time_point<Clock>;
     static const TimePoint CLOCK_MIN;
 
@@ -111,7 +112,11 @@ public:
         m_renderEof = false;
 
         m_vidpktQMaxSize = 0;
-        m_audpktQMaxSize = 0;
+        m_audfrmQMaxSize = 5;
+        m_swrfrmQMaxSize = 24;
+        m_audfrmAvgDur = 0.021;
+
+        m_playPos = m_pausedDur = 0;
 
         m_errMessage = "";
         return true;
@@ -141,7 +146,7 @@ public:
             m_runStartTp = Clock::now();
         if (m_pauseStartTp != CLOCK_MIN)
         {
-            m_pausedDur += Clock::now()-m_pauseStartTp;
+            m_pausedDur += chrono::duration_cast<Duration>((Clock::now()-m_pauseStartTp)).count();
             m_pauseStartTp = CLOCK_MIN;
         }
 
@@ -205,7 +210,7 @@ public:
         return true;
     }
 
-    bool SeekToI(uint64_t pos) override
+    bool Seek(uint64_t pos, bool seekToI) override
     {
         lock_guard<recursive_mutex> lk(m_ctlLock);
         if (!IsOpened())
@@ -239,11 +244,17 @@ public:
         int fferr = avformat_seek_file(m_avfmtCtx, -1, INT64_MIN, ffpos, ffpos, 0);
         if (fferr < 0)
         {
-            SetFFError("avformat_seek_file(In SeekToI)", fferr);
+            SetFFError("avformat_seek_file(In Seek)", fferr);
             return false;
         }
+
         cout << "Seek to " << MillisecToString(pos) << endl;
+        m_seekToI = seekToI;
         m_afterSeeking = true;
+        m_seekToMts = pos;
+
+        if (!HasAudio())
+            m_pauseStartTp = CLOCK_MIN;
 
         if (isPlaying)
         {
@@ -306,7 +317,7 @@ public:
 
     uint64_t GetPlayPos() const override
     {
-        return static_cast<uint64_t>(m_playPos.count());
+        return static_cast<uint64_t>(m_playPos);
     }
 
     ImGui::ImMat GetVideo() const override
@@ -405,7 +416,6 @@ private:
         {
             if (!OpenAudioDecoder())
                 return false;
-            m_audpktQMaxSize = 50;
 
             if (m_audrnd)
             {
@@ -467,6 +477,7 @@ private:
                 }
             }
         }
+        cout << "Use hardware device type '" << av_hwdevice_get_type_name(m_viddecDevType) << "'." << endl;
 
         m_viddecCtx = avcodec_alloc_context3(m_viddec);
         if (!m_viddecCtx)
@@ -668,13 +679,24 @@ private:
                     int fferr = avcodec_receive_frame(m_viddecCtx, &avfrm);
                     if (fferr == 0)
                     {
-                        if (m_afterSeeking)
-                        {
-                            cout << "retrieved VIDEO frame after seek " << MillisecToString(av_rescale_q(avfrm.pts, m_vidStream->time_base, MILLISEC_TIMEBASE)) << endl;
-                            m_afterSeeking = false;
-                        }
                         avfrmLoaded = true;
                         idleLoop = false;
+                        // handle seeking operation
+                        if (m_afterSeeking)
+                        {
+                            int64_t vidMts = av_rescale_q(avfrm.pts, m_vidStream->time_base, MILLISEC_TIMEBASE);
+                            if (m_seekToI && !HasAudio())
+                            {
+                                m_seekToMts = vidMts;
+                                m_seekToI = false;
+                            }
+                            if (vidMts < m_seekToMts)
+                            {
+                                cout << "drop video frame after seek " << MillisecToString(vidMts) << endl;
+                                av_frame_unref(&avfrm);
+                                avfrmLoaded = false;
+                            }
+                        }
                     }
                     else if (fferr != AVERROR(EAGAIN))
                     {
@@ -714,8 +736,6 @@ private:
                     int fferr = avcodec_send_packet(m_viddecCtx, avpkt);
                     if (fferr == 0)
                     {
-                        if (m_afterSeeking)
-                            cout << "decode VIDEO packet after seek " << MillisecToString(av_rescale_q(avpkt->pts, m_vidStream->time_base, MILLISEC_TIMEBASE)) << endl;
                         lock_guard<mutex> lk(m_vidpktQLock);
                         m_vidpktQ.pop_front();
                         av_packet_free(&avpkt);
@@ -773,6 +793,29 @@ private:
                     {
                         avfrmLoaded = true;
                         idleLoop = false;
+                        // update average audio frame duration, for calculating audio queue size
+                        double frmDur = (double)avfrm.nb_samples/m_audStream->codecpar->sample_rate;
+                        m_audfrmAvgDur = (m_audfrmAvgDur*(m_audfrmAvgDurCalcCnt-1)+frmDur)/m_audfrmAvgDurCalcCnt;
+                        m_swrfrmQMaxSize = (int)ceil(m_audQDuration/m_audfrmAvgDur);
+                        m_audfrmQMaxSize = (int)ceil((double)m_swrfrmQMaxSize/5);
+                        // handle seeking operation
+                        if (m_afterSeeking)
+                        {
+                            int64_t audMts = av_rescale_q(avfrm.pts, m_audStream->time_base, MILLISEC_TIMEBASE);
+                            if (m_seekToI)
+                            {
+                                m_seekToMts = audMts;
+                                m_seekToI = false;
+                            }
+                            if (audMts < m_seekToMts)
+                            {
+                                m_audioMts = audMts;
+                                av_frame_unref(&avfrm);
+                                avfrmLoaded = false;
+                            }
+                            if (!HasVideo())
+                                m_afterSeeking = false;
+                        }
                     }
                     else if (fferr != AVERROR(EAGAIN))
                     {
@@ -812,8 +855,6 @@ private:
                     int fferr = avcodec_send_packet(m_auddecCtx, avpkt);
                     if (fferr == 0)
                     {
-                        if (m_afterSeeking)
-                            cout << "decode AUDIO packet after seek " << MillisecToString(av_rescale_q(avpkt->pts, m_audStream->time_base, MILLISEC_TIMEBASE)) << endl;
                         lock_guard<mutex> lk(m_audpktQLock);
                         m_audpktQ.pop_front();
                         av_packet_free(&avpkt);
@@ -929,19 +970,31 @@ private:
             // Audio
             if (HasAudio())
             {
-                m_playPos = chrono::duration_cast<Duration>(m_audioTs-Duration(m_audioOffset));
+                m_playPos = m_audioMts-m_audioOffset;
             }
             else
             {
-                m_playPos = Clock::now()-m_runStartTp-m_pausedDur;
+                if (m_afterSeeking)
+                    m_playPos = m_seekToMts;
+                else
+                    m_playPos = chrono::duration_cast<Duration>((Clock::now()-m_runStartTp)).count()+m_posOffset-m_pausedDur;
             }
 
             // Video
             if (HasVideo() && !m_vidfrmQ.empty())
             {
+                if (m_afterSeeking)
+                {
+                    if (!HasAudio())
+                    {
+                        m_runStartTp = Clock::now();
+                        m_posOffset = m_seekToMts;
+                    }
+                    m_afterSeeking = false;
+                }
                 AVFrame* vidfrm = m_vidfrmQ.front();
                 int64_t mts = av_rescale_q(vidfrm->pts, m_vidStream->time_base, MILLISEC_TIMEBASE);
-                if (m_playPos.count() >= mts)
+                if (m_playPos >= mts)
                 {
                     lock_guard<mutex> lk(m_vidfrmQLock);
                     m_vidfrmQ.pop_front();
@@ -1197,7 +1250,7 @@ private:
                 }
             }
             bool tsUpdate = false;
-            Duration audTs;
+            int64_t audMts;
             while (loadSize < buffSize)
             {
                 bool idleLoop = true;
@@ -1223,7 +1276,7 @@ private:
                     }
                     uint32_t frmPcmDataSize = m_frameSize*audfrm->nb_samples;
                     tsUpdate = true;
-                    audTs = Duration(av_rescale_q(audfrm->pts, m_outterThis->m_audStream->time_base, MILLISEC_TIMEBASE));
+                    audMts = av_rescale_q(audfrm->pts, m_outterThis->m_audStream->time_base, MILLISEC_TIMEBASE);
 
                     uint32_t copySize = buffSize-loadSize;
                     if (copySize > frmPcmDataSize)
@@ -1248,7 +1301,7 @@ private:
                     this_thread::sleep_for(chrono::milliseconds(5));
             }
             if (tsUpdate)
-                m_outterThis->m_audioTs = audTs;
+                m_outterThis->m_audioMts = audMts;
             return loadSize;
         }
 
@@ -1302,7 +1355,7 @@ private:
     int m_vidpktQMaxSize{0};
     list<AVPacket*> m_vidpktQ;
     mutex m_vidpktQLock;
-    int m_audpktQMaxSize{0};
+    int m_audpktQMaxSize{64};
     list<AVPacket*> m_audpktQ;
     mutex m_audpktQLock;
     bool m_demuxEof{false};
@@ -1314,13 +1367,19 @@ private:
     bool m_viddecEof{false};
     // audio decoding thread
     thread m_auddecThread;
-    int m_audfrmQMaxSize{4};
+    int m_audfrmQMaxSize{5};
     list<AVFrame*> m_audfrmQ;
     mutex m_audfrmQLock;
     bool m_auddecEof{false};
+    double m_audfrmAvgDur{0.021};
+    uint32_t m_audfrmAvgDurCalcCnt{10};
     // pcm format conversion thread
     thread m_audswrThread;
-    int m_swrfrmQMaxSize{4};
+    float m_audQDuration{0.5f};
+    // use 24 as queue max size is calculated by
+    // 1024 samples per frame @ 48kHz, and audio queue duration is 0.5 seconds.
+    // this max size will be updated while audio decoding procedure.
+    int m_swrfrmQMaxSize{24};
     list<AVFrame*> m_swrfrmQ;
     mutex m_swrfrmQLock;
     bool m_swrPassThrough{false};
@@ -1332,15 +1391,18 @@ private:
     recursive_mutex m_ctlLock;
     bool m_quitPlay{false};
     bool m_isPlaying{false};
+
     bool m_afterSeeking{false};
+    bool m_seekToI{false};
+    int64_t m_seekToMts{0};
 
     bool m_isSeeking{false};
     list<uint64_t> m_seekPosList;
     mutex m_seekPosListLock;
 
-    Duration m_audioTs;
-    int64_t m_audioOffset{0};
-    Duration m_playPos, m_pausedDur;
+    int64_t m_playPos{0}, m_posOffset{0};
+    int64_t m_pausedDur{0};
+    int64_t m_audioOffset{0}, m_audioMts;
     TimePoint m_runStartTp{CLOCK_MIN}, m_pauseStartTp{CLOCK_MIN};
 
     ImGui::ImMat m_vidMat;

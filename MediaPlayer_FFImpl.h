@@ -12,7 +12,7 @@ struct MediaPlayer
     virtual bool Play() = 0;
     virtual bool Pause() = 0;
     virtual bool Reset() = 0;
-    virtual bool SeekToI(uint64_t pos) = 0;
+    virtual bool Seek(uint64_t pos, bool seekToI = false) = 0;
     virtual bool SeekAsync(uint64_t pos) = 0;
 
     virtual bool IsOpened() const = 0;
