@@ -25,6 +25,7 @@
 #else
 #define VIDEO_FORMAT_NV12
 //#define VIDEO_FORMAT_YV12
+//#define VIDEO_FORMAT_YUV422
 //#define VIDEO_FORMAT_YUV444
 //#define VIDEO_FORMAT_RGBA
 #endif
