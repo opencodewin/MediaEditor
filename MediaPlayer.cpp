@@ -487,6 +487,9 @@ void MediaPlayer::execute_open()
 #elif defined(VIDEO_FORMAT_YV12)
     string capstring = "video/x-raw,format=" + (pixel_element_depth == 8 ? std::string("I420") : std::string("I420_10LE")) + ",width=" + std::to_string(m_media_info.width) +
             ",height=" + std::to_string(m_media_info.height);
+#elif defined(VIDEO_FORMAT_YUV444)
+    string capstring = "video/x-raw,format=" + (pixel_element_depth == 8 ? std::string("Y444") : std::string("Y444_10LE")) + ",width=" + std::to_string(m_media_info.width) +
+            ",height=" + std::to_string(m_media_info.height);
 #else
     #error "please define VIDEO_FORMAT_ in header file"
 #endif
@@ -696,6 +699,9 @@ void MediaPlayer::execute_open_camera()
             ",height=" + std::to_string(m_media_info.height);
 #elif defined(VIDEO_FORMAT_YV12)
     string capstring = "video/x-raw,format=" + (pixel_element_depth == 8 ? std::string("I420") : std::string("I420_10LE")) + ",width=" + std::to_string(m_media_info.width) +
+            ",height=" + std::to_string(m_media_info.height);
+#elif defined(VIDEO_FORMAT_YUV444)
+    string capstring = "video/x-raw,format=" + (pixel_element_depth == 8 ? std::string("Y444") : std::string("Y444_10LE")) + ",width=" + std::to_string(m_media_info.width) +
             ",height=" + std::to_string(m_media_info.height);
 #else
     #error "please define VIDEO_FORMAT_ in header file"
@@ -1453,11 +1459,23 @@ void MediaPlayer::fill_video(GstVideoFrame* frame, FrameStatus status, GstClockT
         int UV_shift_w = 0;
 #elif defined(VIDEO_FORMAT_YV12)
         int UV_shift_w = 1;
+#elif defined(VIDEO_FORMAT_YUV444)
+        int UV_shift_w = 0;
 #else
         #error "please define VIDEO_FORMAT_ in header file"
 #endif
+#if defined(VIDEO_FORMAT_YUV444)
+        int UV_shift_h = 0;
+#else
         int UV_shift_h = 1;
-        mat.create_type(m_media_info.width, m_media_info.height, 4, data_shift ? IM_DT_INT16 : IM_DT_INT8);
+#endif
+        int channels = 
+#ifdef VIDEO_FORMAT_YUV444
+            3;
+#else
+            2;
+#endif
+        mat.create_type(m_media_info.width, m_media_info.height, channels, data_shift ? IM_DT_INT16 : IM_DT_INT8);
         ImGui::ImMat mat_Y = mat.channel(0);
         {
             uint8_t* src_data = (uint8_t*)frame->data[0];
@@ -1469,29 +1487,48 @@ void MediaPlayer::fill_video(GstVideoFrame* frame, FrameStatus status, GstClockT
                 dst_data += m_media_info.width << data_shift;
             }
         }
-        ImGui::ImMat mat_Cb = mat.channel(1);
+#ifndef VIDEO_FORMAT_YUV444
+        ImGui::ImMat mat_CbCr = mat.channel(1);
+#ifndef VIDEO_FORMAT_YV12
+        uint8_t* src_data = (uint8_t*)frame->data[1];
+        uint8_t* dst_data = (uint8_t*)mat_CbCr.data;
+        for (int i = 0; i < m_media_info.height >> UV_shift_h; i++)
         {
-            uint8_t* src_data = (uint8_t*)frame->data[1];
-            uint8_t* dst_data = (uint8_t*)mat_Cb.data;
-            for (int i = 0; i < m_media_info.height >> UV_shift_h; i++)
-            {
-                memcpy(dst_data, src_data, (m_media_info.width >> UV_shift_w) * (data_shift ? 2 : 1));
-                src_data += GST_VIDEO_FRAME_PLANE_STRIDE(frame, 1);
-                dst_data += (m_media_info.width >> UV_shift_w) << data_shift;
-            }
+            memcpy(dst_data, src_data, (m_media_info.width >> UV_shift_w) << data_shift);
+            src_data += GST_VIDEO_FRAME_PLANE_STRIDE(frame, 1);
+            dst_data += (m_media_info.width >> UV_shift_w) << data_shift;
         }
-#ifdef VIDEO_FORMAT_YV12
-        ImGui::ImMat mat_Cr = mat.channel(2);
+#else
+        uint8_t* cr_data = (uint8_t*)frame->data[1];
+        uint8_t* cr_dst_data = (uint8_t*)mat_CbCr.data;
+        uint8_t* cb_data = (uint8_t*)frame->data[2];
+        uint8_t* cb_dst_data = (uint8_t*)mat_CbCr.data + (((m_media_info.width >> UV_shift_w) * (m_media_info.height >> UV_shift_h)) << data_shift);
+        for (int i = 0; i < m_media_info.height >> UV_shift_h; i++)
         {
-            uint8_t* src_data = (uint8_t*)frame->data[2];
-            uint8_t* dst_data = (uint8_t*)mat_Cr.data;
-            for (int i = 0; i < m_media_info.height >> UV_shift_h; i++)
-            {
-                memcpy(dst_data, src_data, (m_media_info.width >> UV_shift_w) * (data_shift ? 2 : 1));
-                src_data += GST_VIDEO_FRAME_PLANE_STRIDE(frame, 2);
-                dst_data += (m_media_info.width >> UV_shift_w) << data_shift;
-            }
+            memcpy(cr_dst_data, cr_data, (m_media_info.width >> UV_shift_w) << data_shift);
+            cr_data += GST_VIDEO_FRAME_PLANE_STRIDE(frame, 1);
+            cr_dst_data += (m_media_info.width >> UV_shift_w) << data_shift;
+            memcpy(cb_dst_data, cb_data, (m_media_info.width >> UV_shift_w) << data_shift);
+            cb_data += GST_VIDEO_FRAME_PLANE_STRIDE(frame, 2);
+            cb_dst_data += (m_media_info.width >> UV_shift_w) << data_shift;
         }
+#endif
+#else
+    ImGui::ImMat mat_Cb = mat.channel(1);
+    ImGui::ImMat mat_Cr = mat.channel(2);
+    uint8_t* cr_data = (uint8_t*)frame->data[1];
+    uint8_t* cr_dst_data = (uint8_t*)mat_Cb.data;
+    uint8_t* cb_data = (uint8_t*)frame->data[2];
+    uint8_t* cb_dst_data = (uint8_t*)mat_Cr.data;
+    for (int i = 0; i < m_media_info.height >> UV_shift_h; i++)
+    {
+        memcpy(cr_dst_data, cr_data, (m_media_info.width >> UV_shift_w) << data_shift);
+        cr_data += GST_VIDEO_FRAME_PLANE_STRIDE(frame, 1);
+        cr_dst_data += (m_media_info.width >> UV_shift_w) << data_shift;
+        memcpy(cb_dst_data, cb_data, (m_media_info.width >> UV_shift_w) << data_shift);
+        cb_data += GST_VIDEO_FRAME_PLANE_STRIDE(frame, 2);
+        cb_dst_data += (m_media_info.width >> UV_shift_w) << data_shift;
+    }
 #endif
 #endif
         auto color_space = GST_VIDEO_INFO_COLORIMETRY(&m_media_info.frame_video_info);
@@ -1515,6 +1552,8 @@ void MediaPlayer::fill_video(GstVideoFrame* frame, FrameStatus status, GstClockT
         mat.flags |= IM_MAT_FLAGS_VIDEO_FRAME_UV;
 #elif defined(VIDEO_FORMAT_YV12)
         mat.color_format = IM_CF_YUV420;
+#elif defined(VIDEO_FORMAT_YUV444)
+        mat.color_format = IM_CF_YUV444;
 #else
         #error "please define VIDEO_FORMAT_ in header file"
 #endif
@@ -1577,8 +1616,8 @@ bool MediaPlayer::fill_video_frame(GstBuffer *buf, FrameStatus status)
         if (GST_VIDEO_INFO_IS_RGB(&frame.info) && GST_VIDEO_INFO_N_PLANES(&frame.info) == 1)
 #elif defined(VIDEO_FORMAT_NV12)
         if (GST_VIDEO_INFO_IS_YUV(&frame.info) && GST_VIDEO_INFO_N_PLANES(&frame.info) == 2) // NV12/NV16
-#elif defined(VIDEO_FORMAT_YV12)
-        if (GST_VIDEO_INFO_IS_YUV(&frame.info) && GST_VIDEO_INFO_N_PLANES(&frame.info) == 3) // I420/I420_10LE
+#elif defined(VIDEO_FORMAT_YV12) || defined(VIDEO_FORMAT_YUV444)
+        if (GST_VIDEO_INFO_IS_YUV(&frame.info) && GST_VIDEO_INFO_N_PLANES(&frame.info) == 3) // I420/I420_10LE//Y444/Y444_10LE
 #else
         #error "please define VIDEO_FORMAT_ in header file"
 #endif
