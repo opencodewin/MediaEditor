@@ -19,7 +19,7 @@
 #include "MediaPlayer_FFImpl.h"
 
 static std::string ini_file = "Media_Player.ini";
-// static std::string bookmark_path = "bookmark.ini";
+static std::string bookmark_path = "bookmark.ini";
 static ImTextureID g_texture = 0;
 AudioRender* g_audrnd = nullptr;
 MediaPlayer* g_player = nullptr;
@@ -48,6 +48,17 @@ void Application_GetWindowProperties(ApplicationWindowProperty& property)
 
 void Application_Initialize(void** handle)
 {
+#ifdef USE_BOOKMARK
+	// load bookmarks
+	std::ifstream docFile(bookmark_path, std::ios::in);
+	if (docFile.is_open())
+	{
+		std::stringstream strStream;
+		strStream << docFile.rdbuf();//read the file
+		ImGuiFileDialog::Instance()->DeserializeBookmarks(strStream.str());
+		docFile.close();
+	}
+#endif
     g_audrnd = CreateAudioRender();
 #if !IMGUI_APPLICATION_PLATFORM_SDL2
     if (!g_audrnd->Initialize())
@@ -77,6 +88,15 @@ void Application_Finalize(void** handle)
 
     ReleaseMediaPlayer(&g_player);
     ReleaseAudioRender(&g_audrnd);
+#ifdef USE_BOOKMARK
+	// save bookmarks
+	std::ofstream configFileWriter(bookmark_path, std::ios::out);
+	if (!configFileWriter.bad())
+	{
+		configFileWriter << ImGuiFileDialog::Instance()->SerializeBookmarks();
+		configFileWriter.close();
+	}
+#endif
 }
 
 bool Application_Frame(void * handle)
