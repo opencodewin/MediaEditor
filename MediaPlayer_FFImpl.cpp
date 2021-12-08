@@ -114,6 +114,8 @@ public:
         m_auddecEof = false;
         m_renderEof = false;
 
+        m_vidMat.release();
+
         m_runStartTp = CLOCK_MIN;
         m_pauseStartTp = CLOCK_MIN;
         m_playPos = m_posOffset = 0;
