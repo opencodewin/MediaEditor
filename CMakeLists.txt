@@ -192,6 +192,7 @@ target_link_libraries(
 add_executable(
     mp_ff
     player_ff.cpp
+    AudioRender_Impl_Sdl2.cpp
     MediaPlayer_FFImpl.cpp
     SystemToolkit.cpp
     ImGuiToolkit_NoGst.cpp
@@ -200,9 +201,10 @@ add_executable(
 )
 target_link_libraries(
     mp_ff
-    imgui
+    ${IMGUI_LIBRARYS}
     avformat
     avutil
     avcodec
+    swresample
 )
 target_compile_definitions(mp_ff PUBLIC APP_NAME="mp_ff")
