@@ -266,8 +266,13 @@ bool Application_Frame(void * handle)
             uint64_t step = duration/500;
             if (ImGuiToolkit::TimelineSlider("##timeline", &pos, duration, step, timescale_width))
             {
-                g_player->Seek(pos);
+                // g_player->Seek(pos);
                 // g_player->Seek(pos, true);
+                g_player->SeekAsync(pos);
+            }
+            else if (g_player->IsSeeking())
+            {
+                g_player->QuitSeekAsync();
             }
         }
         else
