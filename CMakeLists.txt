@@ -194,6 +194,8 @@ add_executable(
     player_ff.cpp
     AudioRender_Impl_Sdl2.cpp
     MediaPlayer_FFImpl.cpp
+    MediaSource.cpp
+    FFUtils.cpp
     SystemToolkit.cpp
     ImGuiToolkit_NoGst.cpp
     Log_NoGst.cpp
