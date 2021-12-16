@@ -58,7 +58,10 @@ public:
 
             m_vidfrmIntvMts = av_q2d(av_inv_q(m_vidStream->avg_frame_rate))*1000.;
             m_vidfrmIntvMtsHalf = ceil(m_vidfrmIntvMts)/2;
-            m_vidfrmIntvPts = (m_vidStream->avg_frame_rate.den*m_vidStream->time_base.den)/(m_vidStream->avg_frame_rate.num*m_vidStream->time_base.num);
+            if (m_vidStream->avg_frame_rate.num*m_vidStream->time_base.num > 0)
+                m_vidfrmIntvPts = (m_vidStream->avg_frame_rate.den*m_vidStream->time_base.den)/(m_vidStream->avg_frame_rate.num*m_vidStream->time_base.num);
+            else
+                m_vidfrmIntvPts = 0;
             m_snapWnd.startPos = (double)m_vidStartMts/1000.;
         }
         return true;
@@ -349,7 +352,7 @@ private:
     bool ParseFile()
     {
         int fferr = 0;
-        int64_t lastKeyPts = m_vidStream->start_time-2;
+        int64_t lastKeyPts = m_vidStream ? m_vidStream->start_time-2 : 0;
         while (true)
         {
             fferr = avformat_seek_file(m_avfmtCtx, m_vidStmIdx, lastKeyPts+1, lastKeyPts+1, INT64_MAX, 0);

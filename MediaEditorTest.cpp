@@ -205,14 +205,14 @@ bool Application_Frame(void * handle)
                         auto video_height = item->mMedia->GetVideoHeight();
                         auto media_length = item->mMedia->GetVidoeDuration() / 1000.f;
                         ImGui::SetCursorScreenPos(icon_pos + ImVec2(4, 4));
-                        std::string type_string = "?";
+                        std::string type_string = "? ";
                         switch (item->mMediaType)
                         {
                             case SEQUENCER_ITEM_UNKNOWN: break;
-                            case SEQUENCER_ITEM_VIDEO: break;
-                            case SEQUENCER_ITEM_AUDIO: break;
-                            case SEQUENCER_ITEM_PICTURE: break;
-                            case SEQUENCER_ITEM_TEXT: break;
+                            case SEQUENCER_ITEM_VIDEO: type_string = std::string(ICON_FA5_FILE_VIDEO) + " "; break;
+                            case SEQUENCER_ITEM_AUDIO: type_string = std::string(ICON_FA5_FILE_AUDIO) + " "; break;
+                            case SEQUENCER_ITEM_PICTURE: type_string = std::string(ICON_FA5_FILE_IMAGE) + " "; break;
+                            case SEQUENCER_ITEM_TEXT: type_string = std::string(ICON_FA5_FILE_CODE) + " "; break;
                             default: break;
                         }
                         type_string += TimestampToString(media_length);
