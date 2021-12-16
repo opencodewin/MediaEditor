@@ -1,6 +1,7 @@
 #include <thread>
 #include <mutex>
 #include <iostream>
+#include <sstream>
 #include <iomanip>
 #include <list>
 #include <atomic>
@@ -1336,8 +1337,13 @@ private:
     int m_audStmIdx{-1};
     AVStream* m_vidStream{nullptr};
     AVStream* m_audStream{nullptr};
+#if LIBAVFORMAT_VERSION_MAJOR >= 59
     const AVCodec* m_viddec{nullptr};
     const AVCodec* m_auddec{nullptr};
+#else
+    AVCodec* m_viddec{nullptr};
+    AVCodec* m_auddec{nullptr};
+#endif
     AVCodecContext* m_viddecCtx{nullptr};
     AVCodecContext* m_auddecCtx{nullptr};
     AVPixelFormat m_vidHwPixFmt{AV_PIX_FMT_NONE};

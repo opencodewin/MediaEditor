@@ -24,7 +24,7 @@ static float g_windowFrames = 10.0f;
 static vector<ImTextureID> g_snapshotTids;
 ImVec2 g_snapImageSize;
 const string c_imguiIniPath = "ms_test.ini";
-const string c_bookmarkPath = "ms_test_bookmark.ini";
+const string c_bookmarkPath = "bookmark.ini";
 #if IMGUI_VULKAN_SHADER
 ImGui::ColorConvert_vulkan * m_yuv2rgb {nullptr};
 #endif
