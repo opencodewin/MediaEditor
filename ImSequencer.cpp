@@ -100,7 +100,10 @@ bool Sequencer(SequenceInterface *sequence, int *currentFrame, bool *expanded, i
                 // check size?
                 ImSequencer::SequenceItem * item = (ImSequencer::SequenceItem*)payload->Data;
                 ImSequencer::MediaSequence * seq = (ImSequencer::MediaSequence *)sequence;
-                seq->m_Items.push_back(*item);
+                SequenceItem * new_item = new SequenceItem(item->mName, item->mPath, item->mFrameStart, item->mFrameEnd, true);
+                if (new_item->mFrameEnd > sequence->GetFrameMax())
+                    sequence->SetFrameMax(new_item->mFrameEnd);
+                seq->m_Items.push_back(new_item);
             }
             ImGui::EndDragDropTarget();
         }
@@ -136,12 +139,15 @@ bool Sequencer(SequenceInterface *sequence, int *currentFrame, bool *expanded, i
                 ImSequencer::SequenceItem * item = (ImSequencer::SequenceItem*)payload->Data;
                 ImSequencer::MediaSequence * seq = (ImSequencer::MediaSequence *)sequence;
                 auto length = item->mFrameEnd - item->mFrameStart;
+                SequenceItem * new_item = new SequenceItem(item->mName, item->mPath, 0, 100, true);
                 if (currentFrame && firstFrame && *currentFrame >= *firstFrame && *currentFrame <= sequence->GetFrameMax())
-                    item->mFrameStart = *currentFrame;
+                    new_item->mFrameStart = *currentFrame;
                 else
-                    item->mFrameStart = *firstFrame;
-                item->mFrameEnd = item->mFrameStart + length;
-                seq->m_Items.push_back(*item);
+                    new_item->mFrameStart = *firstFrame;
+                new_item->mFrameEnd = new_item->mFrameStart + length;
+                if (new_item->mFrameEnd > sequence->GetFrameMax())
+                    sequence->SetFrameMax(new_item->mFrameEnd);
+                seq->m_Items.push_back(new_item);
             }
             ImGui::EndDragDropTarget();
         }
@@ -249,6 +255,9 @@ bool Sequencer(SequenceInterface *sequence, int *currentFrame, bool *expanded, i
                 bool overDel = SequencerAddDelButton(draw_list, ImVec2(contentMin.x + legendWidth - ItemHeight + 2 - 10, tpos.y + 2), false);
                 if (overDel && io.MouseReleased[0])
                     delEntry = i;
+            }
+            if (sequenceOptions & SEQUENCER_ADD)
+            {
                 bool overDup = SequencerAddDelButton(draw_list, ImVec2(contentMin.x + legendWidth - ItemHeight - ItemHeight + 2 - 10, tpos.y + 2), true);
                 if (overDup && io.MouseReleased[0])
                     dupEntry = i;
@@ -295,14 +304,15 @@ bool Sequencer(SequenceInterface *sequence, int *currentFrame, bool *expanded, i
         customHeight = 0;
         for (int i = 0; i < sequenceCount; i++)
         {
-            int *start, *end;
+            int start, end;
+            std::string name;
             unsigned int color;
-            sequence->Get(i, &start, &end, NULL, &color);
+            sequence->Get(i, start, end, name, color);
             size_t localCustomHeight = sequence->GetCustomHeight(i);
             ImVec2 pos = ImVec2(contentMin.x + legendWidth - firstFrameUsed * framePixelWidth, contentMin.y + ItemHeight * i + 1 + customHeight);
-            ImVec2 slotP1(pos.x + *start * framePixelWidth, pos.y + 2);
-            ImVec2 slotP2(pos.x + *end * framePixelWidth + framePixelWidth, pos.y + ItemHeight - 2);
-            ImVec2 slotP3(pos.x + *end * framePixelWidth + framePixelWidth, pos.y + ItemHeight - 2 + localCustomHeight);
+            ImVec2 slotP1(pos.x + start * framePixelWidth, pos.y + 2);
+            ImVec2 slotP2(pos.x + end * framePixelWidth + framePixelWidth, pos.y + ItemHeight - 2);
+            ImVec2 slotP3(pos.x + end * framePixelWidth + framePixelWidth, pos.y + ItemHeight - 2 + localCustomHeight);
             unsigned int slotColor = color | 0xFF000000;
             unsigned int slotColorHalf = (color & 0xFFFFFF) | 0x40000000;
             if (slotP1.x <= (canvas_size.x + contentMin.x) && slotP2.x >= (contentMin.x + legendWidth))
@@ -374,12 +384,14 @@ bool Sequencer(SequenceInterface *sequence, int *currentFrame, bool *expanded, i
             int diffFrame = int((cx - movingPos) / framePixelWidth);
             if (std::abs(diffFrame) > 0)
             {
-                int *start, *end;
-                sequence->Get(movingEntry, &start, &end, NULL, NULL);
+                int start, end;
+                std::string name;
+                unsigned int color;
+                sequence->Get(movingEntry, start, end, name, color);
                 if (selectedEntry)
                     *selectedEntry = movingEntry;
-                int &l = *start;
-                int &r = *end;
+                int &l = start;
+                int &r = end;
                 if (movingPart & 1)
                     l += diffFrame;
                 if (movingPart & 2)

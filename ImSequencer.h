@@ -3,6 +3,7 @@
 #include "imgui.h"
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include "imgui_internal.h"
+#include "MediaSnapshot.h"
 #include <string>
 #include <vector>
 
@@ -23,12 +24,14 @@ struct SequenceInterface
     bool focused = false;
     virtual int GetFrameMin() const = 0;
     virtual int GetFrameMax() const = 0;
+    virtual void SetFrameMin(int pos) = 0;
+    virtual void SetFrameMax(int pos) = 0;
     virtual int GetItemCount() const = 0;
     virtual void BeginEdit(int /*index*/) {}
     virtual void EndEdit() {}
     virtual const char *GetItemLabel(int /*index*/) const { return ""; }
     virtual const char *GetCollapseFmt() const { return "%d Frames / %d entries"; }
-    virtual void Get(int index, int **start, int **end, const char **name, unsigned int *color) = 0;
+    virtual void Get(int index, int& start, int& end, std::string& name, unsigned int& color) = 0;
     virtual void Add(std::string& /*type*/) {}
     virtual void Del(int /*index*/) {}
     virtual void Duplicate(int /*index*/) {}
@@ -45,8 +48,11 @@ struct SequenceItem
 {
     std::string mName;
     std::string mPath;
-    int mFrameStart, mFrameEnd;
-    bool mExpanded;
+    int mFrameStart {0};
+    int mFrameEnd   {0};
+    bool mExpanded  {false};
+    MediaSnapshot* mMedia   {nullptr};
+    ImTextureID mMediaSnapshot  {nullptr};
     SequenceItem(const std::string& name, const std::string& path, int start, int end, bool expand)
     {
         mName = name;
@@ -54,6 +60,24 @@ struct SequenceItem
         mFrameStart = start;
         mFrameEnd = end;
         mExpanded = expand;
+        mMedia = CreateMediaSnapshot();
+        if (!path.empty() && mMedia)
+        {
+            mMedia->Open(path);
+        }
+        if (mMedia && mMedia->IsOpened())
+        {
+            mFrameEnd = mMedia->GetVidoeFrameCount();
+        }
+    }
+    ~SequenceItem()
+    {
+        if (mMedia && mMedia->IsOpened())
+        {
+            mMedia->Close();
+        }
+        ReleaseMediaSnapshot(&mMedia);
+        mMedia = nullptr;
     }
 };
 
@@ -69,29 +93,33 @@ struct MediaSequence : public SequenceInterface
     {
         return mFrameMax;
     }
+    void SetFrameMin(int pos)
+    {
+        mFrameMin = pos;
+    }
+    void SetFrameMax(int pos)
+    {
+        mFrameMax = pos;
+    }
     int GetItemCount() const { return (int)m_Items.size(); }
     //int GetItemTypeCount() const { return sizeof(SequencerItemTypeNames) / sizeof(char *); }
     //const char *GetItemTypeName(int typeIndex) const { return SequencerItemTypeNames[typeIndex]; }
-    const char *GetItemLabel(int index) const  { return m_Items[index].mName.c_str(); }
-    void Get(int index, int **start, int **end, const char **name, unsigned int *color)
+    const char *GetItemLabel(int index) const  { return m_Items[index]->mName.c_str(); }
+    void Get(int index, int& start, int& end, std::string& name, unsigned int& color)
     {
-        SequenceItem &item = m_Items[index];
-        if (color)
-            *color = 0xFFAA8080; // same color for everyone, return color based on type
-        if (start)
-            *start = &item.mFrameStart;
-        if (end)
-            *end = &item.mFrameEnd;
-        if (name)
-            *name = item.mName.c_str();
+        SequenceItem *item = m_Items[index];
+        color = 0xFFAA8080; // same color for everyone, return color based on type
+        start = item->mFrameStart;
+        end = item->mFrameEnd;
+        name = item->mName;
     }
-    void Add(std::string& name) { m_Items.push_back(SequenceItem{name, "", 0, 10, false}); };
+    void Add(std::string& name) { /*m_Items.push_back(SequenceItem{name, "", 0, 10, false});*/ };
     void Del(int index) { m_Items.erase(m_Items.begin() + index); }
     void Duplicate(int index) { m_Items.push_back(m_Items[index]); }
-    size_t GetCustomHeight(int index) { return m_Items[index].mExpanded ? 40 : 0; }
+    size_t GetCustomHeight(int index) { return m_Items[index]->mExpanded ? 40 : 0; }
     void DoubleClick(int index)
     {
-        m_Items[index].mExpanded = !m_Items[index].mExpanded;
+        m_Items[index]->mExpanded = !m_Items[index]->mExpanded;
     }
     void CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRect)
     {
@@ -106,7 +134,7 @@ struct MediaSequence : public SequenceInterface
     }
 
     int mFrameMin, mFrameMax;
-    std::vector<SequenceItem> m_Items;
+    std::vector<SequenceItem *> m_Items;
 };
 
 } // namespace ImSequencer

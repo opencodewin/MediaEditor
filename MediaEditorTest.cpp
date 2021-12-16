@@ -73,8 +73,8 @@ bool Application_Frame(void * handle)
     static MediaSequence sequence;
     static bool play = false;
     static std::vector<SequenceItem *> media_items;
-    sequence.mFrameMin = 0;
-    sequence.mFrameMax = 2000;
+    //sequence.mFrameMin = 0;
+    //sequence.mFrameMax = 2000;
     ImGuiFileDialogFlags fflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_DisableCreateDirectoryButton;
     const std::string ffilters = "Video files (*.mp4 *.mov *.mkv *.avi *.ts){.mp4,.mov,.mkv,.avi,.ts},Image files (*.png *.gif *.jpg *.jpeg){.png,.gif,.jpg,.jpeg},All File(*.*){.*}";
     ImGuiIO& io = ImGui::GetIO(); (void)io;
