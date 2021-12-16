@@ -1067,6 +1067,7 @@ private:
 
                 if (m_vidpktQ.size() == 0 && m_demuxEof)
                 {
+                    // cout << "-------------> Video decoder send NULL packet to indicate EOF!" << endl;
                     avcodec_send_packet(m_viddecCtx, nullptr);
                     idleLoop = false;
                     inputEof = true;

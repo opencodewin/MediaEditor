@@ -1,4 +1,6 @@
 #include <iostream>
+#include <sstream>
+#include <iomanip>
 #include "FFUtils.h"
 extern "C"
 {
@@ -7,6 +9,31 @@ extern "C"
 }
 
 using namespace std;
+
+string MillisecToString(int64_t millisec)
+{
+    ostringstream oss;
+    if (millisec < 0)
+    {
+        oss << "-";
+        millisec = -millisec;
+    }
+    uint64_t t = (uint64_t) millisec;
+    uint32_t milli = (uint32_t)(t%1000); t /= 1000;
+    uint32_t sec = (uint32_t)(t%60); t /= 60;
+    uint32_t min = (uint32_t)(t%60); t /= 60;
+    uint32_t hour = (uint32_t)t;
+    oss << setfill('0') << setw(2) << hour << ':'
+        << setw(2) << min << ':'
+        << setw(2) << sec << '.'
+        << setw(3) << milli;
+    return oss.str();
+}
+
+string TimestampToString(double timestamp)
+{
+    return MillisecToString((int64_t)(timestamp*1000));
+}
 
 bool ConvertAVFrameToImMat(const AVFrame* avfrm, ImGui::ImMat& vmat, double timestamp)
 {
