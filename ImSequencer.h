@@ -9,6 +9,16 @@
 
 namespace ImSequencer
 {
+enum SEQUENCER_ITEM_TYPE : int
+{
+    SEQUENCER_ITEM_UNKNOWN = -1,
+    SEQUENCER_ITEM_VIDEO = 0,
+    SEQUENCER_ITEM_AUDIO = 1,
+    SEQUENCER_ITEM_PICTURE = 2,
+    SEQUENCER_ITEM_TEXT = 3,
+    // ...
+};
+
 enum SEQUENCER_OPTIONS
 {
     SEQUENCER_EDIT_NONE = 0,
@@ -19,6 +29,7 @@ enum SEQUENCER_OPTIONS
     SEQUENCER_COPYPASTE = 1 << 6,
     SEQUENCER_EDIT_ALL = SEQUENCER_EDIT_STARTEND | SEQUENCER_CHANGE_FRAME
 };
+
 struct SequenceInterface
 {
     bool focused = false;
@@ -51,87 +62,33 @@ struct SequenceItem
     int mFrameStart {0};
     int mFrameEnd   {0};
     bool mExpanded  {false};
+    int mMediaType {SEQUENCER_ITEM_UNKNOWN};
     MediaSnapshot* mMedia   {nullptr};
     ImTextureID mMediaSnapshot  {nullptr};
-    SequenceItem(const std::string& name, const std::string& path, int start, int end, bool expand)
-    {
-        mName = name;
-        mPath = path;
-        mFrameStart = start;
-        mFrameEnd = end;
-        mExpanded = expand;
-        mMedia = CreateMediaSnapshot();
-        if (!path.empty() && mMedia)
-        {
-            mMedia->Open(path);
-        }
-        if (mMedia && mMedia->IsOpened())
-        {
-            mFrameEnd = mMedia->GetVidoeFrameCount();
-        }
-    }
-    ~SequenceItem()
-    {
-        if (mMedia && mMedia->IsOpened())
-        {
-            mMedia->Close();
-        }
-        ReleaseMediaSnapshot(&mMedia);
-        mMedia = nullptr;
-    }
+    SequenceItem(const std::string& name, const std::string& path, int start, int end, bool expand, int type);
+    ~SequenceItem();
+    void SequenceItemUpdateSnapShot();
 };
 
 struct MediaSequence : public SequenceInterface
 {
     MediaSequence() : mFrameMin(0), mFrameMax(0) {}
+    ~MediaSequence();
     // interface with sequencer
-    int GetFrameMin() const
-    {
-        return mFrameMin;
-    }
-    int GetFrameMax() const
-    {
-        return mFrameMax;
-    }
-    void SetFrameMin(int pos)
-    {
-        mFrameMin = pos;
-    }
-    void SetFrameMax(int pos)
-    {
-        mFrameMax = pos;
-    }
+    int GetFrameMin() const { return mFrameMin; }
+    int GetFrameMax() const { return mFrameMax; }
+    void SetFrameMin(int pos) { mFrameMin = pos; }
+    void SetFrameMax(int pos) { mFrameMax = pos; }
     int GetItemCount() const { return (int)m_Items.size(); }
-    //int GetItemTypeCount() const { return sizeof(SequencerItemTypeNames) / sizeof(char *); }
-    //const char *GetItemTypeName(int typeIndex) const { return SequencerItemTypeNames[typeIndex]; }
     const char *GetItemLabel(int index) const  { return m_Items[index]->mName.c_str(); }
-    void Get(int index, int& start, int& end, std::string& name, unsigned int& color)
-    {
-        SequenceItem *item = m_Items[index];
-        color = 0xFFAA8080; // same color for everyone, return color based on type
-        start = item->mFrameStart;
-        end = item->mFrameEnd;
-        name = item->mName;
-    }
-    void Add(std::string& name) { /*m_Items.push_back(SequenceItem{name, "", 0, 10, false});*/ };
-    void Del(int index) { m_Items.erase(m_Items.begin() + index); }
-    void Duplicate(int index) { m_Items.push_back(m_Items[index]); }
+    void Get(int index, int& start, int& end, std::string& name, unsigned int& color);
+    void Add(std::string& name);
+    void Del(int index);
+    void Duplicate(int index);
     size_t GetCustomHeight(int index) { return m_Items[index]->mExpanded ? 40 : 0; }
-    void DoubleClick(int index)
-    {
-        m_Items[index]->mExpanded = !m_Items[index]->mExpanded;
-    }
-    void CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRect)
-    {
-        draw_list->PushClipRect(legendClippingRect.Min, legendClippingRect.Max, true);
-        draw_list->PopClipRect();
-        ImGui::SetCursorScreenPos(rc.Min);
-    }
-    void CustomDrawCompact(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &clippingRect)
-    {
-        draw_list->PushClipRect(clippingRect.Min, clippingRect.Max, true);
-        draw_list->PopClipRect();
-    }
+    void DoubleClick(int index) { m_Items[index]->mExpanded = !m_Items[index]->mExpanded; }
+    void CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRect);
+    void CustomDrawCompact(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &clippingRect);
 
     int mFrameMin, mFrameMax;
     std::vector<SequenceItem *> m_Items;

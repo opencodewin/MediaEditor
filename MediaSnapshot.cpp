@@ -176,6 +176,24 @@ public:
     {
         return m_vidFrameCount;
     }
+    
+    uint32_t GetVideoWidth() const override
+    {
+        if (m_vidStream)
+        {
+            return m_vidStream->codecpar->width;
+        }
+        return 0;
+    }
+
+    uint32_t GetVideoHeight() const override
+    {
+        if (m_vidStream)
+        {
+            return m_vidStream->codecpar->height;
+        }
+        return 0;
+    }
 
     bool ConfigSnapWindow(double windowSize, double frameCount) override
     {
@@ -287,7 +305,7 @@ private:
 #endif
 
         m_vidStmIdx = av_find_best_stream(m_avfmtCtx, AVMEDIA_TYPE_VIDEO, -1, -1, &m_viddec, 0);
-        // m_audStmIdx = av_find_best_stream(m_avfmtCtx, AVMEDIA_TYPE_AUDIO, -1, -1, &m_auddec, 0);
+        m_audStmIdx = av_find_best_stream(m_avfmtCtx, AVMEDIA_TYPE_AUDIO, -1, -1, &m_auddec, 0);
         if (m_vidStmIdx < 0 && m_audStmIdx < 0)
         {
             ostringstream oss;

@@ -1,4 +1,5 @@
 #include "ImSequencer.h"
+#include <imgui_helper.h>
 #include <cmath>
 
 namespace ImSequencer
@@ -100,7 +101,7 @@ bool Sequencer(SequenceInterface *sequence, int *currentFrame, bool *expanded, i
                 // check size?
                 ImSequencer::SequenceItem * item = (ImSequencer::SequenceItem*)payload->Data;
                 ImSequencer::MediaSequence * seq = (ImSequencer::MediaSequence *)sequence;
-                SequenceItem * new_item = new SequenceItem(item->mName, item->mPath, item->mFrameStart, item->mFrameEnd, true);
+                SequenceItem * new_item = new SequenceItem(item->mName, item->mPath, item->mFrameStart, item->mFrameEnd, true, item->mMediaType);
                 if (new_item->mFrameEnd > sequence->GetFrameMax())
                     sequence->SetFrameMax(new_item->mFrameEnd);
                 seq->m_Items.push_back(new_item);
@@ -139,7 +140,7 @@ bool Sequencer(SequenceInterface *sequence, int *currentFrame, bool *expanded, i
                 ImSequencer::SequenceItem * item = (ImSequencer::SequenceItem*)payload->Data;
                 ImSequencer::MediaSequence * seq = (ImSequencer::MediaSequence *)sequence;
                 auto length = item->mFrameEnd - item->mFrameStart;
-                SequenceItem * new_item = new SequenceItem(item->mName, item->mPath, 0, 100, true);
+                SequenceItem * new_item = new SequenceItem(item->mName, item->mPath, 0, 100, true, item->mMediaType);
                 if (currentFrame && firstFrame && *currentFrame >= *firstFrame && *currentFrame <= sequence->GetFrameMax())
                     new_item->mFrameStart = *currentFrame;
                 else
@@ -629,4 +630,113 @@ bool Sequencer(SequenceInterface *sequence, int *currentFrame, bool *expanded, i
     }
     return ret;
 }
+
+/***********************************************************************************************************
+ * SequenceItem Struct Member Functions
+ ***********************************************************************************************************/
+
+SequenceItem::SequenceItem(const std::string& name, const std::string& path, int start, int end, bool expand, int type)
+{
+    mName = name;
+    mPath = path;
+    mFrameStart = start;
+    mFrameEnd = end;
+    mExpanded = expand;
+    mMediaType = type;
+    mMedia = CreateMediaSnapshot();
+    if (!path.empty() && mMedia)
+    {
+        mMedia->Open(path);
+    }
+    if (mMedia && mMedia->IsOpened())
+    {
+        mFrameEnd = mMedia->GetVidoeFrameCount();
+        mMedia->ConfigSnapWindow(1.f, 10);
+    }
+}
+
+SequenceItem::~SequenceItem()
+{
+    if (mMedia && mMedia->IsOpened())
+    {
+        mMedia->Close();
+    }
+    ReleaseMediaSnapshot(&mMedia);
+    mMedia = nullptr;
+    if (mMediaSnapshot)
+    {
+        ImGui::ImDestroyTexture(mMediaSnapshot); 
+        mMediaSnapshot = nullptr;
+    }
+}
+
+void SequenceItem::SequenceItemUpdateSnapShot()
+{
+    if (mMediaSnapshot)
+        return;
+    if (mMedia && mMedia->IsOpened())
+    {
+        auto pos = (float)mMedia->GetVidoeMinPos()/1000.f;
+        std::vector<ImGui::ImMat> snapshots;
+        if (mMedia->GetSnapshots(snapshots, pos))
+        {
+            auto snap = snapshots[snapshots.size() / 2];
+            if (!snap.empty())
+            {
+                ImGui::ImGenerateOrUpdateTexture(mMediaSnapshot, snap.w, snap.h, snap.c, (const unsigned char *)snap.data);
+            }
+        }
+    }
+}
+
+/***********************************************************************************************************
+ * MediaSequence Struct Member Functions
+ ***********************************************************************************************************/
+
+MediaSequence::~MediaSequence()
+{
+    for (auto item : m_Items)
+    {
+        delete item;
+    }
+}
+
+void MediaSequence::Get(int index, int& start, int& end, std::string& name, unsigned int& color)
+{
+    SequenceItem *item = m_Items[index];
+    color = 0xFFAA8080; // same color for everyone, return color based on type
+    start = item->mFrameStart;
+    end = item->mFrameEnd;
+    name = item->mName;
+}
+
+void MediaSequence::Add(std::string& name)
+{ 
+    /*m_Items.push_back(SequenceItem{name, "", 0, 10, false});*/ 
+}
+    
+void MediaSequence::Del(int index)
+{
+    auto item = m_Items.erase(m_Items.begin() + index);
+    delete *item;
+}
+    
+void MediaSequence::Duplicate(int index)
+{
+    /*m_Items.push_back(m_Items[index]);*/
+}
+
+void MediaSequence::CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRect)
+{
+    draw_list->PushClipRect(legendClippingRect.Min, legendClippingRect.Max, true);
+    draw_list->PopClipRect();
+    ImGui::SetCursorScreenPos(rc.Min);
+}
+
+void MediaSequence::CustomDrawCompact(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &clippingRect)
+{
+    draw_list->PushClipRect(clippingRect.Min, clippingRect.Max, true);
+    draw_list->PopClipRect();
+}
+
 } // namespace ImSequencer

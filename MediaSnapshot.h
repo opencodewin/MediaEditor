@@ -19,6 +19,8 @@ struct MediaSnapshot
     virtual bool ConfigSnapWindow(double windowSize, double frameCount) = 0;
     virtual double GetMinWindowSize() const = 0;
     virtual double GetMaxWindowSize() const = 0;
+    virtual uint32_t GetVideoWidth() const = 0;
+    virtual uint32_t GetVideoHeight() const = 0;
     virtual bool SetSnapshotSize(uint32_t width, uint32_t height) = 0;
 
     virtual std::string GetError() const = 0;
