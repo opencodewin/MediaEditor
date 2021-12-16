@@ -43,6 +43,7 @@ struct SequenceInterface
     virtual const char *GetItemLabel(int /*index*/) const { return ""; }
     virtual const char *GetCollapseFmt() const { return "%d Frames / %d entries"; }
     virtual void Get(int index, int& start, int& end, std::string& name, unsigned int& color) = 0;
+    virtual void Set(int index, int start, int end, std::string name, unsigned int color) = 0;
     virtual void Add(std::string& /*type*/) {}
     virtual void Del(int /*index*/) {}
     virtual void Duplicate(int /*index*/) {}
@@ -82,6 +83,7 @@ struct MediaSequence : public SequenceInterface
     int GetItemCount() const { return (int)m_Items.size(); }
     const char *GetItemLabel(int index) const  { return m_Items[index]->mName.c_str(); }
     void Get(int index, int& start, int& end, std::string& name, unsigned int& color);
+    void Set(int index, int start, int end, std::string name, unsigned int color);
     void Add(std::string& name);
     void Del(int index);
     void Duplicate(int index);

@@ -103,7 +103,7 @@ bool Sequencer(SequenceInterface *sequence, int *currentFrame, bool *expanded, i
                 ImSequencer::MediaSequence * seq = (ImSequencer::MediaSequence *)sequence;
                 SequenceItem * new_item = new SequenceItem(item->mName, item->mPath, item->mFrameStart, item->mFrameEnd, true, item->mMediaType);
                 if (new_item->mFrameEnd > sequence->GetFrameMax())
-                    sequence->SetFrameMax(new_item->mFrameEnd);
+                    sequence->SetFrameMax(new_item->mFrameEnd + 100);
                 seq->m_Items.push_back(new_item);
             }
             ImGui::EndDragDropTarget();
@@ -147,7 +147,7 @@ bool Sequencer(SequenceInterface *sequence, int *currentFrame, bool *expanded, i
                     new_item->mFrameStart = *firstFrame;
                 new_item->mFrameEnd = new_item->mFrameStart + length;
                 if (new_item->mFrameEnd > sequence->GetFrameMax())
-                    sequence->SetFrameMax(new_item->mFrameEnd);
+                    sequence->SetFrameMax(new_item->mFrameEnd + 100);
                 seq->m_Items.push_back(new_item);
             }
             ImGui::EndDragDropTarget();
@@ -299,7 +299,7 @@ bool Sequencer(SequenceInterface *sequence, int *currentFrame, bool *expanded, i
             for (int i = 0; i < *selectedEntry; i++)
                 customHeight += sequence->GetCustomHeight(i);
             ;
-            draw_list->AddRectFilled(ImVec2(contentMin.x, contentMin.y + ItemHeight * *selectedEntry + customHeight), ImVec2(contentMin.x + canvas_size.x, contentMin.y + ItemHeight * (*selectedEntry + 1) + customHeight), 0x801080FF, 1.f);
+            draw_list->AddRectFilled(ImVec2(contentMin.x, contentMin.y + ItemHeight * *selectedEntry + customHeight), ImVec2(contentMin.x + canvas_size.x, contentMin.y + ItemHeight * (*selectedEntry + 1) + customHeight), 0x80ff4040, 1.f);
         }
         // slots
         customHeight = 0;
@@ -391,8 +391,8 @@ bool Sequencer(SequenceInterface *sequence, int *currentFrame, bool *expanded, i
                 sequence->Get(movingEntry, start, end, name, color);
                 if (selectedEntry)
                     *selectedEntry = movingEntry;
-                int &l = start;
-                int &r = end;
+                int l = start;
+                int r = end;
                 if (movingPart & 1)
                     l += diffFrame;
                 if (movingPart & 2)
@@ -408,6 +408,9 @@ bool Sequencer(SequenceInterface *sequence, int *currentFrame, bool *expanded, i
                 if (movingPart & 2 && r < l)
                     r = l;
                 movingPos += int(diffFrame * framePixelWidth);
+                if (r > sequence->GetFrameMax())
+                    sequence->SetFrameMax(r + 100);
+                sequence->Set(movingEntry, l, r, name, color);
             }
             if (!io.MouseDown[0])
             {
@@ -708,6 +711,15 @@ void MediaSequence::Get(int index, int& start, int& end, std::string& name, unsi
     start = item->mFrameStart;
     end = item->mFrameEnd;
     name = item->mName;
+}
+
+void MediaSequence::Set(int index, int start, int end, std::string name, unsigned int color)
+{
+    SequenceItem *item = m_Items[index];
+    //color = 0xFFAA8080; // same color for everyone, return color based on type
+    item->mFrameStart = start;
+    item->mFrameEnd = end;
+    item->mName = name;
 }
 
 void MediaSequence::Add(std::string& name)
