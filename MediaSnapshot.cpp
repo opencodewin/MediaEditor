@@ -1,6 +1,7 @@
 #include <thread>
 #include <mutex>
 #include <iostream>
+#include <sstream>
 #include <iomanip>
 #include <list>
 #include <atomic>
@@ -48,6 +49,13 @@ public:
                 m_vidDuration = av_rescale_q(m_vidStream->duration, m_vidStream->time_base, MILLISEC_TIMEBASE);
             else
                 m_vidDuration = av_rescale_q(m_avfmtCtx->duration, FFAV_TIMEBASE, MILLISEC_TIMEBASE);
+            if (m_vidStream->nb_frames > 0)
+                m_vidFrameCount = m_vidStream->nb_frames;
+            else if (m_vidStream->r_frame_rate.den > 0)
+                m_vidFrameCount = m_vidDuration / 1000.f * m_vidStream->r_frame_rate.num / m_vidStream->r_frame_rate.den;
+            else if (m_vidStream->avg_frame_rate.den > 0)
+                m_vidFrameCount = m_vidDuration / 1000.f * m_vidStream->avg_frame_rate.num / m_vidStream->avg_frame_rate.den;
+
             m_vidfrmIntvMts = av_q2d(av_inv_q(m_vidStream->avg_frame_rate))*1000.;
             m_vidfrmIntvMtsHalf = ceil(m_vidfrmIntvMts)/2;
             m_vidfrmIntvPts = (m_vidStream->avg_frame_rate.den*m_vidStream->time_base.den)/(m_vidStream->avg_frame_rate.num*m_vidStream->time_base.num);
@@ -162,6 +170,11 @@ public:
     int64_t GetVidoeDuration() const override
     {
         return m_vidDuration;
+    }
+
+    int64_t GetVidoeFrameCount() const override
+    {
+        return m_vidFrameCount;
     }
 
     bool ConfigSnapWindow(double windowSize, double frameCount) override
@@ -1336,8 +1349,13 @@ private:
     int m_audStmIdx{-1};
     AVStream* m_vidStream{nullptr};
     AVStream* m_audStream{nullptr};
+#if LIBAVFORMAT_VERSION_MAJOR >= 59
     const AVCodec* m_viddec{nullptr};
     const AVCodec* m_auddec{nullptr};
+#else
+    AVCodec* m_viddec{nullptr};
+    AVCodec* m_auddec{nullptr};
+#endif
     AVCodecContext* m_viddecCtx{nullptr};
     AVCodecContext* m_auddecCtx{nullptr};
     AVPixelFormat m_vidHwPixFmt{AV_PIX_FMT_NONE};
@@ -1388,8 +1406,9 @@ private:
     bool m_quitScan{false};
 
     uint32_t m_ssWidth{0}, m_ssHeight{0};
-    int64_t m_vidStartMts;
-    int64_t m_vidDuration;
+    int64_t m_vidStartMts {0};
+    int64_t m_vidDuration {0};
+    int64_t m_vidFrameCount {0};
     uint32_t m_vidMaxIndex;
     double m_snapWindowSize;
     double m_windowFrameCount;

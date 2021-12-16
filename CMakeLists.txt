@@ -49,6 +49,25 @@ macro_log_feature(GOBJECT_FOUND "GObject" "GTK object-oriented framework" "http:
 
 pkg_search_module(SDL2 REQUIRED sdl2)
 pkg_search_module(SDL2_IMAGE REQUIRED SDL2_image>=2.0.0)
+
+
+#
+# FFMPEG
+#
+if(PKG_CONFIG_FOUND)
+    pkg_check_modules(
+        FFMPEG IMPORTED_TARGET
+        libavcodec
+        libavformat
+        libavutil
+        libswresample
+        libavfilter
+        libswscale
+        libavdevice
+    )
+    pkg_search_module(SDL2 REQUIRED sdl2)
+endif(PKG_CONFIG_FOUND)
+
 #
 # GSTREAMER
 #
@@ -85,13 +104,17 @@ macro_display_feature_log()
 
 set(MEDIA_EDITOR_BINARY "me")
 set(MEDIA_EDITOR_SRCS
-    main.cpp
+    MediaEditorTest.cpp
     ImSequencer.cpp
+    MediaSnapshot.cpp
+    FFUtils.cpp
     ${IMGUI_APP_ENTRY_SRC}
 )
 
 set(MEDIA_EDITOR_INCS
     ImSequencer.h
+    MediaSnapshot.h
+    FFUtils.h
 )
 
 add_executable(
@@ -102,14 +125,6 @@ add_executable(
 target_include_directories(
     ${MEDIA_EDITOR_BINARY} PRIVATE
     ${SDL2_INCLUDE_DIRS}
-    ${GLIB2_INCLUDE_DIR}
-    ${GSTREAMER_INCLUDE_DIR}
-    ${GSTREAMER_AUDIO_INCLUDE_DIR}
-    ${GSTREAMER_VIDEO_INCLUDE_DIR}
-    ${GSTREAMER_BASE_INCLUDE_DIR}
-    ${GSTREAMER_APP_INCLUDE_DIR}
-    ${GSTREAMER_PBUTILS_INCLUDE_DIR}
-    ${GSTREAMER_GL_INCLUDE_DIR}
     ${IMGUI_INCLUDE_DIR}
 )
 target_compile_definitions(${MEDIA_EDITOR_BINARY} PUBLIC APP_NAME="${MEDIA_EDITOR_BINARY}")
@@ -119,14 +134,7 @@ target_link_libraries(
     ${MEDIA_EDITOR_BINARY} 
     LINK_PRIVATE
     ${IMGUI_LIBRARYS}
-    ${GOBJECT_LIBRARIES}
-    ${GSTREAMER_LIBRARY}
-    ${GSTREAMER_BASE_LIBRARY}
-    ${GSTREAMER_APP_LIBRARY}
-    ${GSTREAMER_AUDIO_LIBRARY}
-    ${GSTREAMER_VIDEO_LIBRARY}
-    ${GSTREAMER_PBUTILS_LIBRARY}
-    ${GSTREAMER_GL_LIBRARY}
+    PkgConfig::FFMPEG
     Threads::Threads
 )
 
@@ -203,10 +211,7 @@ add_executable(
 target_link_libraries(
     mp_ff
     ${IMGUI_LIBRARYS}
-    avformat
-    avutil
-    avcodec
-    swresample
+    PkgConfig::FFMPEG
 )
 target_compile_definitions(mp_ff PUBLIC APP_NAME="mp_ff")
 
@@ -220,9 +225,6 @@ add_executable(
 target_link_libraries(
     snapshot_test
     ${IMGUI_LIBRARYS}
-    avformat
-    avutil
-    avcodec
-    swresample
+    PkgConfig::FFMPEG
 )
 target_compile_definitions(snapshot_test PUBLIC APP_NAME="snapshot_test")
