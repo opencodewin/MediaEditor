@@ -194,6 +194,7 @@ add_executable(
     player_ff.cpp
     AudioRender_Impl_Sdl2.cpp
     MediaPlayer_FFImpl.cpp
+    FFUtils.cpp
     SystemToolkit.cpp
     ImGuiToolkit_NoGst.cpp
     Log_NoGst.cpp
@@ -208,3 +209,20 @@ target_link_libraries(
     swresample
 )
 target_compile_definitions(mp_ff PUBLIC APP_NAME="mp_ff")
+
+add_executable(
+    snapshot_test
+    MediaSnapshotTest.cpp
+    MediaSnapshot.cpp
+    FFUtils.cpp
+    ${IMGUI_APP_ENTRY_SRC}
+)
+target_link_libraries(
+    snapshot_test
+    ${IMGUI_LIBRARYS}
+    avformat
+    avutil
+    avcodec
+    swresample
+)
+target_compile_definitions(snapshot_test PUBLIC APP_NAME="snapshot_test")
