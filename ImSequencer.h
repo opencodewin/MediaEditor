@@ -42,8 +42,8 @@ struct SequenceInterface
     virtual void EndEdit() {}
     virtual const char *GetItemLabel(int /*index*/) const { return ""; }
     virtual const char *GetCollapseFmt() const { return "%d Frames / %d entries"; }
-    virtual void Get(int index, int& start, int& end, std::string& name, unsigned int& color) = 0;
-    virtual void Set(int index, int start, int end, std::string name, unsigned int color) = 0;
+    virtual void Get(int index, int64_t& start, int64_t& end, std::string& name, unsigned int& color) = 0;
+    virtual void Set(int index, int64_t   start, int64_t end, std::string  name, unsigned int  color) = 0;
     virtual void Add(std::string& /*type*/) {}
     virtual void Del(int /*index*/) {}
     virtual void Duplicate(int /*index*/) {}
@@ -61,13 +61,13 @@ struct SequenceItem
     std::string mName;
     std::string mPath;
     unsigned int mColor {0};
-    int mFrameStart {0};
-    int mFrameEnd   {0};
+    int64_t mFrameStart {0};
+    int64_t mFrameEnd   {0};
     bool mExpanded  {false};
     int mMediaType {SEQUENCER_ITEM_UNKNOWN};
     MediaSnapshot* mMedia   {nullptr};
     ImTextureID mMediaSnapshot  {nullptr};
-    SequenceItem(const std::string& name, const std::string& path, int start, int end, bool expand, int type);
+    SequenceItem(const std::string& name, const std::string& path, int64_t start, int64_t end, bool expand, int type);
     ~SequenceItem();
     void SequenceItemUpdateSnapShot();
 };
@@ -83,8 +83,8 @@ struct MediaSequence : public SequenceInterface
     void SetFrameMax(int pos) { mFrameMax = pos; }
     int GetItemCount() const { return (int)m_Items.size(); }
     const char *GetItemLabel(int index) const  { return m_Items[index]->mName.c_str(); }
-    void Get(int index, int& start, int& end, std::string& name, unsigned int& color);
-    void Set(int index, int start, int end, std::string name, unsigned int color);
+    void Get(int index, int64_t& start, int64_t& end, std::string& name, unsigned int& color);
+    void Set(int index, int64_t  start, int64_t  end, std::string  name, unsigned int  color);
     void Add(std::string& name);
     void Del(int index);
     void Duplicate(int index);
@@ -93,7 +93,8 @@ struct MediaSequence : public SequenceInterface
     void CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRect);
     void CustomDrawCompact(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &clippingRect);
 
-    int mFrameMin, mFrameMax;
+    int64_t mFrameMin   {0}; 
+    int64_t mFrameMax   {0};
     std::vector<SequenceItem *> m_Items;
 };
 

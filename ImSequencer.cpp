@@ -353,7 +353,7 @@ bool Sequencer(SequenceInterface *sequence, int *currentFrame, bool *expanded, i
         customHeight = 0;
         for (int i = 0; i < sequenceCount; i++)
         {
-            int start, end;
+            int64_t start, end;
             std::string name;
             unsigned int color;
             sequence->Get(i, start, end, name, color);
@@ -438,14 +438,14 @@ bool Sequencer(SequenceInterface *sequence, int *currentFrame, bool *expanded, i
             int diffFrame = int((cx - movingPos) / framePixelWidth);
             if (std::abs(diffFrame) > 0)
             {
-                int start, end;
+                int64_t start, end;
                 std::string name;
                 unsigned int color;
                 sequence->Get(movingEntry, start, end, name, color);
                 if (selectedEntry)
                     *selectedEntry = movingEntry;
-                int l = start;
-                int r = end;
+                int64_t l = start;
+                int64_t r = end;
                 if (movingPart & 1)
                     l += diffFrame;
                 if (movingPart & 2)
@@ -692,7 +692,7 @@ bool Sequencer(SequenceInterface *sequence, int *currentFrame, bool *expanded, i
  * SequenceItem Struct Member Functions
  ***********************************************************************************************************/
 
-SequenceItem::SequenceItem(const std::string& name, const std::string& path, int start, int end, bool expand, int type)
+SequenceItem::SequenceItem(const std::string& name, const std::string& path, int64_t start, int64_t end, bool expand, int type)
 {
     mName = name;
     mPath = path;
@@ -759,7 +759,7 @@ MediaSequence::~MediaSequence()
     }
 }
 
-void MediaSequence::Get(int index, int& start, int& end, std::string& name, unsigned int& color)
+void MediaSequence::Get(int index, int64_t& start, int64_t& end, std::string& name, unsigned int& color)
 {
     SequenceItem *item = m_Items[index];
     color = item->mColor;
@@ -768,7 +768,7 @@ void MediaSequence::Get(int index, int& start, int& end, std::string& name, unsi
     name = item->mName;
 }
 
-void MediaSequence::Set(int index, int start, int end, std::string name, unsigned int color)
+void MediaSequence::Set(int index, int64_t start, int64_t end, std::string name, unsigned int color)
 {
     SequenceItem *item = m_Items[index];
     item->mColor = color;
