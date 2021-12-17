@@ -710,16 +710,13 @@ SequenceItem::SequenceItem(const std::string& name, const std::string& path, int
     {
         double window_size = 1.0f;
         mEnd = mMedia->GetVidoeFrameCount();
+        mMedia->SetSnapshotResizeFactor(0.25, 0.25);
         mMedia->ConfigSnapWindow(window_size, 10);
     }
 }
 
 SequenceItem::~SequenceItem()
 {
-    if (mMedia && mMedia->IsOpened())
-    {
-        mMedia->Close();
-    }
     ReleaseMediaSnapshot(&mMedia);
     mMedia = nullptr;
     if (mMediaSnapshot)
@@ -742,7 +739,15 @@ void SequenceItem::SequenceItemUpdateSnapShot()
             auto snap = snapshots[snapshots.size() / 2];
             if (!snap.empty())
             {
-                ImGui::ImGenerateOrUpdateTexture(mMediaSnapshot, snap.w, snap.h, snap.c, (const unsigned char *)snap.data);
+                if (snap.device == ImDataDevice::IM_DD_CPU)
+                {
+                    ImGui::ImGenerateOrUpdateTexture(mMediaSnapshot, snap.w, snap.h, snap.c, (const unsigned char *)snap.data);
+                }
+                if (snap.device == ImDataDevice::IM_DD_VULKAN)
+                {
+                    ImGui::VkMat vkmat = snap;
+                    ImGui::ImGenerateOrUpdateTexture(mMediaSnapshot, vkmat.w, vkmat.h, vkmat.c, vkmat.buffer_offset(), (const unsigned char *)vkmat.buffer());
+                }
             }
         }
     }

@@ -13,6 +13,9 @@ using namespace ImSequencer;
 
 static std::string bookmark_path = "bookmark.ini";
 
+static MediaSequence * sequence = nullptr;
+static std::vector<SequenceItem *> media_items;
+
 static bool Splitter(bool split_vertically, float thickness, float* size1, float* size2, float min_size1, float min_size2, float splitter_long_axis_size = -1.0f)
 {
 	using namespace ImGui;
@@ -49,10 +52,13 @@ void Application_Initialize(void** handle)
 		docFile.close();
 	}
 #endif
+    sequence = new MediaSequence();
 }
 
 void Application_Finalize(void** handle)
 {
+    for (auto item : media_items) delete item;
+    if (sequence) delete sequence;
 #ifdef USE_BOOKMARK
 	// save bookmarks
 	std::ofstream configFileWriter(bookmark_path, std::ios::out);
@@ -74,9 +80,7 @@ bool Application_Frame(void * handle)
     static int64_t currentTime = 0;
     static int64_t firstTime = 0;
     static int64_t lastTime = 0;
-    static MediaSequence sequence;
     static bool play = false;
-    static std::vector<SequenceItem *> media_items;
     ImGuiFileDialogFlags fflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_DisableCreateDirectoryButton;
     const std::string ffilters = "Video files (*.mp4 *.mov *.mkv *.avi *.webm *.ts){.mp4,.mov,.mkv,.avi,.webm,.ts},Audio files (*.wav *.mp3 *.aac *.ogg *.ac3 *.dts){.wav,.mp3,.aac,.ogg,.ac3,.dts},Image files (*.png *.gif *.jpg *.jpeg *.tiff *.webp){.png,.gif,.jpg,.jpeg,.tiff,.webp},All File(*.*){.*}";
     ImGuiIO& io = ImGui::GetIO(); (void)io;
@@ -277,7 +281,7 @@ bool Application_Frame(void * handle)
     bool _expanded = expanded;
     if (ImGui::BeginChild("##Sequencor", panel_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
     {
-        ImSequencer::Sequencer(&sequence, &currentTime, &_expanded, &selectedEntry, &firstTime, &lastTime, ImSequencer::SEQUENCER_EDIT_STARTEND | ImSequencer::SEQUENCER_CHANGE_TIME | ImSequencer::SEQUENCER_DEL);
+        ImSequencer::Sequencer(sequence, &currentTime, &_expanded, &selectedEntry, &firstTime, &lastTime, ImSequencer::SEQUENCER_EDIT_STARTEND | ImSequencer::SEQUENCER_CHANGE_TIME | ImSequencer::SEQUENCER_DEL);
         if (selectedEntry != -1)
         {
             //const ImSequencer::MediaSequence::SequenceItem &item = sequence.m_Items[selectedEntry];
