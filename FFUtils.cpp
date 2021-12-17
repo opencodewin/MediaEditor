@@ -481,23 +481,23 @@ bool AVFrameToImMatConverter::ConvertImage(const AVFrame* avfrm, ImGui::ImMat& o
                 m_errMsg = "FAILED to allocate AVFrame to perform 'swscale'!";
                 return false;
             }
-            int fferr = sws_scale_frame(m_swsCtx, swsfrm.get(), avfrm);
-            if (fferr < 0)
-            {
-                m_errMsg = string("FAILED to invoke 'sws_scale_frame()'! fferr = ")+to_string(fferr)+".";
-                return false;
-            }
-            // swsfrm->width = outWidth;
-            // swsfrm->height = outHeight;
-            // swsfrm->format = (int)m_swsOutFormat;
-            // int fferr = av_frame_get_buffer(swsfrm, 0);
+            // int fferr = sws_scale_frame(m_swsCtx, swsfrm.get(), avfrm);
             // if (fferr < 0)
             // {
-            //     m_errMsg = string("FAILED to invoke 'av_frame_get_buffer()' for 'swsfrm'! fferr = ")+to_string(fferr)+".";
-            //     av_frame_free(&swsfrm);
+            //     m_errMsg = string("FAILED to invoke 'sws_scale_frame()'! fferr = ")+to_string(fferr)+".";
             //     return false;
             // }
-            // fferr = sws_scale(m_swsCtx, avfrm->data, avfrm->linesize, 0, avfrm->height, swsfrm->data, swsfrm->linesize);
+            AVFrame* pfrm = swsfrm.get();
+            pfrm->width = outWidth;
+            pfrm->height = outHeight;
+            pfrm->format = (int)m_swsOutFormat;
+            int fferr = av_frame_get_buffer(pfrm, 0);
+            if (fferr < 0)
+            {
+                m_errMsg = string("FAILED to invoke 'av_frame_get_buffer()' for 'swsfrm'! fferr = ")+to_string(fferr)+".";
+                return false;
+            }
+            fferr = sws_scale(m_swsCtx, avfrm->data, avfrm->linesize, 0, avfrm->height, swsfrm->data, swsfrm->linesize);
             av_frame_copy_props(swsfrm.get(), avfrm);
             avfrm = swsfrm.get();
         }
