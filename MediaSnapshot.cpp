@@ -58,7 +58,10 @@ public:
 
             m_vidfrmIntvMts = av_q2d(av_inv_q(m_vidStream->avg_frame_rate))*1000.;
             m_vidfrmIntvMtsHalf = ceil(m_vidfrmIntvMts)/2;
-            m_vidfrmIntvPts = (m_vidStream->avg_frame_rate.den*m_vidStream->time_base.den)/(m_vidStream->avg_frame_rate.num*m_vidStream->time_base.num);
+            if (m_vidStream->avg_frame_rate.num*m_vidStream->time_base.num > 0)
+                m_vidfrmIntvPts = (m_vidStream->avg_frame_rate.den*m_vidStream->time_base.den)/(m_vidStream->avg_frame_rate.num*m_vidStream->time_base.num);
+            else
+                m_vidfrmIntvPts = 0;
             m_snapWnd.startPos = (double)m_vidStartMts/1000.;
         }
         return true;
@@ -175,6 +178,24 @@ public:
     int64_t GetVidoeFrameCount() const override
     {
         return m_vidFrameCount;
+    }
+    
+    uint32_t GetVideoWidth() const override
+    {
+        if (m_vidStream)
+        {
+            return m_vidStream->codecpar->width;
+        }
+        return 0;
+    }
+
+    uint32_t GetVideoHeight() const override
+    {
+        if (m_vidStream)
+        {
+            return m_vidStream->codecpar->height;
+        }
+        return 0;
     }
 
     bool ConfigSnapWindow(double& windowSize, double frameCount) override
@@ -314,7 +335,7 @@ private:
         Log(DEBUG) << "Open '" << url << "' successfully. " << m_avfmtCtx->nb_streams << " streams are found." << endl;
 
         m_vidStmIdx = av_find_best_stream(m_avfmtCtx, AVMEDIA_TYPE_VIDEO, -1, -1, &m_viddec, 0);
-        // m_audStmIdx = av_find_best_stream(m_avfmtCtx, AVMEDIA_TYPE_AUDIO, -1, -1, &m_auddec, 0);
+        m_audStmIdx = av_find_best_stream(m_avfmtCtx, AVMEDIA_TYPE_AUDIO, -1, -1, &m_auddec, 0);
         if (m_vidStmIdx < 0 && m_audStmIdx < 0)
         {
             ostringstream oss;
@@ -358,7 +379,7 @@ private:
     bool ParseFile()
     {
         int fferr = 0;
-        int64_t lastKeyPts = m_vidStream->start_time-2;
+        int64_t lastKeyPts = m_vidStream ? m_vidStream->start_time-2 : 0;
         while (true)
         {
             fferr = avformat_seek_file(m_avfmtCtx, m_vidStmIdx, lastKeyPts+1, lastKeyPts+1, INT64_MAX, 0);

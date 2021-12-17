@@ -3,7 +3,11 @@
 #include <imgui_helper.h>
 #include <ImGuiFileDialog.h>
 #include "ImSequencer.h"
+#include "FFUtils.h"
 #include <sstream>
+
+#define ICON_MEDIA_VIDEO           u8"\ue04b"
+#define ICON_MEDIA_AUDIO           u8"\ue050"
 
 using namespace ImSequencer;
 
@@ -62,7 +66,7 @@ void Application_Finalize(void** handle)
 
 bool Application_Frame(void * handle)
 {
-    const float media_icon_size = 128; 
+    const float media_icon_size = 144; 
     const float tool_icon_size = 32;
     static bool show_about = false;
     static int selectedEntry = -1;
@@ -73,10 +77,8 @@ bool Application_Frame(void * handle)
     static MediaSequence sequence;
     static bool play = false;
     static std::vector<SequenceItem *> media_items;
-    //sequence.mFrameMin = 0;
-    //sequence.mFrameMax = 2000;
     ImGuiFileDialogFlags fflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_DisableCreateDirectoryButton;
-    const std::string ffilters = "Video files (*.mp4 *.mov *.mkv *.avi *.ts){.mp4,.mov,.mkv,.avi,.ts},Image files (*.png *.gif *.jpg *.jpeg){.png,.gif,.jpg,.jpeg},All File(*.*){.*}";
+    const std::string ffilters = "Video files (*.mp4 *.mov *.mkv *.avi *.webm *.ts){.mp4,.mov,.mkv,.avi,.webm,.ts},Audio files (*.wav *.mp3 *.aac *.ogg *.ac3 *.dts){.wav,.mp3,.aac,.ogg,.ac3,.dts},Image files (*.png *.gif *.jpg *.jpeg *.tiff *.webp){.png,.gif,.jpg,.jpeg,.tiff,.webp},All File(*.*){.*}";
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
                         ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | 
@@ -158,7 +160,35 @@ bool Application_Frame(void * handle)
                     {
                         ImGui::Dummy(ImVec2(x_offset, 0)); ImGui::SameLine();
                     }
-                    ImGui::Button(item->mName.c_str(), ImVec2(media_icon_size, media_icon_size));
+                    auto icon_pos = ImGui::GetCursorScreenPos();
+                    ImVec2 icon_size = ImVec2(media_icon_size, media_icon_size);
+                    if (item->mMediaSnapshot)
+                    {
+                        auto tex_w = ImGui::ImGetTextureWidth(item->mMediaSnapshot);
+                        auto tex_h = ImGui::ImGetTextureHeight(item->mMediaSnapshot);
+                        float aspectRatio = (float)tex_w / (float)tex_h;
+                        bool bViewisLandscape = icon_size.x >= icon_size.y ? true : false;
+                        bool bRenderisLandscape = aspectRatio > 1.f ? true : false;
+                        bool bNeedChangeScreenInfo = bViewisLandscape ^ bRenderisLandscape;
+                        float adj_w = bNeedChangeScreenInfo ? icon_size.y : icon_size.x;
+                        float adj_h = bNeedChangeScreenInfo ? icon_size.x : icon_size.y;
+                        float adj_x = adj_h * aspectRatio;
+                        float adj_y = adj_h;
+                        if (adj_x > adj_w) { adj_y *= adj_w / adj_x; adj_x = adj_w; }
+                        float offset_x = (icon_size.x - adj_x) / 2.0;
+                        float offset_y = (icon_size.y - adj_y) / 2.0;
+                        ImGui::PushID((void*)(intptr_t)item->mMediaSnapshot);
+                        const ImGuiID id = ImGui::GetCurrentWindow()->GetID("#image");
+                        ImGui::PopID();
+                        ImGui::ImageButtonEx(id, item->mMediaSnapshot, ImVec2(adj_w - offset_x * 2, adj_h - offset_y * 2), 
+                                            ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), ImVec2(offset_x, offset_y),
+                                            ImVec4(0.0f, 0.0f, 0.0f, 1.0f), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+                    }
+                    else
+                    {
+                        item->SequenceItemUpdateSnapShot();
+                        ImGui::Button(item->mName.c_str(), ImVec2(media_icon_size, media_icon_size));
+                    }
                     if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
                     {
                         ImGui::SetDragDropPayload("Media_drag_drop", item, sizeof(SequenceItem));
@@ -166,6 +196,33 @@ bool Application_Frame(void * handle)
                         ImGui::EndDragDropSource();
                     }
                     ImGui::ShowTooltipOnHover("%s", item->mPath.c_str());
+                    if (item->mMedia && item->mMedia->IsOpened())
+                    {
+                        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+                        auto has_video = item->mMedia->HasVideo();
+                        auto has_audio = item->mMedia->HasAudio();
+                        auto video_width = item->mMedia->GetVideoWidth();
+                        auto video_height = item->mMedia->GetVideoHeight();
+                        auto media_length = item->mMedia->GetVidoeDuration() / 1000.f;
+                        ImGui::SetCursorScreenPos(icon_pos + ImVec2(4, 4));
+                        std::string type_string = "? ";
+                        switch (item->mMediaType)
+                        {
+                            case SEQUENCER_ITEM_UNKNOWN: break;
+                            case SEQUENCER_ITEM_VIDEO: type_string = std::string(ICON_FA5_FILE_VIDEO) + " "; break;
+                            case SEQUENCER_ITEM_AUDIO: type_string = std::string(ICON_FA5_FILE_AUDIO) + " "; break;
+                            case SEQUENCER_ITEM_PICTURE: type_string = std::string(ICON_FA5_FILE_IMAGE) + " "; break;
+                            case SEQUENCER_ITEM_TEXT: type_string = std::string(ICON_FA5_FILE_CODE) + " "; break;
+                            default: break;
+                        }
+                        type_string += TimestampToString(media_length);
+                        ImGui::TextUnformatted(type_string.c_str());
+                        ImGui::SetCursorScreenPos(icon_pos + ImVec2(0, media_icon_size - 24));
+                        if (has_video) { ImGui::Button( (std::string(ICON_MEDIA_VIDEO "##video") + item->mPath).c_str(), ImVec2(24, 24)); ImGui::SameLine(); }
+                        if (has_audio) { ImGui::Button( (std::string(ICON_MEDIA_AUDIO "##audio") + item->mPath).c_str(), ImVec2(24, 24)); ImGui::SameLine(); }
+                        if (has_video) { ImGui::Text("%dx%d", video_width, video_height); }
+                        ImGui::PopStyleColor();
+                    }
                 }
                 ImGui::EndChild();
             }
@@ -256,7 +313,35 @@ bool Application_Frame(void * handle)
         {
             auto file_path = ImGuiFileDialog::Instance()->GetFilePathName();
             auto file_name = ImGuiFileDialog::Instance()->GetCurrentFileName();
-            SequenceItem * item = new SequenceItem(file_name, file_path, 0, 100, true);
+            auto file_surfix = ImGuiFileDialog::Instance()->GetCurrentFileSurfix();
+            int type = SEQUENCER_ITEM_UNKNOWN;
+            if (!file_surfix.empty())
+            {
+                if ((file_surfix.compare(".mp4") == 0) ||
+                    (file_surfix.compare(".mov") == 0) ||
+                    (file_surfix.compare(".mkv") == 0) ||
+                    (file_surfix.compare(".avi") == 0) ||
+                    (file_surfix.compare(".webm") == 0) ||
+                    (file_surfix.compare(".ts") == 0))
+                    type = SEQUENCER_ITEM_VIDEO;
+                else 
+                    if ((file_surfix.compare(".wav") == 0) ||
+                        (file_surfix.compare(".mp3") == 0) ||
+                        (file_surfix.compare(".aac") == 0) ||
+                        (file_surfix.compare(".ac3") == 0) ||
+                        (file_surfix.compare(".dts") == 0) ||
+                        (file_surfix.compare(".ogg") == 0))
+                    type = SEQUENCER_ITEM_AUDIO;
+                else 
+                    if ((file_surfix.compare(".jpg") == 0) ||
+                        (file_surfix.compare(".jpeg") == 0) ||
+                        (file_surfix.compare(".png") == 0) ||
+                        (file_surfix.compare(".gif") == 0) ||
+                        (file_surfix.compare(".tiff") == 0) ||
+                        (file_surfix.compare(".webp") == 0))
+                    type = SEQUENCER_ITEM_PICTURE;
+            }
+            SequenceItem * item = new SequenceItem(file_name, file_path, 0, 100, true, type);
             media_items.push_back(item);
         }
         ImGuiFileDialog::Instance()->Close();
