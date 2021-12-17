@@ -1,6 +1,8 @@
 #include "ImSequencer.h"
 #include <imgui_helper.h>
 #include <cmath>
+#include <sstream>
+#include <iomanip>
 
 #define COL_LIGHT_BLUR      IM_COL32( 16, 128, 255, 255)
 #define COL_CANVAS_BG       IM_COL32( 36,  36,  36, 255)
@@ -33,6 +35,37 @@ struct SequencerCustomDraw
     ImRect clippingRect;
     ImRect legendClippingRect;
 };
+
+std::string MillisecToString(int64_t millisec, bool show_millisec = false)
+{
+    std::ostringstream oss;
+    if (millisec < 0)
+    {
+        oss << "-";
+        millisec = -millisec;
+    }
+    uint64_t t = (uint64_t) millisec;
+    uint32_t milli = (uint32_t)(t%1000); t /= 1000;
+    uint32_t sec = (uint32_t)(t%60); t /= 60;
+    uint32_t min = (uint32_t)(t%60); t /= 60;
+    uint32_t hour = (uint32_t)t;
+    if (hour > 0)
+    {
+        oss << std::setfill('0') << std::setw(2) << hour << ':'
+            << std::setw(2) << min << ':'
+            << std::setw(2) << sec;
+        if (show_millisec)
+            oss << '.' << std::setw(3) << milli;
+    }
+    else
+    {
+        oss << std::setfill('0') << std::setw(2) << min << ':'
+            << std::setw(2) << sec;
+        if (show_millisec)
+            oss << '.' << std::setw(3) << milli;
+    }
+    return oss.str();
+}
 
 static bool SequencerAddDelButton(ImDrawList *draw_list, ImVec2 pos, bool add = true)
 {
@@ -103,7 +136,7 @@ bool Sequencer(SequenceInterface *sequence, int64_t *currentTime, bool *expanded
     ImVector<SequencerCustomDraw> customDraws;
     ImVector<SequencerCustomDraw> compactCustomDraws;
     // zoom in/out
-    const int visibleTime = (int)floorf((canvas_size.x - legendWidth) / msPixelWidth);
+    const int64_t visibleTime = (int64_t)floorf((canvas_size.x - legendWidth) / msPixelWidth);
     const float barWidthRatio = ImMin(visibleTime / (float)duration, 1.f);
     const float barWidthInPixels = barWidthRatio * (canvas_size.x - legendWidth);
     ImRect regionRect(canvas_pos, canvas_pos + canvas_size);
@@ -127,7 +160,7 @@ bool Sequencer(SequenceInterface *sequence, int64_t *currentTime, bool *expanded
         panningView = false;
     }
 
-    msPixelWidthTarget = ImClamp(msPixelWidthTarget, 0.1f, 50.f);
+    msPixelWidthTarget = ImClamp(msPixelWidthTarget, 0.001f, 50.f);
     msPixelWidth = ImLerp(msPixelWidth, msPixelWidthTarget, 0.33f);
     duration = sequence->GetEnd() - sequence->GetStart();
 
@@ -149,15 +182,16 @@ bool Sequencer(SequenceInterface *sequence, int64_t *currentTime, bool *expanded
                 ImSequencer::MediaSequence * seq = (ImSequencer::MediaSequence *)sequence;
                 SequenceItem * new_item = new SequenceItem(item->mName, item->mPath, item->mStart, item->mEnd, true, item->mMediaType);
                 if (new_item->mEnd > sequence->GetEnd())
-                    sequence->SetEnd(new_item->mEnd + 100);
+                    sequence->SetEnd(new_item->mEnd + 60 * 1000);
                 seq->m_Items.push_back(new_item);
             }
             ImGui::EndDragDropTarget();
         }
         draw_list->AddRectFilled(canvas_pos, ImVec2(canvas_size.x + canvas_pos.x, canvas_pos.y + ItemHeight), COL_CANVAS_BG, 0);
-        char tmps[512];
-        ImFormatString(tmps, IM_ARRAYSIZE(tmps), sequence->GetCollapseFmt(), duration, sequenceCount);
-        draw_list->AddText(ImVec2(canvas_pos.x + 20, canvas_pos.y + 2), IM_COL32_WHITE, tmps);
+        auto info_str = MillisecToString(duration, true);
+        info_str += " / ";
+        info_str += std::to_string(sequenceCount) + " entries";
+        draw_list->AddText(ImVec2(canvas_pos.x + 40, canvas_pos.y + 2), IM_COL32_WHITE, info_str.c_str());
     }
     else
     {
@@ -176,7 +210,7 @@ bool Sequencer(SequenceInterface *sequence, int64_t *currentTime, bool *expanded
         ImVec2 childFramePos = ImGui::GetCursorScreenPos();
         ImVec2 childFrameSize(canvas_size.x, canvas_size.y - 8.f - headerSize.y - (hasScrollBar ? scrollBarSize.y : 0));
         ImGui::PushStyleColor(ImGuiCol_FrameBg, 0);
-        ImGui::BeginChildFrame(889, childFrameSize, ImGuiWindowFlags_NoScrollbar);
+        ImGui::BeginChildFrame(889, childFrameSize, ImGuiWindowFlags_NoScrollbar); // id = 889 why?
         sequence->focused = ImGui::IsWindowFocused();
         ImGui::InvisibleButton("contentBar", ImVec2(canvas_size.x - 14, float(controlHeight)));
         if (ImGui::BeginDragDropTarget())
@@ -193,7 +227,7 @@ bool Sequencer(SequenceInterface *sequence, int64_t *currentTime, bool *expanded
                     new_item->mStart = *firstTime;
                 new_item->mEnd = new_item->mStart + length;
                 if (new_item->mEnd > sequence->GetEnd())
-                    sequence->SetEnd(new_item->mEnd + 100);
+                    sequence->SetEnd(new_item->mEnd + 60 * 1000);
                 seq->m_Items.push_back(new_item);
             }
             ImGui::EndDragDropTarget();
@@ -239,7 +273,7 @@ bool Sequencer(SequenceInterface *sequence, int64_t *currentTime, bool *expanded
             timeStep *= 2;
         };
         int halfModTime = modTimeCount / 2;
-        auto drawLine = [&](int i, int regionHeight)
+        auto drawLine = [&](int64_t i, int regionHeight)
         {
             bool baseIndex = ((i % modTimeCount) == 0) || (i == sequence->GetEnd() || i == sequence->GetStart());
             bool halfIndex = (i % halfModTime) == 0;
@@ -253,12 +287,11 @@ bool Sequencer(SequenceInterface *sequence, int64_t *currentTime, bool *expanded
             }
             if (baseIndex && px > (canvas_pos.x + legendWidth))
             {
-                char tmps[512];
-                ImFormatString(tmps, IM_ARRAYSIZE(tmps), "%d", i);
-                draw_list->AddText(ImVec2((float)px + 3.f, canvas_pos.y), COL_RULE_TEXT, tmps);
+                auto time_str = MillisecToString(i);
+                draw_list->AddText(ImVec2((float)px + 3.f, canvas_pos.y), COL_RULE_TEXT, time_str.c_str());
             }
         };
-        auto drawLineContent = [&](int i, int /*regionHeight*/)
+        auto drawLineContent = [&](int64_t i, int /*regionHeight*/)
         {
             int px = (int)canvas_pos.x + int(i * msPixelWidth) + legendWidth - int(firstTimeUsed * msPixelWidth);
             int tiretStart = int(contentMin.y);
@@ -282,13 +315,12 @@ bool Sequencer(SequenceInterface *sequence, int64_t *currentTime, bool *expanded
             float arrowOffset = contentMin.x + legendWidth + (*currentTime - firstTimeUsed) * msPixelWidth + msPixelWidth / 2 - arrowWidth * 0.5f - 2;
             ImGui::RenderArrow(draw_list, ImVec2(arrowOffset, canvas_pos.y), COL_CURSOR_ARROW, ImGuiDir_Down);
             ImGui::SetWindowFontScale(0.8);
-            char tmps[512];
-            ImFormatString(tmps, IM_ARRAYSIZE(tmps), "%lld", *currentTime);
-            ImVec2 str_size = ImGui::CalcTextSize(tmps, nullptr, true) * 0.8;
+            auto time_str = MillisecToString(*currentTime, true);
+            ImVec2 str_size = ImGui::CalcTextSize(time_str.c_str(), nullptr, true);
             float strOffset = contentMin.x + legendWidth + (*currentTime - firstTimeUsed) * msPixelWidth + msPixelWidth / 2 - str_size.x * 0.5f - 2;
             ImVec2 str_pos = ImVec2(strOffset, canvas_pos.y + 10);
             draw_list->AddRectFilled(str_pos + ImVec2(-2, 0), str_pos + str_size + ImVec2(4, 4), COL_CURSOR_TEXT_BG, 2.0, ImDrawFlags_RoundCornersAll);
-            draw_list->AddText(str_pos, COL_CURSOR_TEXT, tmps);
+            draw_list->AddText(str_pos, COL_CURSOR_TEXT, time_str.c_str());
             ImGui::SetWindowFontScale(1.0);
         }
 
@@ -412,11 +444,11 @@ bool Sequencer(SequenceInterface *sequence, int64_t *currentTime, bool *expanded
             {
                 // slot normal view (custom view)
                 ImVec2 rp(canvas_pos.x, contentMin.y + ItemHeight * i + 1 + customHeight);
-                ImRect customRect(rp + ImVec2(legendWidth - (firstTimeUsed - sequence->GetStart() - 0.5f) * msPixelWidth, float(ItemHeight)),
-                                  rp + ImVec2(legendWidth + (sequence->GetEnd() - firstTimeUsed - 0.5f + 2.f) * msPixelWidth, float(localCustomHeight + ItemHeight)));
+                ImRect customRect(rp + ImVec2(legendWidth - (firstTimeUsed - start - 0.5f) * msPixelWidth, float(ItemHeight)),
+                                  rp + ImVec2(legendWidth + (end - firstTimeUsed - 0.5f + 2.f) * msPixelWidth, float(localCustomHeight + ItemHeight)));
                 ImRect clippingRect(rp + ImVec2(float(legendWidth), float(ItemHeight)), rp + ImVec2(canvas_size.x, float(localCustomHeight + ItemHeight)));
-                ImRect legendRect(rp + ImVec2(0.f, float(ItemHeight)), rp + ImVec2(float(legendWidth), float(localCustomHeight)));
-                ImRect legendClippingRect(canvas_pos + ImVec2(0.f, float(ItemHeight + customHeight)), canvas_pos + ImVec2(float(legendWidth), float(localCustomHeight + ItemHeight + customHeight)));
+                ImRect legendRect(rp + ImVec2(0.f, float(ItemHeight)), rp + ImVec2(float(legendWidth), float(localCustomHeight + ItemHeight)));
+                ImRect legendClippingRect(rp + ImVec2(0.f, float(ItemHeight)), rp + ImVec2(float(legendWidth), float(localCustomHeight + ItemHeight)));
                 customDraws.push_back({i, customRect, legendRect, clippingRect, legendClippingRect});
             }
             else
@@ -462,7 +494,7 @@ bool Sequencer(SequenceInterface *sequence, int64_t *currentTime, bool *expanded
                     r = l;
                 movingPos += int(diffTime * msPixelWidth);
                 if (r > sequence->GetEnd())
-                    sequence->SetEnd(r + 100);
+                    sequence->SetEnd(r + 60 * 1000);
                 sequence->Set(movingEntry, l, r, name, color);
             }
             if (!io.MouseDown[0])
@@ -638,18 +670,18 @@ bool Sequencer(SequenceInterface *sequence, int64_t *currentTime, bool *expanded
         if (overScrollBar)
         {
             // up-down wheel over scrollbar, scale canvas view
-            int64_t overCursor = *firstTime + (int)(visibleTime * ((io.MousePos.x - (float)legendWidth - canvas_pos.x) / (canvas_size.x - legendWidth)));
+            int64_t overCursor = *firstTime + (int64_t)(visibleTime * ((io.MousePos.x - (float)legendWidth - canvas_pos.x) / (canvas_size.x - legendWidth)));
             if (io.MouseWheel < -FLT_EPSILON && visibleTime <= sequence->GetEnd())
             {
                 *firstTime -= overCursor;
-                *firstTime = int(*firstTime * 1.1f);
+                *firstTime = int64_t(*firstTime * 1.1f);
                 msPixelWidthTarget *= 0.9f;
                 *firstTime += overCursor;
             }
             if (io.MouseWheel > FLT_EPSILON)
             {
                 *firstTime -= overCursor;
-                *firstTime = int(*firstTime * 0.9f);
+                *firstTime = int64_t(*firstTime * 0.9f);
                 msPixelWidthTarget *= 1.1f;
                 *firstTime += overCursor;
             }
@@ -709,7 +741,7 @@ SequenceItem::SequenceItem(const std::string& name, const std::string& path, int
     if (mMedia && mMedia->IsOpened())
     {
         double window_size = 1.0f;
-        mEnd = mMedia->GetVidoeFrameCount();
+        mEnd = mMedia->GetVidoeDuration();
         mMedia->SetSnapshotResizeFactor(0.25, 0.25);
         mMedia->ConfigSnapWindow(window_size, 10);
     }
@@ -801,15 +833,29 @@ void MediaSequence::Duplicate(int index)
 
 void MediaSequence::CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRect)
 {
-    draw_list->PushClipRect(legendClippingRect.Min, legendClippingRect.Max, true);
-    draw_list->PopClipRect();
-    ImGui::SetCursorScreenPos(rc.Min);
+    // rc: full item length rect
+    // clippingRect: current view window area
+    // legendRect: legend area
+    // legendClippingRect: legend area
+
+    //draw_list->PushClipRect(legendClippingRect.Min, legendClippingRect.Max, true);
+    //draw_list->PopClipRect();
+    //draw_list->AddRectFilled(rc.Min, rc.Max, IM_COL32(255,0, 0, 128), 0);
+    //draw_list->AddRectFilled(clippingRect.Min, clippingRect.Max, IM_COL32(255,0, 0, 128), 0);
+    //draw_list->AddRectFilled(legendClippingRect.Min, legendClippingRect.Max, IM_COL32(255,0, 0, 128), 0);
+    //draw_list->AddRectFilled(legendRect.Min, legendRect.Max, IM_COL32(255,0, 0, 128), 0);
+    
+    //ImGui::SetCursorScreenPos(rc.Min);
 }
 
 void MediaSequence::CustomDrawCompact(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &clippingRect)
 {
-    draw_list->PushClipRect(clippingRect.Min, clippingRect.Max, true);
-    draw_list->PopClipRect();
+    // rc: full item length rect
+    // clippingRect: current view window area
+
+    //draw_list->PushClipRect(clippingRect.Min, clippingRect.Max, true);
+    //draw_list->PopClipRect();
+    //draw_list->AddRectFilled(clippingRect.Min, clippingRect.Max, IM_COL32(255,0, 0, 128), 0);
 }
 
 } // namespace ImSequencer

@@ -41,7 +41,6 @@ struct SequenceInterface
     virtual void BeginEdit(int /*index*/) {}
     virtual void EndEdit() {}
     virtual const char *GetItemLabel(int /*index*/) const { return ""; }
-    virtual const char *GetCollapseFmt() const { return "%d Frames / %d entries"; }
     virtual void Get(int index, int64_t& start, int64_t& end, std::string& name, unsigned int& color) = 0;
     virtual void Set(int index, int64_t   start, int64_t end, std::string  name, unsigned int  color) = 0;
     virtual void Add(std::string& /*type*/) {}
@@ -88,11 +87,12 @@ struct MediaSequence : public SequenceInterface
     void Add(std::string& name);
     void Del(int index);
     void Duplicate(int index);
-    size_t GetCustomHeight(int index) { return m_Items[index]->mExpanded ? 40 : 0; }
+    size_t GetCustomHeight(int index) { return m_Items[index]->mExpanded ? mItemHeight : 0; }
     void DoubleClick(int index) { m_Items[index]->mExpanded = !m_Items[index]->mExpanded; }
     void CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRect);
     void CustomDrawCompact(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &clippingRect);
 
+    const int mItemHeight {60};
     int64_t mStart   {0}; 
     int64_t mEnd   {0};
     std::vector<SequenceItem *> m_Items;
