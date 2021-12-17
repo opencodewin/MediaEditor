@@ -97,7 +97,7 @@ bool Sequencer(SequenceInterface *sequence, int64_t *currentTime, bool *expanded
     int controlHeight = sequenceCount * ItemHeight;
     for (int i = 0; i < sequenceCount; i++)
         controlHeight += int(sequence->GetCustomHeight(i));
-    int64_t duration = ImMax(sequence->GetEnd() - sequence->GetStart(), 1LL);
+    int64_t duration = ImMax(sequence->GetEnd() - sequence->GetStart(), (int64_t)1);
     static bool MovingScrollBar = false;
     static bool MovingCurrentTime = false;
     ImVector<SequencerCustomDraw> customDraws;
