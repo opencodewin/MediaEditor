@@ -70,10 +70,10 @@ bool Application_Frame(void * handle)
     const float tool_icon_size = 32;
     static bool show_about = false;
     static int selectedEntry = -1;
-    static int firstFrame = 0;
-    static int lastFrame = 0;
     static bool expanded = true;
-    static int currentFrame = 0;
+    static int64_t currentTime = 0;
+    static int64_t firstTime = 0;
+    static int64_t lastTime = 0;
     static MediaSequence sequence;
     static bool play = false;
     static std::vector<SequenceItem *> media_items;
@@ -277,7 +277,7 @@ bool Application_Frame(void * handle)
     bool _expanded = expanded;
     if (ImGui::BeginChild("##Sequencor", panel_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
     {
-        ImSequencer::Sequencer(&sequence, &currentFrame, &_expanded, &selectedEntry, &firstFrame, &lastFrame, ImSequencer::SEQUENCER_EDIT_STARTEND | ImSequencer::SEQUENCER_CHANGE_FRAME | ImSequencer::SEQUENCER_DEL);
+        ImSequencer::Sequencer(&sequence, &currentTime, &_expanded, &selectedEntry, &firstTime, &lastTime, ImSequencer::SEQUENCER_EDIT_STARTEND | ImSequencer::SEQUENCER_CHANGE_TIME | ImSequencer::SEQUENCER_DEL);
         if (selectedEntry != -1)
         {
             //const ImSequencer::MediaSequence::SequenceItem &item = sequence.m_Items[selectedEntry];
