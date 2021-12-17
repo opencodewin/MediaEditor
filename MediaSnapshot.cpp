@@ -10,6 +10,7 @@
 #include <algorithm>
 #include "MediaSnapshot.h"
 #include "FFUtils.h"
+#include "Logger.h"
 extern "C"
 {
     #include "libavutil/avutil.h"
@@ -25,9 +26,8 @@ extern "C"
     #include "libswresample/swresample.h"
 }
 
-// #define DEBUG_INFO
-
 using namespace std;
+using namespace Logger;
 
 static AVPixelFormat get_hw_format(AVCodecContext *ctx, const AVPixelFormat *pix_fmts);
 
@@ -198,19 +198,22 @@ public:
         return 0;
     }
 
-    bool ConfigSnapWindow(double windowSize, double frameCount) override
+    bool ConfigSnapWindow(double& windowSize, double frameCount) override
     {
         lock_guard<recursive_mutex> lk(m_ctlLock);
-        if (windowSize <= 0)
+        if (frameCount < 1)
         {
-            m_errMessage = "Argument 'windowSize' must be POSITIVE!";
+            m_errMessage = "Argument 'frameCount' must be greater than 1!";
             return false;
         }
-        if (frameCount <= 0)
-        {
-            m_errMessage = "Argument 'frameCount' must be POSITIVE!";
-            return false;
-        }
+        double minWndSize = CalcMinWindowSize(frameCount);
+        if (windowSize < minWndSize)
+            windowSize = minWndSize;
+        double maxWndSize = GetMaxWindowSize();
+        if (windowSize > maxWndSize)
+            windowSize = maxWndSize;
+        if (m_snapWindowSize == windowSize && m_windowFrameCount == frameCount)
+            return true;
 
         WaitAllThreadsQuit();
         FlushAllQueues();
@@ -238,10 +241,8 @@ public:
         UpdateSnapWindow(m_snapWnd.startPos);
         m_snapWndUpdated = true;
 
-#ifdef DEBUG_INFO
-        cout << ">>>> Config window: m_snapWindowSize=" << m_snapWindowSize << ", m_windowFrameCount=" << m_windowFrameCount
+        Log(DEBUG) << ">>>> Config window: m_snapWindowSize=" << m_snapWindowSize << ", m_windowFrameCount=" << m_windowFrameCount
             << ", m_vidMaxIndex=" << m_vidMaxIndex << ", m_maxCacheSize=" << m_maxCacheSize << ", m_prevWndCacheSize=" << m_prevWndCacheSize << endl;
-#endif
 
         StartAllThreads();
         return true;
@@ -249,7 +250,7 @@ public:
 
     double GetMinWindowSize() const override
     {
-        return m_vidfrmIntvMts*m_windowFrameCount/1000.;
+        return CalcMinWindowSize(m_windowFrameCount);
     }
 
     double GetMaxWindowSize() const override
@@ -259,8 +260,31 @@ public:
 
     bool SetSnapshotSize(uint32_t width, uint32_t height) override
     {
-        m_ssWidth = width;
-        m_ssHeight = height;
+        if (!m_frmCvt.SetOutSize(width, height))
+        {
+            m_errMessage = m_frmCvt.GetError();
+            return false;
+        }
+        return true;
+    }
+
+    bool SetOutColorFormat(ImColorFormat clrfmt) override
+    {
+        if (!m_frmCvt.SetOutColorFormat(clrfmt))
+        {
+            m_errMessage = m_frmCvt.GetError();
+            return false;
+        }
+        return true;
+    }
+
+    bool SetResizeInterpolateMode(ImInterpolateMode interp) override
+    {
+        if (!m_frmCvt.SetResizeInterpolateMode(interp))
+        {
+            m_errMessage = m_frmCvt.GetError();
+            return false;
+        }
         return true;
     }
 
@@ -285,6 +309,11 @@ private:
         m_errMessage = oss.str();
     }
 
+    double CalcMinWindowSize(double windowFrameCount) const
+    {
+        return m_vidfrmIntvMts*windowFrameCount/1000.;
+    }
+
     bool OpenMedia(const string& url)
     {
         if (IsOpened())
@@ -303,9 +332,7 @@ private:
             SetFFError("avformat_find_stream_info", fferr);
             return false;
         }
-#ifdef DEBUG_INFO
-        cout << "Open '" << url << "' successfully. " << m_avfmtCtx->nb_streams << " streams are found." << endl;
-#endif
+        Log(DEBUG) << "Open '" << url << "' successfully. " << m_avfmtCtx->nb_streams << " streams are found." << endl;
 
         m_vidStmIdx = av_find_best_stream(m_avfmtCtx, AVMEDIA_TYPE_VIDEO, -1, -1, &m_viddec, 0);
         m_audStmIdx = av_find_best_stream(m_avfmtCtx, AVMEDIA_TYPE_AUDIO, -1, -1, &m_auddec, 0);
@@ -357,7 +384,7 @@ private:
         {
             fferr = avformat_seek_file(m_avfmtCtx, m_vidStmIdx, lastKeyPts+1, lastKeyPts+1, INT64_MAX, 0);
             if (fferr < 0)
-                cerr << "avformat_seek_file(IN ParseFile) FAILED with fferr = " << fferr << "!" << endl;
+                Log(ERROR) << "avformat_seek_file(IN ParseFile) FAILED with fferr = " << fferr << "!" << endl;
             AVPacket avpkt = {0};
             do {
                 fferr = av_read_frame(m_avfmtCtx, &avpkt);
@@ -377,16 +404,14 @@ private:
             else
             {
                 if (fferr != AVERROR_EOF)
-                    cerr << "Read frame from file FAILED! fferr = " << fferr << "." << endl;
+                    Log(ERROR) << "Read frame from file FAILED! fferr = " << fferr << "." << endl;
                 break;
             }
         }
         if (fferr != AVERROR_EOF)
             return false;
 
-#ifdef DEBUG_INFO
-        cout << "Parse key frames done. " << m_vidKeyPtsList.size() << " key frames are found." << endl;
-#endif
+        Log(DEBUG) << "Parse key frames done. " << m_vidKeyPtsList.size() << " key frames are found." << endl;
         return true;
     }
 
@@ -416,10 +441,8 @@ private:
             SetFFError("avcodec_open2", fferr);
             return false;
         }
-#ifdef DEBUG_INFO
-        cout << "Video decoder '" << m_viddec->name << "' opened." << " thread_count=" << m_viddecCtx->thread_count
+        Log(DEBUG) << "Video decoder '" << m_viddec->name << "' opened." << " thread_count=" << m_viddecCtx->thread_count
             << ", thread_type=" << m_viddecCtx->thread_type << endl;
-#endif
         return true;
     }
 
@@ -446,9 +469,7 @@ private:
                 }
             }
         }
-#ifdef DEBUG_INFO
-        cout << "Use hardware device type '" << av_hwdevice_get_type_name(m_viddecDevType) << "'." << endl;
-#endif
+        Log(DEBUG) << "Use hardware device type '" << av_hwdevice_get_type_name(m_viddecDevType) << "'." << endl;
 
         m_viddecCtx = avcodec_alloc_context3(m_viddec);
         if (!m_viddecCtx)
@@ -481,9 +502,7 @@ private:
             SetFFError("avcodec_open2", fferr);
             return false;
         }
-#ifdef DEBUG_INFO
-        cout << "Video decoder(HW) '" << m_viddecCtx->codec->name << "' opened." << endl;
-#endif
+        Log(DEBUG) << "Video decoder(HW) '" << m_viddecCtx->codec->name << "' opened." << endl;
         return true;
     }
 
@@ -511,9 +530,7 @@ private:
             SetFFError("avcodec_open2", fferr);
             return false;
         }
-#ifdef DEBUG_INFO
-        cout << "Audio decoder '" << m_auddec->name << "' opened." << endl;
-#endif
+        Log(DEBUG) << "Audio decoder '" << m_auddec->name << "' opened." << endl;
 
         // setup sw resampler
         int inChannels = m_audStream->codecpar->channels;
@@ -551,9 +568,7 @@ private:
 
     void DemuxThreadProc()
     {
-#ifdef DEBUG_INFO
-        cout << "Enter DemuxThreadProc()..." << endl;
-#endif
+        Log(DEBUG) << "Enter DemuxThreadProc()..." << endl;
         bool fatalError = false;
         AVPacket avpkt = {0};
         bool avpktLoaded = false;
@@ -576,18 +591,16 @@ private:
                     {
                         hasTask = true;
                         targetSsIndex = ssTask->targetSsIndex;
-#ifdef DEBUG_INFO
-                        cout << "--> ssTask updated, targetSsIndex=" << targetSsIndex
+                        Log(DEBUG) << "--> ssTask updated, targetSsIndex=" << targetSsIndex
                             << ", startPts=" << ssTask->seekPts.first << "(" << av_rescale_q(ssTask->seekPts.first, m_vidStream->time_base, MILLISEC_TIMEBASE) << ")"
                             << ", endPts=" << ssTask->seekPts.second << "(" << av_rescale_q(ssTask->seekPts.second, m_vidStream->time_base, MILLISEC_TIMEBASE) << ")" << endl;
-#endif
                     }
                     if (ptsAfterSeek != ssTask->seekPts.first)
                     {
                         int fferr = avformat_seek_file(m_avfmtCtx, m_vidStmIdx, INT64_MIN, ssTask->seekPts.first, ssTask->seekPts.first, 0);
                         if (fferr < 0)
                         {
-                            cerr << "avformat_seek_file() FAILED for seeking to 'ssTask->startPts'(" << ssTask->seekPts.first << ")! fferr = " << fferr << "!" << endl;
+                            Log(ERROR) << "avformat_seek_file() FAILED for seeking to 'ssTask->startPts'(" << ssTask->seekPts.first << ")! fferr = " << fferr << "!" << endl;
                             fatalError = true;
                             break;
                         }
@@ -606,7 +619,7 @@ private:
                             demuxEof = true;
                         else if (ptsAfterSeek != ssTask->seekPts.first)
                         {
-                            cout << "WARNING! 'ptsAfterSeek'(" << ptsAfterSeek << ") != 'ssTask->startPts'(" << ssTask->seekPts.first << ")!" << endl;
+                            Log(DEBUG) << "WARNING! 'ptsAfterSeek'(" << ptsAfterSeek << ") != 'ssTask->startPts'(" << ssTask->seekPts.first << ")!" << endl;
                             ssTask->seekPts.first = ptsAfterSeek;
                         }
                     }
@@ -624,7 +637,7 @@ private:
                             if (fferr == AVERROR_EOF)
                                 demuxEof = true;
                             else
-                                cerr << "Demuxer ERROR! 'av_read_frame' returns " << fferr << "." << endl;
+                                Log(ERROR) << "Demuxer ERROR! 'av_read_frame' returns " << fferr << "." << endl;
                         }
                     }
 
@@ -638,7 +651,7 @@ private:
                             AVPacket* enqpkt = av_packet_clone(&avpkt);
                             if (!enqpkt)
                             {
-                                cerr << "FAILED to invoke 'av_packet_clone(DemuxThreadProc)'!" << endl;
+                                Log(ERROR) << "FAILED to invoke 'av_packet_clone(DemuxThreadProc)'!" << endl;
                                 break;
                             }
                             lock_guard<mutex> lk(m_vidpktQLock);
@@ -661,7 +674,7 @@ private:
             }
             else
             {
-                cerr << "Demux procedure to non-video media is NOT IMPLEMENTED yet!" << endl;
+                Log(ERROR) << "Demux procedure to non-video media is NOT IMPLEMENTED yet!" << endl;
             }
 
             if (idleLoop)
@@ -669,9 +682,7 @@ private:
         }
         if (avpktLoaded)
             av_packet_unref(&avpkt);
-#ifdef DEBUG_INFO
-        cout << "Leave DemuxThreadProc()." << endl;
-#endif
+        Log(DEBUG) << "Leave DemuxThreadProc()." << endl;
     }
 
     bool ReadNextStreamPacket(int stmIdx, AVPacket* avpkt, bool* avpktLoaded, int64_t* pts)
@@ -699,7 +710,7 @@ private:
                 }
                 else
                 {
-                    cerr << "av_read_frame() FAILED! fferr = " << fferr << "." << endl;
+                    Log(ERROR) << "av_read_frame() FAILED! fferr = " << fferr << "." << endl;
                     return false;
                 }
             }
@@ -709,9 +720,7 @@ private:
 
     void VideoDecodeThreadProc()
     {
-#ifdef DEBUG_INFO
-        cout << "Enter VideoDecodeThreadProc()..." << endl;
-#endif
+        Log(DEBUG) << "Enter VideoDecodeThreadProc()..." << endl;
         AVFrame avfrm = {0};
         bool avfrmLoaded = false;
         bool inputEof = false;
@@ -728,7 +737,7 @@ private:
                     int fferr = avcodec_receive_frame(m_viddecCtx, &avfrm);
                     if (fferr == 0)
                     {
-                        // cout << "<<< Get video frame pts=" << avfrm.pts << "(" << MillisecToString(av_rescale_q(avfrm.pts, m_vidStream->time_base, MILLISEC_TIMEBASE)) << ")." << endl;
+                        // Log(DEBUG) << "<<< Get video frame pts=" << avfrm.pts << "(" << MillisecToString(av_rescale_q(avfrm.pts, m_vidStream->time_base, MILLISEC_TIMEBASE)) << ")." << endl;
                         avfrmLoaded = true;
                         idleLoop = false;
                     }
@@ -736,12 +745,12 @@ private:
                     {
                         if (fferr != AVERROR_EOF)
                         {
-                            cerr << "FAILED to invoke 'avcodec_receive_frame'(VideoDecodeThreadProc)! return code is "
+                            Log(ERROR) << "FAILED to invoke 'avcodec_receive_frame'(VideoDecodeThreadProc)! return code is "
                                 << fferr << "." << endl;
                             quitLoop = true;
                         }
                         else
-                            cerr << "Video decoder EOF!" << endl;
+                            Log(ERROR) << "Video decoder EOF!" << endl;
                         break;
                     }
                 }
@@ -771,14 +780,12 @@ private:
                 while (m_vidpktQ.size() > 0)
                 {
                     AVPacket* avpkt = m_vidpktQ.front();
-#ifdef DEBUG_INFO
                     if (!avpkt)
-                        cout << "----------> ERROR! null avpacket ptr got from m_vidpktQ." << endl;
-#endif
+                        Log(DEBUG) << "----------> ERROR! null avpacket ptr got from m_vidpktQ." << endl;
                     int fferr = avcodec_send_packet(m_viddecCtx, avpkt);
                     if (fferr == 0)
                     {
-                        // cout << ">>> Send video packet pts=" << avpkt->pts << "(" << MillisecToString(av_rescale_q(avpkt->pts, m_vidStream->time_base, MILLISEC_TIMEBASE)) << ")." << endl;
+                        // Log(DEBUG) << ">>> Send video packet pts=" << avpkt->pts << "(" << MillisecToString(av_rescale_q(avpkt->pts, m_vidStream->time_base, MILLISEC_TIMEBASE)) << ")." << endl;
                         lock_guard<mutex> lk(m_vidpktQLock);
                         m_vidpktQ.pop_front();
                         av_packet_free(&avpkt);
@@ -788,7 +795,7 @@ private:
                     {
                         if (fferr != AVERROR(EAGAIN))
                         {
-                            cerr << "FAILED to invoke 'avcodec_send_packet'(VideoDecodeThreadProc)! return code is "
+                            Log(ERROR) << "FAILED to invoke 'avcodec_send_packet'(VideoDecodeThreadProc)! return code is "
                                 << fferr << "." << endl;
                             quitLoop = true;
                         }
@@ -804,16 +811,12 @@ private:
         }
         if (avfrmLoaded)
             av_frame_unref(&avfrm);
-#ifdef DEBUG_INFO
-        cout << "Leave VideoDecodeThreadProc()." << endl;
-#endif
+        Log(DEBUG) << "Leave VideoDecodeThreadProc()." << endl;
     }
 
     void AudioDecodeThreadProc()
     {
-#ifdef DEBUG_INFO
-        cout << "Enter AudioDecodeThreadProc()..." << endl;
-#endif
+        Log(DEBUG) << "Enter AudioDecodeThreadProc()..." << endl;
         AVFrame avfrm = {0};
         bool avfrmLoaded = false;
         bool inputEof = false;
@@ -841,7 +844,7 @@ private:
                     else if (fferr != AVERROR(EAGAIN))
                     {
                         if (fferr != AVERROR_EOF)
-                            cerr << "FAILED to invoke 'avcodec_receive_frame'(AudioDecodeThreadProc)! return code is "
+                            Log(ERROR) << "FAILED to invoke 'avcodec_receive_frame'(AudioDecodeThreadProc)! return code is "
                                 << fferr << "." << endl;
                         quitLoop = true;
                         break;
@@ -885,7 +888,7 @@ private:
                     {
                         if (fferr != AVERROR(EAGAIN))
                         {
-                            cerr << "FAILED to invoke 'avcodec_send_packet'(AudioDecodeThreadProc)! return code is "
+                            Log(ERROR) << "FAILED to invoke 'avcodec_send_packet'(AudioDecodeThreadProc)! return code is "
                                 << fferr << "." << endl;
                             quitLoop = true;
                         }
@@ -901,9 +904,7 @@ private:
         }
         if (avfrmLoaded)
             av_frame_unref(&avfrm);
-#ifdef DEBUG_INFO
-        cout << "Leave AudioDecodeThreadProc()." << endl;
-#endif
+        Log(DEBUG) << "Leave AudioDecodeThreadProc()." << endl;
     }
 
     void SwrThreadProc()
@@ -971,9 +972,7 @@ private:
 
     void UpdateSnapshotThreadProc()
     {
-#ifdef DEBUG_INFO
-        cout << "Enter UpdateSnapshotThreadProc()." << endl;
-#endif
+        Log(DEBUG) << "Enter UpdateSnapshotThreadProc()." << endl;
         while (!m_quitScan)
         {
             bool idleLoop = true;
@@ -1001,30 +1000,29 @@ private:
                         if (abs(iter->img.time_stamp-ts) >= m_vidfrmIntvMtsHalf &&
                             abs(ts-targetTs) < abs(iter->img.time_stamp-targetTs))
                         {
-#ifdef DEBUG_INFO
-                            cout << "WARNING! Better snapshot is found for index " << index << "(ts=" << targetTs
+                            Log(DEBUG) << "WARNING! Better snapshot is found for index " << index << "(ts=" << targetTs
                                 << "), new frm ts = " << ts << ", old frm ts = " << iter->img.time_stamp << "." << endl;
-#endif
-                            ConvertAVFrameToImMat(frm, iter->img, ts);
+                            if (!m_frmCvt.ConvertImage(frm, iter->img, ts))
+                                Log(ERROR) << "FAILED to convert AVFrame to ImGui::ImMat! Message is '" << m_frmCvt.GetError() << "'." << endl;
                         }
                     }
                     else
                     {
                         ImGui::ImMat img;
-                        ConvertAVFrameToImMat(frm, img, ts);
-                        Snapshot ss = { img, index, false };
-                        m_snapshots.insert(iter, ss);
-#ifdef DEBUG_INFO
-                        cout << "!!! Add new snapshot [index=" << index << ", ts=" << MillisecToString((int64_t)(ts*1000)) << "]." << endl;
-#endif
+                        if (!m_frmCvt.ConvertImage(frm, img, ts))
+                            Log(ERROR) << "FAILED to convert AVFrame to ImGui::ImMat! Message is '" << m_frmCvt.GetError() << "'." << endl;
+                        else
+                        {
+                            Snapshot ss = { img, index, false };
+                            m_snapshots.insert(iter, ss);
+                            Log(DEBUG) << "!!! Add new snapshot [index=" << index << ", ts=" << MillisecToString((int64_t)(ts*1000)) << "]." << endl;
+                        }
                         if (m_snapshots.size() > m_maxCacheSize)
                         {
                             uint32_t oldSize = m_snapshots.size();
                             ShrinkSnapshots(snapWnd);
                             uint32_t newSize = m_snapshots.size();
-#ifdef DEBUG_INFO
-                            cout << "Shrink snapshots list from " << oldSize << " to " << newSize << "." << endl;
-#endif
+                            Log(DEBUG) << "Shrink snapshots list from " << oldSize << " to " << newSize << "." << endl;
                         }
                     }
                 }
@@ -1034,9 +1032,7 @@ private:
             if (idleLoop)
                 this_thread::sleep_for(chrono::milliseconds(1));
         }
-#ifdef DEBUG_INFO
-        cout << "Leave UpdateSnapshotThreadProc()." << endl;
-#endif
+        Log(DEBUG) << "Leave UpdateSnapshotThreadProc()." << endl;
     }
 
     void StartAllThreads()
@@ -1148,10 +1144,8 @@ private:
         if (!memcpy(&m_snapWnd, &snapWnd, sizeof(m_snapWnd)))
         {
             m_snapWnd = snapWnd;
-#ifdef DEBUG_INFO
-            cout << "Update snap-window: { " << startPos << "(" << MillisecToString((int64_t)(startPos*1000)) << "), "
+            Log(DEBUG) << "Update snap-window: { " << startPos << "(" << MillisecToString((int64_t)(startPos*1000)) << "), "
                 << index0 << ", " << index1 << ", " << cacheIdx0 << ", " << cacheIdx1 << " }" << endl;
-#endif
         }
         return snapWnd;
     }
@@ -1160,13 +1154,9 @@ private:
     {
         index = (int32_t)round(double(mts-m_vidStartMts)/m_snapshotInterval);
         double diff = abs(index*m_snapshotInterval-mts);
-#ifndef DEBUG_INFO
-        return diff <= m_vidfrmIntvMtsHalf;
-#else
         bool isSs = diff <= m_vidfrmIntvMtsHalf;
-        cout << "---> IsSnapshotFrame : pts=" << pts << ", mts=" << mts << ", index=" << index << ", diff=" << diff << ", m_vidfrmIntvMtsHalf=" << m_vidfrmIntvMtsHalf << endl;
+        Log(DEBUG) << "---> IsSnapshotFrame : pts=" << pts << ", mts=" << mts << ", index=" << index << ", diff=" << diff << ", m_vidfrmIntvMtsHalf=" << m_vidfrmIntvMtsHalf << endl;
         return isSs;
-#endif
     }
 
     bool IsSpecificSnapshotFrame(uint32_t index, int64_t mts)
@@ -1305,15 +1295,13 @@ private:
                 if (m_currBuildTask)
                 {
                     m_currBuildTask = nullptr;
-#ifdef DEBUG_INFO
-                    cout << "No more build task!" << endl;
-#endif
+                    Log(DEBUG) << "No more build task!" << endl;
                 }
                 return nullptr;
             }
         }
         // int64_t ssfrmMts = CalcSnapshotMts(newTask.targetSsIndex);
-        // cout << "             ssfrmMts = " << ssfrmMts << endl;
+        // Log(DEBUG) << "             ssfrmMts = " << ssfrmMts << endl;
         // newTask.seekPts = GetSeekPosByMts(ssfrmMts);
         newTask.seekPts = GetSeekPosByMts(CalcSnapshotMts(newTask.targetSsIndex));
         if (!m_currBuildTask || m_currBuildTask->targetSsIndex != newTask.targetSsIndex || m_currBuildTask->seekPts != newTask.seekPts)
@@ -1322,10 +1310,8 @@ private:
 
             int64_t startMts = av_rescale_q(newTask.seekPts.first, m_vidStream->time_base, MILLISEC_TIMEBASE);
             int64_t endMts = av_rescale_q(newTask.seekPts.second, m_vidStream->time_base, MILLISEC_TIMEBASE);
-#ifdef DEBUG_INFO
-            cout << "New build task : { " << newTask.targetSsIndex << ", [ " << newTask.seekPts.first << "(" << MillisecToString(startMts)
+            Log(DEBUG) << "New build task : { " << newTask.targetSsIndex << ", [ " << newTask.seekPts.first << "(" << MillisecToString(startMts)
                 << "), " << newTask.seekPts.second << "(" << MillisecToString(endMts) << ")) }." << endl;
-#endif
         }
         return m_currBuildTask;
     }
@@ -1355,9 +1341,7 @@ private:
             }
         }
         newsize = m_snapshots.size();
-#ifdef DEBUG_INFO
-        cout << "XXX Shrink snapshots size " << oldsize << " -> " << newsize << "." << endl;
-#endif
+        Log(DEBUG) << "XXX Shrink snapshots size " << oldsize << " -> " << newsize << "." << endl;
     }
 
 private:
@@ -1447,6 +1431,8 @@ private:
     mutex m_ssLock;
     double m_fixedSsInterval;
     uint32_t m_fixedSnapshotCount{100};
+
+    AVFrameToImMatConverter m_frmCvt;
 };
 
 const AVRational MediaSnapshot_Impl::MILLISEC_TIMEBASE = { 1, 1000 };

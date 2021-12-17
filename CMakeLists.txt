@@ -108,6 +108,7 @@ set(MEDIA_EDITOR_SRCS
     ImSequencer.cpp
     MediaSnapshot.cpp
     FFUtils.cpp
+    Logger.cpp
     ${IMGUI_APP_ENTRY_SRC}
 )
 
@@ -206,6 +207,7 @@ add_executable(
     SystemToolkit.cpp
     ImGuiToolkit_NoGst.cpp
     Log_NoGst.cpp
+    Logger.cpp
     ${IMGUI_APP_ENTRY_SRC}
 )
 target_link_libraries(
@@ -220,6 +222,7 @@ add_executable(
     MediaSnapshotTest.cpp
     MediaSnapshot.cpp
     FFUtils.cpp
+    Logger.cpp
     ${IMGUI_APP_ENTRY_SRC}
 )
 target_link_libraries(
