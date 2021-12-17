@@ -68,7 +68,8 @@ void Application_Initialize(void** handle)
     for (auto& tid : g_snapshotTids)
         tid = nullptr;
     g_msrc = CreateMediaSnapshot();
-    g_msrc->SetSnapshotSize(160, 90);
+    // g_msrc->SetSnapshotSize(160, 90);
+    g_msrc->SetSnapshotResizeFactor(0.5f, 0.5f);
 }
 
 void Application_Finalize(void** handle)
@@ -203,6 +204,12 @@ bool Application_Frame(void * handle)
         if (ImGuiFileDialog::Instance()->IsOk())
 		{
             g_msrc->Close();
+            for (auto& tid : g_snapshotTids)
+            {
+                if (tid)
+                    ImGui::ImDestroyTexture(tid);
+                tid = nullptr;
+            }
             string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
             g_msrc->Open(filePathName);
             g_windowPos = (float)g_msrc->GetVidoeMinPos()/1000.f;
