@@ -708,8 +708,9 @@ SequenceItem::SequenceItem(const std::string& name, const std::string& path, int
     }
     if (mMedia && mMedia->IsOpened())
     {
+        double window_size = 1.0f;
         mEnd = mMedia->GetVidoeFrameCount();
-        mMedia->ConfigSnapWindow(1.f, 10);
+        mMedia->ConfigSnapWindow(window_size, 10);
     }
 }
 
