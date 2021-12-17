@@ -14,13 +14,15 @@
 #include <cmath>
 #include "MediaSnapshot.h"
 #include "FFUtils.h"
+#include "Logger.h"
 
 using namespace std;
+using namespace Logger;
 
 static MediaSnapshot* g_msrc = nullptr;
-static float g_windowPos = 0.f;
-static float g_windowSize = 300.f;
-static float g_windowFrames = 10.0f;
+static double g_windowPos = 0.f;
+static double g_windowSize = 300.f;
+static double g_windowFrames = 10.0f;
 static vector<ImTextureID> g_snapshotTids;
 ImVec2 g_snapImageSize;
 const string c_imguiIniPath = "ms_test.ini";
@@ -66,6 +68,7 @@ void Application_Initialize(void** handle)
     for (auto& tid : g_snapshotTids)
         tid = nullptr;
     g_msrc = CreateMediaSnapshot();
+    g_msrc->SetSnapshotSize(160, 90);
 }
 
 void Application_Finalize(void** handle)
@@ -151,21 +154,38 @@ bool Application_Frame(void * handle)
             else
             {
                 ImGui::ImMat vmat = snapshots[i];
-                if (!vmat.empty())
+                string tag = TimestampToString(vmat.time_stamp);
+                bool valid = true;
+                if (vmat.empty())
                 {
-                    int video_depth = vmat.type == IM_DT_INT8 ? 8 : vmat.type == IM_DT_INT16 ? 16 : 8;
-                    int video_shift = vmat.depth != 0 ? vmat.depth : vmat.type == IM_DT_INT8 ? 8 : vmat.type == IM_DT_INT16 ? 16 : 8;
-                    ImGui::VkMat in_RGB; in_RGB.type = IM_DT_INT8;
-                    m_yuv2rgb->YUV2RGBA(vmat, in_RGB, vmat.color_format, vmat.color_space, vmat.color_range, video_depth, video_shift);
-                    ImGui::ImGenerateOrUpdateTexture(g_snapshotTids[i], in_RGB.w, in_RGB.h, in_RGB.c, in_RGB.buffer_offset(), (const unsigned char *)in_RGB.buffer());
+                    valid = false;
+                    tag += "(loading)";
+                }
+                if (valid &&
+                    ((vmat.color_format != IM_CF_RGBA && vmat.color_format != IM_CF_ABGR) ||
+                    vmat.type != IM_DT_INT8 ||
+                    (vmat.device != IM_DD_CPU && vmat.device != IM_DD_VULKAN)))
+                {
+                    Log(ERROR) << "WRONG snapshot format!" << endl;
+                    valid = false;
+                    tag += "(bad format)";
+                }
+                if (valid)
+                {
+                    if (vmat.device == IM_DD_CPU)
+                        ImGui::ImGenerateOrUpdateTexture(g_snapshotTids[i], vmat.w, vmat.h, vmat.c, (const unsigned char *)vmat.data);
+                    else
+                    {
+                        ImGui::VkMat vkmat = vmat;
+                        ImGui::ImGenerateOrUpdateTexture(g_snapshotTids[i], vkmat.w, vkmat.h, vkmat.c, vkmat.buffer_offset(), (const unsigned char *)vkmat.buffer());
+                    }
                     ImGui::Image(g_snapshotTids[i], g_snapImageSize);
-                    ImGui::TextUnformatted(TimestampToString(vmat.time_stamp).c_str());
                 }
                 else
                 {
                     ImGui::Dummy(g_snapImageSize);
-                    ImGui::TextUnformatted("loading");
                 }
+                ImGui::TextUnformatted(tag.c_str());
             }
             ImGui::EndGroup();
             ImGui::SameLine();
@@ -190,7 +210,6 @@ bool Application_Frame(void * handle)
             g_msrc->ConfigSnapWindow(g_windowSize, g_windowFrames);
         }
         ImGuiFileDialog::Instance()->Close();
-        cout << "ImGuiFileDialog::Instance()->Close()" << endl;
     }
 
     if (!io.KeyCtrl && !io.KeyShift && !io.KeyAlt && ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Escape), false))
