@@ -260,31 +260,76 @@ public:
 
     bool SetSnapshotSize(uint32_t width, uint32_t height) override
     {
+        lock_guard<recursive_mutex> lk(m_ctlLock);
+        if (m_frmCvt.GetOutWidth() == width && m_frmCvt.GetOutHeight() == height)
+            return true;
         if (!m_frmCvt.SetOutSize(width, height))
         {
             m_errMessage = m_frmCvt.GetError();
             return false;
         }
+        lock_guard<mutex> lk2(m_ssLock);
+        m_snapshots.clear();
+        return true;
+    }
+
+    bool SetSnapshotResizeFactor(float widthFactor, float heightFactor) override
+    {
+        lock_guard<recursive_mutex> lk(m_ctlLock);
+        if (widthFactor <= 0.f || heightFactor <= 0.f)
+        {
+            m_errMessage = "Resize factor must be a positive number!";
+            return false;
+        }
+        if (!m_ssSizeChanged && m_ssWFacotr == widthFactor && m_ssHFacotr == heightFactor)
+            return true;
+
+        m_ssWFacotr = widthFactor;
+        m_ssHFacotr = heightFactor;
+        if (HasVideo())
+        {
+            if (widthFactor == 1.f && heightFactor == 1.f)
+                return SetSnapshotSize(0, 0);
+
+            uint32_t outWidth = (uint32_t)ceil(m_vidStream->codecpar->width*widthFactor);
+            if ((outWidth&0x1) == 1)
+                outWidth++;
+            uint32_t outHeight = (uint32_t)ceil(m_vidStream->codecpar->height*heightFactor);
+            if ((outHeight&0x1) == 1)
+                outHeight++;
+            return SetSnapshotSize(outWidth, outHeight);
+        }
+        m_ssSizeChanged = false;
         return true;
     }
 
     bool SetOutColorFormat(ImColorFormat clrfmt) override
     {
+        lock_guard<recursive_mutex> lk(m_ctlLock);
+        if (m_frmCvt.GetOutColorFormat() == clrfmt)
+            return true;
         if (!m_frmCvt.SetOutColorFormat(clrfmt))
         {
             m_errMessage = m_frmCvt.GetError();
             return false;
         }
+        lock_guard<mutex> lk2(m_ssLock);
+        m_snapshots.clear();
         return true;
     }
 
     bool SetResizeInterpolateMode(ImInterpolateMode interp) override
     {
+        lock_guard<recursive_mutex> lk(m_ctlLock);
+        if (m_frmCvt.GetResizeInterpolateMode() == interp)
+            return true;
         if (!m_frmCvt.SetResizeInterpolateMode(interp))
         {
             m_errMessage = m_frmCvt.GetError();
             return false;
         }
+        lock_guard<mutex> lk2(m_ssLock);
+        m_snapshots.clear();
         return true;
     }
 
@@ -372,6 +417,9 @@ private:
                 return false;
         }
         if (!ParseFile())
+            return false;
+        m_ssSizeChanged = true;
+        if (!SetSnapshotResizeFactor(m_ssWFacotr, m_ssHFacotr))
             return false;
         return true;
     }
@@ -1410,7 +1458,8 @@ private:
     recursive_mutex m_ctlLock;
     bool m_quitScan{false};
 
-    uint32_t m_ssWidth{0}, m_ssHeight{0};
+    float m_ssWFacotr{1.f}, m_ssHFacotr{1.f};
+    bool m_ssSizeChanged{false};
     int64_t m_vidStartMts {0};
     int64_t m_vidDuration {0};
     int64_t m_vidFrameCount {0};

@@ -22,6 +22,7 @@ struct MediaSnapshot
     virtual uint32_t GetVideoWidth() const = 0;
     virtual uint32_t GetVideoHeight() const = 0;
     virtual bool SetSnapshotSize(uint32_t width, uint32_t height) = 0;
+    virtual bool SetSnapshotResizeFactor(float widthFactor, float heightFactor) = 0;
     virtual bool SetOutColorFormat(ImColorFormat clrfmt) = 0;
     virtual bool SetResizeInterpolateMode(ImInterpolateMode interp) = 0;
 

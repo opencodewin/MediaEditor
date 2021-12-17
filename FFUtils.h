@@ -37,10 +37,16 @@ public:
     bool SetResizeInterpolateMode(ImInterpolateMode interp);
     bool ConvertImage(const AVFrame* avfrm, ImGui::ImMat& outMat, double timestamp);
 
+    uint32_t GetOutWidth() const { return m_outWidth; }
+    uint32_t GetOutHeight() const { return m_outHeight; }
+    ImColorFormat GetOutColorFormat() const { return m_outClrFmt; }
+    ImInterpolateMode GetResizeInterpolateMode() const { return m_resizeInterp; }
+
     std::string GetError() const { return m_errMsg; }
 
 private:
     uint32_t m_outWidth{0}, m_outHeight{0};
+    float m_outWFactor{0.f}, m_outHFactor{0.f};
     ImColorFormat m_outClrFmt{IM_CF_RGBA};
     ImInterpolateMode m_resizeInterp{IM_INTERPOLATE_AREA};
 #if IMGUI_VULKAN_SHADER
