@@ -60,6 +60,7 @@ struct SequenceItem
 {
     std::string mName;
     std::string mPath;
+    unsigned int mColor {0};
     int mFrameStart {0};
     int mFrameEnd   {0};
     bool mExpanded  {false};
