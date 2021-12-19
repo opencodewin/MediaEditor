@@ -30,6 +30,23 @@ enum SEQUENCER_OPTIONS
     SEQUENCER_EDIT_ALL = SEQUENCER_EDIT_STARTEND | SEQUENCER_CHANGE_TIME
 };
 
+struct SequencerCustomDraw
+{
+    int index;
+    ImRect customRect;
+    ImRect legendRect;
+    ImRect clippingRect;
+    ImRect legendClippingRect;
+};
+
+struct VideoSnapshotInfo
+{
+    ImRect rc;
+    int64_t time_stamp;
+    int64_t duration;
+    float frame_width;
+};
+
 struct SequenceInterface
 {
     bool focused = false;
@@ -50,9 +67,11 @@ struct SequenceInterface
     virtual void Paste() {}
     virtual size_t GetCustomHeight(int /*index*/) { return 0; }
     virtual void DoubleClick(int /*index*/) {}
-    virtual void CustomDraw(int /*index*/, ImDrawList * /*draw_list*/, const ImRect & /*rc*/, const ImRect & /*legendRect*/, const ImRect & /*clippingRect*/, const ImRect & /*legendClippingRect*/) {}
+    virtual void CustomDraw(int /*index*/, ImDrawList * /*draw_list*/, const ImRect & /*rc*/, const ImRect & /*legendRect*/, const ImRect & /*clippingRect*/, const ImRect & /*legendClippingRect*/, int64_t /* viewStartTime */, int64_t /* visibleTime */) {}
     virtual void CustomDrawCompact(int /*index*/, ImDrawList * /*draw_list*/, const ImRect & /*rc*/, const ImRect & /*clippingRect*/) {}
+    virtual void GetVideoSnapshotInfo(int /*index*/, std::vector<VideoSnapshotInfo>&) {}
 };
+
 bool Sequencer(SequenceInterface *sequence, int64_t *currentTime, bool *expanded, int *selectedEntry, int64_t *firstTime, int64_t *lastTime, int sequenceOptions);
 
 struct SequenceItem
@@ -66,9 +85,11 @@ struct SequenceItem
     int mMediaType {SEQUENCER_ITEM_UNKNOWN};
     MediaSnapshot* mMedia   {nullptr};
     ImTextureID mMediaSnapshot  {nullptr};
+    std::vector<VideoSnapshotInfo> mVideoSnapshots;
     SequenceItem(const std::string& name, const std::string& path, int64_t start, int64_t end, bool expand, int type);
     ~SequenceItem();
     void SequenceItemUpdateSnapShot();
+    void CalculateVideoSnapshotInfo(const ImRect &customRect);
 };
 
 struct MediaSequence : public SequenceInterface
@@ -89,8 +110,9 @@ struct MediaSequence : public SequenceInterface
     void Duplicate(int index);
     size_t GetCustomHeight(int index) { return m_Items[index]->mExpanded ? mItemHeight : 0; }
     void DoubleClick(int index) { m_Items[index]->mExpanded = !m_Items[index]->mExpanded; }
-    void CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRect);
+    void CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRect, int64_t viewStartTime, int64_t visibleTime);
     void CustomDrawCompact(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &clippingRect);
+    void GetVideoSnapshotInfo(int index, std::vector<VideoSnapshotInfo>& snapshots);
 
     const int mItemHeight {60};
     int64_t mStart   {0}; 

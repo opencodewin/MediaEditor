@@ -27,15 +27,6 @@
 
 namespace ImSequencer
 {
-struct SequencerCustomDraw
-{
-    int index;
-    ImRect customRect;
-    ImRect legendRect;
-    ImRect clippingRect;
-    ImRect legendClippingRect;
-};
-
 std::string MillisecToString(int64_t millisec, bool show_millisec = false)
 {
     std::ostringstream oss;
@@ -118,6 +109,7 @@ bool Sequencer(SequenceInterface *sequence, int64_t *currentTime, bool *expanded
     int dupEntry = -1;
     int ItemHeight = 20;
     int HeadHeight = 20;
+    int scrollBarHeight = 14;
     bool popupOpened = false;
     int sequenceCount = sequence->GetItemCount();
 
@@ -125,7 +117,7 @@ bool Sequencer(SequenceInterface *sequence, int64_t *currentTime, bool *expanded
 
     ImDrawList *draw_list = ImGui::GetWindowDrawList();
     ImVec2 canvas_pos = ImGui::GetCursorScreenPos();     // ImDrawList API uses screen coordinates!
-    ImVec2 canvas_size = ImGui::GetContentRegionAvail(); // Resize canvas to what's available
+    ImVec2 canvas_size = ImGui::GetContentRegionAvail() - ImVec2(16, 0); // Resize canvas to what's available
     int64_t firstTimeUsed = firstTime ? *firstTime : 0;
     int controlHeight = sequenceCount * ItemHeight;
     for (int i = 0; i < sequenceCount; i++)
@@ -169,24 +161,32 @@ bool Sequencer(SequenceInterface *sequence, int64_t *currentTime, bool *expanded
     if (lastTime)
         *lastTime = firstTimeUsed + visibleTime;
 
+    ImGui::SetCursorScreenPos(canvas_pos + ImVec2(3, ItemHeight + 3));
+    ImGui::InvisibleButton("canvas", canvas_size - ImVec2(6, ItemHeight + scrollBarHeight + 8));
+    if (ImGui::BeginDragDropTarget())
+    {
+        if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("Media_drag_drop"))
+        {
+            ImSequencer::SequenceItem * item = (ImSequencer::SequenceItem*)payload->Data;
+            ImSequencer::MediaSequence * seq = (ImSequencer::MediaSequence *)sequence;
+            SequenceItem * new_item = new SequenceItem(item->mName, item->mPath, item->mStart, item->mEnd, true, item->mMediaType);
+            auto length = item->mEnd - item->mStart;
+            if (currentTime && firstTime && *currentTime >= *firstTime && *currentTime <= sequence->GetEnd())
+                new_item->mStart = *currentTime;
+            else
+                new_item->mStart = *firstTime;
+            new_item->mEnd = new_item->mStart + length;
+            if (new_item->mEnd > sequence->GetEnd())
+                sequence->SetEnd(new_item->mEnd + 60 * 1000);
+            seq->m_Items.push_back(new_item);
+        }
+        ImGui::EndDragDropTarget();
+    }
+    ImGui::SetCursorScreenPos(canvas_pos);
     if ((expanded && !*expanded) || !sequenceCount)
     {
         // minimum view
-        ImGui::InvisibleButton("canvas", ImVec2(canvas_size.x - canvas_pos.x, (float)ItemHeight));
-        if (ImGui::BeginDragDropTarget())
-        {
-            if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("Media_drag_drop"))
-            {
-                // check size?
-                ImSequencer::SequenceItem * item = (ImSequencer::SequenceItem*)payload->Data;
-                ImSequencer::MediaSequence * seq = (ImSequencer::MediaSequence *)sequence;
-                SequenceItem * new_item = new SequenceItem(item->mName, item->mPath, item->mStart, item->mEnd, true, item->mMediaType);
-                if (new_item->mEnd > sequence->GetEnd())
-                    sequence->SetEnd(new_item->mEnd + 60 * 1000);
-                seq->m_Items.push_back(new_item);
-            }
-            ImGui::EndDragDropTarget();
-        }
+        ImGui::InvisibleButton("canvas_minimum", ImVec2(canvas_size.x - canvas_pos.x, (float)ItemHeight));
         draw_list->AddRectFilled(canvas_pos, ImVec2(canvas_size.x + canvas_pos.x, canvas_pos.y + ItemHeight), COL_CANVAS_BG, 0);
         auto info_str = MillisecToString(duration, true);
         info_str += " / ";
@@ -199,7 +199,7 @@ bool Sequencer(SequenceInterface *sequence, int64_t *currentTime, bool *expanded
         bool hasScrollBar(true);
         // test scroll area
         ImVec2 headerSize(canvas_size.x, (float)HeadHeight);
-        ImVec2 scrollBarSize(canvas_size.x, 14.f);
+        ImVec2 scrollBarSize(canvas_size.x, scrollBarHeight);
         ImGui::InvisibleButton("topBar", headerSize);
         draw_list->AddRectFilled(canvas_pos, canvas_pos + headerSize, IM_COL32_BLACK, 0);
         if (!sequenceCount) 
@@ -213,25 +213,6 @@ bool Sequencer(SequenceInterface *sequence, int64_t *currentTime, bool *expanded
         ImGui::BeginChildFrame(889, childFrameSize, ImGuiWindowFlags_NoScrollbar); // id = 889 why?
         sequence->focused = ImGui::IsWindowFocused();
         ImGui::InvisibleButton("contentBar", ImVec2(canvas_size.x - 14, float(controlHeight)));
-        if (ImGui::BeginDragDropTarget())
-        {
-            if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("Media_drag_drop"))
-            {
-                ImSequencer::SequenceItem * item = (ImSequencer::SequenceItem*)payload->Data;
-                ImSequencer::MediaSequence * seq = (ImSequencer::MediaSequence *)sequence;
-                auto length = item->mEnd - item->mStart;
-                SequenceItem * new_item = new SequenceItem(item->mName, item->mPath, 0, 100, true, item->mMediaType);
-                if (currentTime && firstTime && *currentTime >= *firstTime && *currentTime <= sequence->GetEnd())
-                    new_item->mStart = *currentTime;
-                else
-                    new_item->mStart = *firstTime;
-                new_item->mEnd = new_item->mStart + length;
-                if (new_item->mEnd > sequence->GetEnd())
-                    sequence->SetEnd(new_item->mEnd + 60 * 1000);
-                seq->m_Items.push_back(new_item);
-            }
-            ImGui::EndDragDropTarget();
-        }
         const ImVec2 contentMin = ImGui::GetItemRectMin();
         const ImVec2 contentMax = ImGui::GetItemRectMax();
         const ImRect contentRect(contentMin, contentMax);
@@ -239,7 +220,7 @@ bool Sequencer(SequenceInterface *sequence, int64_t *currentTime, bool *expanded
         const float contentHeight = contentMax.y - contentMin.y;
         
         // full canvas background
-        draw_list->AddRectFilled(canvas_pos, canvas_pos + canvas_size, COL_CANVAS_BG, 0);
+        draw_list->AddRectFilled(canvas_pos + ImVec2(4, ItemHeight + 4), canvas_pos + ImVec2(4, ItemHeight + 4) + canvas_size - ImVec2(8, ItemHeight + scrollBarHeight + 8), COL_CANVAS_BG, 0);
         // full legend background
         draw_list->AddRectFilled(legendRect.Min, legendRect.Max, COL_LEGEND_BG, 0);
 
@@ -287,7 +268,7 @@ bool Sequencer(SequenceInterface *sequence, int64_t *currentTime, bool *expanded
             }
             if (baseIndex && px > (canvas_pos.x + legendWidth))
             {
-                auto time_str = MillisecToString(i);
+                auto time_str = MillisecToString(i, true);
                 draw_list->AddText(ImVec2((float)px + 3.f, canvas_pos.y), COL_RULE_TEXT, time_str.c_str());
             }
         };
@@ -381,6 +362,7 @@ bool Sequencer(SequenceInterface *sequence, int64_t *currentTime, bool *expanded
                 customHeight += sequence->GetCustomHeight(i);
             draw_list->AddRectFilled(ImVec2(contentMin.x, contentMin.y + ItemHeight * *selectedEntry + customHeight), ImVec2(contentMin.x + canvas_size.x, contentMin.y + ItemHeight * (*selectedEntry + 1) + customHeight), COL_SLOT_SELECTED, 1.f);
         }
+        
         // slots
         customHeight = 0;
         for (int i = 0; i < sequenceCount; i++)
@@ -388,6 +370,7 @@ bool Sequencer(SequenceInterface *sequence, int64_t *currentTime, bool *expanded
             int64_t start, end;
             std::string name;
             unsigned int color;
+            std::vector<VideoSnapshotInfo> snapshots;
             sequence->Get(i, start, end, name, color);
             size_t localCustomHeight = sequence->GetCustomHeight(i);
             ImVec2 pos = ImVec2(contentMin.x + legendWidth - firstTimeUsed * msPixelWidth, contentMin.y + ItemHeight * i + 1 + customHeight);
@@ -439,7 +422,7 @@ bool Sequencer(SequenceInterface *sequence, int64_t *currentTime, bool *expanded
                 }
             }
 
-            // custom draw
+            // calculate custom draw rect
             if (localCustomHeight > 0)
             {
                 // slot normal view (custom view)
@@ -519,10 +502,6 @@ bool Sequencer(SequenceInterface *sequence, int64_t *currentTime, bool *expanded
         }
         draw_list->PopClipRect();
         draw_list->PopClipRect();
-        for (auto &customDraw : customDraws)
-            sequence->CustomDraw(customDraw.index, draw_list, customDraw.customRect, customDraw.legendRect, customDraw.clippingRect, customDraw.legendClippingRect);
-        for (auto &customDraw : compactCustomDraws)
-            sequence->CustomDrawCompact(customDraw.index, draw_list, customDraw.customRect, customDraw.clippingRect);
         
         // copy paste
         if (sequenceOptions & SEQUENCER_COPYPASTE)
@@ -650,7 +629,6 @@ bool Sequencer(SequenceInterface *sequence, int64_t *currentTime, bool *expanded
             }
         }
     }
-    ImGui::EndGroup();
 
     if (regionRect.Contains(io.MousePos))
     {
@@ -701,6 +679,14 @@ bool Sequencer(SequenceInterface *sequence, int64_t *currentTime, bool *expanded
             }
         }
     }
+
+    for (auto &customDraw : customDraws)
+        sequence->CustomDraw(customDraw.index, draw_list, customDraw.customRect, customDraw.legendRect, customDraw.clippingRect, customDraw.legendClippingRect, *firstTime, visibleTime);
+    for (auto &customDraw : compactCustomDraws)
+        sequence->CustomDrawCompact(customDraw.index, draw_list, customDraw.customRect, customDraw.clippingRect);
+
+    ImGui::EndGroup();
+
     if (expanded)
     {
         bool overExpanded = SequencerAddDelButton(draw_list, ImVec2(canvas_pos.x + 2, canvas_pos.y + 2), !*expanded);
@@ -785,6 +771,39 @@ void SequenceItem::SequenceItemUpdateSnapShot()
     }
 }
 
+void SequenceItem::CalculateVideoSnapshotInfo(const ImRect &customRect)
+{
+    if (mMedia && mMedia->IsOpened() && mMedia->HasVideo())
+    {
+        auto width = mMedia->GetVideoWidth();
+        auto height = mMedia->GetVideoHeight();
+        auto duration = mMedia->GetVidoeDuration();
+        if (!width || !height)
+            return;
+        if (customRect.GetHeight() <= 0 || customRect.GetWidth() <= 0)
+            return;
+        float aspio = (float)width / (float)height;
+        float snapshot_height = customRect.GetHeight();
+        float snapshot_width = snapshot_height * aspio;
+        float frame_count = (customRect.GetWidth() + snapshot_width / 2) / snapshot_width;
+        float frame_duration = (float)duration / (float)frame_count;
+        if (frame_count != mVideoSnapshots.size())
+        {
+            mVideoSnapshots.clear();
+            for (int i = 0; i < (int)frame_count; i++)
+            {
+                VideoSnapshotInfo snapshot;
+                snapshot.rc.Min = ImVec2(i * snapshot_width, 0);
+                snapshot.rc.Max = ImVec2((i + 1) * snapshot_width, snapshot_height);
+                snapshot.time_stamp = i * frame_duration;
+                snapshot.duration = frame_duration;
+                snapshot.frame_width = snapshot_width;
+                mVideoSnapshots.push_back(snapshot);
+            }
+        }
+    }
+}
+
 /***********************************************************************************************************
  * MediaSequence Struct Member Functions
  ***********************************************************************************************************/
@@ -831,19 +850,38 @@ void MediaSequence::Duplicate(int index)
     /*m_Items.push_back(m_Items[index]);*/
 }
 
-void MediaSequence::CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRect)
+void MediaSequence::CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRect, int64_t viewStartTime, int64_t visibleTime)
 {
     // rc: full item length rect
     // clippingRect: current view window area
     // legendRect: legend area
     // legendClippingRect: legend area
 
-    //draw_list->PushClipRect(legendClippingRect.Min, legendClippingRect.Max, true);
-    //draw_list->PopClipRect();
-    //draw_list->AddRectFilled(rc.Min, rc.Max, IM_COL32(255,0, 0, 128), 0);
-    //draw_list->AddRectFilled(clippingRect.Min, clippingRect.Max, IM_COL32(255,0, 0, 128), 0);
-    //draw_list->AddRectFilled(legendClippingRect.Min, legendClippingRect.Max, IM_COL32(255,0, 0, 128), 0);
-    //draw_list->AddRectFilled(legendRect.Min, legendRect.Max, IM_COL32(255,0, 0, 128), 0);
+    SequenceItem *item = m_Items[index];
+    item->CalculateVideoSnapshotInfo(rc);
+    if (item->mVideoSnapshots.size()  == 0) return;
+    float frame_width = item->mVideoSnapshots[0].frame_width;
+    int64_t lendth = item->mEnd - item->mStart;
+    int64_t startTime = viewStartTime - item->mStart;
+    if (startTime < 0) startTime = 0;
+    if (startTime > lendth) startTime = lendth;
+    int total_snapshot = item->mVideoSnapshots.size();
+    int snapshot_index = floor((float)startTime / (float)lendth * (float)total_snapshot);
+    
+    int max_snapshot = (clippingRect.GetWidth() + frame_width / 2) / frame_width + 1; 
+    int snapshot_count = max_snapshot;
+
+    draw_list->PushClipRect(clippingRect.Min, clippingRect.Max, true);
+    for (int i = 0; i < snapshot_count; i++)
+    {
+        if (i + snapshot_index > total_snapshot - 1) break;
+        ImRect frame_rc = item->mVideoSnapshots[snapshot_index + i].rc;
+        int64_t time_stamp = item->mVideoSnapshots[snapshot_index + i].time_stamp;
+        draw_list->AddRect(frame_rc.Min + rc.Min, frame_rc.Max + rc.Min, IM_COL32_BLACK);
+        auto time_string = MillisecToString(time_stamp, true);
+        draw_list->AddText(frame_rc.Min + rc.Min + ImVec2(2, 40), IM_COL32_WHITE, time_string.c_str());
+    }
+    draw_list->PopClipRect();
     
     //ImGui::SetCursorScreenPos(rc.Min);
 }
@@ -856,6 +894,12 @@ void MediaSequence::CustomDrawCompact(int index, ImDrawList *draw_list, const Im
     //draw_list->PushClipRect(clippingRect.Min, clippingRect.Max, true);
     //draw_list->PopClipRect();
     //draw_list->AddRectFilled(clippingRect.Min, clippingRect.Max, IM_COL32(255,0, 0, 128), 0);
+}
+
+void MediaSequence::GetVideoSnapshotInfo(int index, std::vector<VideoSnapshotInfo>& snapshots)
+{
+    SequenceItem *item = m_Items[index];
+    snapshots = item->mVideoSnapshots;
 }
 
 } // namespace ImSequencer
