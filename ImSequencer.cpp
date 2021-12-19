@@ -785,7 +785,7 @@ void SequenceItem::CalculateVideoSnapshotInfo(const ImRect &customRect)
         float aspio = (float)width / (float)height;
         float snapshot_height = customRect.GetHeight();
         float snapshot_width = snapshot_height * aspio;
-        float frame_count = (customRect.GetWidth() + snapshot_width / 2) / snapshot_width;
+        float frame_count = (customRect.GetWidth() + snapshot_width) / snapshot_width;
         float frame_duration = (float)duration / (float)frame_count;
         if (frame_count != mVideoSnapshots.size())
         {
@@ -795,6 +795,8 @@ void SequenceItem::CalculateVideoSnapshotInfo(const ImRect &customRect)
                 VideoSnapshotInfo snapshot;
                 snapshot.rc.Min = ImVec2(i * snapshot_width, 0);
                 snapshot.rc.Max = ImVec2((i + 1) * snapshot_width, snapshot_height);
+                if (snapshot.rc.Max.x > customRect.GetWidth() + 2)
+                    snapshot.rc.Max.x = customRect.GetWidth() + 2;
                 snapshot.time_stamp = i * frame_duration;
                 snapshot.duration = frame_duration;
                 snapshot.frame_width = snapshot_width;
