@@ -177,7 +177,7 @@ bool Sequencer(SequenceInterface *sequence, int64_t *currentTime, bool *expanded
                 new_item->mStart = *firstTime;
             new_item->mEnd = new_item->mStart + length;
             if (new_item->mEnd > sequence->GetEnd())
-                sequence->SetEnd(new_item->mEnd + 60 * 1000);
+                sequence->SetEnd(new_item->mEnd + 10 * 1000);
             seq->m_Items.push_back(new_item);
         }
         ImGui::EndDragDropTarget();
@@ -477,7 +477,7 @@ bool Sequencer(SequenceInterface *sequence, int64_t *currentTime, bool *expanded
                     r = l;
                 movingPos += int(diffTime * msPixelWidth);
                 if (r > sequence->GetEnd())
-                    sequence->SetEnd(r + 60 * 1000);
+                    sequence->SetEnd(r + 10 * 1000);
                 sequence->Set(movingEntry, l, r, name, color);
             }
             if (!io.MouseDown[0])
@@ -534,91 +534,24 @@ bool Sequencer(SequenceInterface *sequence, int64_t *currentTime, bool *expanded
             ImVec2 scrollBarC(scrollBarMin.x + legendWidth + startOffset, scrollBarMin.y);
             ImVec2 scrollBarD(scrollBarMin.x + legendWidth + barWidthInPixels + startOffset, scrollBarMax.y - 2);
             draw_list->AddRectFilled(scrollBarC, scrollBarD, (inScrollBar || MovingScrollBar) ? COL_SLIDER_IN : COL_SLIDER_MOVING, 6);
-            ImRect barHandleLeft(scrollBarC, ImVec2(scrollBarC.x + 14, scrollBarD.y));
-            ImRect barHandleRight(ImVec2(scrollBarD.x - 14, scrollBarC.y), scrollBarD);
-            bool onLeft = barHandleLeft.Contains(io.MousePos);
-            bool onRight = barHandleRight.Contains(io.MousePos);
-            static bool sizingRBar = false;
-            static bool sizingLBar = false;
-            draw_list->AddRectFilled(barHandleLeft.Min, barHandleLeft.Max, (onLeft || sizingLBar) ? COL_SLIDER_SIZING : COL_SLIDER_HANDLE, 6);
-            draw_list->AddRectFilled(barHandleRight.Min, barHandleRight.Max, (onRight || sizingRBar) ? COL_SLIDER_SIZING : COL_SLIDER_HANDLE, 6);
-            ImRect scrollBarThumb(scrollBarC, scrollBarD);
-            static const float MinBarWidth = 44.f;
-            if (sizingRBar)
+            if (MovingScrollBar)
             {
                 if (!io.MouseDown[0])
                 {
-                    sizingRBar = false;
+                    MovingScrollBar = false;
                 }
                 else
                 {
-                    float barNewWidth = ImMax(barWidthInPixels + io.MouseDelta.x, MinBarWidth);
-                    float barRatio = barNewWidth / barWidthInPixels;
-                    msPixelWidthTarget = msPixelWidth = msPixelWidth / barRatio;
-                    int newVisibleTimeCount = int((canvas_size.x - legendWidth) / msPixelWidthTarget);
-                    int lastTime = *firstTime + newVisibleTimeCount;
-                    if (lastTime > sequence->GetEnd())
-                    {
-                        msPixelWidthTarget = msPixelWidth = (canvas_size.x - legendWidth) / float(sequence->GetEnd() - *firstTime);
-                    }
+                    float msPerPixelInBar = barWidthInPixels / (float)visibleTime;
+                    *firstTime = int((io.MousePos.x - panningViewSource.x) / msPerPixelInBar) - panningViewTime;
+                    *firstTime = ImClamp(*firstTime, sequence->GetStart(), ImMax(sequence->GetEnd() - visibleTime, sequence->GetStart()));
                 }
             }
-            else if (sizingLBar)
+            else if (ImGui::IsMouseClicked(0) && firstTime && !MovingCurrentTime && movingEntry == -1)
             {
-                if (!io.MouseDown[0])
-                {
-                    sizingLBar = false;
-                }
-                else
-                {
-                    if (fabsf(io.MouseDelta.x) > FLT_EPSILON)
-                    {
-                        float barNewWidth = ImMax(barWidthInPixels - io.MouseDelta.x, MinBarWidth);
-                        float barRatio = barNewWidth / barWidthInPixels;
-                        float previousMsPixelWidthTarget = msPixelWidthTarget;
-                        msPixelWidthTarget = msPixelWidth = msPixelWidth / barRatio;
-                        int newVisibleTimeCount = int(visibleTime / barRatio);
-                        int64_t newFirst = *firstTime + newVisibleTimeCount - visibleTime;
-                        newFirst = ImClamp(newFirst, sequence->GetStart(), ImMax(sequence->GetEnd() - visibleTime, sequence->GetStart()));
-                        if (newFirst == *firstTime)
-                        {
-                            msPixelWidth = msPixelWidthTarget = previousMsPixelWidthTarget;
-                        }
-                        else
-                        {
-                            *firstTime = newFirst;
-                        }
-                    }
-                }
-            }
-            else
-            {
-                if (MovingScrollBar)
-                {
-                    if (!io.MouseDown[0])
-                    {
-                        MovingScrollBar = false;
-                    }
-                    else
-                    {
-                        float msPerPixelInBar = barWidthInPixels / (float)visibleTime;
-                        *firstTime = int((io.MousePos.x - panningViewSource.x) / msPerPixelInBar) - panningViewTime;
-                        *firstTime = ImClamp(*firstTime, sequence->GetStart(), ImMax(sequence->GetEnd() - visibleTime, sequence->GetStart()));
-                    }
-                }
-                else
-                {
-                    if (scrollBarThumb.Contains(io.MousePos) && ImGui::IsMouseClicked(0) && firstTime && !MovingCurrentTime && movingEntry == -1)
-                    {
-                        MovingScrollBar = true;
-                        panningViewSource = io.MousePos;
-                        panningViewTime = -*firstTime;
-                    }
-                    if (!sizingRBar && onRight && ImGui::IsMouseClicked(0))
-                        sizingRBar = true;
-                    if (!sizingLBar && onLeft && ImGui::IsMouseClicked(0))
-                        sizingLBar = true;
-                }
+                MovingScrollBar = true;
+                panningViewSource = io.MousePos;
+                panningViewTime = -*firstTime;
             }
         }
     }
