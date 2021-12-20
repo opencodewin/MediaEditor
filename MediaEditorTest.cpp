@@ -13,8 +13,8 @@ using namespace ImSequencer;
 
 static std::string bookmark_path = "bookmark.ini";
 
-static MediaSequence * sequence = nullptr;
-static std::vector<SequenceItem *> media_items;
+static MediaSequencer * sequencer = nullptr;
+static std::vector<SequencerItem *> media_items;
 
 static bool Splitter(bool split_vertically, float thickness, float* size1, float* size2, float min_size1, float min_size2, float splitter_long_axis_size = -1.0f)
 {
@@ -52,13 +52,13 @@ void Application_Initialize(void** handle)
 		docFile.close();
 	}
 #endif
-    sequence = new MediaSequence();
+    sequencer = new MediaSequencer();
 }
 
 void Application_Finalize(void** handle)
 {
     for (auto item : media_items) delete item;
-    if (sequence) delete sequence;
+    if (sequencer) delete sequencer;
 #ifdef USE_BOOKMARK
 	// save bookmarks
 	std::ofstream configFileWriter(bookmark_path, std::ios::out);
@@ -190,12 +190,12 @@ bool Application_Frame(void * handle)
                     }
                     else
                     {
-                        item->SequenceItemUpdateThumbnail();
+                        item->SequencerItemUpdateThumbnail();
                         ImGui::Button(item->mName.c_str(), ImVec2(media_icon_size, media_icon_size));
                     }
                     if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
                     {
-                        ImGui::SetDragDropPayload("Media_drag_drop", item, sizeof(SequenceItem));
+                        ImGui::SetDragDropPayload("Media_drag_drop", item, sizeof(SequencerItem));
                         ImGui::TextUnformatted(item->mName.c_str());
                         ImGui::EndDragDropSource();
                     }
@@ -281,10 +281,10 @@ bool Application_Frame(void * handle)
     bool _expanded = expanded;
     if (ImGui::BeginChild("##Sequencor", panel_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings))
     {
-        ImSequencer::Sequencer(sequence, &currentTime, &_expanded, &selectedEntry, &firstTime, &lastTime, ImSequencer::SEQUENCER_EDIT_STARTEND | ImSequencer::SEQUENCER_CHANGE_TIME | ImSequencer::SEQUENCER_DEL);
+        ImSequencer::Sequencer(sequencer, &currentTime, &_expanded, &selectedEntry, &firstTime, &lastTime, ImSequencer::SEQUENCER_EDIT_STARTEND | ImSequencer::SEQUENCER_CHANGE_TIME | ImSequencer::SEQUENCER_DEL);
         if (selectedEntry != -1)
         {
-            //const ImSequencer::MediaSequence::SequenceItem &item = sequence.m_Items[selectedEntry];
+            //const ImSequencer::MediaSequencer::SequencerItem &item = sequencer.m_Items[selectedEntry];
             //ImGui::Text("I am a %s, please edit me", item.mName.c_str());
         }
         ImGui::EndChild();
@@ -345,7 +345,7 @@ bool Application_Frame(void * handle)
                         (file_surfix.compare(".webp") == 0))
                     type = SEQUENCER_ITEM_PICTURE;
             }
-            SequenceItem * item = new SequenceItem(file_name, file_path, 0, 100, true, type);
+            SequencerItem * item = new SequencerItem(file_name, file_path, 0, 100, true, type);
             media_items.push_back(item);
         }
         ImGuiFileDialog::Instance()->Close();

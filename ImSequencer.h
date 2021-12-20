@@ -47,7 +47,7 @@ struct VideoSnapshotInfo
     float frame_width;
 };
 
-struct SequenceInterface
+struct SequencerInterface
 {
     bool focused = false;
     virtual int64_t GetStart() const = 0;
@@ -59,6 +59,7 @@ struct SequenceInterface
     virtual void EndEdit() {}
     virtual const char *GetItemLabel(int /*index*/) const { return ""; }
     virtual void Get(int index, int64_t& start, int64_t& end, std::string& name, unsigned int& color) = 0;
+    virtual void Get(int index, float& frame_duration, float& snapshot_width) = 0;
     virtual void Set(int index, int64_t   start, int64_t end, std::string  name, unsigned int  color) = 0;
     virtual void Add(std::string& /*type*/) {}
     virtual void Del(int /*index*/) {}
@@ -72,9 +73,16 @@ struct SequenceInterface
     virtual void GetVideoSnapshotInfo(int /*index*/, std::vector<VideoSnapshotInfo>&) {}
 };
 
-bool Sequencer(SequenceInterface *sequence, int64_t *currentTime, bool *expanded, int *selectedEntry, int64_t *firstTime, int64_t *lastTime, int sequenceOptions);
+bool Sequencer(SequencerInterface *sequencer, int64_t *currentTime, bool *expanded, int *selectedEntry, int64_t *firstTime, int64_t *lastTime, int sequenceOptions);
 
-struct SequenceItem
+struct Snapshot
+{
+    ImTextureID texture {nullptr};
+    int64_t     time_stamp {0};
+    int64_t     estimate_time {0};
+};
+
+struct SequencerItem
 {
     std::string mName;
     std::string mPath;
@@ -85,22 +93,24 @@ struct SequenceItem
     int mMediaType {SEQUENCER_ITEM_UNKNOWN};
     int mMaxViewSnapshot;
     float mTotalFrame;
+    float mSnapshotWidth {0};
+    float mFrameDuration {0};
     int64_t mSnapshotPos {-1};
     MediaSnapshot* mMedia   {nullptr};
     ImTextureID mMediaThumbnail  {nullptr};
     std::vector<VideoSnapshotInfo> mVideoSnapshotInfos;
-    std::vector<ImTextureID> mVideoSnapshots;
-    SequenceItem(const std::string& name, const std::string& path, int64_t start, int64_t end, bool expand, int type);
-    ~SequenceItem();
-    void SequenceItemUpdateThumbnail();
-    void SequenceItemUpdateSnapshots();
+    std::vector<Snapshot> mVideoSnapshots;
+    SequencerItem(const std::string& name, const std::string& path, int64_t start, int64_t end, bool expand, int type);
+    ~SequencerItem();
+    void SequencerItemUpdateThumbnail();
+    void SequencerItemUpdateSnapshots();
     void CalculateVideoSnapshotInfo(const ImRect &customRect, int64_t viewStartTime, int64_t visibleTime);
 };
 
-struct MediaSequence : public SequenceInterface
+struct MediaSequencer : public SequencerInterface
 {
-    MediaSequence() : mStart(0), mEnd(0) {}
-    ~MediaSequence();
+    MediaSequencer() : mStart(0), mEnd(0) {}
+    ~MediaSequencer();
     // interface with sequencer
     int64_t GetStart() const { return mStart; }
     int64_t GetEnd() const { return mEnd; }
@@ -109,6 +119,7 @@ struct MediaSequence : public SequenceInterface
     int GetItemCount() const { return (int)m_Items.size(); }
     const char *GetItemLabel(int index) const  { return m_Items[index]->mName.c_str(); }
     void Get(int index, int64_t& start, int64_t& end, std::string& name, unsigned int& color);
+    void Get(int index, float& frame_duration, float& snapshot_width);
     void Set(int index, int64_t  start, int64_t  end, std::string  name, unsigned int  color);
     void Add(std::string& name);
     void Del(int index);
@@ -122,7 +133,7 @@ struct MediaSequence : public SequenceInterface
     const int mItemHeight {60};
     int64_t mStart   {0}; 
     int64_t mEnd   {0};
-    std::vector<SequenceItem *> m_Items;
+    std::vector<SequencerItem *> m_Items;
 };
 
 } // namespace ImSequencer
