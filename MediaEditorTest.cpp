@@ -166,10 +166,10 @@ bool Application_Frame(void * handle)
                     }
                     auto icon_pos = ImGui::GetCursorScreenPos();
                     ImVec2 icon_size = ImVec2(media_icon_size, media_icon_size);
-                    if (item->mMediaSnapshot)
+                    if (item->mMediaThumbnail)
                     {
-                        auto tex_w = ImGui::ImGetTextureWidth(item->mMediaSnapshot);
-                        auto tex_h = ImGui::ImGetTextureHeight(item->mMediaSnapshot);
+                        auto tex_w = ImGui::ImGetTextureWidth(item->mMediaThumbnail);
+                        auto tex_h = ImGui::ImGetTextureHeight(item->mMediaThumbnail);
                         float aspectRatio = (float)tex_w / (float)tex_h;
                         bool bViewisLandscape = icon_size.x >= icon_size.y ? true : false;
                         bool bRenderisLandscape = aspectRatio > 1.f ? true : false;
@@ -181,16 +181,16 @@ bool Application_Frame(void * handle)
                         if (adj_x > adj_w) { adj_y *= adj_w / adj_x; adj_x = adj_w; }
                         float offset_x = (icon_size.x - adj_x) / 2.0;
                         float offset_y = (icon_size.y - adj_y) / 2.0;
-                        ImGui::PushID((void*)(intptr_t)item->mMediaSnapshot);
+                        ImGui::PushID((void*)(intptr_t)item->mMediaThumbnail);
                         const ImGuiID id = ImGui::GetCurrentWindow()->GetID("#image");
                         ImGui::PopID();
-                        ImGui::ImageButtonEx(id, item->mMediaSnapshot, ImVec2(adj_w - offset_x * 2, adj_h - offset_y * 2), 
+                        ImGui::ImageButtonEx(id, item->mMediaThumbnail, ImVec2(adj_w - offset_x * 2, adj_h - offset_y * 2), 
                                             ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), ImVec2(offset_x, offset_y),
                                             ImVec4(0.0f, 0.0f, 0.0f, 1.0f), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
                     }
                     else
                     {
-                        item->SequenceItemUpdateSnapShot();
+                        item->SequenceItemUpdateThumbnail();
                         ImGui::Button(item->mName.c_str(), ImVec2(media_icon_size, media_icon_size));
                     }
                     if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
@@ -276,10 +276,10 @@ bool Application_Frame(void * handle)
     }
     
     ImVec2 panel_pos(4, size_main_h * window_size.y + 12);
-    ImVec2 panel_size(window_size.x, size_timeline_h * window_size.y - 12);
+    ImVec2 panel_size(window_size.x - 4, size_timeline_h * window_size.y - 12);
     ImGui::SetNextWindowPos(panel_pos, ImGuiCond_Always);
     bool _expanded = expanded;
-    if (ImGui::BeginChild("##Sequencor", panel_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+    if (ImGui::BeginChild("##Sequencor", panel_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings))
     {
         ImSequencer::Sequencer(sequence, &currentTime, &_expanded, &selectedEntry, &firstTime, &lastTime, ImSequencer::SEQUENCER_EDIT_STARTEND | ImSequencer::SEQUENCER_CHANGE_TIME | ImSequencer::SEQUENCER_DEL);
         if (selectedEntry != -1)
