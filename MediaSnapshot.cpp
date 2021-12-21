@@ -892,7 +892,7 @@ private:
                         int64_t mts = av_rescale_q(avfrm.pts, m_vidStream->time_base, MILLISEC_TIMEBASE);
                         uint32_t index;
                         bool isSnapshot = IsSnapshotFrame(mts, index, avfrm.pts);
-                        if (!isSnapshot)
+                        if (!isSnapshot || index < currTask->ssIdxAry.front() || index > currTask->ssIdxAry.back())
                         {
                             av_frame_unref(&avfrm);
                             avfrmLoaded = false;
