@@ -13,8 +13,8 @@ using namespace ImSequencer;
 
 static std::string bookmark_path = "bookmark.ini";
 
-static MediaSequence * sequence = nullptr;
-static std::vector<SequenceItem *> media_items;
+static MediaSequencer * sequencer = nullptr;
+static std::vector<SequencerItem *> media_items;
 
 static bool Splitter(bool split_vertically, float thickness, float* size1, float* size2, float min_size1, float min_size2, float splitter_long_axis_size = -1.0f)
 {
@@ -52,13 +52,13 @@ void Application_Initialize(void** handle)
 		docFile.close();
 	}
 #endif
-    sequence = new MediaSequence();
+    sequencer = new MediaSequencer();
 }
 
 void Application_Finalize(void** handle)
 {
     for (auto item : media_items) delete item;
-    if (sequence) delete sequence;
+    if (sequencer) delete sequencer;
 #ifdef USE_BOOKMARK
 	// save bookmarks
 	std::ofstream configFileWriter(bookmark_path, std::ios::out);
@@ -164,12 +164,18 @@ bool Application_Frame(void * handle)
                     {
                         ImGui::Dummy(ImVec2(x_offset, 0)); ImGui::SameLine();
                     }
+
                     auto icon_pos = ImGui::GetCursorScreenPos();
                     ImVec2 icon_size = ImVec2(media_icon_size, media_icon_size);
-                    if (item->mMediaSnapshot)
+                    // Draw Shadow for Icon
+                    draw_list->AddRectFilled(icon_pos + ImVec2(6, 6), icon_pos + ImVec2(6, 6) + icon_size, IM_COL32(32, 32, 32, 255));
+                    draw_list->AddRectFilled(icon_pos + ImVec2(4, 4), icon_pos + ImVec2(4, 4) + icon_size, IM_COL32(48, 48, 72, 255));
+                    draw_list->AddRectFilled(icon_pos + ImVec2(2, 2), icon_pos + ImVec2(2, 2) + icon_size, IM_COL32(64, 64, 96, 255));
+                    
+                    if (item->mMediaThumbnail)
                     {
-                        auto tex_w = ImGui::ImGetTextureWidth(item->mMediaSnapshot);
-                        auto tex_h = ImGui::ImGetTextureHeight(item->mMediaSnapshot);
+                        auto tex_w = ImGui::ImGetTextureWidth(item->mMediaThumbnail);
+                        auto tex_h = ImGui::ImGetTextureHeight(item->mMediaThumbnail);
                         float aspectRatio = (float)tex_w / (float)tex_h;
                         bool bViewisLandscape = icon_size.x >= icon_size.y ? true : false;
                         bool bRenderisLandscape = aspectRatio > 1.f ? true : false;
@@ -181,21 +187,21 @@ bool Application_Frame(void * handle)
                         if (adj_x > adj_w) { adj_y *= adj_w / adj_x; adj_x = adj_w; }
                         float offset_x = (icon_size.x - adj_x) / 2.0;
                         float offset_y = (icon_size.y - adj_y) / 2.0;
-                        ImGui::PushID((void*)(intptr_t)item->mMediaSnapshot);
+                        ImGui::PushID((void*)(intptr_t)item->mMediaThumbnail);
                         const ImGuiID id = ImGui::GetCurrentWindow()->GetID("#image");
                         ImGui::PopID();
-                        ImGui::ImageButtonEx(id, item->mMediaSnapshot, ImVec2(adj_w - offset_x * 2, adj_h - offset_y * 2), 
+                        ImGui::ImageButtonEx(id, item->mMediaThumbnail, ImVec2(adj_w - offset_x * 2, adj_h - offset_y * 2), 
                                             ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), ImVec2(offset_x, offset_y),
                                             ImVec4(0.0f, 0.0f, 0.0f, 1.0f), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
                     }
                     else
                     {
-                        item->SequenceItemUpdateSnapShot();
+                        item->SequencerItemUpdateThumbnail();
                         ImGui::Button(item->mName.c_str(), ImVec2(media_icon_size, media_icon_size));
                     }
                     if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
                     {
-                        ImGui::SetDragDropPayload("Media_drag_drop", item, sizeof(SequenceItem));
+                        ImGui::SetDragDropPayload("Media_drag_drop", item, sizeof(SequencerItem));
                         ImGui::TextUnformatted(item->mName.c_str());
                         ImGui::EndDragDropSource();
                     }
@@ -276,15 +282,15 @@ bool Application_Frame(void * handle)
     }
     
     ImVec2 panel_pos(4, size_main_h * window_size.y + 12);
-    ImVec2 panel_size(window_size.x, size_timeline_h * window_size.y - 12);
+    ImVec2 panel_size(window_size.x - 4, size_timeline_h * window_size.y - 12);
     ImGui::SetNextWindowPos(panel_pos, ImGuiCond_Always);
     bool _expanded = expanded;
-    if (ImGui::BeginChild("##Sequencor", panel_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+    if (ImGui::BeginChild("##Sequencor", panel_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings))
     {
-        ImSequencer::Sequencer(sequence, &currentTime, &_expanded, &selectedEntry, &firstTime, &lastTime, ImSequencer::SEQUENCER_EDIT_STARTEND | ImSequencer::SEQUENCER_CHANGE_TIME | ImSequencer::SEQUENCER_DEL);
+        ImSequencer::Sequencer(sequencer, &currentTime, &_expanded, &selectedEntry, &firstTime, &lastTime, ImSequencer::SEQUENCER_EDIT_STARTEND | ImSequencer::SEQUENCER_CHANGE_TIME | ImSequencer::SEQUENCER_DEL);
         if (selectedEntry != -1)
         {
-            //const ImSequencer::MediaSequence::SequenceItem &item = sequence.m_Items[selectedEntry];
+            //const ImSequencer::MediaSequencer::SequencerItem &item = sequencer.m_Items[selectedEntry];
             //ImGui::Text("I am a %s, please edit me", item.mName.c_str());
         }
         ImGui::EndChild();
@@ -345,7 +351,7 @@ bool Application_Frame(void * handle)
                         (file_surfix.compare(".webp") == 0))
                     type = SEQUENCER_ITEM_PICTURE;
             }
-            SequenceItem * item = new SequenceItem(file_name, file_path, 0, 100, true, type);
+            SequencerItem * item = new SequencerItem(file_name, file_path, 0, 100, true, type);
             media_items.push_back(item);
         }
         ImGuiFileDialog::Instance()->Close();
