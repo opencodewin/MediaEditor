@@ -786,7 +786,8 @@ private:
 
             if (currTask && currTask->cancel)
             {
-                avcodec_flush_buffers(m_viddecCtx);
+                if (!currTask->decoderEof)
+                    avcodec_flush_buffers(m_viddecCtx);
                 if (avfrmLoaded)
                 {
                     av_frame_unref(&avfrm);
@@ -829,6 +830,7 @@ private:
                             }
                             else
                             {
+                                idleLoop = false;
                                 currTask->decoderEof = true;
                                 avcodec_flush_buffers(m_viddecCtx);
                                 // Log(DEBUG) << "Video decoder current task reaches EOF!" << endl;
