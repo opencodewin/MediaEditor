@@ -17,6 +17,7 @@ struct MediaSnapshot
     virtual int64_t GetVidoeDuration() const = 0;
     virtual int64_t GetVidoeFrameCount() const = 0;
     virtual bool ConfigSnapWindow(double& windowSize, double frameCount) = 0;
+    virtual bool SetCacheFactor(double cacheFactor) = 0;
     virtual double GetMinWindowSize() const = 0;
     virtual double GetMaxWindowSize() const = 0;
     virtual uint32_t GetVideoWidth() const = 0;

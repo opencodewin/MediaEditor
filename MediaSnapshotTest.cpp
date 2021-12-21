@@ -22,7 +22,7 @@ using namespace Logger;
 static MediaSnapshot* g_msrc = nullptr;
 static double g_windowPos = 0.f;
 static double g_windowSize = 300.f;
-static double g_windowFrames = 10.0f;
+static double g_windowFrames = 14.0f;
 static vector<ImTextureID> g_snapshotTids;
 ImVec2 g_snapImageSize;
 const string c_imguiIniPath = "ms_test.ini";

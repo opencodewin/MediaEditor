@@ -1,5 +1,6 @@
 #include <thread>
 #include <mutex>
+#include <condition_variable>
 #include <iostream>
 #include <sstream>
 #include <iomanip>
@@ -63,6 +64,9 @@ public:
             else
                 m_vidfrmIntvPts = 0;
             m_snapWnd.startPos = (double)m_vidStartMts/1000.;
+
+            m_maxCacheSize = (uint32_t)ceil(m_windowFrameCount*m_cacheFactor);
+            ResetSnapshotBuildTask();
         }
         return true;
     }
@@ -117,6 +121,7 @@ public:
         m_audfrmAvgDur = 0.021;
 
         m_vidKeyPtsList.clear();
+        m_maxCacheSize = 0;
 
         m_errMessage = "";
     }
@@ -127,25 +132,57 @@ public:
             return false;
 
         SnapWindow snapWnd = UpdateSnapWindow(startPos);
-
         snapshots.clear();
-        lock_guard<mutex> lk(m_ssLock);
-        auto iter = find_if(m_snapshots.begin(), m_snapshots.end(),
-            [snapWnd](const Snapshot& ss) { return ss.index >= snapWnd.index0; });
+
+        lock_guard<mutex> lk(m_bldtskByTimeLock);
         uint32_t i = snapWnd.index0;
+        auto tskIter = m_bldtskTimeOrder.begin();
+        while (tskIter != m_bldtskTimeOrder.end() && i <= snapWnd.index1)
+        {
+            auto& tsk = *tskIter++;
+            if (tsk->ssIdxAry.back() >= i)
+            {
+                if (tsk->ssIdxAry.front() > i)
+                    break;
+                auto ssIter = tsk->ssAry.begin();
+                while (ssIter != tsk->ssAry.end())
+                {
+                    auto& ss = *ssIter++;
+                    if (ss.index == i)
+                    {
+                        snapshots.push_back(ss.img);
+                        i++;
+                    }
+                    else if (ss.index > i)
+                    {
+                        uint32_t j = ss.index < snapWnd.index1 ? ss.index : snapWnd.index1;
+                        while (i < j)
+                        {
+                            ImGui::ImMat vmat;
+                            vmat.time_stamp = CalcSnapshotTimestamp(i);
+                            snapshots.push_back(vmat);
+                            i++;
+                        }
+                        if (i == ss.index)
+                            snapshots.push_back(ss.img);
+                        else
+                        {
+                            ImGui::ImMat vmat;
+                            vmat.time_stamp = CalcSnapshotTimestamp(i);
+                            snapshots.push_back(vmat);
+                        }
+                        i++;
+                    }
+                    if (i > snapWnd.index1)
+                        break;
+                }
+            }
+        }
         while (i <= snapWnd.index1)
         {
-            if (iter == m_snapshots.end() || iter->index > i)
-            {
-                ImGui::ImMat vmat;
-                vmat.time_stamp = CalcSnapshotTimestamp(i);
-                snapshots.push_back(vmat);
-            }
-            else
-            {
-                snapshots.push_back(iter->img);
-                iter++;
-            }
+            ImGui::ImMat vmat;
+            vmat.time_stamp = CalcSnapshotTimestamp(i);
+            snapshots.push_back(vmat);
             i++;
         }
         return true;
@@ -221,11 +258,6 @@ public:
         if (m_viddecCtx)
             avcodec_flush_buffers(m_viddecCtx);
 
-        {
-            lock_guard<mutex> lk2(m_ssLock);
-            m_snapshots.clear();
-        }
-
         m_snapWindowSize = windowSize;
         m_windowFrameCount = frameCount;
         m_snapshotInterval = m_snapWindowSize*1000./m_windowFrameCount;
@@ -240,13 +272,27 @@ public:
         m_postWndCacheSize = m_maxCacheSize-intWndFrmCnt-m_prevWndCacheSize;
 
         UpdateSnapWindow(m_snapWnd.startPos);
-        InitializeSnapshotBuildTask();
+        ResetSnapshotBuildTask();
         m_snapWndUpdated = false;
 
         Log(DEBUG) << ">>>> Config window: m_snapWindowSize=" << m_snapWindowSize << ", m_windowFrameCount=" << m_windowFrameCount
             << ", m_vidMaxIndex=" << m_vidMaxIndex << ", m_maxCacheSize=" << m_maxCacheSize << ", m_prevWndCacheSize=" << m_prevWndCacheSize << endl;
 
         StartAllThreads();
+        return true;
+    }
+
+    bool SetCacheFactor(double cacheFactor) override
+    {
+        lock_guard<recursive_mutex> lk(m_ctlLock);
+        if (cacheFactor < 1.)
+        {
+            m_errMessage = "Argument 'cacheFactor' must be greater or equal than 1.0!";
+            return false;
+        }
+        m_cacheFactor = cacheFactor;
+        m_maxCacheSize = (uint32_t)ceil(m_windowFrameCount*m_cacheFactor);
+        ResetSnapshotBuildTask();
         return true;
     }
 
@@ -270,8 +316,7 @@ public:
             m_errMessage = m_frmCvt.GetError();
             return false;
         }
-        lock_guard<mutex> lk2(m_ssLock);
-        m_snapshots.clear();
+        ResetSnapshotBuildTask();
         return true;
     }
 
@@ -315,8 +360,7 @@ public:
             m_errMessage = m_frmCvt.GetError();
             return false;
         }
-        lock_guard<mutex> lk2(m_ssLock);
-        m_snapshots.clear();
+        ResetSnapshotBuildTask();
         return true;
     }
 
@@ -330,8 +374,7 @@ public:
             m_errMessage = m_frmCvt.GetError();
             return false;
         }
-        lock_guard<mutex> lk2(m_ssLock);
-        m_snapshots.clear();
+        ResetSnapshotBuildTask();
         return true;
     }
 
@@ -629,6 +672,8 @@ private:
                 bool taskChanged = false;
                 if (!currTask || currTask->cancel || currTask->demuxerEof)
                 {
+                    if (currTask && currTask->cancel)
+                        Log(DEBUG) << "~~~~ Current demux task canceled" << endl;
                     currTask = FindNextDemuxTask();
                     if (currTask)
                     {
@@ -786,6 +831,7 @@ private:
 
             if (currTask && currTask->cancel)
             {
+                Log(DEBUG) << "~~~~ Current video task canceled" << endl;
                 if (!currTask->decoderEof)
                     avcodec_flush_buffers(m_viddecCtx);
                 if (avfrmLoaded)
@@ -803,6 +849,7 @@ private:
                 {
                     currTask->decoding = true;
                     inputEof = false;
+                    Log(DEBUG) << "Change decoding task to build index (" << currTask->ssIdxAry.front() << " ~ " << currTask->ssIdxAry.back() << ")." << endl;
                 }
             }
 
@@ -842,17 +889,27 @@ private:
                     hasOutput = avfrmLoaded;
                     if (avfrmLoaded)
                     {
-                        if (m_vidfrmQ.size() < m_vidfrmQMaxSize)
+                        int64_t mts = av_rescale_q(avfrm.pts, m_vidStream->time_base, MILLISEC_TIMEBASE);
+                        uint32_t index;
+                        bool isSnapshot = IsSnapshotFrame(mts, index, avfrm.pts);
+                        if (!isSnapshot)
                         {
-                            lock_guard<mutex> lk(m_vidfrmQLock);
-                            AVFrame* enqfrm = av_frame_clone(&avfrm);
-                            m_vidfrmQ.push_back(enqfrm);
                             av_frame_unref(&avfrm);
                             avfrmLoaded = false;
                             idleLoop = false;
                         }
-                        else
-                            break;
+                        else if (m_pendingVidfrmCnt < m_maxPendingVidfrmCnt)
+                        {
+                            Snapshot ss;
+                            ss.index = index;
+                            ss.avfrm = av_frame_clone(&avfrm);
+                            m_pendingVidfrmCnt++;
+                            // Log(DEBUG) << "Adding SS of index " << index << "." << endl;
+                            currTask->ssAry.push_back(ss);
+                            av_frame_unref(&avfrm);
+                            avfrmLoaded = false;
+                            idleLoop = false;
+                        }
                     }
                 } while (hasOutput);
                 if (quitLoop)
@@ -885,7 +942,7 @@ private:
                                     Log(ERROR) << ">>> FAILED to send NULL packet to Video decoder! fferr = " << fferr << "." << endl;
                             }
                         }
-                        else if (fferr != AVERROR(EAGAIN))
+                        else if (fferr != AVERROR(EAGAIN) && fferr != AVERROR_INVALIDDATA)
                         {
                             Log(ERROR) << "FAILED to invoke 'avcodec_send_packet'(VideoDecodeThreadProc)! return code is "
                                 << fferr << "." << endl;
@@ -1066,60 +1123,53 @@ private:
     void UpdateSnapshotThreadProc()
     {
         Log(DEBUG) << "Enter UpdateSnapshotThreadProc()." << endl;
+        SnapshotBuildTask currTask;
         while (!m_quitScan)
         {
             bool idleLoop = true;
 
-            if (!m_vidfrmQ.empty())
+            if (!currTask || currTask->cancel || currTask->done)
             {
-                AVFrame* frm = m_vidfrmQ.front();
+                currTask = FindNextSsUpdateTask();
+            }
+
+            if (currTask)
+            {
+                AVFrame* ssfrm = nullptr;
+                for (Snapshot& ss : currTask->ssAry)
                 {
-                    lock_guard<mutex> lk(m_vidfrmQLock);
-                    m_vidfrmQ.pop_front();
-                }
-                int64_t mts = av_rescale_q(frm->pts, m_vidStream->time_base, MILLISEC_TIMEBASE);
-                double ts = (double)mts/1000.;
-                uint32_t index;
-                bool isSnapshot = IsSnapshotFrame(mts, index, frm->pts);
-                SnapWindow snapWnd = m_snapWnd;
-                if (isSnapshot && index >= snapWnd.cacheIdx0 && index <= snapWnd.cacheIdx1)
-                {
-                    lock_guard<mutex> lk(m_ssLock);
-                    auto iter = find_if(m_snapshots.begin(), m_snapshots.end(),
-                        [index](const Snapshot& ss) { return ss.index >= index; });
-                    if (iter != m_snapshots.end() && iter->index == index)
+                    if (ss.avfrm)
                     {
-                        double targetTs = index*m_snapshotInterval/1000.;
-                        if (abs(iter->img.time_stamp-ts) >= m_vidfrmIntvMtsHalf &&
-                            abs(ts-targetTs) < abs(iter->img.time_stamp-targetTs))
-                        {
-                            Log(DEBUG) << "WARNING! Better snapshot is found for index " << index << "(ts=" << targetTs
-                                << "), new frm ts = " << ts << ", old frm ts = " << iter->img.time_stamp << "." << endl;
-                            if (!m_frmCvt.ConvertImage(frm, iter->img, ts))
-                                Log(ERROR) << "FAILED to convert AVFrame to ImGui::ImMat! Message is '" << m_frmCvt.GetError() << "'." << endl;
-                        }
-                    }
-                    else
-                    {
-                        ImGui::ImMat img;
-                        if (!m_frmCvt.ConvertImage(frm, img, ts))
+                        double ts = (double)av_rescale_q(ss.avfrm->pts, m_vidStream->time_base, MILLISEC_TIMEBASE)/1000.;
+                        if (!m_frmCvt.ConvertImage(ss.avfrm, ss.img, ts))
                             Log(ERROR) << "FAILED to convert AVFrame to ImGui::ImMat! Message is '" << m_frmCvt.GetError() << "'." << endl;
-                        else
+                        av_frame_free(&ss.avfrm);
+                        ss.avfrm = nullptr;
+                        m_pendingVidfrmCnt--;
+                        if (m_pendingVidfrmCnt < 0)
+                            Log(ERROR) << "Pending video AVFrame ptr count is NEGATIVE! " << m_pendingVidfrmCnt << endl;
+
+                        if (ss.index == currTask->ssIdxAry.back())
+                            currTask->done = true;
+                        idleLoop = false;
+                    }
+                }
+
+                if (currTask->done)
+                {
+                    for (Snapshot& ss : currTask->ssAry)
+                    {
+                        if (ss.avfrm)
                         {
-                            Snapshot ss = { img, index, false };
-                            m_snapshots.insert(iter, ss);
-                            Log(DEBUG) << "!!! Add new snapshot [index=" << index << ", ts=" << MillisecToString((int64_t)(ts*1000)) << "]." << endl;
-                        }
-                        if (m_snapshots.size() > m_maxCacheSize)
-                        {
-                            uint32_t oldSize = m_snapshots.size();
-                            ShrinkSnapshots(snapWnd);
-                            uint32_t newSize = m_snapshots.size();
-                            Log(DEBUG) << "Shrink snapshots list from " << oldSize << " to " << newSize << "." << endl;
+                            Log(WARN) << "!!!! Still found non-null AVFrame ptr in an already done build task!" << endl;
+                            av_frame_free(&ss.avfrm);
+                            ss.avfrm = nullptr;
+                            m_pendingVidfrmCnt--;
+                            if (m_pendingVidfrmCnt < 0)
+                                Log(ERROR) << "Pending video AVFrame ptr count is NEGATIVE! " << m_pendingVidfrmCnt << endl;
                         }
                     }
                 }
-                av_frame_free(&frm);
             }
 
             if (idleLoop)
@@ -1174,14 +1224,11 @@ private:
 
     void FlushAllQueues()
     {
-        m_bldtskByPriOrder.clear();
+        m_bldtskPriOrder.clear();
         m_bldtskTimeOrder.clear();
         for (AVPacket* avpkt : m_audpktQ)
             av_packet_free(&avpkt);
         m_audpktQ.clear();
-        for (AVFrame* avfrm : m_vidfrmQ)
-            av_frame_free(&avfrm);
-        m_vidfrmQ.clear();
         for (AVFrame* avfrm : m_audfrmQ)
             av_frame_free(&avfrm);
         m_audfrmQ.clear();
@@ -1192,6 +1239,7 @@ private:
 
     struct Snapshot
     {
+        AVFrame* avfrm{nullptr};
         ImGui::ImMat img;
         uint32_t index;
         bool fixed{false};
@@ -1208,21 +1256,34 @@ private:
 
     struct _SnapshotBuildTask
     {
+        _SnapshotBuildTask(MediaSnapshot_Impl& obj) : outterObj(obj) {}
+
         ~_SnapshotBuildTask()
         {
             for (AVPacket* avpkt : avpktQ)
                 av_packet_free(&avpkt);
+            for (Snapshot& ss : ssAry)
+            {
+                if (ss.avfrm)
+                {
+                    av_frame_free(&ss.avfrm);
+                    outterObj.m_pendingVidfrmCnt--;
+                }
+            }
         }
 
-        list<uint32_t> ssIdxAry;
-        vector<int64_t> ssPtsAry;
+        MediaSnapshot_Impl& outterObj;
         pair<int64_t, int64_t> seekPts;
+        list<uint32_t> ssIdxAry;
+        list<Snapshot> ssAry;
+        mutex ssAryLock;
         list<AVPacket*> avpktQ;
         mutex avpktQLock;
         bool demuxing{false};
         bool demuxerEof{false};
         bool decoding{false};
         bool decoderEof{false};
+        bool done{false};
         bool cancel{false};
     };
     using SnapshotBuildTask = shared_ptr<_SnapshotBuildTask>;
@@ -1309,33 +1370,39 @@ private:
         return GetSeekPosByMts(CalcSnapshotMts(index));
     }
 
-    void InitializeSnapshotBuildTask()
+    void ResetSnapshotBuildTask()
     {
-        if (!m_bldtskTimeOrder.empty())
-        {
-            for (auto& tsk : m_bldtskTimeOrder)
-                tsk->cancel = true;
-            m_bldtskTimeOrder.clear();
-        }
+        if (m_maxCacheSize == 0)
+            return;
+
         SnapWindow currwnd = m_snapWnd;
-        uint32_t buildIndex0 = currwnd.cacheIdx0;
-        uint32_t buildIndex1 = currwnd.cacheIdx1;
-        SnapshotBuildTask task = nullptr;
-        while (buildIndex0 <= buildIndex1)
+        lock_guard<mutex> lk(m_bldtskByTimeLock);
         {
-            pair<int64_t, int64_t> seekPos = GetSeekPosBySsIndex(buildIndex0);
-            if (!task || task->seekPts != seekPos)
+            if (!m_bldtskTimeOrder.empty())
             {
-                if (task)
-                    m_bldtskTimeOrder.push_back(task);
-                task = make_shared<_SnapshotBuildTask>();
-                task->seekPts = seekPos;
+                for (auto& tsk : m_bldtskTimeOrder)
+                    tsk->cancel = true;
+                m_bldtskTimeOrder.clear();
             }
-            task->ssIdxAry.push_back(buildIndex0);
-            buildIndex0++;
+            uint32_t buildIndex0 = currwnd.cacheIdx0;
+            uint32_t buildIndex1 = currwnd.cacheIdx1;
+            SnapshotBuildTask task = nullptr;
+            while (buildIndex0 <= buildIndex1)
+            {
+                pair<int64_t, int64_t> seekPos = GetSeekPosBySsIndex(buildIndex0);
+                if (!task || task->seekPts != seekPos)
+                {
+                    if (task)
+                        m_bldtskTimeOrder.push_back(task);
+                    task = make_shared<_SnapshotBuildTask>(*this);
+                    task->seekPts = seekPos;
+                }
+                task->ssIdxAry.push_back(buildIndex0);
+                buildIndex0++;
+            }
+            if (task)
+                m_bldtskTimeOrder.push_back(task);
         }
-        if (task)
-            m_bldtskTimeOrder.push_back(task);
         m_bldtskSnapWnd = currwnd;
 
         UpdateBuildTaskByPriority();
@@ -1346,6 +1413,9 @@ private:
         SnapWindow currwnd = m_snapWnd;
         if (currwnd.cacheIdx0 != m_bldtskSnapWnd.cacheIdx0)
         {
+            Log(DEBUG) << "~~~ Updating build task, cache index from [" << m_bldtskSnapWnd.cacheIdx0 << ", " << m_bldtskSnapWnd.cacheIdx1 << "] "
+                << "to [" << currwnd.cacheIdx0 << ", " << currwnd.cacheIdx1 << "]." << endl;
+            lock_guard<mutex> lk(m_bldtskByTimeLock);
             SnapshotBuildTask task = nullptr;
             if (currwnd.cacheIdx0 > m_bldtskSnapWnd.cacheIdx0)
             {
@@ -1383,7 +1453,7 @@ private:
                     {
                         if (task)
                             m_bldtskTimeOrder.push_back(task);
-                        task = make_shared<_SnapshotBuildTask>();
+                        task = make_shared<_SnapshotBuildTask>(*this);
                         task->seekPts = seekPos;
                     }
                     task->ssIdxAry.push_back(buildIndex0);
@@ -1430,7 +1500,7 @@ private:
                     {
                         if (task)
                             m_bldtskTimeOrder.push_front(task);
-                        task = make_shared<_SnapshotBuildTask>();
+                        task = make_shared<_SnapshotBuildTask>(*this);
                         task->seekPts = seekPos;
                     }
                     task->ssIdxAry.push_front(buildIndex1);
@@ -1451,10 +1521,10 @@ private:
 
     void UpdateBuildTaskByPriority()
     {
-        lock_guard<mutex> lk(m_bldtskQLock);
+        lock_guard<mutex> lk(m_bldtskByPriLock);
         SnapWindow swnd = m_bldtskSnapWnd;
-        m_bldtskByPriOrder = m_bldtskTimeOrder;
-        m_bldtskByPriOrder.sort([swnd](const SnapshotBuildTask& a, const SnapshotBuildTask& b) {
+        m_bldtskPriOrder = m_bldtskTimeOrder;
+        m_bldtskPriOrder.sort([swnd](const SnapshotBuildTask& a, const SnapshotBuildTask& b) {
             uint32_t aFront = a->ssIdxAry.front();
             uint32_t aBack = a->ssIdxAry.back();
             bool aInDisplayWindow = aFront >= swnd.index0 && aFront <= swnd.index1 ||
@@ -1482,8 +1552,8 @@ private:
     {
         SnapshotBuildTask nxttsk = nullptr;
         uint32_t pendingTaskCnt = 0;
-        for (auto& tsk : m_bldtskByPriOrder)
-            if (!tsk->demuxing)
+        for (auto& tsk : m_bldtskPriOrder)
+            if (!tsk->cancel && !tsk->demuxing)
             {
                 nxttsk = tsk;
                 break;
@@ -1499,10 +1569,10 @@ private:
 
     SnapshotBuildTask FindNextDecoderTask()
     {
-        lock_guard<mutex> lk(m_bldtskQLock);
+        lock_guard<mutex> lk(m_bldtskByPriLock);
         SnapshotBuildTask nxttsk = nullptr;
-        for (auto& tsk : m_bldtskByPriOrder)
-            if (!tsk->decoding)
+        for (auto& tsk : m_bldtskPriOrder)
+            if (!tsk->cancel && !tsk->decoding)
             {
                 nxttsk = tsk;
                 break;
@@ -1510,32 +1580,17 @@ private:
         return nxttsk;
     }
 
-    void ShrinkSnapshots(const SnapWindow& swnd)
+    SnapshotBuildTask FindNextSsUpdateTask()
     {
-        size_t oldsize, newsize;
-        oldsize = m_snapshots.size();
-        auto iter0 = m_snapshots.begin();
-        auto iter1 = m_snapshots.end();
-        iter1--;
-        while (m_snapshots.size() > m_maxCacheSize)
-        {
-            uint32_t diff0 = 0, diff1 = 0;
-            if (iter0->index < swnd.cacheIdx0)
-                diff0 = swnd.cacheIdx0-iter0->index;
-            if (iter1->index > swnd.cacheIdx1)
-                diff1 = iter1->index-swnd.cacheIdx1;
-            if (diff0 == 0 && diff1 == 0)
-                break;
-            if (diff1 < diff0)
-                iter0 = m_snapshots.erase(iter0);
-            else
+        lock_guard<mutex> lk(m_bldtskByPriLock);
+        SnapshotBuildTask nxttsk = nullptr;
+        for (auto& tsk : m_bldtskPriOrder)
+            if (!tsk->cancel && tsk->decoding && !tsk->done)
             {
-                iter1 = m_snapshots.erase(iter1);
-                iter1--;
+                nxttsk = tsk;
+                break;
             }
-        }
-        newsize = m_snapshots.size();
-        Log(DEBUG) << "XXX Shrink snapshots size " << oldsize << " -> " << newsize << "." << endl;
+        return nxttsk;
     }
 
 private:
@@ -1568,16 +1623,12 @@ private:
 
     // demuxing thread
     thread m_demuxThread;
-    mutex m_bldtskQLock;
     uint32_t m_maxPendingTaskCountForDecoding = 8;
     int m_audpktQMaxSize{64};
     list<AVPacket*> m_audpktQ;
     mutex m_audpktQLock;
     // video decoding thread
     thread m_viddecThread;
-    int m_vidfrmQMaxSize{4};
-    list<AVFrame*> m_vidfrmQ;
-    mutex m_vidfrmQLock;
     // audio decoding thread
     thread m_auddecThread;
     int m_audfrmQMaxSize{5};
@@ -1615,15 +1666,21 @@ private:
     int64_t m_vidfrmIntvPts;
     double m_snapshotInterval;
     double m_cacheFactor{10.0};
-    list<Snapshot> m_snapshots;
-    uint32_t m_maxCacheSize, m_prevWndCacheSize, m_postWndCacheSize;
+    uint32_t m_maxCacheSize{0};
+    uint32_t m_prevWndCacheSize, m_postWndCacheSize;
     SnapWindow m_snapWnd;
     atomic_bool m_snapWndUpdated{false};
     SnapWindow m_bldtskSnapWnd;
     list<SnapshotBuildTask> m_bldtskTimeOrder;
-    list<SnapshotBuildTask> m_bldtskByPriOrder;
+    mutex m_bldtskByTimeLock;
+    list<SnapshotBuildTask> m_bldtskPriOrder;
+    mutex m_bldtskByPriLock;
+    condition_variable m_bldtskStateCv;
+    uint32_t m_bldtskQReaderCnt{0};
+    bool m_bldtskQUpdating{false};
+    atomic_int32_t m_pendingVidfrmCnt{0};
+    int32_t m_maxPendingVidfrmCnt{4};
     list<int64_t> m_vidKeyPtsList;
-    mutex m_ssLock;
     double m_fixedSsInterval;
     uint32_t m_fixedSnapshotCount{100};
 
