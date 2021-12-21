@@ -45,6 +45,8 @@ void Application_GetWindowProperties(ApplicationWindowProperty& property)
 
 void Application_Initialize(void** handle)
 {
+    SetDefaultLoggerLevels(DEBUG);
+
 #ifdef USE_BOOKMARK
 	// load bookmarks
 	ifstream docFile(c_bookmarkPath, ios::in);
