@@ -4,27 +4,6 @@
 #include <sstream>
 #include <iomanip>
 
-#define COL_LIGHT_BLUR      IM_COL32( 16, 128, 255, 255)
-#define COL_CANVAS_BG       IM_COL32( 36,  36,  36, 255)
-#define COL_LEGEND_BG       IM_COL32( 18,  18,  18, 255)
-#define COL_MARK            IM_COL32( 96,  96,  96, 255)
-#define COL_RULE_TEXT       IM_COL32(188, 188, 188, 255)
-#define COL_SLOT_DEFAULT    IM_COL32(128, 128, 170, 255)
-#define COL_SLOT_ODD        IM_COL32( 58,  58,  58, 255)
-#define COL_SLOT_EVEN       IM_COL32( 64,  64,  64, 255)
-#define COL_SLOT_SELECTED   IM_COL32( 64,  64, 255, 128)
-#define COL_SLOT_V_LINE     IM_COL32( 96,  96,  96,  48)
-#define COL_SLIDER_BG       IM_COL32( 32,  32,  64, 255)
-#define COL_SLIDER_IN       IM_COL32( 96,  96,  96, 255)
-#define COL_SLIDER_MOVING   IM_COL32( 80,  80,  80, 255)
-#define COL_SLIDER_HANDLE   IM_COL32(112, 112, 112, 255)
-#define COL_SLIDER_SIZING   IM_COL32(170, 170, 170, 255)
-#define COL_CURSOR_ARROW    IM_COL32(  0, 255,   0, 255)
-#define COL_CURSOR_TEXT_BG  IM_COL32(  0, 128,   0, 144)
-#define COL_CURSOR_TEXT     IM_COL32(  0, 255,   0, 255)
-
-#define HALF_COLOR(c)       (c & 0xffffff) | 0x40000000;
-
 namespace ImSequencer
 {
 std::string MillisecToString(int64_t millisec, bool show_millisec = false)
@@ -109,7 +88,7 @@ bool Sequencer(SequencerInterface *sequencer, int64_t *currentTime, bool *expand
     int dupEntry = -1;
     int ItemHeight = 20;
     int HeadHeight = 20;
-    int scrollBarHeight = 14;
+    int scrollBarHeight = 16;
     bool popupOpened = false;
     int itemCount = sequencer->GetItemCount();
 
@@ -539,9 +518,57 @@ bool Sequencer(SequencerInterface *sequencer, int64_t *currentTime, bool *expand
         ImGui::PopStyleColor();
         if (hasScrollBar)
         {
+            auto scroll_pos = ImGui::GetCursorScreenPos();
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+            ImGui::SetWindowFontScale(0.55);
+            ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - 16 - 4, 0));
+            if (ImGui::Button(ICON_TO_END "##slider_to_end", ImVec2(16, 16)))
+            {
+                *firstTime = sequencer->GetEnd() - visibleTime;
+            }
+            ImGui::ShowTooltipOnHover("Slider to End");
+            ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - 32 - 4, 0));
+            if (ImGui::Button(ICON_SLIDER_MAXIMUM "##slider_maximum", ImVec2(16, 16)))
+            {
+                msPixelWidthTarget = maxPixelWidthTarget;
+            }
+            ImGui::ShowTooltipOnHover("Maximum Slider");
+            ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - 48 - 4, 0));
+            if (ImGui::Button(ICON_ZOOM_IN "##slider_zoom_in", ImVec2(16, 16)))
+            {
+                *firstTime = int64_t(*firstTime * 0.9f);
+                msPixelWidthTarget *= 1.1f;
+                *firstTime = ImClamp(*firstTime, sequencer->GetStart(), ImMax(sequencer->GetEnd() - visibleTime, sequencer->GetStart()));
+            }
+            ImGui::ShowTooltipOnHover("Slider Zoom In");
+            ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - 64 - 4, 0));
+            if (ImGui::Button(ICON_ZOOM_OUT "##slider_zoom_out", ImVec2(16, 16)))
+            {
+                *firstTime = int64_t(*firstTime * 1.1f);
+                msPixelWidthTarget *= 0.9f;
+                *firstTime = ImClamp(*firstTime, sequencer->GetStart(), ImMax(sequencer->GetEnd() - visibleTime, sequencer->GetStart()));
+            }
+            ImGui::ShowTooltipOnHover("Slider Zoom Out");
+            ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - 80 - 4, 0));
+            if (ImGui::Button(ICON_SLIDER_MINIMUM "##slider_minimum", ImVec2(16, 16)))
+            {
+                msPixelWidthTarget = minPixelWidthTarget;
+            }
+            ImGui::ShowTooltipOnHover("Minimum Slider");
+            ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - 96 - 4, 0));
+            if (ImGui::Button(ICON_TO_START "##slider_to_start", ImVec2(16, 16)))
+            {
+                *firstTime = sequencer->GetStart();
+            }
+            ImGui::ShowTooltipOnHover("Slider to Start");
+            ImGui::SetWindowFontScale(1.0);
+            ImGui::PopStyleColor();
+
+            ImGui::SetCursorScreenPos(scroll_pos);
             ImGui::InvisibleButton("scrollBar", scrollBarSize);
             ImVec2 scrollBarMin = ImGui::GetItemRectMin();
             ImVec2 scrollBarMax = ImGui::GetItemRectMax();
+
             // ratio = time visible in control / number to total time
             float startOffset = ((float)(firstTimeUsed - sequencer->GetStart()) / (float)duration) * (canvas_size.x - legendWidth);
             ImVec2 scrollBarA(scrollBarMin.x + legendWidth, scrollBarMin.y - 2);
@@ -607,6 +634,7 @@ bool Sequencer(SequencerInterface *sequencer, int64_t *currentTime, bool *expand
                 *firstTime = int64_t(*firstTime * 1.1f);
                 msPixelWidthTarget *= 0.9f;
                 *firstTime += overCursor;
+                *firstTime = ImClamp(*firstTime, sequencer->GetStart(), ImMax(sequencer->GetEnd() - visibleTime, sequencer->GetStart()));
             }
             if (io.MouseWheel > FLT_EPSILON)
             {
@@ -614,6 +642,7 @@ bool Sequencer(SequencerInterface *sequencer, int64_t *currentTime, bool *expand
                 *firstTime = int64_t(*firstTime * 0.9f);
                 msPixelWidthTarget *= 1.1f;
                 *firstTime += overCursor;
+                *firstTime = ImClamp(*firstTime, sequencer->GetStart(), ImMax(sequencer->GetEnd() - visibleTime, sequencer->GetStart()));
             }
         }
         else
