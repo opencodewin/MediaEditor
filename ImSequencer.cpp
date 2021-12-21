@@ -940,11 +940,17 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
             item->mVideoSnapshots[i].estimate_time = time_stamp;
             // already got snapshot
             ImGui::SetCursorScreenPos(pos);
-            if (pos.x + size.x < clippingRect.Max.x)
+            if (i + snapshot_index == total_snapshot - 1)
+            {
+                // last frame of media, we need clip frame
+                float width_clip = size.x / frame_width;
+                ImGui::Image(item->mVideoSnapshots[i].texture, ImVec2(size.x, size.y), ImVec2(0, 0), ImVec2(width_clip, 1));
+            }
+            else if (pos.x + size.x < clippingRect.Max.x)
                 ImGui::Image(item->mVideoSnapshots[i].texture, size);
             else if (pos.x < clippingRect.Max.x)
             {
-                // last frame, we need clip frame
+                // last frame of view range, we need clip frame
                 float width_clip = (clippingRect.Max.x - pos.x) / size.x;
                 ImGui::Image(item->mVideoSnapshots[i].texture, ImVec2(clippingRect.Max.x - pos.x, size.y), ImVec2(0, 0), ImVec2(width_clip, 1));
             }
@@ -963,7 +969,9 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
         
         auto time_string = MillisecToString(time_stamp, true);
         ImGui::SetWindowFontScale(0.7);
-        draw_list->AddText(frame_rc.Min + rc.Min + ImVec2(2, 48), IM_COL32_WHITE, time_string.c_str());
+        ImVec2 str_size = ImGui::CalcTextSize(time_string.c_str(), nullptr, true);
+        if (str_size.x <= size.x)
+            draw_list->AddText(frame_rc.Min + rc.Min + ImVec2(2, 48), IM_COL32_WHITE, time_string.c_str());
         ImGui::SetWindowFontScale(1.0);
     }
     

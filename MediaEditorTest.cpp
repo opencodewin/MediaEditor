@@ -164,8 +164,14 @@ bool Application_Frame(void * handle)
                     {
                         ImGui::Dummy(ImVec2(x_offset, 0)); ImGui::SameLine();
                     }
+
                     auto icon_pos = ImGui::GetCursorScreenPos();
                     ImVec2 icon_size = ImVec2(media_icon_size, media_icon_size);
+                    // Draw Shadow for Icon
+                    draw_list->AddRectFilled(icon_pos + ImVec2(6, 6), icon_pos + ImVec2(6, 6) + icon_size, IM_COL32(32, 32, 32, 255));
+                    draw_list->AddRectFilled(icon_pos + ImVec2(4, 4), icon_pos + ImVec2(4, 4) + icon_size, IM_COL32(48, 48, 72, 255));
+                    draw_list->AddRectFilled(icon_pos + ImVec2(2, 2), icon_pos + ImVec2(2, 2) + icon_size, IM_COL32(64, 64, 96, 255));
+                    
                     if (item->mMediaThumbnail)
                     {
                         auto tex_w = ImGui::ImGetTextureWidth(item->mMediaThumbnail);
