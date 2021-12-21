@@ -30,6 +30,11 @@
 #define ICON_PALETTE        "\uf53f"
 #define ICON_STRAW          "\ue3b8"
 #define ICON_CROP           "\uf5c8"
+#define ICON_LOCKED         "\uf023"
+#define ICON_UNLOCK         "\uf09c"
+#define ICON_TRASH          "\uf014"
+#define ICON_CLONE          "\uf2d2"
+#define ICON_ADD            "\uf067"
 
 #define ICON_PLAY           "\uf04b"
 #define ICON_PAUSE          "\uf04c"
@@ -61,7 +66,7 @@
 #define COL_CURSOR_TEXT_BG  IM_COL32(  0, 128,   0, 144)
 #define COL_CURSOR_TEXT     IM_COL32(  0, 255,   0, 255)
 
-#define HALF_COLOR(c)       (c & 0xffffff) | 0x40000000;
+#define HALF_COLOR(c)       (c & 0xFFFFFF) | 0x80000000;
 
 namespace ImSequencer
 {
@@ -83,6 +88,9 @@ enum SEQUENCER_OPTIONS
     SEQUENCER_ADD = 1 << 4,
     SEQUENCER_DEL = 1 << 5,
     SEQUENCER_COPYPASTE = 1 << 6,
+    SEQUENCER_LOCK = 1 << 7,
+    SEQUENCER_VIEW = 1 << 8,
+    SEQUENCER_MUTE = 1 << 9,
     SEQUENCER_EDIT_ALL = SEQUENCER_EDIT_STARTEND | SEQUENCER_CHANGE_TIME
 };
 
@@ -114,9 +122,11 @@ struct SequencerInterface
     virtual void BeginEdit(int /*index*/) {}
     virtual void EndEdit() {}
     virtual const char *GetItemLabel(int /*index*/) const { return ""; }
-    virtual void Get(int index, int64_t& start, int64_t& end, std::string& name, unsigned int& color) = 0;
-    virtual void Get(int index, float& frame_duration, float& snapshot_width) = 0;
-    virtual void Set(int index, int64_t   start, int64_t end, std::string  name, unsigned int  color) = 0;
+    virtual void Get(int /*index*/, int64_t& /*start*/, int64_t& /*end*/, std::string& /*name*/, unsigned int& /*color*/) = 0;
+    virtual void Get(int /*index*/, float& /*frame_duration*/, float& /*snapshot_width*/) = 0;
+    virtual void Get(int /*index*/, bool& /*expanded*/, bool& /*view*/, bool& /*locked*/, bool& /*muted*/) = 0;
+    virtual void Set(int /*index*/, int64_t /*start*/, int64_t /*end*/, std::string  /*name*/, unsigned int /*color*/) = 0;
+    virtual void Set(int /*index*/, bool /*expanded*/, bool /*view*/, bool /*locked*/, bool /*muted*/) = 0;
     virtual void Add(std::string& /*type*/) {}
     virtual void Del(int /*index*/) {}
     virtual void Duplicate(int /*index*/) {}
@@ -136,6 +146,7 @@ struct Snapshot
     ImTextureID texture {nullptr};
     int64_t     time_stamp {0};
     int64_t     estimate_time {0};
+    bool        available{false};
 };
 
 struct SequencerItem
@@ -146,6 +157,9 @@ struct SequencerItem
     int64_t mStart {0};
     int64_t mEnd   {0};
     bool mExpanded  {false};
+    bool mView      {true};
+    bool mMuted     {false};
+    bool mLocked    {false};
     int mMediaType {SEQUENCER_ITEM_UNKNOWN};
     int mMaxViewSnapshot;
     float mTotalFrame;
@@ -176,7 +190,9 @@ struct MediaSequencer : public SequencerInterface
     const char *GetItemLabel(int index) const  { return m_Items[index]->mName.c_str(); }
     void Get(int index, int64_t& start, int64_t& end, std::string& name, unsigned int& color);
     void Get(int index, float& frame_duration, float& snapshot_width);
+    void Get(int index, bool& expanded, bool& view, bool& locked, bool& muted);
     void Set(int index, int64_t  start, int64_t  end, std::string  name, unsigned int  color);
+    void Set(int index, bool expanded, bool view, bool locked, bool muted);
     void Add(std::string& name);
     void Del(int index);
     void Duplicate(int index);
