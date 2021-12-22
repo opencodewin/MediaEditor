@@ -6,7 +6,7 @@
 
 namespace ImSequencer
 {
-std::string MillisecToString(int64_t millisec, bool show_millisec = false)
+std::string MillisecToString(int64_t millisec, int show_millisec = 0)
 {
     std::ostringstream oss;
     if (millisec < 0)
@@ -24,15 +24,23 @@ std::string MillisecToString(int64_t millisec, bool show_millisec = false)
         oss << std::setfill('0') << std::setw(2) << hour << ':'
             << std::setw(2) << min << ':'
             << std::setw(2) << sec;
-        if (show_millisec)
+        if (show_millisec == 3)
             oss << '.' << std::setw(3) << milli;
+        else if (show_millisec == 2)
+            oss << '.' << std::setw(2) << milli / 10;
+        else if (show_millisec == 1)
+            oss << '.' << std::setw(1) << milli / 100;
     }
     else
     {
         oss << std::setfill('0') << std::setw(2) << min << ':'
             << std::setw(2) << sec;
-        if (show_millisec)
+        if (show_millisec == 3)
             oss << '.' << std::setw(3) << milli;
+        else if (show_millisec == 2)
+            oss << '.' << std::setw(2) << milli / 10;
+        else if (show_millisec == 1)
+            oss << '.' << std::setw(1) << milli / 100;
     }
     return oss.str();
 }
@@ -199,7 +207,7 @@ bool Sequencer(SequencerInterface *sequencer, int64_t *currentTime, bool *expand
         // minimum view
         ImGui::InvisibleButton("canvas_minimum", ImVec2(canvas_size.x - canvas_pos.x - 8.f, (float)ItemHeight));
         draw_list->AddRectFilled(canvas_pos, ImVec2(canvas_size.x + canvas_pos.x - 8.f, canvas_pos.y + ItemHeight), COL_CANVAS_BG, 0);
-        auto info_str = MillisecToString(duration, true);
+        auto info_str = MillisecToString(duration, 3);
         info_str += " / ";
         info_str += std::to_string(itemCount) + " entries";
         draw_list->AddText(ImVec2(canvas_pos.x + 40, canvas_pos.y + 2), IM_COL32_WHITE, info_str.c_str());
@@ -259,10 +267,10 @@ bool Sequencer(SequencerInterface *sequencer, int64_t *currentTime, bool *expand
         //header time and lines
         int64_t modTimeCount = 10;
         int timeStep = 1;
-        while ((modTimeCount * msPixelWidth) < 150)
+        while ((modTimeCount * msPixelWidth) < 75)
         {
-            modTimeCount *= 2;
-            timeStep *= 2;
+            modTimeCount *= 10;
+            timeStep *= 10;
         };
         int halfModTime = modTimeCount / 2;
         auto drawLine = [&](int64_t i, int regionHeight)
@@ -274,13 +282,15 @@ bool Sequencer(SequencerInterface *sequencer, int64_t *currentTime, bool *expand
             int tiretEnd = baseIndex ? regionHeight : HeadHeight;
             if (px <= (canvas_size.x + canvas_pos.x) && px >= (canvas_pos.x + legendWidth))
             {
-                draw_list->AddLine(ImVec2((float)px, canvas_pos.y + (float)tiretStart), ImVec2((float)px, canvas_pos.y + (float)tiretEnd - 1), COL_MARK, 1);
-                draw_list->AddLine(ImVec2((float)px, canvas_pos.y + (float)HeadHeight), ImVec2((float)px, canvas_pos.y + (float)regionHeight - 1), COL_MARK, 1);
+                draw_list->AddLine(ImVec2((float)px, canvas_pos.y + (float)tiretStart), ImVec2((float)px, canvas_pos.y + (float)tiretEnd - 1), halfIndex ? COL_MARK : COL_MARK_HALF, halfIndex ? 2 : 1);
+                //draw_list->AddLine(ImVec2((float)px, canvas_pos.y + (float)HeadHeight), ImVec2((float)px, canvas_pos.y + (float)regionHeight - 1), COL_MARK_HALF, 1);
             }
             if (baseIndex && px > (canvas_pos.x + legendWidth))
             {
-                auto time_str = MillisecToString(i, true);
+                auto time_str = MillisecToString(i, 2);
+                ImGui::SetWindowFontScale(0.8);
                 draw_list->AddText(ImVec2((float)px + 3.f, canvas_pos.y), COL_RULE_TEXT, time_str.c_str());
+                ImGui::SetWindowFontScale(1.0);
             }
         };
         auto drawLineContent = [&](int64_t i, int /*regionHeight*/)
@@ -307,7 +317,7 @@ bool Sequencer(SequencerInterface *sequencer, int64_t *currentTime, bool *expand
             float arrowOffset = contentMin.x + legendWidth + (*currentTime - firstTimeUsed) * msPixelWidth + msPixelWidth / 2 - arrowWidth * 0.5f - 3;
             ImGui::RenderArrow(draw_list, ImVec2(arrowOffset, canvas_pos.y), COL_CURSOR_ARROW, ImGuiDir_Down);
             ImGui::SetWindowFontScale(0.8);
-            auto time_str = MillisecToString(*currentTime, true);
+            auto time_str = MillisecToString(*currentTime, 2);
             ImVec2 str_size = ImGui::CalcTextSize(time_str.c_str(), nullptr, true);
             float strOffset = contentMin.x + legendWidth + (*currentTime - firstTimeUsed) * msPixelWidth + msPixelWidth / 2 - str_size.x * 0.5f - 3;
             ImVec2 str_pos = ImVec2(strOffset, canvas_pos.y + 10);
@@ -343,7 +353,7 @@ bool Sequencer(SequencerInterface *sequencer, int64_t *currentTime, bool *expand
             bool expanded, view, locked, muted;
             sequencer->Get(i, expanded, view, locked, muted);
             ImVec2 tpos(contentMin.x + 3, contentMin.y + i * ItemHeight + customHeight);
-            draw_list->AddText(tpos, IM_COL32_WHITE, sequencer->GetItemLabel(i));
+            if (expanded) draw_list->AddText(tpos, IM_COL32_WHITE, sequencer->GetItemLabel(i));
             auto itemCustomHeight = sequencer->GetCustomHeight(i);
             int button_count = 0;
             if (sequenceOptions & SEQUENCER_LOCK)
@@ -1152,8 +1162,8 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
             draw_list->AddRect(pos, pos + size, COL_FRAME_RECT);
         }
         
-        auto time_string = MillisecToString(time_stamp, true);
-        //auto esttime_str = MillisecToString(item->mVideoSnapshotInfos[snapshot_index + i].time_stamp, true);
+        auto time_string = MillisecToString(time_stamp, 3);
+        //auto esttime_str = MillisecToString(item->mVideoSnapshotInfos[snapshot_index + i].time_stamp, 3);
         ImGui::SetWindowFontScale(0.7);
         ImVec2 str_size = ImGui::CalcTextSize(time_string.c_str(), nullptr, true);
         if (str_size.x <= size.x)
