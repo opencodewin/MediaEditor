@@ -815,7 +815,7 @@ SequencerItem::SequencerItem(const std::string& name, const std::string& path, i
     {
         double window_size = 1.0f;
         mLength = mEnd = mMedia->GetVidoeDuration();
-        mMedia->SetCacheFactor(2.0);
+        mMedia->SetCacheFactor(4.0);
         mMedia->SetSnapshotResizeFactor(0.25, 0.25);
         mMedia->ConfigSnapWindow(window_size, 10);
     }
@@ -960,7 +960,7 @@ void SequencerItem::CalculateVideoSnapshotInfo(const ImRect &customRect, int64_t
         mFrameDuration = (float)duration / (float)total_frames;
         float frame_count = (customRect.GetWidth() + snapshot_width) / snapshot_width;
         float snapshot_duration = (float)clip_duration / (float)(frame_count - 1);
-        mMaxViewSnapshot = (int)((visibleTime + snapshot_duration) / snapshot_duration);
+        mMaxViewSnapshot = (int)((visibleTime + snapshot_duration / 2) / snapshot_duration) + 2; // two more frame
         if (frame_count != mTotalFrame || (int)frame_count != mVideoSnapshotInfos.size())
         {
             mVideoSnapshotInfos.clear();
@@ -1077,13 +1077,13 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
     if (item->mVideoSnapshotInfos.size()  == 0) return;
     float frame_width = item->mVideoSnapshotInfos[0].frame_width;
     int64_t lendth = item->mEnd - item->mStart;
-    int64_t startTime = viewStartTime - item->mStart;
+    int64_t startTime = viewStartTime - item->mStart - item->mFrameDuration; // one frame early ?
     if (startTime < 0) startTime = 0;
     if (startTime > lendth) startTime = lendth;
     int total_snapshot = item->mVideoSnapshotInfos.size();
     int snapshot_index = floor((float)startTime / (float)lendth * (float)total_snapshot);
     
-    int max_snapshot = (clippingRect.GetWidth() + frame_width / 2) / frame_width + 1; 
+    int max_snapshot = (clippingRect.GetWidth() + frame_width / 2) / frame_width + 2; // two frame more ?
     int snapshot_count = (snapshot_index + max_snapshot < total_snapshot) ? max_snapshot : total_snapshot - snapshot_index;
     if (item->mSnapshotPos != startTime)
     {
@@ -1144,7 +1144,7 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
     }
     
     // for Debug: print some info here 
-    //draw_list->AddText(clippingRect.Min + ImVec2(2, 8), IM_COL32_WHITE, std::to_string(item->mStartOffset).c_str());
+    draw_list->AddText(clippingRect.Min + ImVec2(2, 8), IM_COL32_WHITE, std::to_string(snapshot_index).c_str());
     //draw_list->AddText(clippingRect.Min + ImVec2(2, 24), IM_COL32_WHITE, std::to_string(item->mEndOffset).c_str());
     draw_list->PopClipRect();
 

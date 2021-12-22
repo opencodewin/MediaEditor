@@ -7,9 +7,6 @@
 #include "Logger.h"
 #include <sstream>
 
-#define ICON_MEDIA_VIDEO           u8"\ue04b"
-#define ICON_MEDIA_AUDIO           u8"\ue050"
-
 using namespace ImSequencer;
 
 static std::string bookmark_path = "bookmark.ini";
@@ -26,7 +23,7 @@ static bool Splitter(bool split_vertically, float thickness, float* size1, float
 	ImRect bb;
 	bb.Min = window->DC.CursorPos + (split_vertically ? ImVec2(*size1, 0.0f) : ImVec2(0.0f, *size1));
 	bb.Max = bb.Min + CalcItemSize(split_vertically ? ImVec2(thickness, splitter_long_axis_size) : ImVec2(splitter_long_axis_size, thickness), 0.0f, 0.0f);
-	return SplitterBehavior(bb, id, split_vertically ? ImGuiAxis_X : ImGuiAxis_Y, size1, size2, min_size1, min_size2, 1.0);
+	return SplitterBehavior(bb, id, split_vertically ? ImGuiAxis_X : ImGuiAxis_Y, size1, size2, min_size1, min_size2, 1.0, 0.1);
 }
 
 void Application_GetWindowProperties(ApplicationWindowProperty& property)
