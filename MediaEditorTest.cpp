@@ -229,6 +229,11 @@ bool Application_Frame(void * handle)
                         }
                         type_string += TimestampToString(media_length);
                         ImGui::TextUnformatted(type_string.c_str());
+                        ImGui::SetCursorScreenPos(icon_pos + ImVec2(media_icon_size - 24, 0));
+                        if (ImGui::Button( (std::string(ICON_TRASH "##delete_media") + item->mPath).c_str(), ImVec2(24, 24)))
+                        {
+                            // TODO::Dicky delete media from bank, also need delete it from sequencer item list
+                        }
                         ImGui::SetCursorScreenPos(icon_pos + ImVec2(0, media_icon_size - 24));
                         if (has_video) { ImGui::Button( (std::string(ICON_MEDIA_VIDEO "##video") + item->mPath).c_str(), ImVec2(24, 24)); ImGui::SameLine(); }
                         if (has_audio) { ImGui::Button( (std::string(ICON_MEDIA_AUDIO "##audio") + item->mPath).c_str(), ImVec2(24, 24)); ImGui::SameLine(); }
