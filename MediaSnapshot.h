@@ -8,6 +8,7 @@ struct MediaSnapshot
 {
     virtual bool Open(const std::string& url) = 0;
     virtual void Close() = 0;
+    virtual void Stop() = 0;
     virtual bool GetSnapshots(std::vector<ImGui::ImMat>& snapshots, double startPos) = 0;
 
     virtual bool IsOpened() const = 0;

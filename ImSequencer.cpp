@@ -854,6 +854,7 @@ void SequencerItem::SequencerItemUpdateThumbnail()
                     ImGui::VkMat vkmat = snap;
                     ImGui::ImGenerateOrUpdateTexture(mMediaThumbnail, vkmat.w, vkmat.h, vkmat.c, vkmat.buffer_offset(), (const unsigned char *)vkmat.buffer());
                 }
+                mMedia->Stop();
             }
         }
     }

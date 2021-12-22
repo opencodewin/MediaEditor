@@ -126,6 +126,12 @@ public:
         m_errMessage = "";
     }
 
+    void Stop() override
+    {
+        lock_guard<recursive_mutex> lk(m_ctlLock);
+        WaitAllThreadsQuit();
+    }
+
     bool GetSnapshots(std::vector<ImGui::ImMat>& snapshots, double startPos) override
     {
         if (!IsOpened())
@@ -140,9 +146,9 @@ public:
         while (tskIter != m_bldtskTimeOrder.end() && i <= snapWnd.index1)
         {
             auto& tsk = *tskIter++;
-            if (tsk->ssIdxAry.back() >= i)
+            if (tsk->ssIdxPair.second >= i)
             {
-                if (tsk->ssIdxAry.front() > i)
+                if (tsk->ssIdxPair.first > i)
                     break;
                 auto ssIter = tsk->ssAry.begin();
                 while (ssIter != tsk->ssAry.end())
@@ -260,8 +266,8 @@ public:
 
         m_snapWindowSize = windowSize;
         m_windowFrameCount = frameCount;
-        m_snapshotInterval = m_snapWindowSize*1000./m_windowFrameCount;
-        m_vidMaxIndex = (uint32_t)floor((double)m_vidDuration/m_snapshotInterval)+1;
+        m_ssIntvMts = m_snapWindowSize*1000./m_windowFrameCount;
+        m_vidMaxIndex = (uint32_t)floor((double)m_vidDuration/m_ssIntvMts)+1;
         m_maxCacheSize = (uint32_t)ceil(m_windowFrameCount*m_cacheFactor);
         uint32_t intWndFrmCnt = (uint32_t)ceil(m_windowFrameCount);
         if (m_maxCacheSize < intWndFrmCnt)
@@ -679,7 +685,7 @@ private:
                     {
                         currTask->demuxing = true;
                         taskChanged = true;
-                        Log(DEBUG) << "--> build ssTask updated, ssIdxAry=(" << currTask->ssIdxAry.front() << " ~ " << currTask->ssIdxAry.back()
+                        Log(DEBUG) << "--> Change demux task, ssIdxPair=(" << currTask->ssIdxPair.first << " ~ " << currTask->ssIdxPair.second
                             << ", startPts=" << currTask->seekPts.first << "(" << av_rescale_q(currTask->seekPts.first, m_vidStream->time_base, MILLISEC_TIMEBASE) << ")"
                             << ", endPts=" << currTask->seekPts.second << "(" << av_rescale_q(currTask->seekPts.second, m_vidStream->time_base, MILLISEC_TIMEBASE) << ")" << endl;
                     }
@@ -849,7 +855,7 @@ private:
                 {
                     currTask->decoding = true;
                     inputEof = false;
-                    Log(DEBUG) << "Change decoding task to build index (" << currTask->ssIdxAry.front() << " ~ " << currTask->ssIdxAry.back() << ")." << endl;
+                    Log(DEBUG) << "==> Change decoding task to build index (" << currTask->ssIdxPair.first << " ~ " << currTask->ssIdxPair.second << ")." << endl;
                 }
             }
 
@@ -892,7 +898,7 @@ private:
                         int64_t mts = av_rescale_q(avfrm.pts, m_vidStream->time_base, MILLISEC_TIMEBASE);
                         uint32_t index;
                         bool isSnapshot = IsSnapshotFrame(mts, index, avfrm.pts);
-                        if (!isSnapshot || index < currTask->ssIdxAry.front() || index > currTask->ssIdxAry.back())
+                        if (!isSnapshot)
                         {
                             av_frame_unref(&avfrm);
                             avfrmLoaded = false;
@@ -911,7 +917,7 @@ private:
                             idleLoop = false;
                         }
                     }
-                } while (hasOutput);
+                } while (hasOutput && !m_quitScan);
                 if (quitLoop)
                     break;
 
@@ -1128,7 +1134,7 @@ private:
         {
             bool idleLoop = true;
 
-            if (!currTask || currTask->cancel || currTask->done)
+            if (!currTask || currTask->cancel || currTask->ssAry.empty() || !currTask->ssAry.back().avfrm)
             {
                 currTask = FindNextSsUpdateTask();
             }
@@ -1148,32 +1154,13 @@ private:
                         m_pendingVidfrmCnt--;
                         if (m_pendingVidfrmCnt < 0)
                             Log(ERROR) << "Pending video AVFrame ptr count is NEGATIVE! " << m_pendingVidfrmCnt << endl;
-
-                        if (ss.index == currTask->ssIdxAry.back())
-                            currTask->done = true;
                         idleLoop = false;
-                    }
-                }
-
-                if (currTask->done)
-                {
-                    for (Snapshot& ss : currTask->ssAry)
-                    {
-                        if (ss.avfrm)
-                        {
-                            Log(WARN) << "!!!! Still found non-null AVFrame ptr in an already done build task!" << endl;
-                            av_frame_free(&ss.avfrm);
-                            ss.avfrm = nullptr;
-                            m_pendingVidfrmCnt--;
-                            if (m_pendingVidfrmCnt < 0)
-                                Log(ERROR) << "Pending video AVFrame ptr count is NEGATIVE! " << m_pendingVidfrmCnt << endl;
-                        }
                     }
                 }
             }
 
             if (idleLoop)
-                this_thread::sleep_for(chrono::milliseconds(1));
+                this_thread::sleep_for(chrono::milliseconds(5));
         }
         Log(DEBUG) << "Leave UpdateSnapshotThreadProc()." << endl;
     }
@@ -1252,6 +1239,8 @@ private:
         uint32_t index1;
         uint32_t cacheIdx0;
         uint32_t cacheIdx1;
+        int64_t seekPos00;
+        int64_t seekPos10;
     };
 
     struct _SnapshotBuildTask
@@ -1274,7 +1263,8 @@ private:
 
         MediaSnapshot_Impl& outterObj;
         pair<int64_t, int64_t> seekPts;
-        list<uint32_t> ssIdxAry;
+        // list<uint32_t> ssIdxAry;
+        pair<uint32_t, uint32_t> ssIdxPair;
         list<Snapshot> ssAry;
         mutex ssAryLock;
         list<AVPacket*> avpktQ;
@@ -1283,7 +1273,7 @@ private:
         bool demuxerEof{false};
         bool decoding{false};
         bool decoderEof{false};
-        bool done{false};
+        // bool done{false};
         bool cancel{false};
     };
     using SnapshotBuildTask = shared_ptr<_SnapshotBuildTask>;
@@ -1293,9 +1283,9 @@ private:
         int64_t mts0 = (int64_t)round(startPos*1000.);
         if (mts0 < m_vidStartMts)
             mts0 = m_vidStartMts;
-        uint32_t index0 = (int32_t)floor(double(mts0-m_vidStartMts)/m_snapshotInterval);
+        uint32_t index0 = (int32_t)floor(double(mts0-m_vidStartMts)/m_ssIntvMts);
         int64_t mts1 = (int64_t)round((startPos+m_snapWindowSize)*1000.);
-        uint32_t index1 = (int32_t)floor(double(mts1-m_vidStartMts)/m_snapshotInterval);
+        uint32_t index1 = (int32_t)floor(double(mts1-m_vidStartMts)/m_ssIntvMts);
         if (index1 > m_vidMaxIndex)
             index1 = m_vidMaxIndex;
         uint32_t cacheIdx0 = index0 > m_prevWndCacheSize ? index0-m_prevWndCacheSize : 0;
@@ -1308,7 +1298,9 @@ private:
         SnapWindow snapWnd = m_snapWnd;
         if (snapWnd.index0 != index0 || snapWnd.index1 != index1 || snapWnd.cacheIdx0 != cacheIdx0 || snapWnd.cacheIdx1 != cacheIdx1)
             m_snapWndUpdated = true;
-        snapWnd = { startPos, index0, index1, cacheIdx0, cacheIdx1 };
+        pair<int64_t, int64_t> seekPos0 = GetSeekPosBySsIndex(cacheIdx0);
+        pair<int64_t, int64_t> seekPos1 = GetSeekPosBySsIndex(cacheIdx1);
+        snapWnd = { startPos, index0, index1, cacheIdx0, cacheIdx1, seekPos0.first, seekPos1.first };
         if (!memcpy(&m_snapWnd, &snapWnd, sizeof(m_snapWnd)))
         {
             m_snapWnd = snapWnd;
@@ -1320,8 +1312,8 @@ private:
 
     bool IsSnapshotFrame(int64_t mts, uint32_t& index, int64_t pts)
     {
-        index = (int32_t)round(double(mts-m_vidStartMts)/m_snapshotInterval);
-        double diff = abs(index*m_snapshotInterval-mts);
+        index = (int32_t)round(double(mts-m_vidStartMts)/m_ssIntvMts);
+        double diff = abs(index*m_ssIntvMts-mts);
         bool isSs = diff <= m_vidfrmIntvMtsHalf;
         // Log(DEBUG) << "---> IsSnapshotFrame : pts=" << pts << ", mts=" << mts << ", index=" << index << ", diff=" << diff << ", m_vidfrmIntvMtsHalf=" << m_vidfrmIntvMtsHalf << endl;
         return isSs;
@@ -1329,19 +1321,19 @@ private:
 
     bool IsSpecificSnapshotFrame(uint32_t index, int64_t mts)
     {
-        double diff = abs(index*m_snapshotInterval-mts);
+        double diff = abs(index*m_ssIntvMts-mts);
         return diff <= m_vidfrmIntvMtsHalf;
     }
 
     double CalcSnapshotTimestamp(uint32_t index)
     {
-        uint32_t frameCount = (uint32_t)round(index*m_snapshotInterval/m_vidfrmIntvMts);
+        uint32_t frameCount = (uint32_t)round(index*m_ssIntvMts/m_vidfrmIntvMts);
         return (frameCount*m_vidfrmIntvMts+m_vidStartMts)/1000.;
     }
 
     int64_t CalcSnapshotMts(uint32_t index)
     {
-        uint32_t frameCount = (uint32_t)round(index*m_snapshotInterval/m_vidfrmIntvMts);
+        uint32_t frameCount = (uint32_t)round(index*m_ssIntvMts/m_vidfrmIntvMts);
         return (int64_t)(frameCount*m_vidfrmIntvMts)+m_vidStartMts;
     }
 
@@ -1377,33 +1369,35 @@ private:
 
         SnapWindow currwnd = m_snapWnd;
         lock_guard<mutex> lk(m_bldtskByTimeLock);
+        if (!m_bldtskTimeOrder.empty())
         {
-            if (!m_bldtskTimeOrder.empty())
-            {
-                for (auto& tsk : m_bldtskTimeOrder)
-                    tsk->cancel = true;
-                m_bldtskTimeOrder.clear();
-            }
-            uint32_t buildIndex0 = currwnd.cacheIdx0;
-            uint32_t buildIndex1 = currwnd.cacheIdx1;
-            SnapshotBuildTask task = nullptr;
-            while (buildIndex0 <= buildIndex1)
-            {
-                pair<int64_t, int64_t> seekPos = GetSeekPosBySsIndex(buildIndex0);
-                if (!task || task->seekPts != seekPos)
-                {
-                    if (task)
-                        m_bldtskTimeOrder.push_back(task);
-                    task = make_shared<_SnapshotBuildTask>(*this);
-                    task->seekPts = seekPos;
-                }
-                task->ssIdxAry.push_back(buildIndex0);
-                buildIndex0++;
-            }
-            if (task)
-                m_bldtskTimeOrder.push_back(task);
+            for (auto& tsk : m_bldtskTimeOrder)
+                tsk->cancel = true;
+            m_bldtskTimeOrder.clear();
         }
+        uint32_t buildIndex0 = currwnd.cacheIdx0;
+        uint32_t buildIndex1 = currwnd.cacheIdx1;
+        SnapshotBuildTask task = nullptr;
+        while (buildIndex0 <= buildIndex1)
+        {
+            pair<int64_t, int64_t> seekPos = GetSeekPosBySsIndex(buildIndex0);
+            if (!task || task->seekPts != seekPos)
+            {
+                if (task)
+                    m_bldtskTimeOrder.push_back(task);
+                task = make_shared<_SnapshotBuildTask>(*this);
+                task->seekPts = seekPos;
+                task->ssIdxPair = { buildIndex0, buildIndex0 };
+            }
+            else
+                task->ssIdxPair.second = buildIndex0;
+            buildIndex0++;
+        }
+        if (task)
+            m_bldtskTimeOrder.push_back(task);
         m_bldtskSnapWnd = currwnd;
+        Log(DEBUG) << "~~~ Initialized build task, index = ["
+            << m_bldtskSnapWnd.cacheIdx0 << ", (" << m_bldtskSnapWnd.index0 << ", " << m_bldtskSnapWnd.index1 << "), " << m_bldtskSnapWnd.cacheIdx1 << "]." << endl;
 
         UpdateBuildTaskByPriority();
     }
@@ -1413,28 +1407,32 @@ private:
         SnapWindow currwnd = m_snapWnd;
         if (currwnd.cacheIdx0 != m_bldtskSnapWnd.cacheIdx0)
         {
-            Log(DEBUG) << "~~~ Updating build task, cache index from [" << m_bldtskSnapWnd.cacheIdx0 << ", " << m_bldtskSnapWnd.cacheIdx1 << "] "
-                << "to [" << currwnd.cacheIdx0 << ", " << currwnd.cacheIdx1 << "]." << endl;
+            Log(DEBUG) << "~~~ Updating build task, index changed from ["
+                << m_bldtskSnapWnd.cacheIdx0 << ", (" << m_bldtskSnapWnd.index0 << ", " << m_bldtskSnapWnd.index1 << "), " << m_bldtskSnapWnd.cacheIdx1 << "] to ["
+                << currwnd.cacheIdx0 << ", (" << currwnd.index0 << ", " << currwnd.index1 << "), " << currwnd.cacheIdx1 << "]." << endl;
             lock_guard<mutex> lk(m_bldtskByTimeLock);
             SnapshotBuildTask task = nullptr;
             if (currwnd.cacheIdx0 > m_bldtskSnapWnd.cacheIdx0)
             {
                 uint32_t buildIndex0 = currwnd.cacheIdx0;
                 uint32_t buildIndex1 = currwnd.cacheIdx1;
-                if (currwnd.cacheIdx0 <= m_bldtskSnapWnd.cacheIdx1)
+                if (currwnd.seekPos00 <= m_bldtskSnapWnd.seekPos10)
                 {
                     buildIndex0 = m_bldtskSnapWnd.cacheIdx1+1;
                     auto iter = m_bldtskTimeOrder.begin();
                     while (iter != m_bldtskTimeOrder.end())
                     {
                         auto& tsk = *iter;
-                        if (tsk->ssIdxAry.back() < currwnd.cacheIdx0)
+                        if (tsk->seekPts.first < currwnd.seekPos00)
                         {
                             tsk->cancel = true;
                             iter = m_bldtskTimeOrder.erase(iter);
                         }
                         else
+                        {
+                            tsk->ssIdxPair.first = currwnd.cacheIdx0;
                             break;
+                        }
                     }
                     task = m_bldtskTimeOrder.back();
                     m_bldtskTimeOrder.pop_back();
@@ -1446,17 +1444,30 @@ private:
                     m_bldtskTimeOrder.clear();
                 }
 
+                pair<uint32_t, uint32_t> oldSsIdxPair;
+                bool hasOldTask = task != nullptr;
+                if (hasOldTask) oldSsIdxPair = task->ssIdxPair;
                 while (buildIndex0 <= buildIndex1)
                 {
                     pair<int64_t, int64_t> seekPos = GetSeekPosBySsIndex(buildIndex0);
                     if (!task || task->seekPts != seekPos)
                     {
                         if (task)
+                        {
+                            if (hasOldTask)
+                            {
+                                Log(DEBUG) << "~~~ Update old task, ss index pair for [" << oldSsIdxPair.first << ", " << oldSsIdxPair.second << "] to ["
+                                    << task->ssIdxPair.first << ", " << task->ssIdxPair.second << "]." << endl;
+                                hasOldTask = false;
+                            }
                             m_bldtskTimeOrder.push_back(task);
+                        }
                         task = make_shared<_SnapshotBuildTask>(*this);
                         task->seekPts = seekPos;
+                        task->ssIdxPair = { buildIndex0, buildIndex0 };
                     }
-                    task->ssIdxAry.push_back(buildIndex0);
+                    else
+                        task->ssIdxPair.second = buildIndex0;
                     buildIndex0++;
                 }
                 if (task)
@@ -1474,14 +1485,17 @@ private:
                     while (iter != m_bldtskTimeOrder.begin())
                     {
                         auto& tsk = *iter;
-                        if (tsk->ssIdxAry.front() > currwnd.cacheIdx1)
+                        if (tsk->seekPts.first > currwnd.seekPos10)
                         {
                             tsk->cancel = true;
                             iter = m_bldtskTimeOrder.erase(iter);
                             iter--;
                         }
                         else
+                        {
+                            tsk->ssIdxPair.second = currwnd.cacheIdx1;
                             break;
+                        }
                     }
                     task = m_bldtskTimeOrder.front();
                     m_bldtskTimeOrder.pop_front();
@@ -1493,17 +1507,30 @@ private:
                     m_bldtskTimeOrder.clear();
                 }
 
+                pair<uint32_t, uint32_t> oldSsIdxPair;
+                bool hasOldTask = task != nullptr;
+                if (hasOldTask) oldSsIdxPair = task->ssIdxPair;
                 while (buildIndex1 >= buildIndex0)
                 {
                     pair<int64_t, int64_t> seekPos = GetSeekPosBySsIndex(buildIndex1);
                     if (!task || task->seekPts != seekPos)
                     {
                         if (task)
+                        {
+                            if (hasOldTask)
+                            {
+                                Log(DEBUG) << "~~~ Update old task, ss index pair for [" << oldSsIdxPair.first << ", " << oldSsIdxPair.second << "] to ["
+                                    << task->ssIdxPair.first << ", " << task->ssIdxPair.second << "]." << endl;
+                                hasOldTask = false;
+                            }
                             m_bldtskTimeOrder.push_front(task);
+                        }
                         task = make_shared<_SnapshotBuildTask>(*this);
                         task->seekPts = seekPos;
+                        task->ssIdxPair = { buildIndex1, buildIndex1 };
                     }
-                    task->ssIdxAry.push_front(buildIndex1);
+                    else
+                        task->ssIdxPair.first = buildIndex1;
                     if (buildIndex1 == 0)
                         break;
                     buildIndex1--;
@@ -1525,12 +1552,12 @@ private:
         SnapWindow swnd = m_bldtskSnapWnd;
         m_bldtskPriOrder = m_bldtskTimeOrder;
         m_bldtskPriOrder.sort([swnd](const SnapshotBuildTask& a, const SnapshotBuildTask& b) {
-            uint32_t aFront = a->ssIdxAry.front();
-            uint32_t aBack = a->ssIdxAry.back();
+            uint32_t aFront = a->ssIdxPair.first;
+            uint32_t aBack = a->ssIdxPair.second;
             bool aInDisplayWindow = aFront >= swnd.index0 && aFront <= swnd.index1 ||
                 aBack >= swnd.index0 && aBack <= swnd.index1;
-            uint32_t bFront = b->ssIdxAry.front();
-            uint32_t bBack = b->ssIdxAry.back();
+            uint32_t bFront = b->ssIdxPair.first;
+            uint32_t bBack = b->ssIdxPair.second;
             bool bInDisplayWindow = bFront >= swnd.index0 && bFront <= swnd.index1 ||
                 bBack >= swnd.index0 && bBack <= swnd.index1;
             if (aInDisplayWindow && bInDisplayWindow)
@@ -1585,7 +1612,7 @@ private:
         lock_guard<mutex> lk(m_bldtskByPriLock);
         SnapshotBuildTask nxttsk = nullptr;
         for (auto& tsk : m_bldtskPriOrder)
-            if (!tsk->cancel && tsk->decoding && !tsk->done)
+            if (!tsk->cancel && !tsk->ssAry.empty() && tsk->ssAry.back().avfrm)
             {
                 nxttsk = tsk;
                 break;
@@ -1664,7 +1691,7 @@ private:
     double m_vidfrmIntvMts;
     double m_vidfrmIntvMtsHalf;
     int64_t m_vidfrmIntvPts;
-    double m_snapshotInterval;
+    double m_ssIntvMts;
     double m_cacheFactor{10.0};
     uint32_t m_maxCacheSize{0};
     uint32_t m_prevWndCacheSize, m_postWndCacheSize;
