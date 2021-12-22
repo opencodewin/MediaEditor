@@ -491,9 +491,11 @@ bool Sequencer(SequencerInterface *sequencer, int64_t *currentTime, bool *expand
         // slot moving
         if (movingEntry >= 0)
         {
+            bool expanded, view, locked, muted;
+            sequencer->Get(movingEntry, expanded, view, locked, muted);
             ImGui::CaptureMouseFromApp();
             int diffTime = int((cx - movingPos) / msPixelWidth);
-            if (std::abs(diffTime) > 0)
+            if (!locked && std::abs(diffTime) > 0)
             {
                 int64_t start, end, length;
                 int64_t start_offset, end_offset;
@@ -758,6 +760,7 @@ bool Sequencer(SequencerInterface *sequencer, int64_t *currentTime, bool *expand
         sequencer->CustomDrawCompact(customDraw.index, draw_list, customDraw.customRect, customDraw.clippingRect, *firstTime, visibleTime);
 
     // cursor line
+    draw_list->PushClipRect(canvas_pos + ImVec2(float(legendWidth), 0.f), canvas_pos + canvas_size);
     if (itemCount > 0 && currentTime && firstTime && *currentTime >= *firstTime && *currentTime <= sequencer->GetEnd())
     {
         ImVec2 contentMin(canvas_pos.x + 4.f, canvas_pos.y + (float)HeadHeight + 8.f);
@@ -766,6 +769,7 @@ bool Sequencer(SequencerInterface *sequencer, int64_t *currentTime, bool *expand
         float cursorOffset = contentMin.x + legendWidth + (*currentTime - firstTimeUsed) * msPixelWidth + msPixelWidth / 2 - cursorWidth * 0.5f - 2;
         draw_list->AddLine(ImVec2(cursorOffset, contentMin.y), ImVec2(cursorOffset, contentMax.y), IM_COL32(0, 255, 0, 128), cursorWidth);
     }
+    draw_list->PopClipRect();
 
     ImGui::EndGroup();
 
@@ -864,7 +868,7 @@ void SequencerItem::SequencerItemUpdateSnapshots()
     if (mMedia && mMedia->IsOpened())
     {
         std::vector<ImGui::ImMat> snapshots;
-        double pos = (double)mSnapshotPos / 1000.f;
+        double pos = (double)(mSnapshotPos + mStartOffset) / 1000.f;
         if (mMedia->GetSnapshots(snapshots, pos))
         {
             for (int i = 0; i < snapshots.size(); i++)
@@ -938,6 +942,7 @@ void SequencerItem::CalculateVideoSnapshotInfo(const ImRect &customRect, int64_t
         auto height = mMedia->GetVideoHeight();
         auto duration = mMedia->GetVidoeDuration();
         auto total_frames = mMedia->GetVidoeFrameCount();
+        auto clip_duration = mEnd - mStart;
         if (!width || !height || !duration || !total_frames)
             return;
         if (customRect.GetHeight() <= 0 || customRect.GetWidth() <= 0)
@@ -948,7 +953,7 @@ void SequencerItem::CalculateVideoSnapshotInfo(const ImRect &customRect, int64_t
         mSnapshotWidth = snapshot_width;
         mFrameDuration = (float)duration / (float)total_frames;
         float frame_count = (customRect.GetWidth() + snapshot_width) / snapshot_width;
-        float snapshot_duration = (float)duration / (float)(frame_count - 1);
+        float snapshot_duration = (float)clip_duration / (float)(frame_count - 1);
         mMaxViewSnapshot = (int)((visibleTime + snapshot_duration) / snapshot_duration);
         if (frame_count != mTotalFrame || (int)frame_count != mVideoSnapshotInfos.size())
         {
@@ -969,7 +974,7 @@ void SequencerItem::CalculateVideoSnapshotInfo(const ImRect &customRect, int64_t
                 snapshot.rc.Max = ImVec2((i + 1) * snapshot_width, snapshot_height);
                 if (snapshot.rc.Max.x > customRect.GetWidth() + 2)
                     snapshot.rc.Max.x = customRect.GetWidth() + 2;
-                snapshot.time_stamp = i * snapshot_duration;
+                snapshot.time_stamp = i * snapshot_duration + mStartOffset;
                 snapshot.duration = snapshot_duration;
                 snapshot.frame_width = snapshot.rc.Max.x - snapshot.rc.Min.x;
                 mVideoSnapshotInfos.push_back(snapshot);
@@ -1132,15 +1137,15 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
         ImGui::SetWindowFontScale(1.0);
     }
     
-    draw_list->AddText(clippingRect.Min + ImVec2(2, 8), IM_COL32_WHITE, std::to_string(item->mStartOffset).c_str());
-    draw_list->AddText(clippingRect.Min + ImVec2(2, 24), IM_COL32_WHITE, std::to_string(item->mEndOffset).c_str());
+    // for Debug: print some info here 
+    //draw_list->AddText(clippingRect.Min + ImVec2(2, 8), IM_COL32_WHITE, std::to_string(item->mStartOffset).c_str());
+    //draw_list->AddText(clippingRect.Min + ImVec2(2, 24), IM_COL32_WHITE, std::to_string(item->mEndOffset).c_str());
     draw_list->PopClipRect();
 
     // draw legend
     draw_list->PushClipRect(legendClippingRect.Min, legendClippingRect.Max, true);
     //draw_list->AddRectFilled(legendClippingRect.Min, legendClippingRect.Max, IM_COL32(255,0, 0, 128), 0);
     // draw media control
-
     draw_list->PopClipRect();
     //ImGui::SetCursorScreenPos(rc.Min);
 }
