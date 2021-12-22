@@ -49,6 +49,7 @@
 #define ICON_TO_END         u8"\uf051"
 #define ICON_EJECT          u8"\uf052"
 
+#define COL_FRAME_RECT      IM_COL32(128,  16,  16, 255)
 #define COL_LIGHT_BLUR      IM_COL32( 16, 128, 255, 255)
 #define COL_CANVAS_BG       IM_COL32( 36,  36,  36, 255)
 #define COL_LEGEND_BG       IM_COL32( 18,  18,  18, 255)
