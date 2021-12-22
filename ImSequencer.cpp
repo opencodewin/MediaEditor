@@ -853,11 +853,13 @@ void SequencerItem::SequencerItemUpdateThumbnail()
                 {
                     ImGui::ImGenerateOrUpdateTexture(mMediaThumbnail, snap.w, snap.h, snap.c, (const unsigned char *)snap.data);
                 }
+#if IMGUI_VULKAN_SHADER
                 if (snap.device == ImDataDevice::IM_DD_VULKAN)
                 {
                     ImGui::VkMat vkmat = snap;
                     ImGui::ImGenerateOrUpdateTexture(mMediaThumbnail, vkmat.w, vkmat.h, vkmat.c, vkmat.buffer_offset(), (const unsigned char *)vkmat.buffer());
                 }
+#endif
             }
         }
     }
@@ -884,11 +886,13 @@ void SequencerItem::SequencerItemUpdateSnapshots()
                             {
                                 ImGui::ImGenerateOrUpdateTexture(mVideoSnapshots[i].texture, snapshots[i].w, snapshots[i].h, snapshots[i].c, (const unsigned char *)snapshots[i].data);
                             }
+#if IMGUI_VULKAN_SHADER
                             if (snapshots[i].device == ImDataDevice::IM_DD_VULKAN)
                             {
                                 ImGui::VkMat vkmat = snapshots[i];
                                 ImGui::ImGenerateOrUpdateTexture(mVideoSnapshots[i].texture, vkmat.w, vkmat.h, vkmat.c, vkmat.buffer_offset(), (const unsigned char *)vkmat.buffer());
                             }
+#endif
                             mVideoSnapshots[i].time_stamp = (int64_t)(snapshots[i].time_stamp * 1000);
                             mVideoSnapshots[i].available = true;
                         }
@@ -900,11 +904,13 @@ void SequencerItem::SequencerItemUpdateSnapshots()
                         {
                             ImGui::ImGenerateOrUpdateTexture(snap.texture, snapshots[i].w, snapshots[i].h, snapshots[i].c, (const unsigned char *)snapshots[i].data);
                         }
+#if IMGUI_VULKAN_SHADER
                         if (snapshots[i].device == ImDataDevice::IM_DD_VULKAN)
                         {
                             ImGui::VkMat vkmat = snapshots[i];
                             ImGui::ImGenerateOrUpdateTexture(snap.texture, vkmat.w, vkmat.h, vkmat.c, vkmat.buffer_offset(), (const unsigned char *)vkmat.buffer());
                         }
+#endif
                         snap.time_stamp = (int64_t)(snapshots[i].time_stamp * 1000);
                         snap.available = true;
                         mVideoSnapshots.push_back(snap);
