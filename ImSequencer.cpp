@@ -408,11 +408,12 @@ bool Sequencer(SequencerInterface *sequencer, int64_t *currentTime, bool *expand
         customHeight = 0;
         for (int i = 0; i < itemCount; i++)
         {
-            int64_t start, end;
+            int64_t start, end, length;
+            int64_t start_offset, end_offset;
             std::string name;
             unsigned int color;
             std::vector<VideoSnapshotInfo> snapshots;
-            sequencer->Get(i, start, end, name, color);
+            sequencer->Get(i, start, end, length, start_offset, end_offset, name, color);
             size_t localCustomHeight = sequencer->GetCustomHeight(i);
             ImVec2 pos = ImVec2(contentMin.x + legendWidth - firstTimeUsed * msPixelWidth, contentMin.y + ItemHeight * i + 1 + customHeight);
             ImVec2 slotP1(pos.x + start * msPixelWidth, pos.y + 2);
@@ -494,32 +495,78 @@ bool Sequencer(SequencerInterface *sequencer, int64_t *currentTime, bool *expand
             int diffTime = int((cx - movingPos) / msPixelWidth);
             if (std::abs(diffTime) > 0)
             {
-                int64_t start, end;
+                int64_t start, end, length;
+                int64_t start_offset, end_offset;
                 std::string name;
                 unsigned int color;
-                sequencer->Get(movingEntry, start, end, name, color);
+                float frame_duration, snapshot_width;
+                sequencer->Get(movingEntry, start, end, length, start_offset, end_offset, name, color);
+                sequencer->Get(movingEntry, frame_duration, snapshot_width);
                 if (selectedEntry)
                     *selectedEntry = movingEntry;
-                int64_t l = start;
-                int64_t r = end;
-                if (movingPart & 1)
-                    l += diffTime;
-                if (movingPart & 2)
-                    r += diffTime;
-                if (l < 0)
+
+                if (movingPart == 3)
                 {
-                    if (movingPart & 2)
-                        r -= l;
-                    l = 0;
+                    // whole slot moving
+                    start += diffTime;
+                    end += diffTime;
+                    movingPos += int(diffTime * msPixelWidth);
                 }
-                if (movingPart & 1 && l > r)
-                    l = r;
-                if (movingPart & 2 && r < l)
-                    r = l;
-                movingPos += int(diffTime * msPixelWidth);
-                if (r > sequencer->GetEnd())
-                    sequencer->SetEnd(r + 10 * 1000);
-                sequencer->Set(movingEntry, l, r, name, color);
+                else if (movingPart & 1)
+                {
+                    // slot left moving
+                    if (start + diffTime < end - ceil(frame_duration))
+                    {
+                        if (start_offset + diffTime >= 0)
+                        {
+                            start += diffTime;
+                            start_offset += diffTime;
+                            movingPos += int(diffTime * msPixelWidth);
+                        }
+                        else if (abs(start_offset + diffTime) <= abs(diffTime))
+                        {
+                            diffTime += abs(start_offset + diffTime);
+                            start += diffTime;
+                            start_offset += diffTime;
+                            movingPos += int(diffTime * msPixelWidth);
+                        }
+                    }
+                    else if (end - start - ceil(frame_duration) < diffTime)
+                    {
+                        diffTime = end - start - ceil(frame_duration);
+                        start += diffTime;
+                        start_offset += diffTime;
+                        movingPos += int(diffTime * msPixelWidth);
+                    }
+                }
+                else if (movingPart & 2)
+                {
+                    // slot right moving
+                    if (end + diffTime > start + ceil(frame_duration))
+                    {
+                        if (end_offset - diffTime >= 0)
+                        {
+                            end += diffTime;
+                            end_offset -= diffTime;
+                            movingPos += int(diffTime * msPixelWidth);
+                        }
+                        else if (abs(end_offset - diffTime) <= abs(diffTime))
+                        {
+                            diffTime -= abs(end_offset - diffTime);
+                            end += diffTime;
+                            end_offset -= diffTime;
+                            movingPos += int(diffTime * msPixelWidth);
+                        }
+                    }
+                    else if (end - start - ceil(frame_duration) < abs(diffTime))
+                    {
+                        diffTime = - (end - start - ceil(frame_duration));
+                        end += diffTime;
+                        end_offset -= diffTime;
+                        movingPos += int(diffTime * msPixelWidth);
+                    }
+                }
+                sequencer->Set(movingEntry, start, end, start_offset, end_offset, name, color);
             }
             if (!io.MouseDown[0])
             {
@@ -763,7 +810,8 @@ SequencerItem::SequencerItem(const std::string& name, const std::string& path, i
     if (mMedia && mMedia->IsOpened())
     {
         double window_size = 1.0f;
-        mEnd = mMedia->GetVidoeDuration();
+        mLength = mEnd = mMedia->GetVidoeDuration();
+        mMedia->SetCacheFactor(2.0);
         mMedia->SetSnapshotResizeFactor(0.25, 0.25);
         mMedia->ConfigSnapWindow(window_size, 10);
     }
@@ -942,12 +990,15 @@ MediaSequencer::~MediaSequencer()
     }
 }
 
-void MediaSequencer::Get(int index, int64_t& start, int64_t& end, std::string& name, unsigned int& color)
+void MediaSequencer::Get(int index, int64_t& start, int64_t& end, int64_t& length, int64_t& start_offset, int64_t& end_offset, std::string& name, unsigned int& color)
 {
     SequencerItem *item = m_Items[index];
     color = item->mColor;
     start = item->mStart;
     end = item->mEnd;
+    length = item->mLength;
+    start_offset = item->mStartOffset;
+    end_offset = item->mEndOffset;
     name = item->mName;
 }
 
@@ -967,13 +1018,15 @@ void MediaSequencer::Get(int index, bool& expanded, bool& view, bool& locked, bo
     muted = item->mMuted;
 }
 
-void MediaSequencer::Set(int index, int64_t start, int64_t end, std::string name, unsigned int color)
+void MediaSequencer::Set(int index, int64_t start, int64_t end, int64_t start_offset, int64_t end_offset, std::string name, unsigned int color)
 {
     SequencerItem *item = m_Items[index];
     item->mColor = color;
     item->mStart = start;
     item->mEnd = end;
     item->mName = name;
+    item->mStartOffset = start_offset;
+    item->mEndOffset = end_offset;
 }
 
 void MediaSequencer::Set(int index, bool expanded, bool view, bool locked, bool muted)
@@ -1029,19 +1082,6 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
     else
         item->SequencerItemUpdateSnapshots();
 
-/*
-    int available_snap = 0;
-    for (auto& snap : item->mVideoSnapshots)
-    {
-        if (snap.texture) available_snap++;
-    }
-
-    if (available_snap < snapshot_count)
-    {
-        item->SequencerItemUpdateSnapshots();
-    }
-*/
-
     // draw snapshot
     draw_list->PushClipRect(clippingRect.Min, clippingRect.Max, true);
     for (int i = 0; i < snapshot_count; i++)
@@ -1075,6 +1115,7 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
         else
         {
             // not got snapshot, we show circle indicalor
+            //draw_list->AddRect(pos, pos + size, IM_COL32_BLACK);
             draw_list->AddRectFilled(pos, pos + size, IM_COL32_BLACK);
             auto center_pos = pos + size / 2;
             ImVec4 color_main(1.0, 1.0, 1.0, 1.0);
@@ -1091,7 +1132,8 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
         ImGui::SetWindowFontScale(1.0);
     }
     
-    //draw_list->AddText(clippingRect.Min + ImVec2(2, 32), IM_COL32_WHITE, std::to_string(snapshot_index).c_str());
+    draw_list->AddText(clippingRect.Min + ImVec2(2, 8), IM_COL32_WHITE, std::to_string(item->mStartOffset).c_str());
+    draw_list->AddText(clippingRect.Min + ImVec2(2, 24), IM_COL32_WHITE, std::to_string(item->mEndOffset).c_str());
     draw_list->PopClipRect();
 
     // draw legend

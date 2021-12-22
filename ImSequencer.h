@@ -122,10 +122,10 @@ struct SequencerInterface
     virtual void BeginEdit(int /*index*/) {}
     virtual void EndEdit() {}
     virtual const char *GetItemLabel(int /*index*/) const { return ""; }
-    virtual void Get(int /*index*/, int64_t& /*start*/, int64_t& /*end*/, std::string& /*name*/, unsigned int& /*color*/) = 0;
+    virtual void Get(int /*index*/, int64_t& /*start*/, int64_t& /*end*/, int64_t& /*length*/, int64_t& /*start_offset*/, int64_t& /*end_offset*/, std::string& /*name*/, unsigned int& /*color*/) = 0;
     virtual void Get(int /*index*/, float& /*frame_duration*/, float& /*snapshot_width*/) = 0;
     virtual void Get(int /*index*/, bool& /*expanded*/, bool& /*view*/, bool& /*locked*/, bool& /*muted*/) = 0;
-    virtual void Set(int /*index*/, int64_t /*start*/, int64_t /*end*/, std::string  /*name*/, unsigned int /*color*/) = 0;
+    virtual void Set(int /*index*/, int64_t /*start*/, int64_t /*end*/, int64_t /*start_offset*/, int64_t /*end_offset*/, std::string  /*name*/, unsigned int /*color*/) = 0;
     virtual void Set(int /*index*/, bool /*expanded*/, bool /*view*/, bool /*locked*/, bool /*muted*/) = 0;
     virtual void Add(std::string& /*type*/) {}
     virtual void Del(int /*index*/) {}
@@ -154,8 +154,11 @@ struct SequencerItem
     std::string mName;
     std::string mPath;
     unsigned int mColor {0};
-    int64_t mStart {0};
-    int64_t mEnd   {0};
+    int64_t mStart      {0};        // item Start time in sequencer
+    int64_t mEnd        {0};        // item End time in sequencer
+    int64_t mStartOffset {0};       // item start time in media
+    int64_t mEndOffset   {0};       // item end time in media
+    int64_t mLength     {0};
     bool mExpanded  {false};
     bool mView      {true};
     bool mMuted     {false};
@@ -188,10 +191,10 @@ struct MediaSequencer : public SequencerInterface
     void SetEnd(int64_t pos) { mEnd = pos; }
     int GetItemCount() const { return (int)m_Items.size(); }
     const char *GetItemLabel(int index) const  { return m_Items[index]->mName.c_str(); }
-    void Get(int index, int64_t& start, int64_t& end, std::string& name, unsigned int& color);
+    void Get(int index, int64_t& start, int64_t& end, int64_t& start_offset, int64_t& end_offset, int64_t& length, std::string& name, unsigned int& color);
     void Get(int index, float& frame_duration, float& snapshot_width);
     void Get(int index, bool& expanded, bool& view, bool& locked, bool& muted);
-    void Set(int index, int64_t  start, int64_t  end, std::string  name, unsigned int  color);
+    void Set(int index, int64_t start, int64_t end, int64_t start_offset, int64_t end_offset, std::string  name, unsigned int  color);
     void Set(int index, bool expanded, bool view, bool locked, bool muted);
     void Add(std::string& name);
     void Del(int index);

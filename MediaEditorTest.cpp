@@ -4,6 +4,7 @@
 #include <ImGuiFileDialog.h>
 #include "ImSequencer.h"
 #include "FFUtils.h"
+#include "Logger.h"
 #include <sstream>
 
 #define ICON_MEDIA_VIDEO           u8"\ue04b"
@@ -41,6 +42,7 @@ void Application_GetWindowProperties(ApplicationWindowProperty& property)
 void Application_Initialize(void** handle)
 {
     ImGuiIO& io = ImGui::GetIO(); (void)io;
+    Logger::SetDefaultLoggerLevels(Logger::DEBUG);
 #ifdef USE_BOOKMARK
 	// load bookmarks
 	std::ifstream docFile(bookmark_path, std::ios::in);
