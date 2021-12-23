@@ -1551,6 +1551,7 @@ private:
                 pair<uint32_t, uint32_t> oldSsIdxPair;
                 bool hasOldTask = task != nullptr;
                 if (hasOldTask) oldSsIdxPair = task->ssIdxPair;
+                bool firstTask = true;
                 while (buildIndex1 >= buildIndex0)
                 {
                     pair<int64_t, int64_t> seekPos = GetSeekPosBySsIndex(buildIndex1);
@@ -1566,10 +1567,11 @@ private:
                                 hasOldTask = false;
                             }
                             m_bldtskTimeOrder.push_front(task);
+                            firstTask = false;
                         }
                         task = make_shared<_SnapshotBuildTask>(*this);
                         task->seekPts = seekPos;
-                        task->isEndOfGop = true;
+                        task->isEndOfGop = firstTask ? false : true;
                         task->ssIdxPair = { buildIndex1, buildIndex1 };
                     }
                     else
@@ -1676,8 +1678,27 @@ private:
             ss.avfrm = av_frame_clone(frm);
             m_pendingVidfrmCnt++;
             // Log(DEBUG) << "Adding SS of index " << ssIdx << "." << endl;
-            (*iter)->ssAry.push_back(ss);
+            auto& task = *iter;
+            if (task->ssAry.empty())
+                task->ssAry.push_back(ss);
+            else
+            {
+                auto ssRvsIter = find_if(task->ssAry.rbegin(), task->ssAry.rend(), [ssIdx](const Snapshot& ss) {
+                    return ss.index <= ssIdx;
+                });
+                if (ssRvsIter != task->ssAry.rend() && ssRvsIter->index == ssIdx)
+                    Log(DEBUG) << "Found duplicated snapshot #" << ssIdx << "." << endl;
+                else
+                {
+                    auto ssFwdIter = ssRvsIter.base();
+                    task->ssAry.insert(ssFwdIter, ss);
+                }
+            }
             return true;
+        }
+        else
+        {
+            Log(DEBUG) << "Dropping SS of index " << ssIdx << "." << endl;
         }
         return false;
     }
