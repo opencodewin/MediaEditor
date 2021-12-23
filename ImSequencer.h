@@ -7,6 +7,10 @@
 #include <string>
 #include <vector>
 
+#define ICON_MEDIA_BANK     u8"\ue907"
+#define ICON_MEDIA_TRANSITIONS u8"\ue882"
+#define ICON_MEDIA_FILTERS  u8"\ue663"
+#define ICON_MEDIA_OUTPUT   u8"\uf197"
 #define ICON_MEDIA_VIDEO    u8"\ue04b"
 #define ICON_MEDIA_AUDIO    u8"\ue050"
 #define ICON_SLIDER_MINIMUM u8"\uf424"
