@@ -59,7 +59,7 @@ static bool SequencerExpendButton(ImDrawList *draw_list, ImVec2 pos, bool expand
     return overDel;
 }
 
-static bool SequencerButton(ImDrawList *draw_list, const char * label, ImVec2 pos, ImVec2 size, ImVec4 hover_color = ImVec4(0.5f, 0.5f, 0.75f, 1.0f))
+static bool SequencerButton(ImDrawList *draw_list, const char * label, ImVec2 pos, ImVec2 size, std::string tooltips = "", ImVec4 hover_color = ImVec4(0.5f, 0.5f, 0.75f, 1.0f))
 {
     ImGuiIO &io = ImGui::GetIO();
     ImRect rect(pos, pos + size);
@@ -70,6 +70,12 @@ static bool SequencerButton(ImDrawList *draw_list, const char * label, ImVec2 po
     ImGui::SetWindowFontScale(0.75);
     draw_list->AddText(pos, ImGui::GetColorU32(color), label);
     ImGui::SetWindowFontScale(1.0);
+    if (overButton && !tooltips.empty())
+    {
+        ImGui::BeginTooltip();
+        ImGui::TextUnformatted(tooltips.c_str());
+        ImGui::EndTooltip();
+    }
     return overButton;
 }
 
@@ -113,9 +119,10 @@ bool Sequencer(SequencerInterface *sequencer, int64_t *currentTime, bool *expand
     int scrollBarHeight = 16;
     bool popupOpened = false;
     int itemCount = sequencer->GetItemCount();
+    sequencer->options =  sequenceOptions;
 
     ImGui::BeginGroup();
-
+    
     ImDrawList *draw_list = ImGui::GetWindowDrawList();
     ImVec2 canvas_pos = ImGui::GetCursorScreenPos();     // ImDrawList API uses screen coordinates!
     ImVec2 canvas_size = ImGui::GetContentRegionAvail() - ImVec2(8, 0); // Resize canvas to what's available
@@ -345,57 +352,29 @@ bool Sequencer(SequencerInterface *sequencer, int64_t *currentTime, bool *expand
             draw_list->AddRectFilled(pos, sz, col, 0);
             customHeight += localCustomHeight;
         }
-        // draw item names and control button in the legend rect on the left
+        // draw item title bar
         customHeight = 0;
         for (int i = 0; i < itemCount; i++)
         {
-            ImVec2 button_size = ImVec2(12, 12);
-            bool expanded, view, locked, muted;
-            sequencer->Get(i, expanded, view, locked, muted);
-            ImVec2 tpos(contentMin.x + 3, contentMin.y + i * ItemHeight + customHeight);
-            if (expanded) draw_list->AddText(tpos, IM_COL32_WHITE, sequencer->GetItemLabel(i));
             auto itemCustomHeight = sequencer->GetCustomHeight(i);
-            int button_count = 0;
-            if (sequenceOptions & SEQUENCER_LOCK)
+            ImVec2 button_size = ImVec2(14, 14);
+            ImVec2 tpos(contentMin.x, contentMin.y + i * ItemHeight + customHeight);
+            if (sequenceOptions & SEQUENCER_ADD)
             {
-                bool ret = SequencerButton(draw_list, locked ? ICON_LOCKED : ICON_UNLOCK, ImVec2(contentMin.x + button_size.x * button_count * 1.5 + 2, tpos.y + ItemHeight + itemCustomHeight - button_size.y), button_size);
+                bool ret = SequencerButton(draw_list, ICON_CLONE, ImVec2(contentMin.x + legendWidth - button_size.x * 2.5 - 4, tpos.y), button_size, "clone");
                 if (ret && io.MouseReleased[0])
-                    locked = !locked;
-                button_count ++;
-            }
-            if (sequenceOptions & SEQUENCER_VIEW)
-            {
-                bool ret = SequencerButton(draw_list, view ? ICON_VIEW : ICON_VIEW_DISABLE, ImVec2(contentMin.x + button_size.x * button_count * 1.5 + 2, tpos.y + ItemHeight + itemCustomHeight - button_size.y), button_size);
-                if (ret && io.MouseReleased[0])
-                    view = !view;
-                button_count ++;
-            }
-            if (sequenceOptions & SEQUENCER_MUTE)
-            {
-                bool ret = SequencerButton(draw_list, muted ? ICON_SPEAKER_MUTE : ICON_SPEAKER, ImVec2(contentMin.x + button_size.x * button_count * 1.5 + 2, tpos.y + ItemHeight + itemCustomHeight - button_size.y), button_size);
-                if (ret && io.MouseReleased[0])
-                    muted = !muted;
-                button_count ++;
+                    dupEntry = i;
             }
             if (sequenceOptions & SEQUENCER_DEL)
             {
-                bool ret = SequencerButton(draw_list, ICON_TRASH, ImVec2(contentMin.x + button_size.x * button_count * 1.5 + 2, tpos.y + ItemHeight + itemCustomHeight - button_size.y), button_size);
+                bool ret = SequencerButton(draw_list, ICON_TRASH, ImVec2(contentMin.x + legendWidth - button_size.x - 4, tpos.y), button_size, "delete");
                 if (ret && io.MouseReleased[0])
                     delEntry = i;
-                button_count ++;
             }
-            if (sequenceOptions & SEQUENCER_ADD)
-            {
-                bool ret = SequencerButton(draw_list, ICON_CLONE, ImVec2(contentMin.x + button_size.x * button_count * 1.5 + 2, tpos.y + ItemHeight + itemCustomHeight - button_size.y), button_size);
-                if (ret && io.MouseReleased[0])
-                    dupEntry = i;
-                button_count ++;
-            }
-            sequencer->Set(i, expanded, view, locked, muted);
             customHeight += itemCustomHeight;
         }
+
         // clipping rect so items bars are not visible in the legend on the left when scrolled
-    
         draw_list->PushClipRect(childFramePos + ImVec2(float(legendWidth), 0.f), childFramePos + childFrameSize);
         // vertical time lines in content area
         for (auto i = sequencer->GetStart(); i <= sequencer->GetEnd(); i += timeStep)
@@ -482,7 +461,7 @@ bool Sequencer(SequencerInterface *sequencer, int64_t *currentTime, bool *expand
                 ImRect customRect(rp + ImVec2(legendWidth - (firstTimeUsed - start - 0.5f) * msPixelWidth, float(ItemHeight)),
                                   rp + ImVec2(legendWidth + (end - firstTimeUsed - 0.5f + 2.f) * msPixelWidth, float(localCustomHeight + ItemHeight)));
                 ImRect clippingRect(rp + ImVec2(float(legendWidth), float(ItemHeight)), rp + ImVec2(canvas_size.x - 4.0f, float(localCustomHeight + ItemHeight)));
-                ImRect legendRect(rp + ImVec2(0.f, float(ItemHeight)), rp + ImVec2(float(legendWidth), float(localCustomHeight + ItemHeight)));
+                ImRect legendRect(rp, rp + ImVec2(float(legendWidth), float(localCustomHeight + ItemHeight)));
                 ImRect legendClippingRect(rp + ImVec2(0.f, float(ItemHeight)), rp + ImVec2(float(legendWidth), float(localCustomHeight + ItemHeight)));
                 customDraws.push_back({i, customRect, legendRect, clippingRect, legendClippingRect});
             }
@@ -493,7 +472,8 @@ bool Sequencer(SequencerInterface *sequencer, int64_t *currentTime, bool *expand
                 ImRect customRect(rp + ImVec2(legendWidth - (firstTimeUsed - sequencer->GetStart() - 0.5f) * msPixelWidth, float(0.f)),
                                   rp + ImVec2(legendWidth + (sequencer->GetEnd() - firstTimeUsed - 0.5f + 2.f) * msPixelWidth, float(ItemHeight)));
                 ImRect clippingRect(rp + ImVec2(float(legendWidth), float(0.f)), rp + ImVec2(canvas_size.x, float(ItemHeight)));
-                compactCustomDraws.push_back({i, customRect, ImRect(), clippingRect, ImRect()});
+                ImRect legendRect(rp, rp + ImVec2(float(legendWidth), float(localCustomHeight + ItemHeight)));
+                compactCustomDraws.push_back({i, customRect, legendRect, clippingRect, ImRect()});
             }
             customHeight += localCustomHeight;
         }
@@ -776,7 +756,7 @@ bool Sequencer(SequencerInterface *sequencer, int64_t *currentTime, bool *expand
     for (auto &customDraw : customDraws)
         sequencer->CustomDraw(customDraw.index, draw_list, customDraw.customRect, customDraw.legendRect, customDraw.clippingRect, customDraw.legendClippingRect, *firstTime, visibleTime);
     for (auto &customDraw : compactCustomDraws)
-        sequencer->CustomDrawCompact(customDraw.index, draw_list, customDraw.customRect, customDraw.clippingRect, *firstTime, visibleTime);
+        sequencer->CustomDrawCompact(customDraw.index, draw_list, customDraw.customRect, customDraw.legendRect, customDraw.clippingRect, *firstTime, visibleTime);
 
     // cursor line
     draw_list->PushClipRect(canvas_pos + ImVec2(float(legendWidth), 0.f), canvas_pos + canvas_size);
@@ -825,7 +805,6 @@ SequencerItem::SequencerItem(const std::string& name, const std::string& path, i
     mMediaType = type;
     mMedia = CreateMediaSnapshot();
     mColor = COL_SLOT_DEFAULT;
-    mTotalFrame = 0;
     if (!path.empty() && mMedia)
     {
         mMedia->Open(path);
@@ -834,7 +813,7 @@ SequencerItem::SequencerItem(const std::string& name, const std::string& path, i
     {
         double window_size = 1.0f;
         mLength = mEnd = mMedia->GetVidoeDuration();
-        mMedia->SetCacheFactor(4.0);
+        mMedia->SetCacheFactor(16.0);
         mMedia->SetSnapshotResizeFactor(0.1, 0.1);
         mMedia->ConfigSnapWindow(window_size, 10);
     }
@@ -941,7 +920,6 @@ void SequencerItem::SequencerItemUpdateSnapshots()
                     if (i < mVideoSnapshots.size())
                     {
                         auto snap = mVideoSnapshots.begin() + i;
-                        //if (snap->texture) { ImGui::ImDestroyTexture(snap->texture); snap->texture = nullptr; }
                         snap->available = false;
                         snap->time_stamp = 0;
                         snap->estimate_time = 0;
@@ -979,11 +957,11 @@ void SequencerItem::CalculateVideoSnapshotInfo(const ImRect &customRect, int64_t
         mFrameDuration = (float)duration / (float)total_frames;
         float frame_count = customRect.GetWidth() / snapshot_width;
         float snapshot_duration = (float)clip_duration / (float)(frame_count);
-        mMaxViewSnapshot = (int)((visibleTime + snapshot_duration / 2) / snapshot_duration) + 2; // two more frame ?
+        mMaxViewSnapshot = (int)((visibleTime + snapshot_duration / 2) / snapshot_duration) + 1; // two more frame ?
         if (mMaxViewSnapshot > frame_count) mMaxViewSnapshot = frame_count;
         frame_count++; // one more frame for end
 
-        if (frame_count != mTotalFrame || (int)frame_count != mVideoSnapshotInfos.size())
+        if (mSnapshotLendth != clip_duration || (int)frame_count != mVideoSnapshotInfos.size())
         {
             mVideoSnapshotInfos.clear();
             for (auto& snap : mVideoSnapshots)
@@ -992,9 +970,9 @@ void SequencerItem::CalculateVideoSnapshotInfo(const ImRect &customRect, int64_t
             }
             mVideoSnapshots.clear();
             mSnapshotPos = -1;
+            mSnapshotLendth = clip_duration;
             double window_size = mMaxViewSnapshot * snapshot_duration / 1000.0;
             mMedia->ConfigSnapWindow(window_size, mMaxViewSnapshot);
-            mTotalFrame = frame_count;
             for (int i = 0; i < (int)frame_count; i++)
             {
                 VideoSnapshotInfo snapshot;
@@ -1008,6 +986,35 @@ void SequencerItem::CalculateVideoSnapshotInfo(const ImRect &customRect, int64_t
                 mVideoSnapshotInfos.push_back(snapshot);
             }
         }
+    }
+}
+
+void SequencerItem::DrawItemControlBar(ImDrawList *draw_list, ImRect rc, int sequenceOptions)
+{
+    ImGuiIO &io = ImGui::GetIO();
+    if (mExpanded) draw_list->AddText(rc.Min + ImVec2(4, 0), IM_COL32_WHITE, mName.c_str());
+    ImVec2 button_size = ImVec2(12, 12);
+    int button_count = 0;
+    if (sequenceOptions & SEQUENCER_LOCK)
+    {
+        bool ret = SequencerButton(draw_list, mLocked ? ICON_LOCKED : ICON_UNLOCK, ImVec2(rc.Min.x + button_size.x * button_count * 1.5 + 6, rc.Max.y - button_size.y - 2), button_size, mLocked ? "unlock" : "lock");
+        if (ret && io.MouseReleased[0])
+            mLocked = !mLocked;
+        button_count ++;
+    }
+    if (sequenceOptions & SEQUENCER_VIEW)
+    {
+        bool ret = SequencerButton(draw_list, mView ? ICON_VIEW : ICON_VIEW_DISABLE, ImVec2(rc.Min.x + button_size.x * button_count * 1.5 + 6, rc.Max.y - button_size.y - 2), button_size, mView ? "hidden" : "view");
+        if (ret && io.MouseReleased[0])
+            mView = !mView;
+        button_count ++;
+    }
+    if (sequenceOptions & SEQUENCER_MUTE)
+    {
+        bool ret = SequencerButton(draw_list, mMuted ? ICON_SPEAKER_MUTE : ICON_SPEAKER, ImVec2(rc.Min.x + button_size.x * button_count * 1.5 + 6, rc.Max.y - button_size.y - 2), button_size, mMuted ? "voice" : "mute");
+        if (ret && io.MouseReleased[0])
+            mMuted = !mMuted;
+        button_count ++;
     }
 }
 
@@ -1110,7 +1117,7 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
     int total_snapshot = item->mVideoSnapshotInfos.size();
     int snapshot_index = floor((float)startTime / (float)lendth * (float)total_snapshot);
     
-    int max_snapshot = (clippingRect.GetWidth() + frame_width / 2) / frame_width + 2; // two more frame ?
+    int max_snapshot = (clippingRect.GetWidth() + frame_width / 2) / frame_width + 1; // two more frame ?
     int snapshot_count = (snapshot_index + max_snapshot < total_snapshot) ? max_snapshot : total_snapshot - snapshot_index;
     if (item->mSnapshotPos != startTime)
     {
@@ -1134,6 +1141,15 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
             item->mVideoSnapshots[i].estimate_time = time_stamp;
             // already got snapshot
             ImGui::SetCursorScreenPos(pos);
+
+            if (i == 0 && frame_rc.Min.x > rc.Min.x && snapshot_index > 0)
+            {
+                // first snap pos over rc.Min
+                ImRect _frame_rc = item->mVideoSnapshotInfos[snapshot_index - 1].rc;
+                ImVec2 _pos = _frame_rc.Min + rc.Min;
+                ImVec2 _size = _frame_rc.Max - _frame_rc.Min;
+                draw_list->AddRectFilled(_pos, _pos + _size, IM_COL32_BLACK);
+            }
             if (i + snapshot_index == total_snapshot - 1)
             {
                 // last frame of media, we need clip frame
@@ -1173,28 +1189,38 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
         }
         ImGui::SetWindowFontScale(1.0);
     }
-    
+
     // for Debug: print some info here 
     //draw_list->AddText(clippingRect.Min + ImVec2(2, 8), IM_COL32_WHITE, std::to_string(snapshot_index).c_str());
     //draw_list->AddText(clippingRect.Min + ImVec2(2, 24), IM_COL32_WHITE, std::to_string(item->mEndOffset).c_str());
     draw_list->PopClipRect();
 
     // draw legend
-    draw_list->PushClipRect(legendClippingRect.Min, legendClippingRect.Max, true);
-    //draw_list->AddRectFilled(legendClippingRect.Min, legendClippingRect.Max, IM_COL32(255,0, 0, 128), 0);
+    draw_list->PushClipRect(legendRect.Min, legendRect.Max, true);
+    //draw_list->AddRectFilled(legendRect.Min, legendRect.Max, IM_COL32(255,0, 0, 128), 0);
+    item->DrawItemControlBar(draw_list, legendRect, options);
     // draw media control
     draw_list->PopClipRect();
     //ImGui::SetCursorScreenPos(rc.Min);
 }
 
-void MediaSequencer::CustomDrawCompact(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &clippingRect, int64_t viewStartTime, int64_t visibleTime)
+void MediaSequencer::CustomDrawCompact(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &legendRect, const ImRect &clippingRect, int64_t viewStartTime, int64_t visibleTime)
 {
     // rc: full item length rect
+    // legendRect: legend area
     // clippingRect: current view window area
+
+    SequencerItem *item = m_Items[index];
 
     //draw_list->PushClipRect(clippingRect.Min, clippingRect.Max, true);
     //draw_list->PopClipRect();
     //draw_list->AddRectFilled(clippingRect.Min, clippingRect.Max, IM_COL32(255,0, 0, 128), 0);
+
+    // draw legend
+    draw_list->PushClipRect(legendRect.Min, legendRect.Max, true);
+    item->DrawItemControlBar(draw_list, legendRect, options);
+    // draw media control
+    draw_list->PopClipRect();
 }
 
 void MediaSequencer::GetVideoSnapshotInfo(int index, std::vector<VideoSnapshotInfo>& snapshots)
