@@ -805,7 +805,6 @@ SequencerItem::SequencerItem(const std::string& name, const std::string& path, i
     mMediaType = type;
     mMedia = CreateMediaSnapshot();
     mColor = COL_SLOT_DEFAULT;
-    mTotalFrame = 0;
     if (!path.empty() && mMedia)
     {
         mMedia->Open(path);
@@ -814,7 +813,7 @@ SequencerItem::SequencerItem(const std::string& name, const std::string& path, i
     {
         double window_size = 1.0f;
         mLength = mEnd = mMedia->GetVidoeDuration();
-        mMedia->SetCacheFactor(4.0);
+        mMedia->SetCacheFactor(16.0);
         mMedia->SetSnapshotResizeFactor(0.1, 0.1);
         mMedia->ConfigSnapWindow(window_size, 10);
     }
@@ -921,7 +920,6 @@ void SequencerItem::SequencerItemUpdateSnapshots()
                     if (i < mVideoSnapshots.size())
                     {
                         auto snap = mVideoSnapshots.begin() + i;
-                        //if (snap->texture) { ImGui::ImDestroyTexture(snap->texture); snap->texture = nullptr; }
                         snap->available = false;
                         snap->time_stamp = 0;
                         snap->estimate_time = 0;
@@ -963,7 +961,7 @@ void SequencerItem::CalculateVideoSnapshotInfo(const ImRect &customRect, int64_t
         if (mMaxViewSnapshot > frame_count) mMaxViewSnapshot = frame_count;
         frame_count++; // one more frame for end
 
-        if (frame_count != mTotalFrame || (int)frame_count != mVideoSnapshotInfos.size())
+        if (mSnapshotLendth != clip_duration || (int)frame_count != mVideoSnapshotInfos.size())
         {
             mVideoSnapshotInfos.clear();
             for (auto& snap : mVideoSnapshots)
@@ -972,9 +970,9 @@ void SequencerItem::CalculateVideoSnapshotInfo(const ImRect &customRect, int64_t
             }
             mVideoSnapshots.clear();
             mSnapshotPos = -1;
+            mSnapshotLendth = clip_duration;
             double window_size = mMaxViewSnapshot * snapshot_duration / 1000.0;
             mMedia->ConfigSnapWindow(window_size, mMaxViewSnapshot);
-            mTotalFrame = frame_count;
             for (int i = 0; i < (int)frame_count; i++)
             {
                 VideoSnapshotInfo snapshot;

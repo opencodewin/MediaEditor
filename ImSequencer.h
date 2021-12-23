@@ -170,10 +170,10 @@ struct SequencerItem
     bool mLocked    {false};
     int mMediaType {SEQUENCER_ITEM_UNKNOWN};
     int mMaxViewSnapshot;
-    float mTotalFrame;
     float mSnapshotWidth {0};
     float mFrameDuration {0};
     int64_t mSnapshotPos {-1};
+    int64_t mSnapshotLendth {0};
     MediaSnapshot* mMedia   {nullptr};
     ImTextureID mMediaThumbnail  {nullptr};
     std::vector<VideoSnapshotInfo> mVideoSnapshotInfos;
