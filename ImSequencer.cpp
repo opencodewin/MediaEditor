@@ -957,7 +957,7 @@ void SequencerItem::CalculateVideoSnapshotInfo(const ImRect &customRect, int64_t
         mFrameDuration = (float)duration / (float)total_frames;
         float frame_count = customRect.GetWidth() / snapshot_width;
         float snapshot_duration = (float)clip_duration / (float)(frame_count);
-        mMaxViewSnapshot = (int)((visibleTime + snapshot_duration / 2) / snapshot_duration) + 2; // two more frame ?
+        mMaxViewSnapshot = (int)((visibleTime + snapshot_duration / 2) / snapshot_duration) + 1; // two more frame ?
         if (mMaxViewSnapshot > frame_count) mMaxViewSnapshot = frame_count;
         frame_count++; // one more frame for end
 
@@ -1117,7 +1117,7 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
     int total_snapshot = item->mVideoSnapshotInfos.size();
     int snapshot_index = floor((float)startTime / (float)lendth * (float)total_snapshot);
     
-    int max_snapshot = (clippingRect.GetWidth() + frame_width / 2) / frame_width + 2; // two more frame ?
+    int max_snapshot = (clippingRect.GetWidth() + frame_width / 2) / frame_width + 1; // two more frame ?
     int snapshot_count = (snapshot_index + max_snapshot < total_snapshot) ? max_snapshot : total_snapshot - snapshot_index;
     if (item->mSnapshotPos != startTime)
     {
@@ -1141,6 +1141,15 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
             item->mVideoSnapshots[i].estimate_time = time_stamp;
             // already got snapshot
             ImGui::SetCursorScreenPos(pos);
+
+            if (i == 0 && frame_rc.Min.x > rc.Min.x && snapshot_index > 0)
+            {
+                // first snap pos over rc.Min
+                ImRect _frame_rc = item->mVideoSnapshotInfos[snapshot_index - 1].rc;
+                ImVec2 _pos = _frame_rc.Min + rc.Min;
+                ImVec2 _size = _frame_rc.Max - _frame_rc.Min;
+                draw_list->AddRectFilled(_pos, _pos + _size, IM_COL32_BLACK);
+            }
             if (i + snapshot_index == total_snapshot - 1)
             {
                 // last frame of media, we need clip frame
@@ -1180,7 +1189,7 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
         }
         ImGui::SetWindowFontScale(1.0);
     }
-    
+
     // for Debug: print some info here 
     //draw_list->AddText(clippingRect.Min + ImVec2(2, 8), IM_COL32_WHITE, std::to_string(snapshot_index).c_str());
     //draw_list->AddText(clippingRect.Min + ImVec2(2, 24), IM_COL32_WHITE, std::to_string(item->mEndOffset).c_str());
