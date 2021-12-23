@@ -2,6 +2,7 @@
 #include <imgui.h>
 #include <imgui_helper.h>
 #include <ImGuiFileDialog.h>
+#include <ImGuiTabWindow.h>
 #include "ImSequencer.h"
 #include "FFUtils.h"
 #include "Logger.h"
@@ -10,6 +11,21 @@
 using namespace ImSequencer;
 
 static std::string bookmark_path = "bookmark.ini";
+
+static const char* ControlPanelTabNames[] = {
+    ICON_MEDIA_BANK,
+    ICON_MEDIA_TRANSITIONS,
+    ICON_MEDIA_FILTERS,
+    ICON_MEDIA_OUTPUT
+};
+
+static const char* ControlPanelTabTooltips[] = 
+{
+    "Meida Bank",
+    "Transition"
+    "Filters",
+    "Output"
+};
 
 static MediaSequencer * sequencer = nullptr;
 static std::vector<SequencerItem *> media_items;
@@ -23,7 +39,7 @@ static bool Splitter(bool split_vertically, float thickness, float* size1, float
 	ImRect bb;
 	bb.Min = window->DC.CursorPos + (split_vertically ? ImVec2(*size1, 0.0f) : ImVec2(0.0f, *size1));
 	bb.Max = bb.Min + CalcItemSize(split_vertically ? ImVec2(thickness, splitter_long_axis_size) : ImVec2(splitter_long_axis_size, thickness), 0.0f, 0.0f);
-	return SplitterBehavior(bb, id, split_vertically ? ImGuiAxis_X : ImGuiAxis_Y, size1, size2, min_size1, min_size2, 1.0, 0.1);
+	return SplitterBehavior(bb, id, split_vertically ? ImGuiAxis_X : ImGuiAxis_Y, size1, size2, min_size1, min_size2, 1.0, 0.01);
 }
 
 void Application_GetWindowProperties(ApplicationWindowProperty& property)
@@ -128,7 +144,7 @@ bool Application_Frame(void * handle)
         ImVec2 main_window_size = ImGui::GetWindowSize();
         static float size_media_bank_w = 0.2;
         static float size_main_w = 0.8;
-        ImGui::PushID("##Bank_Main");
+        ImGui::PushID("##Control_Panel_Main");
         float bank_width = size_media_bank_w * main_window_size.x;
         float main_width = size_main_w * main_window_size.x;
         Splitter(true, 4.0f, &bank_width, &main_width, media_icon_size + tool_icon_size, 96);
@@ -140,7 +156,7 @@ bool Application_Frame(void * handle)
         ImVec2 bank_pos(4, 0);
         ImVec2 bank_size(bank_width - 4, main_window_size.y - 4);
         ImGui::SetNextWindowPos(bank_pos, ImGuiCond_Always);
-        if (ImGui::BeginChild("##Bank_Window", bank_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+        if (ImGui::BeginChild("##Control_Panel_Window", bank_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
         {
             // full background
             ImVec2 bank_window_size = ImGui::GetWindowSize();

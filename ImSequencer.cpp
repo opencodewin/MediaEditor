@@ -1085,8 +1085,9 @@ void MediaSequencer::Add(std::string& name)
     
 void MediaSequencer::Del(int index)
 {
-    auto item = m_Items.erase(m_Items.begin() + index);
-    delete *item;
+    auto item = m_Items[index];
+    m_Items.erase(m_Items.begin() + index);
+    delete item;
 }
     
 void MediaSequencer::Duplicate(int index)
