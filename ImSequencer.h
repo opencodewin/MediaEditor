@@ -7,46 +7,55 @@
 #include <string>
 #include <vector>
 
-#define ICON_SLIDER_MINIMUM "\uf424"
-#define ICON_SLIDER_MAXIMUM "\uf422"
-#define ICON_VIEW           "\uf06e"
-#define ICON_VIEW_DISABLE   "\uf070"
-#define ICON_ENABLE         "\uf205"
-#define ICON_DISABLE        "\uf204"
-#define ICON_ZOOM_IN        "\uf00e"
-#define ICON_ZOOM_OUT       "\uf010"
-#define ICON_ITEM_CUT       "\ue14e"
-#define ICON_SPEAKER        "\ue050"
-#define ICON_SPEAKER_MUTE   "\ue04f"
-#define ICON_FILTER         "\uf331"
-#define ICON_MUSIC          "\ue3a1"
-#define ICON_MUSIC_DISABLE  "\ue440"
-#define ICON_MUSIC_RECT     "\ue030"
-#define ICON_MAGIC_3        "\ue663"
-#define ICON_MAGIC_1        "\ue664"
-#define ICON_MAGIC_DISABlE  "\ue665"
-#define ICON_HDR            "\ue3ee"
-#define ICON_HDR_DISABLE    "\ue3ed"
-#define ICON_PALETTE        "\uf53f"
-#define ICON_STRAW          "\ue3b8"
-#define ICON_CROP           "\uf5c8"
+#define ICON_MEDIA_VIDEO    u8"\ue04b"
+#define ICON_MEDIA_AUDIO    u8"\ue050"
+#define ICON_SLIDER_MINIMUM u8"\uf424"
+#define ICON_SLIDER_MAXIMUM u8"\uf422"
+#define ICON_VIEW           u8"\uf06e"
+#define ICON_VIEW_DISABLE   u8"\uf070"
+#define ICON_ENABLE         u8"\uf205"
+#define ICON_DISABLE        u8"\uf204"
+#define ICON_ZOOM_IN        u8"\uf00e"
+#define ICON_ZOOM_OUT       u8"\uf010"
+#define ICON_ITEM_CUT       u8"\ue14e"
+#define ICON_SPEAKER        u8"\ue050"
+#define ICON_SPEAKER_MUTE   u8"\ue04f"
+#define ICON_FILTER         u8"\uf331"
+#define ICON_MUSIC          u8"\ue3a1"
+#define ICON_MUSIC_DISABLE  u8"\ue440"
+#define ICON_MUSIC_RECT     u8"\ue030"
+#define ICON_MAGIC_3        u8"\ue663"
+#define ICON_MAGIC_1        u8"\ue664"
+#define ICON_MAGIC_DISABlE  u8"\ue665"
+#define ICON_HDR            u8"\ue3ee"
+#define ICON_HDR_DISABLE    u8"\ue3ed"
+#define ICON_PALETTE        u8"\uf53f"
+#define ICON_STRAW          u8"\ue3b8"
+#define ICON_CROP           u8"\uf5c8"
+#define ICON_LOCKED         u8"\uf023"
+#define ICON_UNLOCK         u8"\uf09c"
+#define ICON_TRASH          u8"\uf014"
+#define ICON_CLONE          u8"\uf2d2"
+#define ICON_ADD            u8"\uf067"
 
-#define ICON_PLAY           "\uf04b"
-#define ICON_PAUSE          "\uf04c"
-#define ICON_STOP           "\uf04d"
-#define ICON_FAST_BACKWARD  "\uf04a"
-#define ICON_FAST_FORWARD   "\uf04e"
-#define ICON_FAST_TO_START  "\uf049"
-#define ICON_TO_START       "\uf048"   
-#define ICON_FAST_TO_END    "\uf050"
-#define ICON_TO_END         "\uf051"
-#define ICON_EJECT          "\uf052"
+#define ICON_PLAY           u8"\uf04b"
+#define ICON_PAUSE          u8"\uf04c"
+#define ICON_STOP           u8"\uf04d"
+#define ICON_FAST_BACKWARD  u8"\uf04a"
+#define ICON_FAST_FORWARD   u8"\uf04e"
+#define ICON_FAST_TO_START  u8"\uf049"
+#define ICON_TO_START       u8"\uf048"   
+#define ICON_FAST_TO_END    u8"\uf050"
+#define ICON_TO_END         u8"\uf051"
+#define ICON_EJECT          u8"\uf052"
 
+#define COL_FRAME_RECT      IM_COL32( 16,  16,  96, 255)
 #define COL_LIGHT_BLUR      IM_COL32( 16, 128, 255, 255)
 #define COL_CANVAS_BG       IM_COL32( 36,  36,  36, 255)
 #define COL_LEGEND_BG       IM_COL32( 18,  18,  18, 255)
-#define COL_MARK            IM_COL32( 96,  96,  96, 255)
-#define COL_RULE_TEXT       IM_COL32(188, 188, 188, 255)
+#define COL_MARK            IM_COL32(255, 255, 255, 255)
+#define COL_MARK_HALF       IM_COL32(128, 128, 128, 255)
+#define COL_RULE_TEXT       IM_COL32(224, 224, 224, 255)
 #define COL_SLOT_DEFAULT    IM_COL32(128, 128, 170, 255)
 #define COL_SLOT_ODD        IM_COL32( 58,  58,  58, 255)
 #define COL_SLOT_EVEN       IM_COL32( 64,  64,  64, 255)
@@ -61,7 +70,7 @@
 #define COL_CURSOR_TEXT_BG  IM_COL32(  0, 128,   0, 144)
 #define COL_CURSOR_TEXT     IM_COL32(  0, 255,   0, 255)
 
-#define HALF_COLOR(c)       (c & 0xffffff) | 0x40000000;
+#define HALF_COLOR(c)       (c & 0xFFFFFF) | 0x40000000;
 
 namespace ImSequencer
 {
@@ -83,6 +92,9 @@ enum SEQUENCER_OPTIONS
     SEQUENCER_ADD = 1 << 4,
     SEQUENCER_DEL = 1 << 5,
     SEQUENCER_COPYPASTE = 1 << 6,
+    SEQUENCER_LOCK = 1 << 7,
+    SEQUENCER_VIEW = 1 << 8,
+    SEQUENCER_MUTE = 1 << 9,
     SEQUENCER_EDIT_ALL = SEQUENCER_EDIT_STARTEND | SEQUENCER_CHANGE_TIME
 };
 
@@ -114,9 +126,11 @@ struct SequencerInterface
     virtual void BeginEdit(int /*index*/) {}
     virtual void EndEdit() {}
     virtual const char *GetItemLabel(int /*index*/) const { return ""; }
-    virtual void Get(int index, int64_t& start, int64_t& end, std::string& name, unsigned int& color) = 0;
-    virtual void Get(int index, float& frame_duration, float& snapshot_width) = 0;
-    virtual void Set(int index, int64_t   start, int64_t end, std::string  name, unsigned int  color) = 0;
+    virtual void Get(int /*index*/, int64_t& /*start*/, int64_t& /*end*/, int64_t& /*length*/, int64_t& /*start_offset*/, int64_t& /*end_offset*/, std::string& /*name*/, unsigned int& /*color*/) = 0;
+    virtual void Get(int /*index*/, float& /*frame_duration*/, float& /*snapshot_width*/) = 0;
+    virtual void Get(int /*index*/, bool& /*expanded*/, bool& /*view*/, bool& /*locked*/, bool& /*muted*/) = 0;
+    virtual void Set(int /*index*/, int64_t /*start*/, int64_t /*end*/, int64_t /*start_offset*/, int64_t /*end_offset*/, std::string  /*name*/, unsigned int /*color*/) = 0;
+    virtual void Set(int /*index*/, bool /*expanded*/, bool /*view*/, bool /*locked*/, bool /*muted*/) = 0;
     virtual void Add(std::string& /*type*/) {}
     virtual void Del(int /*index*/) {}
     virtual void Duplicate(int /*index*/) {}
@@ -136,6 +150,7 @@ struct Snapshot
     ImTextureID texture {nullptr};
     int64_t     time_stamp {0};
     int64_t     estimate_time {0};
+    bool        available{false};
 };
 
 struct SequencerItem
@@ -143,9 +158,15 @@ struct SequencerItem
     std::string mName;
     std::string mPath;
     unsigned int mColor {0};
-    int64_t mStart {0};
-    int64_t mEnd   {0};
+    int64_t mStart      {0};        // item Start time in sequencer
+    int64_t mEnd        {0};        // item End time in sequencer
+    int64_t mStartOffset {0};       // item start time in media
+    int64_t mEndOffset   {0};       // item end time in media
+    int64_t mLength     {0};
     bool mExpanded  {false};
+    bool mView      {true};
+    bool mMuted     {false};
+    bool mLocked    {false};
     int mMediaType {SEQUENCER_ITEM_UNKNOWN};
     int mMaxViewSnapshot;
     float mTotalFrame;
@@ -174,9 +195,11 @@ struct MediaSequencer : public SequencerInterface
     void SetEnd(int64_t pos) { mEnd = pos; }
     int GetItemCount() const { return (int)m_Items.size(); }
     const char *GetItemLabel(int index) const  { return m_Items[index]->mName.c_str(); }
-    void Get(int index, int64_t& start, int64_t& end, std::string& name, unsigned int& color);
+    void Get(int index, int64_t& start, int64_t& end, int64_t& start_offset, int64_t& end_offset, int64_t& length, std::string& name, unsigned int& color);
     void Get(int index, float& frame_duration, float& snapshot_width);
-    void Set(int index, int64_t  start, int64_t  end, std::string  name, unsigned int  color);
+    void Get(int index, bool& expanded, bool& view, bool& locked, bool& muted);
+    void Set(int index, int64_t start, int64_t end, int64_t start_offset, int64_t end_offset, std::string  name, unsigned int  color);
+    void Set(int index, bool expanded, bool view, bool locked, bool muted);
     void Add(std::string& name);
     void Del(int index);
     void Duplicate(int index);

@@ -22,7 +22,7 @@ using namespace Logger;
 static MediaSnapshot* g_msrc = nullptr;
 static double g_windowPos = 0.f;
 static double g_windowSize = 300.f;
-static double g_windowFrames = 10.0f;
+static double g_windowFrames = 14.0f;
 static vector<ImTextureID> g_snapshotTids;
 ImVec2 g_snapImageSize;
 const string c_imguiIniPath = "ms_test.ini";
@@ -177,12 +177,14 @@ bool Application_Frame(void * handle)
                 {
                     if (vmat.device == IM_DD_CPU)
                         ImGui::ImGenerateOrUpdateTexture(g_snapshotTids[i], vmat.w, vmat.h, vmat.c, (const unsigned char *)vmat.data);
+#if IMGUI_VULKAN_SHADER
                     else
                     {
                         ImGui::VkMat vkmat = vmat;
                         ImGui::ImGenerateOrUpdateTexture(g_snapshotTids[i], vkmat.w, vkmat.h, vkmat.c, vkmat.buffer_offset(), (const unsigned char *)vkmat.buffer());
                     }
-                    ImGui::Image(g_snapshotTids[i], g_snapImageSize);
+#endif
+                    if (g_snapshotTids[i]) ImGui::Image(g_snapshotTids[i], g_snapImageSize);
                 }
                 else
                 {

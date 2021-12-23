@@ -4,10 +4,8 @@
 #include <ImGuiFileDialog.h>
 #include "ImSequencer.h"
 #include "FFUtils.h"
+#include "Logger.h"
 #include <sstream>
-
-#define ICON_MEDIA_VIDEO           u8"\ue04b"
-#define ICON_MEDIA_AUDIO           u8"\ue050"
 
 using namespace ImSequencer;
 
@@ -25,7 +23,7 @@ static bool Splitter(bool split_vertically, float thickness, float* size1, float
 	ImRect bb;
 	bb.Min = window->DC.CursorPos + (split_vertically ? ImVec2(*size1, 0.0f) : ImVec2(0.0f, *size1));
 	bb.Max = bb.Min + CalcItemSize(split_vertically ? ImVec2(thickness, splitter_long_axis_size) : ImVec2(splitter_long_axis_size, thickness), 0.0f, 0.0f);
-	return SplitterBehavior(bb, id, split_vertically ? ImGuiAxis_X : ImGuiAxis_Y, size1, size2, min_size1, min_size2, 1.0);
+	return SplitterBehavior(bb, id, split_vertically ? ImGuiAxis_X : ImGuiAxis_Y, size1, size2, min_size1, min_size2, 1.0, 0.1);
 }
 
 void Application_GetWindowProperties(ApplicationWindowProperty& property)
@@ -41,6 +39,7 @@ void Application_GetWindowProperties(ApplicationWindowProperty& property)
 void Application_Initialize(void** handle)
 {
     ImGuiIO& io = ImGui::GetIO(); (void)io;
+    Logger::SetDefaultLoggerLevels(Logger::DEBUG);
 #ifdef USE_BOOKMARK
 	// load bookmarks
 	std::ifstream docFile(bookmark_path, std::ios::in);
@@ -227,6 +226,11 @@ bool Application_Frame(void * handle)
                         }
                         type_string += TimestampToString(media_length);
                         ImGui::TextUnformatted(type_string.c_str());
+                        ImGui::SetCursorScreenPos(icon_pos + ImVec2(media_icon_size - 24, 0));
+                        if (ImGui::Button( (std::string(ICON_TRASH "##delete_media") + item->mPath).c_str(), ImVec2(24, 24)))
+                        {
+                            // TODO::Dicky delete media from bank, also need delete it from sequencer item list
+                        }
                         ImGui::SetCursorScreenPos(icon_pos + ImVec2(0, media_icon_size - 24));
                         if (has_video) { ImGui::Button( (std::string(ICON_MEDIA_VIDEO "##video") + item->mPath).c_str(), ImVec2(24, 24)); ImGui::SameLine(); }
                         if (has_audio) { ImGui::Button( (std::string(ICON_MEDIA_AUDIO "##audio") + item->mPath).c_str(), ImVec2(24, 24)); ImGui::SameLine(); }
@@ -287,7 +291,9 @@ bool Application_Frame(void * handle)
     bool _expanded = expanded;
     if (ImGui::BeginChild("##Sequencor", panel_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings))
     {
-        ImSequencer::Sequencer(sequencer, &currentTime, &_expanded, &selectedEntry, &firstTime, &lastTime, ImSequencer::SEQUENCER_EDIT_STARTEND | ImSequencer::SEQUENCER_CHANGE_TIME | ImSequencer::SEQUENCER_DEL);
+        ImSequencer::Sequencer(sequencer, &currentTime, &_expanded, &selectedEntry, &firstTime, &lastTime, 
+                                ImSequencer::SEQUENCER_EDIT_STARTEND | ImSequencer::SEQUENCER_CHANGE_TIME | ImSequencer::SEQUENCER_DEL |
+                                ImSequencer::SEQUENCER_LOCK | ImSequencer::SEQUENCER_VIEW | ImSequencer::SEQUENCER_MUTE);
         if (selectedEntry != -1)
         {
             //const ImSequencer::MediaSequencer::SequencerItem &item = sequencer.m_Items[selectedEntry];
@@ -318,41 +324,44 @@ bool Application_Frame(void * handle)
 	ImVec2 maxSize = ImVec2(FLT_MAX, FLT_MAX);
     if (ImGuiFileDialog::Instance()->Display("##MediaEditFileDlgKey", ImGuiWindowFlags_NoCollapse, minSize, maxSize))
     {
-        auto userDatas = std::string((const char*)ImGuiFileDialog::Instance()->GetUserDatas());
-        if (userDatas.compare("Media Source") == 0)
+        if (ImGuiFileDialog::Instance()->IsOk())
         {
-            auto file_path = ImGuiFileDialog::Instance()->GetFilePathName();
-            auto file_name = ImGuiFileDialog::Instance()->GetCurrentFileName();
-            auto file_surfix = ImGuiFileDialog::Instance()->GetCurrentFileSurfix();
-            int type = SEQUENCER_ITEM_UNKNOWN;
-            if (!file_surfix.empty())
+            auto userDatas = std::string((const char*)ImGuiFileDialog::Instance()->GetUserDatas());
+            if (userDatas.compare("Media Source") == 0)
             {
-                if ((file_surfix.compare(".mp4") == 0) ||
-                    (file_surfix.compare(".mov") == 0) ||
-                    (file_surfix.compare(".mkv") == 0) ||
-                    (file_surfix.compare(".avi") == 0) ||
-                    (file_surfix.compare(".webm") == 0) ||
-                    (file_surfix.compare(".ts") == 0))
-                    type = SEQUENCER_ITEM_VIDEO;
-                else 
-                    if ((file_surfix.compare(".wav") == 0) ||
-                        (file_surfix.compare(".mp3") == 0) ||
-                        (file_surfix.compare(".aac") == 0) ||
-                        (file_surfix.compare(".ac3") == 0) ||
-                        (file_surfix.compare(".dts") == 0) ||
-                        (file_surfix.compare(".ogg") == 0))
-                    type = SEQUENCER_ITEM_AUDIO;
-                else 
-                    if ((file_surfix.compare(".jpg") == 0) ||
-                        (file_surfix.compare(".jpeg") == 0) ||
-                        (file_surfix.compare(".png") == 0) ||
-                        (file_surfix.compare(".gif") == 0) ||
-                        (file_surfix.compare(".tiff") == 0) ||
-                        (file_surfix.compare(".webp") == 0))
-                    type = SEQUENCER_ITEM_PICTURE;
+                auto file_path = ImGuiFileDialog::Instance()->GetFilePathName();
+                auto file_name = ImGuiFileDialog::Instance()->GetCurrentFileName();
+                auto file_surfix = ImGuiFileDialog::Instance()->GetCurrentFileSurfix();
+                int type = SEQUENCER_ITEM_UNKNOWN;
+                if (!file_surfix.empty())
+                {
+                    if ((file_surfix.compare(".mp4") == 0) ||
+                        (file_surfix.compare(".mov") == 0) ||
+                        (file_surfix.compare(".mkv") == 0) ||
+                        (file_surfix.compare(".avi") == 0) ||
+                        (file_surfix.compare(".webm") == 0) ||
+                        (file_surfix.compare(".ts") == 0))
+                        type = SEQUENCER_ITEM_VIDEO;
+                    else 
+                        if ((file_surfix.compare(".wav") == 0) ||
+                            (file_surfix.compare(".mp3") == 0) ||
+                            (file_surfix.compare(".aac") == 0) ||
+                            (file_surfix.compare(".ac3") == 0) ||
+                            (file_surfix.compare(".dts") == 0) ||
+                            (file_surfix.compare(".ogg") == 0))
+                        type = SEQUENCER_ITEM_AUDIO;
+                    else 
+                        if ((file_surfix.compare(".jpg") == 0) ||
+                            (file_surfix.compare(".jpeg") == 0) ||
+                            (file_surfix.compare(".png") == 0) ||
+                            (file_surfix.compare(".gif") == 0) ||
+                            (file_surfix.compare(".tiff") == 0) ||
+                            (file_surfix.compare(".webp") == 0))
+                        type = SEQUENCER_ITEM_PICTURE;
+                }
+                SequencerItem * item = new SequencerItem(file_name, file_path, 0, 100, true, type);
+                media_items.push_back(item);
             }
-            SequencerItem * item = new SequencerItem(file_name, file_path, 0, 100, true, type);
-            media_items.push_back(item);
         }
         ImGuiFileDialog::Instance()->Close();
     }

@@ -8,6 +8,7 @@ struct MediaSnapshot
 {
     virtual bool Open(const std::string& url) = 0;
     virtual void Close() = 0;
+    virtual void Stop() = 0;
     virtual bool GetSnapshots(std::vector<ImGui::ImMat>& snapshots, double startPos) = 0;
 
     virtual bool IsOpened() const = 0;
@@ -17,6 +18,7 @@ struct MediaSnapshot
     virtual int64_t GetVidoeDuration() const = 0;
     virtual int64_t GetVidoeFrameCount() const = 0;
     virtual bool ConfigSnapWindow(double& windowSize, double frameCount) = 0;
+    virtual bool SetCacheFactor(double cacheFactor) = 0;
     virtual double GetMinWindowSize() const = 0;
     virtual double GetMaxWindowSize() const = 0;
     virtual uint32_t GetVideoWidth() const = 0;
