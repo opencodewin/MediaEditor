@@ -146,10 +146,10 @@ public:
         while (tskIter != m_bldtskTimeOrder.end() && i <= snapWnd.index1)
         {
             auto& tsk = *tskIter++;
-            if (tsk->ssIdxPair.second >= i)
+            if (tsk->ssIdxPair.first > snapWnd.index1)
+                break;
+            else if (tsk->ssIdxPair.second >= i)
             {
-                if (tsk->ssIdxPair.first > i)
-                    break;
                 auto ssIter = tsk->ssAry.begin();
                 while (ssIter != tsk->ssAry.end())
                 {
@@ -666,6 +666,10 @@ private:
         AVPacket avpkt = {0};
         bool avpktLoaded = false;
         SnapshotBuildTask currTask = nullptr;
+        int64_t lastPktPts;
+        int32_t currPktSsIdx;
+        uint32_t gopSmallestIdx;
+        bool currPktChecked;
         bool demuxEof = false;
         while (!m_quitScan)
         {
@@ -685,9 +689,13 @@ private:
                     {
                         currTask->demuxing = true;
                         taskChanged = true;
-                        Log(DEBUG) << "--> Change demux task, ssIdxPair=(" << currTask->ssIdxPair.first << " ~ " << currTask->ssIdxPair.second
-                            << ", startPts=" << currTask->seekPts.first << "(" << av_rescale_q(currTask->seekPts.first, m_vidStream->time_base, MILLISEC_TIMEBASE) << ")"
-                            << ", endPts=" << currTask->seekPts.second << "(" << av_rescale_q(currTask->seekPts.second, m_vidStream->time_base, MILLISEC_TIMEBASE) << ")" << endl;
+                        currPktChecked = false;
+                        lastPktPts = INT64_MAX;
+                        currPktSsIdx = -1;
+                        gopSmallestIdx = INT32_MAX;
+                        // Log(DEBUG) << "--> Change demux task, ssIdxPair=(" << currTask->ssIdxPair.first << " ~ " << currTask->ssIdxPair.second
+                        //     << ", startPts=" << currTask->seekPts.first << "(" << av_rescale_q(currTask->seekPts.first, m_vidStream->time_base, MILLISEC_TIMEBASE) << ")"
+                        //     << ", endPts=" << currTask->seekPts.second << "(" << av_rescale_q(currTask->seekPts.second, m_vidStream->time_base, MILLISEC_TIMEBASE) << ")" << endl;
                     }
                 }
 
@@ -720,7 +728,7 @@ private:
                                 demuxEof = true;
                             else if (ptsAfterSeek != currTask->seekPts.first)
                             {
-                                Log(DEBUG) << "WARNING! 'ptsAfterSeek'(" << ptsAfterSeek << ") != 'ssTask->startPts'(" << currTask->seekPts.first << ")!" << endl;
+                                Log(WARN) << "WARNING! 'ptsAfterSeek'(" << ptsAfterSeek << ") != 'ssTask->startPts'(" << currTask->seekPts.first << ")!" << endl;
                                 currTask->seekPts.first = ptsAfterSeek;
                             }
                         }
@@ -732,6 +740,7 @@ private:
                         if (fferr == 0)
                         {
                             avpktLoaded = true;
+                            currPktChecked = false;
                             idleLoop = false;
                         }
                         else
@@ -748,8 +757,33 @@ private:
 
                     if (avpktLoaded && avpkt.stream_index == m_vidStmIdx)
                     {
-                        if (avpkt.pts >= currTask->seekPts.second)
+                        if (!currPktChecked)
+                        {
+                            int64_t mts = av_rescale_q(avpkt.pts, m_vidStream->time_base, MILLISEC_TIMEBASE);
+                            uint32_t ssIdx;
+                            bool isSs = IsSnapshotFrame(mts, ssIdx, avpkt.pts);
+                            if (isSs && gopSmallestIdx > ssIdx)
+                                gopSmallestIdx = ssIdx;
+                            if (currTask->isEndOfGop && isSs && ssIdx == currTask->ssIdxPair.second)
+                                lastPktPts = avpkt.pts;
+                            currPktChecked = true;
+                        }
+                        if (avpkt.pts >= currTask->seekPts.second || avpkt.pts > lastPktPts)
+                        {
+                            if (gopSmallestIdx > currTask->ssIdxPair.first)
+                            {
+                                Log(ERROR) << "!!!!!! ABNORMAL SS INDEX (1) !!!!!! demux task eof, but the smallest gop ss index is larger than task's first index, "
+                                    << gopSmallestIdx << " > " << currTask->ssIdxPair.first << "." << endl;
+                            }
+                            if (currPktSsIdx < currTask->ssIdxPair.second)
+                            {
+                                bool gopEnd = avpkt.pts >= currTask->seekPts.second;
+                                Log(ERROR) << "!!!!!! ABNORMAL SS INDEX (2) !!!!!! demux task eof, but last pkt index is " << currPktSsIdx
+                                    << ", which is smaller than task's second index " << currTask->ssIdxPair.second
+                                    << ", REASON is " << (gopEnd ? "GOP-END" : "SSIDX-END") << endl;
+                            }
                             currTask->demuxerEof = true;
+                        }
 
                         if (!currTask->demuxerEof)
                         {
@@ -830,6 +864,7 @@ private:
         AVFrame avfrm = {0};
         bool avfrmLoaded = false;
         bool inputEof = false;
+        bool needResetDecoder = false;
         while (!m_quitScan)
         {
             bool idleLoop = true;
@@ -838,8 +873,6 @@ private:
             if (currTask && currTask->cancel)
             {
                 Log(DEBUG) << "~~~~ Current video task canceled" << endl;
-                if (!currTask->decoderEof)
-                    avcodec_flush_buffers(m_viddecCtx);
                 if (avfrmLoaded)
                 {
                     av_frame_unref(&avfrm);
@@ -855,8 +888,14 @@ private:
                 {
                     currTask->decoding = true;
                     inputEof = false;
-                    Log(DEBUG) << "==> Change decoding task to build index (" << currTask->ssIdxPair.first << " ~ " << currTask->ssIdxPair.second << ")." << endl;
+                    // Log(DEBUG) << "==> Change decoding task to build index (" << currTask->ssIdxPair.first << " ~ " << currTask->ssIdxPair.second << ")." << endl;
                 }
+            }
+
+            if (needResetDecoder)
+            {
+                avcodec_flush_buffers(m_viddecCtx);
+                needResetDecoder = false;
             }
 
             if (currTask)
@@ -885,7 +924,7 @@ private:
                             {
                                 idleLoop = false;
                                 currTask->decoderEof = true;
-                                avcodec_flush_buffers(m_viddecCtx);
+                                needResetDecoder = true;
                                 // Log(DEBUG) << "Video decoder current task reaches EOF!" << endl;
                             }
                             break;
@@ -906,12 +945,7 @@ private:
                         }
                         else if (m_pendingVidfrmCnt < m_maxPendingVidfrmCnt)
                         {
-                            Snapshot ss;
-                            ss.index = index;
-                            ss.avfrm = av_frame_clone(&avfrm);
-                            m_pendingVidfrmCnt++;
-                            // Log(DEBUG) << "Adding SS of index " << index << "." << endl;
-                            currTask->ssAry.push_back(ss);
+                            EnqueueSnapshotAVFrame(&avfrm, index);
                             av_frame_unref(&avfrm);
                             avfrmLoaded = false;
                             idleLoop = false;
@@ -939,14 +973,6 @@ private:
                             }
                             av_packet_free(&avpkt);
                             idleLoop = false;
-                            if (currTask->avpktQ.empty() && currTask->demuxerEof)
-                            {
-                                inputEof = true;
-                                // Log(DEBUG) << ">>> Send NULL packet to Video decoder." << endl;
-                                fferr = avcodec_send_packet(m_viddecCtx, nullptr);
-                                if (fferr < 0)
-                                    Log(ERROR) << ">>> FAILED to send NULL packet to Video decoder! fferr = " << fferr << "." << endl;
-                            }
                         }
                         else if (fferr != AVERROR(EAGAIN) && fferr != AVERROR_INVALIDDATA)
                         {
@@ -954,6 +980,11 @@ private:
                                 << fferr << "." << endl;
                             quitLoop = true;
                         }
+                    }
+                    else if (currTask->demuxerEof)
+                    {
+                        currTask->decoderEof = true;
+                        idleLoop = false;
                     }
                     if (quitLoop)
                         break;
@@ -1265,6 +1296,7 @@ private:
         pair<int64_t, int64_t> seekPts;
         // list<uint32_t> ssIdxAry;
         pair<uint32_t, uint32_t> ssIdxPair;
+        bool isEndOfGop{false};
         list<Snapshot> ssAry;
         mutex ssAryLock;
         list<AVPacket*> avpktQ;
@@ -1384,7 +1416,10 @@ private:
             if (!task || task->seekPts != seekPos)
             {
                 if (task)
+                {
+                    task->isEndOfGop = true;
                     m_bldtskTimeOrder.push_back(task);
+                }
                 task = make_shared<_SnapshotBuildTask>(*this);
                 task->seekPts = seekPos;
                 task->ssIdxPair = { buildIndex0, buildIndex0 };
@@ -1396,7 +1431,7 @@ private:
         if (task)
             m_bldtskTimeOrder.push_back(task);
         m_bldtskSnapWnd = currwnd;
-        Log(DEBUG) << "~~~ Initialized build task, index = ["
+        Log(DEBUG) << "^^^ Initialized build task, index = ["
             << m_bldtskSnapWnd.cacheIdx0 << ", (" << m_bldtskSnapWnd.index0 << ", " << m_bldtskSnapWnd.index1 << "), " << m_bldtskSnapWnd.cacheIdx1 << "]." << endl;
 
         UpdateBuildTaskByPriority();
@@ -1407,7 +1442,7 @@ private:
         SnapWindow currwnd = m_snapWnd;
         if (currwnd.cacheIdx0 != m_bldtskSnapWnd.cacheIdx0)
         {
-            Log(DEBUG) << "~~~ Updating build task, index changed from ["
+            Log(DEBUG) << "^^^ Updating build task, index changed from ["
                 << m_bldtskSnapWnd.cacheIdx0 << ", (" << m_bldtskSnapWnd.index0 << ", " << m_bldtskSnapWnd.index1 << "), " << m_bldtskSnapWnd.cacheIdx1 << "] to ["
                 << currwnd.cacheIdx0 << ", (" << currwnd.index0 << ", " << currwnd.index1 << "), " << currwnd.cacheIdx1 << "]." << endl;
             lock_guard<mutex> lk(m_bldtskByTimeLock);
@@ -1456,10 +1491,12 @@ private:
                         {
                             if (hasOldTask)
                             {
-                                Log(DEBUG) << "~~~ Update old task, ss index pair for [" << oldSsIdxPair.first << ", " << oldSsIdxPair.second << "] to ["
-                                    << task->ssIdxPair.first << ", " << task->ssIdxPair.second << "]." << endl;
+                                if (oldSsIdxPair != task->ssIdxPair)
+                                    Log(DEBUG) << "~~~ Update old task, ss index pair updated from [" << oldSsIdxPair.first << ", " << oldSsIdxPair.second << "] to ["
+                                        << task->ssIdxPair.first << ", " << task->ssIdxPair.second << "]." << endl;
                                 hasOldTask = false;
                             }
+                            task->isEndOfGop = true;
                             m_bldtskTimeOrder.push_back(task);
                         }
                         task = make_shared<_SnapshotBuildTask>(*this);
@@ -1493,7 +1530,11 @@ private:
                         }
                         else
                         {
-                            tsk->ssIdxPair.second = currwnd.cacheIdx1;
+                            if (tsk->ssIdxPair.second > currwnd.cacheIdx1)
+                            {
+                                tsk->isEndOfGop = false;
+                                tsk->ssIdxPair.second = currwnd.cacheIdx1;
+                            }
                             break;
                         }
                     }
@@ -1519,14 +1560,16 @@ private:
                         {
                             if (hasOldTask)
                             {
-                                Log(DEBUG) << "~~~ Update old task, ss index pair for [" << oldSsIdxPair.first << ", " << oldSsIdxPair.second << "] to ["
-                                    << task->ssIdxPair.first << ", " << task->ssIdxPair.second << "]." << endl;
+                                if (oldSsIdxPair != task->ssIdxPair)
+                                    Log(DEBUG) << "~~~ Update old task, ss index pair updated from [" << oldSsIdxPair.first << ", " << oldSsIdxPair.second << "] to ["
+                                        << task->ssIdxPair.first << ", " << task->ssIdxPair.second << "]." << endl;
                                 hasOldTask = false;
                             }
                             m_bldtskTimeOrder.push_front(task);
                         }
                         task = make_shared<_SnapshotBuildTask>(*this);
                         task->seekPts = seekPos;
+                        task->isEndOfGop = true;
                         task->ssIdxPair = { buildIndex1, buildIndex1 };
                     }
                     else
@@ -1599,7 +1642,7 @@ private:
         lock_guard<mutex> lk(m_bldtskByPriLock);
         SnapshotBuildTask nxttsk = nullptr;
         for (auto& tsk : m_bldtskPriOrder)
-            if (!tsk->cancel && !tsk->decoding)
+            if (!tsk->cancel && tsk->demuxing && !tsk->decoding)
             {
                 nxttsk = tsk;
                 break;
@@ -1618,6 +1661,25 @@ private:
                 break;
             }
         return nxttsk;
+    }
+
+    bool EnqueueSnapshotAVFrame(AVFrame* frm, uint32_t ssIdx)
+    {
+        lock_guard<mutex> lk(m_bldtskByPriLock);
+        auto iter = find_if(m_bldtskPriOrder.begin(), m_bldtskPriOrder.end(), [frm](const SnapshotBuildTask& task) {
+            return frm->pts >= task->seekPts.first && frm->pts < task->seekPts.second;
+        });
+        if (iter != m_bldtskPriOrder.end())
+        {
+            Snapshot ss;
+            ss.index = ssIdx;
+            ss.avfrm = av_frame_clone(frm);
+            m_pendingVidfrmCnt++;
+            // Log(DEBUG) << "Adding SS of index " << ssIdx << "." << endl;
+            (*iter)->ssAry.push_back(ss);
+            return true;
+        }
+        return false;
     }
 
 private:
