@@ -118,6 +118,7 @@ struct VideoSnapshotInfo
 struct SequencerInterface
 {
     bool focused = false;
+    int options = 0;
     virtual int64_t GetStart() const = 0;
     virtual int64_t GetEnd() const = 0;
     virtual void SetStart(int64_t pos) = 0;
@@ -139,7 +140,7 @@ struct SequencerInterface
     virtual size_t GetCustomHeight(int /*index*/) { return 0; }
     virtual void DoubleClick(int /*index*/) {}
     virtual void CustomDraw(int /*index*/, ImDrawList * /*draw_list*/, const ImRect & /*rc*/, const ImRect & /*legendRect*/, const ImRect & /*clippingRect*/, const ImRect & /*legendClippingRect*/, int64_t /* viewStartTime */, int64_t /* visibleTime */) {}
-    virtual void CustomDrawCompact(int /*index*/, ImDrawList * /*draw_list*/, const ImRect & /*rc*/, const ImRect & /*clippingRect*/, int64_t /*viewStartTime*/, int64_t /*visibleTime*/) {}
+    virtual void CustomDrawCompact(int /*index*/, ImDrawList * /*draw_list*/, const ImRect & /*rc*/, const ImRect & /*legendRect*/, const ImRect & /*clippingRect*/, int64_t /*viewStartTime*/, int64_t /*visibleTime*/) {}
     virtual void GetVideoSnapshotInfo(int /*index*/, std::vector<VideoSnapshotInfo>&) {}
 };
 
@@ -182,6 +183,7 @@ struct SequencerItem
     void SequencerItemUpdateThumbnail();
     void SequencerItemUpdateSnapshots();
     void CalculateVideoSnapshotInfo(const ImRect &customRect, int64_t viewStartTime, int64_t visibleTime);
+    void DrawItemControlBar(ImDrawList *draw_list, ImRect rc, int sequenceOptions);
 };
 
 struct MediaSequencer : public SequencerInterface
@@ -206,9 +208,8 @@ struct MediaSequencer : public SequencerInterface
     size_t GetCustomHeight(int index) { return m_Items[index]->mExpanded ? mItemHeight : 0; }
     void DoubleClick(int index) { m_Items[index]->mExpanded = !m_Items[index]->mExpanded; }
     void CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRect, int64_t viewStartTime, int64_t visibleTime);
-    void CustomDrawCompact(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &clippingRect, int64_t viewStartTime, int64_t visibleTime);
+    void CustomDrawCompact(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &legendRect, const ImRect &clippingRect, int64_t viewStartTime, int64_t visibleTime);
     void GetVideoSnapshotInfo(int index, std::vector<VideoSnapshotInfo>& snapshots);
-
     const int mItemHeight {60};
     int64_t mStart   {0}; 
     int64_t mEnd   {0};
