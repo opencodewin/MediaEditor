@@ -1165,7 +1165,7 @@ private:
         {
             bool idleLoop = true;
 
-            if (!currTask || currTask->cancel || currTask->ssAry.empty() || !currTask->ssAry.back().avfrm)
+            if (!currTask || currTask->cancel || currTask->ssfrmCnt <= 0)
             {
                 currTask = FindNextSsUpdateTask();
             }
@@ -1182,6 +1182,10 @@ private:
                             Log(ERROR) << "FAILED to convert AVFrame to ImGui::ImMat! Message is '" << m_frmCvt.GetError() << "'." << endl;
                         av_frame_free(&ss.avfrm);
                         ss.avfrm = nullptr;
+                        currTask->ssfrmCnt--;
+                        if (currTask->ssfrmCnt < 0)
+                            Log(ERROR) << "!! ABNORMAL !! Task [" << currTask->ssIdxPair.first << ", " << currTask->ssIdxPair.second << "] has negative 'ssfrmCnt'("
+                                << currTask->ssfrmCnt << ")!" << endl;
                         m_pendingVidfrmCnt--;
                         if (m_pendingVidfrmCnt < 0)
                             Log(ERROR) << "Pending video AVFrame ptr count is NEGATIVE! " << m_pendingVidfrmCnt << endl;
@@ -1294,18 +1298,17 @@ private:
 
         MediaSnapshot_Impl& outterObj;
         pair<int64_t, int64_t> seekPts;
-        // list<uint32_t> ssIdxAry;
         pair<uint32_t, uint32_t> ssIdxPair;
         bool isEndOfGop{false};
         list<Snapshot> ssAry;
-        mutex ssAryLock;
+        atomic_int32_t ssfrmCnt{0};
+        // mutex ssAryLock;
         list<AVPacket*> avpktQ;
         mutex avpktQLock;
         bool demuxing{false};
         bool demuxerEof{false};
         bool decoding{false};
         bool decoderEof{false};
-        // bool done{false};
         bool cancel{false};
     };
     using SnapshotBuildTask = shared_ptr<_SnapshotBuildTask>;
@@ -1657,7 +1660,7 @@ private:
         lock_guard<mutex> lk(m_bldtskByPriLock);
         SnapshotBuildTask nxttsk = nullptr;
         for (auto& tsk : m_bldtskPriOrder)
-            if (!tsk->cancel && !tsk->ssAry.empty() && tsk->ssAry.back().avfrm)
+            if (!tsk->cancel && tsk->ssfrmCnt > 0)
             {
                 nxttsk = tsk;
                 break;
@@ -1676,29 +1679,43 @@ private:
             Snapshot ss;
             ss.index = ssIdx;
             ss.avfrm = av_frame_clone(frm);
-            m_pendingVidfrmCnt++;
-            // Log(DEBUG) << "Adding SS of index " << ssIdx << "." << endl;
+            if (!ss.avfrm)
+            {
+                Log(ERROR) << "FAILED to invoke 'av_frame_clone()' to allocate new AVFrame for SS!" << endl;
+                return false;
+            }
+            // Log(DEBUG) << "Adding SS#" << ssIdx << "." << endl;
             auto& task = *iter;
             if (task->ssAry.empty())
+            {
                 task->ssAry.push_back(ss);
+                task->ssfrmCnt++;
+                m_pendingVidfrmCnt++;
+            }
             else
             {
                 auto ssRvsIter = find_if(task->ssAry.rbegin(), task->ssAry.rend(), [ssIdx](const Snapshot& ss) {
                     return ss.index <= ssIdx;
                 });
                 if (ssRvsIter != task->ssAry.rend() && ssRvsIter->index == ssIdx)
-                    Log(DEBUG) << "Found duplicated snapshot #" << ssIdx << "." << endl;
+                {
+                    Log(DEBUG) << "Found duplicated SS#" << ssIdx << ", dropping this SS." << endl;
+                    if (ss.avfrm)
+                        av_frame_free(&ss.avfrm);
+                }
                 else
                 {
                     auto ssFwdIter = ssRvsIter.base();
                     task->ssAry.insert(ssFwdIter, ss);
+                    task->ssfrmCnt++;
+                    m_pendingVidfrmCnt++;
                 }
             }
             return true;
         }
         else
         {
-            Log(DEBUG) << "Dropping SS of index " << ssIdx << "." << endl;
+            Log(DEBUG) << "Dropping SS#" << ssIdx << " due to no matching task is found." << endl;
         }
         return false;
     }
