@@ -753,7 +753,7 @@ bool Sequencer(SequencerInterface *sequencer, int64_t *currentTime, bool *expand
         // draw custom
         draw_list->PushClipRect(childFramePos, childFramePos + childFrameSize);
         for (auto &customDraw : customDraws)
-            sequencer->CustomDraw(customDraw.index, draw_list, customDraw.customRect, customDraw.legendRect, customDraw.clippingRect, customDraw.legendClippingRect, *firstTime, visibleTime, fabs(msPixelWidth - msPixelWidthTarget) < 1e-4);
+            sequencer->CustomDraw(customDraw.index, draw_list, customDraw.customRect, customDraw.legendRect, customDraw.clippingRect, customDraw.legendClippingRect, *firstTime, visibleTime, fabs(msPixelWidth / msPixelWidthTarget - 1.0) < 1e-6);
         for (auto &customDraw : compactCustomDraws)
             sequencer->CustomDrawCompact(customDraw.index, draw_list, customDraw.customRect, customDraw.legendRect, customDraw.clippingRect, *firstTime, visibleTime);
         draw_list->PopClipRect();
@@ -962,9 +962,9 @@ void SequencerItem::CalculateVideoSnapshotInfo(const ImRect &customRect, int64_t
         if (mMaxViewSnapshot > frame_count) mMaxViewSnapshot = frame_count;
         frame_count++; // one more frame for end
 
-        if (mSnapshotLendth != clip_duration || (int)frame_count != mVideoSnapshotInfos.size() || frame_count != mFrameCount)
+        if (mSnapshotLendth != clip_duration || (int)frame_count != mVideoSnapshotInfos.size() || fabs(frame_count - mFrameCount) > 1e-2)
         {
-            fprintf(stderr, "[Dicky Debug] Update snapinfo\n");
+            //fprintf(stderr, "[Dicky Debug] Update snapinfo\n");
             mVideoSnapshotInfos.clear();
             for (auto& snap : mVideoSnapshots)
             {
@@ -1123,13 +1123,17 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
     
     int max_snapshot = (clippingRect.GetWidth() + frame_width / 2) / frame_width + 1; // two more frame ?
     int snapshot_count = (snapshot_index + max_snapshot < total_snapshot) ? max_snapshot : total_snapshot - snapshot_index;
-    if (item->mSnapshotPos != startTime)
+    
+    if (need_update)
     {
-        item->mSnapshotPos = startTime;
-        item->SequencerItemUpdateSnapshots();
+        if (item->mSnapshotPos != startTime)
+        {
+            item->mSnapshotPos = startTime;
+            item->SequencerItemUpdateSnapshots();
+        }
+        else
+            item->SequencerItemUpdateSnapshots();
     }
-    else
-        item->SequencerItemUpdateSnapshots();
 
     // draw snapshot
     draw_list->PushClipRect(clippingRect.Min, clippingRect.Max, true);
