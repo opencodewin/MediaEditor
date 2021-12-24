@@ -450,29 +450,6 @@ bool Sequencer(SequencerInterface *sequencer, int64_t *currentTime, bool *expand
                     }
                 }
             }
-
-            // calculate custom draw rect
-            if (localCustomHeight > 0)
-            {
-                // slot normal view (custom view)
-                ImVec2 rp(canvas_pos.x, contentMin.y + ItemHeight * i + 1 + customHeight);
-                ImRect customRect(rp + ImVec2(legendWidth - (firstTimeUsed - start - 0.5f) * msPixelWidth, float(ItemHeight)),
-                                  rp + ImVec2(legendWidth + (end - firstTimeUsed - 0.5f + 2.f) * msPixelWidth, float(localCustomHeight + ItemHeight)));
-                ImRect clippingRect(rp + ImVec2(float(legendWidth), float(ItemHeight)), rp + ImVec2(canvas_size.x - 4.0f, float(localCustomHeight + ItemHeight)));
-                ImRect legendRect(rp, rp + ImVec2(float(legendWidth), float(localCustomHeight + ItemHeight)));
-                ImRect legendClippingRect(rp + ImVec2(0.f, float(ItemHeight)), rp + ImVec2(float(legendWidth), float(localCustomHeight + ItemHeight)));
-                customDraws.push_back({i, customRect, legendRect, clippingRect, legendClippingRect});
-            }
-            else
-            {
-                // slot compact view (item bar only) 
-                ImVec2 rp(canvas_pos.x, contentMin.y + ItemHeight * i + customHeight);
-                ImRect customRect(rp + ImVec2(legendWidth - (firstTimeUsed - sequencer->GetStart() - 0.5f) * msPixelWidth, float(0.f)),
-                                  rp + ImVec2(legendWidth + (sequencer->GetEnd() - firstTimeUsed - 0.5f + 2.f) * msPixelWidth, float(ItemHeight)));
-                ImRect clippingRect(rp + ImVec2(float(legendWidth), float(0.f)), rp + ImVec2(canvas_size.x, float(ItemHeight)));
-                ImRect legendRect(rp, rp + ImVec2(float(legendWidth), float(localCustomHeight + ItemHeight)));
-                compactCustomDraws.push_back({i, customRect, legendRect, clippingRect, ImRect()});
-            }
             customHeight += localCustomHeight;
         }
 
@@ -740,6 +717,39 @@ bool Sequencer(SequencerInterface *sequencer, int64_t *currentTime, bool *expand
             }
         }
 
+        // calculate custom draw rect
+        customHeight = 0;
+        for (int i = 0; i < itemCount; i++)
+        {
+            int64_t start, end, length;
+            int64_t start_offset, end_offset;
+            std::string name;
+            unsigned int color;
+            sequencer->Get(i, start, end, length, start_offset, end_offset, name, color);
+            size_t localCustomHeight = sequencer->GetCustomHeight(i);
+            if (localCustomHeight > 0)
+            {
+                // slot normal view (custom view)
+                ImVec2 rp(canvas_pos.x, contentMin.y + ItemHeight * i + 1 + customHeight);
+                ImRect customRect(rp + ImVec2(legendWidth - (firstTimeUsed - start - 0.5f) * msPixelWidth, float(ItemHeight)),
+                                  rp + ImVec2(legendWidth + (end - firstTimeUsed - 0.5f + 2.f) * msPixelWidth, float(localCustomHeight + ItemHeight)));
+                ImRect clippingRect(rp + ImVec2(float(legendWidth), float(ItemHeight)), rp + ImVec2(canvas_size.x - 4.0f, float(localCustomHeight + ItemHeight)));
+                ImRect legendRect(rp, rp + ImVec2(float(legendWidth), float(localCustomHeight + ItemHeight)));
+                ImRect legendClippingRect(rp + ImVec2(0.f, float(ItemHeight)), rp + ImVec2(float(legendWidth), float(localCustomHeight + ItemHeight)));
+                customDraws.push_back({i, customRect, legendRect, clippingRect, legendClippingRect});
+            }
+            else
+            {
+                // slot compact view (item bar only) 
+                ImVec2 rp(canvas_pos.x, contentMin.y + ItemHeight * i + customHeight);
+                ImRect customRect(rp + ImVec2(legendWidth - (firstTimeUsed - sequencer->GetStart() - 0.5f) * msPixelWidth, float(0.f)),
+                                  rp + ImVec2(legendWidth + (sequencer->GetEnd() - firstTimeUsed - 0.5f + 2.f) * msPixelWidth, float(ItemHeight)));
+                ImRect clippingRect(rp + ImVec2(float(legendWidth), float(0.f)), rp + ImVec2(canvas_size.x, float(ItemHeight)));
+                ImRect legendRect(rp, rp + ImVec2(float(legendWidth), float(localCustomHeight + ItemHeight)));
+                compactCustomDraws.push_back({i, customRect, legendRect, clippingRect, ImRect()});
+            }
+            customHeight += localCustomHeight;
+        }
         // draw custom
         draw_list->PushClipRect(childFramePos, childFramePos + childFrameSize);
         for (auto &customDraw : customDraws)
@@ -954,7 +964,7 @@ void SequencerItem::CalculateVideoSnapshotInfo(const ImRect &customRect, int64_t
 
         if (mSnapshotLendth != clip_duration || (int)frame_count != mVideoSnapshotInfos.size() || frame_count != mFrameCount)
         {
-            fprintf(stderr, "[Dicky Bebug] Update snapinfo\n");
+            fprintf(stderr, "[Dicky Debug] Update snapinfo\n");
             mVideoSnapshotInfos.clear();
             for (auto& snap : mVideoSnapshots)
             {
