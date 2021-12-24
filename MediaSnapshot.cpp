@@ -267,6 +267,10 @@ public:
         m_snapWindowSize = windowSize;
         m_windowFrameCount = frameCount;
         m_ssIntvMts = m_snapWindowSize*1000./m_windowFrameCount;
+        if (m_ssIntvMts < m_vidfrmIntvMts)
+            m_ssIntvMts = m_vidfrmIntvMts;
+        else if (m_ssIntvMts-m_vidfrmIntvMts <= 0.5)
+            m_ssIntvMts = m_vidfrmIntvMts;
         m_vidMaxIndex = (uint32_t)floor((double)m_vidDuration/m_ssIntvMts)+1;
         m_maxCacheSize = (uint32_t)ceil(m_windowFrameCount*m_cacheFactor);
         uint32_t intWndFrmCnt = (uint32_t)ceil(m_windowFrameCount);
@@ -1699,7 +1703,8 @@ private:
                 });
                 if (ssRvsIter != task->ssAry.rend() && ssRvsIter->index == ssIdx)
                 {
-                    Log(DEBUG) << "Found duplicated SS#" << ssIdx << ", dropping this SS." << endl;
+                    Log(DEBUG) << "Found duplicated SS#" << ssIdx << ", dropping this SS. pts=" << frm->pts
+                        << ", mts=" << av_rescale_q(frm->pts, m_vidStream->time_base, MILLISEC_TIMEBASE) << "." << endl;
                     if (ss.avfrm)
                         av_frame_free(&ss.avfrm);
                 }
