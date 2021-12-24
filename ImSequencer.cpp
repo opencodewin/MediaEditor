@@ -179,7 +179,7 @@ bool Sequencer(SequencerInterface *sequencer, int64_t *currentTime, bool *expand
         }
     }
     msPixelWidthTarget = ImClamp(msPixelWidthTarget, minPixelWidthTarget, maxPixelWidthTarget);
-    msPixelWidth = ImLerp(msPixelWidth, msPixelWidthTarget, 0.33f);
+    msPixelWidth = ImLerp(msPixelWidth, msPixelWidthTarget, 0.5f);
 
     if (visibleTime >= duration && firstTime)
         *firstTime = sequencer->GetStart();
@@ -400,7 +400,6 @@ bool Sequencer(SequencerInterface *sequencer, int64_t *currentTime, bool *expand
             int64_t start_offset, end_offset;
             std::string name;
             unsigned int color;
-            std::vector<VideoSnapshotInfo> snapshots;
             sequencer->Get(i, start, end, length, start_offset, end_offset, name, color);
             size_t localCustomHeight = sequencer->GetCustomHeight(i);
             ImVec2 pos = ImVec2(contentMin.x + legendWidth - firstTimeUsed * msPixelWidth, contentMin.y + ItemHeight * i + 1 + customHeight);
@@ -624,21 +623,17 @@ bool Sequencer(SequencerInterface *sequencer, int64_t *currentTime, bool *expand
             ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - 48 - 4, 0));
             if (ImGui::Button(ICON_ZOOM_IN "##slider_zoom_in", ImVec2(16, 16)))
             {
-                *firstTime = int64_t(*firstTime * 0.5f);
                 msPixelWidthTarget *= 2.0f;
                 if (msPixelWidthTarget > maxPixelWidthTarget)
                     msPixelWidthTarget = maxPixelWidthTarget;
-                *firstTime = ImClamp(*firstTime, sequencer->GetStart(), ImMax(sequencer->GetEnd() - visibleTime, sequencer->GetStart()));
             }
             ImGui::ShowTooltipOnHover("Slider Zoom In");
             ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - 64 - 4, 0));
             if (ImGui::Button(ICON_ZOOM_OUT "##slider_zoom_out", ImVec2(16, 16)))
             {
-                *firstTime = int64_t(*firstTime * 2.0f);
                 msPixelWidthTarget *= 0.5f;
                 if (msPixelWidthTarget < minPixelWidthTarget)
                     msPixelWidthTarget = minPixelWidthTarget;
-                *firstTime = ImClamp(*firstTime, sequencer->GetStart(), ImMax(sequencer->GetEnd() - visibleTime, sequencer->GetStart()));
             }
             ImGui::ShowTooltipOnHover("Slider Zoom Out");
             ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - 80 - 4, 0));
@@ -722,19 +717,11 @@ bool Sequencer(SequencerInterface *sequencer, int64_t *currentTime, bool *expand
                 int64_t overCursor = *firstTime + (int64_t)(visibleTime * ((io.MousePos.x - (float)legendWidth - canvas_pos.x) / (canvas_size.x - legendWidth)));
                 if (io.MouseWheel < -FLT_EPSILON && visibleTime <= sequencer->GetEnd())
                 {
-                    *firstTime -= overCursor;
-                    *firstTime = int64_t(*firstTime * 1.1f);
                     msPixelWidthTarget *= 0.9f;
-                    *firstTime += overCursor;
-                    *firstTime = ImClamp(*firstTime, sequencer->GetStart(), ImMax(sequencer->GetEnd() - visibleTime, sequencer->GetStart()));
                 }
                 if (io.MouseWheel > FLT_EPSILON)
                 {
-                    *firstTime -= overCursor;
-                    *firstTime = int64_t(*firstTime * 0.9f);
                     msPixelWidthTarget *= 1.1f;
-                    *firstTime += overCursor;
-                    *firstTime = ImClamp(*firstTime, sequencer->GetStart(), ImMax(sequencer->GetEnd() - visibleTime, sequencer->GetStart()));
                 }
             }
             else
@@ -756,7 +743,7 @@ bool Sequencer(SequencerInterface *sequencer, int64_t *currentTime, bool *expand
         // draw custom
         draw_list->PushClipRect(childFramePos, childFramePos + childFrameSize);
         for (auto &customDraw : customDraws)
-            sequencer->CustomDraw(customDraw.index, draw_list, customDraw.customRect, customDraw.legendRect, customDraw.clippingRect, customDraw.legendClippingRect, *firstTime, visibleTime);
+            sequencer->CustomDraw(customDraw.index, draw_list, customDraw.customRect, customDraw.legendRect, customDraw.clippingRect, customDraw.legendClippingRect, *firstTime, visibleTime, fabs(msPixelWidth - msPixelWidthTarget) < 1e-4);
         for (auto &customDraw : compactCustomDraws)
             sequencer->CustomDrawCompact(customDraw.index, draw_list, customDraw.customRect, customDraw.legendRect, customDraw.clippingRect, *firstTime, visibleTime);
         draw_list->PopClipRect();
@@ -965,8 +952,9 @@ void SequencerItem::CalculateVideoSnapshotInfo(const ImRect &customRect, int64_t
         if (mMaxViewSnapshot > frame_count) mMaxViewSnapshot = frame_count;
         frame_count++; // one more frame for end
 
-        if (mSnapshotLendth != clip_duration || (int)frame_count != mVideoSnapshotInfos.size())
+        if (mSnapshotLendth != clip_duration || (int)frame_count != mVideoSnapshotInfos.size() || frame_count != mFrameCount)
         {
+            fprintf(stderr, "[Dicky Bebug] Update snapinfo\n");
             mVideoSnapshotInfos.clear();
             for (auto& snap : mVideoSnapshots)
             {
@@ -975,6 +963,7 @@ void SequencerItem::CalculateVideoSnapshotInfo(const ImRect &customRect, int64_t
             mVideoSnapshots.clear();
             mSnapshotPos = -1;
             mSnapshotLendth = clip_duration;
+            mFrameCount = frame_count;
             double window_size = mMaxViewSnapshot * snapshot_duration / 1000.0;
             mMedia->ConfigSnapWindow(window_size, mMaxViewSnapshot);
             for (int i = 0; i < (int)frame_count; i++)
@@ -1099,7 +1088,7 @@ void MediaSequencer::Duplicate(int index)
     /*m_Items.push_back(m_Items[index]);*/
 }
 
-void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRect, int64_t viewStartTime, int64_t visibleTime)
+void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRect, int64_t viewStartTime, int64_t visibleTime, bool need_update)
 {
     // rc: full item length rect
     // clippingRect: current view window area
@@ -1107,7 +1096,7 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
     // legendClippingRect: legend area
 
     SequencerItem *item = m_Items[index];
-    item->CalculateVideoSnapshotInfo(rc, viewStartTime, visibleTime);
+    if (need_update) item->CalculateVideoSnapshotInfo(rc, viewStartTime, visibleTime);
     if (item->mVideoSnapshotInfos.size()  == 0) return;
     float frame_width = item->mVideoSnapshotInfos[0].frame_width;
     int64_t lendth = item->mEnd - item->mStart;

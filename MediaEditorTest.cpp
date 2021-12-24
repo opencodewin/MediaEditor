@@ -22,13 +22,14 @@ static const char* ControlPanelTabNames[] = {
 static const char* ControlPanelTabTooltips[] = 
 {
     "Meida Bank",
-    "Transition",
-    "Filters",
-    "Output"
+    "Meida Transition",
+    "Meida Filters",
+    "Meida Output"
 };
 
 static MediaSequencer * sequencer = nullptr;
 static std::vector<SequencerItem *> media_items;
+static ImGui::TabLabelStyle * tab_style = &ImGui::TabLabelStyle::Get();
 
 static void ShowMediaBankWindow(ImDrawList *draw_list, float media_icon_size)
 {
@@ -189,6 +190,7 @@ void Application_Initialize(void** handle)
 {
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     Logger::SetDefaultLoggerLevels(Logger::DEBUG);
+    ImGui::ResetTabLabelStyle(ImGui::ImGuiTabLabelStyle_Dark, *tab_style);
 #ifdef USE_BOOKMARK
 	// load bookmarks
 	std::ifstream docFile(bookmark_path, std::ios::in);
@@ -295,6 +297,7 @@ bool Application_Frame(void * handle)
         {
             ImVec2 bank_window_size = ImGui::GetWindowSize();
             ImGui::TabLabels(numControlPanelTabs, ControlPanelTabNames, ControlPanelIndex, ControlPanelTabTooltips , false, nullptr, nullptr, false, false, nullptr, nullptr);
+
             // make control panel area
             ImVec2 area_pos = ImVec2(tool_icon_size + 4, 32);
             ImGui::SetNextWindowPos(area_pos, ImGuiCond_Always);
