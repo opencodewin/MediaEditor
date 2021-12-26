@@ -41,6 +41,7 @@
 #define ICON_TRASH          u8"\uf014"
 #define ICON_CLONE          u8"\uf2d2"
 #define ICON_ADD            u8"\uf067"
+#define ICON_ALIGN_START    u8"\ue419"
 
 #define ICON_PLAY           u8"\uf04b"
 #define ICON_PAUSE          u8"\uf04c"
@@ -52,6 +53,9 @@
 #define ICON_FAST_TO_END    u8"\uf050"
 #define ICON_TO_END         u8"\uf051"
 #define ICON_EJECT          u8"\uf052"
+
+#define ICON_CROPED         u8"\ue3e8"
+#define ICON_SCALED         u8"\ue433"
 
 #define COL_FRAME_RECT      IM_COL32( 16,  16,  96, 255)
 #define COL_LIGHT_BLUR      IM_COL32( 16, 128, 255, 255)
@@ -99,6 +103,7 @@ enum SEQUENCER_OPTIONS
     SEQUENCER_LOCK = 1 << 7,
     SEQUENCER_VIEW = 1 << 8,
     SEQUENCER_MUTE = 1 << 9,
+    SEQUENCER_RESTORE = 1 << 10,
     SEQUENCER_EDIT_ALL = SEQUENCER_EDIT_STARTEND | SEQUENCER_CHANGE_TIME
 };
 
@@ -174,6 +179,8 @@ struct SequencerItem
     bool mLocked    {false};
     int mMediaType {SEQUENCER_ITEM_UNKNOWN};
     int mMaxViewSnapshot {0};
+    int64_t mValidViewTime {0};
+    int mValidViewSnapshot {0};
     float mSnapshotWidth {0};
     float mFrameDuration {0};
     float mFrameCount    {0};
