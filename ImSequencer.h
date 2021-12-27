@@ -178,7 +178,6 @@ struct SequencerItem
     bool mMuted     {false};
     bool mLocked    {false};
     int mMediaType {SEQUENCER_ITEM_UNKNOWN};
-    int mMaxViewSnapshot {0};
     int64_t mValidViewTime {0};
     int mValidViewSnapshot {0};
     float mSnapshotWidth {0};

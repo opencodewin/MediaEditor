@@ -964,26 +964,34 @@ void SequencerItem::CalculateVideoSnapshotInfo(const ImRect &customRect, int64_t
         if (mStart < viewStartTime)
             start_time = viewStartTime;
         else if (mStart >= viewStartTime && mStart <= viewStartTime + visibleTime)
-            start_time = mStart;
+        {
+            if (mEnd <= viewStartTime + visibleTime)
+                start_time = mStart;
+            else if (mEnd - mStart < visibleTime)
+                start_time = mStart;
+            else
+                start_time = viewStartTime;
+        }
         else
             start_time = viewStartTime + visibleTime;
+        
         if (mEnd < viewStartTime)
             end_time = viewStartTime;
         else if (mEnd >= viewStartTime && mEnd <= viewStartTime + visibleTime)
+            end_time = mEnd;
+        else if (mEnd - mStart < visibleTime)
             end_time = mEnd;
         else
             end_time = viewStartTime + visibleTime;
         mValidViewTime = end_time - start_time;
         mValidViewSnapshot = (int)((mValidViewTime + snapshot_duration / 2) / snapshot_duration) + 1;
-
-        mMaxViewSnapshot = (int)((visibleTime + snapshot_duration / 2) / snapshot_duration) + 1; // two more frame ?
-        if (mMaxViewSnapshot > frame_count) mMaxViewSnapshot = frame_count;
+        if (mValidViewSnapshot > frame_count) mValidViewSnapshot = frame_count;
         frame_count++; // one more frame for end
         if (mSnapshotLendth != clip_duration || (int)frame_count != mVideoSnapshotInfos.size() || fabs(frame_count - mFrameCount) > 1e-2)
         {
             //fprintf(stderr, "[Dicky Debug] Update snapinfo\n");
-            double window_size = mMaxViewSnapshot * snapshot_duration / 1000.0;
-            mMedia->ConfigSnapWindow(window_size, mMaxViewSnapshot);
+            double window_size = mValidViewSnapshot * snapshot_duration / 1000.0;
+            mMedia->ConfigSnapWindow(window_size, mValidViewSnapshot);
             mVideoSnapshotInfos.clear();
             for (auto& snap : mVideoSnapshots)
             {
@@ -1227,8 +1235,8 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
     }
 
     // for Debug: print some info here 
-    draw_list->AddText(clippingRect.Min + ImVec2(2,  8), IM_COL32_WHITE, std::to_string(item->mMaxViewSnapshot).c_str());
-    draw_list->AddText(clippingRect.Min + ImVec2(2, 24), IM_COL32_WHITE, std::to_string(item->mValidViewSnapshot).c_str());
+    //draw_list->AddText(clippingRect.Min + ImVec2(2,  8), IM_COL32_WHITE, std::to_string(item->mMaxViewSnapshot).c_str());
+    //draw_list->AddText(clippingRect.Min + ImVec2(2, 24), IM_COL32_WHITE, std::to_string(item->mValidViewSnapshot).c_str());
     draw_list->PopClipRect();
 
     // draw legend
