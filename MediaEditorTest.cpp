@@ -195,7 +195,7 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
     ImGui::SetWindowFontScale(1.0);
 }
 
-static int thread_preview(bool& done, bool &running, bool &loop)
+static int thread_preview(bool& done, bool &running, bool &loop, bool reverse)
 {
     if (!sequencer || sequencer->GetItemCount() <= 0)
     {
@@ -216,20 +216,40 @@ static int thread_preview(bool& done, bool &running, bool &loop)
             continue;
         }
         last_time = running_time;
-        if (running_time + current_time_offset >= sequencer->mEnd)
+        if (reverse)
         {
-            if (!loop)
+            if (current_time_offset - running_time <= sequencer->mStart)
             {
-                done = true;
-                break;
-            }
-            else
-            {
-                last_time = current_time_offset = 0;
-                start_time = current_time;
+                if (!loop)
+                {
+                    done = true;
+                    break;
+                }
+                else
+                {
+                    last_time = 0;
+                    current_time_offset = sequencer->mEnd;
+                    start_time = current_time;
+                }
             }
         }
-        sequencer->SetCurrent(running_time + current_time_offset);
+        else
+        {
+            if (current_time_offset + running_time >= sequencer->mEnd)
+            {
+                if (!loop)
+                {
+                    done = true;
+                    break;
+                }
+                else
+                {
+                    last_time = current_time_offset = 0;
+                    start_time = current_time;
+                }
+            }
+        }
+        sequencer->SetCurrent(reverse ? current_time_offset - running_time : current_time_offset + running_time, reverse);
     }
     running = false;
     return 0;
@@ -268,7 +288,25 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32, PanelButtonY));
     if (ImGui::Button(ICON_FAST_BACKWARD "##preview_reverse", ImVec2(32, 32)))
     {
-
+        if (!preview_running && sequencer && sequencer->GetItemCount() > 0)
+        {
+            if (preview_thread)
+            {
+                if (preview_thread->joinable())
+                {
+                    preview_thread->join();
+                    delete preview_thread;
+                    preview_thread = nullptr;
+                }
+                else
+                {
+                    delete preview_thread;
+                    preview_thread = nullptr;
+                }
+            }
+            preview_done = false;
+            preview_thread = new std::thread(thread_preview, std::ref(preview_done), std::ref(preview_running), std::ref(loop), true);
+        }
     }
     ImGui::ShowTooltipOnHover("Reverse");
 
@@ -306,7 +344,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
                 }
             }
             preview_done = false;
-            preview_thread = new std::thread(thread_preview, std::ref(preview_done), std::ref(preview_running), std::ref(loop));
+            preview_thread = new std::thread(thread_preview, std::ref(preview_done), std::ref(preview_running), std::ref(loop), false);
         }
     }
     ImGui::ShowTooltipOnHover("Play");

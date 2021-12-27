@@ -140,7 +140,7 @@ struct SequencerInterface
     virtual int64_t GetEnd() const = 0;
     virtual void SetStart(int64_t pos) = 0;
     virtual void SetEnd(int64_t pos) = 0;
-    virtual void SetCurrent(int64_t pos) = 0;
+    virtual void SetCurrent(int64_t pos, bool rev) = 0;
     virtual int GetItemCount() const = 0;
     virtual void BeginEdit(int /*index*/) {}
     virtual void EndEdit() {}
@@ -215,7 +215,7 @@ struct MediaSequencer : public SequencerInterface
     int64_t GetEnd() const { return mEnd; }
     void SetStart(int64_t pos) { mStart = pos; }
     void SetEnd(int64_t pos) { mEnd = pos; }
-    void SetCurrent(int64_t pos);
+    void SetCurrent(int64_t pos, bool rev);
     int GetItemCount() const { return (int)m_Items.size(); }
     const char *GetItemLabel(int index) const  { return m_Items[index]->mName.c_str(); }
     void Get(int index, int64_t& start, int64_t& end, int64_t& start_offset, int64_t& end_offset, int64_t& length, std::string& name, unsigned int& color);

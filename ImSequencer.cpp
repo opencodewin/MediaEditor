@@ -1280,17 +1280,32 @@ void MediaSequencer::GetVideoSnapshotInfo(int index, std::vector<VideoSnapshotIn
     snapshots = item->mVideoSnapshotInfos;
 }
 
-void MediaSequencer::SetCurrent(int64_t pos)
+void MediaSequencer::SetCurrent(int64_t pos, bool rev)
 {
     currentTime = pos;
-    if (currentTime > firstTime + visibleTime / 2)
+    if (rev)
     {
-        firstTime = currentTime - visibleTime / 2;
+        if (currentTime < firstTime + visibleTime / 2)
+        {
+            firstTime = currentTime - visibleTime / 2;
+        }
+        else if (currentTime > firstTime + visibleTime)
+        {
+            firstTime = currentTime - visibleTime;
+        }
     }
-    else if (currentTime < firstTime)
+    else
     {
-        firstTime = currentTime;
+        if (currentTime > firstTime + visibleTime / 2)
+        {
+            firstTime = currentTime - visibleTime / 2;
+        }
+        else if (currentTime < firstTime)
+        {
+            firstTime = currentTime;
+        }
     }
+    if (firstTime < 0) firstTime = 0;
 }
 
 } // namespace ImSequencer
