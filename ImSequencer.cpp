@@ -1151,6 +1151,7 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
     if (item->mVideoSnapshotInfos.size()  == 0) return;
     float frame_width = item->mVideoSnapshotInfos[0].frame_width;
     int64_t lendth = item->mEnd - item->mStart;
+
     int64_t startTime = 0;
     if (item->mStart >= viewStartTime && item->mStart <= viewStartTime + visibleTime)
         startTime = 0;
@@ -1161,15 +1162,16 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
 
     int total_snapshot = item->mVideoSnapshotInfos.size();
     int snapshot_index = floor((float)startTime / (float)lendth * (float)total_snapshot);
+    int64_t snapshot_time = item->mVideoSnapshotInfos[snapshot_index].time_stamp;
     
     int max_snapshot = (clippingRect.GetWidth() + frame_width / 2) / frame_width + 1; // two more frame ?
     int snapshot_count = (snapshot_index + max_snapshot < total_snapshot) ? max_snapshot : total_snapshot - snapshot_index;
     
     if (need_update)
     {
-        if (item->mSnapshotPos != startTime)
+        if (item->mSnapshotPos != snapshot_time)
         {
-            item->mSnapshotPos = startTime;
+            item->mSnapshotPos = snapshot_time;
             item->SequencerItemUpdateSnapshots();
         }
         else
