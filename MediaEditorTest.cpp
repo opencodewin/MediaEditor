@@ -205,20 +205,22 @@ static int thread_preview(bool& done, bool &running, bool &loop, bool reverse)
     running = true;
     int64_t start_time = ImGui::get_current_time_usec() / 1000;
     int64_t last_time = 0;
-    int64_t current_time_offset = sequencer->currentTime;
+    //int64_t current_time_offset = sequencer->currentTime;
     while (!done)
     {
         int64_t current_time = ImGui::get_current_time_usec() / 1000;
         int64_t running_time = current_time - start_time;
-        if (running_time - last_time < 20) // hard coding for now, need calculate sequencer time base later
+        int64_t step_time = running_time - last_time;
+        if (step_time < 20) // hard coding for now, need calculate sequencer time base later
         {
             ImGui::sleep((int)20);
             continue;
         }
         last_time = running_time;
+        int64_t current_media_time = sequencer->currentTime;
         if (reverse)
         {
-            if (current_time_offset - running_time <= sequencer->mStart)
+            if (current_media_time - step_time <= sequencer->mStart)
             {
                 if (!loop)
                 {
@@ -228,14 +230,14 @@ static int thread_preview(bool& done, bool &running, bool &loop, bool reverse)
                 else
                 {
                     last_time = 0;
-                    current_time_offset = sequencer->mEnd;
+                    current_media_time = sequencer->mEnd;
                     start_time = current_time;
                 }
             }
         }
         else
         {
-            if (current_time_offset + running_time >= sequencer->mEnd)
+            if (current_media_time + step_time >= sequencer->mEnd)
             {
                 if (!loop)
                 {
@@ -244,12 +246,12 @@ static int thread_preview(bool& done, bool &running, bool &loop, bool reverse)
                 }
                 else
                 {
-                    last_time = current_time_offset = 0;
+                    last_time = current_media_time = 0;
                     start_time = current_time;
                 }
             }
         }
-        sequencer->SetCurrent(reverse ? current_time_offset - running_time : current_time_offset + running_time, reverse);
+        sequencer->SetCurrent(reverse ? current_media_time - step_time : current_media_time + step_time, reverse);
     }
     running = false;
     return 0;

@@ -1327,7 +1327,11 @@ void MediaSequencer::SetCurrent(int64_t pos, bool rev)
     }
     else
     {
-        if (currentTime > firstTime + visibleTime / 2)
+        if (mEnd - currentTime < visibleTime / 2)
+        {
+            firstTime = mEnd - visibleTime;
+        }
+        else if (currentTime > firstTime + visibleTime / 2)
         {
             firstTime = currentTime - visibleTime / 2;
         }
