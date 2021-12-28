@@ -121,6 +121,13 @@ static void ShowMediaBankWindow(ImDrawList *draw_list, float media_icon_size)
         {
             ImGui::SetDragDropPayload("Media_drag_drop", item, sizeof(MediaItem));
             ImGui::TextUnformatted(item->mName.c_str());
+            if (item->mMediaThumbnail)
+            {
+                auto tex_w = ImGui::ImGetTextureWidth(item->mMediaThumbnail);
+                auto tex_h = ImGui::ImGetTextureHeight(item->mMediaThumbnail);
+                float aspectRatio = (float)tex_w / (float)tex_h;
+                ImGui::Image(item->mMediaThumbnail, ImVec2(icon_size.x, icon_size.y / aspectRatio));
+            }
             ImGui::EndDragDropSource();
         }
         ImGui::ShowTooltipOnHover("%s", item->mPath.c_str());
