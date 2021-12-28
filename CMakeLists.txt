@@ -231,3 +231,18 @@ target_link_libraries(
     PkgConfig::FFMPEG
 )
 target_compile_definitions(snapshot_test PUBLIC APP_NAME="snapshot_test")
+
+add_executable(
+    overview_test
+    MediaOverviewTest.cpp
+    MediaOverview.cpp
+    FFUtils.cpp
+    Logger.cpp
+    ${IMGUI_APP_ENTRY_SRC}
+)
+target_link_libraries(
+    overview_test
+    ${IMGUI_LIBRARYS}
+    PkgConfig::FFMPEG
+)
+target_compile_definitions(overview_test PUBLIC APP_NAME="overview_test")

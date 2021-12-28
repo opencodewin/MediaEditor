@@ -1,6 +1,5 @@
 #include <thread>
 #include <mutex>
-#include <condition_variable>
 #include <iostream>
 #include <sstream>
 #include <iomanip>
@@ -1807,9 +1806,6 @@ private:
     mutex m_bldtskByTimeLock;
     list<SnapshotBuildTask> m_bldtskPriOrder;
     mutex m_bldtskByPriLock;
-    condition_variable m_bldtskStateCv;
-    uint32_t m_bldtskQReaderCnt{0};
-    bool m_bldtskQUpdating{false};
     atomic_int32_t m_pendingVidfrmCnt{0};
     int32_t m_maxPendingVidfrmCnt{4};
     list<int64_t> m_vidKeyPtsList;
