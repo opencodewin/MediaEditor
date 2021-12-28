@@ -64,6 +64,7 @@ static bool Splitter(bool split_vertically, float thickness, float* size1, float
 
 static void ShowMediaBankWindow(ImDrawList *draw_list, float media_icon_size)
 {
+    ImGuiIO& io = ImGui::GetIO();
     ImGui::SetWindowFontScale(1.2);
     ImGui::Indent(20);
     ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
@@ -77,6 +78,7 @@ static void ShowMediaBankWindow(ImDrawList *draw_list, float media_icon_size)
     float x_offset = (ImGui::GetContentRegionAvail().x - media_icon_size - 12) / 2;
     for (auto item : media_items)
     {
+        item->UpdateThumbnail();
         ImGui::Dummy(ImVec2(0, 24));
         if (x_offset > 0)
         {
@@ -85,15 +87,46 @@ static void ShowMediaBankWindow(ImDrawList *draw_list, float media_icon_size)
 
         auto icon_pos = ImGui::GetCursorScreenPos();
         ImVec2 icon_size = ImVec2(media_icon_size, media_icon_size);
+        ImTextureID texture = nullptr;
         // Draw Shadow for Icon
         draw_list->AddRectFilled(icon_pos + ImVec2(6, 6), icon_pos + ImVec2(6, 6) + icon_size, IM_COL32(32, 32, 32, 255));
         draw_list->AddRectFilled(icon_pos + ImVec2(4, 4), icon_pos + ImVec2(4, 4) + icon_size, IM_COL32(48, 48, 72, 255));
         draw_list->AddRectFilled(icon_pos + ImVec2(2, 2), icon_pos + ImVec2(2, 2) + icon_size, IM_COL32(64, 64, 96, 255));
-        
-        if (item->mMediaThumbnail)
+        ImGui::InvisibleButton(item->mPath.c_str(), icon_size);
+        if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
         {
-            auto tex_w = ImGui::ImGetTextureWidth(item->mMediaThumbnail);
-            auto tex_h = ImGui::ImGetTextureHeight(item->mMediaThumbnail);
+            ImGui::SetDragDropPayload("Media_drag_drop", item, sizeof(MediaItem));
+            ImGui::TextUnformatted(item->mName.c_str());
+            if (!item->mMediaThumbnail.empty() && item->mMediaThumbnail[0])
+            {
+                auto tex_w = ImGui::ImGetTextureWidth(item->mMediaThumbnail[0]);
+                auto tex_h = ImGui::ImGetTextureHeight(item->mMediaThumbnail[0]);
+                float aspectRatio = (float)tex_w / (float)tex_h;
+                ImGui::Image(item->mMediaThumbnail[0], ImVec2(icon_size.x, icon_size.y / aspectRatio));
+            }
+            ImGui::EndDragDropSource();
+        }
+        if (ImGui::IsItemHovered())
+        {
+            float pos_x = io.MousePos.x - icon_pos.x;
+            float percent = pos_x / icon_size.x;
+            ImClamp(percent, 0.0f, 1.0f);
+            if (!item->mMediaThumbnail.empty())
+            {
+                int texture_index = item->mMediaThumbnail.size() * percent;
+                texture = item->mMediaThumbnail[texture_index];
+            }
+        }
+        else if (!item->mMediaThumbnail.empty())
+        {
+            texture = item->mMediaThumbnail[0];
+        }
+
+        ImGui::SetCursorScreenPos(icon_pos);
+        if (texture)
+        {
+            auto tex_w = ImGui::ImGetTextureWidth(texture);
+            auto tex_h = ImGui::ImGetTextureHeight(texture);
             float aspectRatio = (float)tex_w / (float)tex_h;
             bool bViewisLandscape = icon_size.x >= icon_size.y ? true : false;
             bool bRenderisLandscape = aspectRatio > 1.f ? true : false;
@@ -105,31 +138,18 @@ static void ShowMediaBankWindow(ImDrawList *draw_list, float media_icon_size)
             if (adj_x > adj_w) { adj_y *= adj_w / adj_x; adj_x = adj_w; }
             float offset_x = (icon_size.x - adj_x) / 2.0;
             float offset_y = (icon_size.y - adj_y) / 2.0;
-            ImGui::PushID((void*)(intptr_t)item->mMediaThumbnail);
+            ImGui::PushID((void*)(intptr_t)texture);
             const ImGuiID id = ImGui::GetCurrentWindow()->GetID("#image");
             ImGui::PopID();
-            ImGui::ImageButtonEx(id, item->mMediaThumbnail, ImVec2(adj_w - offset_x * 2, adj_h - offset_y * 2), 
+            ImGui::ImageButtonEx(id, texture, ImVec2(adj_w - offset_x * 2, adj_h - offset_y * 2), 
                                 ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), ImVec2(offset_x, offset_y),
                                 ImVec4(0.0f, 0.0f, 0.0f, 1.0f), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
         }
         else
         {
-            item->UpdateThumbnail();
             ImGui::Button(item->mName.c_str(), ImVec2(media_icon_size, media_icon_size));
         }
-        if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
-        {
-            ImGui::SetDragDropPayload("Media_drag_drop", item, sizeof(MediaItem));
-            ImGui::TextUnformatted(item->mName.c_str());
-            if (item->mMediaThumbnail)
-            {
-                auto tex_w = ImGui::ImGetTextureWidth(item->mMediaThumbnail);
-                auto tex_h = ImGui::ImGetTextureHeight(item->mMediaThumbnail);
-                float aspectRatio = (float)tex_w / (float)tex_h;
-                ImGui::Image(item->mMediaThumbnail, ImVec2(icon_size.x, icon_size.y / aspectRatio));
-            }
-            ImGui::EndDragDropSource();
-        }
+
         ImGui::ShowTooltipOnHover("%s", item->mPath.c_str());
         if (item->mMedia && item->mMedia->IsOpened())
         {

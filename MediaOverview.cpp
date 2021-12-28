@@ -135,7 +135,7 @@ public:
         return m_audStmIdx >= 0;
     }
 
-    bool GetSnapshotCount() const override
+    uint32_t GetSnapshotCount() const override
     {
         if (!IsOpened())
             return 0;

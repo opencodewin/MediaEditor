@@ -13,7 +13,7 @@ struct MediaOverview
     virtual bool IsDone() const = 0;
     virtual bool HasVideo() const = 0;
     virtual bool HasAudio() const = 0;
-    virtual bool GetSnapshotCount() const = 0;
+    virtual uint32_t GetSnapshotCount() const = 0;
     virtual bool SetSnapshotSize(uint32_t width, uint32_t height) = 0;
     virtual bool SetSnapshotResizeFactor(float widthFactor, float heightFactor) = 0;
     virtual bool SetOutColorFormat(ImColorFormat clrfmt) = 0;

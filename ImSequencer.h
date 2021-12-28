@@ -245,7 +245,7 @@ struct MediaItem
     std::string mPath;
     MediaOverview * mMedia;
     int mMediaType {SEQUENCER_ITEM_UNKNOWN};
-    ImTextureID mMediaThumbnail  {nullptr};
+    std::vector<ImTextureID> mMediaThumbnail;
     MediaItem(const std::string& name, const std::string& path, int type);
     ~MediaItem();
     void UpdateThumbnail();

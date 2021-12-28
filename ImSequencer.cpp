@@ -15,10 +15,12 @@ MediaItem::MediaItem(const std::string& name, const std::string& path, int type)
     mMedia = CreateMediaOverview();
     if (!path.empty() && mMedia)
     {
+        mMedia->SetSnapshotResizeFactor(0.1, 0.1);
         mMedia->Open(path);
     }
     if (mMedia && mMedia->IsOpened())
     {
+        // Check?
     }
 }
 
@@ -26,38 +28,41 @@ MediaItem::~MediaItem()
 {
     ReleaseMediaOverview(&mMedia);
     mMedia = nullptr;
-    if (mMediaThumbnail)
+    for (auto thumb : mMediaThumbnail)
     {
-        ImGui::ImDestroyTexture(mMediaThumbnail); 
-        mMediaThumbnail = nullptr;
+        ImGui::ImDestroyTexture(thumb); 
+        thumb = nullptr;
     }
 }
 
 void MediaItem::UpdateThumbnail()
 {
-    if (mMediaThumbnail)
-        return;
     if (mMedia && mMedia->IsOpened())
     {
+        auto count = mMedia->GetSnapshotCount();
+        if (mMediaThumbnail.size() >= count)
+            return;
         std::vector<ImGui::ImMat> snapshots;
         if (mMedia->GetSnapshots(snapshots))
         {
-            if (snapshots.size() <= 2)
-                return;
-            auto snap = snapshots[1];
-            if (!snap.empty())
+            for (int i = 0; i < snapshots.size(); i++)
             {
-                if (snap.device == ImDataDevice::IM_DD_CPU)
+                if (!snapshots[i].empty())
                 {
-                    ImGui::ImGenerateOrUpdateTexture(mMediaThumbnail, snap.w, snap.h, snap.c, (const unsigned char *)snap.data);
-                }
+                    ImTextureID thumb = nullptr;
+                    if (snapshots[i].device == ImDataDevice::IM_DD_CPU)
+                    {
+                        ImGui::ImGenerateOrUpdateTexture(thumb, snapshots[i].w, snapshots[i].h, snapshots[i].c, (const unsigned char *)snapshots[i].data);
+                    }
 #if IMGUI_VULKAN_SHADER
-                if (snap.device == ImDataDevice::IM_DD_VULKAN)
-                {
-                    ImGui::VkMat vkmat = snap;
-                    ImGui::ImGenerateOrUpdateTexture(mMediaThumbnail, vkmat.w, vkmat.h, vkmat.c, vkmat.buffer_offset(), (const unsigned char *)vkmat.buffer());
-                }
+                    if (snapshots[i].device == ImDataDevice::IM_DD_VULKAN)
+                    {
+                        ImGui::VkMat vkmat = snapshots[i];
+                        ImGui::ImGenerateOrUpdateTexture(thumb, vkmat.w, vkmat.h, vkmat.c, vkmat.buffer_offset(), (const unsigned char *)vkmat.buffer());
+                    }
 #endif
+                    mMediaThumbnail.push_back(thumb);
+                }
             }
         }
     }
