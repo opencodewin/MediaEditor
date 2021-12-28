@@ -1248,6 +1248,12 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
             }
             time_stamp = item->mVideoSnapshots[i].time_stamp;
         }
+        else if (i > 0 && snapshot_index + i == item->mVideoSnapshotInfos.size() - 1 && i >= item->mVideoSnapshots.size() && item->mVideoSnapshots[i - 1].available)
+        {
+            ImGui::SetCursorScreenPos(pos);
+            float width_clip = size.x / frame_width;
+            ImGui::Image(item->mVideoSnapshots[i - 1].texture, ImVec2(size.x, size.y), ImVec2(0, 0), ImVec2(width_clip, 1));
+        }
         else
         {
             // not got snapshot, we show circle indicalor
@@ -1273,8 +1279,8 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
     }
 
     // for Debug: print some info here 
-    draw_list->AddText(clippingRect.Min + ImVec2(2,  8), IM_COL32_WHITE, std::to_string(item->mValidViewSnapshot).c_str());
-    draw_list->AddText(clippingRect.Min + ImVec2(2, 24), IM_COL32_WHITE, std::to_string(item->mVideoSnapshotInfos.size()).c_str());
+    //draw_list->AddText(clippingRect.Min + ImVec2(2,  8), IM_COL32_WHITE, std::to_string(item->mValidViewSnapshot).c_str());
+    //draw_list->AddText(clippingRect.Min + ImVec2(2, 24), IM_COL32_WHITE, std::to_string(item->mVideoSnapshotInfos.size()).c_str());
     draw_list->PopClipRect();
 
     // draw legend
