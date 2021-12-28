@@ -6,6 +6,7 @@
 #include "ImSequencer.h"
 #include "FFUtils.h"
 #include "Logger.h"
+#include <thread>
 #include <sstream>
 
 using namespace ImSequencer;
@@ -27,9 +28,39 @@ static const char* ControlPanelTabTooltips[] =
     "Meida Output"
 };
 
+static const char* MainWindowTabNames[] = {
+    ICON_MEDIA_PREVIEW,
+    ICON_PALETTE,
+    ICON_MUSIC,
+    ICON_MEDIA_ANALYSE
+};
+
+static const char* MainWindowTabTooltips[] = 
+{
+    "Meida Preview",
+    "Video Editor",
+    "Audio Editor",
+    "Meida Analyse"
+};
+
 static MediaSequencer * sequencer = nullptr;
+static bool preview_done = false;
+static bool preview_running = false;
+static std::thread * preview_thread = nullptr;
 static std::vector<SequencerItem *> media_items;
 static ImGui::TabLabelStyle * tab_style = &ImGui::TabLabelStyle::Get();
+
+static bool Splitter(bool split_vertically, float thickness, float* size1, float* size2, float min_size1, float min_size2, float splitter_long_axis_size = -1.0f)
+{
+	using namespace ImGui;
+	ImGuiContext& g = *GImGui;
+	ImGuiWindow* window = g.CurrentWindow;
+	ImGuiID id = window->GetID("##Splitter");
+	ImRect bb;
+	bb.Min = window->DC.CursorPos + (split_vertically ? ImVec2(*size1, 0.0f) : ImVec2(0.0f, *size1));
+	bb.Max = bb.Min + CalcItemSize(split_vertically ? ImVec2(thickness, splitter_long_axis_size) : ImVec2(splitter_long_axis_size, thickness), 0.0f, 0.0f);
+	return SplitterBehavior(bb, id, split_vertically ? ImGuiAxis_X : ImGuiAxis_Y, size1, size2, min_size1, min_size2, 1.0, 0.01);
+}
 
 static void ShowMediaBankWindow(ImDrawList *draw_list, float media_icon_size)
 {
@@ -164,16 +195,222 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
     ImGui::SetWindowFontScale(1.0);
 }
 
-static bool Splitter(bool split_vertically, float thickness, float* size1, float* size2, float min_size1, float min_size2, float splitter_long_axis_size = -1.0f)
+static int thread_preview(bool& done, bool &running, bool &loop, bool reverse)
 {
-	using namespace ImGui;
-	ImGuiContext& g = *GImGui;
-	ImGuiWindow* window = g.CurrentWindow;
-	ImGuiID id = window->GetID("##Splitter");
-	ImRect bb;
-	bb.Min = window->DC.CursorPos + (split_vertically ? ImVec2(*size1, 0.0f) : ImVec2(0.0f, *size1));
-	bb.Max = bb.Min + CalcItemSize(split_vertically ? ImVec2(thickness, splitter_long_axis_size) : ImVec2(splitter_long_axis_size, thickness), 0.0f, 0.0f);
-	return SplitterBehavior(bb, id, split_vertically ? ImGuiAxis_X : ImGuiAxis_Y, size1, size2, min_size1, min_size2, 1.0, 0.01);
+    if (!sequencer || sequencer->GetItemCount() <= 0)
+    {
+        done = true;
+        return -1;
+    }
+    running = true;
+    int64_t start_time = ImGui::get_current_time_usec() / 1000;
+    int64_t last_time = 0;
+    int64_t current_time_offset = sequencer->currentTime;
+    while (!done)
+    {
+        int64_t current_time = ImGui::get_current_time_usec() / 1000;
+        int64_t running_time = current_time - start_time;
+        if (running_time - last_time < 20) // hard coding for now, need calculate sequencer time base later
+        {
+            ImGui::sleep((int)20);
+            continue;
+        }
+        last_time = running_time;
+        if (reverse)
+        {
+            if (current_time_offset - running_time <= sequencer->mStart)
+            {
+                if (!loop)
+                {
+                    done = true;
+                    break;
+                }
+                else
+                {
+                    last_time = 0;
+                    current_time_offset = sequencer->mEnd;
+                    start_time = current_time;
+                }
+            }
+        }
+        else
+        {
+            if (current_time_offset + running_time >= sequencer->mEnd)
+            {
+                if (!loop)
+                {
+                    done = true;
+                    break;
+                }
+                else
+                {
+                    last_time = current_time_offset = 0;
+                    start_time = current_time;
+                }
+            }
+        }
+        sequencer->SetCurrent(reverse ? current_time_offset - running_time : current_time_offset + running_time, reverse);
+    }
+    running = false;
+    return 0;
+}
+
+static void ShowMediaPreviewWindow(ImDrawList *draw_list)
+{
+    // preview control pannel
+    static bool loop = false; // TODO::Need save setting
+    ImVec2 PanelBarPos;
+    ImVec2 PanelBarSize;
+    ImVec2 window_pos = ImGui::GetCursorScreenPos();
+    ImVec2 window_size = ImGui::GetWindowSize();
+    PanelBarPos = window_pos + window_size - ImVec2(window_size.x, 48);
+    PanelBarSize = ImVec2(window_size.x, 48);
+    draw_list->AddRectFilled(PanelBarPos, PanelBarPos + PanelBarSize, COL_CANVAS_BG);
+    auto PanelCenterX = PanelBarPos.x + window_size.x / 2;
+    auto PanelButtonY = PanelBarPos.y + 8;
+
+    // Preview buttons Stop button is center of Panel bar
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0.5));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.2, 0.2, 0.2, 1.0));
+
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32 - 8 - 32, PanelButtonY));
+    if (ImGui::Button(ICON_TO_START "##preview_tostart", ImVec2(32, 32)))
+    {
+        if (!preview_running && sequencer && sequencer->GetItemCount() > 0)
+        {
+            sequencer->firstTime = sequencer->mStart;
+            sequencer->currentTime = sequencer->mStart;
+        }
+    }
+    ImGui::ShowTooltipOnHover("To Start");
+
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32, PanelButtonY));
+    if (ImGui::Button(ICON_FAST_BACKWARD "##preview_reverse", ImVec2(32, 32)))
+    {
+        if (!preview_running && sequencer && sequencer->GetItemCount() > 0)
+        {
+            if (preview_thread)
+            {
+                if (preview_thread->joinable())
+                {
+                    preview_thread->join();
+                    delete preview_thread;
+                    preview_thread = nullptr;
+                }
+                else
+                {
+                    delete preview_thread;
+                    preview_thread = nullptr;
+                }
+            }
+            preview_done = false;
+            preview_thread = new std::thread(thread_preview, std::ref(preview_done), std::ref(preview_running), std::ref(loop), true);
+        }
+    }
+    ImGui::ShowTooltipOnHover("Reverse");
+
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16, PanelButtonY));
+    if (ImGui::Button(ICON_STOP "##preview_stop", ImVec2(32, 32)))
+    {
+        if (preview_thread && preview_thread->joinable() && preview_running)
+        {
+            preview_done = true;
+            preview_thread->join();
+            delete preview_thread;
+            preview_thread = nullptr;
+            preview_done = false;
+        }
+    }
+    ImGui::ShowTooltipOnHover("Stop");
+
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8, PanelButtonY));
+    if (ImGui::Button(ICON_PLAY "##preview_play", ImVec2(32, 32)))
+    {
+        if (!preview_running && sequencer && sequencer->GetItemCount() > 0)
+        {
+            if (preview_thread)
+            {
+                if (preview_thread->joinable())
+                {
+                    preview_thread->join();
+                    delete preview_thread;
+                    preview_thread = nullptr;
+                }
+                else
+                {
+                    delete preview_thread;
+                    preview_thread = nullptr;
+                }
+            }
+            preview_done = false;
+            preview_thread = new std::thread(thread_preview, std::ref(preview_done), std::ref(preview_running), std::ref(loop), false);
+        }
+    }
+    ImGui::ShowTooltipOnHover("Play");
+
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 32 + 8, PanelButtonY));
+    if (ImGui::Button(ICON_TO_END "##preview_toend", ImVec2(32, 32)))
+    {
+        if (!preview_running && sequencer && sequencer->GetItemCount() > 0)
+        {
+            if (sequencer->mEnd - sequencer->mStart - sequencer->visibleTime > 0)
+                sequencer->firstTime = sequencer->mEnd - sequencer->visibleTime;
+            else
+                sequencer->firstTime = sequencer->mStart;
+            sequencer->currentTime = sequencer->mEnd;
+        }
+    }
+    ImGui::ShowTooltipOnHover("To End");
+
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 32 + 8 + 8 + 32, PanelButtonY));
+    if (ImGui::Button(loop ? ICON_LOOP : ICON_LOOP_ONE "##preview_loop", ImVec2(32, 32)))
+    {
+        loop = !loop;
+    }
+    ImGui::ShowTooltipOnHover("Loop");
+    ImGui::PopStyleColor(3);
+    // Time stamp on left of control panel
+
+    // audio meters
+
+    // video texture area
+}
+
+static void ShowVideoEditorWindow(ImDrawList *draw_list)
+{
+    ImGui::SetWindowFontScale(1.2);
+    ImGui::Indent(20);
+    ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4, 0.4, 0.8, 0.8));
+    ImGui::TextUnformatted("Video Editor");
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar();
+    ImGui::SetWindowFontScale(1.0);
+}
+
+static void ShowAudioEditorWindow(ImDrawList *draw_list)
+{
+    ImGui::SetWindowFontScale(1.2);
+    ImGui::Indent(20);
+    ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4, 0.4, 0.8, 0.8));
+    ImGui::TextUnformatted("Audio Editor");
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar();
+    ImGui::SetWindowFontScale(1.0);
+}
+
+static void ShowMediaAnalyseWindow(ImDrawList *draw_list)
+{
+    ImGui::SetWindowFontScale(1.2);
+    ImGui::Indent(20);
+    ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4, 0.4, 0.8, 0.8));
+    ImGui::TextUnformatted("Meida Analyse");
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar();
+    ImGui::SetWindowFontScale(1.0);
 }
 
 void Application_GetWindowProperties(ApplicationWindowProperty& property)
@@ -207,6 +444,14 @@ void Application_Initialize(void** handle)
 
 void Application_Finalize(void** handle)
 {
+    if (preview_thread && preview_thread->joinable())
+    {
+        preview_done = true;
+        preview_thread->join();
+        delete preview_thread;
+        preview_thread = nullptr;
+        preview_done = false;
+    }
     for (auto item : media_items) delete item;
     if (sequencer) delete sequencer;
 #ifdef USE_BOOKMARK
@@ -227,15 +472,29 @@ bool Application_Frame(void * handle)
     static bool show_about = false;
     static int selectedEntry = -1;
     static bool expanded = true;
-    static int64_t currentTime = 0;
-    static int64_t firstTime = 0;
-    static int64_t lastTime = 0;
-    static bool play = false;
     ImGuiFileDialogFlags fflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_DisableCreateDirectoryButton;
     const std::string ffilters = "Video files (*.mp4 *.mov *.mkv *.avi *.webm *.ts){.mp4,.mov,.mkv,.avi,.webm,.ts},Audio files (*.wav *.mp3 *.aac *.ogg *.ac3 *.dts){.wav,.mp3,.aac,.ogg,.ac3,.dts},Image files (*.png *.gif *.jpg *.jpeg *.tiff *.webp){.png,.gif,.jpg,.jpeg,.tiff,.webp},All File(*.*){.*}";
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     static const int numControlPanelTabs = sizeof(ControlPanelTabNames)/sizeof(ControlPanelTabNames[0]);
+    static const int numMainWindowTabs = sizeof(MainWindowTabNames)/sizeof(MainWindowTabNames[0]);
     
+    // handling thread
+    if (!preview_running && preview_thread)
+    {
+        if (preview_thread->joinable())
+        {
+            preview_thread->join();
+            delete preview_thread;
+            preview_thread = nullptr;
+        }
+        else
+        {
+            delete preview_thread;
+            preview_thread = nullptr;
+        }
+        preview_done = false;
+    }
+
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
                         ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | 
                         ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoDocking;
@@ -278,6 +537,7 @@ bool Application_Frame(void * handle)
     if (ImGui::BeginChild("##Top_Panel", main_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
     {
         static int ControlPanelIndex = 0;
+        static int MainWindowIndex = 0;
         ImVec2 main_window_size = ImGui::GetWindowSize();
         static float size_media_bank_w = 0.2;
         static float size_main_w = 0.8;
@@ -346,20 +606,31 @@ bool Application_Frame(void * handle)
             ImGui::EndChild();
         }
 
+
         ImVec2 main_sub_pos(bank_width + 8, 0);
         ImVec2 main_sub_size(main_width - 8, main_window_size.y - 4);
         ImGui::SetNextWindowPos(main_sub_pos, ImGuiCond_Always);
-        if (ImGui::BeginChild("##Top_Right_Window", main_sub_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar))
+        if (ImGui::BeginChild("##Main_Window", main_sub_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar))
         {
             // full background
             ImDrawList *draw_list = ImGui::GetWindowDrawList();
-            auto wmin = main_sub_pos;
-            auto wmax = wmin + ImGui::GetContentRegionAvail();
+            //ImVec2 main_window_size = ImGui::GetWindowSize();
+            ImGui::TabLabels(numMainWindowTabs, MainWindowTabNames, MainWindowIndex, MainWindowTabTooltips , false, nullptr, nullptr, false, false, nullptr, nullptr);
+            auto wmin = main_sub_pos + ImVec2(0, 32);
+            auto wmax = wmin + ImGui::GetContentRegionAvail() - ImVec2(8, 8);
             draw_list->AddRectFilled(wmin, wmax, IM_COL32_BLACK, 8.0, ImDrawFlags_RoundCornersAll);
-
-            ImGui::TextUnformatted("top_right");
-            // TODO:: Add video proview
-
+            if (ImGui::BeginChild("##Main_Window_content", wmax - wmin, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings))
+            {
+                switch (MainWindowIndex)
+                {
+                    case 0: ShowMediaPreviewWindow(draw_list); break;
+                    case 1: ShowVideoEditorWindow(draw_list); break;
+                    case 2: ShowAudioEditorWindow(draw_list); break;
+                    case 3: ShowMediaAnalyseWindow(draw_list); break;
+                    default: break;
+                }
+                ImGui::EndChild();
+            }
             ImGui::EndChild();
         }
         ImGui::EndChild();
@@ -371,7 +642,7 @@ bool Application_Frame(void * handle)
     bool _expanded = expanded;
     if (ImGui::BeginChild("##Sequencor", panel_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings))
     {
-        ImSequencer::Sequencer(sequencer, &currentTime, &_expanded, &selectedEntry, &firstTime, &lastTime, 
+        ImSequencer::Sequencer(sequencer, &_expanded, &selectedEntry, 
                                 ImSequencer::SEQUENCER_EDIT_STARTEND | ImSequencer::SEQUENCER_CHANGE_TIME | ImSequencer::SEQUENCER_DEL | ImSequencer::SEQUENCER_ADD |
                                 ImSequencer::SEQUENCER_LOCK | ImSequencer::SEQUENCER_VIEW | ImSequencer::SEQUENCER_MUTE | ImSequencer::SEQUENCER_RESTORE);
         if (selectedEntry != -1)

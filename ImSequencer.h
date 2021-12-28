@@ -11,8 +11,10 @@
 #define ICON_MEDIA_TRANSITIONS u8"\ue882"
 #define ICON_MEDIA_FILTERS  u8"\ue663"
 #define ICON_MEDIA_OUTPUT   u8"\uf197"
+#define ICON_MEDIA_PREVIEW  u8"\ue04a"
 #define ICON_MEDIA_VIDEO    u8"\ue04b"
 #define ICON_MEDIA_AUDIO    u8"\ue050"
+#define ICON_MEDIA_ANALYSE  u8"\uf0f0"
 #define ICON_SLIDER_MINIMUM u8"\uf424"
 #define ICON_SLIDER_MAXIMUM u8"\uf422"
 #define ICON_VIEW           u8"\uf06e"
@@ -53,6 +55,8 @@
 #define ICON_FAST_TO_END    u8"\uf050"
 #define ICON_TO_END         u8"\uf051"
 #define ICON_EJECT          u8"\uf052"
+#define ICON_LOOP           u8"\ue9d6"
+#define ICON_LOOP_ONE       u8"\ue9d7"
 
 #define ICON_CROPED         u8"\ue3e8"
 #define ICON_SCALED         u8"\ue433"
@@ -128,10 +132,15 @@ struct SequencerInterface
 {
     bool focused = false;
     int options = 0;
+    int64_t currentTime = 0;
+    int64_t firstTime = 0;
+    int64_t lastTime = 0;
+    int64_t visibleTime = 0;
     virtual int64_t GetStart() const = 0;
     virtual int64_t GetEnd() const = 0;
     virtual void SetStart(int64_t pos) = 0;
     virtual void SetEnd(int64_t pos) = 0;
+    virtual void SetCurrent(int64_t pos, bool rev) = 0;
     virtual int GetItemCount() const = 0;
     virtual void BeginEdit(int /*index*/) {}
     virtual void EndEdit() {}
@@ -153,7 +162,7 @@ struct SequencerInterface
     virtual void GetVideoSnapshotInfo(int /*index*/, std::vector<VideoSnapshotInfo>&) {}
 };
 
-bool Sequencer(SequencerInterface *sequencer, int64_t *currentTime, bool *expanded, int *selectedEntry, int64_t *firstTime, int64_t *lastTime, int sequenceOptions);
+bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry, int sequenceOptions);
 
 struct Snapshot
 {
@@ -206,6 +215,7 @@ struct MediaSequencer : public SequencerInterface
     int64_t GetEnd() const { return mEnd; }
     void SetStart(int64_t pos) { mStart = pos; }
     void SetEnd(int64_t pos) { mEnd = pos; }
+    void SetCurrent(int64_t pos, bool rev);
     int GetItemCount() const { return (int)m_Items.size(); }
     const char *GetItemLabel(int index) const  { return m_Items[index]->mName.c_str(); }
     void Get(int index, int64_t& start, int64_t& end, int64_t& start_offset, int64_t& end_offset, int64_t& length, std::string& name, unsigned int& color);
