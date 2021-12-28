@@ -190,7 +190,9 @@ struct SequencerItem
     int mMediaType {SEQUENCER_ITEM_UNKNOWN};
     int64_t mValidViewTime {0};
     int mValidViewSnapshot {0};
+    int mLastValidSnapshot {0};
     float mSnapshotWidth {0};
+    float mSnapshotDuration {0};
     float mFrameDuration {0};
     float mFrameCount    {0};
     int64_t mSnapshotPos {-1};

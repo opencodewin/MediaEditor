@@ -893,30 +893,35 @@ void SequencerItem::SequencerItemUpdateSnapshots()
     {
         std::vector<ImGui::ImMat> snapshots;
         double pos = (double)(mSnapshotPos + mStartOffset) / 1000.f;
+        int media_snapshot_index = 0;
         if (mMedia->GetSnapshots(snapshots, pos))
         {
             for (int i = 0; i < snapshots.size(); i++)
             {
                 if (!snapshots[i].empty())
                 {
-                    // if i <= mVideoSnapshots.size() then update text else create a new text and push back into mVideoSnapshots
-                    if (i < mVideoSnapshots.size())
+                    if (i == 0 && fabs(snapshots[i].time_stamp - pos) > (mSnapshotDuration / 1000.0 / 2))
                     {
-                        if (mVideoSnapshots[i].time_stamp != (int64_t)(snapshots[i].time_stamp * 1000) || !mVideoSnapshots[i].available)
+                        continue;
+                    }
+                    // if i <= mVideoSnapshots.size() then update text else create a new text and push back into mVideoSnapshots
+                    if (media_snapshot_index < mVideoSnapshots.size())
+                    {
+                        if (mVideoSnapshots[media_snapshot_index].time_stamp != (int64_t)(snapshots[i].time_stamp * 1000) || !mVideoSnapshots[media_snapshot_index].available)
                         {
                             if (snapshots[i].device == ImDataDevice::IM_DD_CPU)
                             {
-                                ImGui::ImGenerateOrUpdateTexture(mVideoSnapshots[i].texture, snapshots[i].w, snapshots[i].h, snapshots[i].c, (const unsigned char *)snapshots[i].data);
+                                ImGui::ImGenerateOrUpdateTexture(mVideoSnapshots[media_snapshot_index].texture, snapshots[i].w, snapshots[i].h, snapshots[i].c, (const unsigned char *)snapshots[i].data);
                             }
 #if IMGUI_VULKAN_SHADER
                             if (snapshots[i].device == ImDataDevice::IM_DD_VULKAN)
                             {
                                 ImGui::VkMat vkmat = snapshots[i];
-                                ImGui::ImGenerateOrUpdateTexture(mVideoSnapshots[i].texture, vkmat.w, vkmat.h, vkmat.c, vkmat.buffer_offset(), (const unsigned char *)vkmat.buffer());
+                                ImGui::ImGenerateOrUpdateTexture(mVideoSnapshots[media_snapshot_index].texture, vkmat.w, vkmat.h, vkmat.c, vkmat.buffer_offset(), (const unsigned char *)vkmat.buffer());
                             }
 #endif
-                            mVideoSnapshots[i].time_stamp = (int64_t)(snapshots[i].time_stamp * 1000);
-                            mVideoSnapshots[i].available = true;
+                            mVideoSnapshots[media_snapshot_index].time_stamp = (int64_t)(snapshots[i].time_stamp * 1000);
+                            mVideoSnapshots[media_snapshot_index].available = true;
                         }
                     }
                     else
@@ -937,6 +942,7 @@ void SequencerItem::SequencerItemUpdateSnapshots()
                         snap.available = true;
                         mVideoSnapshots.push_back(snap);
                     }
+                    media_snapshot_index ++;
                 }
                 else
                 {
@@ -981,6 +987,7 @@ void SequencerItem::CalculateVideoSnapshotInfo(const ImRect &customRect, int64_t
         mFrameDuration = (float)duration / (float)total_frames;
         float frame_count = customRect.GetWidth() / snapshot_width;
         float snapshot_duration = (float)clip_duration / (float)(frame_count);
+        mSnapshotDuration = snapshot_duration;
 
         int64_t start_time = 0;
         int64_t end_time = 0;
@@ -1010,11 +1017,12 @@ void SequencerItem::CalculateVideoSnapshotInfo(const ImRect &customRect, int64_t
         mValidViewSnapshot = (int)((mValidViewTime + snapshot_duration / 2) / snapshot_duration) + 1;
         if (mValidViewSnapshot > frame_count) mValidViewSnapshot = frame_count;
         frame_count++; // one more frame for end
-        if (mSnapshotLendth != clip_duration || (int)frame_count != mVideoSnapshotInfos.size() || fabs(frame_count - mFrameCount) > 1e-2)
+        if (mSnapshotLendth != clip_duration || mLastValidSnapshot < mValidViewSnapshot || (int)frame_count != mVideoSnapshotInfos.size() || fabs(frame_count - mFrameCount) > 1e-2)
         {
             //fprintf(stderr, "[Dicky Debug] Update snapinfo\n");
             double window_size = mValidViewSnapshot * snapshot_duration / 1000.0;
             mMedia->ConfigSnapWindow(window_size, mValidViewSnapshot);
+            mLastValidSnapshot = mValidViewSnapshot;
             mVideoSnapshotInfos.clear();
             for (auto& snap : mVideoSnapshots)
             {
@@ -1265,8 +1273,8 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
     }
 
     // for Debug: print some info here 
-    //draw_list->AddText(clippingRect.Min + ImVec2(2,  8), IM_COL32_WHITE, std::to_string(item->mMaxViewSnapshot).c_str());
-    //draw_list->AddText(clippingRect.Min + ImVec2(2, 24), IM_COL32_WHITE, std::to_string(item->mValidViewSnapshot).c_str());
+    draw_list->AddText(clippingRect.Min + ImVec2(2,  8), IM_COL32_WHITE, std::to_string(item->mValidViewSnapshot).c_str());
+    draw_list->AddText(clippingRect.Min + ImVec2(2, 24), IM_COL32_WHITE, std::to_string(item->mVideoSnapshotInfos.size()).c_str());
     draw_list->PopClipRect();
 
     // draw legend
