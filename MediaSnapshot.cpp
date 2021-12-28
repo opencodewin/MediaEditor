@@ -213,34 +213,6 @@ public:
         return m_vidStartMts;
     }
 
-    int64_t GetVidoeDuration() const override
-    {
-        return m_vidDuration;
-    }
-
-    int64_t GetVidoeFrameCount() const override
-    {
-        return m_vidFrameCount;
-    }
-    
-    uint32_t GetVideoWidth() const override
-    {
-        if (m_vidStream)
-        {
-            return m_vidStream->codecpar->width;
-        }
-        return 0;
-    }
-
-    uint32_t GetVideoHeight() const override
-    {
-        if (m_vidStream)
-        {
-            return m_vidStream->codecpar->height;
-        }
-        return 0;
-    }
-
     bool ConfigSnapWindow(double& windowSize, double frameCount) override
     {
         lock_guard<recursive_mutex> lk(m_ctlLock);
@@ -385,6 +357,34 @@ public:
         }
         ResetSnapshotBuildTask();
         return true;
+    }
+
+    uint32_t GetVideoWidth() const override
+    {
+        if (m_vidStream)
+        {
+            return m_vidStream->codecpar->width;
+        }
+        return 0;
+    }
+
+    uint32_t GetVideoHeight() const override
+    {
+        if (m_vidStream)
+        {
+            return m_vidStream->codecpar->height;
+        }
+        return 0;
+    }
+
+    int64_t GetVidoeDuration() const override
+    {
+        return m_vidDuration;
+    }
+
+    int64_t GetVidoeFrameCount() const override
+    {
+        return m_vidFrameCount;
     }
 
     string GetError() const override

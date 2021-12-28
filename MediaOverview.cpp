@@ -214,6 +214,48 @@ public:
         return true;
     }
 
+    uint32_t GetVideoWidth() const override
+    {
+        if (m_vidStream)
+        {
+            return m_vidStream->codecpar->width;
+        }
+        return 0;
+    }
+
+    uint32_t GetVideoHeight() const override
+    {
+        if (m_vidStream)
+        {
+            return m_vidStream->codecpar->height;
+        }
+        return 0;
+    }
+
+    int64_t GetVidoeDuration() const override
+    {
+        return m_vidDuration;
+    }
+
+    int64_t GetVidoeFrameCount() const override
+    {
+        return m_vidFrameCount;
+    }
+
+    uint32_t GetAudioChannel() const override
+    {
+        if (!HasAudio())
+            return 0;
+        return m_audStream->codecpar->channels;
+    }
+
+    uint32_t GetAudioSampleRate() const override
+    {
+        if (!HasAudio())
+            return 0;
+        return m_audStream->codecpar->sample_rate;
+    }
+
     string GetError() const override
     {
         return m_errMessage;
