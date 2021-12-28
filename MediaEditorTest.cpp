@@ -47,7 +47,7 @@ static MediaSequencer * sequencer = nullptr;
 static bool preview_done = false;
 static bool preview_running = false;
 static std::thread * preview_thread = nullptr;
-static std::vector<SequencerItem *> media_items;
+static std::vector<MediaItem *> media_items;
 static ImGui::TabLabelStyle * tab_style = &ImGui::TabLabelStyle::Get();
 
 static bool Splitter(bool split_vertically, float thickness, float* size1, float* size2, float min_size1, float min_size2, float splitter_long_axis_size = -1.0f)
@@ -114,12 +114,12 @@ static void ShowMediaBankWindow(ImDrawList *draw_list, float media_icon_size)
         }
         else
         {
-            item->SequencerItemUpdateThumbnail();
+            item->UpdateThumbnail();
             ImGui::Button(item->mName.c_str(), ImVec2(media_icon_size, media_icon_size));
         }
         if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
         {
-            ImGui::SetDragDropPayload("Media_drag_drop", item, sizeof(SequencerItem));
+            ImGui::SetDragDropPayload("Media_drag_drop", item, sizeof(MediaItem));
             ImGui::TextUnformatted(item->mName.c_str());
             ImGui::EndDragDropSource();
         }
@@ -710,7 +710,7 @@ bool Application_Frame(void * handle)
                             (file_surfix.compare(".webp") == 0))
                         type = SEQUENCER_ITEM_PICTURE;
                 }
-                SequencerItem * item = new SequencerItem(file_name, file_path, 0, 100, true, type);
+                MediaItem * item = new MediaItem(file_name, file_path, type);
                 media_items.push_back(item);
             }
         }

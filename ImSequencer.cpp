@@ -6,6 +6,63 @@
 
 namespace ImSequencer
 {
+
+MediaItem::MediaItem(const std::string& name, const std::string& path, int type)
+{
+    mName = name;
+    mPath = path;
+    mMediaType = type;
+    mMedia = CreateMediaOverview();
+    if (!path.empty() && mMedia)
+    {
+        mMedia->Open(path);
+    }
+    if (mMedia && mMedia->IsOpened())
+    {
+    }
+}
+
+MediaItem::~MediaItem()
+{
+    ReleaseMediaOverview(&mMedia);
+    mMedia = nullptr;
+    if (mMediaThumbnail)
+    {
+        ImGui::ImDestroyTexture(mMediaThumbnail); 
+        mMediaThumbnail = nullptr;
+    }
+}
+
+void MediaItem::UpdateThumbnail()
+{
+    if (mMediaThumbnail)
+        return;
+    if (mMedia && mMedia->IsOpened())
+    {
+        std::vector<ImGui::ImMat> snapshots;
+        if (mMedia->GetSnapshots(snapshots))
+        {
+            if (snapshots.size() <= 2)
+                return;
+            auto snap = snapshots[1];
+            if (!snap.empty())
+            {
+                if (snap.device == ImDataDevice::IM_DD_CPU)
+                {
+                    ImGui::ImGenerateOrUpdateTexture(mMediaThumbnail, snap.w, snap.h, snap.c, (const unsigned char *)snap.data);
+                }
+#if IMGUI_VULKAN_SHADER
+                if (snap.device == ImDataDevice::IM_DD_VULKAN)
+                {
+                    ImGui::VkMat vkmat = snap;
+                    ImGui::ImGenerateOrUpdateTexture(mMediaThumbnail, vkmat.w, vkmat.h, vkmat.c, vkmat.buffer_offset(), (const unsigned char *)vkmat.buffer());
+                }
+#endif
+            }
+        }
+    }
+}
+
 std::string MillisecToString(int64_t millisec, int show_millisec = 0)
 {
     std::ostringstream oss;
@@ -192,10 +249,10 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry
     {
         if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("Media_drag_drop"))
         {
-            ImSequencer::SequencerItem * item = (ImSequencer::SequencerItem*)payload->Data;
+            ImSequencer::MediaItem * item = (ImSequencer::MediaItem*)payload->Data;
             ImSequencer::MediaSequencer * seq = (ImSequencer::MediaSequencer *)sequencer;
-            SequencerItem * new_item = new SequencerItem(item->mName, item->mPath, item->mStart, item->mEnd, true, item->mMediaType);
-            auto length = item->mEnd - item->mStart;
+            SequencerItem * new_item = new SequencerItem(item->mName, item->mPath, 0, 0, true, item->mMediaType);
+            auto length = new_item->mEnd - new_item->mStart;
             if (sequencer->currentTime >= sequencer->firstTime && sequencer->currentTime <= sequencer->GetEnd())
                 new_item->mStart = sequencer->currentTime;
             else
@@ -824,43 +881,9 @@ SequencerItem::~SequencerItem()
 {
     ReleaseMediaSnapshot(&mMedia);
     mMedia = nullptr;
-    if (mMediaThumbnail)
-    {
-        ImGui::ImDestroyTexture(mMediaThumbnail); 
-        mMediaThumbnail = nullptr;
-    }
     for (auto& snap : mVideoSnapshots)
     {
         if (snap.texture) ImGui::ImDestroyTexture(snap.texture); 
-    }
-}
-
-void SequencerItem::SequencerItemUpdateThumbnail()
-{
-    if (mMediaThumbnail)
-        return;
-    if (mMedia && mMedia->IsOpened())
-    {
-        auto pos = (float)mMedia->GetVidoeMinPos()/1000.f;
-        std::vector<ImGui::ImMat> snapshots;
-        if (mMedia->GetSnapshots(snapshots, pos))
-        {
-            auto snap = snapshots[snapshots.size() / 2];
-            if (!snap.empty())
-            {
-                if (snap.device == ImDataDevice::IM_DD_CPU)
-                {
-                    ImGui::ImGenerateOrUpdateTexture(mMediaThumbnail, snap.w, snap.h, snap.c, (const unsigned char *)snap.data);
-                }
-#if IMGUI_VULKAN_SHADER
-                if (snap.device == ImDataDevice::IM_DD_VULKAN)
-                {
-                    ImGui::VkMat vkmat = snap;
-                    ImGui::ImGenerateOrUpdateTexture(mMediaThumbnail, vkmat.w, vkmat.h, vkmat.c, vkmat.buffer_offset(), (const unsigned char *)vkmat.buffer());
-                }
-#endif
-            }
-        }
     }
 }
 

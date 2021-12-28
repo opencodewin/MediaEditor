@@ -106,6 +106,7 @@ set(MEDIA_EDITOR_BINARY "me")
 set(MEDIA_EDITOR_SRCS
     MediaEditorTest.cpp
     ImSequencer.cpp
+    MediaOverview.cpp
     MediaSnapshot.cpp
     FFUtils.cpp
     Logger.cpp
@@ -114,6 +115,7 @@ set(MEDIA_EDITOR_SRCS
 
 set(MEDIA_EDITOR_INCS
     ImSequencer.h
+    MediaOverview.h
     MediaSnapshot.h
     FFUtils.h
 )

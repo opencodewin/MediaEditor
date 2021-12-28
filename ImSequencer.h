@@ -3,6 +3,7 @@
 #include "imgui.h"
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include "imgui_internal.h"
+#include "MediaOverview.h"
 #include "MediaSnapshot.h"
 #include <string>
 #include <vector>
@@ -195,7 +196,6 @@ struct SequencerItem
     int64_t mSnapshotPos {-1};
     int64_t mSnapshotLendth {0};
     MediaSnapshot* mMedia   {nullptr};
-    ImTextureID mMediaThumbnail  {nullptr};
     std::vector<VideoSnapshotInfo> mVideoSnapshotInfos;
     std::vector<Snapshot> mVideoSnapshots;
     SequencerItem(const std::string& name, const std::string& path, int64_t start, int64_t end, bool expand, int type);
@@ -235,6 +235,18 @@ struct MediaSequencer : public SequencerInterface
     int64_t mStart   {0}; 
     int64_t mEnd   {0};
     std::vector<SequencerItem *> m_Items;
+};
+
+struct MediaItem
+{
+    std::string mName;
+    std::string mPath;
+    MediaOverview * mMedia;
+    int mMediaType {SEQUENCER_ITEM_UNKNOWN};
+    ImTextureID mMediaThumbnail  {nullptr};
+    MediaItem(const std::string& name, const std::string& path, int type);
+    ~MediaItem();
+    void UpdateThumbnail();
 };
 
 } // namespace ImSequencer
