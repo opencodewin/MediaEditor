@@ -192,7 +192,8 @@ bool Application_Frame(void * handle)
                 tid = nullptr;
             }
             string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
-            g_movr->Open(filePathName, g_ssCount);
+            if (g_movr->Open(filePathName, g_ssCount))
+                g_movr->GetMediaParser()->EnableParseInfo(MediaParser::VIDEO_SEEK_POINTS);
         }
         ImGuiFileDialog::Instance()->Close();
     }

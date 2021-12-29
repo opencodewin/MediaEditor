@@ -2,12 +2,15 @@
 #include <string>
 #include <vector>
 #include "immat.h"
+#include "MediaParser.h"
 
 struct MediaOverview
 {
     virtual bool Open(const std::string& url, uint32_t snapshotCount = 20) = 0;
+    virtual bool Open(MediaParserHolder hParser, uint32_t snapshotCount = 20) = 0;
     virtual void Close() = 0;
     virtual bool GetSnapshots(std::vector<ImGui::ImMat>& snapshots) = 0;
+    virtual MediaParserHolder GetMediaParser() const = 0;
 
     virtual bool IsOpened() const = 0;
     virtual bool IsDone() const = 0;

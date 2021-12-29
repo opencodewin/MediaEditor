@@ -108,6 +108,7 @@ set(MEDIA_EDITOR_SRCS
     ImSequencer.cpp
     MediaOverview.cpp
     MediaSnapshot.cpp
+    MediaParser.cpp
     FFUtils.cpp
     Logger.cpp
     ${IMGUI_APP_ENTRY_SRC}
@@ -223,6 +224,8 @@ add_executable(
     snapshot_test
     MediaSnapshotTest.cpp
     MediaSnapshot.cpp
+    MediaOverview.cpp
+    MediaParser.cpp
     FFUtils.cpp
     Logger.cpp
     ${IMGUI_APP_ENTRY_SRC}
@@ -238,6 +241,7 @@ add_executable(
     overview_test
     MediaOverviewTest.cpp
     MediaOverview.cpp
+    MediaParser.cpp
     FFUtils.cpp
     Logger.cpp
     ${IMGUI_APP_ENTRY_SRC}

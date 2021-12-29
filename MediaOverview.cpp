@@ -27,19 +27,61 @@ static AVPixelFormat get_hw_format(AVCodecContext *ctx, const AVPixelFormat *pix
 class MediaOverview_Impl : public MediaOverview
 {
 public:
+    MediaOverview_Impl() = default;
+    MediaOverview_Impl(const MediaOverview_Impl&) = delete;
+    MediaOverview_Impl(MediaOverview_Impl&&) = delete;
+    MediaOverview_Impl& operator=(const MediaOverview_Impl&) = delete;
+
+    virtual ~MediaOverview_Impl() {}
+
     bool Open(const string& url, uint32_t snapshotCount) override
     {
-        lock_guard<recursive_mutex> lk(m_ctlLock);
-        if (!OpenMedia(url))
+        lock_guard<recursive_mutex> lk(m_apiLock);
+        if (IsOpened())
+            Close();
+
+        MediaParserHolder hParser = CreateMediaParser();
+        if (!hParser->Open(url))
+        {
+            m_errMsg = hParser->GetError();
+            return false;
+        }
+
+        if (!OpenMedia(hParser))
         {
             Close();
             return false;
         }
-        if (!PrepareOverviewVariables(snapshotCount))
+        m_hParser = hParser;
+        m_ssCount = snapshotCount;
+        m_ssIntvMts = (double)m_vidDurMts/m_ssCount;
+
+        BuildSnapshots();
+        m_opened = true;
+        return true;
+    }
+
+    bool Open(MediaParserHolder hParser, uint32_t snapshotCount) override
+    {
+        lock_guard<recursive_mutex> lk(m_apiLock);
+        if (!hParser || !hParser->IsOpened())
+        {
+            m_errMsg = "Argument 'hParser' is nullptr or not opened yet!";
+            return false;
+        }
+
+        if (IsOpened())
+            Close();
+
+        if (!OpenMedia(hParser))
         {
             Close();
             return false;
         }
+        m_hParser = hParser;
+        m_ssCount = snapshotCount;
+        m_ssIntvMts = (double)m_vidDurMts/m_ssCount;
+
         BuildSnapshots();
         m_opened = true;
         return true;
@@ -47,7 +89,7 @@ public:
 
     void Close() override
     {
-        lock_guard<recursive_mutex> lk(m_ctlLock);
+        lock_guard<recursive_mutex> lk(m_apiLock);
         WaitAllThreadsQuit();
         FlushAllQueues();
 
@@ -89,13 +131,15 @@ public:
         m_audStream = nullptr;
         m_viddec = nullptr;
         m_auddec = nullptr;
+        m_hParser = nullptr;
 
         m_demuxEof = false;
         m_viddecEof = false;
         m_genSsEof = false;
         m_opened = false;
+        m_prepared = false;
 
-        m_errMessage = "";
+        m_errMsg = "";
     }
 
     bool GetSnapshots(std::vector<ImGui::ImMat>& snapshots) override
@@ -113,6 +157,11 @@ public:
         }
 
         return true;
+    }
+
+    MediaParserHolder GetMediaParser() const override
+    {
+        return m_hParser;
     }
 
     bool IsOpened() const override
@@ -144,12 +193,12 @@ public:
 
     bool SetSnapshotSize(uint32_t width, uint32_t height) override
     {
-        lock_guard<recursive_mutex> lk(m_ctlLock);
+        lock_guard<recursive_mutex> lk(m_apiLock);
         if (m_frmCvt.GetOutWidth() == width && m_frmCvt.GetOutHeight() == height)
             return true;
         if (!m_frmCvt.SetOutSize(width, height))
         {
-            m_errMessage = m_frmCvt.GetError();
+            m_errMsg = m_frmCvt.GetError();
             return false;
         }
         RebuildSnapshots();
@@ -158,10 +207,10 @@ public:
 
     bool SetSnapshotResizeFactor(float widthFactor, float heightFactor) override
     {
-        lock_guard<recursive_mutex> lk(m_ctlLock);
+        lock_guard<recursive_mutex> lk(m_apiLock);
         if (widthFactor <= 0.f || heightFactor <= 0.f)
         {
-            m_errMessage = "Resize factor must be a positive number!";
+            m_errMsg = "Resize factor must be a positive number!";
             return false;
         }
         if (!m_ssSizeChanged && m_ssWFacotr == widthFactor && m_ssHFacotr == heightFactor)
@@ -188,12 +237,12 @@ public:
 
     bool SetOutColorFormat(ImColorFormat clrfmt) override
     {
-        lock_guard<recursive_mutex> lk(m_ctlLock);
+        lock_guard<recursive_mutex> lk(m_apiLock);
         if (m_frmCvt.GetOutColorFormat() == clrfmt)
             return true;
         if (!m_frmCvt.SetOutColorFormat(clrfmt))
         {
-            m_errMessage = m_frmCvt.GetError();
+            m_errMsg = m_frmCvt.GetError();
             return false;
         }
         RebuildSnapshots();
@@ -202,12 +251,12 @@ public:
 
     bool SetResizeInterpolateMode(ImInterpolateMode interp) override
     {
-        lock_guard<recursive_mutex> lk(m_ctlLock);
+        lock_guard<recursive_mutex> lk(m_apiLock);
         if (m_frmCvt.GetResizeInterpolateMode() == interp)
             return true;
         if (!m_frmCvt.SetResizeInterpolateMode(interp))
         {
-            m_errMessage = m_frmCvt.GetError();
+            m_errMsg = m_frmCvt.GetError();
             return false;
         }
         RebuildSnapshots();
@@ -234,12 +283,12 @@ public:
 
     int64_t GetVidoeDuration() const override
     {
-        return m_vidDuration;
+        return m_vidDurMts;
     }
 
     int64_t GetVidoeFrameCount() const override
     {
-        return m_vidFrameCount;
+        return m_vidFrmCnt;
     }
 
     uint32_t GetAudioChannel() const override
@@ -258,7 +307,7 @@ public:
 
     string GetError() const override
     {
-        return m_errMessage;
+        return m_errMsg;
     }
 
     bool CheckHwPixFmt(AVPixelFormat pixfmt)
@@ -267,9 +316,6 @@ public:
     }
 
 private:
-    static const AVRational MILLISEC_TIMEBASE;
-    static const AVRational FFAV_TIMEBASE;
-
     struct Snapshot
     {
         uint32_t index{0};
@@ -279,102 +325,96 @@ private:
         ImGui::ImMat img;
     };
 
-
-    void SetFFError(const string& funcname, int fferr)
+    string FFapiFailureMessage(const string& apiName, int fferr)
     {
         ostringstream oss;
-        oss << "'" << funcname << "' returns " << fferr << ".";
-        m_errMessage = oss.str();
+        oss << "FF api '" << apiName << "' returns error! fferr=" << fferr << ".";
+        return oss.str();
     }
 
-    bool OpenMedia(const string& url)
+    bool OpenMedia(MediaParserHolder hParser)
     {
-        if (IsOpened())
-            Close();
-
-        int fferr = 0;
-        fferr = avformat_open_input(&m_avfmtCtx, url.c_str(), nullptr, nullptr);
+        int fferr = avformat_open_input(&m_avfmtCtx, hParser->GetUrl().c_str(), nullptr, nullptr);
         if (fferr < 0)
         {
-            SetFFError("avformat_open_input", fferr);
+            m_avfmtCtx = nullptr;
+            m_errMsg = FFapiFailureMessage("avformat_open_input", fferr);
             return false;
         }
-        fferr = avformat_find_stream_info(m_avfmtCtx, nullptr);
-        if (fferr < 0)
-        {
-            SetFFError("avformat_find_stream_info", fferr);
-            return false;
-        }
-        Log(DEBUG) << "Open '" << url << "' successfully. " << m_avfmtCtx->nb_streams << " streams are found." << endl;
 
-        m_vidStmIdx = av_find_best_stream(m_avfmtCtx, AVMEDIA_TYPE_VIDEO, -1, -1, &m_viddec, 0);
-        m_audStmIdx = av_find_best_stream(m_avfmtCtx, AVMEDIA_TYPE_AUDIO, -1, -1, &m_auddec, 0);
+        MediaInfo::InfoHolder hInfo = hParser->GetMediaInfo();
+        m_vidStmIdx = hParser->GetBestVideoStreamIndex();
+        m_audStmIdx = hParser->GetBestAudioStreamIndex();
         if (m_vidStmIdx < 0 && m_audStmIdx < 0)
         {
             ostringstream oss;
-            oss << "Neither video nor audio stream can be found in '" << url << "'.";
-            m_errMessage = oss.str();
+            oss << "Neither video nor audio stream can be found in '" << m_avfmtCtx->url << "'.";
+            m_errMsg = oss.str();
             return false;
         }
-        m_vidStream = m_vidStmIdx >= 0 ? m_avfmtCtx->streams[m_vidStmIdx] : nullptr;
-        m_audStream = m_audStmIdx >= 0 ? m_avfmtCtx->streams[m_audStmIdx] : nullptr;
 
-        if (m_vidStream)
+        MediaInfo::VideoStream* vidStream = dynamic_cast<MediaInfo::VideoStream*>(hInfo->streams[m_vidStmIdx].get());
+        m_vidStartMts = (int64_t)(vidStream->startTime*1000);
+        m_vidDurMts = (int64_t)(vidStream->duration*1000);
+        m_vidFrmCnt = vidStream->frameNum;
+        uint32_t outWidth = (uint32_t)ceil(vidStream->width*m_ssWFacotr);
+        if ((outWidth&0x1) == 1)
+            outWidth++;
+        uint32_t outHeight = (uint32_t)ceil(vidStream->height*m_ssHFacotr);
+        if ((outHeight&0x1) == 1)
+            outHeight++;
+        if (!m_frmCvt.SetOutSize(outWidth, outHeight))
         {
+            m_errMsg = m_frmCvt.GetError();
+            return false;
+        }
+
+        return true;
+    }
+
+    bool Prepare()
+    {
+        int fferr;
+        fferr = avformat_find_stream_info(m_avfmtCtx, nullptr);
+        if (fferr < 0)
+        {
+            m_errMsg = FFapiFailureMessage("avformat_open_input", fferr);
+            return false;
+        }
+
+        if (HasVideo())
+        {
+            m_vidStream = m_avfmtCtx->streams[m_vidStmIdx];
+
+            m_viddec = avcodec_find_decoder(m_vidStream->codecpar->codec_id);
+            if (m_viddec == nullptr)
+            {
+                ostringstream oss;
+                oss << "Can not find video decoder by codec_id " << m_vidStream->codecpar->codec_id << "!";
+                m_errMsg = oss.str();
+                return false;
+            }
+
             if (m_vidPreferUseHw)
             {
                 if (!OpenHwVideoDecoder())
                     if (!OpenVideoDecoder())
                         return false;
             }
-            else
-            {
-                if (!OpenVideoDecoder())
-                    return false;
-            }
-        }
-        if (m_audStream)
-        {
-            if (!OpenAudioDecoder())
+            else if (!OpenVideoDecoder())
                 return false;
         }
-        m_ssSizeChanged = true;
-        if (!SetSnapshotResizeFactor(m_ssWFacotr, m_ssHFacotr))
-            return false;
-        return true;
-    }
 
-    bool PrepareOverviewVariables(uint32_t snapshotCount)
-    {
-        if (HasVideo())
+        if (HasAudio())
         {
-            m_vidStartMts = av_rescale_q(m_vidStream->start_time, m_vidStream->time_base, MILLISEC_TIMEBASE);
+            m_audStream = m_avfmtCtx->streams[m_audStmIdx];
 
-            if (m_vidStream->duration > 0)
-                m_vidDuration = av_rescale_q(m_vidStream->duration, m_vidStream->time_base, MILLISEC_TIMEBASE);
-            else
-                m_vidDuration = av_rescale_q(m_avfmtCtx->duration, FFAV_TIMEBASE, MILLISEC_TIMEBASE);
-            if (m_vidDuration < 0)
-            {
-                ostringstream oss;
-                oss << "Invalid video duration " << m_vidDuration << "!";
-                m_errMessage = oss.str();
-                return false;
-            }
-
-            if (m_vidStream->nb_frames > 0)
-                m_vidFrameCount = m_vidStream->nb_frames;
-            else if (m_vidStream->r_frame_rate.den > 0)
-                m_vidFrameCount = m_vidDuration / 1000.f * m_vidStream->r_frame_rate.num / m_vidStream->r_frame_rate.den;
-            else if (m_vidStream->avg_frame_rate.den > 0)
-                m_vidFrameCount = m_vidDuration / 1000.f * m_vidStream->avg_frame_rate.num / m_vidStream->avg_frame_rate.den;
-
-            if (m_vidFrameCount < snapshotCount)
-                snapshotCount = m_vidFrameCount;
-
-            m_ssCount = snapshotCount;
-            m_ssIntvMts = (double)m_vidDuration/m_ssCount;
+            // wyvern: disable opening audio decoder because we don't use it now
+            // if (!OpenAudioDecoder())
+            //     return false;
         }
+
+        m_prepared = true;
         return true;
     }
 
@@ -383,7 +423,7 @@ private:
         m_viddecCtx = avcodec_alloc_context3(m_viddec);
         if (!m_viddecCtx)
         {
-            m_errMessage = "FAILED to allocate new AVCodecContext!";
+            m_errMsg = "FAILED to allocate new AVCodecContext!";
             return false;
         }
         m_viddecCtx->opaque = this;
@@ -392,7 +432,7 @@ private:
         fferr = avcodec_parameters_to_context(m_viddecCtx, m_vidStream->codecpar);
         if (fferr < 0)
         {
-            SetFFError("avcodec_parameters_to_context", fferr);
+            m_errMsg = FFapiFailureMessage("avcodec_parameters_to_context", fferr);
             return false;
         }
 
@@ -401,7 +441,7 @@ private:
         fferr = avcodec_open2(m_viddecCtx, m_viddec, nullptr);
         if (fferr < 0)
         {
-            SetFFError("avcodec_open2", fferr);
+            m_errMsg = FFapiFailureMessage("avcodec_open2", fferr);
             return false;
         }
         Log(DEBUG) << "Video decoder '" << m_viddec->name << "' opened." << " thread_count=" << m_viddecCtx->thread_count
@@ -419,7 +459,7 @@ private:
             {
                 ostringstream oss;
                 oss << "Decoder '" << m_viddec->name << "' does NOT support hardware acceleration.";
-                m_errMessage = oss.str();
+                m_errMsg = oss.str();
                 return false;
             }
             if ((config->methods&AV_CODEC_HW_CONFIG_METHOD_HW_DEVICE_CTX) != 0)
@@ -437,7 +477,7 @@ private:
         m_viddecCtx = avcodec_alloc_context3(m_viddec);
         if (!m_viddecCtx)
         {
-            m_errMessage = "FAILED to allocate new AVCodecContext!";
+            m_errMsg = "FAILED to allocate new AVCodecContext!";
             return false;
         }
         m_viddecCtx->opaque = this;
@@ -446,7 +486,7 @@ private:
         fferr = avcodec_parameters_to_context(m_viddecCtx, m_vidStream->codecpar);
         if (fferr < 0)
         {
-            SetFFError("avcodec_parameters_to_context", fferr);
+            m_errMsg = FFapiFailureMessage("avcodec_parameters_to_context", fferr);
             return false;
         }
         m_viddecCtx->get_format = get_hw_format;
@@ -454,7 +494,7 @@ private:
         fferr = av_hwdevice_ctx_create(&m_viddecHwDevCtx, m_viddecDevType, nullptr, nullptr, 0);
         if (fferr < 0)
         {
-            SetFFError("av_hwdevice_ctx_create", fferr);
+            m_errMsg = FFapiFailureMessage("av_hwdevice_ctx_create", fferr);
             return false;
         }
         m_viddecCtx->hw_device_ctx = av_buffer_ref(m_viddecHwDevCtx);
@@ -462,7 +502,7 @@ private:
         fferr = avcodec_open2(m_viddecCtx, m_viddec, nullptr);
         if (fferr < 0)
         {
-            SetFFError("avcodec_open2", fferr);
+            m_errMsg = FFapiFailureMessage("avcodec_open2", fferr);
             return false;
         }
         Log(DEBUG) << "Video decoder(HW) '" << m_viddecCtx->codec->name << "' opened." << endl;
@@ -474,7 +514,7 @@ private:
         m_auddecCtx = avcodec_alloc_context3(m_auddec);
         if (!m_auddecCtx)
         {
-            m_errMessage = "FAILED to allocate new AVCodecContext!";
+            m_errMsg = "FAILED to allocate new AVCodecContext!";
             return false;
         }
         m_auddecCtx->opaque = this;
@@ -483,14 +523,14 @@ private:
         fferr = avcodec_parameters_to_context(m_auddecCtx, m_audStream->codecpar);
         if (fferr < 0)
         {
-            SetFFError("avcodec_parameters_to_context", fferr);
+            m_errMsg = FFapiFailureMessage("avcodec_parameters_to_context", fferr);
             return false;
         }
 
         fferr = avcodec_open2(m_auddecCtx, m_auddec, nullptr);
         if (fferr < 0)
         {
-            SetFFError("avcodec_open2", fferr);
+            m_errMsg = FFapiFailureMessage("avcodec_open2", fferr);
             return false;
         }
         Log(DEBUG) << "Audio decoder '" << m_auddec->name << "' opened." << endl;
@@ -511,13 +551,13 @@ private:
             m_swrCtx = swr_alloc_set_opts(NULL, m_swrOutChnLyt, m_swrOutSmpfmt, m_swrOutSampleRate, inChnLyt, inSmpfmt, inSampleRate, 0, nullptr);
             if (!m_swrCtx)
             {
-                m_errMessage = "FAILED to invoke 'swr_alloc_set_opts()' to create 'SwrContext'!";
+                m_errMsg = "FAILED to invoke 'swr_alloc_set_opts()' to create 'SwrContext'!";
                 return false;
             }
             int fferr = swr_init(m_swrCtx);
             if (fferr < 0)
             {
-                SetFFError("swr_init", fferr);
+                m_errMsg = FFapiFailureMessage("swr_init", fferr);
                 return false;
             }
             m_swrPassThrough = false;
@@ -617,6 +657,13 @@ private:
     void DemuxThreadProc()
     {
         Log(DEBUG) << "Enter DemuxThreadProc()..." << endl;
+
+        if (!m_prepared && !Prepare())
+        {
+            Log(ERROR) << "Prepare() FAILED! Error is '" << m_errMsg << "'." << endl;
+            return;
+        }
+
         AVPacket avpkt = {0};
         bool avpktLoaded = false;
         while (!m_quitScan)
@@ -722,6 +769,10 @@ private:
     void VideoDecodeThreadProc()
     {
         Log(DEBUG) << "Enter VideoDecodeThreadProc()..." << endl;
+
+        while (!m_prepared && !m_quitScan)
+            this_thread::sleep_for(chrono::milliseconds(5));
+
         AVFrame avfrm = {0};
         bool avfrmLoaded = false;
         bool inputEof = false;
@@ -880,11 +931,14 @@ private:
 
 private:
     bool m_opened{false};
-    string m_errMessage;
+    string m_errMsg;
     bool m_vidPreferUseHw{true};
     AVHWDeviceType m_vidUseHwType{AV_HWDEVICE_TYPE_NONE};
 
+    MediaParserHolder m_hParser;
+
     AVFormatContext* m_avfmtCtx{nullptr};
+    bool m_prepared{false};
     int m_vidStmIdx{-1};
     int m_audStmIdx{-1};
     AVStream* m_vidStream{nullptr};
@@ -944,23 +998,20 @@ private:
     thread m_GenSsThread;
     bool m_genSsEof;
 
-    recursive_mutex m_ctlLock;
+    recursive_mutex m_apiLock;
     bool m_quitScan{false};
 
     vector<Snapshot> m_snapshots;
     uint32_t m_ssCount;
     float m_ssWFacotr{1.f}, m_ssHFacotr{1.f};
     bool m_ssSizeChanged{false};
-    int64_t m_vidStartMts {0};
-    int64_t m_vidDuration {0};
-    int64_t m_vidFrameCount {0};
+    int64_t m_vidStartMts{0};
+    int64_t m_vidDurMts{0};
+    int64_t m_vidFrmCnt{0};
     double m_ssIntvMts;
 
     AVFrameToImMatConverter m_frmCvt;
 };
-
-const AVRational MediaOverview_Impl::MILLISEC_TIMEBASE = { 1, 1000 };
-const AVRational MediaOverview_Impl::FFAV_TIMEBASE = { 1, AV_TIME_BASE };
 
 static AVPixelFormat get_hw_format(AVCodecContext *ctx, const AVPixelFormat *pix_fmts)
 {

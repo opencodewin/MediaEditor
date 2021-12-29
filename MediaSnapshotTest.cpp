@@ -12,6 +12,7 @@
 #include <sstream>
 #include <vector>
 #include <cmath>
+#include "MediaOverview.h"
 #include "MediaSnapshot.h"
 #include "FFUtils.h"
 #include "Logger.h"
@@ -19,6 +20,7 @@
 using namespace std;
 using namespace Logger;
 
+static MediaOverview* g_movr = nullptr;
 static MediaSnapshot* g_msrc = nullptr;
 static double g_windowPos = 0.f;
 static double g_windowSize = 300.f;
@@ -69,14 +71,16 @@ void Application_Initialize(void** handle)
     g_snapshotTids.reserve(ssCnt);
     for (auto& tid : g_snapshotTids)
         tid = nullptr;
+    g_movr = CreateMediaOverview();
+    g_movr->SetSnapshotSize(320, 180);
     g_msrc = CreateMediaSnapshot();
-    // g_msrc->SetSnapshotSize(160, 90);
     g_msrc->SetSnapshotResizeFactor(0.5f, 0.5f);
 }
 
 void Application_Finalize(void** handle)
 {
     ReleaseMediaSnapshot(&g_msrc);
+    ReleaseMediaOverview(&g_movr);
     for (auto& tid : g_snapshotTids)
     {
         if (tid)
@@ -215,6 +219,9 @@ bool Application_Frame(void * handle)
                 tid = nullptr;
             }
             string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
+            // g_movr->Open(filePathName, 10);
+            // g_movr->GetMediaParser()->EnableParseInfo(MediaParser::VIDEO_SEEK_POINTS);
+            // g_msrc->Open(g_movr->GetMediaParser());
             g_msrc->Open(filePathName);
             g_windowPos = (float)g_msrc->GetVidoeMinPos()/1000.f;
             g_windowSize = (float)g_msrc->GetVidoeDuration()/10000.f;
