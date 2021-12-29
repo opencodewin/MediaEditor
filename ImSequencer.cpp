@@ -16,7 +16,7 @@ MediaItem::MediaItem(const std::string& name, const std::string& path, int type)
     if (!path.empty() && mMedia)
     {
         mMedia->SetSnapshotResizeFactor(0.1, 0.1);
-        mMedia->Open(path);
+        mMedia->Open(path, 50);
     }
     if (mMedia && mMedia->IsOpened())
     {
@@ -47,7 +47,7 @@ void MediaItem::UpdateThumbnail()
         {
             for (int i = 0; i < snapshots.size(); i++)
             {
-                if (!snapshots[i].empty())
+                if (i >= mMediaThumbnail.size() && !snapshots[i].empty())
                 {
                     ImTextureID thumb = nullptr;
                     if (snapshots[i].device == ImDataDevice::IM_DD_CPU)
@@ -423,13 +423,13 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry
             if (sequenceOptions & SEQUENCER_ADD)
             {
                 bool ret = SequencerButton(draw_list, ICON_CLONE, ImVec2(contentMin.x + legendWidth - button_size.x * 2.5 - 4, tpos.y), button_size, "clone");
-                if (ret && io.MouseReleased[0])
+                if (ret && io.MouseClicked[0])
                     dupEntry = i;
             }
             if (sequenceOptions & SEQUENCER_DEL)
             {
                 bool ret = SequencerButton(draw_list, ICON_TRASH, ImVec2(contentMin.x + legendWidth - button_size.x - 4, tpos.y), button_size, "delete");
-                if (ret && io.MouseReleased[0])
+                if (ret && io.MouseClicked[0])
                     delEntry = i;
             }
             customHeight += itemCustomHeight;

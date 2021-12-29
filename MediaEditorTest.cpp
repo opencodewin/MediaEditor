@@ -12,6 +12,7 @@
 using namespace ImSequencer;
 
 static std::string bookmark_path = "bookmark.ini";
+static std::string ini_file = "Media_Editor.ini";
 
 static const char* ControlPanelTabNames[] = {
     ICON_MEDIA_BANK,
@@ -111,11 +112,14 @@ static void ShowMediaBankWindow(ImDrawList *draw_list, float media_icon_size)
             float pos_x = io.MousePos.x - icon_pos.x;
             float percent = pos_x / icon_size.x;
             ImClamp(percent, 0.0f, 1.0f);
+            int texture_index = item->mMediaThumbnail.size() * percent;
             if (!item->mMediaThumbnail.empty())
             {
-                int texture_index = item->mMediaThumbnail.size() * percent;
                 texture = item->mMediaThumbnail[texture_index];
             }
+            //ImGui::BeginTooltip();
+            //ImGui::Text("%f %d", percent, texture_index);
+            //ImGui::EndTooltip();
         }
         else if (!item->mMediaThumbnail.empty())
         {
@@ -455,6 +459,7 @@ void Application_GetWindowProperties(ApplicationWindowProperty& property)
 void Application_Initialize(void** handle)
 {
     ImGuiIO& io = ImGui::GetIO(); (void)io;
+    io.IniFilename = ini_file.c_str();
     Logger::SetDefaultLoggerLevels(Logger::DEBUG);
     ImGui::ResetTabLabelStyle(ImGui::ImGuiTabLabelStyle_Dark, *tab_style);
 #ifdef USE_BOOKMARK
