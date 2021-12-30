@@ -875,7 +875,7 @@ SequencerItem::SequencerItem(const std::string& name, const std::string& path, i
     if (mMedia && mMedia->IsOpened())
     {
         double window_size = 1.0f;
-        mLength = mEnd = mMedia->GetVidoeDuration();
+        mLength = mEnd = mMedia->GetVideoDuration();
         mMedia->SetCacheFactor(16.0);
         mMedia->SetSnapshotResizeFactor(0.1, 0.1);
         mMedia->ConfigSnapWindow(window_size, 10);
@@ -978,8 +978,8 @@ void SequencerItem::CalculateVideoSnapshotInfo(const ImRect &customRect, int64_t
     {
         auto width = mMedia->GetVideoWidth();
         auto height = mMedia->GetVideoHeight();
-        auto duration = mMedia->GetVidoeDuration();
-        auto total_frames = mMedia->GetVidoeFrameCount();
+        auto duration = mMedia->GetVideoDuration();
+        auto total_frames = mMedia->GetVideoFrameCount();
         auto clip_duration = mEnd - mStart;
         if (!width || !height || !duration || !total_frames)
             return;
@@ -1219,6 +1219,7 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
     for (int i = 0; i < snapshot_count; i++)
     {
         if (i + snapshot_index > total_snapshot - 1) break;
+        if (item->mVideoSnapshots.size() == 0) break;
         int64_t time_stamp = item->mVideoSnapshotInfos[snapshot_index + i].time_stamp;
         ImRect frame_rc = item->mVideoSnapshotInfos[snapshot_index + i].rc;
         ImVec2 pos = frame_rc.Min + rc.Min;
