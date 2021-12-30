@@ -132,6 +132,7 @@ public:
         m_viddec = nullptr;
         m_auddec = nullptr;
         m_hParser = nullptr;
+        m_hMediaInfo = nullptr;
 
         m_demuxEof = false;
         m_viddecEof = false;
@@ -261,6 +262,11 @@ public:
         }
         RebuildSnapshots();
         return true;
+    }
+
+    MediaInfo::InfoHolder GetMediaInfo() const override
+    {
+        return m_hMediaInfo;
     }
 
     const MediaInfo::VideoStream* GetVideoStream() const override

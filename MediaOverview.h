@@ -22,6 +22,7 @@ struct MediaOverview
     virtual bool SetOutColorFormat(ImColorFormat clrfmt) = 0;
     virtual bool SetResizeInterpolateMode(ImInterpolateMode interp) = 0;
 
+    virtual MediaInfo::InfoHolder GetMediaInfo() const = 0;
     virtual const MediaInfo::VideoStream* GetVideoStream() const = 0;
     virtual const MediaInfo::AudioStream* GetAudioStream() const = 0;
 
