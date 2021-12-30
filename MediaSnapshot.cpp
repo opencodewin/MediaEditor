@@ -269,7 +269,8 @@ public:
         }
         m_cacheFactor = cacheFactor;
         m_maxCacheSize = (uint32_t)ceil(m_wndFrmCnt*m_cacheFactor);
-        ResetSnapshotBuildTask();
+        if (m_prepared)
+            ResetSnapshotBuildTask();
         return true;
     }
 
@@ -293,7 +294,8 @@ public:
             m_errMsg = m_frmCvt.GetError();
             return false;
         }
-        ResetSnapshotBuildTask();
+        if (m_prepared)
+            ResetSnapshotBuildTask();
         return true;
     }
 
@@ -315,10 +317,11 @@ public:
             if (widthFactor == 1.f && heightFactor == 1.f)
                 return SetSnapshotSize(0, 0);
 
-            uint32_t outWidth = (uint32_t)ceil(m_vidStream->codecpar->width*widthFactor);
+            auto vidStream = GetVideoStream();
+            uint32_t outWidth = (uint32_t)ceil(vidStream->width*widthFactor);
             if ((outWidth&0x1) == 1)
                 outWidth++;
-            uint32_t outHeight = (uint32_t)ceil(m_vidStream->codecpar->height*heightFactor);
+            uint32_t outHeight = (uint32_t)ceil(vidStream->height*heightFactor);
             if ((outHeight&0x1) == 1)
                 outHeight++;
             return SetSnapshotSize(outWidth, outHeight);
@@ -337,7 +340,8 @@ public:
             m_errMsg = m_frmCvt.GetError();
             return false;
         }
-        ResetSnapshotBuildTask();
+        if (m_prepared)
+            ResetSnapshotBuildTask();
         return true;
     }
 
@@ -351,8 +355,30 @@ public:
             m_errMsg = m_frmCvt.GetError();
             return false;
         }
-        ResetSnapshotBuildTask();
+        if (m_prepared)
+            ResetSnapshotBuildTask();
         return true;
+    }
+
+    MediaInfo::InfoHolder GetMediaInfo() const override
+    {
+        return m_hMediaInfo;
+    }
+
+    const MediaInfo::VideoStream* GetVideoStream() const override
+    {
+        MediaInfo::InfoHolder hInfo = m_hMediaInfo;
+        if (!hInfo || !HasVideo())
+            return nullptr;
+        return dynamic_cast<MediaInfo::VideoStream*>(hInfo->streams[m_vidStmIdx].get());
+    }
+
+    const MediaInfo::AudioStream* GetAudioStream() const override
+    {
+        MediaInfo::InfoHolder hInfo = m_hMediaInfo;
+        if (!hInfo || !HasAudio())
+            return nullptr;
+        return dynamic_cast<MediaInfo::AudioStream*>(hInfo->streams[m_audStmIdx].get());
     }
 
     uint32_t GetVideoWidth() const override
@@ -449,7 +475,7 @@ private:
             return false;
         }
 
-        MediaInfo::InfoHolder hInfo = hParser->GetMediaInfo();
+        m_hMediaInfo = hParser->GetMediaInfo();
         m_vidStmIdx = hParser->GetBestVideoStreamIndex();
         m_audStmIdx = hParser->GetBestAudioStreamIndex();
         if (m_vidStmIdx < 0 && m_audStmIdx < 0)
@@ -460,7 +486,7 @@ private:
             return false;
         }
 
-        MediaInfo::VideoStream* vidStream = dynamic_cast<MediaInfo::VideoStream*>(hInfo->streams[m_vidStmIdx].get());
+        MediaInfo::VideoStream* vidStream = dynamic_cast<MediaInfo::VideoStream*>(m_hMediaInfo->streams[m_vidStmIdx].get());
         m_vidStartMts = (int64_t)(vidStream->startTime*1000);
         m_vidDurMts = (int64_t)(vidStream->duration*1000);
         m_vidFrmCnt = vidStream->frameNum;
@@ -1549,6 +1575,7 @@ private:
     string m_errMsg;
 
     MediaParserHolder m_hParser;
+    MediaInfo::InfoHolder m_hMediaInfo;
     MediaParser::SeekPointsHolder m_hSeekPoints;
     bool m_opened{false};
     bool m_prepared{false};
