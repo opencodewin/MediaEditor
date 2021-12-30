@@ -208,7 +208,7 @@ public:
         return m_audStmIdx >= 0;
     }
 
-    int64_t GetVidoeMinPos() const override
+    int64_t GetVideoMinPos() const override
     {
         return m_vidStartMts;
     }
@@ -377,12 +377,12 @@ public:
         return 0;
     }
 
-    int64_t GetVidoeDuration() const override
+    int64_t GetVideoDuration() const override
     {
         return m_vidDuration;
     }
 
-    int64_t GetVidoeFrameCount() const override
+    int64_t GetVideoFrameCount() const override
     {
         return m_vidFrameCount;
     }

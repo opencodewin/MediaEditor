@@ -232,12 +232,12 @@ public:
         return 0;
     }
 
-    int64_t GetVidoeDuration() const override
+    int64_t GetVideoDuration() const override
     {
         return m_vidDuration;
     }
 
-    int64_t GetVidoeFrameCount() const override
+    int64_t GetVideoFrameCount() const override
     {
         return m_vidFrameCount;
     }

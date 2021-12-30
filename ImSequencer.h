@@ -9,7 +9,7 @@
 #include <vector>
 
 #define ICON_MEDIA_BANK     u8"\ue907"
-#define ICON_MEDIA_TRANSITIONS u8"\ue882"
+#define ICON_MEDIA_TRANSITIONS u8"\ue927"
 #define ICON_MEDIA_FILTERS  u8"\ue663"
 #define ICON_MEDIA_OUTPUT   u8"\uf197"
 #define ICON_MEDIA_PREVIEW  u8"\ue04a"
@@ -61,6 +61,28 @@
 
 #define ICON_CROPED         u8"\ue3e8"
 #define ICON_SCALED         u8"\ue433"
+
+#define ICON_1K             u8"\ue95c"
+#define ICON_1K_PLUS        u8"\ue95d"
+#define ICON_2K             u8"\ue963"
+#define ICON_2K_PLUS        u8"\ue964"
+#define ICON_3K             u8"\ue966"
+#define ICON_3K_PLUS        u8"\ue967"
+#define ICON_4K_PLUS        u8"\ue969"
+#define ICON_5K             u8"\ue96b"
+#define ICON_5K_PLUS        u8"\ue96c"
+#define ICON_6K             u8"\ue96e"
+#define ICON_6K_PLUS        u8"\ue96f"
+#define ICON_7K             u8"\ue971"
+#define ICON_7K_PLUS        u8"\ue972"
+#define ICON_8K             u8"\ue974"
+#define ICON_8K_PLUS        u8"\ue975"
+#define ICON_9K             u8"\ue977"
+#define ICON_9K_PLUS        u8"\ue978"
+#define ICON_10K            u8"\ue951"
+
+#define ICON_STEREO         u8"\ue493"
+#define ICON_MONO           u8"\ue495"
 
 #define COL_FRAME_RECT      IM_COL32( 16,  16,  96, 255)
 #define COL_LIGHT_BLUR      IM_COL32( 16, 128, 255, 255)

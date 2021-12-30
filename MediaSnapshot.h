@@ -14,7 +14,7 @@ struct MediaSnapshot
     virtual bool IsOpened() const = 0;
     virtual bool HasVideo() const = 0;
     virtual bool HasAudio() const = 0;
-    virtual int64_t GetVidoeMinPos() const = 0;
+    virtual int64_t GetVideoMinPos() const = 0;
     virtual bool ConfigSnapWindow(double& windowSize, double frameCount) = 0;
     virtual bool SetCacheFactor(double cacheFactor) = 0;
     virtual double GetMinWindowSize() const = 0;
@@ -26,8 +26,8 @@ struct MediaSnapshot
 
     virtual uint32_t GetVideoWidth() const = 0;
     virtual uint32_t GetVideoHeight() const = 0;
-    virtual int64_t GetVidoeDuration() const = 0;
-    virtual int64_t GetVidoeFrameCount() const = 0;
+    virtual int64_t GetVideoDuration() const = 0;
+    virtual int64_t GetVideoFrameCount() const = 0;
 
     virtual std::string GetError() const = 0;
 };

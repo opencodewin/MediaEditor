@@ -21,8 +21,8 @@ struct MediaOverview
 
     virtual uint32_t GetVideoWidth() const = 0;
     virtual uint32_t GetVideoHeight() const = 0;
-    virtual int64_t GetVidoeDuration() const = 0;
-    virtual int64_t GetVidoeFrameCount() const = 0;
+    virtual int64_t GetVideoDuration() const = 0;
+    virtual int64_t GetVideoFrameCount() const = 0;
     virtual uint32_t GetAudioChannel() const = 0;
     virtual uint32_t GetAudioSampleRate() const = 0;
 
