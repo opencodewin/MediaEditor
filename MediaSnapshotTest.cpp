@@ -219,10 +219,10 @@ bool Application_Frame(void * handle)
                 tid = nullptr;
             }
             string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
-            // g_movr->Open(filePathName, 10);
-            // g_movr->GetMediaParser()->EnableParseInfo(MediaParser::VIDEO_SEEK_POINTS);
-            // g_msrc->Open(g_movr->GetMediaParser());
-            g_msrc->Open(filePathName);
+            g_movr->Open(filePathName, 10);
+            g_movr->GetMediaParser()->EnableParseInfo(MediaParser::VIDEO_SEEK_POINTS);
+            g_msrc->Open(g_movr->GetMediaParser());
+            // g_msrc->Open(filePathName);
             g_windowPos = (float)g_msrc->GetVidoeMinPos()/1000.f;
             g_windowSize = (float)g_msrc->GetVidoeDuration()/10000.f;
             g_msrc->ConfigSnapWindow(g_windowSize, g_windowFrames);

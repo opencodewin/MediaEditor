@@ -131,8 +131,16 @@ public:
         if (!IsOpened())
             return false;
 
-        SnapWindow snapWnd = UpdateSnapWindow(startPos);
         snapshots.clear();
+
+        SnapWindow snapWnd;
+        if (m_prepared)
+            snapWnd = UpdateSnapWindow(startPos);
+        else
+        {
+            m_snapWnd.startPos = startPos;
+            snapWnd = m_snapWnd;
+        }
 
         lock_guard<mutex> lk2(m_bldtskByTimeLock);
         uint32_t i = snapWnd.index0;
@@ -206,11 +214,6 @@ public:
     bool HasAudio() const override
     {
         return m_audStmIdx >= 0;
-    }
-
-    int64_t GetVidoeMinPos() const override
-    {
-        return m_vidStartMts;
     }
 
     bool ConfigSnapWindow(double& windowSize, double frameCount) override
@@ -370,6 +373,11 @@ public:
         return 0;
     }
 
+    int64_t GetVidoeMinPos() const override
+    {
+        return 0;
+    }
+
     int64_t GetVidoeDuration() const override
     {
         return m_vidDurMts;
@@ -403,6 +411,16 @@ private:
         return m_vidfrmIntvMts*windowFrameCount/1000.;
     }
 
+    int64_t CvtVidPtsToMts(int64_t pts)
+    {
+        return av_rescale_q(pts-m_vidStream->start_time, m_vidStream->time_base, MILLISEC_TIMEBASE);
+    }
+
+    int64_t CvtVidMtsToPts(int64_t mts)
+    {
+        return av_rescale_q(mts, MILLISEC_TIMEBASE, m_vidStream->time_base)+m_vidStream->start_time;
+    }
+
     void CalcWindowVariables()
     {
         m_ssIntvMts = m_snapWindowSize*1000./m_wndFrmCnt;
@@ -410,7 +428,7 @@ private:
             m_ssIntvMts = m_vidfrmIntvMts;
         else if (m_ssIntvMts-m_vidfrmIntvMts <= 0.5)
             m_ssIntvMts = m_vidfrmIntvMts;
-        m_vidMaxIndex = (uint32_t)floor((double)m_vidDurMts/m_ssIntvMts)+1;
+        m_vidMaxIndex = (uint32_t)floor(((double)m_vidDurMts-m_vidfrmIntvMts)/m_ssIntvMts);
         m_maxCacheSize = (uint32_t)ceil(m_wndFrmCnt*m_cacheFactor);
         uint32_t intWndFrmCnt = (uint32_t)ceil(m_wndFrmCnt);
         if (m_maxCacheSize < intWndFrmCnt)
@@ -513,7 +531,7 @@ private:
                 return false;
 
             CalcWindowVariables();
-            UpdateSnapWindow((double)m_vidStartMts/1000.);
+            UpdateSnapWindow((double)m_snapWnd.startPos/1000.);
             ResetSnapshotBuildTask();
             m_snapWndUpdated = false;
         }
@@ -527,6 +545,8 @@ private:
             //     return false;
         }
 
+        Log(DEBUG) << ">>>> Prepared: m_snapWindowSize=" << m_snapWindowSize << ", m_wndFrmCnt=" << m_wndFrmCnt
+            << ", m_vidMaxIndex=" << m_vidMaxIndex << ", m_maxCacheSize=" << m_maxCacheSize << ", m_prevWndCacheSize=" << m_prevWndCacheSize << endl;
         m_prepared = true;
         return true;
     }
@@ -664,8 +684,8 @@ private:
                         currPktSsIdx = -1;
                         gopSmallestIdx = INT32_MAX;
                         // Log(DEBUG) << "--> Change demux task, ssIdxPair=(" << currTask->ssIdxPair.first << " ~ " << currTask->ssIdxPair.second
-                        //     << ", startPts=" << currTask->seekPts.first << "(" << av_rescale_q(currTask->seekPts.first, m_vidStream->time_base, MILLISEC_TIMEBASE) << ")"
-                        //     << ", endPts=" << currTask->seekPts.second << "(" << av_rescale_q(currTask->seekPts.second, m_vidStream->time_base, MILLISEC_TIMEBASE) << ")" << endl;
+                        //     << ", startPts=" << currTask->seekPts.first << "(" << MillisecToString(CvtVidPtsToMts(currTask->seekPts.first)) << ")"
+                        //     << ", endPts=" << currTask->seekPts.second << "(" << MillisecToString(CvtVidPtsToMts(currTask->seekPts.second)) << ")" << endl;
                     }
                 }
 
@@ -731,7 +751,7 @@ private:
                         {
                             if (!currPktChecked)
                             {
-                                int64_t mts = av_rescale_q(avpkt.pts, m_vidStream->time_base, MILLISEC_TIMEBASE);
+                                int64_t mts = CvtVidPtsToMts(avpkt.pts);
                                 uint32_t ssIdx;
                                 bool isSs = IsSnapshotFrame(mts, ssIdx, avpkt.pts);
                                 if (isSs && gopSmallestIdx > ssIdx)
@@ -844,6 +864,7 @@ private:
         bool avfrmLoaded = false;
         bool inputEof = false;
         bool needResetDecoder = false;
+        bool sentNullPacket = false;
         while (!m_quitScan)
         {
             bool idleLoop = true;
@@ -862,6 +883,7 @@ private:
 
             if (!currTask || currTask->decoderEof)
             {
+                SnapshotBuildTask oldTask = currTask;
                 currTask = FindNextDecoderTask();
                 if (currTask)
                 {
@@ -869,15 +891,21 @@ private:
                     inputEof = false;
                     // Log(DEBUG) << "==> Change decoding task to build index (" << currTask->ssIdxPair.first << " ~ " << currTask->ssIdxPair.second << ")." << endl;
                 }
+                else if (oldTask)
+                {
+                    avcodec_send_packet(m_viddecCtx, nullptr);
+                    sentNullPacket = true;
+                }
             }
 
             if (needResetDecoder)
             {
                 avcodec_flush_buffers(m_viddecCtx);
                 needResetDecoder = false;
+                sentNullPacket = false;
             }
 
-            if (currTask)
+            if (currTask || sentNullPacket)
             {
                 // retrieve output frame
                 bool hasOutput;
@@ -887,7 +915,7 @@ private:
                         int fferr = avcodec_receive_frame(m_viddecCtx, &avfrm);
                         if (fferr == 0)
                         {
-                            // Log(DEBUG) << "<<< Get video frame pts=" << avfrm.pts << "(" << MillisecToString(av_rescale_q(avfrm.pts, m_vidStream->time_base, MILLISEC_TIMEBASE)) << ")." << endl;
+                            // Log(DEBUG) << "<<< Get video frame pts=" << avfrm.pts << "(" << MillisecToString(CvtVidPtsToMts(avfrm.pts)) << ")." << endl;
                             avfrmLoaded = true;
                             idleLoop = false;
                         }
@@ -898,22 +926,21 @@ private:
                                 Log(ERROR) << "FAILED to invoke 'avcodec_receive_frame'(VideoDecodeThreadProc)! return code is "
                                     << fferr << "." << endl;
                                 quitLoop = true;
+                                break;
                             }
                             else
                             {
                                 idleLoop = false;
-                                currTask->decoderEof = true;
                                 needResetDecoder = true;
                                 // Log(DEBUG) << "Video decoder current task reaches EOF!" << endl;
                             }
-                            break;
                         }
                     }
 
                     hasOutput = avfrmLoaded;
                     if (avfrmLoaded)
                     {
-                        int64_t mts = av_rescale_q(avfrm.pts, m_vidStream->time_base, MILLISEC_TIMEBASE);
+                        int64_t mts = CvtVidPtsToMts(avfrm.pts);
                         uint32_t index;
                         bool isSnapshot = IsSnapshotFrame(mts, index, avfrm.pts);
                         if (!isSnapshot)
@@ -935,17 +962,15 @@ private:
                     break;
 
                 // input packet to decoder
-                if (!inputEof)
+                if (!inputEof && !sentNullPacket)
                 {
                     if (!currTask->avpktQ.empty())
                     {
                         AVPacket* avpkt = currTask->avpktQ.front();
-                        if (!avpkt)
-                            Log(DEBUG) << "----------> ERROR! null avpacket ptr got from m_vidpktQ." << endl;
                         int fferr = avcodec_send_packet(m_viddecCtx, avpkt);
                         if (fferr == 0)
                         {
-                            // Log(DEBUG) << ">>> Send video packet pts=" << avpkt->pts << "(" << MillisecToString(av_rescale_q(avpkt->pts, m_vidStream->time_base, MILLISEC_TIMEBASE)) << ")." << endl;
+                            // Log(DEBUG) << ">>> Send video packet pts=" << avpkt->pts << "(" << MillisecToString(CvtVidPtsToMts(avpkt->pts)) << ")." << endl;
                             {
                                 lock_guard<mutex> lk(currTask->avpktQLock);
                                 currTask->avpktQ.pop_front();
@@ -1000,7 +1025,7 @@ private:
                 {
                     if (ss.avfrm)
                     {
-                        double ts = (double)av_rescale_q(ss.avfrm->pts, m_vidStream->time_base, MILLISEC_TIMEBASE)/1000.;
+                        double ts = (double)CvtVidPtsToMts(ss.avfrm->pts)/1000.;
                         if (!m_frmCvt.ConvertImage(ss.avfrm, ss.img, ts))
                             Log(ERROR) << "FAILED to convert AVFrame to ImGui::ImMat! Message is '" << m_frmCvt.GetError() << "'." << endl;
                         av_frame_free(&ss.avfrm);
@@ -1117,12 +1142,12 @@ private:
 
     SnapWindow UpdateSnapWindow(double startPos)
     {
-        int64_t mts0 = (int64_t)round(startPos*1000.);
-        if (mts0 < m_vidStartMts)
-            mts0 = m_vidStartMts;
-        uint32_t index0 = (int32_t)floor(double(mts0-m_vidStartMts)/m_ssIntvMts);
-        int64_t mts1 = (int64_t)round((startPos+m_snapWindowSize)*1000.);
-        uint32_t index1 = (int32_t)floor(double(mts1-m_vidStartMts)/m_ssIntvMts);
+        int64_t mts0 = (int64_t)round(startPos*1000);
+        if (mts0 < 0)
+            mts0 = 0;
+        uint32_t index0 = (int32_t)floor((double)mts0/m_ssIntvMts);
+        int64_t mts1 = (int64_t)round(mts0+m_snapWindowSize*1000);
+        uint32_t index1 = (int32_t)floor((double)mts1/m_ssIntvMts);
         if (index1 > m_vidMaxIndex)
             index1 = m_vidMaxIndex;
         uint32_t cacheIdx0 = index0 > m_prevWndCacheSize ? index0-m_prevWndCacheSize : 0;
@@ -1149,7 +1174,7 @@ private:
 
     bool IsSnapshotFrame(int64_t mts, uint32_t& index, int64_t pts)
     {
-        index = (int32_t)round(double(mts-m_vidStartMts)/m_ssIntvMts);
+        index = (int32_t)round((double)mts/m_ssIntvMts);
         double diff = abs(index*m_ssIntvMts-mts);
         bool isSs = diff <= m_vidfrmIntvMtsHalf;
         // Log(DEBUG) << "---> IsSnapshotFrame : pts=" << pts << ", mts=" << mts << ", index=" << index << ", diff=" << diff << ", m_vidfrmIntvMtsHalf=" << m_vidfrmIntvMtsHalf << endl;
@@ -1162,21 +1187,20 @@ private:
         return diff <= m_vidfrmIntvMtsHalf;
     }
 
-    double CalcSnapshotTimestamp(uint32_t index)
-    {
-        uint32_t frameCount = (uint32_t)round(index*m_ssIntvMts/m_vidfrmIntvMts);
-        return (frameCount*m_vidfrmIntvMts+m_vidStartMts)/1000.;
-    }
-
     int64_t CalcSnapshotMts(uint32_t index)
     {
         uint32_t frameCount = (uint32_t)round(index*m_ssIntvMts/m_vidfrmIntvMts);
-        return (int64_t)(frameCount*m_vidfrmIntvMts)+m_vidStartMts;
+        return (int64_t)round(frameCount*m_vidfrmIntvMts);
+    }
+
+    double CalcSnapshotTimestamp(uint32_t index)
+    {
+        return (double)CalcSnapshotMts(index)/1000.;
     }
 
     pair<int64_t, int64_t> GetSeekPosByMts(int64_t mts)
     {
-        int64_t targetPts = av_rescale_q(mts, MILLISEC_TIMEBASE, m_vidStream->time_base);
+        int64_t targetPts = CvtVidMtsToPts(mts);
         auto iter = find_if(m_hSeekPoints->begin(), m_hSeekPoints->end(),
             [targetPts](int64_t keyPts) { return keyPts > targetPts; });
         if (iter != m_hSeekPoints->begin())
@@ -1500,7 +1524,7 @@ private:
                 if (ssRvsIter != task->ssAry.rend() && ssRvsIter->index == ssIdx)
                 {
                     Log(DEBUG) << "Found duplicated SS#" << ssIdx << ", dropping this SS. pts=" << frm->pts
-                        << ", mts=" << av_rescale_q(frm->pts, m_vidStream->time_base, MILLISEC_TIMEBASE) << "." << endl;
+                        << ", t=" << MillisecToString(CvtVidPtsToMts(frm->pts)) << "." << endl;
                     if (ss.avfrm)
                         av_frame_free(&ss.avfrm);
                 }

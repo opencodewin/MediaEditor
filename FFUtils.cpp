@@ -484,12 +484,7 @@ bool AVFrameToImMatConverter::ConvertImage(const AVFrame* avfrm, ImGui::ImMat& o
                 m_errMsg = "FAILED to allocate AVFrame to perform 'swscale'!";
                 return false;
             }
-            // int fferr = sws_scale_frame(m_swsCtx, swsfrm.get(), avfrm);
-            // if (fferr < 0)
-            // {
-            //     m_errMsg = string("FAILED to invoke 'sws_scale_frame()'! fferr = ")+to_string(fferr)+".";
-            //     return false;
-            // }
+
             AVFrame* pfrm = swsfrm.get();
             pfrm->width = outWidth;
             pfrm->height = outHeight;
