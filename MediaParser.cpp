@@ -307,9 +307,8 @@ private:
         }
 
         m_hMediaInfo = GenerateMediaInfoByAVFormatContext(m_avfmtCtx);
-        const AVCodec *viddec, *auddec;
-        m_bestVidStmIdx = av_find_best_stream(m_avfmtCtx, AVMEDIA_TYPE_VIDEO, -1, -1, &viddec, 0);
-        m_bestAudStmIdx = av_find_best_stream(m_avfmtCtx, AVMEDIA_TYPE_AUDIO, -1, -1, &auddec, 0);
+        m_bestVidStmIdx = av_find_best_stream(m_avfmtCtx, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
+        m_bestAudStmIdx = av_find_best_stream(m_avfmtCtx, AVMEDIA_TYPE_AUDIO, -1, -1, nullptr, 0);
         Log(DEBUG) << "Parse general media info done." << endl;
         return true;
     }
