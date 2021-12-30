@@ -127,8 +127,8 @@ public:
         }
         m_vidStmIdx = -1;
         m_audStmIdx = -1;
-        m_vidStream = nullptr;
-        m_audStream = nullptr;
+        m_vidAvStm = nullptr;
+        m_audAvStm = nullptr;
         m_viddec = nullptr;
         m_auddec = nullptr;
         m_hParser = nullptr;
@@ -223,10 +223,10 @@ public:
             if (widthFactor == 1.f && heightFactor == 1.f)
                 return SetSnapshotSize(0, 0);
 
-            uint32_t outWidth = (uint32_t)ceil(m_vidStream->codecpar->width*widthFactor);
+            uint32_t outWidth = (uint32_t)ceil(m_vidAvStm->codecpar->width*widthFactor);
             if ((outWidth&0x1) == 1)
                 outWidth++;
-            uint32_t outHeight = (uint32_t)ceil(m_vidStream->codecpar->height*heightFactor);
+            uint32_t outHeight = (uint32_t)ceil(m_vidAvStm->codecpar->height*heightFactor);
             if ((outHeight&0x1) == 1)
                 outHeight++;
             return SetSnapshotSize(outWidth, outHeight);
@@ -263,20 +263,36 @@ public:
         return true;
     }
 
+    const MediaInfo::VideoStream* GetVideoStream() const override
+    {
+        MediaInfo::InfoHolder hInfo = m_hMediaInfo;
+        if (!hInfo || !HasVideo())
+            return nullptr;
+        return dynamic_cast<MediaInfo::VideoStream*>(hInfo->streams[m_vidStmIdx].get());
+    }
+
+    const MediaInfo::AudioStream* GetAudioStream() const override
+    {
+        MediaInfo::InfoHolder hInfo = m_hMediaInfo;
+        if (!hInfo || !HasAudio())
+            return nullptr;
+        return dynamic_cast<MediaInfo::AudioStream*>(hInfo->streams[m_audStmIdx].get());
+    }
+
     uint32_t GetVideoWidth() const override
     {
-        if (m_vidStream)
+        if (m_vidAvStm)
         {
-            return m_vidStream->codecpar->width;
+            return m_vidAvStm->codecpar->width;
         }
         return 0;
     }
 
     uint32_t GetVideoHeight() const override
     {
-        if (m_vidStream)
+        if (m_vidAvStm)
         {
-            return m_vidStream->codecpar->height;
+            return m_vidAvStm->codecpar->height;
         }
         return 0;
     }
@@ -295,14 +311,14 @@ public:
     {
         if (!HasAudio())
             return 0;
-        return m_audStream->codecpar->channels;
+        return m_audAvStm->codecpar->channels;
     }
 
     uint32_t GetAudioSampleRate() const override
     {
         if (!HasAudio())
             return 0;
-        return m_audStream->codecpar->sample_rate;
+        return m_audAvStm->codecpar->sample_rate;
     }
 
     string GetError() const override
@@ -342,7 +358,7 @@ private:
             return false;
         }
 
-        MediaInfo::InfoHolder hInfo = hParser->GetMediaInfo();
+        m_hMediaInfo = hParser->GetMediaInfo();
         m_vidStmIdx = hParser->GetBestVideoStreamIndex();
         m_audStmIdx = hParser->GetBestAudioStreamIndex();
         if (m_vidStmIdx < 0 && m_audStmIdx < 0)
@@ -353,20 +369,23 @@ private:
             return false;
         }
 
-        MediaInfo::VideoStream* vidStream = dynamic_cast<MediaInfo::VideoStream*>(hInfo->streams[m_vidStmIdx].get());
-        m_vidStartMts = (int64_t)(vidStream->startTime*1000);
-        m_vidDurMts = (int64_t)(vidStream->duration*1000);
-        m_vidFrmCnt = vidStream->frameNum;
-        uint32_t outWidth = (uint32_t)ceil(vidStream->width*m_ssWFacotr);
-        if ((outWidth&0x1) == 1)
-            outWidth++;
-        uint32_t outHeight = (uint32_t)ceil(vidStream->height*m_ssHFacotr);
-        if ((outHeight&0x1) == 1)
-            outHeight++;
-        if (!m_frmCvt.SetOutSize(outWidth, outHeight))
+        if (m_vidStmIdx >= 0)
         {
-            m_errMsg = m_frmCvt.GetError();
-            return false;
+            MediaInfo::VideoStream* vidStream = dynamic_cast<MediaInfo::VideoStream*>(m_hMediaInfo->streams[m_vidStmIdx].get());
+            m_vidStartMts = (int64_t)(vidStream->startTime*1000);
+            m_vidDurMts = (int64_t)(vidStream->duration*1000);
+            m_vidFrmCnt = vidStream->frameNum;
+            uint32_t outWidth = (uint32_t)ceil(vidStream->width*m_ssWFacotr);
+            if ((outWidth&0x1) == 1)
+                outWidth++;
+            uint32_t outHeight = (uint32_t)ceil(vidStream->height*m_ssHFacotr);
+            if ((outHeight&0x1) == 1)
+                outHeight++;
+            if (!m_frmCvt.SetOutSize(outWidth, outHeight))
+            {
+                m_errMsg = m_frmCvt.GetError();
+                return false;
+            }
         }
 
         return true;
@@ -384,13 +403,13 @@ private:
 
         if (HasVideo())
         {
-            m_vidStream = m_avfmtCtx->streams[m_vidStmIdx];
+            m_vidAvStm = m_avfmtCtx->streams[m_vidStmIdx];
 
-            m_viddec = avcodec_find_decoder(m_vidStream->codecpar->codec_id);
+            m_viddec = avcodec_find_decoder(m_vidAvStm->codecpar->codec_id);
             if (m_viddec == nullptr)
             {
                 ostringstream oss;
-                oss << "Can not find video decoder by codec_id " << m_vidStream->codecpar->codec_id << "!";
+                oss << "Can not find video decoder by codec_id " << m_vidAvStm->codecpar->codec_id << "!";
                 m_errMsg = oss.str();
                 return false;
             }
@@ -407,7 +426,7 @@ private:
 
         if (HasAudio())
         {
-            m_audStream = m_avfmtCtx->streams[m_audStmIdx];
+            m_audAvStm = m_avfmtCtx->streams[m_audStmIdx];
 
             // wyvern: disable opening audio decoder because we don't use it now
             // if (!OpenAudioDecoder())
@@ -429,7 +448,7 @@ private:
         m_viddecCtx->opaque = this;
 
         int fferr;
-        fferr = avcodec_parameters_to_context(m_viddecCtx, m_vidStream->codecpar);
+        fferr = avcodec_parameters_to_context(m_viddecCtx, m_vidAvStm->codecpar);
         if (fferr < 0)
         {
             m_errMsg = FFapiFailureMessage("avcodec_parameters_to_context", fferr);
@@ -483,7 +502,7 @@ private:
         m_viddecCtx->opaque = this;
 
         int fferr;
-        fferr = avcodec_parameters_to_context(m_viddecCtx, m_vidStream->codecpar);
+        fferr = avcodec_parameters_to_context(m_viddecCtx, m_vidAvStm->codecpar);
         if (fferr < 0)
         {
             m_errMsg = FFapiFailureMessage("avcodec_parameters_to_context", fferr);
@@ -520,7 +539,7 @@ private:
         m_auddecCtx->opaque = this;
 
         int fferr;
-        fferr = avcodec_parameters_to_context(m_auddecCtx, m_audStream->codecpar);
+        fferr = avcodec_parameters_to_context(m_auddecCtx, m_audAvStm->codecpar);
         if (fferr < 0)
         {
             m_errMsg = FFapiFailureMessage("avcodec_parameters_to_context", fferr);
@@ -536,10 +555,10 @@ private:
         Log(DEBUG) << "Audio decoder '" << m_auddec->name << "' opened." << endl;
 
         // setup sw resampler
-        int inChannels = m_audStream->codecpar->channels;
-        uint64_t inChnLyt = m_audStream->codecpar->channel_layout;
-        int inSampleRate = m_audStream->codecpar->sample_rate;
-        AVSampleFormat inSmpfmt = (AVSampleFormat)m_audStream->codecpar->format;
+        int inChannels = m_audAvStm->codecpar->channels;
+        uint64_t inChnLyt = m_audAvStm->codecpar->channel_layout;
+        int inSampleRate = m_audAvStm->codecpar->sample_rate;
+        AVSampleFormat inSmpfmt = (AVSampleFormat)m_audAvStm->codecpar->format;
         m_swrOutChannels = inChannels > 2 ? 2 : inChannels;
         m_swrOutChnLyt = av_get_default_channel_layout(m_swrOutChannels);
         m_swrOutSmpfmt = AV_SAMPLE_FMT_S16;
@@ -681,7 +700,7 @@ private:
                 Snapshot& ss = *iter;
                 int fferr;
                 int64_t seekTargetPts = ss.ssFrmPts != INT64_MIN ? ss.ssFrmPts :
-                    av_rescale_q((int64_t)(m_ssIntvMts*ss.index+m_vidStartMts), MILLISEC_TIMEBASE, m_vidStream->time_base);
+                    av_rescale_q((int64_t)(m_ssIntvMts*ss.index+m_vidStartMts), MILLISEC_TIMEBASE, m_vidAvStm->time_base);
                 fferr = avformat_seek_file(m_avfmtCtx, m_vidStmIdx, INT64_MIN, seekTargetPts, seekTargetPts, 0);
                 if (fferr < 0)
                 {
@@ -789,7 +808,7 @@ private:
                     int fferr = avcodec_receive_frame(m_viddecCtx, &avfrm);
                     if (fferr == 0)
                     {
-                        // Log(DEBUG) << "<<< Get video frame pts=" << avfrm.pts << "(" << MillisecToString(av_rescale_q(avfrm.pts, m_vidStream->time_base, MILLISEC_TIMEBASE)) << ")." << endl;
+                        // Log(DEBUG) << "<<< Get video frame pts=" << avfrm.pts << "(" << MillisecToString(av_rescale_q(avfrm.pts, m_vidAvStm->time_base, MILLISEC_TIMEBASE)) << ")." << endl;
                         avfrmLoaded = true;
                         idleLoop = false;
                     }
@@ -829,7 +848,7 @@ private:
                     int fferr = avcodec_send_packet(m_viddecCtx, avpkt);
                     if (fferr == 0)
                     {
-                        // Log(DEBUG) << ">>> Send video packet pts=" << avpkt->pts << "(" << MillisecToString(av_rescale_q(avpkt->pts, m_vidStream->time_base, MILLISEC_TIMEBASE))
+                        // Log(DEBUG) << ">>> Send video packet pts=" << avpkt->pts << "(" << MillisecToString(av_rescale_q(avpkt->pts, m_vidAvStm->time_base, MILLISEC_TIMEBASE))
                         //     << "), size=" << avpkt->size << "." << endl;
                         {
                             lock_guard<mutex> lk(m_vidpktQLock);
@@ -874,7 +893,7 @@ private:
                     m_vidfrmQ.pop_front();
                 }
 
-                double ts = (double)av_rescale_q(frm->pts, m_vidStream->time_base, MILLISEC_TIMEBASE)/1000.;
+                double ts = (double)av_rescale_q(frm->pts, m_vidAvStm->time_base, MILLISEC_TIMEBASE)/1000.;
                 auto iter = find_if(m_snapshots.begin(), m_snapshots.end(), [frm](const Snapshot& ss){
                     return ss.ssFrmPts == frm->pts;
                 });
@@ -936,13 +955,14 @@ private:
     AVHWDeviceType m_vidUseHwType{AV_HWDEVICE_TYPE_NONE};
 
     MediaParserHolder m_hParser;
+    MediaInfo::InfoHolder m_hMediaInfo;
 
     AVFormatContext* m_avfmtCtx{nullptr};
     bool m_prepared{false};
     int m_vidStmIdx{-1};
     int m_audStmIdx{-1};
-    AVStream* m_vidStream{nullptr};
-    AVStream* m_audStream{nullptr};
+    AVStream* m_vidAvStm{nullptr};
+    AVStream* m_audAvStm{nullptr};
 #if LIBAVFORMAT_VERSION_MAJOR >= 59
     const AVCodec* m_viddec{nullptr};
     const AVCodec* m_auddec{nullptr};
