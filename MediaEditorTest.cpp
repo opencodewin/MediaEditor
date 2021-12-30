@@ -314,7 +314,6 @@ static int thread_preview(bool& done, bool &running, bool &loop, bool reverse)
     running = true;
     int64_t start_time = ImGui::get_current_time_usec() / 1000;
     int64_t last_time = 0;
-    //int64_t current_time_offset = sequencer->currentTime;
     while (!done)
     {
         int64_t current_time = ImGui::get_current_time_usec() / 1000;

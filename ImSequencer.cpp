@@ -7,68 +7,6 @@
 namespace ImSequencer
 {
 
-MediaItem::MediaItem(const std::string& name, const std::string& path, int type)
-{
-    mName = name;
-    mPath = path;
-    mMediaType = type;
-    mMedia = CreateMediaOverview();
-    if (!path.empty() && mMedia)
-    {
-        mMedia->SetSnapshotResizeFactor(0.1, 0.1);
-        mMedia->Open(path, 50);
-    }
-    if (mMedia && mMedia->IsOpened())
-    {
-        if (mMedia->HasVideo())
-            mMedia->GetMediaParser()->EnableParseInfo(MediaParser::VIDEO_SEEK_POINTS);
-    }
-}
-
-MediaItem::~MediaItem()
-{
-    ReleaseMediaOverview(&mMedia);
-    mMedia = nullptr;
-    for (auto thumb : mMediaThumbnail)
-    {
-        ImGui::ImDestroyTexture(thumb); 
-        thumb = nullptr;
-    }
-}
-
-void MediaItem::UpdateThumbnail()
-{
-    if (mMedia && mMedia->IsOpened())
-    {
-        auto count = mMedia->GetSnapshotCount();
-        if (mMediaThumbnail.size() >= count)
-            return;
-        std::vector<ImGui::ImMat> snapshots;
-        if (mMedia->GetSnapshots(snapshots))
-        {
-            for (int i = 0; i < snapshots.size(); i++)
-            {
-                if (i >= mMediaThumbnail.size() && !snapshots[i].empty())
-                {
-                    ImTextureID thumb = nullptr;
-                    if (snapshots[i].device == ImDataDevice::IM_DD_CPU)
-                    {
-                        ImGui::ImGenerateOrUpdateTexture(thumb, snapshots[i].w, snapshots[i].h, snapshots[i].c, (const unsigned char *)snapshots[i].data);
-                    }
-#if IMGUI_VULKAN_SHADER
-                    if (snapshots[i].device == ImDataDevice::IM_DD_VULKAN)
-                    {
-                        ImGui::VkMat vkmat = snapshots[i];
-                        ImGui::ImGenerateOrUpdateTexture(thumb, vkmat.w, vkmat.h, vkmat.c, vkmat.buffer_offset(), (const unsigned char *)vkmat.buffer());
-                    }
-#endif
-                    mMediaThumbnail.push_back(thumb);
-                }
-            }
-        }
-    }
-}
-
 std::string MillisecToString(int64_t millisec, int show_millisec = 0)
 {
     std::ostringstream oss;
@@ -322,7 +260,7 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry
         {
             if (duration)
             {
-                sequencer->currentTime = (int)((io.MousePos.x - topRect.Min.x) / msPixelWidth) + firstTimeUsed;
+                sequencer->currentTime = (int64_t)((io.MousePos.x - topRect.Min.x) / msPixelWidth) + firstTimeUsed;
                 if (sequencer->currentTime < sequencer->GetStart())
                     sequencer->currentTime = sequencer->GetStart();
                 if (sequencer->currentTime >= sequencer->GetEnd())
@@ -805,8 +743,8 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry
             {
                 // slot compact view (item bar only) 
                 ImVec2 rp(canvas_pos.x, contentMin.y + ItemHeight * i + customHeight);
-                ImRect customRect(rp + ImVec2(legendWidth - (firstTimeUsed - sequencer->GetStart() - 0.5f) * msPixelWidth, float(0.f)),
-                                  rp + ImVec2(legendWidth + (sequencer->GetEnd() - firstTimeUsed - 0.5f + 2.f) * msPixelWidth, float(ItemHeight)));
+                ImRect customRect(rp + ImVec2(legendWidth - (firstTimeUsed - start - 0.5f) * msPixelWidth, float(0.f)),
+                                  rp + ImVec2(legendWidth + (end - firstTimeUsed - 0.5f + 2.f) * msPixelWidth, float(ItemHeight)));
                 ImRect clippingRect(rp + ImVec2(float(legendWidth), float(0.f)), rp + ImVec2(canvas_size.x, float(ItemHeight)));
                 ImRect legendRect(rp, rp + ImVec2(float(legendWidth), float(localCustomHeight + ItemHeight)));
                 compactCustomDraws.push_back({i, customRect, legendRect, clippingRect, ImRect()});
@@ -822,7 +760,8 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry
         draw_list->PopClipRect();
 
         // cursor line
-        draw_list->PushClipRect(childFramePos + ImVec2(float(legendWidth), 0.f), childFramePos + childFrameSize);
+        ImRect custom_view_rect(childFramePos + ImVec2(float(legendWidth), 0.f), childFramePos + childFrameSize);
+        draw_list->PushClipRect(custom_view_rect.Min, custom_view_rect.Max);
         if (itemCount > 0 && sequencer->currentTime >= sequencer->firstTime && sequencer->currentTime <= sequencer->GetEnd())
         {
             ImVec2 contentMin(canvas_pos.x + 4.f, canvas_pos.y + (float)HeadHeight + 8.f);
@@ -832,6 +771,50 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry
             draw_list->AddLine(ImVec2(cursorOffset, contentMin.y), ImVec2(cursorOffset, contentMax.y), IM_COL32(0, 255, 0, 128), cursorWidth);
         }
         draw_list->PopClipRect();
+
+        // handle mouse right click menu
+        if (custom_view_rect.Contains(io.MousePos))
+        {
+            auto mouseTime = (int64_t)((io.MousePos.x - topRect.Min.x) / msPixelWidth) + firstTimeUsed;
+            for (auto &customDraw : customDraws)
+            {
+                auto view_rect = customDraw.customRect;
+                view_rect.ClipWithFull(customDraw.clippingRect);
+                if (view_rect.Contains(io.MousePos))
+                {
+                    int64_t start, end, length;
+                    int64_t start_offset, end_offset;
+                    std::string name;
+                    unsigned int color;
+                    sequencer->Get(customDraw.index, start, end, length, start_offset, end_offset, name, color);
+                    mouseTime -= start;
+                    mouseTime += start_offset;
+                    auto time_stream = MillisecToString(mouseTime, 3);
+                    ImGui::BeginTooltip();
+                    ImGui::Text("%s (%s)", name.c_str(), time_stream.c_str());
+                    ImGui::EndTooltip();
+                }
+            }
+            for (auto &customDraw : compactCustomDraws)
+            {
+                auto view_rect = customDraw.customRect;
+                view_rect.ClipWithFull(customDraw.clippingRect);
+                if (view_rect.Contains(io.MousePos))
+                {
+                    int64_t start, end, length;
+                    int64_t start_offset, end_offset;
+                    std::string name;
+                    unsigned int color;
+                    sequencer->Get(customDraw.index, start, end, length, start_offset, end_offset, name, color);
+                    mouseTime -= start;
+                    mouseTime += start_offset;
+                    auto time_stream = MillisecToString(mouseTime, 3);
+                    ImGui::BeginTooltip();
+                    ImGui::Text("%s (%s)", name.c_str(), time_stream.c_str());
+                    ImGui::EndTooltip();
+                }
+            }
+        }
     }
 
     ImGui::EndGroup();
@@ -856,8 +839,70 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry
 }
 
 /***********************************************************************************************************
- * SequencerItem Struct Member Functions
+ * MediaItem Struct Member Functions
  ***********************************************************************************************************/
+
+MediaItem::MediaItem(const std::string& name, const std::string& path, int type)
+{
+    mName = name;
+    mPath = path;
+    mMediaType = type;
+    mMedia = CreateMediaOverview();
+    if (!path.empty() && mMedia)
+    {
+        mMedia->SetSnapshotResizeFactor(0.1, 0.1);
+        mMedia->Open(path, 50);
+    }
+    if (mMedia && mMedia->IsOpened())
+    {
+        if (mMedia->HasVideo())
+            mMedia->GetMediaParser()->EnableParseInfo(MediaParser::VIDEO_SEEK_POINTS);
+    }
+}
+
+MediaItem::~MediaItem()
+{
+    ReleaseMediaOverview(&mMedia);
+    mMedia = nullptr;
+    for (auto thumb : mMediaThumbnail)
+    {
+        ImGui::ImDestroyTexture(thumb); 
+        thumb = nullptr;
+    }
+}
+
+void MediaItem::UpdateThumbnail()
+{
+    if (mMedia && mMedia->IsOpened())
+    {
+        auto count = mMedia->GetSnapshotCount();
+        if (mMediaThumbnail.size() >= count)
+            return;
+        std::vector<ImGui::ImMat> snapshots;
+        if (mMedia->GetSnapshots(snapshots))
+        {
+            for (int i = 0; i < snapshots.size(); i++)
+            {
+                if (i >= mMediaThumbnail.size() && !snapshots[i].empty())
+                {
+                    ImTextureID thumb = nullptr;
+                    if (snapshots[i].device == ImDataDevice::IM_DD_CPU)
+                    {
+                        ImGui::ImGenerateOrUpdateTexture(thumb, snapshots[i].w, snapshots[i].h, snapshots[i].c, (const unsigned char *)snapshots[i].data);
+                    }
+#if IMGUI_VULKAN_SHADER
+                    if (snapshots[i].device == ImDataDevice::IM_DD_VULKAN)
+                    {
+                        ImGui::VkMat vkmat = snapshots[i];
+                        ImGui::ImGenerateOrUpdateTexture(thumb, vkmat.w, vkmat.h, vkmat.c, vkmat.buffer_offset(), (const unsigned char *)vkmat.buffer());
+                    }
+#endif
+                    mMediaThumbnail.push_back(thumb);
+                }
+            }
+        }
+    }
+}
 
 SequencerItem::SequencerItem(const std::string& name, const std::string& path, int64_t start, int64_t end, bool expand, int type)
 {
@@ -919,7 +964,7 @@ void SequencerItem::SequencerItemUpdateSnapshots()
     if (mMedia && mMedia->IsOpened())
     {
         std::vector<ImGui::ImMat> snapshots;
-        double pos = (double)(mSnapshotPos + mStartOffset) / 1000.f;
+        double pos = (double)(mSnapshotPos) / 1000.f;
         int media_snapshot_index = 0;
         if (mMedia->GetSnapshots(snapshots, pos))
         {
@@ -1297,12 +1342,16 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
         auto time_string = MillisecToString(time_stamp, 3);
         //auto esttime_str = MillisecToString(item->mVideoSnapshotInfos[snapshot_index + i].time_stamp, 3);
         ImGui::SetWindowFontScale(0.7);
+        ImGui::PushStyleColor(ImGuiCol_TexGlyphShadow, ImVec4(0.1, 0.1, 0.1, 1.0));
+        ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphShadowOffset, ImVec2(1,1));
         ImVec2 str_size = ImGui::CalcTextSize(time_string.c_str(), nullptr, true);
         if (str_size.x <= size.x)
         {
             //draw_list->AddText(frame_rc.Min + rc.Min + ImVec2(2, 32), IM_COL32_WHITE, esttime_str.c_str());
             draw_list->AddText(frame_rc.Min + rc.Min + ImVec2(2, 48), IM_COL32_WHITE, time_string.c_str());
         }
+        ImGui::PopStyleVar();
+        ImGui::PopStyleColor();
         ImGui::SetWindowFontScale(1.0);
     }
 
