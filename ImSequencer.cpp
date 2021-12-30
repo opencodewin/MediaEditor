@@ -20,7 +20,8 @@ MediaItem::MediaItem(const std::string& name, const std::string& path, int type)
     }
     if (mMedia && mMedia->IsOpened())
     {
-        // Check?
+        if (mMedia->HasVideo())
+            mMedia->GetMediaParser()->EnableParseInfo(MediaParser::VIDEO_SEEK_POINTS);
     }
 }
 
@@ -256,7 +257,7 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry
         {
             ImSequencer::MediaItem * item = (ImSequencer::MediaItem*)payload->Data;
             ImSequencer::MediaSequencer * seq = (ImSequencer::MediaSequencer *)sequencer;
-            SequencerItem * new_item = new SequencerItem(item->mName, item->mPath, 0, 0, true, item->mMediaType);
+            SequencerItem * new_item = new SequencerItem(item->mName, item->mMedia->GetMediaParser(), 0, 0, true, item->mMediaType);
             auto length = new_item->mEnd - new_item->mStart;
             if (sequencer->currentTime >= sequencer->firstTime && sequencer->currentTime <= sequencer->GetEnd())
                 new_item->mStart = sequencer->currentTime;
@@ -872,6 +873,27 @@ SequencerItem::SequencerItem(const std::string& name, const std::string& path, i
     {
         mMedia->Open(path);
     }
+    if (mMedia && mMedia->IsOpened())
+    {
+        double window_size = 1.0f;
+        mLength = mEnd = mMedia->GetVideoDuration();
+        mMedia->SetCacheFactor(16.0);
+        mMedia->SetSnapshotResizeFactor(0.1, 0.1);
+        mMedia->ConfigSnapWindow(window_size, 10);
+    }
+}
+
+SequencerItem::SequencerItem(const std::string& name, MediaParserHolder holder, int64_t start, int64_t end, bool expand, int type)
+{
+    mName = name;
+    mPath = holder->GetUrl();
+    mStart = start;
+    mEnd = end;
+    mExpanded = expand;
+    mMediaType = type;
+    mMedia = CreateMediaSnapshot();
+    mColor = COL_SLOT_DEFAULT;
+    mMedia->Open(holder);
     if (mMedia && mMedia->IsOpened())
     {
         double window_size = 1.0f;

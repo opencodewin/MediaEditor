@@ -81,8 +81,8 @@
 #define ICON_9K_PLUS        u8"\ue978"
 #define ICON_10K            u8"\ue951"
 
-#define ICON_STEREO         u8"\ue493"
-#define ICON_MONO           u8"\ue495"
+#define ICON_STEREO         u8"\uf58f"
+#define ICON_MONO           u8"\uf590"
 
 #define COL_FRAME_RECT      IM_COL32( 16,  16,  96, 255)
 #define COL_LIGHT_BLUR      IM_COL32( 16, 128, 255, 255)
@@ -223,6 +223,7 @@ struct SequencerItem
     std::vector<VideoSnapshotInfo> mVideoSnapshotInfos;
     std::vector<Snapshot> mVideoSnapshots;
     SequencerItem(const std::string& name, const std::string& path, int64_t start, int64_t end, bool expand, int type);
+    SequencerItem(const std::string& name, MediaParserHolder holder, int64_t start, int64_t end, bool expand, int type);
     ~SequencerItem();
     void SequencerItemUpdateThumbnail();
     void SequencerItemUpdateSnapshots();

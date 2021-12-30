@@ -80,7 +80,7 @@ static inline std::string GetVideoIcon(int width, int height)
         if (height > 4320  && height < 4860) return ICON_8K_PLUS;
         if (height > 4860  && height < 5400) return ICON_9K_PLUS;
     }
-    return "U";
+    return ICON_MEDIA_VIDEO;
 }
 
 static inline std::string GetAudioChannelName(int channels)
@@ -167,7 +167,10 @@ static void ShowMediaBankWindow(ImDrawList *draw_list, float media_icon_size)
         }
         else if (!(*item)->mMediaThumbnail.empty())
         {
-            texture = (*item)->mMediaThumbnail[0];
+            if ((*item)->mMediaThumbnail.size() > 1)
+                texture = (*item)->mMediaThumbnail[1];
+            else
+                texture = (*item)->mMediaThumbnail[0];
         }
         
         ImGui::SetCursorScreenPos(icon_pos);
@@ -202,11 +205,7 @@ static void ShowMediaBankWindow(ImDrawList *draw_list, float media_icon_size)
         {
             auto has_video = (*item)->mMedia->HasVideo();
             auto has_audio = (*item)->mMedia->HasAudio();
-            auto video_width = (*item)->mMedia->GetVideoWidth();
-            auto video_height = (*item)->mMedia->GetVideoHeight();
-            auto media_length = (*item)->mMedia->GetVideoDuration() / 1000.f;
-            auto audio_channels = (*item)->mMedia->GetAudioChannel();
-            auto audio_sample_rate = (*item)->mMedia->GetAudioSampleRate();
+            auto media_length = (*item)->mMedia->GetMediaParser()->GetMediaInfo()->duration;//(*item)->mMedia->GetVideoDuration() / 1000.f;
             ImGui::SetCursorScreenPos(icon_pos + ImVec2(4, 4));
             std::string type_string = "? ";
             switch ((*item)->mMediaType)
@@ -221,30 +220,32 @@ static void ShowMediaBankWindow(ImDrawList *draw_list, float media_icon_size)
             type_string += TimestampToString(media_length);
             ImGui::TextUnformatted(type_string.c_str());
             ImGui::ShowTooltipOnHover("%s", (*item)->mPath.c_str());
-            ImGui::SetCursorScreenPos(icon_pos + ImVec2(0, media_icon_size - 24));
+            ImGui::SetCursorScreenPos(icon_pos + ImVec2(0, media_icon_size - 20));
             if (has_video)
             {
-                ImGui::Button( (std::string(ICON_MEDIA_VIDEO "##video") + (*item)->mPath).c_str(), ImVec2(24, 24));
-                ImGui::SameLine(0, 0);
+                auto stream = (*item)->mMedia->GetVideoStream();
+                if (stream)
+                {
+                    auto video_width = stream->width;
+                    auto video_height = stream->height;
+                    auto video_icon = GetVideoIcon(video_width, video_height);
+                    ImGui::Button(video_icon.c_str(), ImVec2(24, 24));
+                    ImGui::ShowTooltipOnHover("%dx%d", video_width, video_height);
+                    ImGui::SameLine(0 ,0);
+                }
             }
             if (has_audio)
             {
-                ImGui::Button( (std::string(ICON_MEDIA_AUDIO "##audio") + (*item)->mPath).c_str(), ImVec2(24, 24));
-                ImGui::SameLine(0 ,0);
-            }
-            if (has_video)
-            {
-                auto video_icon = GetVideoIcon(video_width, video_height);
-                ImGui::Button(video_icon.c_str(), ImVec2(24, 24));
-                ImGui::ShowTooltipOnHover("%dx%d", video_width, video_height);
-                ImGui::SameLine(0 ,0);
-            }
-            if (has_audio)
-            {
-                std::string audio_icon = audio_channels >= 2 ? ICON_STEREO : ICON_MONO;
-                ImGui::Button(audio_icon.c_str(), ImVec2(24, 24));
-                ImGui::ShowTooltipOnHover("%d %s", audio_sample_rate, GetAudioChannelName(audio_channels).c_str());
-                ImGui::SameLine(0 ,0);
+                auto stream = (*item)->mMedia->GetAudioStream();
+                if (stream)
+                {
+                    auto audio_channels = stream->channels;
+                    auto audio_sample_rate = stream->sampleRate;
+                    std::string audio_icon = audio_channels >= 2 ? ICON_STEREO : ICON_MONO;
+                    ImGui::Button(audio_icon.c_str(), ImVec2(24, 24));
+                    ImGui::ShowTooltipOnHover("%d %s", audio_sample_rate, GetAudioChannelName(audio_channels).c_str());
+                    ImGui::SameLine(0 ,0);
+                }
             }
         }
 
