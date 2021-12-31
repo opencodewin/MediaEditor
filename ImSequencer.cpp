@@ -80,6 +80,13 @@ static bool SequencerButton(ImDrawList *draw_list, const char * label, ImVec2 po
     return overButton;
 }
 
+static void RenderMouseCursor(ImDrawList* draw_list,/* ImVec2 pos, float scale, */const char* mouse_cursor, ImU32 col_fill/*, ImU32 col_border, ImU32 col_shadow*/)
+{
+    ImGuiIO& io = ImGui::GetIO();
+    ImGui::SetMouseCursor(ImGuiMouseCursor_None);
+    draw_list->AddText(io.MousePos, col_fill, mouse_cursor);
+}
+
 bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry, int sequenceOptions)
 {
 
@@ -457,8 +464,8 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry
         // slot moving
         if (movingEntry >= 0)
         {
-            bool expanded, view, locked, muted;
-            sequencer->Get(movingEntry, expanded, view, locked, muted);
+            bool expanded, view, locked, muted, cutting;
+            sequencer->Get(movingEntry, expanded, view, locked, muted, cutting);
             ImGui::CaptureMouseFromApp();
             int diffTime = int((cx - movingPos) / msPixelWidth);
             if (!locked && std::abs(diffTime) > 0)
@@ -482,6 +489,7 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry
                 }
                 else if (movingPart & 1)
                 {
+                    ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
                     // slot left moving
                     if (start + diffTime < end - ceil(frame_duration))
                     {
@@ -509,6 +517,7 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry
                 }
                 else if (movingPart & 2)
                 {
+                    ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
                     // slot right moving
                     if (end + diffTime > start + ceil(frame_duration))
                     {
@@ -550,6 +559,7 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry
                 }
                 movingEntry = -1;
                 sequencer->EndEdit();
+                ImGui::SetMouseCursor(ImGuiMouseCursor_Arrow);
             }
         }
 
@@ -587,18 +597,27 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry
             ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
             ImGui::SetWindowFontScale(0.55);
             ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - 16 - 4, 0));
-            if (ImGui::Button(ICON_TO_END "##slider_to_end", ImVec2(16, 16)))
+            if (ImGui::Button(ICON_FAST_TO_END "##slider_to_end", ImVec2(16, 16)))
             {
                 sequencer->firstTime = sequencer->GetEnd() - sequencer->visibleTime;
             }
             ImGui::ShowTooltipOnHover("Slider to End");
+
             ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - 32 - 4, 0));
+            if (ImGui::Button(ICON_TO_END "##slider_to_next_cut", ImVec2(16, 16)))
+            {
+                // TODO::Need check all items and get nearest cutting point
+            }
+            ImGui::ShowTooltipOnHover("Slider to next cutting point");
+
+            ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - 48 - 4, 0));
             if (ImGui::Button(ICON_SLIDER_MAXIMUM "##slider_maximum", ImVec2(16, 16)))
             {
                 msPixelWidthTarget = maxPixelWidthTarget;
             }
             ImGui::ShowTooltipOnHover("Maximum Slider");
-            ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - 48 - 4, 0));
+
+            ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - 64 - 4, 0));
             if (ImGui::Button(ICON_ZOOM_IN "##slider_zoom_in", ImVec2(16, 16)))
             {
                 msPixelWidthTarget *= 2.0f;
@@ -606,7 +625,8 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry
                     msPixelWidthTarget = maxPixelWidthTarget;
             }
             ImGui::ShowTooltipOnHover("Slider Zoom In");
-            ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - 64 - 4, 0));
+
+            ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - 80 - 4, 0));
             if (ImGui::Button(ICON_ZOOM_OUT "##slider_zoom_out", ImVec2(16, 16)))
             {
                 msPixelWidthTarget *= 0.5f;
@@ -614,15 +634,23 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry
                     msPixelWidthTarget = minPixelWidthTarget;
             }
             ImGui::ShowTooltipOnHover("Slider Zoom Out");
-            ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - 80 - 4, 0));
+
+            ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - 96 - 4, 0));
             if (ImGui::Button(ICON_SLIDER_MINIMUM "##slider_minimum", ImVec2(16, 16)))
             {
                 msPixelWidthTarget = minPixelWidthTarget;
                 sequencer->firstTime = sequencer->GetStart();
             }
             ImGui::ShowTooltipOnHover("Minimum Slider");
-            ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - 96 - 4, 0));
-            if (ImGui::Button(ICON_TO_START "##slider_to_start", ImVec2(16, 16)))
+
+            ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - 112 - 4, 0));
+            if (ImGui::Button(ICON_TO_START "##slider_to_prev_cut", ImVec2(16, 16)))
+            {
+                // TODO::Need check all items and get nearest cutting point
+            }
+            ImGui::ShowTooltipOnHover("Slider to previous Cutting Point");
+            ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - 128 - 4, 0));
+            if (ImGui::Button(ICON_FAST_TO_START "##slider_to_start", ImVec2(16, 16)))
             {
                 sequencer->firstTime = sequencer->GetStart();
             }
@@ -734,10 +762,13 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry
                 ImVec2 rp(canvas_pos.x, contentMin.y + ItemHeight * i + 1 + customHeight);
                 ImRect customRect(rp + ImVec2(legendWidth - (firstTimeUsed - start - 0.5f) * msPixelWidth, float(ItemHeight)),
                                   rp + ImVec2(legendWidth + (end - firstTimeUsed - 0.5f + 2.f) * msPixelWidth, float(localCustomHeight + ItemHeight)));
+                ImRect titleRect(rp + ImVec2(legendWidth - (firstTimeUsed - start - 0.5f) * msPixelWidth, 0),
+                                  rp + ImVec2(legendWidth + (end - firstTimeUsed - 0.5f + 2.f) * msPixelWidth, float(ItemHeight)));
+                ImRect clippingTitleRect(rp + ImVec2(float(legendWidth), 0), rp + ImVec2(canvas_size.x - 4.0f, float(ItemHeight)));
                 ImRect clippingRect(rp + ImVec2(float(legendWidth), float(ItemHeight)), rp + ImVec2(canvas_size.x - 4.0f, float(localCustomHeight + ItemHeight)));
                 ImRect legendRect(rp, rp + ImVec2(float(legendWidth), float(localCustomHeight + ItemHeight)));
                 ImRect legendClippingRect(rp + ImVec2(0.f, float(ItemHeight)), rp + ImVec2(float(legendWidth), float(localCustomHeight + ItemHeight)));
-                customDraws.push_back({i, customRect, legendRect, clippingRect, legendClippingRect});
+                customDraws.push_back({i, customRect, titleRect, clippingTitleRect, legendRect, clippingRect, legendClippingRect});
             }
             else
             {
@@ -747,16 +778,16 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry
                                   rp + ImVec2(legendWidth + (end - firstTimeUsed - 0.5f + 2.f) * msPixelWidth, float(ItemHeight)));
                 ImRect clippingRect(rp + ImVec2(float(legendWidth), float(0.f)), rp + ImVec2(canvas_size.x, float(ItemHeight)));
                 ImRect legendRect(rp, rp + ImVec2(float(legendWidth), float(localCustomHeight + ItemHeight)));
-                compactCustomDraws.push_back({i, customRect, legendRect, clippingRect, ImRect()});
+                compactCustomDraws.push_back({i, customRect, customRect, clippingRect, legendRect, clippingRect, ImRect()});
             }
             customHeight += localCustomHeight;
         }
         // draw custom
         draw_list->PushClipRect(childFramePos, childFramePos + childFrameSize);
         for (auto &customDraw : customDraws)
-            sequencer->CustomDraw(customDraw.index, draw_list, customDraw.customRect, customDraw.legendRect, customDraw.clippingRect, customDraw.legendClippingRect, sequencer->firstTime, sequencer->visibleTime, fabs(msPixelWidth / msPixelWidthTarget - 1.0) < 1e-6);
+            sequencer->CustomDraw(customDraw.index, draw_list, customDraw.customRect, customDraw.titleRect, customDraw.clippingTitleRect, customDraw.legendRect, customDraw.clippingRect, customDraw.legendClippingRect, sequencer->firstTime, sequencer->visibleTime, msPixelWidth, fabs(msPixelWidth / msPixelWidthTarget - 1.0) < 1e-6);
         for (auto &customDraw : compactCustomDraws)
-            sequencer->CustomDrawCompact(customDraw.index, draw_list, customDraw.customRect, customDraw.legendRect, customDraw.clippingRect, sequencer->firstTime, sequencer->visibleTime);
+            sequencer->CustomDrawCompact(customDraw.index, draw_list, customDraw.customRect, customDraw.legendRect, customDraw.clippingRect, sequencer->firstTime, sequencer->visibleTime, msPixelWidth);
         draw_list->PopClipRect();
 
         // cursor line
@@ -772,46 +803,66 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry
         }
         draw_list->PopClipRect();
 
-        // handle mouse right click menu
+        // handle mouse cutting event
         if (custom_view_rect.Contains(io.MousePos))
         {
             auto mouseTime = (int64_t)((io.MousePos.x - topRect.Min.x) / msPixelWidth) + firstTimeUsed;
             for (auto &customDraw : customDraws)
             {
-                auto view_rect = customDraw.customRect;
-                view_rect.ClipWithFull(customDraw.clippingRect);
+                int64_t start, end, length;
+                int64_t start_offset, end_offset;
+                std::string name;
+                unsigned int color;
+                sequencer->Get(customDraw.index, start, end, length, start_offset, end_offset, name, color);
+                bool expanded, view, locked, muted, cutting;
+                sequencer->Get(customDraw.index, expanded, view, locked, muted, cutting);
+                auto view_rect = customDraw.titleRect;
+                view_rect.ClipWithFull(customDraw.clippingTitleRect);
                 if (view_rect.Contains(io.MousePos))
                 {
-                    int64_t start, end, length;
-                    int64_t start_offset, end_offset;
-                    std::string name;
-                    unsigned int color;
-                    sequencer->Get(customDraw.index, start, end, length, start_offset, end_offset, name, color);
                     mouseTime -= start;
                     mouseTime += start_offset;
-                    auto time_stream = MillisecToString(mouseTime, 3);
-                    ImGui::BeginTooltip();
-                    ImGui::Text("%s (%s)", name.c_str(), time_stream.c_str());
-                    ImGui::EndTooltip();
+                    if (cutting)
+                    {
+                        RenderMouseCursor(draw_list, ICON_CUT, IM_COL32_WHITE);
+                        auto time_stream = MillisecToString(mouseTime, 3);
+                        ImGui::BeginTooltip();
+                        ImGui::Text("Cutting (%s)", time_stream.c_str());
+                        ImGui::EndTooltip();
+                        if (io.MouseClicked[0])
+                        {
+                            sequencer->Set(customDraw.index, mouseTime);
+                        }
+                    }
                 }
             }
             for (auto &customDraw : compactCustomDraws)
             {
+                int64_t start, end, length;
+                int64_t start_offset, end_offset;
+                std::string name;
+                unsigned int color;
+                sequencer->Get(customDraw.index, start, end, length, start_offset, end_offset, name, color);
+                bool expanded, view, locked, muted, cutting;
+                sequencer->Get(customDraw.index, expanded, view, locked, muted, cutting);
                 auto view_rect = customDraw.customRect;
                 view_rect.ClipWithFull(customDraw.clippingRect);
                 if (view_rect.Contains(io.MousePos))
                 {
-                    int64_t start, end, length;
-                    int64_t start_offset, end_offset;
-                    std::string name;
-                    unsigned int color;
-                    sequencer->Get(customDraw.index, start, end, length, start_offset, end_offset, name, color);
                     mouseTime -= start;
                     mouseTime += start_offset;
-                    auto time_stream = MillisecToString(mouseTime, 3);
-                    ImGui::BeginTooltip();
-                    ImGui::Text("%s (%s)", name.c_str(), time_stream.c_str());
-                    ImGui::EndTooltip();
+                    if (cutting)
+                    {
+                        RenderMouseCursor(draw_list, ICON_CUT, IM_COL32_WHITE);
+                        auto time_stream = MillisecToString(mouseTime, 3);
+                        ImGui::BeginTooltip();
+                        ImGui::Text("Cutting (%s)", time_stream.c_str());
+                        ImGui::EndTooltip();
+                        if (io.MouseClicked[0])
+                        {
+                            sequencer->Set(customDraw.index, mouseTime);
+                        }
+                    }
                 }
             }
         }
@@ -1147,6 +1198,13 @@ void SequencerItem::DrawItemControlBar(ImDrawList *draw_list, ImRect rc, int seq
             mMuted = !mMuted;
         button_count ++;
     }
+    if (sequenceOptions & SEQUENCER_EDIT_STARTEND)
+    {
+        bool ret = SequencerButton(draw_list, mCutting ? ICON_CUTTING : ICON_MOVING, ImVec2(rc.Min.x + button_size.x * button_count * 1.5 + 6, rc.Max.y - button_size.y - 2), button_size, mCutting ? "cutting" : "moving");
+        if (ret && io.MouseReleased[0])
+            mCutting = !mCutting;
+        button_count ++;
+    }
     if (sequenceOptions & SEQUENCER_RESTORE)
     {
         bool ret = SequencerButton(draw_list, ICON_ALIGN_START, ImVec2(rc.Min.x + button_size.x * button_count * 1.5 + 6, rc.Max.y - button_size.y - 2), button_size, "Align to start");
@@ -1191,13 +1249,14 @@ void MediaSequencer::Get(int index, float& frame_duration, float& snapshot_width
     snapshot_width = item->mSnapshotWidth;
 }
 
-void MediaSequencer::Get(int index, bool& expanded, bool& view, bool& locked, bool& muted)
+void MediaSequencer::Get(int index, bool& expanded, bool& view, bool& locked, bool& muted, bool& cutting)
 {
     SequencerItem *item = m_Items[index];
     expanded = item->mExpanded;
     view = item->mView;
     locked = item->mLocked;
     muted = item->mMuted;
+    cutting = item->mCutting;
 }
 
 void MediaSequencer::Set(int index, int64_t start, int64_t end, int64_t start_offset, int64_t end_offset, std::string name, unsigned int color)
@@ -1218,6 +1277,22 @@ void MediaSequencer::Set(int index, bool expanded, bool view, bool locked, bool 
     item->mView = view;
     item->mLocked = locked;
     item->mMuted = muted;
+}
+
+void MediaSequencer::Set(int index, int64_t cutting_pos)
+{
+    SequencerItem *item = m_Items[index];
+    bool found = false;
+    for (auto point : item->mCutPoint)
+    {
+        if (cutting_pos == point)
+            found = true;
+    }
+    if (!found)
+    {
+        item->mCutPoint.push_back(cutting_pos);
+        sort(item->mCutPoint.begin(), item->mCutPoint.end());
+    }
 }
 
 void MediaSequencer::Add(std::string& name)
@@ -1242,9 +1317,11 @@ void MediaSequencer::Duplicate(int index)
     /*m_Items.push_back(m_Items[index]);*/
 }
 
-void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRect, int64_t viewStartTime, int64_t visibleTime, bool need_update)
+void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &titleRect, const ImRect &clippingTitleRect, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRect, int64_t viewStartTime, int64_t visibleTime, float pixelWidth, bool need_update)
 {
     // rc: full item length rect
+    // titleRect: full item length title rect(same as Compact view rc)
+    // clippingTitleRect: current view title area
     // clippingRect: current view window area
     // legendRect: legend area
     // legendClippingRect: legend area
@@ -1366,19 +1443,51 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
     item->DrawItemControlBar(draw_list, legendRect, options);
     // draw media control
     draw_list->PopClipRect();
+
+    // draw title bar
+    draw_list->PushClipRect(clippingTitleRect.Min, clippingTitleRect.Max, true);
+    for (auto point : item->mCutPoint)
+    {
+        if (point > startTime && point < ImMin(viewStartTime + visibleTime, item->mEnd))
+        {
+            float cursorOffset = clippingTitleRect.Min.x + (point + item->mStart - viewStartTime) * pixelWidth;
+            draw_list->AddLine(ImVec2(cursorOffset, clippingTitleRect.Min.y), ImVec2(cursorOffset, clippingTitleRect.Max.y), IM_COL32(0, 0, 0, 128), 2);
+            ImGui::RenderArrowPointingAt(draw_list, ImVec2(cursorOffset, clippingTitleRect.Min.y + clippingTitleRect.GetHeight() / 2), ImVec2(4, 4), ImGuiDir_Left, IM_COL32(0, 0, 0, 255));
+            ImGui::RenderArrowPointingAt(draw_list, ImVec2(cursorOffset, clippingTitleRect.Min.y + clippingTitleRect.GetHeight() / 2), ImVec2(4, 4), ImGuiDir_Right, IM_COL32(0, 0, 0, 255));
+        }
+    }
+    draw_list->PopClipRect();
+
     //ImGui::SetCursorScreenPos(rc.Min);
 }
 
-void MediaSequencer::CustomDrawCompact(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &legendRect, const ImRect &clippingRect, int64_t viewStartTime, int64_t visibleTime)
+void MediaSequencer::CustomDrawCompact(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &legendRect, const ImRect &clippingRect, int64_t viewStartTime, int64_t visibleTime, float pixelWidth)
 {
     // rc: full item length rect
     // legendRect: legend area
     // clippingRect: current view window area
 
     SequencerItem *item = m_Items[index];
+    int64_t startTime = 0;
+    if (item->mStart >= viewStartTime && item->mStart <= viewStartTime + visibleTime)
+        startTime = 0;
+    else if (item->mStart < viewStartTime && item->mEnd >= viewStartTime)
+        startTime = viewStartTime - item->mStart;
+    else
+        startTime = viewStartTime + visibleTime;
 
-    //draw_list->PushClipRect(clippingRect.Min, clippingRect.Max, true);
-    //draw_list->PopClipRect();
+    draw_list->PushClipRect(clippingRect.Min, clippingRect.Max, true);
+    for (auto point : item->mCutPoint)
+    {
+        if (point > startTime && point < ImMin(viewStartTime + visibleTime, item->mEnd))
+        {
+            float cursorOffset = clippingRect.Min.x + (point + item->mStart - viewStartTime) * pixelWidth;
+            draw_list->AddLine(ImVec2(cursorOffset, clippingRect.Min.y), ImVec2(cursorOffset, clippingRect.Max.y), IM_COL32(0, 0, 0, 128), 2);
+            ImGui::RenderArrowPointingAt(draw_list, ImVec2(cursorOffset, clippingRect.Min.y + clippingRect.GetHeight() / 2), ImVec2(4, 4), ImGuiDir_Left, IM_COL32(0, 0, 0, 255));
+            ImGui::RenderArrowPointingAt(draw_list, ImVec2(cursorOffset, clippingRect.Min.y + clippingRect.GetHeight() / 2), ImVec2(4, 4), ImGuiDir_Right, IM_COL32(0, 0, 0, 255));
+        }
+    }
+    draw_list->PopClipRect();
     //draw_list->AddRectFilled(clippingRect.Min, clippingRect.Max, IM_COL32(255,0, 0, 128), 0);
 
     // draw legend

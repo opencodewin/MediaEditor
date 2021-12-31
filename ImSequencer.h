@@ -38,13 +38,16 @@
 #define ICON_HDR_DISABLE    u8"\ue3ed"
 #define ICON_PALETTE        u8"\uf53f"
 #define ICON_STRAW          u8"\ue3b8"
-#define ICON_CROP           u8"\uf5c8"
+#define ICON_CROP           u8"\uf5cb"
 #define ICON_LOCKED         u8"\uf023"
 #define ICON_UNLOCK         u8"\uf09c"
 #define ICON_TRASH          u8"\uf014"
 #define ICON_CLONE          u8"\uf2d2"
 #define ICON_ADD            u8"\uf067"
 #define ICON_ALIGN_START    u8"\ue419"
+#define ICON_CUT            u8"\ue00d"
+#define ICON_CUTTING        u8"\uf0c4"
+#define ICON_MOVING         u8"\uf07e"
 
 #define ICON_PLAY           u8"\uf04b"
 #define ICON_PAUSE          u8"\uf04c"
@@ -138,6 +141,8 @@ struct SequencerCustomDraw
 {
     int index;
     ImRect customRect;
+    ImRect titleRect;
+    ImRect clippingTitleRect;
     ImRect legendRect;
     ImRect clippingRect;
     ImRect legendClippingRect;
@@ -170,9 +175,10 @@ struct SequencerInterface
     virtual const char *GetItemLabel(int /*index*/) const { return ""; }
     virtual void Get(int /*index*/, int64_t& /*start*/, int64_t& /*end*/, int64_t& /*length*/, int64_t& /*start_offset*/, int64_t& /*end_offset*/, std::string& /*name*/, unsigned int& /*color*/) = 0;
     virtual void Get(int /*index*/, float& /*frame_duration*/, float& /*snapshot_width*/) = 0;
-    virtual void Get(int /*index*/, bool& /*expanded*/, bool& /*view*/, bool& /*locked*/, bool& /*muted*/) = 0;
+    virtual void Get(int /*index*/, bool& /*expanded*/, bool& /*view*/, bool& /*locked*/, bool& /*muted*/, bool& /*cutting*/) = 0;
     virtual void Set(int /*index*/, int64_t /*start*/, int64_t /*end*/, int64_t /*start_offset*/, int64_t /*end_offset*/, std::string  /*name*/, unsigned int /*color*/) = 0;
     virtual void Set(int /*index*/, bool /*expanded*/, bool /*view*/, bool /*locked*/, bool /*muted*/) = 0;
+    virtual void Set(int /*index*/, int64_t /*cutting_pos*/) = 0;
     virtual void Add(std::string& /*type*/) {}
     virtual void Del(int /*index*/) {}
     virtual void Duplicate(int /*index*/) {}
@@ -180,8 +186,8 @@ struct SequencerInterface
     virtual void Paste() {}
     virtual size_t GetCustomHeight(int /*index*/) { return 0; }
     virtual void DoubleClick(int /*index*/) {}
-    virtual void CustomDraw(int /*index*/, ImDrawList * /*draw_list*/, const ImRect & /*rc*/, const ImRect & /*legendRect*/, const ImRect & /*clippingRect*/, const ImRect & /*legendClippingRect*/, int64_t /* viewStartTime */, int64_t /* visibleTime */, bool /* need_update */) {}
-    virtual void CustomDrawCompact(int /*index*/, ImDrawList * /*draw_list*/, const ImRect & /*rc*/, const ImRect & /*legendRect*/, const ImRect & /*clippingRect*/, int64_t /*viewStartTime*/, int64_t /*visibleTime*/) {}
+    virtual void CustomDraw(int /*index*/, ImDrawList * /*draw_list*/, const ImRect & /*rc*/, const ImRect & /*titleRect*/, const ImRect & /*clippingTitleRect*/, const ImRect & /*legendRect*/, const ImRect & /*clippingRect*/, const ImRect & /*legendClippingRect*/, int64_t /* viewStartTime */, int64_t /* visibleTime */, float /*pixelWidth*/, bool /* need_update */) {}
+    virtual void CustomDrawCompact(int /*index*/, ImDrawList * /*draw_list*/, const ImRect & /*rc*/, const ImRect & /*legendRect*/, const ImRect & /*clippingRect*/, int64_t /*viewStartTime*/, int64_t /*visibleTime*/, float /*pixelWidth*/) {}
     virtual void GetVideoSnapshotInfo(int /*index*/, std::vector<VideoSnapshotInfo>&) {}
 };
 
@@ -209,6 +215,7 @@ struct SequencerItem
     bool mView      {true};
     bool mMuted     {false};
     bool mLocked    {false};
+    bool mCutting   {false};
     int mMediaType {SEQUENCER_ITEM_UNKNOWN};
     int64_t mValidViewTime {0};
     int mValidViewSnapshot {0};
@@ -222,6 +229,7 @@ struct SequencerItem
     MediaSnapshot* mMedia   {nullptr};
     std::vector<VideoSnapshotInfo> mVideoSnapshotInfos;
     std::vector<Snapshot> mVideoSnapshots;
+    std::vector<int64_t> mCutPoint;
     SequencerItem(const std::string& name, const std::string& path, int64_t start, int64_t end, bool expand, int type);
     SequencerItem(const std::string& name, MediaParserHolder holder, int64_t start, int64_t end, bool expand, int type);
     ~SequencerItem();
@@ -245,16 +253,17 @@ struct MediaSequencer : public SequencerInterface
     const char *GetItemLabel(int index) const  { return m_Items[index]->mName.c_str(); }
     void Get(int index, int64_t& start, int64_t& end, int64_t& start_offset, int64_t& end_offset, int64_t& length, std::string& name, unsigned int& color);
     void Get(int index, float& frame_duration, float& snapshot_width);
-    void Get(int index, bool& expanded, bool& view, bool& locked, bool& muted);
+    void Get(int index, bool& expanded, bool& view, bool& locked, bool& muted, bool& cutting);
     void Set(int index, int64_t start, int64_t end, int64_t start_offset, int64_t end_offset, std::string  name, unsigned int  color);
     void Set(int index, bool expanded, bool view, bool locked, bool muted);
+    void Set(int index, int64_t cutting_pos);
     void Add(std::string& name);
     void Del(int index);
     void Duplicate(int index);
     size_t GetCustomHeight(int index) { return m_Items[index]->mExpanded ? mItemHeight : 0; }
     void DoubleClick(int index) { m_Items[index]->mExpanded = !m_Items[index]->mExpanded; }
-    void CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRect, int64_t viewStartTime, int64_t visibleTime, bool need_update);
-    void CustomDrawCompact(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &legendRect, const ImRect &clippingRect, int64_t viewStartTime, int64_t visibleTime);
+    void CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &titleRect, const ImRect &clippingTitleRect, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRect, int64_t viewStartTime, int64_t visibleTime, float pixelWidth, bool need_update);
+    void CustomDrawCompact(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &legendRect, const ImRect &clippingRect, int64_t viewStartTime, int64_t visibleTime, float pixelWidth);
     void GetVideoSnapshotInfo(int index, std::vector<VideoSnapshotInfo>& snapshots);
     const int mItemHeight {60};
     int64_t mStart   {0}; 
