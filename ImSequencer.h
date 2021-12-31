@@ -46,6 +46,7 @@
 #define ICON_ADD            u8"\uf067"
 #define ICON_ALIGN_START    u8"\ue419"
 #define ICON_CUT            u8"\ue00d"
+#define ICON_REMOVE_CUT     u8"\ue011"
 #define ICON_CUTTING        u8"\uf0c4"
 #define ICON_MOVING         u8"\uf07e"
 
@@ -178,7 +179,8 @@ struct SequencerInterface
     virtual void Get(int /*index*/, bool& /*expanded*/, bool& /*view*/, bool& /*locked*/, bool& /*muted*/, bool& /*cutting*/) = 0;
     virtual void Set(int /*index*/, int64_t /*start*/, int64_t /*end*/, int64_t /*start_offset*/, int64_t /*end_offset*/, std::string  /*name*/, unsigned int /*color*/) = 0;
     virtual void Set(int /*index*/, bool /*expanded*/, bool /*view*/, bool /*locked*/, bool /*muted*/) = 0;
-    virtual void Set(int /*index*/, int64_t /*cutting_pos*/) = 0;
+    virtual void Set(int /*index*/, int64_t /*cutting_pos*/, bool /*add*/) = 0;
+    virtual int Check(int /*index*/, int64_t& /*cutting_pos*/) = 0;
     virtual void Add(std::string& /*type*/) {}
     virtual void Del(int /*index*/) {}
     virtual void Duplicate(int /*index*/) {}
@@ -256,7 +258,8 @@ struct MediaSequencer : public SequencerInterface
     void Get(int index, bool& expanded, bool& view, bool& locked, bool& muted, bool& cutting);
     void Set(int index, int64_t start, int64_t end, int64_t start_offset, int64_t end_offset, std::string  name, unsigned int  color);
     void Set(int index, bool expanded, bool view, bool locked, bool muted);
-    void Set(int index, int64_t cutting_pos);
+    void Set(int index, int64_t cutting_pos, bool add);
+    int Check(int index, int64_t& cutting_pos);
     void Add(std::string& name);
     void Del(int index);
     void Duplicate(int index);

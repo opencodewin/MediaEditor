@@ -824,14 +824,29 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry
                     mouseTime += start_offset;
                     if (cutting)
                     {
-                        RenderMouseCursor(draw_list, ICON_CUT, IM_COL32_WHITE);
+                        int alread_cut = sequencer->Check(customDraw.index, mouseTime);
                         auto time_stream = MillisecToString(mouseTime, 3);
-                        ImGui::BeginTooltip();
-                        ImGui::Text("Cutting (%s)", time_stream.c_str());
-                        ImGui::EndTooltip();
-                        if (io.MouseClicked[0])
+                        if (alread_cut != -1)
                         {
-                            sequencer->Set(customDraw.index, mouseTime);
+                            RenderMouseCursor(draw_list, ICON_REMOVE_CUT, IM_COL32_WHITE);
+                            ImGui::BeginTooltip();
+                            ImGui::Text("Remove Cut point (%s)", time_stream.c_str());
+                            ImGui::EndTooltip();
+                            if (io.MouseClicked[0])
+                            {
+                                sequencer->Set(customDraw.index, alread_cut, false);
+                            }
+                        }
+                        else
+                        {
+                            RenderMouseCursor(draw_list, ICON_CUT, IM_COL32_WHITE);
+                            ImGui::BeginTooltip();
+                            ImGui::Text("Cutting (%s)", time_stream.c_str());
+                            ImGui::EndTooltip();
+                            if (io.MouseClicked[0])
+                            {
+                                sequencer->Set(customDraw.index, mouseTime, true);
+                            }
                         }
                     }
                 }
@@ -853,14 +868,29 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry
                     mouseTime += start_offset;
                     if (cutting)
                     {
-                        RenderMouseCursor(draw_list, ICON_CUT, IM_COL32_WHITE);
+                        int alread_cut = sequencer->Check(customDraw.index, mouseTime);
                         auto time_stream = MillisecToString(mouseTime, 3);
-                        ImGui::BeginTooltip();
-                        ImGui::Text("Cutting (%s)", time_stream.c_str());
-                        ImGui::EndTooltip();
-                        if (io.MouseClicked[0])
+                        if (alread_cut != -1)
                         {
-                            sequencer->Set(customDraw.index, mouseTime);
+                            RenderMouseCursor(draw_list, ICON_REMOVE_CUT, IM_COL32_WHITE);
+                            ImGui::BeginTooltip();
+                            ImGui::Text("Remove Cut point (%s)", time_stream.c_str());
+                            ImGui::EndTooltip();
+                            if (io.MouseClicked[0])
+                            {
+                                sequencer->Set(customDraw.index, alread_cut, false);
+                            }
+                        }
+                        else
+                        {
+                            RenderMouseCursor(draw_list, ICON_CUT, IM_COL32_WHITE);
+                            ImGui::BeginTooltip();
+                            ImGui::Text("Cutting (%s)", time_stream.c_str());
+                            ImGui::EndTooltip();
+                            if (io.MouseClicked[0])
+                            {
+                                sequencer->Set(customDraw.index, mouseTime, true);
+                            }
                         }
                     }
                 }
@@ -1279,20 +1309,44 @@ void MediaSequencer::Set(int index, bool expanded, bool view, bool locked, bool 
     item->mMuted = muted;
 }
 
-void MediaSequencer::Set(int index, int64_t cutting_pos)
+void MediaSequencer::Set(int index, int64_t cutting_pos, bool add)
 {
     SequencerItem *item = m_Items[index];
-    bool found = false;
-    for (auto point : item->mCutPoint)
+    if (!add)
     {
-        if (cutting_pos == point)
-            found = true;
+        item->mCutPoint.erase(item->mCutPoint.begin() + cutting_pos);
     }
-    if (!found)
+    else
     {
-        item->mCutPoint.push_back(cutting_pos);
-        sort(item->mCutPoint.begin(), item->mCutPoint.end());
+        bool found = false;
+        for (auto point : item->mCutPoint)
+        {
+            if (cutting_pos == point)
+                found = true;
+        }
+        if (!found)
+        {
+            item->mCutPoint.push_back(cutting_pos);
+            sort(item->mCutPoint.begin(), item->mCutPoint.end());
+        }
     }
+}
+
+int MediaSequencer::Check(int index, int64_t& cutting_pos)
+{
+    int found = -1;
+    SequencerItem *item = m_Items[index];
+    for (int i = 0; i < item->mCutPoint.size(); i++)
+    {
+        auto point = item->mCutPoint[i];
+        if (abs(cutting_pos - point) < 20)
+        {
+            found = i;
+            cutting_pos = point;
+            break;
+        }
+    }
+    return found;
 }
 
 void MediaSequencer::Add(std::string& name)
