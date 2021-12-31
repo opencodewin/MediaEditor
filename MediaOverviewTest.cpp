@@ -1,18 +1,11 @@
 #include <imgui.h>
-#define IMGUI_DEFINE_MATH_OPERATORS
-#include <imgui_internal.h>
 #include <application.h>
 #include <imgui_helper.h>
 #include <ImGuiFileDialog.h>
-#if IMGUI_VULKAN_SHADER
-#include <ImVulkanShader.h>
-#endif
 #include <string>
-#include <iostream>
 #include <sstream>
-#include <vector>
-#include <cmath>
 #include "MediaOverview.h"
+#include "MediaSnapshot.h"
 #include "FFUtils.h"
 #include "Logger.h"
 
@@ -25,9 +18,6 @@ static vector<ImTextureID> g_snapshotTids;
 ImVec2 g_snapImageSize;
 const string c_imguiIniPath = "movr_test.ini";
 const string c_bookmarkPath = "bookmark.ini";
-#if IMGUI_VULKAN_SHADER
-ImGui::ColorConvert_vulkan * m_yuv2rgb {nullptr};
-#endif
 
 // Application Framework Functions
 void Application_GetWindowProperties(ApplicationWindowProperty& property)
@@ -56,9 +46,6 @@ void Application_Initialize(void** handle)
 		docFile.close();
 	}
 #endif
-#if IMGUI_VULKAN_SHADER
-    m_yuv2rgb = new ImGui::ColorConvert_vulkan(ImGui::get_default_gpu_index());
-#endif
 
     ImGuiIO& io = ImGui::GetIO();
     io.IniFilename = c_imguiIniPath.c_str();
@@ -80,9 +67,6 @@ void Application_Finalize(void** handle)
             ImGui::ImDestroyTexture(tid);
         tid = nullptr;
     }
-#if IMGUI_VULKAN_SHADER
-    if (m_yuv2rgb) { delete m_yuv2rgb; m_yuv2rgb = nullptr; }
-#endif
 #ifdef USE_BOOKMARK
 	// save bookmarks
 	ofstream configFileWriter(c_bookmarkPath, ios::out);

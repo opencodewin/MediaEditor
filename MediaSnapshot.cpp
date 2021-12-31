@@ -678,16 +678,15 @@ private:
             return;
         }
 
-        bool fatalError = false;
         AVPacket avpkt = {0};
         bool avpktLoaded = false;
         SnapshotBuildTask currTask = nullptr;
-        int64_t lastPktPts;
+        int64_t lastGopSsPktPts;
         int32_t currPktSsIdx;
         uint32_t gopSmallestIdx;
         bool currPktChecked;
         bool demuxEof = false;
-        while (!m_quitScan)
+        while (!m_quit)
         {
             bool idleLoop = true;
 
@@ -706,7 +705,7 @@ private:
                         currTask->demuxing = true;
                         taskChanged = true;
                         currPktChecked = false;
-                        lastPktPts = INT64_MAX;
+                        lastGopSsPktPts = INT64_MAX;
                         currPktSsIdx = -1;
                         gopSmallestIdx = INT32_MAX;
                         // Log(DEBUG) << "--> Change demux task, ssIdxPair=(" << currTask->ssIdxPair.first << " ~ " << currTask->ssIdxPair.second
@@ -730,16 +729,12 @@ private:
                             if (fferr < 0)
                             {
                                 Log(ERROR) << "avformat_seek_file() FAILED for seeking to 'currTask->startPts'(" << currTask->seekPts.first << ")! fferr = " << fferr << "!" << endl;
-                                fatalError = true;
                                 break;
                             }
                             demuxEof = false;
                             int64_t ptsAfterSeek = INT64_MIN;
                             if (!ReadNextStreamPacket(m_vidStmIdx, &avpkt, &avpktLoaded, &ptsAfterSeek))
-                            {
-                                fatalError = true;
                                 break;
-                            }
                             if (ptsAfterSeek == INT64_MAX)
                                 demuxEof = true;
                             else if (ptsAfterSeek != currTask->seekPts.first)
@@ -783,10 +778,10 @@ private:
                                 if (isSs && gopSmallestIdx > ssIdx)
                                     gopSmallestIdx = ssIdx;
                                 if (currTask->isEndOfGop && isSs && ssIdx == currTask->ssIdxPair.second)
-                                    lastPktPts = avpkt.pts;
+                                    lastGopSsPktPts = avpkt.pts;
                                 currPktChecked = true;
                             }
-                            if (avpkt.pts >= currTask->seekPts.second || avpkt.pts > lastPktPts)
+                            if (avpkt.pts >= currTask->seekPts.second || avpkt.pts > lastGopSsPktPts)
                             {
                                 if (gopSmallestIdx > currTask->ssIdxPair.first)
                                 {
@@ -872,8 +867,8 @@ private:
                     return false;
                 }
             }
-        } while (fferr >= 0 && !m_quitScan);
-        if (m_quitScan)
+        } while (fferr >= 0 && !m_quit);
+        if (m_quit)
             return false;
         return true;
     }
@@ -882,7 +877,7 @@ private:
     {
         Log(DEBUG) << "Enter VideoDecodeThreadProc()..." << endl;
 
-        while (!m_prepared && !m_quitScan)
+        while (!m_prepared && !m_quit)
             this_thread::sleep_for(chrono::milliseconds(5));
 
         SnapshotBuildTask currTask;
@@ -891,7 +886,7 @@ private:
         bool inputEof = false;
         bool needResetDecoder = false;
         bool sentNullPacket = false;
-        while (!m_quitScan)
+        while (!m_quit)
         {
             bool idleLoop = true;
             bool quitLoop = false;
@@ -983,7 +978,7 @@ private:
                             idleLoop = false;
                         }
                     }
-                } while (hasOutput && !m_quitScan);
+                } while (hasOutput && !m_quit);
                 if (quitLoop)
                     break;
 
@@ -1035,7 +1030,7 @@ private:
     {
         Log(DEBUG) << "Enter UpdateSnapshotThreadProc()." << endl;
         SnapshotBuildTask currTask;
-        while (!m_quitScan)
+        while (!m_quit)
         {
             bool idleLoop = true;
 
@@ -1076,7 +1071,7 @@ private:
 
     void StartAllThreads()
     {
-        m_quitScan = false;
+        m_quit = false;
         m_demuxThread = thread(&MediaSnapshot_Impl::DemuxThreadProc, this);
         if (HasVideo())
             m_viddecThread = thread(&MediaSnapshot_Impl::VideoDecodeThreadProc, this);
@@ -1085,7 +1080,7 @@ private:
 
     void WaitAllThreadsQuit()
     {
-        m_quitScan = true;
+        m_quit = true;
         if (m_demuxThread.joinable())
         {
             m_demuxThread.join();
@@ -1155,7 +1150,6 @@ private:
         bool isEndOfGop{false};
         list<Snapshot> ssAry;
         atomic_int32_t ssfrmCnt{0};
-        // mutex ssAryLock;
         list<AVPacket*> avpktQ;
         mutex avpktQLock;
         bool demuxing{false};
@@ -1367,7 +1361,7 @@ private:
             {
                 uint32_t buildIndex0 = currwnd.cacheIdx0;
                 uint32_t buildIndex1 = currwnd.cacheIdx1;
-                if (currwnd.cacheIdx1 >= m_bldtskSnapWnd.cacheIdx0)
+                if (currwnd.seekPos10 >= m_bldtskSnapWnd.seekPos00)
                 {
                     buildIndex1 = m_bldtskSnapWnd.cacheIdx0-1;
                     auto iter = m_bldtskTimeOrder.end();
@@ -1579,6 +1573,8 @@ private:
     MediaParser::SeekPointsHolder m_hSeekPoints;
     bool m_opened{false};
     bool m_prepared{false};
+    recursive_mutex m_apiLock;
+    bool m_quit{false};
 
     AVFormatContext* m_avfmtCtx{nullptr};
     int m_vidStmIdx{-1};
@@ -1608,11 +1604,6 @@ private:
     // update snapshots thread
     thread m_updateSsThread;
 
-    recursive_mutex m_apiLock;
-    bool m_quitScan{false};
-
-    float m_ssWFacotr{1.f}, m_ssHFacotr{1.f};
-    bool m_ssSizeChanged{false};
     int64_t m_vidStartMts{0};
     int64_t m_vidDurMts{0};
     int64_t m_vidFrmCnt{0};
@@ -1639,6 +1630,8 @@ private:
     double m_fixedSsInterval;
     uint32_t m_fixedSnapshotCount{100};
 
+    bool m_ssSizeChanged{false};
+    float m_ssWFacotr{1.f}, m_ssHFacotr{1.f};
     AVFrameToImMatConverter m_frmCvt;
 };
 
