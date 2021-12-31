@@ -9,9 +9,13 @@
 #endif
 extern "C"
 {
+    #include "libavformat/avformat.h"
     #include "libavutil/frame.h"
     #include "libswscale/swscale.h"
 }
+
+extern const AVRational MILLISEC_TIMEBASE;
+extern const AVRational FF_AV_TIMEBASE;
 
 std::string MillisecToString(int64_t millisec);
 std::string TimestampToString(double timestamp);
@@ -63,3 +67,8 @@ private:
     bool m_passThrough{false};
     std::string m_errMsg;
 };
+
+
+#include "MediaInfo.h"
+
+MediaInfo::InfoHolder GenerateMediaInfoByAVFormatContext(const AVFormatContext* avfmtCtx);

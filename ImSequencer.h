@@ -3,16 +3,19 @@
 #include "imgui.h"
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include "imgui_internal.h"
+#include "MediaOverview.h"
 #include "MediaSnapshot.h"
 #include <string>
 #include <vector>
 
 #define ICON_MEDIA_BANK     u8"\ue907"
-#define ICON_MEDIA_TRANSITIONS u8"\ue882"
+#define ICON_MEDIA_TRANSITIONS u8"\ue927"
 #define ICON_MEDIA_FILTERS  u8"\ue663"
 #define ICON_MEDIA_OUTPUT   u8"\uf197"
+#define ICON_MEDIA_PREVIEW  u8"\ue04a"
 #define ICON_MEDIA_VIDEO    u8"\ue04b"
 #define ICON_MEDIA_AUDIO    u8"\ue050"
+#define ICON_MEDIA_ANALYSE  u8"\uf0f0"
 #define ICON_SLIDER_MINIMUM u8"\uf424"
 #define ICON_SLIDER_MAXIMUM u8"\uf422"
 #define ICON_VIEW           u8"\uf06e"
@@ -41,6 +44,7 @@
 #define ICON_TRASH          u8"\uf014"
 #define ICON_CLONE          u8"\uf2d2"
 #define ICON_ADD            u8"\uf067"
+#define ICON_ALIGN_START    u8"\ue419"
 
 #define ICON_PLAY           u8"\uf04b"
 #define ICON_PAUSE          u8"\uf04c"
@@ -52,6 +56,33 @@
 #define ICON_FAST_TO_END    u8"\uf050"
 #define ICON_TO_END         u8"\uf051"
 #define ICON_EJECT          u8"\uf052"
+#define ICON_LOOP           u8"\ue9d6"
+#define ICON_LOOP_ONE       u8"\ue9d7"
+
+#define ICON_CROPED         u8"\ue3e8"
+#define ICON_SCALED         u8"\ue433"
+
+#define ICON_1K             u8"\ue95c"
+#define ICON_1K_PLUS        u8"\ue95d"
+#define ICON_2K             u8"\ue963"
+#define ICON_2K_PLUS        u8"\ue964"
+#define ICON_3K             u8"\ue966"
+#define ICON_3K_PLUS        u8"\ue967"
+#define ICON_4K_PLUS        u8"\ue969"
+#define ICON_5K             u8"\ue96b"
+#define ICON_5K_PLUS        u8"\ue96c"
+#define ICON_6K             u8"\ue96e"
+#define ICON_6K_PLUS        u8"\ue96f"
+#define ICON_7K             u8"\ue971"
+#define ICON_7K_PLUS        u8"\ue972"
+#define ICON_8K             u8"\ue974"
+#define ICON_8K_PLUS        u8"\ue975"
+#define ICON_9K             u8"\ue977"
+#define ICON_9K_PLUS        u8"\ue978"
+#define ICON_10K            u8"\ue951"
+
+#define ICON_STEREO         u8"\uf58f"
+#define ICON_MONO           u8"\uf590"
 
 #define COL_FRAME_RECT      IM_COL32( 16,  16,  96, 255)
 #define COL_LIGHT_BLUR      IM_COL32( 16, 128, 255, 255)
@@ -99,6 +130,7 @@ enum SEQUENCER_OPTIONS
     SEQUENCER_LOCK = 1 << 7,
     SEQUENCER_VIEW = 1 << 8,
     SEQUENCER_MUTE = 1 << 9,
+    SEQUENCER_RESTORE = 1 << 10,
     SEQUENCER_EDIT_ALL = SEQUENCER_EDIT_STARTEND | SEQUENCER_CHANGE_TIME
 };
 
@@ -123,10 +155,15 @@ struct SequencerInterface
 {
     bool focused = false;
     int options = 0;
+    int64_t currentTime = 0;
+    int64_t firstTime = 0;
+    int64_t lastTime = 0;
+    int64_t visibleTime = 0;
     virtual int64_t GetStart() const = 0;
     virtual int64_t GetEnd() const = 0;
     virtual void SetStart(int64_t pos) = 0;
     virtual void SetEnd(int64_t pos) = 0;
+    virtual void SetCurrent(int64_t pos, bool rev) = 0;
     virtual int GetItemCount() const = 0;
     virtual void BeginEdit(int /*index*/) {}
     virtual void EndEdit() {}
@@ -143,12 +180,12 @@ struct SequencerInterface
     virtual void Paste() {}
     virtual size_t GetCustomHeight(int /*index*/) { return 0; }
     virtual void DoubleClick(int /*index*/) {}
-    virtual void CustomDraw(int /*index*/, ImDrawList * /*draw_list*/, const ImRect & /*rc*/, const ImRect & /*legendRect*/, const ImRect & /*clippingRect*/, const ImRect & /*legendClippingRect*/, int64_t /* viewStartTime */, int64_t /* visibleTime */) {}
+    virtual void CustomDraw(int /*index*/, ImDrawList * /*draw_list*/, const ImRect & /*rc*/, const ImRect & /*legendRect*/, const ImRect & /*clippingRect*/, const ImRect & /*legendClippingRect*/, int64_t /* viewStartTime */, int64_t /* visibleTime */, bool /* need_update */) {}
     virtual void CustomDrawCompact(int /*index*/, ImDrawList * /*draw_list*/, const ImRect & /*rc*/, const ImRect & /*legendRect*/, const ImRect & /*clippingRect*/, int64_t /*viewStartTime*/, int64_t /*visibleTime*/) {}
     virtual void GetVideoSnapshotInfo(int /*index*/, std::vector<VideoSnapshotInfo>&) {}
 };
 
-bool Sequencer(SequencerInterface *sequencer, int64_t *currentTime, bool *expanded, int *selectedEntry, int64_t *firstTime, int64_t *lastTime, int sequenceOptions);
+bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry, int sequenceOptions);
 
 struct Snapshot
 {
@@ -173,16 +210,20 @@ struct SequencerItem
     bool mMuted     {false};
     bool mLocked    {false};
     int mMediaType {SEQUENCER_ITEM_UNKNOWN};
-    int mMaxViewSnapshot;
+    int64_t mValidViewTime {0};
+    int mValidViewSnapshot {0};
+    int mLastValidSnapshot {0};
     float mSnapshotWidth {0};
+    float mSnapshotDuration {0};
     float mFrameDuration {0};
+    float mFrameCount    {0};
     int64_t mSnapshotPos {-1};
     int64_t mSnapshotLendth {0};
     MediaSnapshot* mMedia   {nullptr};
-    ImTextureID mMediaThumbnail  {nullptr};
     std::vector<VideoSnapshotInfo> mVideoSnapshotInfos;
     std::vector<Snapshot> mVideoSnapshots;
     SequencerItem(const std::string& name, const std::string& path, int64_t start, int64_t end, bool expand, int type);
+    SequencerItem(const std::string& name, MediaParserHolder holder, int64_t start, int64_t end, bool expand, int type);
     ~SequencerItem();
     void SequencerItemUpdateThumbnail();
     void SequencerItemUpdateSnapshots();
@@ -199,6 +240,7 @@ struct MediaSequencer : public SequencerInterface
     int64_t GetEnd() const { return mEnd; }
     void SetStart(int64_t pos) { mStart = pos; }
     void SetEnd(int64_t pos) { mEnd = pos; }
+    void SetCurrent(int64_t pos, bool rev);
     int GetItemCount() const { return (int)m_Items.size(); }
     const char *GetItemLabel(int index) const  { return m_Items[index]->mName.c_str(); }
     void Get(int index, int64_t& start, int64_t& end, int64_t& start_offset, int64_t& end_offset, int64_t& length, std::string& name, unsigned int& color);
@@ -211,13 +253,25 @@ struct MediaSequencer : public SequencerInterface
     void Duplicate(int index);
     size_t GetCustomHeight(int index) { return m_Items[index]->mExpanded ? mItemHeight : 0; }
     void DoubleClick(int index) { m_Items[index]->mExpanded = !m_Items[index]->mExpanded; }
-    void CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRect, int64_t viewStartTime, int64_t visibleTime);
+    void CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRect, int64_t viewStartTime, int64_t visibleTime, bool need_update);
     void CustomDrawCompact(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &legendRect, const ImRect &clippingRect, int64_t viewStartTime, int64_t visibleTime);
     void GetVideoSnapshotInfo(int index, std::vector<VideoSnapshotInfo>& snapshots);
     const int mItemHeight {60};
     int64_t mStart   {0}; 
     int64_t mEnd   {0};
     std::vector<SequencerItem *> m_Items;
+};
+
+struct MediaItem
+{
+    std::string mName;
+    std::string mPath;
+    MediaOverview * mMedia;
+    int mMediaType {SEQUENCER_ITEM_UNKNOWN};
+    std::vector<ImTextureID> mMediaThumbnail;
+    MediaItem(const std::string& name, const std::string& path, int type);
+    ~MediaItem();
+    void UpdateThumbnail();
 };
 
 } // namespace ImSequencer

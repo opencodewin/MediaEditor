@@ -106,7 +106,9 @@ set(MEDIA_EDITOR_BINARY "me")
 set(MEDIA_EDITOR_SRCS
     MediaEditorTest.cpp
     ImSequencer.cpp
+    MediaOverview.cpp
     MediaSnapshot.cpp
+    MediaParser.cpp
     FFUtils.cpp
     Logger.cpp
     ${IMGUI_APP_ENTRY_SRC}
@@ -114,6 +116,7 @@ set(MEDIA_EDITOR_SRCS
 
 set(MEDIA_EDITOR_INCS
     ImSequencer.h
+    MediaOverview.h
     MediaSnapshot.h
     FFUtils.h
 )
@@ -221,6 +224,8 @@ add_executable(
     snapshot_test
     MediaSnapshotTest.cpp
     MediaSnapshot.cpp
+    MediaOverview.cpp
+    MediaParser.cpp
     FFUtils.cpp
     Logger.cpp
     ${IMGUI_APP_ENTRY_SRC}
@@ -231,3 +236,19 @@ target_link_libraries(
     PkgConfig::FFMPEG
 )
 target_compile_definitions(snapshot_test PUBLIC APP_NAME="snapshot_test")
+
+add_executable(
+    overview_test
+    MediaOverviewTest.cpp
+    MediaOverview.cpp
+    MediaParser.cpp
+    FFUtils.cpp
+    Logger.cpp
+    ${IMGUI_APP_ENTRY_SRC}
+)
+target_link_libraries(
+    overview_test
+    ${IMGUI_LIBRARYS}
+    PkgConfig::FFMPEG
+)
+target_compile_definitions(overview_test PUBLIC APP_NAME="overview_test")

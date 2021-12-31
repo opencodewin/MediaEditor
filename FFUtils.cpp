@@ -14,6 +14,9 @@ extern "C"
 using namespace std;
 using namespace Logger;
 
+const AVRational MILLISEC_TIMEBASE = { 1, 1000 };
+const AVRational FF_AV_TIMEBASE = { 1, AV_TIME_BASE };
+
 string MillisecToString(int64_t millisec)
 {
     ostringstream oss;
@@ -481,12 +484,7 @@ bool AVFrameToImMatConverter::ConvertImage(const AVFrame* avfrm, ImGui::ImMat& o
                 m_errMsg = "FAILED to allocate AVFrame to perform 'swscale'!";
                 return false;
             }
-            // int fferr = sws_scale_frame(m_swsCtx, swsfrm.get(), avfrm);
-            // if (fferr < 0)
-            // {
-            //     m_errMsg = string("FAILED to invoke 'sws_scale_frame()'! fferr = ")+to_string(fferr)+".";
-            //     return false;
-            // }
+
             AVFrame* pfrm = swsfrm.get();
             pfrm->width = outWidth;
             pfrm->height = outHeight;
@@ -512,4 +510,72 @@ bool AVFrameToImMatConverter::ConvertImage(const AVFrame* avfrm, ImGui::ImMat& o
         outMat.time_stamp = timestamp;
         return true;
     }
+}
+
+MediaInfo::Ratio MediaInfoRatioFromAVRational(const AVRational& src)
+{
+    return { src.num, src.den };
+}
+
+MediaInfo::InfoHolder GenerateMediaInfoByAVFormatContext(const AVFormatContext* avfmtCtx)
+{
+    MediaInfo::InfoHolder hInfo(new MediaInfo::Info());
+    hInfo->url = string(avfmtCtx->url);
+    double fftb = av_q2d(FF_AV_TIMEBASE);
+    hInfo->duration = avfmtCtx->duration*fftb;
+    hInfo->startTime = avfmtCtx->start_time*fftb;
+    hInfo->streams.reserve(avfmtCtx->nb_streams);
+    for (uint32_t i = 0; i < avfmtCtx->nb_streams; i++)
+    {
+        MediaInfo::StreamHolder hStream;
+        AVStream* stream = avfmtCtx->streams[i];
+        AVCodecParameters* codecpar = stream->codecpar;
+        double streamtb = av_q2d(stream->time_base);
+        if (codecpar->codec_type == AVMEDIA_TYPE_VIDEO)
+        {
+            auto vidStream = new MediaInfo::VideoStream();
+            vidStream->bitRate = codecpar->bit_rate;
+            if (stream->start_time != AV_NOPTS_VALUE)
+                vidStream->startTime = stream->start_time*streamtb;
+            else
+                vidStream->startTime = hInfo->startTime;
+            if (stream->duration > 0)
+                vidStream->duration = stream->duration*streamtb;
+            else
+                vidStream->duration = hInfo->duration;
+            vidStream->timebase = MediaInfoRatioFromAVRational(stream->time_base);
+            vidStream->width = codecpar->width;
+            vidStream->height = codecpar->height;
+            vidStream->sampleAspectRatio = MediaInfoRatioFromAVRational(stream->sample_aspect_ratio);
+            vidStream->avgFrameRate = MediaInfoRatioFromAVRational(stream->avg_frame_rate);
+            vidStream->realFrameRate = MediaInfoRatioFromAVRational(stream->r_frame_rate);
+            if (stream->nb_frames > 0)
+                vidStream->frameNum = stream->nb_frames;
+            else if (stream->r_frame_rate.num > 0 && stream->r_frame_rate.den > 0)
+                vidStream->frameNum = (uint64_t)(stream->duration*av_q2d(stream->r_frame_rate));
+            else if (stream->avg_frame_rate.num > 0 && stream->avg_frame_rate.den > 0)
+                vidStream->frameNum = (uint64_t)(stream->duration*av_q2d(stream->avg_frame_rate));
+            hStream = MediaInfo::StreamHolder(vidStream);
+        }
+        else if (codecpar->codec_type == AVMEDIA_TYPE_AUDIO)
+        {
+            auto audStream = new MediaInfo::AudioStream();
+            audStream->bitRate = codecpar->bit_rate;
+            if (stream->start_time != AV_NOPTS_VALUE)
+                audStream->startTime = stream->start_time*streamtb;
+            else
+                audStream->startTime = hInfo->startTime;
+            if (stream->duration > 0)
+                audStream->duration = stream->duration*streamtb;
+            else
+                audStream->duration = hInfo->duration;
+            audStream->timebase = MediaInfoRatioFromAVRational(stream->time_base);
+            audStream->channels = codecpar->channels;
+            audStream->sampleRate = codecpar->sample_rate;
+            hStream = MediaInfo::StreamHolder(audStream);
+        }
+        if (hStream)
+            hInfo->streams.push_back(hStream);
+    }
+    return hInfo;
 }
