@@ -111,6 +111,8 @@ public:
         m_vidStream = nullptr;
         m_audStream = nullptr;
         m_viddec = nullptr;
+        m_hParser = nullptr;
+        m_hMediaInfo = nullptr;
 
         m_vidStartMts = 0;
         m_vidDurMts = 0;
@@ -249,7 +251,7 @@ public:
             CalcWindowVariables();
             UpdateSnapWindow(m_snapWnd.startPos);
             ResetSnapshotBuildTask();
-            m_snapWndUpdated = false;
+            // m_snapWndUpdated = false;
         }
 
         StartAllThreads();
@@ -559,7 +561,7 @@ private:
             CalcWindowVariables();
             UpdateSnapWindow((double)m_snapWnd.startPos/1000.);
             ResetSnapshotBuildTask();
-            m_snapWndUpdated = false;
+            // m_snapWndUpdated = false;
         }
 
         if (HasAudio())
@@ -1178,8 +1180,8 @@ private:
             cacheIdx0 = cacheIdx1+1-m_maxCacheSize;
         }
         SnapWindow snapWnd = m_snapWnd;
-        if (snapWnd.index0 != index0 || snapWnd.index1 != index1 || snapWnd.cacheIdx0 != cacheIdx0 || snapWnd.cacheIdx1 != cacheIdx1)
-            m_snapWndUpdated = true;
+        // if (snapWnd.index0 != index0 || snapWnd.index1 != index1 || snapWnd.cacheIdx0 != cacheIdx0 || snapWnd.cacheIdx1 != cacheIdx1)
+        //     m_snapWndUpdated = true;
         pair<int64_t, int64_t> seekPos0 = GetSeekPosBySsIndex(cacheIdx0);
         pair<int64_t, int64_t> seekPos1 = GetSeekPosBySsIndex(cacheIdx1);
         snapWnd = { startPos, index0, index1, cacheIdx0, cacheIdx1, seekPos0.first, seekPos1.first };
@@ -1618,7 +1620,7 @@ private:
     uint32_t m_maxCacheSize{0};
     uint32_t m_prevWndCacheSize, m_postWndCacheSize;
     SnapWindow m_snapWnd;
-    atomic_bool m_snapWndUpdated{false};
+    // atomic_bool m_snapWndUpdated{false};
     SnapWindow m_bldtskSnapWnd;
     list<SnapshotBuildTask> m_bldtskTimeOrder;
     mutex m_bldtskByTimeLock;

@@ -12,24 +12,29 @@
 #include <sstream>
 #include <vector>
 #include <cmath>
+#include <chrono>
 #include "MediaReader.h"
 #include "FFUtils.h"
 #include "Logger.h"
 
 using namespace std;
 using namespace Logger;
+using Clock = chrono::steady_clock;
 
 static MediaReader* g_mrdr = nullptr;
-static double g_playPos = 0.f;
+static double g_playStartPos = 0.f;
+static Clock::time_point g_playStartTp;
+static bool g_isPlay = false;
 static ImTextureID g_imageTid;
-static ImVec2 g_imageDisplaySize = { 320, 180 };
+static ImVec2 g_imageDisplaySize = { 640, 360 };
 const string c_imguiIniPath = "ms_test.ini";
 const string c_bookmarkPath = "bookmark.ini";
+
 
 // Application Framework Functions
 void Application_GetWindowProperties(ApplicationWindowProperty& property)
 {
-    property.name = "MediaSnapshotTest";
+    property.name = "MediaReaderTest";
     property.viewport = false;
     property.docking = false;
     property.auto_merge = false;
@@ -96,18 +101,53 @@ bool Application_Frame(void * handle)
             ImGuiFileDialog::Instance()->OpenModal("ChooseFileDlgKey", ICON_IGFD_FOLDER_OPEN " 打开视频文件", filters, "/mnt/data2/video/hd/", 1, nullptr, ImGuiFileDialogFlags_ShowBookmark);
         }
 
+        ImGui::SameLine();
+
+        const MediaInfo::VideoStream* vstminfo = g_mrdr->GetVideoStream();
+        float vidDur = vstminfo ? (float)vstminfo->duration : 0;
+        bool isForward = g_mrdr->IsDirectionForward();
+        double elapsedTime = chrono::duration_cast<chrono::duration<double>>((Clock::now()-g_playStartTp)).count();
+        float playPos = g_isPlay ? (isForward ? g_playStartPos+elapsedTime : g_playStartPos-elapsedTime) : g_playStartPos;
+        if (playPos < 0) playPos = 0;
+        if (playPos > vidDur) playPos = vidDur;
+        string playBtnLabel = g_isPlay ? "Pause" : "Play ";
+        if (ImGui::Button(playBtnLabel.c_str()))
+        {
+            g_isPlay = !g_isPlay;
+            if (g_isPlay)
+            {
+                g_playStartTp = Clock::now();
+            }
+            else
+            {
+                g_playStartPos = playPos;
+            }
+        }
+
+        ImGui::SameLine();
+
+        string dirBtnLabel = isForward ? "Backword" : "Forward";
+        if (ImGui::Button(dirBtnLabel.c_str()))
+        {
+            g_mrdr->SetDirection(!isForward);
+            isForward = g_mrdr->IsDirectionForward();
+            g_playStartPos = playPos;
+            g_playStartTp = Clock::now();
+        }
+
         ImGui::Spacing();
 
-        float pos = g_playPos;
-        float vidDur = (float)g_mrdr->GetVideoStream()->duration;
-        if (ImGui::SliderFloat("Position", &pos, 0, vidDur, "%.3f"))
-            g_playPos = pos;
+        if (ImGui::SliderFloat("Position", &playPos, 0, vidDur, "%.3f"))
+        {
+            g_mrdr->SeekTo(playPos);
+            g_playStartPos = playPos;
+            g_playStartTp = Clock::now();
+        }
 
         ImGui::Spacing();
 
-        double ts = 1.;
         ImGui::ImMat vmat;
-        if (g_mrdr->ReadFrame(ts, vmat))
+        if (g_mrdr->ReadFrame(playPos, vmat))
         {
             string imgTag = TimestampToString(vmat.time_stamp);
             bool imgValid = true;
