@@ -40,6 +40,8 @@ namespace MediaInfo
         Ratio avgFrameRate;
         Ratio realFrameRate;
         uint64_t frameNum{0};
+        bool isHdr{false};
+        uint8_t bitDepth{0};
     };
 
     struct AudioStream : public Stream

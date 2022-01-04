@@ -252,3 +252,19 @@ target_link_libraries(
     PkgConfig::FFMPEG
 )
 target_compile_definitions(overview_test PUBLIC APP_NAME="overview_test")
+
+add_executable(
+    mediareader_test
+    MediaReaderTest.cpp
+    MediaReader.cpp
+    MediaParser.cpp
+    FFUtils.cpp
+    Logger.cpp
+    ${IMGUI_APP_ENTRY_SRC}
+)
+target_link_libraries(
+    mediareader_test
+    ${IMGUI_LIBRARYS}
+    PkgConfig::FFMPEG
+)
+target_compile_definitions(mediareader_test PUBLIC APP_NAME="mediareader_test")

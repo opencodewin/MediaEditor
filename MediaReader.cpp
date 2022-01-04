@@ -1,14 +1,10 @@
 #include <thread>
 #include <mutex>
-#include <iostream>
 #include <sstream>
-#include <iomanip>
-#include <list>
 #include <atomic>
-#include <memory>
-#include <cmath>
 #include <algorithm>
-#include "MediaSnapshot.h"
+#include <chrono>
+#include "MediaReader.h"
 #include "FFUtils.h"
 #include "Logger.h"
 extern "C"
@@ -31,10 +27,17 @@ using namespace Logger;
 
 static AVPixelFormat get_hw_format(AVCodecContext *ctx, const AVPixelFormat *pix_fmts);
 
-class MediaSnapshot_Impl : public MediaSnapshot
+class MediaReader_Impl : public MediaReader
 {
 public:
-    bool Open(const string& url) override
+    MediaReader_Impl() = default;
+    MediaReader_Impl(const MediaReader_Impl&) = delete;
+    MediaReader_Impl(MediaReader_Impl&&) = delete;
+    MediaReader_Impl& operator=(const MediaReader_Impl&) = delete;
+
+    virtual ~MediaReader_Impl() {}
+
+    bool Open(const std::string& url) override
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
         if (IsOpened())
@@ -55,6 +58,7 @@ public:
         }
         m_hParser = hParser;
 
+        StartAllThreads();
         m_opened = true;
         return true;
     }
@@ -79,8 +83,14 @@ public:
         }
         m_hParser = hParser;
 
+        StartAllThreads();
         m_opened = true;
         return true;
+    }
+
+    MediaParserHolder GetMediaParser() const override
+    {
+        return m_hParser;
     }
 
     void Close() override
@@ -114,12 +124,9 @@ public:
         m_hParser = nullptr;
         m_hMediaInfo = nullptr;
 
-        m_vidStartMts = 0;
-        m_vidDurMts = 0;
-        m_vidFrmCnt = 0;
-        m_vidMaxIndex = 0;
-        m_maxCacheSize = 0;
-
+        m_readForward = true;
+        m_readPosTs = 0;
+        m_vidfrmIntvMts = 0;
         m_hSeekPoints = nullptr;
         m_prepared = false;
         m_opened = false;
@@ -127,80 +134,118 @@ public:
         m_errMsg = "";
     }
 
-    bool GetSnapshots(std::vector<ImGui::ImMat>& snapshots, double startPos) override
+    void SeekTo(double ts) override
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
-        if (!IsOpened())
-            return false;
-
-        snapshots.clear();
-
-        SnapWindow snapWnd;
-        if (m_prepared)
-            snapWnd = UpdateSnapWindow(startPos);
-        else
-        {
-            m_snapWnd.startPos = startPos;
-            snapWnd = m_snapWnd;
-        }
-
-        lock_guard<mutex> lk2(m_bldtskByTimeLock);
-        uint32_t i = snapWnd.index0;
-        auto tskIter = m_bldtskTimeOrder.begin();
-        while (tskIter != m_bldtskTimeOrder.end() && i <= snapWnd.index1)
-        {
-            auto& tsk = *tskIter++;
-            if (tsk->ssIdxPair.first > snapWnd.index1)
-                break;
-            else if (tsk->ssIdxPair.second >= i)
-            {
-                auto ssIter = tsk->ssAry.begin();
-                while (ssIter != tsk->ssAry.end())
-                {
-                    auto& ss = *ssIter++;
-                    if (ss.index == i)
-                    {
-                        snapshots.push_back(ss.img);
-                        i++;
-                    }
-                    else if (ss.index > i)
-                    {
-                        uint32_t j = ss.index < snapWnd.index1 ? ss.index : snapWnd.index1;
-                        while (i < j)
-                        {
-                            ImGui::ImMat vmat;
-                            vmat.time_stamp = CalcSnapshotTimestamp(i);
-                            snapshots.push_back(vmat);
-                            i++;
-                        }
-                        if (i == ss.index)
-                            snapshots.push_back(ss.img);
-                        else
-                        {
-                            ImGui::ImMat vmat;
-                            vmat.time_stamp = CalcSnapshotTimestamp(i);
-                            snapshots.push_back(vmat);
-                        }
-                        i++;
-                    }
-                    if (i > snapWnd.index1)
-                        break;
-                }
-            }
-        }
-        while (i <= snapWnd.index1)
-        {
-            ImGui::ImMat vmat;
-            vmat.time_stamp = CalcSnapshotTimestamp(i);
-            snapshots.push_back(vmat);
-            i++;
-        }
-        return true;
+        UpdateCacheWindow(ts);
     }
 
-    MediaParserHolder GetMediaParser() const override
+    void SetDirection(bool forward) override
     {
-        return m_hParser;
+        lock_guard<recursive_mutex> lk(m_apiLock);
+        if (m_readForward != forward)
+        {
+            m_readForward = forward;
+            if (m_prepared)
+                UpdateCacheWindow(m_cacheWnd.readPos, true);
+        }
+    }
+
+    bool IsDirectionForward() const override
+    {
+        return m_readForward;
+    }
+
+    bool ReadFrame(double ts, ImGui::ImMat& m, bool wait) override
+    {
+        lock_guard<recursive_mutex> lk(m_apiLock);
+        if (!m_opened || ts < 0 || ts > m_vidDurTs)
+            return false;
+        if (!m_prepared)
+        {
+            m.time_stamp = ts;
+            return true;
+        }
+
+        UpdateCacheWindow(ts);
+
+        GopDecodeTaskHolder targetTask;
+        do
+        {
+            {
+                lock_guard<mutex> lk2(m_bldtskByTimeLock);
+                auto iter = find_if(m_bldtskTimeOrder.begin(), m_bldtskTimeOrder.end(), [this, ts](const GopDecodeTaskHolder& task) {
+                    int64_t pts = CvtVidMtsToPts(ts*1000);
+                    return task->seekPts.first <= pts && task->seekPts.second > pts;
+                });
+                if (iter != m_bldtskTimeOrder.end())
+                {
+                    targetTask = *iter;
+                    break;
+                }
+                else if (!wait)
+                    break;
+            }
+            this_thread::sleep_for(chrono::milliseconds(5));
+        } while (!m_quit);
+        if (!targetTask)
+        {
+            m.time_stamp = ts;
+            return true;
+        }
+        if (targetTask->demuxEof && targetTask->frmPtsAry.empty())
+        {
+            Log(WARN) << "Current task [" << targetTask->seekPts.first << "(" << MillisecToString(CvtVidPtsToMts(targetTask->seekPts.first)) << "), "
+                << targetTask->seekPts.second << "(" << MillisecToString(CvtVidPtsToMts(targetTask->seekPts.second)) << ")) has NO FRM PTS!" << endl;
+            return false;
+        }
+        if (targetTask->vfAry.empty() && !wait)
+        {
+            m.time_stamp = ts;
+            return true;
+        }
+
+        bool foundBestFrame = false;
+        list<VideoFrame>::iterator bestfrmIter;
+        do
+        {
+            if (!targetTask->vfAry.empty())
+            {
+                bestfrmIter= find_if(targetTask->vfAry.begin(), targetTask->vfAry.end(), [ts](const VideoFrame& frm) {
+                    return frm.img.time_stamp > ts;
+                });
+                bool lastFrmInAry = false;
+                if (bestfrmIter == targetTask->vfAry.end())
+                    lastFrmInAry = true;
+                if (bestfrmIter != targetTask->vfAry.begin())
+                    bestfrmIter--;
+                if (!lastFrmInAry || targetTask->decodeEof)
+                {
+                    foundBestFrame = true;
+                    break;
+                }
+                else if (ts-bestfrmIter->img.time_stamp <= m_vidfrmIntvMts/1000)
+                {
+                    foundBestFrame = true;
+                    break;
+                }
+                else if (!wait)
+                    break;
+            }
+            this_thread::sleep_for(chrono::milliseconds(5));
+        } while (!m_quit);
+
+        if (foundBestFrame)
+        {
+            if (wait)
+                while(!m_quit && bestfrmIter->img.empty())
+                    this_thread::sleep_for(chrono::milliseconds(5));
+            m = bestfrmIter->img;
+        }
+        else
+            m.time_stamp = ts;
+
+        return true;
     }
 
     bool IsOpened() const override
@@ -216,74 +261,6 @@ public:
     bool HasAudio() const override
     {
         return m_audStmIdx >= 0;
-    }
-
-    bool ConfigSnapWindow(double& windowSize, double frameCount) override
-    {
-        lock_guard<recursive_mutex> lk(m_apiLock);
-        if (frameCount < 1)
-        {
-            m_errMsg = "Argument 'frameCount' must be greater than 1!";
-            return false;
-        }
-        double minWndSize = CalcMinWindowSize(frameCount);
-        if (windowSize < minWndSize)
-            windowSize = minWndSize;
-        double maxWndSize = GetMaxWindowSize();
-        if (windowSize > maxWndSize)
-            windowSize = maxWndSize;
-        if (m_snapWindowSize == windowSize && m_wndFrmCnt == frameCount)
-            return true;
-
-        if (m_prepared)
-        {
-            WaitAllThreadsQuit();
-            FlushAllQueues();
-            if (m_viddecCtx)
-                avcodec_flush_buffers(m_viddecCtx);
-        }
-
-        m_snapWindowSize = windowSize;
-        m_wndFrmCnt = frameCount;
-
-        if (m_prepared)
-        {
-            CalcWindowVariables();
-            UpdateSnapWindow(m_snapWnd.startPos);
-            ResetSnapshotBuildTask();
-            // m_snapWndUpdated = false;
-        }
-
-        StartAllThreads();
-
-        Log(DEBUG) << ">>>> Config window: m_snapWindowSize=" << m_snapWindowSize << ", m_wndFrmCnt=" << m_wndFrmCnt
-            << ", m_vidMaxIndex=" << m_vidMaxIndex << ", m_maxCacheSize=" << m_maxCacheSize << ", m_prevWndCacheSize=" << m_prevWndCacheSize << endl;
-        return true;
-    }
-
-    bool SetCacheFactor(double cacheFactor) override
-    {
-        lock_guard<recursive_mutex> lk(m_apiLock);
-        if (cacheFactor < 1.)
-        {
-            m_errMsg = "Argument 'cacheFactor' must be greater or equal than 1.0!";
-            return false;
-        }
-        m_cacheFactor = cacheFactor;
-        m_maxCacheSize = (uint32_t)ceil(m_wndFrmCnt*m_cacheFactor);
-        if (m_prepared)
-            ResetSnapshotBuildTask();
-        return true;
-    }
-
-    double GetMinWindowSize() const override
-    {
-        return CalcMinWindowSize(m_wndFrmCnt);
-    }
-
-    double GetMaxWindowSize() const override
-    {
-        return (double)m_vidDurMts/1000.;
     }
 
     bool SetSnapshotSize(uint32_t width, uint32_t height) override
@@ -385,44 +362,6 @@ public:
         return dynamic_cast<MediaInfo::AudioStream*>(hInfo->streams[m_audStmIdx].get());
     }
 
-    uint32_t GetVideoWidth() const override
-    {
-        if (m_vidStream)
-        {
-            return m_vidStream->codecpar->width;
-        }
-        return 0;
-    }
-
-    uint32_t GetVideoHeight() const override
-    {
-        if (m_vidStream)
-        {
-            return m_vidStream->codecpar->height;
-        }
-        return 0;
-    }
-
-    int64_t GetVideoMinPos() const override
-    {
-        return 0;
-    }
-
-    int64_t GetVideoDuration() const override
-    {
-        return m_vidDurMts;
-    }
-
-    int64_t GetVideoFrameCount() const override
-    {
-        return m_vidFrmCnt;
-    }
-
-    string GetError() const override
-    {
-        return m_errMsg;
-    }
-
     bool CheckHwPixFmt(AVPixelFormat pixfmt)
     {
         return pixfmt == m_vidHwPixFmt;
@@ -436,11 +375,6 @@ private:
         return oss.str();
     }
 
-    double CalcMinWindowSize(double windowFrameCount) const
-    {
-        return m_vidfrmIntvMts*windowFrameCount/1000.;
-    }
-
     int64_t CvtVidPtsToMts(int64_t pts)
     {
         return av_rescale_q(pts-m_vidStream->start_time, m_vidStream->time_base, MILLISEC_TIMEBASE);
@@ -449,24 +383,6 @@ private:
     int64_t CvtVidMtsToPts(int64_t mts)
     {
         return av_rescale_q(mts, MILLISEC_TIMEBASE, m_vidStream->time_base)+m_vidStream->start_time;
-    }
-
-    void CalcWindowVariables()
-    {
-        m_ssIntvMts = m_snapWindowSize*1000./m_wndFrmCnt;
-        if (m_ssIntvMts < m_vidfrmIntvMts)
-            m_ssIntvMts = m_vidfrmIntvMts;
-        else if (m_ssIntvMts-m_vidfrmIntvMts <= 0.5)
-            m_ssIntvMts = m_vidfrmIntvMts;
-        m_vidMaxIndex = (uint32_t)floor(((double)m_vidDurMts-m_vidfrmIntvMts)/m_ssIntvMts);
-        m_maxCacheSize = (uint32_t)ceil(m_wndFrmCnt*m_cacheFactor);
-        uint32_t intWndFrmCnt = (uint32_t)ceil(m_wndFrmCnt);
-        if (m_maxCacheSize < intWndFrmCnt)
-            m_maxCacheSize = intWndFrmCnt;
-        if (m_maxCacheSize > m_vidMaxIndex+1)
-            m_maxCacheSize = m_vidMaxIndex+1;
-        m_prevWndCacheSize = (m_maxCacheSize-intWndFrmCnt)/2;
-        m_postWndCacheSize = m_maxCacheSize-intWndFrmCnt-m_prevWndCacheSize;
     }
 
     bool OpenMedia(MediaParserHolder hParser)
@@ -493,17 +409,10 @@ private:
         if (HasVideo())
         {
             MediaInfo::VideoStream* vidStream = dynamic_cast<MediaInfo::VideoStream*>(m_hMediaInfo->streams[m_vidStmIdx].get());
-            m_vidStartMts = (int64_t)(vidStream->startTime*1000);
-            m_vidDurMts = (int64_t)(vidStream->duration*1000);
-            m_vidFrmCnt = vidStream->frameNum;
+            m_vidDurTs = vidStream->duration;
             AVRational avgFrmRate = { vidStream->avgFrameRate.num, vidStream->avgFrameRate.den };
             AVRational timebase = { vidStream->timebase.num, vidStream->timebase.den };
             m_vidfrmIntvMts = av_q2d(av_inv_q(avgFrmRate))*1000.;
-            m_vidfrmIntvMtsHalf = ceil(m_vidfrmIntvMts)/2;
-            if (avgFrmRate.num*avgFrmRate.num > 0)
-                m_vidfrmIntvPts = (avgFrmRate.den*timebase.den)/(avgFrmRate.num*timebase.num);
-            else
-                m_vidfrmIntvPts = 0;
 
             if (m_useRszFactor)
             {
@@ -566,10 +475,8 @@ private:
             else if (!OpenVideoDecoder())
                 return false;
 
-            CalcWindowVariables();
-            UpdateSnapWindow((double)m_snapWnd.startPos/1000.);
+            UpdateCacheWindow(0, true);
             ResetSnapshotBuildTask();
-            // m_snapWndUpdated = false;
         }
 
         if (HasAudio())
@@ -581,8 +488,6 @@ private:
             //     return false;
         }
 
-        Log(DEBUG) << ">>>> Prepared: m_snapWindowSize=" << m_snapWindowSize << ", m_wndFrmCnt=" << m_wndFrmCnt
-            << ", m_vidMaxIndex=" << m_vidMaxIndex << ", m_maxCacheSize=" << m_maxCacheSize << ", m_prevWndCacheSize=" << m_prevWndCacheSize << endl;
         m_prepared = true;
         return true;
     }
@@ -678,6 +583,108 @@ private:
         return true;
     }
 
+    void StartAllThreads()
+    {
+        m_quit = false;
+        m_demuxThread = thread(&MediaReader_Impl::DemuxThreadProc, this);
+        if (HasVideo())
+            m_viddecThread = thread(&MediaReader_Impl::VideoDecodeThreadProc, this);
+        m_updateSsThread = thread(&MediaReader_Impl::UpdateSnapshotThreadProc, this);
+    }
+
+    void WaitAllThreadsQuit()
+    {
+        m_quit = true;
+        if (m_demuxThread.joinable())
+        {
+            m_demuxThread.join();
+            m_demuxThread = thread();
+        }
+        if (m_viddecThread.joinable())
+        {
+            m_viddecThread.join();
+            m_viddecThread = thread();
+        }
+        if (m_updateSsThread.joinable())
+        {
+            m_updateSsThread.join();
+            m_updateSsThread = thread();
+        }
+    }
+
+    void FlushAllQueues()
+    {
+        m_bldtskPriOrder.clear();
+        m_bldtskTimeOrder.clear();
+        for (AVPacket* avpkt : m_audpktQ)
+            av_packet_free(&avpkt);
+        m_audpktQ.clear();
+    }
+
+    struct VideoFrame
+    {
+        AVFrame* avfrm{nullptr};
+        ImGui::ImMat img;
+        double ts;
+    };
+
+    struct CacheWindow
+    {
+        double readPos;
+        double cacheBeginTs;
+        double cacheEndTs;
+        int64_t seekPosShow;
+        int64_t seekPos00;
+        int64_t seekPos10;
+    };
+
+    struct GopDecodeTask
+    {
+        GopDecodeTask(MediaReader_Impl& obj) : outterObj(obj) {}
+
+        ~GopDecodeTask()
+        {
+            for (AVPacket* avpkt : avpktQ)
+                av_packet_free(&avpkt);
+            for (VideoFrame& vf : vfAry)
+            {
+                if (vf.avfrm)
+                {
+                    av_frame_free(&vf.avfrm);
+                    outterObj.m_pendingVidfrmCnt--;
+                }
+            }
+        }
+
+        MediaReader_Impl& outterObj;
+        pair<int64_t, int64_t> seekPts;
+        list<VideoFrame> vfAry;
+        atomic_int32_t frmCnt{0};
+        list<AVPacket*> avpktQ;
+        list<int64_t> frmPtsAry;
+        mutex avpktQLock;
+        bool demuxing{false};
+        bool demuxEof{false};
+        bool decoding{false};
+        bool decInputEof{false};
+        bool decodeEof{false};
+        bool cancel{false};
+    };
+    using GopDecodeTaskHolder = shared_ptr<GopDecodeTask>;
+
+    GopDecodeTaskHolder FindNextDemuxTask()
+    {
+        GopDecodeTaskHolder nxttsk = nullptr;
+        uint32_t pendingTaskCnt = 0;
+        for (auto& tsk : m_bldtskPriOrder)
+            if (!tsk->cancel && !tsk->demuxing)
+            {
+                nxttsk = tsk;
+                break;
+            }
+        return nxttsk;
+    }
+
     void DemuxThreadProc()
     {
         Log(DEBUG) << "Enter DemuxThreadProc()..." << endl;
@@ -690,11 +697,8 @@ private:
 
         AVPacket avpkt = {0};
         bool avpktLoaded = false;
-        SnapshotBuildTask currTask = nullptr;
-        int64_t lastGopSsPktPts;
-        int32_t currPktSsIdx;
-        uint32_t gopSmallestIdx;
-        bool currPktChecked;
+        GopDecodeTaskHolder currTask = nullptr;
+        int64_t lastPktPts;
         bool demuxEof = false;
         while (!m_quit)
         {
@@ -705,7 +709,7 @@ private:
             if (HasVideo())
             {
                 bool taskChanged = false;
-                if (!currTask || currTask->cancel || currTask->demuxerEof)
+                if (!currTask || currTask->cancel || currTask->demuxEof)
                 {
                     if (currTask && currTask->cancel)
                         Log(DEBUG) << "~~~~ Current demux task canceled" << endl;
@@ -714,13 +718,9 @@ private:
                     {
                         currTask->demuxing = true;
                         taskChanged = true;
-                        currPktChecked = false;
-                        lastGopSsPktPts = INT64_MAX;
-                        currPktSsIdx = -1;
-                        gopSmallestIdx = INT32_MAX;
-                        // Log(DEBUG) << "--> Change demux task, ssIdxPair=(" << currTask->ssIdxPair.first << " ~ " << currTask->ssIdxPair.second
-                        //     << ", startPts=" << currTask->seekPts.first << "(" << MillisecToString(CvtVidPtsToMts(currTask->seekPts.first)) << ")"
-                        //     << ", endPts=" << currTask->seekPts.second << "(" << MillisecToString(CvtVidPtsToMts(currTask->seekPts.second)) << ")" << endl;
+                        Log(DEBUG) << "--> Change demux task, startPts=" 
+                            << currTask->seekPts.first << "(" << MillisecToString(CvtVidPtsToMts(currTask->seekPts.first)) << ")"
+                            << ", endPts=" << currTask->seekPts.second << "(" << MillisecToString(CvtVidPtsToMts(currTask->seekPts.second)) << ")" << endl;
                     }
                 }
 
@@ -735,6 +735,7 @@ private:
                                 av_packet_unref(&avpkt);
                                 avpktLoaded = false;
                             }
+                            lastPktPts = INT64_MIN;
                             int fferr = avformat_seek_file(m_avfmtCtx, m_vidStmIdx, INT64_MIN, currTask->seekPts.first, currTask->seekPts.first, 0);
                             if (fferr < 0)
                             {
@@ -761,18 +762,20 @@ private:
                         if (fferr == 0)
                         {
                             avpktLoaded = true;
-                            currPktChecked = false;
                             idleLoop = false;
                         }
                         else
                         {
                             if (fferr == AVERROR_EOF)
                             {
-                                currTask->demuxerEof = true;
+                                currTask->demuxEof = true;
                                 demuxEof = true;
                             }
                             else
+                            {
+                                m_errMsg = FFapiFailureMessage("av_read_frame", fferr);
                                 Log(ERROR) << "Demuxer ERROR! 'av_read_frame' returns " << fferr << "." << endl;
+                            }
                         }
                     }
 
@@ -780,35 +783,10 @@ private:
                     {
                         if (avpkt.stream_index == m_vidStmIdx)
                         {
-                            if (!currPktChecked)
-                            {
-                                int64_t mts = CvtVidPtsToMts(avpkt.pts);
-                                uint32_t ssIdx;
-                                bool isSs = IsSnapshotFrame(mts, ssIdx, avpkt.pts);
-                                if (isSs && gopSmallestIdx > ssIdx)
-                                    gopSmallestIdx = ssIdx;
-                                if (currTask->isEndOfGop && isSs && ssIdx == currTask->ssIdxPair.second)
-                                    lastGopSsPktPts = avpkt.pts;
-                                currPktChecked = true;
-                            }
-                            if (avpkt.pts >= currTask->seekPts.second || avpkt.pts > lastGopSsPktPts)
-                            {
-                                if (gopSmallestIdx > currTask->ssIdxPair.first)
-                                {
-                                    Log(ERROR) << "!!!!!! ABNORMAL SS INDEX (1) !!!!!! demux task eof, but the smallest gop ss index is larger than task's first index, "
-                                        << gopSmallestIdx << " > " << currTask->ssIdxPair.first << "." << endl;
-                                }
-                                if (currPktSsIdx < currTask->ssIdxPair.second)
-                                {
-                                    bool gopEnd = avpkt.pts >= currTask->seekPts.second;
-                                    Log(ERROR) << "!!!!!! ABNORMAL SS INDEX (2) !!!!!! demux task eof, but last pkt index is " << currPktSsIdx
-                                        << ", which is smaller than task's second index " << currTask->ssIdxPair.second
-                                        << ", REASON is " << (gopEnd ? "GOP-END" : "SSIDX-END") << endl;
-                                }
-                                currTask->demuxerEof = true;
-                            }
+                            if (avpkt.pts >= currTask->seekPts.second)
+                                currTask->demuxEof = true;
 
-                            if (!currTask->demuxerEof)
+                            if (!currTask->demuxEof)
                             {
                                 AVPacket* enqpkt = av_packet_clone(&avpkt);
                                 if (!enqpkt)
@@ -819,6 +797,11 @@ private:
                                 {
                                     lock_guard<mutex> lk(currTask->avpktQLock);
                                     currTask->avpktQ.push_back(enqpkt);
+                                    if (lastPktPts != enqpkt->pts)
+                                    {
+                                        currTask->frmPtsAry.push_back(enqpkt->pts);
+                                        lastPktPts = enqpkt->pts;
+                                    }
                                 }
                                 av_packet_unref(&avpkt);
                                 avpktLoaded = false;
@@ -841,8 +824,8 @@ private:
             if (idleLoop)
                 this_thread::sleep_for(chrono::milliseconds(5));
         }
-        if (currTask && !currTask->demuxerEof)
-            currTask->demuxerEof = true;
+        if (currTask && !currTask->demuxEof)
+            currTask->demuxEof = true;
         if (avpktLoaded)
             av_packet_unref(&avpkt);
         Log(DEBUG) << "Leave DemuxThreadProc()." << endl;
@@ -883,6 +866,79 @@ private:
         return true;
     }
 
+    GopDecodeTaskHolder FindNextDecoderTask()
+    {
+        lock_guard<mutex> lk(m_bldtskByPriLock);
+        GopDecodeTaskHolder nxttsk = nullptr;
+        for (auto& tsk : m_bldtskPriOrder)
+            if (!tsk->cancel && tsk->demuxing && !tsk->decoding)
+            {
+                nxttsk = tsk;
+                break;
+            }
+        return nxttsk;
+    }
+
+    bool EnqueueSnapshotAVFrame(AVFrame* frm)
+    {
+        double ts = (double)CvtVidPtsToMts(frm->pts)/1000;
+        lock_guard<mutex> lk(m_bldtskByPriLock);
+        auto iter = find_if(m_bldtskPriOrder.begin(), m_bldtskPriOrder.end(), [frm](const GopDecodeTaskHolder& task) {
+            return frm->pts >= task->seekPts.first && frm->pts < task->seekPts.second;
+        });
+        if (iter != m_bldtskPriOrder.end())
+        {
+            VideoFrame vf;
+            vf.ts = ts;
+            vf.avfrm = av_frame_clone(frm);
+            if (!vf.avfrm)
+            {
+                Log(ERROR) << "FAILED to invoke 'av_frame_clone()' to allocate new AVFrame for VF!" << endl;
+                return false;
+            }
+            // Log(DEBUG) << "Adding VF#" << ts << "." << endl;
+            auto& task = *iter;
+            if (task->vfAry.empty())
+            {
+                task->vfAry.push_back(vf);
+                task->frmCnt++;
+                m_pendingVidfrmCnt++;
+            }
+            else
+            {
+                auto vfRvsIter = find_if(task->vfAry.rbegin(), task->vfAry.rend(), [ts](const VideoFrame& vf) {
+                    return vf.ts <= ts;
+                });
+                if (vfRvsIter != task->vfAry.rend() && vfRvsIter->ts == ts)
+                {
+                    Log(DEBUG) << "Found duplicated VF#" << ts << ", dropping this VF. pts=" << frm->pts
+                        << ", t=" << MillisecToString(CvtVidPtsToMts(frm->pts)) << "." << endl;
+                    if (vf.avfrm)
+                        av_frame_free(&vf.avfrm);
+                }
+                else
+                {
+                    auto vfFwdIter = vfRvsIter.base();
+                    task->vfAry.insert(vfFwdIter, vf);
+                    task->frmCnt++;
+                    m_pendingVidfrmCnt++;
+                }
+            }
+            if (task->vfAry.size() >= task->frmPtsAry.size())
+            {
+                Log(DEBUG) << "Task [" << task->seekPts.first << "(" << MillisecToString(CvtVidPtsToMts(task->seekPts.first)) << "), "
+                << task->seekPts.second << "(" << MillisecToString(CvtVidPtsToMts(task->seekPts.second)) << ")) finishes ALL FRAME decoding." << endl;
+                task->decodeEof = true;
+            }
+            return true;
+        }
+        else
+        {
+            Log(DEBUG) << "Dropping VF#" << ts << " due to no matching task is found." << endl;
+        }
+        return false;
+    }
+
     void VideoDecodeThreadProc()
     {
         Log(DEBUG) << "Enter VideoDecodeThreadProc()..." << endl;
@@ -890,7 +946,7 @@ private:
         while (!m_prepared && !m_quit)
             this_thread::sleep_for(chrono::milliseconds(5));
 
-        SnapshotBuildTask currTask;
+        GopDecodeTaskHolder currTask;
         AVFrame avfrm = {0};
         bool avfrmLoaded = false;
         bool inputEof = false;
@@ -912,9 +968,9 @@ private:
                 currTask = nullptr;
             }
 
-            if (!currTask || currTask->decoderEof)
+            if (!currTask || currTask->decInputEof)
             {
-                SnapshotBuildTask oldTask = currTask;
+                GopDecodeTaskHolder oldTask = currTask;
                 currTask = FindNextDecoderTask();
                 if (currTask)
                 {
@@ -954,6 +1010,7 @@ private:
                         {
                             if (fferr != AVERROR_EOF)
                             {
+                                m_errMsg = FFapiFailureMessage("avcodec_receive_frame", fferr);
                                 Log(ERROR) << "FAILED to invoke 'avcodec_receive_frame'(VideoDecodeThreadProc)! return code is "
                                     << fferr << "." << endl;
                                 quitLoop = true;
@@ -971,18 +1028,9 @@ private:
                     hasOutput = avfrmLoaded;
                     if (avfrmLoaded)
                     {
-                        int64_t mts = CvtVidPtsToMts(avfrm.pts);
-                        uint32_t index;
-                        bool isSnapshot = IsSnapshotFrame(mts, index, avfrm.pts);
-                        if (!isSnapshot)
+                        if (m_pendingVidfrmCnt < m_maxPendingVidfrmCnt)
                         {
-                            av_frame_unref(&avfrm);
-                            avfrmLoaded = false;
-                            idleLoop = false;
-                        }
-                        else if (m_pendingVidfrmCnt < m_maxPendingVidfrmCnt)
-                        {
-                            EnqueueSnapshotAVFrame(&avfrm, index);
+                            EnqueueSnapshotAVFrame(&avfrm);
                             av_frame_unref(&avfrm);
                             avfrmLoaded = false;
                             idleLoop = false;
@@ -1011,40 +1059,52 @@ private:
                         }
                         else if (fferr != AVERROR(EAGAIN) && fferr != AVERROR_INVALIDDATA)
                         {
+                            m_errMsg = FFapiFailureMessage("avcodec_send_packet", fferr);
                             Log(ERROR) << "FAILED to invoke 'avcodec_send_packet'(VideoDecodeThreadProc)! return code is "
                                 << fferr << "." << endl;
-                            quitLoop = true;
+                            break;
                         }
                     }
-                    else if (currTask->demuxerEof)
+                    else if (currTask->demuxEof)
                     {
-                        currTask->decoderEof = true;
+                        currTask->decInputEof = true;
                         idleLoop = false;
                     }
-                    if (quitLoop)
-                        break;
                 }
             }
 
             if (idleLoop)
                 this_thread::sleep_for(chrono::milliseconds(5));
         }
-        if (currTask && !currTask->decoderEof)
-            currTask->decoderEof = true;
+        if (currTask && !currTask->decInputEof)
+            currTask->decInputEof = true;
         if (avfrmLoaded)
             av_frame_unref(&avfrm);
         Log(DEBUG) << "Leave VideoDecodeThreadProc()." << endl;
     }
 
+    GopDecodeTaskHolder FindNextSsUpdateTask()
+    {
+        lock_guard<mutex> lk(m_bldtskByPriLock);
+        GopDecodeTaskHolder nxttsk = nullptr;
+        for (auto& tsk : m_bldtskPriOrder)
+            if (!tsk->cancel && tsk->frmCnt > 0)
+            {
+                nxttsk = tsk;
+                break;
+            }
+        return nxttsk;
+    }
+
     void UpdateSnapshotThreadProc()
     {
         Log(DEBUG) << "Enter UpdateSnapshotThreadProc()." << endl;
-        SnapshotBuildTask currTask;
+        GopDecodeTaskHolder currTask;
         while (!m_quit)
         {
             bool idleLoop = true;
 
-            if (!currTask || currTask->cancel || currTask->ssfrmCnt <= 0)
+            if (!currTask || currTask->cancel || currTask->frmCnt <= 0)
             {
                 currTask = FindNextSsUpdateTask();
             }
@@ -1052,19 +1112,19 @@ private:
             if (currTask)
             {
                 AVFrame* ssfrm = nullptr;
-                for (Snapshot& ss : currTask->ssAry)
+                for (VideoFrame& vf : currTask->vfAry)
                 {
-                    if (ss.avfrm)
+                    if (vf.avfrm)
                     {
-                        double ts = (double)CvtVidPtsToMts(ss.avfrm->pts)/1000.;
-                        if (!m_frmCvt.ConvertImage(ss.avfrm, ss.img, ts))
+                        double ts = (double)CvtVidPtsToMts(vf.avfrm->pts)/1000.;
+                        if (!m_frmCvt.ConvertImage(vf.avfrm, vf.img, ts))
                             Log(ERROR) << "FAILED to convert AVFrame to ImGui::ImMat! Message is '" << m_frmCvt.GetError() << "'." << endl;
-                        av_frame_free(&ss.avfrm);
-                        ss.avfrm = nullptr;
-                        currTask->ssfrmCnt--;
-                        if (currTask->ssfrmCnt < 0)
-                            Log(ERROR) << "!! ABNORMAL !! Task [" << currTask->ssIdxPair.first << ", " << currTask->ssIdxPair.second << "] has negative 'ssfrmCnt'("
-                                << currTask->ssfrmCnt << ")!" << endl;
+                        av_frame_free(&vf.avfrm);
+                        vf.avfrm = nullptr;
+                        currTask->frmCnt--;
+                        if (currTask->frmCnt < 0)
+                            Log(ERROR) << "!! ABNORMAL !! Task [" << currTask->seekPts.first << ", " << currTask->seekPts.second << "] has negative 'frmCnt'("
+                                << currTask->frmCnt << ")!" << endl;
                         m_pendingVidfrmCnt--;
                         if (m_pendingVidfrmCnt < 0)
                             Log(ERROR) << "Pending video AVFrame ptr count is NEGATIVE! " << m_pendingVidfrmCnt << endl;
@@ -1079,184 +1139,41 @@ private:
         Log(DEBUG) << "Leave UpdateSnapshotThreadProc()." << endl;
     }
 
-    void StartAllThreads()
+    pair<int64_t, int64_t> GetSeekPosByTs(double ts)
     {
-        m_quit = false;
-        m_demuxThread = thread(&MediaSnapshot_Impl::DemuxThreadProc, this);
-        if (HasVideo())
-            m_viddecThread = thread(&MediaSnapshot_Impl::VideoDecodeThreadProc, this);
-        m_updateSsThread = thread(&MediaSnapshot_Impl::UpdateSnapshotThreadProc, this);
-    }
-
-    void WaitAllThreadsQuit()
-    {
-        m_quit = true;
-        if (m_demuxThread.joinable())
-        {
-            m_demuxThread.join();
-            m_demuxThread = thread();
-        }
-        if (m_viddecThread.joinable())
-        {
-            m_viddecThread.join();
-            m_viddecThread = thread();
-        }
-        if (m_updateSsThread.joinable())
-        {
-            m_updateSsThread.join();
-            m_updateSsThread = thread();
-        }
-    }
-
-    void FlushAllQueues()
-    {
-        m_bldtskPriOrder.clear();
-        m_bldtskTimeOrder.clear();
-        for (AVPacket* avpkt : m_audpktQ)
-            av_packet_free(&avpkt);
-        m_audpktQ.clear();
-    }
-
-    struct Snapshot
-    {
-        AVFrame* avfrm{nullptr};
-        ImGui::ImMat img;
-        uint32_t index;
-        bool fixed{false};
-    };
-
-    struct SnapWindow
-    {
-        double startPos;
-        uint32_t index0;
-        uint32_t index1;
-        uint32_t cacheIdx0;
-        uint32_t cacheIdx1;
-        int64_t seekPos00;
-        int64_t seekPos10;
-    };
-
-    struct _SnapshotBuildTask
-    {
-        _SnapshotBuildTask(MediaSnapshot_Impl& obj) : outterObj(obj) {}
-
-        ~_SnapshotBuildTask()
-        {
-            for (AVPacket* avpkt : avpktQ)
-                av_packet_free(&avpkt);
-            for (Snapshot& ss : ssAry)
-            {
-                if (ss.avfrm)
-                {
-                    av_frame_free(&ss.avfrm);
-                    outterObj.m_pendingVidfrmCnt--;
-                }
-            }
-        }
-
-        MediaSnapshot_Impl& outterObj;
-        pair<int64_t, int64_t> seekPts;
-        pair<uint32_t, uint32_t> ssIdxPair;
-        bool isEndOfGop{false};
-        list<Snapshot> ssAry;
-        atomic_int32_t ssfrmCnt{0};
-        list<AVPacket*> avpktQ;
-        mutex avpktQLock;
-        bool demuxing{false};
-        bool demuxerEof{false};
-        bool decoding{false};
-        bool decoderEof{false};
-        bool cancel{false};
-    };
-    using SnapshotBuildTask = shared_ptr<_SnapshotBuildTask>;
-
-    SnapWindow UpdateSnapWindow(double startPos)
-    {
-        int64_t mts0 = (int64_t)round(startPos*1000);
-        if (mts0 < 0)
-            mts0 = 0;
-        uint32_t index0 = (int32_t)floor((double)mts0/m_ssIntvMts);
-        int64_t mts1 = (int64_t)round(mts0+m_snapWindowSize*1000);
-        uint32_t index1 = (int32_t)floor((double)mts1/m_ssIntvMts);
-        if (index1 > m_vidMaxIndex)
-            index1 = m_vidMaxIndex;
-        uint32_t cacheIdx0 = index0 > m_prevWndCacheSize ? index0-m_prevWndCacheSize : 0;
-        uint32_t cacheIdx1 = cacheIdx0+m_maxCacheSize-1;
-        if (cacheIdx1 > m_vidMaxIndex)
-        {
-            cacheIdx1 = m_vidMaxIndex;
-            cacheIdx0 = cacheIdx1+1-m_maxCacheSize;
-        }
-        SnapWindow snapWnd = m_snapWnd;
-        // if (snapWnd.index0 != index0 || snapWnd.index1 != index1 || snapWnd.cacheIdx0 != cacheIdx0 || snapWnd.cacheIdx1 != cacheIdx1)
-        //     m_snapWndUpdated = true;
-        pair<int64_t, int64_t> seekPos0 = GetSeekPosBySsIndex(cacheIdx0);
-        pair<int64_t, int64_t> seekPos1 = GetSeekPosBySsIndex(cacheIdx1);
-        snapWnd = { startPos, index0, index1, cacheIdx0, cacheIdx1, seekPos0.first, seekPos1.first };
-        if (!memcpy(&m_snapWnd, &snapWnd, sizeof(m_snapWnd)))
-        {
-            m_snapWnd = snapWnd;
-            Log(DEBUG) << "Update snap-window: { " << startPos << "(" << MillisecToString((int64_t)(startPos*1000)) << "), "
-                << index0 << ", " << index1 << ", " << cacheIdx0 << ", " << cacheIdx1 << " }" << endl;
-        }
-        return snapWnd;
-    }
-
-    bool IsSnapshotFrame(int64_t mts, uint32_t& index, int64_t pts)
-    {
-        index = (int32_t)round((double)mts/m_ssIntvMts);
-        double diff = abs(index*m_ssIntvMts-mts);
-        bool isSs = diff <= m_vidfrmIntvMtsHalf;
-        // Log(DEBUG) << "---> IsSnapshotFrame : pts=" << pts << ", mts=" << mts << ", index=" << index << ", diff=" << diff << ", m_vidfrmIntvMtsHalf=" << m_vidfrmIntvMtsHalf << endl;
-        return isSs;
-    }
-
-    bool IsSpecificSnapshotFrame(uint32_t index, int64_t mts)
-    {
-        double diff = abs(index*m_ssIntvMts-mts);
-        return diff <= m_vidfrmIntvMtsHalf;
-    }
-
-    int64_t CalcSnapshotMts(uint32_t index)
-    {
-        uint32_t frameCount = (uint32_t)round(index*m_ssIntvMts/m_vidfrmIntvMts);
-        return (int64_t)round(frameCount*m_vidfrmIntvMts);
-    }
-
-    double CalcSnapshotTimestamp(uint32_t index)
-    {
-        return (double)CalcSnapshotMts(index)/1000.;
-    }
-
-    pair<int64_t, int64_t> GetSeekPosByMts(int64_t mts)
-    {
-        int64_t targetPts = CvtVidMtsToPts(mts);
+        int64_t targetPts = CvtVidMtsToPts((int64_t)(ts*1000));
         auto iter = find_if(m_hSeekPoints->begin(), m_hSeekPoints->end(),
             [targetPts](int64_t keyPts) { return keyPts > targetPts; });
         if (iter != m_hSeekPoints->begin())
             iter--;
         int64_t first = *iter++;
         int64_t second = iter == m_hSeekPoints->end() ? INT64_MAX : *iter;
-        if (targetPts >= second || (second-targetPts) < m_vidfrmIntvPts/2)
-        {
-            first = second;
-            iter++;
-            second = iter == m_hSeekPoints->end() ? INT64_MAX : *iter;
-        }
         return { first, second };
     }
 
-    pair<int64_t, int64_t> GetSeekPosBySsIndex(uint32_t index)
+    void UpdateCacheWindow(double readPos, bool forceUpdate = false)
     {
-        return GetSeekPosByMts(CalcSnapshotMts(index));
+        if (readPos == m_cacheWnd.readPos && !forceUpdate)
+            return;
+        const double beforeCacheDur = m_readForward ? m_backwardCacheDur : m_forwardCacheDur;
+        const double afterCacheDur = m_readForward ? m_forwardCacheDur : m_backwardCacheDur;
+        const double cacheBeginTs = readPos > beforeCacheDur ? readPos-beforeCacheDur : 0;
+        const double cacheEndTs = readPos+afterCacheDur < m_vidDurTs ? readPos+afterCacheDur : m_vidDurTs;
+        const int64_t seekPosRead = GetSeekPosByTs(readPos).first;
+        const int64_t seekPos00 = GetSeekPosByTs(cacheBeginTs).first;
+        const int64_t seekPos10 = GetSeekPosByTs(cacheEndTs).first;
+        CacheWindow cacheWnd = m_cacheWnd;
+        if (seekPosRead != cacheWnd.seekPosShow || seekPos00 != cacheWnd.seekPos00 || seekPos10 != cacheWnd.seekPos10 || forceUpdate)
+        {
+            m_cacheWnd = { readPos, cacheBeginTs, cacheEndTs, seekPosRead, seekPos00, seekPos10 };
+            m_needUpdateBldtsk = true;
+        }
+        m_cacheWnd.readPos = readPos;
     }
 
     void ResetSnapshotBuildTask()
     {
-        if (m_maxCacheSize == 0)
-            return;
-
-        SnapWindow currwnd = m_snapWnd;
+        CacheWindow currwnd = m_cacheWnd;
         lock_guard<mutex> lk(m_bldtskByTimeLock);
         if (!m_bldtskTimeOrder.empty())
         {
@@ -1264,53 +1181,43 @@ private:
                 tsk->cancel = true;
             m_bldtskTimeOrder.clear();
         }
-        uint32_t buildIndex0 = currwnd.cacheIdx0;
-        uint32_t buildIndex1 = currwnd.cacheIdx1;
-        SnapshotBuildTask task = nullptr;
-        while (buildIndex0 <= buildIndex1)
+
+        int64_t searchPts = CvtVidMtsToPts((int64_t)(currwnd.cacheBeginTs*1000));
+        auto iter = find_if(m_hSeekPoints->begin(), m_hSeekPoints->end(),
+            [searchPts](int64_t keyPts) { return keyPts > searchPts; });
+        if (iter != m_hSeekPoints->begin())
+            iter--;
+        do
         {
-            pair<int64_t, int64_t> seekPos = GetSeekPosBySsIndex(buildIndex0);
-            if (!task || task->seekPts != seekPos)
-            {
-                if (task)
-                {
-                    task->isEndOfGop = true;
-                    m_bldtskTimeOrder.push_back(task);
-                }
-                task = make_shared<_SnapshotBuildTask>(*this);
-                task->seekPts = seekPos;
-                task->ssIdxPair = { buildIndex0, buildIndex0 };
-            }
-            else
-                task->ssIdxPair.second = buildIndex0;
-            buildIndex0++;
-        }
-        if (task)
+            int64_t first = *iter++;
+            int64_t second = iter == m_hSeekPoints->end() ? INT64_MAX : *iter;
+            GopDecodeTaskHolder task = make_shared<GopDecodeTask>(*this);
+            task->seekPts = { first, second };
             m_bldtskTimeOrder.push_back(task);
+            searchPts = second;
+        } while (searchPts < INT64_MAX && (double)CvtVidPtsToMts(searchPts)/1000 <= currwnd.cacheEndTs);
         m_bldtskSnapWnd = currwnd;
-        Log(DEBUG) << "^^^ Initialized build task, index = ["
-            << m_bldtskSnapWnd.cacheIdx0 << ", (" << m_bldtskSnapWnd.index0 << ", " << m_bldtskSnapWnd.index1 << "), " << m_bldtskSnapWnd.cacheIdx1 << "]." << endl;
+        Log(DEBUG) << "^^^ Initialized build task, pos = " << TimestampToString(m_bldtskSnapWnd.readPos) << ", window = ["
+            << TimestampToString(m_bldtskSnapWnd.cacheBeginTs) << " ~ " << TimestampToString(m_bldtskSnapWnd.cacheEndTs) << "]." << endl;
 
         UpdateBuildTaskByPriority();
     }
 
     void UpdateSnapshotBuildTask()
     {
-        SnapWindow currwnd = m_snapWnd;
-        if (currwnd.cacheIdx0 != m_bldtskSnapWnd.cacheIdx0)
+        CacheWindow currwnd = m_cacheWnd;
+        if (currwnd.cacheBeginTs != m_bldtskSnapWnd.cacheBeginTs || currwnd.cacheEndTs != m_bldtskSnapWnd.cacheEndTs)
         {
-            Log(DEBUG) << "^^^ Updating build task, index changed from ["
-                << m_bldtskSnapWnd.cacheIdx0 << ", (" << m_bldtskSnapWnd.index0 << ", " << m_bldtskSnapWnd.index1 << "), " << m_bldtskSnapWnd.cacheIdx1 << "] to ["
-                << currwnd.cacheIdx0 << ", (" << currwnd.index0 << ", " << currwnd.index1 << "), " << currwnd.cacheIdx1 << "]." << endl;
+            Log(DEBUG) << "^^^ Updating build task, index changed from ("
+                << TimestampToString(m_bldtskSnapWnd.cacheBeginTs) << " ~ " << TimestampToString(m_bldtskSnapWnd.cacheEndTs) << ") to ("
+                << TimestampToString(currwnd.cacheBeginTs) << " ~ " << TimestampToString(currwnd.cacheEndTs) << ")." << endl;
             lock_guard<mutex> lk(m_bldtskByTimeLock);
-            SnapshotBuildTask task = nullptr;
-            if (currwnd.cacheIdx0 > m_bldtskSnapWnd.cacheIdx0)
+            if (currwnd.cacheBeginTs > m_bldtskSnapWnd.cacheBeginTs)
             {
-                uint32_t buildIndex0 = currwnd.cacheIdx0;
-                uint32_t buildIndex1 = currwnd.cacheIdx1;
+                int64_t beginPts = CvtVidMtsToPts((int64_t)(currwnd.cacheBeginTs*1000));
+                int64_t endPts = CvtVidMtsToPts((int64_t)(currwnd.cacheEndTs*1000))+1;
                 if (currwnd.seekPos00 <= m_bldtskSnapWnd.seekPos10)
                 {
-                    buildIndex0 = m_bldtskSnapWnd.cacheIdx1+1;
                     auto iter = m_bldtskTimeOrder.begin();
                     while (iter != m_bldtskTimeOrder.end())
                     {
@@ -1321,13 +1228,9 @@ private:
                             iter = m_bldtskTimeOrder.erase(iter);
                         }
                         else
-                        {
-                            tsk->ssIdxPair.first = currwnd.cacheIdx0;
                             break;
-                        }
                     }
-                    task = m_bldtskTimeOrder.back();
-                    m_bldtskTimeOrder.pop_back();
+                    beginPts = m_bldtskTimeOrder.back()->seekPts.second;
                 }
                 else
                 {
@@ -1336,44 +1239,33 @@ private:
                     m_bldtskTimeOrder.clear();
                 }
 
-                pair<uint32_t, uint32_t> oldSsIdxPair;
-                bool hasOldTask = task != nullptr;
-                if (hasOldTask) oldSsIdxPair = task->ssIdxPair;
-                while (buildIndex0 <= buildIndex1)
+                if (beginPts < endPts)
                 {
-                    pair<int64_t, int64_t> seekPos = GetSeekPosBySsIndex(buildIndex0);
-                    if (!task || task->seekPts != seekPos)
+                    auto iter = find_if(m_hSeekPoints->begin(), m_hSeekPoints->end(),
+                        [beginPts](int64_t keyPts) { return keyPts > beginPts; });
+                    if (iter != m_hSeekPoints->begin())
+                        iter--;
+                    if (*iter < endPts)
                     {
-                        if (task)
+                        do
                         {
-                            if (hasOldTask)
-                            {
-                                if (oldSsIdxPair != task->ssIdxPair)
-                                    Log(DEBUG) << "~~~ Update old task, ss index pair updated from [" << oldSsIdxPair.first << ", " << oldSsIdxPair.second << "] to ["
-                                        << task->ssIdxPair.first << ", " << task->ssIdxPair.second << "]." << endl;
-                                hasOldTask = false;
-                            }
-                            task->isEndOfGop = true;
+                            int64_t first = *iter++;
+                            int64_t second = iter == m_hSeekPoints->end() ? INT64_MAX : *iter;
+                            GopDecodeTaskHolder task = make_shared<GopDecodeTask>(*this);
+                            task->seekPts = { first, second };
                             m_bldtskTimeOrder.push_back(task);
-                        }
-                        task = make_shared<_SnapshotBuildTask>(*this);
-                        task->seekPts = seekPos;
-                        task->ssIdxPair = { buildIndex0, buildIndex0 };
+                            beginPts = second;
+                        } while (beginPts < endPts);
                     }
-                    else
-                        task->ssIdxPair.second = buildIndex0;
-                    buildIndex0++;
                 }
-                if (task)
-                    m_bldtskTimeOrder.push_back(task);
             }
-            else //(currwnd.cacheIdx0 < m_bldtskSnapWnd.cacheIdx0)
+            else //(currwnd.cacheBeginTs < m_bldtskSnapWnd.cacheBeginTs)
             {
-                uint32_t buildIndex0 = currwnd.cacheIdx0;
-                uint32_t buildIndex1 = currwnd.cacheIdx1;
+                int64_t beginPts = CvtVidMtsToPts((int64_t)(currwnd.cacheBeginTs*1000));
+                int64_t endPts = CvtVidMtsToPts((int64_t)(currwnd.cacheEndTs*1000))+1;
                 if (currwnd.seekPos10 >= m_bldtskSnapWnd.seekPos00)
                 {
-                    buildIndex1 = m_bldtskSnapWnd.cacheIdx0-1;
+                    // buildIndex1 = m_bldtskSnapWnd.cacheIdx0-1;
                     auto iter = m_bldtskTimeOrder.end();
                     iter--;
                     while (iter != m_bldtskTimeOrder.begin())
@@ -1386,17 +1278,9 @@ private:
                             iter--;
                         }
                         else
-                        {
-                            if (tsk->ssIdxPair.second > currwnd.cacheIdx1)
-                            {
-                                tsk->isEndOfGop = false;
-                                tsk->ssIdxPair.second = currwnd.cacheIdx1;
-                            }
                             break;
-                        }
                     }
-                    task = m_bldtskTimeOrder.front();
-                    m_bldtskTimeOrder.pop_front();
+                    endPts = m_bldtskTimeOrder.front()->seekPts.first;
                 }
                 else
                 {
@@ -1405,43 +1289,32 @@ private:
                     m_bldtskTimeOrder.clear();
                 }
 
-                pair<uint32_t, uint32_t> oldSsIdxPair;
-                bool hasOldTask = task != nullptr;
-                if (hasOldTask) oldSsIdxPair = task->ssIdxPair;
-                bool firstTask = true;
-                while (buildIndex1 >= buildIndex0)
+                if (beginPts < endPts)
                 {
-                    pair<int64_t, int64_t> seekPos = GetSeekPosBySsIndex(buildIndex1);
-                    if (!task || task->seekPts != seekPos)
+                    auto iter = find_if(m_hSeekPoints->begin(), m_hSeekPoints->end(),
+                        [endPts](int64_t keyPts) { return keyPts >= endPts; });
+                    if (iter != m_hSeekPoints->begin())
                     {
-                        if (task)
+                        iter--;
+                        do
                         {
-                            if (hasOldTask)
-                            {
-                                if (oldSsIdxPair != task->ssIdxPair)
-                                    Log(DEBUG) << "~~~ Update old task, ss index pair updated from [" << oldSsIdxPair.first << ", " << oldSsIdxPair.second << "] to ["
-                                        << task->ssIdxPair.first << ", " << task->ssIdxPair.second << "]." << endl;
-                                hasOldTask = false;
-                            }
+                            auto iter2 = iter; iter2++;
+                            int64_t first = *iter;
+                            int64_t second = iter2 == m_hSeekPoints->end() ? INT64_MAX : *iter2;
+                            GopDecodeTaskHolder task = make_shared<GopDecodeTask>(*this);
+                            task->seekPts = { first, second };
                             m_bldtskTimeOrder.push_front(task);
-                            firstTask = false;
-                        }
-                        task = make_shared<_SnapshotBuildTask>(*this);
-                        task->seekPts = seekPos;
-                        task->isEndOfGop = firstTask ? false : true;
-                        task->ssIdxPair = { buildIndex1, buildIndex1 };
+                            if (iter != m_hSeekPoints->begin())
+                                iter--;
+                            else
+                                break;
+                            endPts = first;
+                        } while (beginPts < endPts);
                     }
-                    else
-                        task->ssIdxPair.first = buildIndex1;
-                    if (buildIndex1 == 0)
-                        break;
-                    buildIndex1--;
                 }
-                if (task)
-                    m_bldtskTimeOrder.push_front(task);
             }
         }
-        bool windowPosChanged = currwnd.index0 != m_bldtskSnapWnd.index0;
+        bool windowPosChanged = currwnd.seekPosShow != m_bldtskSnapWnd.seekPosShow;
         m_bldtskSnapWnd = currwnd;
 
         if (windowPosChanged)
@@ -1451,128 +1324,34 @@ private:
     void UpdateBuildTaskByPriority()
     {
         lock_guard<mutex> lk(m_bldtskByPriLock);
-        SnapWindow swnd = m_bldtskSnapWnd;
+        CacheWindow cwnd = m_bldtskSnapWnd;
         m_bldtskPriOrder = m_bldtskTimeOrder;
-        m_bldtskPriOrder.sort([swnd](const SnapshotBuildTask& a, const SnapshotBuildTask& b) {
-            uint32_t aFront = a->ssIdxPair.first;
-            uint32_t aBack = a->ssIdxPair.second;
-            bool aInDisplayWindow = aFront >= swnd.index0 && aFront <= swnd.index1 ||
-                aBack >= swnd.index0 && aBack <= swnd.index1;
-            uint32_t bFront = b->ssIdxPair.first;
-            uint32_t bBack = b->ssIdxPair.second;
-            bool bInDisplayWindow = bFront >= swnd.index0 && bFront <= swnd.index1 ||
-                bBack >= swnd.index0 && bBack <= swnd.index1;
-            if (aInDisplayWindow && bInDisplayWindow)
-                return aFront < bFront;
-            else if (aInDisplayWindow)
+        m_bldtskPriOrder.sort([this, cwnd](const GopDecodeTaskHolder& a, const GopDecodeTaskHolder& b) {
+            bool aIsShowGop = a->seekPts.first == cwnd.seekPosShow;
+            if (aIsShowGop)
                 return true;
-            else if (bInDisplayWindow)
+            bool bIsShowGop = b->seekPts.first == cwnd.seekPosShow;
+            if (bIsShowGop)
                 return false;
-            else
+            bool aIsForwardGop = a->seekPts.first > cwnd.seekPosShow;
+            if (!m_readForward)
+                aIsForwardGop = !aIsForwardGop;
+            bool bIsForwardGop = b->seekPts.first > cwnd.seekPosShow;
+            if (!m_readForward)
+                bIsForwardGop = !bIsForwardGop;
+            if (aIsForwardGop)
             {
-                uint32_t aDistance = aFront > swnd.index1 ? aFront-swnd.index1 : swnd.index0-aBack;
-                uint32_t bDistance = bFront > swnd.index1 ? bFront-swnd.index1 : swnd.index0-bBack;
-                return aDistance < bDistance;
-            }
-        });
-    }
-
-    SnapshotBuildTask FindNextDemuxTask()
-    {
-        SnapshotBuildTask nxttsk = nullptr;
-        uint32_t pendingTaskCnt = 0;
-        for (auto& tsk : m_bldtskPriOrder)
-            if (!tsk->cancel && !tsk->demuxing)
-            {
-                nxttsk = tsk;
-                break;
-            }
-            else if (!tsk->decoding)
-            {
-                pendingTaskCnt++;
-                if (pendingTaskCnt > m_maxPendingTaskCountForDecoding)
-                    break;
-            }
-        return nxttsk;
-    }
-
-    SnapshotBuildTask FindNextDecoderTask()
-    {
-        lock_guard<mutex> lk(m_bldtskByPriLock);
-        SnapshotBuildTask nxttsk = nullptr;
-        for (auto& tsk : m_bldtskPriOrder)
-            if (!tsk->cancel && tsk->demuxing && !tsk->decoding)
-            {
-                nxttsk = tsk;
-                break;
-            }
-        return nxttsk;
-    }
-
-    SnapshotBuildTask FindNextSsUpdateTask()
-    {
-        lock_guard<mutex> lk(m_bldtskByPriLock);
-        SnapshotBuildTask nxttsk = nullptr;
-        for (auto& tsk : m_bldtskPriOrder)
-            if (!tsk->cancel && tsk->ssfrmCnt > 0)
-            {
-                nxttsk = tsk;
-                break;
-            }
-        return nxttsk;
-    }
-
-    bool EnqueueSnapshotAVFrame(AVFrame* frm, uint32_t ssIdx)
-    {
-        lock_guard<mutex> lk(m_bldtskByPriLock);
-        auto iter = find_if(m_bldtskPriOrder.begin(), m_bldtskPriOrder.end(), [frm](const SnapshotBuildTask& task) {
-            return frm->pts >= task->seekPts.first && frm->pts < task->seekPts.second;
-        });
-        if (iter != m_bldtskPriOrder.end())
-        {
-            Snapshot ss;
-            ss.index = ssIdx;
-            ss.avfrm = av_frame_clone(frm);
-            if (!ss.avfrm)
-            {
-                Log(ERROR) << "FAILED to invoke 'av_frame_clone()' to allocate new AVFrame for SS!" << endl;
-                return false;
-            }
-            // Log(DEBUG) << "Adding SS#" << ssIdx << "." << endl;
-            auto& task = *iter;
-            if (task->ssAry.empty())
-            {
-                task->ssAry.push_back(ss);
-                task->ssfrmCnt++;
-                m_pendingVidfrmCnt++;
-            }
-            else
-            {
-                auto ssRvsIter = find_if(task->ssAry.rbegin(), task->ssAry.rend(), [ssIdx](const Snapshot& ss) {
-                    return ss.index <= ssIdx;
-                });
-                if (ssRvsIter != task->ssAry.rend() && ssRvsIter->index == ssIdx)
-                {
-                    Log(DEBUG) << "Found duplicated SS#" << ssIdx << ", dropping this SS. pts=" << frm->pts
-                        << ", t=" << MillisecToString(CvtVidPtsToMts(frm->pts)) << "." << endl;
-                    if (ss.avfrm)
-                        av_frame_free(&ss.avfrm);
-                }
+                if (!bIsForwardGop)
+                    return true;
                 else
-                {
-                    auto ssFwdIter = ssRvsIter.base();
-                    task->ssAry.insert(ssFwdIter, ss);
-                    task->ssfrmCnt++;
-                    m_pendingVidfrmCnt++;
-                }
+                    return (m_readForward^(a->seekPts.first < b->seekPts.first)) == 0;
             }
-            return true;
-        }
-        else
-        {
-            Log(DEBUG) << "Dropping SS#" << ssIdx << " due to no matching task is found." << endl;
-        }
-        return false;
+            else if (bIsForwardGop)
+                return false;
+            else
+                return (m_readForward^(a->seekPts.first > b->seekPts.first)) == 0;
+        });
+        Log(DEBUG) << "Build task priority updated." << endl;
     }
 
 private:
@@ -1605,7 +1384,6 @@ private:
 
     // demuxing thread
     thread m_demuxThread;
-    uint32_t m_maxPendingTaskCountForDecoding = 8;
     int m_audpktQMaxSize{64};
     list<AVPacket*> m_audpktQ;
     mutex m_audpktQLock;
@@ -1614,31 +1392,21 @@ private:
     // update snapshots thread
     thread m_updateSsThread;
 
-    int64_t m_vidStartMts{0};
-    int64_t m_vidDurMts{0};
-    int64_t m_vidFrmCnt{0};
-    uint32_t m_vidMaxIndex;
-    double m_snapWindowSize;
-    double m_wndFrmCnt;
-    double m_vidfrmIntvMts;
-    double m_vidfrmIntvMtsHalf;
-    int64_t m_vidfrmIntvPts;
-    double m_ssIntvMts;
-    double m_cacheFactor{10.0};
-    uint32_t m_maxCacheSize{0};
-    uint32_t m_prevWndCacheSize, m_postWndCacheSize;
-    SnapWindow m_snapWnd;
-    // atomic_bool m_snapWndUpdated{false};
-    SnapWindow m_bldtskSnapWnd;
-    list<SnapshotBuildTask> m_bldtskTimeOrder;
+    bool m_readForward{true};
+    double m_readPosTs{0};
+    double m_vidfrmIntvMts{0};
+    list<GopDecodeTaskHolder> m_bldtskTimeOrder;
     mutex m_bldtskByTimeLock;
-    list<SnapshotBuildTask> m_bldtskPriOrder;
+    list<GopDecodeTaskHolder> m_bldtskPriOrder;
     mutex m_bldtskByPriLock;
     atomic_int32_t m_pendingVidfrmCnt{0};
     int32_t m_maxPendingVidfrmCnt{4};
-    // list<int64_t> m_vidKeyPtsList;
-    double m_fixedSsInterval;
-    uint32_t m_fixedSnapshotCount{100};
+    double m_forwardCacheDur{10};
+    double m_backwardCacheDur{2};
+    CacheWindow m_cacheWnd;
+    CacheWindow m_bldtskSnapWnd;
+    bool m_needUpdateBldtsk{false};
+    double m_vidDurTs{0};
 
     bool m_useRszFactor{false};
     bool m_ssSizeChanged{false};
@@ -1648,25 +1416,25 @@ private:
 
 static AVPixelFormat get_hw_format(AVCodecContext *ctx, const AVPixelFormat *pix_fmts)
 {
-    MediaSnapshot_Impl* ms = reinterpret_cast<MediaSnapshot_Impl*>(ctx->opaque);
+    MediaReader_Impl* mrd = reinterpret_cast<MediaReader_Impl*>(ctx->opaque);
     const AVPixelFormat *p;
     for (p = pix_fmts; *p != -1; p++) {
-        if (ms->CheckHwPixFmt(*p))
+        if (mrd->CheckHwPixFmt(*p))
             return *p;
     }
     return AV_PIX_FMT_NONE;
 }
 
-MediaSnapshot* CreateMediaSnapshot()
+MediaReader* CreateMediaReader()
 {
-    return new MediaSnapshot_Impl();
+    return new MediaReader_Impl();
 }
 
-void ReleaseMediaSnapshot(MediaSnapshot** msrc)
+void ReleaseMediaReader(MediaReader** msrc)
 {
     if (msrc == nullptr || *msrc == nullptr)
         return;
-    MediaSnapshot_Impl* ms = dynamic_cast<MediaSnapshot_Impl*>(*msrc);
+    MediaReader_Impl* ms = dynamic_cast<MediaReader_Impl*>(*msrc);
     ms->Close();
     delete ms;
     *msrc = nullptr;

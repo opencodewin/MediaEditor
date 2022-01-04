@@ -1,25 +1,21 @@
 #pragma once
-#include <cstdint>
-#include <string>
-#include <vector>
 #include "MediaParser.h"
 #include "immat.h"
 
-struct MediaSnapshot
+struct MediaReader
 {
     virtual bool Open(const std::string& url) = 0;
     virtual bool Open(MediaParserHolder hParser) = 0;
     virtual MediaParserHolder GetMediaParser() const = 0;
     virtual void Close() = 0;
-    virtual bool GetSnapshots(std::vector<ImGui::ImMat>& snapshots, double startPos) = 0;
+    virtual void SeekTo(double ts) = 0;
+    virtual void SetDirection(bool forward) = 0;
+    virtual bool IsDirectionForward() const = 0;
+    virtual bool ReadFrame(double ts, ImGui::ImMat& m, bool wait = true) = 0;
 
     virtual bool IsOpened() const = 0;
     virtual bool HasVideo() const = 0;
     virtual bool HasAudio() const = 0;
-    virtual bool ConfigSnapWindow(double& windowSize, double frameCount) = 0;
-    virtual bool SetCacheFactor(double cacheFactor) = 0;
-    virtual double GetMinWindowSize() const = 0;
-    virtual double GetMaxWindowSize() const = 0;
 
     virtual bool SetSnapshotSize(uint32_t width, uint32_t height) = 0;
     virtual bool SetSnapshotResizeFactor(float widthFactor, float heightFactor) = 0;
@@ -29,15 +25,7 @@ struct MediaSnapshot
     virtual MediaInfo::InfoHolder GetMediaInfo() const = 0;
     virtual const MediaInfo::VideoStream* GetVideoStream() const = 0;
     virtual const MediaInfo::AudioStream* GetAudioStream() const = 0;
-
-    virtual uint32_t GetVideoWidth() const = 0;
-    virtual uint32_t GetVideoHeight() const = 0;
-    virtual int64_t GetVideoMinPos() const = 0;
-    virtual int64_t GetVideoDuration() const = 0;
-    virtual int64_t GetVideoFrameCount() const = 0;
-
-    virtual std::string GetError() const = 0;
 };
 
-MediaSnapshot* CreateMediaSnapshot();
-void ReleaseMediaSnapshot(MediaSnapshot** msnapshot);
+MediaReader* CreateMediaReader();
+void ReleaseMediaReader(MediaReader** mreader);

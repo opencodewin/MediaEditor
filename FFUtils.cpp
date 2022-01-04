@@ -555,6 +555,18 @@ MediaInfo::InfoHolder GenerateMediaInfoByAVFormatContext(const AVFormatContext* 
                 vidStream->frameNum = (uint64_t)(stream->duration*av_q2d(stream->r_frame_rate));
             else if (stream->avg_frame_rate.num > 0 && stream->avg_frame_rate.den > 0)
                 vidStream->frameNum = (uint64_t)(stream->duration*av_q2d(stream->avg_frame_rate));
+            switch (codecpar->color_trc)
+            {
+                case AVCOL_TRC_SMPTE2084:
+                case AVCOL_TRC_ARIB_STD_B67:
+                    vidStream->isHdr = true;
+                    break;
+                default:
+                    vidStream->isHdr = false;
+            }
+            const AVPixFmtDescriptor* desc = av_pix_fmt_desc_get((AVPixelFormat)codecpar->format);
+            if (desc->nb_components > 0)
+                vidStream->bitDepth = desc->comp[0].depth;
             hStream = MediaInfo::StreamHolder(vidStream);
         }
         else if (codecpar->codec_type == AVMEDIA_TYPE_AUDIO)
