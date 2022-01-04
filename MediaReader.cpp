@@ -266,6 +266,7 @@ public:
     bool SetSnapshotSize(uint32_t width, uint32_t height) override
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
+        m_useRszFactor = false;
         if (m_frmCvt.GetOutWidth() == width && m_frmCvt.GetOutHeight() == height)
             return true;
         if (!m_frmCvt.SetOutSize(width, height))
@@ -286,11 +287,12 @@ public:
             m_errMsg = "Resize factor must be a positive number!";
             return false;
         }
-        if (!m_ssSizeChanged && m_ssWFacotr == widthFactor && m_ssHFacotr == heightFactor)
+        if (!m_ssSizeChanged && m_useRszFactor && m_ssWFacotr == widthFactor && m_ssHFacotr == heightFactor)
             return true;
 
         m_ssWFacotr = widthFactor;
         m_ssHFacotr = heightFactor;
+        m_useRszFactor = true;
         if (HasVideo())
         {
             if (widthFactor == 1.f && heightFactor == 1.f)
@@ -404,29 +406,28 @@ private:
             return false;
         }
 
-        MediaInfo::VideoStream* vidStream = dynamic_cast<MediaInfo::VideoStream*>(m_hMediaInfo->streams[m_vidStmIdx].get());
-        // m_vidStartMts = (int64_t)(vidStream->startTime*1000);
-        m_vidDurTs = vidStream->duration;
-        // m_vidFrmCnt = vidStream->frameNum;
-        AVRational avgFrmRate = { vidStream->avgFrameRate.num, vidStream->avgFrameRate.den };
-        AVRational timebase = { vidStream->timebase.num, vidStream->timebase.den };
-        m_vidfrmIntvMts = av_q2d(av_inv_q(avgFrmRate))*1000.;
-        // m_vidfrmIntvMtsHalf = ceil(m_vidfrmIntvMts)/2;
-        // if (avgFrmRate.num*avgFrmRate.num > 0)
-        //     m_vidfrmIntvPts = (avgFrmRate.den*timebase.den)/(avgFrmRate.num*timebase.num);
-        // else
-        //     m_vidfrmIntvPts = 0;
-
-        uint32_t outWidth = (uint32_t)ceil(vidStream->width*m_ssWFacotr);
-        if ((outWidth&0x1) == 1)
-            outWidth++;
-        uint32_t outHeight = (uint32_t)ceil(vidStream->height*m_ssHFacotr);
-        if ((outHeight&0x1) == 1)
-            outHeight++;
-        if (!m_frmCvt.SetOutSize(outWidth, outHeight))
+        if (HasVideo())
         {
-            m_errMsg = m_frmCvt.GetError();
-            return false;
+            MediaInfo::VideoStream* vidStream = dynamic_cast<MediaInfo::VideoStream*>(m_hMediaInfo->streams[m_vidStmIdx].get());
+            m_vidDurTs = vidStream->duration;
+            AVRational avgFrmRate = { vidStream->avgFrameRate.num, vidStream->avgFrameRate.den };
+            AVRational timebase = { vidStream->timebase.num, vidStream->timebase.den };
+            m_vidfrmIntvMts = av_q2d(av_inv_q(avgFrmRate))*1000.;
+
+            if (m_useRszFactor)
+            {
+                uint32_t outWidth = (uint32_t)ceil(vidStream->width*m_ssWFacotr);
+                if ((outWidth&0x1) == 1)
+                    outWidth++;
+                uint32_t outHeight = (uint32_t)ceil(vidStream->height*m_ssHFacotr);
+                if ((outHeight&0x1) == 1)
+                    outHeight++;
+                if (!m_frmCvt.SetOutSize(outWidth, outHeight))
+                {
+                    m_errMsg = m_frmCvt.GetError();
+                    return false;
+                }
+            }
         }
 
         return true;
@@ -1407,6 +1408,7 @@ private:
     bool m_needUpdateBldtsk{false};
     double m_vidDurTs{0};
 
+    bool m_useRszFactor{false};
     bool m_ssSizeChanged{false};
     float m_ssWFacotr{1.f}, m_ssHFacotr{1.f};
     AVFrameToImMatConverter m_frmCvt;

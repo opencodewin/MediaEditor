@@ -63,7 +63,8 @@ void Application_Initialize(void** handle)
     io.IniFilename = c_imguiIniPath.c_str();
 
     g_mrdr = CreateMediaReader();
-    g_mrdr->SetSnapshotResizeFactor(0.5f, 0.5f);
+    g_mrdr->SetSnapshotSize(g_imageDisplaySize.x, g_imageDisplaySize.y);
+    // g_mrdr->SetSnapshotResizeFactor(0.5f, 0.5f);
 }
 
 void Application_Finalize(void** handle)

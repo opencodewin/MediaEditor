@@ -178,6 +178,9 @@ bool Application_Frame(void * handle)
             string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
             if (g_movr->Open(filePathName, g_ssCount))
                 g_movr->GetMediaParser()->EnableParseInfo(MediaParser::VIDEO_SEEK_POINTS);
+            const MediaInfo::VideoStream* vstminfo = g_movr->GetVideoStream();
+            if (vstminfo)
+                Log(DEBUG) << "vid stream ishdr '" << vstminfo->isHdr << "', bitDepth '" << (int)vstminfo->bitDepth << "'." << endl;
         }
         ImGuiFileDialog::Instance()->Close();
     }
