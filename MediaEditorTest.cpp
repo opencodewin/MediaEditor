@@ -161,9 +161,6 @@ static void ShowMediaBankWindow(ImDrawList *draw_list, float media_icon_size)
             {
                 texture = (*item)->mMediaThumbnail[texture_index];
             }
-            //ImGui::BeginTooltip();
-            //ImGui::Text("%f %d", percent, texture_index);
-            //ImGui::EndTooltip();
         }
         else if (!(*item)->mMediaThumbnail.empty())
         {
@@ -201,11 +198,11 @@ static void ShowMediaBankWindow(ImDrawList *draw_list, float media_icon_size)
             ImGui::Button((*item)->mName.c_str(), ImVec2(media_icon_size, media_icon_size));
         }
 
-        if ((*item)->mMedia && (*item)->mMedia->IsOpened())
+        if ((*item)->mMediaOverview && (*item)->mMediaOverview->IsOpened())
         {
-            auto has_video = (*item)->mMedia->HasVideo();
-            auto has_audio = (*item)->mMedia->HasAudio();
-            auto media_length = (*item)->mMedia->GetMediaParser()->GetMediaInfo()->duration;//(*item)->mMedia->GetVideoDuration() / 1000.f;
+            auto has_video = (*item)->mMediaOverview->HasVideo();
+            auto has_audio = (*item)->mMediaOverview->HasAudio();
+            auto media_length = (*item)->mMediaOverview->GetMediaParser()->GetMediaInfo()->duration;
             ImGui::SetCursorScreenPos(icon_pos + ImVec2(4, 4));
             std::string type_string = "? ";
             switch ((*item)->mMediaType)
@@ -223,7 +220,7 @@ static void ShowMediaBankWindow(ImDrawList *draw_list, float media_icon_size)
             ImGui::SetCursorScreenPos(icon_pos + ImVec2(0, media_icon_size - 20));
             if (has_video)
             {
-                auto stream = (*item)->mMedia->GetVideoStream();
+                auto stream = (*item)->mMediaOverview->GetVideoStream();
                 if (stream)
                 {
                     auto video_width = stream->width;
@@ -236,7 +233,7 @@ static void ShowMediaBankWindow(ImDrawList *draw_list, float media_icon_size)
             }
             if (has_audio)
             {
-                auto stream = (*item)->mMedia->GetAudioStream();
+                auto stream = (*item)->mMediaOverview->GetAudioStream();
                 if (stream)
                 {
                     auto audio_channels = stream->channels;
@@ -304,62 +301,16 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
     ImGui::SetWindowFontScale(1.0);
 }
 
-static int thread_preview(bool& done, bool &running, bool &loop, bool reverse)
+static int thread_preview(bool& done, bool &running)
 {
-    if (!sequencer || sequencer->GetItemCount() <= 0)
-    {
-        done = true;
-        return -1;
-    }
     running = true;
-    int64_t start_time = ImGui::get_current_time_usec() / 1000;
-    int64_t last_time = 0;
     while (!done)
     {
-        int64_t current_time = ImGui::get_current_time_usec() / 1000;
-        int64_t running_time = current_time - start_time;
-        int64_t step_time = running_time - last_time;
-        if (step_time < 20) // hard coding for now, need calculate sequencer time base later
+        if (!sequencer || !sequencer->bPlay)
         {
             ImGui::sleep((int)20);
             continue;
         }
-        last_time = running_time;
-        int64_t current_media_time = sequencer->currentTime;
-        if (reverse)
-        {
-            if (current_media_time - step_time <= sequencer->mStart)
-            {
-                if (!loop)
-                {
-                    done = true;
-                    break;
-                }
-                else
-                {
-                    last_time = 0;
-                    current_media_time = sequencer->mEnd;
-                    start_time = current_time;
-                }
-            }
-        }
-        else
-        {
-            if (current_media_time + step_time >= sequencer->mEnd)
-            {
-                if (!loop)
-                {
-                    done = true;
-                    break;
-                }
-                else
-                {
-                    last_time = current_media_time = 0;
-                    start_time = current_time;
-                }
-            }
-        }
-        sequencer->SetCurrent(reverse ? current_media_time - step_time : current_media_time + step_time, reverse);
     }
     running = false;
     return 0;
@@ -368,7 +319,6 @@ static int thread_preview(bool& done, bool &running, bool &loop, bool reverse)
 static void ShowMediaPreviewWindow(ImDrawList *draw_list)
 {
     // preview control pannel
-    static bool loop = false; // TODO::Need save setting
     ImVec2 PanelBarPos;
     ImVec2 PanelBarSize;
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
@@ -387,7 +337,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32 - 8 - 32, PanelButtonY));
     if (ImGui::Button(ICON_TO_START "##preview_tostart", ImVec2(32, 32)))
     {
-        if (!preview_running && sequencer && sequencer->GetItemCount() > 0)
+        if (sequencer && !sequencer->bPlay && sequencer->GetItemCount() > 0)
         {
             sequencer->firstTime = sequencer->mStart;
             sequencer->currentTime = sequencer->mStart;
@@ -398,24 +348,10 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32, PanelButtonY));
     if (ImGui::Button(ICON_FAST_BACKWARD "##preview_reverse", ImVec2(32, 32)))
     {
-        if (!preview_running && sequencer && sequencer->GetItemCount() > 0)
+        if (sequencer)
         {
-            if (preview_thread)
-            {
-                if (preview_thread->joinable())
-                {
-                    preview_thread->join();
-                    delete preview_thread;
-                    preview_thread = nullptr;
-                }
-                else
-                {
-                    delete preview_thread;
-                    preview_thread = nullptr;
-                }
-            }
-            preview_done = false;
-            preview_thread = new std::thread(thread_preview, std::ref(preview_done), std::ref(preview_running), std::ref(loop), true);
+            sequencer->bForward = false;
+            sequencer->bPlay = true;
         }
     }
     ImGui::ShowTooltipOnHover("Reverse");
@@ -423,13 +359,9 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16, PanelButtonY));
     if (ImGui::Button(ICON_STOP "##preview_stop", ImVec2(32, 32)))
     {
-        if (preview_thread && preview_thread->joinable() && preview_running)
+        if (sequencer)
         {
-            preview_done = true;
-            preview_thread->join();
-            delete preview_thread;
-            preview_thread = nullptr;
-            preview_done = false;
+            sequencer->bPlay = false;
         }
     }
     ImGui::ShowTooltipOnHover("Stop");
@@ -437,24 +369,10 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8, PanelButtonY));
     if (ImGui::Button(ICON_PLAY "##preview_play", ImVec2(32, 32)))
     {
-        if (!preview_running && sequencer && sequencer->GetItemCount() > 0)
+        if (sequencer)
         {
-            if (preview_thread)
-            {
-                if (preview_thread->joinable())
-                {
-                    preview_thread->join();
-                    delete preview_thread;
-                    preview_thread = nullptr;
-                }
-                else
-                {
-                    delete preview_thread;
-                    preview_thread = nullptr;
-                }
-            }
-            preview_done = false;
-            preview_thread = new std::thread(thread_preview, std::ref(preview_done), std::ref(preview_running), std::ref(loop), false);
+            sequencer->bForward = true;
+            sequencer->bPlay = true;
         }
     }
     ImGui::ShowTooltipOnHover("Play");
@@ -462,7 +380,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 32 + 8, PanelButtonY));
     if (ImGui::Button(ICON_TO_END "##preview_toend", ImVec2(32, 32)))
     {
-        if (!preview_running && sequencer && sequencer->GetItemCount() > 0)
+        if (sequencer && !sequencer->bPlay && sequencer->GetItemCount() > 0)
         {
             if (sequencer->mEnd - sequencer->mStart - sequencer->visibleTime > 0)
                 sequencer->firstTime = sequencer->mEnd - sequencer->visibleTime;
@@ -473,10 +391,14 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     }
     ImGui::ShowTooltipOnHover("To End");
 
+    bool loop = sequencer ? sequencer->bLoop : false;
     ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 32 + 8 + 8 + 32, PanelButtonY));
     if (ImGui::Button(loop ? ICON_LOOP : ICON_LOOP_ONE "##preview_loop", ImVec2(32, 32)))
     {
-        loop = !loop;
+        if (sequencer)
+        {
+            sequencer->bLoop = !sequencer->bLoop;
+        }
     }
     ImGui::ShowTooltipOnHover("Loop");
     ImGui::PopStyleColor(3);
@@ -551,6 +473,8 @@ void Application_Initialize(void** handle)
 	}
 #endif
     sequencer = new MediaSequencer();
+    preview_done = false;
+    preview_thread = new std::thread(thread_preview, std::ref(preview_done), std::ref(preview_running));
 }
 
 void Application_Finalize(void** handle)
@@ -588,23 +512,6 @@ bool Application_Frame(void * handle)
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     static const int numControlPanelTabs = sizeof(ControlPanelTabNames)/sizeof(ControlPanelTabNames[0]);
     static const int numMainWindowTabs = sizeof(MainWindowTabNames)/sizeof(MainWindowTabNames[0]);
-    
-    // handling thread
-    if (!preview_running && preview_thread)
-    {
-        if (preview_thread->joinable())
-        {
-            preview_thread->join();
-            delete preview_thread;
-            preview_thread = nullptr;
-        }
-        else
-        {
-            delete preview_thread;
-            preview_thread = nullptr;
-        }
-        preview_done = false;
-    }
 
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
                         ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | 

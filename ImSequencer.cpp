@@ -128,6 +128,8 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry
     bool popupOpened = false;
     int itemCount = sequencer->GetItemCount();
     sequencer->options = sequenceOptions;
+    static int64_t start_time = -1;
+    static int64_t last_time = -1;
 
     ImGui::BeginGroup();
     
@@ -202,7 +204,7 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry
         {
             ImSequencer::MediaItem * item = (ImSequencer::MediaItem*)payload->Data;
             ImSequencer::MediaSequencer * seq = (ImSequencer::MediaSequencer *)sequencer;
-            SequencerItem * new_item = new SequencerItem(item->mName, item->mMedia->GetMediaParser(), 0, 0, true, item->mMediaType);
+            SequencerItem * new_item = new SequencerItem(item->mName, item->mMediaOverview->GetMediaParser(), 0, 0, true, item->mMediaType);
             auto length = new_item->mEnd - new_item->mStart;
             if (sequencer->currentTime >= sequencer->firstTime && sequencer->currentTime <= sequencer->GetEnd())
                 new_item->mStart = sequencer->currentTime;
@@ -916,6 +918,64 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry
     {
         sequencer->Duplicate(dupEntry);
     }
+
+    // handle play event
+    if (sequencer->bPlay)
+    {
+        if (start_time == -1)
+        {
+            start_time = ImGui::get_current_time_usec() / 1000;
+            last_time = start_time;
+        }
+        else
+        {
+            int64_t current_time = ImGui::get_current_time_usec() / 1000;
+            int64_t step_time = current_time - last_time;
+            // Set TimeLine
+            int64_t current_media_time = sequencer->currentTime;
+            if (sequencer->bForward)
+            {
+                current_media_time += step_time;
+                if (current_media_time >= sequencer->GetEnd())
+                {
+                    if (sequencer->bLoop)
+                    {
+                        last_time = current_media_time = 0;
+                        start_time = current_time;
+                    }
+                    else 
+                    {
+                        sequencer->bPlay = false;
+                        current_media_time = sequencer->GetEnd();
+                    }
+                }
+            }
+            else
+            {
+                current_media_time -= step_time;
+                if (current_media_time <= sequencer->GetStart())
+                {
+                    if (sequencer->bLoop)
+                    {
+                        current_media_time = sequencer->GetEnd();
+                        start_time = current_time;
+                    }
+                    else
+                    {
+                        sequencer->bPlay = false;
+                        current_media_time = sequencer->GetStart();
+                    }
+                }
+            }
+            sequencer->SetCurrent(current_media_time, !sequencer->bForward);
+            last_time = current_time;
+        }
+    }
+    else
+    {
+        start_time = -1;
+    }
+
     return ret;
 }
 
@@ -928,23 +988,23 @@ MediaItem::MediaItem(const std::string& name, const std::string& path, int type)
     mName = name;
     mPath = path;
     mMediaType = type;
-    mMedia = CreateMediaOverview();
-    if (!path.empty() && mMedia)
+    mMediaOverview = CreateMediaOverview();
+    if (!path.empty() && mMediaOverview)
     {
-        mMedia->SetSnapshotResizeFactor(0.1, 0.1);
-        mMedia->Open(path, 50);
+        mMediaOverview->SetSnapshotResizeFactor(0.1, 0.1);
+        mMediaOverview->Open(path, 50);
     }
-    if (mMedia && mMedia->IsOpened())
+    if (mMediaOverview && mMediaOverview->IsOpened())
     {
-        if (mMedia->HasVideo())
-            mMedia->GetMediaParser()->EnableParseInfo(MediaParser::VIDEO_SEEK_POINTS);
+        if (mMediaOverview->HasVideo())
+            mMediaOverview->GetMediaParser()->EnableParseInfo(MediaParser::VIDEO_SEEK_POINTS);
     }
 }
 
 MediaItem::~MediaItem()
 {
-    ReleaseMediaOverview(&mMedia);
-    mMedia = nullptr;
+    ReleaseMediaOverview(&mMediaOverview);
+    mMediaOverview = nullptr;
     for (auto thumb : mMediaThumbnail)
     {
         ImGui::ImDestroyTexture(thumb); 
@@ -954,13 +1014,13 @@ MediaItem::~MediaItem()
 
 void MediaItem::UpdateThumbnail()
 {
-    if (mMedia && mMedia->IsOpened())
+    if (mMediaOverview && mMediaOverview->IsOpened())
     {
-        auto count = mMedia->GetSnapshotCount();
+        auto count = mMediaOverview->GetSnapshotCount();
         if (mMediaThumbnail.size() >= count)
             return;
         std::vector<ImGui::ImMat> snapshots;
-        if (mMedia->GetSnapshots(snapshots))
+        if (mMediaOverview->GetSnapshots(snapshots))
         {
             for (int i = 0; i < snapshots.size(); i++)
             {
@@ -997,19 +1057,23 @@ SequencerItem::SequencerItem(const std::string& name, const std::string& path, i
     mEnd = end;
     mExpanded = expand;
     mMediaType = type;
-    mMedia = CreateMediaSnapshot();
+    mSnapshot = CreateMediaSnapshot();
+    mMedia = CreateMediaReader();
+    if (!mSnapshot || !mMedia)
+        return;
     mColor = COL_SLOT_DEFAULT;
-    if (!path.empty() && mMedia)
+    if (!path.empty() && mSnapshot)
     {
-        mMedia->Open(path);
+        mSnapshot->Open(path);
     }
-    if (mMedia && mMedia->IsOpened())
+    if (mSnapshot && mSnapshot->IsOpened())
     {
+        mMedia->Open(mSnapshot->GetMediaParser());
         double window_size = 1.0f;
-        mLength = mEnd = mMedia->GetVideoDuration();
-        mMedia->SetCacheFactor(16.0);
-        mMedia->SetSnapshotResizeFactor(0.1, 0.1);
-        mMedia->ConfigSnapWindow(window_size, 10);
+        mLength = mEnd = mSnapshot->GetVideoDuration();
+        mSnapshot->SetCacheFactor(16.0);
+        mSnapshot->SetSnapshotResizeFactor(0.1, 0.1);
+        mSnapshot->ConfigSnapWindow(window_size, 10);
     }
     mClips.push_back(ClipInfo(mStart, mEnd, false));
 }
@@ -1022,23 +1086,29 @@ SequencerItem::SequencerItem(const std::string& name, MediaParserHolder holder, 
     mEnd = end;
     mExpanded = expand;
     mMediaType = type;
-    mMedia = CreateMediaSnapshot();
+    mSnapshot = CreateMediaSnapshot();
+    mMedia = CreateMediaReader();
+    if (!mSnapshot || !mMedia)
+        return;
     mColor = COL_SLOT_DEFAULT;
+    mSnapshot->Open(holder);
     mMedia->Open(holder);
-    if (mMedia && mMedia->IsOpened())
+    if (mSnapshot && mSnapshot->IsOpened())
     {
         double window_size = 1.0f;
-        mLength = mEnd = mMedia->GetVideoDuration();
-        mMedia->SetCacheFactor(16.0);
-        mMedia->SetSnapshotResizeFactor(0.1, 0.1);
-        mMedia->ConfigSnapWindow(window_size, 10);
+        mLength = mEnd = mSnapshot->GetVideoDuration();
+        mSnapshot->SetCacheFactor(16.0);
+        mSnapshot->SetSnapshotResizeFactor(0.1, 0.1);
+        mSnapshot->ConfigSnapWindow(window_size, 10);
     }
     mClips.push_back(ClipInfo(mStart, mEnd, false));
 }
 
 SequencerItem::~SequencerItem()
 {
-    ReleaseMediaSnapshot(&mMedia);
+    ReleaseMediaSnapshot(&mSnapshot);
+    ReleaseMediaReader(&mMedia);
+    mSnapshot = nullptr;
     mMedia = nullptr;
     for (auto& snap : mVideoSnapshots)
     {
@@ -1048,12 +1118,12 @@ SequencerItem::~SequencerItem()
 
 void SequencerItem::SequencerItemUpdateSnapshots()
 {
-    if (mMedia && mMedia->IsOpened())
+    if (mSnapshot && mSnapshot->IsOpened())
     {
         std::vector<ImGui::ImMat> snapshots;
         double pos = (double)(mSnapshotPos) / 1000.f;
         int media_snapshot_index = 0;
-        if (mMedia->GetSnapshots(snapshots, pos))
+        if (mSnapshot->GetSnapshots(snapshots, pos))
         {
             for (int i = 0; i < snapshots.size(); i++)
             {
@@ -1128,12 +1198,12 @@ void SequencerItem::SequencerItemUpdateSnapshots()
 
 void SequencerItem::CalculateVideoSnapshotInfo(const ImRect &customRect, int64_t viewStartTime, int64_t visibleTime)
 {
-    if (mMedia && mMedia->IsOpened() && mMedia->HasVideo())
+    if (mSnapshot && mSnapshot->IsOpened() && mSnapshot->HasVideo())
     {
-        auto width = mMedia->GetVideoWidth();
-        auto height = mMedia->GetVideoHeight();
-        auto duration = mMedia->GetVideoDuration();
-        auto total_frames = mMedia->GetVideoFrameCount();
+        auto width = mSnapshot->GetVideoWidth();
+        auto height = mSnapshot->GetVideoHeight();
+        auto duration = mSnapshot->GetVideoDuration();
+        auto total_frames = mSnapshot->GetVideoFrameCount();
         auto clip_duration = mEnd - mStart;
         if (!width || !height || !duration || !total_frames)
             return;
@@ -1180,7 +1250,7 @@ void SequencerItem::CalculateVideoSnapshotInfo(const ImRect &customRect, int64_t
         {
             //fprintf(stderr, "[Dicky Debug] Update snapinfo\n");
             double window_size = mValidViewSnapshot * snapshot_duration / 1000.0;
-            mMedia->ConfigSnapWindow(window_size, mValidViewSnapshot);
+            mSnapshot->ConfigSnapWindow(window_size, mValidViewSnapshot);
             mLastValidSnapshot = mValidViewSnapshot;
             mVideoSnapshotInfos.clear();
             for (auto& snap : mVideoSnapshots)

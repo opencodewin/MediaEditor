@@ -5,8 +5,10 @@
 #include "imgui_internal.h"
 #include "MediaOverview.h"
 #include "MediaSnapshot.h"
+#include "MediaReader.h"
 #include <string>
 #include <vector>
+#include <list>
 
 #define ICON_MEDIA_BANK     u8"\ue907"
 #define ICON_MEDIA_TRANSITIONS u8"\ue927"
@@ -111,6 +113,8 @@
 
 #define HALF_COLOR(c)       (c & 0xFFFFFF) | 0x40000000;
 
+#define MAX_SEQUENCER_FRAME_NUMBER  16
+
 namespace ImSequencer
 {
 enum SEQUENCER_ITEM_TYPE : int
@@ -165,6 +169,9 @@ struct SequencerInterface
     int64_t firstTime = 0;
     int64_t lastTime = 0;
     int64_t visibleTime = 0;
+    bool bPlay = false;
+    bool bForward = true;
+    bool bLoop = false;
     virtual int64_t GetStart() const = 0;
     virtual int64_t GetEnd() const = 0;
     virtual void SetStart(int64_t pos) = 0;
@@ -236,7 +243,8 @@ struct SequencerItem
     float mFrameCount    {0};               // total snapshot number in cropped range
     int64_t mSnapshotPos {-1};              // current snapshot position in ms(start of view area)
     int64_t mSnapshotLendth {0};            // crop range total length in ms
-    MediaSnapshot* mMedia   {nullptr};      // item snapshot handle
+    MediaSnapshot* mSnapshot {nullptr};     // item snapshot handle
+    MediaReader* mMedia {nullptr};          // item media reader
     std::vector<VideoSnapshotInfo> mVideoSnapshotInfos; // item snapshots info, with all croped range
     std::vector<Snapshot> mVideoSnapshots;  // item snapshots, including texture and timestamp info
     std::vector<int64_t> mCutPoint;         // item cut points info
@@ -277,17 +285,23 @@ struct MediaSequencer : public SequencerInterface
     void CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &titleRect, const ImRect &clippingTitleRect, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRect, int64_t viewStartTime, int64_t visibleTime, float pixelWidth, bool need_update);
     void CustomDrawCompact(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &legendRect, const ImRect &clippingRect, int64_t viewStartTime, int64_t visibleTime, float pixelWidth);
     void GetVideoSnapshotInfo(int index, std::vector<VideoSnapshotInfo>& snapshots);
+    
+    std::vector<SequencerItem *> m_Items;   // timeline items
     const int mItemHeight {60};             // item custom view height
     int64_t mStart   {0};                   // whole timeline start in ms
     int64_t mEnd   {0};                     // whole timeline end in ms
-    std::vector<SequencerItem *> m_Items;   // timeline items
+    int mWidth  {1920};                     // timeline Media Width
+    int mHeight {1080};                     // timeline Media Height
+    float mFrameDuration {40};              // timeline Media Frame Duration in ms
+    
+    std::list<ImGui::ImMat *> mFrame;       // timeline output frame
 };
 
 struct MediaItem
 {
     std::string mName;
     std::string mPath;
-    MediaOverview * mMedia;
+    MediaOverview * mMediaOverview;
     int mMediaType {SEQUENCER_ITEM_UNKNOWN};
     std::vector<ImTextureID> mMediaThumbnail;
     MediaItem(const std::string& name, const std::string& path, int type);

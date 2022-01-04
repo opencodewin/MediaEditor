@@ -109,6 +109,7 @@ set(MEDIA_EDITOR_SRCS
     MediaOverview.cpp
     MediaSnapshot.cpp
     MediaParser.cpp
+    MediaReader.cpp
     FFUtils.cpp
     Logger.cpp
     ${IMGUI_APP_ENTRY_SRC}
@@ -118,6 +119,7 @@ set(MEDIA_EDITOR_INCS
     ImSequencer.h
     MediaOverview.h
     MediaSnapshot.h
+    MediaReader.h
     FFUtils.h
 )
 
