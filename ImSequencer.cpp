@@ -274,6 +274,7 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry
                     sequencer->currentTime = sequencer->GetStart();
                 if (sequencer->currentTime >= sequencer->GetEnd())
                     sequencer->currentTime = sequencer->GetEnd();
+                sequencer->Seek(); // call seek event
             }
             if (!io.MouseDown[0])
                 MovingCurrentTime = false;
@@ -563,6 +564,7 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry
                 sequencer->EndEdit();
                 ImGui::SetMouseCursor(ImGuiMouseCursor_Arrow);
             }
+            sequencer->Seek();
         }
 
         draw_list->PopClipRect();
@@ -1099,7 +1101,7 @@ SequencerItem::SequencerItem(const std::string& name, MediaParserHolder holder, 
         mLength = mEnd = mSnapshot->GetVideoDuration();
         mSnapshot->SetCacheFactor(16.0);
         mSnapshot->SetSnapshotResizeFactor(0.1, 0.1);
-        mSnapshot->ConfigSnapWindow(window_size, 10);
+        mSnapshot->ConfigSnapWindow(window_size, 5);
     }
     mClips.push_back(ClipInfo(mStart, mEnd, false));
 }
@@ -1332,12 +1334,114 @@ static inline bool CompareClip(ClipInfo& a, ClipInfo& b)
     return a.mStart < b.mStart;
 }
 
+static int thread_preview(MediaSequencer * sequencer)
+{
+    if (!sequencer)
+        return -1;
+    sequencer->mPreviewRunning = true;
+    while (!sequencer->mPreviewDone)
+    {
+        if (sequencer->m_Items.empty() || sequencer->mFrame.size() >= MAX_SEQUENCER_FRAME_NUMBER)
+        {
+            ImGui::sleep((int)20);
+            continue;
+        }
+        
+        int64_t current_time = sequencer->currentTime;
+        while (sequencer->mFrame.size() < MAX_SEQUENCER_FRAME_NUMBER)
+        {
+            ImGui::ImMat mat;
+            for (auto &item : sequencer->m_Items)
+            {
+                int64_t item_time = current_time - item->mStart + item->mStartOffset;
+                if (item->mMedia->IsOpened())
+                {
+                    item->mMedia->ReadFrame((float)item_time / 1000.0, mat);
+                }
+                if (!mat.empty())
+                    break;
+            }
+            if (mat.empty())
+                mat.time_stamp = (double)current_time / 1000.f;
+            sequencer->mFrameLock.lock();
+            sequencer->mFrame.push_back(mat);
+            sequencer->mFrameLock.unlock();
+            if (sequencer->bForward)
+            {
+                current_time += sequencer->mFrameDuration;
+                if (current_time > sequencer->mEnd) current_time = sequencer->mEnd;
+            }
+            else
+            {
+                current_time -= sequencer->mFrameDuration;
+                if (current_time < sequencer->mStart) current_time = sequencer->mStart;
+            }
+        }
+    }
+    sequencer->mPreviewRunning = false;
+    return 0;
+}
+
+MediaSequencer::MediaSequencer()
+    : mStart(0), mEnd(0)
+{
+    mPreviewThread = new std::thread(thread_preview, this);
+}
+
 MediaSequencer::~MediaSequencer()
 {
+    if (mPreviewThread && mPreviewThread->joinable())
+    {
+        mPreviewDone = true;
+        mPreviewThread->join();
+        delete mPreviewThread;
+        mPreviewThread = nullptr;
+        mPreviewDone = false;
+    }
+    mFrameLock.lock();
+    mFrame.clear();
+    mFrameLock.unlock();
     for (auto item : m_Items)
     {
         delete item;
     }
+    if (mMainPreviewTexture) ImGui::ImDestroyTexture(mMainPreviewTexture);
+}
+
+ImGui::ImMat MediaSequencer::GetPreviewFrame()
+{
+    ImGui::ImMat frame;
+    if (mCurrentPreviewTime == currentTime)
+        return frame;
+    double current_time = (double)currentTime / 1000.f;
+
+    for (auto mat = mFrame.begin(); mat != mFrame.end();)
+    {
+        bool need_erase = false;
+        if (bForward && mat->time_stamp < current_time)
+        {
+            need_erase = true;
+        }
+        else if (!bForward && mat->time_stamp > current_time)
+        {
+            need_erase = true;
+        }
+
+        if (need_erase)
+        {
+            mFrameLock.lock();
+            mat = mFrame.erase(mat);
+            mFrameLock.unlock();
+        }
+        else
+        {
+            frame = *mat;
+            mCurrentPreviewTime = currentTime;
+            break;
+        }
+    }
+
+    return frame;
 }
 
 void MediaSequencer::Get(int index, int64_t& start, int64_t& end, int64_t& length, int64_t& start_offset, int64_t& end_offset, std::string& name, unsigned int& color)
@@ -1594,7 +1698,8 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
     }
 
     // for Debug: print some info here 
-    //draw_list->AddText(clippingRect.Min + ImVec2(2,  8), IM_COL32_WHITE, std::to_string(item->mStart).c_str());
+    //int64_t current_item_time = currentTime - item->mStart + item->mStartOffset;
+    //draw_list->AddText(clippingRect.Min + ImVec2(2,  8), IM_COL32_WHITE, std::to_string(current_item_time).c_str());
     //draw_list->AddText(clippingRect.Min + ImVec2(2, 24), IM_COL32_WHITE, std::to_string(item->mStartOffset).c_str());
     draw_list->PopClipRect();
 
@@ -1751,6 +1856,22 @@ void MediaSequencer::SetCurrent(int64_t pos, bool rev)
         }
     }
     if (firstTime < 0) firstTime = 0;
+}
+
+void MediaSequencer::Seek()
+{
+    mFrameLock.lock();
+    mFrame.clear();
+    mCurrentPreviewTime = -1;
+    mFrameLock.unlock();
+    for (auto item : m_Items)
+    {
+        if (item->mMedia && item->mMedia->IsOpened())
+        {
+            int64_t item_time = currentTime - item->mStart + item->mStartOffset;
+            item->mMedia->SeekTo((double)item_time / 1000.f);
+        }
+    }
 }
 
 } // namespace ImSequencer

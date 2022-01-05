@@ -6,6 +6,7 @@
 #include "MediaOverview.h"
 #include "MediaSnapshot.h"
 #include "MediaReader.h"
+#include <thread>
 #include <string>
 #include <vector>
 #include <list>
@@ -113,7 +114,7 @@
 
 #define HALF_COLOR(c)       (c & 0xFFFFFF) | 0x40000000;
 
-#define MAX_SEQUENCER_FRAME_NUMBER  16
+#define MAX_SEQUENCER_FRAME_NUMBER  8
 
 namespace ImSequencer
 {
@@ -193,6 +194,7 @@ struct SequencerInterface
     virtual void Duplicate(int /*index*/) {}
     virtual void Copy() {}
     virtual void Paste() {}
+    virtual void Seek() = 0;
     virtual size_t GetCustomHeight(int /*index*/) { return 0; }
     virtual void DoubleClick(int /*index*/) {}
     virtual void CustomDraw(int /*index*/, ImDrawList * /*draw_list*/, const ImRect & /*rc*/, const ImRect & /*titleRect*/, const ImRect & /*clippingTitleRect*/, const ImRect & /*legendRect*/, const ImRect & /*clippingRect*/, const ImRect & /*legendClippingRect*/, int64_t /* viewStartTime */, int64_t /* visibleTime */, float /*pixelWidth*/, bool /* need_update */) {}
@@ -260,7 +262,7 @@ struct SequencerItem
 
 struct MediaSequencer : public SequencerInterface
 {
-    MediaSequencer() : mStart(0), mEnd(0) {}
+    MediaSequencer();
     ~MediaSequencer();
     // interface with sequencer
     int64_t GetStart() const { return mStart; }
@@ -280,21 +282,29 @@ struct MediaSequencer : public SequencerInterface
     void Add(std::string& name);
     void Del(int index);
     void Duplicate(int index);
+    void Seek();
     size_t GetCustomHeight(int index) { return m_Items[index]->mExpanded ? mItemHeight : 0; }
     void DoubleClick(int index) { m_Items[index]->mExpanded = !m_Items[index]->mExpanded; }
     void CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &titleRect, const ImRect &clippingTitleRect, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRect, int64_t viewStartTime, int64_t visibleTime, float pixelWidth, bool need_update);
     void CustomDrawCompact(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &legendRect, const ImRect &clippingRect, int64_t viewStartTime, int64_t visibleTime, float pixelWidth);
     void GetVideoSnapshotInfo(int index, std::vector<VideoSnapshotInfo>& snapshots);
-    
+    ImGui::ImMat GetPreviewFrame();
+
     std::vector<SequencerItem *> m_Items;   // timeline items
     const int mItemHeight {60};             // item custom view height
     int64_t mStart   {0};                   // whole timeline start in ms
     int64_t mEnd   {0};                     // whole timeline end in ms
     int mWidth  {1920};                     // timeline Media Width
     int mHeight {1080};                     // timeline Media Height
-    float mFrameDuration {40};              // timeline Media Frame Duration in ms
+    int64_t mFrameDuration {40};            // timeline Media Frame Duration in ms
     
-    std::list<ImGui::ImMat *> mFrame;       // timeline output frame
+    std::thread * mPreviewThread {nullptr}; // Preview Thread
+    bool mPreviewDone {false};              // Thread should finished
+    bool mPreviewRunning {false};           // Thread is running
+    std::mutex mFrameLock;                  // frame mutex
+    std::list<ImGui::ImMat> mFrame;         // timeline output frame
+    ImTextureID mMainPreviewTexture {nullptr};  // main preview texture
+    int64_t mCurrentPreviewTime {-1};
 };
 
 struct MediaItem
