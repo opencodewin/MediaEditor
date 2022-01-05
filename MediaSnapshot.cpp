@@ -1051,7 +1051,6 @@ private:
 
             if (currTask)
             {
-                AVFrame* ssfrm = nullptr;
                 for (Snapshot& ss : currTask->ssAry)
                 {
                     if (ss.avfrm)

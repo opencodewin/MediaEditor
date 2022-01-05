@@ -124,6 +124,8 @@ public:
         m_hParser = nullptr;
         m_hMediaInfo = nullptr;
 
+        m_prevReadPos = 0;
+        m_prevReadImg.release();
         m_readForward = true;
         m_seekPosUpdated = false;
         m_seekPosTs = 0;
@@ -178,9 +180,19 @@ public:
     {
         if (ts < 0 || ts > m_vidDurTs)
             return false;
+        if (ts == m_prevReadPos && !m_prevReadImg.empty())
+        {
+            m = m_prevReadImg;
+            return true;
+        }
 
         lock_guard<recursive_mutex> lk(m_apiLock);
         bool success = ReadFrame_Internal(ts, m, wait);
+        if (success)
+        {
+            m_prevReadPos = ts;
+            m_prevReadImg = m;
+        }
 
         if (m_seekPosUpdated)
         {
@@ -545,7 +557,7 @@ private:
         m_demuxThread = thread(&MediaReader_Impl::DemuxThreadProc, this);
         if (HasVideo())
             m_viddecThread = thread(&MediaReader_Impl::VideoDecodeThreadProc, this);
-        m_updateSsThread = thread(&MediaReader_Impl::UpdateSnapshotThreadProc, this);
+        m_updateCfThread = thread(&MediaReader_Impl::UpdateCacheFrameThreadProc, this);
     }
 
     void WaitAllThreadsQuit()
@@ -561,10 +573,10 @@ private:
             m_viddecThread.join();
             m_viddecThread = thread();
         }
-        if (m_updateSsThread.joinable())
+        if (m_updateCfThread.joinable())
         {
-            m_updateSsThread.join();
-            m_updateSsThread = thread();
+            m_updateCfThread.join();
+            m_updateCfThread = thread();
         }
     }
 
@@ -593,7 +605,7 @@ private:
         do
         {
             {
-                lock_guard<mutex> lk2(m_bldtskByTimeLock);
+                lock_guard<mutex> lk(m_bldtskByTimeLock);
                 auto iter = find_if(m_bldtskTimeOrder.begin(), m_bldtskTimeOrder.end(), [this, ts](const GopDecodeTaskHolder& task) {
                     int64_t pts = CvtVidMtsToPts(ts*1000);
                     return task->seekPts.first <= pts && task->seekPts.second > pts;
@@ -632,7 +644,7 @@ private:
             if (!targetTask->vfAry.empty())
             {
                 bestfrmIter= find_if(targetTask->vfAry.begin(), targetTask->vfAry.end(), [ts](const VideoFrame& frm) {
-                    return frm.img.time_stamp > ts;
+                    return frm.ts > ts;
                 });
                 bool lastFrmInAry = false;
                 if (bestfrmIter == targetTask->vfAry.end())
@@ -644,7 +656,7 @@ private:
                     foundBestFrame = true;
                     break;
                 }
-                else if (ts-bestfrmIter->img.time_stamp <= m_vidfrmIntvMts/1000)
+                else if (ts-bestfrmIter->ts <= m_vidfrmIntvMts/1000)
                 {
                     foundBestFrame = true;
                     break;
@@ -658,9 +670,15 @@ private:
         if (foundBestFrame)
         {
             if (wait)
-                while(!m_quit && bestfrmIter->img.empty())
+                while(!m_quit && !bestfrmIter->ownfrm)
                     this_thread::sleep_for(chrono::milliseconds(5));
-            m = bestfrmIter->img;
+            if (bestfrmIter->ownfrm)
+            {
+                if (!m_frmCvt.ConvertImage(bestfrmIter->ownfrm.get(), m, bestfrmIter->ts))
+                    Log(ERROR) << "FAILED to convert AVFrame to ImGui::ImMat! Message is '" << m_frmCvt.GetError() << "'." << endl;
+            }
+            else
+                m.time_stamp = bestfrmIter->ts;
         }
         else
             m.time_stamp = ts;
@@ -670,8 +688,8 @@ private:
 
     struct VideoFrame
     {
-        AVFrame* avfrm{nullptr};
-        ImGui::ImMat img;
+        SelfFreeAVFramePtr decfrm;
+        SelfFreeAVFramePtr ownfrm;
         double ts;
     };
 
@@ -694,13 +712,9 @@ private:
             for (AVPacket* avpkt : avpktQ)
                 av_packet_free(&avpkt);
             for (VideoFrame& vf : vfAry)
-            {
-                if (vf.avfrm)
-                {
-                    av_frame_free(&vf.avfrm);
+                if (vf.decfrm)
                     outterObj.m_pendingVidfrmCnt--;
-                }
-            }
+            vfAry.clear();
         }
 
         MediaReader_Impl& outterObj;
@@ -937,10 +951,10 @@ private:
         {
             VideoFrame vf;
             vf.ts = ts;
-            vf.avfrm = av_frame_clone(frm);
-            if (!vf.avfrm)
+            vf.decfrm = CloneSelfFreeAVFramePtr(frm);
+            if (!vf.decfrm)
             {
-                Log(ERROR) << "FAILED to invoke 'av_frame_clone()' to allocate new AVFrame for VF!" << endl;
+                Log(ERROR) << "FAILED to invoke 'CloneSelfFreeAVFramePtr()' to allocate new AVFrame for VF!" << endl;
                 return false;
             }
             // Log(DEBUG) << "Adding VF#" << ts << "." << endl;
@@ -960,8 +974,6 @@ private:
                 {
                     Log(DEBUG) << "Found duplicated VF#" << ts << ", dropping this VF. pts=" << frm->pts
                         << ", t=" << MillisecToString(CvtVidPtsToMts(frm->pts)) << "." << endl;
-                    if (vf.avfrm)
-                        av_frame_free(&vf.avfrm);
                 }
                 else
                 {
@@ -1130,7 +1142,7 @@ private:
         Log(DEBUG) << "Leave VideoDecodeThreadProc()." << endl;
     }
 
-    GopDecodeTaskHolder FindNextSsUpdateTask()
+    GopDecodeTaskHolder FindNextCfUpdateTask()
     {
         lock_guard<mutex> lk(m_bldtskByPriLock);
         GopDecodeTaskHolder nxttsk = nullptr;
@@ -1143,9 +1155,9 @@ private:
         return nxttsk;
     }
 
-    void UpdateSnapshotThreadProc()
+    void UpdateCacheFrameThreadProc()
     {
-        Log(DEBUG) << "Enter UpdateSnapshotThreadProc()." << endl;
+        Log(DEBUG) << "Enter UpdateCacheFrameThreadProc()." << endl;
         GopDecodeTaskHolder currTask;
         while (!m_quit)
         {
@@ -1153,21 +1165,34 @@ private:
 
             if (!currTask || currTask->cancel || currTask->frmCnt <= 0)
             {
-                currTask = FindNextSsUpdateTask();
+                currTask = FindNextCfUpdateTask();
             }
 
             if (currTask)
             {
-                AVFrame* ssfrm = nullptr;
                 for (VideoFrame& vf : currTask->vfAry)
                 {
-                    if (vf.avfrm)
+                    if (vf.decfrm)
                     {
-                        double ts = (double)CvtVidPtsToMts(vf.avfrm->pts)/1000.;
-                        if (!m_frmCvt.ConvertImage(vf.avfrm, vf.img, ts))
-                            Log(ERROR) << "FAILED to convert AVFrame to ImGui::ImMat! Message is '" << m_frmCvt.GetError() << "'." << endl;
-                        av_frame_free(&vf.avfrm);
-                        vf.avfrm = nullptr;
+                        AVFrame* frm = vf.decfrm.get();
+                        if (IsHwFrame(frm))
+                        {
+                            SelfFreeAVFramePtr swfrm = AllocSelfFreeAVFramePtr();
+                            if (swfrm)
+                            {
+                                if (HwFrameToSwFrame(swfrm.get(), frm))
+                                    vf.ownfrm = swfrm;
+                                else
+                                    Log(ERROR) << "FAILED to convert HW frame to SW frame!" << endl;
+                            }
+                            else
+                                Log(ERROR) << "FAILED to allocate new SelfFreeAVFramePtr!" << endl;
+                        }
+                        else
+                        {
+                            vf.ownfrm = vf.decfrm;
+                        }
+                        vf.decfrm = nullptr;
                         currTask->frmCnt--;
                         if (currTask->frmCnt < 0)
                             Log(ERROR) << "!! ABNORMAL !! Task [" << currTask->seekPts.first << ", " << currTask->seekPts.second << "] has negative 'frmCnt'("
@@ -1183,7 +1208,7 @@ private:
             if (idleLoop)
                 this_thread::sleep_for(chrono::milliseconds(5));
         }
-        Log(DEBUG) << "Leave UpdateSnapshotThreadProc()." << endl;
+        Log(DEBUG) << "Leave UpdateCacheFrameThreadProc()." << endl;
     }
 
     pair<int64_t, int64_t> GetSeekPosByTs(double ts)
@@ -1437,8 +1462,10 @@ private:
     // video decoding thread
     thread m_viddecThread;
     // update snapshots thread
-    thread m_updateSsThread;
+    thread m_updateCfThread;
 
+    double m_prevReadPos{0};
+    ImGui::ImMat m_prevReadImg;
     bool m_readForward{true};
     bool m_seekPosUpdated{false};
     double m_seekPosTs{0};

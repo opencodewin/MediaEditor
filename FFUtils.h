@@ -20,8 +20,12 @@ extern const AVRational FF_AV_TIMEBASE;
 std::string MillisecToString(int64_t millisec);
 std::string TimestampToString(double timestamp);
 
+bool IsHwFrame(const AVFrame* avfrm);
+bool HwFrameToSwFrame(AVFrame* swfrm, const AVFrame* hwfrm);
+
 using SelfFreeAVFramePtr = std::shared_ptr<AVFrame>;
 SelfFreeAVFramePtr AllocSelfFreeAVFramePtr();
+SelfFreeAVFramePtr CloneSelfFreeAVFramePtr(const AVFrame* avfrm);
 
 int AVPixelFormatToImColorFormat(AVPixelFormat pixfmt);
 bool ConvertAVFrameToImMat(const AVFrame* avfrm, ImGui::ImMat& vmat, double timestamp);
