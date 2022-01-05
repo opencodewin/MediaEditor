@@ -1380,12 +1380,34 @@ static int thread_preview(MediaSequencer * sequencer)
             if (sequencer->bForward)
             {
                 current_time += sequencer->mFrameDuration;
-                if (current_time > sequencer->mEnd) current_time = sequencer->mEnd;
+                if (current_time > sequencer->mEnd)
+                {
+                    if (sequencer->bLoop)
+                    {
+                        sequencer->mFrameLock.lock();
+                        sequencer->mFrame.clear();
+                        sequencer->mFrameLock.unlock();
+                        current_time = sequencer->mStart;
+                    }
+                    else 
+                        current_time = sequencer->mEnd;
+                }
             }
             else
             {
                 current_time -= sequencer->mFrameDuration;
-                if (current_time < sequencer->mStart) current_time = sequencer->mStart;
+                if (current_time < sequencer->mStart)
+                {
+                    if (sequencer->bLoop)
+                    {
+                        sequencer->mFrameLock.lock();
+                        sequencer->mFrame.clear();
+                        sequencer->mFrameLock.unlock();
+                        current_time = sequencer->mEnd;
+                    }
+                    else
+                        current_time = sequencer->mStart;
+                }
             }
         }
     }
