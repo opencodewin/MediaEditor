@@ -134,10 +134,13 @@ public:
         m_errMsg = "";
     }
 
-    void SeekTo(double ts) override
+    bool SeekTo(double ts) override
     {
+        if (ts < 0 || ts > m_vidDurTs)
+            return false;
         lock_guard<recursive_mutex> lk(m_apiLock);
         UpdateCacheWindow(ts);
+        return true;
     }
 
     void SetDirection(bool forward) override
