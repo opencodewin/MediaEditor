@@ -1361,8 +1361,8 @@ static int thread_preview(MediaSequencer * sequencer)
                 if (!mat.empty())
                     break;
             }
-            if (mat.empty())
-                mat.time_stamp = (double)current_time / 1000.f;
+
+            mat.time_stamp = (double)current_time / 1000.f;
             sequencer->mFrameLock.lock();
             sequencer->mFrame.push_back(mat);
             sequencer->mFrameLock.unlock();
@@ -1764,8 +1764,27 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
             ImRect clip_rect(clip_pos_min, clip_pos_max);
             ImGui::SetCursorScreenPos(clip_pos_min);
             ImGui::InvisibleButton((item->mPath + "@" + std::to_string(clip.mStart)).c_str(), clip_pos_max - clip_pos_min);
-            if (clip_rect.Contains(io.MousePos))
+            //if (clip_rect.Contains(io.MousePos))
+            //{
+            //    draw_list->AddRectFilled(clip_pos_min, clip_pos_max, IM_COL32(32,64,32,128));
+            //    if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceAllowNullID))
+            //    {
+            //        ImGui::SetDragDropPayload("Clip_drag_drop", item, sizeof(MediaItem));
+            //        auto start_time_string = MillisecToString(clip.mStart, 3);
+            //        auto end_time_string = MillisecToString(clip.mEnd, 3);
+            //        auto length_time_string = MillisecToString(clip.mEnd - clip.mStart, 3);
+            //        ImGui::TextUnformatted((item)->mName.c_str());
+            //        ImGui::Text(" Start: %s", start_time_string.c_str());
+            //        ImGui::Text("   End: %s", end_time_string.c_str());
+            //        ImGui::Text("Length: %s", length_time_string.c_str());
+            //        ImGui::EndDragDropSource();
+            //    }
+            //}
+
+            if (ImGui::IsItemHovered())
             {
+            //if (clip_rect.Contains(io.MousePos))
+            //{
                 draw_list->AddRectFilled(clip_pos_min, clip_pos_max, IM_COL32(128,128,128,128));
                 ImGui::BeginTooltip();
                 auto start_time_string = MillisecToString(clip.mStart, 3);
