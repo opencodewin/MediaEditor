@@ -6,7 +6,6 @@
 #include "ImSequencer.h"
 #include "FFUtils.h"
 #include "Logger.h"
-#include <thread>
 #include <sstream>
 
 using namespace ImSequencer;
@@ -45,9 +44,6 @@ static const char* MainWindowTabTooltips[] =
 };
 
 static MediaSequencer * sequencer = nullptr;
-static bool preview_done = false;
-static bool preview_running = false;
-static std::thread * preview_thread = nullptr;
 static std::vector<MediaItem *> media_items;
 static ImGui::TabLabelStyle * tab_style = &ImGui::TabLabelStyle::Get();
 
@@ -104,6 +100,31 @@ static bool Splitter(bool split_vertically, float thickness, float* size1, float
 	bb.Min = window->DC.CursorPos + (split_vertically ? ImVec2(*size1, 0.0f) : ImVec2(0.0f, *size1));
 	bb.Max = bb.Min + CalcItemSize(split_vertically ? ImVec2(thickness, splitter_long_axis_size) : ImVec2(splitter_long_axis_size, thickness), 0.0f, 0.0f);
 	return SplitterBehavior(bb, id, split_vertically ? ImGuiAxis_X : ImGuiAxis_Y, size1, size2, min_size1, min_size2, 1.0, 0.01);
+}
+
+void ShowVideoWindow(ImTextureID texture, ImVec2& pos, ImVec2& size)
+{
+    if (texture)
+    {
+        bool bViewisLandscape = size.x >= size.y ? true : false;
+        float aspectRatio = (float)ImGui::ImGetTextureWidth(texture) / (float)ImGui::ImGetTextureHeight(texture);
+        bool bRenderisLandscape = aspectRatio > 1.f ? true : false;
+        bool bNeedChangeScreenInfo = bViewisLandscape ^ bRenderisLandscape;
+        float adj_w = bNeedChangeScreenInfo ? size.y : size.x;
+        float adj_h = bNeedChangeScreenInfo ? size.x : size.y;
+        float adj_x = adj_h * aspectRatio;
+        float adj_y = adj_h;
+        if (adj_x > adj_w) { adj_y *= adj_w / adj_x; adj_x = adj_w; }
+        float offset_x = pos.x + (size.x - adj_x) / 2.0;
+        float offset_y = pos.y + (size.y - adj_y) / 2.0;
+        ImGui::GetWindowDrawList()->AddImage(
+            texture,
+            ImVec2(offset_x, offset_y),
+            ImVec2(offset_x + adj_x, offset_y + adj_y),
+            ImVec2(0, 0),
+            ImVec2(1, 1)
+        );
+    }
 }
 
 static void ShowMediaBankWindow(ImDrawList *draw_list, float media_icon_size)
@@ -301,21 +322,6 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
     ImGui::SetWindowFontScale(1.0);
 }
 
-static int thread_preview(bool& done, bool &running)
-{
-    running = true;
-    while (!done)
-    {
-        if (!sequencer || !sequencer->bPlay)
-        {
-            ImGui::sleep((int)20);
-            continue;
-        }
-    }
-    running = false;
-    return 0;
-}
-
 static void ShowMediaPreviewWindow(ImDrawList *draw_list)
 {
     // preview control pannel
@@ -341,6 +347,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
         {
             sequencer->firstTime = sequencer->mStart;
             sequencer->currentTime = sequencer->mStart;
+            sequencer->Seek();
         }
     }
     ImGui::ShowTooltipOnHover("To Start");
@@ -387,6 +394,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
             else
                 sequencer->firstTime = sequencer->mStart;
             sequencer->currentTime = sequencer->mEnd;
+            sequencer->Seek();
         }
     }
     ImGui::ShowTooltipOnHover("To End");
@@ -407,6 +415,26 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     // audio meters
 
     // video texture area
+    ImVec2 PreviewPos;
+    ImVec2 PreviewSize;
+    PreviewPos = window_pos + ImVec2(16, 16);
+    PreviewSize = window_size - ImVec2(16, 16 + 48);
+    auto frame = sequencer->GetPreviewFrame();
+    if (!frame.empty())
+    {
+        if (frame.device == ImDataDevice::IM_DD_CPU)
+        {
+            ImGui::ImGenerateOrUpdateTexture(sequencer->mMainPreviewTexture, frame.w, frame.h, frame.c, (const unsigned char *)frame.data);
+        }
+#if IMGUI_VULKAN_SHADER
+        if (frame.device == ImDataDevice::IM_DD_VULKAN)
+        {
+            ImGui::VkMat vkmat = frame;
+            ImGui::ImGenerateOrUpdateTexture(sequencer->mMainPreviewTexture, vkmat.w, vkmat.h, vkmat.c, vkmat.buffer_offset(), (const unsigned char *)vkmat.buffer());
+        }
+#endif
+    }
+    ShowVideoWindow(sequencer->mMainPreviewTexture, PreviewPos, PreviewSize);
 }
 
 static void ShowVideoEditorWindow(ImDrawList *draw_list)
@@ -473,20 +501,10 @@ void Application_Initialize(void** handle)
 	}
 #endif
     sequencer = new MediaSequencer();
-    preview_done = false;
-    preview_thread = new std::thread(thread_preview, std::ref(preview_done), std::ref(preview_running));
 }
 
 void Application_Finalize(void** handle)
 {
-    if (preview_thread && preview_thread->joinable())
-    {
-        preview_done = true;
-        preview_thread->join();
-        delete preview_thread;
-        preview_thread = nullptr;
-        preview_done = false;
-    }
     for (auto item : media_items) delete item;
     if (sequencer) delete sequencer;
 #ifdef USE_BOOKMARK
