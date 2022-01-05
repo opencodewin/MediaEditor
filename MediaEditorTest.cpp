@@ -340,7 +340,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0.5));
     ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.2, 0.2, 0.2, 1.0));
 
-    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32 - 8 - 32, PanelButtonY));
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32 - 8 - 32 - 8 - 32, PanelButtonY));
     if (ImGui::Button(ICON_TO_START "##preview_tostart", ImVec2(32, 32)))
     {
         if (sequencer && !sequencer->bPlay && sequencer->GetItemCount() > 0)
@@ -351,6 +351,19 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
         }
     }
     ImGui::ShowTooltipOnHover("To Start");
+
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32 - 8 - 32, PanelButtonY));
+    if (ImGui::Button(ICON_STEP_BACKWARD "##preview_step_backward", ImVec2(32, 32)))
+    {
+        if (sequencer)
+        {
+            sequencer->bForward = false;
+            sequencer->currentTime -= sequencer->mFrameDuration;
+            if (sequencer->currentTime < sequencer->mStart)
+                sequencer->currentTime = sequencer->mStart;
+        }
+    }
+    ImGui::ShowTooltipOnHover("Step Prev");
 
     ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32, PanelButtonY));
     if (ImGui::Button(ICON_FAST_BACKWARD "##preview_reverse", ImVec2(32, 32)))
@@ -374,7 +387,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     ImGui::ShowTooltipOnHover("Stop");
 
     ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8, PanelButtonY));
-    if (ImGui::Button(ICON_PLAY "##preview_play", ImVec2(32, 32)))
+    if (ImGui::Button(ICON_FAST_FORWARD "##preview_play", ImVec2(32, 32)))
     {
         if (sequencer)
         {
@@ -385,6 +398,19 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     ImGui::ShowTooltipOnHover("Play");
 
     ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 32 + 8, PanelButtonY));
+    if (ImGui::Button(ICON_STEP_FORWARD "##preview_step_forward", ImVec2(32, 32)))
+    {
+        if (sequencer)
+        {
+            sequencer->bForward = true;
+            sequencer->currentTime += sequencer->mFrameDuration;
+            if (sequencer->currentTime > sequencer->mEnd)
+                sequencer->currentTime = sequencer->mEnd;
+        }
+    }
+    ImGui::ShowTooltipOnHover("Step Next");
+
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 32 + 8 + 32 + 8, PanelButtonY));
     if (ImGui::Button(ICON_TO_END "##preview_toend", ImVec2(32, 32)))
     {
         if (sequencer && !sequencer->bPlay && sequencer->GetItemCount() > 0)
@@ -400,7 +426,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     ImGui::ShowTooltipOnHover("To End");
 
     bool loop = sequencer ? sequencer->bLoop : false;
-    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 32 + 8 + 8 + 32, PanelButtonY));
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 32 + 8 + 32 + 8 + 32 + 8, PanelButtonY));
     if (ImGui::Button(loop ? ICON_LOOP : ICON_LOOP_ONE "##preview_loop", ImVec2(32, 32)))
     {
         if (sequencer)
@@ -410,8 +436,9 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     }
     ImGui::ShowTooltipOnHover("Loop");
     ImGui::PopStyleColor(3);
-    // Time stamp on left of control panel
 
+    // Time stamp on left of control panel
+    
     // audio meters
 
     // video texture area

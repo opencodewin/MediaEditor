@@ -63,6 +63,8 @@
 #define ICON_FAST_TO_END    u8"\uf050"
 #define ICON_TO_END         u8"\uf051"
 #define ICON_EJECT          u8"\uf052"
+#define ICON_STEP_BACKWARD  u8"\uf053"
+#define ICON_STEP_FORWARD   u8"\uf054"
 #define ICON_LOOP           u8"\ue9d6"
 #define ICON_LOOP_ONE       u8"\ue9d7"
 
