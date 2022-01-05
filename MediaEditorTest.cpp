@@ -487,7 +487,8 @@ void Application_Initialize(void** handle)
 {
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     io.IniFilename = ini_file.c_str();
-    Logger::SetDefaultLoggerLevels(Logger::DEBUG);
+    Logger::GetDefaultLogger()->SetShowLevels(Logger::DEBUG);
+    GetMediaReaderLogger()->SetShowLevels(Logger::DEBUG);
     ImGui::ResetTabLabelStyle(ImGui::ImGuiTabLabelStyle_Dark, *tab_style);
 #ifdef USE_BOOKMARK
 	// load bookmarks

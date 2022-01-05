@@ -3,7 +3,6 @@
 #include <algorithm>
 #include "MediaOverview.h"
 #include "FFUtils.h"
-#include "Logger.h"
 extern "C"
 {
     #include "libavutil/avutil.h"
@@ -27,7 +26,13 @@ static AVPixelFormat get_hw_format(AVCodecContext *ctx, const AVPixelFormat *pix
 class MediaOverview_Impl : public MediaOverview
 {
 public:
-    MediaOverview_Impl() = default;
+    static ALogger* s_logger;
+
+    MediaOverview_Impl()
+    {
+        m_logger = GetMediaOverviewLogger();
+    }
+
     MediaOverview_Impl(const MediaOverview_Impl&) = delete;
     MediaOverview_Impl(MediaOverview_Impl&&) = delete;
     MediaOverview_Impl& operator=(const MediaOverview_Impl&) = delete;
@@ -475,7 +480,7 @@ private:
             m_errMsg = FFapiFailureMessage("avcodec_open2", fferr);
             return false;
         }
-        Log(DEBUG) << "Video decoder '" << m_viddec->name << "' opened." << " thread_count=" << m_viddecCtx->thread_count
+        m_logger->Log(DEBUG) << "Video decoder '" << m_viddec->name << "' opened." << " thread_count=" << m_viddecCtx->thread_count
             << ", thread_type=" << m_viddecCtx->thread_type << endl;
         return true;
     }
@@ -503,7 +508,7 @@ private:
                 }
             }
         }
-        Log(DEBUG) << "Use hardware device type '" << av_hwdevice_get_type_name(m_viddecDevType) << "'." << endl;
+        m_logger->Log(DEBUG) << "Use hardware device type '" << av_hwdevice_get_type_name(m_viddecDevType) << "'." << endl;
 
         m_viddecCtx = avcodec_alloc_context3(m_viddec);
         if (!m_viddecCtx)
@@ -536,7 +541,7 @@ private:
             m_errMsg = FFapiFailureMessage("avcodec_open2", fferr);
             return false;
         }
-        Log(DEBUG) << "Video decoder(HW) '" << m_viddecCtx->codec->name << "' opened." << endl;
+        m_logger->Log(DEBUG) << "Video decoder(HW) '" << m_viddecCtx->codec->name << "' opened." << endl;
         return true;
     }
 
@@ -564,7 +569,7 @@ private:
             m_errMsg = FFapiFailureMessage("avcodec_open2", fferr);
             return false;
         }
-        Log(DEBUG) << "Audio decoder '" << m_auddec->name << "' opened." << endl;
+        m_logger->Log(DEBUG) << "Audio decoder '" << m_auddec->name << "' opened." << endl;
 
         // setup sw resampler
         int inChannels = m_audAvStm->codecpar->channels;
@@ -687,11 +692,11 @@ private:
 
     void DemuxThreadProc()
     {
-        Log(DEBUG) << "Enter DemuxThreadProc()..." << endl;
+        m_logger->Log(DEBUG) << "Enter DemuxThreadProc()..." << endl;
 
         if (!m_prepared && !Prepare())
         {
-            Log(ERROR) << "Prepare() FAILED! Error is '" << m_errMsg << "'." << endl;
+            m_logger->Log(ERROR) << "Prepare() FAILED! Error is '" << m_errMsg << "'." << endl;
             return;
         }
 
@@ -716,7 +721,7 @@ private:
                 fferr = avformat_seek_file(m_avfmtCtx, m_vidStmIdx, INT64_MIN, seekTargetPts, seekTargetPts, 0);
                 if (fferr < 0)
                 {
-                    Log(ERROR) << "avformat_seek_file() FAILED for seeking to pts(" << seekTargetPts << ")! fferr = " << fferr << "!" << endl;
+                    m_logger->Log(ERROR) << "avformat_seek_file() FAILED for seeking to pts(" << seekTargetPts << ")! fferr = " << fferr << "!" << endl;
                     break;
                 }
 
@@ -748,7 +753,7 @@ private:
                         else
                         {
                             if (fferr != AVERROR_EOF)
-                                Log(ERROR) << "Demuxer ERROR! 'av_read_frame()' returns " << fferr << "." << endl;
+                                m_logger->Log(ERROR) << "Demuxer ERROR! 'av_read_frame()' returns " << fferr << "." << endl;
                             break;
                         }
                     }
@@ -762,7 +767,7 @@ private:
                                 AVPacket* enqpkt = av_packet_clone(&avpkt);
                                 if (!enqpkt)
                                 {
-                                    Log(ERROR) << "FAILED to invoke 'av_packet_clone(DemuxThreadProc)'!" << endl;
+                                    m_logger->Log(ERROR) << "FAILED to invoke 'av_packet_clone(DemuxThreadProc)'!" << endl;
                                     break;
                                 }
                                 {
@@ -785,7 +790,7 @@ private:
             }
             else
             {
-                Log(ERROR) << "Demux procedure to non-video media is NOT IMPLEMENTED yet!" << endl;
+                m_logger->Log(ERROR) << "Demux procedure to non-video media is NOT IMPLEMENTED yet!" << endl;
             }
 
             if (idleLoop)
@@ -794,12 +799,12 @@ private:
         if (avpktLoaded)
             av_packet_unref(&avpkt);
         m_demuxEof = true;
-        Log(DEBUG) << "Leave DemuxThreadProc()." << endl;
+        m_logger->Log(DEBUG) << "Leave DemuxThreadProc()." << endl;
     }
 
     void VideoDecodeThreadProc()
     {
-        Log(DEBUG) << "Enter VideoDecodeThreadProc()..." << endl;
+        m_logger->Log(DEBUG) << "Enter VideoDecodeThreadProc()..." << endl;
 
         while (!m_prepared && !m_quitScan)
             this_thread::sleep_for(chrono::milliseconds(5));
@@ -820,7 +825,7 @@ private:
                     int fferr = avcodec_receive_frame(m_viddecCtx, &avfrm);
                     if (fferr == 0)
                     {
-                        // Log(DEBUG) << "<<< Get video frame pts=" << avfrm.pts << "(" << MillisecToString(av_rescale_q(avfrm.pts, m_vidAvStm->time_base, MILLISEC_TIMEBASE)) << ")." << endl;
+                        // m_logger->Log(DEBUG) << "<<< Get video frame pts=" << avfrm.pts << "(" << MillisecToString(av_rescale_q(avfrm.pts, m_vidAvStm->time_base, MILLISEC_TIMEBASE)) << ")." << endl;
                         avfrmLoaded = true;
                         idleLoop = false;
                     }
@@ -828,7 +833,7 @@ private:
                     {
                         if (fferr != AVERROR_EOF)
                         {
-                            Log(ERROR) << "FAILED to invoke 'avcodec_receive_frame'(VideoDecodeThreadProc)! return code is "
+                            m_logger->Log(ERROR) << "FAILED to invoke 'avcodec_receive_frame'(VideoDecodeThreadProc)! return code is "
                                 << fferr << "." << endl;
                         }
                         quitLoop = true;
@@ -860,7 +865,7 @@ private:
                     int fferr = avcodec_send_packet(m_viddecCtx, avpkt);
                     if (fferr == 0)
                     {
-                        // Log(DEBUG) << ">>> Send video packet pts=" << avpkt->pts << "(" << MillisecToString(av_rescale_q(avpkt->pts, m_vidAvStm->time_base, MILLISEC_TIMEBASE))
+                        // m_logger->Log(DEBUG) << ">>> Send video packet pts=" << avpkt->pts << "(" << MillisecToString(av_rescale_q(avpkt->pts, m_vidAvStm->time_base, MILLISEC_TIMEBASE))
                         //     << "), size=" << avpkt->size << "." << endl;
                         {
                             lock_guard<mutex> lk(m_vidpktQLock);
@@ -871,7 +876,7 @@ private:
                     }
                     else if (fferr != AVERROR(EAGAIN))
                     {
-                        Log(ERROR) << "FAILED to invoke 'avcodec_send_packet'(VideoDecodeThreadProc)! return code is "
+                        m_logger->Log(ERROR) << "FAILED to invoke 'avcodec_send_packet'(VideoDecodeThreadProc)! return code is "
                             << fferr << "." << endl;
                         break;
                     }
@@ -887,12 +892,12 @@ private:
                 this_thread::sleep_for(chrono::milliseconds(5));
         }
         m_viddecEof = true;
-        Log(DEBUG) << "Leave VideoDecodeThreadProc()." << endl;
+        m_logger->Log(DEBUG) << "Leave VideoDecodeThreadProc()." << endl;
     }
 
     void GenerateSsThreadProc()
     {
-        Log(DEBUG) << "Enter GenerateSsThreadProc()." << endl;
+        m_logger->Log(DEBUG) << "Enter GenerateSsThreadProc()." << endl;
         while (!m_quitScan)
         {
             bool idleLoop = true;
@@ -912,13 +917,13 @@ private:
                 if (iter != m_snapshots.end())
                 {
                     if (!m_frmCvt.ConvertImage(frm, iter->img, ts))
-                        Log(ERROR) << "FAILED to convert AVFrame to ImGui::ImMat! Message is '" << m_frmCvt.GetError() << "'." << endl;
+                        m_logger->Log(ERROR) << "FAILED to convert AVFrame to ImGui::ImMat! Message is '" << m_frmCvt.GetError() << "'." << endl;
                     // else
-                    //     Log(DEBUG) << "Add SS#" << iter->index << "." << endl;
+                    //     m_logger->Log(DEBUG) << "Add SS#" << iter->index << "." << endl;
                 }
                 else
                 {
-                    Log(WARN) << "Discard AVFrame with pts=" << frm->pts << "(ts=" << ts << ")!";
+                    m_logger->Log(WARN) << "Discard AVFrame with pts=" << frm->pts << "(ts=" << ts << ")!";
                 }
 
                 av_frame_free(&frm);
@@ -957,12 +962,13 @@ private:
             }
         }
         m_genSsEof = true;
-        Log(DEBUG) << "Leave GenerateSsThreadProc()." << endl;
+        m_logger->Log(DEBUG) << "Leave GenerateSsThreadProc()." << endl;
     }
 
 private:
-    bool m_opened{false};
+    ALogger* m_logger;
     string m_errMsg;
+    bool m_opened{false};
     bool m_vidPreferUseHw{true};
     AVHWDeviceType m_vidUseHwType{AV_HWDEVICE_TYPE_NONE};
 
@@ -1046,6 +1052,15 @@ private:
     float m_ssWFacotr{1.f}, m_ssHFacotr{1.f};
     AVFrameToImMatConverter m_frmCvt;
 };
+
+ALogger* MediaOverview_Impl::s_logger;
+
+ALogger* GetMediaOverviewLogger()
+{
+    if (!MediaOverview_Impl::s_logger)
+        MediaOverview_Impl::s_logger = GetLogger("MOverview");
+    return MediaOverview_Impl::s_logger;
+}
 
 static AVPixelFormat get_hw_format(AVCodecContext *ctx, const AVPixelFormat *pix_fmts)
 {

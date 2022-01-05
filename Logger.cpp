@@ -8,6 +8,7 @@
 #include <chrono>
 #include <unordered_map>
 #include <functional>
+#include <mutex>
 #include "Logger.h"
 
 using namespace std;
@@ -33,123 +34,40 @@ namespace Logger
     NullBuffer NULL_BUFFER;
     ostream NULL_STREAM(&NULL_BUFFER);
 
-    class LogBuffer : public stringbuf
+    class BaseLogger : public ALogger
     {
     public:
-        LogBuffer(ostream& os) : m_os(os) {}
+        BaseLogger(const string& name) : m_name(name) {}
 
-        bool empty() const { return pptr() <= pbase(); }
-
-        void SetLevelName(const string* name) { m_lvName = name; }
-
-        void SetShowTime(bool show) { m_showTime = show; }
-
-        void SetBufferSize(size_t size)
-        {
-            unique_ptr<stringbuf::char_type[]> buffer(new stringbuf::char_type[size]);
-            if (buffer)
-            {
-                setp(buffer.get(), buffer.get()+size);
-                m_buffer = move(buffer);
-            }
-        }
-
-    protected:
-        int sync() override
-        {
-            int n = stringbuf::sync();
-            char* curr = pptr();
-            char* begin = pbase();
-            if (curr > begin)
-            {
-                if (m_showTime)
-                {
-                    time_t t = chrono::system_clock::to_time_t(chrono::system_clock::now());
-                    m_os << put_time(localtime(&t), "%F %T ");
-                }
-                if (m_lvName)
-                    m_os << "[" << *m_lvName << "] ";
-                m_os.write(begin, curr-begin);
-                if (m_overflowChars > 0)
-                    m_os << " (" << m_overflowChars << " bytes overflowed)" << endl;
-                else
-                    m_os.flush();
-                seekpos(0);
-                m_overflowChars = 0;
-            }
-            return n;
-        }
-
-        int_type overflow(int_type ch) override
-        {
-            m_overflowChars++;
-            return 0;
-        }
-
-    private:
-        unique_ptr<stringbuf::char_type[]> m_buffer;
-        ostream& m_os;
-        bool m_showTime{true};
-        const string* m_lvName;
-        uint32_t m_overflowChars{0};
-    };
-
-    class LogStream : public ostream
-    {
-    public:
-        LogStream(LogBuffer* buf) : ostream(buf), m_logBuf(buf) {}
-
-        ostream& AtLevel(Level l)
-        {
-            if (!m_logBuf->empty())
-                flush();
-            m_currLevel = l;
-            if (m_showLevelName)
-                m_logBuf->SetLevelName(&LEVEL_NAME[l]);
-            return *this;
-        }
-
-        void SetShowLevelName(bool show)
-        {
-            m_showLevelName = show;
-            if (!show)
-                m_logBuf->SetLevelName(nullptr);
-        }
-
-        void SetShowTime(bool show)
-        {
-            m_logBuf->SetShowTime(show);
-        }
-
-    private:
-        LogBuffer* m_logBuf;
-        Level m_currLevel{VERBOSE};
-        bool m_showLevelName{true};
-    };
-
-    class BaseLogger : public Logger
-    {
-    public:
-        virtual ~BaseLogger() {}
-        BaseLogger() = default;
         BaseLogger(const BaseLogger&) = delete;
         BaseLogger(BaseLogger&&) = delete;
         BaseLogger& operator=(const BaseLogger&) = delete;
 
-        void SetShowLevels(Level l , int n) override
+        virtual ~BaseLogger() {}
+
+        ALogger* SetShowLoggerName(bool show) override
+        {
+            m_showName = show;
+            return this;
+        }
+
+        ALogger* SetShowLevels(Level l , int n) override
         {
             m_showLevel = l;
             m_N = n;
+            return this;
         }
 
-        void SetShowLevelName(bool show) override
+        ALogger* SetShowLevelName(bool show) override
         {
             m_showLevelName = show;
+            return this;
         }
 
-        void SetShowTime(bool show) override
+        ALogger* SetShowTime(bool show) override
         {
             m_showTime = show;
+            return this;
         }
 
         virtual bool CheckShow(Level l) const
@@ -159,23 +77,28 @@ namespace Logger
             return true;
         }
 
-        virtual void Log(Level l, const char *fmt, va_list *ap) = 0;
-
-    protected:
-        Level m_showLevel{INFO};
-        int m_N{1};
-        bool m_showLevelName{true};
-        bool m_showTime;
-    };
-
-    class StdoutLogger final : public BaseLogger
-    {
-    public:
-        StdoutLogger()
-            : m_logBuf(cout)
-            , m_logStream(&m_logBuf)
+        virtual string GetLogPrefix() const
         {
-            m_logBuf.SetBufferSize(SINGLE_LOG_MAXSIZE);
+            ostringstream oss;
+            bool empty = true;
+            if (m_showTime)
+            {
+                time_t t = chrono::system_clock::to_time_t(chrono::system_clock::now());
+                oss << put_time(localtime(&t), "%F %T");
+                empty = false;
+            }
+            if (m_showName)
+            {
+                oss << "[" << m_name << "]";
+                empty = false;
+            }
+            if (m_showLevelName)
+            {
+                oss << "[" << LEVEL_NAME[m_currLevel] << "]";
+                empty = false;
+            }
+            if (!empty) oss << " ";
+            return oss.str();
         }
 
         void Log(Level l, const string fmt, ...) override
@@ -189,27 +112,7 @@ namespace Logger
             va_end(ap);
         }
 
-        ostream& Log(Level l) override
-        {
-            if (CheckShow(l))
-                return m_logStream.AtLevel(l);
-            else
-                return NULL_STREAM;
-        }
-
-        void SetShowLevelName(bool show) override
-        {
-            BaseLogger::SetShowLevelName(show);
-            m_logStream.SetShowLevelName(show);
-        }
-
-        void SetShowTime(bool show) override
-        {
-            BaseLogger::SetShowTime(show);
-            m_logStream.SetShowTime(show);
-        }
-
-        void Log(Level l, const char *fmt, va_list *ap) override
+        void Log(Level l, const char *fmt, va_list *ap)
         {
             va_list ap2;
             va_copy(ap2, *ap);
@@ -223,14 +126,144 @@ namespace Logger
             vsnprintf(buf.get(), size+1, fmt, ap2);
             va_end(ap2);
 
-            if (m_showLevelName)
-                cout << "[" << LEVEL_NAME[l] << "] ";
-            cout << buf.get() << endl;
+            GetLogStream(l) << buf.get() << endl;
+        }
+
+        ostream& Log(Level l) override
+        {
+            return GetLogStream(l);
+        }
+
+    protected:
+        virtual ostream& GetLogStream(Level l) = 0;
+
+    protected:
+        Level m_showLevel{INFO};
+        int m_N{1};
+        bool m_showLevelName{true};
+        bool m_showTime{true};
+        Level m_currLevel{VERBOSE};
+        string m_name;
+        bool m_showName{false};
+    };
+
+    using LoggerHolder = shared_ptr<BaseLogger>;
+
+    class LogBuffer : public stringbuf
+    {
+    public:
+        LogBuffer(BaseLogger* logger, ostream* os, size_t size)
+            : m_logger(logger)
+            , m_os(os)
+        {
+            unique_ptr<stringbuf::char_type[]> buffer(new stringbuf::char_type[size]);
+            if (buffer)
+            {
+                setp(buffer.get(), buffer.get()+size);
+                m_buffer = move(buffer);
+            }
+        }
+
+        bool empty() const { return pptr() <= pbase(); }
+
+        void SetLogger(BaseLogger* logger)
+        {
+            m_logger = logger;
+        }
+
+        void SetOStream(ostream* os)
+        {
+            m_os = os;
+        }
+
+    protected:
+        int sync() override
+        {
+            int n = stringbuf::sync();
+            char* curr = pptr();
+            char* begin = pbase();
+            if (curr > begin)
+            {
+                if (m_os)
+                {
+                    if (m_logger)
+                        *m_os << m_logger->GetLogPrefix();
+                    m_os->write(begin, curr-begin);
+                    if (m_overflowChars > 0)
+                        *m_os << " (" << m_overflowChars << " bytes overflowed)" << endl;
+                    else
+                        m_os->flush();
+                }
+                seekpos(0);
+                m_overflowChars = 0;
+            }
+            return n;
+        }
+
+        int_type overflow(int_type ch) override
+        {
+            m_overflowChars++;
+            return 0;
         }
 
     private:
-        LogBuffer m_logBuf;
-        LogStream m_logStream;
+        BaseLogger* m_logger{nullptr};
+        ostream* m_os{nullptr};
+        unique_ptr<stringbuf::char_type[]> m_buffer;
+        uint32_t m_overflowChars{0};
+    };
+
+    class LogStream : public ostream
+    {
+    public:
+        LogStream(BaseLogger* logger, ostream* os, size_t size)
+            : m_logBuffer(logger, os, size)
+            , ostream(&m_logBuffer)
+        {}
+
+        LogStream* SetLogger(BaseLogger* logger)
+        {
+            m_logBuffer.SetLogger(logger);
+            return this;
+        }
+
+        LogStream* SetOStream(ostream* os)
+        {
+            m_logBuffer.SetOStream(os);
+            return this;
+        }
+
+    private:
+        LogBuffer m_logBuffer;
+    };
+
+    thread_local unique_ptr<LogStream> THL_LOG_STREAM;
+
+    LogStream& GetThreadLocalLogStream(BaseLogger* logger, ostream* os = nullptr)
+    {
+        if (!THL_LOG_STREAM)
+            THL_LOG_STREAM = unique_ptr<LogStream>(new LogStream(logger, os, SINGLE_LOG_MAXSIZE));
+        else
+            THL_LOG_STREAM->SetLogger(logger)->SetOStream(os);
+        return *THL_LOG_STREAM;
+    }
+
+    class StdoutLogger final : public BaseLogger
+    {
+    public:
+        StdoutLogger(const string& name) : BaseLogger(name) {}
+
+    protected:
+        ostream& GetLogStream(Level l) override
+        {
+            if (CheckShow(l))
+            {
+                m_currLevel = l;
+                return GetThreadLocalLogStream(this, &cout);
+            }
+            else
+                return NULL_STREAM;
+        }
     };
 
     void SetSingleLogMaxSize(uint32_t size)
@@ -238,49 +271,79 @@ namespace Logger
         SINGLE_LOG_MAXSIZE = size;
     }
 
-    function<BaseLogger*()> DEFAULT_LOGGER_CREATOR = [] { return new StdoutLogger(); };
+    function<BaseLogger*(const string& name)> STDOUT_LOGGER_CREATOR = [](const string& name) { return new StdoutLogger(name); };
+
+    const string DEFAULT_LOGGER_NAME = "<Default>";
+    function<BaseLogger*(const string& name)> DEFAULT_LOGGER_CREATOR = STDOUT_LOGGER_CREATOR;
 
     bool SetDefaultLoggerType(const string& loggerType)
     {
         if (loggerType == "StdoutLogger")
-            DEFAULT_LOGGER_CREATOR = [] { return new StdoutLogger(); };
+            DEFAULT_LOGGER_CREATOR = STDOUT_LOGGER_CREATOR;
         else
             return false;
         return true;
     }
 
-    thread_local unique_ptr<BaseLogger> DEFAULT_LOGGER_PTR;
-    Level DEFAULT_LOGGER_LEVEL = INFO;
-    int DEFAULT_LOGGER_N = 1;
+    unique_ptr<BaseLogger> DEFAULT_LOGGER;
+    mutex DEFAULT_LOGGER_LOCK;
 
-    void SetDefaultLoggerLevels(Level l , int n)
+    ALogger* GetDefaultLogger()
     {
-        DEFAULT_LOGGER_LEVEL = l;
-        DEFAULT_LOGGER_N = n;
+        lock_guard<mutex> lk(DEFAULT_LOGGER_LOCK);
+        if (!DEFAULT_LOGGER)
+            DEFAULT_LOGGER = unique_ptr<BaseLogger>(DEFAULT_LOGGER_CREATOR(DEFAULT_LOGGER_NAME));
+        return DEFAULT_LOGGER.get();
+    }
+
+    static BaseLogger* GetDefaultBaseLoger()
+    {
+        lock_guard<mutex> lk(DEFAULT_LOGGER_LOCK);
+        if (!DEFAULT_LOGGER)
+            DEFAULT_LOGGER = unique_ptr<BaseLogger>(DEFAULT_LOGGER_CREATOR(DEFAULT_LOGGER_NAME));
+        return DEFAULT_LOGGER.get();
     }
 
     void Log(Level l, const string fmt, ...)
     {
-        if (!DEFAULT_LOGGER_PTR)
-        {
-            DEFAULT_LOGGER_PTR = unique_ptr<BaseLogger>(DEFAULT_LOGGER_CREATOR());
-            DEFAULT_LOGGER_PTR->SetShowLevels(DEFAULT_LOGGER_LEVEL, DEFAULT_LOGGER_N);
-        }
-        if (!DEFAULT_LOGGER_PTR->CheckShow(l))
+        BaseLogger* logger = GetDefaultBaseLoger();
+        if (!logger->CheckShow(l))
             return;
         va_list ap;
         va_start(ap, fmt);
-        DEFAULT_LOGGER_PTR->Log(l, fmt.c_str(), &ap);
+        logger->Log(l, fmt.c_str(), &ap);
         va_end(ap);
     }
 
-    std::ostream& Log(Level l)
+    ostream& Log(Level l)
     {
-        if (!DEFAULT_LOGGER_PTR)
+        BaseLogger* logger = GetDefaultBaseLoger();
+        return logger->Log(l);
+    }
+
+    unordered_map<string, LoggerHolder> NAMED_LOGGERS;
+    mutex NAMED_LOGGERS_LOCK;
+
+    ALogger* GetLogger(const string& name)
+    {
+        ALogger* logger;
+        auto iter = NAMED_LOGGERS.find(name);
+        if (iter == NAMED_LOGGERS.end())
         {
-            DEFAULT_LOGGER_PTR = unique_ptr<BaseLogger>(DEFAULT_LOGGER_CREATOR());
-            DEFAULT_LOGGER_PTR->SetShowLevels(DEFAULT_LOGGER_LEVEL, DEFAULT_LOGGER_N);
+            lock_guard<mutex> lk(NAMED_LOGGERS_LOCK);
+            iter = NAMED_LOGGERS.find(name);
+            if (iter == NAMED_LOGGERS.end())
+            {
+                LoggerHolder hLogger = LoggerHolder(new StdoutLogger(name));
+                hLogger->SetShowLoggerName(true);
+                NAMED_LOGGERS[name] = hLogger;
+                logger = hLogger.get();
+            }
+            else
+                logger = iter->second.get();
         }
-        return (static_cast<Logger*>(DEFAULT_LOGGER_PTR.get()))->Log(l);
+        else
+            logger = iter->second.get();
+        return logger;
     }
 }

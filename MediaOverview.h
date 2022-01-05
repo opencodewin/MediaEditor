@@ -1,8 +1,7 @@
 #pragma once
-#include <string>
-#include <vector>
 #include "immat.h"
 #include "MediaParser.h"
+#include "Logger.h"
 
 struct MediaOverview
 {
@@ -39,3 +38,5 @@ struct MediaOverview
 
 MediaOverview* CreateMediaOverview();
 void ReleaseMediaOverview(MediaOverview** msrc);
+
+Logger::ALogger* GetMediaOverviewLogger();
