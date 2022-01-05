@@ -217,7 +217,8 @@ struct ClipInfo
     int64_t mStart  {0};
     int64_t mEnd    {0};
     bool mDragOut   {false};
-    ClipInfo(int64_t start, int64_t end, bool drag_out) {mStart = start; mEnd = end; mDragOut = drag_out; };
+    void * mItem    {nullptr};
+    ClipInfo(int64_t start, int64_t end, bool drag_out, void* handle) {mStart = start; mEnd = end; mDragOut = drag_out; mItem = handle; };
 };
 
 struct SequencerItem
@@ -311,6 +312,8 @@ struct MediaItem
 {
     std::string mName;
     std::string mPath;
+    int64_t mStart   {0};                   // whole Media start in ms
+    int64_t mEnd   {0};                     // whole Media end in ms
     MediaOverview * mMediaOverview;
     int mMediaType {SEQUENCER_ITEM_UNKNOWN};
     std::vector<ImTextureID> mMediaThumbnail;
