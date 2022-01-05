@@ -125,7 +125,8 @@ public:
         m_hMediaInfo = nullptr;
 
         m_readForward = true;
-        m_readPosTs = 0;
+        m_seekPosUpdated = false;
+        m_seekPosTs = 0;
         m_vidfrmIntvMts = 0;
         m_hSeekPoints = nullptr;
         m_prepared = false;
@@ -138,8 +139,22 @@ public:
     {
         if (ts < 0 || ts > m_vidDurTs)
             return false;
-        lock_guard<recursive_mutex> lk(m_apiLock);
-        UpdateCacheWindow(ts);
+        bool deferred = true;
+        if (m_apiLock.try_lock())
+        {
+            if (m_prepared)
+            {
+                UpdateCacheWindow(ts);
+                deferred = false;
+            }
+            m_apiLock.unlock();
+        }
+        if (deferred)
+        {
+            lock_guard<mutex> lk(m_seekPosLock);
+            m_seekPosTs = ts;
+            m_seekPosUpdated = true;
+        }
         return true;
     }
 
@@ -161,94 +176,20 @@ public:
 
     bool ReadFrame(double ts, ImGui::ImMat& m, bool wait) override
     {
+        if (ts < 0 || ts > m_vidDurTs)
+            return false;
+
         lock_guard<recursive_mutex> lk(m_apiLock);
-        if (!m_opened || ts < 0 || ts > m_vidDurTs)
-            return false;
-        if (!m_prepared)
+        bool success = ReadFrame_Internal(ts, m, wait);
+
+        if (m_seekPosUpdated)
         {
-            m.time_stamp = ts;
-            return true;
+            lock_guard<mutex> lk(m_seekPosLock);
+            UpdateCacheWindow(m_seekPosTs);
+            m_seekPosUpdated = false;
         }
 
-        UpdateCacheWindow(ts);
-
-        GopDecodeTaskHolder targetTask;
-        do
-        {
-            {
-                lock_guard<mutex> lk2(m_bldtskByTimeLock);
-                auto iter = find_if(m_bldtskTimeOrder.begin(), m_bldtskTimeOrder.end(), [this, ts](const GopDecodeTaskHolder& task) {
-                    int64_t pts = CvtVidMtsToPts(ts*1000);
-                    return task->seekPts.first <= pts && task->seekPts.second > pts;
-                });
-                if (iter != m_bldtskTimeOrder.end())
-                {
-                    targetTask = *iter;
-                    break;
-                }
-                else if (!wait)
-                    break;
-            }
-            this_thread::sleep_for(chrono::milliseconds(5));
-        } while (!m_quit);
-        if (!targetTask)
-        {
-            m.time_stamp = ts;
-            return true;
-        }
-        if (targetTask->demuxEof && targetTask->frmPtsAry.empty())
-        {
-            Log(WARN) << "Current task [" << targetTask->seekPts.first << "(" << MillisecToString(CvtVidPtsToMts(targetTask->seekPts.first)) << "), "
-                << targetTask->seekPts.second << "(" << MillisecToString(CvtVidPtsToMts(targetTask->seekPts.second)) << ")) has NO FRM PTS!" << endl;
-            return false;
-        }
-        if (targetTask->vfAry.empty() && !wait)
-        {
-            m.time_stamp = ts;
-            return true;
-        }
-
-        bool foundBestFrame = false;
-        list<VideoFrame>::iterator bestfrmIter;
-        do
-        {
-            if (!targetTask->vfAry.empty())
-            {
-                bestfrmIter= find_if(targetTask->vfAry.begin(), targetTask->vfAry.end(), [ts](const VideoFrame& frm) {
-                    return frm.img.time_stamp > ts;
-                });
-                bool lastFrmInAry = false;
-                if (bestfrmIter == targetTask->vfAry.end())
-                    lastFrmInAry = true;
-                if (bestfrmIter != targetTask->vfAry.begin())
-                    bestfrmIter--;
-                if (!lastFrmInAry || targetTask->decodeEof)
-                {
-                    foundBestFrame = true;
-                    break;
-                }
-                else if (ts-bestfrmIter->img.time_stamp <= m_vidfrmIntvMts/1000)
-                {
-                    foundBestFrame = true;
-                    break;
-                }
-                else if (!wait)
-                    break;
-            }
-            this_thread::sleep_for(chrono::milliseconds(5));
-        } while (!m_quit);
-
-        if (foundBestFrame)
-        {
-            if (wait)
-                while(!m_quit && bestfrmIter->img.empty())
-                    this_thread::sleep_for(chrono::milliseconds(5));
-            m = bestfrmIter->img;
-        }
-        else
-            m.time_stamp = ts;
-
-        return true;
+        return success;
     }
 
     bool IsOpened() const override
@@ -433,6 +374,9 @@ private:
             }
         }
 
+        m_seekPosTs = 0;
+        m_seekPosUpdated = true;
+
         return true;
     }
 
@@ -478,7 +422,16 @@ private:
             else if (!OpenVideoDecoder())
                 return false;
 
-            UpdateCacheWindow(0, true);
+            if (m_seekPosUpdated)
+            {
+                lock_guard<mutex> lk(m_seekPosLock);
+                UpdateCacheWindow(m_seekPosTs, true);
+                m_seekPosUpdated = false;
+            }
+            else
+            {
+                UpdateCacheWindow(0, true);
+            }
             ResetSnapshotBuildTask();
         }
 
@@ -622,6 +575,97 @@ private:
         for (AVPacket* avpkt : m_audpktQ)
             av_packet_free(&avpkt);
         m_audpktQ.clear();
+    }
+
+    bool ReadFrame_Internal(double ts, ImGui::ImMat& m, bool wait)
+    {
+        if (!m_opened)
+            return false;
+        if (!m_prepared)
+        {
+            m.time_stamp = ts;
+            return true;
+        }
+
+        UpdateCacheWindow(ts);
+
+        GopDecodeTaskHolder targetTask;
+        do
+        {
+            {
+                lock_guard<mutex> lk2(m_bldtskByTimeLock);
+                auto iter = find_if(m_bldtskTimeOrder.begin(), m_bldtskTimeOrder.end(), [this, ts](const GopDecodeTaskHolder& task) {
+                    int64_t pts = CvtVidMtsToPts(ts*1000);
+                    return task->seekPts.first <= pts && task->seekPts.second > pts;
+                });
+                if (iter != m_bldtskTimeOrder.end())
+                {
+                    targetTask = *iter;
+                    break;
+                }
+                else if (!wait)
+                    break;
+            }
+            this_thread::sleep_for(chrono::milliseconds(5));
+        } while (!m_quit);
+        if (!targetTask)
+        {
+            m.time_stamp = ts;
+            return true;
+        }
+        if (targetTask->demuxEof && targetTask->frmPtsAry.empty())
+        {
+            Log(WARN) << "Current task [" << targetTask->seekPts.first << "(" << MillisecToString(CvtVidPtsToMts(targetTask->seekPts.first)) << "), "
+                << targetTask->seekPts.second << "(" << MillisecToString(CvtVidPtsToMts(targetTask->seekPts.second)) << ")) has NO FRM PTS!" << endl;
+            return false;
+        }
+        if (targetTask->vfAry.empty() && !wait)
+        {
+            m.time_stamp = ts;
+            return true;
+        }
+
+        bool foundBestFrame = false;
+        list<VideoFrame>::iterator bestfrmIter;
+        do
+        {
+            if (!targetTask->vfAry.empty())
+            {
+                bestfrmIter= find_if(targetTask->vfAry.begin(), targetTask->vfAry.end(), [ts](const VideoFrame& frm) {
+                    return frm.img.time_stamp > ts;
+                });
+                bool lastFrmInAry = false;
+                if (bestfrmIter == targetTask->vfAry.end())
+                    lastFrmInAry = true;
+                if (bestfrmIter != targetTask->vfAry.begin())
+                    bestfrmIter--;
+                if (!lastFrmInAry || targetTask->decodeEof)
+                {
+                    foundBestFrame = true;
+                    break;
+                }
+                else if (ts-bestfrmIter->img.time_stamp <= m_vidfrmIntvMts/1000)
+                {
+                    foundBestFrame = true;
+                    break;
+                }
+                else if (!wait)
+                    break;
+            }
+            this_thread::sleep_for(chrono::milliseconds(5));
+        } while (!m_quit);
+
+        if (foundBestFrame)
+        {
+            if (wait)
+                while(!m_quit && bestfrmIter->img.empty())
+                    this_thread::sleep_for(chrono::milliseconds(5));
+            m = bestfrmIter->img;
+        }
+        else
+            m.time_stamp = ts;
+
+        return true;
     }
 
     struct VideoFrame
@@ -1396,7 +1440,9 @@ private:
     thread m_updateSsThread;
 
     bool m_readForward{true};
-    double m_readPosTs{0};
+    bool m_seekPosUpdated{false};
+    double m_seekPosTs{0};
+    mutex m_seekPosLock;
     double m_vidfrmIntvMts{0};
     list<GopDecodeTaskHolder> m_bldtskTimeOrder;
     mutex m_bldtskByTimeLock;
