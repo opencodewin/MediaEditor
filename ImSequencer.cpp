@@ -1279,8 +1279,9 @@ void SequencerItem::CalculateVideoSnapshotInfo(const ImRect &customRect, int64_t
     }
 }
 
-void SequencerItem::DrawItemControlBar(ImDrawList *draw_list, ImRect rc, int sequenceOptions)
+bool SequencerItem::DrawItemControlBar(ImDrawList *draw_list, ImRect rc, int sequenceOptions)
 {
+    bool need_update = false;
     ImGuiIO &io = ImGui::GetIO();
     if (mExpanded) draw_list->AddText(rc.Min + ImVec2(4, 0), IM_COL32_WHITE, mName.c_str());
     ImVec2 button_size = ImVec2(12, 12);
@@ -1321,9 +1322,11 @@ void SequencerItem::DrawItemControlBar(ImDrawList *draw_list, ImRect rc, int seq
             auto length = mEnd - mStart;
             mStart = 0;
             mEnd = mStart + length;
+            need_update = true;
         }
         button_count ++;
     }
+    return need_update;
 }
 
 /***********************************************************************************************************
@@ -1343,11 +1346,19 @@ static int thread_preview(MediaSequencer * sequencer)
     {
         if (sequencer->m_Items.empty() || sequencer->mFrame.size() >= MAX_SEQUENCER_FRAME_NUMBER)
         {
-            ImGui::sleep((int)20);
+            ImGui::sleep((int)5);
             continue;
         }
-        
-        int64_t current_time = sequencer->currentTime;
+        int64_t current_time = 0;
+        sequencer->mFrameLock.lock();
+        if (sequencer->mFrame.empty())
+            current_time = floor(sequencer->currentTime / sequencer->mFrameDuration) * sequencer->mFrameDuration;
+        else
+        {
+            auto it = sequencer->mFrame.end(); it--;
+            current_time = it->time_stamp * 1000;
+        }
+        sequencer->mFrameLock.unlock();
         while (sequencer->mFrame.size() < MAX_SEQUENCER_FRAME_NUMBER)
         {
             ImGui::ImMat mat;
@@ -1358,10 +1369,10 @@ static int thread_preview(MediaSequencer * sequencer)
                 {
                     item->mMedia->ReadFrame((float)item_time / 1000.0, mat);
                 }
+                
                 if (!mat.empty())
                     break;
             }
-
             mat.time_stamp = (double)current_time / 1000.f;
             sequencer->mFrameLock.lock();
             sequencer->mFrame.push_back(mat);
@@ -1705,9 +1716,11 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
 
     // draw legend
     draw_list->PushClipRect(legendRect.Min, legendRect.Max, true);
-    //draw_list->AddRectFilled(legendRect.Min, legendRect.Max, IM_COL32(255,0, 0, 128), 0);
-    item->DrawItemControlBar(draw_list, legendRect, options);
+
     // draw media control
+    auto need_seek = item->DrawItemControlBar(draw_list, legendRect, options);
+    if (need_seek) Seek();
+    
     draw_list->PopClipRect();
 
     // draw title bar
@@ -1834,8 +1847,11 @@ void MediaSequencer::CustomDrawCompact(int index, ImDrawList *draw_list, const I
 
     // draw legend
     draw_list->PushClipRect(legendRect.Min, legendRect.Max, true);
-    item->DrawItemControlBar(draw_list, legendRect, options);
+
     // draw media control
+    auto need_seek = item->DrawItemControlBar(draw_list, legendRect, options);
+    if (need_seek) Seek();
+    
     draw_list->PopClipRect();
 }
 

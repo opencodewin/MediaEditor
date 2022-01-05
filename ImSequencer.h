@@ -257,7 +257,7 @@ struct SequencerItem
     void SequencerItemUpdateThumbnail();
     void SequencerItemUpdateSnapshots();
     void CalculateVideoSnapshotInfo(const ImRect &customRect, int64_t viewStartTime, int64_t visibleTime);
-    void DrawItemControlBar(ImDrawList *draw_list, ImRect rc, int sequenceOptions);
+    bool DrawItemControlBar(ImDrawList *draw_list, ImRect rc, int sequenceOptions);
 };
 
 struct MediaSequencer : public SequencerInterface
