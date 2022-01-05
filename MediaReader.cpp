@@ -1289,7 +1289,8 @@ private:
                 << TimestampToString(m_bldtskSnapWnd.cacheBeginTs) << " ~ " << TimestampToString(m_bldtskSnapWnd.cacheEndTs) << ") to ("
                 << TimestampToString(currwnd.cacheBeginTs) << " ~ " << TimestampToString(currwnd.cacheEndTs) << ")." << endl;
             lock_guard<mutex> lk(m_bldtskByTimeLock);
-            if (currwnd.cacheBeginTs > m_bldtskSnapWnd.cacheBeginTs)
+            if (currwnd.cacheBeginTs > m_bldtskSnapWnd.cacheBeginTs ||
+                currwnd.cacheBeginTs == m_bldtskSnapWnd.cacheBeginTs && currwnd.cacheEndTs > m_bldtskSnapWnd.cacheEndTs)
             {
                 int64_t beginPts = CvtVidMtsToPts((int64_t)(currwnd.cacheBeginTs*1000));
                 int64_t endPts = CvtVidMtsToPts((int64_t)(currwnd.cacheEndTs*1000))+1;
