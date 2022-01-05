@@ -438,7 +438,14 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     ImGui::PopStyleColor(3);
 
     // Time stamp on left of control panel
-    
+    auto PanelRightX = PanelBarPos.x + window_size.x - 150;
+    auto PanelRightY = PanelBarPos.y + 8;
+    ImGui::SetCursorScreenPos(ImVec2(PanelRightX, PanelRightY));
+    ImGui::SetWindowFontScale(1.5);
+    auto time_str = MillisecToString(sequencer->currentTime);
+    ImGui::TextUnformatted(time_str.c_str());
+    ImGui::SetWindowFontScale(1.0);
+
     // audio meters
 
     // video texture area
