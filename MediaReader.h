@@ -8,7 +8,7 @@ struct MediaReader
     virtual bool Open(MediaParserHolder hParser) = 0;
     virtual MediaParserHolder GetMediaParser() const = 0;
     virtual void Close() = 0;
-    virtual void SeekTo(double ts) = 0;
+    virtual bool SeekTo(double ts) = 0;
     virtual void SetDirection(bool forward) = 0;
     virtual bool IsDirectionForward() const = 0;
     virtual bool ReadFrame(double ts, ImGui::ImMat& m, bool wait = true) = 0;
