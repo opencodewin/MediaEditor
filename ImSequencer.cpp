@@ -236,12 +236,15 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry
                 new_item->mStartOffset = clip->mStart - item->mStartOffset;
                 new_item->mEndOffset = item->mLength - clip->mEnd;
                 seq->m_Items.push_back(new_item);
-                for (auto &c : item->mClips)
+                if (!item->mLocked)
                 {
-                    if (c.mStart == clip->mStart)
+                    for (auto &c : item->mClips)
                     {
-                        c.mDragOut = true;
-                        break;
+                        if (c.mStart == clip->mStart)
+                        {
+                            c.mDragOut = true;
+                            break;
+                        }
                     }
                 }
             }
