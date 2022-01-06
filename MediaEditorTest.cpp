@@ -646,8 +646,9 @@ bool Application_Frame(void * handle)
                     case 3: ShowMediaOutputWindow(draw_list); break;
                     default: break;
                 }
-                ImGui::EndChild();
             }
+            ImGui::EndChild();
+            
             // add tool bar
             ImGui::SetCursorPos(ImVec2(0,32));
             if (ImGui::Button(ICON_IGFD_ADD "##AddMedia", ImVec2(tool_icon_size, tool_icon_size)))
@@ -672,11 +673,8 @@ bool Application_Frame(void * handle)
                 show_about = true;
             }
             ImGui::ShowTooltipOnHover("About Media Editor");
-
-            // Demo end
-            ImGui::EndChild();
         }
-
+        ImGui::EndChild();
 
         ImVec2 main_sub_pos(bank_width + 8, 0);
         ImVec2 main_sub_size(main_width - 8, main_window_size.y - 4);
@@ -700,12 +698,12 @@ bool Application_Frame(void * handle)
                     case 3: ShowMediaAnalyseWindow(draw_list); break;
                     default: break;
                 }
-                ImGui::EndChild();
             }
             ImGui::EndChild();
         }
         ImGui::EndChild();
     }
+    ImGui::EndChild();
     
     ImVec2 panel_pos(4, size_main_h * window_size.y + 12);
     ImVec2 panel_size(window_size.x - 4, size_timeline_h * window_size.y - 12);
@@ -721,7 +719,7 @@ bool Application_Frame(void * handle)
             //const ImSequencer::MediaSequencer::SequencerItem &item = sequencer.m_Items[selectedEntry];
             //ImGui::Text("I am a %s, please edit me", item.mName.c_str());
         }
-        ImGui::EndChild();
+        
         if (expanded != _expanded)
         {
             if (!_expanded)
@@ -738,6 +736,8 @@ bool Application_Frame(void * handle)
             expanded = _expanded;
         }
     }
+    ImGui::EndChild();
+    
     ImGui::PopStyleColor();
     ImGui::End();
 
