@@ -160,14 +160,6 @@ struct SequencerCustomDraw
     ImRect legendClippingRect;
 };
 
-struct VideoSnapshotInfo
-{
-    ImRect rc;
-    int64_t time_stamp;
-    int64_t duration;
-    float frame_width;
-};
-
 struct SequencerInterface
 {
     bool focused = false;
@@ -176,6 +168,7 @@ struct SequencerInterface
     int64_t firstTime = 0;
     int64_t lastTime = 0;
     int64_t visibleTime = 0;
+    int64_t timeStep = 0;
     bool bPlay = false;
     bool bForward = true;
     bool bLoop = false;
@@ -205,10 +198,17 @@ struct SequencerInterface
     virtual void DoubleClick(int /*index*/) {}
     virtual void CustomDraw(int /*index*/, ImDrawList * /*draw_list*/, const ImRect & /*rc*/, const ImRect & /*titleRect*/, const ImRect & /*clippingTitleRect*/, const ImRect & /*legendRect*/, const ImRect & /*clippingRect*/, const ImRect & /*legendClippingRect*/, int64_t /* viewStartTime */, int64_t /* visibleTime */, float /*pixelWidth*/, bool /* need_update */) {}
     virtual void CustomDrawCompact(int /*index*/, ImDrawList * /*draw_list*/, const ImRect & /*rc*/, const ImRect & /*legendRect*/, const ImRect & /*clippingRect*/, int64_t /*viewStartTime*/, int64_t /*visibleTime*/, float /*pixelWidth*/) {}
-    virtual void GetVideoSnapshotInfo(int /*index*/, std::vector<VideoSnapshotInfo>&) {}
 };
 
 bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry, int sequenceOptions);
+
+struct VideoSnapshotInfo
+{
+    ImRect rc;
+    int64_t time_stamp;
+    int64_t duration;
+    float frame_width;
+};
 
 struct Snapshot
 {
@@ -294,7 +294,6 @@ struct MediaSequencer : public SequencerInterface
     void DoubleClick(int index) { m_Items[index]->mExpanded = !m_Items[index]->mExpanded; }
     void CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &titleRect, const ImRect &clippingTitleRect, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRect, int64_t viewStartTime, int64_t visibleTime, float pixelWidth, bool need_update);
     void CustomDrawCompact(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &legendRect, const ImRect &clippingRect, int64_t viewStartTime, int64_t visibleTime, float pixelWidth);
-    void GetVideoSnapshotInfo(int index, std::vector<VideoSnapshotInfo>& snapshots);
     ImGui::ImMat GetPreviewFrame();
     int GetAudioLevel(int channel);
 
