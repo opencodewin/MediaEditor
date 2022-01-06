@@ -25,6 +25,11 @@ static MediaReader* g_mrdr = nullptr;
 static double g_playStartPos = 0.f;
 static Clock::time_point g_playStartTp;
 static bool g_isPlay = false;
+static bool g_isLongCacheDur = false;
+static const pair<double, double> G_DurTable[] = {
+    {  5, 1 },
+    { 10, 2 },
+};
 static ImTextureID g_imageTid;
 static ImVec2 g_imageDisplaySize = { 640, 360 };
 const string c_imguiIniPath = "ms_test.ini";
@@ -46,6 +51,8 @@ void Application_GetWindowProperties(ApplicationWindowProperty& property)
 void Application_Initialize(void** handle)
 {
     GetDefaultLogger()
+        ->SetShowLevels(DEBUG);
+    GetMediaReaderLogger()
         ->SetShowLevels(DEBUG);
 
 #ifdef USE_BOOKMARK
@@ -137,6 +144,18 @@ bool Application_Frame(void * handle)
             g_playStartTp = Clock::now();
         }
 
+        ImGui::SameLine();
+
+        string cdurBtnLabel = g_isLongCacheDur ? "Short cache duration" : "Long cache duration";
+        if (ImGui::Button(cdurBtnLabel.c_str()))
+        {
+            g_isLongCacheDur = !g_isLongCacheDur;
+            if (g_isLongCacheDur)
+                g_mrdr->SetCacheDuration(G_DurTable[1].first, G_DurTable[1].second);
+            else
+                g_mrdr->SetCacheDuration(G_DurTable[0].first, G_DurTable[0].second);
+        }
+
         ImGui::Spacing();
 
         if (ImGui::SliderFloat("Position", &playPos, 0, vidDur, "%.3f"))
@@ -202,6 +221,7 @@ bool Application_Frame(void * handle)
             if (g_imageTid)
                 ImGui::ImDestroyTexture(g_imageTid);
             g_imageTid = nullptr;
+            g_isLongCacheDur = false;
             string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
             // g_movr->Open(filePathName, 10);
             // g_movr->GetMediaParser()->EnableParseInfo(MediaParser::VIDEO_SEEK_POINTS);

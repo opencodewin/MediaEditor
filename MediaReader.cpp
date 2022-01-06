@@ -224,6 +224,29 @@ public:
         return m_audStmIdx >= 0;
     }
 
+    bool SetCacheDuration(double forwardDur, double backwardDur) override
+    {
+        if (forwardDur < 0 || backwardDur < 0)
+        {
+            m_errMsg = "Argument 'forwardDur' and 'backwardDur' must be positive!";
+            return false;
+        }
+        lock_guard<recursive_mutex> lk(m_apiLock);
+        m_forwardCacheDur = forwardDur;
+        m_backwardCacheDur = backwardDur;
+        if (m_prepared)
+        {
+            UpdateCacheWindow(m_cacheWnd.readPos, true);
+            ResetSnapshotBuildTask();
+        }
+        return true;
+    }
+
+    pair<double, double> GetCacheDuration() const override
+    {
+        return { m_forwardCacheDur, m_backwardCacheDur };
+    }
+
     bool SetSnapshotSize(uint32_t width, uint32_t height) override
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
@@ -1484,8 +1507,8 @@ private:
     mutex m_bldtskByPriLock;
     atomic_int32_t m_pendingVidfrmCnt{0};
     int32_t m_maxPendingVidfrmCnt{4};
-    double m_forwardCacheDur{10};
-    double m_backwardCacheDur{2};
+    double m_forwardCacheDur{5};
+    double m_backwardCacheDur{1};
     CacheWindow m_cacheWnd;
     CacheWindow m_bldtskSnapWnd;
     bool m_needUpdateBldtsk{false};
