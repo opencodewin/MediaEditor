@@ -243,17 +243,39 @@ static void ShowMediaBankWindow(ImDrawList *draw_list, float media_icon_size)
             ImGui::TextUnformatted(type_string.c_str());
             ImGui::ShowTooltipOnHover("%s", (*item)->mPath.c_str());
             ImGui::SetCursorScreenPos(icon_pos + ImVec2(0, media_icon_size - 20));
+
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0, 0, 0, 0));
             if (has_video)
             {
                 auto stream = (*item)->mMediaOverview->GetVideoStream();
                 if (stream)
                 {
-                    auto video_width = stream->width;
-                    auto video_height = stream->height;
-                    auto video_icon = GetVideoIcon(video_width, video_height);
+                    auto video_icon = GetVideoIcon(stream->width, stream->height);
+                    ImGui::SetWindowFontScale(1.2);
                     ImGui::Button(video_icon.c_str(), ImVec2(24, 24));
-                    ImGui::ShowTooltipOnHover("%dx%d", video_width, video_height);
-                    ImGui::SameLine(0 ,0);
+                    if (ImGui::IsItemHovered())
+                    {
+                        std::string bitrate_str = stream->bitRate >= 1000000 ? std::to_string((float)stream->bitRate / 1000000) + "Mbps" :
+                                                stream->bitRate >= 1000 ? std::to_string((float)stream->bitRate / 1000) + "Kbps" :
+                                                std::to_string(stream->bitRate) + "bps";
+                        ImGui::BeginTooltip();
+                        ImGui::Text("S: %d x %d", stream->width, stream->height);
+                        ImGui::Text("B: %s", bitrate_str.c_str());
+                        ImGui::Text("F: %.3ffps", stream->avgFrameRate.den > 0 ? stream->avgFrameRate.num / stream->avgFrameRate.den : 0.0);
+                        ImGui::EndTooltip();
+                    }
+                    ImGui::SameLine(0, 0);
+                    if (stream->isHdr)
+                    {
+                        ImGui::Button(ICON_HDR, ImVec2(24, 24));
+                        ImGui::SameLine(0, 0);
+                    }
+                    ImGui::SetWindowFontScale(0.6);
+                    ImGui::Button((std::to_string(stream->bitDepth) + "bit").c_str(), ImVec2(24, 24));
+                    ImGui::SetWindowFontScale(1.0);
+                    ImGui::SameLine(0, 0);
                 }
             }
             if (has_audio)
@@ -269,6 +291,7 @@ static void ShowMediaBankWindow(ImDrawList *draw_list, float media_icon_size)
                     ImGui::SameLine(0 ,0);
                 }
             }
+            ImGui::PopStyleColor(3);
         }
 
         ImGui::SetCursorScreenPos(icon_pos + ImVec2(media_icon_size - 24, 0));
