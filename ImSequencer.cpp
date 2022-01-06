@@ -1817,7 +1817,7 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
 
     // draw legend
     draw_list->PushClipRect(legendRect.Min, legendRect.Max, true);
-
+    draw_list->AddRect(legendRect.Min, legendRect.Max, COL_DEEP_DARK, 0, 0, 2);
     // draw media control
     auto need_seek = item->DrawItemControlBar(draw_list, legendRect, options);
     if (need_seek) Seek();
