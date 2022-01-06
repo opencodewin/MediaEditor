@@ -18,6 +18,8 @@ struct MediaReader
     virtual bool HasVideo() const = 0;
     virtual bool HasAudio() const = 0;
 
+    virtual bool SetCacheDuration(double forwardDur, double backwardDur) = 0;
+    virtual std::pair<double, double> GetCacheDuration() const = 0;
     virtual bool SetSnapshotSize(uint32_t width, uint32_t height) = 0;
     virtual bool SetSnapshotResizeFactor(float widthFactor, float heightFactor) = 0;
     virtual bool SetOutColorFormat(ImColorFormat clrfmt) = 0;
