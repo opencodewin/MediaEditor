@@ -96,7 +96,7 @@
 #define COL_FRAME_RECT      IM_COL32( 16,  16,  96, 255)
 #define COL_LIGHT_BLUR      IM_COL32( 16, 128, 255, 255)
 #define COL_CANVAS_BG       IM_COL32( 36,  36,  36, 255)
-#define COL_LEGEND_BG       IM_COL32( 18,  18,  18, 255)
+#define COL_LEGEND_BG       IM_COL32( 33,  33,  38, 255)
 #define COL_MARK            IM_COL32(255, 255, 255, 255)
 #define COL_MARK_HALF       IM_COL32(128, 128, 128, 255)
 #define COL_RULE_TEXT       IM_COL32(224, 224, 224, 255)
@@ -113,6 +113,10 @@
 #define COL_CURSOR_ARROW    IM_COL32(  0, 255,   0, 255)
 #define COL_CURSOR_TEXT_BG  IM_COL32(  0, 128,   0, 144)
 #define COL_CURSOR_TEXT     IM_COL32(  0, 255,   0, 255)
+#define COL_DARK_ONE        IM_COL32( 33,  33,  38, 255)
+#define COL_DARK_TWO        IM_COL32( 40,  40,  46, 255)
+#define COL_DARK_PANEL      IM_COL32( 48,  48,  54, 255)
+#define COL_DEEP_DARK       IM_COL32( 23,  24,  26, 255)
 
 #define HALF_COLOR(c)       (c & 0xFFFFFF) | 0x40000000;
 
@@ -292,6 +296,7 @@ struct MediaSequencer : public SequencerInterface
     void CustomDrawCompact(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &legendRect, const ImRect &clippingRect, int64_t viewStartTime, int64_t visibleTime, float pixelWidth);
     void GetVideoSnapshotInfo(int index, std::vector<VideoSnapshotInfo>& snapshots);
     ImGui::ImMat GetPreviewFrame();
+    int GetAudioLevel(int channel);
 
     std::vector<SequencerItem *> m_Items;   // timeline items
     const int mItemHeight {60};             // item custom view height

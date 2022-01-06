@@ -134,6 +134,9 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry
     ImGui::BeginGroup();
     
     ImDrawList *draw_list = ImGui::GetWindowDrawList();
+    ImVec2 window_pos = ImGui::GetCursorScreenPos();
+    ImVec2 window_size = ImGui::GetWindowSize();
+    draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DARK_TWO);
     ImVec2 canvas_pos = ImGui::GetCursorScreenPos();     // ImDrawList API uses screen coordinates!
     ImVec2 canvas_size = ImGui::GetContentRegionAvail() - ImVec2(8, 0); // Resize canvas to what's available
     int64_t firstTimeUsed = sequencer->firstTime;
@@ -245,7 +248,7 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry
     {
         // minimum view
         ImGui::InvisibleButton("canvas_minimum", ImVec2(canvas_size.x - canvas_pos.x - 8.f, (float)ItemHeight));
-        draw_list->AddRectFilled(canvas_pos, ImVec2(canvas_size.x + canvas_pos.x - 8.f, canvas_pos.y + ItemHeight), COL_CANVAS_BG, 0);
+        draw_list->AddRectFilled(canvas_pos, ImVec2(canvas_size.x + canvas_pos.x - 8.f, canvas_pos.y + ItemHeight), COL_DARK_ONE, 0);
         auto info_str = MillisecToString(duration, 3);
         info_str += " / ";
         info_str += std::to_string(itemCount) + " entries";
@@ -259,7 +262,7 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry
         ImVec2 headerSize(canvas_size.x - 4.f, (float)HeadHeight);
         ImVec2 scrollBarSize(canvas_size.x, scrollBarHeight);
         ImGui::InvisibleButton("topBar", headerSize);
-        draw_list->AddRectFilled(canvas_pos, canvas_pos + headerSize, IM_COL32_BLACK, 0);
+        draw_list->AddRectFilled(canvas_pos, canvas_pos + headerSize, COL_DARK_ONE, 0);
         if (!itemCount) 
         {
             ImGui::EndGroup();
@@ -323,7 +326,6 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry
             if (px <= (canvas_size.x + canvas_pos.x) && px >= (canvas_pos.x + legendWidth))
             {
                 draw_list->AddLine(ImVec2((float)px, canvas_pos.y + (float)tiretStart), ImVec2((float)px, canvas_pos.y + (float)tiretEnd - 1), halfIndex ? COL_MARK : COL_MARK_HALF, halfIndex ? 2 : 1);
-                //draw_list->AddLine(ImVec2((float)px, canvas_pos.y + (float)HeadHeight), ImVec2((float)px, canvas_pos.y + (float)regionHeight - 1), COL_MARK_HALF, 1);
             }
             if (baseIndex && px > (canvas_pos.x + legendWidth))
             {
@@ -2027,6 +2029,14 @@ void MediaSequencer::Seek()
             item->mMedia->SeekTo((double)item_time / 1000.f);
         }
     }
+}
+
+int MediaSequencer::GetAudioLevel(int channel)
+{
+    // TODO::
+    //int64_t time = ImGui::get_current_time_msec() * (channel + 1);
+    //return time % 96;
+    return 0;
 }
 
 } // namespace ImSequencer

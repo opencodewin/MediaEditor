@@ -1,6 +1,7 @@
 #include <application.h>
 #include <imgui.h>
 #include <imgui_helper.h>
+#include <imgui_knob.h>
 #include <ImGuiFileDialog.h>
 #include <ImGuiTabWindow.h>
 #include "ImSequencer.h"
@@ -130,6 +131,9 @@ void ShowVideoWindow(ImTextureID texture, ImVec2& pos, ImVec2& size)
 static void ShowMediaBankWindow(ImDrawList *draw_list, float media_icon_size)
 {
     ImGuiIO& io = ImGui::GetIO();
+    ImVec2 window_pos = ImGui::GetCursorScreenPos();
+    ImVec2 window_size = ImGui::GetWindowSize();
+    draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DARK_ONE);
     ImGui::SetWindowFontScale(1.2);
     ImGui::Indent(20);
     ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
@@ -329,9 +333,10 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     ImVec2 PanelBarSize;
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
+    draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
     PanelBarPos = window_pos + window_size - ImVec2(window_size.x, 48);
     PanelBarSize = ImVec2(window_size.x, 48);
-    draw_list->AddRectFilled(PanelBarPos, PanelBarPos + PanelBarSize, COL_CANVAS_BG);
+    draw_list->AddRectFilled(PanelBarPos, PanelBarPos + PanelBarSize, COL_DARK_PANEL);
     auto PanelCenterX = PanelBarPos.x + window_size.x / 2;
     auto PanelButtonY = PanelBarPos.y + 8;
 
@@ -440,19 +445,57 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     // Time stamp on left of control panel
     auto PanelRightX = PanelBarPos.x + window_size.x - 150;
     auto PanelRightY = PanelBarPos.y + 8;
-    ImGui::SetCursorScreenPos(ImVec2(PanelRightX, PanelRightY));
-    ImGui::SetWindowFontScale(1.5);
     auto time_str = MillisecToString(sequencer->currentTime);
-    ImGui::TextUnformatted(time_str.c_str());
+    ImGui::SetWindowFontScale(1.5);
+    draw_list->AddText(ImVec2(PanelRightX, PanelRightY), sequencer->bPlay ? COL_MARK : COL_MARK_HALF, time_str.c_str());
     ImGui::SetWindowFontScale(1.0);
 
     // audio meters
+    ImVec2 AudioMeterPos;
+    ImVec2 AudioMeterSize;
+    AudioMeterPos = window_pos + ImVec2(window_size.x - 64, 16);
+    AudioMeterSize = ImVec2(32, window_size.y - 48 - 16 - 8);
+    ImVec2 AudioUVLeftPos = AudioMeterPos + ImVec2(36, 0);
+    ImVec2 AudioUVLeftSize = ImVec2(12, AudioMeterSize.y);
+    ImVec2 AudioUVRightPos = AudioMeterPos + ImVec2(36 + 16, 0);
+    ImVec2 AudioUVRightSize = AudioUVLeftSize;
+
+    draw_list->AddRectFilled(AudioMeterPos - ImVec2(0, 16), AudioMeterPos + ImVec2(64, AudioMeterSize.y + 8), COL_DARK_TWO);
+
+    for (int i = 0; i <= 96; i+= 5)
+    {
+        float mark_step = AudioMeterSize.y / 96.0f;
+        ImVec2 MarkPos = AudioMeterPos + ImVec2(0, i * mark_step);
+        if (i % 10 == 0)
+        {
+            std::string mark_str = i == 0 ? "  0" : "-" + std::to_string(i);
+            draw_list->AddLine(MarkPos + ImVec2(20, 8), MarkPos + ImVec2(30, 8), COL_MARK_HALF, 1);
+            ImGui::SetWindowFontScale(0.75);
+            draw_list->AddText(MarkPos + ImVec2(0, 2), COL_MARK_HALF, mark_str.c_str());
+            ImGui::SetWindowFontScale(1.0);
+        }
+        else
+        {
+            draw_list->AddLine(MarkPos + ImVec2(25, 8), MarkPos + ImVec2(30, 8), COL_MARK_HALF, 1);
+        }
+    }
+
+    static int left_stack = 0;
+    static int left_count = 0;
+    static int right_stack = 0;
+    static int right_count = 0;
+    int l_level = sequencer->GetAudioLevel(0);
+    int r_level = sequencer->GetAudioLevel(1);
+    ImGui::SetCursorScreenPos(AudioUVLeftPos);
+    ImGui::UvMeter("##luv", AudioUVLeftSize, &l_level, 0, 96, AudioUVLeftSize.y / 4, &left_stack, &left_count);
+    ImGui::SetCursorScreenPos(AudioUVRightPos);
+    ImGui::UvMeter("##ruv", AudioUVRightSize, &r_level, 0, 96, AudioUVRightSize.y / 4, &right_stack, &right_count);
 
     // video texture area
     ImVec2 PreviewPos;
     ImVec2 PreviewSize;
-    PreviewPos = window_pos + ImVec2(16, 16);
-    PreviewSize = window_size - ImVec2(16, 16 + 48);
+    PreviewPos = window_pos + ImVec2(8, 8);
+    PreviewSize = window_size - ImVec2(16 + 64, 16 + 48);
     auto frame = sequencer->GetPreviewFrame();
     if (!frame.empty())
     {
@@ -648,7 +691,7 @@ bool Application_Frame(void * handle)
                 }
             }
             ImGui::EndChild();
-            
+
             // add tool bar
             ImGui::SetCursorPos(ImVec2(0,32));
             if (ImGui::Button(ICON_IGFD_ADD "##AddMedia", ImVec2(tool_icon_size, tool_icon_size)))
@@ -686,7 +729,7 @@ bool Application_Frame(void * handle)
             //ImVec2 main_window_size = ImGui::GetWindowSize();
             ImGui::TabLabels(numMainWindowTabs, MainWindowTabNames, MainWindowIndex, MainWindowTabTooltips , false, nullptr, nullptr, false, false, nullptr, nullptr);
             auto wmin = main_sub_pos + ImVec2(0, 32);
-            auto wmax = wmin + ImGui::GetContentRegionAvail() - ImVec2(8, 8);
+            auto wmax = wmin + ImGui::GetContentRegionAvail() - ImVec2(8, 0);
             draw_list->AddRectFilled(wmin, wmax, IM_COL32_BLACK, 8.0, ImDrawFlags_RoundCornersAll);
             if (ImGui::BeginChild("##Main_Window_content", wmax - wmin, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings))
             {
