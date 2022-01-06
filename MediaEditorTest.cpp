@@ -340,7 +340,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0.5));
     ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.2, 0.2, 0.2, 1.0));
 
-    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32 - 8 - 32, PanelButtonY));
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32 - 8 - 32 - 8 - 32, PanelButtonY));
     if (ImGui::Button(ICON_TO_START "##preview_tostart", ImVec2(32, 32)))
     {
         if (sequencer && !sequencer->bPlay && sequencer->GetItemCount() > 0)
@@ -351,6 +351,19 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
         }
     }
     ImGui::ShowTooltipOnHover("To Start");
+
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32 - 8 - 32, PanelButtonY));
+    if (ImGui::Button(ICON_STEP_BACKWARD "##preview_step_backward", ImVec2(32, 32)))
+    {
+        if (sequencer)
+        {
+            sequencer->bForward = false;
+            sequencer->currentTime -= sequencer->mFrameDuration;
+            if (sequencer->currentTime < sequencer->mStart)
+                sequencer->currentTime = sequencer->mStart;
+        }
+    }
+    ImGui::ShowTooltipOnHover("Step Prev");
 
     ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32, PanelButtonY));
     if (ImGui::Button(ICON_FAST_BACKWARD "##preview_reverse", ImVec2(32, 32)))
@@ -374,7 +387,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     ImGui::ShowTooltipOnHover("Stop");
 
     ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8, PanelButtonY));
-    if (ImGui::Button(ICON_PLAY "##preview_play", ImVec2(32, 32)))
+    if (ImGui::Button(ICON_FAST_FORWARD "##preview_play", ImVec2(32, 32)))
     {
         if (sequencer)
         {
@@ -385,6 +398,19 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     ImGui::ShowTooltipOnHover("Play");
 
     ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 32 + 8, PanelButtonY));
+    if (ImGui::Button(ICON_STEP_FORWARD "##preview_step_forward", ImVec2(32, 32)))
+    {
+        if (sequencer)
+        {
+            sequencer->bForward = true;
+            sequencer->currentTime += sequencer->mFrameDuration;
+            if (sequencer->currentTime > sequencer->mEnd)
+                sequencer->currentTime = sequencer->mEnd;
+        }
+    }
+    ImGui::ShowTooltipOnHover("Step Next");
+
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 32 + 8 + 32 + 8, PanelButtonY));
     if (ImGui::Button(ICON_TO_END "##preview_toend", ImVec2(32, 32)))
     {
         if (sequencer && !sequencer->bPlay && sequencer->GetItemCount() > 0)
@@ -400,7 +426,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     ImGui::ShowTooltipOnHover("To End");
 
     bool loop = sequencer ? sequencer->bLoop : false;
-    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 32 + 8 + 8 + 32, PanelButtonY));
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 32 + 8 + 32 + 8 + 32 + 8, PanelButtonY));
     if (ImGui::Button(loop ? ICON_LOOP : ICON_LOOP_ONE "##preview_loop", ImVec2(32, 32)))
     {
         if (sequencer)
@@ -410,7 +436,15 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     }
     ImGui::ShowTooltipOnHover("Loop");
     ImGui::PopStyleColor(3);
+
     // Time stamp on left of control panel
+    auto PanelRightX = PanelBarPos.x + window_size.x - 150;
+    auto PanelRightY = PanelBarPos.y + 8;
+    ImGui::SetCursorScreenPos(ImVec2(PanelRightX, PanelRightY));
+    ImGui::SetWindowFontScale(1.5);
+    auto time_str = MillisecToString(sequencer->currentTime);
+    ImGui::TextUnformatted(time_str.c_str());
+    ImGui::SetWindowFontScale(1.0);
 
     // audio meters
 
@@ -612,8 +646,9 @@ bool Application_Frame(void * handle)
                     case 3: ShowMediaOutputWindow(draw_list); break;
                     default: break;
                 }
-                ImGui::EndChild();
             }
+            ImGui::EndChild();
+            
             // add tool bar
             ImGui::SetCursorPos(ImVec2(0,32));
             if (ImGui::Button(ICON_IGFD_ADD "##AddMedia", ImVec2(tool_icon_size, tool_icon_size)))
@@ -638,11 +673,8 @@ bool Application_Frame(void * handle)
                 show_about = true;
             }
             ImGui::ShowTooltipOnHover("About Media Editor");
-
-            // Demo end
-            ImGui::EndChild();
         }
-
+        ImGui::EndChild();
 
         ImVec2 main_sub_pos(bank_width + 8, 0);
         ImVec2 main_sub_size(main_width - 8, main_window_size.y - 4);
@@ -666,12 +698,12 @@ bool Application_Frame(void * handle)
                     case 3: ShowMediaAnalyseWindow(draw_list); break;
                     default: break;
                 }
-                ImGui::EndChild();
             }
             ImGui::EndChild();
         }
         ImGui::EndChild();
     }
+    ImGui::EndChild();
     
     ImVec2 panel_pos(4, size_main_h * window_size.y + 12);
     ImVec2 panel_size(window_size.x - 4, size_timeline_h * window_size.y - 12);
@@ -687,7 +719,7 @@ bool Application_Frame(void * handle)
             //const ImSequencer::MediaSequencer::SequencerItem &item = sequencer.m_Items[selectedEntry];
             //ImGui::Text("I am a %s, please edit me", item.mName.c_str());
         }
-        ImGui::EndChild();
+        
         if (expanded != _expanded)
         {
             if (!_expanded)
@@ -704,6 +736,8 @@ bool Application_Frame(void * handle)
             expanded = _expanded;
         }
     }
+    ImGui::EndChild();
+    
     ImGui::PopStyleColor();
     ImGui::End();
 
