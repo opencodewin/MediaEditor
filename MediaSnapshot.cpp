@@ -10,7 +10,6 @@
 #include <algorithm>
 #include "MediaSnapshot.h"
 #include "FFUtils.h"
-#include "Logger.h"
 extern "C"
 {
     #include "libavutil/avutil.h"
@@ -34,6 +33,13 @@ static AVPixelFormat get_hw_format(AVCodecContext *ctx, const AVPixelFormat *pix
 class MediaSnapshot_Impl : public MediaSnapshot
 {
 public:
+    static ALogger* s_logger;
+
+    MediaSnapshot_Impl()
+    {
+        m_logger = GetMediaSnapshotLogger();
+    }
+
     bool Open(const string& url) override
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
@@ -256,7 +262,7 @@ public:
 
         StartAllThreads();
 
-        Log(DEBUG) << ">>>> Config window: m_snapWindowSize=" << m_snapWindowSize << ", m_wndFrmCnt=" << m_wndFrmCnt
+        m_logger->Log(DEBUG) << ">>>> Config window: m_snapWindowSize=" << m_snapWindowSize << ", m_wndFrmCnt=" << m_wndFrmCnt
             << ", m_vidMaxIndex=" << m_vidMaxIndex << ", m_maxCacheSize=" << m_maxCacheSize << ", m_prevWndCacheSize=" << m_prevWndCacheSize << endl;
         return true;
     }
@@ -532,7 +538,7 @@ private:
         if (!m_hSeekPoints)
         {
             m_errMsg = "FAILED to retrieve video seek points!";
-            Log(ERROR) << m_errMsg << endl;
+            m_logger->Log(ERROR) << m_errMsg << endl;
             return false;
         }
 
@@ -581,7 +587,7 @@ private:
             //     return false;
         }
 
-        Log(DEBUG) << ">>>> Prepared: m_snapWindowSize=" << m_snapWindowSize << ", m_wndFrmCnt=" << m_wndFrmCnt
+        m_logger->Log(DEBUG) << ">>>> Prepared: m_snapWindowSize=" << m_snapWindowSize << ", m_wndFrmCnt=" << m_wndFrmCnt
             << ", m_vidMaxIndex=" << m_vidMaxIndex << ", m_maxCacheSize=" << m_maxCacheSize << ", m_prevWndCacheSize=" << m_prevWndCacheSize << endl;
         m_prepared = true;
         return true;
@@ -613,7 +619,7 @@ private:
             m_errMsg = FFapiFailureMessage("avcodec_open2", fferr);
             return false;
         }
-        Log(DEBUG) << "Video decoder '" << m_viddec->name << "' opened." << " thread_count=" << m_viddecCtx->thread_count
+        m_logger->Log(DEBUG) << "Video decoder '" << m_viddec->name << "' opened." << " thread_count=" << m_viddecCtx->thread_count
             << ", thread_type=" << m_viddecCtx->thread_type << endl;
         return true;
     }
@@ -641,7 +647,7 @@ private:
                 }
             }
         }
-        Log(DEBUG) << "Use hardware device type '" << av_hwdevice_get_type_name(m_viddecDevType) << "'." << endl;
+        m_logger->Log(DEBUG) << "Use hardware device type '" << av_hwdevice_get_type_name(m_viddecDevType) << "'." << endl;
 
         m_viddecCtx = avcodec_alloc_context3(m_viddec);
         if (!m_viddecCtx)
@@ -674,17 +680,17 @@ private:
             m_errMsg = FFapiFailureMessage("avcodec_open2", fferr);
             return false;
         }
-        Log(DEBUG) << "Video decoder(HW) '" << m_viddecCtx->codec->name << "' opened." << endl;
+        m_logger->Log(DEBUG) << "Video decoder(HW) '" << m_viddecCtx->codec->name << "' opened." << endl;
         return true;
     }
 
     void DemuxThreadProc()
     {
-        Log(DEBUG) << "Enter DemuxThreadProc()..." << endl;
+        m_logger->Log(DEBUG) << "Enter DemuxThreadProc()..." << endl;
 
         if (!m_prepared && !Prepare())
         {
-            Log(ERROR) << "Prepare() FAILED! Error is '" << m_errMsg << "'." << endl;
+            m_logger->Log(ERROR) << "Prepare() FAILED! Error is '" << m_errMsg << "'." << endl;
             return;
         }
 
@@ -708,7 +714,7 @@ private:
                 if (!currTask || currTask->cancel || currTask->demuxerEof)
                 {
                     if (currTask && currTask->cancel)
-                        Log(DEBUG) << "~~~~ Current demux task canceled" << endl;
+                        m_logger->Log(DEBUG) << "~~~~ Current demux task canceled" << endl;
                     currTask = FindNextDemuxTask();
                     if (currTask)
                     {
@@ -718,7 +724,7 @@ private:
                         lastGopSsPktPts = INT64_MAX;
                         currPktSsIdx = -1;
                         gopSmallestIdx = INT32_MAX;
-                        // Log(DEBUG) << "--> Change demux task, ssIdxPair=(" << currTask->ssIdxPair.first << " ~ " << currTask->ssIdxPair.second
+                        // m_logger->Log(DEBUG) << "--> Change demux task, ssIdxPair=(" << currTask->ssIdxPair.first << " ~ " << currTask->ssIdxPair.second
                         //     << ", startPts=" << currTask->seekPts.first << "(" << MillisecToString(CvtVidPtsToMts(currTask->seekPts.first)) << ")"
                         //     << ", endPts=" << currTask->seekPts.second << "(" << MillisecToString(CvtVidPtsToMts(currTask->seekPts.second)) << ")" << endl;
                     }
@@ -738,7 +744,7 @@ private:
                             int fferr = avformat_seek_file(m_avfmtCtx, m_vidStmIdx, INT64_MIN, currTask->seekPts.first, currTask->seekPts.first, 0);
                             if (fferr < 0)
                             {
-                                Log(ERROR) << "avformat_seek_file() FAILED for seeking to 'currTask->startPts'(" << currTask->seekPts.first << ")! fferr = " << fferr << "!" << endl;
+                                m_logger->Log(ERROR) << "avformat_seek_file() FAILED for seeking to 'currTask->startPts'(" << currTask->seekPts.first << ")! fferr = " << fferr << "!" << endl;
                                 break;
                             }
                             demuxEof = false;
@@ -749,7 +755,7 @@ private:
                                 demuxEof = true;
                             else if (ptsAfterSeek != currTask->seekPts.first)
                             {
-                                Log(WARN) << "WARNING! 'ptsAfterSeek'(" << ptsAfterSeek << ") != 'ssTask->startPts'(" << currTask->seekPts.first << ")!" << endl;
+                                m_logger->Log(WARN) << "WARNING! 'ptsAfterSeek'(" << ptsAfterSeek << ") != 'ssTask->startPts'(" << currTask->seekPts.first << ")!" << endl;
                                 currTask->seekPts.first = ptsAfterSeek;
                             }
                         }
@@ -772,7 +778,7 @@ private:
                                 demuxEof = true;
                             }
                             else
-                                Log(ERROR) << "Demuxer ERROR! 'av_read_frame' returns " << fferr << "." << endl;
+                                m_logger->Log(ERROR) << "Demuxer ERROR! 'av_read_frame' returns " << fferr << "." << endl;
                         }
                     }
 
@@ -795,13 +801,13 @@ private:
                             {
                                 if (gopSmallestIdx > currTask->ssIdxPair.first)
                                 {
-                                    Log(ERROR) << "!!!!!! ABNORMAL SS INDEX (1) !!!!!! demux task eof, but the smallest gop ss index is larger than task's first index, "
+                                    m_logger->Log(ERROR) << "!!!!!! ABNORMAL SS INDEX (1) !!!!!! demux task eof, but the smallest gop ss index is larger than task's first index, "
                                         << gopSmallestIdx << " > " << currTask->ssIdxPair.first << "." << endl;
                                 }
                                 if (currPktSsIdx < currTask->ssIdxPair.second)
                                 {
                                     bool gopEnd = avpkt.pts >= currTask->seekPts.second;
-                                    Log(ERROR) << "!!!!!! ABNORMAL SS INDEX (2) !!!!!! demux task eof, but last pkt index is " << currPktSsIdx
+                                    m_logger->Log(ERROR) << "!!!!!! ABNORMAL SS INDEX (2) !!!!!! demux task eof, but last pkt index is " << currPktSsIdx
                                         << ", which is smaller than task's second index " << currTask->ssIdxPair.second
                                         << ", REASON is " << (gopEnd ? "GOP-END" : "SSIDX-END") << endl;
                                 }
@@ -813,7 +819,7 @@ private:
                                 AVPacket* enqpkt = av_packet_clone(&avpkt);
                                 if (!enqpkt)
                                 {
-                                    Log(ERROR) << "FAILED to invoke 'av_packet_clone(DemuxThreadProc)'!" << endl;
+                                    m_logger->Log(ERROR) << "FAILED to invoke 'av_packet_clone(DemuxThreadProc)'!" << endl;
                                     break;
                                 }
                                 {
@@ -835,7 +841,7 @@ private:
             }
             else
             {
-                Log(ERROR) << "Demux procedure to non-video media is NOT IMPLEMENTED yet!" << endl;
+                m_logger->Log(ERROR) << "Demux procedure to non-video media is NOT IMPLEMENTED yet!" << endl;
             }
 
             if (idleLoop)
@@ -845,7 +851,7 @@ private:
             currTask->demuxerEof = true;
         if (avpktLoaded)
             av_packet_unref(&avpkt);
-        Log(DEBUG) << "Leave DemuxThreadProc()." << endl;
+        m_logger->Log(DEBUG) << "Leave DemuxThreadProc()." << endl;
     }
 
     bool ReadNextStreamPacket(int stmIdx, AVPacket* avpkt, bool* avpktLoaded, int64_t* pts)
@@ -873,7 +879,7 @@ private:
                 }
                 else
                 {
-                    Log(ERROR) << "av_read_frame() FAILED! fferr = " << fferr << "." << endl;
+                    m_logger->Log(ERROR) << "av_read_frame() FAILED! fferr = " << fferr << "." << endl;
                     return false;
                 }
             }
@@ -885,7 +891,7 @@ private:
 
     void VideoDecodeThreadProc()
     {
-        Log(DEBUG) << "Enter VideoDecodeThreadProc()..." << endl;
+        m_logger->Log(DEBUG) << "Enter VideoDecodeThreadProc()..." << endl;
 
         while (!m_prepared && !m_quit)
             this_thread::sleep_for(chrono::milliseconds(5));
@@ -903,7 +909,7 @@ private:
 
             if (currTask && currTask->cancel)
             {
-                Log(DEBUG) << "~~~~ Current video task canceled" << endl;
+                m_logger->Log(DEBUG) << "~~~~ Current video task canceled" << endl;
                 if (avfrmLoaded)
                 {
                     av_frame_unref(&avfrm);
@@ -920,7 +926,7 @@ private:
                 {
                     currTask->decoding = true;
                     inputEof = false;
-                    // Log(DEBUG) << "==> Change decoding task to build index (" << currTask->ssIdxPair.first << " ~ " << currTask->ssIdxPair.second << ")." << endl;
+                    // m_logger->Log(DEBUG) << "==> Change decoding task to build index (" << currTask->ssIdxPair.first << " ~ " << currTask->ssIdxPair.second << ")." << endl;
                 }
                 else if (oldTask)
                 {
@@ -946,7 +952,7 @@ private:
                         int fferr = avcodec_receive_frame(m_viddecCtx, &avfrm);
                         if (fferr == 0)
                         {
-                            // Log(DEBUG) << "<<< Get video frame pts=" << avfrm.pts << "(" << MillisecToString(CvtVidPtsToMts(avfrm.pts)) << ")." << endl;
+                            // m_logger->Log(DEBUG) << "<<< Get video frame pts=" << avfrm.pts << "(" << MillisecToString(CvtVidPtsToMts(avfrm.pts)) << ")." << endl;
                             avfrmLoaded = true;
                             idleLoop = false;
                         }
@@ -954,7 +960,7 @@ private:
                         {
                             if (fferr != AVERROR_EOF)
                             {
-                                Log(ERROR) << "FAILED to invoke 'avcodec_receive_frame'(VideoDecodeThreadProc)! return code is "
+                                m_logger->Log(ERROR) << "FAILED to invoke 'avcodec_receive_frame'(VideoDecodeThreadProc)! return code is "
                                     << fferr << "." << endl;
                                 quitLoop = true;
                                 break;
@@ -963,7 +969,7 @@ private:
                             {
                                 idleLoop = false;
                                 needResetDecoder = true;
-                                // Log(DEBUG) << "Video decoder current task reaches EOF!" << endl;
+                                // m_logger->Log(DEBUG) << "Video decoder current task reaches EOF!" << endl;
                             }
                         }
                     }
@@ -1001,7 +1007,7 @@ private:
                         int fferr = avcodec_send_packet(m_viddecCtx, avpkt);
                         if (fferr == 0)
                         {
-                            // Log(DEBUG) << ">>> Send video packet pts=" << avpkt->pts << "(" << MillisecToString(CvtVidPtsToMts(avpkt->pts)) << ")." << endl;
+                            // m_logger->Log(DEBUG) << ">>> Send video packet pts=" << avpkt->pts << "(" << MillisecToString(CvtVidPtsToMts(avpkt->pts)) << ")." << endl;
                             {
                                 lock_guard<mutex> lk(currTask->avpktQLock);
                                 currTask->avpktQ.pop_front();
@@ -1011,7 +1017,7 @@ private:
                         }
                         else if (fferr != AVERROR(EAGAIN) && fferr != AVERROR_INVALIDDATA)
                         {
-                            Log(ERROR) << "FAILED to invoke 'avcodec_send_packet'(VideoDecodeThreadProc)! return code is "
+                            m_logger->Log(ERROR) << "FAILED to invoke 'avcodec_send_packet'(VideoDecodeThreadProc)! return code is "
                                 << fferr << "." << endl;
                             quitLoop = true;
                         }
@@ -1033,12 +1039,12 @@ private:
             currTask->decoderEof = true;
         if (avfrmLoaded)
             av_frame_unref(&avfrm);
-        Log(DEBUG) << "Leave VideoDecodeThreadProc()." << endl;
+        m_logger->Log(DEBUG) << "Leave VideoDecodeThreadProc()." << endl;
     }
 
     void UpdateSnapshotThreadProc()
     {
-        Log(DEBUG) << "Enter UpdateSnapshotThreadProc()." << endl;
+        m_logger->Log(DEBUG) << "Enter UpdateSnapshotThreadProc()." << endl;
         SnapshotBuildTask currTask;
         while (!m_quit)
         {
@@ -1051,23 +1057,22 @@ private:
 
             if (currTask)
             {
-                AVFrame* ssfrm = nullptr;
                 for (Snapshot& ss : currTask->ssAry)
                 {
                     if (ss.avfrm)
                     {
                         double ts = (double)CvtVidPtsToMts(ss.avfrm->pts)/1000.;
                         if (!m_frmCvt.ConvertImage(ss.avfrm, ss.img, ts))
-                            Log(ERROR) << "FAILED to convert AVFrame to ImGui::ImMat! Message is '" << m_frmCvt.GetError() << "'." << endl;
+                            m_logger->Log(ERROR) << "FAILED to convert AVFrame to ImGui::ImMat! Message is '" << m_frmCvt.GetError() << "'." << endl;
                         av_frame_free(&ss.avfrm);
                         ss.avfrm = nullptr;
                         currTask->ssfrmCnt--;
                         if (currTask->ssfrmCnt < 0)
-                            Log(ERROR) << "!! ABNORMAL !! Task [" << currTask->ssIdxPair.first << ", " << currTask->ssIdxPair.second << "] has negative 'ssfrmCnt'("
+                            m_logger->Log(ERROR) << "!! ABNORMAL !! Task [" << currTask->ssIdxPair.first << ", " << currTask->ssIdxPair.second << "] has negative 'ssfrmCnt'("
                                 << currTask->ssfrmCnt << ")!" << endl;
                         m_pendingVidfrmCnt--;
                         if (m_pendingVidfrmCnt < 0)
-                            Log(ERROR) << "Pending video AVFrame ptr count is NEGATIVE! " << m_pendingVidfrmCnt << endl;
+                            m_logger->Log(ERROR) << "Pending video AVFrame ptr count is NEGATIVE! " << m_pendingVidfrmCnt << endl;
                         idleLoop = false;
                     }
                 }
@@ -1076,7 +1081,7 @@ private:
             if (idleLoop)
                 this_thread::sleep_for(chrono::milliseconds(5));
         }
-        Log(DEBUG) << "Leave UpdateSnapshotThreadProc()." << endl;
+        m_logger->Log(DEBUG) << "Leave UpdateSnapshotThreadProc()." << endl;
     }
 
     void StartAllThreads()
@@ -1196,7 +1201,7 @@ private:
         if (!memcpy(&m_snapWnd, &snapWnd, sizeof(m_snapWnd)))
         {
             m_snapWnd = snapWnd;
-            Log(DEBUG) << "Update snap-window: { " << startPos << "(" << MillisecToString((int64_t)(startPos*1000)) << "), "
+            m_logger->Log(DEBUG) << "Update snap-window: { " << startPos << "(" << MillisecToString((int64_t)(startPos*1000)) << "), "
                 << index0 << ", " << index1 << ", " << cacheIdx0 << ", " << cacheIdx1 << " }" << endl;
         }
         return snapWnd;
@@ -1207,7 +1212,7 @@ private:
         index = (int32_t)round((double)mts/m_ssIntvMts);
         double diff = abs(index*m_ssIntvMts-mts);
         bool isSs = diff <= m_vidfrmIntvMtsHalf;
-        // Log(DEBUG) << "---> IsSnapshotFrame : pts=" << pts << ", mts=" << mts << ", index=" << index << ", diff=" << diff << ", m_vidfrmIntvMtsHalf=" << m_vidfrmIntvMtsHalf << endl;
+        // m_logger->Log(DEBUG) << "---> IsSnapshotFrame : pts=" << pts << ", mts=" << mts << ", index=" << index << ", diff=" << diff << ", m_vidfrmIntvMtsHalf=" << m_vidfrmIntvMtsHalf << endl;
         return isSs;
     }
 
@@ -1288,7 +1293,7 @@ private:
         if (task)
             m_bldtskTimeOrder.push_back(task);
         m_bldtskSnapWnd = currwnd;
-        Log(DEBUG) << "^^^ Initialized build task, index = ["
+        m_logger->Log(DEBUG) << "^^^ Initialized build task, index = ["
             << m_bldtskSnapWnd.cacheIdx0 << ", (" << m_bldtskSnapWnd.index0 << ", " << m_bldtskSnapWnd.index1 << "), " << m_bldtskSnapWnd.cacheIdx1 << "]." << endl;
 
         UpdateBuildTaskByPriority();
@@ -1299,7 +1304,7 @@ private:
         SnapWindow currwnd = m_snapWnd;
         if (currwnd.cacheIdx0 != m_bldtskSnapWnd.cacheIdx0)
         {
-            Log(DEBUG) << "^^^ Updating build task, index changed from ["
+            m_logger->Log(DEBUG) << "^^^ Updating build task, index changed from ["
                 << m_bldtskSnapWnd.cacheIdx0 << ", (" << m_bldtskSnapWnd.index0 << ", " << m_bldtskSnapWnd.index1 << "), " << m_bldtskSnapWnd.cacheIdx1 << "] to ["
                 << currwnd.cacheIdx0 << ", (" << currwnd.index0 << ", " << currwnd.index1 << "), " << currwnd.cacheIdx1 << "]." << endl;
             lock_guard<mutex> lk(m_bldtskByTimeLock);
@@ -1349,7 +1354,7 @@ private:
                             if (hasOldTask)
                             {
                                 if (oldSsIdxPair != task->ssIdxPair)
-                                    Log(DEBUG) << "~~~ Update old task, ss index pair updated from [" << oldSsIdxPair.first << ", " << oldSsIdxPair.second << "] to ["
+                                    m_logger->Log(DEBUG) << "~~~ Update old task, ss index pair updated from [" << oldSsIdxPair.first << ", " << oldSsIdxPair.second << "] to ["
                                         << task->ssIdxPair.first << ", " << task->ssIdxPair.second << "]." << endl;
                                 hasOldTask = false;
                             }
@@ -1419,7 +1424,7 @@ private:
                             if (hasOldTask)
                             {
                                 if (oldSsIdxPair != task->ssIdxPair)
-                                    Log(DEBUG) << "~~~ Update old task, ss index pair updated from [" << oldSsIdxPair.first << ", " << oldSsIdxPair.second << "] to ["
+                                    m_logger->Log(DEBUG) << "~~~ Update old task, ss index pair updated from [" << oldSsIdxPair.first << ", " << oldSsIdxPair.second << "] to ["
                                         << task->ssIdxPair.first << ", " << task->ssIdxPair.second << "]." << endl;
                                 hasOldTask = false;
                             }
@@ -1535,10 +1540,10 @@ private:
             ss.avfrm = av_frame_clone(frm);
             if (!ss.avfrm)
             {
-                Log(ERROR) << "FAILED to invoke 'av_frame_clone()' to allocate new AVFrame for SS!" << endl;
+                m_logger->Log(ERROR) << "FAILED to invoke 'av_frame_clone()' to allocate new AVFrame for SS!" << endl;
                 return false;
             }
-            // Log(DEBUG) << "Adding SS#" << ssIdx << "." << endl;
+            // m_logger->Log(DEBUG) << "Adding SS#" << ssIdx << "." << endl;
             auto& task = *iter;
             if (task->ssAry.empty())
             {
@@ -1553,7 +1558,7 @@ private:
                 });
                 if (ssRvsIter != task->ssAry.rend() && ssRvsIter->index == ssIdx)
                 {
-                    Log(DEBUG) << "Found duplicated SS#" << ssIdx << ", dropping this SS. pts=" << frm->pts
+                    m_logger->Log(DEBUG) << "Found duplicated SS#" << ssIdx << ", dropping this SS. pts=" << frm->pts
                         << ", t=" << MillisecToString(CvtVidPtsToMts(frm->pts)) << "." << endl;
                     if (ss.avfrm)
                         av_frame_free(&ss.avfrm);
@@ -1570,12 +1575,13 @@ private:
         }
         else
         {
-            Log(DEBUG) << "Dropping SS#" << ssIdx << " due to no matching task is found." << endl;
+            m_logger->Log(DEBUG) << "Dropping SS#" << ssIdx << " due to no matching task is found." << endl;
         }
         return false;
     }
 
 private:
+    ALogger* m_logger;
     string m_errMsg;
 
     MediaParserHolder m_hParser;
@@ -1645,6 +1651,15 @@ private:
     float m_ssWFacotr{1.f}, m_ssHFacotr{1.f};
     AVFrameToImMatConverter m_frmCvt;
 };
+
+ALogger* MediaSnapshot_Impl::s_logger = nullptr;
+
+ALogger* GetMediaSnapshotLogger()
+{
+    if (!MediaSnapshot_Impl::s_logger)
+        MediaSnapshot_Impl::s_logger = GetLogger("MSnapshot");
+    return MediaSnapshot_Impl::s_logger;
+}
 
 static AVPixelFormat get_hw_format(AVCodecContext *ctx, const AVPixelFormat *pix_fmts)
 {

@@ -1,9 +1,7 @@
 #pragma once
-#include <cstdint>
-#include <string>
-#include <vector>
-#include "MediaParser.h"
 #include "immat.h"
+#include "MediaParser.h"
+#include "Logger.h"
 
 struct MediaSnapshot
 {
@@ -41,3 +39,5 @@ struct MediaSnapshot
 
 MediaSnapshot* CreateMediaSnapshot();
 void ReleaseMediaSnapshot(MediaSnapshot** msnapshot);
+
+Logger::ALogger* GetMediaSnapshotLogger();

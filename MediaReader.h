@@ -1,6 +1,7 @@
 #pragma once
-#include "MediaParser.h"
 #include "immat.h"
+#include "MediaParser.h"
+#include "Logger.h"
 
 struct MediaReader
 {
@@ -29,3 +30,5 @@ struct MediaReader
 
 MediaReader* CreateMediaReader();
 void ReleaseMediaReader(MediaReader** mreader);
+
+Logger::ALogger* GetMediaReaderLogger();

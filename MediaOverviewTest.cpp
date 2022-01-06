@@ -33,7 +33,8 @@ void Application_GetWindowProperties(ApplicationWindowProperty& property)
 
 void Application_Initialize(void** handle)
 {
-    SetDefaultLoggerLevels(DEBUG);
+    GetDefaultLogger()
+        ->SetShowLevels(DEBUG);
 
 #ifdef USE_BOOKMARK
 	// load bookmarks

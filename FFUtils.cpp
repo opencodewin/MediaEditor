@@ -139,19 +139,33 @@ int AVPixelFormatToImColorFormat(AVPixelFormat pixfmt)
 
 SelfFreeAVFramePtr AllocSelfFreeAVFramePtr()
 {
-    return shared_ptr<AVFrame>(av_frame_alloc(), [](AVFrame* avfrm) {
+    SelfFreeAVFramePtr frm = shared_ptr<AVFrame>(av_frame_alloc(), [](AVFrame* avfrm) {
         if (avfrm)
             av_frame_free(&avfrm);
     });
+    if (!frm.get())
+        return nullptr;
+    return frm;
 }
 
-static bool IsHwFrame(const AVFrame* avfrm)
+SelfFreeAVFramePtr CloneSelfFreeAVFramePtr(const AVFrame* avfrm)
+{
+    SelfFreeAVFramePtr frm = shared_ptr<AVFrame>(av_frame_clone(avfrm), [](AVFrame* avfrm) {
+        if (avfrm)
+            av_frame_free(&avfrm);
+    });
+    if (!frm.get())
+        return nullptr;
+    return frm;
+}
+
+bool IsHwFrame(const AVFrame* avfrm)
 {
     const AVPixFmtDescriptor* desc = av_pix_fmt_desc_get((AVPixelFormat)avfrm->format);
     return (desc->flags&AV_PIX_FMT_FLAG_HWACCEL) > 0;
 }
 
-static bool HwFrameToSwFrame(AVFrame* swfrm, const AVFrame* hwfrm)
+bool HwFrameToSwFrame(AVFrame* swfrm, const AVFrame* hwfrm)
 {
     av_frame_unref(swfrm);
     int fferr = av_hwframe_transfer_data(swfrm, hwfrm, 0);
@@ -160,6 +174,31 @@ static bool HwFrameToSwFrame(AVFrame* swfrm, const AVFrame* hwfrm)
         Log(ERROR) << "av_hwframe_transfer_data() FAILED! fferr = " << fferr << "." << endl;
         return false;
     }
+    av_frame_copy_props(swfrm, hwfrm);
+    return true;
+}
+
+bool MakeAVFrameCopy(AVFrame* dst, const AVFrame* src)
+{
+    av_frame_unref(dst);
+    dst->format = src->format;
+    dst->width = src->width;
+    dst->height = src->height;
+    dst->channels = src->channels;
+    dst->channel_layout = src->channel_layout;
+    dst->sample_rate = dst->sample_rate;
+    int fferr;
+    if ((fferr = av_frame_get_buffer(dst, 0)) < 0)
+    {
+        Log(ERROR) << "av_frame_get_buffer() FAILED! fferr = " << fferr << "." << endl;
+        return false;
+    }
+    if ((fferr = av_frame_copy(dst, src)) < 0)
+    {
+        Log(ERROR) << "av_frame_copy() FAILED! fferr = " << fferr << "." << endl;
+        return false;
+    }
+    av_frame_copy_props(dst, src);
     return true;
 }
 
@@ -169,7 +208,7 @@ bool ConvertAVFrameToImMat(const AVFrame* avfrm, ImGui::ImMat& inMat, double tim
     if (IsHwFrame(avfrm))
     {
         swfrm = AllocSelfFreeAVFramePtr();
-        if (!swfrm.get())
+        if (!swfrm)
         {
             Log(ERROR) << "FAILED to allocate new AVFrame for ImMat conversion!" << endl;
             return false;
@@ -426,7 +465,7 @@ bool AVFrameToImMatConverter::ConvertImage(const AVFrame* avfrm, ImGui::ImMat& o
         if (IsHwFrame(avfrm))
         {
             swfrm = AllocSelfFreeAVFramePtr();
-            if (!swfrm.get())
+            if (!swfrm)
             {
                 Log(ERROR) << "FAILED to allocate new AVFrame for ImMat conversion!" << endl;
                 return false;
@@ -479,7 +518,7 @@ bool AVFrameToImMatConverter::ConvertImage(const AVFrame* avfrm, ImGui::ImMat& o
         if (!m_passThrough && m_swsCtx)
         {
             swsfrm = AllocSelfFreeAVFramePtr();
-            if (!swsfrm.get())
+            if (!swsfrm)
             {
                 m_errMsg = "FAILED to allocate AVFrame to perform 'swscale'!";
                 return false;
