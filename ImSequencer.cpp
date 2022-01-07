@@ -241,11 +241,11 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry
                 seq->m_Items.push_back(new_item);
                 if (!item->mLocked)
                 {
-                    for (auto &c : item->mClips)
+                    for (auto c : item->mClips)
                     {
-                        if (c.mStart == clip->mStart)
+                        if (c->mStart == clip->mStart)
                         {
-                            c.mDragOut = true;
+                            c->mDragOut = true;
                             break;
                         }
                     }
@@ -1040,7 +1040,7 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry
 /***********************************************************************************************************
  * Draw Clip Timeline
  ***********************************************************************************************************/
-bool ClipTimeLine(ClipInfo * clip)
+bool ClipTimeLine(ClipInfo* clip)
 {
     /*************************************************************************************************************
      |  0    5    10 v   15    20 <rule bar> 30     35      40      45       50       55    c
@@ -1049,7 +1049,153 @@ bool ClipTimeLine(ClipInfo * clip)
      |               |                                                                      v                                            
      |_______________|_____________________________________________________________________ a
      ************************************************************************************************************/
-    return true;
+    bool ret = false;
+    if (!clip) return ret;
+    ImGuiIO &io = ImGui::GetIO();
+    int cx = (int)(io.MousePos.x);
+    int cy = (int)(io.MousePos.y);
+    int headHeight = 30;
+    int customHeight = 70;
+    static bool MovingCurrentTime = false;
+
+    ImGui::BeginGroup();
+    ImDrawList *draw_list = ImGui::GetWindowDrawList();
+    ImVec2 window_pos = ImGui::GetCursorScreenPos();
+    ImVec2 window_size = ImGui::GetWindowSize();
+    ImRect regionRect(window_pos + ImVec2(0, headHeight), window_pos + window_size);
+    int64_t duration = ImMax(clip->mEnd - clip->mStart, (int64_t)1);
+    float msPixelWidth = (float)(window_size.x) / (float)duration;
+    ImRect custom_view_rect(window_pos + ImVec2(0, headHeight), window_pos + window_size);
+
+    //header
+    //header time and lines
+    ImVec2 headerSize(window_size.x, (float)headHeight);
+    ImGui::InvisibleButton("ClipTopBar", headerSize);
+    draw_list->AddRectFilled(window_pos, window_pos + headerSize, COL_DARK_ONE, 0);
+
+    ImRect topRect(window_pos, window_pos + headerSize);
+    if (!MovingCurrentTime && clip->mCurrent >= clip->mStart && topRect.Contains(io.MousePos) && io.MouseDown[0])
+    {
+        MovingCurrentTime = true;
+    }
+    if (MovingCurrentTime)
+    {
+        if (duration)
+        {
+            clip->mCurrent = (int64_t)((io.MousePos.x - topRect.Min.x) / msPixelWidth) + clip->mStart;
+            //alignTime(clip->mCurrent, sequencer->timeStep);
+            if (clip->mCurrent < clip->mStart)
+                clip->mCurrent = clip->mStart;
+            if (clip->mCurrent >= clip->mEnd)
+                clip->mCurrent = clip->mEnd;
+            //sequencer->Seek(); // call seek event
+        }
+        if (!io.MouseDown[0])
+            MovingCurrentTime = false;
+    }
+
+    int64_t modTimeCount = 10;
+    int timeStep = 1;
+    while ((modTimeCount * msPixelWidth) < 100)
+    {
+        modTimeCount *= 10;
+        timeStep *= 10;
+    };
+    int halfModTime = modTimeCount / 2;
+    auto drawLine = [&](int64_t i, int regionHeight)
+    {
+        bool baseIndex = ((i % modTimeCount) == 0) || (i == 0 || i == duration);
+        bool halfIndex = (i % halfModTime) == 0;
+        int px = (int)window_pos.x + int(i * msPixelWidth);
+        int tiretStart = baseIndex ? 4 : (halfIndex ? 10 : 14);
+        int tiretEnd = baseIndex ? regionHeight : headHeight;
+        if (px <= (window_size.x + window_pos.x) && px >= window_pos.x)
+        {
+            draw_list->AddLine(ImVec2((float)px, window_pos.y + (float)tiretStart), ImVec2((float)px, window_pos.y + (float)tiretEnd - 1), halfIndex ? COL_MARK : COL_MARK_HALF, halfIndex ? 2 : 1);
+        }
+        if (baseIndex && px >= window_pos.x)
+        {
+            auto time_str = MillisecToString(i + clip->mStart, 2);
+            ImGui::SetWindowFontScale(0.8);
+            draw_list->AddText(ImVec2((float)px + 3.f, window_pos.y), COL_RULE_TEXT, time_str.c_str());
+            ImGui::SetWindowFontScale(1.0);
+        }
+    };
+    for (auto i = 0; i < duration; i+= timeStep)
+    {
+        drawLine(i, headHeight);
+    }
+    drawLine(0, headHeight);
+    drawLine(duration, headHeight);
+    // cursor Arrow
+    const float arrowWidth = draw_list->_Data->FontSize;
+    float arrowOffset = window_pos.x + (clip->mCurrent - clip->mStart) * msPixelWidth + msPixelWidth / 2 - arrowWidth * 0.5f - 3;
+    ImGui::RenderArrow(draw_list, ImVec2(arrowOffset, window_pos.y), COL_CURSOR_ARROW, ImGuiDir_Down);
+    ImGui::SetWindowFontScale(0.8);
+    auto time_str = MillisecToString(clip->mCurrent, 2);
+    ImVec2 str_size = ImGui::CalcTextSize(time_str.c_str(), nullptr, true);
+    float strOffset = window_pos.x + (clip->mCurrent - clip->mStart) * msPixelWidth + msPixelWidth / 2 - str_size.x * 0.5f - 3;
+    ImVec2 str_pos = ImVec2(strOffset, window_pos.y + 10);
+    draw_list->AddRectFilled(str_pos + ImVec2(-3, 0), str_pos + str_size + ImVec2(3, 3), COL_CURSOR_TEXT_BG, 2.0, ImDrawFlags_RoundCornersAll);
+    draw_list->AddText(str_pos, COL_CURSOR_TEXT, time_str.c_str());
+    ImGui::SetWindowFontScale(1.0);
+
+    // snapshot
+    if (clip->mSnapshot && clip->mSnapshot->IsOpened() && clip->mSnapshot->HasVideo())
+    {
+        auto width = clip->mSnapshot->GetVideoStream()->width;
+        auto height = clip->mSnapshot->GetVideoStream()->height;
+        if (width && height && duration)
+        {
+            float aspio = (float)width / (float)height;
+            float snapshot_width = customHeight * aspio;
+            float frame_count = window_size.x / snapshot_width;
+            int i_frame_count = ceil(frame_count);
+            clip->mSnapshotWidth = snapshot_width;
+            if (i_frame_count != clip->mFrameCount)
+            {
+                double snapshot_window_size = (double)(clip->mEnd - clip->mStart) / 1000.0;
+                clip->mSnapshot->ConfigSnapWindow(snapshot_window_size, i_frame_count);
+                clip->mFrameCount = i_frame_count;
+                for (auto& snap : clip->mVideoSnapshots)
+                {
+                    if (snap.texture) { ImGui::ImDestroyTexture(snap.texture); snap.texture = nullptr; }
+                }
+                clip->mVideoSnapshots.clear();
+            }
+            if (i_frame_count > clip->mVideoSnapshots.size())
+            {
+                clip->UpdateSnapshot();
+            }
+        }
+        // draw snapshot
+        draw_list->PushClipRect(custom_view_rect.Min, custom_view_rect.Max);
+        ImVec2 snap_pos = custom_view_rect.Min;
+        ImVec2 size = ImVec2(clip->mSnapshotWidth, customHeight);
+        for (auto snap : clip->mVideoSnapshots)
+        {
+            if (snap_pos.x + size.x > window_pos.x + window_size.x)
+            {
+                // last frame
+                size.x = window_pos.x + window_size.x - snap_pos.x;
+            }
+            ImGui::SetCursorScreenPos(snap_pos);
+            ImGui::Image(snap.texture, size);
+            snap_pos += ImVec2(size.x, 0);
+        }
+        draw_list->PopClipRect();
+    }
+
+    // cursor line
+    draw_list->PushClipRect(custom_view_rect.Min, custom_view_rect.Max);
+    ImVec2 contentMin(window_pos.x, window_pos.y + (float)headHeight);
+    ImVec2 contentMax(window_pos.x + window_size.x, window_pos.y + (float)headHeight + float(customHeight));
+    static const float cursorWidth = 3.f;
+    float cursorOffset = contentMin.x + (clip->mCurrent - clip->mStart) * msPixelWidth + msPixelWidth / 2 - cursorWidth * 0.5f - 2;
+    draw_list->AddLine(ImVec2(cursorOffset, contentMin.y), ImVec2(cursorOffset, contentMax.y), IM_COL32(0, 255, 0, 128), cursorWidth);
+    draw_list->PopClipRect();
+    ImGui::EndGroup();
+    return ret;
 }
 
 /***********************************************************************************************************
@@ -1145,13 +1291,14 @@ SequencerItem::SequencerItem(const std::string& name, const std::string& path, i
         mMedia->Open(mSnapshot->GetMediaParser());
         double window_size = 1.0f;
         mLength = mSnapshot->GetVideoDuration();
-        mSnapshot->SetCacheFactor(16.0);
+        mSnapshot->SetCacheFactor(8.0);
         mSnapshot->SetSnapshotResizeFactor(0.1, 0.1);
-        mSnapshot->ConfigSnapWindow(window_size, 5);
+        mSnapshot->ConfigSnapWindow(window_size, 1);
         if (mEnd > mStart + mLength)
             mEnd = mLength - mStart;
     }
-    mClips.push_back(ClipInfo(mStart, mEnd, false, this));
+    ClipInfo *first_clip = new ClipInfo(mStart, mEnd, false, this);
+    mClips.push_back(first_clip);
 }
 
 SequencerItem::SequencerItem(const std::string& name, MediaParserHolder holder, int64_t start, int64_t end, bool expand, int type)
@@ -1169,17 +1316,18 @@ SequencerItem::SequencerItem(const std::string& name, MediaParserHolder holder, 
     mColor = COL_SLOT_DEFAULT;
     mSnapshot->Open(holder);
     mMedia->Open(holder);
-    if (mSnapshot && mSnapshot->IsOpened())
+    if (mSnapshot->IsOpened())
     {
         double window_size = 1.0f;
         mLength = mSnapshot->GetVideoDuration();
-        mSnapshot->SetCacheFactor(16.0);
+        mSnapshot->SetCacheFactor(8.0);
         mSnapshot->SetSnapshotResizeFactor(0.1, 0.1);
-        mSnapshot->ConfigSnapWindow(window_size, 5);
+        mSnapshot->ConfigSnapWindow(window_size, 1);
         if (mEnd > mStart + mLength)
             mEnd = mLength - mStart;
     }
-    mClips.push_back(ClipInfo(mStart, mEnd, false, this));
+    ClipInfo *first_clip = new ClipInfo(mStart, mEnd, false, this);
+    mClips.push_back(first_clip);
 }
 
 SequencerItem::~SequencerItem()
@@ -1192,11 +1340,16 @@ SequencerItem::~SequencerItem()
     {
         if (snap.texture) { ImGui::ImDestroyTexture(snap.texture); snap.texture = nullptr; } 
     }
+    for (auto clip : mClips)
+    {
+        delete clip;
+    }
+    mClips.clear();
 }
 
 void SequencerItem::SequencerItemUpdateSnapshots()
 {
-    if (mSnapshot && mSnapshot->IsOpened())
+    if (mSnapshot && mSnapshot->IsOpened() && mSnapshot->HasVideo())
     {
         std::vector<ImGui::ImMat> snapshots;
         double pos = (double)(mSnapshotPos) / 1000.f;
@@ -1278,8 +1431,8 @@ void SequencerItem::CalculateVideoSnapshotInfo(const ImRect &customRect, int64_t
 {
     if (mSnapshot && mSnapshot->IsOpened() && mSnapshot->HasVideo())
     {
-        auto width = mSnapshot->GetVideoWidth();
-        auto height = mSnapshot->GetVideoHeight();
+        auto width = mSnapshot->GetVideoStream()->width;
+        auto height = mSnapshot->GetVideoStream()->height;
         auto duration = mSnapshot->GetVideoDuration();
         auto total_frames = mSnapshot->GetVideoFrameCount();
         auto clip_duration = mEnd - mStart;
@@ -1408,22 +1561,34 @@ bool SequencerItem::DrawItemControlBar(ImDrawList *draw_list, ImRect rc, int seq
     return need_update;
 }
 
-void SequencerItem::SetClipSelected(ClipInfo & clip)
+void SequencerItem::SetClipSelected(ClipInfo* clip)
 {
-    for (auto &it : mClips)
+    for (auto it : mClips)
     {
-        if (it.mStart == clip.mStart)
-            it.mSelected = true;
+        if (it->mStart == clip->mStart)
+            it->mSelected = true;
         else
-            it.mSelected = false;
+        {
+            if (it->mSelected)
+            {
+                for (auto& snap : it->mVideoSnapshots)
+                {
+                    if (snap.texture) { ImGui::ImDestroyTexture(snap.texture); snap.texture = nullptr; }
+                }
+                it->mVideoSnapshots.clear();
+                it->mFrameCount = 0;
+            }
+            it->mSelected = false;
+        }
     }
 }
+
 /***********************************************************************************************************
  * MediaSequencer Struct Member Functions
  ***********************************************************************************************************/
-static inline bool CompareClip(ClipInfo& a, ClipInfo& b)
+static inline bool CompareClip(ClipInfo* a, ClipInfo* b)
 {
-    return a.mStart < b.mStart;
+    return a->mStart < b->mStart;
 }
 
 static int thread_preview(MediaSequencer * sequencer)
@@ -1460,7 +1625,7 @@ static int thread_preview(MediaSequencer * sequencer)
                     bool valid_time = item->mView;
                     for (auto clip : item->mClips)
                     {
-                        if (clip.mDragOut && item_time >= clip.mStart && item_time <= clip.mEnd)
+                        if (clip->mDragOut && item_time >= clip->mStart && item_time <= clip->mEnd)
                         {
                             valid_time = false;
                             break;
@@ -1646,11 +1811,13 @@ void MediaSequencer::Set(int index, int64_t cutting_pos, bool add)
         item->mCutPoint.erase(item->mCutPoint.begin() + cutting_pos);
         for (auto clip = item->mClips.begin(); clip != item->mClips.end();)
         {
-            if (clip->mEnd == cutting_time)
+            if ((*clip)->mEnd == cutting_time)
             {
-                auto start_time =  clip->mStart;
+                auto start_time = (*clip)->mStart;
+                auto clip_delete = *clip;
                 clip = item->mClips.erase(clip);
-                clip->mStart = start_time;
+                delete clip_delete;
+                (*clip)->mStart = start_time;
             }
             else 
                 clip++;
@@ -1670,13 +1837,13 @@ void MediaSequencer::Set(int index, int64_t cutting_pos, bool add)
             item->mCutPoint.push_back(cutting_pos);
             sort(item->mCutPoint.begin(), item->mCutPoint.end());
             // found point in clips
-            ClipInfo new_clip(cutting_pos, item->mEnd, false, item);
-            for (auto &clip : item->mClips)
+            ClipInfo *new_clip = new ClipInfo(cutting_pos, item->mEnd, false, item);
+            for (auto clip : item->mClips)
             {
-                if (cutting_pos > clip.mStart && cutting_pos < clip.mEnd)
+                if (cutting_pos > clip->mStart && cutting_pos < clip->mEnd)
                 {
-                    new_clip.mEnd = clip.mEnd;
-                    clip.mEnd = cutting_pos;
+                    new_clip->mEnd = clip->mEnd;
+                    clip->mEnd = cutting_pos;
                     break;
                 }
             }
@@ -1734,9 +1901,15 @@ void MediaSequencer::SetItemSelected(int index)
         else
         {
             m_Items[i]->mSelected = false;
-            for (auto &clip : m_Items[i]->mClips)
+            for (auto clip : m_Items[i]->mClips)
             {
-                clip.mSelected = false;
+                clip->mSelected = false;
+                for (auto& snap : clip->mVideoSnapshots)
+                {
+                    if (snap.texture) { ImGui::ImDestroyTexture(snap.texture); snap.texture = nullptr; }
+                }
+                clip->mVideoSnapshots.clear();
+                clip->mFrameCount = 0;
             }
         }
     }
@@ -1903,25 +2076,25 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
             bool draw_clip = false;
             float cursor_start = 0;
             float cursor_end  = 0;
-            if (clip.mStart >= viewStartTime && clip.mEnd < viewStartTime + visibleTime)
+            if (clip->mStart >= viewStartTime && clip->mEnd < viewStartTime + visibleTime)
             {
-                cursor_start = clippingRect.Min.x + (clip.mStart + item->mStart - viewStartTime) * pixelWidth;
-                cursor_end = clippingRect.Min.x + (clip.mEnd + item->mStart - viewStartTime) * pixelWidth;
+                cursor_start = clippingRect.Min.x + (clip->mStart + item->mStart - viewStartTime) * pixelWidth;
+                cursor_end = clippingRect.Min.x + (clip->mEnd + item->mStart - viewStartTime) * pixelWidth;
                 draw_clip = true;
             }
-            else if (clip.mStart >= viewStartTime && clip.mStart <= viewStartTime + visibleTime && clip.mEnd >= viewStartTime + visibleTime)
+            else if (clip->mStart >= viewStartTime && clip->mStart <= viewStartTime + visibleTime && clip->mEnd >= viewStartTime + visibleTime)
             {
-                cursor_start = clippingRect.Min.x + (clip.mStart + item->mStart - viewStartTime) * pixelWidth;
+                cursor_start = clippingRect.Min.x + (clip->mStart + item->mStart - viewStartTime) * pixelWidth;
                 cursor_end = clippingRect.Max.x;
                 draw_clip = true;
             }
-            else if (clip.mStart <= viewStartTime && clip.mEnd <= viewStartTime + visibleTime)
+            else if (clip->mStart <= viewStartTime && clip->mEnd <= viewStartTime + visibleTime)
             {
                 cursor_start = clippingRect.Min.x;
-                cursor_end = clippingRect.Min.x + (clip.mEnd + item->mStart - viewStartTime) * pixelWidth;
+                cursor_end = clippingRect.Min.x + (clip->mEnd + item->mStart - viewStartTime) * pixelWidth;
                 draw_clip = true;
             }
-            else if (clip.mStart <= viewStartTime && clip.mEnd >= viewStartTime + visibleTime)
+            else if (clip->mStart <= viewStartTime && clip->mEnd >= viewStartTime + visibleTime)
             {
                 cursor_start = clippingRect.Min.x;
                 cursor_end  = clippingRect.Max.x;
@@ -1933,25 +2106,25 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
                 ImVec2 clip_pos_min = ImVec2(cursor_start, clippingRect.Min.y);
                 ImVec2 clip_pos_max = ImVec2(cursor_end, clippingRect.Max.y);
                 ImRect clip_rect(clip_pos_min, clip_pos_max);
-                if (!clip.mDragOut)
+                if (!clip->mDragOut)
                 {
                     ImGui::SetCursorScreenPos(clip_pos_min);
-                    auto frame_id_string = item->mPath + "@" + std::to_string(clip.mStart);
+                    auto frame_id_string = item->mPath + "@" + std::to_string(clip->mStart);
                     ImGui::BeginChildFrame(ImGui::GetID(("items_clips::" + frame_id_string).c_str()), clip_pos_max - clip_pos_min, ImGuiWindowFlags_NoScrollbar);
                     ImGui::InvisibleButton(frame_id_string.c_str(), clip_pos_max - clip_pos_min);
                     if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
                     {
-                        ImGui::SetDragDropPayload("Clip_drag_drop", &clip, sizeof(ClipInfo));
-                        auto start_time_string = MillisecToString(clip.mStart, 3);
-                        auto end_time_string = MillisecToString(clip.mEnd, 3);
-                        auto length_time_string = MillisecToString(clip.mEnd - clip.mStart, 3);
+                        ImGui::SetDragDropPayload("Clip_drag_drop", clip, sizeof(ClipInfo));
+                        auto start_time_string = MillisecToString(clip->mStart, 3);
+                        auto end_time_string = MillisecToString(clip->mEnd, 3);
+                        auto length_time_string = MillisecToString(clip->mEnd - clip->mStart, 3);
                         ImGui::TextUnformatted((item)->mName.c_str());
                         ImGui::Text(" Start: %s", start_time_string.c_str());
                         ImGui::Text("   End: %s", end_time_string.c_str());
                         ImGui::Text("Length: %s", length_time_string.c_str());
                         ImGui::EndDragDropSource();
                     }
-                    if (clip.mSelected)
+                    if (clip->mSelected)
                     {
                         draw_list->AddRectFilled(clip_pos_min, clip_pos_max, IM_COL32(64,64,32,128));
                     }
@@ -2016,25 +2189,25 @@ void MediaSequencer::CustomDrawCompact(int index, ImDrawList *draw_list, const I
             bool draw_clip = false;
             float cursor_start = 0;
             float cursor_end  = 0;
-            if (clip.mStart >= viewStartTime && clip.mEnd < viewStartTime + visibleTime)
+            if (clip->mStart >= viewStartTime && clip->mEnd < viewStartTime + visibleTime)
             {
-                cursor_start = clippingRect.Min.x + (clip.mStart + item->mStart - viewStartTime) * pixelWidth;
-                cursor_end = clippingRect.Min.x + (clip.mEnd + item->mStart - viewStartTime) * pixelWidth;
+                cursor_start = clippingRect.Min.x + (clip->mStart + item->mStart - viewStartTime) * pixelWidth;
+                cursor_end = clippingRect.Min.x + (clip->mEnd + item->mStart - viewStartTime) * pixelWidth;
                 draw_clip = true;
             }
-            else if (clip.mStart >= viewStartTime && clip.mStart <= viewStartTime + visibleTime && clip.mEnd >= viewStartTime + visibleTime)
+            else if (clip->mStart >= viewStartTime && clip->mStart <= viewStartTime + visibleTime && clip->mEnd >= viewStartTime + visibleTime)
             {
-                cursor_start = clippingRect.Min.x + (clip.mStart + item->mStart - viewStartTime) * pixelWidth;
+                cursor_start = clippingRect.Min.x + (clip->mStart + item->mStart - viewStartTime) * pixelWidth;
                 cursor_end = clippingRect.Max.x;
                 draw_clip = true;
             }
-            else if (clip.mStart <= viewStartTime && clip.mEnd <= viewStartTime + visibleTime)
+            else if (clip->mStart <= viewStartTime && clip->mEnd <= viewStartTime + visibleTime)
             {
                 cursor_start = clippingRect.Min.x;
-                cursor_end = clippingRect.Min.x + (clip.mEnd + item->mStart - viewStartTime) * pixelWidth;
+                cursor_end = clippingRect.Min.x + (clip->mEnd + item->mStart - viewStartTime) * pixelWidth;
                 draw_clip = true;
             }
-            else if (clip.mStart <= viewStartTime && clip.mEnd >= viewStartTime + visibleTime)
+            else if (clip->mStart <= viewStartTime && clip->mEnd >= viewStartTime + visibleTime)
             {
                 cursor_start = clippingRect.Min.x;
                 cursor_end  = clippingRect.Max.x;
@@ -2045,11 +2218,11 @@ void MediaSequencer::CustomDrawCompact(int index, ImDrawList *draw_list, const I
                 ImVec2 clip_pos_min = ImVec2(cursor_start, clippingRect.Min.y);
                 ImVec2 clip_pos_max = ImVec2(cursor_end, clippingRect.Max.y);
                 ImRect clip_rect(clip_pos_min, clip_pos_max);
-                if (clip.mSelected)
+                if (clip->mSelected)
                 {
                     draw_list->AddRectFilled(clip_pos_min, clip_pos_max, IM_COL32(64,64,32,128));
                 }
-                if (clip.mDragOut)
+                if (clip->mDragOut)
                 {
                     draw_list->AddRectFilled(clip_pos_min, clip_pos_max, IM_COL32(64,32,32,192));
                 }
@@ -2137,6 +2310,75 @@ int MediaSequencer::GetAudioLevel(int channel)
     //int64_t time = ImGui::get_current_time_msec() * (channel + 1);
     //return time % 96;
     return 0;
+}
+
+/***********************************************************************************************************
+ * ClipInfo Struct Member Functions
+ ***********************************************************************************************************/
+ClipInfo::ClipInfo(int64_t start, int64_t end, bool drag_out, void* handle)
+{
+    mStart = mCurrent = start; 
+    mEnd = end; 
+    mDragOut = drag_out; 
+    mItem = handle;
+    mSnapshot = CreateMediaSnapshot();
+    if (!mSnapshot || !mItem)
+        return;
+    SequencerItem * item = (SequencerItem *)mItem;
+    MediaParserHolder holder = item->mSnapshot->GetMediaParser();
+    if (!holder)
+        return;
+    mSnapshot->Open(holder);
+    if (mSnapshot->IsOpened())
+    {
+        double window_size = 1.0f;
+        mSnapshot->SetCacheFactor(1.0);
+        mSnapshot->SetSnapshotResizeFactor(0.1, 0.1);
+        mSnapshot->ConfigSnapWindow(window_size, 1);
+    }
+};
+
+ClipInfo::~ClipInfo()
+{
+    ReleaseMediaSnapshot(&mSnapshot);
+    for (auto& snap : mVideoSnapshots)
+    {
+        if (snap.texture) { ImGui::ImDestroyTexture(snap.texture); snap.texture = nullptr; }
+    }
+    mVideoSnapshots.clear();
+}
+
+void ClipInfo::UpdateSnapshot()
+{
+    if (mSnapshot && mSnapshot->IsOpened() && mSnapshot->HasVideo())
+    {
+        std::vector<ImGui::ImMat> snapshots;
+        double pos = (double)(mStart) / 1000.f;
+        if (mSnapshot->GetSnapshots(snapshots, pos))
+        {
+            for (int i = 0; i < snapshots.size(); i++)
+            {
+                if (!snapshots[i].empty() && i >= mVideoSnapshots.size())
+                {
+                    Snapshot snap;
+                    if (snapshots[i].device == ImDataDevice::IM_DD_CPU)
+                    {
+                        ImGui::ImGenerateOrUpdateTexture(snap.texture, snapshots[i].w, snapshots[i].h, snapshots[i].c, (const unsigned char *)snapshots[i].data);
+                    }
+#if IMGUI_VULKAN_SHADER
+                    if (snapshots[i].device == ImDataDevice::IM_DD_VULKAN)
+                    {
+                        ImGui::VkMat vkmat = snapshots[i];
+                        ImGui::ImGenerateOrUpdateTexture(snap.texture, vkmat.w, vkmat.h, vkmat.c, vkmat.buffer_offset(), (const unsigned char *)vkmat.buffer());
+                    }
+#endif
+                    snap.time_stamp = (int64_t)(snapshots[i].time_stamp * 1000);
+                    snap.available = true;
+                    mVideoSnapshots.push_back(snap);
+                }
+            }
+        }
+    }
 }
 
 } // namespace ImSequencer

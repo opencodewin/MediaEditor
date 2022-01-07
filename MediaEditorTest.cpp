@@ -648,7 +648,7 @@ static void ShowVideoRotateWindow(ImDrawList *draw_list)
     ImGui::SetWindowFontScale(1.0);
 }
 
-static void ShowVideoEditorWindow(ImDrawList *draw_list)
+static void ShowVideoEditorWindow(ImDrawList *draw_list, int select_item)
 {
     static int VideoEditorWindowIndex = 0;
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
@@ -697,6 +697,20 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
         ImVec2 clip_timeline_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 clip_timeline_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(clip_timeline_window_pos, clip_timeline_window_pos + clip_timeline_window_size, COL_DARK_TWO);
+        if (sequencer && select_item != -1 && select_item < sequencer->m_Items.size())
+        {
+            SequencerItem * item = sequencer->m_Items[select_item];
+            ClipInfo * seselected_clip = item->mClips[0];
+            for (auto clip : item->mClips)
+            {
+                if (clip->mSelected)
+                {
+                    seselected_clip = clip;
+                }
+            }
+            // Draw Clip TimeLine
+            ClipTimeLine(seselected_clip);
+        }
     }
     ImGui::EndChild();
 /*
@@ -949,7 +963,7 @@ bool Application_Frame(void * handle)
                 switch (MainWindowIndex)
                 {
                     case 0: ShowMediaPreviewWindow(draw_list); break;
-                    case 1: ShowVideoEditorWindow(draw_list); break;
+                    case 1: ShowVideoEditorWindow(draw_list, selectedEntry); break;
                     case 2: ShowVideoFusionWindow(draw_list); break;
                     case 3: ShowAudioEditorWindow(draw_list); break;
                     case 4: ShowMediaAnalyseWindow(draw_list); break;
