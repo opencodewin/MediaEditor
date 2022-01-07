@@ -108,7 +108,7 @@
 #define COL_SLOT_DEFAULT    IM_COL32(128, 128, 170, 255)
 #define COL_SLOT_ODD        IM_COL32( 58,  58,  58, 255)
 #define COL_SLOT_EVEN       IM_COL32( 64,  64,  64, 255)
-#define COL_SLOT_SELECTED   IM_COL32( 64,  64, 255, 128)
+#define COL_SLOT_SELECTED   IM_COL32(255,  64,  64, 255)
 #define COL_SLOT_V_LINE     IM_COL32( 96,  96,  96,  48)
 #define COL_SLIDER_BG       IM_COL32( 32,  32,  64, 255)
 #define COL_SLIDER_IN       IM_COL32( 96,  96,  96, 255)
@@ -200,6 +200,8 @@ struct SequencerInterface
     virtual void Paste() {}
     virtual void Seek() = 0;
     virtual size_t GetCustomHeight(int /*index*/) { return 0; }
+    virtual bool GetItemSelected(int /*index*/) const = 0;
+    virtual void SetItemSelected(int /*index*/) {};
     virtual void DoubleClick(int /*index*/) {}
     virtual void CustomDraw(int /*index*/, ImDrawList * /*draw_list*/, const ImRect & /*rc*/, const ImRect & /*titleRect*/, const ImRect & /*clippingTitleRect*/, const ImRect & /*legendRect*/, const ImRect & /*clippingRect*/, const ImRect & /*legendClippingRect*/, int64_t /* viewStartTime */, int64_t /* visibleTime */, float /*pixelWidth*/, bool /* need_update */) {}
     virtual void CustomDrawCompact(int /*index*/, ImDrawList * /*draw_list*/, const ImRect & /*rc*/, const ImRect & /*legendRect*/, const ImRect & /*clippingRect*/, int64_t /*viewStartTime*/, int64_t /*visibleTime*/, float /*pixelWidth*/) {}
@@ -228,6 +230,7 @@ struct ClipInfo
     int64_t mStart  {0};
     int64_t mEnd    {0};
     bool mDragOut   {false};
+    bool mSelected  {false};
     void * mItem    {nullptr};
     ClipInfo(int64_t start, int64_t end, bool drag_out, void* handle) {mStart = start; mEnd = end; mDragOut = drag_out; mItem = handle; };
 };
@@ -246,7 +249,8 @@ struct SequencerItem
     bool mView      {true};                 // item is viewable or not
     bool mMuted     {false};                // item is muted or not
     bool mLocked    {false};                // item is locked or not(can't moving or cropping by locked)
-    bool mCutting   {false};                // item is is cutting or moving stage
+    bool mCutting   {false};                // item is cutting or moving stage
+    bool mSelected  {false};                // item is selected
     int mMediaType {SEQUENCER_ITEM_UNKNOWN}; // item media type, could be video, audio, image, text, and so on...
     int64_t mValidViewTime {0};             // current view area time is ms, only contented media part
     int mValidViewSnapshot {0};             // current view area contented snapshot number
@@ -283,6 +287,8 @@ struct MediaSequencer : public SequencerInterface
     void SetEnd(int64_t pos) { mEnd = pos; }
     void SetCurrent(int64_t pos, bool rev);
     int GetItemCount() const { return (int)m_Items.size(); }
+    bool GetItemSelected(int index) const { return m_Items[index]->mSelected; }
+    void SetItemSelected(int index);
     const char *GetItemLabel(int index) const  { return m_Items[index]->mName.c_str(); }
     void Get(int index, int64_t& start, int64_t& end, int64_t& start_offset, int64_t& end_offset, int64_t& length, std::string& name, unsigned int& color);
     void Get(int index, float& frame_duration, float& snapshot_width);
@@ -332,6 +338,8 @@ struct MediaItem
     ~MediaItem();
     void UpdateThumbnail();
 };
+
+bool ClipTimeLine(ClipInfo * clip);
 
 } // namespace ImSequencer
 

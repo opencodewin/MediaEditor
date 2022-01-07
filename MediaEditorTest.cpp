@@ -32,6 +32,7 @@ static const char* ControlPanelTabTooltips[] =
 static const char* MainWindowTabNames[] = {
     ICON_MEDIA_PREVIEW,
     ICON_MEDIA_VIDEO,
+    ICON_TRANS,
     ICON_MUSIC,
     ICON_MEDIA_DIAGNOSIS,
     ICON_BRAIN
@@ -41,6 +42,7 @@ static const char* MainWindowTabTooltips[] =
 {
     "Meida Preview",
     "Video Editor",
+    "Video Fusion",
     "Audio Editor",
     "Meida Analyse",
     "Meida AI"
@@ -49,7 +51,6 @@ static const char* MainWindowTabTooltips[] =
 
 static const char* VideoEditorTabNames[] = {
     ICON_BLUE_PRINT,
-    ICON_TRANS,
     ICON_PALETTE,
     ICON_CROP,
     ICON_ROTATE
@@ -57,7 +58,6 @@ static const char* VideoEditorTabNames[] = {
 
 static const char* VideoEditorTabTooltips[] = {
     "Video Filter",
-    "Video Transition",
     "Video Color",
     "Video Crop",
     "Video Rotate"
@@ -612,18 +612,6 @@ static void ShowVideoBluePrintWindow(ImDrawList *draw_list)
     ImGui::SetWindowFontScale(1.0);
 }
 
-static void ShowVideoTransitionWindow(ImDrawList *draw_list)
-{
-    ImGui::SetWindowFontScale(1.2);
-    ImGui::Indent(20);
-    ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4, 0.4, 0.8, 0.8));
-    ImGui::TextUnformatted("Video Transition");
-    ImGui::PopStyleColor();
-    ImGui::PopStyleVar();
-    ImGui::SetWindowFontScale(1.0);
-}
-
 static void ShowVideoColorWindow(ImDrawList *draw_list)
 {
     ImGui::SetWindowFontScale(1.2);
@@ -687,10 +675,9 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
             switch (VideoEditorWindowIndex)
             {
                 case 0: ShowVideoBluePrintWindow(draw_list); break;
-                case 1: ShowVideoTransitionWindow(draw_list); break;
-                case 2: ShowVideoColorWindow(draw_list); break;
-                case 3: ShowVideoCropWindow(draw_list); break;
-                case 4: ShowVideoRotateWindow(draw_list); break;
+                case 1: ShowVideoColorWindow(draw_list); break;
+                case 2: ShowVideoCropWindow(draw_list); break;
+                case 3: ShowVideoRotateWindow(draw_list); break;
                 default: break;
             }
         }
@@ -722,6 +709,18 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
     ImGui::PopStyleVar();
     ImGui::SetWindowFontScale(1.0);
 */
+}
+
+static void ShowVideoFusionWindow(ImDrawList *draw_list)
+{
+    ImGui::SetWindowFontScale(1.2);
+    ImGui::Indent(20);
+    ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4, 0.4, 0.8, 0.8));
+    ImGui::TextUnformatted("Video Fusion");
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar();
+    ImGui::SetWindowFontScale(1.0);
 }
 
 static void ShowAudioEditorWindow(ImDrawList *draw_list)
@@ -951,9 +950,10 @@ bool Application_Frame(void * handle)
                 {
                     case 0: ShowMediaPreviewWindow(draw_list); break;
                     case 1: ShowVideoEditorWindow(draw_list); break;
-                    case 2: ShowAudioEditorWindow(draw_list); break;
-                    case 3: ShowMediaAnalyseWindow(draw_list); break;
-                    case 4: ShowMediaAIWindow(draw_list); break;
+                    case 2: ShowVideoFusionWindow(draw_list); break;
+                    case 3: ShowAudioEditorWindow(draw_list); break;
+                    case 4: ShowMediaAnalyseWindow(draw_list); break;
+                    case 5: ShowMediaAIWindow(draw_list); break;
                     default: break;
                 }
             }
@@ -974,8 +974,9 @@ bool Application_Frame(void * handle)
                                 ImSequencer::SEQUENCER_LOCK | ImSequencer::SEQUENCER_VIEW | ImSequencer::SEQUENCER_MUTE | ImSequencer::SEQUENCER_RESTORE);
         if (selectedEntry != -1)
         {
-            //const ImSequencer::MediaSequencer::SequencerItem &item = sequencer.m_Items[selectedEntry];
-            //ImGui::Text("I am a %s, please edit me", item.mName.c_str());
+            //const SequencerItem *item = sequencer->m_Items[selectedEntry];
+            //ImGui::SetCursorScreenPos(panel_pos);
+            //ImGui::Text("I am a %s, please edit me", item->mName.c_str());
         }
         
         if (expanded != _expanded)

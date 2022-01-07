@@ -92,6 +92,9 @@ static void RenderMouseCursor(ImDrawList* draw_list,/* ImVec2 pos, float scale, 
     draw_list->AddText(io.MousePos, col_fill, mouse_cursor);
 }
 
+/***********************************************************************************************************
+ * Draw Sequencer Timeline
+ ***********************************************************************************************************/
 bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry, int sequenceOptions)
 {
 
@@ -427,20 +430,12 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry
         }
         drawLineContent(sequencer->GetStart(), int(contentHeight));
         drawLineContent(sequencer->GetEnd(), int(contentHeight));
-        // selection
-        bool selected = selectedEntry && (*selectedEntry >= 0);
-        if (selected)
-        {
-            customHeight = 0;
-            for (int i = 0; i < *selectedEntry; i++)
-                customHeight += sequencer->GetCustomHeight(i);
-            draw_list->AddRectFilled(ImVec2(contentMin.x, contentMin.y + ItemHeight * *selectedEntry + customHeight), ImVec2(contentMin.x + canvas_size.x - 8.f, contentMin.y + ItemHeight * (*selectedEntry + 1) + customHeight), COL_SLOT_SELECTED, 1.f);
-        }
         
         // slots
         customHeight = 0;
         for (int i = 0; i < itemCount; i++)
         {
+            bool selected = sequencer->GetItemSelected(i);
             int64_t start, end, length;
             int64_t start_offset, end_offset;
             std::string name;
@@ -514,8 +509,7 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry
                 float frame_duration, snapshot_width;
                 sequencer->Get(movingEntry, start, end, length, start_offset, end_offset, name, color);
                 sequencer->Get(movingEntry, frame_duration, snapshot_width);
-                if (selectedEntry)
-                    *selectedEntry = movingEntry;
+                sequencer->SetItemSelected(movingEntry);
 
                 if (movingPart == 3)
                 {
@@ -589,9 +583,9 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry
             if (!io.MouseDown[0])
             {
                 // single select
-                if (!diffTime && movingPart && selectedEntry)
+                if (!diffTime && movingPart)
                 {
-                    *selectedEntry = movingEntry;
+                    sequencer->SetItemSelected(movingEntry);
                     ret = true;
                 }
                 movingEntry = -1;
@@ -957,8 +951,10 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry
     if (delEntry != -1)
     {
         sequencer->Del(delEntry);
-        if (selectedEntry && (*selectedEntry == delEntry || *selectedEntry >= sequencer->GetItemCount()))
-            *selectedEntry = -1;
+        if (sequencer->GetItemSelected(delEntry))
+        {
+            sequencer->SetItemSelected(-1);
+        }
     }
     if (dupEntry != -1)
     {
@@ -1024,13 +1020,41 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry
         start_time = -1;
     }
 
+    // selection
+    if (selectedEntry)
+    {
+        *selectedEntry = -1;
+        for (int i = 0; i < itemCount; i++)
+        {
+            if (sequencer->GetItemSelected(i))
+            {
+                *selectedEntry = i;
+                break;
+            }
+        }
+    }
+
     return ret;
+}
+
+/***********************************************************************************************************
+ * Draw Clip Timeline
+ ***********************************************************************************************************/
+bool ClipTimeLine(ClipInfo * clip)
+{
+    /*************************************************************************************************************
+     |  0    5    10 v   15    20 <rule bar> 30     35      40      45       50       55    c
+     |_______________|_____________________________________________________________________ a
+     |               |        custom area                                                   n 
+     |               |                                                                      v                                            
+     |_______________|_____________________________________________________________________ a
+     ************************************************************************************************************/
+    return true;
 }
 
 /***********************************************************************************************************
  * MediaItem Struct Member Functions
  ***********************************************************************************************************/
-
 MediaItem::MediaItem(const std::string& name, const std::string& path, int type)
 {
     mName = name;
@@ -1691,6 +1715,17 @@ void MediaSequencer::Duplicate(int index)
     /*m_Items.push_back(m_Items[index]);*/
 }
 
+void MediaSequencer::SetItemSelected(int index)
+{
+    for (int i = 0; i < m_Items.size(); i++)
+    {
+        if (i == index)
+            m_Items[i]->mSelected = true;
+        else
+            m_Items[i]->mSelected = false;
+    }
+}
+
 void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &titleRect, const ImRect &clippingTitleRect, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRect, int64_t viewStartTime, int64_t visibleTime, float pixelWidth, bool need_update)
 {
     // rc: full item length rect
@@ -1826,6 +1861,9 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
 
     // draw title bar
     draw_list->PushClipRect(clippingTitleRect.Min, clippingTitleRect.Max, true);
+    if (item->mSelected)
+        draw_list->AddRect(clippingTitleRect.Min, clippingTitleRect.Max, COL_SLOT_SELECTED);
+
     for (auto point : item->mCutPoint)
     {
         if (point > startTime && point < ImMin(viewStartTime + visibleTime, item->mEnd))
@@ -1905,6 +1943,10 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
                 else //if (clip_rect.Contains(io.MousePos))
                 {
                     draw_list->AddRectFilled(clip_pos_min, clip_pos_max, IM_COL32(64,32,32,192));
+                    if (io.MouseClicked[0])
+                    {
+
+                    }
                 }
             }
         }
@@ -1931,6 +1973,8 @@ void MediaSequencer::CustomDrawCompact(int index, ImDrawList *draw_list, const I
 
     // draw title bar
     draw_list->PushClipRect(clippingRect.Min, clippingRect.Max, true);
+    if (item->mSelected)
+        draw_list->AddRect(clippingRect.Min, clippingRect.Max, COL_SLOT_SELECTED);
     for (auto point : item->mCutPoint)
     {
         if (point > startTime && point < ImMin(viewStartTime + visibleTime, item->mEnd))
