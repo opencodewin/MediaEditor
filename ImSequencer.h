@@ -272,6 +272,7 @@ struct SequencerItem
     ~SequencerItem();
     void SequencerItemUpdateThumbnail();
     void SequencerItemUpdateSnapshots();
+    void SetClipSelected(ClipInfo & clip);
     void CalculateVideoSnapshotInfo(const ImRect &customRect, int64_t viewStartTime, int64_t visibleTime);
     bool DrawItemControlBar(ImDrawList *draw_list, ImRect rc, int sequenceOptions);
 };

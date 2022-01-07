@@ -1408,6 +1408,16 @@ bool SequencerItem::DrawItemControlBar(ImDrawList *draw_list, ImRect rc, int seq
     return need_update;
 }
 
+void SequencerItem::SetClipSelected(ClipInfo & clip)
+{
+    for (auto &it : mClips)
+    {
+        if (it.mStart == clip.mStart)
+            it.mSelected = true;
+        else
+            it.mSelected = false;
+    }
+}
 /***********************************************************************************************************
  * MediaSequencer Struct Member Functions
  ***********************************************************************************************************/
@@ -1722,7 +1732,13 @@ void MediaSequencer::SetItemSelected(int index)
         if (i == index)
             m_Items[i]->mSelected = true;
         else
+        {
             m_Items[i]->mSelected = false;
+            for (auto &clip : m_Items[i]->mClips)
+            {
+                clip.mSelected = false;
+            }
+        }
     }
 }
 
@@ -1881,6 +1897,7 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
     {
         ImGuiIO &io = ImGui::GetIO();
         draw_list->PushClipRect(clippingRect.Min, clippingRect.Max, true);
+        bool mouse_clicked = false;
         for (auto clip : item->mClips)
         {
             bool draw_clip = false;
@@ -1934,26 +1951,30 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
                         ImGui::Text("Length: %s", length_time_string.c_str());
                         ImGui::EndDragDropSource();
                     }
+                    if (clip.mSelected)
+                    {
+                        draw_list->AddRectFilled(clip_pos_min, clip_pos_max, IM_COL32(64,64,32,128));
+                    }
                     if (ImGui::IsItemHovered())
                     {
                         draw_list->AddRectFilled(clip_pos_min, clip_pos_max, IM_COL32(32,64,32,128));
+                        if (!mouse_clicked && io.MouseClicked[0])
+                        {
+                            item->SetClipSelected(clip);
+                            SetItemSelected(index);
+                            mouse_clicked = true;
+                        }
                     }
                     ImGui::EndChildFrame();
                 }
-                else //if (clip_rect.Contains(io.MousePos))
+                else
                 {
                     draw_list->AddRectFilled(clip_pos_min, clip_pos_max, IM_COL32(64,32,32,192));
-                    if (io.MouseClicked[0])
-                    {
-
-                    }
                 }
             }
         }
         draw_list->PopClipRect();
     }
-
-    //ImGui::SetCursorScreenPos(rc.Min);
 }
 
 void MediaSequencer::CustomDrawCompact(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &legendRect, const ImRect &clippingRect, int64_t viewStartTime, int64_t visibleTime, float pixelWidth)
@@ -1989,6 +2010,7 @@ void MediaSequencer::CustomDrawCompact(int index, ImDrawList *draw_list, const I
     if (item->mClips.size() > 1)
     {
         ImGuiIO &io = ImGui::GetIO();
+        bool mouse_clicked = false;
         for (auto clip : item->mClips)
         {
             bool draw_clip = false;
@@ -2023,9 +2045,23 @@ void MediaSequencer::CustomDrawCompact(int index, ImDrawList *draw_list, const I
                 ImVec2 clip_pos_min = ImVec2(cursor_start, clippingRect.Min.y);
                 ImVec2 clip_pos_max = ImVec2(cursor_end, clippingRect.Max.y);
                 ImRect clip_rect(clip_pos_min, clip_pos_max);
+                if (clip.mSelected)
+                {
+                    draw_list->AddRectFilled(clip_pos_min, clip_pos_max, IM_COL32(64,64,32,128));
+                }
                 if (clip.mDragOut)
                 {
                     draw_list->AddRectFilled(clip_pos_min, clip_pos_max, IM_COL32(64,32,32,192));
+                }
+                else if (clip_rect.Contains(io.MousePos))
+                {
+                    draw_list->AddRectFilled(clip_pos_min, clip_pos_max, IM_COL32(32,64,32,128));
+                    if (!mouse_clicked && io.MouseClicked[0])
+                    {
+                        item->SetClipSelected(clip);
+                        SetItemSelected(index);
+                        mouse_clicked = true;
+                    }
                 }
             }
         }
