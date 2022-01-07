@@ -92,6 +92,11 @@ public:
         return true;
     }
 
+    MediaParserHolder GetMediaParser() const override
+    {
+        return m_hParser;
+    }
+
     void Close() override
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
@@ -105,7 +110,6 @@ public:
         }
         m_swrOutChannels = 0;
         m_swrOutChnLyt = 0;
-        m_swrOutSmpfmt = AV_SAMPLE_FMT_FLTP;
         m_swrOutSampleRate = 0;
         m_swrPassThrough = false;
         if (m_auddecCtx)
@@ -139,9 +143,12 @@ public:
         m_hParser = nullptr;
         m_hMediaInfo = nullptr;
 
-        m_demuxEof = false;
+        m_demuxVidEof = false;
         m_viddecEof = false;
         m_genSsEof = false;
+        m_demuxAudEof = false;
+        m_auddecEof = false;
+        m_genWfEof = false;
         m_opened = false;
         m_prepared = false;
 
@@ -165,9 +172,15 @@ public:
         return true;
     }
 
-    MediaParserHolder GetMediaParser() const override
+    WaveformHolder GetWaveform() const override
     {
-        return m_hParser;
+        return m_hWaveform;
+    }
+
+    bool SetSingleFramePixels(uint32_t pixels) override
+    {
+        m_singleFramePixels = pixels;
+        return true;
     }
 
     bool IsOpened() const override
@@ -388,6 +401,8 @@ private:
             m_vidStartMts = (int64_t)(vidStream->startTime*1000);
             m_vidDurMts = (int64_t)(vidStream->duration*1000);
             m_vidFrmCnt = vidStream->frameNum;
+            AVRational avgFrmRate = { vidStream->avgFrameRate.num, vidStream->avgFrameRate.den };
+            m_vidfrmIntvTs = av_q2d(av_inv_q(avgFrmRate));
 
             if (m_useRszFactor)
             {
@@ -403,6 +418,31 @@ private:
                     return false;
                 }
             }
+        }
+
+        if (HasAudio())
+        {
+            MediaInfo::AudioStream* audStream = dynamic_cast<MediaInfo::AudioStream*>(m_hMediaInfo->streams[m_audStmIdx].get());
+            WaveformHolder hWaveform(new Waveform);
+            // default 'm_aggregateSamples' value is 9.6, which is calculated as
+            // 48kHz audio & 25fps video, 200 pixels in the UI between two adjacent snapshots.
+            // video-frame-interval = 40 ms,
+            // in 40ms there are 48000*0.04 = 1920 pcm samples,
+            // 200 pixels for displaying 1920 samples,
+            // so aggregate 1920 samples to 200 results in 1920/200 = 9.6
+            double vidfrmIntvTs = HasVideo() ? m_vidfrmIntvTs : 0.04;
+            hWaveform->aggregateSamples = audStream->sampleRate*vidfrmIntvTs/m_singleFramePixels;
+            if (hWaveform->aggregateSamples < m_minAggregateSamples)
+                hWaveform->aggregateSamples = m_minAggregateSamples;
+            hWaveform->aggregateDuration = hWaveform->aggregateSamples/audStream->sampleRate;
+            uint32_t waveformSamples = (uint32_t)ceil(audStream->duration/hWaveform->aggregateDuration);
+            if (audStream->channels > 1)
+                hWaveform->pcm.resize(2);
+            else
+                hWaveform->pcm.resize(1);
+            for (auto& chpcm : hWaveform->pcm)
+                chpcm.resize(waveformSamples, 0);
+            m_hWaveform = hWaveform;
         }
 
         return true;
@@ -445,9 +485,17 @@ private:
         {
             m_audAvStm = m_avfmtCtx->streams[m_audStmIdx];
 
-            // wyvern: disable opening audio decoder because we don't use it now
-            // if (!OpenAudioDecoder())
-            //     return false;
+            m_auddec = avcodec_find_decoder(m_audAvStm->codecpar->codec_id);
+            if (m_auddec == nullptr)
+            {
+                ostringstream oss;
+                oss << "Can not find audio decoder by codec_id " << m_audAvStm->codecpar->codec_id << "!";
+                m_errMsg = oss.str();
+                return false;
+            }
+
+            if (!OpenAudioDecoder())
+                return false;
         }
 
         m_prepared = true;
@@ -553,7 +601,6 @@ private:
             m_errMsg = "FAILED to allocate new AVCodecContext!";
             return false;
         }
-        m_auddecCtx->opaque = this;
 
         int fferr;
         fferr = avcodec_parameters_to_context(m_auddecCtx, m_audAvStm->codecpar);
@@ -578,7 +625,6 @@ private:
         AVSampleFormat inSmpfmt = (AVSampleFormat)m_audAvStm->codecpar->format;
         m_swrOutChannels = inChannels > 2 ? 2 : inChannels;
         m_swrOutChnLyt = av_get_default_channel_layout(m_swrOutChannels);
-        m_swrOutSmpfmt = AV_SAMPLE_FMT_S16;
         m_swrOutSampleRate = inSampleRate;
         if (inChnLyt <= 0)
             inChnLyt = av_get_default_channel_layout(inChannels);
@@ -620,40 +666,53 @@ private:
 
     void StartAllThreads()
     {
-        m_quitScan = false;
-        m_demuxThread = thread(&MediaOverview_Impl::DemuxThreadProc, this);
+        m_quit = false;
         if (HasVideo())
+        {
+            m_demuxVidThread = thread(&MediaOverview_Impl::DemuxVideoThreadProc, this);
             m_viddecThread = thread(&MediaOverview_Impl::VideoDecodeThreadProc, this);
-        m_GenSsThread = thread(&MediaOverview_Impl::GenerateSsThreadProc, this);
+            m_genSsThread = thread(&MediaOverview_Impl::GenerateSsThreadProc, this);
+        }
+        if (HasAudio())
+        {
+            m_demuxAudThread = thread(&MediaOverview_Impl::DemuxAudioThreadProc, this);
+            m_auddecThread = thread(&MediaOverview_Impl::AudioDecodeThreadProc, this);
+            m_genWfThread = thread(&MediaOverview_Impl::GenWaveformThreadProc, this);
+        }
     }
 
     void WaitAllThreadsQuit()
     {
-        m_quitScan = true;
-        if (m_demuxThread.joinable())
+        m_quit = true;
+        if (m_demuxVidThread.joinable())
         {
-            m_demuxThread.join();
-            m_demuxThread = thread();
+            m_demuxVidThread.join();
+            m_demuxVidThread = thread();
         }
         if (m_viddecThread.joinable())
         {
             m_viddecThread.join();
             m_viddecThread = thread();
         }
+        if (m_genSsThread.joinable())
+        {
+            m_genSsThread.join();
+            m_genSsThread = thread();
+        }
+        if (m_demuxAudThread.joinable())
+        {
+            m_demuxAudThread.join();
+            m_demuxAudThread = thread();
+        }
         if (m_auddecThread.joinable())
         {
             m_auddecThread.join();
             m_auddecThread = thread();
         }
-        if (m_audswrThread.joinable())
+        if (m_genWfThread.joinable())
         {
-            m_audswrThread.join();
-            m_audswrThread = thread();
-        }
-        if (m_GenSsThread.joinable())
-        {
-            m_GenSsThread.join();
-            m_GenSsThread = thread();
+            m_genWfThread.join();
+            m_genWfThread = thread();
         }
     }
 
@@ -671,9 +730,6 @@ private:
         for (AVFrame* avfrm : m_audfrmQ)
             av_frame_free(&avfrm);
         m_audfrmQ.clear();
-        for (AVFrame* avfrm : m_swrfrmQ)
-            av_frame_free(&avfrm);
-        m_swrfrmQ.clear();
     }
 
     void RebuildSnapshots()
@@ -690,9 +746,9 @@ private:
         BuildSnapshots();
     }
 
-    void DemuxThreadProc()
+    void DemuxVideoThreadProc()
     {
-        m_logger->Log(DEBUG) << "Enter DemuxThreadProc()..." << endl;
+        m_logger->Log(DEBUG) << "Enter DemuxVideoThreadProc()..." << endl;
 
         if (!m_prepared && !Prepare())
         {
@@ -702,7 +758,7 @@ private:
 
         AVPacket avpkt = {0};
         bool avpktLoaded = false;
-        while (!m_quitScan)
+        while (!m_quit)
         {
             bool idleLoop = true;
 
@@ -726,7 +782,7 @@ private:
                 }
 
                 bool enqDone = false;
-                while (!m_quitScan && !enqDone)
+                while (!m_quit && !enqDone)
                 {
                     if (!avpktLoaded)
                     {
@@ -767,7 +823,7 @@ private:
                                 AVPacket* enqpkt = av_packet_clone(&avpkt);
                                 if (!enqpkt)
                                 {
-                                    m_logger->Log(ERROR) << "FAILED to invoke 'av_packet_clone(DemuxThreadProc)'!" << endl;
+                                    m_logger->Log(ERROR) << "FAILED to invoke 'av_packet_clone(DemuxVideoThreadProc)'!" << endl;
                                     break;
                                 }
                                 {
@@ -798,21 +854,23 @@ private:
         }
         if (avpktLoaded)
             av_packet_unref(&avpkt);
-        m_demuxEof = true;
-        m_logger->Log(DEBUG) << "Leave DemuxThreadProc()." << endl;
+        m_demuxVidEof = true;
+        m_logger->Log(DEBUG) << "Leave DemuxVideoThreadProc()." << endl;
     }
 
     void VideoDecodeThreadProc()
     {
         m_logger->Log(DEBUG) << "Enter VideoDecodeThreadProc()..." << endl;
 
-        while (!m_prepared && !m_quitScan)
+        while (!m_prepared && !m_quit)
             this_thread::sleep_for(chrono::milliseconds(5));
+        if (m_quit)
+            return;
 
         AVFrame avfrm = {0};
         bool avfrmLoaded = false;
         bool inputEof = false;
-        while (!m_quitScan)
+        while (!m_quit)
         {
             bool idleLoop = true;
             bool quitLoop = false;
@@ -852,7 +910,7 @@ private:
                     avfrmLoaded = false;
                     idleLoop = false;
                 }
-            } while (hasOutput && !m_quitScan);
+            } while (hasOutput && !m_quit);
             if (quitLoop)
                 break;
 
@@ -881,7 +939,7 @@ private:
                         break;
                     }
                 }
-                else if (m_demuxEof)
+                else if (m_demuxVidEof)
                 {
                     avcodec_send_packet(m_viddecCtx, nullptr);
                     inputEof = true;
@@ -898,7 +956,7 @@ private:
     void GenerateSsThreadProc()
     {
         m_logger->Log(DEBUG) << "Enter GenerateSsThreadProc()." << endl;
-        while (!m_quitScan)
+        while (!m_quit)
         {
             bool idleLoop = true;
 
@@ -965,6 +1023,320 @@ private:
         m_logger->Log(DEBUG) << "Leave GenerateSsThreadProc()." << endl;
     }
 
+    void DemuxAudioThreadProc()
+    {
+        m_logger->Log(DEBUG) << "Enter DemuxAudioThreadProc()..." << endl;
+
+        if (!HasVideo() && !m_prepared && !Prepare())
+        {
+            m_logger->Log(ERROR) << "Prepare() FAILED! Error is '" << m_errMsg << "'." << endl;
+            return;
+        }
+        else
+        {
+            while (!m_prepared && !m_quit)
+                this_thread::sleep_for(chrono::milliseconds(5));
+            if (m_quit)
+                return;
+        }
+
+        int fferr;
+        AVFormatContext* avfmtCtx = nullptr;
+        fferr = avformat_open_input(&avfmtCtx, m_hParser->GetUrl().c_str(), nullptr, nullptr);
+        if (fferr)
+        {
+            m_logger->Log(ERROR) << "'avformat_open_input' FAILED with return code " << fferr << "! Quit Waveform demux thread." << endl;
+            return;
+        }
+
+        AVPacket avpkt = {0};
+        bool avpktLoaded = false;
+        while (!m_quit)
+        {
+            bool idleLoop = true;
+
+            if (!avpktLoaded)
+            {
+                int fferr = av_read_frame(avfmtCtx, &avpkt);
+                if (fferr == 0)
+                {
+                    avpktLoaded = true;
+                    idleLoop = false;
+                }
+                else
+                {
+                    if (fferr != AVERROR_EOF)
+                        m_logger->Log(ERROR) << "Demuxer ERROR! 'av_read_frame(DemuxAudioThreadProc)' returns " << fferr << "." << endl;
+                    break;
+                }
+            }
+
+            if (avpktLoaded)
+            {
+                if (avpkt.stream_index == m_audStmIdx)
+                {
+                    if (m_audpktQ.size() < m_audpktQMaxSize)
+                    {
+                        AVPacket* enqpkt = av_packet_clone(&avpkt);
+                        if (!enqpkt)
+                        {
+                            m_logger->Log(ERROR) << "FAILED to invoke 'av_packet_clone(DemuxAudioThreadProc)'!" << endl;
+                            break;
+                        }
+                        {
+                            lock_guard<mutex> lk(m_audpktQLock);
+                            m_audpktQ.push_back(enqpkt);
+                        }
+                        av_packet_unref(&avpkt);
+                        avpktLoaded = false;
+                        idleLoop = false;
+                    }
+                }
+                else
+                {
+                    av_packet_unref(&avpkt);
+                    avpktLoaded = false;
+                }
+            }
+
+            if (idleLoop)
+                this_thread::sleep_for(chrono::milliseconds(1));
+        }
+        if (avpktLoaded)
+            av_packet_unref(&avpkt);
+        if (avfmtCtx)
+            avformat_close_input(&avfmtCtx);
+        m_demuxAudEof = true;
+        m_logger->Log(DEBUG) << "Leave DemuxAudioThreadProc()." << endl;
+    }
+
+    void AudioDecodeThreadProc()
+    {
+        m_logger->Log(DEBUG) << "Enter AudioDecodeThreadProc()..." << endl;
+
+        while (!m_prepared && !m_quit)
+            this_thread::sleep_for(chrono::milliseconds(5));
+        if (m_quit)
+            return;
+
+        AVFrame avfrm = {0};
+        bool avfrmLoaded = false;
+        bool inputEof = false;
+        while (!m_quit)
+        {
+            bool idleLoop = true;
+            bool quitLoop = false;
+
+            // retrieve output frame
+            bool hasOutput;
+            do{
+                if (!avfrmLoaded)
+                {
+                    int fferr = avcodec_receive_frame(m_auddecCtx, &avfrm);
+                    if (fferr == 0)
+                    {
+                        avfrmLoaded = true;
+                        idleLoop = false;
+                        // update average audio frame duration, for calculating audio queue size
+                        double frmDur = (double)avfrm.nb_samples/m_audAvStm->codecpar->sample_rate;
+                        m_audfrmAvgDur = (m_audfrmAvgDur*(m_audfrmAvgDurCalcCnt-1)+frmDur)/m_audfrmAvgDurCalcCnt;
+                        m_audfrmQMaxSize = (int)ceil(m_audQDuration/m_audfrmAvgDur);
+                    }
+                    else if (fferr != AVERROR(EAGAIN))
+                    {
+                        if (fferr != AVERROR_EOF)
+                            m_logger->Log(ERROR) << "FAILED to invoke 'avcodec_receive_frame'(AudioDecodeThreadProc)! return code is "
+                                << fferr << "." << endl;
+                        quitLoop = true;
+                        break;
+                    }
+                }
+
+                hasOutput = avfrmLoaded;
+                if (avfrmLoaded)
+                {
+                    if (m_audfrmQ.size() < m_audfrmQMaxSize)
+                    {
+                        lock_guard<mutex> lk(m_audfrmQLock);
+                        AVFrame* enqfrm = av_frame_clone(&avfrm);
+                        m_audfrmQ.push_back(enqfrm);
+                        av_frame_unref(&avfrm);
+                        avfrmLoaded = false;
+                        idleLoop = false;
+                    }
+                    else
+                        break;
+                }
+            } while (hasOutput);
+            if (quitLoop)
+                break;
+
+            // input packet to decoder
+            if (!inputEof)
+            {
+                if (!m_audpktQ.empty())
+                {
+                    while (!m_audpktQ.empty())
+                    {
+                        AVPacket* avpkt = m_audpktQ.front();
+                        int fferr = avcodec_send_packet(m_auddecCtx, avpkt);
+                        if (fferr == 0)
+                        {
+                            lock_guard<mutex> lk(m_audpktQLock);
+                            m_audpktQ.pop_front();
+                            av_packet_free(&avpkt);
+                            idleLoop = false;
+                        }
+                        else
+                        {
+                            if (fferr != AVERROR(EAGAIN))
+                            {
+                                m_logger->Log(ERROR) << "FAILED to invoke 'avcodec_send_packet'(AudioDecodeThreadProc)! return code is "
+                                    << fferr << "." << endl;
+                                quitLoop = true;
+                            }
+                            break;
+                        }
+                    }
+                    if (quitLoop)
+                        break;
+                }
+                else
+                {
+                    if (m_demuxAudEof)
+                    {
+                        avcodec_send_packet(m_auddecCtx, nullptr);
+                        idleLoop = false;
+                        inputEof = true;
+                    }
+                    // m_logger->Log(DEBUG) << "Audio pkt Q is empty!" << endl;
+                }
+            }
+
+            if (idleLoop)
+                this_thread::sleep_for(chrono::milliseconds(1));
+        }
+        m_auddecEof = true;
+        if (avfrmLoaded)
+            av_frame_unref(&avfrm);
+        m_logger->Log(DEBUG) << "Leave AudioDecodeThreadProc()." << endl;
+    }
+
+    void GenWaveformThreadProc()
+    {
+        m_logger->Log(DEBUG) << "Enter GenWaveformThreadProc()..." << endl;
+
+        while (!m_prepared && !m_quit)
+            this_thread::sleep_for(chrono::milliseconds(5));
+        if (m_quit)
+            return;
+
+        double wfStep = 0;
+        double wfAggsmpCnt = m_hWaveform->aggregateSamples;
+        uint32_t wfIdx = 0;
+        uint32_t wfSize = m_hWaveform->pcm[0].size();
+        vector<float>* wf1 = &m_hWaveform->pcm[0];
+        vector<float>* wf2 = nullptr;
+        if (m_hWaveform->pcm.size() > 1)
+            wf2 = &m_hWaveform->pcm[1];
+        while (!m_quit && wfIdx < wfSize)
+        {
+            bool idleLoop = true;
+            if (!m_audfrmQ.empty())
+            {
+                AVFrame* srcfrm = m_audfrmQ.front();;
+                AVFrame* dstfrm = nullptr;
+                if (m_swrPassThrough)
+                {
+                    dstfrm = srcfrm;
+                }
+                else
+                {
+                    dstfrm = av_frame_alloc();
+                    if (!dstfrm)
+                    {
+                        m_logger->Log(ERROR) << "FAILED to allocate new AVFrame for 'swr_convert()'!" << endl;
+                        break;
+                    }
+                    dstfrm->format = (int)m_swrOutSmpfmt;
+                    dstfrm->sample_rate = m_swrOutSampleRate;
+                    dstfrm->channels = m_swrOutChannels;
+                    dstfrm->channel_layout = m_swrOutChnLyt;
+                    dstfrm->nb_samples = swr_get_out_samples(m_swrCtx, srcfrm->nb_samples);
+                    int fferr = av_frame_get_buffer(dstfrm, 0);
+                    if (fferr < 0)
+                    {
+                        m_logger->Log(ERROR) << "av_frame_get_buffer(GenWaveformThreadProc) FAILED with return code " << fferr << endl;
+                        break;
+                    }
+                    av_frame_copy_props(dstfrm, srcfrm);
+                    dstfrm->pts = swr_next_pts(m_swrCtx, srcfrm->pts);
+                    fferr = swr_convert(m_swrCtx, dstfrm->data, dstfrm->nb_samples, (const uint8_t **)srcfrm->data, srcfrm->nb_samples);
+                    if (fferr < 0)
+                    {
+                        m_logger->Log(ERROR) << "swr_convert(GenWaveformThreadProc) FAILED with return code " << fferr << endl;
+                        break;
+                    }
+                }
+                {
+                    lock_guard<mutex> lk(m_audfrmQLock);
+                    m_audfrmQ.pop_front();
+                }
+
+                float* ch1ptr = (float*)dstfrm->data[0];
+                float* ch2ptr = dstfrm->channels > 1 && wf2 ? (float*)dstfrm->data[1] : nullptr;
+                float ch1Wf, ch1AbsWf, ch2Wf, ch2AbsWf;
+                ch1Wf = ch1AbsWf = ch2Wf = ch2AbsWf = 0;
+                for (int i = 0; i < dstfrm->nb_samples; i++)
+                {
+                    float ch1Val, ch1AbsVal, ch2Val, ch2AbsVal;
+                    ch1Val = *ch1ptr++;
+                    ch1AbsVal = abs(ch1Val);
+                    if (ch1AbsWf < ch1AbsVal)
+                    {
+                        ch1Wf = ch1Val;
+                        ch1AbsWf = ch1AbsVal;
+                    }
+                    if (ch2ptr)
+                    {
+                        ch2Val = *ch2ptr++;
+                        ch2AbsVal = abs(ch2Val);
+                        if (ch2AbsWf < ch2AbsVal)
+                        {
+                            ch2Wf = ch2Val;
+                            ch2AbsWf = ch2AbsVal;
+                        }
+                    }
+
+                    wfStep++;
+                    if (wfStep >= wfAggsmpCnt)
+                    {
+                        wfStep -= wfAggsmpCnt;
+                        (*wf1)[wfIdx] = ch1Wf;
+                        if (ch2ptr)
+                            (*wf2)[wfIdx] = ch2Wf;
+                        ch1Wf = ch1AbsWf = ch2Wf = ch2AbsWf = 0;
+                        wfIdx++;
+                        if (wfIdx >= wfSize)
+                            break;
+                    }
+                }
+
+                if (dstfrm != srcfrm)
+                    av_frame_free(&dstfrm);
+                av_frame_free(&srcfrm);
+                idleLoop = false;
+            }
+            else if (m_auddecEof)
+                break;
+
+            if (idleLoop)
+                this_thread::sleep_for(chrono::milliseconds(1));
+        }
+        m_genWfEof = true;
+        m_logger->Log(DEBUG) << "Leave GenWaveformThreadProc(), " << wfIdx << " samples generated." << endl;
+    }
+
 private:
     ALogger* m_logger;
     string m_errMsg;
@@ -994,20 +1366,23 @@ private:
     AVHWDeviceType m_viddecDevType{AV_HWDEVICE_TYPE_NONE};
     AVBufferRef* m_viddecHwDevCtx{nullptr};
     SwrContext* m_swrCtx{nullptr};
-    AVSampleFormat m_swrOutSmpfmt{AV_SAMPLE_FMT_S16};
+    AVSampleFormat m_swrOutSmpfmt{AV_SAMPLE_FMT_FLTP};
     int m_swrOutSampleRate;
     int m_swrOutChannels;
     int64_t m_swrOutChnLyt;
 
-    // demuxing thread
-    thread m_demuxThread;
+    // demux video thread
+    thread m_demuxVidThread;
     list<AVPacket*> m_vidpktQ;
     int m_vidpktQMaxSize{8};
     mutex m_vidpktQLock;
+    bool m_demuxVidEof{false};
+    // demux audio thread
+    thread m_demuxAudThread;
     list<AVPacket*> m_audpktQ;
     int m_audpktQMaxSize{64};
     mutex m_audpktQLock;
-    bool m_demuxEof{false};
+    bool m_demuxAudEof{false};
     // video decoding thread
     thread m_viddecThread;
     list<AVFrame*> m_vidfrmQ;
@@ -1021,32 +1396,34 @@ private:
     mutex m_audfrmQLock;
     double m_audfrmAvgDur{0.021};
     uint32_t m_audfrmAvgDurCalcCnt{10};
+    bool m_auddecEof{false};
     // pcm format conversion thread
-    thread m_audswrThread;
+    thread m_genWfThread;
     float m_audQDuration{0.5f};
-    // use 24 as queue max size is calculated by
-    // 1024 samples per frame @ 48kHz, and audio queue duration is 0.5 seconds.
-    // this max size will be updated while audio decoding procedure.
-    int m_swrfrmQMaxSize{24};
-    list<AVFrame*> m_swrfrmQ;
-    mutex m_swrfrmQLock;
     bool m_swrPassThrough{false};
-    bool m_swrEof{false};
+    bool m_genWfEof{false};
     // update snapshots thread
-    thread m_GenSsThread;
+    thread m_genSsThread;
     bool m_genSsEof;
 
     recursive_mutex m_apiLock;
-    bool m_quitScan{false};
+    bool m_quit{false};
 
+    // video snapshots
     vector<Snapshot> m_snapshots;
     uint32_t m_ssCount;
-
     int64_t m_vidStartMts{0};
     int64_t m_vidDurMts{0};
     int64_t m_vidFrmCnt{0};
     double m_ssIntvMts;
+    double m_vidfrmIntvTs;
 
+    // audio waveform
+    WaveformHolder m_hWaveform;
+    uint32_t m_singleFramePixels{200};
+    double m_minAggregateSamples{5};
+
+    // AVFrame -> ImMat
     bool m_useRszFactor{false};
     bool m_ssSizeChanged{false};
     float m_ssWFacotr{1.f}, m_ssHFacotr{1.f};
