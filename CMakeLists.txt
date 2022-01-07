@@ -31,10 +31,31 @@ set_target_properties(
     RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}"
 )
 
+if(IMGUI_VULKAN AND IMGUI_VULKAN_SHADER)
+set_target_properties(
+    VkShader
+    PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}"
+    RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}"
+)
+endif()
+
 include_directories(
     ${IMGUI_INCLUDE_DIRS}
     ${CMAKE_CURRENT_BINARY_DIR}
     ${PROJECT_BINARY_DIR}
+)
+
+add_subdirectory(blueprintsdk)
+set_target_properties(
+    BluePrintSDK
+    PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}"
+    RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}"
+)
+
+include_directories(
+    ${IMGUI_BLUEPRINT_INCLUDE_DIRS}
 )
 
 # Basics

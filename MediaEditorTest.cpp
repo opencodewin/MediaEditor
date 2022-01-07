@@ -1,6 +1,7 @@
 #include <application.h>
 #include <imgui.h>
 #include <imgui_helper.h>
+#include <imgui_knob.h>
 #include <ImGuiFileDialog.h>
 #include <ImGuiTabWindow.h>
 #include "ImSequencer.h"
@@ -15,7 +16,7 @@ static std::string ini_file = "Media_Editor.ini";
 
 static const char* ControlPanelTabNames[] = {
     ICON_MEDIA_BANK,
-    ICON_MEDIA_TRANSITIONS,
+    ICON_MEDIA_TRANS,
     ICON_MEDIA_FILTERS,
     ICON_MEDIA_OUTPUT
 };
@@ -23,25 +24,45 @@ static const char* ControlPanelTabNames[] = {
 static const char* ControlPanelTabTooltips[] = 
 {
     "Meida Bank",
-    "Meida Transition",
-    "Meida Filters",
+    "Transition Bank",
+    "Filters Bank",
     "Meida Output"
 };
 
 static const char* MainWindowTabNames[] = {
     ICON_MEDIA_PREVIEW,
-    ICON_PALETTE,
+    ICON_MEDIA_VIDEO,
+    ICON_TRANS,
     ICON_MUSIC,
-    ICON_MEDIA_ANALYSE
+    ICON_MEDIA_DIAGNOSIS,
+    ICON_BRAIN
 };
 
 static const char* MainWindowTabTooltips[] = 
 {
     "Meida Preview",
     "Video Editor",
+    "Video Fusion",
     "Audio Editor",
-    "Meida Analyse"
+    "Meida Analyse",
+    "Meida AI"
 };
+
+
+static const char* VideoEditorTabNames[] = {
+    ICON_BLUE_PRINT,
+    ICON_PALETTE,
+    ICON_CROP,
+    ICON_ROTATE
+};
+
+static const char* VideoEditorTabTooltips[] = {
+    "Video Filter",
+    "Video Color",
+    "Video Crop",
+    "Video Rotate"
+};
+
 
 static MediaSequencer * sequencer = nullptr;
 static std::vector<MediaItem *> media_items;
@@ -127,20 +148,30 @@ void ShowVideoWindow(ImTextureID texture, ImVec2& pos, ImVec2& size)
     }
 }
 
+/****************************************************************************************
+ * 
+ * Media Bank window
+ *
+ ***************************************************************************************/
 static void ShowMediaBankWindow(ImDrawList *draw_list, float media_icon_size)
 {
     ImGuiIO& io = ImGui::GetIO();
-    ImGui::SetWindowFontScale(1.2);
+    ImVec2 window_pos = ImGui::GetCursorScreenPos();
+    ImVec2 window_size = ImGui::GetWindowSize();
+    draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DARK_ONE);
+    ImGui::SetWindowFontScale(2.5);
     ImGui::Indent(20);
     ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4, 0.4, 0.8, 0.8));
-    ImGui::TextUnformatted("Meida Bank");
-    ImGui::PopStyleColor();
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.2, 0.2, 0.2, 0.7));
+    ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
+    ImGui::TextUnformatted("Meida");
+    ImGui::TextUnformatted("Bank");
+    ImGui::PopStyleColor(2);
     ImGui::PopStyleVar();
     ImGui::SetWindowFontScale(1.0);
-
+    ImGui::SetCursorScreenPos(window_pos);
     // Show Media Icons
-    float x_offset = (ImGui::GetContentRegionAvail().x - media_icon_size - 12) / 2;
+    float x_offset = window_pos.x;
     for (auto item = media_items.begin(); item != media_items.end();)
     {
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
@@ -239,17 +270,39 @@ static void ShowMediaBankWindow(ImDrawList *draw_list, float media_icon_size)
             ImGui::TextUnformatted(type_string.c_str());
             ImGui::ShowTooltipOnHover("%s", (*item)->mPath.c_str());
             ImGui::SetCursorScreenPos(icon_pos + ImVec2(0, media_icon_size - 20));
+
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0, 0, 0, 0));
             if (has_video)
             {
                 auto stream = (*item)->mMediaOverview->GetVideoStream();
                 if (stream)
                 {
-                    auto video_width = stream->width;
-                    auto video_height = stream->height;
-                    auto video_icon = GetVideoIcon(video_width, video_height);
+                    auto video_icon = GetVideoIcon(stream->width, stream->height);
+                    ImGui::SetWindowFontScale(1.2);
                     ImGui::Button(video_icon.c_str(), ImVec2(24, 24));
-                    ImGui::ShowTooltipOnHover("%dx%d", video_width, video_height);
-                    ImGui::SameLine(0 ,0);
+                    if (ImGui::IsItemHovered())
+                    {
+                        std::string bitrate_str = stream->bitRate >= 1000000 ? std::to_string((float)stream->bitRate / 1000000) + "Mbps" :
+                                                stream->bitRate >= 1000 ? std::to_string((float)stream->bitRate / 1000) + "Kbps" :
+                                                std::to_string(stream->bitRate) + "bps";
+                        ImGui::BeginTooltip();
+                        ImGui::Text("S: %d x %d", stream->width, stream->height);
+                        ImGui::Text("B: %s", bitrate_str.c_str());
+                        ImGui::Text("F: %.3ffps", stream->avgFrameRate.den > 0 ? stream->avgFrameRate.num / stream->avgFrameRate.den : 0.0);
+                        ImGui::EndTooltip();
+                    }
+                    ImGui::SameLine(0, 0);
+                    if (stream->isHdr)
+                    {
+                        ImGui::Button(ICON_HDR, ImVec2(24, 24));
+                        ImGui::SameLine(0, 0);
+                    }
+                    ImGui::SetWindowFontScale(0.6);
+                    ImGui::Button((std::to_string(stream->bitDepth) + "bit").c_str(), ImVec2(24, 24));
+                    ImGui::SetWindowFontScale(1.0);
+                    ImGui::SameLine(0, 0);
                 }
             }
             if (has_audio)
@@ -265,6 +318,7 @@ static void ShowMediaBankWindow(ImDrawList *draw_list, float media_icon_size)
                     ImGui::SameLine(0 ,0);
                 }
             }
+            ImGui::PopStyleColor(3);
         }
 
         ImGui::SetCursorScreenPos(icon_pos + ImVec2(media_icon_size - 24, 0));
@@ -286,30 +340,45 @@ static void ShowMediaBankWindow(ImDrawList *draw_list, float media_icon_size)
     }
 }
 
-static void ShowMediaTransitionWindow(ImDrawList *draw_list)
+/****************************************************************************************
+ * 
+ * Transition Bank window
+ *
+ ***************************************************************************************/
+static void ShowTransitionBankWindow(ImDrawList *draw_list)
 {
     ImGui::SetWindowFontScale(1.2);
     ImGui::Indent(20);
     ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4, 0.4, 0.8, 0.8));
-    ImGui::TextUnformatted("Meida Transition");
+    ImGui::TextUnformatted("Transition Bank");
     ImGui::PopStyleColor();
     ImGui::PopStyleVar();
     ImGui::SetWindowFontScale(1.0);
 }
 
-static void ShowMediaFiltersWindow(ImDrawList *draw_list)
+/****************************************************************************************
+ * 
+ * Transition Bank window
+ *
+ ***************************************************************************************/
+static void ShowFilterBankWindow(ImDrawList *draw_list)
 {
     ImGui::SetWindowFontScale(1.2);
     ImGui::Indent(20);
     ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4, 0.4, 0.8, 0.8));
-    ImGui::TextUnformatted("Meida Filters");
+    ImGui::TextUnformatted("Filter Bank");
     ImGui::PopStyleColor();
     ImGui::PopStyleVar();
     ImGui::SetWindowFontScale(1.0);
 }
 
+/****************************************************************************************
+ * 
+ * Media Output window
+ *
+ ***************************************************************************************/
 static void ShowMediaOutputWindow(ImDrawList *draw_list)
 {
     ImGui::SetWindowFontScale(1.2);
@@ -322,6 +391,11 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
     ImGui::SetWindowFontScale(1.0);
 }
 
+/****************************************************************************************
+ * 
+ * Media Preview window
+ *
+ ***************************************************************************************/
 static void ShowMediaPreviewWindow(ImDrawList *draw_list)
 {
     // preview control pannel
@@ -329,9 +403,10 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     ImVec2 PanelBarSize;
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
+    draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
     PanelBarPos = window_pos + window_size - ImVec2(window_size.x, 48);
     PanelBarSize = ImVec2(window_size.x, 48);
-    draw_list->AddRectFilled(PanelBarPos, PanelBarPos + PanelBarSize, COL_CANVAS_BG);
+    draw_list->AddRectFilled(PanelBarPos, PanelBarPos + PanelBarSize, COL_DARK_PANEL);
     auto PanelCenterX = PanelBarPos.x + window_size.x / 2;
     auto PanelButtonY = PanelBarPos.y + 8;
 
@@ -440,19 +515,57 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     // Time stamp on left of control panel
     auto PanelRightX = PanelBarPos.x + window_size.x - 150;
     auto PanelRightY = PanelBarPos.y + 8;
-    ImGui::SetCursorScreenPos(ImVec2(PanelRightX, PanelRightY));
-    ImGui::SetWindowFontScale(1.5);
     auto time_str = MillisecToString(sequencer->currentTime);
-    ImGui::TextUnformatted(time_str.c_str());
+    ImGui::SetWindowFontScale(1.5);
+    draw_list->AddText(ImVec2(PanelRightX, PanelRightY), sequencer->bPlay ? COL_MARK : COL_MARK_HALF, time_str.c_str());
     ImGui::SetWindowFontScale(1.0);
 
     // audio meters
+    ImVec2 AudioMeterPos;
+    ImVec2 AudioMeterSize;
+    AudioMeterPos = window_pos + ImVec2(window_size.x - 64, 16);
+    AudioMeterSize = ImVec2(32, window_size.y - 48 - 16 - 8);
+    ImVec2 AudioUVLeftPos = AudioMeterPos + ImVec2(36, 0);
+    ImVec2 AudioUVLeftSize = ImVec2(12, AudioMeterSize.y);
+    ImVec2 AudioUVRightPos = AudioMeterPos + ImVec2(36 + 16, 0);
+    ImVec2 AudioUVRightSize = AudioUVLeftSize;
+
+    draw_list->AddRectFilled(AudioMeterPos - ImVec2(0, 16), AudioMeterPos + ImVec2(64, AudioMeterSize.y + 8), COL_DARK_TWO);
+
+    for (int i = 0; i <= 96; i+= 5)
+    {
+        float mark_step = AudioMeterSize.y / 96.0f;
+        ImVec2 MarkPos = AudioMeterPos + ImVec2(0, i * mark_step);
+        if (i % 10 == 0)
+        {
+            std::string mark_str = i == 0 ? "  0" : "-" + std::to_string(i);
+            draw_list->AddLine(MarkPos + ImVec2(20, 8), MarkPos + ImVec2(30, 8), COL_MARK_HALF, 1);
+            ImGui::SetWindowFontScale(0.75);
+            draw_list->AddText(MarkPos + ImVec2(0, 2), COL_MARK_HALF, mark_str.c_str());
+            ImGui::SetWindowFontScale(1.0);
+        }
+        else
+        {
+            draw_list->AddLine(MarkPos + ImVec2(25, 8), MarkPos + ImVec2(30, 8), COL_MARK_HALF, 1);
+        }
+    }
+
+    static int left_stack = 0;
+    static int left_count = 0;
+    static int right_stack = 0;
+    static int right_count = 0;
+    int l_level = sequencer->GetAudioLevel(0);
+    int r_level = sequencer->GetAudioLevel(1);
+    ImGui::SetCursorScreenPos(AudioUVLeftPos);
+    ImGui::UvMeter("##luv", AudioUVLeftSize, &l_level, 0, 96, AudioUVLeftSize.y / 4, &left_stack, &left_count);
+    ImGui::SetCursorScreenPos(AudioUVRightPos);
+    ImGui::UvMeter("##ruv", AudioUVRightSize, &r_level, 0, 96, AudioUVRightSize.y / 4, &right_stack, &right_count);
 
     // video texture area
     ImVec2 PreviewPos;
     ImVec2 PreviewSize;
-    PreviewPos = window_pos + ImVec2(16, 16);
-    PreviewSize = window_size - ImVec2(16, 16 + 48);
+    PreviewPos = window_pos + ImVec2(8, 8);
+    PreviewSize = window_size - ImVec2(16 + 64, 16 + 48);
     auto frame = sequencer->GetPreviewFrame();
     if (!frame.empty())
     {
@@ -469,15 +582,142 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
 #endif
     }
     ShowVideoWindow(sequencer->mMainPreviewTexture, PreviewPos, PreviewSize);
+    
+    ImGui::SetWindowFontScale(2);
+    ImGui::SetCursorScreenPos(window_pos + ImVec2(40, 30));
+    ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.1f);
+    ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphShadowOffset, ImVec2(2, 2));
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8, 0.8, 0.8, 0.2));
+    ImGui::PushStyleColor(ImGuiCol_TexGlyphShadow, ImVec4(0.0, 0.0, 0.0, 0.8));
+    ImGui::TextUnformatted("Preview");
+    ImGui::PopStyleColor(2);
+    ImGui::PopStyleVar(2);
+    ImGui::SetWindowFontScale(1.0);
 }
 
-static void ShowVideoEditorWindow(ImDrawList *draw_list)
+/****************************************************************************************
+ * 
+ * Video Editor windows
+ *
+ ***************************************************************************************/
+static void ShowVideoBluePrintWindow(ImDrawList *draw_list)
 {
     ImGui::SetWindowFontScale(1.2);
     ImGui::Indent(20);
     ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4, 0.4, 0.8, 0.8));
+    ImGui::TextUnformatted("Video Filter");
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar();
+    ImGui::SetWindowFontScale(1.0);
+}
+
+static void ShowVideoColorWindow(ImDrawList *draw_list)
+{
+    ImGui::SetWindowFontScale(1.2);
+    ImGui::Indent(20);
+    ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4, 0.4, 0.8, 0.8));
+    ImGui::TextUnformatted("Video Color");
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar();
+    ImGui::SetWindowFontScale(1.0);
+}
+
+static void ShowVideoCropWindow(ImDrawList *draw_list)
+{
+    ImGui::SetWindowFontScale(1.2);
+    ImGui::Indent(20);
+    ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4, 0.4, 0.8, 0.8));
+    ImGui::TextUnformatted("Video Crop");
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar();
+    ImGui::SetWindowFontScale(1.0);
+}
+
+static void ShowVideoRotateWindow(ImDrawList *draw_list)
+{
+    ImGui::SetWindowFontScale(1.2);
+    ImGui::Indent(20);
+    ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4, 0.4, 0.8, 0.8));
+    ImGui::TextUnformatted("Video Rotate");
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar();
+    ImGui::SetWindowFontScale(1.0);
+}
+
+static void ShowVideoEditorWindow(ImDrawList *draw_list)
+{
+    static int VideoEditorWindowIndex = 0;
+    ImVec2 window_pos = ImGui::GetCursorScreenPos();
+    ImVec2 window_size = ImGui::GetWindowSize();
+    draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
+    float clip_timeline_height = 100;
+    float editor_main_height = window_size.y - clip_timeline_height - 4;
+    if (ImGui::BeginChild("##video_editor_main", ImVec2(window_size.x, editor_main_height), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+    {
+        ImVec2 clip_window_pos = ImGui::GetCursorScreenPos();
+        ImVec2 clip_window_size = ImGui::GetWindowSize();
+        static const int numTabs = sizeof(VideoEditorTabNames)/sizeof(VideoEditorTabNames[0]);
+        ImGui::TabLabelsVertical(false, numTabs, VideoEditorTabNames, VideoEditorWindowIndex, VideoEditorTabTooltips, nullptr, nullptr, false, false, nullptr, nullptr);
+        float labelWidth = ImGui::CalcVerticalTabLabelsWidth() + 4;
+        float video_view_width = clip_window_size.x / 3;
+        float video_editor_width = clip_window_size.x - video_view_width - labelWidth;
+        ImGui::SetCursorScreenPos(clip_window_pos + ImVec2(labelWidth, 0));
+        
+        if (ImGui::BeginChild("##video_editor_views", ImVec2(video_editor_width, clip_window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+        {
+            ImVec2 editor_view_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 editor_view_window_size = ImGui::GetWindowSize();
+            draw_list->AddRectFilled(editor_view_window_pos, editor_view_window_pos + editor_view_window_size, COL_DARK_ONE);
+            switch (VideoEditorWindowIndex)
+            {
+                case 0: ShowVideoBluePrintWindow(draw_list); break;
+                case 1: ShowVideoColorWindow(draw_list); break;
+                case 2: ShowVideoCropWindow(draw_list); break;
+                case 3: ShowVideoRotateWindow(draw_list); break;
+                default: break;
+            }
+        }
+        ImGui::EndChild();
+        ImGui::SetCursorScreenPos(clip_window_pos + ImVec2(video_editor_width + labelWidth, 0));
+        if (ImGui::BeginChild("##video_view", ImVec2(video_view_width, clip_window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+        {
+            ImVec2 video_view_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 video_view_window_size = ImGui::GetWindowSize();
+            draw_list->AddRectFilled(video_view_window_pos, video_view_window_pos + video_view_window_size, COL_DEEP_DARK);
+        }
+        ImGui::EndChild();
+    }
+    ImGui::EndChild();
+    if (ImGui::BeginChild("##video_editor_timeline", ImVec2(window_size.x, clip_timeline_height), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+    {
+        ImVec2 clip_timeline_window_pos = ImGui::GetCursorScreenPos();
+        ImVec2 clip_timeline_window_size = ImGui::GetWindowSize();
+        draw_list->AddRectFilled(clip_timeline_window_pos, clip_timeline_window_pos + clip_timeline_window_size, COL_DARK_TWO);
+    }
+    ImGui::EndChild();
+/*
+    ImGui::SetWindowFontScale(1.2);
+    ImGui::Indent(20);
+    ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4, 0.4, 0.8, 0.8));
     ImGui::TextUnformatted("Video Editor");
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar();
+    ImGui::SetWindowFontScale(1.0);
+*/
+}
+
+static void ShowVideoFusionWindow(ImDrawList *draw_list)
+{
+    ImGui::SetWindowFontScale(1.2);
+    ImGui::Indent(20);
+    ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4, 0.4, 0.8, 0.8));
+    ImGui::TextUnformatted("Video Fusion");
     ImGui::PopStyleColor();
     ImGui::PopStyleVar();
     ImGui::SetWindowFontScale(1.0);
@@ -502,6 +742,18 @@ static void ShowMediaAnalyseWindow(ImDrawList *draw_list)
     ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4, 0.4, 0.8, 0.8));
     ImGui::TextUnformatted("Meida Analyse");
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar();
+    ImGui::SetWindowFontScale(1.0);
+}
+
+static void ShowMediaAIWindow(ImDrawList *draw_list)
+{
+    ImGui::SetWindowFontScale(1.2);
+    ImGui::Indent(20);
+    ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4, 0.4, 0.8, 0.8));
+    ImGui::TextUnformatted("Meida AI");
     ImGui::PopStyleColor();
     ImGui::PopStyleVar();
     ImGui::SetWindowFontScale(1.0);
@@ -641,16 +893,19 @@ bool Application_Frame(void * handle)
                 switch (ControlPanelIndex)
                 {
                     case 0: ShowMediaBankWindow(draw_list, media_icon_size); break;
-                    case 1: ShowMediaTransitionWindow(draw_list); break;
-                    case 2: ShowMediaFiltersWindow(draw_list); break;
+                    case 1: ShowTransitionBankWindow(draw_list); break;
+                    case 2: ShowFilterBankWindow(draw_list); break;
                     case 3: ShowMediaOutputWindow(draw_list); break;
                     default: break;
                 }
             }
             ImGui::EndChild();
-            
+
             // add tool bar
             ImGui::SetCursorPos(ImVec2(0,32));
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.5, 0.5, 0.5, 0.5));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.2, 0.2, 0.2, 1.0));
             if (ImGui::Button(ICON_IGFD_ADD "##AddMedia", ImVec2(tool_icon_size, tool_icon_size)))
             {
                 // Open Media Source
@@ -673,6 +928,7 @@ bool Application_Frame(void * handle)
                 show_about = true;
             }
             ImGui::ShowTooltipOnHover("About Media Editor");
+            ImGui::PopStyleColor(3);
         }
         ImGui::EndChild();
 
@@ -686,7 +942,7 @@ bool Application_Frame(void * handle)
             //ImVec2 main_window_size = ImGui::GetWindowSize();
             ImGui::TabLabels(numMainWindowTabs, MainWindowTabNames, MainWindowIndex, MainWindowTabTooltips , false, nullptr, nullptr, false, false, nullptr, nullptr);
             auto wmin = main_sub_pos + ImVec2(0, 32);
-            auto wmax = wmin + ImGui::GetContentRegionAvail() - ImVec2(8, 8);
+            auto wmax = wmin + ImGui::GetContentRegionAvail() - ImVec2(8, 0);
             draw_list->AddRectFilled(wmin, wmax, IM_COL32_BLACK, 8.0, ImDrawFlags_RoundCornersAll);
             if (ImGui::BeginChild("##Main_Window_content", wmax - wmin, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings))
             {
@@ -694,8 +950,10 @@ bool Application_Frame(void * handle)
                 {
                     case 0: ShowMediaPreviewWindow(draw_list); break;
                     case 1: ShowVideoEditorWindow(draw_list); break;
-                    case 2: ShowAudioEditorWindow(draw_list); break;
-                    case 3: ShowMediaAnalyseWindow(draw_list); break;
+                    case 2: ShowVideoFusionWindow(draw_list); break;
+                    case 3: ShowAudioEditorWindow(draw_list); break;
+                    case 4: ShowMediaAnalyseWindow(draw_list); break;
+                    case 5: ShowMediaAIWindow(draw_list); break;
                     default: break;
                 }
             }
@@ -712,12 +970,13 @@ bool Application_Frame(void * handle)
     if (ImGui::BeginChild("##Sequencor", panel_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings))
     {
         ImSequencer::Sequencer(sequencer, &_expanded, &selectedEntry, 
-                                ImSequencer::SEQUENCER_EDIT_STARTEND | ImSequencer::SEQUENCER_CHANGE_TIME | ImSequencer::SEQUENCER_DEL | ImSequencer::SEQUENCER_ADD |
+                                ImSequencer::SEQUENCER_EDIT_STARTEND | ImSequencer::SEQUENCER_CHANGE_TIME | ImSequencer::SEQUENCER_DEL |
                                 ImSequencer::SEQUENCER_LOCK | ImSequencer::SEQUENCER_VIEW | ImSequencer::SEQUENCER_MUTE | ImSequencer::SEQUENCER_RESTORE);
         if (selectedEntry != -1)
         {
-            //const ImSequencer::MediaSequencer::SequencerItem &item = sequencer.m_Items[selectedEntry];
-            //ImGui::Text("I am a %s, please edit me", item.mName.c_str());
+            //const SequencerItem *item = sequencer->m_Items[selectedEntry];
+            //ImGui::SetCursorScreenPos(panel_pos);
+            //ImGui::Text("I am a %s, please edit me", item->mName.c_str());
         }
         
         if (expanded != _expanded)

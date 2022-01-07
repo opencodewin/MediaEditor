@@ -12,13 +12,13 @@
 #include <list>
 
 #define ICON_MEDIA_BANK     u8"\ue907"
-#define ICON_MEDIA_TRANSITIONS u8"\ue927"
+#define ICON_MEDIA_TRANS    u8"\ue927"
 #define ICON_MEDIA_FILTERS  u8"\ue663"
 #define ICON_MEDIA_OUTPUT   u8"\uf197"
 #define ICON_MEDIA_PREVIEW  u8"\ue04a"
 #define ICON_MEDIA_VIDEO    u8"\ue04b"
 #define ICON_MEDIA_AUDIO    u8"\ue050"
-#define ICON_MEDIA_ANALYSE  u8"\uf0f0"
+#define ICON_MEDIA_DIAGNOSIS u8"\uf0f0"
 #define ICON_SLIDER_MINIMUM u8"\uf424"
 #define ICON_SLIDER_MAXIMUM u8"\uf422"
 #define ICON_VIEW           u8"\uf06e"
@@ -41,7 +41,8 @@
 #define ICON_HDR_DISABLE    u8"\ue3ed"
 #define ICON_PALETTE        u8"\uf53f"
 #define ICON_STRAW          u8"\ue3b8"
-#define ICON_CROP           u8"\uf5cb"
+#define ICON_CROP           u8"\uf125"
+#define ICON_ROTATE         u8"\ue437"
 #define ICON_LOCKED         u8"\uf023"
 #define ICON_UNLOCK         u8"\uf09c"
 #define ICON_TRASH          u8"\uf014"
@@ -51,7 +52,11 @@
 #define ICON_CUT            u8"\ue00d"
 #define ICON_REMOVE_CUT     u8"\ue011"
 #define ICON_CUTTING        u8"\uf0c4"
-#define ICON_MOVING         u8"\uf07e"
+#define ICON_MOVING         u8"\ue41f"
+#define ICON_TRANS          u8"\ue882"
+#define ICON_BANK           u8"\uf1b3"
+#define ICON_BLUE_PRINT     u8"\uf55B"
+#define ICON_BRAIN          u8"\uf5dc"
 
 #define ICON_PLAY           u8"\uf04b"
 #define ICON_PAUSE          u8"\uf04c"
@@ -96,14 +101,14 @@
 #define COL_FRAME_RECT      IM_COL32( 16,  16,  96, 255)
 #define COL_LIGHT_BLUR      IM_COL32( 16, 128, 255, 255)
 #define COL_CANVAS_BG       IM_COL32( 36,  36,  36, 255)
-#define COL_LEGEND_BG       IM_COL32( 18,  18,  18, 255)
+#define COL_LEGEND_BG       IM_COL32( 33,  33,  38, 255)
 #define COL_MARK            IM_COL32(255, 255, 255, 255)
 #define COL_MARK_HALF       IM_COL32(128, 128, 128, 255)
 #define COL_RULE_TEXT       IM_COL32(224, 224, 224, 255)
 #define COL_SLOT_DEFAULT    IM_COL32(128, 128, 170, 255)
 #define COL_SLOT_ODD        IM_COL32( 58,  58,  58, 255)
 #define COL_SLOT_EVEN       IM_COL32( 64,  64,  64, 255)
-#define COL_SLOT_SELECTED   IM_COL32( 64,  64, 255, 128)
+#define COL_SLOT_SELECTED   IM_COL32(255,  64,  64, 255)
 #define COL_SLOT_V_LINE     IM_COL32( 96,  96,  96,  48)
 #define COL_SLIDER_BG       IM_COL32( 32,  32,  64, 255)
 #define COL_SLIDER_IN       IM_COL32( 96,  96,  96, 255)
@@ -113,6 +118,10 @@
 #define COL_CURSOR_ARROW    IM_COL32(  0, 255,   0, 255)
 #define COL_CURSOR_TEXT_BG  IM_COL32(  0, 128,   0, 144)
 #define COL_CURSOR_TEXT     IM_COL32(  0, 255,   0, 255)
+#define COL_DARK_ONE        IM_COL32( 33,  33,  38, 255)
+#define COL_DARK_TWO        IM_COL32( 40,  40,  46, 255)
+#define COL_DARK_PANEL      IM_COL32( 48,  48,  54, 255)
+#define COL_DEEP_DARK       IM_COL32( 23,  24,  26, 255)
 
 #define HALF_COLOR(c)       (c & 0xFFFFFF) | 0x40000000;
 
@@ -156,14 +165,6 @@ struct SequencerCustomDraw
     ImRect legendClippingRect;
 };
 
-struct VideoSnapshotInfo
-{
-    ImRect rc;
-    int64_t time_stamp;
-    int64_t duration;
-    float frame_width;
-};
-
 struct SequencerInterface
 {
     bool focused = false;
@@ -172,6 +173,7 @@ struct SequencerInterface
     int64_t firstTime = 0;
     int64_t lastTime = 0;
     int64_t visibleTime = 0;
+    int64_t timeStep = 0;
     bool bPlay = false;
     bool bForward = true;
     bool bLoop = false;
@@ -198,13 +200,22 @@ struct SequencerInterface
     virtual void Paste() {}
     virtual void Seek() = 0;
     virtual size_t GetCustomHeight(int /*index*/) { return 0; }
+    virtual bool GetItemSelected(int /*index*/) const = 0;
+    virtual void SetItemSelected(int /*index*/) {};
     virtual void DoubleClick(int /*index*/) {}
     virtual void CustomDraw(int /*index*/, ImDrawList * /*draw_list*/, const ImRect & /*rc*/, const ImRect & /*titleRect*/, const ImRect & /*clippingTitleRect*/, const ImRect & /*legendRect*/, const ImRect & /*clippingRect*/, const ImRect & /*legendClippingRect*/, int64_t /* viewStartTime */, int64_t /* visibleTime */, float /*pixelWidth*/, bool /* need_update */) {}
     virtual void CustomDrawCompact(int /*index*/, ImDrawList * /*draw_list*/, const ImRect & /*rc*/, const ImRect & /*legendRect*/, const ImRect & /*clippingRect*/, int64_t /*viewStartTime*/, int64_t /*visibleTime*/, float /*pixelWidth*/) {}
-    virtual void GetVideoSnapshotInfo(int /*index*/, std::vector<VideoSnapshotInfo>&) {}
 };
 
 bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry, int sequenceOptions);
+
+struct VideoSnapshotInfo
+{
+    ImRect rc;
+    int64_t time_stamp;
+    int64_t duration;
+    float frame_width;
+};
 
 struct Snapshot
 {
@@ -219,6 +230,7 @@ struct ClipInfo
     int64_t mStart  {0};
     int64_t mEnd    {0};
     bool mDragOut   {false};
+    bool mSelected  {false};
     void * mItem    {nullptr};
     ClipInfo(int64_t start, int64_t end, bool drag_out, void* handle) {mStart = start; mEnd = end; mDragOut = drag_out; mItem = handle; };
 };
@@ -237,7 +249,8 @@ struct SequencerItem
     bool mView      {true};                 // item is viewable or not
     bool mMuted     {false};                // item is muted or not
     bool mLocked    {false};                // item is locked or not(can't moving or cropping by locked)
-    bool mCutting   {false};                // item is is cutting or moving stage
+    bool mCutting   {false};                // item is cutting or moving stage
+    bool mSelected  {false};                // item is selected
     int mMediaType {SEQUENCER_ITEM_UNKNOWN}; // item media type, could be video, audio, image, text, and so on...
     int64_t mValidViewTime {0};             // current view area time is ms, only contented media part
     int mValidViewSnapshot {0};             // current view area contented snapshot number
@@ -259,6 +272,7 @@ struct SequencerItem
     ~SequencerItem();
     void SequencerItemUpdateThumbnail();
     void SequencerItemUpdateSnapshots();
+    void SetClipSelected(ClipInfo & clip);
     void CalculateVideoSnapshotInfo(const ImRect &customRect, int64_t viewStartTime, int64_t visibleTime);
     bool DrawItemControlBar(ImDrawList *draw_list, ImRect rc, int sequenceOptions);
 };
@@ -274,6 +288,8 @@ struct MediaSequencer : public SequencerInterface
     void SetEnd(int64_t pos) { mEnd = pos; }
     void SetCurrent(int64_t pos, bool rev);
     int GetItemCount() const { return (int)m_Items.size(); }
+    bool GetItemSelected(int index) const { return m_Items[index]->mSelected; }
+    void SetItemSelected(int index);
     const char *GetItemLabel(int index) const  { return m_Items[index]->mName.c_str(); }
     void Get(int index, int64_t& start, int64_t& end, int64_t& start_offset, int64_t& end_offset, int64_t& length, std::string& name, unsigned int& color);
     void Get(int index, float& frame_duration, float& snapshot_width);
@@ -290,8 +306,8 @@ struct MediaSequencer : public SequencerInterface
     void DoubleClick(int index) { m_Items[index]->mExpanded = !m_Items[index]->mExpanded; }
     void CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &titleRect, const ImRect &clippingTitleRect, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRect, int64_t viewStartTime, int64_t visibleTime, float pixelWidth, bool need_update);
     void CustomDrawCompact(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &legendRect, const ImRect &clippingRect, int64_t viewStartTime, int64_t visibleTime, float pixelWidth);
-    void GetVideoSnapshotInfo(int index, std::vector<VideoSnapshotInfo>& snapshots);
     ImGui::ImMat GetPreviewFrame();
+    int GetAudioLevel(int channel);
 
     std::vector<SequencerItem *> m_Items;   // timeline items
     const int mItemHeight {60};             // item custom view height
@@ -323,6 +339,8 @@ struct MediaItem
     ~MediaItem();
     void UpdateThumbnail();
 };
+
+bool ClipTimeLine(ClipInfo * clip);
 
 } // namespace ImSequencer
 
