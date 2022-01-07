@@ -11,6 +11,16 @@ struct MediaOverview
     virtual void Close() = 0;
     virtual bool GetSnapshots(std::vector<ImGui::ImMat>& snapshots) = 0;
 
+    struct Waveform
+    {
+        double aggregateSamples;
+        double aggregateDuration;
+        std::vector<std::vector<float>> pcm;
+    };
+    using WaveformHolder = std::shared_ptr<Waveform>;
+    virtual WaveformHolder GetWaveform() const = 0;
+    virtual bool SetSingleFramePixels(uint32_t pixels) = 0;
+
     virtual bool IsOpened() const = 0;
     virtual bool IsDone() const = 0;
     virtual bool HasVideo() const = 0;

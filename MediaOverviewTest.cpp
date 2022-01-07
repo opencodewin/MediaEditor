@@ -35,6 +35,8 @@ void Application_Initialize(void** handle)
 {
     GetDefaultLogger()
         ->SetShowLevels(DEBUG);
+    GetMediaOverviewLogger()
+        ->SetShowLevels(DEBUG);
 
 #ifdef USE_BOOKMARK
 	// load bookmarks
@@ -94,6 +96,23 @@ bool Application_Frame(void * handle)
         {
             const char *filters = "视频文件(*.mp4 *.mov *.mkv *.webm *.avi){.mp4,.mov,.mkv,.webm,.avi,.MP4,.MOV,.MKV,WEBM,.AVI},.*";
             ImGuiFileDialog::Instance()->OpenModal("ChooseFileDlgKey", ICON_IGFD_FOLDER_OPEN " 打开视频文件", filters, "/mnt/data2/video/hd/", 1, nullptr, ImGuiFileDialogFlags_ShowBookmark);
+        }
+
+        ImGui::Spacing();
+
+        MediaOverview::WaveformHolder hWaveform = g_movr->GetWaveform();
+        double startPos = 0;
+        double windowSize = 0;
+        if (hWaveform)
+        {
+            int sampleSize = hWaveform->pcm[0].size();
+            int startOff = startPos == 0 ? 0 : (int)(startPos/hWaveform->aggregateDuration);
+            if (startOff >= sampleSize) startOff = 0;
+            int windowLen = windowSize == 0 ? sampleSize : (int)(windowSize/hWaveform->aggregateDuration);
+            if (startOff+windowLen > sampleSize) windowLen = sampleSize-startOff;
+            ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.f, 1.f,0.f, 1.f));
+            ImGui::PlotLines("Waveform", hWaveform->pcm[0].data()+startOff, windowLen, 0, nullptr, -1.f, 1.f, ImVec2(io.DisplaySize.x, 160), sizeof(float), false);
+            ImGui::PopStyleColor();
         }
 
         ImGui::Spacing();
@@ -179,9 +198,6 @@ bool Application_Frame(void * handle)
             string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
             if (g_movr->Open(filePathName, g_ssCount))
                 g_movr->GetMediaParser()->EnableParseInfo(MediaParser::VIDEO_SEEK_POINTS);
-            const MediaInfo::VideoStream* vstminfo = g_movr->GetVideoStream();
-            if (vstminfo)
-                Log(DEBUG) << "vid stream ishdr '" << vstminfo->isHdr << "', bitDepth '" << (int)vstminfo->bitDepth << "'." << endl;
         }
         ImGuiFileDialog::Instance()->Close();
     }
