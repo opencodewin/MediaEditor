@@ -8,6 +8,7 @@ namespace ImSequencer
 {
 static void alignTime(int64_t& time, int64_t time_step)
 {
+    // has moving smooth issue?
     auto align_time = floor(time / time_step) * time_step;
     time = align_time;
 }
@@ -215,7 +216,7 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry
         {
             ImSequencer::MediaItem * item = (ImSequencer::MediaItem*)payload->Data;
             ImSequencer::MediaSequencer * seq = (ImSequencer::MediaSequencer *)sequencer;
-            SequencerItem * new_item = new SequencerItem(item->mName, item->mMediaOverview->GetMediaParser(), item->mStart, item->mEnd, true, item->mMediaType);
+            SequencerItem * new_item = new SequencerItem(item->mName, item, item->mStart, item->mEnd, true, item->mMediaType);
             auto length = new_item->mEnd - new_item->mStart;
             if (sequencer->currentTime >= sequencer->firstTime && sequencer->currentTime <= sequencer->GetEnd())
                 new_item->mStart = sequencer->currentTime;
@@ -235,7 +236,7 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry
                 ImSequencer::MediaSequencer * seq = (ImSequencer::MediaSequencer *)sequencer;
                 auto start = clip->mStart + item->mStart;
                 auto end = clip->mEnd + item->mStart;
-                SequencerItem * new_item = new SequencerItem(item->mName, item->mMedia->GetMediaParser(), start, end, true, item->mMediaType);
+                SequencerItem * new_item = new SequencerItem(item->mName, item, start, end, true, item->mMediaType);
                 new_item->mStartOffset = clip->mStart - item->mStartOffset;
                 new_item->mEndOffset = item->mLength - clip->mEnd;
                 seq->m_Items.push_back(new_item);
@@ -307,7 +308,7 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry
             if (duration)
             {
                 sequencer->currentTime = (int64_t)((io.MousePos.x - topRect.Min.x) / msPixelWidth) + firstTimeUsed;
-                alignTime(sequencer->currentTime, sequencer->timeStep);
+                //alignTime(sequencer->currentTime, sequencer->timeStep);
                 if (sequencer->currentTime < sequencer->GetStart())
                     sequencer->currentTime = sequencer->GetStart();
                 if (sequencer->currentTime >= sequencer->GetEnd())
@@ -719,7 +720,7 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry
                 {
                     float msPerPixelInBar = barWidthInPixels / (float)sequencer->visibleTime;
                     sequencer->firstTime = int((io.MousePos.x - panningViewSource.x) / msPerPixelInBar) - panningViewTime;
-                    alignTime(sequencer->firstTime, sequencer->timeStep);
+                    //alignTime(sequencer->firstTime, sequencer->timeStep);
                     sequencer->firstTime = ImClamp(sequencer->firstTime, sequencer->GetStart(), ImMax(sequencer->GetEnd() - sequencer->visibleTime, sequencer->GetStart()));
                 }
             }
@@ -733,7 +734,7 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry
             {
                 float msPerPixelInBar = barWidthInPixels / (float)sequencer->visibleTime;
                 sequencer->firstTime = int((io.MousePos.x - legendWidth - scrollHandleBarRect.GetWidth() / 2)/ msPerPixelInBar);
-                alignTime(sequencer->firstTime, sequencer->timeStep);
+                //alignTime(sequencer->firstTime, sequencer->timeStep);
                 sequencer->firstTime = ImClamp(sequencer->firstTime, sequencer->GetStart(), ImMax(sequencer->GetEnd() - sequencer->visibleTime, sequencer->GetStart()));
             }
         }
@@ -772,13 +773,13 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry
                 if (io.MouseWheelH < -FLT_EPSILON)
                 {
                     sequencer->firstTime -= sequencer->visibleTime / 4;
-                    alignTime(sequencer->firstTime, sequencer->timeStep);
+                    //alignTime(sequencer->firstTime, sequencer->timeStep);
                     sequencer->firstTime = ImClamp(sequencer->firstTime, sequencer->GetStart(), ImMax(sequencer->GetEnd() - sequencer->visibleTime, sequencer->GetStart()));
                 }
                 if (io.MouseWheelH > FLT_EPSILON)
                 {
                     sequencer->firstTime += sequencer->visibleTime / 4;
-                    alignTime(sequencer->firstTime, sequencer->timeStep);
+                    //alignTime(sequencer->firstTime, sequencer->timeStep);
                     sequencer->firstTime = ImClamp(sequencer->firstTime, sequencer->GetStart(), ImMax(sequencer->GetEnd() - sequencer->visibleTime, sequencer->GetStart()));
                 }
             }
@@ -967,13 +968,13 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry
         if (start_time == -1)
         {
             start_time = ImGui::get_current_time_usec() / 1000;
-            alignTime(start_time, sequencer->timeStep);
+            //alignTime(start_time, sequencer->timeStep);
             last_time = start_time;
         }
         else
         {
             int64_t current_time = ImGui::get_current_time_usec() / 1000;
-            alignTime(current_time, sequencer->timeStep);
+            //alignTime(current_time, sequencer->timeStep);
             int64_t step_time = current_time - last_time;
             // Set TimeLine
             int64_t current_media_time = sequencer->currentTime;
@@ -1269,41 +1270,10 @@ void MediaItem::UpdateThumbnail()
  * SequencerItem Struct Member Functions
  ***********************************************************************************************************/
 
-SequencerItem::SequencerItem(const std::string& name, const std::string& path, int64_t start, int64_t end, bool expand, int type)
+SequencerItem::SequencerItem(const std::string& name, MediaItem * media_item, int64_t start, int64_t end, bool expand, int type)
 {
     mName = name;
-    mPath = path;
-    mStart = start;
-    mEnd = end;
-    mExpanded = expand;
-    mMediaType = type;
-    mSnapshot = CreateMediaSnapshot();
-    mMedia = CreateMediaReader();
-    if (!mSnapshot || !mMedia)
-        return;
-    mColor = COL_SLOT_DEFAULT;
-    if (!path.empty() && mSnapshot)
-    {
-        mSnapshot->Open(path);
-    }
-    if (mSnapshot && mSnapshot->IsOpened())
-    {
-        mMedia->Open(mSnapshot->GetMediaParser());
-        double window_size = 1.0f;
-        mLength = mSnapshot->GetVideoDuration();
-        mSnapshot->SetCacheFactor(8.0);
-        mSnapshot->SetSnapshotResizeFactor(0.1, 0.1);
-        mSnapshot->ConfigSnapWindow(window_size, 1);
-        if (mEnd > mStart + mLength)
-            mEnd = mLength - mStart;
-    }
-    ClipInfo *first_clip = new ClipInfo(mStart, mEnd, false, this);
-    mClips.push_back(first_clip);
-}
-
-SequencerItem::SequencerItem(const std::string& name, MediaParserHolder holder, int64_t start, int64_t end, bool expand, int type)
-{
-    mName = name;
+    MediaParserHolder holder = media_item->mMediaOverview->GetMediaParser();
     mPath = holder->GetUrl();
     mStart = start;
     mEnd = end;
@@ -1318,11 +1288,55 @@ SequencerItem::SequencerItem(const std::string& name, MediaParserHolder holder, 
     mMedia->Open(holder);
     if (mSnapshot->IsOpened())
     {
-        double window_size = 1.0f;
         mLength = mSnapshot->GetVideoDuration();
-        mSnapshot->SetCacheFactor(8.0);
-        mSnapshot->SetSnapshotResizeFactor(0.1, 0.1);
-        mSnapshot->ConfigSnapWindow(window_size, 1);
+        if (mSnapshot->HasVideo())
+        {
+            double window_size = 1.0f;
+            mSnapshot->SetCacheFactor(8.0);
+            mSnapshot->SetSnapshotResizeFactor(0.1, 0.1);
+            mSnapshot->ConfigSnapWindow(window_size, 1);
+        }
+        if (mSnapshot->HasAudio())
+        {
+            mWaveform = media_item->mMediaOverview->GetWaveform();
+        }
+        if (mEnd > mStart + mLength)
+            mEnd = mLength - mStart;
+    }
+    ClipInfo *first_clip = new ClipInfo(mStart, mEnd, false, this);
+    mClips.push_back(first_clip);
+}
+
+SequencerItem::SequencerItem(const std::string& name, SequencerItem * sequencer_item, int64_t start, int64_t end, bool expand, int type)
+{
+    mName = name;
+    MediaParserHolder holder = sequencer_item->mSnapshot->GetMediaParser();
+    mPath = holder->GetUrl();
+    mStart = start;
+    mEnd = end;
+    mExpanded = expand;
+    mMediaType = type;
+    mSnapshot = CreateMediaSnapshot();
+    mMedia = CreateMediaReader();
+    if (!mSnapshot || !mMedia)
+        return;
+    mColor = COL_SLOT_DEFAULT;
+    mSnapshot->Open(holder);
+    mMedia->Open(holder);
+    if (mSnapshot->IsOpened())
+    {
+        mLength = mSnapshot->GetVideoDuration();
+        if (mSnapshot->HasVideo())
+        {
+            double window_size = 1.0f;
+            mSnapshot->SetCacheFactor(8.0);
+            mSnapshot->SetSnapshotResizeFactor(0.1, 0.1);
+            mSnapshot->ConfigSnapWindow(window_size, 1);
+        }
+        if (mSnapshot->HasAudio())
+        {
+            mWaveform = sequencer_item->mWaveform;
+        }
         if (mEnd > mStart + mLength)
             mEnd = mLength - mStart;
     }
@@ -1781,14 +1795,14 @@ void MediaSequencer::Set(int index, int64_t start, int64_t end, int64_t start_of
 {
     SequencerItem *item = m_Items[index];
     item->mColor = color;
-    alignTime(start, mFrameDuration);
+    //alignTime(start, mFrameDuration);
     item->mStart = start;
-    alignTime(end, mFrameDuration);
+    //alignTime(end, mFrameDuration);
     item->mEnd = end;
     item->mName = name;
-    alignTime(start_offset, mFrameDuration);
+    //alignTime(start_offset, mFrameDuration);
     item->mStartOffset = start_offset;
-    alignTime(end_offset, mFrameDuration);
+    //alignTime(end_offset, mFrameDuration);
     item->mEndOffset = end_offset;
 }
 
@@ -1926,7 +1940,7 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
 
     SequencerItem *item = m_Items[index];
     if (need_update) item->CalculateVideoSnapshotInfo(rc, viewStartTime, visibleTime);
-    if (item->mVideoSnapshotInfos.size()  == 0) return;
+    if (item->mVideoSnapshotInfos.size() == 0) return;
     float frame_width = item->mVideoSnapshotInfos[0].frame_width;
     int64_t lendth = item->mEnd - item->mStart;
 
@@ -1938,99 +1952,149 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
     else
         startTime = viewStartTime + visibleTime;
 
-    int total_snapshot = item->mVideoSnapshotInfos.size();
-    int snapshot_index = floor((float)startTime / (float)lendth * (float)total_snapshot);
-    int64_t snapshot_time = item->mVideoSnapshotInfos[snapshot_index].time_stamp;
-    
-    int max_snapshot = (clippingRect.GetWidth() + frame_width / 2) / frame_width + 1; // two more frame ?
-    int snapshot_count = (snapshot_index + max_snapshot < total_snapshot) ? max_snapshot : total_snapshot - snapshot_index;
-    
-    if (need_update)
-    {
-        if (item->mSnapshotPos != snapshot_time)
-        {
-            item->mSnapshotPos = snapshot_time;
-            item->SequencerItemUpdateSnapshots();
-        }
-        else
-            item->SequencerItemUpdateSnapshots();
-    }
+    int64_t endTime = 0;
+    if (item->mEnd >= viewStartTime && item->mEnd <= viewStartTime + visibleTime)
+        endTime = item->mEnd;
+    else if (item->mStart <= viewStartTime + visibleTime && item->mEnd > viewStartTime + visibleTime)
+        endTime = viewStartTime + visibleTime;
 
-    // draw snapshot
-    draw_list->PushClipRect(clippingRect.Min, clippingRect.Max, true);
-    for (int i = 0; i < snapshot_count; i++)
+    if (item->mSnapshot->HasVideo())
     {
-        if (i + snapshot_index > total_snapshot - 1) break;
-        if (item->mVideoSnapshots.size() == 0) break;
-        int64_t time_stamp = item->mVideoSnapshotInfos[snapshot_index + i].time_stamp;
-        ImRect frame_rc = item->mVideoSnapshotInfos[snapshot_index + i].rc;
-        ImVec2 pos = frame_rc.Min + rc.Min;
-        ImVec2 size = frame_rc.Max - frame_rc.Min;
-        if (i < item->mVideoSnapshots.size() && item->mVideoSnapshots[i].texture && item->mVideoSnapshots[i].available)
-        {
-            item->mVideoSnapshots[i].estimate_time = time_stamp;
-            // already got snapshot
-            ImGui::SetCursorScreenPos(pos);
+        int total_snapshot = item->mVideoSnapshotInfos.size();
+        int snapshot_index = floor((float)startTime / (float)lendth * (float)total_snapshot);
+        int64_t snapshot_time = item->mVideoSnapshotInfos[snapshot_index].time_stamp;
 
-            if (i == 0 && frame_rc.Min.x > rc.Min.x && snapshot_index > 0)
+        int max_snapshot = (clippingRect.GetWidth() + frame_width / 2) / frame_width + 1; // two more frame ?
+        int snapshot_count = (snapshot_index + max_snapshot < total_snapshot) ? max_snapshot : total_snapshot - snapshot_index;
+
+        if (need_update)
+        {
+            if (item->mSnapshotPos != snapshot_time)
             {
-                // first snap pos over rc.Min
-                ImRect _frame_rc = item->mVideoSnapshotInfos[snapshot_index - 1].rc;
-                ImVec2 _pos = _frame_rc.Min + rc.Min;
-                ImVec2 _size = _frame_rc.Max - _frame_rc.Min;
-                draw_list->AddRectFilled(_pos, _pos + _size, IM_COL32_BLACK);
+                item->mSnapshotPos = snapshot_time;
+                item->SequencerItemUpdateSnapshots();
             }
-            if (i + snapshot_index == total_snapshot - 1)
+            else
+                item->SequencerItemUpdateSnapshots();
+        }
+
+        // draw video snapshot
+        draw_list->PushClipRect(clippingRect.Min, clippingRect.Max, true);
+        for (int i = 0; i < snapshot_count; i++)
+        {
+            if (i + snapshot_index > total_snapshot - 1) break;
+            if (item->mVideoSnapshots.size() == 0) break;
+            int64_t time_stamp = item->mVideoSnapshotInfos[snapshot_index + i].time_stamp;
+            ImRect frame_rc = item->mVideoSnapshotInfos[snapshot_index + i].rc;
+            ImVec2 pos = frame_rc.Min + rc.Min;
+            ImVec2 size = frame_rc.Max - frame_rc.Min;
+            if (i < item->mVideoSnapshots.size() && item->mVideoSnapshots[i].texture && item->mVideoSnapshots[i].available)
             {
-                // last frame of media, we need clip frame
+                item->mVideoSnapshots[i].estimate_time = time_stamp;
+                // already got snapshot
+                ImGui::SetCursorScreenPos(pos);
+
+                if (i == 0 && frame_rc.Min.x > rc.Min.x && snapshot_index > 0)
+                {
+                    // first snap pos over rc.Min
+                    ImRect _frame_rc = item->mVideoSnapshotInfos[snapshot_index - 1].rc;
+                    ImVec2 _pos = _frame_rc.Min + rc.Min;
+                    ImVec2 _size = _frame_rc.Max - _frame_rc.Min;
+                    draw_list->AddRectFilled(_pos, _pos + _size, IM_COL32_BLACK);
+                }
+                if (i + snapshot_index == total_snapshot - 1)
+                {
+                    // last frame of media, we need clip frame
+                    float width_clip = size.x / frame_width;
+                    ImGui::Image(item->mVideoSnapshots[i].texture, ImVec2(size.x, size.y), ImVec2(0, 0), ImVec2(width_clip, 1));
+                }
+                else if (pos.x + size.x < clippingRect.Max.x)
+                {
+                    ImGui::Image(item->mVideoSnapshots[i].texture, size);
+                }
+                else if (pos.x < clippingRect.Max.x)
+                {
+                    // last frame of view range, we need clip frame
+                    float width_clip = (clippingRect.Max.x - pos.x) / size.x;
+                    ImGui::Image(item->mVideoSnapshots[i].texture, ImVec2(clippingRect.Max.x - pos.x, size.y), ImVec2(0, 0), ImVec2(width_clip, 1));
+                }
+                time_stamp = item->mVideoSnapshots[i].time_stamp;
+            }
+            else if (i > 0 && snapshot_index + i == item->mVideoSnapshotInfos.size() - 1 && i >= item->mVideoSnapshots.size() - 1 && item->mVideoSnapshots[i - 1].available)
+            {
+                ImGui::SetCursorScreenPos(pos);
                 float width_clip = size.x / frame_width;
-                ImGui::Image(item->mVideoSnapshots[i].texture, ImVec2(size.x, size.y), ImVec2(0, 0), ImVec2(width_clip, 1));
+                if (item->mVideoSnapshots[i - 1].texture)
+                    ImGui::Image(item->mVideoSnapshots[i - 1].texture, ImVec2(size.x, size.y), ImVec2(0, 0), ImVec2(width_clip, 1));
             }
-            else if (pos.x + size.x < clippingRect.Max.x)
+            else
             {
-                ImGui::Image(item->mVideoSnapshots[i].texture, size);
+                // not got snapshot, we show circle indicalor
+                draw_list->AddRectFilled(pos, pos + size, IM_COL32_BLACK);
+                auto center_pos = pos + size / 2;
+                ImVec4 color_main(1.0, 1.0, 1.0, 1.0);
+                ImVec4 color_back(0.5, 0.5, 0.5, 1.0);
+                ImGui::SetCursorScreenPos(center_pos - ImVec2(8, 8));
+                ImGui::LoadingIndicatorCircle("Running", 1.0f, &color_main, &color_back);
+                draw_list->AddRect(pos, pos + size, COL_FRAME_RECT);
             }
-            else if (pos.x < clippingRect.Max.x)
+#ifdef DEBUG_SNAPSHOT
+            auto time_string = MillisecToString(time_stamp, 3);
+            ImGui::SetWindowFontScale(0.7);
+            ImGui::PushStyleColor(ImGuiCol_TexGlyphShadow, ImVec4(0.1, 0.1, 0.1, 1.0));
+            ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphShadowOffset, ImVec2(1,1));
+            ImVec2 str_size = ImGui::CalcTextSize(time_string.c_str(), nullptr, true);
+            if (str_size.x <= size.x)
             {
-                // last frame of view range, we need clip frame
-                float width_clip = (clippingRect.Max.x - pos.x) / size.x;
-                ImGui::Image(item->mVideoSnapshots[i].texture, ImVec2(clippingRect.Max.x - pos.x, size.y), ImVec2(0, 0), ImVec2(width_clip, 1));
+                draw_list->AddText(frame_rc.Min + rc.Min + ImVec2(2, 48), IM_COL32_WHITE, time_string.c_str());
             }
-            time_stamp = item->mVideoSnapshots[i].time_stamp;
+            ImGui::PopStyleVar();
+            ImGui::PopStyleColor();
+            ImGui::SetWindowFontScale(1.0);
+#endif
         }
-        else if (i > 0 && snapshot_index + i == item->mVideoSnapshotInfos.size() - 1 && i >= item->mVideoSnapshots.size() - 1 && item->mVideoSnapshots[i - 1].available)
+    }
+    if (item->mSnapshot->HasAudio() && item->mWaveform)
+    {
+        int64_t start_pos = 0;
+        if (item->mStart >= viewStartTime && item->mStart <= viewStartTime + visibleTime)
+            start_pos = item->mStart - viewStartTime;
+        else if (item->mStart < viewStartTime && item->mEnd >= viewStartTime)
+            start_pos = 0;
+        else
+            start_pos = viewStartTime + visibleTime;
+    
+        int64_t end_pos = 0;
+        if (item->mEnd >= viewStartTime && item->mEnd <= viewStartTime + visibleTime)
+            end_pos = item->mEnd;
+        else if (item->mEnd > viewStartTime + visibleTime)
+            end_pos = viewStartTime + visibleTime;
+        else
+            end_pos = viewStartTime;
+
+        int channels = item->mWaveform->pcm.size();
+        int sampleSize = item->mWaveform->pcm[0].size();
+        int startOff = (int)((double)(startTime)/1000.f/item->mWaveform->aggregateDuration);
+        int windowLen = (int)((double)(end_pos - start_pos)/1000.f/item->mWaveform->aggregateDuration);
+        if (startOff + windowLen > sampleSize)
+            windowLen = sampleSize - startOff;
+        float cursorStartOffset = clippingRect.Min.x + start_pos * pixelWidth;
+        float cursorEndOffset = clippingRect.Min.x + endTime * pixelWidth;
+        // draw audio wave snapshot
+        if (item->mSnapshot->HasVideo())
         {
-            ImGui::SetCursorScreenPos(pos);
-            float width_clip = size.x / frame_width;
-            if (item->mVideoSnapshots[i - 1].texture)
-                ImGui::Image(item->mVideoSnapshots[i - 1].texture, ImVec2(size.x, size.y), ImVec2(0, 0), ImVec2(width_clip, 1));
+            // draw audio wave snapshot at bottom of video snapshot
+            draw_list->AddRectFilled(ImVec2(cursorStartOffset, clippingRect.Max.y - 16), ImVec2(cursorEndOffset, clippingRect.Max.y), IM_COL32(128, 128, 128, 128));
+            draw_list->AddRect(ImVec2(cursorStartOffset, clippingRect.Max.y - 16), ImVec2(cursorEndOffset, clippingRect.Max.y), IM_COL32(0, 0, 0, 128));
+            ImGui::SetCursorScreenPos(ImVec2(cursorStartOffset, clippingRect.Max.y - 16));
+            ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.f, 1.f,0.f, 1.0f));
+            ImGui::PlotLines("##Waveform", item->mWaveform->pcm[0].data() + startOff, windowLen, 0, nullptr, -1.0f, 1.0f, ImVec2(cursorEndOffset - cursorStartOffset, 16), sizeof(float), false);
+            ImGui::PopStyleColor();
         }
         else
         {
-            // not got snapshot, we show circle indicalor
-            draw_list->AddRectFilled(pos, pos + size, IM_COL32_BLACK);
-            auto center_pos = pos + size / 2;
-            ImVec4 color_main(1.0, 1.0, 1.0, 1.0);
-            ImVec4 color_back(0.5, 0.5, 0.5, 1.0);
-            ImGui::SetCursorScreenPos(center_pos - ImVec2(8, 8));
-            ImGui::LoadingIndicatorCircle("Running", 1.0f, &color_main, &color_back);
-            draw_list->AddRect(pos, pos + size, COL_FRAME_RECT);
+            // draw audio wave snapshot at whole custom view
         }
-        
-        auto time_string = MillisecToString(time_stamp, 3);
-        //auto esttime_str = MillisecToString(item->mVideoSnapshotInfos[snapshot_index + i].time_stamp, 3);
-        ImGui::SetWindowFontScale(0.7);
-        ImGui::PushStyleColor(ImGuiCol_TexGlyphShadow, ImVec4(0.1, 0.1, 0.1, 1.0));
-        ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphShadowOffset, ImVec2(1,1));
-        ImVec2 str_size = ImGui::CalcTextSize(time_string.c_str(), nullptr, true);
-        if (str_size.x <= size.x)
-        {
-            //draw_list->AddText(frame_rc.Min + rc.Min + ImVec2(2, 32), IM_COL32_WHITE, esttime_str.c_str());
-            draw_list->AddText(frame_rc.Min + rc.Min + ImVec2(2, 48), IM_COL32_WHITE, time_string.c_str());
-        }
-        ImGui::PopStyleVar();
-        ImGui::PopStyleColor();
-        ImGui::SetWindowFontScale(1.0);
     }
 
     // for Debug: print some info here 
@@ -2283,8 +2347,8 @@ void MediaSequencer::SetCurrent(int64_t pos, bool rev)
         }
     }
     if (firstTime < 0) firstTime = 0;
-    alignTime(currentTime, mFrameDuration);
-    alignTime(firstTime, mFrameDuration);
+    //alignTime(currentTime, mFrameDuration);
+    //alignTime(firstTime, mFrameDuration);
 }
 
 void MediaSequencer::Seek()
