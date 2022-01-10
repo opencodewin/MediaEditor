@@ -1805,7 +1805,7 @@ static int thread_video_filter(MediaSequencer * sequencer)
             {
                 current_time += sequencer->mFrameDuration;
                 if (current_time > selected_clip->mEnd)
-                    current_time = sequencer->mEnd;
+                    current_time = selected_clip->mEnd;
             }
             else
             {
