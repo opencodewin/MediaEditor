@@ -647,7 +647,7 @@ static void ShowVideoRotateWindow(ImDrawList *draw_list)
     ImGui::SetWindowFontScale(1.0);
 }
 
-static void ShowVideoEditorWindow(ImDrawList *draw_list, int select_item)
+static void ShowVideoEditorWindow(ImDrawList *draw_list)
 {
     static int VideoEditorWindowIndex = 0;
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
@@ -687,6 +687,7 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list, int select_item)
             ImVec2 video_view_window_pos = ImGui::GetCursorScreenPos();
             ImVec2 video_view_window_size = ImGui::GetWindowSize();
             draw_list->AddRectFilled(video_view_window_pos, video_view_window_pos + video_view_window_size, COL_DEEP_DARK);
+            // TODO::Dicky Video preview(up/down)
         }
         ImGui::EndChild();
     }
@@ -696,9 +697,9 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list, int select_item)
         ImVec2 clip_timeline_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 clip_timeline_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(clip_timeline_window_pos, clip_timeline_window_pos + clip_timeline_window_size, COL_DARK_TWO);
-        if (sequencer && select_item != -1 && select_item < sequencer->m_Items.size())
+        if (sequencer && sequencer->selectedEntry != -1 && sequencer->selectedEntry < sequencer->m_Items.size())
         {
-            SequencerItem * item = sequencer->m_Items[select_item];
+            SequencerItem * item = sequencer->m_Items[sequencer->selectedEntry];
             ClipInfo * seselected_clip = item->mClips[0];
             for (auto clip : item->mClips)
             {
@@ -712,16 +713,6 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list, int select_item)
         }
     }
     ImGui::EndChild();
-/*
-    ImGui::SetWindowFontScale(1.2);
-    ImGui::Indent(20);
-    ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4, 0.4, 0.8, 0.8));
-    ImGui::TextUnformatted("Video Editor");
-    ImGui::PopStyleColor();
-    ImGui::PopStyleVar();
-    ImGui::SetWindowFontScale(1.0);
-*/
 }
 
 static void ShowVideoFusionWindow(ImDrawList *draw_list)
@@ -826,7 +817,6 @@ bool Application_Frame(void * handle)
     const float media_icon_size = 144; 
     const float tool_icon_size = 32;
     static bool show_about = false;
-    static int selectedEntry = -1;
     static bool expanded = true;
     ImGuiFileDialogFlags fflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_DisableCreateDirectoryButton;
     const std::string ffilters = "Video files (*.mp4 *.mov *.mkv *.avi *.webm *.ts){.mp4,.mov,.mkv,.avi,.webm,.ts},Audio files (*.wav *.mp3 *.aac *.ogg *.ac3 *.dts){.wav,.mp3,.aac,.ogg,.ac3,.dts},Image files (*.png *.gif *.jpg *.jpeg *.tiff *.webp){.png,.gif,.jpg,.jpeg,.tiff,.webp},All File(*.*){.*}";
@@ -965,7 +955,7 @@ bool Application_Frame(void * handle)
                 switch (MainWindowIndex)
                 {
                     case 0: ShowMediaPreviewWindow(draw_list); break;
-                    case 1: ShowVideoEditorWindow(draw_list, selectedEntry); break;
+                    case 1: ShowVideoEditorWindow(draw_list); break;
                     case 2: ShowVideoFusionWindow(draw_list); break;
                     case 3: ShowAudioEditorWindow(draw_list); break;
                     case 4: ShowMediaAnalyseWindow(draw_list); break;
@@ -985,12 +975,12 @@ bool Application_Frame(void * handle)
     bool _expanded = expanded;
     if (ImGui::BeginChild("##Sequencor", panel_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings))
     {
-        ImSequencer::Sequencer(sequencer, &_expanded, &selectedEntry, 
+        ImSequencer::Sequencer(sequencer, &_expanded, 
                                 ImSequencer::SEQUENCER_EDIT_STARTEND | ImSequencer::SEQUENCER_CHANGE_TIME | ImSequencer::SEQUENCER_DEL |
                                 ImSequencer::SEQUENCER_LOCK | ImSequencer::SEQUENCER_VIEW | ImSequencer::SEQUENCER_MUTE | ImSequencer::SEQUENCER_RESTORE);
-        if (selectedEntry != -1)
+        if (sequencer->selectedEntry != -1)
         {
-            //const SequencerItem *item = sequencer->m_Items[selectedEntry];
+            //const SequencerItem *item = sequencer->m_Items[sequencer->selectedEntry];
             //ImGui::SetCursorScreenPos(panel_pos);
             //ImGui::Text("I am a %s, please edit me", item->mName.c_str());
         }

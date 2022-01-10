@@ -96,7 +96,7 @@ static void RenderMouseCursor(ImDrawList* draw_list,/* ImVec2 pos, float scale, 
 /***********************************************************************************************************
  * Draw Sequencer Timeline
  ***********************************************************************************************************/
-bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry, int sequenceOptions)
+bool Sequencer(SequencerInterface *sequencer, bool *expanded, int sequenceOptions)
 {
 
     /*************************************************************************************************************
@@ -1022,16 +1022,13 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry
     }
 
     // selection
-    if (selectedEntry)
+    sequencer->selectedEntry = -1;
+    for (int i = 0; i < itemCount; i++)
     {
-        *selectedEntry = -1;
-        for (int i = 0; i < itemCount; i++)
+        if (sequencer->GetItemSelected(i))
         {
-            if (sequencer->GetItemSelected(i))
-            {
-                *selectedEntry = i;
-                break;
-            }
+            sequencer->selectedEntry = i;
+            break;
         }
     }
 
@@ -1626,6 +1623,7 @@ static int thread_preview(MediaSequencer * sequencer)
             auto it = sequencer->mFrame.end(); it--;
             current_time = it->time_stamp * 1000;
         }
+        alignTime(current_time, sequencer->mFrameDuration);
         sequencer->mFrameLock.unlock();
         while (sequencer->mFrame.size() < MAX_SEQUENCER_FRAME_NUMBER)
         {
