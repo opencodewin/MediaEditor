@@ -106,8 +106,8 @@ bool Application_Frame(void * handle)
         ImGui::Spacing();
 
         MediaOverview::WaveformHolder hWaveform = g_movr->GetWaveform();
-        double startPos = 10;
-        double windowSize = 0.026;
+        double startPos = 0;
+        double windowSize = 0;
         if (hWaveform)
         {
             int sampleSize = hWaveform->pcm[0].size();

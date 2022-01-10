@@ -185,6 +185,11 @@ public:
 
     bool SetFixedAggregateSamples(double aggregateSamples) override
     {
+        if (aggregateSamples < 1)
+        {
+            m_errMsg = "Argument 'aggregateSamples' must be larger than 1!";
+            return false;
+        }
         m_fixedAggregateSamples = aggregateSamples;
         return true;
     }
@@ -1248,6 +1253,7 @@ private:
         uint32_t wfSize = m_hWaveform->pcm[0].size();
         vector<float>* wf1 = &m_hWaveform->pcm[0];
         vector<float>* wf2 = nullptr;
+        float minSmp{1.f}, maxSmp{-1.f};
         if (m_hWaveform->pcm.size() > 1)
             wf2 = &m_hWaveform->pcm[1];
         while (!m_quit && wfIdx < wfSize)
@@ -1295,43 +1301,75 @@ private:
                 }
 
                 float* ch1ptr = (float*)dstfrm->data[0];
-                float* ch2ptr = dstfrm->channels > 1 && wf2 ? (float*)dstfrm->data[1] : nullptr;
-                float ch1Wf, ch1AbsWf, ch2Wf, ch2AbsWf;
-                ch1Wf = ch1AbsWf = ch2Wf = ch2AbsWf = 0;
+                float chMaxWf, chMinWf;
+                chMaxWf = -1.f; chMinWf = 1.f;
+                double currWfStep = wfStep;
+                uint32_t currWfIdx = wfIdx;
                 for (int i = 0; i < dstfrm->nb_samples; i++)
                 {
-                    float ch1Val, ch1AbsVal, ch2Val, ch2AbsVal;
-                    ch1Val = *ch1ptr++;
-                    ch1AbsVal = abs(ch1Val);
-                    if (ch1AbsWf < ch1AbsVal)
+                    float chVal = *ch1ptr++;
+                    if (chMaxWf < chVal)
                     {
-                        ch1Wf = ch1Val;
-                        ch1AbsWf = ch1AbsVal;
+                        chMaxWf = chVal;
+                        if (maxSmp < chVal)
+                            maxSmp = chVal;
                     }
-                    if (ch2ptr)
+                    if (chMinWf > chVal)
                     {
-                        ch2Val = *ch2ptr++;
-                        ch2AbsVal = abs(ch2Val);
-                        if (ch2AbsWf < ch2AbsVal)
-                        {
-                            ch2Wf = ch2Val;
-                            ch2AbsWf = ch2AbsVal;
-                        }
+                        chMinWf = chVal;
+                        if (minSmp > chVal)
+                            minSmp = chVal;
                     }
 
-                    wfStep++;
-                    if (wfStep >= wfAggsmpCnt)
+                    currWfStep++;
+                    if (currWfStep >= wfAggsmpCnt)
                     {
-                        wfStep -= wfAggsmpCnt;
-                        (*wf1)[wfIdx] = ch1Wf;
-                        if (ch2ptr)
-                            (*wf2)[wfIdx] = ch2Wf;
-                        ch1Wf = ch1AbsWf = ch2Wf = ch2AbsWf = 0;
-                        wfIdx++;
-                        if (wfIdx >= wfSize)
+                        currWfStep -= wfAggsmpCnt;
+                        (*wf1)[currWfIdx] = abs(chMaxWf) > abs(chMinWf) ? chMaxWf : chMinWf;
+                        currWfIdx++;
+                        if (currWfIdx >= wfSize)
                             break;
+                        chMaxWf = -1.f; chMinWf = 1.f;
                     }
                 }
+                float* ch2ptr = dstfrm->channels > 1 && wf2 ? (float*)dstfrm->data[1] : nullptr;
+                if (ch2ptr)
+                {
+                    chMaxWf = -1.f; chMinWf = 1.f;
+                    currWfStep = wfStep;
+                    currWfIdx = wfIdx;
+                    for (int i = 0; i < dstfrm->nb_samples; i++)
+                    {
+                        float chVal = *ch2ptr++;
+                        if (chMaxWf < chVal)
+                        {
+                            chMaxWf = chVal;
+                            if (maxSmp < chVal)
+                                maxSmp = chVal;
+                        }
+                        if (chMinWf > chVal)
+                        {
+                            chMinWf = chVal;
+                            if (minSmp > chVal)
+                                minSmp = chVal;
+                        }
+
+                        currWfStep++;
+                        if (currWfStep >= wfAggsmpCnt)
+                        {
+                            currWfStep -= wfAggsmpCnt;
+                            (*wf2)[currWfIdx] = abs(chMaxWf) > abs(chMinWf) ? chMaxWf : chMinWf;
+                            currWfIdx++;
+                            if (currWfIdx >= wfSize)
+                                break;
+                            chMaxWf = -1.f; chMinWf = 1.f;
+                        }
+                    }
+                }
+                wfStep = currWfStep;
+                wfIdx = currWfIdx;
+                m_hWaveform->maxSample = maxSmp;
+                m_hWaveform->minSample = minSmp;
 
                 if (dstfrm != srcfrm)
                     av_frame_free(&dstfrm);
@@ -1388,34 +1426,34 @@ private:
     int m_vidpktQMaxSize{8};
     mutex m_vidpktQLock;
     bool m_demuxVidEof{false};
-    // demux audio thread
-    thread m_demuxAudThread;
-    list<AVPacket*> m_audpktQ;
-    int m_audpktQMaxSize{64};
-    mutex m_audpktQLock;
-    bool m_demuxAudEof{false};
     // video decoding thread
     thread m_viddecThread;
     list<AVFrame*> m_vidfrmQ;
     int m_vidfrmQMaxSize{4};
     mutex m_vidfrmQLock;
     bool m_viddecEof{false};
-    // audio decoding thread
-    thread m_auddecThread;
-    int m_audfrmQMaxSize{5};
-    list<AVFrame*> m_audfrmQ;
-    mutex m_audfrmQLock;
-    double m_audfrmAvgDur{0.021};
-    uint32_t m_audfrmAvgDurCalcCnt{10};
-    bool m_auddecEof{false};
-    // pcm format conversion thread
-    thread m_genWfThread;
-    float m_audQDuration{0.5f};
-    bool m_swrPassThrough{false};
-    bool m_genWfEof{false};
-    // update snapshots thread
+    // generate snapshots thread
     thread m_genSsThread;
     bool m_genSsEof;
+    // demux audio thread
+    thread m_demuxAudThread;
+    list<AVPacket*> m_audpktQ;
+    int m_audpktQMaxSize{64};
+    mutex m_audpktQLock;
+    bool m_demuxAudEof{false};
+    // audio decoding thread
+    thread m_auddecThread;
+    list<AVFrame*> m_audfrmQ;
+    int m_audfrmQMaxSize{25};
+    double m_audfrmAvgDur{0.021};
+    uint32_t m_audfrmAvgDurCalcCnt{10};
+    float m_audQDuration{5.f};
+    mutex m_audfrmQLock;
+    bool m_auddecEof{false};
+    // generate waveform samples thread
+    thread m_genWfThread;
+    bool m_swrPassThrough{false};
+    bool m_genWfEof{false};
 
     recursive_mutex m_apiLock;
     bool m_quit{false};

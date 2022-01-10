@@ -15,6 +15,7 @@ struct MediaOverview
     {
         double aggregateSamples;
         double aggregateDuration;
+        float minSample{0}, maxSample{0};
         std::vector<std::vector<float>> pcm;
     };
     using WaveformHolder = std::shared_ptr<Waveform>;
