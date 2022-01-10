@@ -209,6 +209,20 @@ struct SequencerInterface
 
 bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry, int sequenceOptions);
 
+struct MediaItem
+{
+    std::string mName;
+    std::string mPath;
+    int64_t mStart   {0};                   // whole Media start in ms
+    int64_t mEnd   {0};                     // whole Media end in ms
+    MediaOverview * mMediaOverview;
+    int mMediaType {SEQUENCER_ITEM_UNKNOWN};
+    std::vector<ImTextureID> mMediaThumbnail;
+    MediaItem(const std::string& name, const std::string& path, int type);
+    ~MediaItem();
+    void UpdateThumbnail();
+};
+
 struct VideoSnapshotInfo
 {
     ImRect rc;
@@ -229,10 +243,17 @@ struct ClipInfo
 {
     int64_t mStart  {0};
     int64_t mEnd    {0};
+    int64_t mCurrent{0};
     bool mDragOut   {false};
     bool mSelected  {false};
     void * mItem    {nullptr};
-    ClipInfo(int64_t start, int64_t end, bool drag_out, void* handle) {mStart = start; mEnd = end; mDragOut = drag_out; mItem = handle; };
+    MediaSnapshot* mSnapshot {nullptr};     // clip snapshot handle
+    std::vector<Snapshot> mVideoSnapshots;  // clip snapshots, including texture and timestamp info
+    int mFrameCount    {0};                 // total snapshot number in clip range
+    float mSnapshotWidth {0};
+    ClipInfo(int64_t start, int64_t end, bool drag_out, void* handle);
+    ~ClipInfo();
+    void UpdateSnapshot();
 };
 
 struct SequencerItem
@@ -262,17 +283,18 @@ struct SequencerItem
     int64_t mSnapshotPos {-1};              // current snapshot position in ms(start of view area)
     int64_t mSnapshotLendth {0};            // crop range total length in ms
     MediaSnapshot* mSnapshot {nullptr};     // item snapshot handle
+    MediaOverview::WaveformHolder mWaveform {nullptr};// item audio snapshot
     MediaReader* mMedia {nullptr};          // item media reader
     std::vector<VideoSnapshotInfo> mVideoSnapshotInfos; // item snapshots info, with all croped range
     std::vector<Snapshot> mVideoSnapshots;  // item snapshots, including texture and timestamp info
     std::vector<int64_t> mCutPoint;         // item cut points info
-    std::vector<ClipInfo> mClips;           // item clips info
-    SequencerItem(const std::string& name, const std::string& path, int64_t start, int64_t end, bool expand, int type);
-    SequencerItem(const std::string& name, MediaParserHolder holder, int64_t start, int64_t end, bool expand, int type);
+    std::vector<ClipInfo *> mClips;           // item clips info
+    SequencerItem(const std::string& name, MediaItem * media_item, int64_t start, int64_t end, bool expand, int type);
+    SequencerItem(const std::string& name, SequencerItem * sequencer_item, int64_t start, int64_t end, bool expand, int type);
     ~SequencerItem();
     void SequencerItemUpdateThumbnail();
     void SequencerItemUpdateSnapshots();
-    void SetClipSelected(ClipInfo & clip);
+    void SetClipSelected(ClipInfo* clip);
     void CalculateVideoSnapshotInfo(const ImRect &customRect, int64_t viewStartTime, int64_t visibleTime);
     bool DrawItemControlBar(ImDrawList *draw_list, ImRect rc, int sequenceOptions);
 };
@@ -326,21 +348,7 @@ struct MediaSequencer : public SequencerInterface
     int64_t mCurrentPreviewTime {-1};
 };
 
-struct MediaItem
-{
-    std::string mName;
-    std::string mPath;
-    int64_t mStart   {0};                   // whole Media start in ms
-    int64_t mEnd   {0};                     // whole Media end in ms
-    MediaOverview * mMediaOverview;
-    int mMediaType {SEQUENCER_ITEM_UNKNOWN};
-    std::vector<ImTextureID> mMediaThumbnail;
-    MediaItem(const std::string& name, const std::string& path, int type);
-    ~MediaItem();
-    void UpdateThumbnail();
-};
-
-bool ClipTimeLine(ClipInfo * clip);
+bool ClipTimeLine(ClipInfo* clip);
 
 } // namespace ImSequencer
 
