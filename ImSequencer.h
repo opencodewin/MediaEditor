@@ -246,6 +246,8 @@ struct ClipInfo
     int64_t mStart  {0};
     int64_t mEnd    {0};
     int64_t mCurrent{0};
+    bool bPlay      {false};
+    bool bForward   {true};
     bool mDragOut   {false};
     bool mSelected  {false};
     void * mItem    {nullptr};
@@ -259,8 +261,9 @@ struct ClipInfo
     ~ClipInfo();
     void UpdateSnapshot();
     void Seek();
+    ImGui::ImMat GetInputFrame();
     int64_t mCurrentFilterTime {-1};
-    ImTextureID mFilterINputTexture {nullptr};  // clip filter input texture
+    ImTextureID mFilterInputTexture {nullptr};  // clip filter input texture
 };
 
 struct SequencerItem

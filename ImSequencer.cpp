@@ -1057,6 +1057,8 @@ bool ClipTimeLine(ClipInfo* clip)
     int headHeight = 30;
     int customHeight = 70;
     static bool MovingCurrentTime = false;
+    static int64_t start_time = -1;
+    static int64_t last_time = -1;
 
     ImGui::BeginGroup();
     ImDrawList *draw_list = ImGui::GetWindowDrawList();
@@ -1088,7 +1090,7 @@ bool ClipTimeLine(ClipInfo* clip)
                 clip->mCurrent = clip->mStart;
             if (clip->mCurrent >= clip->mEnd)
                 clip->mCurrent = clip->mEnd;
-            //sequencer->Seek(); // call seek event
+            clip->Seek(); // call seek event
         }
         if (!io.MouseDown[0])
             MovingCurrentTime = false;
@@ -1195,6 +1197,49 @@ bool ClipTimeLine(ClipInfo* clip)
     draw_list->AddLine(ImVec2(cursorOffset, contentMin.y), ImVec2(cursorOffset, contentMax.y), IM_COL32(0, 255, 0, 128), cursorWidth);
     draw_list->PopClipRect();
     ImGui::EndGroup();
+
+    // handle play event
+    if (clip->bPlay)
+    {
+        if (start_time == -1)
+        {
+            start_time = ImGui::get_current_time_usec() / 1000;
+            //alignTime(start_time, sequencer->timeStep);
+            last_time = start_time;
+        }
+        else
+        {
+            int64_t current_time = ImGui::get_current_time_usec() / 1000;
+            //alignTime(current_time, sequencer->timeStep);
+            int64_t step_time = current_time - last_time;
+            // Set TimeLine
+            int64_t current_media_time = clip->mCurrent;
+            if (clip->bForward)
+            {
+                current_media_time += step_time;
+                if (current_media_time >= clip->mEnd)
+                {
+                    clip->bPlay = false;
+                    current_media_time = clip->mEnd;
+                }
+            }
+            else
+            {
+                current_media_time -= step_time;
+                if (current_media_time <= clip->mStart)
+                {
+                    clip->bPlay = false;
+                    current_media_time = clip->mStart;
+                }
+            }
+            clip->mCurrent = current_media_time;
+            last_time = current_time;
+        }
+    }
+    else
+    {
+        start_time = -1;
+    }
     return ret;
 }
 
@@ -1647,6 +1692,9 @@ static int thread_preview(MediaSequencer * sequencer)
                     }
                     if (valid_time && item->mMedia->IsOpened())
                     {
+                        if ((item->mMedia->IsDirectionForward() && !sequencer->bForward) || 
+                            (!item->mMedia->IsDirectionForward() && sequencer->bForward))
+                            item->mMedia->SetDirection(sequencer->bForward);
                         item->mMedia->ReadFrame((float)item_time / 1000.0, mat);
                         if (!mat.empty())
                             break;
@@ -1717,21 +1765,57 @@ static int thread_video_filter(MediaSequencer * sequencer)
         }
         SequencerItem * item = sequencer->m_Items[select_item];
         
-        ClipInfo * seselected_clip = item->mClips[0];
+        ClipInfo * selected_clip = item->mClips[0];
         for (auto clip : item->mClips)
         {
             if (clip->mSelected)
             {
-                seselected_clip = clip;
+                selected_clip = clip;
                 break;
             }
         }
-        if (seselected_clip->mFrame.size() >= MAX_SEQUENCER_FRAME_NUMBER)
+        if (selected_clip->mFrame.size() >= MAX_SEQUENCER_FRAME_NUMBER)
         {
             ImGui::sleep((int)5);
             continue;
         }
-        ImGui::sleep((int)5); // TODO::GetFrame
+        int64_t current_time = 0;
+        selected_clip->mFrameLock.lock();
+        if (selected_clip->mFrame.empty())
+            current_time = selected_clip->mCurrent;
+        else
+        {
+            auto it = selected_clip->mFrame.end(); it--;
+            current_time = it->time_stamp * 1000;
+        }
+        alignTime(current_time, sequencer->mFrameDuration);
+        selected_clip->mFrameLock.unlock();
+        while (selected_clip->mFrame.size() < MAX_SEQUENCER_FRAME_NUMBER)
+        {
+            ImGui::ImMat mat;
+            if ((item->mMedia->IsDirectionForward() && !selected_clip->bForward) ||
+                (!item->mMedia->IsDirectionForward() && selected_clip->bForward))
+                item->mMedia->SetDirection(selected_clip->bForward);
+            item->mMedia->ReadFrame((float)current_time / 1000.0, mat);
+            mat.time_stamp = (double)current_time / 1000.f;
+            selected_clip->mFrameLock.lock();
+            selected_clip->mFrame.push_back(mat);
+            selected_clip->mFrameLock.unlock();
+            if (sequencer->bForward)
+            {
+                current_time += sequencer->mFrameDuration;
+                if (current_time > selected_clip->mEnd)
+                    current_time = sequencer->mEnd;
+            }
+            else
+            {
+                current_time -= sequencer->mFrameDuration;
+                if (current_time < selected_clip->mStart)
+                {
+                    current_time = selected_clip->mStart;
+                }
+            }
+        }
     }
     sequencer->mVideoFilterRunning = false;
     return 0;
@@ -1794,6 +1878,9 @@ ImGui::ImMat MediaSequencer::GetPreviewFrame()
 
         if (need_erase)
         {
+            // if we on seek stage, may output last frame for smooth preview
+            if (mFrame.size() == 1)
+                frame = *mat;
             mFrameLock.lock();
             mat = mFrame.erase(mat);
             mFrameLock.unlock();
@@ -2395,8 +2482,6 @@ void MediaSequencer::SetCurrent(int64_t pos, bool rev)
         }
     }
     if (firstTime < 0) firstTime = 0;
-    //alignTime(currentTime, mFrameDuration);
-    //alignTime(firstTime, mFrameDuration);
 }
 
 void MediaSequencer::Seek()
@@ -2461,6 +2546,7 @@ ClipInfo::~ClipInfo()
     mFrameLock.lock();
     mFrame.clear();
     mFrameLock.unlock();
+    if (mFilterInputTexture) { ImGui::ImDestroyTexture(mFilterInputTexture); mFilterInputTexture = nullptr; }
 }
 
 void ClipInfo::UpdateSnapshot()
@@ -2502,6 +2588,43 @@ void ClipInfo::Seek()
     mFrame.clear();
     mCurrentFilterTime = -1;
     mFrameLock.unlock();
+}
+
+ImGui::ImMat ClipInfo::GetInputFrame()
+{
+    ImGui::ImMat frame;
+    if (mCurrentFilterTime == mCurrent)
+        return frame;
+    double current_time = (double)mCurrent / 1000.f;
+    for (auto mat = mFrame.begin(); mat != mFrame.end();)
+    {
+        bool need_erase = false;
+        if (bForward && mat->time_stamp < current_time)
+        {
+            need_erase = true;
+        }
+        else if (!bForward && mat->time_stamp > current_time)
+        {
+            need_erase = true;
+        }
+
+        if (need_erase)
+        {
+            // if we on seek stage, may output last frame for smooth preview
+            if (mFrame.size() == 1)
+                frame = *mat;
+            mFrameLock.lock();
+            mat = mFrame.erase(mat);
+            mFrameLock.unlock();
+        }
+        else
+        {
+            frame = *mat;
+            mCurrentFilterTime = mCurrent;
+            break;
+        }
+    }
+    return frame;
 }
 
 } // namespace ImSequencer

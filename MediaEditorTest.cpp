@@ -410,10 +410,11 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     PanelBarPos = window_pos + window_size - ImVec2(window_size.x, 48);
     PanelBarSize = ImVec2(window_size.x, 48);
     draw_list->AddRectFilled(PanelBarPos, PanelBarPos + PanelBarSize, COL_DARK_PANEL);
+    
+    // Preview buttons Stop button is center of Panel bar
     auto PanelCenterX = PanelBarPos.x + window_size.x / 2;
     auto PanelButtonY = PanelBarPos.y + 8;
 
-    // Preview buttons Stop button is center of Panel bar
     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0.5));
     ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.2, 0.2, 0.2, 1.0));
@@ -655,6 +656,28 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
     draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
     float clip_timeline_height = 100;
     float editor_main_height = window_size.y - clip_timeline_height - 4;
+    int selected_item = -1;
+    ClipInfo * selected_clip = nullptr;
+    if (sequencer)
+    {
+        sequencer->mSequencerLock.lock();
+        selected_item = sequencer->selectedEntry;
+        sequencer->mSequencerLock.unlock();
+        if (selected_item != -1 && selected_item < sequencer->m_Items.size())
+        {
+            SequencerItem * item = sequencer->m_Items[selected_item];
+            for (auto clip : item->mClips)
+            {
+                if (clip->mSelected)
+                {
+                    selected_clip = clip;
+                    break;
+                }
+            }
+            if (!selected_clip)
+                selected_clip = item->mClips[0];
+        }
+    }
     if (ImGui::BeginChild("##video_editor_main", ImVec2(window_size.x, editor_main_height), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
     {
         ImVec2 clip_window_pos = ImGui::GetCursorScreenPos();
@@ -687,7 +710,141 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
             ImVec2 video_view_window_pos = ImGui::GetCursorScreenPos();
             ImVec2 video_view_window_size = ImGui::GetWindowSize();
             draw_list->AddRectFilled(video_view_window_pos, video_view_window_pos + video_view_window_size, COL_DEEP_DARK);
-            // TODO::Dicky Video preview(up/down)
+
+            // Draw Video Filter Play control bar
+            ImVec2 PanelBarPos = video_view_window_pos + ImVec2(0, (video_view_window_size.y - 36) / 2);
+            ImVec2 PanelBarSize = ImVec2(video_view_window_size.x, 36);
+            draw_list->AddRectFilled(PanelBarPos, PanelBarPos + PanelBarSize, COL_DARK_PANEL);
+            // Preview buttons Stop button is center of Panel bar
+            auto PanelCenterX = PanelBarPos.x + video_view_window_size.x / 2;
+            auto PanelButtonY = PanelBarPos.y + 2;
+
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0.5));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.2, 0.2, 0.2, 1.0));
+
+            ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32 - 8 - 32 - 8 - 32, PanelButtonY));
+            if (ImGui::Button(ICON_TO_START "##video_filter_tostart", ImVec2(32, 32)))
+            {
+                if (selected_clip && !selected_clip->bPlay)
+                {
+                    selected_clip->mCurrent = selected_clip->mStart;
+                    selected_clip->Seek();
+                }
+            }
+            ImGui::ShowTooltipOnHover("To Start");
+
+            ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32 - 8 - 32, PanelButtonY));
+            if (ImGui::Button(ICON_STEP_BACKWARD "##video_filter_step_backward", ImVec2(32, 32)))
+            {
+                if (selected_clip)
+                {
+                    selected_clip->bForward = false;
+                    selected_clip->mCurrent -= sequencer->mFrameDuration;
+                    if (selected_clip->mCurrent < selected_clip->mStart)
+                        selected_clip->mCurrent = selected_clip->mStart;
+                    if (sequencer)
+                    {
+                        sequencer->bForward = false;
+                    }
+                }
+            }
+            ImGui::ShowTooltipOnHover("Step Prev");
+
+            ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32, PanelButtonY));
+            if (ImGui::Button(ICON_FAST_BACKWARD "##video_filter_reverse", ImVec2(32, 32)))
+            {
+                if (selected_clip)
+                {
+                    selected_clip->bForward = false;
+                    selected_clip->bPlay = true;
+                    if (sequencer)
+                    {
+                        sequencer->bForward = false;
+                    }
+                }
+            }
+            ImGui::ShowTooltipOnHover("Reverse");
+
+            ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16, PanelButtonY));
+            if (ImGui::Button(ICON_STOP "##video_filter_stop", ImVec2(32, 32)))
+            {
+                if (selected_clip)
+                {
+                    selected_clip->bPlay = false;
+                }
+            }
+            ImGui::ShowTooltipOnHover("Stop");
+
+            ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8, PanelButtonY));
+            if (ImGui::Button(ICON_FAST_FORWARD "##video_filter_play", ImVec2(32, 32)))
+            {
+                if (selected_clip)
+                {
+                    selected_clip->bForward = true;
+                    selected_clip->bPlay = true;
+                    if (sequencer)
+                    {
+                        sequencer->bForward = true;
+                    }
+                }
+            }
+            ImGui::ShowTooltipOnHover("Play");
+
+            ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 32 + 8, PanelButtonY));
+            if (ImGui::Button(ICON_STEP_FORWARD "##video_filter_step_forward", ImVec2(32, 32)))
+            {
+                if (selected_clip)
+                {
+                    selected_clip->bForward = true;
+                    selected_clip->mCurrent += sequencer->mFrameDuration;
+                    if (selected_clip->mCurrent > selected_clip->mEnd)
+                        selected_clip->mCurrent = selected_clip->mEnd;
+                    if (sequencer)
+                    {
+                        sequencer->bForward = true;
+                    }
+                }
+            }
+            ImGui::ShowTooltipOnHover("Step Next");
+
+            ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 32 + 8 + 32 + 8, PanelButtonY));
+            if (ImGui::Button(ICON_TO_END "##video_filter_toend", ImVec2(32, 32)))
+            {
+                if (selected_clip && !selected_clip->bPlay)
+                {
+                    selected_clip->mCurrent = selected_clip->mEnd;
+                    selected_clip->Seek();
+                }
+            }
+            ImGui::ShowTooltipOnHover("To End");
+            ImGui::PopStyleColor(3);
+
+            // filter input texture area
+            ImVec2 InputVideoPos;
+            ImVec2 InputVideoSize;
+            InputVideoPos = video_view_window_pos + ImVec2(4, 4);
+            InputVideoSize = ImVec2(video_view_window_size.x - 8, (video_view_window_size.y - PanelBarSize.y - 8) / 2);
+            if (selected_clip)
+            {
+                auto input_frame = selected_clip->GetInputFrame();
+                if (!input_frame.empty())
+                {
+                    if (input_frame.device == ImDataDevice::IM_DD_CPU)
+                    {
+                        ImGui::ImGenerateOrUpdateTexture(selected_clip->mFilterInputTexture, input_frame.w, input_frame.h, input_frame.c, (const unsigned char *)input_frame.data);
+                    }
+#if IMGUI_VULKAN_SHADER
+                    if (input_frame.device == ImDataDevice::IM_DD_VULKAN)
+                    {
+                        ImGui::VkMat vkmat = input_frame;
+                        ImGui::ImGenerateOrUpdateTexture(selected_clip->mFilterInputTexture, vkmat.w, vkmat.h, vkmat.c, vkmat.buffer_offset(), (const unsigned char *)vkmat.buffer());
+                    }
+#endif
+                }
+                ShowVideoWindow(selected_clip->mFilterInputTexture, InputVideoPos, InputVideoSize);
+            }
+            // filter output texture area
         }
         ImGui::EndChild();
     }
@@ -697,22 +854,14 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
         ImVec2 clip_timeline_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 clip_timeline_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(clip_timeline_window_pos, clip_timeline_window_pos + clip_timeline_window_size, COL_DARK_TWO);
-        sequencer->mSequencerLock.lock();
-        if (sequencer && sequencer->selectedEntry != -1 && sequencer->selectedEntry < sequencer->m_Items.size())
+        if (selected_clip)
         {
-            SequencerItem * item = sequencer->m_Items[sequencer->selectedEntry];
-            ClipInfo * seselected_clip = item->mClips[0];
-            for (auto clip : item->mClips)
-            {
-                if (clip->mSelected)
-                {
-                    seselected_clip = clip;
-                    break;
-                }
-            }
-            sequencer->mSequencerLock.unlock();
             // Draw Clip TimeLine
-            ClipTimeLine(seselected_clip);
+            ClipTimeLine(selected_clip);
+        }
+        else
+        {
+            // TODO::Dicky Draw Help("Please Select clip from Timeline")
         }
     }
     ImGui::EndChild();
