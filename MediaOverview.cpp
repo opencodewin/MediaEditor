@@ -183,6 +183,12 @@ public:
         return true;
     }
 
+    bool SetFixedAggregateSamples(double aggregateSamples) override
+    {
+        m_fixedAggregateSamples = aggregateSamples;
+        return true;
+    }
+
     bool IsOpened() const override
     {
         return m_opened;
@@ -431,9 +437,14 @@ private:
             // 200 pixels for displaying 1920 samples,
             // so aggregate 1920 samples to 200 results in 1920/200 = 9.6
             double vidfrmIntvTs = HasVideo() ? m_vidfrmIntvTs : 0.04;
-            hWaveform->aggregateSamples = audStream->sampleRate*vidfrmIntvTs/m_singleFramePixels;
-            if (hWaveform->aggregateSamples < m_minAggregateSamples)
-                hWaveform->aggregateSamples = m_minAggregateSamples;
+            if (m_fixedAggregateSamples > 0)
+                hWaveform->aggregateSamples = m_fixedAggregateSamples;
+            else
+            {
+                hWaveform->aggregateSamples = audStream->sampleRate*vidfrmIntvTs/m_singleFramePixels;
+                if (hWaveform->aggregateSamples < m_minAggregateSamples)
+                    hWaveform->aggregateSamples = m_minAggregateSamples;
+            }
             hWaveform->aggregateDuration = hWaveform->aggregateSamples/audStream->sampleRate;
             uint32_t waveformSamples = (uint32_t)ceil(audStream->duration/hWaveform->aggregateDuration);
             if (audStream->channels > 1)
@@ -1422,6 +1433,7 @@ private:
     WaveformHolder m_hWaveform;
     uint32_t m_singleFramePixels{200};
     double m_minAggregateSamples{5};
+    double m_fixedAggregateSamples{0};
 
     // AVFrame -> ImMat
     bool m_useRszFactor{false};

@@ -13,6 +13,7 @@ using namespace std;
 using namespace Logger;
 
 static MediaOverview* g_movr = nullptr;
+// static MediaOverview* g_movr2 = nullptr;
 static uint32_t g_ssCount = 12;
 static vector<ImTextureID> g_snapshotTids;
 ImVec2 g_snapImageSize;
@@ -57,13 +58,17 @@ void Application_Initialize(void** handle)
     for (auto& tid : g_snapshotTids)
         tid = nullptr;
     g_movr = CreateMediaOverview();
-    // g_movr->SetSnapshotSize(160, 90);
-    g_movr->SetSnapshotResizeFactor(0.5f, 0.5f);
+    g_movr->SetSnapshotSize(320, 180);
+    // g_movr->SetSnapshotResizeFactor(0.5f, 0.5f);
+    // g_movr2 = CreateMediaOverview();
+    // g_movr2->SetSnapshotSize(320, 180);
+    // g_movr2->SetFixedAggregateSamples(1);
 }
 
 void Application_Finalize(void** handle)
 {
     ReleaseMediaOverview(&g_movr);
+    // ReleaseMediaOverview(&g_movr2);
     for (auto& tid : g_snapshotTids)
     {
         if (tid)
@@ -101,8 +106,8 @@ bool Application_Frame(void * handle)
         ImGui::Spacing();
 
         MediaOverview::WaveformHolder hWaveform = g_movr->GetWaveform();
-        double startPos = 0;
-        double windowSize = 0;
+        double startPos = 10;
+        double windowSize = 0.026;
         if (hWaveform)
         {
             int sampleSize = hWaveform->pcm[0].size();
@@ -116,6 +121,21 @@ bool Application_Frame(void * handle)
         }
 
         ImGui::Spacing();
+
+        // hWaveform = g_movr2->GetWaveform();
+        // if (hWaveform)
+        // {
+        //     int sampleSize = hWaveform->pcm[0].size();
+        //     int startOff = startPos == 0 ? 0 : (int)(startPos/hWaveform->aggregateDuration);
+        //     if (startOff >= sampleSize) startOff = 0;
+        //     int windowLen = windowSize == 0 ? sampleSize : (int)(windowSize/hWaveform->aggregateDuration);
+        //     if (startOff+windowLen > sampleSize) windowLen = sampleSize-startOff;
+        //     ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.f, 1.f,0.f, 1.f));
+        //     ImGui::PlotLines("Waveform", hWaveform->pcm[0].data()+startOff, windowLen, 0, nullptr, -1.f, 1.f, ImVec2(io.DisplaySize.x, 160), sizeof(float), false);
+        //     ImGui::PopStyleColor();
+        // }
+
+        // ImGui::Spacing();
 
         vector<ImGui::ImMat> snapshots;
         if (!g_movr->GetSnapshots(snapshots))
@@ -189,6 +209,7 @@ bool Application_Frame(void * handle)
         if (ImGuiFileDialog::Instance()->IsOk())
 		{
             g_movr->Close();
+            // g_movr2->Close();
             for (auto& tid : g_snapshotTids)
             {
                 if (tid)
@@ -198,6 +219,7 @@ bool Application_Frame(void * handle)
             string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
             if (g_movr->Open(filePathName, g_ssCount))
                 g_movr->GetMediaParser()->EnableParseInfo(MediaParser::VIDEO_SEEK_POINTS);
+            // g_movr2->Open(g_movr->GetMediaParser());
         }
         ImGuiFileDialog::Instance()->Close();
     }
