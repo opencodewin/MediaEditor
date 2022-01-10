@@ -1022,6 +1022,7 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int sequenceOption
     }
 
     // selection
+    sequencer->mSequencerLock.lock();
     sequencer->selectedEntry = -1;
     for (int i = 0; i < itemCount; i++)
     {
@@ -1031,6 +1032,7 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int sequenceOption
             break;
         }
     }
+    sequencer->mSequencerLock.unlock();
 
     return ret;
 }
@@ -1697,11 +1699,50 @@ static int thread_preview(MediaSequencer * sequencer)
     return 0;
 }
 
+static int thread_video_filter(MediaSequencer * sequencer)
+{
+    if (!sequencer)
+        return -1;
+
+    sequencer->mVideoFilterRunning = true;
+    while (!sequencer->mVideoFilterDone)
+    {
+        sequencer->mSequencerLock.lock();
+        int select_item = sequencer->selectedEntry;
+        sequencer->mSequencerLock.unlock();
+        if (sequencer->m_Items.empty() || select_item == -1 || select_item >= sequencer->m_Items.size())
+        {
+            ImGui::sleep((int)5);
+            continue;
+        }
+        SequencerItem * item = sequencer->m_Items[select_item];
+        
+        ClipInfo * seselected_clip = item->mClips[0];
+        for (auto clip : item->mClips)
+        {
+            if (clip->mSelected)
+            {
+                seselected_clip = clip;
+                break;
+            }
+        }
+        if (seselected_clip->mFrame.size() >= MAX_SEQUENCER_FRAME_NUMBER)
+        {
+            ImGui::sleep((int)5);
+            continue;
+        }
+        ImGui::sleep((int)5); // TODO::GetFrame
+    }
+    sequencer->mVideoFilterRunning = false;
+    return 0;
+}
+
 MediaSequencer::MediaSequencer()
     : mStart(0), mEnd(0)
 {
     timeStep = mFrameDuration;
     mPreviewThread = new std::thread(thread_preview, this);
+    mVideoFilterThread = new std::thread(thread_video_filter, this);
 }
 
 MediaSequencer::~MediaSequencer()
@@ -1713,6 +1754,14 @@ MediaSequencer::~MediaSequencer()
         delete mPreviewThread;
         mPreviewThread = nullptr;
         mPreviewDone = false;
+    }
+    if (mVideoFilterThread && mVideoFilterThread->joinable())
+    {
+        mVideoFilterDone = true;
+        mVideoFilterThread->join();
+        delete mVideoFilterThread;
+        mVideoFilterThread = nullptr;
+        mVideoFilterDone = false;
     }
     mFrameLock.lock();
     mFrame.clear();
@@ -2081,12 +2130,13 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
         // draw audio wave snapshot
         if (item->mSnapshot->HasVideo())
         {
+            float wave_range = fmax(fabs(item->mWaveform->minSample), fabs(item->mWaveform->maxSample));
             // draw audio wave snapshot at bottom of video snapshot
             draw_list->AddRectFilled(ImVec2(cursorStartOffset, clippingRect.Max.y - 16), ImVec2(cursorEndOffset, clippingRect.Max.y), IM_COL32(128, 128, 128, 128));
             draw_list->AddRect(ImVec2(cursorStartOffset, clippingRect.Max.y - 16), ImVec2(cursorEndOffset, clippingRect.Max.y), IM_COL32(0, 0, 0, 128));
             ImGui::SetCursorScreenPos(ImVec2(cursorStartOffset, clippingRect.Max.y - 16));
             ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.f, 1.f,0.f, 1.0f));
-            ImGui::PlotLines("##Waveform", item->mWaveform->pcm[0].data() + startOff, windowLen, 0, nullptr, -1.0f, 1.0f, ImVec2(cursorEndOffset - cursorStartOffset, 16), sizeof(float), false);
+            ImGui::PlotLines("##Waveform", item->mWaveform->pcm[0].data() + startOff, windowLen, 0, nullptr, -wave_range, wave_range, ImVec2(cursorEndOffset - cursorStartOffset, 16), sizeof(float), false);
             ImGui::PopStyleColor();
         }
         else
@@ -2408,6 +2458,9 @@ ClipInfo::~ClipInfo()
         if (snap.texture) { ImGui::ImDestroyTexture(snap.texture); snap.texture = nullptr; }
     }
     mVideoSnapshots.clear();
+    mFrameLock.lock();
+    mFrame.clear();
+    mFrameLock.unlock();
 }
 
 void ClipInfo::UpdateSnapshot()
@@ -2441,6 +2494,14 @@ void ClipInfo::UpdateSnapshot()
             }
         }
     }
+}
+
+void ClipInfo::Seek()
+{
+    mFrameLock.lock();
+    mFrame.clear();
+    mCurrentFilterTime = -1;
+    mFrameLock.unlock();
 }
 
 } // namespace ImSequencer

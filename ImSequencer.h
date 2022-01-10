@@ -178,6 +178,7 @@ struct SequencerInterface
     bool bPlay = false;
     bool bForward = true;
     bool bLoop = false;
+    std::mutex mSequencerLock;
     virtual int64_t GetStart() const = 0;
     virtual int64_t GetEnd() const = 0;
     virtual void SetStart(int64_t pos) = 0;
@@ -250,11 +251,16 @@ struct ClipInfo
     void * mItem    {nullptr};
     MediaSnapshot* mSnapshot {nullptr};     // clip snapshot handle
     std::vector<Snapshot> mVideoSnapshots;  // clip snapshots, including texture and timestamp info
+    std::mutex mFrameLock;                  // clip frame mutex
+    std::list<ImGui::ImMat> mFrame;         // clip timeline output frame
     int mFrameCount    {0};                 // total snapshot number in clip range
     float mSnapshotWidth {0};
     ClipInfo(int64_t start, int64_t end, bool drag_out, void* handle);
     ~ClipInfo();
     void UpdateSnapshot();
+    void Seek();
+    int64_t mCurrentFilterTime {-1};
+    ImTextureID mFilterINputTexture {nullptr};  // clip filter input texture
 };
 
 struct SequencerItem
@@ -340,9 +346,15 @@ struct MediaSequencer : public SequencerInterface
     int mHeight {1080};                     // timeline Media Height
     int64_t mFrameDuration {40};            // timeline Media Frame Duration in ms
     
-    std::thread * mPreviewThread {nullptr}; // Preview Thread
-    bool mPreviewDone {false};              // Thread should finished
-    bool mPreviewRunning {false};           // Thread is running
+    std::thread * mPreviewThread {nullptr}; // Preview Thread, which is read whole time line and mixer all filter/transition
+    bool mPreviewDone {false};              // Preview Thread should finished
+    bool mPreviewRunning {false};           // Preview Thread is running
+    std::thread * mVideoFilterThread {nullptr}; // Video Filter Thread, which is only one item/clip read from media
+    bool mVideoFilterDone {false};          // Video Filter Thread should finished
+    bool mVideoFilterRunning {false};       // Video Filter Thread is running
+    std::thread * mVideoFusionThread {nullptr}; // Video Fusion Thread, which is two item/clip read from media and fusion with video transition
+    bool mVideoFusionDone {false};          // Video Fusion Thread should finished
+    bool mVideoFusionRunning {false};       // Video Fusion Thread is running
     std::mutex mFrameLock;                  // frame mutex
     std::list<ImGui::ImMat> mFrame;         // timeline output frame
     ImTextureID mMainPreviewTexture {nullptr};  // main preview texture

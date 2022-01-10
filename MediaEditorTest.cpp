@@ -697,6 +697,7 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
         ImVec2 clip_timeline_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 clip_timeline_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(clip_timeline_window_pos, clip_timeline_window_pos + clip_timeline_window_size, COL_DARK_TWO);
+        sequencer->mSequencerLock.lock();
         if (sequencer && sequencer->selectedEntry != -1 && sequencer->selectedEntry < sequencer->m_Items.size())
         {
             SequencerItem * item = sequencer->m_Items[sequencer->selectedEntry];
@@ -706,8 +707,10 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
                 if (clip->mSelected)
                 {
                     seselected_clip = clip;
+                    break;
                 }
             }
+            sequencer->mSequencerLock.unlock();
             // Draw Clip TimeLine
             ClipTimeLine(seselected_clip);
         }
@@ -978,12 +981,6 @@ bool Application_Frame(void * handle)
         ImSequencer::Sequencer(sequencer, &_expanded, 
                                 ImSequencer::SEQUENCER_EDIT_STARTEND | ImSequencer::SEQUENCER_CHANGE_TIME | ImSequencer::SEQUENCER_DEL |
                                 ImSequencer::SEQUENCER_LOCK | ImSequencer::SEQUENCER_VIEW | ImSequencer::SEQUENCER_MUTE | ImSequencer::SEQUENCER_RESTORE);
-        if (sequencer->selectedEntry != -1)
-        {
-            //const SequencerItem *item = sequencer->m_Items[sequencer->selectedEntry];
-            //ImGui::SetCursorScreenPos(panel_pos);
-            //ImGui::Text("I am a %s, please edit me", item->mName.c_str());
-        }
         
         if (expanded != _expanded)
         {
