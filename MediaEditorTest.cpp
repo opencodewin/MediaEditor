@@ -7,12 +7,14 @@
 #include "ImSequencer.h"
 #include "FFUtils.h"
 #include "Logger.h"
+#include "UI.h"
 #include <sstream>
 
 using namespace ImSequencer;
 
 static std::string bookmark_path = "bookmark.ini";
 static std::string ini_file = "Media_Editor.ini";
+static std::string bp_file = "Media_Editor.bp";
 
 static const char* ControlPanelTabNames[] = {
     ICON_MEDIA_BANK,
@@ -65,6 +67,7 @@ static const char* VideoEditorTabTooltips[] = {
 
 
 static MediaSequencer * sequencer = nullptr;
+static BluePrint::BluePrintUI * blue_print = nullptr;
 static std::vector<MediaItem *> media_items;
 static ImGui::TabLabelStyle * tab_style = &ImGui::TabLabelStyle::Get();
 
@@ -602,14 +605,10 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
  ***************************************************************************************/
 static void ShowVideoBluePrintWindow(ImDrawList *draw_list)
 {
-    ImGui::SetWindowFontScale(1.2);
-    ImGui::Indent(20);
-    ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4, 0.4, 0.8, 0.8));
-    ImGui::TextUnformatted("Video Filter");
-    ImGui::PopStyleColor();
-    ImGui::PopStyleVar();
-    ImGui::SetWindowFontScale(1.0);
+    if (blue_print)
+    {
+        blue_print->Frame(true);
+    }
 }
 
 static void ShowVideoColorWindow(ImDrawList *draw_list)
@@ -802,12 +801,15 @@ void Application_Initialize(void** handle)
 	}
 #endif
     sequencer = new MediaSequencer();
+    blue_print = new BluePrint::BluePrintUI();
+    blue_print->Initialize(bp_file.c_str());
 }
 
 void Application_Finalize(void** handle)
 {
     for (auto item : media_items) delete item;
     if (sequencer) delete sequencer;
+    if (blue_print) { blue_print->Finalize(); delete blue_print;}
 #ifdef USE_BOOKMARK
 	// save bookmarks
 	std::ofstream configFileWriter(bookmark_path, std::ios::out);
