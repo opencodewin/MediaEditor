@@ -20,6 +20,7 @@ struct MediaOverview
     using WaveformHolder = std::shared_ptr<Waveform>;
     virtual WaveformHolder GetWaveform() const = 0;
     virtual bool SetSingleFramePixels(uint32_t pixels) = 0;
+    virtual bool SetFixedAggregateSamples(double aggregateSamples) = 0;
 
     virtual bool IsOpened() const = 0;
     virtual bool IsDone() const = 0;
