@@ -169,6 +169,7 @@ struct SequencerInterface
 {
     bool focused = false;
     int options = 0;
+    int selectedEntry = -1;
     int64_t currentTime = 0;
     int64_t firstTime = 0;
     int64_t lastTime = 0;
@@ -207,7 +208,7 @@ struct SequencerInterface
     virtual void CustomDrawCompact(int /*index*/, ImDrawList * /*draw_list*/, const ImRect & /*rc*/, const ImRect & /*legendRect*/, const ImRect & /*clippingRect*/, int64_t /*viewStartTime*/, int64_t /*visibleTime*/, float /*pixelWidth*/) {}
 };
 
-bool Sequencer(SequencerInterface *sequencer, bool *expanded, int *selectedEntry, int sequenceOptions);
+bool Sequencer(SequencerInterface *sequencer, bool *expanded, int sequenceOptions);
 
 struct MediaItem
 {
