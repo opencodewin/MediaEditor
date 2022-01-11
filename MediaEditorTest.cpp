@@ -7,7 +7,6 @@
 #include "ImSequencer.h"
 #include "FFUtils.h"
 #include "Logger.h"
-#include "UI.h"
 #include <sstream>
 
 using namespace ImSequencer;
@@ -66,7 +65,6 @@ static const char* VideoEditorTabTooltips[] = {
 
 
 static MediaSequencer * sequencer = nullptr;
-static BluePrint::BluePrintUI * blue_print = nullptr;
 static std::vector<MediaItem *> media_items;
 static ImGui::TabLabelStyle * tab_style = &ImGui::TabLabelStyle::Get();
 
@@ -621,9 +619,9 @@ static ClipInfo * find_clip_with_id(int64_t id)
 
 static void ShowVideoBluePrintWindow(ImDrawList *draw_list, ClipInfo * clip)
 {
-    if (blue_print)
+    if (sequencer && sequencer->video_filter_bp)
     {
-        blue_print->Frame(true, true, clip != nullptr);
+        sequencer->video_filter_bp->Frame(true, true, clip != nullptr);
     }
 }
 
@@ -697,16 +695,21 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
         {
             // first find last select clip
             auto clip = find_clip_with_id(last_clip);
-            if (clip && blue_print && blue_print->m_Document)
+            if (clip && sequencer->video_filter_bp && sequencer->video_filter_bp->m_Document)
             {
                 // save current BP document to last clip
-                clip->mFilterBP = blue_print->m_Document->Serialize();
-                blue_print->File_New(false);
+                clip->mFilterBP = sequencer->video_filter_bp->m_Document->Serialize();
+                sequencer->video_filter_bp->File_New(selected_clip->mFilterBP);
             }
-            // load new selected clip BP in to BP
-            blue_print->m_Document->Deserialize(selected_clip->mFilterBP, *blue_print->m_Document);
         }
-        if (selected_clip) last_clip = selected_clip->mID;
+        else if (selected_clip && sequencer->video_filter_bp && last_clip == -1)
+        {
+            sequencer->video_filter_bp->File_New(selected_clip->mFilterBP);
+        }
+        if (selected_clip)
+        {
+            last_clip = selected_clip->mID;
+        }
     }
     if (ImGui::BeginChild("##video_editor_main", ImVec2(window_size.x, editor_main_height), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
     {
@@ -974,15 +977,26 @@ void Application_Initialize(void** handle)
 	}
 #endif
     sequencer = new MediaSequencer();
-    blue_print = new BluePrint::BluePrintUI();
-    blue_print->Initialize();
+    if (sequencer)
+    {
+        sequencer->video_filter_bp = new BluePrint::BluePrintUI();
+        if (sequencer->video_filter_bp)
+            sequencer->video_filter_bp->Initialize();
+    }
 }
 
 void Application_Finalize(void** handle)
 {
     for (auto item : media_items) delete item;
-    if (sequencer) delete sequencer;
-    if (blue_print) { blue_print->Finalize(); delete blue_print;}
+    if (sequencer) 
+    {
+        if (sequencer->video_filter_bp)
+        {
+            sequencer->video_filter_bp->Finalize();
+            delete sequencer->video_filter_bp;
+        }
+        delete sequencer;
+    }
 #ifdef USE_BOOKMARK
 	// save bookmarks
 	std::ofstream configFileWriter(bookmark_path, std::ios::out);

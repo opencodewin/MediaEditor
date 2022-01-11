@@ -7,6 +7,7 @@
 #include "MediaOverview.h"
 #include "MediaSnapshot.h"
 #include "MediaReader.h"
+#include "UI.h"
 #include <thread>
 #include <string>
 #include <vector>
@@ -367,6 +368,7 @@ struct MediaSequencer : public SequencerInterface
     std::list<ImGui::ImMat> mFrame;         // timeline output frame
     ImTextureID mMainPreviewTexture {nullptr};  // main preview texture
     int64_t mCurrentPreviewTime {-1};
+    BluePrint::BluePrintUI * video_filter_bp {nullptr};
 };
 
 bool ClipTimeLine(ClipInfo* clip);
