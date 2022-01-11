@@ -302,6 +302,7 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int sequenceOption
         if (!MovingCurrentTime && !MovingScrollBar && movingEntry == -1 && sequenceOptions & SEQUENCER_CHANGE_TIME && sequencer->currentTime >= 0 && topRect.Contains(io.MousePos) && io.MouseDown[0])
         {
             MovingCurrentTime = true;
+            sequencer->bSeeking = true;
         }
         if (MovingCurrentTime)
         {
@@ -316,7 +317,10 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int sequenceOption
                 sequencer->Seek(); // call seek event
             }
             if (!io.MouseDown[0])
+            {
                 MovingCurrentTime = false;
+                sequencer->bSeeking = false;
+            }
         }
 
         //header
@@ -1079,6 +1083,7 @@ bool ClipTimeLine(ClipInfo* clip)
     if (!MovingCurrentTime && clip->mCurrent >= clip->mStart && topRect.Contains(io.MousePos) && io.MouseDown[0])
     {
         MovingCurrentTime = true;
+        clip->bSeeking = true;
     }
     if (MovingCurrentTime)
     {
@@ -1093,7 +1098,10 @@ bool ClipTimeLine(ClipInfo* clip)
             clip->Seek(); // call seek event
         }
         if (!io.MouseDown[0])
+        {
             MovingCurrentTime = false;
+            clip->bSeeking = false;
+        }
     }
 
     int64_t modTimeCount = 10;
@@ -1879,7 +1887,7 @@ ImGui::ImMat MediaSequencer::GetPreviewFrame()
         if (need_erase)
         {
             // if we on seek stage, may output last frame for smooth preview
-            if (mFrame.size() == 1)
+            if (bSeeking && mFrame.size() == 1)
                 frame = *mat;
             mFrameLock.lock();
             mat = mFrame.erase(mat);
@@ -2611,7 +2619,7 @@ ImGui::ImMat ClipInfo::GetInputFrame()
         if (need_erase)
         {
             // if we on seek stage, may output last frame for smooth preview
-            if (mFrame.size() == 1)
+            if (bSeeking && mFrame.size() == 1)
                 frame = *mat;
             mFrameLock.lock();
             mat = mFrame.erase(mat);

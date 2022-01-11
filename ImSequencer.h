@@ -178,6 +178,7 @@ struct SequencerInterface
     bool bPlay = false;
     bool bForward = true;
     bool bLoop = false;
+    bool bSeeking = false;
     std::mutex mSequencerLock;
     virtual int64_t GetStart() const = 0;
     virtual int64_t GetEnd() const = 0;
@@ -248,6 +249,7 @@ struct ClipInfo
     int64_t mCurrent{0};
     bool bPlay      {false};
     bool bForward   {true};
+    bool bSeeking   {false};
     bool mDragOut   {false};
     bool mSelected  {false};
     void * mItem    {nullptr};
