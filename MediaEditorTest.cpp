@@ -14,7 +14,6 @@ using namespace ImSequencer;
 
 static std::string bookmark_path = "bookmark.ini";
 static std::string ini_file = "Media_Editor.ini";
-static std::string bp_file = "Media_Editor.bp";
 
 static const char* ControlPanelTabNames[] = {
     ICON_MEDIA_BANK,
@@ -604,11 +603,27 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
  * Video Editor windows
  *
  ***************************************************************************************/
-static void ShowVideoBluePrintWindow(ImDrawList *draw_list)
+static ClipInfo * find_clip_with_id(int64_t id)
+{
+    if (!sequencer) return nullptr;
+    for (auto item : sequencer->m_Items)
+    {
+        for (auto clip : item->mClips)
+        {
+            if (clip->mID == id)
+            {
+                return clip;
+            }
+        }
+    }
+    return nullptr;
+}
+
+static void ShowVideoBluePrintWindow(ImDrawList *draw_list, ClipInfo * clip)
 {
     if (blue_print)
     {
-        blue_print->Frame(true);
+        blue_print->Frame(true, true, clip != nullptr);
     }
 }
 
@@ -657,6 +672,7 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
     float clip_timeline_height = 100;
     float editor_main_height = window_size.y - clip_timeline_height - 4;
     int selected_item = -1;
+    static int64_t last_clip = -1; 
     ClipInfo * selected_clip = nullptr;
     if (sequencer)
     {
@@ -677,6 +693,20 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
             if (!selected_clip)
                 selected_clip = item->mClips[0];
         }
+        if (selected_clip && last_clip != -1 && last_clip != selected_clip->mID)
+        {
+            // first find last select clip
+            auto clip = find_clip_with_id(last_clip);
+            if (clip && blue_print && blue_print->m_Document)
+            {
+                // save current BP document to last clip
+                clip->mFilterBP = blue_print->m_Document->Serialize();
+                blue_print->File_New(false);
+            }
+            // load new selected clip BP in to BP
+            blue_print->m_Document->Deserialize(selected_clip->mFilterBP, *blue_print->m_Document);
+        }
+        if (selected_clip) last_clip = selected_clip->mID;
     }
     if (ImGui::BeginChild("##video_editor_main", ImVec2(window_size.x, editor_main_height), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
     {
@@ -696,7 +726,7 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
             draw_list->AddRectFilled(editor_view_window_pos, editor_view_window_pos + editor_view_window_size, COL_DARK_ONE);
             switch (VideoEditorWindowIndex)
             {
-                case 0: ShowVideoBluePrintWindow(draw_list); break;
+                case 0: ShowVideoBluePrintWindow(draw_list, selected_clip); break;
                 case 1: ShowVideoColorWindow(draw_list); break;
                 case 2: ShowVideoCropWindow(draw_list); break;
                 case 3: ShowVideoRotateWindow(draw_list); break;
@@ -945,7 +975,7 @@ void Application_Initialize(void** handle)
 #endif
     sequencer = new MediaSequencer();
     blue_print = new BluePrint::BluePrintUI();
-    blue_print->Initialize(bp_file.c_str());
+    blue_print->Initialize();
 }
 
 void Application_Finalize(void** handle)

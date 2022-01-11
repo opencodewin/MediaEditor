@@ -1,8 +1,9 @@
 #ifndef __IM_SEQUENCER_H__
 #define __IM_SEQUENCER_H__
-#include "imgui.h"
+#include <imgui.h>
 #define IMGUI_DEFINE_MATH_OPERATORS
-#include "imgui_internal.h"
+#include <imgui_internal.h>
+#include <imgui_json.h>
 #include "MediaOverview.h"
 #include "MediaSnapshot.h"
 #include "MediaReader.h"
@@ -244,6 +245,7 @@ struct Snapshot
 
 struct ClipInfo
 {
+    int64_t mID     {-1};
     int64_t mStart  {0};
     int64_t mEnd    {0};
     int64_t mCurrent{0};
@@ -266,6 +268,7 @@ struct ClipInfo
     ImGui::ImMat GetInputFrame();
     int64_t mCurrentFilterTime {-1};
     ImTextureID mFilterInputTexture {nullptr};  // clip filter input texture
+    imgui_json::value mFilterBP;
 };
 
 struct SequencerItem

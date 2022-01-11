@@ -2522,6 +2522,7 @@ int MediaSequencer::GetAudioLevel(int channel)
  ***********************************************************************************************************/
 ClipInfo::ClipInfo(int64_t start, int64_t end, bool drag_out, void* handle)
 {
+    mID = ImGui::get_current_time_usec(); // sample using system time stamp for Clip ID
     mStart = mCurrent = start; 
     mEnd = end; 
     mDragOut = drag_out; 
