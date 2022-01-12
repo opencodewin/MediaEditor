@@ -304,23 +304,20 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int sequenceOption
             MovingCurrentTime = true;
             sequencer->bSeeking = true;
         }
-        if (MovingCurrentTime)
+        if (MovingCurrentTime && duration)
         {
-            if (duration)
-            {
-                sequencer->currentTime = (int64_t)((io.MousePos.x - topRect.Min.x) / msPixelWidth) + firstTimeUsed;
-                //alignTime(sequencer->currentTime, sequencer->timeStep);
-                if (sequencer->currentTime < sequencer->GetStart())
-                    sequencer->currentTime = sequencer->GetStart();
-                if (sequencer->currentTime >= sequencer->GetEnd())
-                    sequencer->currentTime = sequencer->GetEnd();
-                sequencer->Seek(); // call seek event
-            }
-            if (!io.MouseDown[0])
-            {
-                MovingCurrentTime = false;
-                sequencer->bSeeking = false;
-            }
+            sequencer->currentTime = (int64_t)((io.MousePos.x - topRect.Min.x) / msPixelWidth) + firstTimeUsed;
+            alignTime(sequencer->currentTime, sequencer->timeStep);
+            if (sequencer->currentTime < sequencer->GetStart())
+                sequencer->currentTime = sequencer->GetStart();
+            if (sequencer->currentTime >= sequencer->GetEnd())
+                sequencer->currentTime = sequencer->GetEnd();
+            sequencer->Seek(); // call seek event
+        }
+        if (sequencer->bSeeking && !io.MouseDown[0])
+        {
+            MovingCurrentTime = false;
+            sequencer->bSeeking = false;
         }
 
         //header
@@ -1085,23 +1082,20 @@ bool ClipTimeLine(ClipInfo* clip)
         MovingCurrentTime = true;
         clip->bSeeking = true;
     }
-    if (MovingCurrentTime)
+    if (MovingCurrentTime && duration)
     {
-        if (duration)
-        {
-            clip->mCurrent = (int64_t)((io.MousePos.x - topRect.Min.x) / msPixelWidth) + clip->mStart;
-            //alignTime(clip->mCurrent, sequencer->timeStep);
-            if (clip->mCurrent < clip->mStart)
-                clip->mCurrent = clip->mStart;
-            if (clip->mCurrent >= clip->mEnd)
-                clip->mCurrent = clip->mEnd;
-            clip->Seek(); // call seek event
-        }
-        if (!io.MouseDown[0])
-        {
-            MovingCurrentTime = false;
-            clip->bSeeking = false;
-        }
+        clip->mCurrent = (int64_t)((io.MousePos.x - topRect.Min.x) / msPixelWidth) + clip->mStart;
+        //alignTime(clip->mCurrent, sequencer->timeStep);
+        if (clip->mCurrent < clip->mStart)
+            clip->mCurrent = clip->mStart;
+        if (clip->mCurrent >= clip->mEnd)
+            clip->mCurrent = clip->mEnd;
+        clip->Seek(); // call seek event
+    }
+    if (clip->bSeeking && !io.MouseDown[0])
+    {
+        MovingCurrentTime = false;
+        clip->bSeeking = false;
     }
 
     int64_t modTimeCount = 10;
@@ -1641,7 +1635,7 @@ static int thread_preview(MediaSequencer * sequencer)
         }
         int64_t current_time = 0;
         sequencer->mFrameLock.lock();
-        if (sequencer->mFrame.empty())
+        if (sequencer->mFrame.empty() || sequencer->bSeeking)
             current_time = sequencer->currentTime;
         else
         {
@@ -1759,7 +1753,7 @@ static int thread_video_filter(MediaSequencer * sequencer)
         }
         int64_t current_time = 0;
         selected_clip->mFrameLock.lock();
-        if (selected_clip->mFrame.empty())
+        if (selected_clip->mFrame.empty() || selected_clip->bSeeking)
             current_time = selected_clip->mCurrent;
         else
         {
@@ -1841,6 +1835,18 @@ ImGui::ImMat MediaSequencer::GetPreviewFrame()
     if (mCurrentPreviewTime == currentTime)
         return frame;
     double current_time = (double)currentTime / 1000.f;
+    double buffer_start = 0, buffer_end = 0;
+    if (mFrame.size() > 0)
+    {
+        buffer_start = mFrame.begin()->time_stamp;
+        auto end_frame = mFrame.end(); end_frame--;
+        buffer_end = end_frame->time_stamp;
+        if (buffer_start > buffer_end)
+            std::swap(buffer_start, buffer_end);
+    }
+    bool out_of_range = false;
+    if (current_time < buffer_start || current_time > buffer_end)
+        out_of_range = true;
 
     for (auto mat = mFrame.begin(); mat != mFrame.end();)
     {
@@ -1854,11 +1860,14 @@ ImGui::ImMat MediaSequencer::GetPreviewFrame()
             need_erase = true;
         }
 
-        if (need_erase)
+        if (need_erase || out_of_range)
         {
             // if we on seek stage, may output last frame for smooth preview
             if (bSeeking && mFrame.size() == 1)
+            {
                 frame = *mat;
+                //mCurrentPreviewTime = currentTime; // Do we need update mCurrentPreviewTime?
+            }
             mFrameLock.lock();
             mat = mFrame.erase(mat);
             mFrameLock.unlock();
@@ -2558,6 +2567,13 @@ void ClipInfo::Seek()
     mFrame.clear();
     mCurrentFilterTime = -1;
     mFrameLock.unlock();
+    SequencerItem * item = (SequencerItem *)mItem;
+    if (item && item->mMedia && item->mMedia->IsOpened())
+    {
+        int64_t item_time = mCurrent - item->mStart + item->mStartOffset;
+        //alignTime(item_time, mFrameDuration);
+        item->mMedia->SeekTo((double)item_time / 1000.f);
+    }
 }
 
 ImGui::ImMat ClipInfo::GetInputFrame()
@@ -2566,6 +2582,19 @@ ImGui::ImMat ClipInfo::GetInputFrame()
     if (mCurrentFilterTime == mCurrent)
         return frame;
     double current_time = (double)mCurrent / 1000.f;
+    double buffer_start = 0, buffer_end = 0;
+    if (mFrame.size() > 0)
+    {
+        buffer_start = mFrame.begin()->time_stamp;
+        auto end_frame = mFrame.end(); end_frame--;
+        buffer_end = end_frame->time_stamp;
+        if (buffer_start > buffer_end)
+            std::swap(buffer_start, buffer_end);
+    }
+    bool out_of_range = false;
+    if (current_time < buffer_start || current_time > buffer_end)
+        out_of_range = true;
+
     for (auto mat = mFrame.begin(); mat != mFrame.end();)
     {
         bool need_erase = false;
@@ -2578,13 +2607,13 @@ ImGui::ImMat ClipInfo::GetInputFrame()
             need_erase = true;
         }
 
-        if (need_erase)
+        if (need_erase || out_of_range)
         {
             // if we on seek stage, may output last frame for smooth preview
             if (bSeeking && mFrame.size() == 1)
             {
                 frame = *mat;
-                mCurrentFilterTime = mCurrent;
+                // mCurrentFilterTime = mCurrent; // Do we need update mCurrentFilterTime?
             }
             mFrameLock.lock();
             mat = mFrame.erase(mat);

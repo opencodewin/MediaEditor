@@ -848,6 +848,10 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
             ImVec2 InputVideoSize;
             InputVideoPos = video_view_window_pos + ImVec2(4, 4);
             InputVideoSize = ImVec2(video_view_window_size.x - 8, (video_view_window_size.y - PanelBarSize.y - 8) / 2);
+            ImVec2 OutputVideoPos;
+            ImVec2 OutputVideoSize;
+            OutputVideoPos = video_view_window_pos + ImVec2(4, 4 + InputVideoSize.y + PanelBarSize.y);
+            OutputVideoSize = ImVec2(video_view_window_size.x - 8, (video_view_window_size.y - PanelBarSize.y - 8) / 2);
             if (selected_clip)
             {
                 auto input_frame = selected_clip->GetInputFrame();
@@ -863,15 +867,22 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
                     ImGui::ImMat in_mat, out_mat;
                     if (sequencer->video_filter_bp->Blueprint_GetResult(in_mat, out_mat))
                     {
-                        if (!selected_clip->mFilterInputTexture || in_mat.time_stamp != selected_clip->mCurrentFilterTime)
+                        int64_t input_time = in_mat.time_stamp * 1000;
+                        if (!selected_clip->mFilterInputTexture || abs(input_time - selected_clip->mCurrentFilterTime) < sequencer->mFrameDuration)
                         {
                             ImGui::ImMatToTexture(in_mat, selected_clip->mFilterInputTexture);
+                        }
+                        int64_t output_time = out_mat.time_stamp * 1000;
+                        if (!selected_clip->mFilterOutputTexture || abs(output_time - selected_clip->mCurrentFilterTime) < sequencer->mFrameDuration)
+                        {
                             ImGui::ImMatToTexture(out_mat, selected_clip->mFilterOutputTexture);
                         }
                     }
                 }
+                // filter input texture area
                 ShowVideoWindow(selected_clip->mFilterInputTexture, InputVideoPos, InputVideoSize);
                 // filter output texture area
+                ShowVideoWindow(selected_clip->mFilterOutputTexture, OutputVideoPos, OutputVideoSize);
 
             }
         }
