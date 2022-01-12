@@ -148,6 +148,35 @@ void ShowVideoWindow(ImTextureID texture, ImVec2& pos, ImVec2& size)
     }
 }
 
+static void ShowVideoWindow(ImTextureID texture, ImVec2& pos, ImVec2& size, float& offset_x, float& offset_y, float& tf_x, float& tf_y)
+{
+    if (texture)
+    {
+        ImGui::SetCursorScreenPos(pos);
+        ImGui::InvisibleButton(("##video_window" + std::to_string((long)texture)).c_str(), size);
+        bool bViewisLandscape = size.x >= size.y ? true : false;
+        float aspectRatio = (float)ImGui::ImGetTextureWidth(texture) / (float)ImGui::ImGetTextureHeight(texture);
+        bool bRenderisLandscape = aspectRatio > 1.f ? true : false;
+        bool bNeedChangeScreenInfo = bViewisLandscape ^ bRenderisLandscape;
+        float adj_w = bNeedChangeScreenInfo ? size.y : size.x;
+        float adj_h = bNeedChangeScreenInfo ? size.x : size.y;
+        float adj_x = adj_h * aspectRatio;
+        float adj_y = adj_h;
+        if (adj_x > adj_w) { adj_y *= adj_w / adj_x; adj_x = adj_w; }
+        tf_x = (size.x - adj_x) / 2.0;
+        tf_y = (size.y - adj_y) / 2.0;
+        offset_x = pos.x + tf_x;
+        offset_y = pos.y + tf_y;
+        ImGui::GetWindowDrawList()->AddImage(
+            texture,
+            ImVec2(offset_x, offset_y),
+            ImVec2(offset_x + adj_x, offset_y + adj_y),
+            ImVec2(0, 0),
+            ImVec2(1, 1)
+        );
+    }
+}
+
 /****************************************************************************************
  * 
  * Media Bank window
@@ -879,11 +908,81 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
                         }
                     }
                 }
-                // filter input texture area
-                ShowVideoWindow(selected_clip->mFilterInputTexture, InputVideoPos, InputVideoSize);
-                // filter output texture area
-                ShowVideoWindow(selected_clip->mFilterOutputTexture, OutputVideoPos, OutputVideoSize);
 
+                ImGuiIO& io = ImGui::GetIO();
+                float pos_x = 0, pos_y = 0;
+                bool draw_compare = false;
+                ImVec4 tint_col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);   // No tint
+                ImVec4 border_col = ImVec4(1.0f, 1.0f, 1.0f, 0.5f); // 50% opaque white
+                {
+                    // filter input texture area
+                    float offset_x = 0, offset_y = 0;
+                    float tf_x = 0, tf_y = 0;
+                    ShowVideoWindow(selected_clip->mFilterInputTexture, InputVideoPos, InputVideoSize, offset_x, offset_y, tf_x, tf_y);
+                    if (ImGui::IsItemHovered() && selected_clip->mFilterInputTexture)
+                    {
+                        float image_width = ImGui::ImGetTextureWidth(selected_clip->mFilterInputTexture);
+                        float image_height = ImGui::ImGetTextureHeight(selected_clip->mFilterInputTexture);
+                        float scale_w = image_width / (InputVideoSize.x - tf_x * 2);
+                        float scale_h = image_height / (InputVideoSize.y - tf_y * 2);
+                        pos_x = (io.MousePos.x - offset_x) * scale_w;
+                        pos_y = (io.MousePos.y - offset_y) * scale_h;
+                        draw_compare = true;
+                    }
+                }
+                {
+                    // filter output texture area
+                    float offset_x = 0, offset_y = 0;
+                    float tf_x = 0, tf_y = 0;
+                    ShowVideoWindow(selected_clip->mFilterOutputTexture, OutputVideoPos, OutputVideoSize, offset_x, offset_y, tf_x, tf_y);
+                    if (ImGui::IsItemHovered() && selected_clip->mFilterOutputTexture)
+                    {
+                        float image_width = ImGui::ImGetTextureWidth(selected_clip->mFilterOutputTexture);
+                        float image_height = ImGui::ImGetTextureHeight(selected_clip->mFilterOutputTexture);
+                        float scale_w = image_width / (OutputVideoSize.x - tf_x * 2);
+                        float scale_h = image_height / (OutputVideoSize.y - tf_y * 2);
+                        pos_x = (io.MousePos.x - offset_x) * scale_w;
+                        pos_y = (io.MousePos.y - offset_y) * scale_h;
+                        draw_compare = true;
+                    }
+                }
+                if (draw_compare)
+                {
+                    float region_sz = 360.0f;
+                    float texture_zoom = 1.0f;
+                    if (selected_clip->mFilterInputTexture)
+                    {
+                        float image_width = ImGui::ImGetTextureWidth(selected_clip->mFilterInputTexture);
+                        float image_height = ImGui::ImGetTextureHeight(selected_clip->mFilterInputTexture);
+                        float region_x = pos_x - region_sz * 0.5f;
+                        float region_y = pos_y - region_sz * 0.5f;
+                        if (region_x < 0.0f) { region_x = 0.0f; }
+                        else if (region_x > image_width - region_sz) { region_x = image_width - region_sz; }
+                        if (region_y < 0.0f) { region_y = 0.0f; }
+                        else if (region_y > image_height - region_sz) { region_y = image_height - region_sz; }
+                        ImGui::BeginTooltip();
+                        ImVec2 uv0 = ImVec2((region_x) / image_width, (region_y) / image_height);
+                        ImVec2 uv1 = ImVec2((region_x + region_sz) / image_width, (region_y + region_sz) / image_height);
+                        ImGui::Image(selected_clip->mFilterInputTexture, ImVec2(region_sz * texture_zoom, region_sz * texture_zoom), uv0, uv1, tint_col, border_col);
+                        ImGui::EndTooltip();
+                    }
+                    if (selected_clip->mFilterOutputTexture)
+                    {
+                        float image_width = ImGui::ImGetTextureWidth(selected_clip->mFilterOutputTexture);
+                        float image_height = ImGui::ImGetTextureHeight(selected_clip->mFilterOutputTexture);
+                        float region_x = pos_x - region_sz * 0.5f;
+                        float region_y = pos_y - region_sz * 0.5f;
+                        if (region_x < 0.0f) { region_x = 0.0f; }
+                        else if (region_x > image_width - region_sz) { region_x = image_width - region_sz; }
+                        if (region_y < 0.0f) { region_y = 0.0f; }
+                        else if (region_y > image_height - region_sz) { region_y = image_height - region_sz; }
+                        ImGui::BeginTooltip();
+                        ImVec2 uv0 = ImVec2((region_x) / image_width, (region_y) / image_height);
+                        ImVec2 uv1 = ImVec2((region_x + region_sz) / image_width, (region_y + region_sz) / image_height);
+                        ImGui::Image(selected_clip->mFilterOutputTexture, ImVec2(region_sz * texture_zoom, region_sz * texture_zoom), uv0, uv1, tint_col, border_col);
+                        ImGui::EndTooltip();
+                    }
+                }
             }
         }
         ImGui::EndChild();
