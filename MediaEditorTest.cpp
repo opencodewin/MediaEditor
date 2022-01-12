@@ -888,7 +888,8 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
                 {
                     if (sequencer->video_filter_bp)
                     {
-                        sequencer->video_filter_bp->Blueprint_Exec(input_frame);
+                        //sequencer->video_filter_bp->Blueprint_Exec(input_frame);
+                        sequencer->video_filter_bp->Blueprint_Run(input_frame);
                     }
                 }
                 if (sequencer->video_filter_bp)
