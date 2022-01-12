@@ -1085,7 +1085,7 @@ bool ClipTimeLine(ClipInfo* clip)
     if (MovingCurrentTime && duration)
     {
         clip->mCurrent = (int64_t)((io.MousePos.x - topRect.Min.x) / msPixelWidth) + clip->mStart;
-        //alignTime(clip->mCurrent, sequencer->timeStep);
+        alignTime(clip->mCurrent, clip->mFrameInterval);
         if (clip->mCurrent < clip->mStart)
             clip->mCurrent = clip->mStart;
         if (clip->mCurrent >= clip->mEnd)
@@ -1325,8 +1325,11 @@ SequencerItem::SequencerItem(const std::string& name, MediaItem * media_item, in
     if (mSnapshot->IsOpened())
     {
         mLength = mSnapshot->GetVideoDuration();
+        
         if (mSnapshot->HasVideo())
         {
+            auto rate = mSnapshot->GetVideoStream()->avgFrameRate;
+            if (rate.num > 0) mFrameInterval = rate.den * 1000 / rate.num;
             double window_size = 1.0f;
             mSnapshot->SetCacheFactor(8.0);
             mSnapshot->SetSnapshotResizeFactor(0.1, 0.1);
@@ -1642,7 +1645,7 @@ static int thread_preview(MediaSequencer * sequencer)
             auto it = sequencer->mFrame.end(); it--;
             current_time = it->time_stamp * 1000;
         }
-        alignTime(current_time, sequencer->mFrameDuration);
+        alignTime(current_time, sequencer->mFrameInterval);
         sequencer->mFrameLock.unlock();
         while (sequencer->mFrame.size() < MAX_SEQUENCER_FRAME_NUMBER)
         {
@@ -1650,7 +1653,7 @@ static int thread_preview(MediaSequencer * sequencer)
             for (auto &item : sequencer->m_Items)
             {
                 int64_t item_time = current_time - item->mStart + item->mStartOffset;
-                alignTime(item_time, sequencer->mFrameDuration);
+                alignTime(item_time, sequencer->mFrameInterval);
                 if (item_time >= item->mStartOffset && item_time <= item->mLength - item->mEndOffset)
                 {
                     bool valid_time = item->mView;
@@ -1683,7 +1686,7 @@ static int thread_preview(MediaSequencer * sequencer)
             sequencer->mFrameLock.unlock();
             if (sequencer->bForward)
             {
-                current_time += sequencer->mFrameDuration;
+                current_time += sequencer->mFrameInterval;
                 if (current_time > sequencer->mEnd)
                 {
                     if (sequencer->bLoop)
@@ -1699,7 +1702,7 @@ static int thread_preview(MediaSequencer * sequencer)
             }
             else
             {
-                current_time -= sequencer->mFrameDuration;
+                current_time -= sequencer->mFrameInterval;
                 if (current_time < sequencer->mStart)
                 {
                     if (sequencer->bLoop)
@@ -1760,7 +1763,7 @@ static int thread_video_filter(MediaSequencer * sequencer)
             auto it = selected_clip->mFrame.end(); it--;
             current_time = it->time_stamp * 1000;
         }
-        alignTime(current_time, sequencer->mFrameDuration);
+        alignTime(current_time, selected_clip->mFrameInterval);
         selected_clip->mFrameLock.unlock();
         while (selected_clip->mFrame.size() < MAX_SEQUENCER_FRAME_NUMBER)
         {
@@ -1775,13 +1778,13 @@ static int thread_video_filter(MediaSequencer * sequencer)
             selected_clip->mFrameLock.unlock();
             if (sequencer->bForward)
             {
-                current_time += sequencer->mFrameDuration;
+                current_time += selected_clip->mFrameInterval;
                 if (current_time > selected_clip->mEnd)
                     current_time = selected_clip->mEnd;
             }
             else
             {
-                current_time -= sequencer->mFrameDuration;
+                current_time -= selected_clip->mFrameInterval;
                 if (current_time < selected_clip->mStart)
                 {
                     current_time = selected_clip->mStart;
@@ -1796,7 +1799,7 @@ static int thread_video_filter(MediaSequencer * sequencer)
 MediaSequencer::MediaSequencer()
     : mStart(0), mEnd(0)
 {
-    timeStep = mFrameDuration;
+    timeStep = mFrameInterval;
     mPreviewThread = new std::thread(thread_preview, this);
     mVideoFilterThread = new std::thread(thread_video_filter, this);
 }
@@ -1916,14 +1919,14 @@ void MediaSequencer::Set(int index, int64_t start, int64_t end, int64_t start_of
 {
     SequencerItem *item = m_Items[index];
     item->mColor = color;
-    //alignTime(start, mFrameDuration);
+    //alignTime(start, mFrameInterval);
     item->mStart = start;
-    //alignTime(end, mFrameDuration);
+    //alignTime(end, mFrameInterval);
     item->mEnd = end;
     item->mName = name;
-    //alignTime(start_offset, mFrameDuration);
+    //alignTime(start_offset, mFrameInterval);
     item->mStartOffset = start_offset;
-    //alignTime(end_offset, mFrameDuration);
+    //alignTime(end_offset, mFrameInterval);
     item->mEndOffset = end_offset;
 }
 
@@ -2482,7 +2485,7 @@ void MediaSequencer::Seek()
         if (item->mMedia && item->mMedia->IsOpened())
         {
             int64_t item_time = currentTime - item->mStart + item->mStartOffset;
-            alignTime(item_time, mFrameDuration);
+            alignTime(item_time, mFrameInterval);
             item->mMedia->SeekTo((double)item_time / 1000.f);
         }
     }
@@ -2516,6 +2519,7 @@ ClipInfo::ClipInfo(int64_t start, int64_t end, bool drag_out, void* handle)
     mSnapshot->Open(holder);
     if (mSnapshot->IsOpened())
     {
+        mFrameInterval = item->mFrameInterval;
         double window_size = 1.0f;
         mSnapshot->SetCacheFactor(1.0);
         mSnapshot->SetSnapshotResizeFactor(0.1, 0.1);
@@ -2571,7 +2575,7 @@ void ClipInfo::Seek()
     if (item && item->mMedia && item->mMedia->IsOpened())
     {
         int64_t item_time = mCurrent - item->mStart + item->mStartOffset;
-        //alignTime(item_time, mFrameDuration);
+        alignTime(item_time, item->mFrameInterval);
         item->mMedia->SeekTo((double)item_time / 1000.f);
     }
 }

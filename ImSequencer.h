@@ -250,6 +250,7 @@ struct ClipInfo
     int64_t mStart  {0};
     int64_t mEnd    {0};
     int64_t mCurrent{0};
+    int64_t mFrameInterval {40};
     bool bPlay      {false};
     bool bForward   {true};
     bool bSeeking   {false};
@@ -283,6 +284,7 @@ struct SequencerItem
     int64_t mStartOffset {0};               // item start time in media
     int64_t mEndOffset   {0};               // item end time in media
     int64_t mLength     {0};                // item total length in ms, not effect by cropping
+    int64_t mFrameInterval {40};            // timeline Media Frame Interval in ms
     bool mExpanded  {false};                // item is compact view or not
     bool mView      {true};                 // item is viewable or not
     bool mMuted     {false};                // item is muted or not
@@ -354,7 +356,7 @@ struct MediaSequencer : public SequencerInterface
     int64_t mEnd   {0};                     // whole timeline end in ms
     int mWidth  {1920};                     // timeline Media Width
     int mHeight {1080};                     // timeline Media Height
-    int64_t mFrameDuration {40};            // timeline Media Frame Duration in ms
+    int64_t mFrameInterval {40};            // timeline Media Frame Duration in ms
     
     std::thread * mPreviewThread {nullptr}; // Preview Thread, which is read whole time line and mixer all filter/transition
     bool mPreviewDone {false};              // Preview Thread should finished

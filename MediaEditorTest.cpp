@@ -463,7 +463,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
         if (sequencer)
         {
             sequencer->bForward = false;
-            sequencer->currentTime -= sequencer->mFrameDuration;
+            sequencer->currentTime -= sequencer->mFrameInterval;
             if (sequencer->currentTime < sequencer->mStart)
                 sequencer->currentTime = sequencer->mStart;
         }
@@ -508,7 +508,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
         if (sequencer)
         {
             sequencer->bForward = true;
-            sequencer->currentTime += sequencer->mFrameDuration;
+            sequencer->currentTime += sequencer->mFrameInterval;
             if (sequencer->currentTime > sequencer->mEnd)
                 sequencer->currentTime = sequencer->mEnd;
         }
@@ -792,7 +792,7 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
                 if (selected_clip)
                 {
                     selected_clip->bForward = false;
-                    selected_clip->mCurrent -= sequencer->mFrameDuration;
+                    selected_clip->mCurrent -= sequencer->mFrameInterval;
                     if (selected_clip->mCurrent < selected_clip->mStart)
                         selected_clip->mCurrent = selected_clip->mStart;
                     if (sequencer)
@@ -849,7 +849,7 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
                 if (selected_clip)
                 {
                     selected_clip->bForward = true;
-                    selected_clip->mCurrent += sequencer->mFrameDuration;
+                    selected_clip->mCurrent += sequencer->mFrameInterval;
                     if (selected_clip->mCurrent > selected_clip->mEnd)
                         selected_clip->mCurrent = selected_clip->mEnd;
                     if (sequencer)
@@ -897,12 +897,12 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
                     if (sequencer->video_filter_bp->Blueprint_GetResult(in_mat, out_mat))
                     {
                         int64_t input_time = in_mat.time_stamp * 1000;
-                        if (!selected_clip->mFilterInputTexture || abs(input_time - selected_clip->mCurrentFilterTime) < sequencer->mFrameDuration)
+                        if (!selected_clip->mFilterInputTexture || abs(input_time - selected_clip->mCurrentFilterTime) > 5)
                         {
                             ImGui::ImMatToTexture(in_mat, selected_clip->mFilterInputTexture);
                         }
                         int64_t output_time = out_mat.time_stamp * 1000;
-                        if (!selected_clip->mFilterOutputTexture || abs(output_time - selected_clip->mCurrentFilterTime) < sequencer->mFrameDuration)
+                        if (!selected_clip->mFilterOutputTexture || abs(output_time - selected_clip->mCurrentFilterTime) > 5)
                         {
                             ImGui::ImMatToTexture(out_mat, selected_clip->mFilterOutputTexture);
                         }
