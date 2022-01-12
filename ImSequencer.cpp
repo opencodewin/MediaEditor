@@ -1300,17 +1300,7 @@ void MediaItem::UpdateThumbnail()
                 if (i >= mMediaThumbnail.size() && !snapshots[i].empty())
                 {
                     ImTextureID thumb = nullptr;
-                    if (snapshots[i].device == ImDataDevice::IM_DD_CPU)
-                    {
-                        ImGui::ImGenerateOrUpdateTexture(thumb, snapshots[i].w, snapshots[i].h, snapshots[i].c, (const unsigned char *)snapshots[i].data);
-                    }
-#if IMGUI_VULKAN_SHADER
-                    if (snapshots[i].device == ImDataDevice::IM_DD_VULKAN)
-                    {
-                        ImGui::VkMat vkmat = snapshots[i];
-                        ImGui::ImGenerateOrUpdateTexture(thumb, vkmat.w, vkmat.h, vkmat.c, vkmat.buffer_offset(), (const unsigned char *)vkmat.buffer());
-                    }
-#endif
+                    ImMatToTexture(snapshots[i], thumb);
                     mMediaThumbnail.push_back(thumb);
                 }
             }
@@ -1435,17 +1425,7 @@ void SequencerItem::SequencerItemUpdateSnapshots()
                     {
                         if (mVideoSnapshots[media_snapshot_index].time_stamp != (int64_t)(snapshots[i].time_stamp * 1000) || !mVideoSnapshots[media_snapshot_index].available)
                         {
-                            if (snapshots[i].device == ImDataDevice::IM_DD_CPU)
-                            {
-                                ImGui::ImGenerateOrUpdateTexture(mVideoSnapshots[media_snapshot_index].texture, snapshots[i].w, snapshots[i].h, snapshots[i].c, (const unsigned char *)snapshots[i].data);
-                            }
-#if IMGUI_VULKAN_SHADER
-                            if (snapshots[i].device == ImDataDevice::IM_DD_VULKAN)
-                            {
-                                ImGui::VkMat vkmat = snapshots[i];
-                                ImGui::ImGenerateOrUpdateTexture(mVideoSnapshots[media_snapshot_index].texture, vkmat.w, vkmat.h, vkmat.c, vkmat.buffer_offset(), (const unsigned char *)vkmat.buffer());
-                            }
-#endif
+                            ImMatToTexture(snapshots[i], mVideoSnapshots[media_snapshot_index].texture);
                             mVideoSnapshots[media_snapshot_index].time_stamp = (int64_t)(snapshots[i].time_stamp * 1000);
                             mVideoSnapshots[media_snapshot_index].available = true;
                         }
@@ -1453,17 +1433,7 @@ void SequencerItem::SequencerItemUpdateSnapshots()
                     else
                     {
                         Snapshot snap;
-                        if (snapshots[i].device == ImDataDevice::IM_DD_CPU)
-                        {
-                            ImGui::ImGenerateOrUpdateTexture(snap.texture, snapshots[i].w, snapshots[i].h, snapshots[i].c, (const unsigned char *)snapshots[i].data);
-                        }
-#if IMGUI_VULKAN_SHADER
-                        if (snapshots[i].device == ImDataDevice::IM_DD_VULKAN)
-                        {
-                            ImGui::VkMat vkmat = snapshots[i];
-                            ImGui::ImGenerateOrUpdateTexture(snap.texture, vkmat.w, vkmat.h, vkmat.c, vkmat.buffer_offset(), (const unsigned char *)vkmat.buffer());
-                        }
-#endif
+                        ImMatToTexture(snapshots[i], snap.texture);
                         snap.time_stamp = (int64_t)(snapshots[i].time_stamp * 1000);
                         snap.available = true;
                         mVideoSnapshots.push_back(snap);
@@ -2556,6 +2526,7 @@ ClipInfo::~ClipInfo()
     mFrame.clear();
     mFrameLock.unlock();
     if (mFilterInputTexture) { ImGui::ImDestroyTexture(mFilterInputTexture); mFilterInputTexture = nullptr; }
+    if (mFilterOutputTexture) { ImGui::ImDestroyTexture(mFilterOutputTexture); mFilterOutputTexture = nullptr;  }
 }
 
 void ClipInfo::UpdateSnapshot()
@@ -2571,17 +2542,7 @@ void ClipInfo::UpdateSnapshot()
                 if (!snapshots[i].empty() && i >= mVideoSnapshots.size())
                 {
                     Snapshot snap;
-                    if (snapshots[i].device == ImDataDevice::IM_DD_CPU)
-                    {
-                        ImGui::ImGenerateOrUpdateTexture(snap.texture, snapshots[i].w, snapshots[i].h, snapshots[i].c, (const unsigned char *)snapshots[i].data);
-                    }
-#if IMGUI_VULKAN_SHADER
-                    if (snapshots[i].device == ImDataDevice::IM_DD_VULKAN)
-                    {
-                        ImGui::VkMat vkmat = snapshots[i];
-                        ImGui::ImGenerateOrUpdateTexture(snap.texture, vkmat.w, vkmat.h, vkmat.c, vkmat.buffer_offset(), (const unsigned char *)vkmat.buffer());
-                    }
-#endif
+                    ImMatToTexture(snapshots[i], snap.texture);
                     snap.time_stamp = (int64_t)(snapshots[i].time_stamp * 1000);
                     snap.available = true;
                     mVideoSnapshots.push_back(snap);
@@ -2621,7 +2582,10 @@ ImGui::ImMat ClipInfo::GetInputFrame()
         {
             // if we on seek stage, may output last frame for smooth preview
             if (bSeeking && mFrame.size() == 1)
+            {
                 frame = *mat;
+                mCurrentFilterTime = mCurrent;
+            }
             mFrameLock.lock();
             mat = mFrame.erase(mat);
             mFrameLock.unlock();

@@ -570,17 +570,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     auto frame = sequencer->GetPreviewFrame();
     if (!frame.empty())
     {
-        if (frame.device == ImDataDevice::IM_DD_CPU)
-        {
-            ImGui::ImGenerateOrUpdateTexture(sequencer->mMainPreviewTexture, frame.w, frame.h, frame.c, (const unsigned char *)frame.data);
-        }
-#if IMGUI_VULKAN_SHADER
-        if (frame.device == ImDataDevice::IM_DD_VULKAN)
-        {
-            ImGui::VkMat vkmat = frame;
-            ImGui::ImGenerateOrUpdateTexture(sequencer->mMainPreviewTexture, vkmat.w, vkmat.h, vkmat.c, vkmat.buffer_offset(), (const unsigned char *)vkmat.buffer());
-        }
-#endif
+        ImGui::ImMatToTexture(frame, sequencer->mMainPreviewTexture);
     }
     ShowVideoWindow(sequencer->mMainPreviewTexture, PreviewPos, PreviewSize);
     
@@ -670,6 +660,9 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
     float clip_timeline_height = 100;
     float editor_main_height = window_size.y - clip_timeline_height - 4;
     int selected_item = -1;
+    float labelWidth = ImGui::CalcVerticalTabLabelsWidth() + 4;
+    float video_view_width = window_size.x / 3;
+    float video_editor_width = window_size.x - video_view_width - labelWidth;
     static int64_t last_clip = -1; 
     ClipInfo * selected_clip = nullptr;
     if (sequencer)
@@ -699,12 +692,12 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
             {
                 // save current BP document to last clip
                 clip->mFilterBP = sequencer->video_filter_bp->m_Document->Serialize();
-                sequencer->video_filter_bp->File_New(selected_clip->mFilterBP);
+                sequencer->video_filter_bp->File_New(selected_clip->mFilterBP, ImVec2(video_editor_width, editor_main_height));
             }
         }
         else if (selected_clip && sequencer->video_filter_bp && last_clip == -1)
         {
-            sequencer->video_filter_bp->File_New(selected_clip->mFilterBP);
+            sequencer->video_filter_bp->File_New(selected_clip->mFilterBP, ImVec2(video_editor_width, editor_main_height));
         }
         if (selected_clip)
         {
@@ -717,9 +710,6 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
         ImVec2 clip_window_size = ImGui::GetWindowSize();
         static const int numTabs = sizeof(VideoEditorTabNames)/sizeof(VideoEditorTabNames[0]);
         ImGui::TabLabelsVertical(false, numTabs, VideoEditorTabNames, VideoEditorWindowIndex, VideoEditorTabTooltips, nullptr, nullptr, false, false, nullptr, nullptr);
-        float labelWidth = ImGui::CalcVerticalTabLabelsWidth() + 4;
-        float video_view_width = clip_window_size.x / 3;
-        float video_editor_width = clip_window_size.x - video_view_width - labelWidth;
         ImGui::SetCursorScreenPos(clip_window_pos + ImVec2(labelWidth, 0));
         
         if (ImGui::BeginChild("##video_editor_views", ImVec2(video_editor_width, clip_window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
@@ -863,21 +853,27 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
                 auto input_frame = selected_clip->GetInputFrame();
                 if (!input_frame.empty())
                 {
-                    if (input_frame.device == ImDataDevice::IM_DD_CPU)
+                    if (sequencer->video_filter_bp)
                     {
-                        ImGui::ImGenerateOrUpdateTexture(selected_clip->mFilterInputTexture, input_frame.w, input_frame.h, input_frame.c, (const unsigned char *)input_frame.data);
+                        sequencer->video_filter_bp->Blueprint_Exec(input_frame);
                     }
-#if IMGUI_VULKAN_SHADER
-                    if (input_frame.device == ImDataDevice::IM_DD_VULKAN)
+                }
+                if (sequencer->video_filter_bp)
+                {
+                    ImGui::ImMat in_mat, out_mat;
+                    if (sequencer->video_filter_bp->Blueprint_GetResult(in_mat, out_mat))
                     {
-                        ImGui::VkMat vkmat = input_frame;
-                        ImGui::ImGenerateOrUpdateTexture(selected_clip->mFilterInputTexture, vkmat.w, vkmat.h, vkmat.c, vkmat.buffer_offset(), (const unsigned char *)vkmat.buffer());
+                        if (!selected_clip->mFilterInputTexture || in_mat.time_stamp != selected_clip->mCurrentFilterTime)
+                        {
+                            ImGui::ImMatToTexture(in_mat, selected_clip->mFilterInputTexture);
+                            ImGui::ImMatToTexture(out_mat, selected_clip->mFilterOutputTexture);
+                        }
                     }
-#endif
                 }
                 ShowVideoWindow(selected_clip->mFilterInputTexture, InputVideoPos, InputVideoSize);
+                // filter output texture area
+
             }
-            // filter output texture area
         }
         ImGui::EndChild();
     }

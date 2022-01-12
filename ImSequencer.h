@@ -269,6 +269,7 @@ struct ClipInfo
     ImGui::ImMat GetInputFrame();
     int64_t mCurrentFilterTime {-1};
     ImTextureID mFilterInputTexture {nullptr};  // clip filter input texture
+    ImTextureID mFilterOutputTexture {nullptr};  // clip filter output texture
     imgui_json::value mFilterBP;
 };
 
