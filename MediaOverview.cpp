@@ -1261,7 +1261,7 @@ private:
             bool idleLoop = true;
             if (!m_audfrmQ.empty())
             {
-                AVFrame* srcfrm = m_audfrmQ.front();;
+                AVFrame* srcfrm = m_audfrmQ.front();
                 AVFrame* dstfrm = nullptr;
                 if (m_swrPassThrough)
                 {

@@ -49,6 +49,7 @@ namespace MediaInfo
         AudioStream() { type = AUDIO; }
         uint32_t channels{0};
         uint32_t sampleRate{0};
+        uint8_t bitDepth{0};
     };
     
 

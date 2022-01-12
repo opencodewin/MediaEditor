@@ -54,7 +54,6 @@ public:
             m_errMsg = hParser->GetError();
             return false;
         }
-        hParser->EnableParseInfo(MediaParser::VIDEO_SEEK_POINTS);
 
         if (!OpenMedia(hParser))
         {
@@ -76,7 +75,6 @@ public:
             m_errMsg = "Argument 'hParser' is nullptr or not opened yet!";
             return false;
         }
-        hParser->EnableParseInfo(MediaParser::VIDEO_SEEK_POINTS);
 
         if (IsOpened())
             Close();
@@ -88,7 +86,6 @@ public:
         }
         m_hParser = hParser;
 
-        StartAllThreads();
         m_opened = true;
         return true;
     }
@@ -98,12 +95,137 @@ public:
         return m_hParser;
     }
 
+    bool ConfigVideoReader(
+            uint32_t outWidth, uint32_t outHeight,
+            ImColorFormat outClrfmt, ImInterpolateMode rszInterp) override
+    {
+        if (!m_opened)
+        {
+            m_errMsg = "Can NOT configure a 'MediaReader' until it's been configured!";
+            return false;
+        }
+        if (m_started)
+        {
+            m_errMsg = "Can NOT configure a 'MediaReader' after it's already started!";
+            return false;
+        }
+        lock_guard<recursive_mutex> lk(m_apiLock);
+
+        m_useRszFactor = false;
+        if (!m_frmCvt.SetOutSize(outWidth, outHeight))
+        {
+            m_errMsg = m_frmCvt.GetError();
+            return false;
+        }
+        if (!m_frmCvt.SetOutColorFormat(outClrfmt))
+        {
+            m_errMsg = m_frmCvt.GetError();
+            return false;
+        }
+        if (!m_frmCvt.SetResizeInterpolateMode(rszInterp))
+        {
+            m_errMsg = m_frmCvt.GetError();
+            return false;
+        }
+
+        m_isVideoReader = true;
+        m_configured = true;
+        return true;
+    }
+
+    bool ConfigVideoReader(
+            float outWidthFactor, float outHeightFactor,
+            ImColorFormat outClrfmt, ImInterpolateMode rszInterp) override
+    {
+        if (!m_opened)
+        {
+            m_errMsg = "Can NOT configure a 'MediaReader' until it's been configured!";
+            return false;
+        }
+        if (m_started)
+        {
+            m_errMsg = "Can NOT configure a 'MediaReader' after it's already started!";
+            return false;
+        }
+        lock_guard<recursive_mutex> lk(m_apiLock);
+
+        m_ssWFacotr = outWidthFactor;
+        m_ssHFacotr = outHeightFactor;
+        m_useRszFactor = true;
+        if (!m_frmCvt.SetOutColorFormat(outClrfmt))
+        {
+            m_errMsg = m_frmCvt.GetError();
+            return false;
+        }
+        if (!m_frmCvt.SetResizeInterpolateMode(rszInterp))
+        {
+            m_errMsg = m_frmCvt.GetError();
+            return false;
+        }
+
+        m_isVideoReader = true;
+        m_configured = true;
+        return true;
+    }
+
+    bool ConfigAudioReader(uint32_t outChannels, uint32_t outSampleRate) override
+    {
+        if (!m_opened)
+        {
+            m_errMsg = "Can NOT configure a 'MediaReader' until it's been configured!";
+            return false;
+        }
+        if (m_started)
+        {
+            m_errMsg = "Can NOT configure a 'MediaReader' after it's already started!";
+            return false;
+        }
+        lock_guard<recursive_mutex> lk(m_apiLock);
+
+        m_swrOutChannels = outChannels;
+        m_swrOutSampleRate = outSampleRate;
+
+        m_isVideoReader = false;
+        m_configured = true;
+        return true;
+    }
+
+    bool Start() override
+    {
+        if (!m_configured)
+        {
+            m_errMsg = "Can NOT start a 'MediaReader' until it's been configured!";
+            return false;
+        }
+        lock_guard<recursive_mutex> lk(m_apiLock);
+        if (m_started)
+            return true;
+
+        StartAllThreads();
+        m_started = true;
+        return true;
+    }
+
     void Close() override
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
         WaitAllThreadsQuit();
         FlushAllQueues();
 
+        if (m_swrCtx)
+        {
+            swr_free(&m_swrCtx);
+            m_swrCtx = nullptr;
+        }
+        m_swrOutChannels = 0;
+        m_swrOutChnLyt = 0;
+        m_swrOutSampleRate = 0;
+        m_swrPassThrough = false;
+        if (m_auddecCtx)
+        {
+            avcodec_free_context(&m_auddecCtx);
+            m_auddecCtx = nullptr;
+        }
         if (m_viddecCtx)
         {
             avcodec_free_context(&m_viddecCtx);
@@ -123,9 +245,10 @@ public:
         }
         m_vidStmIdx = -1;
         m_audStmIdx = -1;
-        m_vidStream = nullptr;
-        m_audStream = nullptr;
+        m_vidAvStm = nullptr;
+        m_audAvStm = nullptr;
         m_viddec = nullptr;
+        m_auddec = nullptr;
         m_hParser = nullptr;
         m_hMediaInfo = nullptr;
 
@@ -136,7 +259,15 @@ public:
         m_seekPosTs = 0;
         m_vidfrmIntvMts = 0;
         m_hSeekPoints = nullptr;
+        m_vidDurTs = 0;
+        m_audDurTs = 0;
+        m_audFrmSize = 0;
+        m_audReadTask = nullptr;
+        m_audReadOffset = 0;
+
         m_prepared = false;
+        m_started = false;
+        m_configured = false;
         m_opened = false;
 
         m_errMsg = "";
@@ -144,8 +275,16 @@ public:
 
     bool SeekTo(double ts) override
     {
-        if (ts < 0 || ts > m_vidDurTs)
+        if (!m_configured)
+        {
+            m_errMsg = "Can NOT use 'SeekTo' until the 'MediaReader' obj is configured!";
             return false;
+        }
+
+        double stmdur = m_isVideoReader ? m_vidDurTs : m_audDurTs;
+        if (ts < 0 || ts > stmdur)
+            return false;
+
         bool deferred = true;
         if (m_apiLock.try_lock())
         {
@@ -181,23 +320,52 @@ public:
         return m_readForward;
     }
 
-    bool ReadFrame(double ts, ImGui::ImMat& m, bool wait) override
+    bool ReadVideoFrame(double pos, ImGui::ImMat& m, bool wait) override
     {
-        if (ts < 0 || ts > m_vidDurTs)
+        if (!m_started)
+        {
+            m_errMsg = "Invalid state! Can NOT read video frame from a 'MediaReader' until it's started!";
             return false;
-        if (ts == m_prevReadPos && !m_prevReadImg.empty())
+        }
+        if (pos < 0 || pos > m_vidDurTs)
+        {
+            m_errMsg = "Invalid argument! 'pos' can NOT be negative or larger than video's duration.";
+            return false;
+        }
+        if (pos == m_prevReadPos && !m_prevReadImg.empty())
         {
             m = m_prevReadImg;
             return true;
         }
 
         lock_guard<recursive_mutex> lk(m_apiLock);
-        bool success = ReadFrame_Internal(ts, m, wait);
+        bool success = ReadVideoFrame_Internal(pos, m, wait);
         if (success)
         {
-            m_prevReadPos = ts;
+            m_prevReadPos = pos;
             m_prevReadImg = m;
         }
+
+        if (m_seekPosUpdated)
+        {
+            lock_guard<mutex> lk(m_seekPosLock);
+            UpdateCacheWindow(m_seekPosTs);
+            m_seekPosUpdated = false;
+        }
+
+        return success;
+    }
+
+    bool ReadAudioSamples(float* buf, uint32_t& size, double& pos, bool wait) override
+    {
+        if (!m_started)
+        {
+            m_errMsg = "Invalid state! Can NOT read video frame from a 'MediaReader' until it's started!";
+            return false;
+        }
+
+        lock_guard<recursive_mutex> lk(m_apiLock);
+        bool success = ReadAudioSamples_Internal(buf, size, pos, wait);
 
         if (m_seekPosUpdated)
         {
@@ -214,14 +382,9 @@ public:
         return m_opened;
     }
 
-    bool HasVideo() const override
+    bool IsVideoReader() const override
     {
-        return m_vidStmIdx >= 0;
-    }
-
-    bool HasAudio() const override
-    {
-        return m_audStmIdx >= 0;
+        return m_isVideoReader;
     }
 
     bool SetCacheDuration(double forwardDur, double backwardDur) override
@@ -237,7 +400,7 @@ public:
         if (m_prepared)
         {
             UpdateCacheWindow(m_cacheWnd.readPos, true);
-            ResetSnapshotBuildTask();
+            ResetBuildTask();
         }
         return true;
     }
@@ -245,84 +408,6 @@ public:
     pair<double, double> GetCacheDuration() const override
     {
         return { m_forwardCacheDur, m_backwardCacheDur };
-    }
-
-    bool SetSnapshotSize(uint32_t width, uint32_t height) override
-    {
-        lock_guard<recursive_mutex> lk(m_apiLock);
-        m_useRszFactor = false;
-        if (m_frmCvt.GetOutWidth() == width && m_frmCvt.GetOutHeight() == height)
-            return true;
-        if (!m_frmCvt.SetOutSize(width, height))
-        {
-            m_errMsg = m_frmCvt.GetError();
-            return false;
-        }
-        if (m_prepared)
-            ResetSnapshotBuildTask();
-        return true;
-    }
-
-    bool SetSnapshotResizeFactor(float widthFactor, float heightFactor) override
-    {
-        lock_guard<recursive_mutex> lk(m_apiLock);
-        if (widthFactor <= 0.f || heightFactor <= 0.f)
-        {
-            m_errMsg = "Resize factor must be a positive number!";
-            return false;
-        }
-        if (!m_ssSizeChanged && m_useRszFactor && m_ssWFacotr == widthFactor && m_ssHFacotr == heightFactor)
-            return true;
-
-        m_ssWFacotr = widthFactor;
-        m_ssHFacotr = heightFactor;
-        m_useRszFactor = true;
-        if (HasVideo())
-        {
-            if (widthFactor == 1.f && heightFactor == 1.f)
-                return SetSnapshotSize(0, 0);
-
-            auto vidStream = GetVideoStream();
-            uint32_t outWidth = (uint32_t)ceil(vidStream->width*widthFactor);
-            if ((outWidth&0x1) == 1)
-                outWidth++;
-            uint32_t outHeight = (uint32_t)ceil(vidStream->height*heightFactor);
-            if ((outHeight&0x1) == 1)
-                outHeight++;
-            return SetSnapshotSize(outWidth, outHeight);
-        }
-        m_ssSizeChanged = false;
-        return true;
-    }
-
-    bool SetOutColorFormat(ImColorFormat clrfmt) override
-    {
-        lock_guard<recursive_mutex> lk(m_apiLock);
-        if (m_frmCvt.GetOutColorFormat() == clrfmt)
-            return true;
-        if (!m_frmCvt.SetOutColorFormat(clrfmt))
-        {
-            m_errMsg = m_frmCvt.GetError();
-            return false;
-        }
-        if (m_prepared)
-            ResetSnapshotBuildTask();
-        return true;
-    }
-
-    bool SetResizeInterpolateMode(ImInterpolateMode interp) override
-    {
-        lock_guard<recursive_mutex> lk(m_apiLock);
-        if (m_frmCvt.GetResizeInterpolateMode() == interp)
-            return true;
-        if (!m_frmCvt.SetResizeInterpolateMode(interp))
-        {
-            m_errMsg = m_frmCvt.GetError();
-            return false;
-        }
-        if (m_prepared)
-            ResetSnapshotBuildTask();
-        return true;
     }
 
     MediaInfo::InfoHolder GetMediaInfo() const override
@@ -333,7 +418,7 @@ public:
     const MediaInfo::VideoStream* GetVideoStream() const override
     {
         MediaInfo::InfoHolder hInfo = m_hMediaInfo;
-        if (!hInfo || !HasVideo())
+        if (!hInfo || m_vidStmIdx <= 0)
             return nullptr;
         return dynamic_cast<MediaInfo::VideoStream*>(hInfo->streams[m_vidStmIdx].get());
     }
@@ -341,7 +426,7 @@ public:
     const MediaInfo::AudioStream* GetAudioStream() const override
     {
         MediaInfo::InfoHolder hInfo = m_hMediaInfo;
-        if (!hInfo || !HasAudio())
+        if (!hInfo || m_audStmIdx <= 0)
             return nullptr;
         return dynamic_cast<MediaInfo::AudioStream*>(hInfo->streams[m_audStmIdx].get());
     }
@@ -361,12 +446,22 @@ private:
 
     int64_t CvtVidPtsToMts(int64_t pts)
     {
-        return av_rescale_q(pts-m_vidStream->start_time, m_vidStream->time_base, MILLISEC_TIMEBASE);
+        return av_rescale_q(pts-m_vidAvStm->start_time, m_vidAvStm->time_base, MILLISEC_TIMEBASE);
     }
 
     int64_t CvtVidMtsToPts(int64_t mts)
     {
-        return av_rescale_q(mts, MILLISEC_TIMEBASE, m_vidStream->time_base)+m_vidStream->start_time;
+        return av_rescale_q(mts, MILLISEC_TIMEBASE, m_vidAvStm->time_base)+m_vidAvStm->start_time;
+    }
+
+    int64_t CvtAudPtsToMts(int64_t pts)
+    {
+        return av_rescale_q(pts-m_audAvStm->start_time, m_audAvStm->time_base, MILLISEC_TIMEBASE);
+    }
+
+    int64_t CvtAudMtsToPts(int64_t mts)
+    {
+        return av_rescale_q(mts, MILLISEC_TIMEBASE, m_audAvStm->time_base)+m_audAvStm->start_time;
     }
 
     bool OpenMedia(MediaParserHolder hParser)
@@ -390,8 +485,9 @@ private:
             return false;
         }
 
-        if (HasVideo())
+        if (m_vidStmIdx > 0)
         {
+            hParser->EnableParseInfo(MediaParser::VIDEO_SEEK_POINTS);
             MediaInfo::VideoStream* vidStream = dynamic_cast<MediaInfo::VideoStream*>(m_hMediaInfo->streams[m_vidStmIdx].get());
             m_vidDurTs = vidStream->duration;
             AVRational avgFrmRate = { vidStream->avgFrameRate.num, vidStream->avgFrameRate.den };
@@ -412,6 +508,13 @@ private:
                     return false;
                 }
             }
+        }
+
+        if (m_audStmIdx > 0)
+        {
+            MediaInfo::AudioStream* audStream = dynamic_cast<MediaInfo::AudioStream*>(m_hMediaInfo->streams[m_audStmIdx].get());
+            m_audDurTs = audStream->duration;
+            m_audFrmSize = (audStream->bitDepth>>3)*audStream->channels;
         }
 
         m_seekPosTs = 0;
@@ -440,15 +543,15 @@ private:
             return false;
         }
 
-        if (HasVideo())
+        if (m_isVideoReader)
         {
-            m_vidStream = m_avfmtCtx->streams[m_vidStmIdx];
+            m_vidAvStm = m_avfmtCtx->streams[m_vidStmIdx];
 
-            m_viddec = avcodec_find_decoder(m_vidStream->codecpar->codec_id);
+            m_viddec = avcodec_find_decoder(m_vidAvStm->codecpar->codec_id);
             if (m_viddec == nullptr)
             {
                 ostringstream oss;
-                oss << "Can not find video decoder by codec_id " << m_vidStream->codecpar->codec_id << "!";
+                oss << "Can not find video decoder by codec_id " << m_vidAvStm->codecpar->codec_id << "!";
                 m_errMsg = oss.str();
                 return false;
             }
@@ -472,12 +575,11 @@ private:
             {
                 UpdateCacheWindow(0, true);
             }
-            ResetSnapshotBuildTask();
+            ResetBuildTask();
         }
-
-        if (HasAudio())
+        else
         {
-            m_audStream = m_avfmtCtx->streams[m_audStmIdx];
+            m_audAvStm = m_avfmtCtx->streams[m_audStmIdx];
 
             // wyvern: disable opening audio decoder because we don't use it now
             // if (!OpenAudioDecoder())
@@ -499,7 +601,7 @@ private:
         m_viddecCtx->opaque = this;
 
         int fferr;
-        fferr = avcodec_parameters_to_context(m_viddecCtx, m_vidStream->codecpar);
+        fferr = avcodec_parameters_to_context(m_viddecCtx, m_vidAvStm->codecpar);
         if (fferr < 0)
         {
             m_errMsg = FFapiFailureMessage("avcodec_parameters_to_context", fferr);
@@ -553,7 +655,7 @@ private:
         m_viddecCtx->opaque = this;
 
         int fferr;
-        fferr = avcodec_parameters_to_context(m_viddecCtx, m_vidStream->codecpar);
+        fferr = avcodec_parameters_to_context(m_viddecCtx, m_vidAvStm->codecpar);
         if (fferr < 0)
         {
             m_errMsg = FFapiFailureMessage("avcodec_parameters_to_context", fferr);
@@ -579,13 +681,78 @@ private:
         return true;
     }
 
+    bool OpenAudioDecoder()
+    {
+        m_auddecCtx = avcodec_alloc_context3(m_auddec);
+        if (!m_auddecCtx)
+        {
+            m_errMsg = "FAILED to allocate new AVCodecContext!";
+            return false;
+        }
+
+        int fferr;
+        fferr = avcodec_parameters_to_context(m_auddecCtx, m_audAvStm->codecpar);
+        if (fferr < 0)
+        {
+            m_errMsg = FFapiFailureMessage("avcodec_parameters_to_context", fferr);
+            return false;
+        }
+
+        fferr = avcodec_open2(m_auddecCtx, m_auddec, nullptr);
+        if (fferr < 0)
+        {
+            m_errMsg = FFapiFailureMessage("avcodec_open2", fferr);
+            return false;
+        }
+        m_logger->Log(DEBUG) << "Audio decoder '" << m_auddec->name << "' opened." << endl;
+
+        // setup sw resampler
+        int inChannels = m_audAvStm->codecpar->channels;
+        uint64_t inChnLyt = m_audAvStm->codecpar->channel_layout;
+        int inSampleRate = m_audAvStm->codecpar->sample_rate;
+        AVSampleFormat inSmpfmt = (AVSampleFormat)m_audAvStm->codecpar->format;
+        m_swrOutChannels = inChannels > 2 ? 2 : inChannels;
+        m_swrOutChnLyt = av_get_default_channel_layout(m_swrOutChannels);
+        m_swrOutSampleRate = inSampleRate;
+        if (inChnLyt <= 0)
+            inChnLyt = av_get_default_channel_layout(inChannels);
+        if (m_swrOutChnLyt != inChnLyt || m_swrOutSmpfmt != inSmpfmt || m_swrOutSampleRate != inSampleRate)
+        {
+            m_swrCtx = swr_alloc_set_opts(NULL, m_swrOutChnLyt, m_swrOutSmpfmt, m_swrOutSampleRate, inChnLyt, inSmpfmt, inSampleRate, 0, nullptr);
+            if (!m_swrCtx)
+            {
+                m_errMsg = "FAILED to invoke 'swr_alloc_set_opts()' to create 'SwrContext'!";
+                return false;
+            }
+            int fferr = swr_init(m_swrCtx);
+            if (fferr < 0)
+            {
+                m_errMsg = FFapiFailureMessage("swr_init", fferr);
+                return false;
+            }
+            m_swrPassThrough = false;
+        }
+        else
+        {
+            m_swrPassThrough = true;
+        }
+        return true;
+    }
+
     void StartAllThreads()
     {
         m_quit = false;
         m_demuxThread = thread(&MediaReader_Impl::DemuxThreadProc, this);
-        if (HasVideo())
+        if (m_isVideoReader)
+        {
             m_viddecThread = thread(&MediaReader_Impl::VideoDecodeThreadProc, this);
-        m_updateCfThread = thread(&MediaReader_Impl::UpdateCacheFrameThreadProc, this);
+            m_updateCfThread = thread(&MediaReader_Impl::UpdateCacheFrameThreadProc, this);
+        }
+        else
+        {
+            m_auddecThread = thread(&MediaReader_Impl::AudioDecodeThreadProc, this);
+            m_swrThread = thread(&MediaReader_Impl::UpdateAudioSampleBuildTask, this);
+        }
     }
 
     void WaitAllThreadsQuit()
@@ -606,6 +773,16 @@ private:
             m_updateCfThread.join();
             m_updateCfThread = thread();
         }
+        if (m_auddecThread.joinable())
+        {
+            m_auddecThread.join();
+            m_auddecThread = thread();
+        }
+        if (m_swrThread.joinable())
+        {
+            m_swrThread.join();
+            m_swrThread = thread();
+        }
     }
 
     void FlushAllQueues()
@@ -617,7 +794,7 @@ private:
         m_audpktQ.clear();
     }
 
-    bool ReadFrame_Internal(double ts, ImGui::ImMat& m, bool wait)
+    bool ReadVideoFrame_Internal(double ts, ImGui::ImMat& m, bool wait)
     {
         if (!m_opened)
             return false;
@@ -714,11 +891,52 @@ private:
         return true;
     }
 
+    bool ReadAudioSamples_Internal(float* buf, uint32_t& size, double& pos, bool wait)
+    {
+        if (!m_audReadTask)
+        {
+            m_errMsg = "Internal Error! Audio read task is not found.";
+            return false;
+        }
+        uint32_t readSize = 0;
+        GopDecodeTaskHolder readTask = m_audReadTask;
+        int64_t taskStartPts = INT64_MIN;
+        bool needLoop;
+        do
+        {
+            bool idleLoop = true;
+            if (!readTask->afAry.empty())
+            {
+                auto& afAry = readTask->afAry;
+                if (taskStartPts == INT64_MIN)
+                {
+                    taskStartPts = afAry.front().pts;
+                }
+            }
+
+            needLoop = !m_quit && wait && readSize < size;
+            if (needLoop && idleLoop)
+                this_thread::sleep_for(chrono::milliseconds(2));
+        } while (needLoop);
+        size = readSize;
+        return true;
+    }
+
     struct VideoFrame
     {
         SelfFreeAVFramePtr decfrm;
         SelfFreeAVFramePtr ownfrm;
         double ts;
+    };
+
+    struct AudioFrame
+    {
+        SelfFreeAVFramePtr decfrm;
+        SelfFreeAVFramePtr fwdfrm;
+        SelfFreeAVFramePtr bwdfrm;
+        double ts;
+        int64_t pts;
+        int64_t frmDur;
     };
 
     struct CacheWindow
@@ -748,6 +966,7 @@ private:
         MediaReader_Impl& outterObj;
         pair<int64_t, int64_t> seekPts;
         list<VideoFrame> vfAry;
+        list<AudioFrame> afAry;
         atomic_int32_t frmCnt{0};
         list<AVPacket*> avpktQ;
         list<int64_t> frmPtsAry;
@@ -787,132 +1006,132 @@ private:
         AVPacket avpkt = {0};
         bool avpktLoaded = false;
         GopDecodeTaskHolder currTask = nullptr;
-        int64_t lastPktPts;
+        int64_t lastPktPts, lastTaskSeekPts1;
+        lastTaskSeekPts1 = INT64_MIN;
         bool demuxEof = false;
+        int stmidx = m_isVideoReader ? m_vidStmIdx : m_audStmIdx;
         while (!m_quit)
         {
             bool idleLoop = true;
 
-            UpdateSnapshotBuildTask();
+            UpdateBuildTask();
 
-            if (HasVideo())
+            bool taskChanged = false;
+            if (!currTask || currTask->cancel || currTask->demuxEof)
             {
-                bool taskChanged = false;
-                if (!currTask || currTask->cancel || currTask->demuxEof)
-                {
-                    if (currTask && currTask->cancel)
-                        m_logger->Log(DEBUG) << "~~~~ Current demux task canceled" << endl;
-                    currTask = FindNextDemuxTask();
-                    if (currTask)
-                    {
-                        currTask->demuxing = true;
-                        taskChanged = true;
-                        m_logger->Log(DEBUG) << "--> Change demux task, startPts=" 
-                            << currTask->seekPts.first << "(" << MillisecToString(CvtVidPtsToMts(currTask->seekPts.first)) << ")"
-                            << ", endPts=" << currTask->seekPts.second << "(" << MillisecToString(CvtVidPtsToMts(currTask->seekPts.second)) << ")" << endl;
-                    }
-                }
-
                 if (currTask)
                 {
-                    if (taskChanged)
-                    {
-                        if (!avpktLoaded || avpkt.pts != currTask->seekPts.first)
-                        {
-                            if (avpktLoaded)
-                            {
-                                av_packet_unref(&avpkt);
-                                avpktLoaded = false;
-                            }
-                            lastPktPts = INT64_MIN;
-                            int fferr = avformat_seek_file(m_avfmtCtx, m_vidStmIdx, INT64_MIN, currTask->seekPts.first, currTask->seekPts.first, 0);
-                            if (fferr < 0)
-                            {
-                                m_logger->Log(ERROR) << "avformat_seek_file() FAILED for seeking to 'currTask->startPts'(" << currTask->seekPts.first << ")! fferr = " << fferr << "!" << endl;
-                                break;
-                            }
-                            demuxEof = false;
-                            int64_t ptsAfterSeek = INT64_MIN;
-                            if (!ReadNextStreamPacket(m_vidStmIdx, &avpkt, &avpktLoaded, &ptsAfterSeek))
-                                break;
-                            if (ptsAfterSeek == INT64_MAX)
-                                demuxEof = true;
-                            else if (ptsAfterSeek != currTask->seekPts.first)
-                            {
-                                m_logger->Log(WARN) << "WARNING! 'ptsAfterSeek'(" << ptsAfterSeek << ") != 'ssTask->startPts'(" << currTask->seekPts.first << ")!" << endl;
-                                currTask->seekPts.first = ptsAfterSeek;
-                            }
-                        }
-                    }
+                    lastTaskSeekPts1 = currTask->seekPts.second;
+                    if (currTask->cancel)
+                        m_logger->Log(DEBUG) << "~~~~ Current demux task canceled" << endl;
+                }
+                currTask = FindNextDemuxTask();
+                if (currTask)
+                {
+                    currTask->demuxing = true;
+                    taskChanged = true;
+                    m_logger->Log(DEBUG) << "--> Change demux task, startPts=" 
+                        << currTask->seekPts.first << "(" << MillisecToString(CvtVidPtsToMts(currTask->seekPts.first)) << ")"
+                        << ", endPts=" << currTask->seekPts.second << "(" << MillisecToString(CvtVidPtsToMts(currTask->seekPts.second)) << ")" << endl;
+                }
+            }
 
-                    if (!demuxEof && !avpktLoaded)
+            if (currTask)
+            {
+                if (taskChanged)
+                {
+                    if (!avpktLoaded || lastTaskSeekPts1 != currTask->seekPts.first || avpkt.pts < currTask->seekPts.first)
                     {
-                        int fferr = av_read_frame(m_avfmtCtx, &avpkt);
-                        if (fferr == 0)
-                        {
-                            avpktLoaded = true;
-                            idleLoop = false;
-                        }
-                        else
-                        {
-                            if (fferr == AVERROR_EOF)
-                            {
-                                currTask->demuxEof = true;
-                                demuxEof = true;
-                            }
-                            else
-                            {
-                                m_errMsg = FFapiFailureMessage("av_read_frame", fferr);
-                                m_logger->Log(ERROR) << "Demuxer ERROR! 'av_read_frame' returns " << fferr << "." << endl;
-                            }
-                        }
-                    }
-
-                    if (avpktLoaded)
-                    {
-                        if (avpkt.stream_index == m_vidStmIdx)
-                        {
-                            if (avpkt.pts >= currTask->seekPts.second)
-                                currTask->demuxEof = true;
-
-                            if (!currTask->demuxEof)
-                            {
-                                AVPacket* enqpkt = av_packet_clone(&avpkt);
-                                if (!enqpkt)
-                                {
-                                    m_logger->Log(ERROR) << "FAILED to invoke 'av_packet_clone(DemuxThreadProc)'!" << endl;
-                                    break;
-                                }
-                                {
-                                    lock_guard<mutex> lk(currTask->avpktQLock);
-                                    currTask->avpktQ.push_back(enqpkt);
-                                    if (lastPktPts != enqpkt->pts)
-                                    {
-                                        currTask->frmPtsAry.push_back(enqpkt->pts);
-                                        lastPktPts = enqpkt->pts;
-                                    }
-                                }
-                                av_packet_unref(&avpkt);
-                                avpktLoaded = false;
-                                idleLoop = false;
-                            }
-                        }
-                        else
+                        if (avpktLoaded)
                         {
                             av_packet_unref(&avpkt);
                             avpktLoaded = false;
                         }
+                        lastPktPts = INT64_MIN;
+                        int fferr = avformat_seek_file(m_avfmtCtx, stmidx, INT64_MIN, currTask->seekPts.first, currTask->seekPts.first, 0);
+                        if (fferr < 0)
+                        {
+                            m_logger->Log(ERROR) << "avformat_seek_file() FAILED for seeking to 'currTask->startPts'(" << currTask->seekPts.first << ")! fferr = " << fferr << "!" << endl;
+                            break;
+                        }
+                        demuxEof = false;
+                        int64_t ptsAfterSeek = INT64_MIN;
+                        if (!ReadNextStreamPacket(stmidx, &avpkt, &avpktLoaded, &ptsAfterSeek))
+                            break;
+                        if (ptsAfterSeek == INT64_MAX)
+                            demuxEof = true;
+                        else if (ptsAfterSeek != currTask->seekPts.first)
+                        {
+                            m_logger->Log(WARN) << "WARNING! 'ptsAfterSeek'(" << ptsAfterSeek << ") != 'ssTask->startPts'(" << currTask->seekPts.first << ")!" << endl;
+                            currTask->seekPts.first = ptsAfterSeek;
+                        }
                     }
                 }
-            }
-            else
-            {
-                m_logger->Log(ERROR) << "Demux procedure to non-video media is NOT IMPLEMENTED yet!" << endl;
+
+                if (!demuxEof && !avpktLoaded)
+                {
+                    int fferr = av_read_frame(m_avfmtCtx, &avpkt);
+                    if (fferr == 0)
+                    {
+                        avpktLoaded = true;
+                        idleLoop = false;
+                    }
+                    else
+                    {
+                        if (fferr == AVERROR_EOF)
+                        {
+                            currTask->demuxEof = true;
+                            demuxEof = true;
+                        }
+                        else
+                        {
+                            m_errMsg = FFapiFailureMessage("av_read_frame", fferr);
+                            m_logger->Log(ERROR) << "Demuxer ERROR! 'av_read_frame' returns " << fferr << "." << endl;
+                        }
+                    }
+                }
+
+                if (avpktLoaded)
+                {
+                    if (avpkt.stream_index == stmidx)
+                    {
+                        if (avpkt.pts >= currTask->seekPts.second)
+                            currTask->demuxEof = true;
+
+                        if (!currTask->demuxEof)
+                        {
+                            AVPacket* enqpkt = av_packet_clone(&avpkt);
+                            if (!enqpkt)
+                            {
+                                m_logger->Log(ERROR) << "FAILED to invoke 'av_packet_clone(DemuxThreadProc)'!" << endl;
+                                break;
+                            }
+                            {
+                                lock_guard<mutex> lk(currTask->avpktQLock);
+                                currTask->avpktQ.push_back(enqpkt);
+                                if (lastPktPts != enqpkt->pts)
+                                {
+                                    currTask->frmPtsAry.push_back(enqpkt->pts);
+                                    lastPktPts = enqpkt->pts;
+                                }
+                            }
+                            av_packet_unref(&avpkt);
+                            avpktLoaded = false;
+                            idleLoop = false;
+                        }
+                    }
+                    else
+                    {
+                        av_packet_unref(&avpkt);
+                        avpktLoaded = false;
+                    }
+                }
             }
 
             if (idleLoop)
                 this_thread::sleep_for(chrono::milliseconds(5));
         }
+
         if (currTask && !currTask->demuxEof)
             currTask->demuxEof = true;
         if (avpktLoaded)
@@ -1013,8 +1232,8 @@ private:
             }
             if (task->vfAry.size() >= task->frmPtsAry.size())
             {
-                m_logger->Log(DEBUG) << "Task [" << task->seekPts.first << "(" << MillisecToString(CvtVidPtsToMts(task->seekPts.first)) << "), "
-                << task->seekPts.second << "(" << MillisecToString(CvtVidPtsToMts(task->seekPts.second)) << ")) finishes ALL FRAME decoding." << endl;
+                // m_logger->Log(DEBUG) << "Task [" << task->seekPts.first << "(" << MillisecToString(CvtVidPtsToMts(task->seekPts.first)) << "), "
+                // << task->seekPts.second << "(" << MillisecToString(CvtVidPtsToMts(task->seekPts.second)) << ")) finishes ALL FRAME decoding." << endl;
                 task->decodeEof = true;
             }
             return true;
@@ -1186,6 +1405,12 @@ private:
     void UpdateCacheFrameThreadProc()
     {
         m_logger->Log(DEBUG) << "Enter UpdateCacheFrameThreadProc()..." << endl;
+
+        while (!m_prepared && !m_quit)
+            this_thread::sleep_for(chrono::milliseconds(5));
+        if (m_quit)
+            return;
+
         GopDecodeTaskHolder currTask;
         while (!m_quit)
         {
@@ -1239,6 +1464,258 @@ private:
         m_logger->Log(DEBUG) << "Leave UpdateCacheFrameThreadProc()." << endl;
     }
 
+    bool EnqueueAudioAVFrame(AVFrame* frm)
+    {
+        double ts = (double)CvtAudPtsToMts(frm->pts)/1000;
+        lock_guard<mutex> lk(m_bldtskByPriLock);
+        auto iter = find_if(m_bldtskPriOrder.begin(), m_bldtskPriOrder.end(), [frm](const GopDecodeTaskHolder& task) {
+            return frm->pts >= task->seekPts.first && frm->pts < task->seekPts.second;
+        });
+        if (iter != m_bldtskPriOrder.end())
+        {
+            AudioFrame af;
+            af.ts = ts;
+            af.pts = frm->pts;
+            af.decfrm = CloneSelfFreeAVFramePtr(frm);
+            if (!af.decfrm)
+            {
+                m_logger->Log(ERROR) << "FAILED to invoke 'CloneSelfFreeAVFramePtr()' to allocate new AVFrame for AF!" << endl;
+                return false;
+            }
+            // m_logger->Log(DEBUG) << "Adding AF#" << ts << "." << endl;
+            auto& task = *iter;
+            if (task->afAry.empty())
+                task->afAry.push_back(af);
+            else
+            {
+                auto afRvsIter = find_if(task->afAry.rbegin(), task->afAry.rend(), [ts](const AudioFrame& af) {
+                    return af.ts <= ts;
+                });
+                if (afRvsIter != task->afAry.rend() && afRvsIter->ts == ts)
+                {
+                    m_logger->Log(DEBUG) << "Found duplicated AF#" << ts << ", dropping this AF. pts=" << frm->pts
+                        << ", t=" << MillisecToString(CvtVidPtsToMts(frm->pts)) << "." << endl;
+                }
+                else
+                {
+                    auto afFwdIter = afRvsIter.base();
+                    task->afAry.insert(afFwdIter, af);
+                }
+            }
+            if (task->afAry.size() >= task->frmPtsAry.size())
+            {
+                // m_logger->Log(DEBUG) << "Task [" << task->seekPts.first << "(" << MillisecToString(CvtVidPtsToMts(task->seekPts.first)) << "), "
+                // << task->seekPts.second << "(" << MillisecToString(CvtVidPtsToMts(task->seekPts.second)) << ")) finishes ALL FRAME decoding." << endl;
+                task->decodeEof = true;
+            }
+            return true;
+        }
+        else
+        {
+            m_logger->Log(DEBUG) << "Dropping AF#" << ts << " due to no matching task is found." << endl;
+        }
+        return false;
+    }
+
+    void AudioDecodeThreadProc()
+    {
+        m_logger->Log(DEBUG) << "Enter AudioDecodeThreadProc()..." << endl;
+
+        while (!m_prepared && !m_quit)
+            this_thread::sleep_for(chrono::milliseconds(5));
+        if (m_quit)
+            return;
+
+        AVFrame avfrm = {0};
+        bool avfrmLoaded = false;
+        bool inputEof = false;
+        while (!m_quit)
+        {
+            bool idleLoop = true;
+            bool quitLoop = false;
+
+            // retrieve output frame
+            bool hasOutput;
+            do{
+                if (!avfrmLoaded)
+                {
+                    int fferr = avcodec_receive_frame(m_auddecCtx, &avfrm);
+                    if (fferr == 0)
+                    {
+                        avfrmLoaded = true;
+                        idleLoop = false;
+                        // update average audio frame duration, for calculating audio queue size
+                        // double frmDur = (double)avfrm.nb_samples/m_audAvStm->codecpar->sample_rate;
+                        // m_audfrmAvgDur = (m_audfrmAvgDur*(m_audfrmAvgDurCalcCnt-1)+frmDur)/m_audfrmAvgDurCalcCnt;
+                        // m_audfrmQMaxSize = (int)ceil(m_audQDuration/m_audfrmAvgDur);
+                    }
+                    else if (fferr != AVERROR(EAGAIN))
+                    {
+                        if (fferr != AVERROR_EOF)
+                            m_logger->Log(ERROR) << "FAILED to invoke 'avcodec_receive_frame'(AudioDecodeThreadProc)! return code is "
+                                << fferr << "." << endl;
+                        quitLoop = true;
+                        break;
+                    }
+                }
+
+                hasOutput = avfrmLoaded;
+                if (avfrmLoaded)
+                {
+                    EnqueueAudioAVFrame(&avfrm);
+                    av_frame_unref(&avfrm);
+                    avfrmLoaded = false;
+                    idleLoop = false;
+                }
+            } while (hasOutput);
+            if (quitLoop)
+                break;
+
+            // input packet to decoder
+            if (!inputEof)
+            {
+                if (!m_audpktQ.empty())
+                {
+                    while (!m_audpktQ.empty())
+                    {
+                        AVPacket* avpkt = m_audpktQ.front();
+                        int fferr = avcodec_send_packet(m_auddecCtx, avpkt);
+                        if (fferr == 0)
+                        {
+                            lock_guard<mutex> lk(m_audpktQLock);
+                            m_audpktQ.pop_front();
+                            av_packet_free(&avpkt);
+                            idleLoop = false;
+                        }
+                        else
+                        {
+                            if (fferr != AVERROR(EAGAIN))
+                            {
+                                m_logger->Log(ERROR) << "FAILED to invoke 'avcodec_send_packet'(AudioDecodeThreadProc)! return code is "
+                                    << fferr << "." << endl;
+                                quitLoop = true;
+                            }
+                            break;
+                        }
+                    }
+                    if (quitLoop)
+                        break;
+                }
+            }
+
+            if (idleLoop)
+                this_thread::sleep_for(chrono::milliseconds(1));
+        }
+        if (avfrmLoaded)
+            av_frame_unref(&avfrm);
+        m_logger->Log(DEBUG) << "Leave AudioDecodeThreadProc()." << endl;
+    }
+
+    void UpdatePcmThreadProc()
+    {
+        m_logger->Log(DEBUG) << "Enter UpdatePcmThreadProc()..." << endl;
+
+        while (!m_prepared && !m_quit)
+            this_thread::sleep_for(chrono::milliseconds(5));
+        if (m_quit)
+            return;
+
+        uint32_t audFrmSize = m_audFrmSize;
+        GopDecodeTaskHolder currTask;
+        while (!m_quit)
+        {
+            bool idleLoop = true;
+
+            if (!currTask || currTask->cancel || currTask->frmCnt <= 0)
+            {
+                currTask = FindNextCfUpdateTask();
+            }
+
+            if (currTask)
+            {
+                for (AudioFrame& af : currTask->afAry)
+                {
+                    int fferr;
+                    SelfFreeAVFramePtr fwdfrm;
+                    SelfFreeAVFramePtr bwdfrm;
+                    if (af.decfrm)
+                    {
+                        if (m_swrPassThrough)
+                        {
+                            fwdfrm = af.decfrm;
+                        }
+                        else
+                        {
+                            fwdfrm = AllocSelfFreeAVFramePtr();
+                            if (!fwdfrm)
+                            {
+                                m_logger->Log(ERROR) << "FAILED to allocate new AVFrame for 'swr_convert()'!" << endl;
+                                break;
+                            }
+                            AVFrame* srcfrm = af.decfrm.get();
+                            AVFrame* dstfrm = fwdfrm.get();
+                            dstfrm->format = (int)m_swrOutSmpfmt;
+                            dstfrm->sample_rate = m_swrOutSampleRate;
+                            dstfrm->channels = m_swrOutChannels;
+                            dstfrm->channel_layout = m_swrOutChnLyt;
+                            dstfrm->nb_samples = swr_get_out_samples(m_swrCtx, srcfrm->nb_samples);
+                            fferr = av_frame_get_buffer(dstfrm, 0);
+                            if (fferr < 0)
+                            {
+                                m_logger->Log(ERROR) << "av_frame_get_buffer(UpdatePcmThreadProc1) FAILED with return code " << fferr << endl;
+                                break;
+                            }
+                            av_frame_copy_props(dstfrm, srcfrm);
+                            dstfrm->pts = swr_next_pts(m_swrCtx, srcfrm->pts);
+                            fferr = swr_convert(m_swrCtx, dstfrm->data, dstfrm->nb_samples, (const uint8_t **)srcfrm->data, srcfrm->nb_samples);
+                            if (fferr < 0)
+                            {
+                                m_logger->Log(ERROR) << "swr_convert(UpdatePcmThreadProc) FAILED with return code " << fferr << endl;
+                                break;
+                            }
+                        }
+
+                        bwdfrm = AllocSelfFreeAVFramePtr();
+                        if (!bwdfrm)
+                        {
+                            m_logger->Log(ERROR) << "FAILED to allocate new AVFrame for backward pcm frame!" << endl;
+                            break;
+                        }
+                        bwdfrm->format = fwdfrm->format;
+                        bwdfrm->sample_rate = fwdfrm->sample_rate;
+                        bwdfrm->channels = fwdfrm->channels;
+                        bwdfrm->channel_layout = fwdfrm->channel_layout;
+                        bwdfrm->nb_samples = fwdfrm->nb_samples;
+                        fferr = av_frame_get_buffer(bwdfrm.get(), 0);
+                        if (fferr < 0)
+                        {
+                            m_logger->Log(ERROR) << "av_frame_get_buffer(UpdatePcmThreadProc2) FAILED with return code " << fferr << endl;
+                            break;
+                        }
+                        av_frame_copy_props(bwdfrm.get(), fwdfrm.get());
+                        uint8_t* srcptr = fwdfrm->data[0]+(fwdfrm->nb_samples-1)*audFrmSize;
+                        uint8_t* dstptr = bwdfrm->data[0];
+                        for (int i = 0; i < fwdfrm->nb_samples; i++)
+                        {
+                            mempcpy(dstptr, srcptr, audFrmSize);
+                            srcptr -= audFrmSize;
+                            dstptr += audFrmSize;
+                        }
+
+                        af.decfrm = nullptr;
+                        af.fwdfrm = fwdfrm;
+                        af.bwdfrm = bwdfrm;
+                        idleLoop = false;
+                    }
+                }
+            }
+
+            if (idleLoop)
+                this_thread::sleep_for(chrono::milliseconds(1));
+        }
+        m_logger->Log(DEBUG) << "Leave UpdatePcmThreadProc()." << endl;
+    }
+
     pair<int64_t, int64_t> GetSeekPosByTs(double ts)
     {
         int64_t targetPts = CvtVidMtsToPts((int64_t)(ts*1000));
@@ -1255,13 +1732,29 @@ private:
     {
         if (readPos == m_cacheWnd.readPos && !forceUpdate)
             return;
+
         const double beforeCacheDur = m_readForward ? m_backwardCacheDur : m_forwardCacheDur;
         const double afterCacheDur = m_readForward ? m_forwardCacheDur : m_backwardCacheDur;
-        const double cacheBeginTs = readPos > beforeCacheDur ? readPos-beforeCacheDur : 0;
-        const double cacheEndTs = readPos+afterCacheDur < m_vidDurTs ? readPos+afterCacheDur : m_vidDurTs;
-        const int64_t seekPosRead = GetSeekPosByTs(readPos).first;
-        const int64_t seekPos00 = GetSeekPosByTs(cacheBeginTs).first;
-        const int64_t seekPos10 = GetSeekPosByTs(cacheEndTs).first;
+        double cacheBeginTs, cacheEndTs;
+        int64_t seekPosRead, seekPos00, seekPos10;
+        if (m_isVideoReader)
+        {
+            cacheBeginTs = readPos > beforeCacheDur ? readPos-beforeCacheDur : 0;
+            cacheEndTs = readPos+afterCacheDur < m_vidDurTs ? readPos+afterCacheDur : m_vidDurTs;
+            seekPosRead = GetSeekPosByTs(readPos).first;
+            seekPos00 = GetSeekPosByTs(cacheBeginTs).first;
+            seekPos10 = GetSeekPosByTs(cacheEndTs).first;
+        }
+        else
+        {
+            cacheBeginTs = floor(readPos-beforeCacheDur);
+            if (cacheBeginTs < 0) cacheBeginTs = 0;
+            cacheEndTs = ceil(readPos+afterCacheDur);
+            if (cacheEndTs > m_audDurTs) cacheEndTs = m_audDurTs;
+            seekPosRead = CvtAudMtsToPts(floor(readPos)*1000);
+            seekPos00 = CvtAudMtsToPts(cacheBeginTs*1000);
+            seekPos10 = CvtAudMtsToPts((cacheEndTs-1)*1000);
+        }
         CacheWindow cacheWnd = m_cacheWnd;
         if (seekPosRead != cacheWnd.seekPosShow || seekPos00 != cacheWnd.seekPos00 || seekPos10 != cacheWnd.seekPos10 || forceUpdate)
         {
@@ -1269,6 +1762,22 @@ private:
             m_needUpdateBldtsk = true;
         }
         m_cacheWnd.readPos = readPos;
+    }
+
+    void ResetBuildTask()
+    {
+        if (m_isVideoReader)
+            ResetSnapshotBuildTask();
+        else
+            ResetAudioSampleBuildTask();
+    }
+
+    void UpdateBuildTask()
+    {
+        if (m_isVideoReader)
+            UpdateSnapshotBuildTask();
+        else
+            UpdateAudioSampleBuildTask();
     }
 
     void ResetSnapshotBuildTask()
@@ -1425,34 +1934,189 @@ private:
     void UpdateBuildTaskByPriority()
     {
         lock_guard<mutex> lk(m_bldtskByPriLock);
-        CacheWindow cwnd = m_bldtskSnapWnd;
-        m_bldtskPriOrder = m_bldtskTimeOrder;
-        m_bldtskPriOrder.sort([this, cwnd](const GopDecodeTaskHolder& a, const GopDecodeTaskHolder& b) {
-            bool aIsShowGop = a->seekPts.first == cwnd.seekPosShow;
-            if (aIsShowGop)
-                return true;
-            bool bIsShowGop = b->seekPts.first == cwnd.seekPosShow;
-            if (bIsShowGop)
-                return false;
-            bool aIsForwardGop = a->seekPts.first > cwnd.seekPosShow;
-            if (!m_readForward)
-                aIsForwardGop = !aIsForwardGop;
-            bool bIsForwardGop = b->seekPts.first > cwnd.seekPosShow;
-            if (!m_readForward)
-                bIsForwardGop = !bIsForwardGop;
-            if (aIsForwardGop)
-            {
-                if (!bIsForwardGop)
+        if (m_isVideoReader)
+        {
+            CacheWindow cwnd = m_bldtskSnapWnd;
+            m_bldtskPriOrder = m_bldtskTimeOrder;
+            m_bldtskPriOrder.sort([this, cwnd](const GopDecodeTaskHolder& a, const GopDecodeTaskHolder& b) {
+                bool aIsShowGop = a->seekPts.first == cwnd.seekPosShow;
+                if (aIsShowGop)
                     return true;
+                bool bIsShowGop = b->seekPts.first == cwnd.seekPosShow;
+                if (bIsShowGop)
+                    return false;
+                bool aIsForwardGop = a->seekPts.first > cwnd.seekPosShow;
+                if (!m_readForward)
+                    aIsForwardGop = !aIsForwardGop;
+                bool bIsForwardGop = b->seekPts.first > cwnd.seekPosShow;
+                if (!m_readForward)
+                    bIsForwardGop = !bIsForwardGop;
+                if (aIsForwardGop)
+                {
+                    if (!bIsForwardGop)
+                        return true;
+                    else
+                        return (m_readForward^(a->seekPts.first < b->seekPts.first)) == 0;
+                }
+                else if (bIsForwardGop)
+                    return false;
                 else
-                    return (m_readForward^(a->seekPts.first < b->seekPts.first)) == 0;
-            }
-            else if (bIsForwardGop)
-                return false;
-            else
-                return (m_readForward^(a->seekPts.first > b->seekPts.first)) == 0;
-        });
+                    return (m_readForward^(a->seekPts.first > b->seekPts.first)) == 0;
+            });
+        }
+        else
+        {
+            m_bldtskPriOrder = m_bldtskTimeOrder;
+        }
         m_logger->Log(DEBUG) << "Build task priority updated." << endl;
+    }
+
+    void ResetAudioSampleBuildTask()
+    {
+        CacheWindow currwnd = m_cacheWnd;
+        lock_guard<mutex> lk(m_bldtskByTimeLock);
+        if (!m_bldtskTimeOrder.empty())
+        {
+            for (auto& tsk : m_bldtskTimeOrder)
+                tsk->cancel = true;
+            m_bldtskTimeOrder.clear();
+        }
+
+        int64_t beginPts = CvtAudMtsToPts((int64_t)(currwnd.cacheBeginTs*1000));
+        int64_t endPts = CvtAudMtsToPts((int64_t)(currwnd.cacheEndTs*1000));
+        int64_t pts0, pts1, mts0, mts1;
+        pts0 = beginPts;
+        mts0 = CvtAudPtsToMts(pts0);
+        while (pts0 < endPts)
+        {
+            mts1 = mts0+1000;
+            if ((double)mts1/1000 >= currwnd.cacheEndTs-0.5)
+                pts1 = endPts;
+            else
+                pts1 = CvtAudMtsToPts(mts1);
+            GopDecodeTaskHolder task = make_shared<GopDecodeTask>(*this);
+            task->seekPts = { pts0, pts1 };
+            m_bldtskTimeOrder.push_back(task);
+            if (currwnd.seekPosShow >= pts0 && currwnd.seekPosShow < pts1)
+            {
+                m_audReadTask = task;
+                m_audReadOffset = 0;
+            }
+            pts0 = pts1;
+            mts0 = mts1;
+        }
+
+        UpdateBuildTaskByPriority();
+    }
+
+    void UpdateAudioSampleBuildTask()
+    {
+        CacheWindow currwnd = m_cacheWnd;
+        bool windowAreaChanged = false;
+        if (currwnd.seekPos00 != m_bldtskSnapWnd.seekPos00 || currwnd.seekPos10 != m_bldtskSnapWnd.seekPos10)
+        {
+            m_logger->Log(DEBUG) << "^^^ Updating build task, index changed from ("
+                << TimestampToString(m_bldtskSnapWnd.cacheBeginTs) << " ~ " << TimestampToString(m_bldtskSnapWnd.cacheEndTs) << ") to ("
+                << TimestampToString(currwnd.cacheBeginTs) << " ~ " << TimestampToString(currwnd.cacheEndTs) << ")." << endl;
+            lock_guard<mutex> lk(m_bldtskByTimeLock);
+            if (currwnd.seekPos00 > m_bldtskSnapWnd.seekPos00 ||
+                currwnd.seekPos00 == m_bldtskSnapWnd.seekPos00 && currwnd.seekPos10 > m_bldtskSnapWnd.seekPos10)
+            {
+                int64_t beginPts = CvtAudMtsToPts((int64_t)(currwnd.cacheBeginTs*1000));
+                int64_t endPts = CvtAudMtsToPts((int64_t)(currwnd.cacheEndTs*1000));
+                if (currwnd.seekPos00 <= m_bldtskSnapWnd.seekPos10)
+                {
+                    auto iter = m_bldtskTimeOrder.begin();
+                    while (iter != m_bldtskTimeOrder.end())
+                    {
+                        auto& tsk = *iter;
+                        if (tsk->seekPts.first < currwnd.seekPos00)
+                        {
+                            tsk->cancel = true;
+                            iter = m_bldtskTimeOrder.erase(iter);
+                        }
+                        else
+                            break;
+                    }
+                    beginPts = m_bldtskTimeOrder.back()->seekPts.second;
+                }
+                else
+                {
+                    for (auto& tsk : m_bldtskTimeOrder)
+                        tsk->cancel = true;
+                    m_bldtskTimeOrder.clear();
+                }
+
+                int64_t pts0, pts1, mts0, mts1;
+                pts0 = beginPts;
+                mts0 = CvtAudPtsToMts(pts0);
+                while (pts0 < endPts)
+                {
+                    mts1 = mts0+1000;
+                    if ((double)mts1/1000 >= currwnd.cacheEndTs-0.5)
+                        pts1 = endPts;
+                    else
+                        pts1 = CvtAudMtsToPts(mts1);
+                    GopDecodeTaskHolder task = make_shared<GopDecodeTask>(*this);
+                    task->seekPts = { pts0, pts1 };
+                    m_bldtskTimeOrder.push_back(task);
+                    pts0 = pts1;
+                    mts0 = mts1;
+                }
+            }
+            else //(currwnd.cacheBeginTs < m_bldtskSnapWnd.cacheBeginTs)
+            {
+                int64_t beginPts = CvtAudMtsToPts((int64_t)(currwnd.cacheBeginTs*1000));
+                int64_t endPts = CvtAudMtsToPts((int64_t)(currwnd.cacheEndTs*1000))+1;
+                if (currwnd.seekPos10 >= m_bldtskSnapWnd.seekPos00)
+                {
+                    // buildIndex1 = m_bldtskSnapWnd.cacheIdx0-1;
+                    auto iter = m_bldtskTimeOrder.end();
+                    iter--;
+                    while (iter != m_bldtskTimeOrder.begin())
+                    {
+                        auto& tsk = *iter;
+                        if (tsk->seekPts.first > currwnd.seekPos10)
+                        {
+                            tsk->cancel = true;
+                            iter = m_bldtskTimeOrder.erase(iter);
+                            iter--;
+                        }
+                        else
+                            break;
+                    }
+                    endPts = m_bldtskTimeOrder.front()->seekPts.first;
+                }
+                else
+                {
+                    for (auto& tsk : m_bldtskTimeOrder)
+                        tsk->cancel = true;
+                    m_bldtskTimeOrder.clear();
+                }
+
+                int64_t pts0, pts1, mts0, mts1;
+                pts1 = endPts;
+                mts1 = CvtAudPtsToMts(pts1);
+                while (beginPts < pts1)
+                {
+                    mts0 = mts1-1000;
+                    if ((double)mts0/1000 <= currwnd.cacheBeginTs-0.5)
+                        pts0 = beginPts;
+                    else
+                        pts0 = CvtAudMtsToPts(mts0);
+                    GopDecodeTaskHolder task = make_shared<GopDecodeTask>(*this);
+                    task->seekPts = { pts0, pts1 };
+                    m_bldtskTimeOrder.push_front(task);
+                    pts1 = pts0;
+                    mts1 = mts0;
+                }
+            }
+            windowAreaChanged = true;
+        }
+        m_bldtskSnapWnd = currwnd;
+
+        if (windowAreaChanged)
+            UpdateBuildTaskByPriority();
     }
 
 private:
@@ -1463,6 +2127,9 @@ private:
     MediaInfo::InfoHolder m_hMediaInfo;
     MediaParser::SeekPointsHolder m_hSeekPoints;
     bool m_opened{false};
+    bool m_configured{false};
+    bool m_isVideoReader;
+    bool m_started{false};
     bool m_prepared{false};
     recursive_mutex m_apiLock;
     bool m_quit{false};
@@ -1470,12 +2137,14 @@ private:
     AVFormatContext* m_avfmtCtx{nullptr};
     int m_vidStmIdx{-1};
     int m_audStmIdx{-1};
-    AVStream* m_vidStream{nullptr};
-    AVStream* m_audStream{nullptr};
+    AVStream* m_vidAvStm{nullptr};
+    AVStream* m_audAvStm{nullptr};
 #if LIBAVFORMAT_VERSION_MAJOR >= 59
     const AVCodec* m_viddec{nullptr};
+    const AVCodec* m_auddec{nullptr};
 #else
     AVCodec* m_viddec{nullptr};
+    AVCodec* m_auddec{nullptr};
 #endif
     AVCodecContext* m_viddecCtx{nullptr};
     bool m_vidPreferUseHw{true};
@@ -1483,6 +2152,13 @@ private:
     AVPixelFormat m_vidHwPixFmt{AV_PIX_FMT_NONE};
     AVHWDeviceType m_viddecDevType{AV_HWDEVICE_TYPE_NONE};
     AVBufferRef* m_viddecHwDevCtx{nullptr};
+    AVCodecContext* m_auddecCtx{nullptr};
+    bool m_swrPassThrough{false};
+    SwrContext* m_swrCtx{nullptr};
+    AVSampleFormat m_swrOutSmpfmt{AV_SAMPLE_FMT_FLT};
+    int m_swrOutSampleRate;
+    int m_swrOutChannels;
+    int64_t m_swrOutChnLyt;
 
     // demuxing thread
     thread m_demuxThread;
@@ -1493,6 +2169,16 @@ private:
     thread m_viddecThread;
     // update snapshots thread
     thread m_updateCfThread;
+    // audio decoding thread
+    thread m_auddecThread;
+    // list<AVFrame*> m_audfrmQ;
+    // int m_audfrmQMaxSize{25};
+    // double m_audfrmAvgDur{0.021};
+    // uint32_t m_audfrmAvgDurCalcCnt{10};
+    // float m_audQDuration{5.f};
+    // mutex m_audfrmQLock;
+    // swr thread
+    thread m_swrThread;
 
     double m_prevReadPos{0};
     ImGui::ImMat m_prevReadImg;
@@ -1513,6 +2199,10 @@ private:
     CacheWindow m_bldtskSnapWnd;
     bool m_needUpdateBldtsk{false};
     double m_vidDurTs{0};
+    double m_audDurTs{0};
+    uint32_t m_audFrmSize{0};
+    GopDecodeTaskHolder m_audReadTask;
+    uint32_t m_audReadOffset{0};
 
     bool m_useRszFactor{false};
     bool m_ssSizeChanged{false};
