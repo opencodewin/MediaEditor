@@ -20,7 +20,7 @@ struct MediaReader
     virtual void SetDirection(bool forward) = 0;
 
     virtual bool ReadVideoFrame(double pos, ImGui::ImMat& m, bool wait = true) = 0;
-    virtual bool ReadAudioSamples(float* buf, uint32_t& size, double& pos, bool wait = true) = 0;
+    virtual bool ReadAudioSamples(uint8_t* buf, uint32_t& size, double& pos, bool wait = true) = 0;
 
     virtual bool IsOpened() const = 0;
     virtual MediaParserHolder GetMediaParser() const = 0;

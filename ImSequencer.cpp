@@ -1645,7 +1645,7 @@ static int thread_preview(MediaSequencer * sequencer)
                     }
                     if (valid_time && item->mMedia->IsOpened())
                     {
-                        item->mMedia->ReadFrame((float)item_time / 1000.0, mat);
+                        item->mMedia->ReadVideoFrame((float)item_time / 1000.0, mat);
                         if (!mat.empty())
                             break;
                     }
