@@ -260,14 +260,14 @@ struct ClipInfo
     MediaSnapshot* mSnapshot {nullptr};     // clip snapshot handle
     std::vector<Snapshot> mVideoSnapshots;  // clip snapshots, including texture and timestamp info
     std::mutex mFrameLock;                  // clip frame mutex
-    std::list<ImGui::ImMat> mFrame;         // clip timeline output frame
+    std::list<std::pair<ImGui::ImMat, ImGui::ImMat>> mFrame;         // clip timeline input/output frame pair
     int mFrameCount    {0};                 // total snapshot number in clip range
     float mSnapshotWidth {0};
     ClipInfo(int64_t start, int64_t end, bool drag_out, void* handle);
     ~ClipInfo();
     void UpdateSnapshot();
     void Seek();
-    ImGui::ImMat GetInputFrame();
+    bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame);
     int64_t mCurrentFilterTime {-1};
     ImTextureID mFilterInputTexture {nullptr};  // clip filter input texture
     ImTextureID mFilterOutputTexture {nullptr};  // clip filter output texture

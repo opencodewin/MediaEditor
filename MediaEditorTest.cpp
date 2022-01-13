@@ -883,33 +883,13 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
             OutputVideoSize = ImVec2(video_view_window_size.x - 8, (video_view_window_size.y - PanelBarSize.y - 8) / 2);
             if (selected_clip)
             {
-                auto input_frame = selected_clip->GetInputFrame();
-                if (!input_frame.empty())
+                std::pair<ImGui::ImMat, ImGui::ImMat> pair;
+                auto ret = selected_clip->GetFrame(pair);
+                if (ret)
                 {
-                    if (sequencer->video_filter_bp)
-                    {
-                        //sequencer->video_filter_bp->Blueprint_Exec(input_frame);
-                        sequencer->video_filter_bp->Blueprint_Run(input_frame);
-                    }
+                    ImGui::ImMatToTexture(pair.first, selected_clip->mFilterInputTexture);
+                    ImGui::ImMatToTexture(pair.second, selected_clip->mFilterOutputTexture);
                 }
-                if (sequencer->video_filter_bp)
-                {
-                    ImGui::ImMat in_mat, out_mat;
-                    if (sequencer->video_filter_bp->Blueprint_GetResult(in_mat, out_mat))
-                    {
-                        int64_t input_time = in_mat.time_stamp * 1000;
-                        if (!selected_clip->mFilterInputTexture || abs(input_time - selected_clip->mCurrentFilterTime) > 5)
-                        {
-                            ImGui::ImMatToTexture(in_mat, selected_clip->mFilterInputTexture);
-                        }
-                        int64_t output_time = out_mat.time_stamp * 1000;
-                        if (!selected_clip->mFilterOutputTexture || abs(output_time - selected_clip->mCurrentFilterTime) > 5)
-                        {
-                            ImGui::ImMatToTexture(out_mat, selected_clip->mFilterOutputTexture);
-                        }
-                    }
-                }
-
                 ImGuiIO& io = ImGui::GetIO();
                 float pos_x = 0, pos_y = 0;
                 bool draw_compare = false;
