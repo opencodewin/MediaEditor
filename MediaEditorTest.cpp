@@ -824,6 +824,7 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
                 if (selected_clip)
                 {
                     selected_clip->bPlay = false;
+                    selected_clip->mLastTime = -1;
                 }
             }
             ImGui::ShowTooltipOnHover("Stop");
@@ -889,6 +890,21 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
                 {
                     ImGui::ImMatToTexture(pair.first, selected_clip->mFilterInputTexture);
                     ImGui::ImMatToTexture(pair.second, selected_clip->mFilterOutputTexture);
+                    if (selected_clip->bPlay)
+                    {
+                        if (selected_clip->bForward)
+                        {
+                            selected_clip->mCurrent += selected_clip->mFrameInterval;
+                            if (selected_clip->mCurrent > selected_clip->mEnd)
+                                selected_clip->mCurrent = selected_clip->mEnd;
+                        }
+                        else
+                        {
+                            selected_clip->mCurrent -= selected_clip->mFrameInterval;
+                            if (selected_clip->mCurrent < selected_clip->mStart)
+                                selected_clip->mCurrent = selected_clip->mStart;
+                        }
+                    }
                 }
                 ImGuiIO& io = ImGui::GetIO();
                 float pos_x = 0, pos_y = 0;

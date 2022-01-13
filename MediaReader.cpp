@@ -4,6 +4,7 @@
 #include <atomic>
 #include <algorithm>
 #include <chrono>
+#include <list>
 #include "MediaReader.h"
 #include "FFUtils.h"
 extern "C"

@@ -251,6 +251,7 @@ struct ClipInfo
     int64_t mEnd    {0};
     int64_t mCurrent{0};
     int64_t mFrameInterval {40};
+    int64_t mLastTime {-1};
     bool bPlay      {false};
     bool bForward   {true};
     bool bSeeking   {false};
@@ -268,7 +269,6 @@ struct ClipInfo
     void UpdateSnapshot();
     void Seek();
     bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame);
-    int64_t mCurrentFilterTime {-1};
     ImTextureID mFilterInputTexture {nullptr};  // clip filter input texture
     ImTextureID mFilterOutputTexture {nullptr};  // clip filter output texture
     imgui_json::value mFilterBP;

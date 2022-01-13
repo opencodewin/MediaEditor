@@ -1,6 +1,7 @@
 #include <sstream>
 #include <thread>
 #include <algorithm>
+#include <list>
 #include "MediaOverview.h"
 #include "FFUtils.h"
 extern "C"
