@@ -263,6 +263,8 @@ public:
         m_audFrmSize = 0;
         m_audReadTask = nullptr;
         m_audReadOffset = 0;
+        m_swrFrmSize = 0;
+        m_swrOutStartTime = 0;
 
         m_prepared = false;
         m_started = false;
@@ -421,7 +423,7 @@ public:
     const MediaInfo::VideoStream* GetVideoStream() const override
     {
         MediaInfo::InfoHolder hInfo = m_hMediaInfo;
-        if (!hInfo || m_vidStmIdx <= 0)
+        if (!hInfo || m_vidStmIdx < 0)
             return nullptr;
         return dynamic_cast<MediaInfo::VideoStream*>(hInfo->streams[m_vidStmIdx].get());
     }
@@ -429,7 +431,7 @@ public:
     const MediaInfo::AudioStream* GetAudioStream() const override
     {
         MediaInfo::InfoHolder hInfo = m_hMediaInfo;
-        if (!hInfo || m_audStmIdx <= 0)
+        if (!hInfo || m_audStmIdx < 0)
             return nullptr;
         return dynamic_cast<MediaInfo::AudioStream*>(hInfo->streams[m_audStmIdx].get());
     }
@@ -467,6 +469,25 @@ private:
         return av_rescale_q(mts, MILLISEC_TIMEBASE, m_audAvStm->time_base)+m_audAvStm->start_time;
     }
 
+    int64_t CvtPtsToMts(int64_t pts)
+    {
+        return m_isVideoReader ?
+            av_rescale_q(pts-m_vidAvStm->start_time, m_vidAvStm->time_base, MILLISEC_TIMEBASE) :
+            av_rescale_q(pts-m_audAvStm->start_time, m_audAvStm->time_base, MILLISEC_TIMEBASE);
+    }
+
+    int64_t CvtMtsToPts(int64_t mts)
+    {
+        return m_isVideoReader ?
+            av_rescale_q(mts, MILLISEC_TIMEBASE, m_vidAvStm->time_base)+m_vidAvStm->start_time :
+            av_rescale_q(mts, MILLISEC_TIMEBASE, m_audAvStm->time_base)+m_audAvStm->start_time;
+    }
+
+    int64_t CvtSwrPtsToMts(int64_t pts)
+    {
+        return av_rescale_q(pts-m_swrOutStartTime, m_swrOutTimebase, MILLISEC_TIMEBASE);
+    }
+
     bool OpenMedia(MediaParserHolder hParser)
     {
         int fferr = avformat_open_input(&m_avfmtCtx, hParser->GetUrl().c_str(), nullptr, nullptr);
@@ -488,7 +509,7 @@ private:
             return false;
         }
 
-        if (m_vidStmIdx > 0)
+        if (m_vidStmIdx >= 0)
         {
             MediaInfo::VideoStream* vidStream = dynamic_cast<MediaInfo::VideoStream*>(m_hMediaInfo->streams[m_vidStmIdx].get());
             m_vidDurTs = vidStream->duration;
@@ -512,7 +533,7 @@ private:
             }
         }
 
-        if (m_audStmIdx > 0)
+        if (m_audStmIdx >= 0)
         {
             MediaInfo::AudioStream* audStream = dynamic_cast<MediaInfo::AudioStream*>(m_hMediaInfo->streams[m_audStmIdx].get());
             m_audDurTs = audStream->duration;
@@ -738,7 +759,9 @@ private:
                 m_errMsg = FFapiFailureMessage("swr_init", fferr);
                 return false;
             }
-            m_swrTimebase = { 1, inSampleRate*m_swrOutSampleRate };
+            m_swrOutTimebase = { 1, m_swrOutSampleRate };
+            m_swrOutStartTime = av_rescale_q(m_audAvStm->start_time, m_audAvStm->time_base, m_swrOutTimebase);
+            m_swrFrmSize = av_get_bytes_per_sample(m_swrOutSmpfmt)*m_swrOutChannels;
             m_swrPassThrough = false;
         }
         else
@@ -818,7 +841,7 @@ private:
             {
                 lock_guard<mutex> lk(m_bldtskByTimeLock);
                 auto iter = find_if(m_bldtskTimeOrder.begin(), m_bldtskTimeOrder.end(), [this, ts](const GopDecodeTaskHolder& task) {
-                    int64_t pts = CvtVidMtsToPts(ts*1000);
+                    int64_t pts = CvtMtsToPts(ts*1000);
                     return task->seekPts.first <= pts && task->seekPts.second > pts;
                 });
                 if (iter != m_bldtskTimeOrder.end())
@@ -838,8 +861,8 @@ private:
         }
         if (targetTask->demuxEof && targetTask->frmPtsAry.empty())
         {
-            m_logger->Log(WARN) << "Current task [" << targetTask->seekPts.first << "(" << MillisecToString(CvtVidPtsToMts(targetTask->seekPts.first)) << "), "
-                << targetTask->seekPts.second << "(" << MillisecToString(CvtVidPtsToMts(targetTask->seekPts.second)) << ")) has NO FRM PTS!" << endl;
+            m_logger->Log(WARN) << "Current task [" << targetTask->seekPts.first << "(" << MillisecToString(CvtPtsToMts(targetTask->seekPts.first)) << "), "
+                << targetTask->seekPts.second << "(" << MillisecToString(CvtPtsToMts(targetTask->seekPts.second)) << ")) has NO FRM PTS!" << endl;
             return false;
         }
         if (targetTask->vfAry.empty() && !wait)
@@ -919,15 +942,6 @@ private:
             if (!readTask->afAry.empty())
             {
                 auto& afAry = readTask->afAry;
-                if (!isPosSet)
-                {
-                    pos = (double)CvtAudPtsToMts(afAry.front().pts)/1000
-                        +(double)m_audReadOffset/m_audFrmSize/m_swrOutSampleRate;
-                    if (pos < m_prevReadPos)
-                        m_logger->Log(DEBUG) << "here" << endl;
-                    m_prevReadPos = pos;
-                    isPosSet = true;
-                }
                 if (!isIterSet)
                 {
                     iter = afAry.begin();
@@ -937,6 +951,17 @@ private:
                 SelfFreeAVFramePtr readfrm = m_readForward ? iter->fwdfrm : iter->bwdfrm;
                 if (readfrm)
                 {
+                    if (!isPosSet)
+                    {
+                        if (m_swrPassThrough)
+                            pos = (double)CvtPtsToMts(readfrm->pts)/1000
+                                +(double)m_audReadOffset/m_audFrmSize/m_swrOutSampleRate;
+                        else
+                            pos = (double)CvtSwrPtsToMts(readfrm->pts)/1000
+                                +(double)m_audReadOffset/m_swrFrmSize/m_swrOutSampleRate;
+                        m_prevReadPos = pos;
+                        isPosSet = true;
+                    }
                     if (skipSize >= readfrm->linesize[0])
                     {
                         auto iter2 = iter++;
@@ -1091,8 +1116,8 @@ private:
                     currTask->demuxing = true;
                     taskChanged = true;
                     m_logger->Log(DEBUG) << "--> Change demux task, startPts=" 
-                        << currTask->seekPts.first << "(" << MillisecToString(CvtAudPtsToMts(currTask->seekPts.first)) << ")"
-                        << ", endPts=" << currTask->seekPts.second << "(" << MillisecToString(CvtAudPtsToMts(currTask->seekPts.second)) << ")" << endl;
+                        << currTask->seekPts.first << "(" << MillisecToString(CvtPtsToMts(currTask->seekPts.first)) << ")"
+                        << ", endPts=" << currTask->seekPts.second << "(" << MillisecToString(CvtPtsToMts(currTask->seekPts.second)) << ")" << endl;
                 }
             }
 
@@ -1249,7 +1274,7 @@ private:
 
     bool EnqueueSnapshotAVFrame(AVFrame* frm)
     {
-        double ts = (double)CvtVidPtsToMts(frm->pts)/1000;
+        double ts = (double)CvtPtsToMts(frm->pts)/1000;
         lock_guard<mutex> lk(m_bldtskByPriLock);
         auto iter = find_if(m_bldtskPriOrder.begin(), m_bldtskPriOrder.end(), [frm](const GopDecodeTaskHolder& task) {
             return frm->pts >= task->seekPts.first && frm->pts < task->seekPts.second;
@@ -1280,7 +1305,7 @@ private:
                 if (vfRvsIter != task->vfAry.rend() && vfRvsIter->ts == ts)
                 {
                     m_logger->Log(DEBUG) << "Found duplicated VF#" << ts << ", dropping this VF. pts=" << frm->pts
-                        << ", t=" << MillisecToString(CvtVidPtsToMts(frm->pts)) << "." << endl;
+                        << ", t=" << MillisecToString(CvtPtsToMts(frm->pts)) << "." << endl;
                 }
                 else
                 {
@@ -1292,8 +1317,8 @@ private:
             }
             if (task->vfAry.size() >= task->frmPtsAry.size())
             {
-                // m_logger->Log(DEBUG) << "Task [" << task->seekPts.first << "(" << MillisecToString(CvtVidPtsToMts(task->seekPts.first)) << "), "
-                // << task->seekPts.second << "(" << MillisecToString(CvtVidPtsToMts(task->seekPts.second)) << ")) finishes ALL FRAME decoding." << endl;
+                // m_logger->Log(DEBUG) << "Task [" << task->seekPts.first << "(" << MillisecToString(CvtPtsToMts(task->seekPts.first)) << "), "
+                // << task->seekPts.second << "(" << MillisecToString(CvtPtsToMts(task->seekPts.second)) << ")) finishes ALL FRAME decoding." << endl;
                 task->decodeEof = true;
             }
             return true;
@@ -1366,7 +1391,7 @@ private:
                         int fferr = avcodec_receive_frame(m_viddecCtx, &avfrm);
                         if (fferr == 0)
                         {
-                            // m_logger->Log(DEBUG) << "<<< Get video frame pts=" << avfrm.pts << "(" << MillisecToString(CvtVidPtsToMts(avfrm.pts)) << ")." << endl;
+                            // m_logger->Log(DEBUG) << "<<< Get video frame pts=" << avfrm.pts << "(" << MillisecToString(CvtPtsToMts(avfrm.pts)) << ")." << endl;
                             avfrmLoaded = true;
                             idleLoop = false;
                         }
@@ -1413,7 +1438,7 @@ private:
                         int fferr = avcodec_send_packet(m_viddecCtx, avpkt);
                         if (fferr == 0)
                         {
-                            // m_logger->Log(DEBUG) << ">>> Send video packet pts=" << avpkt->pts << "(" << MillisecToString(CvtVidPtsToMts(avpkt->pts)) << ")." << endl;
+                            // m_logger->Log(DEBUG) << ">>> Send video packet pts=" << avpkt->pts << "(" << MillisecToString(CvtPtsToMts(avpkt->pts)) << ")." << endl;
                             {
                                 lock_guard<mutex> lk(currTask->avpktQLock);
                                 currTask->avpktQ.pop_front();
@@ -1525,7 +1550,7 @@ private:
 
     bool EnqueueAudioAVFrame(AVFrame* frm)
     {
-        double ts = (double)CvtAudPtsToMts(frm->pts)/1000;
+        double ts = (double)CvtPtsToMts(frm->pts)/1000;
         lock_guard<mutex> lk(m_bldtskByPriLock);
         auto iter = find_if(m_bldtskPriOrder.begin(), m_bldtskPriOrder.end(), [frm](const GopDecodeTaskHolder& task) {
             return frm->pts >= task->seekPts.first && frm->pts < task->seekPts.second;
@@ -1546,7 +1571,7 @@ private:
                 nextPts = frm->pts+frm->pkt_duration;
             else
             {
-                int64_t pktDur = CvtAudMtsToPts((int64_t)((double)frm->nb_samples*1000/frm->sample_rate));
+                int64_t pktDur = CvtMtsToPts((int64_t)((double)frm->nb_samples*1000/frm->sample_rate));
                 nextPts = frm->pts+pktDur;
             }
             af.endOfGop = nextPts >= iter->get()->seekPts.second;
@@ -1565,7 +1590,7 @@ private:
                 if (afRvsIter != task->afAry.rend() && afRvsIter->ts == ts)
                 {
                     m_logger->Log(DEBUG) << "Found duplicated AF#" << ts << ", dropping this AF. pts=" << frm->pts
-                        << ", t=" << MillisecToString(CvtAudPtsToMts(frm->pts)) << "." << endl;
+                        << ", t=" << MillisecToString(CvtPtsToMts(frm->pts)) << "." << endl;
                 }
                 else
                 {
@@ -1576,8 +1601,8 @@ private:
             }
             if (task->afAry.size() >= task->frmPtsAry.size())
             {
-                // m_logger->Log(DEBUG) << "Task [" << task->seekPts.first << "(" << MillisecToString(CvtVidPtsToMts(task->seekPts.first)) << "), "
-                // << task->seekPts.second << "(" << MillisecToString(CvtVidPtsToMts(task->seekPts.second)) << ")) finishes ALL FRAME decoding." << endl;
+                // m_logger->Log(DEBUG) << "Task [" << task->seekPts.first << "(" << MillisecToString(CvtPtsToMts(task->seekPts.first)) << "), "
+                // << task->seekPts.second << "(" << MillisecToString(CvtPtsToMts(task->seekPts.second)) << ")) finishes ALL FRAME decoding." << endl;
                 task->decodeEof = true;
             }
             return true;
@@ -1643,7 +1668,7 @@ private:
                         int fferr = avcodec_receive_frame(m_auddecCtx, &avfrm);
                         if (fferr == 0)
                         {
-                            // m_logger->Log(DEBUG) << "<<< Get audio frame pts=" << avfrm.pts << "(" << MillisecToString(CvtAudPtsToMts(avfrm.pts)) << ")." << endl;
+                            // m_logger->Log(DEBUG) << "<<< Get audio frame pts=" << avfrm.pts << "(" << MillisecToString(CvtPtsToMts(avfrm.pts)) << ")." << endl;
                             avfrmLoaded = true;
                             idleLoop = false;
                         }
@@ -1685,7 +1710,7 @@ private:
                     int fferr = avcodec_send_packet(m_auddecCtx, avpkt);
                     if (fferr == 0)
                     {
-                        // m_logger->Log(DEBUG) << ">>> Send audio packet pts=" << avpkt->pts << "(" << MillisecToString(CvtAudPtsToMts(avpkt->pts)) << ")." << endl;
+                        // m_logger->Log(DEBUG) << ">>> Send audio packet pts=" << avpkt->pts << "(" << MillisecToString(CvtPtsToMts(avpkt->pts)) << ")." << endl;
                         {
                             lock_guard<mutex> lk(currTask->avpktQLock);
                             currTask->avpktQ.pop_front();
@@ -1725,7 +1750,7 @@ private:
         if (m_quit)
             return;
 
-        uint32_t audFrmSize = 0;
+        uint32_t audFrmSize = m_swrFrmSize;
         GopDecodeTaskHolder currTask;
         AVRational audTimebase = m_audAvStm->time_base;
         while (!m_quit)
@@ -1780,6 +1805,12 @@ private:
                                 m_logger->Log(ERROR) << "swr_convert(GenerateAudioSamplesThreadProc) FAILED with return code " << fferr << endl;
                                 break;
                             }
+                            if (fferr < dstfrm->nb_samples)
+                            {
+                                dstfrm->nb_samples = fferr;
+                                dstfrm->linesize[0] = fferr*m_swrFrmSize;
+                            }
+                            af.pts = dstfrm->pts;
                         }
 
                         bwdfrm = AllocSelfFreeAVFramePtr();
@@ -1800,8 +1831,6 @@ private:
                             break;
                         }
                         av_frame_copy_props(bwdfrm.get(), fwdfrm.get());
-                        if (audFrmSize == 0)
-                            audFrmSize = av_get_bytes_per_sample((AVSampleFormat)fwdfrm->format)*fwdfrm->channels;
                         uint8_t* srcptr = fwdfrm->data[0]+(fwdfrm->nb_samples-1)*audFrmSize;
                         uint8_t* dstptr = bwdfrm->data[0];
                         for (int i = 0; i < fwdfrm->nb_samples; i++)
@@ -1832,7 +1861,7 @@ private:
 
     pair<int64_t, int64_t> GetSeekPosByTs(double ts)
     {
-        int64_t targetPts = CvtVidMtsToPts((int64_t)(ts*1000));
+        int64_t targetPts = CvtMtsToPts((int64_t)(ts*1000));
         auto iter = find_if(m_hSeekPoints->begin(), m_hSeekPoints->end(),
             [targetPts](int64_t keyPts) { return keyPts > targetPts; });
         if (iter != m_hSeekPoints->begin())
@@ -1865,9 +1894,9 @@ private:
             if (cacheBeginTs < 0) cacheBeginTs = 0;
             cacheEndTs = ceil(readPos+afterCacheDur);
             if (cacheEndTs > m_audDurTs) cacheEndTs = m_audDurTs;
-            seekPosRead = CvtAudMtsToPts(floor(readPos)*1000);
-            seekPos00 = CvtAudMtsToPts(cacheBeginTs*1000);
-            seekPos10 = CvtAudMtsToPts((cacheEndTs-1)*1000);
+            seekPosRead = CvtMtsToPts(floor(readPos)*1000);
+            seekPos00 = CvtMtsToPts(cacheBeginTs*1000);
+            seekPos10 = CvtMtsToPts((cacheEndTs-1)*1000);
         }
         CacheWindow cacheWnd = m_cacheWnd;
         if (seekPosRead != cacheWnd.seekPosShow || seekPos00 != cacheWnd.seekPos00 || seekPos10 != cacheWnd.seekPos10 || forceUpdate)
@@ -1905,7 +1934,7 @@ private:
             m_bldtskTimeOrder.clear();
         }
 
-        int64_t searchPts = CvtVidMtsToPts((int64_t)(currwnd.cacheBeginTs*1000));
+        int64_t searchPts = CvtMtsToPts((int64_t)(currwnd.cacheBeginTs*1000));
         auto iter = find_if(m_hSeekPoints->begin(), m_hSeekPoints->end(),
             [searchPts](int64_t keyPts) { return keyPts > searchPts; });
         if (iter != m_hSeekPoints->begin())
@@ -1918,7 +1947,7 @@ private:
             task->seekPts = { first, second };
             m_bldtskTimeOrder.push_back(task);
             searchPts = second;
-        } while (searchPts < INT64_MAX && (double)CvtVidPtsToMts(searchPts)/1000 <= currwnd.cacheEndTs);
+        } while (searchPts < INT64_MAX && (double)CvtPtsToMts(searchPts)/1000 <= currwnd.cacheEndTs);
         m_bldtskSnapWnd = currwnd;
         m_logger->Log(DEBUG) << "^^^ Initialized build task, pos = " << TimestampToString(m_bldtskSnapWnd.readPos) << ", window = ["
             << TimestampToString(m_bldtskSnapWnd.cacheBeginTs) << " ~ " << TimestampToString(m_bldtskSnapWnd.cacheEndTs) << "]." << endl;
@@ -1938,8 +1967,8 @@ private:
             if (currwnd.cacheBeginTs > m_bldtskSnapWnd.cacheBeginTs ||
                 currwnd.cacheBeginTs == m_bldtskSnapWnd.cacheBeginTs && currwnd.cacheEndTs > m_bldtskSnapWnd.cacheEndTs)
             {
-                int64_t beginPts = CvtVidMtsToPts((int64_t)(currwnd.cacheBeginTs*1000));
-                int64_t endPts = CvtVidMtsToPts((int64_t)(currwnd.cacheEndTs*1000))+1;
+                int64_t beginPts = CvtMtsToPts((int64_t)(currwnd.cacheBeginTs*1000));
+                int64_t endPts = CvtMtsToPts((int64_t)(currwnd.cacheEndTs*1000))+1;
                 if (currwnd.seekPos00 <= m_bldtskSnapWnd.seekPos10)
                 {
                     auto iter = m_bldtskTimeOrder.begin();
@@ -1985,8 +2014,8 @@ private:
             }
             else //(currwnd.cacheBeginTs < m_bldtskSnapWnd.cacheBeginTs)
             {
-                int64_t beginPts = CvtVidMtsToPts((int64_t)(currwnd.cacheBeginTs*1000));
-                int64_t endPts = CvtVidMtsToPts((int64_t)(currwnd.cacheEndTs*1000))+1;
+                int64_t beginPts = CvtMtsToPts((int64_t)(currwnd.cacheBeginTs*1000));
+                int64_t endPts = CvtMtsToPts((int64_t)(currwnd.cacheEndTs*1000))+1;
                 if (currwnd.seekPos10 >= m_bldtskSnapWnd.seekPos00)
                 {
                     // buildIndex1 = m_bldtskSnapWnd.cacheIdx0-1;
@@ -2110,18 +2139,18 @@ private:
             m_bldtskTimeOrder.clear();
         }
 
-        int64_t beginPts = CvtAudMtsToPts((int64_t)(currwnd.cacheBeginTs*1000));
-        int64_t endPts = CvtAudMtsToPts((int64_t)(currwnd.cacheEndTs*1000));
+        int64_t beginPts = CvtMtsToPts((int64_t)(currwnd.cacheBeginTs*1000));
+        int64_t endPts = CvtMtsToPts((int64_t)(currwnd.cacheEndTs*1000));
         int64_t pts0, pts1, mts0, mts1;
         pts0 = beginPts;
-        mts0 = CvtAudPtsToMts(pts0);
+        mts0 = CvtPtsToMts(pts0);
         while (pts0 < endPts)
         {
             mts1 = mts0+1000;
             if ((double)mts1/1000 >= currwnd.cacheEndTs-0.5)
                 pts1 = endPts;
             else
-                pts1 = CvtAudMtsToPts(mts1);
+                pts1 = CvtMtsToPts(mts1);
             GopDecodeTaskHolder task = make_shared<GopDecodeTask>(*this);
             task->seekPts = { pts0, pts1 };
             m_bldtskTimeOrder.push_back(task);
@@ -2153,8 +2182,8 @@ private:
             if (currwnd.seekPos00 > m_bldtskSnapWnd.seekPos00 ||
                 currwnd.seekPos00 == m_bldtskSnapWnd.seekPos00 && currwnd.seekPos10 > m_bldtskSnapWnd.seekPos10)
             {
-                int64_t beginPts = CvtAudMtsToPts((int64_t)(currwnd.cacheBeginTs*1000));
-                int64_t endPts = CvtAudMtsToPts((int64_t)(currwnd.cacheEndTs*1000));
+                int64_t beginPts = CvtMtsToPts((int64_t)(currwnd.cacheBeginTs*1000));
+                int64_t endPts = CvtMtsToPts((int64_t)(currwnd.cacheEndTs*1000));
                 if (currwnd.seekPos00 <= m_bldtskSnapWnd.seekPos10)
                 {
                     auto iter = m_bldtskTimeOrder.begin();
@@ -2180,14 +2209,14 @@ private:
 
                 int64_t pts0, pts1, mts0, mts1;
                 pts0 = beginPts;
-                mts0 = CvtAudPtsToMts(pts0);
+                mts0 = CvtPtsToMts(pts0);
                 while (pts0 < endPts)
                 {
                     mts1 = mts0+1000;
                     if ((double)mts1/1000 >= currwnd.cacheEndTs-0.5)
                         pts1 = endPts;
                     else
-                        pts1 = CvtAudMtsToPts(mts1);
+                        pts1 = CvtMtsToPts(mts1);
                     GopDecodeTaskHolder task = make_shared<GopDecodeTask>(*this);
                     task->seekPts = { pts0, pts1 };
                     m_bldtskTimeOrder.push_back(task);
@@ -2197,8 +2226,8 @@ private:
             }
             else //(currwnd.cacheBeginTs < m_bldtskSnapWnd.cacheBeginTs)
             {
-                int64_t beginPts = CvtAudMtsToPts((int64_t)(currwnd.cacheBeginTs*1000));
-                int64_t endPts = CvtAudMtsToPts((int64_t)(currwnd.cacheEndTs*1000))+1;
+                int64_t beginPts = CvtMtsToPts((int64_t)(currwnd.cacheBeginTs*1000));
+                int64_t endPts = CvtMtsToPts((int64_t)(currwnd.cacheEndTs*1000))+1;
                 if (currwnd.seekPos10 >= m_bldtskSnapWnd.seekPos00)
                 {
                     // buildIndex1 = m_bldtskSnapWnd.cacheIdx0-1;
@@ -2227,14 +2256,14 @@ private:
 
                 int64_t pts0, pts1, mts0, mts1;
                 pts1 = endPts;
-                mts1 = CvtAudPtsToMts(pts1);
+                mts1 = CvtPtsToMts(pts1);
                 while (beginPts < pts1)
                 {
                     mts0 = mts1-1000;
                     if ((double)mts0/1000 <= currwnd.cacheBeginTs-0.5)
                         pts0 = beginPts;
                     else
-                        pts0 = CvtAudMtsToPts(mts0);
+                        pts0 = CvtMtsToPts(mts0);
                     GopDecodeTaskHolder task = make_shared<GopDecodeTask>(*this);
                     task->seekPts = { pts0, pts1 };
                     m_bldtskTimeOrder.push_front(task);
@@ -2317,7 +2346,9 @@ private:
     int m_swrOutSampleRate;
     int m_swrOutChannels;
     int64_t m_swrOutChnLyt;
-    AVRational m_swrTimebase;
+    AVRational m_swrOutTimebase;
+    int64_t m_swrOutStartTime;
+    uint32_t m_swrFrmSize{0};
 
     // demuxing thread
     thread m_demuxThread;

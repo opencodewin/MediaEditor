@@ -322,11 +322,11 @@ bool Application_Frame(void * handle)
             g_imageTid = nullptr;
             g_isLongCacheDur = false;
             string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
-            // g_vidrdr->Open(filePathName);
-            // g_vidrdr->ConfigVideoReader(g_imageDisplaySize.x, g_imageDisplaySize.y);
-            // g_vidrdr->Start();
-            // g_audrdr->Open(g_vidrdr->GetMediaParser());
-            g_audrdr->Open(filePathName);
+            g_vidrdr->Open(filePathName);
+            g_vidrdr->ConfigVideoReader(g_imageDisplaySize.x, g_imageDisplaySize.y);
+            g_vidrdr->Start();
+            g_audrdr->Open(g_vidrdr->GetMediaParser());
+            // g_audrdr->Open(filePathName);
             g_audrdr->ConfigAudioReader(c_audioRenderChannels, c_audioRenderSampleRate);
             g_audrdr->Start();
         }
