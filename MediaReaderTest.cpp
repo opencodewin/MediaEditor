@@ -210,22 +210,16 @@ bool Application_Frame(void * handle)
         string dirBtnLabel = isForward ? "Backword" : "Forward";
         if (ImGui::Button(dirBtnLabel.c_str()))
         {
+            bool notForward = !isForward;
             if (g_vidrdr->IsOpened())
             {
-                g_vidrdr->SetDirection(!isForward);
-                isForward = g_vidrdr->IsDirectionForward();
+                g_vidrdr->SetDirection(notForward);
                 g_playStartPos = playPos;
                 g_playStartTp = Clock::now();
             }
             if (g_audrdr->IsOpened())
             {
-                g_audrdr->SetDirection(!isForward);
-                if (!g_vidrdr->IsOpened())
-                {
-                    isForward = g_audrdr->IsDirectionForward();
-                    g_playStartPos = playPos;
-                    g_playStartTp = Clock::now();
-                }
+                g_audrdr->SetDirection(notForward);
             }
         }
 

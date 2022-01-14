@@ -939,7 +939,8 @@ private:
 
         uint8_t* dstptr = buf;
         uint32_t readSize = 0, toReadSize = size, skipSize = m_audReadOffset;
-        list<AudioFrame>::iterator iter;
+        list<AudioFrame>::iterator fwditer;
+        list<AudioFrame>::reverse_iterator bwditer;
         bool isIterSet = false;
         bool isPosSet = false;
         bool needLoop;
@@ -947,33 +948,47 @@ private:
         {
             bool idleLoop = true;
 
-            if (!readTask->afAry.empty())
+            if (!readTask->afAry.empty() && (m_readForward || readTask->afAry.back().endOfGop))
             {
                 auto& afAry = readTask->afAry;
                 if (!isIterSet)
                 {
-                    iter = afAry.begin();
+                    if (m_readForward)
+                        fwditer = afAry.begin();
+                    else
+                        bwditer = afAry.rbegin();
                     isIterSet = true;
                 }
 
-                SelfFreeAVFramePtr readfrm = m_readForward ? iter->fwdfrm : iter->bwdfrm;
+                SelfFreeAVFramePtr readfrm = m_readForward ? fwditer->fwdfrm : bwditer->bwdfrm;
                 if (readfrm)
                 {
                     if (!isPosSet)
                     {
-                        if (m_swrPassThrough)
-                            pos = (double)CvtPtsToMts(readfrm->pts)/1000
-                                +(double)m_audReadOffset/m_audFrmSize/m_swrOutSampleRate;
-                        else
-                            pos = (double)CvtSwrPtsToMts(readfrm->pts)/1000
-                                +(double)m_audReadOffset/m_swrFrmSize/m_swrOutSampleRate;
+                        double startts = m_swrPassThrough ?
+                                (double)CvtPtsToMts(readfrm->pts)/1000 :
+                                (double)CvtSwrPtsToMts(readfrm->pts)/1000;
+                        double offset = m_swrPassThrough ?
+                                (double)m_audReadOffset/m_audFrmSize/m_swrOutSampleRate :
+                                (double)m_audReadOffset/m_swrFrmSize/m_swrOutSampleRate;
+                        pos = m_readForward ? startts+offset : startts-offset;
                         m_prevReadPos = pos;
                         isPosSet = true;
                     }
                     if (skipSize >= readfrm->linesize[0])
                     {
-                        auto iter2 = iter++;
-                        if (iter != afAry.end())
+                        bool reachEnd;
+                        if (m_readForward)
+                        {
+                            fwditer++;
+                            reachEnd = fwditer == afAry.end();
+                        }
+                        else
+                        {
+                            bwditer++;
+                            reachEnd = bwditer == afAry.rend();
+                        }
+                        if (!reachEnd)
                         {
                             skipSize -= readfrm->linesize[0];
                             idleLoop = false;
@@ -994,8 +1009,19 @@ private:
                         readSize += copySize;
                         skipSize = 0;
                         m_audReadOffset += copySize;
-                        iter++;
-                        if (iter == afAry.end())
+
+                        bool reachEnd;
+                        if (m_readForward)
+                        {
+                            fwditer++;
+                            reachEnd = fwditer == afAry.end();
+                        }
+                        else
+                        {
+                            bwditer++;
+                            reachEnd = bwditer == afAry.rend();
+                        }
+                        if (reachEnd)
                         {
                             readTask = FindNextAudioReadTask();
                             skipSize = 0;
@@ -1849,6 +1875,7 @@ private:
                             srcptr -= audFrmSize;
                             dstptr += audFrmSize;
                         }
+                        bwdfrm->pts = fwdfrm->pts+fwdfrm->nb_samples;
 
                         af.decfrm = nullptr;
                         af.fwdfrm = fwdfrm;
@@ -2313,13 +2340,27 @@ private:
             else
             {
                 m_audReadTask = *iter2;
-                m_audReadOffset = (int)((currwnd.readPos-(double)CvtAudPtsToMts(m_audReadTask->seekPts.first)/1000)*m_swrOutSampleRate)*m_swrFrmSize;
+                if (m_readForward)
+                    m_audReadOffset = (int)((currwnd.readPos-(double)CvtAudPtsToMts(m_audReadTask->seekPts.first)/1000)*m_swrOutSampleRate)*m_swrFrmSize;
+                else
+                    m_audReadOffset = (int)(((double)CvtAudPtsToMts(m_audReadTask->seekPts.second)/1000-currwnd.readPos)*m_swrOutSampleRate)*m_swrFrmSize;
             }
         }
         else
         {
-            iter++;
-            if (iter == m_bldtskPriOrder.end())
+            bool reachEnd;
+            if (m_readForward)
+            {
+                iter++;
+                reachEnd = iter == m_bldtskPriOrder.end();
+            }
+            else
+            {
+                reachEnd = iter == m_bldtskPriOrder.begin();
+                if (!reachEnd)
+                    iter--;
+            }
+            if (reachEnd)
             {
                 m_audReadTask = nullptr;
                 m_audReadOffset = -1;
