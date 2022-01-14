@@ -1875,6 +1875,7 @@ private:
                             srcptr -= audFrmSize;
                             dstptr += audFrmSize;
                         }
+                        bwdfrm->linesize[0] = fwdfrm->linesize[0];
                         bwdfrm->pts = fwdfrm->pts+fwdfrm->nb_samples;
 
                         af.decfrm = nullptr;
