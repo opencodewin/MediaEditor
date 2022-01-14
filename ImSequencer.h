@@ -7,6 +7,7 @@
 #include "MediaOverview.h"
 #include "MediaSnapshot.h"
 #include "MediaReader.h"
+#include "AudioRender.hpp"
 #include "UI.h"
 #include <thread>
 #include <string>
@@ -286,6 +287,8 @@ struct SequencerItem
     int64_t mEndOffset   {0};               // item end time in media
     int64_t mLength     {0};                // item total length in ms, not effect by cropping
     int64_t mFrameInterval {40};            // timeline Media Frame Interval in ms
+    int mAudioChannels  {2};                // item audio channels(could be setting?)
+    int mAudioSampleRate {44100};           // item audio sample rate(could be setting?)
     bool mExpanded  {false};                // item is compact view or not
     bool mView      {true};                 // item is viewable or not
     bool mMuted     {false};                // item is muted or not
@@ -303,12 +306,14 @@ struct SequencerItem
     int64_t mSnapshotPos {-1};              // current snapshot position in ms(start of view area)
     int64_t mSnapshotLendth {0};            // crop range total length in ms
     MediaSnapshot* mSnapshot {nullptr};     // item snapshot handle
-    MediaOverview::WaveformHolder mWaveform {nullptr};// item audio snapshot
-    MediaReader* mMedia {nullptr};          // item media reader
+    MediaOverview::WaveformHolder mWaveform {nullptr};  // item audio snapshot
+    MediaReader* mMediaReaderVideo {nullptr};           // item media reader for video
+    MediaReader* mMediaReaderAudio {nullptr};           // item media reader for audio
     std::vector<VideoSnapshotInfo> mVideoSnapshotInfos; // item snapshots info, with all croped range
     std::vector<Snapshot> mVideoSnapshots;  // item snapshots, including texture and timestamp info
     std::vector<int64_t> mCutPoint;         // item cut points info
     std::vector<ClipInfo *> mClips;           // item clips info
+    void Initialize(const std::string& name, MediaParserHolder parser_holder, MediaOverview::WaveformHolder wave_holder, int64_t start, int64_t end, bool expand, int type);
     SequencerItem(const std::string& name, MediaItem * media_item, int64_t start, int64_t end, bool expand, int type);
     SequencerItem(const std::string& name, SequencerItem * sequencer_item, int64_t start, int64_t end, bool expand, int type);
     ~SequencerItem();
@@ -319,6 +324,7 @@ struct SequencerItem
     bool DrawItemControlBar(ImDrawList *draw_list, ImRect rc, int sequenceOptions);
 };
 
+class SequencerPcmStream;
 struct MediaSequencer : public SequencerInterface
 {
     MediaSequencer();
@@ -351,6 +357,12 @@ struct MediaSequencer : public SequencerInterface
     ImGui::ImMat GetPreviewFrame();
     int GetAudioLevel(int channel);
 
+    void Play(bool play, bool forward = true);
+    void Step(bool forward = true);
+    void Loop(bool loop);
+    void ToStart();
+    void ToEnd();
+
     std::vector<SequencerItem *> m_Items;   // timeline items
     const int mItemHeight {60};             // item custom view height
     int64_t mStart   {0};                   // whole timeline start in ms
@@ -358,6 +370,11 @@ struct MediaSequencer : public SequencerInterface
     int mWidth  {1920};                     // timeline Media Width
     int mHeight {1080};                     // timeline Media Height
     int64_t mFrameInterval {40};            // timeline Media Frame Duration in ms
+    int mAudioChannels {2};                 // timeline audio channels
+    int mAudioSampleRate {44100};           // timeline audio sample rate
+    AudioRender::PcmFormat mAudioFormat {AudioRender::PcmFormat::FLOAT32};
+                                            // timeline audio format
+    std::vector<int> mAudioLevel;           // timeline audio levels
     
     std::thread * mPreviewThread {nullptr}; // Preview Thread, which is read whole time line and mixer all filter/transition
     bool mPreviewDone {false};              // Preview Thread should finished
@@ -373,6 +390,18 @@ struct MediaSequencer : public SequencerInterface
     ImTextureID mMainPreviewTexture {nullptr};  // main preview texture
     int64_t mCurrentPreviewTime {-1};
     BluePrint::BluePrintUI * video_filter_bp {nullptr};
+
+    AudioRender* mAudioRender {nullptr};        // audio render(SDL)
+    SequencerPcmStream * mPCMStream {nullptr};  // audio pcm stream
+};
+
+class SequencerPcmStream : public AudioRender::ByteStream
+{
+public:
+    SequencerPcmStream(MediaSequencer* sequencer) : m_sequencer(sequencer) {}
+    uint32_t Read(uint8_t* buff, uint32_t buffSize, bool blocking) override;
+private:
+    MediaSequencer* m_sequencer {nullptr};
 };
 
 bool ClipTimeLine(ClipInfo* clip);

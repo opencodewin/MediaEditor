@@ -133,6 +133,7 @@ set(MEDIA_EDITOR_SRCS
     MediaSnapshot.cpp
     MediaParser.cpp
     MediaReader.cpp
+    AudioRender_Impl_Sdl2.cpp
     FFUtils.cpp
     Logger.cpp
     ${IMGUI_APP_ENTRY_SRC}
@@ -143,6 +144,8 @@ set(MEDIA_EDITOR_INCS
     MediaOverview.h
     MediaSnapshot.h
     MediaReader.h
+    AudioRender_Impl_Sdl2.hpp
+    AudioRender.hpp
     FFUtils.h
 )
 

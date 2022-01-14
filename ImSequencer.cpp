@@ -1263,25 +1263,46 @@ void MediaItem::UpdateThumbnail()
 /***********************************************************************************************************
  * SequencerItem Struct Member Functions
  ***********************************************************************************************************/
-
-SequencerItem::SequencerItem(const std::string& name, MediaItem * media_item, int64_t start, int64_t end, bool expand, int type)
+void SequencerItem::Initialize(const std::string& name, MediaParserHolder parser_holder, MediaOverview::WaveformHolder wave_holder, int64_t start, int64_t end, bool expand, int type)
 {
     mName = name;
-    MediaParserHolder holder = media_item->mMediaOverview->GetMediaParser();
-    mPath = holder->GetUrl();
+    mPath = parser_holder->GetUrl();
     mStart = start;
     mEnd = end;
     mExpanded = expand;
     mMediaType = type;
     mSnapshot = CreateMediaSnapshot();
-    mMedia = CreateMediaReader();
-    if (!mSnapshot || !mMedia)
+    mMediaReaderVideo = CreateMediaReader();
+    mMediaReaderAudio = CreateMediaReader();
+    if (!mSnapshot || !mMediaReaderVideo || !mMediaReaderAudio)
         return;
     mColor = COL_SLOT_DEFAULT;
-    mSnapshot->Open(holder);
-    mMedia->Open(holder);
-    mMedia->ConfigVideoReader(1.f, 1.f);
-    mMedia->Start();
+
+    // open snapshot
+    mSnapshot->Open(parser_holder);
+
+    // open video reader
+    mMediaReaderVideo->Open(parser_holder);
+    if (mMediaReaderVideo->ConfigVideoReader(1.f, 1.f))
+    {
+        mMediaReaderVideo->Start();
+    }
+    else
+    {
+        ReleaseMediaReader(&mMediaReaderVideo);
+    }
+
+    // open audio reader
+    mMediaReaderAudio->Open(parser_holder);
+    if (mMediaReaderAudio->ConfigAudioReader(mAudioChannels, mAudioSampleRate))
+    {
+        mMediaReaderAudio->Start();
+    }
+    else
+    {
+        ReleaseMediaReader(&mMediaReaderAudio);
+    }
+
     if (mSnapshot->IsOpened())
     {
         mLength = mSnapshot->GetVideoDuration();
@@ -1297,7 +1318,7 @@ SequencerItem::SequencerItem(const std::string& name, MediaItem * media_item, in
         }
         if (mSnapshot->HasAudio())
         {
-            mWaveform = media_item->mMediaOverview->GetWaveform();
+            mWaveform = wave_holder;
         }
         if (mEnd > mStart + mLength)
             mEnd = mLength - mStart;
@@ -1306,51 +1327,27 @@ SequencerItem::SequencerItem(const std::string& name, MediaItem * media_item, in
     mClips.push_back(first_clip);
 }
 
+SequencerItem::SequencerItem(const std::string& name, MediaItem * media_item, int64_t start, int64_t end, bool expand, int type)
+{
+    auto parser_holder = media_item->mMediaOverview->GetMediaParser();
+    auto wave_holder = media_item->mMediaOverview->GetWaveform();
+    Initialize(name, parser_holder, wave_holder, start, end, expand, type);
+}
+
 SequencerItem::SequencerItem(const std::string& name, SequencerItem * sequencer_item, int64_t start, int64_t end, bool expand, int type)
 {
-    mName = name;
-    MediaParserHolder holder = sequencer_item->mSnapshot->GetMediaParser();
-    mPath = holder->GetUrl();
-    mStart = start;
-    mEnd = end;
-    mExpanded = expand;
-    mMediaType = type;
-    mSnapshot = CreateMediaSnapshot();
-    mMedia = CreateMediaReader();
-    if (!mSnapshot || !mMedia)
-        return;
-    mColor = COL_SLOT_DEFAULT;
-    mSnapshot->Open(holder);
-    mMedia->Open(holder);
-    mMedia->ConfigVideoReader(1.f, 1.f);
-    mMedia->Start();
-    if (mSnapshot->IsOpened())
-    {
-        mLength = mSnapshot->GetVideoDuration();
-        if (mSnapshot->HasVideo())
-        {
-            double window_size = 1.0f;
-            mSnapshot->SetCacheFactor(8.0);
-            mSnapshot->SetSnapshotResizeFactor(0.1, 0.1);
-            mSnapshot->ConfigSnapWindow(window_size, 1);
-        }
-        if (mSnapshot->HasAudio())
-        {
-            mWaveform = sequencer_item->mWaveform;
-        }
-        if (mEnd > mStart + mLength)
-            mEnd = mLength - mStart;
-    }
-    ClipInfo *first_clip = new ClipInfo(mStart, mEnd, false, this);
-    mClips.push_back(first_clip);
+    auto parser_holder = sequencer_item->mSnapshot->GetMediaParser();
+    auto wave_holder = sequencer_item->mWaveform;
+    Initialize(name, parser_holder, wave_holder, start, end, expand, type);
 }
 
 SequencerItem::~SequencerItem()
 {
     ReleaseMediaSnapshot(&mSnapshot);
-    ReleaseMediaReader(&mMedia);
+    ReleaseMediaReader(&mMediaReaderVideo);
+    ReleaseMediaReader(&mMediaReaderAudio);
     mSnapshot = nullptr;
-    mMedia = nullptr;
+    mMediaReaderVideo = nullptr;
     for (auto& snap : mVideoSnapshots)
     {
         if (snap.texture) { ImGui::ImDestroyTexture(snap.texture); snap.texture = nullptr; } 
@@ -1616,6 +1613,8 @@ static int thread_preview(MediaSequencer * sequencer)
         sequencer->mFrameLock.unlock();
         while (sequencer->mFrame.size() < MAX_SEQUENCER_FRAME_NUMBER)
         {
+            if (sequencer->mPreviewDone)
+                break;
             if (!sequencer->mFrame.empty())
             {
                 int64_t buffer_start = sequencer->mFrame.begin()->time_stamp * 1000;
@@ -1642,12 +1641,12 @@ static int thread_preview(MediaSequencer * sequencer)
                             break;
                         }
                     }
-                    if (valid_time && item->mMedia->IsOpened())
+                    if (valid_time && item->mMediaReaderVideo->IsOpened())
                     {
-                        if ((item->mMedia->IsDirectionForward() && !sequencer->bForward) || 
-                            (!item->mMedia->IsDirectionForward() && sequencer->bForward))
-                            item->mMedia->SetDirection(sequencer->bForward);
-                        if (item->mMedia->ReadVideoFrame((float)item_time / 1000.0, mat))
+                        if ((item->mMediaReaderVideo->IsDirectionForward() && !sequencer->bForward) || 
+                            (!item->mMediaReaderVideo->IsDirectionForward() && sequencer->bForward))
+                            item->mMediaReaderVideo->SetDirection(sequencer->bForward);
+                        if (item->mMediaReaderVideo->ReadVideoFrame((float)item_time / 1000.0, mat))
                             break;
                         else
                             mat.release();
@@ -1745,6 +1744,8 @@ static int thread_video_filter(MediaSequencer * sequencer)
         selected_clip->mFrameLock.unlock();
         while (selected_clip->mFrame.size() < MAX_SEQUENCER_FRAME_NUMBER)
         {
+            if (sequencer->mVideoFilterDone)
+                break;
             if (!selected_clip->mFrame.empty())
             {
                 int64_t buffer_start = selected_clip->mFrame.begin()->first.time_stamp * 1000;
@@ -1757,10 +1758,10 @@ static int thread_video_filter(MediaSequencer * sequencer)
             }
             
             std::pair<ImGui::ImMat, ImGui::ImMat> result;
-            if ((item->mMedia->IsDirectionForward() && !selected_clip->bForward) ||
-                (!item->mMedia->IsDirectionForward() && selected_clip->bForward))
-                item->mMedia->SetDirection(selected_clip->bForward);
-            if (item->mMedia->ReadVideoFrame((float)current_time / 1000.0, result.first))
+            if ((item->mMediaReaderVideo->IsDirectionForward() && !selected_clip->bForward) ||
+                (!item->mMediaReaderVideo->IsDirectionForward() && selected_clip->bForward))
+                item->mMediaReaderVideo->SetDirection(selected_clip->bForward);
+            if (item->mMediaReaderVideo->ReadVideoFrame((float)current_time / 1000.0, result.first))
             {
                 result.first.time_stamp = (double)current_time / 1000.f;
                 if (sequencer->video_filter_bp && 
@@ -1795,8 +1796,16 @@ MediaSequencer::MediaSequencer()
     : mStart(0), mEnd(0)
 {
     timeStep = mFrameInterval;
+    mPCMStream = new SequencerPcmStream(this);
+    mAudioRender = CreateAudioRender();
+    if (mAudioRender)
+    {
+        mAudioRender->OpenDevice(mAudioSampleRate, mAudioChannels, mAudioFormat, mPCMStream);
+    }
     mPreviewThread = new std::thread(thread_preview, this);
     mVideoFilterThread = new std::thread(thread_video_filter, this);
+    for (int i = 0; i < mAudioChannels; i++)
+        mAudioLevel.push_back(0);
 }
 
 MediaSequencer::~MediaSequencer()
@@ -1824,7 +1833,14 @@ MediaSequencer::~MediaSequencer()
     {
         delete item;
     }
+    if (mAudioRender)
+    {
+        mAudioRender->CloseDevice();
+        ReleaseAudioRender(&mAudioRender);
+    }
+    if (mPCMStream) { delete mPCMStream; mPCMStream = nullptr; }
     if (mMainPreviewTexture) { ImGui::ImDestroyTexture(mMainPreviewTexture); mMainPreviewTexture = nullptr; }
+    mAudioLevel.clear();
 }
 
 ImGui::ImMat MediaSequencer::GetPreviewFrame()
@@ -2478,22 +2494,102 @@ void MediaSequencer::Seek()
     mFrame.clear();
     mCurrentPreviewTime = -1;
     mFrameLock.unlock();
+    if (mAudioRender)
+    {
+        if (bPlay) mAudioRender->Pause();
+        mAudioRender->Flush();
+    }
     for (auto item : m_Items)
     {
-        if (item->mMedia && item->mMedia->IsOpened())
+        int64_t item_time = currentTime - item->mStart + item->mStartOffset;
+        if (item->mMediaReaderVideo && item->mMediaReaderVideo->IsOpened())
         {
-            int64_t item_time = currentTime - item->mStart + item->mStartOffset;
-            alignTime(item_time, mFrameInterval);
-            item->mMedia->SeekTo((double)item_time / 1000.f);
+            int64_t video_time = item_time;
+            alignTime(video_time, mFrameInterval);
+            item->mMediaReaderVideo->SeekTo((double)video_time / 1000.f);
         }
+        if (item->mMediaReaderAudio && item->mMediaReaderAudio->IsOpened())
+        {
+            int64_t audio_time = item_time;
+            item->mMediaReaderAudio->SeekTo((double)audio_time / 1000.f);
+        }
+    }
+    if (mAudioRender)
+    {
+        if (bPlay) mAudioRender->Resume();
+    }
+}
+
+void MediaSequencer::Play(bool play, bool forward)
+{
+    if (play) bForward = forward;
+    bPlay = play;
+    if (mAudioRender)
+    {
+        if (bPlay) mAudioRender->Resume();
+        else
+        {
+            mAudioRender->Pause();
+            for (int i = 0; i < mAudioLevel.size(); i++)
+            {
+                mAudioLevel[i] = 0;
+            }
+        }
+    }
+}
+
+void MediaSequencer::Step(bool forward)
+{
+    if (!bPlay && m_Items.size() > 0)
+    {
+        bForward = forward;
+        if (forward)
+        {
+            currentTime -= mFrameInterval;
+            if (currentTime < mStart)
+                currentTime = mStart;
+        }
+        else
+        {
+            currentTime += mFrameInterval;
+            if (currentTime > mEnd)
+                currentTime = mEnd;
+        }
+    }
+}
+
+void MediaSequencer::Loop(bool loop)
+{
+    bLoop = loop;
+}
+
+void MediaSequencer::ToStart()
+{
+    if (!bPlay && m_Items.size() > 0)
+    {
+        firstTime = mStart;
+        currentTime = mStart;
+        Seek();
+    }
+}
+
+void MediaSequencer::ToEnd()
+{
+    if (!bPlay && m_Items.size() > 0)
+    {
+        if (mEnd - mStart - visibleTime > 0)
+            firstTime = mEnd - visibleTime;
+        else
+            firstTime = mStart;
+        currentTime = mEnd;
+        Seek();
     }
 }
 
 int MediaSequencer::GetAudioLevel(int channel)
 {
-    // TODO::
-    //int64_t time = ImGui::get_current_time_msec() * (channel + 1);
-    //return time % 96;
+    if (channel < mAudioLevel.size())
+        return mAudioLevel[channel];
     return 0;
 }
 
@@ -2571,11 +2667,11 @@ void ClipInfo::Seek()
     mLastTime = -1;
     mCurrentFilterTime = -1;
     SequencerItem * item = (SequencerItem *)mItem;
-    if (item && item->mMedia && item->mMedia->IsOpened())
+    if (item && item->mMediaReaderVideo && item->mMediaReaderVideo->IsOpened())
     {
         int64_t item_time = mCurrent - item->mStart + item->mStartOffset;
         alignTime(item_time, item->mFrameInterval);
-        item->mMedia->SeekTo((double)item_time / 1000.f);
+        item->mMediaReaderVideo->SeekTo((double)item_time / 1000.f);
     }
 }
 
@@ -2653,5 +2749,67 @@ bool ClipInfo::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame)
         }
     }
     return out_of_range ? false : true;
+}
+
+/***********************************************************************************************************
+ * SequencerPcmStream class Member Functions
+ ***********************************************************************************************************/
+template<typename T>
+static int calculate_audio_db(const T* data, int channels, int channel_index, size_t length, const float max_level) 
+{
+    static const float kMaxSquaredLevel = max_level * max_level;
+    constexpr float kMinLevel = -96.f;
+    float sum_square_ = 0;
+    size_t sample_count_ = 0;
+    for (size_t i = 0; i < length; i += channels) 
+    {
+        T audio_data = data[i + channel_index];
+        sum_square_ += audio_data * audio_data;
+    }
+    sample_count_ += length / channels;
+    float rms = sum_square_ / (sample_count_ * kMaxSquaredLevel);
+    rms = 10 * log10(rms);
+    if (rms < kMinLevel)
+        rms = kMinLevel;
+    rms = -kMinLevel + rms;
+    return static_cast<int>(rms + 0.5);
+}
+
+uint32_t SequencerPcmStream::Read(uint8_t* buff, uint32_t buffSize, bool blocking)
+{
+    if (!m_sequencer)
+        return 0;
+    uint32_t readSize = buffSize;
+    int64_t current_time = m_sequencer->currentTime;
+    for (auto &item : m_sequencer->m_Items)
+    {
+        int64_t item_time = current_time - item->mStart + item->mStartOffset;
+        if (item_time >= item->mStartOffset && item_time <= item->mLength - item->mEndOffset)
+        {
+            bool valid_time = !item->mMuted;
+            for (auto clip : item->mClips)
+            {
+                if (clip->mDragOut && item_time >= clip->mStart && item_time <= clip->mEnd)
+                {
+                    valid_time = false;
+                    break;
+                }
+            }
+            if (valid_time && item->mMediaReaderAudio->IsOpened())
+            {
+                double pos;
+                if (item->mMediaReaderAudio->ReadAudioSamples(buff, readSize, pos, blocking))
+                {
+                    for (int i = 0; i < m_sequencer->mAudioLevel.size(); i++)
+                    {
+                        m_sequencer->mAudioLevel[i] = calculate_audio_db((float*)buff, m_sequencer->mAudioLevel.size(), i, readSize / sizeof(float), 1.0);
+                    }
+                    break;
+                }
+            }
+        }
+        // TODO::Mix all item's Audio
+    }
+    return readSize;
 }
 } // namespace ImSequencer
