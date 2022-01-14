@@ -610,9 +610,9 @@ static ClipInfo * find_clip_with_id(int64_t id)
 
 static void ShowVideoBluePrintWindow(ImDrawList *draw_list, ClipInfo * clip)
 {
-    if (sequencer && sequencer->video_filter_bp)
+    if (sequencer && sequencer->mVideoFilterBluePrint)
     {
-        sequencer->video_filter_bp->Frame(true, true, clip != nullptr);
+        sequencer->mVideoFilterBluePrint->Frame(true, true, clip != nullptr);
     }
 }
 
@@ -690,16 +690,16 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
         {
             // first find last select clip
             auto clip = find_clip_with_id(last_clip);
-            if (clip && sequencer->video_filter_bp && sequencer->video_filter_bp->m_Document)
+            if (clip && sequencer->mVideoFilterBluePrint && sequencer->mVideoFilterBluePrint->m_Document)
             {
                 // save current BP document to last clip
-                clip->mFilterBP = sequencer->video_filter_bp->m_Document->Serialize();
-                sequencer->video_filter_bp->File_New(selected_clip->mFilterBP, ImVec2(video_editor_width, editor_main_height));
+                clip->mFilterBP = sequencer->mVideoFilterBluePrint->m_Document->Serialize();
+                sequencer->mVideoFilterBluePrint->File_New(selected_clip->mFilterBP, ImVec2(video_editor_width, editor_main_height), "VideoFilter");
             }
         }
-        else if (selected_clip && sequencer->video_filter_bp && last_clip == -1)
+        else if (selected_clip && sequencer->mVideoFilterBluePrint && last_clip == -1)
         {
-            sequencer->video_filter_bp->File_New(selected_clip->mFilterBP, ImVec2(video_editor_width, editor_main_height));
+            sequencer->mVideoFilterBluePrint->File_New(selected_clip->mFilterBP, ImVec2(video_editor_width, editor_main_height), "VideoFilter");
         }
         if (selected_clip)
         {

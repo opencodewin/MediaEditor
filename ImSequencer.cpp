@@ -1716,7 +1716,7 @@ static int thread_video_filter(MediaSequencer * sequencer)
     sequencer->mVideoFilterRunning = true;
     while (!sequencer->mVideoFilterDone)
     {
-        if (!sequencer->video_filter_bp || !sequencer->video_filter_bp->Blueprint_IsValid())
+        if (!sequencer->mVideoFilterBluePrint || !sequencer->mVideoFilterBluePrint->Blueprint_IsValid())
         {
             ImGui::sleep((int)5);
             continue;
@@ -1739,6 +1739,13 @@ static int thread_video_filter(MediaSequencer * sequencer)
                 selected_clip = clip;
                 break;
             }
+        }
+        if (sequencer->mVideoFilterNeedUpdate)
+        {
+            selected_clip->mFrameLock.lock();
+            selected_clip->mFrame.clear();
+            selected_clip->mFrameLock.unlock();
+            sequencer->mVideoFilterNeedUpdate = false;
         }
         if (selected_clip->mFrame.size() >= MAX_SEQUENCER_FRAME_NUMBER)
         {
@@ -1781,8 +1788,8 @@ static int thread_video_filter(MediaSequencer * sequencer)
             if (item->mMediaReaderVideo->ReadVideoFrame((float)current_time / 1000.0, result.first))
             {
                 result.first.time_stamp = (double)current_time / 1000.f;
-                if (sequencer->video_filter_bp && 
-                    sequencer->video_filter_bp->Blueprint_Run(result.first, result.second))
+                if (sequencer->mVideoFilterBluePrint && 
+                    sequencer->mVideoFilterBluePrint->Blueprint_Run(result.first, result.second))
                 {
                     selected_clip->mFrameLock.lock();
                     selected_clip->mFrame.push_back(result);
@@ -1820,13 +1827,13 @@ MediaSequencer::MediaSequencer()
         mAudioRender->OpenDevice(mAudioSampleRate, mAudioChannels, mAudioFormat, mPCMStream);
     }
 
-    video_filter_bp = new BluePrint::BluePrintUI();
-    if (video_filter_bp)
+    mVideoFilterBluePrint = new BluePrint::BluePrintUI();
+    if (mVideoFilterBluePrint)
     {
         BluePrint::BluePrintCallbackFunctions callbacks;
         callbacks.BluePrintOnChanged = OnBluePrintChange;
-        video_filter_bp->Initialize();
-        video_filter_bp->SetCallbacks(callbacks);
+        mVideoFilterBluePrint->Initialize();
+        mVideoFilterBluePrint->SetCallbacks(callbacks, this);
     }
 
     mPreviewThread = new std::thread(thread_preview, this);
@@ -1868,15 +1875,28 @@ MediaSequencer::~MediaSequencer()
     if (mPCMStream) { delete mPCMStream; mPCMStream = nullptr; }
     if (mMainPreviewTexture) { ImGui::ImDestroyTexture(mMainPreviewTexture); mMainPreviewTexture = nullptr; }
     mAudioLevel.clear();
-    if (video_filter_bp)
+    if (mVideoFilterBluePrint)
     {
-        video_filter_bp->Finalize();
-        delete video_filter_bp;
+        mVideoFilterBluePrint->Finalize();
+        delete mVideoFilterBluePrint;
     }
 }
 
-int MediaSequencer::OnBluePrintChange(int type)
+int MediaSequencer::OnBluePrintChange(int type, std::string name, void* handle)
 {
+    if (!handle)
+        return -1;
+    MediaSequencer * sequencer = (MediaSequencer *)handle;
+    if (type == BluePrint::BP_CB_Link ||
+        type == BluePrint::BP_CB_Unlink ||
+        type == BluePrint::BP_CB_PARAM_CHANGED)
+    {
+        if (name.compare("VideoFilter") == 0)
+        {
+            sequencer->mVideoFilterNeedUpdate = true;
+        }
+    }
+
     return 0;
 }
 
@@ -2091,14 +2111,6 @@ void MediaSequencer::SetItemSelected(int index)
                 clip->mFrameLock.lock();
                 clip->mFrame.clear();
                 clip->mFrameLock.unlock();
-                /*
-                for (auto& snap : clip->mVideoSnapshots)
-                {
-                    if (snap.texture) { ImGui::ImDestroyTexture(snap.texture); snap.texture = nullptr; }
-                }
-                clip->mVideoSnapshots.clear();
-                clip->mFrameCount = 0;
-                */
             }
         }
     }

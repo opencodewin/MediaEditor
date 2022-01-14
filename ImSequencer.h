@@ -364,7 +364,7 @@ struct MediaSequencer : public SequencerInterface
     void ToEnd();
 
     // BP CallBacks
-    static int OnBluePrintChange(int type);
+    static int OnBluePrintChange(int type, std::string name, void* handle);
 
     std::vector<SequencerItem *> m_Items;   // timeline items
     const int mItemHeight {60};             // item custom view height
@@ -392,7 +392,8 @@ struct MediaSequencer : public SequencerInterface
     std::list<ImGui::ImMat> mFrame;         // timeline output frame
     ImTextureID mMainPreviewTexture {nullptr};  // main preview texture
     int64_t mCurrentPreviewTime {-1};
-    BluePrint::BluePrintUI * video_filter_bp {nullptr};
+    BluePrint::BluePrintUI * mVideoFilterBluePrint {nullptr};
+    bool mVideoFilterNeedUpdate {false};
 
     AudioRender* mAudioRender {nullptr};        // audio render(SDL)
     SequencerPcmStream * mPCMStream {nullptr};  // audio pcm stream
