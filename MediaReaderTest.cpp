@@ -14,6 +14,7 @@
 #include <cmath>
 #include <chrono>
 #include "MediaReader.h"
+#include "AudioRender.hpp"
 #include "FFUtils.h"
 #include "Logger.h"
 
@@ -21,7 +22,8 @@ using namespace std;
 using namespace Logger;
 using Clock = chrono::steady_clock;
 
-static MediaReader* g_mrdr = nullptr;
+// video
+static MediaReader* g_vidrdr = nullptr;
 static double g_playStartPos = 0.f;
 static Clock::time_point g_playStartTp;
 static bool g_isPlay = false;
@@ -32,8 +34,38 @@ static const pair<double, double> G_DurTable[] = {
 };
 static ImTextureID g_imageTid;
 static ImVec2 g_imageDisplaySize = { 640, 360 };
+// audio
+static MediaReader* g_audrdr = nullptr;
+static AudioRender* g_audrnd = nullptr;
+const int c_audioRenderChannels = 2;
+const int c_audioRenderSampleRate = 44100;
+const AudioRender::PcmFormat c_audioRenderFormat = AudioRender::PcmFormat::FLOAT32;
+static double g_audPos = 0;
+
 const string c_imguiIniPath = "ms_test.ini";
 const string c_bookmarkPath = "bookmark.ini";
+
+class SimplePcmStream : public AudioRender::ByteStream
+{
+public:
+    SimplePcmStream(MediaReader* audrdr) : m_audrdr(audrdr) {}
+
+    uint32_t Read(uint8_t* buff, uint32_t buffSize, bool blocking) override
+    {
+        if (!m_audrdr)
+            return 0;
+        uint32_t readSize = buffSize;
+        double pos;
+        if (!m_audrdr->ReadAudioSamples(buff, readSize, pos, blocking))
+            return 0;
+        g_audPos = pos;
+        return readSize;
+    }
+
+private:
+    MediaReader* m_audrdr;
+};
+static SimplePcmStream* g_pcmStream = nullptr;
 
 
 // Application Framework Functions
@@ -70,14 +102,28 @@ void Application_Initialize(void** handle)
     ImGuiIO& io = ImGui::GetIO();
     io.IniFilename = c_imguiIniPath.c_str();
 
-    g_mrdr = CreateMediaReader();
-    g_mrdr->SetSnapshotSize(g_imageDisplaySize.x, g_imageDisplaySize.y);
-    // g_mrdr->SetSnapshotResizeFactor(0.5f, 0.5f);
+    g_vidrdr = CreateMediaReader();
+    g_audrdr = CreateMediaReader();
+
+    g_pcmStream = new SimplePcmStream(g_audrdr);
+    g_audrnd = CreateAudioRender();
+    g_audrnd->OpenDevice(c_audioRenderSampleRate, c_audioRenderChannels, c_audioRenderFormat, g_pcmStream);
 }
 
 void Application_Finalize(void** handle)
 {
-    ReleaseMediaReader(&g_mrdr);
+    if (g_audrnd)
+    {
+        g_audrnd->CloseDevice();
+        ReleaseAudioRender(&g_audrnd);
+    }
+    if (g_pcmStream)
+    {
+        delete g_pcmStream;
+        g_pcmStream = nullptr;
+    }
+    ReleaseMediaReader(&g_vidrdr);
+    ReleaseMediaReader(&g_audrdr);
     if (g_imageTid)
     {
         ImGui::ImDestroyTexture(g_imageTid);
@@ -112,13 +158,35 @@ bool Application_Frame(void * handle)
 
         ImGui::SameLine();
 
-        const MediaInfo::VideoStream* vstminfo = g_mrdr->GetVideoStream();
-        float vidDur = vstminfo ? (float)vstminfo->duration : 0;
-        bool isForward = g_mrdr->IsDirectionForward();
-        double elapsedTime = chrono::duration_cast<chrono::duration<double>>((Clock::now()-g_playStartTp)).count();
-        float playPos = g_isPlay ? (isForward ? g_playStartPos+elapsedTime : g_playStartPos-elapsedTime) : g_playStartPos;
+        bool isForward;
+        float playPos;
+        float mediaDur;
+        if (g_vidrdr->IsOpened())
+        {
+            isForward = g_vidrdr->IsDirectionForward();
+            const MediaInfo::VideoStream* vstminfo = g_vidrdr->GetVideoStream();
+            float vidDur = vstminfo ? (float)vstminfo->duration : 0;
+            mediaDur = vidDur;
+        }
+        if (g_audrdr->IsOpened())
+        {
+            if (!g_vidrdr->IsOpened())
+            {
+                isForward = g_audrdr->IsDirectionForward();
+                const MediaInfo::AudioStream* astminfo = g_audrdr->GetAudioStream();
+                float audDur = astminfo ? (float)astminfo->duration : 0;
+                mediaDur = audDur;
+            }
+            playPos = g_audPos;
+        }
+        else
+        {
+            double elapsedTime = chrono::duration_cast<chrono::duration<double>>((Clock::now()-g_playStartTp)).count();
+            playPos = g_isPlay ? (isForward ? g_playStartPos+elapsedTime : g_playStartPos-elapsedTime) : g_playStartPos;
+        }
         if (playPos < 0) playPos = 0;
-        if (playPos > vidDur) playPos = vidDur;
+        if (playPos > mediaDur) playPos = mediaDur;
+
         string playBtnLabel = g_isPlay ? "Pause" : "Play ";
         if (ImGui::Button(playBtnLabel.c_str()))
         {
@@ -126,10 +194,14 @@ bool Application_Frame(void * handle)
             if (g_isPlay)
             {
                 g_playStartTp = Clock::now();
+                if (g_audrdr->IsOpened())
+                    g_audrnd->Resume();
             }
             else
             {
                 g_playStartPos = playPos;
+                if (g_audrdr->IsOpened())
+                    g_audrnd->Pause();
             }
         }
 
@@ -138,10 +210,23 @@ bool Application_Frame(void * handle)
         string dirBtnLabel = isForward ? "Backword" : "Forward";
         if (ImGui::Button(dirBtnLabel.c_str()))
         {
-            g_mrdr->SetDirection(!isForward);
-            isForward = g_mrdr->IsDirectionForward();
-            g_playStartPos = playPos;
-            g_playStartTp = Clock::now();
+            if (g_vidrdr->IsOpened())
+            {
+                g_vidrdr->SetDirection(!isForward);
+                isForward = g_vidrdr->IsDirectionForward();
+                g_playStartPos = playPos;
+                g_playStartTp = Clock::now();
+            }
+            if (g_audrdr->IsOpened())
+            {
+                g_audrdr->SetDirection(!isForward);
+                if (!g_vidrdr->IsOpened())
+                {
+                    isForward = g_audrdr->IsDirectionForward();
+                    g_playStartPos = playPos;
+                    g_playStartTp = Clock::now();
+                }
+            }
         }
 
         ImGui::SameLine();
@@ -151,52 +236,65 @@ bool Application_Frame(void * handle)
         {
             g_isLongCacheDur = !g_isLongCacheDur;
             if (g_isLongCacheDur)
-                g_mrdr->SetCacheDuration(G_DurTable[1].first, G_DurTable[1].second);
+                g_vidrdr->SetCacheDuration(G_DurTable[1].first, G_DurTable[1].second);
             else
-                g_mrdr->SetCacheDuration(G_DurTable[0].first, G_DurTable[0].second);
+                g_vidrdr->SetCacheDuration(G_DurTable[0].first, G_DurTable[0].second);
         }
 
         ImGui::Spacing();
 
-        if (ImGui::SliderFloat("Position", &playPos, 0, vidDur, "%.3f"))
+        if (ImGui::SliderFloat("Position", &playPos, 0, mediaDur, "%.3f"))
         {
-            g_mrdr->SeekTo(playPos);
+            if (g_vidrdr->IsOpened())
+                g_vidrdr->SeekTo(playPos);
+            if (g_audrdr->IsOpened())
+                g_audrdr->SeekTo(playPos);
             g_playStartPos = playPos;
             g_playStartTp = Clock::now();
         }
 
         ImGui::Spacing();
 
-        ImGui::ImMat vmat;
-        if (g_mrdr->ReadFrame(playPos, vmat))
+        if (g_vidrdr->IsOpened())
         {
-            string imgTag = TimestampToString(vmat.time_stamp);
-            bool imgValid = true;
-            if (vmat.empty())
+            ImGui::ImMat vmat;
+            if (g_vidrdr->ReadVideoFrame(playPos, vmat))
             {
-                imgValid = false;
-                imgTag += "(loading)";
+                string imgTag = TimestampToString(vmat.time_stamp);
+                bool imgValid = true;
+                if (vmat.empty())
+                {
+                    imgValid = false;
+                    imgTag += "(loading)";
+                }
+                if (imgValid &&
+                    ((vmat.color_format != IM_CF_RGBA && vmat.color_format != IM_CF_ABGR) ||
+                    vmat.type != IM_DT_INT8 ||
+                    (vmat.device != IM_DD_CPU && vmat.device != IM_DD_VULKAN)))
+                {
+                    Log(ERROR) << "WRONG snapshot format!" << endl;
+                    imgValid = false;
+                    imgTag += "(bad format)";
+                }
+                if (imgValid)
+                {
+                    ImGui::ImMatToTexture(vmat, g_imageTid);
+                    if (g_imageTid) ImGui::Image(g_imageTid, g_imageDisplaySize);
+                }
+                else
+                {
+                    ImGui::Dummy(g_imageDisplaySize);
+                }
+                ImGui::TextUnformatted(imgTag.c_str());
             }
-            if (imgValid &&
-                ((vmat.color_format != IM_CF_RGBA && vmat.color_format != IM_CF_ABGR) ||
-                vmat.type != IM_DT_INT8 ||
-                (vmat.device != IM_DD_CPU && vmat.device != IM_DD_VULKAN)))
-            {
-                Log(ERROR) << "WRONG snapshot format!" << endl;
-                imgValid = false;
-                imgTag += "(bad format)";
-            }
-            if (imgValid)
-            {
-                ImGui::ImMatToTexture(vmat, g_imageTid);
-                if (g_imageTid) ImGui::Image(g_imageTid, g_imageDisplaySize);
-            }
-            else
-            {
-                ImGui::Dummy(g_imageDisplaySize);
-            }
-            ImGui::TextUnformatted(imgTag.c_str());
         }
+
+        ImGui::Spacing();
+
+        ostringstream oss;
+        oss << "Audio pos: " << TimestampToString(g_audPos);
+        string audTag = oss.str();
+        ImGui::TextUnformatted(audTag.c_str());
 
         ImGui::End();
     }
@@ -209,16 +307,20 @@ bool Application_Frame(void * handle)
 	{
         if (ImGuiFileDialog::Instance()->IsOk())
 		{
-            g_mrdr->Close();
+            g_vidrdr->Close();
+            g_audrdr->Close();
             if (g_imageTid)
                 ImGui::ImDestroyTexture(g_imageTid);
             g_imageTid = nullptr;
             g_isLongCacheDur = false;
             string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
-            // g_movr->Open(filePathName, 10);
-            // g_movr->GetMediaParser()->EnableParseInfo(MediaParser::VIDEO_SEEK_POINTS);
-            // g_mrdr->Open(g_movr->GetMediaParser());
-            g_mrdr->Open(filePathName);
+            g_vidrdr->Open(filePathName);
+            g_vidrdr->ConfigVideoReader(g_imageDisplaySize.x, g_imageDisplaySize.y);
+            g_vidrdr->Start();
+            g_audrdr->Open(g_vidrdr->GetMediaParser());
+            // g_audrdr->Open(filePathName);
+            g_audrdr->ConfigAudioReader(c_audioRenderChannels, c_audioRenderSampleRate);
+            g_audrdr->Start();
         }
         ImGuiFileDialog::Instance()->Close();
     }

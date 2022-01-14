@@ -1280,10 +1280,11 @@ SequencerItem::SequencerItem(const std::string& name, MediaItem * media_item, in
     mColor = COL_SLOT_DEFAULT;
     mSnapshot->Open(holder);
     mMedia->Open(holder);
+    mMedia->ConfigVideoReader(1.f, 1.f);
     if (mSnapshot->IsOpened())
     {
         mLength = mSnapshot->GetVideoDuration();
-        
+
         if (mSnapshot->HasVideo())
         {
             auto rate = mSnapshot->GetVideoStream()->avgFrameRate;
@@ -1320,6 +1321,7 @@ SequencerItem::SequencerItem(const std::string& name, SequencerItem * sequencer_
     mColor = COL_SLOT_DEFAULT;
     mSnapshot->Open(holder);
     mMedia->Open(holder);
+    mMedia->ConfigVideoReader(1.f, 1.f);
     if (mSnapshot->IsOpened())
     {
         mLength = mSnapshot->GetVideoDuration();
@@ -1643,7 +1645,7 @@ static int thread_preview(MediaSequencer * sequencer)
                         if ((item->mMedia->IsDirectionForward() && !sequencer->bForward) || 
                             (!item->mMedia->IsDirectionForward() && sequencer->bForward))
                             item->mMedia->SetDirection(sequencer->bForward);
-                        if (item->mMedia->ReadFrame((float)item_time / 1000.0, mat))
+                        if (item->mMedia->ReadVideoFrame((float)item_time / 1000.0, mat))
                             break;
                         else
                             mat.release();
@@ -1756,7 +1758,7 @@ static int thread_video_filter(MediaSequencer * sequencer)
             if ((item->mMedia->IsDirectionForward() && !selected_clip->bForward) ||
                 (!item->mMedia->IsDirectionForward() && selected_clip->bForward))
                 item->mMedia->SetDirection(selected_clip->bForward);
-            if (item->mMedia->ReadFrame((float)current_time / 1000.0, result.first))
+            if (item->mMedia->ReadVideoFrame((float)current_time / 1000.0, result.first))
             {
                 result.first.time_stamp = (double)current_time / 1000.f;
                 if (sequencer->video_filter_bp && 

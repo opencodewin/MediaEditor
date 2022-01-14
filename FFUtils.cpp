@@ -623,6 +623,7 @@ MediaInfo::InfoHolder GenerateMediaInfoByAVFormatContext(const AVFormatContext* 
             audStream->timebase = MediaInfoRatioFromAVRational(stream->time_base);
             audStream->channels = codecpar->channels;
             audStream->sampleRate = codecpar->sample_rate;
+            audStream->bitDepth = av_get_bytes_per_sample((AVSampleFormat)codecpar->format) << 3;
             hStream = MediaInfo::StreamHolder(audStream);
         }
         if (hStream)
