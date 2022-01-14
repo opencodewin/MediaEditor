@@ -1644,6 +1644,12 @@ static int thread_preview(MediaSequencer * sequencer)
                             break;
                         }
                     }
+                    if (valid_time && item->mMediaReaderAudio->IsOpened())
+                    {
+                        if ((item->mMediaReaderAudio->IsDirectionForward() && !sequencer->bForward) || 
+                            (!item->mMediaReaderAudio->IsDirectionForward() && sequencer->bForward))
+                            item->mMediaReaderAudio->SetDirection(sequencer->bForward);
+                    }
                     if (valid_time && item->mMediaReaderVideo->IsOpened())
                     {
                         if ((item->mMediaReaderVideo->IsDirectionForward() && !sequencer->bForward) || 
