@@ -179,15 +179,7 @@ bool Application_Frame(void * handle)
                 }
                 if (valid)
                 {
-                    if (vmat.device == IM_DD_CPU)
-                        ImGui::ImGenerateOrUpdateTexture(g_snapshotTids[i], vmat.w, vmat.h, vmat.c, (const unsigned char *)vmat.data);
-#if IMGUI_VULKAN_SHADER
-                    else
-                    {
-                        ImGui::VkMat vkmat = vmat;
-                        ImGui::ImGenerateOrUpdateTexture(g_snapshotTids[i], vkmat.w, vkmat.h, vkmat.c, vkmat.buffer_offset(), (const unsigned char *)vkmat.buffer());
-                    }
-#endif
+                    ImGui::ImMatToTexture(vmat, g_snapshotTids[i]);
                     if (g_snapshotTids[i]) ImGui::Image(g_snapshotTids[i], g_snapImageSize);
                 }
                 else

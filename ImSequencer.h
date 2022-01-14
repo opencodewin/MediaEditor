@@ -1,11 +1,13 @@
 #ifndef __IM_SEQUENCER_H__
 #define __IM_SEQUENCER_H__
-#include "imgui.h"
+#include <imgui.h>
 #define IMGUI_DEFINE_MATH_OPERATORS
-#include "imgui_internal.h"
+#include <imgui_internal.h>
+#include <imgui_json.h>
 #include "MediaOverview.h"
 #include "MediaSnapshot.h"
 #include "MediaReader.h"
+#include "UI.h"
 #include <thread>
 #include <string>
 #include <vector>
@@ -178,6 +180,8 @@ struct SequencerInterface
     bool bPlay = false;
     bool bForward = true;
     bool bLoop = false;
+    bool bSeeking = false;
+    std::mutex mSequencerLock;
     virtual int64_t GetStart() const = 0;
     virtual int64_t GetEnd() const = 0;
     virtual void SetStart(int64_t pos) = 0;
@@ -242,19 +246,33 @@ struct Snapshot
 
 struct ClipInfo
 {
+    int64_t mID     {-1};
     int64_t mStart  {0};
     int64_t mEnd    {0};
     int64_t mCurrent{0};
+    int64_t mFrameInterval {40};
+    int64_t mLastTime {-1};
+    int64_t mCurrentFilterTime {-1};
+    bool bPlay      {false};
+    bool bForward   {true};
+    bool bSeeking   {false};
     bool mDragOut   {false};
     bool mSelected  {false};
     void * mItem    {nullptr};
     MediaSnapshot* mSnapshot {nullptr};     // clip snapshot handle
     std::vector<Snapshot> mVideoSnapshots;  // clip snapshots, including texture and timestamp info
+    std::mutex mFrameLock;                  // clip frame mutex
+    std::list<std::pair<ImGui::ImMat, ImGui::ImMat>> mFrame;         // clip timeline input/output frame pair
     int mFrameCount    {0};                 // total snapshot number in clip range
     float mSnapshotWidth {0};
     ClipInfo(int64_t start, int64_t end, bool drag_out, void* handle);
     ~ClipInfo();
     void UpdateSnapshot();
+    void Seek();
+    bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame);
+    ImTextureID mFilterInputTexture {nullptr};  // clip filter input texture
+    ImTextureID mFilterOutputTexture {nullptr};  // clip filter output texture
+    imgui_json::value mFilterBP;
 };
 
 struct SequencerItem
@@ -267,6 +285,7 @@ struct SequencerItem
     int64_t mStartOffset {0};               // item start time in media
     int64_t mEndOffset   {0};               // item end time in media
     int64_t mLength     {0};                // item total length in ms, not effect by cropping
+    int64_t mFrameInterval {40};            // timeline Media Frame Interval in ms
     bool mExpanded  {false};                // item is compact view or not
     bool mView      {true};                 // item is viewable or not
     bool mMuted     {false};                // item is muted or not
@@ -338,15 +357,22 @@ struct MediaSequencer : public SequencerInterface
     int64_t mEnd   {0};                     // whole timeline end in ms
     int mWidth  {1920};                     // timeline Media Width
     int mHeight {1080};                     // timeline Media Height
-    int64_t mFrameDuration {40};            // timeline Media Frame Duration in ms
+    int64_t mFrameInterval {40};            // timeline Media Frame Duration in ms
     
-    std::thread * mPreviewThread {nullptr}; // Preview Thread
-    bool mPreviewDone {false};              // Thread should finished
-    bool mPreviewRunning {false};           // Thread is running
+    std::thread * mPreviewThread {nullptr}; // Preview Thread, which is read whole time line and mixer all filter/transition
+    bool mPreviewDone {false};              // Preview Thread should finished
+    bool mPreviewRunning {false};           // Preview Thread is running
+    std::thread * mVideoFilterThread {nullptr}; // Video Filter Thread, which is only one item/clip read from media
+    bool mVideoFilterDone {false};          // Video Filter Thread should finished
+    bool mVideoFilterRunning {false};       // Video Filter Thread is running
+    std::thread * mVideoFusionThread {nullptr}; // Video Fusion Thread, which is two item/clip read from media and fusion with video transition
+    bool mVideoFusionDone {false};          // Video Fusion Thread should finished
+    bool mVideoFusionRunning {false};       // Video Fusion Thread is running
     std::mutex mFrameLock;                  // frame mutex
     std::list<ImGui::ImMat> mFrame;         // timeline output frame
     ImTextureID mMainPreviewTexture {nullptr};  // main preview texture
     int64_t mCurrentPreviewTime {-1};
+    BluePrint::BluePrintUI * video_filter_bp {nullptr};
 };
 
 bool ClipTimeLine(ClipInfo* clip);

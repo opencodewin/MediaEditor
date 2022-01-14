@@ -46,6 +46,8 @@ include_directories(
     ${PROJECT_BINARY_DIR}
 )
 
+set(IMGUI_BP_SDK_MEDIA_NODE_ONLY ON CACHE BOOL "Only build media Built-in node" FORCE)
+add_definitions(-DIMGUI_BP_SDK_MEDIA_NODE_ONLY)
 add_subdirectory(blueprintsdk)
 set_target_properties(
     BluePrintSDK
