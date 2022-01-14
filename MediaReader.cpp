@@ -263,7 +263,7 @@ public:
         m_audDurTs = 0;
         m_audFrmSize = 0;
         m_audReadTask = nullptr;
-        m_audReadOffset = 0;
+        m_audReadOffset = -1;
         m_swrFrmSize = 0;
         m_swrOutStartTime = 0;
 
@@ -287,21 +287,38 @@ public:
         if (ts < 0 || ts > stmdur)
             return false;
 
-        bool deferred = true;
-        if (m_apiLock.try_lock())
+        if (m_isVideoReader)
         {
+            bool deferred = true;
+            if (m_apiLock.try_lock())
+            {
+                if (m_prepared)
+                {
+                    UpdateCacheWindow(ts);
+                    deferred = false;
+                }
+                m_apiLock.unlock();
+            }
+            if (deferred)
+            {
+                lock_guard<mutex> lk(m_seekPosLock);
+                m_seekPosTs = ts;
+                m_seekPosUpdated = true;
+            }
+        }
+        else
+        {
+            lock_guard<recursive_mutex> lk(m_apiLock);
             if (m_prepared)
             {
                 UpdateCacheWindow(ts);
-                deferred = false;
+                m_audReadTask = nullptr;
             }
-            m_apiLock.unlock();
-        }
-        if (deferred)
-        {
-            lock_guard<mutex> lk(m_seekPosLock);
-            m_seekPosTs = ts;
-            m_seekPosUpdated = true;
+            else
+            {
+                m_seekPosTs = ts;
+                m_seekPosUpdated = true;
+            }
         }
         return true;
     }
@@ -368,17 +385,7 @@ public:
 
         lock_guard<recursive_mutex> lk(m_apiLock);
         bool success = ReadAudioSamples_Internal(buf, size, pos, wait);
-
-        if (m_seekPosUpdated)
-        {
-            lock_guard<mutex> lk(m_seekPosLock);
-            UpdateCacheWindow(m_seekPosTs);
-            m_seekPosUpdated = false;
-        }
-        else if (success)
-        {
-            UpdateCacheWindow(pos);
-        }
+        UpdateCacheWindow(pos);
 
         return success;
     }
@@ -472,16 +479,12 @@ private:
 
     int64_t CvtPtsToMts(int64_t pts)
     {
-        return m_isVideoReader ?
-            av_rescale_q(pts-m_vidAvStm->start_time, m_vidAvStm->time_base, MILLISEC_TIMEBASE) :
-            av_rescale_q(pts-m_audAvStm->start_time, m_audAvStm->time_base, MILLISEC_TIMEBASE);
+        return m_isVideoReader ? CvtVidPtsToMts(pts) : CvtAudPtsToMts(pts);
     }
 
     int64_t CvtMtsToPts(int64_t mts)
     {
-        return m_isVideoReader ?
-            av_rescale_q(mts, MILLISEC_TIMEBASE, m_vidAvStm->time_base)+m_vidAvStm->start_time :
-            av_rescale_q(mts, MILLISEC_TIMEBASE, m_audAvStm->time_base)+m_audAvStm->start_time;
+        return m_isVideoReader ? CvtVidMtsToPts(mts) : CvtAudMtsToPts(mts);
     }
 
     int64_t CvtSwrPtsToMts(int64_t pts)
@@ -923,15 +926,19 @@ private:
 
     bool ReadAudioSamples_Internal(uint8_t* buf, uint32_t& size, double& pos, bool wait)
     {
-        if (!m_audReadTask)
+        GopDecodeTaskHolder readTask = m_audReadTask;
+        if (!readTask)
         {
-            m_errMsg = "Internal Error! Audio read task is not found.";
-            return false;
+            readTask = FindNextAudioReadTask();
+            if (!readTask)
+            {
+                m_errMsg = "No audio read task can be found.";
+                return false;
+            }
         }
 
         uint8_t* dstptr = buf;
         uint32_t readSize = 0, toReadSize = size, skipSize = m_audReadOffset;
-        GopDecodeTaskHolder readTask = m_audReadTask;
         list<AudioFrame>::iterator iter;
         bool isIterSet = false;
         bool isPosSet = false;
@@ -1426,9 +1433,11 @@ private:
                             idleLoop = false;
                         }
                     }
-                } while (hasOutput && !m_quit);
+                } while (hasOutput && !m_quit && (!currTask || !currTask->cancel));
                 if (quitLoop)
                     break;
+                if (currTask && currTask->cancel)
+                    continue;
 
                 // input packet to decoder
                 if (!sentNullPacket)
@@ -2116,14 +2125,14 @@ private:
                 auto iter = find(m_bldtskPriOrder.begin(), m_bldtskPriOrder.end(), m_audReadTask);
                 if (iter == m_bldtskPriOrder.end())
                 {
-                    m_audReadTask = m_bldtskPriOrder.front();
-                    m_audReadOffset = 0;
+                    m_audReadTask = nullptr;
+                    m_audReadOffset = -1;
                 }
             }
             else
             {
                 m_audReadTask = nullptr;
-                m_audReadOffset = 0;
+                m_audReadOffset = -1;
             }
         }
         m_logger->Log(DEBUG) << "Build task priority updated." << endl;
@@ -2155,15 +2164,12 @@ private:
             GopDecodeTaskHolder task = make_shared<GopDecodeTask>(*this);
             task->seekPts = { pts0, pts1 };
             m_bldtskTimeOrder.push_back(task);
-            if (currwnd.seekPosShow >= pts0 && currwnd.seekPosShow < pts1)
-            {
-                m_audReadTask = task;
-                m_audReadOffset = 0;
-            }
             pts0 = pts1;
             mts0 = mts1;
         }
         m_bldtskSnapWnd = currwnd;
+        m_audReadTask = nullptr;
+        m_audReadOffset = -1;
         m_logger->Log(DEBUG) << "^^^ Initialized build task, pos = " << TimestampToString(m_bldtskSnapWnd.readPos) << ", window = ["
             << TimestampToString(m_bldtskSnapWnd.cacheBeginTs) << " ~ " << TimestampToString(m_bldtskSnapWnd.cacheEndTs) << "]." << endl;
 
@@ -2286,24 +2292,44 @@ private:
         if (m_bldtskPriOrder.empty())
         {
             m_audReadTask = nullptr;
+            m_audReadOffset = -1;
             m_logger->Log(WARN) << "'m_bldtskPriOrder' is EMPTY! CANNOT find next read audio task." << endl;
             return nullptr;
         }
+
         auto iter = find(m_bldtskPriOrder.begin(), m_bldtskPriOrder.end(), m_audReadTask);
         if (iter == m_bldtskPriOrder.end())
         {
-            m_logger->Log(WARN) << "'m_audReadTask' CANNOT be found in 'm_bldtskPriOrder'!" << endl;
-            m_audReadTask = m_bldtskPriOrder.front();
+            CacheWindow currwnd = m_cacheWnd;
+            auto iter2 = find_if(m_bldtskPriOrder.begin(), m_bldtskPriOrder.end(), [this, currwnd](const GopDecodeTaskHolder& task) {
+                return currwnd.readPos*1000 >= CvtAudPtsToMts(task->seekPts.first) && currwnd.readPos*1000 < CvtAudPtsToMts(task->seekPts.second);
+            });
+            if (iter2 == m_bldtskPriOrder.end())
+            {
+                m_logger->Log(WARN) << "'m_audReadTask' CANNOT be found in 'm_bldtskPriOrder'!" << endl;
+                m_audReadTask = nullptr;
+                m_audReadOffset = -1;
+            }
+            else
+            {
+                m_audReadTask = *iter2;
+                m_audReadOffset = (int)((currwnd.readPos-(double)CvtAudPtsToMts(m_audReadTask->seekPts.first)/1000)*m_swrOutSampleRate)*m_swrFrmSize;
+            }
         }
         else
         {
             iter++;
             if (iter == m_bldtskPriOrder.end())
+            {
                 m_audReadTask = nullptr;
+                m_audReadOffset = -1;
+            }
             else
+            {
                 m_audReadTask = *iter;
+                m_audReadOffset = 0;
+            }
         }
-        m_audReadOffset = 0;
         return m_audReadTask;
     }
 
@@ -2384,7 +2410,7 @@ private:
     double m_audDurTs{0};
     uint32_t m_audFrmSize{0};
     GopDecodeTaskHolder m_audReadTask;
-    uint32_t m_audReadOffset{0};
+    int32_t m_audReadOffset{-1};
 
     bool m_useRszFactor{false};
     bool m_ssSizeChanged{false};
