@@ -177,7 +177,7 @@ bool Application_Frame(void * handle)
                 float audDur = astminfo ? (float)astminfo->duration : 0;
                 mediaDur = audDur;
             }
-            playPos = g_audPos;
+            playPos = g_isPlay ? g_audPos : g_playStartPos;
         }
         else
         {
