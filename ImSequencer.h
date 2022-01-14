@@ -363,6 +363,9 @@ struct MediaSequencer : public SequencerInterface
     void ToStart();
     void ToEnd();
 
+    // BP CallBacks
+    int OnBluePrintChange(int type);
+
     std::vector<SequencerItem *> m_Items;   // timeline items
     const int mItemHeight {60};             // item custom view height
     int64_t mStart   {0};                   // whole timeline start in ms
@@ -375,7 +378,7 @@ struct MediaSequencer : public SequencerInterface
     AudioRender::PcmFormat mAudioFormat {AudioRender::PcmFormat::FLOAT32};
                                             // timeline audio format
     std::vector<int> mAudioLevel;           // timeline audio levels
-    
+
     std::thread * mPreviewThread {nullptr}; // Preview Thread, which is read whole time line and mixer all filter/transition
     bool mPreviewDone {false};              // Preview Thread should finished
     bool mPreviewRunning {false};           // Preview Thread is running

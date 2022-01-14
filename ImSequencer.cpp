@@ -1622,8 +1622,11 @@ static int thread_preview(MediaSequencer * sequencer)
                                                            buffer_start - sequencer->mFrameInterval * MAX_SEQUENCER_FRAME_NUMBER ;
                 if (buffer_start > buffer_end)
                     std::swap(buffer_start, buffer_end);
-                if (sequencer->currentTime < buffer_start || sequencer->currentTime > buffer_end)
+                if (sequencer->currentTime < buffer_start - sequencer->mFrameInterval || sequencer->currentTime > buffer_end + sequencer->mFrameInterval)
+                {
+                    ImGui::sleep((int)5);
                     break;
+                }
             }
             ImGui::ImMat mat;
             for (auto &item : sequencer->m_Items)
@@ -1707,6 +1710,11 @@ static int thread_video_filter(MediaSequencer * sequencer)
     sequencer->mVideoFilterRunning = true;
     while (!sequencer->mVideoFilterDone)
     {
+        if (!sequencer->video_filter_bp || !sequencer->video_filter_bp->Blueprint_IsValid())
+        {
+            ImGui::sleep((int)5);
+            continue;
+        }
         sequencer->mSequencerLock.lock();
         int select_item = sequencer->selectedEntry;
         sequencer->mSequencerLock.unlock();
@@ -1753,8 +1761,11 @@ static int thread_video_filter(MediaSequencer * sequencer)
                                                            buffer_start - selected_clip->mFrameInterval * MAX_SEQUENCER_FRAME_NUMBER ;
                 if (buffer_start > buffer_end)
                     std::swap(buffer_start, buffer_end);
-                if (selected_clip->mCurrent < buffer_start || selected_clip->mCurrent > buffer_end)
+                if (selected_clip->mCurrent < buffer_start - selected_clip->mFrameInterval || selected_clip->mCurrent > buffer_end + selected_clip->mFrameInterval)
+                {
+                    ImGui::sleep((int)5);
                     break;
+                }
             }
             
             std::pair<ImGui::ImMat, ImGui::ImMat> result;
@@ -1802,6 +1813,13 @@ MediaSequencer::MediaSequencer()
     {
         mAudioRender->OpenDevice(mAudioSampleRate, mAudioChannels, mAudioFormat, mPCMStream);
     }
+
+    video_filter_bp = new BluePrint::BluePrintUI();
+    if (video_filter_bp)
+    {
+        video_filter_bp->Initialize();
+    }
+
     mPreviewThread = new std::thread(thread_preview, this);
     mVideoFilterThread = new std::thread(thread_video_filter, this);
     for (int i = 0; i < mAudioChannels; i++)
@@ -1841,6 +1859,11 @@ MediaSequencer::~MediaSequencer()
     if (mPCMStream) { delete mPCMStream; mPCMStream = nullptr; }
     if (mMainPreviewTexture) { ImGui::ImDestroyTexture(mMainPreviewTexture); mMainPreviewTexture = nullptr; }
     mAudioLevel.clear();
+    if (video_filter_bp)
+    {
+        video_filter_bp->Finalize();
+        delete video_filter_bp;
+    }
 }
 
 ImGui::ImMat MediaSequencer::GetPreviewFrame()
@@ -2545,15 +2568,15 @@ void MediaSequencer::Step(bool forward)
         bForward = forward;
         if (forward)
         {
-            currentTime -= mFrameInterval;
-            if (currentTime < mStart)
-                currentTime = mStart;
-        }
-        else
-        {
             currentTime += mFrameInterval;
             if (currentTime > mEnd)
                 currentTime = mEnd;
+        }
+        else
+        {
+            currentTime -= mFrameInterval;
+            if (currentTime < mStart)
+                currentTime = mStart;
         }
     }
 }
@@ -2781,12 +2804,13 @@ uint32_t SequencerPcmStream::Read(uint8_t* buff, uint32_t buffSize, bool blockin
         return 0;
     uint32_t readSize = buffSize;
     int64_t current_time = m_sequencer->currentTime;
+    bool out_audio = false;
     for (auto &item : m_sequencer->m_Items)
     {
         int64_t item_time = current_time - item->mStart + item->mStartOffset;
         if (item_time >= item->mStartOffset && item_time <= item->mLength - item->mEndOffset)
         {
-            bool valid_time = !item->mMuted;
+            bool valid_time = true;
             for (auto clip : item->mClips)
             {
                 if (clip->mDragOut && item_time >= clip->mStart && item_time <= clip->mEnd)
@@ -2795,7 +2819,7 @@ uint32_t SequencerPcmStream::Read(uint8_t* buff, uint32_t buffSize, bool blockin
                     break;
                 }
             }
-            if (valid_time && item->mMediaReaderAudio->IsOpened())
+            if (valid_time && item->mMediaReaderAudio && item->mMediaReaderAudio->IsOpened())
             {
                 double pos;
                 if (item->mMediaReaderAudio->ReadAudioSamples(buff, readSize, pos, blocking))
@@ -2804,12 +2828,15 @@ uint32_t SequencerPcmStream::Read(uint8_t* buff, uint32_t buffSize, bool blockin
                     {
                         m_sequencer->mAudioLevel[i] = calculate_audio_db((float*)buff, m_sequencer->mAudioLevel.size(), i, readSize / sizeof(float), 1.0);
                     }
+                    out_audio = item->mMuted ? false : true;
                     break;
                 }
             }
         }
         // TODO::Mix all item's Audio
     }
+    if (!out_audio)
+        return 0;
     return readSize;
 }
 } // namespace ImSequencer

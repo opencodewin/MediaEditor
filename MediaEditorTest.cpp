@@ -489,7 +489,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     if (ImGui::Button(ICON_STEP_FORWARD "##preview_step_forward", ImVec2(32, 32)))
     {
         if (sequencer)
-        sequencer->Step(true);
+            sequencer->Step(true);
     }
     ImGui::ShowTooltipOnHover("Step Next");
 
@@ -668,6 +668,7 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
     ClipInfo * selected_clip = nullptr;
     if (sequencer)
     {
+        sequencer->Play(false, true);
         sequencer->mSequencerLock.lock();
         selected_item = sequencer->selectedEntry;
         sequencer->mSequencerLock.unlock();
@@ -1053,26 +1054,13 @@ void Application_Initialize(void** handle)
 	}
 #endif
     sequencer = new MediaSequencer();
-    if (sequencer)
-    {
-        sequencer->video_filter_bp = new BluePrint::BluePrintUI();
-        if (sequencer->video_filter_bp)
-            sequencer->video_filter_bp->Initialize();
-    }
 }
 
 void Application_Finalize(void** handle)
 {
     for (auto item : media_items) delete item;
-    if (sequencer) 
-    {
-        if (sequencer->video_filter_bp)
-        {
-            sequencer->video_filter_bp->Finalize();
-            delete sequencer->video_filter_bp;
-        }
+    if (sequencer)
         delete sequencer;
-    }
 #ifdef USE_BOOKMARK
 	// save bookmarks
 	std::ofstream configFileWriter(bookmark_path, std::ios::out);
