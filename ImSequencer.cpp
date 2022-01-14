@@ -1281,6 +1281,7 @@ SequencerItem::SequencerItem(const std::string& name, MediaItem * media_item, in
     mSnapshot->Open(holder);
     mMedia->Open(holder);
     mMedia->ConfigVideoReader(1.f, 1.f);
+    mMedia->Start();
     if (mSnapshot->IsOpened())
     {
         mLength = mSnapshot->GetVideoDuration();
@@ -1322,6 +1323,7 @@ SequencerItem::SequencerItem(const std::string& name, SequencerItem * sequencer_
     mSnapshot->Open(holder);
     mMedia->Open(holder);
     mMedia->ConfigVideoReader(1.f, 1.f);
+    mMedia->Start();
     if (mSnapshot->IsOpened())
     {
         mLength = mSnapshot->GetVideoDuration();
