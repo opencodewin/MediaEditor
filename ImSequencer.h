@@ -364,7 +364,7 @@ struct MediaSequencer : public SequencerInterface
     void ToEnd();
 
     // BP CallBacks
-    int OnBluePrintChange(int type);
+    static int OnBluePrintChange(int type);
 
     std::vector<SequencerItem *> m_Items;   // timeline items
     const int mItemHeight {60};             // item custom view height

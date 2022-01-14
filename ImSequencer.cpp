@@ -1817,7 +1817,10 @@ MediaSequencer::MediaSequencer()
     video_filter_bp = new BluePrint::BluePrintUI();
     if (video_filter_bp)
     {
+        BluePrint::BluePrintCallbackFunctions callbacks;
+        callbacks.BluePrintOnChanged = OnBluePrintChange;
         video_filter_bp->Initialize();
+        video_filter_bp->SetCallbacks(callbacks);
     }
 
     mPreviewThread = new std::thread(thread_preview, this);
@@ -1864,6 +1867,11 @@ MediaSequencer::~MediaSequencer()
         video_filter_bp->Finalize();
         delete video_filter_bp;
     }
+}
+
+int MediaSequencer::OnBluePrintChange(int type)
+{
+    return 0;
 }
 
 ImGui::ImMat MediaSequencer::GetPreviewFrame()
