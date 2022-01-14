@@ -448,12 +448,8 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32 - 8 - 32 - 8 - 32, PanelButtonY));
     if (ImGui::Button(ICON_TO_START "##preview_tostart", ImVec2(32, 32)))
     {
-        if (sequencer && !sequencer->bPlay && sequencer->GetItemCount() > 0)
-        {
-            sequencer->firstTime = sequencer->mStart;
-            sequencer->currentTime = sequencer->mStart;
-            sequencer->Seek();
-        }
+        if (sequencer)
+            sequencer->ToStart();
     }
     ImGui::ShowTooltipOnHover("To Start");
 
@@ -461,12 +457,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     if (ImGui::Button(ICON_STEP_BACKWARD "##preview_step_backward", ImVec2(32, 32)))
     {
         if (sequencer)
-        {
-            sequencer->bForward = false;
-            sequencer->currentTime -= sequencer->mFrameInterval;
-            if (sequencer->currentTime < sequencer->mStart)
-                sequencer->currentTime = sequencer->mStart;
-        }
+            sequencer->Step(false);
     }
     ImGui::ShowTooltipOnHover("Step Prev");
 
@@ -474,10 +465,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     if (ImGui::Button(ICON_FAST_BACKWARD "##preview_reverse", ImVec2(32, 32)))
     {
         if (sequencer)
-        {
-            sequencer->bForward = false;
-            sequencer->bPlay = true;
-        }
+            sequencer->Play(true, false);
     }
     ImGui::ShowTooltipOnHover("Reverse");
 
@@ -485,9 +473,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     if (ImGui::Button(ICON_STOP "##preview_stop", ImVec2(32, 32)))
     {
         if (sequencer)
-        {
-            sequencer->bPlay = false;
-        }
+            sequencer->Play(false, true);
     }
     ImGui::ShowTooltipOnHover("Stop");
 
@@ -495,10 +481,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     if (ImGui::Button(ICON_FAST_FORWARD "##preview_play", ImVec2(32, 32)))
     {
         if (sequencer)
-        {
-            sequencer->bForward = true;
-            sequencer->bPlay = true;
-        }
+            sequencer->Play(true, true);
     }
     ImGui::ShowTooltipOnHover("Play");
 
@@ -506,27 +489,15 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     if (ImGui::Button(ICON_STEP_FORWARD "##preview_step_forward", ImVec2(32, 32)))
     {
         if (sequencer)
-        {
-            sequencer->bForward = true;
-            sequencer->currentTime += sequencer->mFrameInterval;
-            if (sequencer->currentTime > sequencer->mEnd)
-                sequencer->currentTime = sequencer->mEnd;
-        }
+        sequencer->Step(true);
     }
     ImGui::ShowTooltipOnHover("Step Next");
 
     ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 32 + 8 + 32 + 8, PanelButtonY));
     if (ImGui::Button(ICON_TO_END "##preview_toend", ImVec2(32, 32)))
     {
-        if (sequencer && !sequencer->bPlay && sequencer->GetItemCount() > 0)
-        {
-            if (sequencer->mEnd - sequencer->mStart - sequencer->visibleTime > 0)
-                sequencer->firstTime = sequencer->mEnd - sequencer->visibleTime;
-            else
-                sequencer->firstTime = sequencer->mStart;
-            sequencer->currentTime = sequencer->mEnd;
-            sequencer->Seek();
-        }
+        if (sequencer)
+            sequencer->ToEnd();
     }
     ImGui::ShowTooltipOnHover("To End");
 
@@ -536,7 +507,8 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     {
         if (sequencer)
         {
-            sequencer->bLoop = !sequencer->bLoop;
+            loop = !loop;
+            sequencer->Loop(loop);
         }
     }
     ImGui::ShowTooltipOnHover("Loop");
