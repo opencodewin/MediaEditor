@@ -957,6 +957,7 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
                         else if (region_x > image_width - region_sz) { region_x = image_width - region_sz; }
                         if (region_y < 0.0f) { region_y = 0.0f; }
                         else if (region_y > image_height - region_sz) { region_y = image_height - region_sz; }
+                        ImGui::SetNextWindowPos(InputVideoPos - ImVec2(region_sz + 40, 0));
                         ImGui::BeginTooltip();
                         ImVec2 uv0 = ImVec2((region_x) / image_width, (region_y) / image_height);
                         ImVec2 uv1 = ImVec2((region_x + region_sz) / image_width, (region_y + region_sz) / image_height);

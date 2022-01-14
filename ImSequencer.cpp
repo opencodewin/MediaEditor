@@ -2565,6 +2565,7 @@ void ClipInfo::Seek()
     mFrame.clear();
     mFrameLock.unlock();
     mLastTime = -1;
+    mCurrentFilterTime = -1;
     SequencerItem * item = (SequencerItem *)mItem;
     if (item && item->mMedia && item->mMedia->IsOpened())
     {
@@ -2576,7 +2577,7 @@ void ClipInfo::Seek()
 
 bool ClipInfo::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame)
 {
-    if (mFrame.empty())
+    if (mCurrentFilterTime == mCurrent || mFrame.empty())
         return false;
     double current_time = (double)mCurrent / 1000.f;
         
@@ -2611,13 +2612,14 @@ bool ClipInfo::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame)
         else
         {
             in_out_frame = *pair;
+            mCurrentFilterTime = current_time;
             if (bPlay)
             {
                 bool need_step_time = false;
-                int64_t current_time = ImGui::get_current_time_usec() / 1000;
+                int64_t current_system_time = ImGui::get_current_time_usec() / 1000;
                 if (mLastTime != -1)
                 {
-                    int64_t step_time = current_time - mLastTime;
+                    int64_t step_time = current_system_time - mLastTime;
                     if (step_time >= mFrameInterval)
                         need_step_time = true;
                 }
@@ -2636,11 +2638,12 @@ bool ClipInfo::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame)
                             mCurrent = mStart;
                     }
                 }
-                mLastTime = current_time;
+                mLastTime = current_system_time;
             }
             else
             {
                 mLastTime = -1;
+                mCurrentFilterTime = -1;
             }
             break;
         }
