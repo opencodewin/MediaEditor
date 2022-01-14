@@ -1889,7 +1889,8 @@ int MediaSequencer::OnBluePrintChange(int type, std::string name, void* handle)
     MediaSequencer * sequencer = (MediaSequencer *)handle;
     if (type == BluePrint::BP_CB_Link ||
         type == BluePrint::BP_CB_Unlink ||
-        type == BluePrint::BP_CB_PARAM_CHANGED)
+        type == BluePrint::BP_CB_PARAM_CHANGED ||
+        type == BluePrint::BP_CB_SETTING_CHANGED)
     {
         if (name.compare("VideoFilter") == 0)
         {
