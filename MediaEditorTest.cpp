@@ -186,8 +186,6 @@ static void ShowMediaBankWindow(ImDrawList *draw_list, float media_icon_size)
 {
     ImGuiIO& io = ImGui::GetIO();
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
-    ImVec2 window_size = ImGui::GetWindowSize();
-    draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DARK_ONE);
     ImGui::SetWindowFontScale(2.5);
     ImGui::Indent(20);
     ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
@@ -393,14 +391,50 @@ static void ShowTransitionBankWindow(ImDrawList *draw_list)
  ***************************************************************************************/
 static void ShowFilterBankWindow(ImDrawList *draw_list)
 {
-    ImGui::SetWindowFontScale(1.2);
+    float filter_icon_size = 48;
+    ImGuiIO& io = ImGui::GetIO();
+    ImVec2 window_pos = ImGui::GetCursorScreenPos();
+    ImGui::SetWindowFontScale(2.5);
     ImGui::Indent(20);
     ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4, 0.4, 0.8, 0.8));
-    ImGui::TextUnformatted("Filter Bank");
-    ImGui::PopStyleColor();
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.2, 0.2, 0.2, 0.7));
+    ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
+    ImGui::TextUnformatted("Filter");
+    ImGui::TextUnformatted("Bank");
+    ImGui::PopStyleColor(2);
     ImGui::PopStyleVar();
     ImGui::SetWindowFontScale(1.0);
+    ImGui::SetCursorScreenPos(window_pos);
+    // Show Filter Icons
+    if (sequencer && sequencer->mVideoFilterBluePrint &&
+        sequencer->mVideoFilterBluePrint->m_Document)
+    {
+        auto &bp = sequencer->mVideoFilterBluePrint->m_Document->m_Blueprint;
+        auto node_reg = bp.GetNodeRegistry();
+        for (auto type : node_reg->GetTypes())
+        {
+            if (type->m_Catalog.compare("Filter") != 0)
+                continue;
+            ImGui::Dummy(ImVec2(0, 16));
+            auto icon_pos = ImGui::GetCursorScreenPos();
+            ImVec2 icon_size = ImVec2(filter_icon_size, filter_icon_size);
+            // Draw Shadow for Icon
+            draw_list->AddRectFilled(icon_pos + ImVec2(6, 6), icon_pos + ImVec2(6, 6) + icon_size, IM_COL32(32, 32, 32, 255));
+            draw_list->AddRectFilled(icon_pos + ImVec2(4, 4), icon_pos + ImVec2(4, 4) + icon_size, IM_COL32(48, 48, 72, 255));
+            draw_list->AddRectFilled(icon_pos + ImVec2(2, 2), icon_pos + ImVec2(2, 2) + icon_size, IM_COL32(64, 64, 96, 255));
+            ImGui::InvisibleButton(type->m_Name.c_str(), icon_size);
+            if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
+            {
+                ImGui::SetDragDropPayload("Filter_drag_drop", type, sizeof(BluePrint::NodeTypeInfo));
+                ImGui::TextUnformatted(ICON_BANK " Add Filter");
+                ImGui::TextUnformatted(type->m_Name.c_str());
+                ImGui::EndDragDropSource();
+            }
+            ImGui::SetCursorScreenPos(icon_pos);
+            ImGui::Button((std::string(ICON_BANK) + "##video_filter" + type->m_Name).c_str() , ImVec2(filter_icon_size, filter_icon_size));
+            ImGui::SameLine(); ImGui::TextUnformatted(type->m_Name.c_str());
+        }
+    }
 }
 
 /****************************************************************************************
@@ -612,7 +646,27 @@ static void ShowVideoBluePrintWindow(ImDrawList *draw_list, ClipInfo * clip)
 {
     if (sequencer && sequencer->mVideoFilterBluePrint)
     {
-        sequencer->mVideoFilterBluePrint->Frame(true, true, clip != nullptr);
+        ImVec2 window_pos = ImGui::GetCursorScreenPos();
+        ImVec2 window_size = ImGui::GetWindowSize();
+        ImGui::InvisibleButton("video_editor_blueprint_back_view", window_size);
+        if (ImGui::BeginDragDropTarget() && sequencer->mVideoFilterBluePrint->Blueprint_IsValid())
+        {
+            if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("Filter_drag_drop"))
+            {
+                BluePrint::NodeTypeInfo * type = (BluePrint::NodeTypeInfo *)payload->Data;
+                if (type)
+                {
+                    sequencer->mVideoFilterBluePrint->Edit_Insert(type->m_ID);
+                }
+            }
+            ImGui::EndDragDropTarget();
+        }
+        ImGui::SetCursorScreenPos(window_pos);
+        if (ImGui::BeginChild("##video_editor_blueprint", window_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+        {
+            sequencer->mVideoFilterBluePrint->Frame(true, true, clip != nullptr);
+        }
+        ImGui::EndChild();
     }
 }
 
@@ -1149,13 +1203,11 @@ bool Application_Frame(void * handle)
 
             // make control panel area
             ImVec2 area_pos = ImVec2(tool_icon_size + 4, 32);
+            ImGui::PushStyleColor(ImGuiCol_ChildBg, COL_DARK_ONE);
             ImGui::SetNextWindowPos(area_pos, ImGuiCond_Always);
             if (ImGui::BeginChild("##Control_Panel_content", bank_window_size - ImVec2(tool_icon_size + 4, 32), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings))
             {
                 ImDrawList *draw_list = ImGui::GetWindowDrawList();
-                auto wmin = area_pos;
-                auto wmax = wmin + ImGui::GetContentRegionAvail();
-                draw_list->AddRectFilled(wmin, wmax, IM_COL32_BLACK, 8.0, ImDrawFlags_RoundCornersAll);
                 switch (ControlPanelIndex)
                 {
                     case 0: ShowMediaBankWindow(draw_list, media_icon_size); break;
@@ -1166,6 +1218,7 @@ bool Application_Frame(void * handle)
                 }
             }
             ImGui::EndChild();
+            ImGui::PopStyleColor();
 
             // add tool bar
             ImGui::SetCursorPos(ImVec2(0,32));
