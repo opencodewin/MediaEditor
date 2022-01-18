@@ -214,6 +214,10 @@ void Application_GetWindowProperties(ApplicationWindowProperty& property)
     property.height = 720;
 }
 
+void Application_SetupContext(ImGuiContext* ctx)
+{
+}
+
 void Application_Initialize(void** handle)
 {
     gst_init(nullptr, nullptr);

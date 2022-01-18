@@ -11,7 +11,7 @@
 
 using namespace ImSequencer;
 
-static std::string bookmark_path = "bookmark.ini";
+//static std::string bookmark_path = "bookmark.ini";
 static std::string ini_file = "Media_Editor.ini";
 
 static const char* ControlPanelTabNames[] = {
@@ -1089,6 +1089,36 @@ void Application_GetWindowProperties(ApplicationWindowProperty& property)
     property.height = 1024;
 }
 
+void Application_SetupContext(ImGuiContext* ctx)
+{
+    if (!ctx)
+        return;
+#ifdef USE_BOOKMARK
+    ImGuiSettingsHandler ini_handler;
+    ini_handler.TypeName = "BookMark";
+    ini_handler.TypeHash = ImHashStr("BookMark");
+    ini_handler.ReadOpenFn = [](ImGuiContext* ctx, ImGuiSettingsHandler* handler, const char* name) -> void*
+    {
+        return ImGuiFileDialog::Instance();
+    };
+    ini_handler.ReadLineFn = [](ImGuiContext* ctx, ImGuiSettingsHandler* handler, void* entry, const char* line) -> void
+    {
+        IGFD::FileDialog * dialog = (IGFD::FileDialog *)entry;
+        dialog->DeserializeBookmarks(line);
+    };
+    ini_handler.WriteAllFn = [](ImGuiContext* ctx, ImGuiSettingsHandler* handler, ImGuiTextBuffer* out_buf)
+    {
+        ImGuiContext& g = *ctx;
+        out_buf->reserve(out_buf->size() + g.SettingsWindows.size() * 6); // ballpark reserve
+        auto bookmark = ImGuiFileDialog::Instance()->SerializeBookmarks();
+        out_buf->appendf("[%s][##%s]\n", handler->TypeName, handler->TypeName);
+        out_buf->appendf("%s\n", bookmark.c_str());
+        out_buf->append("\n");
+    };
+    ctx->SettingsHandlers.push_back(ini_handler);
+#endif
+}
+
 void Application_Initialize(void** handle)
 {
     ImGuiIO& io = ImGui::GetIO(); (void)io;
@@ -1096,17 +1126,6 @@ void Application_Initialize(void** handle)
     Logger::GetDefaultLogger()->SetShowLevels(Logger::DEBUG);
     GetMediaReaderLogger()->SetShowLevels(Logger::DEBUG);
     ImGui::ResetTabLabelStyle(ImGui::ImGuiTabLabelStyle_Dark, *tab_style);
-#ifdef USE_BOOKMARK
-	// load bookmarks
-	std::ifstream docFile(bookmark_path, std::ios::in);
-	if (docFile.is_open())
-	{
-		std::stringstream strStream;
-		strStream << docFile.rdbuf();//read the file
-		ImGuiFileDialog::Instance()->DeserializeBookmarks(strStream.str());
-		docFile.close();
-	}
-#endif
     sequencer = new MediaSequencer();
 }
 
@@ -1115,15 +1134,6 @@ void Application_Finalize(void** handle)
     for (auto item : media_items) delete item;
     if (sequencer)
         delete sequencer;
-#ifdef USE_BOOKMARK
-	// save bookmarks
-	std::ofstream configFileWriter(bookmark_path, std::ios::out);
-	if (!configFileWriter.bad())
-	{
-		configFileWriter << ImGuiFileDialog::Instance()->SerializeBookmarks();
-		configFileWriter.close();
-	}
-#endif
 }
 
 bool Application_Frame(void * handle)
@@ -1133,7 +1143,7 @@ bool Application_Frame(void * handle)
     static bool show_about = false;
     static bool expanded = true;
     ImGuiFileDialogFlags fflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_DisableCreateDirectoryButton;
-    const std::string ffilters = "Video files (*.mp4 *.mov *.mkv *.avi *.webm *.ts){.mp4,.mov,.mkv,.avi,.webm,.ts},Audio files (*.wav *.mp3 *.aac *.ogg *.ac3 *.dts){.wav,.mp3,.aac,.ogg,.ac3,.dts},Image files (*.png *.gif *.jpg *.jpeg *.tiff *.webp){.png,.gif,.jpg,.jpeg,.tiff,.webp},All File(*.*){.*}";
+    const std::string ffilters = "Video files (*.mp4 *.mov *.mkv *.avi *.webm *.ts){.mp4,.mov,.mkv,.avi,.webm,.ts},Audio files (*.wav *.mp3 *.aac *.ogg *.ac3 *.dts){.wav,.mp3,.aac,.ogg,.ac3,.dts},Image files (*.png *.gif *.jpg *.jpeg *.tiff *.webp){.png,.gif,.jpg,.jpeg,.tiff,.webp},.*";
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     static const int numControlPanelTabs = sizeof(ControlPanelTabNames)/sizeof(ControlPanelTabNames[0]);
     static const int numMainWindowTabs = sizeof(MainWindowTabNames)/sizeof(MainWindowTabNames[0]);
