@@ -173,7 +173,7 @@ bool Application_Frame(void * handle)
                     vmat.type != IM_DT_INT8 ||
                     (vmat.device != IM_DD_CPU && vmat.device != IM_DD_VULKAN)))
                 {
-                    Log(ERROR) << "WRONG snapshot format!" << endl;
+                    Log(Error) << "WRONG snapshot format!" << endl;
                     valid = false;
                     tag += "(bad format)";
                 }

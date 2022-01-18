@@ -22,7 +22,7 @@ namespace Logger
         { DEBUG,    "DEBUG"     },
         { INFO,     "INFO"      },
         { WARN,     "WARN"      },
-        { ERROR,    "ERROR"     },
+        { Error,    "ERROR"     },
     };
 
     class NullBuffer : public streambuf

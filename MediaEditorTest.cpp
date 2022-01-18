@@ -153,7 +153,7 @@ static void ShowVideoWindow(ImTextureID texture, ImVec2& pos, ImVec2& size, floa
     if (texture)
     {
         ImGui::SetCursorScreenPos(pos);
-        ImGui::InvisibleButton(("##video_window" + std::to_string((long)texture)).c_str(), size);
+        ImGui::InvisibleButton(("##video_window" + std::to_string((long long)texture)).c_str(), size);
         bool bViewisLandscape = size.x >= size.y ? true : false;
         float aspectRatio = (float)ImGui::ImGetTextureWidth(texture) / (float)ImGui::ImGetTextureHeight(texture);
         bool bRenderisLandscape = aspectRatio > 1.f ? true : false;
