@@ -2,6 +2,7 @@
 #include <imgui.h>
 #include <imgui_helper.h>
 #include <imgui_knob.h>
+#include <imgui_json.h>
 #include <ImGuiFileDialog.h>
 #include <ImGuiTabWindow.h>
 #include "ImSequencer.h"
@@ -11,7 +12,6 @@
 
 using namespace ImSequencer;
 
-//static std::string bookmark_path = "bookmark.ini";
 static std::string ini_file = "Media_Editor.ini";
 
 static const char* ControlPanelTabNames[] = {
@@ -63,10 +63,23 @@ static const char* VideoEditorTabTooltips[] = {
     "Video Rotate"
 };
 
+struct MediaEditorSettings
+{
+    int ItemHeight {60};                    // timeline Item custom height
+    int VideoWidth  {1920};                 // timeline Media Width
+    int VideoHeight {1080};                 // timeline Media Height
+    int64_t VideoFrameInterval {40};        // timeline Media Frame Duration in ms
+    int AudioChannels {2};                  // timeline audio channels
+    int AudioSampleRate {44100};            // timeline audio sample rate
+    int AudioFormat {2};                    // timeline audio format 0=unknown 1=s16 2=f32
+    std::string project_path;               // Editor Recently project file path
+    MediaEditorSettings() {}
+};
 
 static MediaSequencer * sequencer = nullptr;
 static std::vector<MediaItem *> media_items;
 static ImGui::TabLabelStyle * tab_style = &ImGui::TabLabelStyle::Get();
+static MediaEditorSettings g_media_editor_settings;
 
 static inline std::string GetVideoIcon(int width, int height)
 {
@@ -1093,20 +1106,59 @@ void Application_SetupContext(ImGuiContext* ctx)
 {
     if (!ctx)
         return;
+    // Setup MediaEditorSetting
+    ImGuiSettingsHandler setting_ini_handler;
+    setting_ini_handler.TypeName = "MediaEditorSetting";
+    setting_ini_handler.TypeHash = ImHashStr("MediaEditorSetting");
+    setting_ini_handler.ReadOpenFn = [](ImGuiContext* ctx, ImGuiSettingsHandler* handler, const char* name) -> void*
+    {
+        return &g_media_editor_settings;
+    };
+    setting_ini_handler.ReadLineFn = [](ImGuiContext* ctx, ImGuiSettingsHandler* handler, void* entry, const char* line) -> void
+    {
+        MediaEditorSettings * setting = (MediaEditorSettings*)entry;
+        int val_int = 0;
+        int64_t val_int64 = 0;
+        char * val_path = nullptr;
+        if (sscanf(line, "ItemHeight=%d", &val_int) == 1) { setting->ItemHeight = val_int; }
+        else if (sscanf(line, "VideoWidth=%d", &val_int) == 1) { setting->VideoWidth = val_int; }
+        else if (sscanf(line, "VideoHeight=%d", &val_int) == 1) { setting->VideoHeight = val_int; }
+        else if (sscanf(line, "VideoFrameInterval=%lld", &val_int64) == 1) { setting->VideoFrameInterval = val_int64; }
+        else if (sscanf(line, "AudioChannels=%d", &val_int) == 1) { setting->AudioChannels = val_int; }
+        else if (sscanf(line, "AudioSampleRate=%d", &val_int) == 1) { setting->AudioSampleRate = val_int; }
+        else if (sscanf(line, "AudioFormat=%d", &val_int) == 1) { setting->AudioFormat = val_int; }
+        else if (sscanf(line, "ProjectPath=%s", val_path) == 1) { setting->project_path = std::string(val_path); }
+    };
+    setting_ini_handler.WriteAllFn = [](ImGuiContext* ctx, ImGuiSettingsHandler* handler, ImGuiTextBuffer* out_buf)
+    {
+        ImGuiContext& g = *ctx;
+        out_buf->reserve(out_buf->size() + g.SettingsWindows.size() * 6); // ballpark reserve
+        out_buf->appendf("[%s][##MediaEditorSetting]\n", handler->TypeName);
+        out_buf->appendf("ItemHeight=%d\n", g_media_editor_settings.ItemHeight);
+        out_buf->appendf("VideoWidth=%d\n", g_media_editor_settings.VideoWidth);
+        out_buf->appendf("VideoHeight=%d\n", g_media_editor_settings.VideoHeight);
+        out_buf->appendf("VideoFrameInterval=%lld\n", g_media_editor_settings.VideoFrameInterval);
+        out_buf->appendf("AudioChannels=%d\n", g_media_editor_settings.AudioChannels);
+        out_buf->appendf("AudioSampleRate=%d\n", g_media_editor_settings.AudioSampleRate);
+        out_buf->appendf("AudioFormat=%d\n", g_media_editor_settings.AudioFormat);
+        out_buf->appendf("ProjectPath=%s\n", g_media_editor_settings.project_path.c_str());
+        out_buf->append("\n");
+    };
+    ctx->SettingsHandlers.push_back(setting_ini_handler);
 #ifdef USE_BOOKMARK
-    ImGuiSettingsHandler ini_handler;
-    ini_handler.TypeName = "BookMark";
-    ini_handler.TypeHash = ImHashStr("BookMark");
-    ini_handler.ReadOpenFn = [](ImGuiContext* ctx, ImGuiSettingsHandler* handler, const char* name) -> void*
+    ImGuiSettingsHandler bookmark_ini_handler;
+    bookmark_ini_handler.TypeName = "BookMark";
+    bookmark_ini_handler.TypeHash = ImHashStr("BookMark");
+    bookmark_ini_handler.ReadOpenFn = [](ImGuiContext* ctx, ImGuiSettingsHandler* handler, const char* name) -> void*
     {
         return ImGuiFileDialog::Instance();
     };
-    ini_handler.ReadLineFn = [](ImGuiContext* ctx, ImGuiSettingsHandler* handler, void* entry, const char* line) -> void
+    bookmark_ini_handler.ReadLineFn = [](ImGuiContext* ctx, ImGuiSettingsHandler* handler, void* entry, const char* line) -> void
     {
         IGFD::FileDialog * dialog = (IGFD::FileDialog *)entry;
         dialog->DeserializeBookmarks(line);
     };
-    ini_handler.WriteAllFn = [](ImGuiContext* ctx, ImGuiSettingsHandler* handler, ImGuiTextBuffer* out_buf)
+    bookmark_ini_handler.WriteAllFn = [](ImGuiContext* ctx, ImGuiSettingsHandler* handler, ImGuiTextBuffer* out_buf)
     {
         ImGuiContext& g = *ctx;
         out_buf->reserve(out_buf->size() + g.SettingsWindows.size() * 6); // ballpark reserve
@@ -1115,7 +1167,7 @@ void Application_SetupContext(ImGuiContext* ctx)
         out_buf->appendf("%s\n", bookmark.c_str());
         out_buf->append("\n");
     };
-    ctx->SettingsHandlers.push_back(ini_handler);
+    ctx->SettingsHandlers.push_back(bookmark_ini_handler);
 #endif
 }
 
@@ -1127,10 +1179,12 @@ void Application_Initialize(void** handle)
     GetMediaReaderLogger()->SetShowLevels(Logger::DEBUG);
     ImGui::ResetTabLabelStyle(ImGui::ImGuiTabLabelStyle_Dark, *tab_style);
     sequencer = new MediaSequencer();
+    // TODO::Dicky Load project file
 }
 
 void Application_Finalize(void** handle)
 {
+    // TODO::Dicky Save project file
     for (auto item : media_items) delete item;
     if (sequencer)
         delete sequencer;
