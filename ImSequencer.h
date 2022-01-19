@@ -404,6 +404,7 @@ struct MediaSequencer : public SequencerInterface
     ImTextureID mMainPreviewTexture {nullptr};  // main preview texture
     int64_t mCurrentPreviewTime {-1};
     BluePrint::BluePrintUI * mVideoFilterBluePrint {nullptr};
+    std::mutex mBluePrintLock;              // BluePrint mutex
     bool mVideoFilterNeedUpdate {false};
 
     AudioRender* mAudioRender {nullptr};        // audio render(SDL)

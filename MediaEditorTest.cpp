@@ -762,12 +762,17 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
             {
                 // save current BP document to last clip
                 clip->mVideoFilterBP = sequencer->mVideoFilterBluePrint->m_Document->Serialize();
+                sequencer->mBluePrintLock.lock();
                 sequencer->mVideoFilterBluePrint->File_New(selected_clip->mVideoFilterBP, ImVec2(video_editor_width, editor_main_height), "VideoFilter");
+                sequencer->mVideoFilterNeedUpdate = true;
+                sequencer->mBluePrintLock.unlock();
             }
         }
         else if (selected_clip && sequencer->mVideoFilterBluePrint && last_clip == -1)
         {
+            sequencer->mBluePrintLock.lock();
             sequencer->mVideoFilterBluePrint->File_New(selected_clip->mVideoFilterBP, ImVec2(video_editor_width, editor_main_height), "VideoFilter");
+            sequencer->mBluePrintLock.unlock();
         }
         if (selected_clip)
         {

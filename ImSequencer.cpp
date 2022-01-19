@@ -1831,6 +1831,7 @@ static int thread_video_filter(MediaSequencer * sequencer)
             if (item->mMediaReaderVideo->ReadVideoFrame((float)current_time / 1000.0, result.first))
             {
                 result.first.time_stamp = (double)current_time / 1000.f;
+                sequencer->mBluePrintLock.lock();
                 if (sequencer->mVideoFilterBluePrint && 
                     sequencer->mVideoFilterBluePrint->Blueprint_Run(result.first, result.second))
                 {
@@ -1852,6 +1853,7 @@ static int thread_video_filter(MediaSequencer * sequencer)
                         }
                     }
                 }
+                sequencer->mBluePrintLock.unlock();
             }
         }
     }
