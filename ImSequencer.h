@@ -60,6 +60,9 @@
 #define ICON_BANK           u8"\uf1b3"
 #define ICON_BLUE_PRINT     u8"\uf55B"
 #define ICON_BRAIN          u8"\uf5dc"
+#define ICON_NEW_PROJECT    u8"\uf271"
+#define ICON_OPEN_PROJECT   u8"\uf115"
+#define ICON_SAVE_PROJECT   u8"\uf0c7"
 
 #define ICON_PLAY           u8"\uf04b"
 #define ICON_PAUSE          u8"\uf04c"
@@ -257,8 +260,8 @@ struct ClipInfo
     bool bPlay      {false};
     bool bForward   {true};
     bool bSeeking   {false};
-    bool mDragOut   {false};
-    bool mSelected  {false};
+    bool bDragOut   {false};
+    bool bSelected  {false};
     void * mItem    {nullptr};
     MediaSnapshot* mSnapshot {nullptr};     // clip snapshot handle
     std::vector<Snapshot> mVideoSnapshots;  // clip snapshots, including texture and timestamp info
@@ -273,7 +276,12 @@ struct ClipInfo
     bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame);
     ImTextureID mFilterInputTexture {nullptr};  // clip filter input texture
     ImTextureID mFilterOutputTexture {nullptr};  // clip filter output texture
-    imgui_json::value mFilterBP;
+    imgui_json::value mVideoFilterBP;
+    imgui_json::value mAudioFilterBP;
+    imgui_json::value mFusionBP;
+
+    int Load(const imgui_json::value& value);
+    void Save(imgui_json::value& value);
 };
 
 struct SequencerItem
@@ -322,6 +330,9 @@ struct SequencerItem
     void SetClipSelected(ClipInfo* clip);
     void CalculateVideoSnapshotInfo(const ImRect &customRect, int64_t viewStartTime, int64_t visibleTime);
     bool DrawItemControlBar(ImDrawList *draw_list, ImRect rc, int sequenceOptions);
+
+    int Load(const imgui_json::value& value);
+    void Save(imgui_json::value& value);
 };
 
 class SequencerPcmStream;
@@ -397,6 +408,9 @@ struct MediaSequencer : public SequencerInterface
 
     AudioRender* mAudioRender {nullptr};        // audio render(SDL)
     SequencerPcmStream * mPCMStream {nullptr};  // audio pcm stream
+
+    int Load(const imgui_json::value& value);
+    void Save(imgui_json::value& value);
 };
 
 class SequencerPcmStream : public AudioRender::ByteStream

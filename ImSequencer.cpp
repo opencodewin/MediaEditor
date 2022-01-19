@@ -246,7 +246,7 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int sequenceOption
                     {
                         if (c->mStart == clip->mStart)
                         {
-                            c->mDragOut = true;
+                            c->bDragOut = true;
                             break;
                         }
                     }
@@ -1558,10 +1558,10 @@ void SequencerItem::SetClipSelected(ClipInfo* clip)
     for (auto it : mClips)
     {
         if (it->mStart == clip->mStart)
-            it->mSelected = true;
+            it->bSelected = true;
         else
         {
-            if (it->mSelected)
+            if (it->bSelected)
             {
                 for (auto& snap : it->mVideoSnapshots)
                 {
@@ -1570,7 +1570,7 @@ void SequencerItem::SetClipSelected(ClipInfo* clip)
                 it->mVideoSnapshots.clear();
                 it->mFrameCount = 0;
             }
-            it->mSelected = false;
+            it->bSelected = false;
             it->bPlay = false;
             it->mLastTime = -1;
             it->mFrameLock.lock();
@@ -1578,6 +1578,49 @@ void SequencerItem::SetClipSelected(ClipInfo* clip)
             it->mFrameLock.unlock();
         }
     }
+}
+
+int SequencerItem::Load(const imgui_json::value& value)
+{
+    return 0;
+}
+
+void SequencerItem::Save(imgui_json::value& value)
+{
+    // first save clip info
+    imgui_json::value clips;
+    for (auto clip : mClips)
+    {
+        imgui_json::value clip_value;
+        clip->Save(clip_value);
+        clips.push_back(clip_value);
+    }
+    value["Clip"] = clips;
+
+    // second save cut points
+    imgui_json::value cuts;
+    for (auto cut : mCutPoint)
+    {
+        imgui_json::value cut_value = imgui_json::number(cut);
+        cuts.push_back(cut_value);
+    }
+    value["CutPoint"] = cuts;
+
+    // third save item info
+    value["Name"] = mName;
+    value["Path"] = mPath;
+    value["Start"] = imgui_json::number(mStart);
+    value["End"] = imgui_json::number(mEnd);
+    value["StartOffset"] = imgui_json::number(mStartOffset);
+    value["EndOffset"] = imgui_json::number(mEndOffset);
+    value["FrameInterval"] = imgui_json::number(mFrameInterval);
+    value["MediaType"] = imgui_json::number(mMediaType);
+    value["AudioChannels"] = imgui_json::number(mAudioChannels);
+    value["AudioSampleRate"] = imgui_json::number(mAudioSampleRate);
+    value["Expanded"] = imgui_json::boolean(mExpanded);
+    value["View"] = imgui_json::boolean(mView);
+    value["Muted"] = imgui_json::boolean(mMuted);
+    value["Cutting"] = imgui_json::boolean(mCutting);
 }
 
 /***********************************************************************************************************
@@ -1638,7 +1681,7 @@ static int thread_preview(MediaSequencer * sequencer)
                     bool valid_time = item->mView;
                     for (auto clip : item->mClips)
                     {
-                        if (clip->mDragOut && item_time >= clip->mStart && item_time <= clip->mEnd)
+                        if (clip->bDragOut && item_time >= clip->mStart && item_time <= clip->mEnd)
                         {
                             valid_time = false;
                             break;
@@ -1734,7 +1777,7 @@ static int thread_video_filter(MediaSequencer * sequencer)
         ClipInfo * selected_clip = item->mClips[0];
         for (auto clip : item->mClips)
         {
-            if (clip->mSelected)
+            if (clip->bSelected)
             {
                 selected_clip = clip;
                 break;
@@ -2112,7 +2155,7 @@ void MediaSequencer::SetItemSelected(int index)
             m_Items[i]->mSelected = false;
             for (auto clip : m_Items[i]->mClips)
             {
-                clip->mSelected = false;
+                clip->bSelected = false;
                 clip->bPlay = false;
                 clip->mLastTime = -1;
                 clip->mFrameLock.lock();
@@ -2365,7 +2408,7 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
                 ImVec2 clip_pos_min = ImVec2(cursor_start, clippingRect.Min.y);
                 ImVec2 clip_pos_max = ImVec2(cursor_end, clippingRect.Max.y);
                 ImRect clip_rect(clip_pos_min, clip_pos_max);
-                if (!clip->mDragOut)
+                if (!clip->bDragOut)
                 {
                     ImGui::SetCursorScreenPos(clip_pos_min);
                     auto frame_id_string = item->mPath + "@" + std::to_string(clip->mStart);
@@ -2383,7 +2426,7 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
                         ImGui::Text("Length: %s", length_time_string.c_str());
                         ImGui::EndDragDropSource();
                     }
-                    if (clip->mSelected)
+                    if (clip->bSelected)
                     {
                         draw_list->AddRectFilled(clip_pos_min, clip_pos_max, IM_COL32(64,64,32,128));
                     }
@@ -2477,11 +2520,11 @@ void MediaSequencer::CustomDrawCompact(int index, ImDrawList *draw_list, const I
                 ImVec2 clip_pos_min = ImVec2(cursor_start, clippingRect.Min.y);
                 ImVec2 clip_pos_max = ImVec2(cursor_end, clippingRect.Max.y);
                 ImRect clip_rect(clip_pos_min, clip_pos_max);
-                if (clip->mSelected)
+                if (clip->bSelected)
                 {
                     draw_list->AddRectFilled(clip_pos_min, clip_pos_max, IM_COL32(64,64,32,128));
                 }
-                if (clip->mDragOut)
+                if (clip->bDragOut)
                 {
                     draw_list->AddRectFilled(clip_pos_min, clip_pos_max, IM_COL32(64,32,32,192));
                 }
@@ -2649,6 +2692,39 @@ int MediaSequencer::GetAudioLevel(int channel)
     return 0;
 }
 
+int MediaSequencer::Load(const imgui_json::value& value)
+{
+    return 0;
+}
+
+void MediaSequencer::Save(imgui_json::value& value)
+{
+    // first save media item
+    imgui_json::value media_items;
+    for (auto item : m_Items)
+    {
+        imgui_json::value media_item;
+        item->Save(media_item);
+        media_items.push_back(media_item);
+    }
+    value["MediaItem"] = media_items;
+
+    // second save global timeline info
+    value["Start"] = imgui_json::number(mStart);
+    value["End"] = imgui_json::number(mEnd);
+    value["ItemHeight"] = imgui_json::number(mItemHeight);
+    value["VideoWidth"] = imgui_json::number(mWidth);
+    value["VideoHeight"] = imgui_json::number(mHeight);
+    value["FrameInterval"] = imgui_json::number(mFrameInterval);
+    value["AudioChannels"] = imgui_json::number(mAudioChannels);
+    value["AudioSampleRate"] = imgui_json::number(mAudioSampleRate);
+    value["AudioFormat"] = imgui_json::number(mAudioFormat);
+    value["FirstTime"] = imgui_json::number(firstTime);
+    value["CurrentTime"] = imgui_json::number(currentTime);
+    value["Forward"] = imgui_json::boolean(bForward);
+    value["Loop"] = imgui_json::boolean(bLoop);
+}
+
 /***********************************************************************************************************
  * ClipInfo Struct Member Functions
  ***********************************************************************************************************/
@@ -2657,7 +2733,7 @@ ClipInfo::ClipInfo(int64_t start, int64_t end, bool drag_out, void* handle)
     mID = ImGui::get_current_time_usec(); // sample using system time stamp for Clip ID
     mStart = mCurrent = start; 
     mEnd = end; 
-    mDragOut = drag_out; 
+    bDragOut = drag_out; 
     mItem = handle;
     mSnapshot = CreateMediaSnapshot();
     if (!mSnapshot || !mItem)
@@ -2807,6 +2883,37 @@ bool ClipInfo::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame)
     return out_of_range ? false : true;
 }
 
+int ClipInfo::Load(const imgui_json::value& value)
+{
+    return 0;
+}
+
+void ClipInfo::Save(imgui_json::value& value)
+{
+    // save clip video filter bp
+    if (mVideoFilterBP.is_object())
+    {
+        value["VideoFilterBP"] = mVideoFilterBP;
+    }
+    // save clip video transition bp
+    if (mFusionBP.is_object())
+    {
+        value["VideoTransitionBP"] = mFusionBP;
+    }
+    // save clip audio filter bp
+    if (mAudioFilterBP.is_object())
+    {
+        value["AudioFilterBP"] = mAudioFilterBP;
+    }
+
+    // save clip global info
+    value["ID"] = imgui_json::number(mID);
+    value["Start"] = imgui_json::number(mStart);
+    value["End"] = imgui_json::number(mEnd);
+    value["Current"] = imgui_json::number(mCurrent);
+    value["Forward"] = imgui_json::boolean(bForward);
+    value["DragOut"] = imgui_json::boolean(bDragOut);
+}
 /***********************************************************************************************************
  * SequencerPcmStream class Member Functions
  ***********************************************************************************************************/
@@ -2846,7 +2953,7 @@ uint32_t SequencerPcmStream::Read(uint8_t* buff, uint32_t buffSize, bool blockin
             bool valid_time = true;
             for (auto clip : item->mClips)
             {
-                if (clip->mDragOut && item_time >= clip->mStart && item_time <= clip->mEnd)
+                if (clip->bDragOut && item_time >= clip->mStart && item_time <= clip->mEnd)
                 {
                     valid_time = false;
                     break;

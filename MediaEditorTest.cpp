@@ -80,6 +80,7 @@ static MediaSequencer * sequencer = nullptr;
 static std::vector<MediaItem *> media_items;
 static ImGui::TabLabelStyle * tab_style = &ImGui::TabLabelStyle::Get();
 static MediaEditorSettings g_media_editor_settings;
+static imgui_json::value g_project;
 
 static inline std::string GetVideoIcon(int width, int height)
 {
@@ -744,7 +745,7 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
             SequencerItem * item = sequencer->m_Items[selected_item];
             for (auto clip : item->mClips)
             {
-                if (clip->mSelected)
+                if (clip->bSelected)
                 {
                     selected_clip = clip;
                     break;
@@ -760,13 +761,13 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
             if (clip && sequencer->mVideoFilterBluePrint && sequencer->mVideoFilterBluePrint->m_Document)
             {
                 // save current BP document to last clip
-                clip->mFilterBP = sequencer->mVideoFilterBluePrint->m_Document->Serialize();
-                sequencer->mVideoFilterBluePrint->File_New(selected_clip->mFilterBP, ImVec2(video_editor_width, editor_main_height), "VideoFilter");
+                clip->mVideoFilterBP = sequencer->mVideoFilterBluePrint->m_Document->Serialize();
+                sequencer->mVideoFilterBluePrint->File_New(selected_clip->mVideoFilterBP, ImVec2(video_editor_width, editor_main_height), "VideoFilter");
             }
         }
         else if (selected_clip && sequencer->mVideoFilterBluePrint && last_clip == -1)
         {
-            sequencer->mVideoFilterBluePrint->File_New(selected_clip->mFilterBP, ImVec2(video_editor_width, editor_main_height), "VideoFilter");
+            sequencer->mVideoFilterBluePrint->File_New(selected_clip->mVideoFilterBP, ImVec2(video_editor_width, editor_main_height), "VideoFilter");
         }
         if (selected_clip)
         {
@@ -1092,6 +1093,44 @@ static void ShowMediaAIWindow(ImDrawList *draw_list)
     ImGui::SetWindowFontScale(1.0);
 }
 
+// Document Framework
+static void NewProject()
+{
+
+}
+
+static int LoadProject(std::string path)
+{
+    return 0;
+}
+
+static void SaveProject(std::string path)
+{
+    // first save media bank info
+    imgui_json::value media_bank;
+    for (auto media : media_items)
+    {
+        imgui_json::value item;
+        item["name"] = media->mName;
+        item["path"] = media->mPath;
+        item["type"] = imgui_json::number(media->mMediaType);
+        media_bank.push_back(item);
+    }
+    g_project["MediaBank"] = media_bank;
+
+    // second save MediaSequencer
+    if (sequencer)
+    {
+        imgui_json::value timeline;
+        sequencer->Save(timeline);
+        g_project["TimeLine"] = timeline;
+    }
+
+    g_project.save(path);
+    g_media_editor_settings.project_path = path;
+}
+
+// Application Framework
 void Application_GetWindowProperties(ApplicationWindowProperty& property)
 {
     property.name = "Media Editor";
@@ -1119,7 +1158,7 @@ void Application_SetupContext(ImGuiContext* ctx)
         MediaEditorSettings * setting = (MediaEditorSettings*)entry;
         int val_int = 0;
         int64_t val_int64 = 0;
-        char * val_path = nullptr;
+        char val_path[1024] = {0};
         if (sscanf(line, "ItemHeight=%d", &val_int) == 1) { setting->ItemHeight = val_int; }
         else if (sscanf(line, "VideoWidth=%d", &val_int) == 1) { setting->VideoWidth = val_int; }
         else if (sscanf(line, "VideoHeight=%d", &val_int) == 1) { setting->VideoHeight = val_int; }
@@ -1196,8 +1235,10 @@ bool Application_Frame(void * handle)
     const float tool_icon_size = 32;
     static bool show_about = false;
     static bool expanded = true;
-    ImGuiFileDialogFlags fflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_DisableCreateDirectoryButton;
+    const ImGuiFileDialogFlags fflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_DisableCreateDirectoryButton;
     const std::string ffilters = "Video files (*.mp4 *.mov *.mkv *.avi *.webm *.ts){.mp4,.mov,.mkv,.avi,.webm,.ts},Audio files (*.wav *.mp3 *.aac *.ogg *.ac3 *.dts){.wav,.mp3,.aac,.ogg,.ac3,.dts},Image files (*.png *.gif *.jpg *.jpeg *.tiff *.webp){.png,.gif,.jpg,.jpeg,.tiff,.webp},.*";
+    const ImGuiFileDialogFlags pflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_ConfirmOverwrite;
+    const std::string pfilters = "Project files (*.mep){.mep},.*";
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     static const int numControlPanelTabs = sizeof(ControlPanelTabNames)/sizeof(ControlPanelTabNames[0]);
     static const int numMainWindowTabs = sizeof(MainWindowTabNames)/sizeof(MainWindowTabNames[0]);
@@ -1289,6 +1330,31 @@ bool Application_Frame(void * handle)
             ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
             ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.5, 0.5, 0.5, 0.5));
             ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.2, 0.2, 0.2, 1.0));
+            if (ImGui::Button(ICON_NEW_PROJECT "##NewProject", ImVec2(tool_icon_size, tool_icon_size)))
+            {
+                // New Project
+                NewProject();
+            }
+            if (ImGui::Button(ICON_OPEN_PROJECT "##OpenProject", ImVec2(tool_icon_size, tool_icon_size)))
+            {
+                // Open Project
+                ImGuiFileDialog::Instance()->OpenModal("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Open Project File", 
+                                                        pfilters.c_str(),
+                                                        ".",
+                                                        1, 
+                                                        IGFDUserDatas("ProjectOpen"), 
+                                                        fflags);
+            }
+            if (ImGui::Button(ICON_SAVE_PROJECT "##SaveProject", ImVec2(tool_icon_size, tool_icon_size)))
+            {
+                // Save Project
+                ImGuiFileDialog::Instance()->OpenModal("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Save Project File", 
+                                                        pfilters.c_str(),
+                                                        ".",
+                                                        1, 
+                                                        IGFDUserDatas("ProjectSave"), 
+                                                        pflags);
+            }
             if (ImGui::Button(ICON_IGFD_ADD "##AddMedia", ImVec2(tool_icon_size, tool_icon_size)))
             {
                 // Open Media Source
@@ -1384,12 +1450,12 @@ bool Application_Frame(void * handle)
     {
         if (ImGuiFileDialog::Instance()->IsOk())
         {
+            auto file_path = ImGuiFileDialog::Instance()->GetFilePathName();
+            auto file_name = ImGuiFileDialog::Instance()->GetCurrentFileName();
+            auto file_surfix = ImGuiFileDialog::Instance()->GetCurrentFileSurfix();
             auto userDatas = std::string((const char*)ImGuiFileDialog::Instance()->GetUserDatas());
             if (userDatas.compare("Media Source") == 0)
             {
-                auto file_path = ImGuiFileDialog::Instance()->GetFilePathName();
-                auto file_name = ImGuiFileDialog::Instance()->GetCurrentFileName();
-                auto file_surfix = ImGuiFileDialog::Instance()->GetCurrentFileSurfix();
                 int type = SEQUENCER_ITEM_UNKNOWN;
                 if (!file_surfix.empty())
                 {
@@ -1419,6 +1485,14 @@ bool Application_Frame(void * handle)
                 }
                 MediaItem * item = new MediaItem(file_name, file_path, type);
                 media_items.push_back(item);
+            }
+            if (userDatas.compare("ProjectOpen") == 0)
+            {
+                int result = LoadProject(file_path);
+            }
+            if (userDatas.compare("ProjectSave") == 0)
+            {
+                SaveProject(file_path);
             }
         }
         ImGuiFileDialog::Instance()->Close();
