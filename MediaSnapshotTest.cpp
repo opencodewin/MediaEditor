@@ -89,9 +89,9 @@ void Application_Finalize(void** handle)
 #endif
 }
 
-bool Application_Frame(void * handle)
+bool Application_Frame(void * handle, bool app_will_quit)
 {
-    bool done = false;
+    bool app_done = false;
     auto& io = ImGui::GetIO();
     g_snapImageSize.x = io.DisplaySize.x/(g_windowFrames+1);
     g_snapImageSize.y = g_snapImageSize.x*9/16;
@@ -212,8 +212,12 @@ bool Application_Frame(void * handle)
 
     if (!io.KeyCtrl && !io.KeyShift && !io.KeyAlt && ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Escape), false))
     {
-        done = true;
+        app_done = true;
+    }
+    if (app_will_quit)
+    {
+        app_done = true;
     }
 
-    return done;
+    return app_done;
 }

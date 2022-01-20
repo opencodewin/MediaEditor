@@ -280,7 +280,7 @@ struct ClipInfo
     imgui_json::value mAudioFilterBP;
     imgui_json::value mFusionBP;
 
-    int Load(const imgui_json::value& value);
+    static ClipInfo * Load(const imgui_json::value& value, void * handle);
     void Save(imgui_json::value& value);
 };
 
@@ -331,7 +331,7 @@ struct SequencerItem
     void CalculateVideoSnapshotInfo(const ImRect &customRect, int64_t viewStartTime, int64_t visibleTime);
     bool DrawItemControlBar(ImDrawList *draw_list, ImRect rc, int sequenceOptions);
 
-    int Load(const imgui_json::value& value);
+    static SequencerItem* Load(const imgui_json::value& value, void * handle);
     void Save(imgui_json::value& value);
 };
 
@@ -378,7 +378,7 @@ struct MediaSequencer : public SequencerInterface
     static int OnBluePrintChange(int type, std::string name, void* handle);
 
     std::vector<SequencerItem *> m_Items;   // timeline items
-    const int mItemHeight {60};             // item custom view height
+    int mItemHeight {60};                   // item custom view height
     int64_t mStart   {0};                   // whole timeline start in ms
     int64_t mEnd   {0};                     // whole timeline end in ms
     int mWidth  {1920};                     // timeline Media Width
@@ -409,6 +409,9 @@ struct MediaSequencer : public SequencerInterface
 
     AudioRender* mAudioRender {nullptr};        // audio render(SDL)
     SequencerPcmStream * mPCMStream {nullptr};  // audio pcm stream
+
+    std::vector<MediaItem *> media_items;       // Media Bank
+    MediaItem* FindMediaItemByName(std::string name);   // Find media from bank
 
     int Load(const imgui_json::value& value);
     void Save(imgui_json::value& value);
