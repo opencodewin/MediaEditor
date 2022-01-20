@@ -19,8 +19,8 @@ struct MediaReader
     virtual bool SeekTo(double pos) = 0;
     virtual void SetDirection(bool forward) = 0;
 
-    virtual bool ReadVideoFrame(double pos, ImGui::ImMat& m, bool wait = true) = 0;
-    virtual bool ReadAudioSamples(uint8_t* buf, uint32_t& size, double& pos, bool wait = true) = 0;
+    virtual bool ReadVideoFrame(double pos, ImGui::ImMat& m, bool& eof, bool wait = true) = 0;
+    virtual bool ReadAudioSamples(uint8_t* buf, uint32_t& size, double& pos, bool& eof, bool wait = true) = 0;
 
     virtual bool IsOpened() const = 0;
     virtual MediaParserHolder GetMediaParser() const = 0;
@@ -33,6 +33,8 @@ struct MediaReader
     virtual MediaInfo::InfoHolder GetMediaInfo() const = 0;
     virtual const MediaInfo::VideoStream* GetVideoStream() const = 0;
     virtual const MediaInfo::AudioStream* GetAudioStream() const = 0;
+
+    virtual std::string GetError() const = 0;
 };
 
 MediaReader* CreateMediaReader();

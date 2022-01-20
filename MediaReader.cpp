@@ -43,7 +43,7 @@ public:
 
     virtual ~MediaReader_Impl() {}
 
-    bool Open(const std::string& url) override
+    bool Open(const string& url) override
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
         if (IsOpened())
@@ -109,6 +109,11 @@ public:
             m_errMsg = "Can NOT configure a 'MediaReader' after it's already started!";
             return false;
         }
+        if (m_vidStmIdx < 0)
+        {
+            m_errMsg = "Can NOT configure this 'MediaReader' as video reader since no video stream is found!";
+            return false;
+        }
         lock_guard<recursive_mutex> lk(m_apiLock);
 
         m_useRszFactor = false;
@@ -147,6 +152,11 @@ public:
             m_errMsg = "Can NOT configure a 'MediaReader' after it's already started!";
             return false;
         }
+        if (m_vidStmIdx < 0)
+        {
+            m_errMsg = "Can NOT configure this 'MediaReader' as video reader since no video stream is found!";
+            return false;
+        }
         lock_guard<recursive_mutex> lk(m_apiLock);
 
         m_ssWFacotr = outWidthFactor;
@@ -178,6 +188,11 @@ public:
         if (m_started)
         {
             m_errMsg = "Can NOT configure a 'MediaReader' after it's already started!";
+            return false;
+        }
+        if (m_audStmIdx < 0)
+        {
+            m_errMsg = "Can NOT configure this 'MediaReader' as audio reader since no audio stream is found!";
             return false;
         }
         lock_guard<recursive_mutex> lk(m_apiLock);
@@ -339,7 +354,7 @@ public:
         return m_readForward;
     }
 
-    bool ReadVideoFrame(double pos, ImGui::ImMat& m, bool wait) override
+    bool ReadVideoFrame(double pos, ImGui::ImMat& m, bool& eof, bool wait) override
     {
         if (!m_started)
         {
@@ -349,8 +364,10 @@ public:
         if (pos < 0 || pos > m_vidDurTs)
         {
             m_errMsg = "Invalid argument! 'pos' can NOT be negative or larger than video's duration.";
+            eof = true;
             return false;
         }
+        eof = false;
         if (pos == m_prevReadPos && !m_prevReadImg.empty())
         {
             m = m_prevReadImg;
@@ -375,16 +392,17 @@ public:
         return success;
     }
 
-    bool ReadAudioSamples(uint8_t* buf, uint32_t& size, double& pos, bool wait) override
+    bool ReadAudioSamples(uint8_t* buf, uint32_t& size, double& pos, bool& eof, bool wait) override
     {
         if (!m_started)
         {
             m_errMsg = "Invalid state! Can NOT read video frame from a 'MediaReader' until it's started!";
             return false;
         }
+        eof = false;
 
         lock_guard<recursive_mutex> lk(m_apiLock);
-        bool success = ReadAudioSamples_Internal(buf, size, pos, wait);
+        bool success = ReadAudioSamples_Internal(buf, size, pos, eof, wait);
         UpdateCacheWindow(pos);
 
         return success;
@@ -442,6 +460,11 @@ public:
         if (!hInfo || m_audStmIdx < 0)
             return nullptr;
         return dynamic_cast<MediaInfo::AudioStream*>(hInfo->streams[m_audStmIdx].get());
+    }
+
+    string GetError() const override
+    {
+        return m_errMsg;
     }
 
     bool CheckHwPixFmt(AVPixelFormat pixfmt)
@@ -924,12 +947,12 @@ private:
         return true;
     }
 
-    bool ReadAudioSamples_Internal(uint8_t* buf, uint32_t& size, double& pos, bool wait)
+    bool ReadAudioSamples_Internal(uint8_t* buf, uint32_t& size, double& pos, bool& eof, bool wait)
     {
         GopDecodeTaskHolder readTask = m_audReadTask;
         if (!readTask)
         {
-            readTask = FindNextAudioReadTask();
+            readTask = FindNextAudioReadTask(eof);
             if (!readTask)
             {
                 m_errMsg = "No audio read task can be found.";
@@ -1023,7 +1046,7 @@ private:
                         }
                         if (reachEnd)
                         {
-                            readTask = FindNextAudioReadTask();
+                            readTask = FindNextAudioReadTask(eof);
                             skipSize = 0;
                             isIterSet = false;
                         }
@@ -1092,6 +1115,7 @@ private:
         mutex avpktQLock;
         bool demuxing{false};
         bool demuxEof{false};
+        bool mediaEof{false};
         bool decoding{false};
         bool decInputEof{false};
         bool decodeEof{false};
@@ -1199,6 +1223,7 @@ private:
                     {
                         if (fferr == AVERROR_EOF)
                         {
+                            currTask->mediaEof = true;
                             currTask->demuxEof = true;
                             demuxEof = true;
                         }
@@ -2314,7 +2339,7 @@ private:
             UpdateBuildTaskByPriority();
     }
 
-    GopDecodeTaskHolder FindNextAudioReadTask()
+    GopDecodeTaskHolder FindNextAudioReadTask(bool& eof)
     {
         lock_guard<mutex> lk(m_bldtskByPriLock);
         if (m_bldtskPriOrder.empty())
@@ -2363,6 +2388,7 @@ private:
             }
             if (reachEnd)
             {
+                eof = true;
                 m_audReadTask = nullptr;
                 m_audReadOffset = -1;
             }

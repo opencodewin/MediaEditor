@@ -56,7 +56,8 @@ public:
             return 0;
         uint32_t readSize = buffSize;
         double pos;
-        if (!m_audrdr->ReadAudioSamples(buff, readSize, pos, blocking))
+        bool eof;
+        if (!m_audrdr->ReadAudioSamples(buff, readSize, pos, eof, blocking))
             return 0;
         g_audPos = pos;
         return readSize;
@@ -251,8 +252,9 @@ bool Application_Frame(void * handle)
 
         if (g_vidrdr->IsOpened())
         {
+            bool eof;
             ImGui::ImMat vmat;
-            if (g_vidrdr->ReadVideoFrame(playPos, vmat))
+            if (g_vidrdr->ReadVideoFrame(playPos, vmat, eof))
             {
                 string imgTag = TimestampToString(vmat.time_stamp);
                 bool imgValid = true;

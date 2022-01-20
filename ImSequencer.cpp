@@ -1655,7 +1655,8 @@ static int thread_preview(MediaSequencer * sequencer)
                         if ((item->mMediaReaderVideo->IsDirectionForward() && !sequencer->bForward) || 
                             (!item->mMediaReaderVideo->IsDirectionForward() && sequencer->bForward))
                             item->mMediaReaderVideo->SetDirection(sequencer->bForward);
-                        if (item->mMediaReaderVideo->ReadVideoFrame((float)item_time / 1000.0, mat))
+                        bool eof;
+                        if (item->mMediaReaderVideo->ReadVideoFrame((float)item_time / 1000.0, mat, eof))
                             break;
                         else
                             mat.release();
@@ -1785,7 +1786,8 @@ static int thread_video_filter(MediaSequencer * sequencer)
             if ((item->mMediaReaderVideo->IsDirectionForward() && !selected_clip->bForward) ||
                 (!item->mMediaReaderVideo->IsDirectionForward() && selected_clip->bForward))
                 item->mMediaReaderVideo->SetDirection(selected_clip->bForward);
-            if (item->mMediaReaderVideo->ReadVideoFrame((float)current_time / 1000.0, result.first))
+            bool eof;
+            if (item->mMediaReaderVideo->ReadVideoFrame((float)current_time / 1000.0, result.first, eof))
             {
                 result.first.time_stamp = (double)current_time / 1000.f;
                 if (sequencer->mVideoFilterBluePrint && 

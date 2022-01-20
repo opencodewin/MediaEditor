@@ -299,3 +299,19 @@ target_link_libraries(
     PkgConfig::FFMPEG
 )
 target_compile_definitions(mediareader_test PUBLIC APP_NAME="mediareader_test")
+
+add_executable(
+    mencoder_test
+    MediaEncoderTest.cpp
+    MediaEncoder.cpp
+    MediaReader.cpp
+    MediaParser.cpp
+    FFUtils.cpp
+    Logger.cpp
+)
+target_link_libraries(
+    mencoder_test
+    ${IMGUI_LIBRARYS}
+    PkgConfig::FFMPEG
+)
+target_compile_definitions(mencoder_test PUBLIC APP_NAME="mencoder_test")
