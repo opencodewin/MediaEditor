@@ -2324,7 +2324,7 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
 
         int max_snapshot = (clippingRect.GetWidth() + frame_width / 2) / frame_width + 1; // two more frame ?
         int snapshot_count = (snapshot_index + max_snapshot < total_snapshot) ? max_snapshot : total_snapshot - snapshot_index;
-
+        
         if (need_update)
         {
             if (item->mSnapshotPos != snapshot_time)
@@ -2378,7 +2378,7 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
                 }
                 time_stamp = item->mVideoSnapshots[i].time_stamp;
             }
-            else if (i > 0 && snapshot_index + i == item->mVideoSnapshotInfos.size() - 1 && i >= item->mVideoSnapshots.size() - 1 && item->mVideoSnapshots[i - 1].available)
+            else if (i > 0 && snapshot_index + i == item->mVideoSnapshotInfos.size() - 1 && i > item->mVideoSnapshots.size() - 1 && item->mVideoSnapshots[i - 1].available)
             {
                 ImGui::SetCursorScreenPos(pos);
                 float width_clip = size.x / frame_width;
