@@ -181,6 +181,7 @@ struct SequencerInterface
     int64_t lastTime = 0;
     int64_t visibleTime = 0;
     int64_t timeStep = 0;
+    float msPixelWidthTarget = 0.1f;
     bool bPlay = false;
     bool bForward = true;
     bool bLoop = false;

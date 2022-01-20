@@ -124,7 +124,6 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int sequenceOption
     int cx = (int)(io.MousePos.x);
     int cy = (int)(io.MousePos.y);
     static float msPixelWidth = 0.1f;
-    static float msPixelWidthTarget = 0.1f;
     int legendWidth = 200;
     static int movingEntry = -1;
     static int movingPos = -1;
@@ -183,7 +182,7 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int sequenceOption
         panningView = false;
     }
 
-    float minPixelWidthTarget = ImMin(msPixelWidthTarget, (float)(canvas_size.x - legendWidth) / (float)duration);
+    float minPixelWidthTarget = ImMin(sequencer->msPixelWidthTarget, (float)(canvas_size.x - legendWidth) / (float)duration);
     float maxPixelWidthTarget = 20.f;
     float min_frame_duration = FLT_MAX;
     for (int i = 0; i < itemCount; i++)
@@ -200,8 +199,8 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int sequenceOption
             }
         }
     }
-    msPixelWidthTarget = ImClamp(msPixelWidthTarget, minPixelWidthTarget, maxPixelWidthTarget);
-    msPixelWidth = ImLerp(msPixelWidth, msPixelWidthTarget, 0.5f);
+    sequencer->msPixelWidthTarget = ImClamp(sequencer->msPixelWidthTarget, minPixelWidthTarget, maxPixelWidthTarget);
+    msPixelWidth = ImLerp(msPixelWidth, sequencer->msPixelWidthTarget, 0.5f);
 
     if (sequencer->visibleTime >= duration)
         sequencer->firstTime = sequencer->GetStart();
@@ -648,32 +647,32 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int sequenceOption
             ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - 48 - 4, 0));
             if (ImGui::Button(ICON_SLIDER_MAXIMUM "##slider_maximum", ImVec2(16, 16)))
             {
-                msPixelWidthTarget = maxPixelWidthTarget;
+                sequencer->msPixelWidthTarget = maxPixelWidthTarget;
             }
             ImGui::ShowTooltipOnHover("Maximum Slider");
 
             ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - 64 - 4, 0));
             if (ImGui::Button(ICON_ZOOM_IN "##slider_zoom_in", ImVec2(16, 16)))
             {
-                msPixelWidthTarget *= 2.0f;
-                if (msPixelWidthTarget > maxPixelWidthTarget)
-                    msPixelWidthTarget = maxPixelWidthTarget;
+                sequencer->msPixelWidthTarget *= 2.0f;
+                if (sequencer->msPixelWidthTarget > maxPixelWidthTarget)
+                    sequencer->msPixelWidthTarget = maxPixelWidthTarget;
             }
             ImGui::ShowTooltipOnHover("Slider Zoom In");
 
             ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - 80 - 4, 0));
             if (ImGui::Button(ICON_ZOOM_OUT "##slider_zoom_out", ImVec2(16, 16)))
             {
-                msPixelWidthTarget *= 0.5f;
-                if (msPixelWidthTarget < minPixelWidthTarget)
-                    msPixelWidthTarget = minPixelWidthTarget;
+                sequencer->msPixelWidthTarget *= 0.5f;
+                if (sequencer->msPixelWidthTarget < minPixelWidthTarget)
+                    sequencer->msPixelWidthTarget = minPixelWidthTarget;
             }
             ImGui::ShowTooltipOnHover("Slider Zoom Out");
 
             ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - 96 - 4, 0));
             if (ImGui::Button(ICON_SLIDER_MINIMUM "##slider_minimum", ImVec2(16, 16)))
             {
-                msPixelWidthTarget = minPixelWidthTarget;
+                sequencer->msPixelWidthTarget = minPixelWidthTarget;
                 sequencer->firstTime = sequencer->GetStart();
             }
             ImGui::ShowTooltipOnHover("Minimum Slider");
@@ -761,11 +760,11 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int sequenceOption
                 int64_t overCursor = sequencer->firstTime + (int64_t)(sequencer->visibleTime * ((io.MousePos.x - (float)legendWidth - canvas_pos.x) / (canvas_size.x - legendWidth)));
                 if (io.MouseWheel < -FLT_EPSILON && sequencer->visibleTime <= sequencer->GetEnd())
                 {
-                    msPixelWidthTarget *= 0.9f;
+                    sequencer->msPixelWidthTarget *= 0.9f;
                 }
                 if (io.MouseWheel > FLT_EPSILON)
                 {
-                    msPixelWidthTarget *= 1.1f;
+                    sequencer->msPixelWidthTarget *= 1.1f;
                 }
             }
             else
@@ -826,7 +825,7 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int sequenceOption
         // draw custom
         draw_list->PushClipRect(childFramePos, childFramePos + childFrameSize);
         for (auto &customDraw : customDraws)
-            sequencer->CustomDraw(customDraw.index, draw_list, customDraw.customRect, customDraw.titleRect, customDraw.clippingTitleRect, customDraw.legendRect, customDraw.clippingRect, customDraw.legendClippingRect, sequencer->firstTime, sequencer->visibleTime, msPixelWidth, fabs(msPixelWidth / msPixelWidthTarget - 1.0) < 1e-6);
+            sequencer->CustomDraw(customDraw.index, draw_list, customDraw.customRect, customDraw.titleRect, customDraw.clippingTitleRect, customDraw.legendRect, customDraw.clippingRect, customDraw.legendClippingRect, sequencer->firstTime, sequencer->visibleTime, msPixelWidth, fabs(msPixelWidth / sequencer->msPixelWidthTarget - 1.0) < 1e-6);
         for (auto &customDraw : compactCustomDraws)
             sequencer->CustomDrawCompact(customDraw.index, draw_list, customDraw.customRect, customDraw.legendRect, customDraw.clippingRect, sequencer->firstTime, sequencer->visibleTime, msPixelWidth);
         draw_list->PopClipRect();
@@ -2880,6 +2879,11 @@ int MediaSequencer::Load(const imgui_json::value& value)
         auto& val = value["AudioFormat"];
         if (val.is_number()) mAudioFormat = (AudioRender::PcmFormat)val.get<imgui_json::number>();
     }
+    if (value.contains("msPixelWidth"))
+    {
+        auto& val = value["msPixelWidth"];
+        if (val.is_number()) msPixelWidthTarget = val.get<imgui_json::number>();
+    }
     if (value.contains("FirstTime"))
     {
         auto& val = value["FirstTime"];
@@ -2926,6 +2930,7 @@ void MediaSequencer::Save(imgui_json::value& value)
     value["AudioChannels"] = imgui_json::number(mAudioChannels);
     value["AudioSampleRate"] = imgui_json::number(mAudioSampleRate);
     value["AudioFormat"] = imgui_json::number(mAudioFormat);
+    value["msPixelWidth"] = imgui_json::number(msPixelWidthTarget);
     value["FirstTime"] = imgui_json::number(firstTime);
     value["CurrentTime"] = imgui_json::number(currentTime);
     value["Forward"] = imgui_json::boolean(bForward);
