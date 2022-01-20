@@ -5,7 +5,7 @@
 #include <imgui_helper.h>
 #include <ImGuiFileDialog.h>
 #include <imgui_knob.h>
-#include "ImGuiToolkit_NoGst.h"
+#include "ImGuiToolkit.h"
 #include <iostream>
 #include <sstream>
 #include <fstream>
@@ -16,7 +16,7 @@
 #endif
 #include "Log.h"
 #include "AudioRender.hpp"
-#include "MediaPlayer_FFImpl.h"
+#include "MediaPlayer.h"
 
 static std::string ini_file = "Media_Player.ini";
 static std::string bookmark_path = "bookmark.ini";

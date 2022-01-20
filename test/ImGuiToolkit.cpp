@@ -21,11 +21,7 @@
 #define SECOND 1000000000UL
 #define MINUTE 60000000000UL
 
-//#include <glad/glad.h>
-
-//#include "Resource.h"
-#include "ImGuiToolkit_NoGst.h"
-#include "SystemToolkit.h"
+#include "ImGuiToolkit.h"
 
 #undef	MAX
 #define MAX(a, b)  (((a) > (b)) ? (a) : (b))
@@ -40,16 +36,6 @@
 #define CLAMP(x, low, high)  (((x) > (high)) ? (high) : (((x) < (low)) ? (low) : (x)))
 
 std::map <ImGuiToolkit::font_style, ImFont*>fontmap;
-
-void ImGuiToolkit::ButtonOpenUrl( const char* label, const char* url, const ImVec2& size_arg )
-{
-    char _label[512];
-    sprintf( _label, "%s  %s", ICON_FA5_EXTERNAL_LINK_ALT, label );
-
-    if ( ImGui::Button(_label, size_arg) )
-        SystemToolkit::open(url);
-}
-
 
 bool ImGuiToolkit::ButtonToggle( const char* label, bool* toggle )
 {

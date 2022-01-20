@@ -8,7 +8,7 @@
 #include <limits>
 #include <cmath>
 #include <algorithm>
-#include "MediaPlayer_FFImpl.h"
+#include "MediaPlayer.h"
 #include "FFUtils.h"
 extern "C"
 {

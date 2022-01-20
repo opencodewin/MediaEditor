@@ -313,7 +313,7 @@ void Log::Render(bool showWarnings, bool show_notifies, bool show_errors)
     if (show_notification){
         notifications_timeout += io.DeltaTime;
         float height = ImGui::GetTextLineHeightWithSpacing() * notifications.size();
-        float y = -height + MIN( notifications_timeout * height * 10.f, height );
+        float y = -height + std::min( notifications_timeout * height * 10.f, height );
 
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 3.0);
         ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(COLOR_NAVIGATOR, 1.f));

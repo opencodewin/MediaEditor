@@ -504,7 +504,7 @@ bool ConvertImMatToAVFrame(const ImGui::ImMat& vmat, AVFrame* avfrm, int64_t pts
     AVPixelFormat cvtPixfmt = ConvertColorFormatToPixelFormat(vmat.color_format, vmat.type);
     if (cvtPixfmt < 0)
     {
-        Log(ERROR) << "FAILED to convert ImColorFormat " << vmat.color_format << " and ImDataType " << vmat.type << " to AVPixelFormat!";
+        Log(Error) << "FAILED to convert ImColorFormat " << vmat.color_format << " and ImDataType " << vmat.type << " to AVPixelFormat!";
         return false;
     }
     av_frame_unref(avfrm);
@@ -515,7 +515,7 @@ bool ConvertImMatToAVFrame(const ImGui::ImMat& vmat, AVFrame* avfrm, int64_t pts
     fferr = av_frame_get_buffer(avfrm, 0);
     if (fferr < 0)
     {
-        Log(ERROR) << "FF api 'av_frame_get_buffer' failed! return code is " << fferr << ".";
+        Log(Error) << "FF api 'av_frame_get_buffer' failed! return code is " << fferr << ".";
         return false;
     }
 

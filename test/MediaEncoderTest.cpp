@@ -12,7 +12,7 @@ int main(int argc, const char* argv[])
 {
     if (argc < 3)
     {
-        Log(ERROR) << "Wrong arguments!" << endl;
+        Log(Error) << "Wrong arguments!" << endl;
         return -1;
     }
 
@@ -28,7 +28,7 @@ int main(int argc, const char* argv[])
     MediaParserHolder hParser = CreateMediaParser();
     if (!hParser->Open(argv[1]))
     {
-        Log(ERROR) << "FAILED to open MediaParser by file '" << argv[1] << "'! Error is '" << hParser->GetError() << "'." << endl;
+        Log(Error) << "FAILED to open MediaParser by file '" << argv[1] << "'! Error is '" << hParser->GetError() << "'." << endl;
         return -1;
     }
     MediaInfo::InfoHolder hInfo = hParser->GetMediaInfo();
@@ -39,12 +39,12 @@ int main(int argc, const char* argv[])
         vidreader = CreateMediaReader();
         if (!vidreader->Open(hParser))
         {
-            Log(ERROR) << "FAILED to open video MediaReader! Error is '" << vidreader->GetError() << "'." << endl;
+            Log(Error) << "FAILED to open video MediaReader! Error is '" << vidreader->GetError() << "'." << endl;
             return -2;
         }
         if (!vidreader->ConfigVideoReader(outWidth, outHeight))
         {
-            Log(ERROR) << "FAILED to configure video MediaReader! Error is '" << vidreader->GetError() << "'." << endl;
+            Log(Error) << "FAILED to configure video MediaReader! Error is '" << vidreader->GetError() << "'." << endl;
             return -3;
         }
         vidreader->Start();
@@ -54,12 +54,12 @@ int main(int argc, const char* argv[])
         audreader = CreateMediaReader();
         if (!audreader->Open(hParser))
         {
-            Log(ERROR) << "FAILED to open audio MediaReader! Error is '" << audreader->GetError() << "'." << endl;
+            Log(Error) << "FAILED to open audio MediaReader! Error is '" << audreader->GetError() << "'." << endl;
             return -4;
         }
         if (!audreader->ConfigAudioReader(outAudChannels, outSampleRate))
         {
-            Log(ERROR) << "FAILED to configure audio MediaReader! Error is '" << audreader->GetError() << "'." << endl;
+            Log(Error) << "FAILED to configure audio MediaReader! Error is '" << audreader->GetError() << "'." << endl;
             return -5;
         }
         audreader->Start();
@@ -69,19 +69,19 @@ int main(int argc, const char* argv[])
     MediaEncoder *mencoder = CreateMediaEncoder();
     if (!mencoder->Open(argv[2]))
     {
-        Log(ERROR) << "FAILED to open MediaEncoder by '" << argv[2] << "'! Error is '" << mencoder->GetError() << "'." << endl;
+        Log(Error) << "FAILED to open MediaEncoder by '" << argv[2] << "'! Error is '" << mencoder->GetError() << "'." << endl;
         return -6;
     }
     string vidEncImgFormat;
     if (vidreader && (vidStmIdx = mencoder->ConfigureVideoStream(vidEncCodec, vidEncImgFormat, outWidth, outHeight, outFrameRate, outVidBitRate)) < 0)
     {
-        Log(ERROR) << "FAILED to configure video encoder! Error is '" << mencoder->GetError() << "'." << endl;
+        Log(Error) << "FAILED to configure video encoder! Error is '" << mencoder->GetError() << "'." << endl;
         return -7;
     }
     string audEncSmpFormat;
     if (audreader && (audStmIdx = mencoder->ConfigureAudioStream(audEncCodec, audEncSmpFormat, outAudChannels, outSampleRate, outAudBitRate)) < 0)
     {
-        Log(ERROR) << "FAILED to configure audio encoder! Error is '" << mencoder->GetError() << "'." << endl;
+        Log(Error) << "FAILED to configure audio encoder! Error is '" << mencoder->GetError() << "'." << endl;
         return -8;
     }
     mencoder->Start();
@@ -100,7 +100,7 @@ int main(int argc, const char* argv[])
             bool eof;
             if (!vidreader->ReadVideoFrame(vidpos, vmat, eof) && !eof)
             {
-                Log(ERROR) << "FAILED to read video frame! Error is '" << vidreader->GetError() << "'." << endl;
+                Log(Error) << "FAILED to read video frame! Error is '" << vidreader->GetError() << "'." << endl;
                 break;
             }
             if (!eof)
@@ -108,7 +108,7 @@ int main(int argc, const char* argv[])
                 vmat.time_stamp = vidpos;
                 if (!mencoder->EncodeVideoFrame(vidStmIdx, vmat))
                 {
-                    Log(ERROR) << "FAILED to encode video frame! Error is '" << mencoder->GetError() << "'." << endl;
+                    Log(Error) << "FAILED to encode video frame! Error is '" << mencoder->GetError() << "'." << endl;
                     break;
                 }
             }
@@ -117,7 +117,7 @@ int main(int argc, const char* argv[])
                 vmat.release();
                 if (!mencoder->EncodeVideoFrame(vidStmIdx, vmat))
                 {
-                    Log(ERROR) << "FAILED to encode video EOF! Error is '" << mencoder->GetError() << "'." << endl;
+                    Log(Error) << "FAILED to encode video EOF! Error is '" << mencoder->GetError() << "'." << endl;
                     break;
                 }
                 vidInputEof = true;
@@ -129,14 +129,14 @@ int main(int argc, const char* argv[])
             uint32_t readSize = pcmbufSize;
             if (!audreader->ReadAudioSamples(pcmbuf, readSize, audpos, eof) && !eof)
             {
-                Log(ERROR) << "FAILED to read audio samples! Error is '" << audreader->GetError() << "'." << endl;
+                Log(Error) << "FAILED to read audio samples! Error is '" << audreader->GetError() << "'." << endl;
                 break;
             }
             if (!eof)
             {
                 if (!mencoder->EncodeAudioSamples(audStmIdx, pcmbuf, readSize))
                 {
-                    Log(ERROR) << "FAILED to encode audio samples! Error is '" << mencoder->GetError() << "'." << endl;
+                    Log(Error) << "FAILED to encode audio samples! Error is '" << mencoder->GetError() << "'." << endl;
                     break;
                 }
             }
@@ -144,7 +144,7 @@ int main(int argc, const char* argv[])
             {
                 if (!mencoder->EncodeAudioSamples(audStmIdx, nullptr, 0))
                 {
-                    Log(ERROR) << "FAILED to encode audio EOF! Error is '" << mencoder->GetError() << "'." << endl;
+                    Log(Error) << "FAILED to encode audio EOF! Error is '" << mencoder->GetError() << "'." << endl;
                     break;
                 }
                 audInputEof = true;

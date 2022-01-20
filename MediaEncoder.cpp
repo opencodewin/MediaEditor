@@ -660,7 +660,7 @@ private:
         SelfFreeAVFramePtr vfrm = AllocSelfFreeAVFramePtr();
         if (!vfrm)
         {
-            m_logger->Log(ERROR) << "FAILED to allocate new 'SelfFreeAVFramePtr'!";
+            m_logger->Log(Error) << "FAILED to allocate new 'SelfFreeAVFramePtr'!";
             return nullptr;
         }
         int64_t pts = av_rescale_q((int64_t)(vmat.time_stamp*1000), MILLISEC_TIMEBASE, m_videncCtx->time_base);
@@ -707,7 +707,7 @@ private:
                 {
                     if (fferr != AVERROR(EAGAIN))
                     {
-                        m_logger->Log(ERROR) << "Video encoder ERROR! avcodec_send_frame() returns " << fferr << "." << endl;
+                        m_logger->Log(Error) << "Video encoder ERROR! avcodec_send_frame() returns " << fferr << "." << endl;
                         break;
                     }
                 }
@@ -756,7 +756,7 @@ private:
                 {
                     if (fferr != AVERROR(EAGAIN))
                     {
-                        m_logger->Log(ERROR) << "Audio encoder ERROR! avcodec_send_frame() returns " << fferr << "." << endl;
+                        m_logger->Log(Error) << "Audio encoder ERROR! avcodec_send_frame() returns " << fferr << "." << endl;
                         break;
                     }
                 }
@@ -797,7 +797,7 @@ private:
                 }
                 else if (fferr != AVERROR(EAGAIN))
                 {
-                    m_logger->Log(ERROR) << "In muxing thread, video 'avcodec_receive_packet' FAILED with return code " << fferr << "!" << endl;
+                    m_logger->Log(Error) << "In muxing thread, video 'avcodec_receive_packet' FAILED with return code " << fferr << "!" << endl;
                     break;
                 }
             }
@@ -818,7 +818,7 @@ private:
                 }
                 else if (fferr != AVERROR(EAGAIN))
                 {
-                    m_logger->Log(ERROR) << "In muxing thread, audio 'avcodec_receive_packet' FAILED with return code " << fferr << "!" << endl;
+                    m_logger->Log(Error) << "In muxing thread, audio 'avcodec_receive_packet' FAILED with return code " << fferr << "!" << endl;
                     break;
                 }
             }
@@ -834,7 +834,7 @@ private:
                 }
                 else
                 {
-                    m_logger->Log(ERROR) << "'av_interleaved_write_frame' FAILED with return code " << fferr << "!" << endl;
+                    m_logger->Log(Error) << "'av_interleaved_write_frame' FAILED with return code " << fferr << "!" << endl;
                     break;
                 }
             }
