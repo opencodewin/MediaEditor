@@ -2424,7 +2424,12 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
     
         int64_t end_pos = 0;
         if (item->mEnd >= viewStartTime && item->mEnd <= viewStartTime + visibleTime)
-            end_pos = item->mEnd;
+        {
+            if (item->mStart >= viewStartTime)
+                end_pos = item->mEnd - viewStartTime;
+            else
+                end_pos = item->mEnd - startTime - item->mStart;
+        }
         else if (item->mEnd > viewStartTime + visibleTime)
             end_pos = viewStartTime + visibleTime;
         else
@@ -2437,7 +2442,7 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
         if (startOff + windowLen > sampleSize)
             windowLen = sampleSize - startOff;
         float cursorStartOffset = clippingRect.Min.x + start_pos * pixelWidth;
-        float cursorEndOffset = clippingRect.Min.x + endTime * pixelWidth;
+        float cursorEndOffset = clippingRect.Min.x + end_pos * pixelWidth;
         // draw audio wave snapshot
         if (item->mSnapshot->HasVideo())
         {
