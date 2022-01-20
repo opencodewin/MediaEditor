@@ -1185,6 +1185,9 @@ static int LoadProject(std::string path)
         sequencer->Load(val);
     }
 
+    g_media_editor_settings.project_path = path;
+    quit_save_confirm = false;
+
     return 0;
 }
 
@@ -1576,6 +1579,10 @@ bool Application_Frame(void * handle, bool app_will_quit)
                 app_done = app_will_quit;
             }
         }
+        else
+        {
+            quit_save_confirm = false;
+        }
     }
     // File Dialog
     ImVec2 minSize = ImVec2(0, 300);
@@ -1648,6 +1655,10 @@ bool Application_Frame(void * handle, bool app_will_quit)
                 app_done = true;
         }
         ImGuiFileDialog::Instance()->Close();
+    }
+    else if (!quit_save_confirm)
+    {
+        app_done = app_will_quit;
     }
     return app_done;
 }
