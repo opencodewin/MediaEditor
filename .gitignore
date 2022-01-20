@@ -3,9 +3,11 @@
 *build*
 config/*
 plugins/*
+projects/*
 .vscode/
 .cache/
 *.ini
 *.node
 *.cfg
 *.json
+*.mep

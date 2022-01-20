@@ -131,7 +131,7 @@ int AVPixelFormatToImColorFormat(AVPixelFormat pixfmt)
             clrfmt = IM_CF_ABGR;
             break;
         default:
-            Log(ERROR) << "No matching 'ImColorFormat' value for 'AVPixelFormat' " << (int)pixfmt << "!" << endl;
+            Log(Error) << "No matching 'ImColorFormat' value for 'AVPixelFormat' " << (int)pixfmt << "!" << endl;
             break;
     }
     return clrfmt;
@@ -370,7 +370,7 @@ bool HwFrameToSwFrame(AVFrame* swfrm, const AVFrame* hwfrm)
     int fferr = av_hwframe_transfer_data(swfrm, hwfrm, 0);
     if (fferr < 0)
     {
-        Log(ERROR) << "av_hwframe_transfer_data() FAILED! fferr = " << fferr << "." << endl;
+        Log(Error) << "av_hwframe_transfer_data() FAILED! fferr = " << fferr << "." << endl;
         return false;
     }
     av_frame_copy_props(swfrm, hwfrm);
@@ -389,12 +389,12 @@ bool MakeAVFrameCopy(AVFrame* dst, const AVFrame* src)
     int fferr;
     if ((fferr = av_frame_get_buffer(dst, 0)) < 0)
     {
-        Log(ERROR) << "av_frame_get_buffer() FAILED! fferr = " << fferr << "." << endl;
+        Log(Error) << "av_frame_get_buffer() FAILED! fferr = " << fferr << "." << endl;
         return false;
     }
     if ((fferr = av_frame_copy(dst, src)) < 0)
     {
-        Log(ERROR) << "av_frame_copy() FAILED! fferr = " << fferr << "." << endl;
+        Log(Error) << "av_frame_copy() FAILED! fferr = " << fferr << "." << endl;
         return false;
     }
     av_frame_copy_props(dst, src);
@@ -409,7 +409,7 @@ bool ConvertAVFrameToImMat(const AVFrame* avfrm, ImGui::ImMat& vmat, double time
         swfrm = AllocSelfFreeAVFramePtr();
         if (!swfrm)
         {
-            Log(ERROR) << "FAILED to allocate new AVFrame for ImMat conversion!" << endl;
+            Log(Error) << "FAILED to allocate new AVFrame for ImMat conversion!" << endl;
             return false;
         }
         if (!HwFrameToSwFrame(swfrm.get(), avfrm))
@@ -420,7 +420,7 @@ bool ConvertAVFrameToImMat(const AVFrame* avfrm, ImGui::ImMat& vmat, double time
     const AVPixFmtDescriptor* desc = av_pix_fmt_desc_get((AVPixelFormat)avfrm->format);
     if (desc->nb_components <= 0 || desc->nb_components > 4)
     {
-        Log(ERROR) << "INVALID 'nb_component' value " << desc->nb_components << " of pixel format '"
+        Log(Error) << "INVALID 'nb_component' value " << desc->nb_components << " of pixel format '"
             << desc->name << "', can only support value from 1 ~ 4." << endl;
         return false;
     }
@@ -733,7 +733,7 @@ bool AVFrameToImMatConverter::ConvertImage(const AVFrame* avfrm, ImGui::ImMat& o
             swfrm = AllocSelfFreeAVFramePtr();
             if (!swfrm)
             {
-                Log(ERROR) << "FAILED to allocate new AVFrame for ImMat conversion!" << endl;
+                Log(Error) << "FAILED to allocate new AVFrame for ImMat conversion!" << endl;
                 return false;
             }
             if (!HwFrameToSwFrame(swfrm.get(), avfrm))

@@ -591,7 +591,7 @@ private:
             if (!m_hSeekPoints)
             {
                 m_errMsg = "FAILED to retrieve video seek points!";
-                m_logger->Log(ERROR) << m_errMsg << endl;
+                m_logger->Log(Error) << m_errMsg << endl;
                 return false;
             }
 
@@ -936,7 +936,7 @@ private:
             if (bestfrmIter->ownfrm)
             {
                 if (!m_frmCvt.ConvertImage(bestfrmIter->ownfrm.get(), m, bestfrmIter->ts))
-                    m_logger->Log(ERROR) << "FAILED to convert AVFrame to ImGui::ImMat! Message is '" << m_frmCvt.GetError() << "'." << endl;
+                    m_logger->Log(Error) << "FAILED to convert AVFrame to ImGui::ImMat! Message is '" << m_frmCvt.GetError() << "'." << endl;
             }
             else
                 m.time_stamp = bestfrmIter->ts;
@@ -1018,7 +1018,7 @@ private:
                         }
                         else
                         {
-                            m_logger->Log(ERROR) << "ABNORMAL! 'iter' reaches 'afAry.end()'!" << endl;
+                            m_logger->Log(Error) << "ABNORMAL! 'iter' reaches 'afAry.end()'!" << endl;
                             return false;
                         }
                     }
@@ -1142,7 +1142,7 @@ private:
 
         if (!m_prepared && !Prepare())
         {
-            m_logger->Log(ERROR) << "Prepare() FAILED! Error is '" << m_errMsg << "'." << endl;
+            m_logger->Log(Error) << "Prepare() FAILED! Error is '" << m_errMsg << "'." << endl;
             return;
         }
 
@@ -1194,7 +1194,7 @@ private:
                         int fferr = avformat_seek_file(m_avfmtCtx, stmidx, INT64_MIN, currTask->seekPts.first, currTask->seekPts.first, 0);
                         if (fferr < 0)
                         {
-                            m_logger->Log(ERROR) << "avformat_seek_file() FAILED for seeking to 'currTask->startPts'(" << currTask->seekPts.first << ")! fferr = " << fferr << "!" << endl;
+                            m_logger->Log(Error) << "avformat_seek_file() FAILED for seeking to 'currTask->startPts'(" << currTask->seekPts.first << ")! fferr = " << fferr << "!" << endl;
                             break;
                         }
                         demuxEof = false;
@@ -1230,7 +1230,7 @@ private:
                         else
                         {
                             m_errMsg = FFapiFailureMessage("av_read_frame", fferr);
-                            m_logger->Log(ERROR) << "Demuxer ERROR! 'av_read_frame' returns " << fferr << "." << endl;
+                            m_logger->Log(Error) << "Demuxer ERROR! 'av_read_frame' returns " << fferr << "." << endl;
                         }
                     }
                 }
@@ -1247,7 +1247,7 @@ private:
                             AVPacket* enqpkt = av_packet_clone(&avpkt);
                             if (!enqpkt)
                             {
-                                m_logger->Log(ERROR) << "FAILED to invoke 'av_packet_clone(DemuxThreadProc)'!" << endl;
+                                m_logger->Log(Error) << "FAILED to invoke 'av_packet_clone(DemuxThreadProc)'!" << endl;
                                 break;
                             }
                             {
@@ -1308,7 +1308,7 @@ private:
                 }
                 else
                 {
-                    m_logger->Log(ERROR) << "av_read_frame() FAILED! fferr = " << fferr << "." << endl;
+                    m_logger->Log(Error) << "av_read_frame() FAILED! fferr = " << fferr << "." << endl;
                     return false;
                 }
             }
@@ -1345,7 +1345,7 @@ private:
             vf.decfrm = CloneSelfFreeAVFramePtr(frm);
             if (!vf.decfrm)
             {
-                m_logger->Log(ERROR) << "FAILED to invoke 'CloneSelfFreeAVFramePtr()' to allocate new AVFrame for VF!" << endl;
+                m_logger->Log(Error) << "FAILED to invoke 'CloneSelfFreeAVFramePtr()' to allocate new AVFrame for VF!" << endl;
                 return false;
             }
             // m_logger->Log(DEBUG) << "Adding VF#" << ts << "." << endl;
@@ -1459,7 +1459,7 @@ private:
                             if (fferr != AVERROR_EOF)
                             {
                                 m_errMsg = FFapiFailureMessage("avcodec_receive_frame", fferr);
-                                m_logger->Log(ERROR) << "FAILED to invoke 'avcodec_receive_frame'(VideoDecodeThreadProc)! return code is "
+                                m_logger->Log(Error) << "FAILED to invoke 'avcodec_receive_frame'(VideoDecodeThreadProc)! return code is "
                                     << fferr << "." << endl;
                                 quitLoop = true;
                                 break;
@@ -1510,7 +1510,7 @@ private:
                         else if (fferr != AVERROR(EAGAIN) && fferr != AVERROR_INVALIDDATA)
                         {
                             m_errMsg = FFapiFailureMessage("avcodec_send_packet", fferr);
-                            m_logger->Log(ERROR) << "FAILED to invoke 'avcodec_send_packet'(VideoDecodeThreadProc)! return code is "
+                            m_logger->Log(Error) << "FAILED to invoke 'avcodec_send_packet'(VideoDecodeThreadProc)! return code is "
                                 << fferr << "." << endl;
                             break;
                         }
@@ -1580,10 +1580,10 @@ private:
                                 if (HwFrameToSwFrame(swfrm.get(), frm))
                                     vf.ownfrm = swfrm;
                                 else
-                                    m_logger->Log(ERROR) << "FAILED to convert HW frame to SW frame!" << endl;
+                                    m_logger->Log(Error) << "FAILED to convert HW frame to SW frame!" << endl;
                             }
                             else
-                                m_logger->Log(ERROR) << "FAILED to allocate new SelfFreeAVFramePtr!" << endl;
+                                m_logger->Log(Error) << "FAILED to allocate new SelfFreeAVFramePtr!" << endl;
                         }
                         else
                         {
@@ -1592,11 +1592,11 @@ private:
                         vf.decfrm = nullptr;
                         currTask->frmCnt--;
                         if (currTask->frmCnt < 0)
-                            m_logger->Log(ERROR) << "!! ABNORMAL !! Task [" << currTask->seekPts.first << ", " << currTask->seekPts.second << "] has negative 'frmCnt'("
+                            m_logger->Log(Error) << "!! ABNORMAL !! Task [" << currTask->seekPts.first << ", " << currTask->seekPts.second << "] has negative 'frmCnt'("
                                 << currTask->frmCnt << ")!" << endl;
                         m_pendingVidfrmCnt--;
                         if (m_pendingVidfrmCnt < 0)
-                            m_logger->Log(ERROR) << "Pending video AVFrame ptr count is NEGATIVE! " << m_pendingVidfrmCnt << endl;
+                            m_logger->Log(Error) << "Pending video AVFrame ptr count is NEGATIVE! " << m_pendingVidfrmCnt << endl;
 
                         idleLoop = false;
                     }
@@ -1624,7 +1624,7 @@ private:
             af.decfrm = CloneSelfFreeAVFramePtr(frm);
             if (!af.decfrm)
             {
-                m_logger->Log(ERROR) << "FAILED to invoke 'CloneSelfFreeAVFramePtr()' to allocate new AVFrame for AF!" << endl;
+                m_logger->Log(Error) << "FAILED to invoke 'CloneSelfFreeAVFramePtr()' to allocate new AVFrame for AF!" << endl;
                 return false;
             }
             int64_t nextPts;
@@ -1738,7 +1738,7 @@ private:
                             if (fferr != AVERROR_EOF)
                             {
                                 m_errMsg = FFapiFailureMessage("avcodec_receive_frame", fferr);
-                                m_logger->Log(ERROR) << "FAILED to invoke 'avcodec_receive_frame'(AudioDecodeThreadProc)! return code is "
+                                m_logger->Log(Error) << "FAILED to invoke 'avcodec_receive_frame'(AudioDecodeThreadProc)! return code is "
                                     << fferr << "." << endl;
                                 quitLoop = true;
                                 break;
@@ -1782,7 +1782,7 @@ private:
                     else if (fferr != AVERROR(EAGAIN) && fferr != AVERROR_INVALIDDATA)
                     {
                         m_errMsg = FFapiFailureMessage("avcodec_send_packet", fferr);
-                        m_logger->Log(ERROR) << "FAILED to invoke 'avcodec_send_packet'(AudioDecodeThreadProc)! return code is "
+                        m_logger->Log(Error) << "FAILED to invoke 'avcodec_send_packet'(AudioDecodeThreadProc)! return code is "
                             << fferr << "." << endl;
                         break;
                     }
@@ -1841,7 +1841,7 @@ private:
                             fwdfrm = AllocSelfFreeAVFramePtr();
                             if (!fwdfrm)
                             {
-                                m_logger->Log(ERROR) << "FAILED to allocate new AVFrame for 'swr_convert()'!" << endl;
+                                m_logger->Log(Error) << "FAILED to allocate new AVFrame for 'swr_convert()'!" << endl;
                                 break;
                             }
                             AVFrame* srcfrm = af.decfrm.get();
@@ -1855,7 +1855,7 @@ private:
                             fferr = av_frame_get_buffer(dstfrm, 0);
                             if (fferr < 0)
                             {
-                                m_logger->Log(ERROR) << "av_frame_get_buffer(UpdatePcmThreadProc1) FAILED with return code " << fferr << endl;
+                                m_logger->Log(Error) << "av_frame_get_buffer(UpdatePcmThreadProc1) FAILED with return code " << fferr << endl;
                                 break;
                             }
                             int64_t outpts = swr_next_pts(m_swrCtx, av_rescale(srcfrm->pts, audTimebase.num*(int64_t)dstfrm->sample_rate*srcfrm->sample_rate, audTimebase.den));
@@ -1863,7 +1863,7 @@ private:
                             fferr = swr_convert(m_swrCtx, dstfrm->data, dstfrm->nb_samples, (const uint8_t **)srcfrm->data, srcfrm->nb_samples);
                             if (fferr < 0)
                             {
-                                m_logger->Log(ERROR) << "swr_convert(GenerateAudioSamplesThreadProc) FAILED with return code " << fferr << endl;
+                                m_logger->Log(Error) << "swr_convert(GenerateAudioSamplesThreadProc) FAILED with return code " << fferr << endl;
                                 break;
                             }
                             if (fferr < dstfrm->nb_samples)
@@ -1877,7 +1877,7 @@ private:
                         bwdfrm = AllocSelfFreeAVFramePtr();
                         if (!bwdfrm)
                         {
-                            m_logger->Log(ERROR) << "FAILED to allocate new AVFrame for backward pcm frame!" << endl;
+                            m_logger->Log(Error) << "FAILED to allocate new AVFrame for backward pcm frame!" << endl;
                             break;
                         }
                         bwdfrm->format = fwdfrm->format;
@@ -1888,7 +1888,7 @@ private:
                         fferr = av_frame_get_buffer(bwdfrm.get(), 0);
                         if (fferr < 0)
                         {
-                            m_logger->Log(ERROR) << "av_frame_get_buffer(UpdatePcmThreadProc2) FAILED with return code " << fferr << endl;
+                            m_logger->Log(Error) << "av_frame_get_buffer(UpdatePcmThreadProc2) FAILED with return code " << fferr << endl;
                             break;
                         }
                         av_frame_copy_props(bwdfrm.get(), fwdfrm.get());
@@ -1908,7 +1908,7 @@ private:
                         af.bwdfrm = bwdfrm;
                         currTask->frmCnt--;
                         if (currTask->frmCnt < 0)
-                            m_logger->Log(ERROR) << "!! ABNORMAL !! Task [" << currTask->seekPts.first << ", " << currTask->seekPts.second << "] has negative 'frmCnt'("
+                            m_logger->Log(Error) << "!! ABNORMAL !! Task [" << currTask->seekPts.first << ", " << currTask->seekPts.second << "] has negative 'frmCnt'("
                                 << currTask->frmCnt << ")!" << endl;
 
                         idleLoop = false;

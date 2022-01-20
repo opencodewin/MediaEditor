@@ -214,6 +214,10 @@ void Application_GetWindowProperties(ApplicationWindowProperty& property)
     property.height = 720;
 }
 
+void Application_SetupContext(ImGuiContext* ctx)
+{
+}
+
 void Application_Initialize(void** handle)
 {
     gst_init(nullptr, nullptr);
@@ -266,7 +270,7 @@ void Application_Finalize(void** handle)
 #endif
 }
 
-bool Application_Frame(void * handle)
+bool Application_Frame(void * handle, bool app_will_quit)
 {
     static bool show_ctrlbar = true;
     static bool show_log_window = false; 
@@ -276,7 +280,7 @@ bool Application_Frame(void * handle)
     static bool muted = false;
     static bool full_screen = false;
     static int ctrlbar_hide_count = 0;
-    bool done = false;
+    bool app_done = false;
     auto& io = ImGui::GetIO();
     const ImGuiContext& g = *GImGui;
     const ImGuiStyle& style = g.Style;
@@ -511,7 +515,7 @@ bool Application_Frame(void * handle)
     if (!io.KeyCtrl && !io.KeyShift && !io.KeyAlt && ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Escape), false))
     {
         if (g_player.isOpen()) g_player.close();
-        done = true;
+        app_done = true;
     }
     if (g_player.isOpen() && !io.KeyCtrl && !io.KeyShift && !io.KeyAlt && ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_LeftArrow), true))
     {
@@ -646,5 +650,9 @@ bool Application_Frame(void * handle)
             ImVec2 (1, 1)
         );
     }
-    return done;
+    if (app_will_quit)
+    {
+        app_done = true;
+    }
+    return app_done;
 }

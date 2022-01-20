@@ -10,7 +10,7 @@ namespace Logger
         DEBUG,
         INFO,
         WARN,
-        ERROR,
+        Error,
     };
 
     struct ALogger

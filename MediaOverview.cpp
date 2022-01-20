@@ -769,7 +769,7 @@ private:
 
         if (!m_prepared && !Prepare())
         {
-            m_logger->Log(ERROR) << "Prepare() FAILED! Error is '" << m_errMsg << "'." << endl;
+            m_logger->Log(Error) << "Prepare() FAILED! Error is '" << m_errMsg << "'." << endl;
             return;
         }
 
@@ -794,7 +794,7 @@ private:
                 fferr = avformat_seek_file(m_avfmtCtx, m_vidStmIdx, INT64_MIN, seekTargetPts, seekTargetPts, 0);
                 if (fferr < 0)
                 {
-                    m_logger->Log(ERROR) << "avformat_seek_file() FAILED for seeking to pts(" << seekTargetPts << ")! fferr = " << fferr << "!" << endl;
+                    m_logger->Log(Error) << "avformat_seek_file() FAILED for seeking to pts(" << seekTargetPts << ")! fferr = " << fferr << "!" << endl;
                     break;
                 }
 
@@ -826,7 +826,7 @@ private:
                         else
                         {
                             if (fferr != AVERROR_EOF)
-                                m_logger->Log(ERROR) << "Demuxer ERROR! 'av_read_frame()' returns " << fferr << "." << endl;
+                                m_logger->Log(Error) << "Demuxer ERROR! 'av_read_frame()' returns " << fferr << "." << endl;
                             break;
                         }
                     }
@@ -840,7 +840,7 @@ private:
                                 AVPacket* enqpkt = av_packet_clone(&avpkt);
                                 if (!enqpkt)
                                 {
-                                    m_logger->Log(ERROR) << "FAILED to invoke 'av_packet_clone(DemuxVideoThreadProc)'!" << endl;
+                                    m_logger->Log(Error) << "FAILED to invoke 'av_packet_clone(DemuxVideoThreadProc)'!" << endl;
                                     break;
                                 }
                                 {
@@ -863,7 +863,7 @@ private:
             }
             else
             {
-                m_logger->Log(ERROR) << "Demux procedure to non-video media is NOT IMPLEMENTED yet!" << endl;
+                m_logger->Log(Error) << "Demux procedure to non-video media is NOT IMPLEMENTED yet!" << endl;
             }
 
             if (idleLoop)
@@ -908,7 +908,7 @@ private:
                     {
                         if (fferr != AVERROR_EOF)
                         {
-                            m_logger->Log(ERROR) << "FAILED to invoke 'avcodec_receive_frame'(VideoDecodeThreadProc)! return code is "
+                            m_logger->Log(Error) << "FAILED to invoke 'avcodec_receive_frame'(VideoDecodeThreadProc)! return code is "
                                 << fferr << "." << endl;
                         }
                         quitLoop = true;
@@ -951,7 +951,7 @@ private:
                     }
                     else if (fferr != AVERROR(EAGAIN))
                     {
-                        m_logger->Log(ERROR) << "FAILED to invoke 'avcodec_send_packet'(VideoDecodeThreadProc)! return code is "
+                        m_logger->Log(Error) << "FAILED to invoke 'avcodec_send_packet'(VideoDecodeThreadProc)! return code is "
                             << fferr << "." << endl;
                         break;
                     }
@@ -992,7 +992,7 @@ private:
                 if (iter != m_snapshots.end())
                 {
                     if (!m_frmCvt.ConvertImage(frm, iter->img, ts))
-                        m_logger->Log(ERROR) << "FAILED to convert AVFrame to ImGui::ImMat! Message is '" << m_frmCvt.GetError() << "'." << endl;
+                        m_logger->Log(Error) << "FAILED to convert AVFrame to ImGui::ImMat! Message is '" << m_frmCvt.GetError() << "'." << endl;
                     // else
                     //     m_logger->Log(DEBUG) << "Add SS#" << iter->index << "." << endl;
                 }
@@ -1046,7 +1046,7 @@ private:
 
         if (!HasVideo() && !m_prepared && !Prepare())
         {
-            m_logger->Log(ERROR) << "Prepare() FAILED! Error is '" << m_errMsg << "'." << endl;
+            m_logger->Log(Error) << "Prepare() FAILED! Error is '" << m_errMsg << "'." << endl;
             return;
         }
         else
@@ -1062,7 +1062,7 @@ private:
         fferr = avformat_open_input(&avfmtCtx, m_hParser->GetUrl().c_str(), nullptr, nullptr);
         if (fferr)
         {
-            m_logger->Log(ERROR) << "'avformat_open_input' FAILED with return code " << fferr << "! Quit Waveform demux thread." << endl;
+            m_logger->Log(Error) << "'avformat_open_input' FAILED with return code " << fferr << "! Quit Waveform demux thread." << endl;
             return;
         }
 
@@ -1083,7 +1083,7 @@ private:
                 else
                 {
                     if (fferr != AVERROR_EOF)
-                        m_logger->Log(ERROR) << "Demuxer ERROR! 'av_read_frame(DemuxAudioThreadProc)' returns " << fferr << "." << endl;
+                        m_logger->Log(Error) << "Demuxer ERROR! 'av_read_frame(DemuxAudioThreadProc)' returns " << fferr << "." << endl;
                     break;
                 }
             }
@@ -1097,7 +1097,7 @@ private:
                         AVPacket* enqpkt = av_packet_clone(&avpkt);
                         if (!enqpkt)
                         {
-                            m_logger->Log(ERROR) << "FAILED to invoke 'av_packet_clone(DemuxAudioThreadProc)'!" << endl;
+                            m_logger->Log(Error) << "FAILED to invoke 'av_packet_clone(DemuxAudioThreadProc)'!" << endl;
                             break;
                         }
                         {
@@ -1162,7 +1162,7 @@ private:
                     else if (fferr != AVERROR(EAGAIN))
                     {
                         if (fferr != AVERROR_EOF)
-                            m_logger->Log(ERROR) << "FAILED to invoke 'avcodec_receive_frame'(AudioDecodeThreadProc)! return code is "
+                            m_logger->Log(Error) << "FAILED to invoke 'avcodec_receive_frame'(AudioDecodeThreadProc)! return code is "
                                 << fferr << "." << endl;
                         quitLoop = true;
                         break;
@@ -1208,7 +1208,7 @@ private:
                         {
                             if (fferr != AVERROR(EAGAIN))
                             {
-                                m_logger->Log(ERROR) << "FAILED to invoke 'avcodec_send_packet'(AudioDecodeThreadProc)! return code is "
+                                m_logger->Log(Error) << "FAILED to invoke 'avcodec_send_packet'(AudioDecodeThreadProc)! return code is "
                                     << fferr << "." << endl;
                                 quitLoop = true;
                             }
@@ -1273,7 +1273,7 @@ private:
                     dstfrm = av_frame_alloc();
                     if (!dstfrm)
                     {
-                        m_logger->Log(ERROR) << "FAILED to allocate new AVFrame for 'swr_convert()'!" << endl;
+                        m_logger->Log(Error) << "FAILED to allocate new AVFrame for 'swr_convert()'!" << endl;
                         break;
                     }
                     dstfrm->format = (int)m_swrOutSmpfmt;
@@ -1284,7 +1284,7 @@ private:
                     int fferr = av_frame_get_buffer(dstfrm, 0);
                     if (fferr < 0)
                     {
-                        m_logger->Log(ERROR) << "av_frame_get_buffer(GenWaveformThreadProc) FAILED with return code " << fferr << endl;
+                        m_logger->Log(Error) << "av_frame_get_buffer(GenWaveformThreadProc) FAILED with return code " << fferr << endl;
                         break;
                     }
                     av_frame_copy_props(dstfrm, srcfrm);
@@ -1292,7 +1292,7 @@ private:
                     fferr = swr_convert(m_swrCtx, dstfrm->data, dstfrm->nb_samples, (const uint8_t **)srcfrm->data, srcfrm->nb_samples);
                     if (fferr < 0)
                     {
-                        m_logger->Log(ERROR) << "swr_convert(GenWaveformThreadProc) FAILED with return code " << fferr << endl;
+                        m_logger->Log(Error) << "swr_convert(GenWaveformThreadProc) FAILED with return code " << fferr << endl;
                         break;
                     }
                 }

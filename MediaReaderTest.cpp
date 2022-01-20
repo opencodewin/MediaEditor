@@ -81,6 +81,10 @@ void Application_GetWindowProperties(ApplicationWindowProperty& property)
     property.height = 720;
 }
 
+void Application_SetupContext(ImGuiContext* ctx)
+{
+}
+
 void Application_Initialize(void** handle)
 {
     GetDefaultLogger()
@@ -142,9 +146,9 @@ void Application_Finalize(void** handle)
 #endif
 }
 
-bool Application_Frame(void * handle)
+bool Application_Frame(void * handle, bool app_will_quit)
 {
-    bool done = false;
+    bool app_done = false;
     auto& io = ImGui::GetIO();
 
     ImGui::SetNextWindowPos({0, 0});
@@ -268,7 +272,7 @@ bool Application_Frame(void * handle)
                     vmat.type != IM_DT_INT8 ||
                     (vmat.device != IM_DD_CPU && vmat.device != IM_DD_VULKAN)))
                 {
-                    Log(ERROR) << "WRONG snapshot format!" << endl;
+                    Log(Error) << "WRONG snapshot format!" << endl;
                     imgValid = false;
                     imgTag += "(bad format)";
                 }
@@ -323,8 +327,12 @@ bool Application_Frame(void * handle)
 
     if (!io.KeyCtrl && !io.KeyShift && !io.KeyAlt && ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Escape), false))
     {
-        done = true;
+        app_done = true;
+    }
+    if (app_will_quit)
+    {
+        app_done = true;
     }
 
-    return done;
+    return app_done;
 }
