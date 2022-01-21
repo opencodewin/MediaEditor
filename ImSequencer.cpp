@@ -138,6 +138,7 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int sequenceOption
     sequencer->options = sequenceOptions;
     static int64_t start_time = -1;
     static int64_t last_time = -1;
+    bool isFocused = ImGui::IsWindowFocused();
 
     ImGui::BeginGroup();
     
@@ -166,7 +167,7 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int sequenceOption
     static int64_t panningViewTime;
     ImRect scrollBarRect;
     ImRect scrollHandleBarRect;
-    if (ImGui::IsWindowFocused() && io.KeyAlt && io.MouseDown[2])
+    if (isFocused && io.KeyAlt && io.MouseDown[2])
     {
         if (!panningView)
         {
@@ -298,7 +299,7 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int sequenceOption
 
         // current time top
         ImRect topRect(ImVec2(canvas_pos.x + legendWidth, canvas_pos.y), ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + ItemHeight));
-        if (!MovingCurrentTime && !MovingScrollBar && movingEntry == -1 && sequenceOptions & SEQUENCER_CHANGE_TIME && sequencer->currentTime >= 0 && topRect.Contains(io.MousePos) && io.MouseDown[0])
+        if (!MovingCurrentTime && !MovingScrollBar && movingEntry == -1 && sequenceOptions & SEQUENCER_CHANGE_TIME && sequencer->currentTime >= 0 && topRect.Contains(io.MousePos) && io.MouseDown[0] && isFocused)
         {
             MovingCurrentTime = true;
             sequencer->bSeeking = true;
@@ -454,7 +455,7 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int sequenceOption
                 draw_list->AddRectFilled(slotP1, slotP3, slotColorHalf, 0);
                 draw_list->AddRectFilled(slotP1, slotP2, slotColor, 0);
             }
-            if (ImRect(slotP1, slotP2).Contains(io.MousePos) && io.MouseDoubleClicked[0])
+            if (isFocused && ImRect(slotP1, slotP2).Contains(io.MousePos) && io.MouseDoubleClicked[0])
             {
                 sequencer->DoubleClick(i);
             }
@@ -1057,8 +1058,7 @@ bool ClipTimeLine(ClipInfo* clip)
     int headHeight = 30;
     int customHeight = 70;
     static bool MovingCurrentTime = false;
-    //static int64_t start_time = -1;
-    //static int64_t last_time = -1;
+    bool isFocused = ImGui::IsWindowFocused();
 
     ImGui::BeginGroup();
     ImDrawList *draw_list = ImGui::GetWindowDrawList();
@@ -1076,7 +1076,7 @@ bool ClipTimeLine(ClipInfo* clip)
     draw_list->AddRectFilled(window_pos, window_pos + headerSize, COL_DARK_ONE, 0);
 
     ImRect topRect(window_pos, window_pos + headerSize);
-    if (!MovingCurrentTime && clip->mCurrent >= clip->mStart && topRect.Contains(io.MousePos) && io.MouseDown[0])
+    if (!MovingCurrentTime && clip->mCurrent >= clip->mStart && topRect.Contains(io.MousePos) && io.MouseDown[0] && isFocused)
     {
         MovingCurrentTime = true;
         clip->bSeeking = true;

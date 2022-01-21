@@ -575,14 +575,14 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     // audio meters
     ImVec2 AudioMeterPos;
     ImVec2 AudioMeterSize;
-    AudioMeterPos = window_pos + ImVec2(window_size.x - 64, 16);
+    AudioMeterPos = window_pos + ImVec2(window_size.x - 70, 16);
     AudioMeterSize = ImVec2(32, window_size.y - 48 - 16 - 8);
     ImVec2 AudioUVLeftPos = AudioMeterPos + ImVec2(36, 0);
     ImVec2 AudioUVLeftSize = ImVec2(12, AudioMeterSize.y);
     ImVec2 AudioUVRightPos = AudioMeterPos + ImVec2(36 + 16, 0);
     ImVec2 AudioUVRightSize = AudioUVLeftSize;
 
-    draw_list->AddRectFilled(AudioMeterPos - ImVec2(0, 16), AudioMeterPos + ImVec2(64, AudioMeterSize.y + 8), COL_DARK_TWO);
+    draw_list->AddRectFilled(AudioMeterPos - ImVec2(0, 16), AudioMeterPos + ImVec2(70, AudioMeterSize.y + 8), COL_DARK_TWO);
 
     for (int i = 0; i <= 96; i+= 5)
     {
@@ -795,7 +795,7 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
         ImVec2 clip_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 clip_window_size = ImGui::GetWindowSize();
         static const int numTabs = sizeof(VideoEditorTabNames)/sizeof(VideoEditorTabNames[0]);
-        ImGui::TabLabelsVertical(false, numTabs, VideoEditorTabNames, VideoEditorWindowIndex, VideoEditorTabTooltips, nullptr, nullptr, false, false, nullptr, nullptr);
+        ImGui::TabLabelsVertical(false, numTabs, VideoEditorTabNames, VideoEditorWindowIndex, VideoEditorTabTooltips, true, nullptr, nullptr, false, false, nullptr, nullptr);
         ImGui::SetCursorScreenPos(clip_window_pos + ImVec2(labelWidth, 0));
         
         if (ImGui::BeginChild("##video_editor_views", ImVec2(video_editor_width, clip_window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
@@ -1403,24 +1403,81 @@ bool Application_Frame(void * handle, bool app_will_quit)
         static int ControlPanelIndex = 0;
         static int MainWindowIndex = 0;
         ImVec2 main_window_size = ImGui::GetWindowSize();
-        static float size_media_bank_w = 0.2;
+        static float size_control_panel_w = 0.2;
         static float size_main_w = 0.8;
         ImGui::PushID("##Control_Panel_Main");
-        float bank_width = size_media_bank_w * main_window_size.x;
+        float control_pane_width = size_control_panel_w * main_window_size.x;
         float main_width = size_main_w * main_window_size.x;
-        Splitter(true, 4.0f, &bank_width, &main_width, media_icon_size + tool_icon_size, 96);
-        size_media_bank_w = bank_width / main_window_size.x;
+        Splitter(true, 4.0f, &control_pane_width, &main_width, media_icon_size + tool_icon_size, 96);
+        size_control_panel_w = control_pane_width / main_window_size.x;
         size_main_w = main_width / main_window_size.x;
         ImGui::PopID();
         
-        static bool bank_expanded = true;
-        ImVec2 bank_pos(4, 0);
-        ImVec2 bank_size(bank_width - 4, main_window_size.y - 4);
+        // add left tool bar
+        ImGui::SetCursorPos(ImVec2(0, tool_icon_size));
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.5, 0.5, 0.5, 0.5));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.2, 0.2, 0.2, 1.0));
+        if (ImGui::Button(ICON_NEW_PROJECT "##NewProject", ImVec2(tool_icon_size, tool_icon_size)))
+        {
+            // New Project
+            NewProject();
+        }
+        ImGui::ShowTooltipOnHover("New Project");
+        if (ImGui::Button(ICON_OPEN_PROJECT "##OpenProject", ImVec2(tool_icon_size, tool_icon_size)))
+        {
+            // Open Project
+            ImGuiFileDialog::Instance()->OpenModal("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Open Project File", 
+                                                    pfilters.c_str(),
+                                                    ".",
+                                                    1, 
+                                                    IGFDUserDatas("ProjectOpen"), 
+                                                    fflags);
+        }
+        ImGui::ShowTooltipOnHover("Open Project ...");
+        if (ImGui::Button(ICON_SAVE_PROJECT "##SaveProject", ImVec2(tool_icon_size, tool_icon_size)))
+        {
+            // Save Project
+            ImGuiFileDialog::Instance()->OpenModal("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Save Project File", 
+                                                    pfilters.c_str(),
+                                                    ".",
+                                                    1, 
+                                                    IGFDUserDatas("ProjectSave"), 
+                                                    pflags);
+        }
+        ImGui::ShowTooltipOnHover("Save Project As...");
+        if (ImGui::Button(ICON_IGFD_ADD "##AddMedia", ImVec2(tool_icon_size, tool_icon_size)))
+        {
+            // Open Media Source
+            ImGuiFileDialog::Instance()->OpenModal("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Choose Media File", 
+                                                    ffilters.c_str(),
+                                                    ".",
+                                                    1, 
+                                                    IGFDUserDatas("Media Source"), 
+                                                    fflags);
+        }
+        ImGui::ShowTooltipOnHover("Add new media into bank");
+        if (ImGui::Button(ICON_FA_WHMCS "##Configure", ImVec2(tool_icon_size, tool_icon_size)))
+        {
+            // Show Setting
+        }
+        ImGui::ShowTooltipOnHover("Configure");
+        if (ImGui::Button(ICON_FA5_INFO_CIRCLE "##About", ImVec2(tool_icon_size, tool_icon_size)))
+        {
+            // Show About
+            show_about = true;
+        }
+        ImGui::ShowTooltipOnHover("About Media Editor");
+        ImGui::PopStyleColor(3);
+
+        // add banks window
+        ImVec2 bank_pos(4 + tool_icon_size, 0);
+        ImVec2 bank_size(control_pane_width - 4 - tool_icon_size, main_window_size.y - 4);
         ImGui::SetNextWindowPos(bank_pos, ImGuiCond_Always);
         if (ImGui::BeginChild("##Control_Panel_Window", bank_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
         {
             ImVec2 bank_window_size = ImGui::GetWindowSize();
-            ImGui::TabLabels(numControlPanelTabs, ControlPanelTabNames, ControlPanelIndex, ControlPanelTabTooltips , false, nullptr, nullptr, false, false, nullptr, nullptr);
+            ImGui::TabLabels(numControlPanelTabs, ControlPanelTabNames, ControlPanelIndex, ControlPanelTabTooltips , false, true, nullptr, nullptr, false, false, nullptr, nullptr);
 
             // make control panel area
             ImVec2 area_pos = ImVec2(tool_icon_size + 4, 32);
@@ -1440,64 +1497,10 @@ bool Application_Frame(void * handle, bool app_will_quit)
             }
             ImGui::EndChild();
             ImGui::PopStyleColor();
-
-            // add tool bar
-            ImGui::SetCursorPos(ImVec2(0,32));
-            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.5, 0.5, 0.5, 0.5));
-            ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.2, 0.2, 0.2, 1.0));
-            if (ImGui::Button(ICON_NEW_PROJECT "##NewProject", ImVec2(tool_icon_size, tool_icon_size)))
-            {
-                // New Project
-                NewProject();
-            }
-            if (ImGui::Button(ICON_OPEN_PROJECT "##OpenProject", ImVec2(tool_icon_size, tool_icon_size)))
-            {
-                // Open Project
-                ImGuiFileDialog::Instance()->OpenModal("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Open Project File", 
-                                                        pfilters.c_str(),
-                                                        ".",
-                                                        1, 
-                                                        IGFDUserDatas("ProjectOpen"), 
-                                                        fflags);
-            }
-            if (ImGui::Button(ICON_SAVE_PROJECT "##SaveProject", ImVec2(tool_icon_size, tool_icon_size)))
-            {
-                // Save Project
-                ImGuiFileDialog::Instance()->OpenModal("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Save Project File", 
-                                                        pfilters.c_str(),
-                                                        ".",
-                                                        1, 
-                                                        IGFDUserDatas("ProjectSave"), 
-                                                        pflags);
-            }
-            if (ImGui::Button(ICON_IGFD_ADD "##AddMedia", ImVec2(tool_icon_size, tool_icon_size)))
-            {
-                // Open Media Source
-                ImGuiFileDialog::Instance()->OpenModal("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Choose Media File", 
-                                                        ffilters.c_str(),
-                                                        ".",
-                                                        1, 
-                                                        IGFDUserDatas("Media Source"), 
-                                                        fflags);
-            }
-            ImGui::ShowTooltipOnHover("Add new media into bank");
-            if (ImGui::Button(ICON_FA_WHMCS "##Configure", ImVec2(tool_icon_size, tool_icon_size)))
-            {
-                // Show Setting
-            }
-            ImGui::ShowTooltipOnHover("Configure");
-            if (ImGui::Button(ICON_FA5_INFO_CIRCLE "##About", ImVec2(tool_icon_size, tool_icon_size)))
-            {
-                // Show About
-                show_about = true;
-            }
-            ImGui::ShowTooltipOnHover("About Media Editor");
-            ImGui::PopStyleColor(3);
         }
         ImGui::EndChild();
 
-        ImVec2 main_sub_pos(bank_width + 8, 0);
+        ImVec2 main_sub_pos(control_pane_width + 8, 0);
         ImVec2 main_sub_size(main_width - 8, main_window_size.y - 4);
         ImGui::SetNextWindowPos(main_sub_pos, ImGuiCond_Always);
         if (ImGui::BeginChild("##Main_Window", main_sub_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar))
@@ -1505,7 +1508,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
             // full background
             ImDrawList *draw_list = ImGui::GetWindowDrawList();
             //ImVec2 main_window_size = ImGui::GetWindowSize();
-            ImGui::TabLabels(numMainWindowTabs, MainWindowTabNames, MainWindowIndex, MainWindowTabTooltips , false, nullptr, nullptr, false, false, nullptr, nullptr);
+            ImGui::TabLabels(numMainWindowTabs, MainWindowTabNames, MainWindowIndex, MainWindowTabTooltips , false, true, nullptr, nullptr, false, false, nullptr, nullptr);
             auto wmin = main_sub_pos + ImVec2(0, 32);
             auto wmax = wmin + ImGui::GetContentRegionAvail() - ImVec2(8, 0);
             draw_list->AddRectFilled(wmin, wmax, IM_COL32_BLACK, 8.0, ImDrawFlags_RoundCornersAll);
