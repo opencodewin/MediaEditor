@@ -2381,8 +2381,9 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
             {
                 ImGui::SetCursorScreenPos(pos);
                 float width_clip = size.x / frame_width;
-                if (item->mVideoSnapshots[i - 1].texture)
-                    ImGui::Image(item->mVideoSnapshots[i - 1].texture, ImVec2(size.x, size.y), ImVec2(0, 0), ImVec2(width_clip, 1));
+                // TODO::Dicky still will crush in some slow GPU cause
+                //if (item->mVideoSnapshots[i - 1].texture)
+                //    ImGui::Image(item->mVideoSnapshots[i - 1].texture, ImVec2(size.x, size.y), ImVec2(0, 0), ImVec2(width_clip, 1));
             }
             else
             {
