@@ -1597,11 +1597,7 @@ private:
     int m_audStmIdx{-1};
     AVStream* m_vidStream{nullptr};
     AVStream* m_audStream{nullptr};
-#if LIBAVFORMAT_VERSION_MAJOR >= 59
-    const AVCodec* m_viddec{nullptr};
-#else
-    AVCodec* m_viddec{nullptr};
-#endif
+    AVCodecPtr m_viddec{nullptr};
     AVCodecContext* m_viddecCtx{nullptr};
     bool m_vidPreferUseHw{true};
     AVHWDeviceType m_vidUseHwType{AV_HWDEVICE_TYPE_NONE};

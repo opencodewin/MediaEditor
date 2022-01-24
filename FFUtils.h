@@ -15,6 +15,12 @@ extern "C"
     #include "libswscale/swscale.h"
 }
 
+#if LIBAVFORMAT_VERSION_MAJOR >= 59
+typedef const AVCodec*      AVCodecPtr;
+#else
+typedef AVCodec*            AVCodecPtr;
+#endif
+
 extern const AVRational MILLISEC_TIMEBASE;
 extern const AVRational FF_AV_TIMEBASE;
 
