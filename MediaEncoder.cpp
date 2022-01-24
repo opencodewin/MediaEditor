@@ -447,11 +447,19 @@ private:
         if (!m_videnc)
         {
             const AVCodecDescriptor* desc = avcodec_descriptor_get_by_name(codecName.c_str());
+#if LIBAVFORMAT_VERSION_MAJOR >= 59
             const AVCodec* best = nullptr;
+#else
+            AVCodec* best = nullptr;
+#endif
             if (desc)
             {
                 void* i = 0;
+#if LIBAVFORMAT_VERSION_MAJOR >= 59
                 const AVCodec* p;
+#else
+                AVCodec* p;
+#endif
                 while ((p = av_codec_iterate(&i)))
                 {
                     if (p->id != desc->id)
