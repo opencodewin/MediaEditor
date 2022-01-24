@@ -14,6 +14,11 @@ using namespace ImSequencer;
 
 static std::string ini_file = "Media_Editor.ini";
 
+static const char* ConfigureTabNames[] = {
+    "System",
+    "Timeline"
+};
+
 static const char* ControlPanelTabNames[] = {
     ICON_MEDIA_BANK,
     ICON_MEDIA_TRANS,
@@ -68,7 +73,8 @@ struct MediaEditorSettings
     int ItemHeight {60};                    // timeline Item custom height
     int VideoWidth  {1920};                 // timeline Media Width
     int VideoHeight {1080};                 // timeline Media Height
-    int64_t VideoFrameInterval {40};        // timeline Media Frame Duration in ms
+    MediaInfo::Ratio VideoFrameRate {25000, 1000};// timeline frame rate
+    MediaInfo::Ratio PixelAspectRatio {1, 1}; // timeline pixel aspect ratio
     int AudioChannels {2};                  // timeline audio channels
     int AudioSampleRate {44100};            // timeline audio sample rate
     int AudioFormat {2};                    // timeline audio format 0=unknown 1=s16 2=f32
@@ -79,6 +85,7 @@ struct MediaEditorSettings
 static MediaSequencer * sequencer = nullptr;
 static ImGui::TabLabelStyle * tab_style = &ImGui::TabLabelStyle::Get();
 static MediaEditorSettings g_media_editor_settings;
+static MediaEditorSettings g_new_setting;
 static imgui_json::value g_project;
 static bool quit_save_confirm = true;
 
@@ -575,14 +582,14 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     // audio meters
     ImVec2 AudioMeterPos;
     ImVec2 AudioMeterSize;
-    AudioMeterPos = window_pos + ImVec2(window_size.x - 64, 16);
+    AudioMeterPos = window_pos + ImVec2(window_size.x - 70, 16);
     AudioMeterSize = ImVec2(32, window_size.y - 48 - 16 - 8);
     ImVec2 AudioUVLeftPos = AudioMeterPos + ImVec2(36, 0);
     ImVec2 AudioUVLeftSize = ImVec2(12, AudioMeterSize.y);
     ImVec2 AudioUVRightPos = AudioMeterPos + ImVec2(36 + 16, 0);
     ImVec2 AudioUVRightSize = AudioUVLeftSize;
 
-    draw_list->AddRectFilled(AudioMeterPos - ImVec2(0, 16), AudioMeterPos + ImVec2(64, AudioMeterSize.y + 8), COL_DARK_TWO);
+    draw_list->AddRectFilled(AudioMeterPos - ImVec2(0, 16), AudioMeterPos + ImVec2(70, AudioMeterSize.y + 8), COL_DARK_TWO);
 
     for (int i = 0; i <= 96; i+= 5)
     {
@@ -795,7 +802,7 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
         ImVec2 clip_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 clip_window_size = ImGui::GetWindowSize();
         static const int numTabs = sizeof(VideoEditorTabNames)/sizeof(VideoEditorTabNames[0]);
-        ImGui::TabLabelsVertical(false, numTabs, VideoEditorTabNames, VideoEditorWindowIndex, VideoEditorTabTooltips, nullptr, nullptr, false, false, nullptr, nullptr);
+        ImGui::TabLabelsVertical(false, numTabs, VideoEditorTabNames, VideoEditorWindowIndex, VideoEditorTabTooltips, true, nullptr, nullptr, false, false, nullptr, nullptr);
         ImGui::SetCursorScreenPos(clip_window_pos + ImVec2(labelWidth, 0));
         
         if (ImGui::BeginChild("##video_editor_views", ImVec2(video_editor_width, clip_window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
@@ -1111,6 +1118,313 @@ static void ShowMediaAIWindow(ImDrawList *draw_list)
     ImGui::SetWindowFontScale(1.0);
 }
 
+// System view
+static void ShowAbout()
+{
+    ImGui::Text("Media Editor Demo(ImGui)");
+    ImGui::Separator();
+    ImGui::Text("  TanluTeam 2022");
+    ImGui::Separator();
+}
+
+static int GetResolutionIndex(MediaEditorSettings & config)
+{
+    if (config.VideoWidth == 720 && config.VideoHeight == 480)
+        return 1;
+    else if (config.VideoWidth == 720 && config.VideoHeight == 576)
+        return 2;
+    else if (config.VideoWidth == 1280 && config.VideoHeight == 720)
+        return 3;
+    else if (config.VideoWidth == 1920 && config.VideoHeight == 1080)
+        return 4;
+    else if (config.VideoWidth == 3840 && config.VideoHeight == 2160)
+        return 5;
+    else if (config.VideoWidth == 7680 && config.VideoHeight == 3420)
+        return 6;
+    return 0;
+}
+
+static void SetResolution(MediaEditorSettings & config, int index)
+{
+    switch (index)
+    {
+        case 1: config.VideoWidth = 720; config.VideoHeight = 480; break;
+        case 2: config.VideoWidth = 720; config.VideoHeight = 576; break;
+        case 3: config.VideoWidth = 1280; config.VideoHeight = 720; break;
+        case 4: config.VideoWidth = 1920; config.VideoHeight = 1080; break;
+        case 5: config.VideoWidth = 3840; config.VideoHeight = 2160; break;
+        case 6: config.VideoWidth = 7680; config.VideoHeight = 3420; break;
+        default: break;
+    }
+}
+
+static int GetPixelAspectRatioIndex(MediaEditorSettings & config)
+{
+    if (config.PixelAspectRatio.num == 1 && config.PixelAspectRatio.den == 1)
+        return 1;
+    else if (config.PixelAspectRatio.num == 16 && config.PixelAspectRatio.den == 9)
+        return 2;
+    else if (config.PixelAspectRatio.num == 4 && config.PixelAspectRatio.den == 3)
+        return 3;
+    else if (config.PixelAspectRatio.num == 235 && config.PixelAspectRatio.den == 100)
+        return 4;
+    else if (config.PixelAspectRatio.num == 137 && config.PixelAspectRatio.den == 100)
+        return 5;
+    else if (config.PixelAspectRatio.num == 185 && config.PixelAspectRatio.den == 100)
+        return 6;
+    return 0;
+}
+
+static void SetPixelAspectRatio(MediaEditorSettings & config, int index)
+{
+    switch (index)
+    {
+        case 1: config.PixelAspectRatio.num = 1;   config.PixelAspectRatio.den = 1; break;
+        case 2: config.PixelAspectRatio.num = 16;  config.PixelAspectRatio.den = 9; break;
+        case 3: config.PixelAspectRatio.num = 4;   config.PixelAspectRatio.den = 3; break;
+        case 4: config.PixelAspectRatio.num = 235; config.PixelAspectRatio.den = 100; break;
+        case 5: config.PixelAspectRatio.num = 137; config.PixelAspectRatio.den = 100; break;
+        case 6: config.PixelAspectRatio.num = 185; config.PixelAspectRatio.den = 100; break;
+        default: break;
+    }
+}
+
+static int GetVideoFrameIndex(MediaEditorSettings & config)
+{
+    if (config.VideoFrameRate.num == 24000 && config.VideoFrameRate.den == 1001)
+        return 1;
+    else if (config.VideoFrameRate.num == 24000 && config.VideoFrameRate.den == 1000)
+        return 2;
+    else if (config.VideoFrameRate.num == 25000 && config.VideoFrameRate.den == 1000)
+        return 3;
+    else if (config.VideoFrameRate.num == 30000 && config.VideoFrameRate.den == 1001)
+        return 4;
+    else if (config.PixelAspectRatio.num == 30000 && config.PixelAspectRatio.den == 1000)
+        return 5;
+    else if (config.PixelAspectRatio.num == 50000 && config.PixelAspectRatio.den == 1000)
+        return 6;
+    else if (config.PixelAspectRatio.num == 60000 && config.PixelAspectRatio.den == 1001)
+        return 7;
+    else if (config.PixelAspectRatio.num == 60000 && config.PixelAspectRatio.den == 1000)
+        return 8;
+    else if (config.PixelAspectRatio.num == 100000 && config.PixelAspectRatio.den == 1000)
+        return 9;
+    else if (config.PixelAspectRatio.num == 120000 && config.PixelAspectRatio.den == 1000)
+        return 10;
+    return 0;
+}
+
+static void SetVideoFrameRate(MediaEditorSettings & config, int index)
+{
+    switch (index)
+    {
+        case  1: config.VideoFrameRate.num = 24000;  config.VideoFrameRate.den = 1001; break;
+        case  2: config.VideoFrameRate.num = 24000;  config.VideoFrameRate.den = 1000; break;
+        case  3: config.VideoFrameRate.num = 25000;  config.VideoFrameRate.den = 1000; break;
+        case  4: config.VideoFrameRate.num = 30000;  config.VideoFrameRate.den = 1001; break;
+        case  5: config.VideoFrameRate.num = 30000;  config.VideoFrameRate.den = 1000; break;
+        case  6: config.VideoFrameRate.num = 50000;  config.VideoFrameRate.den = 1000; break;
+        case  7: config.VideoFrameRate.num = 60000;  config.VideoFrameRate.den = 1001; break;
+        case  8: config.VideoFrameRate.num = 60000;  config.VideoFrameRate.den = 1000; break;
+        case  9: config.VideoFrameRate.num = 100000; config.VideoFrameRate.den = 1000; break;
+        case 10: config.VideoFrameRate.num = 120000; config.VideoFrameRate.den = 1000; break;
+        default: break;
+    }
+}
+
+static int GetSampleRateIndex(MediaEditorSettings & config)
+{
+    switch (config.AudioSampleRate)
+    {
+        case 8000:  return 0;
+        case 16000: return 1;
+        case 32000: return 2;
+        case 44100: return 3;
+        case 48000: return 4;
+        case 96000: return 5;
+        default: return 3;
+    }
+}
+
+static void SetSampleRate(MediaEditorSettings & config, int index)
+{
+    switch (index)
+    {
+        case 0: config.AudioSampleRate =  8000; break;
+        case 1: config.AudioSampleRate = 16000; break;
+        case 2: config.AudioSampleRate = 32000; break;
+        case 3: config.AudioSampleRate = 44100; break;
+        case 4: config.AudioSampleRate = 48000; break;
+        case 5: config.AudioSampleRate = 96000; break;
+        default:config.AudioSampleRate = 44100; break;
+    }
+}
+
+static int GetChannelIndex(MediaEditorSettings & config)
+{
+    switch (config.AudioChannels)
+    {
+        case  1: return 0;
+        case  2: return 1;
+        case  6: return 2;
+        case  8: return 3;
+        case 11: return 4;
+        case 13: return 5;
+        default: return 1;
+    }
+}
+
+static void SetAudioChannel(MediaEditorSettings & config, int index)
+{
+    switch (index)
+    {
+        case 0: config.AudioChannels =  1; break;
+        case 1: config.AudioChannels =  2; break;
+        case 2: config.AudioChannels =  6; break;
+        case 3: config.AudioChannels =  8; break;
+        case 4: config.AudioChannels = 11; break;
+        case 5: config.AudioChannels = 13; break;
+        default:config.AudioChannels =  2; break;
+    }
+}
+
+static int GetAudioFormatIndex(MediaEditorSettings & config)
+{
+    switch (config.AudioFormat)
+    {
+        case  1: return 0;
+        case  2: return 1;
+        case  3: return 2;
+        default: return 1;
+    }
+}
+
+static void SetAudioFormat(MediaEditorSettings & config, int index)
+{
+    switch (index)
+    {
+        case 0: config.AudioFormat =  1; break;
+        case 1: config.AudioFormat =  2; break;
+        case 2: config.AudioFormat =  3; break;
+        default:config.AudioFormat =  2; break;
+    }
+}
+
+static void ShowConfigure(MediaEditorSettings & config)
+{
+    const char* resolution_items[] = { "Custom", "720x480 NTSC", "720x576 PAL", "1280x720 HD", "1920x1080 HD", "3840x2160 UHD", "7680x3420 8K UHD"};
+    const char* pixel_aspect_items[] = { "Custom", "Square", "16:9", "4:3", "Cinemascope", "Academy Standard", "Academy Flat" }; // Cinemascope=2.35:1 Academy Standard=1.37:1 Academy Flat=1.85:1
+    const char* frame_rate_items[] = { "Custom", "23.976", "24", "25", "29.97", "30", "50", "59.94", "60", "100", "120" };
+    const char* audio_sample_rate_items[] = { "8k", "16k", "32k", "44.1k", "48k", "96k" };
+    const char* audio_channels_items[] = { "Mono", "Stereo", "Surround Stereo 5.1", "Surround Stereo 7.1", "Surround Stereo 10.1", "Surround Stereo 12.1"};
+    const char* audio_format_items[] = { "16bit Short", "32bit Float", "64bit Double" };
+    
+    static int resolution_index = GetResolutionIndex(config);
+    static int pixel_aspect_index = GetPixelAspectRatioIndex(config);
+    static int frame_rate_index = GetVideoFrameIndex(config);
+    static int sample_rate_index = GetSampleRateIndex(config);
+    static int channels_index = GetChannelIndex(config);
+    static int format_index = GetAudioFormatIndex(config);
+
+    static char buf_res_x[64] = {0}; sprintf(buf_res_x, "%d", config.VideoWidth);
+    static char buf_res_y[64] = {0}; sprintf(buf_res_y, "%d", config.VideoHeight);
+    static char buf_par_x[64] = {0}; sprintf(buf_par_x, "%d", config.PixelAspectRatio.num);
+    static char buf_par_y[64] = {0}; sprintf(buf_par_y, "%d", config.PixelAspectRatio.den);
+    static char buf_fmr_x[64] = {0}; sprintf(buf_fmr_x, "%d", config.VideoFrameRate.num);
+    static char buf_fmr_y[64] = {0}; sprintf(buf_fmr_y, "%d", config.VideoFrameRate.den);
+
+    static const int numConfigureTabs = sizeof(ConfigureTabNames)/sizeof(ConfigureTabNames[0]);
+    if (ImGui::BeginChild("##ConfigureView", ImVec2(800, 600), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+    {
+        static int ConfigureIndex = 1;
+        ImGui::TabLabels(numConfigureTabs, ConfigureTabNames, ConfigureIndex, nullptr , false, false, nullptr, nullptr, false, false, nullptr, nullptr);
+        switch (ConfigureIndex)
+        {
+            case 0:
+            break;
+            case 1:
+            {
+                // timeline setting
+                if (ImGui::Combo("Resultion", &resolution_index, resolution_items, IM_ARRAYSIZE(resolution_items)))
+                {
+                    SetResolution(config, resolution_index);
+                }
+                ImGui::BeginDisabled(resolution_index != 0);
+                ImGui::PushItemWidth(60);
+                ImGui::InputText("##Resultion_x", buf_res_x, 64, ImGuiInputTextFlags_CharsDecimal);
+                ImGui::SameLine();
+                ImGui::TextUnformatted("X");
+                ImGui::SameLine();
+                ImGui::InputText("##Resultion_y", buf_res_y, 64, ImGuiInputTextFlags_CharsDecimal);
+                ImGui::PopItemWidth();
+                ImGui::EndDisabled();
+                if (resolution_index == 0)
+                {
+                    config.VideoWidth = atoi(buf_res_x);
+                    config.VideoHeight = atoi(buf_res_y);
+                }
+
+                if (ImGui::Combo("Pixel Aspect Ratio", &pixel_aspect_index, pixel_aspect_items, IM_ARRAYSIZE(pixel_aspect_items)))
+                {
+                    SetPixelAspectRatio(config, pixel_aspect_index);
+                }
+                ImGui::BeginDisabled(pixel_aspect_index != 0);
+                ImGui::PushItemWidth(60);
+                ImGui::InputText("##PixelAspectRatio_x", buf_par_x, 64, ImGuiInputTextFlags_CharsDecimal);
+                ImGui::SameLine();
+                ImGui::TextUnformatted(":");
+                ImGui::SameLine();
+                ImGui::InputText("##PixelAspectRatio_y", buf_par_y, 64, ImGuiInputTextFlags_CharsDecimal);
+                ImGui::PopItemWidth();
+                ImGui::EndDisabled();
+                if (pixel_aspect_index == 0)
+                {
+                    config.PixelAspectRatio.num = atoi(buf_par_x);
+                    config.PixelAspectRatio.den = atoi(buf_par_y); // TODO::Dicky need check den != 0
+                }
+
+                if (ImGui::Combo("Video Frame Rate", &frame_rate_index, frame_rate_items, IM_ARRAYSIZE(frame_rate_items)))
+                {
+                    SetVideoFrameRate(config, frame_rate_index);
+                }
+                ImGui::BeginDisabled(frame_rate_index != 0);
+                ImGui::PushItemWidth(60);
+                ImGui::InputText("##VideoFrameRate_x", buf_fmr_x, 64, ImGuiInputTextFlags_CharsDecimal);
+                ImGui::SameLine();
+                ImGui::TextUnformatted(":");
+                ImGui::SameLine();
+                ImGui::InputText("##VideoFrameRate_y", buf_fmr_y, 64, ImGuiInputTextFlags_CharsDecimal);
+                ImGui::PopItemWidth();
+                ImGui::EndDisabled();
+                if (frame_rate_index == 0)
+                {
+                    config.VideoFrameRate.num = atoi(buf_fmr_x);
+                    config.VideoFrameRate.den = atoi(buf_fmr_y); // TODO::Dicky need check den != 0
+                }
+
+                ImGui::Separator();
+
+                if (ImGui::Combo("Audio Sample Rate", &sample_rate_index, audio_sample_rate_items, IM_ARRAYSIZE(audio_sample_rate_items)))
+                {
+                    SetSampleRate(config, sample_rate_index);
+                }
+                if (ImGui::Combo("Audio Channels", &channels_index, audio_channels_items, IM_ARRAYSIZE(audio_channels_items)))
+                {
+                    SetAudioChannel(config, channels_index);
+                }
+                if (ImGui::Combo("Audio Format", &format_index, audio_format_items, IM_ARRAYSIZE(audio_format_items)))
+                {
+                    SetAudioFormat(config, format_index);
+                }
+            }
+            break;
+            default: break;
+        }
+    }
+    ImGui::EndChild();
+    ImGui::Separator();
+}
+
 // Document Framework
 static void CleanProject()
 {
@@ -1184,6 +1498,9 @@ static int LoadProject(std::string path)
         auto& val = project["TimeLine"];
         sequencer->Load(val);
     }
+
+    g_media_editor_settings.project_path = path;
+    quit_save_confirm = false;
 
     return 0;
 }
@@ -1272,7 +1589,10 @@ void Application_SetupContext(ImGuiContext* ctx)
         if (sscanf(line, "ItemHeight=%d", &val_int) == 1) { setting->ItemHeight = val_int; }
         else if (sscanf(line, "VideoWidth=%d", &val_int) == 1) { setting->VideoWidth = val_int; }
         else if (sscanf(line, "VideoHeight=%d", &val_int) == 1) { setting->VideoHeight = val_int; }
-        else if (sscanf(line, "VideoFrameInterval=%lld", &val_int64) == 1) { setting->VideoFrameInterval = val_int64; }
+        else if (sscanf(line, "VideoFrameRateNum=%d", &val_int) == 1) { setting->VideoFrameRate.num = val_int; }
+        else if (sscanf(line, "VideoFrameRateDen=%d", &val_int) == 1) { setting->VideoFrameRate.den = val_int; }
+        else if (sscanf(line, "PixelAspectRatioNum=%d", &val_int) == 1) { setting->PixelAspectRatio.num = val_int; }
+        else if (sscanf(line, "PixelAspectRatioDen=%d", &val_int) == 1) { setting->PixelAspectRatio.den = val_int; }
         else if (sscanf(line, "AudioChannels=%d", &val_int) == 1) { setting->AudioChannels = val_int; }
         else if (sscanf(line, "AudioSampleRate=%d", &val_int) == 1) { setting->AudioSampleRate = val_int; }
         else if (sscanf(line, "AudioFormat=%d", &val_int) == 1) { setting->AudioFormat = val_int; }
@@ -1282,6 +1602,7 @@ void Application_SetupContext(ImGuiContext* ctx)
             if (LoadProject(setting->project_path) == 0)
                 quit_save_confirm = false;
         }
+        g_new_setting = g_media_editor_settings;
     };
     setting_ini_handler.WriteAllFn = [](ImGuiContext* ctx, ImGuiSettingsHandler* handler, ImGuiTextBuffer* out_buf)
     {
@@ -1291,7 +1612,10 @@ void Application_SetupContext(ImGuiContext* ctx)
         out_buf->appendf("ItemHeight=%d\n", g_media_editor_settings.ItemHeight);
         out_buf->appendf("VideoWidth=%d\n", g_media_editor_settings.VideoWidth);
         out_buf->appendf("VideoHeight=%d\n", g_media_editor_settings.VideoHeight);
-        out_buf->appendf("VideoFrameInterval=%lld\n", g_media_editor_settings.VideoFrameInterval);
+        out_buf->appendf("VideoFrameRateNum=%d\n", g_media_editor_settings.VideoFrameRate.num);
+        out_buf->appendf("VideoFrameRateDen=%d\n", g_media_editor_settings.VideoFrameRate.den);
+        out_buf->appendf("PixelAspectRatioNum=%d\n", g_media_editor_settings.PixelAspectRatio.num);
+        out_buf->appendf("PixelAspectRatioDen=%d\n", g_media_editor_settings.PixelAspectRatio.den);
         out_buf->appendf("AudioChannels=%d\n", g_media_editor_settings.AudioChannels);
         out_buf->appendf("AudioSampleRate=%d\n", g_media_editor_settings.AudioSampleRate);
         out_buf->appendf("AudioFormat=%d\n", g_media_editor_settings.AudioFormat);
@@ -1328,6 +1652,9 @@ void Application_SetupContext(ImGuiContext* ctx)
 void Application_Initialize(void** handle)
 {
     ImGuiIO& io = ImGui::GetIO(); (void)io;
+    ImFontAtlas* atlas = io.Fonts;
+    ImFont* font = atlas->Fonts[1];
+    io.FontDefault = font;
     io.IniFilename = ini_file.c_str();
     Logger::GetDefaultLogger()->SetShowLevels(Logger::DEBUG);
     GetMediaReaderLogger()->SetShowLevels(Logger::DEBUG);
@@ -1347,6 +1674,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
     const float media_icon_size = 144; 
     const float tool_icon_size = 32;
     static bool show_about = false;
+    static bool show_configure = false;
     static bool expanded = true;
     const ImGuiFileDialogFlags fflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_DisableCreateDirectoryButton;
     const std::string ffilters = "Video files (*.mp4 *.mov *.mkv *.avi *.webm *.ts){.mp4,.mov,.mkv,.avi,.webm,.ts},Audio files (*.wav *.mp3 *.aac *.ogg *.ac3 *.dts){.wav,.mp3,.aac,.ogg,.ac3,.dts},Image files (*.png *.gif *.jpg *.jpeg *.tiff *.webp){.png,.gif,.jpg,.jpeg,.tiff,.webp},.*";
@@ -1364,18 +1692,40 @@ bool Application_Frame(void * handle, bool app_will_quit)
     ImGui::Begin("Content", nullptr, flags);
     if (show_about)
     {
-        ImGui::OpenPopup("##about", ImGuiPopupFlags_AnyPopup);
+        ImGui::OpenPopup(ICON_FA5_INFO_CIRCLE " About", ImGuiPopupFlags_AnyPopup);
     }
-    if (ImGui::BeginPopupModal("##about", NULL, ImGuiWindowFlags_AlwaysAutoResize))
+    if (ImGui::BeginPopupModal(ICON_FA5_INFO_CIRCLE " About", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings))
     {
-        ImGui::Text("Media Editor Demo(ImGui)");
-        ImGui::Separator();
-        ImGui::Text("  Dicky 2021");
-        ImGui::Separator();
+        ShowAbout();
         int i = ImGui::GetCurrentWindow()->ContentSize.x;
         ImGui::Indent((i - 40.0f) * 0.5f);
         if (ImGui::Button("OK", ImVec2(40, 0))) { show_about = false; ImGui::CloseCurrentPopup(); }
         ImGui::SetItemDefaultFocus();
+        ImGui::EndPopup();
+    }
+    if (show_configure)
+    {
+        ImGui::OpenPopup(ICON_FA_WHMCS " Configure", ImGuiPopupFlags_AnyPopup);
+    }
+    if (ImGui::BeginPopupModal(ICON_FA_WHMCS " Configure", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings))
+    {
+        ShowConfigure(g_new_setting);
+        int i = ImGui::GetCurrentWindow()->ContentSize.x;
+        ImGui::Indent((i - 140.0f) * 0.5f);
+        if (ImGui::Button("OK", ImVec2(60, 0)))
+        {
+            show_configure = false;
+            g_media_editor_settings = g_new_setting;
+            ImGui::CloseCurrentPopup(); 
+        }
+        ImGui::SetItemDefaultFocus();
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel", ImVec2(60, 0)))
+        {
+            show_configure = false;
+            g_new_setting = g_media_editor_settings;
+            ImGui::CloseCurrentPopup(); 
+        }
         ImGui::EndPopup();
     }
 
@@ -1400,24 +1750,82 @@ bool Application_Frame(void * handle, bool app_will_quit)
         static int ControlPanelIndex = 0;
         static int MainWindowIndex = 0;
         ImVec2 main_window_size = ImGui::GetWindowSize();
-        static float size_media_bank_w = 0.2;
+        static float size_control_panel_w = 0.2;
         static float size_main_w = 0.8;
         ImGui::PushID("##Control_Panel_Main");
-        float bank_width = size_media_bank_w * main_window_size.x;
+        float control_pane_width = size_control_panel_w * main_window_size.x;
         float main_width = size_main_w * main_window_size.x;
-        Splitter(true, 4.0f, &bank_width, &main_width, media_icon_size + tool_icon_size, 96);
-        size_media_bank_w = bank_width / main_window_size.x;
+        Splitter(true, 4.0f, &control_pane_width, &main_width, media_icon_size + tool_icon_size, 96);
+        size_control_panel_w = control_pane_width / main_window_size.x;
         size_main_w = main_width / main_window_size.x;
         ImGui::PopID();
         
-        static bool bank_expanded = true;
-        ImVec2 bank_pos(4, 0);
-        ImVec2 bank_size(bank_width - 4, main_window_size.y - 4);
+        // add left tool bar
+        ImGui::SetCursorPos(ImVec2(0, tool_icon_size));
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.5, 0.5, 0.5, 0.5));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.2, 0.2, 0.2, 1.0));
+        if (ImGui::Button(ICON_NEW_PROJECT "##NewProject", ImVec2(tool_icon_size, tool_icon_size)))
+        {
+            // New Project
+            NewProject();
+        }
+        ImGui::ShowTooltipOnHover("New Project");
+        if (ImGui::Button(ICON_OPEN_PROJECT "##OpenProject", ImVec2(tool_icon_size, tool_icon_size)))
+        {
+            // Open Project
+            ImGuiFileDialog::Instance()->OpenModal("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Open Project File", 
+                                                    pfilters.c_str(),
+                                                    ".",
+                                                    1, 
+                                                    IGFDUserDatas("ProjectOpen"), 
+                                                    fflags);
+        }
+        ImGui::ShowTooltipOnHover("Open Project ...");
+        if (ImGui::Button(ICON_SAVE_PROJECT "##SaveProject", ImVec2(tool_icon_size, tool_icon_size)))
+        {
+            // Save Project
+            ImGuiFileDialog::Instance()->OpenModal("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Save Project File", 
+                                                    pfilters.c_str(),
+                                                    ".",
+                                                    1, 
+                                                    IGFDUserDatas("ProjectSave"), 
+                                                    pflags);
+        }
+        ImGui::ShowTooltipOnHover("Save Project As...");
+        if (ImGui::Button(ICON_IGFD_ADD "##AddMedia", ImVec2(tool_icon_size, tool_icon_size)))
+        {
+            // Open Media Source
+            ImGuiFileDialog::Instance()->OpenModal("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Choose Media File", 
+                                                    ffilters.c_str(),
+                                                    ".",
+                                                    1, 
+                                                    IGFDUserDatas("Media Source"), 
+                                                    fflags);
+        }
+        ImGui::ShowTooltipOnHover("Add new media into bank");
+        if (ImGui::Button(ICON_FA_WHMCS "##Configure", ImVec2(tool_icon_size, tool_icon_size)))
+        {
+            // Show Setting
+            show_configure = true;
+        }
+        ImGui::ShowTooltipOnHover("Configure");
+        if (ImGui::Button(ICON_FA5_INFO_CIRCLE "##About", ImVec2(tool_icon_size, tool_icon_size)))
+        {
+            // Show About
+            show_about = true;
+        }
+        ImGui::ShowTooltipOnHover("About Media Editor");
+        ImGui::PopStyleColor(3);
+
+        // add banks window
+        ImVec2 bank_pos(4 + tool_icon_size, 0);
+        ImVec2 bank_size(control_pane_width - 4 - tool_icon_size, main_window_size.y - 4);
         ImGui::SetNextWindowPos(bank_pos, ImGuiCond_Always);
         if (ImGui::BeginChild("##Control_Panel_Window", bank_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
         {
             ImVec2 bank_window_size = ImGui::GetWindowSize();
-            ImGui::TabLabels(numControlPanelTabs, ControlPanelTabNames, ControlPanelIndex, ControlPanelTabTooltips , false, nullptr, nullptr, false, false, nullptr, nullptr);
+            ImGui::TabLabels(numControlPanelTabs, ControlPanelTabNames, ControlPanelIndex, ControlPanelTabTooltips , false, true, nullptr, nullptr, false, false, nullptr, nullptr);
 
             // make control panel area
             ImVec2 area_pos = ImVec2(tool_icon_size + 4, 32);
@@ -1437,64 +1845,10 @@ bool Application_Frame(void * handle, bool app_will_quit)
             }
             ImGui::EndChild();
             ImGui::PopStyleColor();
-
-            // add tool bar
-            ImGui::SetCursorPos(ImVec2(0,32));
-            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.5, 0.5, 0.5, 0.5));
-            ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.2, 0.2, 0.2, 1.0));
-            if (ImGui::Button(ICON_NEW_PROJECT "##NewProject", ImVec2(tool_icon_size, tool_icon_size)))
-            {
-                // New Project
-                NewProject();
-            }
-            if (ImGui::Button(ICON_OPEN_PROJECT "##OpenProject", ImVec2(tool_icon_size, tool_icon_size)))
-            {
-                // Open Project
-                ImGuiFileDialog::Instance()->OpenModal("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Open Project File", 
-                                                        pfilters.c_str(),
-                                                        ".",
-                                                        1, 
-                                                        IGFDUserDatas("ProjectOpen"), 
-                                                        fflags);
-            }
-            if (ImGui::Button(ICON_SAVE_PROJECT "##SaveProject", ImVec2(tool_icon_size, tool_icon_size)))
-            {
-                // Save Project
-                ImGuiFileDialog::Instance()->OpenModal("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Save Project File", 
-                                                        pfilters.c_str(),
-                                                        ".",
-                                                        1, 
-                                                        IGFDUserDatas("ProjectSave"), 
-                                                        pflags);
-            }
-            if (ImGui::Button(ICON_IGFD_ADD "##AddMedia", ImVec2(tool_icon_size, tool_icon_size)))
-            {
-                // Open Media Source
-                ImGuiFileDialog::Instance()->OpenModal("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Choose Media File", 
-                                                        ffilters.c_str(),
-                                                        ".",
-                                                        1, 
-                                                        IGFDUserDatas("Media Source"), 
-                                                        fflags);
-            }
-            ImGui::ShowTooltipOnHover("Add new media into bank");
-            if (ImGui::Button(ICON_FA_WHMCS "##Configure", ImVec2(tool_icon_size, tool_icon_size)))
-            {
-                // Show Setting
-            }
-            ImGui::ShowTooltipOnHover("Configure");
-            if (ImGui::Button(ICON_FA5_INFO_CIRCLE "##About", ImVec2(tool_icon_size, tool_icon_size)))
-            {
-                // Show About
-                show_about = true;
-            }
-            ImGui::ShowTooltipOnHover("About Media Editor");
-            ImGui::PopStyleColor(3);
         }
         ImGui::EndChild();
 
-        ImVec2 main_sub_pos(bank_width + 8, 0);
+        ImVec2 main_sub_pos(control_pane_width + 8, 0);
         ImVec2 main_sub_size(main_width - 8, main_window_size.y - 4);
         ImGui::SetNextWindowPos(main_sub_pos, ImGuiCond_Always);
         if (ImGui::BeginChild("##Main_Window", main_sub_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar))
@@ -1502,7 +1856,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
             // full background
             ImDrawList *draw_list = ImGui::GetWindowDrawList();
             //ImVec2 main_window_size = ImGui::GetWindowSize();
-            ImGui::TabLabels(numMainWindowTabs, MainWindowTabNames, MainWindowIndex, MainWindowTabTooltips , false, nullptr, nullptr, false, false, nullptr, nullptr);
+            ImGui::TabLabels(numMainWindowTabs, MainWindowTabNames, MainWindowIndex, MainWindowTabTooltips , false, true, nullptr, nullptr, false, false, nullptr, nullptr);
             auto wmin = main_sub_pos + ImVec2(0, 32);
             auto wmax = wmin + ImGui::GetContentRegionAvail() - ImVec2(8, 0);
             draw_list->AddRectFilled(wmin, wmax, IM_COL32_BLACK, 8.0, ImDrawFlags_RoundCornersAll);
@@ -1576,6 +1930,10 @@ bool Application_Frame(void * handle, bool app_will_quit)
                 app_done = app_will_quit;
             }
         }
+        else
+        {
+            quit_save_confirm = false;
+        }
     }
     // File Dialog
     ImVec2 minSize = ImVec2(0, 300);
@@ -1648,6 +2006,10 @@ bool Application_Frame(void * handle, bool app_will_quit)
                 app_done = true;
         }
         ImGuiFileDialog::Instance()->Close();
+    }
+    else if (!quit_save_confirm)
+    {
+        app_done = app_will_quit;
     }
     return app_done;
 }
