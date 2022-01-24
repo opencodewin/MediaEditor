@@ -28,7 +28,7 @@ struct MediaEncoder
     virtual bool ConfigureAudioStream(const std::string& codecName,
             std::string& sampleFormat, uint32_t channels, uint32_t sampleRate, uint64_t bitRate) = 0;
     virtual bool Start() = 0;
-    virtual bool WaitAndFinishEncoding() = 0;
+    virtual bool FinishEncoding() = 0;
     virtual bool EncodeVideoFrame(ImGui::ImMat vmat, bool wait = true) = 0;
     virtual bool EncodeAudioSamples(uint8_t* buf, uint32_t size, bool wait = true) = 0;
 

@@ -108,8 +108,8 @@ public:
 private:
     uint32_t m_outWidth{0}, m_outHeight{0};
     AVPixelFormat m_outPixfmt{AV_PIX_FMT_YUV420P};
-    AVColorSpace m_outClrspc{AVCOL_SPC_RGB};
-    AVColorRange m_outClrrng{AVCOL_RANGE_JPEG};
+    AVColorSpace m_outClrspc{AVCOL_SPC_BT709};
+    AVColorRange m_outClrrng{AVCOL_RANGE_MPEG};
     const AVPixFmtDescriptor* m_pixDesc{nullptr};
     uint8_t m_outBitsPerPix{0};
     ImInterpolateMode m_resizeInterp{IM_INTERPOLATE_AREA};

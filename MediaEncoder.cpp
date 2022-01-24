@@ -158,6 +158,10 @@ public:
             m_errMsg = "No video nor audio stream has been added!";
             return false;
         }
+        if (!HasVideo())
+            m_videncEof = true;
+        if (!HasAudio())
+            m_audencEof = true;
 
         int fferr = avformat_write_header(m_avfmtCtx, nullptr);
         if (fferr < 0)
@@ -171,7 +175,7 @@ public:
         return true;
     }
 
-    bool WaitAndFinishEncoding() override
+    bool FinishEncoding() override
     {
         if (!m_opened)
         {
@@ -185,6 +189,10 @@ public:
         }
         lock_guard<recursive_mutex> lk(m_apiLock);
 
+        if (HasVideo())
+            m_vidinpEof = true;
+        if (HasAudio())
+            m_audinpEof = true;
         while (!m_muxEof)
             this_thread::sleep_for(chrono::milliseconds(5));
 
@@ -907,6 +915,7 @@ private:
         while (!m_quit)
         {
             bool idleLoop = true;
+            int fferr;
 
             if (!encfrm)
             {
@@ -922,18 +931,34 @@ private:
                 }
                 else if (m_vidinpEof)
                 {
-                    avcodec_send_frame(m_videncCtx, nullptr);
-                    break;
+                    {
+                        lock_guard<mutex> lk(m_videncLock);
+                        avcodec_send_frame(m_videncCtx, nullptr);
+                    }
+                    if (fferr == 0)
+                    {
+                        m_logger->Log(DEBUG) << "Sent encode video EOF." << endl;
+                        break;
+                    }
+                    else if (fferr != AVERROR(EAGAIN))
+                    {
+                        m_logger->Log(Error) << "Video encoder ERROR! avcodec_send_frame(EOF) returns " << fferr << "." << endl;
+                        break;
+                    }
                 }
             }
 
             if (encfrm)
             {
-                int fferr = avcodec_send_frame(m_videncCtx, encfrm.get());
+                {
+                    lock_guard<mutex> lk(m_videncLock);
+                    fferr = avcodec_send_frame(m_videncCtx, encfrm.get());
+                }
                 if (fferr == 0)
                 {
-                    m_logger->Log(DEBUG) << "Encode video frame at "
-                        << MillisecToString(av_rescale_q(encfrm->pts, m_videncCtx->time_base, MILLISEC_TIMEBASE)) << "." << endl;
+                    // m_logger->Log(DEBUG) << "Encode video frame at "
+                    //     << MillisecToString(av_rescale_q(encfrm->pts, m_videncCtx->time_base, MILLISEC_TIMEBASE))
+                    //     << "(" << encfrm->pts << ")." << endl;
                     encfrm = nullptr;
                 }
                 else
@@ -962,8 +987,8 @@ private:
         while (!m_quit)
         {
             bool idleLoop = true;
-
             int fferr;
+
             if (!encfrm)
             {
                 if (!m_audfrmQ.empty())
@@ -1000,9 +1025,9 @@ private:
                 }
                 if (fferr == 0)
                 {
-                    m_logger->Log(DEBUG) << "Encode audio frame at "
-                        << MillisecToString(av_rescale_q(encfrm->pts, m_audencCtx->time_base, MILLISEC_TIMEBASE))
-                        << "(" << encfrm->pts << ")." << endl;
+                    // m_logger->Log(DEBUG) << "Encode audio frame at "
+                    //     << MillisecToString(av_rescale_q(encfrm->pts, m_audencCtx->time_base, MILLISEC_TIMEBASE))
+                    //     << "(" << encfrm->pts << ")." << endl;
                     encfrm = nullptr;
                     idleLoop = false;
                 }
@@ -1026,20 +1051,26 @@ private:
 
         AVPacket avpkt{0};
         bool avpktLoaded = false;
+        int64_t vidposMts{0}, audposMts{0};
         while (!m_quit)
         {
             bool idleLoop = true;
             int fferr;
 
-            if (m_videncCtx && !m_videncEof && !avpktLoaded)
+            if (!m_videncEof && !avpktLoaded && (vidposMts <= audposMts || m_audencEof))
             {
-                fferr = avcodec_receive_packet(m_videncCtx, &avpkt);
+                {
+                    lock_guard<mutex> lk(m_videncLock);
+                    fferr = avcodec_receive_packet(m_videncCtx, &avpkt);
+                }
                 if (fferr == 0)
                 {
                     avpkt.stream_index = m_vidStmIdx;
                     av_packet_rescale_ts(&avpkt, m_videncCtx->time_base, m_vidAvStm->time_base);
                     avpktLoaded = true;
                     idleLoop = false;
+                    vidposMts = av_rescale_q(avpkt.pts, m_vidAvStm->time_base, MILLISEC_TIMEBASE);
+                    m_logger->Log(DEBUG) << "Got VIDEO packet at " << MillisecToString(vidposMts) << "(" << avpkt.pts << ")." << endl;
                 }
                 else if (fferr == AVERROR_EOF)
                 {
@@ -1053,7 +1084,7 @@ private:
                 }
             }
 
-            if (m_audencCtx && !m_audencEof && !avpktLoaded)
+            if (!m_audencEof && !avpktLoaded && (audposMts <= vidposMts || m_videncEof))
             {
                 {
                     lock_guard<mutex> lk(m_audencLock);
@@ -1065,6 +1096,8 @@ private:
                     av_packet_rescale_ts(&avpkt, m_audencCtx->time_base, m_audAvStm->time_base);
                     avpktLoaded = true;
                     idleLoop = false;
+                    audposMts = av_rescale_q(avpkt.pts, m_audAvStm->time_base, MILLISEC_TIMEBASE);
+                    m_logger->Log(DEBUG) << "Got AUDIO packet at " << MillisecToString(audposMts) << "(" << avpkt.pts << ")." << endl;
                 }
                 else if (fferr == AVERROR_EOF)
                 {
@@ -1123,6 +1156,7 @@ private:
     AVStream* m_vidAvStm{nullptr};
     AVStream* m_audAvStm{nullptr};
     AVCodecContext* m_videncCtx{nullptr};
+    mutex m_videncLock;
     AVBufferRef* m_videncHwDevCtx{nullptr};
     AVHWDeviceType m_vidUseHwType{AV_HWDEVICE_TYPE_NONE};
     AVHWDeviceType m_viddecDevType{AV_HWDEVICE_TYPE_NONE};

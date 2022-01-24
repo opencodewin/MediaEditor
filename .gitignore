@@ -11,3 +11,4 @@ projects/*
 *.cfg
 *.json
 *.mep
+/output

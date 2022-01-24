@@ -40,6 +40,8 @@ int main(int argc, const char* argv[])
     uint32_t outAudChannels = 2;
     uint32_t outSampleRate = 48000;
     uint64_t outAudBitRate = 128*1000;
+    double maxEncodeDuration = 60;
+    bool videoOnly{false}, audioOnly{false};
 
     MediaParserHolder hParser = CreateMediaParser();
     if (!hParser->Open(argv[1]))
@@ -51,8 +53,7 @@ int main(int argc, const char* argv[])
 
     MediaHandlers mhandlers;
     MediaReader *vidreader{nullptr}, *audreader{nullptr};
-    // if (hParser->GetBestVideoStreamIndex() >= 0)
-    if (false)
+    if (hParser->GetBestVideoStreamIndex() >= 0 && !audioOnly)
     {
         mhandlers.vidreader = vidreader = CreateMediaReader();
         if (!vidreader->Open(hParser))
@@ -67,7 +68,7 @@ int main(int argc, const char* argv[])
         }
         vidreader->Start();
     }
-    if (hParser->GetBestAudioStreamIndex() >= 0)
+    if (hParser->GetBestAudioStreamIndex() >= 0 && !videoOnly)
     {
         mhandlers.audreader = audreader = CreateMediaReader();
         if (!audreader->Open(hParser))
@@ -123,6 +124,8 @@ int main(int argc, const char* argv[])
                 break;
             }
             vidFrameCount++;
+            if (maxEncodeDuration > 0 && vidpos >= maxEncodeDuration)
+                eof = true;
             if (!eof)
             {
                 vmat.time_stamp = vidpos;
@@ -152,6 +155,8 @@ int main(int argc, const char* argv[])
                 Log(Error) << "FAILED to read audio samples! Error is '" << audreader->GetError() << "'." << endl;
                 break;
             }
+            if (maxEncodeDuration > 0 && audpos >= maxEncodeDuration)
+                eof = true;
             if (!eof)
             {
                 if (!mencoder->EncodeAudioSamples(pcmbuf, readSize))
@@ -172,7 +177,7 @@ int main(int argc, const char* argv[])
         }
     }
     delete [] pcmbuf;
-    mencoder->WaitAndFinishEncoding();
+    mencoder->FinishEncoding();
     mencoder->Close();
 
     return 0;

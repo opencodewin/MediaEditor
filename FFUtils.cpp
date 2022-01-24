@@ -501,10 +501,15 @@ bool ConvertAVFrameToImMat(const AVFrame* avfrm, ImGui::ImMat& vmat, double time
 
 bool ConvertImMatToAVFrame(const ImGui::ImMat& vmat, AVFrame* avfrm, int64_t pts)
 {
+    if (vmat.device != IM_DD_CPU)
+    {
+        Log(Error) << "Input ImMat is NOT a CPU mat!" << endl;
+        return false;
+    }
     AVPixelFormat cvtPixfmt = ConvertColorFormatToPixelFormat(vmat.color_format, vmat.type);
     if (cvtPixfmt < 0)
     {
-        Log(Error) << "FAILED to convert ImColorFormat " << vmat.color_format << " and ImDataType " << vmat.type << " to AVPixelFormat!";
+        Log(Error) << "FAILED to convert ImColorFormat " << vmat.color_format << " and ImDataType " << vmat.type << " to AVPixelFormat!" << endl;
         return false;
     }
     av_frame_unref(avfrm);
@@ -821,9 +826,9 @@ ImMatToAVFrameConverter::ImMatToAVFrameConverter()
 {
 #if IMGUI_VULKAN_SHADER
     m_useVulkanComponents = true;
+    m_imgClrCvt = new ImGui::ColorConvert_vulkan(ImGui::get_default_gpu_index());
     if (m_useVulkanComponents)
     {
-        m_imgClrCvt = new ImGui::ColorConvert_vulkan(ImGui::get_default_gpu_index());
         m_imgRsz = new ImGui::Resize_vulkan(ImGui::get_default_gpu_index());
     }
     m_outMatClrfmt = ConvertPixelFormatToColorFormat(m_outPixfmt);
@@ -1022,6 +1027,7 @@ bool ImMatToAVFrameConverter::ConvertImage(ImGui::ImMat& vmat, AVFrame* avfrm, i
                 ImGui::VkMat vkMat = inMat;
                 m_imgClrCvt->RGBA2YUV(vkMat, yuvMat, m_outMatClrfmt, m_outMatClrspc, m_outMatClrrng, shiftBits);
             }
+            yuvMat.color_format = m_outMatClrfmt;
             inMat = yuvMat;
         }
 #else
@@ -1039,6 +1045,17 @@ bool ImMatToAVFrameConverter::ConvertImage(ImGui::ImMat& vmat, AVFrame* avfrm, i
         m_errMsg = oss.str();
         return false;
     }
+
+#if IMGUI_VULKAN_SHADER
+    if (inMat.device == IM_DD_VULKAN)
+    {
+        ImGui::VkMat vkMat = inMat;
+        ImGui::ImMat cpuMat;
+        cpuMat.type = IM_DT_INT8;
+        m_imgClrCvt->Conv(vkMat, cpuMat);
+        inMat = cpuMat;
+    }
+#endif
 
     if (m_outPixfmt == cvtPixfmt && m_outWidth == inMat.w && m_outHeight == inMat.h)
     {
