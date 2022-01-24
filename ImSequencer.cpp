@@ -307,7 +307,7 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int sequenceOption
         if (MovingCurrentTime && duration)
         {
             sequencer->currentTime = (int64_t)((io.MousePos.x - topRect.Min.x) / msPixelWidth) + firstTimeUsed;
-            alignTime(sequencer->currentTime, sequencer->timeStep);
+            sequencer->AlignTime(sequencer->currentTime);
             if (sequencer->currentTime < sequencer->GetStart())
                 sequencer->currentTime = sequencer->GetStart();
             if (sequencer->currentTime >= sequencer->GetEnd())
@@ -634,7 +634,7 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int sequenceOption
             if (ImGui::Button(ICON_FAST_TO_END "##slider_to_end", ImVec2(16, 16)))
             {
                 sequencer->firstTime = sequencer->GetEnd() - sequencer->visibleTime;
-                alignTime(sequencer->firstTime, sequencer->timeStep);
+                sequencer->AlignTime(sequencer->firstTime);
             }
             ImGui::ShowTooltipOnHover("Slider to End");
 
@@ -688,7 +688,7 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int sequenceOption
             if (ImGui::Button(ICON_FAST_TO_START "##slider_to_start", ImVec2(16, 16)))
             {
                 sequencer->firstTime = sequencer->GetStart();
-                alignTime(sequencer->firstTime, sequencer->timeStep);
+                sequencer->AlignTime(sequencer->firstTime);
             }
             ImGui::ShowTooltipOnHover("Slider to Start");
             ImGui::SetWindowFontScale(1.0);
@@ -721,7 +721,7 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int sequenceOption
                 {
                     float msPerPixelInBar = barWidthInPixels / (float)sequencer->visibleTime;
                     sequencer->firstTime = int((io.MousePos.x - panningViewSource.x) / msPerPixelInBar) - panningViewTime;
-                    //alignTime(sequencer->firstTime, sequencer->timeStep);
+                    sequencer->AlignTime(sequencer->firstTime);
                     sequencer->firstTime = ImClamp(sequencer->firstTime, sequencer->GetStart(), ImMax(sequencer->GetEnd() - sequencer->visibleTime, sequencer->GetStart()));
                 }
             }
@@ -735,7 +735,7 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int sequenceOption
             {
                 float msPerPixelInBar = barWidthInPixels / (float)sequencer->visibleTime;
                 sequencer->firstTime = int((io.MousePos.x - legendWidth - scrollHandleBarRect.GetWidth() / 2)/ msPerPixelInBar);
-                //alignTime(sequencer->firstTime, sequencer->timeStep);
+                sequencer->AlignTime(sequencer->firstTime);
                 sequencer->firstTime = ImClamp(sequencer->firstTime, sequencer->GetStart(), ImMax(sequencer->GetEnd() - sequencer->visibleTime, sequencer->GetStart()));
             }
         }
@@ -774,13 +774,13 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int sequenceOption
                 if (io.MouseWheelH < -FLT_EPSILON)
                 {
                     sequencer->firstTime -= sequencer->visibleTime / 4;
-                    //alignTime(sequencer->firstTime, sequencer->timeStep);
+                    sequencer->AlignTime(sequencer->firstTime);
                     sequencer->firstTime = ImClamp(sequencer->firstTime, sequencer->GetStart(), ImMax(sequencer->GetEnd() - sequencer->visibleTime, sequencer->GetStart()));
                 }
                 if (io.MouseWheelH > FLT_EPSILON)
                 {
                     sequencer->firstTime += sequencer->visibleTime / 4;
-                    //alignTime(sequencer->firstTime, sequencer->timeStep);
+                    sequencer->AlignTime(sequencer->firstTime);
                     sequencer->firstTime = ImClamp(sequencer->firstTime, sequencer->GetStart(), ImMax(sequencer->GetEnd() - sequencer->visibleTime, sequencer->GetStart()));
                 }
             }
@@ -865,7 +865,7 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int sequenceOption
                     mouseTime += start_offset;
                     if (cutting)
                     {
-                        alignTime(mouseTime, sequencer->timeStep);
+                        sequencer->AlignTime(mouseTime);
                         int alread_cut = sequencer->Check(customDraw.index, mouseTime);
                         auto time_stream = MillisecToString(mouseTime, 3);
                         if (alread_cut != -1)
@@ -910,7 +910,7 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int sequenceOption
                     mouseTime += start_offset;
                     if (cutting)
                     {
-                        alignTime(mouseTime, sequencer->timeStep);
+                        sequencer->AlignTime(mouseTime);
                         int alread_cut = sequencer->Check(customDraw.index, mouseTime);
                         auto time_stream = MillisecToString(mouseTime, 3);
                         if (alread_cut != -1)
@@ -969,13 +969,11 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int sequenceOption
         if (start_time == -1)
         {
             start_time = ImGui::get_current_time_usec() / 1000;
-            //alignTime(start_time, sequencer->timeStep);
             last_time = start_time;
         }
         else
         {
             int64_t current_time = ImGui::get_current_time_usec() / 1000;
-            //alignTime(current_time, sequencer->timeStep);
             int64_t step_time = current_time - last_time;
             // Set TimeLine
             int64_t current_media_time = sequencer->currentTime;
@@ -1084,7 +1082,8 @@ bool ClipTimeLine(ClipInfo* clip)
     if (MovingCurrentTime && duration)
     {
         clip->mCurrent = (int64_t)((io.MousePos.x - topRect.Min.x) / msPixelWidth) + clip->mStart;
-        alignTime(clip->mCurrent, clip->mFrameInterval);
+        auto frame_interval = clip->mClipFrameRate.den * 1000 / clip->mClipFrameRate.num;
+        alignTime(clip->mCurrent, frame_interval);
         if (clip->mCurrent < clip->mStart)
             clip->mCurrent = clip->mStart;
         if (clip->mCurrent >= clip->mEnd)
@@ -1308,8 +1307,7 @@ void SequencerItem::Initialize(const std::string& name, MediaParserHolder parser
 
         if (mSnapshot->HasVideo())
         {
-            auto rate = mSnapshot->GetVideoStream()->avgFrameRate;
-            if (rate.num > 0) mFrameInterval = rate.den * 1000 / rate.num;
+            mItemFrameRate = mSnapshot->GetVideoStream()->avgFrameRate;
             double window_size = 1.0f;
             mSnapshot->SetCacheFactor(8.0);
             mSnapshot->SetSnapshotResizeFactor(0.1, 0.1);
@@ -1628,10 +1626,15 @@ SequencerItem * SequencerItem::Load(const imgui_json::value& value, void * handl
             auto& val = value["EndOffset"];
             if (val.is_number()) new_item->mEndOffset = val.get<imgui_json::number>();
         }
-        if (value.contains("FrameInterval"))
+        if (value.contains("FrameRateNum"))
         {
-            auto& val = value["FrameInterval"];
-            if (val.is_number()) new_item->mFrameInterval = val.get<imgui_json::number>();
+            auto& val = value["FrameRateNum"];
+            if (val.is_number()) new_item->mItemFrameRate.num = val.get<imgui_json::number>();
+        }
+        if (value.contains("FrameRateDen"))
+        {
+            auto& val = value["FrameRateDen"];
+            if (val.is_number()) new_item->mItemFrameRate.den = val.get<imgui_json::number>();
         }
         if (value.contains("MediaType"))
         {
@@ -1728,7 +1731,8 @@ void SequencerItem::Save(imgui_json::value& value)
     value["End"] = imgui_json::number(mEnd);
     value["StartOffset"] = imgui_json::number(mStartOffset);
     value["EndOffset"] = imgui_json::number(mEndOffset);
-    value["FrameInterval"] = imgui_json::number(mFrameInterval);
+    value["FrameRateNum"] = imgui_json::number(mItemFrameRate.num);
+    value["FrameRateDen"] = imgui_json::number(mItemFrameRate.den);
     value["MediaType"] = imgui_json::number(mMediaType);
     value["AudioChannels"] = imgui_json::number(mAudioChannels);
     value["AudioSampleRate"] = imgui_json::number(mAudioSampleRate);
@@ -1768,7 +1772,8 @@ static int thread_preview(MediaSequencer * sequencer)
             auto it = sequencer->mFrame.end(); it--;
             current_time = it->time_stamp * 1000;
         }
-        alignTime(current_time, sequencer->mFrameInterval);
+        auto frame_interval = sequencer->mFrameRate.den * 1000 / sequencer->mFrameRate.num;
+        alignTime(current_time, frame_interval);
         sequencer->mFrameLock.unlock();
         while (sequencer->mFrame.size() < MAX_SEQUENCER_FRAME_NUMBER)
         {
@@ -1777,11 +1782,11 @@ static int thread_preview(MediaSequencer * sequencer)
             if (!sequencer->mFrame.empty())
             {
                 int64_t buffer_start = sequencer->mFrame.begin()->time_stamp * 1000;
-                int64_t buffer_end = sequencer->bForward ? buffer_start + sequencer->mFrameInterval * MAX_SEQUENCER_FRAME_NUMBER : 
-                                                           buffer_start - sequencer->mFrameInterval * MAX_SEQUENCER_FRAME_NUMBER ;
+                int64_t buffer_end = sequencer->bForward ? buffer_start + frame_interval * MAX_SEQUENCER_FRAME_NUMBER : 
+                                                           buffer_start - frame_interval * MAX_SEQUENCER_FRAME_NUMBER ;
                 if (buffer_start > buffer_end)
                     std::swap(buffer_start, buffer_end);
-                if (sequencer->currentTime < buffer_start - sequencer->mFrameInterval || sequencer->currentTime > buffer_end + sequencer->mFrameInterval)
+                if (sequencer->currentTime < buffer_start - frame_interval || sequencer->currentTime > buffer_end + frame_interval)
                 {
                     ImGui::sleep((int)5);
                     break;
@@ -1791,7 +1796,7 @@ static int thread_preview(MediaSequencer * sequencer)
             for (auto &item : sequencer->m_Items)
             {
                 int64_t item_time = current_time - item->mStart + item->mStartOffset;
-                alignTime(item_time, sequencer->mFrameInterval);
+                alignTime(item_time, frame_interval);
                 if (item_time >= item->mStartOffset && item_time <= item->mLength - item->mEndOffset)
                 {
                     bool valid_time = item->mView;
@@ -1832,7 +1837,7 @@ static int thread_preview(MediaSequencer * sequencer)
             sequencer->mFrameLock.unlock();
             if (sequencer->bForward)
             {
-                current_time += sequencer->mFrameInterval;
+                current_time += frame_interval;
                 if (current_time > sequencer->mEnd)
                 {
                     if (sequencer->bLoop)
@@ -1848,7 +1853,7 @@ static int thread_preview(MediaSequencer * sequencer)
             }
             else
             {
-                current_time -= sequencer->mFrameInterval;
+                current_time -= frame_interval;
                 if (current_time < sequencer->mStart)
                 {
                     if (sequencer->bLoop)
@@ -1921,7 +1926,8 @@ static int thread_video_filter(MediaSequencer * sequencer)
             auto it = selected_clip->mFrame.end(); it--;
             current_time = it->first.time_stamp * 1000;
         }
-        alignTime(current_time, selected_clip->mFrameInterval);
+        auto frame_interval = selected_clip->mClipFrameRate.den * 1000 / selected_clip->mClipFrameRate.num;
+        alignTime(current_time, frame_interval);
         selected_clip->mFrameLock.unlock();
         while (selected_clip->mFrame.size() < MAX_SEQUENCER_FRAME_NUMBER)
         {
@@ -1930,11 +1936,11 @@ static int thread_video_filter(MediaSequencer * sequencer)
             if (!selected_clip->mFrame.empty())
             {
                 int64_t buffer_start = selected_clip->mFrame.begin()->first.time_stamp * 1000;
-                int64_t buffer_end = selected_clip->bForward ? buffer_start + selected_clip->mFrameInterval * MAX_SEQUENCER_FRAME_NUMBER : 
-                                                           buffer_start - selected_clip->mFrameInterval * MAX_SEQUENCER_FRAME_NUMBER ;
+                int64_t buffer_end = selected_clip->bForward ? buffer_start + frame_interval * MAX_SEQUENCER_FRAME_NUMBER : 
+                                                           buffer_start - frame_interval * MAX_SEQUENCER_FRAME_NUMBER ;
                 if (buffer_start > buffer_end)
                     std::swap(buffer_start, buffer_end);
-                if (selected_clip->mCurrent < buffer_start - selected_clip->mFrameInterval || selected_clip->mCurrent > buffer_end + selected_clip->mFrameInterval)
+                if (selected_clip->mCurrent < buffer_start - frame_interval || selected_clip->mCurrent > buffer_end + frame_interval)
                 {
                     ImGui::sleep((int)5);
                     break;
@@ -1958,13 +1964,13 @@ static int thread_video_filter(MediaSequencer * sequencer)
                     selected_clip->mFrameLock.unlock();
                     if (selected_clip->bForward)
                     {
-                        current_time += selected_clip->mFrameInterval;
+                        current_time += frame_interval;
                         if (current_time > selected_clip->mEnd)
                             current_time = selected_clip->mEnd;
                     }
                     else
                     {
-                        current_time -= selected_clip->mFrameInterval;
+                        current_time -= frame_interval;
                         if (current_time < selected_clip->mStart)
                         {
                             current_time = selected_clip->mStart;
@@ -1982,7 +1988,6 @@ static int thread_video_filter(MediaSequencer * sequencer)
 MediaSequencer::MediaSequencer()
     : mStart(0), mEnd(0)
 {
-    timeStep = mFrameInterval;
     mPCMStream = new SequencerPcmStream(this);
     mAudioRender = CreateAudioRender();
     if (mAudioRender)
@@ -2153,14 +2158,14 @@ void MediaSequencer::Set(int index, int64_t start, int64_t end, int64_t start_of
 {
     SequencerItem *item = m_Items[index];
     item->mColor = color;
-    //alignTime(start, mFrameInterval);
+    AlignTime(start);
     item->mStart = start;
-    //alignTime(end, mFrameInterval);
+    AlignTime(end);
     item->mEnd = end;
     item->mName = name;
-    //alignTime(start_offset, mFrameInterval);
+    AlignTime(start_offset);
     item->mStartOffset = start_offset;
-    //alignTime(end_offset, mFrameInterval);
+    AlignTime(end_offset);
     item->mEndOffset = end_offset;
 }
 
@@ -2710,7 +2715,14 @@ void MediaSequencer::SetCurrent(int64_t pos, bool rev)
             firstTime = currentTime;
         }
     }
+    //AlignTime(firstTime); // align time will cause UI not smooth
     if (firstTime < 0) firstTime = 0;
+}
+
+void MediaSequencer::AlignTime(int64_t& time)
+{
+    auto frame_interval = mFrameRate.den * 1000 / mFrameRate.num;
+    alignTime(time, frame_interval);
 }
 
 void MediaSequencer::Seek()
@@ -2730,7 +2742,7 @@ void MediaSequencer::Seek()
         if (item->mMediaReaderVideo && item->mMediaReaderVideo->IsOpened())
         {
             int64_t video_time = item_time;
-            alignTime(video_time, mFrameInterval);
+            AlignTime(video_time);
             item->mMediaReaderVideo->SeekTo((double)video_time / 1000.f);
         }
         if (item->mMediaReaderAudio && item->mMediaReaderAudio->IsOpened())
@@ -2765,18 +2777,19 @@ void MediaSequencer::Play(bool play, bool forward)
 
 void MediaSequencer::Step(bool forward)
 {
+    auto frame_interval = mFrameRate.den * 1000 / mFrameRate.num;
     if (!bPlay && m_Items.size() > 0)
     {
         bForward = forward;
         if (forward)
         {
-            currentTime += mFrameInterval;
+            currentTime += frame_interval;
             if (currentTime > mEnd)
                 currentTime = mEnd;
         }
         else
         {
-            currentTime -= mFrameInterval;
+            currentTime -= frame_interval;
             if (currentTime < mStart)
                 currentTime = mStart;
         }
@@ -2860,10 +2873,15 @@ int MediaSequencer::Load(const imgui_json::value& value)
         auto& val = value["VideoHeight"];
         if (val.is_number()) mHeight = val.get<imgui_json::number>();
     }
-    if (value.contains("FrameInterval"))
+    if (value.contains("FrameRateNum"))
     {
-        auto& val = value["FrameInterval"];
-        if (val.is_number()) mFrameInterval = val.get<imgui_json::number>();
+        auto& val = value["FrameRateNum"];
+        if (val.is_number()) mFrameRate.num = val.get<imgui_json::number>();
+    }
+    if (value.contains("FrameRateDen"))
+    {
+        auto& val = value["FrameRateDen"];
+        if (val.is_number()) mFrameRate.den = val.get<imgui_json::number>();
     }
     if (value.contains("AudioChannels"))
     {
@@ -2927,7 +2945,8 @@ void MediaSequencer::Save(imgui_json::value& value)
     value["ItemHeight"] = imgui_json::number(mItemHeight);
     value["VideoWidth"] = imgui_json::number(mWidth);
     value["VideoHeight"] = imgui_json::number(mHeight);
-    value["FrameInterval"] = imgui_json::number(mFrameInterval);
+    value["FrameRateNum"] = imgui_json::number(mFrameRate.num);
+    value["FrameRateDen"] = imgui_json::number(mFrameRate.den);
     value["AudioChannels"] = imgui_json::number(mAudioChannels);
     value["AudioSampleRate"] = imgui_json::number(mAudioSampleRate);
     value["AudioFormat"] = imgui_json::number(mAudioFormat);
@@ -2968,7 +2987,7 @@ ClipInfo::ClipInfo(int64_t start, int64_t end, bool drag_out, void* handle)
     mSnapshot->Open(holder);
     if (mSnapshot->IsOpened())
     {
-        mFrameInterval = item->mFrameInterval;
+        mClipFrameRate = item->mItemFrameRate;
         double window_size = 1.0f;
         mSnapshot->SetCacheFactor(1.0);
         mSnapshot->SetSnapshotResizeFactor(0.1, 0.1);
@@ -3025,8 +3044,28 @@ void ClipInfo::Seek()
     if (item && item->mMediaReaderVideo && item->mMediaReaderVideo->IsOpened())
     {
         int64_t item_time = mCurrent - item->mStart + item->mStartOffset;
-        alignTime(item_time, item->mFrameInterval);
+        auto frame_interval = item->mItemFrameRate.den * 1000 / item->mItemFrameRate.num;
+        alignTime(item_time, frame_interval);
         item->mMediaReaderVideo->SeekTo((double)item_time / 1000.f);
+    }
+}
+
+void ClipInfo::Step(bool forward)
+{
+    auto frame_interval = mClipFrameRate.den * 1000 / mClipFrameRate.num;
+    if (forward)
+    {
+        bForward = true;
+        mCurrent += frame_interval;
+        if (mCurrent > mEnd)
+            mCurrent = mEnd;
+    }
+    else
+    {
+        bForward = false;
+        mCurrent -= frame_interval;
+        if (mCurrent < mStart)
+            mCurrent = mStart;
     }
 }
 
@@ -3035,10 +3074,10 @@ bool ClipInfo::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame)
     if (mCurrentFilterTime == mCurrent || mFrame.empty())
         return false;
     double current_time = (double)mCurrent / 1000.f;
-        
+    auto frame_interval = mClipFrameRate.den * 1000 / mClipFrameRate.num;
     double buffer_start = mFrame.begin()->first.time_stamp;
-    double buffer_end = bForward ? buffer_start + mFrameInterval * MAX_SEQUENCER_FRAME_NUMBER : 
-                                    buffer_start - mFrameInterval * MAX_SEQUENCER_FRAME_NUMBER ;
+    double buffer_end = bForward ? buffer_start + frame_interval * MAX_SEQUENCER_FRAME_NUMBER : 
+                                    buffer_start - frame_interval * MAX_SEQUENCER_FRAME_NUMBER ;
     if (buffer_start > buffer_end)
         std::swap(buffer_start, buffer_end);
 
@@ -3050,7 +3089,7 @@ bool ClipInfo::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame)
     {
         bool need_erase = false;
         int64_t time_diff = fabs(pair->first.time_stamp - current_time) * 1000;
-        if (time_diff > mFrameInterval)
+        if (time_diff > frame_interval)
             need_erase = true;
 
         if (need_erase || out_of_range)
@@ -3075,20 +3114,20 @@ bool ClipInfo::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame)
                 if (mLastTime != -1)
                 {
                     int64_t step_time = current_system_time - mLastTime;
-                    if (step_time >= mFrameInterval)
+                    if (step_time >= frame_interval)
                         need_step_time = true;
                 }
                 if (need_step_time)
                 {
                     if (bForward)
                     {
-                        mCurrent += mFrameInterval;
+                        mCurrent += frame_interval;
                         if (mCurrent > mEnd)
                             mCurrent = mEnd;
                     }
                     else
                     {
-                        mCurrent -= mFrameInterval;
+                        mCurrent -= frame_interval;
                         if (mCurrent < mStart)
                             mCurrent = mStart;
                     }

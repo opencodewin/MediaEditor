@@ -180,7 +180,6 @@ struct SequencerInterface
     int64_t firstTime = 0;
     int64_t lastTime = 0;
     int64_t visibleTime = 0;
-    int64_t timeStep = 0;
     float msPixelWidthTarget = 0.1f;
     bool bPlay = false;
     bool bForward = true;
@@ -192,6 +191,7 @@ struct SequencerInterface
     virtual void SetStart(int64_t pos) = 0;
     virtual void SetEnd(int64_t pos) = 0;
     virtual void SetCurrent(int64_t pos, bool rev) = 0;
+    virtual void AlignTime(int64_t& time) = 0;
     virtual int GetItemCount() const = 0;
     virtual void BeginEdit(int /*index*/) {}
     virtual void EndEdit() {}
@@ -255,7 +255,7 @@ struct ClipInfo
     int64_t mStart  {0};
     int64_t mEnd    {0};
     int64_t mCurrent{0};
-    int64_t mFrameInterval {40};
+    MediaInfo::Ratio mClipFrameRate {25, 1};// clip Frame rate  
     int64_t mLastTime {-1};
     int64_t mCurrentFilterTime {-1};
     bool bPlay      {false};
@@ -274,6 +274,7 @@ struct ClipInfo
     ~ClipInfo();
     void UpdateSnapshot();
     void Seek();
+    void Step(bool forward);
     bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame);
     ImTextureID mFilterInputTexture {nullptr};  // clip filter input texture
     ImTextureID mFilterOutputTexture {nullptr};  // clip filter output texture
@@ -295,7 +296,7 @@ struct SequencerItem
     int64_t mStartOffset {0};               // item start time in media
     int64_t mEndOffset   {0};               // item end time in media
     int64_t mLength     {0};                // item total length in ms, not effect by cropping
-    int64_t mFrameInterval {40};            // timeline Media Frame Interval in ms
+    MediaInfo::Ratio mItemFrameRate {25, 1};// item Frame rate  
     int mAudioChannels  {2};                // item audio channels(could be setting?)
     int mAudioSampleRate {44100};           // item audio sample rate(could be setting?)
     bool mExpanded  {false};                // item is compact view or not
@@ -347,6 +348,7 @@ struct MediaSequencer : public SequencerInterface
     void SetStart(int64_t pos) { mStart = pos; }
     void SetEnd(int64_t pos) { mEnd = pos; }
     void SetCurrent(int64_t pos, bool rev);
+    void AlignTime(int64_t& time);
     int GetItemCount() const { return (int)m_Items.size(); }
     bool GetItemSelected(int index) const { return m_Items[index]->mSelected; }
     void SetItemSelected(int index);
@@ -384,7 +386,7 @@ struct MediaSequencer : public SequencerInterface
     int64_t mEnd   {0};                     // whole timeline end in ms
     int mWidth  {1920};                     // timeline Media Width
     int mHeight {1080};                     // timeline Media Height
-    int64_t mFrameInterval {40};            // timeline Media Frame Duration in ms
+    MediaInfo::Ratio mFrameRate {25, 1};    // timeline Media Frame rate
     int mAudioChannels {2};                 // timeline audio channels
     int mAudioSampleRate {44100};           // timeline audio sample rate
     AudioRender::PcmFormat mAudioFormat {AudioRender::PcmFormat::FLOAT32};

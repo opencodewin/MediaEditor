@@ -855,10 +855,7 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
             {
                 if (selected_clip)
                 {
-                    selected_clip->bForward = false;
-                    selected_clip->mCurrent -= sequencer->mFrameInterval;
-                    if (selected_clip->mCurrent < selected_clip->mStart)
-                        selected_clip->mCurrent = selected_clip->mStart;
+                    selected_clip->Step(false);
                     if (sequencer)
                     {
                         sequencer->bForward = false;
@@ -913,10 +910,7 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
             {
                 if (selected_clip)
                 {
-                    selected_clip->bForward = true;
-                    selected_clip->mCurrent += sequencer->mFrameInterval;
-                    if (selected_clip->mCurrent > selected_clip->mEnd)
-                        selected_clip->mCurrent = selected_clip->mEnd;
+                    selected_clip->Step(true);
                     if (sequencer)
                     {
                         sequencer->bForward = true;
@@ -956,18 +950,7 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
                     ImGui::ImMatToTexture(pair.second, selected_clip->mFilterOutputTexture);
                     if (selected_clip->bPlay)
                     {
-                        if (selected_clip->bForward)
-                        {
-                            selected_clip->mCurrent += selected_clip->mFrameInterval;
-                            if (selected_clip->mCurrent > selected_clip->mEnd)
-                                selected_clip->mCurrent = selected_clip->mEnd;
-                        }
-                        else
-                        {
-                            selected_clip->mCurrent -= selected_clip->mFrameInterval;
-                            if (selected_clip->mCurrent < selected_clip->mStart)
-                                selected_clip->mCurrent = selected_clip->mStart;
-                        }
+                        selected_clip->Step(selected_clip->bForward);
                     }
                 }
                 ImGuiIO& io = ImGui::GetIO();
@@ -1434,6 +1417,16 @@ static void CleanProject()
         sequencer = nullptr;
     }
     sequencer = new MediaSequencer();
+    if (sequencer)
+    {
+        sequencer->mWidth = g_media_editor_settings.VideoWidth;
+        sequencer->mHeight = g_media_editor_settings.VideoHeight;
+        sequencer->mFrameRate = g_media_editor_settings.VideoFrameRate;
+        sequencer->mAudioSampleRate = g_media_editor_settings.AudioSampleRate;
+        sequencer->mAudioChannels = g_media_editor_settings.AudioChannels;
+        sequencer->mAudioFormat = (AudioRender::PcmFormat)g_media_editor_settings.AudioFormat;
+        sequencer->mItemHeight = g_media_editor_settings.ItemHeight;
+    }
     g_project = imgui_json::value();
 }
 
@@ -1564,6 +1557,7 @@ void Application_GetWindowProperties(ApplicationWindowProperty& property)
     property.viewport = false;
     property.docking = false;
     property.auto_merge = false;
+    //property.power_save = false;
     property.width = 1680;
     property.height = 1024;
 }
@@ -1660,6 +1654,16 @@ void Application_Initialize(void** handle)
     GetMediaReaderLogger()->SetShowLevels(Logger::DEBUG);
     ImGui::ResetTabLabelStyle(ImGui::ImGuiTabLabelStyle_Dark, *tab_style);
     sequencer = new MediaSequencer();
+    if (sequencer)
+    {
+        sequencer->mWidth = g_media_editor_settings.VideoWidth;
+        sequencer->mHeight = g_media_editor_settings.VideoHeight;
+        sequencer->mFrameRate = g_media_editor_settings.VideoFrameRate;
+        sequencer->mAudioSampleRate = g_media_editor_settings.AudioSampleRate;
+        sequencer->mAudioChannels = g_media_editor_settings.AudioChannels;
+        sequencer->mAudioFormat = (AudioRender::PcmFormat)g_media_editor_settings.AudioFormat;
+        sequencer->mItemHeight = g_media_editor_settings.ItemHeight;
+    }
 }
 
 void Application_Finalize(void** handle)
@@ -1716,6 +1720,16 @@ bool Application_Frame(void * handle, bool app_will_quit)
         {
             show_configure = false;
             g_media_editor_settings = g_new_setting;
+            if (sequencer)
+            {
+                sequencer->mWidth = g_media_editor_settings.VideoWidth;
+                sequencer->mHeight = g_media_editor_settings.VideoHeight;
+                sequencer->mFrameRate = g_media_editor_settings.VideoFrameRate;
+                sequencer->mAudioSampleRate = g_media_editor_settings.AudioSampleRate;
+                sequencer->mAudioChannels = g_media_editor_settings.AudioChannels;
+                sequencer->mAudioFormat = (AudioRender::PcmFormat)g_media_editor_settings.AudioFormat;
+                sequencer->mItemHeight = g_media_editor_settings.ItemHeight;
+            }
             ImGui::CloseCurrentPopup(); 
         }
         ImGui::SetItemDefaultFocus();
