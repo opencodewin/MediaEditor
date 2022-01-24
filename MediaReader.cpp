@@ -223,6 +223,7 @@ public:
 
     void Close() override
     {
+        m_quit = true;
         lock_guard<recursive_mutex> lk(m_apiLock);
         WaitAllThreadsQuit();
         FlushAllQueues();
@@ -279,6 +280,8 @@ public:
         m_audFrmSize = 0;
         m_audReadTask = nullptr;
         m_audReadOffset = -1;
+        m_audReadEof = false;
+        m_audReadNextTaskSeekPts0 = INT64_MIN;
         m_swrFrmSize = 0;
         m_swrOutStartTime = 0;
 
@@ -328,6 +331,8 @@ public:
             {
                 UpdateCacheWindow(ts);
                 m_audReadTask = nullptr;
+                m_audReadEof = false;
+                m_audReadNextTaskSeekPts0 = INT64_MIN;
             }
             else
             {
@@ -402,8 +407,14 @@ public:
         eof = false;
 
         lock_guard<recursive_mutex> lk(m_apiLock);
-        bool success = ReadAudioSamples_Internal(buf, size, pos, eof, wait);
-        UpdateCacheWindow(pos);
+        bool success = ReadAudioSamples_Internal(buf, size, pos, wait);
+        double readDur = m_swrPassThrough ?
+                (double)size/m_audFrmSize/m_swrOutSampleRate :
+                (double)size/m_swrFrmSize/m_swrOutSampleRate;
+        UpdateCacheWindow(pos+readDur);
+        eof = m_audReadEof;
+        if (eof && size == 0)
+            pos = m_readForward ? m_audDurTs : 0;
 
         return success;
     }
@@ -575,7 +586,16 @@ private:
 
     bool Prepare()
     {
-        lock_guard<recursive_mutex> lk(m_apiLock);
+        bool locked = false;
+        do {
+            locked = m_apiLock.try_lock();
+            if (!locked)
+                this_thread::sleep_for(chrono::milliseconds(5));
+        } while (!locked && !m_quit);
+        if (m_quit)
+            return false;
+
+        lock_guard<recursive_mutex> lk(m_apiLock, adopt_lock);
         int fferr;
         fferr = avformat_find_stream_info(m_avfmtCtx, nullptr);
         if (fferr < 0)
@@ -947,21 +967,17 @@ private:
         return true;
     }
 
-    bool ReadAudioSamples_Internal(uint8_t* buf, uint32_t& size, double& pos, bool& eof, bool wait)
+    bool ReadAudioSamples_Internal(uint8_t* buf, uint32_t& size, double& pos, bool wait)
     {
-        GopDecodeTaskHolder readTask = m_audReadTask;
-        if (!readTask)
+        if (m_audReadEof)
         {
-            readTask = FindNextAudioReadTask(eof);
-            if (!readTask)
-            {
-                m_errMsg = "No audio read task can be found.";
-                return false;
-            }
+            size = 0;
+            return true;
         }
 
         uint8_t* dstptr = buf;
-        uint32_t readSize = 0, toReadSize = size, skipSize = m_audReadOffset;
+        uint32_t readSize = 0, toReadSize = size, skipSize;
+        skipSize = m_audReadOffset > 0 ? m_audReadOffset : 0;
         list<AudioFrame>::iterator fwditer;
         list<AudioFrame>::reverse_iterator bwditer;
         bool isIterSet = false;
@@ -971,91 +987,110 @@ private:
         {
             bool idleLoop = true;
 
-            if (!readTask->afAry.empty() && (m_readForward || readTask->afAry.back().endOfGop))
+            GopDecodeTaskHolder readTask = m_audReadTask;
+            if (!readTask)
             {
-                auto& afAry = readTask->afAry;
-                if (!isIterSet)
+                readTask = FindNextAudioReadTask();
+                if (!readTask)
                 {
-                    if (m_readForward)
-                        fwditer = afAry.begin();
-                    else
-                        bwditer = afAry.rbegin();
-                    isIterSet = true;
-                }
-
-                SelfFreeAVFramePtr readfrm = m_readForward ? fwditer->fwdfrm : bwditer->bwdfrm;
-                if (readfrm)
-                {
-                    if (!isPosSet)
+                    if (m_readForward && m_bldtskPriOrder.back()->mediaEof ||
+                        !m_readForward && m_bldtskPriOrder.front()->mediaEof)
                     {
-                        double startts = m_swrPassThrough ?
-                                (double)CvtPtsToMts(readfrm->pts)/1000 :
-                                (double)CvtSwrPtsToMts(readfrm->pts)/1000;
-                        double offset = m_swrPassThrough ?
-                                (double)m_audReadOffset/m_audFrmSize/m_swrOutSampleRate :
-                                (double)m_audReadOffset/m_swrFrmSize/m_swrOutSampleRate;
-                        pos = m_readForward ? startts+offset : startts-offset;
-                        m_prevReadPos = pos;
-                        isPosSet = true;
-                    }
-                    if (skipSize >= readfrm->linesize[0])
-                    {
-                        bool reachEnd;
-                        if (m_readForward)
-                        {
-                            fwditer++;
-                            reachEnd = fwditer == afAry.end();
-                        }
-                        else
-                        {
-                            bwditer++;
-                            reachEnd = bwditer == afAry.rend();
-                        }
-                        if (!reachEnd)
-                        {
-                            skipSize -= readfrm->linesize[0];
-                            idleLoop = false;
-                        }
-                        else
-                        {
-                            m_logger->Log(Error) << "ABNORMAL! 'iter' reaches 'afAry.end()'!" << endl;
-                            return false;
-                        }
-                    }
-                    else
-                    {
-                        uint32_t copySize = readfrm->linesize[0]-skipSize;
-                        if (copySize > toReadSize)
-                            copySize = toReadSize;
-                        memcpy(dstptr+readSize, readfrm->data[0]+skipSize, copySize);
-                        toReadSize -= copySize;
-                        readSize += copySize;
-                        skipSize = 0;
-                        m_audReadOffset += copySize;
-
-                        bool reachEnd;
-                        if (m_readForward)
-                        {
-                            fwditer++;
-                            reachEnd = fwditer == afAry.end();
-                        }
-                        else
-                        {
-                            bwditer++;
-                            reachEnd = bwditer == afAry.rend();
-                        }
-                        if (reachEnd)
-                        {
-                            readTask = FindNextAudioReadTask(eof);
-                            skipSize = 0;
-                            isIterSet = false;
-                        }
-                        idleLoop = false;
+                        m_audReadEof = true;
+                        size = readSize;
+                        return true;
                     }
                 }
             }
 
-            needLoop = readTask && !readTask->cancel && !m_quit && (wait || !idleLoop) && toReadSize > 0;
+            if (readTask)
+            {
+                if (!readTask->afAry.empty() && (m_readForward || readTask->afAry.back().endOfGop))
+                {
+                    auto& afAry = readTask->afAry;
+                    if (!isIterSet)
+                    {
+                        if (m_readForward)
+                            fwditer = afAry.begin();
+                        else
+                            bwditer = afAry.rbegin();
+                        isIterSet = true;
+                    }
+
+                    SelfFreeAVFramePtr readfrm = m_readForward ? fwditer->fwdfrm : bwditer->bwdfrm;
+                    if (readfrm)
+                    {
+                        if (!isPosSet)
+                        {
+                            double startts = m_swrPassThrough ?
+                                    (double)CvtPtsToMts(readfrm->pts)/1000 :
+                                    (double)CvtSwrPtsToMts(readfrm->pts)/1000;
+                            double offset = m_swrPassThrough ?
+                                    (double)m_audReadOffset/m_audFrmSize/m_swrOutSampleRate :
+                                    (double)m_audReadOffset/m_swrFrmSize/m_swrOutSampleRate;
+                            pos = m_readForward ? startts+offset : startts-offset;
+                            m_prevReadPos = pos;
+                            isPosSet = true;
+                        }
+                        if (skipSize >= readfrm->linesize[0])
+                        {
+                            bool reachEnd;
+                            if (m_readForward)
+                            {
+                                fwditer++;
+                                reachEnd = fwditer == afAry.end();
+                            }
+                            else
+                            {
+                                bwditer++;
+                                reachEnd = bwditer == afAry.rend();
+                            }
+                            if (!reachEnd)
+                            {
+                                skipSize -= readfrm->linesize[0];
+                                idleLoop = false;
+                            }
+                            else
+                            {
+                                m_logger->Log(Error) << "ABNORMAL! Skip size too large, 'iter' reaches 'afAry.end()'!" << endl;
+                                return false;
+                            }
+                        }
+                        else
+                        {
+                            uint32_t copySize = readfrm->linesize[0]-skipSize;
+                            if (copySize > toReadSize)
+                                copySize = toReadSize;
+                            memcpy(dstptr+readSize, readfrm->data[0]+skipSize, copySize);
+                            toReadSize -= copySize;
+                            readSize += copySize;
+                            skipSize = 0;
+                            m_audReadOffset += copySize;
+
+                            bool reachEnd;
+                            if (m_readForward)
+                            {
+                                fwditer++;
+                                reachEnd = fwditer == afAry.end();
+                            }
+                            else
+                            {
+                                bwditer++;
+                                reachEnd = bwditer == afAry.rend();
+                            }
+                            if (reachEnd)
+                            {
+                                readTask = FindNextAudioReadTask();
+                                skipSize = 0;
+                                isIterSet = false;
+                            }
+                            idleLoop = false;
+                        }
+                    }
+                }
+            }
+
+            needLoop = (readTask && !readTask->cancel || !readTask && wait || !idleLoop) && toReadSize > 0 && !m_quit;
             if (needLoop && idleLoop)
                 this_thread::sleep_for(chrono::milliseconds(2));
         } while (needLoop);
@@ -2339,7 +2374,7 @@ private:
             UpdateBuildTaskByPriority();
     }
 
-    GopDecodeTaskHolder FindNextAudioReadTask(bool& eof)
+    GopDecodeTaskHolder FindNextAudioReadTask()
     {
         lock_guard<mutex> lk(m_bldtskByPriLock);
         if (m_bldtskPriOrder.empty())
@@ -2353,23 +2388,44 @@ private:
         auto iter = find(m_bldtskPriOrder.begin(), m_bldtskPriOrder.end(), m_audReadTask);
         if (iter == m_bldtskPriOrder.end())
         {
-            CacheWindow currwnd = m_cacheWnd;
-            auto iter2 = find_if(m_bldtskPriOrder.begin(), m_bldtskPriOrder.end(), [this, currwnd](const GopDecodeTaskHolder& task) {
-                return currwnd.readPos*1000 >= CvtAudPtsToMts(task->seekPts.first) && currwnd.readPos*1000 < CvtAudPtsToMts(task->seekPts.second);
-            });
-            if (iter2 == m_bldtskPriOrder.end())
+            if (m_audReadNextTaskSeekPts0 != INT64_MIN)
             {
-                m_logger->Log(WARN) << "'m_audReadTask' CANNOT be found in 'm_bldtskPriOrder'!" << endl;
-                m_audReadTask = nullptr;
-                m_audReadOffset = -1;
+                auto iter2 = find_if(m_bldtskPriOrder.begin(), m_bldtskPriOrder.end(), [this](const GopDecodeTaskHolder& task) {
+                    return task->seekPts.first == m_audReadNextTaskSeekPts0;
+                });
+                if (iter2 != m_bldtskPriOrder.end())
+                {
+                    m_audReadTask = *iter2;
+                    m_audReadOffset = 0;
+                    m_audReadNextTaskSeekPts0 = m_audReadTask->seekPts.second;
+                }
+                else
+                {
+                    m_audReadTask = nullptr;
+                    m_audReadOffset = -1;
+                }
             }
             else
             {
-                m_audReadTask = *iter2;
-                if (m_readForward)
-                    m_audReadOffset = (int)((currwnd.readPos-(double)CvtAudPtsToMts(m_audReadTask->seekPts.first)/1000)*m_swrOutSampleRate)*m_swrFrmSize;
+                CacheWindow currwnd = m_cacheWnd;
+                auto iter3 = find_if(m_bldtskPriOrder.begin(), m_bldtskPriOrder.end(), [this, currwnd](const GopDecodeTaskHolder& task) {
+                    return currwnd.readPos*1000 >= CvtAudPtsToMts(task->seekPts.first) && currwnd.readPos*1000 < CvtAudPtsToMts(task->seekPts.second);
+                });
+                if (iter3 != m_bldtskPriOrder.end())
+                {
+                    m_audReadTask = *iter3;
+                    if (m_readForward)
+                        m_audReadOffset = (int)((currwnd.readPos-(double)CvtAudPtsToMts(m_audReadTask->seekPts.first)/1000)*m_swrOutSampleRate)*m_swrFrmSize;
+                    else
+                        m_audReadOffset = (int)(((double)CvtAudPtsToMts(m_audReadTask->seekPts.second)/1000-currwnd.readPos)*m_swrOutSampleRate)*m_swrFrmSize;
+                    m_audReadNextTaskSeekPts0 = m_audReadTask->seekPts.second;
+                }
                 else
-                    m_audReadOffset = (int)(((double)CvtAudPtsToMts(m_audReadTask->seekPts.second)/1000-currwnd.readPos)*m_swrOutSampleRate)*m_swrFrmSize;
+                {
+                    m_logger->Log(WARN) << "'m_audReadTask' CANNOT be found in 'm_bldtskPriOrder'!" << endl;
+                    m_audReadTask = nullptr;
+                    m_audReadOffset = -1;
+                }
             }
         }
         else
@@ -2388,7 +2444,6 @@ private:
             }
             if (reachEnd)
             {
-                eof = true;
                 m_audReadTask = nullptr;
                 m_audReadOffset = -1;
             }
@@ -2396,6 +2451,7 @@ private:
             {
                 m_audReadTask = *iter;
                 m_audReadOffset = 0;
+                m_audReadNextTaskSeekPts0 = m_audReadTask->seekPts.second;
             }
         }
         return m_audReadTask;
@@ -2479,6 +2535,8 @@ private:
     uint32_t m_audFrmSize{0};
     GopDecodeTaskHolder m_audReadTask;
     int32_t m_audReadOffset{-1};
+    bool m_audReadEof{false};
+    int64_t m_audReadNextTaskSeekPts0{INT64_MIN};
 
     bool m_useRszFactor{false};
     bool m_ssSizeChanged{false};

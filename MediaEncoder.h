@@ -21,16 +21,16 @@ struct MediaEncoder
 {
     virtual bool Open(const std::string& url) = 0;
     virtual bool Close() = 0;
-    virtual int ConfigureVideoStream(const std::string& codecName,
+    virtual bool ConfigureVideoStream(const std::string& codecName,
             std::string& imageFormat, uint32_t width, uint32_t height,
             const MediaInfo::Ratio& frameRate, uint64_t bitRate,
             std::unordered_map<std::string, std::string>* extraOpts = nullptr) = 0;
-    virtual int ConfigureAudioStream(const std::string& codecName,
+    virtual bool ConfigureAudioStream(const std::string& codecName,
             std::string& sampleFormat, uint32_t channels, uint32_t sampleRate, uint64_t bitRate) = 0;
     virtual bool Start() = 0;
     virtual bool WaitAndFinishEncoding() = 0;
-    virtual bool EncodeVideoFrame(int streamIndex, ImGui::ImMat vmat) = 0;
-    virtual bool EncodeAudioSamples(int streamIndex, uint8_t* buf, uint32_t size) = 0;
+    virtual bool EncodeVideoFrame(ImGui::ImMat vmat, bool wait = true) = 0;
+    virtual bool EncodeAudioSamples(uint8_t* buf, uint32_t size, bool wait = true) = 0;
 
     virtual bool IsOpened() const = 0;
     virtual bool HasVideo() const = 0;

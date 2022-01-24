@@ -23,8 +23,6 @@ extern "C"
 using namespace std;
 using namespace Logger;
 
-static AVPixelFormat get_hw_format(AVCodecContext *ctx, const AVPixelFormat *pix_fmts);
-
 class MediaEncoder_Impl : public MediaEncoder
 {
 public:
@@ -68,12 +66,6 @@ public:
 
         if (m_avfmtCtx)
         {
-            fferr = av_write_trailer(m_avfmtCtx);
-            if (fferr < 0)
-            {
-                m_errMsg = FFapiFailureMessage("av_write_trailer", fferr);
-                success = false;
-            }
             if ((m_avfmtCtx->oformat->flags&AVFMT_NOFILE) == 0)
                 avio_closep(&m_avfmtCtx->pb);
             avformat_free_context(m_avfmtCtx);
@@ -90,21 +82,21 @@ public:
         return success;
     }
 
-    int ConfigureVideoStream(const std::string& codecName,
+    bool ConfigureVideoStream(const std::string& codecName,
             string& imageFormat, uint32_t width, uint32_t height,
             const MediaInfo::Ratio& frameRate, uint64_t bitRate,
             unordered_map<string, string>* extraOpts = nullptr) override
     {
-        lock_guard<recursive_mutex> lk(m_apiLock);
         if (!m_opened)
         {
             m_errMsg = "This MediaEncoder has NOT opened yet!";
-            return -1;
+            return false;
         }
+        lock_guard<recursive_mutex> lk(m_apiLock);
         if (m_started)
         {
             m_errMsg = "This MediaEncoder already started!";
-            return -1;
+            return false;
         }
 
         if (ConfigureVideoStream_Internal(codecName, imageFormat, width, height, frameRate, bitRate, extraOpts))
@@ -117,22 +109,22 @@ public:
             CloseVideoComponents();
         }
 
-        return m_vidStmIdx;
+        return m_vidStmIdx < 0 ? false : true;
     }
 
-    int ConfigureAudioStream(const std::string& codecName,
+    bool ConfigureAudioStream(const std::string& codecName,
             string& sampleFormat, uint32_t channels, uint32_t sampleRate, uint64_t bitRate) override
     {
-        lock_guard<recursive_mutex> lk(m_apiLock);
         if (!m_opened)
         {
             m_errMsg = "This MediaEncoder has NOT opened yet!";
-            return -1;
+            return false;
         }
+        lock_guard<recursive_mutex> lk(m_apiLock);
         if (m_started)
         {
             m_errMsg = "This MediaEncoder already started!";
-            return -1;
+            return false;
         }
 
         if (ConfigureAudioStream_Internal(codecName, sampleFormat, channels, sampleRate, bitRate))
@@ -145,17 +137,17 @@ public:
             CloseAudioComponents();
         }
 
-        return m_audStmIdx;
+        return m_audStmIdx < 0 ? false : true;
     }
 
     bool Start() override
     {
-        lock_guard<recursive_mutex> lk(m_apiLock);
         if (!m_opened)
         {
             m_errMsg = "This MediaEncoder has NOT opened yet!";
             return false;
         }
+        lock_guard<recursive_mutex> lk(m_apiLock);
         if (m_started)
         {
             m_errMsg = "This MediaEncoder already started!";
@@ -167,6 +159,13 @@ public:
             return false;
         }
 
+        int fferr = avformat_write_header(m_avfmtCtx, nullptr);
+        if (fferr < 0)
+        {
+            m_errMsg = FFapiFailureMessage("avformat_write_header", fferr);
+            return false;
+        }
+
         StartAllThreads();
         m_started = true;
         return true;
@@ -174,7 +173,6 @@ public:
 
     bool WaitAndFinishEncoding() override
     {
-        lock_guard<recursive_mutex> lk(m_apiLock);
         if (!m_opened)
         {
             m_errMsg = "This MediaEncoder has NOT opened yet!";
@@ -185,6 +183,7 @@ public:
             m_errMsg = "This MediaEncoder has NOT started yet!";
             return false;
         }
+        lock_guard<recursive_mutex> lk(m_apiLock);
 
         while (!m_muxEof)
             this_thread::sleep_for(chrono::milliseconds(5));
@@ -208,13 +207,178 @@ public:
         return success;
     }
 
-    bool EncodeVideoFrame(int streamIndex, ImGui::ImMat vmat) override
+    bool EncodeVideoFrame(ImGui::ImMat vmat, bool wait) override
     {
+        if (!m_opened)
+        {
+            m_errMsg = "This MediaEncoder has NOT opened yet!";
+            return false;
+        }
+        if (!m_started)
+        {
+            m_errMsg = "This MediaEncoder has NOT started yet!";
+            return false;
+        }
+        if (!HasVideo())
+        {
+            m_errMsg = "This MediaEncoder does NOT have video!";
+            return false;
+        }
+        lock_guard<recursive_mutex> lk(m_apiLock);
+        if (m_vidinpEof)
+        {
+            m_errMsg = "Video stream has already reaches EOF!";
+            return false;
+        }
+
+        if (vmat.empty())
+        {
+            m_vidinpEof = true;
+            return true;
+        }
+
+        while (wait && m_vmatQ.size() >= m_vmatQMaxSize && !m_quit)
+            this_thread::sleep_for(chrono::milliseconds(5));
+        if (m_quit)
+            return false;
+        if (m_vmatQ.size() >= m_vmatQMaxSize)
+        {
+            m_errMsg = "Queue full!";
+            return false;
+        }
+
+        {
+            lock_guard<mutex> lk(m_vmatQLock);
+            m_vmatQ.push_back(vmat);
+        }
+
         return true;
     }
 
-    bool EncodeAudioSamples(int streamIndex, uint8_t* buf, uint32_t size) override
+    bool EncodeAudioSamples(uint8_t* buf, uint32_t size, bool wait) override
     {
+        if (!m_opened)
+        {
+            m_errMsg = "This MediaEncoder has NOT opened yet!";
+            return false;
+        }
+        if (!m_started)
+        {
+            m_errMsg = "This MediaEncoder has NOT started yet!";
+            return false;
+        }
+        if (!HasAudio())
+        {
+            m_errMsg = "This MediaEncoder does NOT have video!";
+            return false;
+        }
+        lock_guard<recursive_mutex> lk(m_apiLock);
+        if (m_audinpEof)
+        {
+            m_errMsg = "Audio stream has already reaches EOF!";
+            return false;
+        }
+
+        if (!buf)
+        {
+            if (m_audencfrm)
+            {
+                uint32_t bufoffset = m_audencfrmSmpOffset*m_audinpFrameSize;
+                memset(m_audencfrm->data[0]+bufoffset, 0, m_audencfrm->linesize[0]-bufoffset);
+                {
+                    lock_guard<mutex> lk(m_audfrmQLock);
+                    m_audfrmQ.push_back(m_audencfrm);
+                }
+                m_audencfrm = nullptr;
+            }
+            m_audinpEof = true;
+            return true;
+        }
+
+        if (m_audfrmQ.size() >= m_audfrmQMaxSize)
+        {
+            if (!wait)
+            {
+                m_errMsg = "Queue full!";
+                return false;
+            }
+            while (m_audfrmQ.size() >= m_audfrmQMaxSize && !m_quit)
+                this_thread::sleep_for(chrono::milliseconds(5));
+            if (m_quit)
+                return false;
+        }
+        uint32_t inpSamples = (uint32_t)(size/m_audinpFrameSize);
+        if (inpSamples*m_audinpFrameSize != size)
+        {
+            m_logger->Log(WARN) << "Input audio data size " << size << " is NOT an integral multiply of input-frame-size " << m_audinpFrameSize << "!" << endl;
+            size = inpSamples*m_audinpFrameSize;
+        }
+
+        int fferr;
+        uint32_t readSize = 0;
+        uint32_t bufferedSamples = 0;
+        const uint8_t* inpbuf = buf;
+        while ((readSize < size || bufferedSamples > 0) && !m_quit)
+        {
+            if (!m_audencfrm)
+            {
+                m_audencfrm = AllocSelfFreeAVFramePtr();
+                if (!m_audencfrm)
+                {
+                    m_errMsg = "FAILED allocate new AVFrame for audio input frame!";
+                    return false;
+                }
+                m_audencfrm->format = m_audencSmpfmt;
+                m_audencfrm->sample_rate = m_audencCtx->sample_rate;
+                m_audencfrm->channels = m_audencCtx->channels;
+                m_audencfrm->channel_layout = m_audencCtx->channel_layout;
+                m_audencfrm->nb_samples = m_audencFrameSamples;
+                fferr = av_frame_get_buffer(m_audencfrm.get(), 0);
+                if (fferr < 0)
+                {
+                    m_errMsg = FFapiFailureMessage("av_frame_get_buffer(EncodeAudioSamples)", fferr);
+                    return false;
+                }
+                m_audencfrm->pts = m_audfrmPts;
+            }
+
+            if (m_swrCtx)
+            {
+                fferr = swr_convert(m_swrCtx, m_audencfrm->data, m_audencfrm->nb_samples-m_audencfrmSmpOffset, &inpbuf, inpSamples);
+                if (fferr <= 0)
+                {
+                    m_errMsg = FFapiFailureMessage("swr_convert", fferr);
+                    return false;
+                }
+                readSize += inpSamples*m_audinpFrameSize;
+                m_audencfrmSmpOffset += fferr;
+                inpbuf = nullptr;
+                inpSamples = 0;
+                bufferedSamples = swr_get_out_samples(m_swrCtx, 0);
+            }
+            else
+            {
+                uint32_t copySize = (m_audencfrm->nb_samples-m_audencfrmSmpOffset)*m_audinpFrameSize;
+                if (copySize > size-readSize)
+                    copySize = size-readSize;
+                uint32_t bufoffset = m_audencfrmSmpOffset*m_audinpFrameSize;
+                memcpy(m_audencfrm->data[0]+bufoffset, inpbuf, copySize);
+                m_audencfrmSmpOffset += (uint32_t)(copySize/m_audinpFrameSize);
+                readSize += copySize;
+            }
+
+            if (m_audencfrmSmpOffset >= m_audencfrm->nb_samples)
+            {
+                lock_guard<mutex> lk(m_audfrmQLock);
+                m_audfrmQ.push_back(m_audencfrm);
+                m_audfrmPts += m_audencfrm->nb_samples;
+                m_audencfrm = nullptr;
+                m_audencfrmSmpOffset = 0;
+            }
+        }
+        if (m_quit)
+            return false;
+
         return true;
     }
 
@@ -282,6 +446,29 @@ private:
         m_videnc = avcodec_find_encoder_by_name(codecName.c_str());
         if (!m_videnc)
         {
+            const AVCodecDescriptor* desc = avcodec_descriptor_get_by_name(codecName.c_str());
+            const AVCodec* best = nullptr;
+            if (desc)
+            {
+                void* i = 0;
+                const AVCodec* p;
+                while ((p = av_codec_iterate(&i)))
+                {
+                    if (p->id != desc->id)
+                        continue;
+                    if (!av_codec_is_encoder(p))
+                        continue;
+                    if ((p->capabilities&AV_CODEC_CAP_EXPERIMENTAL) != 0)
+                        continue;
+                    best = p;
+                    if (!m_vidPreferUseHw || p->hw_configs)
+                        break;
+                }
+            }
+            m_videnc = best;
+        }
+        if (!m_videnc)
+        {
             ostringstream oss;
             oss << "Can NOT find encoder by name '" << codecName << "'!";
             m_errMsg = oss.str();
@@ -338,16 +525,14 @@ private:
                 {
                     if (m_vidUseHwType == AV_HWDEVICE_TYPE_NONE || m_vidUseHwType == config->device_type)
                     {
-                        m_videncPixfmt = config->pix_fmt;
+                        if (config->pix_fmt != AV_PIX_FMT_NONE)
+                            m_videncPixfmt = config->pix_fmt;
                         m_viddecDevType = config->device_type;
                         break;
                     }
                 }
             }
             m_logger->Log(DEBUG) << "Use hardware device type '" << av_hwdevice_get_type_name(m_viddecDevType) << "'." << endl;
-
-            m_videncCtx->opaque = this;
-            m_videncCtx->get_format = get_hw_format;
 
             fferr = av_hwdevice_ctx_create(&m_videncHwDevCtx, m_viddecDevType, nullptr, nullptr, 0);
             if (fferr < 0)
@@ -368,7 +553,8 @@ private:
         if (!m_imgCvter.SetOutPixelFormat(m_videncPixfmt))
         {
             ostringstream oss;
-            oss << "FAILED to set 'ImMatToAVFrameConverter' with pixel-format '" << av_get_pix_fmt_name(m_videncPixfmt) << "'!";
+            const char* name = av_get_pix_fmt_name(m_videncPixfmt);
+            oss << "FAILED to set 'ImMatToAVFrameConverter' with pixel-format '" << (name ? name : "(null)") << "'!";
             m_errMsg = oss.str();
             return false;
         }
@@ -499,6 +685,9 @@ private:
             m_errMsg = FFapiFailureMessage("avcodec_open2", fferr);
             return false;
         }
+        m_logger->Log(DEBUG) << "Video encoder '" << m_videnc->name << "' is opened." << endl;
+
+        m_vmatQMaxSize = (uint32_t)(((double)m_videncCtx->framerate.num/m_videncCtx->framerate.den)*m_dataQCacheDur);
 
         m_vidAvStm = avformat_new_stream(m_avfmtCtx, m_videnc);
         if (!m_vidAvStm)
@@ -584,6 +773,7 @@ private:
 
         m_audencCtx->sample_fmt = m_audencSmpfmt;
         m_audencCtx->channels = channels;
+        m_audencCtx->channel_layout = av_get_default_channel_layout(channels);
         m_audencCtx->sample_rate = sampleRate;
         m_audencCtx->bit_rate = bitRate;
         m_audencCtx->time_base = { 1, (int)sampleRate };
@@ -595,6 +785,17 @@ private:
             m_errMsg = FFapiFailureMessage("avcodec_open2", fferr);
             return false;
         }
+        m_logger->Log(DEBUG) << "Audio encoder '" << m_audenc->name << "' is opened." << endl;
+
+
+        if (m_audencCtx->frame_size > 0)
+            m_audencFrameSamples = m_audencCtx->frame_size;
+        else
+            m_audencFrameSamples = 1024;
+        m_audinpFrameSize = av_get_bytes_per_sample(m_audinpSmpfmt)*channels;
+        m_audencFrameSize = av_get_bytes_per_sample(m_audencSmpfmt)*channels;
+
+        m_audfrmQMaxSize = (uint32_t)(m_dataQCacheDur*sampleRate/m_audencFrameSamples);
 
         m_audAvStm = avformat_new_stream(m_avfmtCtx, m_audenc);
         if (!m_audAvStm)
@@ -608,6 +809,28 @@ private:
         m_audAvStm->time_base = m_audencCtx->time_base;
         avcodec_parameters_from_context(m_audAvStm->codecpar, m_audencCtx);
 
+        if (m_audinpSmpfmt != m_audencSmpfmt)
+        {
+            m_swrCtx = swr_alloc_set_opts(nullptr, m_audencCtx->channel_layout, m_audencSmpfmt, m_audencCtx->sample_rate,
+                m_audencCtx->channel_layout, m_audinpSmpfmt, m_audencCtx->sample_rate, 0, nullptr);
+            if (!m_swrCtx)
+            {
+                m_errMsg = "FAILED to setup SwrContext for audio input format conversion!";
+                return false;
+            }
+            fferr = swr_init(m_swrCtx);
+            if (fferr < 0)
+            {
+                m_errMsg = FFapiFailureMessage("swr_init", fferr);
+                return false;
+            }
+        }
+        else if (m_swrCtx)
+        {
+            swr_free(&m_swrCtx);
+            m_swrCtx = nullptr;
+        }
+
         return true;
     }
 
@@ -620,10 +843,18 @@ private:
         }
         m_audenc = nullptr;
         m_audencSmpfmt = AV_SAMPLE_FMT_NONE;
+        m_audfrmPts = 0;
+        m_audencfrm = nullptr;
+        m_audencfrmSmpOffset = 0;
         m_audAvStm = nullptr;
         m_audStmIdx = -1;
         m_audinpEof = false;
         m_audencEof = false;
+        if (m_swrCtx)
+        {
+            swr_free(&m_swrCtx);
+            m_swrCtx = nullptr;
+        }
     }
 
     void StartAllThreads()
@@ -670,10 +901,10 @@ private:
 
     void VideoEncodingThreadProc()
     {
-        m_logger->Log(VERBOSE) << "Enter VideoEncodingThreadProc()..." << endl;
+        m_logger->Log(DEBUG) << "Enter VideoEncodingThreadProc()..." << endl;
 
         SelfFreeAVFramePtr encfrm;
-        while (m_quit)
+        while (!m_quit)
         {
             bool idleLoop = true;
 
@@ -701,6 +932,8 @@ private:
                 int fferr = avcodec_send_frame(m_videncCtx, encfrm.get());
                 if (fferr == 0)
                 {
+                    m_logger->Log(DEBUG) << "Encode video frame at "
+                        << MillisecToString(av_rescale_q(encfrm->pts, m_videncCtx->time_base, MILLISEC_TIMEBASE)) << "." << endl;
                     encfrm = nullptr;
                 }
                 else
@@ -715,21 +948,22 @@ private:
             }
 
             if (idleLoop)
-                this_thread::sleep_for(chrono::milliseconds(5));
+                this_thread::sleep_for(chrono::milliseconds(1));
         }
 
-        m_logger->Log(VERBOSE) << "Leave VideoEncodingThreadProc()." << endl;
+        m_logger->Log(DEBUG) << "Leave VideoEncodingThreadProc()." << endl;
     }
 
     void AudioEncodingThreadProc()
     {
-        m_logger->Log(VERBOSE) << "Enter AudioEncodingThreadProc()..." << endl;
+        m_logger->Log(DEBUG) << "Enter AudioEncodingThreadProc()..." << endl;
 
         SelfFreeAVFramePtr encfrm;
-        while (m_quit)
+        while (!m_quit)
         {
             bool idleLoop = true;
 
+            int fferr;
             if (!encfrm)
             {
                 if (!m_audfrmQ.empty())
@@ -740,43 +974,59 @@ private:
                 }
                 else if (m_audinpEof)
                 {
-                    avcodec_send_frame(m_audencCtx, nullptr);
-                    break;
+                    {
+                        lock_guard<mutex> lk(m_audencLock);
+                        fferr = avcodec_send_frame(m_audencCtx, nullptr);
+                    }
+                    if (fferr == 0)
+                    {
+                        m_logger->Log(DEBUG) << "Sent encode audio EOF." << endl;
+                        break;
+                    }
+                    else if (fferr != AVERROR(EAGAIN))
+                    {
+                        m_logger->Log(Error) << "Audio encoder ERROR! avcodec_send_frame(EOF) returns " << fferr << "." << endl;
+                        break;
+                    }
                 }
             }
 
             if (encfrm)
             {
-                int fferr = avcodec_send_frame(m_audencCtx, encfrm.get());
+                int fferr;
+                {
+                    lock_guard<mutex> lk(m_audencLock);
+                    fferr = avcodec_send_frame(m_audencCtx, encfrm.get());
+                }
                 if (fferr == 0)
                 {
+                    m_logger->Log(DEBUG) << "Encode audio frame at "
+                        << MillisecToString(av_rescale_q(encfrm->pts, m_audencCtx->time_base, MILLISEC_TIMEBASE))
+                        << "(" << encfrm->pts << ")." << endl;
                     encfrm = nullptr;
+                    idleLoop = false;
                 }
-                else
+                else if (fferr != AVERROR(EAGAIN))
                 {
-                    if (fferr != AVERROR(EAGAIN))
-                    {
-                        m_logger->Log(Error) << "Audio encoder ERROR! avcodec_send_frame() returns " << fferr << "." << endl;
-                        break;
-                    }
+                    m_logger->Log(Error) << "Audio encoder ERROR! avcodec_send_frame() returns " << fferr << "." << endl;
+                    break;
                 }
-                idleLoop = false;
             }
 
             if (idleLoop)
-                this_thread::sleep_for(chrono::milliseconds(5));
+                this_thread::sleep_for(chrono::milliseconds(1));
         }
 
-        m_logger->Log(VERBOSE) << "Leave AudioEncodingThreadProc()." << endl;
+        m_logger->Log(DEBUG) << "Leave AudioEncodingThreadProc()." << endl;
     }
 
     void MuxingThreadProc()
     {
-        m_logger->Log(VERBOSE) << "Enter MuxingThreadProc()..." << endl;
+        m_logger->Log(DEBUG) << "Enter MuxingThreadProc()..." << endl;
 
         AVPacket avpkt{0};
         bool avpktLoaded = false;
-        while (m_quit)
+        while (!m_quit)
         {
             bool idleLoop = true;
             int fferr;
@@ -788,6 +1038,7 @@ private:
                 {
                     avpkt.stream_index = m_vidStmIdx;
                     av_packet_rescale_ts(&avpkt, m_videncCtx->time_base, m_vidAvStm->time_base);
+                    avpktLoaded = true;
                     idleLoop = false;
                 }
                 else if (fferr == AVERROR_EOF)
@@ -804,11 +1055,15 @@ private:
 
             if (m_audencCtx && !m_audencEof && !avpktLoaded)
             {
-                fferr = avcodec_receive_packet(m_audencCtx, &avpkt);
+                {
+                    lock_guard<mutex> lk(m_audencLock);
+                    fferr = avcodec_receive_packet(m_audencCtx, &avpkt);
+                }
                 if (fferr == 0)
                 {
                     avpkt.stream_index = m_audStmIdx;
                     av_packet_rescale_ts(&avpkt, m_audencCtx->time_base, m_audAvStm->time_base);
+                    avpktLoaded = true;
                     idleLoop = false;
                 }
                 else if (fferr == AVERROR_EOF)
@@ -844,11 +1099,11 @@ private:
             }
 
             if (idleLoop)
-                this_thread::sleep_for(chrono::milliseconds(5));
+                this_thread::sleep_for(chrono::milliseconds(1));
         }
 
         m_muxEof = true;
-        m_logger->Log(VERBOSE) << "Leave MuxingThreadProc()." << endl;
+        m_logger->Log(DEBUG) << "Leave MuxingThreadProc()." << endl;
     }
 
 private:
@@ -878,10 +1133,20 @@ private:
     AVHWDeviceType m_viddecDevType{AV_HWDEVICE_TYPE_NONE};
     AVPixelFormat m_videncPixfmt{AV_PIX_FMT_NONE};
     AVCodecContext* m_audencCtx{nullptr};
+    mutex m_audencLock;
+    uint32_t m_audencFrameSamples{0};
+    uint32_t m_audinpFrameSize{0};
+    uint32_t m_audencFrameSize{0};
     AVSampleFormat m_audencSmpfmt{AV_SAMPLE_FMT_NONE};
+    AVSampleFormat m_audinpSmpfmt{AV_SAMPLE_FMT_FLT};
+    int64_t m_audfrmPts{0};
+    SelfFreeAVFramePtr m_audencfrm;
+    uint32_t m_audencfrmSmpOffset{0};
+    SwrContext* m_swrCtx{nullptr};
 
     ImMatToAVFrameConverter m_imgCvter;
 
+    double m_dataQCacheDur{5};
     // video encoding thread
     thread m_videncThread;
     list<ImGui::ImMat> m_vmatQ;
@@ -912,17 +1177,6 @@ ALogger* GetMediaEncoderLogger()
     if (!MediaEncoder_Impl::s_logger)
         MediaEncoder_Impl::s_logger = GetLogger("MEncoder");
     return MediaEncoder_Impl::s_logger;
-}
-
-static AVPixelFormat get_hw_format(AVCodecContext *ctx, const AVPixelFormat *pix_fmts)
-{
-    MediaEncoder_Impl* ms = reinterpret_cast<MediaEncoder_Impl*>(ctx->opaque);
-    const AVPixelFormat *p;
-    for (p = pix_fmts; *p != -1; p++) {
-        if (ms->CheckHwPixFmt(*p))
-            return *p;
-    }
-    return AV_PIX_FMT_NONE;
 }
 
 MediaEncoder* CreateMediaEncoder()
