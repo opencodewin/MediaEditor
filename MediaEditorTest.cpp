@@ -948,10 +948,6 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
                 {
                     ImGui::ImMatToTexture(pair.first, selected_clip->mFilterInputTexture);
                     ImGui::ImMatToTexture(pair.second, selected_clip->mFilterOutputTexture);
-                    if (selected_clip->bPlay)
-                    {
-                        selected_clip->Step(selected_clip->bForward);
-                    }
                 }
                 ImGuiIO& io = ImGui::GetIO();
                 float pos_x = 0, pos_y = 0;
@@ -1557,7 +1553,7 @@ void Application_GetWindowProperties(ApplicationWindowProperty& property)
     property.viewport = false;
     property.docking = false;
     property.auto_merge = false;
-    //property.power_save = false;
+    property.power_save = false;
     property.width = 1680;
     property.height = 1024;
 }
@@ -1652,6 +1648,10 @@ void Application_Initialize(void** handle)
     io.IniFilename = ini_file.c_str();
     Logger::GetDefaultLogger()->SetShowLevels(Logger::DEBUG);
     GetMediaReaderLogger()->SetShowLevels(Logger::DEBUG);
+    if (io.ConfigFlags & ImGuiConfigFlags_EnableLowRefreshMode)
+        ImGui::SetTableLabelBreathingSpeed(0.01, 0.5);
+    else
+        ImGui::SetTableLabelBreathingSpeed(0.005, 0.5);
     ImGui::ResetTabLabelStyle(ImGui::ImGuiTabLabelStyle_Dark, *tab_style);
     sequencer = new MediaSequencer();
     if (sequencer)

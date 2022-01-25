@@ -255,9 +255,8 @@ struct ClipInfo
     int64_t mStart  {0};
     int64_t mEnd    {0};
     int64_t mCurrent{0};
-    MediaInfo::Ratio mClipFrameRate {25, 1};// clip Frame rate  
+    MediaInfo::Ratio mClipFrameRate {25, 1};// clip Frame rate
     int64_t mLastTime {-1};
-    int64_t mCurrentFilterTime {-1};
     bool bPlay      {false};
     bool bForward   {true};
     bool bSeeking   {false};
@@ -274,7 +273,7 @@ struct ClipInfo
     ~ClipInfo();
     void UpdateSnapshot();
     void Seek();
-    void Step(bool forward);
+    void Step(bool forward, int64_t step = 0);
     bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame);
     ImTextureID mFilterInputTexture {nullptr};  // clip filter input texture
     ImTextureID mFilterOutputTexture {nullptr};  // clip filter output texture
