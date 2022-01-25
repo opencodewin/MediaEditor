@@ -695,10 +695,12 @@ bool AVFrameToImMatConverter::ConvertImage(const AVFrame* avfrm, ImGui::ImMat& o
         const AVPixFmtDescriptor* desc = av_pix_fmt_desc_get((AVPixelFormat)avfrm->format);
         if ((desc->flags&AV_PIX_FMT_FLAG_RGB) == 0)
         {
-            int bitDepth = inMat.type == IM_DT_INT8 ? 8 : inMat.type == IM_DT_INT16 ? 16 : 8;
-            int shiftBits = inMat.depth != 0 ? inMat.depth : inMat.type == IM_DT_INT8 ? 8 : inMat.type == IM_DT_INT16 ? 16 : 8;
             rgbMat.type = IM_DT_INT8;
-            m_imgClrCvt->YUV2RGBA(inMat, rgbMat, inMat.color_format, inMat.color_space, inMat.color_range, bitDepth, shiftBits);
+            if (!m_imgClrCvt->ConvertColorFormat(inMat, rgbMat))
+            {
+                m_errMsg = m_imgClrCvt->GetError();
+                return false;
+            }
         }
         else
         {
@@ -1016,18 +1018,17 @@ bool ImMatToAVFrameConverter::ConvertImage(ImGui::ImMat& vmat, AVFrame* avfrm, i
         bool isDstYuv = (m_pixDesc->flags&AV_PIX_FMT_FLAG_RGB) == 0;
         if (isSrcRgb && isDstYuv)
         {
-            int bitDepth = inMat.type == IM_DT_INT8 ? 8 : inMat.type == IM_DT_INT16 ? 16 : 8;
-            int shiftBits = inMat.depth != 0 ? inMat.depth : inMat.type == IM_DT_INT8 ? 8 : inMat.type == IM_DT_INT16 ? 16 : 8;
             ImGui::ImMat yuvMat;
             yuvMat.type = inMat.type;
-            if (inMat.device == IM_DD_CPU)
-                m_imgClrCvt->RGBA2YUV(inMat, yuvMat, m_outMatClrfmt, m_outMatClrspc, m_outMatClrrng, shiftBits);
-            else
-            {
-                ImGui::VkMat vkMat = inMat;
-                m_imgClrCvt->RGBA2YUV(vkMat, yuvMat, m_outMatClrfmt, m_outMatClrspc, m_outMatClrrng, shiftBits);
-            }
             yuvMat.color_format = m_outMatClrfmt;
+            yuvMat.color_space = m_outMatClrspc;
+            yuvMat.color_range = m_outMatClrrng;
+            if (!m_imgClrCvt->ConvertColorFormat(inMat, yuvMat))
+            {
+                m_errMsg = m_imgClrCvt->GetError();
+                return false;
+            }
+
             inMat = yuvMat;
         }
 #else
