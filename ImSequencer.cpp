@@ -19,7 +19,7 @@ static void frameStepTime(int64_t& time, int32_t offset, MediaInfo::Ratio rate)
 {
     if (rate.den && rate.num)
     {
-        int64_t frame_index = (int64_t)floor((double)time * (double)rate.num / (double)rate.den / 1000.0);
+        int64_t frame_index = (int64_t)floor((double)time * (double)rate.num / (double)rate.den / 1000.0 + 0.5);
         frame_index += offset;
         time = frame_index * 1000 * rate.den / rate.num;
     }

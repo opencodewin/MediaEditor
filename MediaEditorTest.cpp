@@ -1553,7 +1553,7 @@ void Application_GetWindowProperties(ApplicationWindowProperty& property)
     property.viewport = false;
     property.docking = false;
     property.auto_merge = false;
-    //property.power_save = false;
+    property.power_save = false;
     property.width = 1680;
     property.height = 1024;
 }
@@ -1648,6 +1648,10 @@ void Application_Initialize(void** handle)
     io.IniFilename = ini_file.c_str();
     Logger::GetDefaultLogger()->SetShowLevels(Logger::DEBUG);
     GetMediaReaderLogger()->SetShowLevels(Logger::DEBUG);
+    if (io.ConfigFlags & ImGuiConfigFlags_EnableLowRefreshMode)
+        ImGui::SetTableLabelBreathingSpeed(0.01, 0.5);
+    else
+        ImGui::SetTableLabelBreathingSpeed(0.005, 0.5);
     ImGui::ResetTabLabelStyle(ImGui::ImGuiTabLabelStyle_Dark, *tab_style);
     sequencer = new MediaSequencer();
     if (sequencer)
