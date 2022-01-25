@@ -6,11 +6,23 @@
 
 namespace ImSequencer
 {
-static void alignTime(int64_t& time, int64_t time_step)
+static void alignTime(int64_t& time, MediaInfo::Ratio rate)
 {
-    // has moving smooth issue?
-    auto align_time = floor(time / time_step) * time_step;
-    time = align_time;
+    if (rate.den && rate.num)
+    {
+        int64_t frame_index = (int64_t)floor((double)time * (double)rate.num / (double)rate.den / 1000.0);
+        time = frame_index * 1000 * rate.den / rate.num;
+    }
+}
+
+static void frameStepTime(int64_t& time, int32_t offset, MediaInfo::Ratio rate)
+{
+    if (rate.den && rate.num)
+    {
+        int64_t frame_index = (int64_t)floor((double)time * (double)rate.num / (double)rate.den / 1000.0);
+        frame_index += offset;
+        time = frame_index * 1000 * rate.den / rate.num;
+    }
 }
 
 static std::string MillisecToString(int64_t millisec, int show_millisec = 0)
@@ -1082,8 +1094,7 @@ bool ClipTimeLine(ClipInfo* clip)
     if (MovingCurrentTime && duration)
     {
         clip->mCurrent = (int64_t)((io.MousePos.x - topRect.Min.x) / msPixelWidth) + clip->mStart;
-        auto frame_interval = clip->mClipFrameRate.den * 1000 / clip->mClipFrameRate.num;
-        alignTime(clip->mCurrent, frame_interval);
+        alignTime(clip->mCurrent, clip->mClipFrameRate);
         if (clip->mCurrent < clip->mStart)
             clip->mCurrent = clip->mStart;
         if (clip->mCurrent >= clip->mEnd)
@@ -1772,8 +1783,8 @@ static int thread_preview(MediaSequencer * sequencer)
             auto it = sequencer->mFrame.end(); it--;
             current_time = it->time_stamp * 1000;
         }
-        auto frame_interval = sequencer->mFrameRate.den * 1000 / sequencer->mFrameRate.num;
-        alignTime(current_time, frame_interval);
+        const int64_t frame_delay = sequencer->mFrameRate.den * 1000 / sequencer->mFrameRate.num;
+        alignTime(current_time, sequencer->mFrameRate);
         sequencer->mFrameLock.unlock();
         while (sequencer->mFrame.size() < MAX_SEQUENCER_FRAME_NUMBER)
         {
@@ -1782,11 +1793,11 @@ static int thread_preview(MediaSequencer * sequencer)
             if (!sequencer->mFrame.empty())
             {
                 int64_t buffer_start = sequencer->mFrame.begin()->time_stamp * 1000;
-                int64_t buffer_end = sequencer->bForward ? buffer_start + frame_interval * MAX_SEQUENCER_FRAME_NUMBER : 
-                                                           buffer_start - frame_interval * MAX_SEQUENCER_FRAME_NUMBER ;
+                int64_t buffer_end = buffer_start;
+                frameStepTime(buffer_end, sequencer->bForward ? MAX_SEQUENCER_FRAME_NUMBER : -MAX_SEQUENCER_FRAME_NUMBER, sequencer->mFrameRate);
                 if (buffer_start > buffer_end)
                     std::swap(buffer_start, buffer_end);
-                if (sequencer->currentTime < buffer_start - frame_interval || sequencer->currentTime > buffer_end + frame_interval)
+                if (sequencer->currentTime < buffer_start - frame_delay || sequencer->currentTime > buffer_end + frame_delay)
                 {
                     ImGui::sleep((int)5);
                     break;
@@ -1796,7 +1807,7 @@ static int thread_preview(MediaSequencer * sequencer)
             for (auto &item : sequencer->m_Items)
             {
                 int64_t item_time = current_time - item->mStart + item->mStartOffset;
-                alignTime(item_time, frame_interval);
+                alignTime(item_time, sequencer->mFrameRate); // using item->mItemFrameRate ?
                 if (item_time >= item->mStartOffset && item_time <= item->mLength - item->mEndOffset)
                 {
                     bool valid_time = item->mView;
@@ -1837,7 +1848,7 @@ static int thread_preview(MediaSequencer * sequencer)
             sequencer->mFrameLock.unlock();
             if (sequencer->bForward)
             {
-                current_time += frame_interval;
+                frameStepTime(current_time, 1, sequencer->mFrameRate);
                 if (current_time > sequencer->mEnd)
                 {
                     if (sequencer->bLoop)
@@ -1853,7 +1864,7 @@ static int thread_preview(MediaSequencer * sequencer)
             }
             else
             {
-                current_time -= frame_interval;
+                frameStepTime(current_time, -1, sequencer->mFrameRate);
                 if (current_time < sequencer->mStart)
                 {
                     if (sequencer->bLoop)
@@ -1926,8 +1937,8 @@ static int thread_video_filter(MediaSequencer * sequencer)
             auto it = selected_clip->mFrame.end(); it--;
             current_time = it->first.time_stamp * 1000;
         }
-        auto frame_interval = selected_clip->mClipFrameRate.den * 1000 / selected_clip->mClipFrameRate.num;
-        alignTime(current_time, frame_interval);
+        const int64_t frame_delay = selected_clip->mClipFrameRate.den * 1000 / selected_clip->mClipFrameRate.num;
+        alignTime(current_time, selected_clip->mClipFrameRate);
         selected_clip->mFrameLock.unlock();
         while (selected_clip->mFrame.size() < MAX_SEQUENCER_FRAME_NUMBER)
         {
@@ -1936,11 +1947,11 @@ static int thread_video_filter(MediaSequencer * sequencer)
             if (!selected_clip->mFrame.empty())
             {
                 int64_t buffer_start = selected_clip->mFrame.begin()->first.time_stamp * 1000;
-                int64_t buffer_end = selected_clip->bForward ? buffer_start + frame_interval * MAX_SEQUENCER_FRAME_NUMBER : 
-                                                           buffer_start - frame_interval * MAX_SEQUENCER_FRAME_NUMBER ;
+                int64_t buffer_end = buffer_start;
+                frameStepTime(buffer_end, selected_clip->bForward ? MAX_SEQUENCER_FRAME_NUMBER : -MAX_SEQUENCER_FRAME_NUMBER, selected_clip->mClipFrameRate);
                 if (buffer_start > buffer_end)
                     std::swap(buffer_start, buffer_end);
-                if (selected_clip->mCurrent < buffer_start - frame_interval || selected_clip->mCurrent > buffer_end + frame_interval)
+                if (selected_clip->mCurrent < buffer_start - frame_delay || selected_clip->mCurrent > buffer_end + frame_delay)
                 {
                     ImGui::sleep((int)5);
                     break;
@@ -1964,13 +1975,13 @@ static int thread_video_filter(MediaSequencer * sequencer)
                     selected_clip->mFrameLock.unlock();
                     if (selected_clip->bForward)
                     {
-                        current_time += frame_interval;
+                        frameStepTime(current_time, 1, selected_clip->mClipFrameRate);
                         if (current_time > selected_clip->mEnd)
                             current_time = selected_clip->mEnd;
                     }
                     else
                     {
-                        current_time -= frame_interval;
+                        frameStepTime(current_time, -1, selected_clip->mClipFrameRate);
                         if (current_time < selected_clip->mStart)
                         {
                             current_time = selected_clip->mStart;
@@ -2721,8 +2732,7 @@ void MediaSequencer::SetCurrent(int64_t pos, bool rev)
 
 void MediaSequencer::AlignTime(int64_t& time)
 {
-    auto frame_interval = mFrameRate.den * 1000 / mFrameRate.num;
-    alignTime(time, frame_interval);
+    alignTime(time, mFrameRate);
 }
 
 void MediaSequencer::Seek()
@@ -2777,19 +2787,18 @@ void MediaSequencer::Play(bool play, bool forward)
 
 void MediaSequencer::Step(bool forward)
 {
-    auto frame_interval = mFrameRate.den * 1000 / mFrameRate.num;
     if (!bPlay && m_Items.size() > 0)
     {
         bForward = forward;
         if (forward)
         {
-            currentTime += frame_interval;
+            frameStepTime(currentTime, 1, mFrameRate);
             if (currentTime > mEnd)
                 currentTime = mEnd;
         }
         else
         {
-            currentTime -= frame_interval;
+            frameStepTime(currentTime, -1, mFrameRate);
             if (currentTime < mStart)
                 currentTime = mStart;
         }
@@ -3039,68 +3048,64 @@ void ClipInfo::Seek()
     mFrame.clear();
     mFrameLock.unlock();
     mLastTime = -1;
-    mCurrentFilterTime = -1;
     SequencerItem * item = (SequencerItem *)mItem;
     if (item && item->mMediaReaderVideo && item->mMediaReaderVideo->IsOpened())
     {
         int64_t item_time = mCurrent - item->mStart + item->mStartOffset;
-        auto frame_interval = item->mItemFrameRate.den * 1000 / item->mItemFrameRate.num;
-        alignTime(item_time, frame_interval);
+        alignTime(item_time, item->mItemFrameRate);
         item->mMediaReaderVideo->SeekTo((double)item_time / 1000.f);
     }
 }
 
 void ClipInfo::Step(bool forward, int64_t step)
 {
-    auto frame_interval = step > 0 ? step : mClipFrameRate.den * 1000 / mClipFrameRate.num;
-    std::cout << "[Dicky debug]:" << std::to_string(step) << std::endl;
     if (forward)
     {
         bForward = true;
-        mCurrent += frame_interval;
+        if (step > 0) mCurrent += step;
+        else frameStepTime(mCurrent, 1, mClipFrameRate);
         if (mCurrent >= mEnd)
         {
             mCurrent = mEnd;
             mLastTime = -1;
-            mCurrentFilterTime = -1;
             bPlay = false;
         }
     }
     else
     {
         bForward = false;
-        mCurrent -= frame_interval;
+        if (step > 0) mCurrent -= step;
+        else frameStepTime(mCurrent, -1, mClipFrameRate);
         if (mCurrent <= mStart)
         {
             mCurrent = mStart;
             mLastTime = -1;
-            mCurrentFilterTime = -1;
             bPlay = false;
         }
     }
+    //std::cout << "[Dicky Debug]:" << std::to_string(mCurrent) << " " << std::to_string(step) << std::endl;
 }
 
 bool ClipInfo::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame)
 {
-    if (mCurrentFilterTime == mCurrent || mFrame.empty())
+    if (mFrame.empty())
         return false;
-    double current_time = (double)mCurrent / 1000.f;
-    auto frame_interval = mClipFrameRate.den * 1000 / mClipFrameRate.num;
-    double buffer_start = mFrame.begin()->first.time_stamp;
-    double buffer_end = bForward ? buffer_start + frame_interval * MAX_SEQUENCER_FRAME_NUMBER : 
-                                    buffer_start - frame_interval * MAX_SEQUENCER_FRAME_NUMBER ;
+    auto frame_delay = mClipFrameRate.den * 1000 / mClipFrameRate.num;
+    int64_t buffer_start = mFrame.begin()->first.time_stamp * 1000;
+    int64_t buffer_end = buffer_start;
+    frameStepTime(buffer_end, bForward ? MAX_SEQUENCER_FRAME_NUMBER : -MAX_SEQUENCER_FRAME_NUMBER, mClipFrameRate);
     if (buffer_start > buffer_end)
         std::swap(buffer_start, buffer_end);
 
     bool out_of_range = false;
-    if (current_time < buffer_start - frame_interval || current_time > buffer_end + frame_interval)
+    if (mCurrent < buffer_start - frame_delay || mCurrent > buffer_end + frame_delay)
         out_of_range = true;
 
     for (auto pair = mFrame.begin(); pair != mFrame.end();)
     {
         bool need_erase = false;
-        int64_t time_diff = fabs(pair->first.time_stamp - current_time) * 1000;
-        if (time_diff > frame_interval)
+        int64_t time_diff = fabs(pair->first.time_stamp * 1000 - mCurrent);
+        if (time_diff > frame_delay)
             need_erase = true;
 
         if (need_erase || out_of_range)
@@ -3117,7 +3122,7 @@ bool ClipInfo::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame)
         else
         {
             in_out_frame = *pair;
-            mCurrentFilterTime = current_time;
+            // handle clip play event
             if (bPlay)
             {
                 bool need_step_time = false;
@@ -3126,7 +3131,7 @@ bool ClipInfo::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame)
                 if (mLastTime != -1)
                 {
                     step_time = current_system_time - mLastTime;
-                    if (step_time >= frame_interval)
+                    if (step_time >= frame_delay)
                         need_step_time = true;
                 }
                 else
@@ -3143,7 +3148,6 @@ bool ClipInfo::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame)
             else
             {
                 mLastTime = -1;
-                mCurrentFilterTime = -1;
             }
             break;
         }
