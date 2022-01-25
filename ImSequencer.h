@@ -274,7 +274,7 @@ struct ClipInfo
     ~ClipInfo();
     void UpdateSnapshot();
     void Seek();
-    void Step(bool forward);
+    void Step(bool forward, int64_t step = 0);
     bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame);
     ImTextureID mFilterInputTexture {nullptr};  // clip filter input texture
     ImTextureID mFilterOutputTexture {nullptr};  // clip filter output texture

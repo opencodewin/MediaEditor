@@ -3050,22 +3050,33 @@ void ClipInfo::Seek()
     }
 }
 
-void ClipInfo::Step(bool forward)
+void ClipInfo::Step(bool forward, int64_t step)
 {
-    auto frame_interval = mClipFrameRate.den * 1000 / mClipFrameRate.num;
+    auto frame_interval = step > 0 ? step : mClipFrameRate.den * 1000 / mClipFrameRate.num;
+    std::cout << "[Dicky debug]:" << std::to_string(step) << std::endl;
     if (forward)
     {
         bForward = true;
         mCurrent += frame_interval;
-        if (mCurrent > mEnd)
+        if (mCurrent >= mEnd)
+        {
             mCurrent = mEnd;
+            mLastTime = -1;
+            mCurrentFilterTime = -1;
+            bPlay = false;
+        }
     }
     else
     {
         bForward = false;
         mCurrent -= frame_interval;
-        if (mCurrent < mStart)
+        if (mCurrent <= mStart)
+        {
             mCurrent = mStart;
+            mLastTime = -1;
+            mCurrentFilterTime = -1;
+            bPlay = false;
+        }
     }
 }
 
@@ -3082,7 +3093,7 @@ bool ClipInfo::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame)
         std::swap(buffer_start, buffer_end);
 
     bool out_of_range = false;
-    if (current_time < buffer_start || current_time > buffer_end)
+    if (current_time < buffer_start - frame_interval || current_time > buffer_end + frame_interval)
         out_of_range = true;
 
     for (auto pair = mFrame.begin(); pair != mFrame.end();)
@@ -3110,29 +3121,24 @@ bool ClipInfo::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame)
             if (bPlay)
             {
                 bool need_step_time = false;
+                int64_t step_time = 0;
                 int64_t current_system_time = ImGui::get_current_time_usec() / 1000;
                 if (mLastTime != -1)
                 {
-                    int64_t step_time = current_system_time - mLastTime;
+                    step_time = current_system_time - mLastTime;
                     if (step_time >= frame_interval)
                         need_step_time = true;
                 }
+                else
+                {
+                    mLastTime = current_system_time;
+                    need_step_time = true;
+                }
                 if (need_step_time)
                 {
-                    if (bForward)
-                    {
-                        mCurrent += frame_interval;
-                        if (mCurrent > mEnd)
-                            mCurrent = mEnd;
-                    }
-                    else
-                    {
-                        mCurrent -= frame_interval;
-                        if (mCurrent < mStart)
-                            mCurrent = mStart;
-                    }
+                    Step(bForward, step_time);
+                    mLastTime = current_system_time;
                 }
-                mLastTime = current_system_time;
             }
             else
             {

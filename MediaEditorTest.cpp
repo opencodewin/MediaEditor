@@ -948,10 +948,6 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
                 {
                     ImGui::ImMatToTexture(pair.first, selected_clip->mFilterInputTexture);
                     ImGui::ImMatToTexture(pair.second, selected_clip->mFilterOutputTexture);
-                    if (selected_clip->bPlay)
-                    {
-                        selected_clip->Step(selected_clip->bForward);
-                    }
                 }
                 ImGuiIO& io = ImGui::GetIO();
                 float pos_x = 0, pos_y = 0;
