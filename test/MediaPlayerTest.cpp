@@ -411,7 +411,8 @@ bool Application_Frame(void * handle, bool app_will_quit)
             ImGui::ImGenerateOrUpdateTexture(g_texture, vmat.w, vmat.h, 4, (const unsigned char *)vmat.data);
 #else
             ImGui::VkMat in_RGB; in_RGB.type = IM_DT_INT8;
-            m_yuv2rgb->YUV2RGBA(vmat, in_RGB, vmat.color_format, vmat.color_space, vmat.color_range, video_depth, video_shift);
+            in_RGB.color_format = IM_CF_ABGR;
+            m_yuv2rgb->ConvertColorFormat(vmat, in_RGB);
             // if (vmat.color_space == IM_CS_BT2020) has_hdr = true; else has_hdr = false;
             // int lut_mode = vmat.flags & IM_MAT_FLAGS_VIDEO_HDR_HLG ? HDRHLG_SDR709 : vmat.flags & IM_MAT_FLAGS_VIDEO_HDR_PQ ? HDRPQ_SDR709 : NO_DEFAULT;
             ImGui::VkMat im_RGB; im_RGB.type = IM_DT_INT8;
