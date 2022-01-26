@@ -737,7 +737,7 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
     draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
     float clip_timeline_height = 100;
     float editor_main_height = window_size.y - clip_timeline_height - 4;
-    int selected_item = -1;
+    int selected_item_index = -1;
     float labelWidth = ImGui::CalcVerticalTabLabelsWidth() + 4;
     float video_view_width = window_size.x / 3;
     float video_editor_width = window_size.x - video_view_width - labelWidth;
@@ -747,11 +747,11 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
     {
         sequencer->Play(false, true);
         sequencer->mSequencerLock.lock();
-        selected_item = sequencer->selectedEntry;
+        selected_item_index = sequencer->selectedEntry;
         sequencer->mSequencerLock.unlock();
-        if (selected_item != -1 && selected_item < sequencer->m_Items.size())
+        if (selected_item_index != -1 && selected_item_index < sequencer->m_Items.size())
         {
-            SequencerItem * item = sequencer->m_Items[selected_item];
+            SequencerItem * item = sequencer->m_Items[selected_item_index];
             for (auto clip : item->mClips)
             {
                 if (clip->bSelected)

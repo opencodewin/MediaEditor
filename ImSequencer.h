@@ -263,13 +263,14 @@ struct ClipInfo
     bool bSeeking   {false};
     bool bDragOut   {false};
     bool bSelected  {false};
-    void * mItem    {nullptr};
+    int64_t mItemID {-1};
     MediaSnapshot* mSnapshot {nullptr};     // clip snapshot handle
     std::vector<Snapshot> mVideoSnapshots;  // clip snapshots, including texture and timestamp info
     std::mutex mFrameLock;                  // clip frame mutex
     std::list<std::pair<ImGui::ImMat, ImGui::ImMat>> mFrame;         // clip timeline input/output frame pair
     int mFrameCount    {0};                 // total snapshot number in clip range
     float mSnapshotWidth {0};
+    void * mHandle {nullptr};
     ClipInfo(int64_t start, int64_t end, bool drag_out, void* handle);
     ~ClipInfo();
     void UpdateSnapshot();
@@ -287,14 +288,15 @@ struct ClipInfo
 
 struct OverlapInfo
 {
-    int64_t mID     {-1};
-    int64_t mStart  {0};
-    int64_t mEnd    {0};
-    void * mItem    {nullptr};
-    void * mItemOverlap    {nullptr};
+    int64_t mID             {-1};
+    int64_t mStart          {0};
+    int64_t mEnd            {0};
+    int64_t mItemID         {-1};
+    int64_t mItemOverlapID  {-1};
     imgui_json::value mVideoFusionBP;
     imgui_json::value mAudioFusionBP;
     OverlapInfo(int64_t start, int64_t end, void* handle, void* Overlap);
+    OverlapInfo(int64_t start, int64_t end, int64_t item_id, int64_t overlap_id);
     ~OverlapInfo();
     static OverlapInfo * Load(const imgui_json::value& value, void * handle);
     void Save(imgui_json::value& value);
@@ -302,6 +304,7 @@ struct OverlapInfo
 
 struct SequencerItem
 {
+    int64_t mID         {-1};               // item ID
     std::string mName;                      // item name
     std::string mPath;                      // item media path
     unsigned int mColor {0};                // item view color
@@ -431,6 +434,7 @@ struct MediaSequencer : public SequencerInterface
 
     std::vector<MediaItem *> media_items;       // Media Bank
     MediaItem* FindMediaItemByName(std::string name);   // Find media from bank
+    SequencerItem * FindItemByID(int64_t id);
     
     bool IsItemValid(SequencerItem * item);
 
