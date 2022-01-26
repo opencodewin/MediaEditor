@@ -467,7 +467,7 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int sequenceOption
                 draw_list->AddRectFilled(slotP1, slotP3, slotColorHalf, 0);
                 draw_list->AddRectFilled(slotP1, slotP2, slotColor, 0);
             }
-            if (isFocused && ImRect(slotP1, slotP2).Contains(io.MousePos) && io.MouseDoubleClicked[0])
+            if (ImRect(slotP1, slotP2).Contains(io.MousePos) && io.MouseDoubleClicked[0])
             {
                 sequencer->DoubleClick(i);
             }
@@ -834,6 +834,12 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int sequenceOption
             }
             customHeight += localCustomHeight;
         }
+
+        // calculate item overlay
+        for (int i = 0; i < itemCount; i++)
+        {
+            sequencer->Update(i);
+        }        
 
         // draw custom
         draw_list->PushClipRect(childFramePos, childFramePos + childFrameSize);
@@ -1479,7 +1485,7 @@ void SequencerItem::CalculateVideoSnapshotInfo(const ImRect &customRect, int64_t
         frame_count++; // one more frame for end
         if (mSnapshotLendth != clip_duration || mLastValidSnapshot < mValidViewSnapshot || (int)frame_count != mVideoSnapshotInfos.size() || fabs(frame_count - mFrameCount) > 1e-2)
         {
-            //fprintf(stderr, "[Dicky Debug] Update snapinfo\n");
+            //fprintf(stderr, "[Dicky Debug] update snapinfo\n");
             double window_size = mValidViewSnapshot * snapshot_duration / 1000.0;
             mSnapshot->ConfigSnapWindow(window_size, mValidViewSnapshot);
             mLastValidSnapshot = mValidViewSnapshot;
@@ -2310,7 +2316,7 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
     // clippingRect: current view window area
     // legendRect: legend area
     // legendClippingRect: legend area
-
+    ImGuiIO &io = ImGui::GetIO();
     SequencerItem *item = m_Items[index];
     if (need_update) item->CalculateVideoSnapshotInfo(rc, viewStartTime, visibleTime);
     if (item->mVideoSnapshotInfos.size() == 0) return;
@@ -2512,7 +2518,7 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
     // draw clip
     if (item->mClips.size() > 1)
     {
-        ImGuiIO &io = ImGui::GetIO();
+        // mClips[0] is Global clip which is whole media item
         draw_list->PushClipRect(clippingRect.Min, clippingRect.Max, true);
         bool mouse_clicked = false;
         for (auto clip : item->mClips)
@@ -2588,6 +2594,50 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
                 {
                     draw_list->AddRectFilled(clip_pos_min, clip_pos_max, IM_COL32(64,32,32,192));
                 }
+            }
+        }
+        draw_list->PopClipRect();
+    }
+
+    // draw overlap
+    if (item->mOverlap.size() > 0)
+    {
+        draw_list->PushClipRect(clippingRect.Min, clippingRect.Max, true);
+        for (auto overlap : item->mOverlap)
+        {
+            bool draw_overlap = false;
+            float cursor_start = 0;
+            float cursor_end  = 0;
+            if (overlap->mStart >= viewStartTime && overlap->mEnd < viewStartTime + visibleTime)
+            {
+                cursor_start = clippingRect.Min.x + (overlap->mStart - viewStartTime) * pixelWidth;
+                cursor_end = clippingRect.Min.x + (overlap->mEnd - viewStartTime) * pixelWidth;
+                draw_overlap = true;
+            }
+            else if (overlap->mStart >= viewStartTime && overlap->mStart <= viewStartTime + visibleTime && overlap->mEnd >= viewStartTime + visibleTime)
+            {
+                cursor_start = clippingRect.Min.x + (overlap->mStart - viewStartTime) * pixelWidth;
+                cursor_end = clippingRect.Max.x;
+                draw_overlap = true;
+            }
+            else if (overlap->mStart <= viewStartTime && overlap->mEnd <= viewStartTime + visibleTime)
+            {
+                cursor_start = clippingRect.Min.x;
+                cursor_end = clippingRect.Min.x + (overlap->mEnd - viewStartTime) * pixelWidth;
+                draw_overlap = true;
+            }
+            else if (overlap->mStart <= viewStartTime && overlap->mEnd >= viewStartTime + visibleTime)
+            {
+                cursor_start = clippingRect.Min.x;
+                cursor_end  = clippingRect.Max.x;
+                draw_overlap = true;
+            }
+            if (draw_overlap && cursor_end > cursor_start)
+            {
+                ImVec2 overlap_pos_min = ImVec2(cursor_start, clippingRect.Min.y);
+                ImVec2 overlap_pos_max = ImVec2(cursor_end, clippingRect.Max.y);
+                ImRect overlap_rect(overlap_pos_min, overlap_pos_max);
+                draw_list->AddRectFilled(overlap_pos_min, overlap_pos_max, IM_COL32(128,128,32,128));
             }
         }
         draw_list->PopClipRect();
@@ -2733,6 +2783,74 @@ void MediaSequencer::SetCurrent(int64_t pos, bool rev)
 void MediaSequencer::AlignTime(int64_t& time)
 {
     alignTime(time, mFrameRate);
+}
+
+void MediaSequencer::Update(int index)
+{
+    SequencerItem *item = m_Items[index];
+    // Overlap update
+    // first check all overlap item is still valid
+    for (auto it = item->mOverlap.begin(); it != item->mOverlap.end();)
+    {
+        SequencerItem *item_ = (SequencerItem *)((*it)->mItem);
+        SequencerItem *item_overlay = (SequencerItem *)((*it)->mItemOverlap);
+        if (item_ != item || !IsItemValid(item_overlay))
+        {
+            it = item->mOverlap.erase(it);
+        }
+        else
+            it++;
+    }
+    // second check all overlap is still overlap
+    for (auto it = item->mOverlap.begin(); it != item->mOverlap.end();)
+    {
+        SequencerItem *item_overlay = (SequencerItem *)((*it)->mItemOverlap);
+        auto start_1 = item->mStart;
+        auto end_1 = item->mEnd;
+        auto start_2 = item_overlay->mStart;
+        auto end_2 = item_overlay->mEnd;
+        auto new_start = std::max(start_1, start_2);
+        auto new_end = std::min(end_1, end_2);
+        if (new_start >= new_end)
+        {
+            // no overlap
+            it = item->mOverlap.erase(it);
+        }
+        else
+        {
+            // update overlap
+            (*it)->mStart = new_start;
+            (*it)->mEnd = new_end;
+            it++;
+        }
+    }
+    // then we need check new overlap
+    for (auto it : m_Items)
+    {
+        if (it == item)
+            continue;
+        auto new_start = std::max(item->mStart, it->mStart);
+        auto new_end = std::min(item->mEnd, it->mEnd);
+        if (new_start < new_end)
+        {
+            // has overlap, check it is new
+            bool found = false;
+            for (auto overlap : item->mOverlap)
+            {
+                if (it == overlap->mItemOverlap)
+                {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found)
+            {
+                // add new overlay
+                OverlapInfo * new_overlap = new OverlapInfo(new_start, new_end, item, it);
+                item->mOverlap.push_back(new_overlap);
+            }
+        }
+    }
 }
 
 void MediaSequencer::Seek()
@@ -2976,6 +3094,20 @@ MediaItem* MediaSequencer::FindMediaItemByName(std::string name)
     return nullptr;
 }
 
+bool MediaSequencer::IsItemValid(SequencerItem * item)
+{
+    bool valid = false;
+    for (auto item_ : m_Items)
+    {
+        if (item_ == item)
+        {
+            valid = true;
+            break;
+        }
+    }
+    return valid;
+}
+
 /***********************************************************************************************************
  * ClipInfo Struct Member Functions
  ***********************************************************************************************************/
@@ -3206,12 +3338,7 @@ ClipInfo * ClipInfo::Load(const imgui_json::value& value, void * handle)
             auto& val = value["VideoFilterBP"];
             if (val.is_object()) new_clip->mVideoFilterBP = val;
         }
-        // load video transition bp
-        if (value.contains("VideoTransitionBP"))
-        {
-            auto& val = value["VideoTransitionBP"];
-            if (val.is_object()) new_clip->mFusionBP = val;
-        }
+
         // load audio filter bp
         if (value.contains("AudioFilterBP"))
         {
@@ -3231,11 +3358,7 @@ void ClipInfo::Save(imgui_json::value& value)
     {
         value["VideoFilterBP"] = mVideoFilterBP;
     }
-    // save clip video transition bp
-    if (mFusionBP.is_object())
-    {
-        value["VideoTransitionBP"] = mFusionBP;
-    }
+
     // save clip audio filter bp
     if (mAudioFilterBP.is_object())
     {
@@ -3250,6 +3373,40 @@ void ClipInfo::Save(imgui_json::value& value)
     value["Forward"] = imgui_json::boolean(bForward);
     value["DragOut"] = imgui_json::boolean(bDragOut);
 }
+
+/***********************************************************************************************************
+ * OverlapInfo Struct Member Functions
+ ***********************************************************************************************************/
+OverlapInfo::OverlapInfo(int64_t start, int64_t end, void* handle, void* Overlap)
+{
+    mID = ImGui::get_current_time_usec(); // sample using system time stamp for OverlapInfo ID
+    mStart = start; 
+    mEnd = end;
+    mItem = handle;
+    mItemOverlap = Overlap;
+}
+
+OverlapInfo::~OverlapInfo()
+{
+
+}
+
+OverlapInfo * OverlapInfo::Load(const imgui_json::value& value, void * handle)
+{
+    OverlapInfo * new_overlap = nullptr;
+    SequencerItem * item = (SequencerItem *)handle;
+    if (!item)
+        return new_overlap;
+
+    // TODO::Dicky add load code
+    return new_overlap;
+}
+
+void OverlapInfo::Save(imgui_json::value& value)
+{
+    // TODO::Dicky add save code
+}
+
 /***********************************************************************************************************
  * SequencerPcmStream class Member Functions
  ***********************************************************************************************************/

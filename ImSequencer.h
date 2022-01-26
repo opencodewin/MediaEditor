@@ -213,6 +213,7 @@ struct SequencerInterface
     virtual bool GetItemSelected(int /*index*/) const = 0;
     virtual void SetItemSelected(int /*index*/) {};
     virtual void DoubleClick(int /*index*/) {}
+    virtual void Update(int /*index*/) {}
     virtual void CustomDraw(int /*index*/, ImDrawList * /*draw_list*/, const ImRect & /*rc*/, const ImRect & /*titleRect*/, const ImRect & /*clippingTitleRect*/, const ImRect & /*legendRect*/, const ImRect & /*clippingRect*/, const ImRect & /*legendClippingRect*/, int64_t /* viewStartTime */, int64_t /* visibleTime */, float /*pixelWidth*/, bool /* need_update */) {}
     virtual void CustomDrawCompact(int /*index*/, ImDrawList * /*draw_list*/, const ImRect & /*rc*/, const ImRect & /*legendRect*/, const ImRect & /*clippingRect*/, int64_t /*viewStartTime*/, int64_t /*visibleTime*/, float /*pixelWidth*/) {}
 };
@@ -279,9 +280,23 @@ struct ClipInfo
     ImTextureID mFilterOutputTexture {nullptr};  // clip filter output texture
     imgui_json::value mVideoFilterBP;
     imgui_json::value mAudioFilterBP;
-    imgui_json::value mFusionBP;
 
     static ClipInfo * Load(const imgui_json::value& value, void * handle);
+    void Save(imgui_json::value& value);
+};
+
+struct OverlapInfo
+{
+    int64_t mID     {-1};
+    int64_t mStart  {0};
+    int64_t mEnd    {0};
+    void * mItem    {nullptr};
+    void * mItemOverlap    {nullptr};
+    imgui_json::value mVideoFusionBP;
+    imgui_json::value mAudioFusionBP;
+    OverlapInfo(int64_t start, int64_t end, void* handle, void* Overlap);
+    ~OverlapInfo();
+    static OverlapInfo * Load(const imgui_json::value& value, void * handle);
     void Save(imgui_json::value& value);
 };
 
@@ -321,7 +336,8 @@ struct SequencerItem
     std::vector<VideoSnapshotInfo> mVideoSnapshotInfos; // item snapshots info, with all croped range
     std::vector<Snapshot> mVideoSnapshots;  // item snapshots, including texture and timestamp info
     std::vector<int64_t> mCutPoint;         // item cut points info
-    std::vector<ClipInfo *> mClips;           // item clips info
+    std::vector<ClipInfo *> mClips;         // item clips info
+    std::vector<OverlapInfo *> mOverlap;    // item overlap with others
     void Initialize(const std::string& name, MediaParserHolder parser_holder, MediaOverview::WaveformHolder wave_holder, int64_t start, int64_t end, bool expand, int type);
     SequencerItem(const std::string& name, MediaItem * media_item, int64_t start, int64_t end, bool expand, int type);
     SequencerItem(const std::string& name, SequencerItem * sequencer_item, int64_t start, int64_t end, bool expand, int type);
@@ -365,6 +381,7 @@ struct MediaSequencer : public SequencerInterface
     void Seek();
     size_t GetCustomHeight(int index) { return m_Items[index]->mExpanded ? mItemHeight : 0; }
     void DoubleClick(int index) { m_Items[index]->mExpanded = !m_Items[index]->mExpanded; }
+    void Update(int index);
     void CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &titleRect, const ImRect &clippingTitleRect, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRect, int64_t viewStartTime, int64_t visibleTime, float pixelWidth, bool need_update);
     void CustomDrawCompact(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &legendRect, const ImRect &clippingRect, int64_t viewStartTime, int64_t visibleTime, float pixelWidth);
     ImGui::ImMat GetPreviewFrame();
@@ -414,6 +431,8 @@ struct MediaSequencer : public SequencerInterface
 
     std::vector<MediaItem *> media_items;       // Media Bank
     MediaItem* FindMediaItemByName(std::string name);   // Find media from bank
+    
+    bool IsItemValid(SequencerItem * item);
 
     int Load(const imgui_json::value& value);
     void Save(imgui_json::value& value);
