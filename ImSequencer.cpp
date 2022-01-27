@@ -2016,7 +2016,7 @@ static int thread_video_filter(MediaSequencer * sequencer)
                 result.first.time_stamp = (double)current_time / 1000.f;
                 sequencer->mBluePrintLock.lock();
                 if (sequencer->mVideoFilterBluePrint && 
-                    sequencer->mVideoFilterBluePrint->Blueprint_Run(result.first, result.second))
+                    sequencer->mVideoFilterBluePrint->Blueprint_RunFilter(result.first, result.second))
                 {
                     selected_clip->mFrameLock.lock();
                     selected_clip->mFrame.push_back(result);
