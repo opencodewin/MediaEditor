@@ -324,13 +324,15 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int sequenceOption
         }
         if (MovingCurrentTime && duration)
         {
+            auto old_time = sequencer->currentTime;
             sequencer->currentTime = (int64_t)((io.MousePos.x - topRect.Min.x) / msPixelWidth) + firstTimeUsed;
             sequencer->AlignTime(sequencer->currentTime);
             if (sequencer->currentTime < sequencer->GetStart())
                 sequencer->currentTime = sequencer->GetStart();
             if (sequencer->currentTime >= sequencer->GetEnd())
                 sequencer->currentTime = sequencer->GetEnd();
-            sequencer->Seek(); // call seek event
+            if (old_time != sequencer->currentTime)
+                sequencer->Seek(); // call seek event
         }
         if (sequencer->bSeeking && !io.MouseDown[0])
         {
@@ -1105,13 +1107,15 @@ bool ClipTimeLine(ClipInfo* clip)
     }
     if (MovingCurrentTime && duration)
     {
+        auto old_time = clip->mCurrent;
         clip->mCurrent = (int64_t)((io.MousePos.x - topRect.Min.x) / msPixelWidth) + clip->mStart;
         alignTime(clip->mCurrent, clip->mClipFrameRate);
         if (clip->mCurrent < clip->mStart)
             clip->mCurrent = clip->mStart;
         if (clip->mCurrent >= clip->mEnd)
             clip->mCurrent = clip->mEnd;
-        clip->Seek(); // call seek event
+        if (old_time != clip->mCurrent)
+            clip->Seek(); // call seek event
     }
     if (clip->bSeeking && !io.MouseDown[0])
     {
@@ -1492,7 +1496,6 @@ void SequencerItem::CalculateVideoSnapshotInfo(const ImRect &customRect, int64_t
         frame_count++; // one more frame for end
         if (mSnapshotLendth != clip_duration || mLastValidSnapshot < mValidViewSnapshot || (int)frame_count != mVideoSnapshotInfos.size() || fabs(frame_count - mFrameCount) > 1e-2)
         {
-            //fprintf(stderr, "[Dicky Debug] update snapinfo\n");
             double window_size = mValidViewSnapshot * snapshot_duration / 1000.0;
             mSnapshot->ConfigSnapWindow(window_size, mValidViewSnapshot);
             mLastValidSnapshot = mValidViewSnapshot;
@@ -3313,7 +3316,6 @@ void ClipInfo::Step(bool forward, int64_t step)
             bPlay = false;
         }
     }
-    //std::cout << "[Dicky Debug]:" << std::to_string(mCurrent) << " " << std::to_string(step) << std::endl;
 }
 
 bool ClipInfo::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame)
