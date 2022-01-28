@@ -777,7 +777,7 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
             if (sequencer->mVideoFilterBluePrint && sequencer->mVideoFilterBluePrint->m_Document)
             {                
                 sequencer->mBluePrintLock.lock();
-                sequencer->mVideoFilterBluePrint->File_New(selected_clip->mVideoFilterBP, ImVec2(video_editor_width, editor_main_height), "VideoFilter");
+                sequencer->mVideoFilterBluePrint->File_New_Filter(selected_clip->mVideoFilterBP, ImVec2(video_editor_width, editor_main_height), "VideoFilter");
                 sequencer->mVideoFilterNeedUpdate = true;
                 sequencer->mBluePrintLock.unlock();
             }
@@ -785,7 +785,7 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
         else if (selected_clip && sequencer->mVideoFilterBluePrint && last_clip == -1)
         {
             sequencer->mBluePrintLock.lock();
-            sequencer->mVideoFilterBluePrint->File_New(selected_clip->mVideoFilterBP, ImVec2(video_editor_width, editor_main_height), "VideoFilter");
+            sequencer->mVideoFilterBluePrint->File_New_Filter(selected_clip->mVideoFilterBP, ImVec2(video_editor_width, editor_main_height), "VideoFilter");
             sequencer->mBluePrintLock.unlock();
         }
         if (selected_clip)
