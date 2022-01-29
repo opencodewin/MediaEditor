@@ -687,7 +687,7 @@ static void ShowVideoBluePrintWindow(ImDrawList *draw_list, ClipInfo * clip)
         ImGui::SetCursorScreenPos(window_pos);
         if (ImGui::BeginChild("##video_editor_blueprint", window_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
         {
-            sequencer->mVideoFilterBluePrint->Frame(true, true, clip != nullptr);
+            sequencer->mVideoFilterBluePrint->Frame(true, true, clip != nullptr, BluePrint::BluePrintFlag::BluePrintFlag_Filter);
         }
         ImGui::EndChild();
     }
