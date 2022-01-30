@@ -2014,7 +2014,7 @@ static int thread_video_filter(MediaSequencer * sequencer)
             if (item->mMediaReaderVideo->ReadVideoFrame((float)current_time / 1000.0, result.first, eof))
             {
                 result.first.time_stamp = (double)current_time / 1000.f;
-                sequencer->mBluePrintLock.lock();
+                sequencer->mVideoFilterBluePrintLock.lock();
                 if (sequencer->mVideoFilterBluePrint && 
                     sequencer->mVideoFilterBluePrint->Blueprint_RunFilter(result.first, result.second))
                 {
@@ -2036,7 +2036,7 @@ static int thread_video_filter(MediaSequencer * sequencer)
                         }
                     }
                 }
-                sequencer->mBluePrintLock.unlock();
+                sequencer->mVideoFilterBluePrintLock.unlock();
             }
         }
     }
@@ -2061,6 +2061,15 @@ MediaSequencer::MediaSequencer()
         callbacks.BluePrintOnChanged = OnBluePrintChange;
         mVideoFilterBluePrint->Initialize();
         mVideoFilterBluePrint->SetCallbacks(callbacks, this);
+    }
+
+    mVideoFusionBluePrint = new BluePrint::BluePrintUI();
+    if (mVideoFusionBluePrint)
+    {
+        BluePrint::BluePrintCallbackFunctions callbacks;
+        callbacks.BluePrintOnChanged = OnBluePrintChange;
+        mVideoFusionBluePrint->Initialize();
+        mVideoFusionBluePrint->SetCallbacks(callbacks, this);
     }
 
     mPreviewThread = new std::thread(thread_preview, this);
@@ -2106,6 +2115,11 @@ MediaSequencer::~MediaSequencer()
         mVideoFilterBluePrint->Finalize();
         delete mVideoFilterBluePrint;
     }
+    if (mVideoFusionBluePrint)
+    {
+        mVideoFusionBluePrint->Finalize();
+        delete mVideoFusionBluePrint;
+    }
     for (auto item : media_items) delete item;
 }
 
@@ -2129,6 +2143,9 @@ int MediaSequencer::OnBluePrintChange(int type, std::string name, void* handle)
         {
             sequencer->mVideoFilterNeedUpdate = true;
         }
+    }
+    if (name.compare("VideoFusion") == 0)
+    {
     }
 
     return ret;

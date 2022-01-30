@@ -770,23 +770,23 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
             if (clip)
             {
                 // save current BP document to last clip
-                sequencer->mBluePrintLock.lock();
+                sequencer->mVideoFilterBluePrintLock.lock();
                 clip->mVideoFilterBP = sequencer->mVideoFilterBluePrint->m_Document->Serialize();
-                sequencer->mBluePrintLock.unlock();
+                sequencer->mVideoFilterBluePrintLock.unlock();
             }
             if (sequencer->mVideoFilterBluePrint && sequencer->mVideoFilterBluePrint->m_Document)
             {                
-                sequencer->mBluePrintLock.lock();
+                sequencer->mVideoFilterBluePrintLock.lock();
                 sequencer->mVideoFilterBluePrint->File_New_Filter(selected_clip->mVideoFilterBP, ImVec2(video_editor_width, editor_main_height), "VideoFilter");
                 sequencer->mVideoFilterNeedUpdate = true;
-                sequencer->mBluePrintLock.unlock();
+                sequencer->mVideoFilterBluePrintLock.unlock();
             }
         }
         else if (selected_clip && sequencer->mVideoFilterBluePrint && last_clip == -1)
         {
-            sequencer->mBluePrintLock.lock();
+            sequencer->mVideoFilterBluePrintLock.lock();
             sequencer->mVideoFilterBluePrint->File_New_Filter(selected_clip->mVideoFilterBP, ImVec2(video_editor_width, editor_main_height), "VideoFilter");
-            sequencer->mBluePrintLock.unlock();
+            sequencer->mVideoFilterBluePrintLock.unlock();
         }
         if (selected_clip)
         {
@@ -821,7 +821,7 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
         }
         ImGui::EndChild();
         ImGui::SetCursorScreenPos(clip_window_pos + ImVec2(video_editor_width + labelWidth, 0));
-        if (ImGui::BeginChild("##video_view", ImVec2(video_view_width, clip_window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+        if (ImGui::BeginChild("##filter_video_view", ImVec2(video_view_width, clip_window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
         {
             ImVec2 video_view_window_pos = ImGui::GetCursorScreenPos();
             ImVec2 video_view_window_size = ImGui::GetWindowSize();
@@ -1049,16 +1049,135 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
     ImGui::EndChild();
 }
 
+static void ShowFusionBluePrintWindow(ImDrawList *draw_list, OverlapInfo * overlap)
+{
+    if (sequencer && sequencer->mVideoFusionBluePrint)
+    {
+        ImVec2 window_pos = ImGui::GetCursorScreenPos();
+        ImVec2 window_size = ImGui::GetWindowSize();
+        ImGui::InvisibleButton("video_fusion_blueprint_back_view", window_size);
+        if (ImGui::BeginDragDropTarget() && sequencer->mVideoFusionBluePrint->Blueprint_IsValid())
+        {
+            if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("Fusion_drag_drop"))
+            {
+                BluePrint::NodeTypeInfo * type = (BluePrint::NodeTypeInfo *)payload->Data;
+                if (type)
+                {
+                    sequencer->mVideoFusionBluePrint->Edit_Insert(type->m_ID);
+                }
+            }
+            ImGui::EndDragDropTarget();
+        }
+        ImGui::SetCursorScreenPos(window_pos);
+        if (ImGui::BeginChild("##video_fusion_blueprint", window_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+        {
+            sequencer->mVideoFusionBluePrint->Frame(true, true, overlap != nullptr, BluePrint::BluePrintFlag::BluePrintFlag_Fusion);
+        }
+        ImGui::EndChild();
+    }
+}
+
 static void ShowVideoFusionWindow(ImDrawList *draw_list)
 {
-    ImGui::SetWindowFontScale(1.2);
-    ImGui::Indent(20);
-    ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4, 0.4, 0.8, 0.8));
-    ImGui::TextUnformatted("Video Fusion");
-    ImGui::PopStyleColor();
-    ImGui::PopStyleVar();
-    ImGui::SetWindowFontScale(1.0);
+    ImVec2 window_pos = ImGui::GetCursorScreenPos();
+    ImVec2 window_size = ImGui::GetWindowSize();
+    draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
+    float fusion_timeline_height = 200;
+    float video_view_width = window_size.x / 3;
+    float video_fusion_width = window_size.x - video_view_width;
+    if (ImGui::BeginChild("##video_fusion_main", ImVec2(video_fusion_width, window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+    {
+        ImVec2 fusion_window_pos = ImGui::GetCursorScreenPos();
+        ImVec2 fusion_window_size = ImGui::GetWindowSize();
+        if (ImGui::BeginChild("##video_fusion_views", ImVec2(video_fusion_width, fusion_window_size.y - fusion_timeline_height), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+        {
+            ImVec2 fusion_view_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 fusion_view_window_size = ImGui::GetWindowSize();
+            draw_list->AddRectFilled(fusion_view_window_pos, fusion_view_window_pos + fusion_view_window_size, COL_DARK_ONE);
+            ShowFusionBluePrintWindow(draw_list, nullptr);
+        }
+        ImGui::EndChild();
+        if (ImGui::BeginChild("##video_fusion_timeline", ImVec2(video_fusion_width, fusion_timeline_height), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+        {
+            ImVec2 fusion_timeline_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 fusion_timeline_window_size = ImGui::GetWindowSize();
+            draw_list->AddRectFilled(fusion_timeline_window_pos, fusion_timeline_window_pos + fusion_timeline_window_size, COL_DARK_TWO);
+        }
+        ImGui::EndChild();
+    }
+    ImGui::EndChild();
+    ImGui::SetCursorScreenPos(window_pos + ImVec2(video_fusion_width, 0));
+    if (ImGui::BeginChild("##fusion_video_view", ImVec2(video_view_width, window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+    {
+        ImVec2 video_view_window_pos = ImGui::GetCursorScreenPos();
+        ImVec2 video_view_window_size = ImGui::GetWindowSize();
+        draw_list->AddRectFilled(video_view_window_pos, video_view_window_pos + video_view_window_size, COL_DEEP_DARK);
+
+        // Draw Video Filter Play control bar
+        ImVec2 PanelBarPos = video_view_window_pos + ImVec2(0, (video_view_window_size.y - 36) * 2 / 3);
+        ImVec2 PanelBarSize = ImVec2(video_view_window_size.x, 36);
+        draw_list->AddRectFilled(PanelBarPos, PanelBarPos + PanelBarSize, COL_DARK_PANEL);
+
+        // Preview buttons Stop button is center of Panel bar
+        auto PanelCenterX = PanelBarPos.x + video_view_window_size.x / 2;
+        auto PanelButtonY = PanelBarPos.y + 2;
+
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0.5));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.2, 0.2, 0.2, 1.0));
+
+        ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32 - 8 - 32 - 8 - 32, PanelButtonY));
+        if (ImGui::Button(ICON_TO_START "##video_fusion_tostart", ImVec2(32, 32)))
+        {
+            // TODO::Dicky
+        }
+        ImGui::ShowTooltipOnHover("To Start");
+        
+        ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32 - 8 - 32, PanelButtonY));
+        if (ImGui::Button(ICON_STEP_BACKWARD "##video_fusion_step_backward", ImVec2(32, 32)))
+        {
+            // TODO::Dicky
+        }
+        ImGui::ShowTooltipOnHover("Step Prev");
+
+        ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32, PanelButtonY));
+        if (ImGui::Button(ICON_FAST_BACKWARD "##video_fusion_reverse", ImVec2(32, 32)))
+        {
+            // TODO::Dicky
+        }
+        ImGui::ShowTooltipOnHover("Reverse");
+
+        ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16, PanelButtonY));
+        if (ImGui::Button(ICON_STOP "##video_fusion_stop", ImVec2(32, 32)))
+        {
+            // TODO::Dicky
+        }
+        ImGui::ShowTooltipOnHover("Stop");
+
+        ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8, PanelButtonY));
+        if (ImGui::Button(ICON_FAST_FORWARD "##video_fusion_play", ImVec2(32, 32)))
+        {
+            // TODO::Dicky
+        }
+        ImGui::ShowTooltipOnHover("Play");
+
+        ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 32 + 8, PanelButtonY));
+        if (ImGui::Button(ICON_STEP_FORWARD "##video_fusion_step_forward", ImVec2(32, 32)))
+        {
+            // TODO::Dicky
+        }
+        ImGui::ShowTooltipOnHover("Step Next");
+
+        ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 32 + 8 + 32 + 8, PanelButtonY));
+        if (ImGui::Button(ICON_TO_END "##video_fusion_toend", ImVec2(32, 32)))
+        {
+            // TODO::Dicky
+        }
+        ImGui::ShowTooltipOnHover("To End");
+
+        ImGui::PopStyleColor(3);
+    }
+    ImGui::EndChild();
 }
 
 static void ShowAudioEditorWindow(ImDrawList *draw_list)

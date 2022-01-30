@@ -425,9 +425,15 @@ struct MediaSequencer : public SequencerInterface
     std::list<ImGui::ImMat> mFrame;         // timeline output frame
     ImTextureID mMainPreviewTexture {nullptr};  // main preview texture
     int64_t mCurrentPreviewTime {-1};
+
     BluePrint::BluePrintUI * mVideoFilterBluePrint {nullptr};
-    std::mutex mBluePrintLock;              // BluePrint mutex
+    std::mutex mVideoFilterBluePrintLock;   // Video Filter BluePrint mutex
     bool mVideoFilterNeedUpdate {false};
+
+    BluePrint::BluePrintUI * mVideoFusionBluePrint {nullptr};
+    std::mutex mVideoFusionBluePrintLock;   // Video Fusion BluePrint mutex
+    bool mVideoFusionNeedUpdate {false};
+
 
     AudioRender* mAudioRender {nullptr};        // audio render(SDL)
     SequencerPcmStream * mPCMStream {nullptr};  // audio pcm stream
