@@ -1604,6 +1604,17 @@ void SequencerItem::SetClipSelected(ClipInfo* clip)
     }
 }
 
+void SequencerItem::SetOverlapSelected(OverlapInfo* overlap)
+{
+    for (auto it : mOverlap)
+    {
+        if (it->mID == overlap->mID)
+            it->bSelected = true;
+        else
+            it->bSelected = false;
+    }
+}
+
 SequencerItem * SequencerItem::Load(const imgui_json::value& value, void * handle)
 {
     // get name and path to create new item
@@ -2363,6 +2374,10 @@ void MediaSequencer::SetItemSelected(int index)
                 clip->mFrame.clear();
                 clip->mFrameLock.unlock();
             }
+            for (auto overlap : m_Items[i]->mOverlap)
+            {
+                overlap->bSelected = false;
+            }
         }
     }
 }
@@ -2575,7 +2590,7 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
     draw_list->PopClipRect();
 
     // draw clip
-    if (item->mClips.size() > 1)
+    if (bClipEditor && item->mClips.size() > 1)
     {
         // mClips[0] is Global clip which is whole media item
         draw_list->PushClipRect(clippingRect.Min, clippingRect.Max, true);
@@ -2662,6 +2677,7 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
     if (item->mOverlap.size() > 0)
     {
         draw_list->PushClipRect(clippingTitleRect.Min, clippingTitleRect.Max, true);
+        bool mouse_clicked = false;
         for (auto overlap : item->mOverlap)
         {
             bool draw_overlap = false;
@@ -2696,8 +2712,27 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
                 ImVec2 overlap_pos_min = ImVec2(cursor_start, clippingTitleRect.Min.y);
                 ImVec2 overlap_pos_max = ImVec2(cursor_end, clippingTitleRect.Max.y);
                 ImRect overlap_rect(overlap_pos_min, overlap_pos_max);
-                draw_list->AddRectFilled(overlap_pos_min, overlap_pos_max, IM_COL32(128,128,32,192));
-                draw_list->AddLine(overlap_pos_min, overlap_pos_max, IM_COL32(0, 0, 0, 255));
+                ImGui::SetCursorScreenPos(overlap_pos_min);
+                auto frame_id_string = item->mPath + "@" + std::to_string(overlap->mID);
+                ImGui::BeginChildFrame(ImGui::GetID(("items_overlap::" + frame_id_string).c_str()), overlap_pos_max - overlap_pos_min, ImGuiWindowFlags_NoScrollbar);
+                ImGui::InvisibleButton(frame_id_string.c_str(), overlap_pos_max - overlap_pos_min);
+                if (ImGui::IsItemHovered())
+                {
+                    draw_list->AddRectFilled(overlap_pos_min, overlap_pos_max, IM_COL32(255,255,32,255));
+                    if (!mouse_clicked && io.MouseClicked[0])
+                    {
+                        item->SetOverlapSelected(overlap);
+                        SetItemSelected(index);
+                        mouse_clicked = true;
+                    }
+                }
+                else
+                    draw_list->AddRectFilled(overlap_pos_min, overlap_pos_max, IM_COL32(128,128,32,192));
+                if (overlap->bSelected)
+                {
+                    draw_list->AddLine(overlap_pos_min, overlap_pos_max, IM_COL32(0, 0, 0, 255));
+                }
+                ImGui::EndChildFrame();
             }
         }
         draw_list->PopClipRect();

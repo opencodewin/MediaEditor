@@ -293,6 +293,7 @@ struct OverlapInfo
     int64_t mEnd            {0};
     int64_t mItemID         {-1};
     int64_t mItemOverlapID  {-1};
+    bool bSelected          {false};
     imgui_json::value mVideoFusionBP;
     imgui_json::value mAudioFusionBP;
     OverlapInfo(int64_t start, int64_t end, void* handle, void* Overlap);
@@ -348,6 +349,7 @@ struct SequencerItem
     void SequencerItemUpdateThumbnail();
     void SequencerItemUpdateSnapshots();
     void SetClipSelected(ClipInfo* clip);
+    void SetOverlapSelected(OverlapInfo* overlap);
     void CalculateVideoSnapshotInfo(const ImRect &customRect, int64_t viewStartTime, int64_t visibleTime);
     bool DrawItemControlBar(ImDrawList *draw_list, ImRect rc, int sequenceOptions);
 
@@ -411,6 +413,10 @@ struct MediaSequencer : public SequencerInterface
     AudioRender::PcmFormat mAudioFormat {AudioRender::PcmFormat::FLOAT32};
                                             // timeline audio format
     std::vector<int> mAudioLevel;           // timeline audio levels
+
+    bool bClipEditor    {false};            // timeline is at clip editor
+    bool bOverlapEditor {false};            // timeline is at overlap editor
+    bool bAudioEditor   {false};            // timeline is at audio editor
 
     std::thread * mPreviewThread {nullptr}; // Preview Thread, which is read whole time line and mixer all filter/transition
     bool mPreviewDone {false};              // Preview Thread should finished

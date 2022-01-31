@@ -198,6 +198,16 @@ static void ShowVideoWindow(ImTextureID texture, ImVec2& pos, ImVec2& size, floa
     }
 }
 
+static void SetSequenceEditorStage(bool video_edit, bool fusion_edit, bool audio_edit)
+{
+    if (sequencer)
+    {
+        sequencer->bClipEditor = video_edit;
+        sequencer->bOverlapEditor = fusion_edit;
+        sequencer->bAudioEditor = audio_edit;
+    }
+}
+
 /****************************************************************************************
  * 
  * Media Bank window
@@ -484,6 +494,7 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
  ***************************************************************************************/
 static void ShowMediaPreviewWindow(ImDrawList *draw_list)
 {
+    SetSequenceEditorStage(false, false, false);
     // preview control pannel
     ImVec2 PanelBarPos;
     ImVec2 PanelBarSize;
@@ -731,6 +742,7 @@ static void ShowVideoRotateWindow(ImDrawList *draw_list)
 
 static void ShowVideoEditorWindow(ImDrawList *draw_list)
 {
+    SetSequenceEditorStage(true, false, false);
     static int VideoEditorWindowIndex = 0;
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
@@ -1079,6 +1091,7 @@ static void ShowFusionBluePrintWindow(ImDrawList *draw_list, OverlapInfo * overl
 
 static void ShowVideoFusionWindow(ImDrawList *draw_list)
 {
+    SetSequenceEditorStage(false, true, false);
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
     draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
@@ -1182,6 +1195,7 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
 
 static void ShowAudioEditorWindow(ImDrawList *draw_list)
 {
+    SetSequenceEditorStage(false, false, true);
     ImGui::SetWindowFontScale(1.2);
     ImGui::Indent(20);
     ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
