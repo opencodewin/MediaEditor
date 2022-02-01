@@ -1061,6 +1061,28 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
     ImGui::EndChild();
 }
 
+/****************************************************************************************
+ * 
+ * Video Fusion windows
+ *
+ ***************************************************************************************/
+
+static OverlapInfo * find_overlap_with_id(int64_t id)
+{
+    if (!sequencer) return nullptr;
+    for (auto item : sequencer->m_Items)
+    {
+        for (auto overlap : item->mOverlap)
+        {
+            if (overlap->mID == id)
+            {
+                return overlap;
+            }
+        }
+    }
+    return nullptr;
+}
+
 static void ShowFusionBluePrintWindow(ImDrawList *draw_list, OverlapInfo * overlap)
 {
     if (sequencer && sequencer->mVideoFusionBluePrint)
@@ -1098,6 +1120,62 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
     float fusion_timeline_height = 200;
     float video_view_width = window_size.x / 3;
     float video_fusion_width = window_size.x - video_view_width;
+    float video_fusion_height = window_size.y - fusion_timeline_height;
+    int selected_item_index = -1;
+    static int64_t last_overlap = -1; 
+    OverlapInfo * selected_overlap = nullptr;
+    if (sequencer)
+    {
+        sequencer->Play(false, true);
+        sequencer->mSequencerLock.lock();
+        selected_item_index = sequencer->selectedEntry;
+        sequencer->mSequencerLock.unlock();
+        if (selected_item_index != -1 && selected_item_index < sequencer->m_Items.size())
+        {
+            SequencerItem * item = sequencer->m_Items[selected_item_index];
+            for (auto overlap : item->mOverlap)
+            {
+                if (overlap->bSelected)
+                {
+                    selected_overlap = overlap;
+                    break;
+                }
+            }
+        }
+        if (selected_overlap && last_overlap != -1 && last_overlap != selected_overlap->mID)
+        {
+            // first find last select clip
+            auto overlap = find_overlap_with_id(last_overlap);
+            if (overlap)
+            {
+                // save current BP document to last clip
+                sequencer->mVideoFusionBluePrintLock.lock();
+                overlap->mVideoFusionBP = sequencer->mVideoFusionBluePrint->m_Document->Serialize();
+                sequencer->mVideoFusionBluePrintLock.unlock();
+            }
+            if (sequencer->mVideoFusionBluePrint && sequencer->mVideoFusionBluePrint->m_Document)
+            {                
+                sequencer->mVideoFusionBluePrintLock.lock();
+                sequencer->mVideoFusionBluePrint->File_New_Fusion(selected_overlap->mVideoFusionBP, ImVec2(video_fusion_width, video_fusion_height), "VideoFusion");
+                sequencer->mVideoFusionNeedUpdate = true;
+                sequencer->mVideoFusionBluePrintLock.unlock();
+            }
+        }
+        else if (selected_overlap && sequencer->mVideoFusionBluePrint && last_overlap == -1)
+        {
+            sequencer->mVideoFusionBluePrintLock.lock();
+            sequencer->mVideoFusionBluePrint->File_New_Fusion(selected_overlap->mVideoFusionBP, ImVec2(video_fusion_width, video_fusion_height), "VideoFusion");
+            sequencer->mVideoFusionBluePrintLock.unlock();
+        }
+        if (selected_overlap)
+        {
+            last_overlap = selected_overlap->mID;
+        }
+        else
+        {
+            last_overlap = -1;
+        }
+    }
     if (ImGui::BeginChild("##video_fusion_main", ImVec2(video_fusion_width, window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
     {
         ImVec2 fusion_window_pos = ImGui::GetCursorScreenPos();
@@ -1107,7 +1185,7 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
             ImVec2 fusion_view_window_pos = ImGui::GetCursorScreenPos();
             ImVec2 fusion_view_window_size = ImGui::GetWindowSize();
             draw_list->AddRectFilled(fusion_view_window_pos, fusion_view_window_pos + fusion_view_window_size, COL_DARK_ONE);
-            ShowFusionBluePrintWindow(draw_list, nullptr);
+            ShowFusionBluePrintWindow(draw_list, selected_overlap);
         }
         ImGui::EndChild();
         if (ImGui::BeginChild("##video_fusion_timeline", ImVec2(video_fusion_width, fusion_timeline_height), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
