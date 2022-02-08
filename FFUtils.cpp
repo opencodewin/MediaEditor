@@ -131,10 +131,209 @@ int AVPixelFormatToImColorFormat(AVPixelFormat pixfmt)
             clrfmt = IM_CF_ABGR;
             break;
         default:
-            Log(ERROR) << "No matching 'ImColorFormat' value for 'AVPixelFormat' " << (int)pixfmt << "!" << endl;
+            Log(Error) << "No matching 'ImColorFormat' value for 'AVPixelFormat' " << (int)pixfmt << "!" << endl;
             break;
     }
     return clrfmt;
+}
+
+static ImColorFormat ConvertPixelFormatToColorFormat(AVPixelFormat pixfmt)
+{
+    const AVPixFmtDescriptor* desc = av_pix_fmt_desc_get(pixfmt);
+    ImColorFormat clrfmt = (ImColorFormat)-1;
+    if (pixfmt == AV_PIX_FMT_GRAY8 || pixfmt == AV_PIX_FMT_GRAY10 || pixfmt == AV_PIX_FMT_GRAY12 ||
+        pixfmt == AV_PIX_FMT_GRAY14 || pixfmt == AV_PIX_FMT_GRAY16 || pixfmt == AV_PIX_FMT_GRAYF32)
+        clrfmt = IM_CF_GRAY;
+    else if (pixfmt == AV_PIX_FMT_BGR24 || pixfmt == AV_PIX_FMT_BGR48)
+        clrfmt = IM_CF_BGR;
+    else if (pixfmt == AV_PIX_FMT_ABGR || pixfmt == AV_PIX_FMT_0BGR)
+        clrfmt = IM_CF_ABGR;
+    else if (pixfmt == AV_PIX_FMT_BGRA || pixfmt == AV_PIX_FMT_BGR0 || pixfmt == AV_PIX_FMT_BGRA64)
+        clrfmt = IM_CF_BGRA;
+    else if (pixfmt == AV_PIX_FMT_RGB24 || pixfmt == AV_PIX_FMT_RGB48)
+        clrfmt = IM_CF_RGB;
+    else if (pixfmt == AV_PIX_FMT_ARGB || pixfmt == AV_PIX_FMT_0RGB)
+        clrfmt = IM_CF_ARGB;
+    else if (pixfmt == AV_PIX_FMT_RGBA || pixfmt == AV_PIX_FMT_RGB0 || pixfmt == AV_PIX_FMT_RGBA64)
+        clrfmt = IM_CF_RGBA;
+    else if (pixfmt == AV_PIX_FMT_YUV420P || pixfmt == AV_PIX_FMT_YUV420P10 || pixfmt == AV_PIX_FMT_YUV420P12 ||
+        pixfmt == AV_PIX_FMT_YUV420P14 || pixfmt == AV_PIX_FMT_YUV420P16)
+        clrfmt = IM_CF_YUV420;
+    else if (pixfmt == AV_PIX_FMT_YUV422P || pixfmt == AV_PIX_FMT_YUV422P10 || pixfmt == AV_PIX_FMT_YUV422P12 ||
+        pixfmt == AV_PIX_FMT_YUV422P14 || pixfmt == AV_PIX_FMT_YUV422P16)
+        clrfmt = IM_CF_YUV422;
+    else if (pixfmt == AV_PIX_FMT_YUV444P || pixfmt == AV_PIX_FMT_YUV444P10 || pixfmt == AV_PIX_FMT_YUV444P12 ||
+        pixfmt == AV_PIX_FMT_YUV444P14 || pixfmt == AV_PIX_FMT_YUV444P16)
+        clrfmt = IM_CF_YUV444;
+    else if (pixfmt == AV_PIX_FMT_YUVA444P || pixfmt == AV_PIX_FMT_YUVA444P10 || pixfmt == AV_PIX_FMT_YUV444P12 ||
+        pixfmt == AV_PIX_FMT_YUVA444P16)
+        clrfmt = IM_CF_YUVA;
+    else if (pixfmt == AV_PIX_FMT_NV12 || pixfmt == AV_PIX_FMT_NV21)
+        clrfmt = IM_CF_NV12;
+    else if (pixfmt == AV_PIX_FMT_P010)
+        clrfmt = IM_CF_P010LE;
+    return clrfmt;
+}
+
+static ImColorFormat FindPresentColorFormatForPixelFormat(AVPixelFormat pixfmt)
+{
+    const AVPixFmtDescriptor* desc = av_pix_fmt_desc_get(pixfmt);
+    ImColorFormat clrfmt;
+    if ((desc->flags&AV_PIX_FMT_FLAG_RGB) != 0)
+    {
+        if (desc->nb_components > 3)
+            clrfmt = IM_CF_RGBA;
+        else
+            clrfmt = IM_CF_RGB;
+    }
+    else
+    {
+        if (desc->nb_components > 3)
+            clrfmt = IM_CF_YUVA;
+        else
+            clrfmt = IM_CF_YUV444;
+    }
+    return clrfmt;
+}
+
+static AVPixelFormat ConvertColorFormatToPixelFormat(ImColorFormat clrfmt, ImDataType dtype)
+{
+    AVPixelFormat pixfmt = AV_PIX_FMT_NONE;
+    if (clrfmt == IM_CF_GRAY)
+    {
+        if (dtype == IM_DT_INT8)
+            pixfmt = AV_PIX_FMT_GRAY8;
+        else if (dtype == IM_DT_INT16)
+            pixfmt = AV_PIX_FMT_GRAY16;
+        else if (dtype == IM_DT_FLOAT32)
+            pixfmt = AV_PIX_FMT_GRAYF32;
+    }
+    else if (clrfmt == IM_CF_BGR)
+    {
+        if (dtype == IM_DT_INT8)
+            pixfmt = AV_PIX_FMT_BGR24;
+        else if (dtype == IM_DT_INT16)
+            pixfmt = AV_PIX_FMT_BGR48;
+    }
+    else if (clrfmt == IM_CF_ABGR)
+    {
+        if (dtype == IM_DT_INT8)
+            pixfmt = AV_PIX_FMT_ABGR;
+    }
+    else if (clrfmt == IM_CF_BGRA)
+    {
+        if (dtype == IM_DT_INT8)
+            pixfmt = AV_PIX_FMT_BGRA;
+        else if (dtype == IM_DT_INT16)
+            pixfmt = AV_PIX_FMT_BGRA64;
+    }
+    else if (clrfmt == IM_CF_RGB)
+    {
+        if (dtype == IM_DT_INT8)
+            pixfmt = AV_PIX_FMT_RGB24;
+        else if (dtype == IM_DT_INT16)
+            pixfmt = AV_PIX_FMT_RGB48;
+    }
+    else if (clrfmt == IM_CF_ARGB)
+    {
+        if (dtype == IM_DT_INT8)
+            pixfmt = AV_PIX_FMT_ARGB;
+    }
+    else if (clrfmt == IM_CF_RGBA)
+    {
+        if (dtype == IM_DT_INT8)
+            pixfmt = AV_PIX_FMT_RGBA;
+        else if (dtype == IM_DT_INT16)
+            pixfmt = AV_PIX_FMT_RGBA64;
+    }
+    else if (clrfmt == IM_CF_YUV420)
+    {
+        if (dtype == IM_DT_INT8)
+            pixfmt = AV_PIX_FMT_YUV420P;
+        else if (dtype == IM_DT_INT16)
+            pixfmt = AV_PIX_FMT_YUV420P16;
+    }
+    else if (clrfmt == IM_CF_YUV422)
+    {
+        if (dtype == IM_DT_INT8)
+            pixfmt = AV_PIX_FMT_YUV422P;
+        else if (dtype == IM_DT_INT16)
+            pixfmt = AV_PIX_FMT_YUV422P16;
+    }
+    else if (clrfmt == IM_CF_YUV444)
+    {
+        if (dtype == IM_DT_INT8)
+            pixfmt = AV_PIX_FMT_YUV444P;
+        else if (dtype == IM_DT_INT16)
+            pixfmt = AV_PIX_FMT_YUV444P16;
+    }
+    else if (clrfmt == IM_CF_YUVA)
+    {
+        if (dtype == IM_DT_INT8)
+            pixfmt = AV_PIX_FMT_YUVA444P;
+        else if (dtype == IM_DT_INT16)
+            pixfmt = AV_PIX_FMT_YUVA444P16;
+    }
+    else if (clrfmt == IM_CF_NV12)
+    {
+        if (dtype == IM_DT_INT8)
+            pixfmt = AV_PIX_FMT_NV12;
+    }
+    else if (clrfmt == IM_CF_P010LE)
+    {
+        if (dtype == IM_DT_INT8)
+            pixfmt = AV_PIX_FMT_P010LE;
+    }
+    return pixfmt;
+}
+
+static ImColorSpace ConvertAVColorSpaceToImColorSpace(AVColorSpace clrspc)
+{
+    ImColorSpace imclrspc;
+    if (clrspc == AVCOL_SPC_RGB)
+        imclrspc = IM_CS_SRGB;
+    else if (clrspc == AVCOL_SPC_UNSPECIFIED)
+        imclrspc = IM_CS_BT601;
+    else if (clrspc == AVCOL_SPC_BT709)
+        imclrspc = IM_CS_BT709;
+    else if (clrspc == AVCOL_SPC_BT2020_CL || clrspc == AVCOL_SPC_BT2020_NCL)
+        imclrspc = IM_CS_BT2020;
+    else
+        imclrspc = IM_CS_SRGB;
+
+    return imclrspc;
+}
+
+static AVColorSpace ConvertImColorSpaceToAVColorSpace(ImColorSpace imclrspc)
+{
+    AVColorSpace clrspc = AVCOL_SPC_UNSPECIFIED;
+    if (imclrspc == IM_CS_SRGB)
+        clrspc = AVCOL_SPC_RGB;
+    else if (imclrspc == IM_CS_BT709)
+        clrspc = AVCOL_SPC_BT709;
+    else if (imclrspc == IM_CS_BT2020)
+        clrspc = AVCOL_SPC_BT2020_CL;
+    return clrspc;
+}
+
+static ImColorRange ConvertAVColorRangeToImColorRange(AVColorRange clrrng)
+{
+    ImColorRange imclrrng;
+    if (clrrng == AVCOL_RANGE_JPEG)
+        imclrrng = IM_CR_FULL_RANGE;
+    else
+        imclrrng = IM_CR_NARROW_RANGE;
+    return imclrrng;
+}
+
+static AVColorRange ConvertImColorRangeToAVColorRange(ImColorRange imclrrng)
+{
+    AVColorRange clrrng = AVCOL_RANGE_UNSPECIFIED;
+    if (imclrrng == IM_CR_FULL_RANGE)
+        clrrng = AVCOL_RANGE_JPEG;
+    else if (imclrrng == IM_CR_NARROW_RANGE)
+        clrrng = AVCOL_RANGE_MPEG;
+    return clrrng;
 }
 
 SelfFreeAVFramePtr AllocSelfFreeAVFramePtr()
@@ -171,7 +370,7 @@ bool HwFrameToSwFrame(AVFrame* swfrm, const AVFrame* hwfrm)
     int fferr = av_hwframe_transfer_data(swfrm, hwfrm, 0);
     if (fferr < 0)
     {
-        Log(ERROR) << "av_hwframe_transfer_data() FAILED! fferr = " << fferr << "." << endl;
+        Log(Error) << "av_hwframe_transfer_data() FAILED! fferr = " << fferr << "." << endl;
         return false;
     }
     av_frame_copy_props(swfrm, hwfrm);
@@ -190,19 +389,19 @@ bool MakeAVFrameCopy(AVFrame* dst, const AVFrame* src)
     int fferr;
     if ((fferr = av_frame_get_buffer(dst, 0)) < 0)
     {
-        Log(ERROR) << "av_frame_get_buffer() FAILED! fferr = " << fferr << "." << endl;
+        Log(Error) << "av_frame_get_buffer() FAILED! fferr = " << fferr << "." << endl;
         return false;
     }
     if ((fferr = av_frame_copy(dst, src)) < 0)
     {
-        Log(ERROR) << "av_frame_copy() FAILED! fferr = " << fferr << "." << endl;
+        Log(Error) << "av_frame_copy() FAILED! fferr = " << fferr << "." << endl;
         return false;
     }
     av_frame_copy_props(dst, src);
     return true;
 }
 
-bool ConvertAVFrameToImMat(const AVFrame* avfrm, ImGui::ImMat& inMat, double timestamp)
+bool ConvertAVFrameToImMat(const AVFrame* avfrm, ImGui::ImMat& vmat, double timestamp)
 {
     SelfFreeAVFramePtr swfrm;
     if (IsHwFrame(avfrm))
@@ -210,7 +409,7 @@ bool ConvertAVFrameToImMat(const AVFrame* avfrm, ImGui::ImMat& inMat, double tim
         swfrm = AllocSelfFreeAVFramePtr();
         if (!swfrm)
         {
-            Log(ERROR) << "FAILED to allocate new AVFrame for ImMat conversion!" << endl;
+            Log(Error) << "FAILED to allocate new AVFrame for ImMat conversion!" << endl;
             return false;
         }
         if (!HwFrameToSwFrame(swfrm.get(), avfrm))
@@ -221,7 +420,7 @@ bool ConvertAVFrameToImMat(const AVFrame* avfrm, ImGui::ImMat& inMat, double tim
     const AVPixFmtDescriptor* desc = av_pix_fmt_desc_get((AVPixelFormat)avfrm->format);
     if (desc->nb_components <= 0 || desc->nb_components > 4)
     {
-        Log(ERROR) << "INVALID 'nb_component' value " << desc->nb_components << " of pixel format '"
+        Log(Error) << "INVALID 'nb_component' value " << desc->nb_components << " of pixel format '"
             << desc->name << "', can only support value from 1 ~ 4." << endl;
         return false;
     }
@@ -296,7 +495,79 @@ bool ConvertAVFrameToImMat(const AVFrame* avfrm, ImGui::ImMat& inMat, double tim
     if (avfrm->interlaced_frame) mat_V.flags |= IM_MAT_FLAGS_VIDEO_INTERLACED;
     mat_V.time_stamp = timestamp;
 
-    inMat = mat_V;
+    vmat = mat_V;
+    return true;
+}
+
+bool ConvertImMatToAVFrame(const ImGui::ImMat& vmat, AVFrame* avfrm, int64_t pts)
+{
+    if (vmat.device != IM_DD_CPU)
+    {
+        Log(Error) << "Input ImMat is NOT a CPU mat!" << endl;
+        return false;
+    }
+    AVPixelFormat cvtPixfmt = ConvertColorFormatToPixelFormat(vmat.color_format, vmat.type);
+    if (cvtPixfmt < 0)
+    {
+        Log(Error) << "FAILED to convert ImColorFormat " << vmat.color_format << " and ImDataType " << vmat.type << " to AVPixelFormat!" << endl;
+        return false;
+    }
+    av_frame_unref(avfrm);
+    avfrm->width = vmat.w;
+    avfrm->height = vmat.h;
+    avfrm->format = (int)cvtPixfmt;
+    int fferr;
+    fferr = av_frame_get_buffer(avfrm, 0);
+    if (fferr < 0)
+    {
+        Log(Error) << "FF api 'av_frame_get_buffer' failed! return code is " << fferr << ".";
+        return false;
+    }
+
+    const AVPixFmtDescriptor* desc = av_pix_fmt_desc_get(cvtPixfmt);
+    bool isRgb = (desc->flags&AV_PIX_FMT_FLAG_RGB) > 0;
+    uint8_t* prevDataPtr = nullptr;
+    int channel;
+    if (isRgb)
+        channel = desc->nb_components;
+    else
+    {
+        if (vmat.color_format == IM_CF_YUV444)
+            channel = 3;
+        else
+            channel = 2;
+    }
+    for (int i = 0; i < desc->nb_components; i++)
+    {
+        int chWidth = vmat.w;
+        int chHeight = vmat.h;
+        if ((desc->flags&AV_PIX_FMT_FLAG_RGB) == 0 && i > 0)
+        {
+            chWidth >>= desc->log2_chroma_w;
+            chHeight >>= desc->log2_chroma_h;
+        }
+        if (desc->nb_components > i && desc->comp[i].plane == i)
+        {
+            uint8_t* dst_data = avfrm->data[i]+desc->comp[i].offset;
+            uint8_t* src_data;
+            if (i < channel)
+                src_data = (uint8_t*)vmat.channel(i).data;
+            else
+                src_data = prevDataPtr;
+            int bytesPerLine = chWidth*desc->comp[i].step;
+            for (int j = 0; j < chHeight; j++)
+            {
+                memcpy(dst_data, src_data, bytesPerLine);
+                src_data += bytesPerLine;
+                dst_data += avfrm->linesize[i];
+            }
+            prevDataPtr = src_data;
+        }
+    }
+
+    avfrm->colorspace = ConvertImColorSpaceToAVColorSpace(vmat.color_space);
+    avfrm->color_range = ConvertImColorRangeToAVColorRange(vmat.color_range);
+    avfrm->pts = pts;
     return true;
 }
 
@@ -424,10 +695,12 @@ bool AVFrameToImMatConverter::ConvertImage(const AVFrame* avfrm, ImGui::ImMat& o
         const AVPixFmtDescriptor* desc = av_pix_fmt_desc_get((AVPixelFormat)avfrm->format);
         if ((desc->flags&AV_PIX_FMT_FLAG_RGB) == 0)
         {
-            int bitDepth = inMat.type == IM_DT_INT8 ? 8 : inMat.type == IM_DT_INT16 ? 16 : 8;
-            int shiftBits = inMat.depth != 0 ? inMat.depth : inMat.type == IM_DT_INT8 ? 8 : inMat.type == IM_DT_INT16 ? 16 : 8;
             rgbMat.type = IM_DT_INT8;
-            m_imgClrCvt->YUV2RGBA(inMat, rgbMat, inMat.color_format, inMat.color_space, inMat.color_range, bitDepth, shiftBits);
+            if (!m_imgClrCvt->ConvertColorFormat(inMat, rgbMat))
+            {
+                m_errMsg = m_imgClrCvt->GetError();
+                return false;
+            }
         }
         else
         {
@@ -467,7 +740,7 @@ bool AVFrameToImMatConverter::ConvertImage(const AVFrame* avfrm, ImGui::ImMat& o
             swfrm = AllocSelfFreeAVFramePtr();
             if (!swfrm)
             {
-                Log(ERROR) << "FAILED to allocate new AVFrame for ImMat conversion!" << endl;
+                Log(Error) << "FAILED to allocate new AVFrame for ImMat conversion!" << endl;
                 return false;
             }
             if (!HwFrameToSwFrame(swfrm.get(), avfrm))
@@ -549,6 +822,307 @@ bool AVFrameToImMatConverter::ConvertImage(const AVFrame* avfrm, ImGui::ImMat& o
         outMat.time_stamp = timestamp;
         return true;
     }
+}
+
+ImMatToAVFrameConverter::ImMatToAVFrameConverter()
+{
+#if IMGUI_VULKAN_SHADER
+    m_useVulkanComponents = true;
+    m_imgClrCvt = new ImGui::ColorConvert_vulkan(ImGui::get_default_gpu_index());
+    if (m_useVulkanComponents)
+    {
+        m_imgRsz = new ImGui::Resize_vulkan(ImGui::get_default_gpu_index());
+    }
+    m_outMatClrfmt = ConvertPixelFormatToColorFormat(m_outPixfmt);
+    if (m_outMatClrfmt < 0)
+    {
+        m_outMatClrfmt = FindPresentColorFormatForPixelFormat(m_outPixfmt);
+        m_isClrfmtMatched = false;
+    }
+    else
+        m_isClrfmtMatched = true;
+    m_outMatClrspc = ConvertAVColorSpaceToImColorSpace(m_outClrspc);
+    m_outMatClrrng = ConvertAVColorRangeToImColorRange(m_outClrrng);
+#else
+    m_useVulkanComponents = false;
+#endif
+    m_pixDesc = av_pix_fmt_desc_get(m_outPixfmt);
+    m_outBitsPerPix = m_pixDesc->comp[0].depth;
+}
+
+ImMatToAVFrameConverter::~ImMatToAVFrameConverter()
+{
+#if IMGUI_VULKAN_SHADER
+    if (m_imgClrCvt)
+    {
+        delete m_imgClrCvt;
+        m_imgClrCvt = nullptr;
+    }
+    if (m_imgRsz)
+    {
+        delete m_imgRsz;
+        m_imgRsz = nullptr;
+    }
+#endif
+    if (m_swsCtx)
+    {
+        sws_freeContext(m_swsCtx);
+        m_swsCtx = nullptr;
+    }
+}
+
+bool ImMatToAVFrameConverter::SetOutSize(uint32_t width, uint32_t height)
+{
+    if (m_outWidth == width && m_outHeight == height)
+        return true;
+
+    m_outWidth = width;
+    m_outHeight = height;
+
+    if (m_swsCtx)
+    {
+        sws_freeContext(m_swsCtx);
+        m_swsCtx = nullptr;
+        m_passThrough = false;
+    }
+    return true;
+}
+
+bool ImMatToAVFrameConverter::SetOutPixelFormat(AVPixelFormat pixfmt)
+{
+    if (m_outPixfmt == pixfmt)
+        return true;
+
+    const AVPixFmtDescriptor* desc = av_pix_fmt_desc_get(pixfmt);
+    if (!desc)
+    {
+        ostringstream oss;
+        oss << "FAILED to get 'AVPixFmtDescriptor' for AVPixelFormat " << pixfmt << "!";
+        m_errMsg = oss.str();
+        return false;
+    }
+
+    m_outPixfmt = pixfmt;
+    m_pixDesc = desc;
+    m_outBitsPerPix = desc->comp[0].depth;
+#if IMGUI_VULKAN_SHADER
+    m_outMatClrfmt = ConvertPixelFormatToColorFormat(m_outPixfmt);
+    if (m_outMatClrfmt < 0)
+    {
+        m_outMatClrfmt = FindPresentColorFormatForPixelFormat(m_outPixfmt);
+        m_isClrfmtMatched = false;
+    }
+    else
+        m_isClrfmtMatched = true;
+#endif
+
+    if (m_swsCtx)
+    {
+        sws_freeContext(m_swsCtx);
+        m_swsCtx = nullptr;
+        m_passThrough = false;
+    }
+    return true;
+}
+
+bool ImMatToAVFrameConverter::SetOutColorSpace(AVColorSpace clrspc)
+{
+    if (m_outClrspc == clrspc)
+        return true;
+
+    m_outClrspc = clrspc;
+#if IMGUI_VULKAN_SHADER
+    m_outMatClrspc = ConvertAVColorSpaceToImColorSpace(clrspc);
+#endif
+
+    if (m_swsCtx)
+    {
+        sws_freeContext(m_swsCtx);
+        m_swsCtx = nullptr;
+        m_passThrough = false;
+    }
+    return true;
+}
+
+bool ImMatToAVFrameConverter::SetOutColorRange(AVColorRange clrrng)
+{
+    if (m_outClrrng == clrrng)
+        return true;
+
+    m_outClrrng = clrrng;
+#if IMGUI_VULKAN_SHADER
+    m_outMatClrrng = ConvertAVColorRangeToImColorRange(clrrng);
+#endif
+
+    if (m_swsCtx)
+    {
+        sws_freeContext(m_swsCtx);
+        m_swsCtx = nullptr;
+        m_passThrough = false;
+    }
+    return true;
+}
+
+bool ImMatToAVFrameConverter::SetResizeInterpolateMode(ImInterpolateMode interp)
+{
+    if (m_resizeInterp == interp)
+        return true;
+
+    switch (interp)
+    {
+        case IM_INTERPOLATE_NEAREST:
+            m_swsFlags = 0;
+            break;
+        case IM_INTERPOLATE_BILINEAR:
+            m_swsFlags = SWS_BILINEAR;
+            break;
+        case IM_INTERPOLATE_BICUBIC:
+            m_swsFlags = SWS_BICUBIC;
+            break;
+        case IM_INTERPOLATE_AREA:
+            m_swsFlags = SWS_AREA;
+            break;
+        default:
+            return false;
+    }
+    m_resizeInterp = interp;
+
+    if (m_swsCtx)
+    {
+        sws_freeContext(m_swsCtx);
+        m_swsCtx = nullptr;
+        m_passThrough = false;
+    }
+    return true;
+}
+
+bool ImMatToAVFrameConverter::ConvertImage(ImGui::ImMat& vmat, AVFrame* avfrm, int64_t pts)
+{
+    ImGui::ImMat inMat = vmat;
+    if (m_useVulkanComponents)
+    {
+#if IMGUI_VULKAN_SHADER
+        // Resize
+        uint32_t outWidth = m_outWidth == 0 ? inMat.w : m_outWidth;
+        uint32_t outHeight = m_outHeight == 0 ? inMat.h : m_outHeight;
+        if (outWidth != inMat.w || outHeight != inMat.h)
+        {
+            ImGui::VkMat rszMat;
+            rszMat.type = m_outBitsPerPix > 8 ? IM_DT_INT16 : IM_DT_INT8;
+            m_imgRsz->Resize(inMat, rszMat, (float)outWidth/inMat.w, (float)outHeight/inMat.h, m_resizeInterp);
+            inMat = rszMat;
+        }
+
+        // RGB -> YUV
+        bool isSrcRgb = inMat.color_format >= IM_CF_BGR && inMat.color_format <= IM_CF_RGBA;
+        bool isDstYuv = (m_pixDesc->flags&AV_PIX_FMT_FLAG_RGB) == 0;
+        if (isSrcRgb && isDstYuv)
+        {
+            ImGui::ImMat yuvMat;
+            yuvMat.type = inMat.type;
+            yuvMat.color_format = m_outMatClrfmt;
+            yuvMat.color_space = m_outMatClrspc;
+            yuvMat.color_range = m_outMatClrrng;
+            if (!m_imgClrCvt->ConvertColorFormat(inMat, yuvMat))
+            {
+                m_errMsg = m_imgClrCvt->GetError();
+                return false;
+            }
+
+            inMat = yuvMat;
+        }
+#else
+        m_errMsg = "Vulkan shader components is NOT ENABLED!";
+        return false;
+#endif
+    }
+
+    // ImMat -> AVFrame
+    AVPixelFormat cvtPixfmt = ConvertColorFormatToPixelFormat(inMat.color_format, inMat.type);
+    if (cvtPixfmt < 0)
+    {
+        ostringstream oss;
+        oss << "FAILED to convert ImColorFormat " << inMat.color_format << " and ImDataType " << inMat.type << " to AVPixelFormat!";
+        m_errMsg = oss.str();
+        return false;
+    }
+
+#if IMGUI_VULKAN_SHADER
+    if (inMat.device == IM_DD_VULKAN)
+    {
+        ImGui::VkMat vkMat = inMat;
+        ImGui::ImMat cpuMat;
+        cpuMat.type = IM_DT_INT8;
+        m_imgClrCvt->Conv(vkMat, cpuMat);
+        inMat = cpuMat;
+    }
+#endif
+
+    if (m_outPixfmt == cvtPixfmt && m_outWidth == inMat.w && m_outHeight == inMat.h)
+    {
+        if (!ConvertImMatToAVFrame(inMat, avfrm, pts))
+        {
+            m_errMsg = "FAILED to invoke 'ConvertImMatToAVFrame'!";
+            return false;
+        }
+        return true;
+    }
+
+    SelfFreeAVFramePtr cvtfrm = AllocSelfFreeAVFramePtr();
+    if (!cvtfrm)
+    {
+        m_errMsg = "FAILED allocate AVFrame for conversion from ImMat!";
+        return false;
+    }
+    if (!ConvertImMatToAVFrame(inMat, cvtfrm.get(), pts))
+    {
+        m_errMsg = "FAILED to invoke 'ConvertImMatToAVFrame'!";
+        return false;
+    }
+
+    if (!m_swsCtx || m_swsInWidth != inMat.w || m_swsInHeight != inMat.h || m_swsInFormat != cvtPixfmt)
+    {
+        if (m_swsCtx)
+        {
+            sws_freeContext(m_swsCtx);
+            m_swsCtx = nullptr;
+        }
+        m_swsCtx = sws_getContext(inMat.w, inMat.h, cvtPixfmt, m_outWidth, m_outHeight, m_outPixfmt, m_swsFlags, nullptr, nullptr, nullptr);
+        if (!m_swsCtx)
+        {
+            ostringstream oss;
+            oss << "FAILED to create SwsContext from WxH(" << inMat.w << "x" << inMat.h << "):Fmt(" << (int)cvtPixfmt << ") -> WxH(" << m_outWidth << "x" << m_outHeight << "):Fmt(" << (int)m_outPixfmt << ") with flags(" << m_swsFlags << ")!";
+            m_errMsg = oss.str();
+            return false;
+        }
+        int srcRange, dstRange, brightness, contrast, saturation;
+        int *invTable0, *table0;
+        sws_getColorspaceDetails(m_swsCtx, &invTable0, &srcRange, &table0, &dstRange, &brightness, &contrast, &saturation);
+        const int *invTable1, *table1;
+        table1 = invTable1 = sws_getCoefficients(m_outClrspc);
+        sws_setColorspaceDetails(m_swsCtx, invTable1, srcRange, table1, dstRange, brightness, contrast, saturation);
+        m_swsInWidth = inMat.w;
+        m_swsInHeight = inMat.h;
+        m_swsInFormat = cvtPixfmt;
+    }
+
+    av_frame_unref(avfrm);
+    avfrm->format = m_outPixfmt;
+    avfrm->width = m_outWidth;
+    avfrm->height = m_outHeight;
+    int fferr;
+    fferr = av_frame_get_buffer(avfrm, 0);
+    if (fferr < 0)
+    {
+        ostringstream oss;
+        oss << "FAILED to invoke 'av_frame_get_buffer()' for 'swsfrm'! fferr = " << fferr << ".";
+        m_errMsg = oss.str();
+        return false;
+    }
+    fferr = sws_scale(m_swsCtx, cvtfrm->data, cvtfrm->linesize, 0, m_outHeight, avfrm->data, avfrm->linesize);
+    av_frame_copy_props(avfrm, cvtfrm.get());
+
+    return true;
 }
 
 MediaInfo::Ratio MediaInfoRatioFromAVRational(const AVRational& src)

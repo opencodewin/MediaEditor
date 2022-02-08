@@ -6,11 +6,23 @@
 
 namespace ImSequencer
 {
-static void alignTime(int64_t& time, int64_t time_step)
+static void alignTime(int64_t& time, MediaInfo::Ratio rate)
 {
-    // has moving smooth issue?
-    auto align_time = floor(time / time_step) * time_step;
-    time = align_time;
+    if (rate.den && rate.num)
+    {
+        int64_t frame_index = (int64_t)floor((double)time * (double)rate.num / (double)rate.den / 1000.0);
+        time = frame_index * 1000 * rate.den / rate.num;
+    }
+}
+
+static void frameStepTime(int64_t& time, int32_t offset, MediaInfo::Ratio rate)
+{
+    if (rate.den && rate.num)
+    {
+        int64_t frame_index = (int64_t)floor((double)time * (double)rate.num / (double)rate.den / 1000.0 + 0.5);
+        frame_index += offset;
+        time = frame_index * 1000 * rate.den / rate.num;
+    }
 }
 
 static std::string MillisecToString(int64_t millisec, int show_millisec = 0)
@@ -124,7 +136,6 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int sequenceOption
     int cx = (int)(io.MousePos.x);
     int cy = (int)(io.MousePos.y);
     static float msPixelWidth = 0.1f;
-    static float msPixelWidthTarget = 0.1f;
     int legendWidth = 200;
     static int movingEntry = -1;
     static int movingPos = -1;
@@ -139,6 +150,7 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int sequenceOption
     sequencer->options = sequenceOptions;
     static int64_t start_time = -1;
     static int64_t last_time = -1;
+    bool isFocused = ImGui::IsWindowFocused();
 
     ImGui::BeginGroup();
     
@@ -167,7 +179,7 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int sequenceOption
     static int64_t panningViewTime;
     ImRect scrollBarRect;
     ImRect scrollHandleBarRect;
-    if (ImGui::IsWindowFocused() && io.KeyAlt && io.MouseDown[2])
+    if (isFocused && io.KeyAlt && io.MouseDown[2])
     {
         if (!panningView)
         {
@@ -183,7 +195,7 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int sequenceOption
         panningView = false;
     }
 
-    float minPixelWidthTarget = ImMin(msPixelWidthTarget, (float)(canvas_size.x - legendWidth) / (float)duration);
+    float minPixelWidthTarget = ImMin(sequencer->msPixelWidthTarget, (float)(canvas_size.x - legendWidth) / (float)duration);
     float maxPixelWidthTarget = 20.f;
     float min_frame_duration = FLT_MAX;
     for (int i = 0; i < itemCount; i++)
@@ -200,8 +212,8 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int sequenceOption
             }
         }
     }
-    msPixelWidthTarget = ImClamp(msPixelWidthTarget, minPixelWidthTarget, maxPixelWidthTarget);
-    msPixelWidth = ImLerp(msPixelWidth, msPixelWidthTarget, 0.5f);
+    sequencer->msPixelWidthTarget = ImClamp(sequencer->msPixelWidthTarget, minPixelWidthTarget, maxPixelWidthTarget);
+    msPixelWidth = ImLerp(msPixelWidth, sequencer->msPixelWidthTarget, 0.5f);
 
     if (sequencer->visibleTime >= duration)
         sequencer->firstTime = sequencer->GetStart();
@@ -232,22 +244,28 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int sequenceOption
             ImSequencer::ClipInfo * clip = (ImSequencer::ClipInfo *)payload->Data;
             if (clip)
             {
-                ImSequencer::SequencerItem * item = (ImSequencer::SequencerItem*)clip->mItem;
                 ImSequencer::MediaSequencer * seq = (ImSequencer::MediaSequencer *)sequencer;
-                auto start = clip->mStart + item->mStart;
-                auto end = clip->mEnd + item->mStart;
-                SequencerItem * new_item = new SequencerItem(item->mName, item, start, end, true, item->mMediaType);
-                new_item->mStartOffset = clip->mStart - item->mStartOffset;
-                new_item->mEndOffset = item->mLength - clip->mEnd;
-                seq->m_Items.push_back(new_item);
-                if (!item->mLocked)
+                if (seq)
                 {
-                    for (auto c : item->mClips)
+                    SequencerItem * item = seq->FindItemByID(clip->mItemID);
+                    if (item)
                     {
-                        if (c->mStart == clip->mStart)
+                        auto start = clip->mStart + item->mStart;
+                        auto end = clip->mEnd + item->mStart;
+                        SequencerItem * new_item = new SequencerItem(item->mName, item, start, end, true, item->mMediaType);
+                        new_item->mStartOffset = clip->mStart - item->mStartOffset;
+                        new_item->mEndOffset = item->mLength - clip->mEnd;
+                        seq->m_Items.push_back(new_item);
+                        if (!item->mLocked)
                         {
-                            c->mDragOut = true;
-                            break;
+                            for (auto c : item->mClips)
+                            {
+                                if (c->mStart == clip->mStart)
+                                {
+                                    c->bDragOut = true;
+                                    break;
+                                }
+                            }
                         }
                     }
                 }
@@ -299,20 +317,22 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int sequenceOption
 
         // current time top
         ImRect topRect(ImVec2(canvas_pos.x + legendWidth, canvas_pos.y), ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + ItemHeight));
-        if (!MovingCurrentTime && !MovingScrollBar && movingEntry == -1 && sequenceOptions & SEQUENCER_CHANGE_TIME && sequencer->currentTime >= 0 && topRect.Contains(io.MousePos) && io.MouseDown[0])
+        if (!MovingCurrentTime && !MovingScrollBar && movingEntry == -1 && sequenceOptions & SEQUENCER_CHANGE_TIME && sequencer->currentTime >= 0 && topRect.Contains(io.MousePos) && io.MouseDown[0] && isFocused)
         {
             MovingCurrentTime = true;
             sequencer->bSeeking = true;
         }
         if (MovingCurrentTime && duration)
         {
+            auto old_time = sequencer->currentTime;
             sequencer->currentTime = (int64_t)((io.MousePos.x - topRect.Min.x) / msPixelWidth) + firstTimeUsed;
-            alignTime(sequencer->currentTime, sequencer->timeStep);
+            sequencer->AlignTime(sequencer->currentTime);
             if (sequencer->currentTime < sequencer->GetStart())
                 sequencer->currentTime = sequencer->GetStart();
             if (sequencer->currentTime >= sequencer->GetEnd())
                 sequencer->currentTime = sequencer->GetEnd();
-            sequencer->Seek(); // call seek event
+            if (old_time != sequencer->currentTime)
+                sequencer->Seek(); // call seek event
         }
         if (sequencer->bSeeking && !io.MouseDown[0])
         {
@@ -634,7 +654,7 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int sequenceOption
             if (ImGui::Button(ICON_FAST_TO_END "##slider_to_end", ImVec2(16, 16)))
             {
                 sequencer->firstTime = sequencer->GetEnd() - sequencer->visibleTime;
-                alignTime(sequencer->firstTime, sequencer->timeStep);
+                sequencer->AlignTime(sequencer->firstTime);
             }
             ImGui::ShowTooltipOnHover("Slider to End");
 
@@ -648,32 +668,32 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int sequenceOption
             ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - 48 - 4, 0));
             if (ImGui::Button(ICON_SLIDER_MAXIMUM "##slider_maximum", ImVec2(16, 16)))
             {
-                msPixelWidthTarget = maxPixelWidthTarget;
+                sequencer->msPixelWidthTarget = maxPixelWidthTarget;
             }
             ImGui::ShowTooltipOnHover("Maximum Slider");
 
             ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - 64 - 4, 0));
             if (ImGui::Button(ICON_ZOOM_IN "##slider_zoom_in", ImVec2(16, 16)))
             {
-                msPixelWidthTarget *= 2.0f;
-                if (msPixelWidthTarget > maxPixelWidthTarget)
-                    msPixelWidthTarget = maxPixelWidthTarget;
+                sequencer->msPixelWidthTarget *= 2.0f;
+                if (sequencer->msPixelWidthTarget > maxPixelWidthTarget)
+                    sequencer->msPixelWidthTarget = maxPixelWidthTarget;
             }
             ImGui::ShowTooltipOnHover("Slider Zoom In");
 
             ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - 80 - 4, 0));
             if (ImGui::Button(ICON_ZOOM_OUT "##slider_zoom_out", ImVec2(16, 16)))
             {
-                msPixelWidthTarget *= 0.5f;
-                if (msPixelWidthTarget < minPixelWidthTarget)
-                    msPixelWidthTarget = minPixelWidthTarget;
+                sequencer->msPixelWidthTarget *= 0.5f;
+                if (sequencer->msPixelWidthTarget < minPixelWidthTarget)
+                    sequencer->msPixelWidthTarget = minPixelWidthTarget;
             }
             ImGui::ShowTooltipOnHover("Slider Zoom Out");
 
             ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - 96 - 4, 0));
             if (ImGui::Button(ICON_SLIDER_MINIMUM "##slider_minimum", ImVec2(16, 16)))
             {
-                msPixelWidthTarget = minPixelWidthTarget;
+                sequencer->msPixelWidthTarget = minPixelWidthTarget;
                 sequencer->firstTime = sequencer->GetStart();
             }
             ImGui::ShowTooltipOnHover("Minimum Slider");
@@ -688,7 +708,7 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int sequenceOption
             if (ImGui::Button(ICON_FAST_TO_START "##slider_to_start", ImVec2(16, 16)))
             {
                 sequencer->firstTime = sequencer->GetStart();
-                alignTime(sequencer->firstTime, sequencer->timeStep);
+                sequencer->AlignTime(sequencer->firstTime);
             }
             ImGui::ShowTooltipOnHover("Slider to Start");
             ImGui::SetWindowFontScale(1.0);
@@ -721,7 +741,7 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int sequenceOption
                 {
                     float msPerPixelInBar = barWidthInPixels / (float)sequencer->visibleTime;
                     sequencer->firstTime = int((io.MousePos.x - panningViewSource.x) / msPerPixelInBar) - panningViewTime;
-                    //alignTime(sequencer->firstTime, sequencer->timeStep);
+                    sequencer->AlignTime(sequencer->firstTime);
                     sequencer->firstTime = ImClamp(sequencer->firstTime, sequencer->GetStart(), ImMax(sequencer->GetEnd() - sequencer->visibleTime, sequencer->GetStart()));
                 }
             }
@@ -735,7 +755,7 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int sequenceOption
             {
                 float msPerPixelInBar = barWidthInPixels / (float)sequencer->visibleTime;
                 sequencer->firstTime = int((io.MousePos.x - legendWidth - scrollHandleBarRect.GetWidth() / 2)/ msPerPixelInBar);
-                //alignTime(sequencer->firstTime, sequencer->timeStep);
+                sequencer->AlignTime(sequencer->firstTime);
                 sequencer->firstTime = ImClamp(sequencer->firstTime, sequencer->GetStart(), ImMax(sequencer->GetEnd() - sequencer->visibleTime, sequencer->GetStart()));
             }
         }
@@ -761,11 +781,11 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int sequenceOption
                 int64_t overCursor = sequencer->firstTime + (int64_t)(sequencer->visibleTime * ((io.MousePos.x - (float)legendWidth - canvas_pos.x) / (canvas_size.x - legendWidth)));
                 if (io.MouseWheel < -FLT_EPSILON && sequencer->visibleTime <= sequencer->GetEnd())
                 {
-                    msPixelWidthTarget *= 0.9f;
+                    sequencer->msPixelWidthTarget *= 0.9f;
                 }
                 if (io.MouseWheel > FLT_EPSILON)
                 {
-                    msPixelWidthTarget *= 1.1f;
+                    sequencer->msPixelWidthTarget *= 1.1f;
                 }
             }
             else
@@ -774,13 +794,13 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int sequenceOption
                 if (io.MouseWheelH < -FLT_EPSILON)
                 {
                     sequencer->firstTime -= sequencer->visibleTime / 4;
-                    //alignTime(sequencer->firstTime, sequencer->timeStep);
+                    sequencer->AlignTime(sequencer->firstTime);
                     sequencer->firstTime = ImClamp(sequencer->firstTime, sequencer->GetStart(), ImMax(sequencer->GetEnd() - sequencer->visibleTime, sequencer->GetStart()));
                 }
                 if (io.MouseWheelH > FLT_EPSILON)
                 {
                     sequencer->firstTime += sequencer->visibleTime / 4;
-                    //alignTime(sequencer->firstTime, sequencer->timeStep);
+                    sequencer->AlignTime(sequencer->firstTime);
                     sequencer->firstTime = ImClamp(sequencer->firstTime, sequencer->GetStart(), ImMax(sequencer->GetEnd() - sequencer->visibleTime, sequencer->GetStart()));
                 }
             }
@@ -823,10 +843,16 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int sequenceOption
             customHeight += localCustomHeight;
         }
 
+        // calculate item overlay
+        for (int i = 0; i < itemCount; i++)
+        {
+            sequencer->Update(i);
+        }        
+
         // draw custom
         draw_list->PushClipRect(childFramePos, childFramePos + childFrameSize);
         for (auto &customDraw : customDraws)
-            sequencer->CustomDraw(customDraw.index, draw_list, customDraw.customRect, customDraw.titleRect, customDraw.clippingTitleRect, customDraw.legendRect, customDraw.clippingRect, customDraw.legendClippingRect, sequencer->firstTime, sequencer->visibleTime, msPixelWidth, fabs(msPixelWidth / msPixelWidthTarget - 1.0) < 1e-6);
+            sequencer->CustomDraw(customDraw.index, draw_list, customDraw.customRect, customDraw.titleRect, customDraw.clippingTitleRect, customDraw.legendRect, customDraw.clippingRect, customDraw.legendClippingRect, sequencer->firstTime, sequencer->visibleTime, msPixelWidth, fabs(msPixelWidth / sequencer->msPixelWidthTarget - 1.0) < 1e-6);
         for (auto &customDraw : compactCustomDraws)
             sequencer->CustomDrawCompact(customDraw.index, draw_list, customDraw.customRect, customDraw.legendRect, customDraw.clippingRect, sequencer->firstTime, sequencer->visibleTime, msPixelWidth);
         draw_list->PopClipRect();
@@ -865,7 +891,7 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int sequenceOption
                     mouseTime += start_offset;
                     if (cutting)
                     {
-                        alignTime(mouseTime, sequencer->timeStep);
+                        sequencer->AlignTime(mouseTime);
                         int alread_cut = sequencer->Check(customDraw.index, mouseTime);
                         auto time_stream = MillisecToString(mouseTime, 3);
                         if (alread_cut != -1)
@@ -910,7 +936,7 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int sequenceOption
                     mouseTime += start_offset;
                     if (cutting)
                     {
-                        alignTime(mouseTime, sequencer->timeStep);
+                        sequencer->AlignTime(mouseTime);
                         int alread_cut = sequencer->Check(customDraw.index, mouseTime);
                         auto time_stream = MillisecToString(mouseTime, 3);
                         if (alread_cut != -1)
@@ -969,13 +995,11 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int sequenceOption
         if (start_time == -1)
         {
             start_time = ImGui::get_current_time_usec() / 1000;
-            //alignTime(start_time, sequencer->timeStep);
             last_time = start_time;
         }
         else
         {
             int64_t current_time = ImGui::get_current_time_usec() / 1000;
-            //alignTime(current_time, sequencer->timeStep);
             int64_t step_time = current_time - last_time;
             // Set TimeLine
             int64_t current_media_time = sequencer->currentTime;
@@ -1058,8 +1082,7 @@ bool ClipTimeLine(ClipInfo* clip)
     int headHeight = 30;
     int customHeight = 70;
     static bool MovingCurrentTime = false;
-    //static int64_t start_time = -1;
-    //static int64_t last_time = -1;
+    bool isFocused = ImGui::IsWindowFocused();
 
     ImGui::BeginGroup();
     ImDrawList *draw_list = ImGui::GetWindowDrawList();
@@ -1077,20 +1100,22 @@ bool ClipTimeLine(ClipInfo* clip)
     draw_list->AddRectFilled(window_pos, window_pos + headerSize, COL_DARK_ONE, 0);
 
     ImRect topRect(window_pos, window_pos + headerSize);
-    if (!MovingCurrentTime && clip->mCurrent >= clip->mStart && topRect.Contains(io.MousePos) && io.MouseDown[0])
+    if (!MovingCurrentTime && clip->mCurrent >= clip->mStart && topRect.Contains(io.MousePos) && io.MouseDown[0] && isFocused)
     {
         MovingCurrentTime = true;
         clip->bSeeking = true;
     }
     if (MovingCurrentTime && duration)
     {
+        auto old_time = clip->mCurrent;
         clip->mCurrent = (int64_t)((io.MousePos.x - topRect.Min.x) / msPixelWidth) + clip->mStart;
-        alignTime(clip->mCurrent, clip->mFrameInterval);
+        alignTime(clip->mCurrent, clip->mClipFrameRate);
         if (clip->mCurrent < clip->mStart)
             clip->mCurrent = clip->mStart;
         if (clip->mCurrent >= clip->mEnd)
             clip->mCurrent = clip->mEnd;
-        clip->Seek(); // call seek event
+        if (old_time != clip->mCurrent)
+            clip->Seek(); // call seek event
     }
     if (clip->bSeeking && !io.MouseDown[0])
     {
@@ -1263,33 +1288,54 @@ void MediaItem::UpdateThumbnail()
 /***********************************************************************************************************
  * SequencerItem Struct Member Functions
  ***********************************************************************************************************/
-
-SequencerItem::SequencerItem(const std::string& name, MediaItem * media_item, int64_t start, int64_t end, bool expand, int type)
+void SequencerItem::Initialize(const std::string& name, MediaParserHolder parser_holder, MediaOverview::WaveformHolder wave_holder, int64_t start, int64_t end, bool expand, int type)
 {
+    mID = ImGui::get_current_time_usec(); // sample using system time stamp for item ID
     mName = name;
-    MediaParserHolder holder = media_item->mMediaOverview->GetMediaParser();
-    mPath = holder->GetUrl();
+    mPath = parser_holder->GetUrl();
     mStart = start;
     mEnd = end;
     mExpanded = expand;
     mMediaType = type;
     mSnapshot = CreateMediaSnapshot();
-    mMedia = CreateMediaReader();
-    if (!mSnapshot || !mMedia)
+    mMediaReaderVideo = CreateMediaReader();
+    mMediaReaderAudio = CreateMediaReader();
+    if (!mSnapshot || !mMediaReaderVideo || !mMediaReaderAudio)
         return;
     mColor = COL_SLOT_DEFAULT;
-    mSnapshot->Open(holder);
-    mMedia->Open(holder);
-    mMedia->ConfigVideoReader(1.f, 1.f);
-    mMedia->Start();
+
+    // open snapshot
+    mSnapshot->Open(parser_holder);
+
+    // open video reader
+    mMediaReaderVideo->Open(parser_holder);
+    if (mMediaReaderVideo->ConfigVideoReader(1.f, 1.f))
+    {
+        mMediaReaderVideo->Start();
+    }
+    else
+    {
+        ReleaseMediaReader(&mMediaReaderVideo);
+    }
+
+    // open audio reader
+    mMediaReaderAudio->Open(parser_holder);
+    if (mMediaReaderAudio->ConfigAudioReader(mAudioChannels, mAudioSampleRate))
+    {
+        mMediaReaderAudio->Start();
+    }
+    else
+    {
+        ReleaseMediaReader(&mMediaReaderAudio);
+    }
+
     if (mSnapshot->IsOpened())
     {
         mLength = mSnapshot->GetVideoDuration();
 
         if (mSnapshot->HasVideo())
         {
-            auto rate = mSnapshot->GetVideoStream()->avgFrameRate;
-            if (rate.num > 0) mFrameInterval = rate.den * 1000 / rate.num;
+            mItemFrameRate = mSnapshot->GetVideoStream()->avgFrameRate;
             double window_size = 1.0f;
             mSnapshot->SetCacheFactor(8.0);
             mSnapshot->SetSnapshotResizeFactor(0.1, 0.1);
@@ -1297,7 +1343,7 @@ SequencerItem::SequencerItem(const std::string& name, MediaItem * media_item, in
         }
         if (mSnapshot->HasAudio())
         {
-            mWaveform = media_item->mMediaOverview->GetWaveform();
+            mWaveform = wave_holder;
         }
         if (mEnd > mStart + mLength)
             mEnd = mLength - mStart;
@@ -1306,51 +1352,27 @@ SequencerItem::SequencerItem(const std::string& name, MediaItem * media_item, in
     mClips.push_back(first_clip);
 }
 
+SequencerItem::SequencerItem(const std::string& name, MediaItem * media_item, int64_t start, int64_t end, bool expand, int type)
+{
+    auto parser_holder = media_item->mMediaOverview->GetMediaParser();
+    auto wave_holder = media_item->mMediaOverview->GetWaveform();
+    Initialize(name, parser_holder, wave_holder, start, end, expand, type);
+}
+
 SequencerItem::SequencerItem(const std::string& name, SequencerItem * sequencer_item, int64_t start, int64_t end, bool expand, int type)
 {
-    mName = name;
-    MediaParserHolder holder = sequencer_item->mSnapshot->GetMediaParser();
-    mPath = holder->GetUrl();
-    mStart = start;
-    mEnd = end;
-    mExpanded = expand;
-    mMediaType = type;
-    mSnapshot = CreateMediaSnapshot();
-    mMedia = CreateMediaReader();
-    if (!mSnapshot || !mMedia)
-        return;
-    mColor = COL_SLOT_DEFAULT;
-    mSnapshot->Open(holder);
-    mMedia->Open(holder);
-    mMedia->ConfigVideoReader(1.f, 1.f);
-    mMedia->Start();
-    if (mSnapshot->IsOpened())
-    {
-        mLength = mSnapshot->GetVideoDuration();
-        if (mSnapshot->HasVideo())
-        {
-            double window_size = 1.0f;
-            mSnapshot->SetCacheFactor(8.0);
-            mSnapshot->SetSnapshotResizeFactor(0.1, 0.1);
-            mSnapshot->ConfigSnapWindow(window_size, 1);
-        }
-        if (mSnapshot->HasAudio())
-        {
-            mWaveform = sequencer_item->mWaveform;
-        }
-        if (mEnd > mStart + mLength)
-            mEnd = mLength - mStart;
-    }
-    ClipInfo *first_clip = new ClipInfo(mStart, mEnd, false, this);
-    mClips.push_back(first_clip);
+    auto parser_holder = sequencer_item->mSnapshot->GetMediaParser();
+    auto wave_holder = sequencer_item->mWaveform;
+    Initialize(name, parser_holder, wave_holder, start, end, expand, type);
 }
 
 SequencerItem::~SequencerItem()
 {
     ReleaseMediaSnapshot(&mSnapshot);
-    ReleaseMediaReader(&mMedia);
+    ReleaseMediaReader(&mMediaReaderVideo);
+    ReleaseMediaReader(&mMediaReaderAudio);
     mSnapshot = nullptr;
-    mMedia = nullptr;
+    mMediaReaderVideo = nullptr;
     for (auto& snap : mVideoSnapshots)
     {
         if (snap.texture) { ImGui::ImDestroyTexture(snap.texture); snap.texture = nullptr; } 
@@ -1474,7 +1496,6 @@ void SequencerItem::CalculateVideoSnapshotInfo(const ImRect &customRect, int64_t
         frame_count++; // one more frame for end
         if (mSnapshotLendth != clip_duration || mLastValidSnapshot < mValidViewSnapshot || (int)frame_count != mVideoSnapshotInfos.size() || fabs(frame_count - mFrameCount) > 1e-2)
         {
-            //fprintf(stderr, "[Dicky Debug] Update snapinfo\n");
             double window_size = mValidViewSnapshot * snapshot_duration / 1000.0;
             mSnapshot->ConfigSnapWindow(window_size, mValidViewSnapshot);
             mLastValidSnapshot = mValidViewSnapshot;
@@ -1561,10 +1582,10 @@ void SequencerItem::SetClipSelected(ClipInfo* clip)
     for (auto it : mClips)
     {
         if (it->mStart == clip->mStart)
-            it->mSelected = true;
+            it->bSelected = true;
         else
         {
-            if (it->mSelected)
+            if (it->bSelected)
             {
                 for (auto& snap : it->mVideoSnapshots)
                 {
@@ -1573,7 +1594,7 @@ void SequencerItem::SetClipSelected(ClipInfo* clip)
                 it->mVideoSnapshots.clear();
                 it->mFrameCount = 0;
             }
-            it->mSelected = false;
+            it->bSelected = false;
             it->bPlay = false;
             it->mLastTime = -1;
             it->mFrameLock.lock();
@@ -1582,6 +1603,204 @@ void SequencerItem::SetClipSelected(ClipInfo* clip)
         }
     }
 }
+
+SequencerItem * SequencerItem::Load(const imgui_json::value& value, void * handle)
+{
+    // get name and path to create new item
+    SequencerItem * new_item = nullptr;
+    MediaSequencer * sequencer = (MediaSequencer *)handle;
+    if (!sequencer)
+        return new_item;
+
+    std::string name;
+    std::string path;
+    if (value.contains("Name"))
+    {
+        auto& val = value["Name"];
+        if (val.is_string()) name = val.get<imgui_json::string>();
+    }
+    if (value.contains("Path"))
+    {
+        auto& val = value["Path"];
+        if (val.is_string()) path = val.get<imgui_json::string>();
+    }
+    MediaItem * item = sequencer->FindMediaItemByName(name);
+    if (item)
+    {
+        new_item = new SequencerItem(item->mName, item, item->mStart, item->mEnd, true, item->mMediaType);
+    }
+
+    // load item
+    if (new_item)
+    {
+        // load global item info
+        if (value.contains("ID"))
+        {
+            auto& val = value["ID"];
+            if (val.is_number()) new_item->mID = val.get<imgui_json::number>();
+        }
+        if (value.contains("Start"))
+        {
+            auto& val = value["Start"];
+            if (val.is_number()) new_item->mStart = val.get<imgui_json::number>();
+        }
+        if (value.contains("End"))
+        {
+            auto& val = value["End"];
+            if (val.is_number()) new_item->mEnd = val.get<imgui_json::number>();
+        }
+        if (value.contains("StartOffset"))
+        {
+            auto& val = value["StartOffset"];
+            if (val.is_number()) new_item->mStartOffset = val.get<imgui_json::number>();
+        }
+        if (value.contains("EndOffset"))
+        {
+            auto& val = value["EndOffset"];
+            if (val.is_number()) new_item->mEndOffset = val.get<imgui_json::number>();
+        }
+        if (value.contains("FrameRateNum"))
+        {
+            auto& val = value["FrameRateNum"];
+            if (val.is_number()) new_item->mItemFrameRate.num = val.get<imgui_json::number>();
+        }
+        if (value.contains("FrameRateDen"))
+        {
+            auto& val = value["FrameRateDen"];
+            if (val.is_number()) new_item->mItemFrameRate.den = val.get<imgui_json::number>();
+        }
+        if (value.contains("MediaType"))
+        {
+            auto& val = value["MediaType"];
+            if (val.is_number()) new_item->mMediaType = val.get<imgui_json::number>();
+        }
+        if (value.contains("AudioChannels"))
+        {
+            auto& val = value["AudioChannels"];
+            if (val.is_number()) new_item->mAudioChannels = val.get<imgui_json::number>();
+        }
+        if (value.contains("AudioSampleRate"))
+        {
+            auto& val = value["AudioSampleRate"];
+            if (val.is_number()) new_item->mAudioSampleRate = val.get<imgui_json::number>();
+        }
+        if (value.contains("Expanded"))
+        {
+            auto& val = value["Expanded"];
+            if (val.is_boolean()) new_item->mExpanded = val.get<imgui_json::boolean>();
+        }
+        if (value.contains("View"))
+        {
+            auto& val = value["View"];
+            if (val.is_boolean()) new_item->mView = val.get<imgui_json::boolean>();
+        }
+        if (value.contains("Muted"))
+        {
+            auto& val = value["Muted"];
+            if (val.is_boolean()) new_item->mMuted = val.get<imgui_json::boolean>();
+        }
+        if (value.contains("Cutting"))
+        {
+            auto& val = value["Cutting"];
+            if (val.is_boolean()) new_item->mCutting = val.get<imgui_json::boolean>();
+        }
+        // load cut points
+        const imgui_json::array* cutPointArray = nullptr;
+        if (BluePrint::GetPtrTo(value, "CutPoint", cutPointArray))
+        {
+            for (auto& val : *cutPointArray)
+            {
+                if (val.is_number())
+                {
+                    int64_t point = val.get<imgui_json::number>();
+                    new_item->mCutPoint.push_back(point);
+                }
+            }
+        }
+        // load clip
+        const imgui_json::array* clipArray = nullptr;
+        if (BluePrint::GetPtrTo(value, "Clip", clipArray))
+        {
+            new_item->mClips.clear();
+            for (auto& clip : *clipArray)
+            {
+                ClipInfo * new_clip = ClipInfo::Load(clip, new_item);
+                if (new_clip)
+                {
+                    new_item->mClips.push_back(new_clip);
+                }
+            }
+        }
+
+        // load overlap
+        const imgui_json::array* overlapArray = nullptr;
+        if (BluePrint::GetPtrTo(value, "Overlap", overlapArray))
+        {
+            new_item->mOverlap.clear();
+            for (auto& overlap : *overlapArray)
+            {
+                OverlapInfo * new_overlap = OverlapInfo::Load(overlap, new_item);
+                if (new_overlap)
+                {
+                    new_item->mOverlap.push_back(new_overlap);
+                }
+            }
+        }
+    }
+
+    return new_item;
+}
+
+void SequencerItem::Save(imgui_json::value& value)
+{
+    // save clip info
+    imgui_json::value clips;
+    for (auto clip : mClips)
+    {
+        imgui_json::value clip_value;
+        clip->Save(clip_value);
+        clips.push_back(clip_value);
+    }
+    value["Clip"] = clips;
+
+    // save overlap info
+    imgui_json::value overlaps;
+    for (auto overlap : mOverlap)
+    {
+        imgui_json::value overlap_value;
+        overlap->Save(overlap_value);
+        overlaps.push_back(overlap_value);
+    }
+    value["Overlap"] = overlaps;
+
+    // save cut points
+    imgui_json::value cuts;
+    for (auto cut : mCutPoint)
+    {
+        imgui_json::value cut_value = imgui_json::number(cut);
+        cuts.push_back(cut_value);
+    }
+    value["CutPoint"] = cuts;
+
+    // save item info
+    value["Name"] = mName;
+    value["Path"] = mPath;
+    value["ID"] = imgui_json::number(mID);
+    value["Start"] = imgui_json::number(mStart);
+    value["End"] = imgui_json::number(mEnd);
+    value["StartOffset"] = imgui_json::number(mStartOffset);
+    value["EndOffset"] = imgui_json::number(mEndOffset);
+    value["FrameRateNum"] = imgui_json::number(mItemFrameRate.num);
+    value["FrameRateDen"] = imgui_json::number(mItemFrameRate.den);
+    value["MediaType"] = imgui_json::number(mMediaType);
+    value["AudioChannels"] = imgui_json::number(mAudioChannels);
+    value["AudioSampleRate"] = imgui_json::number(mAudioSampleRate);
+    value["Expanded"] = imgui_json::boolean(mExpanded);
+    value["View"] = imgui_json::boolean(mView);
+    value["Muted"] = imgui_json::boolean(mMuted);
+    value["Cutting"] = imgui_json::boolean(mCutting);
+}
+
 
 /***********************************************************************************************************
  * MediaSequencer Struct Member Functions
@@ -1612,42 +1831,55 @@ static int thread_preview(MediaSequencer * sequencer)
             auto it = sequencer->mFrame.end(); it--;
             current_time = it->time_stamp * 1000;
         }
-        alignTime(current_time, sequencer->mFrameInterval);
+        const int64_t frame_delay = sequencer->mFrameRate.den * 1000 / sequencer->mFrameRate.num;
+        alignTime(current_time, sequencer->mFrameRate);
         sequencer->mFrameLock.unlock();
         while (sequencer->mFrame.size() < MAX_SEQUENCER_FRAME_NUMBER)
         {
+            if (sequencer->mPreviewDone)
+                break;
             if (!sequencer->mFrame.empty())
             {
                 int64_t buffer_start = sequencer->mFrame.begin()->time_stamp * 1000;
-                int64_t buffer_end = sequencer->bForward ? buffer_start + sequencer->mFrameInterval * MAX_SEQUENCER_FRAME_NUMBER : 
-                                                           buffer_start - sequencer->mFrameInterval * MAX_SEQUENCER_FRAME_NUMBER ;
+                int64_t buffer_end = buffer_start;
+                frameStepTime(buffer_end, sequencer->bForward ? MAX_SEQUENCER_FRAME_NUMBER : -MAX_SEQUENCER_FRAME_NUMBER, sequencer->mFrameRate);
                 if (buffer_start > buffer_end)
                     std::swap(buffer_start, buffer_end);
-                if (sequencer->currentTime < buffer_start || sequencer->currentTime > buffer_end)
+                if (sequencer->currentTime < buffer_start - frame_delay || sequencer->currentTime > buffer_end + frame_delay)
+                {
+                    ImGui::sleep((int)5);
                     break;
+                }
             }
             ImGui::ImMat mat;
             for (auto &item : sequencer->m_Items)
             {
                 int64_t item_time = current_time - item->mStart + item->mStartOffset;
-                alignTime(item_time, sequencer->mFrameInterval);
+                alignTime(item_time, sequencer->mFrameRate); // using item->mItemFrameRate ?
                 if (item_time >= item->mStartOffset && item_time <= item->mLength - item->mEndOffset)
                 {
                     bool valid_time = item->mView;
                     for (auto clip : item->mClips)
                     {
-                        if (clip->mDragOut && item_time >= clip->mStart && item_time <= clip->mEnd)
+                        if (clip->bDragOut && item_time >= clip->mStart && item_time <= clip->mEnd)
                         {
                             valid_time = false;
                             break;
                         }
                     }
-                    if (valid_time && item->mMedia->IsOpened())
+                    if (valid_time && item->mMediaReaderAudio && item->mMediaReaderAudio->IsOpened())
                     {
-                        if ((item->mMedia->IsDirectionForward() && !sequencer->bForward) || 
-                            (!item->mMedia->IsDirectionForward() && sequencer->bForward))
-                            item->mMedia->SetDirection(sequencer->bForward);
-                        if (item->mMedia->ReadVideoFrame((float)item_time / 1000.0, mat))
+                        if ((item->mMediaReaderAudio->IsDirectionForward() && !sequencer->bForward) || 
+                            (!item->mMediaReaderAudio->IsDirectionForward() && sequencer->bForward))
+                            item->mMediaReaderAudio->SetDirection(sequencer->bForward);
+                    }
+                    if (valid_time && item->mMediaReaderVideo && item->mMediaReaderVideo->IsOpened())
+                    {
+                        if ((item->mMediaReaderVideo->IsDirectionForward() && !sequencer->bForward) || 
+                            (!item->mMediaReaderVideo->IsDirectionForward() && sequencer->bForward))
+                            item->mMediaReaderVideo->SetDirection(sequencer->bForward);
+                        bool eof;
+                        if (item->mMediaReaderVideo->ReadVideoFrame((float)item_time / 1000.0, mat, eof))
                             break;
                         else
                             mat.release();
@@ -1664,7 +1896,7 @@ static int thread_preview(MediaSequencer * sequencer)
             sequencer->mFrameLock.unlock();
             if (sequencer->bForward)
             {
-                current_time += sequencer->mFrameInterval;
+                frameStepTime(current_time, 1, sequencer->mFrameRate);
                 if (current_time > sequencer->mEnd)
                 {
                     if (sequencer->bLoop)
@@ -1680,7 +1912,7 @@ static int thread_preview(MediaSequencer * sequencer)
             }
             else
             {
-                current_time -= sequencer->mFrameInterval;
+                frameStepTime(current_time, -1, sequencer->mFrameRate);
                 if (current_time < sequencer->mStart)
                 {
                     if (sequencer->bLoop)
@@ -1708,6 +1940,11 @@ static int thread_video_filter(MediaSequencer * sequencer)
     sequencer->mVideoFilterRunning = true;
     while (!sequencer->mVideoFilterDone)
     {
+        if (!sequencer->mVideoFilterBluePrint || !sequencer->mVideoFilterBluePrint->Blueprint_IsValid())
+        {
+            ImGui::sleep((int)5);
+            continue;
+        }
         sequencer->mSequencerLock.lock();
         int select_item = sequencer->selectedEntry;
         sequencer->mSequencerLock.unlock();
@@ -1721,11 +1958,18 @@ static int thread_video_filter(MediaSequencer * sequencer)
         ClipInfo * selected_clip = item->mClips[0];
         for (auto clip : item->mClips)
         {
-            if (clip->mSelected)
+            if (clip->bSelected)
             {
                 selected_clip = clip;
                 break;
             }
+        }
+        if (sequencer->mVideoFilterNeedUpdate)
+        {
+            selected_clip->mFrameLock.lock();
+            selected_clip->mFrame.clear();
+            selected_clip->mFrameLock.unlock();
+            sequencer->mVideoFilterNeedUpdate = false;
         }
         if (selected_clip->mFrame.size() >= MAX_SEQUENCER_FRAME_NUMBER)
         {
@@ -1741,49 +1985,58 @@ static int thread_video_filter(MediaSequencer * sequencer)
             auto it = selected_clip->mFrame.end(); it--;
             current_time = it->first.time_stamp * 1000;
         }
-        alignTime(current_time, selected_clip->mFrameInterval);
+        const int64_t frame_delay = selected_clip->mClipFrameRate.den * 1000 / selected_clip->mClipFrameRate.num;
+        alignTime(current_time, selected_clip->mClipFrameRate);
         selected_clip->mFrameLock.unlock();
         while (selected_clip->mFrame.size() < MAX_SEQUENCER_FRAME_NUMBER)
         {
+            if (sequencer->mVideoFilterDone)
+                break;
             if (!selected_clip->mFrame.empty())
             {
                 int64_t buffer_start = selected_clip->mFrame.begin()->first.time_stamp * 1000;
-                int64_t buffer_end = selected_clip->bForward ? buffer_start + selected_clip->mFrameInterval * MAX_SEQUENCER_FRAME_NUMBER : 
-                                                           buffer_start - selected_clip->mFrameInterval * MAX_SEQUENCER_FRAME_NUMBER ;
+                int64_t buffer_end = buffer_start;
+                frameStepTime(buffer_end, selected_clip->bForward ? MAX_SEQUENCER_FRAME_NUMBER : -MAX_SEQUENCER_FRAME_NUMBER, selected_clip->mClipFrameRate);
                 if (buffer_start > buffer_end)
                     std::swap(buffer_start, buffer_end);
-                if (selected_clip->mCurrent < buffer_start || selected_clip->mCurrent > buffer_end)
+                if (selected_clip->mCurrent < buffer_start - frame_delay || selected_clip->mCurrent > buffer_end + frame_delay)
+                {
+                    ImGui::sleep((int)5);
                     break;
+                }
             }
             
             std::pair<ImGui::ImMat, ImGui::ImMat> result;
-            if ((item->mMedia->IsDirectionForward() && !selected_clip->bForward) ||
-                (!item->mMedia->IsDirectionForward() && selected_clip->bForward))
-                item->mMedia->SetDirection(selected_clip->bForward);
-            if (item->mMedia->ReadVideoFrame((float)current_time / 1000.0, result.first))
+            if ((item->mMediaReaderVideo->IsDirectionForward() && !selected_clip->bForward) ||
+                (!item->mMediaReaderVideo->IsDirectionForward() && selected_clip->bForward))
+                item->mMediaReaderVideo->SetDirection(selected_clip->bForward);
+            bool eof;
+            if (item->mMediaReaderVideo->ReadVideoFrame((float)current_time / 1000.0, result.first, eof))
             {
                 result.first.time_stamp = (double)current_time / 1000.f;
-                if (sequencer->video_filter_bp && 
-                    sequencer->video_filter_bp->Blueprint_Run(result.first, result.second))
+                sequencer->mBluePrintLock.lock();
+                if (sequencer->mVideoFilterBluePrint && 
+                    sequencer->mVideoFilterBluePrint->Blueprint_RunFilter(result.first, result.second))
                 {
                     selected_clip->mFrameLock.lock();
                     selected_clip->mFrame.push_back(result);
                     selected_clip->mFrameLock.unlock();
                     if (selected_clip->bForward)
                     {
-                        current_time += selected_clip->mFrameInterval;
+                        frameStepTime(current_time, 1, selected_clip->mClipFrameRate);
                         if (current_time > selected_clip->mEnd)
                             current_time = selected_clip->mEnd;
                     }
                     else
                     {
-                        current_time -= selected_clip->mFrameInterval;
+                        frameStepTime(current_time, -1, selected_clip->mClipFrameRate);
                         if (current_time < selected_clip->mStart)
                         {
                             current_time = selected_clip->mStart;
                         }
                     }
                 }
+                sequencer->mBluePrintLock.unlock();
             }
         }
     }
@@ -1794,9 +2047,26 @@ static int thread_video_filter(MediaSequencer * sequencer)
 MediaSequencer::MediaSequencer()
     : mStart(0), mEnd(0)
 {
-    timeStep = mFrameInterval;
+    mPCMStream = new SequencerPcmStream(this);
+    mAudioRender = CreateAudioRender();
+    if (mAudioRender)
+    {
+        mAudioRender->OpenDevice(mAudioSampleRate, mAudioChannels, mAudioFormat, mPCMStream);
+    }
+
+    mVideoFilterBluePrint = new BluePrint::BluePrintUI();
+    if (mVideoFilterBluePrint)
+    {
+        BluePrint::BluePrintCallbackFunctions callbacks;
+        callbacks.BluePrintOnChanged = OnBluePrintChange;
+        mVideoFilterBluePrint->Initialize();
+        mVideoFilterBluePrint->SetCallbacks(callbacks, this);
+    }
+
     mPreviewThread = new std::thread(thread_preview, this);
     mVideoFilterThread = new std::thread(thread_video_filter, this);
+    for (int i = 0; i < mAudioChannels; i++)
+        mAudioLevel.push_back(0);
 }
 
 MediaSequencer::~MediaSequencer()
@@ -1820,11 +2090,48 @@ MediaSequencer::~MediaSequencer()
     mFrameLock.lock();
     mFrame.clear();
     mFrameLock.unlock();
-    for (auto item : m_Items)
+
+    for (auto item : m_Items) delete item;
+
+    if (mAudioRender)
     {
-        delete item;
+        mAudioRender->CloseDevice();
+        ReleaseAudioRender(&mAudioRender);
     }
+    if (mPCMStream) { delete mPCMStream; mPCMStream = nullptr; }
     if (mMainPreviewTexture) { ImGui::ImDestroyTexture(mMainPreviewTexture); mMainPreviewTexture = nullptr; }
+    mAudioLevel.clear();
+    if (mVideoFilterBluePrint)
+    {
+        mVideoFilterBluePrint->Finalize();
+        delete mVideoFilterBluePrint;
+    }
+    for (auto item : media_items) delete item;
+}
+
+int MediaSequencer::OnBluePrintChange(int type, std::string name, void* handle)
+{
+    int ret = BluePrint::BP_CBR_Nothing;
+    if (!handle)
+        return BluePrint::BP_CBR_Unknown;
+    MediaSequencer * sequencer = (MediaSequencer *)handle;
+    if (name.compare("VideoFilter") == 0)
+    {
+        if (type == BluePrint::BP_CB_Link ||
+            type == BluePrint::BP_CB_Unlink ||
+            type == BluePrint::BP_CB_NODE_DELETED)
+        {
+            sequencer->mVideoFilterNeedUpdate = true;
+            ret = BluePrint::BP_CBR_AutoLink;
+        }
+        else if (type == BluePrint::BP_CB_PARAM_CHANGED ||
+                type == BluePrint::BP_CB_SETTING_CHANGED)
+        {
+            sequencer->mVideoFilterNeedUpdate = true;
+        }
+    }
+
+    return ret;
 }
 
 ImGui::ImMat MediaSequencer::GetPreviewFrame()
@@ -1910,14 +2217,14 @@ void MediaSequencer::Set(int index, int64_t start, int64_t end, int64_t start_of
 {
     SequencerItem *item = m_Items[index];
     item->mColor = color;
-    //alignTime(start, mFrameInterval);
+    AlignTime(start);
     item->mStart = start;
-    //alignTime(end, mFrameInterval);
+    AlignTime(end);
     item->mEnd = end;
     item->mName = name;
-    //alignTime(start_offset, mFrameInterval);
+    AlignTime(start_offset);
     item->mStartOffset = start_offset;
-    //alignTime(end_offset, mFrameInterval);
+    AlignTime(end_offset);
     item->mEndOffset = end_offset;
 }
 
@@ -2032,20 +2339,12 @@ void MediaSequencer::SetItemSelected(int index)
             m_Items[i]->mSelected = false;
             for (auto clip : m_Items[i]->mClips)
             {
-                clip->mSelected = false;
+                clip->bSelected = false;
                 clip->bPlay = false;
                 clip->mLastTime = -1;
                 clip->mFrameLock.lock();
                 clip->mFrame.clear();
                 clip->mFrameLock.unlock();
-                /*
-                for (auto& snap : clip->mVideoSnapshots)
-                {
-                    if (snap.texture) { ImGui::ImDestroyTexture(snap.texture); snap.texture = nullptr; }
-                }
-                clip->mVideoSnapshots.clear();
-                clip->mFrameCount = 0;
-                */
             }
         }
     }
@@ -2059,7 +2358,7 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
     // clippingRect: current view window area
     // legendRect: legend area
     // legendClippingRect: legend area
-
+    ImGuiIO &io = ImGui::GetIO();
     SequencerItem *item = m_Items[index];
     if (need_update) item->CalculateVideoSnapshotInfo(rc, viewStartTime, visibleTime);
     if (item->mVideoSnapshotInfos.size() == 0) return;
@@ -2088,7 +2387,7 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
 
         int max_snapshot = (clippingRect.GetWidth() + frame_width / 2) / frame_width + 1; // two more frame ?
         int snapshot_count = (snapshot_index + max_snapshot < total_snapshot) ? max_snapshot : total_snapshot - snapshot_index;
-
+        
         if (need_update)
         {
             if (item->mSnapshotPos != snapshot_time)
@@ -2142,12 +2441,13 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
                 }
                 time_stamp = item->mVideoSnapshots[i].time_stamp;
             }
-            else if (i > 0 && snapshot_index + i == item->mVideoSnapshotInfos.size() - 1 && i >= item->mVideoSnapshots.size() - 1 && item->mVideoSnapshots[i - 1].available)
+            else if (i > 0 && snapshot_index + i == item->mVideoSnapshotInfos.size() - 1 && i > item->mVideoSnapshots.size() - 1 && item->mVideoSnapshots[i - 1].available)
             {
                 ImGui::SetCursorScreenPos(pos);
                 float width_clip = size.x / frame_width;
-                if (item->mVideoSnapshots[i - 1].texture)
-                    ImGui::Image(item->mVideoSnapshots[i - 1].texture, ImVec2(size.x, size.y), ImVec2(0, 0), ImVec2(width_clip, 1));
+                // TODO::Dicky still will crush in some slow GPU cause
+                //if (item->mVideoSnapshots[i - 1].texture)
+                //    ImGui::Image(item->mVideoSnapshots[i - 1].texture, ImVec2(size.x, size.y), ImVec2(0, 0), ImVec2(width_clip, 1));
             }
             else
             {
@@ -2188,7 +2488,12 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
     
         int64_t end_pos = 0;
         if (item->mEnd >= viewStartTime && item->mEnd <= viewStartTime + visibleTime)
-            end_pos = item->mEnd;
+        {
+            if (item->mStart >= viewStartTime)
+                end_pos = item->mEnd - viewStartTime;
+            else
+                end_pos = item->mEnd - startTime - item->mStart;
+        }
         else if (item->mEnd > viewStartTime + visibleTime)
             end_pos = viewStartTime + visibleTime;
         else
@@ -2201,7 +2506,7 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
         if (startOff + windowLen > sampleSize)
             windowLen = sampleSize - startOff;
         float cursorStartOffset = clippingRect.Min.x + start_pos * pixelWidth;
-        float cursorEndOffset = clippingRect.Min.x + endTime * pixelWidth;
+        float cursorEndOffset = clippingRect.Min.x + end_pos * pixelWidth;
         // draw audio wave snapshot
         if (item->mSnapshot->HasVideo())
         {
@@ -2255,7 +2560,7 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
     // draw clip
     if (item->mClips.size() > 1)
     {
-        ImGuiIO &io = ImGui::GetIO();
+        // mClips[0] is Global clip which is whole media item
         draw_list->PushClipRect(clippingRect.Min, clippingRect.Max, true);
         bool mouse_clicked = false;
         for (auto clip : item->mClips)
@@ -2293,7 +2598,7 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
                 ImVec2 clip_pos_min = ImVec2(cursor_start, clippingRect.Min.y);
                 ImVec2 clip_pos_max = ImVec2(cursor_end, clippingRect.Max.y);
                 ImRect clip_rect(clip_pos_min, clip_pos_max);
-                if (!clip->mDragOut)
+                if (!clip->bDragOut)
                 {
                     ImGui::SetCursorScreenPos(clip_pos_min);
                     auto frame_id_string = item->mPath + "@" + std::to_string(clip->mStart);
@@ -2311,7 +2616,7 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
                         ImGui::Text("Length: %s", length_time_string.c_str());
                         ImGui::EndDragDropSource();
                     }
-                    if (clip->mSelected)
+                    if (clip->bSelected)
                     {
                         draw_list->AddRectFilled(clip_pos_min, clip_pos_max, IM_COL32(64,64,32,128));
                     }
@@ -2335,6 +2640,51 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
         }
         draw_list->PopClipRect();
     }
+
+    // draw overlap
+    if (item->mOverlap.size() > 0)
+    {
+        draw_list->PushClipRect(clippingTitleRect.Min, clippingTitleRect.Max, true);
+        for (auto overlap : item->mOverlap)
+        {
+            bool draw_overlap = false;
+            float cursor_start = 0;
+            float cursor_end  = 0;
+            if (overlap->mStart >= viewStartTime && overlap->mEnd < viewStartTime + visibleTime)
+            {
+                cursor_start = clippingTitleRect.Min.x + (overlap->mStart - viewStartTime) * pixelWidth;
+                cursor_end = clippingTitleRect.Min.x + (overlap->mEnd - viewStartTime) * pixelWidth;
+                draw_overlap = true;
+            }
+            else if (overlap->mStart >= viewStartTime && overlap->mStart <= viewStartTime + visibleTime && overlap->mEnd >= viewStartTime + visibleTime)
+            {
+                cursor_start = clippingTitleRect.Min.x + (overlap->mStart - viewStartTime) * pixelWidth;
+                cursor_end = clippingTitleRect.Max.x;
+                draw_overlap = true;
+            }
+            else if (overlap->mStart <= viewStartTime && overlap->mEnd <= viewStartTime + visibleTime)
+            {
+                cursor_start = clippingTitleRect.Min.x;
+                cursor_end = clippingTitleRect.Min.x + (overlap->mEnd - viewStartTime) * pixelWidth;
+                draw_overlap = true;
+            }
+            else if (overlap->mStart <= viewStartTime && overlap->mEnd >= viewStartTime + visibleTime)
+            {
+                cursor_start = clippingTitleRect.Min.x;
+                cursor_end  = clippingTitleRect.Max.x;
+                draw_overlap = true;
+            }
+            if (draw_overlap && cursor_end > cursor_start)
+            {
+                ImVec2 overlap_pos_min = ImVec2(cursor_start, clippingTitleRect.Min.y);
+                ImVec2 overlap_pos_max = ImVec2(cursor_end, clippingTitleRect.Max.y);
+                ImRect overlap_rect(overlap_pos_min, overlap_pos_max);
+                draw_list->AddRectFilled(overlap_pos_min, overlap_pos_max, IM_COL32(128,128,32,192));
+                draw_list->AddLine(overlap_pos_min, overlap_pos_max, IM_COL32(0, 0, 0, 255));
+            }
+        }
+        draw_list->PopClipRect();
+    }
 }
 
 void MediaSequencer::CustomDrawCompact(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &legendRect, const ImRect &clippingRect, int64_t viewStartTime, int64_t visibleTime, float pixelWidth)
@@ -2342,7 +2692,7 @@ void MediaSequencer::CustomDrawCompact(int index, ImDrawList *draw_list, const I
     // rc: full item length rect
     // legendRect: legend area
     // clippingRect: current view window area
-
+    ImGuiIO &io = ImGui::GetIO();
     SequencerItem *item = m_Items[index];
     int64_t startTime = 0;
     if (item->mStart >= viewStartTime && item->mStart <= viewStartTime + visibleTime)
@@ -2369,7 +2719,6 @@ void MediaSequencer::CustomDrawCompact(int index, ImDrawList *draw_list, const I
     // draw clip
     if (item->mClips.size() > 1)
     {
-        ImGuiIO &io = ImGui::GetIO();
         bool mouse_clicked = false;
         for (auto clip : item->mClips)
         {
@@ -2405,11 +2754,11 @@ void MediaSequencer::CustomDrawCompact(int index, ImDrawList *draw_list, const I
                 ImVec2 clip_pos_min = ImVec2(cursor_start, clippingRect.Min.y);
                 ImVec2 clip_pos_max = ImVec2(cursor_end, clippingRect.Max.y);
                 ImRect clip_rect(clip_pos_min, clip_pos_max);
-                if (clip->mSelected)
+                if (clip->bSelected)
                 {
                     draw_list->AddRectFilled(clip_pos_min, clip_pos_max, IM_COL32(64,64,32,128));
                 }
-                if (clip->mDragOut)
+                if (clip->bDragOut)
                 {
                     draw_list->AddRectFilled(clip_pos_min, clip_pos_max, IM_COL32(64,32,32,192));
                 }
@@ -2438,6 +2787,51 @@ void MediaSequencer::CustomDrawCompact(int index, ImDrawList *draw_list, const I
     if (need_seek) Seek();
     
     draw_list->PopClipRect();
+
+        // draw overlap
+    if (item->mOverlap.size() > 0)
+    {
+        draw_list->PushClipRect(clippingRect.Min, clippingRect.Max, true);
+        for (auto overlap : item->mOverlap)
+        {
+            bool draw_overlap = false;
+            float cursor_start = 0;
+            float cursor_end  = 0;
+            if (overlap->mStart >= viewStartTime && overlap->mEnd < viewStartTime + visibleTime)
+            {
+                cursor_start = clippingRect.Min.x + (overlap->mStart - viewStartTime) * pixelWidth;
+                cursor_end = clippingRect.Min.x + (overlap->mEnd - viewStartTime) * pixelWidth;
+                draw_overlap = true;
+            }
+            else if (overlap->mStart >= viewStartTime && overlap->mStart <= viewStartTime + visibleTime && overlap->mEnd >= viewStartTime + visibleTime)
+            {
+                cursor_start = clippingRect.Min.x + (overlap->mStart - viewStartTime) * pixelWidth;
+                cursor_end = clippingRect.Max.x;
+                draw_overlap = true;
+            }
+            else if (overlap->mStart <= viewStartTime && overlap->mEnd <= viewStartTime + visibleTime)
+            {
+                cursor_start = clippingRect.Min.x;
+                cursor_end = clippingRect.Min.x + (overlap->mEnd - viewStartTime) * pixelWidth;
+                draw_overlap = true;
+            }
+            else if (overlap->mStart <= viewStartTime && overlap->mEnd >= viewStartTime + visibleTime)
+            {
+                cursor_start = clippingRect.Min.x;
+                cursor_end  = clippingRect.Max.x;
+                draw_overlap = true;
+            }
+            if (draw_overlap && cursor_end > cursor_start)
+            {
+                ImVec2 overlap_pos_min = ImVec2(cursor_start, clippingRect.Min.y);
+                ImVec2 overlap_pos_max = ImVec2(cursor_end, clippingRect.Max.y);
+                ImRect overlap_rect(overlap_pos_min, overlap_pos_max);
+                draw_list->AddRectFilled(overlap_pos_min, overlap_pos_max, IM_COL32(128,128,32,192));
+                draw_list->AddLine(overlap_pos_min, overlap_pos_max, IM_COL32(0, 0, 0, 255));
+            }
+        }
+        draw_list->PopClipRect();
+    }
 }
 
 void MediaSequencer::SetCurrent(int64_t pos, bool rev)
@@ -2469,7 +2863,81 @@ void MediaSequencer::SetCurrent(int64_t pos, bool rev)
             firstTime = currentTime;
         }
     }
+    //AlignTime(firstTime); // align time will cause UI not smooth
     if (firstTime < 0) firstTime = 0;
+}
+
+void MediaSequencer::AlignTime(int64_t& time)
+{
+    alignTime(time, mFrameRate);
+}
+
+void MediaSequencer::Update(int index)
+{
+    SequencerItem *item = m_Items[index];
+    // Overlap update
+    // first check all overlap item is still valid
+    for (auto it = item->mOverlap.begin(); it != item->mOverlap.end();)
+    {
+        SequencerItem *item_ = FindItemByID((*it)->mItemID);
+        SequencerItem *item_overlay = FindItemByID((*it)->mItemOverlapID);
+        if (item_ != item || !IsItemValid(item_overlay))
+        {
+            it = item->mOverlap.erase(it);
+        }
+        else
+            it++;
+    }
+    // second check all overlap is still overlap
+    for (auto it = item->mOverlap.begin(); it != item->mOverlap.end();)
+    {
+        SequencerItem *item_overlay = FindItemByID((*it)->mItemOverlapID);
+        auto start_1 = item->mStart;
+        auto end_1 = item->mEnd;
+        auto start_2 = item_overlay->mStart;
+        auto end_2 = item_overlay->mEnd;
+        auto new_start = std::max(start_1, start_2);
+        auto new_end = std::min(end_1, end_2);
+        if (new_start >= new_end)
+        {
+            // no overlap
+            it = item->mOverlap.erase(it);
+        }
+        else
+        {
+            // update overlap
+            (*it)->mStart = new_start;
+            (*it)->mEnd = new_end;
+            it++;
+        }
+    }
+    // then we need check new overlap
+    for (auto it : m_Items)
+    {
+        if (it == item)
+            continue;
+        auto new_start = std::max(item->mStart, it->mStart);
+        auto new_end = std::min(item->mEnd, it->mEnd);
+        if (new_start < new_end)
+        {
+            // has overlap, check it is new
+            bool found = false;
+            for (auto overlap : item->mOverlap)
+            {
+                if (it->mID == overlap->mItemOverlapID)
+                {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found)
+            {
+                // add new overlay
+                OverlapInfo * new_overlap = new OverlapInfo(new_start, new_end, item, it);
+                item->mOverlap.push_back(new_overlap);
+            }
+        }
+    }
 }
 
 void MediaSequencer::Seek()
@@ -2478,23 +2946,266 @@ void MediaSequencer::Seek()
     mFrame.clear();
     mCurrentPreviewTime = -1;
     mFrameLock.unlock();
+    if (mAudioRender)
+    {
+        if (bPlay) mAudioRender->Pause();
+        mAudioRender->Flush();
+    }
     for (auto item : m_Items)
     {
-        if (item->mMedia && item->mMedia->IsOpened())
+        int64_t item_time = currentTime - item->mStart + item->mStartOffset;
+        if (item->mMediaReaderVideo && item->mMediaReaderVideo->IsOpened())
         {
-            int64_t item_time = currentTime - item->mStart + item->mStartOffset;
-            alignTime(item_time, mFrameInterval);
-            item->mMedia->SeekTo((double)item_time / 1000.f);
+            int64_t video_time = item_time;
+            AlignTime(video_time);
+            item->mMediaReaderVideo->SeekTo((double)video_time / 1000.f);
         }
+        if (item->mMediaReaderAudio && item->mMediaReaderAudio->IsOpened())
+        {
+            int64_t audio_time = item_time;
+            item->mMediaReaderAudio->SeekTo((double)audio_time / 1000.f);
+        }
+    }
+    if (mAudioRender)
+    {
+        if (bPlay) mAudioRender->Resume();
+    }
+}
+
+void MediaSequencer::Play(bool play, bool forward)
+{
+    if (play) bForward = forward;
+    bPlay = play;
+    if (mAudioRender)
+    {
+        if (bPlay) mAudioRender->Resume();
+        else
+        {
+            mAudioRender->Pause();
+            for (int i = 0; i < mAudioLevel.size(); i++)
+            {
+                mAudioLevel[i] = 0;
+            }
+        }
+    }
+}
+
+void MediaSequencer::Step(bool forward)
+{
+    if (!bPlay && m_Items.size() > 0)
+    {
+        bForward = forward;
+        if (forward)
+        {
+            frameStepTime(currentTime, 1, mFrameRate);
+            if (currentTime > mEnd)
+                currentTime = mEnd;
+        }
+        else
+        {
+            frameStepTime(currentTime, -1, mFrameRate);
+            if (currentTime < mStart)
+                currentTime = mStart;
+        }
+    }
+}
+
+void MediaSequencer::Loop(bool loop)
+{
+    bLoop = loop;
+}
+
+void MediaSequencer::ToStart()
+{
+    if (!bPlay && m_Items.size() > 0)
+    {
+        firstTime = mStart;
+        currentTime = mStart;
+        Seek();
+    }
+}
+
+void MediaSequencer::ToEnd()
+{
+    if (!bPlay && m_Items.size() > 0)
+    {
+        if (mEnd - mStart - visibleTime > 0)
+            firstTime = mEnd - visibleTime;
+        else
+            firstTime = mStart;
+        currentTime = mEnd;
+        Seek();
     }
 }
 
 int MediaSequencer::GetAudioLevel(int channel)
 {
-    // TODO::
-    //int64_t time = ImGui::get_current_time_msec() * (channel + 1);
-    //return time % 96;
+    if (channel < mAudioLevel.size())
+        return mAudioLevel[channel];
     return 0;
+}
+
+int MediaSequencer::Load(const imgui_json::value& value)
+{
+    // first load media item
+    const imgui_json::array* mediaItemArray = nullptr;
+    if (BluePrint::GetPtrTo(value, "MediaItem", mediaItemArray))
+    {
+        for (auto& item : *mediaItemArray)
+        {
+            SequencerItem * media_item = SequencerItem::Load(item, this);
+            if (media_item)
+            {
+                m_Items.push_back(media_item);
+            }
+        }
+    }
+
+    // second load global info
+    if (value.contains("Start"))
+    {
+        auto& val = value["Start"];
+        if (val.is_number()) mStart = val.get<imgui_json::number>();
+    }
+    if (value.contains("End"))
+    {
+        auto& val = value["End"];
+        if (val.is_number()) mEnd = val.get<imgui_json::number>();
+    }
+    if (value.contains("ItemHeight"))
+    {
+        auto& val = value["ItemHeight"];
+        if (val.is_number()) mItemHeight = val.get<imgui_json::number>();
+    }
+    if (value.contains("VideoWidth"))
+    {
+        auto& val = value["VideoWidth"];
+        if (val.is_number()) mWidth = val.get<imgui_json::number>();
+    }
+    if (value.contains("VideoHeight"))
+    {
+        auto& val = value["VideoHeight"];
+        if (val.is_number()) mHeight = val.get<imgui_json::number>();
+    }
+    if (value.contains("FrameRateNum"))
+    {
+        auto& val = value["FrameRateNum"];
+        if (val.is_number()) mFrameRate.num = val.get<imgui_json::number>();
+    }
+    if (value.contains("FrameRateDen"))
+    {
+        auto& val = value["FrameRateDen"];
+        if (val.is_number()) mFrameRate.den = val.get<imgui_json::number>();
+    }
+    if (value.contains("AudioChannels"))
+    {
+        auto& val = value["AudioChannels"];
+        if (val.is_number()) mAudioChannels = val.get<imgui_json::number>();
+    }
+    if (value.contains("AudioSampleRate"))
+    {
+        auto& val = value["AudioSampleRate"];
+        if (val.is_number()) mAudioSampleRate = val.get<imgui_json::number>();
+    }
+    if (value.contains("AudioFormat"))
+    {
+        auto& val = value["AudioFormat"];
+        if (val.is_number()) mAudioFormat = (AudioRender::PcmFormat)val.get<imgui_json::number>();
+    }
+    if (value.contains("msPixelWidth"))
+    {
+        auto& val = value["msPixelWidth"];
+        if (val.is_number()) msPixelWidthTarget = val.get<imgui_json::number>();
+    }
+    if (value.contains("FirstTime"))
+    {
+        auto& val = value["FirstTime"];
+        if (val.is_number()) firstTime = val.get<imgui_json::number>();
+    }
+    if (value.contains("CurrentTime"))
+    {
+        auto& val = value["CurrentTime"];
+        if (val.is_number()) currentTime = val.get<imgui_json::number>();
+    }
+    if (value.contains("Forward"))
+    {
+        auto& val = value["Forward"];
+        if (val.is_boolean()) bForward = val.get<imgui_json::boolean>();
+    }
+    if (value.contains("Loop"))
+    {
+        auto& val = value["Loop"];
+        if (val.is_boolean()) bLoop = val.get<imgui_json::boolean>();
+    }
+    Seek();
+    return 0;
+}
+
+void MediaSequencer::Save(imgui_json::value& value)
+{
+    // first save media item
+    imgui_json::value media_items;
+    for (auto item : m_Items)
+    {
+        imgui_json::value media_item;
+        item->Save(media_item);
+        media_items.push_back(media_item);
+    }
+    value["MediaItem"] = media_items;
+
+    // second save global timeline info
+    value["Start"] = imgui_json::number(mStart);
+    value["End"] = imgui_json::number(mEnd);
+    value["ItemHeight"] = imgui_json::number(mItemHeight);
+    value["VideoWidth"] = imgui_json::number(mWidth);
+    value["VideoHeight"] = imgui_json::number(mHeight);
+    value["FrameRateNum"] = imgui_json::number(mFrameRate.num);
+    value["FrameRateDen"] = imgui_json::number(mFrameRate.den);
+    value["AudioChannels"] = imgui_json::number(mAudioChannels);
+    value["AudioSampleRate"] = imgui_json::number(mAudioSampleRate);
+    value["AudioFormat"] = imgui_json::number(mAudioFormat);
+    value["msPixelWidth"] = imgui_json::number(msPixelWidthTarget);
+    value["FirstTime"] = imgui_json::number(firstTime);
+    value["CurrentTime"] = imgui_json::number(currentTime);
+    value["Forward"] = imgui_json::boolean(bForward);
+    value["Loop"] = imgui_json::boolean(bLoop);
+}
+
+MediaItem* MediaSequencer::FindMediaItemByName(std::string name)
+{
+    for (auto media: media_items)
+    {
+        if (media->mName.compare(name) == 0)
+            return media;
+    }
+    return nullptr;
+}
+
+SequencerItem * MediaSequencer::FindItemByID(int64_t id)
+{
+    if (id != -1)
+    {
+        for (auto item : m_Items)
+        {
+            if (item->mID == id)
+                return item;
+        }
+    }
+    return nullptr;
+}
+
+bool MediaSequencer::IsItemValid(SequencerItem * item)
+{
+    bool valid = false;
+    for (auto item_ : m_Items)
+    {
+        if (item_ == item)
+        {
+            valid = true;
+            break;
+        }
+    }
+    return valid;
 }
 
 /***********************************************************************************************************
@@ -2505,19 +3216,20 @@ ClipInfo::ClipInfo(int64_t start, int64_t end, bool drag_out, void* handle)
     mID = ImGui::get_current_time_usec(); // sample using system time stamp for Clip ID
     mStart = mCurrent = start; 
     mEnd = end; 
-    mDragOut = drag_out; 
-    mItem = handle;
+    bDragOut = drag_out; 
     mSnapshot = CreateMediaSnapshot();
-    if (!mSnapshot || !mItem)
+    if (!mSnapshot || !handle)
         return;
-    SequencerItem * item = (SequencerItem *)mItem;
+    SequencerItem * item = (SequencerItem *)handle;
     MediaParserHolder holder = item->mSnapshot->GetMediaParser();
     if (!holder)
         return;
+    mItemID = item->mID;
+    mHandle = handle;
     mSnapshot->Open(holder);
     if (mSnapshot->IsOpened())
     {
-        mFrameInterval = item->mFrameInterval;
+        mClipFrameRate = item->mItemFrameRate;
         double window_size = 1.0f;
         mSnapshot->SetCacheFactor(1.0);
         mSnapshot->SetSnapshotResizeFactor(0.1, 0.1);
@@ -2569,37 +3281,63 @@ void ClipInfo::Seek()
     mFrame.clear();
     mFrameLock.unlock();
     mLastTime = -1;
-    mCurrentFilterTime = -1;
-    SequencerItem * item = (SequencerItem *)mItem;
-    if (item && item->mMedia && item->mMedia->IsOpened())
+    SequencerItem * item = (SequencerItem *)mHandle;
+    if (item && item->mMediaReaderVideo && item->mMediaReaderVideo->IsOpened())
     {
         int64_t item_time = mCurrent - item->mStart + item->mStartOffset;
-        alignTime(item_time, item->mFrameInterval);
-        item->mMedia->SeekTo((double)item_time / 1000.f);
+        alignTime(item_time, item->mItemFrameRate);
+        item->mMediaReaderVideo->SeekTo((double)item_time / 1000.f);
+    }
+}
+
+void ClipInfo::Step(bool forward, int64_t step)
+{
+    if (forward)
+    {
+        bForward = true;
+        if (step > 0) mCurrent += step;
+        else frameStepTime(mCurrent, 1, mClipFrameRate);
+        if (mCurrent >= mEnd)
+        {
+            mCurrent = mEnd;
+            mLastTime = -1;
+            bPlay = false;
+        }
+    }
+    else
+    {
+        bForward = false;
+        if (step > 0) mCurrent -= step;
+        else frameStepTime(mCurrent, -1, mClipFrameRate);
+        if (mCurrent <= mStart)
+        {
+            mCurrent = mStart;
+            mLastTime = -1;
+            bPlay = false;
+        }
     }
 }
 
 bool ClipInfo::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame)
 {
-    if (mCurrentFilterTime == mCurrent || mFrame.empty())
+    if (mFrame.empty())
         return false;
-    double current_time = (double)mCurrent / 1000.f;
-        
-    double buffer_start = mFrame.begin()->first.time_stamp;
-    double buffer_end = bForward ? buffer_start + mFrameInterval * MAX_SEQUENCER_FRAME_NUMBER : 
-                                    buffer_start - mFrameInterval * MAX_SEQUENCER_FRAME_NUMBER ;
+    auto frame_delay = mClipFrameRate.den * 1000 / mClipFrameRate.num;
+    int64_t buffer_start = mFrame.begin()->first.time_stamp * 1000;
+    int64_t buffer_end = buffer_start;
+    frameStepTime(buffer_end, bForward ? MAX_SEQUENCER_FRAME_NUMBER : -MAX_SEQUENCER_FRAME_NUMBER, mClipFrameRate);
     if (buffer_start > buffer_end)
         std::swap(buffer_start, buffer_end);
 
     bool out_of_range = false;
-    if (current_time < buffer_start || current_time > buffer_end)
+    if (mCurrent < buffer_start - frame_delay || mCurrent > buffer_end + frame_delay)
         out_of_range = true;
 
     for (auto pair = mFrame.begin(); pair != mFrame.end();)
     {
         bool need_erase = false;
-        int64_t time_diff = fabs(pair->first.time_stamp - current_time) * 1000;
-        if (time_diff > mFrameInterval)
+        int64_t time_diff = fabs(pair->first.time_stamp * 1000 - mCurrent);
+        if (time_diff > frame_delay)
             need_erase = true;
 
         if (need_erase || out_of_range)
@@ -2616,42 +3354,303 @@ bool ClipInfo::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame)
         else
         {
             in_out_frame = *pair;
-            mCurrentFilterTime = current_time;
+            // handle clip play event
             if (bPlay)
             {
                 bool need_step_time = false;
+                int64_t step_time = 0;
                 int64_t current_system_time = ImGui::get_current_time_usec() / 1000;
                 if (mLastTime != -1)
                 {
-                    int64_t step_time = current_system_time - mLastTime;
-                    if (step_time >= mFrameInterval)
+                    step_time = current_system_time - mLastTime;
+                    if (step_time >= frame_delay)
                         need_step_time = true;
+                }
+                else
+                {
+                    mLastTime = current_system_time;
+                    need_step_time = true;
                 }
                 if (need_step_time)
                 {
-                    if (bForward)
-                    {
-                        mCurrent += mFrameInterval;
-                        if (mCurrent > mEnd)
-                            mCurrent = mEnd;
-                    }
-                    else
-                    {
-                        mCurrent -= mFrameInterval;
-                        if (mCurrent < mStart)
-                            mCurrent = mStart;
-                    }
+                    Step(bForward, step_time);
+                    mLastTime = current_system_time;
                 }
-                mLastTime = current_system_time;
             }
             else
             {
                 mLastTime = -1;
-                mCurrentFilterTime = -1;
             }
             break;
         }
     }
     return out_of_range ? false : true;
+}
+
+ClipInfo * ClipInfo::Load(const imgui_json::value& value, void * handle)
+{
+    // first get id, start and end to create new clip
+    ClipInfo * new_clip = nullptr;
+    SequencerItem * item = (SequencerItem *)handle;
+    if (!item)
+        return new_clip;
+
+    int64_t start = 0;
+    int64_t end = 0;
+    if (value.contains("Start"))
+    {
+        auto& val = value["Start"];
+        if (val.is_number()) start = val.get<imgui_json::number>();
+    }
+    if (value.contains("End"))
+    {
+        auto& val = value["End"];
+        if (val.is_number()) end = val.get<imgui_json::number>();
+    }
+    new_clip = new ClipInfo(start, end, false, item);
+
+    // load clip
+    if (new_clip)
+    {
+        // load global clip info
+        if (value.contains("ID"))
+        {
+            auto& val = value["ID"];
+            if (val.is_number()) new_clip->mID = val.get<imgui_json::number>();
+        }
+        if (value.contains("Current"))
+        {
+            auto& val = value["Current"];
+            if (val.is_number()) new_clip->mCurrent = val.get<imgui_json::number>();
+        }
+        if (value.contains("Forward"))
+        {
+            auto& val = value["Forward"];
+            if (val.is_boolean()) new_clip->bForward = val.get<imgui_json::boolean>();
+        }
+        if (value.contains("DragOut"))
+        {
+            auto& val = value["DragOut"];
+            if (val.is_boolean()) new_clip->bDragOut = val.get<imgui_json::boolean>();
+        }
+        // load video filter bp
+        if (value.contains("VideoFilterBP"))
+        {
+            auto& val = value["VideoFilterBP"];
+            if (val.is_object()) new_clip->mVideoFilterBP = val;
+        }
+
+        // load audio filter bp
+        if (value.contains("AudioFilterBP"))
+        {
+            auto& val = value["AudioFilterBP"];
+            if (val.is_object()) new_clip->mAudioFilterBP = val;
+        }
+        new_clip->Seek();
+    }
+
+    return new_clip;
+}
+
+void ClipInfo::Save(imgui_json::value& value)
+{
+    // save clip video filter bp
+    if (mVideoFilterBP.is_object())
+    {
+        value["VideoFilterBP"] = mVideoFilterBP;
+    }
+
+    // save clip audio filter bp
+    if (mAudioFilterBP.is_object())
+    {
+        value["AudioFilterBP"] = mAudioFilterBP;
+    }
+
+    // save clip global info
+    value["ID"] = imgui_json::number(mID);
+    value["Start"] = imgui_json::number(mStart);
+    value["End"] = imgui_json::number(mEnd);
+    value["Current"] = imgui_json::number(mCurrent);
+    value["Forward"] = imgui_json::boolean(bForward);
+    value["DragOut"] = imgui_json::boolean(bDragOut);
+}
+
+/***********************************************************************************************************
+ * OverlapInfo Struct Member Functions
+ ***********************************************************************************************************/
+OverlapInfo::OverlapInfo(int64_t start, int64_t end, void* handle, void* Overlap)
+{
+    mID = ImGui::get_current_time_usec(); // sample using system time stamp for OverlapInfo ID
+    mStart = start; 
+    mEnd = end;
+    SequencerItem * item = (SequencerItem *)handle;
+    SequencerItem * overlap = (SequencerItem *)Overlap;
+    if (item) mItemID = item->mID;
+    if (overlap) mItemOverlapID = overlap->mID;
+}
+
+OverlapInfo::OverlapInfo(int64_t start, int64_t end, int64_t item_id, int64_t overlap_id)
+{
+    mID = ImGui::get_current_time_usec(); // sample using system time stamp for OverlapInfo ID
+    mStart = start; 
+    mEnd = end;
+    mItemID = item_id;
+    mItemOverlapID = overlap_id;
+}
+
+OverlapInfo::~OverlapInfo()
+{
+
+}
+
+OverlapInfo * OverlapInfo::Load(const imgui_json::value& value, void * handle)
+{
+    OverlapInfo * new_overlap = nullptr;
+    SequencerItem * item = (SequencerItem *)handle;
+    if (!item)
+        return new_overlap;
+
+    int64_t start = 0;
+    int64_t end = 0;
+    int64_t item_id = -1;
+    int64_t overlap_id = -1;
+    if (value.contains("Start"))
+    {
+        auto& val = value["Start"];
+        if (val.is_number()) start = val.get<imgui_json::number>();
+    }
+    if (value.contains("End"))
+    {
+        auto& val = value["End"];
+        if (val.is_number()) end = val.get<imgui_json::number>();
+    }
+
+    if (value.contains("ItemID"))
+    {
+        auto& val = value["ItemID"];
+        if (val.is_number()) item_id = val.get<imgui_json::number>();
+    }
+    if (value.contains("OverlapID"))
+    {
+        auto& val = value["OverlapID"];
+        if (val.is_number()) overlap_id = val.get<imgui_json::number>();
+    }
+
+    if (item_id != item->mID)
+        return new_overlap;
+
+    new_overlap = new OverlapInfo(start, end, item_id, overlap_id);
+    // load overlap
+    if (new_overlap)
+    {
+        // load global clip info
+        if (value.contains("ID"))
+        {
+            auto& val = value["ID"];
+            if (val.is_number()) new_overlap->mID = val.get<imgui_json::number>();
+        }
+        // load video filter bp
+        if (value.contains("VideoFusionBP"))
+        {
+            auto& val = value["VideoFusionBP"];
+            if (val.is_object()) new_overlap->mVideoFusionBP = val;
+        }
+
+        // load audio filter bp
+        if (value.contains("AudioFusionBP"))
+        {
+            auto& val = value["AudioFusionBP"];
+            if (val.is_object()) new_overlap->mAudioFusionBP = val;
+        }
+    }
+    return new_overlap;
+}
+
+void OverlapInfo::Save(imgui_json::value& value)
+{
+    // save overlap video fusion bp
+    if (mVideoFusionBP.is_object())
+    {
+        value["VideoFusionBP"] = mVideoFusionBP;
+    }
+
+    // save overlap audio fusion bp
+    if (mAudioFusionBP.is_object())
+    {
+        value["AudioFusionBP"] = mAudioFusionBP;
+    }
+
+    // save overlap global info
+    value["ID"] = imgui_json::number(mID);
+    value["ItemID"] = imgui_json::number(mItemID);
+    value["OverlapID"] = imgui_json::number(mItemOverlapID);
+    value["Start"] = imgui_json::number(mStart);
+    value["End"] = imgui_json::number(mEnd);
+}
+
+/***********************************************************************************************************
+ * SequencerPcmStream class Member Functions
+ ***********************************************************************************************************/
+template<typename T>
+static int calculate_audio_db(const T* data, int channels, int channel_index, size_t length, const float max_level) 
+{
+    static const float kMaxSquaredLevel = max_level * max_level;
+    constexpr float kMinLevel = -96.f;
+    float sum_square_ = 0;
+    size_t sample_count_ = 0;
+    for (size_t i = 0; i < length; i += channels) 
+    {
+        T audio_data = data[i + channel_index];
+        sum_square_ += audio_data * audio_data;
+    }
+    sample_count_ += length / channels;
+    float rms = sum_square_ / (sample_count_ * kMaxSquaredLevel);
+    rms = 10 * log10(rms);
+    if (rms < kMinLevel)
+        rms = kMinLevel;
+    rms = -kMinLevel + rms;
+    return static_cast<int>(rms + 0.5);
+}
+
+uint32_t SequencerPcmStream::Read(uint8_t* buff, uint32_t buffSize, bool blocking)
+{
+    if (!m_sequencer)
+        return 0;
+    uint32_t readSize = buffSize;
+    int64_t current_time = m_sequencer->currentTime;
+    bool out_audio = false;
+    for (auto &item : m_sequencer->m_Items)
+    {
+        int64_t item_time = current_time - item->mStart + item->mStartOffset;
+        if (item_time >= item->mStartOffset && item_time <= item->mLength - item->mEndOffset)
+        {
+            bool valid_time = true;
+            for (auto clip : item->mClips)
+            {
+                if (clip->bDragOut && item_time >= clip->mStart && item_time <= clip->mEnd)
+                {
+                    valid_time = false;
+                    break;
+                }
+            }
+            if (valid_time && item->mMediaReaderAudio && item->mMediaReaderAudio->IsOpened())
+            {
+                double pos;
+                if (item->mMediaReaderAudio->ReadAudioSamples(buff, readSize, pos, blocking))
+                {
+                    for (int i = 0; i < m_sequencer->mAudioLevel.size(); i++)
+                    {
+                        m_sequencer->mAudioLevel[i] = calculate_audio_db((float*)buff, m_sequencer->mAudioLevel.size(), i, readSize / sizeof(float), 1.0);
+                    }
+                    out_audio = item->mMuted ? false : true;
+                    break;
+                }
+            }
+        }
+        // TODO::Mix all item's Audio
+    }
+    if (!out_audio)
+        return 0;
+    return readSize;
 }
 } // namespace ImSequencer

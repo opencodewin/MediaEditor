@@ -43,7 +43,7 @@ public:
 
     virtual ~MediaReader_Impl() {}
 
-    bool Open(const std::string& url) override
+    bool Open(const string& url) override
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
         if (IsOpened())
@@ -109,6 +109,11 @@ public:
             m_errMsg = "Can NOT configure a 'MediaReader' after it's already started!";
             return false;
         }
+        if (m_vidStmIdx < 0)
+        {
+            m_errMsg = "Can NOT configure this 'MediaReader' as video reader since no video stream is found!";
+            return false;
+        }
         lock_guard<recursive_mutex> lk(m_apiLock);
 
         m_useRszFactor = false;
@@ -147,6 +152,11 @@ public:
             m_errMsg = "Can NOT configure a 'MediaReader' after it's already started!";
             return false;
         }
+        if (m_vidStmIdx < 0)
+        {
+            m_errMsg = "Can NOT configure this 'MediaReader' as video reader since no video stream is found!";
+            return false;
+        }
         lock_guard<recursive_mutex> lk(m_apiLock);
 
         m_ssWFacotr = outWidthFactor;
@@ -180,6 +190,11 @@ public:
             m_errMsg = "Can NOT configure a 'MediaReader' after it's already started!";
             return false;
         }
+        if (m_audStmIdx < 0)
+        {
+            m_errMsg = "Can NOT configure this 'MediaReader' as audio reader since no audio stream is found!";
+            return false;
+        }
         lock_guard<recursive_mutex> lk(m_apiLock);
 
         m_swrOutChannels = outChannels;
@@ -208,6 +223,7 @@ public:
 
     void Close() override
     {
+        m_quit = true;
         lock_guard<recursive_mutex> lk(m_apiLock);
         WaitAllThreadsQuit();
         FlushAllQueues();
@@ -263,7 +279,9 @@ public:
         m_audDurTs = 0;
         m_audFrmSize = 0;
         m_audReadTask = nullptr;
-        m_audReadOffset = 0;
+        m_audReadOffset = -1;
+        m_audReadEof = false;
+        m_audReadNextTaskSeekPts0 = INT64_MIN;
         m_swrFrmSize = 0;
         m_swrOutStartTime = 0;
 
@@ -287,21 +305,40 @@ public:
         if (ts < 0 || ts > stmdur)
             return false;
 
-        bool deferred = true;
-        if (m_apiLock.try_lock())
+        if (m_isVideoReader)
         {
+            bool deferred = true;
+            if (m_apiLock.try_lock())
+            {
+                if (m_prepared)
+                {
+                    UpdateCacheWindow(ts);
+                    deferred = false;
+                }
+                m_apiLock.unlock();
+            }
+            if (deferred)
+            {
+                lock_guard<mutex> lk(m_seekPosLock);
+                m_seekPosTs = ts;
+                m_seekPosUpdated = true;
+            }
+        }
+        else
+        {
+            lock_guard<recursive_mutex> lk(m_apiLock);
             if (m_prepared)
             {
                 UpdateCacheWindow(ts);
-                deferred = false;
+                m_audReadTask = nullptr;
+                m_audReadEof = false;
+                m_audReadNextTaskSeekPts0 = INT64_MIN;
             }
-            m_apiLock.unlock();
-        }
-        if (deferred)
-        {
-            lock_guard<mutex> lk(m_seekPosLock);
-            m_seekPosTs = ts;
-            m_seekPosUpdated = true;
+            else
+            {
+                m_seekPosTs = ts;
+                m_seekPosUpdated = true;
+            }
         }
         return true;
     }
@@ -322,7 +359,7 @@ public:
         return m_readForward;
     }
 
-    bool ReadVideoFrame(double pos, ImGui::ImMat& m, bool wait) override
+    bool ReadVideoFrame(double pos, ImGui::ImMat& m, bool& eof, bool wait) override
     {
         if (!m_started)
         {
@@ -332,8 +369,10 @@ public:
         if (pos < 0 || pos > m_vidDurTs)
         {
             m_errMsg = "Invalid argument! 'pos' can NOT be negative or larger than video's duration.";
+            eof = true;
             return false;
         }
+        eof = false;
         if (pos == m_prevReadPos && !m_prevReadImg.empty())
         {
             m = m_prevReadImg;
@@ -358,27 +397,24 @@ public:
         return success;
     }
 
-    bool ReadAudioSamples(uint8_t* buf, uint32_t& size, double& pos, bool wait) override
+    bool ReadAudioSamples(uint8_t* buf, uint32_t& size, double& pos, bool& eof, bool wait) override
     {
         if (!m_started)
         {
             m_errMsg = "Invalid state! Can NOT read video frame from a 'MediaReader' until it's started!";
             return false;
         }
+        eof = false;
 
         lock_guard<recursive_mutex> lk(m_apiLock);
         bool success = ReadAudioSamples_Internal(buf, size, pos, wait);
-
-        if (m_seekPosUpdated)
-        {
-            lock_guard<mutex> lk(m_seekPosLock);
-            UpdateCacheWindow(m_seekPosTs);
-            m_seekPosUpdated = false;
-        }
-        else if (success)
-        {
-            UpdateCacheWindow(pos);
-        }
+        double readDur = m_swrPassThrough ?
+                (double)size/m_audFrmSize/m_swrOutSampleRate :
+                (double)size/m_swrFrmSize/m_swrOutSampleRate;
+        UpdateCacheWindow(pos+readDur);
+        eof = m_audReadEof;
+        if (eof && size == 0)
+            pos = m_readForward ? m_audDurTs : 0;
 
         return success;
     }
@@ -437,6 +473,11 @@ public:
         return dynamic_cast<MediaInfo::AudioStream*>(hInfo->streams[m_audStmIdx].get());
     }
 
+    string GetError() const override
+    {
+        return m_errMsg;
+    }
+
     bool CheckHwPixFmt(AVPixelFormat pixfmt)
     {
         return pixfmt == m_vidHwPixFmt;
@@ -472,16 +513,12 @@ private:
 
     int64_t CvtPtsToMts(int64_t pts)
     {
-        return m_isVideoReader ?
-            av_rescale_q(pts-m_vidAvStm->start_time, m_vidAvStm->time_base, MILLISEC_TIMEBASE) :
-            av_rescale_q(pts-m_audAvStm->start_time, m_audAvStm->time_base, MILLISEC_TIMEBASE);
+        return m_isVideoReader ? CvtVidPtsToMts(pts) : CvtAudPtsToMts(pts);
     }
 
     int64_t CvtMtsToPts(int64_t mts)
     {
-        return m_isVideoReader ?
-            av_rescale_q(mts, MILLISEC_TIMEBASE, m_vidAvStm->time_base)+m_vidAvStm->start_time :
-            av_rescale_q(mts, MILLISEC_TIMEBASE, m_audAvStm->time_base)+m_audAvStm->start_time;
+        return m_isVideoReader ? CvtVidMtsToPts(mts) : CvtAudMtsToPts(mts);
     }
 
     int64_t CvtSwrPtsToMts(int64_t pts)
@@ -549,7 +586,16 @@ private:
 
     bool Prepare()
     {
-        lock_guard<recursive_mutex> lk(m_apiLock);
+        bool locked = false;
+        do {
+            locked = m_apiLock.try_lock();
+            if (!locked)
+                this_thread::sleep_for(chrono::milliseconds(5));
+        } while (!locked && !m_quit);
+        if (m_quit)
+            return false;
+
+        lock_guard<recursive_mutex> lk(m_apiLock, adopt_lock);
         int fferr;
         fferr = avformat_find_stream_info(m_avfmtCtx, nullptr);
         if (fferr < 0)
@@ -565,7 +611,7 @@ private:
             if (!m_hSeekPoints)
             {
                 m_errMsg = "FAILED to retrieve video seek points!";
-                m_logger->Log(ERROR) << m_errMsg << endl;
+                m_logger->Log(Error) << m_errMsg << endl;
                 return false;
             }
 
@@ -910,7 +956,7 @@ private:
             if (bestfrmIter->ownfrm)
             {
                 if (!m_frmCvt.ConvertImage(bestfrmIter->ownfrm.get(), m, bestfrmIter->ts))
-                    m_logger->Log(ERROR) << "FAILED to convert AVFrame to ImGui::ImMat! Message is '" << m_frmCvt.GetError() << "'." << endl;
+                    m_logger->Log(Error) << "FAILED to convert AVFrame to ImGui::ImMat! Message is '" << m_frmCvt.GetError() << "'." << endl;
             }
             else
                 m.time_stamp = bestfrmIter->ts;
@@ -923,16 +969,17 @@ private:
 
     bool ReadAudioSamples_Internal(uint8_t* buf, uint32_t& size, double& pos, bool wait)
     {
-        if (!m_audReadTask)
+        if (m_audReadEof)
         {
-            m_errMsg = "Internal Error! Audio read task is not found.";
-            return false;
+            size = 0;
+            return true;
         }
 
         uint8_t* dstptr = buf;
-        uint32_t readSize = 0, toReadSize = size, skipSize = m_audReadOffset;
-        GopDecodeTaskHolder readTask = m_audReadTask;
-        list<AudioFrame>::iterator iter;
+        uint32_t readSize = 0, toReadSize = size, skipSize;
+        skipSize = m_audReadOffset > 0 ? m_audReadOffset : 0;
+        list<AudioFrame>::iterator fwditer;
+        list<AudioFrame>::reverse_iterator bwditer;
         bool isIterSet = false;
         bool isPosSet = false;
         bool needLoop;
@@ -940,66 +987,110 @@ private:
         {
             bool idleLoop = true;
 
-            if (!readTask->afAry.empty())
+            GopDecodeTaskHolder readTask = m_audReadTask;
+            if (!readTask)
             {
-                auto& afAry = readTask->afAry;
-                if (!isIterSet)
+                readTask = FindNextAudioReadTask();
+                if (!readTask)
                 {
-                    iter = afAry.begin();
-                    isIterSet = true;
-                }
-
-                SelfFreeAVFramePtr readfrm = m_readForward ? iter->fwdfrm : iter->bwdfrm;
-                if (readfrm)
-                {
-                    if (!isPosSet)
+                    if (m_readForward && m_bldtskPriOrder.back()->mediaEof ||
+                        !m_readForward && m_bldtskPriOrder.front()->mediaEof)
                     {
-                        if (m_swrPassThrough)
-                            pos = (double)CvtPtsToMts(readfrm->pts)/1000
-                                +(double)m_audReadOffset/m_audFrmSize/m_swrOutSampleRate;
-                        else
-                            pos = (double)CvtSwrPtsToMts(readfrm->pts)/1000
-                                +(double)m_audReadOffset/m_swrFrmSize/m_swrOutSampleRate;
-                        m_prevReadPos = pos;
-                        isPosSet = true;
-                    }
-                    if (skipSize >= readfrm->linesize[0])
-                    {
-                        auto iter2 = iter++;
-                        if (iter != afAry.end())
-                        {
-                            skipSize -= readfrm->linesize[0];
-                            idleLoop = false;
-                        }
-                        else
-                        {
-                            m_logger->Log(ERROR) << "ABNORMAL! 'iter' reaches 'afAry.end()'!" << endl;
-                            return false;
-                        }
-                    }
-                    else
-                    {
-                        uint32_t copySize = readfrm->linesize[0]-skipSize;
-                        if (copySize > toReadSize)
-                            copySize = toReadSize;
-                        memcpy(dstptr+readSize, readfrm->data[0]+skipSize, copySize);
-                        toReadSize -= copySize;
-                        readSize += copySize;
-                        skipSize = 0;
-                        m_audReadOffset += copySize;
-                        iter++;
-                        if (iter == afAry.end())
-                        {
-                            readTask = FindNextAudioReadTask();
-                            skipSize = 0;
-                            isIterSet = false;
-                        }
-                        idleLoop = false;
+                        m_audReadEof = true;
+                        size = readSize;
+                        return true;
                     }
                 }
             }
 
-            needLoop = readTask && !readTask->cancel && !m_quit && (wait || !idleLoop) && toReadSize > 0;
+            if (readTask)
+            {
+                if (!readTask->afAry.empty() && (m_readForward || readTask->afAry.back().endOfGop))
+                {
+                    auto& afAry = readTask->afAry;
+                    if (!isIterSet)
+                    {
+                        if (m_readForward)
+                            fwditer = afAry.begin();
+                        else
+                            bwditer = afAry.rbegin();
+                        isIterSet = true;
+                    }
+
+                    SelfFreeAVFramePtr readfrm = m_readForward ? fwditer->fwdfrm : bwditer->bwdfrm;
+                    if (readfrm)
+                    {
+                        if (!isPosSet)
+                        {
+                            double startts = m_swrPassThrough ?
+                                    (double)CvtPtsToMts(readfrm->pts)/1000 :
+                                    (double)CvtSwrPtsToMts(readfrm->pts)/1000;
+                            double offset = m_swrPassThrough ?
+                                    (double)m_audReadOffset/m_audFrmSize/m_swrOutSampleRate :
+                                    (double)m_audReadOffset/m_swrFrmSize/m_swrOutSampleRate;
+                            pos = m_readForward ? startts+offset : startts-offset;
+                            m_prevReadPos = pos;
+                            isPosSet = true;
+                        }
+                        if (skipSize >= readfrm->linesize[0])
+                        {
+                            bool reachEnd;
+                            if (m_readForward)
+                            {
+                                fwditer++;
+                                reachEnd = fwditer == afAry.end();
+                            }
+                            else
+                            {
+                                bwditer++;
+                                reachEnd = bwditer == afAry.rend();
+                            }
+                            if (!reachEnd)
+                            {
+                                skipSize -= readfrm->linesize[0];
+                                idleLoop = false;
+                            }
+                            else
+                            {
+                                m_logger->Log(Error) << "ABNORMAL! Skip size too large, 'iter' reaches 'afAry.end()'!" << endl;
+                                return false;
+                            }
+                        }
+                        else
+                        {
+                            uint32_t copySize = readfrm->linesize[0]-skipSize;
+                            if (copySize > toReadSize)
+                                copySize = toReadSize;
+                            memcpy(dstptr+readSize, readfrm->data[0]+skipSize, copySize);
+                            toReadSize -= copySize;
+                            readSize += copySize;
+                            skipSize = 0;
+                            m_audReadOffset += copySize;
+
+                            bool reachEnd;
+                            if (m_readForward)
+                            {
+                                fwditer++;
+                                reachEnd = fwditer == afAry.end();
+                            }
+                            else
+                            {
+                                bwditer++;
+                                reachEnd = bwditer == afAry.rend();
+                            }
+                            if (reachEnd)
+                            {
+                                readTask = FindNextAudioReadTask();
+                                skipSize = 0;
+                                isIterSet = false;
+                            }
+                            idleLoop = false;
+                        }
+                    }
+                }
+            }
+
+            needLoop = (readTask && !readTask->cancel || !readTask && wait || !idleLoop) && toReadSize > 0 && !m_quit;
             if (needLoop && idleLoop)
                 this_thread::sleep_for(chrono::milliseconds(2));
         } while (needLoop);
@@ -1059,6 +1150,7 @@ private:
         mutex avpktQLock;
         bool demuxing{false};
         bool demuxEof{false};
+        bool mediaEof{false};
         bool decoding{false};
         bool decInputEof{false};
         bool decodeEof{false};
@@ -1085,7 +1177,7 @@ private:
 
         if (!m_prepared && !Prepare())
         {
-            m_logger->Log(ERROR) << "Prepare() FAILED! Error is '" << m_errMsg << "'." << endl;
+            m_logger->Log(Error) << "Prepare() FAILED! Error is '" << m_errMsg << "'." << endl;
             return;
         }
 
@@ -1137,7 +1229,7 @@ private:
                         int fferr = avformat_seek_file(m_avfmtCtx, stmidx, INT64_MIN, currTask->seekPts.first, currTask->seekPts.first, 0);
                         if (fferr < 0)
                         {
-                            m_logger->Log(ERROR) << "avformat_seek_file() FAILED for seeking to 'currTask->startPts'(" << currTask->seekPts.first << ")! fferr = " << fferr << "!" << endl;
+                            m_logger->Log(Error) << "avformat_seek_file() FAILED for seeking to 'currTask->startPts'(" << currTask->seekPts.first << ")! fferr = " << fferr << "!" << endl;
                             break;
                         }
                         demuxEof = false;
@@ -1166,13 +1258,14 @@ private:
                     {
                         if (fferr == AVERROR_EOF)
                         {
+                            currTask->mediaEof = true;
                             currTask->demuxEof = true;
                             demuxEof = true;
                         }
                         else
                         {
                             m_errMsg = FFapiFailureMessage("av_read_frame", fferr);
-                            m_logger->Log(ERROR) << "Demuxer ERROR! 'av_read_frame' returns " << fferr << "." << endl;
+                            m_logger->Log(Error) << "Demuxer ERROR! 'av_read_frame' returns " << fferr << "." << endl;
                         }
                     }
                 }
@@ -1189,7 +1282,7 @@ private:
                             AVPacket* enqpkt = av_packet_clone(&avpkt);
                             if (!enqpkt)
                             {
-                                m_logger->Log(ERROR) << "FAILED to invoke 'av_packet_clone(DemuxThreadProc)'!" << endl;
+                                m_logger->Log(Error) << "FAILED to invoke 'av_packet_clone(DemuxThreadProc)'!" << endl;
                                 break;
                             }
                             {
@@ -1250,7 +1343,7 @@ private:
                 }
                 else
                 {
-                    m_logger->Log(ERROR) << "av_read_frame() FAILED! fferr = " << fferr << "." << endl;
+                    m_logger->Log(Error) << "av_read_frame() FAILED! fferr = " << fferr << "." << endl;
                     return false;
                 }
             }
@@ -1287,7 +1380,7 @@ private:
             vf.decfrm = CloneSelfFreeAVFramePtr(frm);
             if (!vf.decfrm)
             {
-                m_logger->Log(ERROR) << "FAILED to invoke 'CloneSelfFreeAVFramePtr()' to allocate new AVFrame for VF!" << endl;
+                m_logger->Log(Error) << "FAILED to invoke 'CloneSelfFreeAVFramePtr()' to allocate new AVFrame for VF!" << endl;
                 return false;
             }
             // m_logger->Log(DEBUG) << "Adding VF#" << ts << "." << endl;
@@ -1401,7 +1494,7 @@ private:
                             if (fferr != AVERROR_EOF)
                             {
                                 m_errMsg = FFapiFailureMessage("avcodec_receive_frame", fferr);
-                                m_logger->Log(ERROR) << "FAILED to invoke 'avcodec_receive_frame'(VideoDecodeThreadProc)! return code is "
+                                m_logger->Log(Error) << "FAILED to invoke 'avcodec_receive_frame'(VideoDecodeThreadProc)! return code is "
                                     << fferr << "." << endl;
                                 quitLoop = true;
                                 break;
@@ -1426,9 +1519,11 @@ private:
                             idleLoop = false;
                         }
                     }
-                } while (hasOutput && !m_quit);
+                } while (hasOutput && !m_quit && (!currTask || !currTask->cancel));
                 if (quitLoop)
                     break;
+                if (currTask && currTask->cancel)
+                    continue;
 
                 // input packet to decoder
                 if (!sentNullPacket)
@@ -1450,7 +1545,7 @@ private:
                         else if (fferr != AVERROR(EAGAIN) && fferr != AVERROR_INVALIDDATA)
                         {
                             m_errMsg = FFapiFailureMessage("avcodec_send_packet", fferr);
-                            m_logger->Log(ERROR) << "FAILED to invoke 'avcodec_send_packet'(VideoDecodeThreadProc)! return code is "
+                            m_logger->Log(Error) << "FAILED to invoke 'avcodec_send_packet'(VideoDecodeThreadProc)! return code is "
                                 << fferr << "." << endl;
                             break;
                         }
@@ -1520,10 +1615,10 @@ private:
                                 if (HwFrameToSwFrame(swfrm.get(), frm))
                                     vf.ownfrm = swfrm;
                                 else
-                                    m_logger->Log(ERROR) << "FAILED to convert HW frame to SW frame!" << endl;
+                                    m_logger->Log(Error) << "FAILED to convert HW frame to SW frame!" << endl;
                             }
                             else
-                                m_logger->Log(ERROR) << "FAILED to allocate new SelfFreeAVFramePtr!" << endl;
+                                m_logger->Log(Error) << "FAILED to allocate new SelfFreeAVFramePtr!" << endl;
                         }
                         else
                         {
@@ -1532,11 +1627,11 @@ private:
                         vf.decfrm = nullptr;
                         currTask->frmCnt--;
                         if (currTask->frmCnt < 0)
-                            m_logger->Log(ERROR) << "!! ABNORMAL !! Task [" << currTask->seekPts.first << ", " << currTask->seekPts.second << "] has negative 'frmCnt'("
+                            m_logger->Log(Error) << "!! ABNORMAL !! Task [" << currTask->seekPts.first << ", " << currTask->seekPts.second << "] has negative 'frmCnt'("
                                 << currTask->frmCnt << ")!" << endl;
                         m_pendingVidfrmCnt--;
                         if (m_pendingVidfrmCnt < 0)
-                            m_logger->Log(ERROR) << "Pending video AVFrame ptr count is NEGATIVE! " << m_pendingVidfrmCnt << endl;
+                            m_logger->Log(Error) << "Pending video AVFrame ptr count is NEGATIVE! " << m_pendingVidfrmCnt << endl;
 
                         idleLoop = false;
                     }
@@ -1564,7 +1659,7 @@ private:
             af.decfrm = CloneSelfFreeAVFramePtr(frm);
             if (!af.decfrm)
             {
-                m_logger->Log(ERROR) << "FAILED to invoke 'CloneSelfFreeAVFramePtr()' to allocate new AVFrame for AF!" << endl;
+                m_logger->Log(Error) << "FAILED to invoke 'CloneSelfFreeAVFramePtr()' to allocate new AVFrame for AF!" << endl;
                 return false;
             }
             int64_t nextPts;
@@ -1678,7 +1773,7 @@ private:
                             if (fferr != AVERROR_EOF)
                             {
                                 m_errMsg = FFapiFailureMessage("avcodec_receive_frame", fferr);
-                                m_logger->Log(ERROR) << "FAILED to invoke 'avcodec_receive_frame'(AudioDecodeThreadProc)! return code is "
+                                m_logger->Log(Error) << "FAILED to invoke 'avcodec_receive_frame'(AudioDecodeThreadProc)! return code is "
                                     << fferr << "." << endl;
                                 quitLoop = true;
                                 break;
@@ -1722,7 +1817,7 @@ private:
                     else if (fferr != AVERROR(EAGAIN) && fferr != AVERROR_INVALIDDATA)
                     {
                         m_errMsg = FFapiFailureMessage("avcodec_send_packet", fferr);
-                        m_logger->Log(ERROR) << "FAILED to invoke 'avcodec_send_packet'(AudioDecodeThreadProc)! return code is "
+                        m_logger->Log(Error) << "FAILED to invoke 'avcodec_send_packet'(AudioDecodeThreadProc)! return code is "
                             << fferr << "." << endl;
                         break;
                     }
@@ -1781,7 +1876,7 @@ private:
                             fwdfrm = AllocSelfFreeAVFramePtr();
                             if (!fwdfrm)
                             {
-                                m_logger->Log(ERROR) << "FAILED to allocate new AVFrame for 'swr_convert()'!" << endl;
+                                m_logger->Log(Error) << "FAILED to allocate new AVFrame for 'swr_convert()'!" << endl;
                                 break;
                             }
                             AVFrame* srcfrm = af.decfrm.get();
@@ -1795,7 +1890,7 @@ private:
                             fferr = av_frame_get_buffer(dstfrm, 0);
                             if (fferr < 0)
                             {
-                                m_logger->Log(ERROR) << "av_frame_get_buffer(UpdatePcmThreadProc1) FAILED with return code " << fferr << endl;
+                                m_logger->Log(Error) << "av_frame_get_buffer(UpdatePcmThreadProc1) FAILED with return code " << fferr << endl;
                                 break;
                             }
                             int64_t outpts = swr_next_pts(m_swrCtx, av_rescale(srcfrm->pts, audTimebase.num*(int64_t)dstfrm->sample_rate*srcfrm->sample_rate, audTimebase.den));
@@ -1803,7 +1898,7 @@ private:
                             fferr = swr_convert(m_swrCtx, dstfrm->data, dstfrm->nb_samples, (const uint8_t **)srcfrm->data, srcfrm->nb_samples);
                             if (fferr < 0)
                             {
-                                m_logger->Log(ERROR) << "swr_convert(GenerateAudioSamplesThreadProc) FAILED with return code " << fferr << endl;
+                                m_logger->Log(Error) << "swr_convert(GenerateAudioSamplesThreadProc) FAILED with return code " << fferr << endl;
                                 break;
                             }
                             if (fferr < dstfrm->nb_samples)
@@ -1817,7 +1912,7 @@ private:
                         bwdfrm = AllocSelfFreeAVFramePtr();
                         if (!bwdfrm)
                         {
-                            m_logger->Log(ERROR) << "FAILED to allocate new AVFrame for backward pcm frame!" << endl;
+                            m_logger->Log(Error) << "FAILED to allocate new AVFrame for backward pcm frame!" << endl;
                             break;
                         }
                         bwdfrm->format = fwdfrm->format;
@@ -1828,7 +1923,7 @@ private:
                         fferr = av_frame_get_buffer(bwdfrm.get(), 0);
                         if (fferr < 0)
                         {
-                            m_logger->Log(ERROR) << "av_frame_get_buffer(UpdatePcmThreadProc2) FAILED with return code " << fferr << endl;
+                            m_logger->Log(Error) << "av_frame_get_buffer(UpdatePcmThreadProc2) FAILED with return code " << fferr << endl;
                             break;
                         }
                         av_frame_copy_props(bwdfrm.get(), fwdfrm.get());
@@ -1840,13 +1935,15 @@ private:
                             srcptr -= audFrmSize;
                             dstptr += audFrmSize;
                         }
+                        bwdfrm->linesize[0] = fwdfrm->linesize[0];
+                        bwdfrm->pts = fwdfrm->pts+fwdfrm->nb_samples;
 
                         af.decfrm = nullptr;
                         af.fwdfrm = fwdfrm;
                         af.bwdfrm = bwdfrm;
                         currTask->frmCnt--;
                         if (currTask->frmCnt < 0)
-                            m_logger->Log(ERROR) << "!! ABNORMAL !! Task [" << currTask->seekPts.first << ", " << currTask->seekPts.second << "] has negative 'frmCnt'("
+                            m_logger->Log(Error) << "!! ABNORMAL !! Task [" << currTask->seekPts.first << ", " << currTask->seekPts.second << "] has negative 'frmCnt'("
                                 << currTask->frmCnt << ")!" << endl;
 
                         idleLoop = false;
@@ -2116,14 +2213,14 @@ private:
                 auto iter = find(m_bldtskPriOrder.begin(), m_bldtskPriOrder.end(), m_audReadTask);
                 if (iter == m_bldtskPriOrder.end())
                 {
-                    m_audReadTask = m_bldtskPriOrder.front();
-                    m_audReadOffset = 0;
+                    m_audReadTask = nullptr;
+                    m_audReadOffset = -1;
                 }
             }
             else
             {
                 m_audReadTask = nullptr;
-                m_audReadOffset = 0;
+                m_audReadOffset = -1;
             }
         }
         m_logger->Log(DEBUG) << "Build task priority updated." << endl;
@@ -2155,15 +2252,12 @@ private:
             GopDecodeTaskHolder task = make_shared<GopDecodeTask>(*this);
             task->seekPts = { pts0, pts1 };
             m_bldtskTimeOrder.push_back(task);
-            if (currwnd.seekPosShow >= pts0 && currwnd.seekPosShow < pts1)
-            {
-                m_audReadTask = task;
-                m_audReadOffset = 0;
-            }
             pts0 = pts1;
             mts0 = mts1;
         }
         m_bldtskSnapWnd = currwnd;
+        m_audReadTask = nullptr;
+        m_audReadOffset = -1;
         m_logger->Log(DEBUG) << "^^^ Initialized build task, pos = " << TimestampToString(m_bldtskSnapWnd.readPos) << ", window = ["
             << TimestampToString(m_bldtskSnapWnd.cacheBeginTs) << " ~ " << TimestampToString(m_bldtskSnapWnd.cacheEndTs) << "]." << endl;
 
@@ -2286,24 +2380,80 @@ private:
         if (m_bldtskPriOrder.empty())
         {
             m_audReadTask = nullptr;
+            m_audReadOffset = -1;
             m_logger->Log(WARN) << "'m_bldtskPriOrder' is EMPTY! CANNOT find next read audio task." << endl;
             return nullptr;
         }
+
         auto iter = find(m_bldtskPriOrder.begin(), m_bldtskPriOrder.end(), m_audReadTask);
         if (iter == m_bldtskPriOrder.end())
         {
-            m_logger->Log(WARN) << "'m_audReadTask' CANNOT be found in 'm_bldtskPriOrder'!" << endl;
-            m_audReadTask = m_bldtskPriOrder.front();
+            if (m_audReadNextTaskSeekPts0 != INT64_MIN)
+            {
+                auto iter2 = find_if(m_bldtskPriOrder.begin(), m_bldtskPriOrder.end(), [this](const GopDecodeTaskHolder& task) {
+                    return task->seekPts.first == m_audReadNextTaskSeekPts0;
+                });
+                if (iter2 != m_bldtskPriOrder.end())
+                {
+                    m_audReadTask = *iter2;
+                    m_audReadOffset = 0;
+                    m_audReadNextTaskSeekPts0 = m_audReadTask->seekPts.second;
+                }
+                else
+                {
+                    m_audReadTask = nullptr;
+                    m_audReadOffset = -1;
+                }
+            }
+            else
+            {
+                CacheWindow currwnd = m_cacheWnd;
+                auto iter3 = find_if(m_bldtskPriOrder.begin(), m_bldtskPriOrder.end(), [this, currwnd](const GopDecodeTaskHolder& task) {
+                    return currwnd.readPos*1000 >= CvtAudPtsToMts(task->seekPts.first) && currwnd.readPos*1000 < CvtAudPtsToMts(task->seekPts.second);
+                });
+                if (iter3 != m_bldtskPriOrder.end())
+                {
+                    m_audReadTask = *iter3;
+                    if (m_readForward)
+                        m_audReadOffset = (int)((currwnd.readPos-(double)CvtAudPtsToMts(m_audReadTask->seekPts.first)/1000)*m_swrOutSampleRate)*m_swrFrmSize;
+                    else
+                        m_audReadOffset = (int)(((double)CvtAudPtsToMts(m_audReadTask->seekPts.second)/1000-currwnd.readPos)*m_swrOutSampleRate)*m_swrFrmSize;
+                    m_audReadNextTaskSeekPts0 = m_audReadTask->seekPts.second;
+                }
+                else
+                {
+                    m_logger->Log(WARN) << "'m_audReadTask' CANNOT be found in 'm_bldtskPriOrder'!" << endl;
+                    m_audReadTask = nullptr;
+                    m_audReadOffset = -1;
+                }
+            }
         }
         else
         {
-            iter++;
-            if (iter == m_bldtskPriOrder.end())
-                m_audReadTask = nullptr;
+            bool reachEnd;
+            if (m_readForward)
+            {
+                iter++;
+                reachEnd = iter == m_bldtskPriOrder.end();
+            }
             else
+            {
+                reachEnd = iter == m_bldtskPriOrder.begin();
+                if (!reachEnd)
+                    iter--;
+            }
+            if (reachEnd)
+            {
+                m_audReadTask = nullptr;
+                m_audReadOffset = -1;
+            }
+            else
+            {
                 m_audReadTask = *iter;
+                m_audReadOffset = 0;
+                m_audReadNextTaskSeekPts0 = m_audReadTask->seekPts.second;
+            }
         }
-        m_audReadOffset = 0;
         return m_audReadTask;
     }
 
@@ -2327,13 +2477,8 @@ private:
     int m_audStmIdx{-1};
     AVStream* m_vidAvStm{nullptr};
     AVStream* m_audAvStm{nullptr};
-#if LIBAVFORMAT_VERSION_MAJOR >= 59
-    const AVCodec* m_viddec{nullptr};
-    const AVCodec* m_auddec{nullptr};
-#else
-    AVCodec* m_viddec{nullptr};
-    AVCodec* m_auddec{nullptr};
-#endif
+    AVCodecPtr m_viddec{nullptr};
+    AVCodecPtr m_auddec{nullptr};
     AVCodecContext* m_viddecCtx{nullptr};
     bool m_vidPreferUseHw{true};
     AVHWDeviceType m_vidUseHwType{AV_HWDEVICE_TYPE_NONE};
@@ -2384,7 +2529,9 @@ private:
     double m_audDurTs{0};
     uint32_t m_audFrmSize{0};
     GopDecodeTaskHolder m_audReadTask;
-    uint32_t m_audReadOffset{0};
+    int32_t m_audReadOffset{-1};
+    bool m_audReadEof{false};
+    int64_t m_audReadNextTaskSeekPts0{INT64_MIN};
 
     bool m_useRszFactor{false};
     bool m_ssSizeChanged{false};

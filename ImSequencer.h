@@ -7,6 +7,7 @@
 #include "MediaOverview.h"
 #include "MediaSnapshot.h"
 #include "MediaReader.h"
+#include "AudioRender.hpp"
 #include "UI.h"
 #include <thread>
 #include <string>
@@ -59,6 +60,9 @@
 #define ICON_BANK           u8"\uf1b3"
 #define ICON_BLUE_PRINT     u8"\uf55B"
 #define ICON_BRAIN          u8"\uf5dc"
+#define ICON_NEW_PROJECT    u8"\uf271"
+#define ICON_OPEN_PROJECT   u8"\uf115"
+#define ICON_SAVE_PROJECT   u8"\uf0c7"
 
 #define ICON_PLAY           u8"\uf04b"
 #define ICON_PAUSE          u8"\uf04c"
@@ -176,7 +180,7 @@ struct SequencerInterface
     int64_t firstTime = 0;
     int64_t lastTime = 0;
     int64_t visibleTime = 0;
-    int64_t timeStep = 0;
+    float msPixelWidthTarget = 0.1f;
     bool bPlay = false;
     bool bForward = true;
     bool bLoop = false;
@@ -187,6 +191,7 @@ struct SequencerInterface
     virtual void SetStart(int64_t pos) = 0;
     virtual void SetEnd(int64_t pos) = 0;
     virtual void SetCurrent(int64_t pos, bool rev) = 0;
+    virtual void AlignTime(int64_t& time) = 0;
     virtual int GetItemCount() const = 0;
     virtual void BeginEdit(int /*index*/) {}
     virtual void EndEdit() {}
@@ -208,6 +213,7 @@ struct SequencerInterface
     virtual bool GetItemSelected(int /*index*/) const = 0;
     virtual void SetItemSelected(int /*index*/) {};
     virtual void DoubleClick(int /*index*/) {}
+    virtual void Update(int /*index*/) {}
     virtual void CustomDraw(int /*index*/, ImDrawList * /*draw_list*/, const ImRect & /*rc*/, const ImRect & /*titleRect*/, const ImRect & /*clippingTitleRect*/, const ImRect & /*legendRect*/, const ImRect & /*clippingRect*/, const ImRect & /*legendClippingRect*/, int64_t /* viewStartTime */, int64_t /* visibleTime */, float /*pixelWidth*/, bool /* need_update */) {}
     virtual void CustomDrawCompact(int /*index*/, ImDrawList * /*draw_list*/, const ImRect & /*rc*/, const ImRect & /*legendRect*/, const ImRect & /*clippingRect*/, int64_t /*viewStartTime*/, int64_t /*visibleTime*/, float /*pixelWidth*/) {}
 };
@@ -250,33 +256,55 @@ struct ClipInfo
     int64_t mStart  {0};
     int64_t mEnd    {0};
     int64_t mCurrent{0};
-    int64_t mFrameInterval {40};
+    MediaInfo::Ratio mClipFrameRate {25, 1};// clip Frame rate
     int64_t mLastTime {-1};
-    int64_t mCurrentFilterTime {-1};
     bool bPlay      {false};
     bool bForward   {true};
     bool bSeeking   {false};
-    bool mDragOut   {false};
-    bool mSelected  {false};
-    void * mItem    {nullptr};
+    bool bDragOut   {false};
+    bool bSelected  {false};
+    int64_t mItemID {-1};
     MediaSnapshot* mSnapshot {nullptr};     // clip snapshot handle
     std::vector<Snapshot> mVideoSnapshots;  // clip snapshots, including texture and timestamp info
     std::mutex mFrameLock;                  // clip frame mutex
     std::list<std::pair<ImGui::ImMat, ImGui::ImMat>> mFrame;         // clip timeline input/output frame pair
     int mFrameCount    {0};                 // total snapshot number in clip range
     float mSnapshotWidth {0};
+    void * mHandle {nullptr};
     ClipInfo(int64_t start, int64_t end, bool drag_out, void* handle);
     ~ClipInfo();
     void UpdateSnapshot();
     void Seek();
+    void Step(bool forward, int64_t step = 0);
     bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame);
     ImTextureID mFilterInputTexture {nullptr};  // clip filter input texture
     ImTextureID mFilterOutputTexture {nullptr};  // clip filter output texture
-    imgui_json::value mFilterBP;
+    imgui_json::value mVideoFilterBP;
+    imgui_json::value mAudioFilterBP;
+
+    static ClipInfo * Load(const imgui_json::value& value, void * handle);
+    void Save(imgui_json::value& value);
+};
+
+struct OverlapInfo
+{
+    int64_t mID             {-1};
+    int64_t mStart          {0};
+    int64_t mEnd            {0};
+    int64_t mItemID         {-1};
+    int64_t mItemOverlapID  {-1};
+    imgui_json::value mVideoFusionBP;
+    imgui_json::value mAudioFusionBP;
+    OverlapInfo(int64_t start, int64_t end, void* handle, void* Overlap);
+    OverlapInfo(int64_t start, int64_t end, int64_t item_id, int64_t overlap_id);
+    ~OverlapInfo();
+    static OverlapInfo * Load(const imgui_json::value& value, void * handle);
+    void Save(imgui_json::value& value);
 };
 
 struct SequencerItem
 {
+    int64_t mID         {-1};               // item ID
     std::string mName;                      // item name
     std::string mPath;                      // item media path
     unsigned int mColor {0};                // item view color
@@ -285,7 +313,9 @@ struct SequencerItem
     int64_t mStartOffset {0};               // item start time in media
     int64_t mEndOffset   {0};               // item end time in media
     int64_t mLength     {0};                // item total length in ms, not effect by cropping
-    int64_t mFrameInterval {40};            // timeline Media Frame Interval in ms
+    MediaInfo::Ratio mItemFrameRate {25, 1};// item Frame rate  
+    int mAudioChannels  {2};                // item audio channels(could be setting?)
+    int mAudioSampleRate {44100};           // item audio sample rate(could be setting?)
     bool mExpanded  {false};                // item is compact view or not
     bool mView      {true};                 // item is viewable or not
     bool mMuted     {false};                // item is muted or not
@@ -303,12 +333,15 @@ struct SequencerItem
     int64_t mSnapshotPos {-1};              // current snapshot position in ms(start of view area)
     int64_t mSnapshotLendth {0};            // crop range total length in ms
     MediaSnapshot* mSnapshot {nullptr};     // item snapshot handle
-    MediaOverview::WaveformHolder mWaveform {nullptr};// item audio snapshot
-    MediaReader* mMedia {nullptr};          // item media reader
+    MediaOverview::WaveformHolder mWaveform {nullptr};  // item audio snapshot
+    MediaReader* mMediaReaderVideo {nullptr};           // item media reader for video
+    MediaReader* mMediaReaderAudio {nullptr};           // item media reader for audio
     std::vector<VideoSnapshotInfo> mVideoSnapshotInfos; // item snapshots info, with all croped range
     std::vector<Snapshot> mVideoSnapshots;  // item snapshots, including texture and timestamp info
     std::vector<int64_t> mCutPoint;         // item cut points info
-    std::vector<ClipInfo *> mClips;           // item clips info
+    std::vector<ClipInfo *> mClips;         // item clips info
+    std::vector<OverlapInfo *> mOverlap;    // item overlap with others
+    void Initialize(const std::string& name, MediaParserHolder parser_holder, MediaOverview::WaveformHolder wave_holder, int64_t start, int64_t end, bool expand, int type);
     SequencerItem(const std::string& name, MediaItem * media_item, int64_t start, int64_t end, bool expand, int type);
     SequencerItem(const std::string& name, SequencerItem * sequencer_item, int64_t start, int64_t end, bool expand, int type);
     ~SequencerItem();
@@ -317,8 +350,12 @@ struct SequencerItem
     void SetClipSelected(ClipInfo* clip);
     void CalculateVideoSnapshotInfo(const ImRect &customRect, int64_t viewStartTime, int64_t visibleTime);
     bool DrawItemControlBar(ImDrawList *draw_list, ImRect rc, int sequenceOptions);
+
+    static SequencerItem* Load(const imgui_json::value& value, void * handle);
+    void Save(imgui_json::value& value);
 };
 
+class SequencerPcmStream;
 struct MediaSequencer : public SequencerInterface
 {
     MediaSequencer();
@@ -329,6 +366,7 @@ struct MediaSequencer : public SequencerInterface
     void SetStart(int64_t pos) { mStart = pos; }
     void SetEnd(int64_t pos) { mEnd = pos; }
     void SetCurrent(int64_t pos, bool rev);
+    void AlignTime(int64_t& time);
     int GetItemCount() const { return (int)m_Items.size(); }
     bool GetItemSelected(int index) const { return m_Items[index]->mSelected; }
     void SetItemSelected(int index);
@@ -346,19 +384,34 @@ struct MediaSequencer : public SequencerInterface
     void Seek();
     size_t GetCustomHeight(int index) { return m_Items[index]->mExpanded ? mItemHeight : 0; }
     void DoubleClick(int index) { m_Items[index]->mExpanded = !m_Items[index]->mExpanded; }
+    void Update(int index);
     void CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &titleRect, const ImRect &clippingTitleRect, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRect, int64_t viewStartTime, int64_t visibleTime, float pixelWidth, bool need_update);
     void CustomDrawCompact(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &legendRect, const ImRect &clippingRect, int64_t viewStartTime, int64_t visibleTime, float pixelWidth);
     ImGui::ImMat GetPreviewFrame();
     int GetAudioLevel(int channel);
 
+    void Play(bool play, bool forward = true);
+    void Step(bool forward = true);
+    void Loop(bool loop);
+    void ToStart();
+    void ToEnd();
+
+    // BP CallBacks
+    static int OnBluePrintChange(int type, std::string name, void* handle);
+
     std::vector<SequencerItem *> m_Items;   // timeline items
-    const int mItemHeight {60};             // item custom view height
+    int mItemHeight {60};                   // item custom view height
     int64_t mStart   {0};                   // whole timeline start in ms
     int64_t mEnd   {0};                     // whole timeline end in ms
     int mWidth  {1920};                     // timeline Media Width
     int mHeight {1080};                     // timeline Media Height
-    int64_t mFrameInterval {40};            // timeline Media Frame Duration in ms
-    
+    MediaInfo::Ratio mFrameRate {25, 1};    // timeline Media Frame rate
+    int mAudioChannels {2};                 // timeline audio channels
+    int mAudioSampleRate {44100};           // timeline audio sample rate
+    AudioRender::PcmFormat mAudioFormat {AudioRender::PcmFormat::FLOAT32};
+                                            // timeline audio format
+    std::vector<int> mAudioLevel;           // timeline audio levels
+
     std::thread * mPreviewThread {nullptr}; // Preview Thread, which is read whole time line and mixer all filter/transition
     bool mPreviewDone {false};              // Preview Thread should finished
     bool mPreviewRunning {false};           // Preview Thread is running
@@ -372,7 +425,30 @@ struct MediaSequencer : public SequencerInterface
     std::list<ImGui::ImMat> mFrame;         // timeline output frame
     ImTextureID mMainPreviewTexture {nullptr};  // main preview texture
     int64_t mCurrentPreviewTime {-1};
-    BluePrint::BluePrintUI * video_filter_bp {nullptr};
+    BluePrint::BluePrintUI * mVideoFilterBluePrint {nullptr};
+    std::mutex mBluePrintLock;              // BluePrint mutex
+    bool mVideoFilterNeedUpdate {false};
+
+    AudioRender* mAudioRender {nullptr};        // audio render(SDL)
+    SequencerPcmStream * mPCMStream {nullptr};  // audio pcm stream
+
+    std::vector<MediaItem *> media_items;       // Media Bank
+    MediaItem* FindMediaItemByName(std::string name);   // Find media from bank
+    SequencerItem * FindItemByID(int64_t id);
+    
+    bool IsItemValid(SequencerItem * item);
+
+    int Load(const imgui_json::value& value);
+    void Save(imgui_json::value& value);
+};
+
+class SequencerPcmStream : public AudioRender::ByteStream
+{
+public:
+    SequencerPcmStream(MediaSequencer* sequencer) : m_sequencer(sequencer) {}
+    uint32_t Read(uint8_t* buff, uint32_t buffSize, bool blocking) override;
+private:
+    MediaSequencer* m_sequencer {nullptr};
 };
 
 bool ClipTimeLine(ClipInfo* clip);

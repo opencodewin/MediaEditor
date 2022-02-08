@@ -538,7 +538,7 @@ private:
         if (!m_hSeekPoints)
         {
             m_errMsg = "FAILED to retrieve video seek points!";
-            m_logger->Log(ERROR) << m_errMsg << endl;
+            m_logger->Log(Error) << m_errMsg << endl;
             return false;
         }
 
@@ -690,7 +690,7 @@ private:
 
         if (!m_prepared && !Prepare())
         {
-            m_logger->Log(ERROR) << "Prepare() FAILED! Error is '" << m_errMsg << "'." << endl;
+            m_logger->Log(Error) << "Prepare() FAILED! Error is '" << m_errMsg << "'." << endl;
             return;
         }
 
@@ -744,7 +744,7 @@ private:
                             int fferr = avformat_seek_file(m_avfmtCtx, m_vidStmIdx, INT64_MIN, currTask->seekPts.first, currTask->seekPts.first, 0);
                             if (fferr < 0)
                             {
-                                m_logger->Log(ERROR) << "avformat_seek_file() FAILED for seeking to 'currTask->startPts'(" << currTask->seekPts.first << ")! fferr = " << fferr << "!" << endl;
+                                m_logger->Log(Error) << "avformat_seek_file() FAILED for seeking to 'currTask->startPts'(" << currTask->seekPts.first << ")! fferr = " << fferr << "!" << endl;
                                 break;
                             }
                             demuxEof = false;
@@ -778,7 +778,7 @@ private:
                                 demuxEof = true;
                             }
                             else
-                                m_logger->Log(ERROR) << "Demuxer ERROR! 'av_read_frame' returns " << fferr << "." << endl;
+                                m_logger->Log(Error) << "Demuxer ERROR! 'av_read_frame' returns " << fferr << "." << endl;
                         }
                     }
 
@@ -801,13 +801,13 @@ private:
                             {
                                 if (gopSmallestIdx > currTask->ssIdxPair.first)
                                 {
-                                    m_logger->Log(ERROR) << "!!!!!! ABNORMAL SS INDEX (1) !!!!!! demux task eof, but the smallest gop ss index is larger than task's first index, "
+                                    m_logger->Log(Error) << "!!!!!! ABNORMAL SS INDEX (1) !!!!!! demux task eof, but the smallest gop ss index is larger than task's first index, "
                                         << gopSmallestIdx << " > " << currTask->ssIdxPair.first << "." << endl;
                                 }
                                 if (currPktSsIdx < currTask->ssIdxPair.second)
                                 {
                                     bool gopEnd = avpkt.pts >= currTask->seekPts.second;
-                                    m_logger->Log(ERROR) << "!!!!!! ABNORMAL SS INDEX (2) !!!!!! demux task eof, but last pkt index is " << currPktSsIdx
+                                    m_logger->Log(Error) << "!!!!!! ABNORMAL SS INDEX (2) !!!!!! demux task eof, but last pkt index is " << currPktSsIdx
                                         << ", which is smaller than task's second index " << currTask->ssIdxPair.second
                                         << ", REASON is " << (gopEnd ? "GOP-END" : "SSIDX-END") << endl;
                                 }
@@ -819,7 +819,7 @@ private:
                                 AVPacket* enqpkt = av_packet_clone(&avpkt);
                                 if (!enqpkt)
                                 {
-                                    m_logger->Log(ERROR) << "FAILED to invoke 'av_packet_clone(DemuxThreadProc)'!" << endl;
+                                    m_logger->Log(Error) << "FAILED to invoke 'av_packet_clone(DemuxThreadProc)'!" << endl;
                                     break;
                                 }
                                 {
@@ -841,7 +841,7 @@ private:
             }
             else
             {
-                m_logger->Log(ERROR) << "Demux procedure to non-video media is NOT IMPLEMENTED yet!" << endl;
+                m_logger->Log(Error) << "Demux procedure to non-video media is NOT IMPLEMENTED yet!" << endl;
             }
 
             if (idleLoop)
@@ -879,7 +879,7 @@ private:
                 }
                 else
                 {
-                    m_logger->Log(ERROR) << "av_read_frame() FAILED! fferr = " << fferr << "." << endl;
+                    m_logger->Log(Error) << "av_read_frame() FAILED! fferr = " << fferr << "." << endl;
                     return false;
                 }
             }
@@ -960,7 +960,7 @@ private:
                         {
                             if (fferr != AVERROR_EOF)
                             {
-                                m_logger->Log(ERROR) << "FAILED to invoke 'avcodec_receive_frame'(VideoDecodeThreadProc)! return code is "
+                                m_logger->Log(Error) << "FAILED to invoke 'avcodec_receive_frame'(VideoDecodeThreadProc)! return code is "
                                     << fferr << "." << endl;
                                 quitLoop = true;
                                 break;
@@ -1017,7 +1017,7 @@ private:
                         }
                         else if (fferr != AVERROR(EAGAIN) && fferr != AVERROR_INVALIDDATA)
                         {
-                            m_logger->Log(ERROR) << "FAILED to invoke 'avcodec_send_packet'(VideoDecodeThreadProc)! return code is "
+                            m_logger->Log(Error) << "FAILED to invoke 'avcodec_send_packet'(VideoDecodeThreadProc)! return code is "
                                 << fferr << "." << endl;
                             quitLoop = true;
                         }
@@ -1063,16 +1063,16 @@ private:
                     {
                         double ts = (double)CvtVidPtsToMts(ss.avfrm->pts)/1000.;
                         if (!m_frmCvt.ConvertImage(ss.avfrm, ss.img, ts))
-                            m_logger->Log(ERROR) << "FAILED to convert AVFrame to ImGui::ImMat! Message is '" << m_frmCvt.GetError() << "'." << endl;
+                            m_logger->Log(Error) << "FAILED to convert AVFrame to ImGui::ImMat! Message is '" << m_frmCvt.GetError() << "'." << endl;
                         av_frame_free(&ss.avfrm);
                         ss.avfrm = nullptr;
                         currTask->ssfrmCnt--;
                         if (currTask->ssfrmCnt < 0)
-                            m_logger->Log(ERROR) << "!! ABNORMAL !! Task [" << currTask->ssIdxPair.first << ", " << currTask->ssIdxPair.second << "] has negative 'ssfrmCnt'("
+                            m_logger->Log(Error) << "!! ABNORMAL !! Task [" << currTask->ssIdxPair.first << ", " << currTask->ssIdxPair.second << "] has negative 'ssfrmCnt'("
                                 << currTask->ssfrmCnt << ")!" << endl;
                         m_pendingVidfrmCnt--;
                         if (m_pendingVidfrmCnt < 0)
-                            m_logger->Log(ERROR) << "Pending video AVFrame ptr count is NEGATIVE! " << m_pendingVidfrmCnt << endl;
+                            m_logger->Log(Error) << "Pending video AVFrame ptr count is NEGATIVE! " << m_pendingVidfrmCnt << endl;
                         idleLoop = false;
                     }
                 }
@@ -1540,7 +1540,7 @@ private:
             ss.avfrm = av_frame_clone(frm);
             if (!ss.avfrm)
             {
-                m_logger->Log(ERROR) << "FAILED to invoke 'av_frame_clone()' to allocate new AVFrame for SS!" << endl;
+                m_logger->Log(Error) << "FAILED to invoke 'av_frame_clone()' to allocate new AVFrame for SS!" << endl;
                 return false;
             }
             // m_logger->Log(DEBUG) << "Adding SS#" << ssIdx << "." << endl;
@@ -1597,11 +1597,7 @@ private:
     int m_audStmIdx{-1};
     AVStream* m_vidStream{nullptr};
     AVStream* m_audStream{nullptr};
-#if LIBAVFORMAT_VERSION_MAJOR >= 59
-    const AVCodec* m_viddec{nullptr};
-#else
-    AVCodec* m_viddec{nullptr};
-#endif
+    AVCodecPtr m_viddec{nullptr};
     AVCodecContext* m_viddecCtx{nullptr};
     bool m_vidPreferUseHw{true};
     AVHWDeviceType m_vidUseHwType{AV_HWDEVICE_TYPE_NONE};

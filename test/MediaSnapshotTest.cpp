@@ -13,17 +13,19 @@ using namespace std;
 using namespace Logger;
 
 static MediaOverview* g_movr = nullptr;
-// static MediaOverview* g_movr2 = nullptr;
-static uint32_t g_ssCount = 12;
+static MediaSnapshot* g_msrc = nullptr;
+static double g_windowPos = 0.f;
+static double g_windowSize = 300.f;
+static double g_windowFrames = 14.0f;
 static vector<ImTextureID> g_snapshotTids;
 ImVec2 g_snapImageSize;
-const string c_imguiIniPath = "movr_test.ini";
+const string c_imguiIniPath = "ms_test.ini";
 const string c_bookmarkPath = "bookmark.ini";
 
 // Application Framework Functions
 void Application_GetWindowProperties(ApplicationWindowProperty& property)
 {
-    property.name = "MediaOverviewTest";
+    property.name = "MediaSnapshotTest";
     property.viewport = false;
     property.docking = false;
     property.auto_merge = false;
@@ -32,11 +34,13 @@ void Application_GetWindowProperties(ApplicationWindowProperty& property)
     property.height = 720;
 }
 
+void Application_SetupContext(ImGuiContext* ctx)
+{
+}
+
 void Application_Initialize(void** handle)
 {
     GetDefaultLogger()
-        ->SetShowLevels(DEBUG);
-    GetMediaOverviewLogger()
         ->SetShowLevels(DEBUG);
 
 #ifdef USE_BOOKMARK
@@ -54,21 +58,20 @@ void Application_Initialize(void** handle)
     ImGuiIO& io = ImGui::GetIO();
     io.IniFilename = c_imguiIniPath.c_str();
 
-    g_snapshotTids.resize(g_ssCount);
+    size_t ssCnt = (size_t)ceil(g_windowFrames)+1;
+    g_snapshotTids.reserve(ssCnt);
     for (auto& tid : g_snapshotTids)
         tid = nullptr;
     g_movr = CreateMediaOverview();
     g_movr->SetSnapshotSize(320, 180);
-    // g_movr->SetSnapshotResizeFactor(0.5f, 0.5f);
-    // g_movr2 = CreateMediaOverview();
-    // g_movr2->SetSnapshotSize(320, 180);
-    // g_movr2->SetFixedAggregateSamples(1);
+    g_msrc = CreateMediaSnapshot();
+    g_msrc->SetSnapshotResizeFactor(0.5f, 0.5f);
 }
 
 void Application_Finalize(void** handle)
 {
+    ReleaseMediaSnapshot(&g_msrc);
     ReleaseMediaOverview(&g_movr);
-    // ReleaseMediaOverview(&g_movr2);
     for (auto& tid : g_snapshotTids)
     {
         if (tid)
@@ -86,11 +89,11 @@ void Application_Finalize(void** handle)
 #endif
 }
 
-bool Application_Frame(void * handle)
+bool Application_Frame(void * handle, bool app_will_quit)
 {
-    bool done = false;
+    bool app_done = false;
     auto& io = ImGui::GetIO();
-    g_snapImageSize.x = io.DisplaySize.x/(g_ssCount+1);
+    g_snapImageSize.x = io.DisplaySize.x/(g_windowFrames+1);
     g_snapImageSize.y = g_snapImageSize.x*9/16;
 
     ImGui::SetNextWindowPos({0, 0});
@@ -105,52 +108,37 @@ bool Application_Frame(void * handle)
 
         ImGui::Spacing();
 
-        MediaOverview::WaveformHolder hWaveform = g_movr->GetWaveform();
-        double startPos = 0;
-        double windowSize = 0;
-        if (hWaveform)
+        float pos = g_windowPos;
+        float minPos = (float)g_msrc->GetVideoMinPos()/1000.f;
+        float vidDur = (float)g_msrc->GetVideoDuration()/1000.f;
+        if (ImGui::SliderFloat("Position", &pos, minPos, minPos+vidDur, "%.3f"))
         {
-            int sampleSize = hWaveform->pcm[0].size();
-            int startOff = startPos == 0 ? 0 : (int)(startPos/hWaveform->aggregateDuration);
-            if (startOff >= sampleSize) startOff = 0;
-            int windowLen = windowSize == 0 ? sampleSize : (int)(windowSize/hWaveform->aggregateDuration);
-            if (startOff+windowLen > sampleSize) windowLen = sampleSize-startOff;
-            float verticalMax = abs(hWaveform->maxSample);
-            if (verticalMax < abs(hWaveform->minSample))
-                verticalMax = abs(hWaveform->minSample);
-            ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.f, 1.f,0.f, 1.f));
-            ImGui::PlotLines("Waveform", hWaveform->pcm[0].data()+startOff, windowLen, 0, nullptr, -verticalMax, verticalMax, ImVec2(io.DisplaySize.x, 160), sizeof(float), false);
-            ImGui::PopStyleColor();
+            g_windowPos = pos;
         }
+
+        float wndSize = g_windowSize;
+        float minWndSize = (float)g_msrc->GetMinWindowSize();
+        float maxWndSize = (float)g_msrc->GetMaxWindowSize();
+        if (ImGui::SliderFloat("WindowSize", &wndSize, minWndSize, maxWndSize, "%.3f"))
+            g_windowSize = wndSize;
+        if (ImGui::IsItemDeactivated())
+            g_msrc->ConfigSnapWindow(g_windowSize, g_windowFrames);
 
         ImGui::Spacing();
 
-        // hWaveform = g_movr2->GetWaveform();
-        // if (hWaveform)
-        // {
-        //     int sampleSize = hWaveform->pcm[0].size();
-        //     int startOff = startPos == 0 ? 0 : (int)(startPos/hWaveform->aggregateDuration);
-        //     if (startOff >= sampleSize) startOff = 0;
-        //     int windowLen = windowSize == 0 ? sampleSize : (int)(windowSize/hWaveform->aggregateDuration);
-        //     if (startOff+windowLen > sampleSize) windowLen = sampleSize-startOff;
-        //     ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.f, 1.f,0.f, 1.f));
-        //     ImGui::PlotLines("Waveform", hWaveform->pcm[0].data()+startOff, windowLen, 0, nullptr, -1.f, 1.f, ImVec2(io.DisplaySize.x, 160), sizeof(float), false);
-        //     ImGui::PopStyleColor();
-        // }
-
-        // ImGui::Spacing();
-
         vector<ImGui::ImMat> snapshots;
-        if (!g_movr->GetSnapshots(snapshots))
+        if (!g_msrc->GetSnapshots(snapshots, pos))
             snapshots.clear();
 
-        if (snapshots.size() > g_snapshotTids.size())
+        float startPos = snapshots.size() > 0 ? snapshots[0].time_stamp : minPos;
+        int snapshotCnt = (int)ceil(g_windowFrames);
+        if (snapshotCnt > g_snapshotTids.size())
         {
-            int addcnt = snapshots.size()-g_snapshotTids.size();
+            int addcnt = snapshotCnt-g_snapshotTids.size();
             for (int i = 0; i < addcnt; i++)
                 g_snapshotTids.push_back(nullptr);
         }
-        for (int i = 0; i < snapshots.size(); i++)
+        for (int i = 0; i < snapshotCnt; i++)
         {
             ImGui::BeginGroup();
             if (i >= snapshots.size())
@@ -173,7 +161,7 @@ bool Application_Frame(void * handle)
                     vmat.type != IM_DT_INT8 ||
                     (vmat.device != IM_DD_CPU && vmat.device != IM_DD_VULKAN)))
                 {
-                    Log(ERROR) << "WRONG snapshot format!" << endl;
+                    Log(Error) << "WRONG snapshot format!" << endl;
                     valid = false;
                     tag += "(bad format)";
                 }
@@ -203,8 +191,7 @@ bool Application_Frame(void * handle)
 	{
         if (ImGuiFileDialog::Instance()->IsOk())
 		{
-            g_movr->Close();
-            // g_movr2->Close();
+            g_msrc->Close();
             for (auto& tid : g_snapshotTids)
             {
                 if (tid)
@@ -212,17 +199,25 @@ bool Application_Frame(void * handle)
                 tid = nullptr;
             }
             string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
-            if (g_movr->Open(filePathName, g_ssCount))
-                g_movr->GetMediaParser()->EnableParseInfo(MediaParser::VIDEO_SEEK_POINTS);
-            // g_movr2->Open(g_movr->GetMediaParser());
+            // g_movr->Open(filePathName, 10);
+            // g_movr->GetMediaParser()->EnableParseInfo(MediaParser::VIDEO_SEEK_POINTS);
+            // g_msrc->Open(g_movr->GetMediaParser());
+            g_msrc->Open(filePathName);
+            g_windowPos = (float)g_msrc->GetVideoMinPos()/1000.f;
+            g_windowSize = (float)g_msrc->GetVideoDuration()/10000.f;
+            g_msrc->ConfigSnapWindow(g_windowSize, g_windowFrames);
         }
         ImGuiFileDialog::Instance()->Close();
     }
 
     if (!io.KeyCtrl && !io.KeyShift && !io.KeyAlt && ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Escape), false))
     {
-        done = true;
+        app_done = true;
+    }
+    if (app_will_quit)
+    {
+        app_done = true;
     }
 
-    return done;
+    return app_done;
 }

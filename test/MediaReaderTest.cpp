@@ -56,7 +56,8 @@ public:
             return 0;
         uint32_t readSize = buffSize;
         double pos;
-        if (!m_audrdr->ReadAudioSamples(buff, readSize, pos, blocking))
+        bool eof;
+        if (!m_audrdr->ReadAudioSamples(buff, readSize, pos, eof, blocking))
             return 0;
         g_audPos = pos;
         return readSize;
@@ -78,6 +79,10 @@ void Application_GetWindowProperties(ApplicationWindowProperty& property)
     //property.power_save = false;
     property.width = 1280;
     property.height = 720;
+}
+
+void Application_SetupContext(ImGuiContext* ctx)
+{
 }
 
 void Application_Initialize(void** handle)
@@ -141,9 +146,9 @@ void Application_Finalize(void** handle)
 #endif
 }
 
-bool Application_Frame(void * handle)
+bool Application_Frame(void * handle, bool app_will_quit)
 {
-    bool done = false;
+    bool app_done = false;
     auto& io = ImGui::GetIO();
 
     ImGui::SetNextWindowPos({0, 0});
@@ -177,7 +182,7 @@ bool Application_Frame(void * handle)
                 float audDur = astminfo ? (float)astminfo->duration : 0;
                 mediaDur = audDur;
             }
-            playPos = g_audPos;
+            playPos = g_isPlay ? g_audPos : g_playStartPos;
         }
         else
         {
@@ -210,22 +215,16 @@ bool Application_Frame(void * handle)
         string dirBtnLabel = isForward ? "Backword" : "Forward";
         if (ImGui::Button(dirBtnLabel.c_str()))
         {
+            bool notForward = !isForward;
             if (g_vidrdr->IsOpened())
             {
-                g_vidrdr->SetDirection(!isForward);
-                isForward = g_vidrdr->IsDirectionForward();
+                g_vidrdr->SetDirection(notForward);
                 g_playStartPos = playPos;
                 g_playStartTp = Clock::now();
             }
             if (g_audrdr->IsOpened())
             {
-                g_audrdr->SetDirection(!isForward);
-                if (!g_vidrdr->IsOpened())
-                {
-                    isForward = g_audrdr->IsDirectionForward();
-                    g_playStartPos = playPos;
-                    g_playStartTp = Clock::now();
-                }
+                g_audrdr->SetDirection(notForward);
             }
         }
 
@@ -257,8 +256,9 @@ bool Application_Frame(void * handle)
 
         if (g_vidrdr->IsOpened())
         {
+            bool eof;
             ImGui::ImMat vmat;
-            if (g_vidrdr->ReadVideoFrame(playPos, vmat))
+            if (g_vidrdr->ReadVideoFrame(playPos, vmat, eof))
             {
                 string imgTag = TimestampToString(vmat.time_stamp);
                 bool imgValid = true;
@@ -272,7 +272,7 @@ bool Application_Frame(void * handle)
                     vmat.type != IM_DT_INT8 ||
                     (vmat.device != IM_DD_CPU && vmat.device != IM_DD_VULKAN)))
                 {
-                    Log(ERROR) << "WRONG snapshot format!" << endl;
+                    Log(Error) << "WRONG snapshot format!" << endl;
                     imgValid = false;
                     imgTag += "(bad format)";
                 }
@@ -327,8 +327,12 @@ bool Application_Frame(void * handle)
 
     if (!io.KeyCtrl && !io.KeyShift && !io.KeyAlt && ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Escape), false))
     {
-        done = true;
+        app_done = true;
+    }
+    if (app_will_quit)
+    {
+        app_done = true;
     }
 
-    return done;
+    return app_done;
 }

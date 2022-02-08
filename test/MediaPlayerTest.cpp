@@ -5,7 +5,7 @@
 #include <imgui_helper.h>
 #include <ImGuiFileDialog.h>
 #include <imgui_knob.h>
-#include "ImGuiToolkit_NoGst.h"
+#include "ImGuiToolkit.h"
 #include <iostream>
 #include <sstream>
 #include <fstream>
@@ -16,7 +16,7 @@
 #endif
 #include "Log.h"
 #include "AudioRender.hpp"
-#include "MediaPlayer_FFImpl.h"
+#include "MediaPlayer.h"
 
 static std::string ini_file = "Media_Player.ini";
 static std::string bookmark_path = "bookmark.ini";
@@ -44,6 +44,10 @@ void Application_GetWindowProperties(ApplicationWindowProperty& property)
     //property.power_save = false;
     property.width = 1280;
     property.height = 720;
+}
+
+void Application_SetupContext(ImGuiContext* ctx)
+{
 }
 
 void Application_Initialize(void** handle)
@@ -99,7 +103,7 @@ void Application_Finalize(void** handle)
 #endif
 }
 
-bool Application_Frame(void * handle)
+bool Application_Frame(void * handle, bool app_will_quit)
 {
     static bool show_ctrlbar = true;
     static bool show_log_window = false; 
@@ -109,7 +113,7 @@ bool Application_Frame(void * handle)
     static bool muted = false;
     static bool full_screen = false;
     static int ctrlbar_hide_count = 0;
-    bool done = false;
+    bool app_done = false;
     auto& io = ImGui::GetIO();
     const ImGuiContext& g = *GImGui;
     const ImGuiStyle& style = g.Style;
@@ -322,7 +326,7 @@ bool Application_Frame(void * handle)
     if (!io.KeyCtrl && !io.KeyShift && !io.KeyAlt && ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Escape), false))
     {
         if (g_player->IsOpened()) g_player->Close();
-        done = true;
+        app_done = true;
     }
     // if (g_player->IsOpened() && !io.KeyCtrl && !io.KeyShift && !io.KeyAlt && ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_LeftArrow), true))
     // {
@@ -407,7 +411,8 @@ bool Application_Frame(void * handle)
             ImGui::ImGenerateOrUpdateTexture(g_texture, vmat.w, vmat.h, 4, (const unsigned char *)vmat.data);
 #else
             ImGui::VkMat in_RGB; in_RGB.type = IM_DT_INT8;
-            m_yuv2rgb->YUV2RGBA(vmat, in_RGB, vmat.color_format, vmat.color_space, vmat.color_range, video_depth, video_shift);
+            in_RGB.color_format = IM_CF_ABGR;
+            m_yuv2rgb->ConvertColorFormat(vmat, in_RGB);
             // if (vmat.color_space == IM_CS_BT2020) has_hdr = true; else has_hdr = false;
             // int lut_mode = vmat.flags & IM_MAT_FLAGS_VIDEO_HDR_HLG ? HDRHLG_SDR709 : vmat.flags & IM_MAT_FLAGS_VIDEO_HDR_PQ ? HDRPQ_SDR709 : NO_DEFAULT;
             ImGui::VkMat im_RGB; im_RGB.type = IM_DT_INT8;
@@ -462,5 +467,9 @@ bool Application_Frame(void * handle)
             ImVec2 (1, 1)
         );
     }
-    return done;
+    if (app_will_quit)
+    {
+        app_done = true;
+    }
+    return app_done;
 }

@@ -15,10 +15,11 @@ if (POLICY CMP0068)
     cmake_policy(SET CMP0068 NEW)
 endif()
 
+option(BUILD_TEST  "Build Test Application" ON)
+
 # Find the cmake modules
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 include(MacroLogFeature)
-include(MacroFindGStreamerLibrary)
 
 find_package(PkgConfig REQUIRED)
 
@@ -64,15 +65,10 @@ include_directories(
 set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
 find_package(Threads REQUIRED)
 
-find_package(GLIB2)
-macro_log_feature(GLIB2_FOUND "GLib" "GTK general-purpose utility library" "http://www.gtk.org" TRUE)
-
-find_package(GObject)
-macro_log_feature(GOBJECT_FOUND "GObject" "GTK object-oriented framework" "http://www.gtk.org" TRUE)
-
 pkg_search_module(SDL2 REQUIRED sdl2)
 pkg_search_module(SDL2_IMAGE REQUIRED SDL2_image>=2.0.0)
-
+macro_log_feature(SDL2_FOUND "SDL2" "Simple DirectMedia Layer framework" "https://www.libsdl.org" TRUE)
+macro_log_feature(SDL2_IMAGE_FOUND "SDL2 Image" "Simple DirectMedia Layer image framework" "https://www.libsdl.org" TRUE)
 
 #
 # FFMPEG
@@ -88,43 +84,14 @@ if(PKG_CONFIG_FOUND)
         libswscale
         libavdevice
     )
-    pkg_search_module(SDL2 REQUIRED sdl2)
+    macro_log_feature(FFMPEG_FOUND "FFMpeg" "Multimedia framework" "https://ffmpeg.org" TRUE)
 endif(PKG_CONFIG_FOUND)
-
-#
-# GSTREAMER
-#
-
-find_package(GStreamer 1.0.0 COMPONENTS base)
-macro_log_feature(GSTREAMER_FOUND "GStreamer"
-"Open Source Multiplatform Multimedia Framework"
-"http://gstreamer.freedesktop.org/" TRUE "1.0.0")
-
-find_package(GStreamerPluginsBase 1.0.0 COMPONENTS app audio video pbutils gl)
-macro_log_feature(GSTREAMER_APP_LIBRARY_FOUND "GStreamerPluginsBase" "GStreamer app library"
-"http://gstreamer.freedesktop.org/" TRUE "1.0.0")
-
-macro_log_feature(GSTREAMER_AUDIO_LIBRARY_FOUND "GStreamerPluginsBase" "GStreamer audio library"
-"http://gstreamer.freedesktop.org/" TRUE "1.0.0")
-
-macro_log_feature(GSTREAMER_VIDEO_LIBRARY_FOUND "GStreamerPluginsBase" "GStreamer video library"
-"http://gstreamer.freedesktop.org/" TRUE "1.0.0")
-
-macro_log_feature(GSTREAMER_PBUTILS_LIBRARY_FOUND "GStreamerPluginsBase" "GStreamer pbutils library"
-"http://gstreamer.freedesktop.org/" TRUE "1.0.0")
-
-macro_log_feature(GSTREAMER_GL_LIBRARY_FOUND "GStreamerPluginsBase" "GStreamer opengl library"
-"http://gstreamer.freedesktop.org/" TRUE "1.0.0")
-
-# Various preprocessor definitions for GST
-add_definitions(-DGST_DISABLE_XML -DGST_DISABLE_LOADSAVE)
 
 macro_display_feature_log()
 
 #
 #  Application
 #
-
 set(MEDIA_EDITOR_BINARY "me")
 set(MEDIA_EDITOR_SRCS
     MediaEditorTest.cpp
@@ -133,6 +100,7 @@ set(MEDIA_EDITOR_SRCS
     MediaSnapshot.cpp
     MediaParser.cpp
     MediaReader.cpp
+    AudioRender_Impl_Sdl2.cpp
     FFUtils.cpp
     Logger.cpp
     ${IMGUI_APP_ENTRY_SRC}
@@ -143,6 +111,8 @@ set(MEDIA_EDITOR_INCS
     MediaOverview.h
     MediaSnapshot.h
     MediaReader.h
+    AudioRender_Impl_Sdl2.hpp
+    AudioRender.hpp
     FFUtils.h
 )
 
@@ -169,87 +139,36 @@ target_link_libraries(
     Threads::Threads
 )
 
-set(MEDIA_PLAYER_BINARY "mp")
-set(MEDIA_PLAYER_SRCS
-    player.cpp
-    SystemToolkit.cpp
-    MediaPlayer.cpp
-    BaseToolkit.cpp
-    GstToolkit.cpp
-    ImGuiToolkit.cpp
-    Timeline.cpp
-    Log.cpp
-    ${IMGUI_APP_ENTRY_SRC}
-)
-
-set(MEDIA_PLAYER_INCS
-    SystemToolkit.h
-    MediaPlayer.h
-    BaseToolkit.h
-    GstToolkit.h
-    ImGuiToolkit.h
-    Timeline.h
-    Log.h
-)
-
+if(BUILD_TEST)
+# MediaPlayer Test
 add_executable(
-    ${MEDIA_PLAYER_BINARY}
-    ${MEDIA_PLAYER_SRCS}
-    ${MEDIA_PLAYER_INCS}
-)
-target_include_directories(
-    ${MEDIA_PLAYER_BINARY} PRIVATE
-    ${SDL2_INCLUDE_DIRS}
-    ${GLIB2_INCLUDE_DIR}
-    ${GSTREAMER_INCLUDE_DIR}
-    ${GSTREAMER_AUDIO_INCLUDE_DIR}
-    ${GSTREAMER_VIDEO_INCLUDE_DIR}
-    ${GSTREAMER_BASE_INCLUDE_DIR}
-    ${GSTREAMER_APP_INCLUDE_DIR}
-    ${GSTREAMER_PBUTILS_INCLUDE_DIR}
-    ${GSTREAMER_GL_INCLUDE_DIR}
-    ${IMGUI_INCLUDE_DIR}
-)
-target_compile_definitions(${MEDIA_PLAYER_BINARY} PUBLIC APP_NAME="${MEDIA_PLAYER_BINARY}")
-set_property(TARGET ${MEDIA_PLAYER_BINARY} PROPERTY CXX_STANDARD 17)
-set_property(TARGET ${MEDIA_PLAYER_BINARY} PROPERTY C_STANDARD 11)
-target_link_libraries(
-    ${MEDIA_PLAYER_BINARY} 
-    LINK_PRIVATE
-    ${IMGUI_LIBRARYS}
-    ${GOBJECT_LIBRARIES}
-    ${GSTREAMER_LIBRARY}
-    ${GSTREAMER_BASE_LIBRARY}
-    ${GSTREAMER_APP_LIBRARY}
-    ${GSTREAMER_AUDIO_LIBRARY}
-    ${GSTREAMER_VIDEO_LIBRARY}
-    ${GSTREAMER_PBUTILS_LIBRARY}
-    ${GSTREAMER_GL_LIBRARY}
-    Threads::Threads
-)
-
-add_executable(
-    mp_ff
-    player_ff.cpp
+    media_player_test
+    test/MediaPlayerTest.cpp
+    test/MediaPlayer.cpp
+    test/ImGuiToolkit.cpp
+    test/Log.cpp
+    AudioRender.hpp
     AudioRender_Impl_Sdl2.cpp
-    MediaPlayer_FFImpl.cpp
     FFUtils.cpp
-    SystemToolkit.cpp
-    ImGuiToolkit_NoGst.cpp
-    Log_NoGst.cpp
     Logger.cpp
     ${IMGUI_APP_ENTRY_SRC}
 )
 target_link_libraries(
-    mp_ff
+    media_player_test
     ${IMGUI_LIBRARYS}
     PkgConfig::FFMPEG
 )
-target_compile_definitions(mp_ff PUBLIC APP_NAME="mp_ff")
+target_include_directories(
+    media_player_test PRIVATE
+    ${SDL2_INCLUDE_DIRS}
+    ${IMGUI_INCLUDE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
 
+# MediaSnapshot Test
 add_executable(
-    snapshot_test
-    MediaSnapshotTest.cpp
+    media_snapshot_test
+    test/MediaSnapshotTest.cpp
     MediaSnapshot.cpp
     MediaOverview.cpp
     MediaParser.cpp
@@ -258,15 +177,21 @@ add_executable(
     ${IMGUI_APP_ENTRY_SRC}
 )
 target_link_libraries(
-    snapshot_test
+    media_snapshot_test
     ${IMGUI_LIBRARYS}
     PkgConfig::FFMPEG
 )
-target_compile_definitions(snapshot_test PUBLIC APP_NAME="snapshot_test")
+target_include_directories(
+    media_snapshot_test PRIVATE
+    ${SDL2_INCLUDE_DIRS}
+    ${IMGUI_INCLUDE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
 
+# MediaOverview Test
 add_executable(
-    overview_test
-    MediaOverviewTest.cpp
+    media_overview_test
+    test/MediaOverviewTest.cpp
     MediaOverview.cpp
     MediaParser.cpp
     FFUtils.cpp
@@ -274,15 +199,21 @@ add_executable(
     ${IMGUI_APP_ENTRY_SRC}
 )
 target_link_libraries(
-    overview_test
+    media_overview_test
     ${IMGUI_LIBRARYS}
     PkgConfig::FFMPEG
 )
-target_compile_definitions(overview_test PUBLIC APP_NAME="overview_test")
+target_include_directories(
+    media_overview_test PRIVATE
+    ${SDL2_INCLUDE_DIRS}
+    ${IMGUI_INCLUDE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
 
+# MediaReader Test
 add_executable(
-    mediareader_test
-    MediaReaderTest.cpp
+    media_reader_test
+    test/MediaReaderTest.cpp
     MediaReader.cpp
     MediaParser.cpp
     AudioRender_Impl_Sdl2.cpp
@@ -291,8 +222,36 @@ add_executable(
     ${IMGUI_APP_ENTRY_SRC}
 )
 target_link_libraries(
-    mediareader_test
+    media_reader_test
     ${IMGUI_LIBRARYS}
     PkgConfig::FFMPEG
 )
-target_compile_definitions(mediareader_test PUBLIC APP_NAME="mediareader_test")
+target_include_directories(
+    media_reader_test PRIVATE
+    ${SDL2_INCLUDE_DIRS}
+    ${IMGUI_INCLUDE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+# MediaEncoder Test
+add_executable(
+    media_encoder_test
+    test/MediaEncoderTest.cpp
+    MediaEncoder.cpp
+    MediaReader.cpp
+    MediaParser.cpp
+    FFUtils.cpp
+    Logger.cpp
+)
+target_link_libraries(
+    media_encoder_test
+    ${IMGUI_LIBRARYS}
+    PkgConfig::FFMPEG
+)
+target_include_directories(
+    media_encoder_test PRIVATE
+    ${SDL2_INCLUDE_DIRS}
+    ${IMGUI_INCLUDE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+endif(BUILD_TEST)
