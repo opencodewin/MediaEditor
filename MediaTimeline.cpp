@@ -637,18 +637,23 @@ MediaTrack::MediaTrack(std::string name, MEDIA_TYPE type, void * handle)
             {
                 case MEDIA_VIDEO:
                     mName = "V:";
+                    mTrackHeight = 60;
                 break;
                 case MEDIA_AUDIO:
                     mName = "A:";
+                    mTrackHeight = 20;
                 break;
                 case MEDIA_PICTURE:
                     mName = "P:";
+                    mTrackHeight = 20;
                 break;
                 case MEDIA_TEXT:
                     mName = "T:";
+                    mTrackHeight = 20;
                 break;
                 default:
                     mName = "U:";
+                    mTrackHeight = 0;
                 break;
             }
             mName += std::to_string(media_count);
@@ -862,6 +867,11 @@ MediaTrack* MediaTrack::Load(const imgui_json::value& value, void * handle)
             auto& val = value["Linked"];
             if (val.is_number()) new_track->mLinkedTrack = val.get<imgui_json::number>();
         }
+        if (value.contains("ViewHeight"))
+        {
+            auto& val = value["ViewHeight"];
+            if (val.is_number()) new_track->mTrackHeight = val.get<imgui_json::number>();
+        }
         const imgui_json::array* clipIDArray = nullptr;
         if (BluePrint::GetPtrTo(value, "ClipIDS", clipIDArray))
         {
@@ -889,6 +899,7 @@ void MediaTrack::Save(imgui_json::value& value)
     value["Locked"] = imgui_json::boolean(mLocked);
     value["Selected"] = imgui_json::boolean(mSelected);
     value["Linked"] = imgui_json::number(mLinkedTrack);
+    value["ViewHeight"] = imgui_json::number(mTrackHeight);
 
     // save clip ids
     imgui_json::value clips;
@@ -1324,11 +1335,6 @@ int TimeLine::Load(const imgui_json::value& value)
         auto& val = value["End"];
         if (val.is_number()) mEnd = val.get<imgui_json::number>();
     }
-    if (value.contains("ItemHeight"))
-    {
-        auto& val = value["ItemHeight"];
-        if (val.is_number()) mItemHeight = val.get<imgui_json::number>();
-    }
     if (value.contains("VideoWidth"))
     {
         auto& val = value["VideoWidth"];
@@ -1418,7 +1424,6 @@ void TimeLine::Save(imgui_json::value& value)
     // save global timeline info
     value["Start"] = imgui_json::number(mStart);
     value["End"] = imgui_json::number(mEnd);
-    value["ItemHeight"] = imgui_json::number(mItemHeight);
     value["VideoWidth"] = imgui_json::number(mWidth);
     value["VideoHeight"] = imgui_json::number(mHeight);
     value["FrameRateNum"] = imgui_json::number(mFrameRate.num);

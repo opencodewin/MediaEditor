@@ -278,9 +278,10 @@ struct MediaTrack
     int64_t mID             {-1};               // track ID
     MEDIA_TYPE mType        {MEDIA_UNKNOWN};    // track type
     std::string mName;                          // track name
-    std::vector<Clip *> m_Clips;            // track clips
+    std::vector<Clip *> m_Clips;                // track clips
     void * m_Handle         {nullptr};          // user handle
 
+    int mTrackHeight {60};                      // track custom view height
     int64_t mLinkedTrack    {-1};               // relative track ID
     bool mExpanded  {false};                    // track is compact view or not
     bool mView      {true};                     // track is viewable or not
@@ -318,8 +319,7 @@ struct TimeLine
     ~TimeLine();
 
     std::vector<MediaTrack *> m_Tracks;     // timeline tracks
-    std::vector<Clip *> m_Clips;        // timeline clips
-    int mItemHeight {60};                   // item custom view height
+    std::vector<Clip *> m_Clips;            // timeline clips
     int64_t mStart   {0};                   // whole timeline start in ms
     int64_t mEnd     {0};                   // whole timeline end in ms
 
@@ -366,7 +366,7 @@ struct TimeLine
     int64_t GetEnd() const { return mEnd; }
     void SetStart(int64_t pos) { mStart = pos; }
     void SetEnd(int64_t pos) { mEnd = pos; }
-    size_t GetCustomHeight(int index) { return (index < m_Tracks.size() && m_Tracks[index]->mExpanded) ? mItemHeight : 0; }
+    size_t GetCustomHeight(int index) { return (index < m_Tracks.size() && m_Tracks[index]->mExpanded) ? m_Tracks[index]->mTrackHeight : 0; }
     void Updata();
     void AlignTime(int64_t& time);
 

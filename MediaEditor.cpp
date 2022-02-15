@@ -65,7 +65,6 @@ static const char* VideoEditorTabTooltips[] = {
 
 struct MediaEditorSettings
 {
-    int ItemHeight {60};                    // timeline Item custom height
     int VideoWidth  {1920};                 // timeline Media Width
     int VideoHeight {1080};                 // timeline Media Height
     MediaInfo::Ratio VideoFrameRate {25000, 1000};// timeline frame rate
@@ -464,7 +463,6 @@ static void CleanProject()
         timeline->mAudioSampleRate = g_media_editor_settings.AudioSampleRate;
         timeline->mAudioChannels = g_media_editor_settings.AudioChannels;
         timeline->mAudioFormat = (AudioRender::PcmFormat)g_media_editor_settings.AudioFormat;
-        timeline->mItemHeight = g_media_editor_settings.ItemHeight;
     }
     g_project = imgui_json::value();
 }
@@ -1687,8 +1685,7 @@ void Application_SetupContext(ImGuiContext* ctx)
         int val_int = 0;
         int64_t val_int64 = 0;
         char val_path[1024] = {0};
-        if (sscanf(line, "ItemHeight=%d", &val_int) == 1) { setting->ItemHeight = val_int; }
-        else if (sscanf(line, "VideoWidth=%d", &val_int) == 1) { setting->VideoWidth = val_int; }
+        if (sscanf(line, "VideoWidth=%d", &val_int) == 1) { setting->VideoWidth = val_int; }
         else if (sscanf(line, "VideoHeight=%d", &val_int) == 1) { setting->VideoHeight = val_int; }
         else if (sscanf(line, "VideoFrameRateNum=%d", &val_int) == 1) { setting->VideoFrameRate.num = val_int; }
         else if (sscanf(line, "VideoFrameRateDen=%d", &val_int) == 1) { setting->VideoFrameRate.den = val_int; }
@@ -1710,7 +1707,6 @@ void Application_SetupContext(ImGuiContext* ctx)
         ImGuiContext& g = *ctx;
         out_buf->reserve(out_buf->size() + g.SettingsWindows.size() * 6); // ballpark reserve
         out_buf->appendf("[%s][##MediaEditorSetting]\n", handler->TypeName);
-        out_buf->appendf("ItemHeight=%d\n", g_media_editor_settings.ItemHeight);
         out_buf->appendf("VideoWidth=%d\n", g_media_editor_settings.VideoWidth);
         out_buf->appendf("VideoHeight=%d\n", g_media_editor_settings.VideoHeight);
         out_buf->appendf("VideoFrameRateNum=%d\n", g_media_editor_settings.VideoFrameRate.num);
@@ -1775,7 +1771,6 @@ void Application_Initialize(void** handle)
         timeline->mAudioSampleRate = g_media_editor_settings.AudioSampleRate;
         timeline->mAudioChannels = g_media_editor_settings.AudioChannels;
         timeline->mAudioFormat = (AudioRender::PcmFormat)g_media_editor_settings.AudioFormat;
-        timeline->mItemHeight = g_media_editor_settings.ItemHeight;
     }
 }
 
@@ -1841,7 +1836,6 @@ bool Application_Frame(void * handle, bool app_will_quit)
                 timeline->mAudioSampleRate = g_media_editor_settings.AudioSampleRate;
                 timeline->mAudioChannels = g_media_editor_settings.AudioChannels;
                 timeline->mAudioFormat = (AudioRender::PcmFormat)g_media_editor_settings.AudioFormat;
-                timeline->mItemHeight = g_media_editor_settings.ItemHeight;
             }
             ImGui::CloseCurrentPopup(); 
         }
