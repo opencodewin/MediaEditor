@@ -12,7 +12,7 @@
 
 using namespace ImSequencer;
 
-static std::string ini_file = "Media_Editor.ini";
+static std::string ini_file = "Media_Editor_Test.ini";
 
 static const char* ConfigureTabNames[] = {
     "System",
@@ -130,18 +130,6 @@ static inline std::string GetAudioChannelName(int channels)
     else if (channels == 10) return "Surround 9.1";
     else if (channels == 13) return "Surround 12.1";
     else return "Channels " + std::to_string(channels);
-}
-
-static bool Splitter(bool split_vertically, float thickness, float* size1, float* size2, float min_size1, float min_size2, float splitter_long_axis_size = -1.0f)
-{
-	using namespace ImGui;
-	ImGuiContext& g = *GImGui;
-	ImGuiWindow* window = g.CurrentWindow;
-	ImGuiID id = window->GetID("##Splitter");
-	ImRect bb;
-	bb.Min = window->DC.CursorPos + (split_vertically ? ImVec2(*size1, 0.0f) : ImVec2(0.0f, *size1));
-	bb.Max = bb.Min + CalcItemSize(split_vertically ? ImVec2(thickness, splitter_long_axis_size) : ImVec2(splitter_long_axis_size, thickness), 0.0f, 0.0f);
-	return SplitterBehavior(bb, id, split_vertically ? ImGuiAxis_X : ImGuiAxis_Y, size1, size2, min_size1, min_size2, 1.0, 0.01);
 }
 
 void ShowVideoWindow(ImTextureID texture, ImVec2& pos, ImVec2& size)
@@ -419,7 +407,7 @@ static void ShowTransitionBankWindow(ImDrawList *draw_list)
 
 /****************************************************************************************
  * 
- * Transition Bank window
+ * Filters Bank window
  *
  ***************************************************************************************/
 static void ShowFilterBankWindow(ImDrawList *draw_list)
@@ -1066,7 +1054,6 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
  * Video Fusion windows
  *
  ***************************************************************************************/
-
 static OverlapInfo * find_overlap_with_id(int64_t id)
 {
     if (!sequencer) return nullptr;
@@ -1760,7 +1747,7 @@ static void SaveProject(std::string path)
 // Application Framework
 void Application_GetWindowProperties(ApplicationWindowProperty& property)
 {
-    property.name = "Media Editor";
+    property.name = "Media Editor Test";
     property.viewport = false;
     property.docking = false;
     property.auto_merge = false;
@@ -1963,7 +1950,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
     ImGui::PushID("##Main_Timeline");
     float main_height = size_main_h * window_size.y;
     float timeline_height = size_timeline_h * window_size.y;
-    Splitter(false, 4.0f, &main_height, &timeline_height, 32, 32);
+    ImGui::Splitter(false, 4.0f, &main_height, &timeline_height, 32, 32);
     size_main_h = main_height / window_size.y;
     size_timeline_h = timeline_height / window_size.y;
     ImGui::PopID();
@@ -1980,7 +1967,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
         ImGui::PushID("##Control_Panel_Main");
         float control_pane_width = size_control_panel_w * main_window_size.x;
         float main_width = size_main_w * main_window_size.x;
-        Splitter(true, 4.0f, &control_pane_width, &main_width, media_icon_size + tool_icon_size, 96);
+        ImGui::Splitter(true, 4.0f, &control_pane_width, &main_width, media_icon_size + tool_icon_size, 96);
         size_control_panel_w = control_pane_width / main_window_size.x;
         size_main_w = main_width / main_window_size.x;
         ImGui::PopID();

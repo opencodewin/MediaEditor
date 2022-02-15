@@ -94,8 +94,8 @@ macro_display_feature_log()
 #
 set(MEDIA_EDITOR_BINARY "me")
 set(MEDIA_EDITOR_SRCS
-    MediaEditorTest.cpp
-    ImSequencer.cpp
+    MediaEditor.cpp
+    MediaTimeline.cpp
     MediaOverview.cpp
     MediaSnapshot.cpp
     MediaParser.cpp
@@ -107,7 +107,7 @@ set(MEDIA_EDITOR_SRCS
 )
 
 set(MEDIA_EDITOR_INCS
-    ImSequencer.h
+    MediaTimeline.h
     MediaOverview.h
     MediaSnapshot.h
     MediaReader.h
@@ -140,6 +140,52 @@ target_link_libraries(
 )
 
 if(BUILD_TEST)
+# MediaEditor Test
+set(MEDIA_EDITOR_TEST_BINARY "met")
+set(MEDIA_EDITOR_TEST_SRCS
+    MediaEditorTest.cpp
+    ImSequencer.cpp
+    MediaOverview.cpp
+    MediaSnapshot.cpp
+    MediaParser.cpp
+    MediaReader.cpp
+    AudioRender_Impl_Sdl2.cpp
+    FFUtils.cpp
+    Logger.cpp
+    ${IMGUI_APP_ENTRY_SRC}
+)
+
+set(MEDIA_EDITOR_TEST_INCS
+    ImSequencer.h
+    MediaOverview.h
+    MediaSnapshot.h
+    MediaReader.h
+    AudioRender_Impl_Sdl2.hpp
+    AudioRender.hpp
+    FFUtils.h
+)
+add_executable(
+    ${MEDIA_EDITOR_TEST_BINARY}
+    ${MEDIA_EDITOR_TEST_SRCS}
+    ${MEDIA_EDITOR_TEST_INCS}
+)
+target_include_directories(
+    ${MEDIA_EDITOR_TEST_BINARY} PRIVATE
+    ${SDL2_INCLUDE_DIRS}
+    ${IMGUI_BLUEPRINT_INCLUDE_DIRS}
+    ${IMGUI_INCLUDE_DIR}
+)
+target_compile_definitions(${MEDIA_EDITOR_TEST_BINARY} PUBLIC APP_NAME="${MEDIA_EDITOR_TEST_BINARY}")
+set_property(TARGET ${MEDIA_EDITOR_TEST_BINARY} PROPERTY CXX_STANDARD 17)
+set_property(TARGET ${MEDIA_EDITOR_TEST_BINARY} PROPERTY C_STANDARD 11)
+target_link_libraries(
+    ${MEDIA_EDITOR_TEST_BINARY} 
+    LINK_PRIVATE
+    ${IMGUI_BLUEPRINT_SDK_LIBRARYS}
+    ${IMGUI_LIBRARYS}
+    PkgConfig::FFMPEG
+    Threads::Threads
+)
 # MediaPlayer Test
 add_executable(
     media_player_test

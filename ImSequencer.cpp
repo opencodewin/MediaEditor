@@ -325,7 +325,7 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int sequenceOption
         if (MovingCurrentTime && duration)
         {
             auto old_time = sequencer->currentTime;
-            sequencer->currentTime = (int64_t)((io.MousePos.x - topRect.Min.x) / msPixelWidth) + firstTimeUsed;
+            sequencer->currentTime = (int64_t)((cx - topRect.Min.x) / msPixelWidth) + firstTimeUsed;
             sequencer->AlignTime(sequencer->currentTime);
             if (sequencer->currentTime < sequencer->GetStart())
                 sequencer->currentTime = sequencer->GetStart();
@@ -2507,6 +2507,7 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
             ImGui::SetWindowFontScale(1.0);
 #endif
         }
+        draw_list->PopClipRect();
     }
     if (item->mSnapshot->HasAudio() && item->mWaveform)
     {
@@ -2561,7 +2562,6 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
     //int64_t current_item_time = currentTime - item->mStart + item->mStartOffset;
     //draw_list->AddText(clippingRect.Min + ImVec2(2,  8), IM_COL32_WHITE, std::to_string(current_item_time).c_str());
     //draw_list->AddText(clippingRect.Min + ImVec2(2, 24), IM_COL32_WHITE, std::to_string(item->mStartOffset).c_str());
-    draw_list->PopClipRect();
 
     // draw legend
     draw_list->PushClipRect(legendRect.Min, legendRect.Max, true);
@@ -2840,7 +2840,7 @@ void MediaSequencer::CustomDrawCompact(int index, ImDrawList *draw_list, const I
     
     draw_list->PopClipRect();
 
-        // draw overlap
+    // draw overlap
     if (item->mOverlap.size() > 0)
     {
         draw_list->PushClipRect(clippingRect.Min, clippingRect.Max, true);
