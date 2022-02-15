@@ -172,7 +172,7 @@ struct Snapshot
     bool        available{false};
 };
 
-struct ClipInfo
+struct Clip
 {
     int64_t mID                 {-1};               // clip ID
     MEDIA_TYPE mType            {MEDIA_UNKNOWN};    // clip type
@@ -190,16 +190,19 @@ struct ClipInfo
     MediaReader* mMediaReader   {nullptr};          // clip media reader
     imgui_json::value mFilterBP;
 
-    ClipInfo(int64_t start, int64_t end);
-    virtual ~ClipInfo();
+    Clip(int64_t start, int64_t end);
+    virtual ~Clip();
+
+    int64_t ClipMoving(int64_t diff, void * handle);
     
     virtual void UpdateSnapshot() = 0;
     virtual void Seek() = 0;
     virtual void Step(bool forward, int64_t step) = 0;
+    static void Load(Clip * clip, const imgui_json::value& value);
     virtual void Save(imgui_json::value& value) = 0;
 };
 
-struct VideoClip : ClipInfo
+struct VideoClip : Clip
 {
     MediaSnapshot* mSnapshot {nullptr};                 // clip snapshot handle
     std::vector<VideoSnapshotInfo> mVideoSnapshotInfos; // clip snapshots info, with all croped range
@@ -217,11 +220,11 @@ struct VideoClip : ClipInfo
     void Seek();
     void Step(bool forward, int64_t step);
 
-    static ClipInfo * Load(const imgui_json::value& value, void * handle);
+    static Clip * Load(const imgui_json::value& value, void * handle);
     void Save(imgui_json::value& value);
 };
 
-struct AudioClip : ClipInfo
+struct AudioClip : Clip
 {
     int mAudioChannels  {2};                // clip audio channels
     int mAudioSampleRate {44100};           // clip audio sample rate
@@ -235,11 +238,11 @@ struct AudioClip : ClipInfo
     void Seek();
     void Step(bool forward, int64_t step);
     bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame);
-    static ClipInfo * Load(const imgui_json::value& value, void * handle);
+    static Clip * Load(const imgui_json::value& value, void * handle);
     void Save(imgui_json::value& value);
 };
 
-struct ImageClip : ClipInfo
+struct ImageClip : Clip
 {
     int mWidth  {0};
     int mHeight  {0};
@@ -252,11 +255,11 @@ struct ImageClip : ClipInfo
     void Seek();
     void Step(bool forward, int64_t step);
     bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame);
-    static ClipInfo * Load(const imgui_json::value& value, void * handle);
+    static Clip * Load(const imgui_json::value& value, void * handle);
     void Save(imgui_json::value& value);
 };
 
-struct TextClip : ClipInfo
+struct TextClip : Clip
 {
     TextClip(int64_t start, int64_t end, std::string name, void* handle);
     ~TextClip();
@@ -265,7 +268,7 @@ struct TextClip : ClipInfo
     void Seek();
     void Step(bool forward, int64_t step);
     bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame);
-    static ClipInfo * Load(const imgui_json::value& value, void * handle);
+    static Clip * Load(const imgui_json::value& value, void * handle);
     void Save(imgui_json::value& value);
 };
 
@@ -275,7 +278,7 @@ struct MediaTrack
     int64_t mID             {-1};               // track ID
     MEDIA_TYPE mType        {MEDIA_UNKNOWN};    // track type
     std::string mName;                          // track name
-    std::vector<ClipInfo *> m_Clips;            // track clips
+    std::vector<Clip *> m_Clips;            // track clips
     void * m_Handle         {nullptr};          // user handle
 
     int64_t mLinkedTrack    {-1};               // relative track ID
@@ -288,9 +291,11 @@ struct MediaTrack
     ~MediaTrack();
 
     bool DrawItemControlBar(ImDrawList *draw_list, ImRect rc);
-    void InsertClip(ClipInfo * clip, int64_t pos = 0);
-    void PushBackClip(ClipInfo * clip);
-    static inline bool CompareClip(ClipInfo* a, ClipInfo* b) { return a->mStart < b->mStart; }
+    void InsertClip(Clip * clip, int64_t pos = 0);
+    void PushBackClip(Clip * clip);
+    static inline bool CompareClip(Clip* a, Clip* b) { return a->mStart < b->mStart; }
+    Clip * FindPrevClip(int64_t id);            // find prev clip in track, if not found then return null
+    Clip * FindNextClip(int64_t id);            // find next clip in track, if not found then return null
 
     static MediaTrack* Load(const imgui_json::value& value, void * handle);
     void Save(imgui_json::value& value);
@@ -313,7 +318,7 @@ struct TimeLine
     ~TimeLine();
 
     std::vector<MediaTrack *> m_Tracks;     // timeline tracks
-    std::vector<ClipInfo *> m_Clips;        // timeline clips
+    std::vector<Clip *> m_Clips;        // timeline clips
     int mItemHeight {60};                   // item custom view height
     int64_t mStart   {0};                   // whole timeline start in ms
     int64_t mEnd     {0};                   // whole timeline end in ms
@@ -388,9 +393,9 @@ struct TimeLine
     std::vector<MediaItem *> media_items;               // Media Bank
     MediaItem* FindMediaItemByName(std::string name);   // Find media from bank
     MediaTrack * FindTrackByID(int64_t id);             // Find track by ID
-    //MediaTrack * FindTrackByClipID(int64_t id);         // Find track by clip ID
-    ClipInfo * FindClipByID(int64_t id);                // Find clip info with clip ID
-    int64_t NextClipStart(ClipInfo * clip);             // Get next clip start pos by clip, if don't have next clip, then return -1
+    MediaTrack * FindTrackByClipID(int64_t id);         // Find track by clip ID
+    Clip * FindClipByID(int64_t id);                    // Find clip info with clip ID
+    int64_t NextClipStart(Clip * clip);                 // Get next clip start pos by clip, if don't have next clip, then return -1
     int64_t NextClipStart(int64_t pos);                 // Get next clip start pos by time, if don't have next clip, then return -1
     int Load(const imgui_json::value& value);
     void Save(imgui_json::value& value);

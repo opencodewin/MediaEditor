@@ -543,7 +543,7 @@ static void SaveProject(std::string path)
         return;
     /*
     // check current exit clip, if it has bp then save it to clipinfo 
-    ClipInfo * selected_clip = nullptr;
+    Clip * selected_clip = nullptr;
     sequencer->Play(false, true);
     sequencer->mSequencerLock.lock();
     int selected_item = sequencer->selectedEntry;
@@ -1125,7 +1125,7 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
     float video_editor_width = window_size.x - video_view_width - labelWidth;
     static int64_t last_clip = -1; 
     /*
-    ClipInfo * selected_clip = nullptr;
+    Clip * selected_clip = nullptr;
     if (sequencer)
     {
         sequencer->Play(false, true);

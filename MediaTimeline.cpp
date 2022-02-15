@@ -155,23 +155,161 @@ void MediaItem::UpdateThumbnail()
 namespace MediaTimeline
 {
 /***********************************************************************************************************
- * ClipInfo Struct Member Functions
+ * Clip Struct Member Functions
  ***********************************************************************************************************/
-ClipInfo::ClipInfo(int64_t start, int64_t end)
+Clip::Clip(int64_t start, int64_t end)
 {
     mID = ImGui::get_current_time_usec(); // sample using system time stamp for Clip ID
     mStart = start; 
     mEnd = end;
 }
 
-ClipInfo::~ClipInfo()
+Clip::~Clip()
 {
 
 }
 
+void Clip::Load(Clip * clip, const imgui_json::value& value)
+{
+    if (value.contains("ID"))
+    {
+        auto& val = value["ID"];
+        if (val.is_number()) clip->mID = val.get<imgui_json::number>();
+    }
+    if (value.contains("Start"))
+    {
+        auto& val = value["Start"];
+        if (val.is_number()) clip->mStart = val.get<imgui_json::number>();
+    }
+    if (value.contains("End"))
+    {
+        auto& val = value["End"];
+        if (val.is_number()) clip->mEnd = val.get<imgui_json::number>();
+    }
+    if (value.contains("StartOffset"))
+    {
+        auto& val = value["StartOffset"];
+        if (val.is_number()) clip->mStartOffset = val.get<imgui_json::number>();
+    }
+    if (value.contains("EndOffset"))
+    {
+        auto& val = value["EndOffset"];
+        if (val.is_number()) clip->mEndOffset = val.get<imgui_json::number>();
+    }
+    // load filter bp
+    if (value.contains("FilterBP"))
+    {
+        auto& val = value["FilterBP"];
+        if (val.is_object()) clip->mFilterBP = val;
+    }
+    // load linked clip ids
+    const imgui_json::array* clipIDArray = nullptr;
+    if (BluePrint::GetPtrTo(value, "LinkedClipIDS", clipIDArray))
+    {
+        for (auto& id_val : *clipIDArray)
+        {
+            int64_t clip_id = id_val.get<imgui_json::number>();
+            clip->mLinkedClips.push_back(clip_id);
+        }
+    }
+}
+
+void Clip::Save(imgui_json::value& value)
+{
+    // save clip global info
+    value["ID"] = imgui_json::number(mID);
+    value["Type"] = imgui_json::number(mType);
+    value["Path"] = mPath;
+    value["Name"] = mName;
+    value["Start"] = imgui_json::number(mStart);
+    value["End"] = imgui_json::number(mEnd);
+    value["StartOffset"] = imgui_json::number(mStartOffset);
+    value["EndOffset"] = imgui_json::number(mEndOffset);
+
+    // save clip filter bp
+    if (mFilterBP.is_object())
+    {
+        value["FilterBP"] = mFilterBP;
+    }
+
+    // save linked clip ids
+    imgui_json::value linked_clips;
+    for (auto clip_id : mLinkedClips)
+    {
+        imgui_json::value clip_id_value = imgui_json::number(clip_id);
+        linked_clips.push_back(clip_id_value);
+    }
+    value["LinkedClipIDS"] = linked_clips;
+}
+
+int64_t Clip::ClipMoving(int64_t diff, void * handle)
+{
+    int64_t new_diff = 0;
+    TimeLine * timeline = (TimeLine *)handle;
+    if (!timeline)
+        return new_diff;
+    auto track = timeline->FindTrackByClipID(mID);
+    if (!track)
+        return new_diff;
+    
+    int64_t length = mEnd - mStart;
+    auto prov_clip = track->FindPrevClip(mID);
+    auto next_clip = track->FindNextClip(mID);
+    int64_t start = 0;
+    int64_t end = 0;
+    if (prov_clip)
+    {
+        start = prov_clip->mEnd;
+    }
+    else 
+    {
+        start = timeline->mStart;
+    }
+    if (next_clip)
+    {
+        end = next_clip->mStart;
+    }
+    else
+    {
+        end = -1;
+    }
+
+    if (mStart + diff < start)
+    {
+        new_diff = start - mStart;
+        mStart = start;
+        mEnd = mStart + length;
+    }
+    else if (end != -1 && mEnd + diff > end)
+    {
+        new_diff = end - mEnd;
+        mStart = end - length;
+        mEnd = mStart + length;
+    }
+    else
+    {
+        new_diff = diff;
+        mStart += diff;
+        mEnd = mStart + length;
+    }
+
+    for (auto linked_id : mLinkedClips)
+    {
+        Clip * linked_clip = timeline->FindClipByID(linked_id);
+        if (linked_clip)
+        {
+            int64_t linked_clip_length = linked_clip->mEnd - linked_clip->mStart;
+            linked_clip->mStart += new_diff;
+            linked_clip->mEnd = linked_clip->mStart + linked_clip_length;
+        }
+    }
+    timeline->Updata();
+    return new_diff;
+}
+
 // VideoClip Struct Member Functions
 VideoClip::VideoClip(int64_t start, int64_t end, std::string name, void* handle)
-    : ClipInfo(start, end)
+    : Clip(start, end)
 {
     mSnapshot = CreateMediaSnapshot();
     if (!mSnapshot)
@@ -225,7 +363,7 @@ void VideoClip::Step(bool forward, int64_t step)
 {
 }
 
-ClipInfo* VideoClip::Load(const imgui_json::value& value, void * handle)
+Clip* VideoClip::Load(const imgui_json::value& value, void * handle)
 {
     TimeLine * timeline = (TimeLine *)handle;
     if (!timeline || timeline->media_items.size() <= 0)
@@ -242,32 +380,7 @@ ClipInfo* VideoClip::Load(const imgui_json::value& value, void * handle)
         VideoClip * new_clip = new VideoClip(item->mStart, item->mEnd, item->mName, item->mMediaOverview);
         if (new_clip)
         {
-            // load clip info
-            if (value.contains("ID"))
-            {
-                auto& val = value["ID"];
-                if (val.is_number()) new_clip->mID = val.get<imgui_json::number>();
-            }
-            if (value.contains("Start"))
-            {
-                auto& val = value["Start"];
-                if (val.is_number()) new_clip->mStart = val.get<imgui_json::number>();
-            }
-            if (value.contains("End"))
-            {
-                auto& val = value["End"];
-                if (val.is_number()) new_clip->mEnd = val.get<imgui_json::number>();
-            }
-            if (value.contains("StartOffset"))
-            {
-                auto& val = value["StartOffset"];
-                if (val.is_number()) new_clip->mStartOffset = val.get<imgui_json::number>();
-            }
-            if (value.contains("EndOffset"))
-            {
-                auto& val = value["EndOffset"];
-                if (val.is_number()) new_clip->mEndOffset = val.get<imgui_json::number>();
-            }
+            Clip::Load(new_clip, value);
             // load video info
             if (value.contains("FrameRateNum"))
             {
@@ -279,12 +392,6 @@ ClipInfo* VideoClip::Load(const imgui_json::value& value, void * handle)
                 auto& val = value["FrameRateDen"];
                 if (val.is_number()) new_clip->mClipFrameRate.den = val.get<imgui_json::number>();
             }
-            // load video filter bp
-            if (value.contains("FilterBP"))
-            {
-                auto& val = value["FilterBP"];
-                if (val.is_object()) new_clip->mFilterBP = val;
-            }
             return new_clip;
         }
     }
@@ -293,22 +400,7 @@ ClipInfo* VideoClip::Load(const imgui_json::value& value, void * handle)
 
 void VideoClip::Save(imgui_json::value& value)
 {
-    // save clip global info
-    value["ID"] = imgui_json::number(mID);
-    value["Type"] = imgui_json::number(mType);
-    value["Path"] = mPath;
-    value["Name"] = mName;
-    value["Start"] = imgui_json::number(mStart);
-    value["End"] = imgui_json::number(mEnd);
-    value["StartOffset"] = imgui_json::number(mStartOffset);
-    value["EndOffset"] = imgui_json::number(mEndOffset);
-
-    // save clip filter bp
-    if (mFilterBP.is_object())
-    {
-        value["FilterBP"] = mFilterBP;
-    }
-
+    Clip::Save(value);
     // save video clip info
     value["FrameRateNum"] = imgui_json::number(mClipFrameRate.num);
     value["FrameRateDen"] = imgui_json::number(mClipFrameRate.den);
@@ -316,7 +408,7 @@ void VideoClip::Save(imgui_json::value& value)
 
 // AudioClip Struct Member Functions
 AudioClip::AudioClip(int64_t start, int64_t end, std::string name, void* handle)
-    : ClipInfo(start, end)
+    : Clip(start, end)
 {
     if (handle)
     {
@@ -356,7 +448,7 @@ bool AudioClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame)
     return false;
 }
 
-ClipInfo * AudioClip::Load(const imgui_json::value& value, void * handle)
+Clip * AudioClip::Load(const imgui_json::value& value, void * handle)
 {
     TimeLine * timeline = (TimeLine *)handle;
     if (!timeline || timeline->media_items.size() <= 0)
@@ -373,32 +465,7 @@ ClipInfo * AudioClip::Load(const imgui_json::value& value, void * handle)
         AudioClip * new_clip = new AudioClip(item->mStart, item->mEnd, item->mName, item->mMediaOverview);
         if (new_clip)
         {
-            // load clip info
-            if (value.contains("ID"))
-            {
-                auto& val = value["ID"];
-                if (val.is_number()) new_clip->mID = val.get<imgui_json::number>();
-            }
-            if (value.contains("Start"))
-            {
-                auto& val = value["Start"];
-                if (val.is_number()) new_clip->mStart = val.get<imgui_json::number>();
-            }
-            if (value.contains("End"))
-            {
-                auto& val = value["End"];
-                if (val.is_number()) new_clip->mEnd = val.get<imgui_json::number>();
-            }
-            if (value.contains("StartOffset"))
-            {
-                auto& val = value["StartOffset"];
-                if (val.is_number()) new_clip->mStartOffset = val.get<imgui_json::number>();
-            }
-            if (value.contains("EndOffset"))
-            {
-                auto& val = value["EndOffset"];
-                if (val.is_number()) new_clip->mEndOffset = val.get<imgui_json::number>();
-            }
+            Clip::Load(new_clip, value);
             // load audio info
             if (value.contains("Channels"))
             {
@@ -415,12 +482,6 @@ ClipInfo * AudioClip::Load(const imgui_json::value& value, void * handle)
                 auto& val = value["Format"];
                 if (val.is_number()) new_clip->mAudioFormat = (AudioRender::PcmFormat)val.get<imgui_json::number>();
             }
-            // load audio filter bp
-            if (value.contains("FilterBP"))
-            {
-                auto& val = value["FilterBP"];
-                if (val.is_object()) new_clip->mFilterBP = val;
-            }
             return new_clip;
         }
     }
@@ -429,20 +490,7 @@ ClipInfo * AudioClip::Load(const imgui_json::value& value, void * handle)
 
 void AudioClip::Save(imgui_json::value& value)
 {
-    // save clip global info
-    value["ID"] = imgui_json::number(mID);
-    value["Type"] = imgui_json::number(mType);
-    value["Path"] = mPath;
-    value["Name"] = mName;
-    value["Start"] = imgui_json::number(mStart);
-    value["End"] = imgui_json::number(mEnd);
-    value["StartOffset"] = imgui_json::number(mStartOffset);
-    value["EndOffset"] = imgui_json::number(mEndOffset);
-    // save clip filter bp
-    if (mFilterBP.is_object())
-    {
-        value["FilterBP"] = mFilterBP;
-    }
+    Clip::Save(value);
     // save audio clip info
     value["Channels"] = imgui_json::number(mAudioChannels);
     value["SampleRate"] = imgui_json::number(mAudioSampleRate);
@@ -451,7 +499,7 @@ void AudioClip::Save(imgui_json::value& value)
 
 // ImageClip Struct Member Functions
 ImageClip::ImageClip(int64_t start, int64_t end, std::string name, void* handle)
-    : ClipInfo(start, end)
+    : Clip(start, end)
 {
 }
 
@@ -476,33 +524,41 @@ bool ImageClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame)
     return false;
 }
 
-ClipInfo * ImageClip::Load(const imgui_json::value& value, void * handle)
+Clip * ImageClip::Load(const imgui_json::value& value, void * handle)
 {
+    TimeLine * timeline = (TimeLine *)handle;
+    if (!timeline || timeline->media_items.size() <= 0)
+        return nullptr;
+    std::string name;
+    if (value.contains("Name"))
+    {
+        auto& val = value["Name"];
+        if (val.is_string()) name = val.get<imgui_json::string>();
+    }
+    MediaItem * item = timeline->FindMediaItemByName(name);
+    if (item)
+    {
+        ImageClip * new_clip = new ImageClip(item->mStart, item->mEnd, item->mName, item->mMediaOverview);
+        if (new_clip)
+        {
+            Clip::Load(new_clip, value);
+            // load image info
+            return new_clip;
+        }
+    }
+
     return nullptr;
 }
 
 void ImageClip::Save(imgui_json::value& value)
 {
-    // save clip global info
-    value["ID"] = imgui_json::number(mID);
-    value["Type"] = imgui_json::number(mType);
-    value["Path"] = mPath;
-    value["Name"] = mName;
-    value["Start"] = imgui_json::number(mStart);
-    value["End"] = imgui_json::number(mEnd);
-    value["StartOffset"] = imgui_json::number(mStartOffset);
-    value["EndOffset"] = imgui_json::number(mEndOffset);
-    // save clip filter bp
-    if (mFilterBP.is_object())
-    {
-        value["FilterBP"] = mFilterBP;
-    }
+    Clip::Save(value);
     // save image clip info
 }
 
 // TextClip Struct Member Functions
 TextClip::TextClip(int64_t start, int64_t end, std::string name, void* handle)
-    : ClipInfo(start, end)
+    : Clip(start, end)
 {
 }
 
@@ -527,29 +583,37 @@ bool TextClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame)
     return false;
 }
 
-ClipInfo * TextClip::Load(const imgui_json::value& value, void * handle)
+Clip * TextClip::Load(const imgui_json::value& value, void * handle)
 {
+    TimeLine * timeline = (TimeLine *)handle;
+    if (!timeline || timeline->media_items.size() <= 0)
+        return nullptr;
+    std::string name;
+    if (value.contains("Name"))
+    {
+        auto& val = value["Name"];
+        if (val.is_string()) name = val.get<imgui_json::string>();
+    }
+    MediaItem * item = timeline->FindMediaItemByName(name);
+    if (item)
+    {
+        TextClip * new_clip = new TextClip(item->mStart, item->mEnd, item->mName, item->mMediaOverview);
+        if (new_clip)
+        {
+            Clip::Load(new_clip, value);
+            // load text info
+            return new_clip;
+        }
+    }
     return nullptr;
 }
 
 void TextClip::Save(imgui_json::value& value)
 {
-    // save clip global info
-    value["ID"] = imgui_json::number(mID);
-    value["Type"] = imgui_json::number(mType);
-    value["Path"] = mPath;
-    value["Name"] = mName;
-    value["Start"] = imgui_json::number(mStart);
-    value["End"] = imgui_json::number(mEnd);
-    value["StartOffset"] = imgui_json::number(mStartOffset);
-    value["EndOffset"] = imgui_json::number(mEndOffset);
-    // save clip filter bp
-    if (mFilterBP.is_object())
-    {
-        value["FilterBP"] = mFilterBP;
-    }
+    Clip::Save(value);
+    // save Text clip info
 }
-} //namespace MediaTimeline/ClipInfo
+} //namespace MediaTimeline/Clip
 
 
 namespace MediaTimeline
@@ -610,7 +674,7 @@ bool MediaTrack::DrawItemControlBar(ImDrawList *draw_list, ImRect rc)
     return need_update;
 }
 
-void MediaTrack::PushBackClip(ClipInfo * clip)
+void MediaTrack::PushBackClip(Clip * clip)
 {
     if (m_Clips.size() > 0)
     {
@@ -622,7 +686,7 @@ void MediaTrack::PushBackClip(ClipInfo * clip)
     m_Clips.push_back(clip);
 }
 
-void MediaTrack::InsertClip(ClipInfo * clip, int64_t pos)
+void MediaTrack::InsertClip(Clip * clip, int64_t pos)
 {
     TimeLine * timeline = (TimeLine *)m_Handle;
     if (!timeline || !clip)
@@ -708,6 +772,45 @@ void MediaTrack::InsertClip(ClipInfo * clip, int64_t pos)
     std::sort(m_Clips.begin(), m_Clips.end(), CompareClip);
 }
 
+Clip * MediaTrack::FindPrevClip(int64_t id)
+{
+    Clip * found_clip = nullptr;
+    TimeLine * timeline = (TimeLine *)m_Handle;
+    if (!timeline)
+        return found_clip;
+    auto current_clip = timeline->FindClipByID(id);
+    if (!current_clip)
+        return found_clip;
+    auto iter = std::find_if(m_Clips.begin(), m_Clips.end(), [id](const Clip* ss) {
+        return ss->mID == id;
+    });
+    if (iter == m_Clips.begin() || iter == m_Clips.end())
+        return found_clip;
+    
+    found_clip = *(iter - 1);
+    return found_clip;
+}
+
+Clip * MediaTrack::FindNextClip(int64_t id)
+{
+    Clip * found_clip = nullptr;
+    TimeLine * timeline = (TimeLine *)m_Handle;
+    if (!timeline)
+        return found_clip;
+    auto current_clip = timeline->FindClipByID(id);
+    if (!current_clip)
+        return found_clip;
+    auto iter = std::find_if(m_Clips.begin(), m_Clips.end(), [id](const Clip* ss) {
+        return ss->mID == id;
+    });
+
+    if (iter == m_Clips.end() || iter == m_Clips.end() - 1)
+        return found_clip;
+
+    found_clip = *(iter + 1);
+    return found_clip;
+}
+
 MediaTrack* MediaTrack::Load(const imgui_json::value& value, void * handle)
 {
     MEDIA_TYPE type = MEDIA_UNKNOWN;
@@ -765,7 +868,7 @@ MediaTrack* MediaTrack::Load(const imgui_json::value& value, void * handle)
             for (auto& id_val : *clipIDArray)
             {
                 int64_t clip_id = id_val.get<imgui_json::number>();
-                ClipInfo * clip = timeline->FindClipByID(clip_id);
+                Clip * clip = timeline->FindClipByID(clip_id);
                 if (clip)
                     new_track->m_Clips.push_back(clip);
             }
@@ -994,9 +1097,28 @@ MediaTrack * TimeLine::FindTrackByID(int64_t id)
     return track_found;
 }
 
-ClipInfo * TimeLine::FindClipByID(int64_t id)
+MediaTrack * TimeLine::FindTrackByClipID(int64_t id)
 {
-    ClipInfo * clip_found = nullptr;
+    MediaTrack * track_found = nullptr;
+    for (auto track : m_Tracks)
+    {
+        for (auto clip : track->m_Clips)
+        {
+            if (clip->mID == id)
+            {
+                track_found = track;
+                break;
+            }
+        }
+        if (track_found)
+            break;
+    }
+    return track_found;
+}
+
+Clip * TimeLine::FindClipByID(int64_t id)
+{
+    Clip * clip_found = nullptr;
     for (auto clip : m_Clips)
     {
         if (clip->mID == id)
@@ -1008,7 +1130,7 @@ ClipInfo * TimeLine::FindClipByID(int64_t id)
     return clip_found;
 }
 
-int64_t TimeLine::NextClipStart(ClipInfo * clip)
+int64_t TimeLine::NextClipStart(Clip * clip)
 {
     int64_t next_start = -1;
     if (clip)
@@ -1162,7 +1284,7 @@ int TimeLine::Load(const imgui_json::value& value)
                 auto& val = clip["Type"];
                 if (val.is_number()) type = (MEDIA_TYPE)val.get<imgui_json::number>();
             }
-            ClipInfo * media_clip = nullptr;
+            Clip * media_clip = nullptr;
             switch (type)
             {
                 case MEDIA_VIDEO: media_clip = VideoClip::Load(clip, this); break;
@@ -1353,7 +1475,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
     ImVector<TimelineCustomDraw> customDraws;
     static bool MovingScrollBar = false;
     static bool MovingCurrentTime = false;
-    static int movingEntry = -1;
+    static int64_t movingEntry = -1;
     static int movingPos = -1;
     static int movingPart = -1;
     int delEntry = -1;
@@ -1548,7 +1670,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             auto itemCustomHeight = timeline->GetCustomHeight(i);
             ImVec2 button_size = ImVec2(14, 14);
             ImVec2 tpos(contentMin.x, contentMin.y + i * trackHeadHeight + customHeight);
-            bool ret = TimelineButton(draw_list, ICON_TRASH, ImVec2(contentMin.x + legendWidth - button_size.x - 4, tpos.y), button_size, "delete");
+            bool ret = TimelineButton(draw_list, ICON_TRASH, ImVec2(contentMin.x + legendWidth - button_size.x - 4, tpos.y + 2), button_size, "delete");
             if (ret && io.MouseClicked[0])
                 delEntry = i;
             customHeight += itemCustomHeight;
@@ -1568,7 +1690,6 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         customHeight = 0;
         for (int i = 0; i < trackCount; i++)
         {
-            //bool selected = timeline->GetTrackSelected(i);
             size_t localCustomHeight = timeline->GetCustomHeight(i);
             unsigned int color = COL_SLOT_DEFAULT;
             ImVec2 pos = ImVec2(contentMin.x + legendWidth - timeline->firstTime * timeline->msPixelWidthTarget, contentMin.y + trackHeadHeight * i + 1 + customHeight);
@@ -1595,12 +1716,57 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                 mouseTime = (int64_t)((cx - topRect.Min.x) / timeline->msPixelWidthTarget) + timeline->firstTime;
                 timeline->AlignTime(mouseTime);
             }
+
+            // Ensure grabable handles and find selected clip
+            if (mouseTime != -1 && mouseEntry != -1 && mouseEntry < timeline->m_Tracks.size())
+            {
+                if (ImGui::IsMouseClicked(0) && !MovingScrollBar && !MovingCurrentTime)
+                {
+                    MediaTrack * track = timeline->m_Tracks[mouseEntry];
+                    if (!track->mLocked)
+                    {
+                        for (auto clip : track->m_Clips)
+                        {
+                            if (clip->mStart <= mouseTime && clip->mEnd >= mouseTime)
+                            {
+                                movingEntry = clip->mID;
+                                movingPos = cx;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
             customHeight += localCustomHeight;
         }
 
-        // track moving
-        if (movingEntry >= 0)
+        // clip moving
+        if (movingEntry != -1)
         {
+            ImGui::CaptureMouseFromApp();
+            int64_t diffTime = int64_t((cx - movingPos) / timeline->msPixelWidthTarget);
+            if (std::abs(diffTime) > 0)
+            {
+                // whole slot moving
+                Clip * clip = timeline->FindClipByID(movingEntry);
+                if (clip)
+                {
+                    auto new_diff = clip->ClipMoving(diffTime, timeline);
+                    movingPos += int(new_diff * timeline->msPixelWidthTarget);
+                    /*
+                    clip->mStart += diffTime;
+                    clip->mEnd += diffTime;
+                    movingPos += int(diffTime * timeline->msPixelWidthTarget);
+                    timeline->Updata();
+                    */
+                }
+            }
+            if (!io.MouseDown[0])
+            {
+                movingEntry = -1;
+                movingPos = -1;
+            }
         }
 
         draw_list->PopClipRect();
@@ -1879,12 +2045,13 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                             if (new_video_clip)
                             {
                                 // video clip is insert into track, we need check if this track has linked track
-                                //MediaTrack * relative_track = 
                                 if (track && track->mLinkedTrack != -1)
                                 {
                                     MediaTrack * relative_track = timeline->FindTrackByID(track->mLinkedTrack);
                                     if (relative_track && relative_track->mType == MEDIA_AUDIO)
                                     {
+                                        new_video_clip->mLinkedClips.push_back(new_audio_clip->mID);
+                                        new_audio_clip->mLinkedClips.push_back(new_video_clip->mID);
                                         relative_track->InsertClip(new_audio_clip, mouseTime);
                                         timeline->Updata();
                                     }
@@ -1933,7 +2100,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         }
         if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("Clip_drag_drop"))
         {
-            ClipInfo * clip = (ClipInfo *)payload->Data;
+            Clip * clip = (Clip *)payload->Data;
             if (clip)
             {
                 // TODO::Dicky
