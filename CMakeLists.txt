@@ -233,6 +233,32 @@ target_include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
+# MultiTrackAudioReader Test
+add_executable(
+    multi_track_audio_reader_test
+    test/MultiTrackAudioReaderTest.cpp
+    MultiTrackAudioReader.cpp
+    AudioTrack.cpp
+    AudioClip.cpp
+    MediaReader.cpp
+    MediaParser.cpp
+    AudioRender_Impl_Sdl2.cpp
+    FFUtils.cpp
+    Logger.cpp
+    ${IMGUI_APP_ENTRY_SRC}
+)
+target_link_libraries(
+    multi_track_audio_reader_test
+    ${IMGUI_LIBRARYS}
+    PkgConfig::FFMPEG
+)
+target_include_directories(
+    multi_track_audio_reader_test PRIVATE
+    ${SDL2_INCLUDE_DIRS}
+    ${IMGUI_INCLUDE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
 # MediaEncoder Test
 add_executable(
     media_encoder_test
