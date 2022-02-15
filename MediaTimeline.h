@@ -372,8 +372,8 @@ struct TimeLine
 
     int GetTrackCount() const { return (int)m_Tracks.size(); }
     int GetTrackCount(MEDIA_TYPE type) const;
-    //bool GetTrackSelected(int index) const { return m_Tracks[index]->mSelected; }
-    //void SetTrackSelected(int index);
+    void DeleteTrack(int index);
+    void DeleteClip(int64_t id);
     void DoubleClick(int index) { m_Tracks[index]->mExpanded = !m_Tracks[index]->mExpanded; }
     void Click(int index);
 

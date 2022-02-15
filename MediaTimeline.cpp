@@ -166,7 +166,6 @@ Clip::Clip(int64_t start, int64_t end)
 
 Clip::~Clip()
 {
-
 }
 
 void Clip::Load(Clip * clip, const imgui_json::value& value)
@@ -667,7 +666,20 @@ MediaTrack::MediaTrack(std::string name, MEDIA_TYPE type, void * handle)
 
 MediaTrack::~MediaTrack()
 {
-
+    TimeLine * timeline = (TimeLine *)m_Handle;
+    if (!timeline)
+        return;
+    // remove clips from timeline
+    for (auto clip : m_Clips)
+    {
+        timeline->DeleteClip(clip->mID);
+    }
+    // remove linked track info
+    auto linked_track = timeline->FindTrackByID(mID);
+    if (linked_track)
+    {
+        linked_track->mLinkedTrack = -1;
+    }
 }
 
 bool MediaTrack::DrawItemControlBar(ImDrawList *draw_list, ImRect rc)
@@ -1044,6 +1056,48 @@ void TimeLine::Updata()
 void TimeLine::Click(int index)
 {
 
+}
+
+void TimeLine::DeleteTrack(int index)
+{
+    if (index >= 0 && index < m_Tracks.size())
+    {
+        auto track = m_Tracks[index];
+        m_Tracks.erase(m_Tracks.begin() + index);
+        delete track;
+        if (m_Tracks.size() == 0)
+        {
+            mStart = mEnd = 0;
+            currentTime = firstTime = lastTime = visibleTime = 0;
+        }
+    }
+}
+
+void TimeLine::DeleteClip(int64_t id)
+{
+    auto iter = std::find_if(m_Clips.begin(), m_Clips.end(), [id](const Clip* clip) {
+        return clip->mID == id;
+    });
+    if (iter != m_Clips.end())
+    {
+        auto clip = *iter;
+         m_Clips.erase(iter);
+         for (auto link_clip_id : clip->mLinkedClips)
+         {
+             auto linked_clip = FindClipByID(link_clip_id);
+             if (linked_clip)
+             {
+                 auto clip_iter = std::find_if(linked_clip->mLinkedClips.begin(), linked_clip->mLinkedClips.end(), [id](const int64_t& clip_id) {
+                    return clip_id == id;
+                });
+                if (clip_iter != linked_clip->mLinkedClips.end())
+                {
+                    linked_clip->mLinkedClips.erase(clip_iter);
+                }
+             }
+         }
+         delete clip;
+    }
 }
 
 ImGui::ImMat TimeLine::GetPreviewFrame()
@@ -2122,6 +2176,10 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         bool overExpanded = ExpendButton(draw_list, ImVec2(canvas_pos.x + 2, canvas_pos.y + 2), !*expanded);
         if (overExpanded && io.MouseReleased[0])
             *expanded = !*expanded;
+    }
+    if (delEntry != -1)
+    {
+        timeline->DeleteTrack(delEntry);
     }
     // for debug
     //ImGui::BeginTooltip();
