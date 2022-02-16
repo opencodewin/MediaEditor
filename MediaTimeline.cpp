@@ -816,12 +816,36 @@ MediaTrack::~MediaTrack()
     }
 }
 
-bool MediaTrack::DrawItemControlBar(ImDrawList *draw_list, ImRect rc)
+bool MediaTrack::DrawTrackControlBar(ImDrawList *draw_list, ImRect rc)
 {
     bool need_update = false;
     ImGuiIO &io = ImGui::GetIO();
     if (mExpanded) draw_list->AddText(rc.Min + ImVec2(4, 0), IM_COL32_WHITE, mName.c_str());
-    // TODO::Dicky add button
+    ImVec2 button_size = ImVec2(12, 12);
+    int button_count = 0;
+    {
+        bool ret = TimelineButton(draw_list, mLocked ? ICON_LOCKED : ICON_UNLOCK, ImVec2(rc.Min.x + button_size.x * button_count * 1.5 + 6, rc.Max.y - button_size.y - 2), button_size, mLocked ? "unlock" : "lock");
+        if (ret && io.MouseReleased[0])
+            mLocked = !mLocked;
+        button_count ++;
+    }
+    if (mType == MEDIA_AUDIO)
+    {
+        bool ret = TimelineButton(draw_list, mView ? ICON_SPEAKER_MUTE : ICON_SPEAKER, ImVec2(rc.Min.x + button_size.x * button_count * 1.5 + 6, rc.Max.y - button_size.y - 2), button_size, mView ? "voice" : "mute");
+        if (ret && io.MouseReleased[0])
+            mView = !mView;
+        button_count ++;
+    }
+    else
+    {
+        bool ret = TimelineButton(draw_list, mView ? ICON_VIEW : ICON_VIEW_DISABLE, ImVec2(rc.Min.x + button_size.x * button_count * 1.5 + 6, rc.Max.y - button_size.y - 2), button_size, mView ? "hidden" : "view");
+        if (ret && io.MouseReleased[0])
+        {
+            mView = !mView;
+            need_update = true;
+        }
+        button_count ++;
+    }
     return need_update;
 }
 
@@ -1432,7 +1456,7 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, co
     // draw legend
     draw_list->PushClipRect(legendRect.Min, legendRect.Max, true);
     draw_list->AddRect(legendRect.Min, legendRect.Max, COL_DEEP_DARK, 0, 0, 2);
-    auto need_seek = track->DrawItemControlBar(draw_list, legendRect);
+    auto need_seek = track->DrawTrackControlBar(draw_list, legendRect);
     //if (need_seek) Seek();
     draw_list->PopClipRect();
     

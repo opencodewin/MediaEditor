@@ -293,7 +293,7 @@ struct MediaTrack
     MediaTrack(std::string name, MEDIA_TYPE type, void * handle);
     ~MediaTrack();
 
-    bool DrawItemControlBar(ImDrawList *draw_list, ImRect rc);
+    bool DrawTrackControlBar(ImDrawList *draw_list, ImRect rc);
     void InsertClip(Clip * clip, int64_t pos = 0);
     void PushBackClip(Clip * clip);
     void SelectClip(Clip * clip, bool appand);
