@@ -34,6 +34,7 @@ public:
 
     MediaReader_Impl()
     {
+        m_id = s_idCounter++;
         m_logger = GetMediaReaderLogger();
     }
 
@@ -378,6 +379,10 @@ public:
             m = m_prevReadImg;
             return true;
         }
+        while (!m_prepared && !m_quit)
+            this_thread::sleep_for(chrono::milliseconds(5));
+        if (m_quit)
+            return false;
 
         lock_guard<recursive_mutex> lk(m_apiLock);
         bool success = ReadVideoFrame_Internal(pos, m, wait);
@@ -404,6 +409,10 @@ public:
             m_errMsg = "Invalid state! Can NOT read video frame from a 'MediaReader' until it's started!";
             return false;
         }
+        while (!m_prepared && !m_quit)
+            this_thread::sleep_for(chrono::milliseconds(5));
+        if (m_quit)
+            return false;
         eof = false;
 
         lock_guard<recursive_mutex> lk(m_apiLock);
@@ -419,9 +428,19 @@ public:
         return success;
     }
 
+    uint32_t Id() const override
+    {
+        return m_id;
+    }
+
     bool IsOpened() const override
     {
         return m_opened;
+    }
+
+    bool IsStarted() const override
+    {
+        return m_started;
     }
 
     bool IsVideoReader() const override
@@ -471,6 +490,16 @@ public:
         if (!hInfo || m_audStmIdx < 0)
             return nullptr;
         return dynamic_cast<MediaInfo::AudioStream*>(hInfo->streams[m_audStmIdx].get());
+    }
+
+    uint32_t GetAudioOutChannels() const override
+    {
+        return m_swrOutChannels;
+    }
+
+    uint32_t GetAudioOutSampleRate() const override
+    {
+        return m_swrOutSampleRate;
     }
 
     string GetError() const override
@@ -2458,6 +2487,8 @@ private:
     }
 
 private:
+    static atomic_uint32_t s_idCounter;
+    uint32_t m_id;
     ALogger* m_logger;
     string m_errMsg;
 
@@ -2540,6 +2571,7 @@ private:
 };
 
 ALogger* MediaReader_Impl::s_logger;
+atomic_uint32_t MediaReader_Impl::s_idCounter{1};
 
 ALogger* GetMediaReaderLogger()
 {
