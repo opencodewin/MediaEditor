@@ -193,7 +193,8 @@ struct Clip
     Clip(int64_t start, int64_t end);
     virtual ~Clip();
 
-    int64_t ClipMoving(int64_t diff, void * handle);
+    int64_t Moving(int64_t diff, void * handle);
+    int64_t Cropping(int64_t diff, int type, void * handle);
     bool isLinkedWith(Clip * clip, void * handle);
     
     virtual void UpdateSnapshot() = 0;

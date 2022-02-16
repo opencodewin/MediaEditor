@@ -112,9 +112,20 @@ MediaItem::MediaItem(const std::string& name, const std::string& path, MEDIA_TYP
     if (mMediaOverview && mMediaOverview->IsOpened())
     {
         mStart = 0;
-        mEnd = mMediaOverview->GetVideoDuration();
-        if (mMediaOverview->HasVideo())
+        if (mMediaOverview->HasVideo() && type != MEDIA_PICTURE)
+        {
             mMediaOverview->GetMediaParser()->EnableParseInfo(MediaParser::VIDEO_SEEK_POINTS);
+            mEnd = mMediaOverview->GetVideoDuration();
+        }
+        else if (mMediaOverview->HasAudio())
+        {
+            mEnd = mMediaOverview->GetMediaInfo()->duration * 1000;
+        }
+        else
+        {
+            // image or text?
+            mEnd = 1000;
+        }
     }
 }
 
@@ -241,7 +252,103 @@ void Clip::Save(imgui_json::value& value)
     value["LinkedClipIDS"] = linked_clips;
 }
 
-int64_t Clip::ClipMoving(int64_t diff, void * handle)
+int64_t Clip::Cropping(int64_t diff, int type, void * handle)
+{
+    int64_t new_diff = 0;
+    TimeLine * timeline = (TimeLine *)handle;
+    if (!timeline)
+        return new_diff;
+    float frame_duration = (timeline->mFrameRate.den > 0 && timeline->mFrameRate.num > 0) ? timeline->mFrameRate.den * 1000.0 / timeline->mFrameRate.num : 40;
+    if (type == 0)
+    {
+        // cropping start
+        if (mType == MEDIA_VIDEO || mType == MEDIA_AUDIO)
+        {
+            // audio video stream have length limit
+            if (mStart + diff < mEnd - ceil(frame_duration) && mStart + diff >= timeline->mStart)
+            {
+                if (mStartOffset + diff >= 0)
+                {
+                    new_diff = diff;
+                    mStart += diff;
+                    mStartOffset += diff;
+                }
+                else if (abs(mStartOffset + diff) <= abs(diff))
+                {
+                    new_diff = diff + abs(mStartOffset + diff);
+                    mStart += new_diff;
+                    mStartOffset += new_diff;
+                }
+            }
+            else if (mEnd - mStart - ceil(frame_duration) < diff)
+            {
+                new_diff = mEnd - mStart - ceil(frame_duration);
+                mStart += new_diff;
+                mStartOffset += new_diff;
+            }
+        }
+        else
+        {
+            // others have not length limit
+            if (mStart + diff < mEnd - ceil(frame_duration) && mStart + diff >= timeline->mStart)
+            {
+                new_diff = diff;
+                mStart += diff;
+            }
+            else if (mEnd - mStart - ceil(frame_duration) < diff)
+            {
+                new_diff = mEnd - mStart - ceil(frame_duration);
+                mStart += new_diff;
+            }
+        }
+    }
+    else
+    {
+        // cropping end
+        if (mType == MEDIA_VIDEO || mType == MEDIA_AUDIO)
+        {
+            // audio video stream have length limit
+            if (mEnd + diff > mStart + ceil(frame_duration))
+            {
+                if (mEndOffset - diff >= 0)
+                {
+                    new_diff = diff;
+                    mEnd += new_diff;
+                    mEndOffset -= new_diff;
+                }
+                else if (abs(mEndOffset - diff) <= abs(diff))
+                {
+                    new_diff = diff - abs(mEndOffset - diff);
+                    mEnd += new_diff;
+                    mEndOffset -= new_diff;
+                }
+            }
+            else if (mEnd - mStart - ceil(frame_duration) < abs(diff))
+            {
+                new_diff = mStart - mEnd + ceil(frame_duration);
+                mEnd += new_diff;
+                mEndOffset -= new_diff;
+            }
+        }
+        else
+        {
+            // others have not length limit
+            if (mEnd + diff > mStart + ceil(frame_duration))
+            {
+                new_diff = diff;
+                mEnd += new_diff;
+            }
+            else if (mEnd - mStart - ceil(frame_duration) < abs(diff))
+            {
+                new_diff = mStart - mEnd + ceil(frame_duration);
+                mEnd += new_diff;
+            }
+        }
+    }
+    return new_diff;
+}
+
+int64_t Clip::Moving(int64_t diff, void * handle)
 {
     int64_t new_diff = 0;
     TimeLine * timeline = (TimeLine *)handle;
@@ -513,6 +620,20 @@ void AudioClip::Save(imgui_json::value& value)
 ImageClip::ImageClip(int64_t start, int64_t end, std::string name, void* handle)
     : Clip(start, end)
 {
+    if (handle)
+    {
+        mType = MEDIA_PICTURE;
+        mName = name;
+        mHandle = handle;
+        MediaOverview * overview = (MediaOverview *)handle;
+        MediaInfo::InfoHolder info = overview->GetMediaInfo();
+        if (!info)
+        {
+            return;
+        }
+        mPath = info->url;
+        MediaParserHolder holder = overview->GetMediaParser();
+    }
 }
 
 ImageClip::~ImageClip()
@@ -657,7 +778,7 @@ MediaTrack::MediaTrack(std::string name, MEDIA_TYPE type, void * handle)
                 break;
                 case MEDIA_PICTURE:
                     mName = "P:";
-                    mTrackHeight = 20;
+                    mTrackHeight = 40;
                 break;
                 case MEDIA_TEXT:
                     mName = "T:";
@@ -1084,7 +1205,7 @@ void TimeLine::Updata()
             end_max = clip->mEnd;
     }
     if (start_min < mStart)
-        mStart = start_min;
+        mStart = ImMax(start_min, (int64_t)0);
     if (end_max > mEnd)
     {
         mEnd = end_max + TIMELINE_OVER_LENGTH;
@@ -1371,7 +1492,7 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, co
             draw_list->PushClipRect(clippingTitleRect.Min, clippingTitleRect.Max, true);
             ImVec2 clip_title_pos_min = ImVec2(cursor_start, clippingTitleRect.Min.y);
             ImVec2 clip_title_pos_max = ImVec2(cursor_end, clippingTitleRect.Max.y);
-            draw_list->AddRectFilled(clip_title_pos_min, clip_title_pos_max, IM_COL32(32,128,32,192));
+            draw_list->AddRectFilled(clip_title_pos_min, clip_title_pos_max, IM_COL32(32,128,32,128));
             draw_list->AddRect(clip_title_pos_min, clip_title_pos_max, IM_COL32_BLACK);
             draw_list->AddText(clip_title_pos_min, IM_COL32_WHITE, clip->mName.c_str());
             draw_list->PopClipRect();
@@ -1658,7 +1779,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
     ImRect scrollHandleBarRect;
 
     float minPixelWidthTarget = ImMin(timeline->msPixelWidthTarget, (float)(canvas_size.x - legendWidth) / (float)duration);
-    float maxPixelWidthTarget = 20.f;
+    float frame_duration = (timeline->mFrameRate.den > 0 && timeline->mFrameRate.num > 0) ? timeline->mFrameRate.den * 1000.0 / timeline->mFrameRate.num : 40;
+    float maxPixelWidthTarget = frame_duration > 0.0 ? 60.f / frame_duration : 20.f;
     timeline->msPixelWidthTarget = ImClamp(timeline->msPixelWidthTarget, minPixelWidthTarget, maxPixelWidthTarget);
 
     if (timeline->visibleTime >= duration)
@@ -1708,11 +1830,22 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         const ImVec2 contentMax = ImGui::GetItemRectMax();
         const ImRect contentRect(contentMin, contentMax);
         const ImRect legendRect(contentMin, ImVec2(contentMin.x + legendWidth, contentMax.y));
+        const ImRect legendAreaRect(contentMin, ImVec2(contentMin.x + legendWidth, contentMin.y + canvas_size.y - (HeadHeight + 8)));
+        const ImRect trackRect(ImVec2(contentMin.x + legendWidth, contentMin.y), contentMax);
+        const ImRect trackAreaRect(ImVec2(contentMin.x + legendWidth, contentMin.y), ImVec2(contentMax.x, contentMin.y + canvas_size.y - (HeadHeight + scrollBarHeight + 8)));
+        
         const float contentHeight = contentMax.y - contentMin.y;
         // full canvas background
         draw_list->AddRectFilled(canvas_pos + ImVec2(4, HeadHeight + 4), canvas_pos + ImVec2(4, HeadHeight + 4) + canvas_size - ImVec2(8, HeadHeight + scrollBarHeight + 8), COL_CANVAS_BG, 0);
         // full legend background
         draw_list->AddRectFilled(legendRect.Min, legendRect.Max, COL_LEGEND_BG, 0);
+
+        // for debug
+        //draw_list->AddRect(trackRect.Min, trackRect.Max, IM_COL32(255, 0, 0, 255), 0, 0, 2);
+        //draw_list->AddRect(trackAreaRect.Min, trackAreaRect.Max, IM_COL32(0, 0, 255, 255), 0, 0, 2);
+        //draw_list->AddRect(legendRect.Min, legendRect.Max, IM_COL32(0, 255, 0, 255), 0, 0, 2);
+        //draw_list->AddRect(legendAreaRect.Min, legendAreaRect.Max, IM_COL32(255, 255, 0, 255), 0, 0, 2);
+        // for debug end
 
         // current time top
         ImRect topRect(ImVec2(canvas_pos.x + legendWidth, canvas_pos.y), ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + HeadHeight));
@@ -1878,28 +2011,53 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             // Ensure grabable handles and find selected clip
             if (mouseTime != -1 && mouseEntry != -1 && mouseEntry < timeline->m_Tracks.size())
             {
-                if (ImGui::IsMouseClicked(0) && !MovingScrollBar && !MovingCurrentTime)
+                MediaTrack * track = timeline->m_Tracks[mouseEntry];
+                if (track && !track->mLocked)
                 {
-                    MediaTrack * track = timeline->m_Tracks[mouseEntry];
-                    if (!track->mLocked)
+                    for (auto clip : track->m_Clips)
                     {
-                        for (auto clip : track->m_Clips)
+                        // check movingPart
+                        ImVec2 clipP1(pos.x + clip->mStart * timeline->msPixelWidthTarget, pos.y + 2);
+                        ImVec2 clipP2(pos.x + clip->mEnd * timeline->msPixelWidthTarget + timeline->msPixelWidthTarget - 4.f, pos.y + trackHeadHeight - 2);
+                        ImVec2 clipP3(pos.x + clip->mEnd * timeline->msPixelWidthTarget + timeline->msPixelWidthTarget - 4.f, pos.y + trackHeadHeight - 2 + localCustomHeight);
+                        const float max_handle_width = clipP2.x - clipP1.x / 3.0f;
+                        const float min_handle_width = ImMin(10.0f, max_handle_width);
+                        const float handle_width = ImClamp(timeline->msPixelWidthTarget / 2.0f, min_handle_width, max_handle_width);
+                        ImRect rects[3] = {ImRect(clipP1, ImVec2(clipP1.x + handle_width, clipP2.y)), ImRect(ImVec2(clipP2.x - handle_width, clipP1.y), clipP2), ImRect(clipP1, clipP3)};
+
+                        if (clip->mStart <= mouseTime && clip->mEnd >= mouseTime && movingEntry == -1)
                         {
-                            if (clip->mStart <= mouseTime && clip->mEnd >= mouseTime)
+                            for (int j = 1; j >= 0; j--)
                             {
-                                movingEntry = clip->mID;
-                                movingPos = cx;
-                                break;
+                                ImRect &rc = rects[j];
+                                if (!rc.Contains(io.MousePos))
+                                    continue;
+                                ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
+                                draw_list->AddRectFilled(rc.Min, rc.Max, IM_COL32(255,0,0,255), 0);
+                            }
+                            for (int j = 0; j < 3; j++)
+                            {
+                                ImRect &rc = rects[j];
+                                if (!rc.Contains(io.MousePos))
+                                    continue;
+                                if (!ImRect(childFramePos, childFramePos + childFrameSize).Contains(io.MousePos))
+                                    continue;
+                                if (ImGui::IsMouseClicked(0) && !MovingScrollBar && !MovingCurrentTime)
+                                {
+                                    movingEntry = clip->mID;
+                                    movingPos = cx;
+                                    movingPart = j + 1;
+                                    break;
+                                }
                             }
                         }
                     }
                 }
             }
-
             customHeight += localCustomHeight;
         }
 
-        // clip moving
+        // clip cropping or moving
         if (movingEntry != -1)
         {
             ImGui::CaptureMouseFromApp();
@@ -1910,20 +2068,32 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                 Clip * clip = timeline->FindClipByID(movingEntry);
                 if (clip)
                 {
-                    auto new_diff = clip->ClipMoving(diffTime, timeline);
-                    movingPos += int(new_diff * timeline->msPixelWidthTarget);
-                    /*
-                    clip->mStart += diffTime;
-                    clip->mEnd += diffTime;
-                    movingPos += int(diffTime * timeline->msPixelWidthTarget);
-                    timeline->Updata();
-                    */
+                    if (movingPart == 3)
+                    {
+                        auto new_diff = clip->Moving(diffTime, timeline);
+                        movingPos += int(new_diff * timeline->msPixelWidthTarget);
+                    }
+                    else if (movingPart & 1)
+                    {
+                        ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
+                        // clip left moving
+                        auto new_diff = clip->Cropping(diffTime, 0, timeline);
+                        movingPos += int(new_diff * timeline->msPixelWidthTarget);
+                    }
+                    else if (movingPart & 2)
+                    {
+                        ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
+                        // clip right moving
+                        auto new_diff = clip->Cropping(diffTime, 1, timeline);
+                        movingPos += int(new_diff * timeline->msPixelWidthTarget);
+                    }
                 }
             }
             if (!io.MouseDown[0])
             {
                 movingEntry = -1;
                 movingPos = -1;
+                movingPart = -1;
             }
         }
 
@@ -1935,7 +2105,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         auto scroll_pos = ImGui::GetCursorScreenPos();
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
         ImGui::SetWindowFontScale(0.7);
-        ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - 16 - 4, 0));
+        int button_offset = 16;
+        ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - button_offset - 4, 0));
         if (ImGui::Button(ICON_FAST_TO_END "##slider_to_end", ImVec2(16, 16)))
         {
             timeline->firstTime = timeline->GetEnd() - timeline->visibleTime;
@@ -1943,21 +2114,24 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         }
         ImGui::ShowTooltipOnHover("Slider to End");
 
-        ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - 32 - 4, 0));
-        if (ImGui::Button(ICON_TO_END "##slider_to_next_clip", ImVec2(16, 16)))
-        {
-            // TODO::Need check all clips and get nearest clips start
-        }
-        ImGui::ShowTooltipOnHover("Slider to next clip");
+        //button_offset += 16;
+        //ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - button_offset - 4, 0));
+        //if (ImGui::Button(ICON_TO_END "##slider_to_next_clip", ImVec2(16, 16)))
+        //{
+        //    // TODO::Need check all clips and get nearest clips start
+        //}
+        //ImGui::ShowTooltipOnHover("Slider to next clip");
 
-        ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - 48 - 4, 0));
+        button_offset += 16;
+        ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - button_offset - 4, 0));
         if (ImGui::Button(ICON_SLIDER_MAXIMUM "##slider_maximum", ImVec2(16, 16)))
         {
             timeline->msPixelWidthTarget = maxPixelWidthTarget;
         }
         ImGui::ShowTooltipOnHover("Maximum Slider");
 
-        ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - 64 - 4, 0));
+        button_offset += 16;
+        ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - button_offset - 4, 0));
         if (ImGui::Button(ICON_ZOOM_IN "##slider_zoom_in", ImVec2(16, 16)))
         {
             timeline->msPixelWidthTarget *= 2.0f;
@@ -1966,7 +2140,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         }
         ImGui::ShowTooltipOnHover("Slider Zoom In");
 
-        ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - 80 - 4, 0));
+        button_offset += 16;
+        ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - button_offset - 4, 0));
         if (ImGui::Button(ICON_ZOOM_OUT "##slider_zoom_out", ImVec2(16, 16)))
         {
             timeline->msPixelWidthTarget *= 0.5f;
@@ -1975,7 +2150,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         }
         ImGui::ShowTooltipOnHover("Slider Zoom Out");
 
-        ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - 96 - 4, 0));
+        button_offset += 16;
+        ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - button_offset - 4, 0));
         if (ImGui::Button(ICON_SLIDER_MINIMUM "##slider_minimum", ImVec2(16, 16)))
         {
             timeline->msPixelWidthTarget = minPixelWidthTarget;
@@ -1983,13 +2159,16 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         }
         ImGui::ShowTooltipOnHover("Minimum Slider");
 
-        ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - 112 - 4, 0));
-        if (ImGui::Button(ICON_TO_START "##slider_to_prev_clip", ImVec2(16, 16)))
-        {
-            // TODO::Need check all clips and get nearest previous clip start
-        }
-        ImGui::ShowTooltipOnHover("Slider to previous clip");
-        ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - 128 - 4, 0));
+        //button_offset += 16;
+        //ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - button_offset - 4, 0));
+        //if (ImGui::Button(ICON_TO_START "##slider_to_prev_clip", ImVec2(16, 16)))
+        //{
+        //    // TODO::Need check all clips and get nearest previous clip start
+        //}
+        //ImGui::ShowTooltipOnHover("Slider to previous clip");
+
+        button_offset += 16;
+        ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - button_offset - 4, 0));
         if (ImGui::Button(ICON_FAST_TO_START "##slider_to_start", ImVec2(16, 16)))
         {
             timeline->firstTime = timeline->GetStart();
@@ -2046,20 +2225,22 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         // handle mouse wheel event
         if (regionRect.Contains(io.MousePos))
         {
-            bool overCustomDraw = false;
+            bool overTrackView = false;
             bool overScrollBar = false;
-            for (auto &custom : customDraws)
+            bool overCustomDraw = false;
+            if (trackRect.Contains(io.MousePos))
             {
-                if (custom.customRect.Contains(io.MousePos))
-                {
-                    overCustomDraw = true;
-                }
+                overCustomDraw = true;
             }
+            if (trackAreaRect.Contains(io.MousePos))
+            {
+                overTrackView = true;
+            } 
             if (scrollBarRect.Contains(io.MousePos))
             {
                 overScrollBar = true;
             }
-            if (overScrollBar)
+            if (overTrackView || overScrollBar)
             {
                 // up-down wheel over scrollbar, scale canvas view
                 int64_t overCursor = timeline->firstTime + (int64_t)(timeline->visibleTime * ((io.MousePos.x - (float)legendWidth - canvas_pos.x) / (canvas_size.x - legendWidth)));
@@ -2071,20 +2252,15 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                 {
                     timeline->msPixelWidthTarget *= 1.1f;
                 }
-            }
-            else
-            {
                 // left-right wheel over blank area, moving canvas view
                 if (io.MouseWheelH < -FLT_EPSILON)
                 {
                     timeline->firstTime -= timeline->visibleTime / 4;
-                    timeline->AlignTime(timeline->firstTime);
                     timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
                 }
                 if (io.MouseWheelH > FLT_EPSILON)
                 {
                     timeline->firstTime += timeline->visibleTime / 4;
-                    timeline->AlignTime(timeline->firstTime);
                     timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
                 }
             }
@@ -2155,16 +2331,45 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                 {
                     ImageClip * new_image_clip = new ImageClip(item->mStart, item->mEnd, item->mName, item->mMediaOverview);
                     timeline->m_Clips.push_back(new_image_clip);
+                    if (track && track->mType == MEDIA_PICTURE)
+                    {
+                        // update clip info and push into track
+                        track->InsertClip(new_image_clip, mouseTime);
+                        timeline->Updata();
+                    }
+                    else
+                    {
+                        MediaTrack * new_track = new MediaTrack("", MEDIA_PICTURE, timeline);
+                        new_track->mExpanded = true;
+                        new_track->InsertClip(new_image_clip, mouseTime);
+                        timeline->m_Tracks.push_back(new_track);
+                        timeline->Updata();
+                    }
                 }
                 else if (item->mMediaType == MEDIA_AUDIO)
                 {
                     AudioClip * new_audio_clip = new AudioClip(item->mStart, item->mEnd, item->mName, item->mMediaOverview);
                     timeline->m_Clips.push_back(new_audio_clip);
+                    if (track && track->mType == MEDIA_AUDIO)
+                    {
+                        // update clip info and push into track
+                        track->InsertClip(new_audio_clip, mouseTime);
+                        timeline->Updata();
+                    }
+                    else
+                    {
+                        MediaTrack * new_track = new MediaTrack("", MEDIA_AUDIO, timeline);
+                        new_track->mExpanded = true;
+                        new_track->InsertClip(new_audio_clip, mouseTime);
+                        timeline->m_Tracks.push_back(new_track);
+                        timeline->Updata();
+                    }
                 } 
                 else if (item->mMediaType == MEDIA_TEXT)
                 {
                     TextClip * new_text_clip = new TextClip(item->mStart, item->mEnd, item->mName, item->mMediaOverview);
                     timeline->m_Clips.push_back(new_text_clip);
+                    // TODO::Dicky add text support
                 }
                 else
                 {

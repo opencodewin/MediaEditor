@@ -692,6 +692,8 @@ static void ShowMediaBankWindow(ImDrawList *draw_list, float media_icon_size)
             float percent = pos_x / icon_size.x;
             ImClamp(percent, 0.0f, 1.0f);
             int texture_index = (*item)->mMediaThumbnail.size() * percent;
+            if ((*item)->mMediaType == MEDIA_PICTURE)
+                texture_index = 0;
             if (!(*item)->mMediaThumbnail.empty())
             {
                 texture = (*item)->mMediaThumbnail[texture_index];
@@ -821,6 +823,7 @@ static void ShowMediaBankWindow(ImDrawList *draw_list, float media_icon_size)
         ImGui::SetCursorScreenPos(icon_pos + ImVec2(0, media_icon_size));
         ImGui::PopStyleColor();
     }
+    ImGui::Dummy(ImVec2(0, 24));
 }
 
 /****************************************************************************************
