@@ -186,16 +186,17 @@ struct Clip
     bool bSelected              {false};
     std::mutex mLock;                               // clip mutex
     std::vector<int64_t>        mLinkedClips;       // linked clips
-    void * mHandle              {nullptr};
+    void * mHandle              {nullptr};          // clip belong to timeline 
+    MediaOverview * mOverview   {nullptr};          // clip media overview
     MediaReader* mMediaReader   {nullptr};          // clip media reader
     imgui_json::value mFilterBP;
 
-    Clip(int64_t start, int64_t end);
+    Clip(int64_t start, int64_t end, MediaOverview * overview, void * handle);
     virtual ~Clip();
 
-    int64_t Moving(int64_t diff, void * handle);
-    int64_t Cropping(int64_t diff, int type, void * handle);
-    bool isLinkedWith(Clip * clip, void * handle);
+    int64_t Moving(int64_t diff);
+    int64_t Cropping(int64_t diff, int type);
+    bool isLinkedWith(Clip * clip);
     
     virtual void UpdateSnapshot() = 0;
     virtual void Seek() = 0;
@@ -215,7 +216,7 @@ struct VideoClip : Clip
     //ImTextureID mFilterOutputTexture {nullptr};  // clip filter output texture
     MediaInfo::Ratio mClipFrameRate {25, 1};// clip Frame rate
 
-    VideoClip(int64_t start, int64_t end, std::string name, void* handle);
+    VideoClip(int64_t start, int64_t end, std::string name, MediaOverview * overview, void* handle);
     ~VideoClip();
 
     void UpdateSnapshot();
@@ -233,7 +234,7 @@ struct AudioClip : Clip
     AudioRender::PcmFormat mAudioFormat {AudioRender::PcmFormat::FLOAT32}; // clip audio type
     MediaOverview::WaveformHolder mWaveform {nullptr};  // clip audio snapshot
 
-    AudioClip(int64_t start, int64_t end, std::string name, void* handle);
+    AudioClip(int64_t start, int64_t end, std::string name, MediaOverview * overview, void* handle);
     ~AudioClip();
 
     void UpdateSnapshot();
@@ -250,7 +251,7 @@ struct ImageClip : Clip
     int mHeight  {0};
     int mColorFormat    {0};
 
-    ImageClip(int64_t start, int64_t end, std::string name, void* handle);
+    ImageClip(int64_t start, int64_t end, std::string name, MediaOverview * overview, void* handle);
     ~ImageClip();
 
     void UpdateSnapshot();
@@ -263,7 +264,7 @@ struct ImageClip : Clip
 
 struct TextClip : Clip
 {
-    TextClip(int64_t start, int64_t end, std::string name, void* handle);
+    TextClip(int64_t start, int64_t end, std::string name, MediaOverview * overview, void* handle);
     ~TextClip();
 
     void UpdateSnapshot();
