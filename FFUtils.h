@@ -58,6 +58,8 @@ public:
     ImColorFormat GetOutColorFormat() const { return m_outClrFmt; }
     ImInterpolateMode GetResizeInterpolateMode() const { return m_resizeInterp; }
 
+    void SetUseVulkanConverter(bool use) { m_useVulkanComponents = use; }
+
     std::string GetError() const { return m_errMsg; }
 
 private:
@@ -102,6 +104,8 @@ public:
     AVColorSpace GetOutColorSpace() const { return m_outClrspc; }
     AVColorRange GetOutColorRange() const { return m_outClrrng; }
     ImInterpolateMode GetResizeInterpolateMode() const { return m_resizeInterp; }
+
+    void SetUseVulkanConverter(bool use) { m_useVulkanComponents = use; }
 
     std::string GetError() const { return m_errMsg; }
 

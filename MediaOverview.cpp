@@ -60,6 +60,8 @@ public:
         }
         m_hParser = hParser;
         m_ssCount = snapshotCount;
+        if (m_vidFrmCnt > 0 && m_vidFrmCnt < snapshotCount)
+            m_ssCount = m_vidFrmCnt;
         m_ssIntvMts = (double)m_vidDurMts/m_ssCount;
 
         BuildSnapshots();
@@ -410,12 +412,15 @@ private:
         if (HasVideo())
         {
             MediaInfo::VideoStream* vidStream = dynamic_cast<MediaInfo::VideoStream*>(m_hMediaInfo->streams[m_vidStmIdx].get());
+            m_isImage = vidStream->isImage;
             m_vidStartMts = (int64_t)(vidStream->startTime*1000);
             m_vidDurMts = (int64_t)(vidStream->duration*1000);
             m_vidFrmCnt = vidStream->frameNum;
             AVRational avgFrmRate = { vidStream->avgFrameRate.num, vidStream->avgFrameRate.den };
             m_vidfrmIntvTs = av_q2d(av_inv_q(avgFrmRate));
 
+            if (m_isImage)
+                m_frmCvt.SetUseVulkanConverter(false);
             if (m_useRszFactor)
             {
                 uint32_t outWidth = (uint32_t)ceil(vidStream->width*m_ssWFacotr);
@@ -789,13 +794,16 @@ private:
 
                 Snapshot& ss = *iter;
                 int fferr;
-                int64_t seekTargetPts = ss.ssFrmPts != INT64_MIN ? ss.ssFrmPts :
-                    av_rescale_q((int64_t)(m_ssIntvMts*ss.index+m_vidStartMts), MILLISEC_TIMEBASE, m_vidAvStm->time_base);
-                fferr = avformat_seek_file(m_avfmtCtx, m_vidStmIdx, INT64_MIN, seekTargetPts, seekTargetPts, 0);
-                if (fferr < 0)
+                if (!m_isImage)
                 {
-                    m_logger->Log(Error) << "avformat_seek_file() FAILED for seeking to pts(" << seekTargetPts << ")! fferr = " << fferr << "!" << endl;
-                    break;
+                    int64_t seekTargetPts = ss.ssFrmPts != INT64_MIN ? ss.ssFrmPts :
+                        av_rescale_q((int64_t)(m_ssIntvMts*ss.index+m_vidStartMts), MILLISEC_TIMEBASE, m_vidAvStm->time_base);
+                    fferr = avformat_seek_file(m_avfmtCtx, m_vidStmIdx, INT64_MIN, seekTargetPts, seekTargetPts, 0);
+                    if (fferr < 0)
+                    {
+                        m_logger->Log(Error) << "avformat_seek_file() FAILED for seeking to pts(" << seekTargetPts << ")! fferr = " << fferr << "!" << endl;
+                        break;
+                    }
                 }
 
                 bool enqDone = false;
@@ -1401,6 +1409,7 @@ private:
     bool m_prepared{false};
     int m_vidStmIdx{-1};
     int m_audStmIdx{-1};
+    bool m_isImage{false};
     AVStream* m_vidAvStm{nullptr};
     AVStream* m_audAvStm{nullptr};
     AVCodecPtr m_viddec{nullptr};

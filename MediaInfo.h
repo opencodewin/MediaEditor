@@ -40,6 +40,7 @@ namespace MediaInfo
         Ratio avgFrameRate;
         Ratio realFrameRate;
         uint64_t frameNum{0};
+        bool isImage{false};
         bool isHdr{false};
         uint8_t bitDepth{0};
     };
