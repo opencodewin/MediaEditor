@@ -693,24 +693,11 @@ bool AVFrameToImMatConverter::ConvertImage(const AVFrame* avfrm, ImGui::ImMat& o
         // YUV -> RGB
         ImGui::VkMat rgbMat;
         const AVPixFmtDescriptor* desc = av_pix_fmt_desc_get((AVPixelFormat)avfrm->format);
-        if ((desc->flags&AV_PIX_FMT_FLAG_RGB) == 0)
+        rgbMat.type = IM_DT_INT8;
+        if (!m_imgClrCvt->ConvertColorFormat(inMat, rgbMat))
         {
-            rgbMat.type = IM_DT_INT8;
-            if (!m_imgClrCvt->ConvertColorFormat(inMat, rgbMat))
-            {
-                m_errMsg = m_imgClrCvt->GetError();
-                return false;
-            }
-        }
-        else
-        {
-            if (inMat.color_format != m_outClrFmt)
-            {
-                m_errMsg = string("Can NOT FIND a way to convert intermediate ImMat from color format ")
-                    +to_string((int)inMat.color_format)+" to output format "+to_string((int)m_outClrFmt)+"!";
-                return false;
-            }
-            rgbMat = inMat;
+            m_errMsg = m_imgClrCvt->GetError();
+            return false;
         }
 
         // Resize
@@ -1162,12 +1149,20 @@ MediaInfo::InfoHolder GenerateMediaInfoByAVFormatContext(const AVFormatContext* 
             vidStream->sampleAspectRatio = MediaInfoRatioFromAVRational(stream->sample_aspect_ratio);
             vidStream->avgFrameRate = MediaInfoRatioFromAVRational(stream->avg_frame_rate);
             vidStream->realFrameRate = MediaInfoRatioFromAVRational(stream->r_frame_rate);
-            if (stream->nb_frames > 0)
-                vidStream->frameNum = stream->nb_frames;
-            else if (stream->r_frame_rate.num > 0 && stream->r_frame_rate.den > 0)
-                vidStream->frameNum = (uint64_t)(stream->duration*av_q2d(stream->r_frame_rate));
-            else if (stream->avg_frame_rate.num > 0 && stream->avg_frame_rate.den > 0)
-                vidStream->frameNum = (uint64_t)(stream->duration*av_q2d(stream->avg_frame_rate));
+            string demuxerName(avfmtCtx->iformat->name);
+            if (demuxerName.find("image2") != string::npos || demuxerName.find("_pipe") != string::npos)
+                vidStream->isImage = true;
+            if (!vidStream->isImage)
+            {
+                if (stream->nb_frames > 0)
+                    vidStream->frameNum = stream->nb_frames;
+                else if (stream->r_frame_rate.num > 0 && stream->r_frame_rate.den > 0)
+                    vidStream->frameNum = (uint64_t)(stream->duration*av_q2d(stream->r_frame_rate));
+                else if (stream->avg_frame_rate.num > 0 && stream->avg_frame_rate.den > 0)
+                    vidStream->frameNum = (uint64_t)(stream->duration*av_q2d(stream->avg_frame_rate));
+            }
+            else
+                vidStream->frameNum = stream->nb_frames > 0 ? stream->nb_frames : 1;
             switch (codecpar->color_trc)
             {
                 case AVCOL_TRC_SMPTE2084:

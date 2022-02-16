@@ -293,6 +293,7 @@ struct OverlapInfo
     int64_t mEnd            {0};
     int64_t mItemID         {-1};
     int64_t mItemOverlapID  {-1};
+    bool bSelected          {false};
     imgui_json::value mVideoFusionBP;
     imgui_json::value mAudioFusionBP;
     OverlapInfo(int64_t start, int64_t end, void* handle, void* Overlap);
@@ -348,6 +349,7 @@ struct SequencerItem
     void SequencerItemUpdateThumbnail();
     void SequencerItemUpdateSnapshots();
     void SetClipSelected(ClipInfo* clip);
+    void SetOverlapSelected(OverlapInfo* overlap);
     void CalculateVideoSnapshotInfo(const ImRect &customRect, int64_t viewStartTime, int64_t visibleTime);
     bool DrawItemControlBar(ImDrawList *draw_list, ImRect rc, int sequenceOptions);
 
@@ -412,6 +414,10 @@ struct MediaSequencer : public SequencerInterface
                                             // timeline audio format
     std::vector<int> mAudioLevel;           // timeline audio levels
 
+    bool bClipEditor    {false};            // timeline is at clip editor
+    bool bOverlapEditor {false};            // timeline is at overlap editor
+    bool bAudioEditor   {false};            // timeline is at audio editor
+
     std::thread * mPreviewThread {nullptr}; // Preview Thread, which is read whole time line and mixer all filter/transition
     bool mPreviewDone {false};              // Preview Thread should finished
     bool mPreviewRunning {false};           // Preview Thread is running
@@ -425,9 +431,15 @@ struct MediaSequencer : public SequencerInterface
     std::list<ImGui::ImMat> mFrame;         // timeline output frame
     ImTextureID mMainPreviewTexture {nullptr};  // main preview texture
     int64_t mCurrentPreviewTime {-1};
+
     BluePrint::BluePrintUI * mVideoFilterBluePrint {nullptr};
-    std::mutex mBluePrintLock;              // BluePrint mutex
+    std::mutex mVideoFilterBluePrintLock;   // Video Filter BluePrint mutex
     bool mVideoFilterNeedUpdate {false};
+
+    BluePrint::BluePrintUI * mVideoFusionBluePrint {nullptr};
+    std::mutex mVideoFusionBluePrintLock;   // Video Fusion BluePrint mutex
+    bool mVideoFusionNeedUpdate {false};
+
 
     AudioRender* mAudioRender {nullptr};        // audio render(SDL)
     SequencerPcmStream * mPCMStream {nullptr};  // audio pcm stream

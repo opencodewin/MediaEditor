@@ -325,7 +325,7 @@ bool Sequencer(SequencerInterface *sequencer, bool *expanded, int sequenceOption
         if (MovingCurrentTime && duration)
         {
             auto old_time = sequencer->currentTime;
-            sequencer->currentTime = (int64_t)((io.MousePos.x - topRect.Min.x) / msPixelWidth) + firstTimeUsed;
+            sequencer->currentTime = (int64_t)((cx - topRect.Min.x) / msPixelWidth) + firstTimeUsed;
             sequencer->AlignTime(sequencer->currentTime);
             if (sequencer->currentTime < sequencer->GetStart())
                 sequencer->currentTime = sequencer->GetStart();
@@ -1604,6 +1604,17 @@ void SequencerItem::SetClipSelected(ClipInfo* clip)
     }
 }
 
+void SequencerItem::SetOverlapSelected(OverlapInfo* overlap)
+{
+    for (auto it : mOverlap)
+    {
+        if (it->mID == overlap->mID)
+            it->bSelected = true;
+        else
+            it->bSelected = false;
+    }
+}
+
 SequencerItem * SequencerItem::Load(const imgui_json::value& value, void * handle)
 {
     // get name and path to create new item
@@ -2014,7 +2025,7 @@ static int thread_video_filter(MediaSequencer * sequencer)
             if (item->mMediaReaderVideo->ReadVideoFrame((float)current_time / 1000.0, result.first, eof))
             {
                 result.first.time_stamp = (double)current_time / 1000.f;
-                sequencer->mBluePrintLock.lock();
+                sequencer->mVideoFilterBluePrintLock.lock();
                 if (sequencer->mVideoFilterBluePrint && 
                     sequencer->mVideoFilterBluePrint->Blueprint_RunFilter(result.first, result.second))
                 {
@@ -2036,7 +2047,7 @@ static int thread_video_filter(MediaSequencer * sequencer)
                         }
                     }
                 }
-                sequencer->mBluePrintLock.unlock();
+                sequencer->mVideoFilterBluePrintLock.unlock();
             }
         }
     }
@@ -2061,6 +2072,15 @@ MediaSequencer::MediaSequencer()
         callbacks.BluePrintOnChanged = OnBluePrintChange;
         mVideoFilterBluePrint->Initialize();
         mVideoFilterBluePrint->SetCallbacks(callbacks, this);
+    }
+
+    mVideoFusionBluePrint = new BluePrint::BluePrintUI();
+    if (mVideoFusionBluePrint)
+    {
+        BluePrint::BluePrintCallbackFunctions callbacks;
+        callbacks.BluePrintOnChanged = OnBluePrintChange;
+        mVideoFusionBluePrint->Initialize();
+        mVideoFusionBluePrint->SetCallbacks(callbacks, this);
     }
 
     mPreviewThread = new std::thread(thread_preview, this);
@@ -2106,6 +2126,11 @@ MediaSequencer::~MediaSequencer()
         mVideoFilterBluePrint->Finalize();
         delete mVideoFilterBluePrint;
     }
+    if (mVideoFusionBluePrint)
+    {
+        mVideoFusionBluePrint->Finalize();
+        delete mVideoFusionBluePrint;
+    }
     for (auto item : media_items) delete item;
 }
 
@@ -2129,6 +2154,9 @@ int MediaSequencer::OnBluePrintChange(int type, std::string name, void* handle)
         {
             sequencer->mVideoFilterNeedUpdate = true;
         }
+    }
+    if (name.compare("VideoFusion") == 0)
+    {
     }
 
     return ret;
@@ -2346,6 +2374,10 @@ void MediaSequencer::SetItemSelected(int index)
                 clip->mFrame.clear();
                 clip->mFrameLock.unlock();
             }
+            for (auto overlap : m_Items[i]->mOverlap)
+            {
+                overlap->bSelected = false;
+            }
         }
     }
 }
@@ -2475,6 +2507,7 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
             ImGui::SetWindowFontScale(1.0);
 #endif
         }
+        draw_list->PopClipRect();
     }
     if (item->mSnapshot->HasAudio() && item->mWaveform)
     {
@@ -2529,7 +2562,6 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
     //int64_t current_item_time = currentTime - item->mStart + item->mStartOffset;
     //draw_list->AddText(clippingRect.Min + ImVec2(2,  8), IM_COL32_WHITE, std::to_string(current_item_time).c_str());
     //draw_list->AddText(clippingRect.Min + ImVec2(2, 24), IM_COL32_WHITE, std::to_string(item->mStartOffset).c_str());
-    draw_list->PopClipRect();
 
     // draw legend
     draw_list->PushClipRect(legendRect.Min, legendRect.Max, true);
@@ -2558,7 +2590,7 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
     draw_list->PopClipRect();
 
     // draw clip
-    if (item->mClips.size() > 1)
+    if (bClipEditor && item->mClips.size() > 1)
     {
         // mClips[0] is Global clip which is whole media item
         draw_list->PushClipRect(clippingRect.Min, clippingRect.Max, true);
@@ -2645,6 +2677,7 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
     if (item->mOverlap.size() > 0)
     {
         draw_list->PushClipRect(clippingTitleRect.Min, clippingTitleRect.Max, true);
+        bool mouse_clicked = false;
         for (auto overlap : item->mOverlap)
         {
             bool draw_overlap = false;
@@ -2679,8 +2712,27 @@ void MediaSequencer::CustomDraw(int index, ImDrawList *draw_list, const ImRect &
                 ImVec2 overlap_pos_min = ImVec2(cursor_start, clippingTitleRect.Min.y);
                 ImVec2 overlap_pos_max = ImVec2(cursor_end, clippingTitleRect.Max.y);
                 ImRect overlap_rect(overlap_pos_min, overlap_pos_max);
-                draw_list->AddRectFilled(overlap_pos_min, overlap_pos_max, IM_COL32(128,128,32,192));
-                draw_list->AddLine(overlap_pos_min, overlap_pos_max, IM_COL32(0, 0, 0, 255));
+                ImGui::SetCursorScreenPos(overlap_pos_min);
+                auto frame_id_string = item->mPath + "@" + std::to_string(overlap->mID);
+                ImGui::BeginChildFrame(ImGui::GetID(("items_overlap::" + frame_id_string).c_str()), overlap_pos_max - overlap_pos_min, ImGuiWindowFlags_NoScrollbar);
+                ImGui::InvisibleButton(frame_id_string.c_str(), overlap_pos_max - overlap_pos_min);
+                if (ImGui::IsItemHovered())
+                {
+                    draw_list->AddRectFilled(overlap_pos_min, overlap_pos_max, IM_COL32(255,255,32,255));
+                    if (!mouse_clicked && io.MouseClicked[0])
+                    {
+                        item->SetOverlapSelected(overlap);
+                        SetItemSelected(index);
+                        mouse_clicked = true;
+                    }
+                }
+                else
+                    draw_list->AddRectFilled(overlap_pos_min, overlap_pos_max, IM_COL32(128,128,32,192));
+                if (overlap->bSelected)
+                {
+                    draw_list->AddLine(overlap_pos_min, overlap_pos_max, IM_COL32(0, 0, 0, 255));
+                }
+                ImGui::EndChildFrame();
             }
         }
         draw_list->PopClipRect();
@@ -2788,7 +2840,7 @@ void MediaSequencer::CustomDrawCompact(int index, ImDrawList *draw_list, const I
     
     draw_list->PopClipRect();
 
-        // draw overlap
+    // draw overlap
     if (item->mOverlap.size() > 0)
     {
         draw_list->PushClipRect(clippingRect.Min, clippingRect.Max, true);
