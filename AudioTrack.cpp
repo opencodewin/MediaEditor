@@ -78,12 +78,15 @@ void AudioTrack::InsertClip(AudioClipHolder hClip, double timeLineOffset)
             m_clips.push_back(h2ndClip);
             moveDistance = iterEnd-clipStart;
             (*iter)->ChangeEndOffset((*iter)->EndOffset()-moveDistance);
+            break;
         }
+        else
+            iter++;
     }
     m_clips.push_back(hClip);
 
     m_clips.sort([](const AudioClipHolder& a, const AudioClipHolder& b) {
-        return a->TimeLineOffset() > b->TimeLineOffset();
+        return a->TimeLineOffset() < b->TimeLineOffset();
     });
 
     double readPos = (double)m_readSamples/m_outSampleRate;
@@ -109,7 +112,7 @@ AudioClipHolder AudioTrack::RemoveClip(uint32_t clipId)
     }
 
     m_clips.sort([](const AudioClipHolder& a, const AudioClipHolder& b) {
-        return a->TimeLineOffset() > b->TimeLineOffset();
+        return a->TimeLineOffset() < b->TimeLineOffset();
     });
 
     const double clipStart = (*iter)->TimeLineOffset();

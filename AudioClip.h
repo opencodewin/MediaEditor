@@ -38,6 +38,9 @@ private:
     double m_srcDuration;
     double m_startOffset;
     double m_endOffset;
+    uint32_t m_pcmSizePerSec{0};
+    uint32_t m_pcmFrameSize{0};
+    bool m_eof{false};
 };
 
 using AudioClipHolder = std::shared_ptr<AudioClip>;

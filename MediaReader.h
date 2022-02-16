@@ -37,6 +37,7 @@ struct MediaReader
     virtual const MediaInfo::AudioStream* GetAudioStream() const = 0;
     virtual uint32_t GetAudioOutChannels() const = 0;
     virtual uint32_t GetAudioOutSampleRate() const = 0;
+    virtual uint32_t GetAudioOutFrameSize() const = 0;
 
     virtual std::string GetError() const = 0;
 };
