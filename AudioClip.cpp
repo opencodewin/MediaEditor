@@ -69,14 +69,32 @@ void AudioClip::SeekTo(double pos)
         throw invalid_argument("Argument 'pos' can NOT be NEGATIVE or larger than clip duration!");
     if (!m_srcReader->SeekTo(pos+m_startOffset))
         throw runtime_error(m_srcReader->GetError());
+    m_eof = false;
 }
 
 void AudioClip::ReadAudioSamples(uint8_t* buf, uint32_t& size, bool& eof)
 {
+    if (m_eof)
+    {
+        eof = true;
+        size = 0;
+        return;
+    }
     uint32_t readSize = size;
     double pos;
     if (!m_srcReader->ReadAudioSamples(buf, readSize, pos, eof))
         throw runtime_error(m_srcReader->GetError());
+    if (m_pcmFrameSize == 0)
+    {
+        m_pcmFrameSize = m_srcReader->GetAudioOutFrameSize();
+        m_pcmSizePerSec = m_srcReader->GetAudioOutSampleRate()*m_pcmFrameSize;
+    }
+    double endpos = pos+(double)size/m_pcmSizePerSec;
+    if (endpos >= m_srcDuration+m_endOffset)
+    {
+        readSize = (uint32_t)((m_srcDuration+m_endOffset-pos)*m_pcmSizePerSec/m_pcmFrameSize)*m_pcmFrameSize;
+        m_eof = eof = true;
+    }
     if (readSize < size)
         memset(buf+readSize, 0, size-readSize);
 }

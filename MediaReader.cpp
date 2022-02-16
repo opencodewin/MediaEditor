@@ -502,6 +502,11 @@ public:
         return m_swrOutSampleRate;
     }
 
+    uint32_t GetAudioOutFrameSize() const override
+    {
+        return m_swrPassThrough ? m_audFrmSize : m_swrFrmSize;
+    }
+
     string GetError() const override
     {
         return m_errMsg;
