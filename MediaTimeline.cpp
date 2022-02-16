@@ -1513,11 +1513,12 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, co
         if (draw_clip && cursor_end > cursor_start)
         {
             // draw title bar
-            draw_list->PushClipRect(clippingTitleRect.Min, clippingTitleRect.Max, true);
             ImVec2 clip_title_pos_min = ImVec2(cursor_start, clippingTitleRect.Min.y);
             ImVec2 clip_title_pos_max = ImVec2(cursor_end, clippingTitleRect.Max.y);
             draw_list->AddRectFilled(clip_title_pos_min, clip_title_pos_max, IM_COL32(32,128,32,128));
             draw_list->AddRect(clip_title_pos_min, clip_title_pos_max, IM_COL32_BLACK);
+            // draw clip status
+            draw_list->PushClipRect(clip_title_pos_min, clip_title_pos_max, true);
             draw_list->AddText(clip_title_pos_min, IM_COL32_WHITE, clip->mName.c_str());
             draw_list->PopClipRect();
             ImVec2 clip_pos_min = clip_title_pos_min;
