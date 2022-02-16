@@ -2264,7 +2264,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             {
                 overScrollBar = true;
             }
-            if (overTrackView || overScrollBar)
+            if (overScrollBar)
             {
                 // up-down wheel over scrollbar, scale canvas view
                 int64_t overCursor = timeline->firstTime + (int64_t)(timeline->visibleTime * ((io.MousePos.x - (float)legendWidth - canvas_pos.x) / (canvas_size.x - legendWidth)));
@@ -2272,17 +2272,20 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                 {
                     timeline->msPixelWidthTarget *= 0.9f;
                 }
-                if (io.MouseWheel > FLT_EPSILON)
+                else if (io.MouseWheel > FLT_EPSILON)
                 {
                     timeline->msPixelWidthTarget *= 1.1f;
                 }
+            }
+            if (overTrackView || overScrollBar)
+            {
                 // left-right wheel over blank area, moving canvas view
                 if (io.MouseWheelH < -FLT_EPSILON)
                 {
                     timeline->firstTime -= timeline->visibleTime / 4;
                     timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
                 }
-                if (io.MouseWheelH > FLT_EPSILON)
+                else if (io.MouseWheelH > FLT_EPSILON)
                 {
                     timeline->firstTime += timeline->visibleTime / 4;
                     timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
