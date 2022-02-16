@@ -24,6 +24,8 @@ AudioClip::AudioClip(MediaParserHolder hParser, uint32_t outChannels, uint32_t o
         throw invalid_argument("Argument 'startOffset/endOffset', clip duration is NOT LARGER than 0!");
     m_startOffset = startOffset;
     m_endOffset = endOffset;
+    if (!m_srcReader->SeekTo(startOffset))
+        throw runtime_error(m_srcReader->GetError());
     if (!m_srcReader->Start())
         throw runtime_error(m_srcReader->GetError());
 

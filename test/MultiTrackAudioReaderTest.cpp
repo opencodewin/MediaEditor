@@ -219,7 +219,8 @@ bool Application_Frame(void * handle, bool app_will_quit)
             for (auto clip = (*track)->ClipListBegin(); clip != (*track)->ClipListEnd();)
             {
                 oss << "Clip#" << (*clip)->Id() << ":{ 'timeLineOffset': " << (*clip)->TimeLineOffset()
-                    << ", 'startOffset': " << (*clip)->StartOffset() << ", 'endOffset': " << (*clip)->EndOffset() << " }";
+                    << ", 'startOffset': " << (*clip)->StartOffset() << ", 'endOffset': " << (*clip)->EndOffset()
+                    << ", 'duration': " << (*clip)->ClipDuration() << " }";
                 clip++;
                 if (clip != (*track)->ClipListEnd())
                     oss << ", ";

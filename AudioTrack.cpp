@@ -87,7 +87,7 @@ void AudioTrack::InsertClip(AudioClipHolder hClip, double timeLineOffset)
     });
 
     double readPos = (double)m_readSamples/m_outSampleRate;
-    if (readPos >= clipStart && readPos < clipEnd)
+    if (readPos >= clipStart && readPos < clipEnd || m_iterRead == m_clips.end())
         SeekTo(readPos);
 
     AudioClipHolder lastClip = m_clips.back();
@@ -130,9 +130,10 @@ void AudioTrack::SeekTo(double pos)
     if (pos < 0)
         throw invalid_argument("Argument 'pos' can NOT be NEGATIVE!");
     m_iterRead = find_if(m_clips.begin(), m_clips.end(), [pos](const AudioClipHolder& a) {
-        return pos >= a->TimeLineOffset() && pos < a->TimeLineOffset()+a->ClipDuration();
+        return pos >= a->TimeLineOffset() && pos < a->TimeLineOffset()+a->ClipDuration() ||
+            pos < a->TimeLineOffset();
     });
-    if (m_iterRead != m_clips.end())
+    if (m_iterRead != m_clips.end() && pos >= (*m_iterRead)->TimeLineOffset())
         (*m_iterRead)->SeekTo(pos-(*m_iterRead)->TimeLineOffset());
     m_readSamples = (int64_t)(pos*m_outSampleRate);
 }
