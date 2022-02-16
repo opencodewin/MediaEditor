@@ -193,7 +193,8 @@ struct Clip
     Clip(int64_t start, int64_t end);
     virtual ~Clip();
 
-    int64_t ClipMoving(int64_t diff, void * handle);
+    int64_t Moving(int64_t diff, void * handle);
+    int64_t Cropping(int64_t diff, int type, void * handle);
     bool isLinkedWith(Clip * clip, void * handle);
     
     virtual void UpdateSnapshot() = 0;
@@ -292,7 +293,7 @@ struct MediaTrack
     MediaTrack(std::string name, MEDIA_TYPE type, void * handle);
     ~MediaTrack();
 
-    bool DrawItemControlBar(ImDrawList *draw_list, ImRect rc);
+    bool DrawTrackControlBar(ImDrawList *draw_list, ImRect rc);
     void InsertClip(Clip * clip, int64_t pos = 0);
     void PushBackClip(Clip * clip);
     void SelectClip(Clip * clip, bool appand);
