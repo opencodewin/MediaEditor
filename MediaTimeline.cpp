@@ -1780,7 +1780,6 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
     static bool MovingScrollBar = false;
     static bool MovingCurrentTime = false;
     static int64_t movingEntry = -1;
-    static int movingPos = -1;
     static int movingPart = -1;
     int delEntry = -1;
     int mouseEntry = -1;
@@ -2070,7 +2069,6 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                                 if (ImGui::IsMouseClicked(0) && !MovingScrollBar && !MovingCurrentTime)
                                 {
                                     movingEntry = clip->mID;
-                                    movingPos = cx;
                                     movingPart = j + 1;
                                     break;
                                 }
@@ -2083,43 +2081,39 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         }
 
         // clip cropping or moving
-        if (movingEntry != -1)
+        if (movingEntry != -1 && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
         {
             ImGui::CaptureMouseFromApp();
-            int64_t diffTime = int64_t((cx - movingPos) / timeline->msPixelWidthTarget);
+            int64_t diffTime = int64_t(io.MouseDelta.x / timeline->msPixelWidthTarget);
             if (std::abs(diffTime) > 0)
             {
-                // whole slot moving
                 Clip * clip = timeline->FindClipByID(movingEntry);
                 if (clip)
                 {
                     if (movingPart == 3)
                     {
+                        // whole slot moving
                         auto new_diff = clip->Moving(diffTime, timeline);
-                        movingPos += int(new_diff * timeline->msPixelWidthTarget);
                     }
                     else if (movingPart & 1)
                     {
                         ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
                         // clip left moving
                         auto new_diff = clip->Cropping(diffTime, 0, timeline);
-                        movingPos += int(new_diff * timeline->msPixelWidthTarget);
                     }
                     else if (movingPart & 2)
                     {
                         ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
                         // clip right moving
                         auto new_diff = clip->Cropping(diffTime, 1, timeline);
-                        movingPos += int(new_diff * timeline->msPixelWidthTarget);
                     }
                 }
             }
-            if (!io.MouseDown[0])
-            {
-                movingEntry = -1;
-                movingPos = -1;
-                movingPart = -1;
-            }
+        }
+        if (!io.MouseDown[0])
+        {
+            movingEntry = -1;
+            movingPart = -1;
         }
 
         draw_list->PopClipRect();
