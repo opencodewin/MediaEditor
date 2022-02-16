@@ -194,6 +194,7 @@ struct Clip
     virtual ~Clip();
 
     int64_t ClipMoving(int64_t diff, void * handle);
+    bool isLinkedWith(Clip * clip, void * handle);
     
     virtual void UpdateSnapshot() = 0;
     virtual void Seek() = 0;
@@ -294,6 +295,7 @@ struct MediaTrack
     bool DrawItemControlBar(ImDrawList *draw_list, ImRect rc);
     void InsertClip(Clip * clip, int64_t pos = 0);
     void PushBackClip(Clip * clip);
+    void SelectClip(Clip * clip, bool appand);
     static inline bool CompareClip(Clip* a, Clip* b) { return a->mStart < b->mStart; }
     Clip * FindPrevClip(int64_t id);            // find prev clip in track, if not found then return null
     Clip * FindNextClip(int64_t id);            // find next clip in track, if not found then return null
@@ -339,10 +341,12 @@ struct TimeLine
     float msPixelWidthTarget = 0.1f;
 
     bool bPlay = false;
-    bool bForward = true;
-    bool bLoop = false;
     bool bSeeking = false;
 
+    bool bForward = true;                   // save in project
+    bool bLoop = false;                     // save in project
+    bool bSelectLinked = false;             // save in project
+    
     // BP CallBacks
     static int OnBluePrintChange(int type, std::string name, void* handle);
 
@@ -373,6 +377,7 @@ struct TimeLine
     int GetTrackCount() const { return (int)m_Tracks.size(); }
     int GetTrackCount(MEDIA_TYPE type) const;
     void DeleteTrack(int index);
+    void SelectTrack(int index);
     void DeleteClip(int64_t id);
     void DoubleClick(int index) { m_Tracks[index]->mExpanded = !m_Tracks[index]->mExpanded; }
     void Click(int index);
