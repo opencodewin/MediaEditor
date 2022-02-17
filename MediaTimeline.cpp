@@ -933,8 +933,8 @@ void MediaTrack::InsertClip(Clip * clip, int64_t pos)
             int64_t space = next_start - pos;
             if (length <= space)
             {
-                // we insert clip after pos_token_end
-                clip->mStart = pos_token_end;
+                // we insert clip at pos
+                clip->mStart = pos;
                 clip->mEnd = clip->mStart + length;
             }
             else
