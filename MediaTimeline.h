@@ -176,7 +176,8 @@ struct Snapshot
 struct Clip
 {
     int64_t mID                 {-1};               // clip ID
-    int64_t mMediaID            {-1};               // clip media ID in media bank 
+    int64_t mMediaID            {-1};               // clip media ID in media bank
+    int64_t mGroupID            {-1};               // Group ID clip belong
     MEDIA_TYPE mType            {MEDIA_UNKNOWN};    // clip type
     std::string mName;                              // clip name ?
     std::string mPath;                              // clip media path
@@ -187,7 +188,6 @@ struct Clip
     bool bSeeking               {false};
     bool bSelected              {false};
     std::mutex mLock;                               // clip mutex
-    std::vector<int64_t>        mLinkedClips;       // linked clips
     void * mHandle              {nullptr};          // clip belong to timeline 
     MediaOverview * mOverview   {nullptr};          // clip media overview
     MediaReader* mMediaReader   {nullptr};          // clip media reader
@@ -303,7 +303,7 @@ struct MediaTrack
     static inline bool CompareClip(Clip* a, Clip* b) { return a->mStart < b->mStart; }
     Clip * FindPrevClip(int64_t id);            // find prev clip in track, if not found then return null
     Clip * FindNextClip(int64_t id);            // find next clip in track, if not found then return null
-
+    void Update();                              // update track clip include clip order and overlap area
     static MediaTrack* Load(const imgui_json::value& value, void * handle);
     void Save(imgui_json::value& value);
 };
@@ -319,6 +319,15 @@ struct TimelineCustomDraw
     ImRect legendClippingRect;
 };
 
+struct ClipGroup
+{
+    int64_t mID;
+    std::vector<int64_t> m_Grouped_Clips;
+    ClipGroup() { mID = ImGui::get_current_time_usec(); }
+    void Load(const imgui_json::value& value);
+    void Save(imgui_json::value& value);
+};
+
 struct TimeLine
 {
     TimeLine();
@@ -326,6 +335,7 @@ struct TimeLine
 
     std::vector<MediaTrack *> m_Tracks;     // timeline tracks
     std::vector<Clip *> m_Clips;            // timeline clips
+    std::vector<ClipGroup> m_Groups;        // timeline clip groups
     int64_t mStart   {0};                   // whole timeline start in ms
     int64_t mEnd     {0};                   // whole timeline end in ms
 
@@ -349,7 +359,7 @@ struct TimeLine
 
     bool bForward = true;                   // save in project
     bool bLoop = false;                     // save in project
-    bool bSelectLinked = false;             // save in project
+    bool bSelectLinked = true;              // save in project
     
     // BP CallBacks
     static int OnBluePrintChange(int type, std::string name, void* handle);
@@ -383,8 +393,8 @@ struct TimeLine
     void DeleteTrack(int index);
     void SelectTrack(int index);
     void DeleteClip(int64_t id);
-    void DoubleClick(int index) { m_Tracks[index]->mExpanded = !m_Tracks[index]->mExpanded; }
-    void Click(int index);
+    void DoubleClick(int index, int64_t time) { m_Tracks[index]->mExpanded = !m_Tracks[index]->mExpanded; }
+    void Click(int index, int64_t time);
 
     void CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &titleRect, const ImRect &clippingTitleRect, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRect, int64_t viewStartTime, int64_t visibleTime, float pixelWidth, bool need_update);
     
@@ -407,6 +417,10 @@ struct TimeLine
     Clip * FindClipByID(int64_t id);                    // Find clip info with clip ID
     int64_t NextClipStart(Clip * clip);                 // Get next clip start pos by clip, if don't have next clip, then return -1
     int64_t NextClipStart(int64_t pos);                 // Get next clip start pos by time, if don't have next clip, then return -1
+    int64_t NewGroup(Clip * clip);                      // Create a new group with clip ID
+    void AddClipIntoGroup(Clip * clip, int64_t group_id); // Insert clip into group
+    void DeleteClipFromGroup(Clip *clip, int64_t group_id); // Delete clip from group
+    ClipGroup GetGroupByID(int64_t group_id);          // Get Group info by ID
     int Load(const imgui_json::value& value);
     void Save(imgui_json::value& value);
 };

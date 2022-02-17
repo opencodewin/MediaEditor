@@ -195,6 +195,11 @@ void Clip::Load(Clip * clip, const imgui_json::value& value)
         auto& val = value["MediaID"];
         if (val.is_number()) clip->mMediaID = val.get<imgui_json::number>();
     }
+    if (value.contains("GroupID"))
+    {
+        auto& val = value["GroupID"];
+        if (val.is_number()) clip->mGroupID = val.get<imgui_json::number>();
+    }
     if (value.contains("Start"))
     {
         auto& val = value["Start"];
@@ -221,16 +226,6 @@ void Clip::Load(Clip * clip, const imgui_json::value& value)
         auto& val = value["FilterBP"];
         if (val.is_object()) clip->mFilterBP = val;
     }
-    // load linked clip ids
-    const imgui_json::array* clipIDArray = nullptr;
-    if (BluePrint::GetPtrTo(value, "LinkedClipIDS", clipIDArray))
-    {
-        for (auto& id_val : *clipIDArray)
-        {
-            int64_t clip_id = id_val.get<imgui_json::number>();
-            clip->mLinkedClips.push_back(clip_id);
-        }
-    }
 }
 
 void Clip::Save(imgui_json::value& value)
@@ -238,6 +233,7 @@ void Clip::Save(imgui_json::value& value)
     // save clip global info
     value["ID"] = imgui_json::number(mID);
     value["MediaID"] = imgui_json::number(mMediaID);
+    value["GroupID"] = imgui_json::number(mGroupID);
     value["Type"] = imgui_json::number(mType);
     value["Path"] = mPath;
     value["Name"] = mName;
@@ -251,15 +247,6 @@ void Clip::Save(imgui_json::value& value)
     {
         value["FilterBP"] = mFilterBP;
     }
-
-    // save linked clip ids
-    imgui_json::value linked_clips;
-    for (auto clip_id : mLinkedClips)
-    {
-        imgui_json::value clip_id_value = imgui_json::number(clip_id);
-        linked_clips.push_back(clip_id_value);
-    }
-    if (mLinkedClips.size() > 0) value["LinkedClipIDS"] = linked_clips;
 }
 
 int64_t Clip::Cropping(int64_t diff, int type)
@@ -369,10 +356,12 @@ int64_t Clip::Moving(int64_t diff)
         return new_diff;
     
     int64_t length = mEnd - mStart;
+    int64_t start = timeline->mStart;
+    int64_t end = -1;
+    /*
     auto prov_clip = track->FindPrevClip(mID);
     auto next_clip = track->FindNextClip(mID);
-    int64_t start = 0;
-    int64_t end = 0;
+    
     if (prov_clip)
     {
         start = prov_clip->mEnd;
@@ -389,6 +378,7 @@ int64_t Clip::Moving(int64_t diff)
     {
         end = -1;
     }
+    */
 
     if (mStart + diff < start)
     {
@@ -408,15 +398,17 @@ int64_t Clip::Moving(int64_t diff)
         mStart += diff;
         mEnd = mStart + length;
     }
-
-    for (auto linked_id : mLinkedClips)
+    
+    if (timeline->bSelectLinked)
     {
-        Clip * linked_clip = timeline->FindClipByID(linked_id);
-        if (linked_clip)
+        for (auto &clip : timeline->m_Clips)
         {
-            int64_t linked_clip_length = linked_clip->mEnd - linked_clip->mStart;
-            linked_clip->mStart += new_diff;
-            linked_clip->mEnd = linked_clip->mStart + linked_clip_length;
+            if (clip->bSelected && clip->mID != mID)
+            {
+                int64_t clip_length = clip->mEnd - clip->mStart;
+                clip->mStart += new_diff;
+                clip->mEnd = clip->mStart + clip_length;
+            }
         }
     }
     timeline->Updata();
@@ -428,11 +420,9 @@ bool Clip::isLinkedWith(Clip * clip)
     TimeLine * timeline = (TimeLine *)mHandle;
     if (!timeline)
         return false;
-    for (auto clip_id : clip->mLinkedClips)
-    {
-        if (clip_id == mID)
-            return true;
-    }
+    if (mGroupID != -1 && mGroupID == clip->mGroupID)
+        return true;
+
     return false;
 }
 
@@ -906,6 +896,12 @@ bool MediaTrack::DrawTrackControlBar(ImDrawList *draw_list, ImRect rc)
     return need_update;
 }
 
+void MediaTrack::Update()
+{
+    // sort m_Clips by clip start time
+    std::sort(m_Clips.begin(), m_Clips.end(), CompareClip);
+}
+
 void MediaTrack::PushBackClip(Clip * clip)
 {
     if (m_Clips.size() > 0)
@@ -1000,8 +996,7 @@ void MediaTrack::InsertClip(Clip * clip, int64_t pos)
 
     m_Clips.push_back(clip);
 
-    // sort m_Clips by clip start time
-    std::sort(m_Clips.begin(), m_Clips.end(), CompareClip);
+    Update();
 }
 
 Clip * MediaTrack::FindPrevClip(int64_t id)
@@ -1046,26 +1041,30 @@ Clip * MediaTrack::FindNextClip(int64_t id)
 void MediaTrack::SelectClip(Clip * clip, bool appand)
 {
     TimeLine * timeline = (TimeLine *)m_Handle;
-    if (!timeline)
+    if (!timeline || !clip)
         return;
+
+    bool selected = true;
+    if (appand && clip->bSelected)
+    {
+        selected = false;
+    }
+    
     for (auto _clip : timeline->m_Clips)
     {
         if (_clip->mID != clip->mID)
         {
             if (timeline->bSelectLinked && _clip->isLinkedWith(clip))
             {
-                _clip->bSelected = true;
+                _clip->bSelected = selected;
             }
             else if (!appand)
             {
-                _clip->bSelected = false;
+                _clip->bSelected = !selected;
             }
         }
-        else
-        {
-            _clip->bSelected = true;
-        }
     }
+    clip->bSelected = selected;
 }
 
 MediaTrack* MediaTrack::Load(const imgui_json::value& value, void * handle)
@@ -1135,7 +1134,7 @@ MediaTrack* MediaTrack::Load(const imgui_json::value& value, void * handle)
                     new_track->m_Clips.push_back(clip);
             }
         }
-        std::sort(new_track->m_Clips.begin(), new_track->m_Clips.end(), CompareClip);
+        new_track->Update();
     }
     return new_track;
 }
@@ -1170,6 +1169,39 @@ namespace MediaTimeline
 /***********************************************************************************************************
  * TimeLine Struct Member Functions
  ***********************************************************************************************************/
+void ClipGroup::Load(const imgui_json::value& value)
+{
+    if (value.contains("ID"))
+    {
+        auto& val = value["ID"];
+        if (val.is_number()) mID = val.get<imgui_json::number>();
+    }
+    const imgui_json::array* clipIDArray = nullptr;
+    if (BluePrint::GetPtrTo(value, "ClipIDS", clipIDArray))
+    {
+        for (auto& id_val : *clipIDArray)
+        {
+            int64_t clip_id = id_val.get<imgui_json::number>();
+            m_Grouped_Clips.push_back(clip_id);
+        }
+    }
+}
+
+void ClipGroup::Save(imgui_json::value& value)
+{
+    if (m_Grouped_Clips.size() > 0)
+    {
+        value["ID"] = imgui_json::number(mID);
+        imgui_json::value clips;
+        for (auto clip : m_Grouped_Clips)
+        {
+            imgui_json::value clip_id_value = imgui_json::number(clip);
+            clips.push_back(clip_id_value);
+        }
+        value["ClipIDS"] = clips;
+    }
+}
+
 int TimeLine::OnBluePrintChange(int type, std::string name, void* handle)
 {
     int ret = BluePrint::BP_CBR_Nothing;
@@ -1291,11 +1323,35 @@ void TimeLine::Updata()
     {
         mEnd = end_max + TIMELINE_OVER_LENGTH;
     }
+    // update track
+    for (auto track : m_Tracks)
+    {
+        track->Update();
+    }
 }
 
-void TimeLine::Click(int index)
+void TimeLine::Click(int index, int64_t time)
 {
-
+    bool click_empty_space = true;
+    if (index >= 0 && index < m_Tracks.size())
+    {
+        auto current_track = m_Tracks[index];
+        for (auto clip : current_track->m_Clips)
+        {
+            if (clip->mStart <= time && clip->mEnd >= time)
+            {
+                click_empty_space = false;
+            }
+        }
+    }
+    if (click_empty_space)
+    {
+        // clear selected
+        for (auto clip : m_Clips)
+        {
+            clip->bSelected = false;
+        }
+    }
 }
 
 void TimeLine::SelectTrack(int index)
@@ -1337,20 +1393,7 @@ void TimeLine::DeleteClip(int64_t id)
     {
         auto clip = *iter;
          m_Clips.erase(iter);
-         for (auto link_clip_id : clip->mLinkedClips)
-         {
-             auto linked_clip = FindClipByID(link_clip_id);
-             if (linked_clip)
-             {
-                 auto clip_iter = std::find_if(linked_clip->mLinkedClips.begin(), linked_clip->mLinkedClips.end(), [id](const int64_t& clip_id) {
-                    return clip_id == id;
-                });
-                if (clip_iter != linked_clip->mLinkedClips.end())
-                {
-                    linked_clip->mLinkedClips.erase(clip_iter);
-                }
-             }
-         }
+         DeleteClipFromGroup(clip, clip->mGroupID);
          delete clip;
     }
 }
@@ -1503,6 +1546,76 @@ int TimeLine::GetTrackCount(MEDIA_TYPE type) const
     return count;
 }
 
+int64_t TimeLine::NewGroup(Clip * clip)
+{
+    if (!clip)
+        return -1;
+    DeleteClipFromGroup(clip, clip->mGroupID);
+    ClipGroup new_group;
+    new_group.m_Grouped_Clips.push_back(clip->mID);
+    m_Groups.push_back(new_group);
+    clip->mGroupID = new_group.mID;
+    return clip->mGroupID;
+}
+
+void TimeLine::AddClipIntoGroup(Clip * clip, int64_t group_id)
+{
+    if (!clip || group_id == -1 || clip->mGroupID == group_id)
+        return;
+    // remove clip if clip is already in some group
+    DeleteClipFromGroup(clip, clip->mGroupID);
+    for (auto & group : m_Groups)
+    {
+        if (group_id == group.mID)
+        {
+            group.m_Grouped_Clips.push_back(clip->mID);
+            clip->mGroupID = group_id;
+        }
+    }
+}
+
+void TimeLine::DeleteClipFromGroup(Clip *clip, int64_t group_id)
+{
+    if (group_id == -1 || !clip)
+        return;
+    for (auto iter = m_Groups.begin(); iter != m_Groups.end();)
+    {
+        bool need_erase = false;
+        if ((*iter).mID == group_id)
+        {
+            auto clip_iter = std::find_if((*iter).m_Grouped_Clips.begin(), (*iter).m_Grouped_Clips.end(), [clip](const int64_t& id) 
+            {
+                return clip->mID == id;
+            });
+            if (clip_iter != (*iter).m_Grouped_Clips.end())
+            {
+                (*iter).m_Grouped_Clips.erase(clip_iter);
+                if ((*iter).m_Grouped_Clips.size() <= 0)
+                    need_erase = true;
+            }
+        }
+        if (need_erase)
+        {
+            iter = m_Groups.erase(iter);
+        }
+        else
+            ++iter;
+    }
+    clip->mGroupID = -1;
+}
+
+ClipGroup TimeLine::GetGroupByID(int64_t group_id)
+{
+    if (group_id == -1)
+        return {};
+    for (auto group : m_Groups)
+    {
+        if (group.mID == group_id)
+            return group;
+    }
+    return {};
+}
+
 void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &titleRect, const ImRect &clippingTitleRect, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRect, int64_t viewStartTime, int64_t visibleTime, float pixelWidth, bool need_update)
 {
     // rc: full track length rect
@@ -1609,17 +1722,20 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, co
             }
 
             // Clip select
-            ImGui::SetCursorScreenPos(clip_pos_min);
-            auto id_string = clip->mPath + "@" + std::to_string(clip->mStart);
-            ImGui::BeginChildFrame(ImGui::GetID(("track_clips::" + id_string).c_str()), clip_pos_max - clip_pos_min, ImGuiWindowFlags_NoScrollbar);
-            ImGui::InvisibleButton(id_string.c_str(), clip_pos_max - clip_pos_min);
-            if (ImGui::IsItemHovered() && !mouse_clicked && io.MouseClicked[0])
+            ImGui::SetCursorScreenPos(clip_title_pos_min);
+            auto id_string = clip->mPath + "@" + std::to_string(clip->mStart) + "@" + std::to_string(clip->mID);
+            ImGui::BeginChildFrame(ImGui::GetID(("track_clips::" + id_string).c_str()), clip_pos_max - clip_title_pos_min, ImGuiWindowFlags_NoScrollbar);
+            ImGui::InvisibleButton(id_string.c_str(), clip_pos_max - clip_title_pos_min);
+            if (ImGui::IsItemHovered())
             {
-                const bool is_ctrl_key_only = (io.KeyMods == ImGuiKeyModFlags_Ctrl);
-                bool appand = ImGui::IsKeyDown(ImGuiKey_LeftCtrl) && is_ctrl_key_only;
-                track->SelectClip(clip, appand);
-                SelectTrack(index);
-                mouse_clicked = true;
+                if (!mouse_clicked && io.MouseClicked[0])
+                {
+                    const bool is_ctrl_key_only = (io.KeyMods == ImGuiKeyModFlags_Ctrl);
+                    bool appand = ImGui::IsKeyDown(ImGuiKey_LeftCtrl) && is_ctrl_key_only;
+                    track->SelectClip(clip, appand);
+                    SelectTrack(index);
+                    mouse_clicked = true;
+                }
             }
             /*
             if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
@@ -1666,6 +1782,18 @@ int TimeLine::Load(const imgui_json::value& value)
             }
             if (media_clip)
                 m_Clips.push_back(media_clip);
+        }
+    }
+
+    // load media group
+    const imgui_json::array* mediaGroupArray = nullptr;
+    if (BluePrint::GetPtrTo(value, "MediaGroup", mediaGroupArray))
+    {
+        for (auto& group : *mediaGroupArray)
+        {
+            ClipGroup new_group;
+            new_group.Load(group);
+            m_Groups.push_back(new_group);
         }
     }
 
@@ -1775,6 +1903,16 @@ void TimeLine::Save(imgui_json::value& value)
         media_clips.push_back(media_clip);
     }
     if (m_Clips.size() > 0) value["MediaClip"] = media_clips;
+
+    // save clip group
+    imgui_json::value clip_groups;
+    for (auto group : m_Groups)
+    {
+        imgui_json::value media_group;
+        group.Save(media_group);
+        clip_groups.push_back(media_group);
+    }
+    if (m_Groups.size() > 0) value["MediaGroup"] = clip_groups;
 
     // save media track
     imgui_json::value media_tracks;
@@ -1963,6 +2101,10 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             timeline->bSeeking = false;
         }
 
+        // calculate mouse pos to time
+        mouseTime = (int64_t)((cx - topRect.Min.x) / timeline->msPixelWidthTarget) + timeline->firstTime;
+        timeline->AlignTime(mouseTime);
+
         //header
         //header time and lines
         int64_t modTimeCount = 10;
@@ -2088,15 +2230,11 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             if (ImRect(slotP1, slotP2).Contains(io.MousePos))
             {
                 if (io.MouseDoubleClicked[0])
-                    timeline->DoubleClick(i);
-                if (io.MouseClicked[0])
-                    timeline->Click(i);
+                    timeline->DoubleClick(i, mouseTime);
             }
             if (ImRect(slotP1, slotP3).Contains(io.MousePos))
             {
                 mouseEntry = i;
-                mouseTime = (int64_t)((cx - topRect.Min.x) / timeline->msPixelWidthTarget) + timeline->firstTime;
-                timeline->AlignTime(mouseTime);
             }
 
             // Ensure grabable handles and find selected clip
@@ -2182,6 +2320,9 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             movingEntry = -1;
             movingPart = -1;
         }
+
+        if (io.MouseClicked[0] && !io.MouseDoubleClicked[0])
+            timeline->Click(mouseEntry, mouseTime);
 
         draw_list->PopClipRect();
         draw_list->PopClipRect();
@@ -2502,8 +2643,11 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                                     MediaTrack * relative_track = timeline->FindTrackByID(track->mLinkedTrack);
                                     if (relative_track && relative_track->mType == MEDIA_AUDIO)
                                     {
-                                        new_video_clip->mLinkedClips.push_back(new_audio_clip->mID);
-                                        new_audio_clip->mLinkedClips.push_back(new_video_clip->mID);
+                                        if (new_video_clip->mGroupID == -1)
+                                        {
+                                            timeline->NewGroup(new_video_clip);
+                                        }
+                                        timeline->AddClipIntoGroup(new_audio_clip, new_video_clip->mGroupID);
                                         relative_track->InsertClip(new_audio_clip, mouseTime);
                                         timeline->Updata();
                                     }
@@ -2532,8 +2676,11 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                         {
                             if (new_video_clip)
                             {
-                                new_video_clip->mLinkedClips.push_back(new_audio_clip->mID);
-                                new_audio_clip->mLinkedClips.push_back(new_video_clip->mID);
+                                if (new_video_clip->mGroupID == -1)
+                                {
+                                    timeline->NewGroup(new_video_clip);
+                                }
+                                timeline->AddClipIntoGroup(new_audio_clip, new_video_clip->mGroupID);
                             }
                             MediaTrack * audio_track = new MediaTrack("", MEDIA_AUDIO, timeline);
                             audio_track->mExpanded = true;
