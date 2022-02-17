@@ -817,23 +817,23 @@ MediaTrack::MediaTrack(std::string name, MEDIA_TYPE type, void * handle)
             {
                 case MEDIA_VIDEO:
                     mName = "V:";
-                    mTrackHeight = 60;
+                    mTrackHeight = DEFAULT_VIDEO_TRACK_HEIGHT;
                 break;
                 case MEDIA_AUDIO:
                     mName = "A:";
-                    mTrackHeight = 20;
+                    mTrackHeight = DEFAULT_AUDIO_TRACK_HEIGHT;
                 break;
                 case MEDIA_PICTURE:
                     mName = "P:";
-                    mTrackHeight = 40;
+                    mTrackHeight = DEFAULT_IMAGE_TRACK_HEIGHT;
                 break;
                 case MEDIA_TEXT:
                     mName = "T:";
-                    mTrackHeight = 20;
+                    mTrackHeight = DEFAULT_TEXT_TRACK_HEIGHT;
                 break;
                 default:
                     mName = "U:";
-                    mTrackHeight = 0;
+                    mTrackHeight = DEFAULT_TRACK_HEIGHT;
                 break;
             }
             mName += std::to_string(media_count);
@@ -900,6 +900,22 @@ void MediaTrack::Update()
 {
     // sort m_Clips by clip start time
     std::sort(m_Clips.begin(), m_Clips.end(), CompareClip);
+}
+
+void MediaTrack::DeleteClip(int64_t id)
+{
+    TimeLine * timeline = (TimeLine *)m_Handle;
+    if (!timeline)
+        return;
+    auto iter = std::find_if(m_Clips.begin(), m_Clips.end(), [id](const Clip* clip)
+    {
+        return clip->mID == id;
+    });
+    if (iter != m_Clips.end())
+    {
+        m_Clips.erase(iter);
+    }
+    Update();
 }
 
 void MediaTrack::PushBackClip(Clip * clip)
@@ -1392,9 +1408,9 @@ void TimeLine::DeleteClip(int64_t id)
     if (iter != m_Clips.end())
     {
         auto clip = *iter;
-         m_Clips.erase(iter);
-         DeleteClipFromGroup(clip, clip->mGroupID);
-         delete clip;
+        m_Clips.erase(iter);
+        DeleteClipFromGroup(clip, clip->mGroupID);
+        delete clip;
     }
 }
 
@@ -1409,6 +1425,16 @@ int TimeLine::GetAudioLevel(int channel)
     if (channel < mAudioLevel.size())
         return mAudioLevel[channel];
     return 0;
+}
+
+int TimeLine::GetSelectedClipCount()
+{
+    int count = 0;
+    for (auto clip : m_Clips)
+    {
+        if (clip->bSelected) count++;
+    }
+    return count;
 }
 
 void TimeLine::Play(bool play, bool forward)
@@ -1616,7 +1642,7 @@ ClipGroup TimeLine::GetGroupByID(int64_t group_id)
     return {};
 }
 
-void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &titleRect, const ImRect &clippingTitleRect, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRect, int64_t viewStartTime, int64_t visibleTime, float pixelWidth, bool need_update)
+void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &titleRect, const ImRect &clippingTitleRect, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRect, int64_t viewStartTime, int64_t visibleTime, float pixelWidth, bool need_update, bool enable_select)
 {
     // rc: full track length rect
     // titleRect: full track length title rect(same as Compact view rc)
@@ -1722,36 +1748,39 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, co
             }
 
             // Clip select
-            ImGui::SetCursorScreenPos(clip_title_pos_min);
-            auto id_string = clip->mPath + "@" + std::to_string(clip->mStart) + "@" + std::to_string(clip->mID);
-            ImGui::BeginChildFrame(ImGui::GetID(("track_clips::" + id_string).c_str()), clip_pos_max - clip_title_pos_min, ImGuiWindowFlags_NoScrollbar);
-            ImGui::InvisibleButton(id_string.c_str(), clip_pos_max - clip_title_pos_min);
-            if (ImGui::IsItemHovered())
+            if (enable_select)
             {
-                if (!mouse_clicked && io.MouseClicked[0])
+                ImGui::SetCursorScreenPos(clip_title_pos_min);
+                auto id_string = clip->mPath + "@" + std::to_string(clip->mStart) + "@" + std::to_string(clip->mID);
+                ImGui::BeginChildFrame(ImGui::GetID(("track_clips::" + id_string).c_str()), clip_pos_max - clip_title_pos_min, ImGuiWindowFlags_NoScrollbar);
+                ImGui::InvisibleButton(id_string.c_str(), clip_pos_max - clip_title_pos_min);
+                if (ImGui::IsItemHovered())
                 {
-                    const bool is_ctrl_key_only = (io.KeyMods == ImGuiKeyModFlags_Ctrl);
-                    bool appand = ImGui::IsKeyDown(ImGuiKey_LeftCtrl) && is_ctrl_key_only;
-                    track->SelectClip(clip, appand);
-                    SelectTrack(index);
-                    mouse_clicked = true;
+                    if (!mouse_clicked && io.MouseClicked[0])
+                    {
+                        const bool is_ctrl_key_only = (io.KeyMods == ImGuiKeyModFlags_Ctrl);
+                        bool appand = ImGui::IsKeyDown(ImGuiKey_LeftCtrl) && is_ctrl_key_only;
+                        track->SelectClip(clip, appand);
+                        SelectTrack(index);
+                        mouse_clicked = true;
+                    }
                 }
+                /*
+                if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
+                {
+                    ImGui::SetDragDropPayload("Clip_drag_drop", clip, sizeof(void*));
+                    auto start_time_string = MillisecToString(clip->mStart, 3);
+                    auto end_time_string = MillisecToString(clip->mEnd, 3);
+                    auto length_time_string = MillisecToString(clip->mEnd - clip->mStart, 3);
+                    ImGui::Text("  Name: %s", clip->mName.c_str());
+                    ImGui::Text(" Start: %s", start_time_string.c_str());
+                    ImGui::Text("   End: %s", end_time_string.c_str());
+                    ImGui::Text("Length: %s", length_time_string.c_str());
+                    ImGui::EndDragDropSource();
+                }
+                */
+                ImGui::EndChildFrame();
             }
-            /*
-            if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
-            {
-                ImGui::SetDragDropPayload("Clip_drag_drop", clip, sizeof(void*));
-                auto start_time_string = MillisecToString(clip->mStart, 3);
-                auto end_time_string = MillisecToString(clip->mEnd, 3);
-                auto length_time_string = MillisecToString(clip->mEnd - clip->mStart, 3);
-                ImGui::Text("  Name: %s", clip->mName.c_str());
-                ImGui::Text(" Start: %s", start_time_string.c_str());
-                ImGui::Text("   End: %s", end_time_string.c_str());
-                ImGui::Text("Length: %s", length_time_string.c_str());
-                ImGui::EndDragDropSource();
-            }
-            */
-            ImGui::EndChildFrame();
         }
     }
 }
@@ -1985,10 +2014,17 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
     static bool MovingScrollBar = false;
     static bool MovingCurrentTime = false;
     static int64_t movingEntry = -1;
+    static int64_t clipEntry = -1;
     static int movingPart = -1;
-    int delEntry = -1;
+    int delTrackEntry = -1;
     int mouseEntry = -1;
+    int64_t mouseClip = -1;
     int64_t mouseTime = -1;
+    std::vector<int64_t> delClipEntry;
+    std::vector<int64_t> groupClipEntry;
+    std::vector<int64_t> unGroupClipEntry;
+    bool removeEmptyTrack = false;
+    bool menuIsOpened = false;
     
     ImDrawList *draw_list = ImGui::GetWindowDrawList();
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
@@ -2104,6 +2140,10 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         // calculate mouse pos to time
         mouseTime = (int64_t)((cx - topRect.Min.x) / timeline->msPixelWidthTarget) + timeline->firstTime;
         timeline->AlignTime(mouseTime);
+        if (ImGui::IsPopupOpen("##timeline-context-menu"))
+        {
+            menuIsOpened = true;
+        }
 
         //header
         //header time and lines
@@ -2196,7 +2236,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             ImVec2 tpos(contentMin.x, contentMin.y + i * trackHeadHeight + customHeight);
             bool ret = TimelineButton(draw_list, ICON_TRASH, ImVec2(contentMin.x + legendWidth - button_size.x - 4, tpos.y + 2), button_size, "delete");
             if (ret && io.MouseClicked[0])
-                delEntry = i;
+                delTrackEntry = i;
             customHeight += itemCustomHeight;
         }
 
@@ -2271,13 +2311,24 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                                     continue;
                                 if (!ImRect(childFramePos, childFramePos + childFrameSize).Contains(io.MousePos))
                                     continue;
-                                if (ImGui::IsMouseClicked(0) && !MovingScrollBar && !MovingCurrentTime)
+                                if (ImGui::IsMouseClicked(0) && !MovingScrollBar && !MovingCurrentTime && !menuIsOpened)
                                 {
                                     movingEntry = clip->mID;
                                     movingPart = j + 1;
                                     break;
                                 }
                             }
+                        }
+                    }
+                }
+                if (track)
+                {
+                    for (auto clip : track->m_Clips)
+                    {
+                        if (clip->mStart <= mouseTime && clip->mEnd >= mouseTime)
+                        {
+                            mouseClip = clip->mID;
+                            break;
                         }
                     }
                 }
@@ -2321,11 +2372,76 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             movingPart = -1;
         }
 
-        if (io.MouseClicked[0] && !io.MouseDoubleClicked[0])
+        if (!menuIsOpened && io.MouseClicked[0] && !io.MouseDoubleClicked[0])
             timeline->Click(mouseEntry, mouseTime);
+
+        if (io.MouseClicked[1] && !io.MouseDoubleClicked[1])
+        {
+            if (mouseClip != -1)
+                clipEntry = mouseClip;
+            ImGui::OpenPopup("##timeline-context-menu");
+        }
 
         draw_list->PopClipRect();
         draw_list->PopClipRect();
+
+        // handle menu
+        if (!menuIsOpened)
+        {
+            clipEntry = -1;
+        }
+
+        if (ImGui::BeginPopup("##timeline-context-menu"))
+        {
+            ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(255,255,255,255));
+            auto selected_clip_count = timeline->GetSelectedClipCount();
+            if (ImGui::MenuItem("Delete Empty Track", nullptr, nullptr))
+            {
+                removeEmptyTrack = true;
+            }
+            if (clipEntry != -1)
+            {
+                auto clip = timeline->FindClipByID(clipEntry);
+                if (ImGui::MenuItem("Delete Clip", nullptr, nullptr))
+                {
+                    delClipEntry.push_back(clipEntry);
+                }
+                if (clip->mGroupID != -1 && ImGui::MenuItem("Ungroup Clip", nullptr, nullptr))
+                {
+                    unGroupClipEntry.push_back(clipEntry);
+                }
+            }
+            if (selected_clip_count > 0)
+            {
+                ImGui::Separator();
+                if (ImGui::MenuItem("Delete Selected", nullptr, nullptr))
+                {
+                    for (auto clip : timeline->m_Clips)
+                    {
+                        if (clip->bSelected)
+                            delClipEntry.push_back(clip->mID);
+                    }
+                }
+                if (selected_clip_count > 1 && ImGui::MenuItem("Group Selected", nullptr, nullptr))
+                {
+                    for (auto clip : timeline->m_Clips)
+                    {
+                        if (clip->bSelected)
+                            groupClipEntry.push_back(clip->mID);
+                    }
+                }
+                if (ImGui::MenuItem("Ungroup Selected", nullptr, nullptr))
+                {
+                    for (auto clip : timeline->m_Clips)
+                    {
+                        if (clip->bSelected)
+                            unGroupClipEntry.push_back(clip->mID);
+                    }
+                }
+            }
+            ImGui::PopStyleColor();
+            ImGui::EndPopup();
+        }
         ImGui::EndChildFrame();
 
         // Scroll bar control buttons
@@ -2520,7 +2636,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         // draw custom
         draw_list->PushClipRect(childFramePos, childFramePos + childFrameSize);
         for (auto &customDraw : customDraws)
-            timeline->CustomDraw(customDraw.index, draw_list, customDraw.customRect, customDraw.titleRect, customDraw.clippingTitleRect, customDraw.legendRect, customDraw.clippingRect, customDraw.legendClippingRect, timeline->firstTime, timeline->visibleTime, timeline->msPixelWidthTarget, true);
+            timeline->CustomDraw(customDraw.index, draw_list, customDraw.customRect, customDraw.titleRect, customDraw.clippingTitleRect, customDraw.legendRect, customDraw.clippingRect, customDraw.legendClippingRect, timeline->firstTime, timeline->visibleTime, timeline->msPixelWidthTarget, true, !menuIsOpened);
         draw_list->PopClipRect();
 
         // cursor line
@@ -2538,7 +2654,6 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
 
         ImGui::PopStyleColor();
     }
-
     ImGui::EndGroup();
 
     // handle drag drop
@@ -2717,14 +2832,56 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         if (overExpanded && io.MouseReleased[0])
             *expanded = !*expanded;
     }
-    if (delEntry != -1)
+
+    // handle delete event
+    for (auto clip : delClipEntry)
     {
-        timeline->DeleteTrack(delEntry);
+        auto track = timeline->FindTrackByClipID(clip);
+        if (track)
+            track->DeleteClip(clip);
+        timeline->DeleteClip(clip);
     }
+    if (delTrackEntry != -1)
+    {
+        timeline->DeleteTrack(delTrackEntry);
+    }
+    if (removeEmptyTrack)
+    {
+        for (auto iter = timeline->m_Tracks.begin(); iter != timeline->m_Tracks.end();)
+        {
+            if ((*iter)->m_Clips.size() <= 0)
+            {
+                auto track = *iter;
+                iter = timeline->m_Tracks.erase(iter);
+                delete track;
+            }
+            else
+                ++iter;
+        }
+    }
+
+    // handle group event
+    if (groupClipEntry.size() > 0)
+    {
+        ClipGroup new_group;
+        timeline->m_Groups.push_back(new_group);
+        for (auto clip_id : groupClipEntry)
+        {
+            auto clip = timeline->FindClipByID(clip_id);
+            timeline->AddClipIntoGroup(clip, new_group.mID);
+        }
+    }
+
+    for (auto clip_id : unGroupClipEntry)
+    {
+        auto clip = timeline->FindClipByID(clip_id);
+        timeline->DeleteClipFromGroup(clip, clip->mGroupID);
+    }
+
     // for debug
-    ImGui::BeginTooltip();
-    ImGui::Text("%s", MillisecToString(mouseTime, 3).c_str());
-    ImGui::EndTooltip();
+    //ImGui::BeginTooltip();
+    //ImGui::Text("%s", std::to_string(mouseClip).c_str());
+    //ImGui::EndTooltip();
     // for debug end
     return ret;
 }

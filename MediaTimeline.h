@@ -130,8 +130,15 @@
 
 #define HALF_COLOR(c)       (c & 0xFFFFFF) | 0x40000000;
 #define TIMELINE_OVER_LENGTH    5000        // add 5 seconds end of timeline
+
 namespace MediaTimeline
 {
+#define DEFAULT_TRACK_HEIGHT        0
+#define DEFAULT_VIDEO_TRACK_HEIGHT  60
+#define DEFAULT_AUDIO_TRACK_HEIGHT  30
+#define DEFAULT_IMAGE_TRACK_HEIGHT  40
+#define DEFAULT_TEXT_TRACK_HEIGHT   20
+
 enum MEDIA_TYPE : int
 {
     MEDIA_UNKNOWN = -1,
@@ -286,7 +293,7 @@ struct MediaTrack
     std::vector<Clip *> m_Clips;                // track clips
     void * m_Handle         {nullptr};          // user handle
 
-    int mTrackHeight {60};                      // track custom view height
+    int mTrackHeight {DEFAULT_TRACK_HEIGHT};    // track custom view height
     int64_t mLinkedTrack    {-1};               // relative track ID
     bool mExpanded  {false};                    // track is compact view or not
     bool mView      {true};                     // track is viewable or not
@@ -300,6 +307,7 @@ struct MediaTrack
     void InsertClip(Clip * clip, int64_t pos = 0);
     void PushBackClip(Clip * clip);
     void SelectClip(Clip * clip, bool appand);
+    void DeleteClip(int64_t id);
     static inline bool CompareClip(Clip* a, Clip* b) { return a->mStart < b->mStart; }
     Clip * FindPrevClip(int64_t id);            // find prev clip in track, if not found then return null
     Clip * FindNextClip(int64_t id);            // find next clip in track, if not found then return null
@@ -396,7 +404,7 @@ struct TimeLine
     void DoubleClick(int index, int64_t time) { m_Tracks[index]->mExpanded = !m_Tracks[index]->mExpanded; }
     void Click(int index, int64_t time);
 
-    void CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &titleRect, const ImRect &clippingTitleRect, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRect, int64_t viewStartTime, int64_t visibleTime, float pixelWidth, bool need_update);
+    void CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &titleRect, const ImRect &clippingTitleRect, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRect, int64_t viewStartTime, int64_t visibleTime, float pixelWidth, bool need_update, bool enable_select);
     
     ImGui::ImMat GetPreviewFrame();
     int GetAudioLevel(int channel);
@@ -415,6 +423,7 @@ struct TimeLine
     MediaTrack * FindTrackByID(int64_t id);             // Find track by ID
     MediaTrack * FindTrackByClipID(int64_t id);         // Find track by clip ID
     Clip * FindClipByID(int64_t id);                    // Find clip info with clip ID
+    int GetSelectedClipCount();                         // Get current selected clip count
     int64_t NextClipStart(Clip * clip);                 // Get next clip start pos by clip, if don't have next clip, then return -1
     int64_t NextClipStart(int64_t pos);                 // Get next clip start pos by time, if don't have next clip, then return -1
     int64_t NewGroup(Clip * clip);                      // Create a new group with clip ID
