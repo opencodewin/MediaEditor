@@ -2464,14 +2464,6 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         }
         ImGui::ShowTooltipOnHover("Slider to End");
 
-        //button_offset += 16;
-        //ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - button_offset - 4, 0));
-        //if (ImGui::Button(ICON_TO_END "##slider_to_next_clip", ImVec2(16, 16)))
-        //{
-        //    // TODO::Need check all clips and get nearest clips start
-        //}
-        //ImGui::ShowTooltipOnHover("Slider to next clip");
-
         button_offset += 16;
         ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - button_offset - 4, 0));
         if (ImGui::Button(ICON_SLIDER_MAXIMUM "##slider_maximum", ImVec2(16, 16)))
@@ -2508,14 +2500,6 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             timeline->firstTime = timeline->GetStart();
         }
         ImGui::ShowTooltipOnHover("Minimum Slider");
-
-        //button_offset += 16;
-        //ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - button_offset - 4, 0));
-        //if (ImGui::Button(ICON_TO_START "##slider_to_prev_clip", ImVec2(16, 16)))
-        //{
-        //    // TODO::Need check all clips and get nearest previous clip start
-        //}
-        //ImGui::ShowTooltipOnHover("Slider to previous clip");
 
         button_offset += 16;
         ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - button_offset - 4, 0));
