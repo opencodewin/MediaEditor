@@ -490,9 +490,18 @@ static int LoadProject(std::string path)
         for (auto& media : *mediaBankArray)
         {
             MediaItem * item = nullptr;
+            int64_t id = -1;
             std::string name;
             std::string path;
             MEDIA_TYPE type = MEDIA_UNKNOWN;
+            if (media.contains("id"))
+            {
+                auto& val = media["id"];
+                if (val.is_number())
+                {
+                    id = val.get<imgui_json::number>();
+                }
+            }
             if (media.contains("name"))
             {
                 auto& val = media["name"];
@@ -519,6 +528,7 @@ static int LoadProject(std::string path)
             }
             
             item = new MediaItem(name, path, type);
+            if (id != -1) item->mID = id;
             timeline->media_items.push_back(item);
         }
     }
@@ -572,6 +582,7 @@ static void SaveProject(std::string path)
     for (auto media : timeline->media_items)
     {
         imgui_json::value item;
+        item["id"] = imgui_json::number(media->mID);
         item["name"] = media->mName;
         item["path"] = media->mPath;
         item["type"] = imgui_json::number(media->mMediaType);

@@ -100,6 +100,7 @@ namespace MediaTimeline
  ***********************************************************************************************************/
 MediaItem::MediaItem(const std::string& name, const std::string& path, MEDIA_TYPE type)
 {
+    mID = ImGui::get_current_time_usec(); // sample using system time stamp for Media ID
     mName = name;
     mPath = path;
     mMediaType = type;
@@ -168,9 +169,10 @@ namespace MediaTimeline
 /***********************************************************************************************************
  * Clip Struct Member Functions
  ***********************************************************************************************************/
-Clip::Clip(int64_t start, int64_t end, MediaOverview * overview, void * handle)
+Clip::Clip(int64_t start, int64_t end, int64_t id, MediaOverview * overview, void * handle)
 {
     mID = ImGui::get_current_time_usec(); // sample using system time stamp for Clip ID
+    mMediaID = id;
     mStart = start; 
     mEnd = end;
     mHandle = handle;
@@ -187,6 +189,11 @@ void Clip::Load(Clip * clip, const imgui_json::value& value)
     {
         auto& val = value["ID"];
         if (val.is_number()) clip->mID = val.get<imgui_json::number>();
+    }
+    if (value.contains("MediaID"))
+    {
+        auto& val = value["MediaID"];
+        if (val.is_number()) clip->mMediaID = val.get<imgui_json::number>();
     }
     if (value.contains("Start"))
     {
@@ -230,6 +237,7 @@ void Clip::Save(imgui_json::value& value)
 {
     // save clip global info
     value["ID"] = imgui_json::number(mID);
+    value["MediaID"] = imgui_json::number(mMediaID);
     value["Type"] = imgui_json::number(mType);
     value["Path"] = mPath;
     value["Name"] = mName;
@@ -429,8 +437,8 @@ bool Clip::isLinkedWith(Clip * clip)
 }
 
 // VideoClip Struct Member Functions
-VideoClip::VideoClip(int64_t start, int64_t end, std::string name, MediaOverview * overview, void* handle)
-    : Clip(start, end, overview, handle)
+VideoClip::VideoClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle)
+    : Clip(start, end, id, overview, handle)
 {
     if (handle && overview)
     {
@@ -487,16 +495,22 @@ Clip* VideoClip::Load(const imgui_json::value& value, void * handle)
     TimeLine * timeline = (TimeLine *)handle;
     if (!timeline || timeline->media_items.size() <= 0)
         return nullptr;
-    std::string name;
-    if (value.contains("Name"))
+
+    int64_t id = -1;
+    MediaItem * item = nullptr;
+    if (value.contains("MediaID"))
     {
-        auto& val = value["Name"];
-        if (val.is_string()) name = val.get<imgui_json::string>();
+        auto& val = value["MediaID"];
+        if (val.is_number()) id = val.get<imgui_json::number>();
     }
-    MediaItem * item = timeline->FindMediaItemByName(name);
+    if (id != -1)
+    {
+        item = timeline->FindMediaItemByID(id);
+    }
     if (item)
     {
-        VideoClip * new_clip = new VideoClip(item->mStart, item->mEnd, item->mName, item->mMediaOverview, handle);
+        // media is in bank
+        VideoClip * new_clip = new VideoClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, handle);
         if (new_clip)
         {
             Clip::Load(new_clip, value);
@@ -514,6 +528,10 @@ Clip* VideoClip::Load(const imgui_json::value& value, void * handle)
             return new_clip;
         }
     }
+    else
+    {
+        // media isn't in bank we need create new media item first ?
+    }
     return nullptr;
 }
 
@@ -526,8 +544,8 @@ void VideoClip::Save(imgui_json::value& value)
 }
 
 // AudioClip Struct Member Functions
-AudioClip::AudioClip(int64_t start, int64_t end, std::string name, MediaOverview * overview, void* handle)
-    : Clip(start, end, overview, handle)
+AudioClip::AudioClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle)
+    : Clip(start, end, id, overview, handle)
 {
     if (handle && overview)
     {
@@ -571,16 +589,21 @@ Clip * AudioClip::Load(const imgui_json::value& value, void * handle)
     TimeLine * timeline = (TimeLine *)handle;
     if (!timeline || timeline->media_items.size() <= 0)
         return nullptr;
-    std::string name;
-    if (value.contains("Name"))
+    
+    int64_t id = -1;
+    MediaItem * item = nullptr;
+    if (value.contains("MediaID"))
     {
-        auto& val = value["Name"];
-        if (val.is_string()) name = val.get<imgui_json::string>();
+        auto& val = value["MediaID"];
+        if (val.is_number()) id = val.get<imgui_json::number>();
     }
-    MediaItem * item = timeline->FindMediaItemByName(name);
+    if (id != -1)
+    {
+        item = timeline->FindMediaItemByID(id);
+    }
     if (item)
     {
-        AudioClip * new_clip = new AudioClip(item->mStart, item->mEnd, item->mName, item->mMediaOverview, handle);
+        AudioClip * new_clip = new AudioClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, handle);
         if (new_clip)
         {
             Clip::Load(new_clip, value);
@@ -603,6 +626,10 @@ Clip * AudioClip::Load(const imgui_json::value& value, void * handle)
             return new_clip;
         }
     }
+    else
+    {
+        // media isn't in bank we need create new media item first ?
+    }
     return nullptr;
 }
 
@@ -616,8 +643,8 @@ void AudioClip::Save(imgui_json::value& value)
 }
 
 // ImageClip Struct Member Functions
-ImageClip::ImageClip(int64_t start, int64_t end, std::string name, MediaOverview * overview, void* handle)
-    : Clip(start, end, overview, handle)
+ImageClip::ImageClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle)
+    : Clip(start, end, id, overview, handle)
 {
     if (handle && overview)
     {
@@ -660,16 +687,22 @@ Clip * ImageClip::Load(const imgui_json::value& value, void * handle)
     TimeLine * timeline = (TimeLine *)handle;
     if (!timeline || timeline->media_items.size() <= 0)
         return nullptr;
-    std::string name;
-    if (value.contains("Name"))
+
+    int64_t id = -1;
+    MediaItem * item = nullptr;
+    if (value.contains("MediaID"))
     {
-        auto& val = value["Name"];
-        if (val.is_string()) name = val.get<imgui_json::string>();
+        auto& val = value["MediaID"];
+        if (val.is_number()) id = val.get<imgui_json::number>();
     }
-    MediaItem * item = timeline->FindMediaItemByName(name);
+    if (id != -1)
+    {
+        item = timeline->FindMediaItemByID(id);
+    }
+
     if (item)
     {
-        ImageClip * new_clip = new ImageClip(item->mStart, item->mEnd, item->mName, item->mMediaOverview, handle);
+        ImageClip * new_clip = new ImageClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, handle);
         if (new_clip)
         {
             Clip::Load(new_clip, value);
@@ -677,7 +710,10 @@ Clip * ImageClip::Load(const imgui_json::value& value, void * handle)
             return new_clip;
         }
     }
-
+    else
+    {
+        // media isn't in bank we need create new media item first ?
+    }
     return nullptr;
 }
 
@@ -688,8 +724,8 @@ void ImageClip::Save(imgui_json::value& value)
 }
 
 // TextClip Struct Member Functions
-TextClip::TextClip(int64_t start, int64_t end, std::string name, MediaOverview * overview, void* handle)
-    : Clip(start, end, overview, handle)
+TextClip::TextClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle)
+    : Clip(start, end, id, overview, handle)
 {
     if (handle && overview)
     {
@@ -732,22 +768,32 @@ Clip * TextClip::Load(const imgui_json::value& value, void * handle)
     TimeLine * timeline = (TimeLine *)handle;
     if (!timeline || timeline->media_items.size() <= 0)
         return nullptr;
-    std::string name;
-    if (value.contains("Name"))
+    
+    int64_t id = -1;
+    MediaItem * item = nullptr;
+    if (value.contains("MediaID"))
     {
-        auto& val = value["Name"];
-        if (val.is_string()) name = val.get<imgui_json::string>();
+        auto& val = value["MediaID"];
+        if (val.is_number()) id = val.get<imgui_json::number>();
     }
-    MediaItem * item = timeline->FindMediaItemByName(name);
+    if (id != -1)
+    {
+        item = timeline->FindMediaItemByID(id);
+    }
+
     if (item)
     {
-        TextClip * new_clip = new TextClip(item->mStart, item->mEnd, item->mName, item->mMediaOverview, handle);
+        TextClip * new_clip = new TextClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, handle);
         if (new_clip)
         {
             Clip::Load(new_clip, value);
             // load text info
             return new_clip;
         }
+    }
+    else
+    {
+        // media isn't in bank we need create new media item first ?
     }
     return nullptr;
 }
@@ -1352,6 +1398,16 @@ MediaItem* TimeLine::FindMediaItemByName(std::string name)
     for (auto media: media_items)
     {
         if (media->mName.compare(name) == 0)
+            return media;
+    }
+    return nullptr;
+}
+
+MediaItem* TimeLine::FindMediaItemByID(int64_t id)
+{
+    for (auto media: media_items)
+    {
+        if (media->mID == id)
             return media;
     }
     return nullptr;
@@ -2362,7 +2418,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             {
                 if (item->mMediaType == MEDIA_PICTURE)
                 {
-                    ImageClip * new_image_clip = new ImageClip(item->mStart, item->mEnd, item->mName, item->mMediaOverview, timeline);
+                    ImageClip * new_image_clip = new ImageClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, timeline);
                     timeline->m_Clips.push_back(new_image_clip);
                     if (track && track->mType == MEDIA_PICTURE)
                     {
@@ -2381,7 +2437,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                 }
                 else if (item->mMediaType == MEDIA_AUDIO)
                 {
-                    AudioClip * new_audio_clip = new AudioClip(item->mStart, item->mEnd, item->mName, item->mMediaOverview, timeline);
+                    AudioClip * new_audio_clip = new AudioClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, timeline);
                     timeline->m_Clips.push_back(new_audio_clip);
                     if (track && track->mType == MEDIA_AUDIO)
                     {
@@ -2400,7 +2456,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                 } 
                 else if (item->mMediaType == MEDIA_TEXT)
                 {
-                    TextClip * new_text_clip = new TextClip(item->mStart, item->mEnd, item->mName, item->mMediaOverview, timeline);
+                    TextClip * new_text_clip = new TextClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, timeline);
                     timeline->m_Clips.push_back(new_text_clip);
                     // TODO::Dicky add text support
                 }
@@ -2414,7 +2470,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                     const MediaInfo::AudioStream* audio_stream = item->mMediaOverview->GetAudioStream();
                     if (video_stream)
                     {
-                        new_video_clip = new VideoClip(item->mStart, item->mEnd, item->mName, item->mMediaOverview, timeline);
+                        new_video_clip = new VideoClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, timeline);
                         timeline->m_Clips.push_back(new_video_clip);
                         if (track && track->mType == MEDIA_VIDEO)
                         {
@@ -2434,7 +2490,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                     }
                     if (audio_stream)
                     {
-                        new_audio_clip = new AudioClip(item->mStart, item->mEnd, item->mName, item->mMediaOverview, timeline);
+                        new_audio_clip = new AudioClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, timeline);
                         timeline->m_Clips.push_back(new_audio_clip);
                         if (!create_new_track)
                         {

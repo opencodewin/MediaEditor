@@ -144,6 +144,7 @@ enum MEDIA_TYPE : int
 
 struct MediaItem
 {
+    int64_t mID;                            // media ID
     std::string mName;
     std::string mPath;
     int64_t mStart   {0};                   // whole Media start in ms
@@ -175,6 +176,7 @@ struct Snapshot
 struct Clip
 {
     int64_t mID                 {-1};               // clip ID
+    int64_t mMediaID            {-1};               // clip media ID in media bank 
     MEDIA_TYPE mType            {MEDIA_UNKNOWN};    // clip type
     std::string mName;                              // clip name ?
     std::string mPath;                              // clip media path
@@ -191,7 +193,7 @@ struct Clip
     MediaReader* mMediaReader   {nullptr};          // clip media reader
     imgui_json::value mFilterBP;
 
-    Clip(int64_t start, int64_t end, MediaOverview * overview, void * handle);
+    Clip(int64_t start, int64_t end, int64_t id, MediaOverview * overview, void * handle);
     virtual ~Clip();
 
     int64_t Moving(int64_t diff);
@@ -216,7 +218,7 @@ struct VideoClip : Clip
     //ImTextureID mFilterOutputTexture {nullptr};  // clip filter output texture
     MediaInfo::Ratio mClipFrameRate {25, 1};// clip Frame rate
 
-    VideoClip(int64_t start, int64_t end, std::string name, MediaOverview * overview, void* handle);
+    VideoClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle);
     ~VideoClip();
 
     void UpdateSnapshot();
@@ -234,7 +236,7 @@ struct AudioClip : Clip
     AudioRender::PcmFormat mAudioFormat {AudioRender::PcmFormat::FLOAT32}; // clip audio type
     MediaOverview::WaveformHolder mWaveform {nullptr};  // clip audio snapshot
 
-    AudioClip(int64_t start, int64_t end, std::string name, MediaOverview * overview, void* handle);
+    AudioClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle);
     ~AudioClip();
 
     void UpdateSnapshot();
@@ -251,7 +253,7 @@ struct ImageClip : Clip
     int mHeight  {0};
     int mColorFormat    {0};
 
-    ImageClip(int64_t start, int64_t end, std::string name, MediaOverview * overview, void* handle);
+    ImageClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle);
     ~ImageClip();
 
     void UpdateSnapshot();
@@ -264,7 +266,7 @@ struct ImageClip : Clip
 
 struct TextClip : Clip
 {
-    TextClip(int64_t start, int64_t end, std::string name, MediaOverview * overview, void* handle);
+    TextClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle);
     ~TextClip();
 
     void UpdateSnapshot();
@@ -398,7 +400,8 @@ struct TimeLine
     AudioRender* mAudioRender {nullptr};                // audio render(SDL)
 
     std::vector<MediaItem *> media_items;               // Media Bank
-    MediaItem* FindMediaItemByName(std::string name);   // Find media from bank
+    MediaItem* FindMediaItemByName(std::string name);   // Find media from bank by name
+    MediaItem* FindMediaItemByID(int64_t id);           // Find media from bank by ID
     MediaTrack * FindTrackByID(int64_t id);             // Find track by ID
     MediaTrack * FindTrackByClipID(int64_t id);         // Find track by clip ID
     Clip * FindClipByID(int64_t id);                    // Find clip info with clip ID
