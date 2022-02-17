@@ -97,7 +97,7 @@ void AudioTrack::InsertClip(AudioClipHolder hClip, double timeLineOffset)
     m_duration = lastClip->TimeLineOffset()+lastClip->ClipDuration();
 }
 
-AudioClipHolder AudioTrack::RemoveClip(uint32_t clipId)
+AudioClipHolder AudioTrack::RemoveClipById(uint32_t clipId)
 {
     lock_guard<recursive_mutex> lk(m_apiLock);
 
@@ -105,15 +105,10 @@ AudioClipHolder AudioTrack::RemoveClip(uint32_t clipId)
         return clip->Id() == clipId;
     });
     if (iter == m_clips.end())
-    {
-        ostringstream oss;
-        oss << "Can NOT find clip with id #" << clipId << "!";
-        throw invalid_argument(oss.str());
-    }
+        return nullptr;
 
-    m_clips.sort([](const AudioClipHolder& a, const AudioClipHolder& b) {
-        return a->TimeLineOffset() < b->TimeLineOffset();
-    });
+    AudioClipHolder hClip = (*iter);
+    m_clips.erase(iter);
 
     const double clipStart = (*iter)->TimeLineOffset();
     const double clipEnd = clipStart+(*iter)->ClipDuration();
@@ -121,9 +116,46 @@ AudioClipHolder AudioTrack::RemoveClip(uint32_t clipId)
     if (readPos >= clipStart && readPos < clipEnd)
         SeekTo(readPos);
 
-    AudioClipHolder lastClip = m_clips.back();
-    m_duration = lastClip->TimeLineOffset()+lastClip->ClipDuration();
-    return *iter;
+    if (m_clips.empty())
+        m_duration = 0;
+    else
+    {
+        AudioClipHolder lastClip = m_clips.back();
+        m_duration = lastClip->TimeLineOffset()+lastClip->ClipDuration();
+    }
+    return hClip;
+}
+
+AudioClipHolder AudioTrack::RemoveClipByIndex(uint32_t index)
+{
+    lock_guard<recursive_mutex> lk(m_apiLock);
+
+    if (index >= m_clips.size())
+        throw invalid_argument("Argument 'index' exceeds the count of clips!");
+
+    auto iter = m_clips.begin();
+    while (index > 0)
+    {
+        iter++; index--;
+    }
+
+    AudioClipHolder hClip = (*iter);
+    m_clips.erase(iter);
+
+    const double clipStart = (*iter)->TimeLineOffset();
+    const double clipEnd = clipStart+(*iter)->ClipDuration();
+    double readPos = (double)m_readSamples/m_outSampleRate;
+    if (readPos >= clipStart && readPos < clipEnd)
+        SeekTo(readPos);
+
+    if (m_clips.empty())
+        m_duration = 0;
+    else
+    {
+        AudioClipHolder lastClip = m_clips.back();
+        m_duration = lastClip->TimeLineOffset()+lastClip->ClipDuration();
+    }
+    return hClip;
 }
 
 void AudioTrack::SeekTo(double pos)
@@ -186,4 +218,34 @@ void AudioTrack::ReadAudioSamples(uint8_t* buf, uint32_t& size)
             m_readSamples += (size-readSize)/m_audFrameSize;
         }
     }
+}
+
+AudioClipHolder AudioTrack::GetClipByIndex(uint32_t index)
+{
+    lock_guard<recursive_mutex> lk(m_apiLock);
+    if (index >= m_clips.size())
+        return nullptr;
+    auto iter = m_clips.begin();
+    while (index > 0)
+    {
+        iter++; index--;
+    }
+    return *iter;
+}
+
+void AudioTrack::ChangeClip(uint32_t id, double timeLineOffset, double startOffset, double endOffset)
+{
+    lock_guard<recursive_mutex> lk(m_apiLock);
+    AudioClipHolder hClip = RemoveClipById(id);
+    if (!hClip)
+        throw invalid_argument("Invalid value for argument 'id'!");
+    if (timeLineOffset >= 0)
+        hClip->SetTimeLineOffset(timeLineOffset);
+    else
+        timeLineOffset = hClip->TimeLineOffset();
+    if (startOffset >= 0)
+        hClip->ChangeStartOffset(startOffset);
+    if (endOffset <= 0)
+        hClip->ChangeEndOffset(endOffset);
+    InsertClip(hClip, timeLineOffset);
 }

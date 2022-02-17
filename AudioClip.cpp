@@ -47,6 +47,8 @@ bool AudioClip::IsStartOffsetValid(double startOffset)
 
 void AudioClip::ChangeStartOffset(double startOffset)
 {
+    if (startOffset == m_startOffset)
+        return;
     if (startOffset < 0)
         throw invalid_argument("Argument 'startOffset' can NOT be NEGATIVE!");
     if (startOffset-m_endOffset >= m_srcDuration)
@@ -56,6 +58,8 @@ void AudioClip::ChangeStartOffset(double startOffset)
 
 void AudioClip::ChangeEndOffset(double endOffset)
 {
+    if (endOffset == m_endOffset)
+        return;
     if (endOffset > 0)
         throw invalid_argument("Argument 'endOffset' can NOT be POSITIVE!");
     if (m_startOffset-endOffset >= m_srcDuration)

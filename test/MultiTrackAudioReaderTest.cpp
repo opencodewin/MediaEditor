@@ -153,6 +153,12 @@ static uint32_t s_addClipOptSelId = 0;
 static double s_addClipTimeLineOffset = 0;
 static double s_addClipStartOffset = 0;
 static double s_addClipEndOffset = 0;
+static uint32_t s_remTrackOptSelId = 0;
+static uint32_t s_movClipTrackSelId = 0;
+static uint32_t s_movClipSelId = 0;
+static double s_changeClipTimeLineOffset = 0;
+static double s_changeClipStartOffset = 0;
+static double s_changeClipEndOffset = 0;
 
 bool Application_Frame(void * handle, bool app_will_quit)
 {
@@ -168,15 +174,21 @@ bool Application_Frame(void * handle, bool app_will_quit)
             const char *filters = "视频文件(*.mp4 *.mov *.mkv *.webm *.avi){.mp4,.mov,.mkv,.webm,.avi,.MP4,.MOV,.MKV,WEBM,.AVI},.*";
             ImGuiFileDialog::Instance()->OpenModal("ChooseFileDlgKey", ICON_IGFD_FOLDER_OPEN " 打开视频文件", filters, "/mnt/data2/video/hd/", 1, nullptr, ImGuiFileDialogFlags_ShowBookmark);
         }
+
         ImGui::SameLine(0, 20);
-        vector<string> addClipOpts;
+
+        vector<string> trackNames;
         for (uint32_t i = 0; i < g_mtAudReader->TrackCount(); i++)
         {
             ostringstream oss;
             oss << "track#" << i+1;
-            addClipOpts.push_back(oss.str());
+            trackNames.push_back(oss.str());
         }
+
+        vector<string> addClipOpts(trackNames);
         addClipOpts.push_back("new track");
+        if (s_addClipOptSelId >= addClipOpts.size())
+            s_addClipOptSelId = addClipOpts.size()-1;
         ImGui::PushItemWidth(100);
         ImGui::TextUnformatted("AddClipOptions");
         ImGui::SameLine();
@@ -209,17 +221,151 @@ bool Application_Frame(void * handle, bool app_will_quit)
 
         ImGui::Spacing();
 
+        vector<string> selectTrackOpts(trackNames);
+        if (selectTrackOpts.empty())
+            selectTrackOpts.push_back("<No track>");
+        bool noTrack = trackNames.empty();
+
+        ImGui::PushItemWidth(100);
+        if (ImGui::BeginCombo("##RemTrackOptions", selectTrackOpts[s_remTrackOptSelId].c_str()))
+        {
+            for (uint32_t i = 0; i < selectTrackOpts.size(); i++)
+            {
+                string& item = selectTrackOpts[i];
+                const bool isSelected = s_remTrackOptSelId == i;
+                if (ImGui::Selectable(item.c_str(), isSelected))
+                    s_remTrackOptSelId = i;
+                if (isSelected)
+                    ImGui::SetItemDefaultFocus();
+            }
+            ImGui::EndCombo();
+        }
+        ImGui::PopItemWidth();
+        ImGui::SameLine(0, 20);
+
+        if (noTrack)
+            ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true);
+        if (ImGui::Button("Remove Track"))
+        {
+            g_mtAudReader->RemoveTrack(s_remTrackOptSelId);
+            s_remTrackOptSelId = 0;
+        }
+        if (noTrack)
+            ImGui::PopItemFlag();
+
+        ImGui::Spacing();
+
+        ImGui::PushItemWidth(100);
+        if (ImGui::BeginCombo("##MovClipSelTrackOptions", selectTrackOpts[s_movClipTrackSelId].c_str()))
+        {
+            for (uint32_t i = 0; i < selectTrackOpts.size(); i++)
+            {
+                string& item = selectTrackOpts[i];
+                const bool isSelected = s_movClipTrackSelId == i;
+                if (ImGui::Selectable(item.c_str(), isSelected))
+                    s_movClipTrackSelId = i;
+                if (isSelected)
+                    ImGui::SetItemDefaultFocus();
+            }
+            ImGui::EndCombo();
+        }
+
+        ImGui::SameLine(0, 10);
+
+        vector<string> clipNames;
+        if (!noTrack)
+        {
+            AudioTrackHolder hTrack = g_mtAudReader->GetTrack(s_movClipTrackSelId);
+            auto clipIter = hTrack->ClipListBegin();
+            while (clipIter != hTrack->ClipListEnd())
+            {
+                ostringstream oss;
+                oss << "Clip#" << (*clipIter)->Id();
+                clipNames.push_back(oss.str());
+                clipIter++;
+            }
+        }
+        bool noClip = false;
+        vector<string> clipSelOpts(clipNames);
+        if (clipSelOpts.empty())
+        {
+            clipSelOpts.push_back("<no clip>");
+            noClip = true;
+        }
+        if (s_movClipSelId >= clipSelOpts.size())
+            s_movClipSelId = clipSelOpts.size()-1;
+        if (ImGui::BeginCombo("##MovClipSelClipOptions", clipSelOpts[s_movClipSelId].c_str()))
+        {
+            AudioTrackHolder hTrack = g_mtAudReader->GetTrack(s_movClipTrackSelId);
+            auto clipIter = hTrack->ClipListBegin();
+            for (uint32_t i = 0; i < clipSelOpts.size(); i++)
+            {
+                string& item = clipSelOpts[i];
+                const bool isSelected = s_movClipSelId == i;
+                if (ImGui::Selectable(item.c_str(), isSelected))
+                    s_movClipSelId = i;
+                if (isSelected)
+                    ImGui::SetItemDefaultFocus();
+                clipIter++;
+            }
+            ImGui::EndCombo();
+        }
+
+        ImGui::PopItemWidth();
+        ImGui::SameLine(0, 20);
+
+        if (noClip)
+            ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true);
+        if (ImGui::Button("Remove Clip"))
+        {
+            AudioTrackHolder hTrack = g_mtAudReader->GetTrack(s_movClipTrackSelId);
+            hTrack->RemoveClipByIndex(s_movClipSelId);
+            s_movClipSelId = 0;
+        }
+        if (noClip)
+            ImGui::PopItemFlag();
+
+        ImGui::SameLine(0, 20);
+
+        ImGui::PushItemWidth(100);
+        ImGui::TextUnformatted("tloff");
+        ImGui::SameLine();
+        ImGui::InputDouble("##tloff", &s_changeClipTimeLineOffset);
+        ImGui::SameLine(0, 10);
+        ImGui::TextUnformatted("off0");
+        ImGui::SameLine();
+        ImGui::InputDouble("##off0", &s_changeClipStartOffset);
+        ImGui::SameLine(0, 10);
+        ImGui::TextUnformatted("off1");
+        ImGui::SameLine();
+        ImGui::InputDouble("##off1", &s_changeClipEndOffset);
+        ImGui::SameLine(0, 10);
+        ImGui::PopItemWidth();
+
+        if (noClip)
+            ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true);
+        if (ImGui::Button("Change Clip"))
+        {
+            AudioTrackHolder hTrack = g_mtAudReader->GetTrack(s_movClipTrackSelId);
+            AudioClipHolder hClip = hTrack->GetClipByIndex(s_movClipSelId);
+            hTrack->ChangeClip(hClip->Id(), s_changeClipTimeLineOffset, s_changeClipStartOffset, s_changeClipEndOffset);
+        }
+        if (noClip)
+            ImGui::PopItemFlag();
+
+        ImGui::Spacing();
+
         ImGui::TextUnformatted("Audio Tracks:");
         uint32_t audTrackIdx = 1;
         for (auto track = g_mtAudReader->TrackListBegin(); track != g_mtAudReader->TrackListEnd(); track++)
         {
             ostringstream oss;
-            oss << "Track#" << audTrackIdx << ": [";
+            oss << "Track#" << audTrackIdx++ << ": [";
             for (auto clip = (*track)->ClipListBegin(); clip != (*track)->ClipListEnd();)
             {
-                oss << "Clip#" << (*clip)->Id() << ":{ 'timeLineOffset': " << (*clip)->TimeLineOffset()
-                    << ", 'startOffset': " << (*clip)->StartOffset() << ", 'endOffset': " << (*clip)->EndOffset()
-                    << ", 'duration': " << (*clip)->ClipDuration() << " }";
+                oss << "Clip#" << (*clip)->Id() << ":{'tlOff':" << (*clip)->TimeLineOffset()
+                    << ", 'off0':" << (*clip)->StartOffset() << ", 'off1':" << (*clip)->EndOffset()
+                    << ", 'dur':" << (*clip)->ClipDuration() << "}";
                 clip++;
                 if (clip != (*track)->ClipListEnd())
                     oss << ", ";
