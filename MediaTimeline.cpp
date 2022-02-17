@@ -1721,7 +1721,10 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, co
             // draw title bar
             ImVec2 clip_title_pos_min = ImVec2(cursor_start, clippingTitleRect.Min.y);
             ImVec2 clip_title_pos_max = ImVec2(cursor_end, clippingTitleRect.Max.y);
-            draw_list->AddRectFilled(clip_title_pos_min, clip_title_pos_max, IM_COL32(32,128,32,128));
+            if (clip->mGroupID != -1)
+                draw_list->AddRectFilled(clip_title_pos_min, clip_title_pos_max, IM_COL32(32,255,32,128));
+            else
+                draw_list->AddRectFilled(clip_title_pos_min, clip_title_pos_max, IM_COL32(32,128,32,128));
             draw_list->AddRect(clip_title_pos_min, clip_title_pos_max, IM_COL32_BLACK);
             // draw clip status
             draw_list->PushClipRect(clip_title_pos_min, clip_title_pos_max, true);
@@ -2024,7 +2027,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
     std::vector<int64_t> groupClipEntry;
     std::vector<int64_t> unGroupClipEntry;
     bool removeEmptyTrack = false;
-    bool menuIsOpened = false;
+    static bool menuIsOpened = false;
     
     ImDrawList *draw_list = ImGui::GetWindowDrawList();
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
@@ -2140,10 +2143,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         // calculate mouse pos to time
         mouseTime = (int64_t)((cx - topRect.Min.x) / timeline->msPixelWidthTarget) + timeline->firstTime;
         timeline->AlignTime(mouseTime);
-        if (ImGui::IsPopupOpen("##timeline-context-menu"))
-        {
-            menuIsOpened = true;
-        }
+        menuIsOpened = ImGui::IsPopupOpen("##timeline-context-menu");
 
         //header
         //header time and lines
@@ -2380,6 +2380,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             if (mouseClip != -1)
                 clipEntry = mouseClip;
             ImGui::OpenPopup("##timeline-context-menu");
+            menuIsOpened = true;
         }
 
         draw_list->PopClipRect();
@@ -2398,6 +2399,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             if (ImGui::MenuItem("Delete Empty Track", nullptr, nullptr))
             {
                 removeEmptyTrack = true;
+                menuIsOpened = false;
             }
             if (clipEntry != -1)
             {
@@ -2405,10 +2407,12 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                 if (ImGui::MenuItem("Delete Clip", nullptr, nullptr))
                 {
                     delClipEntry.push_back(clipEntry);
+                    menuIsOpened = false;
                 }
                 if (clip->mGroupID != -1 && ImGui::MenuItem("Ungroup Clip", nullptr, nullptr))
                 {
                     unGroupClipEntry.push_back(clipEntry);
+                    menuIsOpened = false;
                 }
             }
             if (selected_clip_count > 0)
@@ -2421,6 +2425,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                         if (clip->bSelected)
                             delClipEntry.push_back(clip->mID);
                     }
+                    menuIsOpened = false;
                 }
                 if (selected_clip_count > 1 && ImGui::MenuItem("Group Selected", nullptr, nullptr))
                 {
@@ -2429,6 +2434,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                         if (clip->bSelected)
                             groupClipEntry.push_back(clip->mID);
                     }
+                    menuIsOpened = false;
                 }
                 if (ImGui::MenuItem("Ungroup Selected", nullptr, nullptr))
                 {
@@ -2437,6 +2443,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                         if (clip->bSelected)
                             unGroupClipEntry.push_back(clip->mID);
                     }
+                    menuIsOpened = false;
                 }
             }
             ImGui::PopStyleColor();
@@ -2879,9 +2886,14 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
     }
 
     // for debug
-    //ImGui::BeginTooltip();
-    //ImGui::Text("%s", std::to_string(mouseClip).c_str());
-    //ImGui::EndTooltip();
+    /*
+    ImGui::BeginTooltip();
+    ImGui::Text("%s", std::to_string(clipEntry).c_str());
+    ImGui::Text("%s", std::to_string(mouseClip).c_str());
+    ImGui::Text("%s", std::to_string(mouseEntry).c_str());
+    ImGui::Text("%s", MillisecToString(mouseTime).c_str());
+    ImGui::EndTooltip();
+    */
     // for debug end
     return ret;
 }
