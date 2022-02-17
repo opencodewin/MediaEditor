@@ -517,6 +517,7 @@ static int LoadProject(std::string path)
                     type = (MEDIA_TYPE)val.get<imgui_json::number>();
                 }
             }
+            
             item = new MediaItem(name, path, type);
             timeline->media_items.push_back(item);
         }
@@ -2097,8 +2098,18 @@ bool Application_Frame(void * handle, bool app_will_quit)
                 }
                 if (timeline)
                 {
-                    MediaItem * item = new MediaItem(file_name, file_path, type);
-                    timeline->media_items.push_back(item);
+                    // check media is already in bank
+                    auto iter = std::find_if(timeline->media_items.begin(), timeline->media_items.end(), [file_name, file_path, type](const MediaItem* item)
+                    {
+                        return  file_name.compare(item->mName) == 0 &&
+                                file_path.compare(item->mPath) == 0 &&
+                                type == item->mMediaType;
+                    });
+                    if (iter == timeline->media_items.end())
+                    {
+                        MediaItem * item = new MediaItem(file_name, file_path, type);
+                        timeline->media_items.push_back(item);
+                    }
                 }
             }
             if (userDatas.compare("ProjectOpen") == 0)
