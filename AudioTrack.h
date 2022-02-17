@@ -14,10 +14,14 @@ public:
     uint32_t AddNewClip(const std::string& url, double timeLineOffset, double startOffset, double endOffset);
     uint32_t AddNewClip(MediaParserHolder hParser, double timeLineOffset, double startOffset, double endOffset);
     void InsertClip(AudioClipHolder hClip, double timeLineOffset);
-    AudioClipHolder RemoveClip(uint32_t clipId);
+    AudioClipHolder RemoveClipById(uint32_t clipId);
+    AudioClipHolder RemoveClipByIndex(uint32_t index);
 
+    uint32_t ClipCount() const { return m_clips.size(); }
     std::list<AudioClipHolder>::iterator ClipListBegin() { return m_clips.begin(); }
     std::list<AudioClipHolder>::iterator ClipListEnd() { return m_clips.end(); }
+    AudioClipHolder GetClipByIndex(uint32_t index);
+    void ChangeClip(uint32_t id, double timeLineOffset, double startOffset, double endOffset);
 
     void SeekTo(double pos);
     void ReadAudioSamples(uint8_t* buf, uint32_t& size);

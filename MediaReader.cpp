@@ -1086,8 +1086,9 @@ private:
                             }
                             else
                             {
-                                m_logger->Log(Error) << "ABNORMAL! Skip size too large, 'iter' reaches 'afAry.end()'!" << endl;
-                                return false;
+                                m_audReadEof = true;
+                                size = readSize;
+                                return true;
                             }
                         }
                         else
