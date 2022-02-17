@@ -147,7 +147,7 @@ public:
         return true;
     }
 
-    bool ReadAudioSamples(ImGui::ImMat& amat, bool& eof) override
+    bool ReadAudioSamples(ImGui::ImMat& amat) override
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
         if (!m_started)
@@ -190,10 +190,28 @@ public:
         lock_guard<recursive_mutex> lk(m_apiLock);
         if (idx >= m_tracks.size())
             return nullptr;
+        lock_guard<mutex> lk2(m_trackLock);
         auto iter = m_tracks.begin();
-        while (idx-- > 0)
+        while (idx-- > 0 && iter != m_tracks.end())
             iter++;
-        return *iter;
+        return iter != m_tracks.end() ? *iter : nullptr;
+    }
+
+    double Duration() override
+    {
+        if (m_tracks.empty())
+            return 0;
+        double dur = 0;
+        m_trackLock.lock();
+        const list<AudioTrackHolder> tracks(m_tracks);
+        m_trackLock.unlock();
+        for (auto& track : tracks)
+        {
+            const double trackDur = track->Duration();
+            if (trackDur > dur)
+                dur = trackDur;
+        }
+        return dur;
     }
 
     string GetError() const override
