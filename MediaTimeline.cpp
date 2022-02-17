@@ -1041,26 +1041,30 @@ Clip * MediaTrack::FindNextClip(int64_t id)
 void MediaTrack::SelectClip(Clip * clip, bool appand)
 {
     TimeLine * timeline = (TimeLine *)m_Handle;
-    if (!timeline)
+    if (!timeline || !clip)
         return;
+
+    bool selected = true;
+    if (appand && clip->bSelected)
+    {
+        selected = false;
+    }
+    
     for (auto _clip : timeline->m_Clips)
     {
         if (_clip->mID != clip->mID)
         {
             if (timeline->bSelectLinked && _clip->isLinkedWith(clip))
             {
-                _clip->bSelected = true;
+                _clip->bSelected = selected;
             }
             else if (!appand)
             {
-                _clip->bSelected = false;
+                _clip->bSelected = !selected;
             }
         }
-        else
-        {
-            _clip->bSelected = true;
-        }
     }
+    clip->bSelected = selected;
 }
 
 MediaTrack* MediaTrack::Load(const imgui_json::value& value, void * handle)
@@ -1326,9 +1330,28 @@ void TimeLine::Updata()
     }
 }
 
-void TimeLine::Click(int index)
+void TimeLine::Click(int index, int64_t time)
 {
-
+    bool click_empty_space = true;
+    if (index >= 0 && index < m_Tracks.size())
+    {
+        auto current_track = m_Tracks[index];
+        for (auto clip : current_track->m_Clips)
+        {
+            if (clip->mStart <= time && clip->mEnd >= time)
+            {
+                click_empty_space = false;
+            }
+        }
+    }
+    if (click_empty_space)
+    {
+        // clear selected
+        for (auto clip : m_Clips)
+        {
+            clip->bSelected = false;
+        }
+    }
 }
 
 void TimeLine::SelectTrack(int index)
@@ -2078,6 +2101,10 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             timeline->bSeeking = false;
         }
 
+        // calculate mouse pos to time
+        mouseTime = (int64_t)((cx - topRect.Min.x) / timeline->msPixelWidthTarget) + timeline->firstTime;
+        timeline->AlignTime(mouseTime);
+
         //header
         //header time and lines
         int64_t modTimeCount = 10;
@@ -2203,15 +2230,11 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             if (ImRect(slotP1, slotP2).Contains(io.MousePos))
             {
                 if (io.MouseDoubleClicked[0])
-                    timeline->DoubleClick(i);
-                if (io.MouseClicked[0])
-                    timeline->Click(i);
+                    timeline->DoubleClick(i, mouseTime);
             }
             if (ImRect(slotP1, slotP3).Contains(io.MousePos))
             {
                 mouseEntry = i;
-                mouseTime = (int64_t)((cx - topRect.Min.x) / timeline->msPixelWidthTarget) + timeline->firstTime;
-                timeline->AlignTime(mouseTime);
             }
 
             // Ensure grabable handles and find selected clip
@@ -2297,6 +2320,9 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             movingEntry = -1;
             movingPart = -1;
         }
+
+        if (io.MouseClicked[0] && !io.MouseDoubleClicked[0])
+            timeline->Click(mouseEntry, mouseTime);
 
         draw_list->PopClipRect();
         draw_list->PopClipRect();
@@ -2697,7 +2723,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
     }
     // for debug
     ImGui::BeginTooltip();
-    ImGui::Text("%d", mouseEntry);
+    ImGui::Text("%s", MillisecToString(mouseTime, 3).c_str());
     ImGui::EndTooltip();
     // for debug end
     return ret;
