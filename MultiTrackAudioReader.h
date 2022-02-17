@@ -12,12 +12,13 @@ struct MultiTrackAudioReader
     virtual bool AddTrack() = 0;
     virtual bool SetDirection(bool forward) = 0;
     virtual bool SeekTo(double pos) = 0;
-    virtual bool ReadAudioSamples(ImGui::ImMat& amat, bool& eof) = 0;
+    virtual bool ReadAudioSamples(ImGui::ImMat& amat) = 0;
 
     virtual uint32_t TrackCount() const = 0;
     virtual std::list<AudioTrackHolder>::iterator TrackListBegin() = 0;
     virtual std::list<AudioTrackHolder>::iterator TrackListEnd() = 0;
     virtual AudioTrackHolder GetTrack(uint32_t idx) = 0;
+    virtual double Duration() = 0;
 
     virtual std::string GetError() const = 0;
 };

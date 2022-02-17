@@ -58,9 +58,8 @@ public:
             }
             if (m_readPosInAmat >= amatTotalDataSize)
             {
-                bool eof;
                 ImGui::ImMat amat;
-                if (!m_audrdr->ReadAudioSamples(amat, eof))
+                if (!m_audrdr->ReadAudioSamples(amat))
                     return 0;
                 g_audPos = amat.time_stamp;
                 m_amat = amat;
