@@ -43,6 +43,7 @@ public:
     {
         if (!m_audrdr)
             return 0;
+        lock_guard<mutex> lk(m_amatLock);
         uint32_t readSize = 0;
         while (readSize < buffSize)
         {
@@ -69,10 +70,18 @@ public:
         return buffSize;
     }
 
+    void Flush() override
+    {
+        lock_guard<mutex> lk(m_amatLock);
+        m_amat.release();
+        m_readPosInAmat = 0;
+    }
+
 private:
     MultiTrackAudioReader* m_audrdr;
     ImGui::ImMat m_amat;
     uint32_t m_readPosInAmat{0};
+    std::mutex m_amatLock;
 };
 static SimplePcmStream* g_pcmStream = nullptr;
 
@@ -249,6 +258,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
         {
             g_mtAudReader->RemoveTrack(s_remTrackOptSelId);
             s_remTrackOptSelId = 0;
+            g_audrnd->Flush();
         }
         if (noTrack)
             ImGui::PopItemFlag();
@@ -321,6 +331,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
             AudioTrackHolder hTrack = g_mtAudReader->GetTrack(s_movClipTrackSelId);
             hTrack->RemoveClipByIndex(s_movClipSelId);
             s_movClipSelId = 0;
+            g_audrnd->Flush();
         }
         if (noClip)
             ImGui::PopItemFlag();
@@ -349,6 +360,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
             AudioTrackHolder hTrack = g_mtAudReader->GetTrack(s_movClipTrackSelId);
             AudioClipHolder hClip = hTrack->GetClipByIndex(s_movClipSelId);
             hTrack->ChangeClip(hClip->Id(), s_changeClipTimeLineOffset, s_changeClipStartOffset, s_changeClipEndOffset);
+            g_audrnd->Flush();
         }
         if (noClip)
             ImGui::PopItemFlag();
@@ -429,6 +441,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
             s_addClipTimeLineOffset = 0;
             s_addClipStartOffset = 0;
             s_addClipEndOffset = 0;
+            g_audrnd->Flush();
         }
         ImGuiFileDialog::Instance()->Close();
     }

@@ -70,7 +70,7 @@ public:
 
         if (m_audrnd)
             m_audrnd->CloseDevice();
-        m_audByteStream.Reset();
+        m_audByteStream.Flush();
         if (m_swrCtx)
         {
             swr_free(&m_swrCtx);
@@ -204,7 +204,7 @@ public:
 
         if (m_audrnd)
             m_audrnd->Flush();
-        m_audByteStream.Reset();
+        m_audByteStream.Flush();
         if (m_viddecCtx)
             avcodec_flush_buffers(m_viddecCtx);
         if (m_auddecCtx)
@@ -249,7 +249,7 @@ public:
 
         if (m_audrnd)
             m_audrnd->Flush();
-        m_audByteStream.Reset();
+        m_audByteStream.Flush();
         if (m_viddecCtx)
             avcodec_flush_buffers(m_viddecCtx);
         if (m_auddecCtx)
@@ -305,7 +305,7 @@ public:
 
             if (m_audrnd)
                 m_audrnd->Flush();
-            m_audByteStream.Reset();
+            m_audByteStream.Flush();
             if (m_viddecCtx)
                 avcodec_flush_buffers(m_viddecCtx);
             if (m_auddecCtx)
@@ -1641,7 +1641,7 @@ private:
             return loadSize;
         }
 
-        void Reset()
+        void Flush() override
         {
             if (m_unconsumedAudfrm)
             {

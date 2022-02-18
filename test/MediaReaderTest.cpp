@@ -63,6 +63,8 @@ public:
         return readSize;
     }
 
+    void Flush() override {}
+
 private:
     MediaReader* m_audrdr;
 };

@@ -459,6 +459,7 @@ class SequencerPcmStream : public AudioRender::ByteStream
 public:
     SequencerPcmStream(MediaSequencer* sequencer) : m_sequencer(sequencer) {}
     uint32_t Read(uint8_t* buff, uint32_t buffSize, bool blocking) override;
+    void Flush() override {}
 private:
     MediaSequencer* m_sequencer {nullptr};
 };
