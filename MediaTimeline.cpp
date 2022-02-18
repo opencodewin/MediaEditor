@@ -1065,6 +1065,38 @@ Clip * MediaTrack::FindNextClip(int64_t id)
     return found_clip;
 }
 
+Clip * MediaTrack::FindClips(int64_t time, int& count)
+{
+    Clip * ret_clip = nullptr;
+    int selected_count = 0;
+    std::vector<Clip *> clips;
+    std::vector<Clip *> select_clips;
+    for (auto clip : m_Clips)
+    {
+        if (clip->mStart <= time && clip->mEnd >= time)
+        {
+            clips.push_back(clip);
+            if (clip->bSelected)
+                select_clips.push_back(clip);
+        }
+    }
+    for (auto clip : select_clips)
+    {
+        if (!ret_clip || ret_clip->mEnd - ret_clip->mStart > clip->mEnd - clip->mStart)
+            ret_clip = clip;
+    }
+    if (!ret_clip)
+    {
+        for (auto clip : clips)
+        {
+            if (!ret_clip || ret_clip->mEnd - ret_clip->mStart > clip->mEnd - clip->mStart)
+                ret_clip = clip;
+        }
+    }
+    count = clips.size();
+    return ret_clip;
+}
+
 void MediaTrack::SelectClip(Clip * clip, bool appand)
 {
     TimeLine * timeline = (TimeLine *)m_Handle;
@@ -2342,7 +2374,9 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                 MediaTrack * track = timeline->m_Tracks[mouseEntry];
                 if (track && !track->mLocked)
                 {
-                    for (auto clip : track->m_Clips)
+                    int count = 0;
+                    auto clip = track->FindClips(mouseTime, count);
+                    if (clip && clipMovingEntry == -1)
                     {
                         // check clip moving part
                         ImVec2 clipP1(pos.x + clip->mStart * timeline->msPixelWidthTarget, pos.y + 2);
@@ -2353,32 +2387,31 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                         const float handle_width = ImClamp(timeline->msPixelWidthTarget / 2.0f, min_handle_width, max_handle_width);
                         ImRect rects[3] = {ImRect(clipP1, ImVec2(clipP1.x + handle_width, clipP2.y)), ImRect(ImVec2(clipP2.x - handle_width, clipP1.y), clipP2), ImRect(clipP1, clipP3)};
 
-                        if (clip->mStart <= mouseTime && clip->mEnd >= mouseTime && clipMovingEntry == -1)
+                        for (int j = 1; j >= 0; j--)
                         {
-                            for (int j = 1; j >= 0; j--)
+                            ImRect &rc = rects[j];
+                            if (!rc.Contains(io.MousePos))
+                                continue;
+                            if (j == 0)
+                                RenderMouseCursor(ICON_CROPPING_LEFT, ImVec2(4, 0));
+                            else
+                                RenderMouseCursor(ICON_CROPPING_RIGHT, ImVec2(12, 0));
+                            draw_list->AddRectFilled(rc.Min, rc.Max, IM_COL32(255,0,0,255), 0);
+                        }
+                        for (int j = 0; j < 3; j++)
+                        {
+                            ImRect &rc = rects[j];
+                            if (!rc.Contains(io.MousePos))
+                                continue;
+                            if (!ImRect(childFramePos, childFramePos + childFrameSize).Contains(io.MousePos))
+                                continue;
+                            if (ImGui::IsMouseClicked(0) && !MovingScrollBar && !MovingCurrentTime && !menuIsOpened)
                             {
-                                ImRect &rc = rects[j];
-                                if (!rc.Contains(io.MousePos))
-                                    continue;
-                                if (j == 0)
-                                    RenderMouseCursor(ICON_CROPPING_LEFT, ImVec2(4, 0));
-                                else
-                                    RenderMouseCursor(ICON_CROPPING_RIGHT, ImVec2(12, 0));
-                                draw_list->AddRectFilled(rc.Min, rc.Max, IM_COL32(255,0,0,255), 0);
-                            }
-                            for (int j = 0; j < 3; j++)
-                            {
-                                ImRect &rc = rects[j];
-                                if (!rc.Contains(io.MousePos))
-                                    continue;
-                                if (!ImRect(childFramePos, childFramePos + childFrameSize).Contains(io.MousePos))
-                                    continue;
-                                if (ImGui::IsMouseClicked(0) && !MovingScrollBar && !MovingCurrentTime && !menuIsOpened)
-                                {
-                                    clipMovingEntry = clip->mID;
-                                    clipMovingPart = j + 1;
-                                    break;
-                                }
+                                // TODO::Dicky need check selected status
+                                // check current mouse pos is have selected clip
+                                clipMovingEntry = clip->mID;
+                                clipMovingPart = j + 1;
+                                break;
                             }
                         }
                     }
@@ -2424,7 +2457,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             if (std::abs(diffTime) > 0)
             {
                 Clip * clip = timeline->FindClipByID(clipMovingEntry);
-                if (clip)
+                if (clip && clip->bSelected)
                 {
                     if (clipMovingPart == 3)
                     {
@@ -2960,13 +2993,13 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
     }
 
     // for debug
-    //ImGui::BeginTooltip();
-    //ImGui::Text("%s", std::to_string(clipEntry).c_str());
+    ImGui::BeginTooltip();
+    ImGui::Text("%s", std::to_string(clipMovingEntry).c_str());
     //ImGui::Text("%s", std::to_string(mouseClip).c_str());
     //ImGui::Text("%s", std::to_string(trackMovingEntry).c_str());
     //ImGui::Text("%s", std::to_string(trackEntry).c_str());
     //ImGui::Text("%s", MillisecToString(mouseTime).c_str());
-    //ImGui::EndTooltip();
+    ImGui::EndTooltip();
     // for debug end
     return ret;
 }

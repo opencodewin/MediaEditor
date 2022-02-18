@@ -285,7 +285,6 @@ struct TextClip : Clip
     void Save(imgui_json::value& value);
 };
 
-
 struct MediaTrack
 {
     int64_t mID             {-1};               // track ID
@@ -310,9 +309,10 @@ struct MediaTrack
     void SelectClip(Clip * clip, bool appand);
     void DeleteClip(int64_t id);
     static inline bool CompareClip(Clip* a, Clip* b) { return a->mStart < b->mStart; }
-    Clip * FindPrevClip(int64_t id);            // find prev clip in track, if not found then return null
-    Clip * FindNextClip(int64_t id);            // find next clip in track, if not found then return null
-    void Update();                              // update track clip include clip order and overlap area
+    Clip * FindPrevClip(int64_t id);                // find prev clip in track, if not found then return null
+    Clip * FindNextClip(int64_t id);                // find next clip in track, if not found then return null
+    Clip * FindClips(int64_t time, int& count);     // find clips at time, count means clip number at time 
+    void Update();                                  // update track clip include clip order and overlap area
     static MediaTrack* Load(const imgui_json::value& value, void * handle);
     void Save(imgui_json::value& value);
 };
@@ -356,6 +356,7 @@ struct TimeLine
     int mAudioChannels {2};                 // timeline audio channels
     int mAudioSampleRate {44100};           // timeline audio sample rate
     AudioRender::PcmFormat mAudioFormat {AudioRender::PcmFormat::FLOAT32}; // timeline audio format
+    
     std::vector<int> mAudioLevel;           // timeline audio levels
 
     int64_t currentTime = 0;
