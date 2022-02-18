@@ -51,7 +51,8 @@
 #define ICON_CLONE          u8"\uf2d2"
 #define ICON_ADD            u8"\uf067"
 #define ICON_ALIGN_START    u8"\ue419"
-#define ICON_CUT            u8"\ue00d"
+#define ICON_CROPPING_LEFT  u8"\ue00d"
+#define ICON_CROPPING_RIGHT u8"\ue010"
 #define ICON_REMOVE_CUT     u8"\ue011"
 #define ICON_CUTTING        u8"\uf0c4"
 #define ICON_MOVING         u8"\ue41f"
@@ -341,6 +342,7 @@ struct TimeLine
     TimeLine();
     ~TimeLine();
 
+    std::vector<MediaItem *> media_items;   // Media Bank
     std::vector<MediaTrack *> m_Tracks;     // timeline tracks
     std::vector<Clip *> m_Clips;            // timeline clips
     std::vector<ClipGroup> m_Groups;        // timeline clip groups
@@ -369,6 +371,7 @@ struct TimeLine
     bool bLoop = false;                     // save in project
     bool bSelectLinked = true;              // save in project
     
+    std::mutex mTrackLock;                  // timeline track mutex
     // BP CallBacks
     static int OnBluePrintChange(int type, std::string name, void* handle);
 
@@ -397,9 +400,10 @@ struct TimeLine
     void AlignTime(int64_t& time);
 
     int GetTrackCount() const { return (int)m_Tracks.size(); }
-    int GetTrackCount(MEDIA_TYPE type) const;
+    int GetTrackCount(MEDIA_TYPE type);
     void DeleteTrack(int index);
     void SelectTrack(int index);
+    void MovingTrack(int& index, int& dst_index);
     void DeleteClip(int64_t id);
     void DoubleClick(int index, int64_t time) { m_Tracks[index]->mExpanded = !m_Tracks[index]->mExpanded; }
     void Click(int index, int64_t time);
@@ -417,7 +421,6 @@ struct TimeLine
 
     AudioRender* mAudioRender {nullptr};                // audio render(SDL)
 
-    std::vector<MediaItem *> media_items;               // Media Bank
     MediaItem* FindMediaItemByName(std::string name);   // Find media from bank by name
     MediaItem* FindMediaItemByID(int64_t id);           // Find media from bank by ID
     MediaTrack * FindTrackByID(int64_t id);             // Find track by ID

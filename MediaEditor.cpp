@@ -764,7 +764,9 @@ static void ShowMediaBankWindow(ImDrawList *draw_list, float media_icon_size)
                 default: break;
             }
             type_string += TimestampToString(media_length);
+            ImGui::SetWindowFontScale(0.7);
             ImGui::TextUnformatted(type_string.c_str());
+            ImGui::SetWindowFontScale(1.0);
             ImGui::ShowTooltipOnHover("%s", (*item)->mPath.c_str());
             ImGui::SetCursorScreenPos(icon_pos + ImVec2(0, media_icon_size - 20));
 
@@ -818,9 +820,11 @@ static void ShowMediaBankWindow(ImDrawList *draw_list, float media_icon_size)
             ImGui::PopStyleColor(3);
         }
 
-        ImGui::SetCursorScreenPos(icon_pos + ImVec2(media_icon_size - 24, 0));
-        ImGui::Button((std::string(ICON_TRASH "##delete_media") + (*item)->mPath).c_str(), ImVec2(24, 24));
-        ImRect button_rect(icon_pos + ImVec2(media_icon_size - 24, 0), icon_pos + ImVec2(media_icon_size - 24, 0) + ImVec2(24, 24));
+        ImGui::SetCursorScreenPos(icon_pos + ImVec2(media_icon_size - 16, 0));
+        ImGui::SetWindowFontScale(0.8);
+        ImGui::Button((std::string(ICON_TRASH "##delete_media") + (*item)->mPath).c_str(), ImVec2(16, 16));
+        ImGui::SetWindowFontScale(1.0);
+        ImRect button_rect(icon_pos + ImVec2(media_icon_size - 16, 0), icon_pos + ImVec2(media_icon_size - 16, 0) + ImVec2(16, 16));
         bool overButton = button_rect.Contains(io.MousePos);
         if (overButton && io.MouseClicked[0])
         {
@@ -1798,7 +1802,7 @@ void Application_Finalize(void** handle)
 bool Application_Frame(void * handle, bool app_will_quit)
 {
     static bool app_done = false;
-    const float media_icon_size = 144; 
+    const float media_icon_size = 96; 
     const float tool_icon_size = 32;
     static bool show_about = false;
     static bool show_configure = false;

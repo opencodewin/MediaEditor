@@ -77,11 +77,21 @@ static bool TimelineButton(ImDrawList *draw_list, const char * label, ImVec2 pos
     return overButton;
 }
 
-static void RenderMouseCursor(ImDrawList* draw_list,/* ImVec2 pos, float scale, */const char* mouse_cursor, ImU32 col_fill/*, ImU32 col_border, ImU32 col_shadow*/)
+static void RenderMouseCursor(const char* mouse_cursor, ImVec2 offset = ImVec2(0 ,0), float base_scale = 1.0, ImU32 col_fill = IM_COL32_WHITE, ImU32 col_border = IM_COL32_BLACK, ImU32 col_shadow = IM_COL32(0, 0, 0, 48))
 {
+    ImGuiViewportP* viewport = (ImGuiViewportP*)ImGui::GetWindowViewport();
+    ImDrawList* draw_list = ImGui::GetForegroundDrawList(viewport);
     ImGuiIO& io = ImGui::GetIO();
+    const float FontSize = draw_list->_Data->FontSize;
+    ImVec2 size(FontSize, FontSize);
+    const ImVec2 pos = io.MousePos - offset;
+    const float scale = base_scale * viewport->DpiScale;
+    if (!viewport->GetMainRect().Overlaps(ImRect(pos, pos + ImVec2(size.x + 2, size.y + 2) * scale)))
+        return;
     ImGui::SetMouseCursor(ImGuiMouseCursor_None);
-    draw_list->AddText(io.MousePos, col_fill, mouse_cursor);
+    draw_list->AddText(pos + ImVec2(-1, -1), col_border, mouse_cursor);
+    draw_list->AddText(pos + ImVec2(1, 1), col_shadow, mouse_cursor);
+    draw_list->AddText(pos, col_fill, mouse_cursor);
 }
 
 static void alignTime(int64_t& time, MediaInfo::Ratio rate)
@@ -855,8 +865,9 @@ MediaTrack::~MediaTrack()
     {
         timeline->DeleteClip(clip->mID);
     }
+
     // remove linked track info
-    auto linked_track = timeline->FindTrackByID(mID);
+    auto linked_track = timeline->FindTrackByID(mLinkedTrack);
     if (linked_track)
     {
         linked_track->mLinkedTrack = -1;
@@ -1339,11 +1350,14 @@ void TimeLine::Updata()
     {
         mEnd = end_max + TIMELINE_OVER_LENGTH;
     }
+
     // update track
+    mTrackLock.lock();
     for (auto track : m_Tracks)
     {
         track->Update();
     }
+    mTrackLock.unlock();
 }
 
 void TimeLine::Click(int index, int64_t time)
@@ -1372,6 +1386,7 @@ void TimeLine::Click(int index, int64_t time)
 
 void TimeLine::SelectTrack(int index)
 {
+    mTrackLock.lock();
     if (index >= 0 && index < m_Tracks.size())
     {
         auto current_track = m_Tracks[index];
@@ -1383,10 +1398,12 @@ void TimeLine::SelectTrack(int index)
                 track->mSelected = true;
         }
     }
+    mTrackLock.unlock();
 }
 
 void TimeLine::DeleteTrack(int index)
 {
+    mTrackLock.lock();
     if (index >= 0 && index < m_Tracks.size())
     {
         auto track = m_Tracks[index];
@@ -1398,6 +1415,24 @@ void TimeLine::DeleteTrack(int index)
             currentTime = firstTime = lastTime = visibleTime = 0;
         }
     }
+    mTrackLock.unlock();
+}
+
+void TimeLine::MovingTrack(int& index, int& dst_index)
+{
+    mTrackLock.lock();
+    auto iter = m_Tracks.begin() + index;
+    auto iter_dst = dst_index == -2 ? m_Tracks.end() - 1 : m_Tracks.begin() + dst_index;
+    if (dst_index == -2 && iter == m_Tracks.end() - 1)
+    {
+        mTrackLock.unlock();
+        return;
+    }
+    MediaTrack * tmp = *iter;
+    *iter = *iter_dst;
+    *iter_dst = tmp;
+    index = dst_index;
+    mTrackLock.unlock();
 }
 
 void TimeLine::DeleteClip(int64_t id)
@@ -1485,6 +1520,7 @@ MediaItem* TimeLine::FindMediaItemByID(int64_t id)
 MediaTrack * TimeLine::FindTrackByID(int64_t id)
 {
     MediaTrack * track_found = nullptr;
+    mTrackLock.try_lock();
     for (auto track : m_Tracks)
     {
         if (track->mID == id)
@@ -1493,12 +1529,14 @@ MediaTrack * TimeLine::FindTrackByID(int64_t id)
             break;
         }
     }
+    mTrackLock.unlock();
     return track_found;
 }
 
 MediaTrack * TimeLine::FindTrackByClipID(int64_t id)
 {
     MediaTrack * track_found = nullptr;
+    mTrackLock.try_lock();
     for (auto track : m_Tracks)
     {
         for (auto clip : track->m_Clips)
@@ -1512,6 +1550,7 @@ MediaTrack * TimeLine::FindTrackByClipID(int64_t id)
         if (track_found)
             break;
     }
+    mTrackLock.unlock();
     return track_found;
 }
 
@@ -1561,14 +1600,16 @@ int64_t TimeLine::NextClipStart(int64_t pos)
     return next_start;
 }
 
-int TimeLine::GetTrackCount(MEDIA_TYPE type) const
+int TimeLine::GetTrackCount(MEDIA_TYPE type)
 {
     int count = 0;
+    mTrackLock.lock();
     for (auto track : m_Tracks)
     {
         if (track->mType == type)
             count ++;
     }
+    mTrackLock.unlock();
     return count;
 }
 
@@ -1768,7 +1809,7 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, co
                         mouse_clicked = true;
                     }
                 }
-                /*
+/*
                 if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
                 {
                     ImGui::SetDragDropPayload("Clip_drag_drop", clip, sizeof(void*));
@@ -1781,7 +1822,7 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, co
                     ImGui::Text("Length: %s", length_time_string.c_str());
                     ImGui::EndDragDropSource();
                 }
-                */
+*/
                 ImGui::EndChildFrame();
             }
         }
@@ -2016,11 +2057,14 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
     ImVector<TimelineCustomDraw> customDraws;
     static bool MovingScrollBar = false;
     static bool MovingCurrentTime = false;
-    static int64_t movingEntry = -1;
+    static int trackMovingEntry = -1;
+    static int trackEntry = -1;
+    static int64_t clipMovingEntry = -1;
     static int64_t clipEntry = -1;
-    static int movingPart = -1;
+    static int clipMovingPart = -1;
     int delTrackEntry = -1;
     int mouseEntry = -1;
+    int legendEntry = -1;
     int64_t mouseClip = -1;
     int64_t mouseTime = -1;
     std::vector<int64_t> delClipEntry;
@@ -2117,7 +2161,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
 
         // current time top
         ImRect topRect(ImVec2(canvas_pos.x + legendWidth, canvas_pos.y), ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + HeadHeight));
-        if (!MovingCurrentTime && !MovingScrollBar && movingEntry == -1 && timeline->currentTime >= 0 && topRect.Contains(io.MousePos) && io.MouseDown[0] && isFocused)
+        if (!MovingCurrentTime && !MovingScrollBar && clipMovingEntry == -1 && timeline->currentTime >= 0 && topRect.Contains(io.MousePos) && io.MouseDown[0] && isFocused)
         {
             MovingCurrentTime = true;
             timeline->bSeeking = true;
@@ -2218,7 +2262,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             size_t localCustomHeight = timeline->GetCustomHeight(i);
             ImVec2 pos = ImVec2(contentMin.x + legendWidth, contentMin.y + trackHeadHeight * i + 1 + customHeight);
             ImVec2 sz = ImVec2(canvas_size.x + canvas_pos.x - 4.f, pos.y + trackHeadHeight - 1 + localCustomHeight);
-            if (cy >= pos.y && cy < pos.y + (trackHeadHeight + localCustomHeight) && movingEntry == -1 && cx > contentMin.x && cx < contentMin.x + canvas_size.x)
+            if (cy >= pos.y && cy < pos.y + (trackHeadHeight + localCustomHeight) && clipMovingEntry == -1 && cx > contentMin.x && cx < contentMin.x + canvas_size.x)
             {
                 col += IM_COL32(8, 16, 32, 128);
                 pos.x -= legendWidth;
@@ -2276,6 +2320,21 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             {
                 mouseEntry = i;
             }
+            ImVec2 slotLegendP1(contentMin.x, contentMin.y + trackHeadHeight * i + customHeight);
+            ImVec2 slotLegendP2(slotLegendP1.x + legendWidth, slotLegendP1.y + trackHeadHeight + localCustomHeight);
+            if (ImRect(slotLegendP1, slotLegendP2).Contains(io.MousePos))
+            {
+                legendEntry = i;
+            }
+
+            // Ensure grabable handles for track
+            if (legendEntry != -1 && legendEntry < timeline->m_Tracks.size())
+            {
+                if (ImGui::IsMouseClicked(0) && !MovingScrollBar && !MovingCurrentTime && !menuIsOpened)
+                {
+                    trackMovingEntry = legendEntry;
+                }
+            }
 
             // Ensure grabable handles and find selected clip
             if (mouseTime != -1 && mouseEntry != -1 && mouseEntry < timeline->m_Tracks.size())
@@ -2285,7 +2344,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                 {
                     for (auto clip : track->m_Clips)
                     {
-                        // check movingPart
+                        // check clip moving part
                         ImVec2 clipP1(pos.x + clip->mStart * timeline->msPixelWidthTarget, pos.y + 2);
                         ImVec2 clipP2(pos.x + clip->mEnd * timeline->msPixelWidthTarget + timeline->msPixelWidthTarget - 4.f, pos.y + trackHeadHeight - 2);
                         ImVec2 clipP3(pos.x + clip->mEnd * timeline->msPixelWidthTarget + timeline->msPixelWidthTarget - 4.f, pos.y + trackHeadHeight - 2 + localCustomHeight);
@@ -2294,14 +2353,17 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                         const float handle_width = ImClamp(timeline->msPixelWidthTarget / 2.0f, min_handle_width, max_handle_width);
                         ImRect rects[3] = {ImRect(clipP1, ImVec2(clipP1.x + handle_width, clipP2.y)), ImRect(ImVec2(clipP2.x - handle_width, clipP1.y), clipP2), ImRect(clipP1, clipP3)};
 
-                        if (clip->mStart <= mouseTime && clip->mEnd >= mouseTime && movingEntry == -1)
+                        if (clip->mStart <= mouseTime && clip->mEnd >= mouseTime && clipMovingEntry == -1)
                         {
                             for (int j = 1; j >= 0; j--)
                             {
                                 ImRect &rc = rects[j];
                                 if (!rc.Contains(io.MousePos))
                                     continue;
-                                ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
+                                if (j == 0)
+                                    RenderMouseCursor(ICON_CROPPING_LEFT, ImVec2(4, 0));
+                                else
+                                    RenderMouseCursor(ICON_CROPPING_RIGHT, ImVec2(12, 0));
                                 draw_list->AddRectFilled(rc.Min, rc.Max, IM_COL32(255,0,0,255), 0);
                             }
                             for (int j = 0; j < 3; j++)
@@ -2313,8 +2375,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                                     continue;
                                 if (ImGui::IsMouseClicked(0) && !MovingScrollBar && !MovingCurrentTime && !menuIsOpened)
                                 {
-                                    movingEntry = clip->mID;
-                                    movingPart = j + 1;
+                                    clipMovingEntry = clip->mID;
+                                    clipMovingPart = j + 1;
                                     break;
                                 }
                             }
@@ -2336,30 +2398,49 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             customHeight += localCustomHeight;
         }
 
+        // track moving
+        if (trackMovingEntry != -1 && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
+        {
+            ImGui::CaptureMouseFromApp();
+            if (cy > legendAreaRect.Min.y && cy < legendAreaRect.Max.y)
+            {
+                trackEntry = legendEntry;
+                if (trackEntry == -1 && cy >= legendRect.Max.y)
+                {
+                    trackEntry = -2; // end of tracks
+                }
+            }
+            //ImGui::BeginTooltip();
+            //ImGui::Text("Draging track:%s", std::to_string(trackMovingEntry).c_str());
+            //ImGui::Text("currrent track:%s", std::to_string(trackEntry).c_str());
+            //ImGui::EndTooltip();
+        }
+
         // clip cropping or moving
-        if (movingEntry != -1 && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
+        if (clipMovingEntry != -1 && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
         {
             ImGui::CaptureMouseFromApp();
             int64_t diffTime = int64_t(io.MouseDelta.x / timeline->msPixelWidthTarget);
             if (std::abs(diffTime) > 0)
             {
-                Clip * clip = timeline->FindClipByID(movingEntry);
+                Clip * clip = timeline->FindClipByID(clipMovingEntry);
                 if (clip)
                 {
-                    if (movingPart == 3)
+                    if (clipMovingPart == 3)
                     {
                         // whole slot moving
                         auto new_diff = clip->Moving(diffTime);
+                        // deal with moving cross track
                     }
-                    else if (movingPart & 1)
+                    else if (clipMovingPart & 1)
                     {
-                        ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
+                        RenderMouseCursor(ICON_CROPPING_LEFT, ImVec2(4, 0));
                         // clip left moving
                         auto new_diff = clip->Cropping(diffTime, 0);
                     }
-                    else if (movingPart & 2)
+                    else if (clipMovingPart & 2)
                     {
-                        ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
+                        RenderMouseCursor(ICON_CROPPING_RIGHT, ImVec2(12, 0));
                         // clip right moving
                         auto new_diff = clip->Cropping(diffTime, 1);
                     }
@@ -2368,8 +2449,11 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         }
         if (!io.MouseDown[0])
         {
-            movingEntry = -1;
-            movingPart = -1;
+            clipMovingEntry = -1;
+            clipMovingPart = -1;
+            trackMovingEntry = -1;
+            trackEntry = -1;
+            ImGui::CaptureMouseFromApp(false);
         }
 
         if (!menuIsOpened && io.MouseClicked[0] && !io.MouseDoubleClicked[0])
@@ -2542,7 +2626,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                 timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
             }
         }
-        else if (inScrollHandle && ImGui::IsMouseClicked(0) && !MovingCurrentTime && movingEntry == -1)
+        else if (inScrollHandle && ImGui::IsMouseClicked(0) && !MovingCurrentTime && clipMovingEntry == -1)
         {
             MovingScrollBar = true;
             panningViewSource = io.MousePos;
@@ -2869,15 +2953,20 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         timeline->DeleteClipFromGroup(clip, clip->mGroupID);
     }
 
+    // handle track moving
+    if (trackMovingEntry != -1 && trackEntry != -1 && trackMovingEntry != trackEntry)
+    {
+        timeline->MovingTrack(trackMovingEntry, trackEntry);
+    }
+
     // for debug
-    /*
-    ImGui::BeginTooltip();
-    ImGui::Text("%s", std::to_string(clipEntry).c_str());
-    ImGui::Text("%s", std::to_string(mouseClip).c_str());
-    ImGui::Text("%s", std::to_string(mouseEntry).c_str());
-    ImGui::Text("%s", MillisecToString(mouseTime).c_str());
-    ImGui::EndTooltip();
-    */
+    //ImGui::BeginTooltip();
+    //ImGui::Text("%s", std::to_string(clipEntry).c_str());
+    //ImGui::Text("%s", std::to_string(mouseClip).c_str());
+    //ImGui::Text("%s", std::to_string(trackMovingEntry).c_str());
+    //ImGui::Text("%s", std::to_string(trackEntry).c_str());
+    //ImGui::Text("%s", MillisecToString(mouseTime).c_str());
+    //ImGui::EndTooltip();
     // for debug end
     return ret;
 }
