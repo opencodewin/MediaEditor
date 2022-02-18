@@ -29,6 +29,7 @@ uint32_t AudioTrack::AddNewClip(MediaParserHolder hParser, double timeLineOffset
     AudioClipHolder hClip(new AudioClip(hParser, m_outChannels, m_outSampleRate, timeLineOffset, startOffset, endOffset));
     const uint32_t clipId = hClip->Id();
     InsertClip(hClip, timeLineOffset);
+    SeekTo((double)m_readSamples/m_outSampleRate);
 
     return clipId;
 }
@@ -88,10 +89,6 @@ void AudioTrack::InsertClip(AudioClipHolder hClip, double timeLineOffset)
     m_clips.sort([](const AudioClipHolder& a, const AudioClipHolder& b) {
         return a->TimeLineOffset() < b->TimeLineOffset();
     });
-
-    double readPos = (double)m_readSamples/m_outSampleRate;
-    if (readPos >= clipStart && readPos < clipEnd || m_iterRead == m_clips.end())
-        SeekTo(readPos);
 
     AudioClipHolder lastClip = m_clips.back();
     m_duration = lastClip->TimeLineOffset()+lastClip->ClipDuration();
@@ -161,15 +158,33 @@ AudioClipHolder AudioTrack::RemoveClipByIndex(uint32_t index)
 void AudioTrack::SeekTo(double pos)
 {
     lock_guard<recursive_mutex> lk(m_apiLock);
-
     if (pos < 0)
         throw invalid_argument("Argument 'pos' can NOT be NEGATIVE!");
-    m_iterRead = find_if(m_clips.begin(), m_clips.end(), [pos](const AudioClipHolder& a) {
-        return pos >= a->TimeLineOffset() && pos < a->TimeLineOffset()+a->ClipDuration() ||
-            pos < a->TimeLineOffset();
-    });
-    if (m_iterRead != m_clips.end() && pos >= (*m_iterRead)->TimeLineOffset())
-        (*m_iterRead)->SeekTo(pos-(*m_iterRead)->TimeLineOffset());
+
+    m_iterRead = m_clips.end();
+    auto iter = m_clips.begin();
+    while (iter != m_clips.end())
+    {
+        const AudioClipHolder& item = *iter;
+        if (pos >= item->TimeLineOffset() && pos < item->TimeLineOffset()+item->ClipDuration())
+        {
+            (*iter)->SeekTo(pos-(*iter)->TimeLineOffset());
+            m_iterRead = iter++;
+            break;
+        }
+        else if (pos < item->TimeLineOffset())
+        {
+            (*iter)->SeekTo(0);
+            m_iterRead = iter++;
+            break;
+        }
+        iter++;
+    }
+    while (iter != m_clips.end())
+    {
+        (*iter)->SeekTo(0);
+        iter++;
+    }
     m_readSamples = (int64_t)(pos*m_outSampleRate);
 }
 
@@ -248,4 +263,5 @@ void AudioTrack::ChangeClip(uint32_t id, double timeLineOffset, double startOffs
     if (endOffset <= 0)
         hClip->ChangeEndOffset(endOffset);
     InsertClip(hClip, timeLineOffset);
+    SeekTo((double)m_readSamples/m_outSampleRate);
 }
