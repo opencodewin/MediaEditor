@@ -2993,13 +2993,13 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
     }
 
     // for debug
-    ImGui::BeginTooltip();
-    ImGui::Text("%s", std::to_string(clipMovingEntry).c_str());
+    //ImGui::BeginTooltip();
+    //ImGui::Text("%s", std::to_string(clipMovingEntry).c_str());
     //ImGui::Text("%s", std::to_string(mouseClip).c_str());
     //ImGui::Text("%s", std::to_string(trackMovingEntry).c_str());
     //ImGui::Text("%s", std::to_string(trackEntry).c_str());
     //ImGui::Text("%s", MillisecToString(mouseTime).c_str());
-    ImGui::EndTooltip();
+    //ImGui::EndTooltip();
     // for debug end
     return ret;
 }
