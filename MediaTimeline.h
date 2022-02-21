@@ -195,6 +195,7 @@ struct Clip
     int64_t mEndOffset          {0};                // clip end time in media
     bool bSeeking               {false};
     bool bSelected              {false};
+    bool bEditting              {false};            // clip is Editting by double click selected
     std::mutex mLock;                               // clip mutex
     void * mHandle              {nullptr};          // clip belong to timeline 
     MediaOverview * mOverview   {nullptr};          // clip media overview
@@ -308,6 +309,7 @@ struct MediaTrack
     void InsertClip(Clip * clip, int64_t pos = 0);
     void PushBackClip(Clip * clip);
     void SelectClip(Clip * clip, bool appand);
+    void EdittingClip(Clip * clip);
     void DeleteClip(int64_t id);
     static inline bool CompareClip(Clip* a, Clip* b) { return a->mStart < b->mStart; }
     Clip * FindPrevClip(int64_t id);                // find prev clip in track, if not found then return null

@@ -246,6 +246,16 @@ void Clip::Load(Clip * clip, const imgui_json::value& value)
         auto& val = value["EndOffset"];
         if (val.is_number()) clip->mEndOffset = val.get<imgui_json::number>();
     }
+    if (value.contains("Selected"))
+    {
+        auto& val = value["Selected"];
+        if (val.is_boolean()) clip->bSelected = val.get<imgui_json::boolean>();
+    }
+    if (value.contains("Editting"))
+    {
+        auto& val = value["Editting"];
+        if (val.is_boolean()) clip->bEditting = val.get<imgui_json::boolean>();
+    }
     // load filter bp
     if (value.contains("FilterBP"))
     {
@@ -267,6 +277,8 @@ void Clip::Save(imgui_json::value& value)
     value["End"] = imgui_json::number(mEnd);
     value["StartOffset"] = imgui_json::number(mStartOffset);
     value["EndOffset"] = imgui_json::number(mEndOffset);
+    value["Selected"] = imgui_json::boolean(bSelected);
+    value["Editting"] = imgui_json::boolean(bEditting);
 
     // save clip filter bp
     if (mFilterBP.is_object())
@@ -1241,6 +1253,21 @@ void MediaTrack::SelectClip(Clip * clip, bool appand)
     clip->bSelected = selected;
 }
 
+void MediaTrack::EdittingClip(Clip * clip)
+{
+    TimeLine * timeline = (TimeLine *)m_Handle;
+    if (!timeline || !clip)
+        return;
+    for (auto _clip : timeline->m_Clips)
+    {
+        if (_clip->mID != clip->mID)
+        {
+            _clip->bEditting = false;
+        }
+    }
+    clip->bEditting = true;
+}
+
 MediaTrack* MediaTrack::Load(const imgui_json::value& value, void * handle)
 {
     MEDIA_TYPE type = MEDIA_UNKNOWN;
@@ -2004,7 +2031,14 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, co
 
             if (clip->bSelected)
             {
-                draw_list->AddRect(clip_pos_min, clip_pos_max, IM_COL32(255,0,0,224), 0, 0, 2.0f);
+                if (clip->bEditting)
+                    draw_list->AddRect(clip_pos_min, clip_pos_max, IM_COL32(255,0,255,224), 0, 0, 2.0f);
+                else
+                    draw_list->AddRect(clip_pos_min, clip_pos_max, IM_COL32(255,0,0,224), 0, 0, 2.0f);
+            }
+            else if (clip->bEditting)
+            {
+                draw_list->AddRect(clip_pos_min, clip_pos_max, IM_COL32(0,0,255,224), 0, 0, 2.0f);
             }
 
             // Clip select
@@ -2016,13 +2050,17 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, co
                 ImGui::InvisibleButton(id_string.c_str(), clip_pos_max - clip_title_pos_min);
                 if (ImGui::IsItemHovered())
                 {
-                    if (!mouse_clicked && io.MouseClicked[0])
+                    if (!mouse_clicked && io.MouseClicked[0] && !io.MouseDoubleClicked[0])
                     {
                         const bool is_shift_key_only = (io.KeyMods == ImGuiKeyModFlags_Shift);
                         bool appand = (ImGui::IsKeyDown(ImGuiKey_LeftShift) || ImGui::IsKeyDown(ImGuiKey_RightShift)) && is_shift_key_only;
                         track->SelectClip(clip, appand);
                         SelectTrack(index);
                         mouse_clicked = true;
+                    }
+                    else if (io.MouseDoubleClicked[0])
+                    {
+                        track->EdittingClip(clip);
                     }
                 }
                 ImGui::EndChildFrame();
