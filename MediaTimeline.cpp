@@ -2275,6 +2275,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
     bool removeEmptyTrack = false;
     static bool menuIsOpened = false;
     static bool bCutting = false;
+    static bool bCropping = false;
     const bool is_alt_key_only = (io.KeyMods == ImGuiKeyModFlags_Alt);
     bCutting = ImGui::IsKeyDown(ImGuiKey_LeftAlt) && is_alt_key_only;
     
@@ -2596,6 +2597,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                                 {
                                     clipMovingEntry = clip->mID;
                                     clipMovingPart = j + 1;
+                                    if (j <= 1)
+                                        bCropping = true;
                                 }
                                 break;
                             }
@@ -2660,13 +2663,11 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                     }
                     else if (clipMovingPart & 1)
                     {
-                        RenderMouseCursor(ICON_CROPPING_LEFT, ImVec2(4, 0));
                         // clip left moving
                         clip->Cropping(diffTime, 0);
                     }
                     else if (clipMovingPart & 2)
                     {
-                        RenderMouseCursor(ICON_CROPPING_RIGHT, ImVec2(12, 0));
                         // clip right moving
                         clip->Cropping(diffTime, 1);
                     }
@@ -2679,10 +2680,16 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             clipMovingPart = -1;
             trackMovingEntry = -1;
             trackEntry = -1;
+            bCropping = false;
             ImGui::CaptureMouseFromApp(false);
         }
 
-        if (!menuIsOpened && io.MouseClicked[0] && !io.MouseDoubleClicked[0])
+        if (bCropping)
+        {
+            ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
+        }
+
+        if (!menuIsOpened && !bCropping && !bCutting && io.MouseClicked[0] && !io.MouseDoubleClicked[0])
             timeline->Click(mouseEntry, mouseTime);
 
         if (io.MouseClicked[1] && !io.MouseDoubleClicked[1])
