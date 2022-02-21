@@ -204,7 +204,7 @@ struct Clip
     Clip(int64_t start, int64_t end, int64_t id, MediaOverview * overview, void * handle);
     virtual ~Clip();
 
-    int64_t Moving(int64_t diff);
+    int64_t Moving(int64_t diff, int mouse_track);
     int64_t Cropping(int64_t diff, int type);
     bool isLinkedWith(Clip * clip);
     
@@ -402,9 +402,11 @@ struct TimeLine
 
     int GetTrackCount() const { return (int)m_Tracks.size(); }
     int GetTrackCount(MEDIA_TYPE type);
+    int NewTrack(MEDIA_TYPE type, bool expand);
     void DeleteTrack(int index);
     void SelectTrack(int index);
     void MovingTrack(int& index, int& dst_index);
+    void MovingClip(int64_t id, int from_track_index, int to_track_index);
     void DeleteClip(int64_t id);
     void DoubleClick(int index, int64_t time) { m_Tracks[index]->mExpanded = !m_Tracks[index]->mExpanded; }
     void Click(int index, int64_t time);
@@ -426,6 +428,7 @@ struct TimeLine
     MediaItem* FindMediaItemByID(int64_t id);           // Find media from bank by ID
     MediaTrack * FindTrackByID(int64_t id);             // Find track by ID
     MediaTrack * FindTrackByClipID(int64_t id);         // Find track by clip ID
+    int FindTrackIndexByClipID(int64_t id);             // Find track by clip ID
     Clip * FindClipByID(int64_t id);                    // Find clip info with clip ID
     int GetSelectedClipCount();                         // Get current selected clip count
     int64_t NextClipStart(Clip * clip);                 // Get next clip start pos by clip, if don't have next clip, then return -1
