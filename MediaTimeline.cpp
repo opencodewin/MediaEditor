@@ -77,7 +77,7 @@ static bool TimelineButton(ImDrawList *draw_list, const char * label, ImVec2 pos
     return overButton;
 }
 
-static void RenderMouseCursor(const char* mouse_cursor, ImVec2 offset = ImVec2(0 ,0), float base_scale = 1.0, ImU32 col_fill = IM_COL32_WHITE, ImU32 col_border = IM_COL32_BLACK, ImU32 col_shadow = IM_COL32(0, 0, 0, 48))
+static void RenderMouseCursor(const char* mouse_cursor, ImVec2 offset = ImVec2(0 ,0), float base_scale = 1.0, int rotate = 0, ImU32 col_fill = IM_COL32_WHITE, ImU32 col_border = IM_COL32_BLACK, ImU32 col_shadow = IM_COL32(0, 0, 0, 48))
 {
     ImGuiViewportP* viewport = (ImGuiViewportP*)ImGui::GetWindowViewport();
     ImDrawList* draw_list = ImGui::GetForegroundDrawList(viewport);
@@ -88,10 +88,26 @@ static void RenderMouseCursor(const char* mouse_cursor, ImVec2 offset = ImVec2(0
     const float scale = base_scale * viewport->DpiScale;
     if (!viewport->GetMainRect().Overlaps(ImRect(pos, pos + ImVec2(size.x + 2, size.y + 2) * scale)))
         return;
+
     ImGui::SetMouseCursor(ImGuiMouseCursor_None);
+    int rotation_start_index = draw_list->VtxBuffer.Size;
     draw_list->AddText(pos + ImVec2(-1, -1), col_border, mouse_cursor);
     draw_list->AddText(pos + ImVec2(1, 1), col_shadow, mouse_cursor);
     draw_list->AddText(pos, col_fill, mouse_cursor);
+    if (rotate != 0)
+    {
+        float rad = M_PI / 180 * (90 - rotate);
+        ImVec2 l(FLT_MAX, FLT_MAX), u(-FLT_MAX, -FLT_MAX); // bounds
+        auto& buf = draw_list->VtxBuffer;
+        float s = sin(rad), c = cos(rad);
+        for (int i = rotation_start_index; i < buf.Size; i++)
+		    l = ImMin(l, buf[i].pos), u = ImMax(u, buf[i].pos);
+        ImVec2 center = ImVec2((l.x + u.x) / 2, (l.y + u.y) / 2);
+	    center = ImRotate(center, s, c) - center;
+        
+        for (int i = rotation_start_index; i < buf.Size; i++)
+		    buf[i].pos = ImRotate(buf[i].pos, s, c) - center;
+    }
 }
 
 static void alignTime(int64_t& time, MediaInfo::Ratio rate)
@@ -353,6 +369,71 @@ int64_t Clip::Cropping(int64_t diff, int type)
         }
     }
     return new_diff;
+}
+
+void Clip::Cutting(int64_t pos)
+{
+    TimeLine * timeline = (TimeLine *)mHandle;
+    if (!timeline)
+        return;
+    auto track = timeline->FindTrackByClipID(mID);
+    if (!track)
+        return;
+    
+    // calculate new pos
+    int64_t adj_end = pos;
+    int64_t adj_end_offset = mEndOffset + (mEnd - pos);
+    int64_t new_start = pos;
+    int64_t new_start_offset = mStartOffset + (pos - mStart);
+    // create new clip base on current clip
+    Clip * new_clip = nullptr;
+    switch (mType)
+    {
+        case MEDIA_VIDEO:
+        {
+            auto new_video_clip = new VideoClip(mStart, mEnd, mMediaID, mName, mOverview, timeline);
+            new_clip = new_video_clip;
+        }
+        break;
+        case MEDIA_AUDIO:
+        {
+            auto new_audio_clip = new AudioClip(mStart, mEnd, mMediaID, mName, mOverview, timeline);
+            new_clip = new_audio_clip;
+        }
+        break;
+        case MEDIA_PICTURE:
+        {
+            auto new_image_clip = new ImageClip(mStart, mEnd, mMediaID, mName, mOverview, timeline);
+            new_clip = new_image_clip;
+            new_start_offset = 0;
+            adj_end_offset = 0;
+        }
+        break;
+        case MEDIA_TEXT:
+        {
+            auto new_text_clip = new TextClip(mStart, mEnd, mMediaID, mName, mOverview, timeline);
+            new_clip = new_text_clip;
+        }
+        break;
+        default:
+        break;
+    }
+
+    // insert new clip into track and timeline
+    if (new_clip)
+    {
+        
+        new_clip->mStart = new_start;
+        new_clip->mStartOffset = new_start_offset;
+        new_clip->mEnd = mEnd;
+        new_clip->mEndOffset = mEndOffset;
+        mEnd = adj_end;
+        mEndOffset = adj_end_offset;
+        timeline->m_Clips.push_back(new_clip);
+        track->InsertClip(new_clip, pos);
+        timeline->AddClipIntoGroup(new_clip, mGroupID);
+        timeline->Updata();
+    }
 }
 
 int64_t Clip::Moving(int64_t diff, int mouse_track)
@@ -1937,8 +2018,8 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, co
                 {
                     if (!mouse_clicked && io.MouseClicked[0])
                     {
-                        const bool is_ctrl_key_only = (io.KeyMods == ImGuiKeyModFlags_Ctrl);
-                        bool appand = ImGui::IsKeyDown(ImGuiKey_LeftCtrl) && is_ctrl_key_only;
+                        const bool is_shift_key_only = (io.KeyMods == ImGuiKeyModFlags_Shift);
+                        bool appand = (ImGui::IsKeyDown(ImGuiKey_LeftShift) || ImGui::IsKeyDown(ImGuiKey_RightShift)) && is_shift_key_only;
                         track->SelectClip(clip, appand);
                         SelectTrack(index);
                         mouse_clicked = true;
@@ -2193,6 +2274,9 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
     std::vector<int64_t> unGroupClipEntry;
     bool removeEmptyTrack = false;
     static bool menuIsOpened = false;
+    static bool bCutting = false;
+    const bool is_alt_key_only = (io.KeyMods == ImGuiKeyModFlags_Alt);
+    bCutting = ImGui::IsKeyDown(ImGuiKey_LeftAlt) && is_alt_key_only;
     
     ImDrawList *draw_list = ImGui::GetWindowDrawList();
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
@@ -2494,12 +2578,25 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                                 continue;
                             if (!ImRect(childFramePos, childFramePos + childFrameSize).Contains(io.MousePos))
                                 continue;
+                            if (j == 2 && bCutting && count <= 1)
+                            {
+                                // draw dotted line at mouse pos
+                                ImVec2 P1(cx, canvas_pos.y + (float)HeadHeight + 8.f);
+                                ImVec2 P2(cx, canvas_pos.y + (float)HeadHeight + float(controlHeight) + 8.f);
+                                draw_list->AddLine(P1, P2, IM_COL32(0, 0, 255, 255), 2);
+                                RenderMouseCursor(ICON_CUTTING, ImVec2(7, 0), 1.0, -90);
+                            }
                             if (ImGui::IsMouseClicked(0) && !MovingScrollBar && !MovingCurrentTime && !menuIsOpened)
                             {
-                                // TODO::Dicky need check selected status
-                                // check current mouse pos is have selected clip
-                                clipMovingEntry = clip->mID;
-                                clipMovingPart = j + 1;
+                                if (j == 2 && bCutting && count <= 1)
+                                {
+                                    clip->Cutting(mouseTime);
+                                }
+                                else
+                                {
+                                    clipMovingEntry = clip->mID;
+                                    clipMovingPart = j + 1;
+                                }
                                 break;
                             }
                         }
@@ -2840,7 +2937,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         // draw custom
         draw_list->PushClipRect(childFramePos, childFramePos + childFrameSize);
         for (auto &customDraw : customDraws)
-            timeline->CustomDraw(customDraw.index, draw_list, customDraw.customRect, customDraw.titleRect, customDraw.clippingTitleRect, customDraw.legendRect, customDraw.clippingRect, customDraw.legendClippingRect, timeline->firstTime, timeline->visibleTime, timeline->msPixelWidthTarget, true, !menuIsOpened);
+            timeline->CustomDraw(customDraw.index, draw_list, customDraw.customRect, customDraw.titleRect, customDraw.clippingTitleRect, customDraw.legendRect, customDraw.clippingRect, customDraw.legendClippingRect, timeline->firstTime, timeline->visibleTime, timeline->msPixelWidthTarget, true, !menuIsOpened && !bCutting);
         draw_list->PopClipRect();
 
         // cursor line

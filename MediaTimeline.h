@@ -206,6 +206,7 @@ struct Clip
 
     int64_t Moving(int64_t diff, int mouse_track);
     int64_t Cropping(int64_t diff, int type);
+    void Cutting(int64_t pos);
     bool isLinkedWith(Clip * clip);
     
     virtual void UpdateSnapshot() = 0;
