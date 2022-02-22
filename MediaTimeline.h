@@ -181,6 +181,24 @@ struct Snapshot
     bool        available{false};
 };
 
+struct Overlap
+{
+    int64_t mID                     {-1};       // overlap ID
+    int64_t mStart                  {0};        // overlap start time at timeline
+    int64_t mEnd                    {0};        // overlap end time at timeline
+    bool bEditting                  {false};    // overlap is editting
+    std::pair<int64_t, int64_t>     m_Clip;     // overlaped clip's pair
+    imgui_json::value mFusionBP;                // overlap transion blueprint
+    void * mHandle                  {nullptr};  // overlap belong to timeline 
+    Overlap(int64_t start, int64_t end, int64_t clip_first, int64_t clip_second, void* handle);
+    ~Overlap();
+
+    bool IsOverlapValid();
+    void Update(int64_t start, int64_t start_clip_id, int64_t end, int64_t end_clip_id);
+    static Overlap * Load(const imgui_json::value& value, void * handle);
+    void Save(imgui_json::value& value);
+};
+
 struct Clip
 {
     int64_t mID                 {-1};               // clip ID
@@ -200,6 +218,7 @@ struct Clip
     void * mHandle              {nullptr};          // clip belong to timeline 
     MediaOverview * mOverview   {nullptr};          // clip media overview
     MediaReader* mMediaReader   {nullptr};          // clip media reader
+    
     imgui_json::value mFilterBP;
 
     Clip(int64_t start, int64_t end, int64_t id, MediaOverview * overview, void * handle);
@@ -293,6 +312,7 @@ struct MediaTrack
     MEDIA_TYPE mType        {MEDIA_UNKNOWN};    // track type
     std::string mName;                          // track name
     std::vector<Clip *> m_Clips;                // track clips
+    std::vector<Overlap *> m_Overlaps;          // track overlaps' ID
     void * m_Handle         {nullptr};          // user handle
 
     int mTrackHeight {DEFAULT_TRACK_HEIGHT};    // track custom view height
@@ -310,11 +330,14 @@ struct MediaTrack
     void PushBackClip(Clip * clip);
     void SelectClip(Clip * clip, bool appand);
     void EdittingClip(Clip * clip);
+    void EdittingOverlap(Overlap * overlap);
     void DeleteClip(int64_t id);
     static inline bool CompareClip(Clip* a, Clip* b) { return a->mStart < b->mStart; }
     Clip * FindPrevClip(int64_t id);                // find prev clip in track, if not found then return null
     Clip * FindNextClip(int64_t id);                // find next clip in track, if not found then return null
-    Clip * FindClips(int64_t time, int& count);     // find clips at time, count means clip number at time 
+    Clip * FindClips(int64_t time, int& count);     // find clips at time, count means clip number at time
+    void CreateOverlap(int64_t start, int64_t start_clip_id, int64_t end, int64_t end_clip_id);
+    Overlap * FindExistOverlap(int64_t start_clip_id, int64_t end_clip_id);
     void Update();                                  // update track clip include clip order and overlap area
     static MediaTrack* Load(const imgui_json::value& value, void * handle);
     void Save(imgui_json::value& value);
@@ -349,6 +372,7 @@ struct TimeLine
     std::vector<MediaTrack *> m_Tracks;     // timeline tracks
     std::vector<Clip *> m_Clips;            // timeline clips
     std::vector<ClipGroup> m_Groups;        // timeline clip groups
+    std::vector<Overlap *> m_Overlaps;      // timeline clip overlap
     int64_t mStart   {0};                   // whole timeline start in ms
     int64_t mEnd     {0};                   // whole timeline end in ms
 
@@ -409,9 +433,13 @@ struct TimeLine
     void DeleteTrack(int index);
     void SelectTrack(int index);
     void MovingTrack(int& index, int& dst_index);
+
     void MovingClip(int64_t id, int from_track_index, int to_track_index);
     void DeleteClip(int64_t id);
-    void DoubleClick(int index, int64_t time) { m_Tracks[index]->mExpanded = !m_Tracks[index]->mExpanded; }
+
+    void DeleteOverlap(int64_t id);
+
+    void DoubleClick(int index, int64_t time);
     void Click(int index, int64_t time);
 
     void CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &titleRect, const ImRect &clippingTitleRect, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRect, int64_t viewStartTime, int64_t visibleTime, float pixelWidth, bool need_update, bool enable_select);
@@ -432,7 +460,8 @@ struct TimeLine
     MediaTrack * FindTrackByID(int64_t id);             // Find track by ID
     MediaTrack * FindTrackByClipID(int64_t id);         // Find track by clip ID
     int FindTrackIndexByClipID(int64_t id);             // Find track by clip ID
-    Clip * FindClipByID(int64_t id);                    // Find clip info with clip ID
+    Clip * FindClipByID(int64_t id);                    // Find clip with clip ID
+    Overlap * FindOverlapByID(int64_t id);              // Find overlap with overlap ID
     int GetSelectedClipCount();                         // Get current selected clip count
     int64_t NextClipStart(Clip * clip);                 // Get next clip start pos by clip, if don't have next clip, then return -1
     int64_t NextClipStart(int64_t pos);                 // Get next clip start pos by time, if don't have next clip, then return -1
