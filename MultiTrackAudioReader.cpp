@@ -423,7 +423,7 @@ private:
 
     void MixingThreadProc()
     {
-        m_logger->Log(DEBUG) << "Enter MixingThreadProc()..." << endl;
+        m_logger->Log(DEBUG) << "Enter MixingThreadProc(AUDIO)..." << endl;
 
         SelfFreeAVFramePtr outfrm = AllocSelfFreeAVFramePtr();
         while (!m_quit)
@@ -505,7 +505,7 @@ private:
                 this_thread::sleep_for(chrono::milliseconds(5));
         }
 
-        m_logger->Log(DEBUG) << "Leave MixingThreadProc()." << endl;
+        m_logger->Log(DEBUG) << "Leave MixingThreadProc(AUDIO)." << endl;
     }
 
 private:

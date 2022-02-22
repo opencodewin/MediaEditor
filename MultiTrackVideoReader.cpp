@@ -184,7 +184,25 @@ public:
             if (!SeekTo(pos))
                 return false;
         }
+        while (targetFrmidx-m_readFrames >= m_outputMats.size() && !m_quit)
+            this_thread::sleep_for(chrono::milliseconds(5));
+        if (m_quit)
+        {
+            m_errMsg = "This 'MultiTrackVideoReader' instance is quit.";
+            return false;
+        }
 
+        lock_guard<mutex> lk2(m_outputMatsLock);
+        uint32_t popCnt = targetFrmidx-m_readFrames;
+        while (popCnt-- > 0)
+        {
+            m_outputMats.pop_front();
+            m_readFrames++;
+        }
+        vmat = m_outputMats.front();
+        if (pos < vmat.time_stamp || pos > vmat.time_stamp+(double)m_frameRate.den/m_frameRate.num)
+            m_logger->Log(Error) << "WRONG image time stamp!! Required 'pos' is " << pos
+                << ", output vmat time stamp is " << vmat.time_stamp << "." << endl;
         return true;
     }
 
@@ -208,6 +226,7 @@ public:
         lock_guard<mutex> lk2(m_outputMatsLock);
         vmat = m_outputMats.front();
         m_outputMats.pop_front();
+        m_readFrames++;
         return true;
     }
 
@@ -278,7 +297,40 @@ private:
 
     void MixingThreadProc()
     {
+        m_logger->Log(DEBUG) << "Enter MixingThreadProc(VIDEO)..." << endl;
 
+        while (!m_quit)
+        {
+            bool idleLoop = true;
+
+            if (m_outputMats.size() < m_outputMatsMaxCount)
+            {
+                ImGui::ImMat mixedFrame;
+                auto iter = m_tracks.begin();
+                while (iter != m_tracks.end())
+                {
+                    ImGui::ImMat vmat;
+                    (*iter)->ReadVideoFrame(vmat);
+                    if (!vmat.empty() && mixedFrame.empty())
+                        mixedFrame = vmat;
+                    iter++;
+                }
+                if (mixedFrame.empty())
+                {
+                    mixedFrame.create_type(m_outWidth, m_outHeight, 4, IM_DT_INT8);
+                    memset(mixedFrame.data, 0, mixedFrame.total()*mixedFrame.elemsize);
+                }
+
+                lock_guard<mutex> lk(m_outputMatsLock);
+                m_outputMats.push_back(mixedFrame);
+                idleLoop = false;
+            }
+
+            if (idleLoop)
+                this_thread::sleep_for(chrono::milliseconds(5));
+        }
+
+        m_logger->Log(DEBUG) << "Leave MixingThreadProc(VIDEO)." << endl;
     }
 
 private:
