@@ -1,4 +1,5 @@
 #pragma once
+#include <string>
 #include <list>
 #include "immat.h"
 #include "AudioTrack.h"

@@ -1,16 +1,17 @@
 #pragma once
 #include <memory>
 #include <atomic>
+#include "immat.h"
 #include "MediaReader.h"
 
-class AudioClip
+class VideoClip
 {
 public:
-    AudioClip(MediaParserHolder hParser, uint32_t outChannels, uint32_t outSampleRate, double timeLineOffset, double startOffset, double endOffset);
-    AudioClip(const AudioClip&) = delete;
-    AudioClip(AudioClip&&) = delete;
-    AudioClip& operator=(const AudioClip&) = delete;
-    ~AudioClip();
+    VideoClip(MediaParserHolder hParser, uint32_t outWidth, uint32_t outHeight, const MediaInfo::Ratio& frameRate, double timeLineOffset, double startOffset, double endOffset);
+    VideoClip(const VideoClip&) = delete;
+    VideoClip(VideoClip&&) = delete;
+    VideoClip& operator=(const VideoClip&) = delete;
+    ~VideoClip();
 
     uint32_t Id() const { return m_id; }
     MediaParserHolder GetMediaParser() const { return m_srcReader->GetMediaParser(); }
@@ -26,7 +27,7 @@ public:
     void ChangeEndOffset(double endOffset);
 
     void SeekTo(double pos);
-    void ReadAudioSamples(uint8_t* buf, uint32_t& size, bool& eof);
+    void ReadVideoFrame(double pos, ImGui::ImMat& vmat, bool& eof);
 
 private:
     static std::atomic_uint32_t s_idCounter;
@@ -37,9 +38,9 @@ private:
     double m_srcDuration;
     double m_startOffset;
     double m_endOffset;
-    uint32_t m_pcmSizePerSec{0};
-    uint32_t m_pcmFrameSize{0};
     bool m_eof{false};
+    MediaInfo::Ratio m_frameRate;
+    uint32_t m_frameIndex{0};
 };
 
-using AudioClipHolder = std::shared_ptr<AudioClip>;
+using VideoClipHolder = std::shared_ptr<VideoClip>;

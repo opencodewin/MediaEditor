@@ -158,13 +158,12 @@ public:
             track->SeekTo(pos);
 
         StartMixingThread();
-
         return true;
     }
 
     bool SetDirection(bool forward) override
     {
-        return true;
+        return false;
     }
 
     bool SeekTo(double pos) override
@@ -546,6 +545,7 @@ ALogger* GetMultiTrackAudioReaderLogger()
         MultiTrackAudioReader_Impl::s_logger = GetLogger("MTAReader");
     return MultiTrackAudioReader_Impl::s_logger;
 }
+
 MultiTrackAudioReader* CreateMultiTrackAudioReader()
 {
     return new MultiTrackAudioReader_Impl();

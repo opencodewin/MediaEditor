@@ -305,6 +305,30 @@ target_include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
+# MultiTrackVideoReader Test
+add_executable(
+    multi_track_video_reader_test
+    test/MultiTrackVideoReaderTest.cpp
+    MultiTrackVideoReader.cpp
+    VideoTrack.cpp
+    VideoClip.cpp
+    MediaReader.cpp
+    MediaParser.cpp
+    FFUtils.cpp
+    Logger.cpp
+    ${IMGUI_APP_ENTRY_SRC}
+)
+target_link_libraries(
+    multi_track_video_reader_test
+    ${IMGUI_LIBRARYS}
+    PkgConfig::FFMPEG
+)
+target_include_directories(
+    multi_track_video_reader_test PRIVATE
+    ${IMGUI_INCLUDE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
 # MediaEncoder Test
 add_executable(
     media_encoder_test
