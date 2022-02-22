@@ -1,4 +1,5 @@
 #pragma once
+#include <string>
 #include <list>
 #include "immat.h"
 #include "AudioTrack.h"
@@ -10,6 +11,7 @@ struct MultiTrackAudioReader
     virtual bool Start() = 0;
     virtual void Close() = 0;
     virtual bool AddTrack() = 0;
+    virtual bool RemoveTrack(uint32_t index) = 0;
     virtual bool SetDirection(bool forward) = 0;
     virtual bool SeekTo(double pos) = 0;
     virtual bool ReadAudioSamples(ImGui::ImMat& amat) = 0;

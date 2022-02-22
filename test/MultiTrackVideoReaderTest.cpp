@@ -13,8 +13,7 @@
 #include <vector>
 #include <cmath>
 #include <chrono>
-#include "MultiTrackAudioReader.h"
-#include "AudioRender.hpp"
+#include "MultiTrackVideoReader.h"
 #include "FFUtils.h"
 #include "Logger.h"
 
@@ -22,69 +21,16 @@ using namespace std;
 using namespace Logger;
 using Clock = chrono::steady_clock;
 
-static MultiTrackAudioReader* g_mtAudReader = nullptr;
-const int c_audioRenderChannels = 2;
-const int c_audioRenderSampleRate = 44100;
-const AudioRender::PcmFormat c_audioRenderFormat = AudioRender::PcmFormat::FLOAT32;
-static AudioRender* g_audrnd = nullptr;
-static double g_audPos = 0;
+static MultiTrackVideoReader* g_mtVidReader = nullptr;
+const int c_videoOutputWidth = 960;
+const int c_videoOutputHeight = 540;
+const MediaInfo::Ratio c_videoFrameRate = { 25, 1 };
 static bool g_isPlay = false;
+static double g_playPos = 0;
 static bool g_playForward = true;
 
 const string c_imguiIniPath = "ms_test.ini";
 const string c_bookmarkPath = "bookmark.ini";
-
-class SimplePcmStream : public AudioRender::ByteStream
-{
-public:
-    SimplePcmStream(MultiTrackAudioReader* audrdr) : m_audrdr(audrdr) {}
-
-    uint32_t Read(uint8_t* buff, uint32_t buffSize, bool blocking) override
-    {
-        if (!m_audrdr)
-            return 0;
-        lock_guard<mutex> lk(m_amatLock);
-        uint32_t readSize = 0;
-        while (readSize < buffSize)
-        {
-            uint32_t amatTotalDataSize = m_amat.total()*m_amat.elemsize;
-            if (m_readPosInAmat < amatTotalDataSize)
-            {
-                uint32_t copySize = buffSize-readSize;
-                if (copySize > amatTotalDataSize)
-                    copySize = amatTotalDataSize;
-                memcpy(buff+readSize, (uint8_t*)m_amat.data+m_readPosInAmat, copySize);
-                readSize += copySize;
-                m_readPosInAmat += copySize;
-            }
-            if (m_readPosInAmat >= amatTotalDataSize)
-            {
-                ImGui::ImMat amat;
-                if (!m_audrdr->ReadAudioSamples(amat))
-                    return 0;
-                g_audPos = amat.time_stamp;
-                m_amat = amat;
-                m_readPosInAmat = 0;
-            }
-        }
-        return buffSize;
-    }
-
-    void Flush() override
-    {
-        lock_guard<mutex> lk(m_amatLock);
-        m_amat.release();
-        m_readPosInAmat = 0;
-    }
-
-private:
-    MultiTrackAudioReader* m_audrdr;
-    ImGui::ImMat m_amat;
-    uint32_t m_readPosInAmat{0};
-    std::mutex m_amatLock;
-};
-static SimplePcmStream* g_pcmStream = nullptr;
-
 
 // Application Framework Functions
 void Application_GetWindowProperties(ApplicationWindowProperty& property)
@@ -106,7 +52,7 @@ void Application_Initialize(void** handle)
 {
     GetDefaultLogger()
         ->SetShowLevels(DEBUG);
-    GetMultiTrackAudioReaderLogger()
+    GetMultiTrackVideoReaderLogger()
         ->SetShowLevels(DEBUG);
 
 #ifdef USE_BOOKMARK
@@ -124,28 +70,14 @@ void Application_Initialize(void** handle)
     ImGuiIO& io = ImGui::GetIO();
     io.IniFilename = c_imguiIniPath.c_str();
 
-    g_mtAudReader = CreateMultiTrackAudioReader();
-    g_mtAudReader->Configure(c_audioRenderChannels, c_audioRenderSampleRate);
-    g_mtAudReader->Start();
-
-    g_pcmStream = new SimplePcmStream(g_mtAudReader);
-    g_audrnd = CreateAudioRender();
-    g_audrnd->OpenDevice(c_audioRenderSampleRate, c_audioRenderChannels, c_audioRenderFormat, g_pcmStream);
+    g_mtVidReader = CreateMultiTrackVideoReader();
+    g_mtVidReader->Configure(c_videoOutputWidth, c_videoOutputHeight, c_videoFrameRate);
+    g_mtVidReader->Start();
 }
 
 void Application_Finalize(void** handle)
 {
-    if (g_audrnd)
-    {
-        g_audrnd->CloseDevice();
-        ReleaseAudioRender(&g_audrnd);
-    }
-    if (g_pcmStream)
-    {
-        delete g_pcmStream;
-        g_pcmStream = nullptr;
-    }
-    ReleaseMultiTrackAudioReader(&g_mtAudReader);
+    ReleaseMultiTrackVideoReader(&g_mtVidReader);
 
 #ifdef USE_BOOKMARK
 	// save bookmarks
@@ -187,7 +119,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
         ImGui::SameLine(0, 20);
 
         vector<string> trackNames;
-        for (uint32_t i = 0; i < g_mtAudReader->TrackCount(); i++)
+        for (uint32_t i = 0; i < g_mtVidReader->TrackCount(); i++)
         {
             ostringstream oss;
             oss << "track#" << i+1;
@@ -256,9 +188,8 @@ bool Application_Frame(void * handle, bool app_will_quit)
             ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true);
         if (ImGui::Button("Remove Track"))
         {
-            g_mtAudReader->RemoveTrack(s_remTrackOptSelId);
+            g_mtVidReader->RemoveTrack(s_remTrackOptSelId);
             s_remTrackOptSelId = 0;
-            g_audrnd->Flush();
         }
         if (noTrack)
             ImGui::PopItemFlag();
@@ -285,7 +216,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
         vector<string> clipNames;
         if (!noTrack)
         {
-            AudioTrackHolder hTrack = g_mtAudReader->GetTrack(s_movClipTrackSelId);
+            VideoTrackHolder hTrack = g_mtVidReader->GetTrack(s_movClipTrackSelId);
             auto clipIter = hTrack->ClipListBegin();
             while (clipIter != hTrack->ClipListEnd())
             {
@@ -306,7 +237,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
             s_movClipSelId = clipSelOpts.size()-1;
         if (ImGui::BeginCombo("##MovClipSelClipOptions", clipSelOpts[s_movClipSelId].c_str()))
         {
-            AudioTrackHolder hTrack = g_mtAudReader->GetTrack(s_movClipTrackSelId);
+            VideoTrackHolder hTrack = g_mtVidReader->GetTrack(s_movClipTrackSelId);
             auto clipIter = hTrack->ClipListBegin();
             for (uint32_t i = 0; i < clipSelOpts.size(); i++)
             {
@@ -328,10 +259,9 @@ bool Application_Frame(void * handle, bool app_will_quit)
             ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true);
         if (ImGui::Button("Remove Clip"))
         {
-            AudioTrackHolder hTrack = g_mtAudReader->GetTrack(s_movClipTrackSelId);
+            VideoTrackHolder hTrack = g_mtVidReader->GetTrack(s_movClipTrackSelId);
             hTrack->RemoveClipByIndex(s_movClipSelId);
             s_movClipSelId = 0;
-            g_audrnd->Flush();
         }
         if (noClip)
             ImGui::PopItemFlag();
@@ -357,19 +287,18 @@ bool Application_Frame(void * handle, bool app_will_quit)
             ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true);
         if (ImGui::Button("Change Clip"))
         {
-            AudioTrackHolder hTrack = g_mtAudReader->GetTrack(s_movClipTrackSelId);
-            AudioClipHolder hClip = hTrack->GetClipByIndex(s_movClipSelId);
+            VideoTrackHolder hTrack = g_mtVidReader->GetTrack(s_movClipTrackSelId);
+            VideoClipHolder hClip = hTrack->GetClipByIndex(s_movClipSelId);
             hTrack->ChangeClip(hClip->Id(), s_changeClipTimeLineOffset, s_changeClipStartOffset, s_changeClipEndOffset);
-            g_audrnd->Flush();
         }
         if (noClip)
             ImGui::PopItemFlag();
 
         ImGui::Spacing();
 
-        ImGui::TextUnformatted("Audio Tracks:");
+        ImGui::TextUnformatted("Video Tracks:");
         uint32_t audTrackIdx = 1;
-        for (auto track = g_mtAudReader->TrackListBegin(); track != g_mtAudReader->TrackListEnd(); track++)
+        for (auto track = g_mtVidReader->TrackListBegin(); track != g_mtVidReader->TrackListEnd(); track++)
         {
             ostringstream oss;
             oss << "Track#" << audTrackIdx++ << ": [";
@@ -393,10 +322,6 @@ bool Application_Frame(void * handle, bool app_will_quit)
         if (ImGui::Button(playBtnLabel.c_str()))
         {
             g_isPlay = !g_isPlay;
-            if (g_isPlay)
-                g_audrnd->Resume();
-            else
-                g_audrnd->Pause();
         }
 
         ImGui::SameLine();
@@ -405,14 +330,14 @@ bool Application_Frame(void * handle, bool app_will_quit)
         if (ImGui::Button(dirBtnLabel.c_str()))
         {
             bool notForward = !g_playForward;
-            g_mtAudReader->SetDirection(notForward);
+            g_mtVidReader->SetDirection(notForward);
             g_playForward = notForward;
         }
 
         ImGui::Spacing();
 
         ostringstream oss;
-        oss << "Audio pos: " << TimestampToString(g_audPos);
+        oss << "Video pos: " << TimestampToString(g_playPos);
         string audTag = oss.str();
         ImGui::TextUnformatted(audTag.c_str());
 
@@ -428,20 +353,19 @@ bool Application_Frame(void * handle, bool app_will_quit)
         if (ImGuiFileDialog::Instance()->IsOk())
 		{
             string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
-            if (s_addClipOptSelId == g_mtAudReader->TrackCount())
+            if (s_addClipOptSelId == g_mtVidReader->TrackCount())
             {
-                if (!g_mtAudReader->AddTrack())
+                if (!g_mtVidReader->AddTrack())
                 {
-                    Log(Error) << "FAILED to 'AddTrack'! Message is '" << g_mtAudReader->GetError() << "'." << endl;
+                    Log(Error) << "FAILED to 'AddTrack'! Message is '" << g_mtVidReader->GetError() << "'." << endl;
                 }
             }
-            AudioTrackHolder hTrack = g_mtAudReader->GetTrack(s_addClipOptSelId);
+            VideoTrackHolder hTrack = g_mtVidReader->GetTrack(s_addClipOptSelId);
             hTrack->AddNewClip(filePathName, s_addClipTimeLineOffset, s_addClipStartOffset, s_addClipEndOffset);
-            s_addClipOptSelId = g_mtAudReader->TrackCount();
+            s_addClipOptSelId = g_mtVidReader->TrackCount();
             s_addClipTimeLineOffset = 0;
             s_addClipStartOffset = 0;
             s_addClipEndOffset = 0;
-            g_audrnd->Flush();
         }
         ImGuiFileDialog::Instance()->Close();
     }

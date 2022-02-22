@@ -490,9 +490,18 @@ static int LoadProject(std::string path)
         for (auto& media : *mediaBankArray)
         {
             MediaItem * item = nullptr;
+            int64_t id = -1;
             std::string name;
             std::string path;
             MEDIA_TYPE type = MEDIA_UNKNOWN;
+            if (media.contains("id"))
+            {
+                auto& val = media["id"];
+                if (val.is_number())
+                {
+                    id = val.get<imgui_json::number>();
+                }
+            }
             if (media.contains("name"))
             {
                 auto& val = media["name"];
@@ -517,7 +526,9 @@ static int LoadProject(std::string path)
                     type = (MEDIA_TYPE)val.get<imgui_json::number>();
                 }
             }
+            
             item = new MediaItem(name, path, type);
+            if (id != -1) item->mID = id;
             timeline->media_items.push_back(item);
         }
     }
@@ -571,6 +582,7 @@ static void SaveProject(std::string path)
     for (auto media : timeline->media_items)
     {
         imgui_json::value item;
+        item["id"] = imgui_json::number(media->mID);
         item["name"] = media->mName;
         item["path"] = media->mPath;
         item["type"] = imgui_json::number(media->mMediaType);
@@ -752,7 +764,9 @@ static void ShowMediaBankWindow(ImDrawList *draw_list, float media_icon_size)
                 default: break;
             }
             type_string += TimestampToString(media_length);
+            ImGui::SetWindowFontScale(0.7);
             ImGui::TextUnformatted(type_string.c_str());
+            ImGui::SetWindowFontScale(1.0);
             ImGui::ShowTooltipOnHover("%s", (*item)->mPath.c_str());
             ImGui::SetCursorScreenPos(icon_pos + ImVec2(0, media_icon_size - 20));
 
@@ -806,9 +820,11 @@ static void ShowMediaBankWindow(ImDrawList *draw_list, float media_icon_size)
             ImGui::PopStyleColor(3);
         }
 
-        ImGui::SetCursorScreenPos(icon_pos + ImVec2(media_icon_size - 24, 0));
-        ImGui::Button((std::string(ICON_TRASH "##delete_media") + (*item)->mPath).c_str(), ImVec2(24, 24));
-        ImRect button_rect(icon_pos + ImVec2(media_icon_size - 24, 0), icon_pos + ImVec2(media_icon_size - 24, 0) + ImVec2(24, 24));
+        ImGui::SetCursorScreenPos(icon_pos + ImVec2(media_icon_size - 16, 0));
+        ImGui::SetWindowFontScale(0.8);
+        ImGui::Button((std::string(ICON_TRASH "##delete_media") + (*item)->mPath).c_str(), ImVec2(16, 16));
+        ImGui::SetWindowFontScale(1.0);
+        ImRect button_rect(icon_pos + ImVec2(media_icon_size - 16, 0), icon_pos + ImVec2(media_icon_size - 16, 0) + ImVec2(16, 16));
         bool overButton = button_rect.Contains(io.MousePos);
         if (overButton && io.MouseClicked[0])
         {
@@ -1786,7 +1802,7 @@ void Application_Finalize(void** handle)
 bool Application_Frame(void * handle, bool app_will_quit)
 {
     static bool app_done = false;
-    const float media_icon_size = 144; 
+    const float media_icon_size = 96; 
     const float tool_icon_size = 32;
     static bool show_about = false;
     static bool show_configure = false;
@@ -2097,8 +2113,18 @@ bool Application_Frame(void * handle, bool app_will_quit)
                 }
                 if (timeline)
                 {
-                    MediaItem * item = new MediaItem(file_name, file_path, type);
-                    timeline->media_items.push_back(item);
+                    // check media is already in bank
+                    auto iter = std::find_if(timeline->media_items.begin(), timeline->media_items.end(), [file_name, file_path, type](const MediaItem* item)
+                    {
+                        return  file_name.compare(item->mName) == 0 &&
+                                file_path.compare(item->mPath) == 0 &&
+                                type == item->mMediaType;
+                    });
+                    if (iter == timeline->media_items.end())
+                    {
+                        MediaItem * item = new MediaItem(file_name, file_path, type);
+                        timeline->media_items.push_back(item);
+                    }
                 }
             }
             if (userDatas.compare("ProjectOpen") == 0)

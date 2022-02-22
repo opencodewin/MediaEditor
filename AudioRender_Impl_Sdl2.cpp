@@ -119,6 +119,8 @@ void AudioRender_Impl_Sdl2::Flush()
 {
     if (m_audDevId > 0)
         SDL_ClearQueuedAudio(m_audDevId);
+    if (m_pcmStream)
+        m_pcmStream->Flush();
 }
 
 string AudioRender_Impl_Sdl2::GetError() const

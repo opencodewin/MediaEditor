@@ -51,7 +51,8 @@
 #define ICON_CLONE          u8"\uf2d2"
 #define ICON_ADD            u8"\uf067"
 #define ICON_ALIGN_START    u8"\ue419"
-#define ICON_CUT            u8"\ue00d"
+#define ICON_CROPPING_LEFT  u8"\ue00d"
+#define ICON_CROPPING_RIGHT u8"\ue010"
 #define ICON_REMOVE_CUT     u8"\ue011"
 #define ICON_CUTTING        u8"\uf0c4"
 #define ICON_MOVING         u8"\ue41f"
@@ -130,8 +131,15 @@
 
 #define HALF_COLOR(c)       (c & 0xFFFFFF) | 0x40000000;
 #define TIMELINE_OVER_LENGTH    5000        // add 5 seconds end of timeline
+
 namespace MediaTimeline
 {
+#define DEFAULT_TRACK_HEIGHT        0
+#define DEFAULT_VIDEO_TRACK_HEIGHT  60
+#define DEFAULT_AUDIO_TRACK_HEIGHT  30
+#define DEFAULT_IMAGE_TRACK_HEIGHT  40
+#define DEFAULT_TEXT_TRACK_HEIGHT   20
+
 enum MEDIA_TYPE : int
 {
     MEDIA_UNKNOWN = -1,
@@ -144,6 +152,7 @@ enum MEDIA_TYPE : int
 
 struct MediaItem
 {
+    int64_t mID;                            // media ID
     std::string mName;
     std::string mPath;
     int64_t mStart   {0};                   // whole Media start in ms
@@ -175,6 +184,8 @@ struct Snapshot
 struct Clip
 {
     int64_t mID                 {-1};               // clip ID
+    int64_t mMediaID            {-1};               // clip media ID in media bank
+    int64_t mGroupID            {-1};               // Group ID clip belong
     MEDIA_TYPE mType            {MEDIA_UNKNOWN};    // clip type
     std::string mName;                              // clip name ?
     std::string mPath;                              // clip media path
@@ -185,17 +196,17 @@ struct Clip
     bool bSeeking               {false};
     bool bSelected              {false};
     std::mutex mLock;                               // clip mutex
-    std::vector<int64_t>        mLinkedClips;       // linked clips
-    void * mHandle              {nullptr};
+    void * mHandle              {nullptr};          // clip belong to timeline 
+    MediaOverview * mOverview   {nullptr};          // clip media overview
     MediaReader* mMediaReader   {nullptr};          // clip media reader
     imgui_json::value mFilterBP;
 
-    Clip(int64_t start, int64_t end);
+    Clip(int64_t start, int64_t end, int64_t id, MediaOverview * overview, void * handle);
     virtual ~Clip();
 
-    int64_t Moving(int64_t diff, void * handle);
-    int64_t Cropping(int64_t diff, int type, void * handle);
-    bool isLinkedWith(Clip * clip, void * handle);
+    int64_t Moving(int64_t diff);
+    int64_t Cropping(int64_t diff, int type);
+    bool isLinkedWith(Clip * clip);
     
     virtual void UpdateSnapshot() = 0;
     virtual void Seek() = 0;
@@ -215,7 +226,7 @@ struct VideoClip : Clip
     //ImTextureID mFilterOutputTexture {nullptr};  // clip filter output texture
     MediaInfo::Ratio mClipFrameRate {25, 1};// clip Frame rate
 
-    VideoClip(int64_t start, int64_t end, std::string name, void* handle);
+    VideoClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle);
     ~VideoClip();
 
     void UpdateSnapshot();
@@ -233,7 +244,7 @@ struct AudioClip : Clip
     AudioRender::PcmFormat mAudioFormat {AudioRender::PcmFormat::FLOAT32}; // clip audio type
     MediaOverview::WaveformHolder mWaveform {nullptr};  // clip audio snapshot
 
-    AudioClip(int64_t start, int64_t end, std::string name, void* handle);
+    AudioClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle);
     ~AudioClip();
 
     void UpdateSnapshot();
@@ -250,7 +261,7 @@ struct ImageClip : Clip
     int mHeight  {0};
     int mColorFormat    {0};
 
-    ImageClip(int64_t start, int64_t end, std::string name, void* handle);
+    ImageClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle);
     ~ImageClip();
 
     void UpdateSnapshot();
@@ -263,7 +274,7 @@ struct ImageClip : Clip
 
 struct TextClip : Clip
 {
-    TextClip(int64_t start, int64_t end, std::string name, void* handle);
+    TextClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle);
     ~TextClip();
 
     void UpdateSnapshot();
@@ -274,7 +285,6 @@ struct TextClip : Clip
     void Save(imgui_json::value& value);
 };
 
-
 struct MediaTrack
 {
     int64_t mID             {-1};               // track ID
@@ -283,7 +293,7 @@ struct MediaTrack
     std::vector<Clip *> m_Clips;                // track clips
     void * m_Handle         {nullptr};          // user handle
 
-    int mTrackHeight {60};                      // track custom view height
+    int mTrackHeight {DEFAULT_TRACK_HEIGHT};    // track custom view height
     int64_t mLinkedTrack    {-1};               // relative track ID
     bool mExpanded  {false};                    // track is compact view or not
     bool mView      {true};                     // track is viewable or not
@@ -297,10 +307,12 @@ struct MediaTrack
     void InsertClip(Clip * clip, int64_t pos = 0);
     void PushBackClip(Clip * clip);
     void SelectClip(Clip * clip, bool appand);
+    void DeleteClip(int64_t id);
     static inline bool CompareClip(Clip* a, Clip* b) { return a->mStart < b->mStart; }
-    Clip * FindPrevClip(int64_t id);            // find prev clip in track, if not found then return null
-    Clip * FindNextClip(int64_t id);            // find next clip in track, if not found then return null
-
+    Clip * FindPrevClip(int64_t id);                // find prev clip in track, if not found then return null
+    Clip * FindNextClip(int64_t id);                // find next clip in track, if not found then return null
+    Clip * FindClips(int64_t time, int& count);     // find clips at time, count means clip number at time 
+    void Update();                                  // update track clip include clip order and overlap area
     static MediaTrack* Load(const imgui_json::value& value, void * handle);
     void Save(imgui_json::value& value);
 };
@@ -316,13 +328,24 @@ struct TimelineCustomDraw
     ImRect legendClippingRect;
 };
 
+struct ClipGroup
+{
+    int64_t mID;
+    std::vector<int64_t> m_Grouped_Clips;
+    ClipGroup() { mID = ImGui::get_current_time_usec(); }
+    void Load(const imgui_json::value& value);
+    void Save(imgui_json::value& value);
+};
+
 struct TimeLine
 {
     TimeLine();
     ~TimeLine();
 
+    std::vector<MediaItem *> media_items;   // Media Bank
     std::vector<MediaTrack *> m_Tracks;     // timeline tracks
     std::vector<Clip *> m_Clips;            // timeline clips
+    std::vector<ClipGroup> m_Groups;        // timeline clip groups
     int64_t mStart   {0};                   // whole timeline start in ms
     int64_t mEnd     {0};                   // whole timeline end in ms
 
@@ -333,6 +356,7 @@ struct TimeLine
     int mAudioChannels {2};                 // timeline audio channels
     int mAudioSampleRate {44100};           // timeline audio sample rate
     AudioRender::PcmFormat mAudioFormat {AudioRender::PcmFormat::FLOAT32}; // timeline audio format
+    
     std::vector<int> mAudioLevel;           // timeline audio levels
 
     int64_t currentTime = 0;
@@ -346,8 +370,9 @@ struct TimeLine
 
     bool bForward = true;                   // save in project
     bool bLoop = false;                     // save in project
-    bool bSelectLinked = false;             // save in project
+    bool bSelectLinked = true;              // save in project
     
+    std::mutex mTrackLock;                  // timeline track mutex
     // BP CallBacks
     static int OnBluePrintChange(int type, std::string name, void* handle);
 
@@ -376,14 +401,15 @@ struct TimeLine
     void AlignTime(int64_t& time);
 
     int GetTrackCount() const { return (int)m_Tracks.size(); }
-    int GetTrackCount(MEDIA_TYPE type) const;
+    int GetTrackCount(MEDIA_TYPE type);
     void DeleteTrack(int index);
     void SelectTrack(int index);
+    void MovingTrack(int& index, int& dst_index);
     void DeleteClip(int64_t id);
-    void DoubleClick(int index) { m_Tracks[index]->mExpanded = !m_Tracks[index]->mExpanded; }
-    void Click(int index);
+    void DoubleClick(int index, int64_t time) { m_Tracks[index]->mExpanded = !m_Tracks[index]->mExpanded; }
+    void Click(int index, int64_t time);
 
-    void CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &titleRect, const ImRect &clippingTitleRect, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRect, int64_t viewStartTime, int64_t visibleTime, float pixelWidth, bool need_update);
+    void CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &titleRect, const ImRect &clippingTitleRect, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRect, int64_t viewStartTime, int64_t visibleTime, float pixelWidth, bool need_update, bool enable_select);
     
     ImGui::ImMat GetPreviewFrame();
     int GetAudioLevel(int channel);
@@ -396,13 +422,18 @@ struct TimeLine
 
     AudioRender* mAudioRender {nullptr};                // audio render(SDL)
 
-    std::vector<MediaItem *> media_items;               // Media Bank
-    MediaItem* FindMediaItemByName(std::string name);   // Find media from bank
+    MediaItem* FindMediaItemByName(std::string name);   // Find media from bank by name
+    MediaItem* FindMediaItemByID(int64_t id);           // Find media from bank by ID
     MediaTrack * FindTrackByID(int64_t id);             // Find track by ID
     MediaTrack * FindTrackByClipID(int64_t id);         // Find track by clip ID
     Clip * FindClipByID(int64_t id);                    // Find clip info with clip ID
+    int GetSelectedClipCount();                         // Get current selected clip count
     int64_t NextClipStart(Clip * clip);                 // Get next clip start pos by clip, if don't have next clip, then return -1
     int64_t NextClipStart(int64_t pos);                 // Get next clip start pos by time, if don't have next clip, then return -1
+    int64_t NewGroup(Clip * clip);                      // Create a new group with clip ID
+    void AddClipIntoGroup(Clip * clip, int64_t group_id); // Insert clip into group
+    void DeleteClipFromGroup(Clip *clip, int64_t group_id); // Delete clip from group
+    ClipGroup GetGroupByID(int64_t group_id);          // Get Group info by ID
     int Load(const imgui_json::value& value);
     void Save(imgui_json::value& value);
 };

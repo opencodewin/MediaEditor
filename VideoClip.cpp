@@ -1,21 +1,24 @@
-#include "AudioClip.h"
+#include "VideoClip.h"
 
 using namespace std;
 
-atomic_uint32_t AudioClip::s_idCounter{1};
+atomic_uint32_t VideoClip::s_idCounter{1};
 
-AudioClip::AudioClip(MediaParserHolder hParser, uint32_t outChannels, uint32_t outSampleRate, double timeLineOffset, double startOffset, double endOffset)
+VideoClip::VideoClip(MediaParserHolder hParser, uint32_t outWidth, uint32_t outHeight, const MediaInfo::Ratio& frameRate, double timeLineOffset, double startOffset, double endOffset)
     : m_timeLineOffset(timeLineOffset)
 {
     m_hInfo = hParser->GetMediaInfo();
-    if (hParser->GetBestAudioStreamIndex() < 0)
-        throw invalid_argument("Argument 'hParser' has NO AUDIO stream!");
+    if (hParser->GetBestVideoStreamIndex() < 0)
+        throw invalid_argument("Argument 'hParser' has NO VIDEO stream!");
     m_srcReader = CreateMediaReader();
     if (!m_srcReader->Open(hParser))
         throw runtime_error(m_srcReader->GetError());
-    if (!m_srcReader->ConfigAudioReader(outChannels, outSampleRate))
+    if (!m_srcReader->ConfigVideoReader(outWidth, outHeight))
         throw runtime_error(m_srcReader->GetError());
-    m_srcDuration = m_srcReader->GetAudioStream()->duration;
+    if (frameRate.num <= 0 || frameRate.den <= 0)
+        throw invalid_argument("Invalid argument value for 'frameRate'!");
+    m_frameRate = frameRate;
+    m_srcDuration = m_srcReader->GetVideoStream()->duration;
     if (startOffset < 0)
         throw invalid_argument("Argument 'startOffset' can NOT be NEGATIVE!");
     if (endOffset > 0)
@@ -33,19 +36,19 @@ AudioClip::AudioClip(MediaParserHolder hParser, uint32_t outChannels, uint32_t o
     m_id = s_idCounter++;
 }
 
-AudioClip::~AudioClip()
+VideoClip::~VideoClip()
 {
     ReleaseMediaReader(&m_srcReader);
 }
 
-bool AudioClip::IsStartOffsetValid(double startOffset)
+bool VideoClip::IsStartOffsetValid(double startOffset)
 {
     if (startOffset < 0 || startOffset-m_endOffset >= m_srcDuration)
         return false;
     return true;
 }
 
-void AudioClip::ChangeStartOffset(double startOffset)
+void VideoClip::ChangeStartOffset(double startOffset)
 {
     if (startOffset == m_startOffset)
         return;
@@ -56,7 +59,7 @@ void AudioClip::ChangeStartOffset(double startOffset)
     m_startOffset = startOffset;
 }
 
-void AudioClip::ChangeEndOffset(double endOffset)
+void VideoClip::ChangeEndOffset(double endOffset)
 {
     if (endOffset == m_endOffset)
         return;
@@ -67,7 +70,7 @@ void AudioClip::ChangeEndOffset(double endOffset)
     m_endOffset = endOffset;
 }
 
-void AudioClip::SeekTo(double pos)
+void VideoClip::SeekTo(double pos)
 {
     if (pos < 0 || pos >= ClipDuration())
         throw invalid_argument("Argument 'pos' can NOT be NEGATIVE or larger than clip duration!");
@@ -76,29 +79,13 @@ void AudioClip::SeekTo(double pos)
     m_eof = false;
 }
 
-void AudioClip::ReadAudioSamples(uint8_t* buf, uint32_t& size, bool& eof)
+void VideoClip::ReadVideoFrame(double pos, ImGui::ImMat& vmat, bool& eof)
 {
     if (m_eof)
     {
         eof = true;
-        size = 0;
         return;
     }
-    uint32_t readSize = size;
-    double pos;
-    if (!m_srcReader->ReadAudioSamples(buf, readSize, pos, eof))
+    if (!m_srcReader->ReadVideoFrame(pos+m_startOffset, vmat, eof))
         throw runtime_error(m_srcReader->GetError());
-    if (m_pcmFrameSize == 0)
-    {
-        m_pcmFrameSize = m_srcReader->GetAudioOutFrameSize();
-        m_pcmSizePerSec = m_srcReader->GetAudioOutSampleRate()*m_pcmFrameSize;
-    }
-    double endpos = pos+(double)size/m_pcmSizePerSec;
-    if (endpos >= m_srcDuration+m_endOffset)
-    {
-        readSize = (uint32_t)((m_srcDuration+m_endOffset-pos)*m_pcmSizePerSec/m_pcmFrameSize)*m_pcmFrameSize;
-        m_eof = eof = true;
-    }
-    if (readSize < size)
-        memset(buf+readSize, 0, size-readSize);
 }

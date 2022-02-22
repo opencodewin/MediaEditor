@@ -122,9 +122,48 @@ public:
         return true;
     }
 
+    bool RemoveTrack(uint32_t index) override
+    {
+        lock_guard<recursive_mutex> lk(m_apiLock);
+        if (!m_started)
+        {
+            m_errMsg = "This MultiTrackAudioReader instance is NOT started yet!";
+            return false;
+        }
+        if (index >= m_tracks.size())
+        {
+            m_errMsg = "Invalid value for argument 'index'!";
+            return false;
+        }
+
+        TerminateMixingThread();
+
+        auto iter = m_tracks.begin();
+        while (index > 0)
+        {
+            iter++;
+            index--;
+        }
+        m_tracks.erase(iter);
+
+        ReleaseMixer();
+        if (!m_tracks.empty())
+        {
+            if (!CreateMixer())
+                return false;
+        }
+
+        double pos = (double)m_samplePos/m_outSampleRate;
+        for (auto track : m_tracks)
+            track->SeekTo(pos);
+
+        StartMixingThread();
+        return true;
+    }
+
     bool SetDirection(bool forward) override
     {
-        return true;
+        return false;
     }
 
     bool SeekTo(double pos) override
@@ -454,6 +493,8 @@ private:
                     ImGui::ImMat amat;
                     amat.create((int)m_outSamplesPerFrame, 1, (int)m_outChannels, (size_t)4);
                     memset(amat.data, 0, amat.total()*amat.elemsize);
+                    amat.time_stamp = (double)m_samplePos/m_outSampleRate;
+                    m_samplePos += m_outSamplesPerFrame;
                     lock_guard<mutex> lk(m_outputMatsLock);
                     m_outputMats.push_back(amat);
                     idleLoop = false;
@@ -504,6 +545,7 @@ ALogger* GetMultiTrackAudioReaderLogger()
         MultiTrackAudioReader_Impl::s_logger = GetLogger("MTAReader");
     return MultiTrackAudioReader_Impl::s_logger;
 }
+
 MultiTrackAudioReader* CreateMultiTrackAudioReader()
 {
     return new MultiTrackAudioReader_Impl();
