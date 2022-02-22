@@ -204,11 +204,6 @@ void VideoTrack::ReadVideoFrame(ImGui::ImMat& vmat)
         else
             m_iterRead++;
     }
-    if (vmat.empty())
-    {
-        vmat.create_type(m_outWidth, m_outHeight, 4, IM_DT_INT8);
-        memset(vmat.data, 0, vmat.total()*vmat.elemsize);
-    }
     vmat.time_stamp = readPos;
     m_readFrames++;
 }

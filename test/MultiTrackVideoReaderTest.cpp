@@ -25,9 +25,14 @@ static MultiTrackVideoReader* g_mtVidReader = nullptr;
 const int c_videoOutputWidth = 960;
 const int c_videoOutputHeight = 540;
 const MediaInfo::Ratio c_videoFrameRate = { 25, 1 };
+
+static double g_playStartPos = 0.f;
+static Clock::time_point g_playStartTp;
 static bool g_isPlay = false;
-static double g_playPos = 0;
 static bool g_playForward = true;
+
+static ImTextureID g_imageTid;
+static ImVec2 g_imageDisplaySize = { 640, 360 };
 
 const string c_imguiIniPath = "ms_test.ini";
 const string c_bookmarkPath = "bookmark.ini";
@@ -316,12 +321,54 @@ bool Application_Frame(void * handle, bool app_will_quit)
         }
 
         ImGui::Spacing();
-        ImGui::Dummy({10, 10});
+
+        float playPos;
+        float mediaDur = (float)g_mtVidReader->Duration();
+
+        double elapsedTime = chrono::duration_cast<chrono::duration<double>>((Clock::now()-g_playStartTp)).count();
+        playPos = g_isPlay ? (g_playForward ? g_playStartPos+elapsedTime : g_playStartPos-elapsedTime) : g_playStartPos;
+        if (playPos < 0) playPos = 0;
+        if (playPos > mediaDur) playPos = mediaDur;
+
+        ImGui::ImMat vmat;
+        if (g_mtVidReader->ReadVideoFrame(playPos, vmat))
+        {
+            string imgTag = TimestampToString(vmat.time_stamp);
+            bool imgValid = true;
+            if (vmat.empty())
+            {
+                imgValid = false;
+                imgTag += "(loading)";
+            }
+            if (imgValid &&
+                ((vmat.color_format != IM_CF_RGBA && vmat.color_format != IM_CF_ABGR) ||
+                vmat.type != IM_DT_INT8 ||
+                (vmat.device != IM_DD_CPU && vmat.device != IM_DD_VULKAN)))
+            {
+                Log(Error) << "WRONG snapshot format!" << endl;
+                imgValid = false;
+                imgTag += "(bad format)";
+            }
+            if (imgValid)
+            {
+                ImGui::ImMatToTexture(vmat, g_imageTid);
+                if (g_imageTid) ImGui::Image(g_imageTid, g_imageDisplaySize);
+            }
+            else
+            {
+                ImGui::Dummy(g_imageDisplaySize);
+            }
+            ImGui::TextUnformatted(imgTag.c_str());
+        }
 
         string playBtnLabel = g_isPlay ? "Pause" : "Play ";
         if (ImGui::Button(playBtnLabel.c_str()))
         {
             g_isPlay = !g_isPlay;
+            if (g_isPlay)
+                g_playStartTp = Clock::now();
+            else
+                g_playStartPos = playPos;
         }
 
         ImGui::SameLine();
@@ -332,12 +379,14 @@ bool Application_Frame(void * handle, bool app_will_quit)
             bool notForward = !g_playForward;
             g_mtVidReader->SetDirection(notForward);
             g_playForward = notForward;
+            g_playStartPos = playPos;
+            g_playStartTp = Clock::now();
         }
 
         ImGui::Spacing();
 
         ostringstream oss;
-        oss << "Video pos: " << TimestampToString(g_playPos);
+        oss << "Video pos: " << TimestampToString(playPos);
         string audTag = oss.str();
         ImGui::TextUnformatted(audTag.c_str());
 
