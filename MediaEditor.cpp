@@ -35,7 +35,6 @@ static const char* ControlPanelTabTooltips[] =
 static const char* MainWindowTabNames[] = {
     ICON_MEDIA_PREVIEW,
     ICON_MEDIA_VIDEO,
-    ICON_TRANS,
     ICON_MUSIC,
     ICON_MEDIA_DIAGNOSIS,
     ICON_BRAIN
@@ -45,7 +44,6 @@ static const char* MainWindowTabTooltips[] =
 {
     "Meida Preview",
     "Video Editor",
-    "Video Fusion",
     "Audio Editor",
     "Meida Analyse",
     "Meida AI"
@@ -53,12 +51,14 @@ static const char* MainWindowTabTooltips[] =
 
 static const char* VideoEditorTabNames[] = {
     ICON_BLUE_PRINT,
+    ICON_TRANS,
     ICON_CROP,
     ICON_ROTATE
 };
 
 static const char* VideoEditorTabTooltips[] = {
     "Video Filter",
+    "Video Fusion",
     "Video Crop",
     "Video Rotate"
 };
@@ -1116,6 +1116,35 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
  * Video Editor windows
  *
  ***************************************************************************************/
+static void ShowVideoCropWindow(ImDrawList *draw_list)
+{
+    ImGui::SetWindowFontScale(1.2);
+    ImGui::Indent(20);
+    ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4, 0.4, 0.8, 0.8));
+    ImGui::TextUnformatted("Video Crop");
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar();
+    ImGui::SetWindowFontScale(1.0);
+}
+
+static void ShowVideoRotateWindow(ImDrawList *draw_list)
+{
+    ImGui::SetWindowFontScale(1.2);
+    ImGui::Indent(20);
+    ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4, 0.4, 0.8, 0.8));
+    ImGui::TextUnformatted("Video Rotate");
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar();
+    ImGui::SetWindowFontScale(1.0);
+}
+
+/****************************************************************************************
+ * 
+ * Video Filter window
+ *
+ ***************************************************************************************/
 static void ShowVideoFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
 {
     if (timeline && timeline->mVideoFilterBluePrint)
@@ -1150,40 +1179,15 @@ static void ShowVideoFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
     }
 }
 
-static void ShowVideoCropWindow(ImDrawList *draw_list)
-{
-    ImGui::SetWindowFontScale(1.2);
-    ImGui::Indent(20);
-    ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4, 0.4, 0.8, 0.8));
-    ImGui::TextUnformatted("Video Crop");
-    ImGui::PopStyleColor();
-    ImGui::PopStyleVar();
-    ImGui::SetWindowFontScale(1.0);
-}
-
-static void ShowVideoRotateWindow(ImDrawList *draw_list)
-{
-    ImGui::SetWindowFontScale(1.2);
-    ImGui::Indent(20);
-    ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4, 0.4, 0.8, 0.8));
-    ImGui::TextUnformatted("Video Rotate");
-    ImGui::PopStyleColor();
-    ImGui::PopStyleVar();
-    ImGui::SetWindowFontScale(1.0);
-}
-
-static void ShowVideoEditorWindow(ImDrawList *draw_list)
+static void ShowVideoFilterWindow(ImDrawList *draw_list)
 {
     //SetSequenceEditorStage(true, false, false);
-    static int VideoEditorWindowIndex = 0;
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
     draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
+    float labelWidth = ImGui::CalcVerticalTabLabelsWidth() + 4;
     float clip_timeline_height = 100;
     float editor_main_height = window_size.y - clip_timeline_height - 4;
-    float labelWidth = ImGui::CalcVerticalTabLabelsWidth() + 4;
     float video_view_width = window_size.x / 3;
     float video_editor_width = window_size.x - video_view_width - labelWidth;
     
@@ -1202,26 +1206,17 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
         timeline->mVideoFilterBluePrint->m_ViewSize = ImVec2(video_editor_width, editor_main_height);
     }
 
-    if (ImGui::BeginChild("##video_editor_main", ImVec2(window_size.x, editor_main_height), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+    if (ImGui::BeginChild("##video_filter_main", ImVec2(window_size.x, editor_main_height), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
     {
         ImVec2 clip_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 clip_window_size = ImGui::GetWindowSize();
-        static const int numTabs = sizeof(VideoEditorTabNames)/sizeof(VideoEditorTabNames[0]);
-        ImGui::TabLabelsVertical(false, numTabs, VideoEditorTabNames, VideoEditorWindowIndex, VideoEditorTabTooltips, true, nullptr, nullptr, false, false, nullptr, nullptr);
         ImGui::SetCursorScreenPos(clip_window_pos + ImVec2(labelWidth, 0));
-        
-        if (ImGui::BeginChild("##video_editor_views", ImVec2(video_editor_width, clip_window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+        if (ImGui::BeginChild("##video_filter_blueprint", ImVec2(video_editor_width, clip_window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
         {
             ImVec2 editor_view_window_pos = ImGui::GetCursorScreenPos();
             ImVec2 editor_view_window_size = ImGui::GetWindowSize();
             draw_list->AddRectFilled(editor_view_window_pos, editor_view_window_pos + editor_view_window_size, COL_DARK_ONE);
-            switch (VideoEditorWindowIndex)
-            {
-                case 0: ShowVideoFilterBluePrintWindow(draw_list, editing_clip); break;
-                case 1: ShowVideoCropWindow(draw_list); break;
-                case 2: ShowVideoRotateWindow(draw_list); break;
-                default: break;
-            }
+            ShowVideoFilterBluePrintWindow(draw_list, editing_clip);
         }
         ImGui::EndChild();
         ImGui::SetCursorScreenPos(clip_window_pos + ImVec2(video_editor_width + labelWidth, 0));
@@ -1437,7 +1432,7 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
         ImGui::EndChild();
     }
     ImGui::EndChild();
-    if (ImGui::BeginChild("##video_editor_timeline", ImVec2(window_size.x, clip_timeline_height), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+    if (ImGui::BeginChild("##video_filter_timeline", ImVec2(window_size.x, clip_timeline_height), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
     {
         ImVec2 clip_timeline_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 clip_timeline_window_size = ImGui::GetWindowSize();
@@ -1451,7 +1446,7 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
 
 /****************************************************************************************
  * 
- * Video Fusion windows
+ * Video Fusion window
  *
  ***************************************************************************************/
 static void ShowVideoFusionBluePrintWindow(ImDrawList *draw_list, Overlap * overlap)
@@ -1615,6 +1610,31 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
     ImGui::EndChild();
 }
 
+static void ShowVideoEditorWindow(ImDrawList *draw_list)
+{
+    static int VideoEditorWindowIndex = 0;
+    float labelWidth = ImGui::CalcVerticalTabLabelsWidth() + 4;
+    ImVec2 clip_window_pos = ImGui::GetCursorScreenPos();
+    ImVec2 clip_window_size = ImGui::GetWindowSize();
+    static const int numTabs = sizeof(VideoEditorTabNames)/sizeof(VideoEditorTabNames[0]);
+    ImGui::TabLabelsVertical(false, numTabs, VideoEditorTabNames, VideoEditorWindowIndex, VideoEditorTabTooltips, true, nullptr, nullptr, false, false, nullptr, nullptr);
+    ImGui::SetCursorScreenPos(clip_window_pos + ImVec2(labelWidth, 0));
+    if (ImGui::BeginChild("##video_editor_views", ImVec2(clip_window_size.x - labelWidth, clip_window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+    {
+        ImVec2 editor_view_window_pos = ImGui::GetCursorScreenPos();
+        ImVec2 editor_view_window_size = ImGui::GetWindowSize();
+        draw_list->AddRectFilled(editor_view_window_pos, editor_view_window_pos + editor_view_window_size, COL_DARK_ONE);
+        switch (VideoEditorWindowIndex)
+        {
+            case 0: ShowVideoFilterWindow(draw_list); break;
+            case 1: ShowVideoFusionWindow(draw_list); break;
+            case 2: ShowVideoCropWindow(draw_list); break;
+            case 3: ShowVideoRotateWindow(draw_list); break;
+            default: break;
+        }
+    }
+    ImGui::EndChild();
+}
 /****************************************************************************************
  * 
  * Audio Editor windows
@@ -2002,10 +2022,9 @@ bool Application_Frame(void * handle, bool app_will_quit)
                 {
                     case 0: ShowMediaPreviewWindow(draw_list); break;
                     case 1: ShowVideoEditorWindow(draw_list); break;
-                    case 2: ShowVideoFusionWindow(draw_list); break;
-                    case 3: ShowAudioEditorWindow(draw_list); break;
-                    case 4: ShowMediaAnalyseWindow(draw_list); break;
-                    case 5: ShowMediaAIWindow(draw_list); break;
+                    case 2: ShowAudioEditorWindow(draw_list); break;
+                    case 3: ShowMediaAnalyseWindow(draw_list); break;
+                    case 4: ShowMediaAIWindow(draw_list); break;
                     default: break;
                 }
             }
