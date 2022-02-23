@@ -17,7 +17,6 @@ static MediaSnapshot* g_msrc = nullptr;
 static double g_windowPos = 0.f;
 static double g_windowSize = 300.f;
 static double g_windowFrames = 14.0f;
-static vector<ImTextureID> g_snapshotTids;
 ImVec2 g_snapImageSize;
 const string c_imguiIniPath = "ms_test.ini";
 const string c_bookmarkPath = "bookmark.ini";
@@ -59,9 +58,6 @@ void Application_Initialize(void** handle)
     io.IniFilename = c_imguiIniPath.c_str();
 
     size_t ssCnt = (size_t)ceil(g_windowFrames)+1;
-    g_snapshotTids.reserve(ssCnt);
-    for (auto& tid : g_snapshotTids)
-        tid = nullptr;
     g_movr = CreateMediaOverview();
     g_movr->SetSnapshotSize(320, 180);
     g_msrc = CreateMediaSnapshot();
@@ -72,12 +68,6 @@ void Application_Finalize(void** handle)
 {
     ReleaseMediaSnapshot(&g_msrc);
     ReleaseMediaOverview(&g_movr);
-    for (auto& tid : g_snapshotTids)
-    {
-        if (tid)
-            ImGui::ImDestroyTexture(tid);
-        tid = nullptr;
-    }
 #ifdef USE_BOOKMARK
 	// save bookmarks
 	ofstream configFileWriter(c_bookmarkPath, ios::out);
@@ -126,18 +116,14 @@ bool Application_Frame(void * handle, bool app_will_quit)
 
         ImGui::Spacing();
 
-        vector<ImGui::ImMat> snapshots;
+        vector<MediaSnapshot::ImageHolder> snapshots;
         if (!g_msrc->GetSnapshots(snapshots, pos))
             snapshots.clear();
+        else
+            g_msrc->UpdateSnapshotTexture(snapshots);
 
-        float startPos = snapshots.size() > 0 ? snapshots[0].time_stamp : minPos;
+        float startPos = snapshots.size() > 0 ? (float)snapshots[0]->mTimestampMs/1000 : minPos;
         int snapshotCnt = (int)ceil(g_windowFrames);
-        if (snapshotCnt > g_snapshotTids.size())
-        {
-            int addcnt = snapshotCnt-g_snapshotTids.size();
-            for (int i = 0; i < addcnt; i++)
-                g_snapshotTids.push_back(nullptr);
-        }
         for (int i = 0; i < snapshotCnt; i++)
         {
             ImGui::BeginGroup();
@@ -148,31 +134,15 @@ bool Application_Frame(void * handle, bool app_will_quit)
             }
             else
             {
-                ImGui::ImMat vmat = snapshots[i];
-                string tag = TimestampToString(vmat.time_stamp);
-                bool valid = true;
-                if (vmat.empty())
+                string tag = MillisecToString(snapshots[i]->mTimestampMs);
+                if (!snapshots[i]->mTextureReady)
                 {
-                    valid = false;
+                    ImGui::Dummy(g_snapImageSize);
                     tag += "(loading)";
-                }
-                if (valid &&
-                    ((vmat.color_format != IM_CF_RGBA && vmat.color_format != IM_CF_ABGR) ||
-                    vmat.type != IM_DT_INT8 ||
-                    (vmat.device != IM_DD_CPU && vmat.device != IM_DD_VULKAN)))
-                {
-                    Log(Error) << "WRONG snapshot format!" << endl;
-                    valid = false;
-                    tag += "(bad format)";
-                }
-                if (valid)
-                {
-                    ImGui::ImMatToTexture(vmat, g_snapshotTids[i]);
-                    if (g_snapshotTids[i]) ImGui::Image(g_snapshotTids[i], g_snapImageSize);
                 }
                 else
                 {
-                    ImGui::Dummy(g_snapImageSize);
+                    ImGui::Image(snapshots[i]->mTid, g_snapImageSize);
                 }
                 ImGui::TextUnformatted(tag.c_str());
             }
@@ -192,12 +162,6 @@ bool Application_Frame(void * handle, bool app_will_quit)
         if (ImGuiFileDialog::Instance()->IsOk())
 		{
             g_msrc->Close();
-            for (auto& tid : g_snapshotTids)
-            {
-                if (tid)
-                    ImGui::ImDestroyTexture(tid);
-                tid = nullptr;
-            }
             string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
             // g_movr->Open(filePathName, 10);
             // g_movr->GetMediaParser()->EnableParseInfo(MediaParser::VIDEO_SEEK_POINTS);

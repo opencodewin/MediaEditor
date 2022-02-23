@@ -1,15 +1,28 @@
 #pragma once
+#include <string>
+#include <memory>
 #include "immat.h"
 #include "MediaParser.h"
 #include "Logger.h"
 
 struct MediaSnapshot
 {
+    struct Image
+    {
+        bool mTextureReady{false};
+        ImTextureID mTid{0};
+        ImVec2 mSize{0, 0};
+        int64_t mTimestampMs{0};
+        ImGui::ImMat mImgMat;
+    };
+    using ImageHolder = std::shared_ptr<Image>;
+
     virtual bool Open(const std::string& url) = 0;
     virtual bool Open(MediaParserHolder hParser) = 0;
     virtual MediaParserHolder GetMediaParser() const = 0;
     virtual void Close() = 0;
-    virtual bool GetSnapshots(std::vector<ImGui::ImMat>& snapshots, double startPos) = 0;
+    virtual bool GetSnapshots(std::vector<ImageHolder>& snapshots, double startPos) = 0;
+    virtual bool UpdateSnapshotTexture(std::vector<ImageHolder>& snapshots) = 0;
 
     virtual bool IsOpened() const = 0;
     virtual bool HasVideo() const = 0;

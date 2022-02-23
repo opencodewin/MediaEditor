@@ -240,7 +240,7 @@ struct VideoClip : Clip
 {
     MediaSnapshot* mSnapshot {nullptr};                 // clip snapshot handle
     std::vector<VideoSnapshotInfo> mVideoSnapshotInfos; // clip snapshots info, with all croped range
-    std::vector<Snapshot> mVideoSnapshots;              // clip snapshots, including texture and timestamp info
+    std::list<Snapshot> mVideoSnapshots;              // clip snapshots, including texture and timestamp info
     //int mFrameCount         {0};                        // total snapshot number in clip range
     //float mSnapshotWidth    {0};
     //ImTextureID mFilterInputTexture {nullptr};  // clip filter input texture
@@ -253,9 +253,20 @@ struct VideoClip : Clip
     void UpdateSnapshot();
     void Seek();
     void Step(bool forward, int64_t step);
+    void SetViewWindowStart(int64_t millisec);
 
     static Clip * Load(const imgui_json::value& value, void * handle);
     void Save(imgui_json::value& value);
+
+private:
+    void PrepareSnapshotTextureProc();
+
+private:
+    bool mQuit;
+    uint32_t mMaxSnapCnt;
+    int64_t mViewWndStart;
+    std::vector<ImGui::ImMat> mSnapImages;
+    double mSnapInterval;
 };
 
 struct AudioClip : Clip

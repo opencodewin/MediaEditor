@@ -8,6 +8,7 @@
 #include <memory>
 #include <cmath>
 #include <algorithm>
+#include "imgui_helper.h"
 #include "MediaSnapshot.h"
 #include "FFUtils.h"
 extern "C"
@@ -27,6 +28,12 @@ extern "C"
 
 using namespace std;
 using namespace Logger;
+
+// MediaSnapshot::Image::~Image()
+// {
+//     if (!mTid)
+//         ImGui::ImDestroyTexture(mTid);
+// }
 
 static AVPixelFormat get_hw_format(AVCodecContext *ctx, const AVPixelFormat *pix_fmts);
 
@@ -95,6 +102,10 @@ public:
         WaitAllThreadsQuit();
         FlushAllQueues();
 
+        for (auto& tid : m_deprecatedTids)
+            ImGui::ImDestroyTexture(tid);
+        m_deprecatedTids.clear();
+
         if (m_viddecCtx)
         {
             avcodec_free_context(&m_viddecCtx);
@@ -133,13 +144,13 @@ public:
         m_errMsg = "";
     }
 
-    bool GetSnapshots(std::vector<ImGui::ImMat>& snapshots, double startPos) override
+    bool GetSnapshots(std::vector<ImageHolder>& images, double startPos) override
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
         if (!IsOpened())
             return false;
 
-        snapshots.clear();
+        images.clear();
 
         SnapWindow snapWnd;
         if (m_prepared)
@@ -166,7 +177,7 @@ public:
                     auto& ss = *ssIter++;
                     if (ss.index == i)
                     {
-                        snapshots.push_back(ss.img);
+                        images.push_back(ss.img);
                         i++;
                     }
                     else if (ss.index > i)
@@ -174,18 +185,18 @@ public:
                         uint32_t j = ss.index < snapWnd.index1 ? ss.index : snapWnd.index1;
                         while (i < j)
                         {
-                            ImGui::ImMat vmat;
-                            vmat.time_stamp = CalcSnapshotTimestamp(i);
-                            snapshots.push_back(vmat);
+                            ImageHolder img(new Image());
+                            img->mTimestampMs = CalcSnapshotMts(i);
+                            images.push_back(img);
                             i++;
                         }
                         if (i == ss.index)
-                            snapshots.push_back(ss.img);
+                            images.push_back(ss.img);
                         else
                         {
-                            ImGui::ImMat vmat;
-                            vmat.time_stamp = CalcSnapshotTimestamp(i);
-                            snapshots.push_back(vmat);
+                            ImageHolder img(new Image());
+                            img->mTimestampMs = CalcSnapshotMts(i);
+                            images.push_back(img);
                         }
                         i++;
                     }
@@ -196,10 +207,37 @@ public:
         }
         while (i <= snapWnd.index1)
         {
-            ImGui::ImMat vmat;
-            vmat.time_stamp = CalcSnapshotTimestamp(i);
-            snapshots.push_back(vmat);
+            ImageHolder img(new Image());
+            img->mTimestampMs = CalcSnapshotMts(i);
+            images.push_back(img);
             i++;
+        }
+        return true;
+    }
+
+    bool UpdateSnapshotTexture(vector<ImageHolder>& snapshots) override
+    {
+        lock_guard<recursive_mutex> lk(m_apiLock);
+        if (!IsOpened())
+            return false;
+
+        // free deprecated textures
+        {
+            lock_guard<mutex> lktid(m_deprecatedTidLock);
+            for (auto& tid : m_deprecatedTids)
+                ImGui::ImDestroyTexture(tid);
+            m_deprecatedTids.clear();
+        }
+
+        for (auto& img : snapshots)
+        {
+            if (img->mTextureReady)
+                continue;
+            if (!img->mImgMat.empty())
+            {
+                ImMatToTexture(img->mImgMat, img->mTid);
+                img->mTextureReady = true;
+            }
         }
         return true;
     }
@@ -1062,7 +1100,7 @@ private:
                     if (ss.avfrm)
                     {
                         double ts = (double)CvtVidPtsToMts(ss.avfrm->pts)/1000.;
-                        if (!m_frmCvt.ConvertImage(ss.avfrm, ss.img, ts))
+                        if (!m_frmCvt.ConvertImage(ss.avfrm, ss.img->mImgMat, ts))
                             m_logger->Log(Error) << "FAILED to convert AVFrame to ImGui::ImMat! Message is '" << m_frmCvt.GetError() << "'." << endl;
                         av_frame_free(&ss.avfrm);
                         ss.avfrm = nullptr;
@@ -1073,6 +1111,7 @@ private:
                         m_pendingVidfrmCnt--;
                         if (m_pendingVidfrmCnt < 0)
                             m_logger->Log(Error) << "Pending video AVFrame ptr count is NEGATIVE! " << m_pendingVidfrmCnt << endl;
+                        ss.img->mTimestampMs = CalcSnapshotMts(ss.index);
                         idleLoop = false;
                     }
                 }
@@ -1124,8 +1163,9 @@ private:
 
     struct Snapshot
     {
+        Snapshot() : img(new Image()) {}
         AVFrame* avfrm{nullptr};
-        ImGui::ImMat img;
+        ImageHolder img;
         uint32_t index;
         bool fixed{false};
     };
@@ -1155,6 +1195,11 @@ private:
                 {
                     av_frame_free(&ss.avfrm);
                     outterObj.m_pendingVidfrmCnt--;
+                }
+                if (ss.img->mTid)
+                {
+                    lock_guard<mutex> lk(outterObj.m_deprecatedTidLock);
+                    outterObj.m_deprecatedTids.push_back(ss.img->mTid);
                 }
             }
         }
@@ -1630,7 +1675,6 @@ private:
     uint32_t m_maxCacheSize{0};
     uint32_t m_prevWndCacheSize, m_postWndCacheSize;
     SnapWindow m_snapWnd;
-    // atomic_bool m_snapWndUpdated{false};
     SnapWindow m_bldtskSnapWnd;
     list<SnapshotBuildTask> m_bldtskTimeOrder;
     mutex m_bldtskByTimeLock;
@@ -1638,9 +1682,10 @@ private:
     mutex m_bldtskByPriLock;
     atomic_int32_t m_pendingVidfrmCnt{0};
     int32_t m_maxPendingVidfrmCnt{4};
-    // list<int64_t> m_vidKeyPtsList;
     double m_fixedSsInterval;
     uint32_t m_fixedSnapshotCount{100};
+    list<ImTextureID> m_deprecatedTids;
+    mutex m_deprecatedTidLock;
 
     bool m_useRszFactor{false};
     bool m_ssSizeChanged{false};

@@ -659,6 +659,22 @@ void VideoClip::Save(imgui_json::value& value)
     value["FrameRateDen"] = imgui_json::number(mClipFrameRate.den);
 }
 
+void VideoClip::PrepareSnapshotTextureProc()
+{
+    while (!mQuit)
+    {
+        bool ildeLoop = true;
+
+        if (mVideoSnapshots.size() < mMaxSnapCnt)
+        {
+
+        }
+
+        if (ildeLoop)
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+}
+
 // AudioClip Struct Member Functions
 AudioClip::AudioClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle)
     : Clip(start, end, id, overview, handle)
