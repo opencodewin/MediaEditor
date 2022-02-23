@@ -246,6 +246,11 @@ void Clip::Load(Clip * clip, const imgui_json::value& value)
         auto& val = value["EndOffset"];
         if (val.is_number()) clip->mEndOffset = val.get<imgui_json::number>();
     }
+    if (value.contains("Current"))
+    {
+        auto& val = value["Current"];
+        if (val.is_number()) clip->mCurrent = val.get<imgui_json::number>();
+    }
     if (value.contains("Selected"))
     {
         auto& val = value["Selected"];
@@ -277,6 +282,7 @@ void Clip::Save(imgui_json::value& value)
     value["End"] = imgui_json::number(mEnd);
     value["StartOffset"] = imgui_json::number(mStartOffset);
     value["EndOffset"] = imgui_json::number(mEndOffset);
+    value["Current"] = imgui_json::number(mCurrent);
     value["Selected"] = imgui_json::boolean(bSelected);
     value["Editing"] = imgui_json::boolean(bEditing);
 
@@ -539,9 +545,6 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
         }
     }
     timeline->Updata();
-    //ImGui::BeginTooltip();
-    //ImGui::Text("%d", mouse_track);
-    //ImGui::EndTooltip();
     return index;
 }
 
@@ -3833,4 +3836,24 @@ bool DrawVideoClipTimeLine(Clip* _clip)
     return ret;
 }
 
+/***********************************************************************************************************
+ * Draw Video Fusion Timeline
+ ***********************************************************************************************************/
+bool DrawVideoOverlapTimeLine(Overlap * _overlap)
+{
+    /*************************************************************************************************************
+     |  0    5    10 v   15    20 <rule bar> 30     35      40      45       50       55    
+     |_______________|_____________________________________________________________________ c
+     |               |        clip 1 custom area                                            a 
+     |               |                                                                      n                                            
+     |_______________|_____________________________________________________________________ v
+     |               |        clip 2 custom area                                            a 
+     |               |                                                                      s                                           
+     |_______________|_____________________________________________________________________     
+    ************************************************************************************************************/
+    bool ret = false;
+    if (!_overlap) return ret;
+
+    return ret;
+}
 } // namespace MediaTimeline/Main Timeline
