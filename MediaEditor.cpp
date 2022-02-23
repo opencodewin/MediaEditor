@@ -1489,7 +1489,7 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
     draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
-    float fusion_timeline_height = 200;
+    float fusion_timeline_height = 170;
     float video_view_width = window_size.x / 3;
     float video_fusion_width = window_size.x - video_view_width;
     float video_fusion_height = window_size.y - fusion_timeline_height;
@@ -1532,6 +1532,9 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
             ImVec2 fusion_timeline_window_pos = ImGui::GetCursorScreenPos();
             ImVec2 fusion_timeline_window_size = ImGui::GetWindowSize();
             draw_list->AddRectFilled(fusion_timeline_window_pos, fusion_timeline_window_pos + fusion_timeline_window_size, COL_DARK_TWO);
+
+            // Draw Clip TimeLine
+            DrawVideoOverlapTimeLine(editing_overlap);
         }
         ImGui::EndChild();
     }
@@ -1606,16 +1609,6 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
         ImGui::ShowTooltipOnHover("To End");
 
         ImGui::PopStyleColor(3);
-    }
-    ImGui::EndChild();
-    if (ImGui::BeginChild("##video_fusion_timeline", ImVec2(window_size.x, fusion_timeline_height), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
-    {
-        ImVec2 fusion_timeline_window_pos = ImGui::GetCursorScreenPos();
-        ImVec2 fusion_timeline_window_size = ImGui::GetWindowSize();
-        draw_list->AddRectFilled(fusion_timeline_window_pos, fusion_timeline_window_pos + fusion_timeline_window_size, COL_DARK_TWO);
-
-        // Draw Clip TimeLine
-        DrawVideoOverlapTimeLine(editing_overlap);
     }
     ImGui::EndChild();
 }

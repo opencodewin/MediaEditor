@@ -975,6 +975,11 @@ void Overlap::Update(int64_t start, int64_t start_clip_id, int64_t end, int64_t 
     mEnd = end;
 }
 
+void Overlap::Seek()
+{
+
+}
+
 Overlap* Overlap::Load(const imgui_json::value& value, void * handle)
 {
     TimeLine * timeline = (TimeLine *)handle;
@@ -1013,6 +1018,11 @@ Overlap* Overlap::Load(const imgui_json::value& value, void * handle)
             auto& val = value["ID"];
             if (val.is_number()) new_overlap->mID = val.get<imgui_json::number>();
         }
+        if (value.contains("Current"))
+        {
+            auto& val = value["Current"];
+            if (val.is_number()) new_overlap->mCurrent = val.get<imgui_json::number>();
+        }
         if (value.contains("Editing"))
         {
             auto& val = value["Editing"];
@@ -1036,6 +1046,7 @@ void Overlap::Save(imgui_json::value& value)
     value["End"] = imgui_json::number(mEnd);
     value["Clip_First"] = imgui_json::number(m_Clip.first);
     value["Clip_Second"] = imgui_json::number(m_Clip.second);
+    value["Current"] = imgui_json::number(mCurrent);
     value["Editing"] = imgui_json::boolean(bEditing);
 
     // save overlap fusion bp
@@ -3839,7 +3850,7 @@ bool DrawVideoClipTimeLine(Clip* _clip)
 /***********************************************************************************************************
  * Draw Video Fusion Timeline
  ***********************************************************************************************************/
-bool DrawVideoOverlapTimeLine(Overlap * _overlap)
+bool DrawVideoOverlapTimeLine(Overlap * overlap)
 {
     /*************************************************************************************************************
      |  0    5    10 v   15    20 <rule bar> 30     35      40      45       50       55    
@@ -3852,8 +3863,119 @@ bool DrawVideoOverlapTimeLine(Overlap * _overlap)
      |_______________|_____________________________________________________________________     
     ************************************************************************************************************/
     bool ret = false;
-    if (!_overlap) return ret;
+    if (!overlap) return ret;
+    ImGuiIO &io = ImGui::GetIO();
+    int cx = (int)(io.MousePos.x);
+    int cy = (int)(io.MousePos.y);
+    int headHeight = 30;
+    int customHeight = 70;
+    static bool MovingCurrentTime = false;
+    bool isFocused = ImGui::IsWindowFocused();
+    int64_t duration = ImMax(overlap->mEnd - overlap->mStart, (int64_t)1);
+    int64_t start = 0;
+    int64_t end = start + duration;
+    if (overlap->mCurrent < start)
+        overlap->mCurrent = start;
+    if (overlap->mCurrent >= end)
+        overlap->mCurrent = end;
 
+    ImGui::BeginGroup();
+    ImDrawList *draw_list = ImGui::GetWindowDrawList();
+    ImVec2 window_pos = ImGui::GetCursorScreenPos();
+    ImVec2 window_size = ImGui::GetWindowSize();
+    ImRect regionRect(window_pos + ImVec2(0, headHeight), window_pos + window_size);
+    
+    float msPixelWidth = (float)(window_size.x) / (float)duration;
+    ImRect custom_view_rect(window_pos + ImVec2(0, headHeight), window_pos + window_size);
+
+    //header
+    //header time and lines
+    ImVec2 headerSize(window_size.x, (float)headHeight);
+    ImGui::InvisibleButton("ClipTopBar", headerSize);
+    draw_list->AddRectFilled(window_pos, window_pos + headerSize, COL_DARK_ONE, 0);
+
+    ImRect topRect(window_pos, window_pos + headerSize);
+    if (!MovingCurrentTime && overlap->mCurrent >= start && topRect.Contains(io.MousePos) && io.MouseDown[0] && isFocused)
+    {
+        MovingCurrentTime = true;
+        overlap->bSeeking = true;
+    }
+    if (MovingCurrentTime && duration)
+    {
+        auto old_time = overlap->mCurrent;
+        overlap->mCurrent = (int64_t)((io.MousePos.x - topRect.Min.x) / msPixelWidth) + start;
+        //alignTime(overlap->mCurrent, clip->mClipFrameRate);
+        if (overlap->mCurrent < start)
+            overlap->mCurrent = start;
+        if (overlap->mCurrent >= end)
+            overlap->mCurrent = end;
+        if (old_time != overlap->mCurrent)
+            overlap->Seek(); // call seek event
+    }
+    if (overlap->bSeeking && !io.MouseDown[0])
+    {
+        MovingCurrentTime = false;
+        overlap->bSeeking = false;
+    }
+
+    int64_t modTimeCount = 10;
+    int timeStep = 1;
+    while ((modTimeCount * msPixelWidth) < 100)
+    {
+        modTimeCount *= 10;
+        timeStep *= 10;
+    };
+    int halfModTime = modTimeCount / 2;
+    auto drawLine = [&](int64_t i, int regionHeight)
+    {
+        bool baseIndex = ((i % modTimeCount) == 0) || (i == 0 || i == duration);
+        bool halfIndex = (i % halfModTime) == 0;
+        int px = (int)window_pos.x + int(i * msPixelWidth);
+        int tiretStart = baseIndex ? 4 : (halfIndex ? 10 : 14);
+        int tiretEnd = baseIndex ? regionHeight : headHeight;
+        if (px <= (window_size.x + window_pos.x) && px >= window_pos.x)
+        {
+            draw_list->AddLine(ImVec2((float)px, window_pos.y + (float)tiretStart), ImVec2((float)px, window_pos.y + (float)tiretEnd - 1), halfIndex ? COL_MARK : COL_MARK_HALF, halfIndex ? 2 : 1);
+        }
+        if (baseIndex && px >= window_pos.x)
+        {
+            auto time_str = MillisecToString(i + start, 2);
+            ImGui::SetWindowFontScale(0.8);
+            draw_list->AddText(ImVec2((float)px + 3.f, window_pos.y), COL_RULE_TEXT, time_str.c_str());
+            ImGui::SetWindowFontScale(1.0);
+        }
+    };
+    for (auto i = 0; i < duration; i+= timeStep)
+    {
+        drawLine(i, headHeight);
+    }
+    drawLine(0, headHeight);
+    drawLine(duration, headHeight);
+    // cursor Arrow
+    const float arrowWidth = draw_list->_Data->FontSize;
+    float arrowOffset = window_pos.x + (overlap->mCurrent - start) * msPixelWidth + msPixelWidth / 2 - arrowWidth * 0.5f - 3;
+    ImGui::RenderArrow(draw_list, ImVec2(arrowOffset, window_pos.y), COL_CURSOR_ARROW, ImGuiDir_Down);
+    ImGui::SetWindowFontScale(0.8);
+    auto time_str = MillisecToString(overlap->mCurrent, 2);
+    ImVec2 str_size = ImGui::CalcTextSize(time_str.c_str(), nullptr, true);
+    float strOffset = window_pos.x + (overlap->mCurrent - start) * msPixelWidth + msPixelWidth / 2 - str_size.x * 0.5f - 3;
+    ImVec2 str_pos = ImVec2(strOffset, window_pos.y + 10);
+    draw_list->AddRectFilled(str_pos + ImVec2(-3, 0), str_pos + str_size + ImVec2(3, 3), COL_CURSOR_TEXT_BG, 2.0, ImDrawFlags_RoundCornersAll);
+    draw_list->AddText(str_pos, COL_CURSOR_TEXT, time_str.c_str());
+    ImGui::SetWindowFontScale(1.0);
+
+    // snapshot
+    // TODO::Dicky
+
+    // cursor line
+    draw_list->PushClipRect(custom_view_rect.Min, custom_view_rect.Max);
+    ImVec2 contentMin(window_pos.x, window_pos.y + (float)headHeight);
+    ImVec2 contentMax(window_pos.x + window_size.x, window_pos.y + (float)headHeight + float(customHeight) * 2);
+    static const float cursorWidth = 3.f;
+    float cursorOffset = contentMin.x + (overlap->mCurrent - start) * msPixelWidth + msPixelWidth / 2 - cursorWidth * 0.5f - 2;
+    draw_list->AddLine(ImVec2(cursorOffset, contentMin.y), ImVec2(cursorOffset, contentMax.y), IM_COL32(0, 255, 0, 128), cursorWidth);
+    draw_list->PopClipRect();
+    ImGui::EndGroup();
     return ret;
 }
 } // namespace MediaTimeline/Main Timeline

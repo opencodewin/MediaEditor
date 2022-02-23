@@ -187,6 +187,9 @@ struct Overlap
     int64_t mStart                  {0};        // overlap start time at timeline, project saved
     int64_t mEnd                    {0};        // overlap end time at timeline, project saved
     int64_t mCurrent                {0};        // overlap current time, project saved
+    bool bPlay                      {false};    // overlap play status
+    bool bForward                   {true};     // overlap play direction
+    bool bSeeking                   {false};    // overlap is seeking
     bool bEditing                   {false};    // overlap is editing, project saved
     std::pair<int64_t, int64_t>     m_Clip;     // overlaped clip's pair, project saved
     imgui_json::value mFusionBP;                // overlap transion blueprint, project saved
@@ -196,6 +199,7 @@ struct Overlap
 
     bool IsOverlapValid();
     void Update(int64_t start, int64_t start_clip_id, int64_t end, int64_t end_clip_id);
+    void Seek();
     static Overlap * Load(const imgui_json::value& value, void * handle);
     void Save(imgui_json::value& value);
 };
@@ -215,7 +219,7 @@ struct Clip
     int64_t mCurrent            {0};                // clip current time, project saved
     bool bPlay                  {false};            // clip play status
     bool bForward               {true};             // clip play direction
-    bool bSeeking               {false};            // clip is sekking
+    bool bSeeking               {false};            // clip is seeking
     bool bSelected              {false};            // clip is selected, project saved
     bool bEditing               {false};            // clip is Editing by double click selected, project saved
     std::mutex mLock;                               // clip mutex, not using yet
