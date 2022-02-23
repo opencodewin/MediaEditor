@@ -10,6 +10,9 @@
 #include "Logger.h"
 #include <sstream>
 
+#define DEFAULT_MAIN_VIEW_WIDTH     1680
+#define DEFAULT_MAIN_VIEW_HEIGHT    1024
+
 using namespace MediaTimeline;
 
 static const char* ConfigureTabNames[] = {
@@ -447,13 +450,8 @@ static void ShowConfigure(MediaEditorSettings & config)
 }
 
 // Document Framework
-static void CleanProject()
+static void NewTimeline()
 {
-    if (timeline)
-    {
-        delete timeline;
-        timeline = nullptr;
-    }
     timeline = new TimeLine();
     if (timeline)
     {
@@ -463,7 +461,29 @@ static void CleanProject()
         timeline->mAudioSampleRate = g_media_editor_settings.AudioSampleRate;
         timeline->mAudioChannels = g_media_editor_settings.AudioChannels;
         timeline->mAudioFormat = (AudioRender::PcmFormat)g_media_editor_settings.AudioFormat;
+        // init bp view
+        float labelWidth = ImGui::CalcVerticalTabLabelsWidth() + 4;
+        if (timeline->mVideoFilterBluePrint)
+        {
+            ImVec2 view_size = ImVec2(DEFAULT_MAIN_VIEW_WIDTH * 0.8 * 2 / 3 - labelWidth, DEFAULT_MAIN_VIEW_HEIGHT * 0.6 - 100);
+            timeline->mVideoFilterBluePrint->m_ViewSize = view_size;
+        }
+        if (timeline->mVideoFusionBluePrint)
+        {
+            ImVec2 view_size = ImVec2(DEFAULT_MAIN_VIEW_WIDTH * 0.8 * 2 / 3 - labelWidth, DEFAULT_MAIN_VIEW_HEIGHT * 0.6 - 170);
+            timeline->mVideoFusionBluePrint->m_ViewSize = view_size;
+        }
     }
+}
+
+static void CleanProject()
+{
+    if (timeline)
+    {
+        delete timeline;
+        timeline = nullptr;
+    }
+    NewTimeline();
     g_project = imgui_json::value();
 }
 
@@ -1185,11 +1205,10 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
     draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
-    float labelWidth = ImGui::CalcVerticalTabLabelsWidth() + 4;
     float clip_timeline_height = 100;
     float editor_main_height = window_size.y - clip_timeline_height - 4;
     float video_view_width = window_size.x / 3;
-    float video_editor_width = window_size.x - video_view_width - labelWidth;
+    float video_editor_width = window_size.x - video_view_width;
     
     if (!timeline)
         return;
@@ -1210,7 +1229,6 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
     {
         ImVec2 clip_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 clip_window_size = ImGui::GetWindowSize();
-        ImGui::SetCursorScreenPos(clip_window_pos + ImVec2(labelWidth, 0));
         if (ImGui::BeginChild("##video_filter_blueprint", ImVec2(video_editor_width, clip_window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
         {
             ImVec2 editor_view_window_pos = ImGui::GetCursorScreenPos();
@@ -1219,7 +1237,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
             ShowVideoFilterBluePrintWindow(draw_list, editing_clip);
         }
         ImGui::EndChild();
-        ImGui::SetCursorScreenPos(clip_window_pos + ImVec2(video_editor_width + labelWidth, 0));
+        ImGui::SetCursorScreenPos(clip_window_pos + ImVec2(video_editor_width, 0));
         if (ImGui::BeginChild("##filter_video_view", ImVec2(video_view_width, clip_window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
         {
             ImVec2 video_view_window_pos = ImGui::GetCursorScreenPos();
@@ -1702,8 +1720,8 @@ void Application_GetWindowProperties(ApplicationWindowProperty& property)
     property.docking = false;
     property.auto_merge = false;
     property.power_save = false;
-    property.width = 1680;
-    property.height = 1024;
+    property.width = DEFAULT_MAIN_VIEW_WIDTH;
+    property.height = DEFAULT_MAIN_VIEW_HEIGHT;
 }
 
 void Application_SetupContext(ImGuiContext* ctx)
@@ -1801,16 +1819,7 @@ void Application_Initialize(void** handle)
         ImGui::SetTableLabelBreathingSpeed(0.005, 0.5);
     ImGui::ResetTabLabelStyle(ImGui::ImGuiTabLabelStyle_Dark, *tab_style);
 
-    timeline = new TimeLine();
-    if (timeline)
-    {
-        timeline->mWidth = g_media_editor_settings.VideoWidth;
-        timeline->mHeight = g_media_editor_settings.VideoHeight;
-        timeline->mFrameRate = g_media_editor_settings.VideoFrameRate;
-        timeline->mAudioSampleRate = g_media_editor_settings.AudioSampleRate;
-        timeline->mAudioChannels = g_media_editor_settings.AudioChannels;
-        timeline->mAudioFormat = (AudioRender::PcmFormat)g_media_editor_settings.AudioFormat;
-    }
+    NewTimeline();
 }
 
 void Application_Finalize(void** handle)
