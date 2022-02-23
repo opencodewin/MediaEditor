@@ -66,6 +66,16 @@ static const char* VideoEditorTabTooltips[] = {
     "Video Rotate"
 };
 
+static const char* AudioEditorTabNames[] = {
+    ICON_BLUE_PRINT,
+    ICON_TRANS,
+};
+
+static const char* AudioEditorTabTooltips[] = {
+    "Audio Filter",
+    "Audio Fusion",
+};
+
 struct MediaEditorSettings
 {
     int VideoWidth  {1920};                 // timeline Media Width
@@ -86,6 +96,12 @@ static MediaEditorSettings g_media_editor_settings;
 static MediaEditorSettings g_new_setting;
 static imgui_json::value g_project;
 static bool quit_save_confirm = true;
+
+static int ConfigureIndex = 1;              // default timeline setting
+static int ControlPanelIndex = 0;           // default Media Bank window
+static int MainWindowIndex = 0;             // default Media Preview window
+static int VideoEditorWindowIndex = 0;      // default Video Filter window
+static int AudioEditorWindowIndex = 0;      // default Audio Filter window
 
 // Utils functions
 void ShowVideoWindow(ImTextureID texture, ImVec2& pos, ImVec2& size)
@@ -360,7 +376,6 @@ static void ShowConfigure(MediaEditorSettings & config)
     static const int numConfigureTabs = sizeof(ConfigureTabNames)/sizeof(ConfigureTabNames[0]);
     if (ImGui::BeginChild("##ConfigureView", ImVec2(800, 600), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
     {
-        static int ConfigureIndex = 1;
         ImGui::TabLabels(numConfigureTabs, ConfigureTabNames, ConfigureIndex, nullptr , false, false, nullptr, nullptr, false, false, nullptr, nullptr);
         switch (ConfigureIndex)
         {
@@ -472,6 +487,16 @@ static void NewTimeline()
         {
             ImVec2 view_size = ImVec2(DEFAULT_MAIN_VIEW_WIDTH * 0.8 * 2 / 3 - labelWidth, DEFAULT_MAIN_VIEW_HEIGHT * 0.6 - 170);
             timeline->mVideoFusionBluePrint->m_ViewSize = view_size;
+        }
+        if (timeline->mAudioFilterBluePrint)
+        {
+            ImVec2 view_size = ImVec2(DEFAULT_MAIN_VIEW_WIDTH * 0.8 * 2 / 4 - labelWidth, DEFAULT_MAIN_VIEW_HEIGHT * 0.6 - 100);
+            timeline->mAudioFilterBluePrint->m_ViewSize = view_size;
+        }
+        if (timeline->mAudioFusionBluePrint)
+        {
+            ImVec2 view_size = ImVec2(DEFAULT_MAIN_VIEW_WIDTH * 0.8 * 2 / 4 - labelWidth, DEFAULT_MAIN_VIEW_HEIGHT * 0.6 - 170);
+            timeline->mAudioFusionBluePrint->m_ViewSize = view_size;
         }
     }
 }
@@ -1457,7 +1482,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
         draw_list->AddRectFilled(clip_timeline_window_pos, clip_timeline_window_pos + clip_timeline_window_size, COL_DARK_TWO);
 
         // Draw Clip TimeLine
-        DrawVideoClipTimeLine(editing_clip);
+        DrawClipTimeLine(editing_clip);
     }
     ImGui::EndChild();
 }
@@ -1552,7 +1577,7 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
             draw_list->AddRectFilled(fusion_timeline_window_pos, fusion_timeline_window_pos + fusion_timeline_window_size, COL_DARK_TWO);
 
             // Draw Clip TimeLine
-            DrawVideoOverlapTimeLine(editing_overlap);
+            DrawOverlapTimeLine(editing_overlap);
         }
         ImGui::EndChild();
     }
@@ -1633,7 +1658,6 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
 
 static void ShowVideoEditorWindow(ImDrawList *draw_list)
 {
-    static int VideoEditorWindowIndex = 0;
     float labelWidth = ImGui::CalcVerticalTabLabelsWidth() + 4;
     ImVec2 clip_window_pos = ImGui::GetCursorScreenPos();
     ImVec2 clip_window_size = ImGui::GetWindowSize();
@@ -1661,17 +1685,214 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
  * Audio Editor windows
  *
  ***************************************************************************************/
+static void ShowAudioFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
+{
+    if (timeline && timeline->mAudioFilterBluePrint)
+    {
+        if (clip && !timeline->mAudioFilterBluePrint->m_Document->m_Blueprint.IsOpened())
+        {
+            auto track = timeline->FindTrackByClipID(clip->mID);
+            if (track)
+                track->EditingClip(clip);
+        }
+        ImVec2 window_pos = ImGui::GetCursorScreenPos();
+        ImVec2 window_size = ImGui::GetWindowSize();
+        ImGui::InvisibleButton("audio_editor_blueprint_back_view", window_size);
+        if (ImGui::BeginDragDropTarget() && timeline->mAudioFilterBluePrint->Blueprint_IsValid())
+        {
+            if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("Filter_drag_drop"))
+            {
+                BluePrint::NodeTypeInfo * type = (BluePrint::NodeTypeInfo *)payload->Data;
+                if (type)
+                {
+                    timeline->mAudioFilterBluePrint->Edit_Insert(type->m_ID);
+                }
+            }
+            ImGui::EndDragDropTarget();
+        }
+        ImGui::SetCursorScreenPos(window_pos);
+        if (ImGui::BeginChild("##audio_editor_blueprint", window_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+        {
+            timeline->mAudioFilterBluePrint->Frame(true, true, clip != nullptr, BluePrint::BluePrintFlag::BluePrintFlag_Filter);
+        }
+        ImGui::EndChild();
+    }
+}
+
+static void ShowAudioFilterWindow(ImDrawList *draw_list)
+{
+    ImVec2 window_pos = ImGui::GetCursorScreenPos();
+    ImVec2 window_size = ImGui::GetWindowSize();
+    draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
+    float clip_timeline_height = 100;
+    float editor_main_height = window_size.y - clip_timeline_height - 4;
+    float audio_view_width = window_size.x / 4;
+    float audio_editor_width = window_size.x - audio_view_width;
+    if (!timeline)
+        return;
+    Clip * editing_clip = timeline->FindEditingClip();
+    if (editing_clip && editing_clip->mType != MEDIA_AUDIO)
+    {
+        editing_clip = nullptr;
+    }
+    timeline->Play(false, true);
+    if (editing_clip && timeline->mAudioFilterBluePrint)
+    {
+        timeline->mAudioFilterBluePrint->m_ViewSize = ImVec2(audio_editor_width, editor_main_height);
+    }
+
+    if (ImGui::BeginChild("##audio_filter_main", ImVec2(window_size.x, editor_main_height), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+    {
+        ImVec2 clip_window_pos = ImGui::GetCursorScreenPos();
+        ImVec2 clip_window_size = ImGui::GetWindowSize();
+        if (ImGui::BeginChild("##audio_filter_blueprint", ImVec2(audio_editor_width, clip_window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+        {
+            ImVec2 editor_view_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 editor_view_window_size = ImGui::GetWindowSize();
+            draw_list->AddRectFilled(editor_view_window_pos, editor_view_window_pos + editor_view_window_size, COL_DARK_ONE);
+            ShowAudioFilterBluePrintWindow(draw_list, editing_clip);
+        }
+        ImGui::EndChild();
+        ImGui::SetCursorScreenPos(clip_window_pos + ImVec2(audio_editor_width, 0));
+        if (ImGui::BeginChild("##filter_audio_view", ImVec2(audio_view_width, clip_window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+        {
+            ImVec2 audio_view_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 audio_view_window_size = ImGui::GetWindowSize();
+            draw_list->AddRectFilled(audio_view_window_pos, audio_view_window_pos + audio_view_window_size, COL_DEEP_DARK);
+            // TODO::Dicky add Audio view control
+        }
+        ImGui::EndChild();
+    }
+    ImGui::EndChild();
+    if (ImGui::BeginChild("##audio_filter_timeline", ImVec2(window_size.x, clip_timeline_height), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+    {
+        ImVec2 clip_timeline_window_pos = ImGui::GetCursorScreenPos();
+        ImVec2 clip_timeline_window_size = ImGui::GetWindowSize();
+        draw_list->AddRectFilled(clip_timeline_window_pos, clip_timeline_window_pos + clip_timeline_window_size, COL_DARK_TWO);
+
+        // Draw Clip TimeLine
+        DrawClipTimeLine(editing_clip);
+    }
+    ImGui::EndChild();
+}
+
+static void ShowAudioFusionBluePrintWindow(ImDrawList *draw_list, Overlap * overlap)
+{
+    if (timeline && timeline->mAudioFusionBluePrint)
+    {
+        if (overlap && !timeline->mAudioFusionBluePrint->m_Document->m_Blueprint.IsOpened())
+        {
+            auto track = timeline->FindTrackByClipID(overlap->m_Clip.first);
+            if (track)
+                track->EditingOverlap(overlap);
+        }
+        ImVec2 window_pos = ImGui::GetCursorScreenPos();
+        ImVec2 window_size = ImGui::GetWindowSize();
+        ImGui::InvisibleButton("audio_fusion_blueprint_back_view", window_size);
+        if (ImGui::BeginDragDropTarget() && timeline->mAudioFusionBluePrint->Blueprint_IsValid())
+        {
+            if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("Fusion_drag_drop"))
+            {
+                BluePrint::NodeTypeInfo * type = (BluePrint::NodeTypeInfo *)payload->Data;
+                if (type)
+                {
+                    timeline->mAudioFusionBluePrint->Edit_Insert(type->m_ID);
+                }
+            }
+            ImGui::EndDragDropTarget();
+        }
+        ImGui::SetCursorScreenPos(window_pos);
+        if (ImGui::BeginChild("##audio_fusion_blueprint", window_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+        {
+            timeline->mAudioFusionBluePrint->Frame(true, true, overlap != nullptr, BluePrint::BluePrintFlag::BluePrintFlag_Fusion);
+        }
+        ImGui::EndChild();
+    }
+}
+
+static void ShowAudioFusionWindow(ImDrawList *draw_list)
+{
+    ImVec2 window_pos = ImGui::GetCursorScreenPos();
+    ImVec2 window_size = ImGui::GetWindowSize();
+    draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
+    float fusion_timeline_height = 170;
+    float audio_view_width = window_size.x / 4;
+    float audio_fusion_width = window_size.x - audio_view_width;
+    float audio_fusion_height = window_size.y - fusion_timeline_height;
+    if (!timeline)
+        return;
+    Overlap * editing_overlap = timeline->FindEditingOverlap();
+    if (editing_overlap)
+    {
+        auto clip_first = timeline->FindClipByID(editing_overlap->m_Clip.first);
+        auto clip_second = timeline->FindClipByID(editing_overlap->m_Clip.second);
+        if (!clip_first || !clip_second || 
+            clip_first->mType != MEDIA_AUDIO || clip_second->mType != MEDIA_AUDIO)
+        {
+            editing_overlap = nullptr;
+        }
+    }
+    timeline->Play(false, true);
+    if (editing_overlap && timeline->mAudioFusionBluePrint)
+    {
+        timeline->mAudioFusionBluePrint->m_ViewSize = ImVec2(audio_fusion_width, audio_fusion_height);
+    }
+    if (ImGui::BeginChild("##audio_fusion_main", ImVec2(audio_fusion_width, window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+    {
+        ImVec2 fusion_window_pos = ImGui::GetCursorScreenPos();
+        ImVec2 fusion_window_size = ImGui::GetWindowSize();
+        if (ImGui::BeginChild("##audio_fusion_views", ImVec2(audio_fusion_width, fusion_window_size.y - fusion_timeline_height), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+        {
+            ImVec2 fusion_view_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 fusion_view_window_size = ImGui::GetWindowSize();
+            draw_list->AddRectFilled(fusion_view_window_pos, fusion_view_window_pos + fusion_view_window_size, COL_DARK_ONE);
+            ShowAudioFusionBluePrintWindow(draw_list, editing_overlap);
+        }
+        ImGui::EndChild();
+        if (ImGui::BeginChild("##audio_fusion_timeline", ImVec2(audio_fusion_width, fusion_timeline_height), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+        {
+            ImVec2 fusion_timeline_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 fusion_timeline_window_size = ImGui::GetWindowSize();
+            draw_list->AddRectFilled(fusion_timeline_window_pos, fusion_timeline_window_pos + fusion_timeline_window_size, COL_DARK_TWO);
+
+            // Draw Clip TimeLine
+            DrawOverlapTimeLine(editing_overlap);
+        }
+        ImGui::EndChild();
+    }
+    ImGui::EndChild();
+    ImGui::SetCursorScreenPos(window_pos + ImVec2(audio_fusion_width, 0));
+    if (ImGui::BeginChild("##fusion_audio_view", ImVec2(audio_view_width, window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+    {
+        ImVec2 audio_view_window_pos = ImGui::GetCursorScreenPos();
+        ImVec2 audio_view_window_size = ImGui::GetWindowSize();
+        draw_list->AddRectFilled(audio_view_window_pos, audio_view_window_pos + audio_view_window_size, COL_DEEP_DARK);
+        // TODO::Dicky audio fusion
+    }
+    ImGui::EndChild();
+}
+
 static void ShowAudioEditorWindow(ImDrawList *draw_list)
 {
-    //SetSequenceEditorStage(false, false, true);
-    ImGui::SetWindowFontScale(1.2);
-    ImGui::Indent(20);
-    ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4, 0.4, 0.8, 0.8));
-    ImGui::TextUnformatted("Audio Editor");
-    ImGui::PopStyleColor();
-    ImGui::PopStyleVar();
-    ImGui::SetWindowFontScale(1.0);
+    float labelWidth = ImGui::CalcVerticalTabLabelsWidth() + 4;
+    ImVec2 clip_window_pos = ImGui::GetCursorScreenPos();
+    ImVec2 clip_window_size = ImGui::GetWindowSize();
+    static const int numTabs = sizeof(AudioEditorTabNames)/sizeof(AudioEditorTabNames[0]);
+    ImGui::TabLabelsVertical(false, numTabs, AudioEditorTabNames, AudioEditorWindowIndex, AudioEditorTabTooltips, true, nullptr, nullptr, false, false, nullptr, nullptr);
+    ImGui::SetCursorScreenPos(clip_window_pos + ImVec2(labelWidth, 0));
+    if (ImGui::BeginChild("##audio_editor_views", ImVec2(clip_window_size.x - labelWidth, clip_window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+    {
+        ImVec2 editor_view_window_pos = ImGui::GetCursorScreenPos();
+        ImVec2 editor_view_window_size = ImGui::GetWindowSize();
+        draw_list->AddRectFilled(editor_view_window_pos, editor_view_window_pos + editor_view_window_size, COL_DARK_ONE);
+        switch (AudioEditorWindowIndex)
+        {
+            case 0: ShowAudioFilterWindow(draw_list); break;
+            case 1: ShowAudioFusionWindow(draw_list); break;
+            default: break;
+        }
+    }
+    ImGui::EndChild();
 }
 
 /****************************************************************************************
@@ -1915,8 +2136,6 @@ bool Application_Frame(void * handle, bool app_will_quit)
     ImGui::SetNextWindowPos(main_pos, ImGuiCond_Always);
     if (ImGui::BeginChild("##Top_Panel", main_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
     {
-        static int ControlPanelIndex = 0;
-        static int MainWindowIndex = 0;
         ImVec2 main_window_size = ImGui::GetWindowSize();
         static float size_control_panel_w = 0.2;
         static float size_main_w = 0.8;

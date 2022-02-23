@@ -1525,15 +1525,26 @@ void MediaTrack::EditingOverlap(Overlap * overlap)
     {
         auto clip_first = timeline->FindClipByID(editing_overlap->m_Clip.first);
         auto clip_second = timeline->FindClipByID(editing_overlap->m_Clip.second);
-        if (clip_first && clip_second &&
-            clip_first->mType == MEDIA_VIDEO && 
-            clip_second->mType == MEDIA_VIDEO &&
-            timeline->mVideoFusionBluePrint &&
-            timeline->mVideoFusionBluePrint->Blueprint_IsValid())
+        if (clip_first && clip_second)
         {
-            timeline->mVideoFusionBluePrintLock.lock();
-            editing_overlap->mFusionBP = timeline->mVideoFusionBluePrint->m_Document->Serialize();
-            timeline->mVideoFusionBluePrintLock.unlock();
+            if (clip_first->mType == MEDIA_VIDEO && 
+                clip_second->mType == MEDIA_VIDEO &&
+                timeline->mVideoFusionBluePrint &&
+                timeline->mVideoFusionBluePrint->Blueprint_IsValid())
+            {
+                timeline->mVideoFusionBluePrintLock.lock();
+                editing_overlap->mFusionBP = timeline->mVideoFusionBluePrint->m_Document->Serialize();
+                timeline->mVideoFusionBluePrintLock.unlock();
+            }
+            if (clip_first->mType == MEDIA_AUDIO && 
+                clip_second->mType == MEDIA_AUDIO &&
+                timeline->mAudioFusionBluePrint &&
+                timeline->mAudioFusionBluePrint->Blueprint_IsValid())
+            {
+                timeline->mAudioFusionBluePrintLock.lock();
+                editing_overlap->mFusionBP = timeline->mAudioFusionBluePrint->m_Document->Serialize();
+                timeline->mAudioFusionBluePrintLock.unlock();
+            }
         }
         editing_overlap->bEditing = false;
     }
@@ -1541,15 +1552,23 @@ void MediaTrack::EditingOverlap(Overlap * overlap)
     overlap->bEditing = true;
     auto first = timeline->FindClipByID(overlap->m_Clip.first);
     auto second = timeline->FindClipByID(overlap->m_Clip.second);
-    if (!first || !second || 
-        first->mType != MEDIA_VIDEO || second->mType != MEDIA_VIDEO)
+    if (!first || !second)
         return;
-    if (timeline->mVideoFusionBluePrint && timeline->mVideoFusionBluePrint->m_Document)
+    if (first->mType == MEDIA_VIDEO && second->mType == MEDIA_VIDEO &&
+        timeline->mVideoFusionBluePrint && timeline->mVideoFusionBluePrint->m_Document)
     {                
         timeline->mVideoFusionBluePrintLock.lock();
         timeline->mVideoFusionBluePrint->File_New_Fusion(overlap->mFusionBP, "VideoFusion");
         timeline->mVideoFusionNeedUpdate = true;
         timeline->mVideoFusionBluePrintLock.unlock();
+    }
+    if (first->mType == MEDIA_AUDIO && second->mType == MEDIA_AUDIO &&
+        timeline->mAudioFusionBluePrint && timeline->mAudioFusionBluePrint->m_Document)
+    {                
+        timeline->mAudioFusionBluePrintLock.lock();
+        timeline->mAudioFusionBluePrint->File_New_Fusion(overlap->mFusionBP, "AudioFusion");
+        timeline->mAudioFusionNeedUpdate = true;
+        timeline->mAudioFusionBluePrintLock.unlock();
     }
 }
 
@@ -1778,6 +1797,15 @@ TimeLine::TimeLine()
         mVideoFusionBluePrint->SetCallbacks(callbacks, this);
     }
 
+    mAudioFusionBluePrint = new BluePrint::BluePrintUI();
+    if (mAudioFusionBluePrint)
+    {
+        BluePrint::BluePrintCallbackFunctions callbacks;
+        callbacks.BluePrintOnChanged = OnBluePrintChange;
+        mAudioFusionBluePrint->Initialize();
+        mAudioFusionBluePrint->SetCallbacks(callbacks, this);
+    }
+
     for (int i = 0; i < mAudioChannels; i++)
         mAudioLevel.push_back(0);
 }
@@ -1804,6 +1832,11 @@ TimeLine::~TimeLine()
     {
         mVideoFusionBluePrint->Finalize();
         delete mVideoFusionBluePrint;
+    }
+    if (mAudioFusionBluePrint)
+    {
+        mAudioFusionBluePrint->Finalize();
+        delete mAudioFusionBluePrint;
     }
     for (auto item : media_items) delete item;
     for (auto track : m_Tracks) delete track;
@@ -3716,9 +3749,9 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
 }
 
 /***********************************************************************************************************
- * Draw Video Clip Timeline
+ * Draw Clip Timeline
  ***********************************************************************************************************/
-bool DrawVideoClipTimeLine(Clip* _clip)
+bool DrawClipTimeLine(Clip* _clip)
 {
     /*************************************************************************************************************
      |  0    5    10 v   15    20 <rule bar> 30     35      40      45       50       55    c
@@ -3771,7 +3804,7 @@ bool DrawVideoClipTimeLine(Clip* _clip)
     {
         auto old_time = clip->mCurrent;
         clip->mCurrent = (int64_t)((io.MousePos.x - topRect.Min.x) / msPixelWidth) + start;
-        alignTime(clip->mCurrent, clip->mClipFrameRate);
+        //alignTime(clip->mCurrent, clip->mClipFrameRate);
         if (clip->mCurrent < start)
             clip->mCurrent = start;
         if (clip->mCurrent >= end)
@@ -3848,9 +3881,9 @@ bool DrawVideoClipTimeLine(Clip* _clip)
 }
 
 /***********************************************************************************************************
- * Draw Video Fusion Timeline
+ * Draw Fusion Timeline
  ***********************************************************************************************************/
-bool DrawVideoOverlapTimeLine(Overlap * overlap)
+bool DrawOverlapTimeLine(Overlap * overlap)
 {
     /*************************************************************************************************************
      |  0    5    10 v   15    20 <rule bar> 30     35      40      45       50       55    

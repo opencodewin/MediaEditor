@@ -424,6 +424,10 @@ struct TimeLine
     std::mutex mVideoFusionBluePrintLock;   // Video Fusion BluePrint mutex
     bool mVideoFusionNeedUpdate {false};
 
+    BluePrint::BluePrintUI * mAudioFusionBluePrint {nullptr};
+    std::mutex mAudioFusionBluePrintLock;   // Video Fusion BluePrint mutex
+    bool mAudioFusionNeedUpdate {false};
+
     std::mutex mFrameLock;                      // timeline frame mutex
     std::list<ImGui::ImMat> mFrame;             // timeline output frame
     ImTextureID mMainPreviewTexture {nullptr};  // main preview texture
@@ -485,6 +489,6 @@ struct TimeLine
 };
 
 bool DrawTimeLine(TimeLine *timeline, bool *expanded);
-bool DrawVideoClipTimeLine(Clip * clip);
-bool DrawVideoOverlapTimeLine(Overlap * overlap);
+bool DrawClipTimeLine(Clip * clip);
+bool DrawOverlapTimeLine(Overlap * overlap);
 } // namespace MediaTimeline
