@@ -493,7 +493,7 @@ static int LoadProject(std::string path)
             int64_t id = -1;
             std::string name;
             std::string path;
-            MEDIA_TYPE type = MEDIA_UNKNOWN;
+            MediaTimeline::MEDIA_TYPE type = MEDIA_UNKNOWN;
             if (media.contains("id"))
             {
                 auto& val = media["id"];
@@ -523,7 +523,7 @@ static int LoadProject(std::string path)
                 auto& val = media["type"];
                 if (val.is_number())
                 {
-                    type = (MEDIA_TYPE)val.get<imgui_json::number>();
+                    type = (MediaTimeline::MEDIA_TYPE)val.get<imgui_json::number>();
                 }
             }
             
@@ -2103,7 +2103,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
             auto userDatas = std::string((const char*)ImGuiFileDialog::Instance()->GetUserDatas());
             if (userDatas.compare("Media Source") == 0)
             {
-                MEDIA_TYPE type = MEDIA_UNKNOWN;
+                MediaTimeline::MEDIA_TYPE type = MEDIA_UNKNOWN;
                 if (!file_surfix.empty())
                 {
                     if ((file_surfix.compare(".mp4") == 0) ||
