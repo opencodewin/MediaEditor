@@ -186,7 +186,7 @@ struct Overlap
     int64_t mID                     {-1};       // overlap ID
     int64_t mStart                  {0};        // overlap start time at timeline
     int64_t mEnd                    {0};        // overlap end time at timeline
-    bool bEditting                  {false};    // overlap is editting
+    bool bEditing                   {false};    // overlap is editing
     std::pair<int64_t, int64_t>     m_Clip;     // overlaped clip's pair
     imgui_json::value mFusionBP;                // overlap transion blueprint
     void * mHandle                  {nullptr};  // overlap belong to timeline 
@@ -211,9 +211,12 @@ struct Clip
     int64_t mEnd                {0};                // clip end time in timeline
     int64_t mStartOffset        {0};                // clip start time in media
     int64_t mEndOffset          {0};                // clip end time in media
+    int64_t mCurrent            {0};                // clip current time, save it to project file
+    bool bPlay                  {false};
+    bool bForward               {true};
     bool bSeeking               {false};
-    bool bSelected              {false};
-    bool bEditting              {false};            // clip is Editting by double click selected
+    bool bSelected              {false};            // clip is selected, save it to project file
+    bool bEditing               {false};            // clip is Editing by double click selected, save it to project file
     std::mutex mLock;                               // clip mutex
     void * mHandle              {nullptr};          // clip belong to timeline 
     MediaOverview * mOverview   {nullptr};          // clip media overview
@@ -329,8 +332,8 @@ struct MediaTrack
     void InsertClip(Clip * clip, int64_t pos = 0);
     void PushBackClip(Clip * clip);
     void SelectClip(Clip * clip, bool appand);
-    void EdittingClip(Clip * clip);
-    void EdittingOverlap(Overlap * overlap);
+    void EditingClip(Clip * clip);
+    void EditingOverlap(Overlap * overlap);
     void DeleteClip(int64_t id);
     static inline bool CompareClip(Clip* a, Clip* b) { return a->mStart < b->mStart; }
     Clip * FindPrevClip(int64_t id);                // find prev clip in track, if not found then return null
@@ -400,6 +403,7 @@ struct TimeLine
     bool bSelectLinked = true;              // save in project
     
     std::mutex mTrackLock;                  // timeline track mutex
+    std::mutex mClipLock;                   // timeline clip mutex
     // BP CallBacks
     static int OnBluePrintChange(int type, std::string name, void* handle);
 
@@ -461,7 +465,9 @@ struct TimeLine
     MediaTrack * FindTrackByClipID(int64_t id);         // Find track by clip ID
     int FindTrackIndexByClipID(int64_t id);             // Find track by clip ID
     Clip * FindClipByID(int64_t id);                    // Find clip with clip ID
+    Clip * FindEditingClip();                           // Find clip which is editing
     Overlap * FindOverlapByID(int64_t id);              // Find overlap with overlap ID
+    Overlap * FindEditingOverlap();                     // Find overlap which is editing
     int GetSelectedClipCount();                         // Get current selected clip count
     int64_t NextClipStart(Clip * clip);                 // Get next clip start pos by clip, if don't have next clip, then return -1
     int64_t NextClipStart(int64_t pos);                 // Get next clip start pos by time, if don't have next clip, then return -1
@@ -474,5 +480,5 @@ struct TimeLine
 };
 
 bool DrawTimeLine(TimeLine *timeline, bool *expanded);
-
+bool DrawVideoClipTimeLine(Clip * clip);
 } // namespace MediaTimeline
