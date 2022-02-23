@@ -103,6 +103,37 @@ static int MainWindowIndex = 0;             // default Media Preview window
 static int VideoEditorWindowIndex = 0;      // default Video Filter window
 static int AudioEditorWindowIndex = 0;      // default Audio Filter window
 
+
+static int EditingClip(int type, void* handle)
+{
+    if (type == MEDIA_VIDEO)
+    {
+        MainWindowIndex = 1;
+        VideoEditorWindowIndex = 0;
+    }
+    else if (type == MEDIA_AUDIO)
+    {
+        MainWindowIndex = 2;
+        AudioEditorWindowIndex = 0;
+    }
+    return 0;
+}
+
+static int EditingOverlap(int type, void* handle)
+{
+    if (type == MEDIA_VIDEO)
+    {
+        MainWindowIndex = 1;
+        VideoEditorWindowIndex = 1;
+    }
+    else if (type == MEDIA_AUDIO)
+    {
+        MainWindowIndex = 2;
+        AudioEditorWindowIndex = 1;
+    }
+    return 0;
+}
+
 // Utils functions
 void ShowVideoWindow(ImTextureID texture, ImVec2& pos, ImVec2& size)
 {
@@ -476,6 +507,11 @@ static void NewTimeline()
         timeline->mAudioSampleRate = g_media_editor_settings.AudioSampleRate;
         timeline->mAudioChannels = g_media_editor_settings.AudioChannels;
         timeline->mAudioFormat = (AudioRender::PcmFormat)g_media_editor_settings.AudioFormat;
+        
+        // init callbacks
+        timeline->m_CallBacks.EditingClip = EditingClip;
+        timeline->m_CallBacks.EditingOverlap = EditingOverlap;
+
         // init bp view
         float labelWidth = ImGui::CalcVerticalTabLabelsWidth() + 4;
         if (timeline->mVideoFilterBluePrint)

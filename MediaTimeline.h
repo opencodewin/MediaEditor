@@ -371,6 +371,13 @@ struct ClipGroup
     void Save(imgui_json::value& value);
 };
 
+typedef int (*TimeLineCallback)(int type, void* handle);
+typedef struct TimeLineCallbackFunctions
+{
+    TimeLineCallback  EditingClip       {nullptr};
+    TimeLineCallback  EditingOverlap    {nullptr};
+} TimeLineCallbackFunctions;
+
 struct TimeLine
 {
     TimeLine();
@@ -431,6 +438,8 @@ struct TimeLine
     std::mutex mFrameLock;                      // timeline frame mutex
     std::list<ImGui::ImMat> mFrame;             // timeline output frame
     ImTextureID mMainPreviewTexture {nullptr};  // main preview texture
+
+    TimeLineCallbackFunctions  m_CallBacks;
 
     int64_t GetStart() const { return mStart; }
     int64_t GetEnd() const { return mEnd; }

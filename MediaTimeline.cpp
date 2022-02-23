@@ -1511,6 +1511,10 @@ void MediaTrack::EditingClip(Clip * clip)
             timeline->mAudioFilterBluePrintLock.unlock();
         }
     }
+    if (timeline->m_CallBacks.EditingClip)
+    {
+        timeline->m_CallBacks.EditingClip(clip->mType, clip);
+    }
 }
 
 void MediaTrack::EditingOverlap(Overlap * overlap)
@@ -1569,6 +1573,10 @@ void MediaTrack::EditingOverlap(Overlap * overlap)
         timeline->mAudioFusionBluePrint->File_New_Fusion(overlap->mFusionBP, "AudioFusion");
         timeline->mAudioFusionNeedUpdate = true;
         timeline->mAudioFusionBluePrintLock.unlock();
+    }
+    if (timeline->m_CallBacks.EditingOverlap)
+    {
+        timeline->m_CallBacks.EditingOverlap(first->mType, overlap);
     }
 }
 
