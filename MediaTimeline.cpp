@@ -1,4 +1,5 @@
 #include "MediaTimeline.h"
+#include "MediaInfo.h"
 #include <imgui_helper.h>
 #include <cmath>
 #include <sstream>
@@ -604,7 +605,7 @@ VideoClip::~VideoClip()
 void VideoClip::UpdateSnapshot()
 {
 }
-    
+
 void VideoClip::Seek()
 {
 }
@@ -658,28 +659,68 @@ Clip* VideoClip::Load(const imgui_json::value& value, void * handle)
     return nullptr;
 }
 
+void VideoClip::ConfigViewWindow(int64_t wndDur, float pixPerMs)
+{
+    Clip::ConfigViewWindow(wndDur, pixPerMs);
+
+    if (mTrackHeight > 0)
+        CalcDisplayParams();
+}
+
+void VideoClip::SetTrackHeight(int trackHeight)
+{
+    Clip::SetTrackHeight(trackHeight);
+
+    if (mViewWndDur > 0 && mPixPerMs > 0)
+        CalcDisplayParams();
+}
+
+void VideoClip::SetViewWindowStart(int64_t millisec)
+{
+    mViewWndStart = millisec;
+    if (!mSnapshot->GetSnapshots(mSnapImages, (double)millisec/1000))
+        throw std::runtime_error(mSnapshot->GetError());
+    mSnapshot->UpdateSnapshotTexture(mSnapImages);
+}
+
+void VideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom)
+{
+    ImVec2 dispPos = leftTop;
+    for (auto& img : mSnapImages)
+    {
+        if (img->mTextureReady)
+        {
+            ImGui::SetCursorScreenPos(dispPos);
+            ImGui::Image(*(img->mTextureHolder), {mSnapWidth, (float)mSnapHeight});
+        }
+        else
+            // wyvern: this part should be replaced with loading image
+            drawList->AddRect(dispPos, {dispPos.x+mSnapWidth, rightBottom.y}, IM_COL32_BLACK);
+        dispPos.x += mSnapWidth;
+        if (dispPos.x >= rightBottom.x)
+            break;
+    }
+}
+
+void VideoClip::CalcDisplayParams()
+{
+    const MediaInfo::VideoStream* video_stream = mOverview->GetVideoStream();
+    mSnapHeight = mTrackHeight;
+    MediaInfo::Ratio displayAspectRatio = {
+        (int32_t)(video_stream->width*video_stream->sampleAspectRatio.num), (int32_t)(video_stream->height*video_stream->sampleAspectRatio.den) };
+    mSnapWidth = (float)mTrackHeight*displayAspectRatio.num/displayAspectRatio.den;
+    mSnapsInViewWindow = (float)((double)mPixPerMs*mViewWndDur/mSnapWidth);
+    double windowSize = (double)mViewWndDur/1000;
+    if (!mSnapshot->ConfigSnapWindow(windowSize, mSnapsInViewWindow))
+        throw std::runtime_error(mSnapshot->GetError());
+}
+
 void VideoClip::Save(imgui_json::value& value)
 {
     Clip::Save(value);
     // save video clip info
     value["FrameRateNum"] = imgui_json::number(mClipFrameRate.num);
     value["FrameRateDen"] = imgui_json::number(mClipFrameRate.den);
-}
-
-void VideoClip::PrepareSnapshotTextureProc()
-{
-    while (!mQuit)
-    {
-        bool ildeLoop = true;
-
-        if (mVideoSnapshots.size() < mMaxSnapCnt)
-        {
-
-        }
-
-        if (ildeLoop)
-            std::this_thread::sleep_for(std::chrono::milliseconds(5));
-    }
 }
 
 // AudioClip Struct Member Functions
@@ -1276,6 +1317,8 @@ void MediaTrack::PushBackClip(Clip * clip)
         clip->mStart = (*last_clip)->mEnd;
         clip->mEnd = clip->mStart + length;
     }
+    clip->ConfigViewWindow(mViewWndDur, mPixPerMs);
+    clip->SetTrackHeight(mTrackHeight);
     m_Clips.push_back(clip);
 }
 
@@ -1293,6 +1336,8 @@ void MediaTrack::InsertClip(Clip * clip, int64_t pos)
         int64_t length = clip->mEnd - clip->mStart;
         clip->mStart = pos;
         clip->mEnd = clip->mStart + length;
+        clip->ConfigViewWindow(mViewWndDur, mPixPerMs);
+        clip->SetTrackHeight(mTrackHeight);
         m_Clips.push_back(clip);
     }
 /*
@@ -1617,6 +1662,8 @@ MediaTrack* MediaTrack::Load(const imgui_json::value& value, void * handle)
     MediaTrack * new_track = new MediaTrack(name, type, handle);
     if (new_track)
     {
+        new_track->mPixPerMs = timeline->msPixelWidthTarget;
+        new_track->mViewWndDur = timeline->visibleTime;
         if (value.contains("ID"))
         {
             auto& val = value["ID"];
@@ -1662,7 +1709,11 @@ MediaTrack* MediaTrack::Load(const imgui_json::value& value, void * handle)
                 int64_t clip_id = id_val.get<imgui_json::number>();
                 Clip * clip = timeline->FindClipByID(clip_id);
                 if (clip)
+                {
                     new_track->m_Clips.push_back(clip);
+                    clip->ConfigViewWindow(new_track->mViewWndDur, new_track->mPixPerMs);
+                    clip->SetTrackHeight(new_track->mTrackHeight);
+                }
             }
         }
 
@@ -1982,6 +2033,8 @@ void TimeLine::DeleteTrack(int index)
 int TimeLine::NewTrack(MEDIA_TYPE type, bool expand)
 {
     auto new_track = new MediaTrack("", type, this);
+    new_track->mPixPerMs = msPixelWidthTarget;
+    new_track->mViewWndDur = visibleTime;
     new_track->mExpanded = expand;
     mTrackLock.try_lock();
     m_Tracks.push_back(new_track);
@@ -2407,6 +2460,7 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, co
     // draw clips
     for (auto clip : track->m_Clips)
     {
+        clip->SetViewWindowStart(viewStartTime);
         bool draw_clip = false;
         float cursor_start = 0;
         float cursor_end  = 0;
@@ -2477,7 +2531,7 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, co
                 draw_list->PushClipRect(clippingRect.Min, clippingRect.Max, true);
                 ImVec2 custom_pos_min = ImVec2(cursor_start, clippingRect.Min.y);
                 ImVec2 custom_pos_max = ImVec2(cursor_end, clippingRect.Max.y);
-                draw_list->AddRect(custom_pos_min, custom_pos_max, IM_COL32_BLACK);
+                clip->DrawContent(draw_list, custom_pos_min, custom_pos_max);
                 draw_list->PopClipRect();
                 clip_pos_min = custom_pos_min;
                 clip_pos_max = custom_pos_max;
@@ -2867,6 +2921,13 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
     static bool panningView = false;
     static ImVec2 panningViewSource;
     static int64_t panningViewTime;
+    int64_t newVisibleTime = (int64_t)floorf((canvas_size.x - legendWidth) / timeline->msPixelWidthTarget);
+    if (timeline->visibleTime != newVisibleTime)
+    {
+        timeline->visibleTime = newVisibleTime;
+        for (auto &track : timeline->m_Tracks)
+            track->ConfigViewWindow(timeline->visibleTime, timeline->msPixelWidthTarget);
+    }
     timeline->visibleTime = (int64_t)floorf((canvas_size.x - legendWidth) / timeline->msPixelWidthTarget);
     const float barWidthRatio = ImMin(timeline->visibleTime / (float)duration, 1.f);
     const float barWidthInPixels = barWidthRatio * (canvas_size.x - legendWidth);
@@ -3572,6 +3633,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                     {
                         MediaTrack * new_track = new MediaTrack("", MEDIA_PICTURE, timeline);
                         new_track->mExpanded = true;
+                        new_track->mPixPerMs = timeline->msPixelWidthTarget;
+                        new_track->mViewWndDur = timeline->visibleTime;
                         new_track->InsertClip(new_image_clip, mouseTime);
                         timeline->m_Tracks.push_back(new_track);
                         timeline->Updata();
@@ -3591,6 +3654,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                     {
                         MediaTrack * new_track = new MediaTrack("", MEDIA_AUDIO, timeline);
                         new_track->mExpanded = true;
+                        new_track->mPixPerMs = timeline->msPixelWidthTarget;
+                        new_track->mViewWndDur = timeline->visibleTime;
                         new_track->InsertClip(new_audio_clip, mouseTime);
                         timeline->m_Tracks.push_back(new_track);
                         timeline->Updata();
@@ -3624,6 +3689,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                         {
                             video_track = new MediaTrack("", MEDIA_VIDEO, timeline);
                             video_track->mExpanded = true;
+                            video_track->mPixPerMs = timeline->msPixelWidthTarget;
+                            video_track->mViewWndDur = timeline->visibleTime;
                             video_track->InsertClip(new_video_clip, mouseTime);
                             timeline->m_Tracks.push_back(video_track);
                             timeline->Updata();
@@ -3685,6 +3752,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                             }
                             MediaTrack * audio_track = new MediaTrack("", MEDIA_AUDIO, timeline);
                             audio_track->mExpanded = true;
+                            audio_track->mPixPerMs = timeline->msPixelWidthTarget;
+                            audio_track->mViewWndDur = timeline->visibleTime;
                             audio_track->InsertClip(new_audio_clip, mouseTime);
                             if (video_track)
                             {

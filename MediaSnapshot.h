@@ -7,10 +7,11 @@
 
 struct MediaSnapshot
 {
+    using TextureHolder = std::shared_ptr<ImTextureID>;
     struct Image
     {
         bool mTextureReady{false};
-        ImTextureID mTid{0};
+        TextureHolder mTextureHolder;
         ImVec2 mSize{0, 0};
         int64_t mTimestampMs{0};
         ImGui::ImMat mImgMat;

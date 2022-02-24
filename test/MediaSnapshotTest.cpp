@@ -142,7 +142,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
                 }
                 else
                 {
-                    ImGui::Image(snapshots[i]->mTid, g_snapImageSize);
+                    ImGui::Image(*(snapshots[i]->mTextureHolder), g_snapImageSize);
                 }
                 ImGui::TextUnformatted(tag.c_str());
             }

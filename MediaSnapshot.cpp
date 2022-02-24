@@ -29,12 +29,6 @@ extern "C"
 using namespace std;
 using namespace Logger;
 
-// MediaSnapshot::Image::~Image()
-// {
-//     if (!mTid)
-//         ImGui::ImDestroyTexture(mTid);
-// }
-
 static AVPixelFormat get_hw_format(AVCodecContext *ctx, const AVPixelFormat *pix_fmts);
 
 class MediaSnapshot_Impl : public MediaSnapshot
@@ -102,9 +96,7 @@ public:
         WaitAllThreadsQuit();
         FlushAllQueues();
 
-        for (auto& tid : m_deprecatedTids)
-            ImGui::ImDestroyTexture(tid);
-        m_deprecatedTids.clear();
+        m_deprecatedTextures.clear();
 
         if (m_viddecCtx)
         {
@@ -223,10 +215,8 @@ public:
 
         // free deprecated textures
         {
-            lock_guard<mutex> lktid(m_deprecatedTidLock);
-            for (auto& tid : m_deprecatedTids)
-                ImGui::ImDestroyTexture(tid);
-            m_deprecatedTids.clear();
+            lock_guard<mutex> lktid(m_deprecatedTextureLock);
+            m_deprecatedTextures.clear();
         }
 
         for (auto& img : snapshots)
@@ -235,7 +225,12 @@ public:
                 continue;
             if (!img->mImgMat.empty())
             {
-                ImMatToTexture(img->mImgMat, img->mTid);
+                img->mTextureHolder = TextureHolder(new ImTextureID(0), [] (ImTextureID* pTid) {
+                    if (*pTid)
+                        ImGui::ImDestroyTexture(*pTid);
+                    delete pTid;
+                });
+                ImMatToTexture(img->mImgMat, *(img->mTextureHolder));
                 img->mTextureReady = true;
             }
         }
@@ -1196,10 +1191,10 @@ private:
                     av_frame_free(&ss.avfrm);
                     outterObj.m_pendingVidfrmCnt--;
                 }
-                if (ss.img->mTid)
+                if (ss.img->mTextureHolder)
                 {
-                    lock_guard<mutex> lk(outterObj.m_deprecatedTidLock);
-                    outterObj.m_deprecatedTids.push_back(ss.img->mTid);
+                    lock_guard<mutex> lk(outterObj.m_deprecatedTextureLock);
+                    outterObj.m_deprecatedTextures.push_back(ss.img->mTextureHolder);
                 }
             }
         }
@@ -1684,8 +1679,8 @@ private:
     int32_t m_maxPendingVidfrmCnt{4};
     double m_fixedSsInterval;
     uint32_t m_fixedSnapshotCount{100};
-    list<ImTextureID> m_deprecatedTids;
-    mutex m_deprecatedTidLock;
+    list<TextureHolder> m_deprecatedTextures;
+    mutex m_deprecatedTextureLock;
 
     bool m_useRszFactor{false};
     bool m_ssSizeChanged{false};

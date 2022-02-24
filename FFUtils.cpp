@@ -1146,7 +1146,10 @@ MediaInfo::InfoHolder GenerateMediaInfoByAVFormatContext(const AVFormatContext* 
             vidStream->timebase = MediaInfoRatioFromAVRational(stream->time_base);
             vidStream->width = codecpar->width;
             vidStream->height = codecpar->height;
-            vidStream->sampleAspectRatio = MediaInfoRatioFromAVRational(stream->sample_aspect_ratio);
+            if (stream->sample_aspect_ratio.num > 0 && stream->sample_aspect_ratio.den > 0)
+                vidStream->sampleAspectRatio = MediaInfoRatioFromAVRational(stream->sample_aspect_ratio);
+            else
+                vidStream->sampleAspectRatio = {1, 1};
             vidStream->avgFrameRate = MediaInfoRatioFromAVRational(stream->avg_frame_rate);
             vidStream->realFrameRate = MediaInfoRatioFromAVRational(stream->r_frame_rate);
             string demuxerName(avfmtCtx->iformat->name);
