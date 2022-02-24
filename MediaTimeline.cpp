@@ -468,11 +468,38 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
     if (!track)
         return index;
     
+    ImGuiIO &io = ImGui::GetIO();
+    const bool is_super_key_only = (io.KeyMods == ImGuiKeyModFlags_Super);
+    bool single = (ImGui::IsKeyDown(ImGuiKey_LeftSuper) || ImGui::IsKeyDown(ImGuiKey_RightSuper)) && is_super_key_only;
+
     int track_index = timeline->FindTrackIndexByClipID(mID);
     int64_t length = mEnd - mStart;
     int64_t start = timeline->mStart;
     int64_t end = -1;
     int64_t new_diff = -1;
+
+    int64_t group_start = mStart;
+    int64_t group_end = mEnd;
+    if (!single && timeline->bSelectLinked && mGroupID != -1)
+    {
+        // check all group clip
+        auto group = timeline->GetGroupByID(mGroupID);
+        for (auto clip_id : group.m_Grouped_Clips)
+        {
+            auto clip = timeline->FindClipByID(clip_id);
+            if (clip)
+            {
+                if (clip->mStart < group_start)
+                {
+                    group_start = clip->mStart;
+                }
+                if (clip->mEnd > group_end)
+                {
+                    group_end = clip->mEnd;
+                }
+            }
+        }
+    }
     /*
     auto prov_clip = track->FindPrevClip(mID);
     auto next_clip = track->FindNextClip(mID);
@@ -495,15 +522,15 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
     }
     */
 
-    if (mStart + diff < start)
+    if (group_start + diff < start)
     {
-        new_diff = start - mStart;
-        mStart = start;
+        new_diff = start - group_start;
+        mStart += new_diff;
         mEnd = mStart + length;
     }
-    else if (end != -1 && mEnd + diff > end)
+    else if (end != -1 && group_end + diff > end)
     {
-        new_diff = end - mEnd;
+        new_diff = end - group_end;
         mStart = end - length;
         mEnd = mStart + length;
     }
@@ -532,7 +559,7 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
         }
     }
 
-    if (timeline->bSelectLinked)
+    if (!single && timeline->bSelectLinked)
     {
         for (auto &clip : timeline->m_Clips)
         {
