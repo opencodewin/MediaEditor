@@ -10,6 +10,9 @@
 #include "Logger.h"
 #include <sstream>
 
+#define DEFAULT_MAIN_VIEW_WIDTH     1680
+#define DEFAULT_MAIN_VIEW_HEIGHT    1024
+
 using namespace MediaTimeline;
 
 static const char* ConfigureTabNames[] = {
@@ -35,7 +38,6 @@ static const char* ControlPanelTabTooltips[] =
 static const char* MainWindowTabNames[] = {
     ICON_MEDIA_PREVIEW,
     ICON_MEDIA_VIDEO,
-    ICON_TRANS,
     ICON_MUSIC,
     ICON_MEDIA_DIAGNOSIS,
     ICON_BRAIN
@@ -45,7 +47,6 @@ static const char* MainWindowTabTooltips[] =
 {
     "Meida Preview",
     "Video Editor",
-    "Video Fusion",
     "Audio Editor",
     "Meida Analyse",
     "Meida AI"
@@ -53,14 +54,26 @@ static const char* MainWindowTabTooltips[] =
 
 static const char* VideoEditorTabNames[] = {
     ICON_BLUE_PRINT,
+    ICON_TRANS,
     ICON_CROP,
     ICON_ROTATE
 };
 
 static const char* VideoEditorTabTooltips[] = {
     "Video Filter",
+    "Video Fusion",
     "Video Crop",
     "Video Rotate"
+};
+
+static const char* AudioEditorTabNames[] = {
+    ICON_BLUE_PRINT,
+    ICON_TRANS,
+};
+
+static const char* AudioEditorTabTooltips[] = {
+    "Audio Filter",
+    "Audio Fusion",
 };
 
 struct MediaEditorSettings
@@ -83,6 +96,43 @@ static MediaEditorSettings g_media_editor_settings;
 static MediaEditorSettings g_new_setting;
 static imgui_json::value g_project;
 static bool quit_save_confirm = true;
+
+static int ConfigureIndex = 1;              // default timeline setting
+static int ControlPanelIndex = 0;           // default Media Bank window
+static int MainWindowIndex = 0;             // default Media Preview window
+static int VideoEditorWindowIndex = 0;      // default Video Filter window
+static int AudioEditorWindowIndex = 0;      // default Audio Filter window
+
+
+static int EditingClip(int type, void* handle)
+{
+    if (type == MEDIA_VIDEO)
+    {
+        MainWindowIndex = 1;
+        VideoEditorWindowIndex = 0;
+    }
+    else if (type == MEDIA_AUDIO)
+    {
+        MainWindowIndex = 2;
+        AudioEditorWindowIndex = 0;
+    }
+    return 0;
+}
+
+static int EditingOverlap(int type, void* handle)
+{
+    if (type == MEDIA_VIDEO)
+    {
+        MainWindowIndex = 1;
+        VideoEditorWindowIndex = 1;
+    }
+    else if (type == MEDIA_AUDIO)
+    {
+        MainWindowIndex = 2;
+        AudioEditorWindowIndex = 1;
+    }
+    return 0;
+}
 
 // Utils functions
 void ShowVideoWindow(ImTextureID texture, ImVec2& pos, ImVec2& size)
@@ -357,7 +407,6 @@ static void ShowConfigure(MediaEditorSettings & config)
     static const int numConfigureTabs = sizeof(ConfigureTabNames)/sizeof(ConfigureTabNames[0]);
     if (ImGui::BeginChild("##ConfigureView", ImVec2(800, 600), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
     {
-        static int ConfigureIndex = 1;
         ImGui::TabLabels(numConfigureTabs, ConfigureTabNames, ConfigureIndex, nullptr , false, false, nullptr, nullptr, false, false, nullptr, nullptr);
         switch (ConfigureIndex)
         {
@@ -447,13 +496,8 @@ static void ShowConfigure(MediaEditorSettings & config)
 }
 
 // Document Framework
-static void CleanProject()
+static void NewTimeline()
 {
-    if (timeline)
-    {
-        delete timeline;
-        timeline = nullptr;
-    }
     timeline = new TimeLine();
     if (timeline)
     {
@@ -463,7 +507,44 @@ static void CleanProject()
         timeline->mAudioSampleRate = g_media_editor_settings.AudioSampleRate;
         timeline->mAudioChannels = g_media_editor_settings.AudioChannels;
         timeline->mAudioFormat = (AudioRender::PcmFormat)g_media_editor_settings.AudioFormat;
+        
+        // init callbacks
+        timeline->m_CallBacks.EditingClip = EditingClip;
+        timeline->m_CallBacks.EditingOverlap = EditingOverlap;
+
+        // init bp view
+        float labelWidth = ImGui::CalcVerticalTabLabelsWidth() + 4;
+        if (timeline->mVideoFilterBluePrint)
+        {
+            ImVec2 view_size = ImVec2(DEFAULT_MAIN_VIEW_WIDTH * 0.8 * 2 / 3 - labelWidth, DEFAULT_MAIN_VIEW_HEIGHT * 0.6 - 100);
+            timeline->mVideoFilterBluePrint->m_ViewSize = view_size;
+        }
+        if (timeline->mVideoFusionBluePrint)
+        {
+            ImVec2 view_size = ImVec2(DEFAULT_MAIN_VIEW_WIDTH * 0.8 * 2 / 3 - labelWidth, DEFAULT_MAIN_VIEW_HEIGHT * 0.6 - 170);
+            timeline->mVideoFusionBluePrint->m_ViewSize = view_size;
+        }
+        if (timeline->mAudioFilterBluePrint)
+        {
+            ImVec2 view_size = ImVec2(DEFAULT_MAIN_VIEW_WIDTH * 0.8 * 2 / 4 - labelWidth, DEFAULT_MAIN_VIEW_HEIGHT * 0.6 - 100);
+            timeline->mAudioFilterBluePrint->m_ViewSize = view_size;
+        }
+        if (timeline->mAudioFusionBluePrint)
+        {
+            ImVec2 view_size = ImVec2(DEFAULT_MAIN_VIEW_WIDTH * 0.8 * 2 / 4 - labelWidth, DEFAULT_MAIN_VIEW_HEIGHT * 0.6 - 170);
+            timeline->mAudioFusionBluePrint->m_ViewSize = view_size;
+        }
     }
+}
+
+static void CleanProject()
+{
+    if (timeline)
+    {
+        delete timeline;
+        timeline = nullptr;
+    }
+    NewTimeline();
     g_project = imgui_json::value();
 }
 
@@ -493,7 +574,7 @@ static int LoadProject(std::string path)
             int64_t id = -1;
             std::string name;
             std::string path;
-            MEDIA_TYPE type = MEDIA_UNKNOWN;
+            MediaTimeline::MEDIA_TYPE type = MEDIA_UNKNOWN;
             if (media.contains("id"))
             {
                 auto& val = media["id"];
@@ -523,7 +604,7 @@ static int LoadProject(std::string path)
                 auto& val = media["type"];
                 if (val.is_number())
                 {
-                    type = (MEDIA_TYPE)val.get<imgui_json::number>();
+                    type = (MediaTimeline::MEDIA_TYPE)val.get<imgui_json::number>();
                 }
             }
             
@@ -550,33 +631,46 @@ static void SaveProject(std::string path)
 {
     if (!timeline || path.empty())
         return;
-    /*
-    // check current exit clip, if it has bp then save it to clipinfo 
-    Clip * selected_clip = nullptr;
-    sequencer->Play(false, true);
-    sequencer->mSequencerLock.lock();
-    int selected_item = sequencer->selectedEntry;
-    sequencer->mSequencerLock.unlock();
-    if (selected_item != -1 && selected_item < sequencer->m_Items.size())
+
+    timeline->Play(false, true);
+
+    // check current editing clip, if it has bp then save it to clip
+    Clip * editing_clip = timeline->FindEditingClip();
+    if (editing_clip)
     {
-        SequencerItem * item = sequencer->m_Items[selected_item];
-        for (auto clip : item->mClips)
+        switch (editing_clip->mType)
         {
-            if (clip->bSelected)
+            case MEDIA_VIDEO:
+                if (timeline->mVideoFilterBluePrint && timeline->mVideoFilterBluePrint->m_Document->m_Blueprint.IsOpened()) 
+                    editing_clip->mFilterBP = timeline->mVideoFilterBluePrint->m_Document->Serialize();
+            break;
+            case MEDIA_AUDIO:
+                if (timeline->mAudioFilterBluePrint && timeline->mAudioFilterBluePrint->m_Document->m_Blueprint.IsOpened()) 
+                    editing_clip->mFilterBP = timeline->mAudioFilterBluePrint->m_Document->Serialize();
+            break;
+            default: break;
+        }
+    }
+
+    // check current editing overlap, if it has bp then save it to overlap
+    Overlap * editing_overlap = timeline->FindEditingOverlap();
+    if (editing_overlap)
+    {
+        auto clip = timeline->FindClipByID(editing_overlap->m_Clip.first);
+        if (clip)
+        {
+            switch (clip->mType)
             {
-                selected_clip = clip;
+                case MEDIA_VIDEO:
+                    if (timeline->mVideoFusionBluePrint && timeline->mVideoFusionBluePrint->m_Document->m_Blueprint.IsOpened()) 
+                        editing_overlap->mFusionBP = timeline->mVideoFusionBluePrint->m_Document->Serialize();
+                break;
+                default:
                 break;
             }
         }
-        if (!selected_clip)
-            selected_clip = item->mClips[0];
     }
-    if (selected_clip && sequencer->mVideoFilterBluePrint)
-    {
-        // save current BP document
-        selected_clip->mVideoFilterBP = sequencer->mVideoFilterBluePrint->m_Document->Serialize();
-    }
-    */
+
     // first save media bank info
     imgui_json::value media_bank;
     for (auto media : timeline->media_items)
@@ -1127,100 +1221,84 @@ static void ShowVideoRotateWindow(ImDrawList *draw_list)
     ImGui::SetWindowFontScale(1.0);
 }
 
-static void ShowVideoEditorWindow(ImDrawList *draw_list)
+/****************************************************************************************
+ * 
+ * Video Filter window
+ *
+ ***************************************************************************************/
+static void ShowVideoFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
+{
+    if (timeline && timeline->mVideoFilterBluePrint)
+    {
+        if (clip && !timeline->mVideoFilterBluePrint->m_Document->m_Blueprint.IsOpened())
+        {
+            auto track = timeline->FindTrackByClipID(clip->mID);
+            if (track)
+                track->EditingClip(clip);
+        }
+        ImVec2 window_pos = ImGui::GetCursorScreenPos();
+        ImVec2 window_size = ImGui::GetWindowSize();
+        ImGui::InvisibleButton("video_editor_blueprint_back_view", window_size);
+        if (ImGui::BeginDragDropTarget() && timeline->mVideoFilterBluePrint->Blueprint_IsValid())
+        {
+            if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("Filter_drag_drop"))
+            {
+                BluePrint::NodeTypeInfo * type = (BluePrint::NodeTypeInfo *)payload->Data;
+                if (type)
+                {
+                    timeline->mVideoFilterBluePrint->Edit_Insert(type->m_ID);
+                }
+            }
+            ImGui::EndDragDropTarget();
+        }
+        ImGui::SetCursorScreenPos(window_pos);
+        if (ImGui::BeginChild("##video_editor_blueprint", window_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+        {
+            timeline->mVideoFilterBluePrint->Frame(true, true, clip != nullptr, BluePrint::BluePrintFlag::BluePrintFlag_Filter);
+        }
+        ImGui::EndChild();
+    }
+}
+
+static void ShowVideoFilterWindow(ImDrawList *draw_list)
 {
     //SetSequenceEditorStage(true, false, false);
-    static int VideoEditorWindowIndex = 0;
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
     draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
     float clip_timeline_height = 100;
     float editor_main_height = window_size.y - clip_timeline_height - 4;
-    int selected_item_index = -1;
-    float labelWidth = ImGui::CalcVerticalTabLabelsWidth() + 4;
     float video_view_width = window_size.x / 3;
-    float video_editor_width = window_size.x - video_view_width - labelWidth;
-    static int64_t last_clip = -1; 
-    /*
-    Clip * selected_clip = nullptr;
-    if (sequencer)
+    float video_editor_width = window_size.x - video_view_width;
+    
+    if (!timeline)
+        return;
+    
+    Clip * editing_clip = timeline->FindEditingClip();
+    if (editing_clip && editing_clip->mType != MEDIA_VIDEO)
     {
-        sequencer->Play(false, true);
-        sequencer->mSequencerLock.lock();
-        selected_item_index = sequencer->selectedEntry;
-        sequencer->mSequencerLock.unlock();
-        if (selected_item_index != -1 && selected_item_index < sequencer->m_Items.size())
-        {
-            SequencerItem * item = sequencer->m_Items[selected_item_index];
-            for (auto clip : item->mClips)
-            {
-                if (clip->bSelected)
-                {
-                    selected_clip = clip;
-                    break;
-                }
-            }
-            if (!selected_clip)
-                selected_clip = item->mClips[0];
-        }
-        if (selected_clip && last_clip != -1 && last_clip != selected_clip->mID)
-        {
-            // first find last select clip
-            auto clip = find_clip_with_id(last_clip);
-            if (clip)
-            {
-                // save current BP document to last clip
-                sequencer->mVideoFilterBluePrintLock.lock();
-                clip->mVideoFilterBP = sequencer->mVideoFilterBluePrint->m_Document->Serialize();
-                sequencer->mVideoFilterBluePrintLock.unlock();
-            }
-            if (sequencer->mVideoFilterBluePrint && sequencer->mVideoFilterBluePrint->m_Document)
-            {                
-                sequencer->mVideoFilterBluePrintLock.lock();
-                sequencer->mVideoFilterBluePrint->File_New_Filter(selected_clip->mVideoFilterBP, ImVec2(video_editor_width, editor_main_height), "VideoFilter");
-                sequencer->mVideoFilterNeedUpdate = true;
-                sequencer->mVideoFilterBluePrintLock.unlock();
-            }
-        }
-        else if (selected_clip && sequencer->mVideoFilterBluePrint && last_clip == -1)
-        {
-            sequencer->mVideoFilterBluePrintLock.lock();
-            sequencer->mVideoFilterBluePrint->File_New_Filter(selected_clip->mVideoFilterBP, ImVec2(video_editor_width, editor_main_height), "VideoFilter");
-            sequencer->mVideoFilterBluePrintLock.unlock();
-        }
-        if (selected_clip)
-        {
-            last_clip = selected_clip->mID;
-        }
-        else
-        {
-            last_clip = -1;
-        }
+        editing_clip = nullptr;
     }
-    */
-    if (ImGui::BeginChild("##video_editor_main", ImVec2(window_size.x, editor_main_height), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+
+    timeline->Play(false, true);
+    if (editing_clip && timeline->mVideoFilterBluePrint)
+    {
+        timeline->mVideoFilterBluePrint->m_ViewSize = ImVec2(video_editor_width, editor_main_height);
+    }
+
+    if (ImGui::BeginChild("##video_filter_main", ImVec2(window_size.x, editor_main_height), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
     {
         ImVec2 clip_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 clip_window_size = ImGui::GetWindowSize();
-        static const int numTabs = sizeof(VideoEditorTabNames)/sizeof(VideoEditorTabNames[0]);
-        ImGui::TabLabelsVertical(false, numTabs, VideoEditorTabNames, VideoEditorWindowIndex, VideoEditorTabTooltips, true, nullptr, nullptr, false, false, nullptr, nullptr);
-        ImGui::SetCursorScreenPos(clip_window_pos + ImVec2(labelWidth, 0));
-        
-        if (ImGui::BeginChild("##video_editor_views", ImVec2(video_editor_width, clip_window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+        if (ImGui::BeginChild("##video_filter_blueprint", ImVec2(video_editor_width, clip_window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
         {
             ImVec2 editor_view_window_pos = ImGui::GetCursorScreenPos();
             ImVec2 editor_view_window_size = ImGui::GetWindowSize();
             draw_list->AddRectFilled(editor_view_window_pos, editor_view_window_pos + editor_view_window_size, COL_DARK_ONE);
-            switch (VideoEditorWindowIndex)
-            {
-                //case 0: ShowVideoBluePrintWindow(draw_list, selected_clip); break;
-                case 1: ShowVideoCropWindow(draw_list); break;
-                case 2: ShowVideoRotateWindow(draw_list); break;
-                default: break;
-            }
+            ShowVideoFilterBluePrintWindow(draw_list, editing_clip);
         }
         ImGui::EndChild();
-        ImGui::SetCursorScreenPos(clip_window_pos + ImVec2(video_editor_width + labelWidth, 0));
+        ImGui::SetCursorScreenPos(clip_window_pos + ImVec2(video_editor_width, 0));
         if (ImGui::BeginChild("##filter_video_view", ImVec2(video_view_width, clip_window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
         {
             ImVec2 video_view_window_pos = ImGui::GetCursorScreenPos();
@@ -1433,96 +1511,89 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
         ImGui::EndChild();
     }
     ImGui::EndChild();
-    if (ImGui::BeginChild("##video_editor_timeline", ImVec2(window_size.x, clip_timeline_height), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+    if (ImGui::BeginChild("##video_filter_timeline", ImVec2(window_size.x, clip_timeline_height), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
     {
         ImVec2 clip_timeline_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 clip_timeline_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(clip_timeline_window_pos, clip_timeline_window_pos + clip_timeline_window_size, COL_DARK_TWO);
-        //if (selected_clip)
-        //{
-        //    // Draw Clip TimeLine
-        //    ClipTimeLine(selected_clip);
-        //}
-        //else
-        //{
-        //    // TODO::Dicky Draw Help("Please Select clip from Timeline")
-        //}
+
+        // Draw Clip TimeLine
+        DrawClipTimeLine(editing_clip);
     }
     ImGui::EndChild();
 }
 
 /****************************************************************************************
  * 
- * Video Fusion windows
+ * Video Fusion window
  *
  ***************************************************************************************/
+static void ShowVideoFusionBluePrintWindow(ImDrawList *draw_list, Overlap * overlap)
+{
+    if (timeline && timeline->mVideoFusionBluePrint)
+    {
+        if (overlap && !timeline->mVideoFusionBluePrint->m_Document->m_Blueprint.IsOpened())
+        {
+            auto track = timeline->FindTrackByClipID(overlap->m_Clip.first);
+            if (track)
+                track->EditingOverlap(overlap);
+        }
+        ImVec2 window_pos = ImGui::GetCursorScreenPos();
+        ImVec2 window_size = ImGui::GetWindowSize();
+        ImGui::InvisibleButton("video_fusion_blueprint_back_view", window_size);
+        if (ImGui::BeginDragDropTarget() && timeline->mVideoFusionBluePrint->Blueprint_IsValid())
+        {
+            if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("Fusion_drag_drop"))
+            {
+                BluePrint::NodeTypeInfo * type = (BluePrint::NodeTypeInfo *)payload->Data;
+                if (type)
+                {
+                    timeline->mVideoFusionBluePrint->Edit_Insert(type->m_ID);
+                }
+            }
+            ImGui::EndDragDropTarget();
+        }
+        ImGui::SetCursorScreenPos(window_pos);
+        if (ImGui::BeginChild("##video_fusion_blueprint", window_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+        {
+            timeline->mVideoFusionBluePrint->Frame(true, true, overlap != nullptr, BluePrint::BluePrintFlag::BluePrintFlag_Fusion);
+        }
+        ImGui::EndChild();
+    }
+}
+
 static void ShowVideoFusionWindow(ImDrawList *draw_list)
 {
     //SetSequenceEditorStage(false, true, false);
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
     draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
-    float fusion_timeline_height = 200;
+    float fusion_timeline_height = 170;
     float video_view_width = window_size.x / 3;
     float video_fusion_width = window_size.x - video_view_width;
     float video_fusion_height = window_size.y - fusion_timeline_height;
-    int selected_item_index = -1;
-    static int64_t last_overlap = -1; 
-    /*
-    OverlapInfo * selected_overlap = nullptr;
-    if (sequencer)
+    if (!timeline)
+        return;
+    
+    Overlap * editing_overlap = timeline->FindEditingOverlap();
+
+    if (editing_overlap)
     {
-        sequencer->Play(false, true);
-        sequencer->mSequencerLock.lock();
-        selected_item_index = sequencer->selectedEntry;
-        sequencer->mSequencerLock.unlock();
-        if (selected_item_index != -1 && selected_item_index < sequencer->m_Items.size())
+        auto clip_first = timeline->FindClipByID(editing_overlap->m_Clip.first);
+        auto clip_second = timeline->FindClipByID(editing_overlap->m_Clip.second);
+        if (!clip_first || !clip_second || 
+            clip_first->mType != MEDIA_VIDEO || clip_second->mType != MEDIA_VIDEO)
         {
-            SequencerItem * item = sequencer->m_Items[selected_item_index];
-            for (auto overlap : item->mOverlap)
-            {
-                if (overlap->bSelected)
-                {
-                    selected_overlap = overlap;
-                    break;
-                }
-            }
-        }
-        if (selected_overlap && last_overlap != -1 && last_overlap != selected_overlap->mID)
-        {
-            // first find last select clip
-            auto overlap = find_overlap_with_id(last_overlap);
-            if (overlap)
-            {
-                // save current BP document to last clip
-                sequencer->mVideoFusionBluePrintLock.lock();
-                overlap->mVideoFusionBP = sequencer->mVideoFusionBluePrint->m_Document->Serialize();
-                sequencer->mVideoFusionBluePrintLock.unlock();
-            }
-            if (sequencer->mVideoFusionBluePrint && sequencer->mVideoFusionBluePrint->m_Document)
-            {                
-                sequencer->mVideoFusionBluePrintLock.lock();
-                sequencer->mVideoFusionBluePrint->File_New_Fusion(selected_overlap->mVideoFusionBP, ImVec2(video_fusion_width, video_fusion_height), "VideoFusion");
-                sequencer->mVideoFusionNeedUpdate = true;
-                sequencer->mVideoFusionBluePrintLock.unlock();
-            }
-        }
-        else if (selected_overlap && sequencer->mVideoFusionBluePrint && last_overlap == -1)
-        {
-            sequencer->mVideoFusionBluePrintLock.lock();
-            sequencer->mVideoFusionBluePrint->File_New_Fusion(selected_overlap->mVideoFusionBP, ImVec2(video_fusion_width, video_fusion_height), "VideoFusion");
-            sequencer->mVideoFusionBluePrintLock.unlock();
-        }
-        if (selected_overlap)
-        {
-            last_overlap = selected_overlap->mID;
-        }
-        else
-        {
-            last_overlap = -1;
+            editing_overlap = nullptr;
         }
     }
-    */
+
+    timeline->Play(false, true);
+    if (editing_overlap && timeline->mVideoFusionBluePrint)
+    {
+        timeline->mVideoFusionBluePrint->m_ViewSize = ImVec2(video_fusion_width, video_fusion_height);
+    }
+
     if (ImGui::BeginChild("##video_fusion_main", ImVec2(video_fusion_width, window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
     {
         ImVec2 fusion_window_pos = ImGui::GetCursorScreenPos();
@@ -1532,7 +1603,7 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
             ImVec2 fusion_view_window_pos = ImGui::GetCursorScreenPos();
             ImVec2 fusion_view_window_size = ImGui::GetWindowSize();
             draw_list->AddRectFilled(fusion_view_window_pos, fusion_view_window_pos + fusion_view_window_size, COL_DARK_ONE);
-            //ShowFusionBluePrintWindow(draw_list, selected_overlap);
+            ShowVideoFusionBluePrintWindow(draw_list, editing_overlap);
         }
         ImGui::EndChild();
         if (ImGui::BeginChild("##video_fusion_timeline", ImVec2(video_fusion_width, fusion_timeline_height), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
@@ -1540,6 +1611,9 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
             ImVec2 fusion_timeline_window_pos = ImGui::GetCursorScreenPos();
             ImVec2 fusion_timeline_window_size = ImGui::GetWindowSize();
             draw_list->AddRectFilled(fusion_timeline_window_pos, fusion_timeline_window_pos + fusion_timeline_window_size, COL_DARK_TWO);
+
+            // Draw Clip TimeLine
+            DrawOverlapTimeLine(editing_overlap);
         }
         ImGui::EndChild();
     }
@@ -1618,22 +1692,243 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
     ImGui::EndChild();
 }
 
+static void ShowVideoEditorWindow(ImDrawList *draw_list)
+{
+    float labelWidth = ImGui::CalcVerticalTabLabelsWidth() + 4;
+    ImVec2 clip_window_pos = ImGui::GetCursorScreenPos();
+    ImVec2 clip_window_size = ImGui::GetWindowSize();
+    static const int numTabs = sizeof(VideoEditorTabNames)/sizeof(VideoEditorTabNames[0]);
+    ImGui::TabLabelsVertical(false, numTabs, VideoEditorTabNames, VideoEditorWindowIndex, VideoEditorTabTooltips, true, nullptr, nullptr, false, false, nullptr, nullptr);
+    ImGui::SetCursorScreenPos(clip_window_pos + ImVec2(labelWidth, 0));
+    if (ImGui::BeginChild("##video_editor_views", ImVec2(clip_window_size.x - labelWidth, clip_window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+    {
+        ImVec2 editor_view_window_pos = ImGui::GetCursorScreenPos();
+        ImVec2 editor_view_window_size = ImGui::GetWindowSize();
+        draw_list->AddRectFilled(editor_view_window_pos, editor_view_window_pos + editor_view_window_size, COL_DARK_ONE);
+        switch (VideoEditorWindowIndex)
+        {
+            case 0: ShowVideoFilterWindow(draw_list); break;
+            case 1: ShowVideoFusionWindow(draw_list); break;
+            case 2: ShowVideoCropWindow(draw_list); break;
+            case 3: ShowVideoRotateWindow(draw_list); break;
+            default: break;
+        }
+    }
+    ImGui::EndChild();
+}
 /****************************************************************************************
  * 
  * Audio Editor windows
  *
  ***************************************************************************************/
+static void ShowAudioFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
+{
+    if (timeline && timeline->mAudioFilterBluePrint)
+    {
+        if (clip && !timeline->mAudioFilterBluePrint->m_Document->m_Blueprint.IsOpened())
+        {
+            auto track = timeline->FindTrackByClipID(clip->mID);
+            if (track)
+                track->EditingClip(clip);
+        }
+        ImVec2 window_pos = ImGui::GetCursorScreenPos();
+        ImVec2 window_size = ImGui::GetWindowSize();
+        ImGui::InvisibleButton("audio_editor_blueprint_back_view", window_size);
+        if (ImGui::BeginDragDropTarget() && timeline->mAudioFilterBluePrint->Blueprint_IsValid())
+        {
+            if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("Filter_drag_drop"))
+            {
+                BluePrint::NodeTypeInfo * type = (BluePrint::NodeTypeInfo *)payload->Data;
+                if (type)
+                {
+                    timeline->mAudioFilterBluePrint->Edit_Insert(type->m_ID);
+                }
+            }
+            ImGui::EndDragDropTarget();
+        }
+        ImGui::SetCursorScreenPos(window_pos);
+        if (ImGui::BeginChild("##audio_editor_blueprint", window_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+        {
+            timeline->mAudioFilterBluePrint->Frame(true, true, clip != nullptr, BluePrint::BluePrintFlag::BluePrintFlag_Filter);
+        }
+        ImGui::EndChild();
+    }
+}
+
+static void ShowAudioFilterWindow(ImDrawList *draw_list)
+{
+    ImVec2 window_pos = ImGui::GetCursorScreenPos();
+    ImVec2 window_size = ImGui::GetWindowSize();
+    draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
+    float clip_timeline_height = 100;
+    float editor_main_height = window_size.y - clip_timeline_height - 4;
+    float audio_view_width = window_size.x / 4;
+    float audio_editor_width = window_size.x - audio_view_width;
+    if (!timeline)
+        return;
+    Clip * editing_clip = timeline->FindEditingClip();
+    if (editing_clip && editing_clip->mType != MEDIA_AUDIO)
+    {
+        editing_clip = nullptr;
+    }
+    timeline->Play(false, true);
+    if (editing_clip && timeline->mAudioFilterBluePrint)
+    {
+        timeline->mAudioFilterBluePrint->m_ViewSize = ImVec2(audio_editor_width, editor_main_height);
+    }
+
+    if (ImGui::BeginChild("##audio_filter_main", ImVec2(window_size.x, editor_main_height), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+    {
+        ImVec2 clip_window_pos = ImGui::GetCursorScreenPos();
+        ImVec2 clip_window_size = ImGui::GetWindowSize();
+        if (ImGui::BeginChild("##audio_filter_blueprint", ImVec2(audio_editor_width, clip_window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+        {
+            ImVec2 editor_view_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 editor_view_window_size = ImGui::GetWindowSize();
+            draw_list->AddRectFilled(editor_view_window_pos, editor_view_window_pos + editor_view_window_size, COL_DARK_ONE);
+            ShowAudioFilterBluePrintWindow(draw_list, editing_clip);
+        }
+        ImGui::EndChild();
+        ImGui::SetCursorScreenPos(clip_window_pos + ImVec2(audio_editor_width, 0));
+        if (ImGui::BeginChild("##filter_audio_view", ImVec2(audio_view_width, clip_window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+        {
+            ImVec2 audio_view_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 audio_view_window_size = ImGui::GetWindowSize();
+            draw_list->AddRectFilled(audio_view_window_pos, audio_view_window_pos + audio_view_window_size, COL_DEEP_DARK);
+            // TODO::Dicky add Audio view control
+        }
+        ImGui::EndChild();
+    }
+    ImGui::EndChild();
+    if (ImGui::BeginChild("##audio_filter_timeline", ImVec2(window_size.x, clip_timeline_height), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+    {
+        ImVec2 clip_timeline_window_pos = ImGui::GetCursorScreenPos();
+        ImVec2 clip_timeline_window_size = ImGui::GetWindowSize();
+        draw_list->AddRectFilled(clip_timeline_window_pos, clip_timeline_window_pos + clip_timeline_window_size, COL_DARK_TWO);
+
+        // Draw Clip TimeLine
+        DrawClipTimeLine(editing_clip);
+    }
+    ImGui::EndChild();
+}
+
+static void ShowAudioFusionBluePrintWindow(ImDrawList *draw_list, Overlap * overlap)
+{
+    if (timeline && timeline->mAudioFusionBluePrint)
+    {
+        if (overlap && !timeline->mAudioFusionBluePrint->m_Document->m_Blueprint.IsOpened())
+        {
+            auto track = timeline->FindTrackByClipID(overlap->m_Clip.first);
+            if (track)
+                track->EditingOverlap(overlap);
+        }
+        ImVec2 window_pos = ImGui::GetCursorScreenPos();
+        ImVec2 window_size = ImGui::GetWindowSize();
+        ImGui::InvisibleButton("audio_fusion_blueprint_back_view", window_size);
+        if (ImGui::BeginDragDropTarget() && timeline->mAudioFusionBluePrint->Blueprint_IsValid())
+        {
+            if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("Fusion_drag_drop"))
+            {
+                BluePrint::NodeTypeInfo * type = (BluePrint::NodeTypeInfo *)payload->Data;
+                if (type)
+                {
+                    timeline->mAudioFusionBluePrint->Edit_Insert(type->m_ID);
+                }
+            }
+            ImGui::EndDragDropTarget();
+        }
+        ImGui::SetCursorScreenPos(window_pos);
+        if (ImGui::BeginChild("##audio_fusion_blueprint", window_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+        {
+            timeline->mAudioFusionBluePrint->Frame(true, true, overlap != nullptr, BluePrint::BluePrintFlag::BluePrintFlag_Fusion);
+        }
+        ImGui::EndChild();
+    }
+}
+
+static void ShowAudioFusionWindow(ImDrawList *draw_list)
+{
+    ImVec2 window_pos = ImGui::GetCursorScreenPos();
+    ImVec2 window_size = ImGui::GetWindowSize();
+    draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
+    float fusion_timeline_height = 170;
+    float audio_view_width = window_size.x / 4;
+    float audio_fusion_width = window_size.x - audio_view_width;
+    float audio_fusion_height = window_size.y - fusion_timeline_height;
+    if (!timeline)
+        return;
+    Overlap * editing_overlap = timeline->FindEditingOverlap();
+    if (editing_overlap)
+    {
+        auto clip_first = timeline->FindClipByID(editing_overlap->m_Clip.first);
+        auto clip_second = timeline->FindClipByID(editing_overlap->m_Clip.second);
+        if (!clip_first || !clip_second || 
+            clip_first->mType != MEDIA_AUDIO || clip_second->mType != MEDIA_AUDIO)
+        {
+            editing_overlap = nullptr;
+        }
+    }
+    timeline->Play(false, true);
+    if (editing_overlap && timeline->mAudioFusionBluePrint)
+    {
+        timeline->mAudioFusionBluePrint->m_ViewSize = ImVec2(audio_fusion_width, audio_fusion_height);
+    }
+    if (ImGui::BeginChild("##audio_fusion_main", ImVec2(audio_fusion_width, window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+    {
+        ImVec2 fusion_window_pos = ImGui::GetCursorScreenPos();
+        ImVec2 fusion_window_size = ImGui::GetWindowSize();
+        if (ImGui::BeginChild("##audio_fusion_views", ImVec2(audio_fusion_width, fusion_window_size.y - fusion_timeline_height), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+        {
+            ImVec2 fusion_view_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 fusion_view_window_size = ImGui::GetWindowSize();
+            draw_list->AddRectFilled(fusion_view_window_pos, fusion_view_window_pos + fusion_view_window_size, COL_DARK_ONE);
+            ShowAudioFusionBluePrintWindow(draw_list, editing_overlap);
+        }
+        ImGui::EndChild();
+        if (ImGui::BeginChild("##audio_fusion_timeline", ImVec2(audio_fusion_width, fusion_timeline_height), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+        {
+            ImVec2 fusion_timeline_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 fusion_timeline_window_size = ImGui::GetWindowSize();
+            draw_list->AddRectFilled(fusion_timeline_window_pos, fusion_timeline_window_pos + fusion_timeline_window_size, COL_DARK_TWO);
+
+            // Draw Clip TimeLine
+            DrawOverlapTimeLine(editing_overlap);
+        }
+        ImGui::EndChild();
+    }
+    ImGui::EndChild();
+    ImGui::SetCursorScreenPos(window_pos + ImVec2(audio_fusion_width, 0));
+    if (ImGui::BeginChild("##fusion_audio_view", ImVec2(audio_view_width, window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+    {
+        ImVec2 audio_view_window_pos = ImGui::GetCursorScreenPos();
+        ImVec2 audio_view_window_size = ImGui::GetWindowSize();
+        draw_list->AddRectFilled(audio_view_window_pos, audio_view_window_pos + audio_view_window_size, COL_DEEP_DARK);
+        // TODO::Dicky audio fusion
+    }
+    ImGui::EndChild();
+}
+
 static void ShowAudioEditorWindow(ImDrawList *draw_list)
 {
-    //SetSequenceEditorStage(false, false, true);
-    ImGui::SetWindowFontScale(1.2);
-    ImGui::Indent(20);
-    ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4, 0.4, 0.8, 0.8));
-    ImGui::TextUnformatted("Audio Editor");
-    ImGui::PopStyleColor();
-    ImGui::PopStyleVar();
-    ImGui::SetWindowFontScale(1.0);
+    float labelWidth = ImGui::CalcVerticalTabLabelsWidth() + 4;
+    ImVec2 clip_window_pos = ImGui::GetCursorScreenPos();
+    ImVec2 clip_window_size = ImGui::GetWindowSize();
+    static const int numTabs = sizeof(AudioEditorTabNames)/sizeof(AudioEditorTabNames[0]);
+    ImGui::TabLabelsVertical(false, numTabs, AudioEditorTabNames, AudioEditorWindowIndex, AudioEditorTabTooltips, true, nullptr, nullptr, false, false, nullptr, nullptr);
+    ImGui::SetCursorScreenPos(clip_window_pos + ImVec2(labelWidth, 0));
+    if (ImGui::BeginChild("##audio_editor_views", ImVec2(clip_window_size.x - labelWidth, clip_window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+    {
+        ImVec2 editor_view_window_pos = ImGui::GetCursorScreenPos();
+        ImVec2 editor_view_window_size = ImGui::GetWindowSize();
+        draw_list->AddRectFilled(editor_view_window_pos, editor_view_window_pos + editor_view_window_size, COL_DARK_ONE);
+        switch (AudioEditorWindowIndex)
+        {
+            case 0: ShowAudioFilterWindow(draw_list); break;
+            case 1: ShowAudioFusionWindow(draw_list); break;
+            default: break;
+        }
+    }
+    ImGui::EndChild();
 }
 
 /****************************************************************************************
@@ -1682,8 +1977,8 @@ void Application_GetWindowProperties(ApplicationWindowProperty& property)
     property.docking = false;
     property.auto_merge = false;
     property.power_save = false;
-    property.width = 1680;
-    property.height = 1024;
+    property.width = DEFAULT_MAIN_VIEW_WIDTH;
+    property.height = DEFAULT_MAIN_VIEW_HEIGHT;
 }
 
 void Application_SetupContext(ImGuiContext* ctx)
@@ -1781,16 +2076,7 @@ void Application_Initialize(void** handle)
         ImGui::SetTableLabelBreathingSpeed(0.005, 0.5);
     ImGui::ResetTabLabelStyle(ImGui::ImGuiTabLabelStyle_Dark, *tab_style);
 
-    timeline = new TimeLine();
-    if (timeline)
-    {
-        timeline->mWidth = g_media_editor_settings.VideoWidth;
-        timeline->mHeight = g_media_editor_settings.VideoHeight;
-        timeline->mFrameRate = g_media_editor_settings.VideoFrameRate;
-        timeline->mAudioSampleRate = g_media_editor_settings.AudioSampleRate;
-        timeline->mAudioChannels = g_media_editor_settings.AudioChannels;
-        timeline->mAudioFormat = (AudioRender::PcmFormat)g_media_editor_settings.AudioFormat;
-    }
+    NewTimeline();
 }
 
 void Application_Finalize(void** handle)
@@ -1886,8 +2172,6 @@ bool Application_Frame(void * handle, bool app_will_quit)
     ImGui::SetNextWindowPos(main_pos, ImGuiCond_Always);
     if (ImGui::BeginChild("##Top_Panel", main_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
     {
-        static int ControlPanelIndex = 0;
-        static int MainWindowIndex = 0;
         ImVec2 main_window_size = ImGui::GetWindowSize();
         static float size_control_panel_w = 0.2;
         static float size_main_w = 0.8;
@@ -2005,10 +2289,9 @@ bool Application_Frame(void * handle, bool app_will_quit)
                 {
                     case 0: ShowMediaPreviewWindow(draw_list); break;
                     case 1: ShowVideoEditorWindow(draw_list); break;
-                    case 2: ShowVideoFusionWindow(draw_list); break;
-                    case 3: ShowAudioEditorWindow(draw_list); break;
-                    case 4: ShowMediaAnalyseWindow(draw_list); break;
-                    case 5: ShowMediaAIWindow(draw_list); break;
+                    case 2: ShowAudioEditorWindow(draw_list); break;
+                    case 3: ShowMediaAnalyseWindow(draw_list); break;
+                    case 4: ShowMediaAIWindow(draw_list); break;
                     default: break;
                 }
             }
@@ -2084,7 +2367,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
             auto userDatas = std::string((const char*)ImGuiFileDialog::Instance()->GetUserDatas());
             if (userDatas.compare("Media Source") == 0)
             {
-                MEDIA_TYPE type = MEDIA_UNKNOWN;
+                MediaTimeline::MEDIA_TYPE type = MEDIA_UNKNOWN;
                 if (!file_surfix.empty())
                 {
                     if ((file_surfix.compare(".mp4") == 0) ||

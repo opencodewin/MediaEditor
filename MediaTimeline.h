@@ -183,43 +183,51 @@ struct Snapshot
 
 struct Overlap
 {
-    int64_t mID                     {-1};       // overlap ID
-    int64_t mStart                  {0};        // overlap start time at timeline
-    int64_t mEnd                    {0};        // overlap end time at timeline
-    bool bEditting                  {false};    // overlap is editting
-    std::pair<int64_t, int64_t>     m_Clip;     // overlaped clip's pair
-    imgui_json::value mFusionBP;                // overlap transion blueprint
+    int64_t mID                     {-1};       // overlap ID, project saved
+    int64_t mStart                  {0};        // overlap start time at timeline, project saved
+    int64_t mEnd                    {0};        // overlap end time at timeline, project saved
+    int64_t mCurrent                {0};        // overlap current time, project saved
+    bool bPlay                      {false};    // overlap play status
+    bool bForward                   {true};     // overlap play direction
+    bool bSeeking                   {false};    // overlap is seeking
+    bool bEditing                   {false};    // overlap is editing, project saved
+    std::pair<int64_t, int64_t>     m_Clip;     // overlaped clip's pair, project saved
+    imgui_json::value mFusionBP;                // overlap transion blueprint, project saved
     void * mHandle                  {nullptr};  // overlap belong to timeline 
     Overlap(int64_t start, int64_t end, int64_t clip_first, int64_t clip_second, void* handle);
     ~Overlap();
 
     bool IsOverlapValid();
     void Update(int64_t start, int64_t start_clip_id, int64_t end, int64_t end_clip_id);
+    void Seek();
     static Overlap * Load(const imgui_json::value& value, void * handle);
     void Save(imgui_json::value& value);
 };
 
 struct Clip
 {
-    int64_t mID                 {-1};               // clip ID
-    int64_t mMediaID            {-1};               // clip media ID in media bank
-    int64_t mGroupID            {-1};               // Group ID clip belong
-    MEDIA_TYPE mType            {MEDIA_UNKNOWN};    // clip type
-    std::string mName;                              // clip name ?
-    std::string mPath;                              // clip media path
-    int64_t mStart              {0};                // clip start time in timeline
-    int64_t mEnd                {0};                // clip end time in timeline
-    int64_t mStartOffset        {0};                // clip start time in media
-    int64_t mEndOffset          {0};                // clip end time in media
-    bool bSeeking               {false};
-    bool bSelected              {false};
-    bool bEditting              {false};            // clip is Editting by double click selected
-    std::mutex mLock;                               // clip mutex
+    int64_t mID                 {-1};               // clip ID, project saved
+    int64_t mMediaID            {-1};               // clip media ID in media bank, project saved
+    int64_t mGroupID            {-1};               // Group ID clip belong, project saved
+    MEDIA_TYPE mType            {MEDIA_UNKNOWN};    // clip type, project saved
+    std::string mName;                              // clip name, project saved
+    std::string mPath;                              // clip media path, project saved
+    int64_t mStart              {0};                // clip start time in timeline, project saved
+    int64_t mEnd                {0};                // clip end time in timeline, project saved
+    int64_t mStartOffset        {0};                // clip start time in media, project saved
+    int64_t mEndOffset          {0};                // clip end time in media, project saved
+    int64_t mCurrent            {0};                // clip current time, project saved
+    bool bPlay                  {false};            // clip play status
+    bool bForward               {true};             // clip play direction
+    bool bSeeking               {false};            // clip is seeking
+    bool bSelected              {false};            // clip is selected, project saved
+    bool bEditing               {false};            // clip is Editing by double click selected, project saved
+    std::mutex mLock;                               // clip mutex, not using yet
     void * mHandle              {nullptr};          // clip belong to timeline 
     MediaOverview * mOverview   {nullptr};          // clip media overview
     MediaReader* mMediaReader   {nullptr};          // clip media reader
     
-    imgui_json::value mFilterBP;
+    imgui_json::value mFilterBP;                    // clip filter blue print, project saved
 
     Clip(int64_t start, int64_t end, int64_t id, MediaOverview * overview, void * handle);
     virtual ~Clip();
@@ -245,7 +253,7 @@ struct VideoClip : Clip
     //float mSnapshotWidth    {0};
     //ImTextureID mFilterInputTexture {nullptr};  // clip filter input texture
     //ImTextureID mFilterOutputTexture {nullptr};  // clip filter output texture
-    MediaInfo::Ratio mClipFrameRate {25, 1};// clip Frame rate
+    MediaInfo::Ratio mClipFrameRate {25, 1};            // clip Frame rate, project saved
 
     VideoClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle);
     ~VideoClip();
@@ -271,9 +279,9 @@ private:
 
 struct AudioClip : Clip
 {
-    int mAudioChannels  {2};                // clip audio channels
-    int mAudioSampleRate {44100};           // clip audio sample rate
-    AudioRender::PcmFormat mAudioFormat {AudioRender::PcmFormat::FLOAT32}; // clip audio type
+    int mAudioChannels  {2};                // clip audio channels, project saved
+    int mAudioSampleRate {44100};           // clip audio sample rate, project saved
+    AudioRender::PcmFormat mAudioFormat {AudioRender::PcmFormat::FLOAT32}; // clip audio type, project saved
     MediaOverview::WaveformHolder mWaveform {nullptr};  // clip audio snapshot
 
     AudioClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle);
@@ -289,9 +297,9 @@ struct AudioClip : Clip
 
 struct ImageClip : Clip
 {
-    int mWidth  {0};
-    int mHeight  {0};
-    int mColorFormat    {0};
+    int mWidth  {0};                // image width, project saved
+    int mHeight  {0};               // image height, project saved
+    int mColorFormat    {0};        // image color format, project saved
 
     ImageClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle);
     ~ImageClip();
@@ -319,19 +327,19 @@ struct TextClip : Clip
 
 struct MediaTrack
 {
-    int64_t mID             {-1};               // track ID
-    MEDIA_TYPE mType        {MEDIA_UNKNOWN};    // track type
-    std::string mName;                          // track name
-    std::vector<Clip *> m_Clips;                // track clips
-    std::vector<Overlap *> m_Overlaps;          // track overlaps' ID
+    int64_t mID             {-1};               // track ID, project saved
+    MEDIA_TYPE mType        {MEDIA_UNKNOWN};    // track type, project saved
+    std::string mName;                          // track name, project saved
+    std::vector<Clip *> m_Clips;                // track clips, project saved(id only)
+    std::vector<Overlap *> m_Overlaps;          // track overlaps, project saved(id only)
     void * m_Handle         {nullptr};          // user handle
 
-    int mTrackHeight {DEFAULT_TRACK_HEIGHT};    // track custom view height
-    int64_t mLinkedTrack    {-1};               // relative track ID
-    bool mExpanded  {false};                    // track is compact view or not
-    bool mView      {true};                     // track is viewable or not
-    bool mLocked    {false};                    // track is locked or not(can't moving or cropping by locked)
-    bool mSelected  {false};                    // track is selected
+    int mTrackHeight {DEFAULT_TRACK_HEIGHT};    // track custom view height, project saved
+    int64_t mLinkedTrack    {-1};               // relative track ID, project saved
+    bool mExpanded  {false};                    // track is compact view, project saved
+    bool mView      {true};                     // track is viewable, project saved
+    bool mLocked    {false};                    // track is locked(can't moving or cropping by locked), project saved
+    bool mSelected  {false};                    // track is selected, project saved
 
     MediaTrack(std::string name, MEDIA_TYPE type, void * handle);
     ~MediaTrack();
@@ -340,8 +348,8 @@ struct MediaTrack
     void InsertClip(Clip * clip, int64_t pos = 0);
     void PushBackClip(Clip * clip);
     void SelectClip(Clip * clip, bool appand);
-    void EdittingClip(Clip * clip);
-    void EdittingOverlap(Overlap * overlap);
+    void EditingClip(Clip * clip);
+    void EditingOverlap(Overlap * overlap);
     void DeleteClip(int64_t id);
     static inline bool CompareClip(Clip* a, Clip* b) { return a->mStart < b->mStart; }
     Clip * FindPrevClip(int64_t id);                // find prev clip in track, if not found then return null
@@ -374,26 +382,33 @@ struct ClipGroup
     void Save(imgui_json::value& value);
 };
 
+typedef int (*TimeLineCallback)(int type, void* handle);
+typedef struct TimeLineCallbackFunctions
+{
+    TimeLineCallback  EditingClip       {nullptr};
+    TimeLineCallback  EditingOverlap    {nullptr};
+} TimeLineCallbackFunctions;
+
 struct TimeLine
 {
     TimeLine();
     ~TimeLine();
 
-    std::vector<MediaItem *> media_items;   // Media Bank
-    std::vector<MediaTrack *> m_Tracks;     // timeline tracks
-    std::vector<Clip *> m_Clips;            // timeline clips
-    std::vector<ClipGroup> m_Groups;        // timeline clip groups
-    std::vector<Overlap *> m_Overlaps;      // timeline clip overlap
-    int64_t mStart   {0};                   // whole timeline start in ms
-    int64_t mEnd     {0};                   // whole timeline end in ms
+    std::vector<MediaItem *> media_items;   // Media Bank, project saved
+    std::vector<MediaTrack *> m_Tracks;     // timeline tracks, project saved
+    std::vector<Clip *> m_Clips;            // timeline clips, project saved
+    std::vector<ClipGroup> m_Groups;        // timeline clip groups, project saved
+    std::vector<Overlap *> m_Overlaps;      // timeline clip overlap, project saved
+    int64_t mStart   {0};                   // whole timeline start in ms, project saved
+    int64_t mEnd     {0};                   // whole timeline end in ms, project saved
 
-    int mWidth  {1920};                     // timeline Media Width
-    int mHeight {1080};                     // timeline Media Height
-    MediaInfo::Ratio mFrameRate {25, 1};    // timeline Media Frame rate
+    int mWidth  {1920};                     // timeline Media Width, project saved, configured
+    int mHeight {1080};                     // timeline Media Height, project saved, configured
+    MediaInfo::Ratio mFrameRate {25, 1};    // timeline Media Frame rate, project saved, configured
 
-    int mAudioChannels {2};                 // timeline audio channels
-    int mAudioSampleRate {44100};           // timeline audio sample rate
-    AudioRender::PcmFormat mAudioFormat {AudioRender::PcmFormat::FLOAT32}; // timeline audio format
+    int mAudioChannels {2};                 // timeline audio channels, project saved, configured
+    int mAudioSampleRate {44100};           // timeline audio sample rate, project saved, configured
+    AudioRender::PcmFormat mAudioFormat {AudioRender::PcmFormat::FLOAT32}; // timeline audio format, project saved, configured
     
     std::vector<int> mAudioLevel;           // timeline audio levels
 
@@ -406,11 +421,12 @@ struct TimeLine
     bool bPlay = false;
     bool bSeeking = false;
 
-    bool bForward = true;                   // save in project
-    bool bLoop = false;                     // save in project
-    bool bSelectLinked = true;              // save in project
+    bool bForward = true;                   // project saved
+    bool bLoop = false;                     // project saved
+    bool bSelectLinked = true;              // project saved
     
     std::mutex mTrackLock;                  // timeline track mutex
+    std::mutex mClipLock;                   // timeline clip mutex
     // BP CallBacks
     static int OnBluePrintChange(int type, std::string name, void* handle);
 
@@ -426,9 +442,15 @@ struct TimeLine
     std::mutex mVideoFusionBluePrintLock;   // Video Fusion BluePrint mutex
     bool mVideoFusionNeedUpdate {false};
 
+    BluePrint::BluePrintUI * mAudioFusionBluePrint {nullptr};
+    std::mutex mAudioFusionBluePrintLock;   // Video Fusion BluePrint mutex
+    bool mAudioFusionNeedUpdate {false};
+
     std::mutex mFrameLock;                      // timeline frame mutex
     std::list<ImGui::ImMat> mFrame;             // timeline output frame
     ImTextureID mMainPreviewTexture {nullptr};  // main preview texture
+
+    TimeLineCallbackFunctions  m_CallBacks;
 
     int64_t GetStart() const { return mStart; }
     int64_t GetEnd() const { return mEnd; }
@@ -472,7 +494,9 @@ struct TimeLine
     MediaTrack * FindTrackByClipID(int64_t id);         // Find track by clip ID
     int FindTrackIndexByClipID(int64_t id);             // Find track by clip ID
     Clip * FindClipByID(int64_t id);                    // Find clip with clip ID
+    Clip * FindEditingClip();                           // Find clip which is editing
     Overlap * FindOverlapByID(int64_t id);              // Find overlap with overlap ID
+    Overlap * FindEditingOverlap();                     // Find overlap which is editing
     int GetSelectedClipCount();                         // Get current selected clip count
     int64_t NextClipStart(Clip * clip);                 // Get next clip start pos by clip, if don't have next clip, then return -1
     int64_t NextClipStart(int64_t pos);                 // Get next clip start pos by time, if don't have next clip, then return -1
@@ -485,5 +509,6 @@ struct TimeLine
 };
 
 bool DrawTimeLine(TimeLine *timeline, bool *expanded);
-
+bool DrawClipTimeLine(Clip * clip);
+bool DrawOverlapTimeLine(Overlap * overlap);
 } // namespace MediaTimeline
