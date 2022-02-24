@@ -499,9 +499,120 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
         }
     }
 
-    // check all time march point
-    //std::vector<int64_t> selected
+    // get all time march point
+    std::vector<int64_t> selected_start_points;
+    std::vector<int64_t> selected_end_points;
+    std::vector<int64_t> unselected_start_points;
+    std::vector<int64_t> unselected_end_points;
+    for (auto clip : timeline->m_Clips)
+    {
+        if (clip->bSelected)
+        {
+            selected_start_points.push_back(clip->mStart);
+            selected_end_points.push_back(clip->mEnd);
+        }
+        else
+        {
+            unselected_start_points.push_back(clip->mStart);
+            unselected_end_points.push_back(clip->mEnd);
+        }
+    }
 
+    // find all connected point between selected clip and unselected clip
+    int64_t attract_docking_gap = timeline->attract_docking_pixels / timeline->msPixelWidthTarget;
+    int64_t min_gap = INT64_MAX;
+    int64_t connected_point = -1;
+    for (auto point_start : selected_start_points)
+    {
+        for (auto _point_start : unselected_start_points)
+        {
+            if (abs(point_start - _point_start) < attract_docking_gap)
+            {
+                if (abs(min_gap) > abs(point_start - _point_start))
+                {
+                    min_gap = point_start - _point_start;
+                    connected_point = _point_start;
+                }
+            }
+        }
+        for (auto _point_end : unselected_end_points)
+        {
+            if (abs(point_start - _point_end) < attract_docking_gap)
+            {
+                if (abs(min_gap) > abs(point_start - _point_end))
+                {
+                    min_gap = point_start - _point_end;
+                    connected_point = _point_end;
+                }
+            }
+        }
+    }
+    for (auto point_end : selected_end_points)
+    {
+        for (auto _point_start : unselected_start_points)
+        {
+            if (abs(point_end - _point_start) < attract_docking_gap)
+            {
+                if (abs(min_gap) > abs(point_end - _point_start))
+                {
+                    min_gap = point_end - _point_start;
+                    connected_point = _point_start;
+                }
+            }
+        }
+        for (auto _point_end : unselected_end_points)
+        {
+            if (abs(point_end - _point_end) < attract_docking_gap)
+            {
+                if (abs(min_gap) > abs(point_end - _point_end))
+                {
+                    min_gap = point_end - _point_end;
+                    connected_point = _point_end;
+                }
+            }
+        }
+    }
+
+    if (min_gap != INT64_MAX)
+    {
+        if (diff < 0 && min_gap > 0)
+        {
+            // attracting point when clip move left
+            // [AAAAAAA]<-[BBBBBB] or [AAAAAAAA[X<-]BBBBBBB]
+            timeline->mConnectedPoints = connected_point;
+            diff = -min_gap;
+        }
+        else if (diff > 0 && min_gap < 0)
+        {
+            // attracting point when clip move right
+            // [AAAAAAA]->[BBBBBB] or [AAAAAAAA[->X]BBBBBBB]
+            timeline->mConnectedPoints = connected_point;
+            diff = -min_gap;
+        }
+        else if (diff < 0 && min_gap < 0)
+        {
+            // leaving attracted point when clip move left
+            // [AAAAAAAA<-] [BBBBBBBB] or [AAAAAAA[X<-]BBBBBB]
+            if (timeline->mConnectedPoints != -1 && abs(diff) < attract_docking_gap / 5)
+            {
+                diff = -min_gap;
+            }
+        }
+        else if (diff > 0 && min_gap > 0)
+        {
+            // leaving attracted point when clip move right
+            // [AAAAAAAA] [->BBBBBBBB] || [AAAAAAA[->X]BBBBBB]
+            if (timeline->mConnectedPoints != -1 && abs(diff) < attract_docking_gap / 5)
+            {
+                diff = -min_gap;
+            }
+        }
+        // need alignment mStart to accurate connected_point and calculate new_diff
+    }
+    else
+    {
+        timeline->mConnectedPoints = -1;
+    }
 
     if (group_start + diff < start)
     {
@@ -3525,6 +3636,17 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             draw_list->AddLine(ImVec2(cursorOffset, contentMin.y), ImVec2(cursorOffset, contentMax.y), IM_COL32(0, 255, 0, 128), cursorWidth);
         }
         draw_list->PopClipRect();
+        // alignment line
+        draw_list->PushClipRect(custom_view_rect.Min, custom_view_rect.Max);
+        if (timeline->mConnectedPoints >= timeline->firstTime && timeline->mConnectedPoints <= timeline->firstTime + timeline->visibleTime)
+        {
+            ImVec2 contentMin(canvas_pos.x + 4.f, canvas_pos.y + (float)HeadHeight + 8.f);
+            ImVec2 contentMax(canvas_pos.x + canvas_size.x - 4.f, canvas_pos.y + (float)HeadHeight + float(controlHeight) + 8.f);
+            static const float cursorWidth = 2.f;
+            float lineOffset = contentMin.x + legendWidth + (timeline->mConnectedPoints - timeline->firstTime) * timeline->msPixelWidthTarget + timeline->msPixelWidthTarget / 2 - cursorWidth * 0.5f - 2;
+            draw_list->AddLine(ImVec2(lineOffset, contentMin.y), ImVec2(lineOffset, contentMax.y), IM_COL32(255, 255, 255, 255), cursorWidth);
+        }
+        draw_list->PopClipRect();
 
         ImGui::PopStyleColor();
     }
@@ -3537,6 +3659,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         trackEntry = -1;
         bCropping = false;
         bMoving = false;
+        timeline->mConnectedPoints = -1;
         ImGui::CaptureMouseFromApp(false);
     }
     ImGui::EndGroup();
