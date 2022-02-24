@@ -480,7 +480,7 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
 
     int64_t group_start = mStart;
     int64_t group_end = mEnd;
-    if (!single && timeline->bSelectLinked)
+    if (!single)
     {
         // check all select clip
         for (auto &clip : timeline->m_Clips)
@@ -500,7 +500,7 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
     }
 
     // check all time march point
-
+    //std::vector<int64_t> selected
 
 
     if (group_start + diff < start)
@@ -539,7 +539,7 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
         }
     }
 
-    if (!single && timeline->bSelectLinked)
+    if (!single)
     {
         for (auto &clip : timeline->m_Clips)
         {
