@@ -797,32 +797,51 @@ void VideoClip::SetTrackHeight(int trackHeight)
 void VideoClip::SetViewWindowStart(int64_t millisec)
 {
     mViewWndStart = millisec;
-    if (!mSnapshot->GetSnapshots(mSnapImages, (double)millisec/1000))
+    mClipViewStartPos = mStartOffset;
+    if (millisec > mStart)
+        mClipViewStartPos += millisec-mStart;
+    if (!mSnapshot->GetSnapshots(mSnapImages, (double)mClipViewStartPos/1000))
         throw std::runtime_error(mSnapshot->GetError());
     mSnapshot->UpdateSnapshotTexture(mSnapImages);
 }
 
 void VideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom)
 {
-    ImVec2 dispPos = leftTop;
+    ImVec2 snapLeftTop = leftTop;
+    float snapDispWidth;
     Logger::Log(Logger::DEBUG) << "[1]>>>>> Begin display snapshot" << std::endl;
-    for (auto& img : mSnapImages)
+    for (int i = 0; i < mSnapImages.size(); i++)
     {
+        auto& img = mSnapImages[i];
+        ImVec2 uvMin(0, 0), uvMax(1, 1);
+        float snapDispWidth = img->mTimestampMs >= mClipViewStartPos ? mSnapWidth :
+            mSnapWidth-(mClipViewStartPos-img->mTimestampMs)*mPixPerMs;
+        if (img->mTimestampMs < mClipViewStartPos)
+        {
+            snapDispWidth = mSnapWidth-(mClipViewStartPos-img->mTimestampMs)*mPixPerMs;
+            uvMin.x = 1-snapDispWidth/mSnapWidth;
+        }
+        if (snapDispWidth <= 0)
+            continue;
+        if (snapLeftTop.x+snapDispWidth >= rightBottom.x)
+        {
+            snapDispWidth = rightBottom.x-snapLeftTop.x;
+            uvMax.x = snapDispWidth/mSnapWidth;
+        }
         if (img->mTextureReady)
         {
             // ImGui::SetCursorScreenPos(dispPos);
-            // ImGui::Image(*(img->mTextureHolder), {mSnapWidth, mSnapHeight});
             ImTextureID tid = *(img->mTextureHolder);
-            ImVec2 size = {mSnapWidth, mSnapHeight};
+            ImVec2 size = {snapDispWidth, mSnapHeight};
             Logger::Log(Logger::DEBUG) << "[1]\t\t display tid=" << tid << std::endl;
-            drawList->AddImage(tid, dispPos, {dispPos.x+mSnapWidth, rightBottom.y});
+            drawList->AddImage(tid, snapLeftTop, {snapLeftTop.x+snapDispWidth, rightBottom.y}, uvMin, uvMax);
             // ImGui::Image(tid, size);
         }
         else
             // wyvern: this part should be replaced with loading image
-            drawList->AddRect(dispPos, {dispPos.x+mSnapWidth, rightBottom.y}, IM_COL32_BLACK);
-        dispPos.x += mSnapWidth;
-        if (dispPos.x >= rightBottom.x)
+            drawList->AddRect(snapLeftTop, {snapLeftTop.x+snapDispWidth, rightBottom.y}, IM_COL32_BLACK);
+        snapLeftTop.x += snapDispWidth;
+        if (snapLeftTop.x >= rightBottom.x)
             break;
     }
     Logger::Log(Logger::DEBUG) << "[1]<<<<< End display snapshot" << std::endl;

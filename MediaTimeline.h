@@ -285,6 +285,7 @@ private:
     float mSnapHeight               {0};
     float mSnapsInViewWindow        {0};
     int64_t mViewWndStart;
+    int64_t mClipViewStartPos;
     std::vector<MediaSnapshot::ImageHolder> mSnapImages;
     double mSnapInterval;
 };
