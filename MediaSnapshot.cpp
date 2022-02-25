@@ -214,11 +214,14 @@ public:
             return false;
 
         // free deprecated textures
-        {
-            lock_guard<mutex> lktid(m_deprecatedTextureLock);
-            m_deprecatedTextures.clear();
-        }
+        // {
+        //     Log(DEBUG) << "[3]===== Begin release texture" << endl;
+        //     lock_guard<mutex> lktid(m_deprecatedTextureLock);
+        //     m_deprecatedTextures.clear();
+        //     Log(DEBUG) << "[3]===== End release texture" << endl;
+        // }
 
+        Log(DEBUG) << "[2]----- Begin generate texture" << endl;
         for (auto& img : snapshots)
         {
             if (img->mTextureReady)
@@ -227,14 +230,33 @@ public:
             {
                 img->mTextureHolder = TextureHolder(new ImTextureID(0), [] (ImTextureID* pTid) {
                     if (*pTid)
+                    {
+                        Log(DEBUG) << "[3]\t\t\treleasing tid=" << *pTid << endl;
                         ImGui::ImDestroyTexture(*pTid);
+                    }
                     delete pTid;
                 });
+                Log(DEBUG) << "[2]\tbefore generate tid=" << *(img->mTextureHolder) << endl;
                 ImMatToTexture(img->mImgMat, *(img->mTextureHolder));
+                Log(DEBUG) << "[2]\tgenerated tid=" << *(img->mTextureHolder) << endl;
                 img->mTextureReady = true;
             }
         }
+        Log(DEBUG) << "[2]----- End generate texture" << endl;
         return true;
+    }
+
+    void ReleaseSnapshotTexture() override
+    {
+        lock_guard<recursive_mutex> lk(m_apiLock);
+
+        // free deprecated textures
+        {
+            Log(DEBUG) << "[3]===== Begin release texture" << endl;
+            lock_guard<mutex> lktid(m_deprecatedTextureLock);
+            m_deprecatedTextures.clear();
+            Log(DEBUG) << "[3]===== End release texture" << endl;
+        }
     }
 
     MediaParserHolder GetMediaParser() const override
@@ -265,6 +287,7 @@ public:
             m_errMsg = "Argument 'frameCount' must be greater than 1!";
             return false;
         }
+        Log(DEBUG) << "---------------------------- Config snap window -----------------------------" << endl;
         double minWndSize = CalcMinWindowSize(frameCount);
         if (windowSize < minWndSize)
             windowSize = minWndSize;
@@ -274,13 +297,10 @@ public:
         if (m_snapWindowSize == windowSize && m_wndFrmCnt == frameCount)
             return true;
 
-        if (m_prepared)
-        {
-            WaitAllThreadsQuit();
-            FlushAllQueues();
-            if (m_viddecCtx)
-                avcodec_flush_buffers(m_viddecCtx);
-        }
+        WaitAllThreadsQuit();
+        FlushAllQueues();
+        if (m_viddecCtx)
+            avcodec_flush_buffers(m_viddecCtx);
 
         m_snapWindowSize = windowSize;
         m_wndFrmCnt = frameCount;
@@ -297,6 +317,7 @@ public:
 
         m_logger->Log(DEBUG) << ">>>> Config window: m_snapWindowSize=" << m_snapWindowSize << ", m_wndFrmCnt=" << m_wndFrmCnt
             << ", m_vidMaxIndex=" << m_vidMaxIndex << ", m_maxCacheSize=" << m_maxCacheSize << ", m_prevWndCacheSize=" << m_prevWndCacheSize << endl;
+        Log(DEBUG) << "---------------------------- Config snap window [DONE] -----------------------------" << endl;
         return true;
     }
 
@@ -565,7 +586,16 @@ private:
 
     bool Prepare()
     {
-        lock_guard<recursive_mutex> lk(m_apiLock);
+        bool lockAquired;
+        while (!(lockAquired = m_apiLock.try_lock()) && !m_quit)
+            this_thread::sleep_for(chrono::milliseconds(5));
+        if (m_quit)
+        {
+            if (lockAquired) m_apiLock.unlock();
+            return false;
+        }
+
+        lock_guard<recursive_mutex> lk(m_apiLock, adopt_lock);
         m_hParser->EnableParseInfo(MediaParser::VIDEO_SEEK_POINTS);
         m_hSeekPoints = m_hParser->GetVideoSeekPoints();
         if (!m_hSeekPoints)

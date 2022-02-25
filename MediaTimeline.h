@@ -282,7 +282,7 @@ private:
 private:
     bool mQuit;
     float mSnapWidth                {0};
-    uint32_t mSnapHeight            {0};
+    float mSnapHeight               {0};
     float mSnapsInViewWindow        {0};
     int64_t mViewWndStart;
     std::vector<MediaSnapshot::ImageHolder> mSnapImages;

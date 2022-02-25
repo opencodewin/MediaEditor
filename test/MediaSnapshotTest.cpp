@@ -62,6 +62,7 @@ void Application_Initialize(void** handle)
     g_movr->SetSnapshotSize(320, 180);
     g_msrc = CreateMediaSnapshot();
     g_msrc->SetSnapshotResizeFactor(0.5f, 0.5f);
+    g_msrc->SetCacheFactor(3);
 }
 
 void Application_Finalize(void** handle)

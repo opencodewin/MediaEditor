@@ -4,6 +4,7 @@
 #include <cmath>
 #include <sstream>
 #include <iomanip>
+#include "Logger.h"
 
 static std::string MillisecToString(int64_t millisec, int show_millisec = 0)
 {
@@ -703,7 +704,7 @@ VideoClip::VideoClip(int64_t start, int64_t end, int64_t id, std::string name, M
         {
             mClipFrameRate = video_stream->avgFrameRate;
             double window_size = 1.0f;
-            mSnapshot->SetCacheFactor(1.0);
+            mSnapshot->SetCacheFactor(3.0);
             mSnapshot->SetSnapshotResizeFactor(0.1, 0.1);
             mSnapshot->ConfigSnapWindow(window_size, 1);
         }
@@ -804,12 +805,18 @@ void VideoClip::SetViewWindowStart(int64_t millisec)
 void VideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom)
 {
     ImVec2 dispPos = leftTop;
+    Logger::Log(Logger::DEBUG) << "[1]>>>>> Begin display snapshot" << std::endl;
     for (auto& img : mSnapImages)
     {
         if (img->mTextureReady)
         {
-            ImGui::SetCursorScreenPos(dispPos);
-            ImGui::Image(*(img->mTextureHolder), {mSnapWidth, (float)mSnapHeight});
+            // ImGui::SetCursorScreenPos(dispPos);
+            // ImGui::Image(*(img->mTextureHolder), {mSnapWidth, mSnapHeight});
+            ImTextureID tid = *(img->mTextureHolder);
+            ImVec2 size = {mSnapWidth, mSnapHeight};
+            Logger::Log(Logger::DEBUG) << "[1]\t\t display tid=" << tid << std::endl;
+            drawList->AddImage(tid, dispPos, {dispPos.x+mSnapWidth, rightBottom.y});
+            // ImGui::Image(tid, size);
         }
         else
             // wyvern: this part should be replaced with loading image
@@ -818,6 +825,8 @@ void VideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
         if (dispPos.x >= rightBottom.x)
             break;
     }
+    Logger::Log(Logger::DEBUG) << "[1]<<<<< End display snapshot" << std::endl;
+    mSnapshot->ReleaseSnapshotTexture();
 }
 
 void VideoClip::CalcDisplayParams()
@@ -2578,7 +2587,7 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, co
     // draw clips
     for (auto clip : track->m_Clips)
     {
-        clip->SetViewWindowStart(viewStartTime);
+        clip->SetViewWindowStart(firstTime);
         bool draw_clip = false;
         float cursor_start = 0;
         float cursor_end  = 0;

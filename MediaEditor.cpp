@@ -2068,15 +2068,15 @@ void Application_Initialize(void** handle)
     ImFont* font = atlas->Fonts[1];
     io.FontDefault = font;
     io.IniFilename = ini_file.c_str();
-    Logger::GetDefaultLogger()->SetShowLevels(Logger::DEBUG);
-    GetMediaReaderLogger()->SetShowLevels(Logger::DEBUG);
     if (io.ConfigFlags & ImGuiConfigFlags_EnableLowRefreshMode)
         ImGui::SetTableLabelBreathingSpeed(0.01, 0.5);
     else
         ImGui::SetTableLabelBreathingSpeed(0.005, 0.5);
     ImGui::ResetTabLabelStyle(ImGui::ImGuiTabLabelStyle_Dark, *tab_style);
 
-    GetMediaSnapshotLogger()->SetShowLevels(Logger::DEBUG);
+    // Logger::GetDefaultLogger()->SetShowLevels(Logger::DEBUG);
+    // GetMediaReaderLogger()->SetShowLevels(Logger::DEBUG);
+    // GetMediaSnapshotLogger()->SetShowLevels(Logger::DEBUG);
 
     NewTimeline();
 }

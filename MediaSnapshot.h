@@ -24,6 +24,7 @@ struct MediaSnapshot
     virtual void Close() = 0;
     virtual bool GetSnapshots(std::vector<ImageHolder>& snapshots, double startPos) = 0;
     virtual bool UpdateSnapshotTexture(std::vector<ImageHolder>& snapshots) = 0;
+    virtual void ReleaseSnapshotTexture() = 0;
 
     virtual bool IsOpened() const = 0;
     virtual bool HasVideo() const = 0;
