@@ -982,7 +982,8 @@ static void ShowFilterBankWindow(ImDrawList *draw_list)
         auto node_reg = bp.GetNodeRegistry();
         for (auto type : node_reg->GetTypes())
         {
-            if (type->m_Catalog.compare("Filter") != 0)
+            auto catalog = type->GetCatalogInfo();
+            if (!catalog.size() || catalog[0].compare("Filter") != 0)
                 continue;
             ImGui::Dummy(ImVec2(0, 16));
             auto icon_pos = ImGui::GetCursorScreenPos();
