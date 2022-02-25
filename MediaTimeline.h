@@ -436,6 +436,9 @@ struct TimeLine
     
     std::vector<int> mAudioLevel;           // timeline audio levels
 
+    int64_t attract_docking_pixels {20};    // clip attract docking sucking in pixels range, pulling range is 1/5
+    int64_t mConnectedPoints = -1;
+
     int64_t currentTime = 0;
     int64_t firstTime = 0;
     int64_t lastTime = 0;
@@ -499,7 +502,7 @@ struct TimeLine
     void DoubleClick(int index, int64_t time);
     void Click(int index, int64_t time);
 
-    void CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &titleRect, const ImRect &clippingTitleRect, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRect, int64_t viewStartTime, int64_t visibleTime, float pixelWidth, bool need_update, bool enable_select);
+    void CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &titleRect, const ImRect &clippingTitleRect, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRect, bool is_moving, bool enable_select);
     
     ImGui::ImMat GetPreviewFrame();
     int GetAudioLevel(int channel);
