@@ -226,7 +226,10 @@ struct Clip
     void * mHandle              {nullptr};          // clip belong to timeline 
     MediaOverview * mOverview   {nullptr};          // clip media overview
     MediaReader* mMediaReader   {nullptr};          // clip media reader
-    
+    int64_t mViewWndDur         {0};
+    float mPixPerMs             {0};
+    int mTrackHeight            {0};
+
     imgui_json::value mFilterBP;                    // clip filter blue print, project saved
 
     Clip(int64_t start, int64_t end, int64_t id, MediaOverview * overview, void * handle);
@@ -240,6 +243,10 @@ struct Clip
     virtual void UpdateSnapshot() = 0;
     virtual void Seek() = 0;
     virtual void Step(bool forward, int64_t step) = 0;
+    virtual void ConfigViewWindow(int64_t wndDur, float pixPerMs) { mViewWndDur = wndDur; mPixPerMs = pixPerMs; }
+    virtual void SetTrackHeight(int trackHeight) { mTrackHeight = trackHeight; }
+    virtual void SetViewWindowStart(int64_t millisec) {}
+    virtual void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom) { drawList->AddRect(leftTop, rightBottom, IM_COL32_BLACK); }
     static void Load(Clip * clip, const imgui_json::value& value);
     virtual void Save(imgui_json::value& value) = 0;
 };
@@ -248,7 +255,7 @@ struct VideoClip : Clip
 {
     MediaSnapshot* mSnapshot {nullptr};                 // clip snapshot handle
     std::vector<VideoSnapshotInfo> mVideoSnapshotInfos; // clip snapshots info, with all croped range
-    std::vector<Snapshot> mVideoSnapshots;              // clip snapshots, including texture and timestamp info
+    std::list<Snapshot> mVideoSnapshots;              // clip snapshots, including texture and timestamp info
     //int mFrameCount         {0};                        // total snapshot number in clip range
     //float mSnapshotWidth    {0};
     //ImTextureID mFilterInputTexture {nullptr};  // clip filter input texture
@@ -258,12 +265,28 @@ struct VideoClip : Clip
     VideoClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle);
     ~VideoClip();
 
-    void UpdateSnapshot();
-    void Seek();
-    void Step(bool forward, int64_t step);
+    void UpdateSnapshot() override;
+    void Seek() override;
+    void Step(bool forward, int64_t step) override;
+    void ConfigViewWindow(int64_t wndDur, float pixPerMs) override;
+    void SetTrackHeight(int trackHeight) override;
+    void SetViewWindowStart(int64_t millisec) override;
+    void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom) override;
 
     static Clip * Load(const imgui_json::value& value, void * handle);
-    void Save(imgui_json::value& value);
+    void Save(imgui_json::value& value) override;
+
+private:
+    void CalcDisplayParams();
+
+private:
+    bool mQuit;
+    float mSnapWidth                {0};
+    float mSnapHeight               {0};
+    float mSnapsInViewWindow        {0};
+    int64_t mViewWndStart;
+    std::vector<MediaSnapshot::ImageHolder> mSnapImages;
+    double mSnapInterval;
 };
 
 struct AudioClip : Clip
@@ -329,6 +352,8 @@ struct MediaTrack
     bool mView      {true};                     // track is viewable, project saved
     bool mLocked    {false};                    // track is locked(can't moving or cropping by locked), project saved
     bool mSelected  {false};                    // track is selected, project saved
+    int64_t mViewWndDur     {0};
+    float mPixPerMs         {0};
 
     MediaTrack(std::string name, MEDIA_TYPE type, void * handle);
     ~MediaTrack();
@@ -349,6 +374,16 @@ struct MediaTrack
     void Update();                                  // update track clip include clip order and overlap area
     static MediaTrack* Load(const imgui_json::value& value, void * handle);
     void Save(imgui_json::value& value);
+
+    void ConfigViewWindow(int64_t wndDur, float pixPerMs)
+    {
+        if (mViewWndDur == wndDur && mPixPerMs == pixPerMs)
+            return;
+        mViewWndDur = wndDur;
+        mPixPerMs = pixPerMs;
+        for (auto& clip : m_Clips)
+            clip->ConfigViewWindow(wndDur, pixPerMs);
+    }
 };
 
 struct TimelineCustomDraw

@@ -1388,34 +1388,38 @@ void SequencerItem::SequencerItemUpdateSnapshots()
 {
     if (mSnapshot && mSnapshot->IsOpened() && mSnapshot->HasVideo())
     {
-        std::vector<ImGui::ImMat> snapshots;
+        std::vector<MediaSnapshot::ImageHolder> snapshots;
         double pos = (double)(mSnapshotPos) / 1000.f;
         int media_snapshot_index = 0;
         if (mSnapshot->GetSnapshots(snapshots, pos))
         {
+            // mSnapshot->UpdateSnapshotTexture(snapshots);
             for (int i = 0; i < snapshots.size(); i++)
             {
-                if (!snapshots[i].empty())
+                if (!snapshots[i]->mImgMat.empty())
+                // if (snapshots[i]->mTextureReady)
                 {
-                    if (i == 0 && fabs(snapshots[i].time_stamp - pos) > (mSnapshotDuration / 1000.0 / 2))
+                    if (i == 0 && fabs((double)snapshots[i]->mTimestampMs/1000 - pos) > (mSnapshotDuration / 1000.0 / 2))
                     {
                         continue;
                     }
                     // if i <= mVideoSnapshots.size() then update text else create a new text and push back into mVideoSnapshots
                     if (media_snapshot_index < mVideoSnapshots.size())
                     {
-                        if (mVideoSnapshots[media_snapshot_index].time_stamp != (int64_t)(snapshots[i].time_stamp * 1000) || !mVideoSnapshots[media_snapshot_index].available)
+                        if (mVideoSnapshots[media_snapshot_index].time_stamp != snapshots[i]->mTimestampMs || !mVideoSnapshots[media_snapshot_index].available)
                         {
-                            ImMatToTexture(snapshots[i], mVideoSnapshots[media_snapshot_index].texture);
-                            mVideoSnapshots[media_snapshot_index].time_stamp = (int64_t)(snapshots[i].time_stamp * 1000);
+                            ImMatToTexture(snapshots[i]->mImgMat, mVideoSnapshots[media_snapshot_index].texture);
+                            // mVideoSnapshots[media_snapshot_index].texture = snapshots[i]->mTid;
+                            mVideoSnapshots[media_snapshot_index].time_stamp = snapshots[i]->mTimestampMs;
                             mVideoSnapshots[media_snapshot_index].available = true;
                         }
                     }
                     else
                     {
                         Snapshot snap;
-                        ImMatToTexture(snapshots[i], snap.texture);
-                        snap.time_stamp = (int64_t)(snapshots[i].time_stamp * 1000);
+                        ImMatToTexture(snapshots[i]->mImgMat, snap.texture);
+                        // snap.texture = snapshots[i]->mTid;
+                        snap.time_stamp = snapshots[i]->mTimestampMs;
                         snap.available = true;
                         mVideoSnapshots.push_back(snap);
                     }
@@ -3308,17 +3312,20 @@ void ClipInfo::UpdateSnapshot()
 {
     if (mSnapshot && mSnapshot->IsOpened() && mSnapshot->HasVideo())
     {
-        std::vector<ImGui::ImMat> snapshots;
+        std::vector<MediaSnapshot::ImageHolder> snapshots;
         double pos = (double)(mStart) / 1000.f;
         if (mSnapshot->GetSnapshots(snapshots, pos))
         {
+            // mSnapshot->UpdateSnapshotTexture(snapshots);
             for (int i = 0; i < snapshots.size(); i++)
             {
-                if (!snapshots[i].empty() && i >= mVideoSnapshots.size())
+                if (!snapshots[i]->mImgMat.empty() && i >= mVideoSnapshots.size())
+                // if (snapshots[i]->mTextureReady && i >= mVideoSnapshots.size())
                 {
                     Snapshot snap;
-                    ImMatToTexture(snapshots[i], snap.texture);
-                    snap.time_stamp = (int64_t)(snapshots[i].time_stamp * 1000);
+                    ImMatToTexture(snapshots[i]->mImgMat, snap.texture);
+                    // snap.texture = snapshots[i]->mTid;
+                    snap.time_stamp = snapshots[i]->mTimestampMs;
                     snap.available = true;
                     mVideoSnapshots.push_back(snap);
                 }
