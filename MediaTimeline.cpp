@@ -665,6 +665,7 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
         }
     }
     timeline->Updata();
+    io.MouseDelta.x = new_diff;
     return index;
 }
 
@@ -2088,12 +2089,12 @@ void TimeLine::Updata()
     }
 
     // update track
-    mTrackLock.lock();
+    //mTrackLock.lock();
     for (auto track : m_Tracks)
     {
         track->Update();
     }
-    mTrackLock.unlock();
+    //mTrackLock.unlock();
 }
 
 void TimeLine::Click(int index, int64_t time)
@@ -2144,7 +2145,7 @@ void TimeLine::DoubleClick(int index, int64_t time)
 
 void TimeLine::SelectTrack(int index)
 {
-    mTrackLock.lock();
+    //mTrackLock.lock();
     if (index >= 0 && index < m_Tracks.size())
     {
         auto current_track = m_Tracks[index];
@@ -2156,12 +2157,12 @@ void TimeLine::SelectTrack(int index)
                 track->mSelected = true;
         }
     }
-    mTrackLock.unlock();
+    //mTrackLock.unlock();
 }
 
 void TimeLine::DeleteTrack(int index)
 {
-    mTrackLock.lock();
+    //mTrackLock.lock();
     if (index >= 0 && index < m_Tracks.size())
     {
         auto track = m_Tracks[index];
@@ -2173,7 +2174,7 @@ void TimeLine::DeleteTrack(int index)
             currentTime = firstTime = lastTime = visibleTime = 0;
         }
     }
-    mTrackLock.unlock();
+    //mTrackLock.unlock();
 }
 
 int TimeLine::NewTrack(MEDIA_TYPE type, bool expand)
@@ -2182,28 +2183,28 @@ int TimeLine::NewTrack(MEDIA_TYPE type, bool expand)
     new_track->mPixPerMs = msPixelWidthTarget;
     new_track->mViewWndDur = visibleTime;
     new_track->mExpanded = expand;
-    mTrackLock.try_lock();
+    //mTrackLock.try_lock();
     m_Tracks.push_back(new_track);
-    mTrackLock.unlock();
+    //mTrackLock.unlock();
     Updata();
     return m_Tracks.size() - 1;
 }
 
 void TimeLine::MovingTrack(int& index, int& dst_index)
 {
-    mTrackLock.lock();
+    //mTrackLock.lock();
     auto iter = m_Tracks.begin() + index;
     auto iter_dst = dst_index == -2 ? m_Tracks.end() - 1 : m_Tracks.begin() + dst_index;
     if (dst_index == -2 && iter == m_Tracks.end() - 1)
     {
-        mTrackLock.unlock();
+        //mTrackLock.unlock();
         return;
     }
     MediaTrack * tmp = *iter;
     *iter = *iter_dst;
     *iter_dst = tmp;
     index = dst_index;
-    mTrackLock.unlock();
+    //mTrackLock.unlock();
 }
 
 void TimeLine::MovingClip(int64_t id, int from_track_index, int to_track_index)
@@ -2211,12 +2212,12 @@ void TimeLine::MovingClip(int64_t id, int from_track_index, int to_track_index)
     if (from_track_index < 0 || to_track_index < 0 ||
         from_track_index >= m_Tracks.size() || to_track_index >= m_Tracks.size())
         return;
-    mTrackLock.try_lock();
+    //mTrackLock.try_lock();
     auto track = m_Tracks[from_track_index];
     auto dst_track = m_Tracks[to_track_index];
     if (!track || !dst_track)
     {
-        mTrackLock.unlock();
+        //mTrackLock.unlock();
         return;
     }
     // remove clip from source track
@@ -2239,7 +2240,7 @@ void TimeLine::MovingClip(int64_t id, int from_track_index, int to_track_index)
         dst_track->InsertClip(clip, clip->mStart);
     }
 
-    mTrackLock.unlock();
+    //mTrackLock.unlock();
 }
 
 void TimeLine::DeleteClip(int64_t id)
@@ -2344,7 +2345,7 @@ MediaItem* TimeLine::FindMediaItemByID(int64_t id)
 MediaTrack * TimeLine::FindTrackByID(int64_t id)
 {
     MediaTrack * track_found = nullptr;
-    mTrackLock.try_lock();
+    //mTrackLock.try_lock();
     for (auto track : m_Tracks)
     {
         if (track->mID == id)
@@ -2353,14 +2354,14 @@ MediaTrack * TimeLine::FindTrackByID(int64_t id)
             break;
         }
     }
-    mTrackLock.unlock();
+    //mTrackLock.unlock();
     return track_found;
 }
 
 MediaTrack * TimeLine::FindTrackByClipID(int64_t id)
 {
     MediaTrack * track_found = nullptr;
-    mTrackLock.try_lock();
+    //mTrackLock.try_lock();
     for (auto track : m_Tracks)
     {
         for (auto clip : track->m_Clips)
@@ -2374,14 +2375,14 @@ MediaTrack * TimeLine::FindTrackByClipID(int64_t id)
         if (track_found)
             break;
     }
-    mTrackLock.unlock();
+    //mTrackLock.unlock();
     return track_found;
 }
 
 int TimeLine::FindTrackIndexByClipID(int64_t id)
 {
     int track_found = -1;
-    mTrackLock.try_lock();
+    //mTrackLock.try_lock();
     for (int i = 0; i < m_Tracks.size(); i++)
     {
         auto track = m_Tracks[i];
@@ -2396,14 +2397,14 @@ int TimeLine::FindTrackIndexByClipID(int64_t id)
         if (track_found != -1)
             break;
     }
-    mTrackLock.unlock();
+    //mTrackLock.unlock();
     return track_found;
 }
 
 Clip * TimeLine::FindClipByID(int64_t id)
 {
     Clip * clip_found = nullptr;
-    mClipLock.try_lock();
+    //mClipLock.try_lock();
     for (auto clip : m_Clips)
     {
         if (clip->mID == id)
@@ -2412,14 +2413,14 @@ Clip * TimeLine::FindClipByID(int64_t id)
             break;
         }
     }
-    mClipLock.unlock();
+    //mClipLock.unlock();
     return clip_found;
 }
 
 Clip * TimeLine::FindEditingClip()
 {
     Clip * clip_found = nullptr;
-    mClipLock.try_lock();
+    //mClipLock.try_lock();
     for (auto clip : m_Clips)
     {
         if (clip->bEditing)
@@ -2428,7 +2429,7 @@ Clip * TimeLine::FindEditingClip()
             break;
         }
     }
-    mClipLock.unlock();
+    //mClipLock.unlock();
     return clip_found;
 }
 
@@ -2465,7 +2466,7 @@ int64_t TimeLine::NextClipStart(Clip * clip)
     int64_t next_start = -1;
     if (clip)
     {
-        mClipLock.try_lock();
+        //mClipLock.try_lock();
         for (auto _clip : m_Clips)
         {
             if (_clip->mStart >= clip->mEnd)
@@ -2474,7 +2475,7 @@ int64_t TimeLine::NextClipStart(Clip * clip)
                 break;
             }
         }
-        mClipLock.unlock();
+        //mClipLock.unlock();
     }
 
     return next_start;
@@ -2483,7 +2484,7 @@ int64_t TimeLine::NextClipStart(Clip * clip)
 int64_t TimeLine::NextClipStart(int64_t pos)
 {
     int64_t next_start = -1;
-    mClipLock.try_lock();
+    //mClipLock.try_lock();
     for (auto _clip : m_Clips)
     {
         if (_clip->mStart > pos)
@@ -2492,20 +2493,20 @@ int64_t TimeLine::NextClipStart(int64_t pos)
             break;
         }
     }
-    mClipLock.unlock();
+    //mClipLock.unlock();
     return next_start;
 }
 
 int TimeLine::GetTrackCount(MEDIA_TYPE type)
 {
     int count = 0;
-    mTrackLock.lock();
+    //mTrackLock.lock();
     for (auto track : m_Tracks)
     {
         if (track->mType == type)
             count ++;
     }
-    mTrackLock.unlock();
+    //mTrackLock.unlock();
     return count;
 }
 
@@ -3132,7 +3133,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         ImGui::PushStyleColor(ImGuiCol_FrameBg, 0);
         ImVec2 childFramePos = ImGui::GetCursorScreenPos();
         ImVec2 childFrameSize(canvas_size.x, canvas_size.y - 8.0f - headerSize.y - scrollBarSize.y);
-        ImGui::BeginChildFrame(ImGui::GetID("timeline_Tracks"), childFrameSize, ImGuiWindowFlags_NoScrollbar);
+        ImGui::BeginChildFrame(ImGui::GetID("timeline_Tracks"), childFrameSize, ImGuiWindowFlags_NoScrollbar/* | ImGuiWindowFlags_NoScrollWithMouse*/);
 
         ImGui::InvisibleButton("contentBar", ImVec2(canvas_size.x - 8.f, float(controlHeight)));
         const ImVec2 contentMin = ImGui::GetItemRectMin();
@@ -3661,6 +3662,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             bool overTrackView = false;
             bool overScrollBar = false;
             bool overCustomDraw = false;
+            bool overLegend = false;
             if (trackRect.Contains(io.MousePos))
             {
                 overCustomDraw = true;
@@ -3673,10 +3675,13 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             {
                 overScrollBar = true;
             }
+            if (legendRect.Contains(io.MousePos))
+            {
+                overLegend = true;
+            }
             if (overScrollBar)
             {
                 // up-down wheel over scrollbar, scale canvas view
-                int64_t overCursor = timeline->firstTime + (int64_t)(timeline->visibleTime * ((io.MousePos.x - (float)legendWidth - canvas_pos.x) / (canvas_size.x - legendWidth)));
                 if (io.MouseWheel < -FLT_EPSILON && timeline->visibleTime <= timeline->GetEnd())
                 {
                     timeline->msPixelWidthTarget *= 0.9f;
@@ -3691,12 +3696,12 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                 // left-right wheel over blank area, moving canvas view
                 if (io.MouseWheelH < -FLT_EPSILON)
                 {
-                    timeline->firstTime -= timeline->visibleTime / 4;
+                    timeline->firstTime -= timeline->visibleTime / 16;
                     timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
                 }
                 else if (io.MouseWheelH > FLT_EPSILON)
                 {
-                    timeline->firstTime += timeline->visibleTime / 4;
+                    timeline->firstTime += timeline->visibleTime / 16;
                     timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
                 }
             }
@@ -3844,7 +3849,9 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                     if (video_stream)
                     {
                         new_video_clip = new VideoClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, timeline);
+                        //timeline->mClipLock.try_lock();
                         timeline->m_Clips.push_back(new_video_clip);
+                        //timeline->mClipLock.unlock();
                         if (track && track->mType == MEDIA_VIDEO)
                         {
                             // update clip info and push into track
@@ -3866,7 +3873,9 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                     if (audio_stream)
                     {
                         new_audio_clip = new AudioClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, timeline);
+                        //timeline->mClipLock.try_lock();
                         timeline->m_Clips.push_back(new_audio_clip);
+                        //timeline->mClipLock.unlock();
                         if (!create_new_track)
                         {
                             if (new_video_clip)
