@@ -437,7 +437,7 @@ struct TimeLine
     
     std::vector<int> mAudioLevel;           // timeline audio levels
 
-    int64_t attract_docking_pixels {20};    // clip attract docking sucking in pixels range, pulling range is 1/5
+    int64_t attract_docking_pixels {10};    // clip attract docking sucking in pixels range, pulling range is 1/5
     int64_t mConnectedPoints = -1;
 
     int64_t currentTime = 0;
