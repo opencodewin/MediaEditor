@@ -824,7 +824,7 @@ void VideoClip::SetViewWindowStart(int64_t millisec)
     mSnapshot->UpdateSnapshotTexture(mSnapImages);
 }
 
-void VideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom)
+void VideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect)
 {
     ImVec2 snapLeftTop = leftTop;
     float snapDispWidth;
@@ -906,7 +906,7 @@ AudioClip::AudioClip(int64_t start, int64_t end, int64_t id, std::string name, M
         }
         mPath = info->url;
         MediaParserHolder holder = mOverview->GetMediaParser();
-        // TODO::Dicky
+        mWaveform = overview->GetWaveform();
     }
 }
 
@@ -930,6 +930,32 @@ bool AudioClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame)
 {
     return false;
 }
+
+ void AudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect)
+ {
+    TimeLine * timeline = (TimeLine *)mHandle;
+    if (!timeline || timeline->media_items.size() <= 0 || !mWaveform)
+        return;
+
+    ImVec2 draw_size = rightBottom - leftTop;
+    if (mWaveform->pcm.size() > 0)
+    {
+        std::string id_string = "##Waveform@" + std::to_string(mID);
+        drawList->AddRectFilled(leftTop, rightBottom, IM_COL32(128, 128, 128, 128));
+        drawList->AddRect(leftTop, rightBottom, IM_COL32_BLACK);
+        float wave_range = fmax(fabs(mWaveform->minSample), fabs(mWaveform->maxSample));
+        int sampleSize = mWaveform->pcm[0].size();
+        ImVec2 customViewStart = ImVec2((mStart - mStartOffset - timeline->firstTime) * timeline->msPixelWidthTarget + clipRect.Min.x, clipRect.Min.y);
+        ImVec2 customViewEnd = ImVec2((mEnd + mEndOffset - timeline->firstTime) * timeline->msPixelWidthTarget + clipRect.Min.x, clipRect.Max.y);
+        ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(1.f, 1.f, 0.f, 1.0f));
+        ImGui::SetCursorScreenPos(customViewStart);
+        drawList->PushClipRect(leftTop, rightBottom, true);
+        ImGui::PlotLines(id_string.c_str(), &mWaveform->pcm[0][0], sampleSize, 0, nullptr, -wave_range / 2, wave_range / 2, customViewEnd - customViewStart, sizeof(float), false);
+        drawList->PopClipRect();
+        ImGui::PopStyleColor();
+        drawList->AddLine(ImVec2(leftTop.x, leftTop.y + draw_size.y / 2), ImVec2(rightBottom.x, leftTop.y + draw_size.y / 2), IM_COL32(255, 255, 255, 128));
+    }
+ }
 
 Clip * AudioClip::Load(const imgui_json::value& value, void * handle)
 {
@@ -1062,7 +1088,7 @@ void ImageClip::SetViewWindowStart(int64_t millisec)
         mClipViewStartPos = mStart;
 }
 
-void ImageClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom)
+void ImageClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect)
 {
     if (mSnapWidth == 0)
     {
@@ -2757,10 +2783,9 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, co
             draw_list->AddRect(clip_title_pos_min, clip_title_pos_max, IM_COL32_BLACK);
             
             // draw clip status
-            auto front_draw_list = ImGui::GetForegroundDrawList();
-            front_draw_list->PushClipRect(clip_title_pos_min, clip_title_pos_max, true);
-            front_draw_list->AddText(clip_title_pos_min + ImVec2(4, 0), IM_COL32_WHITE, clip->mName.c_str());
-            front_draw_list->PopClipRect();
+            draw_list->PushClipRect(clip_title_pos_min, clip_title_pos_max, true);
+            draw_list->AddText(clip_title_pos_min + ImVec2(4, 0), IM_COL32_WHITE, clip->mName.c_str());
+            draw_list->PopClipRect();
 
             ImVec2 clip_pos_min = clip_title_pos_min;
             ImVec2 clip_pos_max = clip_title_pos_max;
@@ -2771,7 +2796,7 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, co
                 draw_list->PushClipRect(clippingRect.Min, clippingRect.Max, true);
                 ImVec2 custom_pos_min = ImVec2(cursor_start, clippingRect.Min.y);
                 ImVec2 custom_pos_max = ImVec2(cursor_end, clippingRect.Max.y);
-                clip->DrawContent(draw_list, custom_pos_min, custom_pos_max);
+                clip->DrawContent(draw_list, custom_pos_min, custom_pos_max, clippingRect);
                 draw_list->PopClipRect();
                 clip_pos_min = custom_pos_min;
                 clip_pos_max = custom_pos_max;
@@ -2867,14 +2892,14 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, co
             ImGui::InvisibleButton("#clip_overlap", overlap_pos_max - overlap_pos_min);
             if (ImGui::IsItemHovered())
             {
-                draw_list->AddRectFilled(overlap_pos_min, overlap_pos_max, IM_COL32(255,255,32,192));
+                draw_list->AddRectFilled(overlap_pos_min, overlap_pos_max, IM_COL32(255,32,32,128));
                 if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
                 {
                     track->EditingOverlap(overlap);
                 }
             }
             else
-                draw_list->AddRectFilled(overlap_pos_min, overlap_pos_max, IM_COL32(128,128,32,192));
+                draw_list->AddRectFilled(overlap_pos_min, overlap_pos_max, IM_COL32(128,32,32,128));
             
             draw_list->AddLine(overlap_pos_min, overlap_pos_max, IM_COL32(0, 0, 0, 255));
             draw_list->AddLine(ImVec2(overlap_pos_max.x, overlap_pos_min.y), ImVec2(overlap_pos_min.x, overlap_pos_max.y), IM_COL32(0, 0, 0, 255));

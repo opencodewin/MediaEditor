@@ -246,7 +246,7 @@ struct Clip
     virtual void ConfigViewWindow(int64_t wndDur, float pixPerMs) { mViewWndDur = wndDur; mPixPerMs = pixPerMs; }
     virtual void SetTrackHeight(int trackHeight) { mTrackHeight = trackHeight; }
     virtual void SetViewWindowStart(int64_t millisec) {}
-    virtual void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom) { drawList->AddRect(leftTop, rightBottom, IM_COL32_BLACK); }
+    virtual void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect) { drawList->AddRect(leftTop, rightBottom, IM_COL32_BLACK); }
     static void Load(Clip * clip, const imgui_json::value& value);
     virtual void Save(imgui_json::value& value) = 0;
 };
@@ -271,7 +271,7 @@ struct VideoClip : Clip
     void ConfigViewWindow(int64_t wndDur, float pixPerMs) override;
     void SetTrackHeight(int trackHeight) override;
     void SetViewWindowStart(int64_t millisec) override;
-    void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom) override;
+    void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect) override;
 
     static Clip * Load(const imgui_json::value& value, void * handle);
     void Save(imgui_json::value& value) override;
@@ -297,12 +297,13 @@ struct AudioClip : Clip
     AudioClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle);
     ~AudioClip();
 
-    void UpdateSnapshot();
-    void Seek();
-    void Step(bool forward, int64_t step);
+    void UpdateSnapshot() override;
+    void Seek() override;
+    void Step(bool forward, int64_t step) override;
     bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame);
+    void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect) override;
     static Clip * Load(const imgui_json::value& value, void * handle);
-    void Save(imgui_json::value& value);
+    void Save(imgui_json::value& value) override;
 };
 
 struct ImageClip : Clip
@@ -320,7 +321,7 @@ struct ImageClip : Clip
     bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame);
     void SetTrackHeight(int trackHeight) override;
     void SetViewWindowStart(int64_t millisec) override;
-    void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom) override;
+    void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect) override;
 
     static Clip * Load(const imgui_json::value& value, void * handle);
     void Save(imgui_json::value& value) override;
