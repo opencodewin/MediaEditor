@@ -506,17 +506,36 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
     std::vector<int64_t> selected_end_points;
     std::vector<int64_t> unselected_start_points;
     std::vector<int64_t> unselected_end_points;
-    for (auto clip : timeline->m_Clips)
+    if (single)
     {
-        if (clip->bSelected)
+        for (auto clip : timeline->m_Clips)
         {
-            selected_start_points.push_back(clip->mStart);
-            selected_end_points.push_back(clip->mEnd);
+            if (clip->mID != mID)
+            {
+                unselected_start_points.push_back(clip->mStart);
+                unselected_end_points.push_back(clip->mEnd);
+            }
+            else
+            {
+                selected_start_points.push_back(clip->mStart);
+                selected_end_points.push_back(clip->mEnd);
+            }
         }
-        else
+    }
+    else
+    {
+        for (auto clip : timeline->m_Clips)
         {
-            unselected_start_points.push_back(clip->mStart);
-            unselected_end_points.push_back(clip->mEnd);
+            if (clip->bSelected)
+            {
+                selected_start_points.push_back(clip->mStart);
+                selected_end_points.push_back(clip->mEnd);
+            }
+            else
+            {
+                unselected_start_points.push_back(clip->mStart);
+                unselected_end_points.push_back(clip->mEnd);
+            }
         }
     }
 
@@ -1469,12 +1488,15 @@ void MediaTrack::Update()
                 // it is a overlap area
                 int64_t start = std::max((*next)->mStart, (*iter)->mStart);
                 int64_t end = std::min((*iter)->mEnd, (*next)->mEnd);
-                // check it is in exist overlaps
-                auto overlap = FindExistOverlap((*iter)->mID, (*next)->mID);
-                if (overlap)
-                    overlap->Update(start, (*iter)->mID, end, (*next)->mID);
-                else
-                    CreateOverlap(start, (*iter)->mID, end, (*next)->mID);
+                if (end > start)
+                {
+                    // check it is in exist overlaps
+                    auto overlap = FindExistOverlap((*iter)->mID, (*next)->mID);
+                    if (overlap)
+                        overlap->Update(start, (*iter)->mID, end, (*next)->mID);
+                    else
+                        CreateOverlap(start, (*iter)->mID, end, (*next)->mID);
+                }
             }
         }
     }
@@ -2733,10 +2755,13 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, co
             else
                 draw_list->AddRectFilled(clip_title_pos_min, clip_title_pos_max, IM_COL32(32,128,32,128));
             draw_list->AddRect(clip_title_pos_min, clip_title_pos_max, IM_COL32_BLACK);
+            
             // draw clip status
-            draw_list->PushClipRect(clip_title_pos_min, clip_title_pos_max, true);
-            draw_list->AddText(clip_title_pos_min, IM_COL32_WHITE, clip->mName.c_str());
-            draw_list->PopClipRect();
+            auto front_draw_list = ImGui::GetForegroundDrawList();
+            front_draw_list->PushClipRect(clip_title_pos_min, clip_title_pos_max, true);
+            front_draw_list->AddText(clip_title_pos_min + ImVec2(4, 0), IM_COL32_WHITE, clip->mName.c_str());
+            front_draw_list->PopClipRect();
+
             ImVec2 clip_pos_min = clip_title_pos_min;
             ImVec2 clip_pos_max = clip_title_pos_max;
 
@@ -2768,9 +2793,11 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, co
             if (enable_select)
             {
                 ImGui::SetCursorScreenPos(clip_title_pos_min);
-                auto id_string = clip->mPath + "@" + std::to_string(clip->mStart) + "@" + std::to_string(clip->mID);
-                ImGui::BeginChildFrame(ImGui::GetID(("track_clips::" + id_string).c_str()), clip_pos_max - clip_title_pos_min, ImGuiWindowFlags_NoScrollbar);
-                ImGui::InvisibleButton(id_string.c_str(), clip_pos_max - clip_title_pos_min);
+                ImGui::PushID(clip->mID);
+                const ImGuiID id = ImGui::GetCurrentWindow()->GetID("#track_clips");
+                ImGui::PopID();
+                ImGui::BeginChildFrame(id, clip_pos_max - clip_title_pos_min, ImGuiWindowFlags_NoScrollbar);
+                ImGui::InvisibleButton("#track_clips", clip_pos_max - clip_title_pos_min);
                 if (ImGui::IsItemHovered())
                 {
                     bool can_be_select = false;
@@ -2833,9 +2860,11 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, co
             ImVec2 overlap_pos_max = ImVec2(cursor_end, clippingTitleRect.Max.y);
             ImRect overlap_rect(overlap_pos_min, overlap_pos_max);
             ImGui::SetCursorScreenPos(overlap_pos_min);
-            auto id_string = track->mName + "@" + std::to_string(overlap->mID);
-            ImGui::BeginChildFrame(ImGui::GetID(("clip_overlap::" + id_string).c_str()), overlap_pos_max - overlap_pos_min, ImGuiWindowFlags_NoScrollbar);
-            ImGui::InvisibleButton(id_string.c_str(), overlap_pos_max - overlap_pos_min);
+            ImGui::PushID(overlap->mID);
+            const ImGuiID id = ImGui::GetCurrentWindow()->GetID("#clip_overlap");
+            ImGui::PopID();
+            ImGui::BeginChildFrame(id, overlap_pos_max - overlap_pos_min, ImGuiWindowFlags_NoScrollbar);
+            ImGui::InvisibleButton("#clip_overlap", overlap_pos_max - overlap_pos_min);
             if (ImGui::IsItemHovered())
             {
                 draw_list->AddRectFilled(overlap_pos_min, overlap_pos_max, IM_COL32(255,255,32,192));
