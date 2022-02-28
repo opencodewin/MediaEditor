@@ -856,8 +856,10 @@ void VideoClip::CalcDisplayParams()
     MediaInfo::Ratio displayAspectRatio = {
         (int32_t)(video_stream->width*video_stream->sampleAspectRatio.num), (int32_t)(video_stream->height*video_stream->sampleAspectRatio.den) };
     mSnapWidth = (float)mTrackHeight*displayAspectRatio.num/displayAspectRatio.den;
-    mSnapsInViewWindow = (float)((double)mPixPerMs*mViewWndDur/mSnapWidth);
     double windowSize = (double)mViewWndDur/1000;
+    if (windowSize > video_stream->duration)
+        windowSize = video_stream->duration;
+    mSnapsInViewWindow = (float)((double)mPixPerMs*windowSize*1000/mSnapWidth);
     if (!mSnapshot->ConfigSnapWindow(windowSize, mSnapsInViewWindow))
         throw std::runtime_error(mSnapshot->GetError());
 }
