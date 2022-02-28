@@ -797,7 +797,6 @@ void VideoClip::SetTrackHeight(int trackHeight)
 
 void VideoClip::SetViewWindowStart(int64_t millisec)
 {
-    mViewWndStart = millisec;
     mClipViewStartPos = mStartOffset;
     if (millisec > mStart)
         mClipViewStartPos += millisec-mStart;
@@ -975,23 +974,38 @@ void AudioClip::Save(imgui_json::value& value)
 ImageClip::ImageClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle)
     : Clip(start, end, id, overview, handle)
 {
-    if (handle && overview)
+    if (overview)
     {
         mType = MEDIA_PICTURE;
         mName = name;
-        MediaInfo::InfoHolder info = mOverview->GetMediaInfo();
-        if (!info)
-        {
-            return;
-        }
-        mPath = info->url;
-        MediaParserHolder holder = mOverview->GetMediaParser();
-        // TODO::Dicky
+        PrepareSnapImage();
     }
 }
 
 ImageClip::~ImageClip()
 {
+    if (mImgTexture)
+        ImGui::ImDestroyTexture(mImgTexture);
+}
+
+void ImageClip::PrepareSnapImage()
+{
+    if (!mOverview->GetSnapshots(mSnapImages))
+    {
+        Logger::Log(Logger::Error) << mOverview->GetError() << std::endl;
+        return;
+    }
+    if (!mSnapImages.empty() && !mSnapImages[0].empty() && !mImgTexture)
+    {
+        ImMatToTexture(mSnapImages[0], mImgTexture);
+        mWidth = mSnapImages[0].w;
+        mHeight = mSnapImages[0].h;
+    }
+    if (mTrackHeight > 0 && mWidth > 0 && mHeight > 0)
+    {
+        mSnapHeight = mTrackHeight;
+        mSnapWidth = mTrackHeight*mWidth/mHeight;
+    }
 }
 
 void ImageClip::UpdateSnapshot()
@@ -1009,6 +1023,58 @@ void ImageClip::Step(bool forward, int64_t step)
 bool ImageClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame)
 {
     return false;
+}
+
+void ImageClip::SetTrackHeight(int trackHeight)
+{
+    Clip::SetTrackHeight(trackHeight);
+
+    if (mWidth > 0 && mHeight > 0)
+    {
+        mSnapHeight = trackHeight;
+        mSnapWidth = trackHeight*mWidth/mHeight;
+    }
+}
+
+void ImageClip::SetViewWindowStart(int64_t millisec)
+{
+    mClipViewStartPos = millisec;
+    if (millisec < mStart)
+        mClipViewStartPos = mStart;
+}
+
+void ImageClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom)
+{
+    if (mSnapWidth == 0)
+    {
+        PrepareSnapImage();
+        if (mSnapWidth == 0)
+            return;
+    }
+
+    ImVec2 imgLeftTop = leftTop;
+    float snapDispWidth = mSnapWidth;
+    int img1stIndex = (int)floor((double)mClipViewStartPos*mPixPerMs/mSnapWidth);
+    int64_t img1stPos = (int64_t)((double)img1stIndex*mSnapWidth/mPixPerMs);
+    if (img1stPos < mClipViewStartPos)
+        snapDispWidth -= (mClipViewStartPos-img1stPos)*mPixPerMs;
+    while (imgLeftTop.x < rightBottom.x)
+    {
+        ImVec2 uvMin{0, 0}, uvMax{1, 1};
+        if (snapDispWidth < mSnapWidth)
+            uvMin.x = 1-snapDispWidth/mSnapWidth;
+        if (imgLeftTop.x+snapDispWidth > rightBottom.x)
+        {
+            uvMax.x = 1-(imgLeftTop.x+snapDispWidth-rightBottom.x)/mSnapWidth;
+            snapDispWidth = rightBottom.x-imgLeftTop.x;
+        }
+        if (mImgTexture)
+            drawList->AddImage(mImgTexture, imgLeftTop, {imgLeftTop.x+snapDispWidth, rightBottom.y}, uvMin, uvMax);
+        else
+            drawList->AddRect(imgLeftTop, {imgLeftTop.x+snapDispWidth, rightBottom.y}, IM_COL32_BLACK);
+        imgLeftTop.x += snapDispWidth;
+        snapDispWidth = mSnapWidth;
+    }
 }
 
 Clip * ImageClip::Load(const imgui_json::value& value, void * handle)

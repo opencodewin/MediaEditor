@@ -280,14 +280,11 @@ private:
     void CalcDisplayParams();
 
 private:
-    bool mQuit;
     float mSnapWidth                {0};
     float mSnapHeight               {0};
     float mSnapsInViewWindow        {0};
-    int64_t mViewWndStart;
     int64_t mClipViewStartPos;
     std::vector<MediaSnapshot::ImageHolder> mSnapImages;
-    double mSnapInterval;
 };
 
 struct AudioClip : Clip
@@ -310,19 +307,33 @@ struct AudioClip : Clip
 
 struct ImageClip : Clip
 {
-    int mWidth  {0};                // image width, project saved
-    int mHeight  {0};               // image height, project saved
+    int mWidth          {0};        // image width, project saved
+    int mHeight         {0};        // image height, project saved
     int mColorFormat    {0};        // image color format, project saved
 
     ImageClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle);
     ~ImageClip();
 
-    void UpdateSnapshot();
-    void Seek();
-    void Step(bool forward, int64_t step);
+    void UpdateSnapshot() override;
+    void Seek() override;
+    void Step(bool forward, int64_t step) override;
     bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame);
+    void SetTrackHeight(int trackHeight) override;
+    void SetViewWindowStart(int64_t millisec) override;
+    void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom) override;
+
     static Clip * Load(const imgui_json::value& value, void * handle);
-    void Save(imgui_json::value& value);
+    void Save(imgui_json::value& value) override;
+
+private:
+    void PrepareSnapImage();
+
+private:
+    float mSnapWidth            {0};
+    float mSnapHeight           {0};
+    std::vector<ImGui::ImMat> mSnapImages;
+    ImTextureID mImgTexture     {0};
+    int64_t mClipViewStartPos;
 };
 
 struct TextClip : Clip
