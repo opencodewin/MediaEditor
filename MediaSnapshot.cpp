@@ -136,6 +136,20 @@ public:
         m_errMsg = "";
     }
 
+    bool Seek(double pos) override
+    {
+        lock_guard<recursive_mutex> lk(m_apiLock);
+        if (!IsOpened())
+            return false;
+
+        if (m_prepared)
+            UpdateSnapWindow(pos);
+        else
+            m_snapWnd.startPos = pos;
+
+        return true;
+    }
+
     bool GetSnapshots(std::vector<ImageHolder>& images, double startPos) override
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
@@ -150,7 +164,7 @@ public:
         else
         {
             m_snapWnd.startPos = startPos;
-            snapWnd = m_snapWnd;
+            return true;
         }
 
         lock_guard<mutex> lk2(m_bldtskByTimeLock);
@@ -447,19 +461,17 @@ public:
 
     uint32_t GetVideoWidth() const override
     {
-        if (m_vidStream)
-        {
-            return m_vidStream->codecpar->width;
-        }
+        const MediaInfo::VideoStream* vidStream = GetVideoStream();
+        if (vidStream)
+            return vidStream->width;
         return 0;
     }
 
     uint32_t GetVideoHeight() const override
     {
-        if (m_vidStream)
-        {
-            return m_vidStream->codecpar->height;
-        }
+        const MediaInfo::VideoStream* vidStream = GetVideoStream();
+        if (vidStream)
+            return vidStream->height;
         return 0;
     }
 
@@ -753,7 +765,8 @@ private:
 
         if (!m_prepared && !Prepare())
         {
-            m_logger->Log(Error) << "Prepare() FAILED! Error is '" << m_errMsg << "'." << endl;
+            if (!m_quit)
+                m_logger->Log(Error) << "Prepare() FAILED! Error is '" << m_errMsg << "'." << endl;
             return;
         }
 

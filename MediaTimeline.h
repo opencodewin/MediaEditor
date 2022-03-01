@@ -349,6 +349,53 @@ struct TextClip : Clip
     void Save(imgui_json::value& value);
 };
 
+struct BaseEditingClip
+{
+    int64_t mID                 {-1};                   // clip ID, project saved
+    MEDIA_TYPE mType            {MEDIA_UNKNOWN};
+    int64_t mStart              {0};
+    int64_t mEnd                {0};
+    int64_t mStartOffset        {0};                    // clip start time in media, project saved
+    int64_t mEndOffset          {0};                    // clip end time in media, project saved
+    int64_t mDuration           {0};
+    int64_t mCurrPos            {0};
+    bool mSeeking               {false};
+    ImVec2 mViewWndSize         {0, 0};
+
+    BaseEditingClip(int64_t id, MEDIA_TYPE type, int64_t start, int64_t end, int64_t startOffset, int64_t endOffset)
+        : mID(id), mType(type), mStart(start), mEnd(end), mStartOffset(startOffset), mEndOffset(endOffset)
+    {}
+
+    virtual void UpdateClipRange(Clip* clip) = 0;
+    virtual void Seek(int64_t pos) = 0;
+    virtual void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom) = 0;
+};
+
+struct EditingVideoClip : BaseEditingClip
+{
+    MediaSnapshot* mSnapshot    {nullptr};
+    ImVec2 mSnapSize            {0, 0};
+
+    EditingVideoClip(VideoClip* vidclip);
+    virtual ~EditingVideoClip();
+
+    void UpdateClipRange(Clip* clip) override;
+    void Seek(int64_t pos) override;
+    void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom) override;
+
+    void CalcDisplayParams();
+};
+
+struct EditingAudioClip : BaseEditingClip
+{
+    EditingAudioClip(AudioClip* vidclip);
+    virtual ~EditingAudioClip();
+
+    void UpdateClipRange(Clip* clip) override;
+    void Seek(int64_t pos) override;
+    void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom) override;
+};
+
 struct MediaTrack
 {
     int64_t mID             {-1};               // track ID, project saved
@@ -463,7 +510,11 @@ struct TimeLine
     bool bForward = true;                   // project saved
     bool bLoop = false;                     // project saved
     bool bSelectLinked = true;              // project saved
-    
+
+    Clip* mSelectedClip                 {nullptr};
+    EditingVideoClip* mVidFilterClip    {nullptr};
+    EditingAudioClip* mAudFilterClip    {nullptr};
+
     std::mutex mTrackLock;                  // timeline track mutex
     std::mutex mClipLock;                   // timeline clip mutex
     // BP CallBacks
@@ -548,6 +599,6 @@ struct TimeLine
 };
 
 bool DrawTimeLine(TimeLine *timeline, bool *expanded);
-bool DrawClipTimeLine(Clip * clip);
+bool DrawClipTimeLine(BaseEditingClip * editingClip);
 bool DrawOverlapTimeLine(Overlap * overlap);
 } // namespace MediaTimeline

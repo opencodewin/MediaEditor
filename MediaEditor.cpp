@@ -1280,6 +1280,19 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
     {
         editing_clip = nullptr;
     }
+    if (editing_clip)
+    {
+        timeline->mSelectedClip = editing_clip;
+        if (timeline->mVidFilterClip && editing_clip->mID != timeline->mVidFilterClip->mID)
+        {
+            delete timeline->mVidFilterClip;
+            timeline->mVidFilterClip = nullptr;
+        }
+        if (!timeline->mVidFilterClip)
+            timeline->mVidFilterClip = new EditingVideoClip((VideoClip*)editing_clip);
+        else
+            timeline->mVidFilterClip->UpdateClipRange(editing_clip);
+    }
 
     timeline->Play(false, true);
     if (editing_clip && timeline->mVideoFilterBluePrint)
@@ -1519,7 +1532,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
         draw_list->AddRectFilled(clip_timeline_window_pos, clip_timeline_window_pos + clip_timeline_window_size, COL_DARK_TWO);
 
         // Draw Clip TimeLine
-        DrawClipTimeLine(editing_clip);
+        DrawClipTimeLine(timeline->mVidFilterClip);
     }
     ImGui::EndChild();
 }
@@ -1772,6 +1785,20 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list)
     {
         editing_clip = nullptr;
     }
+    if (editing_clip)
+    {
+        timeline->mSelectedClip = editing_clip;
+        if (timeline->mAudFilterClip && editing_clip->mID != timeline->mAudFilterClip->mID)
+        {
+            delete timeline->mAudFilterClip;
+            timeline->mAudFilterClip = nullptr;
+        }
+        if (!timeline->mAudFilterClip)
+            timeline->mAudFilterClip = new EditingAudioClip((AudioClip*)editing_clip);
+        else
+            timeline->mAudFilterClip->UpdateClipRange(editing_clip);
+    }
+
     timeline->Play(false, true);
     if (editing_clip && timeline->mAudioFilterBluePrint)
     {
@@ -1808,7 +1835,7 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list)
         draw_list->AddRectFilled(clip_timeline_window_pos, clip_timeline_window_pos + clip_timeline_window_size, COL_DARK_TWO);
 
         // Draw Clip TimeLine
-        DrawClipTimeLine(editing_clip);
+        DrawClipTimeLine(timeline->mAudFilterClip);
     }
     ImGui::EndChild();
 }

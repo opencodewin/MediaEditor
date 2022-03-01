@@ -1217,6 +1217,123 @@ void TextClip::Save(imgui_json::value& value)
     Clip::Save(value);
     // save Text clip info
 }
+
+EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
+    : BaseEditingClip(vidclip->mID, vidclip->mType, vidclip->mStart, vidclip->mEnd, vidclip->mStartOffset, vidclip->mEndOffset)
+{
+    mDuration = mEnd-mStart-mStartOffset-mEndOffset;
+    if (mDuration < 0)
+        throw std::invalid_argument("Clip duration is negative!");
+
+    mSnapshot = CreateMediaSnapshot();
+    if (!mSnapshot->Open(vidclip->mOverview->GetMediaParser()))
+    {
+        Logger::Log(Logger::Error) << mSnapshot->GetError() << std::endl;
+        return;
+    }
+    mSnapshot->SetCacheFactor(1);
+    mSnapshot->SetSnapshotResizeFactor(0.1, 0.1);
+    mSnapshot->Seek((double)mStartOffset/1000);
+}
+
+EditingVideoClip::~EditingVideoClip()
+{
+    if (mSnapshot)
+        ReleaseMediaSnapshot(&mSnapshot);
+}
+
+void EditingVideoClip::UpdateClipRange(Clip* clip)
+{
+    if (clip->mStartOffset != mStartOffset || clip->mEndOffset != mEndOffset)
+    {
+        mStartOffset = clip->mStartOffset;
+        mEndOffset = clip->mEndOffset;
+        mDuration = mEnd-mStart-mStartOffset-mEndOffset;
+        CalcDisplayParams();
+    }
+}
+
+void EditingVideoClip::Seek(int64_t pos)
+{
+    mCurrPos = pos;
+}
+
+void EditingVideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom)
+{
+    ImVec2 viewWndSize = { rightBottom.x-leftTop.x, rightBottom.y-leftTop.y };
+    if (mViewWndSize.x != viewWndSize.x || mViewWndSize.y != viewWndSize.y)
+    {
+        mViewWndSize = viewWndSize;
+        if (mViewWndSize.x == 0 || mViewWndSize.y == 0)
+            return;
+        const MediaInfo::VideoStream* vidStream = mSnapshot->GetVideoStream();
+        if (vidStream->width == 0 || vidStream->height == 0)
+        {
+            Logger::Log(Logger::Error) << "Snapshot video size is INVALID! Width or height is ZERO." << std::endl;
+            return;
+        }
+        mSnapSize.y = viewWndSize.y;
+        mSnapSize.x = mSnapSize.y*vidStream->width/vidStream->height;
+        CalcDisplayParams();
+    }
+
+    std::vector<MediaSnapshot::ImageHolder> snapImages;
+    if (!mSnapshot->GetSnapshots(snapImages, (double)mStartOffset/1000))
+    {
+        Logger::Log(Logger::Error) << mSnapshot->GetError() << std::endl;
+        return;
+    }
+    mSnapshot->UpdateSnapshotTexture(snapImages);
+
+    ImVec2 imgLeftTop = leftTop;
+    for (int i = 0; i < snapImages.size(); i++)
+    {
+        ImVec2 snapDispSize = mSnapSize;
+        ImVec2 uvMin{0, 0}, uvMax{1, 1};
+        if (imgLeftTop.x+mSnapSize.x > rightBottom.x)
+        {
+            snapDispSize.x = rightBottom.x-imgLeftTop.x;
+            uvMax.x = snapDispSize.x/mSnapSize.x;
+        }
+        auto& img = snapImages[i];
+        if (img->mTextureReady)
+            drawList->AddImage(*(img->mTextureHolder), imgLeftTop, imgLeftTop+snapDispSize, uvMin, uvMax);
+        else
+            drawList->AddRect(imgLeftTop, imgLeftTop+snapDispSize, IM_COL32_BLACK);
+
+        imgLeftTop.x += snapDispSize.x;
+        if (imgLeftTop.x >= rightBottom.x)
+            break;
+    }
+    mSnapshot->ReleaseSnapshotTexture();
+}
+
+void EditingVideoClip::CalcDisplayParams()
+{
+    double snapWndSize = (double)mDuration/1000;
+    double snapCntInView = (double)mViewWndSize.x/mSnapSize.x;
+    mSnapshot->ConfigSnapWindow(snapWndSize, snapCntInView);
+}
+
+EditingAudioClip::EditingAudioClip(AudioClip* audclip)
+    : BaseEditingClip(audclip->mID, audclip->mType, audclip->mStart, audclip->mEnd, audclip->mStartOffset, audclip->mEndOffset)
+{}
+
+EditingAudioClip::~EditingAudioClip()
+{}
+
+void EditingAudioClip::UpdateClipRange(Clip* clip)
+{
+    
+}
+
+void EditingAudioClip::Seek(int64_t pos)
+{
+    mCurrPos = pos;
+}
+
+void EditingAudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom)
+{}
 } //namespace MediaTimeline/Clip
 
 namespace MediaTimeline
@@ -4116,7 +4233,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
 /***********************************************************************************************************
  * Draw Clip Timeline
  ***********************************************************************************************************/
-bool DrawClipTimeLine(Clip* _clip)
+bool DrawClipTimeLine(BaseEditingClip * editingClip)
 {
     /*************************************************************************************************************
      |  0    5    10 v   15    20 <rule bar> 30     35      40      45       50       55    c
@@ -4126,8 +4243,9 @@ bool DrawClipTimeLine(Clip* _clip)
      |_______________|_____________________________________________________________________ a
      ************************************************************************************************************/
     bool ret = false;
-    if (!_clip) return ret;
-    VideoClip * clip = (VideoClip *)_clip;
+    if (!editingClip)
+        return ret;
+
     ImGuiIO &io = ImGui::GetIO();
     int cx = (int)(io.MousePos.x);
     int cy = (int)(io.MousePos.y);
@@ -4136,13 +4254,13 @@ bool DrawClipTimeLine(Clip* _clip)
     static bool MovingCurrentTime = false;
     bool isFocused = ImGui::IsWindowFocused();
     // modify start/end/offset range
-    int64_t duration = ImMax(clip->mEnd - clip->mStart, (int64_t)1);
-    int64_t start = clip->mStartOffset;
+    int64_t duration = ImMax(editingClip->mEnd - editingClip->mStart, (int64_t)1);
+    int64_t start = editingClip->mStartOffset;
     int64_t end = start + duration;
-    if (clip->mCurrent < start)
-        clip->mCurrent = start;
-    if (clip->mCurrent >= end)
-        clip->mCurrent = end;
+    // if (editingClip->mCurrent < start)
+    //     editingClip->mCurrent = start;
+    // if (editingClip->mCurrent >= end)
+    //     editingClip->mCurrent = end;
 
     ImGui::BeginGroup();
     ImDrawList *draw_list = ImGui::GetWindowDrawList();
@@ -4160,27 +4278,25 @@ bool DrawClipTimeLine(Clip* _clip)
     draw_list->AddRectFilled(window_pos, window_pos + headerSize, COL_DARK_ONE, 0);
 
     ImRect topRect(window_pos, window_pos + headerSize);
-    if (!MovingCurrentTime && clip->mCurrent >= start && topRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && isFocused)
+    if (!MovingCurrentTime && editingClip->mCurrPos >= start && topRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && isFocused)
     {
         MovingCurrentTime = true;
-        clip->bSeeking = true;
+        editingClip->mSeeking = true;
     }
     if (MovingCurrentTime && duration)
     {
-        auto old_time = clip->mCurrent;
-        clip->mCurrent = (int64_t)((io.MousePos.x - topRect.Min.x) / msPixelWidth) + start;
-        //alignTime(clip->mCurrent, clip->mClipFrameRate);
-        if (clip->mCurrent < start)
-            clip->mCurrent = start;
-        if (clip->mCurrent >= end)
-            clip->mCurrent = end;
-        if (old_time != clip->mCurrent)
-            clip->Seek(); // call seek event
+        auto oldPos = editingClip->mCurrPos;
+        auto newPos = (int64_t)((io.MousePos.x - topRect.Min.x) / msPixelWidth) + start;
+        if (newPos < start)
+            newPos = start;
+        if (newPos >= end)
+            newPos = end;
+        editingClip->Seek(newPos);
     }
-    if (clip->bSeeking && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
+    if (editingClip->mSeeking && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
     {
         MovingCurrentTime = false;
-        clip->bSeeking = false;
+        editingClip->mSeeking = false;
     }
 
     int64_t modTimeCount = 10;
@@ -4218,26 +4334,28 @@ bool DrawClipTimeLine(Clip* _clip)
     drawLine(duration, headHeight);
     // cursor Arrow
     const float arrowWidth = draw_list->_Data->FontSize;
-    float arrowOffset = window_pos.x + (clip->mCurrent - start) * msPixelWidth + msPixelWidth / 2 - arrowWidth * 0.5f - 3;
+    float arrowOffset = window_pos.x + (editingClip->mCurrPos - start) * msPixelWidth + msPixelWidth / 2 - arrowWidth * 0.5f - 3;
     ImGui::RenderArrow(draw_list, ImVec2(arrowOffset, window_pos.y), COL_CURSOR_ARROW, ImGuiDir_Down);
     ImGui::SetWindowFontScale(0.8);
-    auto time_str = MillisecToString(clip->mCurrent, 2);
+    auto time_str = MillisecToString(editingClip->mCurrPos, 2);
     ImVec2 str_size = ImGui::CalcTextSize(time_str.c_str(), nullptr, true);
-    float strOffset = window_pos.x + (clip->mCurrent - start) * msPixelWidth + msPixelWidth / 2 - str_size.x * 0.5f - 3;
+    float strOffset = window_pos.x + (editingClip->mCurrPos - start) * msPixelWidth + msPixelWidth / 2 - str_size.x * 0.5f - 3;
     ImVec2 str_pos = ImVec2(strOffset, window_pos.y + 10);
     draw_list->AddRectFilled(str_pos + ImVec2(-3, 0), str_pos + str_size + ImVec2(3, 3), COL_CURSOR_TEXT_BG, 2.0, ImDrawFlags_RoundCornersAll);
     draw_list->AddText(str_pos, COL_CURSOR_TEXT, time_str.c_str());
     ImGui::SetWindowFontScale(1.0);
 
-    // snapshot
-    // TODO::Dicky
-
-    // cursor line
     draw_list->PushClipRect(custom_view_rect.Min, custom_view_rect.Max);
     ImVec2 contentMin(window_pos.x, window_pos.y + (float)headHeight);
     ImVec2 contentMax(window_pos.x + window_size.x, window_pos.y + (float)headHeight + float(customHeight));
+
+    // snapshot
+    editingClip->DrawContent(draw_list, contentMin, contentMax);
+    // draw_list->AddRect(contentMin+ImVec2(3, 3), contentMax+ImVec2(-3, -3), IM_COL32_WHITE);
+
+    // cursor line
     static const float cursorWidth = 3.f;
-    float cursorOffset = contentMin.x + (clip->mCurrent - start) * msPixelWidth + msPixelWidth / 2 - cursorWidth * 0.5f - 2;
+    float cursorOffset = contentMin.x + (editingClip ->mCurrPos - start) * msPixelWidth + msPixelWidth / 2 - cursorWidth * 0.5f - 2;
     draw_list->AddLine(ImVec2(cursorOffset, contentMin.y), ImVec2(cursorOffset, contentMax.y), IM_COL32(0, 255, 0, 128), cursorWidth);
     draw_list->PopClipRect();
     ImGui::EndGroup();
