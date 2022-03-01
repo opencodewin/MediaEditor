@@ -863,7 +863,40 @@ static void ShowMediaBankWindow(ImDrawList *draw_list, float media_icon_size)
         }
         else
         {
-            ImGui::Button((*item)->mName.c_str(), ImVec2(media_icon_size, media_icon_size));
+            if ((*item)->mMediaType == MEDIA_AUDIO && (*item)->mMediaOverview)
+            {
+                auto wavefrom = (*item)->mMediaOverview->GetWaveform();
+                if (wavefrom && wavefrom->pcm.size() > 0)
+                {
+                    ImVec2 wave_pos = icon_pos + ImVec2(4, 28);
+                    ImVec2 wave_size = icon_size - ImVec2(8, 48);
+                    ImGui::SetCursorScreenPos(icon_pos);
+                    float wave_range = fmax(fabs(wavefrom->minSample), fabs(wavefrom->maxSample));
+                    int channels = wavefrom->pcm.size();
+                    if (channels > 2) channels = 2;
+                    int channel_height = wave_size.y / channels;
+                    ImGui::PushStyleColor(ImGuiCol_FrameBg, 0);
+                    ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.f, 1.f, 0.f, 1.0f));
+                    for (int i = 0; i < channels; i++)
+                    {
+                        ImGui::SetCursorScreenPos(wave_pos + ImVec2(0, i * channel_height));
+                        ImVec2 plot_size(wave_size.x, channel_height);
+                        int sampleSize = wavefrom->pcm[i].size();
+                        std::string id_string = "##BankWaveform@" + std::to_string((*item)->mID) + "@" + std::to_string(i);
+                        ImGui::PlotLines(id_string.c_str(), &wavefrom->pcm[i][0], sampleSize, 0, nullptr, -wave_range / 2, wave_range / 2, plot_size, sizeof(float), false);
+                    }
+                    ImGui::PopStyleColor(2);
+                }
+                else
+                {
+                    std::string lable = std::string(ICON_MEDIA_WAVE) + "##" + (*item)->mName + "@" + std::to_string((*item)->mID);
+                    ImGui::SetWindowFontScale(2.5);
+                    ImGui::Button(lable.c_str(), ImVec2(media_icon_size, media_icon_size));
+                    ImGui::SetWindowFontScale(1.0);
+                }
+            }
+            else
+                ImGui::Button((*item)->mName.c_str(), ImVec2(media_icon_size, media_icon_size));
         }
 
         if ((*item)->mMediaOverview && (*item)->mMediaOverview->IsOpened())

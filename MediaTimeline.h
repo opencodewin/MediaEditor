@@ -20,6 +20,7 @@
 #define ICON_MEDIA_PREVIEW  u8"\ue04a"
 #define ICON_MEDIA_VIDEO    u8"\ue04b"
 #define ICON_MEDIA_AUDIO    u8"\ue050"
+#define ICON_MEDIA_WAVE     u8"\ue495"
 #define ICON_MEDIA_DIAGNOSIS u8"\uf0f0"
 #define ICON_SLIDER_MINIMUM u8"\uf424"
 #define ICON_SLIDER_MAXIMUM u8"\uf422"
