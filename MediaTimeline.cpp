@@ -833,32 +833,35 @@ void VideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
     {
         auto& img = mSnapImages[i];
         ImVec2 uvMin(0, 0), uvMax(1, 1);
-        float snapDispWidth = img->mTimestampMs >= mClipViewStartPos ? mSnapWidth :
-            mSnapWidth-(mClipViewStartPos-img->mTimestampMs)*mPixPerMs;
+        float snapDispWidth = img->mTimestampMs >= mClipViewStartPos ? mSnapWidth : mSnapWidth - (mClipViewStartPos - img->mTimestampMs) * mPixPerMs;
         if (img->mTimestampMs < mClipViewStartPos)
         {
-            snapDispWidth = mSnapWidth-(mClipViewStartPos-img->mTimestampMs)*mPixPerMs;
-            uvMin.x = 1-snapDispWidth/mSnapWidth;
+            snapDispWidth = mSnapWidth - (mClipViewStartPos - img->mTimestampMs) * mPixPerMs;
+            uvMin.x = 1 - snapDispWidth / mSnapWidth;
         }
         if (snapDispWidth <= 0)
             continue;
         if (snapLeftTop.x+snapDispWidth >= rightBottom.x)
         {
-            snapDispWidth = rightBottom.x-snapLeftTop.x;
-            uvMax.x = snapDispWidth/mSnapWidth;
+            snapDispWidth = rightBottom.x - snapLeftTop.x;
+            uvMax.x = snapDispWidth / mSnapWidth;
         }
         if (img->mTextureReady)
         {
-            // ImGui::SetCursorScreenPos(dispPos);
             ImTextureID tid = *(img->mTextureHolder);
-            ImVec2 size = {snapDispWidth, mSnapHeight};
             Logger::Log(Logger::DEBUG) << "[1]\t\t display tid=" << tid << std::endl;
-            drawList->AddImage(tid, snapLeftTop, {snapLeftTop.x+snapDispWidth, rightBottom.y}, uvMin, uvMax);
-            // ImGui::Image(tid, size);
+            drawList->AddImage(tid, snapLeftTop, {snapLeftTop.x + snapDispWidth, rightBottom.y}, uvMin, uvMax);
         }
         else
-            // wyvern: this part should be replaced with loading image
-            drawList->AddRect(snapLeftTop, {snapLeftTop.x+snapDispWidth, rightBottom.y}, IM_COL32_BLACK);
+        {
+            drawList->AddRectFilled(snapLeftTop, {snapLeftTop.x + snapDispWidth, rightBottom.y}, IM_COL32_BLACK);
+            auto center_pos = snapLeftTop + ImVec2(snapDispWidth, mSnapHeight) / 2;
+            ImVec4 color_main(1.0, 1.0, 1.0, 1.0);
+            ImVec4 color_back(0.5, 0.5, 0.5, 1.0);
+            ImGui::SetCursorScreenPos(center_pos - ImVec2(8, 8));
+            ImGui::LoadingIndicatorCircle("Running", 1.0f, &color_main, &color_back);
+            drawList->AddRect(snapLeftTop, {snapLeftTop.x + snapDispWidth, rightBottom.y}, COL_FRAME_RECT);
+        }
         snapLeftTop.x += snapDispWidth;
         if (snapLeftTop.x >= rightBottom.x)
             break;
@@ -872,12 +875,12 @@ void VideoClip::CalcDisplayParams()
     const MediaInfo::VideoStream* video_stream = mOverview->GetVideoStream();
     mSnapHeight = mTrackHeight;
     MediaInfo::Ratio displayAspectRatio = {
-        (int32_t)(video_stream->width*video_stream->sampleAspectRatio.num), (int32_t)(video_stream->height*video_stream->sampleAspectRatio.den) };
-    mSnapWidth = (float)mTrackHeight*displayAspectRatio.num/displayAspectRatio.den;
-    double windowSize = (double)mViewWndDur/1000;
+        (int32_t)(video_stream->width * video_stream->sampleAspectRatio.num), (int32_t)(video_stream->height * video_stream->sampleAspectRatio.den) };
+    mSnapWidth = (float)mTrackHeight * displayAspectRatio.num / displayAspectRatio.den;
+    double windowSize = (double)mViewWndDur / 1000;
     if (windowSize > video_stream->duration)
         windowSize = video_stream->duration;
-    mSnapsInViewWindow = (float)((double)mPixPerMs*windowSize*1000/mSnapWidth);
+    mSnapsInViewWindow = (float)((double)mPixPerMs*windowSize * 1000 / mSnapWidth);
     if (!mSnapshot->ConfigSnapWindow(windowSize, mSnapsInViewWindow))
         throw std::runtime_error(mSnapshot->GetError());
 }
