@@ -1250,9 +1250,10 @@ void TextClip::Save(imgui_json::value& value)
 EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
     : BaseEditingClip(vidclip->mID, vidclip->mType, vidclip->mStart, vidclip->mEnd, vidclip->mStartOffset, vidclip->mEndOffset)
 {
-    mDuration = mEnd-mStart-mStartOffset-mEndOffset;
+    mDuration = mEnd-mStart;
     if (mDuration < 0)
         throw std::invalid_argument("Clip duration is negative!");
+    mCurrPos = mStartOffset;
 
     mSnapshot = CreateMediaSnapshot();
     if (!mSnapshot->Open(vidclip->mOverview->GetMediaParser()))
@@ -1273,11 +1274,19 @@ EditingVideoClip::~EditingVideoClip()
 
 void EditingVideoClip::UpdateClipRange(Clip* clip)
 {
-    if (clip->mStartOffset != mStartOffset || clip->mEndOffset != mEndOffset)
+    if (mStart != clip->mStart)
+        mStart = clip->mStart;
+    if (mEnd != clip->mEnd)
+        mEnd = clip->mEnd;
+    if (mStartOffset != clip->mStartOffset || mEndOffset != clip->mEndOffset)
     {
         mStartOffset = clip->mStartOffset;
         mEndOffset = clip->mEndOffset;
-        mDuration = mEnd-mStart-mStartOffset-mEndOffset;
+        mDuration = mEnd-mStart;
+        if (mCurrPos < mStartOffset)
+            mCurrPos = mStartOffset;
+        if (mCurrPos > mStartOffset+mDuration)
+            mCurrPos = mStartOffset+mDuration;
         CalcDisplayParams();
     }
 }
