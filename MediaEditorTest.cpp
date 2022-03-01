@@ -434,7 +434,7 @@ static void ShowFilterBankWindow(ImDrawList *draw_list)
         auto node_reg = bp.GetNodeRegistry();
         for (auto type : node_reg->GetTypes())
         {
-            auto catalog = type->GetCatalogInfo();
+            auto catalog = BluePrint::GetCatalogInfo(type->m_Catalog);
             if (!catalog.size() || catalog[0].compare("Filter") != 0)
                 continue;
             ImGui::Dummy(ImVec2(0, 16));
@@ -778,7 +778,7 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
             if (sequencer->mVideoFilterBluePrint && sequencer->mVideoFilterBluePrint->m_Document)
             {                
                 sequencer->mVideoFilterBluePrintLock.lock();
-                sequencer->mVideoFilterBluePrint->File_New_Filter(selected_clip->mVideoFilterBP, "VideoFilter");
+                sequencer->mVideoFilterBluePrint->File_New_Filter(selected_clip->mVideoFilterBP, "VideoFilter", "Video");
                 sequencer->mVideoFilterNeedUpdate = true;
                 sequencer->mVideoFilterBluePrintLock.unlock();
             }
@@ -786,7 +786,7 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
         else if (selected_clip && sequencer->mVideoFilterBluePrint && last_clip == -1)
         {
             sequencer->mVideoFilterBluePrintLock.lock();
-            sequencer->mVideoFilterBluePrint->File_New_Filter(selected_clip->mVideoFilterBP, "VideoFilter");
+            sequencer->mVideoFilterBluePrint->File_New_Filter(selected_clip->mVideoFilterBP, "VideoFilter", "Video");
             sequencer->mVideoFilterBluePrintLock.unlock();
         }
         if (selected_clip)
@@ -1144,7 +1144,7 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
             if (sequencer->mVideoFusionBluePrint && sequencer->mVideoFusionBluePrint->m_Document)
             {                
                 sequencer->mVideoFusionBluePrintLock.lock();
-                sequencer->mVideoFusionBluePrint->File_New_Fusion(selected_overlap->mVideoFusionBP, "VideoFusion");
+                sequencer->mVideoFusionBluePrint->File_New_Fusion(selected_overlap->mVideoFusionBP, "VideoFusion", "Video");
                 sequencer->mVideoFusionNeedUpdate = true;
                 sequencer->mVideoFusionBluePrintLock.unlock();
             }
@@ -1152,7 +1152,7 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
         else if (selected_overlap && sequencer->mVideoFusionBluePrint && last_overlap == -1)
         {
             sequencer->mVideoFusionBluePrintLock.lock();
-            sequencer->mVideoFusionBluePrint->File_New_Fusion(selected_overlap->mVideoFusionBP, "VideoFusion");
+            sequencer->mVideoFusionBluePrint->File_New_Fusion(selected_overlap->mVideoFusionBP, "VideoFusion", "Video");
             sequencer->mVideoFusionBluePrintLock.unlock();
         }
         if (selected_overlap)

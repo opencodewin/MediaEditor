@@ -20,6 +20,7 @@
 #define ICON_MEDIA_PREVIEW  u8"\ue04a"
 #define ICON_MEDIA_VIDEO    u8"\ue04b"
 #define ICON_MEDIA_AUDIO    u8"\ue050"
+#define ICON_MEDIA_WAVE     u8"\ue495"
 #define ICON_MEDIA_DIAGNOSIS u8"\uf0f0"
 #define ICON_SLIDER_MINIMUM u8"\uf424"
 #define ICON_SLIDER_MAXIMUM u8"\uf422"
@@ -246,7 +247,7 @@ struct Clip
     virtual void ConfigViewWindow(int64_t wndDur, float pixPerMs) { mViewWndDur = wndDur; mPixPerMs = pixPerMs; }
     virtual void SetTrackHeight(int trackHeight) { mTrackHeight = trackHeight; }
     virtual void SetViewWindowStart(int64_t millisec) {}
-    virtual void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom) { drawList->AddRect(leftTop, rightBottom, IM_COL32_BLACK); }
+    virtual void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect) { drawList->AddRect(leftTop, rightBottom, IM_COL32_BLACK); }
     static void Load(Clip * clip, const imgui_json::value& value);
     virtual void Save(imgui_json::value& value) = 0;
 };
@@ -271,7 +272,7 @@ struct VideoClip : Clip
     void ConfigViewWindow(int64_t wndDur, float pixPerMs) override;
     void SetTrackHeight(int trackHeight) override;
     void SetViewWindowStart(int64_t millisec) override;
-    void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom) override;
+    void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect) override;
 
     static Clip * Load(const imgui_json::value& value, void * handle);
     void Save(imgui_json::value& value) override;
@@ -297,12 +298,13 @@ struct AudioClip : Clip
     AudioClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle);
     ~AudioClip();
 
-    void UpdateSnapshot();
-    void Seek();
-    void Step(bool forward, int64_t step);
+    void UpdateSnapshot() override;
+    void Seek() override;
+    void Step(bool forward, int64_t step) override;
     bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame);
+    void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect) override;
     static Clip * Load(const imgui_json::value& value, void * handle);
-    void Save(imgui_json::value& value);
+    void Save(imgui_json::value& value) override;
 };
 
 struct ImageClip : Clip
@@ -320,7 +322,7 @@ struct ImageClip : Clip
     bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame);
     void SetTrackHeight(int trackHeight) override;
     void SetViewWindowStart(int64_t millisec) override;
-    void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom) override;
+    void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect) override;
 
     static Clip * Load(const imgui_json::value& value, void * handle);
     void Save(imgui_json::value& value) override;
@@ -459,8 +461,9 @@ struct TimelineCustomDraw
 struct ClipGroup
 {
     int64_t mID;
+    ImU32 mColor;
     std::vector<int64_t> m_Grouped_Clips;
-    ClipGroup() { mID = ImGui::get_current_time_usec(); }
+    ClipGroup();
     void Load(const imgui_json::value& value);
     void Save(imgui_json::value& value);
 };
@@ -593,7 +596,8 @@ struct TimeLine
     int64_t NewGroup(Clip * clip);                      // Create a new group with clip ID
     void AddClipIntoGroup(Clip * clip, int64_t group_id); // Insert clip into group
     void DeleteClipFromGroup(Clip *clip, int64_t group_id); // Delete clip from group
-    ClipGroup GetGroupByID(int64_t group_id);          // Get Group info by ID
+    ClipGroup GetGroupByID(int64_t group_id);           // Get Group info by ID
+    ImU32 GetGroupColor(int64_t group_id);              // Get Group color by id
     int Load(const imgui_json::value& value);
     void Save(imgui_json::value& value);
 };
