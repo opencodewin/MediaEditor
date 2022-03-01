@@ -1263,7 +1263,7 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
     }
     mSnapshot->SetCacheFactor(1);
     mSnapshot->SetSnapshotResizeFactor(0.1, 0.1);
-    mSnapshot->Seek((double)mStartOffset/1000);
+    mSnapshot->Seek((double)mStartOffset / 1000);
 }
 
 EditingVideoClip::~EditingVideoClip()
@@ -1282,11 +1282,11 @@ void EditingVideoClip::UpdateClipRange(Clip* clip)
     {
         mStartOffset = clip->mStartOffset;
         mEndOffset = clip->mEndOffset;
-        mDuration = mEnd-mStart;
+        mDuration = mEnd - mStart;
         if (mCurrPos < mStartOffset)
             mCurrPos = mStartOffset;
-        if (mCurrPos > mStartOffset+mDuration)
-            mCurrPos = mStartOffset+mDuration;
+        if (mCurrPos > mStartOffset + mDuration)
+            mCurrPos = mStartOffset + mDuration;
         CalcDisplayParams();
     }
 }
@@ -1298,7 +1298,7 @@ void EditingVideoClip::Seek(int64_t pos)
 
 void EditingVideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom)
 {
-    ImVec2 viewWndSize = { rightBottom.x-leftTop.x, rightBottom.y-leftTop.y };
+    ImVec2 viewWndSize = { rightBottom.x - leftTop.x, rightBottom.y - leftTop.y };
     if (mViewWndSize.x != viewWndSize.x || mViewWndSize.y != viewWndSize.y)
     {
         mViewWndSize = viewWndSize;
@@ -1311,12 +1311,12 @@ void EditingVideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, 
             return;
         }
         mSnapSize.y = viewWndSize.y;
-        mSnapSize.x = mSnapSize.y*vidStream->width/vidStream->height;
+        mSnapSize.x = mSnapSize.y * vidStream->width / vidStream->height;
         CalcDisplayParams();
     }
 
     std::vector<MediaSnapshot::ImageHolder> snapImages;
-    if (!mSnapshot->GetSnapshots(snapImages, (double)mStartOffset/1000))
+    if (!mSnapshot->GetSnapshots(snapImages, (double)mStartOffset / 1000))
     {
         Logger::Log(Logger::Error) << mSnapshot->GetError() << std::endl;
         return;
@@ -1330,14 +1330,22 @@ void EditingVideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, 
         ImVec2 uvMin{0, 0}, uvMax{1, 1};
         if (imgLeftTop.x+mSnapSize.x > rightBottom.x)
         {
-            snapDispSize.x = rightBottom.x-imgLeftTop.x;
-            uvMax.x = snapDispSize.x/mSnapSize.x;
+            snapDispSize.x = rightBottom.x - imgLeftTop.x;
+            uvMax.x = snapDispSize.x / mSnapSize.x;
         }
         auto& img = snapImages[i];
         if (img->mTextureReady)
-            drawList->AddImage(*(img->mTextureHolder), imgLeftTop, imgLeftTop+snapDispSize, uvMin, uvMax);
+            drawList->AddImage(*(img->mTextureHolder), imgLeftTop, imgLeftTop + snapDispSize, uvMin, uvMax);
         else
-            drawList->AddRect(imgLeftTop, imgLeftTop+snapDispSize, IM_COL32_BLACK);
+        {
+            drawList->AddRectFilled(imgLeftTop, imgLeftTop + snapDispSize, IM_COL32_BLACK);
+            auto center_pos = imgLeftTop + snapDispSize / 2;
+            ImVec4 color_main(1.0, 1.0, 1.0, 1.0);
+            ImVec4 color_back(0.5, 0.5, 0.5, 1.0);
+            ImGui::SetCursorScreenPos(center_pos - ImVec2(8, 8));
+            ImGui::LoadingIndicatorCircle("Running", 1.0f, &color_main, &color_back);
+            drawList->AddRect(imgLeftTop, imgLeftTop + snapDispSize, COL_FRAME_RECT);
+        }
 
         imgLeftTop.x += snapDispSize.x;
         if (imgLeftTop.x >= rightBottom.x)
@@ -1348,8 +1356,8 @@ void EditingVideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, 
 
 void EditingVideoClip::CalcDisplayParams()
 {
-    double snapWndSize = (double)mDuration/1000;
-    double snapCntInView = (double)mViewWndSize.x/mSnapSize.x;
+    double snapWndSize = (double)mDuration / 1000;
+    double snapCntInView = (double)mViewWndSize.x / mSnapSize.x;
     mSnapshot->ConfigSnapWindow(snapWndSize, snapCntInView);
 }
 
@@ -4325,10 +4333,6 @@ bool DrawClipTimeLine(BaseEditingClip * editingClip)
     int64_t duration = ImMax(editingClip->mEnd - editingClip->mStart, (int64_t)1);
     int64_t start = editingClip->mStartOffset;
     int64_t end = start + duration;
-    // if (editingClip->mCurrent < start)
-    //     editingClip->mCurrent = start;
-    // if (editingClip->mCurrent >= end)
-    //     editingClip->mCurrent = end;
 
     ImGui::BeginGroup();
     ImDrawList *draw_list = ImGui::GetWindowDrawList();
