@@ -1040,9 +1040,10 @@ static void ShowFilterBankIconWindow(ImDrawList *draw_list)
         auto node_reg = bp.GetNodeRegistry();
         for (auto type : node_reg->GetTypes())
         {
-            auto catalog = type->GetCatalogInfo();
-            if (!catalog.size() || catalog[0].compare("Filter") != 0)
+            auto catalog = BluePrint::GetCatalogInfo(type->m_Catalog);
+            if (catalog.size() < 2 || catalog[0].compare("Filter") != 0)
                 continue;
+            std::string drag_type = "Filter_drag_drop_" + catalog[1];
             ImGui::Dummy(ImVec2(0, 16));
             auto icon_pos = ImGui::GetCursorScreenPos();
             ImVec2 icon_size = ImVec2(filter_icon_size, filter_icon_size);
@@ -1053,13 +1054,13 @@ static void ShowFilterBankIconWindow(ImDrawList *draw_list)
             ImGui::InvisibleButton(type->m_Name.c_str(), icon_size);
             if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
             {
-                ImGui::SetDragDropPayload("Filter_drag_drop", type, sizeof(BluePrint::NodeTypeInfo));
+                ImGui::SetDragDropPayload(drag_type.c_str(), type, sizeof(BluePrint::NodeTypeInfo));
                 ImGui::TextUnformatted(ICON_BANK " Add Filter");
                 ImGui::TextUnformatted(type->m_Name.c_str());
                 ImGui::EndDragDropSource();
             }
             ImGui::SetCursorScreenPos(icon_pos);
-            ImGui::Button((std::string(ICON_BANK) + "##video_filter" + type->m_Name).c_str() , ImVec2(filter_icon_size, filter_icon_size));
+            ImGui::Button((std::string(ICON_BANK) + "##bank_filter" + type->m_Name).c_str() , ImVec2(filter_icon_size, filter_icon_size));
             ImGui::SameLine(); ImGui::TextUnformatted(type->m_Name.c_str());
         }
     }
@@ -1090,7 +1091,7 @@ static void ShowFilterBankTreeWindow(ImDrawList *draw_list)
         // find all filters
         for (auto type : node_reg->GetTypes())
         {
-            auto catalog = type->GetCatalogInfo();
+            auto catalog = BluePrint::GetCatalogInfo(type->m_Catalog);
             if (!catalog.size() || catalog[0].compare("Filter") != 0)
                 continue;
             filters.push_back(type);
@@ -1101,7 +1102,7 @@ static void ShowFilterBankTreeWindow(ImDrawList *draw_list)
         filter_tree.name = "Filters";
         for (auto type : filters)
         {
-            auto catalog = type->GetCatalogInfo();
+            auto catalog = BluePrint::GetCatalogInfo(type->m_Catalog);
             if (!catalog.size())
                 continue;
             if (catalog.size() > 1)
@@ -1160,10 +1161,14 @@ static void ShowFilterBankTreeWindow(ImDrawList *draw_list)
         auto AddFilter = [](void* data)
         {
             const BluePrint::NodeTypeInfo* type = (const BluePrint::NodeTypeInfo*)data;
+            auto catalog = BluePrint::GetCatalogInfo(type->m_Catalog);
+            if (catalog.size() < 2 || catalog[0].compare("Filter") != 0)
+                return;
+            std::string drag_type = "Filter_drag_drop_" + catalog[1];
             ImGui::Button((std::string(ICON_BANK) + " " + type->m_Name).c_str(), ImVec2(0, 32));
             if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
             {
-                ImGui::SetDragDropPayload("Filter_drag_drop", type, sizeof(BluePrint::NodeTypeInfo));
+                ImGui::SetDragDropPayload(drag_type.c_str(), type, sizeof(BluePrint::NodeTypeInfo));
                 ImGui::TextUnformatted(ICON_BANK " Add Filter");
                 ImGui::TextUnformatted(type->m_Name.c_str());
                 ImGui::EndDragDropSource();
@@ -1446,7 +1451,7 @@ static void ShowVideoFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
         ImGui::InvisibleButton("video_editor_blueprint_back_view", window_size);
         if (ImGui::BeginDragDropTarget() && timeline->mVideoFilterBluePrint->Blueprint_IsValid())
         {
-            if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("Filter_drag_drop"))
+            if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("Filter_drag_drop_Video"))
             {
                 BluePrint::NodeTypeInfo * type = (BluePrint::NodeTypeInfo *)payload->Data;
                 if (type)
@@ -1748,7 +1753,7 @@ static void ShowVideoFusionBluePrintWindow(ImDrawList *draw_list, Overlap * over
         ImGui::InvisibleButton("video_fusion_blueprint_back_view", window_size);
         if (ImGui::BeginDragDropTarget() && timeline->mVideoFusionBluePrint->Blueprint_IsValid())
         {
-            if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("Fusion_drag_drop"))
+            if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("Fusion_drag_drop_Video"))
             {
                 BluePrint::NodeTypeInfo * type = (BluePrint::NodeTypeInfo *)payload->Data;
                 if (type)
@@ -1941,7 +1946,7 @@ static void ShowAudioFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
         ImGui::InvisibleButton("audio_editor_blueprint_back_view", window_size);
         if (ImGui::BeginDragDropTarget() && timeline->mAudioFilterBluePrint->Blueprint_IsValid())
         {
-            if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("Filter_drag_drop"))
+            if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("Filter_drag_drop_Audio"))
             {
                 BluePrint::NodeTypeInfo * type = (BluePrint::NodeTypeInfo *)payload->Data;
                 if (type)
@@ -2032,7 +2037,7 @@ static void ShowAudioFusionBluePrintWindow(ImDrawList *draw_list, Overlap * over
         ImGui::InvisibleButton("audio_fusion_blueprint_back_view", window_size);
         if (ImGui::BeginDragDropTarget() && timeline->mAudioFusionBluePrint->Blueprint_IsValid())
         {
-            if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("Fusion_drag_drop"))
+            if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("Fusion_drag_drop_Video"))
             {
                 BluePrint::NodeTypeInfo * type = (BluePrint::NodeTypeInfo *)payload->Data;
                 if (type)

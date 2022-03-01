@@ -1823,7 +1823,7 @@ void MediaTrack::EditingClip(Clip * clip)
         if (timeline->mVideoFilterBluePrint && timeline->mVideoFilterBluePrint->m_Document)
         {                
             timeline->mVideoFilterBluePrintLock.lock();
-            timeline->mVideoFilterBluePrint->File_New_Filter(clip->mFilterBP, "VideoFilter");
+            timeline->mVideoFilterBluePrint->File_New_Filter(clip->mFilterBP, "VideoFilter", "Video");
             timeline->mVideoFilterNeedUpdate = true;
             timeline->mVideoFilterBluePrintLock.unlock();
         }
@@ -1833,7 +1833,7 @@ void MediaTrack::EditingClip(Clip * clip)
         if (timeline->mAudioFilterBluePrint && timeline->mAudioFilterBluePrint->m_Document)
         {                
             timeline->mAudioFilterBluePrintLock.lock();
-            timeline->mAudioFilterBluePrint->File_New_Filter(clip->mFilterBP, "AudioFilter");
+            timeline->mAudioFilterBluePrint->File_New_Filter(clip->mFilterBP, "AudioFilter", "Audio");
             timeline->mAudioFilterNeedUpdate = true;
             timeline->mAudioFilterBluePrintLock.unlock();
         }
@@ -1889,7 +1889,7 @@ void MediaTrack::EditingOverlap(Overlap * overlap)
         timeline->mVideoFusionBluePrint && timeline->mVideoFusionBluePrint->m_Document)
     {                
         timeline->mVideoFusionBluePrintLock.lock();
-        timeline->mVideoFusionBluePrint->File_New_Fusion(overlap->mFusionBP, "VideoFusion");
+        timeline->mVideoFusionBluePrint->File_New_Fusion(overlap->mFusionBP, "VideoFusion", "Video");
         timeline->mVideoFusionNeedUpdate = true;
         timeline->mVideoFusionBluePrintLock.unlock();
     }
@@ -1897,7 +1897,7 @@ void MediaTrack::EditingOverlap(Overlap * overlap)
         timeline->mAudioFusionBluePrint && timeline->mAudioFusionBluePrint->m_Document)
     {                
         timeline->mAudioFusionBluePrintLock.lock();
-        timeline->mAudioFusionBluePrint->File_New_Fusion(overlap->mFusionBP, "AudioFusion");
+        timeline->mAudioFusionBluePrint->File_New_Fusion(overlap->mFusionBP, "AudioFusion", "Audio");
         timeline->mAudioFusionNeedUpdate = true;
         timeline->mAudioFusionBluePrintLock.unlock();
     }
