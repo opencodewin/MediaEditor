@@ -413,8 +413,9 @@ struct TimelineCustomDraw
 struct ClipGroup
 {
     int64_t mID;
+    ImU32 mColor;
     std::vector<int64_t> m_Grouped_Clips;
-    ClipGroup() { mID = ImGui::get_current_time_usec(); }
+    ClipGroup();
     void Load(const imgui_json::value& value);
     void Save(imgui_json::value& value);
 };
@@ -543,7 +544,8 @@ struct TimeLine
     int64_t NewGroup(Clip * clip);                      // Create a new group with clip ID
     void AddClipIntoGroup(Clip * clip, int64_t group_id); // Insert clip into group
     void DeleteClipFromGroup(Clip *clip, int64_t group_id); // Delete clip from group
-    ClipGroup GetGroupByID(int64_t group_id);          // Get Group info by ID
+    ClipGroup GetGroupByID(int64_t group_id);           // Get Group info by ID
+    ImU32 GetGroupColor(int64_t group_id);              // Get Group color by id
     int Load(const imgui_json::value& value);
     void Save(imgui_json::value& value);
 };

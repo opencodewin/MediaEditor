@@ -152,8 +152,8 @@ MediaItem::MediaItem(const std::string& name, const std::string& path, MEDIA_TYP
         }
         else
         {
-            // image or text?
-            mEnd = 1000;
+            // image or text? 
+            mEnd = 5000;
         }
     }
 }
@@ -2035,12 +2035,27 @@ namespace MediaTimeline
 /***********************************************************************************************************
  * TimeLine Struct Member Functions
  ***********************************************************************************************************/
+ClipGroup::ClipGroup()
+{
+    mID = ImGui::get_current_time_usec(); // sample using system time stamp for Group ID
+    
+    int r = std::rand() % 255;
+    int g = std::rand() % 255;
+    int b = std::rand() % 255;
+    mColor = IM_COL32(r, g, b, 128);
+}
+
 void ClipGroup::Load(const imgui_json::value& value)
 {
     if (value.contains("ID"))
     {
         auto& val = value["ID"];
         if (val.is_number()) mID = val.get<imgui_json::number>();
+    }
+    if (value.contains("Color"))
+    {
+        auto& val = value["Color"];
+        if (val.is_number()) mColor = val.get<imgui_json::number>();
     }
     const imgui_json::array* clipIDArray = nullptr;
     if (BluePrint::GetPtrTo(value, "ClipIDS", clipIDArray))
@@ -2058,6 +2073,7 @@ void ClipGroup::Save(imgui_json::value& value)
     if (m_Grouped_Clips.size() > 0)
     {
         value["ID"] = imgui_json::number(mID);
+        value["Color"] = imgui_json::number(mColor);
         imgui_json::value clips;
         for (auto clip : m_Grouped_Clips)
         {
@@ -2099,6 +2115,7 @@ int TimeLine::OnBluePrintChange(int type, std::string name, void* handle)
 TimeLine::TimeLine()
     : mStart(0), mEnd(0)
 {
+    std::srand(std::time(0)); // init std::rand
     /*
     mPCMStream = new SequencerPcmStream(this);
     mAudioRender = CreateAudioRender();
@@ -2696,6 +2713,17 @@ ClipGroup TimeLine::GetGroupByID(int64_t group_id)
     return {};
 }
 
+ImU32 TimeLine::GetGroupColor(int64_t group_id)
+{
+    ImU32 color = IM_COL32(32,128,32,128);
+    for (auto group : m_Groups)
+    {
+        if (group.mID == group_id)
+            return group.mColor;
+    }
+    return color;
+}
+
 void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &titleRect, const ImRect &clippingTitleRect, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRec, bool is_moving, bool enable_select)
 {
     // rc: full track length rect
@@ -2777,7 +2805,10 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, co
             ImVec2 clip_title_pos_min = ImVec2(cursor_start, clippingTitleRect.Min.y);
             ImVec2 clip_title_pos_max = ImVec2(cursor_end, clippingTitleRect.Max.y);
             if (clip->mGroupID != -1)
-                draw_list->AddRectFilled(clip_title_pos_min, clip_title_pos_max, IM_COL32(32,255,32,128));
+            {
+                auto color = GetGroupColor(clip->mGroupID);
+                draw_list->AddRectFilled(clip_title_pos_min, clip_title_pos_max, color);
+            }
             else
                 draw_list->AddRectFilled(clip_title_pos_min, clip_title_pos_max, IM_COL32(32,128,32,128));
             draw_list->AddRect(clip_title_pos_min, clip_title_pos_max, IM_COL32_BLACK);
