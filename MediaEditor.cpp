@@ -76,6 +76,26 @@ static const char* AudioEditorTabTooltips[] = {
     "Audio Fusion",
 };
 
+struct stree
+{
+    std::string name;
+    std::vector<stree> childrens;
+    void * data {nullptr};
+    stree() {}
+    stree(std::string _name, void * _data = nullptr) { name = _name; data = _data; }
+    stree* FindChildren(std::string _name)
+    {
+        auto iter = std::find_if(childrens.begin(), childrens.end(), [_name](const stree& tree)
+        {
+            return tree.name.compare(_name) == 0;
+        });
+        if (iter != childrens.end())
+            return &(*iter);
+        else
+            return nullptr;
+    }
+};
+
 struct MediaEditorSettings
 {
     int VideoWidth  {1920};                 // timeline Media Width
@@ -86,6 +106,7 @@ struct MediaEditorSettings
     int AudioSampleRate {44100};            // timeline audio sample rate
     int AudioFormat {2};                    // timeline audio format 0=unknown 1=s16 2=f32
     std::string project_path;               // Editor Recently project file path
+    int BankViewStyle {0};                  // Bank view style type, 0 = icons, 1 = tree vide, and ... 
     MediaEditorSettings() {}
 };
 
@@ -411,6 +432,10 @@ static void ShowConfigure(MediaEditorSettings & config)
         switch (ConfigureIndex)
         {
             case 0:
+                // system setting
+                ImGui::TextUnformatted("Bank View Style");
+                ImGui::RadioButton("Icons",  (int *)&config.BankViewStyle, 0); ImGui::SameLine();
+                ImGui::RadioButton("Tree",  (int *)&config.BankViewStyle, 1); ImGui::SameLine();
             break;
             case 1:
             {
@@ -958,7 +983,7 @@ static void ShowTransitionBankWindow(ImDrawList *draw_list)
  * Filters Bank window
  *
  ***************************************************************************************/
-static void ShowFilterBankWindow(ImDrawList *draw_list)
+static void ShowFilterBankIconWindow(ImDrawList *draw_list)
 {
     float filter_icon_size = 48;
     ImGuiIO& io = ImGui::GetIO();
@@ -1004,6 +1029,152 @@ static void ShowFilterBankWindow(ImDrawList *draw_list)
             ImGui::Button((std::string(ICON_BANK) + "##video_filter" + type->m_Name).c_str() , ImVec2(filter_icon_size, filter_icon_size));
             ImGui::SameLine(); ImGui::TextUnformatted(type->m_Name.c_str());
         }
+    }
+}
+
+static void ShowFilterBankTreeWindow(ImDrawList *draw_list)
+{
+    ImVec2 window_pos = ImGui::GetCursorScreenPos();
+    ImVec2 window_size = ImGui::GetWindowSize();
+    const ImVec2 item_size(window_size.x, 32);
+    ImGui::SetWindowFontScale(2.5);
+    ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.2, 0.2, 0.2, 0.7));
+    ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
+    ImGui::TextUnformatted("Filter");
+    ImGui::TextUnformatted("Bank");
+    ImGui::PopStyleColor(2);
+    ImGui::PopStyleVar();
+    ImGui::SetWindowFontScale(1.0);
+
+    // Show Filter Tree
+    if (timeline && timeline->mVideoFilterBluePrint &&
+        timeline->mVideoFilterBluePrint->m_Document)
+    {
+        std::vector<const BluePrint::NodeTypeInfo*> filters;
+        auto &bp = timeline->mVideoFilterBluePrint->m_Document->m_Blueprint;
+        auto node_reg = bp.GetNodeRegistry();
+        // find all filters
+        for (auto type : node_reg->GetTypes())
+        {
+            auto catalog = type->GetCatalogInfo();
+            if (!catalog.size() || catalog[0].compare("Filter") != 0)
+                continue;
+            filters.push_back(type);
+        }
+
+        // make filter type as tree
+        stree filter_tree;
+        filter_tree.name = "Filters";
+        for (auto type : filters)
+        {
+            auto catalog = type->GetCatalogInfo();
+            if (!catalog.size())
+                continue;
+            if (catalog.size() > 1)
+            {
+                auto children = filter_tree.FindChildren(catalog[1]);
+                if (!children)
+                {
+                    stree subtree(catalog[1]);
+                    if (catalog.size() > 2)
+                    {
+                        stree sub_sub_tree(catalog[2]);
+                        stree end_sub(type->m_Name, (void *)type);
+                        sub_sub_tree.childrens.push_back(end_sub);
+                        subtree.childrens.push_back(sub_sub_tree);
+                    }
+                    else
+                    {
+                        stree end_sub(type->m_Name, (void *)type);
+                        subtree.childrens.push_back(end_sub);
+                    }
+
+                    filter_tree.childrens.push_back(subtree);
+                }
+                else
+                {
+                    if (catalog.size() > 2)
+                    {
+                        auto sub_children = children->FindChildren(catalog[2]);
+                        if (!sub_children)
+                        {
+                            stree subtree(catalog[2]);
+                            stree end_sub(type->m_Name, (void *)type);
+                            subtree.childrens.push_back(end_sub);
+                            children->childrens.push_back(subtree);
+                        }
+                        else
+                        {
+                            stree end_sub(type->m_Name, (void *)type);
+                            sub_children->childrens.push_back(end_sub);
+                        }
+                    }
+                    else
+                    {
+                        stree end_sub(type->m_Name, (void *)type);
+                        children->childrens.push_back(end_sub);
+                    }
+                }
+            }
+            else
+            {
+                stree end_sub(type->m_Name, (void *)type);
+                filter_tree.childrens.push_back(end_sub);
+            }
+        }
+
+        auto AddFilter = [](void* data)
+        {
+            const BluePrint::NodeTypeInfo* type = (const BluePrint::NodeTypeInfo*)data;
+            ImGui::Button((std::string(ICON_BANK) + " " + type->m_Name).c_str(), ImVec2(0, 32));
+            if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
+            {
+                ImGui::SetDragDropPayload("Filter_drag_drop", type, sizeof(BluePrint::NodeTypeInfo));
+                ImGui::TextUnformatted(ICON_BANK " Add Filter");
+                ImGui::TextUnformatted(type->m_Name.c_str());
+                ImGui::EndDragDropSource();
+            }
+        };
+
+        // draw filter tree
+        ImGui::SetCursorScreenPos(window_pos);
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+        for (auto sub : filter_tree.childrens)
+        {
+            ImGui::SetNextItemOpen(true, ImGuiCond_Once);
+            if (sub.data)
+            {
+                AddFilter(sub.data);
+            }
+            else if (ImGui::TreeNode(sub.name.c_str()))
+            {
+                for (auto sub_sub : sub.childrens)
+                {
+                    ImGui::SetNextItemOpen(true, ImGuiCond_Once);
+                    if (sub_sub.data)
+                    {
+                        AddFilter(sub_sub.data);
+                    }
+                    else if (ImGui::TreeNode(sub_sub.name.c_str()))
+                    {
+                        ImGui::SetNextItemOpen(true, ImGuiCond_Once);
+                        for (auto end : sub_sub.childrens)
+                        {
+                            if (!end.data)
+                                continue;
+                            else
+                            {
+                                AddFilter(end.data);
+                            }
+                        }   
+                        ImGui::TreePop();
+                    }
+                }
+                ImGui::TreePop();
+            }
+        }
+        ImGui::PopStyleColor();
     }
 }
 
@@ -2009,6 +2180,7 @@ void Application_SetupContext(ImGuiContext* ctx)
         else if (sscanf(line, "AudioChannels=%d", &val_int) == 1) { setting->AudioChannels = val_int; }
         else if (sscanf(line, "AudioSampleRate=%d", &val_int) == 1) { setting->AudioSampleRate = val_int; }
         else if (sscanf(line, "AudioFormat=%d", &val_int) == 1) { setting->AudioFormat = val_int; }
+        else if (sscanf(line, "BankViewStyle=%d", &val_int) == 1) { setting->BankViewStyle = val_int; }
         else if (sscanf(line, "ProjectPath=%s", val_path) == 1) { setting->project_path = std::string(val_path); }
         if (!setting->project_path.empty())
         {
@@ -2031,6 +2203,7 @@ void Application_SetupContext(ImGuiContext* ctx)
         out_buf->appendf("AudioChannels=%d\n", g_media_editor_settings.AudioChannels);
         out_buf->appendf("AudioSampleRate=%d\n", g_media_editor_settings.AudioSampleRate);
         out_buf->appendf("AudioFormat=%d\n", g_media_editor_settings.AudioFormat);
+        out_buf->appendf("BankViewStyle=%d\n", g_media_editor_settings.BankViewStyle);
         out_buf->appendf("ProjectPath=%s\n", g_media_editor_settings.project_path.c_str());
         out_buf->append("\n");
     };
@@ -2264,7 +2437,14 @@ bool Application_Frame(void * handle, bool app_will_quit)
                 {
                     case 0: ShowMediaBankWindow(draw_list, media_icon_size); break;
                     case 1: ShowTransitionBankWindow(draw_list); break;
-                    case 2: ShowFilterBankWindow(draw_list); break;
+                    case 2: 
+                        switch (g_media_editor_settings.BankViewStyle)
+                        {
+                            case 0: ShowFilterBankIconWindow(draw_list); break;
+                            case 1: ShowFilterBankTreeWindow(draw_list); break;
+                            default: break;
+                        }
+                    break;
                     case 3: ShowMediaOutputWindow(draw_list); break;
                     default: break;
                 }
