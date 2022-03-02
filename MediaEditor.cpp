@@ -640,7 +640,7 @@ static int LoadProject(std::string path)
                 }
             }
             
-            item = new MediaItem(name, path, type);
+            item = new MediaItem(name, path, type, timeline);
             if (id != -1) item->mID = id;
             timeline->media_items.push_back(item);
         }
@@ -2640,7 +2640,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
                     });
                     if (iter == timeline->media_items.end())
                     {
-                        MediaItem * item = new MediaItem(file_name, file_path, type);
+                        MediaItem * item = new MediaItem(file_name, file_path, type, timeline);
                         timeline->media_items.push_back(item);
                     }
                 }

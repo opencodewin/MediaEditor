@@ -151,17 +151,28 @@ enum MEDIA_TYPE : int
     // ...
 };
 
+struct IDGenerator
+{
+    int64_t GenerateID();
+
+    void SetState(int64_t state);
+    int64_t State() const;
+
+private:
+    int64_t m_State = ImGui::get_current_time_usec();
+};
+
 struct MediaItem
 {
     int64_t mID;                            // media ID
     std::string mName;
     std::string mPath;
-    int64_t mStart   {0};                   // whole Media start in ms
-    int64_t mEnd   {0};                     // whole Media end in ms
+    int64_t mStart  {0};                    // whole Media start in ms
+    int64_t mEnd    {0};                    // whole Media end in ms
     MediaOverview * mMediaOverview;
     MEDIA_TYPE mMediaType {MEDIA_UNKNOWN};
     std::vector<ImTextureID> mMediaThumbnail;
-    MediaItem(const std::string& name, const std::string& path, MEDIA_TYPE type);
+    MediaItem(const std::string& name, const std::string& path, MEDIA_TYPE type, void* handle);
     ~MediaItem();
     void UpdateThumbnail();
 };
@@ -470,7 +481,7 @@ struct ClipGroup
     int64_t mID;
     ImU32 mColor;
     std::vector<int64_t> m_Grouped_Clips;
-    ClipGroup();
+    ClipGroup(void * handle);
     void Load(const imgui_json::value& value);
     void Save(imgui_json::value& value);
 };
@@ -486,7 +497,7 @@ struct TimeLine
 {
     TimeLine();
     ~TimeLine();
-
+    IDGenerator m_IDGenerator;              // Timeline ID generator
     std::vector<MediaItem *> media_items;   // Media Bank, project saved
     std::vector<MediaTrack *> m_Tracks;     // timeline tracks, project saved
     std::vector<Clip *> m_Clips;            // timeline clips, project saved
@@ -613,7 +624,6 @@ struct TimeLine
     int64_t NewGroup(Clip * clip);                      // Create a new group with clip ID
     void AddClipIntoGroup(Clip * clip, int64_t group_id); // Insert clip into group
     void DeleteClipFromGroup(Clip *clip, int64_t group_id); // Delete clip from group
-    ClipGroup GetGroupByID(int64_t group_id);           // Get Group info by ID
     ImU32 GetGroupColor(int64_t group_id);              // Get Group color by id
     int Load(const imgui_json::value& value);
     void Save(imgui_json::value& value);

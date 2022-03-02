@@ -134,11 +134,33 @@ static void frameStepTime(int64_t& time, int32_t offset, MediaInfo::Ratio rate)
 namespace MediaTimeline
 {
 /***********************************************************************************************************
+ * ID Generator Member Functions
+ ***********************************************************************************************************/
+int64_t IDGenerator::GenerateID()
+{
+    return m_State ++;
+}
+
+void IDGenerator::SetState(int64_t state)
+{
+    m_State = state;
+}
+
+int64_t IDGenerator::State() const
+{
+    return m_State;
+}
+} // namespace MediaTimeline
+
+namespace MediaTimeline
+{
+/***********************************************************************************************************
  * MediaItem Struct Member Functions
  ***********************************************************************************************************/
-MediaItem::MediaItem(const std::string& name, const std::string& path, MEDIA_TYPE type)
+MediaItem::MediaItem(const std::string& name, const std::string& path, MEDIA_TYPE type, void* handle)
 {
-    mID = ImGui::get_current_time_usec(); // sample using system time stamp for Media ID
+    TimeLine * timeline = (TimeLine *)handle;
+    mID = timeline ? timeline->m_IDGenerator.GenerateID() : ImGui::get_current_time_usec();
     mName = name;
     mPath = path;
     mMediaType = type;
@@ -209,7 +231,8 @@ namespace MediaTimeline
  ***********************************************************************************************************/
 Clip::Clip(int64_t start, int64_t end, int64_t id, MediaOverview * overview, void * handle)
 {
-    mID = ImGui::get_current_time_usec(); // sample using system time stamp for Clip ID
+    TimeLine * timeline = (TimeLine *)handle;
+    mID = timeline ? timeline->m_IDGenerator.GenerateID() : ImGui::get_current_time_usec();
     mMediaID = id;
     mStart = start; 
     mEnd = end;
@@ -1519,7 +1542,8 @@ namespace MediaTimeline
 {
 Overlap::Overlap(int64_t start, int64_t end, int64_t clip_first, int64_t clip_second, void* handle)
 {
-    mID = ImGui::get_current_time_usec(); // sample using system time stamp for Overlap ID
+    TimeLine * timeline = (TimeLine *)handle;
+    mID = timeline ? timeline->m_IDGenerator.GenerateID() : ImGui::get_current_time_usec();
     mStart = start;
     mEnd = end;
     m_Clip.first = clip_first;
@@ -1654,7 +1678,8 @@ MediaTrack::MediaTrack(std::string name, MEDIA_TYPE type, void * handle)
     : m_Handle(handle),
       mType(type)
 {
-    mID = ImGui::get_current_time_usec(); // sample using system time stamp for Track ID
+    TimeLine * timeline = (TimeLine *)handle;
+    mID = timeline ? timeline->m_IDGenerator.GenerateID() : ImGui::get_current_time_usec();
     if (name.empty())
     {
         TimeLine * timeline = (TimeLine *)m_Handle;
@@ -2325,9 +2350,10 @@ namespace MediaTimeline
 /***********************************************************************************************************
  * ClipGroup Struct Member Functions
  ***********************************************************************************************************/
-ClipGroup::ClipGroup()
+ClipGroup::ClipGroup(void * handle)
 {
-    mID = ImGui::get_current_time_usec(); // sample using system time stamp for Group ID
+    TimeLine * timeline = (TimeLine *)handle;
+    mID = timeline? timeline->m_IDGenerator.GenerateID() : ImGui::get_current_time_usec();
     
     int r = std::rand() % 255;
     int g = std::rand() % 255;
@@ -2636,12 +2662,10 @@ void TimeLine::Updata()
     }
 
     // update track
-    //mTrackLock.lock();
     for (auto track : m_Tracks)
     {
         track->Update();
     }
-    //mTrackLock.unlock();
 }
 
 void TimeLine::Click(int index, int64_t time)
@@ -2692,7 +2716,6 @@ void TimeLine::DoubleClick(int index, int64_t time)
 
 void TimeLine::SelectTrack(int index)
 {
-    //mTrackLock.lock();
     if (index >= 0 && index < m_Tracks.size())
     {
         auto current_track = m_Tracks[index];
@@ -2704,12 +2727,10 @@ void TimeLine::SelectTrack(int index)
                 track->mSelected = true;
         }
     }
-    //mTrackLock.unlock();
 }
 
 void TimeLine::DeleteTrack(int index)
 {
-    //mTrackLock.lock();
     if (index >= 0 && index < m_Tracks.size())
     {
         auto track = m_Tracks[index];
@@ -2721,7 +2742,6 @@ void TimeLine::DeleteTrack(int index)
             currentTime = firstTime = lastTime = visibleTime = 0;
         }
     }
-    //mTrackLock.unlock();
 }
 
 int TimeLine::NewTrack(MEDIA_TYPE type, bool expand)
@@ -3030,13 +3050,11 @@ int64_t TimeLine::NextClipStart(int64_t pos)
 int TimeLine::GetTrackCount(MEDIA_TYPE type)
 {
     int count = 0;
-    //mTrackLock.lock();
     for (auto track : m_Tracks)
     {
         if (track->mType == type)
             count ++;
     }
-    //mTrackLock.unlock();
     return count;
 }
 
@@ -3045,7 +3063,7 @@ int64_t TimeLine::NewGroup(Clip * clip)
     if (!clip)
         return -1;
     DeleteClipFromGroup(clip, clip->mGroupID);
-    ClipGroup new_group;
+    ClipGroup new_group(this);
     new_group.m_Grouped_Clips.push_back(clip->mID);
     m_Groups.push_back(new_group);
     clip->mGroupID = new_group.mID;
@@ -3096,18 +3114,6 @@ void TimeLine::DeleteClipFromGroup(Clip *clip, int64_t group_id)
             ++iter;
     }
     clip->mGroupID = -1;
-}
-
-ClipGroup TimeLine::GetGroupByID(int64_t group_id)
-{
-    if (group_id == -1)
-        return {};
-    for (auto group : m_Groups)
-    {
-        if (group.mID == group_id)
-            return group;
-    }
-    return {};
 }
 
 ImU32 TimeLine::GetGroupColor(int64_t group_id)
@@ -3344,6 +3350,14 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, co
 
 int TimeLine::Load(const imgui_json::value& value)
 {
+    // load ID Generator state
+    if (value.contains("IDGenerateState"))
+    {
+        int64_t state = ImGui::get_current_time_usec();
+        auto& val = value["IDGenerateState"];
+        if (val.is_number()) state = val.get<imgui_json::number>();
+         m_IDGenerator.SetState(state);
+    }
     // load media clip
     const imgui_json::array* mediaClipArray = nullptr;
     if (BluePrint::GetPtrTo(value, "MediaClip", mediaClipArray))
@@ -3377,7 +3391,7 @@ int TimeLine::Load(const imgui_json::value& value)
     {
         for (auto& group : *mediaGroupArray)
         {
-            ClipGroup new_group;
+            ClipGroup new_group(this);
             new_group.Load(group);
             m_Groups.push_back(new_group);
         }
@@ -3549,6 +3563,7 @@ void TimeLine::Save(imgui_json::value& value)
     value["Forward"] = imgui_json::boolean(bForward);
     value["Loop"] = imgui_json::boolean(bLoop);
     value["SelectLinked"] = imgui_json::boolean(bSelectLinked);
+    value["IDGenerateState"] = imgui_json::number(m_IDGenerator.State());
 }
 
 } // namespace MediaTimeline/TimeLine
@@ -4529,7 +4544,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
     // handle group event
     if (groupClipEntry.size() > 0)
     {
-        ClipGroup new_group;
+        ClipGroup new_group(timeline);
         timeline->m_Groups.push_back(new_group);
         for (auto clip_id : groupClipEntry)
         {
