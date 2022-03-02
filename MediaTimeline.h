@@ -255,7 +255,7 @@ struct VideoClip : Clip
 {
     MediaSnapshot* mSnapshot {nullptr};                 // clip snapshot handle
     std::vector<VideoSnapshotInfo> mVideoSnapshotInfos; // clip snapshots info, with all croped range
-    std::list<Snapshot> mVideoSnapshots;              // clip snapshots, including texture and timestamp info
+    std::list<Snapshot> mVideoSnapshots;                // clip snapshots, including texture and timestamp info
     MediaInfo::Ratio mClipFrameRate {25, 1};            // clip Frame rate, project saved
 
     VideoClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle);
@@ -354,8 +354,11 @@ struct BaseEditingClip
     int64_t mCurrPos            {0};
     bool bPlay                  {false};                // clip play status
     bool bForward               {true};                 // clip play direction
-    bool mSeeking               {false};
+    bool bSeeking               {false};
+    int64_t mLastTime           {-1};
     ImVec2 mViewWndSize         {0, 0};
+
+    MediaReader* mMediaReader   {nullptr};          // clip media reader
 
     BaseEditingClip(int64_t id, MEDIA_TYPE type, int64_t start, int64_t end, int64_t startOffset, int64_t endOffset)
         : mID(id), mType(type), mStart(start), mEnd(end), mStartOffset(startOffset), mEndOffset(endOffset)
@@ -363,6 +366,7 @@ struct BaseEditingClip
 
     virtual void UpdateClipRange(Clip* clip) = 0;
     virtual void Seek(int64_t pos) = 0;
+    virtual void Step(bool forward, int64_t step = 0) = 0;
     virtual bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame) = 0;
     virtual void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom) = 0;
 };
@@ -371,6 +375,9 @@ struct EditingVideoClip : BaseEditingClip
 {
     MediaSnapshot* mSnapshot    {nullptr};
     ImVec2 mSnapSize            {0, 0};
+    MediaInfo::Ratio mClipFrameRate {25, 1};                    // clip Frame rate
+    int mMaxCachedVideoFrame    {10};                           // clip Media Video Frame cache size
+
     std::mutex mFrameLock;                                      // clip frame mutex
     std::list<std::pair<ImGui::ImMat, ImGui::ImMat>> mFrame;    // clip timeline input/output frame pair
 
@@ -379,6 +386,7 @@ struct EditingVideoClip : BaseEditingClip
 
     void UpdateClipRange(Clip* clip) override;
     void Seek(int64_t pos) override;
+    void Step(bool forward, int64_t step = 0) override;
     bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame) override;
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom) override;
 
@@ -392,6 +400,7 @@ struct EditingAudioClip : BaseEditingClip
 
     void UpdateClipRange(Clip* clip) override;
     void Seek(int64_t pos) override;
+    void Step(bool forward, int64_t step = 0) override;
     bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame) override;
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom) override;
 };
@@ -489,6 +498,7 @@ struct TimeLine
     int mWidth  {1920};                     // timeline Media Width, project saved, configured
     int mHeight {1080};                     // timeline Media Height, project saved, configured
     MediaInfo::Ratio mFrameRate {25, 1};    // timeline Media Frame rate, project saved, configured
+    int mMaxCachedVideoFrame    {10};       // timeline Media Video Frame cache size, project saved, configured
 
     int mAudioChannels {2};                 // timeline audio channels, project saved, configured
     int mAudioSampleRate {44100};           // timeline audio sample rate, project saved, configured
@@ -525,6 +535,10 @@ struct TimeLine
     BluePrint::BluePrintUI * mVideoFilterBluePrint {nullptr};
     std::mutex mVideoFilterBluePrintLock;   // Video Filter BluePrint mutex
     bool mVideoFilterNeedUpdate {false};
+
+    std::mutex mVideoFilterTextureLock;   // Video Filter Texture mutex
+    ImTextureID mVideoFilterInputTexture {nullptr};  // clip video filter input texture
+    ImTextureID mVideoFilterOutputTexture {nullptr};  // clip video filter output texture
 
     BluePrint::BluePrintUI * mAudioFilterBluePrint {nullptr};
     std::mutex mAudioFilterBluePrintLock;   // Audio Filter BluePrint mutex

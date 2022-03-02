@@ -121,6 +121,16 @@ static void alignTime(int64_t& time, MediaInfo::Ratio rate)
     }
 }
 
+static void frameStepTime(int64_t& time, int32_t offset, MediaInfo::Ratio rate)
+{
+    if (rate.den && rate.num)
+    {
+        int64_t frame_index = (int64_t)floor((double)time * (double)rate.num / (double)rate.den / 1000.0 + 0.5);
+        frame_index += offset;
+        time = frame_index * 1000 * rate.den / rate.num;
+    }
+}
+
 namespace MediaTimeline
 {
 /***********************************************************************************************************
@@ -1234,12 +1244,19 @@ void TextClip::Save(imgui_json::value& value)
 EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
     : BaseEditingClip(vidclip->mID, vidclip->mType, vidclip->mStart, vidclip->mEnd, vidclip->mStartOffset, vidclip->mEndOffset)
 {
+    TimeLine * timeline = (TimeLine *)vidclip->mHandle;
     mDuration = mEnd-mStart;
     if (mDuration < 0)
         throw std::invalid_argument("Clip duration is negative!");
     mCurrPos = mStartOffset;
 
     mSnapshot = CreateMediaSnapshot();
+    mMediaReader = CreateMediaReader();
+    if (!mSnapshot || !mMediaReader)
+    {
+        Logger::Log(Logger::Error) << "Create Editing Video Clip" << std::endl;
+        return;
+    }
     if (!mSnapshot->Open(vidclip->mOverview->GetMediaParser()))
     {
         Logger::Log(Logger::Error) << mSnapshot->GetError() << std::endl;
@@ -1248,12 +1265,31 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
     mSnapshot->SetCacheFactor(1);
     mSnapshot->SetSnapshotResizeFactor(0.1, 0.1);
     mSnapshot->Seek((double)mStartOffset / 1000);
+
+    // open video reader
+    if (mMediaReader->Open(vidclip->mOverview->GetMediaParser()))
+    {
+        if (mMediaReader->ConfigVideoReader(1.f, 1.f))
+        {
+            mMediaReader->Start();
+        }
+        else
+        {
+            ReleaseMediaReader(&mMediaReader);
+        }
+    }
+    mClipFrameRate = vidclip->mClipFrameRate;
+    if (timeline)
+        mMaxCachedVideoFrame = timeline->mMaxCachedVideoFrame;
 }
 
 EditingVideoClip::~EditingVideoClip()
 {
-    if (mSnapshot)
-        ReleaseMediaSnapshot(&mSnapshot);
+    if (mMediaReader) { ReleaseMediaReader(&mMediaReader); mMediaReader = nullptr; }
+    if (mSnapshot) { ReleaseMediaSnapshot(&mSnapshot); mSnapshot = nullptr; }
+    mFrameLock.lock();
+    mFrame.clear();
+    mFrameLock.unlock();
 }
 
 void EditingVideoClip::UpdateClipRange(Clip* clip)
@@ -1277,12 +1313,114 @@ void EditingVideoClip::UpdateClipRange(Clip* clip)
 
 void EditingVideoClip::Seek(int64_t pos)
 {
+    mFrameLock.lock();
+    mFrame.clear();
+    mFrameLock.unlock();
+    mLastTime = -1;
     mCurrPos = pos;
+    if (mMediaReader && mMediaReader->IsOpened())
+    {
+        alignTime(mCurrPos, mClipFrameRate);
+        mMediaReader->SeekTo((double)mCurrPos / 1000.f);
+    }
+}
+
+void EditingVideoClip::Step(bool forward, int64_t step)
+{
+    if (forward)
+    {
+        bForward = true;
+        if (step > 0) mCurrPos += step;
+        else frameStepTime(mCurrPos, 1, mClipFrameRate);
+        if (mCurrPos >= mEnd - mStart - mEndOffset)
+        {
+            mCurrPos = mEnd - mStart - mEndOffset;
+            mLastTime = -1;
+            bPlay = false;
+        }
+    }
+    else
+    {
+        bForward = false;
+        if (step > 0) mCurrPos -= step;
+        else frameStepTime(mCurrPos, -1, mClipFrameRate);
+        if (mCurrPos <= mStartOffset)
+        {
+            mCurrPos = mStartOffset;
+            mLastTime = -1;
+            bPlay = false;
+        }
+    }
 }
 
 bool EditingVideoClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame)
 {
-    return false;
+    if (mFrame.empty())
+        return false;
+
+    auto frame_delay = mClipFrameRate.den * 1000 / mClipFrameRate.num;
+    int64_t buffer_start = mFrame.begin()->first.time_stamp * 1000;
+    int64_t buffer_end = buffer_start;
+    frameStepTime(buffer_end, bForward ? mMaxCachedVideoFrame : -mMaxCachedVideoFrame, mClipFrameRate);
+    if (buffer_start > buffer_end)
+        std::swap(buffer_start, buffer_end);
+
+    bool out_of_range = false;
+    if (mCurrPos < buffer_start - frame_delay || mCurrPos > buffer_end + frame_delay)
+        out_of_range = true;
+
+    for (auto pair = mFrame.begin(); pair != mFrame.end();)
+    {
+        bool need_erase = false;
+        int64_t time_diff = fabs(pair->first.time_stamp * 1000 - mCurrPos);
+        if (time_diff > frame_delay)
+            need_erase = true;
+
+        if (need_erase || out_of_range)
+        {
+            // if we on seek stage, may output last frame for smooth preview
+            if (bSeeking && mFrame.size() == 1)
+            {
+                in_out_frame = *pair;
+            }
+            mFrameLock.lock();
+            pair = mFrame.erase(pair);
+            mFrameLock.unlock();
+        }
+        else
+        {
+            in_out_frame = *pair;
+            // handle clip play event
+            if (bPlay)
+            {
+                bool need_step_time = false;
+                int64_t step_time = 0;
+                int64_t current_system_time = ImGui::get_current_time_usec() / 1000;
+                if (mLastTime != -1)
+                {
+                    step_time = current_system_time - mLastTime;
+                    if (step_time >= frame_delay)
+                        need_step_time = true;
+                }
+                else
+                {
+                    mLastTime = current_system_time;
+                    need_step_time = true;
+                }
+                if (need_step_time)
+                {
+                    Step(bForward, step_time);
+                    mLastTime = current_system_time;
+                }
+            }
+            else
+            {
+                mLastTime = -1;
+            }
+            break;
+        }
+    }
+    return out_of_range ? false : true;
 }
 
 void EditingVideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom)
@@ -1358,14 +1496,15 @@ EditingAudioClip::~EditingAudioClip()
 {}
 
 void EditingAudioClip::UpdateClipRange(Clip* clip)
-{
-    
-}
+{}
 
 void EditingAudioClip::Seek(int64_t pos)
 {
     mCurrPos = pos;
 }
+
+void EditingAudioClip::Step(bool forward, int64_t step)
+{}
 
 bool EditingAudioClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame)
 {
@@ -1926,6 +2065,16 @@ void MediaTrack::EditingClip(Clip * clip)
     {
         if (editing_clip->mType == MEDIA_VIDEO)
         {
+            // update timeline video filter clip
+            if (timeline->mVidFilterClip)
+            {
+                delete timeline->mVidFilterClip;
+                timeline->mVidFilterClip = nullptr;
+                timeline->mVideoFilterTextureLock.lock();
+                if (timeline->mVideoFilterInputTexture) {ImGui::ImDestroyTexture(timeline->mVideoFilterInputTexture); timeline->mVideoFilterInputTexture = nullptr;}
+                if (timeline->mVideoFilterOutputTexture) { ImGui::ImDestroyTexture(timeline->mVideoFilterOutputTexture); timeline->mVideoFilterOutputTexture = nullptr;  }
+                timeline->mVideoFilterTextureLock.unlock();
+            }
             if (timeline->mVideoFilterBluePrint && timeline->mVideoFilterBluePrint->Blueprint_IsValid())
             {
                 timeline->mVideoFilterBluePrintLock.lock();
@@ -1935,6 +2084,12 @@ void MediaTrack::EditingClip(Clip * clip)
         }
         else if (editing_clip->mType == MEDIA_AUDIO)
         {
+            // update timeline Audio filter clip
+            if (timeline->mAudFilterClip)
+            {
+                delete timeline->mAudFilterClip;
+                timeline->mAudFilterClip = nullptr;
+            }
             if (timeline->mAudioFilterBluePrint && timeline->mAudioFilterBluePrint->Blueprint_IsValid())
             {
                 timeline->mAudioFilterBluePrintLock.lock();
@@ -1955,6 +2110,8 @@ void MediaTrack::EditingClip(Clip * clip)
             timeline->mVideoFilterNeedUpdate = true;
             timeline->mVideoFilterBluePrintLock.unlock();
         }
+        if (!timeline->mVidFilterClip)
+            timeline->mVidFilterClip = new EditingVideoClip((VideoClip*)clip);
     }
     else if (clip->mType == MEDIA_AUDIO)
     {
@@ -1965,6 +2122,8 @@ void MediaTrack::EditingClip(Clip * clip)
             timeline->mAudioFilterNeedUpdate = true;
             timeline->mAudioFilterBluePrintLock.unlock();
         }
+        if (!timeline->mAudFilterClip)
+            timeline->mAudFilterClip = new EditingAudioClip((AudioClip*)clip);
     }
     if (timeline->m_CallBacks.EditingClip)
     {
@@ -2256,22 +2415,97 @@ static int thread_video_filter(TimeLine * timeline)
     timeline->mVideoFilterRunning = true;
     while (!timeline->mVideoFilterDone)
     {
-        if (!timeline->mVidFilterClip || !timeline->mVideoFilterBluePrint || !timeline->mVideoFilterBluePrint->Blueprint_IsValid())
-        {
-            ImGui::sleep((int)5);
-            continue;
-        }
-        /*
-        if (!editing_clip || editing_clip->mType != MEDIA_VIDEO)
-        {
-            ImGui::sleep((int)5);
-            continue;
-        }
-        if (timeline->mVideoFilterNeedUpdate)
+        if (!timeline->mVidFilterClip || !timeline->mVidFilterClip->mMediaReader || !timeline->mVidFilterClip->mMediaReader->IsOpened() ||
+            !timeline->mVideoFilterBluePrint || !timeline->mVideoFilterBluePrint->Blueprint_IsValid())
         {
             timeline->mVideoFilterNeedUpdate = false;
+            ImGui::sleep((int)5);
+            continue;
         }
-        */
+        if (timeline->mVidFilterClipLock.try_lock())
+        {
+            if (!timeline->mVidFilterClip || !timeline->mVidFilterClip->mMediaReader)
+            {
+                timeline->mVidFilterClipLock.unlock();
+                ImGui::sleep((int)5);
+                continue;
+            }
+            if (timeline->mVideoFilterNeedUpdate)
+            {
+                timeline->mVidFilterClip->mFrameLock.lock();
+                timeline->mVidFilterClip->mFrame.clear();
+                timeline->mVidFilterClip->mFrameLock.unlock();
+                timeline->mVideoFilterNeedUpdate = false;
+            }
+            if (timeline->mVidFilterClip->mFrame.size() >= timeline->mMaxCachedVideoFrame)
+            {
+                timeline->mVidFilterClipLock.unlock();
+                ImGui::sleep((int)5);
+                continue;
+            }
+            int64_t current_time = 0;
+            timeline->mVidFilterClip->mFrameLock.lock();
+            if (timeline->mVidFilterClip->mFrame.empty() || timeline->mVidFilterClip->bSeeking)
+                current_time = timeline->mVidFilterClip->mCurrPos;
+            else
+            {
+                auto it = timeline->mVidFilterClip->mFrame.end(); it--;
+                current_time = it->first.time_stamp * 1000;
+            }
+            const int64_t frame_delay = timeline->mVidFilterClip->mClipFrameRate.den * 1000 / timeline->mVidFilterClip->mClipFrameRate.num;
+            alignTime(current_time, timeline->mVidFilterClip->mClipFrameRate);
+            timeline->mVidFilterClip->mFrameLock.unlock();
+            while (timeline->mVidFilterClip->mFrame.size() < timeline->mMaxCachedVideoFrame)
+            {
+                bool eof = false;
+                if (timeline->mVideoFilterDone)
+                    break;
+                if (!timeline->mVidFilterClip->mFrame.empty())
+                {
+                    int64_t buffer_start = timeline->mVidFilterClip->mFrame.begin()->first.time_stamp * 1000;
+                    int64_t buffer_end = buffer_start;
+                    frameStepTime(buffer_end, timeline->mVidFilterClip->bForward ? timeline->mMaxCachedVideoFrame : -timeline->mMaxCachedVideoFrame, timeline->mVidFilterClip->mClipFrameRate);
+                    if (buffer_start > buffer_end)
+                        std::swap(buffer_start, buffer_end);
+                    if (timeline->mVidFilterClip->mCurrPos < buffer_start - frame_delay || timeline->mVidFilterClip->mCurrPos > buffer_end + frame_delay)
+                    {
+                        ImGui::sleep((int)5);
+                        break;
+                    }
+                }
+                std::pair<ImGui::ImMat, ImGui::ImMat> result;
+                if ((timeline->mVidFilterClip->mMediaReader->IsDirectionForward() && !timeline->mVidFilterClip->bForward) ||
+                    (!timeline->mVidFilterClip->mMediaReader->IsDirectionForward() && timeline->mVidFilterClip->bForward))
+                    timeline->mVidFilterClip->mMediaReader->SetDirection(timeline->mVidFilterClip->bForward);
+                if (timeline->mVidFilterClip->mMediaReader->ReadVideoFrame((float)current_time / 1000.0, result.first, eof))
+                {
+                    result.first.time_stamp = (double)current_time / 1000.f;
+                    timeline->mVideoFilterBluePrintLock.lock();
+                    if (timeline->mVideoFilterBluePrint->Blueprint_RunFilter(result.first, result.second))
+                    {
+                        timeline->mVidFilterClip->mFrameLock.lock();
+                        timeline->mVidFilterClip->mFrame.push_back(result);
+                        timeline->mVidFilterClip->mFrameLock.unlock();
+                        if (timeline->mVidFilterClip->bForward)
+                        {
+                            frameStepTime(current_time, 1, timeline->mVidFilterClip->mClipFrameRate);
+                            if (current_time > timeline->mVidFilterClip->mEnd - timeline->mVidFilterClip->mStart - timeline->mVidFilterClip->mEndOffset)
+                                current_time = timeline->mVidFilterClip->mEnd - timeline->mVidFilterClip->mStart - timeline->mVidFilterClip->mEndOffset;
+                        }
+                        else
+                        {
+                            frameStepTime(current_time, -1, timeline->mVidFilterClip->mClipFrameRate);
+                            if (current_time < timeline->mVidFilterClip->mStartOffset)
+                            {
+                                current_time = timeline->mVidFilterClip->mStartOffset;
+                            }
+                        }
+                    }
+                    timeline->mVideoFilterBluePrintLock.unlock();
+                }
+            }
+            timeline->mVidFilterClipLock.unlock();
+        }
     }
     timeline->mVideoFilterRunning = false;
     return 0;
@@ -2373,6 +2607,9 @@ TimeLine::~TimeLine()
     for (auto item : media_items) delete item;
     for (auto track : m_Tracks) delete track;
     for (auto clip : m_Clips) delete clip;
+
+    if (mVideoFilterInputTexture) { ImGui::ImDestroyTexture(mVideoFilterInputTexture); mVideoFilterInputTexture = nullptr; }
+    if (mVideoFilterOutputTexture) { ImGui::ImDestroyTexture(mVideoFilterOutputTexture); mVideoFilterOutputTexture = nullptr;  }
 }
 
 void TimeLine::AlignTime(int64_t& time)
@@ -2542,8 +2779,6 @@ void TimeLine::MovingClip(int64_t id, int from_track_index, int to_track_index)
         auto clip = *iter;
         dst_track->InsertClip(clip, clip->mStart);
     }
-
-    //mTrackLock.unlock();
 }
 
 void TimeLine::DeleteClip(int64_t id)
@@ -4374,7 +4609,7 @@ bool DrawClipTimeLine(BaseEditingClip * editingClip)
     if (!MovingCurrentTime && editingClip->mCurrPos >= start && topRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && isFocused)
     {
         MovingCurrentTime = true;
-        editingClip->mSeeking = true;
+        editingClip->bSeeking = true;
     }
     if (MovingCurrentTime && duration)
     {
@@ -4386,10 +4621,10 @@ bool DrawClipTimeLine(BaseEditingClip * editingClip)
             newPos = end;
         editingClip->Seek(newPos);
     }
-    if (editingClip->mSeeking && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
+    if (editingClip->bSeeking && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
     {
         MovingCurrentTime = false;
-        editingClip->mSeeking = false;
+        editingClip->bSeeking = false;
     }
 
     int64_t modTimeCount = 10;
