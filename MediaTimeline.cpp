@@ -2085,6 +2085,7 @@ void MediaTrack::EditingClip(Clip * clip)
         if (editing_clip->mType == MEDIA_VIDEO)
         {
             // update timeline video filter clip
+            timeline->mVidFilterClipLock.lock();
             if (timeline->mVidFilterClip)
             {
                 delete timeline->mVidFilterClip;
@@ -2100,10 +2101,12 @@ void MediaTrack::EditingClip(Clip * clip)
                 editing_clip->mFilterBP = timeline->mVideoFilterBluePrint->m_Document->Serialize();
                 timeline->mVideoFilterBluePrintLock.unlock();
             }
+            timeline->mVidFilterClipLock.unlock();
         }
         else if (editing_clip->mType == MEDIA_AUDIO)
         {
             // update timeline Audio filter clip
+            timeline->mAudFilterClipLock.lock();
             if (timeline->mAudFilterClip)
             {
                 delete timeline->mAudFilterClip;
@@ -2115,6 +2118,7 @@ void MediaTrack::EditingClip(Clip * clip)
                 editing_clip->mFilterBP = timeline->mAudioFilterBluePrint->m_Document->Serialize();
                 timeline->mAudioFilterBluePrintLock.unlock();
             }
+            timeline->mAudFilterClipLock.unlock();
         }
         editing_clip->bEditing = false;
     }
@@ -2489,7 +2493,6 @@ static int thread_video_filter(TimeLine * timeline)
                         std::swap(buffer_start, buffer_end);
                     if (timeline->mVidFilterClip->mCurrPos < buffer_start - frame_delay || timeline->mVidFilterClip->mCurrPos > buffer_end + frame_delay)
                     {
-                        ImGui::sleep((int)5);
                         break;
                     }
                 }
