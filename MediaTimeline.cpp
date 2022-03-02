@@ -1332,9 +1332,9 @@ void EditingVideoClip::Step(bool forward, int64_t step)
         bForward = true;
         if (step > 0) mCurrPos += step;
         else frameStepTime(mCurrPos, 1, mClipFrameRate);
-        if (mCurrPos >= mEnd - mStart - mEndOffset)
+        if (mCurrPos >= mEnd - mStart + mStartOffset)
         {
-            mCurrPos = mEnd - mStart - mEndOffset;
+            mCurrPos = mEnd - mStart + mStartOffset;
             mLastTime = -1;
             bPlay = false;
         }
@@ -2489,8 +2489,8 @@ static int thread_video_filter(TimeLine * timeline)
                         if (timeline->mVidFilterClip->bForward)
                         {
                             frameStepTime(current_time, 1, timeline->mVidFilterClip->mClipFrameRate);
-                            if (current_time > timeline->mVidFilterClip->mEnd - timeline->mVidFilterClip->mStart - timeline->mVidFilterClip->mEndOffset)
-                                current_time = timeline->mVidFilterClip->mEnd - timeline->mVidFilterClip->mStart - timeline->mVidFilterClip->mEndOffset;
+                            if (current_time > timeline->mVidFilterClip->mEnd - timeline->mVidFilterClip->mStart + timeline->mVidFilterClip->mStartOffset)
+                                current_time = timeline->mVidFilterClip->mEnd - timeline->mVidFilterClip->mStart + timeline->mVidFilterClip->mStartOffset;
                         }
                         else
                         {

@@ -1497,14 +1497,9 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
         editing_clip = nullptr;
     }
 
-    if (editing_clip)
+    if (editing_clip && timeline->mVidFilterClip)
     {
-        if (timeline->mVidFilterClipLock.try_lock())
-        {
-            if (timeline->mVidFilterClip)
-                timeline->mVidFilterClip->UpdateClipRange(editing_clip);
-            timeline->mVidFilterClipLock.unlock();
-        }
+        timeline->mVidFilterClip->UpdateClipRange(editing_clip);
     }
 
     timeline->Play(false, true);
@@ -1613,7 +1608,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
             {
                 if (timeline->mVidFilterClip && !timeline->mVidFilterClip->bPlay)
                 {
-                    int64_t pos = timeline->mVidFilterClip->mEnd - timeline->mVidFilterClip->mStart - timeline->mVidFilterClip->mEndOffset;
+                    int64_t pos = timeline->mVidFilterClip->mEnd - timeline->mVidFilterClip->mStart + timeline->mVidFilterClip->mStartOffset;
                     timeline->mVidFilterClip->Seek(pos);
                 }
             }
