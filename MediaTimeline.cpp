@@ -281,11 +281,6 @@ void Clip::Load(Clip * clip, const imgui_json::value& value)
         auto& val = value["EndOffset"];
         if (val.is_number()) clip->mEndOffset = val.get<imgui_json::number>();
     }
-    //if (value.contains("Current"))
-    //{
-    //    auto& val = value["Current"];
-    //    if (val.is_number()) clip->mCurrent = val.get<imgui_json::number>();
-    //}
     if (value.contains("Selected"))
     {
         auto& val = value["Selected"];
@@ -317,7 +312,6 @@ void Clip::Save(imgui_json::value& value)
     value["End"] = imgui_json::number(mEnd);
     value["StartOffset"] = imgui_json::number(mStartOffset);
     value["EndOffset"] = imgui_json::number(mEndOffset);
-    //value["Current"] = imgui_json::number(mCurrent);
     value["Selected"] = imgui_json::boolean(bSelected);
     value["Editing"] = imgui_json::boolean(bEditing);
 
@@ -1892,7 +1886,7 @@ void MediaTrack::InsertClip(Clip * clip, int64_t pos)
     if (iter == m_Clips.end())
     {
         int64_t length = clip->mEnd - clip->mStart;
-        clip->mStart = pos;
+        clip->mStart = pos == -1 ? 0 : pos;
         clip->mEnd = clip->mStart + length;
         clip->ConfigViewWindow(mViewWndDur, mPixPerMs);
         clip->SetTrackHeight(mTrackHeight);
