@@ -248,11 +248,11 @@ void Clip::Load(Clip * clip, const imgui_json::value& value)
         auto& val = value["EndOffset"];
         if (val.is_number()) clip->mEndOffset = val.get<imgui_json::number>();
     }
-    if (value.contains("Current"))
-    {
-        auto& val = value["Current"];
-        if (val.is_number()) clip->mCurrent = val.get<imgui_json::number>();
-    }
+    //if (value.contains("Current"))
+    //{
+    //    auto& val = value["Current"];
+    //    if (val.is_number()) clip->mCurrent = val.get<imgui_json::number>();
+    //}
     if (value.contains("Selected"))
     {
         auto& val = value["Selected"];
@@ -284,7 +284,7 @@ void Clip::Save(imgui_json::value& value)
     value["End"] = imgui_json::number(mEnd);
     value["StartOffset"] = imgui_json::number(mStartOffset);
     value["EndOffset"] = imgui_json::number(mEndOffset);
-    value["Current"] = imgui_json::number(mCurrent);
+    //value["Current"] = imgui_json::number(mCurrent);
     value["Selected"] = imgui_json::boolean(bSelected);
     value["Editing"] = imgui_json::boolean(bEditing);
 
@@ -741,10 +741,6 @@ VideoClip::~VideoClip()
     mVideoSnapshots.clear();
 }
 
-void VideoClip::UpdateSnapshot()
-{
-}
-
 void VideoClip::Seek()
 {
 }
@@ -917,10 +913,6 @@ AudioClip::~AudioClip()
 {
 }
 
-void AudioClip::UpdateSnapshot()
-{
-}
-
 void AudioClip::Seek()
 {
 }
@@ -1056,10 +1048,6 @@ void ImageClip::PrepareSnapImage()
     }
 }
 
-void ImageClip::UpdateSnapshot()
-{
-}
-
 void ImageClip::Seek()
 {
 }
@@ -1189,10 +1177,6 @@ TextClip::~TextClip()
 {
 }
 
-void TextClip::UpdateSnapshot()
-{
-}
-
 void TextClip::Seek()
 {
 }
@@ -1296,6 +1280,11 @@ void EditingVideoClip::Seek(int64_t pos)
     mCurrPos = pos;
 }
 
+bool EditingVideoClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame)
+{
+    return false;
+}
+
 void EditingVideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom)
 {
     ImVec2 viewWndSize = { rightBottom.x - leftTop.x, rightBottom.y - leftTop.y };
@@ -1376,6 +1365,11 @@ void EditingAudioClip::UpdateClipRange(Clip* clip)
 void EditingAudioClip::Seek(int64_t pos)
 {
     mCurrPos = pos;
+}
+
+bool EditingAudioClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame)
+{
+    return false;
 }
 
 void EditingAudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom)
@@ -2170,7 +2164,7 @@ void MediaTrack::Save(imgui_json::value& value)
 namespace MediaTimeline
 {
 /***********************************************************************************************************
- * TimeLine Struct Member Functions
+ * ClipGroup Struct Member Functions
  ***********************************************************************************************************/
 ClipGroup::ClipGroup()
 {
@@ -2220,7 +2214,13 @@ void ClipGroup::Save(imgui_json::value& value)
         value["ClipIDS"] = clips;
     }
 }
+} // namespace MediaTimeline
 
+namespace MediaTimeline
+{
+/***********************************************************************************************************
+ * TimeLine Struct Member Functions
+ ***********************************************************************************************************/
 int TimeLine::OnBluePrintChange(int type, std::string name, void* handle)
 {
     int ret = BluePrint::BP_CBR_Nothing;
@@ -2247,6 +2247,34 @@ int TimeLine::OnBluePrintChange(int type, std::string name, void* handle)
     }
 
     return ret;
+}
+
+static int thread_video_filter(TimeLine * timeline)
+{
+    if (!timeline)
+        return -1;
+    timeline->mVideoFilterRunning = true;
+    while (!timeline->mVideoFilterDone)
+    {
+        if (!timeline->mVidFilterClip || !timeline->mVideoFilterBluePrint || !timeline->mVideoFilterBluePrint->Blueprint_IsValid())
+        {
+            ImGui::sleep((int)5);
+            continue;
+        }
+        /*
+        if (!editing_clip || editing_clip->mType != MEDIA_VIDEO)
+        {
+            ImGui::sleep((int)5);
+            continue;
+        }
+        if (timeline->mVideoFilterNeedUpdate)
+        {
+            timeline->mVideoFilterNeedUpdate = false;
+        }
+        */
+    }
+    timeline->mVideoFilterRunning = false;
+    return 0;
 }
 
 TimeLine::TimeLine()
@@ -2300,10 +2328,22 @@ TimeLine::TimeLine()
 
     for (int i = 0; i < mAudioChannels; i++)
         mAudioLevel.push_back(0);
+
+    mVideoFilterThread = new std::thread(thread_video_filter, this);
 }
 
 TimeLine::~TimeLine()
 {
+
+    if (mVideoFilterThread && mVideoFilterThread->joinable())
+    {
+        mVideoFilterDone = true;
+        mVideoFilterThread->join();
+        delete mVideoFilterThread;
+        mVideoFilterThread = nullptr;
+        mVideoFilterDone = false;
+    }
+
     mFrameLock.lock();
     mFrame.clear();
     mFrameLock.unlock();
@@ -2453,28 +2493,23 @@ int TimeLine::NewTrack(MEDIA_TYPE type, bool expand)
     new_track->mPixPerMs = msPixelWidthTarget;
     new_track->mViewWndDur = visibleTime;
     new_track->mExpanded = expand;
-    //mTrackLock.try_lock();
     m_Tracks.push_back(new_track);
-    //mTrackLock.unlock();
     Updata();
     return m_Tracks.size() - 1;
 }
 
 void TimeLine::MovingTrack(int& index, int& dst_index)
 {
-    //mTrackLock.lock();
     auto iter = m_Tracks.begin() + index;
     auto iter_dst = dst_index == -2 ? m_Tracks.end() - 1 : m_Tracks.begin() + dst_index;
     if (dst_index == -2 && iter == m_Tracks.end() - 1)
     {
-        //mTrackLock.unlock();
         return;
     }
     MediaTrack * tmp = *iter;
     *iter = *iter_dst;
     *iter_dst = tmp;
     index = dst_index;
-    //mTrackLock.unlock();
 }
 
 void TimeLine::MovingClip(int64_t id, int from_track_index, int to_track_index)
@@ -2482,12 +2517,10 @@ void TimeLine::MovingClip(int64_t id, int from_track_index, int to_track_index)
     if (from_track_index < 0 || to_track_index < 0 ||
         from_track_index >= m_Tracks.size() || to_track_index >= m_Tracks.size())
         return;
-    //mTrackLock.try_lock();
     auto track = m_Tracks[from_track_index];
     auto dst_track = m_Tracks[to_track_index];
     if (!track || !dst_track)
     {
-        //mTrackLock.unlock();
         return;
     }
     // remove clip from source track
@@ -2522,8 +2555,14 @@ void TimeLine::DeleteClip(int64_t id)
     if (iter != m_Clips.end())
     {
         auto clip = *iter;
-        // need check overlap and remove ?
         m_Clips.erase(iter);
+        if (mVidFilterClip && clip->mID == mVidFilterClip->mID)
+        {
+            mVidFilterClipLock.lock();
+            delete mVidFilterClip;
+            mVidFilterClip = nullptr;
+            mVidFilterClipLock.unlock();
+        }
         DeleteClipFromGroup(clip, clip->mGroupID);
         delete clip;
     }
@@ -2615,7 +2654,6 @@ MediaItem* TimeLine::FindMediaItemByID(int64_t id)
 MediaTrack * TimeLine::FindTrackByID(int64_t id)
 {
     MediaTrack * track_found = nullptr;
-    //mTrackLock.try_lock();
     for (auto track : m_Tracks)
     {
         if (track->mID == id)
@@ -2624,14 +2662,12 @@ MediaTrack * TimeLine::FindTrackByID(int64_t id)
             break;
         }
     }
-    //mTrackLock.unlock();
     return track_found;
 }
 
 MediaTrack * TimeLine::FindTrackByClipID(int64_t id)
 {
     MediaTrack * track_found = nullptr;
-    //mTrackLock.try_lock();
     for (auto track : m_Tracks)
     {
         for (auto clip : track->m_Clips)
@@ -2645,14 +2681,12 @@ MediaTrack * TimeLine::FindTrackByClipID(int64_t id)
         if (track_found)
             break;
     }
-    //mTrackLock.unlock();
     return track_found;
 }
 
 int TimeLine::FindTrackIndexByClipID(int64_t id)
 {
     int track_found = -1;
-    //mTrackLock.try_lock();
     for (int i = 0; i < m_Tracks.size(); i++)
     {
         auto track = m_Tracks[i];
@@ -2667,14 +2701,12 @@ int TimeLine::FindTrackIndexByClipID(int64_t id)
         if (track_found != -1)
             break;
     }
-    //mTrackLock.unlock();
     return track_found;
 }
 
 Clip * TimeLine::FindClipByID(int64_t id)
 {
     Clip * clip_found = nullptr;
-    //mClipLock.try_lock();
     for (auto clip : m_Clips)
     {
         if (clip->mID == id)
@@ -2683,14 +2715,12 @@ Clip * TimeLine::FindClipByID(int64_t id)
             break;
         }
     }
-    //mClipLock.unlock();
     return clip_found;
 }
 
 Clip * TimeLine::FindEditingClip()
 {
     Clip * clip_found = nullptr;
-    //mClipLock.try_lock();
     for (auto clip : m_Clips)
     {
         if (clip->bEditing)
@@ -2699,7 +2729,6 @@ Clip * TimeLine::FindEditingClip()
             break;
         }
     }
-    //mClipLock.unlock();
     return clip_found;
 }
 
@@ -2736,7 +2765,6 @@ int64_t TimeLine::NextClipStart(Clip * clip)
     int64_t next_start = -1;
     if (clip)
     {
-        //mClipLock.try_lock();
         for (auto _clip : m_Clips)
         {
             if (_clip->mStart >= clip->mEnd)
@@ -2745,7 +2773,6 @@ int64_t TimeLine::NextClipStart(Clip * clip)
                 break;
             }
         }
-        //mClipLock.unlock();
     }
 
     return next_start;
@@ -2754,7 +2781,6 @@ int64_t TimeLine::NextClipStart(Clip * clip)
 int64_t TimeLine::NextClipStart(int64_t pos)
 {
     int64_t next_start = -1;
-    //mClipLock.try_lock();
     for (auto _clip : m_Clips)
     {
         if (_clip->mStart > pos)
@@ -2763,7 +2789,6 @@ int64_t TimeLine::NextClipStart(int64_t pos)
             break;
         }
     }
-    //mClipLock.unlock();
     return next_start;
 }
 
@@ -4139,9 +4164,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                     if (video_stream)
                     {
                         new_video_clip = new VideoClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, timeline);
-                        //timeline->mClipLock.try_lock();
                         timeline->m_Clips.push_back(new_video_clip);
-                        //timeline->mClipLock.unlock();
                         if (track && track->mType == MEDIA_VIDEO)
                         {
                             // update clip info and push into track
@@ -4163,9 +4186,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                     if (audio_stream)
                     {
                         new_audio_clip = new AudioClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, timeline);
-                        //timeline->mClipLock.try_lock();
                         timeline->m_Clips.push_back(new_audio_clip);
-                        //timeline->mClipLock.unlock();
                         if (!create_new_track)
                         {
                             if (new_video_clip)

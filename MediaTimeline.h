@@ -217,10 +217,10 @@ struct Clip
     int64_t mEnd                {0};                // clip end time in timeline, project saved
     int64_t mStartOffset        {0};                // clip start time in media, project saved
     int64_t mEndOffset          {0};                // clip end time in media, project saved
-    int64_t mCurrent            {0};                // clip current time, project saved
-    bool bPlay                  {false};            // clip play status
-    bool bForward               {true};             // clip play direction
-    bool bSeeking               {false};            // clip is seeking
+    //int64_t mCurrent            {0};                // clip current time, project saved
+    //bool bPlay                  {false};            // clip play status
+    //bool bForward               {true};             // clip play direction
+    //bool bSeeking               {false};            // clip is seeking
     bool bSelected              {false};            // clip is selected, project saved
     bool bEditing               {false};            // clip is Editing by double click selected, project saved
     std::mutex mLock;                               // clip mutex, not using yet
@@ -241,7 +241,6 @@ struct Clip
     void Cutting(int64_t pos);
     bool isLinkedWith(Clip * clip);
     
-    virtual void UpdateSnapshot() = 0;
     virtual void Seek() = 0;
     virtual void Step(bool forward, int64_t step) = 0;
     virtual void ConfigViewWindow(int64_t wndDur, float pixPerMs) { mViewWndDur = wndDur; mPixPerMs = pixPerMs; }
@@ -257,16 +256,11 @@ struct VideoClip : Clip
     MediaSnapshot* mSnapshot {nullptr};                 // clip snapshot handle
     std::vector<VideoSnapshotInfo> mVideoSnapshotInfos; // clip snapshots info, with all croped range
     std::list<Snapshot> mVideoSnapshots;              // clip snapshots, including texture and timestamp info
-    //int mFrameCount         {0};                        // total snapshot number in clip range
-    //float mSnapshotWidth    {0};
-    //ImTextureID mFilterInputTexture {nullptr};  // clip filter input texture
-    //ImTextureID mFilterOutputTexture {nullptr};  // clip filter output texture
     MediaInfo::Ratio mClipFrameRate {25, 1};            // clip Frame rate, project saved
 
     VideoClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle);
     ~VideoClip();
 
-    void UpdateSnapshot() override;
     void Seek() override;
     void Step(bool forward, int64_t step) override;
     void ConfigViewWindow(int64_t wndDur, float pixPerMs) override;
@@ -298,7 +292,6 @@ struct AudioClip : Clip
     AudioClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle);
     ~AudioClip();
 
-    void UpdateSnapshot() override;
     void Seek() override;
     void Step(bool forward, int64_t step) override;
     bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame);
@@ -316,7 +309,6 @@ struct ImageClip : Clip
     ImageClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle);
     ~ImageClip();
 
-    void UpdateSnapshot() override;
     void Seek() override;
     void Step(bool forward, int64_t step) override;
     bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame);
@@ -343,7 +335,6 @@ struct TextClip : Clip
     TextClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle);
     ~TextClip();
 
-    void UpdateSnapshot();
     void Seek();
     void Step(bool forward, int64_t step);
     bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame);
@@ -361,6 +352,8 @@ struct BaseEditingClip
     int64_t mEndOffset          {0};                    // clip end time in media, project saved
     int64_t mDuration           {0};
     int64_t mCurrPos            {0};
+    bool bPlay                  {false};                // clip play status
+    bool bForward               {true};                 // clip play direction
     bool mSeeking               {false};
     ImVec2 mViewWndSize         {0, 0};
 
@@ -370,6 +363,7 @@ struct BaseEditingClip
 
     virtual void UpdateClipRange(Clip* clip) = 0;
     virtual void Seek(int64_t pos) = 0;
+    virtual bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame) = 0;
     virtual void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom) = 0;
 };
 
@@ -377,12 +371,15 @@ struct EditingVideoClip : BaseEditingClip
 {
     MediaSnapshot* mSnapshot    {nullptr};
     ImVec2 mSnapSize            {0, 0};
+    std::mutex mFrameLock;                                      // clip frame mutex
+    std::list<std::pair<ImGui::ImMat, ImGui::ImMat>> mFrame;    // clip timeline input/output frame pair
 
     EditingVideoClip(VideoClip* vidclip);
     virtual ~EditingVideoClip();
 
     void UpdateClipRange(Clip* clip) override;
     void Seek(int64_t pos) override;
+    bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame) override;
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom) override;
 
     void CalcDisplayParams();
@@ -395,6 +392,7 @@ struct EditingAudioClip : BaseEditingClip
 
     void UpdateClipRange(Clip* clip) override;
     void Seek(int64_t pos) override;
+    bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame) override;
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom) override;
 };
 
@@ -514,12 +512,13 @@ struct TimeLine
     bool bLoop = false;                     // project saved
     bool bSelectLinked = true;              // project saved
 
-    Clip* mSelectedClip                 {nullptr};
+    std::mutex mVidFilterClipLock;          // timeline clip mutex
     EditingVideoClip* mVidFilterClip    {nullptr};
+    std::mutex mAudFilterClipLock;          // timeline clip mutex
     EditingAudioClip* mAudFilterClip    {nullptr};
 
     std::mutex mTrackLock;                  // timeline track mutex
-    std::mutex mClipLock;                   // timeline clip mutex
+    
     // BP CallBacks
     static int OnBluePrintChange(int type, std::string name, void* handle);
 
@@ -542,6 +541,10 @@ struct TimeLine
     std::mutex mFrameLock;                      // timeline frame mutex
     std::list<ImGui::ImMat> mFrame;             // timeline output frame
     ImTextureID mMainPreviewTexture {nullptr};  // main preview texture
+
+    std::thread * mVideoFilterThread {nullptr}; // Video Filter Thread, which is only one item/clip read from media
+    bool mVideoFilterDone {false};              // Video Filter Thread should finished
+    bool mVideoFilterRunning {false};           // Video Filter Thread is running
 
     TimeLineCallbackFunctions  m_CallBacks;
 

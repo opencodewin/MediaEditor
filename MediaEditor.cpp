@@ -1491,16 +1491,19 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
     }
     if (editing_clip)
     {
-        timeline->mSelectedClip = editing_clip;
-        if (timeline->mVidFilterClip && editing_clip->mID != timeline->mVidFilterClip->mID)
+        if (timeline->mVidFilterClipLock.try_lock())
         {
-            delete timeline->mVidFilterClip;
-            timeline->mVidFilterClip = nullptr;
+            if (timeline->mVidFilterClip && editing_clip->mID != timeline->mVidFilterClip->mID)
+            {
+                delete timeline->mVidFilterClip;
+                timeline->mVidFilterClip = nullptr;
+            }
+            if (!timeline->mVidFilterClip)
+                timeline->mVidFilterClip = new EditingVideoClip((VideoClip*)editing_clip);
+            else
+                timeline->mVidFilterClip->UpdateClipRange(editing_clip);
+            timeline->mVidFilterClipLock.unlock();
         }
-        if (!timeline->mVidFilterClip)
-            timeline->mVidFilterClip = new EditingVideoClip((VideoClip*)editing_clip);
-        else
-            timeline->mVidFilterClip->UpdateClipRange(editing_clip);
     }
 
     timeline->Play(false, true);
@@ -1996,7 +1999,6 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list)
     }
     if (editing_clip)
     {
-        timeline->mSelectedClip = editing_clip;
         if (timeline->mAudFilterClip && editing_clip->mID != timeline->mAudFilterClip->mID)
         {
             delete timeline->mAudFilterClip;
