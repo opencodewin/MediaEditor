@@ -1982,83 +1982,6 @@ void MediaTrack::InsertClip(Clip * clip, int64_t pos)
         clip->SetTrackHeight(mTrackHeight);
         m_Clips.push_back(clip);
     }
-/*
-    int64_t length = clip->mEnd - clip->mStart;
-    // check insert pos and range is valid
-    int64_t pos_token_end = -1;
-    int64_t next_start = -1;
-    if (pos == -1)
-    {
-        // we insert clip end of track
-        PushBackClip(clip);
-        return;
-    }
-
-    for (auto _clip : m_Clips)
-    {
-        if (_clip && _clip->mStart <= pos && _clip->mEnd >= pos)
-        {
-            pos_token_end = _clip->mEnd;
-            next_start = timeline->NextClipStart(_clip);
-            break;
-        }
-    }
-    if (pos_token_end != -1)
-    {
-        // pos already has clip
-        if (next_start != -1)
-        {
-            int64_t space = next_start - pos_token_end;
-            if (length <= space)
-            {
-                // we insert clip after pos_token_end
-                clip->mStart = pos_token_end;
-                clip->mEnd = clip->mStart + length;
-            }
-            else
-            {
-                // we insert clip end of track
-                PushBackClip(clip);
-                return;
-            }
-        }
-        else
-        {
-            // we insert clip after pos_token_end because current clip is end clip
-            clip->mStart = pos_token_end;
-            clip->mEnd = clip->mStart + length;
-        }
-    }
-    else
-    {
-         // pos is empty
-        next_start = timeline->NextClipStart(pos);
-        if (next_start != -1)
-        {
-            int64_t space = next_start - pos;
-            if (length <= space)
-            {
-                // we insert clip at pos
-                clip->mStart = pos;
-                clip->mEnd = clip->mStart + length;
-            }
-            else
-            {
-                // we insert clip end of track
-                PushBackClip(clip);
-                return;
-            }
-        }
-        else
-        {
-            // we insert clip after pos because current pos is end of track
-            clip->mStart = pos;
-            clip->mEnd = clip->mStart + length;
-        }
-    }
-
-    m_Clips.push_back(clip);
-*/
     Update();
 }
 
@@ -2975,174 +2898,141 @@ void TimeLine::ToEnd()
 
 MediaItem* TimeLine::FindMediaItemByName(std::string name)
 {
-    for (auto media: media_items)
+    auto iter = std::find_if(media_items.begin(), media_items.end(), [name](const MediaItem* item)
     {
-        if (media->mName.compare(name) == 0)
-            return media;
-    }
+        return item->mName.compare(name) == 0;
+    });
+    if (iter != media_items.end())
+        return *iter;
     return nullptr;
 }
 
 MediaItem* TimeLine::FindMediaItemByID(int64_t id)
 {
-    for (auto media: media_items)
+    auto iter = std::find_if(media_items.begin(), media_items.end(), [id](const MediaItem* item)
     {
-        if (media->mID == id)
-            return media;
-    }
+        return item->mID == id;
+    });
+    if (iter != media_items.end())
+        return *iter;
     return nullptr;
 }
 
 MediaTrack * TimeLine::FindTrackByID(int64_t id)
 {
-    MediaTrack * track_found = nullptr;
-    for (auto track : m_Tracks)
+    auto iter = std::find_if(m_Tracks.begin(), m_Tracks.end(), [id](const MediaTrack* track)
     {
-        if (track->mID == id)
-        {
-            track_found = track;
-            break;
-        }
-    }
-    return track_found;
+        return track->mID == id;
+    });
+    if (iter != m_Tracks.end())
+        return *iter;
+    return nullptr;
 }
 
 MediaTrack * TimeLine::FindTrackByClipID(int64_t id)
 {
-    MediaTrack * track_found = nullptr;
-    for (auto track : m_Tracks)
+    auto iter = std::find_if(m_Tracks.begin(), m_Tracks.end(), [id](const MediaTrack* track)
     {
-        for (auto clip : track->m_Clips)
+        auto iter_clip = std::find_if(track->m_Clips.begin(), track->m_Clips.end(), [id](const Clip* clip)
         {
-            if (clip->mID == id)
-            {
-                track_found = track;
-                break;
-            }
-        }
-        if (track_found)
-            break;
-    }
-    return track_found;
+            return clip->mID == id;
+        });
+        return iter_clip != track->m_Clips.end();
+    });
+    if (iter != m_Tracks.end())
+        return *iter;
+    return nullptr;
 }
 
 int TimeLine::FindTrackIndexByClipID(int64_t id)
 {
     int track_found = -1;
+    auto track = FindTrackByClipID(id);
     for (int i = 0; i < m_Tracks.size(); i++)
     {
-        auto track = m_Tracks[i];
-        for (auto clip : track->m_Clips)
+        if (track && m_Tracks[i]->mID == track->mID)
         {
-            if (clip->mID == id)
-            {
-                track_found = i;
+            track_found = i;
                 break;
-            }
         }
-        if (track_found != -1)
-            break;
     }
     return track_found;
 }
 
 Clip * TimeLine::FindClipByID(int64_t id)
 {
-    Clip * clip_found = nullptr;
-    for (auto clip : m_Clips)
+    auto iter = std::find_if(m_Clips.begin(), m_Clips.end(), [id](const Clip* clip)
     {
-        if (clip->mID == id)
-        {
-            clip_found = clip;
-            break;
-        }
-    }
-    return clip_found;
+        return clip->mID == id;
+    });
+    if (iter != m_Clips.end())
+        return *iter;
+    return nullptr;
 }
 
 Clip * TimeLine::FindEditingClip()
 {
-    Clip * clip_found = nullptr;
-    for (auto clip : m_Clips)
+    auto iter = std::find_if(m_Clips.begin(), m_Clips.end(), [](const Clip* clip)
     {
-        if (clip->bEditing)
-        {
-            clip_found = clip;
-            break;
-        }
-    }
-    return clip_found;
+        return clip->bEditing;
+    });
+    if (iter != m_Clips.end())
+        return *iter;
+    return nullptr;
 }
 
 Overlap * TimeLine::FindOverlapByID(int64_t id)
 {
-    Overlap * overlap_found = nullptr;
-    for (auto overlap : m_Overlaps)
+    auto iter = std::find_if(m_Overlaps.begin(), m_Overlaps.end(), [id](const Overlap* overlap)
     {
-        if (overlap->mID == id)
-        {
-            overlap_found = overlap;
-            break;
-        }
-    }
-    return overlap_found;
+        return overlap->mID == id;
+    });
+    if (iter != m_Overlaps.end())
+        return *iter;
+    return nullptr;
 }
 
 Overlap * TimeLine::FindEditingOverlap()
 {
-    Overlap * overlap_found = nullptr;
-    for (auto overlap : m_Overlaps)
+    auto iter = std::find_if(m_Overlaps.begin(), m_Overlaps.end(), [](const Overlap* overlap)
     {
-        if (overlap->bEditing)
-        {
-            overlap_found = overlap;
-            break;
-        }
-    }
-    return overlap_found;
+        return overlap->bEditing;
+    });
+    if (iter != m_Overlaps.end())
+        return *iter;
+    return nullptr;
 }
 
 int64_t TimeLine::NextClipStart(Clip * clip)
 {
     int64_t next_start = -1;
-    if (clip)
+    if (!clip) return next_start;
+    auto iter = std::find_if(m_Clips.begin(), m_Clips.end(), [clip](const Clip* _clip)
     {
-        for (auto _clip : m_Clips)
-        {
-            if (_clip->mStart >= clip->mEnd)
-            {
-                next_start = _clip->mStart;
-                break;
-            }
-        }
-    }
-
+        return _clip->mStart >= clip->mEnd;
+    });
+    if (iter != m_Clips.end())
+        next_start = (*iter)->mStart;
     return next_start;
 }
 
 int64_t TimeLine::NextClipStart(int64_t pos)
 {
     int64_t next_start = -1;
-    for (auto _clip : m_Clips)
+    auto iter = std::find_if(m_Clips.begin(), m_Clips.end(), [pos](const Clip* _clip)
     {
-        if (_clip->mStart > pos)
-        {
-            next_start = _clip->mStart;
-            break;
-        }
-    }
+        return _clip->mStart > pos;
+    });
+    if (iter != m_Clips.end())
+        next_start = (*iter)->mStart;
     return next_start;
 }
 
 int TimeLine::GetTrackCount(MEDIA_TYPE type)
 {
-    int count = 0;
-    for (auto track : m_Tracks)
-    {
-        if (track->mType == type)
-            count ++;
-    }
-    return count;
+    return std::count_if(m_Tracks.begin(), m_Tracks.end(), [type](const MediaTrack * track){
+        return track->mType == type;
+    });
 }
 
 int64_t TimeLine::NewGroup(Clip * clip)
