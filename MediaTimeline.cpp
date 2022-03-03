@@ -4390,7 +4390,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                     const MediaInfo::AudioStream* audio_stream = item->mMediaOverview->GetAudioStream();
                     if (video_stream)
                     {
-                        new_video_clip = new VideoClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, timeline);
+                        new_video_clip = new VideoClip(item->mStart, item->mEnd, item->mID, item->mName + ":Video", item->mMediaOverview, timeline);
                         timeline->m_Clips.push_back(new_video_clip);
                         if (track && track->mType == MEDIA_VIDEO)
                         {
@@ -4412,7 +4412,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                     }
                     if (audio_stream)
                     {
-                        new_audio_clip = new AudioClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, timeline);
+                        new_audio_clip = new AudioClip(item->mStart, item->mEnd, item->mID, item->mName + ":Audio", item->mMediaOverview, timeline);
                         timeline->m_Clips.push_back(new_audio_clip);
                         if (!create_new_track)
                         {
