@@ -3,6 +3,7 @@
 
 using namespace std;
 using namespace Logger;
+using namespace DataLayer;
 
 class MultiTrackVideoReader_Impl : public MultiTrackVideoReader
 {
@@ -73,7 +74,7 @@ public:
         m_frameRate = { 0, 0 };
     }
 
-    bool AddTrack() override
+    bool AddTrack(int64_t trackId) override
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
         if (!m_started)
@@ -84,7 +85,7 @@ public:
 
         TerminateMixingThread();
 
-        VideoTrackHolder hTrack(new VideoTrack(m_outWidth, m_outHeight, m_frameRate));
+        VideoTrackHolder hTrack(new VideoTrack(trackId, m_outWidth, m_outHeight, m_frameRate));
         m_tracks.push_back(hTrack);
         m_outputMats.clear();
 

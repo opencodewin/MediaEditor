@@ -2333,6 +2333,18 @@ TimeLine::~TimeLine()
     for (auto item : media_items) delete item;
     for (auto track : m_Tracks) delete track;
     for (auto clip : m_Clips) delete clip;
+
+    mSelectedClip = nullptr;
+    if (mVidFilterClip)
+    {
+        delete mVidFilterClip;
+        mVidFilterClip = nullptr;
+    }
+    if (mAudFilterClip)
+    {
+        delete mAudFilterClip;
+        mAudFilterClip = nullptr;
+    }
 }
 
 void TimeLine::AlignTime(int64_t& time)
