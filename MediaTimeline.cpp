@@ -528,41 +528,22 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
         }
     }
 
-    // get all time march point
+    // get all clip time march point
     std::vector<int64_t> selected_start_points;
     std::vector<int64_t> selected_end_points;
     std::vector<int64_t> unselected_start_points;
     std::vector<int64_t> unselected_end_points;
-    if (single)
+    for (auto clip : timeline->m_Clips)
     {
-        for (auto clip : timeline->m_Clips)
+        if ((single && clip->mID == mID) || (!single && clip->bSelected))
         {
-            if (clip->mID != mID)
-            {
-                unselected_start_points.push_back(clip->mStart);
-                unselected_end_points.push_back(clip->mEnd);
-            }
-            else
-            {
-                selected_start_points.push_back(clip->mStart);
-                selected_end_points.push_back(clip->mEnd);
-            }
+            selected_start_points.push_back(clip->mStart);
+            selected_end_points.push_back(clip->mEnd);
         }
-    }
-    else
-    {
-        for (auto clip : timeline->m_Clips)
+        else
         {
-            if (clip->bSelected)
-            {
-                selected_start_points.push_back(clip->mStart);
-                selected_end_points.push_back(clip->mEnd);
-            }
-            else
-            {
-                unselected_start_points.push_back(clip->mStart);
-                unselected_end_points.push_back(clip->mEnd);
-            }
+            unselected_start_points.push_back(clip->mStart);
+            unselected_end_points.push_back(clip->mEnd);
         }
     }
 
@@ -662,23 +643,111 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
         timeline->mConnectedPoints = -1;
     }
 
-    if (group_start + diff < start)
+    // get moving tracks
+    std::vector<MediaTrack*> tracks;
+    if (single)
     {
-        new_diff = start - group_start;
-        mStart += new_diff;
-        mEnd = mStart + length;
+        auto track = timeline->FindTrackByClipID(mID);
+        if (track) tracks.push_back(track);
     }
-    else if (end != -1 && group_end + diff > end)
+    else
     {
-        new_diff = end - group_end;
-        mStart = end - length;
+        for (auto clip : timeline->m_Clips)
+        {
+            if (clip->bSelected)
+            {
+                auto track = timeline->FindTrackByClipID(clip->mID);
+                if (track)
+                {
+                    auto iter = std::find_if(tracks.begin(), tracks.end(), [track](const MediaTrack* _track)
+                    {
+                        return track->mID == _track->mID;
+                    });
+                    if (iter == tracks.end())
+                    {
+                        tracks.push_back(track);
+                    }
+                }
+            }
+        }
+    }
+
+    // check overlap connected point pre track
+    int64_t overlap_max = 0;
+    for (auto track : tracks)
+    {
+        // simulate clip moving
+        std::vector<std::pair<int64_t, int64_t>> clips;
+        for (auto clip : track->m_Clips)
+        {
+            bool is_moving = single ? clip->mID == mID : clip->bSelected;
+            if (is_moving)
+                clips.push_back({clip->mStart + diff ,clip->mEnd + diff});
+            else
+                clips.push_back({clip->mStart ,clip->mEnd});
+        }
+
+        // sort simulate clips by start time
+        std::sort(clips.begin(), clips.end(), [](const std::pair<int64_t, int64_t> & a, const std::pair<int64_t, int64_t> & b) {
+            return a.first < b.first;
+        });
+
+        // calculate overlap after simulate moving
+        std::vector<std::pair<int64_t, int64_t>> overlaps;
+        for (auto iter = clips.begin(); iter != clips.end(); iter++)
+        {
+            for (auto next = iter + 1; next != clips.end(); next++)
+            {
+                if ((*iter).second >= (*next).first)
+                {
+                    int64_t _start = std::max((*next).first, (*iter).first);
+                    int64_t _end = std::min((*iter).second, (*next).second);
+                    if (_end > _start)
+                    {
+                        overlaps.push_back({_start, _end});
+                    }
+                }
+            }
+        }
+
+        // find overlap overlaped after simulate moving
+        for (auto iter = overlaps.begin(); iter != overlaps.end(); iter++)
+        {
+            for (auto next = iter + 1; next != overlaps.end(); next++)
+            {
+                if ((*iter).second > (*next).first)
+                {
+                    int overlap_length = (*iter).second - (*next).first;
+                    if (overlap_max < overlap_length)
+                        overlap_max = overlap_length;
+                }
+            }
+        }
+    }
+    if (overlap_max > 0)
+    {
+        diff = 0;
+    }
+    if (group_start + diff >= start && (end == -1 || (end != -1 && group_end + diff <= end)))
+    {
+        new_diff = diff;
+        mStart += new_diff;
         mEnd = mStart + length;
     }
     else
     {
-        new_diff = diff;
-        mStart += diff;
-        mEnd = mStart + length;
+        if (diff < 0 && group_start + diff < start)
+        {
+            new_diff = start - group_start;
+            mStart += new_diff;
+            mEnd = mStart + length;
+        }
+        if (diff > 0 && end != -1 && group_end + diff > end)
+        {
+            new_diff = end - group_end;
+            mStart = end - length;
+            mEnd = mStart + length;
+        }
     }
     
     // check clip is cross track
@@ -689,12 +758,27 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
     }
     else if (mouse_track >= 0 && mouse_track != track_index)
     {
-        auto media_type = timeline->m_Tracks[mouse_track]->mType;
+        MediaTrack * track = timeline->m_Tracks[mouse_track];
+        auto media_type = track->mType;
         if (mType == media_type)
         {
+            // check clip is suitable for moving cross track base on overlap status
+            bool can_moving = true;
+            for (auto overlap : track->m_Overlaps)
+            {
+                if ((overlap->mStart >= mStart && overlap->mStart <= mEnd) || 
+                    (overlap->mEnd >= mStart && overlap->mEnd <= mEnd))
+                {
+                    can_moving = false;
+                    break;
+                }
+            }
             // clip move into other same type track
-            timeline->MovingClip(mID, track_index, mouse_track);
-            index = mouse_track;
+            if (can_moving)
+            {
+                timeline->MovingClip(mID, track_index, mouse_track);
+                index = mouse_track;
+            }
         }
     }
 
@@ -1778,7 +1862,9 @@ void MediaTrack::Update()
     if (!timeline)
         return;
     // sort m_Clips by clip start time
-    std::sort(m_Clips.begin(), m_Clips.end(), CompareClip);
+    std::sort(m_Clips.begin(), m_Clips.end(), [](const Clip *a, const Clip* b){
+        return a->mStart < b->mStart;
+    });
     
     // check all overlaps
     for (auto iter = m_Overlaps.begin(); iter != m_Overlaps.end();)
@@ -1826,6 +1912,10 @@ void MediaTrack::CreateOverlap(int64_t start, int64_t start_clip_id, int64_t end
     Overlap * new_overlap = new Overlap(start, end, start_clip_id, end_clip_id, timeline);
     timeline->m_Overlaps.push_back(new_overlap);
     m_Overlaps.push_back(new_overlap);
+    // sort track overlap by overlap start time
+    std::sort(m_Overlaps.begin(), m_Overlaps.end(), [](const Overlap *a, const Overlap *b){
+        return a->mStart < b->mStart;
+    });
 }
 
 Overlap * MediaTrack::FindExistOverlap(int64_t start_clip_id, int64_t end_clip_id)
@@ -4617,8 +4707,8 @@ bool DrawClipTimeLine(BaseEditingClip * editingClip)
     ImGui::InvisibleButton("ClipTopBar", headerSize);
     draw_list->AddRectFilled(window_pos, window_pos + headerSize, COL_DARK_ONE, 0);
 
-    ImRect topRect(window_pos, window_pos + headerSize);
-    if (!MovingCurrentTime && editingClip->mCurrPos >= start && topRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && isFocused)
+    ImRect movRect(window_pos, window_pos + window_size);
+    if (!MovingCurrentTime && editingClip->mCurrPos >= start && movRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && isFocused)
     {
         MovingCurrentTime = true;
         editingClip->bSeeking = true;
@@ -4626,7 +4716,7 @@ bool DrawClipTimeLine(BaseEditingClip * editingClip)
     if (MovingCurrentTime && duration)
     {
         auto oldPos = editingClip->mCurrPos;
-        auto newPos = (int64_t)((io.MousePos.x - topRect.Min.x) / msPixelWidth) + start;
+        auto newPos = (int64_t)((io.MousePos.x - movRect.Min.x) / msPixelWidth) + start;
         if (newPos < start)
             newPos = start;
         if (newPos >= end)

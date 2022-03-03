@@ -444,7 +444,6 @@ struct MediaTrack
     void EditingClip(Clip * clip);
     void EditingOverlap(Overlap * overlap);
     void DeleteClip(int64_t id);
-    static inline bool CompareClip(Clip* a, Clip* b) { return a->mStart < b->mStart; }
     Clip * FindPrevClip(int64_t id);                // find prev clip in track, if not found then return null
     Clip * FindNextClip(int64_t id);                // find next clip in track, if not found then return null
     Clip * FindClips(int64_t time, int& count);     // find clips at time, count means clip number at time
@@ -617,6 +616,7 @@ struct TimeLine
     Clip * FindClipByID(int64_t id);                    // Find clip with clip ID
     Clip * FindEditingClip();                           // Find clip which is editing
     Overlap * FindOverlapByID(int64_t id);              // Find overlap with overlap ID
+    Overlap * FindOverlapByClipID(int64_t id);          // Find overlap with clip ID
     Overlap * FindEditingOverlap();                     // Find overlap which is editing
     int GetSelectedClipCount();                         // Get current selected clip count
     int64_t NextClipStart(Clip * clip);                 // Get next clip start pos by clip, if don't have next clip, then return -1
