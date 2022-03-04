@@ -32,7 +32,7 @@ set_target_properties(
     RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}"
 )
 
-if(IMGUI_VULKAN AND IMGUI_VULKAN_SHADER)
+if(IMGUI_VULKAN_SHADER)
 set_target_properties(
     VkShader
     PROPERTIES
