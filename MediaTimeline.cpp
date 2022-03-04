@@ -4017,7 +4017,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         if (!menuIsOpened && !bCropping && !bCutting && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
             timeline->Click(mouseEntry, mouseTime);
 
-        if (ImGui::IsMouseReleased(ImGuiMouseButton_Right) && !ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Right))
+        if (trackAreaRect.Contains(io.MousePos) && ImGui::IsMouseReleased(ImGuiMouseButton_Right) && !ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Right))
         {
             if (mouseClip != -1)
                 clipEntry = mouseClip;
