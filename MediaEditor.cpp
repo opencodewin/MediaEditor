@@ -2350,7 +2350,21 @@ bool Application_Frame(void * handle, bool app_will_quit)
     static bool expanded = true;
     
     const ImGuiFileDialogFlags fflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_DisableCreateDirectoryButton;
-    const std::string ffilters = "Video files (*.mp4 *.mov *.mkv *.avi *.webm *.ts){.mp4,.mov,.mkv,.avi,.webm,.ts},Audio files (*.wav *.mp3 *.aac *.ogg *.ac3 *.dts){.wav,.mp3,.aac,.ogg,.ac3,.dts},Image files (*.png *.gif *.jpg *.jpeg *.tiff *.webp){.png,.gif,.jpg,.jpeg,.tiff,.webp},.*";
+    const std::string video_file_dis = "*.mp4 *.mov *.mkv *.avi *.webm *.ts";
+    const std::string video_file_surfix = ".mp4,.mov,.mkv,.avi,.webm,.ts";
+    const std::string audio_file_dis = "*.wav *.mp3 *.aac *.ogg *.ac3 *.dts";
+    const std::string audio_file_surfix = ".wav,.mp3,.aac,.ogg,.ac3,.dts";
+    const std::string image_file_dis = "*.png *.gif *.jpg *.jpeg *.tiff *.webp";
+    const std::string image_file_surfix = ".png,.gif,.jpg,.jpeg,.tiff,.webp";
+    const std::string video_filter = "Video files (" + video_file_dis + "){" + video_file_surfix + "}";
+    const std::string audio_filter = "Audio files (" + audio_file_dis + "){" + audio_file_surfix + "}";
+    const std::string image_filter = "Image files (" + image_file_dis + "){" + image_file_surfix + "}";
+    const std::string ffilters = "All Support Files (" + video_file_dis + " " + audio_file_dis + " " + image_file_dis + ")" + "{" +
+                                                        video_file_surfix + "," + audio_file_surfix + "," + image_file_surfix + "}" + "," +
+                                                        video_filter + "," +
+                                                        audio_filter + "," +
+                                                        image_filter + "," +
+                                                        ".*";
     const ImGuiFileDialogFlags pflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_ConfirmOverwrite;
     const std::string pfilters = "Project files (*.mep){.mep},.*";
     ImGuiIO& io = ImGui::GetIO(); (void)io;

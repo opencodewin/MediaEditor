@@ -987,7 +987,7 @@ void VideoClip::CalcDisplayParams()
     double windowSize = (double)mViewWndDur / 1000;
     if (windowSize > video_stream->duration)
         windowSize = video_stream->duration;
-    mSnapsInViewWindow = (float)((double)mPixPerMs*windowSize * 1000 / mSnapWidth);
+    mSnapsInViewWindow = std::max((float)((double)mPixPerMs*windowSize * 1000 / mSnapWidth), 1.f);
     if (!mSnapshot->ConfigSnapWindow(windowSize, mSnapsInViewWindow))
         throw std::runtime_error(mSnapshot->GetError());
 }
