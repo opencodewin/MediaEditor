@@ -86,6 +86,7 @@ public:
         TerminateMixingThread();
 
         VideoTrackHolder hTrack(new VideoTrack(trackId, m_outWidth, m_outHeight, m_frameRate));
+        hTrack->SetDirection(m_readForward);
         m_tracks.push_back(hTrack);
         m_outputMats.clear();
 
@@ -142,7 +143,22 @@ public:
 
     bool SetDirection(bool forward) override
     {
-        return false;
+        if (m_readForward == forward)
+            return true;
+
+        TerminateMixingThread();
+
+        m_readForward = forward;
+        for (auto& track : m_tracks)
+            track->SetDirection(forward);
+
+        m_outputMats.clear();
+        double pos = (double)m_readFrames*m_frameRate.den/m_frameRate.num;
+        for (auto track : m_tracks)
+            track->SeekTo(pos);
+
+        StartMixingThread();
+        return true;
     }
 
     bool SeekTo(double pos) override
@@ -180,12 +196,16 @@ public:
         }
 
         uint32_t targetFrmidx = (uint32_t)(pos*m_frameRate.num/m_frameRate.den);
-        if (targetFrmidx < m_readFrames && targetFrmidx-m_readFrames >= m_outputMatsMaxCount)
+        if (m_readForward && (targetFrmidx < m_readFrames || targetFrmidx-m_readFrames >= m_outputMatsMaxCount) ||
+            !m_readForward && (targetFrmidx > m_readFrames || m_readFrames-targetFrmidx >= m_outputMatsMaxCount))
         {
             if (!SeekTo(pos))
                 return false;
         }
-        while (targetFrmidx-m_readFrames >= m_outputMats.size() && !m_quit)
+
+        // the frame queue may not be filled with the target frame, wait for the mixing thread to fill it
+        while ((m_readForward && targetFrmidx-m_readFrames >= m_outputMats.size() ||
+            !m_readForward && m_readFrames-targetFrmidx >= m_outputMats.size()) && !m_quit)
             this_thread::sleep_for(chrono::milliseconds(5));
         if (m_quit)
         {
@@ -194,11 +214,14 @@ public:
         }
 
         lock_guard<mutex> lk2(m_outputMatsLock);
-        uint32_t popCnt = targetFrmidx-m_readFrames;
+        uint32_t popCnt = m_readForward ? targetFrmidx-m_readFrames : m_readFrames-targetFrmidx;
         while (popCnt-- > 0)
         {
             m_outputMats.pop_front();
-            m_readFrames++;
+            if (m_readForward)
+                m_readFrames++;
+            else
+                m_readFrames--;
         }
         vmat = m_outputMats.front();
         if (pos < vmat.time_stamp || pos > vmat.time_stamp+(double)m_frameRate.den/m_frameRate.num)
@@ -227,7 +250,10 @@ public:
         lock_guard<mutex> lk2(m_outputMatsLock);
         vmat = m_outputMats.front();
         m_outputMats.pop_front();
-        m_readFrames++;
+        if (m_readForward)
+            m_readFrames++;
+        else
+            m_readFrames--;
         return true;
     }
 
@@ -307,14 +333,14 @@ private:
             if (m_outputMats.size() < m_outputMatsMaxCount)
             {
                 ImGui::ImMat mixedFrame;
-                auto iter = m_tracks.begin();
-                while (iter != m_tracks.end())
+                auto trackIter = m_tracks.begin();
+                while (trackIter != m_tracks.end())
                 {
                     ImGui::ImMat vmat;
-                    (*iter)->ReadVideoFrame(vmat);
+                    (*trackIter)->ReadVideoFrame(vmat);
                     if (!vmat.empty() && mixedFrame.empty())
                         mixedFrame = vmat;
-                    iter++;
+                    trackIter++;
                 }
                 if (mixedFrame.empty())
                 {
@@ -351,6 +377,7 @@ private:
     uint32_t m_outHeight{0};
     MediaInfo::Ratio m_frameRate;
     uint32_t m_readFrames{0};
+    bool m_readForward{true};
 
     bool m_configured{false};
     bool m_started{false};

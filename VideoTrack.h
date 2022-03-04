@@ -28,11 +28,12 @@ namespace DataLayer
         std::list<VideoClipHolder>::iterator ClipListBegin() { return m_clips.begin(); }
         std::list<VideoClipHolder>::iterator ClipListEnd() { return m_clips.end(); }
         uint32_t OverlapCount() const { return m_overlaps.size(); }
-        std::list<VideoClipOverlapHolder>::iterator OverlapListBegin() { return m_overlaps.begin(); }
-        std::list<VideoClipOverlapHolder>::iterator OverlapListEnd() { return m_overlaps.end(); }
+        std::list<VideoOverlapHolder>::iterator OverlapListBegin() { return m_overlaps.begin(); }
+        std::list<VideoOverlapHolder>::iterator OverlapListEnd() { return m_overlaps.end(); }
 
         void SeekTo(double pos);
         void ReadVideoFrame(ImGui::ImMat& vmat);
+        void SetDirection(bool forward);
 
         int64_t Id() const { return m_id; }
         uint32_t OutWidth() const { return m_outWidth; }
@@ -42,7 +43,7 @@ namespace DataLayer
 
     private:
         static std::function<bool(const VideoClipHolder&, const VideoClipHolder&)> CLIP_SORT_CMP;
-        static std::function<bool(const VideoClipOverlapHolder&, const VideoClipOverlapHolder&)> OVERLAP_SORT_CMP;
+        static std::function<bool(const VideoOverlapHolder&, const VideoOverlapHolder&)> OVERLAP_SORT_CMP;
         bool CheckClipRangeValid(int64_t clipId, double start, double end);
         void UpdateClipOverlap(VideoClipHolder hClip);
 
@@ -54,10 +55,11 @@ namespace DataLayer
         MediaInfo::Ratio m_frameRate;
         std::list<VideoClipHolder> m_clips;
         std::list<VideoClipHolder>::iterator m_readClipIter;
-        std::list<VideoClipOverlapHolder> m_overlaps;
-        std::list<VideoClipOverlapHolder>::iterator m_readOverlapIter;
+        std::list<VideoOverlapHolder> m_overlaps;
+        std::list<VideoOverlapHolder>::iterator m_readOverlapIter;
         int64_t m_readFrames{0};
         double m_duration{0};
+        bool m_readForward{true};
     };
 
     using VideoTrackHolder = std::shared_ptr<VideoTrack>;

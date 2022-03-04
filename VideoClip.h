@@ -35,6 +35,7 @@ namespace DataLayer
 
         void SeekTo(double pos);
         void ReadVideoFrame(double pos, ImGui::ImMat& vmat, bool& eof);
+        void SetDirection(bool forward);
 
     private:
         static std::atomic_uint32_t s_idCounter;
@@ -52,16 +53,12 @@ namespace DataLayer
 
     using VideoClipHolder = std::shared_ptr<VideoClip>;
 
-    class VideoClipOverlap
+    struct VideoTransition;
+    using VideoTransitionHolder = std::shared_ptr<VideoTransition>;
+
+    class VideoOverlap
     {
     public:
-        using Transition = std::function<ImGui::ImMat(ImGui::ImMat&, ImGui::ImMat&, double)>;
-
-        static ImGui::ImMat DefaultTransition(ImGui::ImMat& vmat1, ImGui::ImMat& vmat2, double pos)
-        {
-            return vmat1;
-        }
-
         static bool HasOverlap(VideoClipHolder hClip1, VideoClipHolder hClip2)
         {
             return hClip1->Start() >= hClip2->Start() && hClip1->Start() < hClip2->End() ||
@@ -69,10 +66,10 @@ namespace DataLayer
                    hClip1->Start() < hClip2->Start() && hClip1->End() > hClip2->End();
         }
 
-        VideoClipOverlap(int64_t id, VideoClipHolder hClip1, VideoClipHolder hClip2);
+        VideoOverlap(int64_t id, VideoClipHolder hClip1, VideoClipHolder hClip2);
 
         void Update();
-        void SetTransition(Transition trans);
+        void SetTransition(VideoTransitionHolder trans);
 
         int64_t Id() const { return m_id; }
         double Start() const { return m_start; }
@@ -90,8 +87,15 @@ namespace DataLayer
         VideoClipHolder m_rearClip;
         double m_start{0};
         double m_end{0};
-        Transition m_transFunc;
+        VideoTransitionHolder m_transition;
     };
 
-    using VideoClipOverlapHolder = std::shared_ptr<VideoClipOverlap>;
+    using VideoOverlapHolder = std::shared_ptr<VideoOverlap>;
+
+    struct VideoTransition
+    {
+        virtual ~VideoTransition() {}
+        virtual void ApplyTo(VideoOverlap* overlap) = 0;
+        virtual ImGui::ImMat MixTwoImages(const ImGui::ImMat& vmat1, const ImGui::ImMat& vmat2, double pos) = 0;
+    };
 }

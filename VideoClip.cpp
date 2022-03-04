@@ -1,3 +1,8 @@
+#include <imconfig.h>
+#if IMGUI_VULKAN_SHADER
+#include <ColorConvert_vulkan.h>
+#include <CopyTo_vulkan.h>
+#endif
 #include "VideoClip.h"
 
 using namespace std;
@@ -100,17 +105,73 @@ namespace DataLayer
             throw runtime_error(m_srcReader->GetError());
     }
 
-
-    ///////////////////////////////////////////////////////////////////////////////////////////
-    // VideoClipOverlap
-    ///////////////////////////////////////////////////////////////////////////////////////////
-    VideoClipOverlap::VideoClipOverlap(int64_t id, VideoClipHolder hClip1, VideoClipHolder hClip2)
-        : m_id(id), m_frontClip(hClip1), m_rearClip(hClip2), m_transFunc(DefaultTransition)
+    void VideoClip::SetDirection(bool forward)
     {
-        Update();
+        m_srcReader->SetDirection(forward);
     }
 
-    void VideoClipOverlap::Update()
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    // DefaultVideoTransition_Impl
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    class DefaultVideoTransition_Impl : public VideoTransition
+    {
+    public:
+        void ApplyTo(VideoOverlap* overlap) override
+        {
+            m_overlapPtr = overlap;
+        }
+
+        ImGui::ImMat MixTwoImages(const ImGui::ImMat& vmat1, const ImGui::ImMat& vmat2, double pos) override
+        {
+#if IMGUI_VULKAN_SHADER
+            ImGui::ImMat dst;
+            dst.type = IM_DT_INT8;
+            if (vmat2.device == IM_DD_VULKAN)
+            {
+                const ImGui::VkMat vmat2vk = vmat2;
+                m_clrcvt.Conv(vmat2vk, dst);
+            }
+            else
+            {
+                dst = vmat2.clone();
+            }
+            double alpha = (1-pos/m_overlapPtr->Duration())/2;
+            if (vmat1.device == IM_DD_VULKAN)
+            {
+                const ImGui::VkMat vmat1vk = vmat1;
+                m_alphaBlender.copyTo(vmat1vk, dst, 0, 0, alpha);
+            }
+            else
+            {
+                m_alphaBlender.copyTo(vmat1, dst, 0, 0, alpha);
+            }
+            return dst;
+#else
+            ImGui::ImMat nullMat;
+            nullMat.time_stamp = pos;
+            return nullMat;
+#endif
+        }
+
+    private:
+        VideoOverlap* m_overlapPtr{nullptr};
+#if IMGUI_VULKAN_SHADER
+        ImGui::ColorConvert_vulkan m_clrcvt;
+        ImGui::CopyTo_vulkan m_alphaBlender;
+#endif
+    };
+
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    // VideoOverlap
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    VideoOverlap::VideoOverlap(int64_t id, VideoClipHolder hClip1, VideoClipHolder hClip2)
+        : m_id(id), m_frontClip(hClip1), m_rearClip(hClip2), m_transition(new DefaultVideoTransition_Impl())
+    {
+        Update();
+        m_transition->ApplyTo(this);
+    }
+
+    void VideoOverlap::Update()
     {
         VideoClipHolder hClip1 = m_frontClip;
         VideoClipHolder hClip2 = m_rearClip;
@@ -135,7 +196,7 @@ namespace DataLayer
         }
     }
 
-    void VideoClipOverlap::SeekTo(double pos)
+    void VideoOverlap::SeekTo(double pos)
     {
         if (pos > Duration())
             return;
@@ -147,7 +208,7 @@ namespace DataLayer
         m_rearClip->SeekTo(pos2);
     }
 
-    void VideoClipOverlap::ReadVideoFrame(double pos, ImGui::ImMat& vmat, bool& eof)
+    void VideoOverlap::ReadVideoFrame(double pos, ImGui::ImMat& vmat, bool& eof)
     {
         if (pos < 0 || pos > Duration())
             throw invalid_argument("Argument 'pos' can NOT be NEGATIVE or larger than overlap duration!");
@@ -162,7 +223,7 @@ namespace DataLayer
         double pos2 = pos+(Start()-m_rearClip->Start());
         m_rearClip->ReadVideoFrame(pos2, vmat2, eof2);
 
-        m_transFunc(vmat1, vmat2, pos);
+        vmat = m_transition->MixTwoImages(vmat1, vmat2, pos);
 
         eof = eof1 || eof2;
         if (pos == Duration())
