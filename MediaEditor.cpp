@@ -963,7 +963,7 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
     bool overButton = button_rect.Contains(io.MousePos);
     if (overButton && io.MouseClicked[0])
     {
-        // TODO::Dicky need delete it from sequencer item list ?
+        // TODO::Dicky need delete it from timeline list ?
         MediaItem * it = *item;
         delete it;
         item = timeline->media_items.erase(item);
@@ -1260,7 +1260,7 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
  ***************************************************************************************/
 static void ShowMediaPreviewWindow(ImDrawList *draw_list)
 {
-    //SetSequenceEditorStage(false, false, false);
+    // need set page stats ?
     // preview control pannel
     ImVec2 PanelBarPos;
     ImVec2 PanelBarSize;
@@ -1492,7 +1492,7 @@ static void ShowVideoFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
 
 static void ShowVideoFilterWindow(ImDrawList *draw_list)
 {
-    //SetSequenceEditorStage(true, false, false);
+    // need set page stats?
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
     draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
@@ -1802,7 +1802,7 @@ static void ShowVideoFusionBluePrintWindow(ImDrawList *draw_list, Overlap * over
 
 static void ShowVideoFusionWindow(ImDrawList *draw_list)
 {
-    //SetSequenceEditorStage(false, true, false);
+    // need set page stats
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
     draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
@@ -2601,7 +2601,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
     ImVec2 panel_size(window_size.x - 4, size_timeline_h * window_size.y - 12);
     ImGui::SetNextWindowPos(panel_pos, ImGuiCond_Always);
     bool _expanded = expanded;
-    if (ImGui::BeginChild("##Sequencor", panel_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings))
+    if (ImGui::BeginChild("##Timeline", panel_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings))
     {        
         DrawTimeLine(timeline,  &_expanded);
         if (expanded != _expanded)
@@ -2631,7 +2631,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
     // check save stage if app will quit
     if (app_will_quit && timeline)
     {
-        if (timeline->m_Tracks.size() > 0 || timeline->media_items.size() > 0) // TODO::Dicky Check sequencer changed later
+        if (timeline->m_Tracks.size() > 0 || timeline->media_items.size() > 0) // TODO::Dicky Check timeline changed later
         {
             if (quit_save_confirm || g_media_editor_settings.project_path.empty())
             {
