@@ -2348,6 +2348,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
     static bool show_about = false;
     static bool show_configure = false;
     static bool expanded = true;
+    static bool show_debug = false;
     
     const ImGuiFileDialogFlags fflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_DisableCreateDirectoryButton;
     const std::string video_file_dis = "*.mp4 *.mov *.mkv *.avi *.webm *.ts";
@@ -2389,6 +2390,9 @@ bool Application_Frame(void * handle, bool app_will_quit)
         ImGui::SetNextWindowSize(io.DisplaySize, ImGuiCond_None);
     }
     ImGui::Begin("Content", nullptr, flags);
+    // for debug
+    if (show_debug) ImGui::ShowMetricsWindow(&show_debug);
+    // for debug end
     if (show_about)
     {
         ImGui::OpenPopup(ICON_FA5_INFO_CIRCLE " About", ImGuiPopupFlags_AnyPopup);
@@ -2528,6 +2532,12 @@ bool Application_Frame(void * handle, bool app_will_quit)
             show_about = true;
         }
         ImGui::ShowTooltipOnHover("About Media Editor");
+        if (ImGui::Button(ICON_UI_DEBUG "##UIDebug", ImVec2(tool_icon_size, tool_icon_size)))
+        {
+            // open debug window
+            show_debug = !show_debug;
+        }
+        ImGui::ShowTooltipOnHover("UI Metric");
         ImGui::PopStyleColor(3);
 
         // add banks window
