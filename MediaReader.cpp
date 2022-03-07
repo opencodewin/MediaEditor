@@ -1027,8 +1027,8 @@ private:
                 readTask = FindNextAudioReadTask();
                 if (!readTask)
                 {
-                    if (m_readForward && m_bldtskPriOrder.back()->mediaEof ||
-                        !m_readForward && m_bldtskPriOrder.front()->mediaEof)
+                    if ((m_readForward && m_bldtskPriOrder.back()->mediaEof) ||
+                        (!m_readForward && m_bldtskPriOrder.front()->mediaEof))
                     {
                         m_audReadEof = true;
                         size = readSize;
@@ -1125,7 +1125,7 @@ private:
                 }
             }
 
-            needLoop = (readTask && !readTask->cancel || !readTask && wait || !idleLoop) && toReadSize > 0 && !m_quit;
+            needLoop = ((readTask && !readTask->cancel) || (!readTask && wait) || !idleLoop) && toReadSize > 0 && !m_quit;
             if (needLoop && idleLoop)
                 this_thread::sleep_for(chrono::milliseconds(2));
         } while (needLoop);
@@ -2098,7 +2098,7 @@ private:
                 << TimestampToString(currwnd.cacheBeginTs) << " ~ " << TimestampToString(currwnd.cacheEndTs) << ")." << endl;
             lock_guard<mutex> lk(m_bldtskByTimeLock);
             if (currwnd.cacheBeginTs > m_bldtskSnapWnd.cacheBeginTs ||
-                currwnd.cacheBeginTs == m_bldtskSnapWnd.cacheBeginTs && currwnd.cacheEndTs > m_bldtskSnapWnd.cacheEndTs)
+                (currwnd.cacheBeginTs == m_bldtskSnapWnd.cacheBeginTs && currwnd.cacheEndTs > m_bldtskSnapWnd.cacheEndTs))
             {
                 int64_t beginPts = CvtMtsToPts((int64_t)(currwnd.cacheBeginTs*1000));
                 int64_t endPts = CvtMtsToPts((int64_t)(currwnd.cacheEndTs*1000))+1;
@@ -2310,7 +2310,7 @@ private:
                 << TimestampToString(currwnd.cacheBeginTs) << " ~ " << TimestampToString(currwnd.cacheEndTs) << ")." << endl;
             lock_guard<mutex> lk(m_bldtskByTimeLock);
             if (currwnd.seekPos00 > m_bldtskSnapWnd.seekPos00 ||
-                currwnd.seekPos00 == m_bldtskSnapWnd.seekPos00 && currwnd.seekPos10 > m_bldtskSnapWnd.seekPos10)
+                (currwnd.seekPos00 == m_bldtskSnapWnd.seekPos00 && currwnd.seekPos10 > m_bldtskSnapWnd.seekPos10))
             {
                 int64_t beginPts = CvtMtsToPts((int64_t)(currwnd.cacheBeginTs*1000));
                 int64_t endPts = CvtMtsToPts((int64_t)(currwnd.cacheEndTs*1000));

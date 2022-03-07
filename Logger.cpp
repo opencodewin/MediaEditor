@@ -72,7 +72,7 @@ namespace Logger
 
         virtual bool CheckShow(Level l) const
         {
-            if (m_N > 0 && l < m_showLevel || m_N < 0 && l > m_showLevel || m_N == 0 && l != m_showLevel)
+            if ((m_N > 0 && l < m_showLevel) || (m_N < 0 && l > m_showLevel) || (m_N == 0 && l != m_showLevel))
                 return false;
             return true;
         }

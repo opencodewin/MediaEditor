@@ -1544,12 +1544,12 @@ private:
         m_bldtskPriOrder.sort([swnd](const SnapshotBuildTask& a, const SnapshotBuildTask& b) {
             uint32_t aFront = a->ssIdxPair.first;
             uint32_t aBack = a->ssIdxPair.second;
-            bool aInDisplayWindow = aFront >= swnd.index0 && aFront <= swnd.index1 ||
-                aBack >= swnd.index0 && aBack <= swnd.index1;
+            bool aInDisplayWindow = (aFront >= swnd.index0 && aFront <= swnd.index1) ||
+                (aBack >= swnd.index0 && aBack <= swnd.index1);
             uint32_t bFront = b->ssIdxPair.first;
             uint32_t bBack = b->ssIdxPair.second;
-            bool bInDisplayWindow = bFront >= swnd.index0 && bFront <= swnd.index1 ||
-                bBack >= swnd.index0 && bBack <= swnd.index1;
+            bool bInDisplayWindow = (bFront >= swnd.index0 && bFront <= swnd.index1) ||
+                (bBack >= swnd.index0 && bBack <= swnd.index1);
             if (aInDisplayWindow && bInDisplayWindow)
                 return aFront < bFront;
             else if (aInDisplayWindow)

@@ -1044,6 +1044,7 @@ bool AudioClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame)
         return;
 
     ImVec2 draw_size = rightBottom - leftTop;
+    // TODO::Dicky opt 
     if (mWaveform->pcm.size() > 0)
     {
         std::string id_string = "##Waveform@" + std::to_string(mID);
@@ -3248,7 +3249,6 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &view_r
             }
 
             // Clip select
-            // TODO::Dicky Need check clip rect is in track view
             if (enable_select)
             {
                 ImGui::SetCursorScreenPos(clip_title_pos_min);
