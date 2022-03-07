@@ -440,6 +440,7 @@ struct MediaTrack
     ~MediaTrack();
 
     bool DrawTrackControlBar(ImDrawList *draw_list, ImRect rc);
+    bool CanInsertClip(Clip * clip, int64_t pos);
     void InsertClip(Clip * clip, int64_t pos = 0);
     void PushBackClip(Clip * clip);
     void SelectClip(Clip * clip, bool appand);

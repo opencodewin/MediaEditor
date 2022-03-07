@@ -1978,6 +1978,28 @@ void MediaTrack::PushBackClip(Clip * clip)
     m_Clips.push_back(clip);
 }
 
+bool MediaTrack::CanInsertClip(Clip * clip, int64_t pos)
+{
+    bool can_insert_clip = true;
+    if (!clip || mType != clip->mType)
+    {
+        can_insert_clip = false;
+    }
+    else
+    {
+        for (auto overlap : m_Overlaps)
+        {
+            if ((overlap->mStart >= pos && overlap->mStart <= pos + clip->mLength) || 
+                (overlap->mEnd >= pos && overlap->mEnd <= pos + clip->mLength))
+            {
+                can_insert_clip = false;
+                break;
+            }
+        }
+    }
+    return can_insert_clip;
+}
+
 void MediaTrack::InsertClip(Clip * clip, int64_t pos)
 {
     TimeLine * timeline = (TimeLine *)m_Handle;
@@ -4431,25 +4453,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                 {
                     ImageClip * new_image_clip = new ImageClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, timeline);
                     timeline->m_Clips.push_back(new_image_clip);
-                    bool can_insert_clip = true;
-                    if (track && track->mType == MEDIA_PICTURE)
-                    {
-                        // check mouse pos is allow insert clip, if mouse pos is over track's overlap then we can't insert, add a new track
-                        for (auto overlap : track->m_Overlaps)
-                        {
-                            if ((overlap->mStart >= mouseTime && overlap->mStart <= mouseTime + new_image_clip->mLength) || 
-                                (overlap->mEnd >= mouseTime && overlap->mEnd <= mouseTime + new_image_clip->mLength))
-                            {
-                                can_insert_clip = false;
-                                break;
-                            }
-                        }
-                    }
-                    else
-                    {
-                        can_insert_clip = false;
-                    }
-
+                    bool can_insert_clip = track ? track->CanInsertClip(new_image_clip, mouseTime) : false;
                     if (can_insert_clip)
                     {
                         // update clip info and push into track
@@ -4471,25 +4475,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                 {
                     AudioClip * new_audio_clip = new AudioClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, timeline);
                     timeline->m_Clips.push_back(new_audio_clip);
-                    bool can_insert_clip = true;
-                    if (track && track->mType == MEDIA_AUDIO)
-                    {
-                        // check mouse pos is allow insert clip, if mouse pos is over track's overlap then we can't insert, add a new track
-                        for (auto overlap : track->m_Overlaps)
-                        {
-                            if ((overlap->mStart >= mouseTime && overlap->mStart <= mouseTime + new_audio_clip->mLength) || 
-                                (overlap->mEnd >= mouseTime && overlap->mEnd <= mouseTime + new_audio_clip->mLength))
-                            {
-                                can_insert_clip = false;
-                                break;
-                            }
-                        }
-                    }
-                    else
-                    {
-                        can_insert_clip = false;
-                    }
-
+                    bool can_insert_clip = track ? track->CanInsertClip(new_audio_clip, mouseTime) : false;
                     if (can_insert_clip)
                     {
                         // update clip info and push into track
@@ -4525,25 +4511,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                     {
                         new_video_clip = new VideoClip(item->mStart, item->mEnd, item->mID, item->mName + ":Video", item->mMediaOverview, timeline);
                         timeline->m_Clips.push_back(new_video_clip);
-                        bool can_insert_clip = true;
-                        if (track && track->mType == MEDIA_VIDEO)
-                        {
-                            // check mouse pos is allow insert clip, if mouse pos is over track's overlap then we can't insert, add a new track
-                            for (auto overlap : track->m_Overlaps)
-                            {
-                                if ((overlap->mStart >= mouseTime && overlap->mStart <= mouseTime + new_video_clip->mLength) || 
-                                    (overlap->mEnd >= mouseTime && overlap->mEnd <= mouseTime + new_video_clip->mLength))
-                                {
-                                    can_insert_clip = false;
-                                    break;
-                                }
-                            }
-                        }
-                        else
-                        {
-                            can_insert_clip = false;
-                        }
-
+                        bool can_insert_clip = track ? track->CanInsertClip(new_video_clip, mouseTime) : false;
                         if (can_insert_clip)
                         {
                             // update clip info and push into track
@@ -4576,16 +4544,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                                     MediaTrack * relative_track = timeline->FindTrackByID(track->mLinkedTrack);
                                     if (relative_track && relative_track->mType == MEDIA_AUDIO)
                                     {
-                                        bool can_insert_clip = true;
-                                        for (auto overlap : relative_track->m_Overlaps)
-                                        {
-                                            if ((overlap->mStart >= mouseTime && overlap->mStart <= mouseTime + new_audio_clip->mLength) || 
-                                                (overlap->mEnd >= mouseTime && overlap->mEnd <= mouseTime + new_audio_clip->mLength))
-                                            {
-                                                can_insert_clip = false;
-                                                break;
-                                            }
-                                        }
+                                        bool can_insert_clip = relative_track->CanInsertClip(new_audio_clip, mouseTime);
                                         if (can_insert_clip)
                                         {
                                             if (new_video_clip->mGroupID == -1)
@@ -4608,24 +4567,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                             else
                             {
                                 // no video stream
-                                bool can_insert_clip = true;
-                                if (track && track->mType == MEDIA_AUDIO)
-                                {
-                                    for (auto overlap : track->m_Overlaps)
-                                    {
-                                        if ((overlap->mStart >= mouseTime && overlap->mStart <= mouseTime + new_audio_clip->mLength) || 
-                                            (overlap->mEnd >= mouseTime && overlap->mEnd <= mouseTime + new_audio_clip->mLength))
-                                        {
-                                            can_insert_clip = false;
-                                            break;
-                                        }
-                                    }
-                                }
-                                else
-                                {
-                                    can_insert_clip = false;
-                                }
-
+                                bool can_insert_clip = track ? track->CanInsertClip(new_audio_clip, mouseTime) : false;
                                 if (can_insert_clip)
                                 {
                                     // update clip info and push into track
