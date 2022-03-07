@@ -229,6 +229,7 @@ struct Clip
     int64_t mEnd                {0};                // clip end time in timeline, project saved
     int64_t mStartOffset        {0};                // clip start time in media, project saved
     int64_t mEndOffset          {0};                // clip end time in media, project saved
+    int64_t mLength             {0};                // clip length, = mEnd - mStart
     //int64_t mCurrent            {0};                // clip current time, project saved
     //bool bPlay                  {false};            // clip play status
     //bool bForward               {true};             // clip play direction

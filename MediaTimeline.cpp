@@ -236,6 +236,7 @@ Clip::Clip(int64_t start, int64_t end, int64_t id, MediaOverview * overview, voi
     mMediaID = id;
     mStart = start; 
     mEnd = end;
+    mLength = end - start;
     mHandle = handle;
     mOverview = overview;
 }
@@ -4430,7 +4431,26 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                 {
                     ImageClip * new_image_clip = new ImageClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, timeline);
                     timeline->m_Clips.push_back(new_image_clip);
+                    bool can_insert_clip = true;
                     if (track && track->mType == MEDIA_PICTURE)
+                    {
+                        // check mouse pos is allow insert clip, if mouse pos is over track's overlap then we can't insert, add a new track
+                        for (auto overlap : track->m_Overlaps)
+                        {
+                            if ((overlap->mStart >= mouseTime && overlap->mStart <= mouseTime + new_image_clip->mLength) || 
+                                (overlap->mEnd >= mouseTime && overlap->mEnd <= mouseTime + new_image_clip->mLength))
+                            {
+                                can_insert_clip = false;
+                                break;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        can_insert_clip = false;
+                    }
+
+                    if (can_insert_clip)
                     {
                         // update clip info and push into track
                         track->InsertClip(new_image_clip, mouseTime);
@@ -4451,7 +4471,26 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                 {
                     AudioClip * new_audio_clip = new AudioClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, timeline);
                     timeline->m_Clips.push_back(new_audio_clip);
+                    bool can_insert_clip = true;
                     if (track && track->mType == MEDIA_AUDIO)
+                    {
+                        // check mouse pos is allow insert clip, if mouse pos is over track's overlap then we can't insert, add a new track
+                        for (auto overlap : track->m_Overlaps)
+                        {
+                            if ((overlap->mStart >= mouseTime && overlap->mStart <= mouseTime + new_audio_clip->mLength) || 
+                                (overlap->mEnd >= mouseTime && overlap->mEnd <= mouseTime + new_audio_clip->mLength))
+                            {
+                                can_insert_clip = false;
+                                break;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        can_insert_clip = false;
+                    }
+
+                    if (can_insert_clip)
                     {
                         // update clip info and push into track
                         track->InsertClip(new_audio_clip, mouseTime);
@@ -4486,7 +4525,26 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                     {
                         new_video_clip = new VideoClip(item->mStart, item->mEnd, item->mID, item->mName + ":Video", item->mMediaOverview, timeline);
                         timeline->m_Clips.push_back(new_video_clip);
+                        bool can_insert_clip = true;
                         if (track && track->mType == MEDIA_VIDEO)
+                        {
+                            // check mouse pos is allow insert clip, if mouse pos is over track's overlap then we can't insert, add a new track
+                            for (auto overlap : track->m_Overlaps)
+                            {
+                                if ((overlap->mStart >= mouseTime && overlap->mStart <= mouseTime + new_video_clip->mLength) || 
+                                    (overlap->mEnd >= mouseTime && overlap->mEnd <= mouseTime + new_video_clip->mLength))
+                                {
+                                    can_insert_clip = false;
+                                    break;
+                                }
+                            }
+                        }
+                        else
+                        {
+                            can_insert_clip = false;
+                        }
+
+                        if (can_insert_clip)
                         {
                             // update clip info and push into track
                             track->InsertClip(new_video_clip, mouseTime);
@@ -4518,13 +4576,28 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                                     MediaTrack * relative_track = timeline->FindTrackByID(track->mLinkedTrack);
                                     if (relative_track && relative_track->mType == MEDIA_AUDIO)
                                     {
-                                        if (new_video_clip->mGroupID == -1)
+                                        bool can_insert_clip = true;
+                                        for (auto overlap : relative_track->m_Overlaps)
                                         {
-                                            timeline->NewGroup(new_video_clip);
+                                            if ((overlap->mStart >= mouseTime && overlap->mStart <= mouseTime + new_audio_clip->mLength) || 
+                                                (overlap->mEnd >= mouseTime && overlap->mEnd <= mouseTime + new_audio_clip->mLength))
+                                            {
+                                                can_insert_clip = false;
+                                                break;
+                                            }
                                         }
-                                        timeline->AddClipIntoGroup(new_audio_clip, new_video_clip->mGroupID);
-                                        relative_track->InsertClip(new_audio_clip, mouseTime);
-                                        timeline->Updata();
+                                        if (can_insert_clip)
+                                        {
+                                            if (new_video_clip->mGroupID == -1)
+                                            {
+                                                timeline->NewGroup(new_video_clip);
+                                            }
+                                            timeline->AddClipIntoGroup(new_audio_clip, new_video_clip->mGroupID);
+                                            relative_track->InsertClip(new_audio_clip, mouseTime);
+                                            timeline->Updata();
+                                        }
+                                        else
+                                            create_new_track = true;
                                     }
                                     else
                                         create_new_track = true;
@@ -4535,7 +4608,25 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                             else
                             {
                                 // no video stream
+                                bool can_insert_clip = true;
                                 if (track && track->mType == MEDIA_AUDIO)
+                                {
+                                    for (auto overlap : track->m_Overlaps)
+                                    {
+                                        if ((overlap->mStart >= mouseTime && overlap->mStart <= mouseTime + new_audio_clip->mLength) || 
+                                            (overlap->mEnd >= mouseTime && overlap->mEnd <= mouseTime + new_audio_clip->mLength))
+                                        {
+                                            can_insert_clip = false;
+                                            break;
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    can_insert_clip = false;
+                                }
+
+                                if (can_insert_clip)
                                 {
                                     // update clip info and push into track
                                     track->InsertClip(new_audio_clip, mouseTime);
