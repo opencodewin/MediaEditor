@@ -3751,8 +3751,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         // for debug end
 
         // calculate mouse pos to time
-        mouseTime = (int64_t)((cx - canvas_pos.x - legendWidth) / timeline->msPixelWidthTarget) + timeline->firstTime;
-        timeline->AlignTime(mouseTime);
+        mouseTime = (int64_t)((cx - contentMin.x - legendWidth) / timeline->msPixelWidthTarget) + timeline->firstTime;
+        //timeline->AlignTime(mouseTime);
         menuIsOpened = ImGui::IsPopupOpen("##timeline-context-menu");
 
         //header
@@ -3769,14 +3769,14 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         {
             bool baseIndex = ((i % modTimeCount) == 0) || (i == timeline->GetEnd() || i == timeline->GetStart());
             bool halfIndex = (i % halfModTime) == 0;
-            int px = (int)canvas_pos.x + int(i * timeline->msPixelWidthTarget) + legendWidth - int(timeline->firstTime * timeline->msPixelWidthTarget);
+            int px = (int)contentMin.x + int(i * timeline->msPixelWidthTarget) + legendWidth - int(timeline->firstTime * timeline->msPixelWidthTarget);
             int tiretStart = baseIndex ? 4 : (halfIndex ? 10 : 14);
             int tiretEnd = baseIndex ? regionHeight : HeadHeight;
-            if (px <= (timline_size.x + canvas_pos.x) && px >= (canvas_pos.x + legendWidth))
+            if (px <= (timline_size.x + contentMin.x) && px >= (contentMin.x + legendWidth))
             {
                 draw_list->AddLine(ImVec2((float)px, canvas_pos.y + (float)tiretStart), ImVec2((float)px, canvas_pos.y + (float)tiretEnd - 1), halfIndex ? COL_MARK : COL_MARK_HALF, halfIndex ? 2 : 1);
             }
-            if (baseIndex && px > (canvas_pos.x + legendWidth))
+            if (baseIndex && px > (contentMin.x + legendWidth))
             {
                 auto time_str = MillisecToString(i, 2);
                 ImGui::SetWindowFontScale(0.8);
@@ -3786,10 +3786,10 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         };
         auto drawLineContent = [&](int64_t i, int)
         {
-            int px = (int)canvas_pos.x + int(i * timeline->msPixelWidthTarget) + legendWidth - int(timeline->firstTime * timeline->msPixelWidthTarget);
+            int px = (int)contentMin.x + int(i * timeline->msPixelWidthTarget) + legendWidth - int(timeline->firstTime * timeline->msPixelWidthTarget);
             int tiretStart = int(contentMin.y);
             int tiretEnd = int(contentMax.y);
-            if (px <= (timline_size.x + canvas_pos.x) && px >= (canvas_pos.x + legendWidth))
+            if (px <= (timline_size.x + contentMin.x) && px >= (contentMin.x + legendWidth))
             {
                 draw_list->AddLine(ImVec2(float(px), float(tiretStart)), ImVec2(float(px), float(tiretEnd)), COL_SLOT_V_LINE, 1);
             }
@@ -3805,12 +3805,12 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         if (timeline->currentTime >= timeline->firstTime && timeline->currentTime <= timeline->GetEnd())
         {
             const float arrowWidth = draw_list->_Data->FontSize;
-            float arrowOffset = contentMin.x + legendWidth + (timeline->currentTime - timeline->firstTime) * timeline->msPixelWidthTarget + timeline->msPixelWidthTarget / 2 - arrowWidth * 0.5f - 3;
+            float arrowOffset = contentMin.x + legendWidth + (timeline->currentTime - timeline->firstTime) * timeline->msPixelWidthTarget - arrowWidth * 0.5f + 1;
             ImGui::RenderArrow(draw_list, ImVec2(arrowOffset, canvas_pos.y), COL_CURSOR_ARROW, ImGuiDir_Down);
             ImGui::SetWindowFontScale(0.8);
             auto time_str = MillisecToString(timeline->currentTime, 2);
             ImVec2 str_size = ImGui::CalcTextSize(time_str.c_str(), nullptr, true);
-            float strOffset = contentMin.x + legendWidth + (timeline->currentTime - timeline->firstTime) * timeline->msPixelWidthTarget + timeline->msPixelWidthTarget / 2 - str_size.x * 0.5f - 3;
+            float strOffset = contentMin.x + legendWidth + (timeline->currentTime - timeline->firstTime) * timeline->msPixelWidthTarget - str_size.x * 0.5f + 1;
             ImVec2 str_pos = ImVec2(strOffset, canvas_pos.y + 10);
             draw_list->AddRectFilled(str_pos + ImVec2(-3, 0), str_pos + str_size + ImVec2(3, 3), COL_CURSOR_TEXT_BG, 2.0, ImDrawFlags_RoundCornersAll);
             draw_list->AddText(str_pos, COL_CURSOR_TEXT, time_str.c_str());
@@ -3826,7 +3826,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             unsigned int col = (i & 1) ? COL_SLOT_ODD : COL_SLOT_EVEN;
             size_t localCustomHeight = timeline->GetCustomHeight(i);
             ImVec2 pos = ImVec2(contentMin.x + legendWidth, contentMin.y + trackHeadHeight * i + 1 + customHeight);
-            ImVec2 sz = ImVec2(timline_size.x + canvas_pos.x - 4.f, pos.y + trackHeadHeight - 1 + localCustomHeight);
+            ImVec2 sz = ImVec2(timline_size.x + contentMin.x, pos.y + trackHeadHeight - 1 + localCustomHeight);
             if (cy >= pos.y && cy < pos.y + (trackHeadHeight + localCustomHeight) && clipMovingEntry == -1 && cx > contentMin.x && cx < contentMin.x + timline_size.x)
             {
                 col += IM_COL32(8, 16, 32, 128);
@@ -3867,8 +3867,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             unsigned int color = COL_SLOT_DEFAULT;
             ImVec2 pos = ImVec2(contentMin.x + legendWidth - timeline->firstTime * timeline->msPixelWidthTarget, contentMin.y + trackHeadHeight * i + 1 + customHeight);
             ImVec2 slotP1(pos.x + timeline->firstTime * timeline->msPixelWidthTarget, pos.y + 2);
-            ImVec2 slotP2(pos.x + timeline->lastTime * timeline->msPixelWidthTarget + timeline->msPixelWidthTarget - 4.f, pos.y + trackHeadHeight - 2);
-            ImVec2 slotP3(pos.x + timeline->lastTime * timeline->msPixelWidthTarget + timeline->msPixelWidthTarget - 4.f, pos.y + trackHeadHeight - 2 + localCustomHeight);
+            ImVec2 slotP2(pos.x + timeline->lastTime * timeline->msPixelWidthTarget, pos.y + trackHeadHeight - 2);
+            ImVec2 slotP3(pos.x + timeline->lastTime * timeline->msPixelWidthTarget, pos.y + trackHeadHeight - 2 + localCustomHeight);
             unsigned int slotColor = color | IM_COL32_BLACK;
             unsigned int slotColorHalf = HALF_COLOR(color);
             if (slotP1.x <= (timline_size.x + contentMin.x) && slotP2.x >= (contentMin.x + legendWidth))
@@ -3913,8 +3913,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                     {
                         // check clip moving part
                         ImVec2 clipP1(pos.x + clip->mStart * timeline->msPixelWidthTarget, pos.y + 2);
-                        ImVec2 clipP2(pos.x + clip->mEnd * timeline->msPixelWidthTarget + timeline->msPixelWidthTarget - 4.f, pos.y + trackHeadHeight - 2);
-                        ImVec2 clipP3(pos.x + clip->mEnd * timeline->msPixelWidthTarget + timeline->msPixelWidthTarget - 4.f, pos.y + trackHeadHeight - 2 + localCustomHeight);
+                        ImVec2 clipP2(pos.x + clip->mEnd * timeline->msPixelWidthTarget, pos.y + trackHeadHeight - 2);
+                        ImVec2 clipP3(pos.x + clip->mEnd * timeline->msPixelWidthTarget, pos.y + trackHeadHeight - 2 + localCustomHeight);
                         const float max_handle_width = clipP2.x - clipP1.x / 3.0f;
                         const float min_handle_width = ImMin(10.0f, max_handle_width);
                         const float handle_width = ImClamp(timeline->msPixelWidthTarget / 2.0f, min_handle_width, max_handle_width);
@@ -4219,7 +4219,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         else if (inHorizonScrollBar && ImGui::IsMouseReleased(0))
         {
             float msPerPixelInBar = HorizonBarPos / (float)timeline->visibleTime;
-            timeline->firstTime = int((io.MousePos.x - legendWidth - canvas_pos.x) / msPerPixelInBar);
+            timeline->firstTime = int((io.MousePos.x - legendWidth - contentMin.x) / msPerPixelInBar);
             timeline->AlignTime(timeline->firstTime);
             timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
         }
@@ -4326,7 +4326,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             int64_t start = 0, end = 0, length = 0;
             size_t localCustomHeight = timeline->GetCustomHeight(i);
 
-            ImVec2 rp(canvas_pos.x, contentMin.y + trackHeadHeight * i + 1 + customHeight);
+            ImVec2 rp(contentMin.x, contentMin.y + trackHeadHeight * i + 1 + customHeight);
             ImRect customRect(rp + ImVec2(legendWidth - (timeline->firstTime - start - 0.5f) * timeline->msPixelWidthTarget, float(trackHeadHeight)),
                               rp + ImVec2(legendWidth + (end - timeline->firstTime - 0.5f + 2.f) * timeline->msPixelWidthTarget, float(localCustomHeight + trackHeadHeight)));
             ImRect titleRect(rp + ImVec2(legendWidth - (timeline->firstTime - start - 0.5f) * timeline->msPixelWidthTarget, 0),
@@ -4347,7 +4347,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         draw_list->PopClipRect();
 
         // time metric
-        ImRect topRect(ImVec2(canvas_pos.x + legendWidth, canvas_pos.y), ImVec2(canvas_pos.x + timline_size.x, canvas_pos.y + HeadHeight));
+        ImRect topRect(ImVec2(contentMin.x + legendWidth, canvas_pos.y), ImVec2(contentMin.x + timline_size.x, canvas_pos.y + HeadHeight));
         ImGui::SetCursorScreenPos(topRect.Min);
         ImGui::BeginChildFrame(ImGui::GetCurrentWindow()->GetID("#timeline metric"), topRect.GetSize(), ImGuiWindowFlags_NoScrollbar);
         if (!MovingCurrentTime && !MovingHorizonScrollBar && clipMovingEntry == -1 && timeline->currentTime >= 0 && topRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left))
@@ -4379,10 +4379,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         draw_list->PushClipRect(custom_view_rect.Min, custom_view_rect.Max);
         if (trackCount > 0 && timeline->currentTime >= timeline->firstTime && timeline->currentTime <= timeline->GetEnd())
         {
-            ImVec2 contentMin(canvas_pos.x + 4.f, canvas_pos.y + (float)HeadHeight + 8.f);
-            ImVec2 contentMax(canvas_pos.x + timline_size.x - 4.f, canvas_pos.y + (float)HeadHeight + float(controlHeight) + 8.f);
             static const float cursorWidth = 3.f;
-            float cursorOffset = contentMin.x + legendWidth + (timeline->currentTime - timeline->firstTime) * timeline->msPixelWidthTarget + timeline->msPixelWidthTarget / 2 - cursorWidth * 0.5f - 2;
+            float cursorOffset = contentMin.x + legendWidth + (timeline->currentTime - timeline->firstTime) * timeline->msPixelWidthTarget + 1;
             draw_list->AddLine(ImVec2(cursorOffset, contentMin.y), ImVec2(cursorOffset, contentMax.y), IM_COL32(0, 255, 0, 128), cursorWidth);
         }
         draw_list->PopClipRect();
@@ -4390,10 +4388,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         draw_list->PushClipRect(custom_view_rect.Min, custom_view_rect.Max);
         if (timeline->mConnectedPoints >= timeline->firstTime && timeline->mConnectedPoints <= timeline->firstTime + timeline->visibleTime)
         {
-            ImVec2 contentMin(canvas_pos.x + 4.f, canvas_pos.y + (float)HeadHeight + 8.f);
-            ImVec2 contentMax(canvas_pos.x + timline_size.x - 4.f, canvas_pos.y + (float)HeadHeight + float(controlHeight) + 8.f);
             static const float cursorWidth = 2.f;
-            float lineOffset = contentMin.x + legendWidth + (timeline->mConnectedPoints - timeline->firstTime) * timeline->msPixelWidthTarget + timeline->msPixelWidthTarget / 2 - cursorWidth * 0.5f - 2;
+            float lineOffset = contentMin.x + legendWidth + (timeline->mConnectedPoints - timeline->firstTime) * timeline->msPixelWidthTarget + 1;
             draw_list->AddLine(ImVec2(lineOffset, contentMin.y), ImVec2(lineOffset, contentMax.y), IM_COL32(255, 255, 255, 255), cursorWidth);
         }
         draw_list->PopClipRect();
@@ -4750,12 +4746,12 @@ bool DrawClipTimeLine(BaseEditingClip * editingClip)
     drawLine(duration, headHeight);
     // cursor Arrow
     const float arrowWidth = draw_list->_Data->FontSize;
-    float arrowOffset = window_pos.x + (editingClip->mCurrPos - start) * msPixelWidth + msPixelWidth / 2 - arrowWidth * 0.5f - 3;
+    float arrowOffset = window_pos.x + (editingClip->mCurrPos - start) * msPixelWidth - arrowWidth * 0.5f;
     ImGui::RenderArrow(draw_list, ImVec2(arrowOffset, window_pos.y), COL_CURSOR_ARROW, ImGuiDir_Down);
     ImGui::SetWindowFontScale(0.8);
     auto time_str = MillisecToString(editingClip->mCurrPos, 2);
     ImVec2 str_size = ImGui::CalcTextSize(time_str.c_str(), nullptr, true);
-    float strOffset = window_pos.x + (editingClip->mCurrPos - start) * msPixelWidth + msPixelWidth / 2 - str_size.x * 0.5f - 3;
+    float strOffset = window_pos.x + (editingClip->mCurrPos - start) * msPixelWidth - str_size.x * 0.5f;
     ImVec2 str_pos = ImVec2(strOffset, window_pos.y + 10);
     draw_list->AddRectFilled(str_pos + ImVec2(-3, 0), str_pos + str_size + ImVec2(3, 3), COL_CURSOR_TEXT_BG, 2.0, ImDrawFlags_RoundCornersAll);
     draw_list->AddText(str_pos, COL_CURSOR_TEXT, time_str.c_str());
@@ -4771,7 +4767,7 @@ bool DrawClipTimeLine(BaseEditingClip * editingClip)
 
     // cursor line
     static const float cursorWidth = 3.f;
-    float cursorOffset = contentMin.x + (editingClip ->mCurrPos - start) * msPixelWidth + msPixelWidth / 2 - cursorWidth * 0.5f - 2;
+    float cursorOffset = contentMin.x + (editingClip ->mCurrPos - start) * msPixelWidth - cursorWidth * 0.5f + 1;
     draw_list->AddLine(ImVec2(cursorOffset, contentMin.y), ImVec2(cursorOffset, contentMax.y), IM_COL32(0, 255, 0, 128), cursorWidth);
     draw_list->PopClipRect();
     ImGui::EndGroup();
@@ -4885,12 +4881,12 @@ bool DrawOverlapTimeLine(Overlap * overlap)
     drawLine(duration, headHeight);
     // cursor Arrow
     const float arrowWidth = draw_list->_Data->FontSize;
-    float arrowOffset = window_pos.x + (overlap->mCurrent - start) * msPixelWidth + msPixelWidth / 2 - arrowWidth * 0.5f - 3;
+    float arrowOffset = window_pos.x + (overlap->mCurrent - start) * msPixelWidth - arrowWidth * 0.5f;
     ImGui::RenderArrow(draw_list, ImVec2(arrowOffset, window_pos.y), COL_CURSOR_ARROW, ImGuiDir_Down);
     ImGui::SetWindowFontScale(0.8);
     auto time_str = MillisecToString(overlap->mCurrent, 2);
     ImVec2 str_size = ImGui::CalcTextSize(time_str.c_str(), nullptr, true);
-    float strOffset = window_pos.x + (overlap->mCurrent - start) * msPixelWidth + msPixelWidth / 2 - str_size.x * 0.5f - 3;
+    float strOffset = window_pos.x + (overlap->mCurrent - start) * msPixelWidth - str_size.x * 0.5f;
     ImVec2 str_pos = ImVec2(strOffset, window_pos.y + 10);
     draw_list->AddRectFilled(str_pos + ImVec2(-3, 0), str_pos + str_size + ImVec2(3, 3), COL_CURSOR_TEXT_BG, 2.0, ImDrawFlags_RoundCornersAll);
     draw_list->AddText(str_pos, COL_CURSOR_TEXT, time_str.c_str());
@@ -4904,7 +4900,7 @@ bool DrawOverlapTimeLine(Overlap * overlap)
     ImVec2 contentMin(window_pos.x, window_pos.y + (float)headHeight);
     ImVec2 contentMax(window_pos.x + window_size.x, window_pos.y + (float)headHeight + float(customHeight) * 2);
     static const float cursorWidth = 3.f;
-    float cursorOffset = contentMin.x + (overlap->mCurrent - start) * msPixelWidth + msPixelWidth / 2 - cursorWidth * 0.5f - 2;
+    float cursorOffset = contentMin.x + (overlap->mCurrent - start) * msPixelWidth - cursorWidth * 0.5f + 1;
     draw_list->AddLine(ImVec2(cursorOffset, contentMin.y), ImVec2(cursorOffset, contentMax.y), IM_COL32(0, 255, 0, 128), cursorWidth);
     draw_list->PopClipRect();
     ImGui::EndGroup();
