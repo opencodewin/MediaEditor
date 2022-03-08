@@ -2825,8 +2825,8 @@ int TimeLine::NewTrack(const std::string& name, MEDIA_TYPE type, bool expand)
 
     imgui_json::value action;
     action["action"] = "ADD_TRACK";
-    action["media_type"] = (imgui_json::number)type;
-    action["track_id"] = new_track->mID;
+    action["media_type"] = imgui_json::number(type);
+    action["track_id"] = imgui_json::number(new_track->mID);
     mUiActions.push_back(std::move(action));
     return m_Tracks.size() - 1;
 }
@@ -2874,7 +2874,7 @@ void TimeLine::MovingClip(int64_t id, int from_track_index, int to_track_index)
     {
         auto clip = *iter;
         dst_track->InsertClip(clip, clip->mStart);
-        mOngoingAction["to_track_id"] = dst_track->mID;
+        mOngoingAction["to_track_id"] = imgui_json::number(dst_track->mID);
     }
 }
 
@@ -3692,14 +3692,14 @@ void TimeLine::PerformUiActions()
         }
 
         std::string actionName = action["action"].get<imgui_json::string>();
-        // int64_t clipId = action["clip_id"].get<imgui_json::point>();
-        // Clip* clip = FindClipByID(action["clip_id"].get<imgui_json::point>());
+        // int64_t clipId = action["clip_id"].get<imgui_json::number>();
+        // Clip* clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
         if (actionName == "ADD_CLIP")
         {
-            int64_t trackId = action["to_track_id"].get<imgui_json::point>();
+            int64_t trackId = action["to_track_id"].get<imgui_json::number>();
             DataLayer::VideoTrackHolder vidTrack = mMtvReader->GetTrackById(trackId, true);
-            int64_t clipId = action["clip_id"].get<imgui_json::point>();
-            Clip* clip = FindClipByID(action["clip_id"].get<imgui_json::point>());
+            int64_t clipId = action["clip_id"].get<imgui_json::number>();
+            Clip* clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
             DataLayer::VideoClipHolder vidClip(new DataLayer::VideoClip(
                 clip->mID, clip->mOverview->GetMediaParser(),
                 vidTrack->OutWidth(), vidTrack->OutHeight(), vidTrack->FrameRate(),
@@ -3708,13 +3708,13 @@ void TimeLine::PerformUiActions()
         }
         else if (actionName == "MOVE_CLIP")
         {
-            int64_t srcTrackId = action["from_track_id"].get<imgui_json::point>();
+            int64_t srcTrackId = action["from_track_id"].get<imgui_json::number>();
             int64_t dstTrackId = srcTrackId;
             if (action.contains("to_track_id"))
-                dstTrackId = action["to_track_id"].get<imgui_json::point>();
+                dstTrackId = action["to_track_id"].get<imgui_json::number>();
             DataLayer::VideoTrackHolder dstVidTrack = mMtvReader->GetTrackById(dstTrackId);
-            int64_t clipId = action["clip_id"].get<imgui_json::point>();
-            Clip* clip = FindClipByID(action["clip_id"].get<imgui_json::point>());
+            int64_t clipId = action["clip_id"].get<imgui_json::number>();
+            Clip* clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
             if (srcTrackId != dstTrackId)
             {
                 DataLayer::VideoTrackHolder srcVidTrack = mMtvReader->GetTrackById(srcTrackId);
@@ -3729,28 +3729,28 @@ void TimeLine::PerformUiActions()
         }
         else if (actionName == "CROP_CLIP")
         {
-            int64_t trackId = action["from_track_id"].get<imgui_json::point>();
+            int64_t trackId = action["from_track_id"].get<imgui_json::number>();
             DataLayer::VideoTrackHolder vidTrack = mMtvReader->GetTrackById(trackId);
-            int64_t clipId = action["clip_id"].get<imgui_json::point>();
-            Clip* clip = FindClipByID(action["clip_id"].get<imgui_json::point>());
+            int64_t clipId = action["clip_id"].get<imgui_json::number>();
+            Clip* clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
             vidTrack->ChangeClipRange(clip->mID, (double)clip->mStartOffset/1000, (double)clip->mStartOffset/1000);
         }
         else if (actionName == "REMOVE_CLIP")
         {
-            int64_t trackId = action["from_track_id"].get<imgui_json::point>();
+            int64_t trackId = action["from_track_id"].get<imgui_json::number>();
             DataLayer::VideoTrackHolder vidTrack = mMtvReader->GetTrackById(trackId);
-            int64_t clipId = action["clip_id"].get<imgui_json::point>();
+            int64_t clipId = action["clip_id"].get<imgui_json::number>();
             vidTrack->RemoveClipById(clipId);
             mMtvReader->Refresh();
         }
         else if (actionName == "ADD_TRACK")
         {
-            int64_t trackId = action["track_id"].get<imgui_json::point>();
+            int64_t trackId = action["track_id"].get<imgui_json::number>();
             mMtvReader->AddTrack(trackId);
         }
         else if (actionName == "REMOVE_TRACK")
         {
-            int64_t trackId = action["track_id"].get<imgui_json::point>();
+            int64_t trackId = action["track_id"].get<imgui_json::number>();
             mMtvReader->RemoveTrackById(trackId);
         }
         else
@@ -4185,9 +4185,9 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                                     clipMovingEntry = clip->mID;
                                     clipMovingPart = j + 1;
                                     timeline->mOngoingAction["action"] = "MOVE_CLIP";
-                                    timeline->mOngoingAction["clip_id"] = clip->mID;
-                                    timeline->mOngoingAction["media_type"] = (imgui_json::number)clip->mType;
-                                    timeline->mOngoingAction["from_track_id"] = track->mID;
+                                    timeline->mOngoingAction["clip_id"] = imgui_json::number(clip->mID);
+                                    timeline->mOngoingAction["media_type"] = imgui_json::number(clip->mType);
+                                    timeline->mOngoingAction["from_track_id"] = imgui_json::number(track->mID);
                                     if (j <= 1)
                                     {
                                         timeline->mOngoingAction["action"] = "CROP_CLIP";
@@ -4641,12 +4641,12 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
     {
         if (clipMovingEntry != -1 && timeline->mOngoingAction.contains("action"))
         {
-            int64_t clipId = timeline->mOngoingAction["clip_id"].get<imgui_json::point>();
+            int64_t clipId = timeline->mOngoingAction["clip_id"].get<imgui_json::number>();
             Clip* clip = timeline->FindClipByID(clipId);
             std::string actionName = timeline->mOngoingAction["action"].get<imgui_json::string>();
             if (actionName == "MOVE_CLIP")
             {
-                timeline->mOngoingAction["start"] = clip->mStart;
+                timeline->mOngoingAction["start"] = imgui_json::number(clip->mStart);
                 // add actions of other selected clips
                 for (auto clip : timeline->m_Clips)
                 {
@@ -4654,18 +4654,18 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                         continue;
                     imgui_json::value action;
                     action["action"] = "MOVE_CLIP";
-                    action["clip_id"] = clip->mID;
-                    action["media_type"] = (imgui_json::number)clip->mType;
+                    action["clip_id"] = imgui_json::number(clip->mID);
+                    action["media_type"] = imgui_json::number(clip->mType);
                     MediaTrack* track = timeline->FindTrackByClipID(clip->mID);
-                    action["from_track_id"] = track->mID;
-                    action["start"] = clip->mStart;
+                    action["from_track_id"] = imgui_json::number(track->mID);
+                    action["start"] = imgui_json::number(clip->mStart);
                     timeline->mUiActions.push_back(std::move(action));
                 }
             }
             else if (actionName == "CROP_CLIP")
             {
-                timeline->mOngoingAction["startOffset"] = clip->mStartOffset;
-                timeline->mOngoingAction["endOffset"] = clip->mEndOffset;
+                timeline->mOngoingAction["startOffset"] = imgui_json::number(clip->mStartOffset);
+                timeline->mOngoingAction["endOffset"] = imgui_json::number(clip->mEndOffset);
             }
             timeline->mUiActions.push_back(std::move(timeline->mOngoingAction));
         }
@@ -4701,13 +4701,13 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                 action["action"] = "ADD_CLIP";
                 action["media_type"] = (imgui_json::number)item->mMediaType;
                 if (track)
-                    action["to_track_id"] = track->mID;
-                action["start"] = item->mStart;
-                action["end"] = item->mEnd;
+                    action["to_track_id"] = imgui_json::number(track->mID);
+                action["start"] = imgui_json::number(item->mStart);
+                action["end"] = imgui_json::number(item->mEnd);
                 if (item->mMediaType == MEDIA_PICTURE)
                 {
                     ImageClip * new_image_clip = new ImageClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, timeline);
-                    action["clip_id"] = new_image_clip->mID;
+                    action["clip_id"] = imgui_json::number(new_image_clip->mID);
                     timeline->m_Clips.push_back(new_image_clip);
                     bool can_insert_clip = track ? track->CanInsertClip(new_image_clip, mouseTime) : false;
                     if (can_insert_clip)
@@ -4721,13 +4721,13 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                         int newTrackIndex = timeline->NewTrack("", MEDIA_PICTURE, true);
                         MediaTrack * newTrack = timeline->m_Tracks[newTrackIndex];
                         newTrack->InsertClip(new_image_clip, mouseTime);
-                        action["to_track_id"] = newTrack->mID;
+                        action["to_track_id"] = imgui_json::number(newTrack->mID);
                     }
                 }
                 else if (item->mMediaType == MEDIA_AUDIO)
                 {
                     AudioClip * new_audio_clip = new AudioClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, timeline);
-                    action["clip_id"] = new_audio_clip->mID;
+                    action["clip_id"] = imgui_json::number(new_audio_clip->mID);
                     timeline->m_Clips.push_back(new_audio_clip);
                     bool can_insert_clip = track ? track->CanInsertClip(new_audio_clip, mouseTime) : false;
                     if (can_insert_clip)
@@ -4741,13 +4741,13 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                         int newTrackIndex = timeline->NewTrack("", MEDIA_AUDIO, true);
                         MediaTrack * newTrack = timeline->m_Tracks[newTrackIndex];
                         newTrack->InsertClip(new_audio_clip, mouseTime);
-                        action["to_track_id"] = newTrack->mID;
+                        action["to_track_id"] = imgui_json::number(newTrack->mID);
                     }
                 } 
                 else if (item->mMediaType == MEDIA_TEXT)
                 {
                     TextClip * new_text_clip = new TextClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, timeline);
-                    action["clip_id"] = new_text_clip->mID;
+                    action["clip_id"] = imgui_json::number(new_text_clip->mID);
                     timeline->m_Clips.push_back(new_text_clip);
                     // TODO::Dicky add text support
                 }
@@ -4762,7 +4762,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                     if (video_stream)
                     {
                         new_video_clip = new VideoClip(item->mStart, item->mEnd, item->mID, item->mName + ":Video", item->mMediaOverview, timeline);
-                        action["clip_id"] = new_video_clip->mID;
+                        action["clip_id"] = imgui_json::number(new_video_clip->mID);
                         timeline->m_Clips.push_back(new_video_clip);
                         bool can_insert_clip = track ? track->CanInsertClip(new_video_clip, mouseTime) : false;
                         if (can_insert_clip)
@@ -4777,7 +4777,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                             MediaTrack * videoTrack = timeline->m_Tracks[newTrackIndex];
                             videoTrack->InsertClip(new_video_clip, mouseTime);
                             create_new_track = true;
-                            action["to_track_id"] = videoTrack->mID;
+                            action["to_track_id"] = imgui_json::number(videoTrack->mID);
                         }
                     }
                     if (audio_stream)
@@ -4852,9 +4852,9 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
 
                             imgui_json::value action2;
                             action2["action"] = "ADD_CLIP";
-                            action2["media_type"] = (imgui_json::number)new_audio_clip->mType;
-                            action2["clip_id"] = new_audio_clip->mID;
-                            action2["to_track_id"] = audioTrack->mID;
+                            action2["media_type"] = imgui_json::number(new_audio_clip->mType);
+                            action2["clip_id"] = imgui_json::number(new_audio_clip->mID);
+                            action2["to_track_id"] = imgui_json::number(audioTrack->mID);
                             action2["start"] = (double)new_audio_clip->mStart/1000;
                             timeline->mUiActions.push_back(std::move(action2));
                         }
@@ -4880,13 +4880,13 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         imgui_json::value action;
         action["action"] = "REMOVE_CLIP";
         Clip* clip = timeline->FindClipByID(clipId);
-        action["media_type"] = (imgui_json::number)clip->mType;
-        action["clip_id"] = clipId;
+        action["media_type"] = imgui_json::number(clip->mType);
+        action["clip_id"] = imgui_json::number(clipId);
         auto track = timeline->FindTrackByClipID(clipId);
         if (track)
         {
             track->DeleteClip(clipId);
-            action["from_track_id"] = track->mID;
+            action["from_track_id"] = imgui_json::number(track->mID);
         }
         timeline->DeleteClip(clipId);
         timeline->mUiActions.push_back(std::move(action));
@@ -4900,8 +4900,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         {
             imgui_json::value action;
             action["action"] = "REMOVE_TRACK";
-            action["media_type"] = (imgui_json::number)trackMediaType;
-            action["track_id"] = delTrackId;
+            action["media_type"] = imgui_json::number(trackMediaType);
+            action["track_id"] = imgui_json::number(delTrackId);
             timeline->mUiActions.push_back(std::move(action));
         }
     }
@@ -4914,8 +4914,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                 auto track = *iter;
                 imgui_json::value action;
                 action["action"] = "REMOVE_TRACK";
-                action["media_type"] = (imgui_json::number)track->mType;
-                action["track_id"] = track->mID;
+                action["media_type"] = imgui_json::number(track->mType);
+                action["track_id"] = imgui_json::number(track->mID);
                 timeline->mUiActions.push_back(std::move(action));
                 iter = timeline->m_Tracks.erase(iter);
                 delete track;
