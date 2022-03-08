@@ -2327,7 +2327,7 @@ void Application_Initialize(void** handle)
         ImGui::SetTableLabelBreathingSpeed(0.005, 0.5);
     ImGui::ResetTabLabelStyle(ImGui::ImGuiTabLabelStyle_Dark, *tab_style);
 
-    // Logger::GetDefaultLogger()->SetShowLevels(Logger::DEBUG);
+    Logger::GetDefaultLogger()->SetShowLevels(Logger::DEBUG);
     // GetMediaReaderLogger()->SetShowLevels(Logger::DEBUG);
     // GetMediaSnapshotLogger()->SetShowLevels(Logger::DEBUG);
 

@@ -20,6 +20,8 @@ namespace DataLayer
         ~VideoClip();
 
         int64_t Id() const { return m_id; }
+        int64_t TrackId() const { return m_trackId; }
+        void SetTrackId(int64_t trackId) { m_trackId = trackId; }
         MediaParserHolder GetMediaParser() const { return m_srcReader->GetMediaParser(); }
         double Duration() const { return m_srcDuration-m_startOffset-m_endOffset; }
         void SetTimeLineOffset(double timeLineOffset) { m_timeLineOffset = timeLineOffset; }
@@ -37,9 +39,11 @@ namespace DataLayer
         void ReadVideoFrame(double pos, ImGui::ImMat& vmat, bool& eof);
         void SetDirection(bool forward);
 
+        friend std::ostream& operator<<(std::ostream& os, VideoClip& clip);
+
     private:
-        static std::atomic_uint32_t s_idCounter;
         int64_t m_id;
+        int64_t m_trackId{-1};
         MediaInfo::InfoHolder m_hInfo;
         MediaReader* m_srcReader;
         double m_timeLineOffset;
@@ -72,6 +76,7 @@ namespace DataLayer
         void SetTransition(VideoTransitionHolder trans);
 
         int64_t Id() const { return m_id; }
+        void SetId(int64_t id) { m_id = id; }
         double Start() const { return m_start; }
         double End() const { return m_end; }
         double Duration() const { return m_end-m_start; }
@@ -80,6 +85,8 @@ namespace DataLayer
 
         void SeekTo(double pos);
         void ReadVideoFrame(double pos, ImGui::ImMat& vmat, bool& eof);
+
+        friend std::ostream& operator<<(std::ostream& os, VideoOverlap& overlap);
 
     private:
         int64_t m_id;

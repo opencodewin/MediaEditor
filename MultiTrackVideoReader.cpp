@@ -1,4 +1,5 @@
 #include <thread>
+#include <algorithm>
 #include "MultiTrackVideoReader.h"
 
 using namespace std;
@@ -74,20 +75,23 @@ public:
         m_frameRate = { 0, 0 };
     }
 
-    bool AddTrack(int64_t trackId) override
+    VideoTrackHolder AddTrack(int64_t trackId) override
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
         if (!m_started)
         {
             m_errMsg = "This MultiTrackVideoReader instance is NOT started yet!";
-            return false;
+            return nullptr;
         }
 
         TerminateMixingThread();
 
         VideoTrackHolder hTrack(new VideoTrack(trackId, m_outWidth, m_outHeight, m_frameRate));
         hTrack->SetDirection(m_readForward);
-        m_tracks.push_back(hTrack);
+        {
+            lock_guard<recursive_mutex> lk2(m_trackLock);
+            m_tracks.push_back(hTrack);
+        }
         m_outputMats.clear();
 
         // ReleaseMixer();
@@ -99,21 +103,21 @@ public:
             track->SeekTo(pos);
 
         StartMixingThread();
-        return true;
+        return hTrack;
     }
 
-    bool RemoveTrack(uint32_t index) override
+    VideoTrackHolder RemoveTrackByIndex(uint32_t index) override
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
         if (!m_started)
         {
             m_errMsg = "This MultiTrackVideoReader instance is NOT started yet!";
-            return false;
+            return nullptr;
         }
         if (index >= m_tracks.size())
         {
             m_errMsg = "Invalid value for argument 'index'!";
-            return false;
+            return nullptr;
         }
 
         TerminateMixingThread();
@@ -124,7 +128,11 @@ public:
             iter++;
             index--;
         }
-        m_tracks.erase(iter);
+        auto delTrack = *iter;
+        {
+            lock_guard<recursive_mutex> lk2(m_trackLock);
+            m_tracks.erase(iter);
+        }
 
         // ReleaseMixer();
         // if (!m_tracks.empty())
@@ -138,7 +146,36 @@ public:
             track->SeekTo(pos);
 
         StartMixingThread();
-        return true;
+        return delTrack;
+    }
+
+    VideoTrackHolder RemoveTrackById(int64_t trackId) override
+    {
+        lock_guard<recursive_mutex> lk(m_apiLock);
+        if (!m_started)
+        {
+            m_errMsg = "This MultiTrackVideoReader instance is NOT started yet!";
+            return nullptr;
+        }
+
+        lock_guard<recursive_mutex> lk2(m_trackLock);
+        auto iter = find_if(m_tracks.begin(), m_tracks.end(), [trackId] (const VideoTrackHolder& track) {
+            return track->Id() == trackId;
+        });
+        if (iter == m_tracks.end())
+            return nullptr;
+
+        TerminateMixingThread();
+
+        VideoTrackHolder delTrack = *iter;
+        m_tracks.erase(iter);
+
+        double pos = (double)m_readFrames*m_frameRate.den/m_frameRate.num;
+        for (auto track : m_tracks)
+            track->SeekTo(pos);
+
+        StartMixingThread();
+        return delTrack;
     }
 
     bool SetDirection(bool forward) override
@@ -272,16 +309,32 @@ public:
         return m_tracks.end();
     }
 
-    VideoTrackHolder GetTrack(uint32_t idx) override
+    VideoTrackHolder GetTrackByIndex(uint32_t idx) override
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
         if (idx >= m_tracks.size())
             return nullptr;
-        lock_guard<mutex> lk2(m_trackLock);
+        lock_guard<recursive_mutex> lk2(m_trackLock);
         auto iter = m_tracks.begin();
         while (idx-- > 0 && iter != m_tracks.end())
             iter++;
         return iter != m_tracks.end() ? *iter : nullptr;
+    }
+
+    VideoTrackHolder GetTrackById(int64_t id, bool createIfNotExists) override
+    {
+        lock(m_apiLock, m_trackLock);
+        lock_guard<recursive_mutex> lk(m_apiLock, adopt_lock);
+        lock_guard<recursive_mutex> lk2(m_trackLock, adopt_lock);
+        auto iter = find_if(m_tracks.begin(), m_tracks.end(), [id] (const VideoTrackHolder& track) {
+            return track->Id() == id;
+        });
+        if (iter != m_tracks.end())
+            return *iter;
+        if (createIfNotExists)
+            return AddTrack(id);
+        else
+            return nullptr;
     }
 
     double Duration() override
@@ -333,14 +386,17 @@ private:
             if (m_outputMats.size() < m_outputMatsMaxCount)
             {
                 ImGui::ImMat mixedFrame;
-                auto trackIter = m_tracks.begin();
-                while (trackIter != m_tracks.end())
                 {
-                    ImGui::ImMat vmat;
-                    (*trackIter)->ReadVideoFrame(vmat);
-                    if (!vmat.empty() && mixedFrame.empty())
-                        mixedFrame = vmat;
-                    trackIter++;
+                    lock_guard<recursive_mutex> trackLk(m_trackLock);
+                    auto trackIter = m_tracks.begin();
+                    while (trackIter != m_tracks.end())
+                    {
+                        ImGui::ImMat vmat;
+                        (*trackIter)->ReadVideoFrame(vmat);
+                        if (!vmat.empty() && mixedFrame.empty())
+                            mixedFrame = vmat;
+                        trackIter++;
+                    }
                 }
                 if (mixedFrame.empty())
                 {
@@ -367,7 +423,7 @@ private:
 
     thread m_mixingThread;
     list<VideoTrackHolder> m_tracks;
-    mutex m_trackLock;
+    recursive_mutex m_trackLock;
 
     list<ImGui::ImMat> m_outputMats;
     mutex m_outputMatsLock;

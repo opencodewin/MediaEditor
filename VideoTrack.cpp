@@ -35,17 +35,13 @@ namespace DataLayer
     //     return AddNewClip(hParser, start, startOffset, endOffset);
     // }
 
-    // uint32_t VideoTrack::AddNewClip(MediaParserHolder hParser, double start, double startOffset, double endOffset)
-    // {
-    //     lock_guard<recursive_mutex> lk(m_apiLock);
-
-    //     VideoClipHolder hClip(new VideoClip(hParser, m_outWidth, m_outHeight, m_frameRate, start, startOffset, endOffset));
-    //     const uint32_t clipId = hClip->Id();
-    //     InsertClip(hClip, start);
-    //     SeekTo((double)m_readFrames*m_frameRate.den/m_frameRate.num);
-
-    //     return clipId;
-    // }
+    VideoClipHolder VideoTrack::AddNewClip(int64_t clipId, MediaParserHolder hParser, double start, double startOffset, double endOffset)
+    {
+        lock_guard<recursive_mutex> lk(m_apiLock);
+        VideoClipHolder hClip(new VideoClip(clipId, hParser, m_outWidth, m_outHeight, m_frameRate, start, startOffset, endOffset));
+        InsertClip(hClip);
+        return hClip;
+    }
 
     void VideoTrack::InsertClip(VideoClipHolder hClip)
     {
@@ -56,6 +52,7 @@ namespace DataLayer
         // add this clip into clip list
         hClip->SetDirection(m_readForward);
         m_clips.push_back(hClip);
+        hClip->SetTrackId(m_id);
         m_clips.sort(CLIP_SORT_CMP);
         // update track duration
         VideoClipHolder lastClip = m_clips.back();
@@ -138,11 +135,10 @@ namespace DataLayer
 
         VideoClipHolder hClip = (*iter);
         m_clips.erase(iter);
-        const double clipStart = hClip->Start();
-        const double clipEnd = clipStart+hClip->Duration();
+        hClip->SetTrackId(-1);
+        UpdateClipOverlap(hClip, true);
         double readPos = (double)m_readFrames*m_frameRate.den/m_frameRate.num;
-        if (readPos >= clipStart && readPos < clipEnd)
-            SeekTo(readPos);
+        SeekTo(readPos);
 
         if (m_clips.empty())
             m_duration = 0;
@@ -169,11 +165,10 @@ namespace DataLayer
 
         VideoClipHolder hClip = (*iter);
         m_clips.erase(iter);
-        const double clipStart = hClip->Start();
-        const double clipEnd = clipStart+hClip->Duration();
+        hClip->SetTrackId(-1);
+        UpdateClipOverlap(hClip, true);
         double readPos = (double)m_readFrames*m_frameRate.den/m_frameRate.num;
-        if (readPos >= clipStart && readPos < clipEnd)
-            SeekTo(readPos);
+        SeekTo(readPos);
 
         if (m_clips.empty())
             m_duration = 0;
@@ -376,7 +371,7 @@ namespace DataLayer
         return true;
     }
 
-    void VideoTrack::UpdateClipOverlap(VideoClipHolder hUpdateClip)
+    void VideoTrack::UpdateClipOverlap(VideoClipHolder hUpdateClip, bool remove)
     {
         const int64_t id1 = hUpdateClip->Id();
         // remove invalid overlaps
@@ -384,6 +379,11 @@ namespace DataLayer
         while (ovIter != m_overlaps.end())
         {
             auto& hOverlap = *ovIter;
+            if (hOverlap->FrontClip()->TrackId() != m_id || hOverlap->RearClip()->TrackId() != m_id)
+            {
+                ovIter = m_overlaps.erase(ovIter);
+                continue;
+            }
             if (hOverlap->FrontClip()->Id() == id1 || hOverlap->RearClip()->Id() == id1)
             {
                 hOverlap->Update();
@@ -395,28 +395,59 @@ namespace DataLayer
             }
             ovIter++;
         }
-        // add new overlaps
-        for (auto& clip : m_clips)
+        if (!remove)
         {
-            if (hUpdateClip == clip)
-                continue;
-            if (VideoOverlap::HasOverlap(hUpdateClip, clip))
+            // add new overlaps
+            for (auto& clip : m_clips)
             {
-                const int64_t id2 = clip->Id();
-                auto iter = find_if(m_overlaps.begin(), m_overlaps.end(), [id1, id2] (const VideoOverlapHolder& overlap) {
-                    const int64_t idf = overlap->FrontClip()->Id();
-                    const int64_t idr = overlap->RearClip()->Id();
-                    return id1 == idf && id2 == idr || id1 == idr && id2 == idf;
-                });
-                if (iter == m_overlaps.end())
+                if (hUpdateClip == clip)
+                    continue;
+                if (VideoOverlap::HasOverlap(hUpdateClip, clip))
                 {
-                    VideoOverlapHolder hOverlap(new VideoOverlap(0, hUpdateClip, clip));
-                    m_overlaps.push_back(hOverlap);
+                    const int64_t id2 = clip->Id();
+                    auto iter = find_if(m_overlaps.begin(), m_overlaps.end(), [id1, id2] (const VideoOverlapHolder& overlap) {
+                        const int64_t idf = overlap->FrontClip()->Id();
+                        const int64_t idr = overlap->RearClip()->Id();
+                        return id1 == idf && id2 == idr || id1 == idr && id2 == idf;
+                    });
+                    if (iter == m_overlaps.end())
+                    {
+                        VideoOverlapHolder hOverlap(new VideoOverlap(0, hUpdateClip, clip));
+                        m_overlaps.push_back(hOverlap);
+                    }
                 }
             }
         }
 
         // sort overlap by 'Start' time
         m_overlaps.sort(OVERLAP_SORT_CMP);
+    }
+
+    std::ostream& operator<<(std::ostream& os, VideoTrack& track)
+    {
+        os << "{ clips(" << track.m_clips.size() << "): [";
+        auto clipIter = track.m_clips.begin();
+        while (clipIter != track.m_clips.end())
+        {
+            os << *((*clipIter).get());
+            clipIter++;
+            if (clipIter != track.m_clips.end())
+                os << ", ";
+            else
+                break;
+        }
+        os << "], overlaps(" << track.m_overlaps.size() << "): [";
+        auto ovlpIter = track.m_overlaps.begin();
+        while (ovlpIter != track.m_overlaps.end())
+        {
+            os << *((*ovlpIter).get());
+            ovlpIter++;
+            if (ovlpIter != track.m_overlaps.end())
+                os << ", ";
+            else
+                break;
+        }
+        os << "] }";
+        return os;
     }
 }

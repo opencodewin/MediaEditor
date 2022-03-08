@@ -264,7 +264,9 @@ public:
             uint32_t outHeight = (uint32_t)ceil(m_vidAvStm->codecpar->height*heightFactor);
             if ((outHeight&0x1) == 1)
                 outHeight++;
-            return SetSnapshotSize(outWidth, outHeight);
+            if (!SetSnapshotSize(outWidth, outHeight))
+                return false;
+            m_useRszFactor = true;
         }
         m_ssSizeChanged = false;
         return true;

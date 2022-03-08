@@ -96,6 +96,9 @@ set(MEDIA_EDITOR_BINARY "me")
 set(MEDIA_EDITOR_SRCS
     MediaEditor.cpp
     MediaTimeline.cpp
+    MultiTrackVideoReader.cpp
+    VideoTrack.cpp
+    VideoClip.cpp
     MediaOverview.cpp
     MediaSnapshot.cpp
     MediaParser.cpp

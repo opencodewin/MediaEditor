@@ -235,28 +235,28 @@ public:
         //     Log(DEBUG) << "[3]===== End release texture" << endl;
         // }
 
-        Log(DEBUG) << "[2]----- Begin generate texture" << endl;
+        m_logger->Log(DEBUG) << "[2]----- Begin generate texture" << endl;
         for (auto& img : snapshots)
         {
             if (img->mTextureReady)
                 continue;
             if (!img->mImgMat.empty())
             {
-                img->mTextureHolder = TextureHolder(new ImTextureID(0), [] (ImTextureID* pTid) {
+                img->mTextureHolder = TextureHolder(new ImTextureID(0), [this] (ImTextureID* pTid) {
                     if (*pTid)
                     {
-                        Log(DEBUG) << "[3]\t\t\treleasing tid=" << *pTid << endl;
+                        GetMediaSnapshotLogger()->Log(DEBUG) << "[3]\t\t\treleasing tid=" << *pTid << endl;
                         ImGui::ImDestroyTexture(*pTid);
                     }
                     delete pTid;
                 });
-                Log(DEBUG) << "[2]\tbefore generate tid=" << *(img->mTextureHolder) << endl;
+                m_logger->Log(DEBUG) << "[2]\tbefore generate tid=" << *(img->mTextureHolder) << endl;
                 ImMatToTexture(img->mImgMat, *(img->mTextureHolder));
-                Log(DEBUG) << "[2]\tgenerated tid=" << *(img->mTextureHolder) << endl;
+                m_logger->Log(DEBUG) << "[2]\tgenerated tid=" << *(img->mTextureHolder) << endl;
                 img->mTextureReady = true;
             }
         }
-        Log(DEBUG) << "[2]----- End generate texture" << endl;
+        m_logger->Log(DEBUG) << "[2]----- End generate texture" << endl;
         return true;
     }
 
@@ -266,10 +266,10 @@ public:
 
         // free deprecated textures
         {
-            Log(DEBUG) << "[3]===== Begin release texture" << endl;
+            m_logger->Log(DEBUG) << "[3]===== Begin release texture" << endl;
             lock_guard<mutex> lktid(m_deprecatedTextureLock);
             m_deprecatedTextures.clear();
-            Log(DEBUG) << "[3]===== End release texture" << endl;
+            m_logger->Log(DEBUG) << "[3]===== End release texture" << endl;
         }
     }
 
@@ -301,7 +301,7 @@ public:
             m_errMsg = "Argument 'frameCount' must be greater than 1!";
             return false;
         }
-        Log(DEBUG) << "---------------------------- Config snap window -----------------------------" << endl;
+        m_logger->Log(VERBOSE) << "---------------------------- Config snap window -----------------------------" << endl;
         double minWndSize = CalcMinWindowSize(frameCount);
         if (windowSize < minWndSize)
             windowSize = minWndSize;
@@ -329,9 +329,8 @@ public:
 
         StartAllThreads();
 
-        m_logger->Log(DEBUG) << ">>>> Config window: m_snapWindowSize=" << m_snapWindowSize << ", m_wndFrmCnt=" << m_wndFrmCnt
+        m_logger->Log(VERBOSE) << ">>>> Config window: m_snapWindowSize=" << m_snapWindowSize << ", m_wndFrmCnt=" << m_wndFrmCnt
             << ", m_vidMaxIndex=" << m_vidMaxIndex << ", m_maxCacheSize=" << m_maxCacheSize << ", m_prevWndCacheSize=" << m_prevWndCacheSize << endl;
-        Log(DEBUG) << "---------------------------- Config snap window [DONE] -----------------------------" << endl;
         return true;
     }
 
@@ -402,7 +401,9 @@ public:
             uint32_t outHeight = (uint32_t)ceil(vidStream->height*heightFactor);
             if ((outHeight&0x1) == 1)
                 outHeight++;
-            return SetSnapshotSize(outWidth, outHeight);
+            if (!SetSnapshotSize(outWidth, outHeight))
+                return false;
+            m_useRszFactor = true;
         }
         m_ssSizeChanged = false;
         return true;

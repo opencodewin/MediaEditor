@@ -15,7 +15,7 @@ namespace DataLayer
         VideoTrack& operator=(const VideoTrack&) = delete;
 
         // uint32_t AddNewClip(const std::string& url, double start, double startOffset, double endOffset);
-        // uint32_t AddNewClip(MediaParserHolder hParser, double start, double startOffset, double endOffset);
+        VideoClipHolder AddNewClip(int64_t clipId, MediaParserHolder hParser, double start, double startOffset, double endOffset);
         void InsertClip(VideoClipHolder hClip);
         void MoveClip(int64_t id, double start);
         void ChangeClipRange(int64_t id, double startOffset, double endOffset);
@@ -41,11 +41,13 @@ namespace DataLayer
         MediaInfo::Ratio FrameRate() const { return m_frameRate; }
         double Duration() const { return m_duration; }
 
+        friend std::ostream& operator<<(std::ostream& os, VideoTrack& track);
+
     private:
         static std::function<bool(const VideoClipHolder&, const VideoClipHolder&)> CLIP_SORT_CMP;
         static std::function<bool(const VideoOverlapHolder&, const VideoOverlapHolder&)> OVERLAP_SORT_CMP;
         bool CheckClipRangeValid(int64_t clipId, double start, double end);
-        void UpdateClipOverlap(VideoClipHolder hClip);
+        void UpdateClipOverlap(VideoClipHolder hClip, bool remove = false);
 
     private:
         std::recursive_mutex m_apiLock;

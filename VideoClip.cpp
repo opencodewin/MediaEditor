@@ -12,8 +12,6 @@ namespace DataLayer
     ///////////////////////////////////////////////////////////////////////////////////////////
     // VideoClip
     ///////////////////////////////////////////////////////////////////////////////////////////
-    atomic_uint32_t VideoClip::s_idCounter{1};
-
     VideoClip::VideoClip(
         int64_t id, MediaParserHolder hParser,
         uint32_t outWidth, uint32_t outHeight, const MediaInfo::Ratio& frameRate,
@@ -46,7 +44,6 @@ namespace DataLayer
             throw runtime_error(m_srcReader->GetError());
 
         m_timeLineOffset = timeLineOffset;
-        m_id = s_idCounter++;
     }
 
     VideoClip::~VideoClip()
@@ -108,6 +105,13 @@ namespace DataLayer
     void VideoClip::SetDirection(bool forward)
     {
         m_srcReader->SetDirection(forward);
+    }
+
+    std::ostream& operator<<(std::ostream& os, VideoClip& clip)
+    {
+        os << "{'id':" << clip.Id() << ", 'start':" << clip.Start()
+            << ", 'soff':" << clip.StartOffset() << ", 'eoff':" << clip.EndOffset() << "}";
+        return os;
     }
 
     ///////////////////////////////////////////////////////////////////////////////////////////
@@ -228,5 +232,12 @@ namespace DataLayer
         eof = eof1 || eof2;
         if (pos == Duration())
             eof = true;
+    }
+
+    std::ostream& operator<<(std::ostream& os, VideoOverlap& overlap)
+    {
+        os << "{'id':" << overlap.Id() << ", 'start':" << overlap.Start()
+            << ", 'fcId':" << overlap.FrontClip()->Id() << ", 'rcId':" << overlap.RearClip()->Id() << "}";
+        return os;
     }
 }

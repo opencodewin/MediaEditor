@@ -158,13 +158,13 @@ void Application_Finalize(void** handle)
 #endif
 }
 
-static uint32_t s_addClipOptSelId = 0;
+static uint32_t s_addClipOptSelIdx = 0;
 static double s_addClipTimeLineOffset = 0;
 static double s_addClipStartOffset = 0;
 static double s_addClipEndOffset = 0;
-static uint32_t s_remTrackOptSelId = 0;
-static uint32_t s_movClipTrackSelId = 0;
-static uint32_t s_movClipSelId = 0;
+static uint32_t s_remTrackOptSelIdx = 0;
+static uint32_t s_movClipTrackSelIdx = 0;
+static uint32_t s_movClipSelIdx = 0;
 static double s_changeClipTimeLineOffset = 0;
 static double s_changeClipStartOffset = 0;
 static double s_changeClipEndOffset = 0;
@@ -196,19 +196,19 @@ bool Application_Frame(void * handle, bool app_will_quit)
 
         vector<string> addClipOpts(trackNames);
         addClipOpts.push_back("new track");
-        if (s_addClipOptSelId >= addClipOpts.size())
-            s_addClipOptSelId = addClipOpts.size()-1;
+        if (s_addClipOptSelIdx >= addClipOpts.size())
+            s_addClipOptSelIdx = addClipOpts.size()-1;
         ImGui::PushItemWidth(100);
         ImGui::TextUnformatted("AddClipOptions");
         ImGui::SameLine();
-        if (ImGui::BeginCombo("##AddClipOptions", addClipOpts[s_addClipOptSelId].c_str()))
+        if (ImGui::BeginCombo("##AddClipOptions", addClipOpts[s_addClipOptSelIdx].c_str()))
         {
             for (uint32_t i = 0; i < addClipOpts.size(); i++)
             {
                 string& item = addClipOpts[i];
-                const bool isSelected = s_addClipOptSelId == i;
+                const bool isSelected = s_addClipOptSelIdx == i;
                 if (ImGui::Selectable(item.c_str(), isSelected))
-                    s_addClipOptSelId = i;
+                    s_addClipOptSelIdx = i;
                 if (isSelected)
                     ImGui::SetItemDefaultFocus();
             }
@@ -236,14 +236,14 @@ bool Application_Frame(void * handle, bool app_will_quit)
         bool noTrack = trackNames.empty();
 
         ImGui::PushItemWidth(100);
-        if (ImGui::BeginCombo("##RemTrackOptions", selectTrackOpts[s_remTrackOptSelId].c_str()))
+        if (ImGui::BeginCombo("##RemTrackOptions", selectTrackOpts[s_remTrackOptSelIdx].c_str()))
         {
             for (uint32_t i = 0; i < selectTrackOpts.size(); i++)
             {
                 string& item = selectTrackOpts[i];
-                const bool isSelected = s_remTrackOptSelId == i;
+                const bool isSelected = s_remTrackOptSelIdx == i;
                 if (ImGui::Selectable(item.c_str(), isSelected))
-                    s_remTrackOptSelId = i;
+                    s_remTrackOptSelIdx = i;
                 if (isSelected)
                     ImGui::SetItemDefaultFocus();
             }
@@ -256,8 +256,8 @@ bool Application_Frame(void * handle, bool app_will_quit)
             ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true);
         if (ImGui::Button("Remove Track"))
         {
-            g_mtAudReader->RemoveTrack(s_remTrackOptSelId);
-            s_remTrackOptSelId = 0;
+            g_mtAudReader->RemoveTrack(s_remTrackOptSelIdx);
+            s_remTrackOptSelIdx = 0;
             g_audrnd->Flush();
         }
         if (noTrack)
@@ -266,14 +266,14 @@ bool Application_Frame(void * handle, bool app_will_quit)
         ImGui::Spacing();
 
         ImGui::PushItemWidth(100);
-        if (ImGui::BeginCombo("##MovClipSelTrackOptions", selectTrackOpts[s_movClipTrackSelId].c_str()))
+        if (ImGui::BeginCombo("##MovClipSelTrackOptions", selectTrackOpts[s_movClipTrackSelIdx].c_str()))
         {
             for (uint32_t i = 0; i < selectTrackOpts.size(); i++)
             {
                 string& item = selectTrackOpts[i];
-                const bool isSelected = s_movClipTrackSelId == i;
+                const bool isSelected = s_movClipTrackSelIdx == i;
                 if (ImGui::Selectable(item.c_str(), isSelected))
-                    s_movClipTrackSelId = i;
+                    s_movClipTrackSelIdx = i;
                 if (isSelected)
                     ImGui::SetItemDefaultFocus();
             }
@@ -285,7 +285,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
         vector<string> clipNames;
         if (!noTrack)
         {
-            AudioTrackHolder hTrack = g_mtAudReader->GetTrack(s_movClipTrackSelId);
+            AudioTrackHolder hTrack = g_mtAudReader->GetTrack(s_movClipTrackSelIdx);
             auto clipIter = hTrack->ClipListBegin();
             while (clipIter != hTrack->ClipListEnd())
             {
@@ -302,18 +302,18 @@ bool Application_Frame(void * handle, bool app_will_quit)
             clipSelOpts.push_back("<no clip>");
             noClip = true;
         }
-        if (s_movClipSelId >= clipSelOpts.size())
-            s_movClipSelId = clipSelOpts.size()-1;
-        if (ImGui::BeginCombo("##MovClipSelClipOptions", clipSelOpts[s_movClipSelId].c_str()))
+        if (s_movClipSelIdx >= clipSelOpts.size())
+            s_movClipSelIdx = clipSelOpts.size()-1;
+        if (ImGui::BeginCombo("##MovClipSelClipOptions", clipSelOpts[s_movClipSelIdx].c_str()))
         {
-            AudioTrackHolder hTrack = g_mtAudReader->GetTrack(s_movClipTrackSelId);
+            AudioTrackHolder hTrack = g_mtAudReader->GetTrack(s_movClipTrackSelIdx);
             auto clipIter = hTrack->ClipListBegin();
             for (uint32_t i = 0; i < clipSelOpts.size(); i++)
             {
                 string& item = clipSelOpts[i];
-                const bool isSelected = s_movClipSelId == i;
+                const bool isSelected = s_movClipSelIdx == i;
                 if (ImGui::Selectable(item.c_str(), isSelected))
-                    s_movClipSelId = i;
+                    s_movClipSelIdx = i;
                 if (isSelected)
                     ImGui::SetItemDefaultFocus();
                 clipIter++;
@@ -328,9 +328,9 @@ bool Application_Frame(void * handle, bool app_will_quit)
             ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true);
         if (ImGui::Button("Remove Clip"))
         {
-            AudioTrackHolder hTrack = g_mtAudReader->GetTrack(s_movClipTrackSelId);
-            hTrack->RemoveClipByIndex(s_movClipSelId);
-            s_movClipSelId = 0;
+            AudioTrackHolder hTrack = g_mtAudReader->GetTrack(s_movClipTrackSelIdx);
+            hTrack->RemoveClipByIndex(s_movClipSelIdx);
+            s_movClipSelIdx = 0;
             g_audrnd->Flush();
         }
         if (noClip)
@@ -357,8 +357,8 @@ bool Application_Frame(void * handle, bool app_will_quit)
             ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true);
         if (ImGui::Button("Change Clip"))
         {
-            AudioTrackHolder hTrack = g_mtAudReader->GetTrack(s_movClipTrackSelId);
-            AudioClipHolder hClip = hTrack->GetClipByIndex(s_movClipSelId);
+            AudioTrackHolder hTrack = g_mtAudReader->GetTrack(s_movClipTrackSelIdx);
+            AudioClipHolder hClip = hTrack->GetClipByIndex(s_movClipSelIdx);
             hTrack->ChangeClip(hClip->Id(), s_changeClipTimeLineOffset, s_changeClipStartOffset, s_changeClipEndOffset);
             g_audrnd->Flush();
         }
@@ -428,16 +428,16 @@ bool Application_Frame(void * handle, bool app_will_quit)
         if (ImGuiFileDialog::Instance()->IsOk())
 		{
             string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
-            if (s_addClipOptSelId == g_mtAudReader->TrackCount())
+            if (s_addClipOptSelIdx == g_mtAudReader->TrackCount())
             {
                 if (!g_mtAudReader->AddTrack())
                 {
                     Log(Error) << "FAILED to 'AddTrack'! Message is '" << g_mtAudReader->GetError() << "'." << endl;
                 }
             }
-            AudioTrackHolder hTrack = g_mtAudReader->GetTrack(s_addClipOptSelId);
+            AudioTrackHolder hTrack = g_mtAudReader->GetTrack(s_addClipOptSelIdx);
             hTrack->AddNewClip(filePathName, s_addClipTimeLineOffset, s_addClipStartOffset, s_addClipEndOffset);
-            s_addClipOptSelId = g_mtAudReader->TrackCount();
+            s_addClipOptSelIdx = g_mtAudReader->TrackCount();
             s_addClipTimeLineOffset = 0;
             s_addClipStartOffset = 0;
             s_addClipEndOffset = 0;

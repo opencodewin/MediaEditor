@@ -6,6 +6,7 @@
 #include "MediaOverview.h"
 #include "MediaSnapshot.h"
 #include "MediaReader.h"
+#include "MultiTrackVideoReader.h"
 #include "AudioRender.hpp"
 #include "UI.h"
 #include <thread>
@@ -537,6 +538,12 @@ struct TimeLine
     std::mutex mAudFilterClipLock;          // timeline clip mutex
     EditingAudioClip* mAudFilterClip    {nullptr};
 
+    MultiTrackVideoReader* mMtvReader  {nullptr};
+
+    imgui_json::value mOngoingAction;
+    std::list<imgui_json::value> mUiActions;
+    void PerformUiActions();
+
     std::mutex mTrackLock;                  // timeline track mutex
     
     // BP CallBacks
@@ -582,8 +589,8 @@ struct TimeLine
 
     int GetTrackCount() const { return (int)m_Tracks.size(); }
     int GetTrackCount(MEDIA_TYPE type);
-    int NewTrack(MEDIA_TYPE type, bool expand);
-    void DeleteTrack(int index);
+    int NewTrack(const std::string& name, MEDIA_TYPE type, bool expand);
+    int64_t DeleteTrack(int index);
     void SelectTrack(int index);
     void MovingTrack(int& index, int& dst_index);
 
@@ -626,6 +633,8 @@ struct TimeLine
     ImU32 GetGroupColor(int64_t group_id);              // Get Group color by id
     int Load(const imgui_json::value& value);
     void Save(imgui_json::value& value);
+    void ConfigureDataLayer();
+    void SyncDataLayer();
 };
 
 bool DrawTimeLine(TimeLine *timeline, bool *expanded);

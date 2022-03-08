@@ -117,7 +117,6 @@ public:
         }
         lock_guard<recursive_mutex> lk(m_apiLock);
 
-        m_useRszFactor = false;
         if (!m_frmCvt.SetOutSize(outWidth, outHeight))
         {
             m_errMsg = m_frmCvt.GetError();
@@ -162,7 +161,19 @@ public:
 
         m_ssWFacotr = outWidthFactor;
         m_ssHFacotr = outHeightFactor;
-        m_useRszFactor = true;
+
+        auto vidStream = GetVideoStream();
+        uint32_t outWidth = (uint32_t)ceil(vidStream->width*outWidthFactor);
+        if ((outWidth&0x1) == 1)
+            outWidth++;
+        uint32_t outHeight = (uint32_t)ceil(vidStream->height*outHeightFactor);
+        if ((outHeight&0x1) == 1)
+            outHeight++;
+        if (!m_frmCvt.SetOutSize(outWidth, outHeight))
+        {
+            m_errMsg = m_frmCvt.GetError();
+            return false;
+        }
         if (!m_frmCvt.SetOutColorFormat(outClrfmt))
         {
             m_errMsg = m_frmCvt.GetError();
@@ -588,21 +599,6 @@ private:
             AVRational avgFrmRate = { vidStream->avgFrameRate.num, vidStream->avgFrameRate.den };
             AVRational timebase = { vidStream->timebase.num, vidStream->timebase.den };
             m_vidfrmIntvMts = av_q2d(av_inv_q(avgFrmRate))*1000.;
-
-            if (m_useRszFactor)
-            {
-                uint32_t outWidth = (uint32_t)ceil(vidStream->width*m_ssWFacotr);
-                if ((outWidth&0x1) == 1)
-                    outWidth++;
-                uint32_t outHeight = (uint32_t)ceil(vidStream->height*m_ssHFacotr);
-                if ((outHeight&0x1) == 1)
-                    outHeight++;
-                if (!m_frmCvt.SetOutSize(outWidth, outHeight))
-                {
-                    m_errMsg = m_frmCvt.GetError();
-                    return false;
-                }
-            }
         }
 
         if (m_audStmIdx >= 0)
@@ -2570,8 +2566,6 @@ private:
     bool m_audReadEof{false};
     int64_t m_audReadNextTaskSeekPts0{INT64_MIN};
 
-    bool m_useRszFactor{false};
-    bool m_ssSizeChanged{false};
     float m_ssWFacotr{1.f}, m_ssHFacotr{1.f};
     AVFrameToImMatConverter m_frmCvt;
 };
