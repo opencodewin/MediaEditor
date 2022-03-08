@@ -357,24 +357,25 @@ struct TextClip : Clip
 
 struct BaseEditingClip
 {
-    int64_t mID                 {-1};                   // clip ID, project saved
+    int64_t mID                 {-1};                   // editing clip ID
     MEDIA_TYPE mType            {MEDIA_UNKNOWN};
     int64_t mStart              {0};
     int64_t mEnd                {0};
-    int64_t mStartOffset        {0};                    // clip start time in media, project saved
-    int64_t mEndOffset          {0};                    // clip end time in media, project saved
+    int64_t mStartOffset        {0};                    // editing clip start time in media
+    int64_t mEndOffset          {0};                    // editing clip end time in media
     int64_t mDuration           {0};
     int64_t mCurrPos            {0};
-    bool bPlay                  {false};                // clip play status
-    bool bForward               {true};                 // clip play direction
+    bool bPlay                  {false};                // editing clip play status
+    bool bForward               {true};                 // editing clip play direction
     bool bSeeking               {false};
     int64_t mLastTime           {-1};
     ImVec2 mViewWndSize         {0, 0};
 
-    MediaReader* mMediaReader   {nullptr};          // clip media reader
+    void* mHandle               {nullptr};              // main timeline handle
+    MediaReader* mMediaReader   {nullptr};              // editing clip media reader
 
-    BaseEditingClip(int64_t id, MEDIA_TYPE type, int64_t start, int64_t end, int64_t startOffset, int64_t endOffset)
-        : mID(id), mType(type), mStart(start), mEnd(end), mStartOffset(startOffset), mEndOffset(endOffset)
+    BaseEditingClip(int64_t id, MEDIA_TYPE type, int64_t start, int64_t end, int64_t startOffset, int64_t endOffset, void* handle)
+        : mID(id), mType(type), mStart(start), mEnd(end), mStartOffset(startOffset), mEndOffset(endOffset), mHandle(handle)
     {}
 
     virtual void UpdateClipRange(Clip* clip) = 0;

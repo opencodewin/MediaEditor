@@ -1357,7 +1357,7 @@ void TextClip::Save(imgui_json::value& value)
 }
 
 EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
-    : BaseEditingClip(vidclip->mID, vidclip->mType, vidclip->mStart, vidclip->mEnd, vidclip->mStartOffset, vidclip->mEndOffset)
+    : BaseEditingClip(vidclip->mID, vidclip->mType, vidclip->mStart, vidclip->mEnd, vidclip->mStartOffset, vidclip->mEndOffset, vidclip->mHandle)
 {
     TimeLine * timeline = (TimeLine *)vidclip->mHandle;
     mDuration = mEnd-mStart;
@@ -1608,7 +1608,7 @@ void EditingVideoClip::CalcDisplayParams()
 }
 
 EditingAudioClip::EditingAudioClip(AudioClip* audclip)
-    : BaseEditingClip(audclip->mID, audclip->mType, audclip->mStart, audclip->mEnd, audclip->mStartOffset, audclip->mEndOffset)
+    : BaseEditingClip(audclip->mID, audclip->mType, audclip->mStart, audclip->mEnd, audclip->mStartOffset, audclip->mEndOffset, audclip->mHandle)
 {}
 
 EditingAudioClip::~EditingAudioClip()
@@ -4373,10 +4373,16 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         draw_list->PopClipRect();
 
         // time metric
+        bool movable = true;
+        if ((timeline->mVidFilterClip && timeline->mVidFilterClip->bSeeking) ||
+            (timeline->mAudFilterClip && timeline->mAudFilterClip->bSeeking))
+        {
+            movable = false;
+        }
         ImRect topRect(ImVec2(contentMin.x + legendWidth, canvas_pos.y), ImVec2(contentMin.x + timline_size.x, canvas_pos.y + HeadHeight));
         ImGui::SetCursorScreenPos(topRect.Min);
         ImGui::BeginChildFrame(ImGui::GetCurrentWindow()->GetID("#timeline metric"), topRect.GetSize(), ImGuiWindowFlags_NoScrollbar);
-        if (!MovingCurrentTime && !MovingHorizonScrollBar && clipMovingEntry == -1 && timeline->currentTime >= 0 && topRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left))
+        if (movable && !MovingCurrentTime && !MovingHorizonScrollBar && clipMovingEntry == -1 && timeline->currentTime >= 0 && topRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left))
         {
             MovingCurrentTime = true;
             timeline->bSeeking = true;
@@ -4726,7 +4732,7 @@ bool DrawClipTimeLine(BaseEditingClip * editingClip)
     draw_list->AddRectFilled(window_pos, window_pos + headerSize, COL_DARK_ONE, 0);
 
     ImRect movRect(window_pos, window_pos + window_size);
-    if (!MovingCurrentTime && editingClip->mCurrPos >= start && movRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && isFocused)
+    if ( !MovingCurrentTime && editingClip->mCurrPos >= start && movRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && isFocused)
     {
         MovingCurrentTime = true;
         editingClip->bSeeking = true;
