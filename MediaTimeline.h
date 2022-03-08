@@ -13,6 +13,7 @@
 #include <string>
 #include <vector>
 #include <list>
+#include <chrono>
 
 #define ICON_MEDIA_BANK     u8"\ue907"
 #define ICON_MEDIA_TRANS    u8"\ue927"
@@ -542,7 +543,13 @@ struct TimeLine
     std::mutex mAudFilterClipLock;          // timeline clip mutex
     EditingAudioClip* mAudFilterClip    {nullptr};
 
-    MultiTrackVideoReader* mMtvReader  {nullptr};
+    MultiTrackVideoReader* mMtvReader   {nullptr};
+    double mPreviewPos                      {0};
+    double mPreviewResumePos                {0};
+    bool mIsPreviewPlaying                  {false};
+    bool mIsPreviewForward                  {true};
+    using PlayerClock = std::chrono::steady_clock;
+    PlayerClock::time_point mPlayTriggerTp;
 
     imgui_json::value mOngoingAction;
     std::list<imgui_json::value> mUiActions;
@@ -611,6 +618,7 @@ struct TimeLine
     int GetAudioLevel(int channel);
 
     void Play(bool play, bool forward = true);
+    void Seek(int64_t msPos);
     void Step(bool forward = true);
     void Loop(bool loop);
     void ToStart();

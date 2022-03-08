@@ -1270,7 +1270,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     PanelBarPos = window_pos + window_size - ImVec2(window_size.x, 48);
     PanelBarSize = ImVec2(window_size.x, 48);
     draw_list->AddRectFilled(PanelBarPos, PanelBarPos + PanelBarSize, COL_DARK_PANEL);
-    
+
     // Preview buttons Stop button is center of Panel bar
     auto PanelCenterX = PanelBarPos.x + window_size.x / 2;
     auto PanelButtonY = PanelBarPos.y + 8;
