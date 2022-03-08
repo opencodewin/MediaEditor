@@ -1353,7 +1353,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     auto PanelRightY = PanelBarPos.y + 8;
     auto time_str = MillisecToString(timeline->currentTime);
     ImGui::SetWindowFontScale(1.5);
-    draw_list->AddText(ImVec2(PanelRightX, PanelRightY), timeline->bPlay ? COL_MARK : COL_MARK_HALF, time_str.c_str());
+    draw_list->AddText(ImVec2(PanelRightX, PanelRightY), timeline->mIsPreviewPlaying ? COL_MARK : COL_MARK_HALF, time_str.c_str());
     ImGui::SetWindowFontScale(1.0);
 
     // audio meters

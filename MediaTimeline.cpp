@@ -2915,13 +2915,45 @@ void TimeLine::DeleteOverlap(int64_t id)
     }
 }
 
+void TimeLine::UpdateCurrent()
+{
+    if (!mIsPreviewForward)
+    {
+        if (currentTime < firstTime + visibleTime / 2)
+        {
+            firstTime = currentTime - visibleTime / 2;
+        }
+        else if (currentTime > firstTime + visibleTime)
+        {
+            firstTime = currentTime - visibleTime;
+        }
+    }
+    else
+    {
+        if (mEnd - currentTime < visibleTime / 2)
+        {
+            firstTime = mEnd - visibleTime;
+        }
+        else if (currentTime > firstTime + visibleTime / 2)
+        {
+            firstTime = currentTime - visibleTime / 2;
+        }
+        else if (currentTime < firstTime)
+        {
+            firstTime = currentTime;
+        }
+    }
+    if (firstTime < 0) firstTime = 0;
+}
+
 ImGui::ImMat TimeLine::GetPreviewFrame()
 {
-    double elapsedTime = std::chrono::duration_cast<std::chrono::duration<double>>((PlayerClock::now()-mPlayTriggerTp)).count();
+    double elapsedTime = std::chrono::duration_cast<std::chrono::duration<double>>((PlayerClock::now() - mPlayTriggerTp)).count();
     mPreviewPos = mIsPreviewPlaying ? (mIsPreviewForward ? mPreviewResumePos+elapsedTime : mPreviewResumePos-elapsedTime) : mPreviewResumePos;
     ImGui::ImMat frame;
     mMtvReader->ReadVideoFrame(mPreviewPos, frame);
-    currentTime = (int64_t)(mPreviewPos*1000);
+    currentTime = (int64_t)(mPreviewPos * 1000);
+    if (mIsPreviewPlaying) UpdateCurrent();
     return frame;
 }
 
@@ -3571,10 +3603,10 @@ int TimeLine::Load(const imgui_json::value& value)
         if (val.is_number()) currentTime = val.get<imgui_json::number>();
         mPreviewResumePos = (double)currentTime/1000;
     }
-    if (value.contains("Forward"))
+    if (value.contains("PreviewForward"))
     {
-        auto& val = value["Forward"];
-        if (val.is_boolean()) bForward = val.get<imgui_json::boolean>();
+        auto& val = value["PreviewForward"];
+        if (val.is_boolean()) mIsPreviewForward = val.get<imgui_json::boolean>();
     }
     if (value.contains("Loop"))
     {
@@ -3664,7 +3696,7 @@ void TimeLine::Save(imgui_json::value& value)
     value["msPixelWidth"] = imgui_json::number(msPixelWidthTarget);
     value["FirstTime"] = imgui_json::number(firstTime);
     value["CurrentTime"] = imgui_json::number(currentTime);
-    value["Forward"] = imgui_json::boolean(bForward);
+    value["PreviewForward"] = imgui_json::boolean(mIsPreviewForward);
     value["Loop"] = imgui_json::boolean(bLoop);
     value["SelectLinked"] = imgui_json::boolean(bSelectLinked);
     value["IDGenerateState"] = imgui_json::number(m_IDGenerator.State());
@@ -4699,7 +4731,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             {
                 imgui_json::value action;
                 action["action"] = "ADD_CLIP";
-                action["media_type"] = (imgui_json::number)item->mMediaType;
+                action["media_type"] = imgui_json::number(item->mMediaType);
                 if (track)
                     action["to_track_id"] = imgui_json::number(track->mID);
                 action["start"] = imgui_json::number(item->mStart);

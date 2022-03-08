@@ -531,10 +531,7 @@ struct TimeLine
     int64_t visibleTime = 0;
     float msPixelWidthTarget = 0.1f;
 
-    bool bPlay = false;
     bool bSeeking = false;
-
-    bool bForward = true;                   // project saved
     bool bLoop = false;                     // project saved
     bool bSelectLinked = true;              // project saved
 
@@ -623,6 +620,7 @@ struct TimeLine
     void Loop(bool loop);
     void ToStart();
     void ToEnd();
+    void UpdateCurrent();
 
     AudioRender* mAudioRender {nullptr};                // audio render(SDL)
 
