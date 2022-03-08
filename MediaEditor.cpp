@@ -963,7 +963,7 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
     bool overButton = button_rect.Contains(io.MousePos);
     if (overButton && io.MouseClicked[0])
     {
-        // TODO::Dicky need delete it from sequencer item list ?
+        // TODO::Dicky need delete it from timeline list ?
         MediaItem * it = *item;
         delete it;
         item = timeline->media_items.erase(item);
@@ -1260,7 +1260,7 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
  ***************************************************************************************/
 static void ShowMediaPreviewWindow(ImDrawList *draw_list)
 {
-    //SetSequenceEditorStage(false, false, false);
+    // need set page stats ?
     // preview control pannel
     ImVec2 PanelBarPos;
     ImVec2 PanelBarSize;
@@ -1492,7 +1492,7 @@ static void ShowVideoFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
 
 static void ShowVideoFilterWindow(ImDrawList *draw_list)
 {
-    //SetSequenceEditorStage(true, false, false);
+    // need set page stats?
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
     draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
@@ -1661,52 +1661,42 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                 auto ret = timeline->mVidFilterClip->GetFrame(pair);
                 if (ret)
                 {
-                    timeline->mVideoFilterTextureLock.lock();
                     ImGui::ImMatToTexture(pair.first, timeline->mVideoFilterInputTexture);
                     ImGui::ImMatToTexture(pair.second, timeline->mVideoFilterOutputTexture);
-                    timeline->mVideoFilterTextureLock.unlock();
                 }
                 float pos_x = 0, pos_y = 0;
                 bool draw_compare = false;
                 ImVec4 tint_col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);   // No tint
                 ImVec4 border_col = ImVec4(1.0f, 1.0f, 1.0f, 0.5f); // 50% opaque white
-                timeline->mVideoFilterTextureLock.lock();
+                
+                float offset_x = 0, offset_y = 0;
+                float tf_x = 0, tf_y = 0;
+                // filter input texture area
+                ShowVideoWindow(timeline->mVideoFilterInputTexture, InputVideoPos, InputVideoSize, offset_x, offset_y, tf_x, tf_y);
+                if (ImGui::IsItemHovered() && timeline->mVideoFilterInputTexture)
                 {
-                    // filter input texture area
-                    float offset_x = 0, offset_y = 0;
-                    float tf_x = 0, tf_y = 0;
-                    ShowVideoWindow(timeline->mVideoFilterInputTexture, InputVideoPos, InputVideoSize, offset_x, offset_y, tf_x, tf_y);
-                    if (ImGui::IsItemHovered() && timeline->mVideoFilterInputTexture)
-                    {
-                        float image_width = ImGui::ImGetTextureWidth(timeline->mVideoFilterInputTexture);
-                        float image_height = ImGui::ImGetTextureHeight(timeline->mVideoFilterInputTexture);
-                        float scale_w = image_width / (InputVideoSize.x - tf_x * 2);
-                        float scale_h = image_height / (InputVideoSize.y - tf_y * 2);
-                        pos_x = (io.MousePos.x - offset_x) * scale_w;
-                        pos_y = (io.MousePos.y - offset_y) * scale_h;
-                        draw_compare = true;
-                    }
+                    float image_width = ImGui::ImGetTextureWidth(timeline->mVideoFilterInputTexture);
+                    float image_height = ImGui::ImGetTextureHeight(timeline->mVideoFilterInputTexture);
+                    float scale_w = image_width / (InputVideoSize.x - tf_x * 2);
+                    float scale_h = image_height / (InputVideoSize.y - tf_y * 2);
+                    pos_x = (io.MousePos.x - offset_x) * scale_w;
+                    pos_y = (io.MousePos.y - offset_y) * scale_h;
+                    draw_compare = true;
                 }
+                // filter output texture area
+                ShowVideoWindow(timeline->mVideoFilterOutputTexture, OutputVideoPos, OutputVideoSize, offset_x, offset_y, tf_x, tf_y);
+                if (ImGui::IsItemHovered() && timeline->mVideoFilterOutputTexture)
                 {
-                    // filter output texture area
-                    float offset_x = 0, offset_y = 0;
-                    float tf_x = 0, tf_y = 0;
-                    ShowVideoWindow(timeline->mVideoFilterOutputTexture, OutputVideoPos, OutputVideoSize, offset_x, offset_y, tf_x, tf_y);
-                    if (ImGui::IsItemHovered() && timeline->mVideoFilterOutputTexture)
-                    {
-                        float image_width = ImGui::ImGetTextureWidth(timeline->mVideoFilterOutputTexture);
-                        float image_height = ImGui::ImGetTextureHeight(timeline->mVideoFilterOutputTexture);
-                        float scale_w = image_width / (OutputVideoSize.x - tf_x * 2);
-                        float scale_h = image_height / (OutputVideoSize.y - tf_y * 2);
-                        pos_x = (io.MousePos.x - offset_x) * scale_w;
-                        pos_y = (io.MousePos.y - offset_y) * scale_h;
-                        draw_compare = true;
-                    }
+                    float image_width = ImGui::ImGetTextureWidth(timeline->mVideoFilterOutputTexture);
+                    float image_height = ImGui::ImGetTextureHeight(timeline->mVideoFilterOutputTexture);
+                    float scale_w = image_width / (OutputVideoSize.x - tf_x * 2);
+                    float scale_h = image_height / (OutputVideoSize.y - tf_y * 2);
+                    pos_x = (io.MousePos.x - offset_x) * scale_w;
+                    pos_y = (io.MousePos.y - offset_y) * scale_h;
+                    draw_compare = true;
                 }
-                timeline->mVideoFilterTextureLock.unlock();
                 if (draw_compare)
                 {
-                    timeline->mVideoFilterTextureLock.lock();
                     if (timeline->mVideoFilterInputTexture)
                     {
                         float image_width = ImGui::ImGetTextureWidth(timeline->mVideoFilterInputTexture);
@@ -1742,7 +1732,6 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                         ImGui::Image(timeline->mVideoFilterOutputTexture, ImVec2(region_sz * texture_zoom, region_sz * texture_zoom), uv0, uv1, tint_col, border_col);
                         ImGui::EndTooltip();
                     }
-                    timeline->mVideoFilterTextureLock.unlock();
                 }
             }
         }
@@ -1802,7 +1791,7 @@ static void ShowVideoFusionBluePrintWindow(ImDrawList *draw_list, Overlap * over
 
 static void ShowVideoFusionWindow(ImDrawList *draw_list)
 {
-    //SetSequenceEditorStage(false, true, false);
+    // need set page stats
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
     draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
@@ -2348,9 +2337,24 @@ bool Application_Frame(void * handle, bool app_will_quit)
     static bool show_about = false;
     static bool show_configure = false;
     static bool expanded = true;
+    static bool show_debug = false;
     
     const ImGuiFileDialogFlags fflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_DisableCreateDirectoryButton;
-    const std::string ffilters = "Video files (*.mp4 *.mov *.mkv *.avi *.webm *.ts){.mp4,.mov,.mkv,.avi,.webm,.ts},Audio files (*.wav *.mp3 *.aac *.ogg *.ac3 *.dts){.wav,.mp3,.aac,.ogg,.ac3,.dts},Image files (*.png *.gif *.jpg *.jpeg *.tiff *.webp){.png,.gif,.jpg,.jpeg,.tiff,.webp},.*";
+    const std::string video_file_dis = "*.mp4 *.mov *.mkv *.avi *.webm *.ts";
+    const std::string video_file_surfix = ".mp4,.mov,.mkv,.avi,.webm,.ts";
+    const std::string audio_file_dis = "*.wav *.mp3 *.aac *.ogg *.ac3 *.dts";
+    const std::string audio_file_surfix = ".wav,.mp3,.aac,.ogg,.ac3,.dts";
+    const std::string image_file_dis = "*.png *.gif *.jpg *.jpeg *.tiff *.webp";
+    const std::string image_file_surfix = ".png,.gif,.jpg,.jpeg,.tiff,.webp";
+    const std::string video_filter = "Video files (" + video_file_dis + "){" + video_file_surfix + "}";
+    const std::string audio_filter = "Audio files (" + audio_file_dis + "){" + audio_file_surfix + "}";
+    const std::string image_filter = "Image files (" + image_file_dis + "){" + image_file_surfix + "}";
+    const std::string ffilters = "All Support Files (" + video_file_dis + " " + audio_file_dis + " " + image_file_dis + ")" + "{" +
+                                                        video_file_surfix + "," + audio_file_surfix + "," + image_file_surfix + "}" + "," +
+                                                        video_filter + "," +
+                                                        audio_filter + "," +
+                                                        image_filter + "," +
+                                                        ".*";
     const ImGuiFileDialogFlags pflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_ConfirmOverwrite;
     const std::string pfilters = "Project files (*.mep){.mep},.*";
     ImGuiIO& io = ImGui::GetIO(); (void)io;
@@ -2375,6 +2379,9 @@ bool Application_Frame(void * handle, bool app_will_quit)
         ImGui::SetNextWindowSize(io.DisplaySize, ImGuiCond_None);
     }
     ImGui::Begin("Content", nullptr, flags);
+    // for debug
+    if (show_debug) ImGui::ShowMetricsWindow(&show_debug);
+    // for debug end
     if (show_about)
     {
         ImGui::OpenPopup(ICON_FA5_INFO_CIRCLE " About", ImGuiPopupFlags_AnyPopup);
@@ -2514,6 +2521,12 @@ bool Application_Frame(void * handle, bool app_will_quit)
             show_about = true;
         }
         ImGui::ShowTooltipOnHover("About Media Editor");
+        if (ImGui::Button(ICON_UI_DEBUG "##UIDebug", ImVec2(tool_icon_size, tool_icon_size)))
+        {
+            // open debug window
+            show_debug = !show_debug;
+        }
+        ImGui::ShowTooltipOnHover("UI Metric");
         ImGui::PopStyleColor(3);
 
         // add banks window
@@ -2587,7 +2600,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
     ImVec2 panel_size(window_size.x - 4, size_timeline_h * window_size.y - 12);
     ImGui::SetNextWindowPos(panel_pos, ImGuiCond_Always);
     bool _expanded = expanded;
-    if (ImGui::BeginChild("##Sequencor", panel_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings))
+    if (ImGui::BeginChild("##Timeline", panel_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings))
     {        
         DrawTimeLine(timeline,  &_expanded);
         if (expanded != _expanded)
@@ -2617,7 +2630,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
     // check save stage if app will quit
     if (app_will_quit && timeline)
     {
-        if (timeline->m_Tracks.size() > 0 || timeline->media_items.size() > 0) // TODO::Dicky Check sequencer changed later
+        if (timeline->m_Tracks.size() > 0 || timeline->media_items.size() > 0) // TODO::Dicky Check timeline changed later
         {
             if (quit_save_confirm || g_media_editor_settings.project_path.empty())
             {

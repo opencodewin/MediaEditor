@@ -236,6 +236,7 @@ Clip::Clip(int64_t start, int64_t end, int64_t id, MediaOverview * overview, voi
     mMediaID = id;
     mStart = start; 
     mEnd = end;
+    mLength = end - start;
     mHandle = handle;
     mOverview = overview;
 }
@@ -987,7 +988,7 @@ void VideoClip::CalcDisplayParams()
     double windowSize = (double)mViewWndDur / 1000;
     if (windowSize > video_stream->duration)
         windowSize = video_stream->duration;
-    mSnapsInViewWindow = (float)((double)mPixPerMs*windowSize * 1000 / mSnapWidth);
+    mSnapsInViewWindow = std::max((float)((double)mPixPerMs*windowSize * 1000 / mSnapWidth), 1.f);
     if (!mSnapshot->ConfigSnapWindow(windowSize, mSnapsInViewWindow))
         throw std::runtime_error(mSnapshot->GetError());
 }
@@ -1044,6 +1045,7 @@ bool AudioClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame)
         return;
 
     ImVec2 draw_size = rightBottom - leftTop;
+    // TODO::Dicky opt 
     if (mWaveform->pcm.size() > 0)
     {
         std::string id_string = "##Waveform@" + std::to_string(mID);
@@ -1051,15 +1053,27 @@ bool AudioClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame)
         drawList->AddRect(leftTop, rightBottom, IM_COL32_BLACK);
         float wave_range = fmax(fabs(mWaveform->minSample), fabs(mWaveform->maxSample));
         int sampleSize = mWaveform->pcm[0].size();
-        ImVec2 customViewStart = ImVec2((mStart - mStartOffset - timeline->firstTime) * timeline->msPixelWidthTarget + clipRect.Min.x, clipRect.Min.y);
-        ImVec2 customViewEnd = ImVec2((mEnd + mEndOffset - timeline->firstTime) * timeline->msPixelWidthTarget + clipRect.Min.x, clipRect.Max.y);
-        ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(1.f, 1.f, 0.f, 1.0f));
-        ImGui::SetCursorScreenPos(customViewStart);
-        drawList->PushClipRect(leftTop, rightBottom, true);
-        ImGui::PlotLines(id_string.c_str(), &mWaveform->pcm[0][0], sampleSize, 0, nullptr, -wave_range / 2, wave_range / 2, customViewEnd - customViewStart, sizeof(float), false);
-        drawList->PopClipRect();
-        ImGui::PopStyleColor();
-        drawList->AddLine(ImVec2(leftTop.x, leftTop.y + draw_size.y / 2), ImVec2(rightBottom.x, leftTop.y + draw_size.y / 2), IM_COL32(255, 255, 255, 128));
+        int64_t start_time = std::max(mStart - mStartOffset, timeline->firstTime);
+        int64_t end_time = std::min(mEnd + mEndOffset, timeline->lastTime);
+        int start_offset = (int)((double)(start_time - mStart - mStartOffset) / 1000.f / mWaveform->aggregateDuration);
+        start_offset = std::max(start_offset, 0);
+        int window_length = (int)((double)(end_time - start_time) / 1000.f / mWaveform->aggregateDuration);
+        window_length = std::min(window_length, sampleSize);
+        ImVec2 customViewStart = ImVec2((start_time - timeline->firstTime) * timeline->msPixelWidthTarget + clipRect.Min.x, clipRect.Min.y);
+        ImVec2 customViewEnd = ImVec2((end_time - timeline->firstTime)  * timeline->msPixelWidthTarget + clipRect.Min.x, clipRect.Max.y);
+        auto window_size = customViewEnd - customViewStart;
+        if (window_size.x > 0)
+        {
+            int sample_stride = window_length / window_size.x;
+            start_offset = start_offset / sample_stride * sample_stride;
+            drawList->PushClipRect(leftTop, rightBottom, true);
+            ImGui::SetCursorScreenPos(customViewStart);
+            ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(1.f, 1.f, 0.f, 1.0f));
+            ImGui::PlotLines(id_string.c_str(), &mWaveform->pcm[0][start_offset], window_size.x, 0, nullptr, -wave_range / 2, wave_range / 2, window_size, sizeof(float) * sample_stride, false);
+            ImGui::PopStyleColor();
+            drawList->AddLine(ImVec2(leftTop.x, leftTop.y + draw_size.y / 2), ImVec2(rightBottom.x, leftTop.y + draw_size.y / 2), IM_COL32(255, 255, 255, 128));
+            drawList->PopClipRect();
+        }        
     }
  }
 
@@ -1343,7 +1357,7 @@ void TextClip::Save(imgui_json::value& value)
 }
 
 EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
-    : BaseEditingClip(vidclip->mID, vidclip->mType, vidclip->mStart, vidclip->mEnd, vidclip->mStartOffset, vidclip->mEndOffset)
+    : BaseEditingClip(vidclip->mID, vidclip->mType, vidclip->mStart, vidclip->mEnd, vidclip->mStartOffset, vidclip->mEndOffset, vidclip->mHandle)
 {
     TimeLine * timeline = (TimeLine *)vidclip->mHandle;
     mDuration = mEnd-mStart;
@@ -1456,8 +1470,9 @@ void EditingVideoClip::Step(bool forward, int64_t step)
 
 bool EditingVideoClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame)
 {
+    int ret = false;
     if (mFrame.empty())
-        return false;
+        return ret;
 
     auto frame_delay = mClipFrameRate.den * 1000 / mClipFrameRate.num;
     int64_t buffer_start = mFrame.begin()->first.time_stamp * 1000;
@@ -1480,17 +1495,20 @@ bool EditingVideoClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_fr
         if (need_erase || out_of_range)
         {
             // if we on seek stage, may output last frame for smooth preview
-            if (bSeeking && mFrame.size() == 1)
+            if (bSeeking && pair != mFrame.end())
             {
                 in_out_frame = *pair;
+                ret = true;
             }
             mFrameLock.lock();
             pair = mFrame.erase(pair);
             mFrameLock.unlock();
+            if (ret) break;
         }
         else
         {
             in_out_frame = *pair;
+            ret = true;
             // handle clip play event
             if (bPlay)
             {
@@ -1521,7 +1539,7 @@ bool EditingVideoClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_fr
             break;
         }
     }
-    return out_of_range ? false : true;
+    return ret;
 }
 
 void EditingVideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom)
@@ -1590,7 +1608,7 @@ void EditingVideoClip::CalcDisplayParams()
 }
 
 EditingAudioClip::EditingAudioClip(AudioClip* audclip)
-    : BaseEditingClip(audclip->mID, audclip->mType, audclip->mStart, audclip->mEnd, audclip->mStartOffset, audclip->mEndOffset)
+    : BaseEditingClip(audclip->mID, audclip->mType, audclip->mStart, audclip->mEnd, audclip->mStartOffset, audclip->mEndOffset, audclip->mHandle)
 {}
 
 EditingAudioClip::~EditingAudioClip()
@@ -1964,6 +1982,28 @@ void MediaTrack::PushBackClip(Clip * clip)
     m_Clips.push_back(clip);
 }
 
+bool MediaTrack::CanInsertClip(Clip * clip, int64_t pos)
+{
+    bool can_insert_clip = true;
+    if (!clip || mType != clip->mType)
+    {
+        can_insert_clip = false;
+    }
+    else
+    {
+        for (auto overlap : m_Overlaps)
+        {
+            if ((overlap->mStart >= pos && overlap->mStart <= pos + clip->mLength) || 
+                (overlap->mEnd >= pos && overlap->mEnd <= pos + clip->mLength))
+            {
+                can_insert_clip = false;
+                break;
+            }
+        }
+    }
+    return can_insert_clip;
+}
+
 void MediaTrack::InsertClip(Clip * clip, int64_t pos)
 {
     TimeLine * timeline = (TimeLine *)m_Handle;
@@ -2103,10 +2143,8 @@ void MediaTrack::EditingClip(Clip * clip)
             {
                 delete timeline->mVidFilterClip;
                 timeline->mVidFilterClip = nullptr;
-                timeline->mVideoFilterTextureLock.lock();
                 if (timeline->mVideoFilterInputTexture) {ImGui::ImDestroyTexture(timeline->mVideoFilterInputTexture); timeline->mVideoFilterInputTexture = nullptr;}
                 if (timeline->mVideoFilterOutputTexture) { ImGui::ImDestroyTexture(timeline->mVideoFilterOutputTexture); timeline->mVideoFilterOutputTexture = nullptr;  }
-                timeline->mVideoFilterTextureLock.unlock();
             }
             if (timeline->mVideoFilterBluePrint && timeline->mVideoFilterBluePrint->Blueprint_IsValid())
             {
@@ -2459,7 +2497,7 @@ static int thread_video_filter(TimeLine * timeline)
             ImGui::sleep((int)5);
             continue;
         }
-        if (timeline->mVidFilterClipLock.try_lock())
+        timeline->mVidFilterClipLock.lock();
         {
             if (!timeline->mVidFilterClip || !timeline->mVidFilterClip->mMediaReader)
             {
@@ -2506,6 +2544,7 @@ static int thread_video_filter(TimeLine * timeline)
                         std::swap(buffer_start, buffer_end);
                     if (timeline->mVidFilterClip->mCurrPos < buffer_start - frame_delay || timeline->mVidFilterClip->mCurrPos > buffer_end + frame_delay)
                     {
+                        ImGui::sleep((int)5);
                         break;
                     }
                 }
@@ -2540,8 +2579,8 @@ static int thread_video_filter(TimeLine * timeline)
                     timeline->mVideoFilterBluePrintLock.unlock();
                 }
             }
-            timeline->mVidFilterClipLock.unlock();
         }
+        timeline->mVidFilterClipLock.unlock();
     }
     timeline->mVideoFilterRunning = false;
     return 0;
@@ -2552,7 +2591,7 @@ TimeLine::TimeLine()
 {
     std::srand(std::time(0)); // init std::rand
     /*
-    mPCMStream = new SequencerPcmStream(this);
+    mPCMStream = new PcmStream(this);
     mAudioRender = CreateAudioRender();
     if (mAudioRender)
     {
@@ -3126,8 +3165,9 @@ ImU32 TimeLine::GetGroupColor(int64_t group_id)
     return color;
 }
 
-void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &titleRect, const ImRect &clippingTitleRect, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRec, bool is_moving, bool enable_select)
+void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &view_rc, const ImRect &rc, const ImRect &titleRect, const ImRect &clippingTitleRect, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRec, bool is_moving, bool enable_select)
 {
+    // view_rc: track view rect
     // rc: full track length rect
     // titleRect: full track length title rect(same as Compact view rc)
     // clippingTitleRect: current view title area
@@ -3201,11 +3241,28 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, co
             cursor_end  = clippingRect.Max.x;
             draw_clip = true;
         }
+
+        ImVec2 clip_title_pos_min = ImVec2(cursor_start, clippingTitleRect.Min.y);
+        ImVec2 clip_title_pos_max = ImVec2(cursor_end, clippingTitleRect.Max.y);
+        ImVec2 clip_pos_min = clip_title_pos_min;
+        ImVec2 clip_pos_max = clip_title_pos_max;
+        if (track->mExpanded)
+        {
+            ImVec2 custom_pos_min = ImVec2(cursor_start, clippingRect.Min.y);
+            ImVec2 custom_pos_max = ImVec2(cursor_end, clippingRect.Max.y);
+            clip_pos_min = custom_pos_min;
+            clip_pos_max = custom_pos_max;
+        }
+        // Check if clip is outof view rect then don't draw
+        ImRect clip_rect(clip_pos_min, clip_pos_max);
+        if (!clip_rect.Overlaps(view_rc))
+        {
+            draw_clip = false;
+        }
+
         if (draw_clip && cursor_end > cursor_start)
         {
             // draw title bar
-            ImVec2 clip_title_pos_min = ImVec2(cursor_start, clippingTitleRect.Min.y);
-            ImVec2 clip_title_pos_max = ImVec2(cursor_end, clippingTitleRect.Max.y);
             if (clip->mGroupID != -1)
             {
                 auto color = GetGroupColor(clip->mGroupID);
@@ -3220,19 +3277,12 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, co
             draw_list->AddText(clip_title_pos_min + ImVec2(4, 0), IM_COL32_WHITE, clip->mName.c_str());
             draw_list->PopClipRect();
 
-            ImVec2 clip_pos_min = clip_title_pos_min;
-            ImVec2 clip_pos_max = clip_title_pos_max;
-
             // draw custom view
             if (track->mExpanded)
             {
                 draw_list->PushClipRect(clippingRect.Min, clippingRect.Max, true);
-                ImVec2 custom_pos_min = ImVec2(cursor_start, clippingRect.Min.y);
-                ImVec2 custom_pos_max = ImVec2(cursor_end, clippingRect.Max.y);
-                clip->DrawContent(draw_list, custom_pos_min, custom_pos_max, clippingRect);
+                clip->DrawContent(draw_list, clip_pos_min, clip_pos_max, clippingRect);
                 draw_list->PopClipRect();
-                clip_pos_min = custom_pos_min;
-                clip_pos_max = custom_pos_max;
             }
 
             if (clip->bSelected)
@@ -3312,11 +3362,18 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, co
             cursor_end  = clippingTitleRect.Max.x;
             draw_overlap = true;
         }
+
+        ImVec2 overlap_pos_min = ImVec2(cursor_start, clippingTitleRect.Min.y);
+        ImVec2 overlap_pos_max = ImVec2(cursor_end, clippingTitleRect.Max.y);
+        // Check if overlap is outof view rect then don't draw
+        ImRect overlap_rect(overlap_pos_min, overlap_pos_max);
+        if (!overlap_rect.Overlaps(view_rc))
+        {
+            draw_overlap = false;
+        }
+
         if (draw_overlap && cursor_end > cursor_start)
         {
-            ImVec2 overlap_pos_min = ImVec2(cursor_start, clippingTitleRect.Min.y);
-            ImVec2 overlap_pos_max = ImVec2(cursor_end, clippingTitleRect.Max.y);
-            ImRect overlap_rect(overlap_pos_min, overlap_pos_max);
             ImGui::SetCursorScreenPos(overlap_pos_min);
             ImGui::PushID(overlap->mID);
             const ImGuiID id = ImGui::GetCurrentWindow()->GetID("#clip_overlap");
@@ -3735,14 +3792,15 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
     ImGuiIO &io = ImGui::GetIO();
     int cx = (int)(io.MousePos.x);
     int cy = (int)(io.MousePos.y);
-    int scrollBarHeight = 16;
+    int scrollSize = 16;
     int trackHeadHeight = 20;
     int HeadHeight = 20;
     int legendWidth = 200;
     int trackCount = timeline->GetTrackCount();
     int64_t duration = ImMax(timeline->GetEnd() - timeline->GetStart(), (int64_t)1);
     ImVector<TimelineCustomDraw> customDraws;
-    static bool MovingScrollBar = false;
+    static bool MovingHorizonScrollBar = false;
+    static bool MovingVerticalScrollBar = false;
     static bool MovingCurrentTime = false;
     static int trackMovingEntry = -1;
     static int trackEntry = -1;
@@ -3770,26 +3828,31 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
     ImVec2 window_size = ImGui::GetWindowSize();
     ImVec2 canvas_pos = ImGui::GetCursorScreenPos();                    // ImDrawList API uses screen coordinates!
     ImVec2 canvas_size = ImGui::GetContentRegionAvail() - ImVec2(8, 0); // Resize canvas to what's available
-
-    // zoom in/out
-    static bool panningView = false;
-    static ImVec2 panningViewSource;
-    static int64_t panningViewTime;
-    int64_t newVisibleTime = (int64_t)floorf((canvas_size.x - legendWidth) / timeline->msPixelWidthTarget);
+    ImVec2 timline_size = canvas_size - ImVec2(scrollSize / 2, 0);     // add Vertical Scroll
+    if (timline_size.y - trackHeadHeight - scrollSize - 8 <= 0)
+        return ret;
+    // zoom in/out    
+    int64_t newVisibleTime = (int64_t)floorf((timline_size.x - legendWidth) / timeline->msPixelWidthTarget);
     if (timeline->visibleTime != newVisibleTime)
     {
         timeline->visibleTime = newVisibleTime;
         for (auto &track : timeline->m_Tracks)
             track->ConfigViewWindow(timeline->visibleTime, timeline->msPixelWidthTarget);
     }
-    timeline->visibleTime = (int64_t)floorf((canvas_size.x - legendWidth) / timeline->msPixelWidthTarget);
-    const float barWidthRatio = ImMin(timeline->visibleTime / (float)duration, 1.f);
-    const float barWidthInPixels = barWidthRatio * (canvas_size.x - legendWidth);
-    ImRect regionRect(canvas_pos + ImVec2(0, HeadHeight), canvas_pos + canvas_size);
-    ImRect scrollBarRect;
-    ImRect scrollHandleBarRect;
+    timeline->visibleTime = (int64_t)floorf((timline_size.x - legendWidth) / timeline->msPixelWidthTarget);
+    const float HorizonBarWidthRatio = ImMin(timeline->visibleTime / (float)duration, 1.f);
+    const float HorizonBarWidthInPixels = std::max(HorizonBarWidthRatio * (timline_size.x - legendWidth), (float)scrollSize);
+    const float HorizonBarPos = HorizonBarWidthRatio * (timline_size.x - legendWidth);
+    ImRect regionRect(canvas_pos + ImVec2(0, HeadHeight), canvas_pos + timline_size);
+    ImRect HorizonScrollBarRect;
+    ImRect HorizonScrollHandleBarRect;
+    static ImVec2 panningViewHorizonSource;
+    static int64_t panningViewHorizonTime;
 
-    float minPixelWidthTarget = ImMin(timeline->msPixelWidthTarget, (float)(canvas_size.x - legendWidth) / (float)duration);
+    static ImVec2 panningViewVerticalSource;
+    static float panningViewVerticalPos;
+
+    float minPixelWidthTarget = ImMin(timeline->msPixelWidthTarget, (float)(timline_size.x - legendWidth) / (float)duration);
     float frame_duration = (timeline->mFrameRate.den > 0 && timeline->mFrameRate.num > 0) ? timeline->mFrameRate.den * 1000.0 / timeline->mFrameRate.num : 40;
     float maxPixelWidthTarget = frame_duration > 0.0 ? 60.f / frame_duration : 20.f;
     timeline->msPixelWidthTarget = ImClamp(timeline->msPixelWidthTarget, minPixelWidthTarget, maxPixelWidthTarget);
@@ -3812,8 +3875,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
     if ((expanded && !*expanded) || !trackCount)
     {
         // minimum view
-        ImGui::InvisibleButton("canvas_minimum", ImVec2(canvas_size.x - canvas_pos.x, (float)HeadHeight));
-        draw_list->AddRectFilled(canvas_pos, ImVec2(canvas_size.x + canvas_pos.x, canvas_pos.y + HeadHeight), COL_DARK_ONE, 0);
+        ImGui::InvisibleButton("canvas_minimum", ImVec2(timline_size.x - canvas_pos.x, (float)HeadHeight));
+        draw_list->AddRectFilled(canvas_pos, ImVec2(timline_size.x + canvas_pos.x, canvas_pos.y + HeadHeight), COL_DARK_ONE, 0);
         auto info_str = MillisecToString(duration, 3);
         info_str += " / ";
         info_str += std::to_string(trackCount) + " entries";
@@ -3822,8 +3885,9 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
     else
     {
         // normal view
-        ImVec2 headerSize(canvas_size.x - 4.f, (float)HeadHeight);
-        ImVec2 scrollBarSize(canvas_size.x, scrollBarHeight);
+        ImVec2 headerSize(timline_size.x - 4.f, (float)HeadHeight);
+        ImVec2 HorizonScrollBarSize(timline_size.x, scrollSize);
+        ImVec2 VerticalScrollBarSize(scrollSize / 2, canvas_size.y - scrollSize);
         ImGui::InvisibleButton("topBar", headerSize);
         draw_list->AddRectFilled(canvas_pos, canvas_pos + headerSize, COL_DARK_ONE, 0);
         if (!trackCount) 
@@ -3833,21 +3897,23 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         }
         ImGui::PushStyleColor(ImGuiCol_FrameBg, 0);
         ImVec2 childFramePos = ImGui::GetCursorScreenPos();
-        ImVec2 childFrameSize(canvas_size.x, canvas_size.y - 8.0f - headerSize.y - scrollBarSize.y);
-        ImGui::BeginChildFrame(ImGui::GetID("timeline_Tracks"), childFrameSize, ImGuiWindowFlags_NoScrollbar/* | ImGuiWindowFlags_NoScrollWithMouse*/);
-
-        ImGui::InvisibleButton("contentBar", ImVec2(canvas_size.x - 8.f, float(controlHeight)));
+        ImVec2 childFrameSize(timline_size.x, timline_size.y - 8.0f - headerSize.y - HorizonScrollBarSize.y);
+        ImGui::BeginChildFrame(ImGui::GetID("timeline_Tracks"), childFrameSize, ImGuiWindowFlags_NoScrollbar /*| ImGuiWindowFlags_NoScrollWithMouse*/);
+        auto VerticalScrollPos = ImGui::GetScrollY();
+        auto VerticalScrollMax = ImGui::GetScrollMaxY();
+        auto VerticalWindow = ImGui::GetCurrentWindow();
+        ImGui::InvisibleButton("contentBar", ImVec2(timline_size.x - 8.f, float(controlHeight)));
         const ImVec2 contentMin = ImGui::GetItemRectMin();
         const ImVec2 contentMax = ImGui::GetItemRectMax();
         const ImRect contentRect(contentMin, contentMax);
         const ImRect legendRect(contentMin, ImVec2(contentMin.x + legendWidth, contentMax.y));
-        const ImRect legendAreaRect(contentMin, ImVec2(contentMin.x + legendWidth, contentMin.y + canvas_size.y - (HeadHeight + 8)));
+        const ImRect legendAreaRect(contentMin, ImVec2(contentMin.x + legendWidth, contentMin.y + timline_size.y - (HeadHeight + 8)));
         const ImRect trackRect(ImVec2(contentMin.x + legendWidth, contentMin.y), contentMax);
-        const ImRect trackAreaRect(ImVec2(contentMin.x + legendWidth, contentMin.y), ImVec2(contentMax.x, contentMin.y + canvas_size.y - (HeadHeight + scrollBarHeight + 8)));
+        const ImRect trackAreaRect(ImVec2(contentMin.x + legendWidth, contentMin.y), ImVec2(contentMax.x, contentMin.y + timline_size.y - (HeadHeight + scrollSize + 8)));
         
         const float contentHeight = contentMax.y - contentMin.y;
         // full canvas background
-        draw_list->AddRectFilled(canvas_pos + ImVec2(4, HeadHeight + 4), canvas_pos + ImVec2(4, HeadHeight + 4) + canvas_size - ImVec2(8, HeadHeight + scrollBarHeight + 8), COL_CANVAS_BG, 0);
+        draw_list->AddRectFilled(canvas_pos + ImVec2(4, HeadHeight + 4), canvas_pos + ImVec2(4, HeadHeight + 4) + timline_size - ImVec2(8, HeadHeight + scrollSize + 8), COL_CANVAS_BG, 0);
         // full legend background
         draw_list->AddRectFilled(legendRect.Min, legendRect.Max, COL_LEGEND_BG, 0);
 
@@ -3858,34 +3924,9 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         //draw_list->AddRect(legendAreaRect.Min, legendAreaRect.Max, IM_COL32(255, 255, 0, 255), 0, 0, 2);
         // for debug end
 
-        // current time top
-        ImRect topRect(ImVec2(canvas_pos.x + legendWidth, canvas_pos.y), ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + HeadHeight));
-        if (!MovingCurrentTime && !MovingScrollBar && clipMovingEntry == -1 && timeline->currentTime >= 0 && topRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && isFocused)
-        {
-            MovingCurrentTime = true;
-            timeline->bSeeking = true;
-        }
-        if (MovingCurrentTime && duration)
-        {
-            auto old_time = timeline->currentTime;
-            timeline->currentTime = (int64_t)((io.MousePos.x - topRect.Min.x) / timeline->msPixelWidthTarget) + timeline->firstTime;
-            timeline->AlignTime(timeline->currentTime);
-            if (timeline->currentTime < timeline->GetStart())
-                timeline->currentTime = timeline->GetStart();
-            if (timeline->currentTime >= timeline->GetEnd())
-                timeline->currentTime = timeline->GetEnd();
-            //if (old_time != timeline->currentTime)
-            //    timeline->Seek(); // call seek event
-        }
-        if (timeline->bSeeking && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
-        {
-            MovingCurrentTime = false;
-            timeline->bSeeking = false;
-        }
-
         // calculate mouse pos to time
-        mouseTime = (int64_t)((cx - topRect.Min.x) / timeline->msPixelWidthTarget) + timeline->firstTime;
-        timeline->AlignTime(mouseTime);
+        mouseTime = (int64_t)((cx - contentMin.x - legendWidth) / timeline->msPixelWidthTarget) + timeline->firstTime;
+        //timeline->AlignTime(mouseTime);
         menuIsOpened = ImGui::IsPopupOpen("##timeline-context-menu");
 
         //header
@@ -3902,14 +3943,14 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         {
             bool baseIndex = ((i % modTimeCount) == 0) || (i == timeline->GetEnd() || i == timeline->GetStart());
             bool halfIndex = (i % halfModTime) == 0;
-            int px = (int)canvas_pos.x + int(i * timeline->msPixelWidthTarget) + legendWidth - int(timeline->firstTime * timeline->msPixelWidthTarget);
+            int px = (int)contentMin.x + int(i * timeline->msPixelWidthTarget) + legendWidth - int(timeline->firstTime * timeline->msPixelWidthTarget);
             int tiretStart = baseIndex ? 4 : (halfIndex ? 10 : 14);
             int tiretEnd = baseIndex ? regionHeight : HeadHeight;
-            if (px <= (canvas_size.x + canvas_pos.x) && px >= (canvas_pos.x + legendWidth))
+            if (px <= (timline_size.x + contentMin.x) && px >= (contentMin.x + legendWidth))
             {
                 draw_list->AddLine(ImVec2((float)px, canvas_pos.y + (float)tiretStart), ImVec2((float)px, canvas_pos.y + (float)tiretEnd - 1), halfIndex ? COL_MARK : COL_MARK_HALF, halfIndex ? 2 : 1);
             }
-            if (baseIndex && px > (canvas_pos.x + legendWidth))
+            if (baseIndex && px > (contentMin.x + legendWidth))
             {
                 auto time_str = MillisecToString(i, 2);
                 ImGui::SetWindowFontScale(0.8);
@@ -3917,12 +3958,12 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                 ImGui::SetWindowFontScale(1.0);
             }
         };
-        auto drawLineContent = [&](int64_t i, int /*regionHeight*/)
+        auto drawLineContent = [&](int64_t i, int)
         {
-            int px = (int)canvas_pos.x + int(i * timeline->msPixelWidthTarget) + legendWidth - int(timeline->firstTime * timeline->msPixelWidthTarget);
+            int px = (int)contentMin.x + int(i * timeline->msPixelWidthTarget) + legendWidth - int(timeline->firstTime * timeline->msPixelWidthTarget);
             int tiretStart = int(contentMin.y);
             int tiretEnd = int(contentMax.y);
-            if (px <= (canvas_size.x + canvas_pos.x) && px >= (canvas_pos.x + legendWidth))
+            if (px <= (timline_size.x + contentMin.x) && px >= (contentMin.x + legendWidth))
             {
                 draw_list->AddLine(ImVec2(float(px), float(tiretStart)), ImVec2(float(px), float(tiretEnd)), COL_SLOT_V_LINE, 1);
             }
@@ -3938,18 +3979,17 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         if (timeline->currentTime >= timeline->firstTime && timeline->currentTime <= timeline->GetEnd())
         {
             const float arrowWidth = draw_list->_Data->FontSize;
-            float arrowOffset = contentMin.x + legendWidth + (timeline->currentTime - timeline->firstTime) * timeline->msPixelWidthTarget + timeline->msPixelWidthTarget / 2 - arrowWidth * 0.5f - 3;
+            float arrowOffset = contentMin.x + legendWidth + (timeline->currentTime - timeline->firstTime) * timeline->msPixelWidthTarget - arrowWidth * 0.5f + 1;
             ImGui::RenderArrow(draw_list, ImVec2(arrowOffset, canvas_pos.y), COL_CURSOR_ARROW, ImGuiDir_Down);
             ImGui::SetWindowFontScale(0.8);
             auto time_str = MillisecToString(timeline->currentTime, 2);
             ImVec2 str_size = ImGui::CalcTextSize(time_str.c_str(), nullptr, true);
-            float strOffset = contentMin.x + legendWidth + (timeline->currentTime - timeline->firstTime) * timeline->msPixelWidthTarget + timeline->msPixelWidthTarget / 2 - str_size.x * 0.5f - 3;
+            float strOffset = contentMin.x + legendWidth + (timeline->currentTime - timeline->firstTime) * timeline->msPixelWidthTarget - str_size.x * 0.5f + 1;
             ImVec2 str_pos = ImVec2(strOffset, canvas_pos.y + 10);
             draw_list->AddRectFilled(str_pos + ImVec2(-3, 0), str_pos + str_size + ImVec2(3, 3), COL_CURSOR_TEXT_BG, 2.0, ImDrawFlags_RoundCornersAll);
             draw_list->AddText(str_pos, COL_CURSOR_TEXT, time_str.c_str());
             ImGui::SetWindowFontScale(1.0);
         }
-
         // crop content
         draw_list->PushClipRect(childFramePos, childFramePos + childFrameSize);
 
@@ -3960,8 +4000,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             unsigned int col = (i & 1) ? COL_SLOT_ODD : COL_SLOT_EVEN;
             size_t localCustomHeight = timeline->GetCustomHeight(i);
             ImVec2 pos = ImVec2(contentMin.x + legendWidth, contentMin.y + trackHeadHeight * i + 1 + customHeight);
-            ImVec2 sz = ImVec2(canvas_size.x + canvas_pos.x - 4.f, pos.y + trackHeadHeight - 1 + localCustomHeight);
-            if (cy >= pos.y && cy < pos.y + (trackHeadHeight + localCustomHeight) && clipMovingEntry == -1 && cx > contentMin.x && cx < contentMin.x + canvas_size.x)
+            ImVec2 sz = ImVec2(timline_size.x + contentMin.x, pos.y + trackHeadHeight - 1 + localCustomHeight);
+            if (cy >= pos.y && cy < pos.y + (trackHeadHeight + localCustomHeight) && clipMovingEntry == -1 && cx > contentMin.x && cx < contentMin.x + timline_size.x)
             {
                 col += IM_COL32(8, 16, 32, 128);
                 pos.x -= legendWidth;
@@ -3986,12 +4026,12 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         // cropping rect so track bars are not visible in the legend on the left when scrolled
         draw_list->PushClipRect(childFramePos + ImVec2(float(legendWidth), 0.f), childFramePos + childFrameSize);
         // vertical time lines in content area
-        for (auto i = timeline->GetStart(); i <= timeline->GetEnd(); i += timeStep)
-        {
-            drawLineContent(i, int(contentHeight));
-        }
-        drawLineContent(timeline->GetStart(), int(contentHeight));
-        drawLineContent(timeline->GetEnd(), int(contentHeight));
+        //for (auto i = timeline->GetStart(); i <= timeline->GetEnd(); i += timeStep)
+        //{
+        //    drawLineContent(i, int(contentHeight));
+        //}
+        //drawLineContent(timeline->GetStart(), int(contentHeight));
+        //drawLineContent(timeline->GetEnd(), int(contentHeight));
 
         // track
         customHeight = 0;
@@ -4001,11 +4041,11 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             unsigned int color = COL_SLOT_DEFAULT;
             ImVec2 pos = ImVec2(contentMin.x + legendWidth - timeline->firstTime * timeline->msPixelWidthTarget, contentMin.y + trackHeadHeight * i + 1 + customHeight);
             ImVec2 slotP1(pos.x + timeline->firstTime * timeline->msPixelWidthTarget, pos.y + 2);
-            ImVec2 slotP2(pos.x + timeline->lastTime * timeline->msPixelWidthTarget + timeline->msPixelWidthTarget - 4.f, pos.y + trackHeadHeight - 2);
-            ImVec2 slotP3(pos.x + timeline->lastTime * timeline->msPixelWidthTarget + timeline->msPixelWidthTarget - 4.f, pos.y + trackHeadHeight - 2 + localCustomHeight);
+            ImVec2 slotP2(pos.x + timeline->lastTime * timeline->msPixelWidthTarget, pos.y + trackHeadHeight - 2);
+            ImVec2 slotP3(pos.x + timeline->lastTime * timeline->msPixelWidthTarget, pos.y + trackHeadHeight - 2 + localCustomHeight);
             unsigned int slotColor = color | IM_COL32_BLACK;
             unsigned int slotColorHalf = HALF_COLOR(color);
-            if (slotP1.x <= (canvas_size.x + contentMin.x) && slotP2.x >= (contentMin.x + legendWidth))
+            if (slotP1.x <= (timline_size.x + contentMin.x) && slotP2.x >= (contentMin.x + legendWidth))
             {
                 draw_list->AddRectFilled(slotP1, slotP3, slotColorHalf, 0);
                 draw_list->AddRectFilled(slotP1, slotP2, slotColor, 0);
@@ -4029,7 +4069,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             // Ensure grabable handles for track
             if (legendEntry != -1 && legendEntry < timeline->m_Tracks.size())
             {
-                if (ImGui::IsMouseClicked(0) && !MovingScrollBar && !MovingCurrentTime && !menuIsOpened)
+                if (ImGui::IsMouseClicked(0) && !MovingHorizonScrollBar && !MovingCurrentTime && !menuIsOpened)
                 {
                     trackMovingEntry = legendEntry;
                 }
@@ -4047,8 +4087,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                     {
                         // check clip moving part
                         ImVec2 clipP1(pos.x + clip->mStart * timeline->msPixelWidthTarget, pos.y + 2);
-                        ImVec2 clipP2(pos.x + clip->mEnd * timeline->msPixelWidthTarget + timeline->msPixelWidthTarget - 4.f, pos.y + trackHeadHeight - 2);
-                        ImVec2 clipP3(pos.x + clip->mEnd * timeline->msPixelWidthTarget + timeline->msPixelWidthTarget - 4.f, pos.y + trackHeadHeight - 2 + localCustomHeight);
+                        ImVec2 clipP2(pos.x + clip->mEnd * timeline->msPixelWidthTarget, pos.y + trackHeadHeight - 2);
+                        ImVec2 clipP3(pos.x + clip->mEnd * timeline->msPixelWidthTarget, pos.y + trackHeadHeight - 2 + localCustomHeight);
                         const float max_handle_width = clipP2.x - clipP1.x / 3.0f;
                         const float min_handle_width = ImMin(10.0f, max_handle_width);
                         const float handle_width = ImClamp(timeline->msPixelWidthTarget / 2.0f, min_handle_width, max_handle_width);
@@ -4080,7 +4120,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                                 draw_list->AddLine(P1, P2, IM_COL32(0, 0, 255, 255), 2);
                                 RenderMouseCursor(ICON_CUTTING, ImVec2(7, 0), 1.0, -90);
                             }
-                            if (ImGui::IsMouseClicked(0) && !MovingScrollBar && !MovingCurrentTime && !menuIsOpened)
+                            if (ImGui::IsMouseClicked(0) && !MovingHorizonScrollBar && !MovingCurrentTime && !menuIsOpened)
                             {
                                 if (j == 2 && bCutting && count <= 1)
                                 {
@@ -4257,12 +4297,12 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         }
         ImGui::EndChildFrame();
 
-        // Scroll bar control buttons
-        auto scroll_pos = ImGui::GetCursorScreenPos();
+        // Horizon Scroll bar control buttons
+        auto horizon_scroll_pos = ImGui::GetCursorScreenPos();
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
         ImGui::SetWindowFontScale(0.7);
         int button_offset = 16;
-        ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - button_offset - 4, 0));
+        ImGui::SetCursorScreenPos(horizon_scroll_pos + ImVec2(legendWidth - button_offset - 4, 0));
         if (ImGui::Button(ICON_FAST_TO_END "##slider_to_end", ImVec2(16, 16)))
         {
             timeline->firstTime = timeline->GetEnd() - timeline->visibleTime;
@@ -4271,7 +4311,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         ImGui::ShowTooltipOnHover("Slider to End");
 
         button_offset += 16;
-        ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - button_offset - 4, 0));
+        ImGui::SetCursorScreenPos(horizon_scroll_pos + ImVec2(legendWidth - button_offset - 4, 0));
         if (ImGui::Button(ICON_SLIDER_MAXIMUM "##slider_maximum", ImVec2(16, 16)))
         {
             timeline->msPixelWidthTarget = maxPixelWidthTarget;
@@ -4279,7 +4319,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         ImGui::ShowTooltipOnHover("Maximum Slider");
 
         button_offset += 16;
-        ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - button_offset - 4, 0));
+        ImGui::SetCursorScreenPos(horizon_scroll_pos + ImVec2(legendWidth - button_offset - 4, 0));
         if (ImGui::Button(ICON_ZOOM_IN "##slider_zoom_in", ImVec2(16, 16)))
         {
             timeline->msPixelWidthTarget *= 2.0f;
@@ -4289,7 +4329,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         ImGui::ShowTooltipOnHover("Slider Zoom In");
 
         button_offset += 16;
-        ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - button_offset - 4, 0));
+        ImGui::SetCursorScreenPos(horizon_scroll_pos + ImVec2(legendWidth - button_offset - 4, 0));
         if (ImGui::Button(ICON_ZOOM_OUT "##slider_zoom_out", ImVec2(16, 16)))
         {
             timeline->msPixelWidthTarget *= 0.5f;
@@ -4299,7 +4339,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         ImGui::ShowTooltipOnHover("Slider Zoom Out");
 
         button_offset += 16;
-        ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - button_offset - 4, 0));
+        ImGui::SetCursorScreenPos(horizon_scroll_pos + ImVec2(legendWidth - button_offset - 4, 0));
         if (ImGui::Button(ICON_SLIDER_MINIMUM "##slider_minimum", ImVec2(16, 16)))
         {
             timeline->msPixelWidthTarget = minPixelWidthTarget;
@@ -4308,7 +4348,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         ImGui::ShowTooltipOnHover("Minimum Slider");
 
         button_offset += 16;
-        ImGui::SetCursorScreenPos(scroll_pos + ImVec2(legendWidth - button_offset - 4, 0));
+        ImGui::SetCursorScreenPos(horizon_scroll_pos + ImVec2(legendWidth - button_offset - 4, 0));
         if (ImGui::Button(ICON_FAST_TO_START "##slider_to_start", ImVec2(16, 16)))
         {
             timeline->firstTime = timeline->GetStart();
@@ -4318,55 +4358,100 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         ImGui::SetWindowFontScale(1.0);
         ImGui::PopStyleColor();
 
-        // Scroll bar
-        ImGui::SetCursorScreenPos(scroll_pos);
-        ImGui::InvisibleButton("scrollBar", scrollBarSize);
-        ImVec2 scrollBarMin = ImGui::GetItemRectMin();
-        ImVec2 scrollBarMax = ImGui::GetItemRectMax();
-        float startOffset = ((float)(timeline->firstTime - timeline->GetStart()) / (float)duration) * (canvas_size.x - legendWidth);
-        ImVec2 scrollBarA(scrollBarMin.x + legendWidth, scrollBarMin.y - 2);
-        ImVec2 scrollBarB(scrollBarMin.x + canvas_size.x, scrollBarMax.y - 1);
-        scrollBarRect = ImRect(scrollBarA, scrollBarB);
-        bool inScrollBar = scrollBarRect.Contains(io.MousePos);
-        draw_list->AddRectFilled(scrollBarA, scrollBarB, COL_SLIDER_BG, 8);
-        ImVec2 scrollBarC(scrollBarMin.x + legendWidth + startOffset, scrollBarMin.y);
-        ImVec2 scrollBarD(scrollBarMin.x + legendWidth + barWidthInPixels + startOffset, scrollBarMax.y - 2);
-        scrollHandleBarRect = ImRect(scrollBarC, scrollBarD);
-        bool inScrollHandle = scrollHandleBarRect.Contains(io.MousePos);
-        draw_list->AddRectFilled(scrollBarC, scrollBarD, (inScrollBar || MovingScrollBar) ? COL_SLIDER_IN : COL_SLIDER_MOVING, 6);
-        if (MovingScrollBar)
+        // Horizon Scroll bar
+        ImGui::SetCursorScreenPos(horizon_scroll_pos);
+        ImGui::InvisibleButton("HorizonScrollBar", HorizonScrollBarSize);
+        ImVec2 HorizonScrollAreaMin = ImGui::GetItemRectMin();
+        ImVec2 HorizonScrollAreaMax = ImGui::GetItemRectMax();
+        float HorizonStartOffset = ((float)(timeline->firstTime - timeline->GetStart()) / (float)duration) * (timline_size.x - legendWidth);
+        ImVec2 HorizonScrollBarMin(HorizonScrollAreaMin.x + legendWidth, HorizonScrollAreaMin.y - 2);        // whole bar area
+        ImVec2 HorizonScrollBarMax(HorizonScrollAreaMin.x + timline_size.x, HorizonScrollAreaMax.y - 1);      // whole bar area
+        HorizonScrollBarRect = ImRect(HorizonScrollBarMin, HorizonScrollBarMax);
+        bool inHorizonScrollBar = HorizonScrollBarRect.Contains(io.MousePos);
+        draw_list->AddRectFilled(HorizonScrollBarMin, HorizonScrollBarMax, COL_SLIDER_BG, 8);
+        ImVec2 HorizonScrollHandleBarMin(HorizonScrollAreaMin.x + legendWidth + HorizonStartOffset, HorizonScrollAreaMin.y);  // current bar area
+        ImVec2 HorizonScrollHandleBarMax(HorizonScrollAreaMin.x + legendWidth + HorizonBarWidthInPixels + HorizonStartOffset, HorizonScrollAreaMax.y - 2);
+        HorizonScrollHandleBarRect = ImRect(HorizonScrollHandleBarMin, HorizonScrollHandleBarMax);
+        bool inHorizonScrollHandle = HorizonScrollHandleBarRect.Contains(io.MousePos);
+        draw_list->AddRectFilled(HorizonScrollHandleBarMin, HorizonScrollHandleBarMax, (inHorizonScrollBar || MovingHorizonScrollBar) ? COL_SLIDER_IN : COL_SLIDER_MOVING, 6);
+        if (MovingHorizonScrollBar)
         {
             if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
             {
-                MovingScrollBar = false;
+                MovingHorizonScrollBar = false;
             }
             else
             {
-                float msPerPixelInBar = barWidthInPixels / (float)timeline->visibleTime;
-                timeline->firstTime = int((io.MousePos.x - panningViewSource.x) / msPerPixelInBar) - panningViewTime;
+                float msPerPixelInBar = HorizonBarPos / (float)timeline->visibleTime;
+                timeline->firstTime = int((io.MousePos.x - panningViewHorizonSource.x) / msPerPixelInBar) - panningViewHorizonTime;
                 timeline->AlignTime(timeline->firstTime);
                 timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
             }
         }
-        else if (inScrollHandle && ImGui::IsMouseClicked(0) && !MovingCurrentTime && clipMovingEntry == -1)
+        else if (inHorizonScrollHandle && ImGui::IsMouseClicked(0) && !MovingCurrentTime && clipMovingEntry == -1)
         {
-            MovingScrollBar = true;
-            panningViewSource = io.MousePos;
-            panningViewTime = - timeline->firstTime;
+            ImGui::CaptureMouseFromApp();
+            MovingHorizonScrollBar = true;
+            panningViewHorizonSource = io.MousePos;
+            panningViewHorizonTime = - timeline->firstTime;
         }
-        else if (inScrollBar && ImGui::IsMouseReleased(0))
+        else if (inHorizonScrollBar && ImGui::IsMouseReleased(0))
         {
-            float msPerPixelInBar = barWidthInPixels / (float)timeline->visibleTime;
-            timeline->firstTime = int((io.MousePos.x - legendWidth - scrollHandleBarRect.GetWidth() / 2)/ msPerPixelInBar);
+            float msPerPixelInBar = HorizonBarPos / (float)timeline->visibleTime;
+            timeline->firstTime = int((io.MousePos.x - legendWidth - contentMin.x) / msPerPixelInBar);
             timeline->AlignTime(timeline->firstTime);
             timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
+        }
+
+        // Vertical Scroll bar
+        auto vertical_scroll_pos = ImVec2(canvas_pos.x + canvas_size.x - scrollSize / 2, canvas_pos.y);
+        const float VerticalBarHeightRatio = ImMin(VerticalScrollBarSize.y / (VerticalScrollBarSize.y + VerticalScrollMax), 1.f);
+        const float VerticalBarHeightInPixels = std::max(VerticalBarHeightRatio * VerticalScrollBarSize.y, (float)scrollSize / 2);
+        ImGui::SetCursorScreenPos(vertical_scroll_pos);
+        ImGui::InvisibleButton("VerticalScrollBar", VerticalScrollBarSize);
+        float VerticalStartOffset = VerticalScrollPos * VerticalBarHeightRatio;
+        ImVec2 VerticalScrollBarMin = ImGui::GetItemRectMin();
+        ImVec2 VerticalScrollBarMax = ImGui::GetItemRectMax();
+        auto VerticalScrollBarRect = ImRect(VerticalScrollBarMin, VerticalScrollBarMax);
+        bool inVerticalScrollBar = VerticalScrollBarRect.Contains(io.MousePos);
+        draw_list->AddRectFilled(VerticalScrollBarMin, VerticalScrollBarMax, COL_SLIDER_BG, 8);
+        ImVec2 VerticalScrollHandleBarMin(VerticalScrollBarMin.x, VerticalScrollBarMin.y + VerticalStartOffset);  // current bar area
+        ImVec2 VerticalScrollHandleBarMax(VerticalScrollBarMin.x + (float)scrollSize / 2, VerticalScrollBarMin.y + VerticalBarHeightInPixels + VerticalStartOffset);
+        auto VerticalScrollHandleBarRect = ImRect(VerticalScrollHandleBarMin, VerticalScrollHandleBarMax);
+        bool inVerticalScrollHandle = VerticalScrollHandleBarRect.Contains(io.MousePos);
+        draw_list->AddRectFilled(VerticalScrollHandleBarMin, VerticalScrollHandleBarMax, (inVerticalScrollBar || MovingVerticalScrollBar) ? COL_SLIDER_IN : COL_SLIDER_MOVING, 6);
+        if (MovingVerticalScrollBar)
+        {
+            if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
+            {
+                MovingVerticalScrollBar = false;
+            }
+            else
+            {
+                float offset = (io.MousePos.y - panningViewVerticalSource.y) / VerticalBarHeightRatio + panningViewVerticalPos;
+                offset = ImClamp(offset, 0.f, VerticalScrollMax);
+                ImGui::SetScrollY(VerticalWindow, offset);
+            }
+        }
+        else if (inVerticalScrollHandle && ImGui::IsMouseClicked(0) && !MovingCurrentTime && clipMovingEntry == -1)
+        {
+            ImGui::CaptureMouseFromApp();
+            MovingVerticalScrollBar = true;
+            panningViewVerticalSource = io.MousePos;
+            panningViewVerticalPos = VerticalScrollPos;
+        }
+        else if (inVerticalScrollBar && ImGui::IsMouseReleased(0))
+        {
+            float offset = (io.MousePos.y - vertical_scroll_pos.y) / VerticalBarHeightRatio;
+            offset = ImClamp(offset, 0.f, VerticalScrollMax);
+            ImGui::SetScrollY(VerticalWindow, offset);
         }
 
         // handle mouse wheel event
         if (regionRect.Contains(io.MousePos))
         {
             bool overTrackView = false;
-            bool overScrollBar = false;
+            bool overHorizonScrollBar = false;
             bool overCustomDraw = false;
             bool overLegend = false;
             if (trackRect.Contains(io.MousePos))
@@ -4377,15 +4462,15 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             {
                 overTrackView = true;
             } 
-            if (scrollBarRect.Contains(io.MousePos))
+            if (HorizonScrollBarRect.Contains(io.MousePos))
             {
-                overScrollBar = true;
+                overHorizonScrollBar = true;
             }
             if (legendRect.Contains(io.MousePos))
             {
                 overLegend = true;
             }
-            if (overScrollBar)
+            if (overHorizonScrollBar)
             {
                 // up-down wheel over scrollbar, scale canvas view
                 if (io.MouseWheel < -FLT_EPSILON && timeline->visibleTime <= timeline->GetEnd())
@@ -4397,7 +4482,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                     timeline->msPixelWidthTarget *= 1.1f;
                 }
             }
-            if (overTrackView || overScrollBar)
+            if (overTrackView || overHorizonScrollBar)
             {
                 // left-right wheel over blank area, moving canvas view
                 if (io.MouseWheelH < -FLT_EPSILON)
@@ -4420,13 +4505,13 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             int64_t start = 0, end = 0, length = 0;
             size_t localCustomHeight = timeline->GetCustomHeight(i);
 
-            ImVec2 rp(canvas_pos.x, contentMin.y + trackHeadHeight * i + 1 + customHeight);
+            ImVec2 rp(contentMin.x, contentMin.y + trackHeadHeight * i + 1 + customHeight);
             ImRect customRect(rp + ImVec2(legendWidth - (timeline->firstTime - start - 0.5f) * timeline->msPixelWidthTarget, float(trackHeadHeight)),
                               rp + ImVec2(legendWidth + (end - timeline->firstTime - 0.5f + 2.f) * timeline->msPixelWidthTarget, float(localCustomHeight + trackHeadHeight)));
             ImRect titleRect(rp + ImVec2(legendWidth - (timeline->firstTime - start - 0.5f) * timeline->msPixelWidthTarget, 0),
                               rp + ImVec2(legendWidth + (end - timeline->firstTime - 0.5f + 2.f) * timeline->msPixelWidthTarget, float(trackHeadHeight)));
-            ImRect clippingTitleRect(rp + ImVec2(float(legendWidth), 0), rp + ImVec2(canvas_size.x - 4.0f, float(trackHeadHeight)));
-            ImRect clippingRect(rp + ImVec2(float(legendWidth), float(trackHeadHeight)), rp + ImVec2(canvas_size.x - 4.0f, float(localCustomHeight + trackHeadHeight)));
+            ImRect clippingTitleRect(rp + ImVec2(float(legendWidth), 0), rp + ImVec2(timline_size.x - 4.0f, float(trackHeadHeight)));
+            ImRect clippingRect(rp + ImVec2(float(legendWidth), float(trackHeadHeight)), rp + ImVec2(timline_size.x - 4.0f, float(localCustomHeight + trackHeadHeight)));
             ImRect legendRect(rp, rp + ImVec2(float(legendWidth), float(localCustomHeight + trackHeadHeight)));
             ImRect legendClippingRect(rp + ImVec2(0.f, float(trackHeadHeight)), rp + ImVec2(float(legendWidth), float(localCustomHeight + trackHeadHeight)));
             customDraws.push_back({i, customRect, titleRect, clippingTitleRect, legendRect, clippingRect, legendClippingRect});
@@ -4437,18 +4522,50 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         // draw custom
         draw_list->PushClipRect(childFramePos, childFramePos + childFrameSize);
         for (auto &customDraw : customDraws)
-            timeline->CustomDraw(customDraw.index, draw_list, customDraw.customRect, customDraw.titleRect, customDraw.clippingTitleRect, customDraw.legendRect, customDraw.clippingRect, customDraw.legendClippingRect, bMoving, !menuIsOpened && !bCutting);
+            timeline->CustomDraw(customDraw.index, draw_list, ImRect(childFramePos, childFramePos + childFrameSize), customDraw.customRect, customDraw.titleRect, customDraw.clippingTitleRect, customDraw.legendRect, customDraw.clippingRect, customDraw.legendClippingRect, bMoving, !menuIsOpened && !bCutting);
         draw_list->PopClipRect();
+
+        // time metric
+        bool movable = true;
+        if ((timeline->mVidFilterClip && timeline->mVidFilterClip->bSeeking) ||
+            (timeline->mAudFilterClip && timeline->mAudFilterClip->bSeeking))
+        {
+            movable = false;
+        }
+        ImRect topRect(ImVec2(contentMin.x + legendWidth, canvas_pos.y), ImVec2(contentMin.x + timline_size.x, canvas_pos.y + HeadHeight));
+        ImGui::SetCursorScreenPos(topRect.Min);
+        ImGui::BeginChildFrame(ImGui::GetCurrentWindow()->GetID("#timeline metric"), topRect.GetSize(), ImGuiWindowFlags_NoScrollbar);
+        if (movable && !MovingCurrentTime && !MovingHorizonScrollBar && clipMovingEntry == -1 && timeline->currentTime >= 0 && topRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left))
+        {
+            MovingCurrentTime = true;
+            timeline->bSeeking = true;
+        }
+        if (MovingCurrentTime && duration)
+        {
+            auto old_time = timeline->currentTime;
+            timeline->currentTime = (int64_t)((io.MousePos.x - topRect.Min.x) / timeline->msPixelWidthTarget) + timeline->firstTime;
+            timeline->AlignTime(timeline->currentTime);
+            if (timeline->currentTime < timeline->GetStart())
+                timeline->currentTime = timeline->GetStart();
+            if (timeline->currentTime >= timeline->GetEnd())
+                timeline->currentTime = timeline->GetEnd();
+            //if (old_time != timeline->currentTime)
+            //    timeline->Seek(); // call seek event
+        }
+        if (timeline->bSeeking && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
+        {
+            MovingCurrentTime = false;
+            timeline->bSeeking = false;
+        }
+        ImGui::EndChildFrame();
 
         // cursor line
         ImRect custom_view_rect(childFramePos + ImVec2(float(legendWidth), 0.f), childFramePos + childFrameSize);
         draw_list->PushClipRect(custom_view_rect.Min, custom_view_rect.Max);
         if (trackCount > 0 && timeline->currentTime >= timeline->firstTime && timeline->currentTime <= timeline->GetEnd())
         {
-            ImVec2 contentMin(canvas_pos.x + 4.f, canvas_pos.y + (float)HeadHeight + 8.f);
-            ImVec2 contentMax(canvas_pos.x + canvas_size.x - 4.f, canvas_pos.y + (float)HeadHeight + float(controlHeight) + 8.f);
             static const float cursorWidth = 3.f;
-            float cursorOffset = contentMin.x + legendWidth + (timeline->currentTime - timeline->firstTime) * timeline->msPixelWidthTarget + timeline->msPixelWidthTarget / 2 - cursorWidth * 0.5f - 2;
+            float cursorOffset = contentMin.x + legendWidth + (timeline->currentTime - timeline->firstTime) * timeline->msPixelWidthTarget + 1;
             draw_list->AddLine(ImVec2(cursorOffset, contentMin.y), ImVec2(cursorOffset, contentMax.y), IM_COL32(0, 255, 0, 128), cursorWidth);
         }
         draw_list->PopClipRect();
@@ -4456,10 +4573,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         draw_list->PushClipRect(custom_view_rect.Min, custom_view_rect.Max);
         if (timeline->mConnectedPoints >= timeline->firstTime && timeline->mConnectedPoints <= timeline->firstTime + timeline->visibleTime)
         {
-            ImVec2 contentMin(canvas_pos.x + 4.f, canvas_pos.y + (float)HeadHeight + 8.f);
-            ImVec2 contentMax(canvas_pos.x + canvas_size.x - 4.f, canvas_pos.y + (float)HeadHeight + float(controlHeight) + 8.f);
             static const float cursorWidth = 2.f;
-            float lineOffset = contentMin.x + legendWidth + (timeline->mConnectedPoints - timeline->firstTime) * timeline->msPixelWidthTarget + timeline->msPixelWidthTarget / 2 - cursorWidth * 0.5f - 2;
+            float lineOffset = contentMin.x + legendWidth + (timeline->mConnectedPoints - timeline->firstTime) * timeline->msPixelWidthTarget + 1;
             draw_list->AddLine(ImVec2(lineOffset, contentMin.y), ImVec2(lineOffset, contentMax.y), IM_COL32(255, 255, 255, 255), cursorWidth);
         }
         draw_list->PopClipRect();
@@ -4513,7 +4628,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
 
     // handle drag drop
     ImGui::SetCursorScreenPos(canvas_pos + ImVec2(4, trackHeadHeight + 4));
-    ImGui::InvisibleButton("canvas", canvas_size - ImVec2(8, trackHeadHeight + scrollBarHeight + 8));
+    ImGui::InvisibleButton("canvas", timline_size - ImVec2(8, trackHeadHeight + scrollSize + 8));
     if (ImGui::BeginDragDropTarget())
     {
         // find current mouse pos track
@@ -4540,7 +4655,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                 {
                     ImageClip * new_image_clip = new ImageClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, timeline);
                     timeline->m_Clips.push_back(new_image_clip);
-                    if (track && track->mType == MEDIA_PICTURE)
+                    bool can_insert_clip = track ? track->CanInsertClip(new_image_clip, mouseTime) : false;
+                    if (can_insert_clip)
                     {
                         // update clip info and push into track
                         track->InsertClip(new_image_clip, mouseTime);
@@ -4566,7 +4682,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                 {
                     AudioClip * new_audio_clip = new AudioClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, timeline);
                     timeline->m_Clips.push_back(new_audio_clip);
-                    if (track && track->mType == MEDIA_AUDIO)
+                    bool can_insert_clip = track ? track->CanInsertClip(new_audio_clip, mouseTime) : false;
+                    if (can_insert_clip)
                     {
                         // update clip info and push into track
                         track->InsertClip(new_audio_clip, mouseTime);
@@ -4606,7 +4723,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                     {
                         new_video_clip = new VideoClip(item->mStart, item->mEnd, item->mID, item->mName + ":Video", item->mMediaOverview, timeline);
                         timeline->m_Clips.push_back(new_video_clip);
-                        if (track && track->mType == MEDIA_VIDEO)
+                        bool can_insert_clip = track ? track->CanInsertClip(new_video_clip, mouseTime) : false;
+                        if (can_insert_clip)
                         {
                             // update clip info and push into track
                             track->InsertClip(new_video_clip, mouseTime);
@@ -4643,13 +4761,19 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                                     MediaTrack * relative_track = timeline->FindTrackByID(track->mLinkedTrack);
                                     if (relative_track && relative_track->mType == MEDIA_AUDIO)
                                     {
-                                        if (new_video_clip->mGroupID == -1)
+                                        bool can_insert_clip = relative_track->CanInsertClip(new_audio_clip, mouseTime);
+                                        if (can_insert_clip)
                                         {
-                                            timeline->NewGroup(new_video_clip);
+                                            if (new_video_clip->mGroupID == -1)
+                                            {
+                                                timeline->NewGroup(new_video_clip);
+                                            }
+                                            timeline->AddClipIntoGroup(new_audio_clip, new_video_clip->mGroupID);
+                                            relative_track->InsertClip(new_audio_clip, mouseTime);
+                                            timeline->Updata();
                                         }
-                                        timeline->AddClipIntoGroup(new_audio_clip, new_video_clip->mGroupID);
-                                        relative_track->InsertClip(new_audio_clip, mouseTime);
-                                        timeline->Updata();
+                                        else
+                                            create_new_track = true;
                                     }
                                     else
                                         create_new_track = true;
@@ -4660,7 +4784,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                             else
                             {
                                 // no video stream
-                                if (track && track->mType == MEDIA_AUDIO)
+                                bool can_insert_clip = track ? track->CanInsertClip(new_audio_clip, mouseTime) : false;
+                                if (can_insert_clip)
                                 {
                                     // update clip info and push into track
                                     track->InsertClip(new_audio_clip, mouseTime);
@@ -4791,12 +4916,10 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
 
     // for debug
     //ImGui::BeginTooltip();
-    //ImGui::Text("%s", std::to_string(bMoving).c_str());
-    //ImGui::Text("%s", std::to_string(clipMovingEntry).c_str());
-    //ImGui::Text("%s", std::to_string(trackMovingEntry).c_str());
     //ImGui::Text("%s", std::to_string(trackEntry).c_str());
     //ImGui::Text("%s", MillisecToString(mouseTime).c_str());
     //ImGui::EndTooltip();
+    //ImGui::ShowMetricsWindow();
     // for debug end
 
     if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
@@ -4851,7 +4974,7 @@ bool DrawClipTimeLine(BaseEditingClip * editingClip)
     draw_list->AddRectFilled(window_pos, window_pos + headerSize, COL_DARK_ONE, 0);
 
     ImRect movRect(window_pos, window_pos + window_size);
-    if (!MovingCurrentTime && editingClip->mCurrPos >= start && movRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && isFocused)
+    if ( !MovingCurrentTime && editingClip->mCurrPos >= start && movRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && isFocused)
     {
         MovingCurrentTime = true;
         editingClip->bSeeking = true;
@@ -4907,12 +5030,12 @@ bool DrawClipTimeLine(BaseEditingClip * editingClip)
     drawLine(duration, headHeight);
     // cursor Arrow
     const float arrowWidth = draw_list->_Data->FontSize;
-    float arrowOffset = window_pos.x + (editingClip->mCurrPos - start) * msPixelWidth + msPixelWidth / 2 - arrowWidth * 0.5f - 3;
+    float arrowOffset = window_pos.x + (editingClip->mCurrPos - start) * msPixelWidth - arrowWidth * 0.5f;
     ImGui::RenderArrow(draw_list, ImVec2(arrowOffset, window_pos.y), COL_CURSOR_ARROW, ImGuiDir_Down);
     ImGui::SetWindowFontScale(0.8);
     auto time_str = MillisecToString(editingClip->mCurrPos, 2);
     ImVec2 str_size = ImGui::CalcTextSize(time_str.c_str(), nullptr, true);
-    float strOffset = window_pos.x + (editingClip->mCurrPos - start) * msPixelWidth + msPixelWidth / 2 - str_size.x * 0.5f - 3;
+    float strOffset = window_pos.x + (editingClip->mCurrPos - start) * msPixelWidth - str_size.x * 0.5f;
     ImVec2 str_pos = ImVec2(strOffset, window_pos.y + 10);
     draw_list->AddRectFilled(str_pos + ImVec2(-3, 0), str_pos + str_size + ImVec2(3, 3), COL_CURSOR_TEXT_BG, 2.0, ImDrawFlags_RoundCornersAll);
     draw_list->AddText(str_pos, COL_CURSOR_TEXT, time_str.c_str());
@@ -4928,7 +5051,7 @@ bool DrawClipTimeLine(BaseEditingClip * editingClip)
 
     // cursor line
     static const float cursorWidth = 3.f;
-    float cursorOffset = contentMin.x + (editingClip ->mCurrPos - start) * msPixelWidth + msPixelWidth / 2 - cursorWidth * 0.5f - 2;
+    float cursorOffset = contentMin.x + (editingClip ->mCurrPos - start) * msPixelWidth - cursorWidth * 0.5f + 1;
     draw_list->AddLine(ImVec2(cursorOffset, contentMin.y), ImVec2(cursorOffset, contentMax.y), IM_COL32(0, 255, 0, 128), cursorWidth);
     draw_list->PopClipRect();
     ImGui::EndGroup();
@@ -5042,12 +5165,12 @@ bool DrawOverlapTimeLine(Overlap * overlap)
     drawLine(duration, headHeight);
     // cursor Arrow
     const float arrowWidth = draw_list->_Data->FontSize;
-    float arrowOffset = window_pos.x + (overlap->mCurrent - start) * msPixelWidth + msPixelWidth / 2 - arrowWidth * 0.5f - 3;
+    float arrowOffset = window_pos.x + (overlap->mCurrent - start) * msPixelWidth - arrowWidth * 0.5f;
     ImGui::RenderArrow(draw_list, ImVec2(arrowOffset, window_pos.y), COL_CURSOR_ARROW, ImGuiDir_Down);
     ImGui::SetWindowFontScale(0.8);
     auto time_str = MillisecToString(overlap->mCurrent, 2);
     ImVec2 str_size = ImGui::CalcTextSize(time_str.c_str(), nullptr, true);
-    float strOffset = window_pos.x + (overlap->mCurrent - start) * msPixelWidth + msPixelWidth / 2 - str_size.x * 0.5f - 3;
+    float strOffset = window_pos.x + (overlap->mCurrent - start) * msPixelWidth - str_size.x * 0.5f;
     ImVec2 str_pos = ImVec2(strOffset, window_pos.y + 10);
     draw_list->AddRectFilled(str_pos + ImVec2(-3, 0), str_pos + str_size + ImVec2(3, 3), COL_CURSOR_TEXT_BG, 2.0, ImDrawFlags_RoundCornersAll);
     draw_list->AddText(str_pos, COL_CURSOR_TEXT, time_str.c_str());
@@ -5061,7 +5184,7 @@ bool DrawOverlapTimeLine(Overlap * overlap)
     ImVec2 contentMin(window_pos.x, window_pos.y + (float)headHeight);
     ImVec2 contentMax(window_pos.x + window_size.x, window_pos.y + (float)headHeight + float(customHeight) * 2);
     static const float cursorWidth = 3.f;
-    float cursorOffset = contentMin.x + (overlap->mCurrent - start) * msPixelWidth + msPixelWidth / 2 - cursorWidth * 0.5f - 2;
+    float cursorOffset = contentMin.x + (overlap->mCurrent - start) * msPixelWidth - cursorWidth * 0.5f + 1;
     draw_list->AddLine(ImVec2(cursorOffset, contentMin.y), ImVec2(cursorOffset, contentMax.y), IM_COL32(0, 255, 0, 128), cursorWidth);
     draw_list->PopClipRect();
     ImGui::EndGroup();

@@ -83,6 +83,7 @@
 
 #define ICON_CROPED         u8"\ue3e8"
 #define ICON_SCALED         u8"\ue433"
+#define ICON_UI_DEBUG       u8"\uf085"
 
 #define ICON_1K             u8"\ue95c"
 #define ICON_1K_PLUS        u8"\ue95d"
@@ -118,9 +119,9 @@
 #define COL_SLOT_EVEN       IM_COL32( 64,  64,  64, 255)
 #define COL_SLOT_SELECTED   IM_COL32(255,  64,  64, 255)
 #define COL_SLOT_V_LINE     IM_COL32( 96,  96,  96,  48)
-#define COL_SLIDER_BG       IM_COL32( 32,  32,  64, 255)
-#define COL_SLIDER_IN       IM_COL32( 96,  96,  96, 255)
-#define COL_SLIDER_MOVING   IM_COL32( 80,  80,  80, 255)
+#define COL_SLIDER_BG       IM_COL32( 32,  32,  48, 255)
+#define COL_SLIDER_IN       IM_COL32(192, 192, 192, 255)
+#define COL_SLIDER_MOVING   IM_COL32(144, 144, 144, 255)
 #define COL_SLIDER_HANDLE   IM_COL32(112, 112, 112, 255)
 #define COL_SLIDER_SIZING   IM_COL32(170, 170, 170, 255)
 #define COL_CURSOR_ARROW    IM_COL32(  0, 255,   0, 255)
@@ -229,6 +230,7 @@ struct Clip
     int64_t mEnd                {0};                // clip end time in timeline, project saved
     int64_t mStartOffset        {0};                // clip start time in media, project saved
     int64_t mEndOffset          {0};                // clip end time in media, project saved
+    int64_t mLength             {0};                // clip length, = mEnd - mStart
     //int64_t mCurrent            {0};                // clip current time, project saved
     //bool bPlay                  {false};            // clip play status
     //bool bForward               {true};             // clip play direction
@@ -356,24 +358,25 @@ struct TextClip : Clip
 
 struct BaseEditingClip
 {
-    int64_t mID                 {-1};                   // clip ID, project saved
+    int64_t mID                 {-1};                   // editing clip ID
     MEDIA_TYPE mType            {MEDIA_UNKNOWN};
     int64_t mStart              {0};
     int64_t mEnd                {0};
-    int64_t mStartOffset        {0};                    // clip start time in media, project saved
-    int64_t mEndOffset          {0};                    // clip end time in media, project saved
+    int64_t mStartOffset        {0};                    // editing clip start time in media
+    int64_t mEndOffset          {0};                    // editing clip end time in media
     int64_t mDuration           {0};
     int64_t mCurrPos            {0};
-    bool bPlay                  {false};                // clip play status
-    bool bForward               {true};                 // clip play direction
+    bool bPlay                  {false};                // editing clip play status
+    bool bForward               {true};                 // editing clip play direction
     bool bSeeking               {false};
     int64_t mLastTime           {-1};
     ImVec2 mViewWndSize         {0, 0};
 
-    MediaReader* mMediaReader   {nullptr};          // clip media reader
+    void* mHandle               {nullptr};              // main timeline handle
+    MediaReader* mMediaReader   {nullptr};              // editing clip media reader
 
-    BaseEditingClip(int64_t id, MEDIA_TYPE type, int64_t start, int64_t end, int64_t startOffset, int64_t endOffset)
-        : mID(id), mType(type), mStart(start), mEnd(end), mStartOffset(startOffset), mEndOffset(endOffset)
+    BaseEditingClip(int64_t id, MEDIA_TYPE type, int64_t start, int64_t end, int64_t startOffset, int64_t endOffset, void* handle)
+        : mID(id), mType(type), mStart(start), mEnd(end), mStartOffset(startOffset), mEndOffset(endOffset), mHandle(handle)
     {}
 
     virtual void UpdateClipRange(Clip* clip) = 0;
@@ -439,6 +442,7 @@ struct MediaTrack
     ~MediaTrack();
 
     bool DrawTrackControlBar(ImDrawList *draw_list, ImRect rc);
+    bool CanInsertClip(Clip * clip, int64_t pos);
     void InsertClip(Clip * clip, int64_t pos = 0);
     void PushBackClip(Clip * clip);
     void SelectClip(Clip * clip, bool appand);
@@ -553,7 +557,6 @@ struct TimeLine
     std::mutex mVideoFilterBluePrintLock;   // Video Filter BluePrint mutex
     bool mVideoFilterNeedUpdate {false};
 
-    std::mutex mVideoFilterTextureLock;   // Video Filter Texture mutex
     ImTextureID mVideoFilterInputTexture {nullptr};  // clip video filter input texture
     ImTextureID mVideoFilterOutputTexture {nullptr};  // clip video filter output texture
 
@@ -602,7 +605,7 @@ struct TimeLine
     void DoubleClick(int index, int64_t time);
     void Click(int index, int64_t time);
 
-    void CustomDraw(int index, ImDrawList *draw_list, const ImRect &rc, const ImRect &titleRect, const ImRect &clippingTitleRect, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRect, bool is_moving, bool enable_select);
+    void CustomDraw(int index, ImDrawList *draw_list, const ImRect &view_rc, const ImRect &rc, const ImRect &titleRect, const ImRect &clippingTitleRect, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRect, bool is_moving, bool enable_select);
     
     ImGui::ImMat GetPreviewFrame();
     int GetAudioLevel(int channel);
