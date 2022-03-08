@@ -3443,7 +3443,7 @@ bool ClipInfo::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame)
             break;
         }
     }
-    return out_of_range ? false : true;
+    return true;//out_of_range ? false : true;
 }
 
 ClipInfo * ClipInfo::Load(const imgui_json::value& value, void * handle)

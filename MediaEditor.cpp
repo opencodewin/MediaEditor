@@ -1661,52 +1661,42 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                 auto ret = timeline->mVidFilterClip->GetFrame(pair);
                 if (ret)
                 {
-                    timeline->mVideoFilterTextureLock.lock();
                     ImGui::ImMatToTexture(pair.first, timeline->mVideoFilterInputTexture);
                     ImGui::ImMatToTexture(pair.second, timeline->mVideoFilterOutputTexture);
-                    timeline->mVideoFilterTextureLock.unlock();
                 }
                 float pos_x = 0, pos_y = 0;
                 bool draw_compare = false;
                 ImVec4 tint_col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);   // No tint
                 ImVec4 border_col = ImVec4(1.0f, 1.0f, 1.0f, 0.5f); // 50% opaque white
-                timeline->mVideoFilterTextureLock.lock();
+                
+                float offset_x = 0, offset_y = 0;
+                float tf_x = 0, tf_y = 0;
+                // filter input texture area
+                ShowVideoWindow(timeline->mVideoFilterInputTexture, InputVideoPos, InputVideoSize, offset_x, offset_y, tf_x, tf_y);
+                if (ImGui::IsItemHovered() && timeline->mVideoFilterInputTexture)
                 {
-                    // filter input texture area
-                    float offset_x = 0, offset_y = 0;
-                    float tf_x = 0, tf_y = 0;
-                    ShowVideoWindow(timeline->mVideoFilterInputTexture, InputVideoPos, InputVideoSize, offset_x, offset_y, tf_x, tf_y);
-                    if (ImGui::IsItemHovered() && timeline->mVideoFilterInputTexture)
-                    {
-                        float image_width = ImGui::ImGetTextureWidth(timeline->mVideoFilterInputTexture);
-                        float image_height = ImGui::ImGetTextureHeight(timeline->mVideoFilterInputTexture);
-                        float scale_w = image_width / (InputVideoSize.x - tf_x * 2);
-                        float scale_h = image_height / (InputVideoSize.y - tf_y * 2);
-                        pos_x = (io.MousePos.x - offset_x) * scale_w;
-                        pos_y = (io.MousePos.y - offset_y) * scale_h;
-                        draw_compare = true;
-                    }
+                    float image_width = ImGui::ImGetTextureWidth(timeline->mVideoFilterInputTexture);
+                    float image_height = ImGui::ImGetTextureHeight(timeline->mVideoFilterInputTexture);
+                    float scale_w = image_width / (InputVideoSize.x - tf_x * 2);
+                    float scale_h = image_height / (InputVideoSize.y - tf_y * 2);
+                    pos_x = (io.MousePos.x - offset_x) * scale_w;
+                    pos_y = (io.MousePos.y - offset_y) * scale_h;
+                    draw_compare = true;
                 }
+                // filter output texture area
+                ShowVideoWindow(timeline->mVideoFilterOutputTexture, OutputVideoPos, OutputVideoSize, offset_x, offset_y, tf_x, tf_y);
+                if (ImGui::IsItemHovered() && timeline->mVideoFilterOutputTexture)
                 {
-                    // filter output texture area
-                    float offset_x = 0, offset_y = 0;
-                    float tf_x = 0, tf_y = 0;
-                    ShowVideoWindow(timeline->mVideoFilterOutputTexture, OutputVideoPos, OutputVideoSize, offset_x, offset_y, tf_x, tf_y);
-                    if (ImGui::IsItemHovered() && timeline->mVideoFilterOutputTexture)
-                    {
-                        float image_width = ImGui::ImGetTextureWidth(timeline->mVideoFilterOutputTexture);
-                        float image_height = ImGui::ImGetTextureHeight(timeline->mVideoFilterOutputTexture);
-                        float scale_w = image_width / (OutputVideoSize.x - tf_x * 2);
-                        float scale_h = image_height / (OutputVideoSize.y - tf_y * 2);
-                        pos_x = (io.MousePos.x - offset_x) * scale_w;
-                        pos_y = (io.MousePos.y - offset_y) * scale_h;
-                        draw_compare = true;
-                    }
+                    float image_width = ImGui::ImGetTextureWidth(timeline->mVideoFilterOutputTexture);
+                    float image_height = ImGui::ImGetTextureHeight(timeline->mVideoFilterOutputTexture);
+                    float scale_w = image_width / (OutputVideoSize.x - tf_x * 2);
+                    float scale_h = image_height / (OutputVideoSize.y - tf_y * 2);
+                    pos_x = (io.MousePos.x - offset_x) * scale_w;
+                    pos_y = (io.MousePos.y - offset_y) * scale_h;
+                    draw_compare = true;
                 }
-                timeline->mVideoFilterTextureLock.unlock();
                 if (draw_compare)
                 {
-                    timeline->mVideoFilterTextureLock.lock();
                     if (timeline->mVideoFilterInputTexture)
                     {
                         float image_width = ImGui::ImGetTextureWidth(timeline->mVideoFilterInputTexture);
@@ -1742,7 +1732,6 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                         ImGui::Image(timeline->mVideoFilterOutputTexture, ImVec2(region_sz * texture_zoom, region_sz * texture_zoom), uv0, uv1, tint_col, border_col);
                         ImGui::EndTooltip();
                     }
-                    timeline->mVideoFilterTextureLock.unlock();
                 }
             }
         }

@@ -549,7 +549,6 @@ struct TimeLine
     std::mutex mVideoFilterBluePrintLock;   // Video Filter BluePrint mutex
     bool mVideoFilterNeedUpdate {false};
 
-    std::mutex mVideoFilterTextureLock;   // Video Filter Texture mutex
     ImTextureID mVideoFilterInputTexture {nullptr};  // clip video filter input texture
     ImTextureID mVideoFilterOutputTexture {nullptr};  // clip video filter output texture
 

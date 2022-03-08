@@ -1470,8 +1470,9 @@ void EditingVideoClip::Step(bool forward, int64_t step)
 
 bool EditingVideoClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame)
 {
+    int ret = false;
     if (mFrame.empty())
-        return false;
+        return ret;
 
     auto frame_delay = mClipFrameRate.den * 1000 / mClipFrameRate.num;
     int64_t buffer_start = mFrame.begin()->first.time_stamp * 1000;
@@ -1494,17 +1495,20 @@ bool EditingVideoClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_fr
         if (need_erase || out_of_range)
         {
             // if we on seek stage, may output last frame for smooth preview
-            if (bSeeking && mFrame.size() == 1)
+            if (bSeeking && pair != mFrame.end())
             {
                 in_out_frame = *pair;
+                ret = true;
             }
             mFrameLock.lock();
             pair = mFrame.erase(pair);
             mFrameLock.unlock();
+            if (ret) break;
         }
         else
         {
             in_out_frame = *pair;
+            ret = true;
             // handle clip play event
             if (bPlay)
             {
@@ -1535,7 +1539,7 @@ bool EditingVideoClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_fr
             break;
         }
     }
-    return out_of_range ? false : true;
+    return ret;
 }
 
 void EditingVideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom)
@@ -2139,10 +2143,8 @@ void MediaTrack::EditingClip(Clip * clip)
             {
                 delete timeline->mVidFilterClip;
                 timeline->mVidFilterClip = nullptr;
-                timeline->mVideoFilterTextureLock.lock();
                 if (timeline->mVideoFilterInputTexture) {ImGui::ImDestroyTexture(timeline->mVideoFilterInputTexture); timeline->mVideoFilterInputTexture = nullptr;}
                 if (timeline->mVideoFilterOutputTexture) { ImGui::ImDestroyTexture(timeline->mVideoFilterOutputTexture); timeline->mVideoFilterOutputTexture = nullptr;  }
-                timeline->mVideoFilterTextureLock.unlock();
             }
             if (timeline->mVideoFilterBluePrint && timeline->mVideoFilterBluePrint->Blueprint_IsValid())
             {
@@ -2495,7 +2497,7 @@ static int thread_video_filter(TimeLine * timeline)
             ImGui::sleep((int)5);
             continue;
         }
-        if (timeline->mVidFilterClipLock.try_lock())
+        timeline->mVidFilterClipLock.lock();
         {
             if (!timeline->mVidFilterClip || !timeline->mVidFilterClip->mMediaReader)
             {
@@ -2542,6 +2544,7 @@ static int thread_video_filter(TimeLine * timeline)
                         std::swap(buffer_start, buffer_end);
                     if (timeline->mVidFilterClip->mCurrPos < buffer_start - frame_delay || timeline->mVidFilterClip->mCurrPos > buffer_end + frame_delay)
                     {
+                        ImGui::sleep((int)5);
                         break;
                     }
                 }
@@ -2576,8 +2579,8 @@ static int thread_video_filter(TimeLine * timeline)
                     timeline->mVideoFilterBluePrintLock.unlock();
                 }
             }
-            timeline->mVidFilterClipLock.unlock();
         }
+        timeline->mVidFilterClipLock.unlock();
     }
     timeline->mVideoFilterRunning = false;
     return 0;
