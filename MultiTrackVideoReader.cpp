@@ -92,15 +92,11 @@ public:
             lock_guard<recursive_mutex> lk2(m_trackLock);
             m_tracks.push_back(hTrack);
         }
-        m_outputMats.clear();
-
-        // ReleaseMixer();
-        // if (!CreateMixer())
-        //     return false;
 
         double pos = (double)m_readFrames*m_frameRate.den/m_frameRate.num;
         for (auto track : m_tracks)
             track->SeekTo(pos);
+        m_outputMats.clear();
 
         StartMixingThread();
         return hTrack;
@@ -134,16 +130,10 @@ public:
             m_tracks.erase(iter);
         }
 
-        // ReleaseMixer();
-        // if (!m_tracks.empty())
-        // {
-        //     if (!CreateMixer())
-        //         return false;
-        // }
-
         double pos = (double)m_readFrames*m_frameRate.den/m_frameRate.num;
         for (auto track : m_tracks)
             track->SeekTo(pos);
+        m_outputMats.clear();
 
         StartMixingThread();
         return delTrack;
@@ -173,6 +163,7 @@ public:
         double pos = (double)m_readFrames*m_frameRate.den/m_frameRate.num;
         for (auto track : m_tracks)
             track->SeekTo(pos);
+        m_outputMats.clear();
 
         StartMixingThread();
         return delTrack;
@@ -189,10 +180,10 @@ public:
         for (auto& track : m_tracks)
             track->SetDirection(forward);
 
-        m_outputMats.clear();
         double pos = (double)m_readFrames*m_frameRate.den/m_frameRate.num;
         for (auto track : m_tracks)
             track->SeekTo(pos);
+        m_outputMats.clear();
 
         StartMixingThread();
         return true;
@@ -209,10 +200,10 @@ public:
 
         TerminateMixingThread();
 
-        m_outputMats.clear();
         m_readFrames = (int64_t)(pos*m_frameRate.num/m_frameRate.den);
         for (auto track : m_tracks)
             track->SeekTo(pos);
+        m_outputMats.clear();
 
         StartMixingThread();
         return true;
@@ -291,6 +282,20 @@ public:
             m_readFrames++;
         else
             m_readFrames--;
+        return true;
+    }
+
+    bool Refresh() override
+    {
+        lock_guard<recursive_mutex> lk(m_apiLock);
+        if (!m_started)
+        {
+            m_errMsg = "This MultiTrackVideoReader instance is NOT started yet!";
+            return false;
+        }
+
+        double pos = (double)m_readFrames*m_frameRate.den/m_frameRate.num;
+        SeekTo(pos);
         return true;
     }
 

@@ -17,6 +17,7 @@ struct MultiTrackVideoReader
     virtual bool SeekTo(double pos) = 0;
     virtual bool ReadVideoFrame(double pos, ImGui::ImMat& vmat) = 0;
     virtual bool ReadNextVideoFrame(ImGui::ImMat& vmat) = 0;
+    virtual bool Refresh() = 0;
 
     virtual uint32_t TrackCount() const = 0;
     virtual std::list<DataLayer::VideoTrackHolder>::iterator TrackListBegin() = 0;

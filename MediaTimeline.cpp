@@ -3741,6 +3741,7 @@ void TimeLine::PerformUiActions()
             DataLayer::VideoTrackHolder vidTrack = mMtvReader->GetTrackById(trackId);
             int64_t clipId = action["clip_id"].get<imgui_json::point>();
             vidTrack->RemoveClipById(clipId);
+            mMtvReader->Refresh();
         }
         else if (actionName == "ADD_TRACK")
         {
