@@ -19,13 +19,15 @@ struct MultiTrackVideoReader
     virtual bool ReadNextVideoFrame(ImGui::ImMat& vmat) = 0;
     virtual bool Refresh() = 0;
 
+    virtual int64_t Duration() = 0;
+    virtual int64_t ReadPos() const = 0;
+
     virtual uint32_t TrackCount() const = 0;
     virtual std::list<DataLayer::VideoTrackHolder>::iterator TrackListBegin() = 0;
     virtual std::list<DataLayer::VideoTrackHolder>::iterator TrackListEnd() = 0;
     virtual DataLayer::VideoTrackHolder GetTrackByIndex(uint32_t idx) = 0;
-    virtual DataLayer::VideoTrackHolder GetTrackById(int64_t id, bool createIfNotExists = false) = 0;
-    virtual int64_t Duration() = 0;
-    virtual int64_t ReadPos() const = 0;
+    virtual DataLayer::VideoTrackHolder GetTrackById(int64_t trackId, bool createIfNotExists = false) = 0;
+    virtual DataLayer::VideoClipHolder GetClipById(int64_t clipId) = 0;
 
     virtual std::string GetError() const = 0;
 

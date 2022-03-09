@@ -338,6 +338,21 @@ public:
             return nullptr;
     }
 
+    DataLayer::VideoClipHolder GetClipById(int64_t clipId) override
+    {
+        lock(m_apiLock, m_trackLock);
+        lock_guard<recursive_mutex> lk(m_apiLock, adopt_lock);
+        lock_guard<recursive_mutex> lk2(m_trackLock, adopt_lock);
+        VideoClipHolder clip;
+        for (auto& track : m_tracks)
+        {
+            clip = track->GetClipById(clipId);
+            if (clip)
+                break;
+        }
+        return clip;
+    }
+
     int64_t Duration() override
     {
         if (m_tracks.empty())

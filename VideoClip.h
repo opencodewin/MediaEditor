@@ -7,6 +7,9 @@
 
 namespace DataLayer
 {
+    struct VideoFilter;
+    using VideoFilterHolder = std::shared_ptr<VideoFilter>;
+
     class VideoClip
     {
     public:
@@ -34,6 +37,8 @@ namespace DataLayer
         void ChangeStartOffset(int64_t startOffset);
         bool IsEndOffsetValid(int64_t endOffset);
         void ChangeEndOffset(int64_t endOffset);
+        VideoFilterHolder GetFilter() const { return m_filter; }
+        void SetFilter(VideoFilterHolder filter);
 
         void SeekTo(int64_t pos);
         void ReadVideoFrame(int64_t pos, ImGui::ImMat& vmat, bool& eof);
@@ -53,9 +58,17 @@ namespace DataLayer
         bool m_eof{false};
         MediaInfo::Ratio m_frameRate;
         uint32_t m_frameIndex{0};
+        VideoFilterHolder m_filter;
     };
 
     using VideoClipHolder = std::shared_ptr<VideoClip>;
+
+    struct VideoFilter
+    {
+        virtual ~VideoFilter() {}
+        virtual void ApplyTo(VideoClip* clip) = 0;
+        virtual ImGui::ImMat FilterImage(const ImGui::ImMat& vmat, int64_t pos) = 0;
+    };
 
     struct VideoTransition;
     using VideoTransitionHolder = std::shared_ptr<VideoTransition>;

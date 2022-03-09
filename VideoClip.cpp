@@ -78,6 +78,19 @@ namespace DataLayer
         m_endOffset = endOffset;
     }
 
+    void VideoClip::SetFilter(VideoFilterHolder filter)
+    {
+        if (filter)
+        {
+            filter->ApplyTo(this);
+            m_filter = filter;
+        }
+        else
+        {
+            m_filter = nullptr;
+        }
+    }
+
     void VideoClip::SeekTo(int64_t pos)
     {
         if (pos > Duration())
@@ -96,8 +109,13 @@ namespace DataLayer
             eof = true;
             return;
         }
-        if (!m_srcReader->ReadVideoFrame((double)(pos+m_startOffset)/1000, vmat, eof))
+        ImGui::ImMat image;
+        if (!m_srcReader->ReadVideoFrame((double)(pos+m_startOffset)/1000, image, eof))
             throw runtime_error(m_srcReader->GetError());
+        VideoFilterHolder filter = m_filter;
+        if (filter)
+            image = filter->FilterImage(image, pos+m_startOffset);
+        vmat = image;
     }
 
     void VideoClip::SetDirection(bool forward)
@@ -179,6 +197,21 @@ namespace DataLayer
         }
     }
 
+    void VideoOverlap::SetTransition(VideoTransitionHolder transition)
+    {
+        if (transition)
+        {
+            transition->ApplyTo(this);
+            m_transition = transition;
+        }
+        else
+        {
+            VideoTransitionHolder defaultTrans(new DefaultVideoTransition_Impl());
+            defaultTrans->ApplyTo(this);
+            m_transition = defaultTrans;
+        }
+    }
+
     void VideoOverlap::SeekTo(int64_t pos)
     {
         if (pos > Duration())
@@ -206,7 +239,8 @@ namespace DataLayer
         int64_t pos2 = pos+(Start()-m_rearClip->Start());
         m_rearClip->ReadVideoFrame(pos2, vmat2, eof2);
 
-        vmat = m_transition->MixTwoImages(vmat1, vmat2, pos);
+        VideoTransitionHolder transition = m_transition;
+        vmat = transition->MixTwoImages(vmat1, vmat2, pos);
 
         eof = eof1 || eof2;
         if (pos == Duration())

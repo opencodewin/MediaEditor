@@ -1356,6 +1356,54 @@ void TextClip::Save(imgui_json::value& value)
     // save Text clip info
 }
 
+BluePrintVideoFilter::~BluePrintVideoFilter()
+{
+    if (mBp)
+    {
+        mBp->Finalize();
+        delete mBp;
+        mBp = nullptr;
+    }
+}
+
+ImGui::ImMat BluePrintVideoFilter::FilterImage(const ImGui::ImMat& vmat, int64_t pos)
+{
+    std::lock_guard<std::mutex> lk(mBpLock);
+    if (mBp)
+    {
+        ImGui::ImMat inMat(vmat);
+        ImGui::ImMat outMat;
+        mBp->Blueprint_RunFilter(inMat, outMat);
+        return outMat;
+    }
+    return vmat;
+}
+
+void BluePrintVideoFilter::SetBluePrintFromJson(imgui_json::value& bpJson)
+{
+    BluePrint::BluePrintUI* bp = new BluePrint::BluePrintUI();
+    bp->Initialize();
+    Logger::Log(Logger::DEBUG) << "Create bp filter from json " << bpJson.dump() << std::endl;
+    bp->File_New_Filter(bpJson, "VideoFilter", "Video");
+    if (!bp->Blueprint_IsValid())
+    {
+        bp->Finalize();
+        delete bp;
+        return;
+    }
+    BluePrint::BluePrintUI* oldbp = nullptr;
+    {
+        std::lock_guard<std::mutex> lk(mBpLock);
+        oldbp = mBp;
+        mBp = bp;
+    }
+    if (oldbp)
+    {
+        oldbp->Finalize();
+        delete oldbp;
+    }
+}
+
 EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
     : BaseEditingClip(vidclip->mID, vidclip->mType, vidclip->mStart, vidclip->mEnd, vidclip->mStartOffset, vidclip->mEndOffset, vidclip->mHandle)
 {
@@ -2153,6 +2201,14 @@ void MediaTrack::EditingClip(Clip * clip)
                 timeline->mVideoFilterBluePrintLock.unlock();
             }
             timeline->mVidFilterClipLock.unlock();
+
+            // update video filter in datalayer
+            DataLayer::VideoClipHolder hClip = timeline->mMtvReader->GetClipById(editing_clip->mID);
+            BluePrintVideoFilter* bpvf = new BluePrintVideoFilter();
+            bpvf->SetBluePrintFromJson(editing_clip->mFilterBP);
+            DataLayer::VideoFilterHolder hFilter(bpvf);
+            hClip->SetFilter(hFilter);
+            timeline->mMtvReader->Refresh();
         }
         else if (editing_clip->mType == MEDIA_AUDIO)
         {
@@ -3632,8 +3688,14 @@ int TimeLine::Load(const imgui_json::value& value)
         DataLayer::VideoTrackHolder vidTrack = mMtvReader->AddTrack(track->mID);
         for (auto clip : track->m_Clips)
         {
-            vidTrack->AddNewClip(clip->mID, clip->mOverview->GetMediaParser(),
+            DataLayer::VideoClipHolder vidClip = vidTrack->AddNewClip(
+                clip->mID, clip->mOverview->GetMediaParser(),
                 clip->mStart, clip->mStartOffset, clip->mEndOffset);
+
+            BluePrintVideoFilter* bpvf = new BluePrintVideoFilter();
+            bpvf->SetBluePrintFromJson(clip->mFilterBP);
+            DataLayer::VideoFilterHolder hFilter(bpvf);
+            vidClip->SetFilter(hFilter);
         }
     }
     SyncDataLayer();

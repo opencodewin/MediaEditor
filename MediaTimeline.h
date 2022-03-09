@@ -357,6 +357,21 @@ struct TextClip : Clip
     void Save(imgui_json::value& value);
 };
 
+class BluePrintVideoFilter : public DataLayer::VideoFilter
+{
+public:
+    virtual ~BluePrintVideoFilter();
+
+    void ApplyTo(DataLayer::VideoClip* clip) override {}
+    ImGui::ImMat FilterImage(const ImGui::ImMat& vmat, int64_t pos) override;
+
+    void SetBluePrintFromJson(imgui_json::value& bpJson);
+
+private:
+    BluePrint::BluePrintUI* mBp{nullptr};
+    std::mutex mBpLock;
+};
+
 struct BaseEditingClip
 {
     int64_t mID                 {-1};                   // editing clip ID
