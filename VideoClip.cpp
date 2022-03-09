@@ -15,8 +15,8 @@ namespace DataLayer
     VideoClip::VideoClip(
         int64_t id, MediaParserHolder hParser,
         uint32_t outWidth, uint32_t outHeight, const MediaInfo::Ratio& frameRate,
-        double timeLineOffset, double startOffset, double endOffset)
-        : m_id(id), m_timeLineOffset(timeLineOffset)
+        int64_t start, int64_t startOffset, int64_t endOffset)
+        : m_id(id), m_start(start)
     {
         m_hInfo = hParser->GetMediaInfo();
         if (hParser->GetBestVideoStreamIndex() < 0)
@@ -29,12 +29,12 @@ namespace DataLayer
         if (frameRate.num <= 0 || frameRate.den <= 0)
             throw invalid_argument("Invalid argument value for 'frameRate'!");
         m_frameRate = frameRate;
-        m_srcDuration = m_srcReader->GetVideoStream()->duration;
+        m_srcDuration = static_cast<int64_t>(m_srcReader->GetVideoStream()->duration*1000);
         if (startOffset < 0)
             throw invalid_argument("Argument 'startOffset' can NOT be NEGATIVE!");
         if (endOffset < 0)
             throw invalid_argument("Argument 'endOffset' can NOT be NEGATIVE!");
-        if (startOffset+endOffset >= m_srcDuration)
+        if (startOffset+endOffset >= m_srcDuration*1000)
             throw invalid_argument("Argument 'startOffset/endOffset', clip duration is NOT LARGER than 0!");
         m_startOffset = startOffset;
         m_endOffset = endOffset;
@@ -42,8 +42,6 @@ namespace DataLayer
             throw runtime_error(m_srcReader->GetError());
         if (!m_srcReader->Start())
             throw runtime_error(m_srcReader->GetError());
-
-        m_timeLineOffset = timeLineOffset;
     }
 
     VideoClip::~VideoClip()
@@ -51,14 +49,14 @@ namespace DataLayer
         ReleaseMediaReader(&m_srcReader);
     }
 
-    bool VideoClip::IsStartOffsetValid(double startOffset)
+    bool VideoClip::IsStartOffsetValid(int64_t startOffset)
     {
         if (startOffset < 0 || startOffset+m_endOffset >= m_srcDuration)
             return false;
         return true;
     }
 
-    void VideoClip::ChangeStartOffset(double startOffset)
+    void VideoClip::ChangeStartOffset(int64_t startOffset)
     {
         if (startOffset == m_startOffset)
             return;
@@ -69,7 +67,7 @@ namespace DataLayer
         m_startOffset = startOffset;
     }
 
-    void VideoClip::ChangeEndOffset(double endOffset)
+    void VideoClip::ChangeEndOffset(int64_t endOffset)
     {
         if (endOffset == m_endOffset)
             return;
@@ -80,25 +78,25 @@ namespace DataLayer
         m_endOffset = endOffset;
     }
 
-    void VideoClip::SeekTo(double pos)
+    void VideoClip::SeekTo(int64_t pos)
     {
         if (pos > Duration())
             return;
         if (pos < 0)
             pos = 0;
-        if (!m_srcReader->SeekTo(pos+m_startOffset))
+        if (!m_srcReader->SeekTo((double)(pos+m_startOffset)/1000))
             throw runtime_error(m_srcReader->GetError());
         m_eof = false;
     }
 
-    void VideoClip::ReadVideoFrame(double pos, ImGui::ImMat& vmat, bool& eof)
+    void VideoClip::ReadVideoFrame(int64_t pos, ImGui::ImMat& vmat, bool& eof)
     {
         if (m_eof)
         {
             eof = true;
             return;
         }
-        if (!m_srcReader->ReadVideoFrame(pos+m_startOffset, vmat, eof))
+        if (!m_srcReader->ReadVideoFrame((double)(pos+m_startOffset)/1000, vmat, eof))
             throw runtime_error(m_srcReader->GetError());
     }
 
@@ -125,12 +123,12 @@ namespace DataLayer
             m_overlapPtr = overlap;
         }
 
-        ImGui::ImMat MixTwoImages(const ImGui::ImMat& vmat1, const ImGui::ImMat& vmat2, double pos) override
+        ImGui::ImMat MixTwoImages(const ImGui::ImMat& vmat1, const ImGui::ImMat& vmat2, int64_t pos) override
         {
 #if IMGUI_VULKAN_SHADER
             ImGui::ImMat dst;
             dst.type = IM_DT_INT8;
-            double alpha = 1-pos/m_overlapPtr->Duration();
+            double alpha = 1-(double)pos/m_overlapPtr->Duration();
             m_alphaBlender.blend(vmat1, vmat2, dst, (float)alpha);
             return dst;
 #else
@@ -181,31 +179,31 @@ namespace DataLayer
         }
     }
 
-    void VideoOverlap::SeekTo(double pos)
+    void VideoOverlap::SeekTo(int64_t pos)
     {
         if (pos > Duration())
             return;
         if (pos < 0)
             pos = 0;
-        double pos1 = pos+(Start()-m_frontClip->Start());
+        int64_t pos1 = pos+(Start()-m_frontClip->Start());
         m_frontClip->SeekTo(pos1);
-        double pos2 = pos+(Start()-m_rearClip->Start());
+        int64_t pos2 = pos+(Start()-m_rearClip->Start());
         m_rearClip->SeekTo(pos2);
     }
 
-    void VideoOverlap::ReadVideoFrame(double pos, ImGui::ImMat& vmat, bool& eof)
+    void VideoOverlap::ReadVideoFrame(int64_t pos, ImGui::ImMat& vmat, bool& eof)
     {
         if (pos < 0 || pos > Duration())
             throw invalid_argument("Argument 'pos' can NOT be NEGATIVE or larger than overlap duration!");
 
         bool eof1{false};
         ImGui::ImMat vmat1;
-        double pos1 = pos+(Start()-m_frontClip->Start());
+        int64_t pos1 = pos+(Start()-m_frontClip->Start());
         m_frontClip->ReadVideoFrame(pos1, vmat1, eof1);
 
         bool eof2{false};
         ImGui::ImMat vmat2;
-        double pos2 = pos+(Start()-m_rearClip->Start());
+        int64_t pos2 = pos+(Start()-m_rearClip->Start());
         m_rearClip->ReadVideoFrame(pos2, vmat2, eof2);
 
         vmat = m_transition->MixTwoImages(vmat1, vmat2, pos);

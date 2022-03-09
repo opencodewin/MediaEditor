@@ -14,11 +14,10 @@ namespace DataLayer
         VideoTrack(VideoTrack&&) = delete;
         VideoTrack& operator=(const VideoTrack&) = delete;
 
-        // uint32_t AddNewClip(const std::string& url, double start, double startOffset, double endOffset);
-        VideoClipHolder AddNewClip(int64_t clipId, MediaParserHolder hParser, double start, double startOffset, double endOffset);
+        VideoClipHolder AddNewClip(int64_t clipId, MediaParserHolder hParser, int64_t start, int64_t startOffset, int64_t endOffset);
         void InsertClip(VideoClipHolder hClip);
-        void MoveClip(int64_t id, double start);
-        void ChangeClipRange(int64_t id, double startOffset, double endOffset);
+        void MoveClip(int64_t id, int64_t start);
+        void ChangeClipRange(int64_t id, int64_t startOffset, int64_t endOffset);
         VideoClipHolder RemoveClipById(int64_t clipId);
         VideoClipHolder RemoveClipByIndex(uint32_t index);
 
@@ -31,7 +30,7 @@ namespace DataLayer
         std::list<VideoOverlapHolder>::iterator OverlapListBegin() { return m_overlaps.begin(); }
         std::list<VideoOverlapHolder>::iterator OverlapListEnd() { return m_overlaps.end(); }
 
-        void SeekTo(double pos);
+        void SeekTo(int64_t pos);
         void ReadVideoFrame(ImGui::ImMat& vmat);
         void SetDirection(bool forward);
 
@@ -39,14 +38,14 @@ namespace DataLayer
         uint32_t OutWidth() const { return m_outWidth; }
         uint32_t OutHeight() const { return m_outHeight; }
         MediaInfo::Ratio FrameRate() const { return m_frameRate; }
-        double Duration() const { return m_duration; }
+        int64_t Duration() const { return m_duration; }
 
         friend std::ostream& operator<<(std::ostream& os, VideoTrack& track);
 
     private:
         static std::function<bool(const VideoClipHolder&, const VideoClipHolder&)> CLIP_SORT_CMP;
         static std::function<bool(const VideoOverlapHolder&, const VideoOverlapHolder&)> OVERLAP_SORT_CMP;
-        bool CheckClipRangeValid(int64_t clipId, double start, double end);
+        bool CheckClipRangeValid(int64_t clipId, int64_t start, int64_t end);
         void UpdateClipOverlap(VideoClipHolder hClip, bool remove = false);
 
     private:
@@ -60,7 +59,7 @@ namespace DataLayer
         std::list<VideoOverlapHolder> m_overlaps;
         std::list<VideoOverlapHolder>::iterator m_readOverlapIter;
         int64_t m_readFrames{0};
-        double m_duration{0};
+        int64_t m_duration{0};
         bool m_readForward{true};
     };
 

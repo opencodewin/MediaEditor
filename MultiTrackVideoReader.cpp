@@ -93,9 +93,8 @@ public:
             m_tracks.push_back(hTrack);
         }
 
-        double pos = (double)m_readFrames*m_frameRate.den/m_frameRate.num;
         for (auto track : m_tracks)
-            track->SeekTo(pos);
+            track->SeekTo(ReadPos());
         m_outputMats.clear();
 
         StartMixingThread();
@@ -130,9 +129,8 @@ public:
             m_tracks.erase(iter);
         }
 
-        double pos = (double)m_readFrames*m_frameRate.den/m_frameRate.num;
         for (auto track : m_tracks)
-            track->SeekTo(pos);
+            track->SeekTo(ReadPos());
         m_outputMats.clear();
 
         StartMixingThread();
@@ -160,9 +158,8 @@ public:
         VideoTrackHolder delTrack = *iter;
         m_tracks.erase(iter);
 
-        double pos = (double)m_readFrames*m_frameRate.den/m_frameRate.num;
         for (auto track : m_tracks)
-            track->SeekTo(pos);
+            track->SeekTo(ReadPos());
         m_outputMats.clear();
 
         StartMixingThread();
@@ -180,16 +177,15 @@ public:
         for (auto& track : m_tracks)
             track->SetDirection(forward);
 
-        double pos = (double)m_readFrames*m_frameRate.den/m_frameRate.num;
         for (auto track : m_tracks)
-            track->SeekTo(pos);
+            track->SeekTo(ReadPos());
         m_outputMats.clear();
 
         StartMixingThread();
         return true;
     }
 
-    bool SeekTo(double pos) override
+    bool SeekTo(int64_t pos) override
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
         if (!m_started)
@@ -200,7 +196,7 @@ public:
 
         TerminateMixingThread();
 
-        m_readFrames = (int64_t)(pos*m_frameRate.num/m_frameRate.den);
+        m_readFrames = (int64_t)((double)pos*m_frameRate.num/(m_frameRate.den*1000));
         for (auto track : m_tracks)
             track->SeekTo(pos);
         m_outputMats.clear();
@@ -209,7 +205,7 @@ public:
         return true;
     }
 
-    bool ReadVideoFrame(double pos, ImGui::ImMat& vmat) override
+    bool ReadVideoFrame(int64_t pos, ImGui::ImMat& vmat) override
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
         if (!m_started)
@@ -223,7 +219,7 @@ public:
             return false;
         }
 
-        uint32_t targetFrmidx = (uint32_t)(pos*m_frameRate.num/m_frameRate.den);
+        uint32_t targetFrmidx = (int64_t)((double)pos*m_frameRate.num/(m_frameRate.den*1000));
         if (m_readForward && (targetFrmidx < m_readFrames || targetFrmidx-m_readFrames >= m_outputMatsMaxCount) ||
             !m_readForward && (targetFrmidx > m_readFrames || m_readFrames-targetFrmidx >= m_outputMatsMaxCount))
         {
@@ -252,8 +248,9 @@ public:
                 m_readFrames--;
         }
         vmat = m_outputMats.front();
-        if (pos < vmat.time_stamp || pos > vmat.time_stamp+(double)m_frameRate.den/m_frameRate.num)
-            m_logger->Log(Error) << "WRONG image time stamp!! Required 'pos' is " << pos
+        const double timestamp = (double)pos/1000;
+        if (timestamp < vmat.time_stamp || timestamp > vmat.time_stamp+(double)m_frameRate.den/m_frameRate.num)
+            m_logger->Log(Error) << "WRONG image time stamp!! Required 'pos' is " << timestamp
                 << ", output vmat time stamp is " << vmat.time_stamp << "." << endl;
         return true;
     }
@@ -294,8 +291,7 @@ public:
             return false;
         }
 
-        double pos = (double)m_readFrames*m_frameRate.den/m_frameRate.num;
-        SeekTo(pos);
+        SeekTo(ReadPos());
         return true;
     }
 
@@ -342,21 +338,26 @@ public:
             return nullptr;
     }
 
-    double Duration() override
+    int64_t Duration() override
     {
         if (m_tracks.empty())
             return 0;
-        double dur = 0;
+        int64_t dur = 0;
         m_trackLock.lock();
         const list<VideoTrackHolder> tracks(m_tracks);
         m_trackLock.unlock();
         for (auto& track : tracks)
         {
-            const double trackDur = track->Duration();
+            const int64_t trackDur = track->Duration();
             if (trackDur > dur)
                 dur = trackDur;
         }
         return dur;
+    }
+
+    int64_t ReadPos() const override
+    {
+        return (int64_t)((double)m_readFrames*1000*m_frameRate.den/m_frameRate.num);
     }
 
     string GetError() const override

@@ -13,7 +13,7 @@ namespace DataLayer
         VideoClip(
             int64_t id, MediaParserHolder hParser,
             uint32_t outWidth, uint32_t outHeight, const MediaInfo::Ratio& frameRate,
-            double timeLineOffset, double startOffset, double endOffset);
+            int64_t start, int64_t startOffset, int64_t endOffset);
         VideoClip(const VideoClip&) = delete;
         VideoClip(VideoClip&&) = delete;
         VideoClip& operator=(const VideoClip&) = delete;
@@ -23,20 +23,20 @@ namespace DataLayer
         int64_t TrackId() const { return m_trackId; }
         void SetTrackId(int64_t trackId) { m_trackId = trackId; }
         MediaParserHolder GetMediaParser() const { return m_srcReader->GetMediaParser(); }
-        double Duration() const { return m_srcDuration-m_startOffset-m_endOffset; }
-        void SetTimeLineOffset(double timeLineOffset) { m_timeLineOffset = timeLineOffset; }
-        double Start() const { return m_timeLineOffset; }
-        double End() const { return m_timeLineOffset+Duration(); }
-        double StartOffset() const { return m_startOffset; }
-        double EndOffset() const { return m_endOffset; }
+        int64_t Duration() const { return m_srcDuration-m_startOffset-m_endOffset; }
+        void SetStart(double start) { m_start = start; }
+        int64_t Start() const { return m_start; }
+        int64_t End() const { return m_start+Duration(); }
+        int64_t StartOffset() const { return m_startOffset; }
+        int64_t EndOffset() const { return m_endOffset; }
         
-        bool IsStartOffsetValid(double startOffset);
-        void ChangeStartOffset(double startOffset);
-        bool IsEndOffsetValid(double endOffset);
-        void ChangeEndOffset(double endOffset);
+        bool IsStartOffsetValid(int64_t startOffset);
+        void ChangeStartOffset(int64_t startOffset);
+        bool IsEndOffsetValid(int64_t endOffset);
+        void ChangeEndOffset(int64_t endOffset);
 
-        void SeekTo(double pos);
-        void ReadVideoFrame(double pos, ImGui::ImMat& vmat, bool& eof);
+        void SeekTo(int64_t pos);
+        void ReadVideoFrame(int64_t pos, ImGui::ImMat& vmat, bool& eof);
         void SetDirection(bool forward);
 
         friend std::ostream& operator<<(std::ostream& os, VideoClip& clip);
@@ -46,10 +46,10 @@ namespace DataLayer
         int64_t m_trackId{-1};
         MediaInfo::InfoHolder m_hInfo;
         MediaReader* m_srcReader;
-        double m_timeLineOffset;
-        double m_srcDuration;
-        double m_startOffset;
-        double m_endOffset;
+        int64_t m_srcDuration;
+        int64_t m_start;
+        int64_t m_startOffset;
+        int64_t m_endOffset;
         bool m_eof{false};
         MediaInfo::Ratio m_frameRate;
         uint32_t m_frameIndex{0};
@@ -77,14 +77,14 @@ namespace DataLayer
 
         int64_t Id() const { return m_id; }
         void SetId(int64_t id) { m_id = id; }
-        double Start() const { return m_start; }
-        double End() const { return m_end; }
-        double Duration() const { return m_end-m_start; }
+        int64_t Start() const { return m_start; }
+        int64_t End() const { return m_end; }
+        int64_t Duration() const { return m_end-m_start; }
         VideoClipHolder FrontClip() const { return m_frontClip; }
         VideoClipHolder RearClip() const { return m_rearClip; }
 
-        void SeekTo(double pos);
-        void ReadVideoFrame(double pos, ImGui::ImMat& vmat, bool& eof);
+        void SeekTo(int64_t pos);
+        void ReadVideoFrame(int64_t pos, ImGui::ImMat& vmat, bool& eof);
 
         friend std::ostream& operator<<(std::ostream& os, VideoOverlap& overlap);
 
@@ -92,8 +92,8 @@ namespace DataLayer
         int64_t m_id;
         VideoClipHolder m_frontClip;
         VideoClipHolder m_rearClip;
-        double m_start{0};
-        double m_end{0};
+        int64_t m_start{0};
+        int64_t m_end{0};
         VideoTransitionHolder m_transition;
     };
 
@@ -103,6 +103,6 @@ namespace DataLayer
     {
         virtual ~VideoTransition() {}
         virtual void ApplyTo(VideoOverlap* overlap) = 0;
-        virtual ImGui::ImMat MixTwoImages(const ImGui::ImMat& vmat1, const ImGui::ImMat& vmat2, double pos) = 0;
+        virtual ImGui::ImMat MixTwoImages(const ImGui::ImMat& vmat1, const ImGui::ImMat& vmat2, int64_t pos) = 0;
     };
 }

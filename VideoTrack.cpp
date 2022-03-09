@@ -24,18 +24,7 @@ namespace DataLayer
         m_readClipIter = m_clips.begin();
     }
 
-    // uint32_t VideoTrack::AddNewClip(const std::string& url, double start, double startOffset, double endOffset)
-    // {
-    //     lock_guard<recursive_mutex> lk(m_apiLock);
-
-    //     MediaParserHolder hParser = CreateMediaParser();
-    //     if (!hParser->Open(url))
-    //         throw runtime_error(hParser->GetError());
-
-    //     return AddNewClip(hParser, start, startOffset, endOffset);
-    // }
-
-    VideoClipHolder VideoTrack::AddNewClip(int64_t clipId, MediaParserHolder hParser, double start, double startOffset, double endOffset)
+    VideoClipHolder VideoTrack::AddNewClip(int64_t clipId, MediaParserHolder hParser, int64_t start, int64_t startOffset, int64_t endOffset)
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
         VideoClipHolder hClip(new VideoClip(clipId, hParser, m_outWidth, m_outHeight, m_frameRate, start, startOffset, endOffset));
@@ -59,11 +48,9 @@ namespace DataLayer
         m_duration = lastClip->Start()+lastClip->Duration();
         // update overlap
         UpdateClipOverlap(hClip);
-        // update seek state
-        SeekTo((double)m_readFrames*m_frameRate.den/m_frameRate.num);
     }
 
-    void VideoTrack::MoveClip(int64_t id, double start)
+    void VideoTrack::MoveClip(int64_t id, int64_t start)
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
         VideoClipHolder hClip = GetClipById(id);
@@ -73,7 +60,7 @@ namespace DataLayer
         if (hClip->Start() == start)
             return;
         else
-            hClip->SetTimeLineOffset(start);
+            hClip->SetStart(start);
 
         if (!CheckClipRangeValid(id, hClip->Start(), hClip->End()))
             throw invalid_argument("Invalid argument for moving clip!");
@@ -85,11 +72,9 @@ namespace DataLayer
         m_duration = lastClip->Start()+lastClip->Duration();
         // update overlap
         UpdateClipOverlap(hClip);
-        // update seek state
-        SeekTo((double)m_readFrames*m_frameRate.den/m_frameRate.num);
     }
 
-    void VideoTrack::ChangeClipRange(int64_t id, double startOffset, double endOffset)
+    void VideoTrack::ChangeClipRange(int64_t id, int64_t startOffset, int64_t endOffset)
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
         VideoClipHolder hClip = GetClipById(id);
@@ -120,8 +105,6 @@ namespace DataLayer
         m_duration = lastClip->Start()+lastClip->Duration();
         // update overlap
         UpdateClipOverlap(hClip);
-        // update seek state
-        SeekTo((double)m_readFrames*m_frameRate.den/m_frameRate.num);
     }
 
     VideoClipHolder VideoTrack::RemoveClipById(int64_t clipId)
@@ -137,8 +120,6 @@ namespace DataLayer
         m_clips.erase(iter);
         hClip->SetTrackId(-1);
         UpdateClipOverlap(hClip, true);
-        double readPos = (double)m_readFrames*m_frameRate.den/m_frameRate.num;
-        SeekTo(readPos);
 
         if (m_clips.empty())
             m_duration = 0;
@@ -167,8 +148,6 @@ namespace DataLayer
         m_clips.erase(iter);
         hClip->SetTrackId(-1);
         UpdateClipOverlap(hClip, true);
-        double readPos = (double)m_readFrames*m_frameRate.den/m_frameRate.num;
-        SeekTo(readPos);
 
         if (m_clips.empty())
             m_duration = 0;
@@ -180,7 +159,7 @@ namespace DataLayer
         return hClip;
     }
 
-    void VideoTrack::SeekTo(double pos)
+    void VideoTrack::SeekTo(int64_t pos)
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
         if (pos < 0)
@@ -195,7 +174,7 @@ namespace DataLayer
                 while (iter != m_clips.end())
                 {
                     const VideoClipHolder& hClip = *iter;
-                    double clipPos = pos-hClip->Start();
+                    int64_t clipPos = pos-hClip->Start();
                     hClip->SeekTo(clipPos);
                     if (m_readClipIter == m_clips.end() && clipPos < hClip->Duration())
                         m_readClipIter = iter;
@@ -209,7 +188,7 @@ namespace DataLayer
                 while (iter != m_overlaps.end())
                 {
                     const VideoOverlapHolder& hOverlap = *iter;
-                    double overlapPos = pos-hOverlap->Start();
+                    int64_t overlapPos = pos-hOverlap->Start();
                     if (m_readOverlapIter == m_overlaps.end() && overlapPos < hOverlap->Duration())
                     {
                         m_readOverlapIter = iter;
@@ -227,7 +206,7 @@ namespace DataLayer
                 while (riter != m_clips.rend())
                 {
                     const VideoClipHolder& hClip = *riter;
-                    double clipPos = pos-hClip->Start();
+                    int64_t clipPos = pos-hClip->Start();
                     hClip->SeekTo(clipPos);
                     if (m_readClipIter == m_clips.end() && clipPos >= 0)
                         m_readClipIter = riter.base();
@@ -240,7 +219,7 @@ namespace DataLayer
                 while (riter != m_overlaps.rend())
                 {
                     const VideoOverlapHolder& hOverlap = *riter;
-                    double overlapPos = pos-hOverlap->Start();
+                    int64_t overlapPos = pos-hOverlap->Start();
                     if (m_readOverlapIter == m_overlaps.end() && overlapPos >= 0)
                         m_readOverlapIter = riter.base();
                     riter++;
@@ -248,15 +227,15 @@ namespace DataLayer
             }
         }
 
-        m_readFrames = (int64_t)(pos*m_frameRate.num/m_frameRate.den);
+        m_readFrames = (int64_t)(pos*m_frameRate.num/(m_frameRate.den*1000));
     }
 
     void VideoTrack::ReadVideoFrame(ImGui::ImMat& vmat)
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
         vmat.release();
-        double readPos = (double)m_readFrames*m_frameRate.den/m_frameRate.num;
 
+        const int64_t readPos = (int64_t)((double)m_readFrames*1000*m_frameRate.den/m_frameRate.num);
         if (m_readForward)
         {
             // first, find the image from a overlap
@@ -290,7 +269,7 @@ namespace DataLayer
                 }
             }
 
-            vmat.time_stamp = readPos;
+            vmat.time_stamp = (double)readPos/1000;
             m_readFrames++;
         }
         else
@@ -318,7 +297,7 @@ namespace DataLayer
                 }
             }
 
-            vmat.time_stamp = readPos;
+            vmat.time_stamp = (double)readPos/1000;
             m_readFrames--;
         }
     }
@@ -330,8 +309,6 @@ namespace DataLayer
         m_readForward = forward;
         for (auto& clip : m_clips)
             clip->SetDirection(forward);
-        // double readPos = (double)m_readFrames*m_frameRate.den/m_frameRate.num;
-        // SeekTo(readPos);
     }
 
     VideoClipHolder VideoTrack::GetClipByIndex(uint32_t index)
@@ -358,7 +335,7 @@ namespace DataLayer
         return nullptr;
     }
 
-    bool VideoTrack::CheckClipRangeValid(int64_t clipId, double start, double end)
+    bool VideoTrack::CheckClipRangeValid(int64_t clipId, int64_t start, int64_t end)
     {
         for (auto& overlap : m_overlaps)
         {

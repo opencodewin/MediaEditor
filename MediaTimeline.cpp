@@ -1038,8 +1038,8 @@ bool AudioClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame)
     return false;
 }
 
- void AudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect)
- {
+void AudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect)
+{
     TimeLine * timeline = (TimeLine *)mHandle;
     if (!timeline || timeline->media_items.size() <= 0 || !mWaveform)
         return;
@@ -2951,8 +2951,8 @@ ImGui::ImMat TimeLine::GetPreviewFrame()
     double elapsedTime = std::chrono::duration_cast<std::chrono::duration<double>>((PlayerClock::now() - mPlayTriggerTp)).count();
     mPreviewPos = mIsPreviewPlaying ? (mIsPreviewForward ? mPreviewResumePos+elapsedTime : mPreviewResumePos-elapsedTime) : mPreviewResumePos;
     ImGui::ImMat frame;
-    mMtvReader->ReadVideoFrame(mPreviewPos, frame);
     currentTime = (int64_t)(mPreviewPos * 1000);
+    mMtvReader->ReadVideoFrame(currentTime, frame);
     if (mIsPreviewPlaying) UpdateCurrent();
     return frame;
 }
@@ -3633,10 +3633,11 @@ int TimeLine::Load(const imgui_json::value& value)
         for (auto clip : track->m_Clips)
         {
             vidTrack->AddNewClip(clip->mID, clip->mOverview->GetMediaParser(),
-                (double)clip->mStart/1000, (double)clip->mStartOffset/1000, (double)clip->mEndOffset/1000);
+                clip->mStart, clip->mStartOffset, clip->mEndOffset);
         }
     }
     SyncDataLayer();
+    mMtvReader->Refresh();
     Logger::Log(Logger::DEBUG) << *mMtvReader << std::endl;
     return 0;
 }
@@ -3733,8 +3734,9 @@ void TimeLine::PerformUiActions()
             DataLayer::VideoClipHolder vidClip(new DataLayer::VideoClip(
                 clip->mID, clip->mOverview->GetMediaParser(),
                 vidTrack->OutWidth(), vidTrack->OutHeight(), vidTrack->FrameRate(),
-                (double)clip->mStart/1000, (double)clip->mStartOffset/1000, (double)clip->mEndOffset/1000));
+                clip->mStart, clip->mStartOffset, clip->mEndOffset));
             vidTrack->InsertClip(vidClip);
+            mMtvReader->Refresh();
         }
         else if (actionName == "MOVE_CLIP")
         {
@@ -3749,13 +3751,14 @@ void TimeLine::PerformUiActions()
             {
                 DataLayer::VideoTrackHolder srcVidTrack = mMtvReader->GetTrackById(srcTrackId);
                 DataLayer::VideoClipHolder vidClip = srcVidTrack->RemoveClipById(clip->mID);
-                vidClip->SetTimeLineOffset((double)clip->mStart/1000);
+                vidClip->SetStart(clip->mStart);
                 dstVidTrack->InsertClip(vidClip);
             }
             else
             {
-                dstVidTrack->MoveClip(clip->mID, (double)clip->mStart/1000);
+                dstVidTrack->MoveClip(clip->mID, clip->mStart);
             }
+            mMtvReader->Refresh();
         }
         else if (actionName == "CROP_CLIP")
         {
@@ -3763,7 +3766,8 @@ void TimeLine::PerformUiActions()
             DataLayer::VideoTrackHolder vidTrack = mMtvReader->GetTrackById(trackId);
             int64_t clipId = action["clip_id"].get<imgui_json::number>();
             Clip* clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
-            vidTrack->ChangeClipRange(clip->mID, (double)clip->mStartOffset/1000, (double)clip->mStartOffset/1000);
+            vidTrack->ChangeClipRange(clip->mID, clip->mStartOffset, clip->mStartOffset);
+            mMtvReader->Refresh();
         }
         else if (actionName == "REMOVE_CLIP")
         {

@@ -100,13 +100,13 @@ void Application_Finalize(void** handle)
 }
 
 static uint32_t s_addClipOptSelIdx = 0;
-static double s_addClipTimeLineOffset = 0;
+static double s_addClipStart = 0;
 static double s_addClipStartOffset = 0;
 static double s_addClipEndOffset = 0;
 static uint32_t s_remTrackOptSelIdx = 0;
 static uint32_t s_movClipTrackSelIdx = 0;
 static uint32_t s_movClipSelIdx = 0;
-static double s_changeClipTimeLineOffset = 0;
+static double s_changeClipStart = 0;
 static double s_changeClipStartOffset = 0;
 static double s_changeClipEndOffset = 0;
 
@@ -156,9 +156,9 @@ bool Application_Frame(void * handle, bool app_will_quit)
             ImGui::EndCombo();
         }
         ImGui::SameLine(0, 20);
-        ImGui::TextUnformatted("TimeLineOffset");
+        ImGui::TextUnformatted("Start");
         ImGui::SameLine();
-        ImGui::InputDouble("##TimeLineOffset", &s_addClipTimeLineOffset);
+        ImGui::InputDouble("##Start", &s_addClipStart);
         ImGui::SameLine(0, 20);
         ImGui::TextUnformatted("ClipStartOffset");
         ImGui::SameLine();
@@ -270,6 +270,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
         {
             VideoTrackHolder hTrack = g_mtVidReader->GetTrackByIndex(s_movClipTrackSelIdx);
             hTrack->RemoveClipByIndex(s_movClipSelIdx);
+            g_mtVidReader->Refresh();
             s_movClipSelIdx = 0;
         }
         if (noClip)
@@ -280,7 +281,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
         ImGui::PushItemWidth(100);
         ImGui::TextUnformatted("tloff");
         ImGui::SameLine();
-        ImGui::InputDouble("##tloff", &s_changeClipTimeLineOffset);
+        ImGui::InputDouble("##tloff", &s_changeClipStart);
         ImGui::SameLine(0, 10);
         ImGui::PopItemWidth();
         if (noClip)
@@ -289,7 +290,8 @@ bool Application_Frame(void * handle, bool app_will_quit)
         {
             VideoTrackHolder hTrack = g_mtVidReader->GetTrackByIndex(s_movClipTrackSelIdx);
             VideoClipHolder hClip = hTrack->GetClipByIndex(s_movClipSelIdx);
-            hTrack->MoveClip(hClip->Id(), s_changeClipTimeLineOffset);
+            hTrack->MoveClip(hClip->Id(), (int64_t)(s_changeClipStart*1000));
+            g_mtVidReader->Refresh();
         }
         if (noClip)
             ImGui::PopItemFlag();
@@ -312,7 +314,8 @@ bool Application_Frame(void * handle, bool app_will_quit)
         {
             VideoTrackHolder hTrack = g_mtVidReader->GetTrackByIndex(s_movClipTrackSelIdx);
             VideoClipHolder hClip = hTrack->GetClipByIndex(s_movClipSelIdx);
-            hTrack->ChangeClipRange(hClip->Id(), s_changeClipStartOffset, s_changeClipEndOffset);
+            hTrack->ChangeClipRange(hClip->Id(), (int64_t)(s_changeClipStartOffset*1000), (int64_t)(s_changeClipEndOffset*1000));
+            g_mtVidReader->Refresh();
         }
         if (noClip)
             ImGui::PopItemFlag();
@@ -358,7 +361,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
         if (playPos > mediaDur) playPos = mediaDur;
 
         ImGui::ImMat vmat;
-        if (g_mtVidReader->ReadVideoFrame(playPos, vmat))
+        if (g_mtVidReader->ReadVideoFrame((int64_t)(playPos*1000), vmat))
         {
             string imgTag = TimestampToString(vmat.time_stamp);
             bool imgValid = true;
@@ -438,7 +441,6 @@ bool Application_Frame(void * handle, bool app_will_quit)
                 }
             }
             VideoTrackHolder hTrack = g_mtVidReader->GetTrackByIndex(s_addClipOptSelIdx);
-
             MediaParserHolder hParser = CreateMediaParser();
             if (!hParser->Open(filePathName))
                 throw std::runtime_error(hParser->GetError());
@@ -446,11 +448,12 @@ bool Application_Frame(void * handle, bool app_will_quit)
             VideoClipHolder hClip(new VideoClip(
                 clipId, hParser,
                 hTrack->OutWidth(), hTrack->OutHeight(), hTrack->FrameRate(),
-                s_addClipTimeLineOffset, s_addClipStartOffset, s_addClipEndOffset));
+                (int64_t)(s_addClipStart*1000), (int64_t)(s_addClipStartOffset*1000), (int64_t)(s_addClipEndOffset*1000)));
             hTrack->InsertClip(hClip);
+            g_mtVidReader->Refresh();
 
             s_addClipOptSelIdx = g_mtVidReader->TrackCount();
-            s_addClipTimeLineOffset = 0;
+            s_addClipStart = 0;
             s_addClipStartOffset = 0;
             s_addClipEndOffset = 0;
         }
