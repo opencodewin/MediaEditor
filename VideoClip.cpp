@@ -1,7 +1,7 @@
 #include <imconfig.h>
 #if IMGUI_VULKAN_SHADER
 #include <ColorConvert_vulkan.h>
-#include <CopyTo_vulkan.h>
+#include <AlphaBlending_vulkan.h>
 #endif
 #include "VideoClip.h"
 
@@ -130,30 +130,11 @@ namespace DataLayer
 #if IMGUI_VULKAN_SHADER
             ImGui::ImMat dst;
             dst.type = IM_DT_INT8;
-            if (vmat2.device == IM_DD_VULKAN)
-            {
-                const ImGui::VkMat vmat2vk = vmat2;
-                m_clrcvt.Conv(vmat2vk, dst);
-            }
-            else
-            {
-                dst = vmat2.clone();
-            }
-            double alpha = (1-pos/m_overlapPtr->Duration())/2;
-            if (vmat1.device == IM_DD_VULKAN)
-            {
-                const ImGui::VkMat vmat1vk = vmat1;
-                m_alphaBlender.copyTo(vmat1vk, dst, 0, 0, alpha);
-            }
-            else
-            {
-                m_alphaBlender.copyTo(vmat1, dst, 0, 0, alpha);
-            }
+            double alpha = 1-pos/m_overlapPtr->Duration();
+            m_alphaBlender.blend(vmat1, vmat2, dst, (float)alpha);
             return dst;
 #else
-            ImGui::ImMat nullMat;
-            nullMat.time_stamp = pos;
-            return nullMat;
+            return pos < m_overlapPtr->Duration()/2 ? vmat1 : vmat2;
 #endif
         }
 
@@ -161,7 +142,7 @@ namespace DataLayer
         VideoOverlap* m_overlapPtr{nullptr};
 #if IMGUI_VULKAN_SHADER
         ImGui::ColorConvert_vulkan m_clrcvt;
-        ImGui::CopyTo_vulkan m_alphaBlender;
+        ImGui::AlphaBlending_vulkan m_alphaBlender;
 #endif
     };
 

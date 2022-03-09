@@ -3724,8 +3724,6 @@ void TimeLine::PerformUiActions()
         }
 
         std::string actionName = action["action"].get<imgui_json::string>();
-        // int64_t clipId = action["clip_id"].get<imgui_json::number>();
-        // Clip* clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
         if (actionName == "ADD_CLIP")
         {
             int64_t trackId = action["to_track_id"].get<imgui_json::number>();
