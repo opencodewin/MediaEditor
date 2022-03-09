@@ -462,7 +462,7 @@ struct MediaTrack
     void InsertClip(Clip * clip, int64_t pos = 0);
     void PushBackClip(Clip * clip);
     void SelectClip(Clip * clip, bool appand);
-    void EditingClip(Clip * clip);
+    void SelectEditingClip(Clip * clip);
     void EditingOverlap(Overlap * overlap);
     void DeleteClip(int64_t id);
     Clip * FindPrevClip(int64_t id);                // find prev clip in track, if not found then return null

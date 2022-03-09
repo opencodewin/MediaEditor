@@ -2173,15 +2173,32 @@ void MediaTrack::SelectClip(Clip * clip, bool appand)
     clip->bSelected = selected;
 }
 
-void MediaTrack::EditingClip(Clip * clip)
+void MediaTrack::SelectEditingClip(Clip * clip)
 {
     TimeLine * timeline = (TimeLine *)m_Handle;
     if (!timeline || !clip)
         return;
     
+    if (timeline->m_CallBacks.EditingClip)
+    {
+        timeline->m_CallBacks.EditingClip(clip->mType, clip);
+    }
     // find old editing clip and reset BP
     auto editing_clip = timeline->FindEditingClip();
-    if (editing_clip && editing_clip->mID != clip->mID)
+    if (editing_clip && editing_clip->mID == clip->mID)
+    {
+        if (editing_clip->mType == MEDIA_VIDEO)
+        {
+            if (timeline->mVidFilterClip && timeline->mVideoFilterBluePrint && timeline->mVideoFilterBluePrint->Blueprint_IsValid())
+                return;
+        }
+        if (editing_clip->mType == MEDIA_AUDIO)
+        {
+            if (timeline->mAudFilterClip && timeline->mAudioFilterBluePrint && timeline->mAudioFilterBluePrint->Blueprint_IsValid())
+                return;
+        }
+    }
+    else if (editing_clip && editing_clip->mID != clip->mID)
     {
         if (editing_clip->mType == MEDIA_VIDEO)
         {
@@ -2254,10 +2271,6 @@ void MediaTrack::EditingClip(Clip * clip)
         }
         if (!timeline->mAudFilterClip)
             timeline->mAudFilterClip = new EditingAudioClip((AudioClip*)clip);
-    }
-    if (timeline->m_CallBacks.EditingClip)
-    {
-        timeline->m_CallBacks.EditingClip(clip->mType, clip);
     }
 }
 
@@ -3441,7 +3454,7 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &view_r
                     }
                     else if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
                     {
-                        track->EditingClip(clip);
+                        track->SelectEditingClip(clip);
                     }
                 }
                 ImGui::EndChildFrame();
@@ -4866,11 +4879,12 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                             // update clip info and push into track
                             track->InsertClip(new_video_clip, mouseTime);
                             timeline->Updata();
+                            videoTrack = track;
                         }
                         else
                         {
                             int newTrackIndex = timeline->NewTrack("", MEDIA_VIDEO, true);
-                            MediaTrack * videoTrack = timeline->m_Tracks[newTrackIndex];
+                            videoTrack = timeline->m_Tracks[newTrackIndex];
                             videoTrack->InsertClip(new_video_clip, mouseTime);
                             create_new_track = true;
                             action["to_track_id"] = imgui_json::number(videoTrack->mID);

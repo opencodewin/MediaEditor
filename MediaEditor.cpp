@@ -1464,7 +1464,7 @@ static void ShowVideoFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
         {
             auto track = timeline->FindTrackByClipID(clip->mID);
             if (track)
-                track->EditingClip(clip);
+                track->SelectEditingClip(clip);
         }
         ImVec2 window_pos = ImGui::GetCursorScreenPos();
         ImVec2 window_size = ImGui::GetWindowSize();
@@ -1956,7 +1956,7 @@ static void ShowAudioFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
         {
             auto track = timeline->FindTrackByClipID(clip->mID);
             if (track)
-                track->EditingClip(clip);
+                track->SelectEditingClip(clip);
         }
         ImVec2 window_pos = ImGui::GetCursorScreenPos();
         ImVec2 window_size = ImGui::GetWindowSize();
