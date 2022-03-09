@@ -124,7 +124,68 @@ static int ControlPanelIndex = 0;           // default Media Bank window
 static int MainWindowIndex = 0;             // default Media Preview window
 static int VideoEditorWindowIndex = 0;      // default Video Filter window
 static int AudioEditorWindowIndex = 0;      // default Audio Filter window
+static int LastMainWindowIndex = 0;
+static int LastVideoEditorWindowIndex = 0;
+static int LastAudioEditorWindowIndex = 0;
 
+static void UIPageChanged()
+{
+    if (LastMainWindowIndex == 0 && MainWindowIndex != 0)
+    {
+        // we leave video preview windows, stop preview play
+        Logger::Log(Logger::DEBUG) << "[Changed page] leaving video preview page!!!" << std::endl;;
+    }
+    if (LastMainWindowIndex == 1 && LastVideoEditorWindowIndex == 0 && (
+        MainWindowIndex != 1 || VideoEditorWindowIndex != 0))
+    {
+        // we leave video filter windows, stop filter play, check unsaved bp
+        Logger::Log(Logger::DEBUG) << "[Changed page] leaving video filter page!!!" << std::endl;;
+    }
+    if (LastMainWindowIndex == 1 && LastVideoEditorWindowIndex == 1 && (
+        MainWindowIndex != 1 || VideoEditorWindowIndex != 1))
+    {
+        // we leave video fusion windows, stop fusion play, check unsaved bp
+        Logger::Log(Logger::DEBUG) << "[Changed page] leaving video fusion page!!!" << std::endl;;
+    }
+    if (LastMainWindowIndex == 1 && LastVideoEditorWindowIndex == 2 && (
+        MainWindowIndex != 1 || VideoEditorWindowIndex != 2))
+    {
+        // we leave video crop windows
+        Logger::Log(Logger::DEBUG) << "[Changed page] leaving video crop page!!!" << std::endl;;
+    }
+    if (LastMainWindowIndex == 1 && LastVideoEditorWindowIndex == 3 && (
+        MainWindowIndex != 1 || VideoEditorWindowIndex != 3))
+    {
+        // we leave video rotate windows
+        Logger::Log(Logger::DEBUG) << "[Changed page] leaving video rotate page!!!" << std::endl;;
+    }
+    if (LastMainWindowIndex == 2 && LastAudioEditorWindowIndex == 0 && (
+        MainWindowIndex != 2 || AudioEditorWindowIndex != 0))
+    {
+        // we leave audio filter windows, stop filter play, check unsaved bp
+        Logger::Log(Logger::DEBUG) << "[Changed page] leaving audio filter page!!!" << std::endl;;
+    }
+    if (LastMainWindowIndex == 2 && LastAudioEditorWindowIndex == 1 && (
+        MainWindowIndex != 2 || AudioEditorWindowIndex != 1))
+    {
+        // we leave audio fusion windows, stop fusion play, check unsaved bp
+        Logger::Log(Logger::DEBUG) << "[Changed page] leaving audio fusion page!!!" << std::endl;;
+    }
+    if (LastMainWindowIndex == 3 && MainWindowIndex != 3)
+    {
+        // we leave media analyse windows
+        Logger::Log(Logger::DEBUG) << "[Changed page] leaving media analyse page!!!" << std::endl;;
+    }
+    if (LastMainWindowIndex == 4 && MainWindowIndex != 4)
+    {
+        // we leave media AI windows
+        Logger::Log(Logger::DEBUG) << "[Changed page] leaving media AI page!!!" << std::endl;;
+    }
+    
+    LastMainWindowIndex = MainWindowIndex;
+    LastVideoEditorWindowIndex = VideoEditorWindowIndex;
+    LastAudioEditorWindowIndex = AudioEditorWindowIndex;
+}
 
 static int EditingClip(int type, void* handle)
 {
@@ -138,6 +199,7 @@ static int EditingClip(int type, void* handle)
         MainWindowIndex = 2;
         AudioEditorWindowIndex = 0;
     }
+    UIPageChanged();
     return 0;
 }
 
@@ -153,6 +215,7 @@ static int EditingOverlap(int type, void* handle)
         MainWindowIndex = 2;
         AudioEditorWindowIndex = 1;
     }
+    UIPageChanged();
     return 0;
 }
 
@@ -1925,7 +1988,10 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
     ImVec2 clip_window_pos = ImGui::GetCursorScreenPos();
     ImVec2 clip_window_size = ImGui::GetWindowSize();
     static const int numTabs = sizeof(VideoEditorTabNames)/sizeof(VideoEditorTabNames[0]);
-    ImGui::TabLabelsVertical(false, numTabs, VideoEditorTabNames, VideoEditorWindowIndex, VideoEditorTabTooltips, true, nullptr, nullptr, false, false, nullptr, nullptr);
+    if (ImGui::TabLabelsVertical(false, numTabs, VideoEditorTabNames, VideoEditorWindowIndex, VideoEditorTabTooltips, true, nullptr, nullptr, false, false, nullptr, nullptr))
+    {
+        UIPageChanged();
+    }
     ImGui::SetCursorScreenPos(clip_window_pos + ImVec2(labelWidth, 0));
     if (ImGui::BeginChild("##video_editor_views", ImVec2(clip_window_size.x - labelWidth, clip_window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
     {
@@ -2152,7 +2218,10 @@ static void ShowAudioEditorWindow(ImDrawList *draw_list)
     ImVec2 clip_window_pos = ImGui::GetCursorScreenPos();
     ImVec2 clip_window_size = ImGui::GetWindowSize();
     static const int numTabs = sizeof(AudioEditorTabNames)/sizeof(AudioEditorTabNames[0]);
-    ImGui::TabLabelsVertical(false, numTabs, AudioEditorTabNames, AudioEditorWindowIndex, AudioEditorTabTooltips, true, nullptr, nullptr, false, false, nullptr, nullptr);
+    if (ImGui::TabLabelsVertical(false, numTabs, AudioEditorTabNames, AudioEditorWindowIndex, AudioEditorTabTooltips, true, nullptr, nullptr, false, false, nullptr, nullptr))
+    {
+        UIPageChanged();
+    }
     ImGui::SetCursorScreenPos(clip_window_pos + ImVec2(labelWidth, 0));
     if (ImGui::BeginChild("##audio_editor_views", ImVec2(clip_window_size.x - labelWidth, clip_window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
     {
@@ -2574,7 +2643,10 @@ bool Application_Frame(void * handle, bool app_will_quit)
             // full background
             ImDrawList *draw_list = ImGui::GetWindowDrawList();
             //ImVec2 main_window_size = ImGui::GetWindowSize();
-            ImGui::TabLabels(numMainWindowTabs, MainWindowTabNames, MainWindowIndex, MainWindowTabTooltips , false, true, nullptr, nullptr, false, false, nullptr, nullptr);
+            if (ImGui::TabLabels(numMainWindowTabs, MainWindowTabNames, MainWindowIndex, MainWindowTabTooltips , false, true, nullptr, nullptr, false, false, nullptr, nullptr))
+            {
+                UIPageChanged();
+            }
             auto wmin = main_sub_pos + ImVec2(0, 32);
             auto wmax = wmin + ImGui::GetContentRegionAvail() - ImVec2(8, 0);
             draw_list->AddRectFilled(wmin, wmax, IM_COL32_BLACK, 8.0, ImDrawFlags_RoundCornersAll);
