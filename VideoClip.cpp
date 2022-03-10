@@ -249,8 +249,7 @@ namespace DataLayer
 
     std::ostream& operator<<(std::ostream& os, VideoOverlap& overlap)
     {
-        os << "{'id':" << overlap.Id() << ", 'start':" << overlap.Start()
-            << ", 'fcId':" << overlap.FrontClip()->Id() << ", 'rcId':" << overlap.RearClip()->Id() << "}";
+        os << "{'id':" << overlap.Id() << ", 'start':" << overlap.Start() << ", 'dur':" << overlap.Duration() << "}";
         return os;
     }
 }

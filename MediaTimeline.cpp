@@ -3875,7 +3875,7 @@ void TimeLine::PerformUiActions()
             DataLayer::VideoTrackHolder vidTrack = mMtvReader->GetTrackById(trackId);
             int64_t clipId = action["clip_id"].get<imgui_json::number>();
             Clip* clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
-            vidTrack->ChangeClipRange(clip->mID, clip->mStartOffset, clip->mStartOffset);
+            vidTrack->ChangeClipRange(clip->mID, clip->mStartOffset, clip->mEndOffset);
             mMtvReader->Refresh();
         }
         else if (actionName == "REMOVE_CLIP")
