@@ -700,6 +700,7 @@ bool AVFrameToImMatConverter::ConvertImage(const AVFrame* avfrm, ImGui::ImMat& o
             return false;
         }
 
+        ImGui::ImMat outTmp;
         // Resize
         uint32_t outWidth = m_outWidth == 0 ? rgbMat.w : m_outWidth;
         uint32_t outHeight = m_outHeight == 0 ? rgbMat.h : m_outHeight;
@@ -708,10 +709,19 @@ bool AVFrameToImMatConverter::ConvertImage(const AVFrame* avfrm, ImGui::ImMat& o
             ImGui::VkMat rszMat;
             rszMat.type = IM_DT_INT8;
             m_imgRsz->Resize(rgbMat, rszMat, (float)outWidth/rgbMat.w, (float)outHeight/rgbMat.h, m_resizeInterp);
-            outMat = rszMat;
+            outTmp = rszMat;
         }
         else
-            outMat = rgbMat;
+            outTmp = rgbMat;
+
+        if (m_outputCpuMat && outTmp.device == IM_DD_VULKAN)
+        {
+            ImGui::VkMat vkMat = outTmp;
+            outMat.type = IM_DT_INT8;
+            m_imgClrCvt->Conv(vkMat, outMat);
+        }
+        else
+            outMat = outTmp;
         outMat.time_stamp = timestamp;
         return true;
 #else

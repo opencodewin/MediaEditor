@@ -103,58 +103,13 @@ public:
     void Close() override
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
-        WaitAllThreadsQuit();
-        FlushAllQueues();
+        ReleaseResources();
 
-        if (m_swrCtx)
-        {
-            swr_free(&m_swrCtx);
-            m_swrCtx = nullptr;
-        }
-        m_swrOutChannels = 0;
-        m_swrOutChnLyt = 0;
-        m_swrOutSampleRate = 0;
-        m_swrPassThrough = false;
-        if (m_auddecCtx)
-        {
-            avcodec_free_context(&m_auddecCtx);
-            m_auddecCtx = nullptr;
-        }
-        if (m_viddecCtx)
-        {
-            avcodec_free_context(&m_viddecCtx);
-            m_viddecCtx = nullptr;
-        }
-        if (m_viddecHwDevCtx)
-        {
-            av_buffer_unref(&m_viddecHwDevCtx);
-            m_viddecHwDevCtx = nullptr;
-        }
-        m_vidHwPixFmt = AV_PIX_FMT_NONE;
-        m_viddecDevType = AV_HWDEVICE_TYPE_NONE;
-        if (m_avfmtCtx)
-        {
-            avformat_close_input(&m_avfmtCtx);
-            m_avfmtCtx = nullptr;
-        }
         m_vidStmIdx = -1;
         m_audStmIdx = -1;
-        m_vidAvStm = nullptr;
-        m_audAvStm = nullptr;
-        m_viddec = nullptr;
-        m_auddec = nullptr;
         m_hParser = nullptr;
         m_hMediaInfo = nullptr;
-
-        m_demuxVidEof = false;
-        m_viddecEof = false;
-        m_genSsEof = false;
-        m_demuxAudEof = false;
-        m_auddecEof = false;
-        m_genWfEof = false;
         m_opened = false;
-        m_prepared = false;
-
         m_errMsg = "";
     }
 
@@ -703,11 +658,17 @@ private:
             m_auddecThread = thread(&MediaOverview_Impl::AudioDecodeThreadProc, this);
             m_genWfThread = thread(&MediaOverview_Impl::GenWaveformThreadProc, this);
         }
+        m_releaseThread = thread(&MediaOverview_Impl::ReleaseResourceProc, this);
     }
 
-    void WaitAllThreadsQuit()
+    void WaitAllThreadsQuit(bool callFromReleaseProc = false)
     {
         m_quit = true;
+        if (!callFromReleaseProc && m_releaseThread.joinable())
+        {
+            m_releaseThread.join();
+            m_releaseThread = thread();
+        }
         if (m_demuxVidThread.joinable())
         {
             m_demuxVidThread.join();
@@ -1397,6 +1358,80 @@ private:
         m_logger->Log(DEBUG) << "Leave GenWaveformThreadProc(), " << wfIdx << " samples generated." << endl;
     }
 
+    void ReleaseResources(bool callFromReleaseProc = false)
+    {
+        WaitAllThreadsQuit(callFromReleaseProc);
+        FlushAllQueues();
+
+        if (m_swrCtx)
+        {
+            swr_free(&m_swrCtx);
+            m_swrCtx = nullptr;
+        }
+        m_swrOutChannels = 0;
+        m_swrOutChnLyt = 0;
+        m_swrOutSampleRate = 0;
+        m_swrPassThrough = false;
+        if (m_auddecCtx)
+        {
+            avcodec_free_context(&m_auddecCtx);
+            m_auddecCtx = nullptr;
+        }
+        if (m_viddecCtx)
+        {
+            avcodec_free_context(&m_viddecCtx);
+            m_viddecCtx = nullptr;
+        }
+        if (m_viddecHwDevCtx)
+        {
+            av_buffer_unref(&m_viddecHwDevCtx);
+            m_viddecHwDevCtx = nullptr;
+        }
+        m_vidHwPixFmt = AV_PIX_FMT_NONE;
+        m_viddecDevType = AV_HWDEVICE_TYPE_NONE;
+        if (m_avfmtCtx)
+        {
+            avformat_close_input(&m_avfmtCtx);
+            m_avfmtCtx = nullptr;
+        }
+        m_vidAvStm = nullptr;
+        m_audAvStm = nullptr;
+        m_viddec = nullptr;
+        m_auddec = nullptr;
+
+        m_demuxVidEof = false;
+        m_viddecEof = false;
+        m_genSsEof = false;
+        m_demuxAudEof = false;
+        m_auddecEof = false;
+        m_genWfEof = false;
+        m_prepared = false;
+    }
+
+    void ReleaseResourceProc()
+    {
+        while (!m_quit)
+        {
+            if (!m_prepared || m_viddecCtx && !m_genSsEof || m_auddecCtx && !m_genWfEof)
+                this_thread::sleep_for(chrono::milliseconds(100));
+            else
+                break;
+        }
+        if (!m_quit)
+        {
+            bool lockAquired = false;
+            while (!(lockAquired = m_apiLock.try_lock()) && !m_quit)
+                this_thread::sleep_for(chrono::milliseconds(5));
+            if (m_quit)
+            {
+                if (lockAquired) m_apiLock.unlock();
+                return;
+            }
+            lock_guard<recursive_mutex> lk(m_apiLock, adopt_lock);
+            ReleaseResources(true);
+        }
+    }
+
 private:
     ALogger* m_logger;
     string m_errMsg;
@@ -1461,6 +1496,8 @@ private:
     thread m_genWfThread;
     bool m_swrPassThrough{false};
     bool m_genWfEof{false};
+    // thread to release computer resources after all snapshots are finished
+    thread m_releaseThread;
 
     recursive_mutex m_apiLock;
     bool m_quit{false};

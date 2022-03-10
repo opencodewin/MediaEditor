@@ -69,6 +69,7 @@ private:
 #if IMGUI_VULKAN_SHADER
     ImGui::ColorConvert_vulkan* m_imgClrCvt{nullptr};
     ImGui::Resize_vulkan* m_imgRsz{nullptr};
+    bool m_outputCpuMat{false};
 #endif
     bool m_useVulkanComponents;
     SwsContext* m_swsCtx{nullptr};
