@@ -1383,7 +1383,7 @@ void BluePrintVideoFilter::SetBluePrintFromJson(imgui_json::value& bpJson)
 {
     BluePrint::BluePrintUI* bp = new BluePrint::BluePrintUI();
     bp->Initialize();
-    Logger::Log(Logger::DEBUG) << "Create bp filter from json " << bpJson.dump() << std::endl;
+    //Logger::Log(Logger::DEBUG) << "Create bp filter from json " << bpJson.dump() << std::endl;
     bp->File_New_Filter(bpJson, "VideoFilter", "Video");
     if (!bp->Blueprint_IsValid())
     {
