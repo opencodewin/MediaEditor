@@ -1383,7 +1383,7 @@ void BluePrintVideoFilter::SetBluePrintFromJson(imgui_json::value& bpJson)
 {
     BluePrint::BluePrintUI* bp = new BluePrint::BluePrintUI();
     bp->Initialize();
-    Logger::Log(Logger::DEBUG) << "Create bp filter from json " << bpJson.dump() << std::endl;
+    // Logger::Log(Logger::DEBUG) << "Create bp filter from json " << bpJson.dump() << std::endl;
     bp->File_New_Filter(bpJson, "VideoFilter", "Video");
     if (!bp->Blueprint_IsValid())
     {
@@ -3747,7 +3747,7 @@ int TimeLine::Load(const imgui_json::value& value)
     }
     SyncDataLayer();
     mMtvReader->Refresh();
-    Logger::Log(Logger::DEBUG) << *mMtvReader << std::endl;
+    Logger::Log(Logger::VERBOSE) << *mMtvReader << std::endl;
     return 0;
 }
 
@@ -3905,7 +3905,7 @@ void TimeLine::PerformUiActions()
     {
         Logger::Log(Logger::VERBOSE) << "] #UiActions" << std::endl << std::endl;
         SyncDataLayer();
-        Logger::Log(Logger::DEBUG) << *mMtvReader << std::endl << std::endl;
+        Logger::Log(Logger::VERBOSE) << *mMtvReader << std::endl << std::endl;
     }
 
     mUiActions.clear();
