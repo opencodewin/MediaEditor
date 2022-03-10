@@ -3021,7 +3021,7 @@ ImGui::ImMat TimeLine::GetPreviewFrame()
     mPreviewPos = mIsPreviewPlaying ? (mIsPreviewForward ? mPreviewResumePos+elapsedTime : mPreviewResumePos-elapsedTime) : mPreviewResumePos;
     ImGui::ImMat frame;
     currentTime = (int64_t)(mPreviewPos * 1000);
-    mMtvReader->ReadVideoFrame(currentTime, frame);
+    mMtvReader->ReadVideoFrame(currentTime, frame, bSeeking);
     if (mIsPreviewPlaying) UpdateCurrent();
     return frame;
 }

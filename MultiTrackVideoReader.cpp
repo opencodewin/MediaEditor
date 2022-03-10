@@ -1,5 +1,6 @@
 #include <thread>
 #include <algorithm>
+#include <atomic>
 #include "MultiTrackVideoReader.h"
 
 using namespace std;
@@ -185,7 +186,7 @@ public:
         return true;
     }
 
-    bool SeekTo(int64_t pos) override
+    bool SeekTo(int64_t pos, bool async) override
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
         if (!m_started)
@@ -194,18 +195,20 @@ public:
             return false;
         }
 
-        TerminateMixingThread();
+        m_seekPos = pos;
+        m_seeking = true;
 
-        m_readFrames = (int64_t)((double)pos*m_frameRate.num/(m_frameRate.den*1000));
-        for (auto track : m_tracks)
-            track->SeekTo(pos);
-        m_outputMats.clear();
-
-        StartMixingThread();
+        if (!async)
+        {
+            while (m_seeking && !m_quit)
+                this_thread::sleep_for(chrono::milliseconds(5));
+            if (m_quit)
+                return false;
+        }
         return true;
     }
 
-    bool ReadVideoFrame(int64_t pos, ImGui::ImMat& vmat) override
+    bool ReadVideoFrame(int64_t pos, ImGui::ImMat& vmat, bool seeking) override
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
         if (!m_started)
@@ -218,14 +221,26 @@ public:
             m_errMsg = "Invalid argument value for 'pos'! Can NOT be NEGATIVE.";
             return false;
         }
+        vmat.release();
+
+        {
+            lock_guard<mutex> lk2(m_outputMatsLock);
+            if (seeking && !m_outputMats.empty())
+                vmat = m_outputMats.front();
+        }
+        if (seeking && vmat.empty())
+            vmat = m_seekingFlash;
 
         uint32_t targetFrmidx = (int64_t)((double)pos*m_frameRate.num/(m_frameRate.den*1000));
         if (m_readForward && (targetFrmidx < m_readFrames || targetFrmidx-m_readFrames >= m_outputMatsMaxCount) ||
             !m_readForward && (targetFrmidx > m_readFrames || m_readFrames-targetFrmidx >= m_outputMatsMaxCount))
         {
-            if (!SeekTo(pos))
+            if (!SeekTo(pos, seeking))
                 return false;
         }
+
+        if (seeking)
+            return true;
 
         // the frame queue may not be filled with the target frame, wait for the mixing thread to fill it
         while ((m_readForward && targetFrmidx-m_readFrames >= m_outputMats.size() ||
@@ -291,7 +306,7 @@ public:
             return false;
         }
 
-        SeekTo(ReadPos());
+        SeekTo(ReadPos(), false);
         return true;
     }
 
@@ -404,6 +419,20 @@ private:
         {
             bool idleLoop = true;
 
+            if (m_seeking.exchange(false))
+            {
+                const int64_t seekPos = m_seekPos;
+                m_readFrames = (int64_t)((double)seekPos*m_frameRate.num/(m_frameRate.den*1000));
+                for (auto track : m_tracks)
+                    track->SeekTo(seekPos);
+                {
+                    lock_guard<mutex> lk(m_outputMatsLock);
+                    if (!m_outputMats.empty())
+                        m_seekingFlash = m_outputMats.front();
+                    m_outputMats.clear();
+                }
+            }
+
             if (m_outputMats.size() < m_outputMatsMaxCount)
             {
                 ImGui::ImMat mixedFrame;
@@ -425,8 +454,11 @@ private:
                     memset(mixedFrame.data, 0, mixedFrame.total()*mixedFrame.elemsize);
                 }
 
-                lock_guard<mutex> lk(m_outputMatsLock);
-                m_outputMats.push_back(mixedFrame);
+                {
+                    lock_guard<mutex> lk(m_outputMatsLock);
+                    m_outputMats.push_back(mixedFrame);
+                    m_seekingFlash.release();
+                }
                 idleLoop = false;
             }
 
@@ -455,6 +487,10 @@ private:
     MediaInfo::Ratio m_frameRate;
     uint32_t m_readFrames{0};
     bool m_readForward{true};
+
+    int64_t m_seekPos{0};
+    atomic_bool m_seeking{false};
+    ImGui::ImMat m_seekingFlash;
 
     bool m_configured{false};
     bool m_started{false};
