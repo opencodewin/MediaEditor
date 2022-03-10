@@ -1516,6 +1516,30 @@ void EditingVideoClip::Step(bool forward, int64_t step)
     }
 }
 
+void EditingVideoClip::Save()
+{
+    TimeLine * timeline = (TimeLine *)mHandle;
+    if (!timeline)
+        return;
+    auto clip = timeline->FindClipByID(mID);
+    if (!clip)
+        return;
+    timeline->mVideoFilterBluePrintLock.lock();
+    if (timeline->mVideoFilterBluePrint && timeline->mVideoFilterBluePrint->Blueprint_IsValid())
+    {
+        clip->mFilterBP = timeline->mVideoFilterBluePrint->m_Document->Serialize();
+    }
+    timeline->mVideoFilterBluePrintLock.unlock();
+
+    // update video filter in datalayer
+    DataLayer::VideoClipHolder hClip = timeline->mMtvReader->GetClipById(clip->mID);
+    BluePrintVideoFilter* bpvf = new BluePrintVideoFilter();
+    bpvf->SetBluePrintFromJson(clip->mFilterBP);
+    DataLayer::VideoFilterHolder hFilter(bpvf);
+    hClip->SetFilter(hFilter);
+    timeline->mMtvReader->Refresh();
+}
+
 bool EditingVideoClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame)
 {
     int ret = false;
@@ -1672,6 +1696,25 @@ void EditingAudioClip::Seek(int64_t pos)
 
 void EditingAudioClip::Step(bool forward, int64_t step)
 {}
+
+void EditingAudioClip::Save()
+{
+    TimeLine * timeline = (TimeLine *)mHandle;
+    if (!timeline)
+        return;
+    auto clip = timeline->FindClipByID(mID);
+    if (!clip)
+        return;
+    timeline->mAudioFilterBluePrintLock.lock();
+    if (timeline->mAudioFilterBluePrint && timeline->mAudioFilterBluePrint->Blueprint_IsValid())
+    {
+        clip->mFilterBP = timeline->mAudioFilterBluePrint->m_Document->Serialize();
+    }
+    timeline->mAudioFilterBluePrintLock.unlock();
+
+    // TODO::Dicky update audio filter in datalayer
+
+}
 
 bool EditingAudioClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame)
 {
@@ -2179,9 +2222,10 @@ void MediaTrack::SelectEditingClip(Clip * clip)
     if (!timeline || !clip)
         return;
     
+    int updated = 0;
     if (timeline->m_CallBacks.EditingClip)
     {
-        timeline->m_CallBacks.EditingClip(clip->mType, clip);
+        updated = timeline->m_CallBacks.EditingClip(clip->mType, clip);
     }
     // find old editing clip and reset BP
     auto editing_clip = timeline->FindEditingClip();
@@ -2202,6 +2246,11 @@ void MediaTrack::SelectEditingClip(Clip * clip)
     {
         if (editing_clip->mType == MEDIA_VIDEO)
         {
+            if (!updated && timeline->mVidFilterClip)
+            {
+                timeline->mVidFilterClip->bPlay = false;
+                timeline->mVidFilterClip->Save();
+            }
             // update timeline video filter clip
             timeline->mVidFilterClipLock.lock();
             if (timeline->mVidFilterClip)
@@ -2211,36 +2260,21 @@ void MediaTrack::SelectEditingClip(Clip * clip)
                 if (timeline->mVideoFilterInputTexture) {ImGui::ImDestroyTexture(timeline->mVideoFilterInputTexture); timeline->mVideoFilterInputTexture = nullptr;}
                 if (timeline->mVideoFilterOutputTexture) { ImGui::ImDestroyTexture(timeline->mVideoFilterOutputTexture); timeline->mVideoFilterOutputTexture = nullptr;  }
             }
-            if (timeline->mVideoFilterBluePrint && timeline->mVideoFilterBluePrint->Blueprint_IsValid())
-            {
-                timeline->mVideoFilterBluePrintLock.lock();
-                editing_clip->mFilterBP = timeline->mVideoFilterBluePrint->m_Document->Serialize();
-                timeline->mVideoFilterBluePrintLock.unlock();
-            }
             timeline->mVidFilterClipLock.unlock();
-
-            // update video filter in datalayer
-            DataLayer::VideoClipHolder hClip = timeline->mMtvReader->GetClipById(editing_clip->mID);
-            BluePrintVideoFilter* bpvf = new BluePrintVideoFilter();
-            bpvf->SetBluePrintFromJson(editing_clip->mFilterBP);
-            DataLayer::VideoFilterHolder hFilter(bpvf);
-            hClip->SetFilter(hFilter);
-            timeline->mMtvReader->Refresh();
         }
         else if (editing_clip->mType == MEDIA_AUDIO)
         {
+            if (!updated && timeline->mAudFilterClip)
+            {
+                timeline->mAudFilterClip->bPlay = false;
+                timeline->mAudFilterClip->Save();
+            }
             // update timeline Audio filter clip
             timeline->mAudFilterClipLock.lock();
             if (timeline->mAudFilterClip)
             {
                 delete timeline->mAudFilterClip;
                 timeline->mAudFilterClip = nullptr;
-            }
-            if (timeline->mAudioFilterBluePrint && timeline->mAudioFilterBluePrint->Blueprint_IsValid())
-            {
-                timeline->mAudioFilterBluePrintLock.lock();
-                editing_clip->mFilterBP = timeline->mAudioFilterBluePrint->m_Document->Serialize();
-                timeline->mAudioFilterBluePrintLock.unlock();
             }
             timeline->mAudFilterClipLock.unlock();
         }

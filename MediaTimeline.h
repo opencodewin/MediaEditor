@@ -398,6 +398,7 @@ struct BaseEditingClip
     virtual void UpdateClipRange(Clip* clip) = 0;
     virtual void Seek(int64_t pos) = 0;
     virtual void Step(bool forward, int64_t step = 0) = 0;
+    virtual void Save() = 0;
     virtual bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame) = 0;
     virtual void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom) = 0;
 };
@@ -418,6 +419,7 @@ struct EditingVideoClip : BaseEditingClip
     void UpdateClipRange(Clip* clip) override;
     void Seek(int64_t pos) override;
     void Step(bool forward, int64_t step = 0) override;
+    void Save() override;
     bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame) override;
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom) override;
 
@@ -432,6 +434,7 @@ struct EditingAudioClip : BaseEditingClip
     void UpdateClipRange(Clip* clip) override;
     void Seek(int64_t pos) override;
     void Step(bool forward, int64_t step = 0) override;
+    void Save() override;
     bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame) override;
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom) override;
 };

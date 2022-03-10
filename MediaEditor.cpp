@@ -128,63 +128,83 @@ static int LastMainWindowIndex = 0;
 static int LastVideoEditorWindowIndex = 0;
 static int LastAudioEditorWindowIndex = 0;
 
-static void UIPageChanged()
+static bool UIPageChanged()
 {
+    bool updated = false;
     if (LastMainWindowIndex == 0 && MainWindowIndex != 0)
     {
         // we leave video preview windows, stop preview play
-        Logger::Log(Logger::DEBUG) << "[Changed page] leaving video preview page!!!" << std::endl;;
+        Logger::Log(Logger::DEBUG) << "[Changed page] leaving video preview page!!!" << std::endl;
+        if (timeline)
+            timeline->Play(false);
     }
     if (LastMainWindowIndex == 1 && LastVideoEditorWindowIndex == 0 && (
         MainWindowIndex != 1 || VideoEditorWindowIndex != 0))
     {
         // we leave video filter windows, stop filter play, check unsaved bp
-        Logger::Log(Logger::DEBUG) << "[Changed page] leaving video filter page!!!" << std::endl;;
+        Logger::Log(Logger::DEBUG) << "[Changed page] leaving video filter page!!!" << std::endl;
+        if (timeline && timeline->mVidFilterClip)
+        {
+            timeline->mVidFilterClipLock.lock();
+            timeline->mVidFilterClip->bPlay = false;
+            timeline->mVidFilterClip->Save();
+            timeline->mVidFilterClipLock.unlock();
+            updated = true;
+        }
     }
     if (LastMainWindowIndex == 1 && LastVideoEditorWindowIndex == 1 && (
         MainWindowIndex != 1 || VideoEditorWindowIndex != 1))
     {
         // we leave video fusion windows, stop fusion play, check unsaved bp
-        Logger::Log(Logger::DEBUG) << "[Changed page] leaving video fusion page!!!" << std::endl;;
+        Logger::Log(Logger::DEBUG) << "[Changed page] leaving video fusion page!!!" << std::endl;
     }
     if (LastMainWindowIndex == 1 && LastVideoEditorWindowIndex == 2 && (
         MainWindowIndex != 1 || VideoEditorWindowIndex != 2))
     {
         // we leave video crop windows
-        Logger::Log(Logger::DEBUG) << "[Changed page] leaving video crop page!!!" << std::endl;;
+        Logger::Log(Logger::DEBUG) << "[Changed page] leaving video crop page!!!" << std::endl;
     }
     if (LastMainWindowIndex == 1 && LastVideoEditorWindowIndex == 3 && (
         MainWindowIndex != 1 || VideoEditorWindowIndex != 3))
     {
         // we leave video rotate windows
-        Logger::Log(Logger::DEBUG) << "[Changed page] leaving video rotate page!!!" << std::endl;;
+        Logger::Log(Logger::DEBUG) << "[Changed page] leaving video rotate page!!!" << std::endl;
     }
     if (LastMainWindowIndex == 2 && LastAudioEditorWindowIndex == 0 && (
         MainWindowIndex != 2 || AudioEditorWindowIndex != 0))
     {
         // we leave audio filter windows, stop filter play, check unsaved bp
-        Logger::Log(Logger::DEBUG) << "[Changed page] leaving audio filter page!!!" << std::endl;;
+        Logger::Log(Logger::DEBUG) << "[Changed page] leaving audio filter page!!!" << std::endl;
+        if (timeline && timeline->mAudFilterClip)
+        {
+            timeline->mAudFilterClipLock.lock();
+            timeline->mAudFilterClip->bPlay = false;
+            timeline->mAudFilterClip->Save();
+            timeline->mAudFilterClipLock.unlock();
+        }
+        updated = true;
     }
     if (LastMainWindowIndex == 2 && LastAudioEditorWindowIndex == 1 && (
         MainWindowIndex != 2 || AudioEditorWindowIndex != 1))
     {
         // we leave audio fusion windows, stop fusion play, check unsaved bp
-        Logger::Log(Logger::DEBUG) << "[Changed page] leaving audio fusion page!!!" << std::endl;;
+        Logger::Log(Logger::DEBUG) << "[Changed page] leaving audio fusion page!!!" << std::endl;
     }
     if (LastMainWindowIndex == 3 && MainWindowIndex != 3)
     {
         // we leave media analyse windows
-        Logger::Log(Logger::DEBUG) << "[Changed page] leaving media analyse page!!!" << std::endl;;
+        Logger::Log(Logger::DEBUG) << "[Changed page] leaving media analyse page!!!" << std::endl;
     }
     if (LastMainWindowIndex == 4 && MainWindowIndex != 4)
     {
         // we leave media AI windows
-        Logger::Log(Logger::DEBUG) << "[Changed page] leaving media AI page!!!" << std::endl;;
+        Logger::Log(Logger::DEBUG) << "[Changed page] leaving media AI page!!!" << std::endl;
     }
     
     LastMainWindowIndex = MainWindowIndex;
     LastVideoEditorWindowIndex = VideoEditorWindowIndex;
     LastAudioEditorWindowIndex = AudioEditorWindowIndex;
+    return updated;
 }
 
 static int EditingClip(int type, void* handle)
@@ -199,8 +219,8 @@ static int EditingClip(int type, void* handle)
         MainWindowIndex = 2;
         AudioEditorWindowIndex = 0;
     }
-    UIPageChanged();
-    return 0;
+    auto updated = UIPageChanged();
+    return updated ? 1 : 0;
 }
 
 static int EditingOverlap(int type, void* handle)
@@ -215,8 +235,8 @@ static int EditingOverlap(int type, void* handle)
         MainWindowIndex = 2;
         AudioEditorWindowIndex = 1;
     }
-    UIPageChanged();
-    return 0;
+    auto updated = UIPageChanged();
+    return updated ? 1 : 0;
 }
 
 // Utils functions
@@ -727,6 +747,7 @@ static void SaveProject(std::string path)
     if (!timeline || path.empty())
         return;
 
+    // TODO::Dicky stop all play
     timeline->Play(false, true);
 
     // check current editing clip, if it has bp then save it to clip
@@ -1578,7 +1599,6 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
         timeline->mVidFilterClip->UpdateClipRange(editing_clip);
     }
 
-    timeline->Play(false, true);
     if (editing_clip && timeline->mVideoFilterBluePrint)
     {
         timeline->mVideoFilterBluePrint->m_ViewSize = ImVec2(video_editor_width, editor_main_height);
@@ -1878,7 +1898,6 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
         }
     }
 
-    timeline->Play(false, true);
     if (editing_overlap && timeline->mVideoFusionBluePrint)
     {
         timeline->mVideoFusionBluePrint->m_ViewSize = ImVec2(video_fusion_width, video_fusion_height);
@@ -2075,7 +2094,6 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list)
         }
     }
 
-    timeline->Play(false, true);
     if (editing_clip && timeline->mAudioFilterBluePrint)
     {
         timeline->mAudioFilterBluePrint->m_ViewSize = ImVec2(audio_editor_width, editor_main_height);
@@ -2172,7 +2190,7 @@ static void ShowAudioFusionWindow(ImDrawList *draw_list)
             editing_overlap = nullptr;
         }
     }
-    timeline->Play(false, true);
+
     if (editing_overlap && timeline->mAudioFusionBluePrint)
     {
         timeline->mAudioFusionBluePrint->m_ViewSize = ImVec2(audio_fusion_width, audio_fusion_height);
