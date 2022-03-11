@@ -22,6 +22,7 @@ struct MediaSnapshot
     virtual bool Open(MediaParserHolder hParser) = 0;
     virtual MediaParserHolder GetMediaParser() const = 0;
     virtual void Close() = 0;
+    virtual bool Seek(double pos) = 0;
     virtual bool GetSnapshots(std::vector<ImageHolder>& snapshots, double startPos) = 0;
     virtual bool UpdateSnapshotTexture(std::vector<ImageHolder>& snapshots) = 0;
     virtual void ReleaseSnapshotTexture() = 0;

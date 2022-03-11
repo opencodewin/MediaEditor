@@ -1,46 +1,121 @@
 #pragma once
-#include <memory>
 #include <atomic>
+#include <memory>
+#include <functional>
 #include "immat.h"
 #include "MediaReader.h"
 
-class VideoClip
+namespace DataLayer
 {
-public:
-    VideoClip(MediaParserHolder hParser, uint32_t outWidth, uint32_t outHeight, const MediaInfo::Ratio& frameRate, double timeLineOffset, double startOffset, double endOffset);
-    VideoClip(const VideoClip&) = delete;
-    VideoClip(VideoClip&&) = delete;
-    VideoClip& operator=(const VideoClip&) = delete;
-    ~VideoClip();
+    struct VideoFilter;
+    using VideoFilterHolder = std::shared_ptr<VideoFilter>;
 
-    uint32_t Id() const { return m_id; }
-    MediaParserHolder GetMediaParser() const { return m_srcReader->GetMediaParser(); }
-    double ClipDuration() const { return m_srcDuration+m_endOffset-m_startOffset; }
-    double TimeLineOffset() const { return m_timeLineOffset; }
-    void SetTimeLineOffset(double timeLineOffset) { m_timeLineOffset = timeLineOffset; }
-    double StartOffset() const { return m_startOffset; }
-    double EndOffset() const { return m_endOffset; }
-    
-    bool IsStartOffsetValid(double startOffset);
-    void ChangeStartOffset(double startOffset);
-    bool IsEndOffsetValid(double endOffset);
-    void ChangeEndOffset(double endOffset);
+    class VideoClip
+    {
+    public:
+        VideoClip(
+            int64_t id, MediaParserHolder hParser,
+            uint32_t outWidth, uint32_t outHeight, const MediaInfo::Ratio& frameRate,
+            int64_t start, int64_t startOffset, int64_t endOffset);
+        VideoClip(const VideoClip&) = delete;
+        VideoClip(VideoClip&&) = delete;
+        VideoClip& operator=(const VideoClip&) = delete;
+        ~VideoClip();
 
-    void SeekTo(double pos);
-    void ReadVideoFrame(double pos, ImGui::ImMat& vmat, bool& eof);
+        int64_t Id() const { return m_id; }
+        int64_t TrackId() const { return m_trackId; }
+        void SetTrackId(int64_t trackId) { m_trackId = trackId; }
+        MediaParserHolder GetMediaParser() const { return m_srcReader->GetMediaParser(); }
+        int64_t Duration() const { return m_srcDuration-m_startOffset-m_endOffset; }
+        void SetStart(double start) { m_start = start; }
+        int64_t Start() const { return m_start; }
+        int64_t End() const { return m_start+Duration(); }
+        int64_t StartOffset() const { return m_startOffset; }
+        int64_t EndOffset() const { return m_endOffset; }
+        
+        bool IsStartOffsetValid(int64_t startOffset);
+        void ChangeStartOffset(int64_t startOffset);
+        bool IsEndOffsetValid(int64_t endOffset);
+        void ChangeEndOffset(int64_t endOffset);
+        VideoFilterHolder GetFilter() const { return m_filter; }
+        void SetFilter(VideoFilterHolder filter);
 
-private:
-    static std::atomic_uint32_t s_idCounter;
-    uint32_t m_id;
-    MediaInfo::InfoHolder m_hInfo;
-    MediaReader* m_srcReader;
-    double m_timeLineOffset;
-    double m_srcDuration;
-    double m_startOffset;
-    double m_endOffset;
-    bool m_eof{false};
-    MediaInfo::Ratio m_frameRate;
-    uint32_t m_frameIndex{0};
-};
+        void SeekTo(int64_t pos);
+        void ReadVideoFrame(int64_t pos, ImGui::ImMat& vmat, bool& eof);
+        void SetDirection(bool forward);
 
-using VideoClipHolder = std::shared_ptr<VideoClip>;
+        friend std::ostream& operator<<(std::ostream& os, VideoClip& clip);
+
+    private:
+        int64_t m_id;
+        int64_t m_trackId{-1};
+        MediaInfo::InfoHolder m_hInfo;
+        MediaReader* m_srcReader;
+        int64_t m_srcDuration;
+        int64_t m_start;
+        int64_t m_startOffset;
+        int64_t m_endOffset;
+        bool m_eof{false};
+        MediaInfo::Ratio m_frameRate;
+        uint32_t m_frameIndex{0};
+        VideoFilterHolder m_filter;
+    };
+
+    using VideoClipHolder = std::shared_ptr<VideoClip>;
+
+    struct VideoFilter
+    {
+        virtual ~VideoFilter() {}
+        virtual void ApplyTo(VideoClip* clip) = 0;
+        virtual ImGui::ImMat FilterImage(const ImGui::ImMat& vmat, int64_t pos) = 0;
+    };
+
+    struct VideoTransition;
+    using VideoTransitionHolder = std::shared_ptr<VideoTransition>;
+
+    class VideoOverlap
+    {
+    public:
+        static bool HasOverlap(VideoClipHolder hClip1, VideoClipHolder hClip2)
+        {
+            return hClip1->Start() >= hClip2->Start() && hClip1->Start() < hClip2->End() ||
+                   hClip1->End() > hClip2->Start() && hClip1->End() <= hClip2->End() ||
+                   hClip1->Start() < hClip2->Start() && hClip1->End() > hClip2->End();
+        }
+
+        VideoOverlap(int64_t id, VideoClipHolder hClip1, VideoClipHolder hClip2);
+
+        void Update();
+        void SetTransition(VideoTransitionHolder trans);
+
+        int64_t Id() const { return m_id; }
+        void SetId(int64_t id) { m_id = id; }
+        int64_t Start() const { return m_start; }
+        int64_t End() const { return m_end; }
+        int64_t Duration() const { return m_end-m_start; }
+        VideoClipHolder FrontClip() const { return m_frontClip; }
+        VideoClipHolder RearClip() const { return m_rearClip; }
+
+        void SeekTo(int64_t pos);
+        void ReadVideoFrame(int64_t pos, ImGui::ImMat& vmat, bool& eof);
+
+        friend std::ostream& operator<<(std::ostream& os, VideoOverlap& overlap);
+
+    private:
+        int64_t m_id;
+        VideoClipHolder m_frontClip;
+        VideoClipHolder m_rearClip;
+        int64_t m_start{0};
+        int64_t m_end{0};
+        VideoTransitionHolder m_transition;
+    };
+
+    using VideoOverlapHolder = std::shared_ptr<VideoOverlap>;
+
+    struct VideoTransition
+    {
+        virtual ~VideoTransition() {}
+        virtual void ApplyTo(VideoOverlap* overlap) = 0;
+        virtual ImGui::ImMat MixTwoImages(const ImGui::ImMat& vmat1, const ImGui::ImMat& vmat2, int64_t pos) = 0;
+    };
+}

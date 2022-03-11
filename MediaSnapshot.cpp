@@ -136,6 +136,20 @@ public:
         m_errMsg = "";
     }
 
+    bool Seek(double pos) override
+    {
+        lock_guard<recursive_mutex> lk(m_apiLock);
+        if (!IsOpened())
+            return false;
+
+        if (m_prepared)
+            UpdateSnapWindow(pos);
+        else
+            m_snapWnd.startPos = pos;
+
+        return true;
+    }
+
     bool GetSnapshots(std::vector<ImageHolder>& images, double startPos) override
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
@@ -150,7 +164,7 @@ public:
         else
         {
             m_snapWnd.startPos = startPos;
-            snapWnd = m_snapWnd;
+            return true;
         }
 
         lock_guard<mutex> lk2(m_bldtskByTimeLock);
@@ -221,28 +235,28 @@ public:
         //     Log(DEBUG) << "[3]===== End release texture" << endl;
         // }
 
-        Log(DEBUG) << "[2]----- Begin generate texture" << endl;
+        m_logger->Log(DEBUG) << "[2]----- Begin generate texture" << endl;
         for (auto& img : snapshots)
         {
             if (img->mTextureReady)
                 continue;
             if (!img->mImgMat.empty())
             {
-                img->mTextureHolder = TextureHolder(new ImTextureID(0), [] (ImTextureID* pTid) {
+                img->mTextureHolder = TextureHolder(new ImTextureID(0), [this] (ImTextureID* pTid) {
                     if (*pTid)
                     {
-                        Log(DEBUG) << "[3]\t\t\treleasing tid=" << *pTid << endl;
+                        GetMediaSnapshotLogger()->Log(DEBUG) << "[3]\t\t\treleasing tid=" << *pTid << endl;
                         ImGui::ImDestroyTexture(*pTid);
                     }
                     delete pTid;
                 });
-                Log(DEBUG) << "[2]\tbefore generate tid=" << *(img->mTextureHolder) << endl;
+                m_logger->Log(DEBUG) << "[2]\tbefore generate tid=" << *(img->mTextureHolder) << endl;
                 ImMatToTexture(img->mImgMat, *(img->mTextureHolder));
-                Log(DEBUG) << "[2]\tgenerated tid=" << *(img->mTextureHolder) << endl;
+                m_logger->Log(DEBUG) << "[2]\tgenerated tid=" << *(img->mTextureHolder) << endl;
                 img->mTextureReady = true;
             }
         }
-        Log(DEBUG) << "[2]----- End generate texture" << endl;
+        m_logger->Log(DEBUG) << "[2]----- End generate texture" << endl;
         return true;
     }
 
@@ -252,10 +266,10 @@ public:
 
         // free deprecated textures
         {
-            Log(DEBUG) << "[3]===== Begin release texture" << endl;
+            m_logger->Log(DEBUG) << "[3]===== Begin release texture" << endl;
             lock_guard<mutex> lktid(m_deprecatedTextureLock);
             m_deprecatedTextures.clear();
-            Log(DEBUG) << "[3]===== End release texture" << endl;
+            m_logger->Log(DEBUG) << "[3]===== End release texture" << endl;
         }
     }
 
@@ -287,7 +301,7 @@ public:
             m_errMsg = "Argument 'frameCount' must be greater than 1!";
             return false;
         }
-        Log(DEBUG) << "---------------------------- Config snap window -----------------------------" << endl;
+        m_logger->Log(VERBOSE) << "---------------------------- Config snap window -----------------------------" << endl;
         double minWndSize = CalcMinWindowSize(frameCount);
         if (windowSize < minWndSize)
             windowSize = minWndSize;
@@ -315,9 +329,8 @@ public:
 
         StartAllThreads();
 
-        m_logger->Log(DEBUG) << ">>>> Config window: m_snapWindowSize=" << m_snapWindowSize << ", m_wndFrmCnt=" << m_wndFrmCnt
+        m_logger->Log(VERBOSE) << ">>>> Config window: m_snapWindowSize=" << m_snapWindowSize << ", m_wndFrmCnt=" << m_wndFrmCnt
             << ", m_vidMaxIndex=" << m_vidMaxIndex << ", m_maxCacheSize=" << m_maxCacheSize << ", m_prevWndCacheSize=" << m_prevWndCacheSize << endl;
-        Log(DEBUG) << "---------------------------- Config snap window [DONE] -----------------------------" << endl;
         return true;
     }
 
@@ -388,7 +401,9 @@ public:
             uint32_t outHeight = (uint32_t)ceil(vidStream->height*heightFactor);
             if ((outHeight&0x1) == 1)
                 outHeight++;
-            return SetSnapshotSize(outWidth, outHeight);
+            if (!SetSnapshotSize(outWidth, outHeight))
+                return false;
+            m_useRszFactor = true;
         }
         m_ssSizeChanged = false;
         return true;
@@ -447,19 +462,17 @@ public:
 
     uint32_t GetVideoWidth() const override
     {
-        if (m_vidStream)
-        {
-            return m_vidStream->codecpar->width;
-        }
+        const MediaInfo::VideoStream* vidStream = GetVideoStream();
+        if (vidStream)
+            return vidStream->width;
         return 0;
     }
 
     uint32_t GetVideoHeight() const override
     {
-        if (m_vidStream)
-        {
-            return m_vidStream->codecpar->height;
-        }
+        const MediaInfo::VideoStream* vidStream = GetVideoStream();
+        if (vidStream)
+            return vidStream->height;
         return 0;
     }
 
@@ -753,7 +766,8 @@ private:
 
         if (!m_prepared && !Prepare())
         {
-            m_logger->Log(Error) << "Prepare() FAILED! Error is '" << m_errMsg << "'." << endl;
+            if (!m_quit)
+                m_logger->Log(Error) << "Prepare() FAILED! Error is '" << m_errMsg << "'." << endl;
             return;
         }
 
@@ -1531,12 +1545,12 @@ private:
         m_bldtskPriOrder.sort([swnd](const SnapshotBuildTask& a, const SnapshotBuildTask& b) {
             uint32_t aFront = a->ssIdxPair.first;
             uint32_t aBack = a->ssIdxPair.second;
-            bool aInDisplayWindow = aFront >= swnd.index0 && aFront <= swnd.index1 ||
-                aBack >= swnd.index0 && aBack <= swnd.index1;
+            bool aInDisplayWindow = (aFront >= swnd.index0 && aFront <= swnd.index1) ||
+                (aBack >= swnd.index0 && aBack <= swnd.index1);
             uint32_t bFront = b->ssIdxPair.first;
             uint32_t bBack = b->ssIdxPair.second;
-            bool bInDisplayWindow = bFront >= swnd.index0 && bFront <= swnd.index1 ||
-                bBack >= swnd.index0 && bBack <= swnd.index1;
+            bool bInDisplayWindow = (bFront >= swnd.index0 && bFront <= swnd.index1) ||
+                (bBack >= swnd.index0 && bBack <= swnd.index1);
             if (aInDisplayWindow && bInDisplayWindow)
                 return aFront < bFront;
             else if (aInDisplayWindow)
