@@ -1,7 +1,7 @@
 #include <application.h>
 #include <imgui.h>
 #include <imgui_helper.h>
-#include <imgui_knob.h>
+#include <imgui_widget.h>
 #include <imgui_json.h>
 #include <ImGuiFileDialog.h>
 #include <ImGuiTabWindow.h>
@@ -74,26 +74,6 @@ static const char* AudioEditorTabNames[] = {
 static const char* AudioEditorTabTooltips[] = {
     "Audio Filter",
     "Audio Fusion",
-};
-
-struct stree
-{
-    std::string name;
-    std::vector<stree> childrens;
-    void * data {nullptr};
-    stree() {}
-    stree(std::string _name, void * _data = nullptr) { name = _name; data = _data; }
-    stree* FindChildren(std::string _name)
-    {
-        auto iter = std::find_if(childrens.begin(), childrens.end(), [_name](const stree& tree)
-        {
-            return tree.name.compare(_name) == 0;
-        });
-        if (iter != childrens.end())
-            return &(*iter);
-        else
-            return nullptr;
-    }
 };
 
 struct MediaEditorSettings
@@ -1203,7 +1183,7 @@ static void ShowFilterBankTreeWindow(ImDrawList *draw_list)
         }
 
         // make filter type as tree
-        stree filter_tree;
+        ImGui::ImTree filter_tree;
         filter_tree.name = "Filters";
         for (auto type : filters)
         {
@@ -1215,17 +1195,17 @@ static void ShowFilterBankTreeWindow(ImDrawList *draw_list)
                 auto children = filter_tree.FindChildren(catalog[1]);
                 if (!children)
                 {
-                    stree subtree(catalog[1]);
+                    ImGui::ImTree subtree(catalog[1]);
                     if (catalog.size() > 2)
                     {
-                        stree sub_sub_tree(catalog[2]);
-                        stree end_sub(type->m_Name, (void *)type);
+                        ImGui::ImTree sub_sub_tree(catalog[2]);
+                        ImGui::ImTree end_sub(type->m_Name, (void *)type);
                         sub_sub_tree.childrens.push_back(end_sub);
                         subtree.childrens.push_back(sub_sub_tree);
                     }
                     else
                     {
-                        stree end_sub(type->m_Name, (void *)type);
+                        ImGui::ImTree end_sub(type->m_Name, (void *)type);
                         subtree.childrens.push_back(end_sub);
                     }
 
@@ -1238,27 +1218,27 @@ static void ShowFilterBankTreeWindow(ImDrawList *draw_list)
                         auto sub_children = children->FindChildren(catalog[2]);
                         if (!sub_children)
                         {
-                            stree subtree(catalog[2]);
-                            stree end_sub(type->m_Name, (void *)type);
+                            ImGui::ImTree subtree(catalog[2]);
+                            ImGui::ImTree end_sub(type->m_Name, (void *)type);
                             subtree.childrens.push_back(end_sub);
                             children->childrens.push_back(subtree);
                         }
                         else
                         {
-                            stree end_sub(type->m_Name, (void *)type);
+                            ImGui::ImTree end_sub(type->m_Name, (void *)type);
                             sub_children->childrens.push_back(end_sub);
                         }
                     }
                     else
                     {
-                        stree end_sub(type->m_Name, (void *)type);
+                        ImGui::ImTree end_sub(type->m_Name, (void *)type);
                         children->childrens.push_back(end_sub);
                     }
                 }
             }
             else
             {
-                stree end_sub(type->m_Name, (void *)type);
+                ImGui::ImTree end_sub(type->m_Name, (void *)type);
                 filter_tree.childrens.push_back(end_sub);
             }
         }
