@@ -853,14 +853,6 @@ VideoClip::~VideoClip()
     mVideoSnapshots.clear();
 }
 
-void VideoClip::Seek()
-{
-}
-
-void VideoClip::Step(bool forward, int64_t step)
-{
-}
-
 Clip* VideoClip::Load(const imgui_json::value& value, void * handle)
 {
     TimeLine * timeline = (TimeLine *)handle;
@@ -1025,19 +1017,6 @@ AudioClip::~AudioClip()
 {
 }
 
-void AudioClip::Seek()
-{
-}
-
-void AudioClip::Step(bool forward, int64_t step)
-{
-}
-
-bool AudioClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame)
-{
-    return false;
-}
-
 void AudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect)
 {
     TimeLine * timeline = (TimeLine *)mHandle;
@@ -1173,19 +1152,6 @@ void ImageClip::PrepareSnapImage()
     }
 }
 
-void ImageClip::Seek()
-{
-}
-
-void ImageClip::Step(bool forward, int64_t step)
-{
-}
-
-bool ImageClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame)
-{
-    return false;
-}
-
 void ImageClip::SetTrackHeight(int trackHeight)
 {
     Clip::SetTrackHeight(trackHeight);
@@ -1300,19 +1266,6 @@ TextClip::TextClip(int64_t start, int64_t end, int64_t id, std::string name, Med
 
 TextClip::~TextClip()
 {
-}
-
-void TextClip::Seek()
-{
-}
-
-void TextClip::Step(bool forward, int64_t step)
-{
-}
-
-bool TextClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame)
-{
-    return false;
 }
 
 Clip * TextClip::Load(const imgui_json::value& value, void * handle)
@@ -1476,14 +1429,24 @@ void EditingVideoClip::UpdateClipRange(Clip* clip)
 
 void EditingVideoClip::Seek(int64_t pos)
 {
+    static int64_t last_seek_pos = -1;
+    if (last_seek_pos != pos)
+    {
+        last_seek_pos = pos;
+    }
+    else
+    {
+        //Logger::Log(Logger::DEBUG) << "[Dicky Debug]: Edit Video Clip Seek " << pos << std::endl;
+        return;
+    }
     mFrameLock.lock();
     mFrame.clear();
     mFrameLock.unlock();
     mLastTime = -1;
     mCurrPos = pos;
+    alignTime(mCurrPos, mClipFrameRate);
     if (mMediaReader && mMediaReader->IsOpened())
     {
-        alignTime(mCurrPos, mClipFrameRate);
         mMediaReader->SeekTo((double)mCurrPos / 1000.f);
     }
 }
