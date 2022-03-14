@@ -4054,6 +4054,20 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         info_str += " / ";
         info_str += std::to_string(trackCount) + " entries";
         draw_list->AddText(ImVec2(canvas_pos.x + 40, canvas_pos.y + 2), IM_COL32_WHITE, info_str.c_str());
+        if (!trackCount && *expanded)
+        {
+            ImGui::SetWindowFontScale(4);
+            auto pos_center = canvas_pos + canvas_size / 2;
+            std::string tips_string = "Please Drag Media Here";
+            auto string_width = ImGui::CalcTextSize(tips_string.c_str());
+            auto tips_pos = pos_center - string_width / 2;
+            ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
+            ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
+            draw_list->AddText(tips_pos, IM_COL32(255, 255, 255, 128), tips_string.c_str());
+            ImGui::PopStyleColor();
+            ImGui::PopStyleVar();
+            ImGui::SetWindowFontScale(1.0);
+        }
     }
     else
     {
@@ -5101,8 +5115,23 @@ bool DrawClipTimeLine(BaseEditingClip * editingClip)
      |_______________|_____________________________________________________________________ a
      ************************************************************************************************************/
     bool ret = false;
+    ImDrawList *draw_list = ImGui::GetWindowDrawList();
+    ImVec2 window_pos = ImGui::GetCursorScreenPos();
+    ImVec2 window_size = ImGui::GetWindowSize();
     if (!editingClip)
+    {
+        ImGui::SetWindowFontScale(2);
+        auto pos_center = window_pos + window_size / 2;
+        std::string tips_string = "Please Select Clip by Double Click From Main Timeline";
+        auto string_width = ImGui::CalcTextSize(tips_string.c_str());
+        auto tips_pos = pos_center - string_width / 2;
+        ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
+        ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
+        draw_list->AddText(tips_pos, IM_COL32(255, 255, 255, 128), tips_string.c_str());
+        ImGui::PopStyleColor();
+        ImGui::PopStyleVar();
         return ret;
+    }
 
     ImGuiIO &io = ImGui::GetIO();
     int cx = (int)(io.MousePos.x);
@@ -5117,11 +5146,7 @@ bool DrawClipTimeLine(BaseEditingClip * editingClip)
     int64_t end = start + duration;
 
     ImGui::BeginGroup();
-    ImDrawList *draw_list = ImGui::GetWindowDrawList();
-    ImVec2 window_pos = ImGui::GetCursorScreenPos();
-    ImVec2 window_size = ImGui::GetWindowSize();
     ImRect regionRect(window_pos + ImVec2(0, headHeight), window_pos + window_size);
-    
     float msPixelWidth = (float)(window_size.x) / (float)duration;
     ImRect custom_view_rect(window_pos + ImVec2(0, headHeight), window_pos + window_size);
 
@@ -5233,7 +5258,23 @@ bool DrawOverlapTimeLine(Overlap * overlap)
      |_______________|_____________________________________________________________________     
     ************************************************************************************************************/
     bool ret = false;
-    if (!overlap) return ret;
+    ImDrawList *draw_list = ImGui::GetWindowDrawList();
+    ImVec2 window_pos = ImGui::GetCursorScreenPos();
+    ImVec2 window_size = ImGui::GetWindowSize();
+    if (!overlap)
+    {
+        ImGui::SetWindowFontScale(2);
+        auto pos_center = window_pos + window_size / 2;
+        std::string tips_string = "Please Select Overlap by Double Click From Main Timeline";
+        auto string_width = ImGui::CalcTextSize(tips_string.c_str());
+        auto tips_pos = pos_center - string_width / 2;
+        ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
+        ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
+        draw_list->AddText(tips_pos, IM_COL32(255, 255, 255, 128), tips_string.c_str());
+        ImGui::PopStyleColor();
+        ImGui::PopStyleVar();
+        return ret;
+    }
     ImGuiIO &io = ImGui::GetIO();
     int cx = (int)(io.MousePos.x);
     int cy = (int)(io.MousePos.y);
@@ -5250,9 +5291,6 @@ bool DrawOverlapTimeLine(Overlap * overlap)
         overlap->mCurrent = end;
 
     ImGui::BeginGroup();
-    ImDrawList *draw_list = ImGui::GetWindowDrawList();
-    ImVec2 window_pos = ImGui::GetCursorScreenPos();
-    ImVec2 window_size = ImGui::GetWindowSize();
     ImRect regionRect(window_pos + ImVec2(0, headHeight), window_pos + window_size);
     
     float msPixelWidth = (float)(window_size.x) / (float)duration;

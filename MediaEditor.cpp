@@ -108,6 +108,25 @@ static int LastMainWindowIndex = 0;
 static int LastVideoEditorWindowIndex = 0;
 static int LastAudioEditorWindowIndex = 0;
 
+static float ui_breathing = 1.0f;
+static float ui_breathing_step = 0.01;
+static float ui_breathing_min = 0.5;
+static float ui_breathing_max = 1.0;
+
+static void UpdateBreathing()
+{
+    ui_breathing -= ui_breathing_step;
+    if (ui_breathing <= ui_breathing_min)
+    {
+        ui_breathing = ui_breathing_min;
+        ui_breathing_step = -ui_breathing_step;
+    }
+    else if (ui_breathing >= ui_breathing_max)
+    {
+        ui_breathing = ui_breathing_max;
+        ui_breathing_step = -ui_breathing_step;
+    }
+}
 static bool UIPageChanged()
 {
     bool updated = false;
@@ -281,6 +300,10 @@ static void ShowAbout()
     ImGui::Separator();
     ImGui::Text("  TanluTeam 2022");
     ImGui::Separator();
+    ImGui::ShowImGuiInfo();
+    ImGui::Separator();
+    ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", ImGui::GetIO().DeltaTime * 1000.f, ImGui::GetIO().Framerate);
+    ImGui::Text("Frames since last input: %d", ImGui::GetIO().FrameCountSinceLastInput);
 }
 
 static int GetResolutionIndex(MediaEditorSettings & config)
@@ -1051,13 +1074,29 @@ static void ShowMediaBankWindow(ImDrawList *draw_list, float media_icon_size)
     ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
     ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
     draw_list->AddText(window_pos + ImVec2(8, 0), IM_COL32(56, 56, 56, 128), "Media");
-    draw_list->AddText(window_pos + ImVec2(8, 48), IM_COL32(56, 56, 56, 128), "Bank");
+    draw_list->AddText(window_pos + ImVec2(8, 32), IM_COL32(56, 56, 56, 128), "Bank");
     ImGui::PopStyleColor();
     ImGui::PopStyleVar();
     ImGui::SetWindowFontScale(1.0);
 
     if (!timeline)
         return;
+    
+    if (timeline->media_items.empty())
+    {
+        ImGui::SetWindowFontScale(2.0);
+        ImGui::Indent(20);
+        ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
+        ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
+        ImU32 text_color = IM_COL32(ui_breathing * 255, ui_breathing * 255, ui_breathing * 255, 255);
+        draw_list->AddText(window_pos + ImVec2(8,  72), IM_COL32(56, 56, 56, 128), "Please Click");
+        draw_list->AddText(window_pos + ImVec2(8, 104), text_color, "<-- Here");
+        draw_list->AddText(window_pos + ImVec2(8, 136), IM_COL32(56, 56, 56, 128), "To Add Media");
+        ImGui::PopStyleColor();
+        ImGui::PopStyleVar();
+        ImGui::SetWindowFontScale(1.0);
+        return;
+    }
     // Show Media Icons
     int icon_number_pre_row = window_size.x / (media_icon_size + 24);
     for (auto item = timeline->media_items.begin(); item != timeline->media_items.end();)
@@ -2378,9 +2417,15 @@ void Application_Initialize(void** handle)
     io.FontDefault = font;
     io.IniFilename = ini_file.c_str();
     if (io.ConfigFlags & ImGuiConfigFlags_EnableLowRefreshMode)
+    {
         ImGui::SetTableLabelBreathingSpeed(0.01, 0.5);
+        ui_breathing_step = 0.02;
+    }
     else
+    {
         ImGui::SetTableLabelBreathingSpeed(0.005, 0.5);
+        ui_breathing_step = 0.01;
+    }
     ImGui::ResetTabLabelStyle(ImGui::ImGuiTabLabelStyle_Dark, *tab_style);
 
     Logger::GetDefaultLogger()->SetShowLevels(Logger::DEBUG);
@@ -2445,6 +2490,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
         ImGui::SetNextWindowPos(ImVec2(0, 0));
         ImGui::SetNextWindowSize(io.DisplaySize, ImGuiCond_None);
     }
+    UpdateBreathing();
     ImGui::Begin("Content", nullptr, flags);
     // for debug
     if (show_debug) ImGui::ShowMetricsWindow(&show_debug);
@@ -2678,7 +2724,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
             if (!_expanded)
             {
                 old_size_timeline_h = size_timeline_h;
-                size_timeline_h = 40.0f / window_size.y;
+                size_timeline_h = 60.0f / window_size.y;
                 size_main_h = 1 - size_timeline_h;
             }
             else
