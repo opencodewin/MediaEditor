@@ -88,6 +88,7 @@ struct MediaEditorSettings
     int AudioFormat {2};                    // timeline audio format 0=unknown 1=s16 2=f32
     std::string project_path;               // Editor Recently project file path
     int BankViewStyle {0};                  // Bank view style type, 0 = icons, 1 = tree vide, and ... 
+    bool ShowHelpTooltips {false};          // Show UI help tool tips
     MediaEditorSettings() {}
 };
 
@@ -521,6 +522,9 @@ static void ShowConfigure(MediaEditorSettings & config)
         {
             case 0:
                 // system setting
+                ImGui::TextUnformatted("Show UI Help Tips");
+                ImGui::ToggleButton("##show_ui_help_tooltips", &config.ShowHelpTooltips);
+                ImGui::Separator();
                 ImGui::TextUnformatted("Bank View Style");
                 ImGui::RadioButton("Icons",  (int *)&config.BankViewStyle, 0); ImGui::SameLine();
                 ImGui::RadioButton("Tree",  (int *)&config.BankViewStyle, 1);
@@ -625,6 +629,7 @@ static void NewTimeline()
         timeline->mAudioSampleRate = g_media_editor_settings.AudioSampleRate;
         timeline->mAudioChannels = g_media_editor_settings.AudioChannels;
         timeline->mAudioFormat = (AudioRender::PcmFormat)g_media_editor_settings.AudioFormat;
+        timeline->mShowHelpTooltips = g_media_editor_settings.ShowHelpTooltips;
         
         // init callbacks
         timeline->m_CallBacks.EditingClip = EditingClip;
@@ -898,6 +903,18 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
         if (!(*item)->mMediaThumbnail.empty())
         {
             texture = (*item)->mMediaThumbnail[texture_index];
+        }
+
+        // Show help tooltip
+        if (timeline->mShowHelpTooltips)
+        {
+            ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5);
+            ImGui::BeginTooltip();
+            ImGui::TextUnformatted("Help:");
+            ImGui::TextUnformatted("    Slider mouse to overview");
+            ImGui::TextUnformatted("    Drag media to timeline");
+            ImGui::EndTooltip();
+            ImGui::PopStyleVar();
         }
     }
     else if (!(*item)->mMediaThumbnail.empty())
@@ -1183,6 +1200,19 @@ static void ShowFilterBankIconWindow(ImDrawList *draw_list)
                 ImGui::TextUnformatted(type->m_Name.c_str());
                 ImGui::EndDragDropSource();
             }
+            if (ImGui::IsItemHovered())
+            {
+                // Show help tooltip
+                if (timeline->mShowHelpTooltips)
+                {
+                    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5);
+                    ImGui::BeginTooltip();
+                    ImGui::TextUnformatted("Help:");
+                    ImGui::TextUnformatted("    Drag filter to blue print");
+                    ImGui::EndTooltip();
+                    ImGui::PopStyleVar();
+                }
+            }
             ImGui::SetCursorScreenPos(icon_pos);
             ImGui::Button((std::string(ICON_BANK) + "##bank_filter" + type->m_Name).c_str() , ImVec2(filter_icon_size, filter_icon_size));
             ImGui::SameLine(); ImGui::TextUnformatted(type->m_Name.c_str());
@@ -1296,6 +1326,19 @@ static void ShowFilterBankTreeWindow(ImDrawList *draw_list)
                 ImGui::TextUnformatted(ICON_BANK " Add Filter");
                 ImGui::TextUnformatted(type->m_Name.c_str());
                 ImGui::EndDragDropSource();
+            }
+            if (ImGui::IsItemHovered())
+            {
+                // Show help tooltip
+                if (timeline->mShowHelpTooltips)
+                {
+                    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5);
+                    ImGui::BeginTooltip();
+                    ImGui::TextUnformatted("Help:");
+                    ImGui::TextUnformatted("    Drag filter to blue print");
+                    ImGui::EndTooltip();
+                    ImGui::PopStyleVar();
+                }
             }
         };
 
@@ -1571,7 +1614,8 @@ static void ShowVideoFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
         }
         ImVec2 window_pos = ImGui::GetCursorScreenPos();
         ImVec2 window_size = ImGui::GetWindowSize();
-        ImGui::InvisibleButton("video_editor_blueprint_back_view", window_size);
+        ImGui::SetCursorScreenPos(window_pos + ImVec2(3, 3));
+        ImGui::InvisibleButton("video_editor_blueprint_back_view", window_size - ImVec2(6, 6));
         if (ImGui::BeginDragDropTarget() && timeline->mVideoFilterBluePrint->Blueprint_IsValid())
         {
             if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("Filter_drag_drop_Video"))
@@ -1584,8 +1628,8 @@ static void ShowVideoFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
             }
             ImGui::EndDragDropTarget();
         }
-        ImGui::SetCursorScreenPos(window_pos);
-        if (ImGui::BeginChild("##video_editor_blueprint", window_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+        ImGui::SetCursorScreenPos(window_pos + ImVec2(1, 1));
+        if (ImGui::BeginChild("##video_editor_blueprint", window_size - ImVec2(2, 2), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
         {
             timeline->mVideoFilterBluePrint->Frame(true, true, clip != nullptr, BluePrint::BluePrintFlag::BluePrintFlag_Filter);
         }
@@ -1869,7 +1913,8 @@ static void ShowVideoFusionBluePrintWindow(ImDrawList *draw_list, Overlap * over
         }
         ImVec2 window_pos = ImGui::GetCursorScreenPos();
         ImVec2 window_size = ImGui::GetWindowSize();
-        ImGui::InvisibleButton("video_fusion_blueprint_back_view", window_size);
+        ImGui::SetCursorScreenPos(window_pos + ImVec2(3, 3));
+        ImGui::InvisibleButton("video_fusion_blueprint_back_view", window_size - ImVec2(6, 6));
         if (ImGui::BeginDragDropTarget() && timeline->mVideoFusionBluePrint->Blueprint_IsValid())
         {
             if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("Fusion_drag_drop_Video"))
@@ -1882,8 +1927,8 @@ static void ShowVideoFusionBluePrintWindow(ImDrawList *draw_list, Overlap * over
             }
             ImGui::EndDragDropTarget();
         }
-        ImGui::SetCursorScreenPos(window_pos);
-        if (ImGui::BeginChild("##video_fusion_blueprint", window_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+        ImGui::SetCursorScreenPos(window_pos + ImVec2(1, 1));
+        if (ImGui::BeginChild("##video_fusion_blueprint", window_size - ImVec2(2, 2), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
         {
             timeline->mVideoFusionBluePrint->Frame(true, true, overlap != nullptr, BluePrint::BluePrintFlag::BluePrintFlag_Fusion);
         }
@@ -2064,7 +2109,8 @@ static void ShowAudioFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
         }
         ImVec2 window_pos = ImGui::GetCursorScreenPos();
         ImVec2 window_size = ImGui::GetWindowSize();
-        ImGui::InvisibleButton("audio_editor_blueprint_back_view", window_size);
+        ImGui::SetCursorScreenPos(window_pos + ImVec2(3, 3));
+        ImGui::InvisibleButton("audio_editor_blueprint_back_view", window_size - ImVec2(6, 6));
         if (ImGui::BeginDragDropTarget() && timeline->mAudioFilterBluePrint->Blueprint_IsValid())
         {
             if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("Filter_drag_drop_Audio"))
@@ -2077,8 +2123,8 @@ static void ShowAudioFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
             }
             ImGui::EndDragDropTarget();
         }
-        ImGui::SetCursorScreenPos(window_pos);
-        if (ImGui::BeginChild("##audio_editor_blueprint", window_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+        ImGui::SetCursorScreenPos(window_pos + ImVec2(1, 1));
+        if (ImGui::BeginChild("##audio_editor_blueprint", window_size - ImVec2(2, 2), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
         {
             timeline->mAudioFilterBluePrint->Frame(true, true, clip != nullptr, BluePrint::BluePrintFlag::BluePrintFlag_Filter);
         }
@@ -2165,7 +2211,8 @@ static void ShowAudioFusionBluePrintWindow(ImDrawList *draw_list, Overlap * over
         }
         ImVec2 window_pos = ImGui::GetCursorScreenPos();
         ImVec2 window_size = ImGui::GetWindowSize();
-        ImGui::InvisibleButton("audio_fusion_blueprint_back_view", window_size);
+        ImGui::SetCursorScreenPos(window_pos + ImVec2(3, 3));
+        ImGui::InvisibleButton("audio_fusion_blueprint_back_view", window_size - ImVec2(6, 6));
         if (ImGui::BeginDragDropTarget() && timeline->mAudioFusionBluePrint->Blueprint_IsValid())
         {
             if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("Fusion_drag_drop_Video"))
@@ -2178,8 +2225,8 @@ static void ShowAudioFusionBluePrintWindow(ImDrawList *draw_list, Overlap * over
             }
             ImGui::EndDragDropTarget();
         }
-        ImGui::SetCursorScreenPos(window_pos);
-        if (ImGui::BeginChild("##audio_fusion_blueprint", window_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+        ImGui::SetCursorScreenPos(window_pos + ImVec2(1, 1));
+        if (ImGui::BeginChild("##audio_fusion_blueprint", window_size - ImVec2(2, 2), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
         {
             timeline->mAudioFusionBluePrint->Frame(true, true, overlap != nullptr, BluePrint::BluePrintFlag::BluePrintFlag_Fusion);
         }
@@ -2354,6 +2401,7 @@ void Application_SetupContext(ImGuiContext* ctx)
         else if (sscanf(line, "AudioSampleRate=%d", &val_int) == 1) { setting->AudioSampleRate = val_int; }
         else if (sscanf(line, "AudioFormat=%d", &val_int) == 1) { setting->AudioFormat = val_int; }
         else if (sscanf(line, "BankViewStyle=%d", &val_int) == 1) { setting->BankViewStyle = val_int; }
+        else if (sscanf(line, "ShowHelpTips=%d", &val_int) == 1) { setting->ShowHelpTooltips = val_int == 1; }
         else if (sscanf(line, "ProjectPath=%s", val_path) == 1) { setting->project_path = std::string(val_path); }
         if (!setting->project_path.empty())
         {
@@ -2378,6 +2426,7 @@ void Application_SetupContext(ImGuiContext* ctx)
         out_buf->appendf("AudioSampleRate=%d\n", g_media_editor_settings.AudioSampleRate);
         out_buf->appendf("AudioFormat=%d\n", g_media_editor_settings.AudioFormat);
         out_buf->appendf("BankViewStyle=%d\n", g_media_editor_settings.BankViewStyle);
+        out_buf->appendf("ShowHelpTips=%d\n", g_media_editor_settings.ShowHelpTooltips ? 1 : 0);
         out_buf->appendf("ProjectPath=%s\n", g_media_editor_settings.project_path.c_str());
         out_buf->append("\n");
     };
@@ -2530,6 +2579,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
                 timeline->mAudioSampleRate = g_media_editor_settings.AudioSampleRate;
                 timeline->mAudioChannels = g_media_editor_settings.AudioChannels;
                 timeline->mAudioFormat = (AudioRender::PcmFormat)g_media_editor_settings.AudioFormat;
+                timeline->mShowHelpTooltips = g_media_editor_settings.ShowHelpTooltips;
             }
             ImGui::CloseCurrentPopup(); 
         }

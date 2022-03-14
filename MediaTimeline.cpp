@@ -3449,15 +3449,17 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &view_r
                 ImGui::InvisibleButton("#track_clips", clip_pos_max - clip_title_pos_min);
                 if (ImGui::IsItemHovered())
                 {
+                    const bool is_shift_key_only = (io.KeyMods == ImGuiKeyModFlags_Shift);
+                    bool appand = (ImGui::IsKeyDown(ImGuiKey_LeftShift) || ImGui::IsKeyDown(ImGuiKey_RightShift)) && is_shift_key_only;
                     bool can_be_select = false;
                     if (is_moving && !clip->bSelected)
                         can_be_select = true;
                     else if (!is_moving && !clip->bSelected)
                         can_be_select = true;
+                    else if (appand)
+                         can_be_select = true;
                     if (can_be_select && !mouse_clicked && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
                     {
-                        const bool is_shift_key_only = (io.KeyMods == ImGuiKeyModFlags_Shift);
-                        bool appand = (ImGui::IsKeyDown(ImGuiKey_LeftShift) || ImGui::IsKeyDown(ImGuiKey_RightShift)) && is_shift_key_only;
                         track->SelectClip(clip, appand);
                         SelectTrack(index);
                         mouse_clicked = true;
@@ -3995,7 +3997,11 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
     static bool bMoving = false;
     const bool is_alt_key_only = (io.KeyMods == ImGuiKeyModFlags_Alt);
     bCutting = ImGui::IsKeyDown(ImGuiKey_LeftAlt) && is_alt_key_only;
-    
+    bool overTrackView = false;
+    bool overHorizonScrollBar = false;
+    bool overCustomDraw = false;
+    bool overLegend = false;
+
     ImDrawList *draw_list = ImGui::GetWindowDrawList();
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
@@ -4405,7 +4411,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             }
         }
 
-        if (!menuIsOpened && !bCropping && !bCutting && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+        if (trackAreaRect.Contains(io.MousePos) && !menuIsOpened && !bCropping && !bCutting && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
             timeline->Click(mouseEntry, mouseTime);
 
         if (trackAreaRect.Contains(io.MousePos) && ImGui::IsMouseReleased(ImGuiMouseButton_Right) && !ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Right))
@@ -4637,10 +4643,6 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         // handle mouse wheel event
         if (regionRect.Contains(io.MousePos))
         {
-            bool overTrackView = false;
-            bool overHorizonScrollBar = false;
-            bool overCustomDraw = false;
-            bool overLegend = false;
             if (trackRect.Contains(io.MousePos))
             {
                 overCustomDraw = true;
@@ -4812,6 +4814,58 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         timeline->mConnectedPoints = -1;
         ImGui::CaptureMouseFromApp(false);
     }
+
+    // Show help tips
+    if (timeline->mShowHelpTooltips)
+    {
+        ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5);
+        if (mouseTime != -1 && mouseClip != -1 && mouseEntry >= 0 && mouseEntry < timeline->m_Tracks.size())
+        {
+            if (mouseClip != -1 && !bMoving)
+            {
+                ImGui::BeginTooltip();
+                ImGui::TextUnformatted("Help:");
+                ImGui::TextUnformatted("    Left botton click to select clip");
+                ImGui::TextUnformatted("    Left botton double click to editing clip");
+                ImGui::TextUnformatted("    Left botton double click title bar zip/unzip clip");
+                ImGui::TextUnformatted("    Hold left Shift key to appand select");
+                ImGui::TextUnformatted("    Hold left Alt/Option key to cut clip");
+                ImGui::EndTooltip();
+            }
+            else if (bMoving)
+            {
+                ImGui::BeginTooltip();
+                ImGui::TextUnformatted("Help:");
+                ImGui::TextUnformatted("    Hold left Command/Win key to single select");
+                ImGui::EndTooltip();
+            }
+        }
+        if (overHorizonScrollBar)
+        {
+            ImGui::BeginTooltip();
+            ImGui::TextUnformatted("Help:");
+            ImGui::TextUnformatted("    Mouse wheel up/down zooming timeline");
+            ImGui::TextUnformatted("    Mouse wheel left/right moving timeline");
+            ImGui::EndTooltip();
+        }
+        if (overTrackView)
+        {
+            ImGui::BeginTooltip();
+            ImGui::TextUnformatted("Help:");
+            ImGui::TextUnformatted("    Mouse wheel left/right moving timeline");
+            ImGui::EndTooltip();
+        }
+        if (overLegend)
+        {
+            ImGui::BeginTooltip();
+            ImGui::TextUnformatted("Help:");
+            ImGui::TextUnformatted("    Drag track up/down to re-order");
+            ImGui::EndTooltip();
+        }
+        ImGui::PopStyleVar();
+    }
+    // Show help tips end
+
     ImGui::EndGroup();
 
     // handle drag drop
