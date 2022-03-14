@@ -119,7 +119,7 @@
 #define COL_SLOT_ODD        IM_COL32( 58,  58,  58, 255)
 #define COL_SLOT_EVEN       IM_COL32( 64,  64,  64, 255)
 #define COL_SLOT_SELECTED   IM_COL32(255,  64,  64, 255)
-#define COL_SLOT_V_LINE     IM_COL32( 96,  96,  96,  48)
+#define COL_SLOT_V_LINE     IM_COL32( 32,  32,  32,  96)
 #define COL_SLIDER_BG       IM_COL32( 32,  32,  48, 255)
 #define COL_SLIDER_IN       IM_COL32(192, 192, 192, 255)
 #define COL_SLIDER_MOVING   IM_COL32(144, 144, 144, 255)

@@ -330,7 +330,7 @@ int64_t Clip::Cropping(int64_t diff, int type)
     if (!timeline)
         return new_diff;
     auto track = timeline->FindTrackByClipID(mID);
-    if (!track)
+    if (!track || track->mLocked)
         return new_diff;
     float frame_duration = (timeline->mFrameRate.den > 0 && timeline->mFrameRate.num > 0) ? timeline->mFrameRate.den * 1000.0 / timeline->mFrameRate.num : 40;
     if (type == 0)
@@ -429,7 +429,7 @@ void Clip::Cutting(int64_t pos)
     if (!timeline)
         return;
     auto track = timeline->FindTrackByClipID(mID);
-    if (!track)
+    if (!track || track->mLocked)
         return;
     
     // calculate new pos
@@ -529,6 +529,19 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
         }
     }
 
+    // check all selected clip's lock status
+    for (auto clip : timeline->m_Clips)
+    {
+        if (clip->bSelected)
+        {
+            auto track = timeline->FindTrackByClipID(clip->mID);
+            if (track && track->mLocked)
+            {
+                return index;
+            }
+        }
+    }
+    
     // get all clip time march point
     std::vector<int64_t> selected_start_points;
     std::vector<int64_t> selected_end_points;
@@ -4186,12 +4199,12 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         // cropping rect so track bars are not visible in the legend on the left when scrolled
         draw_list->PushClipRect(childFramePos + ImVec2(float(legendWidth), 0.f), childFramePos + childFrameSize);
         // vertical time lines in content area
-        //for (auto i = timeline->GetStart(); i <= timeline->GetEnd(); i += timeStep)
-        //{
-        //    drawLineContent(i, int(contentHeight));
-        //}
-        //drawLineContent(timeline->GetStart(), int(contentHeight));
-        //drawLineContent(timeline->GetEnd(), int(contentHeight));
+        for (auto i = timeline->GetStart(); i <= timeline->GetEnd(); i += timeStep)
+        {
+            drawLineContent(i, int(contentHeight));
+        }
+        drawLineContent(timeline->GetStart(), int(contentHeight));
+        drawLineContent(timeline->GetEnd(), int(contentHeight));
 
         // track
         customHeight = 0;
@@ -4990,26 +5003,29 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         action["media_type"] = imgui_json::number(clip->mType);
         action["clip_id"] = imgui_json::number(clipId);
         auto track = timeline->FindTrackByClipID(clipId);
-        if (track)
+        if (track && !track->mLocked)
         {
             track->DeleteClip(clipId);
             action["from_track_id"] = imgui_json::number(track->mID);
+            timeline->DeleteClip(clipId);
+            timeline->mUiActions.push_back(std::move(action));
         }
-        timeline->DeleteClip(clipId);
-        timeline->mUiActions.push_back(std::move(action));
     }
     if (delTrackEntry != -1)
     {
         MediaTrack* track = timeline->m_Tracks[delTrackEntry];
-        MEDIA_TYPE trackMediaType = track->mType;
-        int64_t delTrackId = timeline->DeleteTrack(delTrackEntry);
-        if (delTrackId != -1)
+        if (track && !track->mLocked)
         {
-            imgui_json::value action;
-            action["action"] = "REMOVE_TRACK";
-            action["media_type"] = imgui_json::number(trackMediaType);
-            action["track_id"] = imgui_json::number(delTrackId);
-            timeline->mUiActions.push_back(std::move(action));
+            MEDIA_TYPE trackMediaType = track->mType;
+            int64_t delTrackId = timeline->DeleteTrack(delTrackEntry);
+            if (delTrackId != -1)
+            {
+                imgui_json::value action;
+                action["action"] = "REMOVE_TRACK";
+                action["media_type"] = imgui_json::number(trackMediaType);
+                action["track_id"] = imgui_json::number(delTrackId);
+                timeline->mUiActions.push_back(std::move(action));
+            }
         }
     }
     if (removeEmptyTrack)
