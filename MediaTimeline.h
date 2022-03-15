@@ -15,6 +15,7 @@
 #include <list>
 #include <chrono>
 
+#define ICON_MEDIA_TIMELINE u8"\uf538"
 #define ICON_MEDIA_BANK     u8"\ue907"
 #define ICON_MEDIA_TRANS    u8"\ue927"
 #define ICON_MEDIA_FILTERS  u8"\ue663"
@@ -23,7 +24,7 @@
 #define ICON_MEDIA_VIDEO    u8"\ue04b"
 #define ICON_MEDIA_AUDIO    u8"\ue050"
 #define ICON_MEDIA_WAVE     u8"\ue495"
-#define ICON_MEDIA_DIAGNOSIS u8"\uf0f0"
+#define ICON_MEDIA_DIAGNOSIS u8"\uf551"
 #define ICON_SLIDER_MINIMUM u8"\uf424"
 #define ICON_SLIDER_MAXIMUM u8"\uf422"
 #define ICON_VIEW           u8"\uf06e"

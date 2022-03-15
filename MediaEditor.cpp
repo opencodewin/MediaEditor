@@ -39,8 +39,6 @@ static const char* MainWindowTabNames[] = {
     ICON_MEDIA_PREVIEW,
     ICON_MEDIA_VIDEO,
     ICON_MUSIC,
-    ICON_MEDIA_DIAGNOSIS,
-    ICON_BRAIN
 };
 
 static const char* MainWindowTabTooltips[] = 
@@ -48,8 +46,17 @@ static const char* MainWindowTabTooltips[] =
     "Meida Preview",
     "Video Editor",
     "Audio Editor",
+};
+
+static const char* BottomWindowTabNames[] = {
+    ICON_MEDIA_TIMELINE,
+    ICON_MEDIA_DIAGNOSIS,
+};
+
+static const char* BottomWindowTabTooltips[] = 
+{
+    "Meida Timeline",
     "Meida Analyse",
-    "Meida AI"
 };
 
 static const char* VideoEditorTabNames[] = {
@@ -103,6 +110,7 @@ static bool quit_save_confirm = true;
 static int ConfigureIndex = 1;              // default timeline setting
 static int ControlPanelIndex = 0;           // default Media Bank window
 static int MainWindowIndex = 0;             // default Media Preview window
+static int BottomWindowIndex = 0;           // default Media Timeline window
 static int VideoEditorWindowIndex = 0;      // default Video Filter window
 static int AudioEditorWindowIndex = 0;      // default Audio Filter window
 static int LastMainWindowIndex = 0;
@@ -240,6 +248,20 @@ static int EditingOverlap(int type, void* handle)
 }
 
 // Utils functions
+static bool ExpendButton(ImDrawList *draw_list, ImVec2 pos, bool expand = true)
+{
+    ImGuiIO &io = ImGui::GetIO();
+    ImRect delRect(pos, ImVec2(pos.x + 16, pos.y + 16));
+    bool overDel = delRect.Contains(io.MousePos);
+    int delColor = IM_COL32_WHITE;
+    float midy = pos.y + 16 / 2 - 0.5f;
+    float midx = pos.x + 16 / 2 - 0.5f;
+    draw_list->AddRect(delRect.Min, delRect.Max, delColor, 4);
+    draw_list->AddLine(ImVec2(delRect.Min.x + 3, midy), ImVec2(delRect.Max.x - 4, midy), delColor, 2);
+    if (expand) draw_list->AddLine(ImVec2(midx, delRect.Min.y + 3), ImVec2(midx, delRect.Max.y - 4), delColor, 2);
+    return overDel;
+}
+
 void ShowVideoWindow(ImTextureID texture, ImVec2& pos, ImVec2& size)
 {
     if (texture)
@@ -2322,15 +2344,16 @@ static void ShowAudioEditorWindow(ImDrawList *draw_list)
     ImGui::EndChild();
 }
 
+
 /****************************************************************************************
  * 
  * Media Analyse windows
  *
  ***************************************************************************************/
-static void ShowMediaAnalyseWindow(ImDrawList *draw_list)
+static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
 {
-    ImGui::SetWindowFontScale(1.2);
-    ImGui::Indent(20);
+    ImGui::SetWindowFontScale(1.5);
+    ImGui::Dummy(ImVec2(100, 100));
     ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4, 0.4, 0.8, 0.8));
     ImGui::TextUnformatted("Meida Analyse");
@@ -2339,6 +2362,7 @@ static void ShowMediaAnalyseWindow(ImDrawList *draw_list)
     ImGui::SetWindowFontScale(1.0);
 }
 
+#if 0
 /****************************************************************************************
  * 
  * Media AI windows
@@ -2355,6 +2379,7 @@ static void ShowMediaAIWindow(ImDrawList *draw_list)
     ImGui::PopStyleVar();
     ImGui::SetWindowFontScale(1.0);
 }
+#endif
 
 /****************************************************************************************
  * 
@@ -2521,6 +2546,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     static const int numControlPanelTabs = sizeof(ControlPanelTabNames)/sizeof(ControlPanelTabNames[0]);
     static const int numMainWindowTabs = sizeof(MainWindowTabNames)/sizeof(MainWindowTabNames[0]);
+    static const int numBottomWindowTabs = sizeof(BottomWindowTabNames)/sizeof(BottomWindowTabNames[0]);
     bool multiviewport = io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable;
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
@@ -2751,8 +2777,8 @@ bool Application_Frame(void * handle, bool app_will_quit)
                     case 0: ShowMediaPreviewWindow(draw_list); break;
                     case 1: ShowVideoEditorWindow(draw_list); break;
                     case 2: ShowAudioEditorWindow(draw_list); break;
-                    case 3: ShowMediaAnalyseWindow(draw_list); break;
-                    case 4: ShowMediaAIWindow(draw_list); break;
+                    //case 3: ShowMediaAnalyseWindow(draw_list); break;
+                    //case 4: ShowMediaAIWindow(draw_list); break;
                     default: break;
                 }
             }
@@ -2767,8 +2793,21 @@ bool Application_Frame(void * handle, bool app_will_quit)
     ImGui::SetNextWindowPos(panel_pos, ImGuiCond_Always);
     bool _expanded = expanded;
     if (ImGui::BeginChild("##Timeline", panel_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings))
-    {        
-        DrawTimeLine(timeline,  &_expanded);
+    {
+        ImDrawList *draw_list = ImGui::GetWindowDrawList();
+        bool overExpanded = ExpendButton(draw_list, ImVec2(panel_pos.x + 2, panel_pos.y + 2), !_expanded);
+        if (overExpanded && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+            _expanded = !_expanded;
+        ImGui::SetCursorScreenPos(panel_pos + ImVec2(32, 0));
+        ImGui::TabLabels(numBottomWindowTabs, BottomWindowTabNames, BottomWindowIndex, BottomWindowTabTooltips , false, true, nullptr, nullptr, false, false, nullptr, nullptr);
+        ImGui::SetCursorScreenPos(panel_pos);
+        switch (BottomWindowIndex)
+        {
+            case 0: DrawTimeLine(timeline,  &_expanded); break;
+            case 1: ShowMediaAnalyseWindow(timeline,  &_expanded); break;
+            default: break;
+        }
+        
         if (expanded != _expanded)
         {
             if (!_expanded)

@@ -45,20 +45,6 @@ static std::string MillisecToString(int64_t millisec, int show_millisec = 0)
     return oss.str();
 }
 
-static bool ExpendButton(ImDrawList *draw_list, ImVec2 pos, bool expand = true)
-{
-    ImGuiIO &io = ImGui::GetIO();
-    ImRect delRect(pos, ImVec2(pos.x + 16, pos.y + 16));
-    bool overDel = delRect.Contains(io.MousePos);
-    int delColor = IM_COL32_WHITE;
-    float midy = pos.y + 16 / 2 - 0.5f;
-    float midx = pos.x + 16 / 2 - 0.5f;
-    draw_list->AddRect(delRect.Min, delRect.Max, delColor, 4);
-    draw_list->AddLine(ImVec2(delRect.Min.x + 3, midy), ImVec2(delRect.Max.x - 4, midy), delColor, 2);
-    if (expand) draw_list->AddLine(ImVec2(midx, delRect.Min.y + 3), ImVec2(midx, delRect.Max.y - 4), delColor, 2);
-    return overDel;
-}
-
 static bool TimelineButton(ImDrawList *draw_list, const char * label, ImVec2 pos, ImVec2 size, std::string tooltips = "", ImVec4 hover_color = ImVec4(0.5f, 0.5f, 0.75f, 1.0f))
 {
     ImGuiIO &io = ImGui::GetIO();
@@ -4045,7 +4031,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         controlHeight += int(timeline->GetCustomHeight(i));
 
     // draw backbround
-    draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DARK_TWO);
+    //draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DARK_TWO);
 
     ImGui::BeginGroup();
     bool isFocused = ImGui::IsWindowFocused();
@@ -4055,11 +4041,11 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
     {
         // minimum view
         ImGui::InvisibleButton("canvas_minimum", ImVec2(timline_size.x - canvas_pos.x, (float)HeadHeight));
-        draw_list->AddRectFilled(canvas_pos, ImVec2(timline_size.x + canvas_pos.x, canvas_pos.y + HeadHeight), COL_DARK_ONE, 0);
+        draw_list->AddRectFilled(canvas_pos + ImVec2(96, 0), ImVec2(timline_size.x + canvas_pos.x, canvas_pos.y + HeadHeight), COL_DARK_ONE, 0);
         auto info_str = MillisecToString(duration, 3);
         info_str += " / ";
         info_str += std::to_string(trackCount) + " entries";
-        draw_list->AddText(ImVec2(canvas_pos.x + 40, canvas_pos.y + 2), IM_COL32_WHITE, info_str.c_str());
+        draw_list->AddText(ImVec2(canvas_pos.x + 96, canvas_pos.y + 2), IM_COL32_WHITE, info_str.c_str());
         if (!trackCount && *expanded)
         {
             ImGui::SetWindowFontScale(4);
@@ -4082,7 +4068,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         ImVec2 HorizonScrollBarSize(timline_size.x, scrollSize);
         ImVec2 VerticalScrollBarSize(scrollSize / 2, canvas_size.y - scrollSize);
         ImGui::InvisibleButton("topBar", headerSize);
-        draw_list->AddRectFilled(canvas_pos, canvas_pos + headerSize, COL_DARK_ONE, 0);
+        draw_list->AddRectFilled(canvas_pos + ImVec2(legendWidth, 0), canvas_pos + headerSize, COL_DARK_ONE, 0);
         if (!trackCount) 
         {
             ImGui::EndGroup();
@@ -5052,14 +5038,6 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             }
         }
         ImGui::EndDragDropTarget();
-    }
-
-    // handle expanded button event
-    if (expanded)
-    {
-        bool overExpanded = ExpendButton(draw_list, ImVec2(canvas_pos.x + 2, canvas_pos.y + 2), !*expanded);
-        if (overExpanded && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
-            *expanded = !*expanded;
     }
 
     // handle delete event
