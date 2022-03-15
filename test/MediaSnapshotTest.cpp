@@ -13,7 +13,8 @@ using namespace std;
 using namespace Logger;
 
 static MediaOverview* g_movr = nullptr;
-static MediaSnapshot* g_msrc = nullptr;
+static SnapshotGeneratorHolder g_ssgen;
+static SnapshotGenerator::ViewerHolder g_ssvw1;
 static double g_windowPos = 0.f;
 static double g_windowSize = 300.f;
 static double g_windowFrames = 14.0f;
@@ -41,6 +42,8 @@ void Application_Initialize(void** handle)
 {
     GetDefaultLogger()
         ->SetShowLevels(DEBUG);
+    GetSnapshotGeneratorLogger()
+        ->SetShowLevels(DEBUG);
 
 #ifdef USE_BOOKMARK
 	// load bookmarks
@@ -60,14 +63,16 @@ void Application_Initialize(void** handle)
     size_t ssCnt = (size_t)ceil(g_windowFrames)+1;
     g_movr = CreateMediaOverview();
     g_movr->SetSnapshotSize(320, 180);
-    g_msrc = CreateMediaSnapshot();
-    g_msrc->SetSnapshotResizeFactor(0.5f, 0.5f);
-    g_msrc->SetCacheFactor(3);
+    g_ssgen = CreateSnapshotGenerator();
+    g_ssgen->SetSnapshotResizeFactor(0.5f, 0.5f);
+    g_ssgen->SetCacheFactor(3);
+    g_ssvw1 = g_ssgen->CreateViewer(0);
 }
 
 void Application_Finalize(void** handle)
 {
-    ReleaseMediaSnapshot(&g_msrc);
+    g_ssgen->ReleaseViewer(g_ssvw1);
+    g_ssgen = nullptr;
     ReleaseMediaOverview(&g_movr);
 #ifdef USE_BOOKMARK
 	// save bookmarks
@@ -100,28 +105,28 @@ bool Application_Frame(void * handle, bool app_will_quit)
         ImGui::Spacing();
 
         float pos = g_windowPos;
-        float minPos = (float)g_msrc->GetVideoMinPos()/1000.f;
-        float vidDur = (float)g_msrc->GetVideoDuration()/1000.f;
+        float minPos = (float)g_ssgen->GetVideoMinPos()/1000.f;
+        float vidDur = (float)g_ssgen->GetVideoDuration()/1000.f;
         if (ImGui::SliderFloat("Position", &pos, minPos, minPos+vidDur, "%.3f"))
         {
             g_windowPos = pos;
         }
 
         float wndSize = g_windowSize;
-        float minWndSize = (float)g_msrc->GetMinWindowSize();
-        float maxWndSize = (float)g_msrc->GetMaxWindowSize();
+        float minWndSize = (float)g_ssgen->GetMinWindowSize();
+        float maxWndSize = (float)g_ssgen->GetMaxWindowSize();
         if (ImGui::SliderFloat("WindowSize", &wndSize, minWndSize, maxWndSize, "%.3f"))
             g_windowSize = wndSize;
         if (ImGui::IsItemDeactivated())
-            g_msrc->ConfigSnapWindow(g_windowSize, g_windowFrames);
+            g_ssgen->ConfigSnapWindow(g_windowSize, g_windowFrames);
 
         ImGui::Spacing();
 
-        vector<MediaSnapshot::ImageHolder> snapshots;
-        if (!g_msrc->GetSnapshots(snapshots, pos))
+        vector<SnapshotGenerator::ImageHolder> snapshots;
+        if (!g_ssvw1->GetSnapshots(pos, snapshots))
             snapshots.clear();
         else
-            g_msrc->UpdateSnapshotTexture(snapshots);
+            g_ssvw1->UpdateSnapshotTexture(snapshots);
 
         float startPos = snapshots.size() > 0 ? (float)snapshots[0]->mTimestampMs/1000 : minPos;
         int snapshotCnt = (int)ceil(g_windowFrames);
@@ -162,15 +167,15 @@ bool Application_Frame(void * handle, bool app_will_quit)
 	{
         if (ImGuiFileDialog::Instance()->IsOk())
 		{
-            g_msrc->Close();
+            g_ssgen->Close();
             string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
             // g_movr->Open(filePathName, 10);
             // g_movr->GetMediaParser()->EnableParseInfo(MediaParser::VIDEO_SEEK_POINTS);
-            // g_msrc->Open(g_movr->GetMediaParser());
-            g_msrc->Open(filePathName);
-            g_windowPos = (float)g_msrc->GetVideoMinPos()/1000.f;
-            g_windowSize = (float)g_msrc->GetVideoDuration()/10000.f;
-            g_msrc->ConfigSnapWindow(g_windowSize, g_windowFrames);
+            // g_ssgen->Open(g_movr->GetMediaParser());
+            g_ssgen->Open(filePathName);
+            g_windowPos = (float)g_ssgen->GetVideoMinPos()/1000.f;
+            g_windowSize = (float)g_ssgen->GetVideoDuration()/10000.f;
+            g_ssgen->ConfigSnapWindow(g_windowSize, g_windowFrames);
         }
         ImGuiFileDialog::Instance()->Close();
     }

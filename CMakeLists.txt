@@ -219,6 +219,7 @@ add_executable(
     media_snapshot_test
     test/MediaSnapshotTest.cpp
     MediaSnapshot.cpp
+    MediaSnapshotGenerator.cpp
     MediaOverview.cpp
     MediaParser.cpp
     FFUtils.cpp
