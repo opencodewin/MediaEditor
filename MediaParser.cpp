@@ -194,6 +194,16 @@ public:
         return m_hMediaInfo;
     }
 
+    bool HasVideo() const override
+    {
+        return m_bestVidStmIdx >= 0;
+    }
+
+    bool HasAudio() const override
+    {
+        return m_bestAudStmIdx >= 0;
+    }
+
     int GetBestVideoStreamIndex() const override
     {
         return m_bestVidStmIdx;
@@ -202,6 +212,20 @@ public:
     int GetBestAudioStreamIndex() const override
     {
         return m_bestAudStmIdx;
+    }
+
+    MediaInfo::VideoStream* GetBestVideoStream() const override
+    {
+        if (m_bestVidStmIdx < 0)
+            return nullptr;
+        return dynamic_cast<MediaInfo::VideoStream*>(m_hMediaInfo->streams[m_bestVidStmIdx].get());
+    }
+
+    MediaInfo::AudioStream* GetBestAudioStream() const override
+    {
+        if (m_bestAudStmIdx < 0)
+            return nullptr;
+        return dynamic_cast<MediaInfo::AudioStream*>(m_hMediaInfo->streams[m_bestAudStmIdx].get());
     }
 
     SeekPointsHolder GetVideoSeekPoints(bool wait) override

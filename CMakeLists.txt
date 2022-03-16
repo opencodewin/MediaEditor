@@ -101,6 +101,7 @@ set(MEDIA_EDITOR_SRCS
     VideoClip.cpp
     MediaOverview.cpp
     MediaSnapshot.cpp
+    SnapshotGenerator.cpp
     MediaParser.cpp
     MediaReader.cpp
     AudioRender_Impl_Sdl2.cpp
@@ -219,7 +220,7 @@ add_executable(
     media_snapshot_test
     test/MediaSnapshotTest.cpp
     MediaSnapshot.cpp
-    MediaSnapshotGenerator.cpp
+    SnapshotGenerator.cpp
     MediaOverview.cpp
     MediaParser.cpp
     FFUtils.cpp

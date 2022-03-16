@@ -2405,7 +2405,7 @@ void Application_Initialize(void** handle)
 
     Logger::GetDefaultLogger()->SetShowLevels(Logger::DEBUG);
     // GetMediaReaderLogger()->SetShowLevels(Logger::DEBUG);
-    // GetMediaSnapshotLogger()->SetShowLevels(Logger::DEBUG);
+    GetSnapshotGeneratorLogger()->SetShowLevels(Logger::DEBUG);
 
     NewTimeline();
 }

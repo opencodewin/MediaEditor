@@ -222,6 +222,39 @@ void MediaItem::UpdateThumbnail()
         }
     }
 }
+
+SnapshotGeneratorHolder MediaItem::GetSnapshotGenerator()
+{
+    if (mMediaType == MEDIA_VIDEO && !mSsGen && mMediaOverview && mMediaOverview->IsOpened())
+    {
+        mSsGen = CreateSnapshotGenerator();
+        mSsGen->Open(mMediaOverview->GetMediaParser());
+        mSsGen->SetSnapshotResizeFactor(0.1, 0.1);
+        mSsGen->SetCacheFactor(9);
+        ConfigSnapshot(mViewWndDur, mPixPerMs);
+    }
+    return mSsGen;
+}
+
+void MediaItem::ConfigSnapshot(int64_t viewWndDur, float pixPerMs)
+{
+    mViewWndDur = viewWndDur;
+    mPixPerMs = pixPerMs;
+    if (mSsGen)
+    {
+        const MediaInfo::VideoStream* video_stream = mSsGen->GetVideoStream();
+        float snapHeight = DEFAULT_VIDEO_TRACK_HEIGHT;  // TODO: video clip UI height is hard coded here, should be fixed later (wyvern)
+        MediaInfo::Ratio displayAspectRatio = {
+            (int32_t)(video_stream->width * video_stream->sampleAspectRatio.num), (int32_t)(video_stream->height * video_stream->sampleAspectRatio.den) };
+        float snapWidth = snapHeight * displayAspectRatio.num / displayAspectRatio.den;
+        double windowSize = (double)viewWndDur / 1000;
+        if (windowSize > video_stream->duration)
+            windowSize = video_stream->duration;
+        double snapsInViewWindow = std::max((float)((double)pixPerMs*windowSize * 1000 / snapWidth), 1.f);
+        if (!mSsGen->ConfigSnapWindow(windowSize, snapsInViewWindow))
+            throw std::runtime_error(mSsGen->GetError());
+    }
+}
 } //namespace MediaTimeline
 
 namespace MediaTimeline
@@ -229,7 +262,7 @@ namespace MediaTimeline
 /***********************************************************************************************************
  * Clip Struct Member Functions
  ***********************************************************************************************************/
-Clip::Clip(int64_t start, int64_t end, int64_t id, MediaOverview * overview, void * handle)
+Clip::Clip(int64_t start, int64_t end, int64_t id, MediaParserHolder mediaParser, void * handle)
 {
     TimeLine * timeline = (TimeLine *)handle;
     mID = timeline ? timeline->m_IDGenerator.GenerateID() : ImGui::get_current_time_usec();
@@ -238,7 +271,7 @@ Clip::Clip(int64_t start, int64_t end, int64_t id, MediaOverview * overview, voi
     mEnd = end;
     mLength = end - start;
     mHandle = handle;
-    mOverview = overview;
+    mMediaParser = mediaParser;
 }
 
 Clip::~Clip()
@@ -443,19 +476,23 @@ void Clip::Cutting(int64_t pos)
     {
         case MEDIA_VIDEO:
         {
-            auto new_video_clip = new VideoClip(mStart, mEnd, mMediaID, mName, mOverview, timeline);
+            VideoClip* vidclip = dynamic_cast<VideoClip*>(this);
+            SnapshotGenerator::ViewerHolder hViewer = vidclip->mSsViewer->CreateViewer();
+            auto new_video_clip = new VideoClip(mStart, mEnd, mMediaID, mName, mMediaParser, hViewer, timeline);
             new_clip = new_video_clip;
         }
         break;
         case MEDIA_AUDIO:
         {
-            auto new_audio_clip = new AudioClip(mStart, mEnd, mMediaID, mName, mOverview, timeline);
+            AudioClip* audclip = dynamic_cast<AudioClip*>(this);
+            auto new_audio_clip = new AudioClip(mStart, mEnd, mMediaID, mName, audclip->mOverview, timeline);
             new_clip = new_audio_clip;
         }
         break;
         case MEDIA_PICTURE:
         {
-            auto new_image_clip = new ImageClip(mStart, mEnd, mMediaID, mName, mOverview, timeline);
+            ImageClip* imgclip = dynamic_cast<ImageClip*>(this);
+            auto new_image_clip = new ImageClip(mStart, mEnd, mMediaID, mName, imgclip->mOverview, timeline);
             new_clip = new_image_clip;
             new_start_offset = 0;
             adj_end_offset = 0;
@@ -463,7 +500,7 @@ void Clip::Cutting(int64_t pos)
         break;
         case MEDIA_TEXT:
         {
-            auto new_text_clip = new TextClip(mStart, mEnd, mMediaID, mName, mOverview, timeline);
+            auto new_text_clip = new TextClip(mStart, mEnd, mMediaID, mName, mMediaParser, timeline);
             new_clip = new_text_clip;
         }
         break;
@@ -812,40 +849,30 @@ bool Clip::isLinkedWith(Clip * clip)
 }
 
 // VideoClip Struct Member Functions
-VideoClip::VideoClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle)
-    : Clip(start, end, id, overview, handle)
+VideoClip::VideoClip(int64_t start, int64_t end, int64_t id, std::string name, MediaParserHolder hParser, SnapshotGenerator::ViewerHolder hViewer, void* handle)
+    : Clip(start, end, id, hParser, handle)
 {
-    if (handle && overview)
+    if (handle && hViewer)
     {
-        mSnapshot = CreateMediaSnapshot();
-        if (!mSnapshot)
+        mSsViewer = hViewer;
+        if (!mSsViewer)
             return;
         mType = MEDIA_VIDEO;
         mName = name;
-        MediaInfo::InfoHolder info = mOverview->GetMediaInfo();
-        const MediaInfo::VideoStream* video_stream = mOverview->GetVideoStream();
+        MediaInfo::InfoHolder info = hParser->GetMediaInfo();
+        const MediaInfo::VideoStream* video_stream = hParser->GetBestVideoStream();
         if (!info || !video_stream)
         {
-            ReleaseMediaSnapshot(&mSnapshot);
+            hViewer->Release();
             return;
         }
         mPath = info->url;
-        MediaParserHolder holder = mOverview->GetMediaParser();
-        mSnapshot->Open(holder);
-        if (mSnapshot->IsOpened())
-        {
-            mClipFrameRate = video_stream->avgFrameRate;
-            double window_size = 1.0f;
-            mSnapshot->SetCacheFactor(3.0);
-            mSnapshot->SetSnapshotResizeFactor(0.1, 0.1);
-            mSnapshot->ConfigSnapWindow(window_size, 1);
-        }
     }
 }
 
 VideoClip::~VideoClip()
 {
-    ReleaseMediaSnapshot(&mSnapshot);
+    mSsViewer->Release();
     for (auto& snap : mVideoSnapshots)
     {
         if (snap.texture) { ImGui::ImDestroyTexture(snap.texture); snap.texture = nullptr; }
@@ -881,7 +908,8 @@ Clip* VideoClip::Load(const imgui_json::value& value, void * handle)
     if (item)
     {
         // media is in bank
-        VideoClip * new_clip = new VideoClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, handle);
+        SnapshotGenerator::ViewerHolder hViewer = item->GetSnapshotGenerator()->CreateViewer();
+        VideoClip * new_clip = new VideoClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview->GetMediaParser(), hViewer, handle);
         if (new_clip)
         {
             Clip::Load(new_clip, value);
@@ -927,9 +955,9 @@ void VideoClip::SetViewWindowStart(int64_t millisec)
     mClipViewStartPos = mStartOffset;
     if (millisec > mStart)
         mClipViewStartPos += millisec-mStart;
-    if (!mSnapshot->GetSnapshots(mSnapImages, (double)mClipViewStartPos/1000))
-        throw std::runtime_error(mSnapshot->GetError());
-    mSnapshot->UpdateSnapshotTexture(mSnapImages);
+    if (!mSsViewer->GetSnapshots((double)mClipViewStartPos/1000, mSnapImages))
+        throw std::runtime_error(mSsViewer->GetError());
+    mSsViewer->UpdateSnapshotTexture(mSnapImages);
 }
 
 void VideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect)
@@ -975,22 +1003,21 @@ void VideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
             break;
     }
     GetMediaSnapshotLogger()->Log(Logger::DEBUG) << "[1]<<<<< End display snapshot" << std::endl;
-    mSnapshot->ReleaseSnapshotTexture();
 }
 
 void VideoClip::CalcDisplayParams()
 {
-    const MediaInfo::VideoStream* video_stream = mOverview->GetVideoStream();
+    const MediaInfo::VideoStream* video_stream = mMediaParser->GetBestVideoStream();
     mSnapHeight = mTrackHeight;
     MediaInfo::Ratio displayAspectRatio = {
         (int32_t)(video_stream->width * video_stream->sampleAspectRatio.num), (int32_t)(video_stream->height * video_stream->sampleAspectRatio.den) };
     mSnapWidth = (float)mTrackHeight * displayAspectRatio.num / displayAspectRatio.den;
-    double windowSize = (double)mViewWndDur / 1000;
-    if (windowSize > video_stream->duration)
-        windowSize = video_stream->duration;
-    mSnapsInViewWindow = std::max((float)((double)mPixPerMs*windowSize * 1000 / mSnapWidth), 1.f);
-    if (!mSnapshot->ConfigSnapWindow(windowSize, mSnapsInViewWindow))
-        throw std::runtime_error(mSnapshot->GetError());
+    // double windowSize = (double)mViewWndDur / 1000;
+    // if (windowSize > video_stream->duration)
+    //     windowSize = video_stream->duration;
+    // mSnapsInViewWindow = std::max((float)((double)mPixPerMs*windowSize * 1000 / mSnapWidth), 1.f);
+    // if (!mSnapshot->ConfigSnapWindow(windowSize, mSnapsInViewWindow))
+    //     throw std::runtime_error(mSnapshot->GetError());
 }
 
 void VideoClip::Save(imgui_json::value& value)
@@ -1003,20 +1030,19 @@ void VideoClip::Save(imgui_json::value& value)
 
 // AudioClip Struct Member Functions
 AudioClip::AudioClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle)
-    : Clip(start, end, id, overview, handle)
+    : Clip(start, end, id, overview->GetMediaParser(), handle), mOverview(overview)
 {
     if (handle && overview)
     {
         mType = MEDIA_AUDIO;
         mName = name;
-        MediaInfo::InfoHolder info = mOverview->GetMediaInfo();
-        const MediaInfo::AudioStream* audio_stream = mOverview->GetAudioStream();
+        MediaInfo::InfoHolder info = mMediaParser->GetMediaInfo();
+        const MediaInfo::AudioStream* audio_stream = mMediaParser->GetBestAudioStream();
         if (!info || !audio_stream)
         {
             return;
         }
         mPath = info->url;
-        MediaParserHolder holder = mOverview->GetMediaParser();
         mWaveform = overview->GetWaveform();
     }
 }
@@ -1075,7 +1101,7 @@ void AudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
             drawList->PopClipRect();
         }        
     }
- }
+}
 
 Clip * AudioClip::Load(const imgui_json::value& value, void * handle)
 {
@@ -1137,7 +1163,7 @@ void AudioClip::Save(imgui_json::value& value)
 
 // ImageClip Struct Member Functions
 ImageClip::ImageClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle)
-    : Clip(start, end, id, overview, handle)
+    : Clip(start, end, id, overview->GetMediaParser(), handle), mOverview(overview)
 {
     if (overview)
     {
@@ -1280,20 +1306,19 @@ void ImageClip::Save(imgui_json::value& value)
 }
 
 // TextClip Struct Member Functions
-TextClip::TextClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle)
-    : Clip(start, end, id, overview, handle)
+TextClip::TextClip(int64_t start, int64_t end, int64_t id, std::string name, MediaParserHolder hParser, void* handle)
+    : Clip(start, end, id, hParser, handle)
 {
-    if (handle && overview)
+    if (handle && hParser)
     {
         mType = MEDIA_TEXT;
         mName = name;
-        MediaInfo::InfoHolder info = mOverview->GetMediaInfo();
+        MediaInfo::InfoHolder info = hParser->GetMediaInfo();
         if (!info)
         {
             return;
         }
         mPath = info->url;
-        MediaParserHolder holder = mOverview->GetMediaParser();
         // TODO::Dicky
     }
 }
@@ -1335,7 +1360,7 @@ Clip * TextClip::Load(const imgui_json::value& value, void * handle)
 
     if (item)
     {
-        TextClip * new_clip = new TextClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, handle);
+        TextClip * new_clip = new TextClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview->GetMediaParser(), handle);
         if (new_clip)
         {
             Clip::Load(new_clip, value);
@@ -1420,7 +1445,7 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
         Logger::Log(Logger::Error) << "Create Editing Video Clip" << std::endl;
         return;
     }
-    if (!mSnapshot->Open(vidclip->mOverview->GetMediaParser()))
+    if (!mSnapshot->Open(vidclip->mMediaParser))
     {
         Logger::Log(Logger::Error) << mSnapshot->GetError() << std::endl;
         return;
@@ -1430,7 +1455,7 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
     mSnapshot->Seek((double)mStartOffset / 1000);
 
     // open video reader
-    if (mMediaReader->Open(vidclip->mOverview->GetMediaParser()))
+    if (mMediaReader->Open(vidclip->mMediaParser))
     {
         if (mMediaReader->ConfigVideoReader(1.f, 1.f))
         {
@@ -2784,9 +2809,9 @@ TimeLine::~TimeLine()
         mAudioFusionBluePrint->Finalize();
         delete mAudioFusionBluePrint;
     }
-    for (auto item : media_items) delete item;
     for (auto track : m_Tracks) delete track;
     for (auto clip : m_Clips) delete clip;
+    for (auto item : media_items) delete item;
 
     if (mVideoFilterInputTexture) { ImGui::ImDestroyTexture(mVideoFilterInputTexture); mVideoFilterInputTexture = nullptr; }
     if (mVideoFilterOutputTexture) { ImGui::ImDestroyTexture(mVideoFilterOutputTexture); mVideoFilterOutputTexture = nullptr;  }
@@ -3736,7 +3761,7 @@ int TimeLine::Load(const imgui_json::value& value)
         for (auto clip : track->m_Clips)
         {
             DataLayer::VideoClipHolder vidClip = vidTrack->AddNewClip(
-                clip->mID, clip->mOverview->GetMediaParser(),
+                clip->mID, clip->mMediaParser,
                 clip->mStart, clip->mStartOffset, clip->mEndOffset);
 
             BluePrintVideoFilter* bpvf = new BluePrintVideoFilter();
@@ -3841,7 +3866,7 @@ void TimeLine::PerformUiActions()
             int64_t clipId = action["clip_id"].get<imgui_json::number>();
             Clip* clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
             DataLayer::VideoClipHolder vidClip(new DataLayer::VideoClip(
-                clip->mID, clip->mOverview->GetMediaParser(),
+                clip->mID, clip->mMediaParser,
                 vidTrack->OutWidth(), vidTrack->OutHeight(), vidTrack->FrameRate(),
                 clip->mStart, clip->mStartOffset, clip->mEndOffset));
             vidTrack->InsertClip(vidClip);
@@ -4033,6 +4058,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
     if (timeline->visibleTime != newVisibleTime)
     {
         timeline->visibleTime = newVisibleTime;
+        for (auto& item : timeline->media_items)
+            item->ConfigSnapshot(timeline->visibleTime, timeline->msPixelWidthTarget);
         for (auto &track : timeline->m_Tracks)
             track->ConfigViewWindow(timeline->visibleTime, timeline->msPixelWidthTarget);
     }
@@ -4889,7 +4916,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                 } 
                 else if (item->mMediaType == MEDIA_TEXT)
                 {
-                    TextClip * new_text_clip = new TextClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, timeline);
+                    TextClip * new_text_clip = new TextClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview->GetMediaParser(), timeline);
                     action["clip_id"] = imgui_json::number(new_text_clip->mID);
                     timeline->m_Clips.push_back(new_text_clip);
                     // TODO::Dicky add text support
@@ -4904,7 +4931,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                     const MediaInfo::AudioStream* audio_stream = item->mMediaOverview->GetAudioStream();
                     if (video_stream)
                     {
-                        new_video_clip = new VideoClip(item->mStart, item->mEnd, item->mID, item->mName + ":Video", item->mMediaOverview, timeline);
+                        SnapshotGenerator::ViewerHolder hViewer = item->GetSnapshotGenerator()->CreateViewer();
+                        new_video_clip = new VideoClip(item->mStart, item->mEnd, item->mID, item->mName + ":Video", item->mMediaOverview->GetMediaParser(), hViewer, timeline);
                         action["clip_id"] = imgui_json::number(new_video_clip->mID);
                         timeline->m_Clips.push_back(new_video_clip);
                         bool can_insert_clip = track ? track->CanInsertClip(new_video_clip, mouseTime) : false;

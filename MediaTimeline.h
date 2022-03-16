@@ -175,9 +175,14 @@ struct MediaItem
     MediaOverview * mMediaOverview;
     MEDIA_TYPE mMediaType {MEDIA_UNKNOWN};
     std::vector<ImTextureID> mMediaThumbnail;
+    SnapshotGeneratorHolder mSsGen;
+    int64_t mViewWndDur;
+    float mPixPerMs;
     MediaItem(const std::string& name, const std::string& path, MEDIA_TYPE type, void* handle);
     ~MediaItem();
     void UpdateThumbnail();
+    SnapshotGeneratorHolder GetSnapshotGenerator();
+    void ConfigSnapshot(int64_t viewWndDur, float pixPerMs);
 };
 
 struct VideoSnapshotInfo
@@ -240,15 +245,16 @@ struct Clip
     bool bEditing               {false};            // clip is Editing by double click selected, project saved
     std::mutex mLock;                               // clip mutex, not using yet
     void * mHandle              {nullptr};          // clip belong to timeline 
-    MediaOverview * mOverview   {nullptr};          // clip media overview
-    MediaReader* mMediaReader   {nullptr};          // clip media reader
+    MediaParserHolder mMediaParser;
+    // MediaOverview * mOverview   {nullptr};          // clip media overview
+    // MediaReader* mMediaReader   {nullptr};          // clip media reader
     int64_t mViewWndDur         {0};
     float mPixPerMs             {0};
     int mTrackHeight            {0};
 
     imgui_json::value mFilterBP;                    // clip filter blue print, project saved
 
-    Clip(int64_t start, int64_t end, int64_t id, MediaOverview * overview, void * handle);
+    Clip(int64_t start, int64_t end, int64_t id, MediaParserHolder mediaParser, void * handle);
     virtual ~Clip();
 
     int64_t Moving(int64_t diff, int mouse_track);
@@ -268,12 +274,13 @@ struct Clip
 
 struct VideoClip : Clip
 {
-    MediaSnapshot* mSnapshot {nullptr};                 // clip snapshot handle
+    // MediaSnapshot* mSnapshot {nullptr};                 // clip snapshot handle
+    SnapshotGenerator::ViewerHolder mSsViewer;
     std::vector<VideoSnapshotInfo> mVideoSnapshotInfos; // clip snapshots info, with all croped range
     std::list<Snapshot> mVideoSnapshots;                // clip snapshots, including texture and timestamp info
     MediaInfo::Ratio mClipFrameRate {25, 1};            // clip Frame rate, project saved
 
-    VideoClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle);
+    VideoClip(int64_t start, int64_t end, int64_t id, std::string name, MediaParserHolder hParser, SnapshotGenerator::ViewerHolder viewer, void* handle);
     ~VideoClip();
 
     void Seek() override;
@@ -292,9 +299,9 @@ private:
 private:
     float mSnapWidth                {0};
     float mSnapHeight               {0};
-    float mSnapsInViewWindow        {0};
+    // float mSnapsInViewWindow        {0};
     int64_t mClipViewStartPos;
-    std::vector<MediaSnapshot::ImageHolder> mSnapImages;
+    std::vector<SnapshotGenerator::ImageHolder> mSnapImages;
 };
 
 struct AudioClip : Clip
@@ -303,6 +310,7 @@ struct AudioClip : Clip
     int mAudioSampleRate {44100};           // clip audio sample rate, project saved
     AudioRender::PcmFormat mAudioFormat {AudioRender::PcmFormat::FLOAT32}; // clip audio type, project saved
     MediaOverview::WaveformHolder mWaveform {nullptr};  // clip audio snapshot
+    MediaOverview * mOverview {nullptr};
 
     AudioClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle);
     ~AudioClip();
@@ -320,6 +328,7 @@ struct ImageClip : Clip
     int mWidth          {0};        // image width, project saved
     int mHeight         {0};        // image height, project saved
     int mColorFormat    {0};        // image color format, project saved
+    MediaOverview * mOverview   {nullptr};
 
     ImageClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle);
     ~ImageClip();
@@ -347,7 +356,7 @@ private:
 
 struct TextClip : Clip
 {
-    TextClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle);
+    TextClip(int64_t start, int64_t end, int64_t id, std::string name, MediaParserHolder hParser, void* handle);
     ~TextClip();
 
     void Seek();

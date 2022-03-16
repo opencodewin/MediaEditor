@@ -75,6 +75,9 @@ struct SnapshotGenerator
     virtual MediaParserHolder GetMediaParser() const = 0;
     virtual void Close() = 0;
 
+    struct Viewer;
+    using ViewerHolder = std::shared_ptr<Viewer>;
+
     struct Viewer
     {
         virtual ~Viewer() {}
@@ -82,11 +85,15 @@ struct SnapshotGenerator
         virtual double GetCurrWindowPos() const = 0;
         virtual bool GetSnapshots(double startPos, std::vector<ImageHolder>& snapshots) = 0;
         virtual bool UpdateSnapshotTexture(std::vector<ImageHolder>& snapshots) = 0;
-    };
-    using ViewerHolder = std::shared_ptr<Viewer>;
 
-    virtual ViewerHolder CreateViewer(double pos) = 0;
-    virtual bool ReleaseViewer(ViewerHolder& viewer) = 0;
+        virtual ViewerHolder CreateViewer(double pos = 0) = 0;
+        virtual void Release() = 0;
+
+        virtual std::string GetError() const = 0;
+    };
+
+    virtual ViewerHolder CreateViewer(double pos = 0) = 0;
+    virtual void ReleaseViewer(ViewerHolder& viewer) = 0;
 
     virtual bool IsOpened() const = 0;
     virtual bool HasVideo() const = 0;
