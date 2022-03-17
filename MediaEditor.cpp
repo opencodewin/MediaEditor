@@ -5,6 +5,11 @@
 #include <imgui_json.h>
 #include <ImGuiFileDialog.h>
 #include <ImGuiTabWindow.h>
+#if IMGUI_VULKAN_SHADER
+#include <Histogram_vulkan.h>
+#include <Waveform_vulkan.h>
+#include <CIE_vulkan.h>
+#endif
 #include "MediaTimeline.h"
 #include "FFUtils.h"
 #include "Logger.h"
@@ -96,6 +101,25 @@ struct MediaEditorSettings
     std::string project_path;               // Editor Recently project file path
     int BankViewStyle {0};                  // Bank view style type, 0 = icons, 1 = tree vide, and ... 
     bool ShowHelpTooltips {false};          // Show UI help tool tips
+
+    // Histogram Scope tools
+    bool HistogramLog {false};
+    float HistogramScale {0.1};
+
+    // Waveform Scope tools
+    bool WaveformMirror {true};
+    bool WaveformSeparate {false};
+    float WaveformIntensity {2.0};
+
+    // CIE Scope tools
+    int CIEColorSystem {ImGui::Rec709system};
+    int CIEMode {ImGui::XYY};
+    int CIEGamuts {ImGui::Rec2020system};
+    float CIEContrast {0.75};
+    float CIEIntensity {0.01};
+    bool CIECorrectGamma {false};
+    bool CIEShowColor {true};
+
     MediaEditorSettings() {}
 };
 
@@ -107,7 +131,7 @@ static MediaEditorSettings g_new_setting;
 static imgui_json::value g_project;
 static bool quit_save_confirm = true;
 
-static int ConfigureIndex = 1;              // default timeline setting
+static int ConfigureIndex = 0;              // default timeline setting
 static int ControlPanelIndex = 0;           // default Media Bank window
 static int MainWindowIndex = 0;             // default Media Preview window
 static int BottomWindowIndex = 0;           // default Media Timeline window
@@ -121,6 +145,20 @@ static float ui_breathing = 1.0f;
 static float ui_breathing_step = 0.01;
 static float ui_breathing_min = 0.5;
 static float ui_breathing_max = 1.0;
+
+#if IMGUI_VULKAN_SHADER
+static ImGui::Histogram_vulkan * m_histogram {nullptr};
+static ImGui::Waveform_vulkan * m_waveform {nullptr};
+static ImGui::CIE_vulkan * m_cie {nullptr};
+#endif
+
+static ImGui::ImMat mat_histogram;
+
+static ImGui::ImMat mat_waveform;
+static ImTextureID waveform_texture {nullptr};
+
+static ImGui::ImMat mat_cie;
+static ImTextureID cie_texture {nullptr};
 
 static void UpdateBreathing()
 {
@@ -1574,6 +1612,11 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     auto frame = timeline->GetPreviewFrame();
     if (!frame.empty())
     {
+#if IMGUI_VULKAN_SHADER
+        if (m_histogram) m_histogram->scope(frame, mat_histogram, 256, g_media_editor_settings.HistogramScale, g_media_editor_settings.HistogramLog);
+        if (m_waveform) m_waveform->scope(frame, mat_waveform, 256, g_media_editor_settings.WaveformIntensity, g_media_editor_settings.WaveformSeparate);
+        if (m_cie) m_cie->scope(frame, mat_cie, g_media_editor_settings.CIEIntensity, g_media_editor_settings.CIEShowColor);
+#endif
         ImGui::ImMatToTexture(frame, timeline->mMainPreviewTexture);
     }
     ShowVideoWindow(timeline->mMainPreviewTexture, PreviewPos, PreviewSize);
@@ -1829,6 +1872,11 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                 auto ret = timeline->mVidFilterClip->GetFrame(pair);
                 if (ret)
                 {
+#if IMGUI_VULKAN_SHADER
+                    if (m_histogram) m_histogram->scope(pair.second, mat_histogram, 256, g_media_editor_settings.HistogramScale, g_media_editor_settings.HistogramLog);
+                    if (m_waveform) m_waveform->scope(pair.second, mat_waveform, 256, g_media_editor_settings.WaveformIntensity, g_media_editor_settings.WaveformSeparate);
+                    if (m_cie) m_cie->scope(pair.second, mat_cie, g_media_editor_settings.CIEIntensity, g_media_editor_settings.CIEShowColor);
+#endif
                     ImGui::ImMatToTexture(pair.first, timeline->mVideoFilterInputTexture);
                     ImGui::ImMatToTexture(pair.second, timeline->mVideoFilterOutputTexture);
                 }
@@ -2352,14 +2400,60 @@ static void ShowAudioEditorWindow(ImDrawList *draw_list)
  ***************************************************************************************/
 static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
 {
-    ImGui::SetWindowFontScale(1.5);
-    ImGui::Dummy(ImVec2(100, 100));
-    ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4, 0.4, 0.8, 0.8));
-    ImGui::TextUnformatted("Meida Analyse");
-    ImGui::PopStyleColor();
-    ImGui::PopStyleVar();
-    ImGui::SetWindowFontScale(1.0);
+    ImDrawList *draw_list = ImGui::GetWindowDrawList();
+    ImVec2 window_pos = ImGui::GetCursorScreenPos();
+    ImVec2 window_size = ImGui::GetContentRegionAvail() - ImVec2(8, 0);
+    int HeadHeight = 20;
+    ImVec2 canvas_pos = window_pos + ImVec2(0, HeadHeight);
+    ImVec2 canvas_size = window_size - ImVec2(0, HeadHeight);
+    ImGui::BeginGroup();
+    if (expanded && !*expanded)
+    {
+        ImGui::InvisibleButton("analyse_minimum", ImVec2(window_size.x - window_pos.x, (float)HeadHeight));
+        draw_list->AddRectFilled(window_pos + ImVec2(96, 0), window_pos + ImVec2(window_size.x, HeadHeight), COL_DARK_ONE, 0);
+    }
+    else
+    {
+        draw_list->AddRectFilled(window_pos + ImVec2(96, 0), window_pos + ImVec2(window_size.x, HeadHeight), COL_DARK_ONE, 0);
+        ImGui::PushStyleColor(ImGuiCol_FrameBg, 0);
+        // Histogram area
+        // TODO::Dicky add detail UI
+        ImGui::SetCursorScreenPos(canvas_pos);
+        /*
+        if (!mat_histogram.empty())
+        {
+            auto rmat = mat_histogram.channel(0);
+            ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(1.f, 0.f, 0.f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(1.f, 0.f, 0.f, 0.5f));
+            ImGui::PlotLines("##rh", (float *)rmat.data, mat_histogram.w, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(256, 100), 4, false, true);
+            ImGui::PopStyleColor(2);
+            auto gmat = mat_histogram.channel(1);
+            ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.f, 1.f, 0.f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.f, 1.f, 0.f, 0.5f));
+            ImGui::PlotLines("##gh", (float *)gmat.data, mat_histogram.w, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(256, 100), 4, false, true);
+            ImGui::PopStyleColor(2);
+            auto bmat = mat_histogram.channel(2);
+            ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.f, 0.f, 1.f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.f, 0.f, 1.f, 0.5f));
+            ImGui::PlotLines("##bh", (float *)bmat.data, mat_histogram.w, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(256, 100), 4, false, true);
+            ImGui::PopStyleColor(2);
+        }
+        if (!mat_waveform.empty())
+        {
+            ImGui::ImMatToTexture(mat_waveform, waveform_texture);
+            auto waveform_size = ImVec2(270, 256);
+            draw_list->AddImage(waveform_texture, canvas_pos, canvas_pos + waveform_size, g_media_editor_settings.WaveformMirror ? ImVec2(0, 1) : ImVec2(0, 0), g_media_editor_settings.WaveformMirror ? ImVec2(1, 0) : ImVec2(1, 1));
+        }
+        if (!mat_cie.empty())
+        {
+            ImGui::ImMatToTexture(mat_cie, cie_texture);
+            auto cie_size = ImVec2(256, 256);
+            draw_list->AddImage(cie_texture, canvas_pos, canvas_pos + cie_size, ImVec2(0, 0), ImVec2(1, 1));
+        }
+        */
+        ImGui::PopStyleColor();
+    }
+    ImGui::EndGroup();
 }
 
 #if 0
@@ -2414,8 +2508,10 @@ void Application_SetupContext(ImGuiContext* ctx)
         MediaEditorSettings * setting = (MediaEditorSettings*)entry;
         int val_int = 0;
         int64_t val_int64 = 0;
+        float val_float = 0;
         char val_path[1024] = {0};
-        if (sscanf(line, "VideoWidth=%d", &val_int) == 1) { setting->VideoWidth = val_int; }
+        if (sscanf(line, "ProjectPath=%s", val_path) == 1) { setting->project_path = std::string(val_path); }
+        else if (sscanf(line, "VideoWidth=%d", &val_int) == 1) { setting->VideoWidth = val_int; }
         else if (sscanf(line, "VideoHeight=%d", &val_int) == 1) { setting->VideoHeight = val_int; }
         else if (sscanf(line, "VideoFrameRateNum=%d", &val_int) == 1) { setting->VideoFrameRate.num = val_int; }
         else if (sscanf(line, "VideoFrameRateDen=%d", &val_int) == 1) { setting->VideoFrameRate.den = val_int; }
@@ -2427,19 +2523,39 @@ void Application_SetupContext(ImGuiContext* ctx)
         else if (sscanf(line, "AudioFormat=%d", &val_int) == 1) { setting->AudioFormat = val_int; }
         else if (sscanf(line, "BankViewStyle=%d", &val_int) == 1) { setting->BankViewStyle = val_int; }
         else if (sscanf(line, "ShowHelpTips=%d", &val_int) == 1) { setting->ShowHelpTooltips = val_int == 1; }
-        else if (sscanf(line, "ProjectPath=%s", val_path) == 1) { setting->project_path = std::string(val_path); }
+        else if (sscanf(line, "HistogramLogView=%d", &val_int) == 1) { setting->HistogramLog = val_int == 1; }
+        else if (sscanf(line, "HistogramScale=%f", &val_float) == 1) { setting->HistogramScale = val_float; }
+        else if (sscanf(line, "WaveformMirror=%d", &val_int) == 1) { setting->WaveformMirror = val_int == 1; }
+        else if (sscanf(line, "WaveformSeparate=%d", &val_int) == 1) { setting->WaveformSeparate = val_int == 1; }
+        else if (sscanf(line, "WaveformIntensity=%f", &val_float) == 1) { setting->WaveformIntensity = val_float; }
+        else if (sscanf(line, "CIECorrectGamma=%d", &val_int) == 1) { setting->CIECorrectGamma = val_int == 1; }
+        else if (sscanf(line, "CIEShowColor=%d", &val_int) == 1) { setting->CIEShowColor = val_int == 1; }
+        else if (sscanf(line, "CIEContrast=%f", &val_float) == 1) { setting->CIEContrast = val_float; }
+        else if (sscanf(line, "CIEIntensity=%f", &val_float) == 1) { setting->CIEIntensity = val_float; }
+        else if (sscanf(line, "CIEColorSystem=%d", &val_int) == 1) { setting->CIEColorSystem = val_int; }
+        else if (sscanf(line, "CIEMode=%d", &val_int) == 1) { setting->CIEMode = val_int; }
+        else if (sscanf(line, "CIEGamuts=%d", &val_int) == 1) { setting->CIEGamuts = val_int; }
         if (!setting->project_path.empty())
         {
             if (LoadProject(setting->project_path) == 0)
                 quit_save_confirm = false;
         }
         g_new_setting = g_media_editor_settings;
+#if IMGUI_VULKAN_SHADER
+        if (m_cie) 
+            m_cie->SetParam(g_media_editor_settings.CIEColorSystem, 
+                            g_media_editor_settings.CIEMode, 512, 
+                            g_media_editor_settings.CIEGamuts, 
+                            g_media_editor_settings.CIEContrast, 
+                            g_media_editor_settings.CIECorrectGamma);
+#endif
     };
     setting_ini_handler.WriteAllFn = [](ImGuiContext* ctx, ImGuiSettingsHandler* handler, ImGuiTextBuffer* out_buf)
     {
         ImGuiContext& g = *ctx;
         out_buf->reserve(out_buf->size() + g.SettingsWindows.size() * 6); // ballpark reserve
         out_buf->appendf("[%s][##MediaEditorSetting]\n", handler->TypeName);
+        out_buf->appendf("ProjectPath=%s\n", g_media_editor_settings.project_path.c_str());
         out_buf->appendf("VideoWidth=%d\n", g_media_editor_settings.VideoWidth);
         out_buf->appendf("VideoHeight=%d\n", g_media_editor_settings.VideoHeight);
         out_buf->appendf("VideoFrameRateNum=%d\n", g_media_editor_settings.VideoFrameRate.num);
@@ -2452,7 +2568,18 @@ void Application_SetupContext(ImGuiContext* ctx)
         out_buf->appendf("AudioFormat=%d\n", g_media_editor_settings.AudioFormat);
         out_buf->appendf("BankViewStyle=%d\n", g_media_editor_settings.BankViewStyle);
         out_buf->appendf("ShowHelpTips=%d\n", g_media_editor_settings.ShowHelpTooltips ? 1 : 0);
-        out_buf->appendf("ProjectPath=%s\n", g_media_editor_settings.project_path.c_str());
+        out_buf->appendf("HistogramLogView=%d\n", g_media_editor_settings.HistogramLog ? 1 : 0);
+        out_buf->appendf("HistogramScale=%f\n", g_media_editor_settings.HistogramScale);
+        out_buf->appendf("WaveformMirror=%d\n", g_media_editor_settings.WaveformMirror ? 1 : 0);
+        out_buf->appendf("WaveformSeparate=%d\n", g_media_editor_settings.WaveformSeparate ? 1 : 0);
+        out_buf->appendf("WaveformIntensity=%f\n", g_media_editor_settings.WaveformIntensity);
+        out_buf->appendf("CIECorrectGamma=%d\n", g_media_editor_settings.CIECorrectGamma ? 1 : 0);
+        out_buf->appendf("CIEShowColor=%d\n", g_media_editor_settings.CIEShowColor ? 1 : 0);
+        out_buf->appendf("CIEContrast=%f\n", g_media_editor_settings.CIEContrast);
+        out_buf->appendf("CIEIntensity=%f\n", g_media_editor_settings.CIEIntensity);
+        out_buf->appendf("CIEColorSystem=%d\n", g_media_editor_settings.CIEColorSystem);
+        out_buf->appendf("CIEMode=%d\n", g_media_editor_settings.CIEMode);
+        out_buf->appendf("CIEGamuts=%d\n", g_media_editor_settings.CIEGamuts);
         out_buf->append("\n");
     };
     ctx->SettingsHandlers.push_back(setting_ini_handler);
@@ -2505,14 +2632,23 @@ void Application_Initialize(void** handle)
     Logger::GetDefaultLogger()->SetShowLevels(Logger::DEBUG);
     // GetMediaReaderLogger()->SetShowLevels(Logger::DEBUG);
     // GetMediaSnapshotLogger()->SetShowLevels(Logger::DEBUG);
-
+#if IMGUI_VULKAN_SHADER
+    int gpu = ImGui::get_default_gpu_index();
+    m_histogram = new ImGui::Histogram_vulkan(gpu);
+    m_waveform = new ImGui::Waveform_vulkan(gpu);
+    m_cie = new ImGui::CIE_vulkan(gpu);
+#endif
     NewTimeline();
 }
 
 void Application_Finalize(void** handle)
 {
-    if (timeline)
-        delete timeline;
+    if (timeline) { delete timeline; timeline = nullptr; }
+    if (m_histogram) { delete m_histogram; m_histogram = nullptr; }
+    if (m_waveform) { delete m_waveform; m_waveform = nullptr; }
+    if (m_cie) { delete m_cie; m_cie = nullptr; }
+    if (waveform_texture) { ImGui::ImDestroyTexture(waveform_texture); }
+    if (cie_texture) { ImGui::ImDestroyTexture(cie_texture); }
 }
 
 bool Application_Frame(void * handle, bool app_will_quit)
@@ -2777,8 +2913,6 @@ bool Application_Frame(void * handle, bool app_will_quit)
                     case 0: ShowMediaPreviewWindow(draw_list); break;
                     case 1: ShowVideoEditorWindow(draw_list); break;
                     case 2: ShowAudioEditorWindow(draw_list); break;
-                    //case 3: ShowMediaAnalyseWindow(draw_list); break;
-                    //case 4: ShowMediaAIWindow(draw_list); break;
                     default: break;
                 }
             }
