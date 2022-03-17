@@ -176,14 +176,13 @@ struct MediaItem
     MediaOverview * mMediaOverview;
     MEDIA_TYPE mMediaType {MEDIA_UNKNOWN};
     std::vector<ImTextureID> mMediaThumbnail;
-    SnapshotGeneratorHolder mSsGen;
     int64_t mViewWndDur;
     float mPixPerMs;
     MediaItem(const std::string& name, const std::string& path, MEDIA_TYPE type, void* handle);
     ~MediaItem();
     void UpdateThumbnail();
-    SnapshotGeneratorHolder GetSnapshotGenerator();
-    void ConfigSnapshot(int64_t viewWndDur, float pixPerMs);
+    // SnapshotGeneratorHolder GetSnapshotGenerator();
+    // void ConfigSnapshot(int64_t viewWndDur, float pixPerMs);
 };
 
 struct VideoSnapshotInfo
@@ -519,6 +518,7 @@ struct TimeLine
     std::vector<Clip *> m_Clips;            // timeline clips, project saved
     std::vector<ClipGroup> m_Groups;        // timeline clip groups, project saved
     std::vector<Overlap *> m_Overlaps;      // timeline clip overlap, project saved
+    std::unordered_map<int64_t, SnapshotGeneratorHolder> m_VidSsGenTable;  // Snapshot generator for video media item, provide snapshots for VideoClip
     int64_t mStart   {0};                   // whole timeline start in ms, project saved
     int64_t mEnd     {0};                   // whole timeline end in ms, project saved
 
@@ -654,8 +654,11 @@ struct TimeLine
     ImU32 GetGroupColor(int64_t group_id);              // Get Group color by id
     int Load(const imgui_json::value& value);
     void Save(imgui_json::value& value);
+
     void ConfigureDataLayer();
     void SyncDataLayer();
+    SnapshotGeneratorHolder GetSnapshotGenerator(int64_t mediaItemId);
+    void ConfigSnapshotWindow(int64_t viewWndDur);
 };
 
 bool DrawTimeLine(TimeLine *timeline, bool *expanded);

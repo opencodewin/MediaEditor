@@ -1476,7 +1476,7 @@ private:
     bool m_viddecEof{false};
     // generate snapshots thread
     thread m_genSsThread;
-    bool m_genSsEof;
+    bool m_genSsEof{false};
     // demux audio thread
     thread m_demuxAudThread;
     list<AVPacket*> m_audpktQ;

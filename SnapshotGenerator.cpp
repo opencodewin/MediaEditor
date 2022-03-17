@@ -1337,9 +1337,15 @@ private:
     pair<int32_t, int32_t> CalcSsIndexPairFromPtsPair(const pair<int64_t, int64_t>& ptsPair)
     {
         int64_t mts0 = CvtVidPtsToMts(ptsPair.first);
-        int64_t mts1 = CvtVidPtsToMts(ptsPair.second);
         int32_t idx0 = (int32_t)ceil((double)(mts0-m_vidfrmIntvMtsHalf)/m_ssIntvMts);
-        int32_t idx1 = (int32_t)ceil((double)(mts1-m_vidfrmIntvMtsHalf)/m_ssIntvMts);
+        int32_t idx1;
+        if (ptsPair.second == INT64_MAX)
+            idx1 = m_vidMaxIndex+1;
+        else
+        {
+            int64_t mts1 = CvtVidPtsToMts(ptsPair.second);
+            idx1 = (int32_t)ceil((double)(mts1-m_vidfrmIntvMtsHalf)/m_ssIntvMts);
+        }
         if (idx1 == idx0) idx1++;
         return { idx0, idx1 };
     }
