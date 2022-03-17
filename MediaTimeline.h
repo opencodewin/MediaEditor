@@ -176,13 +176,9 @@ struct MediaItem
     MediaOverview * mMediaOverview;
     MEDIA_TYPE mMediaType {MEDIA_UNKNOWN};
     std::vector<ImTextureID> mMediaThumbnail;
-    int64_t mViewWndDur;
-    float mPixPerMs;
     MediaItem(const std::string& name, const std::string& path, MEDIA_TYPE type, void* handle);
     ~MediaItem();
     void UpdateThumbnail();
-    // SnapshotGeneratorHolder GetSnapshotGenerator();
-    // void ConfigSnapshot(int64_t viewWndDur, float pixPerMs);
 };
 
 struct VideoSnapshotInfo
@@ -242,8 +238,6 @@ struct Clip
     std::mutex mLock;                               // clip mutex, not using yet
     void * mHandle              {nullptr};          // clip belong to timeline 
     MediaParserHolder mMediaParser;
-    // MediaOverview * mOverview   {nullptr};          // clip media overview
-    // MediaReader* mMediaReader   {nullptr};          // clip media reader
     int64_t mViewWndDur         {0};
     float mPixPerMs             {0};
     int mTrackHeight            {0};
@@ -268,7 +262,6 @@ struct Clip
 
 struct VideoClip : Clip
 {
-    // MediaSnapshot* mSnapshot {nullptr};                 // clip snapshot handle
     SnapshotGenerator::ViewerHolder mSsViewer;
     std::vector<VideoSnapshotInfo> mVideoSnapshotInfos; // clip snapshots info, with all croped range
     std::list<Snapshot> mVideoSnapshots;                // clip snapshots, including texture and timestamp info
@@ -291,7 +284,6 @@ private:
 private:
     float mSnapWidth                {0};
     float mSnapHeight               {0};
-    // float mSnapsInViewWindow        {0};
     int64_t mClipViewStartPos;
     std::vector<SnapshotGenerator::ImageHolder> mSnapImages;
 };
