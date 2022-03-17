@@ -15,6 +15,7 @@
 #include <list>
 #include <chrono>
 
+#define ICON_MEDIA_TIMELINE u8"\uf538"
 #define ICON_MEDIA_BANK     u8"\ue907"
 #define ICON_MEDIA_TRANS    u8"\ue927"
 #define ICON_MEDIA_FILTERS  u8"\ue663"
@@ -23,7 +24,7 @@
 #define ICON_MEDIA_VIDEO    u8"\ue04b"
 #define ICON_MEDIA_AUDIO    u8"\ue050"
 #define ICON_MEDIA_WAVE     u8"\ue495"
-#define ICON_MEDIA_DIAGNOSIS u8"\uf0f0"
+#define ICON_MEDIA_DIAGNOSIS u8"\uf551"
 #define ICON_SLIDER_MINIMUM u8"\uf424"
 #define ICON_SLIDER_MAXIMUM u8"\uf422"
 #define ICON_VIEW           u8"\uf06e"
@@ -119,7 +120,7 @@
 #define COL_SLOT_ODD        IM_COL32( 58,  58,  58, 255)
 #define COL_SLOT_EVEN       IM_COL32( 64,  64,  64, 255)
 #define COL_SLOT_SELECTED   IM_COL32(255,  64,  64, 255)
-#define COL_SLOT_V_LINE     IM_COL32( 96,  96,  96,  48)
+#define COL_SLOT_V_LINE     IM_COL32( 32,  32,  32,  96)
 #define COL_SLIDER_BG       IM_COL32( 32,  32,  48, 255)
 #define COL_SLIDER_IN       IM_COL32(192, 192, 192, 255)
 #define COL_SLIDER_MOVING   IM_COL32(144, 144, 144, 255)
@@ -236,10 +237,6 @@ struct Clip
     int64_t mStartOffset        {0};                // clip start time in media, project saved
     int64_t mEndOffset          {0};                // clip end time in media, project saved
     int64_t mLength             {0};                // clip length, = mEnd - mStart
-    //int64_t mCurrent            {0};                // clip current time, project saved
-    //bool bPlay                  {false};            // clip play status
-    //bool bForward               {true};             // clip play direction
-    //bool bSeeking               {false};            // clip is seeking
     bool bSelected              {false};            // clip is selected, project saved
     bool bEditing               {false};            // clip is Editing by double click selected, project saved
     std::mutex mLock;                               // clip mutex, not using yet
@@ -261,8 +258,6 @@ struct Clip
     void Cutting(int64_t pos);
     bool isLinkedWith(Clip * clip);
     
-    virtual void Seek() = 0;
-    virtual void Step(bool forward, int64_t step) = 0;
     virtual void ConfigViewWindow(int64_t wndDur, float pixPerMs) { mViewWndDur = wndDur; mPixPerMs = pixPerMs; }
     virtual void SetTrackHeight(int trackHeight) { mTrackHeight = trackHeight; }
     virtual void SetViewWindowStart(int64_t millisec) {}
@@ -282,8 +277,6 @@ struct VideoClip : Clip
     VideoClip(int64_t start, int64_t end, int64_t id, std::string name, MediaParserHolder hParser, SnapshotGenerator::ViewerHolder viewer, void* handle);
     ~VideoClip();
 
-    void Seek() override;
-    void Step(bool forward, int64_t step) override;
     void ConfigViewWindow(int64_t wndDur, float pixPerMs) override;
     void SetTrackHeight(int trackHeight) override;
     void SetViewWindowStart(int64_t millisec) override;
@@ -314,9 +307,6 @@ struct AudioClip : Clip
     AudioClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle);
     ~AudioClip();
 
-    void Seek() override;
-    void Step(bool forward, int64_t step) override;
-    bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame);
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect) override;
     static Clip * Load(const imgui_json::value& value, void * handle);
     void Save(imgui_json::value& value) override;
@@ -332,9 +322,6 @@ struct ImageClip : Clip
     ImageClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle);
     ~ImageClip();
 
-    void Seek() override;
-    void Step(bool forward, int64_t step) override;
-    bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame);
     void SetTrackHeight(int trackHeight) override;
     void SetViewWindowStart(int64_t millisec) override;
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect) override;
@@ -358,9 +345,6 @@ struct TextClip : Clip
     TextClip(int64_t start, int64_t end, int64_t id, std::string name, MediaParserHolder hParser, void* handle);
     ~TextClip();
 
-    void Seek();
-    void Step(bool forward, int64_t step);
-    bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame);
     static Clip * Load(const imgui_json::value& value, void * handle);
     void Save(imgui_json::value& value);
 };
@@ -538,6 +522,7 @@ struct TimeLine
     int64_t mStart   {0};                   // whole timeline start in ms, project saved
     int64_t mEnd     {0};                   // whole timeline end in ms, project saved
 
+    bool mShowHelpTooltips      {true};     // timeline show help tooltips, project saved, configured
     int mWidth  {1920};                     // timeline Media Width, project saved, configured
     int mHeight {1080};                     // timeline Media Height, project saved, configured
     MediaInfo::Ratio mFrameRate {25, 1};    // timeline Media Frame rate, project saved, configured

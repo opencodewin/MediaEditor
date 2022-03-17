@@ -1,10 +1,15 @@
 #include <application.h>
 #include <imgui.h>
 #include <imgui_helper.h>
-#include <imgui_knob.h>
+#include <imgui_extra_widget.h>
 #include <imgui_json.h>
 #include <ImGuiFileDialog.h>
 #include <ImGuiTabWindow.h>
+#if IMGUI_VULKAN_SHADER
+#include <Histogram_vulkan.h>
+#include <Waveform_vulkan.h>
+#include <CIE_vulkan.h>
+#endif
 #include "MediaTimeline.h"
 #include "FFUtils.h"
 #include "Logger.h"
@@ -39,8 +44,6 @@ static const char* MainWindowTabNames[] = {
     ICON_MEDIA_PREVIEW,
     ICON_MEDIA_VIDEO,
     ICON_MUSIC,
-    ICON_MEDIA_DIAGNOSIS,
-    ICON_BRAIN
 };
 
 static const char* MainWindowTabTooltips[] = 
@@ -48,8 +51,17 @@ static const char* MainWindowTabTooltips[] =
     "Meida Preview",
     "Video Editor",
     "Audio Editor",
+};
+
+static const char* BottomWindowTabNames[] = {
+    ICON_MEDIA_TIMELINE,
+    ICON_MEDIA_DIAGNOSIS,
+};
+
+static const char* BottomWindowTabTooltips[] = 
+{
+    "Meida Timeline",
     "Meida Analyse",
-    "Meida AI"
 };
 
 static const char* VideoEditorTabNames[] = {
@@ -76,26 +88,6 @@ static const char* AudioEditorTabTooltips[] = {
     "Audio Fusion",
 };
 
-struct stree
-{
-    std::string name;
-    std::vector<stree> childrens;
-    void * data {nullptr};
-    stree() {}
-    stree(std::string _name, void * _data = nullptr) { name = _name; data = _data; }
-    stree* FindChildren(std::string _name)
-    {
-        auto iter = std::find_if(childrens.begin(), childrens.end(), [_name](const stree& tree)
-        {
-            return tree.name.compare(_name) == 0;
-        });
-        if (iter != childrens.end())
-            return &(*iter);
-        else
-            return nullptr;
-    }
-};
-
 struct MediaEditorSettings
 {
     int VideoWidth  {1920};                 // timeline Media Width
@@ -108,6 +100,26 @@ struct MediaEditorSettings
     int AudioFormat {2};                    // timeline audio format 0=unknown 1=s16 2=f32
     std::string project_path;               // Editor Recently project file path
     int BankViewStyle {0};                  // Bank view style type, 0 = icons, 1 = tree vide, and ... 
+    bool ShowHelpTooltips {false};          // Show UI help tool tips
+
+    // Histogram Scope tools
+    bool HistogramLog {false};
+    float HistogramScale {0.1};
+
+    // Waveform Scope tools
+    bool WaveformMirror {true};
+    bool WaveformSeparate {false};
+    float WaveformIntensity {2.0};
+
+    // CIE Scope tools
+    int CIEColorSystem {ImGui::Rec709system};
+    int CIEMode {ImGui::XYY};
+    int CIEGamuts {ImGui::Rec2020system};
+    float CIEContrast {0.75};
+    float CIEIntensity {0.01};
+    bool CIECorrectGamma {false};
+    bool CIEShowColor {true};
+
     MediaEditorSettings() {}
 };
 
@@ -119,15 +131,49 @@ static MediaEditorSettings g_new_setting;
 static imgui_json::value g_project;
 static bool quit_save_confirm = true;
 
-static int ConfigureIndex = 1;              // default timeline setting
+static int ConfigureIndex = 0;              // default timeline setting
 static int ControlPanelIndex = 0;           // default Media Bank window
 static int MainWindowIndex = 0;             // default Media Preview window
+static int BottomWindowIndex = 0;           // default Media Timeline window
 static int VideoEditorWindowIndex = 0;      // default Video Filter window
 static int AudioEditorWindowIndex = 0;      // default Audio Filter window
 static int LastMainWindowIndex = 0;
 static int LastVideoEditorWindowIndex = 0;
 static int LastAudioEditorWindowIndex = 0;
 
+static float ui_breathing = 1.0f;
+static float ui_breathing_step = 0.01;
+static float ui_breathing_min = 0.5;
+static float ui_breathing_max = 1.0;
+
+#if IMGUI_VULKAN_SHADER
+static ImGui::Histogram_vulkan * m_histogram {nullptr};
+static ImGui::Waveform_vulkan * m_waveform {nullptr};
+static ImGui::CIE_vulkan * m_cie {nullptr};
+#endif
+
+static ImGui::ImMat mat_histogram;
+
+static ImGui::ImMat mat_waveform;
+static ImTextureID waveform_texture {nullptr};
+
+static ImGui::ImMat mat_cie;
+static ImTextureID cie_texture {nullptr};
+
+static void UpdateBreathing()
+{
+    ui_breathing -= ui_breathing_step;
+    if (ui_breathing <= ui_breathing_min)
+    {
+        ui_breathing = ui_breathing_min;
+        ui_breathing_step = -ui_breathing_step;
+    }
+    else if (ui_breathing >= ui_breathing_max)
+    {
+        ui_breathing = ui_breathing_max;
+        ui_breathing_step = -ui_breathing_step;
+    }
+}
 static bool UIPageChanged()
 {
     bool updated = false;
@@ -240,6 +286,20 @@ static int EditingOverlap(int type, void* handle)
 }
 
 // Utils functions
+static bool ExpendButton(ImDrawList *draw_list, ImVec2 pos, bool expand = true)
+{
+    ImGuiIO &io = ImGui::GetIO();
+    ImRect delRect(pos, ImVec2(pos.x + 16, pos.y + 16));
+    bool overDel = delRect.Contains(io.MousePos);
+    int delColor = IM_COL32_WHITE;
+    float midy = pos.y + 16 / 2 - 0.5f;
+    float midx = pos.x + 16 / 2 - 0.5f;
+    draw_list->AddRect(delRect.Min, delRect.Max, delColor, 4);
+    draw_list->AddLine(ImVec2(delRect.Min.x + 3, midy), ImVec2(delRect.Max.x - 4, midy), delColor, 2);
+    if (expand) draw_list->AddLine(ImVec2(midx, delRect.Min.y + 3), ImVec2(midx, delRect.Max.y - 4), delColor, 2);
+    return overDel;
+}
+
 void ShowVideoWindow(ImTextureID texture, ImVec2& pos, ImVec2& size)
 {
     if (texture)
@@ -301,6 +361,10 @@ static void ShowAbout()
     ImGui::Separator();
     ImGui::Text("  TanluTeam 2022");
     ImGui::Separator();
+    ImGui::ShowImGuiInfo();
+    ImGui::Separator();
+    ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", ImGui::GetIO().DeltaTime * 1000.f, ImGui::GetIO().Framerate);
+    ImGui::Text("Frames since last input: %d", ImGui::GetIO().FrameCountSinceLastInput);
 }
 
 static int GetResolutionIndex(MediaEditorSettings & config)
@@ -518,6 +582,9 @@ static void ShowConfigure(MediaEditorSettings & config)
         {
             case 0:
                 // system setting
+                ImGui::TextUnformatted("Show UI Help Tips");
+                ImGui::ToggleButton("##show_ui_help_tooltips", &config.ShowHelpTooltips);
+                ImGui::Separator();
                 ImGui::TextUnformatted("Bank View Style");
                 ImGui::RadioButton("Icons",  (int *)&config.BankViewStyle, 0); ImGui::SameLine();
                 ImGui::RadioButton("Tree",  (int *)&config.BankViewStyle, 1);
@@ -622,6 +689,7 @@ static void NewTimeline()
         timeline->mAudioSampleRate = g_media_editor_settings.AudioSampleRate;
         timeline->mAudioChannels = g_media_editor_settings.AudioChannels;
         timeline->mAudioFormat = (AudioRender::PcmFormat)g_media_editor_settings.AudioFormat;
+        timeline->mShowHelpTooltips = g_media_editor_settings.ShowHelpTooltips;
         
         // init callbacks
         timeline->m_CallBacks.EditingClip = EditingClip;
@@ -896,6 +964,18 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
         {
             texture = (*item)->mMediaThumbnail[texture_index];
         }
+
+        // Show help tooltip
+        if (timeline->mShowHelpTooltips)
+        {
+            ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5);
+            ImGui::BeginTooltip();
+            ImGui::TextUnformatted("Help:");
+            ImGui::TextUnformatted("    Slider mouse to overview");
+            ImGui::TextUnformatted("    Drag media to timeline");
+            ImGui::EndTooltip();
+            ImGui::PopStyleVar();
+        }
     }
     else if (!(*item)->mMediaThumbnail.empty())
     {
@@ -1071,13 +1151,29 @@ static void ShowMediaBankWindow(ImDrawList *draw_list, float media_icon_size)
     ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
     ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
     draw_list->AddText(window_pos + ImVec2(8, 0), IM_COL32(56, 56, 56, 128), "Media");
-    draw_list->AddText(window_pos + ImVec2(8, 48), IM_COL32(56, 56, 56, 128), "Bank");
+    draw_list->AddText(window_pos + ImVec2(8, 32), IM_COL32(56, 56, 56, 128), "Bank");
     ImGui::PopStyleColor();
     ImGui::PopStyleVar();
     ImGui::SetWindowFontScale(1.0);
 
     if (!timeline)
         return;
+    
+    if (timeline->media_items.empty())
+    {
+        ImGui::SetWindowFontScale(2.0);
+        ImGui::Indent(20);
+        ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
+        ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
+        ImU32 text_color = IM_COL32(ui_breathing * 255, ui_breathing * 255, ui_breathing * 255, 255);
+        draw_list->AddText(window_pos + ImVec2(8,  72), IM_COL32(56, 56, 56, 128), "Please Click");
+        draw_list->AddText(window_pos + ImVec2(8, 104), text_color, "<-- Here");
+        draw_list->AddText(window_pos + ImVec2(8, 136), IM_COL32(56, 56, 56, 128), "To Add Media");
+        ImGui::PopStyleColor();
+        ImGui::PopStyleVar();
+        ImGui::SetWindowFontScale(1.0);
+        return;
+    }
     // Show Media Icons
     int icon_number_pre_row = window_size.x / (media_icon_size + 24);
     for (auto item = timeline->media_items.begin(); item != timeline->media_items.end();)
@@ -1164,6 +1260,19 @@ static void ShowFilterBankIconWindow(ImDrawList *draw_list)
                 ImGui::TextUnformatted(type->m_Name.c_str());
                 ImGui::EndDragDropSource();
             }
+            if (ImGui::IsItemHovered())
+            {
+                // Show help tooltip
+                if (timeline->mShowHelpTooltips)
+                {
+                    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5);
+                    ImGui::BeginTooltip();
+                    ImGui::TextUnformatted("Help:");
+                    ImGui::TextUnformatted("    Drag filter to blue print");
+                    ImGui::EndTooltip();
+                    ImGui::PopStyleVar();
+                }
+            }
             ImGui::SetCursorScreenPos(icon_pos);
             ImGui::Button((std::string(ICON_BANK) + "##bank_filter" + type->m_Name).c_str() , ImVec2(filter_icon_size, filter_icon_size));
             ImGui::SameLine(); ImGui::TextUnformatted(type->m_Name.c_str());
@@ -1203,7 +1312,7 @@ static void ShowFilterBankTreeWindow(ImDrawList *draw_list)
         }
 
         // make filter type as tree
-        stree filter_tree;
+        ImGui::ImTree filter_tree;
         filter_tree.name = "Filters";
         for (auto type : filters)
         {
@@ -1215,17 +1324,17 @@ static void ShowFilterBankTreeWindow(ImDrawList *draw_list)
                 auto children = filter_tree.FindChildren(catalog[1]);
                 if (!children)
                 {
-                    stree subtree(catalog[1]);
+                    ImGui::ImTree subtree(catalog[1]);
                     if (catalog.size() > 2)
                     {
-                        stree sub_sub_tree(catalog[2]);
-                        stree end_sub(type->m_Name, (void *)type);
+                        ImGui::ImTree sub_sub_tree(catalog[2]);
+                        ImGui::ImTree end_sub(type->m_Name, (void *)type);
                         sub_sub_tree.childrens.push_back(end_sub);
                         subtree.childrens.push_back(sub_sub_tree);
                     }
                     else
                     {
-                        stree end_sub(type->m_Name, (void *)type);
+                        ImGui::ImTree end_sub(type->m_Name, (void *)type);
                         subtree.childrens.push_back(end_sub);
                     }
 
@@ -1238,27 +1347,27 @@ static void ShowFilterBankTreeWindow(ImDrawList *draw_list)
                         auto sub_children = children->FindChildren(catalog[2]);
                         if (!sub_children)
                         {
-                            stree subtree(catalog[2]);
-                            stree end_sub(type->m_Name, (void *)type);
+                            ImGui::ImTree subtree(catalog[2]);
+                            ImGui::ImTree end_sub(type->m_Name, (void *)type);
                             subtree.childrens.push_back(end_sub);
                             children->childrens.push_back(subtree);
                         }
                         else
                         {
-                            stree end_sub(type->m_Name, (void *)type);
+                            ImGui::ImTree end_sub(type->m_Name, (void *)type);
                             sub_children->childrens.push_back(end_sub);
                         }
                     }
                     else
                     {
-                        stree end_sub(type->m_Name, (void *)type);
+                        ImGui::ImTree end_sub(type->m_Name, (void *)type);
                         children->childrens.push_back(end_sub);
                     }
                 }
             }
             else
             {
-                stree end_sub(type->m_Name, (void *)type);
+                ImGui::ImTree end_sub(type->m_Name, (void *)type);
                 filter_tree.childrens.push_back(end_sub);
             }
         }
@@ -1277,6 +1386,19 @@ static void ShowFilterBankTreeWindow(ImDrawList *draw_list)
                 ImGui::TextUnformatted(ICON_BANK " Add Filter");
                 ImGui::TextUnformatted(type->m_Name.c_str());
                 ImGui::EndDragDropSource();
+            }
+            if (ImGui::IsItemHovered())
+            {
+                // Show help tooltip
+                if (timeline->mShowHelpTooltips)
+                {
+                    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5);
+                    ImGui::BeginTooltip();
+                    ImGui::TextUnformatted("Help:");
+                    ImGui::TextUnformatted("    Drag filter to blue print");
+                    ImGui::EndTooltip();
+                    ImGui::PopStyleVar();
+                }
             }
         };
 
@@ -1490,6 +1612,11 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     auto frame = timeline->GetPreviewFrame();
     if (!frame.empty())
     {
+#if IMGUI_VULKAN_SHADER
+        if (m_histogram) m_histogram->scope(frame, mat_histogram, 256, g_media_editor_settings.HistogramScale, g_media_editor_settings.HistogramLog);
+        if (m_waveform) m_waveform->scope(frame, mat_waveform, 256, g_media_editor_settings.WaveformIntensity, g_media_editor_settings.WaveformSeparate);
+        if (m_cie) m_cie->scope(frame, mat_cie, g_media_editor_settings.CIEIntensity, g_media_editor_settings.CIEShowColor);
+#endif
         ImGui::ImMatToTexture(frame, timeline->mMainPreviewTexture);
     }
     ShowVideoWindow(timeline->mMainPreviewTexture, PreviewPos, PreviewSize);
@@ -1552,7 +1679,8 @@ static void ShowVideoFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
         }
         ImVec2 window_pos = ImGui::GetCursorScreenPos();
         ImVec2 window_size = ImGui::GetWindowSize();
-        ImGui::InvisibleButton("video_editor_blueprint_back_view", window_size);
+        ImGui::SetCursorScreenPos(window_pos + ImVec2(3, 3));
+        ImGui::InvisibleButton("video_editor_blueprint_back_view", window_size - ImVec2(6, 6));
         if (ImGui::BeginDragDropTarget() && timeline->mVideoFilterBluePrint->Blueprint_IsValid())
         {
             if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("Filter_drag_drop_Video"))
@@ -1565,8 +1693,8 @@ static void ShowVideoFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
             }
             ImGui::EndDragDropTarget();
         }
-        ImGui::SetCursorScreenPos(window_pos);
-        if (ImGui::BeginChild("##video_editor_blueprint", window_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+        ImGui::SetCursorScreenPos(window_pos + ImVec2(1, 1));
+        if (ImGui::BeginChild("##video_editor_blueprint", window_size - ImVec2(2, 2), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
         {
             timeline->mVideoFilterBluePrint->Frame(true, true, clip != nullptr, BluePrint::BluePrintFlag::BluePrintFlag_Filter);
         }
@@ -1744,6 +1872,11 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                 auto ret = timeline->mVidFilterClip->GetFrame(pair);
                 if (ret)
                 {
+#if IMGUI_VULKAN_SHADER
+                    if (m_histogram) m_histogram->scope(pair.second, mat_histogram, 256, g_media_editor_settings.HistogramScale, g_media_editor_settings.HistogramLog);
+                    if (m_waveform) m_waveform->scope(pair.second, mat_waveform, 256, g_media_editor_settings.WaveformIntensity, g_media_editor_settings.WaveformSeparate);
+                    if (m_cie) m_cie->scope(pair.second, mat_cie, g_media_editor_settings.CIEIntensity, g_media_editor_settings.CIEShowColor);
+#endif
                     ImGui::ImMatToTexture(pair.first, timeline->mVideoFilterInputTexture);
                     ImGui::ImMatToTexture(pair.second, timeline->mVideoFilterOutputTexture);
                 }
@@ -1850,7 +1983,8 @@ static void ShowVideoFusionBluePrintWindow(ImDrawList *draw_list, Overlap * over
         }
         ImVec2 window_pos = ImGui::GetCursorScreenPos();
         ImVec2 window_size = ImGui::GetWindowSize();
-        ImGui::InvisibleButton("video_fusion_blueprint_back_view", window_size);
+        ImGui::SetCursorScreenPos(window_pos + ImVec2(3, 3));
+        ImGui::InvisibleButton("video_fusion_blueprint_back_view", window_size - ImVec2(6, 6));
         if (ImGui::BeginDragDropTarget() && timeline->mVideoFusionBluePrint->Blueprint_IsValid())
         {
             if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("Fusion_drag_drop_Video"))
@@ -1863,8 +1997,8 @@ static void ShowVideoFusionBluePrintWindow(ImDrawList *draw_list, Overlap * over
             }
             ImGui::EndDragDropTarget();
         }
-        ImGui::SetCursorScreenPos(window_pos);
-        if (ImGui::BeginChild("##video_fusion_blueprint", window_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+        ImGui::SetCursorScreenPos(window_pos + ImVec2(1, 1));
+        if (ImGui::BeginChild("##video_fusion_blueprint", window_size - ImVec2(2, 2), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
         {
             timeline->mVideoFusionBluePrint->Frame(true, true, overlap != nullptr, BluePrint::BluePrintFlag::BluePrintFlag_Fusion);
         }
@@ -2045,7 +2179,8 @@ static void ShowAudioFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
         }
         ImVec2 window_pos = ImGui::GetCursorScreenPos();
         ImVec2 window_size = ImGui::GetWindowSize();
-        ImGui::InvisibleButton("audio_editor_blueprint_back_view", window_size);
+        ImGui::SetCursorScreenPos(window_pos + ImVec2(3, 3));
+        ImGui::InvisibleButton("audio_editor_blueprint_back_view", window_size - ImVec2(6, 6));
         if (ImGui::BeginDragDropTarget() && timeline->mAudioFilterBluePrint->Blueprint_IsValid())
         {
             if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("Filter_drag_drop_Audio"))
@@ -2058,8 +2193,8 @@ static void ShowAudioFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
             }
             ImGui::EndDragDropTarget();
         }
-        ImGui::SetCursorScreenPos(window_pos);
-        if (ImGui::BeginChild("##audio_editor_blueprint", window_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+        ImGui::SetCursorScreenPos(window_pos + ImVec2(1, 1));
+        if (ImGui::BeginChild("##audio_editor_blueprint", window_size - ImVec2(2, 2), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
         {
             timeline->mAudioFilterBluePrint->Frame(true, true, clip != nullptr, BluePrint::BluePrintFlag::BluePrintFlag_Filter);
         }
@@ -2146,7 +2281,8 @@ static void ShowAudioFusionBluePrintWindow(ImDrawList *draw_list, Overlap * over
         }
         ImVec2 window_pos = ImGui::GetCursorScreenPos();
         ImVec2 window_size = ImGui::GetWindowSize();
-        ImGui::InvisibleButton("audio_fusion_blueprint_back_view", window_size);
+        ImGui::SetCursorScreenPos(window_pos + ImVec2(3, 3));
+        ImGui::InvisibleButton("audio_fusion_blueprint_back_view", window_size - ImVec2(6, 6));
         if (ImGui::BeginDragDropTarget() && timeline->mAudioFusionBluePrint->Blueprint_IsValid())
         {
             if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("Fusion_drag_drop_Video"))
@@ -2159,8 +2295,8 @@ static void ShowAudioFusionBluePrintWindow(ImDrawList *draw_list, Overlap * over
             }
             ImGui::EndDragDropTarget();
         }
-        ImGui::SetCursorScreenPos(window_pos);
-        if (ImGui::BeginChild("##audio_fusion_blueprint", window_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+        ImGui::SetCursorScreenPos(window_pos + ImVec2(1, 1));
+        if (ImGui::BeginChild("##audio_fusion_blueprint", window_size - ImVec2(2, 2), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
         {
             timeline->mAudioFusionBluePrint->Frame(true, true, overlap != nullptr, BluePrint::BluePrintFlag::BluePrintFlag_Fusion);
         }
@@ -2256,23 +2392,71 @@ static void ShowAudioEditorWindow(ImDrawList *draw_list)
     ImGui::EndChild();
 }
 
+
 /****************************************************************************************
  * 
  * Media Analyse windows
  *
  ***************************************************************************************/
-static void ShowMediaAnalyseWindow(ImDrawList *draw_list)
+static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
 {
-    ImGui::SetWindowFontScale(1.2);
-    ImGui::Indent(20);
-    ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4, 0.4, 0.8, 0.8));
-    ImGui::TextUnformatted("Meida Analyse");
-    ImGui::PopStyleColor();
-    ImGui::PopStyleVar();
-    ImGui::SetWindowFontScale(1.0);
+    ImDrawList *draw_list = ImGui::GetWindowDrawList();
+    ImVec2 window_pos = ImGui::GetCursorScreenPos();
+    ImVec2 window_size = ImGui::GetContentRegionAvail() - ImVec2(8, 0);
+    int HeadHeight = 20;
+    ImVec2 canvas_pos = window_pos + ImVec2(0, HeadHeight);
+    ImVec2 canvas_size = window_size - ImVec2(0, HeadHeight);
+    ImGui::BeginGroup();
+    if (expanded && !*expanded)
+    {
+        ImGui::InvisibleButton("analyse_minimum", ImVec2(window_size.x - window_pos.x, (float)HeadHeight));
+        draw_list->AddRectFilled(window_pos + ImVec2(96, 0), window_pos + ImVec2(window_size.x, HeadHeight), COL_DARK_ONE, 0);
+    }
+    else
+    {
+        draw_list->AddRectFilled(window_pos + ImVec2(96, 0), window_pos + ImVec2(window_size.x, HeadHeight), COL_DARK_ONE, 0);
+        ImGui::PushStyleColor(ImGuiCol_FrameBg, 0);
+        // Histogram area
+        // TODO::Dicky add detail UI
+        ImGui::SetCursorScreenPos(canvas_pos);
+        /*
+        if (!mat_histogram.empty())
+        {
+            auto rmat = mat_histogram.channel(0);
+            ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(1.f, 0.f, 0.f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(1.f, 0.f, 0.f, 0.5f));
+            ImGui::PlotLines("##rh", (float *)rmat.data, mat_histogram.w, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(256, 100), 4, false, true);
+            ImGui::PopStyleColor(2);
+            auto gmat = mat_histogram.channel(1);
+            ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.f, 1.f, 0.f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.f, 1.f, 0.f, 0.5f));
+            ImGui::PlotLines("##gh", (float *)gmat.data, mat_histogram.w, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(256, 100), 4, false, true);
+            ImGui::PopStyleColor(2);
+            auto bmat = mat_histogram.channel(2);
+            ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.f, 0.f, 1.f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.f, 0.f, 1.f, 0.5f));
+            ImGui::PlotLines("##bh", (float *)bmat.data, mat_histogram.w, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(256, 100), 4, false, true);
+            ImGui::PopStyleColor(2);
+        }
+        if (!mat_waveform.empty())
+        {
+            ImGui::ImMatToTexture(mat_waveform, waveform_texture);
+            auto waveform_size = ImVec2(270, 256);
+            draw_list->AddImage(waveform_texture, canvas_pos, canvas_pos + waveform_size, g_media_editor_settings.WaveformMirror ? ImVec2(0, 1) : ImVec2(0, 0), g_media_editor_settings.WaveformMirror ? ImVec2(1, 0) : ImVec2(1, 1));
+        }
+        if (!mat_cie.empty())
+        {
+            ImGui::ImMatToTexture(mat_cie, cie_texture);
+            auto cie_size = ImVec2(256, 256);
+            draw_list->AddImage(cie_texture, canvas_pos, canvas_pos + cie_size, ImVec2(0, 0), ImVec2(1, 1));
+        }
+        */
+        ImGui::PopStyleColor();
+    }
+    ImGui::EndGroup();
 }
 
+#if 0
 /****************************************************************************************
  * 
  * Media AI windows
@@ -2289,6 +2473,7 @@ static void ShowMediaAIWindow(ImDrawList *draw_list)
     ImGui::PopStyleVar();
     ImGui::SetWindowFontScale(1.0);
 }
+#endif
 
 /****************************************************************************************
  * 
@@ -2323,8 +2508,10 @@ void Application_SetupContext(ImGuiContext* ctx)
         MediaEditorSettings * setting = (MediaEditorSettings*)entry;
         int val_int = 0;
         int64_t val_int64 = 0;
+        float val_float = 0;
         char val_path[1024] = {0};
-        if (sscanf(line, "VideoWidth=%d", &val_int) == 1) { setting->VideoWidth = val_int; }
+        if (sscanf(line, "ProjectPath=%s", val_path) == 1) { setting->project_path = std::string(val_path); }
+        else if (sscanf(line, "VideoWidth=%d", &val_int) == 1) { setting->VideoWidth = val_int; }
         else if (sscanf(line, "VideoHeight=%d", &val_int) == 1) { setting->VideoHeight = val_int; }
         else if (sscanf(line, "VideoFrameRateNum=%d", &val_int) == 1) { setting->VideoFrameRate.num = val_int; }
         else if (sscanf(line, "VideoFrameRateDen=%d", &val_int) == 1) { setting->VideoFrameRate.den = val_int; }
@@ -2335,19 +2522,40 @@ void Application_SetupContext(ImGuiContext* ctx)
         else if (sscanf(line, "AudioSampleRate=%d", &val_int) == 1) { setting->AudioSampleRate = val_int; }
         else if (sscanf(line, "AudioFormat=%d", &val_int) == 1) { setting->AudioFormat = val_int; }
         else if (sscanf(line, "BankViewStyle=%d", &val_int) == 1) { setting->BankViewStyle = val_int; }
-        else if (sscanf(line, "ProjectPath=%s", val_path) == 1) { setting->project_path = std::string(val_path); }
+        else if (sscanf(line, "ShowHelpTips=%d", &val_int) == 1) { setting->ShowHelpTooltips = val_int == 1; }
+        else if (sscanf(line, "HistogramLogView=%d", &val_int) == 1) { setting->HistogramLog = val_int == 1; }
+        else if (sscanf(line, "HistogramScale=%f", &val_float) == 1) { setting->HistogramScale = val_float; }
+        else if (sscanf(line, "WaveformMirror=%d", &val_int) == 1) { setting->WaveformMirror = val_int == 1; }
+        else if (sscanf(line, "WaveformSeparate=%d", &val_int) == 1) { setting->WaveformSeparate = val_int == 1; }
+        else if (sscanf(line, "WaveformIntensity=%f", &val_float) == 1) { setting->WaveformIntensity = val_float; }
+        else if (sscanf(line, "CIECorrectGamma=%d", &val_int) == 1) { setting->CIECorrectGamma = val_int == 1; }
+        else if (sscanf(line, "CIEShowColor=%d", &val_int) == 1) { setting->CIEShowColor = val_int == 1; }
+        else if (sscanf(line, "CIEContrast=%f", &val_float) == 1) { setting->CIEContrast = val_float; }
+        else if (sscanf(line, "CIEIntensity=%f", &val_float) == 1) { setting->CIEIntensity = val_float; }
+        else if (sscanf(line, "CIEColorSystem=%d", &val_int) == 1) { setting->CIEColorSystem = val_int; }
+        else if (sscanf(line, "CIEMode=%d", &val_int) == 1) { setting->CIEMode = val_int; }
+        else if (sscanf(line, "CIEGamuts=%d", &val_int) == 1) { setting->CIEGamuts = val_int; }
         if (!setting->project_path.empty())
         {
             if (LoadProject(setting->project_path) == 0)
                 quit_save_confirm = false;
         }
         g_new_setting = g_media_editor_settings;
+#if IMGUI_VULKAN_SHADER
+        if (m_cie) 
+            m_cie->SetParam(g_media_editor_settings.CIEColorSystem, 
+                            g_media_editor_settings.CIEMode, 512, 
+                            g_media_editor_settings.CIEGamuts, 
+                            g_media_editor_settings.CIEContrast, 
+                            g_media_editor_settings.CIECorrectGamma);
+#endif
     };
     setting_ini_handler.WriteAllFn = [](ImGuiContext* ctx, ImGuiSettingsHandler* handler, ImGuiTextBuffer* out_buf)
     {
         ImGuiContext& g = *ctx;
         out_buf->reserve(out_buf->size() + g.SettingsWindows.size() * 6); // ballpark reserve
         out_buf->appendf("[%s][##MediaEditorSetting]\n", handler->TypeName);
+        out_buf->appendf("ProjectPath=%s\n", g_media_editor_settings.project_path.c_str());
         out_buf->appendf("VideoWidth=%d\n", g_media_editor_settings.VideoWidth);
         out_buf->appendf("VideoHeight=%d\n", g_media_editor_settings.VideoHeight);
         out_buf->appendf("VideoFrameRateNum=%d\n", g_media_editor_settings.VideoFrameRate.num);
@@ -2359,7 +2567,19 @@ void Application_SetupContext(ImGuiContext* ctx)
         out_buf->appendf("AudioSampleRate=%d\n", g_media_editor_settings.AudioSampleRate);
         out_buf->appendf("AudioFormat=%d\n", g_media_editor_settings.AudioFormat);
         out_buf->appendf("BankViewStyle=%d\n", g_media_editor_settings.BankViewStyle);
-        out_buf->appendf("ProjectPath=%s\n", g_media_editor_settings.project_path.c_str());
+        out_buf->appendf("ShowHelpTips=%d\n", g_media_editor_settings.ShowHelpTooltips ? 1 : 0);
+        out_buf->appendf("HistogramLogView=%d\n", g_media_editor_settings.HistogramLog ? 1 : 0);
+        out_buf->appendf("HistogramScale=%f\n", g_media_editor_settings.HistogramScale);
+        out_buf->appendf("WaveformMirror=%d\n", g_media_editor_settings.WaveformMirror ? 1 : 0);
+        out_buf->appendf("WaveformSeparate=%d\n", g_media_editor_settings.WaveformSeparate ? 1 : 0);
+        out_buf->appendf("WaveformIntensity=%f\n", g_media_editor_settings.WaveformIntensity);
+        out_buf->appendf("CIECorrectGamma=%d\n", g_media_editor_settings.CIECorrectGamma ? 1 : 0);
+        out_buf->appendf("CIEShowColor=%d\n", g_media_editor_settings.CIEShowColor ? 1 : 0);
+        out_buf->appendf("CIEContrast=%f\n", g_media_editor_settings.CIEContrast);
+        out_buf->appendf("CIEIntensity=%f\n", g_media_editor_settings.CIEIntensity);
+        out_buf->appendf("CIEColorSystem=%d\n", g_media_editor_settings.CIEColorSystem);
+        out_buf->appendf("CIEMode=%d\n", g_media_editor_settings.CIEMode);
+        out_buf->appendf("CIEGamuts=%d\n", g_media_editor_settings.CIEGamuts);
         out_buf->append("\n");
     };
     ctx->SettingsHandlers.push_back(setting_ini_handler);
@@ -2398,22 +2618,37 @@ void Application_Initialize(void** handle)
     io.FontDefault = font;
     io.IniFilename = ini_file.c_str();
     if (io.ConfigFlags & ImGuiConfigFlags_EnableLowRefreshMode)
+    {
         ImGui::SetTableLabelBreathingSpeed(0.01, 0.5);
+        ui_breathing_step = 0.02;
+    }
     else
+    {
         ImGui::SetTableLabelBreathingSpeed(0.005, 0.5);
+        ui_breathing_step = 0.01;
+    }
     ImGui::ResetTabLabelStyle(ImGui::ImGuiTabLabelStyle_Dark, *tab_style);
 
     Logger::GetDefaultLogger()->SetShowLevels(Logger::DEBUG);
     // GetMediaReaderLogger()->SetShowLevels(Logger::DEBUG);
-    GetSnapshotGeneratorLogger()->SetShowLevels(Logger::DEBUG);
-
+    // GetSnapshotGeneratorLogger()->SetShowLevels(Logger::DEBUG);
+#if IMGUI_VULKAN_SHADER
+    int gpu = ImGui::get_default_gpu_index();
+    m_histogram = new ImGui::Histogram_vulkan(gpu);
+    m_waveform = new ImGui::Waveform_vulkan(gpu);
+    m_cie = new ImGui::CIE_vulkan(gpu);
+#endif
     NewTimeline();
 }
 
 void Application_Finalize(void** handle)
 {
-    if (timeline)
-        delete timeline;
+    if (timeline) { delete timeline; timeline = nullptr; }
+    if (m_histogram) { delete m_histogram; m_histogram = nullptr; }
+    if (m_waveform) { delete m_waveform; m_waveform = nullptr; }
+    if (m_cie) { delete m_cie; m_cie = nullptr; }
+    if (waveform_texture) { ImGui::ImDestroyTexture(waveform_texture); }
+    if (cie_texture) { ImGui::ImDestroyTexture(cie_texture); }
 }
 
 bool Application_Frame(void * handle, bool app_will_quit)
@@ -2447,6 +2682,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     static const int numControlPanelTabs = sizeof(ControlPanelTabNames)/sizeof(ControlPanelTabNames[0]);
     static const int numMainWindowTabs = sizeof(MainWindowTabNames)/sizeof(MainWindowTabNames[0]);
+    static const int numBottomWindowTabs = sizeof(BottomWindowTabNames)/sizeof(BottomWindowTabNames[0]);
     bool multiviewport = io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable;
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
@@ -2465,6 +2701,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
         ImGui::SetNextWindowPos(ImVec2(0, 0));
         ImGui::SetNextWindowSize(io.DisplaySize, ImGuiCond_None);
     }
+    UpdateBreathing();
     ImGui::Begin("Content", nullptr, flags);
     // for debug
     if (show_debug) ImGui::ShowMetricsWindow(&show_debug);
@@ -2504,6 +2741,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
                 timeline->mAudioSampleRate = g_media_editor_settings.AudioSampleRate;
                 timeline->mAudioChannels = g_media_editor_settings.AudioChannels;
                 timeline->mAudioFormat = (AudioRender::PcmFormat)g_media_editor_settings.AudioFormat;
+                timeline->mShowHelpTooltips = g_media_editor_settings.ShowHelpTooltips;
             }
             ImGui::CloseCurrentPopup(); 
         }
@@ -2675,8 +2913,6 @@ bool Application_Frame(void * handle, bool app_will_quit)
                     case 0: ShowMediaPreviewWindow(draw_list); break;
                     case 1: ShowVideoEditorWindow(draw_list); break;
                     case 2: ShowAudioEditorWindow(draw_list); break;
-                    case 3: ShowMediaAnalyseWindow(draw_list); break;
-                    case 4: ShowMediaAIWindow(draw_list); break;
                     default: break;
                 }
             }
@@ -2691,14 +2927,27 @@ bool Application_Frame(void * handle, bool app_will_quit)
     ImGui::SetNextWindowPos(panel_pos, ImGuiCond_Always);
     bool _expanded = expanded;
     if (ImGui::BeginChild("##Timeline", panel_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings))
-    {        
-        DrawTimeLine(timeline,  &_expanded);
+    {
+        ImDrawList *draw_list = ImGui::GetWindowDrawList();
+        bool overExpanded = ExpendButton(draw_list, ImVec2(panel_pos.x + 2, panel_pos.y + 2), !_expanded);
+        if (overExpanded && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+            _expanded = !_expanded;
+        ImGui::SetCursorScreenPos(panel_pos + ImVec2(32, 0));
+        ImGui::TabLabels(numBottomWindowTabs, BottomWindowTabNames, BottomWindowIndex, BottomWindowTabTooltips , false, true, nullptr, nullptr, false, false, nullptr, nullptr);
+        ImGui::SetCursorScreenPos(panel_pos);
+        switch (BottomWindowIndex)
+        {
+            case 0: DrawTimeLine(timeline,  &_expanded); break;
+            case 1: ShowMediaAnalyseWindow(timeline,  &_expanded); break;
+            default: break;
+        }
+        
         if (expanded != _expanded)
         {
             if (!_expanded)
             {
                 old_size_timeline_h = size_timeline_h;
-                size_timeline_h = 40.0f / window_size.y;
+                size_timeline_h = 60.0f / window_size.y;
                 size_main_h = 1 - size_timeline_h;
             }
             else
