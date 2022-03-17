@@ -315,7 +315,10 @@ public:
 
         double stmdur = m_isVideoReader ? m_vidDurTs : m_audDurTs;
         if (ts < 0 || ts > stmdur)
+        {
+            m_errMsg = "INVALID argument 'ts'! Can NOT be negative or exceed the duration.";
             return false;
+        }
 
         if (m_isVideoReader)
         {

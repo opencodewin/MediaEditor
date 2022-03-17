@@ -222,39 +222,6 @@ void MediaItem::UpdateThumbnail()
         }
     }
 }
-
-SnapshotGeneratorHolder MediaItem::GetSnapshotGenerator()
-{
-    if (mMediaType == MEDIA_VIDEO && !mSsGen && mMediaOverview && mMediaOverview->IsOpened())
-    {
-        mSsGen = CreateSnapshotGenerator();
-        mSsGen->Open(mMediaOverview->GetMediaParser());
-        mSsGen->SetSnapshotResizeFactor(0.1, 0.1);
-        mSsGen->SetCacheFactor(9);
-        ConfigSnapshot(mViewWndDur, mPixPerMs);
-    }
-    return mSsGen;
-}
-
-void MediaItem::ConfigSnapshot(int64_t viewWndDur, float pixPerMs)
-{
-    mViewWndDur = viewWndDur;
-    mPixPerMs = pixPerMs;
-    if (mSsGen)
-    {
-        const MediaInfo::VideoStream* video_stream = mSsGen->GetVideoStream();
-        float snapHeight = DEFAULT_VIDEO_TRACK_HEIGHT;  // TODO: video clip UI height is hard coded here, should be fixed later (wyvern)
-        MediaInfo::Ratio displayAspectRatio = {
-            (int32_t)(video_stream->width * video_stream->sampleAspectRatio.num), (int32_t)(video_stream->height * video_stream->sampleAspectRatio.den) };
-        float snapWidth = snapHeight * displayAspectRatio.num / displayAspectRatio.den;
-        double windowSize = (double)viewWndDur / 1000;
-        if (windowSize > video_stream->duration)
-            windowSize = video_stream->duration;
-        double snapsInViewWindow = std::max((float)((double)pixPerMs*windowSize * 1000 / snapWidth), 1.f);
-        if (!mSsGen->ConfigSnapWindow(windowSize, snapsInViewWindow))
-            throw std::runtime_error(mSsGen->GetError());
-    }
-}
 } //namespace MediaTimeline
 
 namespace MediaTimeline
@@ -908,7 +875,9 @@ Clip* VideoClip::Load(const imgui_json::value& value, void * handle)
     if (item)
     {
         // media is in bank
-        SnapshotGenerator::ViewerHolder hViewer = item->GetSnapshotGenerator()->CreateViewer();
+        SnapshotGenerator::ViewerHolder hViewer;
+        SnapshotGeneratorHolder hSsGen = timeline->GetSnapshotGenerator(item->mID);
+        hViewer = hSsGen->CreateViewer();
         VideoClip * new_clip = new VideoClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview->GetMediaParser(), hViewer, handle);
         if (new_clip)
         {
@@ -3981,6 +3950,66 @@ void TimeLine::SyncDataLayer()
             << ", while the size of overlap array is " << m_Overlaps.size() << "." << std::endl;
 }
 
+SnapshotGeneratorHolder TimeLine::GetSnapshotGenerator(int64_t mediaItemId)
+{
+    auto iter = m_VidSsGenTable.find(mediaItemId);
+    if (iter != m_VidSsGenTable.end())
+        return iter->second;
+    MediaItem* mi = FindMediaItemByID(mediaItemId);
+    if (!mi)
+        return nullptr;
+    if (mi->mMediaType != MEDIA_VIDEO)
+        return nullptr;
+    SnapshotGeneratorHolder hSsGen = CreateSnapshotGenerator();
+    if (!hSsGen->Open(mi->mMediaOverview->GetMediaParser()))
+    {
+        Logger::Log(Logger::Error) << hSsGen->GetError() << std::endl;
+        return nullptr;
+    }
+    hSsGen->SetSnapshotResizeFactor(0.1, 0.1);
+    hSsGen->SetCacheFactor(9);
+    if (visibleTime > 0 && msPixelWidthTarget > 0)
+    {
+        const MediaInfo::VideoStream* video_stream = hSsGen->GetVideoStream();
+        float snapHeight = DEFAULT_VIDEO_TRACK_HEIGHT;  // TODO: video clip UI height is hard coded here, should be fixed later (wyvern)
+        MediaInfo::Ratio displayAspectRatio = {
+            (int32_t)(video_stream->width * video_stream->sampleAspectRatio.num), (int32_t)(video_stream->height * video_stream->sampleAspectRatio.den) };
+        float snapWidth = snapHeight * displayAspectRatio.num / displayAspectRatio.den;
+        double windowSize = (double)visibleTime / 1000;
+        if (windowSize > video_stream->duration)
+            windowSize = video_stream->duration;
+        double snapsInViewWindow = std::max((float)((double)msPixelWidthTarget*windowSize * 1000 / snapWidth), 1.f);
+        if (!hSsGen->ConfigSnapWindow(windowSize, snapsInViewWindow))
+            throw std::runtime_error(hSsGen->GetError());
+    }
+    m_VidSsGenTable[mediaItemId] = hSsGen;
+    return hSsGen;
+}
+
+void TimeLine::ConfigSnapshotWindow(int64_t viewWndDur)
+{
+    if (visibleTime == viewWndDur)
+        return;
+
+    visibleTime = viewWndDur;
+    for (auto& elem : m_VidSsGenTable)
+    {
+        auto& ssGen = elem.second;
+        const MediaInfo::VideoStream* video_stream = ssGen->GetVideoStream();
+        float snapHeight = DEFAULT_VIDEO_TRACK_HEIGHT;  // TODO: video clip UI height is hard coded here, should be fixed later (wyvern)
+        MediaInfo::Ratio displayAspectRatio = {
+            (int32_t)(video_stream->width * video_stream->sampleAspectRatio.num), (int32_t)(video_stream->height * video_stream->sampleAspectRatio.den) };
+        float snapWidth = snapHeight * displayAspectRatio.num / displayAspectRatio.den;
+        double windowSize = (double)visibleTime / 1000;
+        if (windowSize > video_stream->duration)
+            windowSize = video_stream->duration;
+        double snapsInViewWindow = std::max((float)((double)msPixelWidthTarget*windowSize * 1000 / snapWidth), 1.f);
+        if (!ssGen->ConfigSnapWindow(windowSize, snapsInViewWindow))
+            throw std::runtime_error(ssGen->GetError());
+    }
+    for (auto& track : m_Tracks)
+        track->ConfigViewWindow(visibleTime, msPixelWidthTarget);
+}
 } // namespace MediaTimeline/TimeLine
 
 namespace MediaTimeline
@@ -4055,15 +4084,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         return ret;
     // zoom in/out    
     int64_t newVisibleTime = (int64_t)floorf((timline_size.x - legendWidth) / timeline->msPixelWidthTarget);
-    if (timeline->visibleTime != newVisibleTime)
-    {
-        timeline->visibleTime = newVisibleTime;
-        for (auto& item : timeline->media_items)
-            item->ConfigSnapshot(timeline->visibleTime, timeline->msPixelWidthTarget);
-        for (auto &track : timeline->m_Tracks)
-            track->ConfigViewWindow(timeline->visibleTime, timeline->msPixelWidthTarget);
-    }
-    timeline->visibleTime = (int64_t)floorf((timline_size.x - legendWidth) / timeline->msPixelWidthTarget);
+    timeline->ConfigSnapshotWindow(newVisibleTime);
     const float HorizonBarWidthRatio = ImMin(timeline->visibleTime / (float)duration, 1.f);
     const float HorizonBarWidthInPixels = std::max(HorizonBarWidthRatio * (timline_size.x - legendWidth), (float)scrollSize);
     const float HorizonBarPos = HorizonBarWidthRatio * (timline_size.x - legendWidth);
@@ -4931,7 +4952,9 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                     const MediaInfo::AudioStream* audio_stream = item->mMediaOverview->GetAudioStream();
                     if (video_stream)
                     {
-                        SnapshotGenerator::ViewerHolder hViewer = item->GetSnapshotGenerator()->CreateViewer();
+                        SnapshotGenerator::ViewerHolder hViewer;
+                        SnapshotGeneratorHolder hSsGen = timeline->GetSnapshotGenerator(item->mID);
+                        if (hSsGen) hViewer = hSsGen->CreateViewer();
                         new_video_clip = new VideoClip(item->mStart, item->mEnd, item->mID, item->mName + ":Video", item->mMediaOverview->GetMediaParser(), hViewer, timeline);
                         action["clip_id"] = imgui_json::number(new_video_clip->mID);
                         timeline->m_Clips.push_back(new_video_clip);
