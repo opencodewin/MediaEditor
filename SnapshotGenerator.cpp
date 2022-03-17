@@ -193,7 +193,7 @@ public:
         return hViewer;
     }
 
-    bool ReleaseViewer(ViewerHolder& viewer) override
+    void ReleaseViewer(ViewerHolder& viewer) override
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
         {
@@ -203,7 +203,19 @@ public:
                 m_viewers.erase(iter);
         }
         viewer = nullptr;
-        return true;
+    }
+
+    void ReleaseViewer(Viewer* viewer)
+    {
+        lock_guard<recursive_mutex> lk(m_apiLock);
+        {
+            lock_guard<mutex> lk(m_viewerListLock);
+            auto iter = find_if(m_viewers.begin(), m_viewers.end(), [viewer] (const ViewerHolder& hViewer) {
+                return hViewer.get() == viewer;
+            });
+            if (iter != m_viewers.end())
+                m_viewers.erase(iter);
+        }
     }
 
     bool IsOpened() const override
@@ -1571,6 +1583,21 @@ private:
         {
             UpdateSnapwnd(startPos);
             return m_owner->GetSnapshots(startPos, snapshots);
+        }
+
+        ViewerHolder CreateViewer(double pos) override
+        {
+            return m_owner->CreateViewer(pos);
+        }
+
+        void Release() override
+        {
+            return m_owner->ReleaseViewer(this);
+        }
+
+        string GetError() const override
+        {
+            return m_owner->GetError();
         }
 
         bool UpdateSnapshotTexture(vector<SnapshotGenerator::ImageHolder>& snapshots) override
