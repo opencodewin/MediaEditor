@@ -733,6 +733,7 @@ static void CleanProject()
 
 static void NewProject()
 {
+    Logger::Log(Logger::DEBUG) << "[Project] Create new project!!!" << std::endl;
     CleanProject();
     g_media_editor_settings.project_path = "";
     quit_save_confirm = true;
@@ -740,6 +741,7 @@ static void NewProject()
 
 static int LoadProject(std::string path)
 {
+    Logger::Log(Logger::DEBUG) << "[Project] Load project from file!!!" << std::endl;
     CleanProject();
 
     auto loadResult = imgui_json::value::load(path);
@@ -815,6 +817,7 @@ static void SaveProject(std::string path)
     if (!timeline || path.empty())
         return;
 
+    Logger::Log(Logger::DEBUG) << "[Project] Save project to file!!!" << std::endl;
     // TODO::Dicky stop all play
     timeline->Play(false, true);
 
@@ -2535,20 +2538,7 @@ void Application_SetupContext(ImGuiContext* ctx)
         else if (sscanf(line, "CIEColorSystem=%d", &val_int) == 1) { setting->CIEColorSystem = val_int; }
         else if (sscanf(line, "CIEMode=%d", &val_int) == 1) { setting->CIEMode = val_int; }
         else if (sscanf(line, "CIEGamuts=%d", &val_int) == 1) { setting->CIEGamuts = val_int; }
-        if (!setting->project_path.empty())
-        {
-            if (LoadProject(setting->project_path) == 0)
-                quit_save_confirm = false;
-        }
         g_new_setting = g_media_editor_settings;
-#if IMGUI_VULKAN_SHADER
-        if (m_cie) 
-            m_cie->SetParam(g_media_editor_settings.CIEColorSystem, 
-                            g_media_editor_settings.CIEMode, 512, 
-                            g_media_editor_settings.CIEGamuts, 
-                            g_media_editor_settings.CIEContrast, 
-                            g_media_editor_settings.CIECorrectGamma);
-#endif
     };
     setting_ini_handler.WriteAllFn = [](ImGuiContext* ctx, ImGuiSettingsHandler* handler, ImGuiTextBuffer* out_buf)
     {
@@ -2581,6 +2571,23 @@ void Application_SetupContext(ImGuiContext* ctx)
         out_buf->appendf("CIEMode=%d\n", g_media_editor_settings.CIEMode);
         out_buf->appendf("CIEGamuts=%d\n", g_media_editor_settings.CIEGamuts);
         out_buf->append("\n");
+    };
+    setting_ini_handler.ApplyAllFn = [](ImGuiContext* ctx, ImGuiSettingsHandler* handler)
+    {
+        // handle project after all setting is loaded 
+        if (!g_media_editor_settings.project_path.empty())
+        {
+            if (LoadProject(g_media_editor_settings.project_path) == 0)
+                quit_save_confirm = false;
+        }
+#if IMGUI_VULKAN_SHADER
+        if (m_cie) 
+            m_cie->SetParam(g_media_editor_settings.CIEColorSystem, 
+                            g_media_editor_settings.CIEMode, 512, 
+                            g_media_editor_settings.CIEGamuts, 
+                            g_media_editor_settings.CIEContrast, 
+                            g_media_editor_settings.CIECorrectGamma);
+#endif
     };
     ctx->SettingsHandlers.push_back(setting_ini_handler);
 
