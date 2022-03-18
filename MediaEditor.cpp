@@ -20,6 +20,9 @@
 
 using namespace MediaTimeline;
 
+static const char* color_system_items[] = { "NTSC System", "EBU System", "SMPTE System", "SMPTE 240M System", "APPLE System", "wRGB System", "CIE1931 System", "Rec709 System", "Rec2020 System", "DCIP3" };
+static const char* cie_system_items[] = { "XYY", "UCS", "LUV" };
+
 static const char* ConfigureTabNames[] = {
     "System",
     "Timeline"
@@ -116,7 +119,7 @@ struct MediaEditorSettings
     int CIEMode {ImGui::XYY};
     int CIEGamuts {ImGui::Rec2020system};
     float CIEContrast {0.75};
-    float CIEIntensity {0.01};
+    float CIEIntensity {0.5};
     bool CIECorrectGamma {false};
     bool CIEShowColor {true};
 
@@ -1616,9 +1619,12 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     if (!frame.empty())
     {
 #if IMGUI_VULKAN_SHADER
-        if (m_histogram) m_histogram->scope(frame, mat_histogram, 256, g_media_editor_settings.HistogramScale, g_media_editor_settings.HistogramLog);
-        if (m_waveform) m_waveform->scope(frame, mat_waveform, 256, g_media_editor_settings.WaveformIntensity, g_media_editor_settings.WaveformSeparate);
-        if (m_cie) m_cie->scope(frame, mat_cie, g_media_editor_settings.CIEIntensity, g_media_editor_settings.CIEShowColor);
+        if (BottomWindowIndex == 1)
+        {
+            if (m_histogram) m_histogram->scope(frame, mat_histogram, 256, g_media_editor_settings.HistogramScale, g_media_editor_settings.HistogramLog);
+            if (m_waveform) m_waveform->scope(frame, mat_waveform, 256, g_media_editor_settings.WaveformIntensity, g_media_editor_settings.WaveformSeparate);
+            if (m_cie) m_cie->scope(frame, mat_cie, g_media_editor_settings.CIEIntensity, g_media_editor_settings.CIEShowColor);
+        }
 #endif
         ImGui::ImMatToTexture(frame, timeline->mMainPreviewTexture);
     }
@@ -1876,9 +1882,12 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                 if (ret)
                 {
 #if IMGUI_VULKAN_SHADER
-                    if (m_histogram) m_histogram->scope(pair.second, mat_histogram, 256, g_media_editor_settings.HistogramScale, g_media_editor_settings.HistogramLog);
-                    if (m_waveform) m_waveform->scope(pair.second, mat_waveform, 256, g_media_editor_settings.WaveformIntensity, g_media_editor_settings.WaveformSeparate);
-                    if (m_cie) m_cie->scope(pair.second, mat_cie, g_media_editor_settings.CIEIntensity, g_media_editor_settings.CIEShowColor);
+                    if (BottomWindowIndex == 1)
+                    {
+                        if (m_histogram) m_histogram->scope(pair.second, mat_histogram, 256, g_media_editor_settings.HistogramScale, g_media_editor_settings.HistogramLog);
+                        if (m_waveform) m_waveform->scope(pair.second, mat_waveform, 256, g_media_editor_settings.WaveformIntensity, g_media_editor_settings.WaveformSeparate);
+                        if (m_cie) m_cie->scope(pair.second, mat_cie, g_media_editor_settings.CIEIntensity, g_media_editor_settings.CIEShowColor);
+                    }
 #endif
                     ImGui::ImMatToTexture(pair.first, timeline->mVideoFilterInputTexture);
                     ImGui::ImMatToTexture(pair.second, timeline->mVideoFilterOutputTexture);
@@ -2403,6 +2412,7 @@ static void ShowAudioEditorWindow(ImDrawList *draw_list)
  ***************************************************************************************/
 static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
 {
+    ImGuiIO &io = ImGui::GetIO();
     ImDrawList *draw_list = ImGui::GetWindowDrawList();
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetContentRegionAvail() - ImVec2(8, 0);
@@ -2418,43 +2428,196 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
     else
     {
         draw_list->AddRectFilled(window_pos + ImVec2(96, 0), window_pos + ImVec2(window_size.x, HeadHeight), COL_DARK_ONE, 0);
-        ImGui::PushStyleColor(ImGuiCol_FrameBg, 0);
-        // Histogram area
-        // TODO::Dicky add detail UI
-        ImGui::SetCursorScreenPos(canvas_pos);
-        /*
+        draw_list->AddRectFilled(window_pos + ImVec2(0, HeadHeight), window_pos + ImVec2(window_size.x, window_size.y - HeadHeight), COL_PANEL_BG, 0);
+        ImVec2 scope_view_size = ImVec2(256, 256);
+        ImVec2 scope_size = scope_view_size + ImVec2(0, 40);
+        // histogram view
+        ImGui::BeginGroup();
+        ImGui::SetCursorScreenPos(canvas_pos + ImVec2(20, 20));
+        ImGui::SetWindowFontScale(1.5);
+        ImGui::TextUnformatted("Histogram");
+        ImGui::SetWindowFontScale(1.0);
+        ImVec2 histogram_pos = canvas_pos + ImVec2(20, 20 + HeadHeight * 1.5);
+        draw_list->AddRect(histogram_pos, histogram_pos + scope_size, COL_DARK_PANEL);
+        draw_list->AddRectFilled(histogram_pos, histogram_pos + scope_view_size, IM_COL32_BLACK, 0);
+        ImGui::SetCursorScreenPos(histogram_pos);
+        ImGui::InvisibleButton("##histogram_view", scope_view_size);
+        if (ImGui::IsItemHovered())
+        {
+            if (io.MouseWheel < -FLT_EPSILON)
+            {
+                g_media_editor_settings.HistogramScale *= 0.9f;
+                if (g_media_editor_settings.HistogramScale < 0.01)
+                    g_media_editor_settings.HistogramScale = 0.01;
+            }
+            else if (io.MouseWheel > FLT_EPSILON)
+            {
+                g_media_editor_settings.HistogramScale *= 1.1f;
+                if (g_media_editor_settings.HistogramScale > 4.0f)
+                    g_media_editor_settings.HistogramScale = 4.0;
+            }
+        }
         if (!mat_histogram.empty())
         {
+            ImGui::PushStyleColor(ImGuiCol_FrameBg, 0);
+            ImGui::SetCursorScreenPos(histogram_pos);
             auto rmat = mat_histogram.channel(0);
             ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(1.f, 0.f, 0.f, 1.0f));
             ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(1.f, 0.f, 0.f, 0.5f));
-            ImGui::PlotLines("##rh", (float *)rmat.data, mat_histogram.w, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(256, 100), 4, false, true);
+            ImGui::PlotLines("##rh", (float *)rmat.data, mat_histogram.w, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(scope_view_size.x, scope_view_size.y / 3), 4, false, true);
             ImGui::PopStyleColor(2);
+            ImGui::SetCursorScreenPos(histogram_pos + ImVec2(0, scope_view_size.y / 3));
             auto gmat = mat_histogram.channel(1);
             ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.f, 1.f, 0.f, 1.0f));
             ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.f, 1.f, 0.f, 0.5f));
-            ImGui::PlotLines("##gh", (float *)gmat.data, mat_histogram.w, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(256, 100), 4, false, true);
+            ImGui::PlotLines("##gh", (float *)gmat.data, mat_histogram.w, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(scope_view_size.x, scope_view_size.y / 3), 4, false, true);
             ImGui::PopStyleColor(2);
+            ImGui::SetCursorScreenPos(histogram_pos + ImVec2(0, scope_view_size.y * 2 / 3));
             auto bmat = mat_histogram.channel(2);
             ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.f, 0.f, 1.f, 1.0f));
             ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.f, 0.f, 1.f, 0.5f));
-            ImGui::PlotLines("##bh", (float *)bmat.data, mat_histogram.w, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(256, 100), 4, false, true);
+            ImGui::PlotLines("##bh", (float *)bmat.data, mat_histogram.w, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(scope_view_size.x, scope_view_size.y / 3), 4, false, true);
             ImGui::PopStyleColor(2);
+            ImGui::PopStyleColor();
+        }
+        draw_list->AddRect(histogram_pos, histogram_pos + scope_view_size, COL_SLIDER_HANDLE, 0);
+        // TODO::Dicky draw mark line?
+        
+        ImGui::SetCursorScreenPos(histogram_pos + ImVec2(0, scope_view_size.y));
+        ImGui::TextUnformatted("Log:"); ImGui::SameLine();
+        ImGui::ToggleButton("##histogram_logview", &g_media_editor_settings.HistogramLog);
+        ImGui::EndGroup();
+
+        // waveform view
+        ImGui::BeginGroup();
+        ImGui::SetCursorScreenPos(canvas_pos + ImVec2(20, 20) + ImVec2(scope_view_size.x, 0) + ImVec2(20, 0));
+        ImGui::SetWindowFontScale(1.5);
+        ImGui::TextUnformatted("Waveform");
+        ImGui::SetWindowFontScale(1.0);
+        ImVec2 waveform_pos = canvas_pos + ImVec2(20, 20 + HeadHeight * 1.5) + ImVec2(scope_view_size.x, 0) + ImVec2(20, 0);
+        draw_list->AddRect(waveform_pos, waveform_pos + scope_size, COL_DARK_PANEL);
+        draw_list->AddRectFilled(waveform_pos, waveform_pos + scope_view_size, IM_COL32_BLACK, 0);
+        ImGui::SetCursorScreenPos(waveform_pos);
+        ImGui::InvisibleButton("##waveform_view", scope_view_size);
+        if (ImGui::IsItemHovered())
+        {
+            if (io.MouseWheel < -FLT_EPSILON)
+            {
+                g_media_editor_settings.WaveformIntensity *= 0.9f;
+                if (g_media_editor_settings.WaveformIntensity < 0.1)
+                    g_media_editor_settings.WaveformIntensity = 0.1;
+            }
+            else if (io.MouseWheel > FLT_EPSILON)
+            {
+                g_media_editor_settings.WaveformIntensity *= 1.1f;
+                if (g_media_editor_settings.WaveformIntensity > 4.0f)
+                    g_media_editor_settings.WaveformIntensity = 4.0;
+            }
         }
         if (!mat_waveform.empty())
         {
             ImGui::ImMatToTexture(mat_waveform, waveform_texture);
-            auto waveform_size = ImVec2(270, 256);
-            draw_list->AddImage(waveform_texture, canvas_pos, canvas_pos + waveform_size, g_media_editor_settings.WaveformMirror ? ImVec2(0, 1) : ImVec2(0, 0), g_media_editor_settings.WaveformMirror ? ImVec2(1, 0) : ImVec2(1, 1));
+            draw_list->AddImage(waveform_texture, waveform_pos, waveform_pos + scope_view_size, g_media_editor_settings.WaveformMirror ? ImVec2(0, 1) : ImVec2(0, 0), g_media_editor_settings.WaveformMirror ? ImVec2(1, 0) : ImVec2(1, 1));
+        }
+        draw_list->AddRect(waveform_pos, waveform_pos + scope_view_size, COL_SLIDER_HANDLE, 0);
+        // TODO::Dicky draw mark line?
+
+        ImGui::SetCursorScreenPos(waveform_pos + ImVec2(0, scope_view_size.y));
+        ImGui::TextUnformatted("Mirror:"); ImGui::SameLine();
+        ImGui::ToggleButton("##waveform_mirror", &g_media_editor_settings.WaveformMirror);
+        ImGui::SameLine();
+        ImGui::TextUnformatted("Separate:"); ImGui::SameLine();
+        ImGui::ToggleButton("##waveform_separate", &g_media_editor_settings.WaveformSeparate);
+        ImGui::EndGroup();
+
+        // cie view
+        ImGui::BeginGroup();
+        ImGui::SetCursorScreenPos(canvas_pos + ImVec2(20, 20) + ImVec2(scope_view_size.x, 0) + ImVec2(20, 0) + ImVec2(scope_view_size.x, 0) + ImVec2(20, 0));
+        ImGui::SetWindowFontScale(1.5);
+        ImGui::TextUnformatted("CIE");
+        ImGui::SetWindowFontScale(1.0);
+        ImVec2 cie_pos = canvas_pos + ImVec2(20, 20 + HeadHeight * 1.5) + ImVec2(scope_view_size.x, 0) + ImVec2(20, 0) + ImVec2(scope_view_size.x, 0) + ImVec2(20, 0);
+        draw_list->AddRect(cie_pos, cie_pos + scope_size, COL_DARK_PANEL);
+        draw_list->AddRectFilled(cie_pos, cie_pos + scope_view_size, IM_COL32_BLACK, 0);
+        ImGui::SetCursorScreenPos(cie_pos);
+        ImGui::InvisibleButton("##cie_view", scope_view_size);
+        if (ImGui::IsItemHovered())
+        {
+            if (io.MouseWheel < -FLT_EPSILON)
+            {
+                g_media_editor_settings.CIEIntensity *= 0.9f;
+                if (g_media_editor_settings.CIEIntensity < 0.01)
+                    g_media_editor_settings.CIEIntensity = 0.01;
+            }
+            else if (io.MouseWheel > FLT_EPSILON)
+            {
+                g_media_editor_settings.CIEIntensity *= 1.1f;
+                if (g_media_editor_settings.CIEIntensity > 1.0f)
+                    g_media_editor_settings.CIEIntensity = 1.0;
+            }
         }
         if (!mat_cie.empty())
         {
             ImGui::ImMatToTexture(mat_cie, cie_texture);
-            auto cie_size = ImVec2(256, 256);
-            draw_list->AddImage(cie_texture, canvas_pos, canvas_pos + cie_size, ImVec2(0, 0), ImVec2(1, 1));
+            draw_list->AddImage(cie_texture, cie_pos, cie_pos + scope_view_size, ImVec2(0, 0), ImVec2(1, 1));
         }
-        */
-        ImGui::PopStyleColor();
+        draw_list->AddRect(cie_pos, cie_pos + scope_view_size, COL_SLIDER_HANDLE, 0);
+        // TODO::Dicky draw mark line?
+
+        ImGui::SetCursorScreenPos(cie_pos + ImVec2(0, scope_view_size.y));
+        ImGui::TextUnformatted("Show Color:"); ImGui::SameLine();
+        ImGui::ToggleButton("##cie_show_color", &g_media_editor_settings.CIEShowColor);
+        ImGui::SameLine();
+        if (ImGui::Button("...##cie_configure", ImVec2(48, 0)))
+        {
+            ImGui::OpenPopup(ICON_FA_WHMCS " CIE Configure", ImGuiPopupFlags_AnyPopup);
+        }
+        if (ImGui::BeginPopupModal(ICON_FA_WHMCS " CIE Configure", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings))
+        {
+            static int color_system = g_media_editor_settings.CIEColorSystem;
+            static int cie_system = g_media_editor_settings.CIEMode;
+            static int gamuts = g_media_editor_settings.CIEGamuts;
+            static float contrast = g_media_editor_settings.CIEContrast;
+            static bool correct_gamma = g_media_editor_settings.CIECorrectGamma;
+            ImGui::Combo("Color System", (int *)&color_system, color_system_items, IM_ARRAYSIZE(color_system_items));
+            ImGui::Combo("Cie System", (int *)&cie_system, cie_system_items, IM_ARRAYSIZE(cie_system_items));
+            ImGui::Combo("Show Gamut", (int *)&gamuts, color_system_items, IM_ARRAYSIZE(color_system_items));
+            ImGui::DragFloat("Contrast##cie_contrast", &contrast, 0.01f, 0.f, 1.f, "%.2f");
+            ImGui::TextUnformatted("CorrectGamma:"); ImGui::SameLine();
+            ImGui::ToggleButton("##cie_correct_gamma", &correct_gamma);
+            int i = ImGui::GetCurrentWindow()->ContentSize.x;
+            ImGui::Indent((i - 140.0f) * 0.5f);
+            if (ImGui::Button("OK", ImVec2(60, 0)))
+            {
+                g_media_editor_settings.CIEColorSystem = color_system;
+                g_media_editor_settings.CIEMode = cie_system;
+                g_media_editor_settings.CIEGamuts = gamuts;
+                g_media_editor_settings.CIEContrast = contrast;
+                g_media_editor_settings.CIECorrectGamma = correct_gamma;
+#if IMGUI_VULKAN_SHADER
+                if (m_cie) 
+                    m_cie->SetParam(g_media_editor_settings.CIEColorSystem, 
+                                    g_media_editor_settings.CIEMode, 512, 
+                                    g_media_editor_settings.CIEGamuts, 
+                                    g_media_editor_settings.CIEContrast, 
+                                    g_media_editor_settings.CIECorrectGamma);
+#endif
+                ImGui::CloseCurrentPopup(); 
+            }
+            ImGui::SetItemDefaultFocus();
+            ImGui::SameLine();
+            if (ImGui::Button("Cancel", ImVec2(60, 0)))
+            {
+                color_system = g_media_editor_settings.CIEColorSystem;
+                cie_system = g_media_editor_settings.CIEMode;
+                gamuts = g_media_editor_settings.CIEGamuts;
+                contrast = g_media_editor_settings.CIEContrast;
+                correct_gamma = g_media_editor_settings.CIECorrectGamma;
+                ImGui::CloseCurrentPopup(); 
+            }
+            ImGui::EndPopup();
+        }
+        ImGui::EndGroup();
     }
     ImGui::EndGroup();
 }
