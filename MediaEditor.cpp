@@ -21,7 +21,7 @@
 
 using namespace MediaTimeline;
 
-static const char* color_system_items[] = { "NTSC System", "EBU System", "SMPTE System", "SMPTE 240M System", "APPLE System", "wRGB System", "CIE1931 System", "Rec709 System", "Rec2020 System", "DCIP3" };
+static const char* color_system_items[] = { "NTSC", "EBU", "SMPTE", "SMPTE 240M", "APPLE", "wRGB", "CIE1931", "Rec709", "Rec2020", "DCIP3" };
 static const char* cie_system_items[] = { "XYY", "UCS", "LUV" };
 
 static const char* ConfigureTabNames[] = {
@@ -2441,6 +2441,7 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
         draw_list->AddRectFilled(window_pos + ImVec2(0, HeadHeight), window_pos + ImVec2(window_size.x, window_size.y - HeadHeight), COL_PANEL_BG, 0);
         ImVec2 scope_view_size = ImVec2(256, 256);
         ImVec2 scope_size = scope_view_size + ImVec2(0, 40);
+
         // histogram view
         ImGui::BeginGroup();
         ImGui::SetCursorScreenPos(canvas_pos + ImVec2(20, 20));
@@ -2490,8 +2491,39 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
             ImGui::PopStyleColor(2);
             ImGui::PopStyleColor();
         }
-        draw_list->AddRect(histogram_pos, histogram_pos + scope_view_size, COL_SLIDER_HANDLE, 0);
-        // TODO::Dicky draw mark line?
+        ImRect histogram_rect = ImRect(histogram_pos, histogram_pos + scope_view_size);
+        draw_list->AddRect(histogram_rect.Min, histogram_rect.Max, COL_SLIDER_HANDLE, 0);
+        // draw graticule line
+        draw_list->PushClipRect(histogram_rect.Min, histogram_rect.Max);
+        auto histogram_step = scope_view_size.x / 10;
+        auto histogram_sub_vstep = scope_view_size.x / 50;
+        auto histogram_vstep = scope_view_size.y / 3 * g_media_editor_settings.HistogramScale;
+        auto histogram_seg = scope_view_size.y / 3 / histogram_vstep;
+        for (int i = 1; i <= 10; i++)
+        {
+            ImVec2 p0 = histogram_rect.Min + ImVec2(i * histogram_step, 0);
+            ImVec2 p1 = histogram_rect.Min + ImVec2(i * histogram_step, histogram_rect.Max.y);
+            draw_list->AddLine(p0, p1, COL_GRATICULE_DARK, 1);
+        }
+        for (int i = 0; i < histogram_seg; i++)
+        {
+            ImVec2 pr0 = histogram_rect.Min + ImVec2(0, (scope_view_size.y / 3) - i * histogram_vstep);
+            ImVec2 pr1 = histogram_rect.Min + ImVec2(histogram_rect.Max.x, (scope_view_size.y / 3) - i * histogram_vstep);
+            draw_list->AddLine(pr0, pr1, IM_COL32(255, 128, 0, 32), 1);
+            ImVec2 pg0 = histogram_rect.Min + ImVec2(0, scope_view_size.y / 3) + ImVec2(0, (scope_view_size.y / 3) - i * histogram_vstep);
+            ImVec2 pg1 = histogram_rect.Min + ImVec2(0, scope_view_size.y / 3) + ImVec2(histogram_rect.Max.x, (scope_view_size.y / 3) - i * histogram_vstep);
+            draw_list->AddLine(pg0, pg1, IM_COL32(128, 255, 0, 32), 1);
+            ImVec2 pb0 = histogram_rect.Min + ImVec2(0, scope_view_size.y * 2 / 3) + ImVec2(0, (scope_view_size.y / 3) - i * histogram_vstep);
+            ImVec2 pb1 = histogram_rect.Min + ImVec2(0, scope_view_size.y * 2 / 3) + ImVec2(histogram_rect.Max.x, (scope_view_size.y / 3) - i * histogram_vstep);
+            draw_list->AddLine(pb0, pb1, IM_COL32(128, 128, 255, 32), 1);
+        }
+        for (int i = 0; i < 50; i++)
+        {
+            ImVec2 p0 = histogram_rect.Min + ImVec2(i * histogram_sub_vstep, 0);
+            ImVec2 p1 = histogram_rect.Min + ImVec2(i * histogram_sub_vstep, 5);
+            draw_list->AddLine(p0, p1, COL_GRATICULE, 1);
+        }
+        draw_list->PopClipRect();
         
         ImGui::SetCursorScreenPos(histogram_pos + ImVec2(0, scope_view_size.y));
         ImGui::TextUnformatted("Log:"); ImGui::SameLine();
@@ -2529,8 +2561,42 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
             ImGui::ImMatToTexture(mat_waveform, waveform_texture);
             draw_list->AddImage(waveform_texture, waveform_pos, waveform_pos + scope_view_size, g_media_editor_settings.WaveformMirror ? ImVec2(0, 1) : ImVec2(0, 0), g_media_editor_settings.WaveformMirror ? ImVec2(1, 0) : ImVec2(1, 1));
         }
-        draw_list->AddRect(waveform_pos, waveform_pos + scope_view_size, COL_SLIDER_HANDLE, 0);
-        // TODO::Dicky draw mark line?
+        ImRect waveform_rect = ImRect(waveform_pos, waveform_pos + scope_view_size);
+        draw_list->AddRect(waveform_rect.Min, waveform_rect.Max, COL_SLIDER_HANDLE, 0);
+        // draw graticule line
+        draw_list->PushClipRect(waveform_rect.Min, waveform_rect.Max);
+        auto waveform_step = scope_view_size.y / 10;
+        auto waveform_vstep = scope_view_size.x / 10;
+        auto waveform_sub_step = scope_view_size.y / 50;
+        auto waveform_sub_vstep = scope_view_size.x / 100;
+        for (int i = 0; i < 10; i++)
+        {
+            ImVec2 p0 = waveform_rect.Min + ImVec2(0, i * waveform_step);
+            ImVec2 p1 = waveform_rect.Min + ImVec2(waveform_rect.Max.x, i * waveform_step);
+            if (i != 5)
+                draw_list->AddLine(p0, p1, COL_GRATICULE_DARK, 1);
+            else
+            {
+                draw_list->AddLineDashed(p0, p1, COL_GRATICULE_DARK, 1, 100);
+            }
+            ImVec2 vp0 = waveform_rect.Min + ImVec2(i * waveform_vstep, 0);
+            ImVec2 vp1 = waveform_rect.Min + ImVec2(i * waveform_vstep, 10);
+            draw_list->AddLine(vp0, vp1, COL_GRATICULE, 1);
+        }
+        for (int i = 0; i < 50; i++)
+        {
+            float l = i == 0 || i % 10 == 0 ? 10 : 5;
+            ImVec2 p0 = waveform_rect.Min + ImVec2(0, i * waveform_sub_step);
+            ImVec2 p1 = waveform_rect.Min + ImVec2(l, i * waveform_sub_step);
+            draw_list->AddLine(p0, p1, COL_GRATICULE, 1);
+        }
+        for (int i = 0; i < 100; i++)
+        {
+            ImVec2 p0 = waveform_rect.Min + ImVec2(i * waveform_sub_vstep, 0);
+            ImVec2 p1 = waveform_rect.Min + ImVec2(i * waveform_sub_vstep, 5);
+            draw_list->AddLine(p0, p1, COL_GRATICULE, 1);
+        }
+        draw_list->PopClipRect();
 
         ImGui::SetCursorScreenPos(waveform_pos + ImVec2(0, scope_view_size.y));
         ImGui::TextUnformatted("Mirror:"); ImGui::SameLine();
@@ -2571,8 +2637,70 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
             ImGui::ImMatToTexture(mat_cie, cie_texture);
             draw_list->AddImage(cie_texture, cie_pos, cie_pos + scope_view_size, ImVec2(0, 0), ImVec2(1, 1));
         }
-        draw_list->AddRect(cie_pos, cie_pos + scope_view_size, COL_SLIDER_HANDLE, 0);
-        // TODO::Dicky draw mark line?
+        ImRect cie_rect = ImRect(cie_pos, cie_pos + scope_view_size);
+        draw_list->AddRect(cie_rect.Min, cie_rect.Max, COL_SLIDER_HANDLE, 0);
+        // draw graticule line
+        draw_list->PushClipRect(cie_rect.Min, cie_rect.Max);
+        auto cie_step = scope_view_size.y / 10;
+        auto cie_vstep = scope_view_size.x / 10;
+        auto cie_sub_step = scope_view_size.y / 50;
+        auto cie_sub_vstep = scope_view_size.x / 50;
+        for (int i = 1; i <= 10; i++)
+        {
+            ImVec2 hp0 = cie_rect.Min + ImVec2(0, i * cie_step);
+            ImVec2 hp1 = cie_rect.Min + ImVec2(cie_rect.Max.x, i * cie_step);
+            draw_list->AddLine(hp0, hp1, COL_GRATICULE_DARK, 1);
+            ImVec2 vp0 = cie_rect.Min + ImVec2(i * cie_vstep, 0);
+            ImVec2 vp1 = cie_rect.Min + ImVec2(i * cie_vstep, cie_rect.Max.y);
+            draw_list->AddLine(vp0, vp1, COL_GRATICULE_DARK, 1);
+        }
+        for (int i = 0; i < 50; i++)
+        {
+            ImVec2 hp0 = cie_rect.Min + ImVec2(scope_view_size.x - 3, i * cie_sub_step);
+            ImVec2 hp1 = cie_rect.Min + ImVec2(scope_view_size.x, i * cie_sub_step);
+            draw_list->AddLine(hp0, hp1, COL_GRATICULE_HALF, 1);
+            ImVec2 vp0 = cie_rect.Min + ImVec2(i * cie_sub_vstep, 0);
+            ImVec2 vp1 = cie_rect.Min + ImVec2(i * cie_sub_vstep, 3);
+            draw_list->AddLine(vp0, vp1, COL_GRATICULE_HALF, 1);
+        }
+        std::string X_str = "X";
+        std::string Y_str = "Y";
+        if (g_media_editor_settings.CIEMode == ImGui::UCS)
+        {
+            X_str = "U"; Y_str = "C";
+        }
+        else if (g_media_editor_settings.CIEMode == ImGui::LUV)
+        {
+            X_str = "U"; Y_str = "V";
+        }
+        draw_list->AddText(cie_pos + ImVec2(2, 2), COL_GRATICULE, X_str.c_str());
+        draw_list->AddText(cie_pos + ImVec2(scope_view_size.x - 12, scope_view_size.y - 18), COL_GRATICULE, Y_str.c_str());
+        ImGui::SetWindowFontScale(0.7);
+        for (int i = 0; i < 10; i++)
+        {
+            if (i == 0) continue;
+            char mark[32] = {0};
+            ImFormatString(mark, IM_ARRAYSIZE(mark), "%.1f", i / 10.f);
+            draw_list->AddText(cie_pos + ImVec2(i * cie_vstep - 8, 2), COL_GRATICULE, mark);
+            draw_list->AddText(cie_pos + ImVec2(scope_view_size.x - 18, scope_view_size.y - i * cie_step - 6), COL_GRATICULE, mark);
+        }
+        ImGui::SetWindowFontScale(1.0);
+        ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphShadowOffset, ImVec2(1, 1));
+        if (m_cie)
+        {
+            ImVec2 white_point;
+            m_cie->GetWhitePoint((ImGui::ColorsSystems)g_media_editor_settings.CIEColorSystem, scope_view_size.x, scope_view_size.y, &white_point.x, &white_point.y);
+            draw_list->AddCircle(cie_pos + white_point, 3, IM_COL32_WHITE, 0, 2);
+            draw_list->AddCircle(cie_pos + white_point, 2, IM_COL32_BLACK, 0, 1);
+            ImVec2 green_point_system;
+            m_cie->GetGreenPoint((ImGui::ColorsSystems)g_media_editor_settings.CIEColorSystem, scope_view_size.x, scope_view_size.y, &green_point_system.x, &green_point_system.y);
+            draw_list->AddText(cie_pos + green_point_system, COL_GRATICULE, color_system_items[g_media_editor_settings.CIEColorSystem]);
+            ImVec2 green_point_gamuts;
+            m_cie->GetGreenPoint((ImGui::ColorsSystems)g_media_editor_settings.CIEGamuts, scope_view_size.x, scope_view_size.y, &green_point_gamuts.x, &green_point_gamuts.y);
+            draw_list->AddText(cie_pos + green_point_gamuts, COL_GRATICULE, color_system_items[g_media_editor_settings.CIEGamuts]);
+        }
+        ImGui::PopStyleVar();
+        draw_list->PopClipRect();
 
         ImGui::SetCursorScreenPos(cie_pos + ImVec2(0, scope_view_size.y));
         ImGui::TextUnformatted("Show Color:"); ImGui::SameLine();
@@ -2660,8 +2788,85 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
             ImGui::ImMatToTexture(mat_vector, vector_texture);
             draw_list->AddImage(vector_texture, vector_pos, vector_pos + scope_view_size, ImVec2(0, 0), ImVec2(1, 1));
         }
-        draw_list->AddRect(vector_pos, vector_pos + scope_view_size, COL_SLIDER_HANDLE, 0);
-        // TODO::Dicky draw mark line?
+        ImRect vector_rect = ImRect(vector_pos, vector_pos + scope_view_size);
+        draw_list->AddRect(vector_rect.Min, vector_rect.Max, COL_SLIDER_HANDLE, 0);
+        // draw graticule line
+        ImVec2 center_point = ImVec2(vector_rect.Min + scope_view_size / 2);
+        float radius = scope_view_size.x / 2;
+        draw_list->PushClipRect(vector_rect.Min, vector_rect.Max);
+        draw_list->AddCircle(center_point, radius, COL_GRATICULE_DARK, 0, 1);
+        draw_list->AddLine(vector_rect.Min + ImVec2(0, scope_view_size.y / 2), vector_rect.Max - ImVec2(0, scope_view_size.y / 2), COL_GRATICULE_DARK);
+        draw_list->AddLine(vector_rect.Min + ImVec2(scope_view_size.x / 2, 0), vector_rect.Max - ImVec2(scope_view_size.x / 2, 0), COL_GRATICULE_DARK);
+        
+        auto AngleToCoordinate = [&](float angle, float length)
+        {
+            ImVec2 point(0, 0);
+            float hAngle = angle * M_PI / 180.f;
+            if (angle == 0.f)
+                point = ImVec2(length, 0);  // positive x axis
+            else if (angle == 180.f)
+                point = ImVec2(-length, 0); // negative x axis
+            else if (angle == 90.f)
+                point = ImVec2(0, length); // positive y axis
+            else if (angle == 270.f)
+                point = ImVec2(0, -length);  // negative y axis
+            else
+                point = ImVec2(length * cos(hAngle), length * sin(hAngle));
+            return point;
+        };
+        auto AngleToPoint = [&](float angle, float length)
+        {
+            ImVec2 point = AngleToCoordinate(angle, length);
+            point = ImVec2(point.x * radius, -point.y * radius);
+            return point;
+        };
+        auto ColorToPoint = [&](float r, float g, float b)
+        {
+            float angle, length, v;
+            ImGui::ColorConvertRGBtoHSV(r, g, b, angle, length, v);
+            angle = angle * 360;
+            auto point = AngleToCoordinate(angle, v);
+            point = ImVec2(point.x * radius, -point.y * radius);
+            return point;
+        };
+
+        for (int i = 0; i < 360; i+= 5)
+        {
+            float l = 0.95;
+            if (i == 0 || i % 10 == 0)
+                l = 0.9;
+            auto p0 = AngleToPoint(i, 1.0);
+            auto p1 = AngleToPoint(i, l);
+            draw_list->AddLine(center_point + p0, center_point + p1, COL_GRATICULE_DARK);
+        }
+
+        auto draw_mark = [&](ImVec2 point, const char * mark)
+        {
+            float rect_size = 12;
+            auto p0 = center_point + point - ImVec2(rect_size, rect_size);
+            auto p1 = center_point + point + ImVec2(rect_size, rect_size);
+            auto p2 = p0 + ImVec2(rect_size * 2, 0);
+            auto p3 = p0 + ImVec2(0, rect_size * 2);
+            auto text_size = ImGui::CalcTextSize(mark);
+            draw_list->AddText(p0 + ImVec2(rect_size - text_size.x / 2, rect_size - text_size.y / 2), COL_GRATICULE, mark);
+            draw_list->AddLine(p0, p0 + ImVec2(5, 0),   COL_GRATICULE, 2);
+            draw_list->AddLine(p0, p0 + ImVec2(0, 5),   COL_GRATICULE, 2);
+            draw_list->AddLine(p1, p1 + ImVec2(-5, 0),  COL_GRATICULE, 2);
+            draw_list->AddLine(p1, p1 + ImVec2(0, -5),  COL_GRATICULE, 2);
+            draw_list->AddLine(p2, p2 + ImVec2(-5, 0),  COL_GRATICULE, 2);
+            draw_list->AddLine(p2, p2 + ImVec2(0, 5),   COL_GRATICULE, 2);
+            draw_list->AddLine(p3, p3 + ImVec2(5, 0),   COL_GRATICULE, 2);
+            draw_list->AddLine(p3, p3 + ImVec2(0, -5),  COL_GRATICULE, 2);
+        };
+
+        draw_mark(ColorToPoint(0.75, 0, 0), "R");
+        draw_mark(ColorToPoint(0, 0.75, 0), "G");
+        draw_mark(ColorToPoint(0, 0, 0.75), "B");
+        draw_mark(ColorToPoint(0.75, 0.75, 0), "Y");
+        draw_mark(ColorToPoint(0.75, 0, 0.75), "M");
+        draw_mark(ColorToPoint(0, 0.75, 0.75), "C");
+
+        draw_list->PopClipRect();
 
         ImGui::EndGroup();
     }

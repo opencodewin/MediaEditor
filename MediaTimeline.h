@@ -134,6 +134,9 @@
 #define COL_DARK_TWO        IM_COL32( 40,  40,  46, 255)
 #define COL_DARK_PANEL      IM_COL32( 48,  48,  54, 255)
 #define COL_DEEP_DARK       IM_COL32( 23,  24,  26, 255)
+#define COL_GRATICULE_DARK  IM_COL32(128,  96,   0, 128)
+#define COL_GRATICULE       IM_COL32(255, 196,   0, 128)
+#define COL_GRATICULE_HALF  IM_COL32(255, 196,   0,  64)
 
 #define HALF_COLOR(c)       (c & 0xFFFFFF) | 0x40000000;
 #define TIMELINE_OVER_LENGTH    5000        // add 5 seconds end of timeline
