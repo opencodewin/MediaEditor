@@ -9,6 +9,7 @@
 #include <Histogram_vulkan.h>
 #include <Waveform_vulkan.h>
 #include <CIE_vulkan.h>
+#include <Vector_vulkan.h>
 #endif
 #include "MediaTimeline.h"
 #include "FFUtils.h"
@@ -123,6 +124,9 @@ struct MediaEditorSettings
     bool CIECorrectGamma {false};
     bool CIEShowColor {true};
 
+    // Vector Scope tools
+    float VectorIntensity {0.5};
+
     MediaEditorSettings() {}
 };
 
@@ -150,9 +154,10 @@ static float ui_breathing_min = 0.5;
 static float ui_breathing_max = 1.0;
 
 #if IMGUI_VULKAN_SHADER
-static ImGui::Histogram_vulkan * m_histogram {nullptr};
-static ImGui::Waveform_vulkan * m_waveform {nullptr};
-static ImGui::CIE_vulkan * m_cie {nullptr};
+static ImGui::Histogram_vulkan *    m_histogram {nullptr};
+static ImGui::Waveform_vulkan *     m_waveform {nullptr};
+static ImGui::CIE_vulkan *          m_cie {nullptr};
+static ImGui::Vector_vulkan *       m_vector {nullptr};
 #endif
 
 static ImGui::ImMat mat_histogram;
@@ -162,6 +167,9 @@ static ImTextureID waveform_texture {nullptr};
 
 static ImGui::ImMat mat_cie;
 static ImTextureID cie_texture {nullptr};
+
+static ImGui::ImMat mat_vector;
+static ImTextureID vector_texture {nullptr};
 
 static void UpdateBreathing()
 {
@@ -1624,6 +1632,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
             if (m_histogram) m_histogram->scope(frame, mat_histogram, 256, g_media_editor_settings.HistogramScale, g_media_editor_settings.HistogramLog);
             if (m_waveform) m_waveform->scope(frame, mat_waveform, 256, g_media_editor_settings.WaveformIntensity, g_media_editor_settings.WaveformSeparate);
             if (m_cie) m_cie->scope(frame, mat_cie, g_media_editor_settings.CIEIntensity, g_media_editor_settings.CIEShowColor);
+            if (m_vector) m_vector->scope(frame, mat_vector, g_media_editor_settings.VectorIntensity);
         }
 #endif
         ImGui::ImMatToTexture(frame, timeline->mMainPreviewTexture);
@@ -1887,6 +1896,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                         if (m_histogram) m_histogram->scope(pair.second, mat_histogram, 256, g_media_editor_settings.HistogramScale, g_media_editor_settings.HistogramLog);
                         if (m_waveform) m_waveform->scope(pair.second, mat_waveform, 256, g_media_editor_settings.WaveformIntensity, g_media_editor_settings.WaveformSeparate);
                         if (m_cie) m_cie->scope(pair.second, mat_cie, g_media_editor_settings.CIEIntensity, g_media_editor_settings.CIEShowColor);
+                        if (m_vector) m_vector->scope(pair.second, mat_vector, g_media_editor_settings.VectorIntensity);
                     }
 #endif
                     ImGui::ImMatToTexture(pair.first, timeline->mVideoFilterInputTexture);
@@ -2618,6 +2628,42 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
             ImGui::EndPopup();
         }
         ImGui::EndGroup();
+
+        // vector view
+        ImGui::BeginGroup();
+        ImGui::SetCursorScreenPos(canvas_pos + ImVec2(20, 20) + ImVec2(scope_view_size.x, 0) + ImVec2(20, 0) + ImVec2(scope_view_size.x, 0) + ImVec2(20, 0) + ImVec2(scope_view_size.x, 0) + ImVec2(20, 0));
+        ImGui::SetWindowFontScale(1.5);
+        ImGui::TextUnformatted("Vector");
+        ImGui::SetWindowFontScale(1.0);
+        ImVec2 vector_pos = canvas_pos + ImVec2(20, 20 + HeadHeight * 1.5) + ImVec2(scope_view_size.x, 0) + ImVec2(20, 0) + ImVec2(scope_view_size.x, 0) + ImVec2(20, 0) + ImVec2(scope_view_size.x, 0) + ImVec2(20, 0);
+        draw_list->AddRect(vector_pos, vector_pos + scope_size, COL_DARK_PANEL);
+        draw_list->AddRectFilled(vector_pos, vector_pos + scope_view_size, IM_COL32_BLACK, 0);
+        ImGui::SetCursorScreenPos(vector_pos);
+        ImGui::InvisibleButton("##vector_view", scope_view_size);
+        if (ImGui::IsItemHovered())
+        {
+            if (io.MouseWheel < -FLT_EPSILON)
+            {
+                g_media_editor_settings.VectorIntensity *= 0.9f;
+                if (g_media_editor_settings.VectorIntensity < 0.01)
+                    g_media_editor_settings.VectorIntensity = 0.01;
+            }
+            else if (io.MouseWheel > FLT_EPSILON)
+            {
+                g_media_editor_settings.VectorIntensity *= 1.1f;
+                if (g_media_editor_settings.VectorIntensity > 1.0f)
+                    g_media_editor_settings.VectorIntensity = 1.0;
+            }
+        }
+        if (!mat_vector.empty())
+        {
+            ImGui::ImMatToTexture(mat_vector, vector_texture);
+            draw_list->AddImage(vector_texture, vector_pos, vector_pos + scope_view_size, ImVec2(0, 0), ImVec2(1, 1));
+        }
+        draw_list->AddRect(vector_pos, vector_pos + scope_view_size, COL_SLIDER_HANDLE, 0);
+        // TODO::Dicky draw mark line?
+
+        ImGui::EndGroup();
     }
     ImGui::EndGroup();
 }
@@ -2701,6 +2747,7 @@ void Application_SetupContext(ImGuiContext* ctx)
         else if (sscanf(line, "CIEColorSystem=%d", &val_int) == 1) { setting->CIEColorSystem = val_int; }
         else if (sscanf(line, "CIEMode=%d", &val_int) == 1) { setting->CIEMode = val_int; }
         else if (sscanf(line, "CIEGamuts=%d", &val_int) == 1) { setting->CIEGamuts = val_int; }
+        else if (sscanf(line, "VectorIntensity=%f", &val_float) == 1) { setting->VectorIntensity = val_float; }
         g_new_setting = g_media_editor_settings;
     };
     setting_ini_handler.WriteAllFn = [](ImGuiContext* ctx, ImGuiSettingsHandler* handler, ImGuiTextBuffer* out_buf)
@@ -2733,6 +2780,7 @@ void Application_SetupContext(ImGuiContext* ctx)
         out_buf->appendf("CIEColorSystem=%d\n", g_media_editor_settings.CIEColorSystem);
         out_buf->appendf("CIEMode=%d\n", g_media_editor_settings.CIEMode);
         out_buf->appendf("CIEGamuts=%d\n", g_media_editor_settings.CIEGamuts);
+        out_buf->appendf("VectorIntensity=%f\n", g_media_editor_settings.VectorIntensity);
         out_buf->append("\n");
     };
     setting_ini_handler.ApplyAllFn = [](ImGuiContext* ctx, ImGuiSettingsHandler* handler)
@@ -2807,6 +2855,7 @@ void Application_Initialize(void** handle)
     m_histogram = new ImGui::Histogram_vulkan(gpu);
     m_waveform = new ImGui::Waveform_vulkan(gpu);
     m_cie = new ImGui::CIE_vulkan(gpu);
+    m_vector = new ImGui::Vector_vulkan(gpu);
 #endif
     NewTimeline();
 }
@@ -2817,8 +2866,10 @@ void Application_Finalize(void** handle)
     if (m_histogram) { delete m_histogram; m_histogram = nullptr; }
     if (m_waveform) { delete m_waveform; m_waveform = nullptr; }
     if (m_cie) { delete m_cie; m_cie = nullptr; }
-    if (waveform_texture) { ImGui::ImDestroyTexture(waveform_texture); }
-    if (cie_texture) { ImGui::ImDestroyTexture(cie_texture); }
+    if (m_vector) {delete m_vector; m_vector = nullptr; }
+    if (waveform_texture) { ImGui::ImDestroyTexture(waveform_texture); waveform_texture = nullptr; }
+    if (cie_texture) { ImGui::ImDestroyTexture(cie_texture); cie_texture = nullptr; }
+    if (vector_texture) { ImGui::ImDestroyTexture(vector_texture); vector_texture = nullptr; }
 }
 
 bool Application_Frame(void * handle, bool app_will_quit)
