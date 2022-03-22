@@ -9,6 +9,7 @@
 #include <Histogram_vulkan.h>
 #include <Waveform_vulkan.h>
 #include <CIE_vulkan.h>
+#include <Vector_vulkan.h>
 #endif
 #include "MediaTimeline.h"
 #include "FFUtils.h"
@@ -19,6 +20,9 @@
 #define DEFAULT_MAIN_VIEW_HEIGHT    1024
 
 using namespace MediaTimeline;
+
+static const char* color_system_items[] = { "NTSC", "EBU", "SMPTE", "SMPTE 240M", "APPLE", "wRGB", "CIE1931", "Rec709", "Rec2020", "DCIP3" };
+static const char* cie_system_items[] = { "XYY", "UCS", "LUV" };
 
 static const char* ConfigureTabNames[] = {
     "System",
@@ -116,9 +120,12 @@ struct MediaEditorSettings
     int CIEMode {ImGui::XYY};
     int CIEGamuts {ImGui::Rec2020system};
     float CIEContrast {0.75};
-    float CIEIntensity {0.01};
+    float CIEIntensity {0.5};
     bool CIECorrectGamma {false};
     bool CIEShowColor {true};
+
+    // Vector Scope tools
+    float VectorIntensity {0.5};
 
     MediaEditorSettings() {}
 };
@@ -147,9 +154,10 @@ static float ui_breathing_min = 0.5;
 static float ui_breathing_max = 1.0;
 
 #if IMGUI_VULKAN_SHADER
-static ImGui::Histogram_vulkan * m_histogram {nullptr};
-static ImGui::Waveform_vulkan * m_waveform {nullptr};
-static ImGui::CIE_vulkan * m_cie {nullptr};
+static ImGui::Histogram_vulkan *    m_histogram {nullptr};
+static ImGui::Waveform_vulkan *     m_waveform {nullptr};
+static ImGui::CIE_vulkan *          m_cie {nullptr};
+static ImGui::Vector_vulkan *       m_vector {nullptr};
 #endif
 
 static ImGui::ImMat mat_histogram;
@@ -159,6 +167,9 @@ static ImTextureID waveform_texture {nullptr};
 
 static ImGui::ImMat mat_cie;
 static ImTextureID cie_texture {nullptr};
+
+static ImGui::ImMat mat_vector;
+static ImTextureID vector_texture {nullptr};
 
 static void UpdateBreathing()
 {
@@ -1616,9 +1627,13 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     if (!frame.empty())
     {
 #if IMGUI_VULKAN_SHADER
-        if (m_histogram) m_histogram->scope(frame, mat_histogram, 256, g_media_editor_settings.HistogramScale, g_media_editor_settings.HistogramLog);
-        if (m_waveform) m_waveform->scope(frame, mat_waveform, 256, g_media_editor_settings.WaveformIntensity, g_media_editor_settings.WaveformSeparate);
-        if (m_cie) m_cie->scope(frame, mat_cie, g_media_editor_settings.CIEIntensity, g_media_editor_settings.CIEShowColor);
+        if (BottomWindowIndex == 1)
+        {
+            if (m_histogram) m_histogram->scope(frame, mat_histogram, 256, g_media_editor_settings.HistogramScale, g_media_editor_settings.HistogramLog);
+            if (m_waveform) m_waveform->scope(frame, mat_waveform, 256, g_media_editor_settings.WaveformIntensity, g_media_editor_settings.WaveformSeparate);
+            if (m_cie) m_cie->scope(frame, mat_cie, g_media_editor_settings.CIEIntensity, g_media_editor_settings.CIEShowColor);
+            if (m_vector) m_vector->scope(frame, mat_vector, g_media_editor_settings.VectorIntensity);
+        }
 #endif
         ImGui::ImMatToTexture(frame, timeline->mMainPreviewTexture);
     }
@@ -1876,9 +1891,13 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                 if (ret)
                 {
 #if IMGUI_VULKAN_SHADER
-                    if (m_histogram) m_histogram->scope(pair.second, mat_histogram, 256, g_media_editor_settings.HistogramScale, g_media_editor_settings.HistogramLog);
-                    if (m_waveform) m_waveform->scope(pair.second, mat_waveform, 256, g_media_editor_settings.WaveformIntensity, g_media_editor_settings.WaveformSeparate);
-                    if (m_cie) m_cie->scope(pair.second, mat_cie, g_media_editor_settings.CIEIntensity, g_media_editor_settings.CIEShowColor);
+                    if (BottomWindowIndex == 1)
+                    {
+                        if (m_histogram) m_histogram->scope(pair.second, mat_histogram, 256, g_media_editor_settings.HistogramScale, g_media_editor_settings.HistogramLog);
+                        if (m_waveform) m_waveform->scope(pair.second, mat_waveform, 256, g_media_editor_settings.WaveformIntensity, g_media_editor_settings.WaveformSeparate);
+                        if (m_cie) m_cie->scope(pair.second, mat_cie, g_media_editor_settings.CIEIntensity, g_media_editor_settings.CIEShowColor);
+                        if (m_vector) m_vector->scope(pair.second, mat_vector, g_media_editor_settings.VectorIntensity);
+                    }
 #endif
                     ImGui::ImMatToTexture(pair.first, timeline->mVideoFilterInputTexture);
                     ImGui::ImMatToTexture(pair.second, timeline->mVideoFilterOutputTexture);
@@ -2403,6 +2422,7 @@ static void ShowAudioEditorWindow(ImDrawList *draw_list)
  ***************************************************************************************/
 static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
 {
+    ImGuiIO &io = ImGui::GetIO();
     ImDrawList *draw_list = ImGui::GetWindowDrawList();
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetContentRegionAvail() - ImVec2(8, 0);
@@ -2418,43 +2438,437 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
     else
     {
         draw_list->AddRectFilled(window_pos + ImVec2(96, 0), window_pos + ImVec2(window_size.x, HeadHeight), COL_DARK_ONE, 0);
-        ImGui::PushStyleColor(ImGuiCol_FrameBg, 0);
-        // Histogram area
-        // TODO::Dicky add detail UI
-        ImGui::SetCursorScreenPos(canvas_pos);
-        /*
+        draw_list->AddRectFilled(window_pos + ImVec2(0, HeadHeight), window_pos + ImVec2(window_size.x, window_size.y - HeadHeight), COL_PANEL_BG, 0);
+        ImVec2 scope_view_size = ImVec2(256, 256);
+        ImVec2 scope_size = scope_view_size + ImVec2(0, 40);
+
+        // histogram view
+        ImGui::BeginGroup();
+        ImGui::SetCursorScreenPos(canvas_pos + ImVec2(20, 20));
+        ImGui::SetWindowFontScale(1.5);
+        ImGui::TextUnformatted("Histogram");
+        ImGui::SetWindowFontScale(1.0);
+        ImVec2 histogram_pos = canvas_pos + ImVec2(20, 20 + HeadHeight * 1.5);
+        draw_list->AddRect(histogram_pos, histogram_pos + scope_size, COL_DARK_PANEL);
+        draw_list->AddRectFilled(histogram_pos, histogram_pos + scope_view_size, IM_COL32_BLACK, 0);
+        ImGui::SetCursorScreenPos(histogram_pos);
+        ImGui::InvisibleButton("##histogram_view", scope_view_size);
+        if (ImGui::IsItemHovered())
+        {
+            if (io.MouseWheel < -FLT_EPSILON)
+            {
+                g_media_editor_settings.HistogramScale *= 0.9f;
+                if (g_media_editor_settings.HistogramScale < 0.01)
+                    g_media_editor_settings.HistogramScale = 0.01;
+            }
+            else if (io.MouseWheel > FLT_EPSILON)
+            {
+                g_media_editor_settings.HistogramScale *= 1.1f;
+                if (g_media_editor_settings.HistogramScale > 4.0f)
+                    g_media_editor_settings.HistogramScale = 4.0;
+            }
+        }
         if (!mat_histogram.empty())
         {
+            ImGui::PushStyleColor(ImGuiCol_FrameBg, 0);
+            ImGui::SetCursorScreenPos(histogram_pos);
             auto rmat = mat_histogram.channel(0);
             ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(1.f, 0.f, 0.f, 1.0f));
             ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(1.f, 0.f, 0.f, 0.5f));
-            ImGui::PlotLines("##rh", (float *)rmat.data, mat_histogram.w, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(256, 100), 4, false, true);
+            ImGui::PlotLines("##rh", (float *)rmat.data, mat_histogram.w, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(scope_view_size.x, scope_view_size.y / 3), 4, false, true);
             ImGui::PopStyleColor(2);
+            ImGui::SetCursorScreenPos(histogram_pos + ImVec2(0, scope_view_size.y / 3));
             auto gmat = mat_histogram.channel(1);
             ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.f, 1.f, 0.f, 1.0f));
             ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.f, 1.f, 0.f, 0.5f));
-            ImGui::PlotLines("##gh", (float *)gmat.data, mat_histogram.w, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(256, 100), 4, false, true);
+            ImGui::PlotLines("##gh", (float *)gmat.data, mat_histogram.w, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(scope_view_size.x, scope_view_size.y / 3), 4, false, true);
             ImGui::PopStyleColor(2);
+            ImGui::SetCursorScreenPos(histogram_pos + ImVec2(0, scope_view_size.y * 2 / 3));
             auto bmat = mat_histogram.channel(2);
             ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.f, 0.f, 1.f, 1.0f));
             ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.f, 0.f, 1.f, 0.5f));
-            ImGui::PlotLines("##bh", (float *)bmat.data, mat_histogram.w, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(256, 100), 4, false, true);
+            ImGui::PlotLines("##bh", (float *)bmat.data, mat_histogram.w, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(scope_view_size.x, scope_view_size.y / 3), 4, false, true);
             ImGui::PopStyleColor(2);
+            ImGui::PopStyleColor();
+        }
+        ImRect histogram_rect = ImRect(histogram_pos, histogram_pos + scope_view_size);
+        draw_list->AddRect(histogram_rect.Min, histogram_rect.Max, COL_SLIDER_HANDLE, 0);
+        // draw graticule line
+        draw_list->PushClipRect(histogram_rect.Min, histogram_rect.Max);
+        auto histogram_step = scope_view_size.x / 10;
+        auto histogram_sub_vstep = scope_view_size.x / 50;
+        auto histogram_vstep = scope_view_size.y / 3 * g_media_editor_settings.HistogramScale;
+        auto histogram_seg = scope_view_size.y / 3 / histogram_vstep;
+        for (int i = 1; i <= 10; i++)
+        {
+            ImVec2 p0 = histogram_rect.Min + ImVec2(i * histogram_step, 0);
+            ImVec2 p1 = histogram_rect.Min + ImVec2(i * histogram_step, histogram_rect.Max.y);
+            draw_list->AddLine(p0, p1, COL_GRATICULE_DARK, 1);
+        }
+        for (int i = 0; i < histogram_seg; i++)
+        {
+            ImVec2 pr0 = histogram_rect.Min + ImVec2(0, (scope_view_size.y / 3) - i * histogram_vstep);
+            ImVec2 pr1 = histogram_rect.Min + ImVec2(histogram_rect.Max.x, (scope_view_size.y / 3) - i * histogram_vstep);
+            draw_list->AddLine(pr0, pr1, IM_COL32(255, 128, 0, 32), 1);
+            ImVec2 pg0 = histogram_rect.Min + ImVec2(0, scope_view_size.y / 3) + ImVec2(0, (scope_view_size.y / 3) - i * histogram_vstep);
+            ImVec2 pg1 = histogram_rect.Min + ImVec2(0, scope_view_size.y / 3) + ImVec2(histogram_rect.Max.x, (scope_view_size.y / 3) - i * histogram_vstep);
+            draw_list->AddLine(pg0, pg1, IM_COL32(128, 255, 0, 32), 1);
+            ImVec2 pb0 = histogram_rect.Min + ImVec2(0, scope_view_size.y * 2 / 3) + ImVec2(0, (scope_view_size.y / 3) - i * histogram_vstep);
+            ImVec2 pb1 = histogram_rect.Min + ImVec2(0, scope_view_size.y * 2 / 3) + ImVec2(histogram_rect.Max.x, (scope_view_size.y / 3) - i * histogram_vstep);
+            draw_list->AddLine(pb0, pb1, IM_COL32(128, 128, 255, 32), 1);
+        }
+        for (int i = 0; i < 50; i++)
+        {
+            ImVec2 p0 = histogram_rect.Min + ImVec2(i * histogram_sub_vstep, 0);
+            ImVec2 p1 = histogram_rect.Min + ImVec2(i * histogram_sub_vstep, 5);
+            draw_list->AddLine(p0, p1, COL_GRATICULE, 1);
+        }
+        draw_list->PopClipRect();
+        
+        ImGui::SetCursorScreenPos(histogram_pos + ImVec2(0, scope_view_size.y));
+        ImGui::TextUnformatted("Log:"); ImGui::SameLine();
+        ImGui::ToggleButton("##histogram_logview", &g_media_editor_settings.HistogramLog);
+        ImGui::EndGroup();
+
+        // waveform view
+        ImGui::BeginGroup();
+        ImGui::SetCursorScreenPos(canvas_pos + ImVec2(20, 20) + ImVec2(scope_view_size.x, 0) + ImVec2(20, 0));
+        ImGui::SetWindowFontScale(1.5);
+        ImGui::TextUnformatted("Waveform");
+        ImGui::SetWindowFontScale(1.0);
+        ImVec2 waveform_pos = canvas_pos + ImVec2(20, 20 + HeadHeight * 1.5) + ImVec2(scope_view_size.x, 0) + ImVec2(20, 0);
+        draw_list->AddRect(waveform_pos, waveform_pos + scope_size, COL_DARK_PANEL);
+        draw_list->AddRectFilled(waveform_pos, waveform_pos + scope_view_size, IM_COL32_BLACK, 0);
+        ImGui::SetCursorScreenPos(waveform_pos);
+        ImGui::InvisibleButton("##waveform_view", scope_view_size);
+        if (ImGui::IsItemHovered())
+        {
+            if (io.MouseWheel < -FLT_EPSILON)
+            {
+                g_media_editor_settings.WaveformIntensity *= 0.9f;
+                if (g_media_editor_settings.WaveformIntensity < 0.1)
+                    g_media_editor_settings.WaveformIntensity = 0.1;
+            }
+            else if (io.MouseWheel > FLT_EPSILON)
+            {
+                g_media_editor_settings.WaveformIntensity *= 1.1f;
+                if (g_media_editor_settings.WaveformIntensity > 4.0f)
+                    g_media_editor_settings.WaveformIntensity = 4.0;
+            }
         }
         if (!mat_waveform.empty())
         {
             ImGui::ImMatToTexture(mat_waveform, waveform_texture);
-            auto waveform_size = ImVec2(270, 256);
-            draw_list->AddImage(waveform_texture, canvas_pos, canvas_pos + waveform_size, g_media_editor_settings.WaveformMirror ? ImVec2(0, 1) : ImVec2(0, 0), g_media_editor_settings.WaveformMirror ? ImVec2(1, 0) : ImVec2(1, 1));
+            draw_list->AddImage(waveform_texture, waveform_pos, waveform_pos + scope_view_size, g_media_editor_settings.WaveformMirror ? ImVec2(0, 1) : ImVec2(0, 0), g_media_editor_settings.WaveformMirror ? ImVec2(1, 0) : ImVec2(1, 1));
+        }
+        ImRect waveform_rect = ImRect(waveform_pos, waveform_pos + scope_view_size);
+        draw_list->AddRect(waveform_rect.Min, waveform_rect.Max, COL_SLIDER_HANDLE, 0);
+        // draw graticule line
+        draw_list->PushClipRect(waveform_rect.Min, waveform_rect.Max);
+        auto waveform_step = scope_view_size.y / 10;
+        auto waveform_vstep = scope_view_size.x / 10;
+        auto waveform_sub_step = scope_view_size.y / 50;
+        auto waveform_sub_vstep = scope_view_size.x / 100;
+        for (int i = 0; i < 10; i++)
+        {
+            ImVec2 p0 = waveform_rect.Min + ImVec2(0, i * waveform_step);
+            ImVec2 p1 = waveform_rect.Min + ImVec2(waveform_rect.Max.x, i * waveform_step);
+            if (i != 5)
+                draw_list->AddLine(p0, p1, COL_GRATICULE_DARK, 1);
+            else
+            {
+                draw_list->AddLineDashed(p0, p1, COL_GRATICULE_DARK, 1, 100);
+            }
+            ImVec2 vp0 = waveform_rect.Min + ImVec2(i * waveform_vstep, 0);
+            ImVec2 vp1 = waveform_rect.Min + ImVec2(i * waveform_vstep, 10);
+            draw_list->AddLine(vp0, vp1, COL_GRATICULE, 1);
+        }
+        for (int i = 0; i < 50; i++)
+        {
+            float l = i == 0 || i % 10 == 0 ? 10 : 5;
+            ImVec2 p0 = waveform_rect.Min + ImVec2(0, i * waveform_sub_step);
+            ImVec2 p1 = waveform_rect.Min + ImVec2(l, i * waveform_sub_step);
+            draw_list->AddLine(p0, p1, COL_GRATICULE, 1);
+        }
+        for (int i = 0; i < 100; i++)
+        {
+            ImVec2 p0 = waveform_rect.Min + ImVec2(i * waveform_sub_vstep, 0);
+            ImVec2 p1 = waveform_rect.Min + ImVec2(i * waveform_sub_vstep, 5);
+            draw_list->AddLine(p0, p1, COL_GRATICULE, 1);
+        }
+        draw_list->PopClipRect();
+
+        ImGui::SetCursorScreenPos(waveform_pos + ImVec2(0, scope_view_size.y));
+        ImGui::TextUnformatted("Mirror:"); ImGui::SameLine();
+        ImGui::ToggleButton("##waveform_mirror", &g_media_editor_settings.WaveformMirror);
+        ImGui::SameLine();
+        ImGui::TextUnformatted("Separate:"); ImGui::SameLine();
+        ImGui::ToggleButton("##waveform_separate", &g_media_editor_settings.WaveformSeparate);
+        ImGui::EndGroup();
+
+        // cie view
+        ImGui::BeginGroup();
+        ImGui::SetCursorScreenPos(canvas_pos + ImVec2(20, 20) + ImVec2(scope_view_size.x, 0) + ImVec2(20, 0) + ImVec2(scope_view_size.x, 0) + ImVec2(20, 0));
+        ImGui::SetWindowFontScale(1.5);
+        ImGui::TextUnformatted("CIE");
+        ImGui::SetWindowFontScale(1.0);
+        ImVec2 cie_pos = canvas_pos + ImVec2(20, 20 + HeadHeight * 1.5) + ImVec2(scope_view_size.x, 0) + ImVec2(20, 0) + ImVec2(scope_view_size.x, 0) + ImVec2(20, 0);
+        draw_list->AddRect(cie_pos, cie_pos + scope_size, COL_DARK_PANEL);
+        draw_list->AddRectFilled(cie_pos, cie_pos + scope_view_size, IM_COL32_BLACK, 0);
+        ImGui::SetCursorScreenPos(cie_pos);
+        ImGui::InvisibleButton("##cie_view", scope_view_size);
+        if (ImGui::IsItemHovered())
+        {
+            if (io.MouseWheel < -FLT_EPSILON)
+            {
+                g_media_editor_settings.CIEIntensity *= 0.9f;
+                if (g_media_editor_settings.CIEIntensity < 0.01)
+                    g_media_editor_settings.CIEIntensity = 0.01;
+            }
+            else if (io.MouseWheel > FLT_EPSILON)
+            {
+                g_media_editor_settings.CIEIntensity *= 1.1f;
+                if (g_media_editor_settings.CIEIntensity > 1.0f)
+                    g_media_editor_settings.CIEIntensity = 1.0;
+            }
         }
         if (!mat_cie.empty())
         {
             ImGui::ImMatToTexture(mat_cie, cie_texture);
-            auto cie_size = ImVec2(256, 256);
-            draw_list->AddImage(cie_texture, canvas_pos, canvas_pos + cie_size, ImVec2(0, 0), ImVec2(1, 1));
+            draw_list->AddImage(cie_texture, cie_pos, cie_pos + scope_view_size, ImVec2(0, 0), ImVec2(1, 1));
         }
-        */
-        ImGui::PopStyleColor();
+        ImRect cie_rect = ImRect(cie_pos, cie_pos + scope_view_size);
+        draw_list->AddRect(cie_rect.Min, cie_rect.Max, COL_SLIDER_HANDLE, 0);
+        // draw graticule line
+        draw_list->PushClipRect(cie_rect.Min, cie_rect.Max);
+        auto cie_step = scope_view_size.y / 10;
+        auto cie_vstep = scope_view_size.x / 10;
+        auto cie_sub_step = scope_view_size.y / 50;
+        auto cie_sub_vstep = scope_view_size.x / 50;
+        for (int i = 1; i <= 10; i++)
+        {
+            ImVec2 hp0 = cie_rect.Min + ImVec2(0, i * cie_step);
+            ImVec2 hp1 = cie_rect.Min + ImVec2(cie_rect.Max.x, i * cie_step);
+            draw_list->AddLine(hp0, hp1, COL_GRATICULE_DARK, 1);
+            ImVec2 vp0 = cie_rect.Min + ImVec2(i * cie_vstep, 0);
+            ImVec2 vp1 = cie_rect.Min + ImVec2(i * cie_vstep, cie_rect.Max.y);
+            draw_list->AddLine(vp0, vp1, COL_GRATICULE_DARK, 1);
+        }
+        for (int i = 0; i < 50; i++)
+        {
+            ImVec2 hp0 = cie_rect.Min + ImVec2(scope_view_size.x - 3, i * cie_sub_step);
+            ImVec2 hp1 = cie_rect.Min + ImVec2(scope_view_size.x, i * cie_sub_step);
+            draw_list->AddLine(hp0, hp1, COL_GRATICULE_HALF, 1);
+            ImVec2 vp0 = cie_rect.Min + ImVec2(i * cie_sub_vstep, 0);
+            ImVec2 vp1 = cie_rect.Min + ImVec2(i * cie_sub_vstep, 3);
+            draw_list->AddLine(vp0, vp1, COL_GRATICULE_HALF, 1);
+        }
+        std::string X_str = "X";
+        std::string Y_str = "Y";
+        if (g_media_editor_settings.CIEMode == ImGui::UCS)
+        {
+            X_str = "U"; Y_str = "C";
+        }
+        else if (g_media_editor_settings.CIEMode == ImGui::LUV)
+        {
+            X_str = "U"; Y_str = "V";
+        }
+        draw_list->AddText(cie_pos + ImVec2(2, 2), COL_GRATICULE, X_str.c_str());
+        draw_list->AddText(cie_pos + ImVec2(scope_view_size.x - 12, scope_view_size.y - 18), COL_GRATICULE, Y_str.c_str());
+        ImGui::SetWindowFontScale(0.7);
+        for (int i = 0; i < 10; i++)
+        {
+            if (i == 0) continue;
+            char mark[32] = {0};
+            ImFormatString(mark, IM_ARRAYSIZE(mark), "%.1f", i / 10.f);
+            draw_list->AddText(cie_pos + ImVec2(i * cie_vstep - 8, 2), COL_GRATICULE, mark);
+            draw_list->AddText(cie_pos + ImVec2(scope_view_size.x - 18, scope_view_size.y - i * cie_step - 6), COL_GRATICULE, mark);
+        }
+        ImGui::SetWindowFontScale(1.0);
+        ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphShadowOffset, ImVec2(1, 1));
+        if (m_cie)
+        {
+            ImVec2 white_point;
+            m_cie->GetWhitePoint((ImGui::ColorsSystems)g_media_editor_settings.CIEColorSystem, scope_view_size.x, scope_view_size.y, &white_point.x, &white_point.y);
+            draw_list->AddCircle(cie_pos + white_point, 3, IM_COL32_WHITE, 0, 2);
+            draw_list->AddCircle(cie_pos + white_point, 2, IM_COL32_BLACK, 0, 1);
+            ImVec2 green_point_system;
+            m_cie->GetGreenPoint((ImGui::ColorsSystems)g_media_editor_settings.CIEColorSystem, scope_view_size.x, scope_view_size.y, &green_point_system.x, &green_point_system.y);
+            draw_list->AddText(cie_pos + green_point_system, COL_GRATICULE, color_system_items[g_media_editor_settings.CIEColorSystem]);
+            ImVec2 green_point_gamuts;
+            m_cie->GetGreenPoint((ImGui::ColorsSystems)g_media_editor_settings.CIEGamuts, scope_view_size.x, scope_view_size.y, &green_point_gamuts.x, &green_point_gamuts.y);
+            draw_list->AddText(cie_pos + green_point_gamuts, COL_GRATICULE, color_system_items[g_media_editor_settings.CIEGamuts]);
+        }
+        ImGui::PopStyleVar();
+        draw_list->PopClipRect();
+
+        ImGui::SetCursorScreenPos(cie_pos + ImVec2(0, scope_view_size.y));
+        ImGui::TextUnformatted("Show Color:"); ImGui::SameLine();
+        ImGui::ToggleButton("##cie_show_color", &g_media_editor_settings.CIEShowColor);
+        ImGui::SameLine();
+        if (ImGui::Button("...##cie_configure", ImVec2(48, 0)))
+        {
+            ImGui::OpenPopup(ICON_FA_WHMCS " CIE Configure", ImGuiPopupFlags_AnyPopup);
+        }
+        if (ImGui::BeginPopupModal(ICON_FA_WHMCS " CIE Configure", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings))
+        {
+            static int color_system = g_media_editor_settings.CIEColorSystem;
+            static int cie_system = g_media_editor_settings.CIEMode;
+            static int gamuts = g_media_editor_settings.CIEGamuts;
+            static float contrast = g_media_editor_settings.CIEContrast;
+            static bool correct_gamma = g_media_editor_settings.CIECorrectGamma;
+            ImGui::Combo("Color System", (int *)&color_system, color_system_items, IM_ARRAYSIZE(color_system_items));
+            ImGui::Combo("Cie System", (int *)&cie_system, cie_system_items, IM_ARRAYSIZE(cie_system_items));
+            ImGui::Combo("Show Gamut", (int *)&gamuts, color_system_items, IM_ARRAYSIZE(color_system_items));
+            ImGui::DragFloat("Contrast##cie_contrast", &contrast, 0.01f, 0.f, 1.f, "%.2f");
+            ImGui::TextUnformatted("CorrectGamma:"); ImGui::SameLine();
+            ImGui::ToggleButton("##cie_correct_gamma", &correct_gamma);
+            int i = ImGui::GetCurrentWindow()->ContentSize.x;
+            ImGui::Indent((i - 140.0f) * 0.5f);
+            if (ImGui::Button("OK", ImVec2(60, 0)))
+            {
+                g_media_editor_settings.CIEColorSystem = color_system;
+                g_media_editor_settings.CIEMode = cie_system;
+                g_media_editor_settings.CIEGamuts = gamuts;
+                g_media_editor_settings.CIEContrast = contrast;
+                g_media_editor_settings.CIECorrectGamma = correct_gamma;
+#if IMGUI_VULKAN_SHADER
+                if (m_cie) 
+                    m_cie->SetParam(g_media_editor_settings.CIEColorSystem, 
+                                    g_media_editor_settings.CIEMode, 512, 
+                                    g_media_editor_settings.CIEGamuts, 
+                                    g_media_editor_settings.CIEContrast, 
+                                    g_media_editor_settings.CIECorrectGamma);
+#endif
+                ImGui::CloseCurrentPopup(); 
+            }
+            ImGui::SetItemDefaultFocus();
+            ImGui::SameLine();
+            if (ImGui::Button("Cancel", ImVec2(60, 0)))
+            {
+                color_system = g_media_editor_settings.CIEColorSystem;
+                cie_system = g_media_editor_settings.CIEMode;
+                gamuts = g_media_editor_settings.CIEGamuts;
+                contrast = g_media_editor_settings.CIEContrast;
+                correct_gamma = g_media_editor_settings.CIECorrectGamma;
+                ImGui::CloseCurrentPopup(); 
+            }
+            ImGui::EndPopup();
+        }
+        ImGui::EndGroup();
+
+        // vector view
+        ImGui::BeginGroup();
+        ImGui::SetCursorScreenPos(canvas_pos + ImVec2(20, 20) + ImVec2(scope_view_size.x, 0) + ImVec2(20, 0) + ImVec2(scope_view_size.x, 0) + ImVec2(20, 0) + ImVec2(scope_view_size.x, 0) + ImVec2(20, 0));
+        ImGui::SetWindowFontScale(1.5);
+        ImGui::TextUnformatted("Vector");
+        ImGui::SetWindowFontScale(1.0);
+        ImVec2 vector_pos = canvas_pos + ImVec2(20, 20 + HeadHeight * 1.5) + ImVec2(scope_view_size.x, 0) + ImVec2(20, 0) + ImVec2(scope_view_size.x, 0) + ImVec2(20, 0) + ImVec2(scope_view_size.x, 0) + ImVec2(20, 0);
+        draw_list->AddRect(vector_pos, vector_pos + scope_size, COL_DARK_PANEL);
+        draw_list->AddRectFilled(vector_pos, vector_pos + scope_view_size, IM_COL32_BLACK, 0);
+        ImGui::SetCursorScreenPos(vector_pos);
+        ImGui::InvisibleButton("##vector_view", scope_view_size);
+        if (ImGui::IsItemHovered())
+        {
+            if (io.MouseWheel < -FLT_EPSILON)
+            {
+                g_media_editor_settings.VectorIntensity *= 0.9f;
+                if (g_media_editor_settings.VectorIntensity < 0.01)
+                    g_media_editor_settings.VectorIntensity = 0.01;
+            }
+            else if (io.MouseWheel > FLT_EPSILON)
+            {
+                g_media_editor_settings.VectorIntensity *= 1.1f;
+                if (g_media_editor_settings.VectorIntensity > 1.0f)
+                    g_media_editor_settings.VectorIntensity = 1.0;
+            }
+        }
+        if (!mat_vector.empty())
+        {
+            ImGui::ImMatToTexture(mat_vector, vector_texture);
+            draw_list->AddImage(vector_texture, vector_pos, vector_pos + scope_view_size, ImVec2(0, 0), ImVec2(1, 1));
+        }
+        ImRect vector_rect = ImRect(vector_pos, vector_pos + scope_view_size);
+        draw_list->AddRect(vector_rect.Min, vector_rect.Max, COL_SLIDER_HANDLE, 0);
+        // draw graticule line
+        ImVec2 center_point = ImVec2(vector_rect.Min + scope_view_size / 2);
+        float radius = scope_view_size.x / 2;
+        draw_list->PushClipRect(vector_rect.Min, vector_rect.Max);
+        draw_list->AddCircle(center_point, radius, COL_GRATICULE_DARK, 0, 1);
+        draw_list->AddLine(vector_rect.Min + ImVec2(0, scope_view_size.y / 2), vector_rect.Max - ImVec2(0, scope_view_size.y / 2), COL_GRATICULE_DARK);
+        draw_list->AddLine(vector_rect.Min + ImVec2(scope_view_size.x / 2, 0), vector_rect.Max - ImVec2(scope_view_size.x / 2, 0), COL_GRATICULE_DARK);
+        
+        auto AngleToCoordinate = [&](float angle, float length)
+        {
+            ImVec2 point(0, 0);
+            float hAngle = angle * M_PI / 180.f;
+            if (angle == 0.f)
+                point = ImVec2(length, 0);  // positive x axis
+            else if (angle == 180.f)
+                point = ImVec2(-length, 0); // negative x axis
+            else if (angle == 90.f)
+                point = ImVec2(0, length); // positive y axis
+            else if (angle == 270.f)
+                point = ImVec2(0, -length);  // negative y axis
+            else
+                point = ImVec2(length * cos(hAngle), length * sin(hAngle));
+            return point;
+        };
+        auto AngleToPoint = [&](float angle, float length)
+        {
+            ImVec2 point = AngleToCoordinate(angle, length);
+            point = ImVec2(point.x * radius, -point.y * radius);
+            return point;
+        };
+        auto ColorToPoint = [&](float r, float g, float b)
+        {
+            float angle, length, v;
+            ImGui::ColorConvertRGBtoHSV(r, g, b, angle, length, v);
+            angle = angle * 360;
+            auto point = AngleToCoordinate(angle, v);
+            point = ImVec2(point.x * radius, -point.y * radius);
+            return point;
+        };
+
+        for (int i = 0; i < 360; i+= 5)
+        {
+            float l = 0.95;
+            if (i == 0 || i % 10 == 0)
+                l = 0.9;
+            auto p0 = AngleToPoint(i, 1.0);
+            auto p1 = AngleToPoint(i, l);
+            draw_list->AddLine(center_point + p0, center_point + p1, COL_GRATICULE_DARK);
+        }
+
+        auto draw_mark = [&](ImVec2 point, const char * mark)
+        {
+            float rect_size = 12;
+            auto p0 = center_point + point - ImVec2(rect_size, rect_size);
+            auto p1 = center_point + point + ImVec2(rect_size, rect_size);
+            auto p2 = p0 + ImVec2(rect_size * 2, 0);
+            auto p3 = p0 + ImVec2(0, rect_size * 2);
+            auto text_size = ImGui::CalcTextSize(mark);
+            draw_list->AddText(p0 + ImVec2(rect_size - text_size.x / 2, rect_size - text_size.y / 2), COL_GRATICULE, mark);
+            draw_list->AddLine(p0, p0 + ImVec2(5, 0),   COL_GRATICULE, 2);
+            draw_list->AddLine(p0, p0 + ImVec2(0, 5),   COL_GRATICULE, 2);
+            draw_list->AddLine(p1, p1 + ImVec2(-5, 0),  COL_GRATICULE, 2);
+            draw_list->AddLine(p1, p1 + ImVec2(0, -5),  COL_GRATICULE, 2);
+            draw_list->AddLine(p2, p2 + ImVec2(-5, 0),  COL_GRATICULE, 2);
+            draw_list->AddLine(p2, p2 + ImVec2(0, 5),   COL_GRATICULE, 2);
+            draw_list->AddLine(p3, p3 + ImVec2(5, 0),   COL_GRATICULE, 2);
+            draw_list->AddLine(p3, p3 + ImVec2(0, -5),  COL_GRATICULE, 2);
+        };
+
+        draw_mark(ColorToPoint(0.75, 0, 0), "R");
+        draw_mark(ColorToPoint(0, 0.75, 0), "G");
+        draw_mark(ColorToPoint(0, 0, 0.75), "B");
+        draw_mark(ColorToPoint(0.75, 0.75, 0), "Y");
+        draw_mark(ColorToPoint(0.75, 0, 0.75), "M");
+        draw_mark(ColorToPoint(0, 0.75, 0.75), "C");
+
+        draw_list->PopClipRect();
+
+        ImGui::EndGroup();
     }
     ImGui::EndGroup();
 }
@@ -2538,6 +2952,7 @@ void Application_SetupContext(ImGuiContext* ctx)
         else if (sscanf(line, "CIEColorSystem=%d", &val_int) == 1) { setting->CIEColorSystem = val_int; }
         else if (sscanf(line, "CIEMode=%d", &val_int) == 1) { setting->CIEMode = val_int; }
         else if (sscanf(line, "CIEGamuts=%d", &val_int) == 1) { setting->CIEGamuts = val_int; }
+        else if (sscanf(line, "VectorIntensity=%f", &val_float) == 1) { setting->VectorIntensity = val_float; }
         g_new_setting = g_media_editor_settings;
     };
     setting_ini_handler.WriteAllFn = [](ImGuiContext* ctx, ImGuiSettingsHandler* handler, ImGuiTextBuffer* out_buf)
@@ -2570,6 +2985,7 @@ void Application_SetupContext(ImGuiContext* ctx)
         out_buf->appendf("CIEColorSystem=%d\n", g_media_editor_settings.CIEColorSystem);
         out_buf->appendf("CIEMode=%d\n", g_media_editor_settings.CIEMode);
         out_buf->appendf("CIEGamuts=%d\n", g_media_editor_settings.CIEGamuts);
+        out_buf->appendf("VectorIntensity=%f\n", g_media_editor_settings.VectorIntensity);
         out_buf->append("\n");
     };
     setting_ini_handler.ApplyAllFn = [](ImGuiContext* ctx, ImGuiSettingsHandler* handler)
@@ -2644,6 +3060,7 @@ void Application_Initialize(void** handle)
     m_histogram = new ImGui::Histogram_vulkan(gpu);
     m_waveform = new ImGui::Waveform_vulkan(gpu);
     m_cie = new ImGui::CIE_vulkan(gpu);
+    m_vector = new ImGui::Vector_vulkan(gpu);
 #endif
     NewTimeline();
 }
@@ -2654,8 +3071,10 @@ void Application_Finalize(void** handle)
     if (m_histogram) { delete m_histogram; m_histogram = nullptr; }
     if (m_waveform) { delete m_waveform; m_waveform = nullptr; }
     if (m_cie) { delete m_cie; m_cie = nullptr; }
-    if (waveform_texture) { ImGui::ImDestroyTexture(waveform_texture); }
-    if (cie_texture) { ImGui::ImDestroyTexture(cie_texture); }
+    if (m_vector) {delete m_vector; m_vector = nullptr; }
+    if (waveform_texture) { ImGui::ImDestroyTexture(waveform_texture); waveform_texture = nullptr; }
+    if (cie_texture) { ImGui::ImDestroyTexture(cie_texture); cie_texture = nullptr; }
+    if (vector_texture) { ImGui::ImDestroyTexture(vector_texture); vector_texture = nullptr; }
 }
 
 bool Application_Frame(void * handle, bool app_will_quit)
