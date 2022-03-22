@@ -1350,6 +1350,46 @@ void BluePrintVideoFilter::SetBluePrintFromJson(imgui_json::value& bpJson)
     }
 }
 
+BluePrintVideoTransition::~BluePrintVideoTransition()
+{
+    if (mBp)
+    {
+        mBp->Finalize();
+        delete mBp;
+        mBp = nullptr;
+    }
+}
+
+ImGui::ImMat BluePrintVideoTransition::MixTwoImages(const ImGui::ImMat& vmat1, const ImGui::ImMat& vmat2, int64_t pos)
+{
+    return vmat1;
+}
+
+void BluePrintVideoTransition::SetBluePrintFromJson(imgui_json::value& bpJson)
+{
+    BluePrint::BluePrintUI* bp = new BluePrint::BluePrintUI();
+    bp->Initialize();
+    // Logger::Log(Logger::DEBUG) << "Create bp transition from json " << bpJson.dump() << std::endl;
+    bp->File_New_Filter(bpJson, "VideoFilter", "Video");
+    if (!bp->Blueprint_IsValid())
+    {
+        bp->Finalize();
+        delete bp;
+        return;
+    }
+    BluePrint::BluePrintUI* oldbp = nullptr;
+    {
+        std::lock_guard<std::mutex> lk(mBpLock);
+        oldbp = mBp;
+        mBp = bp;
+    }
+    if (oldbp)
+    {
+        oldbp->Finalize();
+        delete oldbp;
+    }
+}
+
 EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
     : BaseEditingClip(vidclip->mID, vidclip->mType, vidclip->mStart, vidclip->mEnd, vidclip->mStartOffset, vidclip->mEndOffset, vidclip->mHandle)
 {
@@ -3695,7 +3735,7 @@ int TimeLine::Load(const imgui_json::value& value)
         {
             DataLayer::VideoClipHolder vidClip = vidTrack->AddNewClip(
                 clip->mID, clip->mMediaParser,
-                clip->mStart, clip->mStartOffset, clip->mEndOffset);
+                clip->mStart, clip->mStartOffset, clip->mEndOffset, currentTime-clip->mStart);
 
             BluePrintVideoFilter* bpvf = new BluePrintVideoFilter();
             bpvf->SetBluePrintFromJson(clip->mFilterBP);
@@ -3801,7 +3841,7 @@ void TimeLine::PerformUiActions()
             DataLayer::VideoClipHolder vidClip(new DataLayer::VideoClip(
                 clip->mID, clip->mMediaParser,
                 vidTrack->OutWidth(), vidTrack->OutHeight(), vidTrack->FrameRate(),
-                clip->mStart, clip->mStartOffset, clip->mEndOffset));
+                clip->mStart, clip->mStartOffset, clip->mEndOffset, currentTime-clip->mStart));
             vidTrack->InsertClip(vidClip);
             mMtvReader->Refresh();
         }

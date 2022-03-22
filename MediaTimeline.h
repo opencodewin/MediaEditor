@@ -356,6 +356,22 @@ private:
     std::mutex mBpLock;
 };
 
+class BluePrintVideoTransition : public DataLayer::VideoTransition
+{
+public:
+    virtual ~BluePrintVideoTransition();
+
+    void ApplyTo(DataLayer::VideoOverlap* overlap) override { mOverlap = overlap; }
+    ImGui::ImMat MixTwoImages(const ImGui::ImMat& vmat1, const ImGui::ImMat& vmat2, int64_t pos) override;
+
+    void SetBluePrintFromJson(imgui_json::value& bpJson);
+
+private:
+    DataLayer::VideoOverlap* mOverlap;
+    BluePrint::BluePrintUI* mBp{nullptr};
+    std::mutex mBpLock;
+};
+
 struct BaseEditingClip
 {
     int64_t mID                 {-1};                   // editing clip ID

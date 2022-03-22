@@ -24,10 +24,10 @@ namespace DataLayer
         m_readClipIter = m_clips.begin();
     }
 
-    VideoClipHolder VideoTrack::AddNewClip(int64_t clipId, MediaParserHolder hParser, int64_t start, int64_t startOffset, int64_t endOffset)
+    VideoClipHolder VideoTrack::AddNewClip(int64_t clipId, MediaParserHolder hParser, int64_t start, int64_t startOffset, int64_t endOffset, int64_t readPos)
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
-        VideoClipHolder hClip(new VideoClip(clipId, hParser, m_outWidth, m_outHeight, m_frameRate, start, startOffset, endOffset));
+        VideoClipHolder hClip(new VideoClip(clipId, hParser, m_outWidth, m_outHeight, m_frameRate, start, startOffset, endOffset, readPos-start));
         InsertClip(hClip);
         return hClip;
     }
@@ -236,6 +236,9 @@ namespace DataLayer
         vmat.release();
 
         const int64_t readPos = (int64_t)((double)m_readFrames*1000*m_frameRate.den/m_frameRate.num);
+        for (auto& clip : m_clips)
+            clip->NotifyReadPos(readPos-clip->Start());
+
         if (m_readForward)
         {
             // first, find the image from a overlap

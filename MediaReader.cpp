@@ -217,7 +217,7 @@ public:
         return true;
     }
 
-    bool Start() override
+    bool Start(bool suspend) override
     {
         if (!m_configured)
         {
@@ -228,7 +228,10 @@ public:
         if (m_started)
             return true;
 
-        StartAllThreads();
+        if (!suspend || !m_isVideoReader)
+            StartAllThreads();
+        else
+            ReleaseVideoResource();
         m_started = true;
         return true;
     }
@@ -369,6 +372,52 @@ public:
         }
     }
 
+    void Suspend() override
+    {
+        lock_guard<recursive_mutex> lk(m_apiLock);
+        if (!m_started)
+        {
+            m_errMsg = "This 'MediaReader' is NOT started yet!";
+            return;
+        }
+        if (m_quit || !m_isVideoReader)
+            return;
+
+        ReleaseVideoResource();
+    }
+
+    void Wakeup() override
+    {
+        lock_guard<recursive_mutex> lk(m_apiLock);
+        if (!m_started)
+        {
+            m_errMsg = "This 'MediaReader' is NOT started yet!";
+            return;
+        }
+        if (!m_quit || !m_isVideoReader)
+            return;
+
+        double readPos = m_prevReadPos;
+        if (m_seekPosUpdated)
+            readPos = m_seekPosTs;
+
+        if (!OpenMedia(m_hParser))
+        {
+            m_logger->Log(Error) << "FAILED to re-open media when waking up this MediaReader!" << endl;
+            return;
+        }
+
+        m_seekPosTs = readPos;
+        m_seekPosUpdated = true;
+
+        StartAllThreads();
+    }
+
+    bool IsSuspended() const override
+    {
+        return m_started && m_quit;
+    }
+
     bool IsDirectionForward() const override
     {
         return m_readForward;
@@ -388,7 +437,7 @@ public:
             return false;
         }
         eof = false;
-        if (pos == m_prevReadPos && !m_prevReadImg.empty())
+        if ((pos == m_prevReadPos || m_quit) && !m_prevReadImg.empty())
         {
             m = m_prevReadImg;
             return true;
@@ -615,6 +664,34 @@ private:
         m_seekPosUpdated = true;
 
         return true;
+    }
+
+    void ReleaseVideoResource()
+    {
+        WaitAllThreadsQuit();
+        FlushAllQueues();
+
+        if (m_viddecCtx)
+        {
+            avcodec_free_context(&m_viddecCtx);
+            m_viddecCtx = nullptr;
+        }
+        if (m_viddecHwDevCtx)
+        {
+            av_buffer_unref(&m_viddecHwDevCtx);
+            m_viddecHwDevCtx = nullptr;
+        }
+        m_vidHwPixFmt = AV_PIX_FMT_NONE;
+        m_viddecDevType = AV_HWDEVICE_TYPE_NONE;
+        if (m_avfmtCtx)
+        {
+            avformat_close_input(&m_avfmtCtx);
+            m_avfmtCtx = nullptr;
+        }
+        m_vidAvStm = nullptr;
+        m_viddec = nullptr;
+
+        m_prepared = false;
     }
 
     bool Prepare()

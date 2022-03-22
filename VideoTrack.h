@@ -14,7 +14,7 @@ namespace DataLayer
         VideoTrack(VideoTrack&&) = delete;
         VideoTrack& operator=(const VideoTrack&) = delete;
 
-        VideoClipHolder AddNewClip(int64_t clipId, MediaParserHolder hParser, int64_t start, int64_t startOffset, int64_t endOffset);
+        VideoClipHolder AddNewClip(int64_t clipId, MediaParserHolder hParser, int64_t start, int64_t startOffset, int64_t endOffset, int64_t readPos);
         void InsertClip(VideoClipHolder hClip);
         void MoveClip(int64_t id, int64_t start);
         void ChangeClipRange(int64_t id, int64_t startOffset, int64_t endOffset);

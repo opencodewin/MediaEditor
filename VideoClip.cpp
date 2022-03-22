@@ -4,8 +4,10 @@
 #include <AlphaBlending_vulkan.h>
 #endif
 #include "VideoClip.h"
+#include "Logger.h"
 
 using namespace std;
+using namespace Logger;
 
 namespace DataLayer
 {
@@ -15,7 +17,7 @@ namespace DataLayer
     VideoClip::VideoClip(
         int64_t id, MediaParserHolder hParser,
         uint32_t outWidth, uint32_t outHeight, const MediaInfo::Ratio& frameRate,
-        int64_t start, int64_t startOffset, int64_t endOffset)
+        int64_t start, int64_t startOffset, int64_t endOffset, int64_t readpos)
         : m_id(id), m_start(start)
     {
         m_hInfo = hParser->GetMediaInfo();
@@ -40,7 +42,8 @@ namespace DataLayer
         m_endOffset = endOffset;
         if (!m_srcReader->SeekTo((double)startOffset/1000))
             throw runtime_error(m_srcReader->GetError());
-        if (!m_srcReader->Start())
+        bool suspend = readpos < -m_wakeupRange || readpos > Duration()+m_wakeupRange;
+        if (!m_srcReader->Start(suspend))
             throw runtime_error(m_srcReader->GetError());
     }
 
@@ -109,6 +112,11 @@ namespace DataLayer
             eof = true;
             return;
         }
+        if (m_srcReader->IsSuspended())
+        {
+            m_srcReader->Wakeup();
+            Log(WARN) << ">>>> Clip#" << m_id <<" is WAKEUP." << endl;
+        }
         ImGui::ImMat image;
         if (!m_srcReader->ReadVideoFrame((double)(pos+m_startOffset)/1000, image, eof))
             throw runtime_error(m_srcReader->GetError());
@@ -116,6 +124,23 @@ namespace DataLayer
         if (filter)
             image = filter->FilterImage(image, pos+m_startOffset);
         vmat = image;
+    }
+
+    void VideoClip::NotifyReadPos(int64_t pos)
+    {
+        if (pos < -m_wakeupRange || pos > Duration()+m_wakeupRange)
+        {
+            if (!m_srcReader->IsSuspended())
+            {
+                m_srcReader->Suspend();
+                Log(WARN) << ">>>> Clip#" << m_id <<" is SUSPENDED." << endl;
+            }
+        }
+        else if (m_srcReader->IsSuspended())
+        {
+            m_srcReader->Wakeup();
+            Log(WARN) << ">>>> Clip#" << m_id <<" is WAKEUP." << endl;
+        }
     }
 
     void VideoClip::SetDirection(bool forward)

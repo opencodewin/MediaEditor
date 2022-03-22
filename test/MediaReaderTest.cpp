@@ -200,6 +200,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
             g_isPlay = !g_isPlay;
             if (g_isPlay)
             {
+                g_vidrdr->Wakeup();
                 g_playStartTp = Clock::now();
                 if (g_audrdr->IsOpened())
                     g_audrnd->Resume();
@@ -209,6 +210,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
                 g_playStartPos = playPos;
                 if (g_audrdr->IsOpened())
                     g_audrnd->Pause();
+                g_vidrdr->Suspend();
             }
         }
 
@@ -317,7 +319,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
             g_isLongCacheDur = false;
             string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
             g_vidrdr->Open(filePathName);
-            g_vidrdr->ConfigVideoReader(g_imageDisplaySize.x, g_imageDisplaySize.y);
+            g_vidrdr->ConfigVideoReader((uint32_t)g_imageDisplaySize.x, (uint32_t)g_imageDisplaySize.y);
             g_vidrdr->Start();
             g_audrdr->Open(g_vidrdr->GetMediaParser());
             // g_audrdr->Open(filePathName);

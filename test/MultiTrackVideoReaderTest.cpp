@@ -115,6 +115,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
     bool app_done = false;
     auto& io = ImGui::GetIO();
 
+    float playPos = g_playStartPos;
     ImGui::SetNextWindowPos({0, 0});
     ImGui::SetNextWindowSize(io.DisplaySize);
     if (ImGui::Begin("MainWindow", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoResize))
@@ -352,9 +353,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
 
         ImGui::Spacing();
 
-        float playPos;
         float mediaDur = (float)g_mtVidReader->Duration();
-
         double elapsedTime = chrono::duration_cast<chrono::duration<double>>((Clock::now()-g_playStartTp)).count();
         playPos = g_isPlay ? (g_playForward ? g_playStartPos+elapsedTime : g_playStartPos-elapsedTime) : g_playStartPos;
         if (playPos < 0) playPos = 0;
@@ -448,7 +447,8 @@ bool Application_Frame(void * handle, bool app_will_quit)
             VideoClipHolder hClip(new VideoClip(
                 clipId, hParser,
                 hTrack->OutWidth(), hTrack->OutHeight(), hTrack->FrameRate(),
-                (int64_t)(s_addClipStart*1000), (int64_t)(s_addClipStartOffset*1000), (int64_t)(s_addClipEndOffset*1000)));
+                (int64_t)(s_addClipStart*1000), (int64_t)(s_addClipStartOffset*1000), (int64_t)(s_addClipEndOffset*1000),
+                (int64_t)((playPos-s_addClipStart)*1000)));
             hTrack->InsertClip(hClip);
             g_mtVidReader->Refresh();
 

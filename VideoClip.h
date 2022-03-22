@@ -16,7 +16,7 @@ namespace DataLayer
         VideoClip(
             int64_t id, MediaParserHolder hParser,
             uint32_t outWidth, uint32_t outHeight, const MediaInfo::Ratio& frameRate,
-            int64_t start, int64_t startOffset, int64_t endOffset);
+            int64_t start, int64_t startOffset, int64_t endOffset, int64_t readpos);
         VideoClip(const VideoClip&) = delete;
         VideoClip(VideoClip&&) = delete;
         VideoClip& operator=(const VideoClip&) = delete;
@@ -42,6 +42,7 @@ namespace DataLayer
 
         void SeekTo(int64_t pos);
         void ReadVideoFrame(int64_t pos, ImGui::ImMat& vmat, bool& eof);
+        void NotifyReadPos(int64_t pos);
         void SetDirection(bool forward);
 
         friend std::ostream& operator<<(std::ostream& os, VideoClip& clip);
@@ -59,6 +60,7 @@ namespace DataLayer
         MediaInfo::Ratio m_frameRate;
         uint32_t m_frameIndex{0};
         VideoFilterHolder m_filter;
+        int64_t m_wakeupRange{500};
     };
 
     using VideoClipHolder = std::shared_ptr<VideoClip>;
