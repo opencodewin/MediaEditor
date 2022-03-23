@@ -4129,11 +4129,11 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
     {
         // minimum view
         ImGui::InvisibleButton("canvas_minimum", ImVec2(timline_size.x - canvas_pos.x, (float)HeadHeight));
-        draw_list->AddRectFilled(canvas_pos + ImVec2(96, 0), ImVec2(timline_size.x + canvas_pos.x, canvas_pos.y + HeadHeight), COL_DARK_ONE, 0);
+        draw_list->AddRectFilled(canvas_pos + ImVec2(legendWidth, 0), ImVec2(timline_size.x + canvas_pos.x, canvas_pos.y + HeadHeight + 4), COL_DARK_ONE, 0);
         auto info_str = MillisecToString(duration, 3);
         info_str += " / ";
         info_str += std::to_string(trackCount) + " entries";
-        draw_list->AddText(ImVec2(canvas_pos.x + 96, canvas_pos.y + 2), IM_COL32_WHITE, info_str.c_str());
+        draw_list->AddText(ImVec2(canvas_pos.x + legendWidth + 2, canvas_pos.y + 4), IM_COL32_WHITE, info_str.c_str());
         if (!trackCount && *expanded)
         {
             ImGui::SetWindowFontScale(4);

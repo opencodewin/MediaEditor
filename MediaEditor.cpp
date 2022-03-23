@@ -30,10 +30,10 @@ static const char* ConfigureTabNames[] = {
 };
 
 static const char* ControlPanelTabNames[] = {
-    ICON_MEDIA_BANK,
-    ICON_MEDIA_TRANS,
-    ICON_MEDIA_FILTERS,
-    ICON_MEDIA_OUTPUT
+    ICON_MEDIA_BANK " Meida",
+    ICON_MEDIA_TRANS " Transition",
+    ICON_MEDIA_FILTERS " Filters",
+    ICON_MEDIA_OUTPUT " Output"
 };
 
 static const char* ControlPanelTabTooltips[] = 
@@ -45,9 +45,9 @@ static const char* ControlPanelTabTooltips[] =
 };
 
 static const char* MainWindowTabNames[] = {
-    ICON_MEDIA_PREVIEW,
-    ICON_MEDIA_VIDEO,
-    ICON_MUSIC,
+    ICON_MEDIA_PREVIEW " Preview",
+    ICON_MEDIA_VIDEO " Video",
+    ICON_MUSIC " Audio",
 };
 
 static const char* MainWindowTabTooltips[] = 
@@ -58,8 +58,8 @@ static const char* MainWindowTabTooltips[] =
 };
 
 static const char* BottomWindowTabNames[] = {
-    ICON_MEDIA_TIMELINE,
-    ICON_MEDIA_DIAGNOSIS,
+    ICON_MEDIA_TIMELINE " Timeline",
+    ICON_MEDIA_DIAGNOSIS " Scope",
 };
 
 static const char* BottomWindowTabTooltips[] = 
@@ -94,6 +94,13 @@ static const char* AudioEditorTabTooltips[] = {
 
 struct MediaEditorSettings
 {
+    float TopViewHeight {0.6};              // Top view height percentage
+    float BottomViewHeight {0.4};           // Bottom view height percentage
+    float ControlPanelWidth {0.3};          // Control panel view width percentage
+    float MainViewWidth {0.7};              // Main view width percentage
+    bool BottomViewExpanded {true};         // Timeline/Scope view expended
+    float OldBottomViewHeight {0.4};        // Old Bottom view height, recorde at non-expended
+    //float 
     int VideoWidth  {1920};                 // timeline Media Width
     int VideoHeight {1080};                 // timeline Media Height
     MediaInfo::Ratio VideoFrameRate {25000, 1000};// timeline frame rate
@@ -2433,11 +2440,11 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
     if (expanded && !*expanded)
     {
         ImGui::InvisibleButton("analyse_minimum", ImVec2(window_size.x - window_pos.x, (float)HeadHeight));
-        draw_list->AddRectFilled(window_pos + ImVec2(96, 0), window_pos + ImVec2(window_size.x, HeadHeight), COL_DARK_ONE, 0);
+        draw_list->AddRectFilled(window_pos + ImVec2(200, 0), window_pos + ImVec2(window_size.x, HeadHeight), COL_DARK_ONE, 0);
     }
     else
     {
-        draw_list->AddRectFilled(window_pos + ImVec2(96, 0), window_pos + ImVec2(window_size.x, HeadHeight), COL_DARK_ONE, 0);
+        draw_list->AddRectFilled(window_pos + ImVec2(200, 0), window_pos + ImVec2(window_size.x, HeadHeight), COL_DARK_ONE, 0);
         draw_list->AddRectFilled(window_pos + ImVec2(0, HeadHeight), window_pos + ImVec2(window_size.x, window_size.y - HeadHeight), COL_PANEL_BG, 0);
         ImVec2 scope_view_size = ImVec2(256, 256);
         ImVec2 scope_size = scope_view_size + ImVec2(0, 40);
@@ -2928,6 +2935,12 @@ void Application_SetupContext(ImGuiContext* ctx)
         float val_float = 0;
         char val_path[1024] = {0};
         if (sscanf(line, "ProjectPath=%s", val_path) == 1) { setting->project_path = std::string(val_path); }
+        else if (sscanf(line, "BottomViewExpanded=%d", &val_int) == 1) { setting->BottomViewExpanded = val_int == 1; }
+        else if (sscanf(line, "TopViewHeight=%f", &val_float) == 1) { setting->TopViewHeight = val_float; }
+        else if (sscanf(line, "BottomViewHeight=%f", &val_float) == 1) { setting->BottomViewHeight = val_float; }
+        else if (sscanf(line, "OldBottomViewHeight=%f", &val_float) == 1) { setting->OldBottomViewHeight = val_float; }
+        else if (sscanf(line, "ControlPanelWidth=%f", &val_float) == 1) { setting->ControlPanelWidth = val_float; }
+        else if (sscanf(line, "MainViewWidth=%f", &val_float) == 1) { setting->MainViewWidth = val_float; }
         else if (sscanf(line, "VideoWidth=%d", &val_int) == 1) { setting->VideoWidth = val_int; }
         else if (sscanf(line, "VideoHeight=%d", &val_int) == 1) { setting->VideoHeight = val_int; }
         else if (sscanf(line, "VideoFrameRateNum=%d", &val_int) == 1) { setting->VideoFrameRate.num = val_int; }
@@ -2961,6 +2974,12 @@ void Application_SetupContext(ImGuiContext* ctx)
         out_buf->reserve(out_buf->size() + g.SettingsWindows.size() * 6); // ballpark reserve
         out_buf->appendf("[%s][##MediaEditorSetting]\n", handler->TypeName);
         out_buf->appendf("ProjectPath=%s\n", g_media_editor_settings.project_path.c_str());
+        out_buf->appendf("BottomViewExpanded=%d\n", g_media_editor_settings.BottomViewExpanded ? 1 : 0);
+        out_buf->appendf("TopViewHeight=%f\n", g_media_editor_settings.TopViewHeight);
+        out_buf->appendf("BottomViewHeight=%f\n", g_media_editor_settings.BottomViewHeight);
+        out_buf->appendf("OldBottomViewHeight=%f\n", g_media_editor_settings.OldBottomViewHeight);
+        out_buf->appendf("ControlPanelWidth=%f\n", g_media_editor_settings.ControlPanelWidth);
+        out_buf->appendf("MainViewWidth=%f\n", g_media_editor_settings.MainViewWidth);
         out_buf->appendf("VideoWidth=%d\n", g_media_editor_settings.VideoWidth);
         out_buf->appendf("VideoHeight=%d\n", g_media_editor_settings.VideoHeight);
         out_buf->appendf("VideoFrameRateNum=%d\n", g_media_editor_settings.VideoFrameRate.num);
@@ -3084,7 +3103,6 @@ bool Application_Frame(void * handle, bool app_will_quit)
     const float tool_icon_size = 32;
     static bool show_about = false;
     static bool show_configure = false;
-    static bool expanded = true;
     static bool show_debug = false;
     
     const ImGuiFileDialogFlags fflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_DisableCreateDirectoryButton;
@@ -3189,16 +3207,16 @@ bool Application_Frame(void * handle, bool app_will_quit)
         window_pos = viewport->WorkPos;
         window_size = viewport->WorkSize;
     }
-    static float size_main_h = 0.6;
-    static float size_timeline_h = 0.4;
-    static float old_size_timeline_h = size_timeline_h;
+    //static float size_main_h = g_media_editor_settings.TopViewHeight;
+    //static float size_timeline_h = g_media_editor_settings.BottomViewHeight;
+    //static float old_size_timeline_h = g_media_editor_settings.BottomViewHeight;
 
     ImGui::PushID("##Main_Timeline");
-    float main_height = size_main_h * window_size.y;
-    float timeline_height = size_timeline_h * window_size.y;
+    float main_height = g_media_editor_settings.TopViewHeight * window_size.y;
+    float timeline_height = g_media_editor_settings.BottomViewHeight * window_size.y;
     ImGui::Splitter(false, 4.0f, &main_height, &timeline_height, 32, 32);
-    size_main_h = main_height / window_size.y;
-    size_timeline_h = timeline_height / window_size.y;
+    g_media_editor_settings.TopViewHeight = main_height / window_size.y;
+    g_media_editor_settings.BottomViewHeight = timeline_height / window_size.y;
     ImGui::PopID();
     ImVec2 main_pos = window_pos + ImVec2(4, 0);
     ImVec2 main_size(window_size.x, main_height + 4);
@@ -3206,14 +3224,14 @@ bool Application_Frame(void * handle, bool app_will_quit)
     if (ImGui::BeginChild("##Top_Panel", main_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
     {
         ImVec2 main_window_size = ImGui::GetWindowSize();
-        static float size_control_panel_w = 0.2;
-        static float size_main_w = 0.8;
+        //static float size_control_panel_w = g_media_editor_settings.ControlPanelWidth;
+        //static float size_main_w = g_media_editor_settings.MainViewWidth;
         ImGui::PushID("##Control_Panel_Main");
-        float control_pane_width = size_control_panel_w * main_window_size.x;
-        float main_width = size_main_w * main_window_size.x;
+        float control_pane_width = g_media_editor_settings.ControlPanelWidth * main_window_size.x;
+        float main_width = g_media_editor_settings.MainViewWidth * main_window_size.x;
         ImGui::Splitter(true, 4.0f, &control_pane_width, &main_width, media_icon_size + tool_icon_size, 96);
-        size_control_panel_w = control_pane_width / main_window_size.x;
-        size_main_w = main_width / main_window_size.x;
+        g_media_editor_settings.ControlPanelWidth = control_pane_width / main_window_size.x;
+        g_media_editor_settings.MainViewWidth = main_width / main_window_size.x;
         ImGui::PopID();
         
         // add left tool bar
@@ -3348,10 +3366,10 @@ bool Application_Frame(void * handle, bool app_will_quit)
     }
     ImGui::EndChild();
     
-    ImVec2 panel_pos = window_pos + ImVec2(4, size_main_h * window_size.y + 12);
-    ImVec2 panel_size(window_size.x - 4, size_timeline_h * window_size.y - 12);
+    ImVec2 panel_pos = window_pos + ImVec2(4, g_media_editor_settings.TopViewHeight * window_size.y + 12);
+    ImVec2 panel_size(window_size.x - 4, g_media_editor_settings.BottomViewHeight * window_size.y - 12);
     ImGui::SetNextWindowPos(panel_pos, ImGuiCond_Always);
-    bool _expanded = expanded;
+    bool _expanded = g_media_editor_settings.BottomViewExpanded;
     if (ImGui::BeginChild("##Timeline", panel_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings))
     {
         ImDrawList *draw_list = ImGui::GetWindowDrawList();
@@ -3368,20 +3386,20 @@ bool Application_Frame(void * handle, bool app_will_quit)
             default: break;
         }
         
-        if (expanded != _expanded)
+        if (g_media_editor_settings.BottomViewExpanded != _expanded)
         {
             if (!_expanded)
             {
-                old_size_timeline_h = size_timeline_h;
-                size_timeline_h = 60.0f / window_size.y;
-                size_main_h = 1 - size_timeline_h;
+                g_media_editor_settings.OldBottomViewHeight = g_media_editor_settings.BottomViewHeight;
+                g_media_editor_settings.BottomViewHeight = 60.0f / window_size.y;
+                g_media_editor_settings.TopViewHeight = 1 - g_media_editor_settings.BottomViewHeight;
             }
             else
             {
-                size_timeline_h = old_size_timeline_h;
-                size_main_h = 1.0f - size_timeline_h;
+                g_media_editor_settings.BottomViewHeight = g_media_editor_settings.OldBottomViewHeight;
+                g_media_editor_settings.TopViewHeight = 1.0f - g_media_editor_settings.BottomViewHeight;
             }
-            expanded = _expanded;
+            g_media_editor_settings.BottomViewExpanded = _expanded;
         }
     }
     ImGui::EndChild();
