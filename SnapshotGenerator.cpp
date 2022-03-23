@@ -1571,7 +1571,7 @@ private:
             : m_owner(owner)
         {
             m_logger = owner->m_logger;
-            UpdateSnapwnd(wndpos);
+            UpdateSnapwnd(wndpos, true);
         }
 
         bool Seek(double pos) override
