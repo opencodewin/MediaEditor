@@ -1,5 +1,6 @@
 #include "ImSequencer.h"
 #include <imgui_helper.h>
+#include <imgui_extra_widget.h>
 #include <cmath>
 #include <sstream>
 #include <iomanip>

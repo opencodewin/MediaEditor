@@ -2584,7 +2584,7 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
                 draw_list->AddLine(p0, p1, COL_GRATICULE_DARK, 1);
             else
             {
-                draw_list->AddLineDashed(p0, p1, COL_GRATICULE_DARK, 1, 100);
+                ImGui::ImDrawListAddLineDashed(draw_list, p0, p1, COL_GRATICULE_DARK, 1, 100);
             }
             ImVec2 vp0 = waveform_rect.Min + ImVec2(i * waveform_vstep, 0);
             ImVec2 vp1 = waveform_rect.Min + ImVec2(i * waveform_vstep, 10);

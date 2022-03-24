@@ -1,6 +1,7 @@
 #include "MediaTimeline.h"
 #include "MediaInfo.h"
 #include <imgui_helper.h>
+#include <imgui_extra_widget.h>
 #include <cmath>
 #include <sstream>
 #include <iomanip>
