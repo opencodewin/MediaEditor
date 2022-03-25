@@ -1083,7 +1083,7 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
             case MEDIA_TEXT: type_string = std::string(ICON_FA5_FILE_CODE) + " "; break;
             default: break;
         }
-        type_string += TimestampToString(media_length);
+        type_string += TimelineMillisecToString(media_length * 1000, 2);
         ImGui::SetWindowFontScale(0.7);
         ImGui::TextUnformatted(type_string.c_str());
         ImGui::SetWindowFontScale(1.0);
@@ -1578,7 +1578,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     // Time stamp on left of control panel
     auto PanelRightX = PanelBarPos.x + window_size.x - 150;
     auto PanelRightY = PanelBarPos.y + 8;
-    auto time_str = MillisecToString(timeline->currentTime);
+    auto time_str = TimelineMillisecToString(timeline->currentTime, 3);
     ImGui::SetWindowFontScale(1.5);
     draw_list->AddText(ImVec2(PanelRightX, PanelRightY), timeline->mIsPreviewPlaying ? COL_MARK : COL_MARK_HALF, time_str.c_str());
     ImGui::SetWindowFontScale(1.0);
@@ -2433,19 +2433,112 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
     ImDrawList *draw_list = ImGui::GetWindowDrawList();
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetContentRegionAvail() - ImVec2(8, 0);
-    int HeadHeight = 20;
+    int HeadHeight = 24;
+    int legendWidth = 200;
+    int64_t duration = ImMax(timeline->mEnd - timeline->mStart, (int64_t)1);
+    int trackCount = timeline->GetTrackCount();
+
     ImVec2 canvas_pos = window_pos + ImVec2(0, HeadHeight);
     ImVec2 canvas_size = window_size - ImVec2(0, HeadHeight);
+    ImVec2 headPos = window_pos + ImVec2(legendWidth, 0);
+    ImVec2 headerSize(window_size.x - legendWidth, (float)HeadHeight);
+    draw_list->AddRectFilled(headPos, headPos + headerSize, COL_DARK_ONE, 0);
+
     ImGui::BeginGroup();
     if (expanded && !*expanded)
     {
-        ImGui::InvisibleButton("analyse_minimum", ImVec2(window_size.x - window_pos.x, (float)HeadHeight));
-        draw_list->AddRectFilled(window_pos + ImVec2(200, 0), window_pos + ImVec2(window_size.x, HeadHeight), COL_DARK_ONE, 0);
+        // minimum view
+        auto info_str = TimelineMillisecToString(duration, 3);
+        info_str += " / ";
+        info_str += std::to_string(trackCount) + " entries";
+        draw_list->AddText(ImVec2(headPos.x + 2, headPos.y + 4), IM_COL32_WHITE, info_str.c_str());
     }
     else
     {
-        draw_list->AddRectFilled(window_pos + ImVec2(200, 0), window_pos + ImVec2(window_size.x, HeadHeight), COL_DARK_ONE, 0);
-        draw_list->AddRectFilled(window_pos + ImVec2(0, HeadHeight), window_pos + ImVec2(window_size.x, window_size.y - HeadHeight), COL_PANEL_BG, 0);
+        //normal view
+        if (MainWindowIndex == 0)
+        {
+            // header if we at preview view
+            // header time and lines
+            static bool MovingCurrentTime = false;
+            float msPixelWidth = (float)(window_size.x - legendWidth) / (float)duration;
+
+            ImRect movRect(headPos, headPos + headerSize);
+            ImGui::SetCursorScreenPos(headPos);
+            ImGui::InvisibleButton("AnalyseTopBar", headerSize);
+            if (!MovingCurrentTime && timeline->currentTime >= timeline->mStart && movRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left))
+            {
+                MovingCurrentTime = true;
+                timeline->bSeeking = true;
+            }
+            if (MovingCurrentTime && duration)
+            {
+                auto oldPos = timeline->currentTime;
+                timeline->currentTime = (int64_t)((io.MousePos.x - movRect.Min.x) / msPixelWidth) + timeline->mStart;
+                timeline->AlignTime(timeline->currentTime);
+                if (timeline->currentTime < timeline->GetStart())
+                    timeline->currentTime = timeline->GetStart();
+                if (timeline->currentTime >= timeline->GetEnd())
+                    timeline->currentTime = timeline->GetEnd();
+                timeline->Seek(timeline->currentTime);
+            }
+            if (timeline->bSeeking && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
+            {
+                MovingCurrentTime = false;
+                timeline->bSeeking = false;
+            }
+            int64_t modTimeCount = 10;
+            int timeStep = 1;
+            while ((modTimeCount * msPixelWidth) < 100)
+            {
+                modTimeCount *= 10;
+                timeStep *= 10;
+            };
+            int halfModTime = modTimeCount / 2;
+            auto drawLine = [&](int64_t i, int regionHeight)
+            {
+                bool baseIndex = ((i % modTimeCount) == 0) || (i == 0 || i == duration);
+                bool halfIndex = (i % halfModTime) == 0;
+                int px = (int)window_pos.x + legendWidth + int(i * msPixelWidth);
+                int tiretStart = baseIndex ? 4 : (halfIndex ? 10 : 14);
+                int tiretEnd = baseIndex ? regionHeight : HeadHeight;
+                if (px <= (window_size.x + window_pos.x + legendWidth) && px >= window_pos.x + legendWidth)
+                {
+                    draw_list->AddLine(ImVec2((float)px, window_pos.y + (float)tiretStart), ImVec2((float)px, window_pos.y + (float)tiretEnd - 1), halfIndex ? COL_MARK : COL_MARK_HALF, halfIndex ? 2 : 1);
+                }
+                if (baseIndex && px >= window_pos.x)
+                {
+                    auto time_str = TimelineMillisecToString(i + timeline->mStart, 2);
+                    ImGui::SetWindowFontScale(0.8);
+                    draw_list->AddText(ImVec2((float)px + 3.f, window_pos.y), COL_RULE_TEXT, time_str.c_str());
+                    ImGui::SetWindowFontScale(1.0);
+                }
+            };
+            for (auto i = 0; i < duration; i+= timeStep)
+            {
+                drawLine(i, HeadHeight);
+            }
+            drawLine(0, HeadHeight);
+            drawLine(duration, HeadHeight);
+            // cursor Arrow
+            const float arrowWidth = draw_list->_Data->FontSize;
+            float arrowOffset = headPos.x + (timeline->currentTime - timeline->mStart) * msPixelWidth - arrowWidth * 0.5f;
+            ImGui::RenderArrow(draw_list, ImVec2(arrowOffset, window_pos.y), COL_CURSOR_ARROW, ImGuiDir_Down);
+            ImGui::SetWindowFontScale(0.8);
+            auto time_str = TimelineMillisecToString(timeline->currentTime, 2);
+            ImVec2 str_size = ImGui::CalcTextSize(time_str.c_str(), nullptr, true);
+            float strOffset = headPos.x + (timeline->currentTime - timeline->mStart) * msPixelWidth - str_size.x * 0.5f;
+            ImVec2 str_pos = ImVec2(strOffset, window_pos.y + 10);
+            draw_list->AddRectFilled(str_pos + ImVec2(-3, 0), str_pos + str_size + ImVec2(3, 3), COL_CURSOR_TEXT_BG, 2.0, ImDrawFlags_RoundCornersAll);
+            draw_list->AddText(str_pos, COL_CURSOR_TEXT, time_str.c_str());
+            ImGui::SetWindowFontScale(1.0);
+        }
+        else
+        {
+
+        }
+
+        draw_list->AddRectFilled(window_pos + ImVec2(0, HeadHeight), window_pos + ImVec2(window_size.x, window_size.y), COL_PANEL_BG, 0);
         ImVec2 scope_view_size = ImVec2(256, 256);
         ImVec2 scope_size = scope_view_size + ImVec2(0, 40);
 

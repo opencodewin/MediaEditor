@@ -676,4 +676,5 @@ struct TimeLine
 bool DrawTimeLine(TimeLine *timeline, bool *expanded);
 bool DrawClipTimeLine(BaseEditingClip * editingClip);
 bool DrawOverlapTimeLine(Overlap * overlap);
+std::string TimelineMillisecToString(int64_t millisec, int show_millisec = 0);
 } // namespace MediaTimeline
