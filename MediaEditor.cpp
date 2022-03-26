@@ -57,15 +57,13 @@ static const char* MainWindowTabTooltips[] =
     "Audio Editor",
 };
 
-static const char* BottomWindowTabNames[] = {
-    ICON_MEDIA_TIMELINE " Timeline",
-    ICON_MEDIA_DIAGNOSIS " Scope",
-};
-
-static const char* BottomWindowTabTooltips[] = 
-{
-    "Meida Timeline",
-    "Meida Analyse",
+static const char* ScopeWindowTabNames[] = {
+    ICON_HISTOGRAM " Video Histogram",
+    ICON_WAVEFORM " Video Waveform",
+    ICON_CIE " CIE",
+    ICON_VETCTOR " Video Vector",
+    ICON_DB_LEVEL " Audio dB Level",
+    ICON_SPECTROGRAM " Audio Spectrogram"
 };
 
 static const char* VideoEditorTabNames[] = {
@@ -148,12 +146,14 @@ static bool quit_save_confirm = true;
 static int ConfigureIndex = 0;              // default timeline setting
 static int ControlPanelIndex = 0;           // default Media Bank window
 static int MainWindowIndex = 0;             // default Media Preview window
-static int BottomWindowIndex = 0;           // default Media Timeline window
+static int BottomWindowIndex = 0;           // default Media Timeline window, no other view so far
 static int VideoEditorWindowIndex = 0;      // default Video Filter window
 static int AudioEditorWindowIndex = 0;      // default Audio Filter window
 static int LastMainWindowIndex = 0;
 static int LastVideoEditorWindowIndex = 0;
 static int LastAudioEditorWindowIndex = 0;
+static int ScopeWindowIndex = 0;            // default Histogram Scope window 
+
 
 static float ui_breathing = 1.0f;
 static float ui_breathing_step = 0.01;
@@ -1634,13 +1634,10 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     if (!frame.empty())
     {
 #if IMGUI_VULKAN_SHADER
-        if (BottomWindowIndex == 1)
-        {
-            if (m_histogram) m_histogram->scope(frame, mat_histogram, 256, g_media_editor_settings.HistogramScale, g_media_editor_settings.HistogramLog);
-            if (m_waveform) m_waveform->scope(frame, mat_waveform, 256, g_media_editor_settings.WaveformIntensity, g_media_editor_settings.WaveformSeparate);
-            if (m_cie) m_cie->scope(frame, mat_cie, g_media_editor_settings.CIEIntensity, g_media_editor_settings.CIEShowColor);
-            if (m_vector) m_vector->scope(frame, mat_vector, g_media_editor_settings.VectorIntensity);
-        }
+        if (m_histogram) m_histogram->scope(frame, mat_histogram, 256, g_media_editor_settings.HistogramScale, g_media_editor_settings.HistogramLog);
+        if (m_waveform) m_waveform->scope(frame, mat_waveform, 256, g_media_editor_settings.WaveformIntensity, g_media_editor_settings.WaveformSeparate);
+        if (m_cie) m_cie->scope(frame, mat_cie, g_media_editor_settings.CIEIntensity, g_media_editor_settings.CIEShowColor);
+        if (m_vector) m_vector->scope(frame, mat_vector, g_media_editor_settings.VectorIntensity);
 #endif
         ImGui::ImMatToTexture(frame, timeline->mMainPreviewTexture);
     }
@@ -1729,13 +1726,12 @@ static void ShowVideoFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
 
 static void ShowVideoFilterWindow(ImDrawList *draw_list)
 {
-    // need set page stats?
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
     draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
-    float clip_timeline_height = 100;
+    float clip_timeline_height = 80;
     float editor_main_height = window_size.y - clip_timeline_height - 4;
-    float video_view_width = window_size.x / 3;
+    float video_view_width = window_size.x * 2 / 3;
     float video_editor_width = window_size.x - video_view_width;
     
     if (!timeline)
@@ -1761,33 +1757,21 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
     {
         ImVec2 clip_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 clip_window_size = ImGui::GetWindowSize();
-        if (ImGui::BeginChild("##video_filter_blueprint", ImVec2(video_editor_width, clip_window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
-        {
-            ImVec2 editor_view_window_pos = ImGui::GetCursorScreenPos();
-            ImVec2 editor_view_window_size = ImGui::GetWindowSize();
-            draw_list->AddRectFilled(editor_view_window_pos, editor_view_window_pos + editor_view_window_size, COL_DARK_ONE);
-            ShowVideoFilterBluePrintWindow(draw_list, editing_clip);
-        }
-        ImGui::EndChild();
-        ImGui::SetCursorScreenPos(clip_window_pos + ImVec2(video_editor_width, 0));
         if (ImGui::BeginChild("##filter_video_view", ImVec2(video_view_width, clip_window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
         {
             ImVec2 video_view_window_pos = ImGui::GetCursorScreenPos();
             ImVec2 video_view_window_size = ImGui::GetWindowSize();
             draw_list->AddRectFilled(video_view_window_pos, video_view_window_pos + video_view_window_size, COL_DEEP_DARK);
-
             // Draw Video Filter Play control bar
-            ImVec2 PanelBarPos = video_view_window_pos + ImVec2(0, (video_view_window_size.y - 36) / 2);
+            ImVec2 PanelBarPos = video_view_window_pos + ImVec2(0, (video_view_window_size.y - 36));
             ImVec2 PanelBarSize = ImVec2(video_view_window_size.x, 36);
             draw_list->AddRectFilled(PanelBarPos, PanelBarPos + PanelBarSize, COL_DARK_PANEL);
             // Preview buttons Stop button is center of Panel bar
             auto PanelCenterX = PanelBarPos.x + video_view_window_size.x / 2;
             auto PanelButtonY = PanelBarPos.y + 2;
-
             ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
             ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0.5));
             ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.2, 0.2, 0.2, 1.0));
-
             ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32 - 8 - 32 - 8 - 32, PanelButtonY));
             if (ImGui::Button(ICON_TO_START "##video_filter_tostart", ImVec2(32, 32)))
             {
@@ -1868,13 +1852,14 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
             ImVec2 InputVideoPos;
             ImVec2 InputVideoSize;
             InputVideoPos = video_view_window_pos + ImVec2(4, 4);
-            InputVideoSize = ImVec2(video_view_window_size.x - 8, (video_view_window_size.y - PanelBarSize.y - 8) / 2);
+            InputVideoSize = ImVec2(video_view_window_size.x - 8, (video_view_window_size.y - PanelBarSize.y - 8) / 3);
             ImVec2 OutputVideoPos;
             ImVec2 OutputVideoSize;
-            OutputVideoPos = video_view_window_pos + ImVec2(4, 4 + InputVideoSize.y + PanelBarSize.y);
-            OutputVideoSize = ImVec2(video_view_window_size.x - 8, (video_view_window_size.y - PanelBarSize.y - 8) / 2);
+            OutputVideoPos = video_view_window_pos + ImVec2(4, 4 + InputVideoSize.y + 4);
+            OutputVideoSize = ImVec2(video_view_window_size.x - 8, (video_view_window_size.y - PanelBarSize.y - 8) * 2 / 3);
             ImRect InputVideoRect(InputVideoPos,InputVideoPos + InputVideoSize);
             ImRect OutVideoRect(OutputVideoPos,OutputVideoPos + OutputVideoSize);
+            ImVec2 VideoZoomPos = window_pos + ImVec2(0, editor_main_height - PanelBarSize.y + 4);
             if (timeline->mVidFilterClip)
             {
                 ImGuiIO& io = ImGui::GetIO();
@@ -1892,19 +1877,16 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                         if (texture_zoom > 4.0) texture_zoom = 4.0;
                     }
                 }
-                float region_sz = 480.0f / texture_zoom;
+                float region_sz = 360.0f / texture_zoom;
                 std::pair<ImGui::ImMat, ImGui::ImMat> pair;
                 auto ret = timeline->mVidFilterClip->GetFrame(pair);
                 if (ret)
                 {
 #if IMGUI_VULKAN_SHADER
-                    if (BottomWindowIndex == 1)
-                    {
-                        if (m_histogram) m_histogram->scope(pair.second, mat_histogram, 256, g_media_editor_settings.HistogramScale, g_media_editor_settings.HistogramLog);
-                        if (m_waveform) m_waveform->scope(pair.second, mat_waveform, 256, g_media_editor_settings.WaveformIntensity, g_media_editor_settings.WaveformSeparate);
-                        if (m_cie) m_cie->scope(pair.second, mat_cie, g_media_editor_settings.CIEIntensity, g_media_editor_settings.CIEShowColor);
-                        if (m_vector) m_vector->scope(pair.second, mat_vector, g_media_editor_settings.VectorIntensity);
-                    }
+                    if (m_histogram) m_histogram->scope(pair.second, mat_histogram, 256, g_media_editor_settings.HistogramScale, g_media_editor_settings.HistogramLog);
+                    if (m_waveform) m_waveform->scope(pair.second, mat_waveform, 256, g_media_editor_settings.WaveformIntensity, g_media_editor_settings.WaveformSeparate);
+                    if (m_cie) m_cie->scope(pair.second, mat_cie, g_media_editor_settings.CIEIntensity, g_media_editor_settings.CIEShowColor);
+                    if (m_vector) m_vector->scope(pair.second, mat_vector, g_media_editor_settings.VectorIntensity);
 #endif
                     ImGui::ImMatToTexture(pair.first, timeline->mVideoFilterInputTexture);
                     ImGui::ImMatToTexture(pair.second, timeline->mVideoFilterOutputTexture);
@@ -1913,7 +1895,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                 bool draw_compare = false;
                 ImVec4 tint_col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);   // No tint
                 ImVec4 border_col = ImVec4(1.0f, 1.0f, 1.0f, 0.5f); // 50% opaque white
-                
+
                 float offset_x = 0, offset_y = 0;
                 float tf_x = 0, tf_y = 0;
                 // filter input texture area
@@ -1952,7 +1934,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                         else if (region_x > image_width - region_sz) { region_x = image_width - region_sz; }
                         if (region_y < 0.0f) { region_y = 0.0f; }
                         else if (region_y > image_height - region_sz) { region_y = image_height - region_sz; }
-                        ImGui::SetNextWindowPos(InputVideoPos - ImVec2(region_sz * texture_zoom + 80, 0));
+                        ImGui::SetNextWindowPos(VideoZoomPos);
                         ImGui::SetNextWindowBgAlpha(1.0);
                         ImGui::BeginTooltip();
                         ImVec2 uv0 = ImVec2((region_x) / image_width, (region_y) / image_height);
@@ -1972,6 +1954,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                         else if (region_y > image_height - region_sz) { region_y = image_height - region_sz; }
                         ImGui::SetNextWindowBgAlpha(1.0);
                         ImGui::BeginTooltip();
+                        ImGui::SameLine();
                         ImVec2 uv0 = ImVec2((region_x) / image_width, (region_y) / image_height);
                         ImVec2 uv1 = ImVec2((region_x + region_sz) / image_width, (region_y + region_sz) / image_height);
                         ImGui::Image(timeline->mVideoFilterOutputTexture, ImVec2(region_sz * texture_zoom, region_sz * texture_zoom), uv0, uv1, tint_col, border_col);
@@ -1979,6 +1962,15 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                     }
                 }
             }
+        }
+        ImGui::EndChild();
+        ImGui::SetCursorScreenPos(clip_window_pos + ImVec2(video_view_width, 0));
+        if (ImGui::BeginChild("##video_filter_blueprint", ImVec2(video_editor_width, clip_window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+        {
+            ImVec2 editor_view_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 editor_view_window_size = ImGui::GetWindowSize();
+            draw_list->AddRectFilled(editor_view_window_pos, editor_view_window_pos + editor_view_window_size, COL_DARK_ONE);
+            ShowVideoFilterBluePrintWindow(draw_list, editing_clip);
         }
         ImGui::EndChild();
     }
@@ -2027,7 +2019,7 @@ static void ShowVideoFusionBluePrintWindow(ImDrawList *draw_list, Overlap * over
             ImGui::EndDragDropTarget();
         }
         ImGui::SetCursorScreenPos(window_pos + ImVec2(1, 1));
-        if (ImGui::BeginChild("##video_fusion_blueprint", window_size - ImVec2(2, 2), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+        if (ImGui::BeginChild("##fusion_edit_blueprint", window_size - ImVec2(2, 2), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
         {
             timeline->mVideoFusionBluePrint->Frame(true, true, overlap != nullptr, BluePrint::BluePrintFlag::BluePrintFlag_Fusion);
         }
@@ -2037,14 +2029,13 @@ static void ShowVideoFusionBluePrintWindow(ImDrawList *draw_list, Overlap * over
 
 static void ShowVideoFusionWindow(ImDrawList *draw_list)
 {
-    // need set page stats
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
     draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
-    float fusion_timeline_height = 170;
-    float video_view_width = window_size.x / 3;
+    float fusion_timeline_height = 130;
+    float fusion_main_height = window_size.y - fusion_timeline_height - 4;
+    float video_view_width = window_size.x * 2 / 3;
     float video_fusion_width = window_size.x - video_view_width;
-    float video_fusion_height = window_size.y - fusion_timeline_height;
     if (!timeline)
         return;
     
@@ -2063,103 +2054,104 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
 
     if (editing_overlap && timeline->mVideoFusionBluePrint)
     {
-        timeline->mVideoFusionBluePrint->m_ViewSize = ImVec2(video_fusion_width, video_fusion_height);
+        timeline->mVideoFusionBluePrint->m_ViewSize = ImVec2(video_fusion_width, fusion_main_height);
     }
-
-    if (ImGui::BeginChild("##video_fusion_main", ImVec2(video_fusion_width, window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+    
+    if (ImGui::BeginChild("##video_fusion_main", ImVec2(window_size.x, fusion_main_height), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
     {
         ImVec2 fusion_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 fusion_window_size = ImGui::GetWindowSize();
-        if (ImGui::BeginChild("##video_fusion_views", ImVec2(video_fusion_width, fusion_window_size.y - fusion_timeline_height), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+        if (ImGui::BeginChild("##fusion_video_view", ImVec2(video_view_width, fusion_window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+        {
+            ImVec2 video_view_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 video_view_window_size = ImGui::GetWindowSize();
+            draw_list->AddRectFilled(video_view_window_pos, video_view_window_pos + video_view_window_size, COL_DEEP_DARK);
+
+            // Draw Video Fusion Play control bar
+            ImVec2 PanelBarPos = video_view_window_pos + ImVec2(0, (video_view_window_size.y - 36));
+            ImVec2 PanelBarSize = ImVec2(video_view_window_size.x, 36);
+            draw_list->AddRectFilled(PanelBarPos, PanelBarPos + PanelBarSize, COL_DARK_PANEL);
+            
+            // Preview buttons Stop button is center of Panel bar
+            auto PanelCenterX = PanelBarPos.x + video_view_window_size.x / 2;
+            auto PanelButtonY = PanelBarPos.y + 2;
+        
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0.5));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.2, 0.2, 0.2, 1.0));
+
+            ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32 - 8 - 32 - 8 - 32, PanelButtonY));
+            if (ImGui::Button(ICON_TO_START "##video_fusion_tostart", ImVec2(32, 32)))
+            {
+                // TODO::Dicky
+            }
+            ImGui::ShowTooltipOnHover("To Start");
+
+            ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32 - 8 - 32, PanelButtonY));
+            if (ImGui::Button(ICON_STEP_BACKWARD "##video_fusion_step_backward", ImVec2(32, 32)))
+            {
+                // TODO::Dicky
+            }
+            ImGui::ShowTooltipOnHover("Step Prev");
+
+            ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32, PanelButtonY));
+            if (ImGui::Button(ICON_FAST_BACKWARD "##video_fusion_reverse", ImVec2(32, 32)))
+            {
+                // TODO::Dicky
+            }
+            ImGui::ShowTooltipOnHover("Reverse");
+
+            ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16, PanelButtonY));
+            if (ImGui::Button(ICON_STOP "##video_fusion_stop", ImVec2(32, 32)))
+            {
+                // TODO::Dicky
+            }
+            ImGui::ShowTooltipOnHover("Stop");
+
+            ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8, PanelButtonY));
+            if (ImGui::Button(ICON_FAST_FORWARD "##video_fusion_play", ImVec2(32, 32)))
+            {
+                // TODO::Dicky
+            }
+            ImGui::ShowTooltipOnHover("Play");
+
+            ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 32 + 8, PanelButtonY));
+            if (ImGui::Button(ICON_STEP_FORWARD "##video_fusion_step_forward", ImVec2(32, 32)))
+            {
+                // TODO::Dicky
+            }
+            ImGui::ShowTooltipOnHover("Step Next");
+
+            ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 32 + 8 + 32 + 8, PanelButtonY));
+            if (ImGui::Button(ICON_TO_END "##video_fusion_toend", ImVec2(32, 32)))
+            {
+                // TODO::Dicky
+            }
+            ImGui::ShowTooltipOnHover("To End");
+
+            ImGui::PopStyleColor(3);
+        }
+        ImGui::EndChild();
+
+        ImGui::SetCursorScreenPos(fusion_window_pos + ImVec2(video_view_width, 0));
+        if (ImGui::BeginChild("##video_fusion_blueprint_view", ImVec2(video_fusion_width, fusion_window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
         {
             ImVec2 fusion_view_window_pos = ImGui::GetCursorScreenPos();
             ImVec2 fusion_view_window_size = ImGui::GetWindowSize();
-            draw_list->AddRectFilled(fusion_view_window_pos, fusion_view_window_pos + fusion_view_window_size, COL_DARK_ONE);
+            draw_list->AddRectFilled(fusion_view_window_pos, fusion_view_window_pos + fusion_view_window_size, COL_DEEP_DARK);
             ShowVideoFusionBluePrintWindow(draw_list, editing_overlap);
-        }
-        ImGui::EndChild();
-        if (ImGui::BeginChild("##video_fusion_timeline", ImVec2(video_fusion_width, fusion_timeline_height), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
-        {
-            ImVec2 fusion_timeline_window_pos = ImGui::GetCursorScreenPos();
-            ImVec2 fusion_timeline_window_size = ImGui::GetWindowSize();
-            draw_list->AddRectFilled(fusion_timeline_window_pos, fusion_timeline_window_pos + fusion_timeline_window_size, COL_DARK_TWO);
-
-            // Draw Clip TimeLine
-            DrawOverlapTimeLine(editing_overlap);
         }
         ImGui::EndChild();
     }
     ImGui::EndChild();
-    ImGui::SetCursorScreenPos(window_pos + ImVec2(video_fusion_width, 0));
-    if (ImGui::BeginChild("##fusion_video_view", ImVec2(video_view_width, window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+    if (ImGui::BeginChild("##video_fusion_timeline", ImVec2(window_size.x, fusion_timeline_height), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
     {
-        ImVec2 video_view_window_pos = ImGui::GetCursorScreenPos();
-        ImVec2 video_view_window_size = ImGui::GetWindowSize();
-        draw_list->AddRectFilled(video_view_window_pos, video_view_window_pos + video_view_window_size, COL_DEEP_DARK);
+        ImVec2 clip_timeline_window_pos = ImGui::GetCursorScreenPos();
+        ImVec2 clip_timeline_window_size = ImGui::GetWindowSize();
+        draw_list->AddRectFilled(clip_timeline_window_pos, clip_timeline_window_pos + clip_timeline_window_size, COL_DARK_TWO);
 
-        // Draw Video Filter Play control bar
-        ImVec2 PanelBarPos = video_view_window_pos + ImVec2(0, (video_view_window_size.y - 36) * 2 / 3);
-        ImVec2 PanelBarSize = ImVec2(video_view_window_size.x, 36);
-        draw_list->AddRectFilled(PanelBarPos, PanelBarPos + PanelBarSize, COL_DARK_PANEL);
-
-        // Preview buttons Stop button is center of Panel bar
-        auto PanelCenterX = PanelBarPos.x + video_view_window_size.x / 2;
-        auto PanelButtonY = PanelBarPos.y + 2;
-
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0.5));
-        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.2, 0.2, 0.2, 1.0));
-
-        ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32 - 8 - 32 - 8 - 32, PanelButtonY));
-        if (ImGui::Button(ICON_TO_START "##video_fusion_tostart", ImVec2(32, 32)))
-        {
-            // TODO::Dicky
-        }
-        ImGui::ShowTooltipOnHover("To Start");
-        
-        ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32 - 8 - 32, PanelButtonY));
-        if (ImGui::Button(ICON_STEP_BACKWARD "##video_fusion_step_backward", ImVec2(32, 32)))
-        {
-            // TODO::Dicky
-        }
-        ImGui::ShowTooltipOnHover("Step Prev");
-
-        ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32, PanelButtonY));
-        if (ImGui::Button(ICON_FAST_BACKWARD "##video_fusion_reverse", ImVec2(32, 32)))
-        {
-            // TODO::Dicky
-        }
-        ImGui::ShowTooltipOnHover("Reverse");
-
-        ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16, PanelButtonY));
-        if (ImGui::Button(ICON_STOP "##video_fusion_stop", ImVec2(32, 32)))
-        {
-            // TODO::Dicky
-        }
-        ImGui::ShowTooltipOnHover("Stop");
-
-        ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8, PanelButtonY));
-        if (ImGui::Button(ICON_FAST_FORWARD "##video_fusion_play", ImVec2(32, 32)))
-        {
-            // TODO::Dicky
-        }
-        ImGui::ShowTooltipOnHover("Play");
-
-        ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 32 + 8, PanelButtonY));
-        if (ImGui::Button(ICON_STEP_FORWARD "##video_fusion_step_forward", ImVec2(32, 32)))
-        {
-            // TODO::Dicky
-        }
-        ImGui::ShowTooltipOnHover("Step Next");
-
-        ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 32 + 8 + 32 + 8, PanelButtonY));
-        if (ImGui::Button(ICON_TO_END "##video_fusion_toend", ImVec2(32, 32)))
-        {
-            // TODO::Dicky
-        }
-        ImGui::ShowTooltipOnHover("To End");
-
-        ImGui::PopStyleColor(3);
+        // Draw Clip TimeLine
+        DrawOverlapTimeLine(editing_overlap);
     }
     ImGui::EndChild();
 }
@@ -2236,12 +2228,14 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list)
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
     draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
-    float clip_timeline_height = 100;
+    float clip_timeline_height = 80;
     float editor_main_height = window_size.y - clip_timeline_height - 4;
-    float audio_view_width = window_size.x / 4;
+    float audio_view_width = window_size.x * 2 / 3;
     float audio_editor_width = window_size.x - audio_view_width;
+
     if (!timeline)
         return;
+
     Clip * editing_clip = timeline->FindEditingClip();
     if (editing_clip && editing_clip->mType != MEDIA_AUDIO)
     {
@@ -2267,21 +2261,21 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list)
     {
         ImVec2 clip_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 clip_window_size = ImGui::GetWindowSize();
-        if (ImGui::BeginChild("##audio_filter_blueprint", ImVec2(audio_editor_width, clip_window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
-        {
-            ImVec2 editor_view_window_pos = ImGui::GetCursorScreenPos();
-            ImVec2 editor_view_window_size = ImGui::GetWindowSize();
-            draw_list->AddRectFilled(editor_view_window_pos, editor_view_window_pos + editor_view_window_size, COL_DARK_ONE);
-            ShowAudioFilterBluePrintWindow(draw_list, editing_clip);
-        }
-        ImGui::EndChild();
-        ImGui::SetCursorScreenPos(clip_window_pos + ImVec2(audio_editor_width, 0));
         if (ImGui::BeginChild("##filter_audio_view", ImVec2(audio_view_width, clip_window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
         {
             ImVec2 audio_view_window_pos = ImGui::GetCursorScreenPos();
             ImVec2 audio_view_window_size = ImGui::GetWindowSize();
             draw_list->AddRectFilled(audio_view_window_pos, audio_view_window_pos + audio_view_window_size, COL_DEEP_DARK);
             // TODO::Dicky add Audio view control
+        }
+        ImGui::EndChild();
+        ImGui::SetCursorScreenPos(clip_window_pos + ImVec2(audio_view_width, 0));
+        if (ImGui::BeginChild("##audio_filter_blueprint", ImVec2(audio_editor_width, clip_window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+        {
+            ImVec2 editor_view_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 editor_view_window_size = ImGui::GetWindowSize();
+            draw_list->AddRectFilled(editor_view_window_pos, editor_view_window_pos + editor_view_window_size, COL_DARK_ONE);
+            ShowAudioFilterBluePrintWindow(draw_list, editing_clip);
         }
         ImGui::EndChild();
     }
@@ -2338,8 +2332,8 @@ static void ShowAudioFusionWindow(ImDrawList *draw_list)
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
     draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
-    float fusion_timeline_height = 170;
-    float audio_view_width = window_size.x / 4;
+    float fusion_timeline_height = 130;
+    float audio_view_width = window_size.x * 2 / 3;
     float audio_fusion_width = window_size.x - audio_view_width;
     float audio_fusion_height = window_size.y - fusion_timeline_height;
     if (!timeline)
@@ -2360,10 +2354,21 @@ static void ShowAudioFusionWindow(ImDrawList *draw_list)
     {
         timeline->mAudioFusionBluePrint->m_ViewSize = ImVec2(audio_fusion_width, audio_fusion_height);
     }
+
     if (ImGui::BeginChild("##audio_fusion_main", ImVec2(audio_fusion_width, window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
     {
         ImVec2 fusion_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 fusion_window_size = ImGui::GetWindowSize();
+        
+        if (ImGui::BeginChild("##fusion_audio_view", ImVec2(audio_view_width, window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+        {
+            ImVec2 audio_view_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 audio_view_window_size = ImGui::GetWindowSize();
+            draw_list->AddRectFilled(audio_view_window_pos, audio_view_window_pos + audio_view_window_size, COL_DEEP_DARK);
+            // TODO::Dicky audio fusion
+        }
+        ImGui::EndChild();
+        ImGui::SetCursorScreenPos(window_pos + ImVec2(audio_fusion_width, 0));
         if (ImGui::BeginChild("##audio_fusion_views", ImVec2(audio_fusion_width, fusion_window_size.y - fusion_timeline_height), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
         {
             ImVec2 fusion_view_window_pos = ImGui::GetCursorScreenPos();
@@ -2372,25 +2377,17 @@ static void ShowAudioFusionWindow(ImDrawList *draw_list)
             ShowAudioFusionBluePrintWindow(draw_list, editing_overlap);
         }
         ImGui::EndChild();
-        if (ImGui::BeginChild("##audio_fusion_timeline", ImVec2(audio_fusion_width, fusion_timeline_height), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
-        {
-            ImVec2 fusion_timeline_window_pos = ImGui::GetCursorScreenPos();
-            ImVec2 fusion_timeline_window_size = ImGui::GetWindowSize();
-            draw_list->AddRectFilled(fusion_timeline_window_pos, fusion_timeline_window_pos + fusion_timeline_window_size, COL_DARK_TWO);
-
-            // Draw Clip TimeLine
-            DrawOverlapTimeLine(editing_overlap);
-        }
-        ImGui::EndChild();
     }
     ImGui::EndChild();
-    ImGui::SetCursorScreenPos(window_pos + ImVec2(audio_fusion_width, 0));
-    if (ImGui::BeginChild("##fusion_audio_view", ImVec2(audio_view_width, window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+    
+    if (ImGui::BeginChild("##audio_fusion_timeline", ImVec2(audio_fusion_width, fusion_timeline_height), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
     {
-        ImVec2 audio_view_window_pos = ImGui::GetCursorScreenPos();
-        ImVec2 audio_view_window_size = ImGui::GetWindowSize();
-        draw_list->AddRectFilled(audio_view_window_pos, audio_view_window_pos + audio_view_window_size, COL_DEEP_DARK);
-        // TODO::Dicky audio fusion
+        ImVec2 fusion_timeline_window_pos = ImGui::GetCursorScreenPos();
+        ImVec2 fusion_timeline_window_size = ImGui::GetWindowSize();
+        draw_list->AddRectFilled(fusion_timeline_window_pos, fusion_timeline_window_pos + fusion_timeline_window_size, COL_DARK_TWO);
+
+        // Draw Clip TimeLine
+        DrawOverlapTimeLine(editing_overlap);
     }
     ImGui::EndChild();
 }
@@ -2427,550 +2424,472 @@ static void ShowAudioEditorWindow(ImDrawList *draw_list)
  * Media Analyse windows
  *
  ***************************************************************************************/
+
 static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
 {
     ImGuiIO &io = ImGui::GetIO();
     ImDrawList *draw_list = ImGui::GetWindowDrawList();
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
-    ImVec2 window_size = ImGui::GetContentRegionAvail() - ImVec2(8, 0);
-    int HeadHeight = 24;
-    int legendWidth = 200;
-    int64_t duration = ImMax(timeline->mEnd - timeline->mStart, (int64_t)1);
-    int trackCount = timeline->GetTrackCount();
-
-    ImVec2 canvas_pos = window_pos + ImVec2(0, HeadHeight);
-    ImVec2 canvas_size = window_size - ImVec2(0, HeadHeight);
-    ImVec2 headPos = window_pos + ImVec2(legendWidth, 0);
-    ImVec2 headerSize(window_size.x - legendWidth, (float)HeadHeight);
-    draw_list->AddRectFilled(headPos, headPos + headerSize, COL_DARK_ONE, 0);
-
-    ImGui::BeginGroup();
+    ImVec2 window_size = ImGui::GetWindowSize();
     if (expanded && !*expanded)
     {
         // minimum view
-        auto info_str = TimelineMillisecToString(duration, 3);
-        info_str += " / ";
-        info_str += std::to_string(trackCount) + " entries";
-        draw_list->AddText(ImVec2(headPos.x + 2, headPos.y + 4), IM_COL32_WHITE, info_str.c_str());
+        draw_list->AddRectFilled(window_pos, window_pos + ImVec2(window_size.x, 24), COL_DARK_ONE, 0);
     }
     else
     {
-        //normal view
-        if (MainWindowIndex == 0)
-        {
-            // header if we at preview view
-            // header time and lines
-            static bool MovingCurrentTime = false;
-            float msPixelWidth = (float)(window_size.x - legendWidth) / (float)duration;
-
-            ImRect movRect(headPos, headPos + headerSize);
-            ImGui::SetCursorScreenPos(headPos);
-            ImGui::InvisibleButton("AnalyseTopBar", headerSize);
-            if (!MovingCurrentTime && timeline->currentTime >= timeline->mStart && movRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left))
-            {
-                MovingCurrentTime = true;
-                timeline->bSeeking = true;
-            }
-            if (MovingCurrentTime && duration)
-            {
-                auto oldPos = timeline->currentTime;
-                timeline->currentTime = (int64_t)((io.MousePos.x - movRect.Min.x) / msPixelWidth) + timeline->mStart;
-                timeline->AlignTime(timeline->currentTime);
-                if (timeline->currentTime < timeline->GetStart())
-                    timeline->currentTime = timeline->GetStart();
-                if (timeline->currentTime >= timeline->GetEnd())
-                    timeline->currentTime = timeline->GetEnd();
-                timeline->Seek(timeline->currentTime);
-            }
-            if (timeline->bSeeking && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
-            {
-                MovingCurrentTime = false;
-                timeline->bSeeking = false;
-            }
-            int64_t modTimeCount = 10;
-            int timeStep = 1;
-            while ((modTimeCount * msPixelWidth) < 100)
-            {
-                modTimeCount *= 10;
-                timeStep *= 10;
-            };
-            int halfModTime = modTimeCount / 2;
-            auto drawLine = [&](int64_t i, int regionHeight)
-            {
-                bool baseIndex = ((i % modTimeCount) == 0) || (i == 0 || i == duration);
-                bool halfIndex = (i % halfModTime) == 0;
-                int px = (int)window_pos.x + legendWidth + int(i * msPixelWidth);
-                int tiretStart = baseIndex ? 4 : (halfIndex ? 10 : 14);
-                int tiretEnd = baseIndex ? regionHeight : HeadHeight;
-                if (px <= (window_size.x + window_pos.x + legendWidth) && px >= window_pos.x + legendWidth)
-                {
-                    draw_list->AddLine(ImVec2((float)px, window_pos.y + (float)tiretStart), ImVec2((float)px, window_pos.y + (float)tiretEnd - 1), halfIndex ? COL_MARK : COL_MARK_HALF, halfIndex ? 2 : 1);
-                }
-                if (baseIndex && px >= window_pos.x)
-                {
-                    auto time_str = TimelineMillisecToString(i + timeline->mStart, 2);
-                    ImGui::SetWindowFontScale(0.8);
-                    draw_list->AddText(ImVec2((float)px + 3.f, window_pos.y), COL_RULE_TEXT, time_str.c_str());
-                    ImGui::SetWindowFontScale(1.0);
-                }
-            };
-            for (auto i = 0; i < duration; i+= timeStep)
-            {
-                drawLine(i, HeadHeight);
-            }
-            drawLine(0, HeadHeight);
-            drawLine(duration, HeadHeight);
-            // cursor Arrow
-            const float arrowWidth = draw_list->_Data->FontSize;
-            float arrowOffset = headPos.x + (timeline->currentTime - timeline->mStart) * msPixelWidth - arrowWidth * 0.5f;
-            ImGui::RenderArrow(draw_list, ImVec2(arrowOffset, window_pos.y), COL_CURSOR_ARROW, ImGuiDir_Down);
-            ImGui::SetWindowFontScale(0.8);
-            auto time_str = TimelineMillisecToString(timeline->currentTime, 2);
-            ImVec2 str_size = ImGui::CalcTextSize(time_str.c_str(), nullptr, true);
-            float strOffset = headPos.x + (timeline->currentTime - timeline->mStart) * msPixelWidth - str_size.x * 0.5f;
-            ImVec2 str_pos = ImVec2(strOffset, window_pos.y + 10);
-            draw_list->AddRectFilled(str_pos + ImVec2(-3, 0), str_pos + str_size + ImVec2(3, 3), COL_CURSOR_TEXT_BG, 2.0, ImDrawFlags_RoundCornersAll);
-            draw_list->AddText(str_pos, COL_CURSOR_TEXT, time_str.c_str());
-            ImGui::SetWindowFontScale(1.0);
-        }
-        else
-        {
-
-        }
-
-        draw_list->AddRectFilled(window_pos + ImVec2(0, HeadHeight), window_pos + ImVec2(window_size.x, window_size.y), COL_PANEL_BG, 0);
         ImVec2 scope_view_size = ImVec2(256, 256);
-        ImVec2 scope_size = scope_view_size + ImVec2(0, 40);
+        ImRect scrop_rect = ImRect(window_pos, window_pos + scope_view_size);
+        draw_list->AddRect(window_pos, window_pos + scope_view_size, COL_DARK_PANEL);
+        draw_list->AddRectFilled(window_pos, window_pos + scope_view_size, IM_COL32_BLACK, 0);
+        // control bar
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.5, 0.5, 0.5, 0.5));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.2, 0.2, 0.2, 1.0));
 
-        // histogram view
-        ImGui::BeginGroup();
-        ImGui::SetCursorScreenPos(canvas_pos + ImVec2(20, 20));
-        ImGui::SetWindowFontScale(1.5);
-        ImGui::TextUnformatted("Histogram");
-        ImGui::SetWindowFontScale(1.0);
-        ImVec2 histogram_pos = canvas_pos + ImVec2(20, 20 + HeadHeight * 1.5);
-        draw_list->AddRect(histogram_pos, histogram_pos + scope_size, COL_DARK_PANEL);
-        draw_list->AddRectFilled(histogram_pos, histogram_pos + scope_view_size, IM_COL32_BLACK, 0);
-        ImGui::SetCursorScreenPos(histogram_pos);
-        ImGui::InvisibleButton("##histogram_view", scope_view_size);
-        if (ImGui::IsItemHovered())
+        ImGui::SetCursorScreenPos(window_pos + ImVec2(window_size.x - 32, 0));
+        if (ImGui::Button(ICON_MORE "##select_scope"))
         {
-            if (io.MouseWheel < -FLT_EPSILON)
+            ImGui::OpenPopup("##select_scope_view");
+        }
+        if (ImGui::BeginPopup("##select_scope_view"))
+        {
+            for (int i = 0; i < IM_ARRAYSIZE(ScopeWindowTabNames); i++)
+                if (ImGui::Selectable(ScopeWindowTabNames[i]))
+                    ScopeWindowIndex = i;
+            ImGui::EndPopup();
+        }
+        ImGui::SetCursorScreenPos(window_pos + ImVec2(window_size.x - 32, 32));
+        if (ImGui::Button(ICON_SETTING "##setting_scope"))
+        {
+            ImGui::OpenPopup("##setting_scope_view");
+        }
+        if (ImGui::BeginPopup("##setting_scope_view"))
+        {
+            switch (ScopeWindowIndex)
             {
-                g_media_editor_settings.HistogramScale *= 0.9f;
-                if (g_media_editor_settings.HistogramScale < 0.01)
-                    g_media_editor_settings.HistogramScale = 0.01;
-            }
-            else if (io.MouseWheel > FLT_EPSILON)
-            {
-                g_media_editor_settings.HistogramScale *= 1.1f;
-                if (g_media_editor_settings.HistogramScale > 4.0f)
-                    g_media_editor_settings.HistogramScale = 4.0;
-            }
-        }
-        if (!mat_histogram.empty())
-        {
-            ImGui::PushStyleColor(ImGuiCol_FrameBg, 0);
-            ImGui::SetCursorScreenPos(histogram_pos);
-            auto rmat = mat_histogram.channel(0);
-            ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(1.f, 0.f, 0.f, 1.0f));
-            ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(1.f, 0.f, 0.f, 0.5f));
-            ImGui::PlotLines("##rh", (float *)rmat.data, mat_histogram.w, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(scope_view_size.x, scope_view_size.y / 3), 4, false, true);
-            ImGui::PopStyleColor(2);
-            ImGui::SetCursorScreenPos(histogram_pos + ImVec2(0, scope_view_size.y / 3));
-            auto gmat = mat_histogram.channel(1);
-            ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.f, 1.f, 0.f, 1.0f));
-            ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.f, 1.f, 0.f, 0.5f));
-            ImGui::PlotLines("##gh", (float *)gmat.data, mat_histogram.w, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(scope_view_size.x, scope_view_size.y / 3), 4, false, true);
-            ImGui::PopStyleColor(2);
-            ImGui::SetCursorScreenPos(histogram_pos + ImVec2(0, scope_view_size.y * 2 / 3));
-            auto bmat = mat_histogram.channel(2);
-            ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.f, 0.f, 1.f, 1.0f));
-            ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.f, 0.f, 1.f, 0.5f));
-            ImGui::PlotLines("##bh", (float *)bmat.data, mat_histogram.w, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(scope_view_size.x, scope_view_size.y / 3), 4, false, true);
-            ImGui::PopStyleColor(2);
-            ImGui::PopStyleColor();
-        }
-        ImRect histogram_rect = ImRect(histogram_pos, histogram_pos + scope_view_size);
-        draw_list->AddRect(histogram_rect.Min, histogram_rect.Max, COL_SLIDER_HANDLE, 0);
-        // draw graticule line
-        draw_list->PushClipRect(histogram_rect.Min, histogram_rect.Max);
-        auto histogram_step = scope_view_size.x / 10;
-        auto histogram_sub_vstep = scope_view_size.x / 50;
-        auto histogram_vstep = scope_view_size.y / 3 * g_media_editor_settings.HistogramScale;
-        auto histogram_seg = scope_view_size.y / 3 / histogram_vstep;
-        for (int i = 1; i <= 10; i++)
-        {
-            ImVec2 p0 = histogram_rect.Min + ImVec2(i * histogram_step, 0);
-            ImVec2 p1 = histogram_rect.Min + ImVec2(i * histogram_step, histogram_rect.Max.y);
-            draw_list->AddLine(p0, p1, COL_GRATICULE_DARK, 1);
-        }
-        for (int i = 0; i < histogram_seg; i++)
-        {
-            ImVec2 pr0 = histogram_rect.Min + ImVec2(0, (scope_view_size.y / 3) - i * histogram_vstep);
-            ImVec2 pr1 = histogram_rect.Min + ImVec2(histogram_rect.Max.x, (scope_view_size.y / 3) - i * histogram_vstep);
-            draw_list->AddLine(pr0, pr1, IM_COL32(255, 128, 0, 32), 1);
-            ImVec2 pg0 = histogram_rect.Min + ImVec2(0, scope_view_size.y / 3) + ImVec2(0, (scope_view_size.y / 3) - i * histogram_vstep);
-            ImVec2 pg1 = histogram_rect.Min + ImVec2(0, scope_view_size.y / 3) + ImVec2(histogram_rect.Max.x, (scope_view_size.y / 3) - i * histogram_vstep);
-            draw_list->AddLine(pg0, pg1, IM_COL32(128, 255, 0, 32), 1);
-            ImVec2 pb0 = histogram_rect.Min + ImVec2(0, scope_view_size.y * 2 / 3) + ImVec2(0, (scope_view_size.y / 3) - i * histogram_vstep);
-            ImVec2 pb1 = histogram_rect.Min + ImVec2(0, scope_view_size.y * 2 / 3) + ImVec2(histogram_rect.Max.x, (scope_view_size.y / 3) - i * histogram_vstep);
-            draw_list->AddLine(pb0, pb1, IM_COL32(128, 128, 255, 32), 1);
-        }
-        for (int i = 0; i < 50; i++)
-        {
-            ImVec2 p0 = histogram_rect.Min + ImVec2(i * histogram_sub_vstep, 0);
-            ImVec2 p1 = histogram_rect.Min + ImVec2(i * histogram_sub_vstep, 5);
-            draw_list->AddLine(p0, p1, COL_GRATICULE, 1);
-        }
-        draw_list->PopClipRect();
-        
-        ImGui::SetCursorScreenPos(histogram_pos + ImVec2(0, scope_view_size.y));
-        ImGui::TextUnformatted("Log:"); ImGui::SameLine();
-        ImGui::ToggleButton("##histogram_logview", &g_media_editor_settings.HistogramLog);
-        ImGui::EndGroup();
-
-        // waveform view
-        ImGui::BeginGroup();
-        ImGui::SetCursorScreenPos(canvas_pos + ImVec2(20, 20) + ImVec2(scope_view_size.x, 0) + ImVec2(20, 0));
-        ImGui::SetWindowFontScale(1.5);
-        ImGui::TextUnformatted("Waveform");
-        ImGui::SetWindowFontScale(1.0);
-        ImVec2 waveform_pos = canvas_pos + ImVec2(20, 20 + HeadHeight * 1.5) + ImVec2(scope_view_size.x, 0) + ImVec2(20, 0);
-        draw_list->AddRect(waveform_pos, waveform_pos + scope_size, COL_DARK_PANEL);
-        draw_list->AddRectFilled(waveform_pos, waveform_pos + scope_view_size, IM_COL32_BLACK, 0);
-        ImGui::SetCursorScreenPos(waveform_pos);
-        ImGui::InvisibleButton("##waveform_view", scope_view_size);
-        if (ImGui::IsItemHovered())
-        {
-            if (io.MouseWheel < -FLT_EPSILON)
-            {
-                g_media_editor_settings.WaveformIntensity *= 0.9f;
-                if (g_media_editor_settings.WaveformIntensity < 0.1)
-                    g_media_editor_settings.WaveformIntensity = 0.1;
-            }
-            else if (io.MouseWheel > FLT_EPSILON)
-            {
-                g_media_editor_settings.WaveformIntensity *= 1.1f;
-                if (g_media_editor_settings.WaveformIntensity > 4.0f)
-                    g_media_editor_settings.WaveformIntensity = 4.0;
-            }
-        }
-        if (!mat_waveform.empty())
-        {
-            ImGui::ImMatToTexture(mat_waveform, waveform_texture);
-            draw_list->AddImage(waveform_texture, waveform_pos, waveform_pos + scope_view_size, g_media_editor_settings.WaveformMirror ? ImVec2(0, 1) : ImVec2(0, 0), g_media_editor_settings.WaveformMirror ? ImVec2(1, 0) : ImVec2(1, 1));
-        }
-        ImRect waveform_rect = ImRect(waveform_pos, waveform_pos + scope_view_size);
-        draw_list->AddRect(waveform_rect.Min, waveform_rect.Max, COL_SLIDER_HANDLE, 0);
-        // draw graticule line
-        draw_list->PushClipRect(waveform_rect.Min, waveform_rect.Max);
-        auto waveform_step = scope_view_size.y / 10;
-        auto waveform_vstep = scope_view_size.x / 10;
-        auto waveform_sub_step = scope_view_size.y / 50;
-        auto waveform_sub_vstep = scope_view_size.x / 100;
-        for (int i = 0; i < 10; i++)
-        {
-            ImVec2 p0 = waveform_rect.Min + ImVec2(0, i * waveform_step);
-            ImVec2 p1 = waveform_rect.Min + ImVec2(waveform_rect.Max.x, i * waveform_step);
-            if (i != 5)
-                draw_list->AddLine(p0, p1, COL_GRATICULE_DARK, 1);
-            else
-            {
-                ImGui::ImDrawListAddLineDashed(draw_list, p0, p1, COL_GRATICULE_DARK, 1, 100);
-            }
-            ImVec2 vp0 = waveform_rect.Min + ImVec2(i * waveform_vstep, 0);
-            ImVec2 vp1 = waveform_rect.Min + ImVec2(i * waveform_vstep, 10);
-            draw_list->AddLine(vp0, vp1, COL_GRATICULE, 1);
-        }
-        for (int i = 0; i < 50; i++)
-        {
-            float l = i == 0 || i % 10 == 0 ? 10 : 5;
-            ImVec2 p0 = waveform_rect.Min + ImVec2(0, i * waveform_sub_step);
-            ImVec2 p1 = waveform_rect.Min + ImVec2(l, i * waveform_sub_step);
-            draw_list->AddLine(p0, p1, COL_GRATICULE, 1);
-        }
-        for (int i = 0; i < 100; i++)
-        {
-            ImVec2 p0 = waveform_rect.Min + ImVec2(i * waveform_sub_vstep, 0);
-            ImVec2 p1 = waveform_rect.Min + ImVec2(i * waveform_sub_vstep, 5);
-            draw_list->AddLine(p0, p1, COL_GRATICULE, 1);
-        }
-        draw_list->PopClipRect();
-
-        ImGui::SetCursorScreenPos(waveform_pos + ImVec2(0, scope_view_size.y));
-        ImGui::TextUnformatted("Mirror:"); ImGui::SameLine();
-        ImGui::ToggleButton("##waveform_mirror", &g_media_editor_settings.WaveformMirror);
-        ImGui::SameLine();
-        ImGui::TextUnformatted("Separate:"); ImGui::SameLine();
-        ImGui::ToggleButton("##waveform_separate", &g_media_editor_settings.WaveformSeparate);
-        ImGui::EndGroup();
-
-        // cie view
-        ImGui::BeginGroup();
-        ImGui::SetCursorScreenPos(canvas_pos + ImVec2(20, 20) + ImVec2(scope_view_size.x, 0) + ImVec2(20, 0) + ImVec2(scope_view_size.x, 0) + ImVec2(20, 0));
-        ImGui::SetWindowFontScale(1.5);
-        ImGui::TextUnformatted("CIE");
-        ImGui::SetWindowFontScale(1.0);
-        ImVec2 cie_pos = canvas_pos + ImVec2(20, 20 + HeadHeight * 1.5) + ImVec2(scope_view_size.x, 0) + ImVec2(20, 0) + ImVec2(scope_view_size.x, 0) + ImVec2(20, 0);
-        draw_list->AddRect(cie_pos, cie_pos + scope_size, COL_DARK_PANEL);
-        draw_list->AddRectFilled(cie_pos, cie_pos + scope_view_size, IM_COL32_BLACK, 0);
-        ImGui::SetCursorScreenPos(cie_pos);
-        ImGui::InvisibleButton("##cie_view", scope_view_size);
-        if (ImGui::IsItemHovered())
-        {
-            if (io.MouseWheel < -FLT_EPSILON)
-            {
-                g_media_editor_settings.CIEIntensity *= 0.9f;
-                if (g_media_editor_settings.CIEIntensity < 0.01)
-                    g_media_editor_settings.CIEIntensity = 0.01;
-            }
-            else if (io.MouseWheel > FLT_EPSILON)
-            {
-                g_media_editor_settings.CIEIntensity *= 1.1f;
-                if (g_media_editor_settings.CIEIntensity > 1.0f)
-                    g_media_editor_settings.CIEIntensity = 1.0;
-            }
-        }
-        if (!mat_cie.empty())
-        {
-            ImGui::ImMatToTexture(mat_cie, cie_texture);
-            draw_list->AddImage(cie_texture, cie_pos, cie_pos + scope_view_size, ImVec2(0, 0), ImVec2(1, 1));
-        }
-        ImRect cie_rect = ImRect(cie_pos, cie_pos + scope_view_size);
-        draw_list->AddRect(cie_rect.Min, cie_rect.Max, COL_SLIDER_HANDLE, 0);
-        // draw graticule line
-        draw_list->PushClipRect(cie_rect.Min, cie_rect.Max);
-        auto cie_step = scope_view_size.y / 10;
-        auto cie_vstep = scope_view_size.x / 10;
-        auto cie_sub_step = scope_view_size.y / 50;
-        auto cie_sub_vstep = scope_view_size.x / 50;
-        for (int i = 1; i <= 10; i++)
-        {
-            ImVec2 hp0 = cie_rect.Min + ImVec2(0, i * cie_step);
-            ImVec2 hp1 = cie_rect.Min + ImVec2(cie_rect.Max.x, i * cie_step);
-            draw_list->AddLine(hp0, hp1, COL_GRATICULE_DARK, 1);
-            ImVec2 vp0 = cie_rect.Min + ImVec2(i * cie_vstep, 0);
-            ImVec2 vp1 = cie_rect.Min + ImVec2(i * cie_vstep, cie_rect.Max.y);
-            draw_list->AddLine(vp0, vp1, COL_GRATICULE_DARK, 1);
-        }
-        for (int i = 0; i < 50; i++)
-        {
-            ImVec2 hp0 = cie_rect.Min + ImVec2(scope_view_size.x - 3, i * cie_sub_step);
-            ImVec2 hp1 = cie_rect.Min + ImVec2(scope_view_size.x, i * cie_sub_step);
-            draw_list->AddLine(hp0, hp1, COL_GRATICULE_HALF, 1);
-            ImVec2 vp0 = cie_rect.Min + ImVec2(i * cie_sub_vstep, 0);
-            ImVec2 vp1 = cie_rect.Min + ImVec2(i * cie_sub_vstep, 3);
-            draw_list->AddLine(vp0, vp1, COL_GRATICULE_HALF, 1);
-        }
-        std::string X_str = "X";
-        std::string Y_str = "Y";
-        if (g_media_editor_settings.CIEMode == ImGui::UCS)
-        {
-            X_str = "U"; Y_str = "C";
-        }
-        else if (g_media_editor_settings.CIEMode == ImGui::LUV)
-        {
-            X_str = "U"; Y_str = "V";
-        }
-        draw_list->AddText(cie_pos + ImVec2(2, 2), COL_GRATICULE, X_str.c_str());
-        draw_list->AddText(cie_pos + ImVec2(scope_view_size.x - 12, scope_view_size.y - 18), COL_GRATICULE, Y_str.c_str());
-        ImGui::SetWindowFontScale(0.7);
-        for (int i = 0; i < 10; i++)
-        {
-            if (i == 0) continue;
-            char mark[32] = {0};
-            ImFormatString(mark, IM_ARRAYSIZE(mark), "%.1f", i / 10.f);
-            draw_list->AddText(cie_pos + ImVec2(i * cie_vstep - 8, 2), COL_GRATICULE, mark);
-            draw_list->AddText(cie_pos + ImVec2(scope_view_size.x - 18, scope_view_size.y - i * cie_step - 6), COL_GRATICULE, mark);
-        }
-        ImGui::SetWindowFontScale(1.0);
-        ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphShadowOffset, ImVec2(1, 1));
-        if (m_cie)
-        {
-            ImVec2 white_point;
-            m_cie->GetWhitePoint((ImGui::ColorsSystems)g_media_editor_settings.CIEColorSystem, scope_view_size.x, scope_view_size.y, &white_point.x, &white_point.y);
-            draw_list->AddCircle(cie_pos + white_point, 3, IM_COL32_WHITE, 0, 2);
-            draw_list->AddCircle(cie_pos + white_point, 2, IM_COL32_BLACK, 0, 1);
-            ImVec2 green_point_system;
-            m_cie->GetGreenPoint((ImGui::ColorsSystems)g_media_editor_settings.CIEColorSystem, scope_view_size.x, scope_view_size.y, &green_point_system.x, &green_point_system.y);
-            draw_list->AddText(cie_pos + green_point_system, COL_GRATICULE, color_system_items[g_media_editor_settings.CIEColorSystem]);
-            ImVec2 green_point_gamuts;
-            m_cie->GetGreenPoint((ImGui::ColorsSystems)g_media_editor_settings.CIEGamuts, scope_view_size.x, scope_view_size.y, &green_point_gamuts.x, &green_point_gamuts.y);
-            draw_list->AddText(cie_pos + green_point_gamuts, COL_GRATICULE, color_system_items[g_media_editor_settings.CIEGamuts]);
-        }
-        ImGui::PopStyleVar();
-        draw_list->PopClipRect();
-
-        ImGui::SetCursorScreenPos(cie_pos + ImVec2(0, scope_view_size.y));
-        ImGui::TextUnformatted("Show Color:"); ImGui::SameLine();
-        ImGui::ToggleButton("##cie_show_color", &g_media_editor_settings.CIEShowColor);
-        ImGui::SameLine();
-        if (ImGui::Button("...##cie_configure", ImVec2(48, 0)))
-        {
-            ImGui::OpenPopup(ICON_FA_WHMCS " CIE Configure", ImGuiPopupFlags_AnyPopup);
-        }
-        if (ImGui::BeginPopupModal(ICON_FA_WHMCS " CIE Configure", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings))
-        {
-            static int color_system = g_media_editor_settings.CIEColorSystem;
-            static int cie_system = g_media_editor_settings.CIEMode;
-            static int gamuts = g_media_editor_settings.CIEGamuts;
-            static float contrast = g_media_editor_settings.CIEContrast;
-            static bool correct_gamma = g_media_editor_settings.CIECorrectGamma;
-            ImGui::Combo("Color System", (int *)&color_system, color_system_items, IM_ARRAYSIZE(color_system_items));
-            ImGui::Combo("Cie System", (int *)&cie_system, cie_system_items, IM_ARRAYSIZE(cie_system_items));
-            ImGui::Combo("Show Gamut", (int *)&gamuts, color_system_items, IM_ARRAYSIZE(color_system_items));
-            ImGui::DragFloat("Contrast##cie_contrast", &contrast, 0.01f, 0.f, 1.f, "%.2f");
-            ImGui::TextUnformatted("CorrectGamma:"); ImGui::SameLine();
-            ImGui::ToggleButton("##cie_correct_gamma", &correct_gamma);
-            int i = ImGui::GetCurrentWindow()->ContentSize.x;
-            ImGui::Indent((i - 140.0f) * 0.5f);
-            if (ImGui::Button("OK", ImVec2(60, 0)))
-            {
-                g_media_editor_settings.CIEColorSystem = color_system;
-                g_media_editor_settings.CIEMode = cie_system;
-                g_media_editor_settings.CIEGamuts = gamuts;
-                g_media_editor_settings.CIEContrast = contrast;
-                g_media_editor_settings.CIECorrectGamma = correct_gamma;
+                case 0:
+                {
+                    // histogram setting
+                    ImGui::TextUnformatted("Log:"); ImGui::SameLine();
+                    ImGui::ToggleButton("##histogram_logview", &g_media_editor_settings.HistogramLog);
+                }
+                break;
+                case 1:
+                {
+                    // waveform setting
+                    ImGui::TextUnformatted("Mirror:"); ImGui::SameLine();
+                    ImGui::ToggleButton("##waveform_mirror", &g_media_editor_settings.WaveformMirror);
+                    ImGui::TextUnformatted("Separate:"); ImGui::SameLine();
+                    ImGui::ToggleButton("##waveform_separate", &g_media_editor_settings.WaveformSeparate);
+                }
+                break;
+                case 2:
+                {
+                    // cie setting
+                    bool cie_setting_changed = false;
+                    ImGui::TextUnformatted("Show Color:"); ImGui::SameLine();
+                    ImGui::ToggleButton("##cie_show_color", &g_media_editor_settings.CIEShowColor);
+                    if (ImGui::Combo("Color System", (int *)&g_media_editor_settings.CIEColorSystem, color_system_items, IM_ARRAYSIZE(color_system_items)))
+                    {
+                        cie_setting_changed = true;
+                    }
+                    if (ImGui::Combo("Cie System", (int *)&g_media_editor_settings.CIEMode, cie_system_items, IM_ARRAYSIZE(cie_system_items)))
+                    {
+                        cie_setting_changed = true;
+                    }
+                    if (ImGui::Combo("Show Gamut", (int *)&g_media_editor_settings.CIEGamuts, color_system_items, IM_ARRAYSIZE(color_system_items)))
+                    {
+                        cie_setting_changed = true;
+                    }
+                    if (ImGui::DragFloat("Contrast##cie_contrast", &g_media_editor_settings.CIEContrast, 0.01f, 0.f, 1.f, "%.2f"))
+                    {
+                        cie_setting_changed = true;
+                    }
+                    ImGui::TextUnformatted("CorrectGamma:"); ImGui::SameLine();
+                    if (ImGui::ToggleButton("##cie_correct_gamma", &g_media_editor_settings.CIECorrectGamma))
+                    {
+                        cie_setting_changed = true;
+                    }
 #if IMGUI_VULKAN_SHADER
-                if (m_cie) 
-                    m_cie->SetParam(g_media_editor_settings.CIEColorSystem, 
-                                    g_media_editor_settings.CIEMode, 512, 
-                                    g_media_editor_settings.CIEGamuts, 
-                                    g_media_editor_settings.CIEContrast, 
-                                    g_media_editor_settings.CIECorrectGamma);
+                    if (cie_setting_changed && m_cie)
+                    {
+                        m_cie->SetParam(g_media_editor_settings.CIEColorSystem, 
+                                        g_media_editor_settings.CIEMode, 512, 
+                                        g_media_editor_settings.CIEGamuts, 
+                                        g_media_editor_settings.CIEContrast, 
+                                        g_media_editor_settings.CIECorrectGamma);
+                    }
 #endif
-                ImGui::CloseCurrentPopup(); 
-            }
-            ImGui::SetItemDefaultFocus();
-            ImGui::SameLine();
-            if (ImGui::Button("Cancel", ImVec2(60, 0)))
-            {
-                color_system = g_media_editor_settings.CIEColorSystem;
-                cie_system = g_media_editor_settings.CIEMode;
-                gamuts = g_media_editor_settings.CIEGamuts;
-                contrast = g_media_editor_settings.CIEContrast;
-                correct_gamma = g_media_editor_settings.CIECorrectGamma;
-                ImGui::CloseCurrentPopup(); 
+                }
+                break;
+                case 3:
+                {
+                    // vector setting
+                }
+                break;
+                case 4:
+                {
+                    // audio dB setting
+                }
+                break;
+                case 5:
+                {
+                    // audio spectrogram setting
+                }
+                break;
+                default: break;
             }
             ImGui::EndPopup();
         }
-        ImGui::EndGroup();
-
-        // vector view
-        ImGui::BeginGroup();
-        ImGui::SetCursorScreenPos(canvas_pos + ImVec2(20, 20) + ImVec2(scope_view_size.x, 0) + ImVec2(20, 0) + ImVec2(scope_view_size.x, 0) + ImVec2(20, 0) + ImVec2(scope_view_size.x, 0) + ImVec2(20, 0));
-        ImGui::SetWindowFontScale(1.5);
-        ImGui::TextUnformatted("Vector");
-        ImGui::SetWindowFontScale(1.0);
-        ImVec2 vector_pos = canvas_pos + ImVec2(20, 20 + HeadHeight * 1.5) + ImVec2(scope_view_size.x, 0) + ImVec2(20, 0) + ImVec2(scope_view_size.x, 0) + ImVec2(20, 0) + ImVec2(scope_view_size.x, 0) + ImVec2(20, 0);
-        draw_list->AddRect(vector_pos, vector_pos + scope_size, COL_DARK_PANEL);
-        draw_list->AddRectFilled(vector_pos, vector_pos + scope_view_size, IM_COL32_BLACK, 0);
-        ImGui::SetCursorScreenPos(vector_pos);
-        ImGui::InvisibleButton("##vector_view", scope_view_size);
-        if (ImGui::IsItemHovered())
+        ImGui::PopStyleColor(3);
+        switch (ScopeWindowIndex)
         {
-            if (io.MouseWheel < -FLT_EPSILON)
+            case 0:
             {
-                g_media_editor_settings.VectorIntensity *= 0.9f;
-                if (g_media_editor_settings.VectorIntensity < 0.01)
-                    g_media_editor_settings.VectorIntensity = 0.01;
+                // histogram view
+                ImGui::BeginGroup();
+                ImGui::InvisibleButton("##histogram_view", scope_view_size);
+                if (ImGui::IsItemHovered())
+                {
+                    if (io.MouseWheel < -FLT_EPSILON)
+                    {
+                        g_media_editor_settings.HistogramScale *= 0.9f;
+                        if (g_media_editor_settings.HistogramScale < 0.01)
+                            g_media_editor_settings.HistogramScale = 0.01;
+                    }
+                    else if (io.MouseWheel > FLT_EPSILON)
+                    {
+                        g_media_editor_settings.HistogramScale *= 1.1f;
+                        if (g_media_editor_settings.HistogramScale > 4.0f)
+                            g_media_editor_settings.HistogramScale = 4.0;
+                    }
+                }
+                if (!mat_histogram.empty())
+                {
+                    ImGui::PushStyleColor(ImGuiCol_FrameBg, 0);
+                    ImGui::SetCursorScreenPos(window_pos);
+                    auto rmat = mat_histogram.channel(0);
+                    ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(1.f, 0.f, 0.f, 1.0f));
+                    ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(1.f, 0.f, 0.f, 0.5f));
+                    ImGui::PlotLines("##rh", (float *)rmat.data, mat_histogram.w, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(scope_view_size.x, scope_view_size.y / 3), 4, false, true);
+                    ImGui::PopStyleColor(2);
+                    ImGui::SetCursorScreenPos(window_pos + ImVec2(0, scope_view_size.y / 3));
+                    auto gmat = mat_histogram.channel(1);
+                    ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.f, 1.f, 0.f, 1.0f));
+                    ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.f, 1.f, 0.f, 0.5f));
+                    ImGui::PlotLines("##gh", (float *)gmat.data, mat_histogram.w, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(scope_view_size.x, scope_view_size.y / 3), 4, false, true);
+                    ImGui::PopStyleColor(2);
+                    ImGui::SetCursorScreenPos(window_pos + ImVec2(0, scope_view_size.y * 2 / 3));
+                    auto bmat = mat_histogram.channel(2);
+                    ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.f, 0.f, 1.f, 1.0f));
+                    ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.f, 0.f, 1.f, 0.5f));
+                    ImGui::PlotLines("##bh", (float *)bmat.data, mat_histogram.w, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(scope_view_size.x, scope_view_size.y / 3), 4, false, true);
+                    ImGui::PopStyleColor(2);
+                    ImGui::PopStyleColor();
+                }
+                draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 0);
+                // draw graticule line
+                draw_list->PushClipRect(scrop_rect.Min, scrop_rect.Max);
+                auto histogram_step = scope_view_size.x / 10;
+                auto histogram_sub_vstep = scope_view_size.x / 50;
+                auto histogram_vstep = scope_view_size.y / 3 * g_media_editor_settings.HistogramScale;
+                auto histogram_seg = scope_view_size.y / 3 / histogram_vstep;
+                for (int i = 1; i <= 10; i++)
+                {
+                    ImVec2 p0 = scrop_rect.Min + ImVec2(i * histogram_step, 0);
+                    ImVec2 p1 = scrop_rect.Min + ImVec2(i * histogram_step, scrop_rect.Max.y);
+                    draw_list->AddLine(p0, p1, COL_GRATICULE_DARK, 1);
+                }
+                for (int i = 0; i < histogram_seg; i++)
+                {
+                    ImVec2 pr0 = scrop_rect.Min + ImVec2(0, (scope_view_size.y / 3) - i * histogram_vstep);
+                    ImVec2 pr1 = scrop_rect.Min + ImVec2(scrop_rect.Max.x, (scope_view_size.y / 3) - i * histogram_vstep);
+                    draw_list->AddLine(pr0, pr1, IM_COL32(255, 128, 0, 32), 1);
+                    ImVec2 pg0 = scrop_rect.Min + ImVec2(0, scope_view_size.y / 3) + ImVec2(0, (scope_view_size.y / 3) - i * histogram_vstep);
+                    ImVec2 pg1 = scrop_rect.Min + ImVec2(0, scope_view_size.y / 3) + ImVec2(scrop_rect.Max.x, (scope_view_size.y / 3) - i * histogram_vstep);
+                    draw_list->AddLine(pg0, pg1, IM_COL32(128, 255, 0, 32), 1);
+                    ImVec2 pb0 = scrop_rect.Min + ImVec2(0, scope_view_size.y * 2 / 3) + ImVec2(0, (scope_view_size.y / 3) - i * histogram_vstep);
+                    ImVec2 pb1 = scrop_rect.Min + ImVec2(0, scope_view_size.y * 2 / 3) + ImVec2(scrop_rect.Max.x, (scope_view_size.y / 3) - i * histogram_vstep);
+                    draw_list->AddLine(pb0, pb1, IM_COL32(128, 128, 255, 32), 1);
+                }
+                for (int i = 0; i < 50; i++)
+                {
+                    ImVec2 p0 = scrop_rect.Min + ImVec2(i * histogram_sub_vstep, 0);
+                    ImVec2 p1 = scrop_rect.Min + ImVec2(i * histogram_sub_vstep, 5);
+                    draw_list->AddLine(p0, p1, COL_GRATICULE, 1);
+                }
+                draw_list->PopClipRect();
+                ImGui::EndGroup();
             }
-            else if (io.MouseWheel > FLT_EPSILON)
+            break;
+            case 1:
             {
-                g_media_editor_settings.VectorIntensity *= 1.1f;
-                if (g_media_editor_settings.VectorIntensity > 1.0f)
-                    g_media_editor_settings.VectorIntensity = 1.0;
+                // waveform view
+                ImGui::BeginGroup();
+                ImGui::InvisibleButton("##waveform_view", scope_view_size);
+                if (ImGui::IsItemHovered())
+                {
+                    if (io.MouseWheel < -FLT_EPSILON)
+                    {
+                        g_media_editor_settings.WaveformIntensity *= 0.9f;
+                        if (g_media_editor_settings.WaveformIntensity < 0.1)
+                            g_media_editor_settings.WaveformIntensity = 0.1;
+                    }
+                    else if (io.MouseWheel > FLT_EPSILON)
+                    {
+                        g_media_editor_settings.WaveformIntensity *= 1.1f;
+                        if (g_media_editor_settings.WaveformIntensity > 4.0f)
+                            g_media_editor_settings.WaveformIntensity = 4.0;
+                    }
+                }
+                if (!mat_waveform.empty())
+                {
+                    ImGui::ImMatToTexture(mat_waveform, waveform_texture);
+                    draw_list->AddImage(waveform_texture, scrop_rect.Min, scrop_rect.Max, g_media_editor_settings.WaveformMirror ? ImVec2(0, 1) : ImVec2(0, 0), g_media_editor_settings.WaveformMirror ? ImVec2(1, 0) : ImVec2(1, 1));
+                }
+                draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 0);
+                // draw graticule line
+                draw_list->PushClipRect(scrop_rect.Min, scrop_rect.Max);
+                auto waveform_step = scope_view_size.y / 10;
+                auto waveform_vstep = scope_view_size.x / 10;
+                auto waveform_sub_step = scope_view_size.y / 50;
+                auto waveform_sub_vstep = scope_view_size.x / 100;
+                for (int i = 0; i < 10; i++)
+                {
+                    ImVec2 p0 = scrop_rect.Min + ImVec2(0, i * waveform_step);
+                    ImVec2 p1 = scrop_rect.Min + ImVec2(scrop_rect.Max.x, i * waveform_step);
+                    if (i != 5)
+                        draw_list->AddLine(p0, p1, COL_GRATICULE_DARK, 1);
+                    else
+                    {
+                        ImGui::ImDrawListAddLineDashed(draw_list, p0, p1, COL_GRATICULE_DARK, 1, 100);
+                    }
+                    ImVec2 vp0 = scrop_rect.Min + ImVec2(i * waveform_vstep, 0);
+                    ImVec2 vp1 = scrop_rect.Min + ImVec2(i * waveform_vstep, 10);
+                    draw_list->AddLine(vp0, vp1, COL_GRATICULE, 1);
+                }
+                for (int i = 0; i < 50; i++)
+                {
+                    float l = i == 0 || i % 10 == 0 ? 10 : 5;
+                    ImVec2 p0 = scrop_rect.Min + ImVec2(0, i * waveform_sub_step);
+                    ImVec2 p1 = scrop_rect.Min + ImVec2(l, i * waveform_sub_step);
+                    draw_list->AddLine(p0, p1, COL_GRATICULE, 1);
+                }
+                for (int i = 0; i < 100; i++)
+                {
+                    ImVec2 p0 = scrop_rect.Min + ImVec2(i * waveform_sub_vstep, 0);
+                    ImVec2 p1 = scrop_rect.Min + ImVec2(i * waveform_sub_vstep, 5);
+                    draw_list->AddLine(p0, p1, COL_GRATICULE, 1);
+                }
+                draw_list->PopClipRect();
+                ImGui::EndGroup();
             }
+            break;
+            case 2:
+            {
+                // cie view
+                ImGui::BeginGroup();
+                ImGui::InvisibleButton("##cie_view", scope_view_size);
+                if (ImGui::IsItemHovered())
+                {
+                    if (io.MouseWheel < -FLT_EPSILON)
+                    {
+                        g_media_editor_settings.CIEIntensity *= 0.9f;
+                        if (g_media_editor_settings.CIEIntensity < 0.01)
+                            g_media_editor_settings.CIEIntensity = 0.01;
+                    }
+                    else if (io.MouseWheel > FLT_EPSILON)
+                    {
+                        g_media_editor_settings.CIEIntensity *= 1.1f;
+                        if (g_media_editor_settings.CIEIntensity > 1.0f)
+                            g_media_editor_settings.CIEIntensity = 1.0;
+                    }
+                }
+                if (!mat_cie.empty())
+                {
+                    ImGui::ImMatToTexture(mat_cie, cie_texture);
+                    draw_list->AddImage(cie_texture, scrop_rect.Min, scrop_rect.Max, ImVec2(0, 0), ImVec2(1, 1));
+                }
+                draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 0);
+                // draw graticule line
+                draw_list->PushClipRect(scrop_rect.Min, scrop_rect.Max);
+                auto cie_step = scope_view_size.y / 10;
+                auto cie_vstep = scope_view_size.x / 10;
+                auto cie_sub_step = scope_view_size.y / 50;
+                auto cie_sub_vstep = scope_view_size.x / 50;
+                for (int i = 1; i <= 10; i++)
+                {
+                    ImVec2 hp0 = scrop_rect.Min + ImVec2(0, i * cie_step);
+                    ImVec2 hp1 = scrop_rect.Min + ImVec2(scrop_rect.Max.x, i * cie_step);
+                    draw_list->AddLine(hp0, hp1, COL_GRATICULE_DARK, 1);
+                    ImVec2 vp0 = scrop_rect.Min + ImVec2(i * cie_vstep, 0);
+                    ImVec2 vp1 = scrop_rect.Min + ImVec2(i * cie_vstep, scrop_rect.Max.y);
+                    draw_list->AddLine(vp0, vp1, COL_GRATICULE_DARK, 1);
+                }
+                for (int i = 0; i < 50; i++)
+                {
+                    ImVec2 hp0 = scrop_rect.Min + ImVec2(scope_view_size.x - 3, i * cie_sub_step);
+                    ImVec2 hp1 = scrop_rect.Min + ImVec2(scope_view_size.x, i * cie_sub_step);
+                    draw_list->AddLine(hp0, hp1, COL_GRATICULE_HALF, 1);
+                    ImVec2 vp0 = scrop_rect.Min + ImVec2(i * cie_sub_vstep, 0);
+                    ImVec2 vp1 = scrop_rect.Min + ImVec2(i * cie_sub_vstep, 3);
+                    draw_list->AddLine(vp0, vp1, COL_GRATICULE_HALF, 1);
+                }
+                std::string X_str = "X";
+                std::string Y_str = "Y";
+                if (g_media_editor_settings.CIEMode == ImGui::UCS)
+                {
+                    X_str = "U"; Y_str = "C";
+                }
+                else if (g_media_editor_settings.CIEMode == ImGui::LUV)
+                {
+                    X_str = "U"; Y_str = "V";
+                }
+                draw_list->AddText(scrop_rect.Min + ImVec2(2, 2), COL_GRATICULE, X_str.c_str());
+                draw_list->AddText(scrop_rect.Min + ImVec2(scope_view_size.x - 12, scope_view_size.y - 18), COL_GRATICULE, Y_str.c_str());
+                ImGui::SetWindowFontScale(0.7);
+                for (int i = 0; i < 10; i++)
+                {
+                    if (i == 0) continue;
+                    char mark[32] = {0};
+                    ImFormatString(mark, IM_ARRAYSIZE(mark), "%.1f", i / 10.f);
+                    draw_list->AddText(scrop_rect.Min + ImVec2(i * cie_vstep - 8, 2), COL_GRATICULE, mark);
+                    draw_list->AddText(scrop_rect.Min + ImVec2(scope_view_size.x - 18, scope_view_size.y - i * cie_step - 6), COL_GRATICULE, mark);
+                }
+                ImGui::SetWindowFontScale(1.0);
+                ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphShadowOffset, ImVec2(1, 1));
+                if (m_cie)
+                {
+                    ImVec2 white_point;
+                    m_cie->GetWhitePoint((ImGui::ColorsSystems)g_media_editor_settings.CIEColorSystem, scope_view_size.x, scope_view_size.y, &white_point.x, &white_point.y);
+                    draw_list->AddCircle(scrop_rect.Min + white_point, 3, IM_COL32_WHITE, 0, 2);
+                    draw_list->AddCircle(scrop_rect.Min + white_point, 2, IM_COL32_BLACK, 0, 1);
+                    ImVec2 green_point_system;
+                    m_cie->GetGreenPoint((ImGui::ColorsSystems)g_media_editor_settings.CIEColorSystem, scope_view_size.x, scope_view_size.y, &green_point_system.x, &green_point_system.y);
+                    draw_list->AddText(scrop_rect.Min + green_point_system, COL_GRATICULE, color_system_items[g_media_editor_settings.CIEColorSystem]);
+                    ImVec2 green_point_gamuts;
+                    m_cie->GetGreenPoint((ImGui::ColorsSystems)g_media_editor_settings.CIEGamuts, scope_view_size.x, scope_view_size.y, &green_point_gamuts.x, &green_point_gamuts.y);
+                    draw_list->AddText(scrop_rect.Min + green_point_gamuts, COL_GRATICULE, color_system_items[g_media_editor_settings.CIEGamuts]);
+                }
+                ImGui::PopStyleVar();
+                draw_list->PopClipRect();
+                ImGui::EndGroup();
+            }
+            break;
+            case 3:
+            {
+                // vector view
+                ImGui::BeginGroup();
+                ImGui::InvisibleButton("##vector_view", scope_view_size);
+                if (ImGui::IsItemHovered())
+                {
+                    if (io.MouseWheel < -FLT_EPSILON)
+                    {
+                        g_media_editor_settings.VectorIntensity *= 0.9f;
+                        if (g_media_editor_settings.VectorIntensity < 0.01)
+                            g_media_editor_settings.VectorIntensity = 0.01;
+                    }
+                    else if (io.MouseWheel > FLT_EPSILON)
+                    {
+                        g_media_editor_settings.VectorIntensity *= 1.1f;
+                        if (g_media_editor_settings.VectorIntensity > 1.0f)
+                            g_media_editor_settings.VectorIntensity = 1.0;
+                    }
+                }
+                if (!mat_vector.empty())
+                {
+                    ImGui::ImMatToTexture(mat_vector, vector_texture);
+                    draw_list->AddImage(vector_texture, scrop_rect.Min, scrop_rect.Max, ImVec2(0, 0), ImVec2(1, 1));
+                }
+                draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 0);
+                // draw graticule line
+                ImVec2 center_point = ImVec2(scrop_rect.Min + scope_view_size / 2);
+                float radius = scope_view_size.x / 2;
+                draw_list->PushClipRect(scrop_rect.Min, scrop_rect.Max);
+                draw_list->AddCircle(center_point, radius, COL_GRATICULE_DARK, 0, 1);
+                draw_list->AddLine(scrop_rect.Min + ImVec2(0, scope_view_size.y / 2), scrop_rect.Max - ImVec2(0, scope_view_size.y / 2), COL_GRATICULE_DARK);
+                draw_list->AddLine(scrop_rect.Min + ImVec2(scope_view_size.x / 2, 0), scrop_rect.Max - ImVec2(scope_view_size.x / 2, 0), COL_GRATICULE_DARK);
+
+                auto AngleToCoordinate = [&](float angle, float length)
+                {
+                    ImVec2 point(0, 0);
+                    float hAngle = angle * M_PI / 180.f;
+                    if (angle == 0.f)
+                        point = ImVec2(length, 0);  // positive x axis
+                    else if (angle == 180.f)
+                        point = ImVec2(-length, 0); // negative x axis
+                    else if (angle == 90.f)
+                        point = ImVec2(0, length); // positive y axis
+                    else if (angle == 270.f)
+                        point = ImVec2(0, -length);  // negative y axis
+                    else
+                        point = ImVec2(length * cos(hAngle), length * sin(hAngle));
+                    return point;
+                };
+                auto AngleToPoint = [&](float angle, float length)
+                {
+                    ImVec2 point = AngleToCoordinate(angle, length);
+                    point = ImVec2(point.x * radius, -point.y * radius);
+                    return point;
+                };
+                auto ColorToPoint = [&](float r, float g, float b)
+                {
+                    float angle, length, v;
+                    ImGui::ColorConvertRGBtoHSV(r, g, b, angle, length, v);
+                    angle = angle * 360;
+                    auto point = AngleToCoordinate(angle, v);
+                    point = ImVec2(point.x * radius, -point.y * radius);
+                    return point;
+                };
+
+                for (int i = 0; i < 360; i+= 5)
+                {
+                    float l = 0.95;
+                    if (i == 0 || i % 10 == 0)
+                        l = 0.9;
+                    auto p0 = AngleToPoint(i, 1.0);
+                    auto p1 = AngleToPoint(i, l);
+                    draw_list->AddLine(center_point + p0, center_point + p1, COL_GRATICULE_DARK);
+                }
+
+                auto draw_mark = [&](ImVec2 point, const char * mark)
+                {
+                    float rect_size = 12;
+                    auto p0 = center_point + point - ImVec2(rect_size, rect_size);
+                    auto p1 = center_point + point + ImVec2(rect_size, rect_size);
+                    auto p2 = p0 + ImVec2(rect_size * 2, 0);
+                    auto p3 = p0 + ImVec2(0, rect_size * 2);
+                    auto text_size = ImGui::CalcTextSize(mark);
+                    draw_list->AddText(p0 + ImVec2(rect_size - text_size.x / 2, rect_size - text_size.y / 2), COL_GRATICULE, mark);
+                    draw_list->AddLine(p0, p0 + ImVec2(5, 0),   COL_GRATICULE, 2);
+                    draw_list->AddLine(p0, p0 + ImVec2(0, 5),   COL_GRATICULE, 2);
+                    draw_list->AddLine(p1, p1 + ImVec2(-5, 0),  COL_GRATICULE, 2);
+                    draw_list->AddLine(p1, p1 + ImVec2(0, -5),  COL_GRATICULE, 2);
+                    draw_list->AddLine(p2, p2 + ImVec2(-5, 0),  COL_GRATICULE, 2);
+                    draw_list->AddLine(p2, p2 + ImVec2(0, 5),   COL_GRATICULE, 2);
+                    draw_list->AddLine(p3, p3 + ImVec2(5, 0),   COL_GRATICULE, 2);
+                    draw_list->AddLine(p3, p3 + ImVec2(0, -5),  COL_GRATICULE, 2);
+                };
+
+                draw_mark(ColorToPoint(0.75, 0, 0), "R");
+                draw_mark(ColorToPoint(0, 0.75, 0), "G");
+                draw_mark(ColorToPoint(0, 0, 0.75), "B");
+                draw_mark(ColorToPoint(0.75, 0.75, 0), "Y");
+                draw_mark(ColorToPoint(0.75, 0, 0.75), "M");
+                draw_mark(ColorToPoint(0, 0.75, 0.75), "C");
+
+                draw_list->PopClipRect();
+                ImGui::EndGroup();
+            }
+            break;
+            case 4:
+            break;
+            case 5:
+            break;
+            default: break;
         }
-        if (!mat_vector.empty())
-        {
-            ImGui::ImMatToTexture(mat_vector, vector_texture);
-            draw_list->AddImage(vector_texture, vector_pos, vector_pos + scope_view_size, ImVec2(0, 0), ImVec2(1, 1));
-        }
-        ImRect vector_rect = ImRect(vector_pos, vector_pos + scope_view_size);
-        draw_list->AddRect(vector_rect.Min, vector_rect.Max, COL_SLIDER_HANDLE, 0);
-        // draw graticule line
-        ImVec2 center_point = ImVec2(vector_rect.Min + scope_view_size / 2);
-        float radius = scope_view_size.x / 2;
-        draw_list->PushClipRect(vector_rect.Min, vector_rect.Max);
-        draw_list->AddCircle(center_point, radius, COL_GRATICULE_DARK, 0, 1);
-        draw_list->AddLine(vector_rect.Min + ImVec2(0, scope_view_size.y / 2), vector_rect.Max - ImVec2(0, scope_view_size.y / 2), COL_GRATICULE_DARK);
-        draw_list->AddLine(vector_rect.Min + ImVec2(scope_view_size.x / 2, 0), vector_rect.Max - ImVec2(scope_view_size.x / 2, 0), COL_GRATICULE_DARK);
-        
-        auto AngleToCoordinate = [&](float angle, float length)
-        {
-            ImVec2 point(0, 0);
-            float hAngle = angle * M_PI / 180.f;
-            if (angle == 0.f)
-                point = ImVec2(length, 0);  // positive x axis
-            else if (angle == 180.f)
-                point = ImVec2(-length, 0); // negative x axis
-            else if (angle == 90.f)
-                point = ImVec2(0, length); // positive y axis
-            else if (angle == 270.f)
-                point = ImVec2(0, -length);  // negative y axis
-            else
-                point = ImVec2(length * cos(hAngle), length * sin(hAngle));
-            return point;
-        };
-        auto AngleToPoint = [&](float angle, float length)
-        {
-            ImVec2 point = AngleToCoordinate(angle, length);
-            point = ImVec2(point.x * radius, -point.y * radius);
-            return point;
-        };
-        auto ColorToPoint = [&](float r, float g, float b)
-        {
-            float angle, length, v;
-            ImGui::ColorConvertRGBtoHSV(r, g, b, angle, length, v);
-            angle = angle * 360;
-            auto point = AngleToCoordinate(angle, v);
-            point = ImVec2(point.x * radius, -point.y * radius);
-            return point;
-        };
-
-        for (int i = 0; i < 360; i+= 5)
-        {
-            float l = 0.95;
-            if (i == 0 || i % 10 == 0)
-                l = 0.9;
-            auto p0 = AngleToPoint(i, 1.0);
-            auto p1 = AngleToPoint(i, l);
-            draw_list->AddLine(center_point + p0, center_point + p1, COL_GRATICULE_DARK);
-        }
-
-        auto draw_mark = [&](ImVec2 point, const char * mark)
-        {
-            float rect_size = 12;
-            auto p0 = center_point + point - ImVec2(rect_size, rect_size);
-            auto p1 = center_point + point + ImVec2(rect_size, rect_size);
-            auto p2 = p0 + ImVec2(rect_size * 2, 0);
-            auto p3 = p0 + ImVec2(0, rect_size * 2);
-            auto text_size = ImGui::CalcTextSize(mark);
-            draw_list->AddText(p0 + ImVec2(rect_size - text_size.x / 2, rect_size - text_size.y / 2), COL_GRATICULE, mark);
-            draw_list->AddLine(p0, p0 + ImVec2(5, 0),   COL_GRATICULE, 2);
-            draw_list->AddLine(p0, p0 + ImVec2(0, 5),   COL_GRATICULE, 2);
-            draw_list->AddLine(p1, p1 + ImVec2(-5, 0),  COL_GRATICULE, 2);
-            draw_list->AddLine(p1, p1 + ImVec2(0, -5),  COL_GRATICULE, 2);
-            draw_list->AddLine(p2, p2 + ImVec2(-5, 0),  COL_GRATICULE, 2);
-            draw_list->AddLine(p2, p2 + ImVec2(0, 5),   COL_GRATICULE, 2);
-            draw_list->AddLine(p3, p3 + ImVec2(5, 0),   COL_GRATICULE, 2);
-            draw_list->AddLine(p3, p3 + ImVec2(0, -5),  COL_GRATICULE, 2);
-        };
-
-        draw_mark(ColorToPoint(0.75, 0, 0), "R");
-        draw_mark(ColorToPoint(0, 0.75, 0), "G");
-        draw_mark(ColorToPoint(0, 0, 0.75), "B");
-        draw_mark(ColorToPoint(0.75, 0.75, 0), "Y");
-        draw_mark(ColorToPoint(0.75, 0, 0.75), "M");
-        draw_mark(ColorToPoint(0, 0.75, 0.75), "C");
-
-        draw_list->PopClipRect();
-
-        ImGui::EndGroup();
     }
-    ImGui::EndGroup();
 }
 
 #if 0
@@ -3193,6 +3112,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
 {
     static bool app_done = false;
     const float media_icon_size = 96; 
+    const float scope_height = 256;
     const float tool_icon_size = 32;
     static bool show_about = false;
     static bool show_configure = false;
@@ -3219,7 +3139,6 @@ bool Application_Frame(void * handle, bool app_will_quit)
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     static const int numControlPanelTabs = sizeof(ControlPanelTabNames)/sizeof(ControlPanelTabNames[0]);
     static const int numMainWindowTabs = sizeof(MainWindowTabNames)/sizeof(MainWindowTabNames[0]);
-    static const int numBottomWindowTabs = sizeof(BottomWindowTabNames)/sizeof(BottomWindowTabNames[0]);
     bool multiviewport = io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable;
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
@@ -3300,9 +3219,6 @@ bool Application_Frame(void * handle, bool app_will_quit)
         window_pos = viewport->WorkPos;
         window_size = viewport->WorkSize;
     }
-    //static float size_main_h = g_media_editor_settings.TopViewHeight;
-    //static float size_timeline_h = g_media_editor_settings.BottomViewHeight;
-    //static float old_size_timeline_h = g_media_editor_settings.BottomViewHeight;
 
     ImGui::PushID("##Main_Timeline");
     float main_height = g_media_editor_settings.TopViewHeight * window_size.y;
@@ -3317,8 +3233,6 @@ bool Application_Frame(void * handle, bool app_will_quit)
     if (ImGui::BeginChild("##Top_Panel", main_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
     {
         ImVec2 main_window_size = ImGui::GetWindowSize();
-        //static float size_control_panel_w = g_media_editor_settings.ControlPanelWidth;
-        //static float size_main_w = g_media_editor_settings.MainViewWidth;
         ImGui::PushID("##Control_Panel_Main");
         float control_pane_width = g_media_editor_settings.ControlPanelWidth * main_window_size.x;
         float main_width = g_media_editor_settings.MainViewWidth * main_window_size.x;
@@ -3459,10 +3373,10 @@ bool Application_Frame(void * handle, bool app_will_quit)
     }
     ImGui::EndChild();
     
-    ImVec2 panel_pos = window_pos + ImVec2(4, g_media_editor_settings.TopViewHeight * window_size.y + 12);
-    ImVec2 panel_size(window_size.x - 4, g_media_editor_settings.BottomViewHeight * window_size.y - 12);
-    ImGui::SetNextWindowPos(panel_pos, ImGuiCond_Always);
     bool _expanded = g_media_editor_settings.BottomViewExpanded;
+    ImVec2 panel_pos = window_pos + ImVec2(4, g_media_editor_settings.TopViewHeight * window_size.y + 12);
+    ImVec2 panel_size(window_size.x - 4 - scope_height - 32, g_media_editor_settings.BottomViewHeight * window_size.y - 12);
+    ImGui::SetNextWindowPos(panel_pos, ImGuiCond_Always);
     if (ImGui::BeginChild("##Timeline", panel_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings))
     {
         ImDrawList *draw_list = ImGui::GetWindowDrawList();
@@ -3470,15 +3384,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
         if (overExpanded && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
             _expanded = !_expanded;
         ImGui::SetCursorScreenPos(panel_pos + ImVec2(32, 0));
-        ImGui::TabLabels(numBottomWindowTabs, BottomWindowTabNames, BottomWindowIndex, BottomWindowTabTooltips , false, true, nullptr, nullptr, false, false, nullptr, nullptr);
-        ImGui::SetCursorScreenPos(panel_pos);
-        switch (BottomWindowIndex)
-        {
-            case 0: DrawTimeLine(timeline,  &_expanded); break;
-            case 1: ShowMediaAnalyseWindow(timeline,  &_expanded); break;
-            default: break;
-        }
-        
+        DrawTimeLine(timeline,  &_expanded);
         if (g_media_editor_settings.BottomViewExpanded != _expanded)
         {
             if (!_expanded)
@@ -3494,6 +3400,15 @@ bool Application_Frame(void * handle, bool app_will_quit)
             }
             g_media_editor_settings.BottomViewExpanded = _expanded;
         }
+    }
+    ImGui::EndChild();
+
+    ImVec2 scope_pos = panel_pos + ImVec2(panel_size.x, 0);
+    ImVec2 scope_size = ImVec2(scope_height + 32, scope_height);
+    ImGui::SetNextWindowPos(scope_pos, ImGuiCond_Always);
+    if (ImGui::BeginChild("##Scope_View", scope_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings))
+    {
+        ShowMediaAnalyseWindow(timeline, &_expanded);
     }
     ImGui::EndChild();
     

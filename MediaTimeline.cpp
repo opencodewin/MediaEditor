@@ -5259,7 +5259,7 @@ bool DrawClipTimeLine(BaseEditingClip * editingClip)
     int cx = (int)(io.MousePos.x);
     int cy = (int)(io.MousePos.y);
     int headHeight = 30;
-    int customHeight = 70;
+    int customHeight = 50;
     static bool MovingCurrentTime = false;
     bool isFocused = ImGui::IsWindowFocused();
     // modify start/end/offset range
@@ -5401,7 +5401,7 @@ bool DrawOverlapTimeLine(Overlap * overlap)
     int cx = (int)(io.MousePos.x);
     int cy = (int)(io.MousePos.y);
     int headHeight = 30;
-    int customHeight = 70;
+    int customHeight = 50;
     static bool MovingCurrentTime = false;
     bool isFocused = ImGui::IsWindowFocused();
     int64_t duration = ImMax(overlap->mEnd - overlap->mStart, (int64_t)1);
