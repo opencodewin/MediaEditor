@@ -4048,7 +4048,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
     int cx = (int)(io.MousePos.x);
     int cy = (int)(io.MousePos.y);
     int scrollSize = 16;
-    int trackHeadHeight = 20;
+    int trackHeadHeight = 16;
     int HeadHeight = 20;
     int legendWidth = 200;
     int trackCount = timeline->GetTrackCount();
