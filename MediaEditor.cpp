@@ -715,24 +715,21 @@ static void NewTimeline()
 
         // init bp view
         float labelWidth = ImGui::CalcVerticalTabLabelsWidth() + 4;
+        ImVec2 view_size = ImVec2(DEFAULT_MAIN_VIEW_WIDTH * 0.8 * 1 / 3 - labelWidth, DEFAULT_MAIN_VIEW_HEIGHT * 0.6);
         if (timeline->mVideoFilterBluePrint)
         {
-            ImVec2 view_size = ImVec2(DEFAULT_MAIN_VIEW_WIDTH * 0.8 * 2 / 3 - labelWidth, DEFAULT_MAIN_VIEW_HEIGHT * 0.6 - 100);
             timeline->mVideoFilterBluePrint->m_ViewSize = view_size;
         }
         if (timeline->mVideoFusionBluePrint)
         {
-            ImVec2 view_size = ImVec2(DEFAULT_MAIN_VIEW_WIDTH * 0.8 * 2 / 3 - labelWidth, DEFAULT_MAIN_VIEW_HEIGHT * 0.6 - 170);
             timeline->mVideoFusionBluePrint->m_ViewSize = view_size;
         }
         if (timeline->mAudioFilterBluePrint)
         {
-            ImVec2 view_size = ImVec2(DEFAULT_MAIN_VIEW_WIDTH * 0.8 * 2 / 4 - labelWidth, DEFAULT_MAIN_VIEW_HEIGHT * 0.6 - 100);
             timeline->mAudioFilterBluePrint->m_ViewSize = view_size;
         }
         if (timeline->mAudioFusionBluePrint)
         {
-            ImVec2 view_size = ImVec2(DEFAULT_MAIN_VIEW_WIDTH * 0.8 * 2 / 4 - labelWidth, DEFAULT_MAIN_VIEW_HEIGHT * 0.6 - 170);
             timeline->mAudioFusionBluePrint->m_ViewSize = view_size;
         }
     }
@@ -1698,6 +1695,7 @@ static void ShowVideoFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
             auto track = timeline->FindTrackByClipID(clip->mID);
             if (track)
                 track->SelectEditingClip(clip);
+            timeline->mVideoFilterBluePrint->View_ZoomToContent();
         }
         ImVec2 window_pos = ImGui::GetCursorScreenPos();
         ImVec2 window_size = ImGui::GetWindowSize();
@@ -2001,6 +1999,7 @@ static void ShowVideoFusionBluePrintWindow(ImDrawList *draw_list, Overlap * over
             auto track = timeline->FindTrackByClipID(overlap->m_Clip.first);
             if (track)
                 track->EditingOverlap(overlap);
+            timeline->mVideoFusionBluePrint->View_ZoomToContent();
         }
         ImVec2 window_pos = ImGui::GetCursorScreenPos();
         ImVec2 window_size = ImGui::GetWindowSize();
@@ -2197,6 +2196,7 @@ static void ShowAudioFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
             auto track = timeline->FindTrackByClipID(clip->mID);
             if (track)
                 track->SelectEditingClip(clip);
+            timeline->mAudioFilterBluePrint->View_ZoomToContent();
         }
         ImVec2 window_pos = ImGui::GetCursorScreenPos();
         ImVec2 window_size = ImGui::GetWindowSize();
@@ -2301,6 +2301,7 @@ static void ShowAudioFusionBluePrintWindow(ImDrawList *draw_list, Overlap * over
             auto track = timeline->FindTrackByClipID(overlap->m_Clip.first);
             if (track)
                 track->EditingOverlap(overlap);
+            timeline->mAudioFusionBluePrint->View_ZoomToContent();
         }
         ImVec2 window_pos = ImGui::GetCursorScreenPos();
         ImVec2 window_size = ImGui::GetWindowSize();
