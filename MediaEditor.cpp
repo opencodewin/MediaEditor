@@ -2333,11 +2333,12 @@ static void ShowAudioFusionWindow(ImDrawList *draw_list)
     ImVec2 window_size = ImGui::GetWindowSize();
     draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
     float fusion_timeline_height = 130;
+    float fusion_main_height = window_size.y - fusion_timeline_height - 4;
     float audio_view_width = window_size.x * 2 / 3;
     float audio_fusion_width = window_size.x - audio_view_width;
-    float audio_fusion_height = window_size.y - fusion_timeline_height;
     if (!timeline)
         return;
+
     Overlap * editing_overlap = timeline->FindEditingOverlap();
     if (editing_overlap)
     {
@@ -2352,15 +2353,15 @@ static void ShowAudioFusionWindow(ImDrawList *draw_list)
 
     if (editing_overlap && timeline->mAudioFusionBluePrint)
     {
-        timeline->mAudioFusionBluePrint->m_ViewSize = ImVec2(audio_fusion_width, audio_fusion_height);
+        timeline->mAudioFusionBluePrint->m_ViewSize = ImVec2(audio_fusion_width, fusion_main_height);
     }
 
-    if (ImGui::BeginChild("##audio_fusion_main", ImVec2(audio_fusion_width, window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+    if (ImGui::BeginChild("##audio_fusion_main", ImVec2(window_size.x, fusion_main_height), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
     {
         ImVec2 fusion_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 fusion_window_size = ImGui::GetWindowSize();
         
-        if (ImGui::BeginChild("##fusion_audio_view", ImVec2(audio_view_width, window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+        if (ImGui::BeginChild("##fusion_audio_view", ImVec2(audio_view_width, fusion_window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
         {
             ImVec2 audio_view_window_pos = ImGui::GetCursorScreenPos();
             ImVec2 audio_view_window_size = ImGui::GetWindowSize();
@@ -2368,8 +2369,8 @@ static void ShowAudioFusionWindow(ImDrawList *draw_list)
             // TODO::Dicky audio fusion
         }
         ImGui::EndChild();
-        ImGui::SetCursorScreenPos(window_pos + ImVec2(audio_fusion_width, 0));
-        if (ImGui::BeginChild("##audio_fusion_views", ImVec2(audio_fusion_width, fusion_window_size.y - fusion_timeline_height), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+        ImGui::SetCursorScreenPos(window_pos + ImVec2(audio_view_width, 0));
+        if (ImGui::BeginChild("##audio_fusion_views", ImVec2(audio_fusion_width, fusion_window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
         {
             ImVec2 fusion_view_window_pos = ImGui::GetCursorScreenPos();
             ImVec2 fusion_view_window_size = ImGui::GetWindowSize();
@@ -2380,7 +2381,7 @@ static void ShowAudioFusionWindow(ImDrawList *draw_list)
     }
     ImGui::EndChild();
     
-    if (ImGui::BeginChild("##audio_fusion_timeline", ImVec2(audio_fusion_width, fusion_timeline_height), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+    if (ImGui::BeginChild("##audio_fusion_timeline", ImVec2(window_size.x, fusion_timeline_height), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
     {
         ImVec2 fusion_timeline_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 fusion_timeline_window_size = ImGui::GetWindowSize();
