@@ -1656,7 +1656,8 @@ private:
             SnapWindow snapwnd = m_owner->CreateSnapWindow(wndpos);
             list<GopDecodeTask::Range> taskRanges;
             bool taskRangeChanged = false;
-            if ((force || snapwnd.cacheIdx0 != m_snapwnd.cacheIdx0) && (snapwnd.seekPos00 >= 0 || snapwnd.seekPos10 >= 0))
+            if ((force || snapwnd.viewIdx0 != m_snapwnd.viewIdx0 || snapwnd.viewIdx1 != m_snapwnd.viewIdx1) &&
+                (snapwnd.seekPos00 >= 0 || snapwnd.seekPos10 >= 0))
             {
                 int32_t buildIdx0 = snapwnd.cacheIdx0 >= 0 ? snapwnd.cacheIdx0 : 0;
                 int32_t buildIdx1 = snapwnd.cacheIdx1 <= m_owner->m_vidMaxIndex ? snapwnd.cacheIdx1 : m_owner->m_vidMaxIndex;
