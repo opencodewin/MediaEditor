@@ -1,6 +1,7 @@
 #include <imgui.h>
 #include <application.h>
 #include <imgui_helper.h>
+#include <imgui_extra_widget.h>
 #include <ImGuiFileDialog.h>
 #include <string>
 #include <sstream>

@@ -109,6 +109,15 @@
 #define ICON_STEREO         u8"\uf58f"
 #define ICON_MONO           u8"\uf590"
 
+#define ICON_MORE           u8"\ue945"
+#define ICON_SETTING        u8"\ue8b8"
+#define ICON_HISTOGRAM      u8"\ue4a9"
+#define ICON_WAVEFORM       u8"\ue495"
+#define ICON_CIE            u8"\ue49e"
+#define ICON_VETCTOR        u8"\ue49f"
+#define ICON_DB_LEVEL       u8"\ue451"
+#define ICON_SPECTROGRAM    u8"\ue4a0"
+
 #define COL_FRAME_RECT      IM_COL32( 16,  16,  96, 255)
 #define COL_LIGHT_BLUR      IM_COL32( 16, 128, 255, 255)
 #define COL_CANVAS_BG       IM_COL32( 36,  36,  36, 255)
@@ -144,9 +153,9 @@
 namespace MediaTimeline
 {
 #define DEFAULT_TRACK_HEIGHT        0
-#define DEFAULT_VIDEO_TRACK_HEIGHT  60
-#define DEFAULT_AUDIO_TRACK_HEIGHT  30
-#define DEFAULT_IMAGE_TRACK_HEIGHT  40
+#define DEFAULT_VIDEO_TRACK_HEIGHT  40
+#define DEFAULT_AUDIO_TRACK_HEIGHT  20
+#define DEFAULT_IMAGE_TRACK_HEIGHT  30
 #define DEFAULT_TEXT_TRACK_HEIGHT   20
 
 enum MEDIA_TYPE : int
@@ -676,4 +685,5 @@ struct TimeLine
 bool DrawTimeLine(TimeLine *timeline, bool *expanded);
 bool DrawClipTimeLine(BaseEditingClip * editingClip);
 bool DrawOverlapTimeLine(Overlap * overlap);
+std::string TimelineMillisecToString(int64_t millisec, int show_millisec = 0);
 } // namespace MediaTimeline

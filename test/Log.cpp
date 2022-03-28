@@ -8,8 +8,8 @@ using namespace std;
 #define IMGUI_DEFINE_MATH_OPERATORS
 #endif
 #include "imgui_internal.h"
+#include "imgui_extra_widget.h"
 
-#include "ImGuiToolkit.h"
 #include "Log.h"
 
 #define COLOR_NAVIGATOR 0.1f, 0.1f, 0.1f
@@ -107,7 +107,7 @@ struct AppLog
         //  window
         ImGui::SameLine(0, 0);
         static bool numbering = true;
-        ImGuiToolkit::ButtonToggle( ICON_FA5_SORT_NUMERIC_DOWN, &numbering );
+        ImGui::ToggleButton(ICON_FA5_SORT_NUMERIC_DOWN, &numbering);
         ImGui::SameLine();
         bool clear = ImGui::Button( ICON_FA5_BACKSPACE " Clear");
         ImGui::SameLine();
@@ -128,7 +128,6 @@ struct AppLog
         if (copy)
             ImGui::LogToClipboard();
 
-        ImGuiToolkit::PushFont(ImGuiToolkit::FONT_MONO);
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
 
         mtx.lock();
@@ -191,7 +190,6 @@ struct AppLog
         mtx.unlock();
 
         ImGui::PopStyleVar();
-        ImGui::PopFont();
 
         // Auto scroll
         if (ImGui::GetScrollY() >= ImGui::GetScrollMaxY())
@@ -346,7 +344,6 @@ void Log::Render(bool showWarnings, bool show_notifies, bool show_errors)
         ImGui::OpenPopup("Warning##log_warning");
         if (ImGui::BeginPopupModal("Warning##log_warning", NULL, ImGuiWindowFlags_AlwaysAutoResize))
         {
-            //ImGuiToolkit::Icon(9, 4);
             ImGui::SameLine(0, 10);
             ImGui::SetNextItemWidth(width);
             ImGui::TextColored(ImVec4(1.0f,0.6f,0.0f,1.0f), "%zu error(s) occured.\n\n", warnings.size());
