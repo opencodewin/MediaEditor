@@ -3084,12 +3084,14 @@ void TimeLine::Loop(bool loop)
 
 void TimeLine::ToStart()
 {
-
+    Seek(0);
 }
 
 void TimeLine::ToEnd()
 {
-
+    int64_t dur = mMtvReader->Duration();
+    if (dur > 0) dur -= 1;
+    Seek(dur);
 }
 
 MediaItem* TimeLine::FindMediaItemByName(std::string name)

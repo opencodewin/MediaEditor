@@ -243,16 +243,26 @@ public:
             return true;
 
         // the frame queue may not be filled with the target frame, wait for the mixing thread to fill it
-        while ((m_readForward && targetFrmidx-m_readFrameIdx >= m_outputMats.size() ||
-            !m_readForward && m_readFrameIdx-targetFrmidx >= m_outputMats.size()) && !m_quit)
+        bool lockAquaired = false;
+        while (!m_quit)
+        {
+            m_outputMatsLock.lock();
+            lockAquaired = true;
+            if (m_readForward && targetFrmidx-m_readFrameIdx < m_outputMats.size() ||
+                !m_readForward && m_readFrameIdx-targetFrmidx < m_outputMats.size())
+                break;
+            m_outputMatsLock.unlock();
+            lockAquaired = false;
             this_thread::sleep_for(chrono::milliseconds(5));
+        }
         if (m_quit)
         {
+            if (lockAquaired) m_outputMatsLock.unlock();
             m_errMsg = "This 'MultiTrackVideoReader' instance is quit.";
             return false;
         }
 
-        lock_guard<mutex> lk2(m_outputMatsLock);
+        lock_guard<mutex> lk2(m_outputMatsLock, adopt_lock);
         uint32_t popCnt = m_readForward ? targetFrmidx-m_readFrameIdx : m_readFrameIdx-targetFrmidx;
         while (popCnt-- > 0)
         {
@@ -261,6 +271,11 @@ public:
                 m_readFrameIdx++;
             else
                 m_readFrameIdx--;
+        }
+        if (m_outputMats.empty())
+        {
+            m_logger->Log(Error) << "No AVAILABLE frame to read!" << endl;
+            return false;
         }
         vmat = m_outputMats.front();
         const double timestamp = (double)pos/1000;
