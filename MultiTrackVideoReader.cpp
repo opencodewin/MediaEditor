@@ -37,7 +37,7 @@ public:
         m_outWidth = outWidth;
         m_outHeight = outHeight;
         m_frameRate = frameRate;
-        m_readFrames = 0;
+        m_readFrameIdx = 0;
 
         m_configured = true;
         return true;
@@ -232,8 +232,8 @@ public:
             vmat = m_seekingFlash;
 
         uint32_t targetFrmidx = (int64_t)((double)pos*m_frameRate.num/(m_frameRate.den*1000));
-        if (m_readForward && (targetFrmidx < m_readFrames || targetFrmidx-m_readFrames >= m_outputMatsMaxCount) ||
-            !m_readForward && (targetFrmidx > m_readFrames || m_readFrames-targetFrmidx >= m_outputMatsMaxCount))
+        if (m_readForward && (targetFrmidx < m_readFrameIdx || targetFrmidx-m_readFrameIdx >= m_outputMatsMaxCount) ||
+            !m_readForward && (targetFrmidx > m_readFrameIdx || m_readFrameIdx-targetFrmidx >= m_outputMatsMaxCount))
         {
             if (!SeekTo(pos, seeking))
                 return false;
@@ -243,8 +243,8 @@ public:
             return true;
 
         // the frame queue may not be filled with the target frame, wait for the mixing thread to fill it
-        while ((m_readForward && targetFrmidx-m_readFrames >= m_outputMats.size() ||
-            !m_readForward && m_readFrames-targetFrmidx >= m_outputMats.size()) && !m_quit)
+        while ((m_readForward && targetFrmidx-m_readFrameIdx >= m_outputMats.size() ||
+            !m_readForward && m_readFrameIdx-targetFrmidx >= m_outputMats.size()) && !m_quit)
             this_thread::sleep_for(chrono::milliseconds(5));
         if (m_quit)
         {
@@ -253,14 +253,14 @@ public:
         }
 
         lock_guard<mutex> lk2(m_outputMatsLock);
-        uint32_t popCnt = m_readForward ? targetFrmidx-m_readFrames : m_readFrames-targetFrmidx;
+        uint32_t popCnt = m_readForward ? targetFrmidx-m_readFrameIdx : m_readFrameIdx-targetFrmidx;
         while (popCnt-- > 0)
         {
             m_outputMats.pop_front();
             if (m_readForward)
-                m_readFrames++;
+                m_readFrameIdx++;
             else
-                m_readFrames--;
+                m_readFrameIdx--;
         }
         vmat = m_outputMats.front();
         const double timestamp = (double)pos/1000;
@@ -279,21 +279,36 @@ public:
             return false;
         }
 
-        while (m_outputMats.empty() && !m_quit)
+        bool lockAquaired = false;
+        while (!m_quit)
+        {
+            m_outputMatsLock.lock();
+            lockAquaired = true;
+            if (m_outputMats.size() > 1)
+                break;
+            m_outputMatsLock.unlock();
+            lockAquaired = false;
             this_thread::sleep_for(chrono::milliseconds(5));
+        }
         if (m_quit)
         {
+            if (lockAquaired) m_outputMatsLock.unlock();
             m_errMsg = "This 'MultiTrackVideoReader' instance is quit.";
             return false;
         }
 
-        lock_guard<mutex> lk2(m_outputMatsLock);
-        vmat = m_outputMats.front();
-        m_outputMats.pop_front();
+        lock_guard<mutex> lk2(m_outputMatsLock, adopt_lock);
         if (m_readForward)
-            m_readFrames++;
-        else
-            m_readFrames--;
+        {
+            m_outputMats.pop_front();
+            m_readFrameIdx++;
+        }
+        else if (m_readFrameIdx > 0)
+        {
+            m_outputMats.pop_front();
+            m_readFrameIdx--;
+        }
+        vmat = m_outputMats.front();
         return true;
     }
 
@@ -387,7 +402,7 @@ public:
 
     int64_t ReadPos() const override
     {
-        return (int64_t)((double)m_readFrames*1000*m_frameRate.den/m_frameRate.num);
+        return (int64_t)((double)m_readFrameIdx*1000*m_frameRate.den/m_frameRate.num);
     }
 
     string GetError() const override
@@ -422,7 +437,7 @@ private:
             if (m_seeking.exchange(false))
             {
                 const int64_t seekPos = m_seekPos;
-                m_readFrames = (int64_t)((double)seekPos*m_frameRate.num/(m_frameRate.den*1000));
+                m_readFrameIdx = (int64_t)((double)seekPos*m_frameRate.num/(m_frameRate.den*1000));
                 for (auto track : m_tracks)
                     track->SeekTo(seekPos);
                 {
@@ -485,7 +500,7 @@ private:
     uint32_t m_outWidth{0};
     uint32_t m_outHeight{0};
     MediaInfo::Ratio m_frameRate;
-    uint32_t m_readFrames{0};
+    uint32_t m_readFrameIdx{0};
     bool m_readForward{true};
 
     int64_t m_seekPos{0};

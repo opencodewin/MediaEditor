@@ -115,7 +115,7 @@ namespace DataLayer
         if (m_srcReader->IsSuspended())
         {
             m_srcReader->Wakeup();
-            Log(WARN) << ">>>> Clip#" << m_id <<" is WAKEUP." << endl;
+            Log(DEBUG) << ">>>> Clip#" << m_id <<" is WAKEUP." << endl;
         }
         ImGui::ImMat image;
         if (!m_srcReader->ReadVideoFrame((double)(pos+m_startOffset)/1000, image, eof))
@@ -133,13 +133,13 @@ namespace DataLayer
             if (!m_srcReader->IsSuspended())
             {
                 m_srcReader->Suspend();
-                Log(WARN) << ">>>> Clip#" << m_id <<" is SUSPENDED." << endl;
+                Log(DEBUG) << ">>>> Clip#" << m_id <<" is SUSPENDED." << endl;
             }
         }
         else if (m_srcReader->IsSuspended())
         {
             m_srcReader->Wakeup();
-            Log(WARN) << ">>>> Clip#" << m_id <<" is WAKEUP." << endl;
+            Log(DEBUG) << ">>>> Clip#" << m_id <<" is WAKEUP." << endl;
         }
     }
 

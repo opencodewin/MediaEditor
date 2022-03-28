@@ -3100,7 +3100,19 @@ void TimeLine::Seek(int64_t msPos)
 
 void TimeLine::Step(bool forward)
 {
-
+    if (forward != mIsPreviewForward)
+    {
+        mMtvReader->SetDirection(forward);
+        mIsPreviewForward = forward;
+    }
+    ImGui::ImMat vmat;
+    mMtvReader->ReadNextVideoFrame(vmat);
+    currentTime = std::round(vmat.time_stamp*1000);
+    mPreviewResumePos = (double)currentTime/1000;
+    Logger::Log(Logger::DEBUG) << ">>> STEP: " << currentTime << "(" << mPreviewResumePos << ") <<<" << std::endl;
+    if (mIsPreviewPlaying)
+        mIsPreviewPlaying = false;
+    UpdateCurrent();
 }
 
 void TimeLine::Loop(bool loop)
