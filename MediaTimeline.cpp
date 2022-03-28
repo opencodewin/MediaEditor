@@ -3694,6 +3694,41 @@ int TimeLine::Load(const imgui_json::value& value)
         if (val.is_boolean()) bSelectLinked = val.get<imgui_json::boolean>();
     }
     
+    if (value.contains("OutputName"))
+    {
+        auto& val = value["OutputName"];
+        if (val.is_string()) mOutputName = val.get<imgui_json::string>();
+    }
+
+    if (value.contains("OutputPath"))
+    {
+        auto& val = value["OutputPath"];
+        if (val.is_string()) mOutputPath = val.get<imgui_json::string>();
+    }
+    
+    if (value.contains("OutputVideoCode"))
+    {
+        auto& val = value["OutputVideoCode"];
+        if (val.is_string()) mVideoCodec = val.get<imgui_json::string>();
+    }
+
+    if (value.contains("OutputAudioCode"))
+    {
+        auto& val = value["OutputAudioCode"];
+        if (val.is_string()) mAudioCodec = val.get<imgui_json::string>();
+    }
+
+    if (value.contains("OutputVideo"))
+    {
+        auto& val = value["OutputVideo"];
+        if (val.is_boolean()) bExportVideo = val.get<imgui_json::boolean>();
+    }
+
+    if (value.contains("OutputAudio"))
+    {
+        auto& val = value["OutputAudio"];
+        if (val.is_boolean()) bExportAudio = val.get<imgui_json::boolean>();
+    }
     Updata();
     //Seek();
 
@@ -3782,6 +3817,12 @@ void TimeLine::Save(imgui_json::value& value)
     value["Loop"] = imgui_json::boolean(bLoop);
     value["SelectLinked"] = imgui_json::boolean(bSelectLinked);
     value["IDGenerateState"] = imgui_json::number(m_IDGenerator.State());
+    value["OutputName"] = mOutputName;
+    value["OutputPath"] = mOutputPath;
+    value["OutputVideoCode"] = mVideoCodec;
+    value["OutputAudioCode"] = mAudioCodec;
+    value["OutputVideo"] = imgui_json::boolean(bExportVideo);
+    value["OutputAudio"] = imgui_json::boolean(bExportAudio);
 }
 
 void TimeLine::PerformUiActions()
