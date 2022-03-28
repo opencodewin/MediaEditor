@@ -154,6 +154,7 @@ static int LastVideoEditorWindowIndex = 0;
 static int LastAudioEditorWindowIndex = 0;
 static int ScopeWindowIndex = 0;            // default Histogram Scope window 
 
+static int PreviewWindowMonitor = -1;
 
 static float ui_breathing = 1.0f;
 static float ui_breathing_step = 0.01;
@@ -1467,14 +1468,121 @@ static void ShowFilterBankTreeWindow(ImDrawList *draw_list)
  ***************************************************************************************/
 static void ShowMediaOutputWindow(ImDrawList *draw_list)
 {
-    ImGui::SetWindowFontScale(1.2);
-    ImGui::Indent(20);
+    ImVec2 window_pos = ImGui::GetWindowPos();
+    ImVec2 window_size = ImGui::GetWindowSize();
+    ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
+    const ImVec2 item_size(window_size.x, 32);
+    ImGui::SetWindowFontScale(2.5);
     ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4, 0.4, 0.8, 0.8));
-    ImGui::TextUnformatted("Meida Output");
+    ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
+    draw_list->AddText(window_pos + ImVec2(8, 0), IM_COL32(56, 56, 56, 128), "Media");
+    draw_list->AddText(window_pos + ImVec2(8, 48), IM_COL32(56, 56, 56, 128), "Output");
     ImGui::PopStyleColor();
     ImGui::PopStyleVar();
     ImGui::SetWindowFontScale(1.0);
+    if (!timeline)
+        return;
+
+    ImGui::Dummy(ImVec2(0, 20));
+    ImGui::TextUnformatted("File Name:"); ImGui::SameLine(0.f, 10.f);
+    string value = timeline->mOutputName;
+    if (ImGui::InputText("##output_file_name_string_value", (char*)value.data(), value.size() + 1, ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackResize, [](ImGuiInputTextCallbackData* data) -> int
+    {
+        if (data->EventFlag == ImGuiInputTextFlags_CallbackResize)
+        {
+            auto& stringValue = *static_cast<string*>(data->UserData);
+            ImVector<char>* my_str = (ImVector<char>*)data->UserData;
+            IM_ASSERT(stringValue.data() == data->Buf);
+            stringValue.resize(data->BufSize);
+            data->Buf = (char*)stringValue.data();
+        }
+        else if (data->EventFlag == ImGuiInputTextFlags_CallbackEdit)
+        {
+            auto& stringValue = *static_cast<string*>(data->UserData);
+            stringValue = std::string(data->Buf);
+        }
+        return 0;
+    }, &value))
+    {
+        value.resize(strlen(value.c_str()));
+        if (timeline->mOutputName.compare(value) != 0)
+        {
+            timeline->mOutputName = value;
+        }
+    }
+    ImGui::TextUnformatted("File Path:"); ImGui::SameLine(0.f, 10.f);
+    value = timeline->mOutputPath;
+    if (ImGui::InputText("##output_file_path_string_value", (char*)value.data(), value.size() + 1, ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackResize, [](ImGuiInputTextCallbackData* data) -> int
+    {
+        if (data->EventFlag == ImGuiInputTextFlags_CallbackResize)
+        {
+            auto& stringValue = *static_cast<string*>(data->UserData);
+            ImVector<char>* my_str = (ImVector<char>*)data->UserData;
+            IM_ASSERT(stringValue.data() == data->Buf);
+            stringValue.resize(data->BufSize);
+            data->Buf = (char*)stringValue.data();
+        }
+        else if (data->EventFlag == ImGuiInputTextFlags_CallbackEdit)
+        {
+            auto& stringValue = *static_cast<string*>(data->UserData);
+            stringValue = std::string(data->Buf);
+        }
+        return 0;
+    }, &value))
+    {
+        value.resize(strlen(value.c_str()));
+        if (timeline->mOutputPath.compare(value) != 0)
+        {
+            timeline->mOutputPath = value;
+        }
+    }
+    if (ImGui::IsItemHovered() && !timeline->mOutputPath.empty())
+    {
+        ImGui::BeginTooltip();
+        ImGui::TextUnformatted(timeline->mOutputPath.c_str());
+        ImGui::EndTooltip();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("...##output_path_browse"))
+    {
+        ImGuiFileDialog::Instance()->OpenModal("##MediaEditOutputPathDlgKey", ICON_IGFD_FOLDER_OPEN " Output Path", 
+                                                    nullptr,
+                                                    timeline->mOutputPath.empty() ? "." : timeline->mOutputPath,
+                                                    1, 
+                                                    IGFDUserDatas("OutputPath"), 
+                                                    ImGuiFileDialogFlags_ShowBookmark);
+    }
+
+    // Video Setting
+    ImGui::Dummy(ImVec2(0, 20));
+    ImGui::Checkbox("Export Video##export_video", &timeline->bExportVideo);
+    ImGui::Separator();
+    if (timeline->bExportVideo) ImGui::BeginDisabled(false); else ImGui::BeginDisabled(true);
+    // TODO::Dicky add video encode setting
+    ImGui::EndDisabled();
+    ImGui::Separator();
+
+    // Audio Setting
+    ImGui::Dummy(ImVec2(0, 20));
+    ImGui::Checkbox("Export Audio##export_audio", &timeline->bExportAudio);
+    ImGui::Separator();
+    if (timeline->bExportAudio) ImGui::BeginDisabled(false); else ImGui::BeginDisabled(true);
+    // TODO::Dicky add audio encode setting
+    ImGui::EndDisabled();
+    ImGui::Separator();
+
+    // File dialog
+    ImVec2 minSize = ImVec2(600, 600);
+	ImVec2 maxSize = ImVec2(FLT_MAX, FLT_MAX);
+    if (ImGuiFileDialog::Instance()->Display("##MediaEditOutputPathDlgKey", ImGuiWindowFlags_NoCollapse, minSize, maxSize))
+    {
+        if (ImGuiFileDialog::Instance()->IsOk())
+        {
+            auto file_path = ImGuiFileDialog::Instance()->GetFilePathName();
+            timeline->mOutputPath = file_path;
+        }
+        ImGuiFileDialog::Instance()->Close();
+    }
 }
 
 /****************************************************************************************
@@ -1484,7 +1592,10 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
  ***************************************************************************************/
 static void ShowMediaPreviewWindow(ImDrawList *draw_list)
 {
-    // need set page stats ?
+    auto platform_io = ImGui::GetPlatformIO();
+    ImGuiViewportP* viewport = (ImGuiViewportP*)ImGui::GetWindowViewport();
+    auto current_monitor = viewport->PlatformMonitor;
+    static std::string monitor_icons[] = {ICON_ONE, ICON_TWO, ICON_THREE, ICON_FOUR, ICON_FIVE, ICON_SIX, ICON_SEVEN, ICON_EIGHT, ICON_NINE};
     // preview control pannel
     ImVec2 PanelBarPos;
     ImVec2 PanelBarSize;
@@ -1570,7 +1681,6 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
         }
     }
     ImGui::ShowTooltipOnHover("Loop");
-    ImGui::PopStyleColor(3);
 
     // Time stamp on left of control panel
     auto PanelRightX = PanelBarPos.x + window_size.x - 150;
@@ -1639,6 +1749,41 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
         ImGui::ImMatToTexture(frame, timeline->mMainPreviewTexture);
     }
     ShowVideoWindow(timeline->mMainPreviewTexture, PreviewPos, PreviewSize);
+
+    // Show monitors
+    ImGui::SetCursorScreenPos(ImVec2(PanelBarPos.x + 20, PanelBarPos.y + 16));
+    for (int monitor_n = 0; monitor_n < platform_io.Monitors.Size; monitor_n++)
+    {
+        std::string monitor_label = monitor_icons[monitor_n] + "##monitor_index";
+        if (ImGui::Button(monitor_label.c_str()))
+        {
+            if (monitor_n == current_monitor)
+            {                
+                PreviewWindowMonitor = -1;
+            }
+            else
+            {
+                PreviewWindowMonitor = monitor_n;
+            }
+        }
+        if (ImGui::IsItemHovered())
+        {
+            ImGuiPlatformMonitor& mon = platform_io.Monitors[monitor_n];
+            ImGui::BeginTooltip();
+            ImGui::BulletText("Monitor #%d:", monitor_n);
+            ImGui::Text("DPI %.0f", mon.DpiScale * 100.0f);
+            ImGui::Text("MainSize (%.0f,%.0f)", mon.MainSize.x, mon.MainSize.y);
+            ImGui::Text("WorkSize (%.0f,%.0f)", mon.WorkSize.x, mon.WorkSize.y);
+            ImGui::Text("MainMin (%.0f,%.0f)",  mon.MainPos.x,  mon.MainPos.y);
+            ImGui::Text("MainMax (%.0f,%.0f)",  mon.MainPos.x + mon.MainSize.x, mon.MainPos.y + mon.MainSize.y);
+            ImGui::Text("WorkMin (%.0f,%.0f)",  mon.WorkPos.x,  mon.WorkPos.y);
+            ImGui::Text("WorkMax (%.0f,%.0f)",  mon.WorkPos.x + mon.WorkSize.x, mon.WorkPos.y + mon.WorkSize.y);
+            ImGui::EndTooltip();
+        }
+        ImGui::SameLine();
+    }
+
+    ImGui::PopStyleColor(3);
 
     ImGui::SetWindowFontScale(2);
     ImGui::SetCursorScreenPos(window_pos + ImVec2(40, 30));
@@ -3416,6 +3561,23 @@ bool Application_Frame(void * handle, bool app_will_quit)
     
     ImGui::PopStyleColor();
     ImGui::End();
+
+    // TODO::Dicky Show Other view at other monitor
+    if (PreviewWindowMonitor != -1)
+    {
+        auto platform_io = ImGui::GetPlatformIO();
+        if (PreviewWindowMonitor < platform_io.Monitors.Size)
+        {
+            std::string preview_window_lable = "Preview_view windows" + std::to_string(PreviewWindowMonitor);
+            auto mon = platform_io.Monitors[PreviewWindowMonitor];
+            ImGui::SetNextWindowPos(mon.MainPos);
+            ImGui::SetNextWindowSize(mon.MainSize);
+            ImGui::Begin(preview_window_lable.c_str(), nullptr, flags | ImGuiWindowFlags_FullScreen);
+            ShowVideoWindow(timeline->mMainPreviewTexture, mon.MainPos, mon.MainSize);
+            ImGui::End();
+        }
+    }
+
     if (multiviewport)
     {
         ImGui::PopStyleVar(2);

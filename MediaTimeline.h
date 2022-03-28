@@ -106,6 +106,16 @@
 #define ICON_9K_PLUS        u8"\ue978"
 #define ICON_10K            u8"\ue951"
 
+#define ICON_ONE            u8"\ue3d0"
+#define ICON_TWO            u8"\ue3d1"
+#define ICON_THREE          u8"\ue3d2"
+#define ICON_FOUR           u8"\ue3d3"
+#define ICON_FIVE           u8"\ue3d4"
+#define ICON_SIX            u8"\ue3d5"
+#define ICON_SEVEN          u8"\ue3d6"
+#define ICON_EIGHT          u8"\ue3d7"
+#define ICON_NINE           u8"\ue3d8"
+
 #define ICON_STEREO         u8"\uf58f"
 #define ICON_MONO           u8"\uf590"
 
@@ -552,6 +562,14 @@ struct TimeLine
     int mAudioChannels {2};                 // timeline audio channels, project saved, configured
     int mAudioSampleRate {44100};           // timeline audio sample rate, project saved, configured
     AudioRender::PcmFormat mAudioFormat {AudioRender::PcmFormat::FLOAT32}; // timeline audio format, project saved, configured
+
+    // Output Setting
+    std::string mOutputName {"Untitled"};
+    std::string mOutputPath {""};
+    std::string mVideoCodec {"h264"};
+    std::string mAudioCodec {"aac"};
+    bool bExportVideo {true};
+    bool bExportAudio {true};
     
     std::vector<int> mAudioLevel;           // timeline audio levels
 
