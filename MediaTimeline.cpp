@@ -3690,6 +3690,11 @@ int TimeLine::Load(const imgui_json::value& value)
         auto& val = value["Loop"];
         if (val.is_boolean()) bLoop = val.get<imgui_json::boolean>();
     }
+    if (value.contains("Compare"))
+    {
+        auto& val = value["Compare"];
+        if (val.is_boolean()) bCompare = val.get<imgui_json::boolean>();
+    }
     if (value.contains("SelectLinked"))
     {
         auto& val = value["SelectLinked"];
@@ -3817,6 +3822,7 @@ void TimeLine::Save(imgui_json::value& value)
     value["CurrentTime"] = imgui_json::number(currentTime);
     value["PreviewForward"] = imgui_json::boolean(mIsPreviewForward);
     value["Loop"] = imgui_json::boolean(bLoop);
+    value["Compare"] = imgui_json::boolean(bCompare);
     value["SelectLinked"] = imgui_json::boolean(bSelectLinked);
     value["IDGenerateState"] = imgui_json::number(m_IDGenerator.State());
     value["OutputName"] = mOutputName;

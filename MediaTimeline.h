@@ -82,6 +82,7 @@
 #define ICON_STEP_FORWARD   u8"\uf054"
 #define ICON_LOOP           u8"\ue9d6"
 #define ICON_LOOP_ONE       u8"\ue9d7"
+#define ICON_COMPARE        u8"\uf0db"
 
 #define ICON_CROPED         u8"\ue3e8"
 #define ICON_SCALED         u8"\ue433"
@@ -584,6 +585,7 @@ struct TimeLine
 
     bool bSeeking = false;
     bool bLoop = false;                     // project saved
+    bool bCompare = false;                  // project saved
     bool bSelectLinked = true;              // project saved
 
     std::mutex mVidFilterClipLock;          // timeline clip mutex
