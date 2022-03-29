@@ -4214,7 +4214,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         // normal view
         ImVec2 headerSize(timline_size.x - 4.f, (float)HeadHeight);
         ImVec2 HorizonScrollBarSize(timline_size.x, scrollSize);
-        ImVec2 VerticalScrollBarSize(scrollSize / 2, canvas_size.y - scrollSize);
+        ImVec2 VerticalScrollBarSize(scrollSize / 2, canvas_size.y - scrollSize - HeadHeight);
         ImGui::InvisibleButton("topBar", headerSize);
         draw_list->AddRectFilled(canvas_pos + ImVec2(legendWidth, 0), canvas_pos + headerSize, COL_DARK_ONE, 0);
         if (!trackCount) 
@@ -4731,7 +4731,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         }
 
         // Vertical Scroll bar
-        auto vertical_scroll_pos = ImVec2(canvas_pos.x + canvas_size.x - scrollSize / 2, canvas_pos.y);
+        auto vertical_scroll_pos = ImVec2(canvas_pos.x - scrollSize * 2, canvas_pos.y + HeadHeight);
         const float VerticalBarHeightRatio = ImMin(VerticalScrollBarSize.y / (VerticalScrollBarSize.y + VerticalScrollMax), 1.f);
         const float VerticalBarHeightInPixels = std::max(VerticalBarHeightRatio * VerticalScrollBarSize.y, (float)scrollSize / 2);
         ImGui::SetCursorScreenPos(vertical_scroll_pos);
