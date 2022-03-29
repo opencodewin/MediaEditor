@@ -154,7 +154,7 @@ static int LastVideoEditorWindowIndex = 0;
 static int LastAudioEditorWindowIndex = 0;
 static int ScopeWindowIndex = 0;            // default Histogram Scope window 
 
-static int PreviewWindowMonitor = -1;
+//static int PreviewWindowMonitor = -1;
 
 static float ui_breathing = 1.0f;
 static float ui_breathing_step = 0.01;
@@ -1751,37 +1751,37 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     ShowVideoWindow(timeline->mMainPreviewTexture, PreviewPos, PreviewSize);
 
     // Show monitors
-    ImGui::SetCursorScreenPos(ImVec2(PanelBarPos.x + 20, PanelBarPos.y + 16));
-    for (int monitor_n = 0; monitor_n < platform_io.Monitors.Size; monitor_n++)
-    {
-        std::string monitor_label = monitor_icons[monitor_n] + "##monitor_index";
-        if (ImGui::Button(monitor_label.c_str()))
-        {
-            if (monitor_n == current_monitor)
-            {                
-                PreviewWindowMonitor = -1;
-            }
-            else
-            {
-                PreviewWindowMonitor = monitor_n;
-            }
-        }
-        if (ImGui::IsItemHovered())
-        {
-            ImGuiPlatformMonitor& mon = platform_io.Monitors[monitor_n];
-            ImGui::BeginTooltip();
-            ImGui::BulletText("Monitor #%d:", monitor_n);
-            ImGui::Text("DPI %.0f", mon.DpiScale * 100.0f);
-            ImGui::Text("MainSize (%.0f,%.0f)", mon.MainSize.x, mon.MainSize.y);
-            ImGui::Text("WorkSize (%.0f,%.0f)", mon.WorkSize.x, mon.WorkSize.y);
-            ImGui::Text("MainMin (%.0f,%.0f)",  mon.MainPos.x,  mon.MainPos.y);
-            ImGui::Text("MainMax (%.0f,%.0f)",  mon.MainPos.x + mon.MainSize.x, mon.MainPos.y + mon.MainSize.y);
-            ImGui::Text("WorkMin (%.0f,%.0f)",  mon.WorkPos.x,  mon.WorkPos.y);
-            ImGui::Text("WorkMax (%.0f,%.0f)",  mon.WorkPos.x + mon.WorkSize.x, mon.WorkPos.y + mon.WorkSize.y);
-            ImGui::EndTooltip();
-        }
-        ImGui::SameLine();
-    }
+    //ImGui::SetCursorScreenPos(ImVec2(PanelBarPos.x + 20, PanelBarPos.y + 16));
+    //for (int monitor_n = 0; monitor_n < platform_io.Monitors.Size; monitor_n++)
+    //{
+    //    std::string monitor_label = monitor_icons[monitor_n] + "##monitor_index";
+    //    if (ImGui::Button(monitor_label.c_str()))
+    //    {
+    //        if (monitor_n == current_monitor)
+    //        {                
+    //            PreviewWindowMonitor = -1;
+    //        }
+    //        else
+    //        {
+    //            PreviewWindowMonitor = monitor_n;
+    //        }
+    //    }
+    //    if (ImGui::IsItemHovered())
+    //    {
+    //        ImGuiPlatformMonitor& mon = platform_io.Monitors[monitor_n];
+    //        ImGui::BeginTooltip();
+    //        ImGui::BulletText("Monitor #%d:", monitor_n);
+    //        ImGui::Text("DPI %.0f", mon.DpiScale * 100.0f);
+    //        ImGui::Text("MainSize (%.0f,%.0f)", mon.MainSize.x, mon.MainSize.y);
+    //        ImGui::Text("WorkSize (%.0f,%.0f)", mon.WorkSize.x, mon.WorkSize.y);
+    //        ImGui::Text("MainMin (%.0f,%.0f)",  mon.MainPos.x,  mon.MainPos.y);
+    //        ImGui::Text("MainMax (%.0f,%.0f)",  mon.MainPos.x + mon.MainSize.x, mon.MainPos.y + mon.MainSize.y);
+    //        ImGui::Text("WorkMin (%.0f,%.0f)",  mon.WorkPos.x,  mon.WorkPos.y);
+    //        ImGui::Text("WorkMax (%.0f,%.0f)",  mon.WorkPos.x + mon.WorkSize.x, mon.WorkPos.y + mon.WorkSize.y);
+    //        ImGui::EndTooltip();
+    //    }
+    //    ImGui::SameLine();
+    //}
 
     ImGui::PopStyleColor(3);
 
@@ -3563,20 +3563,20 @@ bool Application_Frame(void * handle, bool app_will_quit)
     ImGui::End();
 
     // TODO::Dicky Show Other view at other monitor
-    if (PreviewWindowMonitor != -1)
-    {
-        auto platform_io = ImGui::GetPlatformIO();
-        if (PreviewWindowMonitor < platform_io.Monitors.Size)
-        {
-            std::string preview_window_lable = "Preview_view windows" + std::to_string(PreviewWindowMonitor);
-            auto mon = platform_io.Monitors[PreviewWindowMonitor];
-            ImGui::SetNextWindowPos(mon.MainPos);
-            ImGui::SetNextWindowSize(mon.MainSize);
-            ImGui::Begin(preview_window_lable.c_str(), nullptr, flags | ImGuiWindowFlags_FullScreen);
-            ShowVideoWindow(timeline->mMainPreviewTexture, mon.MainPos, mon.MainSize);
-            ImGui::End();
-        }
-    }
+    //if (PreviewWindowMonitor != -1)
+    //{
+    //    auto platform_io = ImGui::GetPlatformIO();
+    //    if (PreviewWindowMonitor < platform_io.Monitors.Size)
+    //    {
+    //        std::string preview_window_lable = "Preview_view windows" + std::to_string(PreviewWindowMonitor);
+    //        auto mon = platform_io.Monitors[PreviewWindowMonitor];
+    //        ImGui::SetNextWindowPos(mon.MainPos);
+    //        ImGui::SetNextWindowSize(mon.MainSize);
+    //        ImGui::Begin(preview_window_lable.c_str(), nullptr, flags | ImGuiWindowFlags_FullScreen);
+    //        ShowVideoWindow(timeline->mMainPreviewTexture, mon.MainPos, mon.MainSize);
+    //        ImGui::End();
+    //    }
+    //}
 
     if (multiviewport)
     {
