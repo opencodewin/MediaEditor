@@ -154,7 +154,9 @@ static int LastVideoEditorWindowIndex = 0;
 static int LastAudioEditorWindowIndex = 0;
 static int ScopeWindowIndex = 0;            // default Histogram Scope window 
 
-//static int PreviewWindowMonitor = -1;
+static int MonitorIndexPreviewVideo = -1;
+static int MonitorIndexVideoFilterOrg = -1;
+static int MonitorIndexVideoFiltered = -1;
 
 static float ui_breathing = 1.0f;
 static float ui_breathing_step = 0.01;
@@ -370,6 +372,51 @@ static void ShowVideoWindow(ImTextureID texture, ImVec2& pos, ImVec2& size, floa
             ImVec2(0, 0),
             ImVec2(1, 1)
         );
+    }
+}
+
+static void MonitorButton(const char * label, ImVec2 pos, int& monitor_index, int disabled_index = -1)
+{
+    static std::string monitor_icons[] = {ICON_ONE, ICON_TWO, ICON_THREE, ICON_FOUR, ICON_FIVE, ICON_SIX, ICON_SEVEN, ICON_EIGHT, ICON_NINE};
+    auto platform_io = ImGui::GetPlatformIO();
+    ImGuiViewportP* viewport = (ImGuiViewportP*)ImGui::GetWindowViewport();
+    auto current_monitor = viewport->PlatformMonitor;
+    ImGui::SetCursorScreenPos(pos);
+    for (int monitor_n = 0; monitor_n < platform_io.Monitors.Size; monitor_n++)
+    {
+        bool disable = false;
+        if (disabled_index != -1 && monitor_n == disabled_index)
+            disable = true;
+        ImGui::BeginDisabled(disable);
+        bool selected = monitor_index == monitor_n || (monitor_index == -1 && monitor_n == current_monitor);
+        std::string monitor_label = monitor_icons[monitor_n] + "##monitor_index" + std::string(label);
+        if (ImGui::CheckButton(monitor_label.c_str(), &selected))
+        {
+            if (monitor_n == current_monitor)
+            { 
+                monitor_index = -1;
+            }
+            else
+            {
+                monitor_index = monitor_n;
+            }
+        }
+        ImGui::EndDisabled();
+        if (ImGui::IsItemHovered())
+        {
+            ImGuiPlatformMonitor& mon = platform_io.Monitors[monitor_n];
+            ImGui::BeginTooltip();
+            ImGui::BulletText("Monitor #%d:", monitor_n);
+            ImGui::Text("DPI %.0f", mon.DpiScale * 100.0f);
+            ImGui::Text("MainSize (%.0f,%.0f)", mon.MainSize.x, mon.MainSize.y);
+            ImGui::Text("WorkSize (%.0f,%.0f)", mon.WorkSize.x, mon.WorkSize.y);
+            ImGui::Text("MainMin (%.0f,%.0f)",  mon.MainPos.x,  mon.MainPos.y);
+            ImGui::Text("MainMax (%.0f,%.0f)",  mon.MainPos.x + mon.MainSize.x, mon.MainPos.y + mon.MainSize.y);
+            ImGui::Text("WorkMin (%.0f,%.0f)",  mon.WorkPos.x,  mon.WorkPos.y);
+            ImGui::Text("WorkMax (%.0f,%.0f)",  mon.WorkPos.x + mon.WorkSize.x, mon.WorkPos.y + mon.WorkSize.y);
+            ImGui::EndTooltip();
+        }
+        ImGui::SameLine();
     }
 }
 
@@ -1592,10 +1639,6 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
  ***************************************************************************************/
 static void ShowMediaPreviewWindow(ImDrawList *draw_list)
 {
-    auto platform_io = ImGui::GetPlatformIO();
-    ImGuiViewportP* viewport = (ImGuiViewportP*)ImGui::GetWindowViewport();
-    auto current_monitor = viewport->PlatformMonitor;
-    static std::string monitor_icons[] = {ICON_ONE, ICON_TWO, ICON_THREE, ICON_FOUR, ICON_FIVE, ICON_SIX, ICON_SEVEN, ICON_EIGHT, ICON_NINE};
     // preview control pannel
     ImVec2 PanelBarPos;
     ImVec2 PanelBarSize;
@@ -1751,50 +1794,14 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     ShowVideoWindow(timeline->mMainPreviewTexture, PreviewPos, PreviewSize);
 
     // Show monitors
-    //ImGui::SetCursorScreenPos(ImVec2(PanelBarPos.x + 20, PanelBarPos.y + 16));
-    //for (int monitor_n = 0; monitor_n < platform_io.Monitors.Size; monitor_n++)
-    //{
-    //    std::string monitor_label = monitor_icons[monitor_n] + "##monitor_index";
-    //    if (ImGui::Button(monitor_label.c_str()))
-    //    {
-    //        if (monitor_n == current_monitor)
-    //        {                
-    //            PreviewWindowMonitor = -1;
-    //        }
-    //        else
-    //        {
-    //            PreviewWindowMonitor = monitor_n;
-    //        }
-    //    }
-    //    if (ImGui::IsItemHovered())
-    //    {
-    //        ImGuiPlatformMonitor& mon = platform_io.Monitors[monitor_n];
-    //        ImGui::BeginTooltip();
-    //        ImGui::BulletText("Monitor #%d:", monitor_n);
-    //        ImGui::Text("DPI %.0f", mon.DpiScale * 100.0f);
-    //        ImGui::Text("MainSize (%.0f,%.0f)", mon.MainSize.x, mon.MainSize.y);
-    //        ImGui::Text("WorkSize (%.0f,%.0f)", mon.WorkSize.x, mon.WorkSize.y);
-    //        ImGui::Text("MainMin (%.0f,%.0f)",  mon.MainPos.x,  mon.MainPos.y);
-    //        ImGui::Text("MainMax (%.0f,%.0f)",  mon.MainPos.x + mon.MainSize.x, mon.MainPos.y + mon.MainSize.y);
-    //        ImGui::Text("WorkMin (%.0f,%.0f)",  mon.WorkPos.x,  mon.WorkPos.y);
-    //        ImGui::Text("WorkMax (%.0f,%.0f)",  mon.WorkPos.x + mon.WorkSize.x, mon.WorkPos.y + mon.WorkSize.y);
-    //        ImGui::EndTooltip();
-    //    }
-    //    ImGui::SameLine();
-    //}
+    MonitorButton("preview_monitor_select", ImVec2(PanelBarPos.x + 20, PanelBarPos.y + 16), MonitorIndexPreviewVideo);
 
     ImGui::PopStyleColor(3);
 
-    ImGui::SetWindowFontScale(2);
     ImGui::SetCursorScreenPos(window_pos + ImVec2(40, 30));
-    ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.1f);
-    ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphShadowOffset, ImVec2(2, 2));
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8, 0.8, 0.8, 0.2));
-    ImGui::PushStyleColor(ImGuiCol_TexGlyphShadow, ImVec4(0.0, 0.0, 0.0, 0.8));
-    ImGui::TextUnformatted("Preview");
-    ImGui::PopStyleColor(2);
-    ImGui::PopStyleVar(2);
-    ImGui::SetWindowFontScale(1.0);
+    ImGui::TextComplex("Preview", 2.0f, ImVec4(0.8, 0.8, 0.8, 0.2),
+                        0.1f, ImVec4(0.8, 0.8, 0.8, 0.3),
+                        ImVec2(4, 4), ImVec4(0.0, 0.0, 0.0, 0.5));
 }
 
 /****************************************************************************************
@@ -1989,7 +1996,10 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                 }
             }
             ImGui::ShowTooltipOnHover("To End");
-            ImGui::PopStyleColor(3);
+
+            ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 32 + 8 + 32 + 8 + 32 + 8, PanelButtonY + 6));
+            ImGui::CheckButton(ICON_COMPARE "##video_filter_compare", &timeline->bCompare);
+            ImGui::ShowTooltipOnHover("Compare");
 
             // filter input texture area
             ImVec2 InputVideoPos;
@@ -2065,7 +2075,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                     pos_y = (io.MousePos.y - offset_y) * scale_h;
                     draw_compare = true;
                 }
-                if (draw_compare)
+                if (timeline->bCompare && draw_compare)
                 {
                     if (timeline->mVideoFilterInputTexture)
                     {
@@ -2104,7 +2114,11 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                         ImGui::EndTooltip();
                     }
                 }
+                // Show monitors
+                MonitorButton("video_filter_org_monitor_select", ImVec2(PanelBarPos.x + 20, PanelBarPos.y + 8), MonitorIndexVideoFilterOrg, MonitorIndexVideoFiltered);
+                MonitorButton("video_filter_monitor_select", ImVec2(PanelBarPos.x + PanelBarSize.x - 100, PanelBarPos.y + 8), MonitorIndexVideoFiltered, MonitorIndexVideoFilterOrg);
             }
+            ImGui::PopStyleColor(3);
         }
         ImGui::EndChild();
         ImGui::SetCursorScreenPos(clip_window_pos + ImVec2(video_view_width, 0));
@@ -3264,6 +3278,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
     static bool show_about = false;
     static bool show_configure = false;
     static bool show_debug = false;
+    auto platform_io = ImGui::GetPlatformIO();
     
     const ImGuiFileDialogFlags fflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_DisableCreateDirectoryButton;
     const std::string video_file_dis = "*.mp4 *.mov *.mkv *.avi *.webm *.ts";
@@ -3562,21 +3577,56 @@ bool Application_Frame(void * handle, bool app_will_quit)
     ImGui::PopStyleColor();
     ImGui::End();
 
-    // TODO::Dicky Show Other view at other monitor
-    //if (PreviewWindowMonitor != -1)
-    //{
-    //    auto platform_io = ImGui::GetPlatformIO();
-    //    if (PreviewWindowMonitor < platform_io.Monitors.Size)
-    //    {
-    //        std::string preview_window_lable = "Preview_view windows" + std::to_string(PreviewWindowMonitor);
-    //        auto mon = platform_io.Monitors[PreviewWindowMonitor];
-    //        ImGui::SetNextWindowPos(mon.MainPos);
-    //        ImGui::SetNextWindowSize(mon.MainSize);
-    //        ImGui::Begin(preview_window_lable.c_str(), nullptr, flags | ImGuiWindowFlags_FullScreen);
-    //        ShowVideoWindow(timeline->mMainPreviewTexture, mon.MainPos, mon.MainSize);
-    //        ImGui::End();
-    //    }
-    //}
+    if (MainWindowIndex == 0)
+    {
+        // preview view
+        if (MonitorIndexPreviewVideo != -1 && MonitorIndexPreviewVideo < platform_io.Monitors.Size)
+        {
+            std::string preview_window_lable = "Preview_view_windows" + std::to_string(MonitorIndexPreviewVideo);
+            auto mon = platform_io.Monitors[MonitorIndexPreviewVideo];
+            ImGui::SetNextWindowPos(mon.MainPos);
+            ImGui::SetNextWindowSize(mon.MainSize);
+            ImGui::Begin(preview_window_lable.c_str(), nullptr, flags | ImGuiWindowFlags_FullScreen);
+            ShowVideoWindow(timeline->mMainPreviewTexture, mon.MainPos, mon.MainSize);
+            ImGui::SetCursorScreenPos(mon.MainPos + ImVec2(80, 60));
+            ImGui::TextComplex("Preview", 3.0f, ImVec4(0.8, 0.8, 0.8, 0.2),
+                                0.1f, ImVec4(0.8, 0.8, 0.8, 0.3),
+                                ImVec2(4, 4), ImVec4(0.0, 0.0, 0.0, 0.5));
+            ImGui::End();
+        }
+    }
+    else if (MainWindowIndex == 1 && VideoEditorWindowIndex == 0)
+    {
+        // video filter
+        if (MonitorIndexVideoFilterOrg != -1 && MonitorIndexVideoFilterOrg < platform_io.Monitors.Size)
+        {
+            std::string view_window_lable = "video_filter_org_windows" + std::to_string(MonitorIndexVideoFilterOrg);
+            auto mon = platform_io.Monitors[MonitorIndexVideoFilterOrg];
+            ImGui::SetNextWindowPos(mon.MainPos);
+            ImGui::SetNextWindowSize(mon.MainSize);
+            ImGui::Begin(view_window_lable.c_str(), nullptr, flags | ImGuiWindowFlags_FullScreen);
+            ShowVideoWindow(timeline->mVideoFilterInputTexture, mon.MainPos, mon.MainSize);
+            ImGui::SetCursorScreenPos(mon.MainPos + ImVec2(80, 60));
+            ImGui::TextComplex("Filter Input", 3.0f, ImVec4(0.8, 0.8, 0.8, 0.2),
+                                0.1f, ImVec4(0.8, 0.8, 0.8, 0.3),
+                                ImVec2(4, 4), ImVec4(0.0, 0.0, 0.0, 0.5));
+            ImGui::End();
+        }
+        if (MonitorIndexVideoFiltered != -1 && MonitorIndexVideoFiltered < platform_io.Monitors.Size)
+        {
+            std::string view_window_lable = "video_filter_output_windows" + std::to_string(MonitorIndexVideoFiltered);
+            auto mon = platform_io.Monitors[MonitorIndexVideoFiltered];
+            ImGui::SetNextWindowPos(mon.MainPos);
+            ImGui::SetNextWindowSize(mon.MainSize);
+            ImGui::Begin(view_window_lable.c_str(), nullptr, flags | ImGuiWindowFlags_FullScreen);
+            ShowVideoWindow(timeline->mVideoFilterOutputTexture, mon.MainPos, mon.MainSize);
+            ImGui::SetCursorScreenPos(mon.MainPos + ImVec2(80, 60));
+            ImGui::TextComplex("Filter Output", 3.0f, ImVec4(0.8, 0.8, 0.8, 0.2),
+                                0.1f, ImVec4(0.8, 0.8, 0.8, 0.3),
+                                ImVec2(4, 4), ImVec4(0.0, 0.0, 0.0, 0.5));
+            ImGui::End();
+        }
+    }
 
     if (multiviewport)
     {

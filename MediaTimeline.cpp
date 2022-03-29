@@ -3690,6 +3690,11 @@ int TimeLine::Load(const imgui_json::value& value)
         auto& val = value["Loop"];
         if (val.is_boolean()) bLoop = val.get<imgui_json::boolean>();
     }
+    if (value.contains("Compare"))
+    {
+        auto& val = value["Compare"];
+        if (val.is_boolean()) bCompare = val.get<imgui_json::boolean>();
+    }
     if (value.contains("SelectLinked"))
     {
         auto& val = value["SelectLinked"];
@@ -3817,6 +3822,7 @@ void TimeLine::Save(imgui_json::value& value)
     value["CurrentTime"] = imgui_json::number(currentTime);
     value["PreviewForward"] = imgui_json::boolean(mIsPreviewForward);
     value["Loop"] = imgui_json::boolean(bLoop);
+    value["Compare"] = imgui_json::boolean(bCompare);
     value["SelectLinked"] = imgui_json::boolean(bSelectLinked);
     value["IDGenerateState"] = imgui_json::number(m_IDGenerator.State());
     value["OutputName"] = mOutputName;
@@ -4208,7 +4214,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         // normal view
         ImVec2 headerSize(timline_size.x - 4.f, (float)HeadHeight);
         ImVec2 HorizonScrollBarSize(timline_size.x, scrollSize);
-        ImVec2 VerticalScrollBarSize(scrollSize / 2, canvas_size.y - scrollSize);
+        ImVec2 VerticalScrollBarSize(scrollSize / 2, canvas_size.y - scrollSize - HeadHeight);
         ImGui::InvisibleButton("topBar", headerSize);
         draw_list->AddRectFilled(canvas_pos + ImVec2(legendWidth, 0), canvas_pos + headerSize, COL_DARK_ONE, 0);
         if (!trackCount) 
@@ -4725,7 +4731,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         }
 
         // Vertical Scroll bar
-        auto vertical_scroll_pos = ImVec2(canvas_pos.x + canvas_size.x - scrollSize / 2, canvas_pos.y);
+        auto vertical_scroll_pos = ImVec2(canvas_pos.x - scrollSize * 2, canvas_pos.y + HeadHeight);
         const float VerticalBarHeightRatio = ImMin(VerticalScrollBarSize.y / (VerticalScrollBarSize.y + VerticalScrollMax), 1.f);
         const float VerticalBarHeightInPixels = std::max(VerticalBarHeightRatio * VerticalScrollBarSize.y, (float)scrollSize / 2);
         ImGui::SetCursorScreenPos(vertical_scroll_pos);
