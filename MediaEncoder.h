@@ -19,6 +19,74 @@
 
 struct MediaEncoder
 {
+    struct Option
+    {
+        enum ValueType
+        {
+            OPVT_INT = 0,
+            OPVT_DOUBLE,
+            OPVT_BOOL,
+            OPVT_STRING,
+            OPVT_FLAGS,
+        };
+        struct Value
+        {
+            ValueType type;
+            union
+            {
+                int64_t i64;
+                double dbl;
+                bool bln;
+            } numval;
+            std::string strval;
+
+            friend std::ostream& operator<<(std::ostream& os, const Value& val);
+        };
+        enum LimitationType
+        {
+            OPLT_NONE = 0,
+            OPLT_RANGE,
+            OPLT_ENUM,
+        };
+        struct EnumValue
+        {
+            std::string name;
+            std::string desc;
+            int32_t value;
+
+            friend std::ostream& operator<<(std::ostream& os, const EnumValue& enumval);
+        };
+        struct Description
+        {
+            std::string name;
+            std::string desc;
+            std::string unit;
+            ValueType valueType;
+            Value defaultValue;
+            LimitationType limitType;
+            Value rangeMin, rangeMax;  // when 'limitType' == OPLT_RANGE, here stores the min/max option values.
+            std::vector<EnumValue> enumValues;  // when 'limitType' == OPLT_ENUM, here stores all the enumeration values.
+
+            friend std::ostream& operator<<(std::ostream& os, const Description& optdesc);
+        };
+
+        std::string name;
+        Value value;
+    };
+
+    struct EncoderDescription
+    {
+        std::string codecName;
+        std::string longName;
+        MediaInfo::Type mediaType;
+        bool isHardwareEncoder;
+        std::vector<Option::Description> optDescList;
+
+        friend std::ostream& operator<<(std::ostream& os, const EncoderDescription& encdesc);
+    };
+
+    static bool FindEncoder(const std::string& codecName, std::vector<EncoderDescription>& encoderDescList);
+
     virtual bool Open(const std::string& url) = 0;
     virtual bool Close() = 0;
     virtual bool ConfigureVideoStream(const std::string& codecName,

@@ -687,7 +687,7 @@ private:
             }
         }
 
-        fferr = avcodec_open2(m_videncCtx, m_videnc, nullptr);
+        fferr = avcodec_open2(m_videncCtx, m_videnc, &encOpts);
         if (fferr < 0)
         {
             m_errMsg = FFapiFailureMessage("avcodec_open2", fferr);
@@ -1221,4 +1221,204 @@ void ReleaseMediaEncoder(MediaEncoder** menc)
     mencoder->Close();
     delete mencoder;
     *menc = nullptr;
+}
+
+ostream& operator<<(ostream& os, const MediaEncoder::Option::Value& val)
+{
+    if (val.type == MediaEncoder::Option::OPVT_INT)
+        os << val.numval.i64;
+    else if (val.type == MediaEncoder::Option::OPVT_DOUBLE)
+        os << val.numval.dbl;
+    else if (val.type == MediaEncoder::Option::OPVT_BOOL)
+        os << val.numval.bln;
+    else if (val.type == MediaEncoder::Option::OPVT_STRING)
+        os << "'" << val.strval << "'";
+    else if (val.type == MediaEncoder::Option::OPVT_FLAGS)
+        os << val.numval.i64;
+    return os;
+}
+
+ostream& operator<<(ostream& os, const MediaEncoder::Option::EnumValue& enumval)
+{
+    os << enumval.value;
+    if (!enumval.name.empty())
+        os << "(" << enumval.name << ")";
+    return os;
+}
+
+ostream& operator<<(ostream& os, const MediaEncoder::Option::Description& optdesc)
+{
+    os << optdesc.name << " - ";
+    if (optdesc.valueType == MediaEncoder::Option::OPVT_INT)
+        os << "INT";
+    else if (optdesc.valueType == MediaEncoder::Option::OPVT_DOUBLE)
+        os << "DOUBLE";
+    else if (optdesc.valueType == MediaEncoder::Option::OPVT_BOOL)
+        os << "BOOL";
+    else if (optdesc.valueType == MediaEncoder::Option::OPVT_STRING)
+        os << "STRING";
+    else if (optdesc.valueType == MediaEncoder::Option::OPVT_FLAGS)
+        os << "FLAGS";
+    else
+        os << "UNKNOWN";
+    os << " - default: " << optdesc.defaultValue;
+    if (optdesc.limitType == MediaEncoder::Option::OPLT_RANGE)
+        os << " - Range: [ " << optdesc.rangeMin << " ~ " << optdesc.rangeMax << " ]";
+    else if (optdesc.limitType == MediaEncoder::Option::OPLT_ENUM)
+    {
+        os << " - Enum: { ";
+        auto iter = optdesc.enumValues.begin();
+        while (iter != optdesc.enumValues.end())
+        {
+            os << *iter++;
+            if (iter != optdesc.enumValues.end())
+                os << ", ";
+        }
+        os << " }";
+    }
+    if (!optdesc.desc.empty())
+        os << " - desc: " << optdesc.desc;
+    return os;
+}
+
+ostream& operator<<(ostream& os, const MediaEncoder::EncoderDescription& encdesc)
+{
+    os << "Encoder: '" << encdesc.codecName << "' - ";
+    if (encdesc.mediaType == MediaInfo::VIDEO)
+        os << "VIDEO";
+    else if (encdesc.mediaType == MediaInfo::AUDIO)
+        os << "AUDIO";
+    else
+        os << "UNKNOWN(MediaType)";
+    if (encdesc.isHardwareEncoder)
+        os << " (Hardware)";
+    if (!encdesc.longName.empty())
+        os << " - " << encdesc.longName;
+    os << endl;
+    os << "Options:" << endl;
+    for (auto& optdesc : encdesc.optDescList)
+        os << "\t-" << optdesc << endl;
+    return os;
+}
+
+MediaEncoder::EncoderDescription ConvertAVCodecToEncoderDescription(AVCodecPtr cdcptr)
+{
+    MediaEncoder::EncoderDescription encdesc;
+    encdesc.codecName = string(cdcptr->name);
+    if (cdcptr->long_name)
+        encdesc.longName = string(cdcptr->long_name);
+    encdesc.isHardwareEncoder = (bool)cdcptr->hw_configs;
+    if (cdcptr->type == AVMEDIA_TYPE_VIDEO)
+        encdesc.mediaType = MediaInfo::VIDEO;
+    else if (cdcptr->type == AVMEDIA_TYPE_AUDIO)
+        encdesc.mediaType = MediaInfo::AUDIO;
+    else
+        encdesc.mediaType = MediaInfo::UNKNOWN;
+
+    ALogger* logger = GetMediaEncoderLogger();
+    const AVOption* opt = nullptr;
+    while ((opt = av_opt_next(&cdcptr->priv_class, opt)))
+    {
+        if (opt->type == AV_OPT_TYPE_CONST)
+        {
+            string optunit = string(opt->unit);
+            auto optdescIter = encdesc.optDescList.end();
+            if (!optunit.empty())
+                optdescIter = find_if(encdesc.optDescList.begin(), encdesc.optDescList.end(),
+                    [optunit] (const MediaEncoder::Option::Description& optdesc) {
+                        return optdesc.unit == optunit;
+                    });
+            if (optdescIter != encdesc.optDescList.end())
+            {
+                MediaEncoder::Option::EnumValue enumval;
+                enumval.name = string(opt->name);
+                if (opt->help) enumval.desc = string(opt->help);
+                enumval.value = opt->default_val.i64;
+                auto& optdesc = *optdescIter;
+                optdesc.limitType = MediaEncoder::Option::OPLT_ENUM;
+                optdesc.enumValues.push_back(move(enumval));
+            }
+            else
+                logger->Log(WARN) << "CANNOT find unit '" << opt->unit << "' in option list for option '"
+                    << opt->name << "' within encoder '" << cdcptr->name << "'! SKIP THIS OPTION!" << endl;
+        }
+        else
+        {
+            MediaEncoder::Option::Description optdesc;
+            if (opt->type == AV_OPT_TYPE_INT || opt->type == AV_OPT_TYPE_INT64 || opt->type == AV_OPT_TYPE_UINT64)
+                optdesc.valueType = MediaEncoder::Option::OPVT_INT;
+            else if (opt->type == AV_OPT_TYPE_FLOAT || opt->type == AV_OPT_TYPE_DOUBLE)
+                optdesc.valueType = MediaEncoder::Option::OPVT_DOUBLE;
+            else if (opt->type == AV_OPT_TYPE_BOOL)
+                optdesc.valueType = MediaEncoder::Option::OPVT_BOOL;
+            else if (opt->type == AV_OPT_TYPE_STRING)
+                optdesc.valueType = MediaEncoder::Option::OPVT_STRING;
+            else if (opt->type == AV_OPT_TYPE_FLAGS)
+                optdesc.valueType = MediaEncoder::Option::OPVT_FLAGS;
+            else
+            {
+                logger->Log(WARN) << "UNSUPPORTED ffmpeg option value type " << opt->type << "for option '" << opt->name
+                    << "' within encoder '" << cdcptr->name << "'! SKIP THIS OPTION!" << endl;
+                continue;
+            }
+            optdesc.name = string(opt->name);
+            if (opt->help) optdesc.desc = string(opt->help);
+            if (opt->unit) optdesc.unit = string(opt->unit);
+            optdesc.defaultValue.type = optdesc.rangeMin.type = optdesc.rangeMax.type = optdesc.valueType;
+            optdesc.limitType = MediaEncoder::Option::OPLT_NONE;
+            if (optdesc.valueType == MediaEncoder::Option::OPVT_INT)
+            {
+                optdesc.defaultValue.numval.i64 = opt->default_val.i64;
+                optdesc.rangeMin.numval.i64 = (int64_t)opt->min;
+                optdesc.rangeMax.numval.i64 = (int64_t)opt->max;
+                optdesc.limitType = MediaEncoder::Option::OPLT_RANGE;
+            }
+            else if (optdesc.valueType == MediaEncoder::Option::OPVT_DOUBLE)
+            {
+                optdesc.defaultValue.numval.dbl = opt->default_val.dbl;
+                optdesc.rangeMin.numval.dbl = opt->min;
+                optdesc.rangeMax.numval.dbl = opt->max;
+                optdesc.limitType = MediaEncoder::Option::OPLT_RANGE;
+            }
+            else if (optdesc.valueType == MediaEncoder::Option::OPVT_BOOL)
+            {
+                optdesc.defaultValue.numval.bln = opt->default_val.i64 != (int64_t)opt->min;
+                optdesc.rangeMin.numval.bln = false;
+                optdesc.rangeMax.numval.bln = true;
+            }
+            else if (optdesc.valueType == MediaEncoder::Option::OPVT_STRING)
+            {
+                if (opt->default_val.str)
+                    optdesc.defaultValue.strval = string(opt->default_val.str);
+            }
+            else if (optdesc.valueType == MediaEncoder::Option::OPVT_FLAGS)
+            {
+                optdesc.defaultValue.numval.i64 = opt->default_val.i64;
+            }
+            encdesc.optDescList.push_back(move(optdesc));
+        }
+    }
+    return move(encdesc);
+}
+
+bool MediaEncoder::FindEncoder(const string& codecName, std::vector<MediaEncoder::EncoderDescription>& encoderDescList)
+{
+    encoderDescList.clear();
+    const AVCodecDescriptor* desc = avcodec_descriptor_get_by_name(codecName.c_str());
+    if (!desc)
+        return false;
+
+    void* cdciter = 0;
+    AVCodecPtr p;
+    while ((p = (AVCodecPtr)av_codec_iterate(&cdciter)))
+    {
+        if (p->id != desc->id)
+            continue;
+        if (!av_codec_is_encoder(p))
+            continue;
+        if ((p->capabilities&AV_CODEC_CAP_EXPERIMENTAL) != 0)
+            continue;
+        encoderDescList.push_back(move(ConvertAVCodecToEncoderDescription(p)));
+    }
+    return true;
 }
