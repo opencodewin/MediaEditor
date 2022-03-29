@@ -1798,16 +1798,10 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
 
     ImGui::PopStyleColor(3);
 
-    ImGui::SetWindowFontScale(2);
     ImGui::SetCursorScreenPos(window_pos + ImVec2(40, 30));
-    ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.1f);
-    ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphShadowOffset, ImVec2(2, 2));
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8, 0.8, 0.8, 0.2));
-    ImGui::PushStyleColor(ImGuiCol_TexGlyphShadow, ImVec4(0.0, 0.0, 0.0, 0.8));
-    ImGui::TextUnformatted("Preview");
-    ImGui::PopStyleColor(2);
-    ImGui::PopStyleVar(2);
-    ImGui::SetWindowFontScale(1.0);
+    ImGui::TextComplex("Preview", 2.0f, ImVec4(0.8, 0.8, 0.8, 0.2),
+                        0.1f, ImVec4(0.8, 0.8, 0.8, 0.3),
+                        ImVec2(4, 4), ImVec4(0.0, 0.0, 0.0, 0.5));
 }
 
 /****************************************************************************************
@@ -3594,16 +3588,10 @@ bool Application_Frame(void * handle, bool app_will_quit)
             ImGui::SetNextWindowSize(mon.MainSize);
             ImGui::Begin(preview_window_lable.c_str(), nullptr, flags | ImGuiWindowFlags_FullScreen);
             ShowVideoWindow(timeline->mMainPreviewTexture, mon.MainPos, mon.MainSize);
-            ImGui::SetWindowFontScale(3);
-            ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.1f);
-            ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphShadowOffset, ImVec2(4, 4));
-            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8, 0.8, 0.8, 0.2));
-            ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.8, 0.8, 0.8, 0.3));
-            ImGui::PushStyleColor(ImGuiCol_TexGlyphShadow, ImVec4(0.0, 0.0, 0.0, 0.5));
-            ImGui::TextUnformatted("Preview");
-            ImGui::PopStyleColor(3);
-            ImGui::PopStyleVar(2);
-            ImGui::SetWindowFontScale(1.0);
+            ImGui::SetCursorScreenPos(mon.MainPos + ImVec2(80, 60));
+            ImGui::TextComplex("Preview", 3.0f, ImVec4(0.8, 0.8, 0.8, 0.2),
+                                0.1f, ImVec4(0.8, 0.8, 0.8, 0.3),
+                                ImVec2(4, 4), ImVec4(0.0, 0.0, 0.0, 0.5));
             ImGui::End();
         }
     }
@@ -3618,16 +3606,10 @@ bool Application_Frame(void * handle, bool app_will_quit)
             ImGui::SetNextWindowSize(mon.MainSize);
             ImGui::Begin(view_window_lable.c_str(), nullptr, flags | ImGuiWindowFlags_FullScreen);
             ShowVideoWindow(timeline->mVideoFilterInputTexture, mon.MainPos, mon.MainSize);
-            ImGui::SetWindowFontScale(3);
-            ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.1f);
-            ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphShadowOffset, ImVec2(4, 4));
-            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8, 0.8, 0.8, 0.2));
-            ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.8, 0.8, 0.8, 0.3));
-            ImGui::PushStyleColor(ImGuiCol_TexGlyphShadow, ImVec4(0.0, 0.0, 0.0, 0.5));
-            ImGui::TextUnformatted("Filter Input");
-            ImGui::PopStyleColor(3);
-            ImGui::PopStyleVar(2);
-            ImGui::SetWindowFontScale(1.0);
+            ImGui::SetCursorScreenPos(mon.MainPos + ImVec2(80, 60));
+            ImGui::TextComplex("Filter Input", 3.0f, ImVec4(0.8, 0.8, 0.8, 0.2),
+                                0.1f, ImVec4(0.8, 0.8, 0.8, 0.3),
+                                ImVec2(4, 4), ImVec4(0.0, 0.0, 0.0, 0.5));
             ImGui::End();
         }
         if (MonitorIndexVideoFiltered != -1 && MonitorIndexVideoFiltered < platform_io.Monitors.Size)
@@ -3638,16 +3620,10 @@ bool Application_Frame(void * handle, bool app_will_quit)
             ImGui::SetNextWindowSize(mon.MainSize);
             ImGui::Begin(view_window_lable.c_str(), nullptr, flags | ImGuiWindowFlags_FullScreen);
             ShowVideoWindow(timeline->mVideoFilterOutputTexture, mon.MainPos, mon.MainSize);
-            ImGui::SetWindowFontScale(3);
-            ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.1f);
-            ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphShadowOffset, ImVec2(4, 4));
-            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8, 0.8, 0.8, 0.2));
-            ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.8, 0.8, 0.8, 0.3));
-            ImGui::PushStyleColor(ImGuiCol_TexGlyphShadow, ImVec4(0.0, 0.0, 0.0, 0.5));
-            ImGui::TextUnformatted("Filter Output");
-            ImGui::PopStyleColor(3);
-            ImGui::PopStyleVar(2);
-            ImGui::SetWindowFontScale(1.0);
+            ImGui::SetCursorScreenPos(mon.MainPos + ImVec2(80, 60));
+            ImGui::TextComplex("Filter Output", 3.0f, ImVec4(0.8, 0.8, 0.8, 0.2),
+                                0.1f, ImVec4(0.8, 0.8, 0.8, 0.3),
+                                ImVec2(4, 4), ImVec4(0.0, 0.0, 0.0, 0.5));
             ImGui::End();
         }
     }
