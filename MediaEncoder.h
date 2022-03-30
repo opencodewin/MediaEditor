@@ -1,21 +1,10 @@
 #pragma once
 #include <cstdint>
 #include <string>
-#include <unordered_map>
+#include <vector>
 #include "immat.h"
 #include "MediaInfo.h"
 #include "Logger.h"
-
-#define ENCOPT__PROFILE             "Profile"
-#define ENCOPT__PRESET              "Preset"
-#define ENCOPT__GOP_SIZE            "GopSize"
-#define ENCOPT__ASPECT_RATIO        "AspectRatio"
-#define ENCOPT__MAX_B_FRAMES        "MaxBFrames"
-#define ENCOPT__COLOR_RANGE         "ColorRange"
-#define ENCOPT__COLOR_SPACE         "ColorSpace"
-#define ENCOPT__COLOR_PRIMARIES     "ColorPrimaries"
-#define ENCOPT__COLOR_TRC           "ColorTransferCharacteristic"
-#define ENCOPT__CHROMA_LOCATION     "ChromaLocation"
 
 struct MediaEncoder
 {
@@ -28,6 +17,7 @@ struct MediaEncoder
             OPVT_BOOL,
             OPVT_STRING,
             OPVT_FLAGS,
+            OPVT_RATIO,
         };
         struct Value
         {
@@ -59,6 +49,7 @@ struct MediaEncoder
         struct Description
         {
             std::string name;
+            std::string tag;
             std::string desc;
             std::string unit;
             ValueType valueType;
@@ -92,7 +83,7 @@ struct MediaEncoder
     virtual bool ConfigureVideoStream(const std::string& codecName,
             std::string& imageFormat, uint32_t width, uint32_t height,
             const MediaInfo::Ratio& frameRate, uint64_t bitRate,
-            std::unordered_map<std::string, std::string>* extraOpts = nullptr) = 0;
+            std::vector<Option>* extraOpts = nullptr) = 0;
     virtual bool ConfigureAudioStream(const std::string& codecName,
             std::string& sampleFormat, uint32_t channels, uint32_t sampleRate, uint64_t bitRate) = 0;
     virtual bool Start() = 0;

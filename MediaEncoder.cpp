@@ -85,7 +85,7 @@ public:
     bool ConfigureVideoStream(const std::string& codecName,
             string& imageFormat, uint32_t width, uint32_t height,
             const MediaInfo::Ratio& frameRate, uint64_t bitRate,
-            unordered_map<string, string>* extraOpts = nullptr) override
+            vector<Option>* extraOpts = nullptr) override
     {
         if (!m_opened)
         {
@@ -449,7 +449,7 @@ private:
     bool ConfigureVideoStream_Internal(const std::string& codecName,
             string& imageFormat, uint32_t width, uint32_t height,
             const MediaInfo::Ratio& frameRate, uint64_t bitRate,
-            unordered_map<string, string>* extraOpts)
+            vector<Option>* extraOpts)
     {
         m_videnc = avcodec_find_encoder_by_name(codecName.c_str());
         if (!m_videnc)
@@ -578,112 +578,12 @@ private:
         AVDictionary *encOpts = nullptr;
         if (extraOpts)
         {
-            auto iter = extraOpts->begin();
-            while (iter != extraOpts->end())
+            for (auto& extopt : *extraOpts)
             {
-                auto& elem = *iter++;
-                if (elem.first == ENCOPT__PROFILE)
-                    av_dict_set(&encOpts, "profile", elem.second.c_str(), 0);
-                else if (elem.first == ENCOPT__PRESET)
-                    av_dict_set(&encOpts, "preset", elem.second.c_str(), 0);
-                else if (elem.first == ENCOPT__MAX_B_FRAMES)
-                    m_videncCtx->max_b_frames = stoi(elem.second);
-                else if (elem.first == ENCOPT__GOP_SIZE)
-                    m_videncCtx->gop_size = stoi(elem.second);
-                else if (elem.first == ENCOPT__ASPECT_RATIO)
-                {
-                    int num = 1, den = 1;
-                    size_t pos = elem.second.find('/');
-                    if (pos == string::npos)
-                    {
-                        ostringstream oss;
-                        oss << "INVALID encoder extra-option '" << ENCOPT__ASPECT_RATIO "' value '" << elem.second << "'!";
-                        m_errMsg = oss.str();
-                        return false;
-                    }
-                    else
-                    {
-                        num = stoi(elem.second.substr(0, pos));
-                        den = stoi(elem.second.substr(pos+1));
-                    }
-                    m_videncCtx->sample_aspect_ratio = { num, den };
-                }
-                else if (elem.first == ENCOPT__COLOR_RANGE)
-                {
-                    m_videncCtx->color_range = (AVColorRange)av_color_range_from_name(elem.second.c_str());
-                    if (m_videncCtx->color_range < 0)
-                    {
-                        ostringstream oss;
-                        oss << "INVALID encoder extra-option '" << ENCOPT__COLOR_RANGE "' value '" << elem.second << "'!";
-                        m_errMsg = oss.str();
-                        return false;
-                    }
-                    if (!m_imgCvter.SetOutColorRange(m_videncCtx->color_range))
-                    {
-                        ostringstream oss;
-                        oss << "FAILED to set 'ImMatToAVFrameConverter' with color-range '" << av_color_range_name(m_videncCtx->color_range) << "'!";
-                        m_errMsg = oss.str();
-                        return false;
-                    }
-                }
-                else if (elem.first == ENCOPT__COLOR_SPACE)
-                {
-                    m_videncCtx->colorspace = (AVColorSpace)av_color_space_from_name(elem.second.c_str());
-                    if (m_videncCtx->colorspace < 0)
-                    {
-                        ostringstream oss;
-                        oss << "INVALID encoder extra-option '" << ENCOPT__COLOR_SPACE "' value '" << elem.second << "'!";
-                        m_errMsg = oss.str();
-                        return false;
-                    }
-                    if (!m_imgCvter.SetOutColorSpace(m_videncCtx->colorspace))
-                    {
-                        ostringstream oss;
-                        oss << "FAILED to set 'ImMatToAVFrameConverter' with color-space '" << av_color_space_name(m_videncCtx->colorspace) << "'!";
-                        m_errMsg = oss.str();
-                        return false;
-                    }
-                }
-                else if (elem.first == ENCOPT__COLOR_PRIMARIES)
-                {
-                    m_videncCtx->color_primaries = (AVColorPrimaries)av_color_primaries_from_name(elem.second.c_str());
-                    if (m_videncCtx->color_primaries < 0)
-                    {
-                        ostringstream oss;
-                        oss << "INVALID encoder extra-option '" << ENCOPT__COLOR_PRIMARIES "' value '" << elem.second << "'!";
-                        m_errMsg = oss.str();
-                        return false;
-                    }
-                }
-                else if (elem.first == ENCOPT__COLOR_TRC)
-                {
-                    m_videncCtx->color_trc = (AVColorTransferCharacteristic)av_color_transfer_from_name(elem.second.c_str());
-                    if (m_videncCtx->color_trc < 0)
-                    {
-                        ostringstream oss;
-                        oss << "INVALID encoder extra-option '" << ENCOPT__COLOR_TRC "' value '" << elem.second << "'!";
-                        m_errMsg = oss.str();
-                        return false;
-                    }
-                }
-                else if (elem.first == ENCOPT__CHROMA_LOCATION)
-                {
-                    m_videncCtx->chroma_sample_location = (AVChromaLocation)av_chroma_location_from_name(elem.second.c_str());
-                    if (m_videncCtx->chroma_sample_location < 0)
-                    {
-                        ostringstream oss;
-                        oss << "INVALID encoder extra-option '" << ENCOPT__CHROMA_LOCATION "' value '" << elem.second << "'!";
-                        m_errMsg = oss.str();
-                        return false;
-                    }
-                }
-                else
-                {
-                    ostringstream oss;
-                    oss << "UNKNOWN encoder extra-option name '" << elem.first << "'!";
-                    m_errMsg = oss.str();
-                    return false;
-                }
+                ostringstream oss;
+                oss << extopt.value;
+                string optval = oss.str();
+                av_dict_set(&encOpts, extopt.name.c_str(), optval.c_str(), 0);
             }
         }
 
@@ -1232,9 +1132,16 @@ ostream& operator<<(ostream& os, const MediaEncoder::Option::Value& val)
     else if (val.type == MediaEncoder::Option::OPVT_BOOL)
         os << val.numval.bln;
     else if (val.type == MediaEncoder::Option::OPVT_STRING)
-        os << "'" << val.strval << "'";
+        os << val.strval;
     else if (val.type == MediaEncoder::Option::OPVT_FLAGS)
         os << val.numval.i64;
+    else if (val.type == MediaEncoder::Option::OPVT_RATIO)
+    {
+        if (val.strval.empty())
+            os << "0";
+        else
+            os << val.strval;
+    }
     return os;
 }
 
@@ -1248,7 +1155,10 @@ ostream& operator<<(ostream& os, const MediaEncoder::Option::EnumValue& enumval)
 
 ostream& operator<<(ostream& os, const MediaEncoder::Option::Description& optdesc)
 {
-    os << optdesc.name << " - ";
+    os << optdesc.name;
+    if (!optdesc.tag.empty())
+        os << "(" << optdesc.tag << ")";
+    os << " - ";
     if (optdesc.valueType == MediaEncoder::Option::OPVT_INT)
         os << "INT";
     else if (optdesc.valueType == MediaEncoder::Option::OPVT_DOUBLE)
@@ -1259,6 +1169,8 @@ ostream& operator<<(ostream& os, const MediaEncoder::Option::Description& optdes
         os << "STRING";
     else if (optdesc.valueType == MediaEncoder::Option::OPVT_FLAGS)
         os << "FLAGS";
+    else if (optdesc.valueType == MediaEncoder::Option::OPVT_RATIO)
+        os << "RATIO";
     else
         os << "UNKNOWN";
     os << " - default: " << optdesc.defaultValue;
@@ -1301,8 +1213,139 @@ ostream& operator<<(ostream& os, const MediaEncoder::EncoderDescription& encdesc
     return os;
 }
 
-MediaEncoder::EncoderDescription ConvertAVCodecToEncoderDescription(AVCodecPtr cdcptr)
+static bool ConvertAVOptionToOptionDescription(AVCodecPtr cdcptr, const AVOption* opt, MediaEncoder::Option::Description& optdesc)
 {
+    ALogger* logger = GetMediaEncoderLogger();
+    if (opt->type == AV_OPT_TYPE_INT || opt->type == AV_OPT_TYPE_INT64 || opt->type == AV_OPT_TYPE_UINT64)
+        optdesc.valueType = MediaEncoder::Option::OPVT_INT;
+    else if (opt->type == AV_OPT_TYPE_FLOAT || opt->type == AV_OPT_TYPE_DOUBLE)
+        optdesc.valueType = MediaEncoder::Option::OPVT_DOUBLE;
+    else if (opt->type == AV_OPT_TYPE_BOOL)
+        optdesc.valueType = MediaEncoder::Option::OPVT_BOOL;
+    else if (opt->type == AV_OPT_TYPE_STRING)
+        optdesc.valueType = MediaEncoder::Option::OPVT_STRING;
+    else if (opt->type == AV_OPT_TYPE_FLAGS)
+        optdesc.valueType = MediaEncoder::Option::OPVT_FLAGS;
+    else if (opt->type == AV_OPT_TYPE_RATIONAL)
+        optdesc.valueType = MediaEncoder::Option::OPVT_RATIO;
+    else
+    {
+        logger->Log(WARN) << "UNSUPPORTED ffmpeg option value type " << opt->type << "for option '" << opt->name
+            << "' within encoder '" << cdcptr->name << "'! SKIP THIS OPTION!" << endl;
+        return false;
+    }
+    optdesc.name = string(opt->name);
+    if (opt->help) optdesc.desc = string(opt->help);
+    if (opt->unit) optdesc.unit = string(opt->unit);
+    optdesc.defaultValue.type = optdesc.rangeMin.type = optdesc.rangeMax.type = optdesc.valueType;
+    optdesc.limitType = MediaEncoder::Option::OPLT_NONE;
+    if (optdesc.valueType == MediaEncoder::Option::OPVT_INT)
+    {
+        optdesc.defaultValue.numval.i64 = opt->default_val.i64;
+        optdesc.rangeMin.numval.i64 = (int64_t)opt->min;
+        optdesc.rangeMax.numval.i64 = (int64_t)opt->max;
+        optdesc.limitType = MediaEncoder::Option::OPLT_RANGE;
+    }
+    else if (optdesc.valueType == MediaEncoder::Option::OPVT_DOUBLE)
+    {
+        optdesc.defaultValue.numval.dbl = opt->default_val.dbl;
+        optdesc.rangeMin.numval.dbl = opt->min;
+        optdesc.rangeMax.numval.dbl = opt->max;
+        optdesc.limitType = MediaEncoder::Option::OPLT_RANGE;
+    }
+    else if (optdesc.valueType == MediaEncoder::Option::OPVT_BOOL)
+    {
+        optdesc.defaultValue.numval.bln = opt->default_val.i64 != (int64_t)opt->min;
+        optdesc.rangeMin.numval.bln = false;
+        optdesc.rangeMax.numval.bln = true;
+    }
+    else if (optdesc.valueType == MediaEncoder::Option::OPVT_STRING)
+    {
+        if (opt->default_val.str)
+            optdesc.defaultValue.strval = string(opt->default_val.str);
+    }
+    else if (optdesc.valueType == MediaEncoder::Option::OPVT_FLAGS)
+    {
+        optdesc.defaultValue.numval.i64 = opt->default_val.i64;
+    }
+    return true;
+}
+
+static bool ConvertAVOptionToOptionEnumValue(const AVOption* opt, MediaEncoder::Option::EnumValue& enumval)
+{
+    enumval.name = string(opt->name);
+    if (opt->help) enumval.desc = string(opt->help);
+    enumval.value = opt->default_val.i64;
+    return true;
+}
+
+static void InitializeOptionDescList(AVCodecPtr cdcptr, vector<MediaEncoder::Option::Description>& optDescList)
+{
+    ALogger* logger = GetMediaEncoderLogger();
+    static vector<MediaEncoder::Option::Description> s_vidcdcOptDescList;
+    if (cdcptr->type == AVMEDIA_TYPE_VIDEO)
+    {
+        if (s_vidcdcOptDescList.empty())
+        {
+            // add some fixed options
+            s_vidcdcOptDescList.push_back({ "aspect", "sample aspect ratio", "", "", MediaEncoder::Option::OPVT_RATIO,
+                                            { MediaEncoder::Option::OPVT_RATIO, {.i64=0}, "" }, MediaEncoder::Option::OPLT_NONE });
+
+            const AVClass *cc = avcodec_get_class();
+            const AVOption *opt = nullptr;
+            int requairedOptFlags = AV_OPT_FLAG_VIDEO_PARAM | AV_OPT_FLAG_ENCODING_PARAM;
+            static const char* s_vidcdcGeneralOptionNames[] = {
+                "g", "bf", "colorspace", "color_trc"
+            };
+            const int optcnt = sizeof(s_vidcdcGeneralOptionNames)/sizeof(s_vidcdcGeneralOptionNames[0]);
+            for (int i = 0; i < optcnt; i++)
+            {
+                if ((opt = av_opt_find(&cc, s_vidcdcGeneralOptionNames[i], nullptr, requairedOptFlags, AV_OPT_SEARCH_CHILDREN | AV_OPT_SEARCH_FAKE_OBJ)))
+                {
+                    MediaEncoder::Option::Description optdesc;
+                    if (ConvertAVOptionToOptionDescription(cdcptr, opt, optdesc))
+                    {
+                        while ((opt = av_opt_next(&cc, opt)))
+                        {
+                            if (opt->type != AV_OPT_TYPE_CONST || !opt->unit || strcmp(opt->unit, optdesc.unit.c_str()))
+                                break;
+                            optdesc.limitType = MediaEncoder::Option::OPLT_ENUM;
+                            MediaEncoder::Option::EnumValue enumval;
+                            ConvertAVOptionToOptionEnumValue(opt, enumval);
+                            auto dupIter = find_if(optdesc.enumValues.begin(), optdesc.enumValues.end(),
+                                [enumval] (const MediaEncoder::Option::EnumValue& v) {
+                                    return v.value == enumval.value;
+                                });
+                            if (dupIter == optdesc.enumValues.end())
+                                optdesc.enumValues.push_back(move(enumval));
+                        }
+
+                        // fix some option definitions
+                        if (optdesc.name == "g")
+                        {
+                            optdesc.tag = "gop size";
+                            optdesc.rangeMin.numval.i64 = 0;
+                        }
+                        if (optdesc.name == "bf")
+                        {
+                            optdesc.tag = "b frames";
+                        }
+
+                        s_vidcdcOptDescList.push_back(move(optdesc));
+                    }
+                }
+            }
+        }
+        for (auto& optdesc : s_vidcdcOptDescList)
+            optDescList.push_back(optdesc);
+    }
+}
+
+
+static MediaEncoder::EncoderDescription ConvertAVCodecToEncoderDescription(AVCodecPtr cdcptr)
+{
+    ALogger* logger = GetMediaEncoderLogger();
+
     MediaEncoder::EncoderDescription encdesc;
     encdesc.codecName = string(cdcptr->name);
     if (cdcptr->long_name)
@@ -1315,7 +1358,8 @@ MediaEncoder::EncoderDescription ConvertAVCodecToEncoderDescription(AVCodecPtr c
     else
         encdesc.mediaType = MediaInfo::UNKNOWN;
 
-    ALogger* logger = GetMediaEncoderLogger();
+    InitializeOptionDescList(cdcptr, encdesc.optDescList);
+
     const AVOption* opt = nullptr;
     while ((opt = av_opt_next(&cdcptr->priv_class, opt)))
     {
@@ -1331,12 +1375,12 @@ MediaEncoder::EncoderDescription ConvertAVCodecToEncoderDescription(AVCodecPtr c
             if (optdescIter != encdesc.optDescList.end())
             {
                 MediaEncoder::Option::EnumValue enumval;
-                enumval.name = string(opt->name);
-                if (opt->help) enumval.desc = string(opt->help);
-                enumval.value = opt->default_val.i64;
-                auto& optdesc = *optdescIter;
-                optdesc.limitType = MediaEncoder::Option::OPLT_ENUM;
-                optdesc.enumValues.push_back(move(enumval));
+                if (ConvertAVOptionToOptionEnumValue(opt, enumval))
+                {
+                    auto& optdesc = *optdescIter;
+                    optdesc.limitType = MediaEncoder::Option::OPLT_ENUM;
+                    optdesc.enumValues.push_back(move(enumval));
+                }
             }
             else
                 logger->Log(WARN) << "CANNOT find unit '" << opt->unit << "' in option list for option '"
@@ -1345,57 +1389,8 @@ MediaEncoder::EncoderDescription ConvertAVCodecToEncoderDescription(AVCodecPtr c
         else
         {
             MediaEncoder::Option::Description optdesc;
-            if (opt->type == AV_OPT_TYPE_INT || opt->type == AV_OPT_TYPE_INT64 || opt->type == AV_OPT_TYPE_UINT64)
-                optdesc.valueType = MediaEncoder::Option::OPVT_INT;
-            else if (opt->type == AV_OPT_TYPE_FLOAT || opt->type == AV_OPT_TYPE_DOUBLE)
-                optdesc.valueType = MediaEncoder::Option::OPVT_DOUBLE;
-            else if (opt->type == AV_OPT_TYPE_BOOL)
-                optdesc.valueType = MediaEncoder::Option::OPVT_BOOL;
-            else if (opt->type == AV_OPT_TYPE_STRING)
-                optdesc.valueType = MediaEncoder::Option::OPVT_STRING;
-            else if (opt->type == AV_OPT_TYPE_FLAGS)
-                optdesc.valueType = MediaEncoder::Option::OPVT_FLAGS;
-            else
-            {
-                logger->Log(WARN) << "UNSUPPORTED ffmpeg option value type " << opt->type << "for option '" << opt->name
-                    << "' within encoder '" << cdcptr->name << "'! SKIP THIS OPTION!" << endl;
-                continue;
-            }
-            optdesc.name = string(opt->name);
-            if (opt->help) optdesc.desc = string(opt->help);
-            if (opt->unit) optdesc.unit = string(opt->unit);
-            optdesc.defaultValue.type = optdesc.rangeMin.type = optdesc.rangeMax.type = optdesc.valueType;
-            optdesc.limitType = MediaEncoder::Option::OPLT_NONE;
-            if (optdesc.valueType == MediaEncoder::Option::OPVT_INT)
-            {
-                optdesc.defaultValue.numval.i64 = opt->default_val.i64;
-                optdesc.rangeMin.numval.i64 = (int64_t)opt->min;
-                optdesc.rangeMax.numval.i64 = (int64_t)opt->max;
-                optdesc.limitType = MediaEncoder::Option::OPLT_RANGE;
-            }
-            else if (optdesc.valueType == MediaEncoder::Option::OPVT_DOUBLE)
-            {
-                optdesc.defaultValue.numval.dbl = opt->default_val.dbl;
-                optdesc.rangeMin.numval.dbl = opt->min;
-                optdesc.rangeMax.numval.dbl = opt->max;
-                optdesc.limitType = MediaEncoder::Option::OPLT_RANGE;
-            }
-            else if (optdesc.valueType == MediaEncoder::Option::OPVT_BOOL)
-            {
-                optdesc.defaultValue.numval.bln = opt->default_val.i64 != (int64_t)opt->min;
-                optdesc.rangeMin.numval.bln = false;
-                optdesc.rangeMax.numval.bln = true;
-            }
-            else if (optdesc.valueType == MediaEncoder::Option::OPVT_STRING)
-            {
-                if (opt->default_val.str)
-                    optdesc.defaultValue.strval = string(opt->default_val.str);
-            }
-            else if (optdesc.valueType == MediaEncoder::Option::OPVT_FLAGS)
-            {
-                optdesc.defaultValue.numval.i64 = opt->default_val.i64;
-            }
-            encdesc.optDescList.push_back(move(optdesc));
+            if (ConvertAVOptionToOptionDescription(cdcptr, opt, optdesc))
+                encdesc.optDescList.push_back(move(optdesc));
         }
     }
     return move(encdesc);
