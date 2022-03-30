@@ -38,13 +38,13 @@ static const output_format OutFormats[] =
     {"WebM", "webm"},
 };
 
-typedef struct _output_video_codec
+typedef struct _output_codec
 {
     std::string name;
     std::string codec;
-} output_video_codec;
+} output_codec;
 
-static const output_video_codec OutputVideoCodec[] = 
+static const output_codec OutputVideoCodec[] = 
 {
     {"H.264 / AVC / MPEG-4 AVC / MPEG-4 part 10", "h264"},
     {"H.265 / HEVC", "hevc"},
@@ -56,7 +56,7 @@ static const output_video_codec OutputVideoCodec[] =
     {"Uncompressed", ""},
 };
 
-static const output_video_codec OutputVideoCodecUncompressed[] = 
+static const output_codec OutputVideoCodecUncompressed[] = 
 {
     {"RGB 10-bit", "r210"},
     {"YUV packed 4:2:0", "yuv4"},
@@ -68,6 +68,29 @@ static const output_video_codec OutputVideoCodecUncompressed[] =
     {"Packed MS 4:4:4:4", "ayuv"},
 };
 
+static const output_codec OutputAudioCodec[] = 
+{
+    {"Advanced Audio Coding AAC", "aac"},
+    {"ATSC A/52A AC-3", "ac3"},
+    {"ATSC A/52 E-AC-3", "eac3"},
+    {"MPEG audio layer 3", "mp3"},
+    {"MPEG audio layer 2", "mp2"},
+    {"Apple Lossless Audio Codec", "alac"},
+    {"PCM", ""}
+};
+
+static const output_codec OutputAudioCodecPCM[] = 
+{
+    {"PCM signed 16-bit little-endian", "pcm_s16le"},
+    {"PCM signed 16-bit big-endian", "pcm_s16be"},
+    {"PCM signed 24-bit little-endian", "pcm_s24le"},
+    {"PCM signed 24-bit big-endian", "pcm_s24be"},
+    {"PCM signed 32-bit little-endian", "pcm_s32le"},
+    {"PCM signed 32-bit big-endian", "pcm_s32be"},
+    {"PCM 32-bit floating point little-endian", "pcm_f32le"},
+    {"PCM 32-bit floating point big-endian", "pcm_f32be"},
+};
+
 static const char* x264_profile[] = { "baseline", "main", "high", "high10", "high422", "high444" };
 static const char* x264_preset[] = { "ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow", "placebo" };
 static const char* x264_tune[] = { "film", "animation", "grain", "stillimage", "psnr", "ssim", "fastdecode", "zerolatency" };
@@ -76,6 +99,13 @@ static const char* x265_preset[] = { "ultrafast", "superfast", "veryfast", "fast
 static const char* x265_tune[] = { "psnr", "ssim", "grain", "zerolatency", "fastdecode" };
 static const char* v264_profile[] = { "auto", "baseline", "main", "high", "extended" };
 static const char* v265_profile[] = { "auto", "main", "main10" };
+
+static const char* resolution_items[] = { "Custom", "720x480 NTSC", "720x576 PAL", "1280x720 HD", "1920x1080 HD", "3840x2160 UHD", "7680x3420 8K UHD"};
+static const char* pixel_aspect_items[] = { "Custom", "Square", "16:9", "4:3", "Cinemascope", "Academy Standard", "Academy Flat" }; // Cinemascope=2.35:1 Academy Standard=1.37:1 Academy Flat=1.85:1
+static const char* frame_rate_items[] = { "Custom", "23.976", "24", "25", "29.97", "30", "50", "59.94", "60", "100", "120" };
+static const char* audio_sample_rate_items[] = { "8k", "16k", "32k", "44.1k", "48k", "96k" };
+static const char* audio_channels_items[] = { "Mono", "Stereo", "Surround Stereo 5.1", "Surround Stereo 7.1", "Surround Stereo 10.1", "Surround Stereo 12.1"};
+static const char* audio_format_items[] = { "16bit Short", "32bit Float", "64bit Double" };
 
 static const char* color_system_items[] = { "NTSC", "EBU", "SMPTE", "SMPTE 240M", "APPLE", "wRGB", "CIE1931", "Rec709", "Rec2020", "DCIP3" };
 static const char* cie_system_items[] = { "XYY", "UCS", "LUV" };
@@ -190,11 +220,29 @@ struct MediaEditorSettings
 
     // Output configure
     int OutputFormatIndex {0};
+    // Output video configure
     int OutputVideoCodecIndex {0};
     int OutputVideoCodecTypeIndex {0};
     int OutputVideoCodecProfileIndex {INT32_MIN};
     int OutputVideoCodecPresetIndex {INT32_MIN};
     int OutputVideoCodecTuneIndex {INT32_MIN};
+    int OutputVideoCodecCompressionIndex {INT32_MIN};   // image format compression
+    bool OutputVideoSettingAsTimeline {true};
+    int OutputVideoResolutionIndex {INT32_MIN};
+    int OutputVideoResolutionWidth {INT32_MIN};         // custom setting
+    int OutputVideoResolutionHeight {INT32_MIN};        // custom setting
+    int OutputVideoPixelAspectRatioIndex {INT32_MIN};
+    MediaInfo::Ratio OutputVideoPixelAspectRatio {1, 1};// custom setting
+    int OutputVideoFrameRateIndex {INT32_MIN};
+    MediaInfo::Ratio OutputVideoFrameRate {25000, 1000};// custom setting
+    // Output audio configure
+    int OutputAudioCodecIndex {0};
+    int OutputAudioCodecTypeIndex {0};
+    bool OutputAudioSettingAsTimeline {true};
+    int OutputAudioSampleRateIndex {INT32_MIN};
+    int OutputAudioSampleRate {44100};                  // custom setting
+    int OutputAudioChannelsIndex {INT32_MIN};
+    int OutputAudioChannels {2};                        // custom setting
 
     MediaEditorSettings() {}
 };
@@ -497,114 +545,114 @@ static void ShowAbout()
     ImGui::Text("Frames since last input: %d", ImGui::GetIO().FrameCountSinceLastInput);
 }
 
-static int GetResolutionIndex(MediaEditorSettings & config)
+static int GetResolutionIndex(int width, int height)
 {
-    if (config.VideoWidth == 720 && config.VideoHeight == 480)
+    if (width == 720 && height == 480)
         return 1;
-    else if (config.VideoWidth == 720 && config.VideoHeight == 576)
+    else if (width == 720 && height == 576)
         return 2;
-    else if (config.VideoWidth == 1280 && config.VideoHeight == 720)
+    else if (width == 1280 && height == 720)
         return 3;
-    else if (config.VideoWidth == 1920 && config.VideoHeight == 1080)
+    else if (width == 1920 && height == 1080)
         return 4;
-    else if (config.VideoWidth == 3840 && config.VideoHeight == 2160)
+    else if (width == 3840 && height == 2160)
         return 5;
-    else if (config.VideoWidth == 7680 && config.VideoHeight == 3420)
+    else if (width == 7680 && height == 3420)
         return 6;
     return 0;
 }
 
-static void SetResolution(MediaEditorSettings & config, int index)
+static void SetResolution(int& width, int& height, int index)
 {
     switch (index)
     {
-        case 1: config.VideoWidth = 720; config.VideoHeight = 480; break;
-        case 2: config.VideoWidth = 720; config.VideoHeight = 576; break;
-        case 3: config.VideoWidth = 1280; config.VideoHeight = 720; break;
-        case 4: config.VideoWidth = 1920; config.VideoHeight = 1080; break;
-        case 5: config.VideoWidth = 3840; config.VideoHeight = 2160; break;
-        case 6: config.VideoWidth = 7680; config.VideoHeight = 3420; break;
+        case 1: width = 720;  height = 480; break;
+        case 2: width = 720;  height = 576; break;
+        case 3: width = 1280; height = 720; break;
+        case 4: width = 1920; height = 1080; break;
+        case 5: width = 3840; height = 2160; break;
+        case 6: width = 7680; height = 3420; break;
         default: break;
     }
 }
 
-static int GetPixelAspectRatioIndex(MediaEditorSettings & config)
+static int GetPixelAspectRatioIndex(MediaInfo::Ratio ratio)
 {
-    if (config.PixelAspectRatio.num == 1 && config.PixelAspectRatio.den == 1)
+    if (ratio.num == 1 && ratio.den == 1)
         return 1;
-    else if (config.PixelAspectRatio.num == 16 && config.PixelAspectRatio.den == 9)
+    else if (ratio.num == 16 && ratio.den == 9)
         return 2;
-    else if (config.PixelAspectRatio.num == 4 && config.PixelAspectRatio.den == 3)
+    else if (ratio.num == 4 && ratio.den == 3)
         return 3;
-    else if (config.PixelAspectRatio.num == 235 && config.PixelAspectRatio.den == 100)
+    else if (ratio.num == 235 && ratio.den == 100)
         return 4;
-    else if (config.PixelAspectRatio.num == 137 && config.PixelAspectRatio.den == 100)
+    else if (ratio.num == 137 && ratio.den == 100)
         return 5;
-    else if (config.PixelAspectRatio.num == 185 && config.PixelAspectRatio.den == 100)
+    else if (ratio.num == 185 && ratio.den == 100)
         return 6;
     return 0;
 }
 
-static void SetPixelAspectRatio(MediaEditorSettings & config, int index)
+static void SetPixelAspectRatio(MediaInfo::Ratio& ratio, int index)
 {
     switch (index)
     {
-        case 1: config.PixelAspectRatio.num = 1;   config.PixelAspectRatio.den = 1; break;
-        case 2: config.PixelAspectRatio.num = 16;  config.PixelAspectRatio.den = 9; break;
-        case 3: config.PixelAspectRatio.num = 4;   config.PixelAspectRatio.den = 3; break;
-        case 4: config.PixelAspectRatio.num = 235; config.PixelAspectRatio.den = 100; break;
-        case 5: config.PixelAspectRatio.num = 137; config.PixelAspectRatio.den = 100; break;
-        case 6: config.PixelAspectRatio.num = 185; config.PixelAspectRatio.den = 100; break;
+        case 1: ratio.num = 1;   ratio.den = 1; break;
+        case 2: ratio.num = 16;  ratio.den = 9; break;
+        case 3: ratio.num = 4;   ratio.den = 3; break;
+        case 4: ratio.num = 235; ratio.den = 100; break;
+        case 5: ratio.num = 137; ratio.den = 100; break;
+        case 6: ratio.num = 185; ratio.den = 100; break;
         default: break;
     }
 }
 
-static int GetVideoFrameIndex(MediaEditorSettings & config)
+static int GetVideoFrameIndex(MediaInfo::Ratio fps)
 {
-    if (config.VideoFrameRate.num == 24000 && config.VideoFrameRate.den == 1001)
+    if (fps.num == 24000 && fps.den == 1001)
         return 1;
-    else if (config.VideoFrameRate.num == 24000 && config.VideoFrameRate.den == 1000)
+    else if (fps.num == 24000 && fps.den == 1000)
         return 2;
-    else if (config.VideoFrameRate.num == 25000 && config.VideoFrameRate.den == 1000)
+    else if (fps.num == 25000 && fps.den == 1000)
         return 3;
-    else if (config.VideoFrameRate.num == 30000 && config.VideoFrameRate.den == 1001)
+    else if (fps.num == 30000 && fps.den == 1001)
         return 4;
-    else if (config.PixelAspectRatio.num == 30000 && config.PixelAspectRatio.den == 1000)
+    else if (fps.num == 30000 && fps.den == 1000)
         return 5;
-    else if (config.PixelAspectRatio.num == 50000 && config.PixelAspectRatio.den == 1000)
+    else if (fps.num == 50000 && fps.den == 1000)
         return 6;
-    else if (config.PixelAspectRatio.num == 60000 && config.PixelAspectRatio.den == 1001)
+    else if (fps.num == 60000 && fps.den == 1001)
         return 7;
-    else if (config.PixelAspectRatio.num == 60000 && config.PixelAspectRatio.den == 1000)
+    else if (fps.num == 60000 && fps.den == 1000)
         return 8;
-    else if (config.PixelAspectRatio.num == 100000 && config.PixelAspectRatio.den == 1000)
+    else if (fps.num == 100000 && fps.den == 1000)
         return 9;
-    else if (config.PixelAspectRatio.num == 120000 && config.PixelAspectRatio.den == 1000)
+    else if (fps.num == 120000 && fps.den == 1000)
         return 10;
     return 0;
 }
 
-static void SetVideoFrameRate(MediaEditorSettings & config, int index)
+static void SetVideoFrameRate(MediaInfo::Ratio & rate, int index)
 {
     switch (index)
     {
-        case  1: config.VideoFrameRate.num = 24000;  config.VideoFrameRate.den = 1001; break;
-        case  2: config.VideoFrameRate.num = 24000;  config.VideoFrameRate.den = 1000; break;
-        case  3: config.VideoFrameRate.num = 25000;  config.VideoFrameRate.den = 1000; break;
-        case  4: config.VideoFrameRate.num = 30000;  config.VideoFrameRate.den = 1001; break;
-        case  5: config.VideoFrameRate.num = 30000;  config.VideoFrameRate.den = 1000; break;
-        case  6: config.VideoFrameRate.num = 50000;  config.VideoFrameRate.den = 1000; break;
-        case  7: config.VideoFrameRate.num = 60000;  config.VideoFrameRate.den = 1001; break;
-        case  8: config.VideoFrameRate.num = 60000;  config.VideoFrameRate.den = 1000; break;
-        case  9: config.VideoFrameRate.num = 100000; config.VideoFrameRate.den = 1000; break;
-        case 10: config.VideoFrameRate.num = 120000; config.VideoFrameRate.den = 1000; break;
+        case  1: rate.num = 24000;  rate.den = 1001; break;
+        case  2: rate.num = 24000;  rate.den = 1000; break;
+        case  3: rate.num = 25000;  rate.den = 1000; break;
+        case  4: rate.num = 30000;  rate.den = 1001; break;
+        case  5: rate.num = 30000;  rate.den = 1000; break;
+        case  6: rate.num = 50000;  rate.den = 1000; break;
+        case  7: rate.num = 60000;  rate.den = 1001; break;
+        case  8: rate.num = 60000;  rate.den = 1000; break;
+        case  9: rate.num = 100000; rate.den = 1000; break;
+        case 10: rate.num = 120000; rate.den = 1000; break;
         default: break;
     }
 }
 
-static int GetSampleRateIndex(MediaEditorSettings & config)
+static int GetSampleRateIndex(int sample_rate)
 {
-    switch (config.AudioSampleRate)
+    switch (sample_rate)
     {
         case 8000:  return 0;
         case 16000: return 1;
@@ -616,23 +664,23 @@ static int GetSampleRateIndex(MediaEditorSettings & config)
     }
 }
 
-static void SetSampleRate(MediaEditorSettings & config, int index)
+static void SetSampleRate(int& sample_rate, int index)
 {
     switch (index)
     {
-        case 0: config.AudioSampleRate =  8000; break;
-        case 1: config.AudioSampleRate = 16000; break;
-        case 2: config.AudioSampleRate = 32000; break;
-        case 3: config.AudioSampleRate = 44100; break;
-        case 4: config.AudioSampleRate = 48000; break;
-        case 5: config.AudioSampleRate = 96000; break;
-        default:config.AudioSampleRate = 44100; break;
+        case 0: sample_rate =  8000; break;
+        case 1: sample_rate = 16000; break;
+        case 2: sample_rate = 32000; break;
+        case 3: sample_rate = 44100; break;
+        case 4: sample_rate = 48000; break;
+        case 5: sample_rate = 96000; break;
+        default:sample_rate = 44100; break;
     }
 }
 
-static int GetChannelIndex(MediaEditorSettings & config)
+static int GetChannelIndex(int channels)
 {
-    switch (config.AudioChannels)
+    switch (channels)
     {
         case  1: return 0;
         case  2: return 1;
@@ -644,23 +692,23 @@ static int GetChannelIndex(MediaEditorSettings & config)
     }
 }
 
-static void SetAudioChannel(MediaEditorSettings & config, int index)
+static void SetAudioChannel(int& channels, int index)
 {
     switch (index)
     {
-        case 0: config.AudioChannels =  1; break;
-        case 1: config.AudioChannels =  2; break;
-        case 2: config.AudioChannels =  6; break;
-        case 3: config.AudioChannels =  8; break;
-        case 4: config.AudioChannels = 11; break;
-        case 5: config.AudioChannels = 13; break;
-        default:config.AudioChannels =  2; break;
+        case 0: channels =  1; break;
+        case 1: channels =  2; break;
+        case 2: channels =  6; break;
+        case 3: channels =  8; break;
+        case 4: channels = 11; break;
+        case 5: channels = 13; break;
+        default:channels =  2; break;
     }
 }
 
-static int GetAudioFormatIndex(MediaEditorSettings & config)
+static int GetAudioFormatIndex(int format)
 {
-    switch (config.AudioFormat)
+    switch (format)
     {
         case  1: return 0;
         case  2: return 1;
@@ -681,20 +729,13 @@ static void SetAudioFormat(MediaEditorSettings & config, int index)
 }
 
 static void ShowConfigure(MediaEditorSettings & config)
-{
-    const char* resolution_items[] = { "Custom", "720x480 NTSC", "720x576 PAL", "1280x720 HD", "1920x1080 HD", "3840x2160 UHD", "7680x3420 8K UHD"};
-    const char* pixel_aspect_items[] = { "Custom", "Square", "16:9", "4:3", "Cinemascope", "Academy Standard", "Academy Flat" }; // Cinemascope=2.35:1 Academy Standard=1.37:1 Academy Flat=1.85:1
-    const char* frame_rate_items[] = { "Custom", "23.976", "24", "25", "29.97", "30", "50", "59.94", "60", "100", "120" };
-    const char* audio_sample_rate_items[] = { "8k", "16k", "32k", "44.1k", "48k", "96k" };
-    const char* audio_channels_items[] = { "Mono", "Stereo", "Surround Stereo 5.1", "Surround Stereo 7.1", "Surround Stereo 10.1", "Surround Stereo 12.1"};
-    const char* audio_format_items[] = { "16bit Short", "32bit Float", "64bit Double" };
-    
-    static int resolution_index = GetResolutionIndex(config);
-    static int pixel_aspect_index = GetPixelAspectRatioIndex(config);
-    static int frame_rate_index = GetVideoFrameIndex(config);
-    static int sample_rate_index = GetSampleRateIndex(config);
-    static int channels_index = GetChannelIndex(config);
-    static int format_index = GetAudioFormatIndex(config);
+{    
+    static int resolution_index = GetResolutionIndex(config.VideoWidth, config.VideoHeight);
+    static int pixel_aspect_index = GetPixelAspectRatioIndex(config.PixelAspectRatio);
+    static int frame_rate_index = GetVideoFrameIndex(config.VideoFrameRate);
+    static int sample_rate_index = GetSampleRateIndex(config.AudioSampleRate);
+    static int channels_index = GetChannelIndex(config.AudioChannels);
+    static int format_index = GetAudioFormatIndex(config.AudioFormat);
 
     static char buf_cache_size[64] = {0}; sprintf(buf_cache_size, "%d", config.VideoFrameCacheSize);
     static char buf_res_x[64] = {0}; sprintf(buf_res_x, "%d", config.VideoWidth);
@@ -728,7 +769,7 @@ static void ShowConfigure(MediaEditorSettings & config)
                 // timeline setting
                 if (ImGui::Combo("Resultion", &resolution_index, resolution_items, IM_ARRAYSIZE(resolution_items)))
                 {
-                    SetResolution(config, resolution_index);
+                    SetResolution(config.VideoWidth, config.VideoHeight, resolution_index);
                 }
                 ImGui::BeginDisabled(resolution_index != 0);
                 ImGui::PushItemWidth(60);
@@ -747,7 +788,7 @@ static void ShowConfigure(MediaEditorSettings & config)
 
                 if (ImGui::Combo("Pixel Aspect Ratio", &pixel_aspect_index, pixel_aspect_items, IM_ARRAYSIZE(pixel_aspect_items)))
                 {
-                    SetPixelAspectRatio(config, pixel_aspect_index);
+                    SetPixelAspectRatio(config.PixelAspectRatio, pixel_aspect_index);
                 }
                 ImGui::BeginDisabled(pixel_aspect_index != 0);
                 ImGui::PushItemWidth(60);
@@ -766,7 +807,7 @@ static void ShowConfigure(MediaEditorSettings & config)
 
                 if (ImGui::Combo("Video Frame Rate", &frame_rate_index, frame_rate_items, IM_ARRAYSIZE(frame_rate_items)))
                 {
-                    SetVideoFrameRate(config, frame_rate_index);
+                    SetVideoFrameRate(config.VideoFrameRate, frame_rate_index);
                 }
                 ImGui::BeginDisabled(frame_rate_index != 0);
                 ImGui::PushItemWidth(60);
@@ -787,11 +828,11 @@ static void ShowConfigure(MediaEditorSettings & config)
 
                 if (ImGui::Combo("Audio Sample Rate", &sample_rate_index, audio_sample_rate_items, IM_ARRAYSIZE(audio_sample_rate_items)))
                 {
-                    SetSampleRate(config, sample_rate_index);
+                    SetSampleRate(config.AudioSampleRate, sample_rate_index);
                 }
                 if (ImGui::Combo("Audio Channels", &channels_index, audio_channels_items, IM_ARRAYSIZE(audio_channels_items)))
                 {
-                    SetAudioChannel(config, channels_index);
+                    SetAudioChannel(config.AudioChannels, channels_index);
                 }
                 if (ImGui::Combo("Audio Format", &format_index, audio_format_items, IM_ARRAYSIZE(audio_format_items)))
                 {
@@ -1682,7 +1723,7 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
     // video codec select
     ImGui::TextUnformatted("Codec:"); ImGui::SameLine(0.f, 10.f);
     auto video_codec_getter = [](void* data, int idx, const char** out_text){
-        output_video_codec * codecs = (output_video_codec *)data;
+        output_codec * codecs = (output_codec *)data;
         *out_text = codecs[idx].name.c_str();
         return true;
     };
@@ -1692,6 +1733,7 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
         g_media_editor_settings.OutputVideoCodecProfileIndex = INT32_MIN;
         g_media_editor_settings.OutputVideoCodecPresetIndex = INT32_MIN;
         g_media_editor_settings.OutputVideoCodecTuneIndex = INT32_MIN;
+        g_media_editor_settings.OutputVideoCodecCompressionIndex = INT32_MIN;
     }
 
     // video codec type select
@@ -1699,7 +1741,7 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
     {
         ImGui::TextUnformatted("Codec Type:"); ImGui::SameLine(0.f, 10.f);
         auto uncompressed_codec_getter = [](void* data, int idx, const char** out_text){
-            output_video_codec * codecs = (output_video_codec *)data;
+            output_codec * codecs = (output_codec *)data;
             *out_text = codecs[idx].name.c_str();
             return true;
         };
@@ -1717,7 +1759,13 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
                 *out_text = codecs->at(idx).longName.c_str();
                 return true;
             };
-            ImGui::Combo("##video_codec_type", &g_media_editor_settings.OutputVideoCodecTypeIndex, codec_type_getter, (void *)&encoderDescList, encoderDescList.size());
+            if (ImGui::Combo("##video_codec_type", &g_media_editor_settings.OutputVideoCodecTypeIndex, codec_type_getter, (void *)&encoderDescList, encoderDescList.size()))
+            {
+                g_media_editor_settings.OutputVideoCodecProfileIndex = INT32_MIN;
+                g_media_editor_settings.OutputVideoCodecPresetIndex = INT32_MIN;
+                g_media_editor_settings.OutputVideoCodecTuneIndex = INT32_MIN;
+                g_media_editor_settings.OutputVideoCodecCompressionIndex = INT32_MIN;
+            }
 
             if (encoderDescList[g_media_editor_settings.OutputVideoCodecTypeIndex].codecName.compare("libx264") == 0 ||
                 encoderDescList[g_media_editor_settings.OutputVideoCodecTypeIndex].codecName.compare("libx264rgb") == 0)
@@ -1783,7 +1831,28 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
                         };
                         ImGui::Combo("##video_codec_profile", &g_media_editor_settings.OutputVideoCodecProfileIndex, codec_profile_getter, (void *)&opt.enumValues, opt.enumValues.size());
                     }
-                    if (opt.name.compare("preset") == 0)
+                    if (opt.name.compare("tune") == 0)
+                    {
+                        if (g_media_editor_settings.OutputVideoCodecTuneIndex == INT32_MIN)
+                        {
+                            for (int i = 0; i < opt.enumValues.size(); i++)
+                            {
+                                if (opt.defaultValue.numval.i64 == opt.enumValues[i].value)
+                                {
+                                    g_media_editor_settings.OutputVideoCodecTuneIndex = i;
+                                    break;
+                                }
+                            }
+                        }
+                        ImGui::TextUnformatted("Codec Tune:"); ImGui::SameLine(0.f, 10.f);
+                        auto codec_tune_getter = [](void* data, int idx, const char** out_text){
+                            std::vector<MediaEncoder::Option::EnumValue> * tunes = (std::vector<MediaEncoder::Option::EnumValue>*)data;
+                            *out_text = tunes->at(idx).name.c_str();
+                            return true;
+                        };
+                        ImGui::Combo("##video_codec_tune", &g_media_editor_settings.OutputVideoCodecTuneIndex, codec_tune_getter, (void *)&opt.enumValues, opt.enumValues.size());
+                    }
+                    if (opt.name.compare("preset") == 0 || opt.name.compare("usage") == 0)
                     {
                         if (g_media_editor_settings.OutputVideoCodecPresetIndex == INT32_MIN)
                         {
@@ -1804,14 +1873,111 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
                         };
                         ImGui::Combo("##video_codec_preset", &g_media_editor_settings.OutputVideoCodecPresetIndex, codec_preset_getter, (void *)&opt.enumValues, opt.enumValues.size());
                     }
+                    if (opt.name.compare("compression") == 0 || opt.name.compare("compression_algo") == 0)
+                    {
+                        if (g_media_editor_settings.OutputVideoCodecCompressionIndex == INT32_MIN)
+                        {
+                            for (int i = 0; i < opt.enumValues.size(); i++)
+                            {
+                                if (opt.defaultValue.numval.i64 == opt.enumValues[i].value)
+                                {
+                                    g_media_editor_settings.OutputVideoCodecCompressionIndex = i;
+                                    break;
+                                }
+                            }
+                        }
+                        ImGui::TextUnformatted("Codec Compression:"); ImGui::SameLine(0.f, 10.f);
+                        auto codec_compression_getter = [](void* data, int idx, const char** out_text){
+                            std::vector<MediaEncoder::Option::EnumValue> * compression = (std::vector<MediaEncoder::Option::EnumValue>*)data;
+                            *out_text = compression->at(idx).name.c_str();
+                            return true;
+                        };
+                        ImGui::Combo("##video_codec_compression", &g_media_editor_settings.OutputVideoCodecCompressionIndex, codec_compression_getter, (void *)&opt.enumValues, opt.enumValues.size());
+                    }
                 }
             }
         }
     }
 
     // Video codec global
+    ImGui::TextUnformatted("Video Setting: "); ImGui::SameLine(0.f, 0.f);
+    static char buf_res_x[64] = {0}; sprintf(buf_res_x, "%d", g_media_editor_settings.OutputVideoResolutionWidth);
+    static char buf_res_y[64] = {0}; sprintf(buf_res_y, "%d", g_media_editor_settings.OutputVideoResolutionHeight);
+    static char buf_par_x[64] = {0}; sprintf(buf_par_x, "%d", g_media_editor_settings.OutputVideoPixelAspectRatio.num);
+    static char buf_par_y[64] = {0}; sprintf(buf_par_y, "%d", g_media_editor_settings.OutputVideoPixelAspectRatio.den);
+    static char buf_fmr_x[64] = {0}; sprintf(buf_fmr_x, "%d", g_media_editor_settings.OutputVideoFrameRate.num);
+    static char buf_fmr_y[64] = {0}; sprintf(buf_fmr_y, "%d", g_media_editor_settings.OutputVideoFrameRate.den);
 
-    ImGui::EndDisabled();
+    ImGui::Checkbox("as Timeline##video_setting", &g_media_editor_settings.OutputVideoSettingAsTimeline);
+    if (g_media_editor_settings.OutputVideoSettingAsTimeline)
+    {
+        g_media_editor_settings.OutputVideoResolutionIndex = GetResolutionIndex(g_media_editor_settings.VideoWidth, g_media_editor_settings.VideoHeight);
+        g_media_editor_settings.OutputVideoResolutionWidth = g_media_editor_settings.VideoWidth;
+        g_media_editor_settings.OutputVideoResolutionHeight = g_media_editor_settings.VideoHeight;
+        g_media_editor_settings.OutputVideoPixelAspectRatioIndex = GetPixelAspectRatioIndex(g_media_editor_settings.PixelAspectRatio);
+        g_media_editor_settings.OutputVideoPixelAspectRatio = g_media_editor_settings.PixelAspectRatio;
+        g_media_editor_settings.OutputVideoFrameRateIndex = GetVideoFrameIndex(g_media_editor_settings.VideoFrameRate);
+        g_media_editor_settings.OutputVideoFrameRate = g_media_editor_settings.VideoFrameRate;
+    }
+    ImGui::BeginDisabled(g_media_editor_settings.OutputVideoSettingAsTimeline);
+        if (ImGui::Combo("Resultion", &g_media_editor_settings.OutputVideoResolutionIndex, resolution_items, IM_ARRAYSIZE(resolution_items)))
+        {
+            SetResolution(g_media_editor_settings.OutputVideoResolutionWidth, g_media_editor_settings.OutputVideoResolutionHeight, g_media_editor_settings.OutputVideoResolutionIndex);
+        }
+        ImGui::BeginDisabled(g_media_editor_settings.OutputVideoResolutionIndex != 0);
+            ImGui::PushItemWidth(60);
+            ImGui::InputText("##Output_Resultion_x", buf_res_x, 64, ImGuiInputTextFlags_CharsDecimal);
+            ImGui::SameLine();
+            ImGui::TextUnformatted("X");
+            ImGui::SameLine();
+            ImGui::InputText("##Output_Resultion_y", buf_res_y, 64, ImGuiInputTextFlags_CharsDecimal);
+            ImGui::PopItemWidth();
+        ImGui::EndDisabled(); // disable if resultion not custom
+        if (g_media_editor_settings.OutputVideoResolutionIndex == 0)
+        {
+            g_media_editor_settings.OutputVideoResolutionWidth = atoi(buf_res_x);
+            g_media_editor_settings.OutputVideoResolutionHeight = atoi(buf_res_y);
+        }
+
+        if (ImGui::Combo("Pixel Aspect Ratio", &g_media_editor_settings.OutputVideoPixelAspectRatioIndex, pixel_aspect_items, IM_ARRAYSIZE(pixel_aspect_items)))
+        {
+            SetPixelAspectRatio(g_media_editor_settings.OutputVideoPixelAspectRatio, g_media_editor_settings.OutputVideoPixelAspectRatioIndex);
+        }
+        ImGui::BeginDisabled(g_media_editor_settings.OutputVideoPixelAspectRatioIndex != 0);
+            ImGui::PushItemWidth(60);
+            ImGui::InputText("##OutputPixelAspectRatio_x", buf_par_x, 64, ImGuiInputTextFlags_CharsDecimal);
+            ImGui::SameLine();
+            ImGui::TextUnformatted(":");
+            ImGui::SameLine();
+            ImGui::InputText("##OutputPixelAspectRatio_y", buf_par_y, 64, ImGuiInputTextFlags_CharsDecimal);
+            ImGui::PopItemWidth();
+        ImGui::EndDisabled(); // disable if pixel aspact ratio is not custom
+        if (g_media_editor_settings.OutputVideoPixelAspectRatioIndex == 0)
+        {
+            g_media_editor_settings.OutputVideoPixelAspectRatio.num = atoi(buf_par_x);
+            g_media_editor_settings.OutputVideoPixelAspectRatio.den = atoi(buf_par_y);
+        }
+
+        if (ImGui::Combo("Video Frame Rate", &g_media_editor_settings.OutputVideoFrameRateIndex, frame_rate_items, IM_ARRAYSIZE(frame_rate_items)))
+        {
+            SetVideoFrameRate(g_media_editor_settings.OutputVideoFrameRate, g_media_editor_settings.OutputVideoFrameRateIndex);
+        }
+        ImGui::BeginDisabled(g_media_editor_settings.OutputVideoFrameRateIndex != 0);
+            ImGui::PushItemWidth(60);
+            ImGui::InputText("##OutputVideoFrameRate_x", buf_fmr_x, 64, ImGuiInputTextFlags_CharsDecimal);
+            ImGui::SameLine();
+            ImGui::TextUnformatted(":");
+            ImGui::SameLine();
+            ImGui::InputText("##OutputVideoFrameRate_y", buf_fmr_y, 64, ImGuiInputTextFlags_CharsDecimal);
+            ImGui::PopItemWidth();
+        ImGui::EndDisabled(); // disable if frame rate is not custom
+        if (g_media_editor_settings.OutputVideoFrameRateIndex == 0)
+        {
+            g_media_editor_settings.OutputVideoFrameRate.num = atoi(buf_fmr_x);
+            g_media_editor_settings.OutputVideoFrameRate.den = atoi(buf_fmr_y);
+        }
+    ImGui::EndDisabled(); // disable if param as timline
+    ImGui::EndDisabled(); // disable if disable video
     ImGui::Separator();
 
     // Audio Setting
@@ -1819,8 +1985,65 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
     ImGui::Checkbox("Export Audio##export_audio", &timeline->bExportAudio);
     ImGui::Separator();
     if (timeline->bExportAudio) ImGui::BeginDisabled(false); else ImGui::BeginDisabled(true);
-    // TODO::Dicky add audio encode setting
-    ImGui::EndDisabled();
+    
+    // audio codec select
+    ImGui::TextUnformatted("Codec:"); ImGui::SameLine(0.f, 10.f);
+    auto audio_codec_getter = [](void* data, int idx, const char** out_text){
+        output_codec * codecs = (output_codec *)data;
+        *out_text = codecs[idx].name.c_str();
+        return true;
+    };
+    if (ImGui::Combo("##audio_codec", &g_media_editor_settings.OutputAudioCodecIndex, audio_codec_getter, (void *)OutputAudioCodec, IM_ARRAYSIZE(OutputAudioCodec)))
+    {
+        g_media_editor_settings.OutputAudioCodecTypeIndex = 0;  // reset codec type if we change codec
+    }
+    // audio codec type select
+    if (OutputAudioCodec[g_media_editor_settings.OutputAudioCodecIndex].name.compare("PCM") == 0)
+    {
+        ImGui::TextUnformatted("Codec Type:"); ImGui::SameLine(0.f, 10.f);
+        auto pcm_codec_getter = [](void* data, int idx, const char** out_text){
+            output_codec * codecs = (output_codec *)data;
+            *out_text = codecs[idx].name.c_str();
+            return true;
+        };
+        ImGui::Combo("##pcm_audio_codec", &g_media_editor_settings.OutputAudioCodecTypeIndex, pcm_codec_getter, (void *)OutputAudioCodecPCM, IM_ARRAYSIZE(OutputAudioCodecPCM));
+    }
+    else
+    {
+        string codecHint = OutputAudioCodec[g_media_editor_settings.OutputAudioCodecIndex].codec;
+        std::vector<MediaEncoder::EncoderDescription> encoderDescList;
+        if (MediaEncoder::FindEncoder(codecHint, encoderDescList))
+        {
+            ImGui::TextUnformatted("Codec Type:"); ImGui::SameLine(0.f, 10.f);
+            auto codec_type_getter = [](void* data, int idx, const char** out_text){
+                std::vector<MediaEncoder::EncoderDescription> * codecs = (std::vector<MediaEncoder::EncoderDescription>*)data;
+                *out_text = codecs->at(idx).longName.c_str();
+                return true;
+            };
+            ImGui::Combo("##audio_codec_type", &g_media_editor_settings.OutputAudioCodecTypeIndex, codec_type_getter, (void *)&encoderDescList, encoderDescList.size());
+        }
+    }
+    // Audio codec global
+    ImGui::TextUnformatted("Audio Setting: "); ImGui::SameLine(0.f, 0.f);
+    ImGui::Checkbox("as Timeline##audio_setting", &g_media_editor_settings.OutputAudioSettingAsTimeline);
+    if (g_media_editor_settings.OutputAudioSettingAsTimeline)
+    {
+        g_media_editor_settings.OutputAudioSampleRateIndex = GetSampleRateIndex(g_media_editor_settings.AudioSampleRate);
+        g_media_editor_settings.OutputAudioSampleRate = g_media_editor_settings.AudioSampleRate;
+        g_media_editor_settings.OutputAudioChannelsIndex = GetChannelIndex(g_media_editor_settings.AudioChannels);
+        g_media_editor_settings.OutputAudioChannels = g_media_editor_settings.AudioChannels;
+    }
+    ImGui::BeginDisabled(g_media_editor_settings.OutputAudioSettingAsTimeline);
+        if (ImGui::Combo("Audio Sample Rate", &g_media_editor_settings.OutputAudioSampleRateIndex, audio_sample_rate_items, IM_ARRAYSIZE(audio_sample_rate_items)))
+        {
+            SetSampleRate(g_media_editor_settings.OutputAudioSampleRate, g_media_editor_settings.OutputAudioSampleRateIndex);
+        }
+        if (ImGui::Combo("Audio Channels", &g_media_editor_settings.OutputAudioChannelsIndex, audio_channels_items, IM_ARRAYSIZE(audio_channels_items)))
+        {
+            SetAudioChannel(g_media_editor_settings.OutputAudioChannels, g_media_editor_settings.OutputAudioChannelsIndex);
+        }
+    ImGui::EndDisabled(); // disable if param as timline
+    ImGui::EndDisabled(); // disable if no audio
     ImGui::Separator();
 
     // File dialog
@@ -3344,6 +3567,30 @@ void Application_SetupContext(ImGuiContext* ctx)
         else if (sscanf(line, "CIEMode=%d", &val_int) == 1) { setting->CIEMode = val_int; }
         else if (sscanf(line, "CIEGamuts=%d", &val_int) == 1) { setting->CIEGamuts = val_int; }
         else if (sscanf(line, "VectorIntensity=%f", &val_float) == 1) { setting->VectorIntensity = val_float; }
+        else if (sscanf(line, "OutputFormatIndex=%d", &val_int) == 1) { setting->OutputFormatIndex = val_int; }
+        else if (sscanf(line, "OutputVideoCodecIndex=%d", &val_int) == 1) { setting->OutputVideoCodecIndex = val_int; }
+        else if (sscanf(line, "OutputVideoCodecTypeIndex=%d", &val_int) == 1) { setting->OutputVideoCodecTypeIndex = val_int; }
+        else if (sscanf(line, "OutputVideoCodecProfileIndex=%d", &val_int) == 1) { setting->OutputVideoCodecProfileIndex = val_int; }
+        else if (sscanf(line, "OutputVideoCodecPresetIndex=%d", &val_int) == 1) { setting->OutputVideoCodecPresetIndex = val_int; }
+        else if (sscanf(line, "OutputVideoCodecTuneIndex=%d", &val_int) == 1) { setting->OutputVideoCodecTuneIndex = val_int; }
+        else if (sscanf(line, "OutputVideoCodecCompressionIndex=%d", &val_int) == 1) { setting->OutputVideoCodecCompressionIndex = val_int; }
+        else if (sscanf(line, "OutputVideoSettingAsTimeline=%d", &val_int) == 1) { setting->OutputVideoSettingAsTimeline = val_int == 1; }
+        else if (sscanf(line, "OutputVideoResolutionIndex=%d", &val_int) == 1) { setting->OutputVideoResolutionIndex = val_int; }
+        else if (sscanf(line, "OutputVideoResolutionWidth=%d", &val_int) == 1) { setting->OutputVideoResolutionWidth = val_int; }
+        else if (sscanf(line, "OutputVideoResolutionHeight=%d", &val_int) == 1) { setting->OutputVideoResolutionHeight = val_int; }
+        else if (sscanf(line, "OutputVideoPixelAspectRatioIndex=%d", &val_int) == 1) { setting->OutputVideoPixelAspectRatioIndex = val_int; }
+        else if (sscanf(line, "OutputVideoPixelAspectRatioNum=%d", &val_int) == 1) { setting->OutputVideoPixelAspectRatio.num = val_int; }
+        else if (sscanf(line, "OutputVideoPixelAspectRatioDen=%d", &val_int) == 1) { setting->OutputVideoPixelAspectRatio.den = val_int; }
+        else if (sscanf(line, "OutputVideoFrameRateIndex=%d", &val_int) == 1) { setting->OutputVideoFrameRateIndex = val_int; }
+        else if (sscanf(line, "OutputVideoFrameRateNum=%d", &val_int) == 1) { setting->OutputVideoFrameRate.num = val_int; }
+        else if (sscanf(line, "OutputVideoFrameRateDen=%d", &val_int) == 1) { setting->OutputVideoFrameRate.den = val_int; }
+        else if (sscanf(line, "OutputAudioCodecIndex=%d", &val_int) == 1) { setting->OutputAudioCodecIndex = val_int; }
+        else if (sscanf(line, "OutputAudioCodecTypeIndex=%d", &val_int) == 1) { setting->OutputAudioCodecTypeIndex = val_int; }
+        else if (sscanf(line, "OutputAudioSettingAsTimeline=%d", &val_int) == 1) { setting->OutputAudioSettingAsTimeline = val_int == 1; }
+        else if (sscanf(line, "OutputAudioSampleRateIndex=%d", &val_int) == 1) { setting->OutputAudioSampleRateIndex = val_int; }
+        else if (sscanf(line, "OutputAudioSampleRate=%d", &val_int) == 1) { setting->OutputAudioSampleRate = val_int; }
+        else if (sscanf(line, "OutputAudioChannelsIndex=%d", &val_int) == 1) { setting->OutputAudioChannelsIndex = val_int; }
+        else if (sscanf(line, "OutputAudioChannels=%d", &val_int) == 1) { setting->OutputAudioChannels = val_int; }
         g_new_setting = g_media_editor_settings;
     };
     setting_ini_handler.WriteAllFn = [](ImGuiContext* ctx, ImGuiSettingsHandler* handler, ImGuiTextBuffer* out_buf)
@@ -3383,6 +3630,30 @@ void Application_SetupContext(ImGuiContext* ctx)
         out_buf->appendf("CIEMode=%d\n", g_media_editor_settings.CIEMode);
         out_buf->appendf("CIEGamuts=%d\n", g_media_editor_settings.CIEGamuts);
         out_buf->appendf("VectorIntensity=%f\n", g_media_editor_settings.VectorIntensity);
+        out_buf->appendf("OutputFormatIndex=%d\n", g_media_editor_settings.OutputFormatIndex);
+        out_buf->appendf("OutputVideoCodecIndex=%d\n", g_media_editor_settings.OutputVideoCodecIndex);
+        out_buf->appendf("OutputVideoCodecTypeIndex=%d\n", g_media_editor_settings.OutputVideoCodecTypeIndex);
+        out_buf->appendf("OutputVideoCodecProfileIndex=%d\n", g_media_editor_settings.OutputVideoCodecProfileIndex);
+        out_buf->appendf("OutputVideoCodecPresetIndex=%d\n", g_media_editor_settings.OutputVideoCodecPresetIndex);
+        out_buf->appendf("OutputVideoCodecTuneIndex=%d\n", g_media_editor_settings.OutputVideoCodecTuneIndex);
+        out_buf->appendf("OutputVideoCodecCompressionIndex=%d\n", g_media_editor_settings.OutputVideoCodecCompressionIndex);
+        out_buf->appendf("OutputVideoSettingAsTimeline=%d\n", g_media_editor_settings.OutputVideoSettingAsTimeline ? 1 : 0);
+        out_buf->appendf("OutputVideoResolutionIndex=%d\n", g_media_editor_settings.OutputVideoResolutionIndex);
+        out_buf->appendf("OutputVideoResolutionWidth=%d\n", g_media_editor_settings.OutputVideoResolutionWidth);
+        out_buf->appendf("OutputVideoResolutionHeight=%d\n", g_media_editor_settings.OutputVideoResolutionHeight);
+        out_buf->appendf("OutputVideoPixelAspectRatioIndex=%d\n", g_media_editor_settings.OutputVideoPixelAspectRatioIndex);
+        out_buf->appendf("OutputVideoPixelAspectRatioNum=%d\n", g_media_editor_settings.OutputVideoPixelAspectRatio.num);
+        out_buf->appendf("OutputVideoPixelAspectRatioDen=%d\n", g_media_editor_settings.OutputVideoPixelAspectRatio.den);
+        out_buf->appendf("OutputVideoFrameRateIndex=%d\n", g_media_editor_settings.OutputVideoFrameRateIndex);
+        out_buf->appendf("OutputVideoFrameRateNum=%d\n", g_media_editor_settings.OutputVideoFrameRate.num);
+        out_buf->appendf("OutputVideoFrameRateDen=%d\n", g_media_editor_settings.OutputVideoFrameRate.den);
+        out_buf->appendf("OutputAudioCodecIndex=%d\n", g_media_editor_settings.OutputAudioCodecIndex);
+        out_buf->appendf("OutputAudioCodecTypeIndex=%d\n", g_media_editor_settings.OutputAudioCodecTypeIndex);
+        out_buf->appendf("OutputAudioSettingAsTimeline=%d\n", g_media_editor_settings.OutputAudioSettingAsTimeline ? 1 : 0);
+        out_buf->appendf("OutputAudioSampleRateIndex=%d\n", g_media_editor_settings.OutputAudioSampleRateIndex);
+        out_buf->appendf("OutputAudioSampleRate=%d\n", g_media_editor_settings.OutputAudioSampleRate);
+        out_buf->appendf("OutputAudioChannelsIndex=%d\n", g_media_editor_settings.OutputAudioChannelsIndex);
+        out_buf->appendf("OutputAudioChannels=%d\n", g_media_editor_settings.OutputAudioChannels);
         out_buf->append("\n");
     };
     setting_ini_handler.ApplyAllFn = [](ImGuiContext* ctx, ImGuiSettingsHandler* handler)
