@@ -12,6 +12,7 @@
 #include <Vector_vulkan.h>
 #endif
 #include "MediaTimeline.h"
+#include "MediaEncoder.h"
 #include "FFUtils.h"
 #include "Logger.h"
 #include <sstream>
@@ -20,6 +21,61 @@
 #define DEFAULT_MAIN_VIEW_HEIGHT    1024
 
 using namespace MediaTimeline;
+
+typedef struct _output_format
+{
+    std::string name;
+    std::string surfix;
+} output_format;
+
+static const output_format OutFormats[] = 
+{
+    {"QuickTime", "mov"},
+    {"MP4 (MPEG-4 Part 14)", "mp4"},
+    {"Matroska", "mkv"},
+    {"Material eXchange Format", "mxf"},
+    {"MPEG-2 Transport Stream", "ts"},
+    {"WebM", "webm"},
+};
+
+typedef struct _output_video_codec
+{
+    std::string name;
+    std::string codec;
+} output_video_codec;
+
+static const output_video_codec OutputVideoCodec[] = 
+{
+    {"H.264 / AVC / MPEG-4 AVC / MPEG-4 part 10", "h264"},
+    {"H.265 / HEVC", "hevc"},
+    {"Apple ProRes", "prores"},
+    {"VP9", "vp9"},
+    {"DPX (Digital Picture Exchange) image", "dpx"},
+    {"OpenEXR image", "exr"},
+    {"VC3/DNxHD", "dnxhd"},
+    {"Uncompressed", ""},
+};
+
+static const output_video_codec OutputVideoCodecUncompressed[] = 
+{
+    {"RGB 10-bit", "r210"},
+    {"YUV packed 4:2:0", "yuv4"},
+    {"YUV Packed 4:4:4", "v308"},
+    {"YUV packed QT 4:4:4:4", "v408"},
+    {"YUV 4:2:2 10-bit", "v210"},
+    {"YUV 4:4:4 10-bit", "v410"},
+    {"YUV 4:1:1 12-bit", "y41p"},
+    {"Packed MS 4:4:4:4", "ayuv"},
+};
+
+static const char* x264_profile[] = { "baseline", "main", "high", "high10", "high422", "high444" };
+static const char* x264_preset[] = { "ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow", "placebo" };
+static const char* x264_tune[] = { "film", "animation", "grain", "stillimage", "psnr", "ssim", "fastdecode", "zerolatency" };
+static const char* x265_profile[] = { "main", "main10", "mainstillpicture" };
+static const char* x265_preset[] = { "ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow", "placebo" };
+static const char* x265_tune[] = { "psnr", "ssim", "grain", "zerolatency", "fastdecode" };
+static const char* v264_profile[] = { "auto", "baseline", "main", "high", "extended" };
+static const char* v265_profile[] = { "auto", "main", "main10" };
 
 static const char* color_system_items[] = { "NTSC", "EBU", "SMPTE", "SMPTE 240M", "APPLE", "wRGB", "CIE1931", "Rec709", "Rec2020", "DCIP3" };
 static const char* cie_system_items[] = { "XYY", "UCS", "LUV" };
@@ -131,6 +187,14 @@ struct MediaEditorSettings
 
     // Vector Scope tools
     float VectorIntensity {0.5};
+
+    // Output configure
+    int OutputFormatIndex {0};
+    int OutputVideoCodecIndex {0};
+    int OutputVideoCodecTypeIndex {0};
+    int OutputVideoCodecProfileIndex {INT32_MIN};
+    int OutputVideoCodecPresetIndex {INT32_MIN};
+    int OutputVideoCodecTuneIndex {INT32_MIN};
 
     MediaEditorSettings() {}
 };
@@ -1600,12 +1664,153 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
                                                     ImGuiFileDialogFlags_ShowBookmark);
     }
 
+    // Format Setting
+    ImGui::TextUnformatted("File Format:"); ImGui::SameLine(0.f, 10.f);
+    auto format_getter = [](void* data, int idx, const char** out_text){
+        output_format * formats = (output_format *)data;
+        *out_text = formats[idx].name.c_str();
+        return true;
+    };
+    ImGui::Combo("##file_format", &g_media_editor_settings.OutputFormatIndex, format_getter, (void *)OutFormats, IM_ARRAYSIZE(OutFormats));
+
     // Video Setting
     ImGui::Dummy(ImVec2(0, 20));
     ImGui::Checkbox("Export Video##export_video", &timeline->bExportVideo);
     ImGui::Separator();
     if (timeline->bExportVideo) ImGui::BeginDisabled(false); else ImGui::BeginDisabled(true);
-    // TODO::Dicky add video encode setting
+    
+    // video codec select
+    ImGui::TextUnformatted("Codec:"); ImGui::SameLine(0.f, 10.f);
+    auto video_codec_getter = [](void* data, int idx, const char** out_text){
+        output_video_codec * codecs = (output_video_codec *)data;
+        *out_text = codecs[idx].name.c_str();
+        return true;
+    };
+    if (ImGui::Combo("##video_codec", &g_media_editor_settings.OutputVideoCodecIndex, video_codec_getter, (void *)OutputVideoCodec, IM_ARRAYSIZE(OutputVideoCodec)))
+    {
+        g_media_editor_settings.OutputVideoCodecTypeIndex = 0;  // reset codec type if we change codec
+        g_media_editor_settings.OutputVideoCodecProfileIndex = INT32_MIN;
+        g_media_editor_settings.OutputVideoCodecPresetIndex = INT32_MIN;
+        g_media_editor_settings.OutputVideoCodecTuneIndex = INT32_MIN;
+    }
+
+    // video codec type select
+    if (OutputVideoCodec[g_media_editor_settings.OutputVideoCodecIndex].name.compare("Uncompressed") == 0)
+    {
+        ImGui::TextUnformatted("Codec Type:"); ImGui::SameLine(0.f, 10.f);
+        auto uncompressed_codec_getter = [](void* data, int idx, const char** out_text){
+            output_video_codec * codecs = (output_video_codec *)data;
+            *out_text = codecs[idx].name.c_str();
+            return true;
+        };
+        ImGui::Combo("##uncompressed_video_codec", &g_media_editor_settings.OutputVideoCodecTypeIndex, uncompressed_codec_getter, (void *)OutputVideoCodecUncompressed, IM_ARRAYSIZE(OutputVideoCodecUncompressed));
+    }
+    else
+    {
+        string codecHint = OutputVideoCodec[g_media_editor_settings.OutputVideoCodecIndex].codec;
+        std::vector<MediaEncoder::EncoderDescription> encoderDescList;
+        if (MediaEncoder::FindEncoder(codecHint, encoderDescList))
+        {
+            ImGui::TextUnformatted("Codec Type:"); ImGui::SameLine(0.f, 10.f);
+            auto codec_type_getter = [](void* data, int idx, const char** out_text){
+                std::vector<MediaEncoder::EncoderDescription> * codecs = (std::vector<MediaEncoder::EncoderDescription>*)data;
+                *out_text = codecs->at(idx).longName.c_str();
+                return true;
+            };
+            ImGui::Combo("##video_codec_type", &g_media_editor_settings.OutputVideoCodecTypeIndex, codec_type_getter, (void *)&encoderDescList, encoderDescList.size());
+
+            if (encoderDescList[g_media_editor_settings.OutputVideoCodecTypeIndex].codecName.compare("libx264") == 0 ||
+                encoderDescList[g_media_editor_settings.OutputVideoCodecTypeIndex].codecName.compare("libx264rgb") == 0)
+            {
+                // libx264 setting
+                if (g_media_editor_settings.OutputVideoCodecProfileIndex == INT32_MIN) g_media_editor_settings.OutputVideoCodecProfileIndex = 1;
+                if (g_media_editor_settings.OutputVideoCodecPresetIndex == INT32_MIN) g_media_editor_settings.OutputVideoCodecPresetIndex = 5;
+                if (g_media_editor_settings.OutputVideoCodecTuneIndex == INT32_MIN) g_media_editor_settings.OutputVideoCodecTuneIndex = 0;
+                ImGui::TextUnformatted("Codec Profile:"); ImGui::SameLine(0.f, 10.f);
+                ImGui::Combo("##x264_profile", &g_media_editor_settings.OutputVideoCodecProfileIndex, x264_profile, IM_ARRAYSIZE(x264_profile));
+                ImGui::TextUnformatted("Codec Preset:"); ImGui::SameLine(0.f, 10.f);
+                ImGui::Combo("##x264_preset", &g_media_editor_settings.OutputVideoCodecPresetIndex, x264_preset, IM_ARRAYSIZE(x264_preset));
+                ImGui::TextUnformatted("Codec Tune:"); ImGui::SameLine(0.f, 10.f);
+                ImGui::Combo("##x264_Tune", &g_media_editor_settings.OutputVideoCodecTuneIndex, x264_tune, IM_ARRAYSIZE(x264_tune));
+            }
+            else if (encoderDescList[g_media_editor_settings.OutputVideoCodecTypeIndex].codecName.compare("libx265") == 0)
+            {
+                // libx265 setting
+                if (g_media_editor_settings.OutputVideoCodecProfileIndex == INT32_MIN) g_media_editor_settings.OutputVideoCodecProfileIndex = 0;
+                if (g_media_editor_settings.OutputVideoCodecPresetIndex == INT32_MIN) g_media_editor_settings.OutputVideoCodecPresetIndex = 5;
+                if (g_media_editor_settings.OutputVideoCodecTuneIndex == INT32_MIN) g_media_editor_settings.OutputVideoCodecTuneIndex = 4;
+                ImGui::TextUnformatted("Codec Profile:"); ImGui::SameLine(0.f, 10.f);
+                ImGui::Combo("##x265_profile", &g_media_editor_settings.OutputVideoCodecProfileIndex, x265_profile, IM_ARRAYSIZE(x265_profile));
+                ImGui::TextUnformatted("Codec Preset:"); ImGui::SameLine(0.f, 10.f);
+                ImGui::Combo("##x265_preset", &g_media_editor_settings.OutputVideoCodecPresetIndex, x265_preset, IM_ARRAYSIZE(x265_preset));
+                ImGui::TextUnformatted("Codec Tune:"); ImGui::SameLine(0.f, 10.f);
+                ImGui::Combo("##x265_Tune", &g_media_editor_settings.OutputVideoCodecTuneIndex, x265_tune, IM_ARRAYSIZE(x265_tune));
+            }
+            else if (encoderDescList[g_media_editor_settings.OutputVideoCodecTypeIndex].codecName.compare("h264_videotoolbox") == 0)
+            {
+                if (g_media_editor_settings.OutputVideoCodecProfileIndex == INT32_MIN) g_media_editor_settings.OutputVideoCodecProfileIndex = 0;
+                ImGui::TextUnformatted("Codec Profile:"); ImGui::SameLine(0.f, 10.f);
+                ImGui::Combo("##v264_profile", &g_media_editor_settings.OutputVideoCodecProfileIndex, v264_profile, IM_ARRAYSIZE(v264_profile));
+            }
+            else if (encoderDescList[g_media_editor_settings.OutputVideoCodecTypeIndex].codecName.compare("hevc_videotoolbox") == 0)
+            {
+                if (g_media_editor_settings.OutputVideoCodecProfileIndex == INT32_MIN) g_media_editor_settings.OutputVideoCodecProfileIndex = 0;
+                ImGui::TextUnformatted("Codec Profile:"); ImGui::SameLine(0.f, 10.f);
+                ImGui::Combo("##v265_profile", &g_media_editor_settings.OutputVideoCodecProfileIndex, v265_profile, IM_ARRAYSIZE(v265_profile));
+            }
+            else
+            {
+                for (auto opt : encoderDescList[g_media_editor_settings.OutputVideoCodecTypeIndex].optDescList)
+                {
+                    if (opt.name.compare("profile") == 0)
+                    {
+                        if (g_media_editor_settings.OutputVideoCodecProfileIndex == INT32_MIN)
+                        {
+                            for (int i = 0; i < opt.enumValues.size(); i++)
+                            {
+                                if (opt.defaultValue.numval.i64 == opt.enumValues[i].value)
+                                {
+                                    g_media_editor_settings.OutputVideoCodecProfileIndex = i;
+                                    break;
+                                }
+                            }
+                        }
+                        ImGui::TextUnformatted("Codec Profile:"); ImGui::SameLine(0.f, 10.f);
+                        auto codec_profile_getter = [](void* data, int idx, const char** out_text){
+                            std::vector<MediaEncoder::Option::EnumValue> * profiles = (std::vector<MediaEncoder::Option::EnumValue>*)data;
+                            *out_text = profiles->at(idx).name.c_str();
+                            return true;
+                        };
+                        ImGui::Combo("##video_codec_profile", &g_media_editor_settings.OutputVideoCodecProfileIndex, codec_profile_getter, (void *)&opt.enumValues, opt.enumValues.size());
+                    }
+                    if (opt.name.compare("preset") == 0)
+                    {
+                        if (g_media_editor_settings.OutputVideoCodecPresetIndex == INT32_MIN)
+                        {
+                            for (int i = 0; i < opt.enumValues.size(); i++)
+                            {
+                                if (opt.defaultValue.numval.i64 == opt.enumValues[i].value)
+                                {
+                                    g_media_editor_settings.OutputVideoCodecPresetIndex = i;
+                                    break;
+                                }
+                            }
+                        }
+                        ImGui::TextUnformatted("Codec Preset:"); ImGui::SameLine(0.f, 10.f);
+                        auto codec_preset_getter = [](void* data, int idx, const char** out_text){
+                            std::vector<MediaEncoder::Option::EnumValue> * preset = (std::vector<MediaEncoder::Option::EnumValue>*)data;
+                            *out_text = preset->at(idx).name.c_str();
+                            return true;
+                        };
+                        ImGui::Combo("##video_codec_preset", &g_media_editor_settings.OutputVideoCodecPresetIndex, codec_preset_getter, (void *)&opt.enumValues, opt.enumValues.size());
+                    }
+                }
+            }
+        }
+    }
+
+    // Video codec global
+
     ImGui::EndDisabled();
     ImGui::Separator();
 

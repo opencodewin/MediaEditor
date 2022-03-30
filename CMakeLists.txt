@@ -104,6 +104,7 @@ set(MEDIA_EDITOR_SRCS
     SnapshotGenerator.cpp
     MediaParser.cpp
     MediaReader.cpp
+    MediaEncoder.cpp
     AudioRender_Impl_Sdl2.cpp
     FFUtils.cpp
     Logger.cpp
@@ -115,6 +116,7 @@ set(MEDIA_EDITOR_INCS
     MediaOverview.h
     MediaSnapshot.h
     MediaReader.h
+    MediaEncoder.h
     AudioRender_Impl_Sdl2.hpp
     AudioRender.hpp
     FFUtils.h
