@@ -36,6 +36,8 @@ static const output_format OutFormats[] =
     {"Material eXchange Format", "mxf"},
     {"MPEG-2 Transport Stream", "ts"},
     {"WebM", "webm"},
+    //{"PNG", "png"},
+    //{"TIFF", "tiff"}
 };
 
 typedef struct _output_codec
