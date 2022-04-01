@@ -1956,6 +1956,21 @@ void EditingVideoOverlap::CalcDisplayParams()
     mSsGen1->ConfigSnapWindow(snapWndSize, snapCntInView);
     mSsGen2->ConfigSnapWindow(snapWndSize, snapCntInView);
 }
+
+void EditingVideoOverlap::Seek(int64_t pos)
+{
+    static int64_t last_seek_pos = -1;
+    if (last_seek_pos != pos)
+    {
+        last_seek_pos = pos;
+    }
+    else
+    {
+        //Logger::Log(Logger::DEBUG) << "[Dicky Debug]: Edit Video Clip Seek " << pos << std::endl;
+        return;
+    }
+    mCurrent = pos;
+}
 }// namespace MediaTimeline
 
 namespace MediaTimeline
@@ -5498,7 +5513,7 @@ bool DrawClipTimeLine(BaseEditingClip * editingClip)
     //header
     //header time and lines
     ImVec2 headerSize(window_size.x, (float)headHeight);
-    ImGui::InvisibleButton("ClipTopBar", headerSize);
+    ImGui::InvisibleButton("ClipTimelineBar#filter", headerSize);
     draw_list->AddRectFilled(window_pos, window_pos + headerSize, COL_DARK_ONE, 0);
 
     ImRect movRect(window_pos, window_pos + window_size);
@@ -5644,11 +5659,11 @@ bool DrawOverlapTimeLine(BaseEditingOverlap * overlap)
     //header
     //header time and lines
     ImVec2 headerSize(window_size.x, (float)headHeight);
-    ImGui::InvisibleButton("ClipTopBar", headerSize);
+    ImGui::InvisibleButton("ClipTimelineBar#overlap", headerSize);
     draw_list->AddRectFilled(window_pos, window_pos + headerSize, COL_DARK_ONE, 0);
 
-    ImRect topRect(window_pos, window_pos + headerSize);
-    if (!MovingCurrentTime && overlap->mCurrent >= start && topRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && isFocused)
+    ImRect movRect(window_pos, window_pos + window_size);
+    if (!MovingCurrentTime && overlap->mCurrent >= start && movRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && isFocused)
     {
         MovingCurrentTime = true;
         overlap->bSeeking = true;
@@ -5656,8 +5671,7 @@ bool DrawOverlapTimeLine(BaseEditingOverlap * overlap)
     if (MovingCurrentTime && duration)
     {
         auto oldPos = overlap->mCurrent;
-        auto newPos = (int64_t)((io.MousePos.x - topRect.Min.x) / msPixelWidth) + start;
-        //alignTime(overlap->mCurrent, clip->mClipFrameRate);
+        auto newPos = (int64_t)((io.MousePos.x - movRect.Min.x) / msPixelWidth) + start;
         if (newPos < start)
             newPos = start;
         if (newPos >= end)

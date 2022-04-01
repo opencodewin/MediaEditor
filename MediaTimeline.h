@@ -490,7 +490,7 @@ struct EditingVideoOverlap : BaseEditingOverlap
     EditingVideoOverlap(Overlap* ovlp);
     virtual ~EditingVideoOverlap();
 
-    void Seek(int64_t pos) override {}
+    void Seek(int64_t pos) override;
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom) override;
 
     void CalcDisplayParams();
