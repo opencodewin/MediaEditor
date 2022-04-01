@@ -88,6 +88,7 @@ struct SnapshotGenerator
 
         virtual ViewerHolder CreateViewer(double pos = 0) = 0;
         virtual void Release() = 0;
+        virtual MediaParserHolder GetMediaParser() const = 0;
 
         virtual std::string GetError() const = 0;
     };

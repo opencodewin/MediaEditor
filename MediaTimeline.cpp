@@ -1812,6 +1812,150 @@ void Overlap::Save(imgui_json::value& value)
     }
 }
 
+EditingVideoOverlap::EditingVideoOverlap(Overlap* ovlp)
+    : BaseEditingOverlap(ovlp)
+{
+    TimeLine* timeline = (TimeLine*)(ovlp->mHandle);
+    VideoClip* vidclip1 = (VideoClip*)timeline->FindClipByID(ovlp->m_Clip.first);
+    VideoClip* vidclip2 = (VideoClip*)timeline->FindClipByID(ovlp->m_Clip.second);
+    if (vidclip1 && vidclip2)
+    {
+        mClip1 = vidclip1; mClip2 = vidclip2;
+        mSsGen1 = CreateSnapshotGenerator();
+        if (!mSsGen1->Open(vidclip1->mSsViewer->GetMediaParser()))
+            throw std::runtime_error("FAILED to open the snapshot generator for the 1st video clip!");
+        mSsGen1->SetCacheFactor(1.0);
+        mSsGen1->SetSnapshotResizeFactor(0.1, 0.1);
+        int64_t startOffset = vidclip1->mStartOffset+ovlp->mStart-vidclip1->mStart;
+        mViewer1 = mSsGen1->CreateViewer(startOffset);
+        mSsGen2 = CreateSnapshotGenerator();
+        if (!mSsGen2->Open(vidclip2->mSsViewer->GetMediaParser()))
+            throw std::runtime_error("FAILED to open the snapshot generator for the 2nd video clip!");
+        mSsGen2->SetCacheFactor(1.0);
+        mSsGen2->SetSnapshotResizeFactor(0.1, 0.1);
+        startOffset = vidclip2->mStartOffset+ovlp->mStart-vidclip2->mStart;
+        mViewer2 = mSsGen2->CreateViewer(startOffset);
+        mStart = ovlp->mStart;
+        mEnd = ovlp->mEnd;
+        mDuration = mEnd-mStart;
+    }
+    else
+    {
+        Logger::Log(Logger::Error) << "FAILED to initialize 'EditingVideoOverlap' instance! One or both of the source video clip can not be found." << std::endl;
+    }
+}
+
+EditingVideoOverlap::~EditingVideoOverlap()
+{
+}
+
+void EditingVideoOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom)
+{
+    // update display params
+    bool ovlpRngChanged = mOvlp->mStart != mStart || mOvlp->mEnd != mEnd;
+    if (ovlpRngChanged)
+    {
+        mStart = mOvlp->mStart;
+        mEnd = mOvlp->mEnd;
+        mDuration = mEnd - mStart;
+    }
+    ImVec2 viewWndSize = { rightBottom.x - leftTop.x, rightBottom.y - leftTop.y };
+    bool vwndChanged = mViewWndSize.x != viewWndSize.x || mViewWndSize.y != viewWndSize.y;
+    if (vwndChanged && viewWndSize.x != 0 && viewWndSize.y != 0)
+    {
+        mViewWndSize = viewWndSize;
+        // TODO: need to consider the situation that 1st and 2nd video doesn't have the same size. (wyvern)
+        const MediaInfo::VideoStream* vidStream = mSsGen1->GetVideoStream();
+        if (vidStream->width == 0 || vidStream->height == 0)
+        {
+            Logger::Log(Logger::Error) << "Snapshot video size is INVALID! Width or height is ZERO." << std::endl;
+            return;
+        }
+        mSnapSize.y = viewWndSize.y/2;
+        mSnapSize.x = mSnapSize.y * vidStream->width / vidStream->height;
+    }
+    if (mViewWndSize.x == 0 || mViewWndSize.y == 0)
+        return;
+    if (ovlpRngChanged || vwndChanged)
+        CalcDisplayParams();
+
+    // get snapshot images
+    int64_t startOffset = mClip1->mStartOffset+mOvlp->mStart-mClip1->mStart;
+    std::vector<SnapshotGenerator::ImageHolder> snapImages1;
+    if (!mViewer1->GetSnapshots((double)startOffset/1000, snapImages1))
+    {
+        Logger::Log(Logger::Error) << mViewer1->GetError() << std::endl;
+        return;
+    }
+    mViewer1->UpdateSnapshotTexture(snapImages1);
+    startOffset = mClip2->mStartOffset+mOvlp->mStart-mClip2->mStart;
+    std::vector<SnapshotGenerator::ImageHolder> snapImages2;
+    if (!mViewer2->GetSnapshots((double)startOffset/1000, snapImages2))
+    {
+        Logger::Log(Logger::Error) << mViewer2->GetError() << std::endl;
+        return;
+    }
+    mViewer2->UpdateSnapshotTexture(snapImages2);
+
+    // draw snapshot images
+    ImVec2 imgLeftTop = leftTop;
+    auto imgIter1 = snapImages1.begin();
+    auto imgIter2 = snapImages2.begin();
+    while (imgIter1 != snapImages1.end() || imgIter2 != snapImages2.end())
+    {
+        ImVec2 snapDispSize = mSnapSize;
+        ImVec2 uvMin{0, 0}, uvMax{1, 1};
+        if (imgLeftTop.x+mSnapSize.x > rightBottom.x)
+        {
+            snapDispSize.x = rightBottom.x - imgLeftTop.x;
+            uvMax.x = snapDispSize.x / mSnapSize.x;
+        }
+
+        if (imgIter1 != snapImages1.end() && (*imgIter1)->mTextureReady)
+        {
+            auto& img = *imgIter1++;
+            drawList->AddImage(*(img->mTextureHolder), imgLeftTop, imgLeftTop + snapDispSize, uvMin, uvMax);
+        }
+        else
+        {
+            drawList->AddRectFilled(imgLeftTop, imgLeftTop + snapDispSize, IM_COL32_BLACK);
+            auto center_pos = imgLeftTop + snapDispSize / 2;
+            ImVec4 color_main(1.0, 1.0, 1.0, 1.0);
+            ImVec4 color_back(0.5, 0.5, 0.5, 1.0);
+            ImGui::SetCursorScreenPos(center_pos - ImVec2(8, 8));
+            ImGui::LoadingIndicatorCircle("Running", 1.0f, &color_main, &color_back);
+            drawList->AddRect(imgLeftTop, imgLeftTop + snapDispSize, COL_FRAME_RECT);
+        }
+        ImVec2 img2LeftTop = {imgLeftTop.x, imgLeftTop.y+mSnapSize.y};
+        if (imgIter2 != snapImages2.end() && (*imgIter2)->mTextureReady)
+        {
+            auto& img = *imgIter2++;
+            drawList->AddImage(*(img->mTextureHolder), img2LeftTop, img2LeftTop + snapDispSize, uvMin, uvMax);
+        }
+        else
+        {
+            drawList->AddRectFilled(img2LeftTop, img2LeftTop + snapDispSize, IM_COL32_BLACK);
+            auto center_pos = img2LeftTop + snapDispSize / 2;
+            ImVec4 color_main(1.0, 1.0, 1.0, 1.0);
+            ImVec4 color_back(0.5, 0.5, 0.5, 1.0);
+            ImGui::SetCursorScreenPos(center_pos - ImVec2(8, 8));
+            ImGui::LoadingIndicatorCircle("Running", 1.0f, &color_main, &color_back);
+            drawList->AddRect(img2LeftTop, img2LeftTop + snapDispSize, COL_FRAME_RECT);
+        }
+
+        imgLeftTop.x += snapDispSize.x;
+        if (imgLeftTop.x >= rightBottom.x)
+            break;
+    }
+}
+
+void EditingVideoOverlap::CalcDisplayParams()
+{
+    double snapWndSize = (double)mDuration / 1000;
+    double snapCntInView = (double)mViewWndSize.x / mSnapSize.x;
+    mSsGen1->ConfigSnapWindow(snapWndSize, snapCntInView);
+    mSsGen2->ConfigSnapWindow(snapWndSize, snapCntInView);
+}
 }// namespace MediaTimeline
 
 namespace MediaTimeline
@@ -2300,6 +2444,12 @@ void MediaTrack::EditingOverlap(Overlap * overlap)
             }
         }
         editing_overlap->bEditing = false;
+
+        if (timeline->mVidOverlap)
+        {
+            delete timeline->mVidOverlap;
+            timeline->mVidOverlap = nullptr;
+        }
     }
 
     overlap->bEditing = true;
@@ -2314,6 +2464,8 @@ void MediaTrack::EditingOverlap(Overlap * overlap)
         timeline->mVideoFusionBluePrint->File_New_Fusion(overlap->mFusionBP, "VideoFusion", "Video");
         timeline->mVideoFusionNeedUpdate = true;
         timeline->mVideoFusionBluePrintLock.unlock();
+        if (!timeline->mVidOverlap)
+            timeline->mVidOverlap = new EditingVideoOverlap(overlap);
     }
     if (first->mType == MEDIA_AUDIO && second->mType == MEDIA_AUDIO &&
         timeline->mAudioFusionBluePrint && timeline->mAudioFusionBluePrint->m_Document)
@@ -2759,6 +2911,11 @@ TimeLine::~TimeLine()
         delete mAudFilterClip;
         mAudFilterClip = nullptr;
     }
+    if (mVidOverlap)
+    {
+        delete mVidOverlap;
+        mVidOverlap = nullptr;
+    }
 
     if (mMtvReader)
     {
@@ -2969,6 +3126,11 @@ void TimeLine::DeleteOverlap(int64_t id)
         {
             Overlap * overlap = *iter;
             iter = m_Overlaps.erase(iter);
+            if (mVidOverlap && mVidOverlap->mOvlp == overlap)
+            {
+                delete mVidOverlap;
+                mVidOverlap = nullptr;
+            }
             delete overlap;
         }
         else
@@ -5428,7 +5590,7 @@ bool DrawClipTimeLine(BaseEditingClip * editingClip)
 /***********************************************************************************************************
  * Draw Fusion Timeline
  ***********************************************************************************************************/
-bool DrawOverlapTimeLine(Overlap * overlap)
+bool DrawOverlapTimeLine(BaseEditingOverlap * overlap)
 {
     /*************************************************************************************************************
      |  0    5    10 v   15    20 <rule bar> 30     35      40      45       50       55    
@@ -5465,7 +5627,7 @@ bool DrawOverlapTimeLine(Overlap * overlap)
     int customHeight = 50;
     static bool MovingCurrentTime = false;
     bool isFocused = ImGui::IsWindowFocused();
-    int64_t duration = ImMax(overlap->mEnd - overlap->mStart, (int64_t)1);
+    int64_t duration = ImMax(overlap->mOvlp->mEnd-overlap->mOvlp->mStart, (int64_t)1);
     int64_t start = 0;
     int64_t end = start + duration;
     if (overlap->mCurrent < start)
@@ -5493,15 +5655,15 @@ bool DrawOverlapTimeLine(Overlap * overlap)
     }
     if (MovingCurrentTime && duration)
     {
-        auto old_time = overlap->mCurrent;
-        overlap->mCurrent = (int64_t)((io.MousePos.x - topRect.Min.x) / msPixelWidth) + start;
+        auto oldPos = overlap->mCurrent;
+        auto newPos = (int64_t)((io.MousePos.x - topRect.Min.x) / msPixelWidth) + start;
         //alignTime(overlap->mCurrent, clip->mClipFrameRate);
-        if (overlap->mCurrent < start)
-            overlap->mCurrent = start;
-        if (overlap->mCurrent >= end)
-            overlap->mCurrent = end;
-        if (old_time != overlap->mCurrent)
-            overlap->Seek(); // call seek event
+        if (newPos < start)
+            newPos = start;
+        if (newPos >= end)
+            newPos = end;
+        if (oldPos != newPos)
+            overlap->Seek(newPos); // call seek event
     }
     if (overlap->bSeeking && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
     {
@@ -5556,12 +5718,12 @@ bool DrawOverlapTimeLine(Overlap * overlap)
     ImGui::SetWindowFontScale(1.0);
 
     // snapshot
-    // TODO::Dicky
+    ImVec2 contentMin(window_pos.x, window_pos.y + (float)headHeight);
+    ImVec2 contentMax(window_pos.x + window_size.x, window_pos.y + (float)headHeight + float(customHeight) * 2);
+    overlap->DrawContent(draw_list, contentMin, contentMax);
 
     // cursor line
     draw_list->PushClipRect(custom_view_rect.Min, custom_view_rect.Max);
-    ImVec2 contentMin(window_pos.x, window_pos.y + (float)headHeight);
-    ImVec2 contentMax(window_pos.x + window_size.x, window_pos.y + (float)headHeight + float(customHeight) * 2);
     static const float cursorWidth = 3.f;
     float cursorOffset = contentMin.x + (overlap->mCurrent - start) * msPixelWidth - cursorWidth * 0.5f + 1;
     draw_list->AddLine(ImVec2(cursorOffset, contentMin.y), ImVec2(cursorOffset, contentMax.y), IM_COL32(0, 255, 0, 128), cursorWidth);

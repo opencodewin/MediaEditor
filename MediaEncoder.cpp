@@ -1230,7 +1230,7 @@ static bool ConvertAVOptionToOptionDescription(AVCodecPtr cdcptr, const AVOption
         optdesc.valueType = MediaEncoder::Option::OPVT_RATIO;
     else
     {
-        logger->Log(WARN) << "UNSUPPORTED ffmpeg option value type " << opt->type << "for option '" << opt->name
+        logger->Log(WARN) << "UNSUPPORTED ffmpeg option value type " << opt->type << " for option '" << opt->name
             << "' within encoder '" << cdcptr->name << "'! SKIP THIS OPTION!" << endl;
         return false;
     }

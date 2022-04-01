@@ -2514,7 +2514,7 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
         draw_list->AddRectFilled(clip_timeline_window_pos, clip_timeline_window_pos + clip_timeline_window_size, COL_DARK_TWO);
 
         // Draw Clip TimeLine
-        DrawOverlapTimeLine(editing_overlap);
+        DrawOverlapTimeLine(timeline->mVidOverlap);
     }
     ImGui::EndChild();
 }
@@ -2753,7 +2753,7 @@ static void ShowAudioFusionWindow(ImDrawList *draw_list)
         draw_list->AddRectFilled(fusion_timeline_window_pos, fusion_timeline_window_pos + fusion_timeline_window_size, COL_DARK_TWO);
 
         // Draw Clip TimeLine
-        DrawOverlapTimeLine(editing_overlap);
+        DrawOverlapTimeLine(timeline->mVidOverlap);
     }
     ImGui::EndChild();
 }

@@ -463,6 +463,39 @@ struct EditingAudioClip : BaseEditingClip
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom) override;
 };
 
+struct BaseEditingOverlap
+{
+    Overlap* mOvlp;
+    int64_t mStart;
+    int64_t mEnd;
+    int64_t mDuration;
+    int64_t mCurrent{0};
+    ImVec2 mViewWndSize{0, 0};
+
+    bool bSeeking{false};
+
+    BaseEditingOverlap(Overlap* ovlp) : mOvlp(ovlp) {}
+
+    virtual void Seek(int64_t pos) = 0;
+    virtual void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom) = 0;
+};
+
+struct EditingVideoOverlap : BaseEditingOverlap
+{
+    VideoClip *mClip1, *mClip2;
+    SnapshotGeneratorHolder mSsGen1, mSsGen2;
+    SnapshotGenerator::ViewerHolder mViewer1, mViewer2;
+    ImVec2 mSnapSize{0, 0};
+
+    EditingVideoOverlap(Overlap* ovlp);
+    virtual ~EditingVideoOverlap();
+
+    void Seek(int64_t pos) override {}
+    void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom) override;
+
+    void CalcDisplayParams();
+};
+
 struct MediaTrack
 {
     int64_t mID             {-1};               // track ID, project saved
@@ -592,6 +625,7 @@ struct TimeLine
     EditingVideoClip* mVidFilterClip    {nullptr};
     std::mutex mAudFilterClipLock;          // timeline clip mutex
     EditingAudioClip* mAudFilterClip    {nullptr};
+    EditingVideoOverlap* mVidOverlap    {nullptr};
 
     MultiTrackVideoReader* mMtvReader   {nullptr};
     double mPreviewPos                      {0};
@@ -704,6 +738,6 @@ struct TimeLine
 
 bool DrawTimeLine(TimeLine *timeline, bool *expanded);
 bool DrawClipTimeLine(BaseEditingClip * editingClip);
-bool DrawOverlapTimeLine(Overlap * overlap);
+bool DrawOverlapTimeLine(BaseEditingOverlap * overlap);
 std::string TimelineMillisecToString(int64_t millisec, int show_millisec = 0);
 } // namespace MediaTimeline

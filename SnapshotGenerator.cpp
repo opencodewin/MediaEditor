@@ -1601,6 +1601,11 @@ private:
             return m_owner->ReleaseViewer(this);
         }
 
+        MediaParserHolder GetMediaParser() const override
+        {
+            return m_owner->GetMediaParser();
+        }
+
         string GetError() const override
         {
             return m_owner->GetError();
