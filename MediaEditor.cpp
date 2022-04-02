@@ -3853,7 +3853,7 @@ void Application_Initialize(void** handle)
 {
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     ImFontAtlas* atlas = io.Fonts;
-    ImFont* font = atlas->Fonts[1];
+    ImFont* font = atlas->Fonts[0];
     io.FontDefault = font;
     io.IniFilename = ini_file.c_str();
     if (io.ConfigFlags & ImGuiConfigFlags_EnableLowRefreshMode)
