@@ -2008,10 +2008,10 @@ void EditingVideoOverlap::Seek(int64_t pos)
     }
     else
     {
-        //Logger::Log(Logger::DEBUG) << "[Dicky Debug]: Edit Video Clip Seek " << pos << std::endl;
+        //Logger::Log(Logger::DEBUG) << "[Dicky Debug]: Fusion Video Clip Seek " << pos << std::endl;
         return;
     }
-    // TODO::Dicky seek will jitter
+    
     mFrameLock.lock();
     mFrame.clear();
     mFrameLock.unlock();
@@ -2075,7 +2075,6 @@ bool EditingVideoOverlap::GetFrame(std::pair<std::pair<ImGui::ImMat, ImGui::ImMa
     auto frame_delay_first = mClipFirstFrameRate.den * 1000 / mClipFirstFrameRate.num;
     auto frame_delay_second = mClipSecondFrameRate.den * 1000 / mClipSecondFrameRate.num;
 
-    // TODO::Dicky check only first clip?
     int64_t buffer_start_first = mFrame.begin()->first.first.time_stamp * 1000;
     int64_t buffer_end_first = buffer_start_first;
     frameStepTime(buffer_end_first, bForward ? mMaxCachedVideoFrame : -mMaxCachedVideoFrame, mClipFirstFrameRate);
@@ -2106,12 +2105,13 @@ bool EditingVideoOverlap::GetFrame(std::pair<std::pair<ImGui::ImMat, ImGui::ImMa
 
         if (need_erase || out_of_range)
         {
+            // TODO::Dicky check seek will jitter
             // if we on seek stage, may output last frame for smooth preview
-            if (bSeeking && pair != mFrame.end())
-            {
-                in_out_frame = *pair;
-                ret = true;
-            }
+            //if (bSeeking && pair != mFrame.end())
+            //{
+            //    in_out_frame = *pair;
+            //    ret = true;
+            //}
             mFrameLock.lock();
             pair = mFrame.erase(pair);
             mFrameLock.unlock();
