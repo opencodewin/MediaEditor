@@ -1688,6 +1688,9 @@ static void ShowFilterBankTreeWindow(ImDrawList *draw_list)
  ***************************************************************************************/
 static void ShowMediaOutputWindow(ImDrawList *draw_list)
 {
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    bool multiviewport = io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable;
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
     ImVec2 window_pos = ImGui::GetWindowPos();
     ImVec2 window_size = ImGui::GetWindowSize();
     ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
@@ -2113,6 +2116,8 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
     // File dialog
     ImVec2 minSize = ImVec2(600, 600);
 	ImVec2 maxSize = ImVec2(FLT_MAX, FLT_MAX);
+    if (multiviewport)
+        ImGui::SetNextWindowViewport(viewport->ID);
     if (ImGuiFileDialog::Instance()->Display("##MediaEditOutputPathDlgKey", ImGuiWindowFlags_NoCollapse, minSize, maxSize))
     {
         if (ImGuiFileDialog::Instance()->IsOk())
@@ -3138,6 +3143,8 @@ static void ShowAudioEditorWindow(ImDrawList *draw_list)
 static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
 {
     ImGuiIO &io = ImGui::GetIO();
+    bool multiviewport = io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable;
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
     ImDrawList *draw_list = ImGui::GetWindowDrawList();
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
@@ -3162,6 +3169,8 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
         {
             ImGui::OpenPopup("##select_scope_view");
         }
+        if (multiviewport)
+            ImGui::SetNextWindowViewport(viewport->ID);
         if (ImGui::BeginPopup("##select_scope_view"))
         {
             for (int i = 0; i < IM_ARRAYSIZE(ScopeWindowTabNames); i++)
@@ -3174,6 +3183,8 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
         {
             ImGui::OpenPopup("##setting_scope_view");
         }
+        if (multiviewport)
+            ImGui::SetNextWindowViewport(viewport->ID);
         if (ImGui::BeginPopup("##setting_scope_view"))
         {
             switch (ScopeWindowIndex)
@@ -3941,6 +3952,8 @@ bool Application_Frame(void * handle, bool app_will_quit)
     {
         ImGui::OpenPopup(ICON_FA5_INFO_CIRCLE " About", ImGuiPopupFlags_AnyPopup);
     }
+    if (multiviewport)
+        ImGui::SetNextWindowViewport(viewport->ID);
     if (ImGui::BeginPopupModal(ICON_FA5_INFO_CIRCLE " About", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings))
     {
         ShowAbout();
@@ -3954,6 +3967,8 @@ bool Application_Frame(void * handle, bool app_will_quit)
     {
         ImGui::OpenPopup(ICON_FA_WHMCS " Configure", ImGuiPopupFlags_AnyPopup);
     }
+    if (multiviewport)
+        ImGui::SetNextWindowViewport(viewport->ID);
     if (ImGui::BeginPopupModal(ICON_FA_WHMCS " Configure", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings))
     {
         ShowConfigure(g_new_setting);
@@ -4273,6 +4288,8 @@ bool Application_Frame(void * handle, bool app_will_quit)
     // File Dialog
     ImVec2 minSize = ImVec2(600, 600);
 	ImVec2 maxSize = ImVec2(FLT_MAX, FLT_MAX);
+    if (multiviewport)
+        ImGui::SetNextWindowViewport(viewport->ID);
     if (ImGuiFileDialog::Instance()->Display("##MediaEditFileDlgKey", ImGuiWindowFlags_NoCollapse, minSize, maxSize))
     {
         if (ImGuiFileDialog::Instance()->IsOk())
