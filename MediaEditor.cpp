@@ -168,16 +168,16 @@ static const char* ConfigureTabNames[] = {
 
 static const char* ControlPanelTabNames[] = {
     ICON_MEDIA_BANK " Meida",
-    ICON_MEDIA_TRANS " Fusions",
     ICON_MEDIA_FILTERS " Filters",
+    ICON_MEDIA_TRANS " Fusions",
     ICON_MEDIA_OUTPUT " Output"
 };
 
 static const char* ControlPanelTabTooltips[] = 
 {
     "Meida Bank",
-    "Fusion Bank",
     "Filters Bank",
+    "Fusion Bank",
     "Meida Output"
 };
 
@@ -4332,16 +4332,16 @@ bool Application_Frame(void * handle, bool app_will_quit)
                     case 1: 
                         switch (g_media_editor_settings.BankViewStyle)
                         {
-                            case 0: ShowFusionBankIconWindow(draw_list);; break;
-                            case 1: ShowFusionBankTreeWindow(draw_list); break;
+                            case 0: ShowFilterBankIconWindow(draw_list); break;
+                            case 1: ShowFilterBankTreeWindow(draw_list); break;
                             default: break;
                         }
                     break;
                     case 2: 
                         switch (g_media_editor_settings.BankViewStyle)
                         {
-                            case 0: ShowFilterBankIconWindow(draw_list); break;
-                            case 1: ShowFilterBankTreeWindow(draw_list); break;
+                            case 0: ShowFusionBankIconWindow(draw_list);; break;
+                            case 1: ShowFusionBankTreeWindow(draw_list); break;
                             default: break;
                         }
                     break;
