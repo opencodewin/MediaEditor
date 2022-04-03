@@ -168,7 +168,7 @@ static const char* ConfigureTabNames[] = {
 
 static const char* ControlPanelTabNames[] = {
     ICON_MEDIA_BANK " Meida",
-    ICON_MEDIA_TRANS " Transition",
+    ICON_MEDIA_TRANS " Fusions",
     ICON_MEDIA_FILTERS " Filters",
     ICON_MEDIA_OUTPUT " Output"
 };
@@ -176,7 +176,7 @@ static const char* ControlPanelTabNames[] = {
 static const char* ControlPanelTabTooltips[] = 
 {
     "Meida Bank",
-    "Transition Bank",
+    "Fusion Bank",
     "Filters Bank",
     "Meida Output"
 };
@@ -1437,16 +1437,231 @@ static void ShowMediaBankWindow(ImDrawList *draw_list, float media_icon_size)
  * Transition Bank window
  *
  ***************************************************************************************/
-static void ShowTransitionBankWindow(ImDrawList *draw_list)
+static void ShowFusionBankIconWindow(ImDrawList *draw_list)
 {
-    ImGui::SetWindowFontScale(1.2);
+    float fusion_icon_size = 48;
+    ImGuiIO& io = ImGui::GetIO();
+    ImVec2 window_pos = ImGui::GetWindowPos();
+    ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
+    ImGui::SetWindowFontScale(2.5);
     ImGui::Indent(20);
     ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4, 0.4, 0.8, 0.8));
-    ImGui::TextUnformatted("Transition Bank");
+    ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
+    draw_list->AddText(window_pos + ImVec2(8, 0), IM_COL32(56, 56, 56, 128), "Fusion");
+    draw_list->AddText(window_pos + ImVec2(8, 48), IM_COL32(56, 56, 56, 128), "Bank");
     ImGui::PopStyleColor();
     ImGui::PopStyleVar();
     ImGui::SetWindowFontScale(1.0);
+
+    if (!timeline)
+        return;
+    // Show Fusion Icons
+    if (timeline->mVideoFusionBluePrint &&
+        timeline->mVideoFusionBluePrint->m_Document)
+    {
+        auto &bp = timeline->mVideoFusionBluePrint->m_Document->m_Blueprint;
+        auto node_reg = bp.GetNodeRegistry();
+        for (auto type : node_reg->GetTypes())
+        {
+            auto catalog = BluePrint::GetCatalogInfo(type->m_Catalog);
+            if (catalog.size() < 2 || catalog[0].compare("Fusion") != 0)
+                continue;
+            std::string drag_type = "Fusion_drag_drop_" + catalog[1];
+            ImGui::Dummy(ImVec2(0, 16));
+            auto icon_pos = ImGui::GetCursorScreenPos();
+            ImVec2 icon_size = ImVec2(fusion_icon_size, fusion_icon_size);
+            // Draw Shadow for Icon
+            draw_list->AddRectFilled(icon_pos + ImVec2(6, 6), icon_pos + ImVec2(6, 6) + icon_size, IM_COL32(32, 32, 32, 255));
+            draw_list->AddRectFilled(icon_pos + ImVec2(4, 4), icon_pos + ImVec2(4, 4) + icon_size, IM_COL32(48, 48, 72, 255));
+            draw_list->AddRectFilled(icon_pos + ImVec2(2, 2), icon_pos + ImVec2(2, 2) + icon_size, IM_COL32(64, 64, 96, 255));
+            ImGui::InvisibleButton(type->m_Name.c_str(), icon_size);
+            if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
+            {
+                ImGui::SetDragDropPayload(drag_type.c_str(), type, sizeof(BluePrint::NodeTypeInfo));
+                ImGui::TextUnformatted(ICON_BANK " Add Fusion");
+                ImGui::TextUnformatted(type->m_Name.c_str());
+                ImGui::EndDragDropSource();
+            }
+            if (ImGui::IsItemHovered())
+            {
+                // Show help tooltip
+                if (timeline->mShowHelpTooltips)
+                {
+                    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5);
+                    ImGui::BeginTooltip();
+                    ImGui::TextUnformatted("Help:");
+                    ImGui::TextUnformatted("    Drag fusion to blue print");
+                    ImGui::EndTooltip();
+                    ImGui::PopStyleVar();
+                }
+            }
+            ImGui::SetCursorScreenPos(icon_pos);
+            ImGui::Button((std::string(ICON_BANK) + "##bank_fusion" + type->m_Name).c_str() , ImVec2(fusion_icon_size, fusion_icon_size));
+            ImGui::SameLine(); ImGui::TextUnformatted(type->m_Name.c_str());
+        }
+    }
+}
+
+static void ShowFusionBankTreeWindow(ImDrawList *draw_list)
+{
+    ImVec2 window_pos = ImGui::GetWindowPos();
+    ImVec2 window_size = ImGui::GetWindowSize();
+    ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
+    const ImVec2 item_size(window_size.x, 32);
+    ImGui::SetWindowFontScale(2.5);
+    ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
+    ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
+    draw_list->AddText(window_pos + ImVec2(8, 0), IM_COL32(56, 56, 56, 128), "Fusion");
+    draw_list->AddText(window_pos + ImVec2(8, 48), IM_COL32(56, 56, 56, 128), "Bank");
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar();
+    ImGui::SetWindowFontScale(1.0);
+    
+    // Show Fusion Tree
+    if (timeline && timeline->mVideoFusionBluePrint &&
+        timeline->mVideoFusionBluePrint->m_Document)
+    {
+        std::vector<const BluePrint::NodeTypeInfo*> fusions;
+        auto &bp = timeline->mVideoFusionBluePrint->m_Document->m_Blueprint;
+        auto node_reg = bp.GetNodeRegistry();
+        // find all fusions
+        for (auto type : node_reg->GetTypes())
+        {
+            auto catalog = BluePrint::GetCatalogInfo(type->m_Catalog);
+            if (!catalog.size() || catalog[0].compare("Fusion") != 0)
+                continue;
+            fusions.push_back(type);
+        }
+
+        // make fusion type as tree
+        ImGui::ImTree fusion_tree;
+        fusion_tree.name = "Fusion";
+        for (auto type : fusions)
+        {
+            auto catalog = BluePrint::GetCatalogInfo(type->m_Catalog);
+            if (!catalog.size())
+                continue;
+            if (catalog.size() > 1)
+            {
+                auto children = fusion_tree.FindChildren(catalog[1]);
+                if (!children)
+                {
+                    ImGui::ImTree subtree(catalog[1]);
+                    if (catalog.size() > 2)
+                    {
+                        ImGui::ImTree sub_sub_tree(catalog[2]);
+                        ImGui::ImTree end_sub(type->m_Name, (void *)type);
+                        sub_sub_tree.childrens.push_back(end_sub);
+                        subtree.childrens.push_back(sub_sub_tree);
+                    }
+                    else
+                    {
+                        ImGui::ImTree end_sub(type->m_Name, (void *)type);
+                        subtree.childrens.push_back(end_sub);
+                    }
+
+                    fusion_tree.childrens.push_back(subtree);
+                }
+                else
+                {
+                    if (catalog.size() > 2)
+                    {
+                        auto sub_children = children->FindChildren(catalog[2]);
+                        if (!sub_children)
+                        {
+                            ImGui::ImTree subtree(catalog[2]);
+                            ImGui::ImTree end_sub(type->m_Name, (void *)type);
+                            subtree.childrens.push_back(end_sub);
+                            children->childrens.push_back(subtree);
+                        }
+                        else
+                        {
+                            ImGui::ImTree end_sub(type->m_Name, (void *)type);
+                            sub_children->childrens.push_back(end_sub);
+                        }
+                    }
+                    else
+                    {
+                        ImGui::ImTree end_sub(type->m_Name, (void *)type);
+                        children->childrens.push_back(end_sub);
+                    }
+                }
+            }
+            else
+            {
+                ImGui::ImTree end_sub(type->m_Name, (void *)type);
+                fusion_tree.childrens.push_back(end_sub);
+            }
+        }
+
+        auto AddFusion = [](void* data)
+        {
+            const BluePrint::NodeTypeInfo* type = (const BluePrint::NodeTypeInfo*)data;
+            auto catalog = BluePrint::GetCatalogInfo(type->m_Catalog);
+            if (catalog.size() < 2 || catalog[0].compare("Fusion") != 0)
+                return;
+            std::string drag_type = "Fusion_drag_drop_" + catalog[1];
+            ImGui::Button((std::string(ICON_BANK) + " " + type->m_Name).c_str(), ImVec2(0, 32));
+            if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
+            {
+                ImGui::SetDragDropPayload(drag_type.c_str(), type, sizeof(BluePrint::NodeTypeInfo));
+                ImGui::TextUnformatted(ICON_BANK " Add Fusion");
+                ImGui::TextUnformatted(type->m_Name.c_str());
+                ImGui::EndDragDropSource();
+            }
+            if (ImGui::IsItemHovered())
+            {
+                // Show help tooltip
+                if (timeline->mShowHelpTooltips)
+                {
+                    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5);
+                    ImGui::BeginTooltip();
+                    ImGui::TextUnformatted("Help:");
+                    ImGui::TextUnformatted("    Drag fusion to blue print");
+                    ImGui::EndTooltip();
+                    ImGui::PopStyleVar();
+                }
+            }
+        };
+
+        // draw fusion tree
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+        for (auto sub : fusion_tree.childrens)
+        {
+            ImGui::SetNextItemOpen(true, ImGuiCond_Once);
+            if (sub.data)
+            {
+                AddFusion(sub.data);
+            }
+            else if (ImGui::TreeNode(sub.name.c_str()))
+            {
+                for (auto sub_sub : sub.childrens)
+                {
+                    ImGui::SetNextItemOpen(true, ImGuiCond_Once);
+                    if (sub_sub.data)
+                    {
+                        AddFusion(sub_sub.data);
+                    }
+                    else if (ImGui::TreeNode(sub_sub.name.c_str()))
+                    {
+                        ImGui::SetNextItemOpen(true, ImGuiCond_Once);
+                        for (auto end : sub_sub.childrens)
+                        {
+                            if (!end.data)
+                                continue;
+                            else
+                            {
+                                AddFusion(end.data);
+                            }
+                        }   
+                        ImGui::TreePop();
+                    }
+                }
+                ImGui::TreePop();
+            }
+        }
+        ImGui::PopStyleColor();
+    }
 }
 
 /****************************************************************************************
@@ -4114,7 +4329,14 @@ bool Application_Frame(void * handle, bool app_will_quit)
                 switch (ControlPanelIndex)
                 {
                     case 0: ShowMediaBankWindow(draw_list, media_icon_size); break;
-                    case 1: ShowTransitionBankWindow(draw_list); break;
+                    case 1: 
+                        switch (g_media_editor_settings.BankViewStyle)
+                        {
+                            case 0: ShowFusionBankIconWindow(draw_list);; break;
+                            case 1: ShowFusionBankTreeWindow(draw_list); break;
+                            default: break;
+                        }
+                    break;
                     case 2: 
                         switch (g_media_editor_settings.BankViewStyle)
                         {
