@@ -3051,6 +3051,7 @@ static int thread_video_fusion(TimeLine * timeline)
             }
             int64_t current_time_first = 0;
             int64_t current_time_second = 0;
+            int64_t current_time = 0;
             timeline->mVidOverlap->mFrameLock.lock();
             if (timeline->mVidOverlap->mFrame.empty() || timeline->mVidOverlap->bSeeking)
             {
@@ -3111,8 +3112,9 @@ static int thread_video_fusion(TimeLine * timeline)
                 {
                     result.first.first.time_stamp = (double)current_time_first / 1000.f;
                     result.first.second.time_stamp = (double)current_time_second / 1000.f;
+                    current_time = current_time_first - timeline->mVidOverlap->m_StartOffset.first;
                     timeline->mVideoFusionBluePrintLock.lock();
-                    if (timeline->mVideoFusionBluePrint->Blueprint_RunFusion(result.first.first, result.first.second, result.second, timeline->mVidOverlap->mCurrent, timeline->mVidOverlap->mDuration))
+                    if (timeline->mVideoFusionBluePrint->Blueprint_RunFusion(result.first.first, result.first.second, result.second, current_time, timeline->mVidOverlap->mDuration))
                     {
                         timeline->mVidOverlap->mFrameLock.lock();
                         timeline->mVidOverlap->mFrame.push_back(result);
@@ -3135,6 +3137,7 @@ static int thread_video_fusion(TimeLine * timeline)
                             if (current_time_second < timeline->mVidOverlap->mClip2->mStartOffset)
                                 current_time_second = timeline->mVidOverlap->mClip2->mStartOffset;
                         }
+                        
                     }
                     timeline->mVideoFusionBluePrintLock.unlock();
                 }
