@@ -2001,6 +2001,9 @@ void EditingVideoOverlap::CalcDisplayParams()
 
 void EditingVideoOverlap::Seek(int64_t pos)
 {
+    TimeLine* timeline = (TimeLine*)(mOvlp->mHandle);
+    if (!timeline)
+        return;
     static int64_t last_seek_pos = -1;
     if (last_seek_pos != pos)
     {
@@ -2017,7 +2020,7 @@ void EditingVideoOverlap::Seek(int64_t pos)
     mFrameLock.unlock();
     mLastTime = -1;
     mCurrent = pos;
-    //alignTime(mCurrent, mClipFirstFrameRate);
+    alignTime(mCurrent, timeline->mFrameRate);
     if (mMediaReader.first && mMediaReader.first->IsOpened())
     {
         int64_t pos = mCurrent + m_StartOffset.first;
@@ -2034,19 +2037,23 @@ void EditingVideoOverlap::Seek(int64_t pos)
 
 void EditingVideoOverlap::Step(bool forward, int64_t step)
 {
+    TimeLine* timeline = (TimeLine*)(mOvlp->mHandle);
+    if (!timeline)
+        return;
     if (forward)
     {
         bForward = true;
         if (step > 0) mCurrent += step;
         else
         {
-            frameStepTime(mCurrent, 1, mClipFirstFrameRate);
+            frameStepTime(mCurrent, 1, timeline->mFrameRate);
         }
-        if (mCurrent >= mEnd - mStart)
+        if (mCurrent > mEnd - mStart)
         {
             mCurrent = mEnd - mStart;
             mLastTime = -1;
             bPlay = false;
+            timeline->mVideoFusionNeedUpdate = true;
         }
     }
     else
@@ -2055,13 +2062,14 @@ void EditingVideoOverlap::Step(bool forward, int64_t step)
         if (step > 0) mCurrent -= step;
         else
         {
-            frameStepTime(mCurrent, -1, mClipSecondFrameRate);
+            frameStepTime(mCurrent, -1, timeline->mFrameRate);
         }
-        if (mCurrent <= 0)
+        if (mCurrent < 0)
         {
             mCurrent = 0;
             mLastTime = -1;
             bPlay = false;
+            timeline->mVideoFusionNeedUpdate = true;
         }
     }
 }
@@ -2140,8 +2148,8 @@ bool EditingVideoOverlap::GetFrame(std::pair<std::pair<ImGui::ImMat, ImGui::ImMa
                 }
                 if (need_step_time)
                 {
-                    Step(bForward, step_time);
                     mLastTime = current_system_time;
+                    Step(bForward, step_time);
                 }
             }
             else
