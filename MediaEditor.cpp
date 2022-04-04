@@ -235,7 +235,8 @@ struct MediaEditorSettings
     float MainViewWidth {0.7};              // Main view width percentage
     bool BottomViewExpanded {true};         // Timeline/Scope view expended
     float OldBottomViewHeight {0.4};        // Old Bottom view height, recorde at non-expended
-    //float 
+    bool showMeters {true};                 // show fps/GPU usage at top right of windows
+
     int VideoWidth  {1920};                 // timeline Media Width
     int VideoHeight {1080};                 // timeline Media Height
     MediaInfo::Ratio VideoFrameRate {25000, 1000};// timeline frame rate
@@ -602,6 +603,31 @@ static void ShowAbout()
     ImGui::Separator();
     ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", ImGui::GetIO().DeltaTime * 1000.f, ImGui::GetIO().Framerate);
     ImGui::Text("Frames since last input: %d", ImGui::GetIO().FrameCountSinceLastInput);
+#ifdef IMGUI_VULKAN_SHADER
+    ImGui::Separator();
+    int device_count = ImGui::get_gpu_count();
+    for (int i = 0; i < device_count; i++)
+    {
+        ImGui::VulkanDevice* vkdev = ImGui::get_gpu_device(i);
+        uint32_t driver_version = vkdev->info.driver_version();
+        uint32_t api_version = vkdev->info.api_version();
+        int device_type = vkdev->info.type();
+        std::string driver_ver = std::to_string(VK_VERSION_MAJOR(driver_version)) + "." + 
+                                std::to_string(VK_VERSION_MINOR(driver_version)) + "." +
+                                std::to_string(VK_VERSION_PATCH(driver_version));
+        std::string api_ver =   std::to_string(VK_VERSION_MAJOR(api_version)) + "." + 
+                                std::to_string(VK_VERSION_MINOR(api_version)) + "." +
+                                std::to_string(VK_VERSION_PATCH(api_version));
+        std::string device_name = vkdev->info.device_name();
+        uint32_t gpu_memory_budget = vkdev->get_heap_budget();
+        uint32_t gpu_memory_usage = vkdev->get_heap_usage();
+        ImGui::Text("Device[%d]:%s", i, device_name.c_str());
+        ImGui::Text("Driver:%s", driver_ver.c_str());
+        ImGui::Text("   API:%s", api_ver.c_str());
+        ImGui::Text("Memory:%uMB(%uMB)", gpu_memory_budget, gpu_memory_usage);
+        ImGui::Text("Device Type:%s", device_type == 0 ? "Discrete" : device_type == 1 ? "Integrated" : device_type == 2 ? "Virtual" : "CPU");
+    }
+#endif
 }
 
 static int GetResolutionIndex(int width, int height)
@@ -814,6 +840,9 @@ static void ShowConfigure(MediaEditorSettings & config)
                 // system setting
                 ImGui::TextUnformatted("Show UI Help Tips");
                 ImGui::ToggleButton("##show_ui_help_tooltips", &config.ShowHelpTooltips);
+                ImGui::Separator();
+                ImGui::TextUnformatted("Show UI Meters");
+                ImGui::ToggleButton("##show_ui_meters", &config.showMeters);
                 ImGui::Separator();
                 ImGui::TextUnformatted("Bank View Style");
                 ImGui::RadioButton("Icons",  (int *)&config.BankViewStyle, 0); ImGui::SameLine();
@@ -3894,6 +3923,7 @@ void Application_SetupContext(ImGuiContext* ctx)
         else if (sscanf(line, "TopViewHeight=%f", &val_float) == 1) { setting->TopViewHeight = val_float; }
         else if (sscanf(line, "BottomViewHeight=%f", &val_float) == 1) { setting->BottomViewHeight = val_float; }
         else if (sscanf(line, "OldBottomViewHeight=%f", &val_float) == 1) { setting->OldBottomViewHeight = val_float; }
+        else if (sscanf(line, "ShowMeters=%d", &val_int) == 1) { setting->showMeters = val_int == 1; }
         else if (sscanf(line, "ControlPanelWidth=%f", &val_float) == 1) { setting->ControlPanelWidth = val_float; }
         else if (sscanf(line, "MainViewWidth=%f", &val_float) == 1) { setting->MainViewWidth = val_float; }
         else if (sscanf(line, "VideoWidth=%d", &val_int) == 1) { setting->VideoWidth = val_int; }
@@ -3965,6 +3995,7 @@ void Application_SetupContext(ImGuiContext* ctx)
         out_buf->appendf("TopViewHeight=%f\n", g_media_editor_settings.TopViewHeight);
         out_buf->appendf("BottomViewHeight=%f\n", g_media_editor_settings.BottomViewHeight);
         out_buf->appendf("OldBottomViewHeight=%f\n", g_media_editor_settings.OldBottomViewHeight);
+        out_buf->appendf("ShowMeters=%d\n", g_media_editor_settings.showMeters ? 1 : 0);
         out_buf->appendf("ControlPanelWidth=%f\n", g_media_editor_settings.ControlPanelWidth);
         out_buf->appendf("MainViewWidth=%f\n", g_media_editor_settings.MainViewWidth);
         out_buf->appendf("VideoWidth=%d\n", g_media_editor_settings.VideoWidth);
@@ -4170,6 +4201,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
     // for debug
     if (show_debug) ImGui::ShowMetricsWindow(&show_debug);
     // for debug end
+
     if (show_about)
     {
         ImGui::OpenPopup(ICON_FA5_INFO_CIRCLE " About", ImGuiPopupFlags_AnyPopup);
@@ -4185,6 +4217,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
         ImGui::SetItemDefaultFocus();
         ImGui::EndPopup();
     }
+
     if (show_configure)
     {
         ImGui::OpenPopup(ICON_FA_WHMCS " Configure", ImGuiPopupFlags_AnyPopup);
@@ -4368,11 +4401,33 @@ bool Application_Frame(void * handle, bool app_will_quit)
         {
             // full background
             ImDrawList *draw_list = ImGui::GetWindowDrawList();
-            //ImVec2 main_window_size = ImGui::GetWindowSize();
             if (ImGui::TabLabels(numMainWindowTabs, MainWindowTabNames, MainWindowIndex, MainWindowTabTooltips , false, true, nullptr, nullptr, false, false, nullptr, nullptr))
             {
                 UIPageChanged();
             }
+            // show meters
+            if (g_media_editor_settings.showMeters)
+            {
+                std::ostringstream oss;
+                oss << std::fixed << std::setprecision(2) << ImGui::GetIO().DeltaTime * 1000.f << "ms/frame ";
+                oss << ImGui::GetIO().Framerate << "FPS";
+#ifdef IMGUI_VULKAN_SHADER
+                int device_count = ImGui::get_gpu_count();
+                for (int i = 0; i < device_count; i++)
+                {
+                    ImGui::VulkanDevice* vkdev = ImGui::get_gpu_device(i);
+                    std::string device_name = vkdev->info.device_name();
+                    uint32_t gpu_memory_budget = vkdev->get_heap_budget();
+                    uint32_t gpu_memory_usage = vkdev->get_heap_usage();
+                    oss << " GPU[" << i << "]:" << device_name << " VRAM(" << gpu_memory_usage << "MB/" << gpu_memory_budget << "MB)";
+                }
+#endif
+                std::string meters = oss.str();
+                auto str_size = ImGui::CalcTextSize(meters.c_str());
+                auto spos = main_sub_pos + ImVec2(main_sub_size.x - str_size.x - 8, 0);
+                draw_list->AddText(spos, IM_COL32_WHITE, meters.c_str());
+            }
+
             auto wmin = main_sub_pos + ImVec2(0, 32);
             auto wmax = wmin + ImGui::GetContentRegionAvail() - ImVec2(8, 0);
             draw_list->AddRectFilled(wmin, wmax, IM_COL32_BLACK, 8.0, ImDrawFlags_RoundCornersAll);
