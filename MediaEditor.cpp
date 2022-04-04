@@ -3040,6 +3040,13 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
                 auto ret = timeline->mVidOverlap->GetFrame(pair);
                 if (ret)
                 {
+#if IMGUI_VULKAN_SHADER
+                    if (m_histogram) m_histogram->scope(pair.second, mat_histogram, 256, g_media_editor_settings.HistogramScale, g_media_editor_settings.HistogramLog);
+                    if (m_waveform) m_waveform->scope(pair.second, mat_waveform, 256, g_media_editor_settings.WaveformIntensity, g_media_editor_settings.WaveformSeparate);
+                    if (m_cie) m_cie->scope(pair.second, mat_cie, g_media_editor_settings.CIEIntensity, g_media_editor_settings.CIEShowColor);
+                    if (m_vector) m_vector->scope(pair.second, mat_vector, g_media_editor_settings.VectorIntensity);
+#endif
+
                     ImGui::ImMatToTexture(pair.first.first, timeline->mVideoFusionInputFirstTexture);
                     ImGui::ImMatToTexture(pair.first.second, timeline->mVideoFusionInputSecondTexture);
                     ImGui::ImMatToTexture(pair.second, timeline->mVideoFusionOutputTexture);
