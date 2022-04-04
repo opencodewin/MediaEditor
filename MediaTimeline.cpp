@@ -1373,8 +1373,10 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
         Logger::Log(Logger::Error) << mSnapshot->GetError() << std::endl;
         return;
     }
+    auto video_info = vidclip->mMediaParser->GetBestVideoStream();
+    float snapshot_scale = video_info->height > 0 ? 50.f / (float)video_info->height : 0.1;
     mSnapshot->SetCacheFactor(1);
-    mSnapshot->SetSnapshotResizeFactor(0.1, 0.1);
+    mSnapshot->SetSnapshotResizeFactor(snapshot_scale, snapshot_scale);
     mSnapshot->Seek((double)mStartOffset / 1000);
 
     // open video reader
@@ -1824,15 +1826,19 @@ EditingVideoOverlap::EditingVideoOverlap(Overlap* ovlp)
         mSsGen1 = CreateSnapshotGenerator();
         if (!mSsGen1->Open(vidclip1->mSsViewer->GetMediaParser()))
             throw std::runtime_error("FAILED to open the snapshot generator for the 1st video clip!");
+        auto video1_info = vidclip1->mSsViewer->GetMediaParser()->GetBestVideoStream();
+        float snapshot_scale1 = video1_info->height > 0 ? 50.f / (float)video1_info->height : 0.1;
         mSsGen1->SetCacheFactor(1.0);
-        mSsGen1->SetSnapshotResizeFactor(0.1, 0.1);
+        mSsGen1->SetSnapshotResizeFactor(snapshot_scale1, snapshot_scale1);
         m_StartOffset.first = vidclip1->mStartOffset + ovlp->mStart - vidclip1->mStart;
         mViewer1 = mSsGen1->CreateViewer(m_StartOffset.first);
         mSsGen2 = CreateSnapshotGenerator();
         if (!mSsGen2->Open(vidclip2->mSsViewer->GetMediaParser()))
             throw std::runtime_error("FAILED to open the snapshot generator for the 2nd video clip!");
+        auto video2_info = vidclip2->mSsViewer->GetMediaParser()->GetBestVideoStream();
+        float snapshot_scale2 = video2_info->height > 0 ? 50.f / (float)video2_info->height : 0.1;
         mSsGen2->SetCacheFactor(1.0);
-        mSsGen2->SetSnapshotResizeFactor(0.1, 0.1);
+        mSsGen2->SetSnapshotResizeFactor(snapshot_scale2, snapshot_scale2);
         m_StartOffset.second = vidclip2->mStartOffset + ovlp->mStart - vidclip2->mStart;
         mViewer2 = mSsGen2->CreateViewer(m_StartOffset.second);
         mStart = ovlp->mStart;
@@ -4526,7 +4532,9 @@ SnapshotGeneratorHolder TimeLine::GetSnapshotGenerator(int64_t mediaItemId)
         Logger::Log(Logger::Error) << hSsGen->GetError() << std::endl;
         return nullptr;
     }
-    hSsGen->SetSnapshotResizeFactor(0.1, 0.1);
+    auto video_info = mi->mMediaOverview->GetMediaParser()->GetBestVideoStream();
+    float snapshot_scale = video_info->height > 0 ? DEFAULT_VIDEO_TRACK_HEIGHT / (float)video_info->height : 0.1;
+    hSsGen->SetSnapshotResizeFactor(snapshot_scale, snapshot_scale);
     hSsGen->SetCacheFactor(9);
     if (visibleTime > 0 && msPixelWidthTarget > 0)
     {
