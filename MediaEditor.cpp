@@ -3353,7 +3353,7 @@ static void ShowAudioFusionWindow(ImDrawList *draw_list)
         draw_list->AddRectFilled(fusion_timeline_window_pos, fusion_timeline_window_pos + fusion_timeline_window_size, COL_DARK_TWO);
 
         // Draw Clip TimeLine
-        DrawOverlapTimeLine(timeline->mVidOverlap);
+        DrawOverlapTimeLine(nullptr); // TODO:: Add Audio Overlap
     }
     ImGui::EndChild();
 }
