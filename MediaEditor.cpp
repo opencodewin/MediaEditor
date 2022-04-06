@@ -16,6 +16,7 @@
 #include "FFUtils.h"
 #include "Logger.h"
 #include <sstream>
+#include <iomanip>
 
 #define DEFAULT_MAIN_VIEW_WIDTH     1680
 #define DEFAULT_MAIN_VIEW_HEIGHT    1024
