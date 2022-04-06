@@ -470,14 +470,21 @@ struct BaseEditingOverlap
     int64_t mStart;
     int64_t mEnd;
     int64_t mDuration;
-    int64_t mCurrent{0};
-    ImVec2 mViewWndSize{0, 0};
+    int64_t mCurrent        {0};
+    int64_t mLastTime       {-1};
+    ImVec2 mViewWndSize     {0, 0};
 
+    bool bPlay                  {false};                // editing overlap play status
+    bool bForward               {true};                 // editing overlap play direction
     bool bSeeking{false};
 
     BaseEditingOverlap(Overlap* ovlp) : mOvlp(ovlp) {}
+    std::pair<int64_t, int64_t> m_StartOffset;
+    std::pair<MediaReader*, MediaReader*> mMediaReader;
 
     virtual void Seek(int64_t pos) = 0;
+    virtual void Step(bool forward, int64_t step = 0) = 0;
+    virtual bool GetFrame(std::pair<std::pair<ImGui::ImMat, ImGui::ImMat>, ImGui::ImMat>& in_out_frame) = 0;
     virtual void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom) = 0;
 };
 
@@ -487,11 +494,20 @@ struct EditingVideoOverlap : BaseEditingOverlap
     SnapshotGeneratorHolder mSsGen1, mSsGen2;
     SnapshotGenerator::ViewerHolder mViewer1, mViewer2;
     ImVec2 mSnapSize{0, 0};
+    int mMaxCachedVideoFrame    {10};                           // clip Media Video Frame cache size
+
+    MediaInfo::Ratio mClipFirstFrameRate {25, 1};     // overlap clip first Frame rate
+    MediaInfo::Ratio mClipSecondFrameRate {25, 1};     // overlap clip second Frame rate
+
+    std::mutex mFrameLock;
+    std::list<std::pair<std::pair<ImGui::ImMat, ImGui::ImMat>, ImGui::ImMat>> mFrame;    // overlap timeline input pair/output frame pair
 
     EditingVideoOverlap(Overlap* ovlp);
     virtual ~EditingVideoOverlap();
 
     void Seek(int64_t pos) override;
+    void Step(bool forward, int64_t step = 0) override;
+    bool GetFrame(std::pair<std::pair<ImGui::ImMat, ImGui::ImMat>, ImGui::ImMat>& in_out_frame) override;
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom) override;
 
     void CalcDisplayParams();
@@ -524,7 +540,7 @@ struct MediaTrack
     void PushBackClip(Clip * clip);
     void SelectClip(Clip * clip, bool appand);
     void SelectEditingClip(Clip * clip);
-    void EditingOverlap(Overlap * overlap);
+    void SelectEditingOverlap(Overlap * overlap);
     void DeleteClip(int64_t id);
     Clip * FindPrevClip(int64_t id);                // find prev clip in track, if not found then return null
     Clip * FindNextClip(int64_t id);                // find next clip in track, if not found then return null
@@ -626,6 +642,7 @@ struct TimeLine
     EditingVideoClip* mVidFilterClip    {nullptr};
     std::mutex mAudFilterClipLock;          // timeline clip mutex
     EditingAudioClip* mAudFilterClip    {nullptr};
+    std::mutex mVidFusionLock;              // timeline overlap mutex
     EditingVideoOverlap* mVidOverlap    {nullptr};
 
     MultiTrackVideoReader* mMtvReader   {nullptr};
@@ -692,6 +709,15 @@ struct TimeLine
     std::thread * mVideoFilterThread {nullptr}; // Video Filter Thread, which is only one item/clip read from media
     bool mVideoFilterDone {false};              // Video Filter Thread should finished
     bool mVideoFilterRunning {false};           // Video Filter Thread is running
+
+    std::thread * mVideoFusionThread {nullptr}; // Video Fusion Thread, which is only two item/clip read from media
+    bool mVideoFusionDone {false};              // Video Fusion Thread should finished
+    bool mVideoFusionRunning {false};           // Video Fusion Thread is running
+
+    ImTextureID mVideoFusionInputFirstTexture {nullptr};    // clip video fusion first input texture
+    ImTextureID mVideoFusionInputSecondTexture {nullptr};   // clip video fusion second input texture
+    ImTextureID mVideoFusionOutputTexture {nullptr};        // clip video fusion output texture
+
 
     TimeLineCallbackFunctions  m_CallBacks;
 

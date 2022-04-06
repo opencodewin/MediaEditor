@@ -16,6 +16,7 @@
 #include "FFUtils.h"
 #include "Logger.h"
 #include <sstream>
+#include <iomanip>
 
 #define DEFAULT_MAIN_VIEW_WIDTH     1680
 #define DEFAULT_MAIN_VIEW_HEIGHT    1024
@@ -168,16 +169,16 @@ static const char* ConfigureTabNames[] = {
 
 static const char* ControlPanelTabNames[] = {
     ICON_MEDIA_BANK " Meida",
-    ICON_MEDIA_TRANS " Transition",
     ICON_MEDIA_FILTERS " Filters",
+    ICON_MEDIA_TRANS " Fusions",
     ICON_MEDIA_OUTPUT " Output"
 };
 
 static const char* ControlPanelTabTooltips[] = 
 {
     "Meida Bank",
-    "Transition Bank",
     "Filters Bank",
+    "Fusion Bank",
     "Meida Output"
 };
 
@@ -235,7 +236,8 @@ struct MediaEditorSettings
     float MainViewWidth {0.7};              // Main view width percentage
     bool BottomViewExpanded {true};         // Timeline/Scope view expended
     float OldBottomViewHeight {0.4};        // Old Bottom view height, recorde at non-expended
-    //float 
+    bool showMeters {true};                 // show fps/GPU usage at top right of windows
+
     int VideoWidth  {1920};                 // timeline Media Width
     int VideoHeight {1080};                 // timeline Media Height
     MediaInfo::Ratio VideoFrameRate {25000, 1000};// timeline frame rate
@@ -602,6 +604,31 @@ static void ShowAbout()
     ImGui::Separator();
     ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", ImGui::GetIO().DeltaTime * 1000.f, ImGui::GetIO().Framerate);
     ImGui::Text("Frames since last input: %d", ImGui::GetIO().FrameCountSinceLastInput);
+#ifdef IMGUI_VULKAN_SHADER
+    ImGui::Separator();
+    int device_count = ImGui::get_gpu_count();
+    for (int i = 0; i < device_count; i++)
+    {
+        ImGui::VulkanDevice* vkdev = ImGui::get_gpu_device(i);
+        uint32_t driver_version = vkdev->info.driver_version();
+        uint32_t api_version = vkdev->info.api_version();
+        int device_type = vkdev->info.type();
+        std::string driver_ver = std::to_string(VK_VERSION_MAJOR(driver_version)) + "." + 
+                                std::to_string(VK_VERSION_MINOR(driver_version)) + "." +
+                                std::to_string(VK_VERSION_PATCH(driver_version));
+        std::string api_ver =   std::to_string(VK_VERSION_MAJOR(api_version)) + "." + 
+                                std::to_string(VK_VERSION_MINOR(api_version)) + "." +
+                                std::to_string(VK_VERSION_PATCH(api_version));
+        std::string device_name = vkdev->info.device_name();
+        uint32_t gpu_memory_budget = vkdev->get_heap_budget();
+        uint32_t gpu_memory_usage = vkdev->get_heap_usage();
+        ImGui::Text("Device[%d]:%s", i, device_name.c_str());
+        ImGui::Text("Driver:%s", driver_ver.c_str());
+        ImGui::Text("   API:%s", api_ver.c_str());
+        ImGui::Text("Memory:%uMB(%uMB)", gpu_memory_budget, gpu_memory_usage);
+        ImGui::Text("Device Type:%s", device_type == 0 ? "Discrete" : device_type == 1 ? "Integrated" : device_type == 2 ? "Virtual" : "CPU");
+    }
+#endif
 }
 
 static int GetResolutionIndex(int width, int height)
@@ -814,6 +841,9 @@ static void ShowConfigure(MediaEditorSettings & config)
                 // system setting
                 ImGui::TextUnformatted("Show UI Help Tips");
                 ImGui::ToggleButton("##show_ui_help_tooltips", &config.ShowHelpTooltips);
+                ImGui::Separator();
+                ImGui::TextUnformatted("Show UI Meters");
+                ImGui::ToggleButton("##show_ui_meters", &config.showMeters);
                 ImGui::Separator();
                 ImGui::TextUnformatted("Bank View Style");
                 ImGui::RadioButton("Icons",  (int *)&config.BankViewStyle, 0); ImGui::SameLine();
@@ -1437,16 +1467,231 @@ static void ShowMediaBankWindow(ImDrawList *draw_list, float media_icon_size)
  * Transition Bank window
  *
  ***************************************************************************************/
-static void ShowTransitionBankWindow(ImDrawList *draw_list)
+static void ShowFusionBankIconWindow(ImDrawList *draw_list)
 {
-    ImGui::SetWindowFontScale(1.2);
+    float fusion_icon_size = 48;
+    ImGuiIO& io = ImGui::GetIO();
+    ImVec2 window_pos = ImGui::GetWindowPos();
+    ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
+    ImGui::SetWindowFontScale(2.5);
     ImGui::Indent(20);
     ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4, 0.4, 0.8, 0.8));
-    ImGui::TextUnformatted("Transition Bank");
+    ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
+    draw_list->AddText(window_pos + ImVec2(8, 0), IM_COL32(56, 56, 56, 128), "Fusion");
+    draw_list->AddText(window_pos + ImVec2(8, 48), IM_COL32(56, 56, 56, 128), "Bank");
     ImGui::PopStyleColor();
     ImGui::PopStyleVar();
     ImGui::SetWindowFontScale(1.0);
+
+    if (!timeline)
+        return;
+    // Show Fusion Icons
+    if (timeline->mVideoFusionBluePrint &&
+        timeline->mVideoFusionBluePrint->m_Document)
+    {
+        auto &bp = timeline->mVideoFusionBluePrint->m_Document->m_Blueprint;
+        auto node_reg = bp.GetNodeRegistry();
+        for (auto type : node_reg->GetTypes())
+        {
+            auto catalog = BluePrint::GetCatalogInfo(type->m_Catalog);
+            if (catalog.size() < 2 || catalog[0].compare("Fusion") != 0)
+                continue;
+            std::string drag_type = "Fusion_drag_drop_" + catalog[1];
+            ImGui::Dummy(ImVec2(0, 16));
+            auto icon_pos = ImGui::GetCursorScreenPos();
+            ImVec2 icon_size = ImVec2(fusion_icon_size, fusion_icon_size);
+            // Draw Shadow for Icon
+            draw_list->AddRectFilled(icon_pos + ImVec2(6, 6), icon_pos + ImVec2(6, 6) + icon_size, IM_COL32(32, 32, 32, 255));
+            draw_list->AddRectFilled(icon_pos + ImVec2(4, 4), icon_pos + ImVec2(4, 4) + icon_size, IM_COL32(48, 48, 72, 255));
+            draw_list->AddRectFilled(icon_pos + ImVec2(2, 2), icon_pos + ImVec2(2, 2) + icon_size, IM_COL32(64, 64, 96, 255));
+            ImGui::InvisibleButton(type->m_Name.c_str(), icon_size);
+            if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
+            {
+                ImGui::SetDragDropPayload(drag_type.c_str(), type, sizeof(BluePrint::NodeTypeInfo));
+                ImGui::TextUnformatted(ICON_BANK " Add Fusion");
+                ImGui::TextUnformatted(type->m_Name.c_str());
+                ImGui::EndDragDropSource();
+            }
+            if (ImGui::IsItemHovered())
+            {
+                // Show help tooltip
+                if (timeline->mShowHelpTooltips)
+                {
+                    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5);
+                    ImGui::BeginTooltip();
+                    ImGui::TextUnformatted("Help:");
+                    ImGui::TextUnformatted("    Drag fusion to blue print");
+                    ImGui::EndTooltip();
+                    ImGui::PopStyleVar();
+                }
+            }
+            ImGui::SetCursorScreenPos(icon_pos);
+            ImGui::Button((std::string(ICON_BANK) + "##bank_fusion" + type->m_Name).c_str() , ImVec2(fusion_icon_size, fusion_icon_size));
+            ImGui::SameLine(); ImGui::TextUnformatted(type->m_Name.c_str());
+        }
+    }
+}
+
+static void ShowFusionBankTreeWindow(ImDrawList *draw_list)
+{
+    ImVec2 window_pos = ImGui::GetWindowPos();
+    ImVec2 window_size = ImGui::GetWindowSize();
+    ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
+    const ImVec2 item_size(window_size.x, 32);
+    ImGui::SetWindowFontScale(2.5);
+    ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
+    ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
+    draw_list->AddText(window_pos + ImVec2(8, 0), IM_COL32(56, 56, 56, 128), "Fusion");
+    draw_list->AddText(window_pos + ImVec2(8, 48), IM_COL32(56, 56, 56, 128), "Bank");
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar();
+    ImGui::SetWindowFontScale(1.0);
+    
+    // Show Fusion Tree
+    if (timeline && timeline->mVideoFusionBluePrint &&
+        timeline->mVideoFusionBluePrint->m_Document)
+    {
+        std::vector<const BluePrint::NodeTypeInfo*> fusions;
+        auto &bp = timeline->mVideoFusionBluePrint->m_Document->m_Blueprint;
+        auto node_reg = bp.GetNodeRegistry();
+        // find all fusions
+        for (auto type : node_reg->GetTypes())
+        {
+            auto catalog = BluePrint::GetCatalogInfo(type->m_Catalog);
+            if (!catalog.size() || catalog[0].compare("Fusion") != 0)
+                continue;
+            fusions.push_back(type);
+        }
+
+        // make fusion type as tree
+        ImGui::ImTree fusion_tree;
+        fusion_tree.name = "Fusion";
+        for (auto type : fusions)
+        {
+            auto catalog = BluePrint::GetCatalogInfo(type->m_Catalog);
+            if (!catalog.size())
+                continue;
+            if (catalog.size() > 1)
+            {
+                auto children = fusion_tree.FindChildren(catalog[1]);
+                if (!children)
+                {
+                    ImGui::ImTree subtree(catalog[1]);
+                    if (catalog.size() > 2)
+                    {
+                        ImGui::ImTree sub_sub_tree(catalog[2]);
+                        ImGui::ImTree end_sub(type->m_Name, (void *)type);
+                        sub_sub_tree.childrens.push_back(end_sub);
+                        subtree.childrens.push_back(sub_sub_tree);
+                    }
+                    else
+                    {
+                        ImGui::ImTree end_sub(type->m_Name, (void *)type);
+                        subtree.childrens.push_back(end_sub);
+                    }
+
+                    fusion_tree.childrens.push_back(subtree);
+                }
+                else
+                {
+                    if (catalog.size() > 2)
+                    {
+                        auto sub_children = children->FindChildren(catalog[2]);
+                        if (!sub_children)
+                        {
+                            ImGui::ImTree subtree(catalog[2]);
+                            ImGui::ImTree end_sub(type->m_Name, (void *)type);
+                            subtree.childrens.push_back(end_sub);
+                            children->childrens.push_back(subtree);
+                        }
+                        else
+                        {
+                            ImGui::ImTree end_sub(type->m_Name, (void *)type);
+                            sub_children->childrens.push_back(end_sub);
+                        }
+                    }
+                    else
+                    {
+                        ImGui::ImTree end_sub(type->m_Name, (void *)type);
+                        children->childrens.push_back(end_sub);
+                    }
+                }
+            }
+            else
+            {
+                ImGui::ImTree end_sub(type->m_Name, (void *)type);
+                fusion_tree.childrens.push_back(end_sub);
+            }
+        }
+
+        auto AddFusion = [](void* data)
+        {
+            const BluePrint::NodeTypeInfo* type = (const BluePrint::NodeTypeInfo*)data;
+            auto catalog = BluePrint::GetCatalogInfo(type->m_Catalog);
+            if (catalog.size() < 2 || catalog[0].compare("Fusion") != 0)
+                return;
+            std::string drag_type = "Fusion_drag_drop_" + catalog[1];
+            ImGui::Button((std::string(ICON_BANK) + " " + type->m_Name).c_str(), ImVec2(0, 32));
+            if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
+            {
+                ImGui::SetDragDropPayload(drag_type.c_str(), type, sizeof(BluePrint::NodeTypeInfo));
+                ImGui::TextUnformatted(ICON_BANK " Add Fusion");
+                ImGui::TextUnformatted(type->m_Name.c_str());
+                ImGui::EndDragDropSource();
+            }
+            if (ImGui::IsItemHovered())
+            {
+                // Show help tooltip
+                if (timeline->mShowHelpTooltips)
+                {
+                    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5);
+                    ImGui::BeginTooltip();
+                    ImGui::TextUnformatted("Help:");
+                    ImGui::TextUnformatted("    Drag fusion to blue print");
+                    ImGui::EndTooltip();
+                    ImGui::PopStyleVar();
+                }
+            }
+        };
+
+        // draw fusion tree
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+        for (auto sub : fusion_tree.childrens)
+        {
+            ImGui::SetNextItemOpen(true, ImGuiCond_Once);
+            if (sub.data)
+            {
+                AddFusion(sub.data);
+            }
+            else if (ImGui::TreeNode(sub.name.c_str()))
+            {
+                for (auto sub_sub : sub.childrens)
+                {
+                    ImGui::SetNextItemOpen(true, ImGuiCond_Once);
+                    if (sub_sub.data)
+                    {
+                        AddFusion(sub_sub.data);
+                    }
+                    else if (ImGui::TreeNode(sub_sub.name.c_str()))
+                    {
+                        ImGui::SetNextItemOpen(true, ImGuiCond_Once);
+                        for (auto end : sub_sub.childrens)
+                        {
+                            if (!end.data)
+                                continue;
+                            else
+                            {
+                                AddFusion(end.data);
+                            }
+                        }   
+                        ImGui::TreePop();
+                    }
+                }
+                ImGui::TreePop();
+            }
+        }
+        ImGui::PopStyleColor();
+    }
 }
 
 /****************************************************************************************
@@ -1688,6 +1933,9 @@ static void ShowFilterBankTreeWindow(ImDrawList *draw_list)
  ***************************************************************************************/
 static void ShowMediaOutputWindow(ImDrawList *draw_list)
 {
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    bool multiviewport = io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable;
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
     ImVec2 window_pos = ImGui::GetWindowPos();
     ImVec2 window_size = ImGui::GetWindowSize();
     ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
@@ -2113,6 +2361,8 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
     // File dialog
     ImVec2 minSize = ImVec2(600, 600);
 	ImVec2 maxSize = ImVec2(FLT_MAX, FLT_MAX);
+    if (multiviewport)
+        ImGui::SetNextWindowViewport(viewport->ID);
     if (ImGuiFileDialog::Instance()->Display("##MediaEditOutputPathDlgKey", ImGuiWindowFlags_NoCollapse, minSize, maxSize))
     {
         if (ImGuiFileDialog::Instance()->IsOk())
@@ -2649,7 +2899,7 @@ static void ShowVideoFusionBluePrintWindow(ImDrawList *draw_list, Overlap * over
         {
             auto track = timeline->FindTrackByClipID(overlap->m_Clip.first);
             if (track)
-                track->EditingOverlap(overlap);
+                track->SelectEditingOverlap(overlap);
             timeline->mVideoFusionBluePrint->View_ZoomToContent();
         }
         ImVec2 window_pos = ImGui::GetCursorScreenPos();
@@ -2716,68 +2966,132 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
             ImVec2 video_view_window_pos = ImGui::GetCursorScreenPos();
             ImVec2 video_view_window_size = ImGui::GetWindowSize();
             draw_list->AddRectFilled(video_view_window_pos, video_view_window_pos + video_view_window_size, COL_DEEP_DARK);
-
             // Draw Video Fusion Play control bar
             ImVec2 PanelBarPos = video_view_window_pos + ImVec2(0, (video_view_window_size.y - 36));
             ImVec2 PanelBarSize = ImVec2(video_view_window_size.x, 36);
             draw_list->AddRectFilled(PanelBarPos, PanelBarPos + PanelBarSize, COL_DARK_PANEL);
-            
             // Preview buttons Stop button is center of Panel bar
             auto PanelCenterX = PanelBarPos.x + video_view_window_size.x / 2;
             auto PanelButtonY = PanelBarPos.y + 2;
-        
             ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
             ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0.5));
             ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.2, 0.2, 0.2, 1.0));
-
             ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32 - 8 - 32 - 8 - 32, PanelButtonY));
             if (ImGui::Button(ICON_TO_START "##video_fusion_tostart", ImVec2(32, 32)))
             {
-                // TODO::Dicky
+                if (timeline->mVidOverlap && !timeline->mVidOverlap->bPlay)
+                {
+                    int64_t pos = 0;
+                    timeline->mVidOverlap->Seek(pos);
+                }
             }
             ImGui::ShowTooltipOnHover("To Start");
 
             ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32 - 8 - 32, PanelButtonY));
             if (ImGui::Button(ICON_STEP_BACKWARD "##video_fusion_step_backward", ImVec2(32, 32)))
             {
-                // TODO::Dicky
+                if (timeline->mVidOverlap)
+                {
+                    timeline->mVidOverlap->Step(false);
+                }
             }
             ImGui::ShowTooltipOnHover("Step Prev");
 
             ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32, PanelButtonY));
             if (ImGui::Button(ICON_FAST_BACKWARD "##video_fusion_reverse", ImVec2(32, 32)))
             {
-                // TODO::Dicky
+                if (timeline->mVidOverlap)
+                {
+                    timeline->mVidOverlap->bForward = false;
+                    timeline->mVidOverlap->bPlay = true;
+                }
             }
             ImGui::ShowTooltipOnHover("Reverse");
 
             ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16, PanelButtonY));
             if (ImGui::Button(ICON_STOP "##video_fusion_stop", ImVec2(32, 32)))
             {
-                // TODO::Dicky
+                if (timeline->mVidOverlap)
+                {
+                    timeline->mVidOverlap->bPlay = false;
+                    timeline->mVidOverlap->mLastTime = -1;
+                }
             }
             ImGui::ShowTooltipOnHover("Stop");
 
             ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8, PanelButtonY));
             if (ImGui::Button(ICON_FAST_FORWARD "##video_fusion_play", ImVec2(32, 32)))
             {
-                // TODO::Dicky
+                if (timeline->mVidOverlap)
+                {
+                    timeline->mVidOverlap->bForward = true;
+                    timeline->mVidOverlap->bPlay = true;
+                }
             }
             ImGui::ShowTooltipOnHover("Play");
 
             ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 32 + 8, PanelButtonY));
             if (ImGui::Button(ICON_STEP_FORWARD "##video_fusion_step_forward", ImVec2(32, 32)))
             {
-                // TODO::Dicky
+                if (timeline->mVidOverlap)
+                {
+                    timeline->mVidOverlap->Step(true);
+                }
             }
             ImGui::ShowTooltipOnHover("Step Next");
 
             ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 32 + 8 + 32 + 8, PanelButtonY));
             if (ImGui::Button(ICON_TO_END "##video_fusion_toend", ImVec2(32, 32)))
             {
-                // TODO::Dicky
+                if (timeline->mVidOverlap && !timeline->mVidOverlap->bPlay)
+                {
+                    int64_t pos = timeline->mVidOverlap->mEnd - timeline->mVidOverlap->mStart;
+                    timeline->mVidOverlap->Seek(pos);
+                }
             }
             ImGui::ShowTooltipOnHover("To End");
+
+            // filter input texture area
+            ImVec2 InputFirstVideoPos;
+            ImVec2 InputSecondVideoPos;
+            ImVec2 InputVideoSize;
+            InputVideoSize = ImVec2(video_view_window_size.x / 2 - 16, (video_view_window_size.y - PanelBarSize.y - 8) / 3);
+            InputFirstVideoPos = video_view_window_pos + ImVec2(4, 4);
+            InputSecondVideoPos = video_view_window_pos + ImVec2(video_view_window_size.x / 2 + 4, 4);
+            ImVec2 OutputVideoPos;
+            ImVec2 OutputVideoSize;
+            OutputVideoPos = video_view_window_pos + ImVec2(4, 4 + InputVideoSize.y + 4);
+            OutputVideoSize = ImVec2(video_view_window_size.x - 8, (video_view_window_size.y - PanelBarSize.y - 8) * 2 / 3);
+            ImRect InputFirstVideoRect(InputFirstVideoPos, InputFirstVideoPos + InputVideoSize);
+            ImRect OutVideoRect(OutputVideoPos,OutputVideoPos + OutputVideoSize);
+            if (timeline->mVidOverlap)
+            {
+                std::pair<std::pair<ImGui::ImMat, ImGui::ImMat>, ImGui::ImMat> pair;
+                auto ret = timeline->mVidOverlap->GetFrame(pair);
+                if (ret)
+                {
+#if IMGUI_VULKAN_SHADER
+                    if (m_histogram) m_histogram->scope(pair.second, mat_histogram, 256, g_media_editor_settings.HistogramScale, g_media_editor_settings.HistogramLog);
+                    if (m_waveform) m_waveform->scope(pair.second, mat_waveform, 256, g_media_editor_settings.WaveformIntensity, g_media_editor_settings.WaveformSeparate);
+                    if (m_cie) m_cie->scope(pair.second, mat_cie, g_media_editor_settings.CIEIntensity, g_media_editor_settings.CIEShowColor);
+                    if (m_vector) m_vector->scope(pair.second, mat_vector, g_media_editor_settings.VectorIntensity);
+#endif
+
+                    ImGui::ImMatToTexture(pair.first.first, timeline->mVideoFusionInputFirstTexture);
+                    ImGui::ImMatToTexture(pair.first.second, timeline->mVideoFusionInputSecondTexture);
+                    ImGui::ImMatToTexture(pair.second, timeline->mVideoFusionOutputTexture);
+                }
+                ImVec4 tint_col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);   // No tint
+                ImVec4 border_col = ImVec4(1.0f, 1.0f, 1.0f, 0.5f); // 50% opaque white
+                float offset_x = 0, offset_y = 0;
+                float tf_x = 0, tf_y = 0;
+                // fusion first input texture area
+                ShowVideoWindow(timeline->mVideoFusionInputFirstTexture, InputFirstVideoPos, InputVideoSize, offset_x, offset_y, tf_x, tf_y);
+                // fusion second input texture area
+                ShowVideoWindow(timeline->mVideoFusionInputSecondTexture, InputSecondVideoPos, InputVideoSize, offset_x, offset_y, tf_x, tf_y);
+                // filter output texture area
+                ShowVideoWindow(timeline->mVideoFusionOutputTexture, OutputVideoPos, OutputVideoSize, offset_x, offset_y, tf_x, tf_y);
+            }
 
             ImGui::PopStyleColor(3);
         }
@@ -2951,7 +3265,7 @@ static void ShowAudioFusionBluePrintWindow(ImDrawList *draw_list, Overlap * over
         {
             auto track = timeline->FindTrackByClipID(overlap->m_Clip.first);
             if (track)
-                track->EditingOverlap(overlap);
+                track->SelectEditingOverlap(overlap);
             timeline->mAudioFusionBluePrint->View_ZoomToContent();
         }
         ImVec2 window_pos = ImGui::GetCursorScreenPos();
@@ -3040,7 +3354,7 @@ static void ShowAudioFusionWindow(ImDrawList *draw_list)
         draw_list->AddRectFilled(fusion_timeline_window_pos, fusion_timeline_window_pos + fusion_timeline_window_size, COL_DARK_TWO);
 
         // Draw Clip TimeLine
-        DrawOverlapTimeLine(timeline->mVidOverlap);
+        DrawOverlapTimeLine(nullptr); // TODO:: Add Audio Overlap
     }
     ImGui::EndChild();
 }
@@ -3081,6 +3395,8 @@ static void ShowAudioEditorWindow(ImDrawList *draw_list)
 static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
 {
     ImGuiIO &io = ImGui::GetIO();
+    bool multiviewport = io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable;
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
     ImDrawList *draw_list = ImGui::GetWindowDrawList();
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
@@ -3105,6 +3421,8 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
         {
             ImGui::OpenPopup("##select_scope_view");
         }
+        if (multiviewport)
+            ImGui::SetNextWindowViewport(viewport->ID);
         if (ImGui::BeginPopup("##select_scope_view"))
         {
             for (int i = 0; i < IM_ARRAYSIZE(ScopeWindowTabNames); i++)
@@ -3117,6 +3435,8 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
         {
             ImGui::OpenPopup("##setting_scope_view");
         }
+        if (multiviewport)
+            ImGui::SetNextWindowViewport(viewport->ID);
         if (ImGui::BeginPopup("##setting_scope_view"))
         {
             switch (ScopeWindowIndex)
@@ -3604,6 +3924,7 @@ void Application_SetupContext(ImGuiContext* ctx)
         else if (sscanf(line, "TopViewHeight=%f", &val_float) == 1) { setting->TopViewHeight = val_float; }
         else if (sscanf(line, "BottomViewHeight=%f", &val_float) == 1) { setting->BottomViewHeight = val_float; }
         else if (sscanf(line, "OldBottomViewHeight=%f", &val_float) == 1) { setting->OldBottomViewHeight = val_float; }
+        else if (sscanf(line, "ShowMeters=%d", &val_int) == 1) { setting->showMeters = val_int == 1; }
         else if (sscanf(line, "ControlPanelWidth=%f", &val_float) == 1) { setting->ControlPanelWidth = val_float; }
         else if (sscanf(line, "MainViewWidth=%f", &val_float) == 1) { setting->MainViewWidth = val_float; }
         else if (sscanf(line, "VideoWidth=%d", &val_int) == 1) { setting->VideoWidth = val_int; }
@@ -3675,6 +3996,7 @@ void Application_SetupContext(ImGuiContext* ctx)
         out_buf->appendf("TopViewHeight=%f\n", g_media_editor_settings.TopViewHeight);
         out_buf->appendf("BottomViewHeight=%f\n", g_media_editor_settings.BottomViewHeight);
         out_buf->appendf("OldBottomViewHeight=%f\n", g_media_editor_settings.OldBottomViewHeight);
+        out_buf->appendf("ShowMeters=%d\n", g_media_editor_settings.showMeters ? 1 : 0);
         out_buf->appendf("ControlPanelWidth=%f\n", g_media_editor_settings.ControlPanelWidth);
         out_buf->appendf("MainViewWidth=%f\n", g_media_editor_settings.MainViewWidth);
         out_buf->appendf("VideoWidth=%d\n", g_media_editor_settings.VideoWidth);
@@ -3785,7 +4107,7 @@ void Application_Initialize(void** handle)
 {
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     ImFontAtlas* atlas = io.Fonts;
-    ImFont* font = atlas->Fonts[1];
+    ImFont* font = atlas->Fonts[0];
     io.FontDefault = font;
     io.IniFilename = ini_file.c_str();
     if (io.ConfigFlags & ImGuiConfigFlags_EnableLowRefreshMode)
@@ -3880,10 +4202,13 @@ bool Application_Frame(void * handle, bool app_will_quit)
     // for debug
     if (show_debug) ImGui::ShowMetricsWindow(&show_debug);
     // for debug end
+
     if (show_about)
     {
         ImGui::OpenPopup(ICON_FA5_INFO_CIRCLE " About", ImGuiPopupFlags_AnyPopup);
     }
+    if (multiviewport)
+        ImGui::SetNextWindowViewport(viewport->ID);
     if (ImGui::BeginPopupModal(ICON_FA5_INFO_CIRCLE " About", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings))
     {
         ShowAbout();
@@ -3893,10 +4218,13 @@ bool Application_Frame(void * handle, bool app_will_quit)
         ImGui::SetItemDefaultFocus();
         ImGui::EndPopup();
     }
+
     if (show_configure)
     {
         ImGui::OpenPopup(ICON_FA_WHMCS " Configure", ImGuiPopupFlags_AnyPopup);
     }
+    if (multiviewport)
+        ImGui::SetNextWindowViewport(viewport->ID);
     if (ImGui::BeginPopupModal(ICON_FA_WHMCS " Configure", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings))
     {
         ShowConfigure(g_new_setting);
@@ -4042,12 +4370,19 @@ bool Application_Frame(void * handle, bool app_will_quit)
                 switch (ControlPanelIndex)
                 {
                     case 0: ShowMediaBankWindow(draw_list, media_icon_size); break;
-                    case 1: ShowTransitionBankWindow(draw_list); break;
-                    case 2: 
+                    case 1: 
                         switch (g_media_editor_settings.BankViewStyle)
                         {
                             case 0: ShowFilterBankIconWindow(draw_list); break;
                             case 1: ShowFilterBankTreeWindow(draw_list); break;
+                            default: break;
+                        }
+                    break;
+                    case 2: 
+                        switch (g_media_editor_settings.BankViewStyle)
+                        {
+                            case 0: ShowFusionBankIconWindow(draw_list);; break;
+                            case 1: ShowFusionBankTreeWindow(draw_list); break;
                             default: break;
                         }
                     break;
@@ -4067,11 +4402,33 @@ bool Application_Frame(void * handle, bool app_will_quit)
         {
             // full background
             ImDrawList *draw_list = ImGui::GetWindowDrawList();
-            //ImVec2 main_window_size = ImGui::GetWindowSize();
             if (ImGui::TabLabels(numMainWindowTabs, MainWindowTabNames, MainWindowIndex, MainWindowTabTooltips , false, true, nullptr, nullptr, false, false, nullptr, nullptr))
             {
                 UIPageChanged();
             }
+            // show meters
+            if (g_media_editor_settings.showMeters)
+            {
+                std::ostringstream oss;
+                oss << std::fixed << std::setprecision(2) << ImGui::GetIO().DeltaTime * 1000.f << "ms/frame ";
+                oss << ImGui::GetIO().Framerate << "FPS";
+#ifdef IMGUI_VULKAN_SHADER
+                int device_count = ImGui::get_gpu_count();
+                for (int i = 0; i < device_count; i++)
+                {
+                    ImGui::VulkanDevice* vkdev = ImGui::get_gpu_device(i);
+                    std::string device_name = vkdev->info.device_name();
+                    uint32_t gpu_memory_budget = vkdev->get_heap_budget();
+                    uint32_t gpu_memory_usage = vkdev->get_heap_usage();
+                    oss << " GPU[" << i << "]:" << device_name << " VRAM(" << gpu_memory_usage << "MB/" << gpu_memory_budget << "MB)";
+                }
+#endif
+                std::string meters = oss.str();
+                auto str_size = ImGui::CalcTextSize(meters.c_str());
+                auto spos = main_sub_pos + ImVec2(main_sub_size.x - str_size.x - 8, 0);
+                draw_list->AddText(spos, IM_COL32_WHITE, meters.c_str());
+            }
+
             auto wmin = main_sub_pos + ImVec2(0, 32);
             auto wmax = wmin + ImGui::GetContentRegionAvail() - ImVec2(8, 0);
             draw_list->AddRectFilled(wmin, wmax, IM_COL32_BLACK, 8.0, ImDrawFlags_RoundCornersAll);
@@ -4216,6 +4573,8 @@ bool Application_Frame(void * handle, bool app_will_quit)
     // File Dialog
     ImVec2 minSize = ImVec2(600, 600);
 	ImVec2 maxSize = ImVec2(FLT_MAX, FLT_MAX);
+    if (multiviewport)
+        ImGui::SetNextWindowViewport(viewport->ID);
     if (ImGuiFileDialog::Instance()->Display("##MediaEditFileDlgKey", ImGuiWindowFlags_NoCollapse, minSize, maxSize))
     {
         if (ImGuiFileDialog::Instance()->IsOk())
