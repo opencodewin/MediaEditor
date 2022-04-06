@@ -23,6 +23,7 @@ extern "C"
 
 using namespace std;
 using namespace Logger;
+using namespace DataLayer;
 
 class MultiTrackAudioReader_Impl : public MultiTrackAudioReader
 {
@@ -56,6 +57,7 @@ public:
         m_outChannelLayout = av_get_default_channel_layout(outChannels);
         m_outSamplesPerFrame = outSamplesPerFrame;
         m_samplePos = 0;
+        m_readPos = 0;
 
         m_configured = true;
         return true;
@@ -95,45 +97,49 @@ public:
         m_outSamplesPerFrame = 1024;
     }
 
-    bool AddTrack() override
+    AudioTrackHolder AddTrack(int64_t trackId) override
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
         if (!m_started)
         {
             m_errMsg = "This MultiTrackAudioReader instance is NOT started yet!";
-            return false;
+            return nullptr;
         }
 
         TerminateMixingThread();
 
-        AudioTrackHolder hTrack(new AudioTrack(m_outChannels, m_outSampleRate));
-        m_tracks.push_back(hTrack);
+        AudioTrackHolder hTrack(new AudioTrack(trackId, m_outChannels, m_outSampleRate));
+        hTrack->SetDirection(m_readForward);
+        {
+            lock_guard<recursive_mutex> lk2(m_trackLock);
+            m_tracks.push_back(hTrack);
+        }
         m_outputMats.clear();
 
         ReleaseMixer();
         if (!CreateMixer())
-            return false;
+            return nullptr;
 
-        double pos = (double)m_samplePos/m_outSampleRate;
+        int64_t pos = m_samplePos*1000/m_outSampleRate;
         for (auto track : m_tracks)
             track->SeekTo(pos);
 
         StartMixingThread();
-        return true;
+        return hTrack;
     }
 
-    bool RemoveTrack(uint32_t index) override
+    AudioTrackHolder RemoveTrackByIndex(uint32_t index) override
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
         if (!m_started)
         {
             m_errMsg = "This MultiTrackAudioReader instance is NOT started yet!";
-            return false;
+            return nullptr;
         }
         if (index >= m_tracks.size())
         {
             m_errMsg = "Invalid value for argument 'index'!";
-            return false;
+            return nullptr;
         }
 
         TerminateMixingThread();
@@ -144,8 +150,81 @@ public:
             iter++;
             index--;
         }
-        m_tracks.erase(iter);
+        auto delTrack = *iter;
+        {
+            lock_guard<recursive_mutex> lk2(m_trackLock);
+            m_tracks.erase(iter);
+        }
+        m_outputMats.clear();
 
+        ReleaseMixer();
+        if (!m_tracks.empty())
+        {
+            if (!CreateMixer())
+                return nullptr;
+        }
+
+        for (auto track : m_tracks)
+            track->SeekTo(ReadPos());
+
+        StartMixingThread();
+        return delTrack;
+    }
+
+    AudioTrackHolder RemoveTrackById(int64_t trackId) override
+    {
+        lock_guard<recursive_mutex> lk(m_apiLock);
+        if (!m_started)
+        {
+            m_errMsg = "This MultiTrackVideoReader instance is NOT started yet!";
+            return nullptr;
+        }
+
+        lock_guard<recursive_mutex> lk2(m_trackLock);
+        auto iter = find_if(m_tracks.begin(), m_tracks.end(), [trackId] (const AudioTrackHolder& track) {
+            return track->Id() == trackId;
+        });
+        if (iter == m_tracks.end())
+            return nullptr;
+
+        TerminateMixingThread();
+
+        auto delTrack = *iter;
+        m_tracks.erase(iter);
+        m_outputMats.clear();
+
+        ReleaseMixer();
+        if (!m_tracks.empty())
+        {
+            if (!CreateMixer())
+                return nullptr;
+        }
+
+        for (auto track : m_tracks)
+            track->SeekTo(ReadPos());
+
+        StartMixingThread();
+        return delTrack;
+    }
+
+    bool SetDirection(bool forward) override
+    {
+        lock_guard<recursive_mutex> lk(m_apiLock);
+        if (m_readForward == forward)
+            return true;
+
+        TerminateMixingThread();
+
+        m_readForward = forward;
+        for (auto& track : m_tracks)
+            track->SetDirection(forward);
+
+        int64_t readPos = ReadPos();
+        for (auto track : m_tracks)
+            track->SeekTo(readPos);
+        m_samplePos = readPos*m_outSampleRate/1000;
+
+        m_outputMats.clear();
         ReleaseMixer();
         if (!m_tracks.empty())
         {
@@ -153,20 +232,11 @@ public:
                 return false;
         }
 
-        double pos = (double)m_samplePos/m_outSampleRate;
-        for (auto track : m_tracks)
-            track->SeekTo(pos);
-
         StartMixingThread();
         return true;
     }
 
-    bool SetDirection(bool forward) override
-    {
-        return false;
-    }
-
-    bool SeekTo(double pos) override
+    bool SeekTo(int64_t pos) override
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
         if (!m_started)
@@ -174,11 +244,17 @@ public:
             m_errMsg = "This MultiTrackAudioReader instance is NOT started yet!";
             return false;
         }
+        if (pos < 0 || pos > Duration())
+        {
+            m_errMsg = "INVALID argument! 'pos' must in the range of [0, Duration()].";
+            return false;
+        }
 
         TerminateMixingThread();
 
         m_outputMats.clear();
-        m_samplePos = (int64_t)(pos*m_outSampleRate);
+        m_samplePos = pos*m_outSampleRate/1000;
+        m_readPos = pos;
         for (auto track : m_tracks)
             track->SeekTo(pos);
 
@@ -195,17 +271,42 @@ public:
             return false;
         }
 
-        while (m_outputMats.empty() && !m_quit)
+        m_outputMatsLock.lock();
+        while (m_outputMats.empty() && !m_eof && !m_quit)
+        {
+            m_outputMatsLock.unlock();
             this_thread::sleep_for(chrono::milliseconds(5));
+            m_outputMatsLock.lock();
+        }
+        lock_guard<mutex> lk2(m_outputMatsLock, adopt_lock);
+        // lock_guard<mutex> lk2(m_outputMatsLock);
         if (m_quit)
         {
             m_errMsg = "This 'MultiTrackAudioReader' instance is quit.";
             return false;
         }
+        if (m_outputMats.empty() && m_eof)
+        {
+            m_errMsg = "EOF";
+            return false;
+        }
 
-        lock_guard<mutex> lk2(m_outputMatsLock);
         amat = m_outputMats.front();
         m_outputMats.pop_front();
+        m_readPos += (int64_t)amat.w*1000/m_outSampleRate;
+        return true;
+    }
+
+    bool Refresh() override
+    {
+        lock_guard<recursive_mutex> lk(m_apiLock);
+        if (!m_started)
+        {
+            m_errMsg = "This MultiTrackVideoReader instance is NOT started yet!";
+            return false;
+        }
+
+        SeekTo(ReadPos());
         return true;
     }
 
@@ -224,16 +325,47 @@ public:
         return m_tracks.end();
     }
 
-    AudioTrackHolder GetTrack(uint32_t idx) override
+    AudioTrackHolder GetTrackByIndex(uint32_t idx) override
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
         if (idx >= m_tracks.size())
             return nullptr;
-        lock_guard<mutex> lk2(m_trackLock);
+        lock_guard<recursive_mutex> lk2(m_trackLock);
         auto iter = m_tracks.begin();
         while (idx-- > 0 && iter != m_tracks.end())
             iter++;
         return iter != m_tracks.end() ? *iter : nullptr;
+    }
+
+    AudioTrackHolder GetTrackById(int64_t id, bool createIfNotExists) override
+    {
+        lock(m_apiLock, m_trackLock);
+        lock_guard<recursive_mutex> lk(m_apiLock, adopt_lock);
+        lock_guard<recursive_mutex> lk2(m_trackLock, adopt_lock);
+        auto iter = find_if(m_tracks.begin(), m_tracks.end(), [id] (const AudioTrackHolder& track) {
+            return track->Id() == id;
+        });
+        if (iter != m_tracks.end())
+            return *iter;
+        if (createIfNotExists)
+            return AddTrack(id);
+        else
+            return nullptr;
+    }
+
+    AudioClipHolder GetClipById(int64_t clipId) override
+    {
+        lock(m_apiLock, m_trackLock);
+        lock_guard<recursive_mutex> lk(m_apiLock, adopt_lock);
+        lock_guard<recursive_mutex> lk2(m_trackLock, adopt_lock);
+        AudioClipHolder clip;
+        for (auto& track : m_tracks)
+        {
+            clip = track->GetClipById(clipId);
+            if (clip)
+                break;
+        }
+        return clip;
     }
 
     double Duration() override
@@ -251,6 +383,11 @@ public:
                 dur = trackDur;
         }
         return dur;
+    }
+
+    int64_t ReadPos() const override
+    {
+        return m_readPos;
     }
 
     string GetError() const override
@@ -431,12 +568,14 @@ private:
             bool idleLoop = true;
             int fferr;
 
-            if (m_outputMats.size() < m_outputMatsMaxCount)
+            int64_t mixingPos = m_samplePos*1000/m_outSampleRate;
+            m_eof = m_readForward ? mixingPos >= Duration() : mixingPos <= 0;
+            if (m_outputMats.size() < m_outputMatsMaxCount && !m_eof)
             {
                 if (!m_tracks.empty())
                 {
                     {
-                        lock_guard<mutex> lk(m_trackLock);
+                        lock_guard<recursive_mutex> lk(m_trackLock);
                         uint32_t i = 0;
                         for (auto iter = m_tracks.begin(); iter != m_tracks.end(); iter++, i++)
                         {
@@ -464,7 +603,10 @@ private:
                                 break;
                             }
                         }
-                        m_samplePos += m_outSamplesPerFrame;
+                        if (m_readForward)
+                            m_samplePos += m_outSamplesPerFrame;
+                        else
+                            m_samplePos -= m_outSamplesPerFrame;
                     }
 
                     fferr = av_buffersink_get_frame(m_bufSinkCtxs[0], outfrm.get());
@@ -494,7 +636,10 @@ private:
                     amat.create((int)m_outSamplesPerFrame, 1, (int)m_outChannels, (size_t)4);
                     memset(amat.data, 0, amat.total()*amat.elemsize);
                     amat.time_stamp = (double)m_samplePos/m_outSampleRate;
-                    m_samplePos += m_outSamplesPerFrame;
+                    if (m_readForward)
+                        m_samplePos += m_outSamplesPerFrame;
+                    else
+                        m_samplePos -= m_outSamplesPerFrame;
                     lock_guard<mutex> lk(m_outputMatsLock);
                     m_outputMats.push_back(amat);
                     idleLoop = false;
@@ -515,12 +660,15 @@ private:
     thread m_mixingThread;
 
     list<AudioTrackHolder> m_tracks;
-    mutex m_trackLock;
+    recursive_mutex m_trackLock;
     int64_t m_samplePos{0};
     uint32_t m_outChannels{0};
     uint32_t m_outSampleRate{0};
     int64_t m_outChannelLayout{0};
     uint32_t m_outSamplesPerFrame{1024};
+    int64_t m_readPos{0};
+    bool m_readForward{true};
+    bool m_eof{false};
 
     list<ImGui::ImMat> m_outputMats;
     mutex m_outputMatsLock;

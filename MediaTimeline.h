@@ -7,6 +7,7 @@
 #include "MediaSnapshot.h"
 #include "MediaReader.h"
 #include "MultiTrackVideoReader.h"
+#include "MultiTrackAudioReader.h"
 #include "AudioRender.hpp"
 #include "UI.h"
 #include <thread>
@@ -628,6 +629,7 @@ struct TimeLine
     EditingVideoOverlap* mVidOverlap    {nullptr};
 
     MultiTrackVideoReader* mMtvReader   {nullptr};
+    MultiTrackAudioReader* mMtaReader   {nullptr};
     double mPreviewPos                      {0};
     double mPreviewResumePos                {0};
     bool mIsPreviewPlaying                  {false};
@@ -638,6 +640,26 @@ struct TimeLine
     imgui_json::value mOngoingAction;
     std::list<imgui_json::value> mUiActions;
     void PerformUiActions();
+    void PerformVideoAction(imgui_json::value& action);
+    void PerformAudioAction(imgui_json::value& action);
+
+    class SimplePcmStream : public AudioRender::ByteStream
+    {
+    public:
+        SimplePcmStream(TimeLine* owner) : m_owner(owner) {}
+        void SetAudioReader(MultiTrackAudioReader* areader) { m_areader = areader; }
+        uint32_t Read(uint8_t* buff, uint32_t buffSize, bool blocking) override;
+        void Flush() override;
+
+    private:
+        TimeLine* m_owner;
+        MultiTrackAudioReader* m_areader;
+        ImGui::ImMat m_amat;
+        uint32_t m_readPosInAmat{0};
+        std::mutex m_amatLock;
+    };
+    SimplePcmStream mPcmStream;
+    int64_t audioPos{0};
 
     std::mutex mTrackLock;                  // timeline track mutex
     

@@ -134,7 +134,6 @@ namespace DataLayer
     VideoClipHolder VideoTrack::RemoveClipByIndex(uint32_t index)
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
-
         if (index >= m_clips.size())
             throw invalid_argument("Argument 'index' exceeds the count of clips!");
 

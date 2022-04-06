@@ -20,7 +20,10 @@
 
 using namespace std;
 using namespace Logger;
+using namespace DataLayer;
 using Clock = chrono::steady_clock;
+
+static atomic_int64_t g_idIndex{1};
 
 static MultiTrackAudioReader* g_mtAudReader = nullptr;
 const int c_audioRenderChannels = 2;
@@ -159,13 +162,13 @@ void Application_Finalize(void** handle)
 }
 
 static uint32_t s_addClipOptSelIdx = 0;
-static double s_addClipTimeLineOffset = 0;
+static double s_addClipStart = 0;
 static double s_addClipStartOffset = 0;
 static double s_addClipEndOffset = 0;
 static uint32_t s_remTrackOptSelIdx = 0;
 static uint32_t s_movClipTrackSelIdx = 0;
 static uint32_t s_movClipSelIdx = 0;
-static double s_changeClipTimeLineOffset = 0;
+static double s_changeClipStart = 0;
 static double s_changeClipStartOffset = 0;
 static double s_changeClipEndOffset = 0;
 
@@ -215,9 +218,9 @@ bool Application_Frame(void * handle, bool app_will_quit)
             ImGui::EndCombo();
         }
         ImGui::SameLine(0, 20);
-        ImGui::TextUnformatted("TimeLineOffset");
+        ImGui::TextUnformatted("Start");
         ImGui::SameLine();
-        ImGui::InputDouble("##TimeLineOffset", &s_addClipTimeLineOffset);
+        ImGui::InputDouble("##Start", &s_addClipStart);
         ImGui::SameLine(0, 20);
         ImGui::TextUnformatted("ClipStartOffset");
         ImGui::SameLine();
@@ -256,7 +259,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
             ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true);
         if (ImGui::Button("Remove Track"))
         {
-            g_mtAudReader->RemoveTrack(s_remTrackOptSelIdx);
+            g_mtAudReader->RemoveTrackByIndex(s_remTrackOptSelIdx);
             s_remTrackOptSelIdx = 0;
             g_audrnd->Flush();
         }
@@ -285,7 +288,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
         vector<string> clipNames;
         if (!noTrack)
         {
-            AudioTrackHolder hTrack = g_mtAudReader->GetTrack(s_movClipTrackSelIdx);
+            AudioTrackHolder hTrack = g_mtAudReader->GetTrackByIndex(s_movClipTrackSelIdx);
             auto clipIter = hTrack->ClipListBegin();
             while (clipIter != hTrack->ClipListEnd())
             {
@@ -306,7 +309,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
             s_movClipSelIdx = clipSelOpts.size()-1;
         if (ImGui::BeginCombo("##MovClipSelClipOptions", clipSelOpts[s_movClipSelIdx].c_str()))
         {
-            AudioTrackHolder hTrack = g_mtAudReader->GetTrack(s_movClipTrackSelIdx);
+            AudioTrackHolder hTrack = g_mtAudReader->GetTrackByIndex(s_movClipTrackSelIdx);
             auto clipIter = hTrack->ClipListBegin();
             for (uint32_t i = 0; i < clipSelOpts.size(); i++)
             {
@@ -328,8 +331,9 @@ bool Application_Frame(void * handle, bool app_will_quit)
             ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true);
         if (ImGui::Button("Remove Clip"))
         {
-            AudioTrackHolder hTrack = g_mtAudReader->GetTrack(s_movClipTrackSelIdx);
+            AudioTrackHolder hTrack = g_mtAudReader->GetTrackByIndex(s_movClipTrackSelIdx);
             hTrack->RemoveClipByIndex(s_movClipSelIdx);
+            g_mtAudReader->Refresh();
             s_movClipSelIdx = 0;
             g_audrnd->Flush();
         }
@@ -341,8 +345,24 @@ bool Application_Frame(void * handle, bool app_will_quit)
         ImGui::PushItemWidth(100);
         ImGui::TextUnformatted("tloff");
         ImGui::SameLine();
-        ImGui::InputDouble("##tloff", &s_changeClipTimeLineOffset);
+        ImGui::InputDouble("##tloff", &s_changeClipStart);
         ImGui::SameLine(0, 10);
+
+        ImGui::PopItemWidth();
+        if (noClip)
+            ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true);
+        if (ImGui::Button("Move Clip"))
+        {
+            AudioTrackHolder hTrack = g_mtAudReader->GetTrackByIndex(s_movClipTrackSelIdx);
+            AudioClipHolder hClip = hTrack->GetClipByIndex(s_movClipSelIdx);
+            hTrack->MoveClip(hClip->Id(), (int64_t)(s_changeClipStart*1000));
+            g_mtAudReader->Refresh();
+        }
+        if (noClip)
+            ImGui::PopItemFlag();
+
+        ImGui::SameLine(0, 10);
+        ImGui::PushItemWidth(100);
         ImGui::TextUnformatted("off0");
         ImGui::SameLine();
         ImGui::InputDouble("##off0", &s_changeClipStartOffset);
@@ -355,12 +375,12 @@ bool Application_Frame(void * handle, bool app_will_quit)
 
         if (noClip)
             ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true);
-        if (ImGui::Button("Change Clip"))
+        if (ImGui::Button("Change Clip Range"))
         {
-            AudioTrackHolder hTrack = g_mtAudReader->GetTrack(s_movClipTrackSelIdx);
+            AudioTrackHolder hTrack = g_mtAudReader->GetTrackByIndex(s_movClipTrackSelIdx);
             AudioClipHolder hClip = hTrack->GetClipByIndex(s_movClipSelIdx);
-            hTrack->ChangeClip(hClip->Id(), s_changeClipTimeLineOffset, s_changeClipStartOffset, s_changeClipEndOffset);
-            g_audrnd->Flush();
+            hTrack->ChangeClipRange(hClip->Id(), (int64_t)(s_changeClipStartOffset*1000), (int64_t)(s_changeClipEndOffset*1000));
+            g_mtAudReader->Refresh();
         }
         if (noClip)
             ImGui::PopItemFlag();
@@ -372,14 +392,23 @@ bool Application_Frame(void * handle, bool app_will_quit)
         for (auto track = g_mtAudReader->TrackListBegin(); track != g_mtAudReader->TrackListEnd(); track++)
         {
             ostringstream oss;
-            oss << "Track#" << audTrackIdx++ << ": [";
-            for (auto clip = (*track)->ClipListBegin(); clip != (*track)->ClipListEnd();)
+            oss << "Track#" << audTrackIdx++ << "{ 'clips': [";
+            for (auto clIter = (*track)->ClipListBegin(); clIter != (*track)->ClipListEnd();)
             {
-                oss << "Clip#" << (*clip)->Id() << ":{'tlOff':" << (*clip)->TimeLineOffset()
-                    << ", 'off0':" << (*clip)->StartOffset() << ", 'off1':" << (*clip)->EndOffset()
-                    << ", 'dur':" << (*clip)->ClipDuration() << "}";
-                clip++;
-                if (clip != (*track)->ClipListEnd())
+                oss << "Clip#" << (*clIter)->Id() << ":{'tlOff':" << (*clIter)->Start()
+                    << ", 'off0':" << (*clIter)->StartOffset() << ", 'off1':" << (*clIter)->EndOffset()
+                    << ", 'dur':" << (*clIter)->Duration() << "}";
+                clIter++;
+                if (clIter != (*track)->ClipListEnd())
+                    oss << ", ";
+            }
+            oss << "], 'overlaps': [";
+            for (auto ovIter = (*track)->OverlapListBegin(); ovIter != (*track)->OverlapListEnd();)
+            {
+                oss << "Overlap#" << (*ovIter)->Id() << ":{'start':" << (*ovIter)->Start()
+                    << ", 'dur':" << (*ovIter)->Duration() << "}";
+                ovIter++;
+                if (ovIter != (*track)->OverlapListEnd())
                     oss << ", ";
             }
             oss << "].";
@@ -430,15 +459,23 @@ bool Application_Frame(void * handle, bool app_will_quit)
             string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
             if (s_addClipOptSelIdx == g_mtAudReader->TrackCount())
             {
-                if (!g_mtAudReader->AddTrack())
+                int64_t trackId = g_idIndex++;
+                if (!g_mtAudReader->AddTrack(trackId))
                 {
                     Log(Error) << "FAILED to 'AddTrack'! Message is '" << g_mtAudReader->GetError() << "'." << endl;
                 }
             }
-            AudioTrackHolder hTrack = g_mtAudReader->GetTrack(s_addClipOptSelIdx);
-            hTrack->AddNewClip(filePathName, s_addClipTimeLineOffset, s_addClipStartOffset, s_addClipEndOffset);
+            AudioTrackHolder hTrack = g_mtAudReader->GetTrackByIndex(s_addClipOptSelIdx);
+            MediaParserHolder hParser = CreateMediaParser();
+            if (!hParser->Open(filePathName))
+                throw std::runtime_error(hParser->GetError());
+            int64_t clipId = g_idIndex++;
+            hTrack->AddNewClip(
+                clipId, hParser,
+                (int64_t)(s_addClipStart*1000), (int64_t)(s_addClipStartOffset*1000), (int64_t)(s_addClipEndOffset*1000));
+            g_mtAudReader->Refresh();
             s_addClipOptSelIdx = g_mtAudReader->TrackCount();
-            s_addClipTimeLineOffset = 0;
+            s_addClipStart = 0;
             s_addClipStartOffset = 0;
             s_addClipEndOffset = 0;
             g_audrnd->Flush();

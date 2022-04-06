@@ -2815,17 +2815,15 @@ static int thread_video_filter(TimeLine * timeline)
 }
 
 TimeLine::TimeLine()
-    : mStart(0), mEnd(0)
+    : mStart(0), mEnd(0), mPcmStream(this)
 {
     std::srand(std::time(0)); // init std::rand
-    /*
-    mPCMStream = new PcmStream(this);
+
     mAudioRender = CreateAudioRender();
     if (mAudioRender)
     {
-        mAudioRender->OpenDevice(mAudioSampleRate, mAudioChannels, mAudioFormat, mPCMStream);
+        mAudioRender->OpenDevice(mAudioSampleRate, mAudioChannels, mAudioFormat, &mPcmStream);
     }
-    */
 
     mVideoFilterBluePrint = new BluePrint::BluePrintUI();
     if (mVideoFilterBluePrint)
@@ -2932,9 +2930,21 @@ TimeLine::~TimeLine()
         mVidOverlap = nullptr;
     }
 
+    if (mAudioRender)
+    {
+        ReleaseAudioRender(&mAudioRender);
+        mAudioRender = nullptr;
+    }
+
     if (mMtvReader)
     {
         ReleaseMultiTrackVideoReader(&mMtvReader);
+        mMtvReader = nullptr;
+    }
+    if (mMtaReader)
+    {
+        ReleaseMultiTrackAudioReader(&mMtaReader);
+        mMtaReader = nullptr;
     }
 }
 
@@ -3217,6 +3227,7 @@ void TimeLine::Play(bool play, bool forward)
     if (forward != mIsPreviewForward)
     {
         mMtvReader->SetDirection(forward);
+        mMtaReader->SetDirection(forward);
         mIsPreviewForward = forward;
         mPlayTriggerTp = PlayerClock::now();
         mPreviewResumePos = mPreviewPos;
@@ -3225,9 +3236,17 @@ void TimeLine::Play(bool play, bool forward)
     {
         mIsPreviewPlaying = play;
         if (play)
+        {
             mPlayTriggerTp = PlayerClock::now();
+            if (mAudioRender)
+                mAudioRender->Resume();
+        }
         else
+        {
             mPreviewResumePos = mPreviewPos;
+            if (mAudioRender)
+                mAudioRender->Pause();
+        }
     }
 }
 
@@ -3235,6 +3254,15 @@ void TimeLine::Seek(int64_t msPos)
 {
     mPlayTriggerTp = PlayerClock::now();
     mPreviewResumePos = (double)msPos/1000;
+    if (mAudioRender)
+    {
+        if (mIsPreviewPlaying)
+            mAudioRender->Pause();
+        mAudioRender->Flush();
+        mMtaReader->SeekTo(msPos);
+        if (mIsPreviewPlaying)
+            mAudioRender->Resume();
+    }
 }
 
 void TimeLine::Step(bool forward)
@@ -3242,6 +3270,7 @@ void TimeLine::Step(bool forward)
     if (forward != mIsPreviewForward)
     {
         mMtvReader->SetDirection(forward);
+        mMtaReader->SetDirection(forward);
         mIsPreviewForward = forward;
     }
     ImGui::ImMat vmat;
@@ -3266,7 +3295,9 @@ void TimeLine::ToStart()
 
 void TimeLine::ToEnd()
 {
-    int64_t dur = mMtvReader->Duration();
+    int64_t vdur = mMtvReader->Duration();
+    int64_t adur = mMtaReader->Duration();
+    int64_t dur = vdur > adur ? vdur : adur;
     if (dur > 0) dur -= 1;
     Seek(dur);
 }
@@ -3921,23 +3952,36 @@ int TimeLine::Load(const imgui_json::value& value)
     // build multi-track video reader
     for (auto track : m_Tracks)
     {
-        if (track->mType != MEDIA_VIDEO)
-            continue;
-        DataLayer::VideoTrackHolder vidTrack = mMtvReader->AddTrack(track->mID);
-        for (auto clip : track->m_Clips)
+        if (track->mType == MEDIA_VIDEO)
         {
-            DataLayer::VideoClipHolder vidClip = vidTrack->AddNewClip(
-                clip->mID, clip->mMediaParser,
-                clip->mStart, clip->mStartOffset, clip->mEndOffset, currentTime-clip->mStart);
+            DataLayer::VideoTrackHolder vidTrack = mMtvReader->AddTrack(track->mID);
+            for (auto clip : track->m_Clips)
+            {
+                DataLayer::VideoClipHolder vidClip = vidTrack->AddNewClip(
+                    clip->mID, clip->mMediaParser,
+                    clip->mStart, clip->mStartOffset, clip->mEndOffset, currentTime-clip->mStart);
 
-            BluePrintVideoFilter* bpvf = new BluePrintVideoFilter();
-            bpvf->SetBluePrintFromJson(clip->mFilterBP);
-            DataLayer::VideoFilterHolder hFilter(bpvf);
-            vidClip->SetFilter(hFilter);
+                BluePrintVideoFilter* bpvf = new BluePrintVideoFilter();
+                bpvf->SetBluePrintFromJson(clip->mFilterBP);
+                DataLayer::VideoFilterHolder hFilter(bpvf);
+                vidClip->SetFilter(hFilter);
+            }
+        }
+        else if (track->mType == MEDIA_AUDIO)
+        {
+            DataLayer::AudioTrackHolder audTrack = mMtaReader->AddTrack(track->mID);
+            for (auto clip : track->m_Clips)
+            {
+                DataLayer::AudioClipHolder audClip = audTrack->AddNewClip(
+                    clip->mID, clip->mMediaParser,
+                    clip->mStart, clip->mStartOffset, clip->mEndOffset);
+            }
         }
     }
     SyncDataLayer();
     mMtvReader->Refresh();
+    // mMtaReader->Refresh();
+    mMtaReader->SeekTo(currentTime);
     Logger::Log(Logger::VERBOSE) << *mMtvReader << std::endl;
     return 0;
 }
@@ -4025,78 +4069,14 @@ void TimeLine::PerformUiActions()
         MEDIA_TYPE mediaType = MEDIA_UNKNOWN;
         if (action.contains("media_type"))
             mediaType = (MEDIA_TYPE)action["media_type"].get<imgui_json::number>();
-        if (mediaType != MEDIA_VIDEO)
+        if (mediaType == MEDIA_VIDEO)
+            PerformVideoAction(action);
+        else if (mediaType == MEDIA_AUDIO)
+            PerformAudioAction(action);
+        else
         {
             Logger::Log(Logger::DEBUG) << "Skip action due to unsupported MEDIA_TYPE: " << action.dump() << "." << std::endl;
             continue;
-        }
-
-        std::string actionName = action["action"].get<imgui_json::string>();
-        if (actionName == "ADD_CLIP")
-        {
-            int64_t trackId = action["to_track_id"].get<imgui_json::number>();
-            DataLayer::VideoTrackHolder vidTrack = mMtvReader->GetTrackById(trackId, true);
-            int64_t clipId = action["clip_id"].get<imgui_json::number>();
-            Clip* clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
-            DataLayer::VideoClipHolder vidClip(new DataLayer::VideoClip(
-                clip->mID, clip->mMediaParser,
-                vidTrack->OutWidth(), vidTrack->OutHeight(), vidTrack->FrameRate(),
-                clip->mStart, clip->mStartOffset, clip->mEndOffset, currentTime-clip->mStart));
-            vidTrack->InsertClip(vidClip);
-            mMtvReader->Refresh();
-        }
-        else if (actionName == "MOVE_CLIP")
-        {
-            int64_t srcTrackId = action["from_track_id"].get<imgui_json::number>();
-            int64_t dstTrackId = srcTrackId;
-            if (action.contains("to_track_id"))
-                dstTrackId = action["to_track_id"].get<imgui_json::number>();
-            DataLayer::VideoTrackHolder dstVidTrack = mMtvReader->GetTrackById(dstTrackId);
-            int64_t clipId = action["clip_id"].get<imgui_json::number>();
-            Clip* clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
-            if (srcTrackId != dstTrackId)
-            {
-                DataLayer::VideoTrackHolder srcVidTrack = mMtvReader->GetTrackById(srcTrackId);
-                DataLayer::VideoClipHolder vidClip = srcVidTrack->RemoveClipById(clip->mID);
-                vidClip->SetStart(clip->mStart);
-                dstVidTrack->InsertClip(vidClip);
-            }
-            else
-            {
-                dstVidTrack->MoveClip(clip->mID, clip->mStart);
-            }
-            mMtvReader->Refresh();
-        }
-        else if (actionName == "CROP_CLIP")
-        {
-            int64_t trackId = action["from_track_id"].get<imgui_json::number>();
-            DataLayer::VideoTrackHolder vidTrack = mMtvReader->GetTrackById(trackId);
-            int64_t clipId = action["clip_id"].get<imgui_json::number>();
-            Clip* clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
-            vidTrack->ChangeClipRange(clip->mID, clip->mStartOffset, clip->mEndOffset);
-            mMtvReader->Refresh();
-        }
-        else if (actionName == "REMOVE_CLIP")
-        {
-            int64_t trackId = action["from_track_id"].get<imgui_json::number>();
-            DataLayer::VideoTrackHolder vidTrack = mMtvReader->GetTrackById(trackId);
-            int64_t clipId = action["clip_id"].get<imgui_json::number>();
-            vidTrack->RemoveClipById(clipId);
-            mMtvReader->Refresh();
-        }
-        else if (actionName == "ADD_TRACK")
-        {
-            int64_t trackId = action["track_id"].get<imgui_json::number>();
-            mMtvReader->AddTrack(trackId);
-        }
-        else if (actionName == "REMOVE_TRACK")
-        {
-            int64_t trackId = action["track_id"].get<imgui_json::number>();
-            mMtvReader->RemoveTrackById(trackId);
-        }
-        else
-        {
-            Logger::Log(Logger::WARN) << "UNHANDLED UI ACTION: '" << actionName << "'." << std::endl;
         }
     }
     if (!mUiActions.empty())
@@ -4109,6 +4089,148 @@ void TimeLine::PerformUiActions()
     mUiActions.clear();
 }
 
+void TimeLine::PerformVideoAction(imgui_json::value& action)
+{
+    std::string actionName = action["action"].get<imgui_json::string>();
+    if (actionName == "ADD_CLIP")
+    {
+        int64_t trackId = action["to_track_id"].get<imgui_json::number>();
+        DataLayer::VideoTrackHolder vidTrack = mMtvReader->GetTrackById(trackId, true);
+        int64_t clipId = action["clip_id"].get<imgui_json::number>();
+        Clip* clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
+        DataLayer::VideoClipHolder vidClip(new DataLayer::VideoClip(
+            clip->mID, clip->mMediaParser,
+            vidTrack->OutWidth(), vidTrack->OutHeight(), vidTrack->FrameRate(),
+            clip->mStart, clip->mStartOffset, clip->mEndOffset, currentTime-clip->mStart));
+        vidTrack->InsertClip(vidClip);
+        mMtvReader->Refresh();
+    }
+    else if (actionName == "MOVE_CLIP")
+    {
+        int64_t srcTrackId = action["from_track_id"].get<imgui_json::number>();
+        int64_t dstTrackId = srcTrackId;
+        if (action.contains("to_track_id"))
+            dstTrackId = action["to_track_id"].get<imgui_json::number>();
+        DataLayer::VideoTrackHolder dstVidTrack = mMtvReader->GetTrackById(dstTrackId);
+        int64_t clipId = action["clip_id"].get<imgui_json::number>();
+        Clip* clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
+        if (srcTrackId != dstTrackId)
+        {
+            DataLayer::VideoTrackHolder srcVidTrack = mMtvReader->GetTrackById(srcTrackId);
+            DataLayer::VideoClipHolder vidClip = srcVidTrack->RemoveClipById(clip->mID);
+            vidClip->SetStart(clip->mStart);
+            dstVidTrack->InsertClip(vidClip);
+        }
+        else
+        {
+            dstVidTrack->MoveClip(clip->mID, clip->mStart);
+        }
+        mMtvReader->Refresh();
+    }
+    else if (actionName == "CROP_CLIP")
+    {
+        int64_t trackId = action["from_track_id"].get<imgui_json::number>();
+        DataLayer::VideoTrackHolder vidTrack = mMtvReader->GetTrackById(trackId);
+        int64_t clipId = action["clip_id"].get<imgui_json::number>();
+        Clip* clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
+        vidTrack->ChangeClipRange(clip->mID, clip->mStartOffset, clip->mEndOffset);
+        mMtvReader->Refresh();
+    }
+    else if (actionName == "REMOVE_CLIP")
+    {
+        int64_t trackId = action["from_track_id"].get<imgui_json::number>();
+        DataLayer::VideoTrackHolder vidTrack = mMtvReader->GetTrackById(trackId);
+        int64_t clipId = action["clip_id"].get<imgui_json::number>();
+        vidTrack->RemoveClipById(clipId);
+        mMtvReader->Refresh();
+    }
+    else if (actionName == "ADD_TRACK")
+    {
+        int64_t trackId = action["track_id"].get<imgui_json::number>();
+        mMtvReader->AddTrack(trackId);
+    }
+    else if (actionName == "REMOVE_TRACK")
+    {
+        int64_t trackId = action["track_id"].get<imgui_json::number>();
+        mMtvReader->RemoveTrackById(trackId);
+    }
+    else
+    {
+        Logger::Log(Logger::WARN) << "UNHANDLED UI ACTION(Video): '" << actionName << "'." << std::endl;
+    }
+}
+
+void TimeLine::PerformAudioAction(imgui_json::value& action)
+{
+    std::string actionName = action["action"].get<imgui_json::string>();
+    if (actionName == "ADD_CLIP")
+    {
+        int64_t trackId = action["to_track_id"].get<imgui_json::number>();
+        DataLayer::AudioTrackHolder audTrack = mMtaReader->GetTrackById(trackId, true);
+        int64_t clipId = action["clip_id"].get<imgui_json::number>();
+        Clip* clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
+        DataLayer::AudioClipHolder audClip(new DataLayer::AudioClip(
+            clip->mID, clip->mMediaParser,
+            audTrack->OutChannels(), audTrack->OutSampleRate(),
+            clip->mStart, clip->mStartOffset, clip->mEndOffset, currentTime-clip->mStart));
+        audTrack->InsertClip(audClip);
+        mMtaReader->Refresh();
+    }
+    else if (actionName == "MOVE_CLIP")
+    {
+        int64_t srcTrackId = action["from_track_id"].get<imgui_json::number>();
+        int64_t dstTrackId = srcTrackId;
+        if (action.contains("to_track_id"))
+            dstTrackId = action["to_track_id"].get<imgui_json::number>();
+        DataLayer::AudioTrackHolder dstAudTrack = mMtaReader->GetTrackById(dstTrackId);
+        int64_t clipId = action["clip_id"].get<imgui_json::number>();
+        Clip* clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
+        if (srcTrackId != dstTrackId)
+        {
+            DataLayer::AudioTrackHolder srcAudTrack = mMtaReader->GetTrackById(srcTrackId);
+            DataLayer::AudioClipHolder audClip = srcAudTrack->RemoveClipById(clip->mID);
+            audClip->SetStart(clip->mStart);
+            dstAudTrack->InsertClip(audClip);
+        }
+        else
+        {
+            dstAudTrack->MoveClip(clip->mID, clip->mStart);
+        }
+        mMtaReader->Refresh();
+    }
+    else if (actionName == "CROP_CLIP")
+    {
+        int64_t trackId = action["from_track_id"].get<imgui_json::number>();
+        DataLayer::AudioTrackHolder audTrack = mMtaReader->GetTrackById(trackId);
+        int64_t clipId = action["clip_id"].get<imgui_json::number>();
+        Clip* clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
+        audTrack->ChangeClipRange(clip->mID, clip->mStartOffset, clip->mEndOffset);
+        mMtaReader->Refresh();
+    }
+    else if (actionName == "REMOVE_CLIP")
+    {
+        int64_t trackId = action["from_track_id"].get<imgui_json::number>();
+        DataLayer::AudioTrackHolder audTrack = mMtaReader->GetTrackById(trackId);
+        int64_t clipId = action["clip_id"].get<imgui_json::number>();
+        audTrack->RemoveClipById(clipId);
+        mMtaReader->Refresh();
+    }
+    else if (actionName == "ADD_TRACK")
+    {
+        int64_t trackId = action["track_id"].get<imgui_json::number>();
+        mMtaReader->AddTrack(trackId);
+    }
+    else if (actionName == "REMOVE_TRACK")
+    {
+        int64_t trackId = action["track_id"].get<imgui_json::number>();
+        mMtaReader->RemoveTrackById(trackId);
+    }
+    else
+    {
+        Logger::Log(Logger::WARN) << "UNHANDLED UI ACTION(Video): '" << actionName << "'." << std::endl;
+    }
+}
+
 void TimeLine::ConfigureDataLayer()
 {
     if (mMtvReader)
@@ -4116,15 +4238,22 @@ void TimeLine::ConfigureDataLayer()
     mMtvReader = CreateMultiTrackVideoReader();
     mMtvReader->Configure(mWidth, mHeight, mFrameRate);
     mMtvReader->Start();
+    if (mMtaReader)
+        ReleaseMultiTrackAudioReader(&mMtaReader);
+    mMtaReader = CreateMultiTrackAudioReader();
+    mMtaReader->Configure(mAudioChannels, mAudioSampleRate);
+    mMtaReader->Start();
+    mPcmStream.SetAudioReader(mMtaReader);
 }
 
 void TimeLine::SyncDataLayer()
 {
+    // video
     int syncedOverlapCount = 0;
-    auto trackIter = mMtvReader->TrackListBegin();
-    while (trackIter != mMtvReader->TrackListEnd())
+    auto vidTrackIter = mMtvReader->TrackListBegin();
+    while (vidTrackIter != mMtvReader->TrackListEnd())
     {
-        auto& vidTrack = *trackIter++;
+        auto& vidTrack = *vidTrackIter++;
         auto ovlpIter = vidTrack->OverlapListBegin();
         while (ovlpIter != vidTrack->OverlapListEnd())
         {
@@ -4213,6 +4342,44 @@ void TimeLine::ConfigSnapshotWindow(int64_t viewWndDur)
     }
     for (auto& track : m_Tracks)
         track->ConfigViewWindow(visibleTime, msPixelWidthTarget);
+}
+
+uint32_t TimeLine::SimplePcmStream::Read(uint8_t* buff, uint32_t buffSize, bool blocking)
+{
+    if (!m_areader)
+        return 0;
+    std::lock_guard<std::mutex> lk(m_amatLock);
+    uint32_t readSize = 0;
+    while (readSize < buffSize)
+    {
+        uint32_t amatTotalDataSize = m_amat.total()*m_amat.elemsize;
+        if (m_readPosInAmat < amatTotalDataSize)
+        {
+            uint32_t copySize = buffSize-readSize;
+            if (copySize > amatTotalDataSize)
+                copySize = amatTotalDataSize;
+            memcpy(buff+readSize, (uint8_t*)m_amat.data+m_readPosInAmat, copySize);
+            readSize += copySize;
+            m_readPosInAmat += copySize;
+        }
+        if (m_readPosInAmat >= amatTotalDataSize)
+        {
+            ImGui::ImMat amat;
+            if (!m_areader->ReadAudioSamples(amat))
+                return 0;
+            m_owner->audioPos = (int64_t)(amat.time_stamp*1000);
+            m_amat = amat;
+            m_readPosInAmat = 0;
+        }
+    }
+    return buffSize;
+}
+
+void TimeLine::SimplePcmStream::Flush()
+{
+    std::lock_guard<std::mutex> lk(m_amatLock);
+    m_amat.release();
+    m_readPosInAmat = 0;
 }
 } // namespace MediaTimeline/TimeLine
 
@@ -5286,6 +5453,11 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                     {
                         new_audio_clip = new AudioClip(item->mStart, item->mEnd, item->mID, item->mName + ":Audio", item->mMediaOverview, timeline);
                         timeline->m_Clips.push_back(new_audio_clip);
+                        imgui_json::value action2;
+                        action2["action"] = "ADD_CLIP";
+                        action2["media_type"] = imgui_json::number(new_audio_clip->mType);
+                        action2["clip_id"] = imgui_json::number(new_audio_clip->mID);
+                        action2["start"] = (double)new_audio_clip->mStart/1000;
                         if (!create_new_track)
                         {
                             if (new_video_clip)
@@ -5305,6 +5477,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                                             }
                                             timeline->AddClipIntoGroup(new_audio_clip, new_video_clip->mGroupID);
                                             relative_track->InsertClip(new_audio_clip, mouseTime);
+                                            action2["to_track_id"] = imgui_json::number(relative_track->mID);
                                             timeline->Updata();
                                         }
                                         else
@@ -5324,6 +5497,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                                 {
                                     // update clip info and push into track
                                     track->InsertClip(new_audio_clip, mouseTime);
+                                    action2["to_track_id"] = imgui_json::number(track->mID);
                                     timeline->Updata();
                                 }
                                 else
@@ -5346,20 +5520,15 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                             int newTrackIndex = timeline->NewTrack("", MEDIA_AUDIO, true);
                             MediaTrack * audioTrack = timeline->m_Tracks[newTrackIndex];
                             audioTrack->InsertClip(new_audio_clip, mouseTime);
+                            action2["to_track_id"] = imgui_json::number(audioTrack->mID);
                             if (videoTrack)
                             {
                                 videoTrack->mLinkedTrack = audioTrack->mID;
                                 audioTrack->mLinkedTrack = videoTrack->mID;
                             }
 
-                            imgui_json::value action2;
-                            action2["action"] = "ADD_CLIP";
-                            action2["media_type"] = imgui_json::number(new_audio_clip->mType);
-                            action2["clip_id"] = imgui_json::number(new_audio_clip->mID);
-                            action2["to_track_id"] = imgui_json::number(audioTrack->mID);
-                            action2["start"] = (double)new_audio_clip->mStart/1000;
-                            timeline->mUiActions.push_back(std::move(action2));
                         }
+                        timeline->mUiActions.push_back(std::move(action2));
                     }
                 }
                 timeline->mUiActions.push_back(std::move(action));

@@ -324,11 +324,11 @@ bool Application_Frame(void * handle, bool app_will_quit)
         ImGui::Spacing();
 
         ImGui::TextUnformatted("Video Tracks:");
-        uint32_t audTrackIdx = 1;
+        uint32_t vidTrackIdx = 1;
         for (auto track = g_mtVidReader->TrackListBegin(); track != g_mtVidReader->TrackListEnd(); track++)
         {
             ostringstream oss;
-            oss << "Track#" << audTrackIdx++ << "{ 'clips': [";
+            oss << "Track#" << vidTrackIdx++ << "{ 'clips': [";
             for (auto clIter = (*track)->ClipListBegin(); clIter != (*track)->ClipListEnd();)
             {
                 oss << "Clip#" << (*clIter)->Id() << ":{'tlOff':" << (*clIter)->Start()

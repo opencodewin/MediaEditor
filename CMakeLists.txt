@@ -99,6 +99,9 @@ set(MEDIA_EDITOR_SRCS
     MultiTrackVideoReader.cpp
     VideoTrack.cpp
     VideoClip.cpp
+    MultiTrackAudioReader.cpp
+    AudioTrack.cpp
+    AudioClip.cpp
     MediaOverview.cpp
     MediaSnapshot.cpp
     SnapshotGenerator.cpp

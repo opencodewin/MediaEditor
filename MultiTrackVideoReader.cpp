@@ -383,7 +383,7 @@ public:
             return nullptr;
     }
 
-    DataLayer::VideoClipHolder GetClipById(int64_t clipId) override
+    VideoClipHolder GetClipById(int64_t clipId) override
     {
         lock(m_apiLock, m_trackLock);
         lock_guard<recursive_mutex> lk(m_apiLock, adopt_lock);
