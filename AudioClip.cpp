@@ -241,7 +241,7 @@ namespace DataLayer
     {
         int64_t pos = m_frontClip->ReadPos()+m_frontClip->Start()-m_start;
         bool eof1{false};
-        shared_ptr<uint8_t> buf1(new uint8_t[size]);
+        unique_ptr<uint8_t[]> buf1(new uint8_t[size]);
         uint32_t readBytes1 = size;
         m_frontClip->ReadAudioSamples(buf1.get(), readBytes1, eof1);
         if (readBytes1 == 0)
@@ -251,7 +251,7 @@ namespace DataLayer
         }
 
         bool eof2{false};
-        shared_ptr<uint8_t> buf2(new uint8_t[readBytes1]);
+        unique_ptr<uint8_t[]> buf2(new uint8_t[readBytes1]);
         uint32_t readBytes2 = readBytes1;
         m_rearClip->ReadAudioSamples(buf2.get(), readBytes2, eof2);
         if (readBytes2 < readBytes1)
