@@ -39,6 +39,7 @@ namespace DataLayer
         uint32_t OutHeight() const { return m_outHeight; }
         MediaInfo::Ratio FrameRate() const { return m_frameRate; }
         int64_t Duration() const { return m_duration; }
+        int64_t ReadPos() const { return (int64_t)((double)m_readFrames*1000*m_frameRate.den/m_frameRate.num); }
 
         friend std::ostream& operator<<(std::ostream& os, VideoTrack& track);
 

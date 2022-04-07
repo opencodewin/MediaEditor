@@ -405,8 +405,13 @@ namespace DataLayer
                 (*m_readClipIter)->ReadAudioSamples(readPtr, toRead, eof);
                 readSize += toRead;
                 m_readSamples -= toRead/m_frameSize;
-                if (eof && m_readClipIter != m_clips.begin())
-                    m_readClipIter--;
+                if (eof)
+                {
+                    if (m_readClipIter != m_clips.begin())
+                        m_readClipIter--;
+                    else
+                        break;
+                }
             } while (readSize < size && m_readSamples > 0);
         }
         return readSize;

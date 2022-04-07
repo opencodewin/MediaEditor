@@ -651,6 +651,7 @@ struct TimeLine
     double mPreviewResumePos                {0};
     bool mIsPreviewPlaying                  {false};
     bool mIsPreviewForward                  {true};
+    bool mIsStepMode                        {false};
     using PlayerClock = std::chrono::steady_clock;
     PlayerClock::time_point mPlayTriggerTp;
 

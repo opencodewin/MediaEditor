@@ -592,9 +592,11 @@ private:
                                 m_logger->Log(Error) << "FAILED to invoke 'av_frame_get_buffer'(In MixingThreadProc)! fferr=" << fferr << "." << endl;
                                 break;
                             }
-                            uint32_t bufSize = avfrm->linesize[0];
+                            uint32_t toRead = avfrm->linesize[0];
                             auto& track = *iter;
-                            track->ReadAudioSamples(avfrm->data[0], bufSize);
+                            track->ReadAudioSamples(avfrm->data[0], toRead);
+                            if (toRead < avfrm->linesize[0])
+                                memset(avfrm->data[0]+toRead, 0, avfrm->linesize[0]-toRead);
 
                             fferr = av_buffersrc_add_frame(m_bufSrcCtxs[i], avfrm.get());
                             if (fferr < 0)

@@ -3586,6 +3586,12 @@ int TimeLine::GetSelectedClipCount()
 
 void TimeLine::Play(bool play, bool forward)
 {
+    if (mIsStepMode)
+    {
+        mIsStepMode = false;
+        if (mAudioRender)
+            mMtaReader->SeekTo(currentTime);
+    }
     if (forward != mIsPreviewForward)
     {
         mMtvReader->SetDirection(forward);
@@ -3629,6 +3635,16 @@ void TimeLine::Seek(int64_t msPos)
 
 void TimeLine::Step(bool forward)
 {
+    if (mIsPreviewPlaying)
+    {
+        mIsPreviewPlaying = false;
+        if (mAudioRender)
+        {
+            mAudioRender->Pause();
+            mAudioRender->Flush();
+        }
+    }
+    mIsStepMode = true;
     if (forward != mIsPreviewForward)
     {
         mMtvReader->SetDirection(forward);
@@ -3640,8 +3656,7 @@ void TimeLine::Step(bool forward)
     currentTime = std::round(vmat.time_stamp*1000);
     mPreviewResumePos = (double)currentTime/1000;
     Logger::Log(Logger::DEBUG) << ">>> STEP: " << currentTime << "(" << mPreviewResumePos << ") <<<" << std::endl;
-    if (mIsPreviewPlaying)
-        mIsPreviewPlaying = false;
+
     UpdateCurrent();
 }
 

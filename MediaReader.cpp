@@ -1351,7 +1351,7 @@ private:
                             demuxEof = true;
                         else if (ptsAfterSeek != currTask->seekPts.first)
                         {
-                            m_logger->Log(WARN) << "WARNING! 'ptsAfterSeek'(" << ptsAfterSeek << ") != 'ssTask->startPts'(" << currTask->seekPts.first << ")!" << endl;
+                            // m_logger->Log(WARN) << "WARNING! 'ptsAfterSeek'(" << ptsAfterSeek << ") != 'ssTask->startPts'(" << currTask->seekPts.first << ")!" << endl;
                             // currTask->seekPts.first = ptsAfterSeek;
                         }
                     }
@@ -2533,7 +2533,7 @@ private:
                 }
                 else
                 {
-                    m_logger->Log(WARN) << "'m_audReadTask' CANNOT be found in 'm_bldtskPriOrder'!" << endl;
+                    // m_logger->Log(WARN) << "'m_audReadTask' CANNOT be found in 'm_bldtskPriOrder'!" << endl;
                     m_audReadTask = nullptr;
                     m_audReadOffset = -1;
                 }

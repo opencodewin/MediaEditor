@@ -466,6 +466,7 @@ private:
             if (m_outputMats.size() < m_outputMatsMaxCount)
             {
                 ImGui::ImMat mixedFrame;
+                double timestamp = 0;
                 {
                     lock_guard<recursive_mutex> trackLk(m_trackLock);
                     auto trackIter = m_tracks.begin();
@@ -475,6 +476,11 @@ private:
                         (*trackIter)->ReadVideoFrame(vmat);
                         if (!vmat.empty() && mixedFrame.empty())
                             mixedFrame = vmat;
+                        if (trackIter == m_tracks.begin())
+                            timestamp = vmat.time_stamp;
+                        else if (timestamp != vmat.time_stamp)
+                            m_logger->Log(WARN) << "'vmat' got from non-1st track has DIFFERENT TIMESTAMP against the 1st track! "
+                                << timestamp << " != " << vmat.time_stamp << "." << endl;
                         trackIter++;
                     }
                 }
@@ -482,6 +488,7 @@ private:
                 {
                     mixedFrame.create_type(m_outWidth, m_outHeight, 4, IM_DT_INT8);
                     memset(mixedFrame.data, 0, mixedFrame.total()*mixedFrame.elemsize);
+                    mixedFrame.time_stamp = timestamp;
                 }
 
                 {

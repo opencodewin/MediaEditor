@@ -276,27 +276,26 @@ namespace DataLayer
         }
         else
         {
-            while (m_readOverlapIter != m_overlaps.begin() && (m_readOverlapIter == m_overlaps.end() || readPos < (*m_readOverlapIter)->Start()))
-                m_readOverlapIter--;
-            if (m_readOverlapIter != m_overlaps.end())
+            if (!m_overlaps.empty())
             {
+                if (m_readOverlapIter == m_overlaps.end()) m_readOverlapIter--;
+                while (m_readOverlapIter != m_overlaps.begin() && readPos < (*m_readOverlapIter)->Start())
+                    m_readOverlapIter--;
                 auto& hOverlap = *m_readOverlapIter;
                 bool eof = false;
                 if (readPos >= hOverlap->Start() && readPos < hOverlap->End())
                     hOverlap->ReadVideoFrame(readPos-hOverlap->Start(), vmat, eof);
             }
 
-            if (vmat.empty())
+            if (vmat.empty() && !m_clips.empty())
             {
-                while (m_readClipIter != m_clips.begin() && (m_readClipIter == m_clips.end() || readPos < (*m_readClipIter)->Start()))
+                if (m_readClipIter == m_clips.end()) m_readClipIter--;
+                while (m_readClipIter != m_clips.begin() && readPos < (*m_readClipIter)->Start())
                     m_readClipIter--;
-                if (m_readClipIter != m_clips.end())
-                {
-                    auto& hClip = *m_readClipIter;
-                    bool eof = false;
-                    if (readPos < hClip->End())
-                        hClip->ReadVideoFrame(readPos-hClip->Start(), vmat, eof);
-                }
+                auto& hClip = *m_readClipIter;
+                bool eof = false;
+                if (readPos >= hClip->Start() && readPos < hClip->End())
+                    hClip->ReadVideoFrame(readPos-hClip->Start(), vmat, eof);
             }
 
             vmat.time_stamp = (double)readPos/1000;
