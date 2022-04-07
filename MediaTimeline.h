@@ -590,6 +590,20 @@ typedef struct TimeLineCallbackFunctions
     TimeLineCallback  EditingOverlap    {nullptr};
 } TimeLineCallbackFunctions;
 
+struct audio_channel_data
+{
+    ImGui::ImMat m_wave;
+    ImGui::ImMat m_fft;
+    ImGui::ImMat m_db;
+    ImGui::ImMat m_DBShort;
+    ImGui::ImMat m_DBLong;
+    ImGui::ImMat m_Spectrogram;
+    ImTextureID texture_spectrogram {nullptr};
+    float m_decibel {0};
+    int m_DBMaxIndex {-1};
+    ~audio_channel_data() { if (texture_spectrogram) ImGui::ImDestroyTexture(texture_spectrogram); }
+};
+
 struct TimeLine
 {
     TimeLine();
@@ -622,7 +636,8 @@ struct TimeLine
     bool bExportVideo {true};
     bool bExportAudio {true};
     
-    std::vector<int> mAudioLevel;           // timeline audio levels
+    std::vector<audio_channel_data> m_audio_channel_data;   // timeline audio data replace audio levels
+    void CalculateAudioScopeData(ImGui::ImMat& mat);
 
     int64_t attract_docking_pixels {10};    // clip attract docking sucking in pixels range, pulling range is 1/5
     int64_t mConnectedPoints = -1;
@@ -748,7 +763,7 @@ struct TimeLine
     void CustomDraw(int index, ImDrawList *draw_list, const ImRect &view_rc, const ImRect &rc, const ImRect &titleRect, const ImRect &clippingTitleRect, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRect, bool is_moving, bool enable_select);
     
     ImGui::ImMat GetPreviewFrame();
-    int GetAudioLevel(int channel);
+    float GetAudioLevel(int channel);
 
     void Play(bool play, bool forward = true);
     void Seek(int64_t msPos);

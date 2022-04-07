@@ -2512,9 +2512,9 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     int l_level = timeline->GetAudioLevel(0);
     int r_level = timeline->GetAudioLevel(1);
     ImGui::SetCursorScreenPos(AudioUVLeftPos);
-    ImGui::UvMeter("##luv", AudioUVLeftSize, &l_level, 0, 96, AudioUVLeftSize.y / 4, &left_stack, &left_count);
+    ImGui::UvMeter("##luv", AudioUVLeftSize, &l_level, 0, 100, AudioUVLeftSize.y / 4, &left_stack, &left_count);
     ImGui::SetCursorScreenPos(AudioUVRightPos);
-    ImGui::UvMeter("##ruv", AudioUVRightSize, &r_level, 0, 96, AudioUVRightSize.y / 4, &right_stack, &right_count);
+    ImGui::UvMeter("##ruv", AudioUVRightSize, &r_level, 0, 100, AudioUVRightSize.y / 4, &right_stack, &right_count);
 
     // video texture area
     ImVec2 PreviewPos;

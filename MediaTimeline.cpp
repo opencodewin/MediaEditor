@@ -3212,8 +3212,8 @@ TimeLine::TimeLine()
 
     ConfigureDataLayer();
 
-    for (int i = 0; i < mAudioChannels; i++)
-        mAudioLevel.push_back(0);
+    m_audio_channel_data.clear();
+    m_audio_channel_data.resize(mAudioChannels);
 
     mVideoFilterThread = new std::thread(thread_video_filter, this);
     mVideoFusionThread = new std::thread(thread_video_fusion, this);
@@ -3244,7 +3244,9 @@ TimeLine::~TimeLine()
     mFrameLock.unlock();
 
     if (mMainPreviewTexture) { ImGui::ImDestroyTexture(mMainPreviewTexture); mMainPreviewTexture = nullptr; }
-    mAudioLevel.clear();
+    
+    m_audio_channel_data.clear();
+    
     if (mVideoFilterBluePrint)
     {
         mVideoFilterBluePrint->Finalize();
@@ -3582,6 +3584,10 @@ ImGui::ImMat TimeLine::GetPreviewFrame()
             mPreviewResumePos = (double)currentTime/1000;
             if (mAudioRender)
                 mAudioRender->Pause();
+            for (auto& audio : m_audio_channel_data)
+            {
+                audio.m_decibel = 0;
+            }
         }
     }
     mMtvReader->ReadVideoFrame(currentTime, frame, bSeeking);
@@ -3589,10 +3595,10 @@ ImGui::ImMat TimeLine::GetPreviewFrame()
     return frame;
 }
 
-int TimeLine::GetAudioLevel(int channel)
+float TimeLine::GetAudioLevel(int channel)
 {
-    if (channel < mAudioLevel.size())
-        return mAudioLevel[channel];
+    if (channel < m_audio_channel_data.size())
+        return m_audio_channel_data[channel].m_decibel;
     return 0;
 }
 
@@ -3636,6 +3642,10 @@ void TimeLine::Play(bool play, bool forward)
             mPreviewResumePos = mPreviewPos;
             if (mAudioRender)
                 mAudioRender->Pause();
+            for (auto& audio : m_audio_channel_data)
+            {
+                audio.m_decibel = 0;
+            }
         }
     }
 }
@@ -4065,7 +4075,7 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &view_r
                     else if (!is_moving && !clip->bSelected)
                         can_be_select = true;
                     else if (appand)
-                         can_be_select = true;
+                        can_be_select = true;
                     if (can_be_select && !mouse_clicked && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
                     {
                         track->SelectClip(clip, appand);
@@ -4775,6 +4785,7 @@ uint32_t TimeLine::SimplePcmStream::Read(uint8_t* buff, uint32_t buffSize, bool 
                 return 0;
             m_owner->audioPos = (int64_t)(amat.time_stamp*1000);
             m_amat = amat;
+            m_owner->CalculateAudioScopeData(m_amat);
             m_readPosInAmat = 0;
         }
     }
@@ -4786,6 +4797,46 @@ void TimeLine::SimplePcmStream::Flush()
     std::lock_guard<std::mutex> lk(m_amatLock);
     m_amat.release();
     m_readPosInAmat = 0;
+}
+
+void TimeLine::CalculateAudioScopeData(ImGui::ImMat& mat)
+{
+    for (int i = 0; i < mat.c; i++)
+    {
+        if (i < mAudioChannels)
+        {
+            m_audio_channel_data[i].m_wave.clone_from(mat.channel(i));
+            m_audio_channel_data[i].m_fft.clone_from(mat.channel(i));
+            ImGui::ImRFFT((float *)m_audio_channel_data[i].m_fft.data, m_audio_channel_data[i].m_fft.w, true);
+            m_audio_channel_data[i].m_db.create_type((mat.w >> 1) + 1, IM_DT_FLOAT32);
+            m_audio_channel_data[i].m_DBMaxIndex = ImGui::ImReComposeDB((float*)m_audio_channel_data[i].m_fft.data, (float *)m_audio_channel_data[i].m_db.data, mat.w);
+            m_audio_channel_data[i].m_DBShort.create_type(20, IM_DT_FLOAT32);
+            ImGui::ImReComposeDBShort((float*)m_audio_channel_data[i].m_fft.data, (float*)m_audio_channel_data[i].m_DBShort.data, mat.w);
+            m_audio_channel_data[i].m_DBLong.create_type(76, IM_DT_FLOAT32);
+            ImGui::ImReComposeDBLong((float*)m_audio_channel_data[i].m_fft.data, (float*)m_audio_channel_data[i].m_DBLong.data, mat.w);
+            m_audio_channel_data[i].m_decibel = ImGui::ImDoDecibel((float*)m_audio_channel_data[i].m_fft.data, mat.w);
+            if (m_audio_channel_data[i].m_Spectrogram.w != (mat.w >> 1) + 1)
+            {
+                m_audio_channel_data[i].m_Spectrogram.create_type((mat.w >> 1) + 1, 128, 4, IM_DT_INT8);
+            }
+            if (!m_audio_channel_data[i].m_Spectrogram.empty())
+            {
+                auto w = m_audio_channel_data[i].m_Spectrogram.w;
+                auto c = m_audio_channel_data[i].m_Spectrogram.c;
+                memmove(m_audio_channel_data[i].m_Spectrogram.data, (char *)m_audio_channel_data[i].m_Spectrogram.data + w * c, m_audio_channel_data[i].m_Spectrogram.total() - w * c);
+                uint32_t * last_line = (uint32_t *)m_audio_channel_data[i].m_Spectrogram.row_c<uint8_t>(127);
+                for (int n = 0; n < w; n++)
+                {
+                    auto value = m_audio_channel_data[i].m_db.at<float>(n);
+                    if (value < -64) value = -64;
+                    value = (int)((value + 64) + 170) % 255; 
+                    auto hue = value / 255.f;
+                    auto color = ImColor::HSV(hue, 1.0, 1.0);
+                    last_line[n] = color;
+                }
+            }
+        }
+    }
 }
 } // namespace MediaTimeline/TimeLine
 
