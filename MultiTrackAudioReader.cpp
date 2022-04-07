@@ -244,7 +244,7 @@ public:
             m_errMsg = "This MultiTrackAudioReader instance is NOT started yet!";
             return false;
         }
-        if (pos < 0 || pos > Duration())
+        if (pos < 0)
         {
             m_errMsg = "INVALID argument! 'pos' must in the range of [0, Duration()].";
             return false;
