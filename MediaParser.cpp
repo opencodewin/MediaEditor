@@ -345,11 +345,41 @@ private:
             return false;
         }
 
-        list<int64_t> vidSeekPoints;
+        // find the 1st key frame pts
         int vidstmidx = m_bestVidStmIdx;
         AVStream* vidStream = m_avfmtCtx->streams[vidstmidx];
-        int64_t lastKeyPts = vidStream->start_time-2;
         int fferr;
+        fferr = avformat_seek_file(m_avfmtCtx, vidstmidx, INT64_MIN, vidStream->start_time, vidStream->start_time, 0);
+        if (fferr < 0)
+        {
+            hTask->errMsg = FFapiFailureMessage("avformat_seek_file", fferr);
+            return false;
+        }
+
+        list<int64_t> vidSeekPoints;
+        int64_t lastKeyPts;
+        AVPacket avpkt = {0};
+        do {
+            fferr = av_read_frame(m_avfmtCtx, &avpkt);
+            if (fferr == 0)
+            {
+                if (avpkt.stream_index == vidstmidx)
+                {
+                    lastKeyPts = avpkt.pts;
+                    vidSeekPoints.push_back(lastKeyPts);
+                    av_packet_unref(&avpkt);
+                    break;
+                }
+                av_packet_unref(&avpkt);
+            }
+        } while (fferr >= 0 && !hTask->cancel);
+        if (vidSeekPoints.empty())
+        {
+            hTask->errMsg = "No key-frame is found!";
+            return false;
+        }
+
+        // find the following key frames
         while (!hTask->cancel)
         {
             fferr = avformat_seek_file(m_avfmtCtx, vidstmidx, lastKeyPts+1, lastKeyPts+1, INT64_MAX, 0);
