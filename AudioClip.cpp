@@ -27,7 +27,7 @@ namespace DataLayer
             throw invalid_argument("Argument 'startOffset/endOffset', clip duration is NOT LARGER than 0!");
         m_startOffset = startOffset;
         m_endOffset = endOffset;
-        if (readPos < 0) readPos = 0;
+        if (readPos < 0 || readPos >= Duration()) readPos = 0;
         if (!m_srcReader->SeekTo((double)(startOffset+readPos)/1000))
             throw runtime_error(m_srcReader->GetError());
         if (!m_srcReader->Start())
