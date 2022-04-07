@@ -3562,6 +3562,28 @@ ImGui::ImMat TimeLine::GetPreviewFrame()
     mPreviewPos = mIsPreviewPlaying ? (mIsPreviewForward ? mPreviewResumePos+elapsedTime : mPreviewResumePos-elapsedTime) : mPreviewResumePos;
     ImGui::ImMat frame;
     currentTime = (int64_t)(mPreviewPos * 1000);
+    if (mIsPreviewPlaying)
+    {
+        bool playEof = false;
+        int64_t dur = ValidDuration();
+        if (currentTime <= 0)
+        {
+            currentTime = 0;
+            playEof = true;
+        }
+        else if (currentTime >= dur)
+        {
+            currentTime = dur;
+            playEof = true;
+        }
+        if (playEof)
+        {
+            mIsPreviewPlaying = false;
+            mPreviewResumePos = (double)currentTime/1000;
+            if (mAudioRender)
+                mAudioRender->Pause();
+        }
+    }
     mMtvReader->ReadVideoFrame(currentTime, frame, bSeeking);
     if (mIsPreviewPlaying) UpdateCurrent();
     return frame;
@@ -3672,11 +3694,16 @@ void TimeLine::ToStart()
 
 void TimeLine::ToEnd()
 {
-    int64_t vdur = mMtvReader->Duration();
-    int64_t adur = mMtaReader->Duration();
-    int64_t dur = vdur > adur ? vdur : adur;
+    int64_t dur = ValidDuration();
     if (dur > 0) dur -= 1;
     Seek(dur);
+}
+
+int64_t TimeLine::ValidDuration()
+{
+    int64_t vdur = mMtvReader->Duration();
+    int64_t adur = mMtaReader->Duration();
+    return vdur > adur ? vdur : adur;
 }
 
 MediaItem* TimeLine::FindMediaItemByName(std::string name)

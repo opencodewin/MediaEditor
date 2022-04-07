@@ -1099,19 +1099,7 @@ private:
 
             GopDecodeTaskHolder readTask = m_audReadTask;
             if (!readTask)
-            {
                 readTask = FindNextAudioReadTask();
-                if (!readTask)
-                {
-                    if ((m_readForward && m_bldtskPriOrder.back()->mediaEof) ||
-                        (!m_readForward && m_bldtskPriOrder.front()->mediaEof))
-                    {
-                        m_audReadEof = true;
-                        size = readSize;
-                        return true;
-                    }
-                }
-            }
 
             if (readTask)
             {
@@ -1162,9 +1150,9 @@ private:
                             }
                             else
                             {
-                                m_audReadEof = true;
-                                size = readSize;
-                                return true;
+                                readTask = FindNextAudioReadTask();
+                                skipSize = 0;
+                                isIterSet = false;
                             }
                         }
                         else
@@ -1201,7 +1189,7 @@ private:
                 }
             }
 
-            needLoop = ((readTask && !readTask->cancel) || (!readTask && wait) || !idleLoop) && toReadSize > 0 && !m_quit;
+            needLoop = ((readTask && !readTask->cancel) || (!readTask && wait) || !idleLoop) && toReadSize > 0 && !m_audReadEof && !m_quit;
             if (needLoop && idleLoop)
                 this_thread::sleep_for(chrono::milliseconds(2));
         } while (needLoop);
@@ -1261,7 +1249,8 @@ private:
         mutex avpktQLock;
         bool demuxing{false};
         bool demuxEof{false};
-        bool mediaEof{false};
+        bool mediaBegin{false};
+        bool mediaEnd{false};
         bool decoding{false};
         bool decInputEof{false};
         bool decodeEof{false};
@@ -1349,6 +1338,9 @@ private:
                             break;
                         if (ptsAfterSeek == INT64_MAX)
                             demuxEof = true;
+                        else if (m_isVideoReader && ptsAfterSeek == m_vidAvStm->start_time ||
+                            !m_isVideoReader && ptsAfterSeek == m_audAvStm->start_time)
+                            currTask->mediaBegin = true;
                         else if (ptsAfterSeek != currTask->seekPts.first)
                         {
                             // m_logger->Log(WARN) << "WARNING! 'ptsAfterSeek'(" << ptsAfterSeek << ") != 'ssTask->startPts'(" << currTask->seekPts.first << ")!" << endl;
@@ -1369,7 +1361,7 @@ private:
                     {
                         if (fferr == AVERROR_EOF)
                         {
-                            currTask->mediaEof = true;
+                            currTask->mediaEnd = true;
                             currTask->demuxEof = true;
                             demuxEof = true;
                         }
@@ -2488,6 +2480,8 @@ private:
     GopDecodeTaskHolder FindNextAudioReadTask()
     {
         lock_guard<mutex> lk(m_bldtskByPriLock);
+        if (m_audReadEof)
+            return nullptr;
         if (m_bldtskPriOrder.empty())
         {
             m_audReadTask = nullptr;
@@ -2557,6 +2551,9 @@ private:
             {
                 m_audReadTask = nullptr;
                 m_audReadOffset = -1;
+                if (m_readForward && m_bldtskPriOrder.back()->mediaEnd ||
+                    !m_readForward && m_bldtskPriOrder.front()->mediaBegin)
+                    m_audReadEof = true;
             }
             else
             {

@@ -757,6 +757,7 @@ struct TimeLine
     void ToStart();
     void ToEnd();
     void UpdateCurrent();
+    int64_t ValidDuration();
 
     AudioRender* mAudioRender {nullptr};                // audio render(SDL)
 

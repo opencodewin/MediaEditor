@@ -360,13 +360,26 @@ namespace DataLayer
                         readSize += skipSize;
                         m_readSamples += skipSamples;
                     }
+                    if (readSize >= size)
+                        break;
                 }
-                if (readSize >= size)
+
+                bool eof = false;
+                while (readPos >= (*m_readClipIter)->End())
+                {
+                    m_readClipIter++;
+                    if (m_readClipIter == m_clips.end())
+                    {
+                        eof = true;
+                        break;
+                    }
+                }
+                if (eof)
                     break;
 
                 uint8_t* readPtr = buf+readSize;
                 uint32_t toReadSize = size-readSize;
-                bool eof = false;
+                eof = false;
                 (*m_readClipIter)->ReadAudioSamples(readPtr, toReadSize, eof);
                 readSize += toReadSize;
                 m_readSamples += toReadSize/m_frameSize;
@@ -395,13 +408,27 @@ namespace DataLayer
                         readSize += skipSize;
                         m_readSamples -= skipSamples;
                     }
+                    if (readSize >= size || m_readSamples <= 0)
+                        break;
                 }
-                if (readSize >= size || m_readSamples <= 0)
+
+                bool eof = false;
+                while (readPos <= (*m_readClipIter)->Start())
+                {
+                    if (m_readClipIter != m_clips.begin())
+                        m_readClipIter--;
+                    else
+                    {
+                        eof = true;
+                        break;
+                    }
+                }
+                if (eof)
                     break;
 
                 uint8_t* readPtr = buf+readSize;
                 uint32_t toRead = size-readSize;
-                bool eof = false;
+                eof = false;
                 (*m_readClipIter)->ReadAudioSamples(readPtr, toRead, eof);
                 readSize += toRead;
                 m_readSamples -= toRead/m_frameSize;

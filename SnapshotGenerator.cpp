@@ -479,10 +479,9 @@ private:
         uint32_t intWndFrmCnt = (uint32_t)ceil(m_wndFrmCnt);
         if (m_maxCacheSize < intWndFrmCnt)
             m_maxCacheSize = intWndFrmCnt;
-        if (m_maxCacheSize > m_vidMaxIndex+1)
-            m_maxCacheSize = m_vidMaxIndex+1;
+        // if (m_maxCacheSize > m_vidMaxIndex+1)
+        //     m_maxCacheSize = m_vidMaxIndex+1;
         m_prevWndCacheSize = (m_maxCacheSize-intWndFrmCnt)/2;
-        m_postWndCacheSize = m_maxCacheSize-intWndFrmCnt-m_prevWndCacheSize;
     }
 
     bool IsSsIdxValid(int32_t idx) const
@@ -1311,8 +1310,10 @@ private:
 
     pair<int64_t, int64_t> GetSeekPosByMts(int64_t mts)
     {
-        if (mts < 0 || mts > m_vidDurMts)
+        if (mts < 0)
             return { -1, -1 };
+        if (mts > m_vidDurMts)
+            return { INT64_MAX, INT64_MAX };
         int64_t targetPts = CvtVidMtsToPts(mts);
         auto iter = find_if(m_hSeekPoints->begin(), m_hSeekPoints->end(),
             [targetPts](int64_t keyPts) { return keyPts > targetPts; });
@@ -1758,7 +1759,7 @@ private:
     double m_ssIntvMts;
     double m_cacheFactor{10.0};
     uint32_t m_maxCacheSize{0};
-    uint32_t m_prevWndCacheSize, m_postWndCacheSize;
+    uint32_t m_prevWndCacheSize;
     list<ViewerHolder> m_viewers;
     mutex m_viewerListLock;
     list<GopDecodeTaskHolder> m_goptskPrepareList;
