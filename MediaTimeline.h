@@ -161,6 +161,7 @@
 #define COL_GRATICULE_DARK  IM_COL32(128,  96,   0, 128)
 #define COL_GRATICULE       IM_COL32(255, 196,   0, 128)
 #define COL_GRATICULE_HALF  IM_COL32(255, 196,   0,  64)
+#define COL_GRAY_GRATICULE  IM_COL32( 96,  96,  96,  128)
 
 #define HALF_COLOR(c)       (c & 0xFFFFFF) | 0x40000000;
 #define TIMELINE_OVER_LENGTH    5000        // add 5 seconds end of timeline
@@ -641,6 +642,8 @@ struct TimeLine
     
     std::vector<audio_channel_data> m_audio_channel_data;   // timeline audio data replace audio levels
     void CalculateAudioScopeData(ImGui::ImMat& mat);
+    float mAudioSpectrogramOffset {0.0};
+    float mAudioSpectrogramLight {1.0};
 
     int64_t attract_docking_pixels {10};    // clip attract docking sucking in pixels range, pulling range is 1/5
     int64_t mConnectedPoints = -1;
@@ -736,7 +739,6 @@ struct TimeLine
     ImTextureID mVideoFusionInputFirstTexture {nullptr};    // clip video fusion first input texture
     ImTextureID mVideoFusionInputSecondTexture {nullptr};   // clip video fusion second input texture
     ImTextureID mVideoFusionOutputTexture {nullptr};        // clip video fusion output texture
-
 
     TimeLineCallbackFunctions  m_CallBacks;
 
