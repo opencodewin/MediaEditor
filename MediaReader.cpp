@@ -1099,7 +1099,11 @@ private:
 
             GopDecodeTaskHolder readTask = m_audReadTask;
             if (!readTask)
+            {
                 readTask = FindNextAudioReadTask();
+                skipSize = 0;
+                isIterSet = false;
+            }
 
             if (readTask)
             {
@@ -2381,7 +2385,7 @@ private:
                 (currwnd.seekPos00 == m_bldtskSnapWnd.seekPos00 && currwnd.seekPos10 > m_bldtskSnapWnd.seekPos10))
             {
                 int64_t beginPts = CvtMtsToPts((int64_t)(currwnd.cacheBeginTs*1000));
-                int64_t endPts = CvtMtsToPts((int64_t)(currwnd.cacheEndTs*1000));
+                int64_t endPts = CvtMtsToPts((int64_t)(currwnd.cacheEndTs*1000))+1;
                 if (currwnd.seekPos00 <= m_bldtskSnapWnd.seekPos10)
                 {
                     auto iter = m_bldtskTimeOrder.begin();
@@ -2410,7 +2414,7 @@ private:
                 mts0 = CvtPtsToMts(pts0);
                 while (pts0 < endPts)
                 {
-                    mts1 = mts0+1000;
+                    mts1 = mts0+m_audioTaskGap;
                     if ((double)mts1/1000 >= currwnd.cacheEndTs-0.5)
                         pts1 = endPts;
                     else
@@ -2426,6 +2430,7 @@ private:
             {
                 int64_t beginPts = CvtMtsToPts((int64_t)(currwnd.cacheBeginTs*1000));
                 int64_t endPts = CvtMtsToPts((int64_t)(currwnd.cacheEndTs*1000))+1;
+                int64_t taskPtsGap = CvtMtsToPts(m_audioTaskGap);
                 if (currwnd.seekPos10 >= m_bldtskSnapWnd.seekPos00)
                 {
                     // buildIndex1 = m_bldtskSnapWnd.cacheIdx0-1;
@@ -2434,7 +2439,7 @@ private:
                     while (iter != m_bldtskTimeOrder.begin())
                     {
                         auto& tsk = *iter;
-                        if (tsk->seekPts.first > currwnd.seekPos10)
+                        if (tsk->seekPts.first > currwnd.seekPos10+taskPtsGap)
                         {
                             tsk->cancel = true;
                             iter = m_bldtskTimeOrder.erase(iter);
@@ -2457,7 +2462,7 @@ private:
                 mts1 = CvtPtsToMts(pts1);
                 while (beginPts < pts1)
                 {
-                    mts0 = mts1-1000;
+                    mts0 = mts1-m_audioTaskGap;
                     if ((double)mts0/1000 <= currwnd.cacheBeginTs-0.5)
                         pts0 = beginPts;
                     else
@@ -2514,7 +2519,11 @@ private:
             {
                 CacheWindow currwnd = m_cacheWnd;
                 auto iter3 = find_if(m_bldtskPriOrder.begin(), m_bldtskPriOrder.end(), [this, currwnd](const GopDecodeTaskHolder& task) {
-                    return currwnd.readPos*1000 >= CvtAudPtsToMts(task->seekPts.first) && currwnd.readPos*1000 < CvtAudPtsToMts(task->seekPts.second);
+                    const int64_t readPosMts = (int64_t)(currwnd.readPos*1000);
+                    const int64_t readPosPts = CvtAudMtsToPts((int64_t)(currwnd.readPos*1000));
+                    const int64_t seekMts0 = CvtAudPtsToMts(task->seekPts.first);
+                    const int64_t seekMts1 = CvtAudPtsToMts(task->seekPts.second);
+                    return readPosPts >= task->seekPts.first && readPosPts < task->seekPts.second;
                 });
                 if (iter3 != m_bldtskPriOrder.end())
                 {
@@ -2642,6 +2651,7 @@ private:
     int32_t m_audReadOffset{-1};
     bool m_audReadEof{false};
     int64_t m_audReadNextTaskSeekPts0{INT64_MIN};
+    int64_t m_audioTaskGap{1000};
 
     float m_ssWFacotr{1.f}, m_ssHFacotr{1.f};
     AVFrameToImMatConverter m_frmCvt;

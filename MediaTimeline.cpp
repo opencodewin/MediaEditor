@@ -3566,12 +3566,12 @@ ImGui::ImMat TimeLine::GetPreviewFrame()
     {
         bool playEof = false;
         int64_t dur = ValidDuration();
-        if (currentTime <= 0)
+        if (!mIsPreviewForward && currentTime <= 0)
         {
             currentTime = 0;
             playEof = true;
         }
-        else if (currentTime >= dur)
+        else if (mIsPreviewForward && currentTime >= dur)
         {
             currentTime = dur;
             playEof = true;
@@ -3608,11 +3608,12 @@ int TimeLine::GetSelectedClipCount()
 
 void TimeLine::Play(bool play, bool forward)
 {
+    bool needSeekAudio = false;
     if (mIsStepMode)
     {
         mIsStepMode = false;
         if (mAudioRender)
-            mMtaReader->SeekTo(currentTime);
+            needSeekAudio = true;
     }
     if (forward != mIsPreviewForward)
     {
@@ -3621,6 +3622,12 @@ void TimeLine::Play(bool play, bool forward)
         mIsPreviewForward = forward;
         mPlayTriggerTp = PlayerClock::now();
         mPreviewResumePos = mPreviewPos;
+        needSeekAudio = true;
+    }
+    if (needSeekAudio && mAudioRender)
+    {
+        mAudioRender->Flush();
+        mMtaReader->SeekTo(currentTime);
     }
     if (play != mIsPreviewPlaying)
     {
