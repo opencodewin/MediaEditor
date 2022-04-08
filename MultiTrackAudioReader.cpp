@@ -270,6 +270,9 @@ public:
             m_errMsg = "This MultiTrackAudioReader instance is NOT started yet!";
             return false;
         }
+        amat.release();
+        if (m_tracks.empty())
+            return false;
 
         m_outputMatsLock.lock();
         while (m_outputMats.empty() && !m_eof && !m_quit)

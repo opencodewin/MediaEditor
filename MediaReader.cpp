@@ -748,6 +748,8 @@ private:
         else
         {
             m_audAvStm = m_avfmtCtx->streams[m_audStmIdx];
+            if (m_audAvStm->start_time == INT64_MIN)
+                m_audAvStm->start_time = 0;
 
             m_auddec = avcodec_find_decoder(m_audAvStm->codecpar->codec_id);
             if (m_auddec == nullptr)

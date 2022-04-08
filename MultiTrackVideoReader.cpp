@@ -222,6 +222,8 @@ public:
             return false;
         }
         vmat.release();
+        if (m_tracks.empty())
+            return false;
 
         {
             lock_guard<mutex> lk2(m_outputMatsLock);
@@ -293,6 +295,9 @@ public:
             m_errMsg = "This MultiTrackVideoReader instance is NOT started yet!";
             return false;
         }
+        vmat.release();
+        if (m_tracks.empty())
+            return false;
 
         bool lockAquaired = false;
         while (!m_quit)
