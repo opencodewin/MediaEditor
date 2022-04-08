@@ -127,7 +127,10 @@
 #define ICON_WAVEFORM       u8"\ue495"
 #define ICON_CIE            u8"\ue49e"
 #define ICON_VETCTOR        u8"\ue49f"
-#define ICON_DB_LEVEL       u8"\ue451"
+#define ICON_WAVE           u8"\ue4ad"
+#define ICON_FFT            u8"\ue4e8"
+#define ICON_DB             u8"\ue451"
+#define ICON_DB_LEVEL       u8"\ue4a9"
 #define ICON_SPECTROGRAM    u8"\ue4a0"
 
 #define COL_FRAME_RECT      IM_COL32( 16,  16,  96, 255)
@@ -158,6 +161,7 @@
 #define COL_GRATICULE_DARK  IM_COL32(128,  96,   0, 128)
 #define COL_GRATICULE       IM_COL32(255, 196,   0, 128)
 #define COL_GRATICULE_HALF  IM_COL32(255, 196,   0,  64)
+#define COL_GRAY_GRATICULE  IM_COL32( 96,  96,  96,  128)
 
 #define HALF_COLOR(c)       (c & 0xFFFFFF) | 0x40000000;
 #define TIMELINE_OVER_LENGTH    5000        // add 5 seconds end of timeline
@@ -590,6 +594,20 @@ typedef struct TimeLineCallbackFunctions
     TimeLineCallback  EditingOverlap    {nullptr};
 } TimeLineCallbackFunctions;
 
+struct audio_channel_data
+{
+    ImGui::ImMat m_wave;
+    ImGui::ImMat m_fft;
+    ImGui::ImMat m_db;
+    ImGui::ImMat m_DBShort;
+    ImGui::ImMat m_DBLong;
+    ImGui::ImMat m_Spectrogram;
+    ImTextureID texture_spectrogram {nullptr};
+    float m_decibel {0};
+    int m_DBMaxIndex {-1};
+    ~audio_channel_data() { if (texture_spectrogram) ImGui::ImDestroyTexture(texture_spectrogram); }
+};
+
 struct TimeLine
 {
     TimeLine();
@@ -622,7 +640,10 @@ struct TimeLine
     bool bExportVideo {true};
     bool bExportAudio {true};
     
-    std::vector<int> mAudioLevel;           // timeline audio levels
+    std::vector<audio_channel_data> m_audio_channel_data;   // timeline audio data replace audio levels
+    void CalculateAudioScopeData(ImGui::ImMat& mat);
+    float mAudioSpectrogramOffset {0.0};
+    float mAudioSpectrogramLight {1.0};
 
     int64_t attract_docking_pixels {10};    // clip attract docking sucking in pixels range, pulling range is 1/5
     int64_t mConnectedPoints = -1;
@@ -719,7 +740,6 @@ struct TimeLine
     ImTextureID mVideoFusionInputSecondTexture {nullptr};   // clip video fusion second input texture
     ImTextureID mVideoFusionOutputTexture {nullptr};        // clip video fusion output texture
 
-
     TimeLineCallbackFunctions  m_CallBacks;
 
     int64_t GetStart() const { return mStart; }
@@ -748,7 +768,7 @@ struct TimeLine
     void CustomDraw(int index, ImDrawList *draw_list, const ImRect &view_rc, const ImRect &rc, const ImRect &titleRect, const ImRect &clippingTitleRect, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRect, bool is_moving, bool enable_select);
     
     ImGui::ImMat GetPreviewFrame();
-    int GetAudioLevel(int channel);
+    float GetAudioLevel(int channel);
 
     void Play(bool play, bool forward = true);
     void Seek(int64_t msPos);
