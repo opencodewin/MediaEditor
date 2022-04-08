@@ -4799,8 +4799,18 @@ void TimeLine::SimplePcmStream::Flush()
     m_readPosInAmat = 0;
 }
 
-void TimeLine::CalculateAudioScopeData(ImGui::ImMat& mat)
+void TimeLine::CalculateAudioScopeData(ImGui::ImMat& mat_in)
 {
+    ImGui::ImMat mat;
+    mat.create_type(mat_in.w, 1, mat_in.c, mat_in.type);
+    float * data = (float *)mat_in.data;
+    for (int x = 0; x < mat.w; x++)
+    {
+        for (int i = 0; i < mat.c; i++)
+        {
+            mat.at<float>(x, 0, i) = data[x * mat.c + i];
+        }
+    }
     for (int i = 0; i < mat.c; i++)
     {
         if (i < mAudioChannels)
