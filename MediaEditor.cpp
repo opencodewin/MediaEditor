@@ -4262,8 +4262,8 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
                     else if (io.MouseWheel > FLT_EPSILON)
                     {
                         g_media_editor_settings.AudioSpectrogramLight *= 1.1f;
-                        if (g_media_editor_settings.AudioSpectrogramLight > 4.0f)
-                            g_media_editor_settings.AudioSpectrogramLight = 4.0;
+                        if (g_media_editor_settings.AudioSpectrogramLight > 1.0f)
+                            g_media_editor_settings.AudioSpectrogramLight = 1.0;
                         timeline->mAudioSpectrogramLight = g_media_editor_settings.AudioSpectrogramLight;
                         ImGui::BeginTooltip();
                         ImGui::Text("Light:%f", g_media_editor_settings.AudioSpectrogramLight);
@@ -4299,24 +4299,58 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
                 }
                 draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 0);
                 draw_list->PushClipRect(scrop_rect.Min, scrop_rect.Max);
-                ImVec2 channel_view_size = ImVec2(scope_view_size.x, scope_view_size.y / timeline->m_audio_channel_data.size());
+                ImVec2 channel_view_size = ImVec2(scope_view_size.x - 80, scope_view_size.y / timeline->m_audio_channel_data.size());
                 ImGui::SetCursorScreenPos(window_pos);
                 ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
                 for (int i = 0; i < timeline->m_audio_channel_data.size(); i++)
                 {
-                    ImVec2 channel_min = window_pos + ImVec2(0, channel_view_size.y * i);
-                    ImVec2 channel_max = window_pos + ImVec2(channel_view_size.x, channel_view_size.y * i);
+                    ImVec2 channel_min = window_pos + ImVec2(32, channel_view_size.y * i);
+                    ImVec2 channel_max = window_pos + ImVec2(channel_view_size.x + 32, channel_view_size.y * i);
                     ImVec2 center = channel_min + channel_view_size / 2;
+
+                    // draw graticule line
+                    auto hz_step = channel_view_size.y / 11;
+                    ImGui::SetWindowFontScale(0.6);
+                    for (int i = 0; i < 11; i++)
+                    {
+                        std::string str = std::to_string(i * 2) + "kHz";
+                        ImVec2 p0 = channel_min + ImVec2(-32, channel_view_size.y - i * hz_step);
+                        ImVec2 p1 = channel_min + ImVec2(-24, channel_view_size.y - i * hz_step);
+                        draw_list->AddLine(p0, p1, COL_GRATICULE_DARK, 1);
+                        draw_list->AddText(p1 + ImVec2(2, -9), IM_COL32_WHITE, str.c_str());
+                    }
+                    ImGui::SetWindowFontScale(1.0);
+                    
                     if (!timeline->m_audio_channel_data[i].m_Spectrogram.empty())
                     {
                         ImVec2 texture_pos = center - ImVec2(channel_view_size.y / 2, channel_view_size.x / 2);
                         ImGui::ImMatToTexture(timeline->m_audio_channel_data[i].m_Spectrogram, timeline->m_audio_channel_data[i].texture_spectrogram);
                         ImGui::ImDrawListAddImageRotate(draw_list, timeline->m_audio_channel_data[i].texture_spectrogram, texture_pos, ImVec2(channel_view_size.y, channel_view_size.x), -90.0);
                     }
-                    draw_list->AddRect(channel_min, channel_max, COL_SLIDER_HANDLE, 0, 2.0);
                 }
+                // draw bar mark
+                for (int i = 0; i < scope_view_size.y; i++)
+                {
+                    float value = i / 2.0;
+                    float hue = ((int)(value + 170) % 255) / 255.f;
+                    auto color = ImColor::HSV(hue, 1.0, timeline->mAudioSpectrogramLight);
+                    ImVec2 p0 = ImVec2(scrop_rect.Max.x - 44, scrop_rect.Max.y - i);
+                    ImVec2 p1 = ImVec2(scrop_rect.Max.x - 32, scrop_rect.Max.y - i);
+                    draw_list->AddLine(p0, p1, color);
+                    ImGui::SetWindowFontScale(0.6);
+                    if ((i / 2 - 64) % 10 == 0)
+                    {
+                        std::string str = std::to_string(i / 2 - 64) + "dB";
+                        if (i / 2 - 64 > 0) str = "+" + str;
+                        ImVec2 p2 = ImVec2(scrop_rect.Max.x - 8, scrop_rect.Max.y - i);
+                        ImVec2 p3 = ImVec2(scrop_rect.Max.x, scrop_rect.Max.y - i);
+                        draw_list->AddLine(p2, p3, COL_GRATICULE_DARK, 1);
+                        draw_list->AddText(p1 + ImVec2(2, -9), IM_COL32_WHITE, str.c_str());
+                    }
+                    ImGui::SetWindowFontScale(1.0);
+                }
+
                 ImGui::PopStyleVar();
-                // draw graticule line
                 draw_list->PopClipRect();
                 ImGui::EndGroup();
             }
