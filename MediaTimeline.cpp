@@ -51,12 +51,12 @@ static void RenderMouseCursor(const char* mouse_cursor, ImVec2 offset = ImVec2(0
         auto& buf = draw_list->VtxBuffer;
         float s = sin(rad), c = cos(rad);
         for (int i = rotation_start_index; i < buf.Size; i++)
-		    l = ImMin(l, buf[i].pos), u = ImMax(u, buf[i].pos);
+            l = ImMin(l, buf[i].pos), u = ImMax(u, buf[i].pos);
         ImVec2 center = ImVec2((l.x + u.x) / 2, (l.y + u.y) / 2);
-	    center = ImRotate(center, s, c) - center;
+        center = ImRotate(center, s, c) - center;
         
         for (int i = rotation_start_index; i < buf.Size; i++)
-		    buf[i].pos = ImRotate(buf[i].pos, s, c) - center;
+            buf[i].pos = ImRotate(buf[i].pos, s, c) - center;
     }
 }
 
@@ -4817,14 +4817,14 @@ void TimeLine::CalculateAudioScopeData(ImGui::ImMat& mat)
             m_audio_channel_data[i].m_decibel = ImGui::ImDoDecibel((float*)m_audio_channel_data[i].m_fft.data, mat.w);
             if (m_audio_channel_data[i].m_Spectrogram.w != (mat.w >> 1) + 1)
             {
-                m_audio_channel_data[i].m_Spectrogram.create_type((mat.w >> 1) + 1, 128, 4, IM_DT_INT8);
+                m_audio_channel_data[i].m_Spectrogram.create_type((mat.w >> 1) + 1, 256, 4, IM_DT_INT8);
             }
             if (!m_audio_channel_data[i].m_Spectrogram.empty())
             {
                 auto w = m_audio_channel_data[i].m_Spectrogram.w;
                 auto c = m_audio_channel_data[i].m_Spectrogram.c;
                 memmove(m_audio_channel_data[i].m_Spectrogram.data, (char *)m_audio_channel_data[i].m_Spectrogram.data + w * c, m_audio_channel_data[i].m_Spectrogram.total() - w * c);
-                uint32_t * last_line = (uint32_t *)m_audio_channel_data[i].m_Spectrogram.row_c<uint8_t>(127);
+                uint32_t * last_line = (uint32_t *)m_audio_channel_data[i].m_Spectrogram.row_c<uint8_t>(255);
                 for (int n = 0; n < w; n++)
                 {
                     auto value = m_audio_channel_data[i].m_db.at<float>(n);

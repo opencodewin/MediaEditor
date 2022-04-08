@@ -127,7 +127,10 @@
 #define ICON_WAVEFORM       u8"\ue495"
 #define ICON_CIE            u8"\ue49e"
 #define ICON_VETCTOR        u8"\ue49f"
-#define ICON_DB_LEVEL       u8"\ue451"
+#define ICON_WAVE           u8"\ue4ad"
+#define ICON_FFT            u8"\ue4e8"
+#define ICON_DB             u8"\ue451"
+#define ICON_DB_LEVEL       u8"\ue4a9"
 #define ICON_SPECTROGRAM    u8"\ue4a0"
 
 #define COL_FRAME_RECT      IM_COL32( 16,  16,  96, 255)

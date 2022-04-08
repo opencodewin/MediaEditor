@@ -200,6 +200,9 @@ static const char* ScopeWindowTabNames[] = {
     ICON_WAVEFORM " Video Waveform",
     ICON_CIE " CIE",
     ICON_VETCTOR " Video Vector",
+    ICON_WAVE " Audio Wave",
+    ICON_FFT " Audio FFT",
+    ICON_DB " Audio dB",
     ICON_DB_LEVEL " Audio dB Level",
     ICON_SPECTROGRAM " Audio Spectrogram"
 };
@@ -272,6 +275,18 @@ struct MediaEditorSettings
 
     // Vector Scope tools
     float VectorIntensity {0.5};
+
+    // Audio Wave Scale setting
+    float AudioWaveScale    {1.0};
+
+    // Audio FFT Scale setting
+    float AudioFFTScale    {1.0};
+
+    // Audio dB Scale setting
+    float AudioDBScale    {1.0};
+
+    // Audio dB Level setting
+    int AudioDBLevelShort   {1};
 
     // Output configure
     int OutputFormatIndex {0};
@@ -3444,22 +3459,31 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
                 case 0:
                 {
                     // histogram setting
+                    ImGui::PushItemWidth(200);
                     ImGui::TextUnformatted("Log:"); ImGui::SameLine();
                     ImGui::ToggleButton("##histogram_logview", &g_media_editor_settings.HistogramLog);
+                    ImGui::DragFloat("Scale##histogram_scale", &g_media_editor_settings.HistogramScale, 0.01f, 0.01f, 4.f, "%.2f");
+                    ImGui::TextDisabled("%s", "Mouse wheel up/down on scope view also");
+                    ImGui::PopItemWidth();
                 }
                 break;
                 case 1:
                 {
                     // waveform setting
+                    ImGui::PushItemWidth(200);
                     ImGui::TextUnformatted("Mirror:"); ImGui::SameLine();
                     ImGui::ToggleButton("##waveform_mirror", &g_media_editor_settings.WaveformMirror);
                     ImGui::TextUnformatted("Separate:"); ImGui::SameLine();
                     ImGui::ToggleButton("##waveform_separate", &g_media_editor_settings.WaveformSeparate);
+                    ImGui::DragFloat("Intensity##WaveformIntensity", &g_media_editor_settings.WaveformIntensity, 0.05f, 0.f, 4.f, "%.1f");
+                    ImGui::TextDisabled("%s", "Mouse wheel up/down on scope view also");
+                    ImGui::PopItemWidth();
                 }
                 break;
                 case 2:
                 {
                     // cie setting
+                    ImGui::PushItemWidth(200);
                     bool cie_setting_changed = false;
                     ImGui::TextUnformatted("Show Color:"); ImGui::SameLine();
                     ImGui::ToggleButton("##cie_show_color", &g_media_editor_settings.CIEShowColor);
@@ -3494,19 +3518,58 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
                                         g_media_editor_settings.CIECorrectGamma);
                     }
 #endif
+                    ImGui::DragFloat("Intensity##CIEIntensity", &g_media_editor_settings.CIEIntensity, 0.01f, 0.f, 1.f, "%.2f");
+                    ImGui::TextDisabled("%s", "Mouse wheel up/down on scope view also");
+                    ImGui::PopItemWidth();
                 }
                 break;
                 case 3:
                 {
                     // vector setting
+                    ImGui::PushItemWidth(200);
+                    ImGui::DragFloat("Intensity##VectorIntensity", &g_media_editor_settings.VectorIntensity, 0.01f, 0.f, 1.f, "%.2f");
+                    ImGui::TextDisabled("%s", "Mouse wheel up/down on scope view also");
+                    ImGui::PopItemWidth();
                 }
                 break;
                 case 4:
                 {
-                    // audio dB setting
+                    // audio wave setting
+                    ImGui::PushItemWidth(200);
+                    ImGui::DragFloat("Scale##AudioWaveScale", &g_media_editor_settings.AudioWaveScale, 0.05f, 0.1f, 4.f, "%.1f");
+                    ImGui::TextDisabled("%s", "Mouse wheel up/down on scope view also");
+                    ImGui::TextDisabled("%s", "Mouse left double click return default");
+                    ImGui::PopItemWidth();
                 }
                 break;
                 case 5:
+                {
+                    // audio fft setting
+                    ImGui::PushItemWidth(200);
+                    ImGui::DragFloat("Scale##AudioFFTScale", &g_media_editor_settings.AudioFFTScale, 0.05f, 0.1f, 4.f, "%.1f");
+                    ImGui::TextDisabled("%s", "Mouse wheel up/down on scope view also");
+                    ImGui::TextDisabled("%s", "Mouse left double click return default");
+                    ImGui::PopItemWidth();
+                }
+                break;
+                case 6:
+                {
+                    // audio dB setting
+                    ImGui::PushItemWidth(200);
+                    ImGui::DragFloat("Scale##AudioDBScale", &g_media_editor_settings.AudioDBScale, 0.05f, 0.1f, 4.f, "%.1f");
+                    ImGui::TextDisabled("%s", "Mouse wheel up/down on scope view also");
+                    ImGui::TextDisabled("%s", "Mouse left double click return default");
+                    ImGui::PopItemWidth();
+                }
+                break;
+                case 7:
+                {
+                    // audio dB level setting
+                    ImGui::RadioButton("dB 20 Band##AudioDbLevelShort", &g_media_editor_settings.AudioDBLevelShort, 1);
+                    ImGui::RadioButton("dB 76 Band##AudioDbLevelLong", &g_media_editor_settings.AudioDBLevelShort, 0);
+                }
+                break;
+                case 8:
                 {
                     // audio spectrogram setting
                 }
@@ -3857,8 +3920,211 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
             }
             break;
             case 4:
+            {
+                // wave view
+                ImGui::BeginGroup();
+                ImGui::InvisibleButton("##audio_wave_view", scope_view_size);
+                if (ImGui::IsItemHovered())
+                {
+                    if (io.MouseWheel < -FLT_EPSILON)
+                    {
+                        g_media_editor_settings.AudioWaveScale *= 0.9f;
+                        if (g_media_editor_settings.AudioWaveScale < 0.1)
+                            g_media_editor_settings.AudioWaveScale = 0.1;
+                    }
+                    else if (io.MouseWheel > FLT_EPSILON)
+                    {
+                        g_media_editor_settings.AudioWaveScale *= 1.1f;
+                        if (g_media_editor_settings.AudioWaveScale > 4.0f)
+                            g_media_editor_settings.AudioWaveScale = 4.0;
+                    }
+                    if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+                        g_media_editor_settings.AudioWaveScale = 1.f;
+                }
+                draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 0);
+                draw_list->PushClipRect(scrop_rect.Min, scrop_rect.Max);
+                ImVec2 channel_view_size = ImVec2(scope_view_size.x, scope_view_size.y / timeline->m_audio_channel_data.size());
+                ImGui::SetCursorScreenPos(window_pos);
+                ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(1.f, 1.f, 1.f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_FrameBg, 0);
+                ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
+                for (int i = 0; i < timeline->m_audio_channel_data.size(); i++)
+                {
+                    ImVec2 channel_min = window_pos + ImVec2(0, channel_view_size.y * i);
+                    ImVec2 channel_max = window_pos + ImVec2(channel_view_size.x, channel_view_size.y * i);
+                    if (!timeline->m_audio_channel_data[i].m_wave.empty())
+                    {
+                        ImGui::PushID(i);
+                        ImGui::PlotLines("##wave", (float *)timeline->m_audio_channel_data[i].m_wave.data, timeline->m_audio_channel_data[i].m_wave.w, 0, nullptr, -1.0 / g_media_editor_settings.AudioWaveScale , 1.0 / g_media_editor_settings.AudioWaveScale, channel_view_size, 4, false, false);
+                        ImGui::PopID();
+                    }
+                    draw_list->AddRect(channel_min, channel_max, COL_SLIDER_HANDLE, 0);
+                    ImVec2 p1 = ImVec2(window_pos.x, window_pos.y + channel_view_size.y * i + channel_view_size.y / 2);
+                    ImVec2 p2 = p1 + ImVec2(channel_view_size.x, 0);
+                    draw_list->AddLine(p1, p2, IM_COL32(0, 128, 0, 128));
+                }
+                ImGui::PopStyleVar();
+                ImGui::PopStyleColor(2);
+                // draw graticule line
+                draw_list->PopClipRect();
+                ImGui::EndGroup();
+            }
             break;
             case 5:
+            {
+                // fft view
+                ImGui::BeginGroup();
+                ImGui::InvisibleButton("##audio_fft_view", scope_view_size);
+                if (ImGui::IsItemHovered())
+                {
+                    if (io.MouseWheel < -FLT_EPSILON)
+                    {
+                        g_media_editor_settings.AudioFFTScale *= 0.9f;
+                        if (g_media_editor_settings.AudioFFTScale < 0.1)
+                            g_media_editor_settings.AudioFFTScale = 0.1;
+                    }
+                    else if (io.MouseWheel > FLT_EPSILON)
+                    {
+                        g_media_editor_settings.AudioFFTScale *= 1.1f;
+                        if (g_media_editor_settings.AudioFFTScale > 4.0f)
+                            g_media_editor_settings.AudioFFTScale = 4.0;
+                    }
+                    if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+                        g_media_editor_settings.AudioFFTScale = 1.f;
+                }
+                draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 0);
+                draw_list->PushClipRect(scrop_rect.Min, scrop_rect.Max);
+                ImVec2 channel_view_size = ImVec2(scope_view_size.x, scope_view_size.y / timeline->m_audio_channel_data.size());
+                ImGui::SetCursorScreenPos(window_pos);
+                ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(1.f, 1.f, 1.f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(1.f, 1.f, 1.f, 0.5f));
+                ImGui::PushStyleColor(ImGuiCol_FrameBg, 0);
+                ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
+                for (int i = 0; i < timeline->m_audio_channel_data.size(); i++)
+                {
+                    ImVec2 channel_min = window_pos + ImVec2(0, channel_view_size.y * i);
+                    ImVec2 channel_max = window_pos + ImVec2(channel_view_size.x, channel_view_size.y * i);
+                    if (!timeline->m_audio_channel_data[i].m_fft.empty())
+                    {
+                        ImGui::PushID(i);
+                        ImGui::PlotLines("##fft", (float *)timeline->m_audio_channel_data[i].m_fft.data, timeline->m_audio_channel_data[i].m_fft.w, 0, nullptr, 0.0, 1.0 / g_media_editor_settings.AudioFFTScale, channel_view_size, 4, false, true);
+                        ImGui::PopID();
+                    }
+                    draw_list->AddRect(channel_min, channel_max, COL_SLIDER_HANDLE, 0);
+                }
+                ImGui::PopStyleVar();
+                ImGui::PopStyleColor(3);
+                // draw graticule line
+                draw_list->PopClipRect();
+                ImGui::EndGroup();
+            }
+            break;
+            case 6:
+            {
+                // db view
+                ImGui::BeginGroup();
+                ImGui::InvisibleButton("##audio_db_view", scope_view_size);
+                if (ImGui::IsItemHovered())
+                {
+                    if (io.MouseWheel < -FLT_EPSILON)
+                    {
+                        g_media_editor_settings.AudioDBScale *= 0.9f;
+                        if (g_media_editor_settings.AudioDBScale < 0.1)
+                            g_media_editor_settings.AudioDBScale = 0.1;
+                    }
+                    else if (io.MouseWheel > FLT_EPSILON)
+                    {
+                        g_media_editor_settings.AudioDBScale *= 1.1f;
+                        if (g_media_editor_settings.AudioDBScale > 4.0f)
+                            g_media_editor_settings.AudioDBScale = 4.0;
+                    }
+                    if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+                        g_media_editor_settings.AudioDBScale = 1.f;
+                }
+                draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 0);
+                draw_list->PushClipRect(scrop_rect.Min, scrop_rect.Max);
+                ImVec2 channel_view_size = ImVec2(scope_view_size.x, scope_view_size.y / timeline->m_audio_channel_data.size());
+                ImGui::SetCursorScreenPos(window_pos);
+                ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(1.f, 1.f, 1.f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(1.f, 1.f, 1.f, 0.5f));
+                ImGui::PushStyleColor(ImGuiCol_FrameBg, 0);
+                ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
+                for (int i = 0; i < timeline->m_audio_channel_data.size(); i++)
+                {
+                    ImVec2 channel_min = window_pos + ImVec2(0, channel_view_size.y * i);
+                    ImVec2 channel_max = window_pos + ImVec2(channel_view_size.x, channel_view_size.y * i);
+                    if (!timeline->m_audio_channel_data[i].m_db.empty())
+                    {
+                        ImGui::PushID(i);
+                        ImGui::PlotLines("##db", (float *)timeline->m_audio_channel_data[i].m_db.data, timeline->m_audio_channel_data[i].m_db.w, 0, nullptr, 0, 100 / g_media_editor_settings.AudioFFTScale, channel_view_size, 4, false, true);
+                        ImGui::PopID();
+                    }
+                    draw_list->AddRect(channel_min, channel_max, COL_SLIDER_HANDLE, 0);
+                }
+                ImGui::PopStyleVar();
+                ImGui::PopStyleColor(3);
+                // draw graticule line
+                draw_list->PopClipRect();
+                ImGui::EndGroup();
+            }
+            break;
+            case 7:
+            {
+                // db level view
+                ImGui::BeginGroup();
+                draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 0);
+                draw_list->PushClipRect(scrop_rect.Min, scrop_rect.Max);
+                ImVec2 channel_view_size = ImVec2(scope_view_size.x, scope_view_size.y / timeline->m_audio_channel_data.size());
+                ImGui::SetCursorScreenPos(window_pos);
+                ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(1.f, 1.f, 1.f, 0.5f));
+                ImGui::PushStyleColor(ImGuiCol_FrameBg, 0);
+                ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
+                for (int i = 0; i < timeline->m_audio_channel_data.size(); i++)
+                {
+                    ImVec2 channel_min = window_pos + ImVec2(0, channel_view_size.y * i);
+                    ImVec2 channel_max = window_pos + ImVec2(channel_view_size.x, channel_view_size.y * i);
+                    ImGui::PushID(i);
+                    if (!timeline->m_audio_channel_data[i].m_DBShort.empty() && g_media_editor_settings.AudioDBLevelShort == 1)
+                        ImGui::PlotHistogram("##db_level", (float *)timeline->m_audio_channel_data[i].m_DBShort.data, timeline->m_audio_channel_data[i].m_DBShort.w, 0, nullptr, 0, 100, channel_view_size, 4);
+                    else if (!timeline->m_audio_channel_data[i].m_DBLong.empty() && g_media_editor_settings.AudioDBLevelShort == 0)
+                        ImGui::PlotHistogram("##db_level", (float *)timeline->m_audio_channel_data[i].m_DBLong.data, timeline->m_audio_channel_data[i].m_DBLong.w, 0, nullptr, 0, 100, channel_view_size, 4);
+                    ImGui::PopID();
+                    draw_list->AddRect(channel_min, channel_max, COL_SLIDER_HANDLE, 0);
+                }
+                ImGui::PopStyleVar();
+                ImGui::PopStyleColor(2);
+                // draw graticule line
+                draw_list->PopClipRect();
+                ImGui::EndGroup();
+            }
+            break;
+            case 8:
+            {
+                // spectrogram view
+                ImGui::BeginGroup();
+                draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 0);
+                draw_list->PushClipRect(scrop_rect.Min, scrop_rect.Max);
+                ImVec2 channel_view_size = ImVec2(scope_view_size.x, scope_view_size.y / timeline->m_audio_channel_data.size());
+                ImGui::SetCursorScreenPos(window_pos);
+                ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
+                for (int i = 0; i < timeline->m_audio_channel_data.size(); i++)
+                {
+                    ImVec2 channel_min = window_pos + ImVec2(0, channel_view_size.y * i);
+                    ImVec2 channel_max = window_pos + ImVec2(channel_view_size.x, channel_view_size.y * i);
+                    ImVec2 center = channel_min + channel_view_size / 2;
+                    if (!timeline->m_audio_channel_data[i].m_Spectrogram.empty())
+                    {
+                        ImVec2 texture_pos = center - ImVec2(channel_view_size.y / 2, channel_view_size.x / 2);
+                        ImGui::ImMatToTexture(timeline->m_audio_channel_data[i].m_Spectrogram, timeline->m_audio_channel_data[i].texture_spectrogram);
+                        ImGui::ImDrawListAddImageRotate(draw_list, timeline->m_audio_channel_data[i].texture_spectrogram, texture_pos, ImVec2(channel_view_size.y, channel_view_size.x), -90.0);
+                    }
+                    draw_list->AddRect(channel_min, channel_max, COL_SLIDER_HANDLE, 0, 2.0);
+                }
+                ImGui::PopStyleVar();
+                // draw graticule line
+                draw_list->PopClipRect();
+                ImGui::EndGroup();
+            }
             break;
             default: break;
         }
@@ -3954,6 +4220,10 @@ void Application_SetupContext(ImGuiContext* ctx)
         else if (sscanf(line, "CIEMode=%d", &val_int) == 1) { setting->CIEMode = val_int; }
         else if (sscanf(line, "CIEGamuts=%d", &val_int) == 1) { setting->CIEGamuts = val_int; }
         else if (sscanf(line, "VectorIntensity=%f", &val_float) == 1) { setting->VectorIntensity = val_float; }
+        else if (sscanf(line, "AudioWaveScale=%f", &val_float) == 1) { setting->AudioWaveScale = val_float; }
+        else if (sscanf(line, "AudioFFTScale=%f", &val_float) == 1) { setting->AudioFFTScale = val_float; }
+        else if (sscanf(line, "AudioDBScale=%f", &val_float) == 1) { setting->AudioDBScale = val_float; }
+        else if (sscanf(line, "AudioDBLevelShort=%d", &val_int) == 1) { setting->AudioDBLevelShort = val_int == 1; }
         else if (sscanf(line, "OutputFormatIndex=%d", &val_int) == 1) { setting->OutputFormatIndex = val_int; }
         else if (sscanf(line, "OutputVideoCodecIndex=%d", &val_int) == 1) { setting->OutputVideoCodecIndex = val_int; }
         else if (sscanf(line, "OutputVideoCodecTypeIndex=%d", &val_int) == 1) { setting->OutputVideoCodecTypeIndex = val_int; }
@@ -4026,6 +4296,10 @@ void Application_SetupContext(ImGuiContext* ctx)
         out_buf->appendf("CIEMode=%d\n", g_media_editor_settings.CIEMode);
         out_buf->appendf("CIEGamuts=%d\n", g_media_editor_settings.CIEGamuts);
         out_buf->appendf("VectorIntensity=%f\n", g_media_editor_settings.VectorIntensity);
+        out_buf->appendf("AudioWaveScale=%f\n", g_media_editor_settings.AudioWaveScale);
+        out_buf->appendf("AudioFFTScale=%f\n", g_media_editor_settings.AudioFFTScale);
+        out_buf->appendf("AudioDBScale=%f\n", g_media_editor_settings.AudioDBScale);
+        out_buf->appendf("AudioDBLevelShort=%d\n", g_media_editor_settings.AudioDBLevelShort ? 1 : 0);
         out_buf->appendf("OutputFormatIndex=%d\n", g_media_editor_settings.OutputFormatIndex);
         out_buf->appendf("OutputVideoCodecIndex=%d\n", g_media_editor_settings.OutputVideoCodecIndex);
         out_buf->appendf("OutputVideoCodecTypeIndex=%d\n", g_media_editor_settings.OutputVideoCodecTypeIndex);
