@@ -234,8 +234,8 @@ public:
             vmat = m_seekingFlash;
 
         uint32_t targetFrmidx = (int64_t)((double)pos*m_frameRate.num/(m_frameRate.den*1000));
-        if (m_readForward && (targetFrmidx < m_readFrameIdx || targetFrmidx-m_readFrameIdx >= m_outputMatsMaxCount) ||
-            !m_readForward && (targetFrmidx > m_readFrameIdx || m_readFrameIdx-targetFrmidx >= m_outputMatsMaxCount))
+        if ((m_readForward && (targetFrmidx < m_readFrameIdx || targetFrmidx-m_readFrameIdx >= m_outputMatsMaxCount)) ||
+            (!m_readForward && (targetFrmidx > m_readFrameIdx || m_readFrameIdx-targetFrmidx >= m_outputMatsMaxCount)))
         {
             if (!SeekTo(pos, seeking))
                 return false;
@@ -250,8 +250,8 @@ public:
         {
             m_outputMatsLock.lock();
             lockAquaired = true;
-            if (m_readForward && targetFrmidx-m_readFrameIdx < m_outputMats.size() ||
-                !m_readForward && m_readFrameIdx-targetFrmidx < m_outputMats.size())
+            if ((m_readForward && targetFrmidx-m_readFrameIdx < m_outputMats.size()) ||
+                (!m_readForward && m_readFrameIdx-targetFrmidx < m_outputMats.size()))
                 break;
             m_outputMatsLock.unlock();
             lockAquaired = false;

@@ -1345,8 +1345,8 @@ private:
                             break;
                         if (ptsAfterSeek == INT64_MAX)
                             demuxEof = true;
-                        else if (m_isVideoReader && ptsAfterSeek == m_vidAvStm->start_time ||
-                            !m_isVideoReader && ptsAfterSeek == m_audAvStm->start_time)
+                        else if ((m_isVideoReader && ptsAfterSeek == m_vidAvStm->start_time) ||
+                                 (!m_isVideoReader && ptsAfterSeek == m_audAvStm->start_time))
                             currTask->mediaBegin = true;
                         else if (ptsAfterSeek != currTask->seekPts.first)
                         {
@@ -2563,8 +2563,8 @@ private:
             {
                 m_audReadTask = nullptr;
                 m_audReadOffset = -1;
-                if (m_readForward && m_bldtskPriOrder.back()->mediaEnd ||
-                    !m_readForward && m_bldtskPriOrder.front()->mediaBegin)
+                if ((m_readForward && m_bldtskPriOrder.back()->mediaEnd) ||
+                    (!m_readForward && m_bldtskPriOrder.front()->mediaBegin))
                     m_audReadEof = true;
             }
             else
