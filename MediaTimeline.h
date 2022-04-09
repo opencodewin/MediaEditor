@@ -441,6 +441,7 @@ struct EditingVideoClip : BaseEditingClip
 
     std::mutex mFrameLock;                                      // clip frame mutex
     std::list<std::pair<ImGui::ImMat, ImGui::ImMat>> mFrame;    // clip timeline input/output frame pair
+    int64_t mLastFrameTime {-1};
 
     EditingVideoClip(VideoClip* vidclip);
     virtual ~EditingVideoClip();
@@ -499,6 +500,7 @@ struct EditingVideoOverlap : BaseEditingOverlap
     SnapshotGenerator::ViewerHolder mViewer1, mViewer2;
     ImVec2 mSnapSize{0, 0};
     int mMaxCachedVideoFrame    {10};                           // clip Media Video Frame cache size
+    int64_t mLastFrameTime  {-1};
 
     MediaInfo::Ratio mClipFirstFrameRate {25, 1};     // overlap clip first Frame rate
     MediaInfo::Ratio mClipSecondFrameRate {25, 1};     // overlap clip second Frame rate
@@ -673,6 +675,7 @@ struct TimeLine
     bool mIsPreviewPlaying                  {false};
     bool mIsPreviewForward                  {true};
     bool mIsStepMode                        {false};
+    int64_t mLastFrameTime                  {-1};
     using PlayerClock = std::chrono::steady_clock;
     PlayerClock::time_point mPlayTriggerTp;
 

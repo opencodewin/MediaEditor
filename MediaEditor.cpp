@@ -567,6 +567,16 @@ static void ShowVideoWindow(ImTextureID texture, ImVec2& pos, ImVec2& size, floa
     }
 }
 
+static void CalculateVideoScope(ImGui::ImMat& mat)
+{
+#if IMGUI_VULKAN_SHADER
+    if (m_histogram) m_histogram->scope(mat, mat_histogram, 256, g_media_editor_settings.HistogramScale, g_media_editor_settings.HistogramLog);
+    if (m_waveform) m_waveform->scope(mat, mat_waveform, 256, g_media_editor_settings.WaveformIntensity, g_media_editor_settings.WaveformSeparate);
+    if (m_cie) m_cie->scope(mat, mat_cie, g_media_editor_settings.CIEIntensity, g_media_editor_settings.CIEShowColor);
+    if (m_vector) m_vector->scope(mat, mat_vector, g_media_editor_settings.VectorIntensity);
+#endif
+}
+
 static void MonitorButton(const char * label, ImVec2 pos, int& monitor_index, int disabled_index = -1)
 {
     static std::string monitor_icons[] = {ICON_ONE, ICON_TWO, ICON_THREE, ICON_FOUR, ICON_FIVE, ICON_SIX, ICON_SEVEN, ICON_EIGHT, ICON_NINE};
@@ -2541,16 +2551,10 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     ImVec2 PreviewSize;
     PreviewPos = window_pos + ImVec2(8, 8);
     PreviewSize = window_size - ImVec2(16 + 64, 16 + 48);
-
     auto frame = timeline->GetPreviewFrame();
     if (!frame.empty())
     {
-#if IMGUI_VULKAN_SHADER
-        if (m_histogram) m_histogram->scope(frame, mat_histogram, 256, g_media_editor_settings.HistogramScale, g_media_editor_settings.HistogramLog);
-        if (m_waveform) m_waveform->scope(frame, mat_waveform, 256, g_media_editor_settings.WaveformIntensity, g_media_editor_settings.WaveformSeparate);
-        if (m_cie) m_cie->scope(frame, mat_cie, g_media_editor_settings.CIEIntensity, g_media_editor_settings.CIEShowColor);
-        if (m_vector) m_vector->scope(frame, mat_vector, g_media_editor_settings.VectorIntensity);
-#endif
+        CalculateVideoScope(frame);
         ImGui::ImMatToTexture(frame, timeline->mMainPreviewTexture);
     }
     ShowVideoWindow(timeline->mMainPreviewTexture, PreviewPos, PreviewSize);
@@ -2723,6 +2727,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                 {
                     timeline->mVidFilterClip->bPlay = false;
                     timeline->mVidFilterClip->mLastTime = -1;
+                    timeline->mVidFilterClip->mLastFrameTime = -1;
                 }
             }
             ImGui::ShowTooltipOnHover("Stop");
@@ -2797,12 +2802,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                 auto ret = timeline->mVidFilterClip->GetFrame(pair);
                 if (ret)
                 {
-#if IMGUI_VULKAN_SHADER
-                    if (m_histogram) m_histogram->scope(pair.second, mat_histogram, 256, g_media_editor_settings.HistogramScale, g_media_editor_settings.HistogramLog);
-                    if (m_waveform) m_waveform->scope(pair.second, mat_waveform, 256, g_media_editor_settings.WaveformIntensity, g_media_editor_settings.WaveformSeparate);
-                    if (m_cie) m_cie->scope(pair.second, mat_cie, g_media_editor_settings.CIEIntensity, g_media_editor_settings.CIEShowColor);
-                    if (m_vector) m_vector->scope(pair.second, mat_vector, g_media_editor_settings.VectorIntensity);
-#endif
+                    CalculateVideoScope(pair.second);
                     ImGui::ImMatToTexture(pair.first, timeline->mVideoFilterInputTexture);
                     ImGui::ImMatToTexture(pair.second, timeline->mVideoFilterOutputTexture);
                 }
@@ -3035,6 +3035,7 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
                 {
                     timeline->mVidOverlap->bPlay = false;
                     timeline->mVidOverlap->mLastTime = -1;
+                    timeline->mVidOverlap->mLastFrameTime = -1;
                 }
             }
             ImGui::ShowTooltipOnHover("Stop");
@@ -3090,13 +3091,7 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
                 auto ret = timeline->mVidOverlap->GetFrame(pair);
                 if (ret)
                 {
-#if IMGUI_VULKAN_SHADER
-                    if (m_histogram) m_histogram->scope(pair.second, mat_histogram, 256, g_media_editor_settings.HistogramScale, g_media_editor_settings.HistogramLog);
-                    if (m_waveform) m_waveform->scope(pair.second, mat_waveform, 256, g_media_editor_settings.WaveformIntensity, g_media_editor_settings.WaveformSeparate);
-                    if (m_cie) m_cie->scope(pair.second, mat_cie, g_media_editor_settings.CIEIntensity, g_media_editor_settings.CIEShowColor);
-                    if (m_vector) m_vector->scope(pair.second, mat_vector, g_media_editor_settings.VectorIntensity);
-#endif
-
+                    CalculateVideoScope(pair.second);
                     ImGui::ImMatToTexture(pair.first.first, timeline->mVideoFusionInputFirstTexture);
                     ImGui::ImMatToTexture(pair.first.second, timeline->mVideoFusionInputSecondTexture);
                     ImGui::ImMatToTexture(pair.second, timeline->mVideoFusionOutputTexture);
