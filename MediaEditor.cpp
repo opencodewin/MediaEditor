@@ -2049,7 +2049,7 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
                                                     timeline->mOutputPath.empty() ? "." : timeline->mOutputPath,
                                                     1, 
                                                     IGFDUserDatas("OutputPath"), 
-                                                    ImGuiFileDialogFlags_ShowBookmark);
+                                                    ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_CaseInsensitiveExtention);
     }
 
     // Format Setting
@@ -4689,7 +4689,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
     static bool show_debug = false;
     auto platform_io = ImGui::GetPlatformIO();
     
-    const ImGuiFileDialogFlags fflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_DisableCreateDirectoryButton;
+    const ImGuiFileDialogFlags fflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_DisableCreateDirectoryButton;
     const std::string video_file_dis = "*.mp4 *.mov *.mkv *.avi *.webm *.ts";
     const std::string video_file_surfix = ".mp4,.mov,.mkv,.avi,.webm,.ts";
     const std::string audio_file_dis = "*.wav *.mp3 *.aac *.ogg *.ac3 *.dts";
@@ -4705,7 +4705,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
                                                         audio_filter + "," +
                                                         image_filter + "," +
                                                         ".*";
-    const ImGuiFileDialogFlags pflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_ConfirmOverwrite;
+    const ImGuiFileDialogFlags pflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_ConfirmOverwrite;
     const std::string pfilters = "Project files (*.mep){.mep},.*";
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     static const int numControlPanelTabs = sizeof(ControlPanelTabNames)/sizeof(ControlPanelTabNames[0]);
