@@ -362,6 +362,8 @@ static ImGui::CIE_vulkan *          m_cie {nullptr};
 static ImGui::Vector_vulkan *       m_vector {nullptr};
 #endif
 
+static bool need_update_scope {false};
+
 static ImGui::ImMat mat_histogram;
 
 static ImGui::ImMat mat_waveform;
@@ -575,6 +577,7 @@ static void CalculateVideoScope(ImGui::ImMat& mat)
     if (m_cie) m_cie->scope(mat, mat_cie, g_media_editor_settings.CIEIntensity, g_media_editor_settings.CIEShowColor);
     if (m_vector) m_vector->scope(mat, mat_vector, g_media_editor_settings.VectorIntensity);
 #endif
+    need_update_scope = false;
 }
 
 static void MonitorButton(const char * label, ImVec2 pos, int& monitor_index, int disabled_index = -1)
@@ -2552,10 +2555,12 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     PreviewPos = window_pos + ImVec2(8, 8);
     PreviewSize = window_size - ImVec2(16 + 64, 16 + 48);
     auto frame = timeline->GetPreviewFrame();
-    if (!frame.empty())
+    if (!frame.empty() && 
+        (timeline->mLastFrameTime == -1 || timeline->mLastFrameTime != frame.time_stamp * 1000 || need_update_scope))
     {
         CalculateVideoScope(frame);
         ImGui::ImMatToTexture(frame, timeline->mMainPreviewTexture);
+        timeline->mLastFrameTime = frame.time_stamp * 1000;
     }
     ShowVideoWindow(timeline->mMainPreviewTexture, PreviewPos, PreviewSize);
 
@@ -2800,11 +2805,13 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                 float region_sz = 360.0f / texture_zoom;
                 std::pair<ImGui::ImMat, ImGui::ImMat> pair;
                 auto ret = timeline->mVidFilterClip->GetFrame(pair);
-                if (ret)
+                if (ret && 
+                    (timeline->mVidFilterClip->mLastFrameTime == -1 || timeline->mVidFilterClip->mLastFrameTime != pair.first.time_stamp * 1000 || need_update_scope))
                 {
                     CalculateVideoScope(pair.second);
                     ImGui::ImMatToTexture(pair.first, timeline->mVideoFilterInputTexture);
                     ImGui::ImMatToTexture(pair.second, timeline->mVideoFilterOutputTexture);
+                    timeline->mVidFilterClip->mLastFrameTime = pair.first.time_stamp * 1000;
                 }
                 float pos_x = 0, pos_y = 0;
                 bool draw_compare = false;
@@ -3089,12 +3096,14 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
             {
                 std::pair<std::pair<ImGui::ImMat, ImGui::ImMat>, ImGui::ImMat> pair;
                 auto ret = timeline->mVidOverlap->GetFrame(pair);
-                if (ret)
+                if (ret && 
+                    (timeline->mVidOverlap->mLastFrameTime == -1 || timeline->mVidOverlap->mLastFrameTime != pair.first.first.time_stamp * 1000 || need_update_scope))
                 {
                     CalculateVideoScope(pair.second);
                     ImGui::ImMatToTexture(pair.first.first, timeline->mVideoFusionInputFirstTexture);
                     ImGui::ImMatToTexture(pair.first.second, timeline->mVideoFusionInputSecondTexture);
                     ImGui::ImMatToTexture(pair.second, timeline->mVideoFusionOutputTexture);
+                    timeline->mVidOverlap->mLastFrameTime = pair.first.first.time_stamp * 1000;
                 }
                 ImVec4 tint_col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);   // No tint
                 ImVec4 border_col = ImVec4(1.0f, 1.0f, 1.0f, 0.5f); // 50% opaque white
@@ -3462,7 +3471,8 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
                     ImGui::PushItemWidth(200);
                     ImGui::TextUnformatted("Log:"); ImGui::SameLine();
                     ImGui::ToggleButton("##histogram_logview", &g_media_editor_settings.HistogramLog);
-                    ImGui::DragFloat("Scale##histogram_scale", &g_media_editor_settings.HistogramScale, 0.01f, 0.01f, 4.f, "%.2f");
+                    if (ImGui::DragFloat("Scale##histogram_scale", &g_media_editor_settings.HistogramScale, 0.01f, 0.01f, 4.f, "%.2f"))
+                        need_update_scope = true;
                     ImGui::TextDisabled("%s", "Mouse wheel up/down on scope view also");
                     ImGui::TextDisabled("%s", "Mouse left double click return default");
                     ImGui::PopItemWidth();
@@ -3473,10 +3483,13 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
                     // waveform setting
                     ImGui::PushItemWidth(200);
                     ImGui::TextUnformatted("Mirror:"); ImGui::SameLine();
-                    ImGui::ToggleButton("##waveform_mirror", &g_media_editor_settings.WaveformMirror);
+                    if (ImGui::ToggleButton("##waveform_mirror", &g_media_editor_settings.WaveformMirror))
+                        need_update_scope = true;
                     ImGui::TextUnformatted("Separate:"); ImGui::SameLine();
-                    ImGui::ToggleButton("##waveform_separate", &g_media_editor_settings.WaveformSeparate);
-                    ImGui::DragFloat("Intensity##WaveformIntensity", &g_media_editor_settings.WaveformIntensity, 0.05f, 0.f, 4.f, "%.1f");
+                    if (ImGui::ToggleButton("##waveform_separate", &g_media_editor_settings.WaveformSeparate))
+                        need_update_scope = true;
+                    if (ImGui::DragFloat("Intensity##WaveformIntensity", &g_media_editor_settings.WaveformIntensity, 0.05f, 0.f, 4.f, "%.1f"))
+                        need_update_scope = true;
                     ImGui::TextDisabled("%s", "Mouse wheel up/down on scope view also");
                     ImGui::TextDisabled("%s", "Mouse left double click return default");
                     ImGui::PopItemWidth();
@@ -3488,7 +3501,8 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
                     ImGui::PushItemWidth(200);
                     bool cie_setting_changed = false;
                     ImGui::TextUnformatted("Show Color:"); ImGui::SameLine();
-                    ImGui::ToggleButton("##cie_show_color", &g_media_editor_settings.CIEShowColor);
+                    if (ImGui::ToggleButton("##cie_show_color", &g_media_editor_settings.CIEShowColor))
+                        need_update_scope = true;
                     if (ImGui::Combo("Color System", (int *)&g_media_editor_settings.CIEColorSystem, color_system_items, IM_ARRAYSIZE(color_system_items)))
                     {
                         cie_setting_changed = true;
@@ -3513,6 +3527,7 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
 #if IMGUI_VULKAN_SHADER
                     if (cie_setting_changed && m_cie)
                     {
+                        need_update_scope = true;
                         m_cie->SetParam(g_media_editor_settings.CIEColorSystem, 
                                         g_media_editor_settings.CIEMode, 512, 
                                         g_media_editor_settings.CIEGamuts, 
@@ -3520,7 +3535,8 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
                                         g_media_editor_settings.CIECorrectGamma);
                     }
 #endif
-                    ImGui::DragFloat("Intensity##CIEIntensity", &g_media_editor_settings.CIEIntensity, 0.01f, 0.f, 1.f, "%.2f");
+                    if (ImGui::DragFloat("Intensity##CIEIntensity", &g_media_editor_settings.CIEIntensity, 0.01f, 0.f, 1.f, "%.2f"))
+                        need_update_scope = true;
                     ImGui::TextDisabled("%s", "Mouse wheel up/down on scope view also");
                     ImGui::TextDisabled("%s", "Mouse left double click return default");
                     ImGui::PopItemWidth();
@@ -3530,7 +3546,8 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
                 {
                     // vector setting
                     ImGui::PushItemWidth(200);
-                    ImGui::DragFloat("Intensity##VectorIntensity", &g_media_editor_settings.VectorIntensity, 0.01f, 0.f, 1.f, "%.2f");
+                    if (ImGui::DragFloat("Intensity##VectorIntensity", &g_media_editor_settings.VectorIntensity, 0.01f, 0.f, 1.f, "%.2f"))
+                        need_update_scope = true;
                     ImGui::TextDisabled("%s", "Mouse wheel up/down on scope view also");
                     ImGui::TextDisabled("%s", "Mouse left double click return default");
                     ImGui::PopItemWidth();
@@ -3611,6 +3628,7 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
                         g_media_editor_settings.HistogramScale *= 0.9f;
                         if (g_media_editor_settings.HistogramScale < 0.01)
                             g_media_editor_settings.HistogramScale = 0.01;
+                        need_update_scope = true;
                         ImGui::BeginTooltip();
                         ImGui::Text("Scale:%f", g_media_editor_settings.HistogramScale);
                         ImGui::EndTooltip();
@@ -3620,6 +3638,7 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
                         g_media_editor_settings.HistogramScale *= 1.1f;
                         if (g_media_editor_settings.HistogramScale > 4.0f)
                             g_media_editor_settings.HistogramScale = 4.0;
+                        need_update_scope = true;
                         ImGui::BeginTooltip();
                         ImGui::Text("Scale:%f", g_media_editor_settings.HistogramScale);
                         ImGui::EndTooltip();
@@ -3627,6 +3646,7 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
                     if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
                     {
                         g_media_editor_settings.HistogramScale = 1.0f;
+                        need_update_scope = true;
                     }
                 }
                 if (!mat_histogram.empty())
@@ -3700,6 +3720,7 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
                         g_media_editor_settings.WaveformIntensity *= 0.9f;
                         if (g_media_editor_settings.WaveformIntensity < 0.1)
                             g_media_editor_settings.WaveformIntensity = 0.1;
+                        need_update_scope = true;
                         ImGui::BeginTooltip();
                         ImGui::Text("Intensity:%f", g_media_editor_settings.WaveformIntensity);
                         ImGui::EndTooltip();
@@ -3709,6 +3730,7 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
                         g_media_editor_settings.WaveformIntensity *= 1.1f;
                         if (g_media_editor_settings.WaveformIntensity > 4.0f)
                             g_media_editor_settings.WaveformIntensity = 4.0;
+                        need_update_scope = true;
                         ImGui::BeginTooltip();
                         ImGui::Text("Intensity:%f", g_media_editor_settings.WaveformIntensity);
                         ImGui::EndTooltip();
@@ -3716,6 +3738,7 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
                     if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
                     {
                         g_media_editor_settings.WaveformIntensity = 2.0;
+                        need_update_scope = true;
                     }
                 }
                 if (!mat_waveform.empty())
@@ -3774,6 +3797,7 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
                         g_media_editor_settings.CIEIntensity *= 0.9f;
                         if (g_media_editor_settings.CIEIntensity < 0.01)
                             g_media_editor_settings.CIEIntensity = 0.01;
+                        need_update_scope = true;
                         ImGui::BeginTooltip();
                         ImGui::Text("Intensity:%f", g_media_editor_settings.CIEIntensity);
                         ImGui::EndTooltip();
@@ -3783,6 +3807,7 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
                         g_media_editor_settings.CIEIntensity *= 1.1f;
                         if (g_media_editor_settings.CIEIntensity > 1.0f)
                             g_media_editor_settings.CIEIntensity = 1.0;
+                        need_update_scope = true;
                         ImGui::BeginTooltip();
                         ImGui::Text("Intensity:%f", g_media_editor_settings.CIEIntensity);
                         ImGui::EndTooltip();
@@ -3790,6 +3815,7 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
                     if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
                     {
                         g_media_editor_settings.CIEIntensity = 0.5f;
+                        need_update_scope = true;
                     }
                 }
                 if (!mat_cie.empty())
@@ -3876,6 +3902,7 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
                         g_media_editor_settings.VectorIntensity *= 0.9f;
                         if (g_media_editor_settings.VectorIntensity < 0.01)
                             g_media_editor_settings.VectorIntensity = 0.01;
+                        need_update_scope = true;
                         ImGui::BeginTooltip();
                         ImGui::Text("Intensity:%f", g_media_editor_settings.VectorIntensity);
                         ImGui::EndTooltip();
@@ -3885,6 +3912,7 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
                         g_media_editor_settings.VectorIntensity *= 1.1f;
                         if (g_media_editor_settings.VectorIntensity > 1.0f)
                             g_media_editor_settings.VectorIntensity = 1.0;
+                        need_update_scope = true;
                         ImGui::BeginTooltip();
                         ImGui::Text("Intensity:%f", g_media_editor_settings.VectorIntensity);
                         ImGui::EndTooltip();
@@ -3892,6 +3920,7 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
                     if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
                     {
                         g_media_editor_settings.VectorIntensity = 0.5f;
+                        need_update_scope = true;
                     }
                 }
                 if (!mat_vector.empty())

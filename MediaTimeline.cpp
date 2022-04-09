@@ -1571,9 +1571,6 @@ bool EditingVideoClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_fr
             break;
         }
     }
-    if (mLastFrameTime != -1 && mLastFrameTime == in_out_frame.first.time_stamp * 1000)
-        ret = false;
-    mLastFrameTime = in_out_frame.first.time_stamp * 1000;
     return ret;
 }
 
@@ -2168,9 +2165,6 @@ bool EditingVideoOverlap::GetFrame(std::pair<std::pair<ImGui::ImMat, ImGui::ImMa
             break;
         }
     }
-    if (mLastFrameTime != -1 && mLastFrameTime == in_out_frame.first.first.time_stamp * 1000)
-        ret = false;
-    mLastFrameTime = in_out_frame.first.first.time_stamp * 1000;
     return ret;
 }
 
@@ -3599,9 +3593,6 @@ ImGui::ImMat TimeLine::GetPreviewFrame()
     }
     mMtvReader->ReadVideoFrame(currentTime, frame, bSeeking);
     if (mIsPreviewPlaying) UpdateCurrent();
-    if (mLastFrameTime != -1 && mLastFrameTime == frame.time_stamp * 1000)
-        return ImGui::ImMat();
-    mLastFrameTime = frame.time_stamp * 1000;
     return frame;
 }
 
