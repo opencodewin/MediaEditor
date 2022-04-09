@@ -954,7 +954,7 @@ void VideoClip::Save(imgui_json::value& value)
 AudioClip::AudioClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle)
     : Clip(start, end, id, overview->GetMediaParser(), handle), mOverview(overview)
 {
-    if (handle && overview)
+    if (handle && mMediaParser)
     {
         mType = MEDIA_AUDIO;
         mName = name;
@@ -4393,6 +4393,8 @@ int TimeLine::Load(const imgui_json::value& value)
             DataLayer::AudioTrackHolder audTrack = mMtaReader->AddTrack(track->mID);
             for (auto clip : track->m_Clips)
             {
+                if (!clip->mMediaParser)
+                    continue;
                 DataLayer::AudioClipHolder audClip = audTrack->AddNewClip(
                     clip->mID, clip->mMediaParser,
                     clip->mStart, clip->mStartOffset, clip->mEndOffset);

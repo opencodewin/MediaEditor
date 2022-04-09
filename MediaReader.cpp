@@ -750,6 +750,7 @@ private:
             m_audAvStm = m_avfmtCtx->streams[m_audStmIdx];
             if (m_audAvStm->start_time == INT64_MIN)
                 m_audAvStm->start_time = 0;
+            m_audDurPts = CvtAudMtsToPts((int64_t)(m_audDurTs*1000));
 
             m_auddec = avcodec_find_decoder(m_audAvStm->codecpar->codec_id);
             if (m_auddec == nullptr)
@@ -1779,7 +1780,7 @@ private:
                 int64_t pktDur = CvtMtsToPts((int64_t)((double)frm->nb_samples*1000/frm->sample_rate));
                 nextPts = frm->pts+pktDur;
             }
-            af.endOfGop = nextPts >= iter->get()->seekPts.second;
+            af.endOfGop = nextPts >= iter->get()->seekPts.second || nextPts >= m_audDurPts;
             // m_logger->Log(DEBUG) << "Adding AF#" << ts << "." << endl;
             auto& task = *iter;
             if (task->afAry.empty())
@@ -2648,6 +2649,7 @@ private:
     bool m_needUpdateBldtsk{false};
     double m_vidDurTs{0};
     double m_audDurTs{0};
+    int64_t m_audDurPts{0};
     uint32_t m_audFrmSize{0};
     GopDecodeTaskHolder m_audReadTask;
     int32_t m_audReadOffset{-1};
