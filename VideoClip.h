@@ -80,9 +80,9 @@ namespace DataLayer
     public:
         static bool HasOverlap(VideoClipHolder hClip1, VideoClipHolder hClip2)
         {
-            return hClip1->Start() >= hClip2->Start() && hClip1->Start() < hClip2->End() ||
-                   hClip1->End() > hClip2->Start() && hClip1->End() <= hClip2->End() ||
-                   hClip1->Start() < hClip2->Start() && hClip1->End() > hClip2->End();
+            return (hClip1->Start() >= hClip2->Start() && hClip1->Start() < hClip2->End()) ||
+                   (hClip1->End() > hClip2->Start() && hClip1->End() <= hClip2->End()) ||
+                   (hClip1->Start() < hClip2->Start() && hClip1->End() > hClip2->End());
         }
 
         VideoOverlap(int64_t id, VideoClipHolder hClip1, VideoClipHolder hClip2);

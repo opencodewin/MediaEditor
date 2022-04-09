@@ -68,9 +68,9 @@ namespace DataLayer
     public:
         static bool HasOverlap(AudioClipHolder hClip1, AudioClipHolder hClip2)
         {
-            return hClip1->Start() >= hClip2->Start() && hClip1->Start() < hClip2->End() ||
-                   hClip1->End() > hClip2->Start() && hClip1->End() <= hClip2->End() ||
-                   hClip1->Start() < hClip2->Start() && hClip1->End() > hClip2->End();
+            return (hClip1->Start() >= hClip2->Start() && hClip1->Start() < hClip2->End()) ||
+                   (hClip1->End() > hClip2->Start() && hClip1->End() <= hClip2->End()) ||
+                   (hClip1->Start() < hClip2->Start() && hClip1->End() > hClip2->End());
         }
 
         AudioOverlap(int64_t id, AudioClipHolder hClip1, AudioClipHolder hClip2);

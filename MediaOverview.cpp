@@ -1412,7 +1412,7 @@ private:
     {
         while (!m_quit)
         {
-            if (!m_prepared || m_viddecCtx && !m_genSsEof || m_auddecCtx && !m_genWfEof)
+            if (!m_prepared || (m_viddecCtx && !m_genSsEof) || (m_auddecCtx && !m_genWfEof))
                 this_thread::sleep_for(chrono::milliseconds(100));
             else
                 break;

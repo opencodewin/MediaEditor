@@ -483,8 +483,8 @@ namespace DataLayer
         {
             if (clipId == overlap->FrontClip()->Id() || clipId == overlap->RearClip()->Id())
                 continue;
-            if (start > overlap->Start() && start < overlap->End() ||
-                end > overlap->Start() && end < overlap->End())
+            if ((start > overlap->Start() && start < overlap->End()) ||
+                (end > overlap->Start() && end < overlap->End()))
                 return false;
         }
         return true;
@@ -527,7 +527,7 @@ namespace DataLayer
                     auto iter = find_if(m_overlaps.begin(), m_overlaps.end(), [id1, id2] (const AudioOverlapHolder& overlap) {
                         const int64_t idf = overlap->FrontClip()->Id();
                         const int64_t idr = overlap->RearClip()->Id();
-                        return id1 == idf && id2 == idr || id1 == idr && id2 == idf;
+                        return (id1 == idf && id2 == idr) || (id1 == idr && id2 == idf);
                     });
                     if (iter == m_overlaps.end())
                     {
