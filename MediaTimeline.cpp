@@ -997,7 +997,7 @@ void AudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
         ImVec2 customViewStart = ImVec2((start_time - timeline->firstTime) * timeline->msPixelWidthTarget + clipRect.Min.x, clipRect.Min.y);
         ImVec2 customViewEnd = ImVec2((end_time - timeline->firstTime)  * timeline->msPixelWidthTarget + clipRect.Min.x, clipRect.Max.y);
         auto window_size = customViewEnd - customViewStart;
-        if (window_size.x > 0)
+        if (window_size.x > 0 && mWaveform->pcm[0].size() > 0)
         {
             int sample_stride = window_length / window_size.x;
             start_offset = start_offset / sample_stride * sample_stride;

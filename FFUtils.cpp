@@ -1163,7 +1163,9 @@ MediaInfo::InfoHolder GenerateMediaInfoByAVFormatContext(const AVFormatContext* 
             vidStream->avgFrameRate = MediaInfoRatioFromAVRational(stream->avg_frame_rate);
             vidStream->realFrameRate = MediaInfoRatioFromAVRational(stream->r_frame_rate);
             string demuxerName(avfmtCtx->iformat->name);
-            if (demuxerName.find("image2") != string::npos || demuxerName.find("_pipe") != string::npos)
+            if (demuxerName.find("image2") != string::npos ||
+                demuxerName.find("_pipe") != string::npos ||
+                demuxerName.find("mp3") != string::npos)
                 vidStream->isImage = true;
             if (!vidStream->isImage)
             {
@@ -1186,7 +1188,7 @@ MediaInfo::InfoHolder GenerateMediaInfoByAVFormatContext(const AVFormatContext* 
                     vidStream->isHdr = false;
             }
             const AVPixFmtDescriptor* desc = av_pix_fmt_desc_get((AVPixelFormat)codecpar->format);
-            if (desc->nb_components > 0)
+            if (desc && desc->nb_components > 0)
                 vidStream->bitDepth = desc->comp[0].depth;
             hStream = MediaInfo::StreamHolder(vidStream);
         }
