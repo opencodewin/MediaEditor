@@ -694,12 +694,28 @@ bool AVFrameToImMatConverter::ConvertImage(const AVFrame* avfrm, ImGui::ImMat& o
         ImGui::VkMat rgbMat;
         const AVPixFmtDescriptor* desc = av_pix_fmt_desc_get((AVPixelFormat)avfrm->format);
         rgbMat.type = IM_DT_INT8;
+#if 1
+        rgbMat.w = m_outWidth;
+        rgbMat.h = m_outHeight;
+        if (!m_imgClrCvt->ConvertColorFormat(inMat, rgbMat, m_resizeInterp))
+        {
+            m_errMsg = m_imgClrCvt->GetError();
+            return false;
+        }
+        if (m_outputCpuMat && rgbMat.device == IM_DD_VULKAN)
+        {
+            outMat.type = IM_DT_INT8;
+            m_imgClrCvt->Conv(rgbMat, outMat);
+        }
+        else
+            outMat = rgbMat;
+        outMat.time_stamp = timestamp;
+#else
         if (!m_imgClrCvt->ConvertColorFormat(inMat, rgbMat))
         {
             m_errMsg = m_imgClrCvt->GetError();
             return false;
         }
-
         ImGui::ImMat outTmp;
         // Resize
         uint32_t outWidth = m_outWidth == 0 ? rgbMat.w : m_outWidth;
@@ -723,6 +739,7 @@ bool AVFrameToImMatConverter::ConvertImage(const AVFrame* avfrm, ImGui::ImMat& o
         else
             outMat = outTmp;
         outMat.time_stamp = timestamp;
+#endif
         return true;
 #else
         m_errMsg = "Vulkan shader components is NOT ENABLED!";

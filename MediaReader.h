@@ -9,10 +9,10 @@ struct MediaReader
     virtual bool Open(MediaParserHolder hParser) = 0;
     virtual bool ConfigVideoReader(
             uint32_t outWidth, uint32_t outHeight,
-            ImColorFormat outClrfmt = IM_CF_RGBA, ImInterpolateMode rszInterp = IM_INTERPOLATE_AREA) = 0;
+            ImColorFormat outClrfmt = IM_CF_RGBA, ImInterpolateMode rszInterp = IM_INTERPOLATE_NEAREST) = 0;
     virtual bool ConfigVideoReader(
             float outWidthFactor, float outHeightFactor,
-            ImColorFormat outClrfmt = IM_CF_RGBA, ImInterpolateMode rszInterp = IM_INTERPOLATE_AREA) = 0;
+            ImColorFormat outClrfmt = IM_CF_RGBA, ImInterpolateMode rszInterp = IM_INTERPOLATE_NEAREST) = 0;
     virtual bool ConfigAudioReader(uint32_t outChannels, uint32_t outSampleRate) = 0;
     virtual bool Start(bool suspend = false) = 0;
     virtual void Close() = 0;
