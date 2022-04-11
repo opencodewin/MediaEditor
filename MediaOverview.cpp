@@ -366,6 +366,7 @@ private:
             return false;
         }
 
+        m_vidfrmIntvTs = 0;
         if (HasVideo())
         {
             MediaInfo::VideoStream* vidStream = dynamic_cast<MediaInfo::VideoStream*>(m_hMediaInfo->streams[m_vidStmIdx].get());
@@ -374,7 +375,8 @@ private:
             m_vidDurMts = (int64_t)(vidStream->duration*1000);
             m_vidFrmCnt = vidStream->frameNum;
             AVRational avgFrmRate = { vidStream->avgFrameRate.num, vidStream->avgFrameRate.den };
-            m_vidfrmIntvTs = av_q2d(av_inv_q(avgFrmRate));
+            if (avgFrmRate.den <= 0)
+                m_vidfrmIntvTs = av_q2d(av_inv_q(avgFrmRate));
 
             if (m_isImage)
                 m_frmCvt.SetUseVulkanConverter(false);
@@ -404,7 +406,7 @@ private:
             // in 40ms there are 48000*0.04 = 1920 pcm samples,
             // 200 pixels for displaying 1920 samples,
             // so aggregate 1920 samples to 200 results in 1920/200 = 9.6
-            double vidfrmIntvTs = HasVideo() ? m_vidfrmIntvTs : 0.04;
+            double vidfrmIntvTs = m_vidfrmIntvTs > 0 ? m_vidfrmIntvTs : 0.04;
             if (m_fixedAggregateSamples > 0)
                 hWaveform->aggregateSamples = m_fixedAggregateSamples;
             else
@@ -1428,6 +1430,7 @@ private:
                 return;
             }
             lock_guard<recursive_mutex> lk(m_apiLock, adopt_lock);
+            m_logger->Log(DEBUG) << "AUTO RELEASE decoding resources." << endl;
             ReleaseResources(true);
         }
     }
