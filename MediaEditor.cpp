@@ -603,7 +603,8 @@ static bool MonitorButton(const char * label, ImVec2 pos, int& monitor_index, st
         bool selected = monitor_index == monitor_n;
         bool is_current_monitor = monitor_index == -1 && monitor_n == current_monitor;
         if (show_main) selected |= is_current_monitor;
-        std::string monitor_label = (is_current_monitor && !show_main) ? ICON_DRAWING_PIN : monitor_icons[monitor_n] + "##monitor_index" + std::string(label);
+        std::string icon_str = (is_current_monitor && !show_main) ? g_media_editor_settings.ExpandScope ? ICON_DRAWING_PIN : ICON_EXPANMD : monitor_icons[monitor_n];
+        std::string monitor_label = icon_str + "##monitor_index" + std::string(label);
         if (ImGui::CheckButton(monitor_label.c_str(), &selected))
         {
             if (monitor_n == current_monitor)
