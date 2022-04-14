@@ -255,6 +255,7 @@ struct MediaEditorSettings
     int BankViewStyle {0};                  // Bank view style type, 0 = icons, 1 = tree vide, and ... 
     bool ShowHelpTooltips {false};          // Show UI help tool tips
 
+    bool ExpandScope {false};
     // Histogram Scope tools
     bool HistogramLog {false};
     float HistogramScale {0.1};
@@ -349,6 +350,8 @@ static int ScopeWindowIndex = 0;            // default Histogram Scope window
 static int MonitorIndexPreviewVideo = -1;
 static int MonitorIndexVideoFilterOrg = -1;
 static int MonitorIndexVideoFiltered = -1;
+static int MonitorIndexScope = -1;
+static bool MonitorIndexChanged = false;
 
 static float ui_breathing = 1.0f;
 static float ui_breathing_step = 0.01;
@@ -580,21 +583,27 @@ static void CalculateVideoScope(ImGui::ImMat& mat)
     need_update_scope = false;
 }
 
-static void MonitorButton(const char * label, ImVec2 pos, int& monitor_index, int disabled_index = -1)
+static bool MonitorButton(const char * label, ImVec2 pos, int& monitor_index, std::vector<int> disabled_index, bool vertical = false, bool show_main = true)
 {
     static std::string monitor_icons[] = {ICON_ONE, ICON_TWO, ICON_THREE, ICON_FOUR, ICON_FIVE, ICON_SIX, ICON_SEVEN, ICON_EIGHT, ICON_NINE};
     auto platform_io = ImGui::GetPlatformIO();
     ImGuiViewportP* viewport = (ImGuiViewportP*)ImGui::GetWindowViewport();
     auto current_monitor = viewport->PlatformMonitor;
+    int org_index = monitor_index;
     ImGui::SetCursorScreenPos(pos);
     for (int monitor_n = 0; monitor_n < platform_io.Monitors.Size; monitor_n++)
     {
         bool disable = false;
-        if (disabled_index != -1 && monitor_n == disabled_index)
-            disable = true;
+        for (auto disabled : disabled_index)
+        {
+            if (disabled != -1 && disabled == monitor_n)
+                disable = true;
+        }
         ImGui::BeginDisabled(disable);
-        bool selected = monitor_index == monitor_n || (monitor_index == -1 && monitor_n == current_monitor);
-        std::string monitor_label = monitor_icons[monitor_n] + "##monitor_index" + std::string(label);
+        bool selected = monitor_index == monitor_n;
+        bool is_current_monitor = monitor_index == -1 && monitor_n == current_monitor;
+        if (show_main) selected |= is_current_monitor;
+        std::string monitor_label = (is_current_monitor && !show_main) ? ICON_DRAWING_PIN : monitor_icons[monitor_n] + "##monitor_index" + std::string(label);
         if (ImGui::CheckButton(monitor_label.c_str(), &selected))
         {
             if (monitor_n == current_monitor)
@@ -605,8 +614,10 @@ static void MonitorButton(const char * label, ImVec2 pos, int& monitor_index, in
             {
                 monitor_index = monitor_n;
             }
+            MonitorIndexChanged = true;
         }
         ImGui::EndDisabled();
+        /*
         if (ImGui::IsItemHovered())
         {
             ImGuiPlatformMonitor& mon = platform_io.Monitors[monitor_n];
@@ -621,8 +632,12 @@ static void MonitorButton(const char * label, ImVec2 pos, int& monitor_index, in
             ImGui::Text("WorkMax (%.0f,%.0f)",  mon.WorkPos.x + mon.WorkSize.x, mon.WorkPos.y + mon.WorkSize.y);
             ImGui::EndTooltip();
         }
-        ImGui::SameLine();
+        */
+        auto icon_height = 32;//ImGui::GetTextLineHeight();
+        if (!vertical) ImGui::SameLine();
+        else ImGui::SetCursorScreenPos(pos + ImVec2(0, icon_height * (monitor_n + 1)));
     }
+    return monitor_index != org_index;
 }
 
 // System view
@@ -2565,7 +2580,8 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     ShowVideoWindow(timeline->mMainPreviewTexture, PreviewPos, PreviewSize);
 
     // Show monitors
-    MonitorButton("preview_monitor_select", ImVec2(PanelBarPos.x + 20, PanelBarPos.y + 16), MonitorIndexPreviewVideo);
+    std::vector<int> disabled_monitor;
+    MonitorButton("preview_monitor_select", ImVec2(PanelBarPos.x + 20, PanelBarPos.y + 16), MonitorIndexPreviewVideo, disabled_monitor, false, true);
 
     ImGui::PopStyleColor(3);
 
@@ -2884,8 +2900,10 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                     }
                 }
                 // Show monitors
-                MonitorButton("video_filter_org_monitor_select", ImVec2(PanelBarPos.x + 20, PanelBarPos.y + 8), MonitorIndexVideoFilterOrg, MonitorIndexVideoFiltered);
-                MonitorButton("video_filter_monitor_select", ImVec2(PanelBarPos.x + PanelBarSize.x - 100, PanelBarPos.y + 8), MonitorIndexVideoFiltered, MonitorIndexVideoFilterOrg);
+                std::vector<int> org_disabled_monitor = {MonitorIndexVideoFiltered};
+                MonitorButton("video_filter_org_monitor_select", ImVec2(PanelBarPos.x + 20, PanelBarPos.y + 8), MonitorIndexVideoFilterOrg, org_disabled_monitor, false, true);
+                std::vector<int> filter_disabled_monitor = {MonitorIndexVideoFilterOrg};
+                MonitorButton("video_filter_monitor_select", ImVec2(PanelBarPos.x + PanelBarSize.x - 100, PanelBarPos.y + 8), MonitorIndexVideoFiltered, filter_disabled_monitor, false, true);
             }
             ImGui::PopStyleColor(3);
         }
@@ -3415,7 +3433,6 @@ static void ShowAudioEditorWindow(ImDrawList *draw_list)
  * Media Analyse windows
  *
  ***************************************************************************************/
-
 static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
 {
     ImGuiIO &io = ImGui::GetIO();
@@ -3612,7 +3629,6 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
             }
             ImGui::EndPopup();
         }
-        ImGui::PopStyleColor(3);
         switch (ScopeWindowIndex)
         {
             case 0:
@@ -4381,7 +4397,70 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
             break;
             default: break;
         }
+
+        auto pos = window_pos + ImVec2(window_size.x - 32, 64);
+        std::vector<int> disabled_monitor;
+        if (MainWindowIndex == 0)
+            disabled_monitor.push_back(MonitorIndexPreviewVideo);
+        else if (MainWindowIndex == 1 && VideoEditorWindowIndex == 0)
+        {
+            disabled_monitor.push_back(MonitorIndexVideoFilterOrg);
+            disabled_monitor.push_back(MonitorIndexVideoFiltered);
+        }
+        MonitorButton("scope_monitor", pos, MonitorIndexScope, disabled_monitor, true, false);
+        if (MonitorIndexChanged)
+        {
+            g_media_editor_settings.ExpandScope = true;
+        }
+        
+        ImGui::PopStyleColor(3);
     }
+}
+
+static void ShowMediaAnalyseWindow(TimeLine *timeline)
+{
+    ImGuiIO &io = ImGui::GetIO();
+    auto platform_io = ImGui::GetPlatformIO();
+    bool multiviewport = io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable;
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings;
+    ImVec2 pos = ImVec2(100, 100);
+    if (MonitorIndexChanged)
+    {
+        if (multiviewport && MonitorIndexScope != -1 && MonitorIndexScope < platform_io.Monitors.Size)
+        {
+            auto mon = platform_io.Monitors[MonitorIndexScope];
+            pos += mon.MainPos;
+        }
+        ImGui::SetNextWindowPos(pos);
+        MonitorIndexChanged = false;
+    }
+    ImGui::SetNextWindowSize(ImVec2(1280, 768), ImGuiCond_None);
+    ImGui::Begin("ScopeView", nullptr, flags);
+    // add left tool bar
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.5, 0.5, 0.5, 0.5));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.2, 0.2, 0.2, 1.0));
+    if (ImGui::Button(ICON_DRAWING_PIN "##unexpand_scope"))
+    {
+        g_media_editor_settings.ExpandScope = false;
+        MonitorIndexScope = -1;
+    }
+    if (multiviewport)
+    {
+        auto pos = ImGui::GetCursorScreenPos();
+        std::vector<int> disabled_monitor;
+        if (MainWindowIndex == 0)
+            disabled_monitor.push_back(MonitorIndexPreviewVideo);
+        else if (MainWindowIndex == 1 && VideoEditorWindowIndex == 0)
+        {
+            disabled_monitor.push_back(MonitorIndexVideoFilterOrg);
+            disabled_monitor.push_back(MonitorIndexVideoFiltered);
+        }
+        MonitorButton("scope_monitor", pos, MonitorIndexScope, disabled_monitor, true, true);
+    }
+
+    ImGui::PopStyleColor(3);
+    ImGui::End();
 }
 
 #if 0
@@ -4460,6 +4539,7 @@ void Application_SetupContext(ImGuiContext* ctx)
         else if (sscanf(line, "AudioFormat=%d", &val_int) == 1) { setting->AudioFormat = val_int; }
         else if (sscanf(line, "BankViewStyle=%d", &val_int) == 1) { setting->BankViewStyle = val_int; }
         else if (sscanf(line, "ShowHelpTips=%d", &val_int) == 1) { setting->ShowHelpTooltips = val_int == 1; }
+        else if (sscanf(line, "ExpandScope=%d", &val_int) == 1) { setting->ExpandScope = val_int == 1; }
         else if (sscanf(line, "HistogramLogView=%d", &val_int) == 1) { setting->HistogramLog = val_int == 1; }
         else if (sscanf(line, "HistogramScale=%f", &val_float) == 1) { setting->HistogramScale = val_float; }
         else if (sscanf(line, "WaveformMirror=%d", &val_int) == 1) { setting->WaveformMirror = val_int == 1; }
@@ -4538,6 +4618,7 @@ void Application_SetupContext(ImGuiContext* ctx)
         out_buf->appendf("AudioFormat=%d\n", g_media_editor_settings.AudioFormat);
         out_buf->appendf("BankViewStyle=%d\n", g_media_editor_settings.BankViewStyle);
         out_buf->appendf("ShowHelpTips=%d\n", g_media_editor_settings.ShowHelpTooltips ? 1 : 0);
+        out_buf->appendf("ExpandScope=%d\n", g_media_editor_settings.ExpandScope ? 1 : 0);
         out_buf->appendf("HistogramLogView=%d\n", g_media_editor_settings.HistogramLog ? 1 : 0);
         out_buf->appendf("HistogramScale=%f\n", g_media_editor_settings.HistogramScale);
         out_buf->appendf("WaveformMirror=%d\n", g_media_editor_settings.WaveformMirror ? 1 : 0);
@@ -4981,7 +5062,9 @@ bool Application_Frame(void * handle, bool app_will_quit)
     
     bool _expanded = g_media_editor_settings.BottomViewExpanded;
     ImVec2 panel_pos = window_pos + ImVec2(4, g_media_editor_settings.TopViewHeight * window_size.y + 12);
-    ImVec2 panel_size(window_size.x - 4 - scope_height - 32, g_media_editor_settings.BottomViewHeight * window_size.y - 12);
+    ImVec2 panel_size(window_size.x - 4, g_media_editor_settings.BottomViewHeight * window_size.y - 12);
+    if (!g_media_editor_settings.ExpandScope)
+        panel_size -= ImVec2(scope_height + 32, 0);
     ImGui::SetNextWindowPos(panel_pos, ImGuiCond_Always);
     if (ImGui::BeginChild("##Timeline", panel_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings))
     {
@@ -5009,14 +5092,21 @@ bool Application_Frame(void * handle, bool app_will_quit)
     }
     ImGui::EndChild();
 
-    ImVec2 scope_pos = panel_pos + ImVec2(panel_size.x, 0);
-    ImVec2 scope_size = ImVec2(scope_height + 32, scope_height);
-    ImGui::SetNextWindowPos(scope_pos, ImGuiCond_Always);
-    if (ImGui::BeginChild("##Scope_View", scope_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings))
+    if (!g_media_editor_settings.ExpandScope)
     {
-        ShowMediaAnalyseWindow(timeline, &_expanded);
+        ImVec2 scope_pos = panel_pos + ImVec2(panel_size.x, 0);
+        ImVec2 scope_size = ImVec2(scope_height + 32, scope_height);
+        ImGui::SetNextWindowPos(scope_pos, ImGuiCond_Always);
+        if (ImGui::BeginChild("##Scope_View", scope_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings))
+        {
+            ShowMediaAnalyseWindow(timeline, &_expanded);
+        }
+        ImGui::EndChild();
     }
-    ImGui::EndChild();
+    else
+    {
+        ShowMediaAnalyseWindow(timeline);
+    }
     
     ImGui::PopStyleColor();
     ImGui::End();
