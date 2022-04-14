@@ -583,7 +583,7 @@ static void CalculateVideoScope(ImGui::ImMat& mat)
     need_update_scope = false;
 }
 
-static bool MonitorButton(const char * label, ImVec2 pos, int& monitor_index, std::vector<int> disabled_index, bool vertical = false, bool show_main = true)
+static bool MonitorButton(const char * label, ImVec2 pos, int& monitor_index, std::vector<int> disabled_index, bool vertical = false, bool show_main = true, bool check_change = false)
 {
     static std::string monitor_icons[] = {ICON_ONE, ICON_TWO, ICON_THREE, ICON_FOUR, ICON_FIVE, ICON_SIX, ICON_SEVEN, ICON_EIGHT, ICON_NINE};
     auto platform_io = ImGui::GetPlatformIO();
@@ -614,13 +614,13 @@ static bool MonitorButton(const char * label, ImVec2 pos, int& monitor_index, st
             {
                 monitor_index = monitor_n;
             }
-            MonitorIndexChanged = true;
+            if (check_change) MonitorIndexChanged = true;
         }
         ImGui::EndDisabled();
-        /*
         if (ImGui::IsItemHovered())
         {
             ImGuiPlatformMonitor& mon = platform_io.Monitors[monitor_n];
+            ImGui::SetNextWindowViewport(viewport->ID);
             ImGui::BeginTooltip();
             ImGui::BulletText("Monitor #%d:", monitor_n);
             ImGui::Text("DPI %.0f", mon.DpiScale * 100.0f);
@@ -632,7 +632,6 @@ static bool MonitorButton(const char * label, ImVec2 pos, int& monitor_index, st
             ImGui::Text("WorkMax (%.0f,%.0f)",  mon.WorkPos.x + mon.WorkSize.x, mon.WorkPos.y + mon.WorkSize.y);
             ImGui::EndTooltip();
         }
-        */
         auto icon_height = 32;//ImGui::GetTextLineHeight();
         if (!vertical) ImGui::SameLine();
         else ImGui::SetCursorScreenPos(pos + ImVec2(0, icon_height * (monitor_n + 1)));
@@ -2582,7 +2581,6 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     // Show monitors
     std::vector<int> disabled_monitor;
     MonitorButton("preview_monitor_select", ImVec2(PanelBarPos.x + 20, PanelBarPos.y + 16), MonitorIndexPreviewVideo, disabled_monitor, false, true);
-
     ImGui::PopStyleColor(3);
 
     ImGui::SetCursorScreenPos(window_pos + ImVec2(40, 30));
@@ -4427,7 +4425,7 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
             disabled_monitor.push_back(MonitorIndexVideoFilterOrg);
             disabled_monitor.push_back(MonitorIndexVideoFiltered);
         }
-        MonitorButton("scope_monitor", pos, MonitorIndexScope, disabled_monitor, true, false);
+        MonitorButton("scope_monitor", pos, MonitorIndexScope, disabled_monitor, true, false, true);
         if (MonitorIndexChanged)
         {
             g_media_editor_settings.ExpandScope = true;
@@ -4478,7 +4476,7 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline)
             disabled_monitor.push_back(MonitorIndexVideoFilterOrg);
             disabled_monitor.push_back(MonitorIndexVideoFiltered);
         }
-        MonitorButton("scope_monitor", pos, MonitorIndexScope, disabled_monitor, true, true);
+        MonitorButton("scope_monitor", pos, MonitorIndexScope, disabled_monitor, true, true, true);
     }
 
     // add scope UI layout
