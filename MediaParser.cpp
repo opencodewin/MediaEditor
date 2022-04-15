@@ -371,7 +371,8 @@ private:
                 {
                     lastKeyPts = avpkt.pts;
                     vidSeekPoints.push_back(lastKeyPts);
-                    if (avpkt.duration > 0) ptsStep = avpkt.pts+avpkt.duration;
+                    if (avpkt.duration > 0)
+                        ptsStep = avpkt.duration;
                     searchStart = lastKeyPts+ptsStep;
                     av_packet_unref(&avpkt);
                     break;
@@ -410,7 +411,7 @@ private:
                         {
                             lastKeyPts = avpkt.pts;
                             if (avpkt.duration > 0)
-                                ptsStep = avpkt.pts+avpkt.duration;
+                                ptsStep = avpkt.duration;
                             else
                                 ptsStep = 1;
                             searchStart = lastKeyPts+ptsStep;

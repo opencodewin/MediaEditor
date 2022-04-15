@@ -91,6 +91,8 @@ void Application_Initialize(void** handle)
 {
     GetDefaultLogger()
         ->SetShowLevels(DEBUG);
+    GetMediaParserLogger()
+        ->SetShowLevels(DEBUG);
     GetMediaReaderLogger()
         ->SetShowLevels(DEBUG);
 
