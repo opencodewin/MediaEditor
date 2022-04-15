@@ -92,6 +92,7 @@ public:
         {
             lock_guard<recursive_mutex> lk2(m_trackLock);
             m_tracks.push_back(hTrack);
+            UpdateDuration();
         }
 
         for (auto track : m_tracks)
@@ -128,6 +129,7 @@ public:
         {
             lock_guard<recursive_mutex> lk2(m_trackLock);
             m_tracks.erase(iter);
+            UpdateDuration();
         }
 
         for (auto track : m_tracks)
@@ -158,6 +160,7 @@ public:
 
         VideoTrackHolder delTrack = *iter;
         m_tracks.erase(iter);
+        UpdateDuration();
 
         for (auto track : m_tracks)
             track->SeekTo(ReadPos());
@@ -341,6 +344,11 @@ public:
             return false;
         }
 
+        {
+            lock_guard<recursive_mutex> lk2(m_trackLock);
+            UpdateDuration();
+        }
+
         SeekTo(ReadPos(), false);
         return true;
     }
@@ -403,21 +411,9 @@ public:
         return clip;
     }
 
-    int64_t Duration() override
+    int64_t Duration() const override
     {
-        if (m_tracks.empty())
-            return 0;
-        int64_t dur = 0;
-        m_trackLock.lock();
-        const list<VideoTrackHolder> tracks(m_tracks);
-        m_trackLock.unlock();
-        for (auto& track : tracks)
-        {
-            const int64_t trackDur = track->Duration();
-            if (trackDur > dur)
-                dur = trackDur;
-        }
-        return dur;
+        return m_duration;
     }
 
     int64_t ReadPos() const override
@@ -431,6 +427,18 @@ public:
     }
 
 private:
+    void UpdateDuration()
+    {
+        int64_t dur = 0;
+        for (auto& track : m_tracks)
+        {
+            const int64_t trackDur = track->Duration();
+            if (trackDur > dur)
+                dur = trackDur;
+        }
+        m_duration = dur;
+    }
+
     void StartMixingThread()
     {
         m_quit = false;
@@ -527,6 +535,7 @@ private:
     uint32_t m_outWidth{0};
     uint32_t m_outHeight{0};
     MediaInfo::Ratio m_frameRate;
+    int64_t m_duration{0};
     uint32_t m_readFrameIdx{0};
     bool m_readForward{true};
 

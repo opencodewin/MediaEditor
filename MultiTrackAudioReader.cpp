@@ -113,6 +113,7 @@ public:
         {
             lock_guard<recursive_mutex> lk2(m_trackLock);
             m_tracks.push_back(hTrack);
+            UpdateDuration();
         }
         m_outputMats.clear();
 
@@ -154,6 +155,7 @@ public:
         {
             lock_guard<recursive_mutex> lk2(m_trackLock);
             m_tracks.erase(iter);
+            UpdateDuration();
         }
         m_outputMats.clear();
 
@@ -191,6 +193,7 @@ public:
 
         auto delTrack = *iter;
         m_tracks.erase(iter);
+        UpdateDuration();
         m_outputMats.clear();
 
         ReleaseMixer();
@@ -309,6 +312,11 @@ public:
             return false;
         }
 
+        {
+            lock_guard<recursive_mutex> lk2(m_trackLock);
+            UpdateDuration();
+        }
+
         SeekTo(ReadPos());
         return true;
     }
@@ -371,21 +379,9 @@ public:
         return clip;
     }
 
-    double Duration() override
+    int64_t Duration() const override
     {
-        if (m_tracks.empty())
-            return 0;
-        double dur = 0;
-        m_trackLock.lock();
-        const list<AudioTrackHolder> tracks(m_tracks);
-        m_trackLock.unlock();
-        for (auto& track : tracks)
-        {
-            const double trackDur = track->Duration();
-            if (trackDur > dur)
-                dur = trackDur;
-        }
-        return dur;
+        return m_duration;
     }
 
     int64_t ReadPos() const override
@@ -407,6 +403,18 @@ private:
     double ConvertPtsToTs(int64_t pts)
     {
         return (double)pts/m_outSampleRate;
+    }
+
+    void UpdateDuration()
+    {
+        int64_t dur = 0;
+        for (auto& track : m_tracks)
+        {
+            const int64_t trackDur = track->Duration();
+            if (trackDur > dur)
+                dur = trackDur;
+        }
+        m_duration = dur;
     }
 
     void StartMixingThread()
@@ -666,6 +674,7 @@ private:
 
     list<AudioTrackHolder> m_tracks;
     recursive_mutex m_trackLock;
+    int64_t m_duration{0};
     int64_t m_samplePos{0};
     uint32_t m_outChannels{0};
     uint32_t m_outSampleRate{0};

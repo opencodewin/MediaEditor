@@ -19,7 +19,7 @@ struct MultiTrackVideoReader
     virtual bool ReadNextVideoFrame(ImGui::ImMat& vmat) = 0;
     virtual bool Refresh() = 0;
 
-    virtual int64_t Duration() = 0;
+    virtual int64_t Duration() const = 0;
     virtual int64_t ReadPos() const = 0;
 
     virtual uint32_t TrackCount() const = 0;
