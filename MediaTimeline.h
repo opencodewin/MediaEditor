@@ -132,6 +132,8 @@
 #define ICON_DB             u8"\ue451"
 #define ICON_DB_LEVEL       u8"\ue4a9"
 #define ICON_SPECTROGRAM    u8"\ue4a0"
+#define ICON_DRAWING_PIN    u8"\uf08d"
+#define ICON_EXPANMD        u8"\uf0b2"
 
 #define COL_FRAME_RECT      IM_COL32( 16,  16,  96, 255)
 #define COL_LIGHT_BLUR      IM_COL32( 16, 128, 255, 255)

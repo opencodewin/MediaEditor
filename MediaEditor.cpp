@@ -198,7 +198,7 @@ static const char* MainWindowTabTooltips[] =
 static const char* ScopeWindowTabNames[] = {
     ICON_HISTOGRAM " Video Histogram",
     ICON_WAVEFORM " Video Waveform",
-    ICON_CIE " CIE",
+    ICON_CIE " Video CIE",
     ICON_VETCTOR " Video Vector",
     ICON_WAVE " Audio Wave",
     ICON_FFT " Audio FFT",
@@ -255,6 +255,7 @@ struct MediaEditorSettings
     int BankViewStyle {0};                  // Bank view style type, 0 = icons, 1 = tree vide, and ... 
     bool ShowHelpTooltips {false};          // Show UI help tool tips
 
+    bool ExpandScope {false};
     // Histogram Scope tools
     bool HistogramLog {false};
     float HistogramScale {0.1};
@@ -349,6 +350,8 @@ static int ScopeWindowIndex = 0;            // default Histogram Scope window
 static int MonitorIndexPreviewVideo = -1;
 static int MonitorIndexVideoFilterOrg = -1;
 static int MonitorIndexVideoFiltered = -1;
+static int MonitorIndexScope = -1;
+static bool MonitorIndexChanged = false;
 
 static float ui_breathing = 1.0f;
 static float ui_breathing_step = 0.01;
@@ -580,21 +583,28 @@ static void CalculateVideoScope(ImGui::ImMat& mat)
     need_update_scope = false;
 }
 
-static void MonitorButton(const char * label, ImVec2 pos, int& monitor_index, int disabled_index = -1)
+static bool MonitorButton(const char * label, ImVec2 pos, int& monitor_index, std::vector<int> disabled_index, bool vertical = false, bool show_main = true, bool check_change = false)
 {
     static std::string monitor_icons[] = {ICON_ONE, ICON_TWO, ICON_THREE, ICON_FOUR, ICON_FIVE, ICON_SIX, ICON_SEVEN, ICON_EIGHT, ICON_NINE};
     auto platform_io = ImGui::GetPlatformIO();
     ImGuiViewportP* viewport = (ImGuiViewportP*)ImGui::GetWindowViewport();
     auto current_monitor = viewport->PlatformMonitor;
+    int org_index = monitor_index;
     ImGui::SetCursorScreenPos(pos);
     for (int monitor_n = 0; monitor_n < platform_io.Monitors.Size; monitor_n++)
     {
         bool disable = false;
-        if (disabled_index != -1 && monitor_n == disabled_index)
-            disable = true;
+        for (auto disabled : disabled_index)
+        {
+            if (disabled != -1 && disabled == monitor_n)
+                disable = true;
+        }
         ImGui::BeginDisabled(disable);
-        bool selected = monitor_index == monitor_n || (monitor_index == -1 && monitor_n == current_monitor);
-        std::string monitor_label = monitor_icons[monitor_n] + "##monitor_index" + std::string(label);
+        bool selected = monitor_index == monitor_n;
+        bool is_current_monitor = monitor_index == -1 && monitor_n == current_monitor;
+        if (show_main) selected |= is_current_monitor;
+        std::string icon_str = (is_current_monitor && !show_main) ? g_media_editor_settings.ExpandScope ? ICON_DRAWING_PIN : ICON_EXPANMD : monitor_icons[monitor_n];
+        std::string monitor_label = icon_str + "##monitor_index" + std::string(label);
         if (ImGui::CheckButton(monitor_label.c_str(), &selected))
         {
             if (monitor_n == current_monitor)
@@ -605,11 +615,13 @@ static void MonitorButton(const char * label, ImVec2 pos, int& monitor_index, in
             {
                 monitor_index = monitor_n;
             }
+            if (check_change) MonitorIndexChanged = true;
         }
         ImGui::EndDisabled();
         if (ImGui::IsItemHovered())
         {
             ImGuiPlatformMonitor& mon = platform_io.Monitors[monitor_n];
+            ImGui::SetNextWindowViewport(viewport->ID);
             ImGui::BeginTooltip();
             ImGui::BulletText("Monitor #%d:", monitor_n);
             ImGui::Text("DPI %.0f", mon.DpiScale * 100.0f);
@@ -621,8 +633,11 @@ static void MonitorButton(const char * label, ImVec2 pos, int& monitor_index, in
             ImGui::Text("WorkMax (%.0f,%.0f)",  mon.WorkPos.x + mon.WorkSize.x, mon.WorkPos.y + mon.WorkSize.y);
             ImGui::EndTooltip();
         }
-        ImGui::SameLine();
+        auto icon_height = 32;//ImGui::GetTextLineHeight();
+        if (!vertical) ImGui::SameLine();
+        else ImGui::SetCursorScreenPos(pos + ImVec2(0, icon_height * (monitor_n + 1)));
     }
+    return monitor_index != org_index;
 }
 
 // System view
@@ -2565,8 +2580,8 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     ShowVideoWindow(timeline->mMainPreviewTexture, PreviewPos, PreviewSize);
 
     // Show monitors
-    MonitorButton("preview_monitor_select", ImVec2(PanelBarPos.x + 20, PanelBarPos.y + 16), MonitorIndexPreviewVideo);
-
+    std::vector<int> disabled_monitor;
+    MonitorButton("preview_monitor_select", ImVec2(PanelBarPos.x + 20, PanelBarPos.y + 16), MonitorIndexPreviewVideo, disabled_monitor, false, true);
     ImGui::PopStyleColor(3);
 
     ImGui::SetCursorScreenPos(window_pos + ImVec2(40, 30));
@@ -2884,8 +2899,10 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                     }
                 }
                 // Show monitors
-                MonitorButton("video_filter_org_monitor_select", ImVec2(PanelBarPos.x + 20, PanelBarPos.y + 8), MonitorIndexVideoFilterOrg, MonitorIndexVideoFiltered);
-                MonitorButton("video_filter_monitor_select", ImVec2(PanelBarPos.x + PanelBarSize.x - 100, PanelBarPos.y + 8), MonitorIndexVideoFiltered, MonitorIndexVideoFilterOrg);
+                std::vector<int> org_disabled_monitor = {MonitorIndexVideoFiltered};
+                MonitorButton("video_filter_org_monitor_select", ImVec2(PanelBarPos.x + 20, PanelBarPos.y + 8), MonitorIndexVideoFilterOrg, org_disabled_monitor, false, true);
+                std::vector<int> filter_disabled_monitor = {MonitorIndexVideoFilterOrg};
+                MonitorButton("video_filter_monitor_select", ImVec2(PanelBarPos.x + PanelBarSize.x - 100, PanelBarPos.y + 8), MonitorIndexVideoFiltered, filter_disabled_monitor, false, true);
             }
             ImGui::PopStyleColor(3);
         }
@@ -3415,6 +3432,938 @@ static void ShowAudioEditorWindow(ImDrawList *draw_list)
  * Media Analyse windows
  *
  ***************************************************************************************/
+static void ShowMediaScopeSetting(int index, bool show_tooltips = true)
+{
+    ImGui::BeginGroup();
+    ImGui::PushItemWidth(200);
+    switch (index)
+    {
+        case 0:
+        {
+            // histogram setting
+            ImGui::TextUnformatted("Log:"); ImGui::SameLine();
+            ImGui::ToggleButton("##histogram_logview", &g_media_editor_settings.HistogramLog);
+            if (ImGui::DragFloat("Scale##histogram_scale", &g_media_editor_settings.HistogramScale, 0.01f, 0.01f, 4.f, "%.2f"))
+                need_update_scope = true;
+            if (show_tooltips)
+            {
+                ImGui::TextDisabled("%s", "Mouse wheel up/down on scope view also");
+                ImGui::TextDisabled("%s", "Mouse left double click return default");
+            }
+        }
+        break;
+        case 1:
+        {
+            // waveform setting
+            ImGui::TextUnformatted("Mirror:"); ImGui::SameLine();
+            if (ImGui::ToggleButton("##waveform_mirror", &g_media_editor_settings.WaveformMirror))
+                need_update_scope = true;
+            ImGui::TextUnformatted("Separate:"); ImGui::SameLine();
+            if (ImGui::ToggleButton("##waveform_separate", &g_media_editor_settings.WaveformSeparate))
+                need_update_scope = true;
+            if (ImGui::DragFloat("Intensity##WaveformIntensity", &g_media_editor_settings.WaveformIntensity, 0.05f, 0.f, 4.f, "%.1f"))
+                need_update_scope = true;
+            if (show_tooltips)
+            {
+                ImGui::TextDisabled("%s", "Mouse wheel up/down on scope view also");
+                ImGui::TextDisabled("%s", "Mouse left double click return default");
+            }
+        }
+        break;
+        case 2:
+        {
+            // cie setting
+            bool cie_setting_changed = false;
+            ImGui::TextUnformatted("Show Color:"); ImGui::SameLine();
+            if (ImGui::ToggleButton("##cie_show_color", &g_media_editor_settings.CIEShowColor))
+            {
+                need_update_scope = true;
+            }
+            ImGui::SameLine();
+            ImGui::TextUnformatted("CorrectGamma:"); ImGui::SameLine();
+            if (ImGui::ToggleButton("##cie_correct_gamma", &g_media_editor_settings.CIECorrectGamma))
+            {
+                cie_setting_changed = true;
+            }
+            if (ImGui::Combo("Color System", (int *)&g_media_editor_settings.CIEColorSystem, color_system_items, IM_ARRAYSIZE(color_system_items)))
+            {
+                cie_setting_changed = true;
+            }
+            if (ImGui::Combo("Cie System", (int *)&g_media_editor_settings.CIEMode, cie_system_items, IM_ARRAYSIZE(cie_system_items)))
+            {
+                cie_setting_changed = true;
+            }
+            if (ImGui::Combo("Show Gamut", (int *)&g_media_editor_settings.CIEGamuts, color_system_items, IM_ARRAYSIZE(color_system_items)))
+            {
+                cie_setting_changed = true;
+            }
+            if (ImGui::DragFloat("Contrast##cie_contrast", &g_media_editor_settings.CIEContrast, 0.01f, 0.f, 1.f, "%.2f"))
+            {
+                cie_setting_changed = true;
+            }
+#if IMGUI_VULKAN_SHADER
+            if (cie_setting_changed && m_cie)
+            {
+                need_update_scope = true;
+                m_cie->SetParam(g_media_editor_settings.CIEColorSystem, 
+                                g_media_editor_settings.CIEMode, 512, 
+                                g_media_editor_settings.CIEGamuts, 
+                                g_media_editor_settings.CIEContrast, 
+                                g_media_editor_settings.CIECorrectGamma);
+            }
+#endif
+            if (ImGui::DragFloat("Intensity##CIEIntensity", &g_media_editor_settings.CIEIntensity, 0.01f, 0.f, 1.f, "%.2f"))
+                need_update_scope = true;
+            if (show_tooltips)
+            {
+                ImGui::TextDisabled("%s", "Mouse wheel up/down on scope view also");
+                ImGui::TextDisabled("%s", "Mouse left double click return default");
+            }
+        }
+        break;
+        case 3:
+        {
+            // vector setting
+            if (ImGui::DragFloat("Intensity##VectorIntensity", &g_media_editor_settings.VectorIntensity, 0.01f, 0.f, 1.f, "%.2f"))
+                need_update_scope = true;
+            if (show_tooltips)
+            {
+                ImGui::TextDisabled("%s", "Mouse wheel up/down on scope view also");
+                ImGui::TextDisabled("%s", "Mouse left double click return default");
+            }
+        }
+        break;
+        case 4:
+        {
+            // audio wave setting
+            ImGui::DragFloat("Scale##AudioWaveScale", &g_media_editor_settings.AudioWaveScale, 0.05f, 0.1f, 4.f, "%.1f");
+            if (show_tooltips)
+            {
+                ImGui::TextDisabled("%s", "Mouse wheel up/down on scope view also");
+                ImGui::TextDisabled("%s", "Mouse left double click return default");
+            }
+        }
+        break;
+        case 5:
+        {
+            // audio fft setting
+            ImGui::DragFloat("Scale##AudioFFTScale", &g_media_editor_settings.AudioFFTScale, 0.05f, 0.1f, 4.f, "%.1f");
+            if (show_tooltips)
+            {
+                ImGui::TextDisabled("%s", "Mouse wheel up/down on scope view also");
+                ImGui::TextDisabled("%s", "Mouse left double click return default");
+            }
+        }
+        break;
+        case 6:
+        {
+            // audio dB setting
+            ImGui::DragFloat("Scale##AudioDBScale", &g_media_editor_settings.AudioDBScale, 0.05f, 0.1f, 4.f, "%.1f");
+            if (show_tooltips)
+            {
+                ImGui::TextDisabled("%s", "Mouse wheel up/down on scope view also");
+                ImGui::TextDisabled("%s", "Mouse left double click return default");
+            }
+        }
+        break;
+        case 7:
+        {
+            // audio dB level setting
+            ImGui::RadioButton("dB 20 Band##AudioDbLevelShort", &g_media_editor_settings.AudioDBLevelShort, 1);
+            ImGui::RadioButton("dB 76 Band##AudioDbLevelLong", &g_media_editor_settings.AudioDBLevelShort, 0);
+        }
+        break;
+        case 8:
+        {
+            // audio spectrogram setting
+            if (ImGui::DragFloat("Offset##AudioSpectrogramOffset", &g_media_editor_settings.AudioSpectrogramOffset, 5.f, -96.f, 96.f, "%.1f"))
+            {
+                timeline->mAudioSpectrogramOffset = g_media_editor_settings.AudioSpectrogramOffset;
+            }
+            if (ImGui::DragFloat("Light##AudioSpectrogramLight", &g_media_editor_settings.AudioSpectrogramLight, 0.01f, 0.f, 1.f, "%.2f"))
+            {
+                timeline->mAudioSpectrogramLight = g_media_editor_settings.AudioSpectrogramLight;
+            }
+            if (show_tooltips)
+            {
+                ImGui::TextDisabled("%s", "Mouse wheel up/down on scope view for light");
+                ImGui::TextDisabled("%s", "Mouse wheel left/right on scope view for offset");
+                ImGui::TextDisabled("%s", "Mouse left double click return default");
+            }
+        }
+        break;
+        default: break;
+    }
+    ImGui::PopItemWidth();
+    ImGui::EndGroup();
+}
+
+static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
+{
+    ImGuiIO &io = ImGui::GetIO();
+    ImGui::SetCursorScreenPos(pos);
+    ImDrawList *draw_list = ImGui::GetWindowDrawList();
+    ImRect scrop_rect = ImRect(pos, pos + size);
+    switch (index)
+    {
+        case 0:
+        {
+            // histogram view
+            ImGui::BeginGroup();
+            ImGui::InvisibleButton("##histogram_view", size);
+            if (ImGui::IsItemHovered())
+            {
+                if (io.MouseWheel < -FLT_EPSILON)
+                {
+                    g_media_editor_settings.HistogramScale *= 0.9f;
+                    if (g_media_editor_settings.HistogramScale < 0.01)
+                        g_media_editor_settings.HistogramScale = 0.01;
+                    need_update_scope = true;
+                    ImGui::BeginTooltip();
+                    ImGui::Text("Scale:%f", g_media_editor_settings.HistogramScale);
+                    ImGui::EndTooltip();
+                }
+                else if (io.MouseWheel > FLT_EPSILON)
+                {
+                    g_media_editor_settings.HistogramScale *= 1.1f;
+                    if (g_media_editor_settings.HistogramScale > 4.0f)
+                        g_media_editor_settings.HistogramScale = 4.0;
+                    need_update_scope = true;
+                    ImGui::BeginTooltip();
+                    ImGui::Text("Scale:%f", g_media_editor_settings.HistogramScale);
+                    ImGui::EndTooltip();
+                }
+                if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+                {
+                    g_media_editor_settings.HistogramScale = 1.0f;
+                    need_update_scope = true;
+                }
+            }
+            if (!mat_histogram.empty())
+            {
+                ImGui::PushStyleColor(ImGuiCol_FrameBg, 0);
+                ImGui::SetCursorScreenPos(pos);
+                auto rmat = mat_histogram.channel(0);
+                ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(1.f, 0.f, 0.f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(1.f, 0.f, 0.f, 0.5f));
+                ImGui::PlotLines("##rh", (float *)rmat.data, mat_histogram.w, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(size.x, size.y / 3), 4, false, true);
+                ImGui::PopStyleColor(2);
+                ImGui::SetCursorScreenPos(pos + ImVec2(0, size.y / 3));
+                auto gmat = mat_histogram.channel(1);
+                ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.f, 1.f, 0.f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.f, 1.f, 0.f, 0.5f));
+                ImGui::PlotLines("##gh", (float *)gmat.data, mat_histogram.w, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(size.x, size.y / 3), 4, false, true);
+                ImGui::PopStyleColor(2);
+                ImGui::SetCursorScreenPos(pos + ImVec2(0, size.y * 2 / 3));
+                auto bmat = mat_histogram.channel(2);
+                ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.f, 0.f, 1.f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.f, 0.f, 1.f, 0.5f));
+                ImGui::PlotLines("##bh", (float *)bmat.data, mat_histogram.w, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(size.x, size.y / 3), 4, false, true);
+                ImGui::PopStyleColor(2);
+                ImGui::PopStyleColor();
+            }
+            draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 0);
+            // draw graticule line
+            draw_list->PushClipRect(scrop_rect.Min, scrop_rect.Max);
+            auto histogram_step = size.x / 10;
+            auto histogram_sub_vstep = size.x / 50;
+            auto histogram_vstep = size.y / 3 * g_media_editor_settings.HistogramScale;
+            auto histogram_seg = size.y / 3 / histogram_vstep;
+            for (int i = 1; i <= 10; i++)
+            {
+                ImVec2 p0 = scrop_rect.Min + ImVec2(i * histogram_step, 0);
+                ImVec2 p1 = scrop_rect.Min + ImVec2(i * histogram_step, scrop_rect.Max.y);
+                draw_list->AddLine(p0, p1, COL_GRATICULE_DARK, 1);
+            }
+            for (int i = 0; i < histogram_seg; i++)
+            {
+                ImVec2 pr0 = scrop_rect.Min + ImVec2(0, (size.y / 3) - i * histogram_vstep);
+                ImVec2 pr1 = scrop_rect.Min + ImVec2(scrop_rect.Max.x, (size.y / 3) - i * histogram_vstep);
+                draw_list->AddLine(pr0, pr1, IM_COL32(255, 128, 0, 32), 1);
+                ImVec2 pg0 = scrop_rect.Min + ImVec2(0, size.y / 3) + ImVec2(0, (size.y / 3) - i * histogram_vstep);
+                ImVec2 pg1 = scrop_rect.Min + ImVec2(0, size.y / 3) + ImVec2(scrop_rect.Max.x, (size.y / 3) - i * histogram_vstep);
+                draw_list->AddLine(pg0, pg1, IM_COL32(128, 255, 0, 32), 1);
+                ImVec2 pb0 = scrop_rect.Min + ImVec2(0, size.y * 2 / 3) + ImVec2(0, (size.y / 3) - i * histogram_vstep);
+                ImVec2 pb1 = scrop_rect.Min + ImVec2(0, size.y * 2 / 3) + ImVec2(scrop_rect.Max.x, (size.y / 3) - i * histogram_vstep);
+                draw_list->AddLine(pb0, pb1, IM_COL32(128, 128, 255, 32), 1);
+            }
+            for (int i = 0; i < 50; i++)
+            {
+                ImVec2 p0 = scrop_rect.Min + ImVec2(i * histogram_sub_vstep, 0);
+                ImVec2 p1 = scrop_rect.Min + ImVec2(i * histogram_sub_vstep, 5);
+                draw_list->AddLine(p0, p1, COL_GRATICULE, 1);
+            }
+            draw_list->PopClipRect();
+            ImGui::EndGroup();
+        }
+        break;
+        case 1:
+        {
+            // waveform view
+            ImGui::BeginGroup();
+            ImGui::InvisibleButton("##waveform_view", size);
+            if (ImGui::IsItemHovered())
+            {
+                if (io.MouseWheel < -FLT_EPSILON)
+                {
+                    g_media_editor_settings.WaveformIntensity *= 0.9f;
+                    if (g_media_editor_settings.WaveformIntensity < 0.1)
+                        g_media_editor_settings.WaveformIntensity = 0.1;
+                    need_update_scope = true;
+                    ImGui::BeginTooltip();
+                    ImGui::Text("Intensity:%f", g_media_editor_settings.WaveformIntensity);
+                    ImGui::EndTooltip();
+                }
+                else if (io.MouseWheel > FLT_EPSILON)
+                {
+                    g_media_editor_settings.WaveformIntensity *= 1.1f;
+                    if (g_media_editor_settings.WaveformIntensity > 4.0f)
+                        g_media_editor_settings.WaveformIntensity = 4.0;
+                    need_update_scope = true;
+                    ImGui::BeginTooltip();
+                    ImGui::Text("Intensity:%f", g_media_editor_settings.WaveformIntensity);
+                    ImGui::EndTooltip();
+                }
+                if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+                {
+                    g_media_editor_settings.WaveformIntensity = 2.0;
+                    need_update_scope = true;
+                }
+            }
+            if (!mat_waveform.empty())
+            {
+                ImGui::ImMatToTexture(mat_waveform, waveform_texture);
+                draw_list->AddImage(waveform_texture, scrop_rect.Min, scrop_rect.Max, g_media_editor_settings.WaveformMirror ? ImVec2(0, 1) : ImVec2(0, 0), g_media_editor_settings.WaveformMirror ? ImVec2(1, 0) : ImVec2(1, 1));
+            }
+            draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 0);
+            // draw graticule line
+            draw_list->PushClipRect(scrop_rect.Min, scrop_rect.Max);
+            auto waveform_step = size.y / 10;
+            auto waveform_vstep = size.x / 10;
+            auto waveform_sub_step = size.y / 50;
+            auto waveform_sub_vstep = size.x / 100;
+            for (int i = 0; i < 10; i++)
+            {
+                ImVec2 p0 = scrop_rect.Min + ImVec2(0, i * waveform_step);
+                ImVec2 p1 = scrop_rect.Min + ImVec2(scrop_rect.Max.x, i * waveform_step);
+                if (i != 5)
+                    draw_list->AddLine(p0, p1, COL_GRATICULE_DARK, 1);
+                else
+                {
+                    ImGui::ImDrawListAddLineDashed(draw_list, p0, p1, COL_GRATICULE_DARK, 1, 100);
+                }
+                ImVec2 vp0 = scrop_rect.Min + ImVec2(i * waveform_vstep, 0);
+                ImVec2 vp1 = scrop_rect.Min + ImVec2(i * waveform_vstep, 10);
+                draw_list->AddLine(vp0, vp1, COL_GRATICULE, 1);
+            }
+            for (int i = 0; i < 50; i++)
+            {
+                float l = i == 0 || i % 10 == 0 ? 10 : 5;
+                ImVec2 p0 = scrop_rect.Min + ImVec2(0, i * waveform_sub_step);
+                ImVec2 p1 = scrop_rect.Min + ImVec2(l, i * waveform_sub_step);
+                draw_list->AddLine(p0, p1, COL_GRATICULE, 1);
+            }
+            for (int i = 0; i < 100; i++)
+            {
+                ImVec2 p0 = scrop_rect.Min + ImVec2(i * waveform_sub_vstep, 0);
+                ImVec2 p1 = scrop_rect.Min + ImVec2(i * waveform_sub_vstep, 5);
+                draw_list->AddLine(p0, p1, COL_GRATICULE, 1);
+            }
+            draw_list->PopClipRect();
+            ImGui::EndGroup();
+        }
+        break;
+        case 2:
+        {
+            // cie view
+            ImGui::BeginGroup();
+            ImGui::InvisibleButton("##cie_view", size);
+            if (ImGui::IsItemHovered())
+            {
+                if (io.MouseWheel < -FLT_EPSILON)
+                {
+                    g_media_editor_settings.CIEIntensity *= 0.9f;
+                    if (g_media_editor_settings.CIEIntensity < 0.01)
+                        g_media_editor_settings.CIEIntensity = 0.01;
+                    need_update_scope = true;
+                    ImGui::BeginTooltip();
+                    ImGui::Text("Intensity:%f", g_media_editor_settings.CIEIntensity);
+                    ImGui::EndTooltip();
+                }
+                else if (io.MouseWheel > FLT_EPSILON)
+                {
+                    g_media_editor_settings.CIEIntensity *= 1.1f;
+                    if (g_media_editor_settings.CIEIntensity > 1.0f)
+                        g_media_editor_settings.CIEIntensity = 1.0;
+                    need_update_scope = true;
+                    ImGui::BeginTooltip();
+                    ImGui::Text("Intensity:%f", g_media_editor_settings.CIEIntensity);
+                    ImGui::EndTooltip();
+                }
+                if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+                {
+                    g_media_editor_settings.CIEIntensity = 0.5f;
+                    need_update_scope = true;
+                }
+            }
+            if (!mat_cie.empty())
+            {
+                ImGui::ImMatToTexture(mat_cie, cie_texture);
+                draw_list->AddImage(cie_texture, scrop_rect.Min, scrop_rect.Max, ImVec2(0, 0), ImVec2(1, 1));
+            }
+            draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 0);
+            // draw graticule line
+            draw_list->PushClipRect(scrop_rect.Min, scrop_rect.Max);
+            auto cie_step = size.y / 10;
+            auto cie_vstep = size.x / 10;
+            auto cie_sub_step = size.y / 50;
+            auto cie_sub_vstep = size.x / 50;
+            for (int i = 1; i <= 10; i++)
+            {
+                ImVec2 hp0 = scrop_rect.Min + ImVec2(0, i * cie_step);
+                ImVec2 hp1 = scrop_rect.Min + ImVec2(scrop_rect.Max.x, i * cie_step);
+                draw_list->AddLine(hp0, hp1, COL_GRATICULE_DARK, 1);
+                ImVec2 vp0 = scrop_rect.Min + ImVec2(i * cie_vstep, 0);
+                ImVec2 vp1 = scrop_rect.Min + ImVec2(i * cie_vstep, scrop_rect.Max.y);
+                draw_list->AddLine(vp0, vp1, COL_GRATICULE_DARK, 1);
+            }
+            for (int i = 0; i < 50; i++)
+            {
+                ImVec2 hp0 = scrop_rect.Min + ImVec2(size.x - 3, i * cie_sub_step);
+                ImVec2 hp1 = scrop_rect.Min + ImVec2(size.x, i * cie_sub_step);
+                draw_list->AddLine(hp0, hp1, COL_GRATICULE_HALF, 1);
+                ImVec2 vp0 = scrop_rect.Min + ImVec2(i * cie_sub_vstep, 0);
+                ImVec2 vp1 = scrop_rect.Min + ImVec2(i * cie_sub_vstep, 3);
+                draw_list->AddLine(vp0, vp1, COL_GRATICULE_HALF, 1);
+            }
+            std::string X_str = "X";
+            std::string Y_str = "Y";
+            if (g_media_editor_settings.CIEMode == ImGui::UCS)
+            {
+                X_str = "U"; Y_str = "C";
+            }
+            else if (g_media_editor_settings.CIEMode == ImGui::LUV)
+            {
+                X_str = "U"; Y_str = "V";
+            }
+            draw_list->AddText(scrop_rect.Min + ImVec2(2, 2), COL_GRATICULE, X_str.c_str());
+            draw_list->AddText(scrop_rect.Min + ImVec2(size.x - 12, size.y - 18), COL_GRATICULE, Y_str.c_str());
+            ImGui::SetWindowFontScale(0.7);
+            for (int i = 0; i < 10; i++)
+            {
+                if (i == 0) continue;
+                char mark[32] = {0};
+                ImFormatString(mark, IM_ARRAYSIZE(mark), "%.1f", i / 10.f);
+                draw_list->AddText(scrop_rect.Min + ImVec2(i * cie_vstep - 8, 2), COL_GRATICULE, mark);
+                draw_list->AddText(scrop_rect.Min + ImVec2(size.x - 18, size.y - i * cie_step - 6), COL_GRATICULE, mark);
+            }
+            ImGui::SetWindowFontScale(1.0);
+            ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphShadowOffset, ImVec2(1, 1));
+            if (m_cie)
+            {
+                ImVec2 white_point;
+                m_cie->GetWhitePoint((ImGui::ColorsSystems)g_media_editor_settings.CIEColorSystem, size.x, size.y, &white_point.x, &white_point.y);
+                draw_list->AddCircle(scrop_rect.Min + white_point, 3, IM_COL32_WHITE, 0, 2);
+                draw_list->AddCircle(scrop_rect.Min + white_point, 2, IM_COL32_BLACK, 0, 1);
+                ImVec2 green_point_system;
+                m_cie->GetGreenPoint((ImGui::ColorsSystems)g_media_editor_settings.CIEColorSystem, size.x, size.y, &green_point_system.x, &green_point_system.y);
+                draw_list->AddText(scrop_rect.Min + green_point_system, COL_GRATICULE, color_system_items[g_media_editor_settings.CIEColorSystem]);
+                ImVec2 green_point_gamuts;
+                m_cie->GetGreenPoint((ImGui::ColorsSystems)g_media_editor_settings.CIEGamuts, size.x, size.y, &green_point_gamuts.x, &green_point_gamuts.y);
+                draw_list->AddText(scrop_rect.Min + green_point_gamuts, COL_GRATICULE, color_system_items[g_media_editor_settings.CIEGamuts]);
+            }
+            ImGui::PopStyleVar();
+            draw_list->PopClipRect();
+            ImGui::EndGroup();
+        }
+        break;
+        case 3:
+        {
+            // vector view
+            ImGui::BeginGroup();
+            ImGui::InvisibleButton("##vector_view", size);
+            if (ImGui::IsItemHovered())
+            {
+                if (io.MouseWheel < -FLT_EPSILON)
+                {
+                    g_media_editor_settings.VectorIntensity *= 0.9f;
+                    if (g_media_editor_settings.VectorIntensity < 0.01)
+                        g_media_editor_settings.VectorIntensity = 0.01;
+                    need_update_scope = true;
+                    ImGui::BeginTooltip();
+                    ImGui::Text("Intensity:%f", g_media_editor_settings.VectorIntensity);
+                    ImGui::EndTooltip();
+                }
+                else if (io.MouseWheel > FLT_EPSILON)
+                {
+                    g_media_editor_settings.VectorIntensity *= 1.1f;
+                    if (g_media_editor_settings.VectorIntensity > 1.0f)
+                        g_media_editor_settings.VectorIntensity = 1.0;
+                    need_update_scope = true;
+                    ImGui::BeginTooltip();
+                    ImGui::Text("Intensity:%f", g_media_editor_settings.VectorIntensity);
+                    ImGui::EndTooltip();
+                }
+                if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+                {
+                    g_media_editor_settings.VectorIntensity = 0.5f;
+                    need_update_scope = true;
+                }
+            }
+            if (!mat_vector.empty())
+            {
+                ImGui::ImMatToTexture(mat_vector, vector_texture);
+                draw_list->AddImage(vector_texture, scrop_rect.Min, scrop_rect.Max, ImVec2(0, 0), ImVec2(1, 1));
+            }
+            draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 0);
+            // draw graticule line
+            ImVec2 center_point = ImVec2(scrop_rect.Min + size / 2);
+            float radius = size.x / 2;
+            draw_list->PushClipRect(scrop_rect.Min, scrop_rect.Max);
+            draw_list->AddCircle(center_point, radius, COL_GRATICULE_DARK, 0, 1);
+            draw_list->AddLine(scrop_rect.Min + ImVec2(0, size.y / 2), scrop_rect.Max - ImVec2(0, size.y / 2), COL_GRATICULE_DARK);
+            draw_list->AddLine(scrop_rect.Min + ImVec2(size.x / 2, 0), scrop_rect.Max - ImVec2(size.x / 2, 0), COL_GRATICULE_DARK);
+
+            auto AngleToCoordinate = [&](float angle, float length)
+            {
+                ImVec2 point(0, 0);
+                float hAngle = angle * M_PI / 180.f;
+                if (angle == 0.f)
+                    point = ImVec2(length, 0);  // positive x axis
+                else if (angle == 180.f)
+                    point = ImVec2(-length, 0); // negative x axis
+                else if (angle == 90.f)
+                    point = ImVec2(0, length); // positive y axis
+                else if (angle == 270.f)
+                    point = ImVec2(0, -length);  // negative y axis
+                else
+                    point = ImVec2(length * cos(hAngle), length * sin(hAngle));
+                return point;
+            };
+            auto AngleToPoint = [&](float angle, float length)
+            {
+                ImVec2 point = AngleToCoordinate(angle, length);
+                point = ImVec2(point.x * radius, -point.y * radius);
+                return point;
+            };
+            auto ColorToPoint = [&](float r, float g, float b)
+            {
+                float angle, length, v;
+                ImGui::ColorConvertRGBtoHSV(r, g, b, angle, length, v);
+                angle = angle * 360;
+                auto point = AngleToCoordinate(angle, v);
+                point = ImVec2(point.x * radius, -point.y * radius);
+                return point;
+            };
+
+            for (int i = 0; i < 360; i+= 5)
+            {
+                float l = 0.95;
+                if (i == 0 || i % 10 == 0)
+                    l = 0.9;
+                auto p0 = AngleToPoint(i, 1.0);
+                auto p1 = AngleToPoint(i, l);
+                draw_list->AddLine(center_point + p0, center_point + p1, COL_GRATICULE_DARK);
+            }
+
+              auto draw_mark = [&](ImVec2 point, const char * mark)
+            {
+                float rect_size = 12;
+                auto p0 = center_point + point - ImVec2(rect_size, rect_size);
+                auto p1 = center_point + point + ImVec2(rect_size, rect_size);
+                auto p2 = p0 + ImVec2(rect_size * 2, 0);
+                auto p3 = p0 + ImVec2(0, rect_size * 2);
+                auto text_size = ImGui::CalcTextSize(mark);
+                draw_list->AddText(p0 + ImVec2(rect_size - text_size.x / 2, rect_size - text_size.y / 2), COL_GRATICULE, mark);
+                draw_list->AddLine(p0, p0 + ImVec2(5, 0),   COL_GRATICULE, 2);
+                draw_list->AddLine(p0, p0 + ImVec2(0, 5),   COL_GRATICULE, 2);
+                draw_list->AddLine(p1, p1 + ImVec2(-5, 0),  COL_GRATICULE, 2);
+                draw_list->AddLine(p1, p1 + ImVec2(0, -5),  COL_GRATICULE, 2);
+                draw_list->AddLine(p2, p2 + ImVec2(-5, 0),  COL_GRATICULE, 2);
+                draw_list->AddLine(p2, p2 + ImVec2(0, 5),   COL_GRATICULE, 2);
+                draw_list->AddLine(p3, p3 + ImVec2(5, 0),   COL_GRATICULE, 2);
+                draw_list->AddLine(p3, p3 + ImVec2(0, -5),  COL_GRATICULE, 2);
+            };
+
+            draw_mark(ColorToPoint(0.75, 0, 0), "R");
+            draw_mark(ColorToPoint(0, 0.75, 0), "G");
+            draw_mark(ColorToPoint(0, 0, 0.75), "B");
+            draw_mark(ColorToPoint(0.75, 0.75, 0), "Y");
+            draw_mark(ColorToPoint(0.75, 0, 0.75), "M");
+            draw_mark(ColorToPoint(0, 0.75, 0.75), "C");
+
+            draw_list->PopClipRect();
+            ImGui::EndGroup();
+        }
+        break;
+        case 4:
+        {
+            // wave view
+            ImGui::BeginGroup();
+            ImGui::InvisibleButton("##audio_wave_view", size);
+            if (ImGui::IsItemHovered())
+            {
+                if (io.MouseWheel < -FLT_EPSILON)
+                {
+                    g_media_editor_settings.AudioWaveScale *= 0.9f;
+                    if (g_media_editor_settings.AudioWaveScale < 0.1)
+                        g_media_editor_settings.AudioWaveScale = 0.1;
+                    ImGui::BeginTooltip();
+                    ImGui::Text("Scale:%f", g_media_editor_settings.AudioWaveScale);
+                    ImGui::EndTooltip();
+                }
+                else if (io.MouseWheel > FLT_EPSILON)
+                {
+                    g_media_editor_settings.AudioWaveScale *= 1.1f;
+                    if (g_media_editor_settings.AudioWaveScale > 4.0f)
+                        g_media_editor_settings.AudioWaveScale = 4.0;
+                    ImGui::BeginTooltip();
+                    ImGui::Text("Scale:%f", g_media_editor_settings.AudioWaveScale);
+                    ImGui::EndTooltip();
+                }
+                if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+                    g_media_editor_settings.AudioWaveScale = 1.f;
+            }
+            draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 0);
+            draw_list->PushClipRect(scrop_rect.Min, scrop_rect.Max);
+            ImVec2 channel_view_size = ImVec2(size.x, size.y / timeline->m_audio_channel_data.size());
+            ImGui::SetCursorScreenPos(pos);
+            ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.f, 1.f, 0.f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_FrameBg, 0);
+            ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
+            for (int i = 0; i < timeline->m_audio_channel_data.size(); i++)
+            {
+                ImVec2 channel_min = pos + ImVec2(0, channel_view_size.y * i);
+                ImVec2 channel_max = pos + ImVec2(channel_view_size.x, channel_view_size.y * i);
+                // draw graticule line
+                // draw middle line
+                ImVec2 p1 = ImVec2(pos.x, pos.y + channel_view_size.y * i + channel_view_size.y / 2);
+                ImVec2 p2 = p1 + ImVec2(channel_view_size.x, 0);
+                draw_list->AddLine(p1, p2, IM_COL32(128, 128, 128, 128));
+                // draw grid
+                auto grid_number = floor(10 / g_media_editor_settings.AudioWaveScale);
+                auto grid_height = channel_view_size.y / 2 / grid_number;
+                if (grid_number > 10) grid_number = 10;
+                for (int x = 0; x < grid_number; x++)
+                {
+                    ImVec2 gp1 = p1 - ImVec2(0, grid_height * x);
+                    ImVec2 gp2 = gp1 + ImVec2(channel_view_size.x, 0);
+                    draw_list->AddLine(gp1, gp2, COL_GRAY_GRATICULE);
+                    ImVec2 gp3 = p1 + ImVec2(0, grid_height * x);
+                    ImVec2 gp4 = gp3 + ImVec2(channel_view_size.x, 0);
+                    draw_list->AddLine(gp3, gp4, COL_GRAY_GRATICULE);
+                }
+                auto vgrid_number = channel_view_size.x / grid_height;
+                for (int x = 0; x < vgrid_number; x++)
+                {
+                    ImVec2 gp1 = p1 + ImVec2(grid_height * x, 0);
+                    ImVec2 gp2 = gp1 - ImVec2(0, grid_height * (grid_number - 1));
+                    draw_list->AddLine(gp1, gp2, COL_GRAY_GRATICULE);
+                    ImVec2 gp3 = gp1 + ImVec2(0, grid_height * (grid_number - 1));
+                    draw_list->AddLine(gp1, gp3, COL_GRAY_GRATICULE);
+                }
+                if (!timeline->m_audio_channel_data[i].m_wave.empty())
+                {
+                    ImGui::PushID(i);
+                    ImGui::PlotLines("##wave", (float *)timeline->m_audio_channel_data[i].m_wave.data, timeline->m_audio_channel_data[i].m_wave.w, 0, nullptr, -1.0 / g_media_editor_settings.AudioWaveScale , 1.0 / g_media_editor_settings.AudioWaveScale, channel_view_size, 4, false, false);
+                    ImGui::PopID();
+                }
+                draw_list->AddRect(channel_min, channel_max, COL_SLIDER_HANDLE, 0);
+            }
+            ImGui::PopStyleVar();
+            ImGui::PopStyleColor(2);
+            draw_list->PopClipRect();
+            ImGui::EndGroup();
+        }
+        break;
+        case 5:
+        {
+            // fft view
+            ImGui::BeginGroup();
+            ImGui::InvisibleButton("##audio_fft_view", size);
+            if (ImGui::IsItemHovered())
+            {
+                if (io.MouseWheel < -FLT_EPSILON)
+                {
+                    g_media_editor_settings.AudioFFTScale *= 0.9f;
+                    if (g_media_editor_settings.AudioFFTScale < 0.1)
+                        g_media_editor_settings.AudioFFTScale = 0.1;
+                    ImGui::BeginTooltip();
+                    ImGui::Text("Scale:%f", g_media_editor_settings.AudioFFTScale);
+                    ImGui::EndTooltip();
+                }
+                else if (io.MouseWheel > FLT_EPSILON)
+                {
+                    g_media_editor_settings.AudioFFTScale *= 1.1f;
+                    if (g_media_editor_settings.AudioFFTScale > 4.0f)
+                        g_media_editor_settings.AudioFFTScale = 4.0;
+                    ImGui::BeginTooltip();
+                    ImGui::Text("Scale:%f", g_media_editor_settings.AudioFFTScale);
+                    ImGui::EndTooltip();
+                }
+                if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+                    g_media_editor_settings.AudioFFTScale = 1.f;
+            }
+            draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 0);
+            draw_list->PushClipRect(scrop_rect.Min, scrop_rect.Max);
+            ImVec2 channel_view_size = ImVec2(size.x, size.y / timeline->m_audio_channel_data.size());
+            ImGui::SetCursorScreenPos(pos);
+            ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(1.f, 1.f, 1.f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.5f, 0.5f, 0.5f, 0.5f));
+            ImGui::PushStyleColor(ImGuiCol_FrameBg, 0);
+            ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
+            for (int i = 0; i < timeline->m_audio_channel_data.size(); i++)
+            {
+                ImVec2 channel_min = pos + ImVec2(0, channel_view_size.y * i);
+                ImVec2 channel_max = pos + ImVec2(channel_view_size.x, channel_view_size.y * i);
+                // draw graticule line
+                ImVec2 p1 = ImVec2(pos.x, pos.y + channel_view_size.y * i + channel_view_size.y);
+                auto grid_number = floor(10 / g_media_editor_settings.AudioFFTScale);
+                auto grid_height = channel_view_size.y / grid_number;
+                if (grid_number > 20) grid_number = 20;
+                for (int x = 0; x < grid_number; x++)
+                {
+                    ImVec2 gp1 = p1 - ImVec2(0, grid_height * x);
+                    ImVec2 gp2 = gp1 + ImVec2(channel_view_size.x, 0);
+                    draw_list->AddLine(gp1, gp2, COL_GRAY_GRATICULE);
+                }
+                auto vgrid_number = channel_view_size.x / grid_height;
+                for (int x = 0; x < vgrid_number; x++)
+                {
+                    ImVec2 gp1 = p1 + ImVec2(grid_height * x, 0);
+                    ImVec2 gp2 = gp1 - ImVec2(0, grid_height * (grid_number - 1));
+                    draw_list->AddLine(gp1, gp2, COL_GRAY_GRATICULE);
+                }
+                if (!timeline->m_audio_channel_data[i].m_fft.empty())
+                {
+                    ImGui::PushID(i);
+                    ImGui::PlotLines("##fft", (float *)timeline->m_audio_channel_data[i].m_fft.data, timeline->m_audio_channel_data[i].m_fft.w, 0, nullptr, 0.0, 1.0 / g_media_editor_settings.AudioFFTScale, channel_view_size, 4, false, true);
+                    ImGui::PopID();
+                }
+                draw_list->AddRect(channel_min, channel_max, COL_SLIDER_HANDLE, 0);
+            }
+            ImGui::PopStyleVar();
+            ImGui::PopStyleColor(3);
+            draw_list->PopClipRect();
+            ImGui::EndGroup();
+        }
+        break;
+        case 6:
+        {
+            // db view
+            ImGui::BeginGroup();
+            ImGui::InvisibleButton("##audio_db_view", size);
+            if (ImGui::IsItemHovered())
+            {
+                if (io.MouseWheel < -FLT_EPSILON)
+                {
+                    g_media_editor_settings.AudioDBScale *= 0.9f;
+                    if (g_media_editor_settings.AudioDBScale < 0.1)
+                        g_media_editor_settings.AudioDBScale = 0.1;
+                    ImGui::BeginTooltip();
+                    ImGui::Text("Scale:%f", g_media_editor_settings.AudioDBScale);
+                    ImGui::EndTooltip();
+                }
+                else if (io.MouseWheel > FLT_EPSILON)
+                {
+                    g_media_editor_settings.AudioDBScale *= 1.1f;
+                    if (g_media_editor_settings.AudioDBScale > 4.0f)
+                        g_media_editor_settings.AudioDBScale = 4.0;
+                    ImGui::BeginTooltip();
+                    ImGui::Text("Scale:%f", g_media_editor_settings.AudioDBScale);
+                    ImGui::EndTooltip();
+                }
+                if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+                    g_media_editor_settings.AudioDBScale = 1.f;
+            }
+            draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 0);
+            draw_list->PushClipRect(scrop_rect.Min, scrop_rect.Max);
+            ImVec2 channel_view_size = ImVec2(size.x, size.y / timeline->m_audio_channel_data.size());
+            ImGui::SetCursorScreenPos(pos);
+            ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(1.f, 1.f, 1.f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.5f, 0.5f, 0.5f, 0.5f));
+            ImGui::PushStyleColor(ImGuiCol_FrameBg, 0);
+            ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
+            for (int i = 0; i < timeline->m_audio_channel_data.size(); i++)
+            {
+                ImVec2 channel_min = pos + ImVec2(0, channel_view_size.y * i);
+                ImVec2 channel_max = pos + ImVec2(channel_view_size.x, channel_view_size.y * i);
+                // draw graticule line
+                ImVec2 p1 = ImVec2(pos.x, pos.y + channel_view_size.y * i + channel_view_size.y);
+                auto grid_number = floor(10 / g_media_editor_settings.AudioDBScale);
+                auto grid_height = channel_view_size.y / grid_number;
+                if (grid_number > 20) grid_number = 20;
+                for (int x = 0; x < grid_number; x++)
+                {
+                    ImVec2 gp1 = p1 - ImVec2(0, grid_height * x);
+                    ImVec2 gp2 = gp1 + ImVec2(channel_view_size.x, 0);
+                    draw_list->AddLine(gp1, gp2, COL_GRAY_GRATICULE);
+                }
+                auto vgrid_number = channel_view_size.x / grid_height;
+                for (int x = 0; x < vgrid_number; x++)
+                {
+                    ImVec2 gp1 = p1 + ImVec2(grid_height * x, 0);
+                    ImVec2 gp2 = gp1 - ImVec2(0, grid_height * (grid_number - 1));
+                    draw_list->AddLine(gp1, gp2, COL_GRAY_GRATICULE);
+                }
+                if (!timeline->m_audio_channel_data[i].m_db.empty())
+                {
+                    ImGui::PushID(i);
+                    ImGui::PlotLines("##db", (float *)timeline->m_audio_channel_data[i].m_db.data, timeline->m_audio_channel_data[i].m_db.w, 0, nullptr, 0, 100 / g_media_editor_settings.AudioDBScale, channel_view_size, 4, false, true);
+                    ImGui::PopID();
+                }
+                draw_list->AddRect(channel_min, channel_max, COL_SLIDER_HANDLE, 0);
+            }
+            ImGui::PopStyleVar();
+            ImGui::PopStyleColor(3);
+            draw_list->PopClipRect();
+            ImGui::EndGroup();
+        }
+        break;
+        case 7:
+        {
+            // db level view
+            ImGui::BeginGroup();
+            draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 0);
+            draw_list->PushClipRect(scrop_rect.Min, scrop_rect.Max);
+            ImVec2 channel_view_size = ImVec2(size.x, size.y / timeline->m_audio_channel_data.size());
+            ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(1.f, 1.f, 1.f, 0.5f));
+            ImGui::PushStyleColor(ImGuiCol_FrameBg, 0);
+            ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
+            for (int i = 0; i < timeline->m_audio_channel_data.size(); i++)
+            {
+                ImVec2 channel_min = pos + ImVec2(0, channel_view_size.y * i);
+                ImVec2 channel_max = pos + ImVec2(channel_view_size.x, channel_view_size.y * i);
+                ImGui::PushID(i);
+                if (!timeline->m_audio_channel_data[i].m_DBShort.empty() && g_media_editor_settings.AudioDBLevelShort == 1)
+                    ImGui::PlotHistogram("##db_level", (float *)timeline->m_audio_channel_data[i].m_DBShort.data, timeline->m_audio_channel_data[i].m_DBShort.w, 0, nullptr, 0, 100, channel_view_size, 4);
+                else if (!timeline->m_audio_channel_data[i].m_DBLong.empty() && g_media_editor_settings.AudioDBLevelShort == 0)
+                    ImGui::PlotHistogram("##db_level", (float *)timeline->m_audio_channel_data[i].m_DBLong.data, timeline->m_audio_channel_data[i].m_DBLong.w, 0, nullptr, 0, 100, channel_view_size, 4);
+                ImGui::PopID();
+                draw_list->AddRect(channel_min, channel_max, COL_SLIDER_HANDLE, 0);
+            }
+            ImGui::PopStyleVar();
+            ImGui::PopStyleColor(2);
+            draw_list->PopClipRect();
+            ImGui::EndGroup();
+        }
+        break;
+        case 8:
+        {
+            // spectrogram view
+            ImGui::BeginGroup();
+            ImGui::InvisibleButton("##audio_spectrogram_view", size);
+            if (ImGui::IsItemHovered())
+            {
+                if (io.MouseWheel < -FLT_EPSILON)
+                {
+                    g_media_editor_settings.AudioSpectrogramLight *= 0.9f;
+                    if (g_media_editor_settings.AudioSpectrogramLight < 0.1)
+                        g_media_editor_settings.AudioSpectrogramLight = 0.1;
+                    timeline->mAudioSpectrogramLight = g_media_editor_settings.AudioSpectrogramLight;
+                    ImGui::BeginTooltip();
+                    ImGui::Text("Light:%f", g_media_editor_settings.AudioSpectrogramLight);
+                    ImGui::EndTooltip();
+                }
+                else if (io.MouseWheel > FLT_EPSILON)
+                {
+                    g_media_editor_settings.AudioSpectrogramLight *= 1.1f;
+                    if (g_media_editor_settings.AudioSpectrogramLight > 1.0f)
+                        g_media_editor_settings.AudioSpectrogramLight = 1.0;
+                    timeline->mAudioSpectrogramLight = g_media_editor_settings.AudioSpectrogramLight;
+                    ImGui::BeginTooltip();
+                    ImGui::Text("Light:%f", g_media_editor_settings.AudioSpectrogramLight);
+                    ImGui::EndTooltip();
+                }
+                else if (io.MouseWheelH < -FLT_EPSILON)
+                {
+                    g_media_editor_settings.AudioSpectrogramOffset -= 5;
+                    if (g_media_editor_settings.AudioSpectrogramOffset < -96.0)
+                        g_media_editor_settings.AudioSpectrogramOffset = -96.0;
+                    timeline->mAudioSpectrogramOffset = g_media_editor_settings.AudioSpectrogramOffset;
+                    ImGui::BeginTooltip();
+                    ImGui::Text("Offset:%f", g_media_editor_settings.AudioSpectrogramOffset);
+                    ImGui::EndTooltip();
+                }
+                else if (io.MouseWheelH > FLT_EPSILON)
+                {
+                    g_media_editor_settings.AudioSpectrogramOffset += 5;
+                    if (g_media_editor_settings.AudioSpectrogramOffset > 96.0)
+                        g_media_editor_settings.AudioSpectrogramOffset = 96.0;
+                    timeline->mAudioSpectrogramOffset = g_media_editor_settings.AudioSpectrogramOffset;
+                    ImGui::BeginTooltip();
+                    ImGui::Text("Offset:%f", g_media_editor_settings.AudioSpectrogramOffset);
+                    ImGui::EndTooltip();
+                }
+                if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+                {
+                    g_media_editor_settings.AudioSpectrogramLight = 1.f;
+                    g_media_editor_settings.AudioSpectrogramOffset = 0.f;
+                    timeline->mAudioSpectrogramLight = g_media_editor_settings.AudioSpectrogramLight;
+                    timeline->mAudioSpectrogramOffset = g_media_editor_settings.AudioSpectrogramOffset;
+                }
+            }
+            draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 0);
+            draw_list->PushClipRect(scrop_rect.Min, scrop_rect.Max);
+            ImVec2 channel_view_size = ImVec2(size.x - 80, size.y / timeline->m_audio_channel_data.size());
+            ImGui::SetCursorScreenPos(pos);
+            ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
+            for (int i = 0; i < timeline->m_audio_channel_data.size(); i++)
+            {
+                ImVec2 channel_min = pos + ImVec2(32, channel_view_size.y * i);
+                ImVec2 channel_max = pos + ImVec2(channel_view_size.x + 32, channel_view_size.y * i);
+                ImVec2 center = channel_min + channel_view_size / 2;
+
+                  // draw graticule line
+                auto hz_step = channel_view_size.y / 11;
+                ImGui::SetWindowFontScale(0.6);
+                for (int i = 0; i < 11; i++)
+                {
+                    std::string str = std::to_string(i * 2) + "kHz";
+                    ImVec2 p0 = channel_min + ImVec2(-32, channel_view_size.y - i * hz_step);
+                    ImVec2 p1 = channel_min + ImVec2(-24, channel_view_size.y - i * hz_step);
+                    draw_list->AddLine(p0, p1, COL_GRATICULE_DARK, 1);
+                    draw_list->AddText(p1 + ImVec2(2, -9), IM_COL32_WHITE, str.c_str());
+                }
+                ImGui::SetWindowFontScale(1.0);
+                
+                if (!timeline->m_audio_channel_data[i].m_Spectrogram.empty())
+                {
+                    ImVec2 texture_pos = center - ImVec2(channel_view_size.y / 2, channel_view_size.x / 2);
+                    ImGui::ImMatToTexture(timeline->m_audio_channel_data[i].m_Spectrogram, timeline->m_audio_channel_data[i].texture_spectrogram);
+                    ImGui::ImDrawListAddImageRotate(draw_list, timeline->m_audio_channel_data[i].texture_spectrogram, texture_pos, ImVec2(channel_view_size.y, channel_view_size.x), -90.0);
+                }
+            }
+            // draw bar mark
+            for (int i = 0; i < size.y; i++)
+            {
+                float value = i / 2.0;
+                float hue = ((int)(value + 170) % 255) / 255.f;
+                auto color = ImColor::HSV(hue, 1.0, timeline->mAudioSpectrogramLight);
+                ImVec2 p0 = ImVec2(scrop_rect.Max.x - 44, scrop_rect.Max.y - i);
+                ImVec2 p1 = ImVec2(scrop_rect.Max.x - 32, scrop_rect.Max.y - i);
+                draw_list->AddLine(p0, p1, color);
+                ImGui::SetWindowFontScale(0.6);
+                if ((i / 2 - 64) % 10 == 0)
+                {
+                    std::string str = std::to_string(i / 2 - 64) + "dB";
+                    if (i / 2 - 64 > 0) str = "+" + str;
+                    ImVec2 p2 = ImVec2(scrop_rect.Max.x - 8, scrop_rect.Max.y - i);
+                    ImVec2 p3 = ImVec2(scrop_rect.Max.x, scrop_rect.Max.y - i);
+                    draw_list->AddLine(p2, p3, COL_GRATICULE_DARK, 1);
+                    draw_list->AddText(p1 + ImVec2(2, -9), IM_COL32_WHITE, str.c_str());
+                }
+                ImGui::SetWindowFontScale(1.0);
+            }
+
+            ImGui::PopStyleVar();
+            draw_list->PopClipRect();
+            ImGui::EndGroup();
+        }
+        break;
+        default: break;
+    }
+}
 
 static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
 {
@@ -3432,7 +4381,6 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
     else
     {
         ImVec2 scope_view_size = ImVec2(256, 256);
-        ImRect scrop_rect = ImRect(window_pos, window_pos + scope_view_size);
         draw_list->AddRect(window_pos, window_pos + scope_view_size, COL_DARK_PANEL);
         draw_list->AddRectFilled(window_pos, window_pos + scope_view_size, IM_COL32_BLACK, 0);
         // control bar
@@ -3463,925 +4411,103 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
             ImGui::SetNextWindowViewport(viewport->ID);
         if (ImGui::BeginPopup("##setting_scope_view"))
         {
-            switch (ScopeWindowIndex)
-            {
-                case 0:
-                {
-                    // histogram setting
-                    ImGui::PushItemWidth(200);
-                    ImGui::TextUnformatted("Log:"); ImGui::SameLine();
-                    ImGui::ToggleButton("##histogram_logview", &g_media_editor_settings.HistogramLog);
-                    if (ImGui::DragFloat("Scale##histogram_scale", &g_media_editor_settings.HistogramScale, 0.01f, 0.01f, 4.f, "%.2f"))
-                        need_update_scope = true;
-                    ImGui::TextDisabled("%s", "Mouse wheel up/down on scope view also");
-                    ImGui::TextDisabled("%s", "Mouse left double click return default");
-                    ImGui::PopItemWidth();
-                }
-                break;
-                case 1:
-                {
-                    // waveform setting
-                    ImGui::PushItemWidth(200);
-                    ImGui::TextUnformatted("Mirror:"); ImGui::SameLine();
-                    if (ImGui::ToggleButton("##waveform_mirror", &g_media_editor_settings.WaveformMirror))
-                        need_update_scope = true;
-                    ImGui::TextUnformatted("Separate:"); ImGui::SameLine();
-                    if (ImGui::ToggleButton("##waveform_separate", &g_media_editor_settings.WaveformSeparate))
-                        need_update_scope = true;
-                    if (ImGui::DragFloat("Intensity##WaveformIntensity", &g_media_editor_settings.WaveformIntensity, 0.05f, 0.f, 4.f, "%.1f"))
-                        need_update_scope = true;
-                    ImGui::TextDisabled("%s", "Mouse wheel up/down on scope view also");
-                    ImGui::TextDisabled("%s", "Mouse left double click return default");
-                    ImGui::PopItemWidth();
-                }
-                break;
-                case 2:
-                {
-                    // cie setting
-                    ImGui::PushItemWidth(200);
-                    bool cie_setting_changed = false;
-                    ImGui::TextUnformatted("Show Color:"); ImGui::SameLine();
-                    if (ImGui::ToggleButton("##cie_show_color", &g_media_editor_settings.CIEShowColor))
-                        need_update_scope = true;
-                    if (ImGui::Combo("Color System", (int *)&g_media_editor_settings.CIEColorSystem, color_system_items, IM_ARRAYSIZE(color_system_items)))
-                    {
-                        cie_setting_changed = true;
-                    }
-                    if (ImGui::Combo("Cie System", (int *)&g_media_editor_settings.CIEMode, cie_system_items, IM_ARRAYSIZE(cie_system_items)))
-                    {
-                        cie_setting_changed = true;
-                    }
-                    if (ImGui::Combo("Show Gamut", (int *)&g_media_editor_settings.CIEGamuts, color_system_items, IM_ARRAYSIZE(color_system_items)))
-                    {
-                        cie_setting_changed = true;
-                    }
-                    if (ImGui::DragFloat("Contrast##cie_contrast", &g_media_editor_settings.CIEContrast, 0.01f, 0.f, 1.f, "%.2f"))
-                    {
-                        cie_setting_changed = true;
-                    }
-                    ImGui::TextUnformatted("CorrectGamma:"); ImGui::SameLine();
-                    if (ImGui::ToggleButton("##cie_correct_gamma", &g_media_editor_settings.CIECorrectGamma))
-                    {
-                        cie_setting_changed = true;
-                    }
-#if IMGUI_VULKAN_SHADER
-                    if (cie_setting_changed && m_cie)
-                    {
-                        need_update_scope = true;
-                        m_cie->SetParam(g_media_editor_settings.CIEColorSystem, 
-                                        g_media_editor_settings.CIEMode, 512, 
-                                        g_media_editor_settings.CIEGamuts, 
-                                        g_media_editor_settings.CIEContrast, 
-                                        g_media_editor_settings.CIECorrectGamma);
-                    }
-#endif
-                    if (ImGui::DragFloat("Intensity##CIEIntensity", &g_media_editor_settings.CIEIntensity, 0.01f, 0.f, 1.f, "%.2f"))
-                        need_update_scope = true;
-                    ImGui::TextDisabled("%s", "Mouse wheel up/down on scope view also");
-                    ImGui::TextDisabled("%s", "Mouse left double click return default");
-                    ImGui::PopItemWidth();
-                }
-                break;
-                case 3:
-                {
-                    // vector setting
-                    ImGui::PushItemWidth(200);
-                    if (ImGui::DragFloat("Intensity##VectorIntensity", &g_media_editor_settings.VectorIntensity, 0.01f, 0.f, 1.f, "%.2f"))
-                        need_update_scope = true;
-                    ImGui::TextDisabled("%s", "Mouse wheel up/down on scope view also");
-                    ImGui::TextDisabled("%s", "Mouse left double click return default");
-                    ImGui::PopItemWidth();
-                }
-                break;
-                case 4:
-                {
-                    // audio wave setting
-                    ImGui::PushItemWidth(200);
-                    ImGui::DragFloat("Scale##AudioWaveScale", &g_media_editor_settings.AudioWaveScale, 0.05f, 0.1f, 4.f, "%.1f");
-                    ImGui::TextDisabled("%s", "Mouse wheel up/down on scope view also");
-                    ImGui::TextDisabled("%s", "Mouse left double click return default");
-                    ImGui::PopItemWidth();
-                }
-                break;
-                case 5:
-                {
-                    // audio fft setting
-                    ImGui::PushItemWidth(200);
-                    ImGui::DragFloat("Scale##AudioFFTScale", &g_media_editor_settings.AudioFFTScale, 0.05f, 0.1f, 4.f, "%.1f");
-                    ImGui::TextDisabled("%s", "Mouse wheel up/down on scope view also");
-                    ImGui::TextDisabled("%s", "Mouse left double click return default");
-                    ImGui::PopItemWidth();
-                }
-                break;
-                case 6:
-                {
-                    // audio dB setting
-                    ImGui::PushItemWidth(200);
-                    ImGui::DragFloat("Scale##AudioDBScale", &g_media_editor_settings.AudioDBScale, 0.05f, 0.1f, 4.f, "%.1f");
-                    ImGui::TextDisabled("%s", "Mouse wheel up/down on scope view also");
-                    ImGui::TextDisabled("%s", "Mouse left double click return default");
-                    ImGui::PopItemWidth();
-                }
-                break;
-                case 7:
-                {
-                    // audio dB level setting
-                    ImGui::RadioButton("dB 20 Band##AudioDbLevelShort", &g_media_editor_settings.AudioDBLevelShort, 1);
-                    ImGui::RadioButton("dB 76 Band##AudioDbLevelLong", &g_media_editor_settings.AudioDBLevelShort, 0);
-                }
-                break;
-                case 8:
-                {
-                    // audio spectrogram setting
-                    ImGui::PushItemWidth(200);
-                    if (ImGui::DragFloat("Offset##AudioSpectrogramOffset", &g_media_editor_settings.AudioSpectrogramOffset, 5.f, -96.f, 96.f, "%.1f"))
-                    {
-                        timeline->mAudioSpectrogramOffset = g_media_editor_settings.AudioSpectrogramOffset;
-                    }
-                    if (ImGui::DragFloat("Light##AudioSpectrogramLight", &g_media_editor_settings.AudioSpectrogramLight, 0.01f, 0.f, 1.f, "%.2f"))
-                    {
-                        timeline->mAudioSpectrogramLight = g_media_editor_settings.AudioSpectrogramLight;
-                    }
-                    ImGui::TextDisabled("%s", "Mouse wheel up/down on scope view for light");
-                    ImGui::TextDisabled("%s", "Mouse wheel left/right on scope view for offset");
-                    ImGui::TextDisabled("%s", "Mouse left double click return default");
-                    ImGui::PopItemWidth();
-                }
-                break;
-                default: break;
-            }
+            ShowMediaScopeSetting(ScopeWindowIndex);
             ImGui::EndPopup();
         }
-        ImGui::PopStyleColor(3);
-        switch (ScopeWindowIndex)
+
+        ShowMediaScopeView(ScopeWindowIndex, window_pos, scope_view_size);
+
+        auto pos = window_pos + ImVec2(window_size.x - 32, 64);
+        std::vector<int> disabled_monitor;
+        if (MainWindowIndex == 0)
+            disabled_monitor.push_back(MonitorIndexPreviewVideo);
+        else if (MainWindowIndex == 1 && VideoEditorWindowIndex == 0)
         {
-            case 0:
-            {
-                // histogram view
-                ImGui::BeginGroup();
-                ImGui::SetCursorScreenPos(window_pos);
-                ImGui::InvisibleButton("##histogram_view", scope_view_size);
-                if (ImGui::IsItemHovered())
-                {
-                    if (io.MouseWheel < -FLT_EPSILON)
-                    {
-                        g_media_editor_settings.HistogramScale *= 0.9f;
-                        if (g_media_editor_settings.HistogramScale < 0.01)
-                            g_media_editor_settings.HistogramScale = 0.01;
-                        need_update_scope = true;
-                        ImGui::BeginTooltip();
-                        ImGui::Text("Scale:%f", g_media_editor_settings.HistogramScale);
-                        ImGui::EndTooltip();
-                    }
-                    else if (io.MouseWheel > FLT_EPSILON)
-                    {
-                        g_media_editor_settings.HistogramScale *= 1.1f;
-                        if (g_media_editor_settings.HistogramScale > 4.0f)
-                            g_media_editor_settings.HistogramScale = 4.0;
-                        need_update_scope = true;
-                        ImGui::BeginTooltip();
-                        ImGui::Text("Scale:%f", g_media_editor_settings.HistogramScale);
-                        ImGui::EndTooltip();
-                    }
-                    if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
-                    {
-                        g_media_editor_settings.HistogramScale = 1.0f;
-                        need_update_scope = true;
-                    }
-                }
-                if (!mat_histogram.empty())
-                {
-                    ImGui::PushStyleColor(ImGuiCol_FrameBg, 0);
-                    ImGui::SetCursorScreenPos(window_pos);
-                    auto rmat = mat_histogram.channel(0);
-                    ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(1.f, 0.f, 0.f, 1.0f));
-                    ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(1.f, 0.f, 0.f, 0.5f));
-                    ImGui::PlotLines("##rh", (float *)rmat.data, mat_histogram.w, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(scope_view_size.x, scope_view_size.y / 3), 4, false, true);
-                    ImGui::PopStyleColor(2);
-                    ImGui::SetCursorScreenPos(window_pos + ImVec2(0, scope_view_size.y / 3));
-                    auto gmat = mat_histogram.channel(1);
-                    ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.f, 1.f, 0.f, 1.0f));
-                    ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.f, 1.f, 0.f, 0.5f));
-                    ImGui::PlotLines("##gh", (float *)gmat.data, mat_histogram.w, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(scope_view_size.x, scope_view_size.y / 3), 4, false, true);
-                    ImGui::PopStyleColor(2);
-                    ImGui::SetCursorScreenPos(window_pos + ImVec2(0, scope_view_size.y * 2 / 3));
-                    auto bmat = mat_histogram.channel(2);
-                    ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.f, 0.f, 1.f, 1.0f));
-                    ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.f, 0.f, 1.f, 0.5f));
-                    ImGui::PlotLines("##bh", (float *)bmat.data, mat_histogram.w, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(scope_view_size.x, scope_view_size.y / 3), 4, false, true);
-                    ImGui::PopStyleColor(2);
-                    ImGui::PopStyleColor();
-                }
-                draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 0);
-                // draw graticule line
-                draw_list->PushClipRect(scrop_rect.Min, scrop_rect.Max);
-                auto histogram_step = scope_view_size.x / 10;
-                auto histogram_sub_vstep = scope_view_size.x / 50;
-                auto histogram_vstep = scope_view_size.y / 3 * g_media_editor_settings.HistogramScale;
-                auto histogram_seg = scope_view_size.y / 3 / histogram_vstep;
-                for (int i = 1; i <= 10; i++)
-                {
-                    ImVec2 p0 = scrop_rect.Min + ImVec2(i * histogram_step, 0);
-                    ImVec2 p1 = scrop_rect.Min + ImVec2(i * histogram_step, scrop_rect.Max.y);
-                    draw_list->AddLine(p0, p1, COL_GRATICULE_DARK, 1);
-                }
-                for (int i = 0; i < histogram_seg; i++)
-                {
-                    ImVec2 pr0 = scrop_rect.Min + ImVec2(0, (scope_view_size.y / 3) - i * histogram_vstep);
-                    ImVec2 pr1 = scrop_rect.Min + ImVec2(scrop_rect.Max.x, (scope_view_size.y / 3) - i * histogram_vstep);
-                    draw_list->AddLine(pr0, pr1, IM_COL32(255, 128, 0, 32), 1);
-                    ImVec2 pg0 = scrop_rect.Min + ImVec2(0, scope_view_size.y / 3) + ImVec2(0, (scope_view_size.y / 3) - i * histogram_vstep);
-                    ImVec2 pg1 = scrop_rect.Min + ImVec2(0, scope_view_size.y / 3) + ImVec2(scrop_rect.Max.x, (scope_view_size.y / 3) - i * histogram_vstep);
-                    draw_list->AddLine(pg0, pg1, IM_COL32(128, 255, 0, 32), 1);
-                    ImVec2 pb0 = scrop_rect.Min + ImVec2(0, scope_view_size.y * 2 / 3) + ImVec2(0, (scope_view_size.y / 3) - i * histogram_vstep);
-                    ImVec2 pb1 = scrop_rect.Min + ImVec2(0, scope_view_size.y * 2 / 3) + ImVec2(scrop_rect.Max.x, (scope_view_size.y / 3) - i * histogram_vstep);
-                    draw_list->AddLine(pb0, pb1, IM_COL32(128, 128, 255, 32), 1);
-                }
-                for (int i = 0; i < 50; i++)
-                {
-                    ImVec2 p0 = scrop_rect.Min + ImVec2(i * histogram_sub_vstep, 0);
-                    ImVec2 p1 = scrop_rect.Min + ImVec2(i * histogram_sub_vstep, 5);
-                    draw_list->AddLine(p0, p1, COL_GRATICULE, 1);
-                }
-                draw_list->PopClipRect();
-                ImGui::EndGroup();
-            }
-            break;
-            case 1:
-            {
-                // waveform view
-                ImGui::BeginGroup();
-                ImGui::SetCursorScreenPos(window_pos);
-                ImGui::InvisibleButton("##waveform_view", scope_view_size);
-                if (ImGui::IsItemHovered())
-                {
-                    if (io.MouseWheel < -FLT_EPSILON)
-                    {
-                        g_media_editor_settings.WaveformIntensity *= 0.9f;
-                        if (g_media_editor_settings.WaveformIntensity < 0.1)
-                            g_media_editor_settings.WaveformIntensity = 0.1;
-                        need_update_scope = true;
-                        ImGui::BeginTooltip();
-                        ImGui::Text("Intensity:%f", g_media_editor_settings.WaveformIntensity);
-                        ImGui::EndTooltip();
-                    }
-                    else if (io.MouseWheel > FLT_EPSILON)
-                    {
-                        g_media_editor_settings.WaveformIntensity *= 1.1f;
-                        if (g_media_editor_settings.WaveformIntensity > 4.0f)
-                            g_media_editor_settings.WaveformIntensity = 4.0;
-                        need_update_scope = true;
-                        ImGui::BeginTooltip();
-                        ImGui::Text("Intensity:%f", g_media_editor_settings.WaveformIntensity);
-                        ImGui::EndTooltip();
-                    }
-                    if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
-                    {
-                        g_media_editor_settings.WaveformIntensity = 2.0;
-                        need_update_scope = true;
-                    }
-                }
-                if (!mat_waveform.empty())
-                {
-                    ImGui::ImMatToTexture(mat_waveform, waveform_texture);
-                    draw_list->AddImage(waveform_texture, scrop_rect.Min, scrop_rect.Max, g_media_editor_settings.WaveformMirror ? ImVec2(0, 1) : ImVec2(0, 0), g_media_editor_settings.WaveformMirror ? ImVec2(1, 0) : ImVec2(1, 1));
-                }
-                draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 0);
-                // draw graticule line
-                draw_list->PushClipRect(scrop_rect.Min, scrop_rect.Max);
-                auto waveform_step = scope_view_size.y / 10;
-                auto waveform_vstep = scope_view_size.x / 10;
-                auto waveform_sub_step = scope_view_size.y / 50;
-                auto waveform_sub_vstep = scope_view_size.x / 100;
-                for (int i = 0; i < 10; i++)
-                {
-                    ImVec2 p0 = scrop_rect.Min + ImVec2(0, i * waveform_step);
-                    ImVec2 p1 = scrop_rect.Min + ImVec2(scrop_rect.Max.x, i * waveform_step);
-                    if (i != 5)
-                        draw_list->AddLine(p0, p1, COL_GRATICULE_DARK, 1);
-                    else
-                    {
-                        ImGui::ImDrawListAddLineDashed(draw_list, p0, p1, COL_GRATICULE_DARK, 1, 100);
-                    }
-                    ImVec2 vp0 = scrop_rect.Min + ImVec2(i * waveform_vstep, 0);
-                    ImVec2 vp1 = scrop_rect.Min + ImVec2(i * waveform_vstep, 10);
-                    draw_list->AddLine(vp0, vp1, COL_GRATICULE, 1);
-                }
-                for (int i = 0; i < 50; i++)
-                {
-                    float l = i == 0 || i % 10 == 0 ? 10 : 5;
-                    ImVec2 p0 = scrop_rect.Min + ImVec2(0, i * waveform_sub_step);
-                    ImVec2 p1 = scrop_rect.Min + ImVec2(l, i * waveform_sub_step);
-                    draw_list->AddLine(p0, p1, COL_GRATICULE, 1);
-                }
-                for (int i = 0; i < 100; i++)
-                {
-                    ImVec2 p0 = scrop_rect.Min + ImVec2(i * waveform_sub_vstep, 0);
-                    ImVec2 p1 = scrop_rect.Min + ImVec2(i * waveform_sub_vstep, 5);
-                    draw_list->AddLine(p0, p1, COL_GRATICULE, 1);
-                }
-                draw_list->PopClipRect();
-                ImGui::EndGroup();
-            }
-            break;
-            case 2:
-            {
-                // cie view
-                ImGui::BeginGroup();
-                ImGui::SetCursorScreenPos(window_pos);
-                ImGui::InvisibleButton("##cie_view", scope_view_size);
-                if (ImGui::IsItemHovered())
-                {
-                    if (io.MouseWheel < -FLT_EPSILON)
-                    {
-                        g_media_editor_settings.CIEIntensity *= 0.9f;
-                        if (g_media_editor_settings.CIEIntensity < 0.01)
-                            g_media_editor_settings.CIEIntensity = 0.01;
-                        need_update_scope = true;
-                        ImGui::BeginTooltip();
-                        ImGui::Text("Intensity:%f", g_media_editor_settings.CIEIntensity);
-                        ImGui::EndTooltip();
-                    }
-                    else if (io.MouseWheel > FLT_EPSILON)
-                    {
-                        g_media_editor_settings.CIEIntensity *= 1.1f;
-                        if (g_media_editor_settings.CIEIntensity > 1.0f)
-                            g_media_editor_settings.CIEIntensity = 1.0;
-                        need_update_scope = true;
-                        ImGui::BeginTooltip();
-                        ImGui::Text("Intensity:%f", g_media_editor_settings.CIEIntensity);
-                        ImGui::EndTooltip();
-                    }
-                    if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
-                    {
-                        g_media_editor_settings.CIEIntensity = 0.5f;
-                        need_update_scope = true;
-                    }
-                }
-                if (!mat_cie.empty())
-                {
-                    ImGui::ImMatToTexture(mat_cie, cie_texture);
-                    draw_list->AddImage(cie_texture, scrop_rect.Min, scrop_rect.Max, ImVec2(0, 0), ImVec2(1, 1));
-                }
-                draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 0);
-                // draw graticule line
-                draw_list->PushClipRect(scrop_rect.Min, scrop_rect.Max);
-                auto cie_step = scope_view_size.y / 10;
-                auto cie_vstep = scope_view_size.x / 10;
-                auto cie_sub_step = scope_view_size.y / 50;
-                auto cie_sub_vstep = scope_view_size.x / 50;
-                for (int i = 1; i <= 10; i++)
-                {
-                    ImVec2 hp0 = scrop_rect.Min + ImVec2(0, i * cie_step);
-                    ImVec2 hp1 = scrop_rect.Min + ImVec2(scrop_rect.Max.x, i * cie_step);
-                    draw_list->AddLine(hp0, hp1, COL_GRATICULE_DARK, 1);
-                    ImVec2 vp0 = scrop_rect.Min + ImVec2(i * cie_vstep, 0);
-                    ImVec2 vp1 = scrop_rect.Min + ImVec2(i * cie_vstep, scrop_rect.Max.y);
-                    draw_list->AddLine(vp0, vp1, COL_GRATICULE_DARK, 1);
-                }
-                for (int i = 0; i < 50; i++)
-                {
-                    ImVec2 hp0 = scrop_rect.Min + ImVec2(scope_view_size.x - 3, i * cie_sub_step);
-                    ImVec2 hp1 = scrop_rect.Min + ImVec2(scope_view_size.x, i * cie_sub_step);
-                    draw_list->AddLine(hp0, hp1, COL_GRATICULE_HALF, 1);
-                    ImVec2 vp0 = scrop_rect.Min + ImVec2(i * cie_sub_vstep, 0);
-                    ImVec2 vp1 = scrop_rect.Min + ImVec2(i * cie_sub_vstep, 3);
-                    draw_list->AddLine(vp0, vp1, COL_GRATICULE_HALF, 1);
-                }
-                std::string X_str = "X";
-                std::string Y_str = "Y";
-                if (g_media_editor_settings.CIEMode == ImGui::UCS)
-                {
-                    X_str = "U"; Y_str = "C";
-                }
-                else if (g_media_editor_settings.CIEMode == ImGui::LUV)
-                {
-                    X_str = "U"; Y_str = "V";
-                }
-                draw_list->AddText(scrop_rect.Min + ImVec2(2, 2), COL_GRATICULE, X_str.c_str());
-                draw_list->AddText(scrop_rect.Min + ImVec2(scope_view_size.x - 12, scope_view_size.y - 18), COL_GRATICULE, Y_str.c_str());
-                ImGui::SetWindowFontScale(0.7);
-                for (int i = 0; i < 10; i++)
-                {
-                    if (i == 0) continue;
-                    char mark[32] = {0};
-                    ImFormatString(mark, IM_ARRAYSIZE(mark), "%.1f", i / 10.f);
-                    draw_list->AddText(scrop_rect.Min + ImVec2(i * cie_vstep - 8, 2), COL_GRATICULE, mark);
-                    draw_list->AddText(scrop_rect.Min + ImVec2(scope_view_size.x - 18, scope_view_size.y - i * cie_step - 6), COL_GRATICULE, mark);
-                }
-                ImGui::SetWindowFontScale(1.0);
-                ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphShadowOffset, ImVec2(1, 1));
-                if (m_cie)
-                {
-                    ImVec2 white_point;
-                    m_cie->GetWhitePoint((ImGui::ColorsSystems)g_media_editor_settings.CIEColorSystem, scope_view_size.x, scope_view_size.y, &white_point.x, &white_point.y);
-                    draw_list->AddCircle(scrop_rect.Min + white_point, 3, IM_COL32_WHITE, 0, 2);
-                    draw_list->AddCircle(scrop_rect.Min + white_point, 2, IM_COL32_BLACK, 0, 1);
-                    ImVec2 green_point_system;
-                    m_cie->GetGreenPoint((ImGui::ColorsSystems)g_media_editor_settings.CIEColorSystem, scope_view_size.x, scope_view_size.y, &green_point_system.x, &green_point_system.y);
-                    draw_list->AddText(scrop_rect.Min + green_point_system, COL_GRATICULE, color_system_items[g_media_editor_settings.CIEColorSystem]);
-                    ImVec2 green_point_gamuts;
-                    m_cie->GetGreenPoint((ImGui::ColorsSystems)g_media_editor_settings.CIEGamuts, scope_view_size.x, scope_view_size.y, &green_point_gamuts.x, &green_point_gamuts.y);
-                    draw_list->AddText(scrop_rect.Min + green_point_gamuts, COL_GRATICULE, color_system_items[g_media_editor_settings.CIEGamuts]);
-                }
-                ImGui::PopStyleVar();
-                draw_list->PopClipRect();
-                ImGui::EndGroup();
-            }
-            break;
-            case 3:
-            {
-                // vector view
-                ImGui::BeginGroup();
-                ImGui::SetCursorScreenPos(window_pos);
-                ImGui::InvisibleButton("##vector_view", scope_view_size);
-                if (ImGui::IsItemHovered())
-                {
-                    if (io.MouseWheel < -FLT_EPSILON)
-                    {
-                        g_media_editor_settings.VectorIntensity *= 0.9f;
-                        if (g_media_editor_settings.VectorIntensity < 0.01)
-                            g_media_editor_settings.VectorIntensity = 0.01;
-                        need_update_scope = true;
-                        ImGui::BeginTooltip();
-                        ImGui::Text("Intensity:%f", g_media_editor_settings.VectorIntensity);
-                        ImGui::EndTooltip();
-                    }
-                    else if (io.MouseWheel > FLT_EPSILON)
-                    {
-                        g_media_editor_settings.VectorIntensity *= 1.1f;
-                        if (g_media_editor_settings.VectorIntensity > 1.0f)
-                            g_media_editor_settings.VectorIntensity = 1.0;
-                        need_update_scope = true;
-                        ImGui::BeginTooltip();
-                        ImGui::Text("Intensity:%f", g_media_editor_settings.VectorIntensity);
-                        ImGui::EndTooltip();
-                    }
-                    if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
-                    {
-                        g_media_editor_settings.VectorIntensity = 0.5f;
-                        need_update_scope = true;
-                    }
-                }
-                if (!mat_vector.empty())
-                {
-                    ImGui::ImMatToTexture(mat_vector, vector_texture);
-                    draw_list->AddImage(vector_texture, scrop_rect.Min, scrop_rect.Max, ImVec2(0, 0), ImVec2(1, 1));
-                }
-                draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 0);
-                // draw graticule line
-                ImVec2 center_point = ImVec2(scrop_rect.Min + scope_view_size / 2);
-                float radius = scope_view_size.x / 2;
-                draw_list->PushClipRect(scrop_rect.Min, scrop_rect.Max);
-                draw_list->AddCircle(center_point, radius, COL_GRATICULE_DARK, 0, 1);
-                draw_list->AddLine(scrop_rect.Min + ImVec2(0, scope_view_size.y / 2), scrop_rect.Max - ImVec2(0, scope_view_size.y / 2), COL_GRATICULE_DARK);
-                draw_list->AddLine(scrop_rect.Min + ImVec2(scope_view_size.x / 2, 0), scrop_rect.Max - ImVec2(scope_view_size.x / 2, 0), COL_GRATICULE_DARK);
-
-                auto AngleToCoordinate = [&](float angle, float length)
-                {
-                    ImVec2 point(0, 0);
-                    float hAngle = angle * M_PI / 180.f;
-                    if (angle == 0.f)
-                        point = ImVec2(length, 0);  // positive x axis
-                    else if (angle == 180.f)
-                        point = ImVec2(-length, 0); // negative x axis
-                    else if (angle == 90.f)
-                        point = ImVec2(0, length); // positive y axis
-                    else if (angle == 270.f)
-                        point = ImVec2(0, -length);  // negative y axis
-                    else
-                        point = ImVec2(length * cos(hAngle), length * sin(hAngle));
-                    return point;
-                };
-                auto AngleToPoint = [&](float angle, float length)
-                {
-                    ImVec2 point = AngleToCoordinate(angle, length);
-                    point = ImVec2(point.x * radius, -point.y * radius);
-                    return point;
-                };
-                auto ColorToPoint = [&](float r, float g, float b)
-                {
-                    float angle, length, v;
-                    ImGui::ColorConvertRGBtoHSV(r, g, b, angle, length, v);
-                    angle = angle * 360;
-                    auto point = AngleToCoordinate(angle, v);
-                    point = ImVec2(point.x * radius, -point.y * radius);
-                    return point;
-                };
-
-                for (int i = 0; i < 360; i+= 5)
-                {
-                    float l = 0.95;
-                    if (i == 0 || i % 10 == 0)
-                        l = 0.9;
-                    auto p0 = AngleToPoint(i, 1.0);
-                    auto p1 = AngleToPoint(i, l);
-                    draw_list->AddLine(center_point + p0, center_point + p1, COL_GRATICULE_DARK);
-                }
-
-                auto draw_mark = [&](ImVec2 point, const char * mark)
-                {
-                    float rect_size = 12;
-                    auto p0 = center_point + point - ImVec2(rect_size, rect_size);
-                    auto p1 = center_point + point + ImVec2(rect_size, rect_size);
-                    auto p2 = p0 + ImVec2(rect_size * 2, 0);
-                    auto p3 = p0 + ImVec2(0, rect_size * 2);
-                    auto text_size = ImGui::CalcTextSize(mark);
-                    draw_list->AddText(p0 + ImVec2(rect_size - text_size.x / 2, rect_size - text_size.y / 2), COL_GRATICULE, mark);
-                    draw_list->AddLine(p0, p0 + ImVec2(5, 0),   COL_GRATICULE, 2);
-                    draw_list->AddLine(p0, p0 + ImVec2(0, 5),   COL_GRATICULE, 2);
-                    draw_list->AddLine(p1, p1 + ImVec2(-5, 0),  COL_GRATICULE, 2);
-                    draw_list->AddLine(p1, p1 + ImVec2(0, -5),  COL_GRATICULE, 2);
-                    draw_list->AddLine(p2, p2 + ImVec2(-5, 0),  COL_GRATICULE, 2);
-                    draw_list->AddLine(p2, p2 + ImVec2(0, 5),   COL_GRATICULE, 2);
-                    draw_list->AddLine(p3, p3 + ImVec2(5, 0),   COL_GRATICULE, 2);
-                    draw_list->AddLine(p3, p3 + ImVec2(0, -5),  COL_GRATICULE, 2);
-                };
-
-                draw_mark(ColorToPoint(0.75, 0, 0), "R");
-                draw_mark(ColorToPoint(0, 0.75, 0), "G");
-                draw_mark(ColorToPoint(0, 0, 0.75), "B");
-                draw_mark(ColorToPoint(0.75, 0.75, 0), "Y");
-                draw_mark(ColorToPoint(0.75, 0, 0.75), "M");
-                draw_mark(ColorToPoint(0, 0.75, 0.75), "C");
-
-                draw_list->PopClipRect();
-                ImGui::EndGroup();
-            }
-            break;
-            case 4:
-            {
-                // wave view
-                ImGui::BeginGroup();
-                ImGui::SetCursorScreenPos(window_pos);
-                ImGui::InvisibleButton("##audio_wave_view", scope_view_size);
-                if (ImGui::IsItemHovered())
-                {
-                    if (io.MouseWheel < -FLT_EPSILON)
-                    {
-                        g_media_editor_settings.AudioWaveScale *= 0.9f;
-                        if (g_media_editor_settings.AudioWaveScale < 0.1)
-                            g_media_editor_settings.AudioWaveScale = 0.1;
-                        ImGui::BeginTooltip();
-                        ImGui::Text("Scale:%f", g_media_editor_settings.AudioWaveScale);
-                        ImGui::EndTooltip();
-                    }
-                    else if (io.MouseWheel > FLT_EPSILON)
-                    {
-                        g_media_editor_settings.AudioWaveScale *= 1.1f;
-                        if (g_media_editor_settings.AudioWaveScale > 4.0f)
-                            g_media_editor_settings.AudioWaveScale = 4.0;
-                        ImGui::BeginTooltip();
-                        ImGui::Text("Scale:%f", g_media_editor_settings.AudioWaveScale);
-                        ImGui::EndTooltip();
-                    }
-                    if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
-                        g_media_editor_settings.AudioWaveScale = 1.f;
-                }
-                draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 0);
-                draw_list->PushClipRect(scrop_rect.Min, scrop_rect.Max);
-                ImVec2 channel_view_size = ImVec2(scope_view_size.x, scope_view_size.y / timeline->m_audio_channel_data.size());
-                ImGui::SetCursorScreenPos(window_pos);
-                ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.f, 1.f, 0.f, 1.0f));
-                ImGui::PushStyleColor(ImGuiCol_FrameBg, 0);
-                ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
-                for (int i = 0; i < timeline->m_audio_channel_data.size(); i++)
-                {
-                    ImVec2 channel_min = window_pos + ImVec2(0, channel_view_size.y * i);
-                    ImVec2 channel_max = window_pos + ImVec2(channel_view_size.x, channel_view_size.y * i);
-                    // draw graticule line
-                    // draw middle line
-                    ImVec2 p1 = ImVec2(window_pos.x, window_pos.y + channel_view_size.y * i + channel_view_size.y / 2);
-                    ImVec2 p2 = p1 + ImVec2(channel_view_size.x, 0);
-                    draw_list->AddLine(p1, p2, IM_COL32(128, 128, 128, 128));
-                    // draw grid
-                    auto grid_number = floor(10 / g_media_editor_settings.AudioWaveScale);
-                    auto grid_height = channel_view_size.y / 2 / grid_number;
-                    if (grid_number > 10) grid_number = 10;
-                    for (int x = 0; x < grid_number; x++)
-                    {
-                        ImVec2 gp1 = p1 - ImVec2(0, grid_height * x);
-                        ImVec2 gp2 = gp1 + ImVec2(channel_view_size.x, 0);
-                        draw_list->AddLine(gp1, gp2, COL_GRAY_GRATICULE);
-                        ImVec2 gp3 = p1 + ImVec2(0, grid_height * x);
-                        ImVec2 gp4 = gp3 + ImVec2(channel_view_size.x, 0);
-                        draw_list->AddLine(gp3, gp4, COL_GRAY_GRATICULE);
-                    }
-                    auto vgrid_number = channel_view_size.x / grid_height;
-                    for (int x = 0; x < vgrid_number; x++)
-                    {
-                        ImVec2 gp1 = p1 + ImVec2(grid_height * x, 0);
-                        ImVec2 gp2 = gp1 - ImVec2(0, grid_height * (grid_number - 1));
-                        draw_list->AddLine(gp1, gp2, COL_GRAY_GRATICULE);
-                        ImVec2 gp3 = gp1 + ImVec2(0, grid_height * (grid_number - 1));
-                        draw_list->AddLine(gp1, gp3, COL_GRAY_GRATICULE);
-                    }
-                    if (!timeline->m_audio_channel_data[i].m_wave.empty())
-                    {
-                        ImGui::PushID(i);
-                        ImGui::PlotLines("##wave", (float *)timeline->m_audio_channel_data[i].m_wave.data, timeline->m_audio_channel_data[i].m_wave.w, 0, nullptr, -1.0 / g_media_editor_settings.AudioWaveScale , 1.0 / g_media_editor_settings.AudioWaveScale, channel_view_size, 4, false, false);
-                        ImGui::PopID();
-                    }
-                    draw_list->AddRect(channel_min, channel_max, COL_SLIDER_HANDLE, 0);
-                }
-                ImGui::PopStyleVar();
-                ImGui::PopStyleColor(2);
-                draw_list->PopClipRect();
-                ImGui::EndGroup();
-            }
-            break;
-            case 5:
-            {
-                // fft view
-                ImGui::BeginGroup();
-                ImGui::SetCursorScreenPos(window_pos);
-                ImGui::InvisibleButton("##audio_fft_view", scope_view_size);
-                if (ImGui::IsItemHovered())
-                {
-                    if (io.MouseWheel < -FLT_EPSILON)
-                    {
-                        g_media_editor_settings.AudioFFTScale *= 0.9f;
-                        if (g_media_editor_settings.AudioFFTScale < 0.1)
-                            g_media_editor_settings.AudioFFTScale = 0.1;
-                        ImGui::BeginTooltip();
-                        ImGui::Text("Scale:%f", g_media_editor_settings.AudioFFTScale);
-                        ImGui::EndTooltip();
-                    }
-                    else if (io.MouseWheel > FLT_EPSILON)
-                    {
-                        g_media_editor_settings.AudioFFTScale *= 1.1f;
-                        if (g_media_editor_settings.AudioFFTScale > 4.0f)
-                            g_media_editor_settings.AudioFFTScale = 4.0;
-                        ImGui::BeginTooltip();
-                        ImGui::Text("Scale:%f", g_media_editor_settings.AudioFFTScale);
-                        ImGui::EndTooltip();
-                    }
-                    if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
-                        g_media_editor_settings.AudioFFTScale = 1.f;
-                }
-                draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 0);
-                draw_list->PushClipRect(scrop_rect.Min, scrop_rect.Max);
-                ImVec2 channel_view_size = ImVec2(scope_view_size.x, scope_view_size.y / timeline->m_audio_channel_data.size());
-                ImGui::SetCursorScreenPos(window_pos);
-                ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(1.f, 1.f, 1.f, 1.0f));
-                ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.5f, 0.5f, 0.5f, 0.5f));
-                ImGui::PushStyleColor(ImGuiCol_FrameBg, 0);
-                ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
-                for (int i = 0; i < timeline->m_audio_channel_data.size(); i++)
-                {
-                    ImVec2 channel_min = window_pos + ImVec2(0, channel_view_size.y * i);
-                    ImVec2 channel_max = window_pos + ImVec2(channel_view_size.x, channel_view_size.y * i);
-                    // draw graticule line
-                    ImVec2 p1 = ImVec2(window_pos.x, window_pos.y + channel_view_size.y * i + channel_view_size.y);
-                    auto grid_number = floor(10 / g_media_editor_settings.AudioFFTScale);
-                    auto grid_height = channel_view_size.y / grid_number;
-                    if (grid_number > 20) grid_number = 20;
-                    for (int x = 0; x < grid_number; x++)
-                    {
-                        ImVec2 gp1 = p1 - ImVec2(0, grid_height * x);
-                        ImVec2 gp2 = gp1 + ImVec2(channel_view_size.x, 0);
-                        draw_list->AddLine(gp1, gp2, COL_GRAY_GRATICULE);
-                    }
-                    auto vgrid_number = channel_view_size.x / grid_height;
-                    for (int x = 0; x < vgrid_number; x++)
-                    {
-                        ImVec2 gp1 = p1 + ImVec2(grid_height * x, 0);
-                        ImVec2 gp2 = gp1 - ImVec2(0, grid_height * (grid_number - 1));
-                        draw_list->AddLine(gp1, gp2, COL_GRAY_GRATICULE);
-                    }
-                    if (!timeline->m_audio_channel_data[i].m_fft.empty())
-                    {
-                        ImGui::PushID(i);
-                        ImGui::PlotLines("##fft", (float *)timeline->m_audio_channel_data[i].m_fft.data, timeline->m_audio_channel_data[i].m_fft.w, 0, nullptr, 0.0, 1.0 / g_media_editor_settings.AudioFFTScale, channel_view_size, 4, false, true);
-                        ImGui::PopID();
-                    }
-                    draw_list->AddRect(channel_min, channel_max, COL_SLIDER_HANDLE, 0);
-                }
-                ImGui::PopStyleVar();
-                ImGui::PopStyleColor(3);
-                draw_list->PopClipRect();
-                ImGui::EndGroup();
-            }
-            break;
-            case 6:
-            {
-                // db view
-                ImGui::BeginGroup();
-                ImGui::SetCursorScreenPos(window_pos);
-                ImGui::InvisibleButton("##audio_db_view", scope_view_size);
-                if (ImGui::IsItemHovered())
-                {
-                    if (io.MouseWheel < -FLT_EPSILON)
-                    {
-                        g_media_editor_settings.AudioDBScale *= 0.9f;
-                        if (g_media_editor_settings.AudioDBScale < 0.1)
-                            g_media_editor_settings.AudioDBScale = 0.1;
-                        ImGui::BeginTooltip();
-                        ImGui::Text("Scale:%f", g_media_editor_settings.AudioDBScale);
-                        ImGui::EndTooltip();
-                    }
-                    else if (io.MouseWheel > FLT_EPSILON)
-                    {
-                        g_media_editor_settings.AudioDBScale *= 1.1f;
-                        if (g_media_editor_settings.AudioDBScale > 4.0f)
-                            g_media_editor_settings.AudioDBScale = 4.0;
-                        ImGui::BeginTooltip();
-                        ImGui::Text("Scale:%f", g_media_editor_settings.AudioDBScale);
-                        ImGui::EndTooltip();
-                    }
-                    if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
-                        g_media_editor_settings.AudioDBScale = 1.f;
-                }
-                draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 0);
-                draw_list->PushClipRect(scrop_rect.Min, scrop_rect.Max);
-                ImVec2 channel_view_size = ImVec2(scope_view_size.x, scope_view_size.y / timeline->m_audio_channel_data.size());
-                ImGui::SetCursorScreenPos(window_pos);
-                ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(1.f, 1.f, 1.f, 1.0f));
-                ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.5f, 0.5f, 0.5f, 0.5f));
-                ImGui::PushStyleColor(ImGuiCol_FrameBg, 0);
-                ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
-                for (int i = 0; i < timeline->m_audio_channel_data.size(); i++)
-                {
-                    ImVec2 channel_min = window_pos + ImVec2(0, channel_view_size.y * i);
-                    ImVec2 channel_max = window_pos + ImVec2(channel_view_size.x, channel_view_size.y * i);
-                    // draw graticule line
-                    ImVec2 p1 = ImVec2(window_pos.x, window_pos.y + channel_view_size.y * i + channel_view_size.y);
-                    auto grid_number = floor(10 / g_media_editor_settings.AudioDBScale);
-                    auto grid_height = channel_view_size.y / grid_number;
-                    if (grid_number > 20) grid_number = 20;
-                    for (int x = 0; x < grid_number; x++)
-                    {
-                        ImVec2 gp1 = p1 - ImVec2(0, grid_height * x);
-                        ImVec2 gp2 = gp1 + ImVec2(channel_view_size.x, 0);
-                        draw_list->AddLine(gp1, gp2, COL_GRAY_GRATICULE);
-                    }
-                    auto vgrid_number = channel_view_size.x / grid_height;
-                    for (int x = 0; x < vgrid_number; x++)
-                    {
-                        ImVec2 gp1 = p1 + ImVec2(grid_height * x, 0);
-                        ImVec2 gp2 = gp1 - ImVec2(0, grid_height * (grid_number - 1));
-                        draw_list->AddLine(gp1, gp2, COL_GRAY_GRATICULE);
-                    }
-                    if (!timeline->m_audio_channel_data[i].m_db.empty())
-                    {
-                        ImGui::PushID(i);
-                        ImGui::PlotLines("##db", (float *)timeline->m_audio_channel_data[i].m_db.data, timeline->m_audio_channel_data[i].m_db.w, 0, nullptr, 0, 100 / g_media_editor_settings.AudioDBScale, channel_view_size, 4, false, true);
-                        ImGui::PopID();
-                    }
-                    draw_list->AddRect(channel_min, channel_max, COL_SLIDER_HANDLE, 0);
-                }
-                ImGui::PopStyleVar();
-                ImGui::PopStyleColor(3);
-                draw_list->PopClipRect();
-                ImGui::EndGroup();
-            }
-            break;
-            case 7:
-            {
-                // db level view
-                ImGui::BeginGroup();
-                ImGui::SetCursorScreenPos(window_pos);
-                draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 0);
-                draw_list->PushClipRect(scrop_rect.Min, scrop_rect.Max);
-                ImVec2 channel_view_size = ImVec2(scope_view_size.x, scope_view_size.y / timeline->m_audio_channel_data.size());
-                ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(1.f, 1.f, 1.f, 0.5f));
-                ImGui::PushStyleColor(ImGuiCol_FrameBg, 0);
-                ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
-                for (int i = 0; i < timeline->m_audio_channel_data.size(); i++)
-                {
-                    ImVec2 channel_min = window_pos + ImVec2(0, channel_view_size.y * i);
-                    ImVec2 channel_max = window_pos + ImVec2(channel_view_size.x, channel_view_size.y * i);
-                    ImGui::PushID(i);
-                    if (!timeline->m_audio_channel_data[i].m_DBShort.empty() && g_media_editor_settings.AudioDBLevelShort == 1)
-                        ImGui::PlotHistogram("##db_level", (float *)timeline->m_audio_channel_data[i].m_DBShort.data, timeline->m_audio_channel_data[i].m_DBShort.w, 0, nullptr, 0, 100, channel_view_size, 4);
-                    else if (!timeline->m_audio_channel_data[i].m_DBLong.empty() && g_media_editor_settings.AudioDBLevelShort == 0)
-                        ImGui::PlotHistogram("##db_level", (float *)timeline->m_audio_channel_data[i].m_DBLong.data, timeline->m_audio_channel_data[i].m_DBLong.w, 0, nullptr, 0, 100, channel_view_size, 4);
-                    ImGui::PopID();
-                    draw_list->AddRect(channel_min, channel_max, COL_SLIDER_HANDLE, 0);
-                }
-                ImGui::PopStyleVar();
-                ImGui::PopStyleColor(2);
-                draw_list->PopClipRect();
-                ImGui::EndGroup();
-            }
-            break;
-            case 8:
-            {
-                // spectrogram view
-                ImGui::BeginGroup();
-                ImGui::SetCursorScreenPos(window_pos);
-                ImGui::InvisibleButton("##audio_spectrogram_view", scope_view_size);
-                if (ImGui::IsItemHovered())
-                {
-                    if (io.MouseWheel < -FLT_EPSILON)
-                    {
-                        g_media_editor_settings.AudioSpectrogramLight *= 0.9f;
-                        if (g_media_editor_settings.AudioSpectrogramLight < 0.1)
-                            g_media_editor_settings.AudioSpectrogramLight = 0.1;
-                        timeline->mAudioSpectrogramLight = g_media_editor_settings.AudioSpectrogramLight;
-                        ImGui::BeginTooltip();
-                        ImGui::Text("Light:%f", g_media_editor_settings.AudioSpectrogramLight);
-                        ImGui::EndTooltip();
-                    }
-                    else if (io.MouseWheel > FLT_EPSILON)
-                    {
-                        g_media_editor_settings.AudioSpectrogramLight *= 1.1f;
-                        if (g_media_editor_settings.AudioSpectrogramLight > 1.0f)
-                            g_media_editor_settings.AudioSpectrogramLight = 1.0;
-                        timeline->mAudioSpectrogramLight = g_media_editor_settings.AudioSpectrogramLight;
-                        ImGui::BeginTooltip();
-                        ImGui::Text("Light:%f", g_media_editor_settings.AudioSpectrogramLight);
-                        ImGui::EndTooltip();
-                    }
-                    else if (io.MouseWheelH < -FLT_EPSILON)
-                    {
-                        g_media_editor_settings.AudioSpectrogramOffset -= 5;
-                        if (g_media_editor_settings.AudioSpectrogramOffset < -96.0)
-                            g_media_editor_settings.AudioSpectrogramOffset = -96.0;
-                        timeline->mAudioSpectrogramOffset = g_media_editor_settings.AudioSpectrogramOffset;
-                        ImGui::BeginTooltip();
-                        ImGui::Text("Offset:%f", g_media_editor_settings.AudioSpectrogramOffset);
-                        ImGui::EndTooltip();
-                    }
-                    else if (io.MouseWheelH > FLT_EPSILON)
-                    {
-                        g_media_editor_settings.AudioSpectrogramOffset += 5;
-                        if (g_media_editor_settings.AudioSpectrogramOffset > 96.0)
-                            g_media_editor_settings.AudioSpectrogramOffset = 96.0;
-                        timeline->mAudioSpectrogramOffset = g_media_editor_settings.AudioSpectrogramOffset;
-                        ImGui::BeginTooltip();
-                        ImGui::Text("Offset:%f", g_media_editor_settings.AudioSpectrogramOffset);
-                        ImGui::EndTooltip();
-                    }
-                    if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
-                    {
-                        g_media_editor_settings.AudioSpectrogramLight = 1.f;
-                        g_media_editor_settings.AudioSpectrogramOffset = 0.f;
-                        timeline->mAudioSpectrogramLight = g_media_editor_settings.AudioSpectrogramLight;
-                        timeline->mAudioSpectrogramOffset = g_media_editor_settings.AudioSpectrogramOffset;
-                    }
-                }
-                draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 0);
-                draw_list->PushClipRect(scrop_rect.Min, scrop_rect.Max);
-                ImVec2 channel_view_size = ImVec2(scope_view_size.x - 80, scope_view_size.y / timeline->m_audio_channel_data.size());
-                ImGui::SetCursorScreenPos(window_pos);
-                ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
-                for (int i = 0; i < timeline->m_audio_channel_data.size(); i++)
-                {
-                    ImVec2 channel_min = window_pos + ImVec2(32, channel_view_size.y * i);
-                    ImVec2 channel_max = window_pos + ImVec2(channel_view_size.x + 32, channel_view_size.y * i);
-                    ImVec2 center = channel_min + channel_view_size / 2;
-
-                    // draw graticule line
-                    auto hz_step = channel_view_size.y / 11;
-                    ImGui::SetWindowFontScale(0.6);
-                    for (int i = 0; i < 11; i++)
-                    {
-                        std::string str = std::to_string(i * 2) + "kHz";
-                        ImVec2 p0 = channel_min + ImVec2(-32, channel_view_size.y - i * hz_step);
-                        ImVec2 p1 = channel_min + ImVec2(-24, channel_view_size.y - i * hz_step);
-                        draw_list->AddLine(p0, p1, COL_GRATICULE_DARK, 1);
-                        draw_list->AddText(p1 + ImVec2(2, -9), IM_COL32_WHITE, str.c_str());
-                    }
-                    ImGui::SetWindowFontScale(1.0);
-                    
-                    if (!timeline->m_audio_channel_data[i].m_Spectrogram.empty())
-                    {
-                        ImVec2 texture_pos = center - ImVec2(channel_view_size.y / 2, channel_view_size.x / 2);
-                        ImGui::ImMatToTexture(timeline->m_audio_channel_data[i].m_Spectrogram, timeline->m_audio_channel_data[i].texture_spectrogram);
-                        ImGui::ImDrawListAddImageRotate(draw_list, timeline->m_audio_channel_data[i].texture_spectrogram, texture_pos, ImVec2(channel_view_size.y, channel_view_size.x), -90.0);
-                    }
-                }
-                // draw bar mark
-                for (int i = 0; i < scope_view_size.y; i++)
-                {
-                    float value = i / 2.0;
-                    float hue = ((int)(value + 170) % 255) / 255.f;
-                    auto color = ImColor::HSV(hue, 1.0, timeline->mAudioSpectrogramLight);
-                    ImVec2 p0 = ImVec2(scrop_rect.Max.x - 44, scrop_rect.Max.y - i);
-                    ImVec2 p1 = ImVec2(scrop_rect.Max.x - 32, scrop_rect.Max.y - i);
-                    draw_list->AddLine(p0, p1, color);
-                    ImGui::SetWindowFontScale(0.6);
-                    if ((i / 2 - 64) % 10 == 0)
-                    {
-                        std::string str = std::to_string(i / 2 - 64) + "dB";
-                        if (i / 2 - 64 > 0) str = "+" + str;
-                        ImVec2 p2 = ImVec2(scrop_rect.Max.x - 8, scrop_rect.Max.y - i);
-                        ImVec2 p3 = ImVec2(scrop_rect.Max.x, scrop_rect.Max.y - i);
-                        draw_list->AddLine(p2, p3, COL_GRATICULE_DARK, 1);
-                        draw_list->AddText(p1 + ImVec2(2, -9), IM_COL32_WHITE, str.c_str());
-                    }
-                    ImGui::SetWindowFontScale(1.0);
-                }
-
-                ImGui::PopStyleVar();
-                draw_list->PopClipRect();
-                ImGui::EndGroup();
-            }
-            break;
-            default: break;
+            disabled_monitor.push_back(MonitorIndexVideoFilterOrg);
+            disabled_monitor.push_back(MonitorIndexVideoFiltered);
         }
+        MonitorButton("scope_monitor", pos, MonitorIndexScope, disabled_monitor, true, false, true);
+        if (MonitorIndexChanged)
+        {
+            g_media_editor_settings.ExpandScope = true;
+        }
+        
+        ImGui::PopStyleColor(3);
     }
+}
+
+static void ShowMediaAnalyseWindow(TimeLine *timeline)
+{
+    ImGuiIO &io = ImGui::GetIO();
+    auto platform_io = ImGui::GetPlatformIO();
+    bool multiviewport = io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable;
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings;
+    ImVec2 pos = ImVec2(100, 100);
+    if (MonitorIndexChanged)
+    {
+        if (multiviewport && MonitorIndexScope != -1 && MonitorIndexScope < platform_io.Monitors.Size)
+        {
+            auto mon = platform_io.Monitors[MonitorIndexScope];
+            pos += mon.MainPos;
+        }
+        ImGui::SetNextWindowPos(pos);
+        MonitorIndexChanged = false;
+    }
+    ImGui::SetNextWindowSize(ImVec2(1600, 800), ImGuiCond_None);
+    ImGui::Begin("ScopeView", nullptr, flags);
+    ImVec2 window_pos = ImGui::GetCursorScreenPos();
+    ImVec2 window_size = ImGui::GetWindowSize();
+    // add left tool bar
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.5, 0.5, 0.5, 0.5));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.2, 0.2, 0.2, 1.0));
+    if (ImGui::Button(ICON_DRAWING_PIN "##unexpand_scope"))
+    {
+        g_media_editor_settings.ExpandScope = false;
+        MonitorIndexScope = -1;
+    }
+    if (multiviewport)
+    {
+        auto pos = ImGui::GetCursorScreenPos();
+        std::vector<int> disabled_monitor;
+        if (MainWindowIndex == 0)
+            disabled_monitor.push_back(MonitorIndexPreviewVideo);
+        else if (MainWindowIndex == 1 && VideoEditorWindowIndex == 0)
+        {
+            disabled_monitor.push_back(MonitorIndexVideoFilterOrg);
+            disabled_monitor.push_back(MonitorIndexVideoFiltered);
+        }
+        MonitorButton("scope_monitor", pos, MonitorIndexScope, disabled_monitor, true, true, true);
+    }
+
+    // add scope UI layout
+    ImVec2 view_pos = window_pos + ImVec2(32, 0);
+    ImVec2 view_size = window_size - ImVec2(32, 0);
+    ImVec2 scope_view_size = ImVec2(256, 256);
+    ImDrawList *draw_list = ImGui::GetWindowDrawList();
+    // add video scope
+    for (int i = 0; i < 4; i++)
+    {
+        ShowMediaScopeView(i, view_pos + ImVec2(i * (256 + 48), 0), scope_view_size);
+        ImGui::SetCursorScreenPos(view_pos + ImVec2(i * (256 + 48), 256));
+        ShowMediaScopeSetting(i, false);
+        ImGui::SetWindowFontScale(2.0);
+        ImGui::ImAddTextVertical(draw_list, view_pos + ImVec2(i * (256 + 48) + 256, 0), IM_COL32_WHITE, ScopeWindowTabNames[i]);
+        ImGui::SetWindowFontScale(1.0);
+    }
+    // add audio scope
+    for (int i = 4; i < 9; i++)
+    {
+        ShowMediaScopeView(i, view_pos + ImVec2((i - 4) * (256 + 48), 420), scope_view_size);
+        ImGui::SetCursorScreenPos(view_pos + ImVec2((i - 4) * (256 + 48), 420 + 256));
+        ShowMediaScopeSetting(i, false);
+        ImGui::SetWindowFontScale(2.0);
+        ImGui::ImAddTextVertical(draw_list, view_pos + ImVec2((i - 4) * (256 + 48) + 256, 420), IM_COL32_WHITE, ScopeWindowTabNames[i]);
+        ImGui::SetWindowFontScale(1.0);
+    }
+
+    ImGui::PopStyleColor(3);
+    ImGui::End();
 }
 
 #if 0
@@ -4460,6 +4586,7 @@ void Application_SetupContext(ImGuiContext* ctx)
         else if (sscanf(line, "AudioFormat=%d", &val_int) == 1) { setting->AudioFormat = val_int; }
         else if (sscanf(line, "BankViewStyle=%d", &val_int) == 1) { setting->BankViewStyle = val_int; }
         else if (sscanf(line, "ShowHelpTips=%d", &val_int) == 1) { setting->ShowHelpTooltips = val_int == 1; }
+        else if (sscanf(line, "ExpandScope=%d", &val_int) == 1) { setting->ExpandScope = val_int == 1; }
         else if (sscanf(line, "HistogramLogView=%d", &val_int) == 1) { setting->HistogramLog = val_int == 1; }
         else if (sscanf(line, "HistogramScale=%f", &val_float) == 1) { setting->HistogramScale = val_float; }
         else if (sscanf(line, "WaveformMirror=%d", &val_int) == 1) { setting->WaveformMirror = val_int == 1; }
@@ -4538,6 +4665,7 @@ void Application_SetupContext(ImGuiContext* ctx)
         out_buf->appendf("AudioFormat=%d\n", g_media_editor_settings.AudioFormat);
         out_buf->appendf("BankViewStyle=%d\n", g_media_editor_settings.BankViewStyle);
         out_buf->appendf("ShowHelpTips=%d\n", g_media_editor_settings.ShowHelpTooltips ? 1 : 0);
+        out_buf->appendf("ExpandScope=%d\n", g_media_editor_settings.ExpandScope ? 1 : 0);
         out_buf->appendf("HistogramLogView=%d\n", g_media_editor_settings.HistogramLog ? 1 : 0);
         out_buf->appendf("HistogramScale=%f\n", g_media_editor_settings.HistogramScale);
         out_buf->appendf("WaveformMirror=%d\n", g_media_editor_settings.WaveformMirror ? 1 : 0);
@@ -4981,7 +5109,9 @@ bool Application_Frame(void * handle, bool app_will_quit)
     
     bool _expanded = g_media_editor_settings.BottomViewExpanded;
     ImVec2 panel_pos = window_pos + ImVec2(4, g_media_editor_settings.TopViewHeight * window_size.y + 12);
-    ImVec2 panel_size(window_size.x - 4 - scope_height - 32, g_media_editor_settings.BottomViewHeight * window_size.y - 12);
+    ImVec2 panel_size(window_size.x - 4, g_media_editor_settings.BottomViewHeight * window_size.y - 12);
+    if (!g_media_editor_settings.ExpandScope)
+        panel_size -= ImVec2(scope_height + 32, 0);
     ImGui::SetNextWindowPos(panel_pos, ImGuiCond_Always);
     if (ImGui::BeginChild("##Timeline", panel_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings))
     {
@@ -5009,14 +5139,21 @@ bool Application_Frame(void * handle, bool app_will_quit)
     }
     ImGui::EndChild();
 
-    ImVec2 scope_pos = panel_pos + ImVec2(panel_size.x, 0);
-    ImVec2 scope_size = ImVec2(scope_height + 32, scope_height);
-    ImGui::SetNextWindowPos(scope_pos, ImGuiCond_Always);
-    if (ImGui::BeginChild("##Scope_View", scope_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings))
+    if (!g_media_editor_settings.ExpandScope)
     {
-        ShowMediaAnalyseWindow(timeline, &_expanded);
+        ImVec2 scope_pos = panel_pos + ImVec2(panel_size.x, 0);
+        ImVec2 scope_size = ImVec2(scope_height + 32, scope_height);
+        ImGui::SetNextWindowPos(scope_pos, ImGuiCond_Always);
+        if (ImGui::BeginChild("##Scope_View", scope_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings))
+        {
+            ShowMediaAnalyseWindow(timeline, &_expanded);
+        }
+        ImGui::EndChild();
     }
-    ImGui::EndChild();
+    else
+    {
+        ShowMediaAnalyseWindow(timeline);
+    }
     
     ImGui::PopStyleColor();
     ImGui::End();
