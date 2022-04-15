@@ -1519,7 +1519,7 @@ private:
                     m_pendingVidfrmCnt++;
                 }
             }
-            if (task->vfAry.size() >= task->frmPtsAry.size())
+            if (task->vfAry.size() >= task->frmPtsAry.size() || frm->pts >= task->frmPtsAry.back())
             {
                 // m_logger->Log(DEBUG) << "Task [" << task->seekPts.first << "(" << MillisecToString(CvtPtsToMts(task->seekPts.first)) << "), "
                 // << task->seekPts.second << "(" << MillisecToString(CvtPtsToMts(task->seekPts.second)) << ")) finishes ALL FRAME decoding." << endl;

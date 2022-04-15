@@ -9,7 +9,6 @@
 #include <sstream>
 #include "MediaParser.h"
 #include "FFUtils.h"
-#include "Logger.h"
 extern "C"
 {
     #include "libavutil/avutil.h"
@@ -32,8 +31,11 @@ using std::placeholders::_1;
 class MediaParser_Impl : public MediaParser
 {
 public:
+    static ALogger* s_logger;
+
     MediaParser_Impl()
     {
+        m_logger = GetMediaParserLogger();
         m_taskThread = thread(&MediaParser_Impl::TaskThreadProc, this);
     }
 
@@ -305,7 +307,7 @@ private:
                 else if (!m_currTask->cancel)
                     m_currTask->success = true;
                 else
-                    Log(DEBUG) << "Task cancelled." << endl;
+                    m_logger->Log(DEBUG) << "Task cancelled." << endl;
                 idleLoop = false;
 
                 {
@@ -333,7 +335,7 @@ private:
         m_hMediaInfo = GenerateMediaInfoByAVFormatContext(m_avfmtCtx);
         m_bestVidStmIdx = av_find_best_stream(m_avfmtCtx, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
         m_bestAudStmIdx = av_find_best_stream(m_avfmtCtx, AVMEDIA_TYPE_AUDIO, -1, -1, nullptr, 0);
-        Log(DEBUG) << "Parse general media info done." << endl;
+        m_logger->Log(DEBUG) << "Parse general media info done." << endl;
         return true;
     }
 
@@ -358,6 +360,8 @@ private:
 
         list<int64_t> vidSeekPoints;
         int64_t lastKeyPts;
+        int64_t searchStart;
+        int64_t ptsStep = 1;
         AVPacket avpkt = {0};
         do {
             fferr = av_read_frame(m_avfmtCtx, &avpkt);
@@ -367,6 +371,8 @@ private:
                 {
                     lastKeyPts = avpkt.pts;
                     vidSeekPoints.push_back(lastKeyPts);
+                    if (avpkt.duration > 0) ptsStep = avpkt.pts+avpkt.duration;
+                    searchStart = lastKeyPts+ptsStep;
                     av_packet_unref(&avpkt);
                     break;
                 }
@@ -380,9 +386,10 @@ private:
         }
 
         // find the following key frames
+        if (searchStart < vidStream->start_time) searchStart = vidStream->start_time;
         while (!hTask->cancel)
         {
-            fferr = avformat_seek_file(m_avfmtCtx, vidstmidx, lastKeyPts+1, lastKeyPts+1, INT64_MAX, 0);
+            fferr = avformat_seek_file(m_avfmtCtx, vidstmidx, searchStart, searchStart, INT64_MAX, 0);
             if (fferr < 0)
             {
                 if (fferr != AVERROR(EPERM))
@@ -399,7 +406,24 @@ private:
                 {
                     if (avpkt.stream_index == vidstmidx)
                     {
-                        lastKeyPts = avpkt.pts;
+                        if (avpkt.pts >= searchStart)
+                        {
+                            lastKeyPts = avpkt.pts;
+                            if (avpkt.duration > 0)
+                                ptsStep = avpkt.pts+avpkt.duration;
+                            else
+                                ptsStep = 1;
+                            searchStart = lastKeyPts+ptsStep;
+                        }
+                        else
+                        {
+                            m_logger->Log(WARN) << "'avformat_seek_file' does NOT function NORMAL! Return packet pts(" << avpkt.pts
+                                << ") is smaller than 'searchStart' pts(" << searchStart << ")." << endl;
+                            ptsStep *= 2;
+                            searchStart = lastKeyPts+ptsStep;
+                            fferr = AVERROR(EAGAIN);
+                        }
+
                         av_packet_unref(&avpkt);
                         break;
                     }
@@ -410,7 +434,7 @@ private:
             {
                 vidSeekPoints.push_back(lastKeyPts);
             }
-            else
+            else if (fferr != AVERROR(EAGAIN))
             {
                 if (fferr != AVERROR_EOF)
                 {
@@ -426,7 +450,7 @@ private:
         for (int64_t pts : vidSeekPoints)
             hSeekPoints->push_back(pts);
         m_hVidSeekPoints = hSeekPoints;
-        Log(DEBUG) << "Parse video seek points done. " << vidSeekPoints.size() << " seek points are found." << endl;
+        m_logger->Log(DEBUG) << "Parse video seek points done. " << vidSeekPoints.size() << " seek points are found." << endl;
         return true;
     }
 
@@ -443,6 +467,7 @@ private:
     }
 
 private:
+    ALogger* m_logger;
     thread m_taskThread;
     TaskHolder m_currTask;
     bool m_quitTaskThread{false};
@@ -467,8 +492,17 @@ private:
     string m_errMsg;
 };
 
+ALogger* MediaParser_Impl::s_logger;
+
 MediaParserHolder CreateMediaParser()
 {
     MediaParserHolder hParser(new MediaParser_Impl());
     return hParser;
+}
+
+ALogger* GetMediaParserLogger()
+{
+    if (!MediaParser_Impl::s_logger)
+        MediaParser_Impl::s_logger = GetLogger("MReader");
+    return MediaParser_Impl::s_logger;
 }

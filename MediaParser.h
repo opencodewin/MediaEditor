@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include "Logger.h"
 #include "MediaInfo.h"
 
 struct MediaParser
@@ -41,3 +42,5 @@ struct MediaParser
 using MediaParserHolder = std::shared_ptr<MediaParser>;
 
 MediaParserHolder CreateMediaParser();
+
+Logger::ALogger* GetMediaParserLogger();
