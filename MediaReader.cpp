@@ -369,6 +369,7 @@ public:
             m_readForward = forward;
             if (m_prepared)
                 UpdateCacheWindow(m_cacheWnd.readPos, true);
+            m_audReadEof = false;
         }
     }
 
@@ -478,12 +479,31 @@ public:
             return false;
         eof = false;
 
+        if (m_audReadEof)
+        {
+            size = 0;
+            eof = true;
+            pos = m_cacheWnd.readPos;
+            return true;
+        }
+
         lock_guard<recursive_mutex> lk(m_apiLock);
         bool success = ReadAudioSamples_Internal(buf, size, pos, wait);
         double readDur = m_swrPassThrough ?
                 (double)size/m_audFrmSize/m_swrOutSampleRate :
                 (double)size/m_swrFrmSize/m_swrOutSampleRate;
-        UpdateCacheWindow(pos+readDur);
+        double nextReadPos = pos+(m_readForward ? readDur : -readDur);
+        if (nextReadPos < 0)
+        {
+            m_audReadEof = true;
+            nextReadPos = 0;
+        }
+        else if (nextReadPos > m_audDurTs)
+        {
+            m_audReadEof = true;
+            nextReadPos = m_audDurTs;
+        }
+        UpdateCacheWindow(nextReadPos);
         eof = m_audReadEof;
         if (eof && size == 0)
             pos = m_readForward ? m_audDurTs : 0;
@@ -703,7 +723,10 @@ private:
                 this_thread::sleep_for(chrono::milliseconds(5));
         } while (!locked && !m_quit);
         if (m_quit)
+        {
+            m_errMsg = "This instance is quiting.";
             return false;
+        }
 
         lock_guard<recursive_mutex> lk(m_apiLock, adopt_lock);
         int fferr;
@@ -751,6 +774,7 @@ private:
             if (m_audAvStm->start_time == INT64_MIN)
                 m_audAvStm->start_time = 0;
             m_audDurPts = CvtAudMtsToPts((int64_t)(m_audDurTs*1000));
+            m_audioTaskPtsGap = CvtAudMtsToPts(1000);  // set 1-second long task duration
 
             m_auddec = avcodec_find_decoder(m_audAvStm->codecpar->codec_id);
             if (m_auddec == nullptr)
@@ -1082,17 +1106,11 @@ private:
 
     bool ReadAudioSamples_Internal(uint8_t* buf, uint32_t& size, double& pos, bool wait)
     {
-        if (m_audReadEof)
-        {
-            size = 0;
-            return true;
-        }
-
         uint8_t* dstptr = buf;
         uint32_t readSize = 0, toReadSize = size, skipSize;
         skipSize = m_audReadOffset > 0 ? m_audReadOffset : 0;
-        list<AudioFrame>::iterator fwditer;
-        list<AudioFrame>::reverse_iterator bwditer;
+        unique_ptr<list<AudioFrame>::iterator> fwditerPtr;
+        unique_ptr<list<AudioFrame>::reverse_iterator> bwditerPtr;
         bool isIterSet = false;
         bool isPosSet = false;
         bool needLoop;
@@ -1105,6 +1123,8 @@ private:
             {
                 readTask = FindNextAudioReadTask();
                 skipSize = 0;
+                fwditerPtr = nullptr;
+                bwditerPtr = nullptr;
                 isIterSet = false;
             }
 
@@ -1116,12 +1136,14 @@ private:
                     if (!isIterSet)
                     {
                         if (m_readForward)
-                            fwditer = afAry.begin();
+                            fwditerPtr = unique_ptr<list<AudioFrame>::iterator>(new list<AudioFrame>::iterator(afAry.begin()));
                         else
-                            bwditer = afAry.rbegin();
+                            bwditerPtr = unique_ptr<list<AudioFrame>::reverse_iterator>(new list<AudioFrame>::reverse_iterator(afAry.rbegin()));
                         isIterSet = true;
                     }
 
+                    auto& fwditer = *fwditerPtr.get();
+                    auto& bwditer = *bwditerPtr.get();
                     SelfFreeAVFramePtr readfrm = m_readForward ? fwditer->fwdfrm : bwditer->bwdfrm;
                     if (readfrm)
                     {
@@ -1159,6 +1181,8 @@ private:
                             {
                                 readTask = FindNextAudioReadTask();
                                 skipSize = 0;
+                                fwditerPtr = nullptr;
+                                bwditerPtr = nullptr;
                                 isIterSet = false;
                             }
                         }
@@ -1188,11 +1212,22 @@ private:
                             {
                                 readTask = FindNextAudioReadTask();
                                 skipSize = 0;
+                                fwditerPtr = nullptr;
+                                bwditerPtr = nullptr;
                                 isIterSet = false;
                             }
                             idleLoop = false;
                         }
                     }
+                }
+                else if (readTask->afAry.empty() && readTask->decInputEof)
+                {
+                    m_logger->Log(WARN) << "Audio read task has its 'decInputEof' already set to 'true', but the 'afAry' is still empty. Skip this task." << endl;
+                    readTask = FindNextAudioReadTask();
+                    skipSize = 0;
+                    fwditerPtr = nullptr;
+                    bwditerPtr = nullptr;
+                    isIterSet = false;
                 }
             }
 
@@ -1370,7 +1405,24 @@ private:
                         {
                             currTask->mediaEnd = true;
                             currTask->demuxEof = true;
+                            if (taskChanged)
+                            {
+                                m_logger->Log(WARN) << "First AVPacket is EOF for this task! This task is INVALID." << endl;
+                                currTask->cancel = true;
+                            }
                             demuxEof = true;
+                            // cancel all the following tasks if there is any
+                            {
+                                lock_guard<mutex> lk(m_bldtskByPriLock);
+                                for (auto& task : m_bldtskPriOrder)
+                                {
+                                    if (task->seekPts.first > currTask->seekPts.first)
+                                    {
+                                        m_logger->Log(DEBUG) << "CANCEL invalid task after demux EOF, seekPts.first=" << task->seekPts.first << "." << endl;
+                                        task->cancel = true;
+                                    }
+                                }
+                            }
                         }
                         else
                         {
@@ -2349,21 +2401,16 @@ private:
 
         int64_t beginPts = CvtMtsToPts((int64_t)(currwnd.cacheBeginTs*1000));
         int64_t endPts = CvtMtsToPts((int64_t)(currwnd.cacheEndTs*1000));
-        int64_t pts0, pts1, mts0, mts1;
-        pts0 = beginPts;
-        mts0 = CvtPtsToMts(pts0);
+        int64_t pts0, pts1;
+        pts0 = beginPts-beginPts%m_audioTaskPtsGap;
         while (pts0 < endPts)
         {
-            mts1 = mts0+1000;
-            if ((double)mts1/1000 >= currwnd.cacheEndTs-0.5)
-                pts1 = endPts;
-            else
-                pts1 = CvtMtsToPts(mts1);
+            pts1 = pts0+m_audioTaskPtsGap;
             GopDecodeTaskHolder task = make_shared<GopDecodeTask>(*this);
             task->seekPts = { pts0, pts1 };
+            if (pts0 <= 0) task->mediaBegin = true;
             m_bldtskTimeOrder.push_back(task);
             pts0 = pts1;
-            mts0 = mts1;
         }
         m_bldtskSnapWnd = currwnd;
         m_audReadTask = nullptr;
@@ -2388,6 +2435,7 @@ private:
                 (currwnd.seekPos00 == m_bldtskSnapWnd.seekPos00 && currwnd.seekPos10 > m_bldtskSnapWnd.seekPos10))
             {
                 int64_t beginPts = CvtMtsToPts((int64_t)(currwnd.cacheBeginTs*1000));
+                beginPts = beginPts-beginPts%m_audioTaskPtsGap;
                 int64_t endPts = CvtMtsToPts((int64_t)(currwnd.cacheEndTs*1000))+1;
                 if (currwnd.seekPos00 <= m_bldtskSnapWnd.seekPos10)
                 {
@@ -2412,28 +2460,24 @@ private:
                     m_bldtskTimeOrder.clear();
                 }
 
-                int64_t pts0, pts1, mts0, mts1;
+                int64_t pts0, pts1;
                 pts0 = beginPts;
-                mts0 = CvtPtsToMts(pts0);
                 while (pts0 < endPts)
                 {
-                    mts1 = mts0+m_audioTaskGap;
-                    if ((double)mts1/1000 >= currwnd.cacheEndTs-0.5)
-                        pts1 = endPts;
-                    else
-                        pts1 = CvtMtsToPts(mts1);
+                    pts1 = pts0+m_audioTaskPtsGap;
                     GopDecodeTaskHolder task = make_shared<GopDecodeTask>(*this);
                     task->seekPts = { pts0, pts1 };
+                    if (pts0 <= 0) task->mediaBegin = true;
                     m_bldtskTimeOrder.push_back(task);
                     pts0 = pts1;
-                    mts0 = mts1;
                 }
             }
             else //(currwnd.cacheBeginTs < m_bldtskSnapWnd.cacheBeginTs)
             {
                 int64_t beginPts = CvtMtsToPts((int64_t)(currwnd.cacheBeginTs*1000));
                 int64_t endPts = CvtMtsToPts((int64_t)(currwnd.cacheEndTs*1000))+1;
-                int64_t taskPtsGap = CvtMtsToPts(m_audioTaskGap);
+                if (endPts%m_audioTaskPtsGap > 0)
+                    endPts = endPts-endPts%m_audioTaskPtsGap+m_audioTaskPtsGap;
                 if (currwnd.seekPos10 >= m_bldtskSnapWnd.seekPos00)
                 {
                     // buildIndex1 = m_bldtskSnapWnd.cacheIdx0-1;
@@ -2442,7 +2486,7 @@ private:
                     while (iter != m_bldtskTimeOrder.begin())
                     {
                         auto& tsk = *iter;
-                        if (tsk->seekPts.first > currwnd.seekPos10+taskPtsGap)
+                        if (tsk->seekPts.first > currwnd.seekPos10+m_audioTaskPtsGap)
                         {
                             tsk->cancel = true;
                             iter = m_bldtskTimeOrder.erase(iter);
@@ -2460,21 +2504,16 @@ private:
                     m_bldtskTimeOrder.clear();
                 }
 
-                int64_t pts0, pts1, mts0, mts1;
+                int64_t pts0, pts1;
                 pts1 = endPts;
-                mts1 = CvtPtsToMts(pts1);
                 while (beginPts < pts1)
                 {
-                    mts0 = mts1-m_audioTaskGap;
-                    if ((double)mts0/1000 <= currwnd.cacheBeginTs-0.5)
-                        pts0 = beginPts;
-                    else
-                        pts0 = CvtMtsToPts(mts0);
+                    pts0 = pts1-m_audioTaskPtsGap;
                     GopDecodeTaskHolder task = make_shared<GopDecodeTask>(*this);
                     task->seekPts = { pts0, pts1 };
+                    if (pts0 <= 0) task->mediaBegin = true;
                     m_bldtskTimeOrder.push_front(task);
                     pts1 = pts0;
-                    mts1 = mts0;
                 }
             }
             windowAreaChanged = true;
@@ -2521,11 +2560,8 @@ private:
             else
             {
                 CacheWindow currwnd = m_cacheWnd;
-                auto iter3 = find_if(m_bldtskPriOrder.begin(), m_bldtskPriOrder.end(), [this, currwnd](const GopDecodeTaskHolder& task) {
-                    const int64_t readPosMts = (int64_t)(currwnd.readPos*1000);
-                    const int64_t readPosPts = CvtAudMtsToPts((int64_t)(currwnd.readPos*1000));
-                    const int64_t seekMts0 = CvtAudPtsToMts(task->seekPts.first);
-                    const int64_t seekMts1 = CvtAudPtsToMts(task->seekPts.second);
+                const int64_t readPosPts = CvtAudMtsToPts((int64_t)(currwnd.readPos*1000));
+                auto iter3 = find_if(m_bldtskPriOrder.begin(), m_bldtskPriOrder.end(), [this, readPosPts](const GopDecodeTaskHolder& task) {
                     return readPosPts >= task->seekPts.first && readPosPts < task->seekPts.second;
                 });
                 if (iter3 != m_bldtskPriOrder.end())
@@ -2565,7 +2601,13 @@ private:
                 m_audReadOffset = -1;
                 if ((m_readForward && m_bldtskPriOrder.back()->mediaEnd) ||
                     (!m_readForward && m_bldtskPriOrder.front()->mediaBegin))
+                {
                     m_audReadEof = true;
+                    m_audReadNextTaskSeekPts0 = INT64_MIN;
+                }
+                else
+                    m_audReadNextTaskSeekPts0 = m_readForward ? m_bldtskPriOrder.back()->seekPts.second
+                        : m_bldtskPriOrder.front()->seekPts.first-m_audioTaskPtsGap;
             }
             else
             {
@@ -2574,6 +2616,9 @@ private:
                 m_audReadNextTaskSeekPts0 = m_audReadTask->seekPts.second;
             }
         }
+
+        if (!m_audReadTask)
+            m_logger->Log(WARN) << "CAN NOT find next AUDIO read task!" << endl;
         return m_audReadTask;
     }
 
@@ -2655,7 +2700,7 @@ private:
     int32_t m_audReadOffset{-1};
     bool m_audReadEof{false};
     int64_t m_audReadNextTaskSeekPts0{INT64_MIN};
-    int64_t m_audioTaskGap{1000};
+    int64_t m_audioTaskPtsGap{0};
 
     float m_ssWFacotr{1.f}, m_ssHFacotr{1.f};
     AVFrameToImMatConverter m_frmCvt;

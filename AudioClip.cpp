@@ -72,10 +72,10 @@ namespace DataLayer
 
     void AudioClip::SeekTo(int64_t pos)
     {
-        if (pos > Duration())
-            return;
         if (pos < 0)
             pos = 0;
+        else if (pos > Duration())
+            pos = Duration()-1;
         if (!m_srcReader->SeekTo((double)(pos+m_startOffset)/1000))
             throw runtime_error(m_srcReader->GetError());
         m_readPos = pos;

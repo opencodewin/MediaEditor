@@ -4405,8 +4405,8 @@ int TimeLine::Load(const imgui_json::value& value)
     }
     SyncDataLayer();
     mMtvReader->Refresh();
-    // mMtaReader->Refresh();
     mMtaReader->SeekTo(currentTime);
+    mMtaReader->Refresh();
     Logger::Log(Logger::VERBOSE) << *mMtvReader << std::endl;
     return 0;
 }
