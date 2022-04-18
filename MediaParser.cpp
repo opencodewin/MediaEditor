@@ -504,6 +504,6 @@ MediaParserHolder CreateMediaParser()
 ALogger* GetMediaParserLogger()
 {
     if (!MediaParser_Impl::s_logger)
-        MediaParser_Impl::s_logger = GetLogger("MReader");
+        MediaParser_Impl::s_logger = GetLogger("MParser");
     return MediaParser_Impl::s_logger;
 }

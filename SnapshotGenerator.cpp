@@ -821,7 +821,7 @@ private:
                             if (!currPktChecked)
                             {
                                 int64_t mts = CvtVidPtsToMts(avpkt.pts);
-                                uint32_t ssIdx;
+                                int32_t ssIdx;
                                 bool isSs = IsSnapshotFrame(mts, ssIdx, avpkt.pts);
                                 if (isSs)
                                 {
@@ -1014,7 +1014,7 @@ private:
                     if (avfrmLoaded)
                     {
                         int64_t mts = CvtVidPtsToMts(avfrm.pts);
-                        uint32_t index;
+                        int32_t index;
                         bool isSnapshot = IsSnapshotFrame(mts, index, avfrm.pts);
                         if (!isSnapshot)
                         {
@@ -1203,7 +1203,7 @@ private:
 
             friend bool operator==(const Range& oprnd1, const Range& oprnd2)
             {
-                if (oprnd1.m_seekPts.first == -1 && oprnd2.m_seekPts.second == -1)
+                if (oprnd1.m_seekPts.first == INT64_MIN && oprnd2.m_seekPts.second == INT64_MIN)
                     return false;
                 bool e1 = oprnd1.m_seekPts.first == oprnd2.m_seekPts.first;
                 bool e2 = oprnd1.m_seekPts.second == oprnd2.m_seekPts.second;
@@ -1215,7 +1215,7 @@ private:
             }
 
         private:
-            pair<int64_t, int64_t> m_seekPts{-1, -1};
+            pair<int64_t, int64_t> m_seekPts{INT64_MIN, INT64_MIN};
             pair<int32_t, int32_t> m_ssIdx{-1, -1};
             int32_t m_distanceToViewWnd{0};
             bool m_isInView{false};
@@ -1267,7 +1267,7 @@ private:
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
         if (!m_prepared)
-            return { wndpos, -1, -1, -1, -1, -1, -1 };
+            return { wndpos, -1, -1, -1, -1, INT64_MIN, INT64_MIN };
         int32_t index0 = CalcSsIndexFromTs(wndpos);
         int32_t index1 = CalcSsIndexFromTs(wndpos+m_snapWindowSize);
         int32_t cacheIdx0 = index0-(int32_t)m_prevWndCacheSize;
@@ -1277,7 +1277,7 @@ private:
         return { wndpos, index0, index1, cacheIdx0, cacheIdx1, seekPos0.first, seekPos1.first };
     }
 
-    bool IsSnapshotFrame(int64_t mts, uint32_t& index, int64_t pts)
+    bool IsSnapshotFrame(int64_t mts, int32_t& index, int64_t pts)
     {
         index = (int32_t)round((double)mts/m_ssIntvMts);
         double diff = abs(index*m_ssIntvMts-mts);
@@ -1311,7 +1311,7 @@ private:
     pair<int64_t, int64_t> GetSeekPosByMts(int64_t mts)
     {
         if (mts < 0)
-            return { -1, -1 };
+            return { INT64_MIN, INT64_MIN };
         if (mts > m_vidDurMts)
             return { INT64_MAX, INT64_MAX };
         int64_t targetPts = CvtVidMtsToPts(mts);
@@ -1508,7 +1508,7 @@ private:
         return nxttsk;
     }
 
-    bool EnqueueSnapshotAVFrame(AVFrame* frm, uint32_t ssIdx)
+    bool EnqueueSnapshotAVFrame(AVFrame* frm, int32_t ssIdx)
     {
         GopDecodeTaskHolder goptask;
         {
@@ -1663,7 +1663,7 @@ private:
             list<GopDecodeTask::Range> taskRanges;
             bool taskRangeChanged = false;
             if ((force || snapwnd.viewIdx0 != m_snapwnd.viewIdx0 || snapwnd.viewIdx1 != m_snapwnd.viewIdx1) &&
-                (snapwnd.seekPos00 >= 0 || snapwnd.seekPos10 >= 0))
+                (snapwnd.seekPos00 != INT64_MIN || snapwnd.seekPos10 != INT64_MIN))
             {
                 int32_t buildIdx0 = snapwnd.cacheIdx0 >= 0 ? snapwnd.cacheIdx0 : 0;
                 int32_t buildIdx1 = snapwnd.cacheIdx1 <= m_owner->m_vidMaxIndex ? snapwnd.cacheIdx1 : m_owner->m_vidMaxIndex;
@@ -1682,7 +1682,7 @@ private:
                 }
                 taskRangeChanged = true;
             }
-            else if (snapwnd.seekPos00 < 0 && snapwnd.seekPos10 < 0 && !m_taskRanges.empty())
+            else if (snapwnd.seekPos00 == INT64_MIN && snapwnd.seekPos10 == INT64_MIN && !m_taskRanges.empty())
             {
                 taskRangeChanged = true;
             }
