@@ -264,11 +264,16 @@ struct MediaEditorSettings
     bool WaveformMirror {true};
     bool WaveformSeparate {false};
     float WaveformIntensity {2.0};
-
+#if IMGUI_VULKAN_SHADER
     // CIE Scope tools
     int CIEColorSystem {ImGui::Rec709system};
     int CIEMode {ImGui::XYY};
     int CIEGamuts {ImGui::Rec2020system};
+#else
+    int CIEColorSystem {0};
+    int CIEMode {0};
+    int CIEGamuts {0};
+#endif
     float CIEContrast {0.75};
     float CIEIntensity {0.5};
     bool CIECorrectGamma {false};
@@ -651,7 +656,7 @@ static void ShowAbout()
     ImGui::Separator();
     ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", ImGui::GetIO().DeltaTime * 1000.f, ImGui::GetIO().Framerate);
     ImGui::Text("Frames since last input: %d", ImGui::GetIO().FrameCountSinceLastInput);
-#ifdef IMGUI_VULKAN_SHADER
+#if IMGUI_VULKAN_SHADER
     ImGui::Separator();
     int device_count = ImGui::get_gpu_count();
     for (int i = 0; i < device_count; i++)
@@ -3776,6 +3781,7 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
         case 2:
         {
             // cie view
+#if IMGUI_VULKAN_SHADER
             ImGui::BeginGroup();
             ImGui::InvisibleButton("##cie_view", size);
             if (ImGui::IsItemHovered())
@@ -3875,6 +3881,7 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
             ImGui::PopStyleVar();
             draw_list->PopClipRect();
             ImGui::EndGroup();
+#endif
         }
         break;
         case 3:
@@ -4797,10 +4804,12 @@ void Application_Initialize(void** handle)
 void Application_Finalize(void** handle)
 {
     if (timeline) { delete timeline; timeline = nullptr; }
+#if IMGUI_VULKAN_SHADER
     if (m_histogram) { delete m_histogram; m_histogram = nullptr; }
     if (m_waveform) { delete m_waveform; m_waveform = nullptr; }
     if (m_cie) { delete m_cie; m_cie = nullptr; }
     if (m_vector) {delete m_vector; m_vector = nullptr; }
+#endif
     if (waveform_texture) { ImGui::ImDestroyTexture(waveform_texture); waveform_texture = nullptr; }
     if (cie_texture) { ImGui::ImDestroyTexture(cie_texture); cie_texture = nullptr; }
     if (vector_texture) { ImGui::ImDestroyTexture(vector_texture); vector_texture = nullptr; }
@@ -5071,7 +5080,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
                 std::ostringstream oss;
                 oss << std::fixed << std::setprecision(2) << ImGui::GetIO().DeltaTime * 1000.f << "ms/frame ";
                 oss << ImGui::GetIO().Framerate << "FPS";
-#ifdef IMGUI_VULKAN_SHADER
+#if IMGUI_VULKAN_SHADER
                 int device_count = ImGui::get_gpu_count();
                 for (int i = 0; i < device_count; i++)
                 {
