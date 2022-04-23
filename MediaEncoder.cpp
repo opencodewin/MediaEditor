@@ -3,6 +3,7 @@
 #include <chrono>
 #include <sstream>
 #include <list>
+#include <algorithm>
 #include "MediaEncoder.h"
 #include "FFUtils.h"
 extern "C"
