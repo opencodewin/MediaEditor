@@ -231,6 +231,7 @@ struct Snapshot
 struct Overlap
 {
     int64_t mID                     {-1};       // overlap ID, project saved
+    MEDIA_TYPE mType                {MEDIA_UNKNOWN};
     int64_t mStart                  {0};        // overlap start time at timeline, project saved
     int64_t mEnd                    {0};        // overlap end time at timeline, project saved
     int64_t mCurrent                {0};        // overlap current time, project saved
@@ -241,7 +242,7 @@ struct Overlap
     std::pair<int64_t, int64_t>     m_Clip;     // overlaped clip's pair, project saved
     imgui_json::value mFusionBP;                // overlap transion blueprint, project saved
     void * mHandle                  {nullptr};  // overlap belong to timeline 
-    Overlap(int64_t start, int64_t end, int64_t clip_first, int64_t clip_second, void* handle);
+    Overlap(int64_t start, int64_t end, int64_t clip_first, int64_t clip_second, MEDIA_TYPE type, void* handle);
     ~Overlap();
 
     bool IsOverlapValid();
@@ -393,7 +394,7 @@ public:
     virtual ~BluePrintVideoTransition();
 
     void ApplyTo(DataLayer::VideoOverlap* overlap) override { mOverlap = overlap; }
-    ImGui::ImMat MixTwoImages(const ImGui::ImMat& vmat1, const ImGui::ImMat& vmat2, int64_t pos) override;
+    ImGui::ImMat MixTwoImages(const ImGui::ImMat& vmat1, const ImGui::ImMat& vmat2, int64_t pos, int64_t dur) override;
 
     void SetBluePrintFromJson(imgui_json::value& bpJson);
 
@@ -493,6 +494,7 @@ struct BaseEditingOverlap
     virtual void Step(bool forward, int64_t step = 0) = 0;
     virtual bool GetFrame(std::pair<std::pair<ImGui::ImMat, ImGui::ImMat>, ImGui::ImMat>& in_out_frame) = 0;
     virtual void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom) = 0;
+    virtual void Save() = 0;
 };
 
 struct EditingVideoOverlap : BaseEditingOverlap
@@ -517,6 +519,7 @@ struct EditingVideoOverlap : BaseEditingOverlap
     void Step(bool forward, int64_t step = 0) override;
     bool GetFrame(std::pair<std::pair<ImGui::ImMat, ImGui::ImMat>, ImGui::ImMat>& in_out_frame) override;
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom) override;
+    void Save() override;
 
     void CalcDisplayParams();
 };
@@ -553,7 +556,7 @@ struct MediaTrack
     Clip * FindPrevClip(int64_t id);                // find prev clip in track, if not found then return null
     Clip * FindNextClip(int64_t id);                // find next clip in track, if not found then return null
     Clip * FindClips(int64_t time, int& count);     // find clips at time, count means clip number at time
-    void CreateOverlap(int64_t start, int64_t start_clip_id, int64_t end, int64_t end_clip_id);
+    void CreateOverlap(int64_t start, int64_t start_clip_id, int64_t end, int64_t end_clip_id, MEDIA_TYPE type);
     Overlap * FindExistOverlap(int64_t start_clip_id, int64_t end_clip_id);
     void Update();                                  // update track clip include clip order and overlap area
     static MediaTrack* Load(const imgui_json::value& value, void * handle);
@@ -669,6 +672,8 @@ struct TimeLine
     EditingAudioClip* mAudFilterClip    {nullptr};
     std::mutex mVidFusionLock;              // timeline overlap mutex
     EditingVideoOverlap* mVidOverlap    {nullptr};
+    std::mutex mAudFusionLock;              // timeline overlap mutex
+    EditingVideoOverlap* mAudOverlap    {nullptr};
 
     MultiTrackVideoReader* mMtvReader   {nullptr};
     MultiTrackAudioReader* mMtaReader   {nullptr};

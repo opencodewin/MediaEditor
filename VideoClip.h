@@ -118,6 +118,6 @@ namespace DataLayer
     {
         virtual ~VideoTransition() {}
         virtual void ApplyTo(VideoOverlap* overlap) = 0;
-        virtual ImGui::ImMat MixTwoImages(const ImGui::ImMat& vmat1, const ImGui::ImMat& vmat2, int64_t pos) = 0;
+        virtual ImGui::ImMat MixTwoImages(const ImGui::ImMat& vmat1, const ImGui::ImMat& vmat2, int64_t pos, int64_t dur) = 0;
     };
 }

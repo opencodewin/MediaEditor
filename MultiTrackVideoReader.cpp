@@ -411,6 +411,21 @@ public:
         return clip;
     }
 
+    VideoOverlapHolder GetOverlapById(int64_t ovlpId) override
+    {
+        lock(m_apiLock, m_trackLock);
+        lock_guard<recursive_mutex> lk(m_apiLock, adopt_lock);
+        lock_guard<recursive_mutex> lk2(m_trackLock, adopt_lock);
+        VideoOverlapHolder ovlp;
+        for (auto& track : m_tracks)
+        {
+            ovlp = track->GetOverlapById(ovlpId);
+            if (ovlp)
+                break;
+        }
+        return ovlp;
+    }
+
     int64_t Duration() const override
     {
         return m_duration;

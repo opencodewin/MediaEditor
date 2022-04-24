@@ -2618,7 +2618,7 @@ private:
         }
 
         if (!m_audReadTask)
-            m_logger->Log(WARN) << "CAN NOT find next AUDIO read task!" << endl;
+            m_logger->Log(DEBUG) << "CAN NOT find next AUDIO read task!" << endl;
         return m_audReadTask;
     }
 

@@ -166,7 +166,7 @@ namespace DataLayer
             m_overlapPtr = overlap;
         }
 
-        ImGui::ImMat MixTwoImages(const ImGui::ImMat& vmat1, const ImGui::ImMat& vmat2, int64_t pos) override
+        ImGui::ImMat MixTwoImages(const ImGui::ImMat& vmat1, const ImGui::ImMat& vmat2, int64_t pos, int64_t dur) override
         {
 #if IMGUI_VULKAN_SHADER
             ImGui::ImMat dst;
@@ -265,7 +265,7 @@ namespace DataLayer
         m_rearClip->ReadVideoFrame(pos2, vmat2, eof2);
 
         VideoTransitionHolder transition = m_transition;
-        vmat = transition->MixTwoImages(vmat1, vmat2, pos);
+        vmat = transition->MixTwoImages(vmat1, vmat2, pos, Duration());
 
         eof = eof1 || eof2;
         if (pos == Duration())

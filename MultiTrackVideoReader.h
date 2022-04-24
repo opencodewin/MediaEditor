@@ -28,6 +28,7 @@ struct MultiTrackVideoReader
     virtual DataLayer::VideoTrackHolder GetTrackByIndex(uint32_t idx) = 0;
     virtual DataLayer::VideoTrackHolder GetTrackById(int64_t trackId, bool createIfNotExists = false) = 0;
     virtual DataLayer::VideoClipHolder GetClipById(int64_t clipId) = 0;
+    virtual DataLayer::VideoOverlapHolder GetOverlapById(int64_t ovlpId) = 0;
 
     virtual std::string GetError() const = 0;
 

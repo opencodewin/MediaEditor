@@ -336,6 +336,17 @@ namespace DataLayer
         return nullptr;
     }
 
+    VideoOverlapHolder VideoTrack::GetOverlapById(int64_t id)
+    {
+        lock_guard<recursive_mutex> lk(m_apiLock);
+        auto iter = find_if(m_overlaps.begin(), m_overlaps.end(), [id] (const VideoOverlapHolder& ovlp) {
+            return ovlp->Id() == id;
+        });
+        if (iter != m_overlaps.end())
+            return *iter;
+        return nullptr;
+    }
+
     bool VideoTrack::CheckClipRangeValid(int64_t clipId, int64_t start, int64_t end)
     {
         for (auto& overlap : m_overlaps)

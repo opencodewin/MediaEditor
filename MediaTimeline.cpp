@@ -1322,8 +1322,16 @@ BluePrintVideoTransition::~BluePrintVideoTransition()
     }
 }
 
-ImGui::ImMat BluePrintVideoTransition::MixTwoImages(const ImGui::ImMat& vmat1, const ImGui::ImMat& vmat2, int64_t pos)
+ImGui::ImMat BluePrintVideoTransition::MixTwoImages(const ImGui::ImMat& vmat1, const ImGui::ImMat& vmat2, int64_t pos, int64_t dur)
 {
+    std::lock_guard<std::mutex> lk(mBpLock);
+    if (mBp)
+    {
+        ImGui::ImMat inMat1(vmat1), inMat2(vmat2);
+        ImGui::ImMat outMat;
+        mBp->Blueprint_RunFusion(inMat1, inMat2, outMat, pos, dur);
+        return outMat;
+    }
     return vmat1;
 }
 
@@ -1332,7 +1340,7 @@ void BluePrintVideoTransition::SetBluePrintFromJson(imgui_json::value& bpJson)
     BluePrint::BluePrintUI* bp = new BluePrint::BluePrintUI();
     bp->Initialize();
     // Logger::Log(Logger::DEBUG) << "Create bp transition from json " << bpJson.dump() << std::endl;
-    bp->File_New_Filter(bpJson, "VideoFilter", "Video");
+    bp->File_New_Fusion(bpJson, "VideoFusion", "Video");
     if (!bp->Blueprint_IsValid())
     {
         bp->Finalize();
@@ -1687,10 +1695,11 @@ void EditingAudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, 
 
 namespace MediaTimeline
 {
-Overlap::Overlap(int64_t start, int64_t end, int64_t clip_first, int64_t clip_second, void* handle)
+Overlap::Overlap(int64_t start, int64_t end, int64_t clip_first, int64_t clip_second, MEDIA_TYPE type, void* handle)
 {
     TimeLine * timeline = (TimeLine *)handle;
     mID = timeline ? timeline->m_IDGenerator.GenerateID() : ImGui::get_current_time_usec();
+    mType = type;
     mStart = start;
     mEnd = end;
     m_Clip.first = clip_first;
@@ -1768,7 +1777,10 @@ Overlap* Overlap::Load(const imgui_json::value& value, void * handle)
         if (val.is_number()) second = val.get<imgui_json::number>();
     }
 
-    Overlap * new_overlap = new Overlap(start, end, first, second, handle);
+    Clip* firstClip = timeline->FindClipByID(first);
+    if (!firstClip)
+        return nullptr;
+    Overlap * new_overlap = new Overlap(start, end, first, second, firstClip->mType, handle);
     if (new_overlap)
     {
         if (value.contains("ID"))
@@ -2168,6 +2180,27 @@ bool EditingVideoOverlap::GetFrame(std::pair<std::pair<ImGui::ImMat, ImGui::ImMa
     return ret;
 }
 
+void EditingVideoOverlap::Save()
+{
+    TimeLine * timeline = (TimeLine *)(mOvlp->mHandle);
+    if (!timeline)
+        return;
+    timeline->mVideoFusionBluePrintLock.lock();
+    if (timeline->mVideoFusionBluePrint && timeline->mVideoFusionBluePrint->Blueprint_IsValid())
+    {
+        mOvlp->mFusionBP = timeline->mVideoFusionBluePrint->m_Document->Serialize();
+    }
+    timeline->mVideoFusionBluePrintLock.unlock();
+
+    // update video filter in datalayer
+    DataLayer::VideoOverlapHolder hOvlp = timeline->mMtvReader->GetOverlapById(mOvlp->mID);
+    BluePrintVideoTransition* bpvt = new BluePrintVideoTransition();
+    bpvt->SetBluePrintFromJson(mOvlp->mFusionBP);
+    DataLayer::VideoTransitionHolder hTrans(bpvt);
+    hOvlp->SetTransition(hTrans);
+    timeline->mMtvReader->Refresh();
+}
+
 }// namespace MediaTimeline
 
 namespace MediaTimeline
@@ -2319,20 +2352,20 @@ void MediaTrack::Update()
                     if (overlap)
                         overlap->Update(start, (*iter)->mID, end, (*next)->mID);
                     else
-                        CreateOverlap(start, (*iter)->mID, end, (*next)->mID);
+                        CreateOverlap(start, (*iter)->mID, end, (*next)->mID, (*iter)->mType);
                 }
             }
         }
     }
 }
 
-void MediaTrack::CreateOverlap(int64_t start, int64_t start_clip_id, int64_t end, int64_t end_clip_id)
+void MediaTrack::CreateOverlap(int64_t start, int64_t start_clip_id, int64_t end, int64_t end_clip_id, MEDIA_TYPE type)
 {
     TimeLine * timeline = (TimeLine *)m_Handle;
     if (!timeline)
         return;
 
-    Overlap * new_overlap = new Overlap(start, end, start_clip_id, end_clip_id, timeline);
+    Overlap * new_overlap = new Overlap(start, end, start_clip_id, end_clip_id, type, timeline);
     timeline->m_Overlaps.push_back(new_overlap);
     m_Overlaps.push_back(new_overlap);
     // sort track overlap by overlap start time
@@ -2630,6 +2663,7 @@ void MediaTrack::SelectEditingOverlap(Overlap * overlap)
     
     // find old editing overlap and reset BP
     Overlap * editing_overlap = timeline->FindEditingOverlap();
+
     if (editing_overlap && editing_overlap->mID != overlap->mID)
     {
         auto clip_first = timeline->FindClipByID(editing_overlap->m_Clip.first);
@@ -2655,6 +2689,8 @@ void MediaTrack::SelectEditingOverlap(Overlap * overlap)
                 timeline->mAudioFusionBluePrintLock.unlock();
             }
         }
+        if (timeline->mVidOverlap)
+            timeline->mVidOverlap->Save();
         editing_overlap->bEditing = false;
 
         if (timeline->mVidOverlap)
@@ -3293,6 +3329,11 @@ TimeLine::~TimeLine()
     {
         delete mVidOverlap;
         mVidOverlap = nullptr;
+    }
+    if (mAudOverlap)
+    {
+        delete mAudOverlap;
+        mAudOverlap = nullptr;
     }
 
     if (mAudioRender)
@@ -4692,6 +4733,10 @@ void TimeLine::SyncDataLayer()
                     (ovlp->m_Clip.first == rearClipId && ovlp->m_Clip.second == frontClipId))
                 {
                     vidOvlp->SetId(ovlp->mID);
+                    BluePrintVideoTransition* bpvt = new BluePrintVideoTransition();
+                    bpvt->SetBluePrintFromJson(ovlp->mFusionBP);
+                    DataLayer::VideoTransitionHolder hTrans(bpvt);
+                    vidOvlp->SetTransition(hTrans);
                     found = true;
                     break;
                 }
@@ -4703,9 +4748,15 @@ void TimeLine::SyncDataLayer()
                 syncedOverlapCount++;
         }
     }
-    if (syncedOverlapCount != m_Overlaps.size())
+    int vidOvlpCnt = 0;
+    for (auto ovlp : m_Overlaps)
+    {
+        if (ovlp->mType == MEDIA_VIDEO)
+            vidOvlpCnt++;
+    }
+    if (syncedOverlapCount != vidOvlpCnt)
         Logger::Log(Logger::Error) << "Overlap SYNC FAILED! Synced count is " << syncedOverlapCount
-            << ", while the size of overlap array is " << m_Overlaps.size() << "." << std::endl;
+            << ", while the count of video overlap array is " << vidOvlpCnt << "." << std::endl;
 }
 
 SnapshotGeneratorHolder TimeLine::GetSnapshotGenerator(int64_t mediaItemId)

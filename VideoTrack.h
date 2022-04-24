@@ -23,6 +23,7 @@ namespace DataLayer
 
         VideoClipHolder GetClipByIndex(uint32_t index);
         VideoClipHolder GetClipById(int64_t id);
+        VideoOverlapHolder GetOverlapById(int64_t id);
         uint32_t ClipCount() const { return m_clips.size(); }
         std::list<VideoClipHolder>::iterator ClipListBegin() { return m_clips.begin(); }
         std::list<VideoClipHolder>::iterator ClipListEnd() { return m_clips.end(); }
