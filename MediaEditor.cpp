@@ -426,6 +426,14 @@ static bool UIPageChanged()
     {
         // we leave video fusion windows, stop fusion play, check unsaved bp
         Logger::Log(Logger::DEBUG) << "[Changed page] leaving video fusion page!!!" << std::endl;
+        if (timeline && timeline->mVidOverlap)
+        {
+            timeline->mVidFusionLock.lock();
+            timeline->mVidOverlap->bPlay = false;
+            timeline->mVidOverlap->Save();
+            timeline->mVidFusionLock.unlock();
+            updated = true;
+        }
     }
     if (LastMainWindowIndex == 1 && LastVideoEditorWindowIndex == 2 && (
         MainWindowIndex != 1 || VideoEditorWindowIndex != 2))
