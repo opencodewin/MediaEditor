@@ -1386,10 +1386,10 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
         switch ((*item)->mMediaType)
         {
             case MEDIA_UNKNOWN: break;
-            case MEDIA_VIDEO: type_string = std::string(ICON_FA5_FILE_VIDEO) + " "; break;
-            case MEDIA_AUDIO: type_string = std::string(ICON_FA5_FILE_AUDIO) + " "; break;
-            case MEDIA_PICTURE: type_string = std::string(ICON_FA5_FILE_IMAGE) + " "; break;
-            case MEDIA_TEXT: type_string = std::string(ICON_FA5_FILE_CODE) + " "; break;
+            case MEDIA_VIDEO: type_string = std::string(ICON_FA_FILE_VIDEO) + " "; break;
+            case MEDIA_AUDIO: type_string = std::string(ICON_FA_FILE_AUDIO) + " "; break;
+            case MEDIA_PICTURE: type_string = std::string(ICON_FA_FILE_IMAGE) + " "; break;
+            case MEDIA_TEXT: type_string = std::string(ICON_FA_FILE_CODE) + " "; break;
             default: break;
         }
         type_string += TimelineMillisecToString(media_length * 1000, 2);
@@ -2477,7 +2477,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     ImGui::ShowTooltipOnHover("Step Prev");
 
     ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32, PanelButtonY));
-    if (ImGui::Button(ICON_FAST_BACKWARD "##preview_reverse", ImVec2(32, 32)))
+    if (ImGui::RotateButton(ICON_PLAY_BACKWARD "##preview_reverse", ImVec2(32, 32), 180))
     {
         if (timeline)
             timeline->Play(true, false);
@@ -2493,7 +2493,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     ImGui::ShowTooltipOnHover("Stop");
 
     ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8, PanelButtonY));
-    if (ImGui::Button(ICON_FAST_FORWARD "##preview_play", ImVec2(32, 32)))
+    if (ImGui::Button(ICON_PLAY_FORWARD "##preview_play", ImVec2(32, 32)))
     {
         if (timeline)
             timeline->Play(true, true);
@@ -2743,7 +2743,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
             ImGui::ShowTooltipOnHover("Step Prev");
 
             ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32, PanelButtonY));
-            if (ImGui::Button(ICON_FAST_BACKWARD "##video_filter_reverse", ImVec2(32, 32)))
+            if (ImGui::RotateButton(ICON_PLAY_BACKWARD "##video_filter_reverse", ImVec2(32, 32), 180))
             {
                 if (timeline->mVidFilterClip)
                 {
@@ -2766,7 +2766,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
             ImGui::ShowTooltipOnHover("Stop");
 
             ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8, PanelButtonY));
-            if (ImGui::Button(ICON_FAST_FORWARD "##video_filter_play", ImVec2(32, 32)))
+            if (ImGui::Button(ICON_PLAY_FORWARD "##video_filter_play", ImVec2(32, 32)))
             {
                 if (timeline->mVidFilterClip)
                 {
@@ -3055,7 +3055,7 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
             ImGui::ShowTooltipOnHover("Step Prev");
 
             ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32, PanelButtonY));
-            if (ImGui::Button(ICON_FAST_BACKWARD "##video_fusion_reverse", ImVec2(32, 32)))
+            if (ImGui::RotateButton(ICON_PLAY_BACKWARD "##video_fusion_reverse", ImVec2(32, 32), 180))
             {
                 if (timeline->mVidOverlap)
                 {
@@ -3078,7 +3078,7 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
             ImGui::ShowTooltipOnHover("Stop");
 
             ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8, PanelButtonY));
-            if (ImGui::Button(ICON_FAST_FORWARD "##video_fusion_play", ImVec2(32, 32)))
+            if (ImGui::Button(ICON_PLAY_FORWARD "##video_fusion_play", ImVec2(32, 32)))
             {
                 if (timeline->mVidOverlap)
                 {
@@ -4881,11 +4881,11 @@ bool Application_Frame(void * handle, bool app_will_quit)
 
     if (show_about)
     {
-        ImGui::OpenPopup(ICON_FA5_INFO_CIRCLE " About", ImGuiPopupFlags_AnyPopup);
+        ImGui::OpenPopup(ICON_FA_CIRCLE_INFO " About", ImGuiPopupFlags_AnyPopup);
     }
     if (multiviewport)
         ImGui::SetNextWindowViewport(viewport->ID);
-    if (ImGui::BeginPopupModal(ICON_FA5_INFO_CIRCLE " About", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings))
+    if (ImGui::BeginPopupModal(ICON_FA_CIRCLE_INFO " About", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings))
     {
         ShowAbout();
         int i = ImGui::GetCurrentWindow()->ContentSize.x;
@@ -5013,7 +5013,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
             show_configure = true;
         }
         ImGui::ShowTooltipOnHover("Configure");
-        if (ImGui::Button(ICON_FA5_INFO_CIRCLE "##About", ImVec2(tool_icon_size, tool_icon_size)))
+        if (ImGui::Button(ICON_FA_CIRCLE_INFO "##About", ImVec2(tool_icon_size, tool_icon_size)))
         {
             // Show About
             show_about = true;

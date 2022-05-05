@@ -69,7 +69,8 @@
 #define ICON_OPEN_PROJECT   u8"\uf115"
 #define ICON_SAVE_PROJECT   u8"\uf0c7"
 
-#define ICON_PLAY           u8"\uf04b"
+#define ICON_PLAY_FORWARD   u8"\uf04b"
+#define ICON_PLAY_BACKWARD  u8"\uf04b" // need mirror
 #define ICON_PAUSE          u8"\uf04c"
 #define ICON_STOP           u8"\uf04d"
 #define ICON_FAST_BACKWARD  u8"\uf04a"

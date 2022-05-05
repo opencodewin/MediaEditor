@@ -191,7 +191,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
         // ImGui::ShowTooltipOnHover("Step Next Frame.");
         // add mute button
         ImGui::SameLine();
-        if (ImGui::Button(g_player->IsOpened() ? muted ? ICON_FA5_VOLUME_MUTE : ICON_FA5_VOLUME_UP : ICON_FA5_VOLUME_UP, size))
+        if (ImGui::Button(g_player->IsOpened() ? muted ? ICON_FA_VOLUME_OFF : ICON_FA_VOLUME_HIGH : ICON_FA_VOLUME_HIGH, size))
         {
             muted = !muted;
         }
@@ -249,7 +249,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
         // ImGui::ShowTooltipOnHover("HDR decoder");
         // add show log button
         ImGui::SameLine();
-        ImGui::ToggleButton(ICON_FA5_LIST_UL, &show_log_window, size * 0.75);
+        ImGui::ToggleButton(ICON_FA_LIST_UL, &show_log_window, size * 0.75);
         ImGui::ShowTooltipOnHover("Show Log");
         // add button end
 

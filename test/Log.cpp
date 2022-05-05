@@ -71,21 +71,21 @@ struct AppLog
     {
         switch (type)
         {
-            case LOG_INFO:      ImGui::Text(ICON_FA5_INFO_CIRCLE); break;
-            case LOG_NOTIFY:    ImGui::Text(ICON_FA5_QUESTION_CIRCLE); break;
+            case LOG_INFO:      ImGui::Text(ICON_FA_CIRCLE_INFO); break;
+            case LOG_NOTIFY:    ImGui::Text(ICON_FA_CIRCLE_QUESTION); break;
             case LOG_DEBUG:
                 ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.f, 1.f, 0.f, 1.f));
-                ImGui::Text(ICON_FA5_CROSSHAIRS);
+                ImGui::Text(ICON_FA_CROSSHAIRS);
                 ImGui::PopStyleColor();
                 break;
             case LOG_WARNING:
                 ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 1.f, 0.f, 1.f));
-                ImGui::Text(ICON_FA5_EXCLAMATION_CIRCLE);
+                ImGui::Text(ICON_FA_CIRCLE_EXCLAMATION);
                 ImGui::PopStyleColor();
                 break;
             case LOG_ERROR:
                 ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 0.f, 0.f, 1.f));
-                ImGui::Text(ICON_FA5_TIMES_CIRCLE);
+                ImGui::Text(ICON_FA_CIRCLE_XMARK);
                 ImGui::PopStyleColor();
                 break;
             default: break;
@@ -107,11 +107,11 @@ struct AppLog
         //  window
         ImGui::SameLine(0, 0);
         static bool numbering = true;
-        ImGui::ToggleButton(ICON_FA5_SORT_NUMERIC_DOWN, &numbering);
+        ImGui::ToggleButton(ICON_FA_SORT_DOWN, &numbering);
         ImGui::SameLine();
-        bool clear = ImGui::Button( ICON_FA5_BACKSPACE " Clear");
+        bool clear = ImGui::Button( ICON_FA_BACKWARD " Clear");
         ImGui::SameLine();
-        bool copy = ImGui::Button( ICON_FA5_COPY " Copy");
+        bool copy = ImGui::Button( ICON_FA_COPY " Copy");
         ImGui::SameLine();
         Filter.Draw("Filter", -60.0f);
 
@@ -292,7 +292,7 @@ void Log::Error(const char* fmt, ...)
 void Log::ShowLogWindow(bool* p_open)
 {
     ImGui::SetNextWindowSize(ImVec2(700, 600), ImGuiCond_FirstUseEver);
-    logs.Draw( ICON_FA5_LIST_UL " Logs", p_open);
+    logs.Draw( ICON_FA_LIST_UL " Logs", p_open);
 }
 
 void Log::Render(bool showWarnings, bool show_notifies, bool show_errors)
@@ -324,7 +324,7 @@ void Log::Render(bool showWarnings, bool show_notifies, bool show_errors)
         {
             ImGui::PushTextWrapPos(ImGui::GetCursorPos().x + width);
             for (list<string>::iterator it=notifications.begin(); it != notifications.end(); ++it) {
-                ImGui::Text( ICON_FA5_INFO "  %s\n", (*it).c_str());
+                ImGui::Text( ICON_FA_INFO "  %s\n", (*it).c_str());
             }
             ImGui::PopTextWrapPos();
 
