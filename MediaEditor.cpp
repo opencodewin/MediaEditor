@@ -162,6 +162,8 @@ static const char* audio_format_items[] = { "16bit Short", "32bit Float", "64bit
 static const char* color_system_items[] = { "NTSC", "EBU", "SMPTE", "SMPTE 240M", "APPLE", "wRGB", "CIE1931", "Rec709", "Rec2020", "DCIP3" };
 static const char* cie_system_items[] = { "XYY", "UCS", "LUV" };
 
+static const char* audio_vector_mode_items[] = { "Lissajous", "Lissajous XY", "Polar"};
+
 static const char* ConfigureTabNames[] = {
     "System",
     "Timeline"
@@ -201,6 +203,7 @@ static const char* ScopeWindowTabNames[] = {
     ICON_CIE " Video CIE",
     ICON_VETCTOR " Video Vector",
     ICON_WAVE " Audio Wave",
+    ICON_VETCTOR " Audio Vector",
     ICON_FFT " Audio FFT",
     ICON_DB " Audio dB",
     ICON_DB_LEVEL " Audio dB Level",
@@ -284,6 +287,10 @@ struct MediaEditorSettings
 
     // Audio Wave Scale setting
     float AudioWaveScale    {1.0};
+
+    // Audio Vector Setting
+    float AudioVectorScale  {1.0};
+    int AudioVectorMode {LISSAJOUS};
 
     // Audio FFT Scale setting
     float AudioFFTScale    {1.0};
@@ -1021,6 +1028,9 @@ static void NewTimeline()
         timeline->mShowHelpTooltips = g_media_editor_settings.ShowHelpTooltips;
         timeline->mAudioSpectrogramLight = g_media_editor_settings.AudioSpectrogramLight;
         timeline->mAudioSpectrogramOffset = g_media_editor_settings.AudioSpectrogramOffset;
+        timeline->mAudioVectorScale = g_media_editor_settings.AudioVectorScale;
+        timeline->mAudioVectorMode = g_media_editor_settings.AudioVectorMode;
+
         // init callbacks
         timeline->m_CallBacks.EditingClip = EditingClip;
         timeline->m_CallBacks.EditingOverlap = EditingOverlap;
@@ -3559,6 +3569,24 @@ static void ShowMediaScopeSetting(int index, bool show_tooltips = true)
         break;
         case 5:
         {
+            // audio vector setting
+            if (ImGui::DragFloat("Scale##AudioVectorScale", &g_media_editor_settings.AudioVectorScale, 0.05f, 0.5f, 4.f, "%.1f"))
+            {
+                timeline->mAudioVectorScale = g_media_editor_settings.AudioVectorScale;
+            }
+            if (show_tooltips)
+            {
+                ImGui::TextDisabled("%s", "Mouse wheel up/down on scope view also");
+                ImGui::TextDisabled("%s", "Mouse left double click return default");
+            }
+            if (ImGui::Combo("Vector Mode", (int *)&g_media_editor_settings.AudioVectorMode, audio_vector_mode_items, IM_ARRAYSIZE(audio_vector_mode_items)))
+            {
+                timeline->mAudioVectorMode = g_media_editor_settings.AudioVectorMode;
+            }
+        }
+        break;
+        case 6:
+        {
             // audio fft setting
             ImGui::DragFloat("Scale##AudioFFTScale", &g_media_editor_settings.AudioFFTScale, 0.05f, 0.1f, 4.f, "%.1f");
             if (show_tooltips)
@@ -3568,7 +3596,7 @@ static void ShowMediaScopeSetting(int index, bool show_tooltips = true)
             }
         }
         break;
-        case 6:
+        case 7:
         {
             // audio dB setting
             ImGui::DragFloat("Scale##AudioDBScale", &g_media_editor_settings.AudioDBScale, 0.05f, 0.1f, 4.f, "%.1f");
@@ -3579,14 +3607,14 @@ static void ShowMediaScopeSetting(int index, bool show_tooltips = true)
             }
         }
         break;
-        case 7:
+        case 8:
         {
             // audio dB level setting
             ImGui::RadioButton("dB 20 Band##AudioDbLevelShort", &g_media_editor_settings.AudioDBLevelShort, 1);
             ImGui::RadioButton("dB 76 Band##AudioDbLevelLong", &g_media_editor_settings.AudioDBLevelShort, 0);
         }
         break;
-        case 8:
+        case 9:
         {
             // audio spectrogram setting
             if (ImGui::DragFloat("Offset##AudioSpectrogramOffset", &g_media_editor_settings.AudioSpectrogramOffset, 5.f, -96.f, 96.f, "%.1f"))
@@ -4093,6 +4121,91 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
         break;
         case 5:
         {
+            char mark[32] = {0};
+            // audio vector
+            ImGui::BeginGroup();
+            ImGui::InvisibleButton("##audio_vector_view", size);
+            if (ImGui::IsItemHovered())
+            {
+                if (io.MouseWheel < -FLT_EPSILON)
+                {
+                    g_media_editor_settings.AudioVectorScale *= 0.9f;
+                    if (g_media_editor_settings.AudioVectorScale < 0.5)
+                        g_media_editor_settings.AudioVectorScale = 0.5;
+                    timeline->mAudioVectorScale = g_media_editor_settings.AudioVectorScale;
+                    ImGui::BeginTooltip();
+                    ImGui::Text("Zoom:%f", g_media_editor_settings.AudioVectorScale);
+                    ImGui::EndTooltip();
+                }
+                else if (io.MouseWheel > FLT_EPSILON)
+                {
+                    g_media_editor_settings.AudioVectorScale *= 1.1f;
+                    if (g_media_editor_settings.AudioVectorScale > 4.0f)
+                        g_media_editor_settings.AudioVectorScale = 4.0;
+                    timeline->mAudioVectorScale = g_media_editor_settings.AudioVectorScale;
+                    ImGui::BeginTooltip();
+                    ImGui::Text("Zoom:%f", g_media_editor_settings.AudioVectorScale);
+                    ImGui::EndTooltip();
+                }
+                if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+                {
+                    g_media_editor_settings.AudioVectorScale = 1.f;
+                    timeline->mAudioVectorScale = g_media_editor_settings.AudioVectorScale;
+                }
+            }
+            draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 0);
+            draw_list->PushClipRect(scrop_rect.Min, scrop_rect.Max);
+            if (!timeline->m_audio_vector.empty())
+            {
+                ImGui::ImMatToTexture(timeline->m_audio_vector, timeline->m_audio_vector_texture);
+                draw_list->AddImage(timeline->m_audio_vector_texture, scrop_rect.Min, scrop_rect.Max, ImVec2(0, 0), ImVec2(1, 1));
+            }
+            // draw graticule line
+            ImVec2 center_point = ImVec2(scrop_rect.Min + size / 2);
+            float radius = size.x / 2;
+            draw_list->AddCircle(center_point, radius, COL_GRATICULE_DARK, 0, 1);
+            draw_list->AddLine(scrop_rect.Min + ImVec2(0, size.y / 2), scrop_rect.Max - ImVec2(0, size.y / 2), COL_GRATICULE_DARK);
+            draw_list->AddLine(scrop_rect.Min + ImVec2(size.x / 2, 0), scrop_rect.Max - ImVec2(size.x / 2, 0), COL_GRATICULE_DARK);
+            ImGui::SetWindowFontScale(0.6);
+            float mark_point = size.x / 2 * g_media_editor_settings.AudioVectorScale;
+            float mark_val = 1.0;
+            ImVec2 mark_pos = center_point;
+            while (mark_point >= size.x / 2) { mark_point /= 2; mark_val /= 2; }
+            mark_pos = center_point + ImVec2(- mark_point, 0);
+            ImFormatString(mark, IM_ARRAYSIZE(mark), mark_val >= 0.5 ? "%-4.1f" : mark_val >= 0.25 ? "%-4.2f" : "%-4.3f", mark_val);
+            draw_list->AddLine(mark_pos + ImVec2(0, -4), mark_pos + ImVec2(0, 4), COL_GRATICULE_DARK, 2);
+            draw_list->AddText(mark_pos + ImVec2(-8, -12), COL_GRATICULE, mark);
+            mark_pos = center_point + ImVec2(mark_point, 0);
+            draw_list->AddLine(mark_pos + ImVec2(0, -4), mark_pos + ImVec2(0, 4), COL_GRATICULE_DARK, 2);
+            draw_list->AddText(mark_pos + ImVec2(-8, -12), COL_GRATICULE, mark);
+            mark_pos = center_point + ImVec2(0, -mark_point);
+            draw_list->AddLine(mark_pos + ImVec2(-4, 0), mark_pos + ImVec2(4, 0), COL_GRATICULE_DARK, 2);
+            draw_list->AddText(mark_pos + ImVec2(-8, -10), COL_GRATICULE, mark);
+            mark_pos = center_point + ImVec2(0, mark_point);
+            draw_list->AddLine(mark_pos + ImVec2(-4, 0), mark_pos + ImVec2(4, 0), COL_GRATICULE_DARK, 2);
+            draw_list->AddText(mark_pos + ImVec2(-8, 0), COL_GRATICULE, mark);
+            mark_point /= 2;
+            mark_val /= 2;
+            ImFormatString(mark, IM_ARRAYSIZE(mark), mark_val >= 0.5 ? "%-4.1f" : mark_val >= 0.25 ? "%-4.2f" : "%-4.3f", mark_val);
+            mark_pos = center_point + ImVec2(- mark_point, 0);
+            draw_list->AddLine(mark_pos + ImVec2(0, -4), mark_pos + ImVec2(0, 4), COL_GRATICULE_DARK, 2);
+            draw_list->AddText(mark_pos + ImVec2(-8, -12), COL_GRATICULE, mark);
+            mark_pos = center_point + ImVec2(mark_point, 0);
+            draw_list->AddLine(mark_pos + ImVec2(0, -4), mark_pos + ImVec2(0, 4), COL_GRATICULE_DARK, 2);
+            draw_list->AddText(mark_pos + ImVec2(-8, -12), COL_GRATICULE, mark);
+            mark_pos = center_point + ImVec2(0, -mark_point);
+            draw_list->AddLine(mark_pos + ImVec2(-4, 0), mark_pos + ImVec2(4, 0), COL_GRATICULE_DARK, 2);
+            draw_list->AddText(mark_pos + ImVec2(-8, -10), COL_GRATICULE, mark);
+            mark_pos = center_point + ImVec2(0, mark_point);
+            draw_list->AddLine(mark_pos + ImVec2(-4, 0), mark_pos + ImVec2(4, 0), COL_GRATICULE_DARK, 2);
+            draw_list->AddText(mark_pos + ImVec2(-8, 0), COL_GRATICULE, mark);
+            ImGui::SetWindowFontScale(1.0);
+            draw_list->PopClipRect();
+            ImGui::EndGroup();
+        }
+        break;
+        case 6:
+        {
             // fft view
             ImGui::BeginGroup();
             ImGui::InvisibleButton("##audio_fft_view", size);
@@ -4163,7 +4276,7 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
             ImGui::EndGroup();
         }
         break;
-        case 6:
+        case 7:
         {
             // db view
             ImGui::BeginGroup();
@@ -4235,7 +4348,7 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
             ImGui::EndGroup();
         }
         break;
-        case 7:
+        case 8:
         {
             // db level view
             ImGui::BeginGroup();
@@ -4263,7 +4376,7 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
             ImGui::EndGroup();
         }
         break;
-        case 8:
+        case 9:
         {
             // spectrogram view
             ImGui::BeginGroup();
@@ -4500,8 +4613,8 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline)
     ImVec2 view_size = window_size - ImVec2(32, 0);
     ImVec2 scope_view_size = ImVec2(256, 256);
     ImDrawList *draw_list = ImGui::GetWindowDrawList();
-    // add video scope
-    for (int i = 0; i < 4; i++)
+    // add video scope + audio wave
+    for (int i = 0; i <= 4; i++)
     {
         ShowMediaScopeView(i, view_pos + ImVec2(i * (256 + 48), 0), scope_view_size);
         ImGui::SetCursorScreenPos(view_pos + ImVec2(i * (256 + 48), 256));
@@ -4511,13 +4624,13 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline)
         ImGui::SetWindowFontScale(1.0);
     }
     // add audio scope
-    for (int i = 4; i < 9; i++)
+    for (int i = 5; i < 10; i++)
     {
-        ShowMediaScopeView(i, view_pos + ImVec2((i - 4) * (256 + 48), 420), scope_view_size);
-        ImGui::SetCursorScreenPos(view_pos + ImVec2((i - 4) * (256 + 48), 420 + 256));
+        ShowMediaScopeView(i, view_pos + ImVec2((i - 5) * (256 + 48), 420), scope_view_size);
+        ImGui::SetCursorScreenPos(view_pos + ImVec2((i - 5) * (256 + 48), 420 + 256));
         ShowMediaScopeSetting(i, false);
         ImGui::SetWindowFontScale(2.0);
-        ImGui::ImAddTextVertical(draw_list, view_pos + ImVec2((i - 4) * (256 + 48) + 256, 420), IM_COL32_WHITE, ScopeWindowTabNames[i]);
+        ImGui::ImAddTextVertical(draw_list, view_pos + ImVec2((i - 5) * (256 + 48) + 256, 420), IM_COL32_WHITE, ScopeWindowTabNames[i]);
         ImGui::SetWindowFontScale(1.0);
     }
 
@@ -4616,6 +4729,8 @@ void Application_SetupContext(ImGuiContext* ctx)
         else if (sscanf(line, "CIEGamuts=%d", &val_int) == 1) { setting->CIEGamuts = val_int; }
         else if (sscanf(line, "VectorIntensity=%f", &val_float) == 1) { setting->VectorIntensity = val_float; }
         else if (sscanf(line, "AudioWaveScale=%f", &val_float) == 1) { setting->AudioWaveScale = val_float; }
+        else if (sscanf(line, "AudioVectorScale=%f", &val_float) == 1) { setting->AudioVectorScale = val_float; }
+        else if (sscanf(line, "AudioVectorMode=%d", &val_int) == 1) { setting->AudioVectorMode = val_int; }
         else if (sscanf(line, "AudioFFTScale=%f", &val_float) == 1) { setting->AudioFFTScale = val_float; }
         else if (sscanf(line, "AudioDBScale=%f", &val_float) == 1) { setting->AudioDBScale = val_float; }
         else if (sscanf(line, "AudioDBLevelShort=%d", &val_int) == 1) { setting->AudioDBLevelShort = val_int == 1; }
@@ -4695,6 +4810,8 @@ void Application_SetupContext(ImGuiContext* ctx)
         out_buf->appendf("CIEGamuts=%d\n", g_media_editor_settings.CIEGamuts);
         out_buf->appendf("VectorIntensity=%f\n", g_media_editor_settings.VectorIntensity);
         out_buf->appendf("AudioWaveScale=%f\n", g_media_editor_settings.AudioWaveScale);
+        out_buf->appendf("AudioVectorScale=%f\n", g_media_editor_settings.AudioVectorScale);
+        out_buf->appendf("AudioVectorMode=%d\n", g_media_editor_settings.AudioVectorMode);
         out_buf->appendf("AudioFFTScale=%f\n", g_media_editor_settings.AudioFFTScale);
         out_buf->appendf("AudioDBScale=%f\n", g_media_editor_settings.AudioDBScale);
         out_buf->appendf("AudioDBLevelShort=%d\n", g_media_editor_settings.AudioDBLevelShort ? 1 : 0);

@@ -187,6 +187,14 @@ enum MEDIA_TYPE : int
     // ...
 };
 
+enum AudioVectorScopeMode  : int
+{
+    LISSAJOUS,
+    LISSAJOUS_XY,
+    POLAR,
+    MODE_NB,
+};
+
 struct IDGenerator
 {
     int64_t GenerateID();
@@ -649,6 +657,10 @@ struct TimeLine
     bool bExportAudio {true};
     
     std::vector<audio_channel_data> m_audio_channel_data;   // timeline audio data replace audio levels
+    ImGui::ImMat m_audio_vector;
+    ImTextureID m_audio_vector_texture {nullptr};
+    float mAudioVectorScale  {1};
+    int mAudioVectorMode {LISSAJOUS};
     void CalculateAudioScopeData(ImGui::ImMat& mat);
     float mAudioSpectrogramOffset {0.0};
     float mAudioSpectrogramLight {1.0};

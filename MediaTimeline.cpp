@@ -3283,6 +3283,8 @@ TimeLine::~TimeLine()
     if (mMainPreviewTexture) { ImGui::ImDestroyTexture(mMainPreviewTexture); mMainPreviewTexture = nullptr; }
     
     m_audio_channel_data.clear();
+
+    if (m_audio_vector_texture) { ImGui::ImDestroyTexture(m_audio_vector_texture); m_audio_vector_texture = nullptr; }
     
     if (mVideoFilterBluePrint)
     {
@@ -4906,6 +4908,57 @@ void TimeLine::CalculateAudioScopeData(ImGui::ImMat& mat_in)
                     auto color = ImColor::HSV(hue, 1.0, mAudioSpectrogramLight);
                     last_line[n] = color;
                 }
+            }
+        }
+    }
+    if (mat.c >= 2)
+    {
+        if (m_audio_vector.empty())
+        {
+            m_audio_vector.create_type(256, 256, 4, IM_DT_INT8);
+            m_audio_vector.fill(0);
+            m_audio_vector.elempack = 4;
+        }
+        if (!m_audio_vector.empty())
+        {
+            float zoom = mAudioVectorScale;
+            float hw = m_audio_vector.w / 2;
+            float hh = m_audio_vector.h / 2;
+            int samples = mat_in.w;
+            m_audio_vector *= 0.99;
+            for (int n = 0; n < samples; n++)
+            {
+                float s1 = m_audio_channel_data[0].m_wave.at<float>(n, 0);
+                float s2 = m_audio_channel_data[1].m_wave.at<float>(n, 0);
+                int x = hw;
+                int y = hh;
+
+                if (mAudioVectorMode == LISSAJOUS)
+                {
+                    x = ((s2 - s1) * zoom / 2 + 1) * hw;
+                    y = (1.0 - (s1 + s2) * zoom / 2) * hh;
+                }
+                else if (mAudioVectorMode == LISSAJOUS_XY)
+                {
+                    x = (s2 * zoom + 1) * hw;
+                    y = (s1 * zoom + 1) * hh;
+                }
+                else
+                {
+                    float sx, sy, cx, cy;
+                    sx = s2 * zoom;
+                    sy = s1 * zoom;
+                    cx = sx * sqrtf(1 - 0.5 * sy * sy);
+                    cy = sy * sqrtf(1 - 0.5 * sx * sx);
+                    x = hw + hw * ImSign(cx + cy) * (cx - cy) * .7;
+                    y = m_audio_vector.h - m_audio_vector.h * fabsf(cx + cy) * .7;
+                }
+                x = ImClamp(x, 0, m_audio_vector.w - 1);
+                y = ImClamp(y, 0, m_audio_vector.h - 1);
+                uint8_t r = ImClamp(m_audio_vector.at<uint8_t>(x, y, 0) + 30, 0, 255);
+                uint8_t g = ImClamp(m_audio_vector.at<uint8_t>(x, y, 1) + 50, 0, 255);
+                uint8_t b = ImClamp(m_audio_vector.at<uint8_t>(x, y, 2) + 30, 0, 255);
+                m_audio_vector.draw_dot(x, y, ImPixel(r / 255.0, g / 255.0, b / 255.0, 1.f));
             }
         }
     }
