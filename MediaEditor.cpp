@@ -203,7 +203,7 @@ static const char* ScopeWindowTabNames[] = {
     ICON_CIE " Video CIE",
     ICON_VETCTOR " Video Vector",
     ICON_WAVE " Audio Wave",
-    ICON_VETCTOR " Audio Vector",
+    ICON_AUDIOVECTOR " Audio Vector",
     ICON_FFT " Audio FFT",
     ICON_DB " Audio dB",
     ICON_DB_LEVEL " Audio dB Level",
