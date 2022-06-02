@@ -26,7 +26,7 @@ using namespace MediaTimeline;
 typedef struct _output_format
 {
     std::string name;
-    std::string surfix;
+    std::string suffix;
 } output_format;
 
 static const output_format OutFormats[] = 
@@ -4953,16 +4953,16 @@ bool Application_Frame(void * handle, bool app_will_quit)
     
     const ImGuiFileDialogFlags fflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_DisableCreateDirectoryButton;
     const std::string video_file_dis = "*.mp4 *.mov *.mkv *.avi *.webm *.ts";
-    const std::string video_file_surfix = ".mp4,.mov,.mkv,.avi,.webm,.ts";
+    const std::string video_file_suffix = ".mp4,.mov,.mkv,.avi,.webm,.ts";
     const std::string audio_file_dis = "*.wav *.mp3 *.aac *.ogg *.ac3 *.dts";
-    const std::string audio_file_surfix = ".wav,.mp3,.aac,.ogg,.ac3,.dts";
+    const std::string audio_file_suffix = ".wav,.mp3,.aac,.ogg,.ac3,.dts";
     const std::string image_file_dis = "*.png *.gif *.jpg *.jpeg *.tiff *.webp";
-    const std::string image_file_surfix = ".png,.gif,.jpg,.jpeg,.tiff,.webp";
-    const std::string video_filter = "Video files (" + video_file_dis + "){" + video_file_surfix + "}";
-    const std::string audio_filter = "Audio files (" + audio_file_dis + "){" + audio_file_surfix + "}";
-    const std::string image_filter = "Image files (" + image_file_dis + "){" + image_file_surfix + "}";
+    const std::string image_file_suffix = ".png,.gif,.jpg,.jpeg,.tiff,.webp";
+    const std::string video_filter = "Video files (" + video_file_dis + "){" + video_file_suffix + "}";
+    const std::string audio_filter = "Audio files (" + audio_file_dis + "){" + audio_file_suffix + "}";
+    const std::string image_filter = "Image files (" + image_file_dis + "){" + image_file_suffix + "}";
     const std::string ffilters = "All Support Files (" + video_file_dis + " " + audio_file_dis + " " + image_file_dis + ")" + "{" +
-                                                        video_file_surfix + "," + audio_file_surfix + "," + image_file_surfix + "}" + "," +
+                                                        video_file_suffix + "," + audio_file_suffix + "," + image_file_suffix + "}" + "," +
                                                         video_filter + "," +
                                                         audio_filter + "," +
                                                         image_filter + "," +
@@ -5383,35 +5383,35 @@ bool Application_Frame(void * handle, bool app_will_quit)
         {
             auto file_path = ImGuiFileDialog::Instance()->GetFilePathName();
             auto file_name = ImGuiFileDialog::Instance()->GetCurrentFileName();
-            auto file_surfix = ImGuiFileDialog::Instance()->GetCurrentFileSurfix();
+            auto file_suffix = ImGuiFileDialog::Instance()->GetCurrentFileSuffix();
             auto userDatas = std::string((const char*)ImGuiFileDialog::Instance()->GetUserDatas());
             if (userDatas.compare("Media Source") == 0)
             {
                 MediaTimeline::MEDIA_TYPE type = MEDIA_UNKNOWN;
-                if (!file_surfix.empty())
+                if (!file_suffix.empty())
                 {
-                    if ((file_surfix.compare(".mp4") == 0) ||
-                        (file_surfix.compare(".mov") == 0) ||
-                        (file_surfix.compare(".mkv") == 0) ||
-                        (file_surfix.compare(".avi") == 0) ||
-                        (file_surfix.compare(".webm") == 0) ||
-                        (file_surfix.compare(".ts") == 0))
+                    if ((file_suffix.compare(".mp4") == 0) ||
+                        (file_suffix.compare(".mov") == 0) ||
+                        (file_suffix.compare(".mkv") == 0) ||
+                        (file_suffix.compare(".avi") == 0) ||
+                        (file_suffix.compare(".webm") == 0) ||
+                        (file_suffix.compare(".ts") == 0))
                         type = MEDIA_VIDEO;
                     else 
-                        if ((file_surfix.compare(".wav") == 0) ||
-                            (file_surfix.compare(".mp3") == 0) ||
-                            (file_surfix.compare(".aac") == 0) ||
-                            (file_surfix.compare(".ac3") == 0) ||
-                            (file_surfix.compare(".dts") == 0) ||
-                            (file_surfix.compare(".ogg") == 0))
+                        if ((file_suffix.compare(".wav") == 0) ||
+                            (file_suffix.compare(".mp3") == 0) ||
+                            (file_suffix.compare(".aac") == 0) ||
+                            (file_suffix.compare(".ac3") == 0) ||
+                            (file_suffix.compare(".dts") == 0) ||
+                            (file_suffix.compare(".ogg") == 0))
                         type = MEDIA_AUDIO;
                     else 
-                        if ((file_surfix.compare(".jpg") == 0) ||
-                            (file_surfix.compare(".jpeg") == 0) ||
-                            (file_surfix.compare(".png") == 0) ||
-                            (file_surfix.compare(".gif") == 0) ||
-                            (file_surfix.compare(".tiff") == 0) ||
-                            (file_surfix.compare(".webp") == 0))
+                        if ((file_suffix.compare(".jpg") == 0) ||
+                            (file_suffix.compare(".jpeg") == 0) ||
+                            (file_suffix.compare(".png") == 0) ||
+                            (file_suffix.compare(".gif") == 0) ||
+                            (file_suffix.compare(".tiff") == 0) ||
+                            (file_suffix.compare(".webp") == 0))
                         type = MEDIA_PICTURE;
                 }
                 if (timeline)
