@@ -4916,7 +4916,7 @@ void TimeLine::CalculateAudioScopeData(ImGui::ImMat& mat_in)
         if (m_audio_vector.empty())
         {
             m_audio_vector.create_type(256, 256, 4, IM_DT_INT8);
-            m_audio_vector.fill(0);
+            m_audio_vector.fill((int8_t)0);
             m_audio_vector.elempack = 4;
         }
         if (!m_audio_vector.empty())
