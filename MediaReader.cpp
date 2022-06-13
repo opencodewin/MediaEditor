@@ -214,6 +214,9 @@ public:
 
         m_isVideoReader = false;
         m_configured = true;
+
+        if (m_dumpPcm)
+            m_fpPcmFile = fopen("MediaReaderDump.pcm", "wb");
         return true;
     }
 
@@ -306,6 +309,12 @@ public:
         m_opened = false;
 
         m_errMsg = "";
+
+        if (m_fpPcmFile)
+        {
+            fclose(m_fpPcmFile);
+            m_fpPcmFile = NULL;
+        }
     }
 
     bool SeekTo(double ts) override
@@ -937,7 +946,8 @@ private:
                 m_errMsg = "FAILED to invoke 'swr_alloc_set_opts()' to create 'SwrContext'!";
                 return false;
             }
-            int fferr = swr_init(m_swrCtx);
+            int fferr;
+            fferr = swr_init(m_swrCtx);
             if (fferr < 0)
             {
                 m_errMsg = FFapiFailureMessage("swr_init", fferr);
@@ -1189,32 +1199,39 @@ private:
                         else
                         {
                             uint32_t copySize = readfrm->linesize[0]-skipSize;
+                            bool moveToNext = true;
                             if (copySize > toReadSize)
+                            {
                                 copySize = toReadSize;
+                                moveToNext = false;
+                            }
                             memcpy(dstptr+readSize, readfrm->data[0]+skipSize, copySize);
                             toReadSize -= copySize;
                             readSize += copySize;
                             skipSize = 0;
                             m_audReadOffset += copySize;
 
-                            bool reachEnd;
-                            if (m_readForward)
+                            if (moveToNext)
                             {
-                                fwditer++;
-                                reachEnd = fwditer == afAry.end();
-                            }
-                            else
-                            {
-                                bwditer++;
-                                reachEnd = bwditer == afAry.rend();
-                            }
-                            if (reachEnd)
-                            {
-                                readTask = FindNextAudioReadTask();
-                                skipSize = 0;
-                                fwditerPtr = nullptr;
-                                bwditerPtr = nullptr;
-                                isIterSet = false;
+                                bool reachEnd;
+                                if (m_readForward)
+                                {
+                                    fwditer++;
+                                    reachEnd = fwditer == afAry.end();
+                                }
+                                else
+                                {
+                                    bwditer++;
+                                    reachEnd = bwditer == afAry.rend();
+                                }
+                                if (reachEnd)
+                                {
+                                    readTask = FindNextAudioReadTask();
+                                    skipSize = 0;
+                                    fwditerPtr = nullptr;
+                                    bwditerPtr = nullptr;
+                                    isIterSet = false;
+                                }
                             }
                             idleLoop = false;
                         }
@@ -2069,6 +2086,8 @@ private:
                                 dstfrm->linesize[0] = fferr*m_swrFrmSize;
                             }
                             af.pts = dstfrm->pts;
+                            if (m_fpPcmFile)
+                                fwrite(dstfrm->data[0], 1, dstfrm->linesize[0], m_fpPcmFile);
                         }
 
                         bwdfrm = AllocSelfFreeAVFramePtr();
@@ -2704,6 +2723,9 @@ private:
 
     float m_ssWFacotr{1.f}, m_ssHFacotr{1.f};
     AVFrameToImMatConverter m_frmCvt;
+
+    bool m_dumpPcm{false};
+    FILE* m_fpPcmFile{NULL};
 };
 
 ALogger* MediaReader_Impl::s_logger;

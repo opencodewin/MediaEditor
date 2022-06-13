@@ -41,6 +41,9 @@ const int c_audioRenderChannels = 2;
 const int c_audioRenderSampleRate = 44100;
 const AudioRender::PcmFormat c_audioRenderFormat = AudioRender::PcmFormat::FLOAT32;
 static double g_audPos = 0;
+// dump pcm for debug
+bool g_dumpPcm = false;
+FILE* g_fpPcmFile = NULL;
 
 const string c_imguiIniPath = "ms_test.ini";
 const string c_bookmarkPath = "bookmark.ini";
@@ -60,6 +63,8 @@ public:
         if (!m_audrdr->ReadAudioSamples(buff, readSize, pos, eof, blocking))
             return 0;
         g_audPos = pos;
+        if (g_fpPcmFile)
+            fwrite(buff, 1, readSize, g_fpPcmFile);
         return readSize;
     }
 
@@ -117,6 +122,8 @@ void Application_Initialize(void** handle)
     g_pcmStream = new SimplePcmStream(g_audrdr);
     g_audrnd = CreateAudioRender();
     g_audrnd->OpenDevice(c_audioRenderSampleRate, c_audioRenderChannels, c_audioRenderFormat, g_pcmStream);
+    if (g_dumpPcm)
+        g_fpPcmFile = fopen("MediaReaderTest_PcmDump.pcm", "wb");
 }
 
 void Application_Finalize(void** handle)
@@ -148,6 +155,8 @@ void Application_Finalize(void** handle)
 		configFileWriter.close();
 	}
 #endif
+    if (g_dumpPcm)
+        fclose(g_fpPcmFile);
 }
 
 bool Application_Frame(void * handle, bool app_will_quit)
