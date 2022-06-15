@@ -1027,22 +1027,31 @@ private:
                 {
                     if (!currTask->avpktQ.empty())
                     {
+                        bool popAvpkt = false;
                         AVPacket* avpkt = currTask->avpktQ.front();
                         int fferr = avcodec_send_packet(m_viddecCtx, avpkt);
                         if (fferr == 0)
                         {
                             m_logger->Log(VERBOSE) << ">>> [VIDEO]avcodec_send_packet() pts=" << avpkt->pts << "(" << MillisecToString(CvtVidPtsToMts(avpkt->pts)) << ")." << endl;
+                            popAvpkt = true;
+                        }
+                        else if (fferr != AVERROR(EAGAIN) && fferr != AVERROR_INVALIDDATA)
+                        {
+                            m_logger->Log(Error) << "FAILED to invoke [VIDEO]avcodec_send_packet()! return code is " << fferr << "." << endl;
+                            quitLoop = true;
+                        }
+                        else if (fferr == AVERROR_INVALIDDATA)
+                        {
+                            popAvpkt = true;
+                        }
+                        if (popAvpkt)
+                        {
                             {
                                 lock_guard<mutex> lk(currTask->avpktQLock);
                                 currTask->avpktQ.pop_front();
                             }
                             av_packet_free(&avpkt);
                             idleLoop = false;
-                        }
-                        else if (fferr != AVERROR(EAGAIN) && fferr != AVERROR_INVALIDDATA)
-                        {
-                            m_logger->Log(Error) << "FAILED to invoke [VIDEO]avcodec_send_packet()! return code is " << fferr << "." << endl;
-                            quitLoop = true;
                         }
                     }
                     else if (currTask->demuxerEof)
@@ -1695,7 +1704,7 @@ private:
                 m_snapwnd = snapwnd;
                 m_logger->Log(DEBUG) << ">>>>> Snapwnd updated: { wndpos=" << snapwnd.wndpos
                     << ", viewIdx=[" << snapwnd.viewIdx0 << ", " << snapwnd.viewIdx1
-                    << "], cacheIdx=[" << snapwnd.cacheIdx0 << ", " << snapwnd.cacheIdx1 << "] <<<<<<<" << endl;
+                    << "], cacheIdx=[" << snapwnd.cacheIdx0 << ", " << snapwnd.cacheIdx1 << "] } <<<<<<<" << endl;
             }
             if (taskRangeChanged)
             {

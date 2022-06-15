@@ -361,7 +361,8 @@ private:
         list<int64_t> vidSeekPoints;
         int64_t lastKeyPts;
         int64_t searchStart;
-        int64_t ptsStep = 1;
+        int64_t searchEnd = vidStream->start_time+vidStream->duration;
+        int64_t ptsStep = av_rescale_q((int64_t)(m_minSpIntervalSec*1000000), MICROSEC_TIMEBASE, vidStream->time_base);
         AVPacket avpkt = {0};
         do {
             fferr = av_read_frame(m_avfmtCtx, &avpkt);
@@ -371,8 +372,6 @@ private:
                 {
                     lastKeyPts = avpkt.pts;
                     vidSeekPoints.push_back(lastKeyPts);
-                    if (avpkt.duration > 0)
-                        ptsStep = avpkt.duration;
                     searchStart = lastKeyPts+ptsStep;
                     av_packet_unref(&avpkt);
                     break;
@@ -410,18 +409,13 @@ private:
                         if (avpkt.pts >= searchStart)
                         {
                             lastKeyPts = avpkt.pts;
-                            if (avpkt.duration > 0)
-                                ptsStep = avpkt.duration;
-                            else
-                                ptsStep = 1;
                             searchStart = lastKeyPts+ptsStep;
                         }
                         else
                         {
                             m_logger->Log(WARN) << "'avformat_seek_file' does NOT function NORMAL! Return packet pts(" << avpkt.pts
                                 << ") is smaller than 'searchStart' pts(" << searchStart << ")." << endl;
-                            ptsStep *= 2;
-                            searchStart = lastKeyPts+ptsStep;
+                            searchStart += ptsStep;
                             fferr = AVERROR(EAGAIN);
                         }
 
@@ -442,6 +436,11 @@ private:
                     hTask->errMsg = FFapiFailureMessage("av_read_frame", fferr);
                     return false;
                 }
+                break;
+            }
+            else if (searchStart > searchEnd)
+            {
+                m_logger->Log(WARN) << "[SeekPointsParsing] searchStart(" << searchStart << ") > searchEnd(" << searchEnd << ")! Quit parsing loop." << endl;
                 break;
             }
         }
@@ -486,6 +485,7 @@ private:
     int m_bestAudStmIdx{-1};
 
     SeekPointsHolder m_hVidSeekPoints;
+    double m_minSpIntervalSec{2};
 
     string m_url;
     AVFormatContext* m_avfmtCtx{nullptr};
