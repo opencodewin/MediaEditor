@@ -15,6 +15,7 @@ using namespace std;
 using namespace Logger;
 
 const AVRational MILLISEC_TIMEBASE = { 1, 1000 };
+const AVRational MICROSEC_TIMEBASE = { 1, 1000000 };
 const AVRational FF_AV_TIMEBASE = { 1, AV_TIME_BASE };
 
 string MillisecToString(int64_t millisec)

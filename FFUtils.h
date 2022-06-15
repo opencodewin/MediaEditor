@@ -22,6 +22,7 @@ typedef AVCodec*            AVCodecPtr;
 #endif
 
 extern const AVRational MILLISEC_TIMEBASE;
+extern const AVRational MICROSEC_TIMEBASE;
 extern const AVRational FF_AV_TIMEBASE;
 
 std::string MillisecToString(int64_t millisec);
