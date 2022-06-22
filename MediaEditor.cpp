@@ -2082,12 +2082,14 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
     ImGui::SameLine();
     if (ImGui::Button("...##output_path_browse"))
     {
-        ImGuiFileDialog::Instance()->OpenModal("##MediaEditOutputPathDlgKey", ICON_IGFD_FOLDER_OPEN " Output Path", 
-                                                    nullptr,
-                                                    timeline->mOutputPath.empty() ? "." : timeline->mOutputPath,
-                                                    1, 
-                                                    IGFDUserDatas("OutputPath"), 
-                                                    ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_CaseInsensitiveExtention);
+        ImGuiFileDialog::Instance()->OpenDialog("##MediaEditOutputPathDlgKey", ICON_IGFD_FOLDER_OPEN " Output Path", 
+                                                nullptr,
+                                                timeline->mOutputPath.empty() ? "." : timeline->mOutputPath,
+                                                1, 
+                                                IGFDUserDatas("OutputPath"), 
+                                                ImGuiFileDialogFlags_ShowBookmark | 
+                                                ImGuiFileDialogFlags_CaseInsensitiveExtention |
+                                                ImGuiFileDialogFlags_Modal);
     }
 
     // Format Setting
@@ -4951,7 +4953,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
     static bool show_debug = false;
     auto platform_io = ImGui::GetPlatformIO();
     
-    const ImGuiFileDialogFlags fflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_DisableCreateDirectoryButton;
+    const ImGuiFileDialogFlags fflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_DisableCreateDirectoryButton | ImGuiFileDialogFlags_Modal;
     const std::string video_file_dis = "*.mp4 *.mov *.mkv *.avi *.webm *.ts";
     const std::string video_file_suffix = ".mp4,.mov,.mkv,.avi,.webm,.ts";
     const std::string audio_file_dis = "*.wav *.mp3 *.aac *.ogg *.ac3 *.dts";
@@ -4967,7 +4969,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
                                                         audio_filter + "," +
                                                         image_filter + "," +
                                                         ".*";
-    const ImGuiFileDialogFlags pflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_ConfirmOverwrite;
+    const ImGuiFileDialogFlags pflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_ConfirmOverwrite | ImGuiFileDialogFlags_Modal;
     const std::string pfilters = "Project files (*.mep){.mep},.*";
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     static const int numControlPanelTabs = sizeof(ControlPanelTabNames)/sizeof(ControlPanelTabNames[0]);
@@ -5094,7 +5096,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
         if (ImGui::Button(ICON_OPEN_PROJECT "##OpenProject", ImVec2(tool_icon_size, tool_icon_size)))
         {
             // Open Project
-            ImGuiFileDialog::Instance()->OpenModal("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Open Project File", 
+            ImGuiFileDialog::Instance()->OpenDialog("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Open Project File", 
                                                     pfilters.c_str(),
                                                     ".",
                                                     1, 
@@ -5105,7 +5107,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
         if (ImGui::Button(ICON_SAVE_PROJECT "##SaveProject", ImVec2(tool_icon_size, tool_icon_size)))
         {
             // Save Project
-            ImGuiFileDialog::Instance()->OpenModal("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Save Project File", 
+            ImGuiFileDialog::Instance()->OpenDialog("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Save Project File", 
                                                     pfilters.c_str(),
                                                     ".",
                                                     1, 
@@ -5116,7 +5118,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
         if (ImGui::Button(ICON_IGFD_ADD "##AddMedia", ImVec2(tool_icon_size, tool_icon_size)))
         {
             // Open Media Source
-            ImGuiFileDialog::Instance()->OpenModal("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Choose Media File", 
+            ImGuiFileDialog::Instance()->OpenDialog("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Choose Media File", 
                                                     ffilters.c_str(),
                                                     ".",
                                                     1, 
@@ -5354,12 +5356,12 @@ bool Application_Frame(void * handle, bool app_will_quit)
         {
             if (quit_save_confirm || g_media_editor_settings.project_path.empty())
             {
-                ImGuiFileDialog::Instance()->OpenModal("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Save Project File", 
-                                                    pfilters.c_str(),
-                                                    ".",
-                                                    1, 
-                                                    IGFDUserDatas("ProjectSaveQuit"), 
-                                                    pflags);
+                ImGuiFileDialog::Instance()->OpenDialog("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Save Project File", 
+                                                        pfilters.c_str(),
+                                                        ".",
+                                                        1, 
+                                                        IGFDUserDatas("ProjectSaveQuit"), 
+                                                        pflags);
             }
             else
             {
