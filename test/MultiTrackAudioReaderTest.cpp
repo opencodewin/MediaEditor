@@ -80,6 +80,11 @@ public:
         m_readPosInAmat = 0;
     }
 
+    bool GetTimestampMs(int64_t& ts) override
+    {
+        return false;
+    }
+
 private:
     MultiTrackAudioReader* m_audrdr;
     ImGui::ImMat m_amat;

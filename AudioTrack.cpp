@@ -112,7 +112,7 @@ namespace DataLayer
 
     AudioClipHolder AudioTrack::RemoveClipById(int64_t clipId)
     {
-         lock_guard<recursive_mutex> lk(m_apiLock);
+        lock_guard<recursive_mutex> lk(m_apiLock);
         auto iter = find_if(m_clips.begin(), m_clips.end(), [clipId](const AudioClipHolder& clip) {
             return clip->Id() == clipId;
         });
@@ -232,7 +232,7 @@ namespace DataLayer
         m_readSamples = pos*m_outSampleRate/1000;
     }
 
-    void AudioTrack::ReadAudioSamples(uint8_t* buf, uint32_t& size)
+    void AudioTrack::ReadAudioSamples(uint8_t* buf, uint32_t& size, double& pos)
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
         uint32_t readSize = 0;
@@ -249,6 +249,7 @@ namespace DataLayer
             int64_t readPosEnd = (m_readSamples+size/m_frameSize)*1000/m_outSampleRate;
             uint8_t* readbufptr = buf;
             uint32_t toRead, readBytes;
+            pos = (double)readPosBegin/1000.;
             while (readSize < size && m_readOverlapIter != m_overlaps.end() && (*m_readOverlapIter)->Start() < readPosEnd)
             {
                 auto& ovlp = *m_readOverlapIter;
@@ -296,6 +297,7 @@ namespace DataLayer
             int64_t readPosEnd = (m_readSamples-size/m_frameSize)*1000/m_outSampleRate;
             uint8_t* readbufptr = buf;
             uint32_t toRead, readBytes;
+            pos = (double)readPosBegin/1000.;
             while (readSize < size && (m_readOverlapIter != m_overlaps.begin() || readPosBegin > (*m_readOverlapIter)->Start()))
             {
                 auto& ovlp = *m_readOverlapIter;
@@ -312,7 +314,7 @@ namespace DataLayer
                         readBytes = toRead;
                     }
                     readbufptr += readBytes;
-                    m_readSamples += readBytes/m_frameSize;
+                    m_readSamples -= readBytes/m_frameSize;
                     readSize += readBytes;
                 }
                 if (readSize >= size)

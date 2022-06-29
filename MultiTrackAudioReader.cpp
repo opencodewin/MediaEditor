@@ -58,6 +58,7 @@ public:
         m_outSamplesPerFrame = outSamplesPerFrame;
         m_samplePos = 0;
         m_readPos = 0;
+        m_blockSize = outChannels*4;  // for now, output sample format only supports float32 data type, thus 4 bytes per sample.
 
         m_configured = true;
         return true;
@@ -319,6 +320,14 @@ public:
 
         SeekTo(ReadPos());
         return true;
+    }
+
+    int64_t SizeToDuration(uint32_t sizeInByte) override
+    {
+        if (!m_configured)
+            return -1;
+        uint32_t sampleCnt = sizeInByte/m_blockSize;
+        return av_rescale_q(sampleCnt, {1, (int)m_outSampleRate}, MILLISEC_TIMEBASE);
     }
 
     uint32_t TrackCount() const override
@@ -605,7 +614,8 @@ private:
                             }
                             uint32_t toRead = avfrm->linesize[0];
                             auto& track = *iter;
-                            track->ReadAudioSamples(avfrm->data[0], toRead);
+                            double pos;
+                            track->ReadAudioSamples(avfrm->data[0], toRead, pos);
                             if (toRead < avfrm->linesize[0])
                                 memset(avfrm->data[0]+toRead, 0, avfrm->linesize[0]-toRead);
 
@@ -679,6 +689,7 @@ private:
     uint32_t m_outChannels{0};
     uint32_t m_outSampleRate{0};
     int64_t m_outChannelLayout{0};
+    uint32_t m_blockSize{0};
     uint32_t m_outSamplesPerFrame{1024};
     int64_t m_readPos{0};
     bool m_readForward{true};

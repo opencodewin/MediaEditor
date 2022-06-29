@@ -17,6 +17,7 @@ struct MultiTrackAudioReader
     virtual bool SeekTo(int64_t pos) = 0;
     virtual bool ReadAudioSamples(ImGui::ImMat& amat) = 0;
     virtual bool Refresh() = 0;
+    virtual int64_t SizeToDuration(uint32_t sizeInByte) = 0;
 
     virtual int64_t Duration() const = 0;
     virtual int64_t ReadPos() const = 0;

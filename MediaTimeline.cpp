@@ -3604,8 +3604,18 @@ void TimeLine::UpdateCurrent()
 
 ImGui::ImMat TimeLine::GetPreviewFrame()
 {
-    double elapsedTime = std::chrono::duration_cast<std::chrono::duration<double>>((PlayerClock::now() - mPlayTriggerTp)).count();
-    mPreviewPos = mIsPreviewPlaying ? (mIsPreviewForward ? mPreviewResumePos+elapsedTime : mPreviewResumePos-elapsedTime) : mPreviewResumePos;
+    int64_t auddataPos;
+    if (mPcmStream.GetTimestampMs(auddataPos))
+    {
+        int64_t bufferedDur = mMtaReader->SizeToDuration(mAudioRender->GetBufferedDataSize());
+        int64_t audioPos = mIsPreviewForward ? auddataPos-bufferedDur : auddataPos+bufferedDur;
+        mPreviewPos = (double)audioPos/1000.;
+    }
+    else
+    {
+        double elapsedTime = std::chrono::duration_cast<std::chrono::duration<double>>((PlayerClock::now() - mPlayTriggerTp)).count();
+        mPreviewPos = mIsPreviewPlaying ? (mIsPreviewForward ? mPreviewResumePos+elapsedTime : mPreviewResumePos-elapsedTime) : mPreviewResumePos;
+    }
     ImGui::ImMat frame;
     currentTime = (int64_t)(mPreviewPos * 1000);
     if (mIsPreviewPlaying)
@@ -4847,11 +4857,15 @@ uint32_t TimeLine::SimplePcmStream::Read(uint8_t* buff, uint32_t buffSize, bool 
             ImGui::ImMat amat;
             if (!m_areader->ReadAudioSamples(amat))
                 return 0;
-            m_owner->audioPos = (int64_t)(amat.time_stamp*1000);
             m_amat = amat;
             m_owner->CalculateAudioScopeData(m_amat);
             m_readPosInAmat = 0;
         }
+    }
+    if (!m_amat.empty())
+    {
+        m_timestampMs = (int64_t)(m_amat.time_stamp*1000)+m_areader->SizeToDuration(m_readPosInAmat);
+        m_tsValid = true;
     }
     return buffSize;
 }
@@ -4861,6 +4875,7 @@ void TimeLine::SimplePcmStream::Flush()
     std::lock_guard<std::mutex> lk(m_amatLock);
     m_amat.release();
     m_readPosInAmat = 0;
+    m_tsValid = false;
 }
 
 void TimeLine::CalculateAudioScopeData(ImGui::ImMat& mat_in)

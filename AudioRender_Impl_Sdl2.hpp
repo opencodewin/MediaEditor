@@ -18,6 +18,7 @@ public:
     bool Pause() override;
     bool Resume() override;
     void Flush() override;
+    uint32_t GetBufferedDataSize() override;
 
     std::string GetError() const override;
 
@@ -33,4 +34,5 @@ private:
     ByteStream* m_pcmStream{nullptr};
     SDL_AudioDeviceID m_audDevId{0};
     std::string m_errMessage;
+    int64_t m_pcmdataEndTimestamp{0};
 };

@@ -1653,6 +1653,11 @@ private:
             m_frameSize = 0;
         }
 
+        bool GetTimestampMs(int64_t& ts) override
+        {
+            return false;
+        }
+
     private:
         MediaPlayer_FFImpl* m_outterThis;
         AVFrame* m_unconsumedAudfrm{nullptr};

@@ -123,6 +123,13 @@ void AudioRender_Impl_Sdl2::Flush()
         m_pcmStream->Flush();
 }
 
+uint32_t AudioRender_Impl_Sdl2::GetBufferedDataSize()
+{
+    if (m_audDevId > 0)
+        return SDL_GetQueuedAudioSize(m_audDevId);
+    return 0;
+}
+
 string AudioRender_Impl_Sdl2::GetError() const
 {
     return m_errMessage;

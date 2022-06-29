@@ -713,16 +713,27 @@ struct TimeLine
         void SetAudioReader(MultiTrackAudioReader* areader) { m_areader = areader; }
         uint32_t Read(uint8_t* buff, uint32_t buffSize, bool blocking) override;
         void Flush() override;
+        bool GetTimestampMs(int64_t& ts) override
+        {
+            if (m_tsValid)
+            {
+                ts = m_timestampMs;
+                return true;
+            }
+            else
+                return false;
+        }
 
     private:
         TimeLine* m_owner;
         MultiTrackAudioReader* m_areader;
         ImGui::ImMat m_amat;
         uint32_t m_readPosInAmat{0};
+        bool m_tsValid{false};
+        int64_t m_timestampMs{0};
         std::mutex m_amatLock;
     };
     SimplePcmStream mPcmStream;
-    int64_t audioPos{0};
 
     std::mutex mTrackLock;                  // timeline track mutex
     

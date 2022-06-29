@@ -70,6 +70,11 @@ public:
 
     void Flush() override {}
 
+    bool GetTimestampMs(int64_t& ts) override
+    {
+        return false;
+    }
+
 private:
     MediaReader* m_audrdr;
 };

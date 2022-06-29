@@ -31,7 +31,7 @@ class AudioTrack
         std::list<AudioOverlapHolder>::iterator OverlapListEnd() { return m_overlaps.end(); }
 
         void SeekTo(int64_t pos);
-        void ReadAudioSamples(uint8_t* buf, uint32_t& size);
+        void ReadAudioSamples(uint8_t* buf, uint32_t& size, double& pos);
         void SetDirection(bool forward);
 
         int64_t Id() const { return m_id; }
