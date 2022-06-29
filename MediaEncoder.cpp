@@ -1284,6 +1284,7 @@ static void InitializeOptionDescList(AVCodecPtr cdcptr, vector<MediaEncoder::Opt
 {
     ALogger* logger = GetMediaEncoderLogger();
     static vector<MediaEncoder::Option::Description> s_vidcdcOptDescList;
+    static vector<MediaEncoder::Option::Description> s_audcdcOptDescList;
     if (cdcptr->type == AVMEDIA_TYPE_VIDEO)
     {
         if (s_vidcdcOptDescList.empty())
@@ -1338,6 +1339,47 @@ static void InitializeOptionDescList(AVCodecPtr cdcptr, vector<MediaEncoder::Opt
             }
         }
         for (auto& optdesc : s_vidcdcOptDescList)
+            optDescList.push_back(optdesc);
+    }
+    else if (cdcptr->type == AVMEDIA_TYPE_AUDIO)
+    {
+        if (s_audcdcOptDescList.empty())
+        {
+            const AVClass *cc = avcodec_get_class();
+            const AVOption *opt = nullptr;
+            int requairedOptFlags = AV_OPT_FLAG_AUDIO_PARAM | AV_OPT_FLAG_ENCODING_PARAM;
+            static const char* s_audcdcGeneralOptionNames[] = {
+                "profile"
+            };
+            const int optcnt = sizeof(s_audcdcGeneralOptionNames)/sizeof(s_audcdcGeneralOptionNames[0]);
+            for (int i = 0; i < optcnt; i++)
+            {
+                if ((opt = av_opt_find(&cc, s_audcdcGeneralOptionNames[i], nullptr, requairedOptFlags, AV_OPT_SEARCH_CHILDREN | AV_OPT_SEARCH_FAKE_OBJ)))
+                {
+                    MediaEncoder::Option::Description optdesc;
+                    if (ConvertAVOptionToOptionDescription(cdcptr, opt, optdesc))
+                    {
+                        while ((opt = av_opt_next(&cc, opt)))
+                        {
+                            if (opt->type != AV_OPT_TYPE_CONST || !opt->unit || strcmp(opt->unit, optdesc.unit.c_str()))
+                                break;
+                            optdesc.limitType = MediaEncoder::Option::OPLT_ENUM;
+                            MediaEncoder::Option::EnumValue enumval;
+                            ConvertAVOptionToOptionEnumValue(opt, enumval);
+                            auto dupIter = find_if(optdesc.enumValues.begin(), optdesc.enumValues.end(),
+                                [enumval] (const MediaEncoder::Option::EnumValue& v) {
+                                    return v.value == enumval.value;
+                                });
+                            if (dupIter == optdesc.enumValues.end())
+                                optdesc.enumValues.push_back(move(enumval));
+                        }
+
+                        s_audcdcOptDescList.push_back(move(optdesc));
+                    }
+                }
+            }
+        }
+        for (auto& optdesc : s_audcdcOptDescList)
             optDescList.push_back(optdesc);
     }
 }
