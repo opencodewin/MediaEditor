@@ -6,13 +6,17 @@
 
 namespace DataLayer
 {
-    struct VideoTrack
+    class VideoTrack;
+    using VideoTrackHolder = std::shared_ptr<VideoTrack>;
+
+    class VideoTrack
     {
     public:
         VideoTrack(int64_t id, uint32_t outWidth, uint32_t outHeight, const MediaInfo::Ratio& frameRate);
         VideoTrack(const VideoTrack&) = delete;
         VideoTrack(VideoTrack&&) = delete;
         VideoTrack& operator=(const VideoTrack&) = delete;
+        VideoTrackHolder Clone(uint32_t outWidth, uint32_t outHeight, const MediaInfo::Ratio& frameRate);
 
         VideoClipHolder AddNewClip(int64_t clipId, MediaParserHolder hParser, int64_t start, int64_t startOffset, int64_t endOffset, int64_t readPos);
         void InsertClip(VideoClipHolder hClip);
@@ -64,6 +68,4 @@ namespace DataLayer
         int64_t m_duration{0};
         bool m_readForward{true};
     };
-
-    using VideoTrackHolder = std::shared_ptr<VideoTrack>;
 }

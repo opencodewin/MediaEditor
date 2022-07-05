@@ -26,6 +26,23 @@ namespace DataLayer
         m_pcmSizePerSec = m_frameSize*m_outSampleRate;
     }
 
+    AudioTrackHolder AudioTrack::Clone(uint32_t outChannels, uint32_t outSampleRate)
+    {
+        lock_guard<recursive_mutex> lk(m_apiLock);
+        AudioTrackHolder newInstance = AudioTrackHolder(new AudioTrack(m_id, outChannels, outSampleRate));
+        // duplicate the clips
+        for (auto clip : m_clips)
+        {
+            auto newClip = clip->Clone(outChannels, outSampleRate);
+            newInstance->m_clips.push_back(newClip);
+            newClip->SetTrackId(m_id);
+            AudioClipHolder lastClip = newInstance->m_clips.back();
+            newInstance->m_duration = lastClip->Start()+lastClip->Duration();
+            newInstance->UpdateClipOverlap(newClip);
+        }
+        return newInstance;
+    }
+
     AudioClipHolder AudioTrack::AddNewClip(int64_t clipId, MediaParserHolder hParser, int64_t start, int64_t startOffset, int64_t endOffset)
     {
         lock_guard<recursive_mutex> lk(m_apiLock);

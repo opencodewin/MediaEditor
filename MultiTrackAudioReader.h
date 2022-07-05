@@ -8,6 +8,7 @@
 struct MultiTrackAudioReader
 {
     virtual bool Configure(uint32_t outChannels, uint32_t outSampleRate, uint32_t outSamplesPerFrame = 1024) = 0;
+    virtual MultiTrackAudioReader* CloneAndConfigure(uint32_t outChannels, uint32_t outSampleRate, uint32_t outSamplesPerFrame) = 0;
     virtual bool Start() = 0;
     virtual void Close() = 0;
     virtual DataLayer::AudioTrackHolder AddTrack(int64_t trackId) = 0;
@@ -15,7 +16,7 @@ struct MultiTrackAudioReader
     virtual DataLayer::AudioTrackHolder RemoveTrackById(int64_t trackId) = 0;
     virtual bool SetDirection(bool forward) = 0;
     virtual bool SeekTo(int64_t pos) = 0;
-    virtual bool ReadAudioSamples(ImGui::ImMat& amat) = 0;
+    virtual bool ReadAudioSamples(ImGui::ImMat& amat, bool& eof) = 0;
     virtual bool Refresh() = 0;
     virtual int64_t SizeToDuration(uint32_t sizeInByte) = 0;
 

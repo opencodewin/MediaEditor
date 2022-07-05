@@ -216,7 +216,7 @@ public:
         return success;
     }
 
-    bool EncodeVideoFrame(ImGui::ImMat vmat, bool wait) override
+    bool EncodeVideoFrame(ImGui::ImMat& vmat, bool wait) override
     {
         if (!m_opened)
         {
@@ -391,6 +391,11 @@ public:
         return true;
     }
 
+    bool EncodeAudioSamples(ImGui::ImMat& amat, bool wait) override
+    {
+        return EncodeAudioSamples((uint8_t*)amat.data, amat.total()*amat.elemsize, wait);
+    }
+
     bool IsOpened() const override
     {
         return m_opened;
@@ -404,6 +409,13 @@ public:
     bool HasAudio() const override
     {
         return m_audStmIdx >= 0;
+    }
+
+    MediaInfo::Ratio GetVideoFrameRate() const override
+    {
+        if (!m_videncCtx)
+            return {0, 0};
+        return {m_videncCtx->framerate.num, m_videncCtx->framerate.den};
     }
 
     string GetError() const override

@@ -24,6 +24,23 @@ namespace DataLayer
         m_readClipIter = m_clips.begin();
     }
 
+    VideoTrackHolder VideoTrack::Clone(uint32_t outWidth, uint32_t outHeight, const MediaInfo::Ratio& frameRate)
+    {
+        lock_guard<recursive_mutex> lk(m_apiLock);
+        VideoTrackHolder newInstance = VideoTrackHolder(new VideoTrack(m_id, outWidth, outHeight, frameRate));
+        // duplicate the clips
+        for (auto clip : m_clips)
+        {
+            auto newClip = clip->Clone(outWidth, outHeight, frameRate);
+            newInstance->m_clips.push_back(newClip);
+            newClip->SetTrackId(m_id);
+            VideoClipHolder lastClip = newInstance->m_clips.back();
+            newInstance->m_duration = lastClip->Start()+lastClip->Duration();
+            newInstance->UpdateClipOverlap(newClip);
+        }
+        return newInstance;
+    }
+
     VideoClipHolder VideoTrack::AddNewClip(int64_t clipId, MediaParserHolder hParser, int64_t start, int64_t startOffset, int64_t endOffset, int64_t readPos)
     {
         lock_guard<recursive_mutex> lk(m_apiLock);

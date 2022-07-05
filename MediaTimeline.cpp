@@ -3354,6 +3354,15 @@ TimeLine::~TimeLine()
         ReleaseMultiTrackAudioReader(&mMtaReader);
         mMtaReader = nullptr;
     }
+    if (mEncoder)
+    {
+        ReleaseMediaEncoder(&mEncoder);
+        mEncoder = nullptr;
+    }
+    if (mEncodingThread.joinable())
+    {
+        StopEncoding();
+    }
 }
 
 void TimeLine::AlignTime(int64_t& time)
@@ -4855,7 +4864,8 @@ uint32_t TimeLine::SimplePcmStream::Read(uint8_t* buff, uint32_t buffSize, bool 
         if (m_readPosInAmat >= amatTotalDataSize)
         {
             ImGui::ImMat amat;
-            if (!m_areader->ReadAudioSamples(amat))
+            bool eof;
+            if (!m_areader->ReadAudioSamples(amat, eof))
                 return 0;
             m_amat = amat;
             m_owner->CalculateAudioScopeData(m_amat);
@@ -4977,6 +4987,193 @@ void TimeLine::CalculateAudioScopeData(ImGui::ImMat& mat_in)
             }
         }
     }
+}
+
+bool TimeLine::ConfigEncoder(const std::string& outputPath, VideoEncoderParams& vidEncParams, AudioEncoderParams& audEncParams, std::string& errMsg)
+{
+    if (mEncoder)
+    {
+        ReleaseMediaEncoder(&mEncoder);
+        mEncoder = nullptr;
+    }
+    mEncoder = CreateMediaEncoder();
+    if (!mEncoder->Open(outputPath))
+    {
+        errMsg = mEncoder->GetError();
+        return false;
+    }
+    // Video
+    std::string vidEncImgFormat;
+    if (!mEncoder->ConfigureVideoStream(
+        vidEncParams.codecName, vidEncParams.imageFormat, vidEncParams.width, vidEncParams.height,
+        vidEncParams.frameRate, vidEncParams.bitRate, &vidEncParams.extraOpts))
+    {
+        errMsg = mEncoder->GetError();
+        return false;
+    }
+    if (mEncMtvReader)
+    {
+        ReleaseMultiTrackVideoReader(&mEncMtvReader);
+        mEncMtvReader = nullptr;
+    }
+    mEncMtvReader = mMtvReader->CloneAndConfigure(vidEncParams.width, vidEncParams.height, vidEncParams.frameRate);
+    // Audio
+    std::string audEncSmpFormat;
+    if (!mEncoder->ConfigureAudioStream(
+        audEncParams.codecName, audEncParams.sampleFormat, audEncParams.channels,
+        audEncParams.sampleRate, audEncParams.bitRate))
+    {
+        errMsg = mEncoder->GetError();
+        return false;
+    }
+    if (mEncMtaReader)
+    {
+        ReleaseMultiTrackAudioReader(&mEncMtaReader);
+        mEncMtaReader = nullptr;
+    }
+    mEncMtaReader = mMtaReader->CloneAndConfigure(audEncParams.channels, audEncParams.sampleRate, audEncParams.samplesPerFrame);
+    return true;
+}
+
+void TimeLine::StartEncoding()
+{
+    if (mEncodingThread.joinable())
+        return;
+    mEncodeProcErrMsg.clear();
+    mEncodingProgress = 0;
+    mQuitEncoding = false;
+    mIsEncoding = true;
+    mEncodingThread = std::thread(&TimeLine::_EncodeProc, this);
+}
+
+void TimeLine::StopEncoding()
+{
+    if (!mEncodingThread.joinable())
+        return;
+    mQuitEncoding = true;
+    mEncodingThread.join();
+    mEncodingThread = std::thread();
+
+    if (mEncMtvReader)
+    {
+        ReleaseMultiTrackVideoReader(&mEncMtvReader);
+        mEncMtvReader = nullptr;
+    }
+    if (mEncMtaReader)
+    {
+        ReleaseMultiTrackAudioReader(&mEncMtaReader);
+        mEncMtaReader = nullptr;
+    }
+}
+
+void TimeLine::_EncodeProc()
+{
+    Logger::Log(Logger::DEBUG) << ">>>>>>>>>>> Enter encoding proc >>>>>>>>>>>>" << std::endl;
+    mEncoder->Start();
+    bool vidInputEof = false;
+    bool audInputEof = false;
+    double audpos = 0, vidpos = 0;
+    double maxEncodeDuration = 0;
+    uint32_t vidFrameCount = 0;
+    MediaInfo::Ratio outFrameRate = mEncoder->GetVideoFrameRate();
+    ImGui::ImMat vmat, amat;
+    uint32_t pcmbufSize = 8192;
+    uint8_t* pcmbuf = new uint8_t[pcmbufSize];
+    double viddur = (double)mEncMtvReader->Duration()/1000;
+    double dur = (double)ValidDuration()/1000;
+    double encpos = 0;
+    while (!mQuitEncoding && (!vidInputEof || !audInputEof))
+    {
+        if ((!vidInputEof && vidpos <= audpos) || audInputEof)
+        {
+            vidpos = (double)vidFrameCount*outFrameRate.den/outFrameRate.num;
+            vidFrameCount++;
+            bool eof = vidpos >= viddur;
+            if (!eof)
+            {
+                if (!mEncMtvReader->ReadVideoFrame((int64_t)(vidpos*1000), vmat))
+                {
+                    std::ostringstream oss;
+                    oss << "[video] '" << mEncMtvReader->GetError() << "'.";
+                    mEncodeProcErrMsg = oss.str();
+                    break;
+                }
+                vmat.time_stamp = vidpos;
+                if (!mEncoder->EncodeVideoFrame(vmat))
+                {
+                    std::ostringstream oss;
+                    oss << "[video] '" << mEncoder->GetError() << "'.";
+                    mEncodeProcErrMsg = oss.str();
+                    break;
+                }
+                if (vidpos > encpos)
+                {
+                    encpos = vidpos;
+                    mEncodingProgress = encpos/dur;
+                }
+            }
+            else
+            {
+                vmat.release();
+                if (!mEncoder->EncodeVideoFrame(vmat))
+                {
+                    std::ostringstream oss;
+                    oss << "[video] '" << mEncoder->GetError() << "'.";
+                    mEncodeProcErrMsg = oss.str();
+                    break;
+                }
+                vidInputEof = true;
+            }
+        }
+        else
+        {
+            bool eof;
+            uint32_t readSize = pcmbufSize;
+            if (!mEncMtaReader->ReadAudioSamples(amat, eof) && !eof)
+            {
+                std::ostringstream oss;
+                oss << "[audio] '" << mEncMtaReader->GetError() << "'.";
+                mEncodeProcErrMsg = oss.str();
+                break;
+            }
+            audpos = amat.time_stamp;
+            if (!eof)
+            {
+                if (!mEncoder->EncodeAudioSamples(amat))
+                {
+                    std::ostringstream oss;
+                    oss << "[audio] '" << mEncoder->GetError() << "'.";
+                    mEncodeProcErrMsg = oss.str();
+                    break;
+                }
+                if (amat.time_stamp > encpos)
+                {
+                    encpos = amat.time_stamp;
+                    mEncodingProgress = encpos/dur;
+                }
+            }
+            else
+            {
+                amat.release();
+                if (!mEncoder->EncodeAudioSamples(amat))
+                {
+                    std::ostringstream oss;
+                    oss << "[audio] '" << mEncoder->GetError() << "'.";
+                    mEncodeProcErrMsg = oss.str();
+                    break;
+                }
+                audInputEof = true;
+            }
+        }
+    }
+    if (!mQuitEncoding && mEncodeProcErrMsg.empty())
+    {
+        mEncodingProgress = 1;
+    }
+    mEncoder->FinishEncoding();
+    mEncoder->Close();
+    mIsEncoding = false;
+    Logger::Log(Logger::DEBUG) << "<<<<<<<<<<<<< Quit encoding proc <<<<<<<<<<<<<<<<" << std::endl;
 }
 } // namespace MediaTimeline/TimeLine
 

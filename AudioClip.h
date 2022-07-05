@@ -5,6 +5,9 @@
 
 namespace DataLayer
 {
+    class AudioClip;
+    using AudioClipHolder = std::shared_ptr<AudioClip>;
+
     class AudioClip
     {
     public:
@@ -13,6 +16,7 @@ namespace DataLayer
         AudioClip(AudioClip&&) = delete;
         AudioClip& operator=(const AudioClip&) = delete;
         ~AudioClip();
+        AudioClipHolder Clone(uint32_t outChannels, uint32_t outSampleRate) const;
 
         int64_t Id() const { return m_id; }
         int64_t TrackId() const { return m_trackId; }
@@ -50,8 +54,6 @@ namespace DataLayer
         int64_t m_readPos{0};
         bool m_eof{false};
     };
-
-    using AudioClipHolder = std::shared_ptr<AudioClip>;
 
     struct AudioFilter
     {

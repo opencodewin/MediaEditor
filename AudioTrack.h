@@ -6,13 +6,17 @@
 
 namespace DataLayer
 {
-class AudioTrack
-{
+    class AudioTrack;
+    using AudioTrackHolder = std::shared_ptr<AudioTrack>;
+
+    class AudioTrack
+    {
     public:
         AudioTrack(int64_t id, uint32_t outChannels, uint32_t outSampleRate);
         AudioTrack(const AudioTrack&) = delete;
         AudioTrack(AudioTrack&&) = delete;
         AudioTrack& operator=(const AudioTrack&) = delete;
+        AudioTrackHolder Clone(uint32_t outChannels, uint32_t outSampleRate);
 
         AudioClipHolder AddNewClip(int64_t clipId, MediaParserHolder hParser, int64_t start, int64_t startOffset, int64_t endOffset);
         void InsertClip(AudioClipHolder hClip);
@@ -62,6 +66,4 @@ class AudioTrack
         int64_t m_duration{0};
         bool m_readForward{true};
     };
-
-    using AudioTrackHolder = std::shared_ptr<AudioTrack>;
 }

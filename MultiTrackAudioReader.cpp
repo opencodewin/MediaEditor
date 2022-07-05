@@ -64,6 +64,49 @@ public:
         return true;
     }
 
+    MultiTrackAudioReader* CloneAndConfigure(uint32_t outChannels, uint32_t outSampleRate, uint32_t outSamplesPerFrame) override
+    {
+        lock_guard<recursive_mutex> lk(m_apiLock);
+        MultiTrackAudioReader_Impl* newInstance = new MultiTrackAudioReader_Impl();
+        if (!newInstance->Configure(outChannels, outSampleRate, outSamplesPerFrame))
+        {
+            m_errMsg = newInstance->GetError();
+            newInstance->Close(); delete newInstance;
+            return nullptr;
+        }
+
+        lock_guard<recursive_mutex> lk2(m_trackLock);
+        // clone all the tracks
+        for (auto track : m_tracks)
+        {
+            newInstance->m_tracks.push_back(track->Clone(outChannels, outSampleRate));
+        }
+        newInstance->UpdateDuration();
+        // create mixer in the new instance
+        if (!newInstance->CreateMixer())
+        {
+            m_errMsg = newInstance->GetError();
+            newInstance->Close(); delete newInstance;
+            return nullptr;
+        }
+
+        // seek to 0
+        newInstance->m_outputMats.clear();
+        newInstance->m_samplePos = 0;
+        newInstance->m_readPos = 0;
+        for (auto track : newInstance->m_tracks)
+            track->SeekTo(0);
+
+        // start new instance
+        if (!newInstance->Start())
+        {
+            m_errMsg = newInstance->GetError();
+            newInstance->Close(); delete newInstance;
+            return nullptr;
+        }
+        return newInstance;
+    }
+
     bool Start() override
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
@@ -266,8 +309,9 @@ public:
         return true;
     }
 
-    bool ReadAudioSamples(ImGui::ImMat& amat) override
+    bool ReadAudioSamples(ImGui::ImMat& amat, bool& eof) override
     {
+        eof = false;
         lock_guard<recursive_mutex> lk(m_apiLock);
         if (!m_started)
         {
@@ -286,7 +330,6 @@ public:
             m_outputMatsLock.lock();
         }
         lock_guard<mutex> lk2(m_outputMatsLock, adopt_lock);
-        // lock_guard<mutex> lk2(m_outputMatsLock);
         if (m_quit)
         {
             m_errMsg = "This 'MultiTrackAudioReader' instance is quit.";
@@ -294,7 +337,7 @@ public:
         }
         if (m_outputMats.empty() && m_eof)
         {
-            m_errMsg = "EOF";
+            eof = true;
             return false;
         }
 

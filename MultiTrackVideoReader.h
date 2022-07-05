@@ -8,6 +8,7 @@
 struct MultiTrackVideoReader
 {
     virtual bool Configure(uint32_t outWidth, uint32_t outHeight, const MediaInfo::Ratio& frameRate) = 0;
+    virtual MultiTrackVideoReader* CloneAndConfigure(uint32_t outWidth, uint32_t outHeight, const MediaInfo::Ratio& frameRate) = 0;
     virtual bool Start() = 0;
     virtual void Close() = 0;
     virtual DataLayer::VideoTrackHolder AddTrack(int64_t trackId) = 0;

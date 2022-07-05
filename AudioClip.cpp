@@ -41,6 +41,13 @@ namespace DataLayer
         ReleaseMediaReader(&m_srcReader);
     }
 
+    AudioClipHolder AudioClip::Clone(uint32_t outChannels, uint32_t outSampleRate) const
+    {
+        AudioClipHolder newInstance = AudioClipHolder(new AudioClip(
+            m_id, m_srcReader->GetMediaParser(), outChannels, outSampleRate, m_start, m_startOffset, m_endOffset, 0));
+        return newInstance;
+    }
+
     bool AudioClip::IsStartOffsetValid(int64_t startOffset)
     {
         if (startOffset < 0 || startOffset+m_endOffset >= m_srcDuration)

@@ -43,6 +43,40 @@ public:
         return true;
     }
 
+    MultiTrackVideoReader* CloneAndConfigure(uint32_t outWidth, uint32_t outHeight, const MediaInfo::Ratio& frameRate) override
+    {
+        lock_guard<recursive_mutex> lk(m_apiLock);
+        MultiTrackVideoReader_Impl* newInstance = new MultiTrackVideoReader_Impl();
+        if (!newInstance->Configure(outWidth, outHeight, frameRate))
+        {
+            m_errMsg = newInstance->GetError();
+            newInstance->Close(); delete newInstance;
+            return nullptr;
+        }
+
+        lock_guard<recursive_mutex> lk2(m_trackLock);
+        // clone all the tracks
+        for (auto track : m_tracks)
+        {
+            newInstance->m_tracks.push_back(track->Clone(outWidth, outHeight, frameRate));
+        }
+        newInstance->UpdateDuration();
+
+        // seek to 0
+        newInstance->m_outputMats.clear();
+        for (auto track : newInstance->m_tracks)
+            track->SeekTo(0);
+
+        // start new instance
+        if (!newInstance->Start())
+        {
+            m_errMsg = newInstance->GetError();
+            newInstance->Close(); delete newInstance;
+            return nullptr;
+        }
+        return newInstance;
+    }
+
     bool Start() override
     {
         lock_guard<recursive_mutex> lk(m_apiLock);

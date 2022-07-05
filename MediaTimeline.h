@@ -8,6 +8,7 @@
 #include "MediaReader.h"
 #include "MultiTrackVideoReader.h"
 #include "MultiTrackAudioReader.h"
+#include "MediaEncoder.h"
 #include "AudioRender.hpp"
 #include "UI.h"
 #include <thread>
@@ -656,7 +657,43 @@ struct TimeLine
     std::string mAudioCodec {"aac"};
     bool bExportVideo {true};
     bool bExportAudio {true};
-    
+    MediaEncoder* mEncoder {nullptr};
+
+    struct VideoEncoderParams
+    {
+        std::string codecName;
+        std::string imageFormat;
+        uint32_t width;
+        uint32_t height;
+        MediaInfo::Ratio frameRate;
+        uint64_t bitRate;
+        std::vector<MediaEncoder::Option> extraOpts;
+    };
+
+    struct AudioEncoderParams
+    {
+        std::string codecName;
+        std::string sampleFormat;
+        uint32_t channels;
+        uint32_t sampleRate;
+        uint64_t bitRate;
+        uint32_t samplesPerFrame {1024};
+        std::vector<MediaEncoder::Option> extraOpts;
+    };
+
+    MultiTrackVideoReader* mEncMtvReader {nullptr};
+    MultiTrackAudioReader* mEncMtaReader {nullptr};
+
+    bool ConfigEncoder(const std::string& outputPath, VideoEncoderParams& vidEncParams, AudioEncoderParams& audEncParams, std::string& errMsg);
+    void StartEncoding();
+    void StopEncoding();
+    void _EncodeProc();
+    std::thread mEncodingThread;
+    bool mIsEncoding {false};
+    bool mQuitEncoding {false};
+    std::string mEncodeProcErrMsg;
+    float mEncodingProgress;
+
     std::vector<audio_channel_data> m_audio_channel_data;   // timeline audio data replace audio levels
     ImGui::ImMat m_audio_vector;
     ImTextureID m_audio_vector_texture {nullptr};

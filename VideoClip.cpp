@@ -52,6 +52,13 @@ namespace DataLayer
         ReleaseMediaReader(&m_srcReader);
     }
 
+    VideoClipHolder VideoClip::Clone( uint32_t outWidth, uint32_t outHeight, const MediaInfo::Ratio& frameRate) const
+    {
+        VideoClipHolder newInstance = VideoClipHolder(new VideoClip(
+            m_id, m_srcReader->GetMediaParser(), outWidth, outHeight, frameRate, m_start, m_startOffset, m_endOffset, 0));
+        return newInstance;
+    }
+
     bool VideoClip::IsStartOffsetValid(int64_t startOffset)
     {
         if (startOffset < 0 || startOffset+m_endOffset >= m_srcDuration)

@@ -346,6 +346,11 @@ static ImGui::TabLabelStyle * tab_style = &ImGui::TabLabelStyle::Get();
 static MediaEditorSettings g_media_editor_settings;
 static MediaEditorSettings g_new_setting;
 static imgui_json::value g_project;
+static bool g_vidEncSelChanged = true;
+static std::vector<MediaEncoder::EncoderDescription> g_currVidEncDescList;
+static bool g_audEncSelChanged = true;
+static std::vector<MediaEncoder::EncoderDescription> g_currAudEncDescList;
+static std::string g_encoderConfigErrorMessage;
 static bool quit_save_confirm = true;
 
 static int ConfigureIndex = 0;              // default timeline setting
@@ -2022,134 +2027,149 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
     if (!timeline)
         return;
 
-    ImGui::Dummy(ImVec2(0, 20));
-    string value = timeline->mOutputName;
-    if (ImGui::InputText("File Name##output_file_name_string_value", (char*)value.data(), value.size() + 1, ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackResize, [](ImGuiInputTextCallbackData* data) -> int
+    ImGui::SetCursorPos({20, 20});
+    if (ImGui::Button("MAKE VIDEO"))
     {
-        if (data->EventFlag == ImGuiInputTextFlags_CallbackResize)
-        {
-            auto& stringValue = *static_cast<string*>(data->UserData);
-            ImVector<char>* my_str = (ImVector<char>*)data->UserData;
-            IM_ASSERT(stringValue.data() == data->Buf);
-            stringValue.resize(data->BufSize);
-            data->Buf = (char*)stringValue.data();
-        }
-        else if (data->EventFlag == ImGuiInputTextFlags_CallbackEdit)
-        {
-            auto& stringValue = *static_cast<string*>(data->UserData);
-            stringValue = std::string(data->Buf);
-        }
-        return 0;
-    }, &value))
-    {
-        value.resize(strlen(value.c_str()));
-        if (timeline->mOutputName.compare(value) != 0)
-        {
-            timeline->mOutputName = value;
-        }
+        g_encoderConfigErrorMessage.clear();
+        ImGui::OpenPopup("Make Video##MakeVideoDlyKey", ImGuiPopupFlags_NoOpenOverExistingPopup);
     }
-    value = timeline->mOutputPath;
-    if (ImGui::InputText("File Path##output_file_path_string_value", (char*)value.data(), value.size() + 1, ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackResize, [](ImGuiInputTextCallbackData* data) -> int
+    ImGui::Dummy(ImVec2(0, 10));
+    if (ImGui::BeginChild("##Subcp01"))
     {
-        if (data->EventFlag == ImGuiInputTextFlags_CallbackResize)
+        ImGui::Dummy(ImVec2(0, 20));
+        string value = timeline->mOutputName;
+        if (ImGui::InputText("File Name##output_file_name_string_value", (char*)value.data(), value.size() + 1, ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackResize, [](ImGuiInputTextCallbackData* data) -> int
         {
-            auto& stringValue = *static_cast<string*>(data->UserData);
-            ImVector<char>* my_str = (ImVector<char>*)data->UserData;
-            IM_ASSERT(stringValue.data() == data->Buf);
-            stringValue.resize(data->BufSize);
-            data->Buf = (char*)stringValue.data();
-        }
-        else if (data->EventFlag == ImGuiInputTextFlags_CallbackEdit)
+            if (data->EventFlag == ImGuiInputTextFlags_CallbackResize)
+            {
+                auto& stringValue = *static_cast<string*>(data->UserData);
+                ImVector<char>* my_str = (ImVector<char>*)data->UserData;
+                IM_ASSERT(stringValue.data() == data->Buf);
+                stringValue.resize(data->BufSize);
+                data->Buf = (char*)stringValue.data();
+            }
+            else if (data->EventFlag == ImGuiInputTextFlags_CallbackEdit)
+            {
+                auto& stringValue = *static_cast<string*>(data->UserData);
+                stringValue = std::string(data->Buf);
+            }
+            return 0;
+        }, &value))
         {
-            auto& stringValue = *static_cast<string*>(data->UserData);
-            stringValue = std::string(data->Buf);
+            value.resize(strlen(value.c_str()));
+            if (timeline->mOutputName.compare(value) != 0)
+            {
+                timeline->mOutputName = value;
+            }
         }
-        return 0;
-    }, &value))
-    {
-        value.resize(strlen(value.c_str()));
-        if (timeline->mOutputPath.compare(value) != 0)
+        value = timeline->mOutputPath;
+        if (ImGui::InputText("File Path##output_file_path_string_value", (char*)value.data(), value.size() + 1, ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackResize, [](ImGuiInputTextCallbackData* data) -> int
         {
-            timeline->mOutputPath = value;
+            if (data->EventFlag == ImGuiInputTextFlags_CallbackResize)
+            {
+                auto& stringValue = *static_cast<string*>(data->UserData);
+                ImVector<char>* my_str = (ImVector<char>*)data->UserData;
+                IM_ASSERT(stringValue.data() == data->Buf);
+                stringValue.resize(data->BufSize);
+                data->Buf = (char*)stringValue.data();
+            }
+            else if (data->EventFlag == ImGuiInputTextFlags_CallbackEdit)
+            {
+                auto& stringValue = *static_cast<string*>(data->UserData);
+                stringValue = std::string(data->Buf);
+            }
+            return 0;
+        }, &value))
+        {
+            value.resize(strlen(value.c_str()));
+            if (timeline->mOutputPath.compare(value) != 0)
+            {
+                timeline->mOutputPath = value;
+            }
         }
-    }
-    if (ImGui::IsItemHovered() && !timeline->mOutputPath.empty())
-    {
-        ImGui::BeginTooltip();
-        ImGui::TextUnformatted(timeline->mOutputPath.c_str());
-        ImGui::EndTooltip();
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("...##output_path_browse"))
-    {
-        ImGuiFileDialog::Instance()->OpenDialog("##MediaEditOutputPathDlgKey", ICON_IGFD_FOLDER_OPEN " Output Path", 
-                                                nullptr,
-                                                timeline->mOutputPath.empty() ? "." : timeline->mOutputPath,
-                                                1, 
-                                                IGFDUserDatas("OutputPath"), 
-                                                ImGuiFileDialogFlags_ShowBookmark | 
-                                                ImGuiFileDialogFlags_CaseInsensitiveExtention |
-                                                ImGuiFileDialogFlags_Modal);
-    }
+        if (ImGui::IsItemHovered() && !timeline->mOutputPath.empty())
+        {
+            ImGui::BeginTooltip();
+            ImGui::TextUnformatted(timeline->mOutputPath.c_str());
+            ImGui::EndTooltip();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("...##output_path_browse"))
+        {
+            ImGuiFileDialog::Instance()->OpenDialog("##MediaEditOutputPathDlgKey", ICON_IGFD_FOLDER_OPEN " Output Path", 
+                                                    nullptr,
+                                                    timeline->mOutputPath.empty() ? "." : timeline->mOutputPath,
+                                                    1, 
+                                                    IGFDUserDatas("OutputPath"), 
+                                                    ImGuiFileDialogFlags_ShowBookmark | 
+                                                    ImGuiFileDialogFlags_CaseInsensitiveExtention |
+                                                    ImGuiFileDialogFlags_Modal);
+        }
 
-    // Format Setting
-    auto format_getter = [](void* data, int idx, const char** out_text){
-        output_format * formats = (output_format *)data;
-        *out_text = formats[idx].name.c_str();
-        return true;
-    };
-    ImGui::Combo("File Format##file_format", &g_media_editor_settings.OutputFormatIndex, format_getter, (void *)OutFormats, IM_ARRAYSIZE(OutFormats));
+        // Format Setting
+        auto format_getter = [](void* data, int idx, const char** out_text){
+            output_format * formats = (output_format *)data;
+            *out_text = formats[idx].name.c_str();
+            return true;
+        };
+        ImGui::Combo("File Format##file_format", &g_media_editor_settings.OutputFormatIndex, format_getter, (void *)OutFormats, IM_ARRAYSIZE(OutFormats));
 
-    // Video Setting
-    ImGui::Dummy(ImVec2(0, 20));
-    ImGui::Checkbox("Export Video##export_video", &timeline->bExportVideo);
-    ImGui::Separator();
-    if (timeline->bExportVideo) ImGui::BeginDisabled(false); else ImGui::BeginDisabled(true);
-    bool has_bit_rate = false;
-    bool has_gop_size = false;
-    bool has_b_frame = false;
-    auto codec_getter = [](void* data, int idx, const char** out_text){
-        output_codec * codecs = (output_codec *)data;
-        *out_text = codecs[idx].name.c_str();
-        return true;
-    };
-    auto codec_type_getter = [](void* data, int idx, const char** out_text){
-        std::vector<MediaEncoder::EncoderDescription> * codecs = (std::vector<MediaEncoder::EncoderDescription>*)data;
-        *out_text = codecs->at(idx).longName.c_str();
-        return true;
-    };
-    auto codec_option_getter = [](void* data, int idx, const char** out_text){
-        std::vector<MediaEncoder::Option::EnumValue> * profiles = (std::vector<MediaEncoder::Option::EnumValue>*)data;
-        *out_text = profiles->at(idx).name.c_str();
-        return true;
-    };
-    auto color_getter = [](void* data, int idx, const char** out_text){
-        output_color * color = (output_color *)data;
-        *out_text = color[idx].name.c_str();
-        return true;
-    };
-    // video codec select
-    if (ImGui::Combo("Codec##video_codec", &g_media_editor_settings.OutputVideoCodecIndex, codec_getter, (void *)OutputVideoCodec, IM_ARRAYSIZE(OutputVideoCodec)))
-    {
-        g_media_editor_settings.OutputVideoCodecTypeIndex = 0;  // reset codec type if we change codec
-        g_media_editor_settings.OutputVideoCodecProfileIndex = INT32_MIN;
-        g_media_editor_settings.OutputVideoCodecPresetIndex = INT32_MIN;
-        g_media_editor_settings.OutputVideoCodecTuneIndex = INT32_MIN;
-        g_media_editor_settings.OutputVideoCodecCompressionIndex = INT32_MIN;
-    }
+        // Video Setting
+        ImGui::Dummy(ImVec2(0, 20));
+        ImGui::Checkbox("Export Video##export_video", &timeline->bExportVideo);
+        ImGui::Separator();
+        if (timeline->bExportVideo) ImGui::BeginDisabled(false); else ImGui::BeginDisabled(true);
+        bool has_bit_rate = false;
+        bool has_gop_size = false;
+        bool has_b_frame = false;
+        auto codec_getter = [](void* data, int idx, const char** out_text){
+            output_codec * codecs = (output_codec *)data;
+            *out_text = codecs[idx].name.c_str();
+            return true;
+        };
+        auto codec_type_getter = [](void* data, int idx, const char** out_text){
+            std::vector<MediaEncoder::EncoderDescription> * codecs = (std::vector<MediaEncoder::EncoderDescription>*)data;
+            *out_text = codecs->at(idx).longName.c_str();
+            return true;
+        };
+        auto codec_option_getter = [](void* data, int idx, const char** out_text){
+            std::vector<MediaEncoder::Option::EnumValue> * profiles = (std::vector<MediaEncoder::Option::EnumValue>*)data;
+            *out_text = profiles->at(idx).name.c_str();
+            return true;
+        };
+        auto color_getter = [](void* data, int idx, const char** out_text){
+            output_color * color = (output_color *)data;
+            *out_text = color[idx].name.c_str();
+            return true;
+        };
+        // video codec select
+        if (ImGui::Combo("Codec##video_codec", &g_media_editor_settings.OutputVideoCodecIndex, codec_getter, (void *)OutputVideoCodec, IM_ARRAYSIZE(OutputVideoCodec)))
+        {
+            g_vidEncSelChanged = true;
+            g_media_editor_settings.OutputVideoCodecTypeIndex = 0;  // reset codec type if we change codec
+            g_media_editor_settings.OutputVideoCodecProfileIndex = INT32_MIN;
+            g_media_editor_settings.OutputVideoCodecPresetIndex = INT32_MIN;
+            g_media_editor_settings.OutputVideoCodecTuneIndex = INT32_MIN;
+            g_media_editor_settings.OutputVideoCodecCompressionIndex = INT32_MIN;
+        }
 
-    // video codec type select
-    if (OutputVideoCodec[g_media_editor_settings.OutputVideoCodecIndex].name.compare("Uncompressed") == 0)
-    {
-        ImGui::Combo("Codec Type##uncompressed_video_codec", &g_media_editor_settings.OutputVideoCodecTypeIndex, codec_getter, (void *)OutputVideoCodecUncompressed, IM_ARRAYSIZE(OutputVideoCodecUncompressed));
-    }
-    else
-    {
-        string codecHint = OutputVideoCodec[g_media_editor_settings.OutputVideoCodecIndex].codec;
-        std::vector<MediaEncoder::EncoderDescription> encoderDescList;
-        if (MediaEncoder::FindEncoder(codecHint, encoderDescList))
-        {            
-            if (ImGui::Combo("Codec Type##video_codec_type", &g_media_editor_settings.OutputVideoCodecTypeIndex, codec_type_getter, (void *)&encoderDescList, encoderDescList.size()))
+        // video codec type select
+        if (OutputVideoCodec[g_media_editor_settings.OutputVideoCodecIndex].name.compare("Uncompressed") == 0)
+        {
+            ImGui::Combo("Codec Type##uncompressed_video_codec", &g_media_editor_settings.OutputVideoCodecTypeIndex, codec_getter, (void *)OutputVideoCodecUncompressed, IM_ARRAYSIZE(OutputVideoCodecUncompressed));
+        }
+        else
+        {
+            if (g_vidEncSelChanged)
+            {
+                string codecHint = OutputVideoCodec[g_media_editor_settings.OutputVideoCodecIndex].codec;
+                if (!MediaEncoder::FindEncoder(codecHint, g_currVidEncDescList))
+                {
+                    g_currVidEncDescList.clear();
+                }
+                g_vidEncSelChanged = false;
+            }
+            if (ImGui::Combo("Codec Type##video_codec_type", &g_media_editor_settings.OutputVideoCodecTypeIndex, codec_type_getter, (void *)&g_currVidEncDescList, g_currVidEncDescList.size()))
             {
                 g_media_editor_settings.OutputVideoCodecProfileIndex = INT32_MIN;
                 g_media_editor_settings.OutputVideoCodecPresetIndex = INT32_MIN;
@@ -2157,279 +2177,360 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
                 g_media_editor_settings.OutputVideoCodecCompressionIndex = INT32_MIN;
             }
 
-            if (encoderDescList[g_media_editor_settings.OutputVideoCodecTypeIndex].codecName.compare("libx264") == 0 ||
-                encoderDescList[g_media_editor_settings.OutputVideoCodecTypeIndex].codecName.compare("libx264rgb") == 0)
+            if (!g_currVidEncDescList.empty())
             {
-                // libx264 setting
-                if (g_media_editor_settings.OutputVideoCodecProfileIndex == INT32_MIN) g_media_editor_settings.OutputVideoCodecProfileIndex = 1;
-                if (g_media_editor_settings.OutputVideoCodecPresetIndex == INT32_MIN) g_media_editor_settings.OutputVideoCodecPresetIndex = 5;
-                if (g_media_editor_settings.OutputVideoCodecTuneIndex == INT32_MIN) g_media_editor_settings.OutputVideoCodecTuneIndex = 0;
-                ImGui::Combo("Codec Profile##x264_profile", &g_media_editor_settings.OutputVideoCodecProfileIndex, x264_profile, IM_ARRAYSIZE(x264_profile));
-                ImGui::Combo("Codec Preset##x264_preset", &g_media_editor_settings.OutputVideoCodecPresetIndex, x264_preset, IM_ARRAYSIZE(x264_preset));
-                ImGui::Combo("Codec Tune##x264_Tune", &g_media_editor_settings.OutputVideoCodecTuneIndex, x264_tune, IM_ARRAYSIZE(x264_tune));
-                has_bit_rate = has_gop_size = has_b_frame = true;
-            }
-            else if (encoderDescList[g_media_editor_settings.OutputVideoCodecTypeIndex].codecName.compare("libx265") == 0)
-            {
-                // libx265 setting
-                if (g_media_editor_settings.OutputVideoCodecProfileIndex == INT32_MIN) g_media_editor_settings.OutputVideoCodecProfileIndex = 0;
-                if (g_media_editor_settings.OutputVideoCodecPresetIndex == INT32_MIN) g_media_editor_settings.OutputVideoCodecPresetIndex = 5;
-                if (g_media_editor_settings.OutputVideoCodecTuneIndex == INT32_MIN) g_media_editor_settings.OutputVideoCodecTuneIndex = 4;
-                ImGui::Combo("Codec Profile##x265_profile", &g_media_editor_settings.OutputVideoCodecProfileIndex, x265_profile, IM_ARRAYSIZE(x265_profile));
-                ImGui::Combo("Codec Preset##x265_preset", &g_media_editor_settings.OutputVideoCodecPresetIndex, x265_preset, IM_ARRAYSIZE(x265_preset));
-                ImGui::Combo("Codec Tune##x265_Tune", &g_media_editor_settings.OutputVideoCodecTuneIndex, x265_tune, IM_ARRAYSIZE(x265_tune));
-                has_bit_rate = has_gop_size = has_b_frame = true;
-            }
-            else if (encoderDescList[g_media_editor_settings.OutputVideoCodecTypeIndex].codecName.compare("h264_videotoolbox") == 0)
-            {
-                if (g_media_editor_settings.OutputVideoCodecProfileIndex == INT32_MIN) g_media_editor_settings.OutputVideoCodecProfileIndex = 0;
-                ImGui::Combo("Codec Profile##v264_profile", &g_media_editor_settings.OutputVideoCodecProfileIndex, v264_profile, IM_ARRAYSIZE(v264_profile));
-                has_bit_rate = has_gop_size = has_b_frame = true;
-            }
-            else if (encoderDescList[g_media_editor_settings.OutputVideoCodecTypeIndex].codecName.compare("hevc_videotoolbox") == 0)
-            {
-                if (g_media_editor_settings.OutputVideoCodecProfileIndex == INT32_MIN) g_media_editor_settings.OutputVideoCodecProfileIndex = 0;
-                ImGui::Combo("Codec Profile##v265_profile", &g_media_editor_settings.OutputVideoCodecProfileIndex, v265_profile, IM_ARRAYSIZE(v265_profile));
-                has_bit_rate = has_gop_size = has_b_frame = true;
-            }
-            else
-            {
-                for (auto opt : encoderDescList[g_media_editor_settings.OutputVideoCodecTypeIndex].optDescList)
+                if (g_currVidEncDescList[g_media_editor_settings.OutputVideoCodecTypeIndex].codecName.compare("libx264") == 0 ||
+                    g_currVidEncDescList[g_media_editor_settings.OutputVideoCodecTypeIndex].codecName.compare("libx264rgb") == 0)
                 {
-                    if (opt.name.compare("profile") == 0)
+                    // libx264 setting
+                    if (g_media_editor_settings.OutputVideoCodecProfileIndex == INT32_MIN) g_media_editor_settings.OutputVideoCodecProfileIndex = 1;
+                    if (g_media_editor_settings.OutputVideoCodecPresetIndex == INT32_MIN) g_media_editor_settings.OutputVideoCodecPresetIndex = 5;
+                    if (g_media_editor_settings.OutputVideoCodecTuneIndex == INT32_MIN) g_media_editor_settings.OutputVideoCodecTuneIndex = 0;
+                    ImGui::Combo("Codec Profile##x264_profile", &g_media_editor_settings.OutputVideoCodecProfileIndex, x264_profile, IM_ARRAYSIZE(x264_profile));
+                    ImGui::Combo("Codec Preset##x264_preset", &g_media_editor_settings.OutputVideoCodecPresetIndex, x264_preset, IM_ARRAYSIZE(x264_preset));
+                    ImGui::Combo("Codec Tune##x264_Tune", &g_media_editor_settings.OutputVideoCodecTuneIndex, x264_tune, IM_ARRAYSIZE(x264_tune));
+                    has_bit_rate = has_gop_size = has_b_frame = true;
+                }
+                else if (g_currVidEncDescList[g_media_editor_settings.OutputVideoCodecTypeIndex].codecName.compare("libx265") == 0)
+                {
+                    // libx265 setting
+                    if (g_media_editor_settings.OutputVideoCodecProfileIndex == INT32_MIN) g_media_editor_settings.OutputVideoCodecProfileIndex = 0;
+                    if (g_media_editor_settings.OutputVideoCodecPresetIndex == INT32_MIN) g_media_editor_settings.OutputVideoCodecPresetIndex = 5;
+                    if (g_media_editor_settings.OutputVideoCodecTuneIndex == INT32_MIN) g_media_editor_settings.OutputVideoCodecTuneIndex = 4;
+                    ImGui::Combo("Codec Profile##x265_profile", &g_media_editor_settings.OutputVideoCodecProfileIndex, x265_profile, IM_ARRAYSIZE(x265_profile));
+                    ImGui::Combo("Codec Preset##x265_preset", &g_media_editor_settings.OutputVideoCodecPresetIndex, x265_preset, IM_ARRAYSIZE(x265_preset));
+                    ImGui::Combo("Codec Tune##x265_Tune", &g_media_editor_settings.OutputVideoCodecTuneIndex, x265_tune, IM_ARRAYSIZE(x265_tune));
+                    has_bit_rate = has_gop_size = has_b_frame = true;
+                }
+                else if (g_currVidEncDescList[g_media_editor_settings.OutputVideoCodecTypeIndex].codecName.compare("h264_videotoolbox") == 0)
+                {
+                    if (g_media_editor_settings.OutputVideoCodecProfileIndex == INT32_MIN) g_media_editor_settings.OutputVideoCodecProfileIndex = 0;
+                    ImGui::Combo("Codec Profile##v264_profile", &g_media_editor_settings.OutputVideoCodecProfileIndex, v264_profile, IM_ARRAYSIZE(v264_profile));
+                    has_bit_rate = has_gop_size = has_b_frame = true;
+                }
+                else if (g_currVidEncDescList[g_media_editor_settings.OutputVideoCodecTypeIndex].codecName.compare("hevc_videotoolbox") == 0)
+                {
+                    if (g_media_editor_settings.OutputVideoCodecProfileIndex == INT32_MIN) g_media_editor_settings.OutputVideoCodecProfileIndex = 0;
+                    ImGui::Combo("Codec Profile##v265_profile", &g_media_editor_settings.OutputVideoCodecProfileIndex, v265_profile, IM_ARRAYSIZE(v265_profile));
+                    has_bit_rate = has_gop_size = has_b_frame = true;
+                }
+                else
+                {
+                    for (auto opt : g_currVidEncDescList[g_media_editor_settings.OutputVideoCodecTypeIndex].optDescList)
                     {
-                        if (g_media_editor_settings.OutputVideoCodecProfileIndex == INT32_MIN)
+                        if (opt.name.compare("profile") == 0)
                         {
-                            for (int i = 0; i < opt.enumValues.size(); i++)
+                            if (g_media_editor_settings.OutputVideoCodecProfileIndex == INT32_MIN)
                             {
-                                if (opt.defaultValue.numval.i64 == opt.enumValues[i].value)
+                                for (int i = 0; i < opt.enumValues.size(); i++)
                                 {
-                                    g_media_editor_settings.OutputVideoCodecProfileIndex = i;
-                                    break;
+                                    if (opt.defaultValue.numval.i64 == opt.enumValues[i].value)
+                                    {
+                                        g_media_editor_settings.OutputVideoCodecProfileIndex = i;
+                                        break;
+                                    }
                                 }
                             }
+                            ImGui::Combo("Codec Profile##video_codec_profile", &g_media_editor_settings.OutputVideoCodecProfileIndex, codec_option_getter, (void *)&opt.enumValues, opt.enumValues.size());
                         }
-                        ImGui::Combo("Codec Profile##video_codec_profile", &g_media_editor_settings.OutputVideoCodecProfileIndex, codec_option_getter, (void *)&opt.enumValues, opt.enumValues.size());
-                    }
-                    if (opt.name.compare("tune") == 0)
-                    {
-                        if (g_media_editor_settings.OutputVideoCodecTuneIndex == INT32_MIN)
+                        if (opt.name.compare("tune") == 0)
                         {
-                            for (int i = 0; i < opt.enumValues.size(); i++)
+                            if (g_media_editor_settings.OutputVideoCodecTuneIndex == INT32_MIN)
                             {
-                                if (opt.defaultValue.numval.i64 == opt.enumValues[i].value)
+                                for (int i = 0; i < opt.enumValues.size(); i++)
                                 {
-                                    g_media_editor_settings.OutputVideoCodecTuneIndex = i;
-                                    break;
+                                    if (opt.defaultValue.numval.i64 == opt.enumValues[i].value)
+                                    {
+                                        g_media_editor_settings.OutputVideoCodecTuneIndex = i;
+                                        break;
+                                    }
                                 }
                             }
+                            ImGui::Combo("Codec Tune##video_codec_tune", &g_media_editor_settings.OutputVideoCodecTuneIndex, codec_option_getter, (void *)&opt.enumValues, opt.enumValues.size());
                         }
-                        ImGui::Combo("Codec Tune##video_codec_tune", &g_media_editor_settings.OutputVideoCodecTuneIndex, codec_option_getter, (void *)&opt.enumValues, opt.enumValues.size());
-                    }
-                    if (opt.name.compare("preset") == 0 || opt.name.compare("usage") == 0)
-                    {
-                        if (g_media_editor_settings.OutputVideoCodecPresetIndex == INT32_MIN)
+                        if (opt.name.compare("preset") == 0 || opt.name.compare("usage") == 0)
                         {
-                            for (int i = 0; i < opt.enumValues.size(); i++)
+                            if (g_media_editor_settings.OutputVideoCodecPresetIndex == INT32_MIN)
                             {
-                                if (opt.defaultValue.numval.i64 == opt.enumValues[i].value)
+                                for (int i = 0; i < opt.enumValues.size(); i++)
                                 {
-                                    g_media_editor_settings.OutputVideoCodecPresetIndex = i;
-                                    break;
+                                    if (opt.defaultValue.numval.i64 == opt.enumValues[i].value)
+                                    {
+                                        g_media_editor_settings.OutputVideoCodecPresetIndex = i;
+                                        break;
+                                    }
                                 }
                             }
+                            ImGui::Combo("Codec Preset##video_codec_preset", &g_media_editor_settings.OutputVideoCodecPresetIndex, codec_option_getter, (void *)&opt.enumValues, opt.enumValues.size());
                         }
-                        ImGui::Combo("Codec Preset##video_codec_preset", &g_media_editor_settings.OutputVideoCodecPresetIndex, codec_option_getter, (void *)&opt.enumValues, opt.enumValues.size());
-                    }
-                    if (opt.name.compare("compression") == 0 || opt.name.compare("compression_algo") == 0)
-                    {
-                        if (g_media_editor_settings.OutputVideoCodecCompressionIndex == INT32_MIN)
+                        if (opt.name.compare("compression") == 0 || opt.name.compare("compression_algo") == 0)
                         {
-                            for (int i = 0; i < opt.enumValues.size(); i++)
+                            if (g_media_editor_settings.OutputVideoCodecCompressionIndex == INT32_MIN)
                             {
-                                if (opt.defaultValue.numval.i64 == opt.enumValues[i].value)
+                                for (int i = 0; i < opt.enumValues.size(); i++)
                                 {
-                                    g_media_editor_settings.OutputVideoCodecCompressionIndex = i;
-                                    break;
+                                    if (opt.defaultValue.numval.i64 == opt.enumValues[i].value)
+                                    {
+                                        g_media_editor_settings.OutputVideoCodecCompressionIndex = i;
+                                        break;
+                                    }
                                 }
                             }
+                            ImGui::Combo("Codec Compression##video_codec_compression", &g_media_editor_settings.OutputVideoCodecCompressionIndex, codec_option_getter, (void *)&opt.enumValues, opt.enumValues.size());
                         }
-                        ImGui::Combo("Codec Compression##video_codec_compression", &g_media_editor_settings.OutputVideoCodecCompressionIndex, codec_option_getter, (void *)&opt.enumValues, opt.enumValues.size());
-                    }
-                    if (opt.tag.compare("gop size") == 0) has_gop_size = true;
-                    if (opt.tag.compare("b frames") == 0) has_b_frame = true;
-                    if (has_gop_size || has_b_frame)
-                    {
-                        has_bit_rate = true;
+                        if (opt.tag.compare("gop size") == 0) has_gop_size = true;
+                        if (opt.tag.compare("b frames") == 0) has_b_frame = true;
+                        if (has_gop_size || has_b_frame)
+                        {
+                            has_bit_rate = true;
+                        }
                     }
                 }
             }
         }
+
+        // Video codec global
+        ImGui::TextUnformatted("Video Setting: "); ImGui::SameLine(0.f, 0.f);
+        static char buf_res_x[64] = {0}; sprintf(buf_res_x, "%d", g_media_editor_settings.OutputVideoResolutionWidth);
+        static char buf_res_y[64] = {0}; sprintf(buf_res_y, "%d", g_media_editor_settings.OutputVideoResolutionHeight);
+        static char buf_par_x[64] = {0}; sprintf(buf_par_x, "%d", g_media_editor_settings.OutputVideoPixelAspectRatio.num);
+        static char buf_par_y[64] = {0}; sprintf(buf_par_y, "%d", g_media_editor_settings.OutputVideoPixelAspectRatio.den);
+        static char buf_fmr_x[64] = {0}; sprintf(buf_fmr_x, "%d", g_media_editor_settings.OutputVideoFrameRate.num);
+        static char buf_fmr_y[64] = {0}; sprintf(buf_fmr_y, "%d", g_media_editor_settings.OutputVideoFrameRate.den);
+
+        ImGui::Checkbox("as Timeline##video_setting", &g_media_editor_settings.OutputVideoSettingAsTimeline);
+        if (g_media_editor_settings.OutputVideoSettingAsTimeline)
+        {
+            g_media_editor_settings.OutputVideoResolutionIndex = GetResolutionIndex(g_media_editor_settings.VideoWidth, g_media_editor_settings.VideoHeight);
+            g_media_editor_settings.OutputVideoResolutionWidth = g_media_editor_settings.VideoWidth;
+            g_media_editor_settings.OutputVideoResolutionHeight = g_media_editor_settings.VideoHeight;
+            g_media_editor_settings.OutputVideoPixelAspectRatioIndex = GetPixelAspectRatioIndex(g_media_editor_settings.PixelAspectRatio);
+            g_media_editor_settings.OutputVideoPixelAspectRatio = g_media_editor_settings.PixelAspectRatio;
+            g_media_editor_settings.OutputVideoFrameRateIndex = GetVideoFrameIndex(g_media_editor_settings.VideoFrameRate);
+            g_media_editor_settings.OutputVideoFrameRate = g_media_editor_settings.VideoFrameRate;
+            g_media_editor_settings.OutputColorSpaceIndex = g_media_editor_settings.ColorSpaceIndex;
+            g_media_editor_settings.OutputColorTransferIndex = g_media_editor_settings.ColorTransferIndex;
+        }
+        ImGui::BeginDisabled(g_media_editor_settings.OutputVideoSettingAsTimeline);
+            if (ImGui::Combo("Resultion", &g_media_editor_settings.OutputVideoResolutionIndex, resolution_items, IM_ARRAYSIZE(resolution_items)))
+            {
+                SetResolution(g_media_editor_settings.OutputVideoResolutionWidth, g_media_editor_settings.OutputVideoResolutionHeight, g_media_editor_settings.OutputVideoResolutionIndex);
+            }
+            ImGui::BeginDisabled(g_media_editor_settings.OutputVideoResolutionIndex != 0);
+                ImGui::PushItemWidth(60);
+                ImGui::InputText("##Output_Resultion_x", buf_res_x, 64, ImGuiInputTextFlags_CharsDecimal);
+                ImGui::SameLine();
+                ImGui::TextUnformatted("X");
+                ImGui::SameLine();
+                ImGui::InputText("##Output_Resultion_y", buf_res_y, 64, ImGuiInputTextFlags_CharsDecimal);
+                ImGui::PopItemWidth();
+            ImGui::EndDisabled(); // disable if resultion not custom
+            if (g_media_editor_settings.OutputVideoResolutionIndex == 0)
+            {
+                g_media_editor_settings.OutputVideoResolutionWidth = atoi(buf_res_x);
+                g_media_editor_settings.OutputVideoResolutionHeight = atoi(buf_res_y);
+            }
+
+            if (ImGui::Combo("Pixel Aspect Ratio", &g_media_editor_settings.OutputVideoPixelAspectRatioIndex, pixel_aspect_items, IM_ARRAYSIZE(pixel_aspect_items)))
+            {
+                SetPixelAspectRatio(g_media_editor_settings.OutputVideoPixelAspectRatio, g_media_editor_settings.OutputVideoPixelAspectRatioIndex);
+            }
+            ImGui::BeginDisabled(g_media_editor_settings.OutputVideoPixelAspectRatioIndex != 0);
+                ImGui::PushItemWidth(60);
+                ImGui::InputText("##OutputPixelAspectRatio_x", buf_par_x, 64, ImGuiInputTextFlags_CharsDecimal);
+                ImGui::SameLine();
+                ImGui::TextUnformatted(":");
+                ImGui::SameLine();
+                ImGui::InputText("##OutputPixelAspectRatio_y", buf_par_y, 64, ImGuiInputTextFlags_CharsDecimal);
+                ImGui::PopItemWidth();
+            ImGui::EndDisabled(); // disable if pixel aspact ratio is not custom
+            if (g_media_editor_settings.OutputVideoPixelAspectRatioIndex == 0)
+            {
+                g_media_editor_settings.OutputVideoPixelAspectRatio.num = atoi(buf_par_x);
+                g_media_editor_settings.OutputVideoPixelAspectRatio.den = atoi(buf_par_y);
+            }
+
+            if (ImGui::Combo("Video Frame Rate", &g_media_editor_settings.OutputVideoFrameRateIndex, frame_rate_items, IM_ARRAYSIZE(frame_rate_items)))
+            {
+                SetVideoFrameRate(g_media_editor_settings.OutputVideoFrameRate, g_media_editor_settings.OutputVideoFrameRateIndex);
+            }
+            ImGui::BeginDisabled(g_media_editor_settings.OutputVideoFrameRateIndex != 0);
+                ImGui::PushItemWidth(60);
+                ImGui::InputText("##OutputVideoFrameRate_x", buf_fmr_x, 64, ImGuiInputTextFlags_CharsDecimal);
+                ImGui::SameLine();
+                ImGui::TextUnformatted(":");
+                ImGui::SameLine();
+                ImGui::InputText("##OutputVideoFrameRate_y", buf_fmr_y, 64, ImGuiInputTextFlags_CharsDecimal);
+                ImGui::PopItemWidth();
+            ImGui::EndDisabled(); // disable if frame rate is not custom
+            if (g_media_editor_settings.OutputVideoFrameRateIndex == 0)
+            {
+                g_media_editor_settings.OutputVideoFrameRate.num = atoi(buf_fmr_x);
+                g_media_editor_settings.OutputVideoFrameRate.den = atoi(buf_fmr_y);
+            }
+            ImGui::Combo("Color Space", &g_media_editor_settings.OutputColorSpaceIndex, color_getter, (void *)&ColorSpace ,IM_ARRAYSIZE(ColorSpace));
+            ImGui::Combo("Color Transfer", &g_media_editor_settings.OutputColorTransferIndex, color_getter, (void *)&ColorTransfer ,IM_ARRAYSIZE(ColorTransfer));
+        ImGui::EndDisabled(); // disable if param as timline
+
+        if (has_bit_rate)
+        {
+            if (g_media_editor_settings.OutputVideoBitrate == INT32_MIN)
+            {
+                g_media_editor_settings.OutputVideoBitrate = 
+                    (int64_t)g_media_editor_settings.OutputVideoResolutionWidth * (int64_t)g_media_editor_settings.OutputVideoResolutionHeight *
+                    (int64_t)g_media_editor_settings.OutputVideoFrameRate.num / (int64_t)g_media_editor_settings.OutputVideoFrameRate.den / 10;
+            }
+
+            ImGui::InputInt("Bitrate##video", &g_media_editor_settings.OutputVideoBitrate, 1000, 1000000, ImGuiInputTextFlags_EnterReturnsTrue);
+            ImGui::Combo("Bitrate Strategy##video", &g_media_editor_settings.OutputVideoBitrateStrategyindex, "CBR\0VBR\0");
+        }
+        else
+            g_media_editor_settings.OutputVideoBitrate = INT32_MIN;
+        if (has_gop_size)
+        {
+            if (g_media_editor_settings.OutputVideoGOPSize == INT32_MIN)
+                g_media_editor_settings.OutputVideoGOPSize = 12;
+            ImGui::InputInt("GOP Size##video", &g_media_editor_settings.OutputVideoGOPSize, 1, 1, ImGuiInputTextFlags_EnterReturnsTrue);
+        }
+        else
+            g_media_editor_settings.OutputVideoGOPSize = INT32_MIN;
+        if (has_b_frame)
+        {
+            if (g_media_editor_settings.OutputVideoBFrames == INT32_MIN)
+                g_media_editor_settings.OutputVideoBFrames = 2;
+            ImGui::InputInt("B Frames##video", &g_media_editor_settings.OutputVideoBFrames, 1, 1, ImGuiInputTextFlags_EnterReturnsTrue);
+        }
+        else
+            g_media_editor_settings.OutputVideoBFrames = INT32_MIN;
+        ImGui::EndDisabled(); // disable if disable video
+        ImGui::Separator();
+
+        // Audio Setting
+        ImGui::Dummy(ImVec2(0, 20));
+        ImGui::Checkbox("Export Audio##export_audio", &timeline->bExportAudio);
+        ImGui::Separator();
+        if (timeline->bExportAudio) ImGui::BeginDisabled(false); else ImGui::BeginDisabled(true);
+        
+        // audio codec select
+        if (ImGui::Combo("Codec##audio_codec", &g_media_editor_settings.OutputAudioCodecIndex, codec_getter, (void *)OutputAudioCodec, IM_ARRAYSIZE(OutputAudioCodec)))
+        {
+            g_audEncSelChanged = true;
+            g_media_editor_settings.OutputAudioCodecTypeIndex = 0;  // reset codec type if we change codec
+        }
+        // audio codec type select
+        if (OutputAudioCodec[g_media_editor_settings.OutputAudioCodecIndex].name.compare("PCM") == 0)
+        {
+            ImGui::Combo("Codec Type##pcm_audio_codec", &g_media_editor_settings.OutputAudioCodecTypeIndex, codec_getter, (void *)OutputAudioCodecPCM, IM_ARRAYSIZE(OutputAudioCodecPCM));
+        }
+        else
+        {
+            if (g_audEncSelChanged)
+            {
+                std::string codecHint = OutputAudioCodec[g_media_editor_settings.OutputAudioCodecIndex].codec;
+                if (!MediaEncoder::FindEncoder(codecHint, g_currAudEncDescList))
+                {
+                    g_currAudEncDescList.clear();
+                }
+                g_audEncSelChanged = false;
+            }
+
+            ImGui::Combo("Codec Type##audio_codec_type", &g_media_editor_settings.OutputAudioCodecTypeIndex, codec_type_getter, (void *)&g_currAudEncDescList, g_currAudEncDescList.size());
+        }
+        // Audio codec global
+        ImGui::TextUnformatted("Audio Setting: "); ImGui::SameLine(0.f, 0.f);
+        ImGui::Checkbox("as Timeline##audio_setting", &g_media_editor_settings.OutputAudioSettingAsTimeline);
+        if (g_media_editor_settings.OutputAudioSettingAsTimeline)
+        {
+            g_media_editor_settings.OutputAudioSampleRateIndex = GetSampleRateIndex(g_media_editor_settings.AudioSampleRate);
+            g_media_editor_settings.OutputAudioSampleRate = g_media_editor_settings.AudioSampleRate;
+            g_media_editor_settings.OutputAudioChannelsIndex = GetChannelIndex(g_media_editor_settings.AudioChannels);
+            g_media_editor_settings.OutputAudioChannels = g_media_editor_settings.AudioChannels;
+        }
+        ImGui::BeginDisabled(g_media_editor_settings.OutputAudioSettingAsTimeline);
+            if (ImGui::Combo("Audio Sample Rate", &g_media_editor_settings.OutputAudioSampleRateIndex, audio_sample_rate_items, IM_ARRAYSIZE(audio_sample_rate_items)))
+            {
+                SetSampleRate(g_media_editor_settings.OutputAudioSampleRate, g_media_editor_settings.OutputAudioSampleRateIndex);
+            }
+            if (ImGui::Combo("Audio Channels", &g_media_editor_settings.OutputAudioChannelsIndex, audio_channels_items, IM_ARRAYSIZE(audio_channels_items)))
+            {
+                SetAudioChannel(g_media_editor_settings.OutputAudioChannels, g_media_editor_settings.OutputAudioChannelsIndex);
+            }
+        ImGui::EndDisabled(); // disable if param as timline
+        ImGui::EndDisabled(); // disable if no audio
+        ImGui::Separator();
+
+        ImGui::EndChild();
     }
 
-    // Video codec global
-    ImGui::TextUnformatted("Video Setting: "); ImGui::SameLine(0.f, 0.f);
-    static char buf_res_x[64] = {0}; sprintf(buf_res_x, "%d", g_media_editor_settings.OutputVideoResolutionWidth);
-    static char buf_res_y[64] = {0}; sprintf(buf_res_y, "%d", g_media_editor_settings.OutputVideoResolutionHeight);
-    static char buf_par_x[64] = {0}; sprintf(buf_par_x, "%d", g_media_editor_settings.OutputVideoPixelAspectRatio.num);
-    static char buf_par_y[64] = {0}; sprintf(buf_par_y, "%d", g_media_editor_settings.OutputVideoPixelAspectRatio.den);
-    static char buf_fmr_x[64] = {0}; sprintf(buf_fmr_x, "%d", g_media_editor_settings.OutputVideoFrameRate.num);
-    static char buf_fmr_y[64] = {0}; sprintf(buf_fmr_y, "%d", g_media_editor_settings.OutputVideoFrameRate.den);
-
-    ImGui::Checkbox("as Timeline##video_setting", &g_media_editor_settings.OutputVideoSettingAsTimeline);
-    if (g_media_editor_settings.OutputVideoSettingAsTimeline)
+    // Make video dialog
+    if (ImGui::BeginPopupModal("Make Video##MakeVideoDlyKey", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings))
     {
-        g_media_editor_settings.OutputVideoResolutionIndex = GetResolutionIndex(g_media_editor_settings.VideoWidth, g_media_editor_settings.VideoHeight);
-        g_media_editor_settings.OutputVideoResolutionWidth = g_media_editor_settings.VideoWidth;
-        g_media_editor_settings.OutputVideoResolutionHeight = g_media_editor_settings.VideoHeight;
-        g_media_editor_settings.OutputVideoPixelAspectRatioIndex = GetPixelAspectRatioIndex(g_media_editor_settings.PixelAspectRatio);
-        g_media_editor_settings.OutputVideoPixelAspectRatio = g_media_editor_settings.PixelAspectRatio;
-        g_media_editor_settings.OutputVideoFrameRateIndex = GetVideoFrameIndex(g_media_editor_settings.VideoFrameRate);
-        g_media_editor_settings.OutputVideoFrameRate = g_media_editor_settings.VideoFrameRate;
-        g_media_editor_settings.OutputColorSpaceIndex = g_media_editor_settings.ColorSpaceIndex;
-        g_media_editor_settings.OutputColorTransferIndex = g_media_editor_settings.ColorTransferIndex;
-    }
-    ImGui::BeginDisabled(g_media_editor_settings.OutputVideoSettingAsTimeline);
-        if (ImGui::Combo("Resultion", &g_media_editor_settings.OutputVideoResolutionIndex, resolution_items, IM_ARRAYSIZE(resolution_items)))
-        {
-            SetResolution(g_media_editor_settings.OutputVideoResolutionWidth, g_media_editor_settings.OutputVideoResolutionHeight, g_media_editor_settings.OutputVideoResolutionIndex);
-        }
-        ImGui::BeginDisabled(g_media_editor_settings.OutputVideoResolutionIndex != 0);
-            ImGui::PushItemWidth(60);
-            ImGui::InputText("##Output_Resultion_x", buf_res_x, 64, ImGuiInputTextFlags_CharsDecimal);
-            ImGui::SameLine();
-            ImGui::TextUnformatted("X");
-            ImGui::SameLine();
-            ImGui::InputText("##Output_Resultion_y", buf_res_y, 64, ImGuiInputTextFlags_CharsDecimal);
-            ImGui::PopItemWidth();
-        ImGui::EndDisabled(); // disable if resultion not custom
-        if (g_media_editor_settings.OutputVideoResolutionIndex == 0)
-        {
-            g_media_editor_settings.OutputVideoResolutionWidth = atoi(buf_res_x);
-            g_media_editor_settings.OutputVideoResolutionHeight = atoi(buf_res_y);
-        }
+        const ImVec2 lineGap {0, 6};
+        ImGui::TextUnformatted("Output path:"); ImGui::SameLine(0, 10);
+        std::string fullpath = timeline->mOutputPath+"/"+timeline->mOutputName
+            +"."+OutFormats[g_media_editor_settings.OutputFormatIndex].suffix;
+        ImGui::TextColored({0.7, 0.7, 0.7, 1}, "%s", fullpath.c_str());
+        ImGui::Dummy(lineGap);
 
-        if (ImGui::Combo("Pixel Aspect Ratio", &g_media_editor_settings.OutputVideoPixelAspectRatioIndex, pixel_aspect_items, IM_ARRAYSIZE(pixel_aspect_items)))
+        const ImVec2 btnPaddingSize { 30, 14 };
+        std::string btnText;
+        ImVec2 btnTxtSize;
+        btnText = timeline->mIsEncoding ? "Stop encoding " : "Start encoding";
+        btnTxtSize = ImGui::CalcTextSize(btnText.c_str());
+        if (ImGui::Button(btnText.c_str(), btnTxtSize+btnPaddingSize))
         {
-            SetPixelAspectRatio(g_media_editor_settings.OutputVideoPixelAspectRatio, g_media_editor_settings.OutputVideoPixelAspectRatioIndex);
+            if (timeline->mIsEncoding)
+            {
+                timeline->StopEncoding();
+            }
+            else
+            {
+                // config encoders
+                TimeLine::VideoEncoderParams vidEncParams;
+                vidEncParams.codecName = g_currVidEncDescList[g_media_editor_settings.OutputVideoCodecTypeIndex].codecName;
+                vidEncParams.width = g_media_editor_settings.OutputVideoResolutionWidth;
+                vidEncParams.height = g_media_editor_settings.OutputVideoResolutionHeight;
+                vidEncParams.frameRate = g_media_editor_settings.OutputVideoFrameRate;
+                vidEncParams.bitRate = g_media_editor_settings.OutputVideoBitrate;
+                TimeLine::AudioEncoderParams audEncParams;
+                audEncParams.codecName = g_currAudEncDescList[g_media_editor_settings.OutputAudioCodecTypeIndex].codecName;
+                audEncParams.channels = g_media_editor_settings.OutputAudioChannels;
+                audEncParams.sampleRate = g_media_editor_settings.OutputAudioSampleRate;
+                audEncParams.bitRate = 128000;
+                if (timeline->ConfigEncoder(fullpath, vidEncParams, audEncParams, g_encoderConfigErrorMessage))
+                {
+                    timeline->StartEncoding();
+                }
+            }
         }
-        ImGui::BeginDisabled(g_media_editor_settings.OutputVideoPixelAspectRatioIndex != 0);
-            ImGui::PushItemWidth(60);
-            ImGui::InputText("##OutputPixelAspectRatio_x", buf_par_x, 64, ImGuiInputTextFlags_CharsDecimal);
-            ImGui::SameLine();
-            ImGui::TextUnformatted(":");
-            ImGui::SameLine();
-            ImGui::InputText("##OutputPixelAspectRatio_y", buf_par_y, 64, ImGuiInputTextFlags_CharsDecimal);
-            ImGui::PopItemWidth();
-        ImGui::EndDisabled(); // disable if pixel aspact ratio is not custom
-        if (g_media_editor_settings.OutputVideoPixelAspectRatioIndex == 0)
+        ImGui::Dummy(lineGap);
+
+        if (!g_encoderConfigErrorMessage.empty())
         {
-            g_media_editor_settings.OutputVideoPixelAspectRatio.num = atoi(buf_par_x);
-            g_media_editor_settings.OutputVideoPixelAspectRatio.den = atoi(buf_par_y);
+            ImGui::TextColored({1., 0.2, 0.2, 1.}, "%s", g_encoderConfigErrorMessage.c_str());
+            ImGui::Dummy(lineGap);
         }
 
-        if (ImGui::Combo("Video Frame Rate", &g_media_editor_settings.OutputVideoFrameRateIndex, frame_rate_items, IM_ARRAYSIZE(frame_rate_items)))
+        if (!timeline->mEncodeProcErrMsg.empty())
         {
-            SetVideoFrameRate(g_media_editor_settings.OutputVideoFrameRate, g_media_editor_settings.OutputVideoFrameRateIndex);
-        }
-        ImGui::BeginDisabled(g_media_editor_settings.OutputVideoFrameRateIndex != 0);
-            ImGui::PushItemWidth(60);
-            ImGui::InputText("##OutputVideoFrameRate_x", buf_fmr_x, 64, ImGuiInputTextFlags_CharsDecimal);
-            ImGui::SameLine();
-            ImGui::TextUnformatted(":");
-            ImGui::SameLine();
-            ImGui::InputText("##OutputVideoFrameRate_y", buf_fmr_y, 64, ImGuiInputTextFlags_CharsDecimal);
-            ImGui::PopItemWidth();
-        ImGui::EndDisabled(); // disable if frame rate is not custom
-        if (g_media_editor_settings.OutputVideoFrameRateIndex == 0)
-        {
-            g_media_editor_settings.OutputVideoFrameRate.num = atoi(buf_fmr_x);
-            g_media_editor_settings.OutputVideoFrameRate.den = atoi(buf_fmr_y);
-        }
-        ImGui::Combo("Color Space", &g_media_editor_settings.OutputColorSpaceIndex, color_getter, (void *)&ColorSpace ,IM_ARRAYSIZE(ColorSpace));
-        ImGui::Combo("Color Transfer", &g_media_editor_settings.OutputColorTransferIndex, color_getter, (void *)&ColorTransfer ,IM_ARRAYSIZE(ColorTransfer));
-    ImGui::EndDisabled(); // disable if param as timline
-
-    if (has_bit_rate)
-    {
-        if (g_media_editor_settings.OutputVideoBitrate == INT32_MIN)
-        {
-            g_media_editor_settings.OutputVideoBitrate = 
-                (int64_t)g_media_editor_settings.OutputVideoResolutionWidth * (int64_t)g_media_editor_settings.OutputVideoResolutionHeight *
-                (int64_t)g_media_editor_settings.OutputVideoFrameRate.num / (int64_t)g_media_editor_settings.OutputVideoFrameRate.den / 10;
+            ImGui::TextColored({1., 0.5, 0.5, 1.}, "%s", timeline->mEncodeProcErrMsg.c_str());
+            ImGui::Dummy(lineGap);
         }
 
-        ImGui::InputInt("Bitrate##video", &g_media_editor_settings.OutputVideoBitrate, 1000, 1000000, ImGuiInputTextFlags_EnterReturnsTrue);
-        ImGui::Combo("Bitrate Strategy##video", &g_media_editor_settings.OutputVideoBitrateStrategyindex, "CBR\0VBR\0");
-    }
-    else
-        g_media_editor_settings.OutputVideoBitrate = INT32_MIN;
-    if (has_gop_size)
-    {
-        if (g_media_editor_settings.OutputVideoGOPSize == INT32_MIN)
-            g_media_editor_settings.OutputVideoGOPSize = 12;
-        ImGui::InputInt("GOP Size##video", &g_media_editor_settings.OutputVideoGOPSize, 1, 1, ImGuiInputTextFlags_EnterReturnsTrue);
-    }
-    else
-        g_media_editor_settings.OutputVideoGOPSize = INT32_MIN;
-    if (has_b_frame)
-    {
-        if (g_media_editor_settings.OutputVideoBFrames == INT32_MIN)
-            g_media_editor_settings.OutputVideoBFrames = 2;
-        ImGui::InputInt("B Frames##video", &g_media_editor_settings.OutputVideoBFrames, 1, 1, ImGuiInputTextFlags_EnterReturnsTrue);
-    }
-    else
-        g_media_editor_settings.OutputVideoBFrames = INT32_MIN;
-    ImGui::EndDisabled(); // disable if disable video
-    ImGui::Separator();
+        if (timeline->mIsEncoding)
+        {
+            ImGui::TextColored({1., 1, 1, 1.}, "%.2f%%", timeline->mEncodingProgress*100);
+            ImGui::Dummy(lineGap);
+        }
 
-    // Audio Setting
-    ImGui::Dummy(ImVec2(0, 20));
-    ImGui::Checkbox("Export Audio##export_audio", &timeline->bExportAudio);
-    ImGui::Separator();
-    if (timeline->bExportAudio) ImGui::BeginDisabled(false); else ImGui::BeginDisabled(true);
-    
-    // audio codec select
-    if (ImGui::Combo("Codec##audio_codec", &g_media_editor_settings.OutputAudioCodecIndex, codec_getter, (void *)OutputAudioCodec, IM_ARRAYSIZE(OutputAudioCodec)))
-    {
-        g_media_editor_settings.OutputAudioCodecTypeIndex = 0;  // reset codec type if we change codec
+        btnText = "Ok";
+        btnTxtSize = ImGui::CalcTextSize(btnText.c_str());
+        ImGui::BeginDisabled(timeline->mIsEncoding);
+        if (ImGui::Button(btnText.c_str(), btnTxtSize+btnPaddingSize))
+            ImGui::CloseCurrentPopup();
+        ImGui::EndDisabled();
+        ImGui::EndPopup();
     }
-    // audio codec type select
-    if (OutputAudioCodec[g_media_editor_settings.OutputAudioCodecIndex].name.compare("PCM") == 0)
-    {
-        ImGui::Combo("Codec Type##pcm_audio_codec", &g_media_editor_settings.OutputAudioCodecTypeIndex, codec_getter, (void *)OutputAudioCodecPCM, IM_ARRAYSIZE(OutputAudioCodecPCM));
-    }
-    else
-    {
-        string codecHint = OutputAudioCodec[g_media_editor_settings.OutputAudioCodecIndex].codec;
-        std::vector<MediaEncoder::EncoderDescription> encoderDescList;
-        if (MediaEncoder::FindEncoder(codecHint, encoderDescList))
-        {
-            ImGui::Combo("Codec Type##audio_codec_type", &g_media_editor_settings.OutputAudioCodecTypeIndex, codec_type_getter, (void *)&encoderDescList, encoderDescList.size());
-        }
-    }
-    // Audio codec global
-    ImGui::TextUnformatted("Audio Setting: "); ImGui::SameLine(0.f, 0.f);
-    ImGui::Checkbox("as Timeline##audio_setting", &g_media_editor_settings.OutputAudioSettingAsTimeline);
-    if (g_media_editor_settings.OutputAudioSettingAsTimeline)
-    {
-        g_media_editor_settings.OutputAudioSampleRateIndex = GetSampleRateIndex(g_media_editor_settings.AudioSampleRate);
-        g_media_editor_settings.OutputAudioSampleRate = g_media_editor_settings.AudioSampleRate;
-        g_media_editor_settings.OutputAudioChannelsIndex = GetChannelIndex(g_media_editor_settings.AudioChannels);
-        g_media_editor_settings.OutputAudioChannels = g_media_editor_settings.AudioChannels;
-    }
-    ImGui::BeginDisabled(g_media_editor_settings.OutputAudioSettingAsTimeline);
-        if (ImGui::Combo("Audio Sample Rate", &g_media_editor_settings.OutputAudioSampleRateIndex, audio_sample_rate_items, IM_ARRAYSIZE(audio_sample_rate_items)))
-        {
-            SetSampleRate(g_media_editor_settings.OutputAudioSampleRate, g_media_editor_settings.OutputAudioSampleRateIndex);
-        }
-        if (ImGui::Combo("Audio Channels", &g_media_editor_settings.OutputAudioChannelsIndex, audio_channels_items, IM_ARRAYSIZE(audio_channels_items)))
-        {
-            SetAudioChannel(g_media_editor_settings.OutputAudioChannels, g_media_editor_settings.OutputAudioChannelsIndex);
-        }
-    ImGui::EndDisabled(); // disable if param as timline
-    ImGui::EndDisabled(); // disable if no audio
-    ImGui::Separator();
 
     // File dialog
     ImVec2 minSize = ImVec2(600, 600);
@@ -4918,6 +5019,7 @@ void Application_Initialize(void** handle)
     Logger::GetDefaultLogger()->SetShowLevels(Logger::DEBUG);
     // GetMediaReaderLogger()->SetShowLevels(Logger::DEBUG);
     // GetSnapshotGeneratorLogger()->SetShowLevels(Logger::DEBUG);
+    // GetMediaEncoderLogger()->SetShowLevels(Logger::DEBUG);
 #if IMGUI_VULKAN_SHADER
     int gpu = ImGui::get_default_gpu_index();
     m_histogram = new ImGui::Histogram_vulkan(gpu);

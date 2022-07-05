@@ -10,6 +10,9 @@ namespace DataLayer
     struct VideoFilter;
     using VideoFilterHolder = std::shared_ptr<VideoFilter>;
 
+    class VideoClip;
+    using VideoClipHolder = std::shared_ptr<VideoClip>;
+
     class VideoClip
     {
     public:
@@ -21,6 +24,7 @@ namespace DataLayer
         VideoClip(VideoClip&&) = delete;
         VideoClip& operator=(const VideoClip&) = delete;
         ~VideoClip();
+        VideoClipHolder Clone( uint32_t outWidth, uint32_t outHeight, const MediaInfo::Ratio& frameRate) const;
 
         int64_t Id() const { return m_id; }
         int64_t TrackId() const { return m_trackId; }
@@ -62,8 +66,6 @@ namespace DataLayer
         VideoFilterHolder m_filter;
         int64_t m_wakeupRange{500};
     };
-
-    using VideoClipHolder = std::shared_ptr<VideoClip>;
 
     struct VideoFilter
     {
