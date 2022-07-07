@@ -64,7 +64,7 @@ namespace DataLayer
         MediaInfo::Ratio m_frameRate;
         uint32_t m_frameIndex{0};
         VideoFilterHolder m_filter;
-        int64_t m_wakeupRange{500};
+        int64_t m_wakeupRange{1000};
     };
 
     struct VideoFilter
