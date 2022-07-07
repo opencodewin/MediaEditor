@@ -1505,14 +1505,25 @@ private:
     GopDecodeTaskHolder FindNextDecoderTask()
     {
         lock_guard<mutex> lk(m_goptskListReadLocks[1]);
-        GopDecodeTaskHolder nxttsk = nullptr;
-        for (auto& tsk : m_goptskList)
-            if (!tsk->cancel && tsk->demuxing && !tsk->decoding)
+        GopDecodeTaskHolder candidateTask = nullptr;
+        int32_t shortestDistanceToViewWnd = INT32_MAX;
+        for (auto& task : m_goptskList)
+        {
+            if (!task->cancel && task->demuxing && !task->decoding)
             {
-                nxttsk = tsk;
-                break;
+                if (task->IsInView())
+                {
+                    candidateTask = task;
+                    break;
+                }
+                else if (shortestDistanceToViewWnd > task->DistanceToViewWnd())
+                {
+                    candidateTask = task;
+                    shortestDistanceToViewWnd = task->DistanceToViewWnd();
+                }
             }
-        return nxttsk;
+        }
+        return candidateTask;
     }
 
     GopDecodeTaskHolder FindNextSsUpdateTask()
