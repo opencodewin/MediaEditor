@@ -879,7 +879,7 @@ struct TimeLine
 };
 
 bool DrawTimeLine(TimeLine *timeline, bool *expanded);
-bool DrawClipTimeLine(BaseEditingClip * editingClip);
-bool DrawOverlapTimeLine(BaseEditingOverlap * overlap);
+bool DrawClipTimeLine(BaseEditingClip * editingClip, int header_height, int custom_height);
+bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int header_height, int custom_height);
 std::string TimelineMillisecToString(int64_t millisec, int show_millisec = 0);
 } // namespace MediaTimeline
