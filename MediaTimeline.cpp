@@ -2,6 +2,7 @@
 #include "MediaInfo.h"
 #include <imgui_helper.h>
 #include <imgui_extra_widget.h>
+#include <implot.h>
 #include <cmath>
 #include <sstream>
 #include <iomanip>
@@ -984,7 +985,7 @@ void AudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
     if (mWaveform->pcm.size() > 0)
     {
         std::string id_string = "##Waveform@" + std::to_string(mID);
-        drawList->AddRectFilled(leftTop, rightBottom, IM_COL32(128, 128, 128, 128));
+        drawList->AddRectFilled(leftTop, rightBottom, IM_COL32(16, 16, 16, 255));
         drawList->AddRect(leftTop, rightBottom, IM_COL32_BLACK);
         float wave_range = fmax(fabs(mWaveform->minSample), fabs(mWaveform->maxSample));
         int sampleSize = mWaveform->pcm[0].size();
@@ -1003,10 +1004,28 @@ void AudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
             start_offset = start_offset / sample_stride * sample_stride;
             drawList->PushClipRect(leftTop, rightBottom, true);
             ImGui::SetCursorScreenPos(customViewStart);
+            int zoom = ImMin(sample_stride, 32);
+            start_offset = start_offset / zoom * zoom; // align start_offset
+#if 1
+            ImPlot::PushStyleVar(ImPlotStyleVar_PlotPadding, {0, 0});
+            ImPlot::PushStyleVar(ImPlotStyleVar_PlotBorderSize, 0.f);
+            ImPlot::PushStyleColor(ImPlotCol_PlotBg, {0, 0, 0, 0});
+            if (ImPlot::BeginPlot(id_string.c_str(), window_size, ImPlotFlags_CanvasOnly | ImPlotFlags_NoFrame | ImPlotFlags_NoInputs))
+            {
+                std::string plot_id = id_string + "_line";
+                ImPlot::SetupAxes(NULL, NULL, ImPlotAxisFlags_NoDecorations, ImPlotAxisFlags_NoDecorations);
+                ImPlot::SetupAxesLimits(0, window_length / zoom, -wave_range / 2, wave_range / 2, ImGuiCond_Always);
+                ImPlot::PlotLine(plot_id.c_str(), &mWaveform->pcm[0][start_offset], window_length / zoom, 1.0, 0.0, 0, 0, sizeof(float) * zoom);
+                ImPlot::EndPlot();
+            }
+            ImPlot::PopStyleColor();
+            ImPlot::PopStyleVar(2);
+#else
             ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(1.f, 1.f, 0.f, 1.0f));
-            ImGui::PlotLines(id_string.c_str(), &mWaveform->pcm[0][start_offset], window_size.x, 0, nullptr, -wave_range / 2, wave_range / 2, window_size, sizeof(float) * sample_stride, false);
+            ImGui::PlotLines(id_string.c_str(), &mWaveform->pcm[0][start_offset], window_length / zoom, 0, nullptr, -wave_range / 2, wave_range / 2, window_size, sizeof(float) * zoom, false);
             ImGui::PopStyleColor();
             drawList->AddLine(ImVec2(leftTop.x, leftTop.y + draw_size.y / 2), ImVec2(rightBottom.x, leftTop.y + draw_size.y / 2), IM_COL32(255, 255, 255, 128));
+#endif
             drawList->PopClipRect();
         }        
     }
@@ -1690,7 +1709,46 @@ bool EditingAudioClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_fr
 }
 
 void EditingAudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom)
-{}
+{
+    TimeLine * timeline = (TimeLine *)mHandle;
+    if (!timeline)
+        return;
+    auto clip = timeline->FindClipByID(mID);
+    if (!clip)
+        return;
+    AudioClip * aclip = (AudioClip *)clip;
+    if (!aclip->mWaveform || aclip->mWaveform->pcm.size() <= 0)
+        return;
+    MediaOverview::WaveformHolder waveform = aclip->mWaveform;
+    drawList->AddRectFilled(leftTop, rightBottom, IM_COL32(16, 16, 16, 255));
+    drawList->AddRect(leftTop, rightBottom, IM_COL32(128, 128, 128, 255));
+    float wave_range = fmax(fabs(waveform->minSample), fabs(waveform->maxSample));
+    auto window_size = rightBottom - leftTop;
+    window_size.y /= waveform->pcm.size();
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
+    for (int i = 0; i < waveform->pcm.size(); i++)
+    {
+        std::string id_string = "##Waveform_editing@" + std::to_string(mID) + "@" +std::to_string(i);
+        int sampleSize = waveform->pcm[i].size();
+        if (sampleSize <= 0) continue;
+        int sample_stride = sampleSize / window_size.x;
+        int zoom = ImMin(sample_stride, 32);
+        ImPlot::PushStyleVar(ImPlotStyleVar_PlotPadding, {0, 0});
+        ImPlot::PushStyleVar(ImPlotStyleVar_PlotBorderSize, 0.f);
+        ImPlot::PushStyleColor(ImPlotCol_PlotBg, {0, 0, 0, 0});
+        if (ImPlot::BeginPlot(id_string.c_str(), window_size, ImPlotFlags_CanvasOnly | ImPlotFlags_NoFrame | ImPlotFlags_NoInputs))
+        {
+            std::string plot_id = id_string + "_line";
+            ImPlot::SetupAxes(NULL, NULL, ImPlotAxisFlags_NoDecorations, ImPlotAxisFlags_NoDecorations);
+            ImPlot::SetupAxesLimits(0, sampleSize / zoom, -wave_range, wave_range, ImGuiCond_Always);
+            ImPlot::PlotLine(plot_id.c_str(), waveform->pcm[i].data(), sampleSize / zoom, 1.0, 0.0, 0, 0, sizeof(float) * zoom);
+            ImPlot::EndPlot();
+        }
+        ImPlot::PopStyleColor();
+        ImPlot::PopStyleVar(2);
+    }
+    ImGui::PopStyleVar();
+}
 } //namespace MediaTimeline/Clip
 
 namespace MediaTimeline
@@ -5222,26 +5280,26 @@ std::string TimelineMillisecToString(int64_t millisec, int show_millisec)
  ***********************************************************************************************************/
 bool DrawTimeLine(TimeLine *timeline, bool *expanded)
 {
-    /*************************************************************************************************************
-     * [-]------------------------------------ header area ----------------------------------------------------- +
-     *                    |  0    5    10 v   15    20 <rule bar> 30     35      40      45       50       55    c
-     * ___________________|_______________|_____________________________________________________________________ a
-     s | title     [+][-] |               |          Item bar                                                    n
-     l |     legend       |---------------|--------------------------------------------------------------------- v
-     o |                  |               |        custom area                                                   a 
-     t |                  |               |                                                                      s                                            
-     s |__________________|_______________|_____________________________________________________________________ |
-     * | title     [+][-] |               |          Item bar                                                    h
-     * |     legend       |---------------|--------------------------------------------------------------------- e
-     * |                  |               |                                                                      i
-     * |                  |               |        custom area                                                   g
-     * |________________________________________________________________________________________________________ h
-     * | title     [+][-] |               |          Item bar  <compact view>                                    t
-     * |__________________|_______________|_____________________________________________________________________ +
-     *                                                                                                           +
-     *                     [     <==slider==>                                                                  ] +
-     ++++++++++++++++++++++++++++++++++++++++ canvas width +++++++++++++++++++++++++++++++++++++++++++++++++++++++
-     *************************************************************************************************************/
+    /************************************************************************************************************
+    * [-]------------------------------------ header area ----------------------------------------------------- +
+    *                    |  0    5    10 v   15    20 <rule bar> 30     35      40      45       50       55    c
+    * ___________________|_______________|_____________________________________________________________________ a
+    s | title     [+][-] |               |          Item bar                                                    n
+    l |     legend       |---------------|--------------------------------------------------------------------- v
+    o |                  |               |        custom area                                                   a 
+    t |                  |               |                                                                      s                                            
+    s |__________________|_______________|_____________________________________________________________________ |
+    * | title     [+][-] |               |          Item bar                                                    h
+    * |     legend       |---------------|--------------------------------------------------------------------- e
+    * |                  |               |                                                                      i
+    * |                  |               |        custom area                                                   g
+    * |________________________________________________________________________________________________________ h
+    * | title     [+][-] |               |          Item bar  <compact view>                                    t
+    * |__________________|_______________|_____________________________________________________________________ +
+    *                                                                                                           +
+    *                     [     <==slider==>                                                                  ] +
+    ++++++++++++++++++++++++++++++++++++++++ canvas width +++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    *************************************************************************************************************/
     bool ret = false;
     ImGuiIO &io = ImGui::GetIO();
     int cx = (int)(io.MousePos.x);
@@ -6031,9 +6089,9 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         draw_list->PushClipRect(custom_view_rect.Min, custom_view_rect.Max);
         if (trackCount > 0 && timeline->currentTime >= timeline->firstTime && timeline->currentTime <= timeline->GetEnd())
         {
-            static const float cursorWidth = 3.f;
+            static const float cursorWidth = 2.f;
             float cursorOffset = contentMin.x + legendWidth + (timeline->currentTime - timeline->firstTime) * timeline->msPixelWidthTarget + 1;
-            draw_list->AddLine(ImVec2(cursorOffset, contentMin.y), ImVec2(cursorOffset, contentMax.y), IM_COL32(0, 255, 0, 128), cursorWidth);
+            draw_list->AddLine(ImVec2(cursorOffset, contentMin.y), ImVec2(cursorOffset, contentMax.y), IM_COL32(0, 255, 0, 224), cursorWidth);
         }
         draw_list->PopClipRect();
         // alignment line
@@ -6433,15 +6491,15 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
 /***********************************************************************************************************
  * Draw Clip Timeline
  ***********************************************************************************************************/
-bool DrawClipTimeLine(BaseEditingClip * editingClip)
+bool DrawClipTimeLine(BaseEditingClip * editingClip, int header_height, int custom_height)
 {
-    /*************************************************************************************************************
-     |  0    5    10 v   15    20 <rule bar> 30     35      40      45       50       55    c
-     |_______________|_____________________________________________________________________ a
-     |               |        custom area                                                   n 
-     |               |                                                                      v                                            
-     |_______________|_____________________________________________________________________ a
-     ************************************************************************************************************/
+    /***************************************************************************************
+    |  0    5    10 v   15    20 <rule bar> 30     35      40      45       50       55    c
+    |_______________|_____________________________________________________________________ a
+    |               |        custom area                                                   n 
+    |               |                                                                      v                                            
+    |_______________|_____________________________________________________________________ a
+    ****************************************************************************************/
     bool ret = false;
     ImDrawList *draw_list = ImGui::GetWindowDrawList();
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
@@ -6464,8 +6522,6 @@ bool DrawClipTimeLine(BaseEditingClip * editingClip)
     ImGuiIO &io = ImGui::GetIO();
     int cx = (int)(io.MousePos.x);
     int cy = (int)(io.MousePos.y);
-    int headHeight = 30;
-    int customHeight = 50;
     static bool MovingCurrentTime = false;
     bool isFocused = ImGui::IsWindowFocused();
     // modify start/end/offset range
@@ -6474,13 +6530,13 @@ bool DrawClipTimeLine(BaseEditingClip * editingClip)
     int64_t end = start + duration;
 
     ImGui::BeginGroup();
-    ImRect regionRect(window_pos + ImVec2(0, headHeight), window_pos + window_size);
+    ImRect regionRect(window_pos + ImVec2(0, header_height), window_pos + window_size);
     float msPixelWidth = (float)(window_size.x) / (float)duration;
-    ImRect custom_view_rect(window_pos + ImVec2(0, headHeight), window_pos + window_size);
+    ImRect custom_view_rect(window_pos + ImVec2(0, header_height), window_pos + window_size);
 
     //header
     //header time and lines
-    ImVec2 headerSize(window_size.x, (float)headHeight);
+    ImVec2 headerSize(window_size.x, (float)header_height);
     ImGui::InvisibleButton("ClipTimelineBar#filter", headerSize);
     draw_list->AddRectFilled(window_pos, window_pos + headerSize, COL_DARK_ONE, 0);
 
@@ -6520,7 +6576,7 @@ bool DrawClipTimeLine(BaseEditingClip * editingClip)
         bool halfIndex = (i % halfModTime) == 0;
         int px = (int)window_pos.x + int(i * msPixelWidth);
         int tiretStart = baseIndex ? 4 : (halfIndex ? 10 : 14);
-        int tiretEnd = baseIndex ? regionHeight : headHeight;
+        int tiretEnd = baseIndex ? regionHeight : header_height;
         if (px <= (window_size.x + window_pos.x) && px >= window_pos.x)
         {
             draw_list->AddLine(ImVec2((float)px, window_pos.y + (float)tiretStart), ImVec2((float)px, window_pos.y + (float)tiretEnd - 1), halfIndex ? COL_MARK : COL_MARK_HALF, halfIndex ? 2 : 1);
@@ -6535,10 +6591,10 @@ bool DrawClipTimeLine(BaseEditingClip * editingClip)
     };
     for (auto i = 0; i < duration; i+= timeStep)
     {
-        drawLine(i, headHeight);
+        drawLine(i, header_height);
     }
-    drawLine(0, headHeight);
-    drawLine(duration, headHeight);
+    drawLine(0, header_height);
+    drawLine(duration, header_height);
     // cursor Arrow
     const float arrowWidth = draw_list->_Data->FontSize;
     float arrowOffset = window_pos.x + (editingClip->mCurrPos - start) * msPixelWidth - arrowWidth * 0.5f;
@@ -6553,17 +6609,17 @@ bool DrawClipTimeLine(BaseEditingClip * editingClip)
     ImGui::SetWindowFontScale(1.0);
 
     draw_list->PushClipRect(custom_view_rect.Min, custom_view_rect.Max);
-    ImVec2 contentMin(window_pos.x, window_pos.y + (float)headHeight);
-    ImVec2 contentMax(window_pos.x + window_size.x, window_pos.y + (float)headHeight + float(customHeight));
+    ImVec2 contentMin(window_pos.x, window_pos.y + (float)header_height);
+    ImVec2 contentMax(window_pos.x + window_size.x, window_pos.y + (float)header_height + float(custom_height));
 
     // snapshot
     editingClip->DrawContent(draw_list, contentMin, contentMax);
     // draw_list->AddRect(contentMin+ImVec2(3, 3), contentMax+ImVec2(-3, -3), IM_COL32_WHITE);
 
     // cursor line
-    static const float cursorWidth = 3.f;
+    static const float cursorWidth = 2.f;
     float cursorOffset = contentMin.x + (editingClip ->mCurrPos - start) * msPixelWidth - cursorWidth * 0.5f + 1;
-    draw_list->AddLine(ImVec2(cursorOffset, contentMin.y), ImVec2(cursorOffset, contentMax.y), IM_COL32(0, 255, 0, 128), cursorWidth);
+    draw_list->AddLine(ImVec2(cursorOffset, contentMin.y), ImVec2(cursorOffset, contentMax.y), IM_COL32(0, 255, 0, 224), cursorWidth);
     draw_list->PopClipRect();
     ImGui::EndGroup();
 
@@ -6573,18 +6629,18 @@ bool DrawClipTimeLine(BaseEditingClip * editingClip)
 /***********************************************************************************************************
  * Draw Fusion Timeline
  ***********************************************************************************************************/
-bool DrawOverlapTimeLine(BaseEditingOverlap * overlap)
+bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int header_height, int custom_height)
 {
-    /*************************************************************************************************************
-     |  0    5    10 v   15    20 <rule bar> 30     35      40      45       50       55    
-     |_______________|_____________________________________________________________________ c
-     |               |        clip 1 custom area                                            a 
-     |               |                                                                      n                                            
-     |_______________|_____________________________________________________________________ v
-     |               |        clip 2 custom area                                            a 
-     |               |                                                                      s                                           
-     |_______________|_____________________________________________________________________     
-    ************************************************************************************************************/
+    /***************************************************************************************
+    |  0    5    10 v   15    20 <rule bar> 30     35      40      45       50       55    |
+    |_______________|_____________________________________________________________________ c
+    |               |        clip 1 custom area                                            a 
+    |               |                                                                      n                                            
+    |_______________|_____________________________________________________________________ v
+    |               |        clip 2 custom area                                            a 
+    |               |                                                                      s                                           
+    |_______________|_____________________________________________________________________ |    
+    ***************************************************************************************/
     bool ret = false;
     ImDrawList *draw_list = ImGui::GetWindowDrawList();
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
@@ -6606,8 +6662,6 @@ bool DrawOverlapTimeLine(BaseEditingOverlap * overlap)
     ImGuiIO &io = ImGui::GetIO();
     int cx = (int)(io.MousePos.x);
     int cy = (int)(io.MousePos.y);
-    int headHeight = 30;
-    int customHeight = 50;
     static bool MovingCurrentTime = false;
     bool isFocused = ImGui::IsWindowFocused();
     int64_t duration = ImMax(overlap->mOvlp->mEnd-overlap->mOvlp->mStart, (int64_t)1);
@@ -6619,14 +6673,14 @@ bool DrawOverlapTimeLine(BaseEditingOverlap * overlap)
         overlap->mCurrent = end;
 
     ImGui::BeginGroup();
-    ImRect regionRect(window_pos + ImVec2(0, headHeight), window_pos + window_size);
+    ImRect regionRect(window_pos + ImVec2(0, header_height), window_pos + window_size);
     
     float msPixelWidth = (float)(window_size.x) / (float)duration;
-    ImRect custom_view_rect(window_pos + ImVec2(0, headHeight), window_pos + window_size);
+    ImRect custom_view_rect(window_pos + ImVec2(0, header_height), window_pos + window_size);
 
     //header
     //header time and lines
-    ImVec2 headerSize(window_size.x, (float)headHeight);
+    ImVec2 headerSize(window_size.x, (float)header_height);
     ImGui::InvisibleButton("ClipTimelineBar#overlap", headerSize);
     draw_list->AddRectFilled(window_pos, window_pos + headerSize, COL_DARK_ONE, 0);
 
@@ -6667,7 +6721,7 @@ bool DrawOverlapTimeLine(BaseEditingOverlap * overlap)
         bool halfIndex = (i % halfModTime) == 0;
         int px = (int)window_pos.x + int(i * msPixelWidth);
         int tiretStart = baseIndex ? 4 : (halfIndex ? 10 : 14);
-        int tiretEnd = baseIndex ? regionHeight : headHeight;
+        int tiretEnd = baseIndex ? regionHeight : header_height;
         if (px <= (window_size.x + window_pos.x) && px >= window_pos.x)
         {
             draw_list->AddLine(ImVec2((float)px, window_pos.y + (float)tiretStart), ImVec2((float)px, window_pos.y + (float)tiretEnd - 1), halfIndex ? COL_MARK : COL_MARK_HALF, halfIndex ? 2 : 1);
@@ -6682,10 +6736,10 @@ bool DrawOverlapTimeLine(BaseEditingOverlap * overlap)
     };
     for (auto i = 0; i < duration; i+= timeStep)
     {
-        drawLine(i, headHeight);
+        drawLine(i, header_height);
     }
-    drawLine(0, headHeight);
-    drawLine(duration, headHeight);
+    drawLine(0, header_height);
+    drawLine(duration, header_height);
     // cursor Arrow
     const float arrowWidth = draw_list->_Data->FontSize;
     float arrowOffset = window_pos.x + (overlap->mCurrent - start) * msPixelWidth - arrowWidth * 0.5f;
@@ -6700,15 +6754,15 @@ bool DrawOverlapTimeLine(BaseEditingOverlap * overlap)
     ImGui::SetWindowFontScale(1.0);
 
     // snapshot
-    ImVec2 contentMin(window_pos.x, window_pos.y + (float)headHeight);
-    ImVec2 contentMax(window_pos.x + window_size.x, window_pos.y + (float)headHeight + float(customHeight) * 2);
+    ImVec2 contentMin(window_pos.x, window_pos.y + (float)header_height);
+    ImVec2 contentMax(window_pos.x + window_size.x, window_pos.y + (float)header_height + float(custom_height) * 2);
     overlap->DrawContent(draw_list, contentMin, contentMax);
 
     // cursor line
     draw_list->PushClipRect(custom_view_rect.Min, custom_view_rect.Max);
-    static const float cursorWidth = 3.f;
+    static const float cursorWidth = 2.f;
     float cursorOffset = contentMin.x + (overlap->mCurrent - start) * msPixelWidth - cursorWidth * 0.5f + 1;
-    draw_list->AddLine(ImVec2(cursorOffset, contentMin.y), ImVec2(cursorOffset, contentMax.y), IM_COL32(0, 255, 0, 128), cursorWidth);
+    draw_list->AddLine(ImVec2(cursorOffset, contentMin.y), ImVec2(cursorOffset, contentMax.y), IM_COL32(0, 255, 0, 224), cursorWidth);
     draw_list->PopClipRect();
     ImGui::EndGroup();
     return ret;

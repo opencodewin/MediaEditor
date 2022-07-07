@@ -3,6 +3,7 @@
 #include <imgui_helper.h>
 #include <imgui_extra_widget.h>
 #include <imgui_json.h>
+#include <implot.h>
 #include <ImGuiFileDialog.h>
 #include <ImGuiTabWindow.h>
 #if IMGUI_VULKAN_SHADER
@@ -3051,7 +3052,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
         draw_list->AddRectFilled(clip_timeline_window_pos, clip_timeline_window_pos + clip_timeline_window_size, COL_DARK_TWO);
 
         // Draw Clip TimeLine
-        DrawClipTimeLine(timeline->mVidFilterClip);
+        DrawClipTimeLine(timeline->mVidFilterClip, 30, 50);
     }
     ImGui::EndChild();
 }
@@ -3282,7 +3283,7 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
         draw_list->AddRectFilled(clip_timeline_window_pos, clip_timeline_window_pos + clip_timeline_window_size, COL_DARK_TWO);
 
         // Draw Clip TimeLine
-        DrawOverlapTimeLine(timeline->mVidOverlap);
+        DrawOverlapTimeLine(timeline->mVidOverlap, 30, 50);
     }
     ImGui::EndChild();
 }
@@ -3360,8 +3361,6 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list)
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
     draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
-    float clip_timeline_height = 80;
-    float editor_main_height = window_size.y - clip_timeline_height - 4;
     float audio_view_width = window_size.x * 2 / 3;
     float audio_editor_width = window_size.x - audio_view_width;
 
@@ -3383,6 +3382,16 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list)
             timeline->mAudFilterClipLock.unlock();
         }
     }
+
+    float clip_header_height = 30;
+    float clip_channel_height = 50;
+    float clip_timeline_height = clip_header_height;
+    if (editing_clip)
+    {
+        int channels = ((AudioClip *)editing_clip)->mAudioChannels;
+        clip_timeline_height += channels * clip_channel_height;
+    }
+    float editor_main_height = window_size.y - clip_timeline_height - 4;
 
     if (editing_clip && timeline->mAudioFilterBluePrint)
     {
@@ -3419,7 +3428,7 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list)
         draw_list->AddRectFilled(clip_timeline_window_pos, clip_timeline_window_pos + clip_timeline_window_size, COL_DARK_TWO);
 
         // Draw Clip TimeLine
-        DrawClipTimeLine(timeline->mAudFilterClip);
+        DrawClipTimeLine(timeline->mAudFilterClip, clip_header_height, clip_timeline_height - clip_header_height);
     }
     ImGui::EndChild();
 }
@@ -3521,7 +3530,7 @@ static void ShowAudioFusionWindow(ImDrawList *draw_list)
         draw_list->AddRectFilled(fusion_timeline_window_pos, fusion_timeline_window_pos + fusion_timeline_window_size, COL_DARK_TWO);
 
         // Draw Clip TimeLine
-        DrawOverlapTimeLine(nullptr); // TODO:: Add Audio Overlap
+        DrawOverlapTimeLine(nullptr, 30, 50); // TODO:: Add Audio Overlap
     }
     ImGui::EndChild();
 }
@@ -4999,6 +5008,7 @@ void Application_SetupContext(ImGuiContext* ctx)
 
 void Application_Initialize(void** handle)
 {
+    ImPlot::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     ImFontAtlas* atlas = io.Fonts;
     ImFont* font = atlas->Fonts[0];
@@ -5042,6 +5052,7 @@ void Application_Finalize(void** handle)
     if (waveform_texture) { ImGui::ImDestroyTexture(waveform_texture); waveform_texture = nullptr; }
     if (cie_texture) { ImGui::ImDestroyTexture(cie_texture); cie_texture = nullptr; }
     if (vector_texture) { ImGui::ImDestroyTexture(vector_texture); vector_texture = nullptr; }
+    ImPlot::DestroyContext();
 }
 
 bool Application_Frame(void * handle, bool app_will_quit)
