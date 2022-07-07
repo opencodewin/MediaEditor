@@ -1315,8 +1315,9 @@ private:
 
     int64_t CalcSnapshotMts(int32_t index)
     {
-        int32_t frameCount = (int32_t)round(index*m_ssIntvMts/m_vidfrmIntvMts);
-        return (int64_t)round(frameCount*m_vidfrmIntvMts);
+        if (m_ssIntvPts > 0)
+            return CvtVidPtsToMts(index*m_ssIntvPts);
+        return 0;
     }
 
     double CalcSnapshotTimestamp(uint32_t index)
@@ -1360,15 +1361,12 @@ private:
     pair<int32_t, int32_t> CalcSsIndexPairFromPtsPair(const pair<int64_t, int64_t>& ptsPair)
     {
         int64_t mts0 = CvtVidPtsToMts(ptsPair.first);
-        int32_t idx0 = (int32_t)ceil((double)(mts0-m_vidfrmIntvMtsHalf)/m_ssIntvMts);
+        int32_t idx0 = (int32_t)ceil((double)(ptsPair.first-m_vidfrmIntvPtsHalf)/m_ssIntvPts);
         int32_t idx1;
         if (ptsPair.second == INT64_MAX)
             idx1 = m_vidMaxIndex+1;
         else
-        {
-            int64_t mts1 = CvtVidPtsToMts(ptsPair.second);
-            idx1 = (int32_t)ceil((double)(mts1-m_vidfrmIntvMtsHalf)/m_ssIntvMts);
-        }
+            idx1 = (int32_t)ceil((double)(ptsPair.second-m_vidfrmIntvPtsHalf)/m_ssIntvPts);
         if (idx1 == idx0) idx1++;
         return { idx0, idx1 };
     }
@@ -1685,6 +1683,13 @@ private:
                 {
                     auto ptsPair = m_owner->GetSeekPosBySsIndex(buildIdx0);
                     auto ssIdxPair = m_owner->CalcSsIndexPairFromPtsPair(ptsPair);
+                    if (ssIdxPair.second <= buildIdx0)
+                    {
+                        m_logger->Log(WARN) << "Snap window DOESN'T PROCEED! 'buildIdx0'(" << buildIdx0 << ") is NOT INCLUDED in the next 'ssIdxPair'["
+                            << ssIdxPair.first << ", " << ssIdxPair.second << ")." << endl;
+                        buildIdx0++;
+                        continue;
+                    }
                     bool isInView = (snapwnd.IsInView(ssIdxPair.first) && m_owner->IsSsIdxValid(ssIdxPair.first)) ||
                                     (snapwnd.IsInView(ssIdxPair.second) && m_owner->IsSsIdxValid(ssIdxPair.second));
                     int32_t distanceToViewWnd = isInView ? 0 : (ssIdxPair.second <= snapwnd.viewIdx0 ?
@@ -1766,12 +1771,12 @@ private:
     uint32_t m_vidMaxIndex;
     double m_snapWindowSize;
     double m_wndFrmCnt;
-    double m_vidfrmIntvMts;
-    double m_vidfrmIntvMtsHalf;
-    int64_t m_vidfrmIntvPts;
-    int64_t m_vidfrmIntvPtsHalf;
-    double m_ssIntvMts;
-    int64_t m_ssIntvPts;
+    double m_vidfrmIntvMts{0};
+    double m_vidfrmIntvMtsHalf{0};
+    int64_t m_vidfrmIntvPts{0};
+    int64_t m_vidfrmIntvPtsHalf{0};
+    double m_ssIntvMts{0};
+    int64_t m_ssIntvPts{0};
     double m_cacheFactor{10.0};
     uint32_t m_maxCacheSize{0};
     uint32_t m_prevWndCacheSize;
