@@ -121,6 +121,7 @@ MediaItem::MediaItem(const std::string& name, const std::string& path, MEDIA_TYP
     }
     if (mMediaOverview && mMediaOverview->IsOpened())
     {
+        // TODO::Dicky need fix, if open subtitle file, mMediaOverview will set media as video
         mStart = 0;
         if (mMediaOverview->HasVideo() && type != MEDIA_PICTURE)
         {
@@ -133,7 +134,6 @@ MediaItem::MediaItem(const std::string& name, const std::string& path, MEDIA_TYP
         }
         else
         {
-            // image or text? 
             mEnd = 5000;
         }
     }
@@ -3984,6 +3984,13 @@ int TimeLine::GetTrackCount(MEDIA_TYPE type)
     });
 }
 
+int TimeLine::GetEmptyTrackCount()
+{
+    return std::count_if(m_Tracks.begin(), m_Tracks.end(), [&](const MediaTrack * track){
+        return track->m_Clips.size() == 0;
+    });
+}
+
 int64_t TimeLine::NewGroup(Clip * clip)
 {
     if (!clip)
@@ -5328,6 +5335,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
     std::vector<int64_t> groupClipEntry;
     std::vector<int64_t> unGroupClipEntry;
     bool removeEmptyTrack = false;
+    int insertEmptyTrackType = MEDIA_UNKNOWN;
     static bool menuIsOpened = false;
     static bool bCutting = false;
     static bool bCropping = false;
@@ -5767,20 +5775,48 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         {
             ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(255,255,255,255));
             auto selected_clip_count = timeline->GetSelectedClipCount();
-            if (ImGui::MenuItem("Delete Empty Track", nullptr, nullptr))
+            auto empty_track_count = timeline->GetEmptyTrackCount();
+            
+            if (ImGui::MenuItem("+" ICON_MEDIA_VIDEO  " Insert Empty Video Track", nullptr, nullptr))
             {
-                removeEmptyTrack = true;
+                insertEmptyTrackType = MEDIA_VIDEO;
                 menuIsOpened = false;
             }
+            if (ImGui::MenuItem("+" ICON_MEDIA_AUDIO " Insert Empty Audio Track", nullptr, nullptr))
+            {
+                insertEmptyTrackType = MEDIA_AUDIO;
+                menuIsOpened = false;
+            }
+            if (ImGui::MenuItem( "+" ICON_MEDIA_IMAGE " Insert Empty Image Track", nullptr, nullptr))
+            {
+                insertEmptyTrackType = MEDIA_PICTURE;
+                menuIsOpened = false;
+            }
+            if (ImGui::MenuItem( "+" ICON_MEDIA_TEXT " Insert Empty Text Track", nullptr, nullptr))
+            {
+                insertEmptyTrackType = MEDIA_TEXT;
+                menuIsOpened = false;
+            }
+
+            if (empty_track_count > 0)
+            {
+                if (ImGui::MenuItem(" " ICON_MEDIA_DELETE " Delete Empty Track", nullptr, nullptr))
+                {
+                    removeEmptyTrack = true;
+                    menuIsOpened = false;
+                }
+            }
+
             if (clipEntry != -1)
             {
+                ImGui::Separator();
                 auto clip = timeline->FindClipByID(clipEntry);
-                if (ImGui::MenuItem("Delete Clip", nullptr, nullptr))
+                if (ImGui::MenuItem(ICON_MEDIA_DELETE_CLIP " Delete Clip", nullptr, nullptr))
                 {
                     delClipEntry.push_back(clipEntry);
                     menuIsOpened = false;
                 }
-                if (clip->mGroupID != -1 && ImGui::MenuItem("Ungroup Clip", nullptr, nullptr))
+                if (clip->mGroupID != -1 && ImGui::MenuItem(ICON_MEDIA_UNGROUP " Ungroup Clip", nullptr, nullptr))
                 {
                     unGroupClipEntry.push_back(clipEntry);
                     menuIsOpened = false;
@@ -5789,7 +5825,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             if (selected_clip_count > 0)
             {
                 ImGui::Separator();
-                if (ImGui::MenuItem("Delete Selected", nullptr, nullptr))
+                if (ImGui::MenuItem(ICON_MEDIA_DELETE_CLIP " Delete Selected", nullptr, nullptr))
                 {
                     for (auto clip : timeline->m_Clips)
                     {
@@ -5798,7 +5834,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                     }
                     menuIsOpened = false;
                 }
-                if (selected_clip_count > 1 && ImGui::MenuItem("Group Selected", nullptr, nullptr))
+                if (selected_clip_count > 1 && ImGui::MenuItem(ICON_MEDIA_GROUP " Group Selected", nullptr, nullptr))
                 {
                     for (auto clip : timeline->m_Clips)
                     {
@@ -5807,7 +5843,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                     }
                     menuIsOpened = false;
                 }
-                if (ImGui::MenuItem("Ungroup Selected", nullptr, nullptr))
+                if (ImGui::MenuItem(ICON_MEDIA_UNGROUP " Ungroup Selected", nullptr, nullptr))
                 {
                     for (auto clip : timeline->m_Clips)
                     {
@@ -6269,9 +6305,11 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                 else if (item->mMediaType == MEDIA_TEXT)
                 {
                     TextClip * new_text_clip = new TextClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview->GetMediaParser(), timeline);
-                    action["clip_id"] = imgui_json::number(new_text_clip->mID);
                     timeline->m_Clips.push_back(new_text_clip);
-                    // TODO::Dicky add text support
+                    int newTrackIndex = timeline->NewTrack("", MEDIA_TEXT, true);
+                    MediaTrack * newTrack = timeline->m_Tracks[newTrackIndex];
+                    newTrack->InsertClip(new_text_clip, mouseTime);
+                    action["clip_id"] = imgui_json::number(new_text_clip->mID);
                 }
                 else
                 {
@@ -6387,6 +6425,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                         }
                         timeline->mUiActions.push_back(std::move(action2));
                     }
+                    // TODO::Dicky add subtitle stream here?
                 }
                 timeline->mUiActions.push_back(std::move(action));
             }
@@ -6448,6 +6487,26 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         }
     }
 
+    // handle insert event
+    switch(insertEmptyTrackType)
+    {
+        case MEDIA_UNKNOWN: break;
+        case MEDIA_VIDEO:
+            timeline->NewTrack("", MEDIA_VIDEO, true);
+        break;
+        case MEDIA_AUDIO:
+            timeline->NewTrack("", MEDIA_AUDIO, true);
+        break;
+        case MEDIA_PICTURE:
+            timeline->NewTrack("", MEDIA_PICTURE, true);
+        break;
+        case MEDIA_TEXT:
+            timeline->NewTrack("", MEDIA_TEXT, true);
+        break;
+        default:
+        break;
+    }
+    
     // handle group event
     if (groupClipEntry.size() > 0)
     {
