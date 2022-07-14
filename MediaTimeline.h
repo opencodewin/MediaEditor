@@ -26,7 +26,13 @@
 #define ICON_MEDIA_VIDEO    u8"\ue04b"
 #define ICON_MEDIA_AUDIO    u8"\ue050"
 #define ICON_MEDIA_WAVE     u8"\ue495"
+#define ICON_MEDIA_IMAGE    u8"\ue3f4"
+#define ICON_MEDIA_TEXT     u8"\ue8e2"
 #define ICON_MEDIA_DIAGNOSIS u8"\uf551"
+#define ICON_MEDIA_DELETE   u8"\ue92b"
+#define ICON_MEDIA_DELETE_CLIP   u8"\ue92e"
+#define ICON_MEDIA_GROUP    u8"\ue533"
+#define ICON_MEDIA_UNGROUP  u8"\ue552"
 #define ICON_SLIDER_MINIMUM u8"\uf424"
 #define ICON_SLIDER_MAXIMUM u8"\uf422"
 #define ICON_VIEW           u8"\uf06e"
@@ -824,6 +830,7 @@ struct TimeLine
 
     int GetTrackCount() const { return (int)m_Tracks.size(); }
     int GetTrackCount(MEDIA_TYPE type);
+    int GetEmptyTrackCount();
     int NewTrack(const std::string& name, MEDIA_TYPE type, bool expand);
     int64_t DeleteTrack(int index);
     void SelectTrack(int index);
