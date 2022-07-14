@@ -1150,8 +1150,10 @@ MediaInfo::InfoHolder GenerateMediaInfoByAVFormatContext(const AVFormatContext* 
     MediaInfo::InfoHolder hInfo(new MediaInfo::Info());
     hInfo->url = string(avfmtCtx->url);
     double fftb = av_q2d(FF_AV_TIMEBASE);
-    hInfo->duration = avfmtCtx->duration*fftb;
-    hInfo->startTime = avfmtCtx->start_time*fftb;
+    if (avfmtCtx->duration != AV_NOPTS_VALUE)
+        hInfo->duration = avfmtCtx->duration*fftb;
+    if (avfmtCtx->start_time != AV_NOPTS_VALUE)
+        hInfo->startTime = avfmtCtx->start_time*fftb;
     hInfo->streams.reserve(avfmtCtx->nb_streams);
     for (uint32_t i = 0; i < avfmtCtx->nb_streams; i++)
     {
@@ -1227,6 +1229,21 @@ MediaInfo::InfoHolder GenerateMediaInfoByAVFormatContext(const AVFormatContext* 
             audStream->sampleRate = codecpar->sample_rate;
             audStream->bitDepth = av_get_bytes_per_sample((AVSampleFormat)codecpar->format) << 3;
             hStream = MediaInfo::StreamHolder(audStream);
+        }
+        else if (codecpar->codec_type == AVMEDIA_TYPE_SUBTITLE)
+        {
+            auto subStream = new MediaInfo::SubtitleStream();
+            subStream->bitRate = codecpar->bit_rate;
+            if (stream->start_time != AV_NOPTS_VALUE)
+                subStream->startTime = stream->start_time*streamtb;
+            else
+                subStream->startTime = hInfo->startTime;
+            if (stream->duration > 0)
+                subStream->duration = stream->duration*streamtb;
+            else
+                subStream->duration = hInfo->duration;
+            subStream->timebase = MediaInfoRatioFromAVRational(stream->time_base);
+            hStream = MediaInfo::StreamHolder(subStream);
         }
         if (hStream)
             hInfo->streams.push_back(hStream);
