@@ -85,6 +85,11 @@ if(PKG_CONFIG_FOUND)
         libavdevice
     )
     macro_log_feature(FFMPEG_FOUND "FFMpeg" "Multimedia framework" "https://ffmpeg.org" TRUE)
+
+    pkg_check_modules(
+        LIBASS REQUIRED IMPORTED_TARGET
+        libass
+    )
 endif(PKG_CONFIG_FOUND)
 
 macro_display_feature_log()
@@ -309,6 +314,30 @@ target_link_libraries(
 )
 target_include_directories(
     media_encoder_test PRIVATE
+    ${SDL2_INCLUDE_DIRS}
+    ${IMGUI_INCLUDE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+# SubtitleReaderTest
+add_executable(
+    subtitle_reader_test
+    test/SubtitleReaderTest.cpp
+    SubtitleClip.cpp
+    SubtitleTrack.cpp
+    SubtitleTrack_AssImpl.cpp
+    FFUtils.cpp
+    Logger.cpp
+    ${IMGUI_APP_ENTRY_SRC}
+)
+target_link_libraries(
+    subtitle_reader_test
+    ${IMGUI_LIBRARYS}
+    PkgConfig::FFMPEG
+    PkgConfig::LIBASS
+)
+target_include_directories(
+    subtitle_reader_test PRIVATE
     ${SDL2_INCLUDE_DIRS}
     ${IMGUI_INCLUDE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}
