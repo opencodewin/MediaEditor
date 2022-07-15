@@ -5,6 +5,7 @@
 #include "Logger.h"
 #include "SubtitleTrack.h"
 #include "FFUtils.h"
+#include <sstream>
 
 using namespace std;
 using namespace Logger;
@@ -45,7 +46,7 @@ void Application_Initialize(void** handle)
     ifstream docFile(c_bookmarkPath, ios::in);
     if (docFile.is_open())
     {
-        stringstream strStream;
+        std::stringstream strStream;
         strStream << docFile.rdbuf(); //read the file
         ImGuiFileDialog::Instance()->DeserializeBookmarks(strStream.str());
         docFile.close();
@@ -125,7 +126,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
                                 ImGui::TableNextRow();
                                 ImGui::TableSetColumnIndex(0);
                                 char timeColText[128];
-                                snprintf(timeColText, sizeof(timeColText), "%s (+%ld)", MillisecToString(hSubClip->StartTime()).c_str(), hSubClip->Duration());
+                                snprintf(timeColText, sizeof(timeColText), "%s (+%lld)", MillisecToString(hSubClip->StartTime()).c_str(), hSubClip->Duration());
                                 bool isSelected = SelectedSubtitleIndex == row;
                                 if (ImGui::Selectable(timeColText, &isSelected, selectableFlags))
                                 {
