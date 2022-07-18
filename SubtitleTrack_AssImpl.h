@@ -23,15 +23,19 @@ namespace DataLayer
         bool InitAss();
 
         bool SetFrameSize(uint32_t width, uint32_t height) override;
+        bool SetBackgroundColor(const SubtitleClip::Color& color) override;
         bool SetFont(const std::string& font) override;
         bool SetFontScale(double scale) override;
 
-        SubtitleClipHolder GetClip(int64_t ms) override;
+        SubtitleClipHolder GetClipByTime(int64_t ms) override;
         SubtitleClipHolder GetCurrClip() override;
+        SubtitleClipHolder GetPrevClip() override;
         SubtitleClipHolder GetNextClip() override;
+        int32_t GetClipIndex(SubtitleClipHolder clip) const override;
         bool SeekToTime(int64_t ms) override;
         bool SeekToIndex(uint32_t index) override;
         uint32_t ClipCount() const override { return m_clips.size(); }
+        int64_t Duration() const override { return m_duration; }
 
         std::string GetError() const override { return m_errMsg; }
 
@@ -53,9 +57,11 @@ namespace DataLayer
         int64_t m_readPos{0};
         std::list<SubtitleClipHolder> m_clips;
         std::list<SubtitleClipHolder>::iterator m_currIter;
+        int64_t m_duration{-1};
         ASS_Track* m_asstrk{nullptr};
         ASS_Renderer* m_assrnd{nullptr};
         uint32_t m_frmW{0}, m_frmH{0};
+        SubtitleClip::Color m_bgColor{0, 0, 0, 0};
 
         AVFormatContext* m_pAvfmtCtx{nullptr};
         AVCodecContext* m_pAvCdcCtx{nullptr};

@@ -63,11 +63,13 @@ namespace DataLayer
         bool SetFont(const std::string& font);
         bool SetFontScale(double scale);
         void SetTextColor(const Color& color);
+        void SetBackgroundColor(const Color& color);
 
         SubtitleType Type() const { return m_type; }
         std::string Font() const { return m_font; }
         double FontScale() const { return m_fontScale; }
         Color TextColor() const { return m_textColor; }
+        Color BackgroundColor() const { return m_bgColor; }
         int64_t StartTime() const { return m_startTime; }
         int64_t Duration() const { return m_duration; }
         int64_t EndTime() const { return m_startTime+m_duration; }
@@ -79,6 +81,7 @@ namespace DataLayer
         std::string m_font;
         double m_fontScale;
         Color m_textColor;
+        Color m_bgColor{0, 0, 0, 0};
         int64_t m_startTime;
         int64_t m_duration;
         std::string m_text;

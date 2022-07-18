@@ -98,6 +98,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
                                                     ImGuiFileDialogFlags_ShowBookmark |
                                                     ImGuiFileDialogFlags_Modal);
         }
+        auto btnSize = ImGui::GetItemRectSize();
 
         static int SelectedSubtitleIndex = -1;
         if (g_subtrack)
@@ -146,32 +147,62 @@ bool Application_Frame(void * handle, bool app_will_quit)
                 }
                 if (ImGui::BeginTabItem("Render"))
                 {
-                    g_subtrack->SeekToIndex(1);
+                    static uint32_t s_showSubIdx = 0;
+                    static float s_showSubPos = 0;
                     SubtitleClipHolder hSupClip = g_subtrack->GetCurrClip();
                     if (hSupClip)
                     {
                         SubtitleImage subImage = hSupClip->Image();
                         if (subImage.Valid())
                         {
-                            if (ImGui::BeginChild("#SubtitleImage", {0, 0}, false))
+                            auto wndSize = ImGui::GetWindowSize();
+                            auto uiStyle = ImGui::GetStyle();
+                            auto csPos = ImGui::GetCursorPos();
+                            if (ImGui::BeginChild("#SubtitleImage", {0, wndSize.y-csPos.y-btnSize.y-uiStyle.ItemSpacing.y-uiStyle.WindowPadding.y}))
                             {
                                 ImGui::ImMat vmat = subImage.Image();
                                 ImGui::ImMatToTexture(vmat, g_imageTid);
                                 auto dispalySize = ImGui::GetWindowSize();
                                 if (dispalySize.x*vmat.h > dispalySize.y*vmat.w)
-                                {
                                     dispalySize.x = dispalySize.y*vmat.w/vmat.h;
-                                }
                                 else
-                                {
                                     dispalySize.y = dispalySize.x*vmat.h/vmat.w;
-                                }
                                 if (g_imageTid) ImGui::Image(g_imageTid, dispalySize);
                                 ImGui::EndChild();
                             }
                         }
                     }
                     ImGui::EndTabItem();
+
+                    ImGui::BeginGroup();
+                    ImGui::BeginDisabled(s_showSubIdx == 0);
+                    if (ImGui::Button("Prev"))
+                    {
+                        s_showSubIdx--;
+                        hSupClip = g_subtrack->GetPrevClip();
+                        s_showSubPos = (float)hSupClip->StartTime()/1000;
+                    }
+                    ImGui::EndDisabled();
+                    ImGui::SameLine();
+                    ImGui::BeginDisabled(s_showSubIdx >= g_subtrack->ClipCount()-1);
+                    if (ImGui::Button("Next"))
+                    {
+                        s_showSubIdx++;
+                        hSupClip = g_subtrack->GetNextClip();
+                        s_showSubPos = (float)hSupClip->StartTime()/1000;
+                    }
+                    ImGui::EndDisabled();
+                    ImGui::SameLine(0, 10);
+                    std::string durstr = MillisecToString(g_subtrack->Duration());
+                    if (ImGui::SliderFloat(durstr.c_str(), &s_showSubPos, 0, (float)g_subtrack->Duration()/1000, "%.3f", 0))
+                    {
+                        g_subtrack->SeekToTime((int64_t)(s_showSubPos*1000));
+                        hSupClip = g_subtrack->GetCurrClip();
+                        int32_t idx = g_subtrack->GetClipIndex(hSupClip);
+                        if (idx >= 0)
+                            s_showSubIdx = (uint32_t)idx;
+                    }
+                    ImGui::EndGroup();
                 }
                 ImGui::EndTabBar();
             }
@@ -191,6 +222,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
             string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
             g_subtrack = SubtitleTrack::BuildFromFile(0, filePathName);
             g_subtrack->SetFrameSize(1920, 1080);
+            g_subtrack->SetBackgroundColor({0.1, 0.1, 0.1, 1});
         }
         ImGuiFileDialog::Instance()->Close();
     }

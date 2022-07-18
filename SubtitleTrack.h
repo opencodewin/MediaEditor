@@ -13,15 +13,19 @@ namespace DataLayer
     struct SubtitleTrack
     {
         virtual bool SetFrameSize(uint32_t width, uint32_t height) = 0;
+        virtual bool SetBackgroundColor(const SubtitleClip::Color& color) = 0;
         virtual bool SetFont(const std::string& font) = 0;
         virtual bool SetFontScale(double scale) = 0;
 
-        virtual SubtitleClipHolder GetClip(int64_t ms) = 0;
+        virtual SubtitleClipHolder GetClipByTime(int64_t ms) = 0;
         virtual SubtitleClipHolder GetCurrClip() = 0;
+        virtual SubtitleClipHolder GetPrevClip() = 0;
         virtual SubtitleClipHolder GetNextClip() = 0;
+        virtual int32_t GetClipIndex(SubtitleClipHolder clip) const = 0;
         virtual bool SeekToTime(int64_t ms) = 0;
         virtual bool SeekToIndex(uint32_t index) = 0;
         virtual uint32_t ClipCount() const = 0;
+        virtual int64_t Duration() const = 0;
 
         virtual std::string GetError() const = 0;
 

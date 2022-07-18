@@ -1,5 +1,6 @@
 #include <sstream>
 #include <algorithm>
+#include <vector>
 #include "SubtitleTrack_AssImpl.h"
 #include "FFUtils.h"
 extern "C"
@@ -66,6 +67,14 @@ bool SubtitleTrack_AssImpl::SetFrameSize(uint32_t width, uint32_t height)
     return true;
 }
 
+bool SubtitleTrack_AssImpl::SetBackgroundColor(const SubtitleClip::Color& color)
+{
+    m_bgColor = color;
+    for (SubtitleClipHolder clip : m_clips)
+        clip->SetBackgroundColor(color);
+    return true;
+}
+
 bool SubtitleTrack_AssImpl::SetFont(const std::string& font)
 {
     ass_set_fonts(m_assrnd, font.c_str(), NULL, ASS_FONTPROVIDER_AUTODETECT, NULL, 1);
@@ -78,7 +87,7 @@ bool SubtitleTrack_AssImpl::SetFontScale(double scale)
     return true;
 }
 
-SubtitleClipHolder SubtitleTrack_AssImpl::GetClip(int64_t ms)
+SubtitleClipHolder SubtitleTrack_AssImpl::GetClipByTime(int64_t ms)
 {
     if (m_clips.size() <= 0)
         return nullptr;
@@ -130,6 +139,14 @@ SubtitleClipHolder SubtitleTrack_AssImpl::GetCurrClip()
     return *m_currIter;
 }
 
+SubtitleClipHolder SubtitleTrack_AssImpl::GetPrevClip()
+{
+    if (m_currIter == m_clips.begin())
+        return nullptr;
+    m_currIter--;
+    return *m_currIter;
+}
+
 SubtitleClipHolder SubtitleTrack_AssImpl::GetNextClip()
 {
     if (m_currIter == m_clips.end())
@@ -138,6 +155,24 @@ SubtitleClipHolder SubtitleTrack_AssImpl::GetNextClip()
     if (m_currIter == m_clips.end())
         return nullptr;
     return *m_currIter;
+}
+
+int32_t SubtitleTrack_AssImpl::GetClipIndex(SubtitleClipHolder clip) const
+{
+    if (!clip)
+        return -1;
+    int32_t idx = 0;
+    auto iter = m_clips.begin();
+    while (iter != m_clips.end())
+    {
+        if (*iter == clip)
+            break;
+        idx++;
+        iter++;
+    }
+    if (iter == m_clips.end())
+        return -1;
+    return idx;
 }
 
 bool SubtitleTrack_AssImpl::SeekToTime(int64_t ms)
@@ -368,7 +403,13 @@ bool SubtitleTrack_AssImpl::ReadFile(const string& path)
             ASS_Event* e = m_asstrk->events+i;
             SubtitleClipHolder hSubClip(new SubtitleClip(ASS, e->Start, e->Duration, e->Text));
             hSubClip->SetRenderCallback(bind(&SubtitleTrack_AssImpl::RenderSubtitle, this, _1));
+            hSubClip->SetBackgroundColor(m_bgColor);
             m_clips.push_back(hSubClip);
+        }
+        if (!m_clips.empty())
+        {
+            auto last = m_clips.back();
+            m_duration = last->EndTime();
         }
     }
     return success;
@@ -388,6 +429,36 @@ void SubtitleTrack_AssImpl::ReleaseFFContext()
     }
 }
 
+template <typename T>
+class WrapperAlloc: public allocator<T>
+{
+public:
+    WrapperAlloc(void* buf=0) throw(): allocator<T>(), m_buf(buf) {}
+    WrapperAlloc(const WrapperAlloc& a) throw(): allocator<T>(a) { m_buf = a.m_buf; }
+    ~WrapperAlloc() {}
+
+    typedef size_t size_type;
+    typedef T* pointer;
+    typedef const T* const_pointer;
+
+    template<typename _Tp1>
+    struct rebind
+    {
+        typedef WrapperAlloc<_Tp1> other;
+    };
+
+    pointer allocate(size_type n, const void* hint=0)
+    {
+        char* p = new (m_buf) char[n*sizeof(T)];
+        return (T*)p;
+    }
+
+    void deallocate(pointer p, size_type n) {}
+
+private:
+    void* m_buf;
+};
+
 SubtitleImage SubtitleTrack_AssImpl::RenderSubtitle(SubtitleClip* clip)
 {
     int detectChange = 0;
@@ -396,10 +467,16 @@ SubtitleImage SubtitleTrack_AssImpl::RenderSubtitle(SubtitleClip* clip)
         return SubtitleImage();
     ImGui::ImMat vmat;
     vmat.create_type((int)m_frmW, (int)m_frmH, 4, IM_DT_INT8);
-    memset(vmat.data, 25, vmat.total()*vmat.elemsize);
-    // const uint32_t color = assImage->color;
+    vmat.color_format = IM_CF_RGBA;
+    uint32_t color;
+    const SubtitleClip::Color bgColor = clip->BackgroundColor();
+    color = ((uint32_t)(bgColor.a*255)<<24) | ((uint32_t)(bgColor.b*255)<<16) | ((uint32_t)(bgColor.g*255)<<8) | (uint32_t)(bgColor.r*255);
+    WrapperAlloc<uint32_t> wrapperAlloc((uint32_t*)vmat.data);
+    vector<uint32_t, WrapperAlloc<uint32_t>> mapary(wrapperAlloc);
+    mapary.resize(vmat.total()/4);
+    fill(mapary.begin(), mapary.end(), color);
     const SubtitleClip::Color textColor = clip->TextColor();
-    const uint32_t color = ((uint32_t)(textColor.r*255)<<24) | ((uint32_t)(textColor.g*255)<<16) | ((uint32_t)(textColor.b*255)<<8) | (uint32_t)(textColor.r*255);
+    color = ((uint32_t)(textColor.r*255)<<24) | ((uint32_t)(textColor.g*255)<<16) | ((uint32_t)(textColor.b*255)<<8) | (uint32_t)(textColor.a*255);
     uint32_t* linePtr = (uint32_t*)(vmat.data)+assImage->dst_y*m_frmW+assImage->dst_x;
     unsigned char* assPtr = assImage->bitmap;
     for (int i = 0; i < assImage->h; i++)

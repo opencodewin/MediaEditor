@@ -31,6 +31,11 @@ void SubtitleClip::SetTextColor(const Color& color)
     m_textColor = color;
 }
 
+void SubtitleClip::SetBackgroundColor(const Color& color)
+{
+    m_bgColor = color;
+}
+
 SubtitleImage SubtitleClip::Image()
 {
     if (!m_image.Valid() && m_renderCb)
