@@ -61,6 +61,8 @@ include_directories(
     ${IMGUI_BLUEPRINT_INCLUDE_DIRS}
 )
 
+find_package(Fontconfig REQUIRED)
+
 # Basics
 set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
 find_package(Threads REQUIRED)
@@ -319,6 +321,13 @@ target_include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
+set(FontManagerSrcFile "FontManagerStub.cpp")
+if(APPLE)
+    set(FontManagerSrcFile "FontManagerMac.mm")
+elseif(UNIX)
+    set(FontManagerSrcFile "FontManagerLinux.cpp")
+endif(APPLE)
+
 # SubtitleReaderTest
 add_executable(
     subtitle_reader_test
@@ -326,6 +335,8 @@ add_executable(
     SubtitleClip.cpp
     SubtitleTrack.cpp
     SubtitleTrack_AssImpl.cpp
+    FontDescriptor.cpp
+    ${FontManagerSrcFile}
     FFUtils.cpp
     Logger.cpp
     ${IMGUI_APP_ENTRY_SRC}
@@ -335,6 +346,7 @@ target_link_libraries(
     ${IMGUI_LIBRARYS}
     PkgConfig::FFMPEG
     PkgConfig::LIBASS
+    Fontconfig::Fontconfig
 )
 target_include_directories(
     subtitle_reader_test PRIVATE

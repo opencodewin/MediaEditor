@@ -1,3 +1,4 @@
+#include <sstream>
 #include <imgui.h>
 #include <application.h>
 #include <imgui_helper.h>
@@ -5,17 +6,22 @@
 #include "Logger.h"
 #include "SubtitleTrack.h"
 #include "FFUtils.h"
-#include <sstream>
+#include "FontManager.h"
 
 using namespace std;
 using namespace Logger;
 using namespace DataLayer;
+using namespace FM;
 
 const string c_imguiIniPath = "subrdrtest.ini";
 const string c_bookmarkPath = "bookmark.ini";
 
 static SubtitleTrackHolder g_subtrack;
 static ImTextureID g_imageTid;
+static unordered_map<string, vector<FontDescriptorHolder>> g_fontTable;
+static vector<string> g_fontFamilies;
+static int g_fontFamilySelIdx = 0;
+static int g_fontStyleSelIdx = 0;
 
 // Application Framework Functions
 void Application_GetWindowProperties(ApplicationWindowProperty& property)
@@ -52,6 +58,14 @@ void Application_Initialize(void** handle)
         docFile.close();
     }
 #endif
+
+    g_fontTable = FM::GroupFontsByFamily(FM::GetAvailableFonts());
+    list<string> fontFamilies;
+    for (auto& item : g_fontTable)
+        fontFamilies.push_back(item.first);
+    fontFamilies.sort();
+    for (auto& item : fontFamilies)
+        g_fontFamilies.push_back(item);
 
     ImGuiIO& io = ImGui::GetIO();
     io.IniFilename = c_imguiIniPath.c_str();
@@ -147,6 +161,9 @@ bool Application_Frame(void * handle, bool app_will_quit)
                 }
                 if (ImGui::BeginTabItem("Render"))
                 {
+                    auto wndSize = ImGui::GetWindowSize();
+                    int bottomControlLines = 2;
+
                     static uint32_t s_showSubIdx = 0;
                     static float s_showSubPos = 0;
                     SubtitleClipHolder hSupClip = g_subtrack->GetCurrClip();
@@ -155,10 +172,10 @@ bool Application_Frame(void * handle, bool app_will_quit)
                         SubtitleImage subImage = hSupClip->Image();
                         if (subImage.Valid())
                         {
-                            auto wndSize = ImGui::GetWindowSize();
                             auto uiStyle = ImGui::GetStyle();
                             auto csPos = ImGui::GetCursorPos();
-                            if (ImGui::BeginChild("#SubtitleImage", {0, wndSize.y-csPos.y-btnSize.y-uiStyle.ItemSpacing.y-uiStyle.WindowPadding.y}))
+                            if (ImGui::BeginChild("#SubtitleImage",
+                                {0, wndSize.y-csPos.y-(btnSize.y+uiStyle.ItemSpacing.y)*bottomControlLines-uiStyle.WindowPadding.y}))
                             {
                                 ImGui::ImMat vmat = subImage.Image();
                                 ImGui::ImMatToTexture(vmat, g_imageTid);
@@ -173,6 +190,32 @@ bool Application_Frame(void * handle, bool app_will_quit)
                         }
                     }
                     ImGui::EndTabItem();
+
+                    ImGui::PushItemWidth(wndSize.x*0.4);
+                    const char* previewValue = g_fontFamilySelIdx >= g_fontFamilies.size() ? nullptr : g_fontFamilies[g_fontFamilySelIdx].c_str();
+                    if (ImGui::BeginCombo("Font family", previewValue))
+                    {
+                        for (int i = 0; i < g_fontFamilies.size(); i++)
+                            if (ImGui::Selectable(g_fontFamilies[i].c_str(), i == g_fontFamilySelIdx))
+                            {
+                                g_fontFamilySelIdx = i;
+                                g_fontStyleSelIdx = 0;
+                            }
+                        ImGui::EndCombo();
+                    }
+                    ImGui::SameLine();
+                    vector<FontDescriptorHolder> styles;
+                    if (g_fontFamilySelIdx < g_fontFamilies.size())
+                        styles = g_fontTable[g_fontFamilies[g_fontFamilySelIdx]];
+                    previewValue = g_fontStyleSelIdx >= styles.size() ? nullptr : styles[g_fontStyleSelIdx]->Style().c_str();
+                    if (ImGui::BeginCombo("Style", previewValue))
+                    {
+                        for (int i = 0; i < styles.size(); i++)
+                            if (ImGui::Selectable(styles[i]->Style().c_str(), i == g_fontStyleSelIdx))
+                                g_fontStyleSelIdx = i;
+                        ImGui::EndCombo();
+                    }
+                    ImGui::PopItemWidth();
 
                     ImGui::BeginGroup();
                     ImGui::BeginDisabled(s_showSubIdx == 0);
