@@ -144,7 +144,7 @@ vector<FontDescriptorHolder> FM::GetAvailableFonts()
     FcInit();
 
     FcPattern *pattern = FcPatternCreate();
-    FcObjectSet *os = FcObjectSetBuild(FC_FILE, FC_POSTSCRIPT_NAME, FC_FAMILY, FC_STYLE, FC_WEIGHT, FC_WIDTH, FC_SLANT, FC_SPACING, NULL);
+    FcObjectSet *os = FcObjectSetBuild(FC_FILE, FC_POSTSCRIPT_NAME, FC_FAMILY, FC_STYLE, FC_WEIGHT, FC_WIDTH, FC_SLANT, FC_SPACING, nullptr);
     FcFontSet *fs = FcFontList(NULL, pattern, os);
 
     vector<FontDescriptorHolder> result;

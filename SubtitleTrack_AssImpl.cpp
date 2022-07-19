@@ -498,16 +498,16 @@ static SubtitleType GetSubtitleType(AVSubtitleType subtype)
     switch (subtype)
     {
     case SUBTITLE_BITMAP:
-        t = BITMAP;
+        t = DataLayer::BITMAP;
         break;
     case SUBTITLE_TEXT:
-        t = TEXT;
+        t = DataLayer::TEXT;
         break;
     case SUBTITLE_ASS:
-        t = ASS;
+        t = DataLayer::ASS;
         break;
     default:
-        t = UNKNOWN;
+        t = DataLayer::UNKNOWN;
         break;
     }
     return t;

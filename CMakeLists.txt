@@ -321,13 +321,6 @@ target_include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-set(FontManagerSrcFile "FontManagerStub.cpp")
-if(APPLE)
-    set(FontManagerSrcFile "FontManagerMac.mm")
-elseif(UNIX)
-    set(FontManagerSrcFile "FontManagerLinux.cpp")
-endif(APPLE)
-
 # SubtitleReaderTest
 add_executable(
     subtitle_reader_test
@@ -336,7 +329,7 @@ add_executable(
     SubtitleTrack.cpp
     SubtitleTrack_AssImpl.cpp
     FontDescriptor.cpp
-    ${FontManagerSrcFile}
+    FontManagerLinux.cpp
     FFUtils.cpp
     Logger.cpp
     ${IMGUI_APP_ENTRY_SRC}
