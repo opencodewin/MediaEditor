@@ -77,7 +77,10 @@ bool SubtitleTrack_AssImpl::SetBackgroundColor(const SubtitleClip::Color& color)
 
 bool SubtitleTrack_AssImpl::SetFont(const std::string& font)
 {
+    m_logger->Log(DEBUG) << "Set default font as '" << font << "'." << endl;
     ass_set_fonts(m_assrnd, font.c_str(), NULL, ASS_FONTPROVIDER_AUTODETECT, NULL, 1);
+    for (auto clip : m_clips)
+        clip->InvalidateImage();
     return true;
 }
 
@@ -402,7 +405,7 @@ bool SubtitleTrack_AssImpl::ReadFile(const string& path)
         {
             ASS_Event* e = m_asstrk->events+i;
             SubtitleClipHolder hSubClip(new SubtitleClip(ASS, e->Start, e->Duration, e->Text));
-            hSubClip->SetRenderCallback(bind(&SubtitleTrack_AssImpl::RenderSubtitle, this, _1));
+            hSubClip->SetRenderCallback(bind(&SubtitleTrack_AssImpl::RenderSubtitleClip, this, _1));
             hSubClip->SetBackgroundColor(m_bgColor);
             m_clips.push_back(hSubClip);
         }
@@ -459,10 +462,11 @@ private:
     void* m_buf;
 };
 
-SubtitleImage SubtitleTrack_AssImpl::RenderSubtitle(SubtitleClip* clip)
+SubtitleImage SubtitleTrack_AssImpl::RenderSubtitleClip(SubtitleClip* clip)
 {
     int detectChange = 0;
     ASS_Image* assImage = ass_render_frame(m_assrnd, m_asstrk, clip->StartTime(), &detectChange);
+    m_logger->Log(DEBUG) << "Render subtitle '" << clip->Text() << "', ASS_Image ptr=" << assImage << ", detectChanged=" << detectChange << "." << endl;
     if (!assImage)
         return SubtitleImage();
     ImGui::ImMat vmat;

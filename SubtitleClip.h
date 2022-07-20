@@ -32,6 +32,7 @@ namespace DataLayer
         ImGui::ImMat Image() const { return m_image; }
         Rect Area() const { return m_area; }
         bool Valid() const { return !m_image.empty(); }
+        void Invalidate() { m_image.release(); }
 
     private:
         ImGui::ImMat m_image;
@@ -64,6 +65,7 @@ namespace DataLayer
         bool SetFontScale(double scale);
         void SetTextColor(const Color& color);
         void SetBackgroundColor(const Color& color);
+        void InvalidateImage() { m_image.Invalidate(); }
 
         SubtitleType Type() const { return m_type; }
         std::string Font() const { return m_font; }

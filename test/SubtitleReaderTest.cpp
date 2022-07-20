@@ -22,6 +22,7 @@ static unordered_map<string, vector<FontDescriptorHolder>> g_fontTable;
 static vector<string> g_fontFamilies;
 static int g_fontFamilySelIdx = 0;
 static int g_fontStyleSelIdx = 0;
+static int g_fontSelChanged = false;
 
 // Application Framework Functions
 void Application_GetWindowProperties(ApplicationWindowProperty& property)
@@ -42,6 +43,8 @@ void Application_SetupContext(ImGuiContext* ctx)
 void Application_Initialize(void** handle)
 {
     GetDefaultLogger()
+        ->SetShowLevels(DEBUG);
+    GetSubtitleTrackLogger()
         ->SetShowLevels(DEBUG);
 
     if (!InitializeSubtitleLibrary())
@@ -191,7 +194,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
                     }
                     ImGui::EndTabItem();
 
-                    ImGui::PushItemWidth(wndSize.x*0.4);
+                    ImGui::PushItemWidth(wndSize.x*0.35);
                     const char* previewValue = g_fontFamilySelIdx >= g_fontFamilies.size() ? nullptr : g_fontFamilies[g_fontFamilySelIdx].c_str();
                     if (ImGui::BeginCombo("Font family", previewValue))
                     {
@@ -200,6 +203,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
                             {
                                 g_fontFamilySelIdx = i;
                                 g_fontStyleSelIdx = 0;
+                                g_fontSelChanged = true;
                             }
                         ImGui::EndCombo();
                     }
@@ -212,10 +216,22 @@ bool Application_Frame(void * handle, bool app_will_quit)
                     {
                         for (int i = 0; i < styles.size(); i++)
                             if (ImGui::Selectable(styles[i]->Style().c_str(), i == g_fontStyleSelIdx))
+                            {
                                 g_fontStyleSelIdx = i;
+                                g_fontSelChanged = true;
+                            }
                         ImGui::EndCombo();
                     }
                     ImGui::PopItemWidth();
+
+                    ImGui::SameLine();
+                    ImGui::BeginDisabled(!g_fontSelChanged);
+                    if (ImGui::Button("Update font"))
+                    {
+                        g_fontSelChanged = false;
+                        g_subtrack->SetFont(g_fontTable[g_fontFamilies[g_fontFamilySelIdx]][g_fontStyleSelIdx]->PostscriptName());
+                    }
+                    ImGui::EndDisabled();
 
                     ImGui::BeginGroup();
                     ImGui::BeginDisabled(s_showSubIdx == 0);

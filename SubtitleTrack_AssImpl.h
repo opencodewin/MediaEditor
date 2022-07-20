@@ -47,7 +47,7 @@ namespace DataLayer
     private:
         bool ReadFile(const std::string& path);
         void ReleaseFFContext();
-        SubtitleImage RenderSubtitle(SubtitleClip* clip);
+        SubtitleImage RenderSubtitleClip(SubtitleClip* clip);
 
     private:
         Logger::ALogger* m_logger;

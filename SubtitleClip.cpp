@@ -9,8 +9,7 @@ SubtitleImage::SubtitleImage(ImGui::ImMat& image, const Rect& area)
 
 SubtitleClip::SubtitleClip(SubtitleType type, int64_t startTime, int64_t duration, const char* text)
     : m_type(type), m_startTime(startTime), m_duration(duration), m_text(text)
-{
-}
+{}
 
 SubtitleClip::SubtitleClip(SubtitleType type, int64_t startTime, int64_t duration, SubtitleImage& image)
     : m_type(type), m_startTime(startTime), m_duration(duration), m_image(image)
