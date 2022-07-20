@@ -329,7 +329,7 @@ add_executable(
     SubtitleTrack.cpp
     SubtitleTrack_AssImpl.cpp
     FontDescriptor.cpp
-    FontManager_Fongconfig.cpp
+    FontManager_Fontconfig.cpp
     FFUtils.cpp
     Logger.cpp
     ${IMGUI_APP_ENTRY_SRC}
