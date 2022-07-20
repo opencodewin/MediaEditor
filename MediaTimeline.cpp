@@ -4992,10 +4992,11 @@ void TimeLine::CalculateAudioScopeData(ImGui::ImMat& mat_in)
                 for (int n = 0; n < w; n++)
                 {
                     auto value = m_audio_channel_data[i].m_db.at<float>(n) + mAudioSpectrogramOffset;
-                    if (value < -64) value = -64;
+                    value = ImClamp(value, -64.f, 63.f);
+                    float light = (value + 64) / 127.f;
                     value = (int)((value + 64) + 170) % 255; 
                     auto hue = value / 255.f;
-                    auto color = ImColor::HSV(hue, 1.0, mAudioSpectrogramLight);
+                    auto color = ImColor::HSV(hue, 1.0, light * mAudioSpectrogramLight);
                     last_line[n] = color;
                 }
             }

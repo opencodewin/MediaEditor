@@ -4578,8 +4578,9 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
             for (int i = 0; i < size.y; i++)
             {
                 float value = i / 2.0;
+                float light = value / 127.0f;
                 float hue = ((int)(value + 170) % 255) / 255.f;
-                auto color = ImColor::HSV(hue, 1.0, timeline->mAudioSpectrogramLight);
+                auto color = ImColor::HSV(hue, 1.0, light * timeline->mAudioSpectrogramLight);
                 ImVec2 p0 = ImVec2(scrop_rect.Max.x - 44, scrop_rect.Max.y - i);
                 ImVec2 p1 = ImVec2(scrop_rect.Max.x - 32, scrop_rect.Max.y - i);
                 draw_list->AddLine(p0, p1, color);
