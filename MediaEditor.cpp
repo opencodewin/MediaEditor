@@ -4449,7 +4449,9 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                 if (!timeline->m_audio_channel_data[i].m_db.empty())
                 {
                     ImGui::PushID(i);
-                    ImGui::PlotLines("##db", (float *)timeline->m_audio_channel_data[i].m_db.data, timeline->m_audio_channel_data[i].m_db.w, 0, nullptr, 0, 100 / g_media_editor_settings.AudioDBScale, channel_view_size, 4, false, true);
+                    ImGui::ImMat db_mat_inv = timeline->m_audio_channel_data[i].m_db.clone();
+                    db_mat_inv += 90.f;
+                    ImGui::PlotLines("##db", (float *)db_mat_inv.data,db_mat_inv.w, 0, nullptr, 0.f, 90.f / g_media_editor_settings.AudioDBScale, channel_view_size, 4, false, true);
                     ImGui::PopID();
                 }
                 draw_list->AddRect(channel_min, channel_max, COL_SLIDER_HANDLE, 0);
@@ -4593,9 +4595,8 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                     std::string str = std::to_string(-db_value) + "dB";
                     ImVec2 p2 = ImVec2(scrop_rect.Max.x - 8, scrop_rect.Max.y - i);
                     ImVec2 p3 = ImVec2(scrop_rect.Max.x, scrop_rect.Max.y - i);
-                    ImVec2 pt = ImVec2(scrop_rect.Max.x - 32, scrop_rect.Max.y - i);
                     draw_list->AddLine(p2, p3, COL_GRATICULE_DARK, 1);
-                    draw_list->AddText(pt + ImVec2(2, db_value == 90 ? -9 : -4), IM_COL32_WHITE, str.c_str());
+                    draw_list->AddText(p1 + ImVec2(2, db_value == 90 ? -9 : -4), IM_COL32_WHITE, str.c_str());
                 }
                 ImGui::SetWindowFontScale(1.0);
             }
