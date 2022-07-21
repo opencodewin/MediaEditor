@@ -20,7 +20,7 @@ bool SubtitleClip::SetFont(const string& font)
     return false;
 }
 
-bool SubtitleClip::SetFontScale(double scale)
+bool SubtitleClip::SetScale(double scale)
 {
     return false;
 }

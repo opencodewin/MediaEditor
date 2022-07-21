@@ -1,6 +1,7 @@
 #include <sstream>
 #include <algorithm>
 #include <vector>
+#include <cstring>
 #include "SubtitleTrack_AssImpl.h"
 #include "FFUtils.h"
 extern "C"
@@ -13,6 +14,38 @@ using namespace std;
 using namespace DataLayer;
 using namespace Logger;
 using std::placeholders::_1;
+
+static void PrintAssStyle(ALogger* logger, ASS_Style* s)
+{
+    logger->Log(DEBUG) << "------------------- ASS Style --------------------" << endl;
+    logger->Log(DEBUG) << '\t' << "Name: " << s->Name << endl;
+    logger->Log(DEBUG) << '\t' << "FontName: " << s->FontName << endl;
+    logger->Log(DEBUG) << '\t' << "FontSize: " << s->FontSize << endl;
+    logger->Log(DEBUG) << '\t' << "PrimaryColor: " << s->PrimaryColour << endl;
+    logger->Log(DEBUG) << '\t' << "SecondaryColor: " << s->SecondaryColour << endl;
+    logger->Log(DEBUG) << '\t' << "OutlineColor:" << s->OutlineColour << endl;
+    logger->Log(DEBUG) << '\t' << "BackColor: " << s->BackColour << endl;
+    logger->Log(DEBUG) << '\t' << "Bold: " << s->Bold << endl;
+    logger->Log(DEBUG) << '\t' << "Italic: " << s->Italic << endl;
+    logger->Log(DEBUG) << '\t' << "Underline: " << s->Underline << endl;
+    logger->Log(DEBUG) << '\t' << "StrikeOut: " << s->StrikeOut << endl;
+    logger->Log(DEBUG) << '\t' << "ScaleX: " << s->ScaleX << endl;
+    logger->Log(DEBUG) << '\t' << "ScaleY: " << s->ScaleY << endl;
+    logger->Log(DEBUG) << '\t' << "Spacing: " << s->Spacing << endl;
+    logger->Log(DEBUG) << '\t' << "Angle: " << s->Angle << endl;
+    logger->Log(DEBUG) << '\t' << "BorderStyle: " << s->BorderStyle << endl;
+    logger->Log(DEBUG) << '\t' << "Outline: " << s->Outline << endl;
+    logger->Log(DEBUG) << '\t' << "Shadow: " << s->Shadow << endl;
+    logger->Log(DEBUG) << '\t' << "Alignment: " << s->Alignment << endl;
+    logger->Log(DEBUG) << '\t' << "MarginL: " << s->MarginL << endl;
+    logger->Log(DEBUG) << '\t' << "MarginR: " << s->MarginR << endl;
+    logger->Log(DEBUG) << '\t' << "MarginV: " << s->MarginV << endl;
+    logger->Log(DEBUG) << '\t' << "Encoding: " << s->Encoding << endl;
+    logger->Log(DEBUG) << '\t' << "treat_fontname_as_pattern: " << s->treat_fontname_as_pattern << endl;
+    logger->Log(DEBUG) << '\t' << "Blur: " << s->Blur << endl;
+    logger->Log(DEBUG) << '\t' << "Justify: " << s->Justify << endl;
+    logger->Log(DEBUG) << "--------------------------------------------------" << endl;
+}
 
 SubtitleTrack_AssImpl::SubtitleTrack_AssImpl(int64_t id)
     : m_id(id)
@@ -72,21 +105,181 @@ bool SubtitleTrack_AssImpl::SetBackgroundColor(const SubtitleClip::Color& color)
     m_bgColor = color;
     for (SubtitleClipHolder clip : m_clips)
         clip->SetBackgroundColor(color);
+    ClearRenderCache();
     return true;
 }
 
 bool SubtitleTrack_AssImpl::SetFont(const std::string& font)
 {
-    m_logger->Log(DEBUG) << "Set default font as '" << font << "'." << endl;
-    ass_set_fonts(m_assrnd, font.c_str(), NULL, ASS_FONTPROVIDER_AUTODETECT, NULL, 1);
-    for (auto clip : m_clips)
-        clip->InvalidateImage();
+    m_logger->Log(DEBUG) << "Set font '" << font << "'" << endl;
+    m_overrideStyle.SetFont(font);
+    ass_set_selective_style_override(m_assrnd, m_overrideStyle.GetAssStylePtr());
+    if (!m_useOverrideStyle)
+        ToggleOverrideStyle();
+    ClearRenderCache();
     return true;
 }
 
-bool SubtitleTrack_AssImpl::SetFontScale(double scale)
+bool SubtitleTrack_AssImpl::SetScale(double scale)
 {
+    m_logger->Log(DEBUG) << "Set font scale " << scale << endl;
     ass_set_font_scale(m_assrnd, scale);
+    ClearRenderCache();
+    return true;
+}
+
+bool SubtitleTrack_AssImpl::SetScaleX(double value)
+{
+    m_logger->Log(DEBUG) << "Set scaleX '" << value << "'" << endl;
+    m_overrideStyle.m_style.ScaleX = value;
+    ass_set_selective_style_override(m_assrnd, m_overrideStyle.GetAssStylePtr());
+    if (!m_useOverrideStyle)
+        ToggleOverrideStyle();
+    ClearRenderCache();
+    return true;
+}
+
+bool SubtitleTrack_AssImpl::SetScaleY(double value)
+{
+    m_logger->Log(DEBUG) << "Set scaleY '" << value << "'" << endl;
+    m_overrideStyle.m_style.ScaleY = value;
+    ass_set_selective_style_override(m_assrnd, m_overrideStyle.GetAssStylePtr());
+    if (!m_useOverrideStyle)
+        ToggleOverrideStyle();
+    ClearRenderCache();
+    return true;
+}
+
+bool SubtitleTrack_AssImpl::SetSpacing(double value)
+{
+    m_logger->Log(DEBUG) << "Set spacing '" << value << "'" << endl;
+    m_overrideStyle.m_style.Spacing = value;
+    ass_set_selective_style_override(m_assrnd, m_overrideStyle.GetAssStylePtr());
+    if (!m_useOverrideStyle)
+        ToggleOverrideStyle();
+    ClearRenderCache();
+    return true;
+}
+
+bool SubtitleTrack_AssImpl::SetAngle(double value)
+{
+    m_logger->Log(DEBUG) << "Set angle '" << value << "'" << endl;
+    m_overrideStyle.m_style.Angle = value;
+    ass_set_selective_style_override(m_assrnd, m_overrideStyle.GetAssStylePtr());
+    if (!m_useOverrideStyle)
+        ToggleOverrideStyle();
+    ClearRenderCache();
+    return true;
+}
+
+bool SubtitleTrack_AssImpl::SetOutline(double value)
+{
+    m_logger->Log(DEBUG) << "Set outline '" << value << "'" << endl;
+    m_overrideStyle.m_style.Outline = value;
+    ass_set_selective_style_override(m_assrnd, m_overrideStyle.GetAssStylePtr());
+    if (!m_useOverrideStyle)
+        ToggleOverrideStyle();
+    ClearRenderCache();
+    return true;
+}
+
+bool SubtitleTrack_AssImpl::SetAlignment(int value)
+{
+    m_logger->Log(DEBUG) << "Set alignment '" << value << "'" << endl;
+    m_overrideStyle.m_style.Alignment = value;
+    ass_set_selective_style_override(m_assrnd, m_overrideStyle.GetAssStylePtr());
+    if (!m_useOverrideStyle)
+        ToggleOverrideStyle();
+    ClearRenderCache();
+    return true;
+}
+
+bool SubtitleTrack_AssImpl::SetMarginL(int value)
+{
+    m_logger->Log(DEBUG) << "Set marginL '" << value << "'" << endl;
+    m_overrideStyle.m_style.MarginL = value;
+    ass_set_selective_style_override(m_assrnd, m_overrideStyle.GetAssStylePtr());
+    if (!m_useOverrideStyle)
+        ToggleOverrideStyle();
+    ClearRenderCache();
+    return true;
+}
+
+bool SubtitleTrack_AssImpl::SetMarginR(int value)
+{
+    m_logger->Log(DEBUG) << "Set marginR '" << value << "'" << endl;
+    m_overrideStyle.m_style.MarginR = value;
+    ass_set_selective_style_override(m_assrnd, m_overrideStyle.GetAssStylePtr());
+    if (!m_useOverrideStyle)
+        ToggleOverrideStyle();
+    ClearRenderCache();
+    return true;
+}
+
+bool SubtitleTrack_AssImpl::SetMarginV(int value)
+{
+    m_logger->Log(DEBUG) << "Set marginV '" << value << "'" << endl;
+    m_overrideStyle.m_style.MarginV = value;
+    ass_set_selective_style_override(m_assrnd, m_overrideStyle.GetAssStylePtr());
+    if (!m_useOverrideStyle)
+        ToggleOverrideStyle();
+    ClearRenderCache();
+    return true;
+}
+
+bool SubtitleTrack_AssImpl::SetItalic(int value)
+{
+    m_logger->Log(DEBUG) << "Set italic '" << value << "'" << endl;
+    m_overrideStyle.m_style.Italic = value;
+    ass_set_selective_style_override(m_assrnd, m_overrideStyle.GetAssStylePtr());
+    if (!m_useOverrideStyle)
+        ToggleOverrideStyle();
+    ClearRenderCache();
+    return true;
+}
+
+bool SubtitleTrack_AssImpl::SetBold(int value)
+{
+    m_logger->Log(DEBUG) << "Set bold '" << value << "'" << endl;
+    m_overrideStyle.m_style.Bold = value;
+    ass_set_selective_style_override(m_assrnd, m_overrideStyle.GetAssStylePtr());
+    if (!m_useOverrideStyle)
+        ToggleOverrideStyle();
+    ClearRenderCache();
+    return true;
+}
+
+bool SubtitleTrack_AssImpl::SetUnderLine(bool enable)
+{
+    m_logger->Log(DEBUG) << "Set underline '" << enable << "'" << endl;
+    m_overrideStyle.m_style.Underline = enable ? 1 : 0;
+    ass_set_selective_style_override(m_assrnd, m_overrideStyle.GetAssStylePtr());
+    if (!m_useOverrideStyle)
+        ToggleOverrideStyle();
+    ClearRenderCache();
+    return true;
+}
+
+bool SubtitleTrack_AssImpl::SetStrikeOut(bool enable)
+{
+    m_logger->Log(DEBUG) << "Set strikeout '" << enable << "'" << endl;
+    m_overrideStyle.m_style.StrikeOut = enable ? 1 : 0;
+    ass_set_selective_style_override(m_assrnd, m_overrideStyle.GetAssStylePtr());
+    if (!m_useOverrideStyle)
+        ToggleOverrideStyle();
+    ClearRenderCache();
+    return true;
+}
+
+bool SubtitleTrack_AssImpl::SetPrimaryColor(const SubtitleClip::Color& color)
+{
+    uint32_t c = ((uint32_t)(color.r*255)<<24) | ((uint32_t)(color.g*255)<<16) | ((uint32_t)(color.b*255)<<8) | (uint32_t)((1-color.a)*255);
+    m_logger->Log(DEBUG) << "Set primary color as " << c << "(" << hex << c << ")" << endl;
+    m_overrideStyle.m_style.PrimaryColour = c;
+    ass_set_selective_style_override(m_assrnd, m_overrideStyle.GetAssStylePtr());
+    if (!m_useOverrideStyle)
+        ToggleOverrideStyle();
+    ClearRenderCache();
     return true;
 }
 
@@ -225,9 +418,9 @@ static void ass_log(int ass_level, const char *fmt, va_list args, void *ctx)
         level = Error;
     else if (ass_level < 4)
         level = WARN;
-    else if (ass_level < 6)
+    else if (ass_level < 5)
         level = INFO;
-    else if (ass_level < 7)
+    else if (ass_level < 6)
         level = DEBUG;
     char buf[2048]={0};
     va_list vl;
@@ -330,6 +523,12 @@ bool SubtitleTrack_AssImpl::ReadFile(const string& path)
     if (pAvCdcCtx->subtitle_header && pAvCdcCtx->subtitle_header_size > 0)
     {
         ass_process_codec_private(m_asstrk, (char*)pAvCdcCtx->subtitle_header, pAvCdcCtx->subtitle_header_size);
+        if (m_asstrk->styles && m_asstrk->n_styles > 0)
+        {
+            m_logger->Log(DEBUG) << m_asstrk->n_styles << " style(s) are found:" << endl;
+            for (int i = 0; i < m_asstrk->n_styles; i++)
+                PrintAssStyle(m_logger, m_asstrk->styles+i);
+        }
     }
 
     m_errMsg.clear();
@@ -374,15 +573,15 @@ bool SubtitleTrack_AssImpl::ReadFile(const string& path)
         {
             const int64_t start_time = av_rescale_q(avsub.pts, AV_TIME_BASE_Q, av_make_q(1, 1000));
             const int64_t duration   = avsub.end_display_time;
-            m_logger->Log(DEBUG) << "[" << MillisecToString(start_time) << "(+" << duration << ")] ";
+            m_logger->Log(VERBOSE) << "[" << MillisecToString(start_time) << "(+" << duration << ")] ";
             for (auto i = 0; i < avsub.num_rects; i++)
             {
                 char *ass_line = avsub.rects[i]->ass;
                 if (!ass_line)
                     break;
-                m_logger->Log(DEBUG) << "<" << i << ">: '" << avsub.rects[i]->ass << "'; ";
+                m_logger->Log(VERBOSE) << "<" << i << ">: '" << avsub.rects[i]->ass << "'; ";
             }
-            m_logger->Log(DEBUG) << endl;
+            m_logger->Log(VERBOSE) << endl;
             for (auto i = 0; i < avsub.num_rects; i++)
             {
                 char *ass_line = avsub.rects[i]->ass;
@@ -401,11 +600,17 @@ bool SubtitleTrack_AssImpl::ReadFile(const string& path)
     bool success = m_errMsg.empty();
     if (success)
     {
+        if (m_asstrk->n_styles > 0)
+        {
+            m_overrideStyle = AssStyleWrapper(m_asstrk->styles+m_asstrk->n_styles-1);
+        }
+
         for (int i = 0; i < m_asstrk->n_events; i++)
         {
             ASS_Event* e = m_asstrk->events+i;
             SubtitleClipHolder hSubClip(new SubtitleClip(ASS, e->Start, e->Duration, e->Text));
             hSubClip->SetRenderCallback(bind(&SubtitleTrack_AssImpl::RenderSubtitleClip, this, _1));
+            uint32_t primaryColor = m_asstrk->styles[e->Style].PrimaryColour;
             hSubClip->SetBackgroundColor(m_bgColor);
             m_clips.push_back(hSubClip);
         }
@@ -464,57 +669,86 @@ private:
 
 SubtitleImage SubtitleTrack_AssImpl::RenderSubtitleClip(SubtitleClip* clip)
 {
-    int detectChange = 0;
-    ASS_Image* assImage = ass_render_frame(m_assrnd, m_asstrk, clip->StartTime(), &detectChange);
-    m_logger->Log(DEBUG) << "Render subtitle '" << clip->Text() << "', ASS_Image ptr=" << assImage << ", detectChanged=" << detectChange << "." << endl;
-    if (!assImage)
-        return SubtitleImage();
     ImGui::ImMat vmat;
     vmat.create_type((int)m_frmW, (int)m_frmH, 4, IM_DT_INT8);
     vmat.color_format = IM_CF_RGBA;
+
     uint32_t color;
+    // fill the image with background color
     const SubtitleClip::Color bgColor = clip->BackgroundColor();
     color = ((uint32_t)(bgColor.a*255)<<24) | ((uint32_t)(bgColor.b*255)<<16) | ((uint32_t)(bgColor.g*255)<<8) | (uint32_t)(bgColor.r*255);
     WrapperAlloc<uint32_t> wrapperAlloc((uint32_t*)vmat.data);
     vector<uint32_t, WrapperAlloc<uint32_t>> mapary(wrapperAlloc);
     mapary.resize(vmat.total()/4);
     fill(mapary.begin(), mapary.end(), color);
-    const SubtitleClip::Color textColor = clip->TextColor();
-    color = ((uint32_t)(textColor.r*255)<<24) | ((uint32_t)(textColor.g*255)<<16) | ((uint32_t)(textColor.b*255)<<8) | (uint32_t)(textColor.a*255);
-    uint32_t* linePtr = (uint32_t*)(vmat.data)+assImage->dst_y*m_frmW+assImage->dst_x;
-    unsigned char* assPtr = assImage->bitmap;
-    for (int i = 0; i < assImage->h; i++)
+
+    int detectChange = 0;
+    ASS_Image* assImage = ass_render_frame(m_assrnd, m_asstrk, clip->StartTime(), &detectChange);
+    m_logger->Log(DEBUG) << "Render subtitle '" << clip->Text() << "', ASS_Image ptr=" << assImage << ", detectChanged=" << detectChange << "." << endl;
+    if (!assImage)
+        return SubtitleImage(vmat, {0});
+
+    // draw ASS_Image list
+    SubtitleImage::Rect containBox{0};
+    while (assImage)
     {
-        for (int j = 0; j < assImage->w; j++)
+        if (assImage->dst_x < containBox.x)
         {
-            if (assPtr[j] > 0)
-                linePtr[j] = color;
+            containBox.w += containBox.x-assImage->dst_x;
+            containBox.x = assImage->dst_x;
         }
-        linePtr += m_frmW;
-        assPtr += assImage->stride;
+        if (assImage->dst_x+assImage->w > containBox.x+containBox.w)
+        {
+            containBox.w = assImage->dst_x+assImage->w-containBox.x;
+        }
+        if (assImage->dst_y < containBox.y)
+        {
+            containBox.h += containBox.y-assImage->dst_y;
+            containBox.y = assImage->dst_y;
+        }
+        if (assImage->dst_y+assImage->h > containBox.y+containBox.h)
+        {
+            containBox.h = assImage->dst_y+assImage->h-containBox.y;
+        }
+
+        color = assImage->color;
+        float baseAlpha = (float)(255-(color&0xff))/255;
+        color = ((color&0xff00)<<8) | ((color>>8)&0xff00) | ((color>>24)&0xff);
+        uint32_t* linePtr = (uint32_t*)(vmat.data)+assImage->dst_y*m_frmW+assImage->dst_x;
+        unsigned char* assPtr = assImage->bitmap;
+        for (int i = 0; i < assImage->h; i++)
+        {
+            for (int j = 0; j < assImage->w; j++)
+            {
+                const unsigned char b = assPtr[j];
+                if (b > 0)
+                {
+                    uint32_t alpha = (uint32_t)(baseAlpha*b);
+                    linePtr[j] = color | (alpha<<24);
+                }
+            }
+            linePtr += m_frmW;
+            assPtr += assImage->stride;
+        }
+        assImage = assImage->next;
     }
-    return SubtitleImage(vmat, {assImage->dst_x, assImage->dst_y, assImage->w, assImage->h});
+
+    return SubtitleImage(vmat, containBox);
 }
 
-static SubtitleType GetSubtitleType(AVSubtitleType subtype)
+void SubtitleTrack_AssImpl::ClearRenderCache()
 {
-    SubtitleType t;
-    switch (subtype)
-    {
-    case SUBTITLE_BITMAP:
-        t = DataLayer::BITMAP;
-        break;
-    case SUBTITLE_TEXT:
-        t = DataLayer::TEXT;
-        break;
-    case SUBTITLE_ASS:
-        t = DataLayer::ASS;
-        break;
-    default:
-        t = DataLayer::UNKNOWN;
-        break;
-    }
-    return t;
+    for (auto clip : m_clips)
+        clip->InvalidateImage();
+}
+
+void SubtitleTrack_AssImpl::ToggleOverrideStyle()
+{
+    int bit = ASS_OVERRIDE_DEFAULT;
+    m_useOverrideStyle = !m_useOverrideStyle;
+    if (m_useOverrideStyle)
+        bit = ASS_OVERRIDE_FULL_STYLE;
+    ass_set_selective_style_override_enabled(m_assrnd, bit);
 }
 
 SubtitleTrackHolder SubtitleTrack_AssImpl::BuildFromFile(int64_t id, const string& url)
@@ -537,4 +771,54 @@ SubtitleTrackHolder SubtitleTrack_AssImpl::BuildFromFile(int64_t id, const strin
         return nullptr;
     }
     return hSubTrk;
+}
+
+SubtitleTrack_AssImpl::AssStyleWrapper::AssStyleWrapper(ASS_Style* style)
+{
+    memcpy(&m_style, style, sizeof(m_style));
+    int l = strlen(style->Name);
+    m_name = unique_ptr<char[]>(new char[l+1]);
+    snprintf(m_name.get(), l+1, "%s", style->Name);
+    m_style.Name = m_name.get();
+    l = strlen(style->FontName);
+    m_fontName = unique_ptr<char[]>(new char[l+1]);
+    snprintf(m_fontName.get(), l+1, "%s", style->FontName);
+    m_style.FontName = m_fontName.get();
+}
+
+SubtitleTrack_AssImpl::AssStyleWrapper::AssStyleWrapper(const SubtitleTrack_AssImpl::AssStyleWrapper& a)
+{
+    memcpy(&m_style, &a.m_style, sizeof(m_style));
+    int l = strlen(a.m_style.Name);
+    m_name = unique_ptr<char[]>(new char[l+1]);
+    snprintf(m_name.get(), l+1, "%s", a.m_style.Name);
+    m_style.Name = m_name.get();
+    l = strlen(a.m_style.FontName);
+    m_fontName = unique_ptr<char[]>(new char[l+1]);
+    snprintf(m_fontName.get(), l+1, "%s", a.m_style.FontName);
+    m_style.FontName = m_fontName.get();
+}
+
+SubtitleTrack_AssImpl::AssStyleWrapper&
+SubtitleTrack_AssImpl::AssStyleWrapper::operator=(const SubtitleTrack_AssImpl::AssStyleWrapper& a)
+{
+    memcpy(&m_style, &a.m_style, sizeof(m_style));
+    int l = strlen(a.m_style.Name);
+    m_name = unique_ptr<char[]>(new char[l+1]);
+    snprintf(m_name.get(), l+1, "%s", a.m_style.Name);
+    m_style.Name = m_name.get();
+    l = strlen(a.m_style.FontName);
+    m_fontName = unique_ptr<char[]>(new char[l+1]);
+    snprintf(m_fontName.get(), l+1, "%s", a.m_style.FontName);
+    m_style.FontName = m_fontName.get();
+    return *this;
+}
+
+void SubtitleTrack_AssImpl::AssStyleWrapper::SetFont(const string& font)
+{
+    int l = font.size();
+    unique_ptr<char[]> newfont(new char[l+1]);
+    snprintf(newfont.get(), l+1, "%s", font.c_str());
+    m_fontName = move(newfont);
+    m_style.FontName = m_fontName.get();
 }

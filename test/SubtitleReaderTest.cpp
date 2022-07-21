@@ -23,6 +23,21 @@ static vector<string> g_fontFamilies;
 static int g_fontFamilySelIdx = 0;
 static int g_fontStyleSelIdx = 0;
 static int g_fontSelChanged = false;
+static float g_scale = 1.f;
+static float g_scaleX = 1.f;
+static float g_scaleY = 1.f;
+static float g_spacing = 1.f;
+static float g_angle = 0;
+static float g_outline = 1;
+static int g_alignment = 2;
+static int g_marginV = 0;
+static int g_marginL = 0;
+static int g_marginR = 0;
+static bool g_fontItalic = false;
+static bool g_fontBold = false;
+static bool g_fontUnderLine = false;
+static bool g_fontStrikeOut = false;
+static bool g_changeColor = false;
 
 // Application Framework Functions
 void Application_GetWindowProperties(ApplicationWindowProperty& property)
@@ -33,7 +48,7 @@ void Application_GetWindowProperties(ApplicationWindowProperty& property)
     property.auto_merge = false;
     //property.power_save = false;
     property.width = 960;
-    property.height = 540;
+    property.height = 720;
 }
 
 void Application_SetupContext(ImGuiContext* ctx)
@@ -120,10 +135,15 @@ bool Application_Frame(void * handle, bool app_will_quit)
         static int SelectedSubtitleIndex = -1;
         if (g_subtrack)
         {
+            static int s_currTabIdx = 0;
             if (ImGui::BeginTabBar("SubtitleViewTabs", ImGuiTabBarFlags_None))
             {
                 if (ImGui::BeginTabItem("List"))
                 {
+                    if (s_currTabIdx != 0)
+                    {
+                        s_currTabIdx = 0;
+                    }
                     ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, {10, 10});
                     ImGuiSelectableFlags selectableFlags = ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowItemOverlap;
                     if (ImGui::BeginTable("#SubtitleList", 2, ImGuiTableFlags_ScrollY | ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersOuter | ImGuiTableFlags_BordersV))
@@ -164,11 +184,16 @@ bool Application_Frame(void * handle, bool app_will_quit)
                 }
                 if (ImGui::BeginTabItem("Render"))
                 {
-                    auto wndSize = ImGui::GetWindowSize();
-                    int bottomControlLines = 2;
-
                     static uint32_t s_showSubIdx = 0;
                     static float s_showSubPos = 0;
+                    if (s_currTabIdx != 1)
+                    {
+                        s_currTabIdx = 1;
+                        g_subtrack->SeekToIndex(s_showSubIdx);
+                    }
+                    auto wndSize = ImGui::GetWindowSize();
+                    int bottomControlLines = 6;
+
                     SubtitleClipHolder hSupClip = g_subtrack->GetCurrClip();
                     if (hSupClip)
                     {
@@ -194,7 +219,8 @@ bool Application_Frame(void * handle, bool app_will_quit)
                     }
                     ImGui::EndTabItem();
 
-                    ImGui::PushItemWidth(wndSize.x*0.35);
+                    // Control Line #1
+                    ImGui::PushItemWidth(wndSize.x*0.25);
                     const char* previewValue = g_fontFamilySelIdx >= g_fontFamilies.size() ? nullptr : g_fontFamilies[g_fontFamilySelIdx].c_str();
                     if (ImGui::BeginCombo("Font family", previewValue))
                     {
@@ -207,7 +233,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
                             }
                         ImGui::EndCombo();
                     }
-                    ImGui::SameLine();
+                    ImGui::SameLine(0, 30);
                     vector<FontDescriptorHolder> styles;
                     if (g_fontFamilySelIdx < g_fontFamilies.size())
                         styles = g_fontTable[g_fontFamilies[g_fontFamilySelIdx]];
@@ -222,17 +248,93 @@ bool Application_Frame(void * handle, bool app_will_quit)
                             }
                         ImGui::EndCombo();
                     }
+                    if (g_fontSelChanged)
+                    {
+                        auto& font = g_fontTable[g_fontFamilies[g_fontFamilySelIdx]][g_fontStyleSelIdx];
+                        g_subtrack->SetFont(font->Family());
+                        g_subtrack->SetBold((int)font->Weight());
+                        g_subtrack->SetItalic(font->Italic() ? 1 : 0);
+                        g_fontSelChanged = false;
+                    }
+                    ImGui::SameLine(0, 30);
+                    if (ImGui::SliderFloat("Scale", &g_scale, 0.2, 3, "%.1f"))
+                    {
+                        g_subtrack->SetScale((double)g_scale);
+                    }
+
+                    // Control Line #2
+                    if (ImGui::SliderFloat("Spacing", &g_spacing, 0.5, 5, "%.1f"))
+                    {
+                        g_subtrack->SetSpacing((double)g_spacing);
+                    }
+                    ImGui::SameLine(0, 30);
+                    if (ImGui::SliderFloat("Angle", &g_angle, 0, 360, "%.1f"))
+                    {
+                        g_subtrack->SetAngle((double)g_angle);
+                    }
+                    ImGui::SameLine(0, 30);
+                    if (ImGui::SliderFloat("Outline", &g_outline, 0, 3, "%.1f"))
+                    {
+                        g_subtrack->SetOutline((double)g_outline);
+                    }
+
+                    // Control Line #3
+                    if (ImGui::SliderInt("Alignment", &g_alignment, 1, 3, "%d"))
+                    {
+                        g_subtrack->SetAlignment(g_alignment);
+                    }
+                    ImGui::SameLine(0, 30);
+                    if (ImGui::SliderFloat("ScaleX", &g_scaleX, 0.5, 3, "%.1f"))
+                    {
+                        g_subtrack->SetScaleX(g_scaleX);
+                    }
+                    ImGui::SameLine(0, 30);
+                    if (ImGui::SliderFloat("ScaleY", &g_scaleY, 0.5, 3, "%.1f"))
+                    {
+                        g_subtrack->SetScaleY(g_scaleY);
+                    }
+                    // Control Line #4
+                    if (ImGui::SliderInt("MarginV", &g_marginV, -300, 300, "%d"))
+                    {
+                        g_subtrack->SetMarginV(g_marginV);
+                    }
+                    ImGui::SameLine(0, 30);
+                    if (ImGui::SliderInt("MarginL", &g_marginL, -300, 300, "%d"))
+                    {
+                        g_subtrack->SetMarginL(g_marginL);
+                    }
+                    ImGui::SameLine(0, 30);
+                    if (ImGui::SliderInt("MarginR", &g_marginR, -300, 300, "%d"))
+                    {
+                        g_subtrack->SetMarginR(g_marginR);
+                    }
                     ImGui::PopItemWidth();
 
-                    ImGui::SameLine();
-                    ImGui::BeginDisabled(!g_fontSelChanged);
-                    if (ImGui::Button("Update font"))
+                    // Control Line #5
+                    if (ImGui::Checkbox("Italic", &g_fontItalic))
                     {
-                        g_fontSelChanged = false;
-                        g_subtrack->SetFont(g_fontTable[g_fontFamilies[g_fontFamilySelIdx]][g_fontStyleSelIdx]->PostscriptName());
+                        g_subtrack->SetItalic(g_fontItalic ? 1 : 0);
                     }
-                    ImGui::EndDisabled();
+                    ImGui::SameLine(0, 20);
+                    if (ImGui::Checkbox("UnderLine", &g_fontUnderLine))
+                    {
+                        g_subtrack->SetUnderLine(g_fontUnderLine);
+                    }
+                    ImGui::SameLine(0, 20);
+                    if (ImGui::Checkbox("StrikeOut", &g_fontStrikeOut))
+                    {
+                        g_subtrack->SetStrikeOut(g_fontStrikeOut);
+                    }
+                    ImGui::SameLine(0, 20);
+                    if (ImGui::Checkbox("ChangeColor", &g_changeColor))
+                    {
+                        if (g_changeColor)
+                            g_subtrack->SetPrimaryColor({1, 0, 0, 1});
+                        else
+                            g_subtrack->SetPrimaryColor({1, 1, 1, 1});
+                    }
 
+                    // Control Line #6
                     ImGui::BeginGroup();
                     ImGui::BeginDisabled(s_showSubIdx == 0);
                     if (ImGui::Button("Prev"))
@@ -281,7 +383,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
             string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
             g_subtrack = SubtitleTrack::BuildFromFile(0, filePathName);
             g_subtrack->SetFrameSize(1920, 1080);
-            g_subtrack->SetBackgroundColor({0.1, 0.1, 0.1, 1});
+            g_subtrack->SetBackgroundColor({0.2, 0.2, 0.2, 1});
         }
         ImGuiFileDialog::Instance()->Close();
     }
