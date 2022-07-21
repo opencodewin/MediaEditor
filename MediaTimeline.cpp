@@ -4973,7 +4973,7 @@ void TimeLine::CalculateAudioScopeData(ImGui::ImMat& mat_in)
             m_audio_channel_data[i].m_fft.clone_from(mat.channel(i));
             ImGui::ImRFFT((float *)m_audio_channel_data[i].m_fft.data, m_audio_channel_data[i].m_fft.w, true);
             m_audio_channel_data[i].m_db.create_type((mat.w >> 1) + 1, IM_DT_FLOAT32);
-            m_audio_channel_data[i].m_DBMaxIndex = ImGui::ImReComposeDB((float*)m_audio_channel_data[i].m_fft.data, (float *)m_audio_channel_data[i].m_db.data, mat.w);
+            m_audio_channel_data[i].m_DBMaxIndex = ImGui::ImReComposeDB((float*)m_audio_channel_data[i].m_fft.data, (float *)m_audio_channel_data[i].m_db.data, mat.w, false);
             m_audio_channel_data[i].m_DBShort.create_type(20, IM_DT_FLOAT32);
             ImGui::ImReComposeDBShort((float*)m_audio_channel_data[i].m_fft.data, (float*)m_audio_channel_data[i].m_DBShort.data, mat.w);
             m_audio_channel_data[i].m_DBLong.create_type(76, IM_DT_FLOAT32);
@@ -4991,7 +4991,7 @@ void TimeLine::CalculateAudioScopeData(ImGui::ImMat& mat_in)
                 uint32_t * last_line = (uint32_t *)m_audio_channel_data[i].m_Spectrogram.row_c<uint8_t>(255);
                 for (int n = 0; n < w; n++)
                 {
-                    auto value = m_audio_channel_data[i].m_db.at<float>(n) + mAudioSpectrogramOffset;
+                    float value = m_audio_channel_data[i].m_db.at<float>(n) * M_SQRT2 + 64 + mAudioSpectrogramOffset;
                     value = ImClamp(value, -64.f, 63.f);
                     float light = (value + 64) / 127.f;
                     value = (int)((value + 64) + 170) % 255; 

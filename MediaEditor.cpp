@@ -4577,7 +4577,9 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
             // draw bar mark
             for (int i = 0; i < size.y; i++)
             {
-                float value = i / 2.0;
+                float step = 128.0 / size.y;
+                int mark_step = size.y / 9;
+                float value = i * step;
                 float light = value / 127.0f;
                 float hue = ((int)(value + 170) % 255) / 255.f;
                 auto color = ImColor::HSV(hue, 1.0, light * timeline->mAudioSpectrogramLight);
@@ -4585,14 +4587,15 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                 ImVec2 p1 = ImVec2(scrop_rect.Max.x - 32, scrop_rect.Max.y - i);
                 draw_list->AddLine(p0, p1, color);
                 ImGui::SetWindowFontScale(0.6);
-                if ((i / 2 - 64) % 10 == 0)
+                if ((i % mark_step) == 0)
                 {
-                    std::string str = std::to_string(i / 2 - 64) + "dB";
-                    if (i / 2 - 64 > 0) str = "+" + str;
+                    int db_value = 90 - (i / mark_step) * 10;
+                    std::string str = std::to_string(-db_value) + "dB";
                     ImVec2 p2 = ImVec2(scrop_rect.Max.x - 8, scrop_rect.Max.y - i);
                     ImVec2 p3 = ImVec2(scrop_rect.Max.x, scrop_rect.Max.y - i);
+                    ImVec2 pt = ImVec2(scrop_rect.Max.x - 32, scrop_rect.Max.y - i);
                     draw_list->AddLine(p2, p3, COL_GRATICULE_DARK, 1);
-                    draw_list->AddText(p1 + ImVec2(2, -9), IM_COL32_WHITE, str.c_str());
+                    draw_list->AddText(pt + ImVec2(2, db_value == 90 ? -9 : -4), IM_COL32_WHITE, str.c_str());
                 }
                 ImGui::SetWindowFontScale(1.0);
             }
