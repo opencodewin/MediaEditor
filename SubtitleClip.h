@@ -46,8 +46,8 @@ namespace DataLayer
     class SubtitleClip
     {
     public:
-        SubtitleClip(SubtitleType type, int64_t startTime, int64_t duration, const char* text);
-        SubtitleClip(SubtitleType type, int64_t startTime, int64_t duration, SubtitleImage& image);
+        SubtitleClip(SubtitleType type, int readOrder, int64_t startTime, int64_t duration, const char* text);
+        SubtitleClip(SubtitleType type, int readOrder, int64_t startTime, int64_t duration, SubtitleImage& image);
         SubtitleClip(const SubtitleClip&) = delete;
         SubtitleClip(SubtitleClip&&) = delete;
         SubtitleClip& operator=(const SubtitleClip&) = delete;
@@ -75,8 +75,10 @@ namespace DataLayer
         void SetTextColor(const Color& color);
         void SetBackgroundColor(const Color& color);
         void InvalidateImage() { m_image.Invalidate(); }
+        void SetText(const std::string& text) { m_text = text; }
 
         SubtitleType Type() const { return m_type; }
+        int ReadOrder() const { return m_readOrder; }
         std::string Font() const { return m_font; }
         double FontScale() const { return m_fontScale; }
         Color TextColor() const { return m_textColor; }
@@ -89,6 +91,7 @@ namespace DataLayer
 
     private:
         SubtitleType m_type;
+        int m_readOrder;
         std::string m_font;
         double m_fontScale;
         Color m_textColor;

@@ -131,8 +131,12 @@ bool Application_Frame(void * handle, bool app_will_quit)
                                                     ImGuiFileDialogFlags_Modal);
         }
         auto btnSize = ImGui::GetItemRectSize();
+        auto wndSize = ImGui::GetWindowSize();
+        auto& uiStyle = ImGui::GetStyle();
 
-        static int SelectedSubtitleIndex = -1;
+        static int s_selectedSubtitleIndex = -1;
+        static char s_subtitleEdit[2048];
+        static bool s_subtitleEditChanged = false;
         if (g_subtrack)
         {
             static int s_currTabIdx = 0;
@@ -144,9 +148,13 @@ bool Application_Frame(void * handle, bool app_will_quit)
                     {
                         s_currTabIdx = 0;
                     }
+                    auto csPos = ImGui::GetCursorPos();
+                    float editInputHeight = 50;
+                    float tableHeight = wndSize.y-csPos.y-editInputHeight-uiStyle.ItemSpacing.y-uiStyle.WindowPadding.y;
+                    SubtitleClipHolder hSelectedClip;
                     ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, {10, 10});
                     ImGuiSelectableFlags selectableFlags = ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowItemOverlap;
-                    if (ImGui::BeginTable("#SubtitleList", 2, ImGuiTableFlags_ScrollY | ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersOuter | ImGuiTableFlags_BordersV))
+                    if (ImGui::BeginTable("#SubtitleList", 2, ImGuiTableFlags_ScrollY | ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersOuter | ImGuiTableFlags_BordersV, {0, tableHeight}))
                     {
                         ImGui::TableSetupScrollFreeze(0, 1);
                         ImGui::TableSetupColumn("Time", ImGuiTableColumnFlags_WidthFixed);
@@ -165,10 +173,17 @@ bool Application_Frame(void * handle, bool app_will_quit)
                                 ImGui::TableSetColumnIndex(0);
                                 char timeColText[128];
                                 snprintf(timeColText, sizeof(timeColText), "%s (+%lld)", MillisecToString(hSubClip->StartTime()).c_str(), hSubClip->Duration());
-                                bool isSelected = SelectedSubtitleIndex == row;
+                                bool isSelected = s_selectedSubtitleIndex == row;
                                 if (ImGui::Selectable(timeColText, &isSelected, selectableFlags))
                                 {
-                                    SelectedSubtitleIndex = row;
+                                    s_selectedSubtitleIndex = row;
+                                    hSelectedClip = hSubClip;
+                                    int copySize = hSubClip->Text().size();
+                                    if (copySize >= sizeof(s_subtitleEdit))
+                                        copySize = sizeof(s_subtitleEdit)-1;
+                                    memcpy(s_subtitleEdit, hSubClip->Text().c_str(), copySize);
+                                    s_subtitleEdit[copySize] = 0;
+                                    s_subtitleEditChanged = false;
                                 }
                                 // ImGui::TextColored({0.6, 0.6, 0.6, 1.}, "%s (+%ld)", MillisecToString(hSubClip->StartTime()).c_str(), hSubClip->Duration());
                                 ImGui::TableSetColumnIndex(1);
@@ -180,6 +195,19 @@ bool Application_Frame(void * handle, bool app_will_quit)
                         ImGui::EndTable();
                     }
                     ImGui::PopStyleVar();
+
+                    if (ImGui::InputTextMultiline("##SubtitleEditInput", s_subtitleEdit, sizeof(s_subtitleEdit), {0, editInputHeight}, ImGuiInputTextFlags_AllowTabInput))
+                    {
+                        s_subtitleEditChanged = true;
+                    }
+                    ImGui::SameLine(0, 20);
+                    ImGui::BeginDisabled(!s_subtitleEditChanged);
+                    if (ImGui::Button("Update"))
+                    {
+                        g_subtrack->ChangeText(s_selectedSubtitleIndex, string(s_subtitleEdit));
+                        s_subtitleEditChanged = false;
+                    }
+                    ImGui::EndDisabled();
                     ImGui::EndTabItem();
                 }
                 if (ImGui::BeginTabItem("Render"))
@@ -191,7 +219,6 @@ bool Application_Frame(void * handle, bool app_will_quit)
                         s_currTabIdx = 1;
                         g_subtrack->SeekToIndex(s_showSubIdx);
                     }
-                    auto wndSize = ImGui::GetWindowSize();
                     int bottomControlLines = 6;
 
                     SubtitleClipHolder hSupClip = g_subtrack->GetCurrClip();
@@ -200,7 +227,6 @@ bool Application_Frame(void * handle, bool app_will_quit)
                         SubtitleImage subImage = hSupClip->Image();
                         if (subImage.Valid())
                         {
-                            auto uiStyle = ImGui::GetStyle();
                             auto csPos = ImGui::GetCursorPos();
                             if (ImGui::BeginChild("#SubtitleImage",
                                 {0, wndSize.y-csPos.y-(btnSize.y+uiStyle.ItemSpacing.y)*bottomControlLines-uiStyle.WindowPadding.y}))

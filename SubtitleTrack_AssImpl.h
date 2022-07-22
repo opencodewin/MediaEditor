@@ -51,6 +51,9 @@ namespace DataLayer
         uint32_t ClipCount() const override { return m_clips.size(); }
         int64_t Duration() const override { return m_duration; }
 
+        bool ChangeText(uint32_t clipIndex, const std::string& text) override;
+        bool ChangeText(SubtitleClipHolder clip, const std::string& text) override;
+
         std::string GetError() const override { return m_errMsg; }
 
         static bool Initialize();

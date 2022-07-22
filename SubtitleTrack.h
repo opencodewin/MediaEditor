@@ -41,6 +41,9 @@ namespace DataLayer
         virtual uint32_t ClipCount() const = 0;
         virtual int64_t Duration() const = 0;
 
+        virtual bool ChangeText(uint32_t clipIndex, const std::string& text) = 0;
+        virtual bool ChangeText(SubtitleClipHolder clip, const std::string& text) = 0;
+
         virtual std::string GetError() const = 0;
 
         static SubtitleTrackHolder BuildFromFile(int64_t id, const std::string& url);

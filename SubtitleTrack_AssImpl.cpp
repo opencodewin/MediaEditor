@@ -409,6 +409,51 @@ bool SubtitleTrack_AssImpl::SeekToIndex(uint32_t index)
     return true;
 }
 
+bool SubtitleTrack_AssImpl::ChangeText(uint32_t clipIndex, const string& text)
+{
+    if (clipIndex >= m_clips.size())
+        return false;
+
+    auto iter = m_clips.begin();
+    uint32_t i = clipIndex;
+    while (iter != m_clips.end() && i > 0)
+    {
+        iter++;
+        i--;
+    }
+    if (iter == m_clips.end())
+        return false;
+
+    return ChangeText(*iter, text);
+}
+
+bool SubtitleTrack_AssImpl::ChangeText(SubtitleClipHolder clip, const string& text)
+{
+    ASS_Event* target = nullptr;
+    for (int i = 0; i < m_asstrk->n_events; i++)
+    {
+        ASS_Event* e = m_asstrk->events+i;
+        if (e->ReadOrder == clip->ReadOrder())
+        {
+            target = e;
+            break;
+        }
+    }
+    if (!target)
+        return false;
+
+    if (target->Text)
+        free(target->Text);
+    int len = text.size();
+    target->Text = (char*)malloc(len+1);
+    memcpy(target->Text, text.c_str(), len);
+    target->Text[len] = 0;
+    clip->SetText(text);
+    clip->InvalidateImage();
+
+    return true;
+}
+
 ASS_Library* SubtitleTrack_AssImpl::s_asslib = nullptr;
 
 static void ass_log(int ass_level, const char *fmt, va_list args, void *ctx)
@@ -608,7 +653,7 @@ bool SubtitleTrack_AssImpl::ReadFile(const string& path)
         for (int i = 0; i < m_asstrk->n_events; i++)
         {
             ASS_Event* e = m_asstrk->events+i;
-            SubtitleClipHolder hSubClip(new SubtitleClip(ASS, e->Start, e->Duration, e->Text));
+            SubtitleClipHolder hSubClip(new SubtitleClip(DataLayer::ASS, e->ReadOrder, e->Start, e->Duration, e->Text));
             hSubClip->SetRenderCallback(bind(&SubtitleTrack_AssImpl::RenderSubtitleClip, this, _1));
             uint32_t primaryColor = m_asstrk->styles[e->Style].PrimaryColour;
             hSubClip->SetBackgroundColor(m_bgColor);
