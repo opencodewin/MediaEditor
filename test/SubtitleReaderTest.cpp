@@ -37,7 +37,6 @@ static bool g_fontItalic = false;
 static bool g_fontBold = false;
 static bool g_fontUnderLine = false;
 static bool g_fontStrikeOut = false;
-static bool g_changeColor = false;
 
 // Application Framework Functions
 void Application_GetWindowProperties(ApplicationWindowProperty& property)
@@ -137,6 +136,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
         static int s_selectedSubtitleIndex = -1;
         static char s_subtitleEdit[2048];
         static bool s_subtitleEditChanged = false;
+        static ImVec4 subColor(1,1,1,1);
         if (g_subtrack)
         {
             static int s_currTabIdx = 0;
@@ -352,14 +352,13 @@ bool Application_Frame(void * handle, bool app_will_quit)
                         g_subtrack->SetStrikeOut(g_fontStrikeOut);
                     }
                     ImGui::SameLine(0, 20);
-                    if (ImGui::Checkbox("ChangeColor", &g_changeColor))
+                    ImGui::TextUnformatted("ChangeColor:");
+                    ImGui::SameLine(0);
+                    if (ImGui::ColorEdit4("FontColor##Text", (float*)&subColor, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_AlphaBar))
                     {
-                        if (g_changeColor)
-                            g_subtrack->SetPrimaryColor({1, 0, 0, 1});
-                        else
-                            g_subtrack->SetPrimaryColor({1, 1, 1, 1});
+                        g_subtrack->SetPrimaryColor(SubtitleClip::Color(subColor.x, subColor.y, subColor.z, subColor.w));
                     }
-
+                    
                     // Control Line #6
                     ImGui::BeginGroup();
                     ImGui::BeginDisabled(s_showSubIdx == 0);
