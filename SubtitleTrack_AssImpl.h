@@ -23,6 +23,7 @@ namespace DataLayer
         bool InitAss();
 
         bool SetFrameSize(uint32_t width, uint32_t height) override;
+        bool EnableFullSizeOutput(bool enable) override;
         bool SetBackgroundColor(const SubtitleClip::Color& color) override;
         bool SetFont(const std::string& font) override;
         bool SetScale(double value) override;
@@ -53,6 +54,7 @@ namespace DataLayer
         uint32_t ClipCount() const override { return m_clips.size(); }
         int64_t Duration() const override { return m_duration; }
 
+        SubtitleClipHolder NewClip(int64_t startTime, int64_t duration) override;
         bool ChangeText(uint32_t clipIndex, const std::string& text) override;
         bool ChangeText(SubtitleClipHolder clip, const std::string& text) override;
 
@@ -82,6 +84,7 @@ namespace DataLayer
         ASS_Track* m_asstrk{nullptr};
         ASS_Renderer* m_assrnd{nullptr};
         uint32_t m_frmW{0}, m_frmH{0};
+        bool m_outputFullSize{true};
         SubtitleClip::Color m_bgColor{0, 0, 0, 0};
 
         class AssStyleWrapper

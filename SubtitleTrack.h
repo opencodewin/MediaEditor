@@ -13,6 +13,7 @@ namespace DataLayer
     struct SubtitleTrack
     {
         virtual bool SetFrameSize(uint32_t width, uint32_t height) = 0;
+        virtual bool EnableFullSizeOutput(bool enable) = 0;
         virtual bool SetBackgroundColor(const SubtitleClip::Color& color) = 0;
         virtual bool SetFont(const std::string& font) = 0;
         virtual bool SetScale(double value) = 0;
@@ -43,6 +44,7 @@ namespace DataLayer
         virtual uint32_t ClipCount() const = 0;
         virtual int64_t Duration() const = 0;
 
+        virtual SubtitleClipHolder NewClip(int64_t startTime, int64_t duration) = 0;
         virtual bool ChangeText(uint32_t clipIndex, const std::string& text) = 0;
         virtual bool ChangeText(SubtitleClipHolder clip, const std::string& text) = 0;
 

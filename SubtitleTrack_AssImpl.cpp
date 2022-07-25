@@ -100,6 +100,15 @@ bool SubtitleTrack_AssImpl::SetFrameSize(uint32_t width, uint32_t height)
     return true;
 }
 
+bool SubtitleTrack_AssImpl::EnableFullSizeOutput(bool enable)
+{
+    if (m_outputFullSize == enable)
+        return true;
+    m_outputFullSize = enable;
+    ClearRenderCache();
+    return true;
+}
+
 bool SubtitleTrack_AssImpl::SetBackgroundColor(const SubtitleClip::Color& color)
 {
     m_bgColor = color;
@@ -433,6 +442,13 @@ bool SubtitleTrack_AssImpl::SeekToIndex(uint32_t index)
     return true;
 }
 
+SubtitleClipHolder SubtitleTrack_AssImpl::NewClip(int64_t startTime, int64_t duration)
+{
+    SubtitleClipHolder hNewClip(new SubtitleClip(DataLayer::ASS, 0, startTime, duration, ""));
+    m_clips.push_back(hNewClip);
+    return hNewClip;
+}
+
 bool SubtitleTrack_AssImpl::ChangeText(uint32_t clipIndex, const string& text)
 {
     if (clipIndex >= m_clips.size())
@@ -656,7 +672,11 @@ bool SubtitleTrack_AssImpl::ReadFile(const string& path)
                 char *ass_line = avsub.rects[i]->ass;
                 if (!ass_line)
                     break;
+#if LIBAVCODEC_VERSION_MAJOR >= 59
                 ass_process_chunk(m_asstrk, ass_line, strlen(ass_line), start_time, duration);
+#else
+                ass_process_data(m_asstrk, ass_line, strlen(ass_line));
+#endif
             }
             avsubtitle_free(&avsub);
         }
@@ -738,27 +758,17 @@ private:
 
 SubtitleImage SubtitleTrack_AssImpl::RenderSubtitleClip(SubtitleClip* clip)
 {
-    ImGui::ImMat vmat;
-    vmat.create_type((int)m_frmW, (int)m_frmH, 4, IM_DT_INT8);
-    vmat.color_format = IM_CF_RGBA;
-
-    uint32_t color;
-    // fill the image with background color
-    const SubtitleClip::Color bgColor = clip->BackgroundColor();
-    color = ((uint32_t)(bgColor.a*255)<<24) | ((uint32_t)(bgColor.b*255)<<16) | ((uint32_t)(bgColor.g*255)<<8) | (uint32_t)(bgColor.r*255);
-    WrapperAlloc<uint32_t> wrapperAlloc((uint32_t*)vmat.data);
-    vector<uint32_t, WrapperAlloc<uint32_t>> mapary(wrapperAlloc);
-    mapary.resize(vmat.total()/4);
-    fill(mapary.begin(), mapary.end(), color);
-
     int detectChange = 0;
-    ASS_Image* assImage = ass_render_frame(m_assrnd, m_asstrk, clip->StartTime(), &detectChange);
-    m_logger->Log(DEBUG) << "Render subtitle '" << clip->Text() << "', ASS_Image ptr=" << assImage << ", detectChanged=" << detectChange << "." << endl;
-    if (!assImage)
+    ASS_Image* renderRes = ass_render_frame(m_assrnd, m_asstrk, clip->StartTime(), &detectChange);
+    m_logger->Log(DEBUG) << "Render subtitle '" << clip->Text() << "', ASS_Image ptr=" << renderRes << ", detectChanged=" << detectChange << "." << endl;
+    ImGui::ImMat vmat;
+    if (!renderRes)
         return SubtitleImage(vmat, {0});
 
-    // draw ASS_Image list
-    SubtitleImage::Rect containBox{0};
+    // calculate the containing box
+    ASS_Image* assImage = renderRes;
+    SubtitleImage::Rect containBox{assImage->dst_x, assImage->dst_y, assImage->w, assImage->h};
+    assImage = assImage->next;
     while (assImage)
     {
         if (assImage->dst_x < containBox.x)
@@ -779,11 +789,40 @@ SubtitleImage SubtitleTrack_AssImpl::RenderSubtitleClip(SubtitleClip* clip)
         {
             containBox.h = assImage->dst_y+assImage->h-containBox.y;
         }
+        assImage = assImage->next;
+    }
 
+    int frmW = (int)m_frmW;
+    int frmH = (int)m_frmH;
+    if (!m_outputFullSize)
+    {
+        frmW = containBox.w;
+        frmH = containBox.h;
+    }
+    vmat.create_type((int)frmW, (int)frmH, 4, IM_DT_INT8);
+    vmat.color_format = IM_CF_RGBA;
+
+    uint32_t color;
+    // fill the image with background color
+    const SubtitleClip::Color bgColor = clip->BackgroundColor();
+    color = ((uint32_t)(bgColor.a*255)<<24) | ((uint32_t)(bgColor.b*255)<<16) | ((uint32_t)(bgColor.g*255)<<8) | (uint32_t)(bgColor.r*255);
+    WrapperAlloc<uint32_t> wrapperAlloc((uint32_t*)vmat.data);
+    vector<uint32_t, WrapperAlloc<uint32_t>> mapary(wrapperAlloc);
+    mapary.resize(vmat.total()/4);
+    fill(mapary.begin(), mapary.end(), color);
+
+    // draw ASS_Image list
+    assImage = renderRes;
+    while (assImage)
+    {
         color = assImage->color;
         float baseAlpha = (float)(255-(color&0xff))/255;
         color = ((color&0xff00)<<8) | ((color>>8)&0xff00) | ((color>>24)&0xff);
-        uint32_t* linePtr = (uint32_t*)(vmat.data)+assImage->dst_y*m_frmW+assImage->dst_x;
+        uint32_t* linePtr;
+        if (m_outputFullSize)
+            linePtr = (uint32_t*)(vmat.data)+assImage->dst_y*frmW+assImage->dst_x;
+        else
+            linePtr = (uint32_t*)(vmat.data)+(assImage->dst_y-containBox.y)*frmW+(assImage->dst_x-containBox.x);
         unsigned char* assPtr = assImage->bitmap;
         for (int i = 0; i < assImage->h; i++)
         {
@@ -796,7 +835,7 @@ SubtitleImage SubtitleTrack_AssImpl::RenderSubtitleClip(SubtitleClip* clip)
                     linePtr[j] = color | (alpha<<24);
                 }
             }
-            linePtr += m_frmW;
+            linePtr += frmW;
             assPtr += assImage->stride;
         }
         assImage = assImage->next;
