@@ -283,6 +283,30 @@ bool SubtitleTrack_AssImpl::SetPrimaryColor(const SubtitleClip::Color& color)
     return true;
 }
 
+bool SubtitleTrack_AssImpl::SetSecondaryColor(const SubtitleClip::Color& color)
+{
+    uint32_t c = ((uint32_t)(color.r*255)<<24) | ((uint32_t)(color.g*255)<<16) | ((uint32_t)(color.b*255)<<8) | (uint32_t)((1-color.a)*255);
+    m_logger->Log(DEBUG) << "Set secondary color as " << c << "(" << hex << c << ")" << endl;
+    m_overrideStyle.m_style.SecondaryColour = c;
+    ass_set_selective_style_override(m_assrnd, m_overrideStyle.GetAssStylePtr());
+    if (!m_useOverrideStyle)
+        ToggleOverrideStyle();
+    ClearRenderCache();
+    return true;
+}
+
+bool SubtitleTrack_AssImpl::SetOutlineColor(const SubtitleClip::Color& color)
+{
+    uint32_t c = ((uint32_t)(color.r*255)<<24) | ((uint32_t)(color.g*255)<<16) | ((uint32_t)(color.b*255)<<8) | (uint32_t)((1-color.a)*255);
+    m_logger->Log(DEBUG) << "Set outline color as " << c << "(" << hex << c << ")" << endl;
+    m_overrideStyle.m_style.OutlineColour = c;
+    ass_set_selective_style_override(m_assrnd, m_overrideStyle.GetAssStylePtr());
+    if (!m_useOverrideStyle)
+        ToggleOverrideStyle();
+    ClearRenderCache();
+    return true;
+}
+
 SubtitleClipHolder SubtitleTrack_AssImpl::GetClipByTime(int64_t ms)
 {
     if (m_clips.size() <= 0)

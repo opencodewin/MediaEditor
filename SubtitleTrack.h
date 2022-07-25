@@ -30,6 +30,8 @@ namespace DataLayer
         virtual bool SetUnderLine(bool enable) = 0;
         virtual bool SetStrikeOut(bool enable) = 0;
         virtual bool SetPrimaryColor(const SubtitleClip::Color& color) = 0;
+        virtual bool SetSecondaryColor(const SubtitleClip::Color& color) = 0;
+        virtual bool SetOutlineColor(const SubtitleClip::Color& color) = 0;
 
         virtual SubtitleClipHolder GetClipByTime(int64_t ms) = 0;
         virtual SubtitleClipHolder GetCurrClip() = 0;

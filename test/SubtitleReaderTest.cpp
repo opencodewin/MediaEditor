@@ -136,7 +136,8 @@ bool Application_Frame(void * handle, bool app_will_quit)
         static int s_selectedSubtitleIndex = -1;
         static char s_subtitleEdit[2048];
         static bool s_subtitleEditChanged = false;
-        static ImVec4 subColor(1,1,1,1);
+        static ImVec4 s_primaryColor(1,1,1,1);
+        static ImVec4 s_outlineColor(0,0,0,1);
         if (g_subtrack)
         {
             static int s_currTabIdx = 0;
@@ -352,11 +353,18 @@ bool Application_Frame(void * handle, bool app_will_quit)
                         g_subtrack->SetStrikeOut(g_fontStrikeOut);
                     }
                     ImGui::SameLine(0, 20);
-                    ImGui::TextUnformatted("ChangeColor:");
+                    ImGui::TextUnformatted("Primary color:");
                     ImGui::SameLine(0);
-                    if (ImGui::ColorEdit4("FontColor##Text", (float*)&subColor, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_AlphaBar))
+                    if (ImGui::ColorEdit4("FontColor##Primary", (float*)&s_primaryColor, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_AlphaBar))
                     {
-                        g_subtrack->SetPrimaryColor(SubtitleClip::Color(subColor.x, subColor.y, subColor.z, subColor.w));
+                        g_subtrack->SetPrimaryColor(SubtitleClip::Color(s_primaryColor.x, s_primaryColor.y, s_primaryColor.z, s_primaryColor.w));
+                    }
+                    ImGui::SameLine(0, 20);
+                    ImGui::TextUnformatted("Outline color:");
+                    ImGui::SameLine(0);
+                    if (ImGui::ColorEdit4("FontColor##Outline", (float*)&s_outlineColor, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_AlphaBar))
+                    {
+                        g_subtrack->SetOutlineColor(SubtitleClip::Color(s_outlineColor.x, s_outlineColor.y, s_outlineColor.z, s_outlineColor.w));
                     }
                     
                     // Control Line #6
