@@ -11,6 +11,10 @@ SubtitleClip::SubtitleClip(SubtitleType type, int readOrder, int64_t startTime, 
     : m_type(type), m_readOrder(readOrder), m_startTime(startTime), m_duration(duration), m_text(text)
 {}
 
+SubtitleClip::SubtitleClip(SubtitleType type, int readOrder, int64_t startTime, int64_t duration, const string& text)
+    : SubtitleClip(type, readOrder, startTime, duration, text.c_str())
+{}
+
 SubtitleClip::SubtitleClip(SubtitleType type, int readOrder, int64_t startTime, int64_t duration, SubtitleImage& image)
     : m_type(type), m_readOrder(readOrder), m_startTime(startTime), m_duration(duration), m_image(image)
 {}

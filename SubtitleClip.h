@@ -47,6 +47,7 @@ namespace DataLayer
     {
     public:
         SubtitleClip(SubtitleType type, int readOrder, int64_t startTime, int64_t duration, const char* text);
+        SubtitleClip(SubtitleType type, int readOrder, int64_t startTime, int64_t duration, const std::string& text);
         SubtitleClip(SubtitleType type, int readOrder, int64_t startTime, int64_t duration, SubtitleImage& image);
         SubtitleClip(const SubtitleClip&) = delete;
         SubtitleClip(SubtitleClip&&) = delete;
@@ -76,6 +77,7 @@ namespace DataLayer
         void SetBackgroundColor(const Color& color);
         void InvalidateImage() { m_image.Invalidate(); }
         void SetText(const std::string& text) { m_text = text; }
+        void SetReadOrder(int readOrder) { m_readOrder = readOrder; }
 
         SubtitleType Type() const { return m_type; }
         int ReadOrder() const { return m_readOrder; }

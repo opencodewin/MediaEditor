@@ -37,6 +37,7 @@ static bool g_fontItalic = false;
 static bool g_fontBold = false;
 static bool g_fontUnderLine = false;
 static bool g_fontStrikeOut = false;
+static int g_insertTime[2];
 
 // Application Framework Functions
 void Application_GetWindowProperties(ApplicationWindowProperty& property)
@@ -83,6 +84,9 @@ void Application_Initialize(void** handle)
     fontFamilies.sort();
     for (auto& item : fontFamilies)
         g_fontFamilies.push_back(item);
+
+    g_insertTime[0] = 0;
+    g_insertTime[1] = 1000;
 
     ImGuiIO& io = ImGui::GetIO();
     io.IniFilename = c_imguiIniPath.c_str();
@@ -143,6 +147,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
             static int s_currTabIdx = 0;
             if (ImGui::BeginTabBar("SubtitleViewTabs", ImGuiTabBarFlags_None))
             {
+                int bottomControlLines = 1;
                 if (ImGui::BeginTabItem("List"))
                 {
                     if (s_currTabIdx != 0)
@@ -151,7 +156,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
                     }
                     auto csPos = ImGui::GetCursorPos();
                     float editInputHeight = 50;
-                    float tableHeight = wndSize.y-csPos.y-editInputHeight-uiStyle.ItemSpacing.y-uiStyle.WindowPadding.y;
+                    float tableHeight = wndSize.y-csPos.y-(btnSize.y+uiStyle.ItemSpacing.y)*bottomControlLines-editInputHeight-uiStyle.ItemSpacing.y-uiStyle.WindowPadding.y;
                     SubtitleClipHolder hSelectedClip;
                     ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, {10, 10});
                     ImGuiSelectableFlags selectableFlags = ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowItemOverlap;
@@ -185,6 +190,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
                                     memcpy(s_subtitleEdit, hSubClip->Text().c_str(), copySize);
                                     s_subtitleEdit[copySize] = 0;
                                     s_subtitleEditChanged = false;
+                                    g_insertTime[0] = hSubClip->EndTime();
                                 }
                                 // ImGui::TextColored({0.6, 0.6, 0.6, 1.}, "%s (+%ld)", MillisecToString(hSubClip->StartTime()).c_str(), hSubClip->Duration());
                                 ImGui::TableSetColumnIndex(1);
@@ -197,6 +203,18 @@ bool Application_Frame(void * handle, bool app_will_quit)
                     }
                     ImGui::PopStyleVar();
 
+                    // Control line #1
+                    if (ImGui::InputInt2("Insert Time##NewSubclipTime", g_insertTime))
+                    {
+
+                    }
+                    ImGui::SameLine(0, 20);
+                    if (ImGui::Button("Insert new clip"))
+                    {
+                        g_subtrack->NewClip(g_insertTime[0], g_insertTime[1]);
+                    }
+
+                    // Control line #SubEdit
                     if (ImGui::InputTextMultiline("##SubtitleEditInput", s_subtitleEdit, sizeof(s_subtitleEdit), {0, editInputHeight}, ImGuiInputTextFlags_AllowTabInput))
                     {
                         s_subtitleEditChanged = true;

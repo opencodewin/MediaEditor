@@ -71,6 +71,7 @@ namespace DataLayer
         SubtitleImage RenderSubtitleClip(SubtitleClip* clip);
         void ClearRenderCache();
         void ToggleOverrideStyle();
+        void ResetClipListReadOrder();
 
     private:
         Logger::ALogger* m_logger;

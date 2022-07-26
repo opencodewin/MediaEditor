@@ -47,6 +47,11 @@ static void PrintAssStyle(ALogger* logger, ASS_Style* s)
     logger->Log(DEBUG) << "--------------------------------------------------" << endl;
 }
 
+static bool SubClipSortCmp(const SubtitleClipHolder& a, const SubtitleClipHolder& b)
+{
+    return a->StartTime() < b->StartTime();
+}
+
 SubtitleTrack_AssImpl::SubtitleTrack_AssImpl(int64_t id)
     : m_id(id)
 {
@@ -444,8 +449,46 @@ bool SubtitleTrack_AssImpl::SeekToIndex(uint32_t index)
 
 SubtitleClipHolder SubtitleTrack_AssImpl::NewClip(int64_t startTime, int64_t duration)
 {
-    SubtitleClipHolder hNewClip(new SubtitleClip(DataLayer::ASS, 0, startTime, duration, ""));
-    m_clips.push_back(hNewClip);
+    auto iter = m_clips.begin();
+    int readOrder = 0;
+    while (iter != m_clips.end() && (*iter)->StartTime() <= startTime)
+    {
+        iter++;
+        readOrder++;
+    }
+
+    const string text = "";
+    SubtitleClipHolder hNewClip(new SubtitleClip(DataLayer::ASS, readOrder, startTime, duration, text));
+    hNewClip->SetRenderCallback(bind(&SubtitleTrack_AssImpl::RenderSubtitleClip, this, _1));
+    hNewClip->SetBackgroundColor(m_bgColor);
+    m_clips.insert(iter, hNewClip);
+
+    const int fakeReadOrder = m_asstrk->n_events;
+    const int layer = 0;
+    const string style = "Default";
+    const string speaker = "";
+    ostringstream oss;
+    oss << fakeReadOrder << "," << layer << "," << style << "," << speaker << ",0,0,0,," << text;
+    string assline = oss.str();
+    ass_process_chunk(m_asstrk, (char*)assline.c_str(), assline.size(), startTime, duration);
+    // adjust events order in ASS_Track
+    ASS_Event newEvent{m_asstrk->events[fakeReadOrder]};
+    newEvent.ReadOrder = readOrder;
+    if (fakeReadOrder > readOrder)
+    {
+        memmove(m_asstrk->events+readOrder+1, m_asstrk->events+readOrder, sizeof(ASS_Event)*(fakeReadOrder-readOrder));
+        m_asstrk->events[readOrder] = newEvent;
+    }
+
+    ASS_Event* eventPtr = m_asstrk->events+readOrder;
+    while (iter != m_clips.end())
+    {
+        readOrder++;  eventPtr++;
+        (*iter++)->SetReadOrder(readOrder);
+        eventPtr->ReadOrder = readOrder;
+    }
+
+    m_logger->Log(DEBUG) << "New added clip readOrder=" << hNewClip->ReadOrder() << "." << endl;
     return hNewClip;
 }
 
@@ -699,7 +742,6 @@ bool SubtitleTrack_AssImpl::ReadFile(const string& path)
             ASS_Event* e = m_asstrk->events+i;
             SubtitleClipHolder hSubClip(new SubtitleClip(DataLayer::ASS, e->ReadOrder, e->Start, e->Duration, e->Text));
             hSubClip->SetRenderCallback(bind(&SubtitleTrack_AssImpl::RenderSubtitleClip, this, _1));
-            uint32_t primaryColor = m_asstrk->styles[e->Style].PrimaryColour;
             hSubClip->SetBackgroundColor(m_bgColor);
             m_clips.push_back(hSubClip);
         }
@@ -857,6 +899,16 @@ void SubtitleTrack_AssImpl::ToggleOverrideStyle()
     if (m_useOverrideStyle)
         bit = ASS_OVERRIDE_FULL_STYLE;
     ass_set_selective_style_override_enabled(m_assrnd, bit);
+}
+
+void SubtitleTrack_AssImpl::ResetClipListReadOrder()
+{
+    int readOrder = 0;
+    auto iter = m_clips.begin();
+    while (iter != m_clips.end())
+    {
+        (*iter++)->SetReadOrder(readOrder++);
+    }
 }
 
 SubtitleTrackHolder SubtitleTrack_AssImpl::BuildFromFile(int64_t id, const string& url)
