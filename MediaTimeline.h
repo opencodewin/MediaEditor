@@ -173,8 +173,9 @@
 #define COL_GRATICULE       IM_COL32(255, 196,   0, 128)
 #define COL_GRATICULE_HALF  IM_COL32(255, 196,   0,  64)
 #define COL_GRAY_GRATICULE  IM_COL32( 96,  96,  96, 128)
-#define COL_MARK_BAR        IM_COL32(170, 170, 170, 170)
-#define COL_MARK_DOT        IM_COL32(224, 224, 224, 224)
+#define COL_MARK_BAR        IM_COL32(128, 128, 128, 170)
+#define COL_MARK_DOT        IM_COL32(170, 170, 170, 224)
+#define COL_MARK_DOT_LIGHT  IM_COL32(255, 255, 255, 224)
 
 #define HALF_COLOR(c)       (c & 0xFFFFFF) | 0x40000000;
 #define TIMELINE_OVER_LENGTH    5000        // add 5 seconds end of timeline
