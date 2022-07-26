@@ -133,6 +133,14 @@ bool Application_Frame(void * handle, bool app_will_quit)
                                                     ImGuiFileDialogFlags_ShowBookmark |
                                                     ImGuiFileDialogFlags_Modal);
         }
+        ImGui::SameLine(0, 20);
+        if (ImGui::Button("New empty track"))
+        {
+            g_subtrack = SubtitleTrack::NewEmptyTrack(0);
+            g_subtrack->SetFrameSize(1920, 1080);
+            g_subtrack->SetBackgroundColor({0.2, 0.2, 0.2, 1});
+        }
+
         auto btnSize = ImGui::GetItemRectSize();
         auto wndSize = ImGui::GetWindowSize();
         auto& uiStyle = ImGui::GetStyle();

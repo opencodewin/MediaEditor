@@ -12,6 +12,10 @@ namespace DataLayer
 
     struct SubtitleTrack
     {
+        virtual int64_t Id() const = 0;
+        virtual uint32_t ClipCount() const = 0;
+        virtual int64_t Duration() const = 0;
+
         virtual bool SetFrameSize(uint32_t width, uint32_t height) = 0;
         virtual bool EnableFullSizeOutput(bool enable) = 0;
         virtual bool SetBackgroundColor(const SubtitleClip::Color& color) = 0;
@@ -34,6 +38,7 @@ namespace DataLayer
         virtual bool SetSecondaryColor(const SubtitleClip::Color& color) = 0;
         virtual bool SetOutlineColor(const SubtitleClip::Color& color) = 0;
 
+        virtual SubtitleClipHolder NewClip(int64_t startTime, int64_t duration) = 0;
         virtual SubtitleClipHolder GetClipByTime(int64_t ms) = 0;
         virtual SubtitleClipHolder GetCurrClip() = 0;
         virtual SubtitleClipHolder GetPrevClip() = 0;
@@ -41,16 +46,14 @@ namespace DataLayer
         virtual int32_t GetClipIndex(SubtitleClipHolder clip) const = 0;
         virtual bool SeekToTime(int64_t ms) = 0;
         virtual bool SeekToIndex(uint32_t index) = 0;
-        virtual uint32_t ClipCount() const = 0;
-        virtual int64_t Duration() const = 0;
 
-        virtual SubtitleClipHolder NewClip(int64_t startTime, int64_t duration) = 0;
         virtual bool ChangeText(uint32_t clipIndex, const std::string& text) = 0;
         virtual bool ChangeText(SubtitleClipHolder clip, const std::string& text) = 0;
 
         virtual std::string GetError() const = 0;
 
         static SubtitleTrackHolder BuildFromFile(int64_t id, const std::string& url);
+        static SubtitleTrackHolder NewEmptyTrack(int64_t id);
     };
 
     bool InitializeSubtitleLibrary();

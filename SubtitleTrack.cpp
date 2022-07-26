@@ -27,6 +27,11 @@ namespace DataLayer
         return SubtitleTrack_AssImpl::BuildFromFile(id, url);
     }
 
+    SubtitleTrackHolder SubtitleTrack::NewEmptyTrack(int64_t id)
+    {
+        return SubtitleTrack_AssImpl::NewEmptyTrack(id);
+    }
+
     ALogger* G_SubtilteTrackLogger = nullptr;
 }
 

@@ -22,6 +22,10 @@ namespace DataLayer
 
         bool InitAss();
 
+        int64_t Id() const override { return m_id; }
+        uint32_t ClipCount() const override { return m_clips.size(); }
+        int64_t Duration() const override { return m_duration; }
+
         bool SetFrameSize(uint32_t width, uint32_t height) override;
         bool EnableFullSizeOutput(bool enable) override;
         bool SetBackgroundColor(const SubtitleClip::Color& color) override;
@@ -44,6 +48,7 @@ namespace DataLayer
         bool SetSecondaryColor(const SubtitleClip::Color& color) override;
         bool SetOutlineColor(const SubtitleClip::Color& color) override;
 
+        SubtitleClipHolder NewClip(int64_t startTime, int64_t duration) override;
         SubtitleClipHolder GetClipByTime(int64_t ms) override;
         SubtitleClipHolder GetCurrClip() override;
         SubtitleClipHolder GetPrevClip() override;
@@ -51,10 +56,7 @@ namespace DataLayer
         int32_t GetClipIndex(SubtitleClipHolder clip) const override;
         bool SeekToTime(int64_t ms) override;
         bool SeekToIndex(uint32_t index) override;
-        uint32_t ClipCount() const override { return m_clips.size(); }
-        int64_t Duration() const override { return m_duration; }
 
-        SubtitleClipHolder NewClip(int64_t startTime, int64_t duration) override;
         bool ChangeText(uint32_t clipIndex, const std::string& text) override;
         bool ChangeText(SubtitleClipHolder clip, const std::string& text) override;
 
@@ -64,6 +66,7 @@ namespace DataLayer
         static void Release();
         static bool SetFontDir(const std::string& path);
         static SubtitleTrackHolder BuildFromFile(int64_t id, const std::string& url);
+        static SubtitleTrackHolder NewEmptyTrack(int64_t id);
 
     private:
         bool ReadFile(const std::string& path);
