@@ -63,8 +63,8 @@
 #define ICON_CLONE          u8"\uf2d2"
 #define ICON_ADD            u8"\uf067"
 #define ICON_ALIGN_START    u8"\ue419"
-#define ICON_CROPPING_LEFT  u8"\ue00d"
-#define ICON_CROPPING_RIGHT u8"\ue010"
+#define ICON_CROPPING_LEFT  u8"\ue045"
+#define ICON_CROPPING_RIGHT u8"\ue044"
 #define ICON_REMOVE_CUT     u8"\ue011"
 #define ICON_CUTTING        u8"\uf0c4"
 #define ICON_MOVING         u8"\ue41f"
@@ -172,7 +172,9 @@
 #define COL_GRATICULE_DARK  IM_COL32(128,  96,   0, 128)
 #define COL_GRATICULE       IM_COL32(255, 196,   0, 128)
 #define COL_GRATICULE_HALF  IM_COL32(255, 196,   0,  64)
-#define COL_GRAY_GRATICULE  IM_COL32( 96,  96,  96,  128)
+#define COL_GRAY_GRATICULE  IM_COL32( 96,  96,  96, 128)
+#define COL_MARK_BAR        IM_COL32(170, 170, 170, 170)
+#define COL_MARK_DOT        IM_COL32(224, 224, 224, 224)
 
 #define HALF_COLOR(c)       (c & 0xFFFFFF) | 0x40000000;
 #define TIMELINE_OVER_LENGTH    5000        // add 5 seconds end of timeline
@@ -716,6 +718,8 @@ struct TimeLine
     int64_t firstTime = 0;
     int64_t lastTime = 0;
     int64_t visibleTime = 0;
+    int64_t mark_in = -1;                   // mark in point, -1 means no mark in point or mark in point is start of timeline if mark out isn't -1
+    int64_t mark_out = -1;                  // mark out point, -1 means no mark out point or mark out point is end of timeline if mark in isn't -1
     float msPixelWidthTarget = 0.1f;
 
     bool bSeeking = false;

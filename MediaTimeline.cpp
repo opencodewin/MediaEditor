@@ -5314,7 +5314,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
     int cy = (int)(io.MousePos.y);
     int scrollSize = 16;
     int trackHeadHeight = 16;
-    int HeadHeight = 20;
+    int HeadHeight = 28;
     int legendWidth = 200;
     int trackCount = timeline->GetTrackCount();
     int64_t duration = ImMax(timeline->GetEnd() - timeline->GetStart(), (int64_t)1);
@@ -5372,6 +5372,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
     static ImVec2 panningViewVerticalSource;
     static float panningViewVerticalPos;
 
+    static float headerMarkPos = -1;
+
     float minPixelWidthTarget = ImMin(timeline->msPixelWidthTarget, (float)(timline_size.x - legendWidth) / (float)duration);
     float frame_duration = (timeline->mFrameRate.den > 0 && timeline->mFrameRate.num > 0) ? timeline->mFrameRate.den * 1000.0 / timeline->mFrameRate.num : 40;
     float maxPixelWidthTarget = frame_duration > 0.0 ? 60.f / frame_duration : 20.f;
@@ -5421,13 +5423,51 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         ImVec2 headerSize(timline_size.x - 4.f, (float)HeadHeight);
         ImVec2 HorizonScrollBarSize(timline_size.x, scrollSize);
         ImVec2 VerticalScrollBarSize(scrollSize / 2, canvas_size.y - scrollSize - HeadHeight);
+        ImRect HeaderAreaRect(canvas_pos + ImVec2(legendWidth, 0), canvas_pos + headerSize);
         ImGui::InvisibleButton("topBar", headerSize);
-        draw_list->AddRectFilled(canvas_pos + ImVec2(legendWidth, 0), canvas_pos + headerSize, COL_DARK_ONE, 0);
+
+        // draw bg and mark range for timeline header bar
+        draw_list->AddRectFilled(HeaderAreaRect.Min, HeaderAreaRect.Max, COL_DARK_ONE, 0);
+        if (timeline->mark_in >= timeline->firstTime && timeline->mark_in <= timeline->lastTime)
+        {
+            float mark_in_offset = (timeline->mark_in - timeline->firstTime) * timeline->msPixelWidthTarget;
+            if (timeline->mark_out >= timeline->lastTime)
+            {
+                draw_list->AddRectFilled(HeaderAreaRect.Min + ImVec2(mark_in_offset, 0), HeaderAreaRect.Max - ImVec2(0, HeadHeight - 8), COL_MARK_BAR, 0);
+            }
+            else if (timeline->mark_out > timeline->firstTime)
+            {
+                float mark_out_offset = (timeline->mark_out - timeline->firstTime) * timeline->msPixelWidthTarget;
+                draw_list->AddRectFilled(HeaderAreaRect.Min + ImVec2(mark_in_offset, 0), HeaderAreaRect.Min + ImVec2(mark_out_offset, 8), COL_MARK_BAR, 0);
+            }
+            draw_list->AddCircleFilled(HeaderAreaRect.Min + ImVec2(mark_in_offset - 2, 4), 4, COL_MARK_DOT);
+        }
+        if (timeline->mark_out >= timeline->firstTime && timeline->mark_out <= timeline->lastTime)
+        {
+            float mark_out_offset = (timeline->mark_out - timeline->firstTime) * timeline->msPixelWidthTarget;
+            if (timeline->mark_in != -1 && timeline->mark_in < timeline->firstTime)
+            {
+                draw_list->AddRectFilled(HeaderAreaRect.Min, HeaderAreaRect.Min + ImVec2(mark_out_offset, 8), COL_MARK_BAR, 0);
+            }
+            else if (timeline->mark_in != -1 && timeline->mark_in < timeline->lastTime)
+            {
+                float mark_in_offset = (timeline->mark_in - timeline->firstTime) * timeline->msPixelWidthTarget;
+                draw_list->AddRectFilled(HeaderAreaRect.Min + ImVec2(mark_in_offset, 0), HeaderAreaRect.Min + ImVec2(mark_out_offset, 8), COL_MARK_BAR, 0);
+            }
+            draw_list->AddCircleFilled(HeaderAreaRect.Min + ImVec2(mark_out_offset + 2, 4), 4, COL_MARK_DOT);
+        }
+        if (timeline->mark_in != -1 && timeline->mark_in < timeline->firstTime && timeline->mark_out >= timeline->lastTime)
+        {
+            draw_list->AddRectFilled(HeaderAreaRect.Min , HeaderAreaRect.Max - ImVec2(0, HeadHeight - 8), COL_MARK_BAR, 0);
+        }
+        
+        
         if (!trackCount) 
         {
             ImGui::EndGroup();
             return false;
         }
+        
         ImGui::PushStyleColor(ImGuiCol_FrameBg, 0);
         ImVec2 childFramePos = ImGui::GetCursorScreenPos();
         ImVec2 childFrameSize(timline_size.x, timline_size.y - 8.0f - headerSize.y - HorizonScrollBarSize.y);
@@ -5461,7 +5501,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         // calculate mouse pos to time
         mouseTime = (int64_t)((cx - contentMin.x - legendWidth) / timeline->msPixelWidthTarget) + timeline->firstTime;
         //timeline->AlignTime(mouseTime);
-        menuIsOpened = ImGui::IsPopupOpen("##timeline-context-menu");
+        menuIsOpened = ImGui::IsPopupOpen("##timeline-context-menu") || ImGui::IsPopupOpen("##timeline-header-context-menu");
 
         //header
         //header time and lines
@@ -5479,7 +5519,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             bool halfIndex = (i % halfModTime) == 0;
             int px = (int)contentMin.x + int(i * timeline->msPixelWidthTarget) + legendWidth - int(timeline->firstTime * timeline->msPixelWidthTarget);
             int tiretStart = baseIndex ? 4 : (halfIndex ? 10 : 14);
-            int tiretEnd = baseIndex ? regionHeight : HeadHeight;
+            int tiretEnd = baseIndex ? regionHeight : HeadHeight - 8;
             if (px <= (timline_size.x + contentMin.x) && px >= (contentMin.x + legendWidth))
             {
                 draw_list->AddLine(ImVec2((float)px, canvas_pos.y + (float)tiretStart), ImVec2((float)px, canvas_pos.y + (float)tiretEnd - 1), halfIndex ? COL_MARK : COL_MARK_HALF, halfIndex ? 2 : 1);
@@ -5488,7 +5528,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             {
                 auto time_str = TimelineMillisecToString(i, 2);
                 ImGui::SetWindowFontScale(0.8);
-                draw_list->AddText(ImVec2((float)px + 3.f, canvas_pos.y), COL_RULE_TEXT, time_str.c_str());
+                draw_list->AddText(ImVec2((float)px + 3.f, canvas_pos.y + 8), COL_RULE_TEXT, time_str.c_str());
                 ImGui::SetWindowFontScale(1.0);
             }
         };
@@ -5762,6 +5802,12 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             ImGui::OpenPopup("##timeline-context-menu");
             menuIsOpened = true;
         }
+        if (HeaderAreaRect.Contains(io.MousePos) && !menuIsOpened && !bCropping && !bCutting&& ImGui::IsMouseDown(ImGuiMouseButton_Right))
+        {
+            headerMarkPos = io.MousePos.x;
+            ImGui::OpenPopup("##timeline-header-context-menu");
+            menuIsOpened = true;
+        }
 
         draw_list->PopClipRect();
         draw_list->PopClipRect();
@@ -5770,6 +5816,35 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         if (!menuIsOpened)
         {
             clipEntry = -1;
+            headerMarkPos = -1;
+        }
+
+        if (ImGui::BeginPopup("##timeline-header-context-menu"))
+        {
+            if (headerMarkPos >= 0)
+            {
+                int64_t mouse_time = (int64_t)((headerMarkPos - topRect.Min.x) / timeline->msPixelWidthTarget) + timeline->firstTime;
+                if (ImGui::MenuItem("+ Add mark in", nullptr, nullptr))
+                {
+                    if (timeline->mark_out != -1 && mouse_time > timeline->mark_out)
+                        timeline->mark_out = -1;
+                    timeline->mark_in = mouse_time;
+                    headerMarkPos = -1;
+                }
+                if (ImGui::MenuItem("+ Add mark out", nullptr, nullptr))
+                {
+                    if (timeline->mark_in != -1 && mouse_time < timeline->mark_in)
+                        timeline->mark_in = -1;
+                    timeline->mark_out = mouse_time;
+                    headerMarkPos = -1;
+                }
+                if (ImGui::MenuItem("- Delete mark point", nullptr, nullptr))
+                {
+                    timeline->mark_in = timeline->mark_out = -1;
+                    headerMarkPos = -1;
+                }
+            }
+            ImGui::EndPopup();
         }
 
         if (ImGui::BeginPopup("##timeline-context-menu"))
@@ -5781,22 +5856,18 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             if (ImGui::MenuItem("+" ICON_MEDIA_VIDEO  " Insert Empty Video Track", nullptr, nullptr))
             {
                 insertEmptyTrackType = MEDIA_VIDEO;
-                menuIsOpened = false;
             }
             if (ImGui::MenuItem("+" ICON_MEDIA_AUDIO " Insert Empty Audio Track", nullptr, nullptr))
             {
                 insertEmptyTrackType = MEDIA_AUDIO;
-                menuIsOpened = false;
             }
             if (ImGui::MenuItem( "+" ICON_MEDIA_IMAGE " Insert Empty Image Track", nullptr, nullptr))
             {
                 insertEmptyTrackType = MEDIA_PICTURE;
-                menuIsOpened = false;
             }
             if (ImGui::MenuItem( "+" ICON_MEDIA_TEXT " Insert Empty Text Track", nullptr, nullptr))
             {
                 insertEmptyTrackType = MEDIA_TEXT;
-                menuIsOpened = false;
             }
 
             if (empty_track_count > 0)
@@ -5804,7 +5875,6 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                 if (ImGui::MenuItem(" " ICON_MEDIA_DELETE " Delete Empty Track", nullptr, nullptr))
                 {
                     removeEmptyTrack = true;
-                    menuIsOpened = false;
                 }
             }
 
@@ -5815,12 +5885,10 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                 if (ImGui::MenuItem(ICON_MEDIA_DELETE_CLIP " Delete Clip", nullptr, nullptr))
                 {
                     delClipEntry.push_back(clipEntry);
-                    menuIsOpened = false;
                 }
                 if (clip->mGroupID != -1 && ImGui::MenuItem(ICON_MEDIA_UNGROUP " Ungroup Clip", nullptr, nullptr))
                 {
                     unGroupClipEntry.push_back(clipEntry);
-                    menuIsOpened = false;
                 }
             }
             if (selected_clip_count > 0)
@@ -5833,7 +5901,6 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                         if (clip->bSelected)
                             delClipEntry.push_back(clip->mID);
                     }
-                    menuIsOpened = false;
                 }
                 if (selected_clip_count > 1 && ImGui::MenuItem(ICON_MEDIA_GROUP " Group Selected", nullptr, nullptr))
                 {
@@ -5842,7 +5909,6 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                         if (clip->bSelected)
                             groupClipEntry.push_back(clip->mID);
                     }
-                    menuIsOpened = false;
                 }
                 if (ImGui::MenuItem(ICON_MEDIA_UNGROUP " Ungroup Selected", nullptr, nullptr))
                 {
@@ -5851,7 +5917,6 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                         if (clip->bSelected)
                             unGroupClipEntry.push_back(clip->mID);
                     }
-                    menuIsOpened = false;
                 }
             }
             ImGui::PopStyleColor();
@@ -6090,7 +6155,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         // time metric
         bool movable = true;
         if ((timeline->mVidFilterClip && timeline->mVidFilterClip->bSeeking) ||
-            (timeline->mAudFilterClip && timeline->mAudFilterClip->bSeeking))
+            (timeline->mAudFilterClip && timeline->mAudFilterClip->bSeeking) ||
+            menuIsOpened)
         {
             movable = false;
         }
