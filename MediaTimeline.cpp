@@ -4438,6 +4438,16 @@ int TimeLine::Load(const imgui_json::value& value)
         if (val.is_number()) currentTime = val.get<imgui_json::number>();
         mPreviewResumePos = (double)currentTime/1000;
     }
+    if (value.contains("MarkIn"))
+    {
+        auto& val = value["MarkIn"];
+        if (val.is_number()) mark_in = val.get<imgui_json::number>();
+    }
+    if (value.contains("MarkOut"))
+    {
+        auto& val = value["MarkOut"];
+        if (val.is_number()) mark_out = val.get<imgui_json::number>();
+    }
     if (value.contains("PreviewForward"))
     {
         auto& val = value["PreviewForward"];
@@ -4593,6 +4603,8 @@ void TimeLine::Save(imgui_json::value& value)
     value["msPixelWidth"] = imgui_json::number(msPixelWidthTarget);
     value["FirstTime"] = imgui_json::number(firstTime);
     value["CurrentTime"] = imgui_json::number(currentTime);
+    value["MarkIn"] = imgui_json::number(mark_in);
+    value["MarkOut"] = imgui_json::number(mark_out);
     value["PreviewForward"] = imgui_json::boolean(mIsPreviewForward);
     value["Loop"] = imgui_json::boolean(bLoop);
     value["Compare"] = imgui_json::boolean(bCompare);
@@ -5373,6 +5385,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
     static float panningViewVerticalPos;
 
     static float headerMarkPos = -1;
+    static int markMovingEntry = -1;
 
     float minPixelWidthTarget = ImMin(timeline->msPixelWidthTarget, (float)(timline_size.x - legendWidth) / (float)duration);
     float frame_duration = (timeline->mFrameRate.den > 0 && timeline->mFrameRate.num > 0) ? timeline->mFrameRate.den * 1000.0 / timeline->mFrameRate.num : 40;
@@ -5440,7 +5453,20 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                 float mark_out_offset = (timeline->mark_out - timeline->firstTime) * timeline->msPixelWidthTarget;
                 draw_list->AddRectFilled(HeaderAreaRect.Min + ImVec2(mark_in_offset, 0), HeaderAreaRect.Min + ImVec2(mark_out_offset, 8), COL_MARK_BAR, 0);
             }
-            draw_list->AddCircleFilled(HeaderAreaRect.Min + ImVec2(mark_in_offset - 2, 4), 4, COL_MARK_DOT);
+            
+            ImRect handle_rect(HeaderAreaRect.Min + ImVec2(mark_in_offset, 0), HeaderAreaRect.Min + ImVec2(mark_in_offset + 8, 8));
+            if (handle_rect.Contains(io.MousePos))
+            {
+                draw_list->AddCircleFilled(HeaderAreaRect.Min + ImVec2(mark_in_offset + 2, 4), 4, COL_MARK_DOT_LIGHT);
+                if (ImGui::IsMouseDown(ImGuiMouseButton_Left))
+                {
+                    markMovingEntry = 0;
+                }
+            }
+            else
+            {
+                draw_list->AddCircleFilled(HeaderAreaRect.Min + ImVec2(mark_in_offset + 2, 4), 4, COL_MARK_DOT);
+            }
         }
         if (timeline->mark_out >= timeline->firstTime && timeline->mark_out <= timeline->lastTime)
         {
@@ -5454,13 +5480,25 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                 float mark_in_offset = (timeline->mark_in - timeline->firstTime) * timeline->msPixelWidthTarget;
                 draw_list->AddRectFilled(HeaderAreaRect.Min + ImVec2(mark_in_offset, 0), HeaderAreaRect.Min + ImVec2(mark_out_offset, 8), COL_MARK_BAR, 0);
             }
-            draw_list->AddCircleFilled(HeaderAreaRect.Min + ImVec2(mark_out_offset + 2, 4), 4, COL_MARK_DOT);
+            
+            ImRect handle_rect(HeaderAreaRect.Min + ImVec2(mark_out_offset - 4, 0), HeaderAreaRect.Min + ImVec2(mark_out_offset + 4, 8));
+            if (handle_rect.Contains(io.MousePos))
+            {
+                draw_list->AddCircleFilled(HeaderAreaRect.Min + ImVec2(mark_out_offset + 2, 4), 4, COL_MARK_DOT_LIGHT);
+                if (ImGui::IsMouseDown(ImGuiMouseButton_Left))
+                {
+                    markMovingEntry = 1;
+                }
+            }
+            else
+            {
+                draw_list->AddCircleFilled(HeaderAreaRect.Min + ImVec2(mark_out_offset + 2, 4), 4, COL_MARK_DOT);
+            }
         }
         if (timeline->mark_in != -1 && timeline->mark_in < timeline->firstTime && timeline->mark_out >= timeline->lastTime)
         {
             draw_list->AddRectFilled(HeaderAreaRect.Min , HeaderAreaRect.Max - ImVec2(0, HeadHeight - 8), COL_MARK_BAR, 0);
         }
-        
         
         if (!trackCount) 
         {
@@ -5789,6 +5827,25 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                         clip->Cropping(diffTime, 1);
                     }
                 }
+            }
+        }
+
+        // mark moving
+        if (markMovingEntry != -1 && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
+        {
+            ImGui::CaptureMouseFromApp();
+            int64_t mouse_time = (int64_t)((io.MousePos.x - topRect.Min.x) / timeline->msPixelWidthTarget) + timeline->firstTime;
+            if (markMovingEntry == 0)
+            {
+                timeline->mark_in = mouse_time;
+                if (timeline->mark_in < 0) timeline->mark_in = 0;
+                if (timeline->mark_in >= timeline->mark_out) timeline->mark_out = -1;
+            }
+            else
+            {
+                timeline->mark_out = mouse_time;
+                if (timeline->mark_out < 0) timeline->mark_out = 0;
+                if (timeline->mark_out <= timeline->mark_in) timeline->mark_in = -1;
             }
         }
 
@@ -6246,6 +6303,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         clipMovingEntry = -1;
         clipMovingPart = -1;
         trackMovingEntry = -1;
+        markMovingEntry = -1;
         trackEntry = -1;
         bCropping = false;
         bMoving = false;
