@@ -57,13 +57,6 @@ namespace DataLayer
         {
             Color() = default;
             Color(float _r, float _g, float _b, float _a) : r(_r), g(_g), b(_b), a(_a) {}
-            // Color(uint32_t c)
-            // {
-            //     a = (float)(c&0xff)/255;
-            //     r = (float)((c>>8)&0xff)/255;
-            //     g = (float)((c>>16)&0xff)/255;
-            //     b = (float)((c>>24)&0xff)/255;
-            // }
             float r{1};
             float g{1};
             float b{1};
@@ -71,9 +64,9 @@ namespace DataLayer
         };
 
         void SetRenderCallback(RenderCallback renderCb) { m_renderCb = renderCb; }
-        bool SetFont(const std::string& font);
-        bool SetScale(double scale);
-        void SetTextColor(const Color& color);
+        // bool SetFont(const std::string& font);
+        // bool SetScale(double scale);
+        // void SetTextColor(const Color& color);
         void SetBackgroundColor(const Color& color);
         void InvalidateImage() { m_image.Invalidate(); }
         void SetText(const std::string& text) { m_text = text; }
@@ -83,9 +76,9 @@ namespace DataLayer
 
         SubtitleType Type() const { return m_type; }
         int ReadOrder() const { return m_readOrder; }
-        std::string Font() const { return m_font; }
-        double FontScale() const { return m_fontScale; }
-        Color TextColor() const { return m_textColor; }
+        // std::string Font() const { return m_font; }
+        // double FontScale() const { return m_fontScale; }
+        // Color TextColor() const { return m_textColor; }
         Color BackgroundColor() const { return m_bgColor; }
         int64_t StartTime() const { return m_startTime; }
         int64_t Duration() const { return m_duration; }

@@ -19,20 +19,20 @@ SubtitleClip::SubtitleClip(SubtitleType type, int readOrder, int64_t startTime, 
     : m_type(type), m_readOrder(readOrder), m_startTime(startTime), m_duration(duration), m_image(image)
 {}
 
-bool SubtitleClip::SetFont(const string& font)
-{
-    return false;
-}
+// bool SubtitleClip::SetFont(const string& font)
+// {
+//     return false;
+// }
 
-bool SubtitleClip::SetScale(double scale)
-{
-    return false;
-}
+// bool SubtitleClip::SetScale(double scale)
+// {
+//     return false;
+// }
 
-void SubtitleClip::SetTextColor(const Color& color)
-{
-    m_textColor = color;
-}
+// void SubtitleClip::SetTextColor(const Color& color)
+// {
+//     m_textColor = color;
+// }
 
 void SubtitleClip::SetBackgroundColor(const Color& color)
 {
