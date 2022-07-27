@@ -10,6 +10,64 @@ extern "C"
 
 namespace DataLayer
 {
+    class SubtitleTrackStyle_AssImpl : public SubtitleTrack::Style
+    {
+    public:
+        SubtitleTrackStyle_AssImpl() = default;
+        SubtitleTrackStyle_AssImpl(const ASS_Style* style);
+        SubtitleTrackStyle_AssImpl(const SubtitleTrackStyle_AssImpl& a);
+        SubtitleTrackStyle_AssImpl(SubtitleTrackStyle_AssImpl&&) = default;
+        SubtitleTrackStyle_AssImpl& operator=(const SubtitleTrackStyle_AssImpl& a);
+
+        std::string Font() const override { return std::string(m_style.FontName); }
+        double Scale() const override { return m_scale; }
+        double ScaleX() const override { return m_style.ScaleX; }
+        double ScaleY() const override { return m_style.ScaleY; }
+        double Spacing() const override { return m_style.Spacing; }
+        double Angle() const override { return m_style.Angle; }
+        double OutlineWidth() const override { return m_style.Outline; }
+        int Alignment() const override { return m_style.Alignment; }
+        int MarginH() const override { return m_style.MarginL; }
+        int MarginV() const override { return /*m_marginV*/ m_style.MarginV; }
+        int Italic() const override { return m_style.Italic; }
+        int Bold() const override { return m_style.Bold; }
+        bool UnderLine() const override { return m_style.Underline != 0; }
+        bool StrikeOut() const override { return m_style.StrikeOut != 0; }
+        SubtitleClip::Color PrimaryColor() const override { return m_primaryColor; }
+        SubtitleClip::Color SecondaryColor() const override { return m_secondaryColor; }
+        SubtitleClip::Color OutlineColor() const override { return m_outlineColor; }
+
+        void BuildFromAssStyle(const ASS_Style* assStyle);
+        ASS_Style* GetAssStylePtr() { return &m_style; }
+        void SetFont(const std::string& font);
+        void SetScale(double scale) { m_scale = scale; }
+        void SetScaleX(double value) { m_style.ScaleX = value; }
+        void SetScaleY(double value) { m_style.ScaleY = value; }
+        void SetSpacing(double value) { m_style.Spacing = value; }
+        void SetAngle(double value) { m_style.Angle = value; }
+        void SetOutlineWidth(double value) { m_style.Outline = value; }
+        void SetAlignment(int value) { m_style.Alignment = value; }
+        void SetMarginH(int value) { m_style.MarginL = value; }
+        void SetMarginV(int value) { /* m_marginV = value; */ m_style.MarginV = value; }
+        void SetItalic(int value) { m_style.Italic = value; }
+        void SetBold(int value) { m_style.Bold = value; }
+        void SetUnderLine(bool enable) { m_style.Underline = enable ? 1 : 0; }
+        void SetStrikeOut(bool enable) { m_style.StrikeOut = enable ? 1 : 0; }
+        void SetPrimaryColor(const SubtitleClip::Color& color);
+        void SetSecondaryColor(const SubtitleClip::Color& color);
+        void SetOutlineColor(const SubtitleClip::Color& color);
+
+    private:
+        ASS_Style m_style;
+        std::unique_ptr<char[]> m_name;
+        std::unique_ptr<char[]> m_fontName;
+        double m_scale{1};
+        int m_marginV{0};
+        SubtitleClip::Color m_primaryColor;
+        SubtitleClip::Color m_secondaryColor;
+        SubtitleClip::Color m_outlineColor;
+    };
+
     class SubtitleTrack_AssImpl : public SubtitleTrack
     {
     public:
@@ -25,6 +83,7 @@ namespace DataLayer
         int64_t Id() const override { return m_id; }
         uint32_t ClipCount() const override { return m_clips.size(); }
         int64_t Duration() const override { return m_duration; }
+        const Style& GetStyle() const override { return m_overrideStyle; }
 
         bool SetFrameSize(uint32_t width, uint32_t height) override;
         bool EnableFullSizeOutput(bool enable) override;
@@ -35,10 +94,9 @@ namespace DataLayer
         bool SetScaleY(double value) override;
         bool SetSpacing(double value) override;
         bool SetAngle(double value) override;
-        bool SetOutline(double value) override;
+        bool SetOutlineWidth(double value) override;
         bool SetAlignment(int value) override;
-        bool SetMarginL(int value) override;
-        bool SetMarginR(int value) override;
+        bool SetMarginH(int value) override;
         bool SetMarginV(int value) override;
         bool SetItalic(int value) override;
         bool SetBold(int value) override;
@@ -92,25 +150,8 @@ namespace DataLayer
         bool m_outputFullSize{true};
         SubtitleClip::Color m_bgColor{0, 0, 0, 0};
 
-        class AssStyleWrapper
-        {
-        public:
-            AssStyleWrapper() = default;
-            AssStyleWrapper(AssStyleWrapper&&) = default;
-            AssStyleWrapper(const AssStyleWrapper& a);
-            AssStyleWrapper& operator=(const AssStyleWrapper& a);
-
-            AssStyleWrapper(ASS_Style* style);
-            ASS_Style* GetAssStylePtr() { return &m_style; }
-            void SetFont(const std::string& font);
-
-            ASS_Style m_style{0};
-        private:
-            std::unique_ptr<char[]> m_name;
-            std::unique_ptr<char[]> m_fontName;
-        };
-        AssStyleWrapper m_overrideStyle;
         bool m_useOverrideStyle{false};
+        SubtitleTrackStyle_AssImpl m_overrideStyle;
 
         AVFormatContext* m_pAvfmtCtx{nullptr};
         AVCodecContext* m_pAvCdcCtx{nullptr};

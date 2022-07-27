@@ -28,10 +28,10 @@ static float g_scaleX = 1.f;
 static float g_scaleY = 1.f;
 static float g_spacing = 1.f;
 static float g_angle = 0;
-static float g_outline = 1;
+static float g_outlineWidth = 1;
 static int g_alignment = 2;
 static int g_marginV = 0;
-static int g_marginL = 0;
+static int g_marginH = 0;
 static int g_marginR = 0;
 static bool g_fontItalic = false;
 static bool g_fontBold = false;
@@ -339,9 +339,9 @@ bool Application_Frame(void * handle, bool app_will_quit)
                         g_subtrack->SetAngle((double)g_angle);
                     }
                     ImGui::SameLine(0, 30);
-                    if (ImGui::SliderFloat("Outline", &g_outline, 0, 3, "%.1f"))
+                    if (ImGui::SliderFloat("Outline width", &g_outlineWidth, 0, 3, "%.1f"))
                     {
-                        g_subtrack->SetOutline((double)g_outline);
+                        g_subtrack->SetOutlineWidth((double)g_outlineWidth);
                     }
 
                     // Control Line #3
@@ -365,14 +365,9 @@ bool Application_Frame(void * handle, bool app_will_quit)
                         g_subtrack->SetMarginV(g_marginV);
                     }
                     ImGui::SameLine(0, 30);
-                    if (ImGui::SliderInt("MarginL", &g_marginL, -300, 300, "%d"))
+                    if (ImGui::SliderInt("MarginH", &g_marginH, -300, 300, "%d"))
                     {
-                        g_subtrack->SetMarginL(g_marginL);
-                    }
-                    ImGui::SameLine(0, 30);
-                    if (ImGui::SliderInt("MarginR", &g_marginR, -300, 300, "%d"))
-                    {
-                        g_subtrack->SetMarginR(g_marginR);
+                        g_subtrack->SetMarginH(g_marginH);
                     }
                     ImGui::PopItemWidth();
 

@@ -12,9 +12,31 @@ namespace DataLayer
 
     struct SubtitleTrack
     {
+        struct Style
+        {
+            virtual std::string Font() const = 0;
+            virtual double Scale() const = 0;
+            virtual double ScaleX() const = 0;
+            virtual double ScaleY() const = 0;
+            virtual double Spacing() const = 0;
+            virtual double Angle() const = 0;
+            virtual double OutlineWidth() const = 0;
+            virtual int Alignment() const = 0;  // 1: left; 2: center; 3: right
+            virtual int MarginH() const = 0;
+            virtual int MarginV() const = 0;
+            virtual int Italic() const = 0;
+            virtual int Bold() const = 0;
+            virtual bool UnderLine() const = 0;
+            virtual bool StrikeOut() const = 0;
+            virtual SubtitleClip::Color PrimaryColor() const = 0;
+            virtual SubtitleClip::Color SecondaryColor() const = 0;
+            virtual SubtitleClip::Color OutlineColor() const = 0;
+        };
+
         virtual int64_t Id() const = 0;
         virtual uint32_t ClipCount() const = 0;
         virtual int64_t Duration() const = 0;
+        virtual const Style& GetStyle() const = 0;
 
         virtual bool SetFrameSize(uint32_t width, uint32_t height) = 0;
         virtual bool EnableFullSizeOutput(bool enable) = 0;
@@ -25,10 +47,9 @@ namespace DataLayer
         virtual bool SetScaleY(double value) = 0;
         virtual bool SetSpacing(double value) = 0;
         virtual bool SetAngle(double value) = 0;
-        virtual bool SetOutline(double value) = 0;
-        virtual bool SetAlignment(int value) = 0;  // 1: left; 2: center; 3: right
-        virtual bool SetMarginL(int value) = 0;
-        virtual bool SetMarginR(int value) = 0;
+        virtual bool SetOutlineWidth(double value) = 0;
+        virtual bool SetAlignment(int value) = 0;
+        virtual bool SetMarginH(int value) = 0;
         virtual bool SetMarginV(int value) = 0;
         virtual bool SetItalic(int value) = 0;
         virtual bool SetBold(int value) = 0;
