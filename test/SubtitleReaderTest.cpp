@@ -228,12 +228,11 @@ bool Application_Frame(void * handle, bool app_will_quit)
                     ImGui::EndDisabled();
                     ImGui::SameLine();
 
-                    ImGui::BeginDisabled(!hSelectedClip);
+                    int64_t insertAt = g_clipTime[0]+g_clipTime[1];
                     if (ImGui::Button("Insert after"))
                     {
-                        g_subtrack->NewClip(hSelectedClip->EndTime(), 1000);
+                        g_subtrack->NewClip(insertAt, 1000);
                     }
-                    ImGui::EndDisabled();
 
                     // Control line #SubEdit
                     if (ImGui::InputTextMultiline("##SubtitleEditInput", s_subtitleEdit, sizeof(s_subtitleEdit), {0, editInputHeight}, ImGuiInputTextFlags_AllowTabInput))
