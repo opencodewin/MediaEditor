@@ -78,6 +78,8 @@ namespace DataLayer
         void InvalidateImage() { m_image.Invalidate(); }
         void SetText(const std::string& text) { m_text = text; }
         void SetReadOrder(int readOrder) { m_readOrder = readOrder; }
+        void SetStartTime(int64_t startTime) { m_startTime = startTime; }
+        void SetDuration(int64_t duration) { m_duration = duration; }
 
         SubtitleType Type() const { return m_type; }
         int ReadOrder() const { return m_readOrder; }

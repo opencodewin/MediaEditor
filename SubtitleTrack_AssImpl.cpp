@@ -373,6 +373,118 @@ bool SubtitleTrack_AssImpl::SetOutlineColor(const SubtitleClip::Color& color)
     return true;
 }
 
+bool SubtitleTrack_AssImpl::ChangeClipTime(SubtitleClipHolder clip, int64_t startTime, int64_t duration)
+{
+    if (!clip)
+    {
+        m_errMsg = "Argument 'clip' CANNOT be NULL!";
+        return false;
+    }
+    int32_t idx = 0;
+    auto iter = m_clips.begin();
+    while (iter != m_clips.end())
+    {
+        if (*iter == clip)
+            break;
+        idx++;
+        iter++;
+    }
+    if (iter == m_clips.end())
+    {
+        m_errMsg = "Can NOT FIND the target clip in the clip list!";
+        return false;
+    }
+    if (clip->StartTime() == startTime && clip->Duration() == duration)
+    {
+        // does not change anything
+        return true;
+    }
+
+    // Invalidate the clips which affected by the target clip
+    auto iter2 = iter;
+    while (iter2 != m_clips.end())
+    {
+        iter2++;
+        if (iter2 != m_clips.end() && clip->EndTime() > (*iter2)->StartTime())
+            (*iter2)->InvalidateImage();
+        else
+            break;
+    }
+
+    // calculate the variation of the index after the clip time changed
+    iter2 = iter;
+    int indexVariation = 0;
+    if (startTime > clip->StartTime())
+    {
+        iter2++;
+        while (iter2 != m_clips.end() && startTime > (*iter2)->StartTime())
+        {
+            (*iter2)->InvalidateImage();
+            indexVariation++;
+            iter2++;
+        }
+    }
+    else if (startTime < clip->StartTime())
+    {
+        while (iter2 != m_clips.begin())
+        {
+            iter2--;
+            if (startTime < (*iter2)->StartTime())
+            {
+                (*iter2)->InvalidateImage();
+                indexVariation--;
+            }
+            else
+            {
+                iter2++;
+                break;
+            }
+        }
+    }
+
+    // if no index variation is needed, then just update the time attributes is enough
+    if (indexVariation == 0)
+    {
+        clip->SetStartTime(startTime);
+        clip->SetDuration(duration);
+        clip->InvalidateImage();
+        ASS_Event* e = m_asstrk->events+idx;
+        e->Start = startTime;
+        e->Duration = duration;
+        return true;
+    }
+
+    // else, move the target clip to the new position
+    m_clips.erase(iter);
+    m_clips.insert(iter2, clip);
+    while (iter2 != m_clips.end())
+    {
+        if (clip->EndTime() > (*iter2)->StartTime())
+        {
+            (*iter2)->InvalidateImage();
+            iter2++;
+        }
+        else
+            break;
+    }
+    clip->SetStartTime(startTime);
+    clip->SetDuration(duration);
+    ASS_Event tmp{m_asstrk->events[idx]};
+    tmp.Start = startTime;
+    tmp.Duration = duration;
+    if (indexVariation > 0)
+    {
+        memmove(m_asstrk->events+idx, m_asstrk->events+idx+1, sizeof(ASS_Event)*indexVariation);
+        m_asstrk->events[idx+indexVariation] = tmp;
+    }
+    else
+    {
+        memmove(m_asstrk->events+idx+indexVariation+1, m_asstrk->events+idx+indexVariation, sizeof(ASS_Event)*(-indexVariation));
+        m_asstrk->events[idx+indexVariation] = tmp;
+    }
+    return true;
+}
+
 SubtitleClipHolder SubtitleTrack_AssImpl::GetClipByTime(int64_t ms)
 {
     if (m_clips.size() <= 0)

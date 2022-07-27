@@ -47,6 +47,7 @@ namespace DataLayer
         bool SetPrimaryColor(const SubtitleClip::Color& color) override;
         bool SetSecondaryColor(const SubtitleClip::Color& color) override;
         bool SetOutlineColor(const SubtitleClip::Color& color) override;
+        bool ChangeClipTime(SubtitleClipHolder clip, int64_t startTime, int64_t duration) override;
 
         SubtitleClipHolder NewClip(int64_t startTime, int64_t duration) override;
         SubtitleClipHolder GetClipByTime(int64_t ms) override;
