@@ -482,7 +482,7 @@ private:
                     if ((p->capabilities&AV_CODEC_CAP_EXPERIMENTAL) != 0)
                         continue;
                     best = p;
-                    if (!m_vidPreferUseHw || p->hw_configs)
+                    if (!m_vidPreferUseHw || (p->capabilities&AV_CODEC_CAP_HARDWARE) != 0)
                         break;
                 }
             }
@@ -1405,7 +1405,7 @@ static MediaEncoder::EncoderDescription ConvertAVCodecToEncoderDescription(AVCod
     encdesc.codecName = string(cdcptr->name);
     if (cdcptr->long_name)
         encdesc.longName = string(cdcptr->long_name);
-    encdesc.isHardwareEncoder = (bool)cdcptr->hw_configs;
+    encdesc.isHardwareEncoder = (cdcptr->capabilities&AV_CODEC_CAP_HARDWARE) != 0;
     if (cdcptr->type == AVMEDIA_TYPE_VIDEO)
         encdesc.mediaType = MediaInfo::VIDEO;
     else if (cdcptr->type == AVMEDIA_TYPE_AUDIO)
