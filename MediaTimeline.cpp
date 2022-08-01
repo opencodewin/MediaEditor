@@ -241,6 +241,16 @@ void Clip::Load(Clip * clip, const imgui_json::value& value)
         auto& val = value["Editing"];
         if (val.is_boolean()) clip->bEditing = val.get<imgui_json::boolean>();
     }
+    if (value.contains("Path"))
+    {
+        auto& val = value["Path"];
+        if (val.is_string()) clip->mPath = val.get<imgui_json::string>();
+    }
+    if (value.contains("Name"))
+    {
+        auto& val = value["Name"];
+        if (val.is_string()) clip->mName = val.get<imgui_json::string>();
+    }
     // load filter bp
     if (value.contains("FilterBP"))
     {
@@ -416,7 +426,8 @@ void Clip::Cutting(int64_t pos)
         break;
         case MEDIA_TEXT:
         {
-            auto new_text_clip = new TextClip(mStart, mEnd, mMediaID, mName, mMediaParser, timeline);
+            TextClip* textClip = dynamic_cast<TextClip*>(this);
+            auto new_text_clip = new TextClip(mStart, mEnd, mMediaID, mName, textClip->mText, timeline);
             new_clip = new_text_clip;
         }
         break;
@@ -1221,18 +1232,30 @@ void ImageClip::Save(imgui_json::value& value)
 }
 
 // TextClip Struct Member Functions
-TextClip::TextClip(int64_t start, int64_t end, int64_t id, std::string name, MediaParserHolder hParser, void* handle)
-    : Clip(start, end, id, hParser, handle)
+TextClip::TextClip(int64_t start, int64_t end, int64_t id, std::string name, std::string text, void* handle)
+    : Clip(start, end, id, nullptr, handle)
 {
     if (handle)
     {
         mType = MEDIA_TEXT;
         mName = name;
+        mText = text;
     }
 }
 
 TextClip::~TextClip()
 {
+}
+
+void TextClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect)
+{
+    drawList->AddRectFilled(leftTop, rightBottom, IM_COL32(16, 16, 16, 255));
+    drawList->PushClipRect(leftTop, rightBottom, true);
+    ImGui::SetWindowFontScale(0.7);
+    drawList->AddText(leftTop, IM_COL32_WHITE, mText.c_str());
+    ImGui::SetWindowFontScale(1.0);
+    drawList->PopClipRect();
+    drawList->AddRect(leftTop, rightBottom, IM_COL32_BLACK);
 }
 
 Clip * TextClip::Load(const imgui_json::value& value, void * handle)
@@ -1255,11 +1278,16 @@ Clip * TextClip::Load(const imgui_json::value& value, void * handle)
 
     if (item)
     {
-        TextClip * new_clip = new TextClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview->GetMediaParser(), handle);
+        TextClip * new_clip = new TextClip(item->mStart, item->mEnd, item->mID, item->mName, std::string(""), handle);
         if (new_clip)
         {
             Clip::Load(new_clip, value);
             // load text info
+            if (value.contains("Text"))
+            {
+                auto& val = value["Text"];
+                if (val.is_string()) new_clip->mText = val.get<imgui_json::string>();
+            }
             return new_clip;
         }
     }
@@ -1274,6 +1302,7 @@ void TextClip::Save(imgui_json::value& value)
 {
     Clip::Save(value);
     // save Text clip info
+    value["Text"] = mText;
 }
 
 BluePrintVideoFilter::~BluePrintVideoFilter()
@@ -4163,7 +4192,7 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &view_r
             
             // draw clip status
             draw_list->PushClipRect(clip_title_pos_min, clip_title_pos_max, true);
-            draw_list->AddText(clip_title_pos_min + ImVec2(4, 0), IM_COL32_WHITE, clip->mName.c_str());
+            draw_list->AddText(clip_title_pos_min + ImVec2(4, 0), IM_COL32_WHITE, clip->mType == MEDIA_TEXT ? "T" : clip->mName.c_str());
             draw_list->PopClipRect();
 
             // draw custom view
@@ -6434,7 +6463,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                         DataLayer::SubtitleClipHolder hSubClip = subtrack->GetCurrClip();
                         while (hSubClip)
                         {
-                            TextClip * new_text_clip = new TextClip(hSubClip->StartTime(), hSubClip->EndTime(), newTrack->mID, hSubClip->Text(), nullptr, timeline);
+                            TextClip * new_text_clip = new TextClip(hSubClip->StartTime(), hSubClip->EndTime(), item->mID, item->mName, hSubClip->Text(), timeline);
+                            timeline->m_Clips.push_back(new_text_clip);
                             newTrack->InsertClip(new_text_clip, hSubClip->StartTime(), false);
                             action["clip_id"] = imgui_json::number(new_text_clip->mID);
                             hSubClip = subtrack->GetNextClip();
@@ -6454,6 +6484,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                     AudioClip * new_audio_clip = nullptr;
                     const MediaInfo::VideoStream* video_stream = item->mMediaOverview->GetVideoStream();
                     const MediaInfo::AudioStream* audio_stream = item->mMediaOverview->GetAudioStream();
+                    const MediaInfo::SubtitleStream * subtitle_stream = nullptr;
                     if (video_stream)
                     {
                         SnapshotGenerator::ViewerHolder hViewer;

@@ -387,11 +387,15 @@ private:
 
 struct TextClip : Clip
 {
-    TextClip(int64_t start, int64_t end, int64_t id, std::string name, MediaParserHolder hParser, void* handle);
+    TextClip(int64_t start, int64_t end, int64_t id, std::string name, std::string text, void* handle);
     ~TextClip();
 
+    void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect) override;
+
     static Clip * Load(const imgui_json::value& value, void * handle);
-    void Save(imgui_json::value& value);
+    void Save(imgui_json::value& value) override;
+
+    std::string mText;
 };
 
 class BluePrintVideoFilter : public DataLayer::VideoFilter

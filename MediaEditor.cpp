@@ -3561,7 +3561,6 @@ static void ShowAudioEditorWindow(ImDrawList *draw_list)
     ImGui::EndChild();
 }
 
-
 /****************************************************************************************
  * 
  * Media Analyse windows
