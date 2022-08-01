@@ -1224,17 +1224,10 @@ void ImageClip::Save(imgui_json::value& value)
 TextClip::TextClip(int64_t start, int64_t end, int64_t id, std::string name, MediaParserHolder hParser, void* handle)
     : Clip(start, end, id, hParser, handle)
 {
-    if (handle && hParser)
+    if (handle)
     {
         mType = MEDIA_TEXT;
         mName = name;
-        MediaInfo::InfoHolder info = hParser->GetMediaInfo();
-        if (!info)
-        {
-            return;
-        }
-        mPath = info->url;
-        // TODO::Dicky
     }
 }
 
@@ -2500,11 +2493,12 @@ bool MediaTrack::CanInsertClip(Clip * clip, int64_t pos)
     return can_insert_clip;
 }
 
-void MediaTrack::InsertClip(Clip * clip, int64_t pos)
+void MediaTrack::InsertClip(Clip * clip, int64_t pos, bool update)
 {
     TimeLine * timeline = (TimeLine *)m_Handle;
     if (!timeline || !clip)
         return;
+        
     auto iter = std::find_if(m_Clips.begin(), m_Clips.end(), [clip](const Clip * _clip)
     {
         return _clip->mID == clip->mID;
@@ -2518,7 +2512,7 @@ void MediaTrack::InsertClip(Clip * clip, int64_t pos)
         clip->SetTrackHeight(mTrackHeight);
         m_Clips.push_back(clip);
     }
-    Update();
+    if (update) Update();
 }
 
 Clip * MediaTrack::FindPrevClip(int64_t id)
@@ -6429,12 +6423,28 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                 } 
                 else if (item->mMediaType == MEDIA_TEXT)
                 {
-                    TextClip * new_text_clip = new TextClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview->GetMediaParser(), timeline);
-                    timeline->m_Clips.push_back(new_text_clip);
+                    // subtitle track isn'y like other media tracks, it need load clips after insert a empty track
                     int newTrackIndex = timeline->NewTrack("", MEDIA_TEXT, true);
                     MediaTrack * newTrack = timeline->m_Tracks[newTrackIndex];
-                    newTrack->InsertClip(new_text_clip, mouseTime);
-                    action["clip_id"] = imgui_json::number(new_text_clip->mID);
+                    DataLayer::SubtitleTrackHolder subtrack = DataLayer::SubtitleTrack::BuildFromFile(newTrack->mID, item->mPath);
+                    if (subtrack)
+                    {
+                        subtrack->SetFrameSize(timeline->mWidth, timeline->mHeight);
+                        subtrack->SeekToIndex(0);
+                        DataLayer::SubtitleClipHolder hSubClip = subtrack->GetCurrClip();
+                        while (hSubClip)
+                        {
+                            TextClip * new_text_clip = new TextClip(hSubClip->StartTime(), hSubClip->EndTime(), newTrack->mID, hSubClip->Text(), nullptr, timeline);
+                            newTrack->InsertClip(new_text_clip, hSubClip->StartTime(), false);
+                            action["clip_id"] = imgui_json::number(new_text_clip->mID);
+                            hSubClip = subtrack->GetNextClip();
+                        }
+                        if (subtrack->Duration() > timeline->mEnd)
+                        {
+                            timeline->mEnd = subtrack->Duration() + 1000;
+                        }
+                        timeline->mMttReader.push_back(subtrack);
+                    }
                 }
                 else
                 {

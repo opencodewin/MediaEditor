@@ -116,6 +116,11 @@ set(MEDIA_EDITOR_SRCS
     MediaReader.cpp
     MediaEncoder.cpp
     AudioRender_Impl_Sdl2.cpp
+    SubtitleClip.cpp
+    SubtitleTrack.cpp
+    SubtitleTrack_AssImpl.cpp
+    FontDescriptor.cpp
+    FontManager_Fontconfig.cpp
     FFUtils.cpp
     Logger.cpp
     ${IMGUI_APP_ENTRY_SRC}
@@ -144,7 +149,7 @@ target_include_directories(
     ${IMGUI_INCLUDE_DIR}
 )
 target_compile_definitions(${MEDIA_EDITOR_BINARY} PUBLIC APP_NAME="${MEDIA_EDITOR_BINARY}")
-set_property(TARGET ${MEDIA_EDITOR_BINARY} PROPERTY CXX_STANDARD 17)
+#set_property(TARGET ${MEDIA_EDITOR_BINARY} PROPERTY CXX_STANDARD 17)
 set_property(TARGET ${MEDIA_EDITOR_BINARY} PROPERTY C_STANDARD 11)
 target_link_libraries(
     ${MEDIA_EDITOR_BINARY} 
@@ -152,6 +157,8 @@ target_link_libraries(
     ${IMGUI_BLUEPRINT_SDK_LIBRARYS}
     ${IMGUI_LIBRARYS}
     PkgConfig::FFMPEG
+    PkgConfig::LIBASS
+    Fontconfig::Fontconfig
     Threads::Threads
 )
 

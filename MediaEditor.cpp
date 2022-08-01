@@ -5035,6 +5035,9 @@ void Application_Initialize(void** handle)
     // GetMediaReaderLogger()->SetShowLevels(Logger::DEBUG);
     // GetSnapshotGeneratorLogger()->SetShowLevels(Logger::DEBUG);
     // GetMediaEncoderLogger()->SetShowLevels(Logger::DEBUG);
+
+    if (!DataLayer::InitializeSubtitleLibrary())
+        std::cout << "FAILED to initialize the subtitle library!" << std::endl;
 #if IMGUI_VULKAN_SHADER
     int gpu = ImGui::get_default_gpu_index();
     m_histogram = new ImGui::Histogram_vulkan(gpu);
@@ -5058,6 +5061,7 @@ void Application_Finalize(void** handle)
     if (cie_texture) { ImGui::ImDestroyTexture(cie_texture); cie_texture = nullptr; }
     if (vector_texture) { ImGui::ImDestroyTexture(vector_texture); vector_texture = nullptr; }
     ImPlot::DestroyContext();
+    DataLayer::ReleaseSubtitleLibrary();
 }
 
 bool Application_Frame(void * handle, bool app_will_quit)

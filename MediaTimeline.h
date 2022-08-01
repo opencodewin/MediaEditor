@@ -10,6 +10,7 @@
 #include "MultiTrackAudioReader.h"
 #include "MediaEncoder.h"
 #include "AudioRender.hpp"
+#include "SubtitleTrack.h"
 #include "UI.h"
 #include <thread>
 #include <string>
@@ -551,7 +552,7 @@ struct MediaTrack
     std::string mName;                          // track name, project saved
     std::vector<Clip *> m_Clips;                // track clips, project saved(id only)
     std::vector<Overlap *> m_Overlaps;          // track overlaps, project saved(id only)
-    void * m_Handle         {nullptr};          // user handle
+    void * m_Handle         {nullptr};          // user handle, so far we using it contant timeline struct
 
     int mTrackHeight {DEFAULT_TRACK_HEIGHT};    // track custom view height, project saved
     int64_t mLinkedTrack    {-1};               // relative track ID, project saved
@@ -567,7 +568,7 @@ struct MediaTrack
 
     bool DrawTrackControlBar(ImDrawList *draw_list, ImRect rc);
     bool CanInsertClip(Clip * clip, int64_t pos);
-    void InsertClip(Clip * clip, int64_t pos = 0);
+    void InsertClip(Clip * clip, int64_t pos = 0, bool update = true);
     void PushBackClip(Clip * clip);
     void SelectClip(Clip * clip, bool appand);
     void SelectEditingClip(Clip * clip);
@@ -739,6 +740,7 @@ struct TimeLine
 
     MultiTrackVideoReader* mMtvReader   {nullptr};
     MultiTrackAudioReader* mMtaReader   {nullptr};
+    std::vector<DataLayer::SubtitleTrackHolder> mMttReader;
     double mPreviewPos                      {0};
     double mPreviewResumePos                {0};
     bool mIsPreviewPlaying                  {false};
