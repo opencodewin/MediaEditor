@@ -540,6 +540,12 @@ bool SubtitleTrack_AssImpl::ChangeClipTime(SubtitleClipHolder clip, int64_t star
         memmove(m_asstrk->events+idx+indexVariation+1, m_asstrk->events+idx+indexVariation, sizeof(ASS_Event)*(-indexVariation));
         m_asstrk->events[idx+indexVariation] = tmp;
     }
+
+    // update duration
+    if (!m_clips.empty())
+    {
+        m_duration = m_clips.back()->EndTime();
+    }
     return true;
 }
 
@@ -708,6 +714,12 @@ SubtitleClipHolder SubtitleTrack_AssImpl::NewClip(int64_t startTime, int64_t dur
         readOrder++;  eventPtr++;
         (*iter++)->SetReadOrder(readOrder);
         eventPtr->ReadOrder = readOrder;
+    }
+
+    // update duration
+    if (!m_clips.empty())
+    {
+        m_duration = m_clips.back()->EndTime();
     }
 
     m_logger->Log(DEBUG) << "New added clip readOrder=" << hNewClip->ReadOrder() << "." << endl;
@@ -902,36 +914,61 @@ bool SubtitleTrack_AssImpl::ReadFile(const string& path)
                 break;
             }
         }
+        else
+        {
+            // send NULL packet to decoder to push out all subtitles if any is buffered inside
+            avpkt.stream_index = subStmIdx;
+        }
 
         AVSubtitle avsub{0};
         int gotSubPtr = 0;
-        fferr = avcodec_decode_subtitle2(pAvCdcCtx, &avsub, &gotSubPtr, &avpkt);
-        if (fferr == AVERROR_EOF)
+        if (avpkt.stream_index == subStmIdx)
         {
-            decodeEof = true;
+            fferr = avcodec_decode_subtitle2(pAvCdcCtx, &avsub, &gotSubPtr, &avpkt);
+            av_packet_unref(&avpkt);
+            if (fferr == AVERROR_EOF)
+            {
+                decodeEof = true;
+            }
+            else if (fferr < 0)
+            {
+                ostringstream oss;
+                oss << "avcodec_decode_subtitle2() FAILED! fferr=" << fferr << ".";
+                m_errMsg = oss.str();
+                break;
+            }
         }
-        else if (fferr < 0)
+        else
         {
-            ostringstream oss;
-            oss << "avcodec_decode_subtitle2() FAILED! fferr=" << fferr << ".";
-            m_errMsg = oss.str();
-            break;
+            av_packet_unref(&avpkt);
+            continue;
         }
-        av_packet_unref(&avpkt);
 
         if (gotSubPtr)
         {
             const int64_t start_time = av_rescale_q(avsub.pts, AV_TIME_BASE_Q, av_make_q(1, 1000));
             const int64_t duration   = avsub.end_display_time;
             m_logger->Log(VERBOSE) << "[" << MillisecToString(start_time) << "(+" << duration << ")] ";
+            bool isAss = true;
             for (auto i = 0; i < avsub.num_rects; i++)
             {
+                if (avsub.rects[i]->type != SUBTITLE_ASS)
+                {
+                    isAss = false;
+                    break;
+                }
                 char *ass_line = avsub.rects[i]->ass;
                 if (!ass_line)
-                    break;
+                    continue;
                 m_logger->Log(VERBOSE) << "<" << i << ">: '" << avsub.rects[i]->ass << "'; ";
             }
             m_logger->Log(VERBOSE) << endl;
+            if (!isAss)
+            {
+                m_logger->Log(Error) << "Only support ASS subtitle (or convertable to ASS) for now!" << endl;
+                m_errMsg = "The subtitle file/stream is NOT ASS! Not supported!";
+                break;
+            }
             for (auto i = 0; i < avsub.num_rects; i++)
             {
                 char *ass_line = avsub.rects[i]->ass;
@@ -966,11 +1003,11 @@ bool SubtitleTrack_AssImpl::ReadFile(const string& path)
             hSubClip->SetRenderCallback(bind(&SubtitleTrack_AssImpl::RenderSubtitleClip, this, _1));
             hSubClip->SetBackgroundColor(m_bgColor);
             m_clips.push_back(hSubClip);
+            m_currIter = m_clips.begin();
         }
         if (!m_clips.empty())
         {
-            auto last = m_clips.back();
-            m_duration = last->EndTime();
+            m_duration = m_clips.back()->EndTime();
         }
     }
     return success;

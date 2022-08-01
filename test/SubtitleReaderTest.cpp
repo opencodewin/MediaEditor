@@ -448,9 +448,12 @@ bool Application_Frame(void * handle, bool app_will_quit)
 		{
             string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
             g_subtrack = SubtitleTrack::BuildFromFile(0, filePathName);
-            g_subtrack->SetFrameSize(1920, 1080);
-            g_subtrack->SetBackgroundColor({0.2, 0.2, 0.2, 1});
-            // g_subtrack->EnableFullSizeOutput(false);
+            if (g_subtrack)
+            {
+                g_subtrack->SetFrameSize(1920, 1080);
+                g_subtrack->SetBackgroundColor({0.2, 0.2, 0.2, 1});
+                // g_subtrack->EnableFullSizeOutput(false);
+            }
         }
         ImGuiFileDialog::Instance()->Close();
     }
