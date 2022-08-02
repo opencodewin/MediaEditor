@@ -76,6 +76,8 @@
 #define ICON_NEW_PROJECT    u8"\uf271"
 #define ICON_OPEN_PROJECT   u8"\uf115"
 #define ICON_SAVE_PROJECT   u8"\uf0c7"
+#define ICON_CLIP_START     u8"\uf090"
+#define ICON_CLIP_END       u8"\uf08b"
 
 #define ICON_PLAY_FORWARD   u8"\uf04b"
 #define ICON_PLAY_BACKWARD  u8"\uf04b" // need mirror
@@ -170,6 +172,7 @@
 #define COL_DARK_TWO        IM_COL32( 40,  40,  46, 255)
 #define COL_DARK_PANEL      IM_COL32( 48,  48,  54, 255)
 #define COL_DEEP_DARK       IM_COL32( 23,  24,  26, 255)
+#define COL_BLACK_DARK      IM_COL32( 16,  16,  16, 255)
 #define COL_GRATICULE_DARK  IM_COL32(128,  96,   0, 128)
 #define COL_GRATICULE       IM_COL32(255, 196,   0, 128)
 #define COL_GRATICULE_HALF  IM_COL32(255, 196,   0,  64)

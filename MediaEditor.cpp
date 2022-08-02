@@ -3586,7 +3586,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
     float style_editor_width = window_size.x - preview_view_width;
     if (!timeline)
         return;
-    Clip * editing_clip = timeline->FindEditingClip();
+    TextClip * editing_clip = dynamic_cast<TextClip*>(timeline->FindEditingClip());
     if (editing_clip && editing_clip->mType != MEDIA_TEXT)
     {
         editing_clip = nullptr;
@@ -3600,9 +3600,57 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
     ImGui::SetCursorScreenPos(window_pos + ImVec2(preview_view_width, 0));
     if (ImGui::BeginChild("##text_editor_style", ImVec2(style_editor_width, window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
     {
+        ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(255,255,255,255));
         ImVec2 style_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 style_window_size = ImGui::GetWindowSize();
-        draw_list->AddRectFilled(style_window_pos, style_window_pos + style_window_size, COL_DARK_ONE);
+        draw_list->AddRectFilled(style_window_pos, style_window_pos + style_window_size, COL_BLACK_DARK);
+        ImGui::SetCursorScreenPos(style_window_pos + ImVec2(10, 30));
+        ImGui::TextComplex("Text Style", 2.0f, ImVec4(0.8, 0.8, 0.8, 0.2),
+                            0.1f, ImVec4(0.8, 0.8, 0.8, 0.3),
+                            ImVec2(4, 4), ImVec4(0.0, 0.0, 0.0, 0.5));
+    
+        ImGui::Separator();
+        // add text style
+        if (editing_clip)
+        {
+            // show clip time 
+            auto start_time_str = std::string(ICON_CLIP_START) + " " + TimelineMillisecToString(editing_clip->mStart, 3);
+            auto end_time_str = TimelineMillisecToString(editing_clip->mEnd, 3) + " " + std::string(ICON_CLIP_END);
+            auto start_time_str_size = ImGui::CalcTextSize(start_time_str.c_str());
+            auto end_time_str_size = ImGui::CalcTextSize(end_time_str.c_str());
+            float time_str_offset = (style_window_size.x - start_time_str_size.x - end_time_str_size.x - 30) / 2;
+            ImGui::SetCursorScreenPos(style_window_pos + ImVec2(time_str_offset, 80));
+            ImGui::TextUnformatted(start_time_str.c_str());
+            ImGui::SameLine(0, 30);
+            ImGui::TextUnformatted(end_time_str.c_str());
+            // show clip text
+            std::string value = editing_clip->mText;
+            if (ImGui::InputTextMultiline("##text_clip_string", (char*)value.data(), value.size() + 1, ImVec2(style_window_size.x, 64), ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackResize, [](ImGuiInputTextCallbackData* data) -> int
+            {
+                if (data->EventFlag == ImGuiInputTextFlags_CallbackResize)
+                {
+                    auto& stringValue = *static_cast<string*>(data->UserData);
+                    ImVector<char>* my_str = (ImVector<char>*)data->UserData;
+                    IM_ASSERT(stringValue.data() == data->Buf);
+                    stringValue.resize(data->BufSize);
+                    data->Buf = (char*)stringValue.data();
+                }
+                else if (data->EventFlag == ImGuiInputTextFlags_CallbackEdit)
+                {
+                    auto& stringValue = *static_cast<string*>(data->UserData);
+                    stringValue = std::string(data->Buf);
+                }
+                return 0;
+            }, &value))
+            {
+                value.resize(strlen(value.c_str()));
+                if (editing_clip->mText.compare(value) != 0)
+                {
+                    editing_clip->mText = value;
+                }
+            }
+        }
+        ImGui::PopStyleColor();
     }
     ImGui::EndChild();
 }
