@@ -121,7 +121,6 @@ MediaItem::MediaItem(const std::string& name, const std::string& path, MEDIA_TYP
     }
     if (mMediaOverview && mMediaOverview->IsOpened())
     {
-        // TODO::Dicky need fix, if open subtitle file, mMediaOverview will set media as video
         mStart = 0;
         if (mMediaOverview->HasVideo() && type != MEDIA_PICTURE)
         {
@@ -1240,6 +1239,7 @@ TextClip::TextClip(int64_t start, int64_t end, int64_t id, std::string name, std
         mType = MEDIA_TEXT;
         mName = name;
         mText = text;
+        mTrackStyle = true;
     }
 }
 
@@ -1251,8 +1251,8 @@ void TextClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const Im
 {
     drawList->AddRectFilled(leftTop, rightBottom, IM_COL32(16, 16, 16, 255));
     drawList->PushClipRect(leftTop, rightBottom, true);
-    ImGui::SetWindowFontScale(0.7);
-    drawList->AddText(leftTop, IM_COL32_WHITE, mText.c_str());
+    ImGui::SetWindowFontScale(0.75);
+    drawList->AddText(leftTop + ImVec2(2, 2), IM_COL32_WHITE, mText.c_str());
     ImGui::SetWindowFontScale(1.0);
     drawList->PopClipRect();
     drawList->AddRect(leftTop, rightBottom, IM_COL32_BLACK);
@@ -1288,6 +1288,11 @@ Clip * TextClip::Load(const imgui_json::value& value, void * handle)
                 auto& val = value["Text"];
                 if (val.is_string()) new_clip->mText = val.get<imgui_json::string>();
             }
+            if (value.contains("TrackStyle"))
+            {
+                auto& val = value["TrackStyle"];
+                if (val.is_boolean()) new_clip->mTrackStyle = val.get<imgui_json::boolean>();
+            }
             return new_clip;
         }
     }
@@ -1303,6 +1308,7 @@ void TextClip::Save(imgui_json::value& value)
     Clip::Save(value);
     // save Text clip info
     value["Text"] = mText;
+    value["TrackStyle"] = imgui_json::boolean(mTrackStyle);
 }
 
 BluePrintVideoFilter::~BluePrintVideoFilter()
@@ -1482,7 +1488,6 @@ void EditingVideoClip::Seek(int64_t pos)
     }
     else
     {
-        //Logger::Log(Logger::DEBUG) << "[Dicky Debug]: Edit Video Clip Seek " << pos << std::endl;
         return;
     }
     mFrameLock.lock();
@@ -2109,7 +2114,6 @@ void EditingVideoOverlap::Seek(int64_t pos)
     }
     else
     {
-        //Logger::Log(Logger::DEBUG) << "[Dicky Debug]: Fusion Video Clip Seek " << pos << std::endl;
         return;
     }
     
@@ -2653,6 +2657,7 @@ void MediaTrack::SelectEditingClip(Clip * clip)
     int updated = 0;
     if (timeline->m_CallBacks.EditingClip)
     {
+        timeline->Seek(clip->mStart);
         updated = timeline->m_CallBacks.EditingClip(clip->mType, clip);
     }
     // find old editing clip and reset BP
@@ -5359,8 +5364,9 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
     static bool MovingCurrentTime = false;
     static int trackMovingEntry = -1;
     static int trackEntry = -1;
+    static int trackMenuEntry = -1;
+    static int64_t clipMenuEntry = -1;
     static int64_t clipMovingEntry = -1;
-    static int64_t clipEntry = -1;
     static int clipMovingPart = -1;
     int delTrackEntry = -1;
     int mouseEntry = -1;
@@ -5878,7 +5884,9 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         if (trackAreaRect.Contains(io.MousePos) && ImGui::IsMouseReleased(ImGuiMouseButton_Right) && !ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Right))
         {
             if (mouseClip != -1)
-                clipEntry = mouseClip;
+                clipMenuEntry = mouseClip;
+            if (mouseEntry >= 0)
+                trackMenuEntry = mouseEntry;
             ImGui::OpenPopup("##timeline-context-menu");
             menuIsOpened = true;
         }
@@ -5895,8 +5903,9 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         // handle menu
         if (!menuIsOpened)
         {
-            clipEntry = -1;
             headerMarkPos = -1;
+            trackMenuEntry = -1;
+            clipMenuEntry = -1;
         }
 
         if (ImGui::BeginPopup("##timeline-header-context-menu"))
@@ -5958,19 +5967,32 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                 }
             }
 
-            if (clipEntry != -1)
+            if (clipMenuEntry != -1)
             {
                 ImGui::Separator();
-                auto clip = timeline->FindClipByID(clipEntry);
+                auto clip = timeline->FindClipByID(clipMenuEntry);
                 if (ImGui::MenuItem(ICON_MEDIA_DELETE_CLIP " Delete Clip", nullptr, nullptr))
                 {
-                    delClipEntry.push_back(clipEntry);
+                    delClipEntry.push_back(clipMenuEntry);
                 }
                 if (clip->mGroupID != -1 && ImGui::MenuItem(ICON_MEDIA_UNGROUP " Ungroup Clip", nullptr, nullptr))
                 {
-                    unGroupClipEntry.push_back(clipEntry);
+                    unGroupClipEntry.push_back(clipMenuEntry);
                 }
             }
+
+            if (trackMenuEntry >= 0 && clipMenuEntry < 0)
+            {
+                auto track = timeline->m_Tracks[trackMenuEntry];
+                if (track->mType == MEDIA_TEXT)
+                {
+                    if (ImGui::MenuItem(ICON_MEDIA_TEXT  " Add Text", nullptr, nullptr))
+                    {
+                        // TODO::Dicky add a text clip
+                    }
+                }
+            }
+
             if (selected_clip_count > 0)
             {
                 ImGui::Separator();
@@ -6095,14 +6117,14 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                 timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
             }
         }
-        else if (inHorizonScrollHandle && ImGui::IsMouseClicked(0) && !MovingCurrentTime && clipMovingEntry == -1)
+        else if (inHorizonScrollHandle && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingCurrentTime && clipMovingEntry == -1 && !menuIsOpened)
         {
             ImGui::CaptureMouseFromApp();
             MovingHorizonScrollBar = true;
             panningViewHorizonSource = io.MousePos;
             panningViewHorizonTime = - timeline->firstTime;
         }
-        else if (inHorizonScrollBar && ImGui::IsMouseReleased(0))
+        else if (inHorizonScrollBar && ImGui::IsMouseReleased(ImGuiMouseButton_Left) && !menuIsOpened)
         {
             float msPerPixelInBar = HorizonBarPos / (float)timeline->visibleTime;
             timeline->firstTime = int((io.MousePos.x - legendWidth - contentMin.x) / msPerPixelInBar);
@@ -6140,14 +6162,14 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                 ImGui::SetScrollY(VerticalWindow, offset);
             }
         }
-        else if (inVerticalScrollHandle && ImGui::IsMouseClicked(0) && !MovingCurrentTime && clipMovingEntry == -1)
+        else if (inVerticalScrollHandle && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingCurrentTime && clipMovingEntry == -1 && !menuIsOpened)
         {
             ImGui::CaptureMouseFromApp();
             MovingVerticalScrollBar = true;
             panningViewVerticalSource = io.MousePos;
             panningViewVerticalPos = VerticalScrollPos;
         }
-        else if (inVerticalScrollBar && ImGui::IsMouseReleased(0))
+        else if (inVerticalScrollBar && ImGui::IsMouseReleased(ImGuiMouseButton_Left) && !menuIsOpened)
         {
             float offset = (io.MousePos.y - vertical_scroll_pos.y) / VerticalBarHeightRatio;
             offset = ImClamp(offset, 0.f, VerticalScrollMax);

@@ -189,6 +189,7 @@ static const char* MainWindowTabNames[] = {
     ICON_MEDIA_PREVIEW " Preview",
     ICON_MEDIA_VIDEO " Video",
     ICON_MUSIC " Audio",
+    ICON_MEDIA_TEXT " Text"
 };
 
 static const char* MainWindowTabTooltips[] = 
@@ -196,6 +197,7 @@ static const char* MainWindowTabTooltips[] =
     "Meida Preview",
     "Video Editor",
     "Audio Editor",
+    "Text Editor",
 };
 
 static const char* ScopeWindowTabNames[] = {
@@ -480,16 +482,19 @@ static bool UIPageChanged()
         // we leave audio fusion windows, stop fusion play, check unsaved bp
         Logger::Log(Logger::DEBUG) << "[Changed page] leaving audio fusion page!!!" << std::endl;
     }
+
     if (LastMainWindowIndex == 3 && MainWindowIndex != 3)
     {
-        // we leave media analyse windows
-        Logger::Log(Logger::DEBUG) << "[Changed page] leaving media analyse page!!!" << std::endl;
+        // we leave text editor windows
+        Logger::Log(Logger::DEBUG) << "[Changed page] leaving Text editor page!!!" << std::endl;
     }
+    /*
     if (LastMainWindowIndex == 4 && MainWindowIndex != 4)
     {
         // we leave media AI windows
         Logger::Log(Logger::DEBUG) << "[Changed page] leaving media AI page!!!" << std::endl;
     }
+    */
     
     LastMainWindowIndex = MainWindowIndex;
     LastVideoEditorWindowIndex = VideoEditorWindowIndex;
@@ -508,6 +513,10 @@ static int EditingClip(int type, void* handle)
     {
         MainWindowIndex = 2;
         AudioEditorWindowIndex = 0;
+    }
+    else if (type == MEDIA_TEXT)
+    {
+        MainWindowIndex = 3;
     }
     auto updated = UIPageChanged();
     return updated ? 1 : 0;
@@ -2554,7 +2563,7 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
  * Media Preview window
  *
  ***************************************************************************************/
-static void ShowMediaPreviewWindow(ImDrawList *draw_list)
+static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, bool audio_bar = true, bool monitors = true)
 {
     // preview control pannel
     ImVec2 PanelBarPos;
@@ -2651,51 +2660,54 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     ImGui::SetWindowFontScale(1.0);
 
     // audio meters
-    ImVec2 AudioMeterPos;
-    ImVec2 AudioMeterSize;
-    AudioMeterPos = window_pos + ImVec2(window_size.x - 70, 16);
-    AudioMeterSize = ImVec2(32, window_size.y - 48 - 16 - 8);
-    ImVec2 AudioUVLeftPos = AudioMeterPos + ImVec2(36, 0);
-    ImVec2 AudioUVLeftSize = ImVec2(12, AudioMeterSize.y);
-    ImVec2 AudioUVRightPos = AudioMeterPos + ImVec2(36 + 16, 0);
-    ImVec2 AudioUVRightSize = AudioUVLeftSize;
-
-    draw_list->AddRectFilled(AudioMeterPos - ImVec2(0, 16), AudioMeterPos + ImVec2(70, AudioMeterSize.y + 8), COL_DARK_TWO);
-
-    for (int i = 0; i <= 96; i+= 5)
+    if (audio_bar)
     {
-        float mark_step = AudioMeterSize.y / 96.0f;
-        ImVec2 MarkPos = AudioMeterPos + ImVec2(0, i * mark_step);
-        if (i % 10 == 0)
-        {
-            std::string mark_str = i == 0 ? "  0" : "-" + std::to_string(i);
-            draw_list->AddLine(MarkPos + ImVec2(20, 8), MarkPos + ImVec2(30, 8), COL_MARK_HALF, 1);
-            ImGui::SetWindowFontScale(0.75);
-            draw_list->AddText(MarkPos + ImVec2(0, 2), COL_MARK_HALF, mark_str.c_str());
-            ImGui::SetWindowFontScale(1.0);
-        }
-        else
-        {
-            draw_list->AddLine(MarkPos + ImVec2(25, 8), MarkPos + ImVec2(30, 8), COL_MARK_HALF, 1);
-        }
-    }
+        ImVec2 AudioMeterPos;
+        ImVec2 AudioMeterSize;
+        AudioMeterPos = window_pos + ImVec2(window_size.x - 70, 16);
+        AudioMeterSize = ImVec2(32, window_size.y - 48 - 16 - 8);
+        ImVec2 AudioUVLeftPos = AudioMeterPos + ImVec2(36, 0);
+        ImVec2 AudioUVLeftSize = ImVec2(12, AudioMeterSize.y);
+        ImVec2 AudioUVRightPos = AudioMeterPos + ImVec2(36 + 16, 0);
+        ImVec2 AudioUVRightSize = AudioUVLeftSize;
 
-    static int left_stack = 0;
-    static int left_count = 0;
-    static int right_stack = 0;
-    static int right_count = 0;
-    int l_level = timeline->GetAudioLevel(0);
-    int r_level = timeline->GetAudioLevel(1);
-    ImGui::SetCursorScreenPos(AudioUVLeftPos);
-    ImGui::UvMeter("##luv", AudioUVLeftSize, &l_level, 0, 100, AudioUVLeftSize.y / 4, &left_stack, &left_count);
-    ImGui::SetCursorScreenPos(AudioUVRightPos);
-    ImGui::UvMeter("##ruv", AudioUVRightSize, &r_level, 0, 100, AudioUVRightSize.y / 4, &right_stack, &right_count);
+        draw_list->AddRectFilled(AudioMeterPos - ImVec2(0, 16), AudioMeterPos + ImVec2(70, AudioMeterSize.y + 8), COL_DARK_TWO);
+
+        for (int i = 0; i <= 96; i+= 5)
+        {
+            float mark_step = AudioMeterSize.y / 96.0f;
+            ImVec2 MarkPos = AudioMeterPos + ImVec2(0, i * mark_step);
+            if (i % 10 == 0)
+            {
+                std::string mark_str = i == 0 ? "  0" : "-" + std::to_string(i);
+                draw_list->AddLine(MarkPos + ImVec2(20, 8), MarkPos + ImVec2(30, 8), COL_MARK_HALF, 1);
+                ImGui::SetWindowFontScale(0.75);
+                draw_list->AddText(MarkPos + ImVec2(0, 2), COL_MARK_HALF, mark_str.c_str());
+                ImGui::SetWindowFontScale(1.0);
+            }
+            else
+            {
+                draw_list->AddLine(MarkPos + ImVec2(25, 8), MarkPos + ImVec2(30, 8), COL_MARK_HALF, 1);
+            }
+        }
+
+        static int left_stack = 0;
+        static int left_count = 0;
+        static int right_stack = 0;
+        static int right_count = 0;
+        int l_level = timeline->GetAudioLevel(0);
+        int r_level = timeline->GetAudioLevel(1);
+        ImGui::SetCursorScreenPos(AudioUVLeftPos);
+        ImGui::UvMeter("##luv", AudioUVLeftSize, &l_level, 0, 100, AudioUVLeftSize.y / 4, &left_stack, &left_count);
+        ImGui::SetCursorScreenPos(AudioUVRightPos);
+        ImGui::UvMeter("##ruv", AudioUVRightSize, &r_level, 0, 100, AudioUVRightSize.y / 4, &right_stack, &right_count);
+    }
 
     // video texture area
     ImVec2 PreviewPos;
     ImVec2 PreviewSize;
     PreviewPos = window_pos + ImVec2(8, 8);
-    PreviewSize = window_size - ImVec2(16 + 64, 16 + 48);
+    PreviewSize = window_size - ImVec2(16 + (audio_bar ? 64 : 0), 16 + 48);
     auto frame = timeline->GetPreviewFrame();
     if (!frame.empty() && 
         (timeline->mLastFrameTime == -1 || timeline->mLastFrameTime != frame.time_stamp * 1000 || need_update_scope))
@@ -2706,13 +2718,17 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list)
     }
     ShowVideoWindow(timeline->mMainPreviewTexture, PreviewPos, PreviewSize);
 
-    // Show monitors
-    std::vector<int> disabled_monitor;
-    MonitorButton("preview_monitor_select", ImVec2(PanelBarPos.x + 20, PanelBarPos.y + 16), MonitorIndexPreviewVideo, disabled_monitor, false, true);
+    if (monitors)
+    {
+        // Show monitors
+        std::vector<int> disabled_monitor;
+        MonitorButton("preview_monitor_select", ImVec2(PanelBarPos.x + 20, PanelBarPos.y + 16), MonitorIndexPreviewVideo, disabled_monitor, false, true);
+    }
+
     ImGui::PopStyleColor(3);
 
     ImGui::SetCursorScreenPos(window_pos + ImVec2(40, 30));
-    ImGui::TextComplex("Preview", 2.0f, ImVec4(0.8, 0.8, 0.8, 0.2),
+    ImGui::TextComplex(title.c_str(), 2.0f, ImVec4(0.8, 0.8, 0.8, 0.2),
                         0.1f, ImVec4(0.8, 0.8, 0.8, 0.3),
                         ImVec2(4, 4), ImVec4(0.0, 0.0, 0.0, 0.5));
 }
@@ -3561,6 +3577,35 @@ static void ShowAudioEditorWindow(ImDrawList *draw_list)
     ImGui::EndChild();
 }
 
+static void ShowTextEditorWindow(ImDrawList *draw_list)
+{
+    ImVec2 window_pos = ImGui::GetCursorScreenPos();
+    ImVec2 window_size = ImGui::GetWindowSize();
+    draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
+    float preview_view_width = window_size.x * 2 / 3;
+    float style_editor_width = window_size.x - preview_view_width;
+    if (!timeline)
+        return;
+    Clip * editing_clip = timeline->FindEditingClip();
+    if (editing_clip && editing_clip->mType != MEDIA_TEXT)
+    {
+        editing_clip = nullptr;
+    }
+
+    if (ImGui::BeginChild("##text_editor_preview", ImVec2(preview_view_width, window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+    {
+        ShowMediaPreviewWindow(draw_list, "Text", false, false);
+    }
+    ImGui::EndChild();
+    ImGui::SetCursorScreenPos(window_pos + ImVec2(preview_view_width, 0));
+    if (ImGui::BeginChild("##text_editor_style", ImVec2(style_editor_width, window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+    {
+        ImVec2 style_window_pos = ImGui::GetCursorScreenPos();
+        ImVec2 style_window_size = ImGui::GetWindowSize();
+        draw_list->AddRectFilled(style_window_pos, style_window_pos + style_window_size, COL_DARK_ONE);
+    }
+    ImGui::EndChild();
+}
 /****************************************************************************************
  * 
  * Media Analyse windows
@@ -5356,9 +5401,10 @@ bool Application_Frame(void * handle, bool app_will_quit)
             {
                 switch (MainWindowIndex)
                 {
-                    case 0: ShowMediaPreviewWindow(draw_list); break;
+                    case 0: ShowMediaPreviewWindow(draw_list, "Preview"); break;
                     case 1: ShowVideoEditorWindow(draw_list); break;
                     case 2: ShowAudioEditorWindow(draw_list); break;
+                    case 3: ShowTextEditorWindow(draw_list); break;
                     default: break;
                 }
             }

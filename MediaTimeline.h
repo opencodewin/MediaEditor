@@ -396,6 +396,7 @@ struct TextClip : Clip
     void Save(imgui_json::value& value) override;
 
     std::string mText;
+    bool mTrackStyle {true};
 };
 
 class BluePrintVideoFilter : public DataLayer::VideoFilter
