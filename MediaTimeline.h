@@ -78,6 +78,11 @@
 #define ICON_SAVE_PROJECT   u8"\uf0c7"
 #define ICON_CLIP_START     u8"\uf090"
 #define ICON_CLIP_END       u8"\uf08b"
+#define ICON_RETURN_DEFAULT u8"\ue042"
+
+#define ICON_FONT_ITALIC    u8"\ue23f"
+#define ICON_FONT_UNDERLINE u8"\ue249"
+#define ICON_FONT_STRIKEOUT u8"\ue257"
 
 #define ICON_PLAY_FORWARD   u8"\uf04b"
 #define ICON_PLAY_BACKWARD  u8"\uf04b" // need mirror
@@ -400,6 +405,22 @@ struct TextClip : Clip
 
     std::string mText;
     bool mTrackStyle {true};
+    int mFontFamilySelIdx {0};
+    int mFontStyleSelIdx {0};
+    float mFontScale {1.0f};
+    float mFontScaleX {1.0f};
+    float mFontScaleY {1.0f};
+    float mFontSpacing {1.0f};
+    float mFontAngle {0.0f};
+    float mFontOutlineWidth {1.0f};
+    int mFontAlignment {2};
+    bool mFontItalic {false};
+    bool mFontUnderLine {false};
+    bool mFontStrikeOut {false};
+    float mFontPosX {0.0f};
+    float mFontPosY {0.0f};
+    ImVec4 mFontPrimaryColor {1, 1, 1, 1};
+    ImVec4 mFontOutlineColor {0,0,0,1};
 };
 
 class BluePrintVideoFilter : public DataLayer::VideoFilter

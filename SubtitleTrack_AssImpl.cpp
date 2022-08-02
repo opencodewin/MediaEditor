@@ -278,7 +278,7 @@ bool SubtitleTrack_AssImpl::SetScaleX(double value)
 bool SubtitleTrack_AssImpl::SetScaleY(double value)
 {
     m_logger->Log(DEBUG) << "Set scaleY '" << value << "'" << endl;
-    m_overrideStyle.SetScaleX(value);
+    m_overrideStyle.SetScaleY(value);
     ass_set_selective_style_override(m_assrnd, m_overrideStyle.GetAssStylePtr());
     if (!m_useOverrideStyle)
         ToggleOverrideStyle();
