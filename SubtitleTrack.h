@@ -66,11 +66,13 @@ namespace DataLayer
         virtual SubtitleClipHolder GetPrevClip() = 0;
         virtual SubtitleClipHolder GetNextClip() = 0;
         virtual int32_t GetClipIndex(SubtitleClipHolder clip) const = 0;
+        virtual uint32_t GetCurrIndex() const = 0;
         virtual bool SeekToTime(int64_t ms) = 0;
         virtual bool SeekToIndex(uint32_t index) = 0;
 
         virtual bool ChangeText(uint32_t clipIndex, const std::string& text) = 0;
         virtual bool ChangeText(SubtitleClipHolder clip, const std::string& text) = 0;
+        virtual bool SaveAs(const std::string& subFilePath) = 0;
 
         virtual std::string GetError() const = 0;
 

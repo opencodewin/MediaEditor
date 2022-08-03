@@ -425,9 +425,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
                     {
                         g_subtrack->SeekToTime((int64_t)(s_showSubPos*1000));
                         hSupClip = g_subtrack->GetCurrClip();
-                        int32_t idx = g_subtrack->GetClipIndex(hSupClip);
-                        if (idx >= 0)
-                            s_showSubIdx = (uint32_t)idx;
+                        s_showSubIdx = g_subtrack->GetCurrIndex();
                     }
                     ImGui::EndGroup();
                 }
@@ -453,6 +451,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
                 g_subtrack->SetFrameSize(1920, 1080);
                 g_subtrack->SetBackgroundColor({0.2, 0.2, 0.2, 1});
                 // g_subtrack->EnableFullSizeOutput(false);
+                // g_subtrack->SaveAs("~/test_encsub.sRt");
             }
         }
         ImGuiFileDialog::Instance()->Close();

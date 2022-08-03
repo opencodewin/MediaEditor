@@ -7,6 +7,7 @@
 extern "C"
 {
     #include "libavutil/avutil.h"
+    #include "libavutil/avstring.h"
     #include "libswscale/swscale.h"
 }
 
@@ -637,6 +638,20 @@ int32_t SubtitleTrack_AssImpl::GetClipIndex(SubtitleClipHolder clip) const
     return idx;
 }
 
+uint32_t SubtitleTrack_AssImpl::GetCurrIndex() const
+{
+    if (m_currIter == m_clips.end())
+        return m_clips.size();
+    uint32_t idx = 0;
+    auto iter = m_clips.begin();
+    while (iter != m_currIter)
+    {
+        iter++;
+        idx++;
+    }
+    return idx;
+}
+
 bool SubtitleTrack_AssImpl::SeekToTime(int64_t ms)
 {
     m_readPos = ms;
@@ -767,6 +782,145 @@ bool SubtitleTrack_AssImpl::ChangeText(SubtitleClipHolder clip, const string& te
     target->Text[len] = 0;
     clip->SetText(text);
     clip->InvalidateImage();
+
+    return true;
+}
+
+static bool ConvertSubtitleClipToAVSubtitle(const SubtitleClip* clip, AVSubtitle* avsub)
+{
+    avsub->format = 1;
+    avsub->pts = av_rescale_q(clip->StartTime(), MILLISEC_TIMEBASE, AV_TIME_BASE_Q);
+    avsub->start_display_time = 0;
+    avsub->end_display_time = clip->Duration();
+    avsub->num_rects = 1;
+    avsub->rects = (AVSubtitleRect**)av_malloc(sizeof(AVSubtitleRect*)*avsub->num_rects);
+    for (int i = 0; i < avsub->num_rects; i++)
+    {
+        AVSubtitleRect* subrect = (AVSubtitleRect*)av_malloc(sizeof(AVSubtitleRect));
+        avsub->rects[i] = subrect;
+        memset(subrect, 0, sizeof(AVSubtitleRect));
+        subrect->ass = av_asprintf("%d,%d,%s,%s,0,0,0,,%s", clip->ReadOrder(), 0, "Default", "", clip->Text().c_str());
+    }
+    return true;
+}
+
+static void FreeAVSubtitle(AVSubtitle* avsub)
+{
+    if (avsub->rects)
+    {
+        for (int i = 0; i < avsub->num_rects; i++)
+        {
+            AVSubtitleRect* subrect = avsub->rects[i];
+            if (subrect->ass)
+                av_free(subrect->ass);
+            av_free(avsub->rects[i]);
+        }
+        av_free(avsub->rects);
+    }
+    memset(avsub, 0, sizeof(AVSubtitle));
+}
+
+bool SubtitleTrack_AssImpl::SaveAs(const string& assFilePath)
+{
+    int fferr;
+
+    string fileExt = assFilePath.substr(assFilePath.rfind('.'), assFilePath.size());
+    transform(fileExt.begin(), fileExt.end(), fileExt.begin(), [] (char c) {
+        if (c <= 'Z' && c >= 'A')
+            return (char)(c-('Z'-'z'));
+        return c;
+    });
+    m_logger->Log(DEBUG) << ">>> File ext : '" << fileExt << "'." << endl;
+
+    AVCodecID encCdcId = AV_CODEC_ID_NONE;
+    if (fileExt == ".srt")
+        encCdcId = AV_CODEC_ID_SUBRIP;
+    else if (fileExt == ".ass" || fileExt == ".ssa")
+        encCdcId = AV_CODEC_ID_ASS;
+    if (encCdcId == AV_CODEC_ID_NONE)
+    {
+        ostringstream oss;
+        oss << "Subtitle format with file-ext '" << fileExt << "' is NOT SUPPORTED!";
+        m_errMsg = oss.str();
+        return false;
+    }
+
+    AVCodecPtr encCdc = avcodec_find_encoder(encCdcId);
+    if (!encCdc)
+    {
+        ostringstream oss;
+        oss << "FAILED to find encoder for codec '" << avcodec_get_name(encCdcId) << "'!";
+        m_errMsg = oss.str();
+        return false;
+    }
+
+    AVFormatContext* outFmtCtx = nullptr;
+    fferr = avformat_alloc_output_context2(&outFmtCtx, nullptr, nullptr, assFilePath.c_str());
+    if (fferr < 0)
+    {
+        ostringstream oss;
+        oss << "FAILED to invoke 'avformat_alloc_output_context2()'! fferr = " << fferr << ".";
+        m_errMsg = oss.str();
+        return false;
+    }
+    shared_ptr<AVFormatContext> outFmtCtxAutoFree(outFmtCtx, [] (AVFormatContext* ctx) {
+        if (ctx)
+            avformat_free_context(ctx);
+    });
+    if ((outFmtCtx->oformat->flags&AVFMT_NOFILE) == 0)
+    {
+        fferr = avio_open(&outFmtCtx->pb, assFilePath.c_str(), AVIO_FLAG_WRITE);
+        if (fferr < 0)
+        {
+            ostringstream oss;
+            oss << "FAILED to invoke 'avio_open()'! fferr = " << fferr << ".";
+            m_errMsg = oss.str();
+            return false;
+        }
+    }
+
+    AVCodecContext* encCdcCtx = avcodec_alloc_context3(encCdc);
+    if (!encCdcCtx)
+    {
+        m_errMsg = "FAILED to invoke 'avcodec_alloc_context3()'!";
+        return false;
+    }
+    shared_ptr<AVCodecContext> encCdcCtxAutoFree(encCdcCtx, [] (AVCodecContext* ctx) {
+        if (ctx)
+            avcodec_free_context(&ctx);
+    });
+    encCdcCtx->time_base = AV_TIME_BASE_Q;
+    if (!encCdcCtx->width)
+    {
+        encCdcCtx->width = m_frmW;
+        encCdcCtx->height = m_frmH;
+    }
+    string assHeader = GenerateAssHeader("MediaEditor", 384, 288, "Arial", 16, 0xffffff, 0xffffff, 0, 0, 0, 0, 0, 1, 2);
+    encCdcCtx->subtitle_header_size = assHeader.size();
+    encCdcCtx->subtitle_header = (uint8_t*)av_malloc(encCdcCtx->subtitle_header_size+1);
+    memcpy(encCdcCtx->subtitle_header, assHeader.c_str(), encCdcCtx->subtitle_header_size);
+    encCdcCtx->subtitle_header[encCdcCtx->subtitle_header_size] = 0;
+
+    fferr = avcodec_open2(encCdcCtx, encCdc, nullptr);
+    if (fferr < 0)
+    {
+        ostringstream oss;
+        oss << "FAILED to invoke 'avcodec_open2()'! fferr = " << fferr << ".";
+        m_errMsg = oss.str();
+        return false;
+    }
+
+    for (auto clip : m_clips)
+    {
+        AVSubtitle avsub{0};
+        if (ConvertSubtitleClipToAVSubtitle(clip.get(), &avsub))
+        {
+            avcodec_encode_subtitle(encCdcCtx, 0, 0, &avsub);
+        }
+        else
+            m_logger->Log(Error) << "FAILED to convert SubtitleClip(readOrder=" << clip->ReadOrder() << ") to AVSubtitle!" << endl;
+        FreeAVSubtitle(&avsub);
+    }
 
     return true;
 }
@@ -999,6 +1153,12 @@ bool SubtitleTrack_AssImpl::ReadFile(const string& path)
         for (int i = 0; i < m_asstrk->n_events; i++)
         {
             ASS_Event* e = m_asstrk->events+i;
+            if (e->Duration <= 0)
+            {
+                m_logger->Log(VERBOSE) << "Skip invalid ass event: [" << MillisecToString(e->Start)
+                        << "(" << e->Duration << ") \"" << e->Text << "\"." << endl;
+                continue;
+            }
             SubtitleClipHolder hSubClip(new SubtitleClip(DataLayer::ASS, e->ReadOrder, e->Start, e->Duration, e->Text));
             hSubClip->SetRenderCallback(bind(&SubtitleTrack_AssImpl::RenderSubtitleClip, this, _1));
             hSubClip->SetBackgroundColor(m_bgColor);

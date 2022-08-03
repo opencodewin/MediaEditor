@@ -113,11 +113,13 @@ namespace DataLayer
         SubtitleClipHolder GetPrevClip() override;
         SubtitleClipHolder GetNextClip() override;
         int32_t GetClipIndex(SubtitleClipHolder clip) const override;
+        uint32_t GetCurrIndex() const override;
         bool SeekToTime(int64_t ms) override;
         bool SeekToIndex(uint32_t index) override;
 
         bool ChangeText(uint32_t clipIndex, const std::string& text) override;
         bool ChangeText(SubtitleClipHolder clip, const std::string& text) override;
+        bool SaveAs(const std::string& subFilePath) override;
 
         std::string GetError() const override { return m_errMsg; }
 
