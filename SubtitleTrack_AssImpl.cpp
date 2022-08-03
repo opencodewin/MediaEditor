@@ -1159,14 +1159,15 @@ bool SubtitleTrack_AssImpl::ReadFile(const string& path)
             decodeEof = true;
         }
     }
+    if (m_asstrk->n_styles <= 0)
+    {
+        m_errMsg = "No style is defined for this subtitle!";
+    }
 
     bool success = m_errMsg.empty();
     if (success)
     {
-        if (m_asstrk->n_styles > 0)
-        {
-            m_overrideStyle = SubtitleTrackStyle_AssImpl(m_asstrk->styles+m_asstrk->n_styles-1);
-        }
+        m_overrideStyle = SubtitleTrackStyle_AssImpl(m_asstrk->styles+m_asstrk->n_styles-1);
 
         for (int i = 0; i < m_asstrk->n_events; i++)
         {
@@ -1383,6 +1384,15 @@ SubtitleTrackHolder SubtitleTrack_AssImpl::NewEmptyTrack(int64_t id)
 
     string assHeader = GenerateAssHeader("MediaEditor", 384, 288, "Arial", 16, 0xffffff, 0xffffff, 0, 0, 0, 0, 0, 1, 2);
     ass_process_codec_private(asssubtrk->m_asstrk, (char*)assHeader.c_str(), assHeader.size());
+    if (asssubtrk->m_asstrk->n_styles > 0)
+    {
+        asssubtrk->m_overrideStyle = SubtitleTrackStyle_AssImpl(asssubtrk->m_asstrk->styles+asssubtrk->m_asstrk->n_styles-1);
+    }
+    else
+    {
+        logger->Log(Error) << "No style is defined for this subtitle!" << endl;
+        hSubTrk = nullptr;
+    }
     return hSubTrk;
 }
 

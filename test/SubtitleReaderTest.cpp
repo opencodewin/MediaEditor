@@ -420,13 +420,18 @@ bool Application_Frame(void * handle, bool app_will_quit)
                     }
                     ImGui::EndDisabled();
                     ImGui::SameLine(0, 10);
-                    std::string durstr = MillisecToString(g_subtrack->Duration());
-                    if (ImGui::SliderFloat(durstr.c_str(), &s_showSubPos, 0, (float)g_subtrack->Duration()/1000, "%.3f", 0))
+                    if (ImGui::SliderFloat("##PosSlider", &s_showSubPos, 0, (float)g_subtrack->Duration()/1000, "%.3f", 0))
                     {
                         g_subtrack->SeekToTime((int64_t)(s_showSubPos*1000));
                         hSupClip = g_subtrack->GetCurrClip();
                         s_showSubIdx = g_subtrack->GetCurrIndex();
                     }
+
+                    string timestr = hSupClip ? MillisecToString(hSupClip->StartTime()) : "-:--:--.---";
+                    string durstr = MillisecToString(g_subtrack->Duration());
+                    string posstr = timestr+"/"+durstr;
+                    ImGui::SameLine(0, 10);
+                    ImGui::TextUnformatted(posstr.c_str());
                     ImGui::EndGroup();
                 }
                 ImGui::EndTabBar();
