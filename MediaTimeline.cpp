@@ -437,7 +437,6 @@ void Clip::Cutting(int64_t pos)
     // insert new clip into track and timeline
     if (new_clip)
     {
-        
         new_clip->mStart = new_start;
         new_clip->mStartOffset = new_start_offset;
         new_clip->mEnd = mEnd;
@@ -1247,6 +1246,27 @@ TextClip::~TextClip()
 {
 }
 
+void TextClip::SetClipDefault(const DataLayer::SubtitleTrack::Style & style, DataLayer::SubtitleClipHolder clip_hold)
+{
+    mFontScale = style.Scale();
+    mFontScaleX = style.ScaleX();
+    mFontScaleY = style.ScaleY();
+    mFontItalic = style.Italic() > 0;
+    mFontAngle = style.Angle();
+    mFontOutlineWidth = style.OutlineWidth();
+    mFontSpacing = style.Spacing();
+    mFontAlignment = style.Alignment();
+    mFontUnderLine = style.UnderLine();
+    mFontStrikeOut = style.StrikeOut();
+    mFontPrimaryColor = style.PrimaryColor().ToImVec4();
+    mFontOutlineColor = style.OutlineColor().ToImVec4();
+    mFontName = style.Font();
+    mClipHolder = clip_hold;
+    // pos value need load later 
+    //mFontPosX = clip_hold->Image().Area().x;
+    //mFontPosY = clip_hold->Image().Area().y;
+}
+
 void TextClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect)
 {
     drawList->AddRectFilled(leftTop, rightBottom, IM_COL32(16, 16, 16, 255));
@@ -1293,6 +1313,81 @@ Clip * TextClip::Load(const imgui_json::value& value, void * handle)
                 auto& val = value["TrackStyle"];
                 if (val.is_boolean()) new_clip->mTrackStyle = val.get<imgui_json::boolean>();
             }
+            if (value.contains("Name"))
+            {
+                auto& val = value["Name"];
+                if (val.is_string()) new_clip->mFontName = val.get<imgui_json::string>();
+            }
+            if (value.contains("Scale"))
+            {
+                auto& val = value["Scale"];
+                if (val.is_number()) new_clip->mFontScale = val.get<imgui_json::number>();
+            }
+            if (value.contains("ScaleX"))
+            {
+                auto& val = value["ScaleX"];
+                if (val.is_number()) new_clip->mFontScaleX = val.get<imgui_json::number>();
+            }
+            if (value.contains("ScaleY"))
+            {
+                auto& val = value["ScaleY"];
+                if (val.is_number()) new_clip->mFontScaleY = val.get<imgui_json::number>();
+            }
+            if (value.contains("Spacing"))
+            {
+                auto& val = value["Spacing"];
+                if (val.is_number()) new_clip->mFontSpacing = val.get<imgui_json::number>();
+            }
+            if (value.contains("Angle"))
+            {
+                auto& val = value["Angle"];
+                if (val.is_number()) new_clip->mFontAngle = val.get<imgui_json::number>();
+            }
+            if (value.contains("OutlineWidth"))
+            {
+                auto& val = value["OutlineWidth"];
+                if (val.is_number()) new_clip->mFontOutlineWidth = val.get<imgui_json::number>();
+            }
+            if (value.contains("Alignment"))
+            {
+                auto& val = value["Alignment"];
+                if (val.is_number()) new_clip->mFontAlignment = val.get<imgui_json::number>();
+            }
+            if (value.contains("Italic"))
+            {
+                auto& val = value["Italic"];
+                if (val.is_boolean()) new_clip->mFontItalic = val.get<imgui_json::boolean>();
+            }
+            if (value.contains("UnderLine"))
+            {
+                auto& val = value["UnderLine"];
+                if (val.is_boolean()) new_clip->mFontUnderLine = val.get<imgui_json::boolean>();
+            }
+            if (value.contains("StrikeOut"))
+            {
+                auto& val = value["StrikeOut"];
+                if (val.is_boolean()) new_clip->mFontStrikeOut = val.get<imgui_json::boolean>();
+            }
+            if (value.contains("PosX"))
+            {
+                auto& val = value["PosX"];
+                if (val.is_number()) new_clip->mFontPosX = val.get<imgui_json::number>();
+            }
+            if (value.contains("PosY"))
+            {
+                auto& val = value["PosY"];
+                if (val.is_number()) new_clip->mFontPosY = val.get<imgui_json::number>();
+            }
+            if (value.contains("PrimaryColor"))
+            {
+                auto& val = value["PrimaryColor"];
+                if (val.is_vec4()) new_clip->mFontPrimaryColor = val.get<imgui_json::vec4>();
+            }
+            if (value.contains("OutlineColor"))
+            {
+                auto& val = value["OutlineColor"];
+                if (val.is_vec4()) new_clip->mFontOutlineColor = val.get<imgui_json::vec4>();
+            }
             return new_clip;
         }
     }
@@ -1309,6 +1404,21 @@ void TextClip::Save(imgui_json::value& value)
     // save Text clip info
     value["Text"] = mText;
     value["TrackStyle"] = imgui_json::boolean(mTrackStyle);
+    value["Name"] = mFontName;
+    value["Scale"] = imgui_json::number(mFontScale);
+    value["ScaleX"] = imgui_json::number(mFontScaleX);
+    value["ScaleY"] = imgui_json::number(mFontScaleY);
+    value["Spacing"] = imgui_json::number(mFontSpacing);
+    value["Angle"] = imgui_json::number(mFontAngle);
+    value["OutlineWidth"] = imgui_json::number(mFontOutlineWidth);
+    value["Alignment"] = imgui_json::number(mFontAlignment);
+    value["Italic"] = imgui_json::boolean(mFontItalic);
+    value["UnderLine"] = imgui_json::boolean(mFontUnderLine);
+    value["StrikeOut"] = imgui_json::boolean(mFontStrikeOut);
+    value["PosX"] = imgui_json::number(mFontPosX);
+    value["PosY"] = imgui_json::number(mFontPosY);
+    value["PrimaryColor"] = imgui_json::vec4(mFontPrimaryColor);
+    value["OutlineColor"] = imgui_json::vec4(mFontOutlineColor);
 }
 
 BluePrintVideoFilter::~BluePrintVideoFilter()
@@ -2361,6 +2471,11 @@ MediaTrack::~MediaTrack()
     {
         linked_track->mLinkedTrack = -1;
     }
+
+    if (mMttReader)
+    {
+        mMttReader = nullptr;
+    }
 }
 
 bool MediaTrack::DrawTrackControlBar(ImDrawList *draw_list, ImRect rc)
@@ -2906,6 +3021,115 @@ MediaTrack* MediaTrack::Load(const imgui_json::value& value, void * handle)
                     new_track->m_Overlaps.push_back(overlap);
             }
         }
+        // load subtitle track
+        if (value.contains("SubTrack"))
+        {
+            auto& track = value["SubTrack"];
+            int64_t track_id = 0;
+            if (track.contains("ID"))
+            {
+                auto& val = track["ID"];
+                if (val.is_number()) track_id = val.get<imgui_json::number>();
+            }
+            new_track->mMttReader = DataLayer::SubtitleTrack::NewEmptyTrack(track_id);
+            if (track.contains("Font"))
+            {
+                auto& val = track["Font"];
+                if (val.is_string()) new_track->mMttReader->SetFont(val.get<imgui_json::string>());
+            }
+            if (track.contains("Scale"))
+            {
+                auto& val = track["Scale"];
+                if (val.is_number()) new_track->mMttReader->SetScale(val.get<imgui_json::number>());
+            }
+            if (track.contains("ScaleX"))
+            {
+                auto& val = track["ScaleX"];
+                if (val.is_number()) new_track->mMttReader->SetScaleX(val.get<imgui_json::number>());
+            }
+            if (track.contains("ScaleY"))
+            {
+                auto& val = track["ScaleY"];
+                if (val.is_number()) new_track->mMttReader->SetScaleY(val.get<imgui_json::number>());
+            }
+            if (track.contains("Spacing"))
+            {
+                auto& val = track["Spacing"];
+                if (val.is_number()) new_track->mMttReader->SetSpacing(val.get<imgui_json::number>());
+            }
+            if (track.contains("Angle"))
+            {
+                auto& val = track["Angle"];
+                if (val.is_number()) new_track->mMttReader->SetAngle(val.get<imgui_json::number>());
+            }
+            if (track.contains("OutlineWidth"))
+            {
+                auto& val = track["OutlineWidth"];
+                if (val.is_number()) new_track->mMttReader->SetOutlineWidth(val.get<imgui_json::number>());
+            }
+            if (track.contains("Alignment"))
+            {
+                auto& val = track["Alignment"];
+                if (val.is_number()) new_track->mMttReader->SetAlignment(val.get<imgui_json::number>());
+            }
+            if (track.contains("MarginH"))
+            {
+                auto& val = track["MarginH"];
+                if (val.is_number()) new_track->mMttReader->SetMarginH(val.get<imgui_json::number>());
+            }
+            if (track.contains("MarginV"))
+            {
+                auto& val = track["MarginV"];
+                if (val.is_number()) new_track->mMttReader->SetMarginV(val.get<imgui_json::number>());
+            }
+            if (track.contains("Italic"))
+            {
+                auto& val = track["Italic"];
+                if (val.is_number()) new_track->mMttReader->SetItalic(val.get<imgui_json::number>());
+            }
+            if (track.contains("Bold"))
+            {
+                auto& val = track["Bold"];
+                if (val.is_number()) new_track->mMttReader->SetBold(val.get<imgui_json::number>());
+            }
+            if (track.contains("UnderLine"))
+            {
+                auto& val = track["UnderLine"];
+                if (val.is_boolean()) new_track->mMttReader->SetUnderLine(val.get<imgui_json::boolean>());
+            }
+            if (track.contains("StrikeOut"))
+            {
+                auto& val = track["StrikeOut"];
+                if (val.is_boolean()) new_track->mMttReader->SetStrikeOut(val.get<imgui_json::boolean>());
+            }
+            if (track.contains("PrimaryColor"))
+            {
+                auto& val = track["PrimaryColor"];
+                if (val.is_vec4()) new_track->mMttReader->SetPrimaryColor(val.get<imgui_json::vec4>());
+            }
+            if (track.contains("SecondaryColor"))
+            {
+                auto& val = track["SecondaryColor"];
+                if (val.is_vec4()) new_track->mMttReader->SetSecondaryColor(val.get<imgui_json::vec4>());
+            }
+            if (track.contains("OutlineColor"))
+            {
+                auto& val = track["OutlineColor"];
+                if (val.is_vec4()) new_track->mMttReader->SetOutlineColor(val.get<imgui_json::vec4>());
+            }
+            new_track->mMttReader->SetFrameSize(timeline->mWidth, timeline->mHeight);
+            new_track->mMttReader->EnableFullSizeOutput(false);
+            for (auto clip : new_track->m_Clips)
+            {
+                if (clip->mType == MEDIA_TEXT)
+                {
+                    TextClip * tclip = dynamic_cast<TextClip *>(clip);
+                    auto holder = new_track->mMttReader->NewClip(tclip->mStart, tclip->mEnd - tclip->mStart);
+                    new_track->mMttReader->ChangeText(holder, tclip->mText);
+                    tclip->mClipHolder = holder;
+                }
+            }
+        }
     }
     return new_track;
 }
@@ -2940,6 +3164,33 @@ void MediaTrack::Save(imgui_json::value& value)
         overlaps.push_back(overlap_id_value);
     }
     if (m_Overlaps.size() > 0) value["OverlapIDS"] = overlaps;
+
+    // save subtitle track info
+    if (mMttReader)
+    {
+        imgui_json::value subtrack;
+        auto& style = mMttReader->GetStyle();
+        subtrack["ID"] = imgui_json::number(mMttReader->Id());
+        subtrack["Font"] = style.Font();
+        subtrack["Scale"] = imgui_json::number(style.Scale());
+        subtrack["ScaleX"] = imgui_json::number(style.ScaleX());
+        subtrack["ScaleY"] = imgui_json::number(style.ScaleX());
+        subtrack["Spacing"] = imgui_json::number(style.Spacing());
+        subtrack["Angle"] = imgui_json::number(style.Angle());
+        subtrack["OutlineWidth"] = imgui_json::number(style.OutlineWidth());
+        subtrack["Alignment"] = imgui_json::number(style.Alignment());
+        subtrack["MarginH"] = imgui_json::number(style.MarginH());
+        subtrack["MarginV"] = imgui_json::number(style.MarginV());
+        subtrack["Italic"] = imgui_json::number(style.Italic());
+        subtrack["Bold"] = imgui_json::number(style.Bold());
+        subtrack["UnderLine"] = imgui_json::boolean(style.UnderLine());
+        subtrack["StrikeOut"] = imgui_json::boolean(style.StrikeOut());
+        subtrack["PrimaryColor"] = imgui_json::vec4(style.PrimaryColor().ToImVec4());
+        subtrack["SecondaryColor"] = imgui_json::vec4(style.SecondaryColor().ToImVec4());
+        subtrack["OutlineColor"] = imgui_json::vec4(style.OutlineColor().ToImVec4());
+
+        value["SubTrack"] = subtrack;
+    }
 }
 
 } // namespace MediaTimeline/MediaTrack
@@ -6477,25 +6728,27 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                     // subtitle track isn'y like other media tracks, it need load clips after insert a empty track
                     int newTrackIndex = timeline->NewTrack("", MEDIA_TEXT, true);
                     MediaTrack * newTrack = timeline->m_Tracks[newTrackIndex];
-                    DataLayer::SubtitleTrackHolder subtrack = DataLayer::SubtitleTrack::BuildFromFile(newTrack->mID, item->mPath);
-                    if (subtrack)
+                    newTrack->mMttReader = DataLayer::SubtitleTrack::BuildFromFile(newTrack->mID, item->mPath);
+                    if (newTrack->mMttReader)
                     {
-                        subtrack->SetFrameSize(timeline->mWidth, timeline->mHeight);
-                        subtrack->SeekToIndex(0);
-                        DataLayer::SubtitleClipHolder hSubClip = subtrack->GetCurrClip();
+                        auto& style = newTrack->mMttReader->GetStyle();
+                        newTrack->mMttReader->SetFrameSize(timeline->mWidth, timeline->mHeight);
+                        newTrack->mMttReader->SeekToIndex(0);
+                        newTrack->mMttReader->EnableFullSizeOutput(false);
+                        DataLayer::SubtitleClipHolder hSubClip = newTrack->mMttReader->GetCurrClip();
                         while (hSubClip)
                         {
                             TextClip * new_text_clip = new TextClip(hSubClip->StartTime(), hSubClip->EndTime(), item->mID, item->mName, hSubClip->Text(), timeline);
+                            new_text_clip->SetClipDefault(style, hSubClip);
                             timeline->m_Clips.push_back(new_text_clip);
                             newTrack->InsertClip(new_text_clip, hSubClip->StartTime(), false);
                             action["clip_id"] = imgui_json::number(new_text_clip->mID);
-                            hSubClip = subtrack->GetNextClip();
+                            hSubClip = newTrack->mMttReader->GetNextClip();
                         }
-                        if (subtrack->Duration() > timeline->mEnd)
+                        if (newTrack->mMttReader->Duration() > timeline->mEnd)
                         {
-                            timeline->mEnd = subtrack->Duration() + 1000;
+                            timeline->mEnd = newTrack->mMttReader->Duration() + 1000;
                         }
-                        timeline->mMttReader.push_back(subtrack);
                     }
                 }
                 else

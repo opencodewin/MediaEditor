@@ -58,6 +58,9 @@ namespace DataLayer
         virtual bool SetPrimaryColor(const SubtitleClip::Color& color) = 0;
         virtual bool SetSecondaryColor(const SubtitleClip::Color& color) = 0;
         virtual bool SetOutlineColor(const SubtitleClip::Color& color) = 0;
+        virtual bool SetPrimaryColor(const ImVec4& color) = 0;
+        virtual bool SetSecondaryColor(const ImVec4& color) = 0;
+        virtual bool SetOutlineColor(const ImVec4& color) = 0;
         virtual bool ChangeClipTime(SubtitleClipHolder clip, int64_t startTime, int64_t duration) = 0;
 
         virtual SubtitleClipHolder NewClip(int64_t startTime, int64_t duration) = 0;

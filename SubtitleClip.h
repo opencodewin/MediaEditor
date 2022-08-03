@@ -4,6 +4,7 @@
 #include <string>
 #include <functional>
 #include "immat.h"
+#include "imgui.h"
 
 namespace DataLayer
 {
@@ -57,6 +58,7 @@ namespace DataLayer
         {
             Color() = default;
             Color(float _r, float _g, float _b, float _a) : r(_r), g(_g), b(_b), a(_a) {}
+            ImVec4 ToImVec4() { return ImVec4(r, g, b, a); }
             float r{1};
             float g{1};
             float b{1};

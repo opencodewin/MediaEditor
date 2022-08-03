@@ -432,6 +432,24 @@ bool SubtitleTrack_AssImpl::SetOutlineColor(const SubtitleClip::Color& color)
     return true;
 }
 
+bool SubtitleTrack_AssImpl::SetPrimaryColor(const ImVec4& color)
+{
+    const SubtitleClip::Color _color(color.x, color.y, color.z, color.w);
+    return SetPrimaryColor(_color);
+}
+
+bool SubtitleTrack_AssImpl::SetSecondaryColor(const ImVec4& color)
+{
+    const SubtitleClip::Color _color(color.x, color.y, color.z, color.w);
+    return SetSecondaryColor(_color);
+}
+
+bool SubtitleTrack_AssImpl::SetOutlineColor(const ImVec4& color)
+{
+    const SubtitleClip::Color _color(color.x, color.y, color.z, color.w);
+    return SetOutlineColor(_color);
+}
+
 bool SubtitleTrack_AssImpl::ChangeClipTime(SubtitleClipHolder clip, int64_t startTime, int64_t duration)
 {
     if (!clip)

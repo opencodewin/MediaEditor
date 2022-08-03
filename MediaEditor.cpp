@@ -3618,6 +3618,16 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
         if (editing_clip)
         {
             // show clip time 
+            if (editing_clip->mClipHolder)
+            {
+                auto current_image = editing_clip->mClipHolder->Image();
+                if (current_image.Valid())
+                {
+                    editing_clip->mFontPosX = current_image.Area().x;
+                    editing_clip->mFontPosY = current_image.Area().y;
+                }
+            }
+            
             auto start_time_str = std::string(ICON_CLIP_START) + " " + TimelineMillisecToString(editing_clip->mStart, 3);
             auto end_time_str = TimelineMillisecToString(editing_clip->mEnd, 3) + " " + std::string(ICON_CLIP_END);
             auto start_time_str_size = ImGui::CalcTextSize(start_time_str.c_str());
@@ -5224,6 +5234,7 @@ void Application_Initialize(void** handle)
     // GetMediaReaderLogger()->SetShowLevels(Logger::DEBUG);
     // GetSnapshotGeneratorLogger()->SetShowLevels(Logger::DEBUG);
     // GetMediaEncoderLogger()->SetShowLevels(Logger::DEBUG);
+    GetSubtitleTrackLogger()->SetShowLevels(Logger::DEBUG);
 
     if (!DataLayer::InitializeSubtitleLibrary())
         std::cout << "FAILED to initialize the subtitle library!" << std::endl;

@@ -397,6 +397,7 @@ struct TextClip : Clip
 {
     TextClip(int64_t start, int64_t end, int64_t id, std::string name, std::string text, void* handle);
     ~TextClip();
+    void SetClipDefault(const DataLayer::SubtitleTrack::Style & style, DataLayer::SubtitleClipHolder clip_hold);
 
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect) override;
 
@@ -404,6 +405,7 @@ struct TextClip : Clip
     void Save(imgui_json::value& value) override;
 
     std::string mText;
+    std::string mFontName;
     bool mTrackStyle {true};
     int mFontFamilySelIdx {0};
     int mFontStyleSelIdx {0};
@@ -419,8 +421,9 @@ struct TextClip : Clip
     bool mFontStrikeOut {false};
     float mFontPosX {0.0f};
     float mFontPosY {0.0f};
-    ImVec4 mFontPrimaryColor {1, 1, 1, 1};
-    ImVec4 mFontOutlineColor {0,0,0,1};
+    ImVec4 mFontPrimaryColor {0, 0, 0, 0};
+    ImVec4 mFontOutlineColor {0, 0, 0, 0};
+    DataLayer::SubtitleClipHolder mClipHolder {nullptr};
 };
 
 class BluePrintVideoFilter : public DataLayer::VideoFilter
@@ -591,7 +594,7 @@ struct MediaTrack
     bool mSelected  {false};                    // track is selected, project saved
     int64_t mViewWndDur     {0};
     float mPixPerMs         {0};
-
+    DataLayer::SubtitleTrackHolder mMttReader {nullptr};
     MediaTrack(std::string name, MEDIA_TYPE type, void * handle);
     ~MediaTrack();
 
@@ -769,7 +772,6 @@ struct TimeLine
 
     MultiTrackVideoReader* mMtvReader   {nullptr};
     MultiTrackAudioReader* mMtaReader   {nullptr};
-    std::vector<DataLayer::SubtitleTrackHolder> mMttReader;
     double mPreviewPos                      {0};
     double mPreviewResumePos                {0};
     bool mIsPreviewPlaying                  {false};
