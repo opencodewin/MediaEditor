@@ -755,7 +755,7 @@ SubtitleClipHolder SubtitleTrack_AssImpl::NewClip(int64_t startTime, int64_t dur
         m_duration = m_clips.back()->EndTime();
     }
 
-    m_logger->Log(DEBUG) << "New added clip readOrder=" << hNewClip->ReadOrder() << "." << endl;
+    m_logger->Log(VERBOSE) << "New added clip readOrder=" << hNewClip->ReadOrder() << "." << endl;
     return hNewClip;
 }
 
