@@ -5234,7 +5234,7 @@ void Application_Initialize(void** handle)
     // GetMediaReaderLogger()->SetShowLevels(Logger::DEBUG);
     // GetSnapshotGeneratorLogger()->SetShowLevels(Logger::DEBUG);
     // GetMediaEncoderLogger()->SetShowLevels(Logger::DEBUG);
-    GetSubtitleTrackLogger()->SetShowLevels(Logger::DEBUG);
+    // GetSubtitleTrackLogger()->SetShowLevels(Logger::DEBUG);
 
     if (!DataLayer::InitializeSubtitleLibrary())
         std::cout << "FAILED to initialize the subtitle library!" << std::endl;
