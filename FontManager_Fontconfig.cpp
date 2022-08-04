@@ -153,7 +153,11 @@ vector<FontDescriptorHolder> FM::GetAvailableFonts()
         result.reserve(fs->nfont);
         for (int i = 0; i < fs->nfont; i++)
         {
-            result.push_back(CreateFontDescriptor(fs->fonts[i]));
+            FontDescriptorHolder fc = CreateFontDescriptor(fs->fonts[i]);
+            // skip all the fonts those start with '.'
+            if (fc->Family().c_str()[0] == '.')
+                continue;
+            result.push_back(fc);
         }
     }
 
