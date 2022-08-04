@@ -152,6 +152,9 @@
 #define ICON_DRAWING_PIN    u8"\uf08d"
 #define ICON_EXPANMD        u8"\uf0b2"
 
+#define ICON_SETTING_LINK   u8"\uf0c1"
+#define ICON_SETTING_UNLINK u8"\uf127"
+
 #define COL_FRAME_RECT      IM_COL32( 16,  16,  96, 255)
 #define COL_LIGHT_BLUR      IM_COL32( 16, 128, 255, 255)
 #define COL_CANVAS_BG       IM_COL32( 36,  36,  36, 255)
@@ -409,7 +412,6 @@ struct TextClip : Clip
     bool mTrackStyle {true};
     int mFontFamilySelIdx {0};
     int mFontStyleSelIdx {0};
-    float mFontScale {1.0f};
     float mFontScaleX {1.0f};
     float mFontScaleY {1.0f};
     float mFontSpacing {1.0f};

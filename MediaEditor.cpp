@@ -238,6 +238,11 @@ static const char* AudioEditorTabTooltips[] = {
     "Audio Fusion",
 };
 
+static const char* TextEditorTabNames[] = {
+    "Clip Style",
+    "Track Style",
+};
+
 struct MediaEditorSettings
 {
     float TopViewHeight {0.6};              // Top view height percentage
@@ -1353,19 +1358,21 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
         bool bViewisLandscape = icon_size.x >= icon_size.y ? true : false;
         bool bRenderisLandscape = aspectRatio > 1.f ? true : false;
         bool bNeedChangeScreenInfo = bViewisLandscape ^ bRenderisLandscape;
-        float adj_w = bNeedChangeScreenInfo ? icon_size.y : icon_size.x;
-        float adj_h = bNeedChangeScreenInfo ? icon_size.x : icon_size.y;
+        float adj_w = bNeedChangeScreenInfo ? icon_size.y : icon_size.x - 2;
+        float adj_h = bNeedChangeScreenInfo ? icon_size.x - 2 : icon_size.y;
         float adj_x = adj_h * aspectRatio;
         float adj_y = adj_h;
         if (adj_x > adj_w) { adj_y *= adj_w / adj_x; adj_x = adj_w; }
-        float offset_x = (icon_size.x - adj_x) / 2.0;
+        float offset_x = (icon_size.x - adj_x + 4) / 2.0;
         float offset_y = (icon_size.y - adj_y) / 2.0;
         ImGui::PushID((void*)(intptr_t)texture);
         const ImGuiID id = ImGui::GetCurrentWindow()->GetID("#image");
         ImGui::PopID();
-        ImGui::ImageButtonEx(id, texture, ImVec2(adj_w - offset_x * 2, adj_h - offset_y * 2), 
-                            ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), ImVec2(offset_x, offset_y),
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(offset_x, offset_y));
+        ImGui::ImageButtonEx(id, texture, ImVec2(adj_w - offset_x * 2 + 6, adj_h - offset_y * 2), 
+                            ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), 
                             ImVec4(0.0f, 0.0f, 0.0f, 1.0f), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+        ImGui::PopStyleVar();
     }
     else
     {
@@ -3583,6 +3590,8 @@ static void ShowAudioEditorWindow(ImDrawList *draw_list)
 
 static void ShowTextEditorWindow(ImDrawList *draw_list)
 {
+    ImGuiIO &io = ImGui::GetIO();
+    static int StyleWindowIndex = 0; 
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
     draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
@@ -3666,96 +3675,229 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
             // show style control
             ImGui::Checkbox("Using track style", &editing_clip->mTrackStyle);
             ImGui::Separator();
-            ImGui::BeginDisabled(editing_clip->mTrackStyle);
-            ImGui::PushItemWidth(240);
-            auto item_width = ImGui::CalcItemWidth();
-            const char* familyValue = editing_clip->mFontFamilySelIdx >= fontFamilies.size() ? nullptr : fontFamilies[editing_clip->mFontFamilySelIdx].c_str();
-            if (ImGui::BeginCombo("Font family", familyValue))
+            static const int numTabs = sizeof(TextEditorTabNames)/sizeof(TextEditorTabNames[0]);
+            ImVec2 style_view_pos = ImGui::GetCursorPos();
+            ImVec2 style_view_size(style_window_size.x, window_size.y - style_view_pos.y);
+            if (ImGui::BeginChild("##text_sytle_window", style_view_size - ImVec2(8, 0), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar))
             {
-                for (int i = 0; i < fontFamilies.size(); i++)
+                if (ImGui::TabLabels(numTabs, TextEditorTabNames, StyleWindowIndex, nullptr , false, true, nullptr, nullptr, false, false, nullptr, nullptr))
                 {
-                    if (ImGui::Selectable(fontFamilies[i].c_str(), i == editing_clip->mFontFamilySelIdx))
+                }
+
+                if (ImGui::BeginChild("##style_Window_content", style_view_size - ImVec2(16, 32), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings))
+                {
+                    ImVec2 style_setting_window_pos = ImGui::GetCursorScreenPos();
+                    ImVec2 style_setting_window_size = ImGui::GetWindowSize();
+                    if (StyleWindowIndex == 0)
                     {
-                        editing_clip->mFontFamilySelIdx = i;
-                        editing_clip->mFontStyleSelIdx = 0;
+                        // clip style
+                        ImGui::BeginDisabled(editing_clip->mTrackStyle);
+                        ImGui::PushItemWidth(240);
+                        static bool clip_scale_setting_link = true;
+                        auto item_width = ImGui::CalcItemWidth();
+                        const char* familyValue = editing_clip->mFontFamilySelIdx >= fontFamilies.size() ? nullptr : fontFamilies[editing_clip->mFontFamilySelIdx].c_str();
+                        if (ImGui::BeginCombo("Font family", familyValue))
+                        {
+                            for (int i = 0; i < fontFamilies.size(); i++)
+                            {
+                                if (ImGui::Selectable(fontFamilies[i].c_str(), i == editing_clip->mFontFamilySelIdx))
+                                {
+                                    editing_clip->mFontFamilySelIdx = i;
+                                    editing_clip->mFontStyleSelIdx = 0;
+                                }
+                            }
+                            ImGui::EndCombo();
+                        } ImGui::SameLine(style_setting_window_size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##family_default")) {}
+                        std::vector<FM::FontDescriptorHolder> styles;
+                        if (editing_clip->mFontFamilySelIdx < fontFamilies.size())
+                            styles = fontTable[fontFamilies[editing_clip->mFontFamilySelIdx]];
+                        const char* styleValue = editing_clip->mFontStyleSelIdx >= styles.size() ? nullptr : styles[editing_clip->mFontStyleSelIdx]->Style().c_str();
+                        if (ImGui::BeginCombo("Font style", styleValue))
+                        {
+                            for (int i = 0; i < styles.size(); i++)
+                            {
+                                if (ImGui::Selectable(styles[i]->Style().c_str(), i == editing_clip->mFontStyleSelIdx))
+                                {
+                                    editing_clip->mFontStyleSelIdx = i;
+                                }
+                            }
+                            ImGui::EndCombo();
+                        } ImGui::SameLine(style_setting_window_size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##style_default")) {}
+                        if (ImGui::SliderFloat("Font position X", &editing_clip->mFontPosX, 0, timeline->mWidth, "%.0f"))
+                        {
+                        } ImGui::SameLine(style_setting_window_size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##posx_default")) {}
+                        if (ImGui::SliderFloat("Font position Y", &editing_clip->mFontPosY, 0, timeline->mHeight, "%.0f"))
+                        {
+                        } ImGui::SameLine(style_setting_window_size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##posy_default")) {}
+
+                        if (ImGui::SliderFloat("Font scale X", &editing_clip->mFontScaleX, 0.2, 10, "%.1f"))
+                        {
+                            // TODO::Dicky deal with clip_scale_setting_link
+
+                        } ImGui::SameLine(style_setting_window_size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##scalex_default")) {}
+                        // link button for scalex/scaley
+                        auto current_pos = ImGui::GetCursorScreenPos();
+                        auto link_button_pos = current_pos + ImVec2(style_setting_window_size.x - 64, - 8);
+                        ImRect link_button_rect(link_button_pos, link_button_pos + ImVec2(16, 16));
+                        std::string link_button_text = std::string(clip_scale_setting_link ? ICON_SETTING_LINK : ICON_SETTING_UNLINK);
+                        auto  link_button_color = clip_scale_setting_link ? IM_COL32_WHITE : IM_COL32(128, 128, 128, 128);
+                        draw_list->AddText(link_button_pos, IM_COL32_WHITE, link_button_text.c_str());
+                        if (link_button_rect.Contains(io.MousePos) && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+                        {
+                            clip_scale_setting_link = !clip_scale_setting_link;
+                        }
+                        
+                        if (ImGui::SliderFloat("Font scale Y", &editing_clip->mFontScaleY, 0.2, 10, "%.1f"))
+                        {
+                            // TODO::Dicky deal with clip_scale_setting_link
+                        } ImGui::SameLine(style_setting_window_size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##scaley_default")) {}
+                        if (ImGui::SliderFloat("Font spacing", &editing_clip->mFontSpacing, 0.5, 5, "%.1f"))
+                        {
+                        } ImGui::SameLine(style_setting_window_size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##spacing_default")) {}
+                        if (ImGui::SliderFloat("Font angle", &editing_clip->mFontAngle, 0, 360, "%.1f"))
+                        {
+                        } ImGui::SameLine(style_setting_window_size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##angle_default")) {}
+                        if (ImGui::SliderFloat("Font outline", &editing_clip->mFontOutlineWidth, 0, 5, "%.1f"))
+                        {
+                        } ImGui::SameLine(style_setting_window_size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##outline_default")) {}
+                        if (ImGui::Checkbox(ICON_FONT_ITALIC "##font_italic", &editing_clip->mFontItalic))
+                        {
+                        }
+                        ImGui::SameLine();
+                        if (ImGui::Checkbox(ICON_FONT_UNDERLINE "##font_underLine", &editing_clip->mFontUnderLine))
+                        {
+                        }
+                        ImGui::SameLine();
+                        if (ImGui::Checkbox(ICON_FONT_STRIKEOUT "##font_strike_out", &editing_clip->mFontStrikeOut))
+                        {
+                        }
+                        ImGui::SameLine(item_width); ImGui::TextUnformatted("Font attribute");
+                        ImGui::SameLine(style_setting_window_size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##attribute_default")) {}
+
+                        ImGui::RadioButton(ICON_FA_ALIGN_LEFT "##font_alignment", (int *)&editing_clip->mFontAlignment, 1); ImGui::SameLine();
+                        ImGui::RadioButton(ICON_FA_ALIGN_CENTER "##font_alignment", (int *)&editing_clip->mFontAlignment, 2); ImGui::SameLine();
+                        ImGui::RadioButton(ICON_FA_ALIGN_RIGHT "##font_alignment", (int *)&editing_clip->mFontAlignment, 3);
+                        ImGui::SameLine(item_width); ImGui::TextUnformatted("Font alignment");
+                        ImGui::SameLine(style_setting_window_size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##alignment_default")) {}
+
+                        ImGui::Indent(item_width - 32);
+                        if (ImGui::ColorEdit4("FontColor##Primary", (float*)&editing_clip->mFontPrimaryColor, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_AlphaBar))
+                        {
+                        }
+                        ImGui::SameLine(item_width); ImGui::TextUnformatted("Font primary color");
+                        ImGui::SameLine(style_setting_window_size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##primary_color_default")) {}
+                        if (ImGui::ColorEdit4("FontColor##Outline", (float*)&editing_clip->mFontOutlineColor, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_AlphaBar))
+                        {
+                        }
+                        ImGui::SameLine(item_width); ImGui::TextUnformatted("Font outline color");
+                        ImGui::SameLine(style_setting_window_size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##outline_color_default")) {}
+                        ImGui::Unindent();
+
+                        ImGui::PopItemWidth();
+                        ImGui::EndDisabled();
+                    }
+                    else
+                    {
+                        // track style
+                        ImGui::PushItemWidth(240);
+                        static bool track_scale_setting_link = true;
+                        auto item_width = ImGui::CalcItemWidth();
+                        static int FontFamilySelIdx = 0;
+                        static int FontStyleSelIdx = 0;
+                        const char* familyValue = fontFamilies[FontFamilySelIdx].c_str();
+                        if (ImGui::BeginCombo("Font family", familyValue))
+                        {
+                            for (int i = 0; i < fontFamilies.size(); i++)
+                            {
+                                if (ImGui::Selectable(fontFamilies[i].c_str(), i == FontFamilySelIdx))
+                                {
+                                    FontFamilySelIdx = i;
+                                    FontStyleSelIdx = 0;
+                                }
+                            }
+                            ImGui::EndCombo();
+                        }
+                        std::vector<FM::FontDescriptorHolder> styles;
+                        styles = fontTable[fontFamilies[FontFamilySelIdx]];
+                        const char* styleValue = styles[FontStyleSelIdx]->Style().c_str();;
+                        if (ImGui::BeginCombo("Font style", styleValue))
+                        {
+                            for (int i = 0; i < styles.size(); i++)
+                            {
+                                if (ImGui::Selectable(styles[i]->Style().c_str(), i == FontStyleSelIdx))
+                                {
+                                    FontStyleSelIdx = i;
+                                }
+                            }
+                            ImGui::EndCombo();
+                        } ImGui::SameLine(style_setting_window_size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##style_default")) {}
+                        if (ImGui::SliderFloat("Font scale X", &editing_clip->mFontScaleX, 0.2, 10, "%.1f"))
+                        {
+                            // TODO::Dicky deal with clip_scale_setting_link
+                        } ImGui::SameLine(style_setting_window_size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##scalex_default")) {}
+                        // link button for scalex/scaley
+                        auto current_pos = ImGui::GetCursorScreenPos();
+                        auto link_button_pos = current_pos + ImVec2(style_setting_window_size.x - 64, - 8);
+                        ImRect link_button_rect(link_button_pos, link_button_pos + ImVec2(16, 16));
+                        std::string link_button_text = std::string(track_scale_setting_link ? ICON_SETTING_LINK : ICON_SETTING_UNLINK);
+                        auto  link_button_color = track_scale_setting_link ? IM_COL32_WHITE : IM_COL32(128, 128, 128, 128);
+                        draw_list->AddText(link_button_pos, IM_COL32_WHITE, link_button_text.c_str());
+                        if (link_button_rect.Contains(io.MousePos) && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+                        {
+                            track_scale_setting_link = !track_scale_setting_link;
+                        }
+                        if (ImGui::SliderFloat("Font scale Y", &editing_clip->mFontScaleY, 0.2, 10, "%.1f"))
+                        {
+                            // TODO::Dicky deal with clip_scale_setting_link
+                        } ImGui::SameLine(style_setting_window_size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##scaley_default")) {}
+                        if (ImGui::SliderFloat("Font spacing", &editing_clip->mFontSpacing, 0.5, 5, "%.1f"))
+                        {
+                        } ImGui::SameLine(style_setting_window_size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##spacing_default")) {}
+                        if (ImGui::SliderFloat("Font angle", &editing_clip->mFontAngle, 0, 360, "%.1f"))
+                        {
+                        } ImGui::SameLine(style_setting_window_size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##angle_default")) {}
+                        if (ImGui::SliderFloat("Font outline", &editing_clip->mFontOutlineWidth, 0, 5, "%.1f"))
+                        {
+                        } ImGui::SameLine(style_setting_window_size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##outline_default")) {}
+                        if (ImGui::Checkbox(ICON_FONT_ITALIC "##font_italic", &editing_clip->mFontItalic))
+                        {
+                        }
+                        ImGui::SameLine();
+                        if (ImGui::Checkbox(ICON_FONT_UNDERLINE "##font_underLine", &editing_clip->mFontUnderLine))
+                        {
+                        }
+                        ImGui::SameLine();
+                        if (ImGui::Checkbox(ICON_FONT_STRIKEOUT "##font_strike_out", &editing_clip->mFontStrikeOut))
+                        {
+                        }
+                        ImGui::SameLine(item_width); ImGui::TextUnformatted("Font attribute");
+                        ImGui::SameLine(style_setting_window_size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##attribute_default")) {}
+
+                        ImGui::RadioButton(ICON_FA_ALIGN_LEFT "##font_alignment", (int *)&editing_clip->mFontAlignment, 1); ImGui::SameLine();
+                        ImGui::RadioButton(ICON_FA_ALIGN_CENTER "##font_alignment", (int *)&editing_clip->mFontAlignment, 2); ImGui::SameLine();
+                        ImGui::RadioButton(ICON_FA_ALIGN_RIGHT "##font_alignment", (int *)&editing_clip->mFontAlignment, 3);
+                        ImGui::SameLine(item_width); ImGui::TextUnformatted("Font alignment");
+                        ImGui::SameLine(style_setting_window_size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##alignment_default")) {}
+
+                        ImGui::Indent(item_width - 32);
+                        if (ImGui::ColorEdit4("FontColor##Primary", (float*)&editing_clip->mFontPrimaryColor, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_AlphaBar))
+                        {
+                        }
+                        ImGui::SameLine(item_width); ImGui::TextUnformatted("Font primary color");
+                        ImGui::SameLine(style_setting_window_size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##primary_color_default")) {}
+                        if (ImGui::ColorEdit4("FontColor##Outline", (float*)&editing_clip->mFontOutlineColor, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_AlphaBar))
+                        {
+                        }
+                        ImGui::SameLine(item_width); ImGui::TextUnformatted("Font outline color");
+                        ImGui::SameLine(style_setting_window_size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##outline_color_default")) {}
+                        ImGui::Unindent();
+
+                        ImGui::PopItemWidth();
                     }
                 }
-                ImGui::EndCombo();
-            } ImGui::SameLine(style_window_size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##family_default")) {}
-            std::vector<FM::FontDescriptorHolder> styles;
-            if (editing_clip->mFontFamilySelIdx < fontFamilies.size())
-                styles = fontTable[fontFamilies[editing_clip->mFontFamilySelIdx]];
-            const char* styleValue = editing_clip->mFontStyleSelIdx >= styles.size() ? nullptr : styles[editing_clip->mFontStyleSelIdx]->Style().c_str();
-            if (ImGui::BeginCombo("Font style", styleValue))
-            {
-                for (int i = 0; i < styles.size(); i++)
-                {
-                    if (ImGui::Selectable(styles[i]->Style().c_str(), i == editing_clip->mFontStyleSelIdx))
-                    {
-                        editing_clip->mFontStyleSelIdx = i;
-                    }
-                }
-                ImGui::EndCombo();
-            } ImGui::SameLine(style_window_size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##style_default")) {}
-            if (ImGui::SliderFloat("Font position X", &editing_clip->mFontPosX, 0, timeline->mWidth, "%.0f"))
-            {
-            } ImGui::SameLine(style_window_size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##posx_default")) {}
-            if (ImGui::SliderFloat("Font position Y", &editing_clip->mFontPosY, 0, timeline->mHeight, "%.0f"))
-            {
-            } ImGui::SameLine(style_window_size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##posy_default")) {}
-            if (ImGui::SliderFloat("Font scale", &editing_clip->mFontScale, 0.2, 10, "%.1f"))
-            {
-            } ImGui::SameLine(style_window_size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##scale_default")) {}
-            if (ImGui::SliderFloat("Font scale X", &editing_clip->mFontScaleX, 0.2, 10, "%.1f"))
-            {
-            } ImGui::SameLine(style_window_size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##scalex_default")) {}
-            if (ImGui::SliderFloat("Font scale Y", &editing_clip->mFontScaleY, 0.2, 10, "%.1f"))
-            {
-            } ImGui::SameLine(style_window_size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##scaley_default")) {}
-            if (ImGui::SliderFloat("Font spacing", &editing_clip->mFontSpacing, 0.5, 5, "%.1f"))
-            {
-            } ImGui::SameLine(style_window_size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##spacing_default")) {}
-            if (ImGui::SliderFloat("Font angle", &editing_clip->mFontAngle, 0, 360, "%.1f"))
-            {
-            } ImGui::SameLine(style_window_size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##angle_default")) {}
-            if (ImGui::SliderFloat("Font outline", &editing_clip->mFontOutlineWidth, 0, 5, "%.1f"))
-            {
-            } ImGui::SameLine(style_window_size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##outline_default")) {}
-            if (ImGui::Checkbox(ICON_FONT_ITALIC "##font_italic", &editing_clip->mFontItalic))
-            {
+                ImGui::EndChild();
             }
-            ImGui::SameLine();
-            if (ImGui::Checkbox(ICON_FONT_UNDERLINE "##font_underLine", &editing_clip->mFontUnderLine))
-            {
-            }
-            ImGui::SameLine();
-            if (ImGui::Checkbox(ICON_FONT_STRIKEOUT "##font_strike_out", &editing_clip->mFontStrikeOut))
-            {
-            }
-            ImGui::SameLine(item_width); ImGui::TextUnformatted("Font attribute");
-            ImGui::SameLine(style_window_size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##attribute_default")) {}
-
-            ImGui::RadioButton(ICON_FA_ALIGN_LEFT "##font_alignment", (int *)&editing_clip->mFontAlignment, 1); ImGui::SameLine();
-            ImGui::RadioButton(ICON_FA_ALIGN_CENTER "##font_alignment", (int *)&editing_clip->mFontAlignment, 2); ImGui::SameLine();
-            ImGui::RadioButton(ICON_FA_ALIGN_RIGHT "##font_alignment", (int *)&editing_clip->mFontAlignment, 3);
-            ImGui::SameLine(item_width); ImGui::TextUnformatted("Font alignment");
-            ImGui::SameLine(style_window_size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##alignment_default")) {}
-
-            ImGui::Indent(item_width - 32);
-            if (ImGui::ColorEdit4("FontColor##Primary", (float*)&editing_clip->mFontPrimaryColor, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_AlphaBar))
-            {
-            }
-            ImGui::SameLine(item_width); ImGui::TextUnformatted("Font primary color");
-            ImGui::SameLine(style_window_size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##primary_color_default")) {}
-            if (ImGui::ColorEdit4("FontColor##Outline", (float*)&editing_clip->mFontOutlineColor, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_AlphaBar))
-            {
-            }
-            ImGui::SameLine(item_width); ImGui::TextUnformatted("Font outline color");
-            ImGui::SameLine(style_window_size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##outline_color_default")) {}
-            ImGui::Unindent();
-
-            ImGui::PopItemWidth();
-            ImGui::EndDisabled();
+            ImGui::EndChild();
         }
         ImGui::PopStyleColor();
     }

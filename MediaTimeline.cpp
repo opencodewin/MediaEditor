@@ -1248,7 +1248,6 @@ TextClip::~TextClip()
 
 void TextClip::SetClipDefault(const DataLayer::SubtitleTrack::Style & style, DataLayer::SubtitleClipHolder clip_hold)
 {
-    mFontScale = style.Scale();
     mFontScaleX = style.ScaleX();
     mFontScaleY = style.ScaleY();
     mFontItalic = style.Italic() > 0;
@@ -1317,11 +1316,6 @@ Clip * TextClip::Load(const imgui_json::value& value, void * handle)
             {
                 auto& val = value["Name"];
                 if (val.is_string()) new_clip->mFontName = val.get<imgui_json::string>();
-            }
-            if (value.contains("Scale"))
-            {
-                auto& val = value["Scale"];
-                if (val.is_number()) new_clip->mFontScale = val.get<imgui_json::number>();
             }
             if (value.contains("ScaleX"))
             {
@@ -1405,7 +1399,6 @@ void TextClip::Save(imgui_json::value& value)
     value["Text"] = mText;
     value["TrackStyle"] = imgui_json::boolean(mTrackStyle);
     value["Name"] = mFontName;
-    value["Scale"] = imgui_json::number(mFontScale);
     value["ScaleX"] = imgui_json::number(mFontScaleX);
     value["ScaleY"] = imgui_json::number(mFontScaleY);
     value["Spacing"] = imgui_json::number(mFontSpacing);
