@@ -1248,10 +1248,10 @@ TextClip::~TextClip()
 
 void TextClip::SetClipDefault(const DataLayer::SubtitleStyle & style, DataLayer::SubtitleClipHolder clip_hold)
 {
-    mFontScale = style.Scale();
     mFontScaleX = style.ScaleX();
     mFontScaleY = style.ScaleY();
     mFontItalic = style.Italic() > 0;
+    mFontBold = style.Bold() > 0;
     mFontAngle = style.Angle();
     mFontOutlineWidth = style.OutlineWidth();
     mFontSpacing = style.Spacing();
@@ -1318,10 +1318,10 @@ Clip * TextClip::Load(const imgui_json::value& value, void * handle)
                 auto& val = value["Name"];
                 if (val.is_string()) new_clip->mFontName = val.get<imgui_json::string>();
             }
-            if (value.contains("Scale"))
+            if (value.contains("ScaleLink"))
             {
-                auto& val = value["Scale"];
-                if (val.is_number()) new_clip->mFontScale = val.get<imgui_json::number>();
+                auto& val = value["ScaleLink"];
+                if (val.is_boolean()) new_clip->mScaleSettingLink = val.get<imgui_json::boolean>();
             }
             if (value.contains("ScaleX"))
             {
@@ -1352,6 +1352,11 @@ Clip * TextClip::Load(const imgui_json::value& value, void * handle)
             {
                 auto& val = value["Alignment"];
                 if (val.is_number()) new_clip->mFontAlignment = val.get<imgui_json::number>();
+            }
+            if (value.contains("Bold"))
+            {
+                auto& val = value["Bold"];
+                if (val.is_boolean()) new_clip->mFontBold = val.get<imgui_json::boolean>();
             }
             if (value.contains("Italic"))
             {
@@ -1405,13 +1410,14 @@ void TextClip::Save(imgui_json::value& value)
     value["Text"] = mText;
     value["TrackStyle"] = imgui_json::boolean(mTrackStyle);
     value["Name"] = mFontName;
-    value["Scale"] = imgui_json::number(mFontScale);
+    value["ScaleLink"] = imgui_json::boolean(mScaleSettingLink);
     value["ScaleX"] = imgui_json::number(mFontScaleX);
     value["ScaleY"] = imgui_json::number(mFontScaleY);
     value["Spacing"] = imgui_json::number(mFontSpacing);
     value["Angle"] = imgui_json::number(mFontAngle);
     value["OutlineWidth"] = imgui_json::number(mFontOutlineWidth);
     value["Alignment"] = imgui_json::number(mFontAlignment);
+    value["Bold"] = imgui_json::boolean(mFontBold);
     value["Italic"] = imgui_json::boolean(mFontItalic);
     value["UnderLine"] = imgui_json::boolean(mFontUnderLine);
     value["StrikeOut"] = imgui_json::boolean(mFontStrikeOut);
@@ -3117,6 +3123,11 @@ MediaTrack* MediaTrack::Load(const imgui_json::value& value, void * handle)
                 auto& val = track["OutlineColor"];
                 if (val.is_vec4()) new_track->mMttReader->SetOutlineColor(val.get<imgui_json::vec4>());
             }
+            if (track.contains("ScaleLink"))
+            {
+                auto& val = track["ScaleLink"];
+                if (val.is_boolean()) new_track->mTextTrackScaleLink = val.get<imgui_json::boolean>();
+            }
             new_track->mMttReader->SetFrameSize(timeline->mWidth, timeline->mHeight);
             new_track->mMttReader->EnableFullSizeOutput(false);
             for (auto clip : new_track->m_Clips)
@@ -3127,6 +3138,7 @@ MediaTrack* MediaTrack::Load(const imgui_json::value& value, void * handle)
                     auto holder = new_track->mMttReader->NewClip(tclip->mStart, tclip->mEnd - tclip->mStart);
                     new_track->mMttReader->ChangeText(holder, tclip->mText);
                     tclip->mClipHolder = holder;
+                    tclip->mTrack = new_track;
                 }
             }
         }
@@ -3174,7 +3186,7 @@ void MediaTrack::Save(imgui_json::value& value)
         subtrack["Font"] = style.Font();
         subtrack["Scale"] = imgui_json::number(style.Scale());
         subtrack["ScaleX"] = imgui_json::number(style.ScaleX());
-        subtrack["ScaleY"] = imgui_json::number(style.ScaleX());
+        subtrack["ScaleY"] = imgui_json::number(style.ScaleY());
         subtrack["Spacing"] = imgui_json::number(style.Spacing());
         subtrack["Angle"] = imgui_json::number(style.Angle());
         subtrack["OutlineWidth"] = imgui_json::number(style.OutlineWidth());
@@ -3188,7 +3200,7 @@ void MediaTrack::Save(imgui_json::value& value)
         subtrack["PrimaryColor"] = imgui_json::vec4(style.PrimaryColor().ToImVec4());
         subtrack["SecondaryColor"] = imgui_json::vec4(style.SecondaryColor().ToImVec4());
         subtrack["OutlineColor"] = imgui_json::vec4(style.OutlineColor().ToImVec4());
-
+        subtrack["ScaleLink"] = imgui_json::boolean(mTextTrackScaleLink);
         value["SubTrack"] = subtrack;
     }
 }
@@ -6740,6 +6752,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                         {
                             TextClip * new_text_clip = new TextClip(hSubClip->StartTime(), hSubClip->EndTime(), item->mID, item->mName, hSubClip->Text(), timeline);
                             new_text_clip->SetClipDefault(style, hSubClip);
+                            new_text_clip->mTrack = newTrack;
                             timeline->m_Clips.push_back(new_text_clip);
                             newTrack->InsertClip(new_text_clip, hSubClip->StartTime(), false);
                             action["clip_id"] = imgui_json::number(new_text_clip->mID);

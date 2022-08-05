@@ -80,6 +80,7 @@
 #define ICON_CLIP_END       u8"\uf08b"
 #define ICON_RETURN_DEFAULT u8"\ue042"
 
+#define ICON_FONT_BOLD      u8"\ue238"
 #define ICON_FONT_ITALIC    u8"\ue23f"
 #define ICON_FONT_UNDERLINE u8"\ue249"
 #define ICON_FONT_STRIKEOUT u8"\ue257"
@@ -151,6 +152,9 @@
 #define ICON_SPECTROGRAM    u8"\ue4a0"
 #define ICON_DRAWING_PIN    u8"\uf08d"
 #define ICON_EXPANMD        u8"\uf0b2"
+
+#define ICON_SETTING_LINK   u8"\uf0c1"
+#define ICON_SETTING_UNLINK u8"\uf127"
 
 #define COL_FRAME_RECT      IM_COL32( 16,  16,  96, 255)
 #define COL_LIGHT_BLUR      IM_COL32( 16, 128, 255, 255)
@@ -408,14 +412,14 @@ struct TextClip : Clip
     std::string mFontName;
     bool mTrackStyle {true};
     int mFontFamilySelIdx {0};
-    int mFontStyleSelIdx {0};
-    float mFontScale {1.0f};
+    bool mScaleSettingLink {true};
     float mFontScaleX {1.0f};
     float mFontScaleY {1.0f};
     float mFontSpacing {1.0f};
     float mFontAngle {0.0f};
     float mFontOutlineWidth {1.0f};
     int mFontAlignment {2};
+    bool mFontBold {false};
     bool mFontItalic {false};
     bool mFontUnderLine {false};
     bool mFontStrikeOut {false};
@@ -424,6 +428,7 @@ struct TextClip : Clip
     ImVec4 mFontPrimaryColor {0, 0, 0, 0};
     ImVec4 mFontOutlineColor {0, 0, 0, 0};
     DataLayer::SubtitleClipHolder mClipHolder {nullptr};
+    void* mTrack {nullptr};
 };
 
 class BluePrintVideoFilter : public DataLayer::VideoFilter
@@ -595,6 +600,7 @@ struct MediaTrack
     int64_t mViewWndDur     {0};
     float mPixPerMs         {0};
     DataLayer::SubtitleTrackHolder mMttReader {nullptr};
+    bool mTextTrackScaleLink {true};
     MediaTrack(std::string name, MEDIA_TYPE type, void * handle);
     ~MediaTrack();
 
