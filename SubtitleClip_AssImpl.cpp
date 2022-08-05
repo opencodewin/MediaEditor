@@ -5,7 +5,7 @@ using namespace std;
 using namespace DataLayer;
 
 SubtitleClip_AssImpl::SubtitleClip_AssImpl(
-        int layer, int readOrder, const std::string& trackStyle,
+        int layer, int readOrder, const string& trackStyle,
         int64_t startTime, int64_t duration,
         const std::string& text,
         AssRenderCallback renderCb)
@@ -16,10 +16,35 @@ SubtitleClip_AssImpl::SubtitleClip_AssImpl(
     , m_renderCb(renderCb)
 {}
 
+SubtitleClip_AssImpl::SubtitleClip_AssImpl(ASS_Event* assEvent, const string& trackStyle, AssRenderCallback renderCb)
+    : m_type(DataLayer::ASS), m_assEvent(assEvent), m_renderCb(renderCb)
+    , m_layer(assEvent->Layer), m_readOrder(assEvent->ReadOrder), m_trackStyle(trackStyle)
+    , m_startTime(assEvent->Start), m_duration(assEvent->Duration)
+    , m_text(string(assEvent->Text))
+{}
+
 SubtitleImage SubtitleClip_AssImpl::Image()
 {
     if (!m_image.Valid() && m_renderCb)
+    {
+        if (m_assTextChanged)
+        {
+            if (m_assEvent)
+            {
+                if (m_assEvent->Text)
+                    free(m_assEvent->Text);
+                if (!m_useTrackStyle)
+                    GenerateStyledText();
+                string& assText = m_useTrackStyle ? m_text : m_styledText;
+                int len = assText.size();
+                m_assEvent->Text = (char*)malloc(len+1);
+                memcpy(m_assEvent->Text, assText.c_str(), len);
+                m_assEvent->Text[len] = 0;
+            }
+            m_assTextChanged = false;
+        }
         m_image = m_renderCb(this);
+    }
     return m_image;
 }
 
@@ -58,7 +83,10 @@ void SubtitleClip_AssImpl::SyncStyle(const SubtitleStyle& style)
     m_rotationZ = style.Angle();
     SetAlignment(style.Alignment());
     if (!m_useTrackStyle)
+    {
+        m_assTextChanged = true;
         m_image.Invalidate();
+    }
 }
 
 void SubtitleClip_AssImpl::SetFont(const std::string& font)
@@ -67,7 +95,10 @@ void SubtitleClip_AssImpl::SetFont(const std::string& font)
         return;
     m_font = font;
     if (!m_useTrackStyle)
+    {
+        m_assTextChanged = true;
         m_image.Invalidate();
+    }
 }
 
 // void SubtitleClip_AssImpl::SetFontSize(uint32_t value)
@@ -83,7 +114,10 @@ void SubtitleClip_AssImpl::SetScaleX(double value)
         return;
     m_scaleX = value;
     if (!m_useTrackStyle)
+    {
+        m_assTextChanged = true;
         m_image.Invalidate();
+    }
 }
 
 void SubtitleClip_AssImpl::SetScaleY(double value)
@@ -92,7 +126,10 @@ void SubtitleClip_AssImpl::SetScaleY(double value)
         return;
     m_scaleY = value;
     if (!m_useTrackStyle)
+    {
+        m_assTextChanged = true;
         m_image.Invalidate();
+    }
 }
 
 void SubtitleClip_AssImpl::SetSpacing(double value)
@@ -101,7 +138,10 @@ void SubtitleClip_AssImpl::SetSpacing(double value)
         return;
     m_spacing = value > 10 ? 10 : value;
     if (!m_useTrackStyle)
+    {
+        m_assTextChanged = true;
         m_image.Invalidate();
+    }
 }
 
 void SubtitleClip_AssImpl::SetPrimaryColor(const SubtitleColor& color)
@@ -110,7 +150,10 @@ void SubtitleClip_AssImpl::SetPrimaryColor(const SubtitleColor& color)
         return;
     m_primaryColor = color;
     if (!m_useTrackStyle)
+    {
+        m_assTextChanged = true;
         m_image.Invalidate();
+    }
 }
 
 void SubtitleClip_AssImpl::SetSecondaryColor(const SubtitleColor& color)
@@ -119,7 +162,10 @@ void SubtitleClip_AssImpl::SetSecondaryColor(const SubtitleColor& color)
         return;
     m_secondaryColor = color;
     if (!m_useTrackStyle)
+    {
+        m_assTextChanged = true;
         m_image.Invalidate();
+    }
 }
 
 void SubtitleClip_AssImpl::SetOutlineColor(const SubtitleColor& color)
@@ -128,7 +174,10 @@ void SubtitleClip_AssImpl::SetOutlineColor(const SubtitleColor& color)
         return;
     m_outlineColor = color;
     if (!m_useTrackStyle)
+    {
+        m_assTextChanged = true;
         m_image.Invalidate();
+    }
 }
 
 void SubtitleClip_AssImpl::SetBackgroundColor(const SubtitleColor& color)
@@ -142,7 +191,10 @@ void SubtitleClip_AssImpl::SetBold(bool enable)
         return;
     m_bold = enable;
     if (!m_useTrackStyle)
+    {
+        m_assTextChanged = true;
         m_image.Invalidate();
+    }
 }
 
 void SubtitleClip_AssImpl::SetItalic(bool enable)
@@ -151,7 +203,10 @@ void SubtitleClip_AssImpl::SetItalic(bool enable)
         return;
     m_italic = enable;
     if (!m_useTrackStyle)
+    {
+        m_assTextChanged = true;
         m_image.Invalidate();
+    }
 }
 
 void SubtitleClip_AssImpl::SetUnderline(bool enable)
@@ -160,7 +215,10 @@ void SubtitleClip_AssImpl::SetUnderline(bool enable)
         return;
     m_underline = enable;
     if (!m_useTrackStyle)
+    {
+        m_assTextChanged = true;
         m_image.Invalidate();
+    }
 }
 
 void SubtitleClip_AssImpl::SetStrikeOut(bool enable)
@@ -169,7 +227,10 @@ void SubtitleClip_AssImpl::SetStrikeOut(bool enable)
         return;
     m_strikeout = enable;
     if (!m_useTrackStyle)
+    {
+        m_assTextChanged = true;
         m_image.Invalidate();
+    }
 }
 
 void SubtitleClip_AssImpl::SetBorderWidth(uint32_t value)
@@ -178,7 +239,10 @@ void SubtitleClip_AssImpl::SetBorderWidth(uint32_t value)
         return;
     m_borderWidth = value > 5 ? 5 : value;
     if (!m_useTrackStyle)
+    {
+        m_assTextChanged = true;
         m_image.Invalidate();
+    }
 }
 
 // void SubtitleClip_AssImpl::SetShadowDepth(uint32_t value)
@@ -194,7 +258,10 @@ void SubtitleClip_AssImpl::SetBlurEdge(bool enable)
         return;
     m_blurEdge = enable;
     if (!m_useTrackStyle)
+    {
+        m_assTextChanged = true;
         m_image.Invalidate();
+    }
 }
 
 void SubtitleClip_AssImpl::SetRotationX(double value)
@@ -204,7 +271,10 @@ void SubtitleClip_AssImpl::SetRotationX(double value)
     value -= (int64_t)(value/360)*360;
     m_rotationX = value;
     if (!m_useTrackStyle)
+    {
+        m_assTextChanged = true;
         m_image.Invalidate();
+    }
 }
 
 void SubtitleClip_AssImpl::SetRotationY(double value)
@@ -214,7 +284,10 @@ void SubtitleClip_AssImpl::SetRotationY(double value)
     value -= (int64_t)(value/360)*360;
     m_rotationY = value;
     if (!m_useTrackStyle)
+    {
+        m_assTextChanged = true;
         m_image.Invalidate();
+    }
 }
 
 void SubtitleClip_AssImpl::SetRotationZ(double value)
@@ -224,7 +297,10 @@ void SubtitleClip_AssImpl::SetRotationZ(double value)
     value -= (int64_t)(value/360)*360;
     m_rotationZ = value;
     if (!m_useTrackStyle)
+    {
+        m_assTextChanged = true;
         m_image.Invalidate();
+    }
 }
 
 void SubtitleClip_AssImpl::SetAlignment(uint32_t value)
@@ -234,7 +310,10 @@ void SubtitleClip_AssImpl::SetAlignment(uint32_t value)
     value = value<1 ? 1 : (value>9 ? 9 : value);
     m_alignment = value;
     if (!m_useTrackStyle)
+    {
+        m_assTextChanged = true;
         m_image.Invalidate();
+    }
 }
 
 void SubtitleClip_AssImpl::SetText(const std::string& text)
@@ -242,6 +321,7 @@ void SubtitleClip_AssImpl::SetText(const std::string& text)
     if (m_text == text)
         return;
     m_text = text;
+    m_assTextChanged = true;
     m_image.Invalidate();
 }
 
@@ -255,6 +335,8 @@ void SubtitleClip_AssImpl::SetReadOrder(int readOrder)
     if (m_readOrder == readOrder)
         return;
     m_readOrder = readOrder;
+    if (m_assEvent)
+        m_assEvent->ReadOrder = readOrder;
     m_image.Invalidate();
 }
 
@@ -263,21 +345,35 @@ void SubtitleClip_AssImpl::SetLayer(int layer)
     if (m_layer == layer)
         return;
     m_layer = layer;
+    if (m_assEvent)
+        m_assEvent->Layer = layer;
+    m_image.Invalidate();
+}
+
+void SubtitleClip_AssImpl::SetStartTime(int64_t startTime)
+{
+    if (m_startTime == startTime)
+        return;
+    m_startTime = startTime;
+    if (m_assEvent)
+        m_assEvent->Start = startTime;
+    m_image.Invalidate();
+}
+
+void SubtitleClip_AssImpl::SetDuration(int64_t duration)
+{
+    if (m_duration == duration)
+        return;
+    m_duration = duration;
+    if (m_assEvent)
+        m_assEvent->Duration = duration;
     m_image.Invalidate();
 }
 
 string SubtitleClip_AssImpl::GenerateAssChunk()
 {
     ostringstream oss;
-    oss << m_readOrder << "," << m_layer << "," << m_trackStyle << ",,0,0,0,,";
-    if (m_useTrackStyle)
-    {
-        oss << m_text;
-    }
-    else
-    {
-        oss << GenerateStyledText() << m_text;
-    }
+    oss << m_assEvent->ReadOrder << "," << m_assEvent->Layer << "," << m_trackStyle << ",,0,0,0,," << GetAssText();
     return oss.str();
 }
 
@@ -293,6 +389,9 @@ static inline uint32_t ToAssAlpha(SubtitleColor color)
 
 string SubtitleClip_AssImpl::GenerateStyledText()
 {
+    if (!m_assTextChanged)
+        return m_styledText;
+
     ostringstream oss;
     oss << "{";
     oss << "\\fn" << m_font;
@@ -322,5 +421,12 @@ string SubtitleClip_AssImpl::GenerateStyledText()
         a = 2;
     oss << "\\a" << a;
     oss << "}";
-    return oss.str();
+    oss << m_text;
+    m_styledText = oss.str();
+    return m_styledText;
+}
+
+string SubtitleClip_AssImpl::GetAssText()
+{
+    return m_useTrackStyle ? m_text : GenerateStyledText();
 }

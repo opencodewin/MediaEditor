@@ -110,14 +110,14 @@ SubtitleTrackStyle_AssImpl::SubtitleTrackStyle_AssImpl(const SubtitleTrackStyle_
 {
     BuildFromAssStyle(&a.m_assStyle);
     m_scale = a.m_scale;
-    m_marginV = a.m_marginV;
+    m_offsetV = a.m_offsetV;
 }
 
 SubtitleTrackStyle_AssImpl& SubtitleTrackStyle_AssImpl::operator=(const SubtitleTrackStyle_AssImpl& a)
 {
     BuildFromAssStyle(&a.m_assStyle);
     m_scale = a.m_scale;
-    m_marginV = a.m_marginV;
+    m_offsetV = a.m_offsetV;
     return *this;
 }
 
@@ -382,26 +382,18 @@ bool SubtitleTrack_AssImpl::SetAlignment(int value)
     return true;
 }
 
-bool SubtitleTrack_AssImpl::SetMarginH(int value)
+bool SubtitleTrack_AssImpl::SetOffsetH(int value)
 {
-    m_logger->Log(DEBUG) << "Set marginH '" << value << "'" << endl;
-    m_overrideStyle.SetMarginH(value);
-    ass_set_selective_style_override(m_assrnd, m_overrideStyle.GetAssStylePtr());
-    if (!m_useOverrideStyle)
-        ToggleOverrideStyle();
+    m_logger->Log(DEBUG) << "Set offsetH '" << value << "'" << endl;
+    m_overrideStyle.SetOffsetH(value);
     ClearRenderCache();
     return true;
 }
 
-bool SubtitleTrack_AssImpl::SetMarginV(int value)
+bool SubtitleTrack_AssImpl::SetOffsetV(int value)
 {
-    m_logger->Log(DEBUG) << "Set marginV '" << value << "'" << endl;
-    m_overrideStyle.SetMarginV(value);
-    // ass_set_use_margins(m_assrnd, 1);
-    // ass_set_margins(m_assrnd, value, 0, 0, 0);
-    ass_set_selective_style_override(m_assrnd, m_overrideStyle.GetAssStylePtr());
-    if (!m_useOverrideStyle)
-        ToggleOverrideStyle();
+    m_logger->Log(DEBUG) << "Set offsetV '" << value << "'" << endl;
+    m_overrideStyle.SetOffsetV(value);
     ClearRenderCache();
     return true;
 }
@@ -853,59 +845,6 @@ SubtitleClipHolder SubtitleTrack_AssImpl::NewClip(int64_t startTime, int64_t dur
     return hNewClip;
 }
 #endif
-
-bool SubtitleTrack_AssImpl::ChangeText(uint32_t clipIndex, const string& text)
-{
-    if (clipIndex >= m_clips.size())
-    {
-        m_errMsg = "Invalid argument 'clipIndex'!";
-        return false;
-    }
-
-    auto iter = m_clips.begin();
-    uint32_t i = clipIndex;
-    while (iter != m_clips.end() && i > 0)
-    {
-        iter++;
-        i--;
-    }
-
-    return ChangeText(*iter, text);
-}
-
-bool SubtitleTrack_AssImpl::ChangeText(SubtitleClipHolder clip, const string& text)
-{
-    if (clip->Type() != DataLayer::ASS)
-    {
-        m_errMsg = "Invalid argument 'clip', it's NOT an ASS subtitle clip!";
-        return false;
-    }
-
-    SubtitleClip_AssImpl* assClip = dynamic_cast<SubtitleClip_AssImpl*>(clip.get());
-    ASS_Event* target = nullptr;
-    for (int i = 0; i < m_asstrk->n_events; i++)
-    {
-        ASS_Event* e = m_asstrk->events+i;
-        if (e->ReadOrder == assClip->ReadOrder())
-        {
-            target = e;
-            break;
-        }
-    }
-    if (!target)
-        return false;
-
-    if (target->Text)
-        free(target->Text);
-    int len = text.size();
-    target->Text = (char*)malloc(len+1);
-    memcpy(target->Text, text.c_str(), len);
-    target->Text[len] = 0;
-    assClip->SetText(text);
-    clip->InvalidateImage();
-
-    return true;
-}
 
 static bool ConvertSubtitleClipToAVSubtitle(const SubtitleClip* clip, AVSubtitle* avsub, int readOrder)
 {
@@ -1378,6 +1317,8 @@ SubtitleImage SubtitleTrack_AssImpl::RenderSubtitleClip(SubtitleClip* clip)
         }
         assImage = assImage->next;
     }
+    containBox.x += m_overrideStyle.OffsetH();
+    containBox.y += m_overrideStyle.OffsetV();
 
     int frmW = (int)m_frmW;
     int frmH = (int)m_frmH;

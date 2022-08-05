@@ -28,8 +28,8 @@ namespace DataLayer
         virtual double Angle() const = 0;
         virtual double OutlineWidth() const = 0;
         virtual int Alignment() const = 0;  // 1: left; 2: center; 3: right
-        virtual int MarginH() const = 0;
-        virtual int MarginV() const = 0;
+        virtual int OffsetH() const = 0;
+        virtual int OffsetV() const = 0;
         virtual int Italic() const = 0;
         virtual int Bold() const = 0;
         virtual bool UnderLine() const = 0;

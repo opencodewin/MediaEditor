@@ -27,8 +27,8 @@ namespace DataLayer
         virtual bool SetAngle(double value) = 0;
         virtual bool SetOutlineWidth(double value) = 0;
         virtual bool SetAlignment(int value) = 0;
-        virtual bool SetMarginH(int value) = 0;
-        virtual bool SetMarginV(int value) = 0;
+        virtual bool SetOffsetH(int value) = 0;
+        virtual bool SetOffsetV(int value) = 0;
         virtual bool SetItalic(int value) = 0;
         virtual bool SetBold(int value) = 0;
         virtual bool SetUnderLine(bool enable) = 0;
@@ -52,8 +52,6 @@ namespace DataLayer
         virtual bool SeekToTime(int64_t ms) = 0;
         virtual bool SeekToIndex(uint32_t index) = 0;
 
-        virtual bool ChangeText(uint32_t clipIndex, const std::string& text) = 0;
-        virtual bool ChangeText(SubtitleClipHolder clip, const std::string& text) = 0;
         virtual bool SaveAs(const std::string& subFilePath) = 0;
 
         virtual std::string GetError() const = 0;

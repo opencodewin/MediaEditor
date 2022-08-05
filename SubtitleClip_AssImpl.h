@@ -1,4 +1,5 @@
 #pragma once
+#include "ass/ass_types.h"
 #include "SubtitleClip.h"
 
 namespace DataLayer
@@ -14,6 +15,7 @@ namespace DataLayer
                 int64_t startTime, int64_t duration,
                 const std::string& text,
                 AssRenderCallback renderCb);
+        SubtitleClip_AssImpl(ASS_Event* assEvent, const std::string& trackStyle, AssRenderCallback renderCb);
 
         SubtitleClip_AssImpl(const SubtitleClip_AssImpl&) = delete;
         SubtitleClip_AssImpl(SubtitleClip_AssImpl&&) = delete;
@@ -79,10 +81,12 @@ namespace DataLayer
         void SetReadOrder(int readOrder);
         int Layer() const { return m_layer; }
         void SetLayer(int layer);
-        void SetStartTime(int64_t startTime) { m_startTime = startTime; }
-        void SetDuration(int64_t duration) { m_duration = duration; }
+        void SetStartTime(int64_t startTime);
+        void SetDuration(int64_t duration);
         std::string GenerateAssChunk();
         std::string GenerateStyledText();
+        std::string GetAssText();
+        bool IsAssTextChanged() const { return m_assTextChanged; }
 
     private:
         SubtitleType m_type;
@@ -111,8 +115,11 @@ namespace DataLayer
         int64_t m_startTime;
         int64_t m_duration;
         std::string m_text;
+        std::string m_styledText;
+        bool m_assTextChanged{false};
         SubtitleImage m_image;
 
+        ASS_Event* m_assEvent{nullptr};
         AssRenderCallback m_renderCb;
         int m_layer{0};
         int m_readOrder;

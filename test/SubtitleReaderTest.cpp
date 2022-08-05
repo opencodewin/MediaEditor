@@ -20,7 +20,6 @@ static SubtitleTrackHolder g_subtrack;
 static ImTextureID g_imageTid;
 static unordered_map<string, vector<FontDescriptorHolder>> g_fontTable;
 static vector<string> g_fontFamilies;
-static int g_fontFamilySelIdx = 0;
 static int g_clipTime[2];
 
 // Application Framework Functions
@@ -95,7 +94,7 @@ void Application_Finalize(void** handle)
 #endif
 
     ReleaseSubtitleLibrary();
-} 
+}
 
 
 static uint32_t s_showSubIdx = 0;
@@ -113,10 +112,9 @@ static void UIComponent_TrackStyle(SubtitleClipHolder hSupClip)
     {
         for (int i = 0; i < g_fontFamilies.size(); i++)
         {
-            bool isSelected = i == g_fontFamilySelIdx;
+            bool isSelected = g_fontFamilies[i] == fontName;
             if (ImGui::Selectable(g_fontFamilies[i].c_str(), isSelected))
             {
-                g_fontFamilySelIdx = i;
                 g_subtrack->SetFont(g_fontTable[g_fontFamilies[i]][0]->Family());
             }
             if (isSelected)
@@ -175,16 +173,16 @@ static void UIComponent_TrackStyle(SubtitleClipHolder hSupClip)
         g_subtrack->SetScaleY(scaleY);
     }
     // Control Line #4
-    int marginV = style.MarginV();
+    int marginV = style.OffsetV();
     if (ImGui::SliderInt("MarginV", &marginV, -300, 300, "%d"))
     {
-        g_subtrack->SetMarginV(marginV);
+        g_subtrack->SetOffsetV(marginV);
     }
     ImGui::SameLine(0, 30);
-    int marginH = style.MarginH();
+    int marginH = style.OffsetH();
     if (ImGui::SliderInt("MarginH", &marginH, -300, 300, "%d"))
     {
-        g_subtrack->SetMarginH(marginH);
+        g_subtrack->SetOffsetH(marginH);
     }
 
     // Control Line #5
@@ -387,7 +385,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
                     ImGui::BeginDisabled(!s_subtitleEditChanged);
                     if (ImGui::Button("Update"))
                     {
-                        g_subtrack->ChangeText(s_selectedSubtitleIndex, string(s_subtitleEdit));
+                        // g_subtrack->ChangeText(s_selectedSubtitleIndex, string(s_subtitleEdit));
                         s_subtitleEditChanged = false;
                     }
                     ImGui::EndDisabled();
@@ -424,6 +422,12 @@ bool Application_Frame(void * handle, bool app_will_quit)
                                 ImGui::EndChild();
                             }
                         }
+                    }
+
+                    bool useTrackStyle = hSupClip->IsUsingTrackStyle();
+                    if (ImGui::Checkbox("Use track style", &useTrackStyle))
+                    {
+                        hSupClip->EnableUsingTrackStyle(useTrackStyle);
                     }
 
                     if (ImGui::BeginTabBar("SubtitleStyleTabs", ImGuiTabBarFlags_None))

@@ -3116,7 +3116,7 @@ MediaTrack* MediaTrack::Load(const imgui_json::value& value, void * handle)
                 {
                     TextClip * tclip = dynamic_cast<TextClip *>(clip);
                     auto holder = new_track->mMttReader->NewClip(tclip->mStart, tclip->mEnd - tclip->mStart);
-                    new_track->mMttReader->ChangeText(holder, tclip->mText);
+                    holder->SetText(tclip->mText);
                     tclip->mClipHolder = holder;
                     tclip->mTrack = new_track;
                 }

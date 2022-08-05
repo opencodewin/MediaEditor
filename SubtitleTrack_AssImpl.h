@@ -28,8 +28,8 @@ namespace DataLayer
         double Angle() const override { return m_assStyle.Angle; }
         double OutlineWidth() const override { return m_assStyle.Outline; }
         int Alignment() const override { return m_alignment; }
-        int MarginH() const override { return m_assStyle.MarginL; }
-        int MarginV() const override { return /*m_marginV*/ m_assStyle.MarginV; }
+        int OffsetH() const override { return m_offsetH; }
+        int OffsetV() const override { return m_offsetV; }
         int Bold() const override { return m_bold; }
         int Italic() const override { return m_italic; }
         bool UnderLine() const override { return m_assStyle.Underline != 0; }
@@ -49,8 +49,8 @@ namespace DataLayer
         void SetAngle(double value) { m_assStyle.Angle = value; }
         void SetOutlineWidth(double value) { m_assStyle.Outline = value; }
         void SetAlignment(int value);
-        void SetMarginH(int value) { m_assStyle.MarginL = value; }
-        void SetMarginV(int value) { /* m_marginV = value; */ m_assStyle.MarginV = value; }
+        void SetOffsetH(int value) { m_offsetH = value; }
+        void SetOffsetV(int value) { m_offsetV = value; }
         void SetBold(int value);
         void SetItalic(int value);
         void SetUnderLine(bool enable) { m_assStyle.Underline = enable ? 1 : 0; }
@@ -65,7 +65,8 @@ namespace DataLayer
         std::unique_ptr<char[]> m_name;
         std::unique_ptr<char[]> m_fontName;
         double m_scale{1};
-        int m_marginV{0};
+        int m_offsetH{0};
+        int m_offsetV{0};
         SubtitleColor m_primaryColor;
         SubtitleColor m_secondaryColor;
         SubtitleColor m_outlineColor;
@@ -102,8 +103,8 @@ namespace DataLayer
         bool SetAngle(double value) override;
         bool SetOutlineWidth(double value) override;
         bool SetAlignment(int value) override;
-        bool SetMarginH(int value) override;
-        bool SetMarginV(int value) override;
+        bool SetOffsetH(int value) override;
+        bool SetOffsetV(int value) override;
         bool SetItalic(int value) override;
         bool SetBold(int value) override;
         bool SetUnderLine(bool enable) override;
@@ -127,8 +128,6 @@ namespace DataLayer
         bool SeekToTime(int64_t ms) override;
         bool SeekToIndex(uint32_t index) override;
 
-        bool ChangeText(uint32_t clipIndex, const std::string& text) override;
-        bool ChangeText(SubtitleClipHolder clip, const std::string& text) override;
         bool SaveAs(const std::string& subFilePath) override;
 
         std::string GetError() const override { return m_errMsg; }
