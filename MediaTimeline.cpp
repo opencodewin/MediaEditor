@@ -1318,6 +1318,11 @@ Clip * TextClip::Load(const imgui_json::value& value, void * handle)
                 auto& val = value["Name"];
                 if (val.is_string()) new_clip->mFontName = val.get<imgui_json::string>();
             }
+            if (value.contains("ScaleLink"))
+            {
+                auto& val = value["ScaleLink"];
+                if (val.is_boolean()) new_clip->mScaleSettingLink = val.get<imgui_json::boolean>();
+            }
             if (value.contains("ScaleX"))
             {
                 auto& val = value["ScaleX"];
@@ -1405,6 +1410,7 @@ void TextClip::Save(imgui_json::value& value)
     value["Text"] = mText;
     value["TrackStyle"] = imgui_json::boolean(mTrackStyle);
     value["Name"] = mFontName;
+    value["ScaleLink"] = imgui_json::boolean(mScaleSettingLink);
     value["ScaleX"] = imgui_json::number(mFontScaleX);
     value["ScaleY"] = imgui_json::number(mFontScaleY);
     value["Spacing"] = imgui_json::number(mFontSpacing);
@@ -3117,6 +3123,11 @@ MediaTrack* MediaTrack::Load(const imgui_json::value& value, void * handle)
                 auto& val = track["OutlineColor"];
                 if (val.is_vec4()) new_track->mMttReader->SetOutlineColor(val.get<imgui_json::vec4>());
             }
+            if (track.contains("ScaleLink"))
+            {
+                auto& val = track["ScaleLink"];
+                if (val.is_boolean()) new_track->mTextTrackScaleLink = val.get<imgui_json::boolean>();
+            }
             new_track->mMttReader->SetFrameSize(timeline->mWidth, timeline->mHeight);
             new_track->mMttReader->EnableFullSizeOutput(false);
             for (auto clip : new_track->m_Clips)
@@ -3189,7 +3200,7 @@ void MediaTrack::Save(imgui_json::value& value)
         subtrack["PrimaryColor"] = imgui_json::vec4(style.PrimaryColor().ToImVec4());
         subtrack["SecondaryColor"] = imgui_json::vec4(style.SecondaryColor().ToImVec4());
         subtrack["OutlineColor"] = imgui_json::vec4(style.OutlineColor().ToImVec4());
-
+        subtrack["ScaleLink"] = imgui_json::boolean(mTextTrackScaleLink);
         value["SubTrack"] = subtrack;
     }
 }

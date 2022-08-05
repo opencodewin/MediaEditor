@@ -3592,7 +3592,6 @@ static void edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
 {
     ImGuiIO &io = ImGui::GetIO();
     ImGui::PushItemWidth(240);
-    static bool clip_scale_setting_link = true;
     auto item_width = ImGui::CalcItemWidth();
     const char* familyValue = clip->mFontFamilySelIdx >= fontFamilies.size() ? nullptr : fontFamilies[clip->mFontFamilySelIdx].c_str();
     if (ImGui::BeginCombo("Font family", familyValue))
@@ -3616,7 +3615,7 @@ static void edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     if (ImGui::SliderFloat("Font scale X", &scale_x, 0.2, 10, "%.1f"))
     {
         float scale_ratio = scale_x / clip->mFontScaleX;
-        if (clip_scale_setting_link) clip->mFontScaleY *= scale_ratio;
+        if (clip->mScaleSettingLink) clip->mFontScaleY *= scale_ratio;
         clip->mFontScaleX = scale_x;
     } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##scalex_default")) {}
     // link button for scalex/scaley
@@ -3624,13 +3623,13 @@ static void edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     auto current_pos = ImGui::GetCursorScreenPos();
     auto link_button_pos = current_pos + ImVec2(size.x - 64, - 8);
     ImRect link_button_rect(link_button_pos, link_button_pos + ImVec2(16, 16));
-    std::string link_button_text = std::string(clip_scale_setting_link ? ICON_SETTING_LINK : ICON_SETTING_UNLINK);
-    auto  link_button_color = clip_scale_setting_link ? IM_COL32(192, 192, 192, 255) : IM_COL32(128, 128, 128, 255);
+    std::string link_button_text = std::string(clip->mScaleSettingLink ? ICON_SETTING_LINK : ICON_SETTING_UNLINK);
+    auto  link_button_color = clip->mScaleSettingLink ? IM_COL32(192, 192, 192, 255) : IM_COL32(128, 128, 128, 255);
     if (was_disable) link_button_color = IM_COL32(128, 128, 128, 128);
     if (!was_disable && link_button_rect.Contains(io.MousePos))
     {
         if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
-            clip_scale_setting_link = !clip_scale_setting_link;
+            clip->mScaleSettingLink = !clip->mScaleSettingLink;
         link_button_color = IM_COL32_WHITE;
     }
     draw_list->AddText(link_button_pos, link_button_color, link_button_text.c_str());
@@ -3639,7 +3638,7 @@ static void edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     if (ImGui::SliderFloat("Font scale Y", &scale_y, 0.2, 10, "%.1f"))
     {
         float scale_ratio = scale_y / clip->mFontScaleY;
-        if (clip_scale_setting_link) clip->mFontScaleX *= scale_ratio;
+        if (clip->mScaleSettingLink) clip->mFontScaleX *= scale_ratio;
         clip->mFontScaleY = scale_y;
     } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##scaley_default")) {}
     if (ImGui::SliderFloat("Font spacing", &clip->mFontSpacing, 0.5, 5, "%.1f"))
@@ -3697,7 +3696,6 @@ static void edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
         return;
     ImGuiIO &io = ImGui::GetIO();
     ImGui::PushItemWidth(240);
-    static bool track_scale_setting_link = true;
     auto item_width = ImGui::CalcItemWidth();
     auto& style = track->mMttReader->GetStyle();
     static int FontFamilySelIdx = 0;
@@ -3729,19 +3727,19 @@ static void edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
     if (ImGui::SliderFloat("Font scale X", &scale_x, 0.2, 10, "%.1f"))
     {
         float scale_ratio = scale_x / style.ScaleX();
-        if (track_scale_setting_link) track->mMttReader->SetScaleY(style.ScaleY() * scale_ratio);
+        if (track->mTextTrackScaleLink) track->mMttReader->SetScaleY(style.ScaleY() * scale_ratio);
         track->mMttReader->SetScaleX(scale_x);
     } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_scalex_default")) {}
     // link button for scalex/scaley
     auto current_pos = ImGui::GetCursorScreenPos();
     auto link_button_pos = current_pos + ImVec2(size.x - 64, - 8);
     ImRect link_button_rect(link_button_pos, link_button_pos + ImVec2(16, 16));
-    std::string link_button_text = std::string(track_scale_setting_link ? ICON_SETTING_LINK : ICON_SETTING_UNLINK);
-    auto  link_button_color = track_scale_setting_link ? IM_COL32(192, 192, 192, 255) : IM_COL32(128, 128, 128, 255);
+    std::string link_button_text = std::string(track->mTextTrackScaleLink ? ICON_SETTING_LINK : ICON_SETTING_UNLINK);
+    auto  link_button_color = track->mTextTrackScaleLink ? IM_COL32(192, 192, 192, 255) : IM_COL32(128, 128, 128, 255);
     if (link_button_rect.Contains(io.MousePos))
     {
         if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
-            track_scale_setting_link = !track_scale_setting_link;
+            track->mTextTrackScaleLink = !track->mTextTrackScaleLink;
         link_button_color = IM_COL32_WHITE;
     }
     draw_list->AddText(link_button_pos, link_button_color, link_button_text.c_str());
@@ -3749,7 +3747,7 @@ static void edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
     if (ImGui::SliderFloat("Font scale Y", &scale_y, 0.2, 10, "%.1f"))
     {
         float scale_ratio = scale_y / style.ScaleY();
-        if (track_scale_setting_link) track->mMttReader->SetScaleX(style.ScaleX() * scale_ratio);
+        if (track->mTextTrackScaleLink) track->mMttReader->SetScaleX(style.ScaleX() * scale_ratio);
         track->mMttReader->SetScaleY(scale_y);
     } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_scaley_default")) {}
     float spacing = style.Spacing();
@@ -3895,7 +3893,13 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
                 }
             }
             // show style control
-            ImGui::Checkbox("Using track style", &editing_clip->mTrackStyle);
+            if (ImGui::Checkbox("Using track style", &editing_clip->mTrackStyle))
+            {
+                if (editing_clip->mTrackStyle)
+                {
+                    // TODO::Dicky need set flag to data layer
+                }
+            }
             ImGui::Separator();
             static const int numTabs = sizeof(TextEditorTabNames)/sizeof(TextEditorTabNames[0]);
             ImVec2 style_view_pos = ImGui::GetCursorPos();

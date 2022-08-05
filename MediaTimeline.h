@@ -412,6 +412,7 @@ struct TextClip : Clip
     std::string mFontName;
     bool mTrackStyle {true};
     int mFontFamilySelIdx {0};
+    bool mScaleSettingLink {true};
     float mFontScaleX {1.0f};
     float mFontScaleY {1.0f};
     float mFontSpacing {1.0f};
@@ -599,6 +600,7 @@ struct MediaTrack
     int64_t mViewWndDur     {0};
     float mPixPerMs         {0};
     DataLayer::SubtitleTrackHolder mMttReader {nullptr};
+    bool mTextTrackScaleLink {true};
     MediaTrack(std::string name, MEDIA_TYPE type, void * handle);
     ~MediaTrack();
 
