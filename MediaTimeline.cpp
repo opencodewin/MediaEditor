@@ -3043,11 +3043,6 @@ MediaTrack* MediaTrack::Load(const imgui_json::value& value, void * handle)
                 auto& val = track["Font"];
                 if (val.is_string()) new_track->mMttReader->SetFont(val.get<imgui_json::string>());
             }
-            if (track.contains("Scale"))
-            {
-                auto& val = track["Scale"];
-                if (val.is_number()) new_track->mMttReader->SetScale(val.get<imgui_json::number>());
-            }
             if (track.contains("ScaleX"))
             {
                 auto& val = track["ScaleX"];
@@ -3078,16 +3073,6 @@ MediaTrack* MediaTrack::Load(const imgui_json::value& value, void * handle)
                 auto& val = track["Alignment"];
                 if (val.is_number()) new_track->mMttReader->SetAlignment(val.get<imgui_json::number>());
             }
-            if (track.contains("MarginH"))
-            {
-                auto& val = track["MarginH"];
-                if (val.is_number()) new_track->mMttReader->SetMarginH(val.get<imgui_json::number>());
-            }
-            if (track.contains("MarginV"))
-            {
-                auto& val = track["MarginV"];
-                if (val.is_number()) new_track->mMttReader->SetMarginV(val.get<imgui_json::number>());
-            }
             if (track.contains("Italic"))
             {
                 auto& val = track["Italic"];
@@ -3112,11 +3097,6 @@ MediaTrack* MediaTrack::Load(const imgui_json::value& value, void * handle)
             {
                 auto& val = track["PrimaryColor"];
                 if (val.is_vec4()) new_track->mMttReader->SetPrimaryColor(val.get<imgui_json::vec4>());
-            }
-            if (track.contains("SecondaryColor"))
-            {
-                auto& val = track["SecondaryColor"];
-                if (val.is_vec4()) new_track->mMttReader->SetSecondaryColor(val.get<imgui_json::vec4>());
             }
             if (track.contains("OutlineColor"))
             {
@@ -3184,21 +3164,17 @@ void MediaTrack::Save(imgui_json::value& value)
         auto& style = mMttReader->DefaultStyle();
         subtrack["ID"] = imgui_json::number(mMttReader->Id());
         subtrack["Font"] = style.Font();
-        subtrack["Scale"] = imgui_json::number(style.Scale());
         subtrack["ScaleX"] = imgui_json::number(style.ScaleX());
         subtrack["ScaleY"] = imgui_json::number(style.ScaleY());
         subtrack["Spacing"] = imgui_json::number(style.Spacing());
         subtrack["Angle"] = imgui_json::number(style.Angle());
         subtrack["OutlineWidth"] = imgui_json::number(style.OutlineWidth());
         subtrack["Alignment"] = imgui_json::number(style.Alignment());
-        subtrack["MarginH"] = imgui_json::number(style.MarginH());
-        subtrack["MarginV"] = imgui_json::number(style.MarginV());
         subtrack["Italic"] = imgui_json::number(style.Italic());
         subtrack["Bold"] = imgui_json::number(style.Bold());
         subtrack["UnderLine"] = imgui_json::boolean(style.UnderLine());
         subtrack["StrikeOut"] = imgui_json::boolean(style.StrikeOut());
         subtrack["PrimaryColor"] = imgui_json::vec4(style.PrimaryColor().ToImVec4());
-        subtrack["SecondaryColor"] = imgui_json::vec4(style.SecondaryColor().ToImVec4());
         subtrack["OutlineColor"] = imgui_json::vec4(style.OutlineColor().ToImVec4());
         subtrack["ScaleLink"] = imgui_json::boolean(mTextTrackScaleLink);
         value["SubTrack"] = subtrack;

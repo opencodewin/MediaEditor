@@ -23,6 +23,16 @@
 #define DEFAULT_MAIN_VIEW_WIDTH     1680
 #define DEFAULT_MAIN_VIEW_HEIGHT    1024
 
+#ifdef __APPLE__
+#define DEFAULT_FONT_NAME ""
+#elif defined(_WIN32)
+#define DEFAULT_FONT_NAME ""
+#elif defined(__linux__)
+#define DEFAULT_FONT_NAME ""
+#else
+#define DEFAULT_FONT_NAME ""
+#endif
+
 using namespace MediaTimeline;
 
 typedef struct _output_format
@@ -165,6 +175,18 @@ static const char* color_system_items[] = { "NTSC", "EBU", "SMPTE", "SMPTE 240M"
 static const char* cie_system_items[] = { "XYY", "UCS", "LUV" };
 
 static const char* audio_vector_mode_items[] = { "Lissajous", "Lissajous XY", "Polar"};
+
+static const char * font_bold_list[] = {
+    "Regular",
+    "Light",
+    "Bold" 
+};
+
+static const char * font_italic_list[] = {
+    "None",
+    "Italic",
+    //"Oblique" 
+};
 
 static const char* ConfigureTabNames[] = {
     "System",
@@ -313,6 +335,22 @@ struct MediaEditorSettings
     // Audio Spectrogram setting
     float AudioSpectrogramOffset {0.0};
     float AudioSpectrogramLight {1.0};
+
+    // Text configure
+    std::string FontName {DEFAULT_FONT_NAME};
+    bool FontScaleLink {true};
+    float FontScaleX {1.0f};
+    float FontScaleY {1.0f};
+    float FontSpacing {1.0f};
+    float FontAngle {0.0f};
+    float FontOutlineWidth {1.0f};
+    int FontAlignment {2};
+    int FontItalic {0};
+    int FontBold {0};
+    bool FontUnderLine {false};
+    bool FontStrikeOut {false};
+    ImVec4 FontPrimaryColor {1, 1, 1, 1};
+    ImVec4 FontOutlineColor {0, 0, 0, 1};
 
     // Output configure
     int OutputFormatIndex {0};
@@ -906,7 +944,8 @@ static void SetAudioFormat(MediaEditorSettings & config, int index)
 }
 
 static void ShowConfigure(MediaEditorSettings & config)
-{    
+{
+    ImGuiIO &io = ImGui::GetIO();
     static int resolution_index = GetResolutionIndex(config.VideoWidth, config.VideoHeight);
     static int pixel_aspect_index = GetPixelAspectRatioIndex(config.PixelAspectRatio);
     static int frame_rate_index = GetVideoFrameIndex(config.VideoFrameRate);
@@ -947,7 +986,7 @@ static void ShowConfigure(MediaEditorSettings & config)
             case 1:
             {
                 // timeline setting
-                ImGui::BulletText("Video");
+                ImGui::BulletText(ICON_MEDIA_VIDEO " Video");
                 if (ImGui::Combo("Resultion", &resolution_index, resolution_items, IM_ARRAYSIZE(resolution_items)))
                 {
                     SetResolution(config.VideoWidth, config.VideoHeight, resolution_index);
@@ -1014,7 +1053,7 @@ static void ShowConfigure(MediaEditorSettings & config)
                 ImGui::Combo("Color Transfer", &config.ColorTransferIndex, color_getter, (void *)ColorTransfer, IM_ARRAYSIZE(ColorTransfer));
 
                 ImGui::Separator();
-                ImGui::BulletText("Audio");
+                ImGui::BulletText(ICON_MEDIA_AUDIO " Audio");
                 if (ImGui::Combo("Audio Sample Rate", &sample_rate_index, audio_sample_rate_items, IM_ARRAYSIZE(audio_sample_rate_items)))
                 {
                     SetSampleRate(config.AudioSampleRate, sample_rate_index);
@@ -1027,7 +1066,71 @@ static void ShowConfigure(MediaEditorSettings & config)
                 {
                     SetAudioFormat(config, format_index);
                 }
+                ImGui::Separator();
+                ImGui::BulletText(ICON_MEDIA_TEXT " Text");
+                const char* familyValue = config.FontName.c_str();
+                if (ImGui::BeginCombo("Font family", familyValue))
+                {
+                    for (int i = 0; i < fontFamilies.size(); i++)
+                    {
+                        bool is_selected = fontFamilies[i] == config.FontName;
+                        if (ImGui::Selectable(fontFamilies[i].c_str(), is_selected))
+                        {
+                            config.FontName = fontFamilies[i];
+                        }
+                        if (is_selected)
+                            ImGui::SetItemDefaultFocus();
+                    }
+                    ImGui::EndCombo();
+                }
+                ImGui::Combo("Font Bold", &config.FontBold, font_bold_list, IM_ARRAYSIZE(font_bold_list));
+                ImGui::Combo("Font Italic", &config.FontItalic, font_italic_list, IM_ARRAYSIZE(font_italic_list));
+                float scale_x = config.FontScaleX;
+                if (ImGui::SliderFloat("Font scale X", &scale_x, 0.2, 10, "%.1f"))
+                {
+                    float scale_ratio = scale_x / config.FontScaleX;
+                    if (config.FontScaleLink ) config.FontScaleY *= scale_ratio;
+                    config.FontScaleX = scale_x;
+                }
+                // link button for scalex/scaley
+                auto size = ImGui::GetWindowSize();
+                auto item_width = ImGui::CalcItemWidth();
+                auto current_pos = ImGui::GetCursorScreenPos();
+                auto link_button_pos = current_pos + ImVec2(size.x - 128, - 8);
+                ImRect link_button_rect(link_button_pos, link_button_pos + ImVec2(16, 16));
+                std::string link_button_text = std::string(config.FontScaleLink ? ICON_SETTING_LINK : ICON_SETTING_UNLINK);
+                auto  link_button_color = config.FontScaleLink ? IM_COL32(192, 192, 192, 255) : IM_COL32(128, 128, 128, 255);
+                if (link_button_rect.Contains(io.MousePos))
+                {
+                    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+                        config.FontScaleLink = !config.FontScaleLink;
+                    link_button_color = IM_COL32_WHITE;
+                }
+                ImGui::GetWindowDrawList()->AddText(link_button_pos, link_button_color, link_button_text.c_str());
+                float scale_y = config.FontScaleY;
+                if (ImGui::SliderFloat("Font scale Y", &scale_y, 0.2, 10, "%.1f"))
+                {
+                    float scale_ratio = scale_y / config.FontScaleY;
+                    if (config.FontScaleLink) config.FontScaleX *= scale_ratio;
+                    config.FontScaleY = scale_y;
+                }
+                ImGui::SliderFloat("Font spacing", &config.FontSpacing, 0.5, 5, "%.1f");
+                ImGui::SliderFloat("Font angle", &config.FontAngle, 0, 360, "%.1f");
+                ImGui::SliderFloat("Font outline", &config.FontOutlineWidth, 0, 5, "%.1f");
+                ImGui::Checkbox(ICON_FONT_UNDERLINE "##font_underLine", &config.FontUnderLine);
+                ImGui::SameLine();
+                ImGui::Checkbox(ICON_FONT_STRIKEOUT "##font_strike_out", &config.FontStrikeOut);
+                ImGui::SameLine(item_width); ImGui::TextUnformatted("Font attribute");
+                ImGui::RadioButton(ICON_FA_ALIGN_LEFT "##font_alignment", &config.FontAlignment, 1); ImGui::SameLine();
+                ImGui::RadioButton(ICON_FA_ALIGN_CENTER "##font_alignment", &config.FontAlignment, 2); ImGui::SameLine();
+                ImGui::RadioButton(ICON_FA_ALIGN_RIGHT "##font_alignment", &config.FontAlignment, 3);
+                ImGui::SameLine(item_width); ImGui::TextUnformatted("Font alignment");
+                ImGui::ColorEdit3("FontColor##Primary", (float*)&config.FontPrimaryColor, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_AlphaBar);
+                ImGui::SameLine(item_width); ImGui::TextUnformatted("Font primary color");
+                ImGui::ColorEdit3("FontColor##Outline", (float*)&config.FontOutlineColor, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_AlphaBar);
+                ImGui::SameLine(item_width); ImGui::TextUnformatted("Font outline color");
             }
+
             break;
             default: break;
         }
@@ -3690,16 +3793,13 @@ static void edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
 
 static void edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImVec2 size)
 {
-    static const char * bold_list[] = { "Regular", "Light", "Bold" };
-    static const char * italic_list[] = { "None", "Italic", "Oblique" };
     if (!track || !track->mMttReader)
         return;
     ImGuiIO &io = ImGui::GetIO();
     ImGui::PushItemWidth(240);
     auto item_width = ImGui::CalcItemWidth();
-    auto& style = track->mMttReader->GetStyle();
+    auto& style = track->mMttReader->DefaultStyle();
     static int FontFamilySelIdx = 0;
-    static int FontStyleSelIdx = 0;
     const char* familyValue = fontFamilies[FontFamilySelIdx].c_str();
     if (ImGui::BeginCombo("Font family", familyValue))
     {
@@ -3708,18 +3808,17 @@ static void edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
             if (ImGui::Selectable(fontFamilies[i].c_str(), i == FontFamilySelIdx))
             {
                 FontFamilySelIdx = i;
-                FontStyleSelIdx = 0;
             }
         }
         ImGui::EndCombo();
     } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_font_family_default")) {}
     int bold = style.Bold();
-    if (ImGui::Combo("Font Bold", &bold, bold_list, IM_ARRAYSIZE(bold_list)))
+    if (ImGui::Combo("Font Bold", &bold, font_bold_list, IM_ARRAYSIZE(font_bold_list)))
     {
         track->mMttReader->SetBold(bold);
     } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_font_bold_default")) {}
     int italic = style.Italic();
-    if (ImGui::Combo("Font Italic", &italic, italic_list, IM_ARRAYSIZE(italic_list)))
+    if (ImGui::Combo("Font Italic", &italic, font_italic_list, IM_ARRAYSIZE(font_italic_list)))
     {
         track->mMttReader->SetItalic(italic);
     } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_font_italic_default")) {}
@@ -5182,7 +5281,8 @@ void Application_SetupContext(ImGuiContext* ctx)
         int64_t val_int64 = 0;
         float val_float = 0;
         char val_path[1024] = {0};
-        if (sscanf(line, "ProjectPath=%s", val_path) == 1) { setting->project_path = std::string(val_path); }
+        ImVec4 val_vec4 = {0, 0, 0, 0};
+        if (sscanf(line, "ProjectPath=%[^|\n]", val_path) == 1) { setting->project_path = std::string(val_path); }
         else if (sscanf(line, "BottomViewExpanded=%d", &val_int) == 1) { setting->BottomViewExpanded = val_int == 1; }
         else if (sscanf(line, "TopViewHeight=%f", &val_float) == 1) { setting->TopViewHeight = val_float; }
         else if (sscanf(line, "BottomViewHeight=%f", &val_float) == 1) { setting->BottomViewHeight = val_float; }
@@ -5226,6 +5326,20 @@ void Application_SetupContext(ImGuiContext* ctx)
         else if (sscanf(line, "AudioDBLevelShort=%d", &val_int) == 1) { setting->AudioDBLevelShort = val_int == 1; }
         else if (sscanf(line, "AudioSpectrogramOffset=%f", &val_float) == 1) { setting->AudioSpectrogramOffset = val_float; }
         else if (sscanf(line, "AudioSpectrogramLight=%f", &val_float) == 1) { setting->AudioSpectrogramLight = val_float; }
+        else if (sscanf(line, "FontName=%[^|\n]", val_path) == 1) { setting->FontName = std::string(val_path); }
+        else if (sscanf(line, "FontScaleLink=%d", &val_int) == 1) { setting->FontScaleLink = val_int == 1; }
+        else if (sscanf(line, "FontScaleX=%f", &val_float) == 1) { setting->FontScaleX = val_float; }
+        else if (sscanf(line, "FontScaleY=%f", &val_float) == 1) { setting->FontScaleY = val_float; }
+        else if (sscanf(line, "FontSpacing=%f", &val_float) == 1) { setting->FontSpacing = val_float; }
+        else if (sscanf(line, "FontAngle=%f", &val_float) == 1) { setting->FontAngle = val_float; }
+        else if (sscanf(line, "FontOutlineWidth=%f", &val_float) == 1) { setting->FontOutlineWidth = val_float; }
+        else if (sscanf(line, "FontAlignment=%d", &val_int) == 1) { setting->FontAlignment = val_int; }
+        else if (sscanf(line, "FontItalic=%d", &val_int) == 1) { setting->FontItalic = val_int; }
+        else if (sscanf(line, "FontBold=%d", &val_int) == 1) { setting->FontBold = val_int; }
+        else if (sscanf(line, "FontUnderLine=%d", &val_int) == 1) { setting->FontUnderLine = val_int == 1; }
+        else if (sscanf(line, "FontStrikeOut=%d", &val_int) == 1) { setting->FontStrikeOut = val_int == 1; }
+        else if (sscanf(line, "FontPrimaryColor=%f,%f,%f,%f", &val_vec4.x, &val_vec4.y, &val_vec4.z, &val_vec4.w) == 1) { setting->FontPrimaryColor = val_vec4; }
+        else if (sscanf(line, "FontOutlineColor=%f,%f,%f,%f", &val_vec4.x, &val_vec4.y, &val_vec4.z, &val_vec4.w) == 1) { setting->FontOutlineColor = val_vec4; }
         else if (sscanf(line, "OutputFormatIndex=%d", &val_int) == 1) { setting->OutputFormatIndex = val_int; }
         else if (sscanf(line, "OutputVideoCodecIndex=%d", &val_int) == 1) { setting->OutputVideoCodecIndex = val_int; }
         else if (sscanf(line, "OutputVideoCodecTypeIndex=%d", &val_int) == 1) { setting->OutputVideoCodecTypeIndex = val_int; }
@@ -5307,6 +5421,20 @@ void Application_SetupContext(ImGuiContext* ctx)
         out_buf->appendf("AudioDBLevelShort=%d\n", g_media_editor_settings.AudioDBLevelShort ? 1 : 0);
         out_buf->appendf("AudioSpectrogramOffset=%f\n", g_media_editor_settings.AudioSpectrogramOffset);
         out_buf->appendf("AudioSpectrogramLight=%f\n", g_media_editor_settings.AudioSpectrogramLight);
+        out_buf->appendf("FontName=%s\n", g_media_editor_settings.FontName.c_str());
+        out_buf->appendf("FontScaleLink=%d\n", g_media_editor_settings.FontScaleLink ? 1 : 0);
+        out_buf->appendf("FontScaleX=%f\n", g_media_editor_settings.FontScaleX);
+        out_buf->appendf("FontScaleY=%f\n", g_media_editor_settings.FontScaleY);
+        out_buf->appendf("FontSpacing=%f\n", g_media_editor_settings.FontSpacing);
+        out_buf->appendf("FontAngle=%f\n", g_media_editor_settings.FontAngle);
+        out_buf->appendf("FontOutlineWidth=%f\n", g_media_editor_settings.FontOutlineWidth);
+        out_buf->appendf("FontAlignment=%d\n", g_media_editor_settings.FontAlignment);
+        out_buf->appendf("FontItalic=%d\n", g_media_editor_settings.FontItalic);
+        out_buf->appendf("FontBold=%d\n", g_media_editor_settings.FontBold);
+        out_buf->appendf("FontUnderLine=%d\n", g_media_editor_settings.FontUnderLine ? 1 : 0);
+        out_buf->appendf("FontStrikeOut=%d\n", g_media_editor_settings.FontStrikeOut ? 1 : 0);
+        out_buf->appendf("FontPrimaryColor=%f,%f,%f,%f\n", g_media_editor_settings.FontPrimaryColor.x, g_media_editor_settings.FontPrimaryColor.y, g_media_editor_settings.FontPrimaryColor.z, g_media_editor_settings.FontPrimaryColor.w);
+        out_buf->appendf("FontOutlineColor=%f,%f,%f,%f\n", g_media_editor_settings.FontOutlineColor.x, g_media_editor_settings.FontOutlineColor.y, g_media_editor_settings.FontOutlineColor.z, g_media_editor_settings.FontOutlineColor.w);
         out_buf->appendf("OutputFormatIndex=%d\n", g_media_editor_settings.OutputFormatIndex);
         out_buf->appendf("OutputVideoCodecIndex=%d\n", g_media_editor_settings.OutputVideoCodecIndex);
         out_buf->appendf("OutputVideoCodecTypeIndex=%d\n", g_media_editor_settings.OutputVideoCodecTypeIndex);
