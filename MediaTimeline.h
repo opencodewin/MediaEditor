@@ -80,6 +80,7 @@
 #define ICON_CLIP_END       u8"\uf08b"
 #define ICON_RETURN_DEFAULT u8"\ue042"
 
+#define ICON_FONT_BOLD      u8"\ue238"
 #define ICON_FONT_ITALIC    u8"\ue23f"
 #define ICON_FONT_UNDERLINE u8"\ue249"
 #define ICON_FONT_STRIKEOUT u8"\ue257"
@@ -411,13 +412,13 @@ struct TextClip : Clip
     std::string mFontName;
     bool mTrackStyle {true};
     int mFontFamilySelIdx {0};
-    int mFontStyleSelIdx {0};
     float mFontScaleX {1.0f};
     float mFontScaleY {1.0f};
     float mFontSpacing {1.0f};
     float mFontAngle {0.0f};
     float mFontOutlineWidth {1.0f};
     int mFontAlignment {2};
+    bool mFontBold {false};
     bool mFontItalic {false};
     bool mFontUnderLine {false};
     bool mFontStrikeOut {false};
@@ -426,6 +427,7 @@ struct TextClip : Clip
     ImVec4 mFontPrimaryColor {0, 0, 0, 0};
     ImVec4 mFontOutlineColor {0, 0, 0, 0};
     DataLayer::SubtitleClipHolder mClipHolder {nullptr};
+    void* mTrack {nullptr};
 };
 
 class BluePrintVideoFilter : public DataLayer::VideoFilter
