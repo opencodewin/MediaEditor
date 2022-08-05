@@ -3,6 +3,7 @@
 #include <vector>
 #include <cstring>
 #include "SubtitleTrack_AssImpl.h"
+#include "SubtitleClip_AssImpl.h"
 #include "FFUtils.h"
 extern "C"
 {
@@ -107,14 +108,14 @@ SubtitleTrackStyle_AssImpl::SubtitleTrackStyle_AssImpl(const ASS_Style* style)
 
 SubtitleTrackStyle_AssImpl::SubtitleTrackStyle_AssImpl(const SubtitleTrackStyle_AssImpl& a)
 {
-    BuildFromAssStyle(&a.m_style);
+    BuildFromAssStyle(&a.m_assStyle);
     m_scale = a.m_scale;
     m_marginV = a.m_marginV;
 }
 
 SubtitleTrackStyle_AssImpl& SubtitleTrackStyle_AssImpl::operator=(const SubtitleTrackStyle_AssImpl& a)
 {
-    BuildFromAssStyle(&a.m_style);
+    BuildFromAssStyle(&a.m_assStyle);
     m_scale = a.m_scale;
     m_marginV = a.m_marginV;
     return *this;
@@ -122,21 +123,37 @@ SubtitleTrackStyle_AssImpl& SubtitleTrackStyle_AssImpl::operator=(const Subtitle
 
 void SubtitleTrackStyle_AssImpl::BuildFromAssStyle(const ASS_Style* assStyle)
 {
-    memcpy(&m_style, assStyle, sizeof(m_style));
+    memcpy(&m_assStyle, assStyle, sizeof(m_assStyle));
     int l = strlen(assStyle->Name);
     m_name = unique_ptr<char[]>(new char[l+1]);
     snprintf(m_name.get(), l+1, "%s", assStyle->Name);
-    m_style.Name = m_name.get();
+    m_assStyle.Name = m_name.get();
     l = strlen(assStyle->FontName);
     m_fontName = unique_ptr<char[]>(new char[l+1]);
     snprintf(m_fontName.get(), l+1, "%s", assStyle->FontName);
-    m_style.FontName = m_fontName.get();
+    m_assStyle.FontName = m_fontName.get();
     uint32_t c = assStyle->PrimaryColour;
-    m_primaryColor = SubtitleClip::Color((float)(c>>24)/255, (float)((c>>16)&0xff)/255, (float)((c>>8)&0xff)/255, (float)(255-(c&0xff))/255);
+    m_primaryColor = SubtitleColor((float)(c>>24)/255, (float)((c>>16)&0xff)/255, (float)((c>>8)&0xff)/255, (float)(255-(c&0xff))/255);
     c = assStyle->SecondaryColour;
-    m_secondaryColor = SubtitleClip::Color((float)(c>>24)/255, (float)((c>>16)&0xff)/255, (float)((c>>8)&0xff)/255, (float)(255-(c&0xff))/255);
+    m_secondaryColor = SubtitleColor((float)(c>>24)/255, (float)((c>>16)&0xff)/255, (float)((c>>8)&0xff)/255, (float)(255-(c&0xff))/255);
     c = assStyle->OutlineColour;
-    m_outlineColor = SubtitleClip::Color((float)(c>>24)/255, (float)((c>>16)&0xff)/255, (float)((c>>8)&0xff)/255, (float)(255-(c&0xff))/255);
+    m_outlineColor = SubtitleColor((float)(c>>24)/255, (float)((c>>16)&0xff)/255, (float)((c>>8)&0xff)/255, (float)(255-(c&0xff))/255);
+    m_bold = 0;
+    if (assStyle->Bold == FONT_WEIGHT_LIGHT)
+        m_bold = 1;
+    else if (assStyle->Bold == FONT_WEIGHT_BOLD)
+        m_bold = 2;
+    m_italic = 0;
+    if (assStyle->Italic == FONT_SLANT_ITALIC)
+        m_italic = 1;
+    else if (assStyle->Italic == FONT_SLANT_OBLIQUE)
+        m_italic = 2;
+    if (assStyle->Alignment >= 1 && assStyle->Alignment <= 3)
+        m_alignment = assStyle->Alignment;
+    else if (assStyle->Alignment >= 5 && assStyle->Alignment <= 7)
+        m_alignment = assStyle->Alignment+2;
+    else if (assStyle->Alignment >= 9 && assStyle->Alignment <= 11)
+        m_alignment = assStyle->Alignment-5;
 }
 
 void SubtitleTrackStyle_AssImpl::SetFont(const string& font)
@@ -145,28 +162,71 @@ void SubtitleTrackStyle_AssImpl::SetFont(const string& font)
     unique_ptr<char[]> newfont(new char[l+1]);
     snprintf(newfont.get(), l+1, "%s", font.c_str());
     m_fontName = move(newfont);
-    m_style.FontName = m_fontName.get();
+    m_assStyle.FontName = m_fontName.get();
 }
 
-void SubtitleTrackStyle_AssImpl::SetPrimaryColor(const SubtitleClip::Color& color)
+void SubtitleTrackStyle_AssImpl::SetPrimaryColor(const SubtitleColor& color)
 {
     m_primaryColor = color;
     uint32_t c = ((uint32_t)(color.r*255)<<24) | ((uint32_t)(color.g*255)<<16) | ((uint32_t)(color.b*255)<<8) | (uint32_t)((1-color.a)*255);
-    m_style.PrimaryColour = c;
+    m_assStyle.PrimaryColour = c;
 }
 
-void SubtitleTrackStyle_AssImpl::SetSecondaryColor(const SubtitleClip::Color& color)
+void SubtitleTrackStyle_AssImpl::SetSecondaryColor(const SubtitleColor& color)
 {
     m_secondaryColor = color;
     uint32_t c = ((uint32_t)(color.r*255)<<24) | ((uint32_t)(color.g*255)<<16) | ((uint32_t)(color.b*255)<<8) | (uint32_t)((1-color.a)*255);
-    m_style.SecondaryColour = c;
+    m_assStyle.SecondaryColour = c;
 }
 
-void SubtitleTrackStyle_AssImpl::SetOutlineColor(const SubtitleClip::Color& color)
+void SubtitleTrackStyle_AssImpl::SetOutlineColor(const SubtitleColor& color)
 {
     m_outlineColor = color;
     uint32_t c = ((uint32_t)(color.r*255)<<24) | ((uint32_t)(color.g*255)<<16) | ((uint32_t)(color.b*255)<<8) | (uint32_t)((1-color.a)*255);
-    m_style.OutlineColour = c;
+    m_assStyle.OutlineColour = c;
+}
+
+void SubtitleTrackStyle_AssImpl::SetBackgroundColor(const SubtitleColor& color)
+{
+    m_bgColor = color;
+}
+
+void SubtitleTrackStyle_AssImpl::SetBold(int value)
+{
+    value = value<0 ? 0 : (value>2 ? 2 : value);
+    m_bold = value;
+    if (value == 0)
+        m_assStyle.Bold = FONT_WEIGHT_MEDIUM;
+    else if (value == 1)
+        m_assStyle.Bold = FONT_WEIGHT_LIGHT;
+    else
+        m_assStyle.Bold = FONT_WEIGHT_BOLD;
+}
+
+void SubtitleTrackStyle_AssImpl::SetItalic(int value)
+{
+    value = value<0 ? 0 : (value>2 ? 2 : value);
+    m_italic = value;
+    if (value == 0)
+        m_assStyle.Italic = FONT_SLANT_NONE;
+    else if (value == 1)
+        m_assStyle.Italic = FONT_SLANT_ITALIC;
+    else
+        m_assStyle.Italic = FONT_SLANT_OBLIQUE;
+}
+
+void SubtitleTrackStyle_AssImpl::SetAlignment(int value)
+{
+    value = value<1 ? 1 : (value>9 ? 9 : value);
+    m_alignment = value;
+    int a = value;
+    if (a >= 4 && a <= 6)
+        a += 5;
+    else if (a >= 7 && a <= 9)
+        a -= 2;
+    else if (a < 1 || a > 3)
+        a = 2;
+    m_assStyle.Alignment = a;
 }
 
 static bool SubClipSortCmp(const SubtitleClipHolder& a, const SubtitleClipHolder& b)
@@ -232,15 +292,6 @@ bool SubtitleTrack_AssImpl::EnableFullSizeOutput(bool enable)
     if (m_outputFullSize == enable)
         return true;
     m_outputFullSize = enable;
-    ClearRenderCache();
-    return true;
-}
-
-bool SubtitleTrack_AssImpl::SetBackgroundColor(const SubtitleClip::Color& color)
-{
-    m_bgColor = color;
-    for (SubtitleClipHolder clip : m_clips)
-        clip->SetBackgroundColor(color);
     ClearRenderCache();
     return true;
 }
@@ -399,7 +450,7 @@ bool SubtitleTrack_AssImpl::SetStrikeOut(bool enable)
     return true;
 }
 
-bool SubtitleTrack_AssImpl::SetPrimaryColor(const SubtitleClip::Color& color)
+bool SubtitleTrack_AssImpl::SetPrimaryColor(const SubtitleColor& color)
 {
     m_logger->Log(DEBUG) << "Set primary color as { r(" << color.r << "), g(" << color.g << "), b(" << color.b << "), a(" << color.a << ") }" << endl;
     m_overrideStyle.SetPrimaryColor(color);
@@ -410,7 +461,7 @@ bool SubtitleTrack_AssImpl::SetPrimaryColor(const SubtitleClip::Color& color)
     return true;
 }
 
-bool SubtitleTrack_AssImpl::SetSecondaryColor(const SubtitleClip::Color& color)
+bool SubtitleTrack_AssImpl::SetSecondaryColor(const SubtitleColor& color)
 {
     m_logger->Log(DEBUG) << "Set secondary color as { r(" << color.r << "), g(" << color.g << "), b(" << color.b << "), a(" << color.a << ") }" << endl;
     m_overrideStyle.SetSecondaryColor(color);
@@ -421,7 +472,7 @@ bool SubtitleTrack_AssImpl::SetSecondaryColor(const SubtitleClip::Color& color)
     return true;
 }
 
-bool SubtitleTrack_AssImpl::SetOutlineColor(const SubtitleClip::Color& color)
+bool SubtitleTrack_AssImpl::SetOutlineColor(const SubtitleColor& color)
 {
     m_logger->Log(DEBUG) << "Set outline color as { r(" << color.r << "), g(" << color.g << "), b(" << color.b << "), a(" << color.a << ") }" << endl;
     m_overrideStyle.SetOutlineColor(color);
@@ -432,21 +483,29 @@ bool SubtitleTrack_AssImpl::SetOutlineColor(const SubtitleClip::Color& color)
     return true;
 }
 
+bool SubtitleTrack_AssImpl::SetBackgroundColor(const SubtitleColor& color)
+{
+    m_logger->Log(DEBUG) << "Set background color as { r(" << color.r << "), g(" << color.g << "), b(" << color.b << "), a(" << color.a << ") }" << endl;
+    m_overrideStyle.SetBackgroundColor(color);
+    ClearRenderCache();
+    return true;
+}
+
 bool SubtitleTrack_AssImpl::SetPrimaryColor(const ImVec4& color)
 {
-    const SubtitleClip::Color _color(color.x, color.y, color.z, color.w);
+    const SubtitleColor _color(color.x, color.y, color.z, color.w);
     return SetPrimaryColor(_color);
 }
 
 bool SubtitleTrack_AssImpl::SetSecondaryColor(const ImVec4& color)
 {
-    const SubtitleClip::Color _color(color.x, color.y, color.z, color.w);
+    const SubtitleColor _color(color.x, color.y, color.z, color.w);
     return SetSecondaryColor(_color);
 }
 
 bool SubtitleTrack_AssImpl::SetOutlineColor(const ImVec4& color)
 {
-    const SubtitleClip::Color _color(color.x, color.y, color.z, color.w);
+    const SubtitleColor _color(color.x, color.y, color.z, color.w);
     return SetOutlineColor(_color);
 }
 
@@ -519,11 +578,12 @@ bool SubtitleTrack_AssImpl::ChangeClipTime(SubtitleClipHolder clip, int64_t star
         }
     }
 
+    SubtitleClip_AssImpl* assClip = dynamic_cast<SubtitleClip_AssImpl*>(clip.get());
     // if no index variation is needed, then just update the time attributes is enough
     if (indexVariation == 0)
     {
-        clip->SetStartTime(startTime);
-        clip->SetDuration(duration);
+        assClip->SetStartTime(startTime);
+        assClip->SetDuration(duration);
         clip->InvalidateImage();
         ASS_Event* e = m_asstrk->events+idx;
         e->Start = startTime;
@@ -544,8 +604,8 @@ bool SubtitleTrack_AssImpl::ChangeClipTime(SubtitleClipHolder clip, int64_t star
         else
             break;
     }
-    clip->SetStartTime(startTime);
-    clip->SetDuration(duration);
+    assClip->SetStartTime(startTime);
+    assClip->SetDuration(duration);
     ASS_Event tmp{m_asstrk->events[idx]};
     tmp.Start = startTime;
     tmp.Duration = duration;
@@ -708,6 +768,7 @@ bool SubtitleTrack_AssImpl::SeekToIndex(uint32_t index)
     return true;
 }
 
+#if 0
 SubtitleClipHolder SubtitleTrack_AssImpl::NewClip(int64_t startTime, int64_t duration)
 {
     auto iter = m_clips.begin();
@@ -719,8 +780,10 @@ SubtitleClipHolder SubtitleTrack_AssImpl::NewClip(int64_t startTime, int64_t dur
     }
 
     const string text = "";
-    SubtitleClipHolder hNewClip(new SubtitleClip(DataLayer::ASS, readOrder, startTime, duration, text));
-    hNewClip->SetRenderCallback(bind(&SubtitleTrack_AssImpl::RenderSubtitleClip, this, _1));
+    SubtitleClip_AssImpl* newAssClip = new SubtitleClip_AssImpl(
+        0, readOrder, "Default", startTime, duration, text,
+        bind(&SubtitleTrack_AssImpl::RenderSubtitleClip, this, _1));
+    SubtitleClipHolder hNewClip(newAssClip);
     hNewClip->SetBackgroundColor(m_bgColor);
     m_clips.insert(iter, hNewClip);
 
@@ -730,14 +793,15 @@ SubtitleClipHolder SubtitleTrack_AssImpl::NewClip(int64_t startTime, int64_t dur
     const string speaker = "";
     ostringstream oss;
     oss << fakeReadOrder << "," << layer << "," << style << "," << speaker << ",0,0,0,," << text;
-    string assline = oss.str();
+    string assChunk = oss.str();
     ass_process_chunk(m_asstrk, (char*)assline.c_str(), assline.size(), startTime, duration);
+
     // adjust events order in ASS_Track
-    ASS_Event newEvent{m_asstrk->events[fakeReadOrder]};
+    ASS_Event newEvent{m_asstrk->events[m_asstrk->n_events-1]};
     newEvent.ReadOrder = readOrder;
-    if (fakeReadOrder > readOrder)
+    if (readOrder < m_asstrk->n_events-1)
     {
-        memmove(m_asstrk->events+readOrder+1, m_asstrk->events+readOrder, sizeof(ASS_Event)*(fakeReadOrder-readOrder));
+        memmove(m_asstrk->events+readOrder+1, m_asstrk->events+readOrder, sizeof(ASS_Event)*(m_asstrk->n_events-1-readOrder));
         m_asstrk->events[readOrder] = newEvent;
     }
 
@@ -745,7 +809,8 @@ SubtitleClipHolder SubtitleTrack_AssImpl::NewClip(int64_t startTime, int64_t dur
     while (iter != m_clips.end())
     {
         readOrder++;  eventPtr++;
-        (*iter++)->SetReadOrder(readOrder);
+        SubtitleClip_AssImpl* assClip = dynamic_cast<SubtitleClip_AssImpl*>(iter->get());
+        assClip->SetReadOrder(readOrder);
         eventPtr->ReadOrder = readOrder;
     }
 
@@ -755,14 +820,47 @@ SubtitleClipHolder SubtitleTrack_AssImpl::NewClip(int64_t startTime, int64_t dur
         m_duration = m_clips.back()->EndTime();
     }
 
-    m_logger->Log(VERBOSE) << "New added clip readOrder=" << hNewClip->ReadOrder() << "." << endl;
+    m_logger->Log(VERBOSE) << "New ASS clip is added with readOrder=" << newAssClip->ReadOrder() << "." << endl;
     return hNewClip;
 }
+#else
+SubtitleClipHolder SubtitleTrack_AssImpl::NewClip(int64_t startTime, int64_t duration)
+{
+    // find the insert position
+    auto iter = m_clips.begin();
+    while (iter != m_clips.end() && (*iter)->StartTime() <= startTime)
+    {
+        iter++;
+    }
+
+    const string text = "";
+    SubtitleClip_AssImpl* newAssClip = new SubtitleClip_AssImpl(
+        0, m_asstrk->n_events, "Default", startTime, duration, "",
+        bind(&SubtitleTrack_AssImpl::RenderSubtitleClip, this, _1));
+    SubtitleClipHolder hNewClip(newAssClip);
+    m_clips.insert(iter, hNewClip);
+
+    string chunk = newAssClip->GenerateAssChunk();
+    ass_process_chunk(m_asstrk, (char*)chunk.c_str(), chunk.size(), startTime, duration);
+
+    // update duration
+    if (hNewClip->EndTime() > m_duration)
+    {
+        m_duration = hNewClip->EndTime();
+    }
+
+    m_logger->Log(VERBOSE) << "New ASS clip is added with readOrder=" << newAssClip->ReadOrder() << "." << endl;
+    return hNewClip;
+}
+#endif
 
 bool SubtitleTrack_AssImpl::ChangeText(uint32_t clipIndex, const string& text)
 {
     if (clipIndex >= m_clips.size())
+    {
+        m_errMsg = "Invalid argument 'clipIndex'!";
         return false;
+    }
 
     auto iter = m_clips.begin();
     uint32_t i = clipIndex;
@@ -771,19 +869,24 @@ bool SubtitleTrack_AssImpl::ChangeText(uint32_t clipIndex, const string& text)
         iter++;
         i--;
     }
-    if (iter == m_clips.end())
-        return false;
 
     return ChangeText(*iter, text);
 }
 
 bool SubtitleTrack_AssImpl::ChangeText(SubtitleClipHolder clip, const string& text)
 {
+    if (clip->Type() != DataLayer::ASS)
+    {
+        m_errMsg = "Invalid argument 'clip', it's NOT an ASS subtitle clip!";
+        return false;
+    }
+
+    SubtitleClip_AssImpl* assClip = dynamic_cast<SubtitleClip_AssImpl*>(clip.get());
     ASS_Event* target = nullptr;
     for (int i = 0; i < m_asstrk->n_events; i++)
     {
         ASS_Event* e = m_asstrk->events+i;
-        if (e->ReadOrder == clip->ReadOrder())
+        if (e->ReadOrder == assClip->ReadOrder())
         {
             target = e;
             break;
@@ -798,13 +901,13 @@ bool SubtitleTrack_AssImpl::ChangeText(SubtitleClipHolder clip, const string& te
     target->Text = (char*)malloc(len+1);
     memcpy(target->Text, text.c_str(), len);
     target->Text[len] = 0;
-    clip->SetText(text);
+    assClip->SetText(text);
     clip->InvalidateImage();
 
     return true;
 }
 
-static bool ConvertSubtitleClipToAVSubtitle(const SubtitleClip* clip, AVSubtitle* avsub)
+static bool ConvertSubtitleClipToAVSubtitle(const SubtitleClip* clip, AVSubtitle* avsub, int readOrder)
 {
     avsub->format = 1;
     avsub->pts = av_rescale_q(clip->StartTime(), MILLISEC_TIMEBASE, AV_TIME_BASE_Q);
@@ -817,7 +920,7 @@ static bool ConvertSubtitleClipToAVSubtitle(const SubtitleClip* clip, AVSubtitle
         AVSubtitleRect* subrect = (AVSubtitleRect*)av_malloc(sizeof(AVSubtitleRect));
         avsub->rects[i] = subrect;
         memset(subrect, 0, sizeof(AVSubtitleRect));
-        subrect->ass = av_asprintf("%d,%d,%s,%s,0,0,0,,%s", clip->ReadOrder(), 0, "Default", "", clip->Text().c_str());
+        subrect->ass = av_asprintf("%d,%d,%s,%s,0,0,0,,%s", readOrder, 0, "Default", "", clip->Text().c_str());
     }
     return true;
 }
@@ -931,12 +1034,15 @@ bool SubtitleTrack_AssImpl::SaveAs(const string& assFilePath)
     for (auto clip : m_clips)
     {
         AVSubtitle avsub{0};
-        if (ConvertSubtitleClipToAVSubtitle(clip.get(), &avsub))
+        SubtitleClip_AssImpl* assClip = dynamic_cast<SubtitleClip_AssImpl*>(clip.get());
+        if (ConvertSubtitleClipToAVSubtitle(clip.get(), &avsub, assClip->ReadOrder()))
         {
             avcodec_encode_subtitle(encCdcCtx, 0, 0, &avsub);
         }
         else
-            m_logger->Log(Error) << "FAILED to convert SubtitleClip(readOrder=" << clip->ReadOrder() << ") to AVSubtitle!" << endl;
+        {
+            m_logger->Log(Error) << "FAILED to convert ass subtitle clip (readOrder=" << assClip->ReadOrder() << ") to AVSubtitle!" << endl;
+        }
         FreeAVSubtitle(&avsub);
     }
 
@@ -1168,7 +1274,7 @@ bool SubtitleTrack_AssImpl::ReadFile(const string& path)
     if (success)
     {
         m_overrideStyle = SubtitleTrackStyle_AssImpl(m_asstrk->styles+m_asstrk->n_styles-1);
-
+        m_duration = 0;
         for (int i = 0; i < m_asstrk->n_events; i++)
         {
             ASS_Event* e = m_asstrk->events+i;
@@ -1178,16 +1284,17 @@ bool SubtitleTrack_AssImpl::ReadFile(const string& path)
                         << "(" << e->Duration << ") \"" << e->Text << "\"." << endl;
                 continue;
             }
-            SubtitleClipHolder hSubClip(new SubtitleClip(DataLayer::ASS, e->ReadOrder, e->Start, e->Duration, e->Text));
-            hSubClip->SetRenderCallback(bind(&SubtitleTrack_AssImpl::RenderSubtitleClip, this, _1));
-            hSubClip->SetBackgroundColor(m_bgColor);
+            SubtitleClip_AssImpl* assClip = new SubtitleClip_AssImpl(
+                    e->Layer, e->ReadOrder, string(m_asstrk->styles[e->Style].Name), e->Start, e->Duration, string(e->Text),
+                    bind(&SubtitleTrack_AssImpl::RenderSubtitleClip, this, _1));
+            SubtitleClipHolder hSubClip(assClip);
             m_clips.push_back(hSubClip);
-            m_currIter = m_clips.begin();
+            if (assClip->EndTime() > m_duration)
+            {
+                m_duration = assClip->EndTime();
+            }
         }
-        if (!m_clips.empty())
-        {
-            m_duration = m_clips.back()->EndTime();
-        }
+        m_currIter = m_clips.begin();
     }
     return success;
 }
@@ -1284,7 +1391,7 @@ SubtitleImage SubtitleTrack_AssImpl::RenderSubtitleClip(SubtitleClip* clip)
 
     uint32_t color;
     // fill the image with background color
-    const SubtitleClip::Color bgColor = clip->BackgroundColor();
+    const SubtitleColor bgColor = clip->IsUsingTrackStyle() ? m_overrideStyle.BackgroundColor() : clip->BackgroundColor();
     color = ((uint32_t)(bgColor.a*255)<<24) | ((uint32_t)(bgColor.b*255)<<16) | ((uint32_t)(bgColor.g*255)<<8) | (uint32_t)(bgColor.r*255);
     WrapperAlloc<uint32_t> wrapperAlloc((uint32_t*)vmat.data);
     vector<uint32_t, WrapperAlloc<uint32_t>> mapary(wrapperAlloc);
@@ -1337,16 +1444,6 @@ void SubtitleTrack_AssImpl::ToggleOverrideStyle()
     if (m_useOverrideStyle)
         bit = ASS_OVERRIDE_FULL_STYLE;
     ass_set_selective_style_override_enabled(m_assrnd, bit);
-}
-
-void SubtitleTrack_AssImpl::ResetClipListReadOrder()
-{
-    int readOrder = 0;
-    auto iter = m_clips.begin();
-    while (iter != m_clips.end())
-    {
-        (*iter++)->SetReadOrder(readOrder++);
-    }
 }
 
 SubtitleTrackHolder SubtitleTrack_AssImpl::BuildFromFile(int64_t id, const string& url)

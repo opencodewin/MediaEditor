@@ -1246,7 +1246,7 @@ TextClip::~TextClip()
 {
 }
 
-void TextClip::SetClipDefault(const DataLayer::SubtitleTrack::Style & style, DataLayer::SubtitleClipHolder clip_hold)
+void TextClip::SetClipDefault(const DataLayer::SubtitleStyle & style, DataLayer::SubtitleClipHolder clip_hold)
 {
     mFontScale = style.Scale();
     mFontScaleX = style.ScaleX();
@@ -3169,7 +3169,7 @@ void MediaTrack::Save(imgui_json::value& value)
     if (mMttReader)
     {
         imgui_json::value subtrack;
-        auto& style = mMttReader->GetStyle();
+        auto& style = mMttReader->DefaultStyle();
         subtrack["ID"] = imgui_json::number(mMttReader->Id());
         subtrack["Font"] = style.Font();
         subtrack["Scale"] = imgui_json::number(style.Scale());
@@ -6731,7 +6731,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                     newTrack->mMttReader = DataLayer::SubtitleTrack::BuildFromFile(newTrack->mID, item->mPath);
                     if (newTrack->mMttReader)
                     {
-                        auto& style = newTrack->mMttReader->GetStyle();
+                        auto& style = newTrack->mMttReader->DefaultStyle();
                         newTrack->mMttReader->SetFrameSize(timeline->mWidth, timeline->mHeight);
                         newTrack->mMttReader->SeekToIndex(0);
                         newTrack->mMttReader->EnableFullSizeOutput(false);

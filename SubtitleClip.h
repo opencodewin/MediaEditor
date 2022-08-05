@@ -4,7 +4,7 @@
 #include <string>
 #include <functional>
 #include "immat.h"
-#include "imgui.h"
+#include "SubtitleStyle.h"
 
 namespace DataLayer
 {
@@ -30,7 +30,7 @@ namespace DataLayer
         SubtitleImage() = default;
         SubtitleImage(ImGui::ImMat& image, const Rect& area);
 
-        ImGui::ImMat Image() const { return m_image; }
+        ImGui::ImMat Vmat() const { return m_image; }
         Rect Area() const { return m_area; }
         bool Valid() const { return !m_image.empty(); }
         void Invalidate() { m_image.release(); }
@@ -40,65 +40,64 @@ namespace DataLayer
         Rect m_area;
     };
 
-    class SubtitleClip;
+    struct SubtitleClip;
     using SubtitleClipHolder = std::shared_ptr<SubtitleClip>;
-    using RenderCallback = std::function<SubtitleImage(SubtitleClip*)>;
 
-    class SubtitleClip
+    struct SubtitleClip
     {
-    public:
-        SubtitleClip(SubtitleType type, int readOrder, int64_t startTime, int64_t duration, const char* text);
-        SubtitleClip(SubtitleType type, int readOrder, int64_t startTime, int64_t duration, const std::string& text);
-        SubtitleClip(SubtitleType type, int readOrder, int64_t startTime, int64_t duration, SubtitleImage& image);
-        SubtitleClip(const SubtitleClip&) = delete;
-        SubtitleClip(SubtitleClip&&) = delete;
-        SubtitleClip& operator=(const SubtitleClip&) = delete;
+        virtual SubtitleType Type() const = 0;
+        virtual bool IsUsingTrackStyle() const = 0;
+        virtual std::string TrackStyle() const = 0;
+        virtual std::string Font() const = 0;
+        // virtual uint32_t FontSize() const = 0;
+        virtual double ScaleX() const = 0;
+        virtual double ScaleY() const = 0;
+        virtual double Spacing() const = 0;
+        virtual SubtitleColor PrimaryColor() const = 0;
+        virtual SubtitleColor SecondaryColor() const = 0;
+        virtual SubtitleColor OutlineColor() const = 0;
+        virtual SubtitleColor BackgroundColor() const = 0;
+        virtual bool Bold() const = 0;
+        virtual bool Italic() const = 0;
+        virtual bool Underline() const = 0;
+        virtual bool StrikeOut() const = 0;
+        virtual uint32_t BorderWidth() const = 0;
+        // virtual uint32_t ShadowDepth() const = 0;
+        virtual bool BlurEdge() const = 0;
+        virtual double RotationX() const = 0;
+        virtual double RotationY() const = 0;
+        virtual double RotationZ() const = 0;
+        virtual uint32_t Alignment() const = 0;
+        virtual int64_t StartTime() const = 0;
+        virtual int64_t Duration() const = 0;
+        virtual int64_t EndTime() const = 0;
+        virtual std::string Text() const = 0;
+        virtual SubtitleImage Image() = 0;
 
-        struct Color
-        {
-            Color() = default;
-            Color(float _r, float _g, float _b, float _a) : r(_r), g(_g), b(_b), a(_a) {}
-            ImVec4 ToImVec4() { return ImVec4(r, g, b, a); }
-            float r{1};
-            float g{1};
-            float b{1};
-            float a{1};
-        };
-
-        void SetRenderCallback(RenderCallback renderCb) { m_renderCb = renderCb; }
-        // bool SetFont(const std::string& font);
-        // bool SetScale(double scale);
-        // void SetTextColor(const Color& color);
-        void SetBackgroundColor(const Color& color);
-        void InvalidateImage() { m_image.Invalidate(); }
-        void SetText(const std::string& text) { m_text = text; }
-        void SetReadOrder(int readOrder) { m_readOrder = readOrder; }
-        void SetStartTime(int64_t startTime) { m_startTime = startTime; }
-        void SetDuration(int64_t duration) { m_duration = duration; }
-
-        SubtitleType Type() const { return m_type; }
-        int ReadOrder() const { return m_readOrder; }
-        // std::string Font() const { return m_font; }
-        // double FontScale() const { return m_fontScale; }
-        // Color TextColor() const { return m_textColor; }
-        Color BackgroundColor() const { return m_bgColor; }
-        int64_t StartTime() const { return m_startTime; }
-        int64_t Duration() const { return m_duration; }
-        int64_t EndTime() const { return m_startTime+m_duration; }
-        std::string Text() const { return m_text; }
-        SubtitleImage Image();
-
-    private:
-        SubtitleType m_type;
-        int m_readOrder;
-        std::string m_font;
-        double m_fontScale;
-        Color m_textColor;
-        Color m_bgColor{0, 0, 0, 0};
-        int64_t m_startTime;
-        int64_t m_duration;
-        std::string m_text;
-        SubtitleImage m_image;
-        RenderCallback m_renderCb;
+        virtual void EnableUsingTrackStyle(bool enable) = 0;
+        virtual void SetTrackStyle(const std::string& name) = 0;
+        virtual void SyncStyle(const SubtitleStyle& style) = 0;
+        virtual void SetFont(const std::string& font) = 0;
+        // virtual void SetFontSize(uint32_t value) = 0;
+        virtual void SetScaleX(double value) = 0;
+        virtual void SetScaleY(double value) = 0;
+        virtual void SetSpacing(double value) = 0;
+        virtual void SetPrimaryColor(const SubtitleColor& color) = 0;
+        virtual void SetSecondaryColor(const SubtitleColor& color) = 0;
+        virtual void SetOutlineColor(const SubtitleColor& color) = 0;
+        virtual void SetBackgroundColor(const SubtitleColor& color) = 0;
+        virtual void SetBold(bool enable) = 0;
+        virtual void SetItalic(bool enable) = 0;
+        virtual void SetUnderline(bool enable) = 0;
+        virtual void SetStrikeOut(bool enable) = 0;
+        virtual void SetBorderWidth(uint32_t value) = 0;
+        // virtual void SetShadowDepth(uint32_t value) = 0;
+        virtual void SetBlurEdge(bool enable) = 0;
+        virtual void SetRotationX(double value) = 0;
+        virtual void SetRotationY(double value) = 0;
+        virtual void SetRotationZ(double value) = 0;
+        virtual void SetAlignment(uint32_t value) = 0;
+        virtual void SetText(const std::string& text) = 0;
+        virtual void InvalidateImage() = 0;
     };
 }

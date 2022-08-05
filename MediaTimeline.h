@@ -397,7 +397,7 @@ struct TextClip : Clip
 {
     TextClip(int64_t start, int64_t end, int64_t id, std::string name, std::string text, void* handle);
     ~TextClip();
-    void SetClipDefault(const DataLayer::SubtitleTrack::Style & style, DataLayer::SubtitleClipHolder clip_hold);
+    void SetClipDefault(const DataLayer::SubtitleStyle & style, DataLayer::SubtitleClipHolder clip_hold);
 
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect) override;
 
