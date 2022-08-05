@@ -3691,9 +3691,15 @@ static void ShowAudioEditorWindow(ImDrawList *draw_list)
     ImGui::EndChild();
 }
 
-static void edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 size)
+static void edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 size, ImVec2 default_pos)
 {
+    if (!clip)
+        return;
+    MediaTrack * track = (MediaTrack * )clip->mTrack;
+    if (!track || !track->mMttReader)
+        return;
     ImGuiIO &io = ImGui::GetIO();
+    auto& style = track->mMttReader->DefaultStyle();
     ImGui::PushItemWidth(240);
     auto item_width = ImGui::CalcItemWidth();
     const char* familyValue = clip->mFontName.c_str();
@@ -3708,20 +3714,20 @@ static void edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
             }
         }
         ImGui::EndCombo();
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##clip_font_family_default")) {}
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##clip_font_family_default")) { clip->mFontName = style.Font(); }
     if (ImGui::SliderFloat("Font position X", &clip->mFontPosX, 0, timeline->mWidth, "%.0f"))
     {
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##posx_default")) {}
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##posx_default")) { clip->mFontPosX = default_pos.x; }
     if (ImGui::SliderFloat("Font position Y", &clip->mFontPosY, 0, timeline->mHeight, "%.0f"))
     {
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##posy_default")) {}
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##posy_default")) { clip->mFontPosY = default_pos.y; }
     float scale_x = clip->mFontScaleX;
     if (ImGui::SliderFloat("Font scale X", &scale_x, 0.2, 10, "%.1f"))
     {
         float scale_ratio = scale_x / clip->mFontScaleX;
         if (clip->mScaleSettingLink) clip->mFontScaleY *= scale_ratio;
         clip->mFontScaleX = scale_x;
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##scalex_default")) {}
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##scalex_default")) { clip->mFontScaleX = style.ScaleX(); }
     // link button for scalex/scaley
     auto was_disable = (ImGui::GetItemFlags() & ImGuiItemFlags_Disabled) == ImGuiItemFlags_Disabled;
     auto current_pos = ImGui::GetCursorScreenPos();
@@ -3744,16 +3750,16 @@ static void edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
         float scale_ratio = scale_y / clip->mFontScaleY;
         if (clip->mScaleSettingLink) clip->mFontScaleX *= scale_ratio;
         clip->mFontScaleY = scale_y;
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##scaley_default")) {}
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##scaley_default")) { clip->mFontScaleY = style.ScaleY(); }
     if (ImGui::SliderFloat("Font spacing", &clip->mFontSpacing, 0.5, 5, "%.1f"))
     {
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##spacing_default")) {}
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##spacing_default")) { clip->mFontSpacing = style.Spacing(); }
     if (ImGui::SliderFloat("Font angle", &clip->mFontAngle, 0, 360, "%.1f"))
     {
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##angle_default")) {}
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##angle_default")) { clip->mFontAngle = style.Angle(); }
     if (ImGui::SliderFloat("Font outline", &clip->mFontOutlineWidth, 0, 5, "%.1f"))
     {
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##outline_default")) {}
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##outline_default")) { clip->mFontOutlineWidth = style.OutlineWidth(); }
     if (ImGui::Checkbox(ICON_FONT_BOLD "##font_bold", &clip->mFontBold))
     {
     }
@@ -3770,24 +3776,30 @@ static void edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     {
     }
     ImGui::SameLine(item_width); ImGui::TextUnformatted("Font attribute");
-    ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##attribute_default")) {}
+    ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##attribute_default"))
+    { 
+        clip->mFontBold = style.Bold() > 0; 
+        clip->mFontItalic = style.Italic() > 0;
+        clip->mFontUnderLine = style.UnderLine();
+        clip->mFontStrikeOut = style.StrikeOut();
+    }
 
     ImGui::RadioButton(ICON_FA_ALIGN_LEFT "##font_alignment", (int *)&clip->mFontAlignment, 1); ImGui::SameLine();
     ImGui::RadioButton(ICON_FA_ALIGN_CENTER "##font_alignment", (int *)&clip->mFontAlignment, 2); ImGui::SameLine();
     ImGui::RadioButton(ICON_FA_ALIGN_RIGHT "##font_alignment", (int *)&clip->mFontAlignment, 3);
     ImGui::SameLine(item_width); ImGui::TextUnformatted("Font alignment");
-    ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##alignment_default")) {}
+    ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##alignment_default")) { clip->mFontAlignment = style.Alignment(); }
 
     if (ImGui::ColorEdit3("FontColor##Primary", (float*)&clip->mFontPrimaryColor, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_AlphaBar))
     {
     }
     ImGui::SameLine(item_width); ImGui::TextUnformatted("Font primary color");
-    ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##primary_color_default")) {}
+    ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##primary_color_default")) { clip->mFontPrimaryColor = style.PrimaryColor().ToImVec4(); }
     if (ImGui::ColorEdit3("FontColor##Outline", (float*)&clip->mFontOutlineColor, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_AlphaBar))
     {
     }
     ImGui::SameLine(item_width); ImGui::TextUnformatted("Font outline color");
-    ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##outline_color_default")) {}
+    ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##outline_color_default")) { clip->mFontOutlineColor = style.OutlineColor().ToImVec4(); }
 
     ImGui::PopItemWidth();
 }
@@ -3813,24 +3825,24 @@ static void edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
             }
         }
         ImGui::EndCombo();
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_font_family_default")) {}
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_font_family_default")) { track->mMttReader->SetFont(g_media_editor_settings.FontName); }
     int bold = style.Bold();
     if (ImGui::Combo("Font Bold", &bold, font_bold_list, IM_ARRAYSIZE(font_bold_list)))
     {
         track->mMttReader->SetBold(bold);
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_font_bold_default")) {}
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_font_bold_default")) { track->mMttReader->SetBold(g_media_editor_settings.FontBold); }
     int italic = style.Italic();
     if (ImGui::Combo("Font Italic", &italic, font_italic_list, IM_ARRAYSIZE(font_italic_list)))
     {
         track->mMttReader->SetItalic(italic);
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_font_italic_default")) {}
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_font_italic_default")) { track->mMttReader->SetItalic(g_media_editor_settings.FontItalic); }
     float scale_x = style.ScaleX();
     if (ImGui::SliderFloat("Font scale X", &scale_x, 0.2, 10, "%.1f"))
     {
         float scale_ratio = scale_x / style.ScaleX();
         if (track->mTextTrackScaleLink) track->mMttReader->SetScaleY(style.ScaleY() * scale_ratio);
         track->mMttReader->SetScaleX(scale_x);
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_scalex_default")) {}
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_scalex_default")) { track->mMttReader->SetScaleX(g_media_editor_settings.FontScaleX); }
     // link button for scalex/scaley
     auto current_pos = ImGui::GetCursorScreenPos();
     auto link_button_pos = current_pos + ImVec2(size.x - 64, - 8);
@@ -3850,22 +3862,22 @@ static void edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
         float scale_ratio = scale_y / style.ScaleY();
         if (track->mTextTrackScaleLink) track->mMttReader->SetScaleX(style.ScaleX() * scale_ratio);
         track->mMttReader->SetScaleY(scale_y);
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_scaley_default")) {}
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_scaley_default")) { track->mMttReader->SetScaleY(g_media_editor_settings.FontScaleY); }
     float spacing = style.Spacing();
     if (ImGui::SliderFloat("Font spacing", &spacing, 0.5, 5, "%.1f"))
     {
         track->mMttReader->SetSpacing(spacing);
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_spacing_default")) {}
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_spacing_default")) { track->mMttReader->SetSpacing(g_media_editor_settings.FontSpacing); }
     float angle = style.Angle();
     if (ImGui::SliderFloat("Font angle", &angle, 0, 360, "%.1f"))
     {
         track->mMttReader->SetAngle(angle);
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_angle_default")) {}
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_angle_default")) { track->mMttReader->SetAngle(g_media_editor_settings.FontAngle); }
     float outline_width = style.OutlineWidth();
     if (ImGui::SliderFloat("Font outline", &outline_width, 0, 5, "%.1f"))
     {
         track->mMttReader->SetOutlineWidth(outline_width);
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_outline_default")) {}
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_outline_default")) { track->mMttReader->SetOutlineWidth(g_media_editor_settings.FontOutlineWidth); }
     
     bool underLine = style.UnderLine();
     if (ImGui::Checkbox(ICON_FONT_UNDERLINE "##font_underLine", &underLine))
@@ -3879,7 +3891,11 @@ static void edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
         track->mMttReader->SetStrikeOut(strike_out);
     }
     ImGui::SameLine(item_width); ImGui::TextUnformatted("Font attribute");
-    ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_attribute_default")) {}
+    ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_attribute_default")) 
+    {
+        track->mMttReader->SetUnderLine(g_media_editor_settings.FontUnderLine);
+        track->mMttReader->SetStrikeOut(g_media_editor_settings.FontStrikeOut);
+    }
 
     int aligment = style.Alignment();
     ImGui::RadioButton(ICON_FA_ALIGN_LEFT "##font_alignment", &aligment, 1); ImGui::SameLine();
@@ -3890,7 +3906,7 @@ static void edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
     {
         track->mMttReader->SetAlignment(aligment);
     }
-    ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_alignment_default")) {}
+    ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_alignment_default")) { track->mMttReader->SetAlignment(g_media_editor_settings.FontAlignment); }
 
     auto primary_color = style.PrimaryColor().ToImVec4();
     if (ImGui::ColorEdit3("FontColor##Primary", (float*)&primary_color, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_AlphaBar))
@@ -3898,14 +3914,14 @@ static void edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
         track->mMttReader->SetPrimaryColor(primary_color);
     }
     ImGui::SameLine(item_width); ImGui::TextUnformatted("Font primary color");
-    ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_primary_color_default")) {}
+    ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_primary_color_default")) { track->mMttReader->SetPrimaryColor(g_media_editor_settings.FontPrimaryColor); }
     auto outline_color = style.OutlineColor().ToImVec4();
     if (ImGui::ColorEdit3("FontColor##Outline", (float*)&outline_color, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_AlphaBar))
     {
-        track->mMttReader->SetOutlineColor(primary_color);
+        track->mMttReader->SetOutlineColor(outline_color);
     }
     ImGui::SameLine(item_width); ImGui::TextUnformatted("Font outline color");
-    ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_outline_color_default")) {}
+    ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_outline_color_default")) { track->mMttReader->SetOutlineColor(g_media_editor_settings.FontOutlineColor); }
 
     ImGui::PopItemWidth();
 }
@@ -3947,14 +3963,16 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
         // add text style
         if (editing_clip)
         {
+            ImVec2 default_pos(0, 0);
             // show clip time 
             if (editing_clip->mClipHolder)
             {
                 auto current_image = editing_clip->mClipHolder->Image();
                 if (current_image.Valid())
                 {
-                    editing_clip->mFontPosX = current_image.Area().x;
-                    editing_clip->mFontPosY = current_image.Area().y;
+                    default_pos = ImVec2(current_image.Area().x, current_image.Area().y);
+                    if (editing_clip->mFontPosX == -INT32_MAX) editing_clip->mFontPosX = current_image.Area().x;
+                    if (editing_clip->mFontPosY == -INT32_MAX) editing_clip->mFontPosY = current_image.Area().y;
                 }
             }
             
@@ -4019,7 +4037,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
                     {
                         // clip style
                         ImGui::BeginDisabled(editing_clip->mTrackStyle);
-                        edit_text_clip_style(draw_list, editing_clip, style_setting_window_size);
+                        edit_text_clip_style(draw_list, editing_clip, style_setting_window_size, default_pos);
                         ImGui::EndDisabled();
                     }
                     else

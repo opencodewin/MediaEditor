@@ -1263,8 +1263,8 @@ void TextClip::SetClipDefault(const DataLayer::SubtitleStyle & style, DataLayer:
     mFontName = style.Font();
     mClipHolder = clip_hold;
     // pos value need load later 
-    //mFontPosX = clip_hold->Image().Area().x;
-    //mFontPosY = clip_hold->Image().Area().y;
+    mFontPosX = -INT32_MAX;
+    mFontPosY = -INT32_MAX;
 }
 
 void TextClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect)
