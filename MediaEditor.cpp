@@ -3696,14 +3696,15 @@ static void edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     ImGuiIO &io = ImGui::GetIO();
     ImGui::PushItemWidth(240);
     auto item_width = ImGui::CalcItemWidth();
-    const char* familyValue = clip->mFontFamilySelIdx >= fontFamilies.size() ? nullptr : fontFamilies[clip->mFontFamilySelIdx].c_str();
+    const char* familyValue = clip->mFontName.c_str();
     if (ImGui::BeginCombo("Font family", familyValue))
     {
         for (int i = 0; i < fontFamilies.size(); i++)
         {
-            if (ImGui::Selectable(fontFamilies[i].c_str(), i == clip->mFontFamilySelIdx))
+            bool is_selected = fontFamilies[i] == clip->mFontName;
+            if (ImGui::Selectable(fontFamilies[i].c_str(), is_selected))
             {
-                clip->mFontFamilySelIdx = i;
+                clip->mFontName = fontFamilies[i];
             }
         }
         ImGui::EndCombo();
@@ -3799,15 +3800,16 @@ static void edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
     ImGui::PushItemWidth(240);
     auto item_width = ImGui::CalcItemWidth();
     auto& style = track->mMttReader->DefaultStyle();
-    static int FontFamilySelIdx = 0;
-    const char* familyValue = fontFamilies[FontFamilySelIdx].c_str();
+    auto familyName = style.Font();
+    const char* familyValue = familyName.c_str();
     if (ImGui::BeginCombo("Font family", familyValue))
     {
         for (int i = 0; i < fontFamilies.size(); i++)
         {
-            if (ImGui::Selectable(fontFamilies[i].c_str(), i == FontFamilySelIdx))
+            bool is_selected = fontFamilies[i] == style.Name();
+            if (ImGui::Selectable(fontFamilies[i].c_str(), is_selected))
             {
-                FontFamilySelIdx = i;
+                track->mMttReader->SetFont(fontFamilies[i]);
             }
         }
         ImGui::EndCombo();

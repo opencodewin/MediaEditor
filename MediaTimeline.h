@@ -411,7 +411,6 @@ struct TextClip : Clip
     std::string mText;
     std::string mFontName;
     bool mTrackStyle {true};
-    int mFontFamilySelIdx {0};
     bool mScaleSettingLink {true};
     float mFontScaleX {1.0f};
     float mFontScaleY {1.0f};
