@@ -10,12 +10,7 @@ namespace DataLayer
     class SubtitleClip_AssImpl : public SubtitleClip
     {
     public:
-        SubtitleClip_AssImpl(
-                int layer, int readOrder, const std::string& trackStyle,
-                int64_t startTime, int64_t duration,
-                const std::string& text,
-                AssRenderCallback renderCb);
-        SubtitleClip_AssImpl(ASS_Event* assEvent, const std::string& trackStyle, AssRenderCallback renderCb);
+        SubtitleClip_AssImpl(ASS_Event* assEvent, ASS_Track* assTrack, AssRenderCallback renderCb);
 
         SubtitleClip_AssImpl(const SubtitleClip_AssImpl&) = delete;
         SubtitleClip_AssImpl(SubtitleClip_AssImpl&&) = delete;
@@ -44,9 +39,9 @@ namespace DataLayer
         double RotationY() const override { return m_rotationY; }
         double RotationZ() const override { return m_rotationZ; }
         uint32_t Alignment() const override { return m_alignment; }
-        int64_t StartTime() const override { return m_startTime; }
-        int64_t Duration() const override { return m_duration; }
-        int64_t EndTime() const override { return m_startTime+m_duration; }
+        int64_t StartTime() const override { return m_assEvent->Start; }
+        int64_t Duration() const override { return m_assEvent->Duration; }
+        int64_t EndTime() const override { return m_assEvent->Start+m_assEvent->Duration; }
         std::string Text() const override { return m_text; }
         SubtitleImage Image() override;
 
@@ -77,10 +72,8 @@ namespace DataLayer
         void InvalidateImage() override;
 
         void SetRenderCallback(AssRenderCallback renderCb) { m_renderCb = renderCb; }
+        void SetAssEvent(ASS_Event* assEvent) { m_assEvent = assEvent; m_readOrder = assEvent->ReadOrder; }
         int ReadOrder() const { return m_readOrder; }
-        void SetReadOrder(int readOrder);
-        int Layer() const { return m_layer; }
-        void SetLayer(int layer);
         void SetStartTime(int64_t startTime);
         void SetDuration(int64_t duration);
         std::string GenerateAssChunk();
@@ -112,16 +105,14 @@ namespace DataLayer
         double m_rotationY{0};
         double m_rotationZ{0};
         uint32_t m_alignment{2};
-        int64_t m_startTime;
-        int64_t m_duration;
         std::string m_text;
         std::string m_styledText;
         bool m_assTextChanged{false};
         SubtitleImage m_image;
 
+        ASS_Track* m_assTrack{nullptr};
         ASS_Event* m_assEvent{nullptr};
-        AssRenderCallback m_renderCb;
-        int m_layer{0};
         int m_readOrder;
+        AssRenderCallback m_renderCb;
     };
 }

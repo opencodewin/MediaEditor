@@ -43,7 +43,7 @@ void Application_Initialize(void** handle)
     GetDefaultLogger()
         ->SetShowLevels(DEBUG);
     GetSubtitleTrackLogger()
-        ->SetShowLevels(DEBUG);
+        ->SetShowLevels(VERBOSE);
 
     if (!InitializeSubtitleLibrary())
         Log(Error) << "FAILED to initialize the subtitle library!" << endl;
@@ -385,7 +385,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
                     ImGui::BeginDisabled(!s_subtitleEditChanged);
                     if (ImGui::Button("Update"))
                     {
-                        // g_subtrack->ChangeText(s_selectedSubtitleIndex, string(s_subtitleEdit));
+                        hSelectedClip->SetText(s_subtitleEdit);
                         s_subtitleEditChanged = false;
                     }
                     ImGui::EndDisabled();

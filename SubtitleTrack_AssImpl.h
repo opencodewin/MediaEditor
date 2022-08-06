@@ -155,6 +155,7 @@ namespace DataLayer
         std::list<SubtitleClipHolder>::iterator m_currIter;
         int64_t m_duration{-1};
         ASS_Track* m_asstrk{nullptr};
+        int m_defaultStyleIdx{-1};
         ASS_Renderer* m_assrnd{nullptr};
         uint32_t m_frmW{0}, m_frmH{0};
         bool m_outputFullSize{true};

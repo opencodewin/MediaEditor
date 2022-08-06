@@ -4,22 +4,9 @@
 using namespace std;
 using namespace DataLayer;
 
-SubtitleClip_AssImpl::SubtitleClip_AssImpl(
-        int layer, int readOrder, const string& trackStyle,
-        int64_t startTime, int64_t duration,
-        const std::string& text,
-        AssRenderCallback renderCb)
-    : m_type(DataLayer::ASS)
-    , m_layer(layer), m_readOrder(readOrder), m_trackStyle(trackStyle)
-    , m_startTime(startTime), m_duration(duration)
-    , m_text(text)
-    , m_renderCb(renderCb)
-{}
-
-SubtitleClip_AssImpl::SubtitleClip_AssImpl(ASS_Event* assEvent, const string& trackStyle, AssRenderCallback renderCb)
-    : m_type(DataLayer::ASS), m_assEvent(assEvent), m_renderCb(renderCb)
-    , m_layer(assEvent->Layer), m_readOrder(assEvent->ReadOrder), m_trackStyle(trackStyle)
-    , m_startTime(assEvent->Start), m_duration(assEvent->Duration)
+SubtitleClip_AssImpl::SubtitleClip_AssImpl(ASS_Event* assEvent, ASS_Track* assTrack, AssRenderCallback renderCb)
+    : m_type(DataLayer::ASS), m_assEvent(assEvent), m_assTrack(assTrack), m_renderCb(renderCb)
+    , m_readOrder(assEvent->ReadOrder), m_trackStyle(assTrack->styles[assEvent->Style].Name)
     , m_text(string(assEvent->Text))
 {}
 
@@ -29,18 +16,15 @@ SubtitleImage SubtitleClip_AssImpl::Image()
     {
         if (m_assTextChanged)
         {
-            if (m_assEvent)
-            {
-                if (m_assEvent->Text)
-                    free(m_assEvent->Text);
-                if (!m_useTrackStyle)
-                    GenerateStyledText();
-                string& assText = m_useTrackStyle ? m_text : m_styledText;
-                int len = assText.size();
-                m_assEvent->Text = (char*)malloc(len+1);
-                memcpy(m_assEvent->Text, assText.c_str(), len);
-                m_assEvent->Text[len] = 0;
-            }
+            if (m_assEvent->Text)
+                free(m_assEvent->Text);
+            if (!m_useTrackStyle)
+                GenerateStyledText();
+            string& assText = m_useTrackStyle ? m_text : m_styledText;
+            int len = assText.size();
+            m_assEvent->Text = (char*)malloc(len+1);
+            memcpy(m_assEvent->Text, assText.c_str(), len);
+            m_assEvent->Text[len] = 0;
             m_assTextChanged = false;
         }
         m_image = m_renderCb(this);
@@ -56,8 +40,30 @@ void SubtitleClip_AssImpl::EnableUsingTrackStyle(bool enable)
 
 void SubtitleClip_AssImpl::SetTrackStyle(const std::string& name)
 {
-    m_trackStyle = name;
-    if (!m_useTrackStyle)
+    int targetIdx = -1, defaultIdx = -1;
+    for (int i = 0; i < m_assTrack->n_styles; i++)
+    {
+        string styleName(m_assTrack->styles[i].Name);
+        if (styleName == name)
+            targetIdx = i;
+        if (styleName == "Default")
+            defaultIdx = i;
+    }
+    if (targetIdx >= 0)
+        m_assEvent->Style = targetIdx;
+    else if (defaultIdx >= 0)
+        m_assEvent->Style = defaultIdx;
+    else if (m_assTrack->n_styles > 0)
+        m_assEvent->Style = m_assTrack->n_styles-1;
+    else
+        m_assEvent->Style = 0;
+
+    if (m_assTrack->n_styles > 0)
+        m_trackStyle = string(m_assTrack->styles[m_assEvent->Style].Name);
+    else
+        m_trackStyle = "";
+
+    if (m_useTrackStyle)
         m_image.Invalidate();
 }
 
@@ -330,43 +336,15 @@ void SubtitleClip_AssImpl::InvalidateImage()
     m_image.Invalidate();
 }
 
-void SubtitleClip_AssImpl::SetReadOrder(int readOrder)
-{
-    if (m_readOrder == readOrder)
-        return;
-    m_readOrder = readOrder;
-    if (m_assEvent)
-        m_assEvent->ReadOrder = readOrder;
-    m_image.Invalidate();
-}
-
-void SubtitleClip_AssImpl::SetLayer(int layer)
-{
-    if (m_layer == layer)
-        return;
-    m_layer = layer;
-    if (m_assEvent)
-        m_assEvent->Layer = layer;
-    m_image.Invalidate();
-}
-
 void SubtitleClip_AssImpl::SetStartTime(int64_t startTime)
 {
-    if (m_startTime == startTime)
-        return;
-    m_startTime = startTime;
-    if (m_assEvent)
-        m_assEvent->Start = startTime;
+    m_assEvent->Start = startTime;
     m_image.Invalidate();
 }
 
 void SubtitleClip_AssImpl::SetDuration(int64_t duration)
 {
-    if (m_duration == duration)
-        return;
-    m_duration = duration;
-    if (m_assEvent)
-        m_assEvent->Duration = duration;
+    m_assEvent->Duration = duration;
     m_image.Invalidate();
 }
 

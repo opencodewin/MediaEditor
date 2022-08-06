@@ -528,7 +528,7 @@ bool SubtitleTrack_AssImpl::ChangeClipTime(SubtitleClipHolder clip, int64_t star
         return true;
     }
 
-    // Invalidate the clips which affected by the target clip
+    // invalidate the clips affected by removing the target clip from its original position
     auto iter2 = iter;
     while (iter2 != m_clips.end())
     {
@@ -539,16 +539,14 @@ bool SubtitleTrack_AssImpl::ChangeClipTime(SubtitleClipHolder clip, int64_t star
             break;
     }
 
-    // calculate the variation of the index after the clip time changed
+    // find the new insertion position
     iter2 = iter;
-    int indexVariation = 0;
     if (startTime > clip->StartTime())
     {
         iter2++;
         while (iter2 != m_clips.end() && startTime > (*iter2)->StartTime())
         {
             (*iter2)->InvalidateImage();
-            indexVariation++;
             iter2++;
         }
     }
@@ -560,7 +558,6 @@ bool SubtitleTrack_AssImpl::ChangeClipTime(SubtitleClipHolder clip, int64_t star
             if (startTime < (*iter2)->StartTime())
             {
                 (*iter2)->InvalidateImage();
-                indexVariation--;
             }
             else
             {
@@ -570,22 +567,14 @@ bool SubtitleTrack_AssImpl::ChangeClipTime(SubtitleClipHolder clip, int64_t star
         }
     }
 
+    // update the clip time information and insert it at new position
     SubtitleClip_AssImpl* assClip = dynamic_cast<SubtitleClip_AssImpl*>(clip.get());
-    // if no index variation is needed, then just update the time attributes is enough
-    if (indexVariation == 0)
-    {
-        assClip->SetStartTime(startTime);
-        assClip->SetDuration(duration);
-        clip->InvalidateImage();
-        ASS_Event* e = m_asstrk->events+idx;
-        e->Start = startTime;
-        e->Duration = duration;
-        return true;
-    }
-
-    // else, move the target clip to the new position
+    assClip->SetStartTime(startTime);
+    assClip->SetDuration(duration);
     m_clips.erase(iter);
     m_clips.insert(iter2, clip);
+
+    // invalidate the clips affected by inserting the target clip to its new position
     while (iter2 != m_clips.end())
     {
         if (clip->EndTime() > (*iter2)->StartTime())
@@ -596,26 +585,11 @@ bool SubtitleTrack_AssImpl::ChangeClipTime(SubtitleClipHolder clip, int64_t star
         else
             break;
     }
-    assClip->SetStartTime(startTime);
-    assClip->SetDuration(duration);
-    ASS_Event tmp{m_asstrk->events[idx]};
-    tmp.Start = startTime;
-    tmp.Duration = duration;
-    if (indexVariation > 0)
-    {
-        memmove(m_asstrk->events+idx, m_asstrk->events+idx+1, sizeof(ASS_Event)*indexVariation);
-        m_asstrk->events[idx+indexVariation] = tmp;
-    }
-    else
-    {
-        memmove(m_asstrk->events+idx+indexVariation+1, m_asstrk->events+idx+indexVariation, sizeof(ASS_Event)*(-indexVariation));
-        m_asstrk->events[idx+indexVariation] = tmp;
-    }
 
     // update duration
-    if (!m_clips.empty())
+    if (clip->EndTime() > m_duration)
     {
-        m_duration = m_clips.back()->EndTime();
+        m_duration = clip->EndTime();
     }
     return true;
 }
@@ -760,62 +734,6 @@ bool SubtitleTrack_AssImpl::SeekToIndex(uint32_t index)
     return true;
 }
 
-#if 0
-SubtitleClipHolder SubtitleTrack_AssImpl::NewClip(int64_t startTime, int64_t duration)
-{
-    auto iter = m_clips.begin();
-    int readOrder = 0;
-    while (iter != m_clips.end() && (*iter)->StartTime() <= startTime)
-    {
-        iter++;
-        readOrder++;
-    }
-
-    const string text = "";
-    SubtitleClip_AssImpl* newAssClip = new SubtitleClip_AssImpl(
-        0, readOrder, "Default", startTime, duration, text,
-        bind(&SubtitleTrack_AssImpl::RenderSubtitleClip, this, _1));
-    SubtitleClipHolder hNewClip(newAssClip);
-    hNewClip->SetBackgroundColor(m_bgColor);
-    m_clips.insert(iter, hNewClip);
-
-    const int fakeReadOrder = m_asstrk->n_events;
-    const int layer = 0;
-    const string style = "Default";
-    const string speaker = "";
-    ostringstream oss;
-    oss << fakeReadOrder << "," << layer << "," << style << "," << speaker << ",0,0,0,," << text;
-    string assChunk = oss.str();
-    ass_process_chunk(m_asstrk, (char*)assline.c_str(), assline.size(), startTime, duration);
-
-    // adjust events order in ASS_Track
-    ASS_Event newEvent{m_asstrk->events[m_asstrk->n_events-1]};
-    newEvent.ReadOrder = readOrder;
-    if (readOrder < m_asstrk->n_events-1)
-    {
-        memmove(m_asstrk->events+readOrder+1, m_asstrk->events+readOrder, sizeof(ASS_Event)*(m_asstrk->n_events-1-readOrder));
-        m_asstrk->events[readOrder] = newEvent;
-    }
-
-    ASS_Event* eventPtr = m_asstrk->events+readOrder;
-    while (iter != m_clips.end())
-    {
-        readOrder++;  eventPtr++;
-        SubtitleClip_AssImpl* assClip = dynamic_cast<SubtitleClip_AssImpl*>(iter->get());
-        assClip->SetReadOrder(readOrder);
-        eventPtr->ReadOrder = readOrder;
-    }
-
-    // update duration
-    if (!m_clips.empty())
-    {
-        m_duration = m_clips.back()->EndTime();
-    }
-
-    m_logger->Log(VERBOSE) << "New ASS clip is added with readOrder=" << newAssClip->ReadOrder() << "." << endl;
-    return hNewClip;
-}
-#else
 SubtitleClipHolder SubtitleTrack_AssImpl::NewClip(int64_t startTime, int64_t duration)
 {
     // find the insert position
@@ -825,15 +743,40 @@ SubtitleClipHolder SubtitleTrack_AssImpl::NewClip(int64_t startTime, int64_t dur
         iter++;
     }
 
-    const string text = "";
-    SubtitleClip_AssImpl* newAssClip = new SubtitleClip_AssImpl(
-        0, m_asstrk->n_events, "Default", startTime, duration, "",
-        bind(&SubtitleTrack_AssImpl::RenderSubtitleClip, this, _1));
+    ASS_Event* orgPtr = m_asstrk->events;
+    int eid = ass_alloc_event(m_asstrk);
+    ASS_Event* assEvent = m_asstrk->events+eid;
+    assEvent->ReadOrder = eid;
+    assEvent->Style = m_defaultStyleIdx;
+    assEvent->Text = (char*)malloc(1);
+    assEvent->Text[0] = 0;
+    assEvent->Start = startTime;
+    assEvent->Duration = duration;
+
+    // if ASS_Track::events ptr reallocated, then resync ASS_Event ptr with all the SubtitleClips
+    if (orgPtr && orgPtr != m_asstrk->events)
+    {
+        auto iter2 = m_clips.begin();
+        while (iter2 != m_clips.end())
+        {
+            SubtitleClip_AssImpl* assClip = dynamic_cast<SubtitleClip_AssImpl*>(iter2->get());
+            const int targetIdx = assClip->ReadOrder();
+            ASS_Event* assAry = m_asstrk->events;
+            for (int i = 0; i < m_asstrk->n_events; i++)
+            {
+                if (assAry[i].ReadOrder == targetIdx)
+                {
+                    assClip->SetAssEvent(assAry+i);
+                    break;
+                }
+            }
+            iter2++;
+        }
+    }
+
+    SubtitleClip_AssImpl* newAssClip = new SubtitleClip_AssImpl(assEvent, m_asstrk, bind(&SubtitleTrack_AssImpl::RenderSubtitleClip, this, _1));
     SubtitleClipHolder hNewClip(newAssClip);
     m_clips.insert(iter, hNewClip);
-
-    string chunk = newAssClip->GenerateAssChunk();
-    ass_process_chunk(m_asstrk, (char*)chunk.c_str(), chunk.size(), startTime, duration);
 
     // update duration
     if (hNewClip->EndTime() > m_duration)
@@ -841,10 +784,9 @@ SubtitleClipHolder SubtitleTrack_AssImpl::NewClip(int64_t startTime, int64_t dur
         m_duration = hNewClip->EndTime();
     }
 
-    m_logger->Log(VERBOSE) << "New ASS clip is added with readOrder=" << newAssClip->ReadOrder() << "." << endl;
+    m_logger->Log(VERBOSE) << "New ASS clip is added with readOrder=" << assEvent->ReadOrder << "." << endl;
     return hNewClip;
 }
-#endif
 
 static bool ConvertSubtitleClipToAVSubtitle(const SubtitleClip* clip, AVSubtitle* avsub, int readOrder)
 {
@@ -1182,7 +1124,6 @@ bool SubtitleTrack_AssImpl::ReadFile(const string& path)
             m_logger->Log(VERBOSE) << endl;
             if (!isAss)
             {
-                m_logger->Log(Error) << "Only support ASS subtitle (or convertable to ASS) for now!" << endl;
                 m_errMsg = "The subtitle file/stream is NOT ASS! Not supported!";
                 break;
             }
@@ -1204,7 +1145,21 @@ bool SubtitleTrack_AssImpl::ReadFile(const string& path)
             decodeEof = true;
         }
     }
-    if (m_asstrk->n_styles <= 0)
+    m_defaultStyleIdx = -1;
+    for (int i = 0; i < m_asstrk->n_styles; i++)
+    {
+        string styleName(m_asstrk->styles[i].Name);
+        if (styleName == "Default")
+            m_defaultStyleIdx = i;
+    }
+    if (m_defaultStyleIdx < 0)
+        m_defaultStyleIdx = m_asstrk->n_styles-1;
+
+    if (m_defaultStyleIdx >= 0)
+    {
+        m_overrideStyle = SubtitleTrackStyle_AssImpl(m_asstrk->styles+m_defaultStyleIdx);
+    }
+    else
     {
         m_errMsg = "No style is defined for this subtitle!";
     }
@@ -1212,7 +1167,6 @@ bool SubtitleTrack_AssImpl::ReadFile(const string& path)
     bool success = m_errMsg.empty();
     if (success)
     {
-        m_overrideStyle = SubtitleTrackStyle_AssImpl(m_asstrk->styles+m_asstrk->n_styles-1);
         m_duration = 0;
         for (int i = 0; i < m_asstrk->n_events; i++)
         {
@@ -1223,9 +1177,7 @@ bool SubtitleTrack_AssImpl::ReadFile(const string& path)
                         << "(" << e->Duration << ") \"" << e->Text << "\"." << endl;
                 continue;
             }
-            SubtitleClip_AssImpl* assClip = new SubtitleClip_AssImpl(
-                    e->Layer, e->ReadOrder, string(m_asstrk->styles[e->Style].Name), e->Start, e->Duration, string(e->Text),
-                    bind(&SubtitleTrack_AssImpl::RenderSubtitleClip, this, _1));
+            SubtitleClip_AssImpl* assClip = new SubtitleClip_AssImpl(e, m_asstrk, bind(&SubtitleTrack_AssImpl::RenderSubtitleClip, this, _1));
             SubtitleClipHolder hSubClip(assClip);
             m_clips.push_back(hSubClip);
             if (assClip->EndTime() > m_duration)
@@ -1422,9 +1374,20 @@ SubtitleTrackHolder SubtitleTrack_AssImpl::NewEmptyTrack(int64_t id)
 
     string assHeader = GenerateAssHeader("MediaEditor", 384, 288, "Arial", 16, 0xffffff, 0xffffff, 0, 0, 0, 0, 0, 1, 2);
     ass_process_codec_private(asssubtrk->m_asstrk, (char*)assHeader.c_str(), assHeader.size());
-    if (asssubtrk->m_asstrk->n_styles > 0)
+
+    asssubtrk->m_defaultStyleIdx = -1;
+    for (int i = 0; i < asssubtrk->m_asstrk->n_styles; i++)
     {
-        asssubtrk->m_overrideStyle = SubtitleTrackStyle_AssImpl(asssubtrk->m_asstrk->styles+asssubtrk->m_asstrk->n_styles-1);
+        string styleName(asssubtrk->m_asstrk->styles[i].Name);
+        if (styleName == "Default")
+            asssubtrk->m_defaultStyleIdx = i;
+    }
+    if (asssubtrk->m_defaultStyleIdx < 0)
+        asssubtrk->m_defaultStyleIdx = asssubtrk->m_asstrk->n_styles-1;
+
+    if (asssubtrk->m_defaultStyleIdx >= 0)
+    {
+        asssubtrk->m_overrideStyle = SubtitleTrackStyle_AssImpl(asssubtrk->m_asstrk->styles+asssubtrk->m_defaultStyleIdx);
     }
     else
     {
