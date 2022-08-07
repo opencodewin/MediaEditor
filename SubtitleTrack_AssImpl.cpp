@@ -386,7 +386,6 @@ bool SubtitleTrack_AssImpl::SetOffsetH(int value)
 {
     m_logger->Log(DEBUG) << "Set offsetH '" << value << "'" << endl;
     m_overrideStyle.SetOffsetH(value);
-    ClearRenderCache();
     return true;
 }
 
@@ -394,7 +393,6 @@ bool SubtitleTrack_AssImpl::SetOffsetV(int value)
 {
     m_logger->Log(DEBUG) << "Set offsetV '" << value << "'" << endl;
     m_overrideStyle.SetOffsetV(value);
-    ClearRenderCache();
     return true;
 }
 
