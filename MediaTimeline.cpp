@@ -3043,6 +3043,16 @@ MediaTrack* MediaTrack::Load(const imgui_json::value& value, void * handle)
                 auto& val = track["Font"];
                 if (val.is_string()) new_track->mMttReader->SetFont(val.get<imgui_json::string>());
             }
+            if (track.contains("OffsetX"))
+            {
+                auto& val = track["OffsetX"];
+                if (val.is_number()) new_track->mMttReader->SetOffsetH(val.get<imgui_json::number>());
+            }
+            if (track.contains("OffsetY"))
+            {
+                auto& val = track["OffsetY"];
+                if (val.is_number()) new_track->mMttReader->SetOffsetV(val.get<imgui_json::number>());
+            }
             if (track.contains("ScaleX"))
             {
                 auto& val = track["ScaleX"];
@@ -3164,6 +3174,8 @@ void MediaTrack::Save(imgui_json::value& value)
         auto& style = mMttReader->DefaultStyle();
         subtrack["ID"] = imgui_json::number(mMttReader->Id());
         subtrack["Font"] = style.Font();
+        subtrack["OffsetX"] = imgui_json::number(style.OffsetH());
+        subtrack["OffsetY"] = imgui_json::number(style.OffsetV());
         subtrack["ScaleX"] = imgui_json::number(style.ScaleX());
         subtrack["ScaleY"] = imgui_json::number(style.ScaleY());
         subtrack["Spacing"] = imgui_json::number(style.Spacing());

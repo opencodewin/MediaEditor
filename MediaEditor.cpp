@@ -349,6 +349,8 @@ struct MediaEditorSettings
     int FontBold {0};
     bool FontUnderLine {false};
     bool FontStrikeOut {false};
+    int FontPosOffsetX {0};
+    int FontPosOffsetY {0}; 
     ImVec4 FontPrimaryColor {1, 1, 1, 1};
     ImVec4 FontOutlineColor {0, 0, 0, 1};
 
@@ -1114,6 +1116,8 @@ static void ShowConfigure(MediaEditorSettings & config)
                     if (config.FontScaleLink) config.FontScaleX *= scale_ratio;
                     config.FontScaleY = scale_y;
                 }
+                ImGui::SliderInt("Font Position X", &config.FontPosOffsetX, -2000, 2000, "%d");
+                ImGui::SliderInt("Font Position Y", &config.FontPosOffsetY, -2000, 2000, "%d");
                 ImGui::SliderFloat("Font spacing", &config.FontSpacing, 0.5, 5, "%.1f");
                 ImGui::SliderFloat("Font angle", &config.FontAngle, 0, 360, "%.1f");
                 ImGui::SliderFloat("Font outline", &config.FontOutlineWidth, 0, 5, "%.1f");
@@ -3691,7 +3695,7 @@ static void ShowAudioEditorWindow(ImDrawList *draw_list)
     ImGui::EndChild();
 }
 
-static void edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 size, ImVec2 default_pos)
+static void edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 size, ImVec2 default_pos, ImVec2 default_size)
 {
     if (!clip)
         return;
@@ -3700,6 +3704,7 @@ static void edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
         return;
     ImGuiIO &io = ImGui::GetIO();
     auto& style = track->mMttReader->DefaultStyle();
+    ImVec2 track_offset = ImVec2(style.OffsetH(), style.OffsetV());
     ImGui::PushItemWidth(240);
     auto item_width = ImGui::CalcItemWidth();
     const char* familyValue = clip->mFontName.c_str();
@@ -3715,12 +3720,12 @@ static void edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
         }
         ImGui::EndCombo();
     } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##clip_font_family_default")) { clip->mFontName = style.Font(); }
-    if (ImGui::SliderFloat("Font position X", &clip->mFontPosX, 0, timeline->mWidth, "%.0f"))
+    if (ImGui::SliderFloat("Font position X", &clip->mFontPosX, - default_size.x, timeline->mWidth + default_size.x, "%.0f"))
     {
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##posx_default")) { clip->mFontPosX = default_pos.x; }
-    if (ImGui::SliderFloat("Font position Y", &clip->mFontPosY, 0, timeline->mHeight, "%.0f"))
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##posx_default")) { clip->mFontPosX = default_pos.x + track_offset.x; }
+    if (ImGui::SliderFloat("Font position Y", &clip->mFontPosY, - default_size.y, timeline->mHeight + default_size.y, "%.0f"))
     {
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##posy_default")) { clip->mFontPosY = default_pos.y; }
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##posy_default")) { clip->mFontPosY = default_pos.y + track_offset.y; }
     float scale_x = clip->mFontScaleX;
     if (ImGui::SliderFloat("Font scale X", &scale_x, 0.2, 10, "%.1f"))
     {
@@ -3826,6 +3831,16 @@ static void edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
         }
         ImGui::EndCombo();
     } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_font_family_default")) { track->mMttReader->SetFont(g_media_editor_settings.FontName); }
+    int offset_x = style.OffsetH();
+    if (ImGui::SliderInt("Font Position X", &offset_x, - timeline->mWidth / 2 , timeline->mWidth / 2, "%d"))
+    {
+        track->mMttReader->SetOffsetH(offset_x);
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_font_offsetx_default")) { track->mMttReader->SetOffsetH(g_media_editor_settings.FontPosOffsetX); }
+    int offset_y = style.OffsetV();
+    if (ImGui::SliderInt("Font Position Y", &offset_y, - timeline->mHeight / 2, timeline->mHeight / 2, "%d"))
+    {
+        track->mMttReader->SetOffsetV(offset_y);
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_font_offsety_default")) { track->mMttReader->SetOffsetV(g_media_editor_settings.FontPosOffsetY); }
     int bold = style.Bold();
     if (ImGui::Combo("Font Bold", &bold, font_bold_list, IM_ARRAYSIZE(font_bold_list)))
     {
@@ -3964,6 +3979,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
         if (editing_clip)
         {
             ImVec2 default_pos(0, 0);
+            ImVec2 default_size(0, 0);
             // show clip time 
             if (editing_clip->mClipHolder)
             {
@@ -3971,6 +3987,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
                 if (current_image.Valid())
                 {
                     default_pos = ImVec2(current_image.Area().x, current_image.Area().y);
+                    default_size = ImVec2(current_image.Area().w, current_image.Area().h);
                     if (editing_clip->mFontPosX == -INT32_MAX) editing_clip->mFontPosX = current_image.Area().x;
                     if (editing_clip->mFontPosY == -INT32_MAX) editing_clip->mFontPosY = current_image.Area().y;
                 }
@@ -4037,7 +4054,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
                     {
                         // clip style
                         ImGui::BeginDisabled(editing_clip->mTrackStyle);
-                        edit_text_clip_style(draw_list, editing_clip, style_setting_window_size, default_pos);
+                        edit_text_clip_style(draw_list, editing_clip, style_setting_window_size, default_pos, default_size);
                         ImGui::EndDisabled();
                     }
                     else
@@ -5358,6 +5375,8 @@ void Application_SetupContext(ImGuiContext* ctx)
         else if (sscanf(line, "FontBold=%d", &val_int) == 1) { setting->FontBold = val_int; }
         else if (sscanf(line, "FontUnderLine=%d", &val_int) == 1) { setting->FontUnderLine = val_int == 1; }
         else if (sscanf(line, "FontStrikeOut=%d", &val_int) == 1) { setting->FontStrikeOut = val_int == 1; }
+        else if (sscanf(line, "FontPosOffsetX=%d", &val_int) == 1) { setting->FontPosOffsetX = val_int; }
+        else if (sscanf(line, "FontPosOffsetY=%d", &val_int) == 1) { setting->FontPosOffsetY = val_int; }
         else if (sscanf(line, "FontPrimaryColor=%f,%f,%f,%f", &val_vec4.x, &val_vec4.y, &val_vec4.z, &val_vec4.w) == 1) { setting->FontPrimaryColor = val_vec4; }
         else if (sscanf(line, "FontOutlineColor=%f,%f,%f,%f", &val_vec4.x, &val_vec4.y, &val_vec4.z, &val_vec4.w) == 1) { setting->FontOutlineColor = val_vec4; }
         else if (sscanf(line, "OutputFormatIndex=%d", &val_int) == 1) { setting->OutputFormatIndex = val_int; }
@@ -5453,6 +5472,8 @@ void Application_SetupContext(ImGuiContext* ctx)
         out_buf->appendf("FontBold=%d\n", g_media_editor_settings.FontBold);
         out_buf->appendf("FontUnderLine=%d\n", g_media_editor_settings.FontUnderLine ? 1 : 0);
         out_buf->appendf("FontStrikeOut=%d\n", g_media_editor_settings.FontStrikeOut ? 1 : 0);
+        out_buf->appendf("FontPosOffsetX=%d\n", g_media_editor_settings.FontPosOffsetX);
+        out_buf->appendf("FontPosOffsetY=%d\n", g_media_editor_settings.FontPosOffsetY);
         out_buf->appendf("FontPrimaryColor=%f,%f,%f,%f\n", g_media_editor_settings.FontPrimaryColor.x, g_media_editor_settings.FontPrimaryColor.y, g_media_editor_settings.FontPrimaryColor.z, g_media_editor_settings.FontPrimaryColor.w);
         out_buf->appendf("FontOutlineColor=%f,%f,%f,%f\n", g_media_editor_settings.FontOutlineColor.x, g_media_editor_settings.FontOutlineColor.y, g_media_editor_settings.FontOutlineColor.z, g_media_editor_settings.FontOutlineColor.w);
         out_buf->appendf("OutputFormatIndex=%d\n", g_media_editor_settings.OutputFormatIndex);
@@ -5650,6 +5671,8 @@ bool Application_Frame(void * handle, bool app_will_quit)
         ImGui::SetNextWindowPos(ImVec2(0, 0));
         ImGui::SetNextWindowSize(io.DisplaySize, ImGuiCond_None);
     }
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_GrabRounding, 12.0f);
     UpdateBreathing();
     ImGui::Begin("Content", nullptr, flags);
     // for debug
@@ -6008,6 +6031,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
     {
         ImGui::PopStyleVar(2);
     }
+    ImGui::PopStyleVar(2);
     // check save stage if app will quit
     if (app_will_quit && timeline)
     {
