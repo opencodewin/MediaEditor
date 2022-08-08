@@ -30,7 +30,7 @@ namespace DataLayer
         SubtitleColor BackgroundColor() const override { return m_bgColor; }
         bool Bold() const override { return m_bold; }
         bool Italic() const override { return m_italic; }
-        bool Underline() const override { return m_underline; }
+        bool UnderLine() const override { return m_underline; }
         bool StrikeOut() const override { return m_strikeout; }
         uint32_t BorderWidth() const override { return m_borderWidth; }
         // uint32_t ShadowDepth() const override { return m_shadowDepth; }
@@ -61,7 +61,7 @@ namespace DataLayer
         void SetBackgroundColor(const SubtitleColor& color) override;
         void SetBold(bool enable) override;
         void SetItalic(bool enable) override;
-        void SetUnderline(bool enable) override;
+        void SetUnderLine(bool enable) override;
         void SetStrikeOut(bool enable) override;
         void SetBorderWidth(uint32_t value) override;
         // void SetShadowDepth(uint32_t value) override;
@@ -69,8 +69,8 @@ namespace DataLayer
         void SetRotationX(double value) override;
         void SetRotationY(double value) override;
         void SetRotationZ(double value) override;
-        void SetOffsetH(int32_t value) override { m_offsetH = value; }
-        void SetOffsetV(int32_t value) override { m_offsetV = value; }
+        void SetOffsetH(int32_t value) override;
+        void SetOffsetV(int32_t value) override;
         void SetAlignment(uint32_t value) override;
         void SetText(const std::string& text) override;
         void InvalidateImage() override;

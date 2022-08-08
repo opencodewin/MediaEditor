@@ -298,6 +298,8 @@ bool SubtitleTrack_AssImpl::EnableFullSizeOutput(bool enable)
 
 bool SubtitleTrack_AssImpl::SetFont(const std::string& font)
 {
+    if (m_overrideStyle.Font() == font)
+        return true;
     m_logger->Log(DEBUG) << "Set font '" << font << "'" << endl;
     m_overrideStyle.SetFont(font);
     ass_set_selective_style_override(m_assrnd, m_overrideStyle.GetAssStylePtr());
@@ -309,6 +311,8 @@ bool SubtitleTrack_AssImpl::SetFont(const std::string& font)
 
 bool SubtitleTrack_AssImpl::SetScale(double scale)
 {
+    if (m_overrideStyle.Scale() == scale)
+        return true;
     m_logger->Log(DEBUG) << "Set font scale " << scale << endl;
     m_overrideStyle.SetScale(scale);
     ass_set_font_scale(m_assrnd, scale);
@@ -318,6 +322,8 @@ bool SubtitleTrack_AssImpl::SetScale(double scale)
 
 bool SubtitleTrack_AssImpl::SetScaleX(double value)
 {
+    if (m_overrideStyle.ScaleX() == value)
+        return true;
     m_logger->Log(DEBUG) << "Set scaleX '" << value << "'" << endl;
     m_overrideStyle.SetScaleX(value);
     ass_set_selective_style_override(m_assrnd, m_overrideStyle.GetAssStylePtr());
@@ -329,6 +335,8 @@ bool SubtitleTrack_AssImpl::SetScaleX(double value)
 
 bool SubtitleTrack_AssImpl::SetScaleY(double value)
 {
+    if (m_overrideStyle.ScaleY() == value)
+        return true;
     m_logger->Log(DEBUG) << "Set scaleY '" << value << "'" << endl;
     m_overrideStyle.SetScaleY(value);
     ass_set_selective_style_override(m_assrnd, m_overrideStyle.GetAssStylePtr());
@@ -340,6 +348,8 @@ bool SubtitleTrack_AssImpl::SetScaleY(double value)
 
 bool SubtitleTrack_AssImpl::SetSpacing(double value)
 {
+    if (m_overrideStyle.Spacing() == value)
+        return true;
     m_logger->Log(DEBUG) << "Set spacing '" << value << "'" << endl;
     m_overrideStyle.SetSpacing(value);
     ass_set_selective_style_override(m_assrnd, m_overrideStyle.GetAssStylePtr());
@@ -351,6 +361,8 @@ bool SubtitleTrack_AssImpl::SetSpacing(double value)
 
 bool SubtitleTrack_AssImpl::SetAngle(double value)
 {
+    if (m_overrideStyle.Angle() == value)
+        return true;
     m_logger->Log(DEBUG) << "Set angle '" << value << "'" << endl;
     m_overrideStyle.SetAngle(value);
     ass_set_selective_style_override(m_assrnd, m_overrideStyle.GetAssStylePtr());
@@ -362,6 +374,8 @@ bool SubtitleTrack_AssImpl::SetAngle(double value)
 
 bool SubtitleTrack_AssImpl::SetOutlineWidth(double value)
 {
+    if (m_overrideStyle.OutlineWidth() == value)
+        return true;
     m_logger->Log(DEBUG) << "Set outline '" << value << "'" << endl;
     m_overrideStyle.SetOutlineWidth(value);
     ass_set_selective_style_override(m_assrnd, m_overrideStyle.GetAssStylePtr());
@@ -373,6 +387,8 @@ bool SubtitleTrack_AssImpl::SetOutlineWidth(double value)
 
 bool SubtitleTrack_AssImpl::SetAlignment(int value)
 {
+    if (m_overrideStyle.Alignment() == value)   
+        return true;
     m_logger->Log(DEBUG) << "Set alignment '" << value << "'" << endl;
     m_overrideStyle.SetAlignment(value);
     ass_set_selective_style_override(m_assrnd, m_overrideStyle.GetAssStylePtr());
@@ -424,6 +440,8 @@ bool SubtitleTrack_AssImpl::SetOffsetV(int value)
 
 bool SubtitleTrack_AssImpl::SetItalic(int value)
 {
+    if (m_overrideStyle.Italic() == value)
+        return true;
     m_logger->Log(DEBUG) << "Set italic '" << value << "'" << endl;
     m_overrideStyle.SetItalic(value);
     ass_set_selective_style_override(m_assrnd, m_overrideStyle.GetAssStylePtr());
@@ -435,6 +453,8 @@ bool SubtitleTrack_AssImpl::SetItalic(int value)
 
 bool SubtitleTrack_AssImpl::SetBold(int value)
 {
+    if (m_overrideStyle.Bold() == value)
+        return true;
     m_logger->Log(DEBUG) << "Set bold '" << value << "'" << endl;
     m_overrideStyle.SetBold(value);
     ass_set_selective_style_override(m_assrnd, m_overrideStyle.GetAssStylePtr());
@@ -446,6 +466,8 @@ bool SubtitleTrack_AssImpl::SetBold(int value)
 
 bool SubtitleTrack_AssImpl::SetUnderLine(bool enable)
 {
+    if (m_overrideStyle.UnderLine() == enable)
+        return true;
     m_logger->Log(DEBUG) << "Set underline '" << enable << "'" << endl;
     m_overrideStyle.SetUnderLine(enable);
     ass_set_selective_style_override(m_assrnd, m_overrideStyle.GetAssStylePtr());
@@ -457,6 +479,8 @@ bool SubtitleTrack_AssImpl::SetUnderLine(bool enable)
 
 bool SubtitleTrack_AssImpl::SetStrikeOut(bool enable)
 {
+    if (m_overrideStyle.StrikeOut() == enable)
+        return true;
     m_logger->Log(DEBUG) << "Set strikeout '" << enable << "'" << endl;
     m_overrideStyle.SetStrikeOut(enable);
     ass_set_selective_style_override(m_assrnd, m_overrideStyle.GetAssStylePtr());
@@ -468,6 +492,8 @@ bool SubtitleTrack_AssImpl::SetStrikeOut(bool enable)
 
 bool SubtitleTrack_AssImpl::SetPrimaryColor(const SubtitleColor& color)
 {
+    if (m_overrideStyle.PrimaryColor() == color)
+        return true;
     m_logger->Log(DEBUG) << "Set primary color as { r(" << color.r << "), g(" << color.g << "), b(" << color.b << "), a(" << color.a << ") }" << endl;
     m_overrideStyle.SetPrimaryColor(color);
     ass_set_selective_style_override(m_assrnd, m_overrideStyle.GetAssStylePtr());
@@ -479,6 +505,8 @@ bool SubtitleTrack_AssImpl::SetPrimaryColor(const SubtitleColor& color)
 
 bool SubtitleTrack_AssImpl::SetSecondaryColor(const SubtitleColor& color)
 {
+    if (m_overrideStyle.SecondaryColor() == color)
+        return true;
     m_logger->Log(DEBUG) << "Set secondary color as { r(" << color.r << "), g(" << color.g << "), b(" << color.b << "), a(" << color.a << ") }" << endl;
     m_overrideStyle.SetSecondaryColor(color);
     ass_set_selective_style_override(m_assrnd, m_overrideStyle.GetAssStylePtr());
@@ -490,6 +518,8 @@ bool SubtitleTrack_AssImpl::SetSecondaryColor(const SubtitleColor& color)
 
 bool SubtitleTrack_AssImpl::SetOutlineColor(const SubtitleColor& color)
 {
+    if (m_overrideStyle.OutlineColor() == color)
+        return true;
     m_logger->Log(DEBUG) << "Set outline color as { r(" << color.r << "), g(" << color.g << "), b(" << color.b << "), a(" << color.a << ") }" << endl;
     m_overrideStyle.SetOutlineColor(color);
     ass_set_selective_style_override(m_assrnd, m_overrideStyle.GetAssStylePtr());
@@ -501,6 +531,8 @@ bool SubtitleTrack_AssImpl::SetOutlineColor(const SubtitleColor& color)
 
 bool SubtitleTrack_AssImpl::SetBackgroundColor(const SubtitleColor& color)
 {
+    if (m_overrideStyle.BackgroundColor() == color)
+        return true;
     m_logger->Log(DEBUG) << "Set background color as { r(" << color.r << "), g(" << color.g << "), b(" << color.b << "), a(" << color.a << ") }" << endl;
     m_overrideStyle.SetBackgroundColor(color);
     ClearRenderCache();
@@ -1260,9 +1292,10 @@ private:
 
 SubtitleImage SubtitleTrack_AssImpl::RenderSubtitleClip(SubtitleClip* clip)
 {
+    SubtitleClip_AssImpl* assClip = dynamic_cast<SubtitleClip_AssImpl*>(clip);
     int detectChange = 0;
     ASS_Image* renderRes = ass_render_frame(m_assrnd, m_asstrk, clip->StartTime(), &detectChange);
-    m_logger->Log(DEBUG) << "Render subtitle '" << clip->Text() << "', ASS_Image ptr=" << renderRes << ", detectChanged=" << detectChange << "." << endl;
+    m_logger->Log(DEBUG) << "Render subtitle '" << assClip->GetAssText() << "', ASS_Image ptr=" << renderRes << ", detectChanged=" << detectChange << "." << endl;
     ImGui::ImMat vmat;
     if (!renderRes)
         return SubtitleImage(vmat, {0});

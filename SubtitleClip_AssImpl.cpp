@@ -34,12 +34,18 @@ SubtitleImage SubtitleClip_AssImpl::Image()
 
 void SubtitleClip_AssImpl::EnableUsingTrackStyle(bool enable)
 {
+    if (m_useTrackStyle == enable)
+        return;
     m_useTrackStyle = enable;
+    m_assTextChanged = true;
     m_image.Invalidate();
 }
 
 void SubtitleClip_AssImpl::SetTrackStyle(const std::string& name)
 {
+    if (m_trackStyle == name)
+        return;
+
     int targetIdx = -1, defaultIdx = -1;
     for (int i = 0; i < m_assTrack->n_styles; i++)
     {
@@ -61,7 +67,7 @@ void SubtitleClip_AssImpl::SetTrackStyle(const std::string& name)
     if (m_assTrack->n_styles > 0)
         m_trackStyle = string(m_assTrack->styles[m_assEvent->Style].Name);
     else
-        m_trackStyle = "";
+        m_trackStyle = "Default";
 
     if (m_useTrackStyle)
         m_image.Invalidate();
@@ -87,7 +93,10 @@ void SubtitleClip_AssImpl::SyncStyle(const SubtitleStyle& style)
     m_rotationX = 0;
     m_rotationY = 0;
     m_rotationZ = style.Angle();
+    m_offsetH = style.OffsetH();
+    m_offsetV = style.OffsetV();
     SetAlignment(style.Alignment());
+
     if (!m_useTrackStyle)
     {
         m_assTextChanged = true;
@@ -188,6 +197,8 @@ void SubtitleClip_AssImpl::SetOutlineColor(const SubtitleColor& color)
 
 void SubtitleClip_AssImpl::SetBackgroundColor(const SubtitleColor& color)
 {
+    if (m_bgColor == color)
+        return;
     m_bgColor = color;
 }
 
@@ -215,7 +226,7 @@ void SubtitleClip_AssImpl::SetItalic(bool enable)
     }
 }
 
-void SubtitleClip_AssImpl::SetUnderline(bool enable)
+void SubtitleClip_AssImpl::SetUnderLine(bool enable)
 {
     if (m_underline == enable)
         return;
@@ -307,6 +318,24 @@ void SubtitleClip_AssImpl::SetRotationZ(double value)
         m_assTextChanged = true;
         m_image.Invalidate();
     }
+}
+
+void SubtitleClip_AssImpl::SetOffsetH(int32_t value)
+{
+    if (m_offsetH == value)
+        return;
+    m_offsetH = value;
+    if (!m_useTrackStyle)
+        m_image.Invalidate();
+}
+
+void SubtitleClip_AssImpl::SetOffsetV(int32_t value)
+{
+    if (m_offsetV == value)
+        return;
+    m_offsetV = value;
+    if (!m_useTrackStyle)
+        m_image.Invalidate();
 }
 
 void SubtitleClip_AssImpl::SetAlignment(uint32_t value)

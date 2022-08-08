@@ -173,16 +173,16 @@ static void UIComponent_TrackStyle(SubtitleClipHolder hSupClip)
         g_subtrack->SetScaleY(scaleY);
     }
     // Control Line #4
-    int marginV = style.OffsetV();
-    if (ImGui::SliderInt("MarginV", &marginV, -300, 300, "%d"))
+    int offsetV = style.OffsetV();
+    if (ImGui::SliderInt("Offset V", &offsetV, -300, 300, "%d"))
     {
-        g_subtrack->SetOffsetV(marginV);
+        g_subtrack->SetOffsetV(offsetV);
     }
     ImGui::SameLine(0, 30);
-    int marginH = style.OffsetH();
-    if (ImGui::SliderInt("MarginH", &marginH, -300, 300, "%d"))
+    int offsetH = style.OffsetH();
+    if (ImGui::SliderInt("Offset H", &offsetH, -300, 300, "%d"))
     {
-        g_subtrack->SetOffsetH(marginH);
+        g_subtrack->SetOffsetH(offsetH);
     }
 
     // Control Line #5
@@ -220,40 +220,121 @@ static void UIComponent_TrackStyle(SubtitleClipHolder hSupClip)
     {
         g_subtrack->SetOutlineColor(SubtitleColor(outlineColor.x, outlineColor.y, outlineColor.z, outlineColor.w));
     }
-    
-    // Control Line #6
-    ImGui::BeginGroup();
-    ImGui::BeginDisabled(s_showSubIdx == 0);
-    if (ImGui::Button("Prev"))
+}
+
+static void UIComponent_ClipStyle(SubtitleClipHolder hSubClip)
+{
+    auto wndSize = ImGui::GetWindowSize();
+    // Control Line #1
+    ImGui::PushItemWidth(wndSize.x*0.25);
+    string fontName = hSubClip->Font();
+    const char* previewValue = fontName.c_str();
+    if (ImGui::BeginCombo("Font", previewValue))
     {
-        s_showSubIdx--;
-        hSupClip = g_subtrack->GetPrevClip();
-        s_showSubPos = (float)hSupClip->StartTime()/1000;
+        for (int i = 0; i < g_fontFamilies.size(); i++)
+        {
+            bool isSelected = g_fontFamilies[i] == fontName;
+            if (ImGui::Selectable(g_fontFamilies[i].c_str(), isSelected))
+            {
+                hSubClip->SetFont(g_fontTable[g_fontFamilies[i]][0]->Family());
+            }
+            if (isSelected)
+                ImGui::SetItemDefaultFocus();
+        }
+        ImGui::EndCombo();
     }
-    ImGui::EndDisabled();
-    ImGui::SameLine();
-    ImGui::BeginDisabled(s_showSubIdx >= g_subtrack->ClipCount()-1);
-    if (ImGui::Button("Next"))
+    ImGui::SameLine(0, 30);
+    int bold = hSubClip->Bold() ? 2 : 0;
+    if (ImGui::SliderInt("Bold", &bold, 0, 2, "%d"))
     {
-        s_showSubIdx++;
-        hSupClip = g_subtrack->GetNextClip();
-        s_showSubPos = (float)hSupClip->StartTime()/1000;
+        hSubClip->SetBold(bold > 0);
     }
-    ImGui::EndDisabled();
-    ImGui::SameLine(0, 10);
-    if (ImGui::SliderFloat("##PosSlider", &s_showSubPos, 0, (float)g_subtrack->Duration()/1000, "%.3f", 0))
+    ImGui::SameLine(0, 30);
+    int italic = hSubClip->Italic() ? 1 : 0;
+    if (ImGui::SliderInt("Italic", &italic, 0, 2, "%d"))
     {
-        g_subtrack->SeekToTime((int64_t)(s_showSubPos*1000));
-        hSupClip = g_subtrack->GetCurrClip();
-        s_showSubIdx = g_subtrack->GetCurrIndex();
+        hSubClip->SetItalic(italic > 0);
     }
 
-    string timestr = hSupClip ? MillisecToString(hSupClip->StartTime()) : "-:--:--.---";
-    string durstr = MillisecToString(g_subtrack->Duration());
-    string posstr = timestr+"/"+durstr;
-    ImGui::SameLine(0, 10);
-    ImGui::TextUnformatted(posstr.c_str());
-    ImGui::EndGroup();
+    // Control Line #2
+    float spacing = (float)hSubClip->Spacing();
+    if (ImGui::SliderFloat("Spacing", &spacing, 0, 5, "%.1f"))
+    {
+        hSubClip->SetSpacing((double)spacing);
+    }
+    ImGui::SameLine(0, 30);
+    float angle = (float)hSubClip->RotationZ();
+    if (ImGui::SliderFloat("Angle", &angle, 0, 360, "%.1f"))
+    {
+        hSubClip->SetRotationZ((double)angle);
+    }
+    ImGui::SameLine(0, 30);
+    int borderWidth = (int)hSubClip->BorderWidth();
+    if (ImGui::SliderInt("Border width", &borderWidth, 0, 5, "%d"))
+    {
+        hSubClip->SetBorderWidth((uint32_t)borderWidth);
+    }
+
+    // Control Line #3
+    float scaleX = (float)hSubClip->ScaleX();
+    if (ImGui::SliderFloat("ScaleX", &scaleX, 0.5, 3, "%.1f"))
+    {
+        hSubClip->SetScaleX(scaleX);
+    }
+    ImGui::SameLine(0, 30);
+    float scaleY = (float)hSubClip->ScaleY();
+    if (ImGui::SliderFloat("ScaleY", &scaleY, 0.5, 3, "%.1f"))
+    {
+        hSubClip->SetScaleY(scaleY);
+    }
+    // Control Line #4
+    int offsetV = hSubClip->OffsetV();
+    if (ImGui::SliderInt("Offset V", &offsetV, -300, 300, "%d"))
+    {
+        hSubClip->SetOffsetV(offsetV);
+    }
+    ImGui::SameLine(0, 30);
+    int offsetH = hSubClip->OffsetH();
+    if (ImGui::SliderInt("Offset H", &offsetH, -300, 300, "%d"))
+    {
+        hSubClip->SetOffsetH(offsetH);
+    }
+
+    // Control Line #5
+    int alignment = hSubClip->Alignment();
+    if (ImGui::SliderInt("Alignment", &alignment, 1, 9, "%d"))
+    {
+        hSubClip->SetAlignment(alignment);
+    }
+    ImGui::PopItemWidth();
+    ImGui::SameLine(0, 20);
+    bool underline = hSubClip->UnderLine();
+    if (ImGui::Checkbox("UnderLine", &underline))
+    {
+        hSubClip->SetUnderLine(underline);
+    }
+    ImGui::SameLine(0, 20);
+    bool strikeout = hSubClip->StrikeOut();
+    if (ImGui::Checkbox("StrikeOut", &strikeout))
+    {
+        hSubClip->SetStrikeOut(strikeout);
+    }
+    ImGui::SameLine(0, 20);
+    ImGui::TextUnformatted("Primary color:");
+    ImGui::SameLine(0);
+    ImVec4 primaryColor = hSubClip->PrimaryColor().ToImVec4();
+    if (ImGui::ColorEdit4("FontColor##Primary", (float*)&primaryColor, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_AlphaBar))
+    {
+        hSubClip->SetPrimaryColor(SubtitleColor(primaryColor.x, primaryColor.y, primaryColor.z, primaryColor.w));
+    }
+    ImGui::SameLine(0, 20);
+    ImGui::TextUnformatted("Outline color:");
+    ImGui::SameLine(0);
+    ImVec4 outlineColor = hSubClip->OutlineColor().ToImVec4();
+    if (ImGui::ColorEdit4("FontColor##Outline", (float*)&outlineColor, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_AlphaBar))
+    {
+        hSubClip->SetOutlineColor(SubtitleColor(outlineColor.x, outlineColor.y, outlineColor.z, outlineColor.w));
+    }
 }
 
 bool Application_Frame(void * handle, bool app_will_quit)
@@ -401,10 +482,10 @@ bool Application_Frame(void * handle, bool app_will_quit)
                     }
                     bottomControlLines = 8;
 
-                    SubtitleClipHolder hSupClip = g_subtrack->GetCurrClip();
-                    if (hSupClip)
+                    SubtitleClipHolder hSubClip = g_subtrack->GetCurrClip();
+                    if (hSubClip)
                     {
-                        SubtitleImage subImage = hSupClip->Image();
+                        SubtitleImage subImage = hSubClip->Image();
                         if (subImage.Valid())
                         {
                             auto csPos = ImGui::GetCursorPos();
@@ -424,25 +505,61 @@ bool Application_Frame(void * handle, bool app_will_quit)
                         }
                     }
 
-                    bool useTrackStyle = hSupClip->IsUsingTrackStyle();
+                    bool useTrackStyle = hSubClip->IsUsingTrackStyle();
                     if (ImGui::Checkbox("Use track style", &useTrackStyle))
                     {
-                        hSupClip->EnableUsingTrackStyle(useTrackStyle);
+                        hSubClip->EnableUsingTrackStyle(useTrackStyle);
                     }
 
                     if (ImGui::BeginTabBar("SubtitleStyleTabs", ImGuiTabBarFlags_None))
                     {
                         if (ImGui::BeginTabItem("Track style"))
                         {
-                            UIComponent_TrackStyle(hSupClip);
+                            UIComponent_TrackStyle(hSubClip);
                             ImGui::EndTabItem();
                         }
                         if (ImGui::BeginTabItem("Clip style"))
                         {
+                            UIComponent_ClipStyle(hSubClip);
                             ImGui::EndTabItem();
                         }
                         ImGui::EndTabBar();
                     }
+
+                    // Control Line #6
+                    ImGui::BeginGroup();
+                    ImGui::BeginDisabled(s_showSubIdx == 0);
+                    if (ImGui::Button("Prev"))
+                    {
+                        s_showSubIdx--;
+                        hSubClip = g_subtrack->GetPrevClip();
+                        s_showSubPos = (float)hSubClip->StartTime()/1000;
+                    }
+                    ImGui::EndDisabled();
+                    ImGui::SameLine();
+                    ImGui::BeginDisabled(s_showSubIdx >= g_subtrack->ClipCount()-1);
+                    if (ImGui::Button("Next"))
+                    {
+                        s_showSubIdx++;
+                        hSubClip = g_subtrack->GetNextClip();
+                        s_showSubPos = (float)hSubClip->StartTime()/1000;
+                    }
+                    ImGui::EndDisabled();
+                    ImGui::SameLine(0, 10);
+                    if (ImGui::SliderFloat("##PosSlider", &s_showSubPos, 0, (float)g_subtrack->Duration()/1000, "%.3f", 0))
+                    {
+                        g_subtrack->SeekToTime((int64_t)(s_showSubPos*1000));
+                        hSubClip = g_subtrack->GetCurrClip();
+                        s_showSubIdx = g_subtrack->GetCurrIndex();
+                    }
+
+                    string timestr = hSubClip ? MillisecToString(hSubClip->StartTime()) : "-:--:--.---";
+                    string durstr = MillisecToString(g_subtrack->Duration());
+                    string posstr = timestr+"/"+durstr;
+                    ImGui::SameLine(0, 10);
+                    ImGui::TextUnformatted(posstr.c_str());
+                    ImGui::EndGroup();
+
                     ImGui::EndTabItem();
                 }
                 ImGui::EndTabBar();

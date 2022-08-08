@@ -60,7 +60,7 @@ namespace DataLayer
         virtual SubtitleColor BackgroundColor() const = 0;
         virtual bool Bold() const = 0;
         virtual bool Italic() const = 0;
-        virtual bool Underline() const = 0;
+        virtual bool UnderLine() const = 0;
         virtual bool StrikeOut() const = 0;
         virtual uint32_t BorderWidth() const = 0;
         // virtual uint32_t ShadowDepth() const = 0;
@@ -91,7 +91,7 @@ namespace DataLayer
         virtual void SetBackgroundColor(const SubtitleColor& color) = 0;
         virtual void SetBold(bool enable) = 0;
         virtual void SetItalic(bool enable) = 0;
-        virtual void SetUnderline(bool enable) = 0;
+        virtual void SetUnderLine(bool enable) = 0;
         virtual void SetStrikeOut(bool enable) = 0;
         virtual void SetBorderWidth(uint32_t value) = 0;
         // virtual void SetShadowDepth(uint32_t value) = 0;
