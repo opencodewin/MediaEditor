@@ -65,8 +65,8 @@ namespace DataLayer
         std::unique_ptr<char[]> m_name;
         std::unique_ptr<char[]> m_fontName;
         double m_scale{1};
-        int m_offsetH{0};
-        int m_offsetV{0};
+        int32_t m_offsetH{0};
+        int32_t m_offsetV{0};
         SubtitleColor m_primaryColor;
         SubtitleColor m_secondaryColor;
         SubtitleColor m_outlineColor;

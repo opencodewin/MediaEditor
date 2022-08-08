@@ -386,6 +386,8 @@ bool SubtitleTrack_AssImpl::SetOffsetH(int value)
 {
     m_logger->Log(DEBUG) << "Set offsetH '" << value << "'" << endl;
     m_overrideStyle.SetOffsetH(value);
+    if (m_outputFullSize)
+        ClearRenderCache();
     return true;
 }
 
@@ -393,6 +395,8 @@ bool SubtitleTrack_AssImpl::SetOffsetV(int value)
 {
     m_logger->Log(DEBUG) << "Set offsetV '" << value << "'" << endl;
     m_overrideStyle.SetOffsetV(value);
+    if (m_outputFullSize)
+        ClearRenderCache();
     return true;
 }
 
@@ -1243,27 +1247,27 @@ SubtitleImage SubtitleTrack_AssImpl::RenderSubtitleClip(SubtitleClip* clip)
 
     // calculate the containing box
     ASS_Image* assImage = renderRes;
-    SubtitleImage::Rect containBox{assImage->dst_x, assImage->dst_y, assImage->w, assImage->h};
+    SubtitleImage::Rect assBox{assImage->dst_x, assImage->dst_y, assImage->w, assImage->h};
     assImage = assImage->next;
     while (assImage)
     {
-        if (assImage->dst_x < containBox.x)
+        if (assImage->dst_x < assBox.x)
         {
-            containBox.w += containBox.x-assImage->dst_x;
-            containBox.x = assImage->dst_x;
+            assBox.w += assBox.x-assImage->dst_x;
+            assBox.x = assImage->dst_x;
         }
-        if (assImage->dst_x+assImage->w > containBox.x+containBox.w)
+        if (assImage->dst_x+assImage->w > assBox.x+assBox.w)
         {
-            containBox.w = assImage->dst_x+assImage->w-containBox.x;
+            assBox.w = assImage->dst_x+assImage->w-assBox.x;
         }
-        if (assImage->dst_y < containBox.y)
+        if (assImage->dst_y < assBox.y)
         {
-            containBox.h += containBox.y-assImage->dst_y;
-            containBox.y = assImage->dst_y;
+            assBox.h += assBox.y-assImage->dst_y;
+            assBox.y = assImage->dst_y;
         }
-        if (assImage->dst_y+assImage->h > containBox.y+containBox.h)
+        if (assImage->dst_y+assImage->h > assBox.y+assBox.h)
         {
-            containBox.h = assImage->dst_y+assImage->h-containBox.y;
+            assBox.h = assImage->dst_y+assImage->h-assBox.y;
         }
         assImage = assImage->next;
     }
@@ -1272,8 +1276,8 @@ SubtitleImage SubtitleTrack_AssImpl::RenderSubtitleClip(SubtitleClip* clip)
     int frmH = (int)m_frmH;
     if (!m_outputFullSize)
     {
-        frmW = containBox.w;
-        frmH = containBox.h;
+        frmW = assBox.w;
+        frmH = assBox.h;
     }
     vmat.create_type((int)frmW, (int)frmH, 4, IM_DT_INT8);
     vmat.color_format = IM_CF_RGBA;
@@ -1287,6 +1291,19 @@ SubtitleImage SubtitleTrack_AssImpl::RenderSubtitleClip(SubtitleClip* clip)
     mapary.resize(vmat.total()/4);
     fill(mapary.begin(), mapary.end(), color);
 
+    // if subtitle is outside of the visible area, then return blank picture
+    const int32_t offsetH = clip->IsUsingTrackStyle() ? m_overrideStyle.OffsetH() : clip->OffsetH();
+    const int32_t offsetV = clip->IsUsingTrackStyle() ? m_overrideStyle.OffsetV() : clip->OffsetV();
+    SubtitleImage::Rect dispBox{assBox};
+    dispBox.x += offsetH;
+    dispBox.y += offsetV;
+    if (m_outputFullSize &&
+       (dispBox.x+dispBox.w <= 0 || dispBox.y+dispBox.h <= 0 ||
+        dispBox.x >= m_frmW || dispBox.y >= m_frmH))
+    {
+        return SubtitleImage(vmat, dispBox);
+    }
+
     // draw ASS_Image list
     assImage = renderRes;
     while (assImage)
@@ -1294,30 +1311,64 @@ SubtitleImage SubtitleTrack_AssImpl::RenderSubtitleClip(SubtitleClip* clip)
         color = assImage->color;
         float baseAlpha = (float)(255-(color&0xff))/255;
         color = ((color&0xff00)<<8) | ((color>>8)&0xff00) | ((color>>24)&0xff);
-        uint32_t* linePtr;
+
+        SubtitleImage::Rect drawBox{assImage->dst_x, assImage->dst_y, assImage->w, assImage->h};
+        uint32_t* imgPtr;
+        unsigned char* assPtr;
         if (m_outputFullSize)
-            linePtr = (uint32_t*)(vmat.data)+assImage->dst_y*frmW+assImage->dst_x;
-        else
-            linePtr = (uint32_t*)(vmat.data)+(assImage->dst_y-containBox.y)*frmW+(assImage->dst_x-containBox.x);
-        unsigned char* assPtr = assImage->bitmap;
-        for (int i = 0; i < assImage->h; i++)
         {
-            for (int j = 0; j < assImage->w; j++)
+            drawBox.x += offsetH;
+            drawBox.y += offsetV;
+            if (drawBox.x+drawBox.w <= 0 || drawBox.y+dispBox.h <= 0 ||
+                drawBox.x >= m_frmW || drawBox.y >= m_frmH)
+            {
+                continue;
+            }
+
+            int drawOffsetX{0}, drawOffsetY{0};
+            if (drawBox.x < 0)
+            {
+                drawOffsetX = -drawBox.x;
+                drawBox.w += drawBox.x;
+                drawBox.x = 0;
+            }
+            if (drawBox.y < 0)
+            {
+                drawOffsetY = -drawBox.y;
+                drawBox.h += drawBox.y;
+                drawBox.y = 0;
+            }
+            if (drawBox.x+drawBox.w > m_frmW)
+                drawBox.w = m_frmW-drawBox.x;
+            if (drawBox.y+drawBox.h > m_frmH)
+                drawBox.h = m_frmH-drawBox.y;
+
+            imgPtr = (uint32_t*)(vmat.data)+drawBox.y*frmW+drawBox.x;
+            assPtr = assImage->bitmap+drawOffsetY*assImage->stride+drawOffsetX;
+        }
+        else
+        {
+            imgPtr = (uint32_t*)(vmat.data)+(assImage->dst_y-assBox.y)*frmW+(assImage->dst_x-assBox.x);
+            assPtr = assImage->bitmap;
+        }
+        for (int i = 0; i < drawBox.h; i++)
+        {
+            for (int j = 0; j < drawBox.w; j++)
             {
                 const unsigned char b = assPtr[j];
                 if (b > 0)
                 {
                     uint32_t alpha = (uint32_t)(baseAlpha*b);
-                    linePtr[j] = color | (alpha<<24);
+                    imgPtr[j] = color | (alpha<<24);
                 }
             }
-            linePtr += frmW;
+            imgPtr += vmat.w;
             assPtr += assImage->stride;
         }
         assImage = assImage->next;
     }
 
-    return SubtitleImage(vmat, containBox);
+    return SubtitleImage(vmat, dispBox);
 }
 
 void SubtitleTrack_AssImpl::ClearRenderCache()

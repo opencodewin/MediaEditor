@@ -38,6 +38,8 @@ namespace DataLayer
         double RotationX() const override { return m_rotationX; }
         double RotationY() const override { return m_rotationY; }
         double RotationZ() const override { return m_rotationZ; }
+        int32_t OffsetH() const override { return m_offsetH; }
+        int32_t OffsetV() const override { return m_offsetV; }
         uint32_t Alignment() const override { return m_alignment; }
         int64_t StartTime() const override { return m_assEvent->Start; }
         int64_t Duration() const override { return m_assEvent->Duration; }
@@ -67,6 +69,8 @@ namespace DataLayer
         void SetRotationX(double value) override;
         void SetRotationY(double value) override;
         void SetRotationZ(double value) override;
+        void SetOffsetH(int32_t value) override { m_offsetH = value; }
+        void SetOffsetV(int32_t value) override { m_offsetV = value; }
         void SetAlignment(uint32_t value) override;
         void SetText(const std::string& text) override;
         void InvalidateImage() override;
@@ -104,6 +108,8 @@ namespace DataLayer
         double m_rotationX{0};
         double m_rotationY{0};
         double m_rotationZ{0};
+        int32_t m_offsetH{0};
+        int32_t m_offsetV{0};
         uint32_t m_alignment{2};
         std::string m_text;
         std::string m_styledText;

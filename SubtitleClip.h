@@ -67,6 +67,8 @@ namespace DataLayer
         virtual double RotationX() const = 0;
         virtual double RotationY() const = 0;
         virtual double RotationZ() const = 0;
+        virtual int32_t OffsetH() const = 0;
+        virtual int32_t OffsetV() const = 0;
         virtual uint32_t Alignment() const = 0;
         virtual int64_t StartTime() const = 0;
         virtual int64_t Duration() const = 0;
@@ -96,6 +98,8 @@ namespace DataLayer
         virtual void SetRotationX(double value) = 0;
         virtual void SetRotationY(double value) = 0;
         virtual void SetRotationZ(double value) = 0;
+        virtual void SetOffsetH(int32_t value) = 0;
+        virtual void SetOffsetV(int32_t value) = 0;
         virtual void SetAlignment(uint32_t value) = 0;
         virtual void SetText(const std::string& text) = 0;
         virtual void InvalidateImage() = 0;
