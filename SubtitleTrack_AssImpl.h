@@ -94,6 +94,7 @@ namespace DataLayer
         const SubtitleStyle& DefaultStyle() const override { return m_overrideStyle; }
 
         bool SetFrameSize(uint32_t width, uint32_t height) override;
+        bool IsFullSizeOutput() const override { return m_outputFullSize; }
         bool EnableFullSizeOutput(bool enable) override;
         bool SetFont(const std::string& font) override;
         bool SetScale(double value) override;

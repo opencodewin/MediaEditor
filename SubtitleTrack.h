@@ -18,6 +18,7 @@ namespace DataLayer
         virtual const SubtitleStyle& DefaultStyle() const = 0;
 
         virtual bool SetFrameSize(uint32_t width, uint32_t height) = 0;
+        virtual bool IsFullSizeOutput() const = 0;
         virtual bool EnableFullSizeOutput(bool enable) = 0;
         virtual bool SetFont(const std::string& font) = 0;
         virtual bool SetScale(double value) = 0;

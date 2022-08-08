@@ -406,9 +406,10 @@ string SubtitleClip_AssImpl::GenerateStyledText()
     oss << "\\fscx" << m_scaleX*100;
     oss << "\\fscy" << m_scaleY*100;
     oss << "\\fsp" << m_spacing;
-    oss << "\\1c" << hex << ToAssColor(m_primaryColor) << "\1a" << ToAssAlpha(m_primaryColor);
-    oss << "\\2c" << hex << ToAssColor(m_secondaryColor) << "\2a" << ToAssAlpha(m_secondaryColor);
-    oss << "\\3c" << hex << ToAssColor(m_outlineColor) << "\3a" << ToAssAlpha(m_outlineColor);
+    oss << "\\1c" << hex << ToAssColor(m_primaryColor) << "\\1a" << ToAssAlpha(m_primaryColor);
+    oss << "\\2c" << hex << ToAssColor(m_secondaryColor) << "\\2a" << ToAssAlpha(m_secondaryColor);
+    oss << "\\3c" << hex << ToAssColor(m_outlineColor) << "\\3a" << ToAssAlpha(m_outlineColor);
+    oss << dec;
     oss << "\\b" << (m_bold?1:0);
     oss << "\\i" << (m_italic?1:0);
     oss << "\\u" << (m_underline?1:0);

@@ -155,12 +155,6 @@ static void UIComponent_TrackStyle(SubtitleClipHolder hSupClip)
     }
 
     // Control Line #3
-    float scale = (float)style.Scale();
-    if (ImGui::SliderFloat("Scale", &scale, 0.2, 3, "%.1f"))
-    {
-        g_subtrack->SetScale((double)scale);
-    }
-    ImGui::SameLine(0, 30);
     float scaleX = (float)style.ScaleX();
     if (ImGui::SliderFloat("ScaleX", &scaleX, 0.5, 3, "%.1f"))
     {
@@ -244,14 +238,14 @@ static void UIComponent_ClipStyle(SubtitleClipHolder hSubClip)
         ImGui::EndCombo();
     }
     ImGui::SameLine(0, 30);
-    int bold = hSubClip->Bold() ? 2 : 0;
-    if (ImGui::SliderInt("Bold", &bold, 0, 2, "%d"))
+    int bold = hSubClip->Bold() ? 1 : 0;
+    if (ImGui::SliderInt("Bold", &bold, 0, 1, "%d"))
     {
         hSubClip->SetBold(bold > 0);
     }
     ImGui::SameLine(0, 30);
     int italic = hSubClip->Italic() ? 1 : 0;
-    if (ImGui::SliderInt("Italic", &italic, 0, 2, "%d"))
+    if (ImGui::SliderInt("Italic", &italic, 0, 1, "%d"))
     {
         hSubClip->SetItalic(italic > 0);
     }
@@ -486,6 +480,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
                     if (hSubClip)
                     {
                         SubtitleImage subImage = hSubClip->Image();
+                        SubtitleImage::Rect dispRect;
                         if (subImage.Valid())
                         {
                             auto csPos = ImGui::GetCursorPos();
@@ -502,63 +497,72 @@ bool Application_Frame(void * handle, bool app_will_quit)
                                 if (g_imageTid) ImGui::Image(g_imageTid, dispalySize);
                                 ImGui::EndChild();
                             }
+                            dispRect = subImage.Area();
                         }
-                    }
 
-                    bool useTrackStyle = hSubClip->IsUsingTrackStyle();
-                    if (ImGui::Checkbox("Use track style", &useTrackStyle))
-                    {
-                        hSubClip->EnableUsingTrackStyle(useTrackStyle);
-                    }
-
-                    if (ImGui::BeginTabBar("SubtitleStyleTabs", ImGuiTabBarFlags_None))
-                    {
-                        if (ImGui::BeginTabItem("Track style"))
+                        bool useTrackStyle = hSubClip->IsUsingTrackStyle();
+                        if (ImGui::Checkbox("Use track style", &useTrackStyle))
                         {
-                            UIComponent_TrackStyle(hSubClip);
-                            ImGui::EndTabItem();
+                            hSubClip->EnableUsingTrackStyle(useTrackStyle);
                         }
-                        if (ImGui::BeginTabItem("Clip style"))
+                        ImGui::SameLine(0, 20);
+                        ImGui::TextColored({0.7,0.9,0.7,1}, "{%4d,%4d,%4d,%4d}", dispRect.x, dispRect.y, dispRect.w, dispRect.h);
+                        ImGui::SameLine(0, 20);
+                        bool isFullSizeOutput = g_subtrack->IsFullSizeOutput();
+                        if (ImGui::Checkbox("Full size output", &isFullSizeOutput))
                         {
-                            UIComponent_ClipStyle(hSubClip);
-                            ImGui::EndTabItem();
+                            g_subtrack->EnableFullSizeOutput(isFullSizeOutput);
                         }
-                        ImGui::EndTabBar();
-                    }
 
-                    // Control Line #6
-                    ImGui::BeginGroup();
-                    ImGui::BeginDisabled(s_showSubIdx == 0);
-                    if (ImGui::Button("Prev"))
-                    {
-                        s_showSubIdx--;
-                        hSubClip = g_subtrack->GetPrevClip();
-                        s_showSubPos = (float)hSubClip->StartTime()/1000;
-                    }
-                    ImGui::EndDisabled();
-                    ImGui::SameLine();
-                    ImGui::BeginDisabled(s_showSubIdx >= g_subtrack->ClipCount()-1);
-                    if (ImGui::Button("Next"))
-                    {
-                        s_showSubIdx++;
-                        hSubClip = g_subtrack->GetNextClip();
-                        s_showSubPos = (float)hSubClip->StartTime()/1000;
-                    }
-                    ImGui::EndDisabled();
-                    ImGui::SameLine(0, 10);
-                    if (ImGui::SliderFloat("##PosSlider", &s_showSubPos, 0, (float)g_subtrack->Duration()/1000, "%.3f", 0))
-                    {
-                        g_subtrack->SeekToTime((int64_t)(s_showSubPos*1000));
-                        hSubClip = g_subtrack->GetCurrClip();
-                        s_showSubIdx = g_subtrack->GetCurrIndex();
-                    }
+                        if (ImGui::BeginTabBar("SubtitleStyleTabs", ImGuiTabBarFlags_None))
+                        {
+                            if (ImGui::BeginTabItem("Track style"))
+                            {
+                                UIComponent_TrackStyle(hSubClip);
+                                ImGui::EndTabItem();
+                            }
+                            if (ImGui::BeginTabItem("Clip style"))
+                            {
+                                UIComponent_ClipStyle(hSubClip);
+                                ImGui::EndTabItem();
+                            }
+                            ImGui::EndTabBar();
+                        }
 
-                    string timestr = hSubClip ? MillisecToString(hSubClip->StartTime()) : "-:--:--.---";
-                    string durstr = MillisecToString(g_subtrack->Duration());
-                    string posstr = timestr+"/"+durstr;
-                    ImGui::SameLine(0, 10);
-                    ImGui::TextUnformatted(posstr.c_str());
-                    ImGui::EndGroup();
+                        // Control Line #6
+                        ImGui::BeginGroup();
+                        ImGui::BeginDisabled(s_showSubIdx == 0);
+                        if (ImGui::Button("Prev"))
+                        {
+                            s_showSubIdx--;
+                            hSubClip = g_subtrack->GetPrevClip();
+                            s_showSubPos = (float)hSubClip->StartTime()/1000;
+                        }
+                        ImGui::EndDisabled();
+                        ImGui::SameLine();
+                        ImGui::BeginDisabled(s_showSubIdx >= g_subtrack->ClipCount()-1);
+                        if (ImGui::Button("Next"))
+                        {
+                            s_showSubIdx++;
+                            hSubClip = g_subtrack->GetNextClip();
+                            s_showSubPos = (float)hSubClip->StartTime()/1000;
+                        }
+                        ImGui::EndDisabled();
+                        ImGui::SameLine(0, 10);
+                        if (ImGui::SliderFloat("##PosSlider", &s_showSubPos, 0, (float)g_subtrack->Duration()/1000, "%.3f", 0))
+                        {
+                            g_subtrack->SeekToTime((int64_t)(s_showSubPos*1000));
+                            hSubClip = g_subtrack->GetCurrClip();
+                            s_showSubIdx = g_subtrack->GetCurrIndex();
+                        }
+
+                        string timestr = hSubClip ? MillisecToString(hSubClip->StartTime()) : "-:--:--.---";
+                        string durstr = MillisecToString(g_subtrack->Duration());
+                        string posstr = timestr+"/"+durstr;
+                        ImGui::SameLine(0, 10);
+                        ImGui::TextUnformatted(posstr.c_str());
+                        ImGui::EndGroup();
+                    }
 
                     ImGui::EndTabItem();
                 }
@@ -583,7 +587,6 @@ bool Application_Frame(void * handle, bool app_will_quit)
             {
                 g_subtrack->SetFrameSize(1920, 1080);
                 g_subtrack->SetBackgroundColor({0.2, 0.2, 0.2, 1});
-                // g_subtrack->EnableFullSizeOutput(false);
                 // g_subtrack->SaveAs("~/test_encsub.sRt");
             }
         }
