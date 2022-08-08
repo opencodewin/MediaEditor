@@ -59,6 +59,10 @@ namespace DataLayer
         void SetSecondaryColor(const SubtitleColor& color) override;
         void SetOutlineColor(const SubtitleColor& color) override;
         void SetBackgroundColor(const SubtitleColor& color) override;
+        void SetPrimaryColor(const ImVec4& color) override;
+        void SetSecondaryColor(const ImVec4& color) override;
+        void SetOutlineColor(const ImVec4& color) override;
+        void SetBackgroundColor(const ImVec4& color) override;
         void SetBold(bool enable) override;
         void SetItalic(bool enable) override;
         void SetUnderLine(bool enable) override;

@@ -3128,6 +3128,23 @@ MediaTrack* MediaTrack::Load(const imgui_json::value& value, void * handle)
                     auto holder = new_track->mMttReader->NewClip(tclip->mStart, tclip->mEnd - tclip->mStart);
                     holder->SetText(tclip->mText);
                     holder->EnableUsingTrackStyle(tclip->mTrackStyle);
+                    if (!tclip->mTrackStyle)
+                    {
+                        holder->SetOffsetH(tclip->mFontPosX);
+                        holder->SetOffsetV(tclip->mFontPosY);
+                        holder->SetScaleX(tclip->mFontScaleX);
+                        holder->SetScaleY(tclip->mFontScaleY);
+                        holder->SetSpacing(tclip->mFontSpacing);
+                        holder->SetRotationZ(tclip->mFontAngle);
+                        holder->SetBorderWidth(tclip->mFontOutlineWidth);
+                        holder->SetBold(tclip->mFontBold);
+                        holder->SetItalic(tclip->mFontItalic);
+                        holder->SetUnderLine(tclip->mFontUnderLine);
+                        holder->SetStrikeOut(tclip->mFontStrikeOut);
+                        holder->SetAlignment(tclip->mFontAlignment);
+                        holder->SetPrimaryColor(tclip->mFontPrimaryColor);
+                        holder->SetOutlineColor(tclip->mFontOutlineColor);
+                    }
                     tclip->mClipHolder = holder;
                     tclip->mTrack = new_track;
                 }
@@ -5962,7 +5979,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             // Ensure grabable handles for track
             if (legendEntry != -1 && legendEntry < timeline->m_Tracks.size())
             {
-                if (ImGui::IsMouseClicked(0) && !MovingHorizonScrollBar && !MovingCurrentTime && !menuIsOpened)
+                if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingHorizonScrollBar && !MovingCurrentTime && !menuIsOpened)
                 {
                     trackMovingEntry = legendEntry;
                 }
@@ -6013,7 +6030,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                                 draw_list->AddLine(P1, P2, IM_COL32(0, 0, 255, 255), 2);
                                 RenderMouseCursor(ICON_CUTTING, ImVec2(7, 0), 1.0, -90);
                             }
-                            if (ImGui::IsMouseClicked(0) && !MovingHorizonScrollBar && !MovingCurrentTime && !menuIsOpened)
+                            if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingHorizonScrollBar && !MovingCurrentTime && !menuIsOpened)
                             {
                                 if (j == 2 && bCutting && count <= 1)
                                 {
