@@ -1377,6 +1377,7 @@ SubtitleImage SubtitleTrack_AssImpl::RenderSubtitleClip(SubtitleClip* clip)
             if (drawBox.x+drawBox.w <= 0 || drawBox.y+dispBox.h <= 0 ||
                 drawBox.x >= m_frmW || drawBox.y >= m_frmH)
             {
+                assImage = assImage->next;
                 continue;
             }
 
