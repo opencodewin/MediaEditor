@@ -89,6 +89,10 @@ namespace DataLayer
         virtual void SetSecondaryColor(const SubtitleColor& color) = 0;
         virtual void SetOutlineColor(const SubtitleColor& color) = 0;
         virtual void SetBackgroundColor(const SubtitleColor& color) = 0;
+        virtual void SetPrimaryColor(const ImVec4& color) = 0;
+        virtual void SetSecondaryColor(const ImVec4& color) = 0;
+        virtual void SetOutlineColor(const ImVec4& color) = 0;
+        virtual void SetBackgroundColor(const ImVec4& color) = 0;
         virtual void SetBold(bool enable) = 0;
         virtual void SetItalic(bool enable) = 0;
         virtual void SetUnderLine(bool enable) = 0;

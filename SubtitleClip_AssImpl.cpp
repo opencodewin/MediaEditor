@@ -202,6 +202,30 @@ void SubtitleClip_AssImpl::SetBackgroundColor(const SubtitleColor& color)
     m_bgColor = color;
 }
 
+void SubtitleClip_AssImpl::SetPrimaryColor(const ImVec4& color)
+{
+    const SubtitleColor _color(color.x, color.y, color.z, color.w);
+    SetPrimaryColor(_color);
+}
+
+void SubtitleClip_AssImpl::SetSecondaryColor(const ImVec4& color)
+{
+    const SubtitleColor _color(color.x, color.y, color.z, color.w);
+    SetSecondaryColor(_color);
+}
+
+void SubtitleClip_AssImpl::SetOutlineColor(const ImVec4& color)
+{
+    const SubtitleColor _color(color.x, color.y, color.z, color.w);
+    SetOutlineColor(_color);
+}
+
+void SubtitleClip_AssImpl::SetBackgroundColor(const ImVec4& color)
+{
+    const SubtitleColor _color(color.x, color.y, color.z, color.w);
+    SetBackgroundColor(_color);
+}
+
 void SubtitleClip_AssImpl::SetBold(bool enable)
 {
     if (m_bold == enable)

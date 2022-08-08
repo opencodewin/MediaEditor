@@ -3700,7 +3700,7 @@ static void ShowAudioEditorWindow(ImDrawList *draw_list)
 
 static void edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 size, ImVec2 default_pos, ImVec2 default_size)
 {
-    if (!clip)
+    if (!clip || !clip->mClipHolder)
         return;
     MediaTrack * track = (MediaTrack * )clip->mTrack;
     if (!track || !track->mMttReader)
@@ -3725,17 +3725,20 @@ static void edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##clip_font_family_default")) { clip->mFontName = style.Font(); }
     if (ImGui::SliderFloat("Font position X", &clip->mFontPosX, - default_size.x, timeline->mWidth, "%.0f"))
     {
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##posx_default")) { clip->mFontPosX = default_pos.x + track_offset.x; }
+        clip->mClipHolder->SetOffsetH(clip->mFontPosX);
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##posx_default")) { clip->mFontPosX = default_pos.x + track_offset.x; clip->mClipHolder->SetOffsetH(0); }
     if (ImGui::SliderFloat("Font position Y", &clip->mFontPosY, - default_size.y, timeline->mHeight, "%.0f"))
     {
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##posy_default")) { clip->mFontPosY = default_pos.y + track_offset.y; }
+        clip->mClipHolder->SetOffsetV(clip->mFontPosY);
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##posy_default")) { clip->mFontPosY = default_pos.y + track_offset.y; clip->mClipHolder->SetOffsetV(0); }
     float scale_x = clip->mFontScaleX;
     if (ImGui::SliderFloat("Font scale X", &scale_x, 0.2, 10, "%.1f"))
     {
         float scale_ratio = scale_x / clip->mFontScaleX;
-        if (clip->mScaleSettingLink) clip->mFontScaleY *= scale_ratio;
+        if (clip->mScaleSettingLink) { clip->mFontScaleY *= scale_ratio; clip->mClipHolder->SetScaleY(clip->mFontScaleY); }
         clip->mFontScaleX = scale_x;
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##scalex_default")) { clip->mFontScaleX = style.ScaleX(); }
+        clip->mClipHolder->SetScaleX(scale_x);
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##scalex_default")) { clip->mFontScaleX = style.ScaleX(); clip->mClipHolder->SetScaleX(style.ScaleX()); }
     // link button for scalex/scaley
     auto was_disable = (ImGui::GetItemFlags() & ImGuiItemFlags_Disabled) == ImGuiItemFlags_Disabled;
     auto current_pos = ImGui::GetCursorScreenPos();
@@ -3756,32 +3759,40 @@ static void edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     if (ImGui::SliderFloat("Font scale Y", &scale_y, 0.2, 10, "%.1f"))
     {
         float scale_ratio = scale_y / clip->mFontScaleY;
-        if (clip->mScaleSettingLink) clip->mFontScaleX *= scale_ratio;
+        if (clip->mScaleSettingLink) { clip->mFontScaleX *= scale_ratio; clip->mClipHolder->SetScaleX(clip->mFontScaleX); }
         clip->mFontScaleY = scale_y;
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##scaley_default")) { clip->mFontScaleY = style.ScaleY(); }
+        clip->mClipHolder->SetScaleY(scale_y);
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##scaley_default")) { clip->mFontScaleY = style.ScaleY(); clip->mClipHolder->SetScaleY(style.ScaleY()); }
     if (ImGui::SliderFloat("Font spacing", &clip->mFontSpacing, 0.5, 5, "%.1f"))
     {
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##spacing_default")) { clip->mFontSpacing = style.Spacing(); }
+        clip->mClipHolder->SetSpacing(clip->mFontSpacing);
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##spacing_default")) { clip->mFontSpacing = style.Spacing(); clip->mClipHolder->SetSpacing(style.Spacing()); }
     if (ImGui::SliderFloat("Font angle", &clip->mFontAngle, 0, 360, "%.1f"))
     {
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##angle_default")) { clip->mFontAngle = style.Angle(); }
+        clip->mClipHolder->SetRotationZ(clip->mFontAngle);
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##angle_default")) { clip->mFontAngle = style.Angle(); clip->mClipHolder->SetRotationZ( style.Angle());}
     if (ImGui::SliderFloat("Font outline", &clip->mFontOutlineWidth, 0, 5, "%.1f"))
     {
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##outline_default")) { clip->mFontOutlineWidth = style.OutlineWidth(); }
+        clip->mClipHolder->SetBorderWidth(clip->mFontOutlineWidth);
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##outline_default")) { clip->mFontOutlineWidth = style.OutlineWidth(); clip->mClipHolder->SetBorderWidth(style.OutlineWidth()); }
     if (ImGui::Checkbox(ICON_FONT_BOLD "##font_bold", &clip->mFontBold))
     {
+        clip->mClipHolder->SetBold(clip->mFontBold);
     }
     ImGui::SameLine();
     if (ImGui::Checkbox(ICON_FONT_ITALIC "##font_italic", &clip->mFontItalic))
     {
+        clip->mClipHolder->SetItalic(clip->mFontItalic);
     }
     ImGui::SameLine();
     if (ImGui::Checkbox(ICON_FONT_UNDERLINE "##font_underLine", &clip->mFontUnderLine))
     {
+        clip->mClipHolder->SetUnderLine(clip->mFontUnderLine);
     }
     ImGui::SameLine();
     if (ImGui::Checkbox(ICON_FONT_STRIKEOUT "##font_strike_out", &clip->mFontStrikeOut))
     {
+        clip->mClipHolder->SetStrikeOut(clip->mFontStrikeOut);
     }
     ImGui::SameLine(item_width); ImGui::TextUnformatted("Font attribute");
     ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##attribute_default"))
@@ -3790,24 +3801,36 @@ static void edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
         clip->mFontItalic = style.Italic() > 0;
         clip->mFontUnderLine = style.UnderLine();
         clip->mFontStrikeOut = style.StrikeOut();
+        clip->mClipHolder->SetBold(clip->mFontBold);
+        clip->mClipHolder->SetItalic(clip->mFontItalic);
+        clip->mClipHolder->SetUnderLine(clip->mFontUnderLine);
+        clip->mClipHolder->SetStrikeOut(clip->mFontStrikeOut);
     }
 
-    ImGui::RadioButton(ICON_FA_ALIGN_LEFT "##font_alignment", (int *)&clip->mFontAlignment, 1); ImGui::SameLine();
-    ImGui::RadioButton(ICON_FA_ALIGN_CENTER "##font_alignment", (int *)&clip->mFontAlignment, 2); ImGui::SameLine();
-    ImGui::RadioButton(ICON_FA_ALIGN_RIGHT "##font_alignment", (int *)&clip->mFontAlignment, 3);
+    int alignment = clip->mFontAlignment;
+    ImGui::RadioButton(ICON_FA_ALIGN_LEFT "##font_alignment", (int *)&alignment, 1); ImGui::SameLine();
+    ImGui::RadioButton(ICON_FA_ALIGN_CENTER "##font_alignment", (int *)&alignment, 2); ImGui::SameLine();
+    ImGui::RadioButton(ICON_FA_ALIGN_RIGHT "##font_alignment", (int *)&alignment, 3);
     ImGui::SameLine(item_width); ImGui::TextUnformatted("Font alignment");
-    ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##alignment_default")) { clip->mFontAlignment = style.Alignment(); }
+    if (alignment != clip->mFontAlignment)
+    {
+        clip->mFontAlignment = alignment;
+        clip->mClipHolder->SetAlignment(alignment);
+    }
+    ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##alignment_default")) { clip->mFontAlignment = style.Alignment(); clip->mClipHolder->SetAlignment(style.Alignment()); }
 
     if (ImGui::ColorEdit3("FontColor##Primary", (float*)&clip->mFontPrimaryColor, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_AlphaBar))
     {
+        clip->mClipHolder->SetPrimaryColor(clip->mFontPrimaryColor);
     }
     ImGui::SameLine(item_width); ImGui::TextUnformatted("Font primary color");
-    ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##primary_color_default")) { clip->mFontPrimaryColor = style.PrimaryColor().ToImVec4(); }
+    ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##primary_color_default")) { clip->mFontPrimaryColor = style.PrimaryColor().ToImVec4(); clip->mClipHolder->SetPrimaryColor(style.PrimaryColor()); }
     if (ImGui::ColorEdit3("FontColor##Outline", (float*)&clip->mFontOutlineColor, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_AlphaBar))
     {
+        clip->mClipHolder->SetOutlineColor(clip->mFontOutlineColor);
     }
     ImGui::SameLine(item_width); ImGui::TextUnformatted("Font outline color");
-    ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##outline_color_default")) { clip->mFontOutlineColor = style.OutlineColor().ToImVec4(); }
+    ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##outline_color_default")) { clip->mFontOutlineColor = style.OutlineColor().ToImVec4(); clip->mClipHolder->SetOutlineColor(style.OutlineColor()); }
 
     ImGui::PopItemWidth();
 }
@@ -3955,6 +3978,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
     if (!timeline)
         return;
 
+    ImGuiIO &io = ImGui::GetIO();
     ImVec2 default_pos(0, 0);
     ImVec2 default_size(0, 0);
     ImVec2 default_offset(0, 0);
@@ -4080,9 +4104,11 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
 
     ImGui::SetCursorScreenPos(window_pos);
     ImRect video_rect;
-    static bool MovingTextPos = false;
+    static int MovingTextPos = -1;
     if (ImGui::BeginChild("##text_editor_preview", ImVec2(preview_view_width, window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
     {
+        const float resize_handel_radius = 4;
+        const ImVec2 handle_size(resize_handel_radius, resize_handel_radius);
         auto f_drawlist = ImGui::GetForegroundDrawList();
         ShowMediaPreviewWindow(draw_list, "Text Preview", video_rect, false, false);
         // show test rect on preview view and add UI editor
@@ -4094,11 +4120,156 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
             ImVec2 text_pos_min = ImVec2(editing_clip->mFontPosX * scale_w, editing_clip->mFontPosY * scale_h);
             ImVec2 text_pos_max = text_pos_min + ImVec2(default_size.x * scale_w, default_size.y * scale_h);
             ImRect text_rect(video_rect.Min + text_pos_min, video_rect.Min + text_pos_max);
-            //ImRect text_lt_
+            ImRect text_lt_rect(text_rect.Min - handle_size, text_rect.Min + handle_size);
+            ImRect text_rt_rect(text_rect.Min + ImVec2(text_rect.GetWidth(), 0) - handle_size, text_rect.Min + ImVec2(text_rect.GetWidth(), 0) + handle_size);
+            ImRect text_tm_rect(text_rect.Min + ImVec2(text_rect.GetWidth() / 2, 0) - handle_size, text_rect.Min + ImVec2(text_rect.GetWidth() / 2, 0) + handle_size);
+            ImRect text_lb_rect(text_rect.Min + ImVec2(0, text_rect.GetHeight()) - handle_size, text_rect.Min + ImVec2(0, text_rect.GetHeight()) + handle_size);
+            ImRect text_rb_rect(text_rect.Max - handle_size, text_rect.Max + handle_size);
+            ImRect text_bm_rect(text_rect.Min + ImVec2(text_rect.GetWidth() / 2, text_rect.GetHeight()) - handle_size, text_rect.Min + ImVec2(text_rect.GetWidth() / 2, text_rect.GetHeight()) + handle_size);
+            ImRect text_lm_rect(text_rect.Min + ImVec2(0, text_rect.GetHeight() / 2) - handle_size, text_rect.Min + ImVec2(0, text_rect.GetHeight() / 2) + handle_size);
+            ImRect text_rm_rect(text_rect.Min + ImVec2(text_rect.GetWidth(), text_rect.GetHeight() / 2) - handle_size, text_rect.Min + ImVec2(text_rect.GetWidth(), text_rect.GetHeight() / 2) + handle_size);
             if (!editing_clip->mTrackStyle)
             {
+                bool mouse_in_handle = false;
+                // drag support
                 f_drawlist->AddRect(text_rect.Min - ImVec2(1, 1), text_rect.Max + ImVec2(1, 1), IM_COL32_WHITE);
-                // TODO::Dicky add drag support
+                if (text_lt_rect.Contains(io.MousePos))
+                {
+                    f_drawlist->AddRectFilled(text_lt_rect.Min, text_lt_rect.Max, IM_COL32_WHITE);
+                    ImGui::SetMouseCursor(ImGuiMouseCursor_None);
+                    ImGui::RenderMouseCursor(io.MousePos, 0.5, ImGuiMouseCursor_ResizeNWSE, IM_COL32_WHITE, IM_COL32_BLACK, IM_COL32_DISABLE);
+                    mouse_in_handle = true;
+                    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && MovingTextPos == -1)
+                    {
+                        MovingTextPos = 1;
+                    }
+                }
+                else
+                {
+                    f_drawlist->AddRect(text_lt_rect.Min, text_lt_rect.Max, IM_COL32_WHITE);
+                }
+                
+                if (text_rt_rect.Contains(io.MousePos))
+                {
+                    f_drawlist->AddRectFilled(text_rt_rect.Min, text_rt_rect.Max, IM_COL32_WHITE);
+                    ImGui::SetMouseCursor(ImGuiMouseCursor_None);
+                    ImGui::RenderMouseCursor(io.MousePos, 0.5, ImGuiMouseCursor_ResizeNESW, IM_COL32_WHITE, IM_COL32_BLACK, IM_COL32_DISABLE);
+                    mouse_in_handle = true;
+                    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && MovingTextPos == -1)
+                    {
+                        MovingTextPos = 2;
+                    }
+                }
+                else
+                {
+                    f_drawlist->AddRect(text_rt_rect.Min, text_rt_rect.Max, IM_COL32_WHITE);
+                }
+
+                if (text_tm_rect.Contains(io.MousePos))
+                {
+                    f_drawlist->AddRectFilled(text_tm_rect.Min, text_tm_rect.Max, IM_COL32_WHITE);
+                    ImGui::SetMouseCursor(ImGuiMouseCursor_None);
+                    ImGui::RenderMouseCursor(io.MousePos, 0.5, ImGuiMouseCursor_ResizeNS, IM_COL32_WHITE, IM_COL32_BLACK, IM_COL32_DISABLE);
+                    mouse_in_handle = true;
+                    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && MovingTextPos == -1)
+                    {
+                        MovingTextPos = 3;
+                    }
+                }
+                else
+                {
+                    f_drawlist->AddRect(text_tm_rect.Min, text_tm_rect.Max, IM_COL32_WHITE);
+                }
+
+                if (text_lb_rect.Contains(io.MousePos))
+                {
+                    f_drawlist->AddRectFilled(text_lb_rect.Min, text_lb_rect.Max, IM_COL32_WHITE);
+                    ImGui::SetMouseCursor(ImGuiMouseCursor_None);
+                    ImGui::RenderMouseCursor(io.MousePos, 0.5, ImGuiMouseCursor_ResizeNESW, IM_COL32_WHITE, IM_COL32_BLACK, IM_COL32_DISABLE);
+                    mouse_in_handle = true;
+                    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && MovingTextPos == -1)
+                    {
+                        MovingTextPos = 4;
+                    }
+                }
+                else
+                {
+                    f_drawlist->AddRect(text_lb_rect.Min, text_lb_rect.Max, IM_COL32_WHITE);
+                }
+
+                if (text_rb_rect.Contains(io.MousePos))
+                {
+                    f_drawlist->AddRectFilled(text_rb_rect.Min, text_rb_rect.Max, IM_COL32_WHITE);
+                    ImGui::SetMouseCursor(ImGuiMouseCursor_None);
+                    ImGui::RenderMouseCursor(io.MousePos, 0.5, ImGuiMouseCursor_ResizeNWSE, IM_COL32_WHITE, IM_COL32_BLACK, IM_COL32_DISABLE);
+                    mouse_in_handle = true;
+                    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && MovingTextPos == -1)
+                    {
+                        MovingTextPos = 5;
+                    }
+                }
+                else
+                {
+                    f_drawlist->AddRect(text_rb_rect.Min, text_rb_rect.Max, IM_COL32_WHITE);
+                }
+
+                if (text_bm_rect.Contains(io.MousePos))
+                {
+                    f_drawlist->AddRectFilled(text_bm_rect.Min, text_bm_rect.Max, IM_COL32_WHITE);
+                    ImGui::SetMouseCursor(ImGuiMouseCursor_None);
+                    ImGui::RenderMouseCursor(io.MousePos, 0.5, ImGuiMouseCursor_ResizeNS, IM_COL32_WHITE, IM_COL32_BLACK, IM_COL32_DISABLE);
+                    mouse_in_handle = true;
+                    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && MovingTextPos == -1)
+                    {
+                        MovingTextPos = 6;
+                    }
+                }
+                else
+                {
+                    f_drawlist->AddRect(text_bm_rect.Min, text_bm_rect.Max, IM_COL32_WHITE);
+                }
+
+                if (text_lm_rect.Contains(io.MousePos))
+                {
+                    f_drawlist->AddRectFilled(text_lm_rect.Min, text_lm_rect.Max, IM_COL32_WHITE);
+                    ImGui::SetMouseCursor(ImGuiMouseCursor_None);
+                    ImGui::RenderMouseCursor(io.MousePos, 0.5, ImGuiMouseCursor_ResizeEW, IM_COL32_WHITE, IM_COL32_BLACK, IM_COL32_DISABLE);
+                    mouse_in_handle = true;
+                    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && MovingTextPos == -1)
+                    {
+                        MovingTextPos = 7;
+                    }
+                }
+                else
+                {
+                    f_drawlist->AddRect(text_lm_rect.Min, text_lm_rect.Max, IM_COL32_WHITE);
+                }
+
+                if (text_rm_rect.Contains(io.MousePos))
+                {
+                    f_drawlist->AddRectFilled(text_rm_rect.Min, text_rm_rect.Max, IM_COL32_WHITE);
+                    ImGui::SetMouseCursor(ImGuiMouseCursor_None);
+                    ImGui::RenderMouseCursor(io.MousePos, 0.5, ImGuiMouseCursor_ResizeEW, IM_COL32_WHITE, IM_COL32_BLACK, IM_COL32_DISABLE);
+                    mouse_in_handle = true;
+                    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && MovingTextPos == -1)
+                    {
+                        MovingTextPos = 8;
+                    }
+                }
+                else
+                {
+                    f_drawlist->AddRect(text_rm_rect.Min, text_rm_rect.Max, IM_COL32_WHITE);
+                }
+
+                if (!mouse_in_handle && text_rect.Contains(io.MousePos))
+                {
+                    ImGui::SetMouseCursor(ImGuiMouseCursor_None);
+                    ImGui::RenderMouseCursor(io.MousePos, 0.5, ImGuiMouseCursor_ResizeAll, IM_COL32_WHITE, IM_COL32_BLACK, IM_COL32_DISABLE);
+                    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && MovingTextPos == -1)
+                    {
+                        MovingTextPos = 0;
+                    }
+                }
             }
             else
             {
@@ -4108,6 +4279,10 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
         f_drawlist->PopClipRect();
     }
     ImGui::EndChild();
+    if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+    {
+        MovingTextPos = -1;
+    }
 }
 /****************************************************************************************
  * 
