@@ -1267,8 +1267,6 @@ SubtitleImage SubtitleTrack_AssImpl::RenderSubtitleClip(SubtitleClip* clip)
         }
         assImage = assImage->next;
     }
-    containBox.x += m_overrideStyle.OffsetH();
-    containBox.y += m_overrideStyle.OffsetV();
 
     int frmW = (int)m_frmW;
     int frmH = (int)m_frmH;
