@@ -2681,7 +2681,7 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
  * Media Preview window
  *
  ***************************************************************************************/
-static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, bool audio_bar = true, bool monitors = true)
+static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImRect& video_rect, bool audio_bar = true, bool monitors = true)
 {
     // preview control pannel
     ImVec2 PanelBarPos;
@@ -2834,8 +2834,11 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, boo
         ImGui::ImMatToTexture(frame, timeline->mMainPreviewTexture);
         timeline->mLastFrameTime = frame.time_stamp * 1000;
     }
-    ShowVideoWindow(timeline->mMainPreviewTexture, PreviewPos, PreviewSize);
-
+    float offset_x = 0, offset_y = 0;
+    float tf_x = 0, tf_y = 0;
+    ShowVideoWindow(timeline->mMainPreviewTexture, PreviewPos, PreviewSize, offset_x, offset_y, tf_x, tf_y);
+    video_rect.Min = ImVec2(offset_x, offset_y);
+    video_rect.Max = video_rect.Min + ImVec2(PreviewSize.x - tf_x * 2, PreviewSize.y - tf_y * 2);
     if (monitors)
     {
         // Show monitors
@@ -3720,10 +3723,10 @@ static void edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
         }
         ImGui::EndCombo();
     } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##clip_font_family_default")) { clip->mFontName = style.Font(); }
-    if (ImGui::SliderFloat("Font position X", &clip->mFontPosX, - default_size.x, timeline->mWidth + default_size.x, "%.0f"))
+    if (ImGui::SliderFloat("Font position X", &clip->mFontPosX, - default_size.x, timeline->mWidth, "%.0f"))
     {
     } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##posx_default")) { clip->mFontPosX = default_pos.x + track_offset.x; }
-    if (ImGui::SliderFloat("Font position Y", &clip->mFontPosY, - default_size.y, timeline->mHeight + default_size.y, "%.0f"))
+    if (ImGui::SliderFloat("Font position Y", &clip->mFontPosY, - default_size.y, timeline->mHeight, "%.0f"))
     {
     } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##posy_default")) { clip->mFontPosY = default_pos.y + track_offset.y; }
     float scale_x = clip->mFontScaleX;
@@ -3832,12 +3835,12 @@ static void edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
         ImGui::EndCombo();
     } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_font_family_default")) { track->mMttReader->SetFont(g_media_editor_settings.FontName); }
     int offset_x = style.OffsetH();
-    if (ImGui::SliderInt("Font Position X", &offset_x, - timeline->mWidth / 2 , timeline->mWidth / 2, "%d"))
+    if (ImGui::SliderInt("Font Position X", &offset_x, - timeline->mWidth , timeline->mWidth, "%d"))
     {
         track->mMttReader->SetOffsetH(offset_x);
     } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_font_offsetx_default")) { track->mMttReader->SetOffsetH(g_media_editor_settings.FontPosOffsetX); }
     int offset_y = style.OffsetV();
-    if (ImGui::SliderInt("Font Position Y", &offset_y, - timeline->mHeight / 2, timeline->mHeight / 2, "%d"))
+    if (ImGui::SliderInt("Font Position Y", &offset_y, - timeline->mHeight, timeline->mHeight, "%d"))
     {
         track->mMttReader->SetOffsetV(offset_y);
     } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_font_offsety_default")) { track->mMttReader->SetOffsetV(g_media_editor_settings.FontPosOffsetY); }
@@ -3951,17 +3954,38 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
     float style_editor_width = window_size.x - preview_view_width;
     if (!timeline)
         return;
+
+    ImVec2 default_pos(0, 0);
+    ImVec2 default_size(0, 0);
+    ImVec2 default_offset(0, 0);
+    DataLayer::SubtitleImage current_image;
     TextClip * editing_clip = dynamic_cast<TextClip*>(timeline->FindEditingClip());
+    MediaTrack * editing_track = nullptr;
     if (editing_clip && editing_clip->mType != MEDIA_TEXT)
     {
         editing_clip = nullptr;
     }
-
-    if (ImGui::BeginChild("##text_editor_preview", ImVec2(preview_view_width, window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+    else if (editing_clip && editing_clip->mClipHolder)
     {
-        ShowMediaPreviewWindow(draw_list, "Text", false, false);
+        editing_track = (MediaTrack *)editing_clip->mTrack;
+        current_image = editing_clip->mClipHolder->Image();
+        default_pos = ImVec2(current_image.Area().x, current_image.Area().y);
+        default_size = ImVec2(current_image.Area().w, current_image.Area().h);
+        if (editing_track && editing_track->mMttReader)
+        {
+            auto& style = editing_track->mMttReader->DefaultStyle();
+            default_offset = ImVec2(style.OffsetH(), style.OffsetV());
+        }
+        if (editing_clip->mTrackStyle || editing_clip->mFontPosX == -INT32_MAX)
+        {
+            editing_clip->mFontPosX = current_image.Area().x;// + default_offset.x;
+        }
+        if (editing_clip->mTrackStyle || editing_clip->mFontPosY == -INT32_MAX)
+        {
+            editing_clip->mFontPosY = current_image.Area().y;// + default_offset.y;
+        }
     }
-    ImGui::EndChild();
+
     ImGui::SetCursorScreenPos(window_pos + ImVec2(preview_view_width, 0));
     if (ImGui::BeginChild("##text_editor_style", ImVec2(style_editor_width, window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
     {
@@ -3978,21 +4002,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
         // add text style
         if (editing_clip)
         {
-            ImVec2 default_pos(0, 0);
-            ImVec2 default_size(0, 0);
-            // show clip time 
-            if (editing_clip->mClipHolder)
-            {
-                auto current_image = editing_clip->mClipHolder->Image();
-                if (current_image.Valid())
-                {
-                    default_pos = ImVec2(current_image.Area().x, current_image.Area().y);
-                    default_size = ImVec2(current_image.Area().w, current_image.Area().h);
-                    if (editing_clip->mFontPosX == -INT32_MAX) editing_clip->mFontPosX = current_image.Area().x;
-                    if (editing_clip->mFontPosY == -INT32_MAX) editing_clip->mFontPosY = current_image.Area().y;
-                }
-            }
-            
+            // show clip time
             auto start_time_str = std::string(ICON_CLIP_START) + " " + TimelineMillisecToString(editing_clip->mStart, 3);
             auto end_time_str = TimelineMillisecToString(editing_clip->mEnd, 3) + " " + std::string(ICON_CLIP_END);
             auto start_time_str_size = ImGui::CalcTextSize(start_time_str.c_str());
@@ -4031,10 +4041,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
             // show style control
             if (ImGui::Checkbox("Using track style", &editing_clip->mTrackStyle))
             {
-                if (editing_clip->mTrackStyle)
-                {
-                    // TODO::Dicky need set flag to data layer
-                }
+                if (editing_clip->mClipHolder) editing_clip->mClipHolder->EnableUsingTrackStyle(editing_clip->mTrackStyle);
             }
             ImGui::Separator();
             static const int numTabs = sizeof(TextEditorTabNames)/sizeof(TextEditorTabNames[0]);
@@ -4060,7 +4067,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
                     else
                     {
                         // track style
-                        edit_text_track_style(draw_list, (MediaTrack *)editing_clip->mTrack, style_setting_window_size);
+                        edit_text_track_style(draw_list, editing_track, style_setting_window_size);
                     }
                 }
                 ImGui::EndChild();
@@ -4068,6 +4075,37 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
             ImGui::EndChild();
         }
         ImGui::PopStyleColor();
+    }
+    ImGui::EndChild();
+
+    ImGui::SetCursorScreenPos(window_pos);
+    ImRect video_rect;
+    static bool MovingTextPos = false;
+    if (ImGui::BeginChild("##text_editor_preview", ImVec2(preview_view_width, window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+    {
+        auto f_drawlist = ImGui::GetForegroundDrawList();
+        ShowMediaPreviewWindow(draw_list, "Text Preview", video_rect, false, false);
+        // show test rect on preview view and add UI editor
+        f_drawlist->PushClipRect(video_rect.Min, video_rect.Max);
+        if (editing_clip && current_image.Valid())
+        {
+            float scale_w =  video_rect.GetWidth() / timeline->mWidth;
+            float scale_h =  video_rect.GetHeight() / timeline->mHeight;
+            ImVec2 text_pos_min = ImVec2(editing_clip->mFontPosX * scale_w, editing_clip->mFontPosY * scale_h);
+            ImVec2 text_pos_max = text_pos_min + ImVec2(default_size.x * scale_w, default_size.y * scale_h);
+            ImRect text_rect(video_rect.Min + text_pos_min, video_rect.Min + text_pos_max);
+            //ImRect text_lt_
+            if (!editing_clip->mTrackStyle)
+            {
+                f_drawlist->AddRect(text_rect.Min - ImVec2(1, 1), text_rect.Max + ImVec2(1, 1), IM_COL32_WHITE);
+                // TODO::Dicky add drag support
+            }
+            else
+            {
+                f_drawlist->AddRect(text_rect.Min - ImVec2(1, 1), text_rect.Max + ImVec2(1, 1), IM_COL32(192,192,192,128));
+            }
+        }
+        f_drawlist->PopClipRect();
     }
     ImGui::EndChild();
 }
@@ -5905,6 +5943,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
                 draw_list->AddText(spos, IM_COL32_WHITE, meters.c_str());
             }
 
+            ImRect video_rect;
             auto wmin = main_sub_pos + ImVec2(0, 32);
             auto wmax = wmin + ImGui::GetContentRegionAvail() - ImVec2(8, 0);
             draw_list->AddRectFilled(wmin, wmax, IM_COL32_BLACK, 8.0, ImDrawFlags_RoundCornersAll);
@@ -5912,7 +5951,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
             {
                 switch (MainWindowIndex)
                 {
-                    case 0: ShowMediaPreviewWindow(draw_list, "Preview"); break;
+                    case 0: ShowMediaPreviewWindow(draw_list, "Preview", video_rect); break;
                     case 1: ShowVideoEditorWindow(draw_list); break;
                     case 2: ShowAudioEditorWindow(draw_list); break;
                     case 3: ShowTextEditorWindow(draw_list); break;
