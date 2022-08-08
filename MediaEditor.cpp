@@ -4121,10 +4121,6 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
             ImRect text_bm_rect(text_rect.Min + ImVec2(text_rect.GetWidth() / 2, text_rect.GetHeight()) - handle_size, text_rect.Min + ImVec2(text_rect.GetWidth() / 2, text_rect.GetHeight()) + handle_size);
             ImRect text_lm_rect(text_rect.Min + ImVec2(0, text_rect.GetHeight() / 2) - handle_size, text_rect.Min + ImVec2(0, text_rect.GetHeight() / 2) + handle_size);
             ImRect text_rm_rect(text_rect.Min + ImVec2(text_rect.GetWidth(), text_rect.GetHeight() / 2) - handle_size, text_rect.Min + ImVec2(text_rect.GetWidth(), text_rect.GetHeight() / 2) + handle_size);
-            float text_middle_x = text_rect.Min.x + text_rect.GetWidth() / 2;
-            float text_middle_y = text_rect.Min.y + text_rect.GetHeight() / 2;
-            float video_middle_x = video_rect.Min.x + video_rect.GetWidth() / 2;
-            float video_middle_y = video_rect.Min.y + video_rect.GetHeight() / 2;
             if (!editing_clip->mTrackStyle)
             {
                 draw_list->AddRect(text_rect.Min - ImVec2(1, 1), text_rect.Max + ImVec2(1, 1), IM_COL32_WHITE);
