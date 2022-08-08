@@ -4000,14 +4000,8 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
             auto& style = editing_track->mMttReader->DefaultStyle();
             default_offset = ImVec2(style.OffsetH(), style.OffsetV());
         }
-        if (editing_clip->mTrackStyle || editing_clip->mFontPosX == -INT32_MAX)
-        {
-            editing_clip->mFontPosX = current_image.Area().x;// + default_offset.x;
-        }
-        if (editing_clip->mTrackStyle || editing_clip->mFontPosY == -INT32_MAX)
-        {
-            editing_clip->mFontPosY = current_image.Area().y;// + default_offset.y;
-        }
+        editing_clip->mFontPosX = current_image.Area().x;
+        editing_clip->mFontPosY = current_image.Area().y;
     }
 
     ImGui::SetCursorScreenPos(window_pos + ImVec2(preview_view_width, 0));
