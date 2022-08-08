@@ -3698,7 +3698,7 @@ static void ShowAudioEditorWindow(ImDrawList *draw_list)
     ImGui::EndChild();
 }
 
-static void edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 size, ImVec2 default_pos, ImVec2 default_size)
+static void edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 size, ImVec2 default_size)
 {
     if (!clip || !clip->mClipHolder)
         return;
@@ -3707,7 +3707,6 @@ static void edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
         return;
     ImGuiIO &io = ImGui::GetIO();
     auto& style = track->mMttReader->DefaultStyle();
-    ImVec2 track_offset = ImVec2(style.OffsetH(), style.OffsetV());
     ImGui::PushItemWidth(240);
     auto item_width = ImGui::CalcItemWidth();
     const char* familyValue = clip->mFontName.c_str();
@@ -3723,14 +3722,22 @@ static void edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
         }
         ImGui::EndCombo();
     } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##clip_font_family_default")) { clip->mFontName = style.Font(); }
-    if (ImGui::SliderFloat("Font position X", &clip->mFontPosX, - default_size.x, timeline->mWidth, "%.0f"))
+    float pos_x = clip->mFontPosX;
+    if (ImGui::SliderFloat("Font position X", &pos_x, - default_size.x, timeline->mWidth, "%.0f"))
     {
-        clip->mClipHolder->SetOffsetH(clip->mFontPosX);
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##posx_default")) { clip->mFontPosX = default_pos.x + track_offset.x; clip->mClipHolder->SetOffsetH(0); }
-    if (ImGui::SliderFloat("Font position Y", &clip->mFontPosY, - default_size.y, timeline->mHeight, "%.0f"))
+        float offset_x = pos_x - clip->mFontPosX;
+        clip->mFontOffsetH += offset_x;
+        clip->mClipHolder->SetOffsetH(clip->mFontOffsetH);
+        clip->mFontPosX = pos_x;
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##posx_default")) { clip->mFontOffsetH = 0; clip->mClipHolder->SetOffsetH(0); }
+    float pos_y = clip->mFontPosY;
+    if (ImGui::SliderFloat("Font position Y", &pos_y, - default_size.y, timeline->mHeight, "%.0f"))
     {
-        clip->mClipHolder->SetOffsetV(clip->mFontPosY);
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##posy_default")) { clip->mFontPosY = default_pos.y + track_offset.y; clip->mClipHolder->SetOffsetV(0); }
+        float offset_y = pos_y - clip->mFontPosY;
+        clip->mFontOffsetV += offset_y;
+        clip->mClipHolder->SetOffsetV(clip->mFontOffsetV);
+        clip->mFontPosY = pos_y;
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##posy_default")) { clip->mFontOffsetV = 0; clip->mClipHolder->SetOffsetV(0); }
     float scale_x = clip->mFontScaleX;
     if (ImGui::SliderFloat("Font scale X", &scale_x, 0.2, 10, "%.1f"))
     {
@@ -3979,9 +3986,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
         return;
 
     ImGuiIO &io = ImGui::GetIO();
-    ImVec2 default_pos(0, 0);
     ImVec2 default_size(0, 0);
-    ImVec2 default_offset(0, 0);
     DataLayer::SubtitleImage current_image;
     TextClip * editing_clip = dynamic_cast<TextClip*>(timeline->FindEditingClip());
     MediaTrack * editing_track = nullptr;
@@ -3993,13 +3998,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
     {
         editing_track = (MediaTrack *)editing_clip->mTrack;
         current_image = editing_clip->mClipHolder->Image();
-        default_pos = ImVec2(current_image.Area().x, current_image.Area().y);
         default_size = ImVec2(current_image.Area().w, current_image.Area().h);
-        if (editing_track && editing_track->mMttReader)
-        {
-            auto& style = editing_track->mMttReader->DefaultStyle();
-            default_offset = ImVec2(style.OffsetH(), style.OffsetV());
-        }
         editing_clip->mFontPosX = current_image.Area().x;
         editing_clip->mFontPosY = current_image.Area().y;
     }
@@ -4079,7 +4078,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
                     {
                         // clip style
                         ImGui::BeginDisabled(editing_clip->mTrackStyle);
-                        edit_text_clip_style(draw_list, editing_clip, style_setting_window_size, default_pos, default_size);
+                        edit_text_clip_style(draw_list, editing_clip, style_setting_window_size, default_size);
                         ImGui::EndDisabled();
                     }
                     else

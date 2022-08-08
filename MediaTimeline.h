@@ -424,6 +424,8 @@ struct TextClip : Clip
     bool mFontStrikeOut {false};
     float mFontPosX {0.0f};
     float mFontPosY {0.0f};
+    float mFontOffsetH {0.f};
+    float mFontOffsetV {0.f};
     ImVec4 mFontPrimaryColor {0, 0, 0, 0};
     ImVec4 mFontOutlineColor {0, 0, 0, 0};
     DataLayer::SubtitleClipHolder mClipHolder {nullptr};

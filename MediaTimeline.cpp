@@ -1261,6 +1261,8 @@ void TextClip::SetClipDefault(const DataLayer::SubtitleStyle & style, DataLayer:
     mFontPrimaryColor = style.PrimaryColor().ToImVec4();
     mFontOutlineColor = style.OutlineColor().ToImVec4();
     mFontName = style.Font();
+    mFontOffsetH = style.OffsetH();
+    mFontOffsetV = style.OffsetV();
     mClipHolder = clip_hold;
     // pos value need load later 
     mFontPosX = -INT32_MAX;
@@ -1373,15 +1375,15 @@ Clip * TextClip::Load(const imgui_json::value& value, void * handle)
                 auto& val = value["StrikeOut"];
                 if (val.is_boolean()) new_clip->mFontStrikeOut = val.get<imgui_json::boolean>();
             }
-            if (value.contains("PosX"))
+            if (value.contains("OffsetX"))
             {
-                auto& val = value["PosX"];
-                if (val.is_number()) new_clip->mFontPosX = val.get<imgui_json::number>();
+                auto& val = value["OffsetX"];
+                if (val.is_number()) new_clip->mFontOffsetH = val.get<imgui_json::number>();
             }
-            if (value.contains("PosY"))
+            if (value.contains("OffsetY"))
             {
-                auto& val = value["PosY"];
-                if (val.is_number()) new_clip->mFontPosY = val.get<imgui_json::number>();
+                auto& val = value["OffsetY"];
+                if (val.is_number()) new_clip->mFontOffsetV = val.get<imgui_json::number>();
             }
             if (value.contains("PrimaryColor"))
             {
@@ -1421,8 +1423,8 @@ void TextClip::Save(imgui_json::value& value)
     value["Italic"] = imgui_json::boolean(mFontItalic);
     value["UnderLine"] = imgui_json::boolean(mFontUnderLine);
     value["StrikeOut"] = imgui_json::boolean(mFontStrikeOut);
-    value["PosX"] = imgui_json::number(mFontPosX);
-    value["PosY"] = imgui_json::number(mFontPosY);
+    value["OffsetX"] = imgui_json::number(mFontOffsetH);
+    value["OffsetY"] = imgui_json::number(mFontOffsetV);
     value["PrimaryColor"] = imgui_json::vec4(mFontPrimaryColor);
     value["OutlineColor"] = imgui_json::vec4(mFontOutlineColor);
 }
@@ -3130,8 +3132,8 @@ MediaTrack* MediaTrack::Load(const imgui_json::value& value, void * handle)
                     holder->EnableUsingTrackStyle(tclip->mTrackStyle);
                     if (!tclip->mTrackStyle)
                     {
-                        holder->SetOffsetH(tclip->mFontPosX);
-                        holder->SetOffsetV(tclip->mFontPosY);
+                        holder->SetOffsetH(tclip->mFontOffsetH);
+                        holder->SetOffsetV(tclip->mFontOffsetV);
                         holder->SetScaleX(tclip->mFontScaleX);
                         holder->SetScaleY(tclip->mFontScaleY);
                         holder->SetSpacing(tclip->mFontSpacing);
