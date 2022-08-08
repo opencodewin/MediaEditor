@@ -1071,7 +1071,7 @@ static void ShowConfigure(MediaEditorSettings & config)
                 ImGui::Separator();
                 ImGui::BulletText(ICON_MEDIA_TEXT " Text");
                 const char* familyValue = config.FontName.c_str();
-                if (ImGui::BeginCombo("Font family", familyValue))
+                if (ImGui::BeginCombo("Font family##system_setting", familyValue))
                 {
                     for (int i = 0; i < fontFamilies.size(); i++)
                     {
@@ -3710,7 +3710,7 @@ static void edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     ImGui::PushItemWidth(240);
     auto item_width = ImGui::CalcItemWidth();
     const char* familyValue = clip->mFontName.c_str();
-    if (ImGui::BeginCombo("Font family", familyValue))
+    if (ImGui::BeginCombo("Font family##text_clip_editor", familyValue))
     {
         for (int i = 0; i < fontFamilies.size(); i++)
         {
@@ -3719,6 +3719,8 @@ static void edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
             {
                 clip->mFontName = fontFamilies[i];
             }
+            if (is_selected)
+                ImGui::SetItemDefaultFocus();
         }
         ImGui::EndCombo();
     } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##clip_font_family_default")) { clip->mFontName = style.Font(); }
@@ -3852,15 +3854,17 @@ static void edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
     auto& style = track->mMttReader->DefaultStyle();
     auto familyName = style.Font();
     const char* familyValue = familyName.c_str();
-    if (ImGui::BeginCombo("Font family", familyValue))
+    if (ImGui::BeginCombo("Font family##text_track_editor", familyValue))
     {
         for (int i = 0; i < fontFamilies.size(); i++)
         {
-            bool is_selected = fontFamilies[i] == style.Name();
+            bool is_selected = fontFamilies[i] == style.Font();
             if (ImGui::Selectable(fontFamilies[i].c_str(), is_selected))
             {
                 track->mMttReader->SetFont(fontFamilies[i]);
             }
+            if (is_selected)
+                ImGui::SetItemDefaultFocus();
         }
         ImGui::EndCombo();
     } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_font_family_default")) { track->mMttReader->SetFont(g_media_editor_settings.FontName); }
@@ -6232,10 +6236,14 @@ bool Application_Frame(void * handle, bool app_will_quit)
             }
             if (userDatas.compare("ProjectSave") == 0)
             {
+                if (file_suffix.empty())
+                    file_path += ".mep";
                 SaveProject(file_path);
             }
             if (userDatas.compare("ProjectSaveQuit") == 0)
             {
+                if (file_suffix.empty())
+                    file_path += ".mep";
                 SaveProject(file_path);
                 app_done = true;
             }
