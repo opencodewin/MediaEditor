@@ -34,6 +34,7 @@ namespace DataLayer
         Rect Area() const { return m_area; }
         bool Valid() const { return !m_image.empty(); }
         void Invalidate() { m_image.release(); }
+        void UpdateArea(const Rect& r) { m_area = r; }
 
     private:
         ImGui::ImMat m_image;

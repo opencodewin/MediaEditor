@@ -84,6 +84,8 @@ namespace DataLayer
         std::string GenerateStyledText();
         std::string GetAssText();
         bool IsAssTextChanged() const { return m_assTextChanged; }
+        void UpdateImageAreaX(int32_t bias);
+        void UpdateImageAreaY(int32_t bias);
 
     private:
         SubtitleType m_type;

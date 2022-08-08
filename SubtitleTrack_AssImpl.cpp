@@ -384,19 +384,41 @@ bool SubtitleTrack_AssImpl::SetAlignment(int value)
 
 bool SubtitleTrack_AssImpl::SetOffsetH(int value)
 {
+    if (m_overrideStyle.OffsetH() == value)
+        return true;
     m_logger->Log(DEBUG) << "Set offsetH '" << value << "'" << endl;
+    int32_t bias = value-m_overrideStyle.OffsetH();
     m_overrideStyle.SetOffsetH(value);
     if (m_outputFullSize)
         ClearRenderCache();
+    else
+    {
+        for (auto& clip : m_clips)
+        {
+            SubtitleClip_AssImpl* assClip = dynamic_cast<SubtitleClip_AssImpl*>(clip.get());
+            assClip->UpdateImageAreaX(bias);
+        }
+    }
     return true;
 }
 
 bool SubtitleTrack_AssImpl::SetOffsetV(int value)
 {
+    if (m_overrideStyle.OffsetV() == value)
+        return true;
     m_logger->Log(DEBUG) << "Set offsetV '" << value << "'" << endl;
+    int32_t bias = value-m_overrideStyle.OffsetV();
     m_overrideStyle.SetOffsetV(value);
     if (m_outputFullSize)
         ClearRenderCache();
+    else
+    {
+        for (auto& clip : m_clips)
+        {
+            SubtitleClip_AssImpl* assClip = dynamic_cast<SubtitleClip_AssImpl*>(clip.get());
+            assClip->UpdateImageAreaY(bias);
+        }
+    }
     return true;
 }
 

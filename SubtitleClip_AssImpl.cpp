@@ -408,3 +408,21 @@ string SubtitleClip_AssImpl::GetAssText()
 {
     return m_useTrackStyle ? m_text : GenerateStyledText();
 }
+
+void SubtitleClip_AssImpl::UpdateImageAreaX(int32_t bias)
+{
+    if (!m_image.Valid())
+        return;
+    SubtitleImage::Rect r{m_image.Area()};
+    r.x += bias;
+    m_image.UpdateArea(r);
+}
+
+void SubtitleClip_AssImpl::UpdateImageAreaY(int32_t bias)
+{
+    if (!m_image.Valid())
+        return;
+    SubtitleImage::Rect r{m_image.Area()};
+    r.y += bias;
+    m_image.UpdateArea(r);
+}
