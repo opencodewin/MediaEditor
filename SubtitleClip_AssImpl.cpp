@@ -415,7 +415,7 @@ static inline uint32_t ToAssColor(SubtitleColor color)
 
 static inline uint32_t ToAssAlpha(SubtitleColor color)
 {
-    return (uint32_t)(color.a*255)&0xff;
+    return (uint32_t)((1-color.a)*255)&0xff;
 }
 
 string SubtitleClip_AssImpl::GenerateStyledText()
@@ -430,9 +430,9 @@ string SubtitleClip_AssImpl::GenerateStyledText()
     oss << "\\fscx" << m_scaleX*100;
     oss << "\\fscy" << m_scaleY*100;
     oss << "\\fsp" << m_spacing;
-    oss << "\\1c" << hex << ToAssColor(m_primaryColor) << "\\1a" << ToAssAlpha(m_primaryColor);
-    oss << "\\2c" << hex << ToAssColor(m_secondaryColor) << "\\2a" << ToAssAlpha(m_secondaryColor);
-    oss << "\\3c" << hex << ToAssColor(m_outlineColor) << "\\3a" << ToAssAlpha(m_outlineColor);
+    oss << "\\1c&H" << hex << ToAssColor(m_primaryColor) << "&\\1a&H" << ToAssAlpha(m_primaryColor) << "&";
+    oss << "\\2c&H" << hex << ToAssColor(m_secondaryColor) << "&\\2a&H" << ToAssAlpha(m_secondaryColor) << "&";
+    oss << "\\3c&H" << hex << ToAssColor(m_outlineColor) << "&\\3a&H" << ToAssAlpha(m_outlineColor) << "&";
     oss << dec;
     oss << "\\b" << (m_bold?1:0);
     oss << "\\i" << (m_italic?1:0);
