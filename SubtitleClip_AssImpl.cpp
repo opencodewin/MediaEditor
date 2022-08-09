@@ -6,7 +6,7 @@ using namespace DataLayer;
 
 SubtitleClip_AssImpl::SubtitleClip_AssImpl(ASS_Event* assEvent, ASS_Track* assTrack, AssRenderCallback renderCb)
     : m_type(DataLayer::ASS), m_assEvent(assEvent), m_assTrack(assTrack), m_renderCb(renderCb)
-    , m_trackStyle(assTrack->styles[assEvent->Style].Name)
+    , m_readOrder(assEvent->ReadOrder), m_trackStyle(assTrack->styles[assEvent->Style].Name)
     , m_text(string(assEvent->Text))
 {}
 
@@ -392,11 +392,11 @@ void SubtitleClip_AssImpl::InvalidateImage()
     m_image.Invalidate();
 }
 
-void SubtitleClip_AssImpl::SetAssEvent(ASS_Event* assEvent)
+void SubtitleClip_AssImpl::ResyncAssEventPtr(ASS_Event* assEvent)
 {
+    if (assEvent->ReadOrder != m_readOrder)
+        throw runtime_error("Ass event readorder does NOT MATCH!");
     m_assEvent = assEvent;
-    m_trackStyle = string(m_assTrack->styles[assEvent->Style].Name);
-    m_text = string(assEvent->Text);
 }
 
 void SubtitleClip_AssImpl::SetStartTime(int64_t startTime)

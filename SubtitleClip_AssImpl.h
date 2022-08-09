@@ -81,9 +81,9 @@ namespace DataLayer
 
         void SetRenderCallback(AssRenderCallback renderCb) { m_renderCb = renderCb; }
         ASS_Event* AssEventPtr() const { return m_assEvent; }
-        void SetAssEvent(ASS_Event* assEvent);
-        void AssEventPtrDecrease() { m_assEvent--; }
-        int ReadOrder() const { return m_assEvent ? m_assEvent->ReadOrder : -1; }
+        void ResyncAssEventPtr(ASS_Event* assEvent);
+        void AssEventPtrDecrease() { m_assEvent--; m_readOrder = m_assEvent->ReadOrder; }
+        int ReadOrder() const { return m_readOrder; }
         void SetStartTime(int64_t startTime);
         void SetDuration(int64_t duration);
         std::string GenerateAssChunk();
@@ -127,6 +127,7 @@ namespace DataLayer
 
         ASS_Track* m_assTrack{nullptr};
         ASS_Event* m_assEvent{nullptr};
+        int m_readOrder;
         AssRenderCallback m_renderCb;
     };
 }

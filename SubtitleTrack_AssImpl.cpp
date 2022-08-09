@@ -817,15 +817,7 @@ SubtitleClipHolder SubtitleTrack_AssImpl::NewClip(int64_t startTime, int64_t dur
         {
             SubtitleClip_AssImpl* assClip = dynamic_cast<SubtitleClip_AssImpl*>(iter2->get());
             const int targetIdx = assClip->ReadOrder();
-            ASS_Event* assAry = m_asstrk->events;
-            for (int i = 0; i < m_asstrk->n_events; i++)
-            {
-                if (assAry[i].ReadOrder == targetIdx)
-                {
-                    assClip->SetAssEvent(assAry+i);
-                    break;
-                }
-            }
+            assClip->ResyncAssEventPtr(m_asstrk->events+targetIdx);
             iter2++;
         }
     }
