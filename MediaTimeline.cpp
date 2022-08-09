@@ -1252,7 +1252,9 @@ void TextClip::SetClipDefault(const DataLayer::SubtitleStyle & style, DataLayer:
     mFontScaleY = style.ScaleY();
     mFontItalic = style.Italic() > 0;
     mFontBold = style.Bold() > 0;
-    mFontAngle = style.Angle();
+    mFontAngleX = style.Angle();
+    mFontAngleY = style.Angle();
+    mFontAngleZ = style.Angle();
     mFontOutlineWidth = style.OutlineWidth();
     mFontSpacing = style.Spacing();
     mFontAlignment = style.Alignment();
@@ -1340,10 +1342,20 @@ Clip * TextClip::Load(const imgui_json::value& value, void * handle)
                 auto& val = value["Spacing"];
                 if (val.is_number()) new_clip->mFontSpacing = val.get<imgui_json::number>();
             }
-            if (value.contains("Angle"))
+            if (value.contains("AngleX"))
             {
-                auto& val = value["Angle"];
-                if (val.is_number()) new_clip->mFontAngle = val.get<imgui_json::number>();
+                auto& val = value["AngleX"];
+                if (val.is_number()) new_clip->mFontAngleX = val.get<imgui_json::number>();
+            }
+            if (value.contains("AngleY"))
+            {
+                auto& val = value["AngleY"];
+                if (val.is_number()) new_clip->mFontAngleY = val.get<imgui_json::number>();
+            }
+            if (value.contains("AngleZ"))
+            {
+                auto& val = value["AngleZ"];
+                if (val.is_number()) new_clip->mFontAngleZ = val.get<imgui_json::number>();
             }
             if (value.contains("OutlineWidth"))
             {
@@ -1416,7 +1428,9 @@ void TextClip::Save(imgui_json::value& value)
     value["ScaleX"] = imgui_json::number(mFontScaleX);
     value["ScaleY"] = imgui_json::number(mFontScaleY);
     value["Spacing"] = imgui_json::number(mFontSpacing);
-    value["Angle"] = imgui_json::number(mFontAngle);
+    value["AngleX"] = imgui_json::number(mFontAngleX);
+    value["AngleY"] = imgui_json::number(mFontAngleY);
+    value["AngleZ"] = imgui_json::number(mFontAngleZ);
     value["OutlineWidth"] = imgui_json::number(mFontOutlineWidth);
     value["Alignment"] = imgui_json::number(mFontAlignment);
     value["Bold"] = imgui_json::boolean(mFontBold);
@@ -3137,7 +3151,9 @@ MediaTrack* MediaTrack::Load(const imgui_json::value& value, void * handle)
                         holder->SetScaleX(tclip->mFontScaleX);
                         holder->SetScaleY(tclip->mFontScaleY);
                         holder->SetSpacing(tclip->mFontSpacing);
-                        holder->SetRotationZ(tclip->mFontAngle);
+                        holder->SetRotationX(tclip->mFontAngleX);
+                        holder->SetRotationY(tclip->mFontAngleY);
+                        holder->SetRotationZ(tclip->mFontAngleZ);
                         holder->SetBorderWidth(tclip->mFontOutlineWidth);
                         holder->SetBold(tclip->mFontBold);
                         holder->SetItalic(tclip->mFontItalic);

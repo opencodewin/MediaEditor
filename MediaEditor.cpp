@@ -3776,10 +3776,18 @@ static void edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     {
         clip->mClipHolder->SetSpacing(clip->mFontSpacing);
     } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##spacing_default")) { clip->mFontSpacing = style.Spacing(); clip->mClipHolder->SetSpacing(style.Spacing()); }
-    if (ImGui::SliderFloat("Font angle", &clip->mFontAngle, 0, 360, "%.1f"))
+    if (ImGui::SliderFloat("Font angle X", &clip->mFontAngleX, 0, 360, "%.1f"))
     {
-        clip->mClipHolder->SetRotationZ(clip->mFontAngle);
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##angle_default")) { clip->mFontAngle = style.Angle(); clip->mClipHolder->SetRotationZ( style.Angle());}
+        clip->mClipHolder->SetRotationX(clip->mFontAngleX);
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##anglex_default")) { clip->mFontAngleX = style.Angle(); clip->mClipHolder->SetRotationX( style.Angle());}
+    if (ImGui::SliderFloat("Font angle Y", &clip->mFontAngleY, 0, 360, "%.1f"))
+    {
+        clip->mClipHolder->SetRotationY(clip->mFontAngleY);
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##angley_default")) { clip->mFontAngleY = style.Angle(); clip->mClipHolder->SetRotationY( style.Angle());}
+    if (ImGui::SliderFloat("Font angle Z", &clip->mFontAngleZ, 0, 360, "%.1f"))
+    {
+        clip->mClipHolder->SetRotationZ(clip->mFontAngleZ);
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##anglez_default")) { clip->mFontAngleZ = style.Angle(); clip->mClipHolder->SetRotationZ( style.Angle());}
     if (ImGui::SliderFloat("Font outline", &clip->mFontOutlineWidth, 0, 5, "%.1f"))
     {
         clip->mClipHolder->SetBorderWidth(clip->mFontOutlineWidth);

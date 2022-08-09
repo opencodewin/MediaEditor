@@ -415,7 +415,9 @@ struct TextClip : Clip
     float mFontScaleX {1.0f};
     float mFontScaleY {1.0f};
     float mFontSpacing {1.0f};
-    float mFontAngle {0.0f};
+    float mFontAngleX {0.0f};
+    float mFontAngleY {0.0f};
+    float mFontAngleZ {0.0f};
     float mFontOutlineWidth {1.0f};
     int mFontAlignment {2};
     bool mFontBold {false};
