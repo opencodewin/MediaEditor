@@ -392,6 +392,13 @@ void SubtitleClip_AssImpl::InvalidateImage()
     m_image.Invalidate();
 }
 
+void SubtitleClip_AssImpl::SetAssEvent(ASS_Event* assEvent)
+{
+    m_assEvent = assEvent;
+    m_trackStyle = string(m_assTrack->styles[assEvent->Style].Name);
+    m_text = string(assEvent->Text);
+}
+
 void SubtitleClip_AssImpl::SetStartTime(int64_t startTime)
 {
     if (!m_assEvent)

@@ -852,9 +852,18 @@ bool SubtitleTrack_AssImpl::DeleteClip(SubtitleClipHolder hClip)
         m_errMsg = "CANNOT find target 'hClip'!";
         return false;
     }
+    SubtitleClip_AssImpl* assClip = dynamic_cast<SubtitleClip_AssImpl*>(hClip.get());
+    list<SubtitleClip_AssImpl*> updateAssClips;
+    auto iter2 = m_clips.begin();
+    while (iter2 != m_clips.end())
+    {
+        SubtitleClip_AssImpl* assClip2 = dynamic_cast<SubtitleClip_AssImpl*>(iter2->get());
+        if (assClip2->ReadOrder() > assClip->ReadOrder())
+            updateAssClips.push_back(assClip2);
+        iter2++;
+    }
 
     bool updateCurrIter = m_currIter == iter;
-    SubtitleClip_AssImpl* assClip = dynamic_cast<SubtitleClip_AssImpl*>(hClip.get());
     int eid = assClip->ReadOrder();
     m_logger->Log(DEBUG) << "Delete ASS SubtitleClip (ReaderOrder=" << eid << ")." << endl;
     iter = m_clips.erase(iter);
@@ -871,6 +880,9 @@ bool SubtitleTrack_AssImpl::DeleteClip(SubtitleClipHolder hClip)
             (iterptr++)->ReadOrder--;
     }
     m_asstrk->n_events--;
+
+    for (auto& updateClip : updateAssClips)
+        updateClip->AssEventPtrDecrease();
     return true;
 }
 
@@ -1189,10 +1201,10 @@ bool SubtitleTrack_AssImpl::ReadFile(const string& path)
             continue;
         }
 
-        if (gotSubPtr)
+        if (gotSubPtr && avsub.end_display_time > avsub.start_display_time)
         {
-            const int64_t start_time = av_rescale_q(avsub.pts, AV_TIME_BASE_Q, av_make_q(1, 1000));
-            const int64_t duration   = avsub.end_display_time;
+            const int64_t start_time = av_rescale_q(avsub.pts, AV_TIME_BASE_Q, av_make_q(1, 1000))+avsub.start_display_time;
+            const int64_t duration   = avsub.end_display_time-avsub.start_display_time;
             m_logger->Log(VERBOSE) << "[" << MillisecToString(start_time) << "(+" << duration << ")] ";
             bool isAss = true;
             for (auto i = 0; i < avsub.num_rects; i++)
@@ -1230,6 +1242,8 @@ bool SubtitleTrack_AssImpl::ReadFile(const string& path)
         {
             decodeEof = true;
         }
+        if (gotSubPtr)
+            avsubtitle_free(&avsub);
     }
     m_defaultStyleIdx = -1;
     for (int i = 0; i < m_asstrk->n_styles; i++)
@@ -1257,12 +1271,7 @@ bool SubtitleTrack_AssImpl::ReadFile(const string& path)
         for (int i = 0; i < m_asstrk->n_events; i++)
         {
             ASS_Event* e = m_asstrk->events+i;
-            if (e->Duration <= 0)
-            {
-                m_logger->Log(VERBOSE) << "Skip invalid ass event: [" << MillisecToString(e->Start)
-                        << "(" << e->Duration << ") \"" << e->Text << "\"." << endl;
-                continue;
-            }
+            e->ReadOrder = i;
             SubtitleClip_AssImpl* assClip = new SubtitleClip_AssImpl(e, m_asstrk, bind(&SubtitleTrack_AssImpl::RenderSubtitleClip, this, _1));
             SubtitleClipHolder hSubClip(assClip);
             m_clips.push_back(hSubClip);

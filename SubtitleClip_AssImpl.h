@@ -80,7 +80,9 @@ namespace DataLayer
         void InvalidateImage() override;
 
         void SetRenderCallback(AssRenderCallback renderCb) { m_renderCb = renderCb; }
-        void SetAssEvent(ASS_Event* assEvent) { m_assEvent = assEvent; }
+        ASS_Event* AssEventPtr() const { return m_assEvent; }
+        void SetAssEvent(ASS_Event* assEvent);
+        void AssEventPtrDecrease() { m_assEvent--; }
         int ReadOrder() const { return m_assEvent ? m_assEvent->ReadOrder : -1; }
         void SetStartTime(int64_t startTime);
         void SetDuration(int64_t duration);
