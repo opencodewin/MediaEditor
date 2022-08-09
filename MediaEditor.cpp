@@ -5613,6 +5613,7 @@ void Application_SetupContext(ImGuiContext* ctx)
     setting_ini_handler.ApplyAllFn = [](ImGuiContext* ctx, ImGuiSettingsHandler* handler)
     {
         // handle project after all setting is loaded 
+        // TODO::Dicky may need a thread to load project and splash screen for waiting
         if (!g_media_editor_settings.project_path.empty())
         {
             if (LoadProject(g_media_editor_settings.project_path) == 0)
