@@ -1252,7 +1252,9 @@ void TextClip::SetClipDefault(const DataLayer::SubtitleStyle & style, DataLayer:
     mFontScaleY = style.ScaleY();
     mFontItalic = style.Italic() > 0;
     mFontBold = style.Bold() > 0;
-    mFontAngle = style.Angle();
+    mFontAngleX = style.Angle();
+    mFontAngleY = style.Angle();
+    mFontAngleZ = style.Angle();
     mFontOutlineWidth = style.OutlineWidth();
     mFontSpacing = style.Spacing();
     mFontAlignment = style.Alignment();
@@ -1261,6 +1263,8 @@ void TextClip::SetClipDefault(const DataLayer::SubtitleStyle & style, DataLayer:
     mFontPrimaryColor = style.PrimaryColor().ToImVec4();
     mFontOutlineColor = style.OutlineColor().ToImVec4();
     mFontName = style.Font();
+    mFontOffsetH = style.OffsetH();
+    mFontOffsetV = style.OffsetV();
     mClipHolder = clip_hold;
     // pos value need load later 
     mFontPosX = -INT32_MAX;
@@ -1338,10 +1342,20 @@ Clip * TextClip::Load(const imgui_json::value& value, void * handle)
                 auto& val = value["Spacing"];
                 if (val.is_number()) new_clip->mFontSpacing = val.get<imgui_json::number>();
             }
-            if (value.contains("Angle"))
+            if (value.contains("AngleX"))
             {
-                auto& val = value["Angle"];
-                if (val.is_number()) new_clip->mFontAngle = val.get<imgui_json::number>();
+                auto& val = value["AngleX"];
+                if (val.is_number()) new_clip->mFontAngleX = val.get<imgui_json::number>();
+            }
+            if (value.contains("AngleY"))
+            {
+                auto& val = value["AngleY"];
+                if (val.is_number()) new_clip->mFontAngleY = val.get<imgui_json::number>();
+            }
+            if (value.contains("AngleZ"))
+            {
+                auto& val = value["AngleZ"];
+                if (val.is_number()) new_clip->mFontAngleZ = val.get<imgui_json::number>();
             }
             if (value.contains("OutlineWidth"))
             {
@@ -1373,15 +1387,15 @@ Clip * TextClip::Load(const imgui_json::value& value, void * handle)
                 auto& val = value["StrikeOut"];
                 if (val.is_boolean()) new_clip->mFontStrikeOut = val.get<imgui_json::boolean>();
             }
-            if (value.contains("PosX"))
+            if (value.contains("OffsetX"))
             {
-                auto& val = value["PosX"];
-                if (val.is_number()) new_clip->mFontPosX = val.get<imgui_json::number>();
+                auto& val = value["OffsetX"];
+                if (val.is_number()) new_clip->mFontOffsetH = val.get<imgui_json::number>();
             }
-            if (value.contains("PosY"))
+            if (value.contains("OffsetY"))
             {
-                auto& val = value["PosY"];
-                if (val.is_number()) new_clip->mFontPosY = val.get<imgui_json::number>();
+                auto& val = value["OffsetY"];
+                if (val.is_number()) new_clip->mFontOffsetV = val.get<imgui_json::number>();
             }
             if (value.contains("PrimaryColor"))
             {
@@ -1414,15 +1428,17 @@ void TextClip::Save(imgui_json::value& value)
     value["ScaleX"] = imgui_json::number(mFontScaleX);
     value["ScaleY"] = imgui_json::number(mFontScaleY);
     value["Spacing"] = imgui_json::number(mFontSpacing);
-    value["Angle"] = imgui_json::number(mFontAngle);
+    value["AngleX"] = imgui_json::number(mFontAngleX);
+    value["AngleY"] = imgui_json::number(mFontAngleY);
+    value["AngleZ"] = imgui_json::number(mFontAngleZ);
     value["OutlineWidth"] = imgui_json::number(mFontOutlineWidth);
     value["Alignment"] = imgui_json::number(mFontAlignment);
     value["Bold"] = imgui_json::boolean(mFontBold);
     value["Italic"] = imgui_json::boolean(mFontItalic);
     value["UnderLine"] = imgui_json::boolean(mFontUnderLine);
     value["StrikeOut"] = imgui_json::boolean(mFontStrikeOut);
-    value["PosX"] = imgui_json::number(mFontPosX);
-    value["PosY"] = imgui_json::number(mFontPosY);
+    value["OffsetX"] = imgui_json::number(mFontOffsetH);
+    value["OffsetY"] = imgui_json::number(mFontOffsetV);
     value["PrimaryColor"] = imgui_json::vec4(mFontPrimaryColor);
     value["OutlineColor"] = imgui_json::vec4(mFontOutlineColor);
 }
@@ -3130,12 +3146,14 @@ MediaTrack* MediaTrack::Load(const imgui_json::value& value, void * handle)
                     holder->EnableUsingTrackStyle(tclip->mTrackStyle);
                     if (!tclip->mTrackStyle)
                     {
-                        holder->SetOffsetH(tclip->mFontPosX);
-                        holder->SetOffsetV(tclip->mFontPosY);
+                        holder->SetOffsetH(tclip->mFontOffsetH);
+                        holder->SetOffsetV(tclip->mFontOffsetV);
                         holder->SetScaleX(tclip->mFontScaleX);
                         holder->SetScaleY(tclip->mFontScaleY);
                         holder->SetSpacing(tclip->mFontSpacing);
-                        holder->SetRotationZ(tclip->mFontAngle);
+                        holder->SetRotationX(tclip->mFontAngleX);
+                        holder->SetRotationY(tclip->mFontAngleY);
+                        holder->SetRotationZ(tclip->mFontAngleZ);
                         holder->SetBorderWidth(tclip->mFontOutlineWidth);
                         holder->SetBold(tclip->mFontBold);
                         holder->SetItalic(tclip->mFontItalic);
@@ -5737,66 +5755,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         ImRect HeaderAreaRect(canvas_pos + ImVec2(legendWidth, 0), canvas_pos + headerSize);
         ImGui::InvisibleButton("topBar", headerSize);
 
-        // draw bg and mark range for timeline header bar
+        // draw Header bg
         draw_list->AddRectFilled(HeaderAreaRect.Min, HeaderAreaRect.Max, COL_DARK_ONE, 0);
-        if (timeline->mark_in >= timeline->firstTime && timeline->mark_in <= timeline->lastTime)
-        {
-            float mark_in_offset = (timeline->mark_in - timeline->firstTime) * timeline->msPixelWidthTarget;
-            if (timeline->mark_out >= timeline->lastTime)
-            {
-                draw_list->AddRectFilled(HeaderAreaRect.Min + ImVec2(mark_in_offset, 0), HeaderAreaRect.Max - ImVec2(0, HeadHeight - 8), COL_MARK_BAR, 0);
-            }
-            else if (timeline->mark_out > timeline->firstTime)
-            {
-                float mark_out_offset = (timeline->mark_out - timeline->firstTime) * timeline->msPixelWidthTarget;
-                draw_list->AddRectFilled(HeaderAreaRect.Min + ImVec2(mark_in_offset, 0), HeaderAreaRect.Min + ImVec2(mark_out_offset, 8), COL_MARK_BAR, 0);
-            }
-            
-            ImRect handle_rect(HeaderAreaRect.Min + ImVec2(mark_in_offset, 0), HeaderAreaRect.Min + ImVec2(mark_in_offset + 8, 8));
-            if (handle_rect.Contains(io.MousePos))
-            {
-                draw_list->AddCircleFilled(HeaderAreaRect.Min + ImVec2(mark_in_offset + 2, 4), 4, COL_MARK_DOT_LIGHT);
-                if (ImGui::IsMouseDown(ImGuiMouseButton_Left))
-                {
-                    markMovingEntry = 0;
-                }
-            }
-            else
-            {
-                draw_list->AddCircleFilled(HeaderAreaRect.Min + ImVec2(mark_in_offset + 2, 4), 4, COL_MARK_DOT);
-            }
-        }
-        if (timeline->mark_out >= timeline->firstTime && timeline->mark_out <= timeline->lastTime)
-        {
-            float mark_out_offset = (timeline->mark_out - timeline->firstTime) * timeline->msPixelWidthTarget;
-            if (timeline->mark_in != -1 && timeline->mark_in < timeline->firstTime)
-            {
-                draw_list->AddRectFilled(HeaderAreaRect.Min, HeaderAreaRect.Min + ImVec2(mark_out_offset, 8), COL_MARK_BAR, 0);
-            }
-            else if (timeline->mark_in != -1 && timeline->mark_in < timeline->lastTime)
-            {
-                float mark_in_offset = (timeline->mark_in - timeline->firstTime) * timeline->msPixelWidthTarget;
-                draw_list->AddRectFilled(HeaderAreaRect.Min + ImVec2(mark_in_offset, 0), HeaderAreaRect.Min + ImVec2(mark_out_offset, 8), COL_MARK_BAR, 0);
-            }
-            
-            ImRect handle_rect(HeaderAreaRect.Min + ImVec2(mark_out_offset - 4, 0), HeaderAreaRect.Min + ImVec2(mark_out_offset + 4, 8));
-            if (handle_rect.Contains(io.MousePos))
-            {
-                draw_list->AddCircleFilled(HeaderAreaRect.Min + ImVec2(mark_out_offset + 2, 4), 4, COL_MARK_DOT_LIGHT);
-                if (ImGui::IsMouseDown(ImGuiMouseButton_Left))
-                {
-                    markMovingEntry = 1;
-                }
-            }
-            else
-            {
-                draw_list->AddCircleFilled(HeaderAreaRect.Min + ImVec2(mark_out_offset + 2, 4), 4, COL_MARK_DOT);
-            }
-        }
-        if (timeline->mark_in != -1 && timeline->mark_in < timeline->firstTime && timeline->mark_out >= timeline->lastTime)
-        {
-            draw_list->AddRectFilled(HeaderAreaRect.Min , HeaderAreaRect.Max - ImVec2(0, HeadHeight - 8), COL_MARK_BAR, 0);
-        }
         
         if (!trackCount) 
         {
@@ -6145,6 +6105,11 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                 if (timeline->mark_out < 0) timeline->mark_out = 0;
                 if (timeline->mark_out <= timeline->mark_in) timeline->mark_in = -1;
             }
+            ImGui::BeginTooltip();
+            ImGui::Text(" In:%s", TimelineMillisecToString(timeline->mark_in, 2).c_str());
+            ImGui::Text("Out:%s", TimelineMillisecToString(timeline->mark_out, 2).c_str());
+            ImGui::Text("Dur:%s", TimelineMillisecToString(timeline->mark_out - timeline->mark_in, 2).c_str());
+            ImGui::EndTooltip();
         }
 
         if (trackAreaRect.Contains(io.MousePos) && !menuIsOpened && !bCropping && !bCutting && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
@@ -6565,7 +6530,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         {
             static const float cursorWidth = 2.f;
             float cursorOffset = contentMin.x + legendWidth + (timeline->currentTime - timeline->firstTime) * timeline->msPixelWidthTarget + 1;
-            draw_list->AddLine(ImVec2(cursorOffset, contentMin.y), ImVec2(cursorOffset, contentMax.y), IM_COL32(0, 255, 0, 224), cursorWidth);
+            draw_list->AddLine(ImVec2(cursorOffset, contentMin.y), ImVec2(cursorOffset, contentMin.y + timline_size.y - scrollSize), IM_COL32(0, 255, 0, 224), cursorWidth);
         }
         draw_list->PopClipRect();
         // alignment line
@@ -6579,8 +6544,80 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         draw_list->PopClipRect();
 
         ImGui::PopStyleColor();
-    }
 
+        // draw mark range for timeline header bar and draw shadow out of mark range 
+        ImGui::PushClipRect(HeaderAreaRect.Min, HeaderAreaRect.Min + ImVec2(trackAreaRect.GetWidth() + 8, contentMin.y + timline_size.y - scrollSize), false);
+        if (timeline->mark_in >= timeline->firstTime && timeline->mark_in <= timeline->lastTime)
+        {
+            float mark_in_offset = (timeline->mark_in - timeline->firstTime) * timeline->msPixelWidthTarget;
+            if (timeline->mark_out >= timeline->lastTime)
+            {
+                draw_list->AddRectFilled(HeaderAreaRect.Min + ImVec2(mark_in_offset, 0), HeaderAreaRect.Max - ImVec2(0, HeadHeight - 8), COL_MARK_BAR, 0);
+            }
+            else if (timeline->mark_out > timeline->firstTime)
+            {
+                float mark_out_offset = (timeline->mark_out - timeline->firstTime) * timeline->msPixelWidthTarget;
+                draw_list->AddRectFilled(HeaderAreaRect.Min + ImVec2(mark_in_offset, 0), HeaderAreaRect.Min + ImVec2(mark_out_offset, 8), COL_MARK_BAR, 0);
+            }
+            
+            ImRect handle_rect(HeaderAreaRect.Min + ImVec2(mark_in_offset, 0), HeaderAreaRect.Min + ImVec2(mark_in_offset + 8, 8));
+            if (handle_rect.Contains(io.MousePos))
+            {
+                draw_list->AddCircleFilled(HeaderAreaRect.Min + ImVec2(mark_in_offset + 2, 4), 4, COL_MARK_DOT_LIGHT);
+                if (ImGui::IsMouseDown(ImGuiMouseButton_Left))
+                {
+                    markMovingEntry = 0;
+                }
+            }
+            else
+            {
+                draw_list->AddCircleFilled(HeaderAreaRect.Min + ImVec2(mark_in_offset + 2, 4), 4, COL_MARK_DOT);
+            }
+            // add left area shadow
+            draw_list->AddRectFilled(HeaderAreaRect.Min, HeaderAreaRect.Min + ImVec2(mark_in_offset, timline_size.y - scrollSize), IM_COL32(0,0,0,128));
+        }
+        if (timeline->mark_out >= timeline->firstTime && timeline->mark_out <= timeline->lastTime)
+        {
+            float mark_out_offset = (timeline->mark_out - timeline->firstTime) * timeline->msPixelWidthTarget;
+            if (timeline->mark_in != -1 && timeline->mark_in < timeline->firstTime)
+            {
+                draw_list->AddRectFilled(HeaderAreaRect.Min, HeaderAreaRect.Min + ImVec2(mark_out_offset, 8), COL_MARK_BAR, 0);
+            }
+            else if (timeline->mark_in != -1 && timeline->mark_in < timeline->lastTime)
+            {
+                float mark_in_offset = (timeline->mark_in - timeline->firstTime) * timeline->msPixelWidthTarget;
+                draw_list->AddRectFilled(HeaderAreaRect.Min + ImVec2(mark_in_offset, 0), HeaderAreaRect.Min + ImVec2(mark_out_offset, 8), COL_MARK_BAR, 0);
+            }
+            
+            ImRect handle_rect(HeaderAreaRect.Min + ImVec2(mark_out_offset - 4, 0), HeaderAreaRect.Min + ImVec2(mark_out_offset + 4, 8));
+            if (handle_rect.Contains(io.MousePos))
+            {
+                draw_list->AddCircleFilled(HeaderAreaRect.Min + ImVec2(mark_out_offset + 2, 4), 4, COL_MARK_DOT_LIGHT);
+                if (ImGui::IsMouseDown(ImGuiMouseButton_Left))
+                {
+                    markMovingEntry = 1;
+                }
+            }
+            else
+            {
+                draw_list->AddCircleFilled(HeaderAreaRect.Min + ImVec2(mark_out_offset + 2, 4), 4, COL_MARK_DOT);
+            }
+            // add right area shadow
+            draw_list->AddRectFilled(HeaderAreaRect.Min + ImVec2(mark_out_offset + 4, 0), HeaderAreaRect.Min + ImVec2(timline_size.x + 8, timline_size.y - scrollSize), IM_COL32(0,0,0,128));
+        }
+        if (timeline->mark_in != -1 && timeline->mark_in < timeline->firstTime && timeline->mark_out >= timeline->lastTime)
+        {
+            draw_list->AddRectFilled(HeaderAreaRect.Min , HeaderAreaRect.Max - ImVec2(0, HeadHeight - 8), COL_MARK_BAR, 0);
+        }
+
+        if ((timeline->mark_in != -1 && timeline->mark_in >= timeline->lastTime) || (timeline->mark_out != -1 && timeline->mark_out <= timeline->firstTime))
+        {
+            // add shadow on whole timeline
+            draw_list->AddRectFilled(HeaderAreaRect.Min, HeaderAreaRect.Min + ImVec2(timline_size.x + 8, timline_size.y - scrollSize), IM_COL32(0,0,0,128));
+        }
+        ImGui::PopClipRect();
+    }
+    
     if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
     {
         if (clipMovingEntry != -1 && timeline->mOngoingAction.contains("action"))

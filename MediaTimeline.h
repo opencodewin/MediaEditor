@@ -415,7 +415,9 @@ struct TextClip : Clip
     float mFontScaleX {1.0f};
     float mFontScaleY {1.0f};
     float mFontSpacing {1.0f};
-    float mFontAngle {0.0f};
+    float mFontAngleX {0.0f};
+    float mFontAngleY {0.0f};
+    float mFontAngleZ {0.0f};
     float mFontOutlineWidth {1.0f};
     int mFontAlignment {2};
     bool mFontBold {false};
@@ -424,6 +426,8 @@ struct TextClip : Clip
     bool mFontStrikeOut {false};
     float mFontPosX {0.0f};
     float mFontPosY {0.0f};
+    float mFontOffsetH {0.f};
+    float mFontOffsetV {0.f};
     ImVec4 mFontPrimaryColor {0, 0, 0, 0};
     ImVec4 mFontOutlineColor {0, 0, 0, 0};
     DataLayer::SubtitleClipHolder mClipHolder {nullptr};

@@ -401,6 +401,7 @@ static bool g_audEncSelChanged = true;
 static std::vector<MediaEncoder::EncoderDescription> g_currAudEncDescList;
 static std::string g_encoderConfigErrorMessage;
 static bool quit_save_confirm = true;
+static bool project_need_save = false;
 
 static int ConfigureIndex = 0;              // default timeline setting
 static int ControlPanelIndex = 0;           // default Media Bank window
@@ -602,7 +603,7 @@ static bool ExpendButton(ImDrawList *draw_list, ImVec2 pos, bool expand = true)
     return overDel;
 }
 
-void ShowVideoWindow(ImTextureID texture, ImVec2& pos, ImVec2& size)
+static void ShowVideoWindow(ImTextureID texture, ImVec2& pos, ImVec2& size)
 {
     if (texture)
     {
@@ -627,7 +628,7 @@ void ShowVideoWindow(ImTextureID texture, ImVec2& pos, ImVec2& size)
     }
 }
 
-static void ShowVideoWindow(ImTextureID texture, ImVec2& pos, ImVec2& size, float& offset_x, float& offset_y, float& tf_x, float& tf_y)
+static void ShowVideoWindow(ImDrawList *draw_list, ImTextureID texture, ImVec2& pos, ImVec2& size, float& offset_x, float& offset_y, float& tf_x, float& tf_y)
 {
     if (texture)
     {
@@ -646,7 +647,7 @@ static void ShowVideoWindow(ImTextureID texture, ImVec2& pos, ImVec2& size, floa
         tf_y = (size.y - adj_y) / 2.0;
         offset_x = pos.x + tf_x;
         offset_y = pos.y + tf_y;
-        ImGui::GetWindowDrawList()->AddImage(
+        draw_list->AddImage(
             texture,
             ImVec2(offset_x, offset_y),
             ImVec2(offset_x + adj_x, offset_y + adj_y),
@@ -1071,7 +1072,7 @@ static void ShowConfigure(MediaEditorSettings & config)
                 ImGui::Separator();
                 ImGui::BulletText(ICON_MEDIA_TEXT " Text");
                 const char* familyValue = config.FontName.c_str();
-                if (ImGui::BeginCombo("Font family", familyValue))
+                if (ImGui::BeginCombo("Font family##system_setting", familyValue))
                 {
                     for (int i = 0; i < fontFamilies.size(); i++)
                     {
@@ -1205,6 +1206,7 @@ static void NewProject()
     CleanProject();
     g_media_editor_settings.project_path = "";
     quit_save_confirm = true;
+    project_need_save = true;
 }
 
 static int LoadProject(std::string path)
@@ -1346,7 +1348,7 @@ static void SaveProject(std::string path)
 
     g_project.save(path);
     g_media_editor_settings.project_path = path;
-    quit_save_confirm = false;
+    //quit_save_confirm = false;
 }
 
 /****************************************************************************************
@@ -2836,7 +2838,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImR
     }
     float offset_x = 0, offset_y = 0;
     float tf_x = 0, tf_y = 0;
-    ShowVideoWindow(timeline->mMainPreviewTexture, PreviewPos, PreviewSize, offset_x, offset_y, tf_x, tf_y);
+    ShowVideoWindow(draw_list, timeline->mMainPreviewTexture, PreviewPos, PreviewSize, offset_x, offset_y, tf_x, tf_y);
     video_rect.Min = ImVec2(offset_x, offset_y);
     video_rect.Max = video_rect.Min + ImVec2(PreviewSize.x - tf_x * 2, PreviewSize.y - tf_y * 2);
     if (monitors)
@@ -3100,7 +3102,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                 float offset_x = 0, offset_y = 0;
                 float tf_x = 0, tf_y = 0;
                 // filter input texture area
-                ShowVideoWindow(timeline->mVideoFilterInputTexture, InputVideoPos, InputVideoSize, offset_x, offset_y, tf_x, tf_y);
+                ShowVideoWindow(draw_list, timeline->mVideoFilterInputTexture, InputVideoPos, InputVideoSize, offset_x, offset_y, tf_x, tf_y);
                 if (ImGui::IsItemHovered() && timeline->mVideoFilterInputTexture)
                 {
                     float image_width = ImGui::ImGetTextureWidth(timeline->mVideoFilterInputTexture);
@@ -3112,7 +3114,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                     draw_compare = true;
                 }
                 // filter output texture area
-                ShowVideoWindow(timeline->mVideoFilterOutputTexture, OutputVideoPos, OutputVideoSize, offset_x, offset_y, tf_x, tf_y);
+                ShowVideoWindow(draw_list, timeline->mVideoFilterOutputTexture, OutputVideoPos, OutputVideoSize, offset_x, offset_y, tf_x, tf_y);
                 if (ImGui::IsItemHovered() && timeline->mVideoFilterOutputTexture)
                 {
                     float image_width = ImGui::ImGetTextureWidth(timeline->mVideoFilterOutputTexture);
@@ -3391,11 +3393,11 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
                 float offset_x = 0, offset_y = 0;
                 float tf_x = 0, tf_y = 0;
                 // fusion first input texture area
-                ShowVideoWindow(timeline->mVideoFusionInputFirstTexture, InputFirstVideoPos, InputVideoSize, offset_x, offset_y, tf_x, tf_y);
+                ShowVideoWindow(draw_list, timeline->mVideoFusionInputFirstTexture, InputFirstVideoPos, InputVideoSize, offset_x, offset_y, tf_x, tf_y);
                 // fusion second input texture area
-                ShowVideoWindow(timeline->mVideoFusionInputSecondTexture, InputSecondVideoPos, InputVideoSize, offset_x, offset_y, tf_x, tf_y);
+                ShowVideoWindow(draw_list, timeline->mVideoFusionInputSecondTexture, InputSecondVideoPos, InputVideoSize, offset_x, offset_y, tf_x, tf_y);
                 // filter output texture area
-                ShowVideoWindow(timeline->mVideoFusionOutputTexture, OutputVideoPos, OutputVideoSize, offset_x, offset_y, tf_x, tf_y);
+                ShowVideoWindow(draw_list, timeline->mVideoFusionOutputTexture, OutputVideoPos, OutputVideoSize, offset_x, offset_y, tf_x, tf_y);
             }
 
             ImGui::PopStyleColor(3);
@@ -3698,7 +3700,7 @@ static void ShowAudioEditorWindow(ImDrawList *draw_list)
     ImGui::EndChild();
 }
 
-static void edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 size, ImVec2 default_pos, ImVec2 default_size)
+static void edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 size, ImVec2 default_size)
 {
     if (!clip || !clip->mClipHolder)
         return;
@@ -3707,11 +3709,10 @@ static void edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
         return;
     ImGuiIO &io = ImGui::GetIO();
     auto& style = track->mMttReader->DefaultStyle();
-    ImVec2 track_offset = ImVec2(style.OffsetH(), style.OffsetV());
     ImGui::PushItemWidth(240);
     auto item_width = ImGui::CalcItemWidth();
     const char* familyValue = clip->mFontName.c_str();
-    if (ImGui::BeginCombo("Font family", familyValue))
+    if (ImGui::BeginCombo("Font family##text_clip_editor", familyValue))
     {
         for (int i = 0; i < fontFamilies.size(); i++)
         {
@@ -3720,17 +3721,27 @@ static void edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
             {
                 clip->mFontName = fontFamilies[i];
             }
+            if (is_selected)
+                ImGui::SetItemDefaultFocus();
         }
         ImGui::EndCombo();
     } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##clip_font_family_default")) { clip->mFontName = style.Font(); }
-    if (ImGui::SliderFloat("Font position X", &clip->mFontPosX, - default_size.x, timeline->mWidth, "%.0f"))
+    float pos_x = clip->mFontPosX;
+    if (ImGui::SliderFloat("Font position X", &pos_x, - default_size.x, timeline->mWidth, "%.0f"))
     {
-        clip->mClipHolder->SetOffsetH(clip->mFontPosX);
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##posx_default")) { clip->mFontPosX = default_pos.x + track_offset.x; clip->mClipHolder->SetOffsetH(0); }
-    if (ImGui::SliderFloat("Font position Y", &clip->mFontPosY, - default_size.y, timeline->mHeight, "%.0f"))
+        float offset_x = pos_x - clip->mFontPosX;
+        clip->mFontOffsetH += offset_x;
+        clip->mClipHolder->SetOffsetH(clip->mFontOffsetH);
+        clip->mFontPosX = pos_x;
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##posx_default")) { clip->mFontOffsetH = 0; clip->mClipHolder->SetOffsetH(0); }
+    float pos_y = clip->mFontPosY;
+    if (ImGui::SliderFloat("Font position Y", &pos_y, - default_size.y, timeline->mHeight, "%.0f"))
     {
-        clip->mClipHolder->SetOffsetV(clip->mFontPosY);
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##posy_default")) { clip->mFontPosY = default_pos.y + track_offset.y; clip->mClipHolder->SetOffsetV(0); }
+        float offset_y = pos_y - clip->mFontPosY;
+        clip->mFontOffsetV += offset_y;
+        clip->mClipHolder->SetOffsetV(clip->mFontOffsetV);
+        clip->mFontPosY = pos_y;
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##posy_default")) { clip->mFontOffsetV = 0; clip->mClipHolder->SetOffsetV(0); }
     float scale_x = clip->mFontScaleX;
     if (ImGui::SliderFloat("Font scale X", &scale_x, 0.2, 10, "%.1f"))
     {
@@ -3767,10 +3778,18 @@ static void edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     {
         clip->mClipHolder->SetSpacing(clip->mFontSpacing);
     } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##spacing_default")) { clip->mFontSpacing = style.Spacing(); clip->mClipHolder->SetSpacing(style.Spacing()); }
-    if (ImGui::SliderFloat("Font angle", &clip->mFontAngle, 0, 360, "%.1f"))
+    if (ImGui::SliderFloat("Font angle X", &clip->mFontAngleX, 0, 360, "%.1f"))
     {
-        clip->mClipHolder->SetRotationZ(clip->mFontAngle);
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##angle_default")) { clip->mFontAngle = style.Angle(); clip->mClipHolder->SetRotationZ( style.Angle());}
+        clip->mClipHolder->SetRotationX(clip->mFontAngleX);
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##anglex_default")) { clip->mFontAngleX = style.Angle(); clip->mClipHolder->SetRotationX( style.Angle());}
+    if (ImGui::SliderFloat("Font angle Y", &clip->mFontAngleY, 0, 360, "%.1f"))
+    {
+        clip->mClipHolder->SetRotationY(clip->mFontAngleY);
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##angley_default")) { clip->mFontAngleY = style.Angle(); clip->mClipHolder->SetRotationY( style.Angle());}
+    if (ImGui::SliderFloat("Font angle Z", &clip->mFontAngleZ, 0, 360, "%.1f"))
+    {
+        clip->mClipHolder->SetRotationZ(clip->mFontAngleZ);
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##anglez_default")) { clip->mFontAngleZ = style.Angle(); clip->mClipHolder->SetRotationZ( style.Angle());}
     if (ImGui::SliderFloat("Font outline", &clip->mFontOutlineWidth, 0, 5, "%.1f"))
     {
         clip->mClipHolder->SetBorderWidth(clip->mFontOutlineWidth);
@@ -3845,15 +3864,17 @@ static void edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
     auto& style = track->mMttReader->DefaultStyle();
     auto familyName = style.Font();
     const char* familyValue = familyName.c_str();
-    if (ImGui::BeginCombo("Font family", familyValue))
+    if (ImGui::BeginCombo("Font family##text_track_editor", familyValue))
     {
         for (int i = 0; i < fontFamilies.size(); i++)
         {
-            bool is_selected = fontFamilies[i] == style.Name();
+            bool is_selected = fontFamilies[i] == style.Font();
             if (ImGui::Selectable(fontFamilies[i].c_str(), is_selected))
             {
                 track->mMttReader->SetFont(fontFamilies[i]);
             }
+            if (is_selected)
+                ImGui::SetItemDefaultFocus();
         }
         ImGui::EndCombo();
     } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_font_family_default")) { track->mMttReader->SetFont(g_media_editor_settings.FontName); }
@@ -3979,9 +4000,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
         return;
 
     ImGuiIO &io = ImGui::GetIO();
-    ImVec2 default_pos(0, 0);
     ImVec2 default_size(0, 0);
-    ImVec2 default_offset(0, 0);
     DataLayer::SubtitleImage current_image;
     TextClip * editing_clip = dynamic_cast<TextClip*>(timeline->FindEditingClip());
     MediaTrack * editing_track = nullptr;
@@ -3993,21 +4012,9 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
     {
         editing_track = (MediaTrack *)editing_clip->mTrack;
         current_image = editing_clip->mClipHolder->Image();
-        default_pos = ImVec2(current_image.Area().x, current_image.Area().y);
         default_size = ImVec2(current_image.Area().w, current_image.Area().h);
-        if (editing_track && editing_track->mMttReader)
-        {
-            auto& style = editing_track->mMttReader->DefaultStyle();
-            default_offset = ImVec2(style.OffsetH(), style.OffsetV());
-        }
-        if (editing_clip->mTrackStyle || editing_clip->mFontPosX == -INT32_MAX)
-        {
-            editing_clip->mFontPosX = current_image.Area().x;// + default_offset.x;
-        }
-        if (editing_clip->mTrackStyle || editing_clip->mFontPosY == -INT32_MAX)
-        {
-            editing_clip->mFontPosY = current_image.Area().y;// + default_offset.y;
-        }
+        editing_clip->mFontPosX = current_image.Area().x;
+        editing_clip->mFontPosY = current_image.Area().y;
     }
 
     ImGui::SetCursorScreenPos(window_pos + ImVec2(preview_view_width, 0));
@@ -4085,7 +4092,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
                     {
                         // clip style
                         ImGui::BeginDisabled(editing_clip->mTrackStyle);
-                        edit_text_clip_style(draw_list, editing_clip, style_setting_window_size, default_pos, default_size);
+                        edit_text_clip_style(draw_list, editing_clip, style_setting_window_size, default_size);
                         ImGui::EndDisabled();
                     }
                     else
@@ -4104,15 +4111,15 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
 
     ImGui::SetCursorScreenPos(window_pos);
     ImRect video_rect;
-    static int MovingTextPos = -1;
+    static bool MovingTextPos = false;
+    static bool mouse_is_dragging = false;
     if (ImGui::BeginChild("##text_editor_preview", ImVec2(preview_view_width, window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
     {
-        const float resize_handel_radius = 4;
+        const float resize_handel_radius = 2;
         const ImVec2 handle_size(resize_handel_radius, resize_handel_radius);
-        auto f_drawlist = ImGui::GetForegroundDrawList();
         ShowMediaPreviewWindow(draw_list, "Text Preview", video_rect, false, false);
         // show test rect on preview view and add UI editor
-        f_drawlist->PushClipRect(video_rect.Min, video_rect.Max);
+        draw_list->PushClipRect(video_rect.Min, video_rect.Max);
         if (editing_clip && current_image.Valid())
         {
             float scale_w =  video_rect.GetWidth() / timeline->mWidth;
@@ -4130,158 +4137,50 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
             ImRect text_rm_rect(text_rect.Min + ImVec2(text_rect.GetWidth(), text_rect.GetHeight() / 2) - handle_size, text_rect.Min + ImVec2(text_rect.GetWidth(), text_rect.GetHeight() / 2) + handle_size);
             if (!editing_clip->mTrackStyle)
             {
-                bool mouse_in_handle = false;
-                // drag support
-                f_drawlist->AddRect(text_rect.Min - ImVec2(1, 1), text_rect.Max + ImVec2(1, 1), IM_COL32_WHITE);
-                if (text_lt_rect.Contains(io.MousePos))
-                {
-                    f_drawlist->AddRectFilled(text_lt_rect.Min, text_lt_rect.Max, IM_COL32_WHITE);
-                    ImGui::SetMouseCursor(ImGuiMouseCursor_None);
-                    ImGui::RenderMouseCursor(io.MousePos, 0.5, ImGuiMouseCursor_ResizeNWSE, IM_COL32_WHITE, IM_COL32_BLACK, IM_COL32_DISABLE);
-                    mouse_in_handle = true;
-                    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && MovingTextPos == -1)
-                    {
-                        MovingTextPos = 1;
-                    }
-                }
-                else
-                {
-                    f_drawlist->AddRect(text_lt_rect.Min, text_lt_rect.Max, IM_COL32_WHITE);
-                }
-                
-                if (text_rt_rect.Contains(io.MousePos))
-                {
-                    f_drawlist->AddRectFilled(text_rt_rect.Min, text_rt_rect.Max, IM_COL32_WHITE);
-                    ImGui::SetMouseCursor(ImGuiMouseCursor_None);
-                    ImGui::RenderMouseCursor(io.MousePos, 0.5, ImGuiMouseCursor_ResizeNESW, IM_COL32_WHITE, IM_COL32_BLACK, IM_COL32_DISABLE);
-                    mouse_in_handle = true;
-                    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && MovingTextPos == -1)
-                    {
-                        MovingTextPos = 2;
-                    }
-                }
-                else
-                {
-                    f_drawlist->AddRect(text_rt_rect.Min, text_rt_rect.Max, IM_COL32_WHITE);
-                }
-
-                if (text_tm_rect.Contains(io.MousePos))
-                {
-                    f_drawlist->AddRectFilled(text_tm_rect.Min, text_tm_rect.Max, IM_COL32_WHITE);
-                    ImGui::SetMouseCursor(ImGuiMouseCursor_None);
-                    ImGui::RenderMouseCursor(io.MousePos, 0.5, ImGuiMouseCursor_ResizeNS, IM_COL32_WHITE, IM_COL32_BLACK, IM_COL32_DISABLE);
-                    mouse_in_handle = true;
-                    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && MovingTextPos == -1)
-                    {
-                        MovingTextPos = 3;
-                    }
-                }
-                else
-                {
-                    f_drawlist->AddRect(text_tm_rect.Min, text_tm_rect.Max, IM_COL32_WHITE);
-                }
-
-                if (text_lb_rect.Contains(io.MousePos))
-                {
-                    f_drawlist->AddRectFilled(text_lb_rect.Min, text_lb_rect.Max, IM_COL32_WHITE);
-                    ImGui::SetMouseCursor(ImGuiMouseCursor_None);
-                    ImGui::RenderMouseCursor(io.MousePos, 0.5, ImGuiMouseCursor_ResizeNESW, IM_COL32_WHITE, IM_COL32_BLACK, IM_COL32_DISABLE);
-                    mouse_in_handle = true;
-                    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && MovingTextPos == -1)
-                    {
-                        MovingTextPos = 4;
-                    }
-                }
-                else
-                {
-                    f_drawlist->AddRect(text_lb_rect.Min, text_lb_rect.Max, IM_COL32_WHITE);
-                }
-
-                if (text_rb_rect.Contains(io.MousePos))
-                {
-                    f_drawlist->AddRectFilled(text_rb_rect.Min, text_rb_rect.Max, IM_COL32_WHITE);
-                    ImGui::SetMouseCursor(ImGuiMouseCursor_None);
-                    ImGui::RenderMouseCursor(io.MousePos, 0.5, ImGuiMouseCursor_ResizeNWSE, IM_COL32_WHITE, IM_COL32_BLACK, IM_COL32_DISABLE);
-                    mouse_in_handle = true;
-                    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && MovingTextPos == -1)
-                    {
-                        MovingTextPos = 5;
-                    }
-                }
-                else
-                {
-                    f_drawlist->AddRect(text_rb_rect.Min, text_rb_rect.Max, IM_COL32_WHITE);
-                }
-
-                if (text_bm_rect.Contains(io.MousePos))
-                {
-                    f_drawlist->AddRectFilled(text_bm_rect.Min, text_bm_rect.Max, IM_COL32_WHITE);
-                    ImGui::SetMouseCursor(ImGuiMouseCursor_None);
-                    ImGui::RenderMouseCursor(io.MousePos, 0.5, ImGuiMouseCursor_ResizeNS, IM_COL32_WHITE, IM_COL32_BLACK, IM_COL32_DISABLE);
-                    mouse_in_handle = true;
-                    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && MovingTextPos == -1)
-                    {
-                        MovingTextPos = 6;
-                    }
-                }
-                else
-                {
-                    f_drawlist->AddRect(text_bm_rect.Min, text_bm_rect.Max, IM_COL32_WHITE);
-                }
-
-                if (text_lm_rect.Contains(io.MousePos))
-                {
-                    f_drawlist->AddRectFilled(text_lm_rect.Min, text_lm_rect.Max, IM_COL32_WHITE);
-                    ImGui::SetMouseCursor(ImGuiMouseCursor_None);
-                    ImGui::RenderMouseCursor(io.MousePos, 0.5, ImGuiMouseCursor_ResizeEW, IM_COL32_WHITE, IM_COL32_BLACK, IM_COL32_DISABLE);
-                    mouse_in_handle = true;
-                    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && MovingTextPos == -1)
-                    {
-                        MovingTextPos = 7;
-                    }
-                }
-                else
-                {
-                    f_drawlist->AddRect(text_lm_rect.Min, text_lm_rect.Max, IM_COL32_WHITE);
-                }
-
-                if (text_rm_rect.Contains(io.MousePos))
-                {
-                    f_drawlist->AddRectFilled(text_rm_rect.Min, text_rm_rect.Max, IM_COL32_WHITE);
-                    ImGui::SetMouseCursor(ImGuiMouseCursor_None);
-                    ImGui::RenderMouseCursor(io.MousePos, 0.5, ImGuiMouseCursor_ResizeEW, IM_COL32_WHITE, IM_COL32_BLACK, IM_COL32_DISABLE);
-                    mouse_in_handle = true;
-                    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && MovingTextPos == -1)
-                    {
-                        MovingTextPos = 8;
-                    }
-                }
-                else
-                {
-                    f_drawlist->AddRect(text_rm_rect.Min, text_rm_rect.Max, IM_COL32_WHITE);
-                }
-
-                if (!mouse_in_handle && text_rect.Contains(io.MousePos))
+                draw_list->AddRect(text_rect.Min - ImVec2(1, 1), text_rect.Max + ImVec2(1, 1), IM_COL32_WHITE);
+                draw_list->AddRect(text_lt_rect.Min, text_lt_rect.Max, IM_COL32_WHITE);
+                draw_list->AddRect(text_rt_rect.Min, text_rt_rect.Max, IM_COL32_WHITE);
+                draw_list->AddRect(text_tm_rect.Min, text_tm_rect.Max, IM_COL32_WHITE);
+                draw_list->AddRect(text_lb_rect.Min, text_lb_rect.Max, IM_COL32_WHITE);
+                draw_list->AddRect(text_rb_rect.Min, text_rb_rect.Max, IM_COL32_WHITE);
+                draw_list->AddRect(text_bm_rect.Min, text_bm_rect.Max, IM_COL32_WHITE);
+                draw_list->AddRect(text_lm_rect.Min, text_lm_rect.Max, IM_COL32_WHITE);
+                draw_list->AddRect(text_rm_rect.Min, text_rm_rect.Max, IM_COL32_WHITE);
+                if (text_rect.Contains(io.MousePos) || (mouse_is_dragging && MovingTextPos == 0))
                 {
                     ImGui::SetMouseCursor(ImGuiMouseCursor_None);
                     ImGui::RenderMouseCursor(io.MousePos, 0.5, ImGuiMouseCursor_ResizeAll, IM_COL32_WHITE, IM_COL32_BLACK, IM_COL32_DISABLE);
-                    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && MovingTextPos == -1)
+                    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingTextPos)
                     {
-                        MovingTextPos = 0;
+                        MovingTextPos = true;
                     }
+                }
+                if (MovingTextPos && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
+                {
+                    ImGui::CaptureMouseFromApp();
+                    mouse_is_dragging = true;
+                    editing_clip->mFontOffsetH += io.MouseDelta.x / scale_w;
+                    editing_clip->mClipHolder->SetOffsetH(editing_clip->mFontOffsetH);
+                    editing_clip->mFontOffsetV += io.MouseDelta.y / scale_h;
+                    editing_clip->mClipHolder->SetOffsetV(editing_clip->mFontOffsetV);
+                    // draw meters on video
+                    draw_list->AddLine(video_rect.Min + ImVec2(video_rect.GetWidth() / 2, 0), video_rect.Min + ImVec2(video_rect.GetWidth() / 2, video_rect.GetHeight()), IM_COL32(128, 128, 128, 128));
+                    draw_list->AddLine(video_rect.Min + ImVec2(0, video_rect.GetHeight() / 2), video_rect.Min + ImVec2(video_rect.GetWidth(), video_rect.GetHeight() / 2), IM_COL32(128, 128, 128, 128));
                 }
             }
             else
             {
-                f_drawlist->AddRect(text_rect.Min - ImVec2(1, 1), text_rect.Max + ImVec2(1, 1), IM_COL32(192,192,192,128));
+                draw_list->AddRect(text_rect.Min - ImVec2(1, 1), text_rect.Max + ImVec2(1, 1), IM_COL32(192,192,192,192));
             }
         }
-        f_drawlist->PopClipRect();
+        draw_list->PopClipRect();
     }
     ImGui::EndChild();
-    if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+    if (!editing_clip || ImGui::IsMouseReleased(ImGuiMouseButton_Left))
     {
-        MovingTextPos = -1;
+        MovingTextPos = false;
+        mouse_is_dragging = false;
+        ImGui::CaptureMouseFromApp(false);
     }
 }
 /****************************************************************************************
@@ -5724,10 +5623,11 @@ void Application_SetupContext(ImGuiContext* ctx)
     setting_ini_handler.ApplyAllFn = [](ImGuiContext* ctx, ImGuiSettingsHandler* handler)
     {
         // handle project after all setting is loaded 
+        // TODO::Dicky may need a thread to load project and splash screen for waiting
         if (!g_media_editor_settings.project_path.empty())
         {
             if (LoadProject(g_media_editor_settings.project_path) == 0)
-                quit_save_confirm = false;
+                project_need_save = true;
         }
 #if IMGUI_VULKAN_SHADER
         if (m_cie) 
@@ -6249,7 +6149,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
     // check save stage if app will quit
     if (app_will_quit && timeline)
     {
-        if (timeline->m_Tracks.size() > 0 || timeline->media_items.size() > 0) // TODO::Dicky Check timeline changed later
+        if (project_need_save) // TODO::Dicky Check timeline changed later
         {
             if (quit_save_confirm || g_media_editor_settings.project_path.empty())
             {
@@ -6344,13 +6244,18 @@ bool Application_Frame(void * handle, bool app_will_quit)
                     SaveProject(g_media_editor_settings.project_path);
                 }
                 LoadProject(file_path);
+                project_need_save = true;
             }
             if (userDatas.compare("ProjectSave") == 0)
             {
+                if (file_suffix.empty())
+                    file_path += ".mep";
                 SaveProject(file_path);
             }
             if (userDatas.compare("ProjectSaveQuit") == 0)
             {
+                if (file_suffix.empty())
+                    file_path += ".mep";
                 SaveProject(file_path);
                 app_done = true;
             }
