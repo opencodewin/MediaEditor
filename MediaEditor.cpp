@@ -401,6 +401,7 @@ static bool g_audEncSelChanged = true;
 static std::vector<MediaEncoder::EncoderDescription> g_currAudEncDescList;
 static std::string g_encoderConfigErrorMessage;
 static bool quit_save_confirm = true;
+static bool project_need_save = false;
 
 static int ConfigureIndex = 0;              // default timeline setting
 static int ControlPanelIndex = 0;           // default Media Bank window
@@ -1205,6 +1206,7 @@ static void NewProject()
     CleanProject();
     g_media_editor_settings.project_path = "";
     quit_save_confirm = true;
+    project_need_save = true;
 }
 
 static int LoadProject(std::string path)
@@ -1346,7 +1348,7 @@ static void SaveProject(std::string path)
 
     g_project.save(path);
     g_media_editor_settings.project_path = path;
-    quit_save_confirm = false;
+    //quit_save_confirm = false;
 }
 
 /****************************************************************************************
@@ -5625,7 +5627,7 @@ void Application_SetupContext(ImGuiContext* ctx)
         if (!g_media_editor_settings.project_path.empty())
         {
             if (LoadProject(g_media_editor_settings.project_path) == 0)
-                quit_save_confirm = false;
+                project_need_save = true;
         }
 #if IMGUI_VULKAN_SHADER
         if (m_cie) 
@@ -6147,7 +6149,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
     // check save stage if app will quit
     if (app_will_quit && timeline)
     {
-        if (timeline->m_Tracks.size() > 0 || timeline->media_items.size() > 0) // TODO::Dicky Check timeline changed later
+        if (project_need_save) // TODO::Dicky Check timeline changed later
         {
             if (quit_save_confirm || g_media_editor_settings.project_path.empty())
             {
@@ -6242,6 +6244,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
                     SaveProject(g_media_editor_settings.project_path);
                 }
                 LoadProject(file_path);
+                project_need_save = true;
             }
             if (userDatas.compare("ProjectSave") == 0)
             {
