@@ -21,10 +21,10 @@ namespace DataLayer
     public:
         struct Rect
         {
-            int32_t x;
-            int32_t y;
-            int32_t w;
-            int32_t h;
+            int32_t x{0};
+            int32_t y{0};
+            int32_t w{0};
+            int32_t h{0};
         };
 
         SubtitleImage() = default;
@@ -33,7 +33,7 @@ namespace DataLayer
         ImGui::ImMat Vmat() const { return m_image; }
         Rect Area() const { return m_area; }
         bool Valid() const { return !m_image.empty(); }
-        void Invalidate() { m_image.release(); }
+        void Invalidate() { m_image.release(); m_area = Rect(); }
         void UpdateArea(const Rect& r) { m_area = r; }
 
     private:

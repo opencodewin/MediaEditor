@@ -9,6 +9,10 @@ extern "C"
 {
     #include "libavutil/pixdesc.h"
     #include "libavutil/hwcontext.h"
+    #include "libavutil/avutil.h"
+    #include "libavutil/opt.h"
+    #include "libavfilter/buffersrc.h"
+    #include "libavfilter/buffersink.h"
 }
 
 using namespace std;
@@ -1140,7 +1144,98 @@ bool ImMatToAVFrameConverter::ConvertImage(ImGui::ImMat& vmat, AVFrame* avfrm, i
     return true;
 }
 
-MediaInfo::Ratio MediaInfoRatioFromAVRational(const AVRational& src)
+bool FFOverlayBlender::Init()
+{
+    const AVFilter *buffersrc  = avfilter_get_by_name("buffer");
+    const AVFilter *buffersink = avfilter_get_by_name("buffersink");
+
+    m_avfg = avfilter_graph_alloc();
+    if (!m_avfg)
+    {
+        m_errMsg = "FAILED to allocate new 'AVFilterGraph'!";
+        return false;
+    }
+
+    int fferr;
+    ostringstream oss;
+    oss << "pix_fmt=rgba:time_base=1/" << AV_TIME_BASE << ":sar=1";
+    string bufsrcArg = oss.str(); oss.str("");
+    AVFilterContext* filterCtx = nullptr;
+    string filterName = "in_0";
+    fferr = avfilter_graph_create_filter(&filterCtx, buffersrc, filterName.c_str(), bufsrcArg.c_str(), nullptr, m_avfg);
+    if (fferr < 0)
+    {
+        oss << "FAILED when invoking 'avfilter_graph_create_filter' for INPUT 'in_0'! fferr=" << fferr << ".";
+        m_errMsg = oss.str();
+        return false;
+    }
+    AVFilterInOut* filtInOutPtr = avfilter_inout_alloc();
+    if (!filtInOutPtr)
+    {
+        m_errMsg = "FAILED to allocate 'AVFilterInOut' instance!";
+        return false;
+    }
+    filtInOutPtr->name       = av_strdup(filterName.c_str());
+    filtInOutPtr->filter_ctx = filterCtx;
+    filtInOutPtr->pad_idx    = 0;
+    filtInOutPtr->next       = nullptr;
+    m_filterOutputs = filtInOutPtr;
+    m_bufSrcCtxs.push_back(filterCtx);
+
+    filterName = "in_1"; filterCtx = nullptr;
+    fferr = avfilter_graph_create_filter(&filterCtx, buffersrc, filterName.c_str(), bufsrcArg.c_str(), nullptr, m_avfg);
+    if (fferr < 0)
+    {
+        oss << "FAILED when invoking 'avfilter_graph_create_filter' for INPUT 'in_1'! fferr=" << fferr << ".";
+        m_errMsg = oss.str();
+        return false;
+    }
+    filtInOutPtr = avfilter_inout_alloc();
+    if (!filtInOutPtr)
+    {
+        m_errMsg = "FAILED to allocate 'AVFilterInOut' instance!";
+        return false;
+    }
+    filtInOutPtr->name       = av_strdup(filterName.c_str());
+    filtInOutPtr->filter_ctx = filterCtx;
+    filtInOutPtr->pad_idx    = 0;
+    filtInOutPtr->next       = nullptr;
+    m_filterOutputs->next = filtInOutPtr;
+    m_bufSrcCtxs.push_back(filterCtx);
+
+    filterName = "out"; filterCtx = nullptr;
+    fferr = avfilter_graph_create_filter(&filterCtx, buffersink, filterName.c_str(), nullptr, nullptr, m_avfg);
+    if (fferr < 0)
+    {
+        oss << "FAILED when invoking 'avfilter_graph_create_filter' for OUTPUT 'out'! fferr=" << fferr << ".";
+        m_errMsg = oss.str();
+        return false;
+    }
+    const AVPixelFormat out_pix_fmts[] = { AV_PIX_FMT_RGBA, (AVPixelFormat)-1 };
+    fferr = av_opt_set_int_list(filterCtx, "pix_fmts", out_pix_fmts, -1, AV_OPT_SEARCH_CHILDREN);
+    if (fferr < 0)
+    {
+        oss << "FAILED when invoking 'av_opt_set_int_list' for OUTPUTS! fferr=" << fferr << ".";
+        m_errMsg = oss.str();
+        return false;
+    }
+    filtInOutPtr = avfilter_inout_alloc();
+    if (!filtInOutPtr)
+    {
+        m_errMsg = "FAILED to allocate 'AVFilterInOut' instance!";
+        return false;
+    }
+    filtInOutPtr->name        = av_strdup(filterName.c_str());
+    filtInOutPtr->filter_ctx  = filterCtx;
+    filtInOutPtr->pad_idx     = 0;
+    filtInOutPtr->next        = nullptr;
+    m_filterInputs = filtInOutPtr;
+    m_bufSinkCtxs.push_back(filterCtx);
+
+    return false;
+}
+
+static MediaInfo::Ratio MediaInfoRatioFromAVRational(const AVRational& src)
 {
     return { src.num, src.den };
 }

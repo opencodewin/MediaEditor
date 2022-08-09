@@ -3,6 +3,7 @@
 #include <string>
 #include "immat.h"
 #include "VideoTrack.h"
+#include "SubtitleTrack.h"
 #include "Logger.h"
 
 struct MultiTrackVideoReader
@@ -30,6 +31,9 @@ struct MultiTrackVideoReader
     virtual DataLayer::VideoTrackHolder GetTrackById(int64_t trackId, bool createIfNotExists = false) = 0;
     virtual DataLayer::VideoClipHolder GetClipById(int64_t clipId) = 0;
     virtual DataLayer::VideoOverlapHolder GetOverlapById(int64_t ovlpId) = 0;
+
+    virtual DataLayer::SubtitleTrackHolder BuildSubtitleTrackFromFile(int64_t id, const std::string& url) = 0;
+    virtual DataLayer::SubtitleTrackHolder NewEmptySubtitleTrack(int64_t id) = 0;
 
     virtual std::string GetError() const = 0;
 

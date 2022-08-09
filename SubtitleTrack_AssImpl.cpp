@@ -844,6 +844,36 @@ SubtitleClipHolder SubtitleTrack_AssImpl::NewClip(int64_t startTime, int64_t dur
     return hNewClip;
 }
 
+bool SubtitleTrack_AssImpl::DeleteClip(SubtitleClipHolder hClip)
+{
+    auto iter = find(m_clips.begin(), m_clips.end(), hClip);
+    if (iter == m_clips.end())
+    {
+        m_errMsg = "CANNOT find target 'hClip'!";
+        return false;
+    }
+
+    bool updateCurrIter = m_currIter == iter;
+    SubtitleClip_AssImpl* assClip = dynamic_cast<SubtitleClip_AssImpl*>(hClip.get());
+    int eid = assClip->ReadOrder();
+    m_logger->Log(DEBUG) << "Delete ASS SubtitleClip (ReaderOrder=" << eid << ")." << endl;
+    iter = m_clips.erase(iter);
+    if (updateCurrIter)
+        m_currIter = iter;
+    assClip->InvalidateClip();
+    ass_free_event(m_asstrk, eid);
+    if (eid < m_asstrk->n_events-1)
+    {
+        memmove(m_asstrk->events+eid, m_asstrk->events+eid+1, sizeof(ASS_Event)*(m_asstrk->n_events-eid-1));
+        ASS_Event* iterptr = m_asstrk->events+eid;
+        const ASS_Event* const endptr = m_asstrk->events+m_asstrk->n_events-1;
+        while (iterptr < endptr)
+            (iterptr++)->ReadOrder--;
+    }
+    m_asstrk->n_events--;
+    return true;
+}
+
 static bool ConvertSubtitleClipToAVSubtitle(const SubtitleClip* clip, AVSubtitle* avsub, int readOrder)
 {
     avsub->format = 1;
@@ -1175,7 +1205,7 @@ bool SubtitleTrack_AssImpl::ReadFile(const string& path)
                 char *ass_line = avsub.rects[i]->ass;
                 if (!ass_line)
                     continue;
-                m_logger->Log(VERBOSE) << "<" << i << ">: '" << avsub.rects[i]->ass << "'; ";
+                m_logger->Log(VERBOSE) << "<" << i << ">: '" << avsub.rects[i]->ass << "'";
             }
             m_logger->Log(VERBOSE) << endl;
             if (!isAss)

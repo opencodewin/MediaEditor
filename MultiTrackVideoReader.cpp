@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <atomic>
 #include "MultiTrackVideoReader.h"
+#include "FFUtils.h"
 
 using namespace std;
 using namespace Logger;
@@ -470,6 +471,26 @@ public:
         return (int64_t)((double)m_readFrameIdx*1000*m_frameRate.den/m_frameRate.num);
     }
 
+    SubtitleTrackHolder BuildSubtitleTrackFromFile(int64_t id, const string& url) override
+    {
+        SubtitleTrackHolder newSubTrack = SubtitleTrack::BuildFromFile(id, url);
+        newSubTrack->SetFrameSize(m_outWidth, m_outHeight);
+        newSubTrack->EnableFullSizeOutput(false);
+        lock_guard<mutex> lk(m_subtrkLock);
+        m_subtrks.push_back(newSubTrack);
+        return newSubTrack;
+    }
+
+    SubtitleTrackHolder NewEmptySubtitleTrack(int64_t id) override
+    {
+        SubtitleTrackHolder newSubTrack = SubtitleTrack::NewEmptyTrack(id);
+        newSubTrack->SetFrameSize(m_outWidth, m_outHeight);
+        newSubTrack->EnableFullSizeOutput(false);
+        lock_guard<mutex> lk(m_subtrkLock);
+        m_subtrks.push_back(newSubTrack);
+        return newSubTrack;
+    }
+
     string GetError() const override
     {
         return m_errMsg;
@@ -568,6 +589,38 @@ private:
         m_logger->Log(DEBUG) << "Leave MixingThreadProc(VIDEO)." << endl;
     }
 
+    ImGui::ImMat BlendSubtitle(ImGui::ImMat& vmat)
+    {
+        if (m_subtrks.empty())
+            return vmat;
+
+        ImGui::ImMat res = vmat;
+        bool cloned = false;
+        lock_guard<mutex> lk(m_subtrkLock);
+        for (auto& hSubTrack : m_subtrks)
+        {
+            auto hSubClip = hSubTrack->GetClipByTime((int64_t)(vmat.time_stamp*1000));
+            if (hSubClip)
+            {
+                auto subImg = hSubClip->Image();
+                if (subImg.Valid())
+                {
+                    if (!cloned)
+                    {
+                        res = vmat.clone();
+                        cloned = true;
+                    }
+                    // blend subtitle-image
+                }
+                else
+                {
+                    m_logger->Log(Error) << "Invalid 'SubtitleImage' at " << MillisecToString((int64_t)(vmat.time_stamp*1000)) << "." << endl;
+                }
+            }
+        }
+        return res;
+    }
+
 private:
     ALogger* m_logger;
     string m_errMsg;
@@ -591,6 +644,9 @@ private:
     int64_t m_seekPos{0};
     atomic_bool m_seeking{false};
     ImGui::ImMat m_seekingFlash;
+
+    list<SubtitleTrackHolder> m_subtrks;
+    mutex m_subtrkLock;
 
     bool m_configured{false};
     bool m_started{false};

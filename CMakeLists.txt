@@ -292,6 +292,10 @@ add_executable(
     VideoClip.cpp
     MediaReader.cpp
     MediaParser.cpp
+    SubtitleClip.cpp
+    SubtitleClip_AssImpl.cpp
+    SubtitleTrack.cpp
+    SubtitleTrack_AssImpl.cpp
     FFUtils.cpp
     Logger.cpp
     ${IMGUI_APP_ENTRY_SRC}
@@ -300,6 +304,7 @@ target_link_libraries(
     multi_track_video_reader_test
     ${IMGUI_LIBRARYS}
     PkgConfig::FFMPEG
+    PkgConfig::LIBASS
 )
 target_include_directories(
     multi_track_video_reader_test PRIVATE

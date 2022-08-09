@@ -464,6 +464,14 @@ bool Application_Frame(void * handle, bool app_will_quit)
                         s_subtitleEditChanged = false;
                     }
                     ImGui::EndDisabled();
+                    ImGui::SameLine(0, 20);
+                    ImGui::BeginDisabled(!hSelectedClip);
+                    if (ImGui::Button("Delete clip"))
+                    {
+                        g_subtrack->DeleteClip(hSelectedClip);
+                        s_showSubIdx = g_subtrack->GetCurrIndex();
+                    }
+                    ImGui::EndDisabled();
                     ImGui::EndTabItem();
                 }
                 // TAB 'Render'

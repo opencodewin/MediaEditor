@@ -6,12 +6,15 @@ using namespace DataLayer;
 
 SubtitleClip_AssImpl::SubtitleClip_AssImpl(ASS_Event* assEvent, ASS_Track* assTrack, AssRenderCallback renderCb)
     : m_type(DataLayer::ASS), m_assEvent(assEvent), m_assTrack(assTrack), m_renderCb(renderCb)
-    , m_readOrder(assEvent->ReadOrder), m_trackStyle(assTrack->styles[assEvent->Style].Name)
+    , m_trackStyle(assTrack->styles[assEvent->Style].Name)
     , m_text(string(assEvent->Text))
 {}
 
 SubtitleImage SubtitleClip_AssImpl::Image()
 {
+    if (!m_assEvent)
+        return m_image;
+
     if (!m_image.Valid() && m_renderCb)
     {
         if (m_assTextChanged)
@@ -43,7 +46,7 @@ void SubtitleClip_AssImpl::EnableUsingTrackStyle(bool enable)
 
 void SubtitleClip_AssImpl::SetTrackStyle(const std::string& name)
 {
-    if (m_trackStyle == name)
+    if (!m_assEvent || m_trackStyle == name)
         return;
 
     int targetIdx = -1, defaultIdx = -1;
@@ -391,18 +394,24 @@ void SubtitleClip_AssImpl::InvalidateImage()
 
 void SubtitleClip_AssImpl::SetStartTime(int64_t startTime)
 {
+    if (!m_assEvent)
+        return;
     m_assEvent->Start = startTime;
     m_image.Invalidate();
 }
 
 void SubtitleClip_AssImpl::SetDuration(int64_t duration)
 {
+    if (!m_assEvent)
+        return;
     m_assEvent->Duration = duration;
     m_image.Invalidate();
 }
 
 string SubtitleClip_AssImpl::GenerateAssChunk()
 {
+    if (!m_assEvent)
+        return string();
     ostringstream oss;
     oss << m_assEvent->ReadOrder << "," << m_assEvent->Layer << "," << m_trackStyle << ",,0,0,0,," << GetAssText();
     return oss.str();
@@ -479,4 +488,11 @@ void SubtitleClip_AssImpl::UpdateImageAreaY(int32_t bias)
     SubtitleImage::Rect r{m_image.Area()};
     r.y += bias;
     m_image.UpdateArea(r);
+}
+
+void SubtitleClip_AssImpl::InvalidateClip()
+{
+    m_assTrack = nullptr;
+    m_assEvent = nullptr;
+    m_image.Invalidate();
 }

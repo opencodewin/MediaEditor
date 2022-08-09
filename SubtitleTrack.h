@@ -44,6 +44,7 @@ namespace DataLayer
         virtual bool ChangeClipTime(SubtitleClipHolder clip, int64_t startTime, int64_t duration) = 0;
 
         virtual SubtitleClipHolder NewClip(int64_t startTime, int64_t duration) = 0;
+        virtual bool DeleteClip(SubtitleClipHolder hClip) = 0;
         virtual SubtitleClipHolder GetClipByTime(int64_t ms) = 0;
         virtual SubtitleClipHolder GetCurrClip() = 0;
         virtual SubtitleClipHolder GetPrevClip() = 0;
@@ -53,6 +54,8 @@ namespace DataLayer
         virtual bool SeekToTime(int64_t ms) = 0;
         virtual bool SeekToIndex(uint32_t index) = 0;
 
+        virtual bool IsVisible() const = 0;
+        virtual void SetVisible(bool enable) = 0;
         virtual bool SaveAs(const std::string& subFilePath) = 0;
 
         virtual std::string GetError() const = 0;

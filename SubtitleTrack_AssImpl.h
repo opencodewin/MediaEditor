@@ -120,6 +120,7 @@ namespace DataLayer
         bool ChangeClipTime(SubtitleClipHolder clip, int64_t startTime, int64_t duration) override;
 
         SubtitleClipHolder NewClip(int64_t startTime, int64_t duration) override;
+        bool DeleteClip(SubtitleClipHolder hClip) override;
         SubtitleClipHolder GetClipByTime(int64_t ms) override;
         SubtitleClipHolder GetCurrClip() override;
         SubtitleClipHolder GetPrevClip() override;
@@ -129,6 +130,8 @@ namespace DataLayer
         bool SeekToTime(int64_t ms) override;
         bool SeekToIndex(uint32_t index) override;
 
+        bool IsVisible() const override { return m_visible; }
+        void SetVisible(bool enable) override { m_visible = enable; }
         bool SaveAs(const std::string& subFilePath) override;
 
         std::string GetError() const override { return m_errMsg; }
@@ -160,12 +163,13 @@ namespace DataLayer
         ASS_Renderer* m_assrnd{nullptr};
         uint32_t m_frmW{0}, m_frmH{0};
         bool m_outputFullSize{true};
-
         bool m_useOverrideStyle{false};
         SubtitleTrackStyle_AssImpl m_overrideStyle;
 
         AVFormatContext* m_pAvfmtCtx{nullptr};
         AVCodecContext* m_pAvCdcCtx{nullptr};
+
+        bool m_visible{true};
 
         static ASS_Library* s_asslib;
     };

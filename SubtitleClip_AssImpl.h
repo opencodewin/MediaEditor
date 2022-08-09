@@ -41,9 +41,9 @@ namespace DataLayer
         int32_t OffsetH() const override { return m_offsetH; }
         int32_t OffsetV() const override { return m_offsetV; }
         uint32_t Alignment() const override { return m_alignment; }
-        int64_t StartTime() const override { return m_assEvent->Start; }
-        int64_t Duration() const override { return m_assEvent->Duration; }
-        int64_t EndTime() const override { return m_assEvent->Start+m_assEvent->Duration; }
+        int64_t StartTime() const override { return m_assEvent ? m_assEvent->Start : -1; }
+        int64_t Duration() const override { return m_assEvent ? m_assEvent->Duration : -1; }
+        int64_t EndTime() const override { return m_assEvent ? m_assEvent->Start+m_assEvent->Duration : -1; }
         std::string Text() const override { return m_text; }
         SubtitleImage Image() override;
 
@@ -80,8 +80,8 @@ namespace DataLayer
         void InvalidateImage() override;
 
         void SetRenderCallback(AssRenderCallback renderCb) { m_renderCb = renderCb; }
-        void SetAssEvent(ASS_Event* assEvent) { m_assEvent = assEvent; m_readOrder = assEvent->ReadOrder; }
-        int ReadOrder() const { return m_readOrder; }
+        void SetAssEvent(ASS_Event* assEvent) { m_assEvent = assEvent; }
+        int ReadOrder() const { return m_assEvent ? m_assEvent->ReadOrder : -1; }
         void SetStartTime(int64_t startTime);
         void SetDuration(int64_t duration);
         std::string GenerateAssChunk();
@@ -90,6 +90,7 @@ namespace DataLayer
         bool IsAssTextChanged() const { return m_assTextChanged; }
         void UpdateImageAreaX(int32_t bias);
         void UpdateImageAreaY(int32_t bias);
+        void InvalidateClip();
 
     private:
         SubtitleType m_type;
@@ -124,7 +125,6 @@ namespace DataLayer
 
         ASS_Track* m_assTrack{nullptr};
         ASS_Event* m_assEvent{nullptr};
-        int m_readOrder;
         AssRenderCallback m_renderCb;
     };
 }

@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <string>
 #include <memory>
+#include <vector>
 #include <imconfig.h>
 #include <immat.h>
 #if IMGUI_VULKAN_SHADER
@@ -13,6 +14,7 @@ extern "C"
     #include "libavutil/pixdesc.h"
     #include "libavutil/frame.h"
     #include "libswscale/swscale.h"
+    #include "libavfilter/avfilter.h"
 }
 
 #if LIBAVFORMAT_VERSION_MAJOR >= 59
@@ -133,6 +135,29 @@ private:
     int m_swsInWidth{0}, m_swsInHeight{0};
     AVPixelFormat m_swsInFormat{AV_PIX_FMT_NONE};
     bool m_passThrough{false};
+    std::string m_errMsg;
+};
+
+class FFOverlayBlender
+{
+public:
+    FFOverlayBlender() = default;
+    FFOverlayBlender(const FFOverlayBlender&) = delete;
+    FFOverlayBlender(FFOverlayBlender&&) = default;
+    FFOverlayBlender& operator=(const FFOverlayBlender&) = delete;
+
+    bool Init();
+    ImGui::ImMat Blend(ImGui::ImMat& baseImage, const ImGui::ImMat& overlayImage, int32_t x, int32_t y, uint32_t w, uint32_t h);
+
+    std::string GetError() const { return m_errMsg; }
+
+private:
+    AVFilterGraph* m_avfg{nullptr};
+    AVFilterInOut* m_filterOutputs{nullptr};
+    AVFilterInOut* m_filterInputs{nullptr};
+    std::vector<AVFilterContext*> m_bufSrcCtxs;
+    std::vector<AVFilterContext*> m_bufSinkCtxs;
+
     std::string m_errMsg;
 };
 
