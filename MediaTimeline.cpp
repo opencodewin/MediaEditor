@@ -447,6 +447,14 @@ void Clip::Cutting(int64_t pos)
         track->InsertClip(new_clip, pos);
         timeline->AddClipIntoGroup(new_clip, mGroupID);
         timeline->Updata();
+
+        if (mType == MEDIA_TEXT)
+        {
+            TextClip* tclip = dynamic_cast<TextClip*>(new_clip);
+            // subtitle clip need add clip to subtitle hold
+            tclip->SetClipDefault(dynamic_cast<TextClip*>(this));
+            tclip->CreateClipHold(track);
+        }
     }
 }
 
@@ -730,6 +738,14 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
     if (mouse_track == -2)
     {
         index = timeline->NewTrack("", mType, track->mExpanded);
+        if (mType == MEDIA_TEXT)
+        {
+            MediaTrack * newTrack = timeline->m_Tracks[index];
+            newTrack->mMttReader = DataLayer::SubtitleTrack::NewEmptyTrack(newTrack->mID);
+            newTrack->mMttReader->SetFont(timeline->mFontName);
+            newTrack->mMttReader->SetFrameSize(timeline->mWidth, timeline->mHeight);
+            newTrack->mMttReader->EnableFullSizeOutput(false);
+        }
         timeline->MovingClip(mID, track_index, index);
     }
     else if (mouse_track >= 0 && mouse_track != track_index)
@@ -1271,6 +1287,61 @@ void TextClip::SetClipDefault(const DataLayer::SubtitleStyle & style, DataLayer:
     mFontPosY = -INT32_MAX;
 }
 
+void TextClip::SetClipDefault(const TextClip* clip)
+{
+    mTrackStyle = clip->mTrackStyle;
+    mFontScaleX = clip->mFontScaleX;
+    mFontScaleY = clip->mFontScaleY;
+    mFontItalic = clip->mFontItalic;
+    mFontBold = clip->mFontBold;
+    mFontAngleX = clip->mFontAngleX;
+    mFontAngleY = clip->mFontAngleY;
+    mFontAngleZ = clip->mFontAngleZ;
+    mFontOutlineWidth = clip->mFontOutlineWidth;
+    mFontSpacing = clip->mFontSpacing;
+    mFontAlignment = clip->mFontAlignment;
+    mFontUnderLine = clip->mFontUnderLine;
+    mFontStrikeOut = clip->mFontStrikeOut;
+    mFontPrimaryColor = clip->mFontPrimaryColor;
+    mFontOutlineColor = clip->mFontOutlineColor;
+    mFontName = clip->mFontName;
+    mFontOffsetH = clip->mFontOffsetH;
+    mFontOffsetV = clip->mFontOffsetV;
+    // pos value need load later 
+    mFontPosX = clip->mFontPosX;
+    mFontPosY = clip->mFontPosY;
+}
+
+void TextClip::CreateClipHold(void * _track)
+{
+    MediaTrack * track = (MediaTrack *)_track;
+    if (!track || !track->mMttReader)
+        return;
+    mClipHolder = track->mMttReader->NewClip(mStart, mEnd - mStart);
+    mTrack = track;
+    mClipHolder->SetText(mText);
+    mClipHolder->EnableUsingTrackStyle(mTrackStyle);
+    if (!mTrackStyle)
+    {
+        mClipHolder->SetOffsetH(mFontOffsetH);
+        mClipHolder->SetOffsetV(mFontOffsetV);
+        mClipHolder->SetScaleX(mFontScaleX);
+        mClipHolder->SetScaleY(mFontScaleY);
+        mClipHolder->SetSpacing(mFontSpacing);
+        mClipHolder->SetRotationX(mFontAngleX);
+        mClipHolder->SetRotationY(mFontAngleY);
+        mClipHolder->SetRotationZ(mFontAngleZ);
+        mClipHolder->SetBorderWidth(mFontOutlineWidth);
+        mClipHolder->SetBold(mFontBold);
+        mClipHolder->SetItalic(mFontItalic);
+        mClipHolder->SetUnderLine(mFontUnderLine);
+        mClipHolder->SetStrikeOut(mFontStrikeOut);
+        mClipHolder->SetAlignment(mFontAlignment);
+        mClipHolder->SetPrimaryColor(mFontPrimaryColor);
+        mClipHolder->SetOutlineColor(mFontOutlineColor);
+    }
+}
+
 void TextClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect)
 {
     drawList->AddRectFilled(leftTop, rightBottom, IM_COL32(16, 16, 16, 255));
@@ -1288,21 +1359,9 @@ Clip * TextClip::Load(const imgui_json::value& value, void * handle)
     if (!timeline || timeline->media_items.size() <= 0)
         return nullptr;
     
-    int64_t id = -1;
-    MediaItem * item = nullptr;
-    if (value.contains("MediaID"))
+    // text clip don't band with media item
     {
-        auto& val = value["MediaID"];
-        if (val.is_number()) id = val.get<imgui_json::number>();
-    }
-    if (id != -1)
-    {
-        item = timeline->FindMediaItemByID(id);
-    }
-
-    if (item)
-    {
-        TextClip * new_clip = new TextClip(item->mStart, item->mEnd, item->mID, item->mName, std::string(""), handle);
+        TextClip * new_clip = new TextClip(0, 0, 0, std::string(""), std::string(""), handle);
         if (new_clip)
         {
             Clip::Load(new_clip, value);
@@ -1409,10 +1468,6 @@ Clip * TextClip::Load(const imgui_json::value& value, void * handle)
             }
             return new_clip;
         }
-    }
-    else
-    {
-        // media isn't in bank we need create new media item first ?
     }
     return nullptr;
 }
@@ -2622,6 +2677,15 @@ void MediaTrack::DeleteClip(int64_t id)
     });
     if (iter != m_Clips.end())
     {
+        if ((*iter)->mType == MEDIA_TEXT)
+        {
+            TextClip * tclip = dynamic_cast<TextClip *>(*iter);
+            // if clip is text clip, need delete from track holder
+            if (mMttReader && tclip->mClipHolder)
+            {
+                mMttReader->DeleteClip(tclip->mClipHolder);
+            }
+        }
         m_Clips.erase(iter);
     }
     Update();
@@ -3141,30 +3205,7 @@ MediaTrack* MediaTrack::Load(const imgui_json::value& value, void * handle)
                 if (clip->mType == MEDIA_TEXT)
                 {
                     TextClip * tclip = dynamic_cast<TextClip *>(clip);
-                    auto holder = new_track->mMttReader->NewClip(tclip->mStart, tclip->mEnd - tclip->mStart);
-                    holder->SetText(tclip->mText);
-                    holder->EnableUsingTrackStyle(tclip->mTrackStyle);
-                    if (!tclip->mTrackStyle)
-                    {
-                        holder->SetOffsetH(tclip->mFontOffsetH);
-                        holder->SetOffsetV(tclip->mFontOffsetV);
-                        holder->SetScaleX(tclip->mFontScaleX);
-                        holder->SetScaleY(tclip->mFontScaleY);
-                        holder->SetSpacing(tclip->mFontSpacing);
-                        holder->SetRotationX(tclip->mFontAngleX);
-                        holder->SetRotationY(tclip->mFontAngleY);
-                        holder->SetRotationZ(tclip->mFontAngleZ);
-                        holder->SetBorderWidth(tclip->mFontOutlineWidth);
-                        holder->SetBold(tclip->mFontBold);
-                        holder->SetItalic(tclip->mFontItalic);
-                        holder->SetUnderLine(tclip->mFontUnderLine);
-                        holder->SetStrikeOut(tclip->mFontStrikeOut);
-                        holder->SetAlignment(tclip->mFontAlignment);
-                        holder->SetPrimaryColor(tclip->mFontPrimaryColor);
-                        holder->SetOutlineColor(tclip->mFontOutlineColor);
-                    }
-                    tclip->mClipHolder = holder;
-                    tclip->mTrack = new_track;
+                    tclip->CreateClipHold(new_track);
                 }
             }
         }
@@ -3906,6 +3947,20 @@ void TimeLine::MovingClip(int64_t id, int from_track_index, int to_track_index)
     if (iter != m_Clips.end())
     {
         auto clip = *iter;
+        if (clip->mType == MEDIA_TEXT)
+        {
+            TextClip * tclip = dynamic_cast<TextClip *>(clip);
+            // need remove from source track holder
+            if (track->mMttReader && tclip->mClipHolder)
+            {
+                track->mMttReader->DeleteClip(tclip->mClipHolder);
+            }
+            // and add into dst track holder
+            tclip->CreateClipHold(dst_track);
+            tclip->mMediaID = dst_track->mID;
+            tclip->mName = dst_track->mName;
+        }
+
         dst_track->InsertClip(clip, clip->mStart);
         mOngoingAction["to_track_id"] = imgui_json::number(dst_track->mID);
     }
@@ -4784,6 +4839,12 @@ int TimeLine::Load(const imgui_json::value& value)
         if (val.is_boolean()) bSelectLinked = val.get<imgui_json::boolean>();
     }
     
+    if (value.contains("FontName"))
+    {
+        auto& val = value["FontName"];
+        if (val.is_string()) mFontName = val.get<imgui_json::string>();
+    }
+
     if (value.contains("OutputName"))
     {
         auto& val = value["OutputName"];
@@ -4925,6 +4986,7 @@ void TimeLine::Save(imgui_json::value& value)
     value["Compare"] = imgui_json::boolean(bCompare);
     value["SelectLinked"] = imgui_json::boolean(bSelectLinked);
     value["IDGenerateState"] = imgui_json::number(m_IDGenerator.State());
+    value["FontName"] = mFontName;
     value["OutputName"] = mOutputName;
     value["OutputPath"] = mOutputPath;
     value["OutputVideoCode"] = mVideoCodec;
@@ -5660,6 +5722,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
     int legendEntry = -1;
     int64_t mouseClip = -1;
     int64_t mouseTime = -1;
+    static int64_t menuMouseTime = -1;
     std::vector<int64_t> delClipEntry;
     std::vector<int64_t> groupClipEntry;
     std::vector<int64_t> unGroupClipEntry;
@@ -6121,6 +6184,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                 clipMenuEntry = mouseClip;
             if (mouseEntry >= 0)
                 trackMenuEntry = mouseEntry;
+            if (mouseTime != -1)
+                menuMouseTime = mouseTime;
             ImGui::OpenPopup("##timeline-context-menu");
             menuIsOpened = true;
         }
@@ -6140,6 +6205,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             headerMarkPos = -1;
             trackMenuEntry = -1;
             clipMenuEntry = -1;
+            menuMouseTime = -1;
         }
 
         if (ImGui::BeginPopup("##timeline-header-context-menu"))
@@ -6222,7 +6288,23 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                 {
                     if (ImGui::MenuItem(ICON_MEDIA_TEXT  " Add Text", nullptr, nullptr))
                     {
-                        // TODO::Dicky add a text clip
+                        if (track->mMttReader && menuMouseTime != -1)
+                        {
+                            auto& style = track->mMttReader->DefaultStyle();
+                            TextClip * clip = new TextClip(menuMouseTime, menuMouseTime + 5000, track->mID, track->mName, std::string(""), timeline);
+                            auto holder = track->mMttReader->NewClip(clip->mStart, clip->mEnd - clip->mStart);
+                            clip->SetClipDefault(style, holder);
+                            clip->mTrack = track;
+                            holder->EnableUsingTrackStyle(clip->mTrackStyle);
+                            timeline->m_Clips.push_back(clip);
+                            track->InsertClip(clip, holder->StartTime());
+                            track->SelectEditingClip(clip);
+                            if (timeline->m_CallBacks.EditingClip)
+                            {
+                                timeline->m_CallBacks.EditingClip(clip->mType, clip);
+                            }
+                            //action["clip_id"] = imgui_json::number(clip->mID);
+                        }
                     }
                 }
             }
@@ -6780,7 +6862,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                 } 
                 else if (item->mMediaType == MEDIA_TEXT)
                 {
-                    // subtitle track isn'y like other media tracks, it need load clips after insert a empty track
+                    // subtitle track isn't like other media tracks, it need load clips after insert a empty track
+                    // text clip don't band with media item
                     int newTrackIndex = timeline->NewTrack("", MEDIA_TEXT, true);
                     MediaTrack * newTrack = timeline->m_Tracks[newTrackIndex];
                     newTrack->mMttReader = DataLayer::SubtitleTrack::BuildFromFile(newTrack->mID, item->mPath);
@@ -6793,7 +6876,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                         DataLayer::SubtitleClipHolder hSubClip = newTrack->mMttReader->GetCurrClip();
                         while (hSubClip)
                         {
-                            TextClip * new_text_clip = new TextClip(hSubClip->StartTime(), hSubClip->EndTime(), item->mID, item->mName, hSubClip->Text(), timeline);
+                            TextClip * new_text_clip = new TextClip(hSubClip->StartTime(), hSubClip->EndTime(), newTrack->mID, newTrack->mName, hSubClip->Text(), timeline);
                             new_text_clip->SetClipDefault(style, hSubClip);
                             new_text_clip->mTrack = newTrack;
                             timeline->m_Clips.push_back(new_text_clip);
@@ -6998,7 +7081,14 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             timeline->NewTrack("", MEDIA_PICTURE, true);
         break;
         case MEDIA_TEXT:
-            timeline->NewTrack("", MEDIA_TEXT, true);
+        {
+            int newTrackIndex = timeline->NewTrack("", MEDIA_TEXT, true);
+            MediaTrack * newTrack = timeline->m_Tracks[newTrackIndex];
+            newTrack->mMttReader = DataLayer::SubtitleTrack::NewEmptyTrack(newTrack->mID);
+            newTrack->mMttReader->SetFont(timeline->mFontName);
+            newTrack->mMttReader->SetFrameSize(timeline->mWidth, timeline->mHeight);
+            newTrack->mMttReader->EnableFullSizeOutput(false);
+        }
         break;
         default:
         break;

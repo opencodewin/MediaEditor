@@ -1162,6 +1162,7 @@ static void NewTimeline()
         timeline->mAudioSpectrogramOffset = g_media_editor_settings.AudioSpectrogramOffset;
         timeline->mAudioVectorScale = g_media_editor_settings.AudioVectorScale;
         timeline->mAudioVectorMode = g_media_editor_settings.AudioVectorMode;
+        timeline->mFontName = g_media_editor_settings.FontName;
 
         // init callbacks
         timeline->m_CallBacks.EditingClip = EditingClip;
@@ -4067,6 +4068,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
                 if (editing_clip->mText.compare(value) != 0)
                 {
                     editing_clip->mText = value;
+                    editing_clip->mClipHolder->SetText(editing_clip->mText);
                 }
             }
             // show style control
@@ -5690,7 +5692,7 @@ void Application_Initialize(void** handle)
     // GetMediaReaderLogger()->SetShowLevels(Logger::DEBUG);
     // GetSnapshotGeneratorLogger()->SetShowLevels(Logger::DEBUG);
     // GetMediaEncoderLogger()->SetShowLevels(Logger::DEBUG);
-    // GetSubtitleTrackLogger()->SetShowLevels(Logger::DEBUG);
+    GetSubtitleTrackLogger()->SetShowLevels(Logger::DEBUG);
 
     if (!DataLayer::InitializeSubtitleLibrary())
         std::cout << "FAILED to initialize the subtitle library!" << std::endl;
@@ -5833,6 +5835,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
                 timeline->mAudioChannels = g_media_editor_settings.AudioChannels;
                 timeline->mAudioFormat = (AudioRender::PcmFormat)g_media_editor_settings.AudioFormat;
                 timeline->mShowHelpTooltips = g_media_editor_settings.ShowHelpTooltips;
+                timeline->mFontName = g_media_editor_settings.FontName;
             }
             ImGui::CloseCurrentPopup(); 
         }

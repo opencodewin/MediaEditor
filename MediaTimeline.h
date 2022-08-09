@@ -402,12 +402,15 @@ struct TextClip : Clip
     TextClip(int64_t start, int64_t end, int64_t id, std::string name, std::string text, void* handle);
     ~TextClip();
     void SetClipDefault(const DataLayer::SubtitleStyle & style, DataLayer::SubtitleClipHolder clip_hold);
+    void SetClipDefault(const TextClip* clip);
 
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect) override;
 
     static Clip * Load(const imgui_json::value& value, void * handle);
     void Save(imgui_json::value& value) override;
 
+    void CreateClipHold(void * track);
+    
     std::string mText;
     std::string mFontName;
     bool mTrackStyle {true};
@@ -701,6 +704,8 @@ struct TimeLine
     int mAudioSampleRate {44100};           // timeline audio sample rate, project saved, configured
     AudioRender::PcmFormat mAudioFormat {AudioRender::PcmFormat::FLOAT32}; // timeline audio format, project saved, configured
 
+    // sutitle Setting
+    std::string mFontName;
     // Output Setting
     std::string mOutputName {"Untitled"};
     std::string mOutputPath {""};
