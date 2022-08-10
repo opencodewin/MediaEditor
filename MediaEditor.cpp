@@ -4122,7 +4122,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
         ShowMediaPreviewWindow(draw_list, "Text Preview", video_rect, false, false);
         // show test rect on preview view and add UI editor
         draw_list->PushClipRect(video_rect.Min, video_rect.Max);
-        if (editing_clip && current_image.Valid())
+        if (editing_clip && current_image.Valid() && timeline->currentTime >= editing_clip->mStart && timeline->currentTime <= editing_clip->mEnd)
         {
             float scale_w =  video_rect.GetWidth() / timeline->mWidth;
             float scale_h =  video_rect.GetHeight() / timeline->mHeight;

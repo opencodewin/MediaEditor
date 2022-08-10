@@ -427,6 +427,8 @@ void Clip::Cutting(int64_t pos)
         {
             TextClip* textClip = dynamic_cast<TextClip*>(this);
             auto new_text_clip = new TextClip(mStart, mEnd, mMediaID, mName, textClip->mText, timeline);
+            new_text_clip->SetClipDefault(textClip);
+            new_text_clip->CreateClipHold(track);
             new_clip = new_text_clip;
         }
         break;
@@ -447,14 +449,6 @@ void Clip::Cutting(int64_t pos)
         track->InsertClip(new_clip, pos);
         timeline->AddClipIntoGroup(new_clip, mGroupID);
         timeline->Updata();
-
-        if (mType == MEDIA_TEXT)
-        {
-            TextClip* tclip = dynamic_cast<TextClip*>(new_clip);
-            // subtitle clip need add clip to subtitle hold
-            tclip->SetClipDefault(dynamic_cast<TextClip*>(this));
-            tclip->CreateClipHold(track);
-        }
     }
 }
 
@@ -1262,8 +1256,9 @@ TextClip::~TextClip()
 {
 }
 
-void TextClip::SetClipDefault(const DataLayer::SubtitleStyle & style, DataLayer::SubtitleClipHolder clip_hold)
+void TextClip::SetClipDefault(const DataLayer::SubtitleStyle & style)
 {
+    mTrackStyle = false;
     mFontScaleX = style.ScaleX();
     mFontScaleY = style.ScaleY();
     mFontItalic = style.Italic() > 0;
@@ -1281,7 +1276,6 @@ void TextClip::SetClipDefault(const DataLayer::SubtitleStyle & style, DataLayer:
     mFontName = style.Font();
     mFontOffsetH = style.OffsetH();
     mFontOffsetV = style.OffsetV();
-    mClipHolder = clip_hold;
     // pos value need load later 
     mFontPosX = -INT32_MAX;
     mFontPosY = -INT32_MAX;
@@ -1308,8 +1302,8 @@ void TextClip::SetClipDefault(const TextClip* clip)
     mFontOffsetH = clip->mFontOffsetH;
     mFontOffsetV = clip->mFontOffsetV;
     // pos value need load later 
-    mFontPosX = clip->mFontPosX;
-    mFontPosY = clip->mFontPosY;
+    mFontPosX = -INT32_MAX;
+    mFontPosY = -INT32_MAX;
 }
 
 void TextClip::CreateClipHold(void * _track)
@@ -6293,7 +6287,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                             auto& style = track->mMttReader->DefaultStyle();
                             TextClip * clip = new TextClip(menuMouseTime, menuMouseTime + 5000, track->mID, track->mName, std::string(""), timeline);
                             auto holder = track->mMttReader->NewClip(clip->mStart, clip->mEnd - clip->mStart);
-                            clip->SetClipDefault(style, holder);
+                            clip->SetClipDefault(style);
+                            clip->mClipHolder = holder;
                             clip->mTrack = track;
                             holder->EnableUsingTrackStyle(clip->mTrackStyle);
                             timeline->m_Clips.push_back(clip);
@@ -6877,7 +6872,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                         while (hSubClip)
                         {
                             TextClip * new_text_clip = new TextClip(hSubClip->StartTime(), hSubClip->EndTime(), newTrack->mID, newTrack->mName, hSubClip->Text(), timeline);
-                            new_text_clip->SetClipDefault(style, hSubClip);
+                            new_text_clip->SetClipDefault(style);
+                            new_text_clip->mClipHolder = hSubClip;
                             new_text_clip->mTrack = newTrack;
                             timeline->m_Clips.push_back(new_text_clip);
                             newTrack->InsertClip(new_text_clip, hSubClip->StartTime(), false);
