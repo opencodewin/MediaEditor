@@ -312,8 +312,8 @@ struct Clip
     Clip(int64_t start, int64_t end, int64_t id, MediaParserHolder mediaParser, void * handle);
     virtual ~Clip();
 
-    int64_t Moving(int64_t diff, int mouse_track);
-    int64_t Cropping(int64_t diff, int type);
+    virtual int64_t Moving(int64_t diff, int mouse_track);
+    virtual int64_t Cropping(int64_t diff, int type);
     void Cutting(int64_t pos);
     bool isLinkedWith(Clip * clip);
     
@@ -405,6 +405,8 @@ struct TextClip : Clip
     void SetClipDefault(const TextClip* clip);
 
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect) override;
+    int64_t Moving(int64_t diff, int mouse_track) override;
+    int64_t Cropping(int64_t diff, int type) override;
 
     static Clip * Load(const imgui_json::value& value, void * handle);
     void Save(imgui_json::value& value) override;

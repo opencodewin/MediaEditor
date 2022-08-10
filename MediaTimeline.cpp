@@ -426,10 +426,12 @@ void Clip::Cutting(int64_t pos)
         case MEDIA_TEXT:
         {
             TextClip* textClip = dynamic_cast<TextClip*>(this);
-            auto new_text_clip = new TextClip(mStart, mEnd, mMediaID, mName, textClip->mText, timeline);
+            auto new_text_clip = new TextClip(new_start, mEnd, mMediaID, mName, textClip->mText, timeline);
             new_text_clip->SetClipDefault(textClip);
             new_text_clip->CreateClipHold(track);
             new_clip = new_text_clip;
+            // adj current text clip time
+            track->mMttReader->ChangeClipTime(textClip->mClipHolder, mStart, adj_end - mStart);
         }
         break;
         default:
@@ -1334,6 +1336,24 @@ void TextClip::CreateClipHold(void * _track)
         mClipHolder->SetPrimaryColor(mFontPrimaryColor);
         mClipHolder->SetOutlineColor(mFontOutlineColor);
     }
+}
+
+int64_t TextClip::Moving(int64_t diff, int mouse_track)
+{
+    auto ret = Clip::Moving(diff, mouse_track);
+    MediaTrack * track = (MediaTrack*)mTrack;
+    if (track && track->mMttReader)
+        track->mMttReader->ChangeClipTime(mClipHolder, mStart, mEnd - mStart);
+    return ret;
+}
+
+int64_t TextClip::Cropping(int64_t diff, int type)
+{
+    auto ret = Clip::Cropping(diff, type);
+    MediaTrack * track = (MediaTrack*)mTrack;
+    if (track && track->mMttReader)
+        track->mMttReader->ChangeClipTime(mClipHolder, mStart, mEnd - mStart);
+    return ret;
 }
 
 void TextClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect)
