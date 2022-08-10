@@ -597,12 +597,14 @@ bool SubtitleTrack_AssImpl::ChangeClipTime(SubtitleClipHolder clip, int64_t star
 
     // find the new insertion position
     iter2 = iter;
+    int posOffset = 0;
     if (startTime > clip->StartTime())
     {
         iter2++;
         while (iter2 != m_clips.end() && startTime > (*iter2)->StartTime())
         {
             (*iter2)->InvalidateImage();
+            posOffset++;
             iter2++;
         }
     }
@@ -614,6 +616,7 @@ bool SubtitleTrack_AssImpl::ChangeClipTime(SubtitleClipHolder clip, int64_t star
             if (startTime < (*iter2)->StartTime())
             {
                 (*iter2)->InvalidateImage();
+                posOffset--;
             }
             else
             {
@@ -627,8 +630,12 @@ bool SubtitleTrack_AssImpl::ChangeClipTime(SubtitleClipHolder clip, int64_t star
     SubtitleClip_AssImpl* assClip = dynamic_cast<SubtitleClip_AssImpl*>(clip.get());
     assClip->SetStartTime(startTime);
     assClip->SetDuration(duration);
-    m_clips.erase(iter);
-    m_clips.insert(iter2, clip);
+
+    if (posOffset != 0)
+    {
+        m_clips.erase(iter);
+        m_clips.insert(iter2, clip);
+    }
 
     // invalidate the clips affected by inserting the target clip to its new position
     while (iter2 != m_clips.end())
@@ -861,6 +868,19 @@ bool SubtitleTrack_AssImpl::DeleteClip(SubtitleClipHolder hClip)
     iter = m_clips.erase(iter);
     if (updateCurrIter)
         m_currIter = iter;
+
+    // update track duration if needed
+    if (hClip->EndTime() == m_duration)
+    {
+        int64_t duration = 0;
+        for (auto& clip : m_clips)
+        {
+            if (clip->EndTime() > duration)
+                duration = clip->EndTime();
+        }
+        m_duration = duration;
+    }
+
     assClip->InvalidateClip();
     ass_free_event(m_asstrk, eid);
     if (eid < m_asstrk->n_events-1)
@@ -875,6 +895,7 @@ bool SubtitleTrack_AssImpl::DeleteClip(SubtitleClipHolder hClip)
 
     for (auto& updateClip : updateAssClips)
         updateClip->AssEventPtrDecrease();
+
     return true;
 }
 
