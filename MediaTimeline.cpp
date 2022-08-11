@@ -737,7 +737,7 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
         if (mType == MEDIA_TEXT)
         {
             MediaTrack * newTrack = timeline->m_Tracks[index];
-            newTrack->mMttReader = DataLayer::SubtitleTrack::NewEmptyTrack(newTrack->mID);
+            newTrack->mMttReader = timeline->mMtvReader->NewEmptySubtitleTrack(newTrack->mID); //DataLayer::SubtitleTrack::NewEmptyTrack(newTrack->mID);
             newTrack->mMttReader->SetFont(timeline->mFontName);
             newTrack->mMttReader->SetFrameSize(timeline->mWidth, timeline->mHeight);
             newTrack->mMttReader->EnableFullSizeOutput(false);
@@ -2565,7 +2565,7 @@ MediaTrack::~MediaTrack()
 
     if (mMttReader)
     {
-        mMttReader = nullptr;
+        timeline->mMtvReader->RemoveSubtitleTrackById(mID);
     }
 }
 
@@ -3131,7 +3131,7 @@ MediaTrack* MediaTrack::Load(const imgui_json::value& value, void * handle)
                 auto& val = track["ID"];
                 if (val.is_number()) track_id = val.get<imgui_json::number>();
             }
-            new_track->mMttReader = DataLayer::SubtitleTrack::NewEmptyTrack(track_id);
+            new_track->mMttReader = timeline->mMtvReader->NewEmptySubtitleTrack(track_id); //DataLayer::SubtitleTrack::NewEmptyTrack(track_id);
             if (track.contains("Font"))
             {
                 auto& val = track["Font"];
@@ -4695,71 +4695,7 @@ int TimeLine::Load(const imgui_json::value& value)
         if (val.is_number()) state = val.get<imgui_json::number>();
         m_IDGenerator.SetState(state);
     }
-    // load media clip
-    const imgui_json::array* mediaClipArray = nullptr;
-    if (BluePrint::GetPtrTo(value, "MediaClip", mediaClipArray))
-    {
-        for (auto& clip : *mediaClipArray)
-        {
-            MEDIA_TYPE type = MEDIA_UNKNOWN;
-            if (clip.contains("Type"))
-            {
-                auto& val = clip["Type"];
-                if (val.is_number()) type = (MEDIA_TYPE)val.get<imgui_json::number>();
-            }
-            Clip * media_clip = nullptr;
-            switch (type)
-            {
-                case MEDIA_VIDEO: media_clip = VideoClip::Load(clip, this); break;
-                case MEDIA_AUDIO: media_clip = AudioClip::Load(clip, this); break;
-                case MEDIA_PICTURE: media_clip = ImageClip::Load(clip, this); break;
-                case MEDIA_TEXT: media_clip = TextClip::Load(clip, this); break;
-                default:
-                break;
-            }
-            if (media_clip)
-                m_Clips.push_back(media_clip);
-        }
-    }
-
-    // load media group
-    const imgui_json::array* mediaGroupArray = nullptr;
-    if (BluePrint::GetPtrTo(value, "MediaGroup", mediaGroupArray))
-    {
-        for (auto& group : *mediaGroupArray)
-        {
-            ClipGroup new_group(this);
-            new_group.Load(group);
-            m_Groups.push_back(new_group);
-        }
-    }
-
-    // load media overlap
-    const imgui_json::array* mediaOverlapArray = nullptr;
-    if (BluePrint::GetPtrTo(value, "MediaOverlap", mediaOverlapArray))
-    {
-        for (auto& overlap : *mediaOverlapArray)
-        {
-            Overlap * new_overlap = Overlap::Load(overlap, this);
-            if (new_overlap)
-                m_Overlaps.push_back(new_overlap);
-        }
-    }
-
-    // load media track
-    const imgui_json::array* mediaTrackArray = nullptr;
-    if (BluePrint::GetPtrTo(value, "MediaTrack", mediaTrackArray))
-    {
-        for (auto& track : *mediaTrackArray)
-        {
-            MediaTrack * media_track = MediaTrack::Load(track, this);
-            if (media_track)
-            {
-                m_Tracks.push_back(media_track);
-            }
-        }
-    }
-
+    
     // load global info
     if (value.contains("Start"))
     {
@@ -4899,7 +4835,73 @@ int TimeLine::Load(const imgui_json::value& value)
 
     // load data layer
     ConfigureDataLayer();
-    // build multi-track video reader
+
+    // load media clip
+    const imgui_json::array* mediaClipArray = nullptr;
+    if (BluePrint::GetPtrTo(value, "MediaClip", mediaClipArray))
+    {
+        for (auto& clip : *mediaClipArray)
+        {
+            MEDIA_TYPE type = MEDIA_UNKNOWN;
+            if (clip.contains("Type"))
+            {
+                auto& val = clip["Type"];
+                if (val.is_number()) type = (MEDIA_TYPE)val.get<imgui_json::number>();
+            }
+            Clip * media_clip = nullptr;
+            switch (type)
+            {
+                case MEDIA_VIDEO: media_clip = VideoClip::Load(clip, this); break;
+                case MEDIA_AUDIO: media_clip = AudioClip::Load(clip, this); break;
+                case MEDIA_PICTURE: media_clip = ImageClip::Load(clip, this); break;
+                case MEDIA_TEXT: media_clip = TextClip::Load(clip, this); break;
+                default:
+                break;
+            }
+            if (media_clip)
+                m_Clips.push_back(media_clip);
+        }
+    }
+
+    // load media group
+    const imgui_json::array* mediaGroupArray = nullptr;
+    if (BluePrint::GetPtrTo(value, "MediaGroup", mediaGroupArray))
+    {
+        for (auto& group : *mediaGroupArray)
+        {
+            ClipGroup new_group(this);
+            new_group.Load(group);
+            m_Groups.push_back(new_group);
+        }
+    }
+
+    // load media overlap
+    const imgui_json::array* mediaOverlapArray = nullptr;
+    if (BluePrint::GetPtrTo(value, "MediaOverlap", mediaOverlapArray))
+    {
+        for (auto& overlap : *mediaOverlapArray)
+        {
+            Overlap * new_overlap = Overlap::Load(overlap, this);
+            if (new_overlap)
+                m_Overlaps.push_back(new_overlap);
+        }
+    }
+
+    // load media track
+    const imgui_json::array* mediaTrackArray = nullptr;
+    if (BluePrint::GetPtrTo(value, "MediaTrack", mediaTrackArray))
+    {
+        for (auto& track : *mediaTrackArray)
+        {
+            MediaTrack * media_track = MediaTrack::Load(track, this);
+            if (media_track)
+            {
+                m_Tracks.push_back(media_track);
+            }
+        }
+    }
+
+    // build data layer multi-track video reader
     for (auto track : m_Tracks)
     {
         if (track->mType == MEDIA_VIDEO)
@@ -6881,7 +6883,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                     // text clip don't band with media item
                     int newTrackIndex = timeline->NewTrack("", MEDIA_TEXT, true);
                     MediaTrack * newTrack = timeline->m_Tracks[newTrackIndex];
-                    newTrack->mMttReader = DataLayer::SubtitleTrack::BuildFromFile(newTrack->mID, item->mPath);
+                    newTrack->mMttReader = timeline->mMtvReader->BuildSubtitleTrackFromFile(newTrack->mID, item->mPath);//DataLayer::SubtitleTrack::BuildFromFile(newTrack->mID, item->mPath);
                     if (newTrack->mMttReader)
                     {
                         auto& style = newTrack->mMttReader->DefaultStyle();
@@ -7100,7 +7102,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         {
             int newTrackIndex = timeline->NewTrack("", MEDIA_TEXT, true);
             MediaTrack * newTrack = timeline->m_Tracks[newTrackIndex];
-            newTrack->mMttReader = DataLayer::SubtitleTrack::NewEmptyTrack(newTrack->mID);
+            newTrack->mMttReader = timeline->mMtvReader->NewEmptySubtitleTrack(newTrack->mID); //DataLayer::SubtitleTrack::NewEmptyTrack(newTrack->mID);
             newTrack->mMttReader->SetFont(timeline->mFontName);
             newTrack->mMttReader->SetFrameSize(timeline->mWidth, timeline->mHeight);
             newTrack->mMttReader->EnableFullSizeOutput(false);
