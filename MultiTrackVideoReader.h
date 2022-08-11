@@ -34,6 +34,8 @@ struct MultiTrackVideoReader
 
     virtual DataLayer::SubtitleTrackHolder BuildSubtitleTrackFromFile(int64_t id, const std::string& url) = 0;
     virtual DataLayer::SubtitleTrackHolder NewEmptySubtitleTrack(int64_t id) = 0;
+    virtual DataLayer::SubtitleTrackHolder GetSubtitleTrackById(int64_t trackId) = 0;
+    virtual DataLayer::SubtitleTrackHolder RemoveSubtitleTrackById(int64_t trackId) = 0;
 
     virtual std::string GetError() const = 0;
 

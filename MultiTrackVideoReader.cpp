@@ -505,6 +505,30 @@ public:
         return newSubTrack;
     }
 
+    SubtitleTrackHolder GetSubtitleTrackById(int64_t trackId) override
+    {
+        lock_guard<mutex> lk(m_subtrkLock);
+        auto iter = find_if(m_subtrks.begin(), m_subtrks.end(), [trackId] (SubtitleTrackHolder& hTrk) {
+            return hTrk->Id() == trackId;
+        });
+        if (iter == m_subtrks.end())
+            return nullptr;
+        return *iter;
+    }
+
+    SubtitleTrackHolder RemoveSubtitleTrackById(int64_t trackId) override
+    {
+        lock_guard<mutex> lk(m_subtrkLock);
+        auto iter = find_if(m_subtrks.begin(), m_subtrks.end(), [trackId] (SubtitleTrackHolder& hTrk) {
+            return hTrk->Id() == trackId;
+        });
+        if (iter == m_subtrks.end())
+            return nullptr;
+        SubtitleTrackHolder hTrk = *iter;
+        m_subtrks.erase(iter);
+        return hTrk;
+    }
+
     string GetError() const override
     {
         return m_errMsg;
