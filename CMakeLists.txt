@@ -96,6 +96,7 @@ endif(PKG_CONFIG_FOUND)
 
 macro_display_feature_log()
 
+add_compile_options(-Wno-ignored-attributes -Wno-inconsistent-dllimport -Wno-deprecated-declarations)
 #
 #  Application
 #

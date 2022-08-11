@@ -5409,8 +5409,14 @@ void Application_GetWindowProperties(ApplicationWindowProperty& property)
     property.docking = false;
     property.auto_merge = false;
     //property.power_save = false;
+#if 1
+    property.resizable = false;
+    property.full_size = true;
+    //property.full_screen = true;
+#else
     property.width = DEFAULT_MAIN_VIEW_WIDTH;
     property.height = DEFAULT_MAIN_VIEW_HEIGHT;
+#endif
 }
 
 void Application_SetupContext(ImGuiContext* ctx)
