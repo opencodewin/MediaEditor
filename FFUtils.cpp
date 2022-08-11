@@ -150,17 +150,17 @@ static ImColorFormat ConvertPixelFormatToColorFormat(AVPixelFormat pixfmt)
         pixfmt == AV_PIX_FMT_GRAY14 || pixfmt == AV_PIX_FMT_GRAY16 || pixfmt == AV_PIX_FMT_GRAYF32)
         clrfmt = IM_CF_GRAY;
     else if (pixfmt == AV_PIX_FMT_BGR24 || pixfmt == AV_PIX_FMT_BGR48)
-        clrfmt = IM_CF_BGR;
-    else if (pixfmt == AV_PIX_FMT_ABGR || pixfmt == AV_PIX_FMT_0BGR)
-        clrfmt = IM_CF_ABGR;
-    else if (pixfmt == AV_PIX_FMT_BGRA || pixfmt == AV_PIX_FMT_BGR0 || pixfmt == AV_PIX_FMT_BGRA64)
-        clrfmt = IM_CF_BGRA;
-    else if (pixfmt == AV_PIX_FMT_RGB24 || pixfmt == AV_PIX_FMT_RGB48)
         clrfmt = IM_CF_RGB;
-    else if (pixfmt == AV_PIX_FMT_ARGB || pixfmt == AV_PIX_FMT_0RGB)
-        clrfmt = IM_CF_ARGB;
-    else if (pixfmt == AV_PIX_FMT_RGBA || pixfmt == AV_PIX_FMT_RGB0 || pixfmt == AV_PIX_FMT_RGBA64)
+    else if (pixfmt == AV_PIX_FMT_ABGR || pixfmt == AV_PIX_FMT_0BGR)
         clrfmt = IM_CF_RGBA;
+    else if (pixfmt == AV_PIX_FMT_BGRA || pixfmt == AV_PIX_FMT_BGR0 || pixfmt == AV_PIX_FMT_BGRA64)
+        clrfmt = IM_CF_ARGB;
+    else if (pixfmt == AV_PIX_FMT_RGB24 || pixfmt == AV_PIX_FMT_RGB48)
+        clrfmt = IM_CF_BGR;
+    else if (pixfmt == AV_PIX_FMT_ARGB || pixfmt == AV_PIX_FMT_0RGB)
+        clrfmt = IM_CF_BGRA;
+    else if (pixfmt == AV_PIX_FMT_RGBA || pixfmt == AV_PIX_FMT_RGB0 || pixfmt == AV_PIX_FMT_RGBA64)
+        clrfmt = IM_CF_ABGR;
     else if (pixfmt == AV_PIX_FMT_YUV420P || pixfmt == AV_PIX_FMT_YUV420P10 || pixfmt == AV_PIX_FMT_YUV420P12 ||
         pixfmt == AV_PIX_FMT_YUV420P14 || pixfmt == AV_PIX_FMT_YUV420P16)
         clrfmt = IM_CF_YUV420;
@@ -216,40 +216,40 @@ static AVPixelFormat ConvertColorFormatToPixelFormat(ImColorFormat clrfmt, ImDat
     else if (clrfmt == IM_CF_BGR)
     {
         if (dtype == IM_DT_INT8)
-            pixfmt = AV_PIX_FMT_BGR24;
+            pixfmt = AV_PIX_FMT_RGB24;
         else if (dtype == IM_DT_INT16)
-            pixfmt = AV_PIX_FMT_BGR48;
+            pixfmt = AV_PIX_FMT_RGB48;
     }
     else if (clrfmt == IM_CF_ABGR)
     {
         if (dtype == IM_DT_INT8)
-            pixfmt = AV_PIX_FMT_ABGR;
+            pixfmt = AV_PIX_FMT_RGBA;
+        else if (dtype == IM_DT_INT16)
+            pixfmt = AV_PIX_FMT_RGBA64;
     }
     else if (clrfmt == IM_CF_BGRA)
+    {
+        if (dtype == IM_DT_INT8)
+            pixfmt = AV_PIX_FMT_ARGB;
+    }
+    else if (clrfmt == IM_CF_RGB)
+    {
+        if (dtype == IM_DT_INT8)
+            pixfmt = AV_PIX_FMT_BGR24;
+        else if (dtype == IM_DT_INT16)
+            pixfmt = AV_PIX_FMT_BGR48;
+    }
+    else if (clrfmt == IM_CF_ARGB)
     {
         if (dtype == IM_DT_INT8)
             pixfmt = AV_PIX_FMT_BGRA;
         else if (dtype == IM_DT_INT16)
             pixfmt = AV_PIX_FMT_BGRA64;
     }
-    else if (clrfmt == IM_CF_RGB)
-    {
-        if (dtype == IM_DT_INT8)
-            pixfmt = AV_PIX_FMT_RGB24;
-        else if (dtype == IM_DT_INT16)
-            pixfmt = AV_PIX_FMT_RGB48;
-    }
-    else if (clrfmt == IM_CF_ARGB)
-    {
-        if (dtype == IM_DT_INT8)
-            pixfmt = AV_PIX_FMT_ARGB;
-    }
     else if (clrfmt == IM_CF_RGBA)
     {
         if (dtype == IM_DT_INT8)
-            pixfmt = AV_PIX_FMT_RGBA;
-        else if (dtype == IM_DT_INT16)
-            pixfmt = AV_PIX_FMT_RGBA64;
+            pixfmt = AV_PIX_FMT_ABGR;
     }
     else if (clrfmt == IM_CF_YUV420)
     {
@@ -355,6 +355,17 @@ SelfFreeAVFramePtr AllocSelfFreeAVFramePtr()
 SelfFreeAVFramePtr CloneSelfFreeAVFramePtr(const AVFrame* avfrm)
 {
     SelfFreeAVFramePtr frm = shared_ptr<AVFrame>(av_frame_clone(avfrm), [](AVFrame* avfrm) {
+        if (avfrm)
+            av_frame_free(&avfrm);
+    });
+    if (!frm.get())
+        return nullptr;
+    return frm;
+}
+
+SelfFreeAVFramePtr WrapSelfFreeAVFramePtr(AVFrame* avfrm)
+{
+    SelfFreeAVFramePtr frm = shared_ptr<AVFrame>(avfrm, [](AVFrame* avfrm) {
         if (avfrm)
             av_frame_free(&avfrm);
     });
@@ -694,11 +705,18 @@ bool AVFrameToImMatConverter::ConvertImage(const AVFrame* avfrm, ImGui::ImMat& o
             m_errMsg = "Failed to invoke 'ConvertAVFrameToImMat()'!";
             return false;
         }
+        if (inMat.color_format == IM_CF_ABGR || inMat.color_format == IM_CF_ARGB ||
+            inMat.color_format == IM_CF_RGBA || inMat.color_format == IM_CF_BGRA)
+        {
+            outMat = inMat;
+            outMat.time_stamp = timestamp;
+            return true;
+        }
 
         // YUV -> RGB
         ImGui::VkMat rgbMat;
-        const AVPixFmtDescriptor* desc = av_pix_fmt_desc_get((AVPixelFormat)avfrm->format);
         rgbMat.type = IM_DT_INT8;
+        rgbMat.color_format = IM_CF_ABGR;
 #if 1
         rgbMat.w = m_outWidth;
         rgbMat.h = m_outHeight;
@@ -1077,7 +1095,9 @@ bool ImMatToAVFrameConverter::ConvertImage(ImGui::ImMat& vmat, AVFrame* avfrm, i
     }
 #endif
 
-    if (m_outPixfmt == cvtPixfmt && m_outWidth == inMat.w && m_outHeight == inMat.h)
+    int outWidth = m_outWidth>0 ? m_outWidth : inMat.w;
+    int outHeight = m_outHeight>0 ? m_outHeight : inMat.h;
+    if (m_outPixfmt == cvtPixfmt && outWidth == inMat.w && outHeight == inMat.h)
     {
         if (!ConvertImMatToAVFrame(inMat, avfrm, pts))
         {
@@ -1106,11 +1126,12 @@ bool ImMatToAVFrameConverter::ConvertImage(ImGui::ImMat& vmat, AVFrame* avfrm, i
             sws_freeContext(m_swsCtx);
             m_swsCtx = nullptr;
         }
-        m_swsCtx = sws_getContext(inMat.w, inMat.h, cvtPixfmt, m_outWidth, m_outHeight, m_outPixfmt, m_swsFlags, nullptr, nullptr, nullptr);
+        m_swsCtx = sws_getContext(inMat.w, inMat.h, cvtPixfmt, outWidth, outHeight, m_outPixfmt, m_swsFlags, nullptr, nullptr, nullptr);
         if (!m_swsCtx)
         {
             ostringstream oss;
-            oss << "FAILED to create SwsContext from WxH(" << inMat.w << "x" << inMat.h << "):Fmt(" << (int)cvtPixfmt << ") -> WxH(" << m_outWidth << "x" << m_outHeight << "):Fmt(" << (int)m_outPixfmt << ") with flags(" << m_swsFlags << ")!";
+            oss << "FAILED to create SwsContext from WxH(" << inMat.w << "x" << inMat.h << "):Fmt(" << (int)cvtPixfmt
+                << ") -> WxH(" << outWidth << "x" << outHeight << "):Fmt(" << (int)m_outPixfmt << ") with flags(" << m_swsFlags << ")!";
             m_errMsg = oss.str();
             return false;
         }
@@ -1127,8 +1148,8 @@ bool ImMatToAVFrameConverter::ConvertImage(ImGui::ImMat& vmat, AVFrame* avfrm, i
 
     av_frame_unref(avfrm);
     avfrm->format = m_outPixfmt;
-    avfrm->width = m_outWidth;
-    avfrm->height = m_outHeight;
+    avfrm->width = outWidth;
+    avfrm->height = outHeight;
     int fferr;
     fferr = av_frame_get_buffer(avfrm, 0);
     if (fferr < 0)
@@ -1138,10 +1159,65 @@ bool ImMatToAVFrameConverter::ConvertImage(ImGui::ImMat& vmat, AVFrame* avfrm, i
         m_errMsg = oss.str();
         return false;
     }
-    fferr = sws_scale(m_swsCtx, cvtfrm->data, cvtfrm->linesize, 0, m_outHeight, avfrm->data, avfrm->linesize);
+    fferr = sws_scale(m_swsCtx, cvtfrm->data, cvtfrm->linesize, 0, outHeight, avfrm->data, avfrm->linesize);
     av_frame_copy_props(avfrm, cvtfrm.get());
 
     return true;
+}
+
+static void ImMatWrapper_AVFrame_buffer_free(void *opaque, uint8_t *data)
+{
+    // do nothing
+    return;
+}
+
+AVFrame* ImMatWrapper_AVFrame::GetWrapper(int64_t pts)
+{
+    AVFrame* avfrm = av_frame_alloc();
+    if (!avfrm)
+    {
+        Log(Error) << "FAILED to allocate new AVFrame instance by 'av_frame_alloc()'!" << endl;
+        return nullptr;
+    }
+    avfrm->width = m_mat.w;
+    avfrm->height = m_mat.h;
+    AVPixelFormat pixfmt = ConvertColorFormatToPixelFormat(m_mat.color_format, m_mat.type);
+    if (pixfmt == AV_PIX_FMT_NONE)
+    {
+        Log(Error) << "CANNOT find suitable AVPixelFormat for ImColorFormat " << m_mat.color_format << "!" << endl;
+        av_frame_free(&avfrm);
+        return nullptr;
+    }
+    avfrm->format = (int)pixfmt;
+    AVBufferRef* extBufRef = av_buffer_create((uint8_t*)m_mat.data, m_mat.total()*m_mat.elemsize, ImMatWrapper_AVFrame_buffer_free, this, AV_BUFFER_FLAG_READONLY);
+    memset(avfrm->data, 0, sizeof(avfrm->data));
+    memset(avfrm->linesize, 0, sizeof(avfrm->linesize));
+    memset(avfrm->buf, 0, sizeof(avfrm->buf));
+    avfrm->data[0] = (uint8_t*)m_mat.data;
+    avfrm->linesize[0] = m_mat.w*m_mat.c*m_mat.elemsize;
+    avfrm->buf[0] = extBufRef;
+    avfrm->pts = pts;
+    return avfrm;
+}
+
+FFOverlayBlender::FFOverlayBlender()
+{
+    m_cvtMat2Avfrm.SetOutPixelFormat(AV_PIX_FMT_RGBA);
+}
+
+FFOverlayBlender::~FFOverlayBlender()
+{
+    if (m_avfg)
+    {
+        avfilter_graph_free(&m_avfg);
+        m_avfg = nullptr;
+    }
+    m_bufSrcCtxs.clear();
+    m_bufSinkCtxs.clear();
+    if (m_filterOutputs)
+        avfilter_inout_free(&m_filterOutputs);
+    if (m_filterInputs)
+        avfilter_inout_free(&m_filterInputs);
 }
 
 bool FFOverlayBlender::Init()
@@ -1158,14 +1234,14 @@ bool FFOverlayBlender::Init()
 
     int fferr;
     ostringstream oss;
-    oss << "pix_fmt=rgba:time_base=1/" << AV_TIME_BASE << ":sar=1";
+    oss << "1920:1080:pix_fmt=rgba:time_base=1/" << AV_TIME_BASE << ":sar=1";
     string bufsrcArg = oss.str(); oss.str("");
     AVFilterContext* filterCtx = nullptr;
-    string filterName = "in_0";
+    string filterName = "base";
     fferr = avfilter_graph_create_filter(&filterCtx, buffersrc, filterName.c_str(), bufsrcArg.c_str(), nullptr, m_avfg);
     if (fferr < 0)
     {
-        oss << "FAILED when invoking 'avfilter_graph_create_filter' for INPUT 'in_0'! fferr=" << fferr << ".";
+        oss << "FAILED when invoking 'avfilter_graph_create_filter' for INPUT '" << filterName << "'! fferr=" << fferr << ".";
         m_errMsg = oss.str();
         return false;
     }
@@ -1182,11 +1258,11 @@ bool FFOverlayBlender::Init()
     m_filterOutputs = filtInOutPtr;
     m_bufSrcCtxs.push_back(filterCtx);
 
-    filterName = "in_1"; filterCtx = nullptr;
+    filterName = "overlay"; filterCtx = nullptr;
     fferr = avfilter_graph_create_filter(&filterCtx, buffersrc, filterName.c_str(), bufsrcArg.c_str(), nullptr, m_avfg);
     if (fferr < 0)
     {
-        oss << "FAILED when invoking 'avfilter_graph_create_filter' for INPUT 'in_1'! fferr=" << fferr << ".";
+        oss << "FAILED when invoking 'avfilter_graph_create_filter' for INPUT '" << filterName << "'! fferr=" << fferr << ".";
         m_errMsg = oss.str();
         return false;
     }
@@ -1232,7 +1308,123 @@ bool FFOverlayBlender::Init()
     m_filterInputs = filtInOutPtr;
     m_bufSinkCtxs.push_back(filterCtx);
 
-    return false;
+    oss << "[base][overlay] overlay=format=auto:eof_action=pass:eval=frame";
+    string filterArgs = oss.str();
+    fferr = avfilter_graph_parse_ptr(m_avfg, filterArgs.c_str(), &m_filterInputs, &m_filterOutputs, nullptr);
+    if (fferr < 0)
+    {
+        oss << "FAILED to invoke 'avfilter_graph_parse_ptr'! fferr=" << fferr << ".";
+        m_errMsg = oss.str();
+        return false;
+    }
+
+    fferr = avfilter_graph_config(m_avfg, nullptr);
+    if (fferr < 0)
+    {
+        oss << "FAILED to invoke 'avfilter_graph_config'! fferr=" << fferr << ".";
+        m_errMsg = oss.str();
+        return false;
+    }
+
+    if (m_filterOutputs)
+        avfilter_inout_free(&m_filterOutputs);
+    if (m_filterInputs)
+        avfilter_inout_free(&m_filterInputs);
+    return true;
+}
+
+ImGui::ImMat FFOverlayBlender::Blend(ImGui::ImMat& baseImage, ImGui::ImMat& overlayImage, int32_t x, int32_t y, uint32_t w, uint32_t h)
+{
+    if (baseImage.empty() || overlayImage.empty())
+        return baseImage;
+
+    int fferr;
+    char cmdArgs[32] = {0}, cmdRes[128] = {0};
+    snprintf(cmdArgs, sizeof(cmdArgs)-1, "%d", x);
+    fferr = avfilter_graph_send_command(m_avfg, "overlay", "x", cmdArgs, cmdRes, sizeof(cmdRes)-1, 0);
+    if (fferr < 0)
+    {
+        ostringstream oss;
+        oss << "FAILED to invoke 'avfilter_graph_send_command()' on argument 'x' = " << x
+            << "! fferr = " << fferr << ", response = '" << cmdRes <<"'.";
+        m_errMsg = oss.str();
+        return ImGui::ImMat();
+    }
+    snprintf(cmdArgs, sizeof(cmdArgs)-1, "%d", y);
+    fferr = avfilter_graph_send_command(m_avfg, "overlay", "y", cmdArgs, cmdRes, sizeof(cmdRes)-1, 0);
+    if (fferr < 0)
+    {
+        ostringstream oss;
+        oss << "FAILED to invoke 'avfilter_graph_send_command()' on argument 'y' = " << x
+            << "! fferr = " << fferr << ", response = '" << cmdRes <<"'.";
+        m_errMsg = oss.str();
+        return ImGui::ImMat();
+    }
+
+    ImGui::ImMat res = baseImage;
+    int64_t pts = (int64_t)(m_inputCount++)*AV_TIME_BASE/25;
+
+    ImMatWrapper_AVFrame baseImgWrapper(baseImage);
+    SelfFreeAVFramePtr baseAvfrmPtr;
+    if (baseImage.device != IM_DD_CPU)
+    {
+        baseAvfrmPtr = AllocSelfFreeAVFramePtr();
+        m_cvtMat2Avfrm.ConvertImage(baseImage, baseAvfrmPtr.get(), pts);
+    }
+    else
+    {
+        baseAvfrmPtr = WrapSelfFreeAVFramePtr(baseImgWrapper.GetWrapper(pts));
+    }
+    fferr = av_buffersrc_add_frame_flags(m_bufSrcCtxs[0], baseAvfrmPtr.get(), AV_BUFFERSRC_FLAG_NO_CHECK_FORMAT);
+    if (fferr < 0)
+    {
+        ostringstream oss;
+        oss << "FAILED to invoke 'av_buffersrc_add_frame_flags()' for 'base' image! fferr = " << fferr << ".";
+        m_errMsg = oss.str();
+        return ImGui::ImMat();
+    }
+    ImMatWrapper_AVFrame ovlyImgWrapper(overlayImage);
+    SelfFreeAVFramePtr ovlyAvfrmPtr;
+    if (overlayImage.device != IM_DD_CPU)
+    {
+        ovlyAvfrmPtr = AllocSelfFreeAVFramePtr();
+        m_cvtMat2Avfrm.ConvertImage(overlayImage, ovlyAvfrmPtr.get(), pts);
+    }
+    else
+    {
+        ovlyAvfrmPtr = WrapSelfFreeAVFramePtr(ovlyImgWrapper.GetWrapper(pts));
+    }
+    fferr = av_buffersrc_add_frame_flags(m_bufSrcCtxs[1], ovlyAvfrmPtr.get(), AV_BUFFERSRC_FLAG_NO_CHECK_FORMAT);
+    if (fferr < 0)
+    {
+        ostringstream oss;
+        oss << "FAILED to invoke 'av_buffersrc_add_frame_flags()' for 'overlay' image! fferr = " << fferr << ".";
+        m_errMsg = oss.str();
+        return ImGui::ImMat();
+    }
+    SelfFreeAVFramePtr outAvfrmPtr = AllocSelfFreeAVFramePtr();
+    fferr = av_buffersink_get_frame(m_bufSinkCtxs[0], outAvfrmPtr.get());
+    if (fferr < 0)
+    {
+        ostringstream oss; 
+        oss << "FAILED to invoke 'av_buffersink_get_frame()' for 'out' image! fferr = " << fferr << ".";
+        m_errMsg = oss.str();
+        return ImGui::ImMat();
+    }
+    if (!m_cvtInited)
+    {
+        m_cvtAvfrm2Mat.SetOutSize(outAvfrmPtr->width, outAvfrmPtr->height);
+        m_cvtAvfrm2Mat.SetOutColorFormat(baseImage.color_format);
+        m_cvtInited = true;
+    }
+    if (!m_cvtAvfrm2Mat.ConvertImage(outAvfrmPtr.get(), res, baseImage.time_stamp))
+    {
+        ostringstream oss;
+        oss << "FAILED to convert output AVFrame to ImMat! Converter error message is '" << m_cvtAvfrm2Mat.GetError() << "'.";
+        m_errMsg = oss.str();
+        return ImGui::ImMat();
+    }
+    return res;
 }
 
 static MediaInfo::Ratio MediaInfoRatioFromAVRational(const AVRational& src)

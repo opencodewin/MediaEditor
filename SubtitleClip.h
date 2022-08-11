@@ -30,7 +30,7 @@ namespace DataLayer
         SubtitleImage() = default;
         SubtitleImage(ImGui::ImMat& image, const Rect& area);
 
-        ImGui::ImMat Vmat() const { return m_image; }
+        ImGui::ImMat Vmat() { return m_image; }
         Rect Area() const { return m_area; }
         bool Valid() const { return !m_image.empty(); }
         void Invalidate() { m_image.release(); m_area = Rect(); }

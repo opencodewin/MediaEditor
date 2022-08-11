@@ -26,8 +26,9 @@ using Clock = chrono::steady_clock;
 static atomic_int64_t g_idIndex{1};
 
 static MultiTrackVideoReader* g_mtVidReader = nullptr;
-const int c_videoOutputWidth = 960;
-const int c_videoOutputHeight = 540;
+static SubtitleTrackHolder g_subtrk;
+const int c_videoOutputWidth = 1920;
+const int c_videoOutputHeight = 1080;
 const MediaInfo::Ratio c_videoFrameRate = { 25, 1 };
 
 static double g_playStartPos = 0.f;
@@ -44,7 +45,7 @@ const string c_bookmarkPath = "bookmark.ini";
 // Application Framework Functions
 void Application_GetWindowProperties(ApplicationWindowProperty& property)
 {
-    property.name = "MultiTrackAudioReaderTest";
+    property.name = "Multi-track Video Reader Test";
     property.viewport = false;
     property.docking = false;
     property.auto_merge = false;
@@ -63,6 +64,8 @@ void Application_Initialize(void** handle)
         ->SetShowLevels(DEBUG);
     GetMultiTrackVideoReaderLogger()
         ->SetShowLevels(DEBUG);
+    GetSubtitleTrackLogger()
+        ->SetShowLevels(DEBUG);
 
 #ifdef USE_BOOKMARK
 	// load bookmarks
@@ -79,6 +82,8 @@ void Application_Initialize(void** handle)
     ImGuiIO& io = ImGui::GetIO();
     io.IniFilename = c_imguiIniPath.c_str();
 
+    InitializeSubtitleLibrary();
+
     g_mtVidReader = CreateMultiTrackVideoReader();
     g_mtVidReader->Configure(c_videoOutputWidth, c_videoOutputHeight, c_videoFrameRate);
     g_mtVidReader->Start();
@@ -87,6 +92,8 @@ void Application_Initialize(void** handle)
 void Application_Finalize(void** handle)
 {
     ReleaseMultiTrackVideoReader(&g_mtVidReader);
+
+    ReleaseSubtitleLibrary();
 
 #ifdef USE_BOOKMARK
 	// save bookmarks
@@ -199,16 +206,26 @@ bool Application_Frame(void * handle, bool app_will_quit)
         }
         ImGui::PopItemWidth();
         ImGui::SameLine(0, 20);
+        if (ImGui::Button("Open subtitle file"))
+        {
+            const char *filters = "字幕文件(*.srt *.ass *.ssa){.srt,.ass,.ssa,.SRT,.ASS,.SSA},.*";
+            ImGuiFileDialog::Instance()->OpenDialog("ChooseSubtitleFileDlgKey", ICON_IGFD_FOLDER_OPEN " 打开字幕文件", 
+                                                    filters, 
+                                                    "/workspace/MediaFiles/", 
+                                                    1, 
+                                                    nullptr, 
+                                                    ImGuiFileDialogFlags_ShowBookmark |
+                                                    ImGuiFileDialogFlags_Modal);
+        }
 
-        if (noTrack)
-            ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true);
+        ImGui::BeginDisabled(noTrack);
         if (ImGui::Button("Remove Track"))
         {
             g_mtVidReader->RemoveTrackByIndex(s_remTrackOptSelIdx);
             s_remTrackOptSelIdx = 0;
         }
-        if (noTrack)
-            ImGui::PopItemFlag();
+        ImGui::EndDisabled();
+        ImGui::SameLine(0, 20);
 
         ImGui::Spacing();
 
@@ -406,8 +423,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
                 g_playStartPos = playPos;
         }
 
-        ImGui::SameLine();
-
+        ImGui::SameLine(0, 10);
         string dirBtnLabel = g_playForward ? "Backword" : "Forward";
         if (ImGui::Button(dirBtnLabel.c_str()))
         {
@@ -416,6 +432,12 @@ bool Application_Frame(void * handle, bool app_will_quit)
             g_playForward = notForward;
             g_playStartPos = playPos;
             g_playStartTp = Clock::now();
+        }
+
+        ImGui::SameLine(0, 10);
+        if (ImGui::Button("Seek to 60s"))
+        {
+            g_playStartPos = 60;
         }
 
         ImGui::Spacing();
@@ -462,6 +484,17 @@ bool Application_Frame(void * handle, bool app_will_quit)
             s_addClipStart = 0;
             s_addClipStartOffset = 0;
             s_addClipEndOffset = 0;
+        }
+        ImGuiFileDialog::Instance()->Close();
+    }
+
+    // open subtitle file dialog
+    if (ImGuiFileDialog::Instance()->Display("ChooseSubtitleFileDlgKey", ImGuiWindowFlags_NoCollapse, minSize, maxSize))
+	{
+        if (ImGuiFileDialog::Instance()->IsOk())
+		{
+            string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
+            g_subtrk = g_mtVidReader->BuildSubtitleTrackFromFile(111, filePathName);
         }
         ImGuiFileDialog::Instance()->Close();
     }

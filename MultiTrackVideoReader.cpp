@@ -1,6 +1,7 @@
 #include <thread>
 #include <algorithm>
 #include <atomic>
+#include <sstream>
 #include "MultiTrackVideoReader.h"
 #include "FFUtils.h"
 
@@ -39,6 +40,14 @@ public:
         m_outHeight = outHeight;
         m_frameRate = frameRate;
         m_readFrameIdx = 0;
+
+        if (!m_subBlender.Init())
+        {
+            ostringstream oss;
+            oss << "Subtitle blender initialization FAILED! Error message: '" << m_subBlender.GetError() << "'.";
+            m_errMsg = oss.str();
+            return false;
+        }
 
         m_configured = true;
         return true;
@@ -322,6 +331,11 @@ public:
         if (timestamp < vmat.time_stamp || timestamp > vmat.time_stamp+(double)m_frameRate.den/m_frameRate.num)
             m_logger->Log(Error) << "WRONG image time stamp!! Required 'pos' is " << timestamp
                 << ", output vmat time stamp is " << vmat.time_stamp << "." << endl;
+
+        if (!m_subtrks.empty())
+        {
+            vmat = BlendSubtitle(vmat);
+        }
         return true;
     }
 
@@ -599,18 +613,23 @@ private:
         lock_guard<mutex> lk(m_subtrkLock);
         for (auto& hSubTrack : m_subtrks)
         {
+            if (!hSubTrack->IsVisible())
+                continue;
+
             auto hSubClip = hSubTrack->GetClipByTime((int64_t)(vmat.time_stamp*1000));
             if (hSubClip)
             {
                 auto subImg = hSubClip->Image();
                 if (subImg.Valid())
                 {
-                    if (!cloned)
-                    {
-                        res = vmat.clone();
-                        cloned = true;
-                    }
                     // blend subtitle-image
+                    SubtitleImage::Rect dispRect = subImg.Area();
+                    ImGui::ImMat submat = subImg.Vmat();
+                    res = m_subBlender.Blend(res, submat, dispRect.x, dispRect.y, dispRect.w, dispRect.y);
+                    if (res.empty())
+                    {
+                        m_logger->Log(Error) << "FAILED to blend subtitle on the output image! Error message is '" << m_subBlender.GetError() << "'." << endl;
+                    }
                 }
                 else
                 {
@@ -647,6 +666,7 @@ private:
 
     list<SubtitleTrackHolder> m_subtrks;
     mutex m_subtrkLock;
+    FFOverlayBlender m_subBlender;
 
     bool m_configured{false};
     bool m_started{false};

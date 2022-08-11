@@ -1387,7 +1387,7 @@ SubtitleImage SubtitleTrack_AssImpl::RenderSubtitleClip(SubtitleClip* clip)
         frmH = assBox.h;
     }
     vmat.create_type((int)frmW, (int)frmH, 4, IM_DT_INT8);
-    vmat.color_format = IM_CF_RGBA;
+    vmat.color_format = IM_CF_ABGR;
 
     uint32_t color;
     // fill the image with background color

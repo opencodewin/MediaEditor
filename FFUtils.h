@@ -36,6 +36,7 @@ bool HwFrameToSwFrame(AVFrame* swfrm, const AVFrame* hwfrm);
 using SelfFreeAVFramePtr = std::shared_ptr<AVFrame>;
 SelfFreeAVFramePtr AllocSelfFreeAVFramePtr();
 SelfFreeAVFramePtr CloneSelfFreeAVFramePtr(const AVFrame* avfrm);
+SelfFreeAVFramePtr WrapSelfFreeAVFramePtr(AVFrame* avfrm);
 
 int AVPixelFormatToImColorFormat(AVPixelFormat pixfmt);
 bool ConvertAVFrameToImMat(const AVFrame* avfrm, ImGui::ImMat& vmat, double timestamp);
@@ -138,16 +139,28 @@ private:
     std::string m_errMsg;
 };
 
+class ImMatWrapper_AVFrame
+{
+public:
+    ImMatWrapper_AVFrame(ImGui::ImMat& mat) : m_mat(mat) {}
+
+    AVFrame* GetWrapper(int64_t pts = 0);
+
+private:
+    ImGui::ImMat m_mat;
+};
+
 class FFOverlayBlender
 {
 public:
-    FFOverlayBlender() = default;
+    FFOverlayBlender();
     FFOverlayBlender(const FFOverlayBlender&) = delete;
     FFOverlayBlender(FFOverlayBlender&&) = default;
     FFOverlayBlender& operator=(const FFOverlayBlender&) = delete;
+    ~FFOverlayBlender();
 
     bool Init();
-    ImGui::ImMat Blend(ImGui::ImMat& baseImage, const ImGui::ImMat& overlayImage, int32_t x, int32_t y, uint32_t w, uint32_t h);
+    ImGui::ImMat Blend(ImGui::ImMat& baseImage, ImGui::ImMat& overlayImage, int32_t x, int32_t y, uint32_t w, uint32_t h);
 
     std::string GetError() const { return m_errMsg; }
 
@@ -157,6 +170,10 @@ private:
     AVFilterInOut* m_filterInputs{nullptr};
     std::vector<AVFilterContext*> m_bufSrcCtxs;
     std::vector<AVFilterContext*> m_bufSinkCtxs;
+    int32_t m_inputCount{0};
+    ImMatToAVFrameConverter m_cvtMat2Avfrm;
+    AVFrameToImMatConverter m_cvtAvfrm2Mat;
+    bool m_cvtInited{false};
 
     std::string m_errMsg;
 };
