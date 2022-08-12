@@ -698,6 +698,7 @@ struct TimeLine
     int64_t mEnd     {0};                   // whole timeline end in ms, project saved
 
     bool mShowHelpTooltips      {true};     // timeline show help tooltips, project saved, configured
+    bool mHardwareCodec         {true};     // timeline Video/Audio decode/encode try to enable HW if available;
     int mWidth  {1920};                     // timeline Media Width, project saved, configured
     int mHeight {1080};                     // timeline Media Height, project saved, configured
     MediaInfo::Ratio mFrameRate {25, 1};    // timeline Media Frame rate, project saved, configured

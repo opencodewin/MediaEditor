@@ -275,6 +275,7 @@ struct MediaEditorSettings
     float OldBottomViewHeight {0.4};        // Old Bottom view height, recorde at non-expended
     bool showMeters {true};                 // show fps/GPU usage at top right of windows
 
+    bool HardwareCodec {true};              // try HW codec
     int VideoWidth  {1920};                 // timeline Media Width
     int VideoHeight {1080};                 // timeline Media Height
     MediaInfo::Ratio VideoFrameRate {25000, 1000};// timeline frame rate
@@ -1054,7 +1055,7 @@ static void ShowConfigure(MediaEditorSettings & config)
                 };
                 ImGui::Combo("Color Space", &config.ColorSpaceIndex, color_getter, (void *)ColorSpace, IM_ARRAYSIZE(ColorSpace));
                 ImGui::Combo("Color Transfer", &config.ColorTransferIndex, color_getter, (void *)ColorTransfer, IM_ARRAYSIZE(ColorTransfer));
-
+                ImGui::Checkbox("HW codec if available", &config.HardwareCodec);
                 ImGui::Separator();
                 ImGui::BulletText(ICON_MEDIA_AUDIO " Audio");
                 if (ImGui::Combo("Audio Sample Rate", &sample_rate_index, audio_sample_rate_items, IM_ARRAYSIZE(audio_sample_rate_items)))
@@ -1121,7 +1122,7 @@ static void ShowConfigure(MediaEditorSettings & config)
                 ImGui::SliderInt("Font Position Y", &config.FontPosOffsetY, -2000, 2000, "%d");
                 ImGui::SliderFloat("Font spacing", &config.FontSpacing, 0.5, 5, "%.1f");
                 ImGui::SliderFloat("Font angle", &config.FontAngle, 0, 360, "%.1f");
-                ImGui::SliderFloat("Font outline", &config.FontOutlineWidth, 0, 5, "%.1f");
+                ImGui::SliderFloat("Font outline Width", &config.FontOutlineWidth, 0, 5, "%.0f");
                 ImGui::Checkbox(ICON_FONT_UNDERLINE "##font_underLine", &config.FontUnderLine);
                 ImGui::SameLine();
                 ImGui::Checkbox(ICON_FONT_STRIKEOUT "##font_strike_out", &config.FontStrikeOut);
@@ -1130,9 +1131,9 @@ static void ShowConfigure(MediaEditorSettings & config)
                 ImGui::RadioButton(ICON_FA_ALIGN_CENTER "##font_alignment", &config.FontAlignment, 2); ImGui::SameLine();
                 ImGui::RadioButton(ICON_FA_ALIGN_RIGHT "##font_alignment", &config.FontAlignment, 3);
                 ImGui::SameLine(item_width); ImGui::TextUnformatted("Font alignment");
-                ImGui::ColorEdit3("FontColor##Primary", (float*)&config.FontPrimaryColor, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_AlphaBar);
+                ImGui::ColorEdit4("FontColor##Primary", (float*)&config.FontPrimaryColor, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_AlphaBar);
                 ImGui::SameLine(item_width); ImGui::TextUnformatted("Font primary color");
-                ImGui::ColorEdit3("FontColor##Outline", (float*)&config.FontOutlineColor, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_AlphaBar);
+                ImGui::ColorEdit4("FontColor##Outline", (float*)&config.FontOutlineColor, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_AlphaBar);
                 ImGui::SameLine(item_width); ImGui::TextUnformatted("Font outline color");
             }
 
@@ -1150,6 +1151,7 @@ static void NewTimeline()
     timeline = new TimeLine();
     if (timeline)
     {
+        timeline->mHardwareCodec = g_media_editor_settings.HardwareCodec;
         timeline->mWidth = g_media_editor_settings.VideoWidth;
         timeline->mHeight = g_media_editor_settings.VideoHeight;
         timeline->mFrameRate = g_media_editor_settings.VideoFrameRate;
@@ -3791,7 +3793,7 @@ static void edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     {
         clip->mClipHolder->SetRotationZ(clip->mFontAngleZ);
     } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##anglez_default")) { clip->mFontAngleZ = style.Angle(); clip->mClipHolder->SetRotationZ( style.Angle());}
-    if (ImGui::SliderFloat("Font outline", &clip->mFontOutlineWidth, 0, 5, "%.1f"))
+    if (ImGui::SliderFloat("Font outline Width", &clip->mFontOutlineWidth, 0, 5, "%.0f"))
     {
         clip->mClipHolder->SetBorderWidth(clip->mFontOutlineWidth);
     } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##outline_default")) { clip->mFontOutlineWidth = style.OutlineWidth(); clip->mClipHolder->SetBorderWidth(style.OutlineWidth()); }
@@ -3839,13 +3841,13 @@ static void edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     }
     ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##alignment_default")) { clip->mFontAlignment = style.Alignment(); clip->mClipHolder->SetAlignment(style.Alignment()); }
 
-    if (ImGui::ColorEdit3("FontColor##Primary", (float*)&clip->mFontPrimaryColor, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_AlphaBar))
+    if (ImGui::ColorEdit4("FontColor##Primary", (float*)&clip->mFontPrimaryColor, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_AlphaBar))
     {
         clip->mClipHolder->SetPrimaryColor(clip->mFontPrimaryColor);
     }
     ImGui::SameLine(item_width); ImGui::TextUnformatted("Font primary color");
     ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##primary_color_default")) { clip->mFontPrimaryColor = style.PrimaryColor().ToImVec4(); clip->mClipHolder->SetPrimaryColor(style.PrimaryColor()); }
-    if (ImGui::ColorEdit3("FontColor##Outline", (float*)&clip->mFontOutlineColor, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_AlphaBar))
+    if (ImGui::ColorEdit4("FontColor##Outline", (float*)&clip->mFontOutlineColor, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_AlphaBar))
     {
         clip->mClipHolder->SetOutlineColor(clip->mFontOutlineColor);
     }
@@ -3937,7 +3939,7 @@ static void edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
         track->mMttReader->SetAngle(angle);
     } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_angle_default")) { track->mMttReader->SetAngle(g_media_editor_settings.FontAngle); }
     float outline_width = style.OutlineWidth();
-    if (ImGui::SliderFloat("Font outline", &outline_width, 0, 5, "%.1f"))
+    if (ImGui::SliderFloat("Font outline Width", &outline_width, 0, 5, "%.0f"))
     {
         track->mMttReader->SetOutlineWidth(outline_width);
     } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_outline_default")) { track->mMttReader->SetOutlineWidth(g_media_editor_settings.FontOutlineWidth); }
@@ -3972,14 +3974,14 @@ static void edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
     ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_alignment_default")) { track->mMttReader->SetAlignment(g_media_editor_settings.FontAlignment); }
 
     auto primary_color = style.PrimaryColor().ToImVec4();
-    if (ImGui::ColorEdit3("FontColor##Primary", (float*)&primary_color, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_AlphaBar))
+    if (ImGui::ColorEdit4("FontColor##Primary", (float*)&primary_color, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_AlphaBar))
     {
         track->mMttReader->SetPrimaryColor(primary_color);
     }
     ImGui::SameLine(item_width); ImGui::TextUnformatted("Font primary color");
     ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_primary_color_default")) { track->mMttReader->SetPrimaryColor(g_media_editor_settings.FontPrimaryColor); }
     auto outline_color = style.OutlineColor().ToImVec4();
-    if (ImGui::ColorEdit3("FontColor##Outline", (float*)&outline_color, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_AlphaBar))
+    if (ImGui::ColorEdit4("FontColor##Outline", (float*)&outline_color, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_AlphaBar))
     {
         track->mMttReader->SetOutlineColor(outline_color);
     }
@@ -5447,6 +5449,7 @@ void Application_SetupContext(ImGuiContext* ctx)
         else if (sscanf(line, "ShowMeters=%d", &val_int) == 1) { setting->showMeters = val_int == 1; }
         else if (sscanf(line, "ControlPanelWidth=%f", &val_float) == 1) { setting->ControlPanelWidth = val_float; }
         else if (sscanf(line, "MainViewWidth=%f", &val_float) == 1) { setting->MainViewWidth = val_float; }
+        else if (sscanf(line, "HWCodec=%d", &val_int) == 1) { setting->HardwareCodec = val_int == 1; }
         else if (sscanf(line, "VideoWidth=%d", &val_int) == 1) { setting->VideoWidth = val_int; }
         else if (sscanf(line, "VideoHeight=%d", &val_int) == 1) { setting->VideoHeight = val_int; }
         else if (sscanf(line, "VideoFrameRateNum=%d", &val_int) == 1) { setting->VideoFrameRate.num = val_int; }
@@ -5544,6 +5547,7 @@ void Application_SetupContext(ImGuiContext* ctx)
         out_buf->appendf("ShowMeters=%d\n", g_media_editor_settings.showMeters ? 1 : 0);
         out_buf->appendf("ControlPanelWidth=%f\n", g_media_editor_settings.ControlPanelWidth);
         out_buf->appendf("MainViewWidth=%f\n", g_media_editor_settings.MainViewWidth);
+        out_buf->appendf("HWCodec=%d\n", g_media_editor_settings.HardwareCodec ? 1 : 0);
         out_buf->appendf("VideoWidth=%d\n", g_media_editor_settings.VideoWidth);
         out_buf->appendf("VideoHeight=%d\n", g_media_editor_settings.VideoHeight);
         out_buf->appendf("VideoFrameRateNum=%d\n", g_media_editor_settings.VideoFrameRate.num);
@@ -5833,6 +5837,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
             g_media_editor_settings = g_new_setting;
             if (timeline)
             {
+                timeline->mHardwareCodec = g_media_editor_settings.HardwareCodec;
                 timeline->mWidth = g_media_editor_settings.VideoWidth;
                 timeline->mHeight = g_media_editor_settings.VideoHeight;
                 timeline->mFrameRate = g_media_editor_settings.VideoFrameRate;
