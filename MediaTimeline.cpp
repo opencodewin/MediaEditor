@@ -1570,6 +1570,14 @@ BluePrintVideoTransition::~BluePrintVideoTransition()
     }
 }
 
+DataLayer::VideoTransitionHolder BluePrintVideoTransition::Clone()
+{
+    BluePrintVideoTransition* bpTrans = new BluePrintVideoTransition;
+    auto bpJson = mBp->m_Document->Serialize();
+    bpTrans->SetBluePrintFromJson(bpJson);
+    return DataLayer::VideoTransitionHolder(bpTrans);
+}
+
 ImGui::ImMat BluePrintVideoTransition::MixTwoImages(const ImGui::ImMat& vmat1, const ImGui::ImMat& vmat2, int64_t pos, int64_t dur)
 {
     std::lock_guard<std::mutex> lk(mBpLock);

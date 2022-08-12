@@ -459,6 +459,7 @@ class BluePrintVideoTransition : public DataLayer::VideoTransition
 public:
     virtual ~BluePrintVideoTransition();
 
+    DataLayer::VideoTransitionHolder Clone() override;
     void ApplyTo(DataLayer::VideoOverlap* overlap) override { mOverlap = overlap; }
     ImGui::ImMat MixTwoImages(const ImGui::ImMat& vmat1, const ImGui::ImMat& vmat2, int64_t pos, int64_t dur) override;
 

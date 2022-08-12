@@ -12,6 +12,8 @@ namespace DataLayer
 
     struct SubtitleTrack
     {
+        virtual ~SubtitleTrack() {}
+
         virtual int64_t Id() const = 0;
         virtual uint32_t ClipCount() const = 0;
         virtual int64_t Duration() const = 0;
@@ -58,6 +60,7 @@ namespace DataLayer
         virtual void SetVisible(bool enable) = 0;
         virtual bool SaveAs(const std::string& subFilePath) = 0;
 
+        virtual SubtitleTrackHolder Clone(uint32_t frmW, uint32_t frmH) = 0;
         virtual std::string GetError() const = 0;
 
         static SubtitleTrackHolder BuildFromFile(int64_t id, const std::string& url);

@@ -1041,6 +1041,44 @@ bool SubtitleTrack_AssImpl::SaveAs(const string& assFilePath)
     return true;
 }
 
+SubtitleTrackHolder SubtitleTrack_AssImpl::Clone(uint32_t frmW, uint32_t frmH)
+{
+    SubtitleTrack_AssImpl* newTrk = new SubtitleTrack_AssImpl(m_id);
+    newTrk->SetFrameSize(frmW, frmH);
+    newTrk->EnableFullSizeOutput(false);
+    const double wRatio = (double)frmW/m_frmW;
+    const double hRatio = (double)frmH/m_frmH;
+
+    auto& trkStyle = DefaultStyle();
+    newTrk->SetFont(trkStyle.Font());
+    newTrk->SetScale(trkStyle.Scale());
+    newTrk->SetScaleX(trkStyle.ScaleX());
+    newTrk->SetScaleY(trkStyle.ScaleY());
+    newTrk->SetSpacing(trkStyle.Spacing());
+    newTrk->SetAngle(trkStyle.Angle());
+    newTrk->SetOutlineWidth(trkStyle.OutlineWidth());
+    newTrk->SetAlignment(trkStyle.Alignment());
+    newTrk->SetItalic(trkStyle.Italic());
+    newTrk->SetBold(trkStyle.Bold());
+    newTrk->SetUnderLine(trkStyle.UnderLine());
+    newTrk->SetStrikeOut(trkStyle.StrikeOut());
+    newTrk->SetPrimaryColor(trkStyle.PrimaryColor());
+    newTrk->SetSecondaryColor(trkStyle.SecondaryColor());
+    newTrk->SetOutlineColor(trkStyle.OutlineColor());
+    newTrk->SetBackgroundColor(trkStyle.BackgroundColor());
+    newTrk->SetOffsetH((int)(trkStyle.OffsetH()*wRatio));
+    newTrk->SetOffsetV((int)(trkStyle.OffsetV()*hRatio));
+
+    for (auto c : m_clips)
+    {
+        auto c2 = newTrk->NewClip(c->StartTime(), c->Duration());
+        c2->SetText(c->Text());
+        if (!c->IsUsingTrackStyle())
+            c2->SyncClipStyle(c);
+    }
+    return SubtitleTrackHolder(newTrk);
+}
+
 ASS_Library* SubtitleTrack_AssImpl::s_asslib = nullptr;
 
 static void ass_log(int ass_level, const char *fmt, va_list args, void *ctx)

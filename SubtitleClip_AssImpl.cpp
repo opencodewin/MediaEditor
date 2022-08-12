@@ -387,6 +387,30 @@ void SubtitleClip_AssImpl::SetText(const std::string& text)
     m_image.Invalidate();
 }
 
+void SubtitleClip_AssImpl::SyncClipStyle(SubtitleClipHolder from, double wRatio, double hRatio)
+{
+    SetFont(from->Font());
+    SetScaleX(from->ScaleX());
+    SetScaleY(from->ScaleY());
+    SetSpacing(from->Spacing());
+    SetPrimaryColor(from->PrimaryColor());
+    SetSecondaryColor(from->SecondaryColor());
+    SetOutlineColor(from->OutlineColor());
+    SetBackgroundColor(from->BackgroundColor());
+    SetBold(from->Bold());
+    SetItalic(from->Italic());
+    SetUnderLine(from->UnderLine());
+    SetStrikeOut(from->StrikeOut());
+    SetBorderWidth(from->BorderWidth());
+    SetBlurEdge(from->BlurEdge());
+    SetRotationX(from->RotationX());
+    SetRotationY(from->RotationY());
+    SetRotationZ(from->RotationZ());
+    SetOffsetH((int32_t)(from->OffsetH()*wRatio));
+    SetOffsetV((int32_t)(from->OffsetV()*hRatio));
+    SetAlignment(from->Alignment());
+}
+
 void SubtitleClip_AssImpl::InvalidateImage()
 {
     m_image.Invalidate();

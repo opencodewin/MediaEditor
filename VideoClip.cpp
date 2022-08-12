@@ -168,6 +168,11 @@ namespace DataLayer
     class DefaultVideoTransition_Impl : public VideoTransition
     {
     public:
+        VideoTransitionHolder Clone() override
+        {
+            return VideoTransitionHolder(new DefaultVideoTransition_Impl);
+        }
+
         void ApplyTo(VideoOverlap* overlap) override
         {
             m_overlapPtr = overlap;

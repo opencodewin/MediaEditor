@@ -90,6 +90,8 @@ namespace DataLayer
         VideoOverlap(int64_t id, VideoClipHolder hClip1, VideoClipHolder hClip2);
 
         void Update();
+
+        VideoTransitionHolder GetTransition() const { return m_transition; }
         void SetTransition(VideoTransitionHolder trans);
 
         int64_t Id() const { return m_id; }
@@ -119,6 +121,7 @@ namespace DataLayer
     struct VideoTransition
     {
         virtual ~VideoTransition() {}
+        virtual VideoTransitionHolder Clone() = 0;
         virtual void ApplyTo(VideoOverlap* overlap) = 0;
         virtual ImGui::ImMat MixTwoImages(const ImGui::ImMat& vmat1, const ImGui::ImMat& vmat2, int64_t pos, int64_t dur) = 0;
     };

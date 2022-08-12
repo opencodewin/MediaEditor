@@ -38,6 +38,17 @@ namespace DataLayer
             newInstance->m_duration = lastClip->Start()+lastClip->Duration();
             newInstance->UpdateClipOverlap(newClip);
         }
+        // clone the transitions on the overlaps
+        for (auto overlap : m_overlaps)
+        {
+            auto iter = find_if(newInstance->m_overlaps.begin(), newInstance->m_overlaps.end(), [overlap] (auto& ovlp) {
+                return overlap->FrontClip()->Id() == ovlp->FrontClip()->Id() && overlap->RearClip()->Id() == ovlp->RearClip()->Id();
+            });
+            if (iter != newInstance->m_overlaps.end())
+            {
+                (*iter)->SetTransition(overlap->GetTransition()->Clone());
+            }
+        }
         return newInstance;
     }
 

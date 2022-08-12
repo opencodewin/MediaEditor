@@ -28,7 +28,8 @@ namespace DataLayer
         };
 
         SubtitleImage() = default;
-        SubtitleImage(ImGui::ImMat& image, const Rect& area);
+        SubtitleImage(ImGui::ImMat& image, const Rect& area)
+            : m_image(image), m_area(area) {}
 
         ImGui::ImMat Vmat() { return m_image; }
         Rect Area() const { return m_area; }
@@ -46,6 +47,8 @@ namespace DataLayer
 
     struct SubtitleClip
     {
+        virtual ~SubtitleClip() {}
+
         virtual SubtitleType Type() const = 0;
         virtual bool IsUsingTrackStyle() const = 0;
         virtual std::string TrackStyle() const = 0;
@@ -107,6 +110,8 @@ namespace DataLayer
         virtual void SetOffsetV(int32_t value) = 0;
         virtual void SetAlignment(uint32_t value) = 0;
         virtual void SetText(const std::string& text) = 0;
+
+        virtual void SyncClipStyle(SubtitleClipHolder from, double wRatio = 1, double hRatio = 1) = 0;
         virtual void InvalidateImage() = 0;
     };
 }

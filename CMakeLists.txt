@@ -117,7 +117,6 @@ set(MEDIA_EDITOR_SRCS
     MediaReader.cpp
     MediaEncoder.cpp
     AudioRender_Impl_Sdl2.cpp
-    SubtitleClip.cpp
     SubtitleClip_AssImpl.cpp
     SubtitleTrack.cpp
     SubtitleTrack_AssImpl.cpp
@@ -293,7 +292,6 @@ add_executable(
     VideoClip.cpp
     MediaReader.cpp
     MediaParser.cpp
-    SubtitleClip.cpp
     SubtitleClip_AssImpl.cpp
     SubtitleTrack.cpp
     SubtitleTrack_AssImpl.cpp
@@ -339,7 +337,6 @@ target_include_directories(
 add_executable(
     subtitle_reader_test
     test/SubtitleReaderTest.cpp
-    SubtitleClip.cpp
     SubtitleClip_AssImpl.cpp
     SubtitleTrack.cpp
     SubtitleTrack_AssImpl.cpp

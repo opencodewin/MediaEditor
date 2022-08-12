@@ -64,18 +64,30 @@ public:
             return nullptr;
         }
 
-        lock_guard<recursive_mutex> lk2(m_trackLock);
-        // clone all the tracks
-        for (auto track : m_tracks)
+        // clone all the video tracks
         {
-            newInstance->m_tracks.push_back(track->Clone(outWidth, outHeight, frameRate));
+            lock_guard<recursive_mutex> lk2(m_trackLock);
+            for (auto track : m_tracks)
+            {
+                newInstance->m_tracks.push_back(track->Clone(outWidth, outHeight, frameRate));
+            }
         }
         newInstance->UpdateDuration();
-
         // seek to 0
         newInstance->m_outputMats.clear();
         for (auto track : newInstance->m_tracks)
             track->SeekTo(0);
+
+        // clone all the subtitle tracks
+        {
+            lock_guard<mutex> lk2(m_subtrkLock);
+            for (auto subtrk : m_subtrks)
+            {
+                if (!subtrk->IsVisible())
+                    continue;
+                newInstance->m_subtrks.push_back(subtrk->Clone(outWidth, outHeight));
+            }
+        }
 
         // start new instance
         if (!newInstance->Start())
