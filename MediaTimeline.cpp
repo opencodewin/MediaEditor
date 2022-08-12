@@ -1279,8 +1279,8 @@ void TextClip::SetClipDefault(const DataLayer::SubtitleStyle & style)
     mFontOffsetH = style.OffsetH();
     mFontOffsetV = style.OffsetV();
     // pos value need load later 
-    mFontPosX = -INT32_MAX;
-    mFontPosY = -INT32_MAX;
+    mFontPosX = - FLT_MAX;
+    mFontPosY = - FLT_MAX;
 }
 
 void TextClip::SetClipDefault(const TextClip* clip)
@@ -1304,8 +1304,8 @@ void TextClip::SetClipDefault(const TextClip* clip)
     mFontOffsetH = clip->mFontOffsetH;
     mFontOffsetV = clip->mFontOffsetV;
     // pos value need load later 
-    mFontPosX = -INT32_MAX;
-    mFontPosY = -INT32_MAX;
+    mFontPosX = - FLT_MAX;
+    mFontPosY = - FLT_MAX;
 }
 
 void TextClip::CreateClipHold(void * _track)

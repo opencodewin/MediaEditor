@@ -359,31 +359,31 @@ struct MediaEditorSettings
     // Output video configure
     int OutputVideoCodecIndex {0};
     int OutputVideoCodecTypeIndex {0};
-    int OutputVideoCodecProfileIndex {INT32_MIN};
-    int OutputVideoCodecPresetIndex {INT32_MIN};
-    int OutputVideoCodecTuneIndex {INT32_MIN};
-    int OutputVideoCodecCompressionIndex {INT32_MIN};   // image format compression
+    int OutputVideoCodecProfileIndex {-1};
+    int OutputVideoCodecPresetIndex {-1};
+    int OutputVideoCodecTuneIndex {-1};
+    int OutputVideoCodecCompressionIndex {-1};   // image format compression
     bool OutputVideoSettingAsTimeline {true};
-    int OutputVideoResolutionIndex {INT32_MIN};
-    int OutputVideoResolutionWidth {INT32_MIN};         // custom setting
-    int OutputVideoResolutionHeight {INT32_MIN};        // custom setting
-    int OutputVideoPixelAspectRatioIndex {INT32_MIN};
+    int OutputVideoResolutionIndex {-1};
+    int OutputVideoResolutionWidth {-1};         // custom setting
+    int OutputVideoResolutionHeight {-1};        // custom setting
+    int OutputVideoPixelAspectRatioIndex {-1};
     MediaInfo::Ratio OutputVideoPixelAspectRatio {1, 1};// custom setting
-    int OutputVideoFrameRateIndex {INT32_MIN};
+    int OutputVideoFrameRateIndex {-1};
     MediaInfo::Ratio OutputVideoFrameRate {25000, 1000};// custom setting
-    int OutputColorSpaceIndex {INT32_MIN};
-    int OutputColorTransferIndex {INT32_MIN};
+    int OutputColorSpaceIndex {-1};
+    int OutputColorTransferIndex {-1};
     int OutputVideoBitrateStrategyindex {0};            // 0=cbr 1:vbr default cbr
-    int OutputVideoBitrate {INT32_MIN};
-    int OutputVideoGOPSize {INT32_MIN};
-    int OutputVideoBFrames {INT32_MIN};
+    int OutputVideoBitrate {-1};
+    int OutputVideoGOPSize {-1};
+    int OutputVideoBFrames {0};
     // Output audio configure
     int OutputAudioCodecIndex {0};
     int OutputAudioCodecTypeIndex {0};
     bool OutputAudioSettingAsTimeline {true};
-    int OutputAudioSampleRateIndex {INT32_MIN};
+    int OutputAudioSampleRateIndex {3};                 // 44100
     int OutputAudioSampleRate {44100};                  // custom setting
-    int OutputAudioChannelsIndex {INT32_MIN};
+    int OutputAudioChannelsIndex {1};
     int OutputAudioChannels {2};                        // custom setting
 
     MediaEditorSettings() {}
@@ -2278,10 +2278,10 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
         {
             g_vidEncSelChanged = true;
             g_media_editor_settings.OutputVideoCodecTypeIndex = 0;  // reset codec type if we change codec
-            g_media_editor_settings.OutputVideoCodecProfileIndex = INT32_MIN;
-            g_media_editor_settings.OutputVideoCodecPresetIndex = INT32_MIN;
-            g_media_editor_settings.OutputVideoCodecTuneIndex = INT32_MIN;
-            g_media_editor_settings.OutputVideoCodecCompressionIndex = INT32_MIN;
+            g_media_editor_settings.OutputVideoCodecProfileIndex = -1;
+            g_media_editor_settings.OutputVideoCodecPresetIndex = -1;
+            g_media_editor_settings.OutputVideoCodecTuneIndex = -1;
+            g_media_editor_settings.OutputVideoCodecCompressionIndex = -1;
         }
 
         // video codec type select
@@ -2302,10 +2302,10 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
             }
             if (ImGui::Combo("Codec Type##video_codec_type", &g_media_editor_settings.OutputVideoCodecTypeIndex, codec_type_getter, (void *)&g_currVidEncDescList, g_currVidEncDescList.size()))
             {
-                g_media_editor_settings.OutputVideoCodecProfileIndex = INT32_MIN;
-                g_media_editor_settings.OutputVideoCodecPresetIndex = INT32_MIN;
-                g_media_editor_settings.OutputVideoCodecTuneIndex = INT32_MIN;
-                g_media_editor_settings.OutputVideoCodecCompressionIndex = INT32_MIN;
+                g_media_editor_settings.OutputVideoCodecProfileIndex = -1;
+                g_media_editor_settings.OutputVideoCodecPresetIndex = -1;
+                g_media_editor_settings.OutputVideoCodecTuneIndex = -1;
+                g_media_editor_settings.OutputVideoCodecCompressionIndex = -1;
             }
 
             if (!g_currVidEncDescList.empty())
@@ -2314,9 +2314,9 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
                     g_currVidEncDescList[g_media_editor_settings.OutputVideoCodecTypeIndex].codecName.compare("libx264rgb") == 0)
                 {
                     // libx264 setting
-                    if (g_media_editor_settings.OutputVideoCodecProfileIndex == INT32_MIN) g_media_editor_settings.OutputVideoCodecProfileIndex = 1;
-                    if (g_media_editor_settings.OutputVideoCodecPresetIndex == INT32_MIN) g_media_editor_settings.OutputVideoCodecPresetIndex = 5;
-                    if (g_media_editor_settings.OutputVideoCodecTuneIndex == INT32_MIN) g_media_editor_settings.OutputVideoCodecTuneIndex = 0;
+                    if (g_media_editor_settings.OutputVideoCodecProfileIndex == -1) g_media_editor_settings.OutputVideoCodecProfileIndex = 1;
+                    if (g_media_editor_settings.OutputVideoCodecPresetIndex == -1) g_media_editor_settings.OutputVideoCodecPresetIndex = 5;
+                    if (g_media_editor_settings.OutputVideoCodecTuneIndex == -1) g_media_editor_settings.OutputVideoCodecTuneIndex = 0;
                     ImGui::Combo("Codec Profile##x264_profile", &g_media_editor_settings.OutputVideoCodecProfileIndex, x264_profile, IM_ARRAYSIZE(x264_profile));
                     ImGui::Combo("Codec Preset##x264_preset", &g_media_editor_settings.OutputVideoCodecPresetIndex, x264_preset, IM_ARRAYSIZE(x264_preset));
                     ImGui::Combo("Codec Tune##x264_Tune", &g_media_editor_settings.OutputVideoCodecTuneIndex, x264_tune, IM_ARRAYSIZE(x264_tune));
@@ -2325,9 +2325,9 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
                 else if (g_currVidEncDescList[g_media_editor_settings.OutputVideoCodecTypeIndex].codecName.compare("libx265") == 0)
                 {
                     // libx265 setting
-                    if (g_media_editor_settings.OutputVideoCodecProfileIndex == INT32_MIN) g_media_editor_settings.OutputVideoCodecProfileIndex = 0;
-                    if (g_media_editor_settings.OutputVideoCodecPresetIndex == INT32_MIN) g_media_editor_settings.OutputVideoCodecPresetIndex = 5;
-                    if (g_media_editor_settings.OutputVideoCodecTuneIndex == INT32_MIN) g_media_editor_settings.OutputVideoCodecTuneIndex = 4;
+                    if (g_media_editor_settings.OutputVideoCodecProfileIndex == -1) g_media_editor_settings.OutputVideoCodecProfileIndex = 0;
+                    if (g_media_editor_settings.OutputVideoCodecPresetIndex == -1) g_media_editor_settings.OutputVideoCodecPresetIndex = 5;
+                    if (g_media_editor_settings.OutputVideoCodecTuneIndex == -1) g_media_editor_settings.OutputVideoCodecTuneIndex = 4;
                     ImGui::Combo("Codec Profile##x265_profile", &g_media_editor_settings.OutputVideoCodecProfileIndex, x265_profile, IM_ARRAYSIZE(x265_profile));
                     ImGui::Combo("Codec Preset##x265_preset", &g_media_editor_settings.OutputVideoCodecPresetIndex, x265_preset, IM_ARRAYSIZE(x265_preset));
                     ImGui::Combo("Codec Tune##x265_Tune", &g_media_editor_settings.OutputVideoCodecTuneIndex, x265_tune, IM_ARRAYSIZE(x265_tune));
@@ -2335,13 +2335,13 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
                 }
                 else if (g_currVidEncDescList[g_media_editor_settings.OutputVideoCodecTypeIndex].codecName.compare("h264_videotoolbox") == 0)
                 {
-                    if (g_media_editor_settings.OutputVideoCodecProfileIndex == INT32_MIN) g_media_editor_settings.OutputVideoCodecProfileIndex = 0;
+                    if (g_media_editor_settings.OutputVideoCodecProfileIndex == -1) g_media_editor_settings.OutputVideoCodecProfileIndex = 0;
                     ImGui::Combo("Codec Profile##v264_profile", &g_media_editor_settings.OutputVideoCodecProfileIndex, v264_profile, IM_ARRAYSIZE(v264_profile));
                     has_bit_rate = has_gop_size = has_b_frame = true;
                 }
                 else if (g_currVidEncDescList[g_media_editor_settings.OutputVideoCodecTypeIndex].codecName.compare("hevc_videotoolbox") == 0)
                 {
-                    if (g_media_editor_settings.OutputVideoCodecProfileIndex == INT32_MIN) g_media_editor_settings.OutputVideoCodecProfileIndex = 0;
+                    if (g_media_editor_settings.OutputVideoCodecProfileIndex == -1) g_media_editor_settings.OutputVideoCodecProfileIndex = 0;
                     ImGui::Combo("Codec Profile##v265_profile", &g_media_editor_settings.OutputVideoCodecProfileIndex, v265_profile, IM_ARRAYSIZE(v265_profile));
                     has_bit_rate = has_gop_size = has_b_frame = true;
                 }
@@ -2351,7 +2351,7 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
                     {
                         if (opt.name.compare("profile") == 0)
                         {
-                            if (g_media_editor_settings.OutputVideoCodecProfileIndex == INT32_MIN)
+                            if (g_media_editor_settings.OutputVideoCodecProfileIndex == -1)
                             {
                                 for (int i = 0; i < opt.enumValues.size(); i++)
                                 {
@@ -2366,7 +2366,7 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
                         }
                         if (opt.name.compare("tune") == 0)
                         {
-                            if (g_media_editor_settings.OutputVideoCodecTuneIndex == INT32_MIN)
+                            if (g_media_editor_settings.OutputVideoCodecTuneIndex == -1)
                             {
                                 for (int i = 0; i < opt.enumValues.size(); i++)
                                 {
@@ -2381,7 +2381,7 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
                         }
                         if (opt.name.compare("preset") == 0 || opt.name.compare("usage") == 0)
                         {
-                            if (g_media_editor_settings.OutputVideoCodecPresetIndex == INT32_MIN)
+                            if (g_media_editor_settings.OutputVideoCodecPresetIndex == -1)
                             {
                                 for (int i = 0; i < opt.enumValues.size(); i++)
                                 {
@@ -2396,7 +2396,7 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
                         }
                         if (opt.name.compare("compression") == 0 || opt.name.compare("compression_algo") == 0)
                         {
-                            if (g_media_editor_settings.OutputVideoCodecCompressionIndex == INT32_MIN)
+                            if (g_media_editor_settings.OutputVideoCodecCompressionIndex == -1)
                             {
                                 for (int i = 0; i < opt.enumValues.size(); i++)
                                 {
@@ -2505,7 +2505,7 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
 
         if (has_bit_rate)
         {
-            if (g_media_editor_settings.OutputVideoBitrate == INT32_MIN)
+            if (g_media_editor_settings.OutputVideoBitrate == -1)
             {
                 g_media_editor_settings.OutputVideoBitrate = 
                     (int64_t)g_media_editor_settings.OutputVideoResolutionWidth * (int64_t)g_media_editor_settings.OutputVideoResolutionHeight *
@@ -2516,23 +2516,23 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
             ImGui::Combo("Bitrate Strategy##video", &g_media_editor_settings.OutputVideoBitrateStrategyindex, "CBR\0VBR\0");
         }
         else
-            g_media_editor_settings.OutputVideoBitrate = INT32_MIN;
+            g_media_editor_settings.OutputVideoBitrate = -1;
         if (has_gop_size)
         {
-            if (g_media_editor_settings.OutputVideoGOPSize == INT32_MIN)
+            if (g_media_editor_settings.OutputVideoGOPSize == -1)
                 g_media_editor_settings.OutputVideoGOPSize = 12;
             ImGui::InputInt("GOP Size##video", &g_media_editor_settings.OutputVideoGOPSize, 1, 1, ImGuiInputTextFlags_EnterReturnsTrue);
         }
         else
-            g_media_editor_settings.OutputVideoGOPSize = INT32_MIN;
+            g_media_editor_settings.OutputVideoGOPSize = -1;
         if (has_b_frame)
         {
-            if (g_media_editor_settings.OutputVideoBFrames == INT32_MIN)
+            if (g_media_editor_settings.OutputVideoBFrames == 0)
                 g_media_editor_settings.OutputVideoBFrames = 2;
             ImGui::InputInt("B Frames##video", &g_media_editor_settings.OutputVideoBFrames, 1, 1, ImGuiInputTextFlags_EnterReturnsTrue);
         }
         else
-            g_media_editor_settings.OutputVideoBFrames = INT32_MIN;
+            g_media_editor_settings.OutputVideoBFrames = 0;
         ImGui::EndDisabled(); // disable if disable video
         ImGui::Separator();
 
@@ -5441,8 +5441,8 @@ void Application_SetupContext(ImGuiContext* ctx)
         ImVec4 val_vec4 = {0, 0, 0, 0};
         if (sscanf(line, "ProjectPath=%[^|\n]", val_path) == 1) { setting->project_path = std::string(val_path); }
         else if (sscanf(line, "BottomViewExpanded=%d", &val_int) == 1) { setting->BottomViewExpanded = val_int == 1; }
-        else if (sscanf(line, "TopViewHeight=%f", &val_float) == 1) { setting->TopViewHeight = val_float; }
-        else if (sscanf(line, "BottomViewHeight=%f", &val_float) == 1) { setting->BottomViewHeight = val_float; }
+        else if (sscanf(line, "TopViewHeight=%f", &val_float) == 1) { setting->TopViewHeight = isnan(val_float) ?  0.6f : val_float; }
+        else if (sscanf(line, "BottomViewHeight=%f", &val_float) == 1) { setting->BottomViewHeight = isnan(val_float) ? 0.4f : val_float; }
         else if (sscanf(line, "OldBottomViewHeight=%f", &val_float) == 1) { setting->OldBottomViewHeight = val_float; }
         else if (sscanf(line, "ShowMeters=%d", &val_int) == 1) { setting->showMeters = val_int == 1; }
         else if (sscanf(line, "ControlPanelWidth=%f", &val_float) == 1) { setting->ControlPanelWidth = val_float; }
@@ -5947,6 +5947,12 @@ bool Application_Frame(void * handle, bool app_will_quit)
             show_debug = !show_debug;
         }
         ImGui::ShowTooltipOnHover("UI Metric");
+        if (ImGui::Button(ICON_FA_RECTANGLE_XMARK "##Quit", ImVec2(tool_icon_size, tool_icon_size)))
+        {
+            // Mark to quit
+            app_will_quit = true;
+        }
+        ImGui::ShowTooltipOnHover("Quit");
         ImGui::PopStyleColor(3);
 
         // add banks window
