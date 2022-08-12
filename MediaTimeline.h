@@ -789,8 +789,7 @@ struct TimeLine
 
     MultiTrackVideoReader* mMtvReader   {nullptr};
     MultiTrackAudioReader* mMtaReader   {nullptr};
-    double mPreviewPos                      {0};
-    double mPreviewResumePos                {0};
+    int64_t mPreviewResumePos               {0};
     bool mIsPreviewPlaying                  {false};
     bool mIsPreviewForward                  {true};
     bool mIsStepMode                        {false};

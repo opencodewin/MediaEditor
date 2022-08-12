@@ -40,6 +40,7 @@ public:
         m_outHeight = outHeight;
         m_frameRate = frameRate;
         m_readFrameIdx = 0;
+        m_frameInterval = (double)m_frameRate.den/m_frameRate.num;
 
         if (!m_subBlender.Init())
         {
@@ -130,6 +131,7 @@ public:
         m_outWidth = 0;
         m_outHeight = 0;
         m_frameRate = { 0, 0 };
+        m_frameInterval = 0;
     }
 
     VideoTrackHolder AddTrack(int64_t trackId) override
@@ -292,7 +294,7 @@ public:
         if (seeking && vmat.empty())
             vmat = m_seekingFlash;
 
-        uint32_t targetFrmidx = (int64_t)((double)pos*m_frameRate.num/(m_frameRate.den*1000));
+        uint32_t targetFrmidx = (int64_t)(ceil((double)pos*m_frameRate.num/(m_frameRate.den*1000)));
         if ((m_readForward && (targetFrmidx < m_readFrameIdx || targetFrmidx-m_readFrameIdx >= m_outputMatsMaxCount)) ||
             (!m_readForward && (targetFrmidx > m_readFrameIdx || m_readFrameIdx-targetFrmidx >= m_outputMatsMaxCount)))
         {
@@ -340,7 +342,7 @@ public:
         }
         vmat = m_outputMats.front();
         const double timestamp = (double)pos/1000;
-        if (timestamp < vmat.time_stamp || timestamp > vmat.time_stamp+(double)m_frameRate.den/m_frameRate.num)
+        if (vmat.time_stamp > timestamp+m_frameInterval || vmat.time_stamp < timestamp-m_frameInterval)
             m_logger->Log(Error) << "WRONG image time stamp!! Required 'pos' is " << timestamp
                 << ", output vmat time stamp is " << vmat.time_stamp << "." << endl;
 
@@ -578,6 +580,7 @@ private:
     {
         m_logger->Log(DEBUG) << "Enter MixingThreadProc(VIDEO)..." << endl;
 
+        bool afterSeek = false;
         while (!m_quit)
         {
             bool idleLoop = true;
@@ -585,7 +588,7 @@ private:
             if (m_seeking.exchange(false))
             {
                 const int64_t seekPos = m_seekPos;
-                m_readFrameIdx = (int64_t)((double)seekPos*m_frameRate.num/(m_frameRate.den*1000));
+                m_readFrameIdx = (int64_t)(ceil((double)seekPos*m_frameRate.num/(m_frameRate.den*1000)));
                 for (auto track : m_tracks)
                     track->SeekTo(seekPos);
                 {
@@ -594,6 +597,7 @@ private:
                         m_seekingFlash = m_outputMats.front();
                     m_outputMats.clear();
                 }
+                afterSeek = true;
             }
 
             if (m_outputMats.size() < m_outputMatsMaxCount)
@@ -624,12 +628,23 @@ private:
                     mixedFrame.time_stamp = timestamp;
                 }
 
+                if (afterSeek)
+                {
+                    int64_t frameIdx = (int64_t)(round(timestamp*m_frameRate.num/m_frameRate.den));
+                    if (frameIdx >= m_readFrameIdx)
+                    {
+                        m_readFrameIdx = frameIdx;
+                        afterSeek = false;
+                    }
+                }
+
+                if (!afterSeek)
                 {
                     lock_guard<mutex> lk(m_outputMatsLock);
                     m_outputMats.push_back(mixedFrame);
                     m_seekingFlash.release();
+                    idleLoop = false;
                 }
-                idleLoop = false;
             }
 
             if (idleLoop)
@@ -692,6 +707,7 @@ private:
     uint32_t m_outWidth{0};
     uint32_t m_outHeight{0};
     MediaInfo::Ratio m_frameRate;
+    double m_frameInterval{0};
     int64_t m_duration{0};
     uint32_t m_readFrameIdx{0};
     bool m_readForward{true};

@@ -4063,20 +4063,19 @@ void TimeLine::UpdateCurrent()
 
 ImGui::ImMat TimeLine::GetPreviewFrame()
 {
-    int64_t auddataPos;
+    int64_t auddataPos, previewPos;
     if (mPcmStream.GetTimestampMs(auddataPos))
     {
         int64_t bufferedDur = mMtaReader->SizeToDuration(mAudioRender->GetBufferedDataSize());
-        int64_t audioPos = mIsPreviewForward ? auddataPos-bufferedDur : auddataPos+bufferedDur;
-        mPreviewPos = (double)audioPos/1000.;
+        previewPos = mIsPreviewForward ? auddataPos-bufferedDur : auddataPos+bufferedDur;
     }
     else
     {
-        double elapsedTime = std::chrono::duration_cast<std::chrono::duration<double>>((PlayerClock::now() - mPlayTriggerTp)).count();
-        mPreviewPos = mIsPreviewPlaying ? (mIsPreviewForward ? mPreviewResumePos+elapsedTime : mPreviewResumePos-elapsedTime) : mPreviewResumePos;
+        int64_t elapsedTime = (int64_t)(std::chrono::duration_cast<std::chrono::duration<double>>((PlayerClock::now() - mPlayTriggerTp)).count()*1000);
+        previewPos = mIsPreviewPlaying ? (mIsPreviewForward ? mPreviewResumePos+elapsedTime : mPreviewResumePos-elapsedTime) : mPreviewResumePos;
     }
     ImGui::ImMat frame;
-    currentTime = (int64_t)(mPreviewPos * 1000);
+    currentTime = previewPos;
     if (mIsPreviewPlaying)
     {
         bool playEof = false;
@@ -4094,7 +4093,7 @@ ImGui::ImMat TimeLine::GetPreviewFrame()
         if (playEof)
         {
             mIsPreviewPlaying = false;
-            mPreviewResumePos = (double)currentTime/1000;
+            mPreviewResumePos = currentTime;
             if (mAudioRender)
                 mAudioRender->Pause();
             for (auto& audio : m_audio_channel_data)
@@ -4140,7 +4139,7 @@ void TimeLine::Play(bool play, bool forward)
         mMtaReader->SetDirection(forward);
         mIsPreviewForward = forward;
         mPlayTriggerTp = PlayerClock::now();
-        mPreviewResumePos = mPreviewPos;
+        mPreviewResumePos = currentTime;
         needSeekAudio = true;
     }
     if (needSeekAudio && mAudioRender)
@@ -4160,7 +4159,7 @@ void TimeLine::Play(bool play, bool forward)
         else
         {
             mLastFrameTime = -1;
-            mPreviewResumePos = mPreviewPos;
+            mPreviewResumePos = currentTime;
             if (mAudioRender)
                 mAudioRender->Pause();
             for (auto& audio : m_audio_channel_data)
@@ -4174,7 +4173,7 @@ void TimeLine::Play(bool play, bool forward)
 void TimeLine::Seek(int64_t msPos)
 {
     mPlayTriggerTp = PlayerClock::now();
-    mPreviewResumePos = (double)msPos/1000;
+    mPreviewResumePos = msPos;
     if (mAudioRender)
     {
         if (mIsPreviewPlaying)
@@ -4207,8 +4206,7 @@ void TimeLine::Step(bool forward)
     ImGui::ImMat vmat;
     mMtvReader->ReadNextVideoFrame(vmat);
     currentTime = std::round(vmat.time_stamp*1000);
-    mPreviewResumePos = (double)currentTime/1000;
-    Logger::Log(Logger::DEBUG) << ">>> STEP: " << currentTime << "(" << mPreviewResumePos << ") <<<" << std::endl;
+    mPreviewResumePos = currentTime;
 
     UpdateCurrent();
 }
@@ -4764,7 +4762,7 @@ int TimeLine::Load(const imgui_json::value& value)
     {
         auto& val = value["CurrentTime"];
         if (val.is_number()) currentTime = val.get<imgui_json::number>();
-        mPreviewResumePos = (double)currentTime/1000;
+        mPreviewResumePos = currentTime;
     }
     if (value.contains("MarkIn"))
     {
