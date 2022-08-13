@@ -2934,11 +2934,6 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
     draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
-    float clip_timeline_height = 80;
-    float editor_main_height = window_size.y - clip_timeline_height - 4;
-    float video_view_width = window_size.x * 2 / 3;
-    float video_editor_width = window_size.x - video_view_width;
-    
     if (!timeline)
         return;
     
@@ -2952,12 +2947,77 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
     {
         timeline->mVidFilterClip->UpdateClipRange(editing_clip);
     }
-
+    
+#if 0
+    float clip_timeline_height = 80;
+    float clip_keypoint_height = 80;
+    float video_preview_height = (window_size.y - clip_timeline_height - clip_keypoint_height) / 2;
+    float video_bluepoint_height = video_preview_height;
+    float clip_setting_width = window_size.x / 4;
+    ImVec2 video_preview_pos = window_pos;
+    ImVec2 video_preview_size(window_size.x, video_preview_height);
+    ImVec2 video_bluepoint_pos = video_preview_pos + ImVec2(0, video_preview_height);
+    ImVec2 video_bluepoint_size(window_size.x, video_bluepoint_height);
+    ImVec2 clip_timeline_pos = video_bluepoint_pos + ImVec2(0, video_bluepoint_height);
+    ImVec2 clip_timeline_size(window_size.x - clip_setting_width, clip_timeline_height);
+    ImVec2 clip_keypoint_pos = clip_timeline_pos + ImVec2(0, clip_timeline_height);
+    ImVec2 clip_keypoint_size(window_size.x - clip_setting_width, clip_keypoint_height);
+    ImVec2 clip_setting_pos = video_bluepoint_pos + ImVec2(window_size.x - clip_setting_width, 0);
+    ImVec2 clip_setting_size(clip_setting_width, window_size.y - video_preview_height);
+    if (editing_clip && timeline->mVideoFilterBluePrint)
+    {
+        timeline->mVideoFilterBluePrint->m_ViewSize = video_bluepoint_size;
+    }
+    ImGuiWindowFlags child_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings;
+    ImGui::SetCursorScreenPos(video_preview_pos);
+    if (ImGui::BeginChild("##video_filter_preview", video_preview_size, false, child_flags))
+    {
+        ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+        ImVec2 sub_window_size = ImGui::GetWindowSize();
+        draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, IM_COL32(255, 0, 0, 255));
+    }
+    ImGui::EndChild();
+    ImGui::SetCursorScreenPos(video_bluepoint_pos);
+    if (ImGui::BeginChild("##video_filter_blueprint", video_bluepoint_size, false, child_flags))
+    {
+        ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+        ImVec2 sub_window_size = ImGui::GetWindowSize();
+        draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, IM_COL32(0, 255, 0, 255));
+    }
+    ImGui::EndChild();
+    ImGui::SetCursorScreenPos(clip_timeline_pos);
+    if (ImGui::BeginChild("##video_filter_timeline", clip_timeline_size, false, child_flags))
+    {
+        ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+        ImVec2 sub_window_size = ImGui::GetWindowSize();
+        draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, IM_COL32(0, 0, 255, 255));
+    }
+    ImGui::EndChild();
+    ImGui::SetCursorScreenPos(clip_keypoint_pos);
+    if (ImGui::BeginChild("##video_filter_keypoint", clip_keypoint_size, false, child_flags))
+    {
+        ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+        ImVec2 sub_window_size = ImGui::GetWindowSize();
+        draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, IM_COL32(255, 255, 0, 255));
+    }
+    ImGui::EndChild();
+    ImGui::SetCursorScreenPos(clip_setting_pos);
+    if (ImGui::BeginChild("##video_filter_setting", clip_setting_size, false, child_flags))
+    {
+        ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+        ImVec2 sub_window_size = ImGui::GetWindowSize();
+        draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, IM_COL32(255, 0, 255, 255));
+    }
+    ImGui::EndChild();
+#else
+    float clip_timeline_height = 80;
+    float editor_main_height = window_size.y - clip_timeline_height - 4;
+    float video_view_width = window_size.x * 2 / 3;
+    float video_editor_width = window_size.x - video_view_width;
     if (editing_clip && timeline->mVideoFilterBluePrint)
     {
         timeline->mVideoFilterBluePrint->m_ViewSize = ImVec2(video_editor_width, editor_main_height);
     }
-
     if (ImGui::BeginChild("##video_filter_main", ImVec2(window_size.x, editor_main_height), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
     {
         ImVec2 clip_window_pos = ImGui::GetCursorScreenPos();
@@ -3197,6 +3257,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
         DrawClipTimeLine(timeline->mVidFilterClip, 30, 50);
     }
     ImGui::EndChild();
+#endif
 }
 
 /****************************************************************************************
@@ -5752,6 +5813,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
     static bool show_configure = false;
     static bool show_debug = false;
     auto platform_io = ImGui::GetPlatformIO();
+    bool is_splitter_hold = false;
     
     const ImGuiFileDialogFlags fflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_DisableCreateDirectoryButton | ImGuiFileDialogFlags_Modal;
     const std::string video_file_dis = "*.mp4 *.mov *.mkv *.avi *.webm *.ts";
@@ -5872,7 +5934,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
     ImGui::PushID("##Main_Timeline");
     float main_height = g_media_editor_settings.TopViewHeight * window_size.y;
     float timeline_height = g_media_editor_settings.BottomViewHeight * window_size.y;
-    ImGui::Splitter(false, 4.0f, &main_height, &timeline_height, 32, 32);
+    is_splitter_hold |= ImGui::Splitter(false, 4.0f, &main_height, &timeline_height, window_size.y / 2, scope_height + 16);
     g_media_editor_settings.TopViewHeight = main_height / window_size.y;
     g_media_editor_settings.BottomViewHeight = timeline_height / window_size.y;
     ImGui::PopID();
@@ -5885,22 +5947,22 @@ bool Application_Frame(void * handle, bool app_will_quit)
         ImGui::PushID("##Control_Panel_Main");
         float control_pane_width = g_media_editor_settings.ControlPanelWidth * main_window_size.x;
         float main_width = g_media_editor_settings.MainViewWidth * main_window_size.x;
-        ImGui::Splitter(true, 4.0f, &control_pane_width, &main_width, media_icon_size + tool_icon_size, 96);
+        is_splitter_hold |= ImGui::Splitter(true, 4.0f, &control_pane_width, &main_width, media_icon_size + tool_icon_size + 256, main_window_size.x * 0.75);
         g_media_editor_settings.ControlPanelWidth = control_pane_width / main_window_size.x;
         g_media_editor_settings.MainViewWidth = main_width / main_window_size.x;
         ImGui::PopID();
         
         // add left tool bar
-        ImGui::SetCursorPos(ImVec2(0, tool_icon_size));
+        ImGui::SetCursorPos(ImVec2(0, 0));
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.5, 0.5, 0.5, 0.5));
         ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.2, 0.2, 0.2, 1.0));
-        if (ImGui::Button(ICON_NEW_PROJECT "##NewProject", ImVec2(tool_icon_size, tool_icon_size)))
+        if (ImGui::Button(ICON_FA_CIRCLE_INFO "##About", ImVec2(tool_icon_size, tool_icon_size)))
         {
-            // New Project
-            NewProject();
+            // Show About
+            show_about = true;
         }
-        ImGui::ShowTooltipOnHover("New Project");
+        ImGui::ShowTooltipOnHover("About Media Editor");
         if (ImGui::Button(ICON_OPEN_PROJECT "##OpenProject", ImVec2(tool_icon_size, tool_icon_size)))
         {
             // Open Project
@@ -5912,6 +5974,12 @@ bool Application_Frame(void * handle, bool app_will_quit)
                                                     fflags);
         }
         ImGui::ShowTooltipOnHover("Open Project ...");
+        if (ImGui::Button(ICON_NEW_PROJECT "##NewProject", ImVec2(tool_icon_size, tool_icon_size)))
+        {
+            // New Project
+            NewProject();
+        }
+        ImGui::ShowTooltipOnHover("New Project");
         if (ImGui::Button(ICON_SAVE_PROJECT "##SaveProject", ImVec2(tool_icon_size, tool_icon_size)))
         {
             // Save Project
@@ -5940,19 +6008,13 @@ bool Application_Frame(void * handle, bool app_will_quit)
             show_configure = true;
         }
         ImGui::ShowTooltipOnHover("Configure");
-        if (ImGui::Button(ICON_FA_CIRCLE_INFO "##About", ImVec2(tool_icon_size, tool_icon_size)))
-        {
-            // Show About
-            show_about = true;
-        }
-        ImGui::ShowTooltipOnHover("About Media Editor");
         if (ImGui::Button(ICON_UI_DEBUG "##UIDebug", ImVec2(tool_icon_size, tool_icon_size)))
         {
             // open debug window
             show_debug = !show_debug;
         }
         ImGui::ShowTooltipOnHover("UI Metric");
-        if (ImGui::Button(ICON_FA_RECTANGLE_XMARK "##Quit", ImVec2(tool_icon_size, tool_icon_size)))
+        if (ImGui::Button(ICON_FA_POWER_OFF "##Quit", ImVec2(tool_icon_size, tool_icon_size)))
         {
             // Mark to quit
             app_will_quit = true;
@@ -6072,7 +6134,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
         if (overExpanded && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
             _expanded = !_expanded;
         ImGui::SetCursorScreenPos(panel_pos + ImVec2(32, 0));
-        DrawTimeLine(timeline,  &_expanded);
+        DrawTimeLine(timeline,  &_expanded, !is_splitter_hold);
         if (g_media_editor_settings.BottomViewExpanded != _expanded)
         {
             if (!_expanded)

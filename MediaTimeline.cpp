@@ -5697,7 +5697,7 @@ std::string TimelineMillisecToString(int64_t millisec, int show_millisec)
 /***********************************************************************************************************
  * Draw Main Timeline
  ***********************************************************************************************************/
-bool DrawTimeLine(TimeLine *timeline, bool *expanded)
+bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
 {
     /************************************************************************************************************
     * [-]------------------------------------ header area ----------------------------------------------------- +
@@ -5814,7 +5814,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         draw_list->AddRectFilled(canvas_pos + ImVec2(legendWidth, 0), ImVec2(timline_size.x + canvas_pos.x, canvas_pos.y + HeadHeight + 4), COL_DARK_ONE, 0);
         auto info_str = TimelineMillisecToString(duration, 3);
         info_str += " / ";
-        info_str += std::to_string(trackCount) + " entries";
+        info_str += std::to_string(trackCount) + " tracks";
         draw_list->AddText(ImVec2(canvas_pos.x + legendWidth + 2, canvas_pos.y + 4), IM_COL32_WHITE, info_str.c_str());
         if (!trackCount && *expanded)
         {
@@ -6024,7 +6024,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             // Ensure grabable handles for track
             if (legendEntry != -1 && legendEntry < timeline->m_Tracks.size())
             {
-                if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingHorizonScrollBar && !MovingCurrentTime && !menuIsOpened)
+                if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingHorizonScrollBar && !MovingCurrentTime && !menuIsOpened && editable)
                 {
                     trackMovingEntry = legendEntry;
                 }
@@ -6075,7 +6075,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                                 draw_list->AddLine(P1, P2, IM_COL32(0, 0, 255, 255), 2);
                                 RenderMouseCursor(ICON_CUTTING, ImVec2(7, 0), 1.0, -90);
                             }
-                            if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingHorizonScrollBar && !MovingCurrentTime && !menuIsOpened)
+                            if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingHorizonScrollBar && !MovingCurrentTime && !menuIsOpened && editable)
                             {
                                 if (j == 2 && bCutting && count <= 1)
                                 {
@@ -6197,7 +6197,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             ImGui::EndTooltip();
         }
 
-        if (trackAreaRect.Contains(io.MousePos) && !menuIsOpened && !bCropping && !bCutting && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+        if (trackAreaRect.Contains(io.MousePos) && editable && !menuIsOpened && !bCropping && !bCutting && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
             timeline->Click(mouseEntry, mouseTime);
 
         if (trackAreaRect.Contains(io.MousePos) && ImGui::IsMouseReleased(ImGuiMouseButton_Right) && !ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Right))
@@ -6456,14 +6456,14 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                 timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
             }
         }
-        else if (inHorizonScrollHandle && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingCurrentTime && clipMovingEntry == -1 && !menuIsOpened)
+        else if (inHorizonScrollHandle && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingCurrentTime && clipMovingEntry == -1 && !menuIsOpened && editable)
         {
             ImGui::CaptureMouseFromApp();
             MovingHorizonScrollBar = true;
             panningViewHorizonSource = io.MousePos;
             panningViewHorizonTime = - timeline->firstTime;
         }
-        else if (inHorizonScrollBar && ImGui::IsMouseReleased(ImGuiMouseButton_Left) && !menuIsOpened)
+        else if (inHorizonScrollBar && ImGui::IsMouseReleased(ImGuiMouseButton_Left) && !menuIsOpened && editable)
         {
             float msPerPixelInBar = HorizonBarPos / (float)timeline->visibleTime;
             timeline->firstTime = int((io.MousePos.x - legendWidth - contentMin.x) / msPerPixelInBar);
@@ -6501,14 +6501,14 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                 ImGui::SetScrollY(VerticalWindow, offset);
             }
         }
-        else if (inVerticalScrollHandle && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingCurrentTime && clipMovingEntry == -1 && !menuIsOpened)
+        else if (inVerticalScrollHandle && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingCurrentTime && clipMovingEntry == -1 && !menuIsOpened && editable)
         {
             ImGui::CaptureMouseFromApp();
             MovingVerticalScrollBar = true;
             panningViewVerticalSource = io.MousePos;
             panningViewVerticalPos = VerticalScrollPos;
         }
-        else if (inVerticalScrollBar && ImGui::IsMouseReleased(ImGuiMouseButton_Left) && !menuIsOpened)
+        else if (inVerticalScrollBar && ImGui::IsMouseReleased(ImGuiMouseButton_Left) && !menuIsOpened && editable)
         {
             float offset = (io.MousePos.y - vertical_scroll_pos.y) / VerticalBarHeightRatio;
             offset = ImClamp(offset, 0.f, VerticalScrollMax);
@@ -6597,7 +6597,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         bool movable = true;
         if ((timeline->mVidFilterClip && timeline->mVidFilterClip->bSeeking) ||
             (timeline->mAudFilterClip && timeline->mAudFilterClip->bSeeking) ||
-            menuIsOpened)
+            menuIsOpened || !editable)
         {
             movable = false;
         }
