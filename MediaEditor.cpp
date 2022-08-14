@@ -629,13 +629,14 @@ static void ShowVideoWindow(ImTextureID texture, ImVec2& pos, ImVec2& size)
     }
 }
 
-static void ShowVideoWindow(ImDrawList *draw_list, ImTextureID texture, ImVec2& pos, ImVec2& size, float& offset_x, float& offset_y, float& tf_x, float& tf_y)
+static void ShowVideoWindow(ImDrawList *draw_list, ImTextureID texture, ImVec2& pos, ImVec2& size, float& offset_x, float& offset_y, float& tf_x, float& tf_y, bool bLandscape = true)
 {
     if (texture)
     {
         ImGui::SetCursorScreenPos(pos);
         ImGui::InvisibleButton(("##video_window" + std::to_string((long long)texture)).c_str(), size);
         bool bViewisLandscape = size.x >= size.y ? true : false;
+        bViewisLandscape |= bLandscape;
         float aspectRatio = (float)ImGui::ImGetTextureWidth(texture) / (float)ImGui::ImGetTextureHeight(texture);
         bool bRenderisLandscape = aspectRatio > 1.f ? true : false;
         bool bNeedChangeScreenInfo = bViewisLandscape ^ bRenderisLandscape;
@@ -655,6 +656,8 @@ static void ShowVideoWindow(ImDrawList *draw_list, ImTextureID texture, ImVec2& 
             ImVec2(0, 0),
             ImVec2(1, 1)
         );
+        tf_x = offset_x + adj_x;
+        tf_y = offset_y + adj_y;
     }
 }
 
@@ -2843,7 +2846,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImR
     float tf_x = 0, tf_y = 0;
     ShowVideoWindow(draw_list, timeline->mMainPreviewTexture, PreviewPos, PreviewSize, offset_x, offset_y, tf_x, tf_y);
     video_rect.Min = ImVec2(offset_x, offset_y);
-    video_rect.Max = video_rect.Min + ImVec2(PreviewSize.x - tf_x * 2, PreviewSize.y - tf_y * 2);
+    video_rect.Max = ImVec2(tf_x, tf_y);
     if (monitors)
     {
         // Show monitors
@@ -3262,10 +3265,6 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
     draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
-    float fusion_timeline_height = 130;
-    float fusion_main_height = window_size.y - fusion_timeline_height - 4;
-    float video_view_width = window_size.x * 2 / 3;
-    float video_fusion_width = window_size.x - video_view_width;
     if (!timeline)
         return;
     
@@ -3282,167 +3281,188 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
         }
     }
 
+    float clip_timeline_height = 30 + 50 + 50;
+    float clip_keypoint_height = 80;
+    ImVec2 video_preview_pos = window_pos;
+    float video_preview_height = (window_size.y - clip_timeline_height - clip_keypoint_height) * 2 / 3;
+    float video_bluepoint_height = (window_size.y - clip_timeline_height - clip_keypoint_height) - video_preview_height;
+    float clip_setting_width = 256;
+    float clip_setting_height = window_size.y - video_preview_height;
+    ImVec2 clip_setting_pos = video_preview_pos + ImVec2(window_size.x - clip_setting_width, video_preview_height);
+    ImVec2 clip_setting_size(clip_setting_width, window_size.y);
+    float video_preview_width = window_size.x;
+
+    ImVec2 video_preview_size(video_preview_width, video_preview_height);
+    ImVec2 video_bluepoint_pos = video_preview_pos + ImVec2(0, video_preview_height);
+    ImVec2 video_bluepoint_size(window_size.x - clip_setting_width, video_bluepoint_height);
+    ImVec2 clip_timeline_pos = video_bluepoint_pos + ImVec2(0, video_bluepoint_height);
+    ImVec2 clip_timeline_size(window_size.x - clip_setting_width, clip_timeline_height);
+    ImVec2 clip_keypoint_pos = clip_timeline_pos + ImVec2(0, clip_timeline_height);
+    ImVec2 clip_keypoint_size(window_size.x - clip_setting_width, clip_keypoint_height);
+
     if (editing_overlap && timeline->mVideoFusionBluePrint)
     {
-        timeline->mVideoFusionBluePrint->m_ViewSize = ImVec2(video_fusion_width, fusion_main_height);
+        timeline->mVideoFusionBluePrint->m_ViewSize = video_bluepoint_size;
     }
-    
-    if (ImGui::BeginChild("##video_fusion_main", ImVec2(window_size.x, fusion_main_height), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+
+    ImGuiWindowFlags child_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings;
+    ImGui::SetCursorScreenPos(video_preview_pos);
+    if (ImGui::BeginChild("##video_fusion_preview", video_preview_size, false, child_flags))
     {
-        ImVec2 fusion_window_pos = ImGui::GetCursorScreenPos();
-        ImVec2 fusion_window_size = ImGui::GetWindowSize();
-        if (ImGui::BeginChild("##fusion_video_view", ImVec2(video_view_width, fusion_window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+        ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+        ImVec2 sub_window_size = ImGui::GetWindowSize();
+        draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DEEP_DARK);
+        // Draw Video Fusion Play control bar
+        ImVec2 PanelBarPos = sub_window_pos + ImVec2(0, (sub_window_size.y - 36));
+        ImVec2 PanelBarSize = ImVec2(sub_window_size.x, 36);
+        draw_list->AddRectFilled(PanelBarPos, PanelBarPos + PanelBarSize, COL_DARK_PANEL);
+        // Preview buttons Stop button is center of Panel bar
+        auto PanelCenterX = PanelBarPos.x + sub_window_size.x / 2;
+        auto PanelButtonY = PanelBarPos.y + 2;
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0.5));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.2, 0.2, 0.2, 1.0));
+        ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32 - 8 - 32 - 8 - 32, PanelButtonY));
+        if (ImGui::Button(ICON_TO_START "##video_fusion_tostart", ImVec2(32, 32)))
         {
-            ImVec2 video_view_window_pos = ImGui::GetCursorScreenPos();
-            ImVec2 video_view_window_size = ImGui::GetWindowSize();
-            draw_list->AddRectFilled(video_view_window_pos, video_view_window_pos + video_view_window_size, COL_DEEP_DARK);
-            // Draw Video Fusion Play control bar
-            ImVec2 PanelBarPos = video_view_window_pos + ImVec2(0, (video_view_window_size.y - 36));
-            ImVec2 PanelBarSize = ImVec2(video_view_window_size.x, 36);
-            draw_list->AddRectFilled(PanelBarPos, PanelBarPos + PanelBarSize, COL_DARK_PANEL);
-            // Preview buttons Stop button is center of Panel bar
-            auto PanelCenterX = PanelBarPos.x + video_view_window_size.x / 2;
-            auto PanelButtonY = PanelBarPos.y + 2;
-            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0.5));
-            ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.2, 0.2, 0.2, 1.0));
-            ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32 - 8 - 32 - 8 - 32, PanelButtonY));
-            if (ImGui::Button(ICON_TO_START "##video_fusion_tostart", ImVec2(32, 32)))
+            if (timeline->mVidOverlap && !timeline->mVidOverlap->bPlay)
             {
-                if (timeline->mVidOverlap && !timeline->mVidOverlap->bPlay)
-                {
-                    int64_t pos = 0;
-                    timeline->mVidOverlap->Seek(pos);
-                }
+                int64_t pos = 0;
+                timeline->mVidOverlap->Seek(pos);
             }
-            ImGui::ShowTooltipOnHover("To Start");
-
-            ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32 - 8 - 32, PanelButtonY));
-            if (ImGui::Button(ICON_STEP_BACKWARD "##video_fusion_step_backward", ImVec2(32, 32)))
-            {
-                if (timeline->mVidOverlap)
-                {
-                    timeline->mVidOverlap->Step(false);
-                }
-            }
-            ImGui::ShowTooltipOnHover("Step Prev");
-
-            ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32, PanelButtonY));
-            if (ImGui::RotateButton(ICON_PLAY_BACKWARD "##video_fusion_reverse", ImVec2(32, 32), 180))
-            {
-                if (timeline->mVidOverlap)
-                {
-                    timeline->mVidOverlap->bForward = false;
-                    timeline->mVidOverlap->bPlay = true;
-                }
-            }
-            ImGui::ShowTooltipOnHover("Reverse");
-
-            ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16, PanelButtonY));
-            if (ImGui::Button(ICON_STOP "##video_fusion_stop", ImVec2(32, 32)))
-            {
-                if (timeline->mVidOverlap)
-                {
-                    timeline->mVidOverlap->bPlay = false;
-                    timeline->mVidOverlap->mLastTime = -1;
-                    timeline->mVidOverlap->mLastFrameTime = -1;
-                }
-            }
-            ImGui::ShowTooltipOnHover("Stop");
-
-            ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8, PanelButtonY));
-            if (ImGui::Button(ICON_PLAY_FORWARD "##video_fusion_play", ImVec2(32, 32)))
-            {
-                if (timeline->mVidOverlap)
-                {
-                    timeline->mVidOverlap->bForward = true;
-                    timeline->mVidOverlap->bPlay = true;
-                }
-            }
-            ImGui::ShowTooltipOnHover("Play");
-
-            ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 32 + 8, PanelButtonY));
-            if (ImGui::Button(ICON_STEP_FORWARD "##video_fusion_step_forward", ImVec2(32, 32)))
-            {
-                if (timeline->mVidOverlap)
-                {
-                    timeline->mVidOverlap->Step(true);
-                }
-            }
-            ImGui::ShowTooltipOnHover("Step Next");
-
-            ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 32 + 8 + 32 + 8, PanelButtonY));
-            if (ImGui::Button(ICON_TO_END "##video_fusion_toend", ImVec2(32, 32)))
-            {
-                if (timeline->mVidOverlap && !timeline->mVidOverlap->bPlay)
-                {
-                    int64_t pos = timeline->mVidOverlap->mEnd - timeline->mVidOverlap->mStart;
-                    timeline->mVidOverlap->Seek(pos);
-                }
-            }
-            ImGui::ShowTooltipOnHover("To End");
-
-            // filter input texture area
-            ImVec2 InputFirstVideoPos;
-            ImVec2 InputSecondVideoPos;
-            ImVec2 InputVideoSize;
-            InputVideoSize = ImVec2(video_view_window_size.x / 2 - 16, (video_view_window_size.y - PanelBarSize.y - 8) / 3);
-            InputFirstVideoPos = video_view_window_pos + ImVec2(4, 4);
-            InputSecondVideoPos = video_view_window_pos + ImVec2(video_view_window_size.x / 2 + 4, 4);
-            ImVec2 OutputVideoPos;
-            ImVec2 OutputVideoSize;
-            OutputVideoPos = video_view_window_pos + ImVec2(4, 4 + InputVideoSize.y + 4);
-            OutputVideoSize = ImVec2(video_view_window_size.x - 8, (video_view_window_size.y - PanelBarSize.y - 8) * 2 / 3);
-            ImRect InputFirstVideoRect(InputFirstVideoPos, InputFirstVideoPos + InputVideoSize);
-            ImRect OutVideoRect(OutputVideoPos,OutputVideoPos + OutputVideoSize);
+        } ImGui::ShowTooltipOnHover("To Start");
+        ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32 - 8 - 32, PanelButtonY));
+        if (ImGui::Button(ICON_STEP_BACKWARD "##video_fusion_step_backward", ImVec2(32, 32)))
+        {
             if (timeline->mVidOverlap)
             {
-                std::pair<std::pair<ImGui::ImMat, ImGui::ImMat>, ImGui::ImMat> pair;
-                auto ret = timeline->mVidOverlap->GetFrame(pair);
-                if (ret && 
-                    (timeline->mVidOverlap->mLastFrameTime == -1 || timeline->mVidOverlap->mLastFrameTime != pair.first.first.time_stamp * 1000 || need_update_scope))
-                {
-                    CalculateVideoScope(pair.second);
-                    ImGui::ImMatToTexture(pair.first.first, timeline->mVideoFusionInputFirstTexture);
-                    ImGui::ImMatToTexture(pair.first.second, timeline->mVideoFusionInputSecondTexture);
-                    ImGui::ImMatToTexture(pair.second, timeline->mVideoFusionOutputTexture);
-                    timeline->mVidOverlap->mLastFrameTime = pair.first.first.time_stamp * 1000;
-                }
-                ImVec4 tint_col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);   // No tint
-                ImVec4 border_col = ImVec4(1.0f, 1.0f, 1.0f, 0.5f); // 50% opaque white
-                float offset_x = 0, offset_y = 0;
-                float tf_x = 0, tf_y = 0;
-                // fusion first input texture area
-                ShowVideoWindow(draw_list, timeline->mVideoFusionInputFirstTexture, InputFirstVideoPos, InputVideoSize, offset_x, offset_y, tf_x, tf_y);
-                // fusion second input texture area
-                ShowVideoWindow(draw_list, timeline->mVideoFusionInputSecondTexture, InputSecondVideoPos, InputVideoSize, offset_x, offset_y, tf_x, tf_y);
-                // filter output texture area
-                ShowVideoWindow(draw_list, timeline->mVideoFusionOutputTexture, OutputVideoPos, OutputVideoSize, offset_x, offset_y, tf_x, tf_y);
+                timeline->mVidOverlap->Step(false);
             }
-
-            ImGui::PopStyleColor(3);
-        }
-        ImGui::EndChild();
-
-        ImGui::SetCursorScreenPos(fusion_window_pos + ImVec2(video_view_width, 0));
-        if (ImGui::BeginChild("##video_fusion_blueprint_view", ImVec2(video_fusion_width, fusion_window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+        } ImGui::ShowTooltipOnHover("Step Prev");
+        ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32, PanelButtonY));
+        if (ImGui::RotateButton(ICON_PLAY_BACKWARD "##video_fusion_reverse", ImVec2(32, 32), 180))
         {
-            ImVec2 fusion_view_window_pos = ImGui::GetCursorScreenPos();
-            ImVec2 fusion_view_window_size = ImGui::GetWindowSize();
-            draw_list->AddRectFilled(fusion_view_window_pos, fusion_view_window_pos + fusion_view_window_size, COL_DEEP_DARK);
-            ShowVideoFusionBluePrintWindow(draw_list, editing_overlap);
+            if (timeline->mVidOverlap)
+            {
+                timeline->mVidOverlap->bForward = false;
+                timeline->mVidOverlap->bPlay = true;
+            }
+        } ImGui::ShowTooltipOnHover("Reverse");
+        ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16, PanelButtonY));
+        if (ImGui::Button(ICON_STOP "##video_fusion_stop", ImVec2(32, 32)))
+        {
+            if (timeline->mVidOverlap)
+            {
+                timeline->mVidOverlap->bPlay = false;
+                timeline->mVidOverlap->mLastTime = -1;
+                timeline->mVidOverlap->mLastFrameTime = -1;
+            }
+        } ImGui::ShowTooltipOnHover("Stop");
+        ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8, PanelButtonY));
+        if (ImGui::Button(ICON_PLAY_FORWARD "##video_fusion_play", ImVec2(32, 32)))
+        {
+            if (timeline->mVidOverlap)
+            {
+                timeline->mVidOverlap->bForward = true;
+                timeline->mVidOverlap->bPlay = true;
+            }
+        } ImGui::ShowTooltipOnHover("Play");
+        ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 32 + 8, PanelButtonY));
+        if (ImGui::Button(ICON_STEP_FORWARD "##video_fusion_step_forward", ImVec2(32, 32)))
+        {
+            if (timeline->mVidOverlap)
+            {
+                timeline->mVidOverlap->Step(true);
+            }
+        } ImGui::ShowTooltipOnHover("Step Next");
+        ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 32 + 8 + 32 + 8, PanelButtonY));
+        if (ImGui::Button(ICON_TO_END "##video_fusion_toend", ImVec2(32, 32)))
+        {
+            if (timeline->mVidOverlap && !timeline->mVidOverlap->bPlay)
+            {
+                int64_t pos = timeline->mVidOverlap->mEnd - timeline->mVidOverlap->mStart;
+                timeline->mVidOverlap->Seek(pos);
+            }
+        } ImGui::ShowTooltipOnHover("To End");
+
+        // fusion texture area
+        ImVec2 InputFirstVideoPos = sub_window_pos + ImVec2(4, 4);
+        ImVec2 InputFirstVideoSize = ImVec2(sub_window_size.x / 4 - 8, sub_window_size.y - PanelBarSize.y - 8);
+        ImVec2 OutputVideoPos = sub_window_pos + ImVec2(sub_window_size.x / 4 + 8, 4);
+        ImVec2 OutputVideoSize = ImVec2(sub_window_size.x / 2 - 32, sub_window_size.y - PanelBarSize.y - 8);
+        ImVec2 InputSecondVideoPos = sub_window_pos + ImVec2(sub_window_size.x * 3 / 4 - 8, 4);
+        ImVec2 InputSecondVideoSize = InputFirstVideoSize;
+        
+        ImRect InputFirstVideoRect(InputFirstVideoPos, InputFirstVideoPos + InputFirstVideoSize);
+        ImRect InputSecondVideoRect(InputSecondVideoPos, InputSecondVideoPos + InputSecondVideoSize);
+        ImRect OutVideoRect(OutputVideoPos, OutputVideoPos + OutputVideoSize);
+        
+        if (timeline->mVidOverlap)
+        {
+            std::pair<std::pair<ImGui::ImMat, ImGui::ImMat>, ImGui::ImMat> pair;
+            auto ret = timeline->mVidOverlap->GetFrame(pair);
+            if (ret && 
+                (timeline->mVidOverlap->mLastFrameTime == -1 || timeline->mVidOverlap->mLastFrameTime != pair.first.first.time_stamp * 1000 || need_update_scope))
+            {
+                CalculateVideoScope(pair.second);
+                ImGui::ImMatToTexture(pair.first.first, timeline->mVideoFusionInputFirstTexture);
+                ImGui::ImMatToTexture(pair.first.second, timeline->mVideoFusionInputSecondTexture);
+                ImGui::ImMatToTexture(pair.second, timeline->mVideoFusionOutputTexture);
+                timeline->mVidOverlap->mLastFrameTime = pair.first.first.time_stamp * 1000;
+            }
+            ImVec4 tint_col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);   // No tint
+            ImVec4 border_col = ImVec4(1.0f, 1.0f, 1.0f, 0.5f); // 50% opaque white
+            float offset_x = 0, offset_y = 0;
+            float tf_x = 0, tf_y = 0;
+            // fusion first input texture area
+            ShowVideoWindow(draw_list, timeline->mVideoFusionInputFirstTexture, InputFirstVideoPos, InputFirstVideoSize, offset_x, offset_y, tf_x, tf_y);
+            draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32_WHITE, 0, 0, 1.0);
+            // fusion second input texture area
+            ShowVideoWindow(draw_list, timeline->mVideoFusionInputSecondTexture, InputSecondVideoPos, InputSecondVideoSize, offset_x, offset_y, tf_x, tf_y);
+            draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32_WHITE, 0, 0, 1.0);
+            // filter output texture area
+            ShowVideoWindow(draw_list, timeline->mVideoFusionOutputTexture, OutputVideoPos, OutputVideoSize, offset_x, offset_y, tf_x, tf_y);
+            draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32(255, 0, 0, 255), 0, 0, 2.0);
         }
-        ImGui::EndChild();
+
+        ImGui::PopStyleColor(3);
     }
     ImGui::EndChild();
-    if (ImGui::BeginChild("##video_fusion_timeline", ImVec2(window_size.x, fusion_timeline_height), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+    ImGui::SetCursorScreenPos(video_bluepoint_pos);
+    if (ImGui::BeginChild("##video_fusion_blueprint", video_bluepoint_size, false, child_flags))
     {
-        ImVec2 clip_timeline_window_pos = ImGui::GetCursorScreenPos();
-        ImVec2 clip_timeline_window_size = ImGui::GetWindowSize();
-        draw_list->AddRectFilled(clip_timeline_window_pos, clip_timeline_window_pos + clip_timeline_window_size, COL_DARK_TWO);
-
+        ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+        ImVec2 sub_window_size = ImGui::GetWindowSize();
+        draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DEEP_DARK);
+        ShowVideoFusionBluePrintWindow(draw_list, editing_overlap);
+    }
+    ImGui::EndChild();
+    ImGui::SetCursorScreenPos(clip_timeline_pos);
+    if (ImGui::BeginChild("##video_fusion_timeline", clip_timeline_size, false, child_flags))
+    {
+        ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+        ImVec2 sub_window_size = ImGui::GetWindowSize();
+        draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_TWO);
         // Draw Clip TimeLine
         DrawOverlapTimeLine(timeline->mVidOverlap, 30, 50);
+    }
+    ImGui::EndChild();
+    ImGui::SetCursorScreenPos(clip_keypoint_pos);
+    if (ImGui::BeginChild("##video_fusion_keypoint", clip_keypoint_size, false, child_flags))
+    {
+        ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+        ImVec2 sub_window_size = ImGui::GetWindowSize();
+        draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_ONE);
+        // TODO::Dicky Add keypoint editor
+    }
+    ImGui::EndChild();
+    ImGui::SetCursorScreenPos(clip_setting_pos);
+    if (ImGui::BeginChild("##video_fusion_setting", clip_setting_size, false, child_flags))
+    {
+        ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+        ImVec2 sub_window_size = ImGui::GetWindowSize();
+        draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_TWO);
+        // TODO::Dicky add Filter setting
     }
     ImGui::EndChild();
 }
@@ -3458,7 +3478,7 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
         UIPageChanged();
     }
     ImGui::SetCursorScreenPos(clip_window_pos + ImVec2(labelWidth, 0));
-    if (ImGui::BeginChild("##video_editor_views", ImVec2(clip_window_size.x - labelWidth, clip_window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+    if (ImGui::BeginChild("##video_editor_views", ImVec2(clip_window_size.x - labelWidth, clip_window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoScrollWithMouse))
     {
         ImVec2 editor_view_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 editor_view_window_size = ImGui::GetWindowSize();
