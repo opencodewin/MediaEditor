@@ -1260,7 +1260,7 @@ TextClip::~TextClip()
 
 void TextClip::SetClipDefault(const DataLayer::SubtitleStyle & style)
 {
-    mTrackStyle = false;
+    mTrackStyle = true;
     mFontScaleX = style.ScaleX();
     mFontScaleY = style.ScaleY();
     mFontItalic = style.Italic() > 0;

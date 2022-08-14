@@ -1175,7 +1175,7 @@ static void NewTimeline()
 
         // init bp view
         float labelWidth = ImGui::CalcVerticalTabLabelsWidth() + 4;
-        ImVec2 view_size = ImVec2(DEFAULT_MAIN_VIEW_WIDTH * 0.8 * 1 / 3 - labelWidth, DEFAULT_MAIN_VIEW_HEIGHT * 0.6);
+        ImVec2 view_size = ImVec2(400, 200);//ImVec2(DEFAULT_MAIN_VIEW_WIDTH * 0.8 * 1 / 3 - labelWidth, DEFAULT_MAIN_VIEW_HEIGHT * 0.6);
         if (timeline->mVideoFilterBluePrint)
         {
             timeline->mVideoFilterBluePrint->m_ViewSize = view_size;
