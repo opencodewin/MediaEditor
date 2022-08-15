@@ -303,7 +303,11 @@ public:
         }
 
         if (seeking)
+        {
+            if (!m_subtrks.empty())
+                vmat = BlendSubtitle(vmat);
             return true;
+        }
 
         // the frame queue may not be filled with the target frame, wait for the mixing thread to fill it
         bool lockAquaired = false;
@@ -350,9 +354,7 @@ public:
                 << ", output vmat time stamp is " << vmat.time_stamp << "." << endl;
 
         if (!m_subtrks.empty())
-        {
             vmat = BlendSubtitle(vmat);
-        }
         return true;
     }
 
@@ -398,6 +400,8 @@ public:
             m_readFrameIdx--;
         }
         vmat = m_outputMats.front();
+        if (!m_subtrks.empty())
+            vmat = BlendSubtitle(vmat);
         return true;
     }
 
