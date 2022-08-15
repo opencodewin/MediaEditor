@@ -940,7 +940,7 @@ struct TimeLine
     void ConfigSnapshotWindow(int64_t viewWndDur);
 };
 
-bool DrawTimeLine(TimeLine *timeline, bool *expanded);
+bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable = true);
 bool DrawClipTimeLine(BaseEditingClip * editingClip, int header_height, int custom_height);
 bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int header_height, int custom_height);
 std::string TimelineMillisecToString(int64_t millisec, int show_millisec = 0);
