@@ -275,6 +275,7 @@ struct Overlap
     bool bEditing                   {false};    // overlap is editing, project saved
     std::pair<int64_t, int64_t>     m_Clip;     // overlaped clip's pair, project saved
     imgui_json::value mFusionBP;                // overlap transion blueprint, project saved
+    ImGui::KeyPointEditor mKeyPoints;           // overlap key points, project saved
     void * mHandle                  {nullptr};  // overlap belong to timeline 
     Overlap(int64_t start, int64_t end, int64_t clip_first, int64_t clip_second, MEDIA_TYPE type, void* handle);
     ~Overlap();
@@ -309,6 +310,7 @@ struct Clip
     int mTrackHeight            {0};
 
     imgui_json::value mFilterBP;                    // clip filter blue print, project saved
+    ImGui::KeyPointEditor mKeyPoints;               // clip key points, project saved
 
     Clip(int64_t start, int64_t end, int64_t id, MediaParserHolder mediaParser, void * handle);
     virtual ~Clip();

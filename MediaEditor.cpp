@@ -3206,7 +3206,8 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
         ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_ONE);
-        // TODO::Dicky Add keypoint editor
+        ImVector<ImGui::ImCurveEdit::editPoint> edit_points;
+        ImGui::ImCurveEdit::Edit(editing_clip->mKeyPoints, sub_window_size, ImGui::GetID("##video_filter_keypoint_editor"), NULL , &edit_points);
     }
     ImGui::EndChild();
     ImGui::SetCursorScreenPos(clip_setting_pos);
@@ -3454,7 +3455,8 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
         ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_ONE);
-        // TODO::Dicky Add keypoint editor
+        ImVector<ImGui::ImCurveEdit::editPoint> edit_points;
+        ImGui::ImCurveEdit::Edit(editing_overlap->mKeyPoints, sub_window_size, ImGui::GetID("##video_fusion_keypoint_editor"), NULL , &edit_points);
     }
     ImGui::EndChild();
     ImGui::SetCursorScreenPos(clip_setting_pos);
