@@ -434,6 +434,7 @@ static ImGui::Vector_vulkan *       m_vector {nullptr};
 #endif
 
 static bool need_update_scope {false};
+static bool need_update_preview {false};
 
 static ImGui::ImMat mat_histogram;
 
@@ -2689,7 +2690,7 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
  * Media Preview window
  *
  ***************************************************************************************/
-static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImRect& video_rect, bool audio_bar = true, bool monitors = true)
+static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImRect& video_rect, bool audio_bar = true, bool monitors = true, bool force_update = false)
 {
     // preview control pannel
     ImVec2 PanelBarPos;
@@ -2836,7 +2837,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImR
     PreviewSize = window_size - ImVec2(16 + (audio_bar ? 64 : 0), 16 + 48);
     auto frame = timeline->GetPreviewFrame();
     if (!frame.empty() && 
-        (timeline->mLastFrameTime == -1 || timeline->mLastFrameTime != frame.time_stamp * 1000 || need_update_scope))
+        (timeline->mLastFrameTime == -1 || timeline->mLastFrameTime != (int64_t)(frame.time_stamp * 1000) || need_update_scope || force_update))
     {
         CalculateVideoScope(frame);
         ImGui::ImMatToTexture(frame, timeline->mMainPreviewTexture);
@@ -3093,7 +3094,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
             std::pair<ImGui::ImMat, ImGui::ImMat> pair;
             auto ret = timeline->mVidFilterClip->GetFrame(pair);
             if (ret && 
-                (timeline->mVidFilterClip->mLastFrameTime == -1 || timeline->mVidFilterClip->mLastFrameTime != pair.first.time_stamp * 1000 || need_update_scope))
+                (timeline->mVidFilterClip->mLastFrameTime == -1 || timeline->mVidFilterClip->mLastFrameTime != (int64_t)(pair.first.time_stamp * 1000) || need_update_scope))
             {
                 CalculateVideoScope(pair.second);
                 ImGui::ImMatToTexture(pair.first, timeline->mVideoFilterInputTexture);
@@ -3402,7 +3403,7 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
             std::pair<std::pair<ImGui::ImMat, ImGui::ImMat>, ImGui::ImMat> pair;
             auto ret = timeline->mVidOverlap->GetFrame(pair);
             if (ret && 
-                (timeline->mVidOverlap->mLastFrameTime == -1 || timeline->mVidOverlap->mLastFrameTime != pair.first.first.time_stamp * 1000 || need_update_scope))
+                (timeline->mVidOverlap->mLastFrameTime == -1 || timeline->mVidOverlap->mLastFrameTime != (int64_t)(pair.first.first.time_stamp * 1000) || need_update_scope))
             {
                 CalculateVideoScope(pair.second);
                 ImGui::ImMatToTexture(pair.first.first, timeline->mVideoFusionInputFirstTexture);
