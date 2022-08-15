@@ -311,8 +311,8 @@ public:
         {
             m_outputMatsLock.lock();
             lockAquaired = true;
-            if ((m_readForward && targetFrmidx-m_readFrameIdx < m_outputMats.size()) ||
-                (!m_readForward && m_readFrameIdx-targetFrmidx < m_outputMats.size()))
+            if ((m_readForward && targetFrmidx < m_outputMats.size()+m_readFrameIdx) ||
+                (!m_readForward && m_readFrameIdx < m_outputMats.size()+targetFrmidx))
                 break;
             m_outputMatsLock.unlock();
             lockAquaired = false;
@@ -326,14 +326,17 @@ public:
         }
 
         lock_guard<mutex> lk2(m_outputMatsLock, adopt_lock);
-        uint32_t popCnt = m_readForward ? targetFrmidx-m_readFrameIdx : m_readFrameIdx-targetFrmidx;
-        while (popCnt-- > 0)
+        if ((m_readForward && targetFrmidx > m_readFrameIdx) || (!m_readForward && m_readFrameIdx > targetFrmidx))
         {
-            m_outputMats.pop_front();
-            if (m_readForward)
-                m_readFrameIdx++;
-            else
-                m_readFrameIdx--;
+            uint32_t popCnt = m_readForward ? targetFrmidx-m_readFrameIdx : m_readFrameIdx-targetFrmidx;
+            while (popCnt-- > 0)
+            {
+                m_outputMats.pop_front();
+                if (m_readForward)
+                    m_readFrameIdx++;
+                else
+                    m_readFrameIdx--;
+            }
         }
         if (m_outputMats.empty())
         {
@@ -631,7 +634,7 @@ private:
                 if (afterSeek)
                 {
                     int64_t frameIdx = (int64_t)(round(timestamp*m_frameRate.num/m_frameRate.den));
-                    if (frameIdx >= m_readFrameIdx)
+                    if ((m_readForward && frameIdx >= m_readFrameIdx) || (!m_readForward && frameIdx <= m_readFrameIdx))
                     {
                         m_readFrameIdx = frameIdx;
                         afterSeek = false;
