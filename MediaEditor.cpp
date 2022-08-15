@@ -3113,8 +3113,8 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
             {
                 float image_width = ImGui::ImGetTextureWidth(timeline->mVideoFilterInputTexture);
                 float image_height = ImGui::ImGetTextureHeight(timeline->mVideoFilterInputTexture);
-                float scale_w = image_width / (InputVideoSize.x - tf_x * 2);
-                float scale_h = image_height / (InputVideoSize.y - tf_y * 2);
+                float scale_w = image_width / (tf_x - offset_x);
+                float scale_h = image_height / (tf_y - offset_y);
                 pos_x = (io.MousePos.x - offset_x) * scale_w;
                 pos_y = (io.MousePos.y - offset_y) * scale_h;
                 draw_compare = true;
@@ -3125,8 +3125,8 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
             {
                 float image_width = ImGui::ImGetTextureWidth(timeline->mVideoFilterOutputTexture);
                 float image_height = ImGui::ImGetTextureHeight(timeline->mVideoFilterOutputTexture);
-                float scale_w = image_width / (OutputVideoSize.x - tf_x * 2);
-                float scale_h = image_height / (OutputVideoSize.y - tf_y * 2);
+                float scale_w = image_width / (tf_x - offset_x);
+                float scale_h = image_height / (tf_y - offset_y);
                 pos_x = (io.MousePos.x - offset_x) * scale_w;
                 pos_y = (io.MousePos.y - offset_y) * scale_h;
                 draw_compare = true;
