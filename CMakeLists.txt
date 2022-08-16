@@ -129,7 +129,7 @@ set(MEDIA_EDITOR_SRCS
 set(MEDIA_EDITOR_INCS
     MediaTimeline.h
     MediaOverview.h
-    MediaSnapshot.h
+    SnapshotGenerator.h
     MediaReader.h
     MediaEncoder.h
     AudioRender_Impl_Sdl2.hpp
