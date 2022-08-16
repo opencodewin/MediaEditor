@@ -1059,7 +1059,7 @@ static void ShowConfigure(MediaEditorSettings & config)
                 };
                 ImGui::Combo("Color Space", &config.ColorSpaceIndex, color_getter, (void *)ColorSpace, IM_ARRAYSIZE(ColorSpace));
                 ImGui::Combo("Color Transfer", &config.ColorTransferIndex, color_getter, (void *)ColorTransfer, IM_ARRAYSIZE(ColorTransfer));
-                ImGui::Checkbox("HW codec if available", &config.HardwareCodec);
+                ImGui::Checkbox("HW codec if available", &config.HardwareCodec); ImGui::SameLine(); ImGui::TextUnformatted("(Restart Application required)");
                 ImGui::Separator();
                 ImGui::BulletText(ICON_MEDIA_AUDIO " Audio");
                 if (ImGui::Combo("Audio Sample Rate", &sample_rate_index, audio_sample_rate_items, IM_ARRAYSIZE(audio_sample_rate_items)))
@@ -3216,7 +3216,21 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
         ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_TWO);
-        // TODO::Dicky add Filter setting
+        if (ImGui::TreeNodeEx("Clip Setting", ImGuiTreeNodeFlags_DefaultOpen))
+        {
+            // TODO::Dicky add Filter clip setting
+            ImGui::TreePop();
+        }
+        if (ImGui::TreeNodeEx("KeyPoint Setting", ImGuiTreeNodeFlags_DefaultOpen))
+        {
+            // TODO::Dicky add Filter keypoint setting
+            ImGui::TreePop();
+        }
+        if (ImGui::TreeNodeEx("Node Setting", ImGuiTreeNodeFlags_DefaultOpen))
+        {
+            // TODO::Dicky add Filter node setting
+            ImGui::TreePop();
+        }
     }
     ImGui::EndChild();
 }

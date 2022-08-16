@@ -114,6 +114,10 @@ MediaItem::MediaItem(const std::string& name, const std::string& path, MEDIA_TYP
     mPath = path;
     mMediaType = type;
     mMediaOverview = CreateMediaOverview();
+    if (timeline)
+    {
+        mMediaOverview->EnableHwAccel(timeline->mHardwareCodec);
+    }
     if (!path.empty() && mMediaOverview)
     {
         mMediaOverview->SetSnapshotResizeFactor(0.1, 0.1);
@@ -1632,6 +1636,8 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
         Logger::Log(Logger::Error) << "Create Editing Video Clip FAILED!" << std::endl;
         return;
     }
+    if (timeline) mSsGen->EnableHwAccel(timeline->mHardwareCodec);
+    if (timeline) mMediaReader->EnableHwAccel(timeline->mHardwareCodec);
     if (!mSsGen->Open(vidclip->mSsViewer->GetMediaParser()))
     {
         Logger::Log(Logger::Error) << mSsGen->GetError() << std::endl;
@@ -2131,6 +2137,7 @@ EditingVideoOverlap::EditingVideoOverlap(Overlap* ovlp)
     {
         mClip1 = vidclip1; mClip2 = vidclip2;
         mSsGen1 = CreateSnapshotGenerator();
+        if (timeline) mSsGen1->EnableHwAccel(timeline->mHardwareCodec);
         if (!mSsGen1->Open(vidclip1->mSsViewer->GetMediaParser()))
             throw std::runtime_error("FAILED to open the snapshot generator for the 1st video clip!");
         auto video1_info = vidclip1->mSsViewer->GetMediaParser()->GetBestVideoStream();
@@ -2140,6 +2147,7 @@ EditingVideoOverlap::EditingVideoOverlap(Overlap* ovlp)
         m_StartOffset.first = vidclip1->mStartOffset + ovlp->mStart - vidclip1->mStart;
         mViewer1 = mSsGen1->CreateViewer(m_StartOffset.first);
         mSsGen2 = CreateSnapshotGenerator();
+        if (timeline) mSsGen2->EnableHwAccel(timeline->mHardwareCodec);
         if (!mSsGen2->Open(vidclip2->mSsViewer->GetMediaParser()))
             throw std::runtime_error("FAILED to open the snapshot generator for the 2nd video clip!");
         auto video2_info = vidclip2->mSsViewer->GetMediaParser()->GetBestVideoStream();
@@ -2160,6 +2168,8 @@ EditingVideoOverlap::EditingVideoOverlap(Overlap* ovlp)
             Logger::Log(Logger::Error) << "Create Fusion Video Clip" << std::endl;
             return;
         }
+        if (timeline) mMediaReader.first->EnableHwAccel(timeline->mHardwareCodec);
+        if (timeline) mMediaReader.second->EnableHwAccel(timeline->mHardwareCodec);
         // open first video reader
         if (mMediaReader.first->Open(mClip1->mSsViewer->GetMediaParser()))
         {
@@ -5270,6 +5280,7 @@ SnapshotGeneratorHolder TimeLine::GetSnapshotGenerator(int64_t mediaItemId)
     if (mi->mMediaType != MEDIA_VIDEO)
         return nullptr;
     SnapshotGeneratorHolder hSsGen = CreateSnapshotGenerator();
+    hSsGen->EnableHwAccel(mHardwareCodec);
     if (!hSsGen->Open(mi->mMediaOverview->GetMediaParser()))
     {
         Logger::Log(Logger::Error) << hSsGen->GetError() << std::endl;
