@@ -211,22 +211,37 @@ static void UIComponent_TrackStyle(SubtitleClipHolder hSupClip)
     {
         g_subtrack->SetStrikeOut(strikeout);
     }
-    ImGui::SameLine(0, 20);
+
+    // Control Line #6
     ImGui::TextUnformatted("Primary color:");
     ImGui::SameLine(0);
     ImVec4 primaryColor = style.PrimaryColor().ToImVec4();
     if (ImGui::ColorEdit4("FontColor##Primary", (float*)&primaryColor, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_AlphaBar))
-    {
-        g_subtrack->SetPrimaryColor(SubtitleColor(primaryColor.x, primaryColor.y, primaryColor.z, primaryColor.w));
-    }
+        g_subtrack->SetPrimaryColor(primaryColor);
+    ImGui::SameLine(0, 20);
+    ImGui::TextUnformatted("Secondary color:");
+    ImGui::SameLine(0);
+    ImVec4 secondaryColor = style.SecondaryColor().ToImVec4();
+    if (ImGui::ColorEdit4("FontColor##Secondary", (float*)&secondaryColor, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_AlphaBar))
+        g_subtrack->SetSecondaryColor(secondaryColor);
     ImGui::SameLine(0, 20);
     ImGui::TextUnformatted("Outline color:");
     ImGui::SameLine(0);
     ImVec4 outlineColor = style.OutlineColor().ToImVec4();
     if (ImGui::ColorEdit4("FontColor##Outline", (float*)&outlineColor, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_AlphaBar))
-    {
-        g_subtrack->SetOutlineColor(SubtitleColor(outlineColor.x, outlineColor.y, outlineColor.z, outlineColor.w));
-    }
+        g_subtrack->SetOutlineColor(outlineColor);
+    ImGui::SameLine(0, 20);
+    ImGui::TextUnformatted("Shadow color:");
+    ImGui::SameLine(0);
+    ImVec4 backColor = style.BackColor().ToImVec4();
+    if (ImGui::ColorEdit4("FontColor##Back", (float*)&backColor, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_AlphaBar))
+        g_subtrack->SetBackColor(backColor);
+    ImGui::SameLine(0, 20);
+    ImGui::TextUnformatted("Background color:");
+    ImGui::SameLine(0);
+    ImVec4 bgColor = style.BackgroundColor().ToImVec4();
+    if (ImGui::ColorEdit4("FontColor##Background", (float*)&bgColor, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_AlphaBar))
+        g_subtrack->SetBackgroundColor(bgColor);
 }
 
 static void UIComponent_ClipStyle(SubtitleClipHolder hSubClip)
@@ -333,22 +348,37 @@ static void UIComponent_ClipStyle(SubtitleClipHolder hSubClip)
     {
         hSubClip->SetStrikeOut(strikeout);
     }
-    ImGui::SameLine(0, 20);
+
+    // Control Line #6
     ImGui::TextUnformatted("Primary color:");
     ImGui::SameLine(0);
     ImVec4 primaryColor = hSubClip->PrimaryColor().ToImVec4();
     if (ImGui::ColorEdit4("FontColor##Primary", (float*)&primaryColor, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_AlphaBar))
-    {
-        hSubClip->SetPrimaryColor(SubtitleColor(primaryColor.x, primaryColor.y, primaryColor.z, primaryColor.w));
-    }
+        hSubClip->SetPrimaryColor(primaryColor);
+    ImGui::SameLine(0, 20);
+    ImGui::TextUnformatted("Secondary color:");
+    ImGui::SameLine(0);
+    ImVec4 secondaryColor = hSubClip->SecondaryColor().ToImVec4();
+    if (ImGui::ColorEdit4("FontColor##Secondary", (float*)&secondaryColor, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_AlphaBar))
+        hSubClip->SetSecondaryColor(secondaryColor);
     ImGui::SameLine(0, 20);
     ImGui::TextUnformatted("Outline color:");
     ImGui::SameLine(0);
     ImVec4 outlineColor = hSubClip->OutlineColor().ToImVec4();
     if (ImGui::ColorEdit4("FontColor##Outline", (float*)&outlineColor, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_AlphaBar))
-    {
-        hSubClip->SetOutlineColor(SubtitleColor(outlineColor.x, outlineColor.y, outlineColor.z, outlineColor.w));
-    }
+        hSubClip->SetOutlineColor(outlineColor);
+    ImGui::SameLine(0, 20);
+    ImGui::TextUnformatted("Shadow color:");
+    ImGui::SameLine(0);
+    ImVec4 backColor = hSubClip->BackColor().ToImVec4();
+    if (ImGui::ColorEdit4("FontColor##Shadow", (float*)&backColor, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_AlphaBar))
+        hSubClip->SetBackColor(backColor);
+    ImGui::SameLine(0, 20);
+    ImGui::TextUnformatted("Background color:");
+    ImGui::SameLine(0);
+    ImVec4 bgColor = hSubClip->BackgroundColor().ToImVec4();
+    if (ImGui::ColorEdit4("FontColor##Background", (float*)&bgColor, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_AlphaBar))
+        hSubClip->SetBackgroundColor(bgColor);
 }
 
 bool Application_Frame(void * handle, bool app_will_quit)
@@ -376,7 +406,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
         {
             g_subtrack = SubtitleTrack::NewEmptyTrack(0);
             g_subtrack->SetFrameSize(1920, 1080);
-            g_subtrack->SetBackgroundColor({0.2, 0.2, 0.2, 1});
+            g_subtrack->SetBackgroundColor(SubtitleColor{0.2, 0.2, 0.2, 1});
         }
 
         auto btnSize = ImGui::GetItemRectSize();
@@ -502,7 +532,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
                         s_currTabIdx = 1;
                         g_subtrack->SeekToIndex(s_showSubIdx);
                     }
-                    bottomControlLines = 8;
+                    bottomControlLines = 9;
 
                     SubtitleClipHolder hSubClip = g_subtrack->GetCurrClip();
                     if (hSubClip)
@@ -614,7 +644,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
             if (g_subtrack)
             {
                 g_subtrack->SetFrameSize(1920, 1080);
-                g_subtrack->SetBackgroundColor({0.2, 0.2, 0.2, 1});
+                g_subtrack->SetBackgroundColor(SubtitleColor{0.2, 0.2, 0.2, 1});
                 // g_subtrack->SaveAs("~/test_encsub.sRt");
             }
         }

@@ -39,6 +39,7 @@ namespace DataLayer
         SubtitleColor PrimaryColor() const override { return m_primaryColor; }
         SubtitleColor SecondaryColor() const override { return m_secondaryColor; }
         SubtitleColor OutlineColor() const override { return m_outlineColor; }
+        SubtitleColor BackColor() const override { return m_backColor; }
         SubtitleColor BackgroundColor() const override { return m_bgColor; }
 
         void BuildFromAssStyle(const ASS_Style* assStyle);
@@ -62,6 +63,7 @@ namespace DataLayer
         void SetPrimaryColor(const SubtitleColor& color);
         void SetSecondaryColor(const SubtitleColor& color);
         void SetOutlineColor(const SubtitleColor& color);
+        void SetBackColor(const SubtitleColor& color);
         void SetBackgroundColor(const SubtitleColor& color);
 
     private:
@@ -74,6 +76,7 @@ namespace DataLayer
         SubtitleColor m_primaryColor;
         SubtitleColor m_secondaryColor;
         SubtitleColor m_outlineColor;
+        SubtitleColor m_backColor;
         SubtitleColor m_bgColor{0,0,0,0};
         int m_bold{0};
         int m_italic{0};
@@ -119,10 +122,13 @@ namespace DataLayer
         bool SetPrimaryColor(const SubtitleColor& color) override;
         bool SetSecondaryColor(const SubtitleColor& color) override;
         bool SetOutlineColor(const SubtitleColor& color) override;
+        bool SetBackColor(const SubtitleColor& color) override;
         bool SetBackgroundColor(const SubtitleColor& color) override;
         bool SetPrimaryColor(const ImVec4& color) override;
         bool SetSecondaryColor(const ImVec4& color) override;
         bool SetOutlineColor(const ImVec4& color) override;
+        bool SetBackColor(const ImVec4& color) override;
+        bool SetBackgroundColor(const ImVec4& color) override;
         bool ChangeClipTime(SubtitleClipHolder clip, int64_t startTime, int64_t duration) override;
 
         SubtitleClipHolder NewClip(int64_t startTime, int64_t duration) override;

@@ -186,6 +186,13 @@ void SubtitleTrackStyle_AssImpl::SetOutlineColor(const SubtitleColor& color)
     m_assStyle.OutlineColour = c;
 }
 
+void SubtitleTrackStyle_AssImpl::SetBackColor(const SubtitleColor& color)
+{
+    m_backColor = color;
+    uint32_t c = ((uint32_t)(color.r*255)<<24) | ((uint32_t)(color.g*255)<<16) | ((uint32_t)(color.b*255)<<8) | (uint32_t)((1-color.a)*255);
+    m_assStyle.BackColour = c;
+}
+
 void SubtitleTrackStyle_AssImpl::SetBackgroundColor(const SubtitleColor& color)
 {
     m_bgColor = color;
@@ -391,6 +398,7 @@ bool SubtitleTrack_AssImpl::SetShadowDepth(double value)
         return true;
     m_logger->Log(DEBUG) << "Set shadow depth '" << value << "'" << endl;
     m_overrideStyle.SetShadowDepth(value);
+    m_overrideStyle.SetBackColor({0.5, 1, 0.5, 1});
     ass_set_selective_style_override(m_assrnd, m_overrideStyle.GetAssStylePtr());
     if (!m_useOverrideStyle)
         ToggleOverrideStyle();
@@ -555,6 +563,19 @@ bool SubtitleTrack_AssImpl::SetOutlineColor(const SubtitleColor& color)
     return true;
 }
 
+bool SubtitleTrack_AssImpl::SetBackColor(const SubtitleColor& color)
+{
+    if (m_overrideStyle.BackColor() == color)
+        return true;
+    m_logger->Log(DEBUG) << "Set back color as { r(" << color.r << "), g(" << color.g << "), b(" << color.b << "), a(" << color.a << ") }" << endl;
+    m_overrideStyle.SetBackColor(color);
+    ass_set_selective_style_override(m_assrnd, m_overrideStyle.GetAssStylePtr());
+    if (!m_useOverrideStyle)
+        ToggleOverrideStyle();
+    ClearRenderCache();
+    return true;
+}
+
 bool SubtitleTrack_AssImpl::SetBackgroundColor(const SubtitleColor& color)
 {
     if (m_overrideStyle.BackgroundColor() == color)
@@ -581,6 +602,18 @@ bool SubtitleTrack_AssImpl::SetOutlineColor(const ImVec4& color)
 {
     const SubtitleColor _color(color.x, color.y, color.z, color.w);
     return SetOutlineColor(_color);
+}
+
+bool SubtitleTrack_AssImpl::SetBackColor(const ImVec4& color)
+{
+    const SubtitleColor _color(color.x, color.y, color.z, color.w);
+    return SetBackColor(_color);
+}
+
+bool SubtitleTrack_AssImpl::SetBackgroundColor(const ImVec4& color)
+{
+    const SubtitleColor _color(color.x, color.y, color.z, color.w);
+    return SetBackgroundColor(_color);
 }
 
 bool SubtitleTrack_AssImpl::ChangeClipTime(SubtitleClipHolder clip, int64_t startTime, int64_t duration)

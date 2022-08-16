@@ -198,11 +198,27 @@ void SubtitleClip_AssImpl::SetOutlineColor(const SubtitleColor& color)
     }
 }
 
+void SubtitleClip_AssImpl::SetBackColor(const SubtitleColor& color)
+{
+    if (m_backColor == color)
+        return;
+    m_backColor = color;
+    if (!m_useTrackStyle)
+    {
+        m_assTextChanged = true;
+        m_image.Invalidate();
+    }
+}
+
 void SubtitleClip_AssImpl::SetBackgroundColor(const SubtitleColor& color)
 {
     if (m_bgColor == color)
         return;
     m_bgColor = color;
+    if (!m_useTrackStyle)
+    {
+        m_image.Invalidate();
+    }
 }
 
 void SubtitleClip_AssImpl::SetPrimaryColor(const ImVec4& color)
@@ -221,6 +237,12 @@ void SubtitleClip_AssImpl::SetOutlineColor(const ImVec4& color)
 {
     const SubtitleColor _color(color.x, color.y, color.z, color.w);
     SetOutlineColor(_color);
+}
+
+void SubtitleClip_AssImpl::SetBackColor(const ImVec4& color)
+{
+    const SubtitleColor _color(color.x, color.y, color.z, color.w);
+    SetBackColor(_color);
 }
 
 void SubtitleClip_AssImpl::SetBackgroundColor(const ImVec4& color)
@@ -478,6 +500,7 @@ string SubtitleClip_AssImpl::GenerateStyledText()
     oss << "\\1c&H" << hex << ToAssColor(m_primaryColor) << "&\\1a&H" << ToAssAlpha(m_primaryColor) << "&";
     oss << "\\2c&H" << hex << ToAssColor(m_secondaryColor) << "&\\2a&H" << ToAssAlpha(m_secondaryColor) << "&";
     oss << "\\3c&H" << hex << ToAssColor(m_outlineColor) << "&\\3a&H" << ToAssAlpha(m_outlineColor) << "&";
+    oss << "\\4c&H" << hex << ToAssColor(m_backColor) << "&\\4a&H" << ToAssAlpha(m_backColor) << "&";
     oss << dec;
     oss << "\\b" << (m_bold?1:0);
     oss << "\\i" << (m_italic?1:0);

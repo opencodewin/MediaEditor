@@ -39,6 +39,7 @@ namespace DataLayer
         virtual SubtitleColor PrimaryColor() const = 0;
         virtual SubtitleColor SecondaryColor() const = 0;
         virtual SubtitleColor OutlineColor() const = 0;
+        virtual SubtitleColor BackColor() const = 0;
         virtual SubtitleColor BackgroundColor() const = 0;
     };
 }

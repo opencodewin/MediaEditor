@@ -27,6 +27,7 @@ namespace DataLayer
         SubtitleColor PrimaryColor() const override { return m_primaryColor; }
         SubtitleColor SecondaryColor() const override { return m_secondaryColor; }
         SubtitleColor OutlineColor() const override { return m_outlineColor; }
+        SubtitleColor BackColor() const override { return m_backColor; }
         SubtitleColor BackgroundColor() const override { return m_bgColor; }
         bool Bold() const override { return m_bold; }
         bool Italic() const override { return m_italic; }
@@ -58,10 +59,12 @@ namespace DataLayer
         void SetPrimaryColor(const SubtitleColor& color) override;
         void SetSecondaryColor(const SubtitleColor& color) override;
         void SetOutlineColor(const SubtitleColor& color) override;
+        void SetBackColor(const SubtitleColor& color) override;
         void SetBackgroundColor(const SubtitleColor& color) override;
         void SetPrimaryColor(const ImVec4& color) override;
         void SetSecondaryColor(const ImVec4& color) override;
         void SetOutlineColor(const ImVec4& color) override;
+        void SetBackColor(const ImVec4& color) override;
         void SetBackgroundColor(const ImVec4& color) override;
         void SetBold(bool enable) override;
         void SetItalic(bool enable) override;
@@ -108,6 +111,7 @@ namespace DataLayer
         SubtitleColor m_primaryColor{1,1,1,1};
         SubtitleColor m_secondaryColor{1,1,1,1};
         SubtitleColor m_outlineColor{0,0,0,1};
+        SubtitleColor m_backColor{0,0,0,1};
         SubtitleColor m_bgColor{0,0,0,0};
         bool m_bold{false};
         bool m_italic{false};
