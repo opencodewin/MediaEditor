@@ -166,6 +166,13 @@ static void UIComponent_TrackStyle(SubtitleClipHolder hSupClip)
     {
         g_subtrack->SetScaleY(scaleY);
     }
+    ImGui::SameLine(0, 30);
+    float shadowDepth = (float)style.ShadowDepth();
+    if (ImGui::SliderFloat("Shadow depth", &shadowDepth, 0, 3, "%.1f"))
+    {
+        g_subtrack->SetShadowDepth((double)shadowDepth);
+    }
+
     // Control Line #4
     int offsetV = style.OffsetV();
     if (ImGui::SliderInt("Offset V", &offsetV, -300, 300, "%d"))
@@ -281,6 +288,13 @@ static void UIComponent_ClipStyle(SubtitleClipHolder hSubClip)
     {
         hSubClip->SetScaleY(scaleY);
     }
+    ImGui::SameLine(0, 30);
+    int shadowDepth = (int)hSubClip->ShadowDepth();
+    if (ImGui::SliderInt("Shadow depth", &shadowDepth, 0, 5, "%d"))
+    {
+        hSubClip->SetShadowDepth((uint32_t)shadowDepth);
+    }
+
     // Control Line #4
     int offsetV = hSubClip->OffsetV();
     if (ImGui::SliderInt("Offset V", &offsetV, -300, 300, "%d"))

@@ -29,6 +29,7 @@ namespace DataLayer
         virtual bool SetSpacing(double value) = 0;
         virtual bool SetAngle(double value) = 0;
         virtual bool SetOutlineWidth(double value) = 0;
+        virtual bool SetShadowDepth(double value) = 0;
         virtual bool SetAlignment(int value) = 0;
         virtual bool SetOffsetH(int32_t value) = 0;
         virtual bool SetOffsetV(int32_t value) = 0;

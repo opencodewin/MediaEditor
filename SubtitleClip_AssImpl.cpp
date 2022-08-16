@@ -289,12 +289,17 @@ void SubtitleClip_AssImpl::SetBorderWidth(uint32_t value)
     }
 }
 
-// void SubtitleClip_AssImpl::SetShadowDepth(uint32_t value)
-// {
-//     m_shadowDepth = value > 5 ? 5 : value;
-//     if (!m_useTrackStyle)
-//         m_image.Invalidate();
-// }
+void SubtitleClip_AssImpl::SetShadowDepth(uint32_t value)
+{
+    if (m_shadowDepth == value)
+        return;
+    m_shadowDepth = value > 5 ? 5 : value;
+    if (!m_useTrackStyle)
+    {
+        m_assTextChanged = true;
+        m_image.Invalidate();
+    }
+}
 
 void SubtitleClip_AssImpl::SetBlurEdge(bool enable) 
 {
@@ -479,7 +484,7 @@ string SubtitleClip_AssImpl::GenerateStyledText()
     oss << "\\u" << (m_underline?1:0);
     oss << "\\s" << (m_strikeout?1:0);
     oss << "\\bord" << m_borderWidth;
-    // oss << "\\shad" << m_shadowDepth;
+    oss << "\\shad" << m_shadowDepth;
     oss << "\\be" << (m_blurEdge?1:0);
     oss << "\\frx" << m_rotationX;
     oss << "\\fry" << m_rotationY;

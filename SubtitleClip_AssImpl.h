@@ -33,7 +33,7 @@ namespace DataLayer
         bool UnderLine() const override { return m_underline; }
         bool StrikeOut() const override { return m_strikeout; }
         uint32_t BorderWidth() const override { return m_borderWidth; }
-        // uint32_t ShadowDepth() const override { return m_shadowDepth; }
+        uint32_t ShadowDepth() const override { return m_shadowDepth; }
         bool BlurEdge() const override { return m_blurEdge; }
         double RotationX() const override { return m_rotationX; }
         double RotationY() const override { return m_rotationY; }
@@ -68,7 +68,7 @@ namespace DataLayer
         void SetUnderLine(bool enable) override;
         void SetStrikeOut(bool enable) override;
         void SetBorderWidth(uint32_t value) override;
-        // void SetShadowDepth(uint32_t value) override;
+        void SetShadowDepth(uint32_t value) override;
         void SetBlurEdge(bool enable) override;
         void SetRotationX(double value) override;
         void SetRotationY(double value) override;
