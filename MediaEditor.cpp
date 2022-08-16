@@ -2837,7 +2837,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImR
     PreviewSize = window_size - ImVec2(16 + (audio_bar ? 64 : 0), 16 + 48);
     auto frame = timeline->GetPreviewFrame();
     if (!frame.empty() && 
-        (timeline->mLastFrameTime == -1 || timeline->mLastFrameTime != (int64_t)(frame.time_stamp * 1000) || need_update_scope || force_update))
+        (timeline->mLastFrameTime == -1 || timeline->mLastFrameTime != (float)(frame.time_stamp * 1000) || need_update_scope || force_update))
     {
         CalculateVideoScope(frame);
         ImGui::ImMatToTexture(frame, timeline->mMainPreviewTexture);
@@ -3094,7 +3094,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
             std::pair<ImGui::ImMat, ImGui::ImMat> pair;
             auto ret = timeline->mVidFilterClip->GetFrame(pair);
             if (ret && 
-                (timeline->mVidFilterClip->mLastFrameTime == -1 || timeline->mVidFilterClip->mLastFrameTime != (int64_t)(pair.first.time_stamp * 1000) || need_update_scope))
+                (timeline->mVidFilterClip->mLastFrameTime == -1 || timeline->mVidFilterClip->mLastFrameTime != (float)(pair.first.time_stamp * 1000) || need_update_scope))
             {
                 CalculateVideoScope(pair.second);
                 ImGui::ImMatToTexture(pair.first, timeline->mVideoFilterInputTexture);
@@ -3206,7 +3206,8 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
         ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_ONE);
-        // TODO::Dicky Add keypoint editor
+        ImVector<ImGui::ImCurveEdit::editPoint> edit_points;
+        ImGui::ImCurveEdit::Edit(editing_clip->mKeyPoints, sub_window_size, ImGui::GetID("##video_filter_keypoint_editor"), NULL , &edit_points);
     }
     ImGui::EndChild();
     ImGui::SetCursorScreenPos(clip_setting_pos);
@@ -3403,7 +3404,7 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
             std::pair<std::pair<ImGui::ImMat, ImGui::ImMat>, ImGui::ImMat> pair;
             auto ret = timeline->mVidOverlap->GetFrame(pair);
             if (ret && 
-                (timeline->mVidOverlap->mLastFrameTime == -1 || timeline->mVidOverlap->mLastFrameTime != (int64_t)(pair.first.first.time_stamp * 1000) || need_update_scope))
+                (timeline->mVidOverlap->mLastFrameTime == -1 || timeline->mVidOverlap->mLastFrameTime != (float)(pair.first.first.time_stamp * 1000) || need_update_scope))
             {
                 CalculateVideoScope(pair.second);
                 ImGui::ImMatToTexture(pair.first.first, timeline->mVideoFusionInputFirstTexture);
@@ -3454,7 +3455,8 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
         ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_ONE);
-        // TODO::Dicky Add keypoint editor
+        ImVector<ImGui::ImCurveEdit::editPoint> edit_points;
+        ImGui::ImCurveEdit::Edit(editing_overlap->mKeyPoints, sub_window_size, ImGui::GetID("##video_fusion_keypoint_editor"), NULL , &edit_points);
     }
     ImGui::EndChild();
     ImGui::SetCursorScreenPos(clip_setting_pos);
@@ -3741,13 +3743,14 @@ static void ShowAudioEditorWindow(ImDrawList *draw_list)
     ImGui::EndChild();
 }
 
-static void edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 size, ImVec2 default_size)
+static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 size, ImVec2 default_size)
 {
     if (!clip || !clip->mClipHolder)
-        return;
+        return false;;
     MediaTrack * track = (MediaTrack * )clip->mTrack;
     if (!track || !track->mMttReader)
-        return;
+        return false;
+    bool update_preview = false;
     ImGuiIO &io = ImGui::GetIO();
     auto& style = track->mMttReader->DefaultStyle();
     ImGui::PushItemWidth(240);
@@ -3761,12 +3764,13 @@ static void edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
             if (ImGui::Selectable(fontFamilies[i].c_str(), is_selected))
             {
                 clip->mFontName = fontFamilies[i];
+                update_preview = true;
             }
             if (is_selected)
                 ImGui::SetItemDefaultFocus();
         }
         ImGui::EndCombo();
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##clip_font_family_default")) { clip->mFontName = style.Font(); }
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##clip_font_family_default")) { clip->mFontName = style.Font(); update_preview = true; }
     float pos_x = clip->mFontPosX;
     if (ImGui::SliderFloat("Font position X", &pos_x, - default_size.x, timeline->mWidth, "%.0f"))
     {
@@ -3774,7 +3778,8 @@ static void edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
         clip->mFontOffsetH += offset_x;
         clip->mClipHolder->SetOffsetH(clip->mFontOffsetH);
         clip->mFontPosX = pos_x;
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##posx_default")) { clip->mFontOffsetH = 0; clip->mClipHolder->SetOffsetH(0); }
+        update_preview = true;
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##posx_default")) { clip->mFontOffsetH = 0; clip->mClipHolder->SetOffsetH(0); update_preview = true; }
     float pos_y = clip->mFontPosY;
     if (ImGui::SliderFloat("Font position Y", &pos_y, - default_size.y, timeline->mHeight, "%.0f"))
     {
@@ -3782,7 +3787,8 @@ static void edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
         clip->mFontOffsetV += offset_y;
         clip->mClipHolder->SetOffsetV(clip->mFontOffsetV);
         clip->mFontPosY = pos_y;
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##posy_default")) { clip->mFontOffsetV = 0; clip->mClipHolder->SetOffsetV(0); }
+        update_preview = true;
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##posy_default")) { clip->mFontOffsetV = 0; clip->mClipHolder->SetOffsetV(0); update_preview = true; }
     float scale_x = clip->mFontScaleX;
     if (ImGui::SliderFloat("Font scale X", &scale_x, 0.2, 10, "%.1f"))
     {
@@ -3790,7 +3796,8 @@ static void edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
         if (clip->mScaleSettingLink) { clip->mFontScaleY *= scale_ratio; clip->mClipHolder->SetScaleY(clip->mFontScaleY); }
         clip->mFontScaleX = scale_x;
         clip->mClipHolder->SetScaleX(scale_x);
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##scalex_default")) { clip->mFontScaleX = style.ScaleX(); clip->mClipHolder->SetScaleX(style.ScaleX()); }
+        update_preview = true;
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##scalex_default")) { clip->mFontScaleX = style.ScaleX(); clip->mClipHolder->SetScaleX(style.ScaleX()); update_preview = true; }
     // link button for scalex/scaley
     auto was_disable = (ImGui::GetItemFlags() & ImGuiItemFlags_Disabled) == ImGuiItemFlags_Disabled;
     auto current_pos = ImGui::GetCursorScreenPos();
@@ -3814,45 +3821,55 @@ static void edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
         if (clip->mScaleSettingLink) { clip->mFontScaleX *= scale_ratio; clip->mClipHolder->SetScaleX(clip->mFontScaleX); }
         clip->mFontScaleY = scale_y;
         clip->mClipHolder->SetScaleY(scale_y);
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##scaley_default")) { clip->mFontScaleY = style.ScaleY(); clip->mClipHolder->SetScaleY(style.ScaleY()); }
+        update_preview = true;
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##scaley_default")) { clip->mFontScaleY = style.ScaleY(); clip->mClipHolder->SetScaleY(style.ScaleY()); update_preview = true; }
     if (ImGui::SliderFloat("Font spacing", &clip->mFontSpacing, 0.5, 5, "%.1f"))
     {
         clip->mClipHolder->SetSpacing(clip->mFontSpacing);
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##spacing_default")) { clip->mFontSpacing = style.Spacing(); clip->mClipHolder->SetSpacing(style.Spacing()); }
+        update_preview = true;
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##spacing_default")) { clip->mFontSpacing = style.Spacing(); clip->mClipHolder->SetSpacing(style.Spacing()); update_preview = true; }
     if (ImGui::SliderFloat("Font angle X", &clip->mFontAngleX, 0, 360, "%.1f"))
     {
         clip->mClipHolder->SetRotationX(clip->mFontAngleX);
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##anglex_default")) { clip->mFontAngleX = style.Angle(); clip->mClipHolder->SetRotationX( style.Angle());}
+        update_preview = true;
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##anglex_default")) { clip->mFontAngleX = style.Angle(); clip->mClipHolder->SetRotationX( style.Angle()); update_preview = true; }
     if (ImGui::SliderFloat("Font angle Y", &clip->mFontAngleY, 0, 360, "%.1f"))
     {
         clip->mClipHolder->SetRotationY(clip->mFontAngleY);
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##angley_default")) { clip->mFontAngleY = style.Angle(); clip->mClipHolder->SetRotationY( style.Angle());}
+        update_preview = true;
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##angley_default")) { clip->mFontAngleY = style.Angle(); clip->mClipHolder->SetRotationY( style.Angle()); update_preview = true; }
     if (ImGui::SliderFloat("Font angle Z", &clip->mFontAngleZ, 0, 360, "%.1f"))
     {
         clip->mClipHolder->SetRotationZ(clip->mFontAngleZ);
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##anglez_default")) { clip->mFontAngleZ = style.Angle(); clip->mClipHolder->SetRotationZ( style.Angle());}
+        update_preview = true;
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##anglez_default")) { clip->mFontAngleZ = style.Angle(); clip->mClipHolder->SetRotationZ( style.Angle()); update_preview = true; }
     if (ImGui::SliderFloat("Font outline Width", &clip->mFontOutlineWidth, 0, 5, "%.0f"))
     {
         clip->mClipHolder->SetBorderWidth(clip->mFontOutlineWidth);
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##outline_default")) { clip->mFontOutlineWidth = style.OutlineWidth(); clip->mClipHolder->SetBorderWidth(style.OutlineWidth()); }
+        update_preview = true;
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##outline_default")) { clip->mFontOutlineWidth = style.OutlineWidth(); clip->mClipHolder->SetBorderWidth(style.OutlineWidth()); update_preview = true; }
     if (ImGui::Checkbox(ICON_FONT_BOLD "##font_bold", &clip->mFontBold))
     {
         clip->mClipHolder->SetBold(clip->mFontBold);
+        update_preview = true;
     }
     ImGui::SameLine();
     if (ImGui::Checkbox(ICON_FONT_ITALIC "##font_italic", &clip->mFontItalic))
     {
         clip->mClipHolder->SetItalic(clip->mFontItalic);
+        update_preview = true;
     }
     ImGui::SameLine();
     if (ImGui::Checkbox(ICON_FONT_UNDERLINE "##font_underLine", &clip->mFontUnderLine))
     {
         clip->mClipHolder->SetUnderLine(clip->mFontUnderLine);
+        update_preview = true;
     }
     ImGui::SameLine();
     if (ImGui::Checkbox(ICON_FONT_STRIKEOUT "##font_strike_out", &clip->mFontStrikeOut))
     {
         clip->mClipHolder->SetStrikeOut(clip->mFontStrikeOut);
+        update_preview = true;
     }
     ImGui::SameLine(item_width); ImGui::TextUnformatted("Font attribute");
     ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##attribute_default"))
@@ -3865,6 +3882,7 @@ static void edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
         clip->mClipHolder->SetItalic(clip->mFontItalic);
         clip->mClipHolder->SetUnderLine(clip->mFontUnderLine);
         clip->mClipHolder->SetStrikeOut(clip->mFontStrikeOut);
+        update_preview = true;
     }
 
     int alignment = clip->mFontAlignment;
@@ -3876,29 +3894,35 @@ static void edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     {
         clip->mFontAlignment = alignment;
         clip->mClipHolder->SetAlignment(alignment);
+        update_preview = true;
     }
-    ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##alignment_default")) { clip->mFontAlignment = style.Alignment(); clip->mClipHolder->SetAlignment(style.Alignment()); }
+    ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##alignment_default")) { clip->mFontAlignment = style.Alignment(); clip->mClipHolder->SetAlignment(style.Alignment()); update_preview = true; }
 
     if (ImGui::ColorEdit4("FontColor##Primary", (float*)&clip->mFontPrimaryColor, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_AlphaBar))
     {
         clip->mClipHolder->SetPrimaryColor(clip->mFontPrimaryColor);
+        update_preview = true;
     }
     ImGui::SameLine(item_width); ImGui::TextUnformatted("Font primary color");
-    ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##primary_color_default")) { clip->mFontPrimaryColor = style.PrimaryColor().ToImVec4(); clip->mClipHolder->SetPrimaryColor(style.PrimaryColor()); }
+    ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##primary_color_default")) { clip->mFontPrimaryColor = style.PrimaryColor().ToImVec4(); clip->mClipHolder->SetPrimaryColor(style.PrimaryColor()); update_preview = true; }
     if (ImGui::ColorEdit4("FontColor##Outline", (float*)&clip->mFontOutlineColor, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_AlphaBar))
     {
         clip->mClipHolder->SetOutlineColor(clip->mFontOutlineColor);
+        update_preview = true;
     }
     ImGui::SameLine(item_width); ImGui::TextUnformatted("Font outline color");
-    ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##outline_color_default")) { clip->mFontOutlineColor = style.OutlineColor().ToImVec4(); clip->mClipHolder->SetOutlineColor(style.OutlineColor()); }
+    ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##outline_color_default")) { clip->mFontOutlineColor = style.OutlineColor().ToImVec4(); clip->mClipHolder->SetOutlineColor(style.OutlineColor()); update_preview = true; }
 
     ImGui::PopItemWidth();
+
+    return update_preview;
 }
 
-static void edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImVec2 size)
+static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImVec2 size)
 {
     if (!track || !track->mMttReader)
-        return;
+        return false;
+    bool update_preview = false;
     ImGuiIO &io = ImGui::GetIO();
     ImGui::PushItemWidth(240);
     auto item_width = ImGui::CalcItemWidth();
@@ -3913,39 +3937,45 @@ static void edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
             if (ImGui::Selectable(fontFamilies[i].c_str(), is_selected))
             {
                 track->mMttReader->SetFont(fontFamilies[i]);
+                update_preview = true;
             }
             if (is_selected)
                 ImGui::SetItemDefaultFocus();
         }
         ImGui::EndCombo();
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_font_family_default")) { track->mMttReader->SetFont(g_media_editor_settings.FontName); }
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_font_family_default")) { track->mMttReader->SetFont(g_media_editor_settings.FontName); update_preview = true; }
     int offset_x = style.OffsetH();
     if (ImGui::SliderInt("Font Position X", &offset_x, - timeline->mWidth , timeline->mWidth, "%d"))
     {
         track->mMttReader->SetOffsetH(offset_x);
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_font_offsetx_default")) { track->mMttReader->SetOffsetH(g_media_editor_settings.FontPosOffsetX); }
+        update_preview = true;
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_font_offsetx_default")) { track->mMttReader->SetOffsetH(g_media_editor_settings.FontPosOffsetX); update_preview = true; }
     int offset_y = style.OffsetV();
     if (ImGui::SliderInt("Font Position Y", &offset_y, - timeline->mHeight, timeline->mHeight, "%d"))
     {
         track->mMttReader->SetOffsetV(offset_y);
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_font_offsety_default")) { track->mMttReader->SetOffsetV(g_media_editor_settings.FontPosOffsetY); }
+        update_preview = true;
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_font_offsety_default")) { track->mMttReader->SetOffsetV(g_media_editor_settings.FontPosOffsetY); update_preview = true; }
     int bold = style.Bold();
     if (ImGui::Combo("Font Bold", &bold, font_bold_list, IM_ARRAYSIZE(font_bold_list)))
     {
         track->mMttReader->SetBold(bold);
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_font_bold_default")) { track->mMttReader->SetBold(g_media_editor_settings.FontBold); }
+        update_preview = true;
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_font_bold_default")) { track->mMttReader->SetBold(g_media_editor_settings.FontBold); update_preview = true; }
     int italic = style.Italic();
     if (ImGui::Combo("Font Italic", &italic, font_italic_list, IM_ARRAYSIZE(font_italic_list)))
     {
         track->mMttReader->SetItalic(italic);
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_font_italic_default")) { track->mMttReader->SetItalic(g_media_editor_settings.FontItalic); }
+        update_preview = true;
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_font_italic_default")) { track->mMttReader->SetItalic(g_media_editor_settings.FontItalic); update_preview = true; }
     float scale_x = style.ScaleX();
     if (ImGui::SliderFloat("Font scale X", &scale_x, 0.2, 10, "%.1f"))
     {
         float scale_ratio = scale_x / style.ScaleX();
         if (track->mTextTrackScaleLink) track->mMttReader->SetScaleY(style.ScaleY() * scale_ratio);
         track->mMttReader->SetScaleX(scale_x);
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_scalex_default")) { track->mMttReader->SetScaleX(g_media_editor_settings.FontScaleX); }
+        update_preview = true;
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_scalex_default")) { track->mMttReader->SetScaleX(g_media_editor_settings.FontScaleX); update_preview = true; }
     // link button for scalex/scaley
     auto current_pos = ImGui::GetCursorScreenPos();
     auto link_button_pos = current_pos + ImVec2(size.x - 64, - 8);
@@ -3965,39 +3995,46 @@ static void edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
         float scale_ratio = scale_y / style.ScaleY();
         if (track->mTextTrackScaleLink) track->mMttReader->SetScaleX(style.ScaleX() * scale_ratio);
         track->mMttReader->SetScaleY(scale_y);
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_scaley_default")) { track->mMttReader->SetScaleY(g_media_editor_settings.FontScaleY); }
+        update_preview = true;
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_scaley_default")) { track->mMttReader->SetScaleY(g_media_editor_settings.FontScaleY); update_preview = true; }
     float spacing = style.Spacing();
     if (ImGui::SliderFloat("Font spacing", &spacing, 0.5, 5, "%.1f"))
     {
         track->mMttReader->SetSpacing(spacing);
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_spacing_default")) { track->mMttReader->SetSpacing(g_media_editor_settings.FontSpacing); }
+        update_preview = true;
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_spacing_default")) { track->mMttReader->SetSpacing(g_media_editor_settings.FontSpacing); update_preview = true; }
     float angle = style.Angle();
     if (ImGui::SliderFloat("Font angle", &angle, 0, 360, "%.1f"))
     {
         track->mMttReader->SetAngle(angle);
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_angle_default")) { track->mMttReader->SetAngle(g_media_editor_settings.FontAngle); }
+        update_preview = true;
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_angle_default")) { track->mMttReader->SetAngle(g_media_editor_settings.FontAngle);update_preview = true;  }
     float outline_width = style.OutlineWidth();
     if (ImGui::SliderFloat("Font outline Width", &outline_width, 0, 5, "%.0f"))
     {
         track->mMttReader->SetOutlineWidth(outline_width);
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_outline_default")) { track->mMttReader->SetOutlineWidth(g_media_editor_settings.FontOutlineWidth); }
+        update_preview = true;
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_outline_default")) { track->mMttReader->SetOutlineWidth(g_media_editor_settings.FontOutlineWidth); update_preview = true; }
     
     bool underLine = style.UnderLine();
     if (ImGui::Checkbox(ICON_FONT_UNDERLINE "##font_underLine", &underLine))
     {
         track->mMttReader->SetUnderLine(underLine);
+        update_preview = true;
     }
     ImGui::SameLine();
     bool strike_out = style.StrikeOut();
     if (ImGui::Checkbox(ICON_FONT_STRIKEOUT "##font_strike_out", &strike_out))
     {
         track->mMttReader->SetStrikeOut(strike_out);
+        update_preview = true;
     }
     ImGui::SameLine(item_width); ImGui::TextUnformatted("Font attribute");
     ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_attribute_default")) 
     {
         track->mMttReader->SetUnderLine(g_media_editor_settings.FontUnderLine);
         track->mMttReader->SetStrikeOut(g_media_editor_settings.FontStrikeOut);
+        update_preview = true;
     }
 
     int aligment = style.Alignment();
@@ -4008,25 +4045,29 @@ static void edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
     if (aligment != style.Alignment())
     {
         track->mMttReader->SetAlignment(aligment);
+        update_preview = true;
     }
-    ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_alignment_default")) { track->mMttReader->SetAlignment(g_media_editor_settings.FontAlignment); }
+    ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_alignment_default")) { track->mMttReader->SetAlignment(g_media_editor_settings.FontAlignment); update_preview = true; }
 
     auto primary_color = style.PrimaryColor().ToImVec4();
     if (ImGui::ColorEdit4("FontColor##Primary", (float*)&primary_color, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_AlphaBar))
     {
         track->mMttReader->SetPrimaryColor(primary_color);
+        update_preview = true;
     }
     ImGui::SameLine(item_width); ImGui::TextUnformatted("Font primary color");
-    ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_primary_color_default")) { track->mMttReader->SetPrimaryColor(g_media_editor_settings.FontPrimaryColor); }
+    ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_primary_color_default")) { track->mMttReader->SetPrimaryColor(g_media_editor_settings.FontPrimaryColor); update_preview = true; }
     auto outline_color = style.OutlineColor().ToImVec4();
     if (ImGui::ColorEdit4("FontColor##Outline", (float*)&outline_color, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_AlphaBar))
     {
         track->mMttReader->SetOutlineColor(outline_color);
+        update_preview = true;
     }
     ImGui::SameLine(item_width); ImGui::TextUnformatted("Font outline color");
-    ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_outline_color_default")) { track->mMttReader->SetOutlineColor(g_media_editor_settings.FontOutlineColor); }
+    ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_outline_color_default")) { track->mMttReader->SetOutlineColor(g_media_editor_settings.FontOutlineColor); update_preview = true; }
 
     ImGui::PopItemWidth();
+    return update_preview;
 }
 
 static void ShowTextEditorWindow(ImDrawList *draw_list)
@@ -4039,7 +4080,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
     float style_editor_width = window_size.x - preview_view_width;
     if (!timeline)
         return;
-
+    bool force_update_preview = false;
     ImGuiIO &io = ImGui::GetIO();
     ImVec2 default_size(0, 0);
     DataLayer::SubtitleImage current_image;
@@ -4109,12 +4150,14 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
                 {
                     editing_clip->mText = value;
                     editing_clip->mClipHolder->SetText(editing_clip->mText);
+                    force_update_preview = true;
                 }
             }
             // show style control
             if (ImGui::Checkbox("Using track style", &editing_clip->mTrackStyle))
             {
                 if (editing_clip->mClipHolder) editing_clip->mClipHolder->EnableUsingTrackStyle(editing_clip->mTrackStyle);
+                force_update_preview = true;
             }
             ImGui::Separator();
             static const int numTabs = sizeof(TextEditorTabNames)/sizeof(TextEditorTabNames[0]);
@@ -4134,13 +4177,13 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
                     {
                         // clip style
                         ImGui::BeginDisabled(editing_clip->mTrackStyle);
-                        edit_text_clip_style(draw_list, editing_clip, style_setting_window_size, default_size);
+                        force_update_preview |= edit_text_clip_style(draw_list, editing_clip, style_setting_window_size, default_size);
                         ImGui::EndDisabled();
                     }
                     else
                     {
                         // track style
-                        edit_text_track_style(draw_list, editing_track, style_setting_window_size);
+                        force_update_preview |= edit_text_track_style(draw_list, editing_track, style_setting_window_size);
                     }
                 }
                 ImGui::EndChild();
@@ -4159,7 +4202,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
     {
         const float resize_handel_radius = 2;
         const ImVec2 handle_size(resize_handel_radius, resize_handel_radius);
-        ShowMediaPreviewWindow(draw_list, "Text Preview", video_rect, false, false);
+        ShowMediaPreviewWindow(draw_list, "Text Preview", video_rect, false, false, force_update_preview || MovingTextPos);
         // show test rect on preview view and add UI editor
         draw_list->PushClipRect(video_rect.Min, video_rect.Max);
         if (editing_clip && current_image.Valid() && timeline->currentTime >= editing_clip->mStart && timeline->currentTime <= editing_clip->mEnd)
@@ -4205,6 +4248,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
                     editing_clip->mClipHolder->SetOffsetH(editing_clip->mFontOffsetH);
                     editing_clip->mFontOffsetV += io.MouseDelta.y / scale_h;
                     editing_clip->mClipHolder->SetOffsetV(editing_clip->mFontOffsetV);
+
                     // draw meters on video
                     draw_list->AddLine(video_rect.Min + ImVec2(video_rect.GetWidth() / 2, 0), video_rect.Min + ImVec2(video_rect.GetWidth() / 2, video_rect.GetHeight()), IM_COL32(128, 128, 128, 128));
                     draw_list->AddLine(video_rect.Min + ImVec2(0, video_rect.GetHeight() / 2), video_rect.Min + ImVec2(video_rect.GetWidth(), video_rect.GetHeight() / 2), IM_COL32(128, 128, 128, 128));
