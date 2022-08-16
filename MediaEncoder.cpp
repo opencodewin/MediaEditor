@@ -418,6 +418,16 @@ public:
         return {m_videncCtx->framerate.num, m_videncCtx->framerate.den};
     }
 
+    bool IsHwAccelEnabled() const override
+    {
+        return m_vidPreferUseHw;
+    }
+
+    void EnableHwAccel(bool enable) override
+    {
+        m_vidPreferUseHw = enable;
+    }
+
     string GetError() const override
     {
         return m_errMsg;

@@ -97,6 +97,8 @@ struct MediaEncoder
     virtual bool HasAudio() const = 0;
     virtual MediaInfo::Ratio GetVideoFrameRate() const = 0;
 
+    virtual bool IsHwAccelEnabled() const = 0;
+    virtual void EnableHwAccel(bool enable) = 0;
     virtual std::string GetError() const = 0;
 };
 
