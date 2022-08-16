@@ -10,7 +10,7 @@
 #include <cmath>
 #include <algorithm>
 #include "imgui_helper.h"
-#include "MediaSnapshot.h"
+#include "SnapshotGenerator.h"
 #include "FFUtils.h"
 extern "C"
 {
@@ -433,6 +433,16 @@ public:
     int64_t GetVideoFrameCount() const override
     {
         return m_vidFrmCnt;
+    }
+
+    bool IsHwAccelEnabled() const override
+    {
+        return m_vidPreferUseHw;
+    }
+
+    void EnableHwAccel(bool enable) override
+    {
+        m_vidPreferUseHw = enable;
     }
 
     string GetError() const override
@@ -1654,7 +1664,7 @@ private:
                     img->mTextureHolder = TextureHolder(new ImTextureID(0), [this] (ImTextureID* pTid) {
                         if (*pTid)
                         {
-                            GetMediaSnapshotLogger()->Log(VERBOSE) << "[3]\t\t\treleasing tid=" << *pTid << endl;
+                            GetSnapshotGeneratorLogger()->Log(VERBOSE) << "[3]\t\t\treleasing tid=" << *pTid << endl;
                             ImGui::ImDestroyTexture(*pTid);
                         }
                         delete pTid;

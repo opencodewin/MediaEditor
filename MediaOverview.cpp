@@ -318,6 +318,16 @@ public:
         return m_audAvStm->codecpar->sample_rate;
     }
 
+    bool IsHwAccelEnabled() const override
+    {
+        return m_vidPreferUseHw;
+    }
+
+    void EnableHwAccel(bool enable) override
+    {
+        m_vidPreferUseHw = enable;
+    }
+
     string GetError() const override
     {
         return m_errMsg;

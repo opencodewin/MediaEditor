@@ -5,7 +5,7 @@
 #include <imgui_json.h>
 #include <imgui_extra_widget.h>
 #include "MediaOverview.h"
-#include "MediaSnapshot.h"
+#include "SnapshotGenerator.h"
 #include "MediaReader.h"
 #include "MultiTrackVideoReader.h"
 #include "MultiTrackAudioReader.h"
@@ -505,7 +505,8 @@ struct BaseEditingClip
 
 struct EditingVideoClip : BaseEditingClip
 {
-    MediaSnapshot* mSnapshot    {nullptr};
+    SnapshotGeneratorHolder mSsGen;
+    SnapshotGenerator::ViewerHolder mSsViewer;
     ImVec2 mSnapSize            {0, 0};
     MediaInfo::Ratio mClipFrameRate {25, 1};                    // clip Frame rate
     int mMaxCachedVideoFrame    {10};                           // clip Media Video Frame cache size

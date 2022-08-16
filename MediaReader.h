@@ -42,6 +42,8 @@ struct MediaReader
     virtual uint32_t GetAudioOutSampleRate() const = 0;
     virtual uint32_t GetAudioOutFrameSize() const = 0;
 
+    virtual bool IsHwAccelEnabled() const = 0;
+    virtual void EnableHwAccel(bool enable) = 0;
     virtual std::string GetError() const = 0;
 };
 

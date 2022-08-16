@@ -5,7 +5,7 @@
 #include <string>
 #include <sstream>
 #include "MediaOverview.h"
-#include "MediaSnapshot.h"
+#include "SnapshotGenerator.h"
 #include "FFUtils.h"
 #include "Logger.h"
 

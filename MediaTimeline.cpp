@@ -908,7 +908,7 @@ void VideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
 {
     ImVec2 snapLeftTop = leftTop;
     float snapDispWidth;
-    GetMediaSnapshotLogger()->Log(Logger::DEBUG) << "[1]>>>>> Begin display snapshot" << std::endl;
+    GetSnapshotGeneratorLogger()->Log(Logger::DEBUG) << "[1]>>>>> Begin display snapshot" << std::endl;
     for (int i = 0; i < mSnapImages.size(); i++)
     {
         auto& img = mSnapImages[i];
@@ -929,7 +929,7 @@ void VideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
         if (img->mTextureReady)
         {
             ImTextureID tid = *(img->mTextureHolder);
-            GetMediaSnapshotLogger()->Log(Logger::DEBUG) << "[1]\t\t display tid=" << tid << std::endl;
+            GetSnapshotGeneratorLogger()->Log(Logger::DEBUG) << "[1]\t\t display tid=" << tid << std::endl;
             drawList->AddImage(tid, snapLeftTop, {snapLeftTop.x + snapDispWidth, rightBottom.y}, uvMin, uvMax);
         }
         else
@@ -946,7 +946,7 @@ void VideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
         if (snapLeftTop.x >= rightBottom.x)
             break;
     }
-    GetMediaSnapshotLogger()->Log(Logger::DEBUG) << "[1]<<<<< End display snapshot" << std::endl;
+    GetSnapshotGeneratorLogger()->Log(Logger::DEBUG) << "[1]<<<<< End display snapshot" << std::endl;
 }
 
 void VideoClip::CalcDisplayParams()
@@ -1625,23 +1625,24 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
         throw std::invalid_argument("Clip duration is negative!");
     mCurrPos = mStartOffset;
 
-    mSnapshot = CreateMediaSnapshot();
+    mSsGen = CreateSnapshotGenerator();
     mMediaReader = CreateMediaReader();
-    if (!mSnapshot || !mMediaReader)
+    if (!mSsGen || !mMediaReader)
     {
-        Logger::Log(Logger::Error) << "Create Editing Video Clip" << std::endl;
+        Logger::Log(Logger::Error) << "Create Editing Video Clip FAILED!" << std::endl;
         return;
     }
-    if (!mSnapshot->Open(vidclip->mMediaParser))
+    if (!mSsGen->Open(vidclip->mSsViewer->GetMediaParser()))
     {
-        Logger::Log(Logger::Error) << mSnapshot->GetError() << std::endl;
+        Logger::Log(Logger::Error) << mSsGen->GetError() << std::endl;
         return;
     }
+
+    mSsGen->SetCacheFactor(1);
     auto video_info = vidclip->mMediaParser->GetBestVideoStream();
     float snapshot_scale = video_info->height > 0 ? 50.f / (float)video_info->height : 0.1;
-    mSnapshot->SetCacheFactor(1);
-    mSnapshot->SetSnapshotResizeFactor(snapshot_scale, snapshot_scale);
-    mSnapshot->Seek((double)mStartOffset / 1000);
+    mSsGen->SetSnapshotResizeFactor(snapshot_scale, snapshot_scale);
+    mSsViewer = mSsGen->CreateViewer((double)mStartOffset / 1000);
 
     // open video reader
     if (mMediaReader->Open(vidclip->mMediaParser))
@@ -1663,7 +1664,8 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
 EditingVideoClip::~EditingVideoClip()
 {
     if (mMediaReader) { ReleaseMediaReader(&mMediaReader); mMediaReader = nullptr; }
-    if (mSnapshot) { ReleaseMediaSnapshot(&mSnapshot); mSnapshot = nullptr; }
+    mSsViewer = nullptr;
+    mSsGen = nullptr;
     mFrameLock.lock();
     mFrame.clear();
     mFrameLock.unlock();
@@ -1845,7 +1847,7 @@ void EditingVideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, 
         mViewWndSize = viewWndSize;
         if (mViewWndSize.x == 0 || mViewWndSize.y == 0)
             return;
-        const MediaInfo::VideoStream* vidStream = mSnapshot->GetVideoStream();
+        auto vidStream = mSsViewer->GetMediaParser()->GetBestVideoStream();
         if (vidStream->width == 0 || vidStream->height == 0)
         {
             Logger::Log(Logger::Error) << "Snapshot video size is INVALID! Width or height is ZERO." << std::endl;
@@ -1856,13 +1858,13 @@ void EditingVideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, 
         CalcDisplayParams();
     }
 
-    std::vector<MediaSnapshot::ImageHolder> snapImages;
-    if (!mSnapshot->GetSnapshots(snapImages, (double)mStartOffset / 1000))
+    std::vector<SnapshotGenerator::ImageHolder> snapImages;
+    if (!mSsViewer->GetSnapshots((double)mStartOffset / 1000, snapImages))
     {
-        Logger::Log(Logger::Error) << mSnapshot->GetError() << std::endl;
+        Logger::Log(Logger::Error) << mSsViewer->GetError() << std::endl;
         return;
     }
-    mSnapshot->UpdateSnapshotTexture(snapImages);
+    mSsViewer->UpdateSnapshotTexture(snapImages);
 
     ImVec2 imgLeftTop = leftTop;
     for (int i = 0; i < snapImages.size(); i++)
@@ -1892,14 +1894,13 @@ void EditingVideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, 
         if (imgLeftTop.x >= rightBottom.x)
             break;
     }
-    mSnapshot->ReleaseSnapshotTexture();
 }
 
 void EditingVideoClip::CalcDisplayParams()
 {
     double snapWndSize = (double)mDuration / 1000;
     double snapCntInView = (double)mViewWndSize.x / mSnapSize.x;
-    mSnapshot->ConfigSnapWindow(snapWndSize, snapCntInView);
+    mSsGen->ConfigSnapWindow(snapWndSize, snapCntInView);
 }
 
 EditingAudioClip::EditingAudioClip(AudioClip* audclip)

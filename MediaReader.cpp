@@ -599,6 +599,16 @@ public:
         return m_swrPassThrough ? m_audFrmSize : m_swrFrmSize;
     }
 
+    bool IsHwAccelEnabled() const override
+    {
+        return m_vidPreferUseHw;
+    }
+
+    void EnableHwAccel(bool enable) override
+    {
+        m_vidPreferUseHw = enable;
+    }
+
     string GetError() const override
     {
         return m_errMsg;

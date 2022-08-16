@@ -111,7 +111,6 @@ set(MEDIA_EDITOR_SRCS
     AudioTrack.cpp
     AudioClip.cpp
     MediaOverview.cpp
-    MediaSnapshot.cpp
     SnapshotGenerator.cpp
     MediaParser.cpp
     MediaReader.cpp
@@ -192,7 +191,6 @@ target_include_directories(
 add_executable(
     media_snapshot_test
     test/MediaSnapshotTest.cpp
-    MediaSnapshot.cpp
     SnapshotGenerator.cpp
     MediaOverview.cpp
     MediaParser.cpp
