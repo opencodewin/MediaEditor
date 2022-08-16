@@ -4192,12 +4192,14 @@ void TimeLine::Step(bool forward)
     {
         mIsPreviewPlaying = false;
         if (mAudioRender)
-        {
             mAudioRender->Pause();
-            mAudioRender->Flush();
-        }
     }
-    mIsStepMode = true;
+    if (!mIsStepMode)
+    {
+        mIsStepMode = true;
+        if (mAudioRender)
+            mAudioRender->Flush();
+    }
     if (forward != mIsPreviewForward)
     {
         mMtvReader->SetDirection(forward);
