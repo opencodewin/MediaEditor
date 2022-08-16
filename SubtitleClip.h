@@ -65,8 +65,8 @@ namespace DataLayer
         virtual bool Italic() const = 0;
         virtual bool UnderLine() const = 0;
         virtual bool StrikeOut() const = 0;
-        virtual uint32_t BorderWidth() const = 0;
-        virtual uint32_t ShadowDepth() const = 0;
+        virtual double BorderWidth() const = 0;
+        virtual double ShadowDepth() const = 0;
         virtual bool BlurEdge() const = 0;
         virtual double RotationX() const = 0;
         virtual double RotationY() const = 0;
@@ -100,8 +100,8 @@ namespace DataLayer
         virtual void SetItalic(bool enable) = 0;
         virtual void SetUnderLine(bool enable) = 0;
         virtual void SetStrikeOut(bool enable) = 0;
-        virtual void SetBorderWidth(uint32_t value) = 0;
-        virtual void SetShadowDepth(uint32_t value) = 0;
+        virtual void SetBorderWidth(double value) = 0;
+        virtual void SetShadowDepth(double value) = 0;
         virtual void SetBlurEdge(bool enable) = 0;
         virtual void SetRotationX(double value) = 0;
         virtual void SetRotationY(double value) = 0;

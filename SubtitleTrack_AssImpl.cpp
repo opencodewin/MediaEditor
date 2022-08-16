@@ -398,6 +398,19 @@ bool SubtitleTrack_AssImpl::SetShadowDepth(double value)
     return true;
 }
 
+bool SubtitleTrack_AssImpl::SetBorderStyle(int value)
+{
+    if (m_overrideStyle.BorderStyle() == value)
+        return true;
+    m_logger->Log(DEBUG) << "Set border style '" << value << "'" << endl;
+    m_overrideStyle.SetBorderStyle(value);
+    ass_set_selective_style_override(m_assrnd, m_overrideStyle.GetAssStylePtr());
+    if (!m_useOverrideStyle)
+        ToggleOverrideStyle();
+    ClearRenderCache();
+    return true;
+}
+
 bool SubtitleTrack_AssImpl::SetAlignment(int value)
 {
     if (m_overrideStyle.Alignment() == value)   

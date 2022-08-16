@@ -149,7 +149,7 @@ static void UIComponent_TrackStyle(SubtitleClipHolder hSupClip)
     }
     ImGui::SameLine(0, 30);
     float outlineWidth = (float)style.OutlineWidth();
-    if (ImGui::SliderFloat("Outline width", &outlineWidth, 0, 3, "%.1f"))
+    if (ImGui::SliderFloat("Outline width", &outlineWidth, 0, 10, "%.1f"))
     {
         g_subtrack->SetOutlineWidth((double)outlineWidth);
     }
@@ -168,7 +168,7 @@ static void UIComponent_TrackStyle(SubtitleClipHolder hSupClip)
     }
     ImGui::SameLine(0, 30);
     float shadowDepth = (float)style.ShadowDepth();
-    if (ImGui::SliderFloat("Shadow depth", &shadowDepth, 0, 3, "%.1f"))
+    if (ImGui::SliderFloat("Shadow depth", &shadowDepth, -10, 10, "%.1f"))
     {
         g_subtrack->SetShadowDepth((double)shadowDepth);
     }
@@ -184,6 +184,12 @@ static void UIComponent_TrackStyle(SubtitleClipHolder hSupClip)
     if (ImGui::SliderInt("Offset H", &offsetH, -300, 300, "%d"))
     {
         g_subtrack->SetOffsetH(offsetH);
+    }
+    ImGui::SameLine(0, 30);
+    int borderStyle = style.BorderStyle();
+    if (ImGui::SliderInt("Border style", &borderStyle, -1, 5, "%d"))
+    {
+        g_subtrack->SetBorderStyle(borderStyle);
     }
 
     // Control Line #5
@@ -270,10 +276,10 @@ static void UIComponent_ClipStyle(SubtitleClipHolder hSubClip)
         hSubClip->SetRotationZ((double)angle);
     }
     ImGui::SameLine(0, 30);
-    int borderWidth = (int)hSubClip->BorderWidth();
-    if (ImGui::SliderInt("Border width", &borderWidth, 0, 5, "%d"))
+    float borderWidth = hSubClip->BorderWidth();
+    if (ImGui::SliderFloat("Border width", &borderWidth, 0, 10, "%.1f"))
     {
-        hSubClip->SetBorderWidth((uint32_t)borderWidth);
+        hSubClip->SetBorderWidth((double)borderWidth);
     }
 
     // Control Line #3
@@ -289,10 +295,10 @@ static void UIComponent_ClipStyle(SubtitleClipHolder hSubClip)
         hSubClip->SetScaleY(scaleY);
     }
     ImGui::SameLine(0, 30);
-    int shadowDepth = (int)hSubClip->ShadowDepth();
-    if (ImGui::SliderInt("Shadow depth", &shadowDepth, 0, 5, "%d"))
+    float shadowDepth = (float)hSubClip->ShadowDepth();
+    if (ImGui::SliderFloat("Shadow depth", &shadowDepth, -10, 10, "%.1f"))
     {
-        hSubClip->SetShadowDepth((uint32_t)shadowDepth);
+        hSubClip->SetShadowDepth((double)shadowDepth);
     }
 
     // Control Line #4

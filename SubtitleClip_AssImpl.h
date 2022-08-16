@@ -32,8 +32,8 @@ namespace DataLayer
         bool Italic() const override { return m_italic; }
         bool UnderLine() const override { return m_underline; }
         bool StrikeOut() const override { return m_strikeout; }
-        uint32_t BorderWidth() const override { return m_borderWidth; }
-        uint32_t ShadowDepth() const override { return m_shadowDepth; }
+        double BorderWidth() const override { return m_borderWidth; }
+        double ShadowDepth() const override { return m_shadowDepth; }
         bool BlurEdge() const override { return m_blurEdge; }
         double RotationX() const override { return m_rotationX; }
         double RotationY() const override { return m_rotationY; }
@@ -67,8 +67,8 @@ namespace DataLayer
         void SetItalic(bool enable) override;
         void SetUnderLine(bool enable) override;
         void SetStrikeOut(bool enable) override;
-        void SetBorderWidth(uint32_t value) override;
-        void SetShadowDepth(uint32_t value) override;
+        void SetBorderWidth(double value) override;
+        void SetShadowDepth(double value) override;
         void SetBlurEdge(bool enable) override;
         void SetRotationX(double value) override;
         void SetRotationY(double value) override;
@@ -113,8 +113,8 @@ namespace DataLayer
         bool m_italic{false};
         bool m_underline{false};
         bool m_strikeout{false};
-        uint32_t m_borderWidth{1};
-        uint32_t m_shadowDepth{0};
+        double m_borderWidth{1};
+        double m_shadowDepth{0};
         bool m_blurEdge{false};
         double m_rotationX{0};
         double m_rotationY{0};

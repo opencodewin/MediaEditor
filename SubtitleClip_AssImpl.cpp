@@ -277,11 +277,11 @@ void SubtitleClip_AssImpl::SetStrikeOut(bool enable)
     }
 }
 
-void SubtitleClip_AssImpl::SetBorderWidth(uint32_t value)
+void SubtitleClip_AssImpl::SetBorderWidth(double value)
 {
     if (m_borderWidth == value)
         return;
-    m_borderWidth = value > 5 ? 5 : value;
+    m_borderWidth = value;
     if (!m_useTrackStyle)
     {
         m_assTextChanged = true;
@@ -289,11 +289,11 @@ void SubtitleClip_AssImpl::SetBorderWidth(uint32_t value)
     }
 }
 
-void SubtitleClip_AssImpl::SetShadowDepth(uint32_t value)
+void SubtitleClip_AssImpl::SetShadowDepth(double value)
 {
     if (m_shadowDepth == value)
         return;
-    m_shadowDepth = value > 5 ? 5 : value;
+    m_shadowDepth = value;
     if (!m_useTrackStyle)
     {
         m_assTextChanged = true;

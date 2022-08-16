@@ -28,6 +28,7 @@ namespace DataLayer
         virtual double Angle() const = 0;
         virtual double OutlineWidth() const = 0;
         virtual double ShadowDepth() const = 0;
+        virtual int BorderStyle() const = 0;
         virtual int Alignment() const = 0;  // 1: left; 2: center; 3: right
         virtual int32_t OffsetH() const = 0;
         virtual int32_t OffsetV() const = 0;

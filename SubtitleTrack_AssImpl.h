@@ -28,6 +28,7 @@ namespace DataLayer
         double Angle() const override { return m_assStyle.Angle; }
         double OutlineWidth() const override { return m_assStyle.Outline; }
         double ShadowDepth() const override { return m_assStyle.Shadow; }
+        int BorderStyle() const override { return m_assStyle.BorderStyle; }
         int Alignment() const override { return m_alignment; }
         int OffsetH() const override { return m_offsetH; }
         int OffsetV() const override { return m_offsetV; }
@@ -50,6 +51,7 @@ namespace DataLayer
         void SetAngle(double value) { m_assStyle.Angle = value; }
         void SetOutlineWidth(double value) { m_assStyle.Outline = value; }
         void SetShadowDepth(double value) { m_assStyle.Shadow = value; }
+        void SetBorderStyle(int value) { m_assStyle.BorderStyle = value; }
         void SetAlignment(int value);
         void SetOffsetH(int value) { m_offsetH = value; }
         void SetOffsetV(int value) { m_offsetV = value; }
@@ -106,6 +108,7 @@ namespace DataLayer
         bool SetAngle(double value) override;
         bool SetOutlineWidth(double value) override;
         bool SetShadowDepth(double value) override;
+        bool SetBorderStyle(int value) override;
         bool SetAlignment(int value) override;
         bool SetOffsetH(int value) override;
         bool SetOffsetV(int value) override;
