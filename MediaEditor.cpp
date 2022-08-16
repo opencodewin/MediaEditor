@@ -351,9 +351,12 @@ struct MediaEditorSettings
     bool FontUnderLine {false};
     bool FontStrikeOut {false};
     int FontPosOffsetX {0};
-    int FontPosOffsetY {0}; 
+    int FontPosOffsetY {0};
+    int FontBorderType {1};
+    float FontShadowDepth {0.0f};
     ImVec4 FontPrimaryColor {1, 1, 1, 1};
     ImVec4 FontOutlineColor {0, 0, 0, 1};
+    ImVec4 FontBackColor {0, 0, 0, 1};
 
     // Output configure
     int OutputFormatIndex {0};
@@ -1135,10 +1138,16 @@ static void ShowConfigure(MediaEditorSettings & config)
                 ImGui::RadioButton(ICON_FA_ALIGN_CENTER "##font_alignment", &config.FontAlignment, 2); ImGui::SameLine();
                 ImGui::RadioButton(ICON_FA_ALIGN_RIGHT "##font_alignment", &config.FontAlignment, 3);
                 ImGui::SameLine(item_width); ImGui::TextUnformatted("Font alignment");
+                ImGui::RadioButton("Drop##font_border_type", &config.FontBorderType, 1); ImGui::SameLine();
+                ImGui::RadioButton("Box##font_border_type", &config.FontBorderType, 3);
+                ImGui::SameLine(item_width); ImGui::TextUnformatted("Font Border Type");
+                ImGui::SliderFloat("Shadow depth", &config.FontShadowDepth, -20.f, 20.f, "%.1f");
                 ImGui::ColorEdit4("FontColor##Primary", (float*)&config.FontPrimaryColor, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_AlphaBar);
                 ImGui::SameLine(item_width); ImGui::TextUnformatted("Font primary color");
                 ImGui::ColorEdit4("FontColor##Outline", (float*)&config.FontOutlineColor, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_AlphaBar);
                 ImGui::SameLine(item_width); ImGui::TextUnformatted("Font outline color");
+                ImGui::ColorEdit4("FontColor##Back", (float*)&config.FontBackColor, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_AlphaBar);
+                ImGui::SameLine(item_width); ImGui::TextUnformatted("Font shadow color");
             }
 
             break;
@@ -3206,8 +3215,11 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
         ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_ONE);
-        ImVector<ImGui::ImCurveEdit::editPoint> edit_points;
-        ImGui::ImCurveEdit::Edit(editing_clip->mKeyPoints, sub_window_size, ImGui::GetID("##video_filter_keypoint_editor"), NULL , &edit_points);
+        if (editing_clip)
+        {
+            ImVector<ImGui::ImCurveEdit::editPoint> edit_points;
+            ImGui::ImCurveEdit::Edit(editing_clip->mKeyPoints, sub_window_size, ImGui::GetID("##video_filter_keypoint_editor"), NULL , &edit_points);
+        }
     }
     ImGui::EndChild();
     ImGui::SetCursorScreenPos(clip_setting_pos);
@@ -3216,20 +3228,23 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
         ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_TWO);
-        if (ImGui::TreeNodeEx("Clip Setting", ImGuiTreeNodeFlags_DefaultOpen))
+        if (editing_clip)
         {
-            // TODO::Dicky add Filter clip setting
-            ImGui::TreePop();
-        }
-        if (ImGui::TreeNodeEx("KeyPoint Setting", ImGuiTreeNodeFlags_DefaultOpen))
-        {
-            // TODO::Dicky add Filter keypoint setting
-            ImGui::TreePop();
-        }
-        if (ImGui::TreeNodeEx("Node Setting", ImGuiTreeNodeFlags_DefaultOpen))
-        {
-            // TODO::Dicky add Filter node setting
-            ImGui::TreePop();
+            if (ImGui::TreeNodeEx("Clip Setting##video_filter", ImGuiTreeNodeFlags_DefaultOpen))
+            {
+                // TODO::Dicky add Filter clip setting
+                ImGui::TreePop();
+            }
+            if (ImGui::TreeNodeEx("KeyPoint Setting##video_filter", ImGuiTreeNodeFlags_DefaultOpen))
+            {
+                // TODO::Dicky add Filter keypoint setting
+                ImGui::TreePop();
+            }
+            if (ImGui::TreeNodeEx("Node Setting##video_filter", ImGuiTreeNodeFlags_DefaultOpen))
+            {
+                // TODO::Dicky add Filter node setting
+                ImGui::TreePop();
+            }
         }
     }
     ImGui::EndChild();
@@ -3469,8 +3484,11 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
         ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_ONE);
-        ImVector<ImGui::ImCurveEdit::editPoint> edit_points;
-        ImGui::ImCurveEdit::Edit(editing_overlap->mKeyPoints, sub_window_size, ImGui::GetID("##video_fusion_keypoint_editor"), NULL , &edit_points);
+        if (editing_overlap)
+        {
+            ImVector<ImGui::ImCurveEdit::editPoint> edit_points;
+            ImGui::ImCurveEdit::Edit(editing_overlap->mKeyPoints, sub_window_size, ImGui::GetID("##video_fusion_keypoint_editor"), NULL , &edit_points);
+        }
     }
     ImGui::EndChild();
     ImGui::SetCursorScreenPos(clip_setting_pos);
@@ -3479,7 +3497,24 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
         ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_TWO);
-        // TODO::Dicky add Filter setting
+        if (editing_overlap)
+        {
+            if (ImGui::TreeNodeEx("Overlay Setting##video_fusion", ImGuiTreeNodeFlags_DefaultOpen))
+            {
+                // TODO::Dicky add Fusion setting
+                ImGui::TreePop();
+            }
+            if (ImGui::TreeNodeEx("KeyPoint Setting##video_fusion", ImGuiTreeNodeFlags_DefaultOpen))
+            {
+                // TODO::Dicky add Fusion keypoint setting
+                ImGui::TreePop();
+            }
+            if (ImGui::TreeNodeEx("Node Setting##video_fusion", ImGuiTreeNodeFlags_DefaultOpen))
+            {
+                // TODO::Dicky add Fusion node setting
+                ImGui::TreePop();
+            }
+        }
     }
     ImGui::EndChild();
 }
@@ -3857,11 +3892,16 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
         clip->mClipHolder->SetRotationZ(clip->mFontAngleZ);
         update_preview = true;
     } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##anglez_default")) { clip->mFontAngleZ = style.Angle(); clip->mClipHolder->SetRotationZ( style.Angle()); update_preview = true; }
-    if (ImGui::SliderFloat("Font outline Width", &clip->mFontOutlineWidth, 0, 5, "%.0f"))
+    if (ImGui::SliderFloat("Font outline width", &clip->mFontOutlineWidth, 0, 5, "%.0f"))
     {
         clip->mClipHolder->SetBorderWidth(clip->mFontOutlineWidth);
         update_preview = true;
     } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##outline_default")) { clip->mFontOutlineWidth = style.OutlineWidth(); clip->mClipHolder->SetBorderWidth(style.OutlineWidth()); update_preview = true; }
+    if (ImGui::SliderFloat("Font shadow depth", &clip->mFontShadowDepth, 0.f, 20.f, "%.1f"))
+    {
+        clip->mClipHolder->SetShadowDepth(clip->mFontShadowDepth);
+        update_preview = true;
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##shadow_default")) { clip->mFontShadowDepth = fabs(style.ShadowDepth()); clip->mClipHolder->SetShadowDepth(clip->mFontShadowDepth); update_preview = true; }
     if (ImGui::Checkbox(ICON_FONT_BOLD "##font_bold", &clip->mFontBold))
     {
         clip->mClipHolder->SetBold(clip->mFontBold);
@@ -3926,6 +3966,13 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     }
     ImGui::SameLine(item_width); ImGui::TextUnformatted("Font outline color");
     ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##outline_color_default")) { clip->mFontOutlineColor = style.OutlineColor().ToImVec4(); clip->mClipHolder->SetOutlineColor(style.OutlineColor()); update_preview = true; }
+    if (ImGui::ColorEdit4("FontColor##Back", (float*)&clip->mFontBackColor, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_AlphaBar))
+    {
+        clip->mClipHolder->SetBackColor(clip->mFontBackColor);
+        update_preview = true;
+    }
+    ImGui::SameLine(item_width); ImGui::TextUnformatted("Font shadow color");
+    ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##back_color_default")) { clip->mFontBackColor = style.BackColor().ToImVec4(); clip->mClipHolder->SetBackColor(style.BackColor()); update_preview = true; }
 
     ImGui::PopItemWidth();
 
@@ -4063,6 +4110,26 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
     }
     ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_alignment_default")) { track->mMttReader->SetAlignment(g_media_editor_settings.FontAlignment); update_preview = true; }
 
+    int border_type = style.BorderStyle();
+    ImGui::RadioButton("Drop##font_border_type", &border_type, 1); ImGui::SameLine();
+    ImGui::RadioButton("Box##font_border_type", &border_type, 3);
+    ImGui::SameLine(item_width); ImGui::TextUnformatted("Font Border Type");
+    if (border_type != style.BorderStyle())
+    {
+        track->mMttReader->SetBorderStyle(border_type);
+        update_preview = true;
+    }
+    ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_bordertype_default")) { track->mMttReader->SetBorderStyle(g_media_editor_settings.FontBorderType); update_preview = true; }
+
+    float shadow_depth = style.ShadowDepth();
+    ImGui::SliderFloat("Shadow depth", &shadow_depth, -20.f, 20.f, "%.1f");
+    if (shadow_depth != style.ShadowDepth())
+    {
+        track->mMttReader->SetShadowDepth(shadow_depth);
+        update_preview = true;
+    }
+    ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_shadowdepth_default")) { track->mMttReader->SetShadowDepth(g_media_editor_settings.FontShadowDepth); update_preview = true; }
+
     auto primary_color = style.PrimaryColor().ToImVec4();
     if (ImGui::ColorEdit4("FontColor##Primary", (float*)&primary_color, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_AlphaBar))
     {
@@ -4079,6 +4146,14 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
     }
     ImGui::SameLine(item_width); ImGui::TextUnformatted("Font outline color");
     ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_outline_color_default")) { track->mMttReader->SetOutlineColor(g_media_editor_settings.FontOutlineColor); update_preview = true; }
+    auto back_color = style.BackColor().ToImVec4();
+    if (ImGui::ColorEdit4("FontColor##Back", (float*)&back_color, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_AlphaBar))
+    {
+        track->mMttReader->SetBackColor(back_color);
+        update_preview = true;
+    }
+    ImGui::SameLine(item_width); ImGui::TextUnformatted("Font shadow color");
+    ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_back_color_default")) { track->mMttReader->SetBackColor(g_media_editor_settings.FontBackColor); update_preview = true; }
 
     ImGui::PopItemWidth();
     return update_preview;
@@ -5596,8 +5671,11 @@ void Application_SetupContext(ImGuiContext* ctx)
         else if (sscanf(line, "FontStrikeOut=%d", &val_int) == 1) { setting->FontStrikeOut = val_int == 1; }
         else if (sscanf(line, "FontPosOffsetX=%d", &val_int) == 1) { setting->FontPosOffsetX = val_int; }
         else if (sscanf(line, "FontPosOffsetY=%d", &val_int) == 1) { setting->FontPosOffsetY = val_int; }
+        else if (sscanf(line, "FontBorderType=%d", &val_int) == 1) { setting->FontBorderType = val_int; }
+        else if (sscanf(line, "FontShadowDepth=%f", &val_float) == 1) { setting->FontShadowDepth = val_float; }
         else if (sscanf(line, "FontPrimaryColor=%f,%f,%f,%f", &val_vec4.x, &val_vec4.y, &val_vec4.z, &val_vec4.w) == 1) { setting->FontPrimaryColor = val_vec4; }
         else if (sscanf(line, "FontOutlineColor=%f,%f,%f,%f", &val_vec4.x, &val_vec4.y, &val_vec4.z, &val_vec4.w) == 1) { setting->FontOutlineColor = val_vec4; }
+        else if (sscanf(line, "FontBackColor=%f,%f,%f,%f", &val_vec4.x, &val_vec4.y, &val_vec4.z, &val_vec4.w) == 1) { setting->FontBackColor = val_vec4; }
         else if (sscanf(line, "OutputFormatIndex=%d", &val_int) == 1) { setting->OutputFormatIndex = val_int; }
         else if (sscanf(line, "OutputVideoCodecIndex=%d", &val_int) == 1) { setting->OutputVideoCodecIndex = val_int; }
         else if (sscanf(line, "OutputVideoCodecTypeIndex=%d", &val_int) == 1) { setting->OutputVideoCodecTypeIndex = val_int; }
@@ -5694,8 +5772,11 @@ void Application_SetupContext(ImGuiContext* ctx)
         out_buf->appendf("FontStrikeOut=%d\n", g_media_editor_settings.FontStrikeOut ? 1 : 0);
         out_buf->appendf("FontPosOffsetX=%d\n", g_media_editor_settings.FontPosOffsetX);
         out_buf->appendf("FontPosOffsetY=%d\n", g_media_editor_settings.FontPosOffsetY);
+        out_buf->appendf("FontBorderType=%d\n", g_media_editor_settings.FontBorderType);
+        out_buf->appendf("FontShadowDepth=%f\n", g_media_editor_settings.FontShadowDepth);
         out_buf->appendf("FontPrimaryColor=%f,%f,%f,%f\n", g_media_editor_settings.FontPrimaryColor.x, g_media_editor_settings.FontPrimaryColor.y, g_media_editor_settings.FontPrimaryColor.z, g_media_editor_settings.FontPrimaryColor.w);
         out_buf->appendf("FontOutlineColor=%f,%f,%f,%f\n", g_media_editor_settings.FontOutlineColor.x, g_media_editor_settings.FontOutlineColor.y, g_media_editor_settings.FontOutlineColor.z, g_media_editor_settings.FontOutlineColor.w);
+        out_buf->appendf("FontBackColor=%f,%f,%f,%f\n", g_media_editor_settings.FontBackColor.x, g_media_editor_settings.FontBackColor.y, g_media_editor_settings.FontBackColor.z, g_media_editor_settings.FontBackColor.w);
         out_buf->appendf("OutputFormatIndex=%d\n", g_media_editor_settings.OutputFormatIndex);
         out_buf->appendf("OutputVideoCodecIndex=%d\n", g_media_editor_settings.OutputVideoCodecIndex);
         out_buf->appendf("OutputVideoCodecTypeIndex=%d\n", g_media_editor_settings.OutputVideoCodecTypeIndex);

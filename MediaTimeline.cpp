@@ -1277,11 +1277,14 @@ void TextClip::SetClipDefault(const DataLayer::SubtitleStyle & style)
     mFontAlignment = style.Alignment();
     mFontUnderLine = style.UnderLine();
     mFontStrikeOut = style.StrikeOut();
-    mFontPrimaryColor = style.PrimaryColor().ToImVec4();
-    mFontOutlineColor = style.OutlineColor().ToImVec4();
     mFontName = style.Font();
     mFontOffsetH = style.OffsetH();
     mFontOffsetV = style.OffsetV();
+    mFontShadowDepth = fabs(style.ShadowDepth());
+    mFontPrimaryColor = style.PrimaryColor().ToImVec4();
+    mFontOutlineColor = style.OutlineColor().ToImVec4();
+    mFontBackColor = style.BackColor().ToImVec4();
+
     // pos value need load later 
     mFontPosX = - FLT_MAX;
     mFontPosY = - FLT_MAX;
@@ -1302,11 +1305,13 @@ void TextClip::SetClipDefault(const TextClip* clip)
     mFontAlignment = clip->mFontAlignment;
     mFontUnderLine = clip->mFontUnderLine;
     mFontStrikeOut = clip->mFontStrikeOut;
-    mFontPrimaryColor = clip->mFontPrimaryColor;
-    mFontOutlineColor = clip->mFontOutlineColor;
     mFontName = clip->mFontName;
     mFontOffsetH = clip->mFontOffsetH;
     mFontOffsetV = clip->mFontOffsetV;
+    mFontShadowDepth = clip->mFontShadowDepth;
+    mFontPrimaryColor = clip->mFontPrimaryColor;
+    mFontOutlineColor = clip->mFontOutlineColor;
+    mFontBackColor = clip->mFontBackColor;
     // pos value need load later 
     mFontPosX = - FLT_MAX;
     mFontPosY = - FLT_MAX;
@@ -1337,8 +1342,10 @@ void TextClip::CreateClipHold(void * _track)
         mClipHolder->SetUnderLine(mFontUnderLine);
         mClipHolder->SetStrikeOut(mFontStrikeOut);
         mClipHolder->SetAlignment(mFontAlignment);
+        mClipHolder->SetShadowDepth(mFontShadowDepth);
         mClipHolder->SetPrimaryColor(mFontPrimaryColor);
         mClipHolder->SetOutlineColor(mFontOutlineColor);
+        mClipHolder->SetBackColor(mFontBackColor);
     }
 }
 
@@ -1474,6 +1481,11 @@ Clip * TextClip::Load(const imgui_json::value& value, void * handle)
                 auto& val = value["OffsetY"];
                 if (val.is_number()) new_clip->mFontOffsetV = val.get<imgui_json::number>();
             }
+            if (value.contains("ShadowDepth"))
+            {
+                auto& val = value["ShadowDepth"];
+                if (val.is_number()) new_clip->mFontShadowDepth = val.get<imgui_json::number>();
+            }
             if (value.contains("PrimaryColor"))
             {
                 auto& val = value["PrimaryColor"];
@@ -1483,6 +1495,11 @@ Clip * TextClip::Load(const imgui_json::value& value, void * handle)
             {
                 auto& val = value["OutlineColor"];
                 if (val.is_vec4()) new_clip->mFontOutlineColor = val.get<imgui_json::vec4>();
+            }
+            if (value.contains("BackColor"))
+            {
+                auto& val = value["BackColor"];
+                if (val.is_vec4()) new_clip->mFontBackColor = val.get<imgui_json::vec4>();
             }
             return new_clip;
         }
@@ -1512,8 +1529,10 @@ void TextClip::Save(imgui_json::value& value)
     value["StrikeOut"] = imgui_json::boolean(mFontStrikeOut);
     value["OffsetX"] = imgui_json::number(mFontOffsetH);
     value["OffsetY"] = imgui_json::number(mFontOffsetV);
+    value["ShadowDepth"] = imgui_json::number(mFontShadowDepth);
     value["PrimaryColor"] = imgui_json::vec4(mFontPrimaryColor);
     value["OutlineColor"] = imgui_json::vec4(mFontOutlineColor);
+    value["BackColor"] = imgui_json::vec4(mFontBackColor);
 }
 
 BluePrintVideoFilter::~BluePrintVideoFilter()
