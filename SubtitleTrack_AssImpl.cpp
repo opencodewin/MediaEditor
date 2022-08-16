@@ -138,6 +138,8 @@ void SubtitleTrackStyle_AssImpl::BuildFromAssStyle(const ASS_Style* assStyle)
     m_secondaryColor = SubtitleColor((float)(c>>24)/255, (float)((c>>16)&0xff)/255, (float)((c>>8)&0xff)/255, (float)(255-(c&0xff))/255);
     c = assStyle->OutlineColour;
     m_outlineColor = SubtitleColor((float)(c>>24)/255, (float)((c>>16)&0xff)/255, (float)((c>>8)&0xff)/255, (float)(255-(c&0xff))/255);
+    c = assStyle->BackColour;
+    m_backColor = SubtitleColor((float)(c>>24)/255, (float)((c>>16)&0xff)/255, (float)((c>>8)&0xff)/255, (float)(255-(c&0xff))/255);
     m_bold = 0;
     if (assStyle->Bold == FONT_WEIGHT_LIGHT)
         m_bold = 1;
@@ -398,7 +400,6 @@ bool SubtitleTrack_AssImpl::SetShadowDepth(double value)
         return true;
     m_logger->Log(DEBUG) << "Set shadow depth '" << value << "'" << endl;
     m_overrideStyle.SetShadowDepth(value);
-    m_overrideStyle.SetBackColor({0.5, 1, 0.5, 1});
     ass_set_selective_style_override(m_assrnd, m_overrideStyle.GetAssStylePtr());
     if (!m_useOverrideStyle)
         ToggleOverrideStyle();
