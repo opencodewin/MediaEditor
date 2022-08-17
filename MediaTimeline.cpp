@@ -192,7 +192,7 @@ Clip::Clip(int64_t start, int64_t end, int64_t id, MediaParserHolder mediaParser
     mHandle = handle;
     mMediaParser = mediaParser;
     mKeyPoints.SetMin({0.f, 0.f});
-    mKeyPoints.SetMax(ImVec2(mLength, 1.f));
+    mKeyPoints.SetMax(ImVec2(mLength, 1.f), true);
 }
 
 Clip::~Clip()
@@ -383,7 +383,7 @@ int64_t Clip::Cropping(int64_t diff, int type)
             }
         }
     }
-    mKeyPoints.SetMax(ImVec2(mEnd - mStart, 0.f));
+    mKeyPoints.SetMax(ImVec2(mEnd - mStart, 1.f), true);
     track->Update();
     return new_diff;
 }
@@ -454,7 +454,7 @@ void Clip::Cutting(int64_t pos)
         new_clip->mEndOffset = mEndOffset;
         mEnd = adj_end;
         mEndOffset = adj_end_offset;
-        mKeyPoints.SetMax(ImVec2(mEnd - mStart, 1.0f));
+        mKeyPoints.SetMax(ImVec2(mEnd - mStart, 1.f), true);
         timeline->m_Clips.push_back(new_clip);
         track->InsertClip(new_clip, pos);
         timeline->AddClipIntoGroup(new_clip, mGroupID);
@@ -3337,11 +3337,7 @@ ClipGroup::ClipGroup(void * handle)
 {
     TimeLine * timeline = (TimeLine *)handle;
     mID = timeline? timeline->m_IDGenerator.GenerateID() : ImGui::get_current_time_usec();
-    
-    int r = std::rand() % 255;
-    int g = std::rand() % 255;
-    int b = std::rand() % 255;
-    mColor = IM_COL32(r, g, b, 128);
+    ImGui::RandomColor(mColor, 0.5f);
 }
 
 void ClipGroup::Load(const imgui_json::value& value)
