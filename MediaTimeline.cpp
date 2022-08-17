@@ -6126,6 +6126,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                                     timeline->mOngoingAction["clip_id"] = imgui_json::number(clip->mID);
                                     timeline->mOngoingAction["media_type"] = imgui_json::number(clip->mType);
                                     timeline->mOngoingAction["from_track_id"] = imgui_json::number(track->mID);
+                                    timeline->mOngoingAction["start"] = imgui_json::number(clip->mStart);
                                     if (j <= 1)
                                     {
                                         timeline->mOngoingAction["action"] = "CROP_CLIP";
@@ -6769,20 +6770,29 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             std::string actionName = timeline->mOngoingAction["action"].get<imgui_json::string>();
             if (actionName == "MOVE_CLIP")
             {
-                timeline->mOngoingAction["start"] = imgui_json::number(clip->mStart);
-                // add actions of other selected clips
-                for (auto clip : timeline->m_Clips)
+                if (timeline->mOngoingAction["start"].get<imgui_json::number>() == clip->mStart)
                 {
-                    if (clip->mID == clipId || !clip->bSelected)
-                        continue;
-                    imgui_json::value action;
-                    action["action"] = "MOVE_CLIP";
-                    action["clip_id"] = imgui_json::number(clip->mID);
-                    action["media_type"] = imgui_json::number(clip->mType);
-                    MediaTrack* track = timeline->FindTrackByClipID(clip->mID);
-                    action["from_track_id"] = imgui_json::number(track->mID);
-                    action["start"] = imgui_json::number(clip->mStart);
-                    timeline->mUiActions.push_back(std::move(action));
+                    // clip is not actually moved, so discard this move action
+                    imgui_json::value emptyJson;
+                    timeline->mOngoingAction.swap(emptyJson);
+                }
+                else
+                {
+                    timeline->mOngoingAction["start"] = imgui_json::number(clip->mStart);
+                    // add actions of other selected clips
+                    for (auto clip : timeline->m_Clips)
+                    {
+                        if (clip->mID == clipId || !clip->bSelected)
+                            continue;
+                        imgui_json::value action;
+                        action["action"] = "MOVE_CLIP";
+                        action["clip_id"] = imgui_json::number(clip->mID);
+                        action["media_type"] = imgui_json::number(clip->mType);
+                        MediaTrack* track = timeline->FindTrackByClipID(clip->mID);
+                        action["from_track_id"] = imgui_json::number(track->mID);
+                        action["start"] = imgui_json::number(clip->mStart);
+                        timeline->mUiActions.push_back(std::move(action));
+                    }
                 }
             }
             else if (actionName == "CROP_CLIP")
@@ -6790,7 +6800,11 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 timeline->mOngoingAction["startOffset"] = imgui_json::number(clip->mStartOffset);
                 timeline->mOngoingAction["endOffset"] = imgui_json::number(clip->mEndOffset);
             }
-            timeline->mUiActions.push_back(std::move(timeline->mOngoingAction));
+
+            if (timeline->mOngoingAction.contains("action"))
+            {
+                timeline->mUiActions.push_back(std::move(timeline->mOngoingAction));
+            }
         }
 
         clipMovingEntry = -1;

@@ -158,16 +158,15 @@ public:
             lock_guard<recursive_mutex> lk2(m_trackLock);
             m_tracks.push_back(hTrack);
             UpdateDuration();
+            int64_t pos = m_samplePos*1000/m_outSampleRate;
+            for (auto track : m_tracks)
+                track->SeekTo(pos);
+            m_outputMats.clear();
         }
-        m_outputMats.clear();
 
         ReleaseMixer();
         if (!CreateMixer())
             return nullptr;
-
-        int64_t pos = m_samplePos*1000/m_outSampleRate;
-        for (auto track : m_tracks)
-            track->SeekTo(pos);
 
         StartMixingThread();
         return hTrack;
@@ -189,29 +188,32 @@ public:
 
         TerminateMixingThread();
 
-        auto iter = m_tracks.begin();
-        while (index > 0)
-        {
-            iter++;
-            index--;
-        }
-        auto delTrack = *iter;
+        AudioTrackHolder delTrack;
         {
             lock_guard<recursive_mutex> lk2(m_trackLock);
-            m_tracks.erase(iter);
-            UpdateDuration();
-        }
-        m_outputMats.clear();
+            auto iter = m_tracks.begin();
+            while (index > 0 && iter != m_tracks.end())
+            {
+                iter++;
+                index--;
+            }
+            if (iter != m_tracks.end())
+            {
+                delTrack = *iter;
+                m_tracks.erase(iter);
+                UpdateDuration();
+                for (auto track : m_tracks)
+                    track->SeekTo(ReadPos());
+                m_outputMats.clear();
 
-        ReleaseMixer();
-        if (!m_tracks.empty())
-        {
-            if (!CreateMixer())
-                return nullptr;
+                ReleaseMixer();
+                if (!m_tracks.empty())
+                {
+                    if (!CreateMixer())
+                        return nullptr;
+                }
+            }
         }
-
-        for (auto track : m_tracks)
-            track->SeekTo(ReadPos());
 
         StartMixingThread();
         return delTrack;
@@ -226,29 +228,31 @@ public:
             return nullptr;
         }
 
-        lock_guard<recursive_mutex> lk2(m_trackLock);
-        auto iter = find_if(m_tracks.begin(), m_tracks.end(), [trackId] (const AudioTrackHolder& track) {
-            return track->Id() == trackId;
-        });
-        if (iter == m_tracks.end())
-            return nullptr;
-
         TerminateMixingThread();
 
-        auto delTrack = *iter;
-        m_tracks.erase(iter);
-        UpdateDuration();
-        m_outputMats.clear();
-
-        ReleaseMixer();
-        if (!m_tracks.empty())
+        AudioTrackHolder delTrack;
         {
-            if (!CreateMixer())
-                return nullptr;
-        }
+            lock_guard<recursive_mutex> lk2(m_trackLock);
+            auto iter = find_if(m_tracks.begin(), m_tracks.end(), [trackId] (const AudioTrackHolder& track) {
+                return track->Id() == trackId;
+            });
+            if (iter != m_tracks.end())
+            {
+                delTrack = *iter;
+                m_tracks.erase(iter);
+                UpdateDuration();
+                for (auto track : m_tracks)
+                    track->SeekTo(ReadPos());
+                m_outputMats.clear();
 
-        for (auto track : m_tracks)
-            track->SeekTo(ReadPos());
+                ReleaseMixer();
+                if (!m_tracks.empty())
+                {
+                    if (!CreateMixer())
+                        return nullptr;
+                }
+            }
+        }
 
         StartMixingThread();
         return delTrack;

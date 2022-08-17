@@ -172,11 +172,10 @@ public:
                 m_tracks.insert(iter, hNewTrack);
             }
             UpdateDuration();
+            for (auto track : m_tracks)
+                track->SeekTo(ReadPos());
+            m_outputMats.clear();
         }
-
-        for (auto track : m_tracks)
-            track->SeekTo(ReadPos());
-        m_outputMats.clear();
 
         StartMixingThread();
         return hNewTrack;
@@ -198,22 +197,25 @@ public:
 
         TerminateMixingThread();
 
-        auto iter = m_tracks.begin();
-        while (index > 0)
-        {
-            iter++;
-            index--;
-        }
-        auto delTrack = *iter;
+        VideoTrackHolder delTrack;
         {
             lock_guard<recursive_mutex> lk2(m_trackLock);
-            m_tracks.erase(iter);
-            UpdateDuration();
+            auto iter = m_tracks.begin();
+            while (index > 0 && iter != m_tracks.end())
+            {
+                iter++;
+                index--;
+            }
+            if (iter != m_tracks.end())
+            {
+                delTrack = *iter;
+                m_tracks.erase(iter);
+                UpdateDuration();
+                for (auto track : m_tracks)
+                    track->SeekTo(ReadPos());
+                m_outputMats.clear();
+            }
         }
-
-        for (auto track : m_tracks)
-            track->SeekTo(ReadPos());
-        m_outputMats.clear();
 
         StartMixingThread();
         return delTrack;
@@ -228,22 +230,24 @@ public:
             return nullptr;
         }
 
-        lock_guard<recursive_mutex> lk2(m_trackLock);
-        auto iter = find_if(m_tracks.begin(), m_tracks.end(), [trackId] (const VideoTrackHolder& track) {
-            return track->Id() == trackId;
-        });
-        if (iter == m_tracks.end())
-            return nullptr;
-
         TerminateMixingThread();
 
-        VideoTrackHolder delTrack = *iter;
-        m_tracks.erase(iter);
-        UpdateDuration();
-
-        for (auto track : m_tracks)
-            track->SeekTo(ReadPos());
-        m_outputMats.clear();
+        VideoTrackHolder delTrack;
+        {
+            lock_guard<recursive_mutex> lk2(m_trackLock);
+            auto iter = find_if(m_tracks.begin(), m_tracks.end(), [trackId] (const VideoTrackHolder& track) {
+                return track->Id() == trackId;
+            });
+            if (iter != m_tracks.end())
+            {
+                delTrack = *iter;
+                m_tracks.erase(iter);
+                UpdateDuration();
+                for (auto track : m_tracks)
+                    track->SeekTo(ReadPos());
+                m_outputMats.clear();
+            }
+        }
 
         StartMixingThread();
         return delTrack;
