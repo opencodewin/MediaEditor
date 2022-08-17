@@ -191,6 +191,8 @@ Clip::Clip(int64_t start, int64_t end, int64_t id, MediaParserHolder mediaParser
     mLength = end - start;
     mHandle = handle;
     mMediaParser = mediaParser;
+    mKeyPoints.SetMin({0.f, 0.f});
+    mKeyPoints.SetMax(ImVec2(mLength, 1.f));
 }
 
 Clip::~Clip()
@@ -381,6 +383,7 @@ int64_t Clip::Cropping(int64_t diff, int type)
             }
         }
     }
+    mKeyPoints.SetMax(ImVec2(mEnd - mStart, 0.f));
     track->Update();
     return new_diff;
 }
@@ -451,6 +454,7 @@ void Clip::Cutting(int64_t pos)
         new_clip->mEndOffset = mEndOffset;
         mEnd = adj_end;
         mEndOffset = adj_end_offset;
+        mKeyPoints.SetMax(ImVec2(mEnd - mStart, 1.0f));
         timeline->m_Clips.push_back(new_clip);
         track->InsertClip(new_clip, pos);
         timeline->AddClipIntoGroup(new_clip, mGroupID);

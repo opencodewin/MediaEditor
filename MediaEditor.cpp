@@ -3218,7 +3218,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
         if (editing_clip)
         {
             ImVector<ImGui::ImCurveEdit::editPoint> edit_points;
-            ImGui::ImCurveEdit::Edit(editing_clip->mKeyPoints, sub_window_size, ImGui::GetID("##video_filter_keypoint_editor"), NULL , &edit_points);
+            ImGui::ImCurveEdit::Edit(editing_clip->mKeyPoints, sub_window_size, ImGui::GetID("##video_filter_keypoint_editor"), CURVE_EDIT_FLAG_VALUE_LIMITED | CURVE_EDIT_FLAG_KEEP_BEGIN_END | CURVE_EDIT_FLAG_DOCK_BEGIN_END, nullptr, &edit_points);
         }
     }
     ImGui::EndChild();
@@ -3238,6 +3238,47 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
             if (ImGui::TreeNodeEx("KeyPoint Setting##video_filter", ImGuiTreeNodeFlags_DefaultOpen))
             {
                 // TODO::Dicky add Filter keypoint setting
+                static std::string curve_name = "";
+                std::string value = curve_name;
+                if (ImGui::InputTextWithHint("##new_curve_name", "Input curve name", (char*)value.data(), value.size() + 1, ImGuiInputTextFlags_CallbackEdit | ImGuiInputTextFlags_CallbackResize, [](ImGuiInputTextCallbackData* data) -> int
+                {
+                    if (data->EventFlag == ImGuiInputTextFlags_CallbackResize)
+                    {
+                        auto& stringValue = *static_cast<string*>(data->UserData);
+                        ImVector<char>* my_str = (ImVector<char>*)data->UserData;
+                        //IM_ASSERT(stringValue.data() == data->Buf);
+                        stringValue.resize(data->BufSize);
+                        data->Buf = (char*)stringValue.data();
+                    }
+                    else if (data->EventFlag == ImGuiInputTextFlags_CallbackEdit)
+                    {
+                        auto& stringValue = *static_cast<string*>(data->UserData);
+                        stringValue = std::string(data->Buf);
+                    }
+                    return 0;
+                }, &value))
+                {
+                    value.resize(strlen(value.c_str()));
+                    curve_name = value;
+                }
+
+                ImGui::BeginDisabled(curve_name.empty());
+                ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 8.0f);
+                ImGui::SameLine();
+                if (ImGui::Button(ICON_ADD "##insert_curve"))
+                {
+                    auto found = editing_clip->mKeyPoints.GetCurveIndex(curve_name);
+                    if (found == -1)
+                    {
+                        auto curve_index = editing_clip->mKeyPoints.AddCurve(curve_name, ImGui::ImCurveEdit::Smooth, IM_COL32(0, 0, 255, 255), true);
+                        editing_clip->mKeyPoints.AddPoint(curve_index, ImVec2(editing_clip->mStart, 1.f), ImGui::ImCurveEdit::Smooth);
+                        editing_clip->mKeyPoints.AddPoint(curve_index, ImVec2(editing_clip->mEnd, 1.f), ImGui::ImCurveEdit::Smooth);
+                    }
+                }
+                ImGui::PopStyleVar();
+                ImGui::EndDisabled();
+
+
                 ImGui::TreePop();
             }
             if (ImGui::TreeNodeEx("Node Setting##video_filter", ImGuiTreeNodeFlags_DefaultOpen))
@@ -3487,7 +3528,7 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
         if (editing_overlap)
         {
             ImVector<ImGui::ImCurveEdit::editPoint> edit_points;
-            ImGui::ImCurveEdit::Edit(editing_overlap->mKeyPoints, sub_window_size, ImGui::GetID("##video_fusion_keypoint_editor"), NULL , &edit_points);
+            ImGui::ImCurveEdit::Edit(editing_overlap->mKeyPoints, sub_window_size, ImGui::GetID("##video_fusion_keypoint_editor"), CURVE_EDIT_FLAG_VALUE_LIMITED | CURVE_EDIT_FLAG_KEEP_BEGIN_END | CURVE_EDIT_FLAG_DOCK_BEGIN_END, nullptr, &edit_points);
         }
     }
     ImGui::EndChild();
