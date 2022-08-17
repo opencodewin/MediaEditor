@@ -1237,7 +1237,7 @@ static int LoadProject(std::string path)
     // first load media bank
     auto project = loadResult.first;
     const imgui_json::array* mediaBankArray = nullptr;
-    if (BluePrint::GetPtrTo(project, "MediaBank", mediaBankArray))
+    if (imgui_json::GetPtrTo(project, "MediaBank", mediaBankArray))
     {
         for (auto& media : *mediaBankArray)
         {
