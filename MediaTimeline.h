@@ -80,6 +80,7 @@
 #define ICON_CLIP_START     u8"\uf090"
 #define ICON_CLIP_END       u8"\uf08b"
 #define ICON_RETURN_DEFAULT u8"\ue042"
+#define ICON_NODE           u8"\uf542"
 
 #define ICON_FONT_BOLD      u8"\ue238"
 #define ICON_FONT_ITALIC    u8"\ue23f"

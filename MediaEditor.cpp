@@ -2966,10 +2966,10 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
     ImVec2 video_preview_pos = window_pos;
     float video_preview_height = (window_size.y - clip_timeline_height - clip_keypoint_height) * 2 / 3;
     float video_bluepoint_height = (window_size.y - clip_timeline_height - clip_keypoint_height) - video_preview_height;
-    float clip_setting_width = 256;
+    float clip_setting_width = 384;
     float clip_setting_height = window_size.y - video_preview_height;
     ImVec2 clip_setting_pos = video_preview_pos + ImVec2(window_size.x - clip_setting_width, video_preview_height);
-    ImVec2 clip_setting_size(clip_setting_width, window_size.y);
+    ImVec2 clip_setting_size(clip_setting_width, clip_setting_height);
     float video_preview_width = window_size.x;
     if (window_size.x / video_preview_height > 4.f)
     {
@@ -2992,6 +2992,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
         timeline->mVideoFilterBluePrint->m_ViewSize = video_bluepoint_size;
     }
     ImGuiWindowFlags child_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings;
+    ImGuiWindowFlags setting_child_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings;
     ImGui::SetCursorScreenPos(video_preview_pos);
     if (ImGui::BeginChild("##video_filter_preview", video_preview_size, false, child_flags))
     {
@@ -3218,14 +3219,14 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
         if (editing_clip)
         {
             ImVector<ImGui::ImCurveEdit::editPoint> edit_points;
-            ImGui::ImCurveEdit::Edit(editing_clip->mKeyPoints, sub_window_size, ImGui::GetID("##video_filter_keypoint_editor"), CURVE_EDIT_FLAG_VALUE_LIMITED | CURVE_EDIT_FLAG_KEEP_BEGIN_END | CURVE_EDIT_FLAG_DOCK_BEGIN_END, nullptr, &edit_points);
+            ImGui::ImCurveEdit::Edit(editing_clip->mKeyPoints, sub_window_size, ImGui::GetID("##video_filter_keypoint_editor"), CURVE_EDIT_FLAG_VALUE_LIMITED | CURVE_EDIT_FLAG_MOVE_CURVE | CURVE_EDIT_FLAG_KEEP_BEGIN_END | CURVE_EDIT_FLAG_DOCK_BEGIN_END, nullptr, &edit_points);
         }
     }
     ImGui::EndChild();
     ImGui::SetCursorScreenPos(clip_setting_pos);
-    if (ImGui::BeginChild("##video_filter_setting", clip_setting_size, false, child_flags))
+    if (ImGui::BeginChild("##video_filter_setting", clip_setting_size, false, setting_child_flags))
     {
-        ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+        ImVec2 sub_window_pos = ImGui::GetWindowPos(); // we need draw background with scroll view
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_TWO);
         if (editing_clip)
@@ -3235,9 +3236,10 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                 // TODO::Dicky add Filter clip setting
                 ImGui::TreePop();
             }
-            if (ImGui::TreeNodeEx("KeyPoint Setting##video_filter", ImGuiTreeNodeFlags_DefaultOpen))
+            if (ImGui::TreeNodeEx("Curve Setting##video_filter", ImGuiTreeNodeFlags_DefaultOpen))
             {
-                // TODO::Dicky add Filter keypoint setting
+                char ** curve_type_list = nullptr;
+                auto curve_type_count = ImGui::ImCurveEdit::GetCurveTypeName(curve_type_list);
                 static std::string curve_name = "";
                 std::string value = curve_name;
                 if (ImGui::InputTextWithHint("##new_curve_name", "Input curve name", (char*)value.data(), value.size() + 1, ImGuiInputTextFlags_CallbackEdit | ImGuiInputTextFlags_CallbackResize, [](ImGuiInputTextCallbackData* data) -> int
@@ -3270,14 +3272,81 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                     auto found = editing_clip->mKeyPoints.GetCurveIndex(curve_name);
                     if (found == -1)
                     {
-                        auto curve_index = editing_clip->mKeyPoints.AddCurve(curve_name, ImGui::ImCurveEdit::Smooth, IM_COL32(0, 0, 255, 255), true);
-                        editing_clip->mKeyPoints.AddPoint(curve_index, ImVec2(editing_clip->mStart, 1.f), ImGui::ImCurveEdit::Smooth);
-                        editing_clip->mKeyPoints.AddPoint(curve_index, ImVec2(editing_clip->mEnd, 1.f), ImGui::ImCurveEdit::Smooth);
+                        ImU32 color; ImGui::RandomColor(color, 1.f);
+                        auto curve_index = editing_clip->mKeyPoints.AddCurve(curve_name, ImGui::ImCurveEdit::Smooth, color, true);
+                        editing_clip->mKeyPoints.AddPoint(curve_index, ImVec2(0.f, 1.f), ImGui::ImCurveEdit::Smooth);
+                        editing_clip->mKeyPoints.AddPoint(curve_index, ImVec2(editing_clip->mEnd - editing_clip->mStart, 1.f), ImGui::ImCurveEdit::Smooth);
                     }
                 }
                 ImGui::PopStyleVar();
                 ImGui::EndDisabled();
 
+                // list curves
+                for (int i = 0; i < editing_clip->mKeyPoints.GetCurveCount(); i++)
+                {
+                    bool break_loop = false;
+                    ImGui::PushID(i);
+                    auto pCount = editing_clip->mKeyPoints.GetCurvePointCount(i);
+                    std::string lable_id = std::string(ICON_FA_BEZIER_CURVE) + " " + editing_clip->mKeyPoints.GetCurveName(i) + " (" + std::to_string(pCount) + " keys)" + "##video_filter_curve";
+                    if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
+                    {
+                        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
+                        auto curve_color = ImGui::ColorConvertU32ToFloat4(editing_clip->mKeyPoints.GetCurveColor(i));
+                        if (ImGui::ColorEdit4("##curve_video_filter_color", (float*)&curve_color, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar))
+                        {
+                            editing_clip->mKeyPoints.SetCurveColor(i, ImGui::ColorConvertFloat4ToU32(curve_color));
+                        }
+                        ImGui::SameLine(0, 10);
+                        bool is_visiable = editing_clip->mKeyPoints.IsVisible(i);
+                        if (ImGui::Button(is_visiable ? ICON_VIEW : ICON_VIEW_DISABLE "##curve_video_filter_visiable"))
+                        {
+                            is_visiable = !is_visiable;
+                            editing_clip->mKeyPoints.SetCurveVisible(i, is_visiable);
+                        }
+                        ImGui::SameLine(0, 10);
+                        if (ImGui::Button(ICON_TRASH "##curve_video_filter_delete"))
+                        {
+                            editing_clip->mKeyPoints.DeleteCurve(i);
+                            break_loop = true;
+                        }
+                        if (!break_loop)
+                        {
+                            // list points
+                            for (int p = 0; p < pCount; p++)
+                            {
+                                bool is_disabled = false;
+                                ImGui::PushID(p);
+                                ImGui::PushItemWidth(100);
+                                auto point = editing_clip->mKeyPoints.GetPoint(i, p);
+                                ImGui::Diamond(false);
+                                if (p == 0 || p == pCount - 1)
+                                    is_disabled = true;
+                                ImGui::BeginDisabled(is_disabled);
+                                if (ImGui::DragFloat("##curve_video_filter_point_x", &point.point.x, editing_clip->mKeyPoints.GetMax().x / 100.f, editing_clip->mKeyPoints.GetMin().x, editing_clip->mKeyPoints.GetMax().x, "%.0f"))
+                                {
+                                    editing_clip->mKeyPoints.EditPoint(i, p, point.point, point.type);
+                                }
+                                ImGui::EndDisabled();
+                                ImGui::SameLine();
+                                if (ImGui::DragFloat("##curve_video_filter_point_y", &point.point.y, 0.05f, editing_clip->mKeyPoints.GetMin().y, editing_clip->mKeyPoints.GetMax().y, "%.1f"))
+                                {
+                                    editing_clip->mKeyPoints.EditPoint(i, p, point.point, point.type);
+                                }
+                                ImGui::SameLine();
+                                if (ImGui::Combo("##curve_video_filter_type", (int*)&point.type, curve_type_list, curve_type_count))
+                                {
+                                    editing_clip->mKeyPoints.EditPoint(i, p, point.point, point.type);
+                                }
+                                ImGui::PopItemWidth();
+                                ImGui::PopID();
+                            }
+                        }
+                        ImGui::PopStyleColor();
+                        ImGui::TreePop();
+                    }
+                    ImGui::PopID();
+                    if (break_loop) break;
+                }
 
                 ImGui::TreePop();
             }
@@ -3358,10 +3427,10 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
     ImVec2 video_preview_pos = window_pos;
     float video_preview_height = (window_size.y - clip_timeline_height - clip_keypoint_height) * 2 / 3;
     float video_bluepoint_height = (window_size.y - clip_timeline_height - clip_keypoint_height) - video_preview_height;
-    float clip_setting_width = 256;
+    float clip_setting_width = 384;
     float clip_setting_height = window_size.y - video_preview_height;
     ImVec2 clip_setting_pos = video_preview_pos + ImVec2(window_size.x - clip_setting_width, video_preview_height);
-    ImVec2 clip_setting_size(clip_setting_width, window_size.y);
+    ImVec2 clip_setting_size(clip_setting_width, clip_setting_height);
     float video_preview_width = window_size.x;
 
     ImVec2 video_preview_size(video_preview_width, video_preview_height);
@@ -3528,14 +3597,14 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
         if (editing_overlap)
         {
             ImVector<ImGui::ImCurveEdit::editPoint> edit_points;
-            ImGui::ImCurveEdit::Edit(editing_overlap->mKeyPoints, sub_window_size, ImGui::GetID("##video_fusion_keypoint_editor"), CURVE_EDIT_FLAG_VALUE_LIMITED | CURVE_EDIT_FLAG_KEEP_BEGIN_END | CURVE_EDIT_FLAG_DOCK_BEGIN_END, nullptr, &edit_points);
+            ImGui::ImCurveEdit::Edit(editing_overlap->mKeyPoints, sub_window_size, ImGui::GetID("##video_fusion_keypoint_editor"), CURVE_EDIT_FLAG_VALUE_LIMITED | CURVE_EDIT_FLAG_MOVE_CURVE | CURVE_EDIT_FLAG_KEEP_BEGIN_END | CURVE_EDIT_FLAG_DOCK_BEGIN_END, nullptr, &edit_points);
         }
     }
     ImGui::EndChild();
     ImGui::SetCursorScreenPos(clip_setting_pos);
     if (ImGui::BeginChild("##video_fusion_setting", clip_setting_size, false, child_flags))
     {
-        ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+        ImVec2 sub_window_pos = ImGui::GetWindowPos(); // we need draw background with scroll view
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_TWO);
         if (editing_overlap)
@@ -3545,9 +3614,9 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
                 // TODO::Dicky add Fusion setting
                 ImGui::TreePop();
             }
-            if (ImGui::TreeNodeEx("KeyPoint Setting##video_fusion", ImGuiTreeNodeFlags_DefaultOpen))
+            if (ImGui::TreeNodeEx("Curve Setting##video_fusion", ImGuiTreeNodeFlags_DefaultOpen))
             {
-                // TODO::Dicky add Fusion keypoint setting
+                // TODO::Dicky add Fusion Curve setting
                 ImGui::TreePop();
             }
             if (ImGui::TreeNodeEx("Node Setting##video_fusion", ImGuiTreeNodeFlags_DefaultOpen))
@@ -3571,7 +3640,7 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
         UIPageChanged();
     }
     ImGui::SetCursorScreenPos(clip_window_pos + ImVec2(labelWidth, 0));
-    if (ImGui::BeginChild("##video_editor_views", ImVec2(clip_window_size.x - labelWidth, clip_window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoScrollWithMouse))
+    if (ImGui::BeginChild("##video_editor_views", ImVec2(clip_window_size.x - labelWidth, clip_window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings /*| ImGuiWindowFlags_NoScrollWithMouse*/))
     {
         ImVec2 editor_view_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 editor_view_window_size = ImGui::GetWindowSize();
