@@ -134,7 +134,7 @@ public:
         m_frameInterval = 0;
     }
 
-    VideoTrackHolder AddTrack(int64_t trackId) override
+    VideoTrackHolder AddTrack(int64_t trackId, int64_t insertAfterId = INT64_MAX) override
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
         if (!m_started)
@@ -145,11 +145,32 @@ public:
 
         TerminateMixingThread();
 
-        VideoTrackHolder hTrack(new VideoTrack(trackId, m_outWidth, m_outHeight, m_frameRate));
-        hTrack->SetDirection(m_readForward);
+        VideoTrackHolder hNewTrack(new VideoTrack(trackId, m_outWidth, m_outHeight, m_frameRate));
+        hNewTrack->SetDirection(m_readForward);
         {
             lock_guard<recursive_mutex> lk2(m_trackLock);
-            m_tracks.push_back(hTrack);
+            if (insertAfterId == INT64_MAX)
+            {
+                m_tracks.push_back(hNewTrack);
+            }
+            else
+            {
+                auto iter = m_tracks.begin();
+                if (insertAfterId != INT64_MIN)
+                {
+                    iter = find_if(m_tracks.begin(), m_tracks.end(), [insertAfterId] (auto trk) {
+                        return trk->Id() == insertAfterId;
+                    });
+                    if (iter == m_tracks.end())
+                    {
+                        ostringstream oss;
+                        oss << "CANNOT find the video track specified by argument 'insertAfterId' " << insertAfterId << "!";
+                        m_errMsg = oss.str();
+                        return nullptr;
+                    }
+                }
+                m_tracks.insert(iter, hNewTrack);
+            }
             UpdateDuration();
         }
 
@@ -158,7 +179,7 @@ public:
         m_outputMats.clear();
 
         StartMixingThread();
-        return hTrack;
+        return hNewTrack;
     }
 
     VideoTrackHolder RemoveTrackByIndex(uint32_t index) override
@@ -226,6 +247,55 @@ public:
 
         StartMixingThread();
         return delTrack;
+    }
+
+    bool ChangeTrackViewOrder(int64_t targetId, int64_t insertAfterId) override
+    {
+        lock_guard<recursive_mutex> lk(m_apiLock);
+        if (targetId == insertAfterId)
+        {
+            m_errMsg = "INVALID arguments! 'targetId' must NOT be the SAME as 'insertAfterId'!";
+            return false;
+        }
+
+        lock_guard<recursive_mutex> lk2(m_trackLock);
+        auto targetTrackIter = find_if(m_tracks.begin(), m_tracks.end(), [targetId] (auto trk) {
+            return trk->Id() == targetId;
+        });
+        if (targetTrackIter == m_tracks.end())
+        {
+            ostringstream oss;
+            oss << "CANNOT find the video track specified by argument 'targetId' " << targetId << "!";
+            m_errMsg = oss.str();
+            return false;
+        }
+        if (insertAfterId == INT64_MAX)
+        {
+            auto moveTrack = *targetTrackIter;
+            m_tracks.erase(targetTrackIter);
+            m_tracks.push_back(moveTrack);
+        }
+        else
+        {
+            auto insertAfterIter = m_tracks.begin();
+            if (insertAfterId != INT64_MIN)
+            {
+                insertAfterIter = find_if(m_tracks.begin(), m_tracks.end(), [insertAfterId] (auto trk) {
+                    return trk->Id() == insertAfterId;
+                });
+                if (insertAfterIter == m_tracks.end())
+                {
+                    ostringstream oss;
+                    oss << "CANNOT find the video track specified by argument 'insertAfterId' " << insertAfterId << "!";
+                    m_errMsg = oss.str();
+                    return false;
+                }
+            }
+            auto moveTrack = *targetTrackIter;
+            m_tracks.erase(targetTrackIter);
+            m_tracks.insert(insertAfterIter, moveTrack);
+        }
+        return true;
     }
 
     bool SetDirection(bool forward) override
@@ -506,23 +576,65 @@ public:
         return (int64_t)((double)m_readFrameIdx*1000*m_frameRate.den/m_frameRate.num);
     }
 
-    SubtitleTrackHolder BuildSubtitleTrackFromFile(int64_t id, const string& url) override
+    SubtitleTrackHolder BuildSubtitleTrackFromFile(int64_t id, const string& url, int64_t insertAfterId = INT64_MAX) override
     {
         SubtitleTrackHolder newSubTrack = SubtitleTrack::BuildFromFile(id, url);
         newSubTrack->SetFrameSize(m_outWidth, m_outHeight);
         newSubTrack->EnableFullSizeOutput(false);
         lock_guard<mutex> lk(m_subtrkLock);
-        m_subtrks.push_back(newSubTrack);
+        if (insertAfterId == INT64_MAX)
+        {
+            m_subtrks.push_back(newSubTrack);
+        }
+        else
+        {
+            auto insertAfterIter = m_subtrks.begin();
+            if (insertAfterId != INT64_MIN)
+            {
+                insertAfterIter = find_if(m_subtrks.begin(), m_subtrks.end(), [insertAfterId] (auto trk) {
+                    return trk->Id() == insertAfterId;
+                });
+                if (insertAfterIter == m_subtrks.end())
+                {
+                    ostringstream oss;
+                    oss << "CANNOT find the subtitle track specified by argument 'insertAfterId' " << insertAfterId << "!";
+                    m_errMsg = oss.str();
+                    return nullptr;
+                }
+            }
+            m_subtrks.insert(insertAfterIter, newSubTrack);
+        }
         return newSubTrack;
     }
 
-    SubtitleTrackHolder NewEmptySubtitleTrack(int64_t id) override
+    SubtitleTrackHolder NewEmptySubtitleTrack(int64_t id, int64_t insertAfterId = INT64_MAX) override
     {
         SubtitleTrackHolder newSubTrack = SubtitleTrack::NewEmptyTrack(id);
         newSubTrack->SetFrameSize(m_outWidth, m_outHeight);
         newSubTrack->EnableFullSizeOutput(false);
         lock_guard<mutex> lk(m_subtrkLock);
-        m_subtrks.push_back(newSubTrack);
+        if (insertAfterId == INT64_MAX)
+        {
+            m_subtrks.push_back(newSubTrack);
+        }
+        else
+        {
+            auto insertAfterIter = m_subtrks.begin();
+            if (insertAfterId != INT64_MIN)
+            {
+                insertAfterIter = find_if(m_subtrks.begin(), m_subtrks.end(), [insertAfterId] (auto trk) {
+                    return trk->Id() == insertAfterId;
+                });
+                if (insertAfterIter == m_subtrks.end())
+                {
+                    ostringstream oss;
+                    oss << "CANNOT find the subtitle track specified by argument 'insertAfterId' " << insertAfterId << "!";
+                    m_errMsg = oss.str();
+                    return nullptr;
+                }
+            }
+            m_subtrks.insert(insertAfterIter, newSubTrack);
+        }
         return newSubTrack;
     }
 
@@ -548,6 +660,55 @@ public:
         SubtitleTrackHolder hTrk = *iter;
         m_subtrks.erase(iter);
         return hTrk;
+    }
+
+    bool ChangeSubtitleTrackViewOrder(int64_t targetId, int64_t insertAfterId) override
+    {
+        lock_guard<recursive_mutex> lk(m_apiLock);
+        if (targetId == insertAfterId)
+        {
+            m_errMsg = "INVALID arguments! 'targetId' must NOT be the SAME as 'insertAfterId'!";
+            return false;
+        }
+
+        lock_guard<mutex> lk2(m_subtrkLock);
+        auto targetTrackIter = find_if(m_subtrks.begin(), m_subtrks.end(), [targetId] (auto trk) {
+            return trk->Id() == targetId;
+        });
+        if (targetTrackIter == m_subtrks.end())
+        {
+            ostringstream oss;
+            oss << "CANNOT find the video track specified by argument 'targetId' " << targetId << "!";
+            m_errMsg = oss.str();
+            return false;
+        }
+        if (insertAfterId == INT64_MAX)
+        {
+            auto moveTrack = *targetTrackIter;
+            m_subtrks.erase(targetTrackIter);
+            m_subtrks.push_back(moveTrack);
+        }
+        else
+        {
+            auto insertAfterIter = m_subtrks.begin();
+            if (insertAfterId != INT64_MIN)
+            {
+                insertAfterIter = find_if(m_subtrks.begin(), m_subtrks.end(), [insertAfterId] (auto trk) {
+                    return trk->Id() == insertAfterId;
+                });
+                if (insertAfterIter == m_subtrks.end())
+                {
+                    ostringstream oss;
+                    oss << "CANNOT find the video track specified by argument 'insertAfterId' " << insertAfterId << "!";
+                    m_errMsg = oss.str();
+                    return false;
+                }
+            }
+            auto moveTrack = *targetTrackIter;
+            m_subtrks.erase(targetTrackIter);
+            m_subtrks.insert(insertAfterIter, moveTrack);
+        }
+        return true;
     }
 
     string GetError() const override

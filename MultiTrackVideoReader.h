@@ -12,9 +12,10 @@ struct MultiTrackVideoReader
     virtual MultiTrackVideoReader* CloneAndConfigure(uint32_t outWidth, uint32_t outHeight, const MediaInfo::Ratio& frameRate) = 0;
     virtual bool Start() = 0;
     virtual void Close() = 0;
-    virtual DataLayer::VideoTrackHolder AddTrack(int64_t trackId) = 0;
+    virtual DataLayer::VideoTrackHolder AddTrack(int64_t trackId, int64_t insertAfterId = INT64_MAX) = 0;
     virtual DataLayer::VideoTrackHolder RemoveTrackByIndex(uint32_t index) = 0;
     virtual DataLayer::VideoTrackHolder RemoveTrackById(int64_t trackId) = 0;
+    virtual bool ChangeTrackViewOrder(int64_t targetId, int64_t insertAfterId) = 0;
     virtual bool SetDirection(bool forward) = 0;
     virtual bool SeekTo(int64_t pos, bool async = false) = 0;
     virtual bool ReadVideoFrame(int64_t pos, ImGui::ImMat& vmat, bool seeking = false) = 0;
@@ -32,10 +33,11 @@ struct MultiTrackVideoReader
     virtual DataLayer::VideoClipHolder GetClipById(int64_t clipId) = 0;
     virtual DataLayer::VideoOverlapHolder GetOverlapById(int64_t ovlpId) = 0;
 
-    virtual DataLayer::SubtitleTrackHolder BuildSubtitleTrackFromFile(int64_t id, const std::string& url) = 0;
-    virtual DataLayer::SubtitleTrackHolder NewEmptySubtitleTrack(int64_t id) = 0;
+    virtual DataLayer::SubtitleTrackHolder BuildSubtitleTrackFromFile(int64_t id, const std::string& url, int64_t insertAfterId = INT64_MAX) = 0;
+    virtual DataLayer::SubtitleTrackHolder NewEmptySubtitleTrack(int64_t id, int64_t insertAfterId = INT64_MAX) = 0;
     virtual DataLayer::SubtitleTrackHolder GetSubtitleTrackById(int64_t trackId) = 0;
     virtual DataLayer::SubtitleTrackHolder RemoveSubtitleTrackById(int64_t trackId) = 0;
+    virtual bool ChangeSubtitleTrackViewOrder(int64_t targetId, int64_t insertAfterId) = 0;
 
     virtual std::string GetError() const = 0;
 
