@@ -1074,9 +1074,9 @@ void AudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
         drawList->AddRect(leftTop, rightBottom, IM_COL32_BLACK);
         float wave_range = fmax(fabs(mWaveform->minSample), fabs(mWaveform->maxSample));
         int sampleSize = mWaveform->pcm[0].size();
-        int64_t start_time = std::max(mStart - mStartOffset, timeline->firstTime);
-        int64_t end_time = std::min(mEnd + mEndOffset, timeline->lastTime);
-        int start_offset = (int)((double)(start_time - mStart - mStartOffset) / 1000.f / mWaveform->aggregateDuration);
+        int64_t start_time = std::max(mStart, timeline->firstTime);
+        int64_t end_time = std::min(mEnd, timeline->lastTime);
+        int start_offset = (int)((double)(mStartOffset) / 1000.f / mWaveform->aggregateDuration);
         start_offset = std::max(start_offset, 0);
         int window_length = (int)((double)(end_time - start_time) / 1000.f / mWaveform->aggregateDuration);
         window_length = std::min(window_length, sampleSize);
@@ -1087,11 +1087,11 @@ void AudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
         {
             int sample_stride = window_length / window_size.x;
             start_offset = start_offset / sample_stride * sample_stride;
-            drawList->PushClipRect(leftTop, rightBottom, true);
             ImGui::SetCursorScreenPos(customViewStart);
             int zoom = ImMin(sample_stride, 32);
             start_offset = start_offset / zoom * zoom; // align start_offset
 #if 1
+            ImGui::PushClipRect(leftTop, rightBottom, true);
             ImPlot::PushStyleVar(ImPlotStyleVar_PlotPadding, {0, 0});
             ImPlot::PushStyleVar(ImPlotStyleVar_PlotBorderSize, 0.f);
             ImPlot::PushStyleColor(ImPlotCol_PlotBg, {0, 0, 0, 0});
@@ -1105,13 +1105,15 @@ void AudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
             }
             ImPlot::PopStyleColor();
             ImPlot::PopStyleVar(2);
+            ImGui::PopClipRect();
 #else
+            drawList->PushClipRect(leftTop, rightBottom, true);
             ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(1.f, 1.f, 0.f, 1.0f));
             ImGui::PlotLines(id_string.c_str(), &mWaveform->pcm[0][start_offset], window_length / zoom, 0, nullptr, -wave_range / 2, wave_range / 2, window_size, sizeof(float) * zoom, false);
             ImGui::PopStyleColor();
             drawList->AddLine(ImVec2(leftTop.x, leftTop.y + draw_size.y / 2), ImVec2(rightBottom.x, leftTop.y + draw_size.y / 2), IM_COL32(255, 255, 255, 128));
-#endif
             drawList->PopClipRect();
+#endif
         }        
     }
 }
