@@ -3245,6 +3245,9 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
         {
             g_media_editor_settings.VideoFilterCurveExpanded = !g_media_editor_settings.VideoFilterCurveExpanded;
         }
+        ImGui::BeginTooltip();
+        ImGui::TextUnformatted(g_media_editor_settings.VideoFilterCurveExpanded ? "Hide Curve View" : "Show Curve View");
+        ImGui::EndTooltip();
     }
     draw_list->AddText(hidden_button_pos, IM_COL32_WHITE, ICON_FA_BEZIER_CURVE);
     ImGui::SetWindowFontScale(1.0);
@@ -3661,6 +3664,9 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
         {
             g_media_editor_settings.VideoFusionCurveExpanded = !g_media_editor_settings.VideoFusionCurveExpanded;
         }
+        ImGui::BeginTooltip();
+        ImGui::TextUnformatted(g_media_editor_settings.VideoFusionCurveExpanded ? "Hide Curve View" : "Show Curve View");
+        ImGui::EndTooltip();
     }
     draw_list->AddText(hidden_button_pos, IM_COL32_WHITE, ICON_FA_BEZIER_CURVE);
     ImGui::SetWindowFontScale(1.0);
