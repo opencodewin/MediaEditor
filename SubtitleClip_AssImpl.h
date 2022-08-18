@@ -81,7 +81,7 @@ namespace DataLayer
         void SetAlignment(uint32_t value) override;
         void SetText(const std::string& text) override;
 
-        void SyncClipStyle(SubtitleClipHolder from, double wRatio = 1, double hRatio = 1) override;
+        void CloneStyle(SubtitleClipHolder from, double wRatio = 1, double hRatio = 1) override;
         void InvalidateImage() override;
 
         void SetRenderCallback(AssRenderCallback renderCb) { m_renderCb = renderCb; }

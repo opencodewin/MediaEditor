@@ -1134,7 +1134,7 @@ SubtitleTrackHolder SubtitleTrack_AssImpl::Clone(uint32_t frmW, uint32_t frmH)
         auto c2 = newTrk->NewClip(c->StartTime(), c->Duration());
         c2->SetText(c->Text());
         if (!c->IsUsingTrackStyle())
-            c2->SyncClipStyle(c);
+            c2->CloneStyle(c);
     }
     return SubtitleTrackHolder(newTrk);
 }

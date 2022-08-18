@@ -459,6 +459,50 @@ void Clip::Cutting(int64_t pos)
         track->InsertClip(new_clip, pos);
         timeline->AddClipIntoGroup(new_clip, mGroupID);
         timeline->Updata();
+
+        // sync this action to data layer
+        switch (mType)
+        {
+            case MEDIA_VIDEO:
+            {
+                DataLayer::VideoTrackHolder vidTrack = timeline->mMtvReader->GetTrackById(track->mID);
+                vidTrack->ChangeClipRange(mID, mStartOffset, mEndOffset);
+                DataLayer::VideoClipHolder thisVidClip = vidTrack->GetClipById(mID);
+                DataLayer::VideoClipHolder newVidClip(new DataLayer::VideoClip(
+                    new_clip->mID, thisVidClip->GetMediaParser(),
+                    vidTrack->OutWidth(), vidTrack->OutHeight(), vidTrack->FrameRate(),
+                    new_clip->mStart, new_clip->mStartOffset, new_clip->mEndOffset, new_clip->mStartOffset));
+                vidTrack->InsertClip(newVidClip);
+                timeline->mMtvReader->Refresh();
+                break;
+            }
+            case MEDIA_AUDIO:
+            {
+                DataLayer::AudioTrackHolder audTrack = timeline->mMtaReader->GetTrackById(track->mID);
+                audTrack->ChangeClipRange(mID, mStartOffset, mEndOffset);
+                DataLayer::AudioClipHolder thisAudClip = audTrack->GetClipById(mID);
+                DataLayer::AudioClipHolder newAudClip(new DataLayer::AudioClip(
+                    new_clip->mID, thisAudClip->GetMediaParser(),
+                    audTrack->OutChannels(), audTrack->OutSampleRate(),
+                    new_clip->mStart, new_clip->mStartOffset, new_clip->mEndOffset, new_clip->mStartOffset));
+                audTrack->InsertClip(newAudClip);
+                timeline->mMtaReader->Refresh();
+                break;
+            }
+            case MEDIA_TEXT:
+            {
+                DataLayer::SubtitleTrackHolder subTrack = timeline->mMtvReader->GetSubtitleTrackById(track->mID);
+                DataLayer::SubtitleClipHolder thisSubClip = subTrack->GetClipByTime(mStart);
+                subTrack->ChangeClipTime(thisSubClip, mStart, mEnd-mStart);
+                DataLayer::SubtitleClipHolder newSubClip = subTrack->NewClip(new_clip->mStart, new_clip->mEnd-new_clip->mStart);
+                newSubClip->SetText(thisSubClip->Text());
+                newSubClip->CloneStyle(thisSubClip);
+                break;
+            }
+            default:
+                Logger::Log(Logger::WARN) << "Unhandled 'CUTTING' action!" << std::endl;
+                break;
+        }
     }
 }
 

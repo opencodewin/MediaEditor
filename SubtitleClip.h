@@ -114,7 +114,7 @@ namespace DataLayer
         virtual void SetAlignment(uint32_t value) = 0;
         virtual void SetText(const std::string& text) = 0;
 
-        virtual void SyncClipStyle(SubtitleClipHolder from, double wRatio = 1, double hRatio = 1) = 0;
+        virtual void CloneStyle(SubtitleClipHolder from, double wRatio = 1, double hRatio = 1) = 0;
         virtual void InvalidateImage() = 0;
     };
 }

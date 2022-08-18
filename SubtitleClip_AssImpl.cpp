@@ -414,8 +414,10 @@ void SubtitleClip_AssImpl::SetText(const std::string& text)
     m_image.Invalidate();
 }
 
-void SubtitleClip_AssImpl::SyncClipStyle(SubtitleClipHolder from, double wRatio, double hRatio)
+void SubtitleClip_AssImpl::CloneStyle(SubtitleClipHolder from, double wRatio, double hRatio)
 {
+    m_useTrackStyle = from->IsUsingTrackStyle();
+    SetTrackStyle(from->TrackStyle());
     SetFont(from->Font());
     SetScaleX(from->ScaleX());
     SetScaleY(from->ScaleY());

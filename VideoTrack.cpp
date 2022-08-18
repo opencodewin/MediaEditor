@@ -76,6 +76,9 @@ namespace DataLayer
         m_duration = lastClip->Start()+lastClip->Duration();
         // update overlap
         UpdateClipOverlap(hClip);
+        // call 'SeekTo()' to update iterators
+        const int64_t readPos = (int64_t)((double)m_readFrames*1000*m_frameRate.den/m_frameRate.num);
+        SeekTo(readPos);
     }
 
     void VideoTrack::MoveClip(int64_t id, int64_t start)
@@ -100,6 +103,9 @@ namespace DataLayer
         m_duration = lastClip->Start()+lastClip->Duration();
         // update overlap
         UpdateClipOverlap(hClip);
+        // call 'SeekTo()' to update iterators
+        const int64_t readPos = (int64_t)((double)m_readFrames*1000*m_frameRate.den/m_frameRate.num);
+        SeekTo(readPos);
     }
 
     void VideoTrack::ChangeClipRange(int64_t id, int64_t startOffset, int64_t endOffset)
@@ -133,6 +139,9 @@ namespace DataLayer
         m_duration = lastClip->Start()+lastClip->Duration();
         // update overlap
         UpdateClipOverlap(hClip);
+        // call 'SeekTo()' to update iterators
+        const int64_t readPos = (int64_t)((double)m_readFrames*1000*m_frameRate.den/m_frameRate.num);
+        SeekTo(readPos);
     }
 
     VideoClipHolder VideoTrack::RemoveClipById(int64_t clipId)
@@ -148,6 +157,9 @@ namespace DataLayer
         m_clips.erase(iter);
         hClip->SetTrackId(-1);
         UpdateClipOverlap(hClip, true);
+        // call 'SeekTo()' to update iterators
+        const int64_t readPos = (int64_t)((double)m_readFrames*1000*m_frameRate.den/m_frameRate.num);
+        SeekTo(readPos);
 
         if (m_clips.empty())
             m_duration = 0;
@@ -175,6 +187,9 @@ namespace DataLayer
         m_clips.erase(iter);
         hClip->SetTrackId(-1);
         UpdateClipOverlap(hClip, true);
+        // call 'SeekTo()' to update iterators
+        const int64_t readPos = (int64_t)((double)m_readFrames*1000*m_frameRate.den/m_frameRate.num);
+        SeekTo(readPos);
 
         if (m_clips.empty())
             m_duration = 0;
