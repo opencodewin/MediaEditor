@@ -1077,6 +1077,8 @@ void AudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
         int64_t start_time = std::max(mStart, timeline->firstTime);
         int64_t end_time = std::min(mEnd, timeline->lastTime);
         int start_offset = (int)((double)(mStartOffset) / 1000.f / mWaveform->aggregateDuration);
+        if (mStart < timeline->firstTime)
+            start_offset = (int)((double)(timeline->firstTime - mStart + mStartOffset) / 1000.f / mWaveform->aggregateDuration);
         start_offset = std::max(start_offset, 0);
         int window_length = (int)((double)(end_time - start_time) / 1000.f / mWaveform->aggregateDuration);
         window_length = std::min(window_length, sampleSize);
