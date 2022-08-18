@@ -3208,6 +3208,8 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
         ImGui::PopStyleColor(3);
     }
     ImGui::EndChild();
+
+    // draw clip blueprint
     ImGui::SetCursorScreenPos(video_bluepoint_pos);
     if (ImGui::BeginChild("##video_filter_blueprint", video_bluepoint_size, false, child_flags))
     {
@@ -3217,6 +3219,8 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
         ShowVideoFilterBluePrintWindow(draw_list, editing_clip);
     }
     ImGui::EndChild();
+
+    // draw clip timeline
     ImGui::SetCursorScreenPos(clip_timeline_pos);
     if (ImGui::BeginChild("##video_filter_timeline", clip_timeline_size, false, child_flags))
     {
@@ -3244,6 +3248,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
 
     ImGui::SetWindowFontScale(1.0);
 
+    // draw clip curve editor
     if (g_media_editor_settings.VideoFilterCurveExpanded)
     {
         ImGui::SetCursorScreenPos(clip_keypoint_pos);
@@ -3255,12 +3260,13 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
             if (editing_clip)
             {
                 ImVector<ImGui::ImCurveEdit::editPoint> edit_points;
-                mouse_hold |= ImGui::ImCurveEdit::Edit(editing_clip->mKeyPoints, sub_window_size, ImGui::GetID("##video_filter_keypoint_editor"), CURVE_EDIT_FLAG_VALUE_LIMITED | CURVE_EDIT_FLAG_MOVE_CURVE | CURVE_EDIT_FLAG_KEEP_BEGIN_END | CURVE_EDIT_FLAG_DOCK_BEGIN_END, nullptr, &edit_points);
-                // TODO::Dicky Draw current time cursor
+                mouse_hold |= ImGui::ImCurveEdit::Edit(editing_clip->mKeyPoints, sub_window_size, ImGui::GetID("##video_filter_keypoint_editor"), CURVE_EDIT_FLAG_VALUE_LIMITED | CURVE_EDIT_FLAG_MOVE_CURVE | CURVE_EDIT_FLAG_KEEP_BEGIN_END | CURVE_EDIT_FLAG_DOCK_BEGIN_END, nullptr, &edit_points, timeline->mVidFilterClip->mCurrPos);
             }
         }
         ImGui::EndChild();
     }
+
+    // draw clip setting
     ImGui::SetCursorScreenPos(clip_setting_pos);
     if (ImGui::BeginChild("##video_filter_setting", clip_setting_size, false, setting_child_flags))
     {
@@ -3269,11 +3275,13 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_TWO);
         if (editing_clip)
         {
+            // Filter clip setting
             if (ImGui::TreeNodeEx("Clip Setting##video_filter", ImGuiTreeNodeFlags_DefaultOpen))
             {
                 // TODO::Dicky add Filter clip setting
                 ImGui::TreePop();
             }
+            // Filter curve setting
             if (ImGui::TreeNodeEx("Curve Setting##video_filter", ImGuiTreeNodeFlags_DefaultOpen))
             {
                 char ** curve_type_list = nullptr;
@@ -3329,6 +3337,9 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                     if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
                     {
                         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
+                        float value = editing_clip->mKeyPoints.GetValue(i, timeline->mVidFilterClip->mCurrPos);
+                        ImGui::BracketSquare(true); ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0, 1.0, 0.0, 1.0)); ImGui::Text("%.2f", value); ImGui::PopStyleColor();
+                        ImGui::SameLine(0, 100);
                         ImGui::SetWindowFontScale(0.75);
                         auto curve_color = ImGui::ColorConvertU32ToFloat4(editing_clip->mKeyPoints.GetCurveColor(i));
                         if (ImGui::ColorEdit4("##curve_video_filter_color", (float*)&curve_color, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar))
@@ -3349,6 +3360,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                             editing_clip->mKeyPoints.DeleteCurve(i);
                             break_loop = true;
                         }
+
                         if (!break_loop)
                         {
                             // list points
@@ -3390,6 +3402,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
 
                 ImGui::TreePop();
             }
+            // Filter Node setting
             if (ImGui::TreeNodeEx("Node Setting##video_filter", ImGuiTreeNodeFlags_DefaultOpen))
             {
                 // TODO::Dicky add Filter node setting
