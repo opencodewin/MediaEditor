@@ -262,6 +262,13 @@ void Clip::Load(Clip * clip, const imgui_json::value& value)
         auto& val = value["FilterBP"];
         if (val.is_object()) clip->mFilterBP = val;
     }
+
+    // load curve
+    if (value.contains("KeyPoint"))
+    {
+        auto& keypoint = value["KeyPoint"];
+        clip->mKeyPoints.Load(keypoint);
+    }
 }
 
 void Clip::Save(imgui_json::value& value)
@@ -285,6 +292,11 @@ void Clip::Save(imgui_json::value& value)
     {
         value["FilterBP"] = mFilterBP;
     }
+
+    // save curve setting
+    imgui_json::value keypoint;
+    mKeyPoints.Save(keypoint);
+    value["KeyPoint"] = keypoint;
 }
 
 int64_t Clip::Cropping(int64_t diff, int type)
@@ -3180,7 +3192,7 @@ MediaTrack* MediaTrack::Load(const imgui_json::value& value, void * handle)
 
         // load and check clip into track
         const imgui_json::array* clipIDArray = nullptr;
-        if (BluePrint::GetPtrTo(value, "ClipIDS", clipIDArray))
+        if (imgui_json::GetPtrTo(value, "ClipIDS", clipIDArray))
         {
             for (auto& id_val : *clipIDArray)
             {
@@ -3197,7 +3209,7 @@ MediaTrack* MediaTrack::Load(const imgui_json::value& value, void * handle)
 
         // load and check overlap into track
         const imgui_json::array* overlapIDArray = nullptr;
-        if (BluePrint::GetPtrTo(value, "OverlapIDS", overlapIDArray))
+        if (imgui_json::GetPtrTo(value, "OverlapIDS", overlapIDArray))
         {
             for (auto& id_val : *overlapIDArray)
             {
@@ -3397,7 +3409,7 @@ void ClipGroup::Load(const imgui_json::value& value)
         if (val.is_number()) mColor = val.get<imgui_json::number>();
     }
     const imgui_json::array* clipIDArray = nullptr;
-    if (BluePrint::GetPtrTo(value, "ClipIDS", clipIDArray))
+    if (imgui_json::GetPtrTo(value, "ClipIDS", clipIDArray))
     {
         for (auto& id_val : *clipIDArray)
         {
@@ -4920,7 +4932,7 @@ int TimeLine::Load(const imgui_json::value& value)
 
     // load media clip
     const imgui_json::array* mediaClipArray = nullptr;
-    if (BluePrint::GetPtrTo(value, "MediaClip", mediaClipArray))
+    if (imgui_json::GetPtrTo(value, "MediaClip", mediaClipArray))
     {
         for (auto& clip : *mediaClipArray)
         {
@@ -4947,7 +4959,7 @@ int TimeLine::Load(const imgui_json::value& value)
 
     // load media group
     const imgui_json::array* mediaGroupArray = nullptr;
-    if (BluePrint::GetPtrTo(value, "MediaGroup", mediaGroupArray))
+    if (imgui_json::GetPtrTo(value, "MediaGroup", mediaGroupArray))
     {
         for (auto& group : *mediaGroupArray)
         {
@@ -4959,7 +4971,7 @@ int TimeLine::Load(const imgui_json::value& value)
 
     // load media overlap
     const imgui_json::array* mediaOverlapArray = nullptr;
-    if (BluePrint::GetPtrTo(value, "MediaOverlap", mediaOverlapArray))
+    if (imgui_json::GetPtrTo(value, "MediaOverlap", mediaOverlapArray))
     {
         for (auto& overlap : *mediaOverlapArray)
         {
@@ -4971,7 +4983,7 @@ int TimeLine::Load(const imgui_json::value& value)
 
     // load media track
     const imgui_json::array* mediaTrackArray = nullptr;
-    if (BluePrint::GetPtrTo(value, "MediaTrack", mediaTrackArray))
+    if (imgui_json::GetPtrTo(value, "MediaTrack", mediaTrackArray))
     {
         for (auto& track : *mediaTrackArray)
         {

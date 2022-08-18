@@ -406,6 +406,7 @@ static std::vector<MediaEncoder::EncoderDescription> g_currAudEncDescList;
 static std::string g_encoderConfigErrorMessage;
 static bool quit_save_confirm = true;
 static bool project_need_save = false;
+static bool mouse_hold = false;
 
 static int ConfigureIndex = 0;              // default timeline setting
 static int ControlPanelIndex = 0;           // default Media Bank window
@@ -1237,7 +1238,7 @@ static int LoadProject(std::string path)
     // first load media bank
     auto project = loadResult.first;
     const imgui_json::array* mediaBankArray = nullptr;
-    if (BluePrint::GetPtrTo(project, "MediaBank", mediaBankArray))
+    if (imgui_json::GetPtrTo(project, "MediaBank", mediaBankArray))
     {
         for (auto& media : *mediaBankArray)
         {
@@ -3219,7 +3220,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
         if (editing_clip)
         {
             ImVector<ImGui::ImCurveEdit::editPoint> edit_points;
-            ImGui::ImCurveEdit::Edit(editing_clip->mKeyPoints, sub_window_size, ImGui::GetID("##video_filter_keypoint_editor"), CURVE_EDIT_FLAG_VALUE_LIMITED | CURVE_EDIT_FLAG_MOVE_CURVE | CURVE_EDIT_FLAG_KEEP_BEGIN_END | CURVE_EDIT_FLAG_DOCK_BEGIN_END, nullptr, &edit_points);
+            mouse_hold |= ImGui::ImCurveEdit::Edit(editing_clip->mKeyPoints, sub_window_size, ImGui::GetID("##video_filter_keypoint_editor"), CURVE_EDIT_FLAG_VALUE_LIMITED | CURVE_EDIT_FLAG_MOVE_CURVE | CURVE_EDIT_FLAG_KEEP_BEGIN_END | CURVE_EDIT_FLAG_DOCK_BEGIN_END, nullptr, &edit_points);
         }
     }
     ImGui::EndChild();
@@ -3291,20 +3292,22 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                     if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
                     {
                         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
+                        ImGui::SetWindowFontScale(0.75);
                         auto curve_color = ImGui::ColorConvertU32ToFloat4(editing_clip->mKeyPoints.GetCurveColor(i));
                         if (ImGui::ColorEdit4("##curve_video_filter_color", (float*)&curve_color, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar))
                         {
                             editing_clip->mKeyPoints.SetCurveColor(i, ImGui::ColorConvertFloat4ToU32(curve_color));
                         }
-                        ImGui::SameLine(0, 10);
+                        ImGui::SetWindowFontScale(1.0);
+                        ImGui::SameLine(0, 8);
                         bool is_visiable = editing_clip->mKeyPoints.IsVisible(i);
-                        if (ImGui::Button(is_visiable ? ICON_VIEW : ICON_VIEW_DISABLE "##curve_video_filter_visiable"))
+                        if (ImGui::Button(is_visiable ? ICON_WATCH : ICON_UNWATCH "##curve_video_filter_visiable"))
                         {
                             is_visiable = !is_visiable;
                             editing_clip->mKeyPoints.SetCurveVisible(i, is_visiable);
                         }
-                        ImGui::SameLine(0, 10);
-                        if (ImGui::Button(ICON_TRASH "##curve_video_filter_delete"))
+                        ImGui::SameLine();
+                        if (ImGui::Button(ICON_DELETE "##curve_video_filter_delete"))
                         {
                             editing_clip->mKeyPoints.DeleteCurve(i);
                             break_loop = true;
@@ -3316,13 +3319,13 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                             {
                                 bool is_disabled = false;
                                 ImGui::PushID(p);
-                                ImGui::PushItemWidth(100);
+                                ImGui::PushItemWidth(96);
                                 auto point = editing_clip->mKeyPoints.GetPoint(i, p);
                                 ImGui::Diamond(false);
                                 if (p == 0 || p == pCount - 1)
                                     is_disabled = true;
                                 ImGui::BeginDisabled(is_disabled);
-                                if (ImGui::DragFloat("##curve_video_filter_point_x", &point.point.x, editing_clip->mKeyPoints.GetMax().x / 100.f, editing_clip->mKeyPoints.GetMin().x, editing_clip->mKeyPoints.GetMax().x, "%.0f"))
+                                if (ImGui::DragTimeMS("##curve_video_filter_point_x", &point.point.x, editing_clip->mKeyPoints.GetMax().x / 100.f, editing_clip->mKeyPoints.GetMin().x, editing_clip->mKeyPoints.GetMax().x, 2))
                                 {
                                     editing_clip->mKeyPoints.EditPoint(i, p, point.point, point.type);
                                 }
@@ -3597,7 +3600,7 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
         if (editing_overlap)
         {
             ImVector<ImGui::ImCurveEdit::editPoint> edit_points;
-            ImGui::ImCurveEdit::Edit(editing_overlap->mKeyPoints, sub_window_size, ImGui::GetID("##video_fusion_keypoint_editor"), CURVE_EDIT_FLAG_VALUE_LIMITED | CURVE_EDIT_FLAG_MOVE_CURVE | CURVE_EDIT_FLAG_KEEP_BEGIN_END | CURVE_EDIT_FLAG_DOCK_BEGIN_END, nullptr, &edit_points);
+            mouse_hold |= ImGui::ImCurveEdit::Edit(editing_overlap->mKeyPoints, sub_window_size, ImGui::GetID("##video_fusion_keypoint_editor"), CURVE_EDIT_FLAG_VALUE_LIMITED | CURVE_EDIT_FLAG_MOVE_CURVE | CURVE_EDIT_FLAG_KEEP_BEGIN_END | CURVE_EDIT_FLAG_DOCK_BEGIN_END, nullptr, &edit_points);
         }
     }
     ImGui::EndChild();
@@ -6360,7 +6363,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
         if (overExpanded && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
             _expanded = !_expanded;
         ImGui::SetCursorScreenPos(panel_pos + ImVec2(32, 0));
-        DrawTimeLine(timeline,  &_expanded, !is_splitter_hold);
+        DrawTimeLine(timeline,  &_expanded, !is_splitter_hold && !mouse_hold);
         if (g_media_editor_settings.BottomViewExpanded != _expanded)
         {
             if (!_expanded)
@@ -6580,6 +6583,9 @@ bool Application_Frame(void * handle, bool app_will_quit)
     {
         app_done = app_will_quit;
     }
-
+    if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
+    {
+        mouse_hold = false;
+    }
     return app_done;
 }
