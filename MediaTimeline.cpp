@@ -6064,7 +6064,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             ImVec2 button_size = ImVec2(14, 14);
             ImVec2 tpos(contentMin.x, contentMin.y + i * trackHeadHeight + customHeight);
             bool ret = TimelineButton(draw_list, ICON_TRASH, ImVec2(contentMin.x + legendWidth - button_size.x - 4, tpos.y + 2), button_size, "delete");
-            if (ret && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+            if (ret && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
                 delTrackEntry = i;
             customHeight += itemCustomHeight;
         }
