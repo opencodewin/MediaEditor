@@ -272,6 +272,10 @@ struct MediaEditorSettings
     float ControlPanelWidth {0.3};          // Control panel view width percentage
     float MainViewWidth {0.7};              // Main view width percentage
     bool BottomViewExpanded {true};         // Timeline/Scope view expended
+    bool VideoFilterCurveExpanded {true};   // Video filter curve view expended
+    bool VideoFusionCurveExpanded {true};   // Video fusion curve view expended
+    bool AudioFilterCurveExpanded {true};   // Audio filter curve view expended
+    bool AudioFusionCurveExpanded {true};   // audio fusion curve view expended
     float OldBottomViewHeight {0.4};        // Old Bottom view height, recorde at non-expended
     bool showMeters {true};                 // show fps/GPU usage at top right of windows
 
@@ -2963,7 +2967,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
     }
     
     float clip_timeline_height = 80;
-    float clip_keypoint_height = 80;
+    float clip_keypoint_height = g_media_editor_settings.VideoFilterCurveExpanded ?  80 : 0;
     ImVec2 video_preview_pos = window_pos;
     float video_preview_height = (window_size.y - clip_timeline_height - clip_keypoint_height) * 2 / 3;
     float video_bluepoint_height = (window_size.y - clip_timeline_height - clip_keypoint_height) - video_preview_height;
@@ -2985,7 +2989,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
     ImVec2 video_bluepoint_size(window_size.x - clip_setting_width, video_bluepoint_height);
     ImVec2 clip_timeline_pos = video_bluepoint_pos + ImVec2(0, video_bluepoint_height);
     ImVec2 clip_timeline_size(window_size.x - clip_setting_width, clip_timeline_height);
-    ImVec2 clip_keypoint_pos = clip_timeline_pos + ImVec2(0, clip_timeline_height);
+    ImVec2 clip_keypoint_pos = g_media_editor_settings.VideoFilterCurveExpanded ? clip_timeline_pos + ImVec2(0, clip_timeline_height) : clip_timeline_pos + ImVec2(0, clip_timeline_height - 16);
     ImVec2 clip_keypoint_size(window_size.x - clip_setting_width, clip_keypoint_height);
     
     if (editing_clip && timeline->mVideoFilterBluePrint)
@@ -3211,19 +3215,40 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
         DrawClipTimeLine(timeline->mVidFilterClip, 30, 50);
     }
     ImGui::EndChild();
-    ImGui::SetCursorScreenPos(clip_keypoint_pos);
-    if (ImGui::BeginChild("##video_filter_keypoint", clip_keypoint_size, false, child_flags))
+
+    // draw keypoint hidden button
+    ImVec2 hidden_button_pos = clip_keypoint_pos - ImVec2(16, 0);
+    ImRect hidden_button_rect = ImRect(hidden_button_pos, hidden_button_pos + ImVec2(16, 16));
+    ImGui::SetWindowFontScale(0.75);
+    if (hidden_button_rect.Contains(ImGui::GetMousePos()))
     {
-        ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
-        ImVec2 sub_window_size = ImGui::GetWindowSize();
-        draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_ONE);
-        if (editing_clip)
+        draw_list->AddRectFilled(hidden_button_rect.Min, hidden_button_rect.Max, IM_COL32(64,64,64,255));
+        if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
         {
-            ImVector<ImGui::ImCurveEdit::editPoint> edit_points;
-            mouse_hold |= ImGui::ImCurveEdit::Edit(editing_clip->mKeyPoints, sub_window_size, ImGui::GetID("##video_filter_keypoint_editor"), CURVE_EDIT_FLAG_VALUE_LIMITED | CURVE_EDIT_FLAG_MOVE_CURVE | CURVE_EDIT_FLAG_KEEP_BEGIN_END | CURVE_EDIT_FLAG_DOCK_BEGIN_END, nullptr, &edit_points);
+            g_media_editor_settings.VideoFilterCurveExpanded = !g_media_editor_settings.VideoFilterCurveExpanded;
         }
     }
-    ImGui::EndChild();
+    draw_list->AddText(hidden_button_pos, IM_COL32_WHITE, ICON_FA_BEZIER_CURVE);
+
+    ImGui::SetWindowFontScale(1.0);
+
+    if (g_media_editor_settings.VideoFilterCurveExpanded)
+    {
+        ImGui::SetCursorScreenPos(clip_keypoint_pos);
+        if (ImGui::BeginChild("##video_filter_keypoint", clip_keypoint_size, false, child_flags))
+        {
+            ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 sub_window_size = ImGui::GetWindowSize();
+            draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_ONE);
+            if (editing_clip)
+            {
+                ImVector<ImGui::ImCurveEdit::editPoint> edit_points;
+                mouse_hold |= ImGui::ImCurveEdit::Edit(editing_clip->mKeyPoints, sub_window_size, ImGui::GetID("##video_filter_keypoint_editor"), CURVE_EDIT_FLAG_VALUE_LIMITED | CURVE_EDIT_FLAG_MOVE_CURVE | CURVE_EDIT_FLAG_KEEP_BEGIN_END | CURVE_EDIT_FLAG_DOCK_BEGIN_END, nullptr, &edit_points);
+                // TODO::Dicky Draw current time cursor
+            }
+        }
+        ImGui::EndChild();
+    }
     ImGui::SetCursorScreenPos(clip_setting_pos);
     if (ImGui::BeginChild("##video_filter_setting", clip_setting_size, false, setting_child_flags))
     {
@@ -3288,7 +3313,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                     bool break_loop = false;
                     ImGui::PushID(i);
                     auto pCount = editing_clip->mKeyPoints.GetCurvePointCount(i);
-                    std::string lable_id = std::string(ICON_FA_BEZIER_CURVE) + " " + editing_clip->mKeyPoints.GetCurveName(i) + " (" + std::to_string(pCount) + " keys)" + "##video_filter_curve";
+                    std::string lable_id = std::string(ICON_CURVE) + " " + editing_clip->mKeyPoints.GetCurveName(i) + " (" + std::to_string(pCount) + " keys)" + "##video_filter_curve";
                     if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
                     {
                         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
@@ -5727,6 +5752,10 @@ void Application_SetupContext(ImGuiContext* ctx)
         ImVec4 val_vec4 = {0, 0, 0, 0};
         if (sscanf(line, "ProjectPath=%[^|\n]", val_path) == 1) { setting->project_path = std::string(val_path); }
         else if (sscanf(line, "BottomViewExpanded=%d", &val_int) == 1) { setting->BottomViewExpanded = val_int == 1; }
+        else if (sscanf(line, "VideoFilterCurveExpanded=%d", &val_int) == 1) { setting->VideoFilterCurveExpanded = val_int == 1; }
+        else if (sscanf(line, "VideoFusionCurveExpanded=%d", &val_int) == 1) { setting->VideoFusionCurveExpanded = val_int == 1; }
+        else if (sscanf(line, "AudioFilterCurveExpanded=%d", &val_int) == 1) { setting->AudioFilterCurveExpanded = val_int == 1; }
+        else if (sscanf(line, "AudioFusionCurveExpanded=%d", &val_int) == 1) { setting->AudioFusionCurveExpanded = val_int == 1; }
         else if (sscanf(line, "TopViewHeight=%f", &val_float) == 1) { setting->TopViewHeight = isnan(val_float) ?  0.6f : val_float; }
         else if (sscanf(line, "BottomViewHeight=%f", &val_float) == 1) { setting->BottomViewHeight = isnan(val_float) ? 0.4f : val_float; }
         else if (sscanf(line, "OldBottomViewHeight=%f", &val_float) == 1) { setting->OldBottomViewHeight = val_float; }
@@ -5828,6 +5857,10 @@ void Application_SetupContext(ImGuiContext* ctx)
         out_buf->appendf("[%s][##MediaEditorSetting]\n", handler->TypeName);
         out_buf->appendf("ProjectPath=%s\n", g_media_editor_settings.project_path.c_str());
         out_buf->appendf("BottomViewExpanded=%d\n", g_media_editor_settings.BottomViewExpanded ? 1 : 0);
+        out_buf->appendf("VideoFilterCurveExpanded=%d\n", g_media_editor_settings.VideoFilterCurveExpanded ? 1 : 0);
+        out_buf->appendf("VideoFusionCurveExpanded=%d\n", g_media_editor_settings.VideoFusionCurveExpanded ? 1 : 0);
+        out_buf->appendf("AudioFilterCurveExpanded=%d\n", g_media_editor_settings.AudioFilterCurveExpanded ? 1 : 0);
+        out_buf->appendf("AudioFusionCurveExpanded=%d\n", g_media_editor_settings.AudioFusionCurveExpanded ? 1 : 0);
         out_buf->appendf("TopViewHeight=%f\n", g_media_editor_settings.TopViewHeight);
         out_buf->appendf("BottomViewHeight=%f\n", g_media_editor_settings.BottomViewHeight);
         out_buf->appendf("OldBottomViewHeight=%f\n", g_media_editor_settings.OldBottomViewHeight);
