@@ -149,7 +149,7 @@
 #define ICON_HISTOGRAM      u8"\ue4a9"
 #define ICON_WAVEFORM       u8"\ue495"
 #define ICON_CIE            u8"\ue49e"
-#define ICON_VETCTOR        u8"\ue49f"
+#define ICON_VECTOR         u8"\ue49f"
 #define ICON_AUDIOVECTOR    u8"\uf20e"
 #define ICON_WAVE           u8"\ue4ad"
 #define ICON_FFT            u8"\ue4e8"

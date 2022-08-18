@@ -223,11 +223,22 @@ static const char* MainWindowTabTooltips[] =
     "Text Editor",
 };
 
+#define SCOPE_VIDEO_HISTOGRAM   (1<<0)
+#define SCOPE_VIDEO_WAVEFORM    (1<<1)
+#define SCOPE_VIDEO_CIE         (1<<2)
+#define SCOPE_VIDEO_VECTOR      (1<<3)
+#define SCOPE_AUDIO_WAVE        (1<<4)
+#define SCOPE_AUDIO_VECTOR      (1<<5)
+#define SCOPE_AUDIO_FFT         (1<<6)
+#define SCOPE_AUDIO_DB          (1<<7)
+#define SCOPE_AUDIO_DB_LEVEL    (1<<8)
+#define SCOPE_AUDIO_SPECTROGRAM (1<<9)
+
 static const char* ScopeWindowTabNames[] = {
     ICON_HISTOGRAM " Video Histogram",
     ICON_WAVEFORM " Video Waveform",
     ICON_CIE " Video CIE",
-    ICON_VETCTOR " Video Vector",
+    ICON_VECTOR " Video Vector",
     ICON_WAVE " Audio Wave",
     ICON_AUDIOVECTOR " Audio Vector",
     ICON_FFT " Audio FFT",
@@ -411,6 +422,7 @@ static std::string g_encoderConfigErrorMessage;
 static bool quit_save_confirm = true;
 static bool project_need_save = false;
 static bool mouse_hold = false;
+static uint32_t scope_flags = 0xFFFFFFFF;
 
 static int ConfigureIndex = 0;              // default timeline setting
 static int ControlPanelIndex = 0;           // default Media Bank window
@@ -673,10 +685,10 @@ static void ShowVideoWindow(ImDrawList *draw_list, ImTextureID texture, ImVec2& 
 static void CalculateVideoScope(ImGui::ImMat& mat)
 {
 #if IMGUI_VULKAN_SHADER
-    if (m_histogram) m_histogram->scope(mat, mat_histogram, 256, g_media_editor_settings.HistogramScale, g_media_editor_settings.HistogramLog);
-    if (m_waveform) m_waveform->scope(mat, mat_waveform, 256, g_media_editor_settings.WaveformIntensity, g_media_editor_settings.WaveformSeparate);
-    if (m_cie) m_cie->scope(mat, mat_cie, g_media_editor_settings.CIEIntensity, g_media_editor_settings.CIEShowColor);
-    if (m_vector) m_vector->scope(mat, mat_vector, g_media_editor_settings.VectorIntensity);
+    if (m_histogram && (scope_flags & SCOPE_VIDEO_HISTOGRAM)) m_histogram->scope(mat, mat_histogram, 256, g_media_editor_settings.HistogramScale, g_media_editor_settings.HistogramLog);
+    if (m_waveform && (scope_flags & SCOPE_VIDEO_WAVEFORM)) m_waveform->scope(mat, mat_waveform, 256, g_media_editor_settings.WaveformIntensity, g_media_editor_settings.WaveformSeparate);
+    if (m_cie && (scope_flags & SCOPE_VIDEO_CIE)) m_cie->scope(mat, mat_cie, g_media_editor_settings.CIEIntensity, g_media_editor_settings.CIEShowColor);
+    if (m_vector && (scope_flags & SCOPE_VIDEO_VECTOR)) m_vector->scope(mat, mat_vector, g_media_editor_settings.VectorIntensity);
 #endif
     need_update_scope = false;
 }
@@ -5578,7 +5590,9 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
         {
             for (int i = 0; i < IM_ARRAYSIZE(ScopeWindowTabNames); i++)
                 if (ImGui::Selectable(ScopeWindowTabNames[i]))
+                {
                     ScopeWindowIndex = i;
+                }
             ImGui::EndPopup();
         }
         ImGui::SetCursorScreenPos(window_pos + ImVec2(window_size.x - 32, 32));
@@ -6423,11 +6437,13 @@ bool Application_Frame(void * handle, bool app_will_quit)
         if (ImGui::BeginChild("##Scope_View", scope_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings))
         {
             ShowMediaAnalyseWindow(timeline, &_expanded);
+            scope_flags = 1 << ScopeWindowIndex;
         }
         ImGui::EndChild();
     }
     else
     {
+        scope_flags = 0xFFFFFFFF;
         ShowMediaAnalyseWindow(timeline);
     }
     
