@@ -47,102 +47,7 @@ string TimestampToString(double timestamp)
     return MillisecToString((int64_t)(timestamp*1000));
 }
 
-int AVPixelFormatToImColorFormat(AVPixelFormat pixfmt)
-{
-    int clrfmt = -1;
-    switch (pixfmt)
-    {
-        case AV_PIX_FMT_YUV420P:
-        case AV_PIX_FMT_YUVJ420P:
-        case AV_PIX_FMT_YUV420P9:
-        case AV_PIX_FMT_YUV420P10:
-        case AV_PIX_FMT_YUV420P12:
-        case AV_PIX_FMT_YUV420P14:
-        case AV_PIX_FMT_YUV420P16:
-            clrfmt = IM_CF_YUV420;
-            break;
-        case AV_PIX_FMT_YUV422P:
-        case AV_PIX_FMT_YUVJ422P:
-        case AV_PIX_FMT_YUV422P9:
-        case AV_PIX_FMT_YUV422P10:
-        case AV_PIX_FMT_YUV422P12:
-        case AV_PIX_FMT_YUV422P14:
-        case AV_PIX_FMT_YUV422P16:
-            clrfmt = IM_CF_YUV422;
-            break;
-        case AV_PIX_FMT_YUV444P:
-        case AV_PIX_FMT_YUVJ444P:
-        case AV_PIX_FMT_YUV444P9:
-        case AV_PIX_FMT_YUV444P10:
-        case AV_PIX_FMT_YUV444P12:
-        case AV_PIX_FMT_YUV444P14:
-        case AV_PIX_FMT_YUV444P16:
-            clrfmt = IM_CF_YUV444;
-            break;
-        case AV_PIX_FMT_NV12:
-        case AV_PIX_FMT_NV21:
-        case AV_PIX_FMT_NV16:
-        case AV_PIX_FMT_NV24:
-        case AV_PIX_FMT_NV42:
-            clrfmt = IM_CF_NV12;
-            break;
-        case AV_PIX_FMT_NV20:
-        case AV_PIX_FMT_P010:
-        case AV_PIX_FMT_P016:
-            clrfmt = IM_CF_P010LE;
-            break;
-        case AV_PIX_FMT_YUVA420P:
-        case AV_PIX_FMT_YUVA422P:
-        case AV_PIX_FMT_YUVA444P:
-            clrfmt = IM_CF_YUVA;
-            break;
-        case AV_PIX_FMT_GRAY8:
-        case AV_PIX_FMT_GRAY10:
-        case AV_PIX_FMT_GRAY12:
-        case AV_PIX_FMT_GRAY14:
-        case AV_PIX_FMT_GRAY16:
-            clrfmt = IM_CF_GRAY;
-            break;
-        case AV_PIX_FMT_RGB8:
-        case AV_PIX_FMT_RGB24:
-        case AV_PIX_FMT_RGB555:
-        case AV_PIX_FMT_RGB565:
-        case AV_PIX_FMT_RGB48:
-            clrfmt = IM_CF_RGB;
-            break;
-        case AV_PIX_FMT_BGR8:
-        case AV_PIX_FMT_BGR24:
-        case AV_PIX_FMT_BGR555:
-        case AV_PIX_FMT_BGR565:
-        case AV_PIX_FMT_BGR48:
-            clrfmt = IM_CF_BGR;
-            break;
-        case AV_PIX_FMT_RGBA:
-        case AV_PIX_FMT_RGB0:
-        case AV_PIX_FMT_RGBA64:
-            clrfmt = IM_CF_RGBA;
-            break;
-        case AV_PIX_FMT_BGRA:
-        case AV_PIX_FMT_BGR0:
-        case AV_PIX_FMT_BGRA64:
-            clrfmt = IM_CF_BGRA;
-            break;
-        case AV_PIX_FMT_ARGB:
-        case AV_PIX_FMT_0RGB:
-            clrfmt = IM_CF_ARGB;
-            break;
-        case AV_PIX_FMT_ABGR:
-        case AV_PIX_FMT_0BGR:
-            clrfmt = IM_CF_ABGR;
-            break;
-        default:
-            Log(Error) << "No matching 'ImColorFormat' value for 'AVPixelFormat' " << (int)pixfmt << "!" << endl;
-            break;
-    }
-    return clrfmt;
-}
-
-static ImColorFormat ConvertPixelFormatToColorFormat(AVPixelFormat pixfmt)
+ImColorFormat ConvertPixelFormatToColorFormat(AVPixelFormat pixfmt)
 {
     const AVPixFmtDescriptor* desc = av_pix_fmt_desc_get(pixfmt);
     ImColorFormat clrfmt = (ImColorFormat)-1;
@@ -451,10 +356,10 @@ bool ConvertAVFrameToImMat(const AVFrame* avfrm, ImGui::ImMat& vmat, double time
                                 avfrm->colorspace == AVCOL_SPC_BT2020_CL ? IM_CS_BT2020 : IM_CS_BT709;
     ImColorRange color_range =  avfrm->color_range == AVCOL_RANGE_MPEG ? IM_CR_NARROW_RANGE :
                                 avfrm->color_range == AVCOL_RANGE_JPEG ? IM_CR_FULL_RANGE : IM_CR_NARROW_RANGE;
-    int clrfmt = AVPixelFormatToImColorFormat((AVPixelFormat)avfrm->format);
-    if (clrfmt < 0)
+    ImColorFormat clrfmt = ConvertPixelFormatToColorFormat((AVPixelFormat)avfrm->format);
+    if ((int)clrfmt < 0)
         return false;
-    ImColorFormat color_format = (ImColorFormat)clrfmt;
+    ImColorFormat color_format = clrfmt;
     const int width = avfrm->width;
     const int height = avfrm->height;
 

@@ -38,7 +38,7 @@ SelfFreeAVFramePtr AllocSelfFreeAVFramePtr();
 SelfFreeAVFramePtr CloneSelfFreeAVFramePtr(const AVFrame* avfrm);
 SelfFreeAVFramePtr WrapSelfFreeAVFramePtr(AVFrame* avfrm);
 
-int AVPixelFormatToImColorFormat(AVPixelFormat pixfmt);
+ImColorFormat ConvertPixelFormatToColorFormat(AVPixelFormat pixfmt);
 bool ConvertAVFrameToImMat(const AVFrame* avfrm, ImGui::ImMat& vmat, double timestamp);
 bool ConvertImMatToAVFrame(const ImGui::ImMat& vmat, AVFrame* avfrm, int64_t pts);
 
