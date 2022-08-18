@@ -2087,6 +2087,8 @@ Overlap::Overlap(int64_t start, int64_t end, int64_t clip_first, int64_t clip_se
     m_Clip.first = clip_first;
     m_Clip.second = clip_second;
     mHandle = handle;
+    mKeyPoints.SetMin({0.f, 0.f});
+    mKeyPoints.SetMax(ImVec2(end - start, 1.f), true);
 }
 
 Overlap::~Overlap()
@@ -2122,6 +2124,7 @@ void Overlap::Update(int64_t start, int64_t start_clip_id, int64_t end, int64_t 
     m_Clip.second = end_clip_id;
     mStart = start;
     mEnd = end;
+    mKeyPoints.SetMax(ImVec2(mEnd - mStart, 1.f), true);
 }
 
 void Overlap::Seek()
@@ -2186,6 +2189,12 @@ Overlap* Overlap::Load(const imgui_json::value& value, void * handle)
             auto& val = value["FusionBP"];
             if (val.is_object()) new_overlap->mFusionBP = val;
         }
+        // load curve
+        if (value.contains("KeyPoint"))
+        {
+            auto& keypoint = value["KeyPoint"];
+            new_overlap->mKeyPoints.Load(keypoint);
+        }
     }
     return new_overlap;
 }
@@ -2206,6 +2215,11 @@ void Overlap::Save(imgui_json::value& value)
     {
         value["FusionBP"] = mFusionBP;
     }
+
+    // save curve setting
+    imgui_json::value keypoint;
+    mKeyPoints.Save(keypoint);
+    value["KeyPoint"] = keypoint;
 }
 
 EditingVideoOverlap::EditingVideoOverlap(Overlap* ovlp)
