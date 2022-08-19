@@ -129,7 +129,7 @@ namespace DataLayer
             throw runtime_error(m_srcReader->GetError());
         VideoFilterHolder filter = m_filter;
         if (filter)
-            image = filter->FilterImage(image, pos+m_startOffset);
+            image = filter->FilterImage(image, pos);
         vmat = image;
     }
 
