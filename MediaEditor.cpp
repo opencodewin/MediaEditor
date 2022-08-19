@@ -1361,6 +1361,8 @@ static void SaveProject(std::string path)
                 break;
             }
         }
+        if (timeline->mVidOverlap)
+            editing_overlap->mKeyPoints = timeline->mVidOverlap->mKeyPoints;
     }
 
     // first save media bank info
@@ -3272,7 +3274,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                                                         nullptr, // clippingRect
                                                         &timeline->mVideoFilterNeedUpdate,
                                                         nullptr, // selectedPoints
-                                                        timeline->mVidFilterClip->mCurrPos);
+                                                        timeline->mVidFilterClip->mCurrent);
             }
         }
         ImGui::EndChild();
@@ -3358,7 +3360,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                     if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
                     {
                         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
-                        float value = timeline->mVidFilterClip->mKeyPoints.GetValue(i, timeline->mVidFilterClip->mCurrPos);
+                        float value = timeline->mVidFilterClip->mKeyPoints.GetValue(i, timeline->mVidFilterClip->mCurrent);
                         ImGui::BracketSquare(true); ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0, 1.0, 0.0, 1.0)); ImGui::Text("%.2f", value); ImGui::PopStyleColor();
                         ImGui::SameLine(0, 100);
                         ImGui::SetWindowFontScale(0.75);
@@ -3707,9 +3709,9 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
             ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
             ImVec2 sub_window_size = ImGui::GetWindowSize();
             draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_ONE);
-            if (editing_overlap)
+            if (timeline->mVidOverlap)
             {
-                mouse_hold |= ImGui::ImCurveEdit::Edit(editing_overlap->mKeyPoints, 
+                mouse_hold |= ImGui::ImCurveEdit::Edit(timeline->mVidOverlap->mKeyPoints, 
                                                         sub_window_size, 
                                                         ImGui::GetID("##video_fusion_keypoint_editor"), 
                                                         CURVE_EDIT_FLAG_VALUE_LIMITED | CURVE_EDIT_FLAG_MOVE_CURVE | CURVE_EDIT_FLAG_KEEP_BEGIN_END | CURVE_EDIT_FLAG_DOCK_BEGIN_END, 
@@ -3729,7 +3731,7 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
         ImVec2 sub_window_pos = ImGui::GetWindowPos(); // we need draw background with scroll view
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_TWO);
-        if (editing_overlap)
+        if (timeline->mVidOverlap)
         {
             // Overlap setting
             if (ImGui::TreeNodeEx("Overlay Setting##video_fusion", ImGuiTreeNodeFlags_DefaultOpen))
@@ -3771,49 +3773,49 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
                 ImGui::SameLine();
                 if (ImGui::Button(ICON_ADD "##insert_curve_video_fusion"))
                 {
-                    auto found = editing_overlap->mKeyPoints.GetCurveIndex(curve_name);
+                    auto found = timeline->mVidOverlap->mKeyPoints.GetCurveIndex(curve_name);
                     if (found == -1)
                     {
                         ImU32 color; ImGui::RandomColor(color, 1.f);
-                        auto curve_index = editing_overlap->mKeyPoints.AddCurve(curve_name, ImGui::ImCurveEdit::Smooth, color, true);
-                        editing_overlap->mKeyPoints.AddPoint(curve_index, ImVec2(0.f, 1.f), ImGui::ImCurveEdit::Smooth);
-                        editing_overlap->mKeyPoints.AddPoint(curve_index, ImVec2(editing_overlap->mEnd - editing_overlap->mStart, 1.f), ImGui::ImCurveEdit::Smooth);
+                        auto curve_index = timeline->mVidOverlap->mKeyPoints.AddCurve(curve_name, ImGui::ImCurveEdit::Smooth, color, true);
+                        timeline->mVidOverlap->mKeyPoints.AddPoint(curve_index, ImVec2(0.f, 1.f), ImGui::ImCurveEdit::Smooth);
+                        timeline->mVidOverlap->mKeyPoints.AddPoint(curve_index, ImVec2(timeline->mVidOverlap->mEnd - timeline->mVidOverlap->mStart, 1.f), ImGui::ImCurveEdit::Smooth);
                     }
                 }
                 ImGui::PopStyleVar();
                 ImGui::EndDisabled();
 
                 // list curves
-                for (int i = 0; i < editing_overlap->mKeyPoints.GetCurveCount(); i++)
+                for (int i = 0; i < timeline->mVidOverlap->mKeyPoints.GetCurveCount(); i++)
                 {
                     bool break_loop = false;
                     ImGui::PushID(i);
-                    auto pCount = editing_overlap->mKeyPoints.GetCurvePointCount(i);
-                    std::string lable_id = std::string(ICON_CURVE) + " " + editing_overlap->mKeyPoints.GetCurveName(i) + " (" + std::to_string(pCount) + " keys)" + "##video_fusion_curve";
+                    auto pCount = timeline->mVidOverlap->mKeyPoints.GetCurvePointCount(i);
+                    std::string lable_id = std::string(ICON_CURVE) + " " + timeline->mVidOverlap->mKeyPoints.GetCurveName(i) + " (" + std::to_string(pCount) + " keys)" + "##video_fusion_curve";
                     if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
                     {
                         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
-                        float value = editing_overlap->mKeyPoints.GetValue(i, timeline->mVidOverlap->mCurrent);
+                        float value = timeline->mVidOverlap->mKeyPoints.GetValue(i, timeline->mVidOverlap->mCurrent);
                         ImGui::BracketSquare(true); ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0, 1.0, 0.0, 1.0)); ImGui::Text("%.2f", value); ImGui::PopStyleColor();
                         ImGui::SameLine(0, 100);
                         ImGui::SetWindowFontScale(0.75);
-                        auto curve_color = ImGui::ColorConvertU32ToFloat4(editing_overlap->mKeyPoints.GetCurveColor(i));
+                        auto curve_color = ImGui::ColorConvertU32ToFloat4(timeline->mVidOverlap->mKeyPoints.GetCurveColor(i));
                         if (ImGui::ColorEdit4("##curve_video_fusion_color", (float*)&curve_color, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar))
                         {
-                            editing_overlap->mKeyPoints.SetCurveColor(i, ImGui::ColorConvertFloat4ToU32(curve_color));
+                            timeline->mVidOverlap->mKeyPoints.SetCurveColor(i, ImGui::ColorConvertFloat4ToU32(curve_color));
                         }
                         ImGui::SetWindowFontScale(1.0);
                         ImGui::SameLine(0, 8);
-                        bool is_visiable = editing_overlap->mKeyPoints.IsVisible(i);
+                        bool is_visiable = timeline->mVidOverlap->mKeyPoints.IsVisible(i);
                         if (ImGui::Button(is_visiable ? ICON_WATCH : ICON_UNWATCH "##curve_video_fusion_visiable"))
                         {
                             is_visiable = !is_visiable;
-                            editing_overlap->mKeyPoints.SetCurveVisible(i, is_visiable);
+                            timeline->mVidOverlap->mKeyPoints.SetCurveVisible(i, is_visiable);
                         }
                         ImGui::SameLine();
                         if (ImGui::Button(ICON_DELETE "##curve_video_fusion_delete"))
                         {
-                            editing_overlap->mKeyPoints.DeleteCurve(i);
+                            timeline->mVidOverlap->mKeyPoints.DeleteCurve(i);
                             break_loop = true;
                         }
 
@@ -3825,25 +3827,25 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
                                 bool is_disabled = false;
                                 ImGui::PushID(p);
                                 ImGui::PushItemWidth(96);
-                                auto point = editing_overlap->mKeyPoints.GetPoint(i, p);
+                                auto point = timeline->mVidOverlap->mKeyPoints.GetPoint(i, p);
                                 ImGui::Diamond(false);
                                 if (p == 0 || p == pCount - 1)
                                     is_disabled = true;
                                 ImGui::BeginDisabled(is_disabled);
-                                if (ImGui::DragTimeMS("##curve_video_fusion_point_x", &point.point.x, editing_overlap->mKeyPoints.GetMax().x / 100.f, editing_overlap->mKeyPoints.GetMin().x, editing_overlap->mKeyPoints.GetMax().x, 2))
+                                if (ImGui::DragTimeMS("##curve_video_fusion_point_x", &point.point.x, timeline->mVidOverlap->mKeyPoints.GetMax().x / 100.f, timeline->mVidOverlap->mKeyPoints.GetMin().x, timeline->mVidOverlap->mKeyPoints.GetMax().x, 2))
                                 {
-                                    editing_overlap->mKeyPoints.EditPoint(i, p, point.point, point.type);
+                                    timeline->mVidOverlap->mKeyPoints.EditPoint(i, p, point.point, point.type);
                                 }
                                 ImGui::EndDisabled();
                                 ImGui::SameLine();
-                                if (ImGui::DragFloat("##curve_video_fusion_point_y", &point.point.y, 0.05f, editing_overlap->mKeyPoints.GetMin().y, editing_overlap->mKeyPoints.GetMax().y, "%.1f"))
+                                if (ImGui::DragFloat("##curve_video_fusion_point_y", &point.point.y, 0.05f, timeline->mVidOverlap->mKeyPoints.GetMin().y, timeline->mVidOverlap->mKeyPoints.GetMax().y, "%.1f"))
                                 {
-                                    editing_overlap->mKeyPoints.EditPoint(i, p, point.point, point.type);
+                                    timeline->mVidOverlap->mKeyPoints.EditPoint(i, p, point.point, point.type);
                                 }
                                 ImGui::SameLine();
                                 if (ImGui::Combo("##curve_video_fusion_type", (int*)&point.type, curve_type_list, curve_type_count))
                                 {
-                                    editing_overlap->mKeyPoints.EditPoint(i, p, point.point, point.type);
+                                    timeline->mVidOverlap->mKeyPoints.EditPoint(i, p, point.point, point.type);
                                 }
                                 ImGui::PopItemWidth();
                                 ImGui::PopID();

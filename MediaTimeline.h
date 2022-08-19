@@ -476,10 +476,12 @@ public:
     ImGui::ImMat MixTwoImages(const ImGui::ImMat& vmat1, const ImGui::ImMat& vmat2, int64_t pos, int64_t dur) override;
 
     void SetBluePrintFromJson(imgui_json::value& bpJson);
+    void SetKeyPoint(ImGui::KeyPointEditor &keypoint) { mKeyPoints = keypoint; };
 
 private:
     DataLayer::VideoOverlap* mOverlap;
     BluePrint::BluePrintUI* mBp{nullptr};
+    ImGui::KeyPointEditor mKeyPoints;
     std::mutex mBpLock;
 };
 
@@ -492,7 +494,7 @@ struct BaseEditingClip
     int64_t mStartOffset        {0};                    // editing clip start time in media
     int64_t mEndOffset          {0};                    // editing clip end time in media
     int64_t mDuration           {0};
-    int64_t mCurrPos            {0};
+    int64_t mCurrent            {0};                    // editing clip current time, project saved
     bool bPlay                  {false};                // editing clip play status
     bool bForward               {true};                 // editing clip play direction
     bool bSeeking               {false};
@@ -570,6 +572,7 @@ struct BaseEditingOverlap
     BaseEditingOverlap(Overlap* ovlp) : mOvlp(ovlp) {}
     std::pair<int64_t, int64_t> m_StartOffset;
     std::pair<MediaReader*, MediaReader*> mMediaReader;
+    ImGui::KeyPointEditor       mKeyPoints;             // editing overlap key points
 
     virtual void Seek(int64_t pos) = 0;
     virtual void Step(bool forward, int64_t step = 0) = 0;

@@ -1677,6 +1677,13 @@ ImGui::ImMat BluePrintVideoTransition::MixTwoImages(const ImGui::ImMat& vmat1, c
     std::lock_guard<std::mutex> lk(mBpLock);
     if (mBp)
     {
+        // setup bp input curve
+        for (int i = 0; i < mKeyPoints.GetCurveCount(); i++)
+        {
+            auto name = mKeyPoints.GetCurveName(i);
+            auto value = mKeyPoints.GetValue(i, pos);
+            //mBp->Blueprint_SetFusion(name, value); // TODO::Dicky
+        }
         ImGui::ImMat inMat1(vmat1), inMat2(vmat2);
         ImGui::ImMat outMat;
         mBp->Blueprint_RunFusion(inMat1, inMat2, outMat, pos, dur);
@@ -1717,7 +1724,7 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
     mDuration = mEnd-mStart;
     if (mDuration < 0)
         throw std::invalid_argument("Clip duration is negative!");
-    mCurrPos = mStartOffset;
+    mCurrent = mStartOffset;
 
     mSsGen = CreateSnapshotGenerator();
     mMediaReader = CreateMediaReader();
@@ -1779,10 +1786,10 @@ void EditingVideoClip::UpdateClipRange(Clip* clip)
         mStartOffset = clip->mStartOffset;
         mEndOffset = clip->mEndOffset;
         mDuration = mEnd - mStart;
-        if (mCurrPos < mStartOffset)
-            mCurrPos = mStartOffset;
-        if (mCurrPos > mStartOffset + mDuration)
-            mCurrPos = mStartOffset + mDuration;
+        if (mCurrent < mStartOffset)
+            mCurrent = mStartOffset;
+        if (mCurrent > mStartOffset + mDuration)
+            mCurrent = mStartOffset + mDuration;
         CalcDisplayParams();
     }
 }
@@ -1802,11 +1809,11 @@ void EditingVideoClip::Seek(int64_t pos)
     mFrame.clear();
     mFrameLock.unlock();
     mLastTime = -1;
-    mCurrPos = pos;
-    alignTime(mCurrPos, mClipFrameRate);
+    mCurrent = pos;
+    alignTime(mCurrent, mClipFrameRate);
     if (mMediaReader && mMediaReader->IsOpened())
     {
-        mMediaReader->SeekTo((double)mCurrPos / 1000.f);
+        mMediaReader->SeekTo((double)mCurrent / 1000.f);
     }
 }
 
@@ -1815,11 +1822,11 @@ void EditingVideoClip::Step(bool forward, int64_t step)
     if (forward)
     {
         bForward = true;
-        if (step > 0) mCurrPos += step;
-        else frameStepTime(mCurrPos, 1, mClipFrameRate);
-        if (mCurrPos >= mEnd - mStart + mStartOffset)
+        if (step > 0) mCurrent += step;
+        else frameStepTime(mCurrent, 1, mClipFrameRate);
+        if (mCurrent >= mEnd - mStart + mStartOffset)
         {
-            mCurrPos = mEnd - mStart + mStartOffset;
+            mCurrent = mEnd - mStart + mStartOffset;
             mLastTime = -1;
             bPlay = false;
         }
@@ -1827,11 +1834,11 @@ void EditingVideoClip::Step(bool forward, int64_t step)
     else
     {
         bForward = false;
-        if (step > 0) mCurrPos -= step;
-        else frameStepTime(mCurrPos, -1, mClipFrameRate);
-        if (mCurrPos <= mStartOffset)
+        if (step > 0) mCurrent -= step;
+        else frameStepTime(mCurrent, -1, mClipFrameRate);
+        if (mCurrent <= mStartOffset)
         {
-            mCurrPos = mStartOffset;
+            mCurrent = mStartOffset;
             mLastTime = -1;
             bPlay = false;
         }
@@ -1880,13 +1887,13 @@ bool EditingVideoClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_fr
         std::swap(buffer_start, buffer_end);
 
     bool out_of_range = false;
-    if (mCurrPos < buffer_start - frame_delay || mCurrPos > buffer_end + frame_delay)
+    if (mCurrent < buffer_start - frame_delay || mCurrent > buffer_end + frame_delay)
         out_of_range = true;
 
     for (auto pair = mFrame.begin(); pair != mFrame.end();)
     {
         bool need_erase = false;
-        int64_t time_diff = fabs(pair->first.time_stamp * 1000 - mCurrPos);
+        int64_t time_diff = fabs(pair->first.time_stamp * 1000 - mCurrent);
         if (time_diff > frame_delay)
             need_erase = true;
 
@@ -2016,7 +2023,7 @@ void EditingAudioClip::UpdateClipRange(Clip* clip)
 
 void EditingAudioClip::Seek(int64_t pos)
 {
-    mCurrPos = pos;
+    mCurrent = pos;
 }
 
 void EditingAudioClip::Step(bool forward, int64_t step)
@@ -2310,6 +2317,7 @@ EditingVideoOverlap::EditingVideoOverlap(Overlap* ovlp)
         mClipSecondFrameRate = mClip2->mClipFrameRate;
         if (timeline)
             mMaxCachedVideoFrame = timeline->mMaxCachedVideoFrame;
+        mKeyPoints = ovlp->mKeyPoints;
     }
     else
     {
@@ -2608,10 +2616,13 @@ void EditingVideoOverlap::Save()
     }
     timeline->mVideoFusionBluePrintLock.unlock();
 
+    mOvlp->mKeyPoints = mKeyPoints;
+
     // update video filter in datalayer
     DataLayer::VideoOverlapHolder hOvlp = timeline->mMtvReader->GetOverlapById(mOvlp->mID);
     BluePrintVideoTransition* bpvt = new BluePrintVideoTransition();
     bpvt->SetBluePrintFromJson(mOvlp->mFusionBP);
+    bpvt->SetKeyPoint(mOvlp->mKeyPoints);
     DataLayer::VideoTransitionHolder hTrans(bpvt);
     hOvlp->SetTransition(hTrans);
     timeline->mMtvReader->Refresh();
@@ -3553,7 +3564,7 @@ static int thread_video_filter(TimeLine * timeline)
             int64_t current_time = 0;
             timeline->mVidFilterClip->mFrameLock.lock();
             if (timeline->mVidFilterClip->mFrame.empty() || timeline->mVidFilterClip->bSeeking)
-                current_time = timeline->mVidFilterClip->mCurrPos;
+                current_time = timeline->mVidFilterClip->mCurrent;
             else
             {
                 auto it = timeline->mVidFilterClip->mFrame.end(); it--;
@@ -3574,7 +3585,7 @@ static int thread_video_filter(TimeLine * timeline)
                     frameStepTime(buffer_end, timeline->mVidFilterClip->bForward ? timeline->mMaxCachedVideoFrame : -timeline->mMaxCachedVideoFrame, timeline->mVidFilterClip->mClipFrameRate);
                     if (buffer_start > buffer_end)
                         std::swap(buffer_start, buffer_end);
-                    if (timeline->mVidFilterClip->mCurrPos < buffer_start - frame_delay || timeline->mVidFilterClip->mCurrPos > buffer_end + frame_delay)
+                    if (timeline->mVidFilterClip->mCurrent < buffer_start - frame_delay || timeline->mVidFilterClip->mCurrent > buffer_end + frame_delay)
                     {
                         ImGui::sleep((int)5);
                         break;
@@ -3592,7 +3603,7 @@ static int thread_video_filter(TimeLine * timeline)
                     for (int i = 0; i < timeline->mVidFilterClip->mKeyPoints.GetCurveCount(); i++)
                     {
                         auto name = timeline->mVidFilterClip->mKeyPoints.GetCurveName(i);
-                        auto value = timeline->mVidFilterClip->mKeyPoints.GetValue(i, timeline->mVidFilterClip->mCurrPos);
+                        auto value = timeline->mVidFilterClip->mKeyPoints.GetValue(i, timeline->mVidFilterClip->mCurrent);
                         timeline->mVideoFilterBluePrint->Blueprint_SetFilter(name, value);
                     }
                     if (timeline->mVideoFilterBluePrint->Blueprint_RunFilter(result.first, result.second))
@@ -3727,6 +3738,13 @@ static int thread_video_fusion(TimeLine * timeline)
                     result.first.second.time_stamp = (double)current_time_second / 1000.f;
                     current_time = current_time_first - timeline->mVidOverlap->m_StartOffset.first;
                     timeline->mVideoFusionBluePrintLock.lock();
+                    // setup bp input curve
+                    for (int i = 0; i < timeline->mVidOverlap->mKeyPoints.GetCurveCount(); i++)
+                    {
+                        auto name = timeline->mVidOverlap->mKeyPoints.GetCurveName(i);
+                        auto value = timeline->mVidOverlap->mKeyPoints.GetValue(i, timeline->mVidOverlap->mCurrent);
+                        //timeline->mVideoFusionBluePrint->Blueprint_SetFusion(name, value); // TODO::Dicky
+                    }
                     if (timeline->mVideoFusionBluePrint->Blueprint_RunFusion(result.first.first, result.first.second, result.second, current_time, timeline->mVidOverlap->mDuration))
                     {
                         timeline->mVidOverlap->mFrameLock.lock();
@@ -5361,6 +5379,7 @@ void TimeLine::SyncDataLayer()
                     vidOvlp->SetId(ovlp->mID);
                     BluePrintVideoTransition* bpvt = new BluePrintVideoTransition();
                     bpvt->SetBluePrintFromJson(ovlp->mFusionBP);
+                    bpvt->SetKeyPoint(ovlp->mKeyPoints);
                     DataLayer::VideoTransitionHolder hTrans(bpvt);
                     vidOvlp->SetTransition(hTrans);
                     found = true;
@@ -7355,14 +7374,14 @@ bool DrawClipTimeLine(BaseEditingClip * editingClip, int header_height, int cust
     draw_list->AddRectFilled(window_pos, window_pos + headerSize, COL_DARK_ONE, 0);
 
     ImRect movRect(window_pos, window_pos + window_size);
-    if ( !MovingCurrentTime && editingClip->mCurrPos >= start && movRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && isFocused)
+    if ( !MovingCurrentTime && editingClip->mCurrent >= start && movRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && isFocused)
     {
         MovingCurrentTime = true;
         editingClip->bSeeking = true;
     }
     if (MovingCurrentTime && duration)
     {
-        auto oldPos = editingClip->mCurrPos;
+        auto oldPos = editingClip->mCurrent;
         auto newPos = (int64_t)((io.MousePos.x - movRect.Min.x) / msPixelWidth) + start;
         if (newPos < start)
             newPos = start;
@@ -7411,12 +7430,12 @@ bool DrawClipTimeLine(BaseEditingClip * editingClip, int header_height, int cust
     drawLine(duration, header_height);
     // cursor Arrow
     const float arrowWidth = draw_list->_Data->FontSize;
-    float arrowOffset = window_pos.x + (editingClip->mCurrPos - start) * msPixelWidth - arrowWidth * 0.5f;
+    float arrowOffset = window_pos.x + (editingClip->mCurrent - start) * msPixelWidth - arrowWidth * 0.5f;
     ImGui::RenderArrow(draw_list, ImVec2(arrowOffset, window_pos.y), COL_CURSOR_ARROW, ImGuiDir_Down);
     ImGui::SetWindowFontScale(0.8);
-    auto time_str = TimelineMillisecToString(editingClip->mCurrPos, 2);
+    auto time_str = TimelineMillisecToString(editingClip->mCurrent, 2);
     ImVec2 str_size = ImGui::CalcTextSize(time_str.c_str(), nullptr, true);
-    float strOffset = window_pos.x + (editingClip->mCurrPos - start) * msPixelWidth - str_size.x * 0.5f;
+    float strOffset = window_pos.x + (editingClip->mCurrent - start) * msPixelWidth - str_size.x * 0.5f;
     ImVec2 str_pos = ImVec2(strOffset, window_pos.y + 10);
     draw_list->AddRectFilled(str_pos + ImVec2(-3, 0), str_pos + str_size + ImVec2(3, 3), COL_CURSOR_TEXT_BG, 2.0, ImDrawFlags_RoundCornersAll);
     draw_list->AddText(str_pos, COL_CURSOR_TEXT, time_str.c_str());
@@ -7432,7 +7451,7 @@ bool DrawClipTimeLine(BaseEditingClip * editingClip, int header_height, int cust
 
     // cursor line
     static const float cursorWidth = 2.f;
-    float cursorOffset = contentMin.x + (editingClip ->mCurrPos - start) * msPixelWidth - cursorWidth * 0.5f + 1;
+    float cursorOffset = contentMin.x + (editingClip ->mCurrent - start) * msPixelWidth - cursorWidth * 0.5f + 1;
     draw_list->AddLine(ImVec2(cursorOffset, contentMin.y), ImVec2(cursorOffset, contentMax.y), IM_COL32(0, 255, 0, 224), cursorWidth);
     draw_list->PopClipRect();
     ImGui::EndGroup();
