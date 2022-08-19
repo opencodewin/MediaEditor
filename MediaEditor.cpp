@@ -3326,6 +3326,15 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                         auto curve_index = editing_clip->mKeyPoints.AddCurve(curve_name, ImGui::ImCurveEdit::Smooth, color, true);
                         editing_clip->mKeyPoints.AddPoint(curve_index, ImVec2(0.f, 1.f), ImGui::ImCurveEdit::Smooth);
                         editing_clip->mKeyPoints.AddPoint(curve_index, ImVec2(editing_clip->mEnd - editing_clip->mStart, 1.f), ImGui::ImCurveEdit::Smooth);
+                        // insert curve pin for blueprint entry node
+                        if (timeline->mVideoFilterBluePrint)
+                        {
+                            auto entry_node = timeline->mVideoFilterBluePrint->FindEntryPointNode();
+                            if (entry_node)
+                            {
+                                entry_node->InsertOutputPin(BluePrint::PinType::Float, curve_name);
+                            }
+                        }
                     }
                 }
                 ImGui::PopStyleVar();
@@ -3361,6 +3370,16 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                         ImGui::SameLine();
                         if (ImGui::Button(ICON_DELETE "##curve_video_filter_delete"))
                         {
+                            // delete blueprint entry node pin
+                            auto pin_name = editing_clip->mKeyPoints.GetCurveName(i);
+                            if (timeline->mVideoFilterBluePrint)
+                            {
+                                auto entry_node = timeline->mVideoFilterBluePrint->FindEntryPointNode();
+                                if (entry_node)
+                                {
+                                    entry_node->DeleteOutputPin(pin_name);
+                                }
+                            }
                             editing_clip->mKeyPoints.DeleteCurve(i);
                             break_loop = true;
                         }
