@@ -1614,6 +1614,13 @@ ImGui::ImMat BluePrintVideoFilter::FilterImage(const ImGui::ImMat& vmat, int64_t
     std::lock_guard<std::mutex> lk(mBpLock);
     if (mBp)
     {
+        // setup bp input curve
+        for (int i = 0; i < mKeyPoints.GetCurveCount(); i++)
+        {
+            auto name = mKeyPoints.GetCurveName(i);
+            auto value = mKeyPoints.GetValue(i, pos);
+            mBp->Blueprint_SetFilter(name, value);
+        }
         ImGui::ImMat inMat(vmat);
         ImGui::ImMat outMat;
         mBp->Blueprint_RunFilter(inMat, outMat);
@@ -1748,6 +1755,7 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
     mClipFrameRate = vidclip->mClipFrameRate;
     if (timeline)
         mMaxCachedVideoFrame = timeline->mMaxCachedVideoFrame;
+    mKeyPoints = vidclip->mKeyPoints;
 }
 
 EditingVideoClip::~EditingVideoClip()
@@ -1845,10 +1853,14 @@ void EditingVideoClip::Save()
     }
     timeline->mVideoFilterBluePrintLock.unlock();
 
+    // store key points into clip
+    clip->mKeyPoints = mKeyPoints;
+
     // update video filter in datalayer
     DataLayer::VideoClipHolder hClip = timeline->mMtvReader->GetClipById(clip->mID);
     BluePrintVideoFilter* bpvf = new BluePrintVideoFilter();
     bpvf->SetBluePrintFromJson(clip->mFilterBP);
+    bpvf->SetKeyPoint(clip->mKeyPoints);
     DataLayer::VideoFilterHolder hFilter(bpvf);
     hClip->SetFilter(hFilter);
     timeline->mMtvReader->Refresh();
@@ -2024,6 +2036,9 @@ void EditingAudioClip::Save()
         clip->mFilterBP = timeline->mAudioFilterBluePrint->m_Document->Serialize();
     }
     timeline->mAudioFilterBluePrintLock.unlock();
+
+    // store key points into clip
+    clip->mKeyPoints = mKeyPoints;
 
     // TODO::Dicky update audio filter in datalayer
 
@@ -3573,6 +3588,13 @@ static int thread_video_filter(TimeLine * timeline)
                 {
                     result.first.time_stamp = (double)current_time / 1000.f;
                     timeline->mVideoFilterBluePrintLock.lock();
+                    // setup bp input curve
+                    for (int i = 0; i < timeline->mVidFilterClip->mKeyPoints.GetCurveCount(); i++)
+                    {
+                        auto name = timeline->mVidFilterClip->mKeyPoints.GetCurveName(i);
+                        auto value = timeline->mVidFilterClip->mKeyPoints.GetValue(i, timeline->mVidFilterClip->mCurrPos);
+                        timeline->mVideoFilterBluePrint->Blueprint_SetFilter(name, value);
+                    }
                     if (timeline->mVideoFilterBluePrint->Blueprint_RunFilter(result.first, result.second))
                     {
                         timeline->mVidFilterClip->mFrameLock.lock();
@@ -5027,6 +5049,7 @@ int TimeLine::Load(const imgui_json::value& value)
 
                 BluePrintVideoFilter* bpvf = new BluePrintVideoFilter();
                 bpvf->SetBluePrintFromJson(clip->mFilterBP);
+                bpvf->SetKeyPoint(clip->mKeyPoints);
                 DataLayer::VideoFilterHolder hFilter(bpvf);
                 vidClip->SetFilter(hFilter);
             }

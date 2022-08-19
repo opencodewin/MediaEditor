@@ -458,9 +458,11 @@ public:
     ImGui::ImMat FilterImage(const ImGui::ImMat& vmat, int64_t pos) override;
 
     void SetBluePrintFromJson(imgui_json::value& bpJson);
+    void SetKeyPoint(ImGui::KeyPointEditor &keypoint) { mKeyPoints = keypoint; };
 
 private:
     BluePrint::BluePrintUI* mBp{nullptr};
+    ImGui::KeyPointEditor mKeyPoints;
     std::mutex mBpLock;
 };
 
@@ -499,6 +501,7 @@ struct BaseEditingClip
 
     void* mHandle               {nullptr};              // main timeline handle
     MediaReader* mMediaReader   {nullptr};              // editing clip media reader
+    ImGui::KeyPointEditor       mKeyPoints;             // editing clip  key points
 
     BaseEditingClip(int64_t id, MEDIA_TYPE type, int64_t start, int64_t end, int64_t startOffset, int64_t endOffset, void* handle)
         : mID(id), mType(type), mStart(start), mEnd(end), mStartOffset(startOffset), mEndOffset(endOffset), mHandle(handle)
