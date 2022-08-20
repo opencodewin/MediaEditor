@@ -530,8 +530,8 @@ void Clip::Cutting(int64_t pos)
                 Logger::Log(Logger::WARN) << "Unhandled 'CUTTING' action!" << std::endl;
                 break;
         }
-        // TODO::Dicky update overlap if org clip is overlap with other
     }
+    // TODO::Dicky update overlap
 }
 
 int64_t Clip::Moving(int64_t diff, int mouse_track)
