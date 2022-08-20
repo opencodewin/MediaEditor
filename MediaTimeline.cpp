@@ -396,6 +396,12 @@ int64_t Clip::Cropping(int64_t diff, int type)
         }
     }
     mKeyPoints.SetMax(ImVec2(mEnd - mStart, 1.f), true);
+    if (timeline->mVidFilterClip && timeline->mVidFilterClip->mID == mID)
+    {
+        timeline->mVidFilterClip->mStart = mStart;
+        timeline->mVidFilterClip->mEnd = mEnd;
+        timeline->mVidFilterClip->mKeyPoints.SetMax(ImVec2(mEnd - mStart, 1.f), true);
+    }
     track->Update();
     return new_diff;
 }
@@ -472,6 +478,15 @@ void Clip::Cutting(int64_t pos)
         timeline->AddClipIntoGroup(new_clip, mGroupID);
         timeline->Updata();
 
+        // update curve
+        mKeyPoints.SetMax(ImVec2(mEnd - mStart, 1.f), true);
+        if (timeline->mVidFilterClip && timeline->mVidFilterClip->mID == mID)
+        {
+            timeline->mVidFilterClip->mStart = mStart;
+            timeline->mVidFilterClip->mEnd = mEnd;
+            timeline->mVidFilterClip->mKeyPoints.SetMax(ImVec2(mEnd - mStart, 1.f), true);
+        }
+
         // sync this action to data layer
         switch (mType)
         {
@@ -515,6 +530,7 @@ void Clip::Cutting(int64_t pos)
                 Logger::Log(Logger::WARN) << "Unhandled 'CUTTING' action!" << std::endl;
                 break;
         }
+        // TODO::Dicky update overlap if org clip is overlap with other
     }
 }
 
@@ -1682,7 +1698,7 @@ ImGui::ImMat BluePrintVideoTransition::MixTwoImages(const ImGui::ImMat& vmat1, c
         {
             auto name = mKeyPoints.GetCurveName(i);
             auto value = mKeyPoints.GetValue(i, pos);
-            //mBp->Blueprint_SetFusion(name, value); // TODO::Dicky
+            mBp->Blueprint_SetFusion(name, value);
         }
         ImGui::ImMat inMat1(vmat1), inMat2(vmat2);
         ImGui::ImMat outMat;
@@ -2362,7 +2378,9 @@ void EditingVideoOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
     if (mViewWndSize.x == 0 || mViewWndSize.y == 0)
         return;
     if (ovlpRngChanged || vwndChanged)
+    {
         CalcDisplayParams();
+    }
 
     // get snapshot images
     m_StartOffset.first = mClip1->mStartOffset + mOvlp->mStart-mClip1->mStart;
@@ -3743,7 +3761,7 @@ static int thread_video_fusion(TimeLine * timeline)
                     {
                         auto name = timeline->mVidOverlap->mKeyPoints.GetCurveName(i);
                         auto value = timeline->mVidOverlap->mKeyPoints.GetValue(i, timeline->mVidOverlap->mCurrent);
-                        //timeline->mVideoFusionBluePrint->Blueprint_SetFusion(name, value); // TODO::Dicky
+                        timeline->mVideoFusionBluePrint->Blueprint_SetFusion(name, value);
                     }
                     if (timeline->mVideoFusionBluePrint->Blueprint_RunFusion(result.first.first, result.first.second, result.second, current_time, timeline->mVidOverlap->mDuration))
                     {
