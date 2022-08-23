@@ -3297,13 +3297,14 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                 ImGui::TreePop();
             }
             // Filter curve setting
+            bool name_input_with_return = false;
             if (ImGui::TreeNodeEx("Curve Setting##video_filter", ImGuiTreeNodeFlags_DefaultOpen))
             {
                 char ** curve_type_list = nullptr;
                 auto curve_type_count = ImGui::ImCurveEdit::GetCurveTypeName(curve_type_list);
                 static std::string curve_name = "";
                 std::string value = curve_name;
-                if (ImGui::InputTextWithHint("##new_curve_name_video_filter", "Input curve name", (char*)value.data(), value.size() + 1, ImGuiInputTextFlags_CallbackEdit | ImGuiInputTextFlags_CallbackResize, [](ImGuiInputTextCallbackData* data) -> int
+                if (ImGui::InputTextWithHint("##new_curve_name_video_filter", "Input curve name", (char*)value.data(), value.size() + 1, ImGuiInputTextFlags_CallbackEdit | ImGuiInputTextFlags_CallbackResize | ImGuiInputTextFlags_EnterReturnsTrue, [](ImGuiInputTextCallbackData* data) -> int
                 {
                     if (data->EventFlag == ImGuiInputTextFlags_CallbackResize)
                     {
@@ -3323,20 +3324,21 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                 {
                     value.resize(strlen(value.c_str()));
                     curve_name = value;
+                    name_input_with_return = true;
                 }
 
                 ImGui::BeginDisabled(curve_name.empty());
                 ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 8.0f);
                 ImGui::SameLine();
-                if (ImGui::Button(ICON_ADD "##insert_curve_video_filter"))
+                if (ImGui::Button(ICON_ADD "##insert_curve_video_filter") || name_input_with_return)
                 {
                     auto found = timeline->mVidFilterClip->mKeyPoints.GetCurveIndex(curve_name);
                     if (found == -1)
                     {
                         ImU32 color; ImGui::RandomColor(color, 1.f);
                         auto curve_index = timeline->mVidFilterClip->mKeyPoints.AddCurve(curve_name, ImGui::ImCurveEdit::Smooth, color, true, 0.f, 1.f, 0.f);
-                        timeline->mVidFilterClip->mKeyPoints.AddPoint(curve_index, ImVec2(0.f, 1.f), ImGui::ImCurveEdit::Smooth);
-                        timeline->mVidFilterClip->mKeyPoints.AddPoint(curve_index, ImVec2(timeline->mVidFilterClip->mEnd - timeline->mVidFilterClip->mStart, 1.f), ImGui::ImCurveEdit::Smooth);
+                        timeline->mVidFilterClip->mKeyPoints.AddPoint(curve_index, ImVec2(0.f, 0.5f), ImGui::ImCurveEdit::Smooth);
+                        timeline->mVidFilterClip->mKeyPoints.AddPoint(curve_index, ImVec2(timeline->mVidFilterClip->mEnd - timeline->mVidFilterClip->mStart, 0.5f), ImGui::ImCurveEdit::Smooth);
                         // insert curve pin for blueprint entry node
                         if (timeline->mVideoFilterBluePrint)
                         {
@@ -3780,13 +3782,14 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
                 ImGui::TreePop();
             }
             // Overlap curve setting
+            bool name_input_with_return = false;
             if (ImGui::TreeNodeEx("Curve Setting##video_fusion", ImGuiTreeNodeFlags_DefaultOpen))
             {
                 char ** curve_type_list = nullptr;
                 auto curve_type_count = ImGui::ImCurveEdit::GetCurveTypeName(curve_type_list);
                 static std::string curve_name = "";
                 std::string value = curve_name;
-                if (ImGui::InputTextWithHint("##new_curve_name_video_fusion", "Input curve name", (char*)value.data(), value.size() + 1, ImGuiInputTextFlags_CallbackEdit | ImGuiInputTextFlags_CallbackResize, [](ImGuiInputTextCallbackData* data) -> int
+                if (ImGui::InputTextWithHint("##new_curve_name_video_fusion", "Input curve name", (char*)value.data(), value.size() + 1, ImGuiInputTextFlags_CallbackEdit | ImGuiInputTextFlags_CallbackResize | ImGuiInputTextFlags_EnterReturnsTrue, [](ImGuiInputTextCallbackData* data) -> int
                 {
                     if (data->EventFlag == ImGuiInputTextFlags_CallbackResize)
                     {
@@ -3806,20 +3809,21 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
                 {
                     value.resize(strlen(value.c_str()));
                     curve_name = value;
+                    name_input_with_return = true;
                 }
 
                 ImGui::BeginDisabled(curve_name.empty());
                 ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 8.0f);
                 ImGui::SameLine();
-                if (ImGui::Button(ICON_ADD "##insert_curve_video_fusion"))
+                if (ImGui::Button(ICON_ADD "##insert_curve_video_fusion") || name_input_with_return)
                 {
                     auto found = timeline->mVidOverlap->mKeyPoints.GetCurveIndex(curve_name);
                     if (found == -1)
                     {
                         ImU32 color; ImGui::RandomColor(color, 1.f);
-                        auto curve_index = timeline->mVidOverlap->mKeyPoints.AddCurve(curve_name, ImGui::ImCurveEdit::Smooth, color, true, 0.f, 1.f, 0.f);
-                        timeline->mVidOverlap->mKeyPoints.AddPoint(curve_index, ImVec2(0.f, 0.f), ImGui::ImCurveEdit::Smooth);
-                        timeline->mVidOverlap->mKeyPoints.AddPoint(curve_index, ImVec2(timeline->mVidOverlap->mEnd - timeline->mVidOverlap->mStart, 1.f), ImGui::ImCurveEdit::Smooth);
+                        auto curve_index = timeline->mVidOverlap->mKeyPoints.AddCurve(curve_name, ImGui::ImCurveEdit::Linear, color, true, 0.f, 1.f, 0.f);
+                        timeline->mVidOverlap->mKeyPoints.AddPoint(curve_index, ImVec2(0.f, 0.f), ImGui::ImCurveEdit::Linear);
+                        timeline->mVidOverlap->mKeyPoints.AddPoint(curve_index, ImVec2(timeline->mVidOverlap->mEnd - timeline->mVidOverlap->mStart, 1.f), ImGui::ImCurveEdit::Linear);
                         // insert curve pin for blueprint entry node
                         if (timeline->mVideoFusionBluePrint)
                         {
@@ -3846,22 +3850,42 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
                         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
                         float value = timeline->mVidOverlap->mKeyPoints.GetValue(i, timeline->mVidOverlap->mCurrent);
                         ImGui::BracketSquare(true); ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0, 1.0, 0.0, 1.0)); ImGui::Text("%.2f", value); ImGui::PopStyleColor();
-                        ImGui::SameLine(0, 100);
+                        ImGui::PushItemWidth(60);
+                        float curve_min = timeline->mVidOverlap->mKeyPoints.GetCurveMin(i);
+                        float curve_max = timeline->mVidOverlap->mKeyPoints.GetCurveMax(i);
+                        if (ImGui::DragFloat("##curve_video_fusion_min", &curve_min, 0.1f, -FLT_MAX, curve_max, "%.1f"))
+                        {
+                            timeline->mVidOverlap->mKeyPoints.SetCurveMin(i, curve_min);
+                        } ImGui::ShowTooltipOnHover("Min");
+                        ImGui::SameLine(0, 8);
+                        if (ImGui::DragFloat("##curve_video_fusion_max", &curve_max, 0.1f, curve_min, FLT_MAX, "%.1f"))
+                        {
+                            timeline->mVidOverlap->mKeyPoints.SetCurveMax(i, curve_max);
+                        } ImGui::ShowTooltipOnHover("Max");
+                        ImGui::SameLine(0, 8);
+                        float curve_default = timeline->mVidOverlap->mKeyPoints.GetCurveDefault(i);
+                        if (ImGui::DragFloat("##curve_video_fusion_default", &curve_default, 0.1f, curve_min, curve_max, "%.1f"))
+                        {
+                            timeline->mVidOverlap->mKeyPoints.SetCurveDefault(i, curve_default);
+                        } ImGui::ShowTooltipOnHover("Default");
+                        ImGui::PopItemWidth();
+
+                        ImGui::SameLine(0, 8);
                         ImGui::SetWindowFontScale(0.75);
                         auto curve_color = ImGui::ColorConvertU32ToFloat4(timeline->mVidOverlap->mKeyPoints.GetCurveColor(i));
                         if (ImGui::ColorEdit4("##curve_video_fusion_color", (float*)&curve_color, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar))
                         {
                             timeline->mVidOverlap->mKeyPoints.SetCurveColor(i, ImGui::ColorConvertFloat4ToU32(curve_color));
-                        }
+                        } ImGui::ShowTooltipOnHover("Curve Color");
                         ImGui::SetWindowFontScale(1.0);
-                        ImGui::SameLine(0, 8);
+                        ImGui::SameLine(0, 4);
                         bool is_visiable = timeline->mVidOverlap->mKeyPoints.IsVisible(i);
                         if (ImGui::Button(is_visiable ? ICON_WATCH : ICON_UNWATCH "##curve_video_fusion_visiable"))
                         {
                             is_visiable = !is_visiable;
                             timeline->mVidOverlap->mKeyPoints.SetCurveVisible(i, is_visiable);
-                        }
-                        ImGui::SameLine();
+                        } ImGui::ShowTooltipOnHover( is_visiable ? "Hide" : "Show");
+                        ImGui::SameLine(0, 4);
                         if (ImGui::Button(ICON_DELETE "##curve_video_fusion_delete"))
                         {
                             // delete blueprint entry node pin
@@ -3876,7 +3900,15 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
                             }
                             timeline->mVidOverlap->mKeyPoints.DeleteCurve(i);
                             break_loop = true;
-                        }
+                        } ImGui::ShowTooltipOnHover("Delete");
+                        ImGui::SameLine(0, 4);
+                        if (ImGui::Button(ICON_RETURN_DEFAULT "##curve_video_fusion_reset"))
+                        {
+                            for (int p = 0; p < pCount; p++)
+                            {
+                                timeline->mVidOverlap->mKeyPoints.SetCurvePointDefault(i, p);
+                            }
+                        } ImGui::ShowTooltipOnHover("Reset");
 
                         if (!break_loop)
                         {
@@ -3897,7 +3929,7 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
                                 }
                                 ImGui::EndDisabled();
                                 ImGui::SameLine();
-                                if (ImGui::DragFloat("##curve_video_fusion_point_y", &point.point.y, 0.02f, timeline->mVidOverlap->mKeyPoints.GetMin().y, timeline->mVidOverlap->mKeyPoints.GetMax().y, "%.2f"))
+                                if (ImGui::DragFloat("##curve_video_fusion_point_y", &point.point.y, 0.01f, timeline->mVidOverlap->mKeyPoints.GetCurveMin(i), timeline->mVidOverlap->mKeyPoints.GetCurveMax(i), "%.2f"))
                                 {
                                     timeline->mVidOverlap->mKeyPoints.EditPoint(i, p, point.point, point.type);
                                 }
