@@ -1408,6 +1408,7 @@ void TextClip::CreateClipHold(void * _track)
     mClipHolder->EnableUsingTrackStyle(mTrackStyle);
     if (!mTrackStyle)
     {
+        mClipHolder->SetFont(mFontName);
         mClipHolder->SetOffsetH(mFontOffsetH);
         mClipHolder->SetOffsetV(mFontOffsetV);
         mClipHolder->SetScaleX(mFontScaleX);
@@ -4703,7 +4704,8 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &view_r
             clip_pos_max = custom_pos_max;
         }
         // Check if clip is outof view rect then don't draw
-        ImRect clip_rect(clip_pos_min, clip_pos_max);
+        ImRect clip_rect(clip_title_pos_min, clip_pos_max);
+        ImRect clip_area_rect(clip_pos_min, clip_pos_max);
         if (!clip_rect.Overlaps(view_rc))
         {
             draw_clip = false;
@@ -4749,14 +4751,9 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &view_r
             // Clip select
             if (enable_select)
             {
-                ImGui::SetCursorScreenPos(clip_title_pos_min);
-                ImGui::PushID(clip->mID);
-                const ImGuiID id = ImGui::GetCurrentWindow()->GetID("#track_clips");
-                ImGui::PopID();
-                ImGui::BeginChildFrame(id, clip_pos_max - clip_title_pos_min, ImGuiWindowFlags_NoScrollbar);
-                ImGui::InvisibleButton("#track_clips", clip_pos_max - clip_title_pos_min);
-                if (ImGui::IsItemHovered())
+                if (clip_rect.Contains(io.MousePos) )
                 {
+                    draw_list->AddRect(clip_rect.Min, clip_rect.Max, IM_COL32(255,255,255,255), 0, 0, 1.0f);
                     const bool is_shift_key_only = (io.KeyMods == ImGuiKeyModFlags_Shift);
                     bool appand = (ImGui::IsKeyDown(ImGuiKey_LeftShift) || ImGui::IsKeyDown(ImGuiKey_RightShift)) && is_shift_key_only;
                     bool can_be_select = false;
@@ -4772,12 +4769,11 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &view_r
                         SelectTrack(index);
                         mouse_clicked = true;
                     }
-                    else if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+                    else if (track->mExpanded && clip_area_rect.Contains(io.MousePos) && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
                     {
                         track->SelectEditingClip(clip);
                     }
                 }
-                ImGui::EndChildFrame();
             }
         }
     }
@@ -4825,31 +4821,22 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &view_r
 
         if (draw_overlap && cursor_end > cursor_start)
         {
-            ImGui::SetCursorScreenPos(overlap_pos_min);
-            ImGui::PushID(overlap->mID);
-            const ImGuiID id = ImGui::GetCurrentWindow()->GetID("#clip_overlap");
-            ImGui::PopID();
-            ImGui::BeginChildFrame(id, overlap_pos_max - overlap_pos_min, ImGuiWindowFlags_NoScrollbar);
-            ImGui::InvisibleButton("#clip_overlap", overlap_pos_max - overlap_pos_min);
-            if (ImGui::IsItemHovered())
+            if (overlap->bEditing)
+            {
+                draw_list->AddRect(overlap_pos_min, overlap_pos_max, IM_COL32(255, 0, 255, 255));
+            }
+            if (overlap_rect.Contains(io.MousePos))
             {
                 draw_list->AddRectFilled(overlap_pos_min, overlap_pos_max, IM_COL32(255,32,32,128));
-                if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+                if (enable_select && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
                 {
                     track->SelectEditingOverlap(overlap);
                 }
             }
             else
                 draw_list->AddRectFilled(overlap_pos_min, overlap_pos_max, IM_COL32(128,32,32,128));
-            
             draw_list->AddLine(overlap_pos_min, overlap_pos_max, IM_COL32(0, 0, 0, 255));
             draw_list->AddLine(ImVec2(overlap_pos_max.x, overlap_pos_min.y), ImVec2(overlap_pos_min.x, overlap_pos_max.y), IM_COL32(0, 0, 0, 255));
-            
-            if (overlap->bEditing)
-            {
-                draw_list->AddRect(overlap_pos_min, overlap_pos_max, IM_COL32(255, 0, 255, 255));
-            }
-            ImGui::EndChildFrame();
         }
     }
     draw_list->PopClipRect();
