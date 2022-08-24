@@ -1408,6 +1408,7 @@ void TextClip::CreateClipHold(void * _track)
     mClipHolder->EnableUsingTrackStyle(mTrackStyle);
     if (!mTrackStyle)
     {
+        mClipHolder->SetFont(mFontName);
         mClipHolder->SetOffsetH(mFontOffsetH);
         mClipHolder->SetOffsetV(mFontOffsetV);
         mClipHolder->SetScaleX(mFontScaleX);

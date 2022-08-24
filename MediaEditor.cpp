@@ -4256,13 +4256,14 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
             if (ImGui::Selectable(fontFamilies[i].c_str(), is_selected))
             {
                 clip->mFontName = fontFamilies[i];
+                clip->mClipHolder->SetFont(clip->mFontName);
                 update_preview = true;
             }
             if (is_selected)
                 ImGui::SetItemDefaultFocus();
         }
         ImGui::EndCombo();
-    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##clip_font_family_default")) { clip->mFontName = style.Font(); update_preview = true; }
+    } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##clip_font_family_default")) { clip->mFontName = style.Font(); clip->mClipHolder->SetFont(clip->mFontName); update_preview = true; }
     float pos_x = clip->mFontPosX;
     if (ImGui::SliderFloat("Font position X", &pos_x, - default_size.x, timeline->mWidth, "%.0f"))
     {
