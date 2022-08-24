@@ -15,6 +15,7 @@
 #include <cmath>
 #include <chrono>
 #include "MultiTrackVideoReader.h"
+#include "FFVideoFilter.h"
 #include "FFUtils.h"
 #include "Logger.h"
 
@@ -477,13 +478,26 @@ bool Application_Frame(void * handle, bool app_will_quit)
                 hTrack->OutWidth(), hTrack->OutHeight(), hTrack->FrameRate(),
                 (int64_t)(s_addClipStart*1000), (int64_t)(s_addClipStartOffset*1000), (int64_t)(s_addClipEndOffset*1000),
                 (int64_t)((playPos-s_addClipStart)*1000)));
-            hTrack->InsertClip(hClip);
-            g_mtVidReader->Refresh();
+            FFTransformVideoFilter* fftransFilter = NewFFTransformVideoFilter();
+            if (!fftransFilter->Initialize(hTrack->OutWidth(), hTrack->OutHeight(), "RGBA"))
+            {
+                Log(Error) << "FFTransformVideoFilter::Initialize() FAILED! " << fftransFilter->GetError() << endl;
+                delete fftransFilter;
+            }
+            else
+            {
+                fftransFilter->SetCropMargin(700, 100, 100, 100);
+                // fftransFilter->SetPositionOffset(0, -400);
+                fftransFilter->SetRotation(40);
+                hClip->SetFilter(VideoFilterHolder(fftransFilter));
+                hTrack->InsertClip(hClip);
+                g_mtVidReader->Refresh();
 
-            s_addClipOptSelIdx = g_mtVidReader->TrackCount();
-            s_addClipStart = 0;
-            s_addClipStartOffset = 0;
-            s_addClipEndOffset = 0;
+                s_addClipOptSelIdx = g_mtVidReader->TrackCount();
+                s_addClipStart = 0;
+                s_addClipStartOffset = 0;
+                s_addClipEndOffset = 0;
+            }
         }
         ImGuiFileDialog::Instance()->Close();
     }

@@ -288,6 +288,7 @@ add_executable(
     MultiTrackVideoReader.cpp
     VideoTrack.cpp
     VideoClip.cpp
+    FFVideoFilter.cpp
     MediaReader.cpp
     MediaParser.cpp
     SubtitleClip_AssImpl.cpp

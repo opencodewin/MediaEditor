@@ -938,7 +938,7 @@ bool ImMatToAVFrameConverter::SetResizeInterpolateMode(ImInterpolateMode interp)
     return true;
 }
 
-bool ImMatToAVFrameConverter::ConvertImage(ImGui::ImMat& vmat, AVFrame* avfrm, int64_t pts)
+bool ImMatToAVFrameConverter::ConvertImage(const ImGui::ImMat& vmat, AVFrame* avfrm, int64_t pts)
 {
     ImGui::ImMat inMat = vmat;
     if (m_useVulkanComponents)

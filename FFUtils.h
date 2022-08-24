@@ -101,7 +101,7 @@ public:
     bool SetOutColorSpace(AVColorSpace clrspc);
     bool SetOutColorRange(AVColorRange clrrng);
     bool SetResizeInterpolateMode(ImInterpolateMode interp);
-    bool ConvertImage(ImGui::ImMat& inMat, AVFrame* avfrm, int64_t pts);
+    bool ConvertImage(const ImGui::ImMat& inMat, AVFrame* avfrm, int64_t pts);
 
     uint32_t GetOutWidth() const { return m_outWidth; }
     uint32_t GetOutHeight() const { return m_outHeight; }
