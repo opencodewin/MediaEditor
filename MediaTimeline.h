@@ -524,7 +524,6 @@ struct EditingVideoClip : BaseEditingClip
     SnapshotGenerator::ViewerHolder mSsViewer;
     ImVec2 mSnapSize            {0, 0};
     MediaInfo::Ratio mClipFrameRate {25, 1};                    // clip Frame rate
-    int mMaxCachedVideoFrame    {10};                           // clip Media Video Frame cache size
 
     std::mutex mFrameLock;                                      // clip frame mutex
     std::list<std::pair<ImGui::ImMat, ImGui::ImMat>> mFrame;    // clip timeline input/output frame pair
@@ -588,7 +587,6 @@ struct EditingVideoOverlap : BaseEditingOverlap
     SnapshotGeneratorHolder mSsGen1, mSsGen2;
     SnapshotGenerator::ViewerHolder mViewer1, mViewer2;
     ImVec2 mSnapSize{0, 0};
-    int mMaxCachedVideoFrame    {10};                           // clip Media Video Frame cache size
     int64_t mLastFrameTime  {-1};
 
     MediaInfo::Ratio mClipFirstFrameRate {25, 1};     // overlap clip first Frame rate

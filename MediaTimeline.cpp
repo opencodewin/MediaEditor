@@ -1777,8 +1777,6 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
         }
     }
     mClipFrameRate = vidclip->mClipFrameRate;
-    if (timeline)
-        mMaxCachedVideoFrame = timeline->mMaxCachedVideoFrame;
     mKeyPoints = vidclip->mKeyPoints;
 }
 
@@ -1893,13 +1891,14 @@ void EditingVideoClip::Save()
 bool EditingVideoClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame)
 {
     int ret = false;
-    if (mFrame.empty())
+    TimeLine * timeline = (TimeLine *)mHandle;
+    if (!timeline || mFrame.empty())
         return ret;
 
     auto frame_delay = mClipFrameRate.den * 1000 / mClipFrameRate.num;
     int64_t buffer_start = mFrame.begin()->first.time_stamp * 1000;
     int64_t buffer_end = buffer_start;
-    frameStepTime(buffer_end, bForward ? mMaxCachedVideoFrame : -mMaxCachedVideoFrame, mClipFrameRate);
+    frameStepTime(buffer_end, bForward ? timeline->mMaxCachedVideoFrame : -timeline->mMaxCachedVideoFrame, mClipFrameRate);
     if (buffer_start > buffer_end)
         std::swap(buffer_start, buffer_end);
 
@@ -2332,8 +2331,6 @@ EditingVideoOverlap::EditingVideoOverlap(Overlap* ovlp)
         }
         mClipFirstFrameRate = mClip1->mClipFrameRate;
         mClipSecondFrameRate = mClip2->mClipFrameRate;
-        if (timeline)
-            mMaxCachedVideoFrame = timeline->mMaxCachedVideoFrame;
         mKeyPoints = ovlp->mKeyPoints;
     }
     else
@@ -2538,7 +2535,8 @@ void EditingVideoOverlap::Step(bool forward, int64_t step)
 bool EditingVideoOverlap::GetFrame(std::pair<std::pair<ImGui::ImMat, ImGui::ImMat>, ImGui::ImMat>& in_out_frame)
 {
     int ret = false;
-    if (mFrame.empty())
+    TimeLine* timeline = (TimeLine*)(mOvlp->mHandle);
+    if (!timeline || mFrame.empty())
         return ret;
 
     auto frame_delay_first = mClipFirstFrameRate.den * 1000 / mClipFirstFrameRate.num;
@@ -2546,13 +2544,13 @@ bool EditingVideoOverlap::GetFrame(std::pair<std::pair<ImGui::ImMat, ImGui::ImMa
 
     int64_t buffer_start_first = mFrame.begin()->first.first.time_stamp * 1000;
     int64_t buffer_end_first = buffer_start_first;
-    frameStepTime(buffer_end_first, bForward ? mMaxCachedVideoFrame : -mMaxCachedVideoFrame, mClipFirstFrameRate);
+    frameStepTime(buffer_end_first, bForward ? timeline->mMaxCachedVideoFrame : -timeline->mMaxCachedVideoFrame, mClipFirstFrameRate);
     if (buffer_start_first > buffer_end_first)
         std::swap(buffer_start_first, buffer_end_first);
 
     int64_t buffer_start_second = mFrame.begin()->first.second.time_stamp * 1000;
     int64_t buffer_end_second = buffer_start_second;
-    frameStepTime(buffer_end_second, bForward ? mMaxCachedVideoFrame : -mMaxCachedVideoFrame, mClipSecondFrameRate);
+    frameStepTime(buffer_end_second, bForward ? timeline->mMaxCachedVideoFrame : -timeline->mMaxCachedVideoFrame, mClipSecondFrameRate);
     if (buffer_start_second > buffer_end_second)
         std::swap(buffer_start_second, buffer_end_second);
 
@@ -3093,6 +3091,8 @@ void MediaTrack::SelectEditingClip(Clip * clip)
     clip->bEditing = true;
     if (clip->mType == MEDIA_VIDEO)
     {
+        if (!timeline->mVidFilterClip)
+            timeline->mVidFilterClip = new EditingVideoClip((VideoClip*)clip);
         if (timeline->mVideoFilterBluePrint && timeline->mVideoFilterBluePrint->m_Document)
         {                
             timeline->mVideoFilterBluePrintLock.lock();
@@ -3100,11 +3100,11 @@ void MediaTrack::SelectEditingClip(Clip * clip)
             timeline->mVideoFilterNeedUpdate = true;
             timeline->mVideoFilterBluePrintLock.unlock();
         }
-        if (!timeline->mVidFilterClip)
-            timeline->mVidFilterClip = new EditingVideoClip((VideoClip*)clip);
     }
     else if (clip->mType == MEDIA_AUDIO)
     {
+        if (!timeline->mAudFilterClip)
+            timeline->mAudFilterClip = new EditingAudioClip((AudioClip*)clip);
         if (timeline->mAudioFilterBluePrint && timeline->mAudioFilterBluePrint->m_Document)
         {                
             timeline->mAudioFilterBluePrintLock.lock();
@@ -3112,8 +3112,6 @@ void MediaTrack::SelectEditingClip(Clip * clip)
             timeline->mAudioFilterNeedUpdate = true;
             timeline->mAudioFilterBluePrintLock.unlock();
         }
-        if (!timeline->mAudFilterClip)
-            timeline->mAudFilterClip = new EditingAudioClip((AudioClip*)clip);
     }
 }
 
@@ -3551,10 +3549,21 @@ static int thread_video_filter(TimeLine * timeline)
     timeline->mVideoFilterRunning = true;
     while (!timeline->mVideoFilterDone)
     {
+        if (timeline->mVideoFilterNeedUpdate)
+        {
+            if (timeline->mVidFilterClip)
+            {
+                timeline->mVidFilterClip->mFrameLock.lock();
+                timeline->mVidFilterClip->mFrame.clear();
+                timeline->mVidFilterClip->mLastFrameTime = -1;
+                timeline->mVidFilterClip->mLastTime = -1;
+                timeline->mVidFilterClip->mFrameLock.unlock();
+            }
+            timeline->mVideoFilterNeedUpdate = false;
+        }
         if (!timeline->mVidFilterClip || !timeline->mVidFilterClip->mMediaReader || !timeline->mVidFilterClip->mMediaReader->IsOpened() ||
             !timeline->mVideoFilterBluePrint || !timeline->mVideoFilterBluePrint->Blueprint_IsValid())
         {
-            timeline->mVideoFilterNeedUpdate = false;
             ImGui::sleep((int)5);
             continue;
         }
@@ -3565,14 +3574,6 @@ static int thread_video_filter(TimeLine * timeline)
                 timeline->mVidFilterClipLock.unlock();
                 ImGui::sleep((int)5);
                 continue;
-            }
-            if (timeline->mVideoFilterNeedUpdate)
-            {
-                timeline->mVidFilterClip->mFrameLock.lock();
-                timeline->mVidFilterClip->mFrame.clear();
-                timeline->mVidFilterClip->mLastFrameTime = -1;
-                timeline->mVidFilterClip->mFrameLock.unlock();
-                timeline->mVideoFilterNeedUpdate = false;
             }
             if (timeline->mVidFilterClip->mFrame.size() >= timeline->mMaxCachedVideoFrame)
             {
