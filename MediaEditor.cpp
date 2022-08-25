@@ -3268,14 +3268,16 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
             draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_ONE);
             if (timeline->mVidFilterClip)
             {
+                bool _changed = false;
                 mouse_hold |= ImGui::ImCurveEdit::Edit(timeline->mVidFilterClip->mKeyPoints,
                                                         sub_window_size, 
                                                         ImGui::GetID("##video_filter_keypoint_editor"), 
                                                         CURVE_EDIT_FLAG_VALUE_LIMITED | CURVE_EDIT_FLAG_MOVE_CURVE | CURVE_EDIT_FLAG_KEEP_BEGIN_END | CURVE_EDIT_FLAG_DOCK_BEGIN_END, 
                                                         nullptr, // clippingRect
-                                                        &timeline->mVideoFilterNeedUpdate,
+                                                        &_changed,
                                                         nullptr, // selectedPoints
                                                         timeline->mVidFilterClip->mCurrent - editing_clip->mStartOffset);
+                timeline->mVideoFilterNeedUpdate |= _changed;
             }
         }
         ImGui::EndChild();
@@ -3753,14 +3755,16 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
             draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_ONE);
             if (timeline->mVidOverlap)
             {
+                bool changed = false;
                 mouse_hold |= ImGui::ImCurveEdit::Edit(timeline->mVidOverlap->mKeyPoints, 
                                                         sub_window_size, 
                                                         ImGui::GetID("##video_fusion_keypoint_editor"), 
                                                         CURVE_EDIT_FLAG_VALUE_LIMITED | CURVE_EDIT_FLAG_MOVE_CURVE | CURVE_EDIT_FLAG_KEEP_BEGIN_END | CURVE_EDIT_FLAG_DOCK_BEGIN_END, 
                                                         nullptr, // clippingRect
-                                                        &timeline->mVideoFusionNeedUpdate,
+                                                        &changed,
                                                         nullptr, // selectedPoints
                                                         timeline->mVidOverlap->mCurrent);
+                timeline->mVideoFusionNeedUpdate |= changed;
             }
         }
         ImGui::EndChild();

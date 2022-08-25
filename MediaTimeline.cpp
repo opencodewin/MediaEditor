@@ -3549,16 +3549,13 @@ static int thread_video_filter(TimeLine * timeline)
     timeline->mVideoFilterRunning = true;
     while (!timeline->mVideoFilterDone)
     {
-        if (timeline->mVideoFilterNeedUpdate)
+        if (timeline->mVideoFilterNeedUpdate && timeline->mVidFilterClip)
         {
-            if (timeline->mVidFilterClip)
-            {
-                timeline->mVidFilterClip->mFrameLock.lock();
-                timeline->mVidFilterClip->mFrame.clear();
-                timeline->mVidFilterClip->mLastFrameTime = -1;
-                timeline->mVidFilterClip->mLastTime = -1;
-                timeline->mVidFilterClip->mFrameLock.unlock();
-            }
+            timeline->mVidFilterClip->mFrameLock.lock();
+            timeline->mVidFilterClip->mFrame.clear();
+            timeline->mVidFilterClip->mLastFrameTime = -1;
+            timeline->mVidFilterClip->mLastTime = -1;
+            timeline->mVidFilterClip->mFrameLock.unlock();
             timeline->mVideoFilterNeedUpdate = false;
         }
         if (!timeline->mVidFilterClip || !timeline->mVidFilterClip->mMediaReader || !timeline->mVidFilterClip->mMediaReader->IsOpened() ||
@@ -3569,12 +3566,6 @@ static int thread_video_filter(TimeLine * timeline)
         }
         timeline->mVidFilterClipLock.lock();
         {
-            if (!timeline->mVidFilterClip || !timeline->mVidFilterClip->mMediaReader)
-            {
-                timeline->mVidFilterClipLock.unlock();
-                ImGui::sleep((int)5);
-                continue;
-            }
             if (timeline->mVidFilterClip->mFrame.size() >= timeline->mMaxCachedVideoFrame)
             {
                 timeline->mVidFilterClipLock.unlock();
@@ -3623,7 +3614,7 @@ static int thread_video_filter(TimeLine * timeline)
                     for (int i = 0; i < timeline->mVidFilterClip->mKeyPoints.GetCurveCount(); i++)
                     {
                         auto name = timeline->mVidFilterClip->mKeyPoints.GetCurveName(i);
-                        auto value = timeline->mVidFilterClip->mKeyPoints.GetValue(i, timeline->mVidFilterClip->mCurrent);
+                        auto value = timeline->mVidFilterClip->mKeyPoints.GetValue(i, current_time);
                         timeline->mVideoFilterBluePrint->Blueprint_SetFilter(name, value);
                     }
                     if (timeline->mVideoFilterBluePrint->Blueprint_RunFilter(result.first, result.second))
@@ -3663,30 +3654,23 @@ static int thread_video_fusion(TimeLine * timeline)
     timeline->mVideoFusionRunning = true;
     while (!timeline->mVideoFusionDone)
     {
+        if (timeline->mVideoFusionNeedUpdate && timeline->mVidOverlap)
+        {
+            timeline->mVidOverlap->mFrameLock.lock();
+            timeline->mVidOverlap->mFrame.clear();
+            timeline->mVidOverlap->mLastFrameTime = -1;
+            timeline->mVidOverlap->mFrameLock.unlock();
+            timeline->mVideoFusionNeedUpdate = false;
+        }
         if (!timeline->mVidOverlap || !timeline->mVidOverlap->mMediaReader.first || !timeline->mVidOverlap->mMediaReader.second ||
             !timeline->mVidOverlap->mMediaReader.first->IsOpened() || !timeline->mVidOverlap->mMediaReader.second->IsOpened() ||
             !timeline->mVideoFusionBluePrint || !timeline->mVideoFusionBluePrint->Blueprint_IsValid())
         {
-            timeline->mVideoFusionNeedUpdate = false;
             ImGui::sleep((int)5);
             continue;
         }
         timeline->mVidFusionLock.lock();
         {
-            if (!timeline->mVidOverlap || !timeline->mVidOverlap->mMediaReader.first || !timeline->mVidOverlap->mMediaReader.second)
-            {
-                timeline->mVidFusionLock.unlock();
-                ImGui::sleep((int)5);
-                continue;
-            }
-            if (timeline->mVideoFusionNeedUpdate)
-            {
-                timeline->mVidOverlap->mFrameLock.lock();
-                timeline->mVidOverlap->mFrame.clear();
-                timeline->mVidOverlap->mLastFrameTime = -1;
-                timeline->mVidOverlap->mFrameLock.unlock();
-                timeline->mVideoFusionNeedUpdate = false;
-            }
             if (timeline->mVidOverlap->mFrame.size() >= timeline->mMaxCachedVideoFrame)
             {
                 timeline->mVidFusionLock.unlock();
@@ -3762,7 +3746,7 @@ static int thread_video_fusion(TimeLine * timeline)
                     for (int i = 0; i < timeline->mVidOverlap->mKeyPoints.GetCurveCount(); i++)
                     {
                         auto name = timeline->mVidOverlap->mKeyPoints.GetCurveName(i);
-                        auto value = timeline->mVidOverlap->mKeyPoints.GetValue(i, timeline->mVidOverlap->mCurrent);
+                        auto value = timeline->mVidOverlap->mKeyPoints.GetValue(i, current_time);
                         timeline->mVideoFusionBluePrint->Blueprint_SetFusion(name, value);
                     }
                     if (timeline->mVideoFusionBluePrint->Blueprint_RunFusion(result.first.first, result.first.second, result.second, current_time, timeline->mVidOverlap->mDuration))
