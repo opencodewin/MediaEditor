@@ -1674,9 +1674,9 @@ static void ShowMediaBankWindow(ImDrawList *draw_list, float media_icon_size)
         ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
         ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
         ImU32 text_color = IM_COL32(ui_breathing * 255, ui_breathing * 255, ui_breathing * 255, 255);
-        draw_list->AddText(window_pos + ImVec2(8,  72), IM_COL32(56, 56, 56, 128), "Please Click");
-        draw_list->AddText(window_pos + ImVec2(8, 104), text_color, "<-- Here");
-        draw_list->AddText(window_pos + ImVec2(8, 136), IM_COL32(56, 56, 56, 128), "To Add Media");
+        draw_list->AddText(window_pos + ImVec2(8,  80), IM_COL32(56, 56, 56, 128), "Please Click");
+        draw_list->AddText(window_pos + ImVec2(8, 112), text_color, "<-- Here");
+        draw_list->AddText(window_pos + ImVec2(8, 144), IM_COL32(56, 56, 56, 128), "To Add Media");
         ImGui::PopStyleColor();
         ImGui::PopStyleVar();
         ImGui::SetWindowFontScale(1.0);
@@ -3288,18 +3288,12 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_TWO);
         if (editing_clip && timeline->mVidFilterClip)
         {
-            // Filter clip setting
-            if (ImGui::TreeNodeEx("Clip Setting##video_filter", ImGuiTreeNodeFlags_DefaultOpen))
-            {
-                // TODO::Dicky add Filter clip setting
-                ImGui::TreePop();
-            }
             // Filter curve setting
-            bool name_input_with_return = false;
             if (ImGui::TreeNodeEx("Curve Setting##video_filter", ImGuiTreeNodeFlags_DefaultOpen))
             {
                 char ** curve_type_list = nullptr;
                 auto curve_type_count = ImGui::ImCurveEdit::GetCurveTypeName(curve_type_list);
+                bool name_input_with_return = false;
                 static std::string curve_name = "";
                 std::string value = curve_name;
                 if (ImGui::InputTextWithHint("##new_curve_name_video_filter", "Input curve name", (char*)value.data(), value.size() + 1, ImGuiInputTextFlags_CallbackEdit | ImGuiInputTextFlags_CallbackResize | ImGuiInputTextFlags_EnterReturnsTrue, [](ImGuiInputTextCallbackData* data) -> int
@@ -3344,6 +3338,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                             if (entry_node)
                             {
                                 entry_node->InsertOutputPin(BluePrint::PinType::Float, curve_name);
+                                timeline->mVideoFilterNeedUpdate = true;
                             }
                         }
                     }
@@ -3369,17 +3364,20 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                         if (ImGui::DragFloat("##curve_video_filter_min", &curve_min, 0.1f, -FLT_MAX, curve_max, "%.1f"))
                         {
                             editing_clip->mKeyPoints.SetCurveMin(i, curve_min);
+                            timeline->mVideoFilterNeedUpdate = true;
                         } ImGui::ShowTooltipOnHover("Min");
                         ImGui::SameLine(0, 8);
                         if (ImGui::DragFloat("##curve_video_filter_max", &curve_max, 0.1f, curve_min, FLT_MAX, "%.1f"))
                         {
                             editing_clip->mKeyPoints.SetCurveMax(i, curve_max);
+                            timeline->mVideoFilterNeedUpdate = true;
                         } ImGui::ShowTooltipOnHover("Max");
                         ImGui::SameLine(0, 8);
                         float curve_default = editing_clip->mKeyPoints.GetCurveDefault(i);
                         if (ImGui::DragFloat("##curve_video_filter_default", &curve_default, 0.1f, curve_min, curve_max, "%.1f"))
                         {
                             editing_clip->mKeyPoints.SetCurveDefault(i, curve_default);
+                            timeline->mVideoFilterNeedUpdate = true;
                         } ImGui::ShowTooltipOnHover("Default");
                         ImGui::PopItemWidth();
                         
@@ -3409,6 +3407,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                                 if (entry_node)
                                 {
                                     entry_node->DeleteOutputPin(pin_name);
+                                    timeline->mVideoFilterNeedUpdate = true;
                                 }
                             }
                             editing_clip->mKeyPoints.DeleteCurve(i);
@@ -3421,6 +3420,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                             {
                                 editing_clip->mKeyPoints.SetCurvePointDefault(i, p);
                             }
+                            timeline->mVideoFilterNeedUpdate = true;
                         } ImGui::ShowTooltipOnHover("Reset");
 
                         if (!break_loop)
@@ -3439,17 +3439,20 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                                 if (ImGui::DragTimeMS("##curve_video_filter_point_x", &point.point.x, editing_clip->mKeyPoints.GetMax().x / 1000.f, editing_clip->mKeyPoints.GetMin().x, editing_clip->mKeyPoints.GetMax().x, 2))
                                 {
                                     editing_clip->mKeyPoints.EditPoint(i, p, point.point, point.type);
+                                    timeline->mVideoFilterNeedUpdate = true;
                                 }
                                 ImGui::EndDisabled();
                                 ImGui::SameLine();
                                 if (ImGui::DragFloat("##curve_video_filter_point_y", &point.point.y, 0.01f, editing_clip->mKeyPoints.GetCurveMin(i), editing_clip->mKeyPoints.GetCurveMax(i), "%.2f"))
                                 {
                                     editing_clip->mKeyPoints.EditPoint(i, p, point.point, point.type);
+                                    timeline->mVideoFilterNeedUpdate = true;
                                 }
                                 ImGui::SameLine();
                                 if (ImGui::Combo("##curve_video_filter_type", (int*)&point.type, curve_type_list, curve_type_count))
                                 {
                                     editing_clip->mKeyPoints.EditPoint(i, p, point.point, point.type);
+                                    timeline->mVideoFilterNeedUpdate = true;
                                 }
                                 ImGui::PopItemWidth();
                                 ImGui::PopID();
@@ -3774,19 +3777,13 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_TWO);
         if (editing_overlap && timeline->mVidOverlap)
         {
-            // Overlap setting
-            if (ImGui::TreeNodeEx("Overlay Setting##video_fusion", ImGuiTreeNodeFlags_DefaultOpen))
-            {
-                // TODO::Dicky add Fusion setting
-                ImGui::TreePop();
-            }
             // Overlap curve setting
-            bool name_input_with_return = false;
             if (ImGui::TreeNodeEx("Curve Setting##video_fusion", ImGuiTreeNodeFlags_DefaultOpen))
             {
                 char ** curve_type_list = nullptr;
                 auto curve_type_count = ImGui::ImCurveEdit::GetCurveTypeName(curve_type_list);
                 static std::string curve_name = "";
+                bool name_input_with_return = false;
                 std::string value = curve_name;
                 if (ImGui::InputTextWithHint("##new_curve_name_video_fusion", "Input curve name", (char*)value.data(), value.size() + 1, ImGuiInputTextFlags_CallbackEdit | ImGuiInputTextFlags_CallbackResize | ImGuiInputTextFlags_EnterReturnsTrue, [](ImGuiInputTextCallbackData* data) -> int
                 {
@@ -3830,6 +3827,7 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
                             if (entry_node)
                             {
                                 entry_node->InsertOutputPin(BluePrint::PinType::Float, curve_name);
+                                timeline->mVideoFusionNeedUpdate = true;
                             }
                         }
                     }
@@ -3855,17 +3853,20 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
                         if (ImGui::DragFloat("##curve_video_fusion_min", &curve_min, 0.1f, -FLT_MAX, curve_max, "%.1f"))
                         {
                             editing_overlap->mKeyPoints.SetCurveMin(i, curve_min);
+                            timeline->mVideoFusionNeedUpdate = true;
                         } ImGui::ShowTooltipOnHover("Min");
                         ImGui::SameLine(0, 8);
                         if (ImGui::DragFloat("##curve_video_fusion_max", &curve_max, 0.1f, curve_min, FLT_MAX, "%.1f"))
                         {
                             editing_overlap->mKeyPoints.SetCurveMax(i, curve_max);
+                            timeline->mVideoFusionNeedUpdate = true;
                         } ImGui::ShowTooltipOnHover("Max");
                         ImGui::SameLine(0, 8);
                         float curve_default = editing_overlap->mKeyPoints.GetCurveDefault(i);
                         if (ImGui::DragFloat("##curve_video_fusion_default", &curve_default, 0.1f, curve_min, curve_max, "%.1f"))
                         {
                             editing_overlap->mKeyPoints.SetCurveDefault(i, curve_default);
+                            timeline->mVideoFusionNeedUpdate = true;
                         } ImGui::ShowTooltipOnHover("Default");
                         ImGui::PopItemWidth();
 
@@ -3895,6 +3896,7 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
                                 if (entry_node)
                                 {
                                     entry_node->DeleteOutputPin(pin_name);
+                                    timeline->mVideoFusionNeedUpdate = true;
                                 }
                             }
                             editing_overlap->mKeyPoints.DeleteCurve(i);
@@ -3907,6 +3909,7 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
                             {
                                 editing_overlap->mKeyPoints.SetCurvePointDefault(i, p);
                             }
+                            timeline->mVideoFusionNeedUpdate = true;
                         } ImGui::ShowTooltipOnHover("Reset");
 
                         if (!break_loop)
@@ -3925,17 +3928,20 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
                                 if (ImGui::DragTimeMS("##curve_video_fusion_point_x", &point.point.x, editing_overlap->mKeyPoints.GetMax().x / 1000.f, editing_overlap->mKeyPoints.GetMin().x, editing_overlap->mKeyPoints.GetMax().x, 2))
                                 {
                                     editing_overlap->mKeyPoints.EditPoint(i, p, point.point, point.type);
+                                    timeline->mVideoFusionNeedUpdate = true;
                                 }
                                 ImGui::EndDisabled();
                                 ImGui::SameLine();
                                 if (ImGui::DragFloat("##curve_video_fusion_point_y", &point.point.y, 0.01f, editing_overlap->mKeyPoints.GetCurveMin(i), editing_overlap->mKeyPoints.GetCurveMax(i), "%.2f"))
                                 {
                                     editing_overlap->mKeyPoints.EditPoint(i, p, point.point, point.type);
+                                    timeline->mVideoFusionNeedUpdate = true;
                                 }
                                 ImGui::SameLine();
                                 if (ImGui::Combo("##curve_video_fusion_type", (int*)&point.type, curve_type_list, curve_type_count))
                                 {
                                     editing_overlap->mKeyPoints.EditPoint(i, p, point.point, point.type);
+                                    timeline->mVideoFusionNeedUpdate = true;
                                 }
                                 ImGui::PopItemWidth();
                                 ImGui::PopID();
@@ -6703,7 +6709,8 @@ bool Application_Frame(void * handle, bool app_will_quit)
         if (overExpanded && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
             _expanded = !_expanded;
         ImGui::SetCursorScreenPos(panel_pos + ImVec2(32, 0));
-        DrawTimeLine(timeline,  &_expanded, !is_splitter_hold && !mouse_hold);
+        bool changed = DrawTimeLine(timeline,  &_expanded, !is_splitter_hold && !mouse_hold);
+        project_need_save |= changed;
         if (g_media_editor_settings.BottomViewExpanded != _expanded)
         {
             if (!_expanded)
@@ -6887,6 +6894,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
                     {
                         MediaItem * item = new MediaItem(file_name, file_path, type, timeline);
                         timeline->media_items.push_back(item);
+                        project_need_save = true;
                     }
                 }
             }

@@ -5999,7 +5999,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         if (!trackCount) 
         {
             ImGui::EndGroup();
-            return false;
+            return ret;
         }
         
         ImGui::PushStyleColor(ImGuiCol_FrameBg, 0);
@@ -6125,8 +6125,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             auto itemCustomHeight = timeline->GetCustomHeight(i);
             ImVec2 button_size = ImVec2(14, 14);
             ImVec2 tpos(contentMin.x, contentMin.y + i * trackHeadHeight + customHeight);
-            bool ret = TimelineButton(draw_list, ICON_TRASH, ImVec2(contentMin.x + legendWidth - button_size.x - 4, tpos.y + 2), button_size, "delete");
-            if (ret && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+            bool is_delete = TimelineButton(draw_list, ICON_TRASH, ImVec2(contentMin.x + legendWidth - button_size.x - 4, tpos.y + 2), button_size, "delete");
+            if (is_delete && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
                 delTrackEntry = i;
             customHeight += itemCustomHeight;
         }
@@ -7207,6 +7207,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                     // TODO::Dicky add subtitle stream here?
                 }
                 timeline->mUiActions.push_back(std::move(action));
+                ret = true;
             }
         }
         ImGui::EndDragDropTarget();
@@ -7227,6 +7228,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             action["from_track_id"] = imgui_json::number(track->mID);
             timeline->DeleteClip(clipId);
             timeline->mUiActions.push_back(std::move(action));
+            ret = true;
         }
     }
     if (delTrackEntry != -1)
@@ -7243,6 +7245,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 action["media_type"] = imgui_json::number(trackMediaType);
                 action["track_id"] = imgui_json::number(delTrackId);
                 timeline->mUiActions.push_back(std::move(action));
+                ret = true;
             }
         }
     }
@@ -7260,6 +7263,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 timeline->mUiActions.push_back(std::move(action));
                 iter = timeline->m_Tracks.erase(iter);
                 delete track;
+                ret = true;
             }
             else
                 ++iter;
@@ -7272,12 +7276,15 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         case MEDIA_UNKNOWN: break;
         case MEDIA_VIDEO:
             timeline->NewTrack("", MEDIA_VIDEO, true);
+            ret = true;
         break;
         case MEDIA_AUDIO:
             timeline->NewTrack("", MEDIA_AUDIO, true);
+            ret = true;
         break;
         case MEDIA_PICTURE:
             timeline->NewTrack("", MEDIA_PICTURE, true);
+            ret = true;
         break;
         case MEDIA_TEXT:
         {
@@ -7287,6 +7294,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             newTrack->mMttReader->SetFont(timeline->mFontName);
             newTrack->mMttReader->SetFrameSize(timeline->mWidth, timeline->mHeight);
             newTrack->mMttReader->EnableFullSizeOutput(false);
+            ret = true;
         }
         break;
         default:
@@ -7303,18 +7311,21 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             auto clip = timeline->FindClipByID(clip_id);
             timeline->AddClipIntoGroup(clip, new_group.mID);
         }
+        ret = true;
     }
 
     for (auto clip_id : unGroupClipEntry)
     {
         auto clip = timeline->FindClipByID(clip_id);
         timeline->DeleteClipFromGroup(clip, clip->mGroupID);
+        ret = true;
     }
 
     // handle track moving
     if (trackMovingEntry != -1 && trackEntry != -1 && trackMovingEntry != trackEntry)
     {
         timeline->MovingTrack(trackMovingEntry, trackEntry);
+        ret = true;
     }
 
     // for debug
@@ -7328,7 +7339,10 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
     if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
     {
         if (!timeline->mUiActions.empty())
+        {
             timeline->PerformUiActions();
+            ret = true;
+        }
     }
     return ret;
 }
