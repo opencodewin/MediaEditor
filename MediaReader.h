@@ -9,10 +9,10 @@ struct MediaReader
     virtual bool Open(MediaParserHolder hParser) = 0;
     virtual bool ConfigVideoReader(
             uint32_t outWidth, uint32_t outHeight,
-            ImColorFormat outClrfmt = IM_CF_RGBA, ImInterpolateMode rszInterp = IM_INTERPOLATE_NEAREST) = 0;
+            ImColorFormat outClrfmt = IM_CF_RGBA, ImInterpolateMode rszInterp = IM_INTERPOLATE_BICUBIC) = 0;
     virtual bool ConfigVideoReader(
             float outWidthFactor, float outHeightFactor,
-            ImColorFormat outClrfmt = IM_CF_RGBA, ImInterpolateMode rszInterp = IM_INTERPOLATE_NEAREST) = 0;
+            ImColorFormat outClrfmt = IM_CF_RGBA, ImInterpolateMode rszInterp = IM_INTERPOLATE_BICUBIC) = 0;
     virtual bool ConfigAudioReader(uint32_t outChannels, uint32_t outSampleRate) = 0;
     virtual bool Start(bool suspend = false) = 0;
     virtual void Close() = 0;
@@ -38,6 +38,8 @@ struct MediaReader
     virtual MediaInfo::InfoHolder GetMediaInfo() const = 0;
     virtual const MediaInfo::VideoStream* GetVideoStream() const = 0;
     virtual const MediaInfo::AudioStream* GetAudioStream() const = 0;
+    virtual uint32_t GetVideoOutWidth() const = 0;
+    virtual uint32_t GetVideoOutHeight() const = 0;
     virtual uint32_t GetAudioOutChannels() const = 0;
     virtual uint32_t GetAudioOutSampleRate() const = 0;
     virtual uint32_t GetAudioOutFrameSize() const = 0;

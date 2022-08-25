@@ -172,8 +172,8 @@ static double s_addClipStart = 0;
 static double s_addClipStartOffset = 0;
 static double s_addClipEndOffset = 0;
 static uint32_t s_remTrackOptSelIdx = 0;
-static uint32_t s_movClipTrackSelIdx = 0;
-static uint32_t s_movClipSelIdx = 0;
+static uint32_t s_clipOpTrackSelIdx = 0;
+static uint32_t s_clipOpClipSelIdx = 0;
 static double s_changeClipStart = 0;
 static double s_changeClipStartOffset = 0;
 static double s_changeClipEndOffset = 0;
@@ -281,14 +281,14 @@ bool Application_Frame(void * handle, bool app_will_quit)
         ImGui::Spacing();
 
         ImGui::PushItemWidth(100);
-        if (ImGui::BeginCombo("##MovClipSelTrackOptions", selectTrackOpts[s_movClipTrackSelIdx].c_str()))
+        if (ImGui::BeginCombo("##MovClipSelTrackOptions", selectTrackOpts[s_clipOpTrackSelIdx].c_str()))
         {
             for (uint32_t i = 0; i < selectTrackOpts.size(); i++)
             {
                 string& item = selectTrackOpts[i];
-                const bool isSelected = s_movClipTrackSelIdx == i;
+                const bool isSelected = s_clipOpTrackSelIdx == i;
                 if (ImGui::Selectable(item.c_str(), isSelected))
-                    s_movClipTrackSelIdx = i;
+                    s_clipOpTrackSelIdx = i;
                 if (isSelected)
                     ImGui::SetItemDefaultFocus();
             }
@@ -300,7 +300,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
         vector<string> clipNames;
         if (!noTrack)
         {
-            AudioTrackHolder hTrack = g_mtAudReader->GetTrackByIndex(s_movClipTrackSelIdx);
+            AudioTrackHolder hTrack = g_mtAudReader->GetTrackByIndex(s_clipOpTrackSelIdx);
             auto clipIter = hTrack->ClipListBegin();
             while (clipIter != hTrack->ClipListEnd())
             {
@@ -317,18 +317,18 @@ bool Application_Frame(void * handle, bool app_will_quit)
             clipSelOpts.push_back("<no clip>");
             noClip = true;
         }
-        if (s_movClipSelIdx >= clipSelOpts.size())
-            s_movClipSelIdx = clipSelOpts.size()-1;
-        if (ImGui::BeginCombo("##MovClipSelClipOptions", clipSelOpts[s_movClipSelIdx].c_str()))
+        if (s_clipOpClipSelIdx >= clipSelOpts.size())
+            s_clipOpClipSelIdx = clipSelOpts.size()-1;
+        if (ImGui::BeginCombo("##MovClipSelClipOptions", clipSelOpts[s_clipOpClipSelIdx].c_str()))
         {
-            AudioTrackHolder hTrack = g_mtAudReader->GetTrackByIndex(s_movClipTrackSelIdx);
+            AudioTrackHolder hTrack = g_mtAudReader->GetTrackByIndex(s_clipOpTrackSelIdx);
             auto clipIter = hTrack->ClipListBegin();
             for (uint32_t i = 0; i < clipSelOpts.size(); i++)
             {
                 string& item = clipSelOpts[i];
-                const bool isSelected = s_movClipSelIdx == i;
+                const bool isSelected = s_clipOpClipSelIdx == i;
                 if (ImGui::Selectable(item.c_str(), isSelected))
-                    s_movClipSelIdx = i;
+                    s_clipOpClipSelIdx = i;
                 if (isSelected)
                     ImGui::SetItemDefaultFocus();
                 clipIter++;
@@ -343,10 +343,10 @@ bool Application_Frame(void * handle, bool app_will_quit)
             ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true);
         if (ImGui::Button("Remove Clip"))
         {
-            AudioTrackHolder hTrack = g_mtAudReader->GetTrackByIndex(s_movClipTrackSelIdx);
-            hTrack->RemoveClipByIndex(s_movClipSelIdx);
+            AudioTrackHolder hTrack = g_mtAudReader->GetTrackByIndex(s_clipOpTrackSelIdx);
+            hTrack->RemoveClipByIndex(s_clipOpClipSelIdx);
             g_mtAudReader->Refresh();
-            s_movClipSelIdx = 0;
+            s_clipOpClipSelIdx = 0;
             g_audrnd->Flush();
         }
         if (noClip)
@@ -365,8 +365,8 @@ bool Application_Frame(void * handle, bool app_will_quit)
             ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true);
         if (ImGui::Button("Move Clip"))
         {
-            AudioTrackHolder hTrack = g_mtAudReader->GetTrackByIndex(s_movClipTrackSelIdx);
-            AudioClipHolder hClip = hTrack->GetClipByIndex(s_movClipSelIdx);
+            AudioTrackHolder hTrack = g_mtAudReader->GetTrackByIndex(s_clipOpTrackSelIdx);
+            AudioClipHolder hClip = hTrack->GetClipByIndex(s_clipOpClipSelIdx);
             hTrack->MoveClip(hClip->Id(), (int64_t)(s_changeClipStart*1000));
             g_mtAudReader->Refresh();
         }
@@ -389,8 +389,8 @@ bool Application_Frame(void * handle, bool app_will_quit)
             ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true);
         if (ImGui::Button("Change Clip Range"))
         {
-            AudioTrackHolder hTrack = g_mtAudReader->GetTrackByIndex(s_movClipTrackSelIdx);
-            AudioClipHolder hClip = hTrack->GetClipByIndex(s_movClipSelIdx);
+            AudioTrackHolder hTrack = g_mtAudReader->GetTrackByIndex(s_clipOpTrackSelIdx);
+            AudioClipHolder hClip = hTrack->GetClipByIndex(s_clipOpClipSelIdx);
             hTrack->ChangeClipRange(hClip->Id(), (int64_t)(s_changeClipStartOffset*1000), (int64_t)(s_changeClipEndOffset*1000));
             g_mtAudReader->Refresh();
         }

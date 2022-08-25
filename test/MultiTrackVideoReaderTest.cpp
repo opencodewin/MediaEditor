@@ -28,8 +28,8 @@ static atomic_int64_t g_idIndex{1};
 
 static MultiTrackVideoReader* g_mtVidReader = nullptr;
 static SubtitleTrackHolder g_subtrk;
-const int c_videoOutputWidth = 1920;
-const int c_videoOutputHeight = 1080;
+const int c_videoOutputWidth = 960;
+const int c_videoOutputHeight = 660;
 const MediaInfo::Ratio c_videoFrameRate = { 25, 1 };
 
 static double g_playStartPos = 0.f;
@@ -38,7 +38,7 @@ static bool g_isPlay = false;
 static bool g_playForward = true;
 
 static ImTextureID g_imageTid;
-static ImVec2 g_imageDisplaySize = { 640, 360 };
+static ImVec2 g_imageDisplaySize = { 640, 440 };
 
 const string c_imguiIniPath = "ms_test.ini";
 const string c_bookmarkPath = "bookmark.ini";
@@ -112,8 +112,8 @@ static double s_addClipStart = 0;
 static double s_addClipStartOffset = 0;
 static double s_addClipEndOffset = 0;
 static uint32_t s_remTrackOptSelIdx = 0;
-static uint32_t s_movClipTrackSelIdx = 0;
-static uint32_t s_movClipSelIdx = 0;
+static uint32_t s_clipOpTrackSelIdx = 0;
+static uint32_t s_clipOpClipSelIdx = 0;
 static double s_changeClipStart = 0;
 static double s_changeClipStartOffset = 0;
 static double s_changeClipEndOffset = 0;
@@ -128,20 +128,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
     ImGui::SetNextWindowSize(io.DisplaySize);
     if (ImGui::Begin("MainWindow", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoResize))
     {
-        if (ImGui::Button((string(ICON_IGFD_FOLDER_OPEN)+" Open file").c_str()))
-        {
-            const char *filters = "视频文件(*.mp4 *.mov *.mkv *.webm *.avi){.mp4,.mov,.mkv,.webm,.avi,.MP4,.MOV,.MKV,WEBM,.AVI},.*";
-            ImGuiFileDialog::Instance()->OpenDialog("ChooseFileDlgKey", ICON_IGFD_FOLDER_OPEN " 打开视频文件", 
-                                                    filters, 
-                                                    "/mnt/data2/video/hd/", 
-                                                    1, 
-                                                    nullptr, 
-                                                    ImGuiFileDialogFlags_ShowBookmark |
-                                                    ImGuiFileDialogFlags_Modal);
-        }
-
-        ImGui::SameLine(0, 20);
-
+        // control line #1
         vector<string> trackNames;
         for (uint32_t i = 0; i < g_mtVidReader->TrackCount(); i++)
         {
@@ -170,87 +157,57 @@ bool Application_Frame(void * handle, bool app_will_quit)
             }
             ImGui::EndCombo();
         }
-        ImGui::SameLine(0, 20);
+        ImGui::SameLine(0, 10);
         ImGui::TextUnformatted("Start");
         ImGui::SameLine();
         ImGui::InputDouble("##Start", &s_addClipStart);
-        ImGui::SameLine(0, 20);
+        ImGui::SameLine(0, 10);
         ImGui::TextUnformatted("ClipStartOffset");
         ImGui::SameLine();
         ImGui::InputDouble("##ClipStartOffset", &s_addClipStartOffset);
-        ImGui::SameLine(0, 20);
+        ImGui::SameLine(0, 10);
         ImGui::TextUnformatted("ClipEndOffset");
         ImGui::SameLine();
         ImGui::InputDouble("##ClipEndOffset", &s_addClipEndOffset);
         ImGui::PopItemWidth();
-
-        ImGui::Spacing();
-
-        vector<string> selectTrackOpts(trackNames);
-        if (selectTrackOpts.empty())
-            selectTrackOpts.push_back("<No track>");
-        bool noTrack = trackNames.empty();
-
-        ImGui::PushItemWidth(100);
-        if (ImGui::BeginCombo("##RemTrackOptions", selectTrackOpts[s_remTrackOptSelIdx].c_str()))
+        ImGui::SameLine(0, 10);
+        if (ImGui::Button((string(ICON_IGFD_FOLDER_OPEN)+" Open file").c_str()))
         {
-            for (uint32_t i = 0; i < selectTrackOpts.size(); i++)
-            {
-                string& item = selectTrackOpts[i];
-                const bool isSelected = s_remTrackOptSelIdx == i;
-                if (ImGui::Selectable(item.c_str(), isSelected))
-                    s_remTrackOptSelIdx = i;
-                if (isSelected)
-                    ImGui::SetItemDefaultFocus();
-            }
-            ImGui::EndCombo();
-        }
-        ImGui::PopItemWidth();
-        ImGui::SameLine(0, 20);
-        if (ImGui::Button("Open subtitle file"))
-        {
-            const char *filters = "字幕文件(*.srt *.ass *.ssa){.srt,.ass,.ssa,.SRT,.ASS,.SSA},.*";
-            ImGuiFileDialog::Instance()->OpenDialog("ChooseSubtitleFileDlgKey", ICON_IGFD_FOLDER_OPEN " 打开字幕文件", 
+            const char *filters = "视频文件(*.mp4 *.mov *.mkv *.webm *.avi){.mp4,.mov,.mkv,.webm,.avi,.MP4,.MOV,.MKV,WEBM,.AVI},.*";
+            ImGuiFileDialog::Instance()->OpenDialog("ChooseFileDlgKey", ICON_IGFD_FOLDER_OPEN " 打开视频文件", 
                                                     filters, 
-                                                    "/workspace/MediaFiles/", 
+                                                    "/mnt/data2/video/hd/", 
                                                     1, 
                                                     nullptr, 
                                                     ImGuiFileDialogFlags_ShowBookmark |
                                                     ImGuiFileDialogFlags_Modal);
         }
 
-        ImGui::BeginDisabled(noTrack);
-        if (ImGui::Button("Remove Track"))
-        {
-            g_mtVidReader->RemoveTrackByIndex(s_remTrackOptSelIdx);
-            s_remTrackOptSelIdx = 0;
-        }
-        ImGui::EndDisabled();
-        ImGui::SameLine(0, 20);
-
+        // control line #2
         ImGui::Spacing();
-
+        vector<string> selectTrackOpts(trackNames);
+        if (selectTrackOpts.empty())
+            selectTrackOpts.push_back("<No track>");
+        bool noTrack = trackNames.empty();
         ImGui::PushItemWidth(100);
-        if (ImGui::BeginCombo("##MovClipSelTrackOptions", selectTrackOpts[s_movClipTrackSelIdx].c_str()))
+        if (ImGui::BeginCombo("##MovClipSelTrackOptions", selectTrackOpts[s_clipOpTrackSelIdx].c_str()))
         {
             for (uint32_t i = 0; i < selectTrackOpts.size(); i++)
             {
                 string& item = selectTrackOpts[i];
-                const bool isSelected = s_movClipTrackSelIdx == i;
+                const bool isSelected = s_clipOpTrackSelIdx == i;
                 if (ImGui::Selectable(item.c_str(), isSelected))
-                    s_movClipTrackSelIdx = i;
+                    s_clipOpTrackSelIdx = i;
                 if (isSelected)
                     ImGui::SetItemDefaultFocus();
             }
             ImGui::EndCombo();
         }
-
         ImGui::SameLine(0, 10);
-
         vector<string> clipNames;
         if (!noTrack)
         {
-            VideoTrackHolder hTrack = g_mtVidReader->GetTrackByIndex(s_movClipTrackSelIdx);
+            VideoTrackHolder hTrack = g_mtVidReader->GetTrackByIndex(s_clipOpTrackSelIdx);
             auto clipIter = hTrack->ClipListBegin();
             while (clipIter != hTrack->ClipListEnd())
             {
@@ -267,61 +224,49 @@ bool Application_Frame(void * handle, bool app_will_quit)
             clipSelOpts.push_back("<no clip>");
             noClip = true;
         }
-        if (s_movClipSelIdx >= clipSelOpts.size())
-            s_movClipSelIdx = clipSelOpts.size()-1;
-        if (ImGui::BeginCombo("##MovClipSelClipOptions", clipSelOpts[s_movClipSelIdx].c_str()))
+        if (s_clipOpClipSelIdx >= clipSelOpts.size())
+            s_clipOpClipSelIdx = clipSelOpts.size()-1;
+        if (ImGui::BeginCombo("##MovClipSelClipOptions", clipSelOpts[s_clipOpClipSelIdx].c_str()))
         {
-            VideoTrackHolder hTrack = g_mtVidReader->GetTrackByIndex(s_movClipTrackSelIdx);
-            auto clipIter = hTrack->ClipListBegin();
             for (uint32_t i = 0; i < clipSelOpts.size(); i++)
             {
                 string& item = clipSelOpts[i];
-                const bool isSelected = s_movClipSelIdx == i;
+                const bool isSelected = s_clipOpClipSelIdx == i;
                 if (ImGui::Selectable(item.c_str(), isSelected))
-                    s_movClipSelIdx = i;
+                    s_clipOpClipSelIdx = i;
                 if (isSelected)
                     ImGui::SetItemDefaultFocus();
-                clipIter++;
             }
             ImGui::EndCombo();
         }
-
         ImGui::PopItemWidth();
-        ImGui::SameLine(0, 20);
-
-        if (noClip)
-            ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true);
+        ImGui::SameLine(0, 10);
+        ImGui::BeginDisabled(noClip);
         if (ImGui::Button("Remove Clip"))
         {
-            VideoTrackHolder hTrack = g_mtVidReader->GetTrackByIndex(s_movClipTrackSelIdx);
-            hTrack->RemoveClipByIndex(s_movClipSelIdx);
+            VideoTrackHolder hTrack = g_mtVidReader->GetTrackByIndex(s_clipOpTrackSelIdx);
+            hTrack->RemoveClipByIndex(s_clipOpClipSelIdx);
             g_mtVidReader->Refresh();
-            s_movClipSelIdx = 0;
+            s_clipOpClipSelIdx = 0;
         }
-        if (noClip)
-            ImGui::PopItemFlag();
-
+        ImGui::EndDisabled();
         ImGui::SameLine(0, 20);
-
         ImGui::PushItemWidth(100);
         ImGui::TextUnformatted("tloff");
         ImGui::SameLine();
         ImGui::InputDouble("##tloff", &s_changeClipStart);
-        ImGui::SameLine(0, 10);
         ImGui::PopItemWidth();
-        if (noClip)
-            ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true);
+        ImGui::SameLine(0, 10);
+        ImGui::BeginDisabled(noClip);
         if (ImGui::Button("Move Clip"))
         {
-            VideoTrackHolder hTrack = g_mtVidReader->GetTrackByIndex(s_movClipTrackSelIdx);
-            VideoClipHolder hClip = hTrack->GetClipByIndex(s_movClipSelIdx);
+            VideoTrackHolder hTrack = g_mtVidReader->GetTrackByIndex(s_clipOpTrackSelIdx);
+            VideoClipHolder hClip = hTrack->GetClipByIndex(s_clipOpClipSelIdx);
             hTrack->MoveClip(hClip->Id(), (int64_t)(s_changeClipStart*1000));
             g_mtVidReader->Refresh();
         }
-        if (noClip)
-            ImGui::PopItemFlag();
-
-        ImGui::SameLine(0, 10);
+        ImGui::EndDisabled();
+        ImGui::SameLine(0, 20);
         ImGui::PushItemWidth(100);
         ImGui::TextUnformatted("off0");
         ImGui::SameLine();
@@ -330,24 +275,77 @@ bool Application_Frame(void * handle, bool app_will_quit)
         ImGui::TextUnformatted("off1");
         ImGui::SameLine();
         ImGui::InputDouble("##off1", &s_changeClipEndOffset);
-        ImGui::SameLine(0, 10);
         ImGui::PopItemWidth();
-
-        if (noClip)
-            ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true);
+        ImGui::SameLine(0, 10);
+        ImGui::BeginDisabled(noClip);
         if (ImGui::Button("Change Clip Range"))
         {
-            VideoTrackHolder hTrack = g_mtVidReader->GetTrackByIndex(s_movClipTrackSelIdx);
-            VideoClipHolder hClip = hTrack->GetClipByIndex(s_movClipSelIdx);
+            VideoTrackHolder hTrack = g_mtVidReader->GetTrackByIndex(s_clipOpTrackSelIdx);
+            VideoClipHolder hClip = hTrack->GetClipByIndex(s_clipOpClipSelIdx);
             hTrack->ChangeClipRange(hClip->Id(), (int64_t)(s_changeClipStartOffset*1000), (int64_t)(s_changeClipEndOffset*1000));
             g_mtVidReader->Refresh();
         }
-        if (noClip)
-            ImGui::PopItemFlag();
+        ImGui::EndDisabled();
 
+        // control line #3
         ImGui::Spacing();
+        ImGui::PushItemWidth(200);
+        VideoClipHolder selectedClip;
+        FFTransformVideoFilter* fftransFilter = nullptr;
+        if (!noClip)
+        {
+            VideoTrackHolder hTrack = g_mtVidReader->GetTrackByIndex(s_clipOpTrackSelIdx);
+            selectedClip = hTrack->GetClipByIndex(s_clipOpClipSelIdx);
+            fftransFilter = selectedClip->GetTransformFilterPtr();
+        }
+        ImGui::BeginDisabled(!fftransFilter);
+        int sldintMaxValue = selectedClip ? selectedClip->OutWidth() : 0;
+        int sldintValue = fftransFilter ? fftransFilter->GetCropMarginL() : 0;
+        if (ImGui::SliderInt("CropL", &sldintValue, 0, sldintMaxValue))
+        {
+            fftransFilter->SetCropMarginL(sldintValue);
+            g_mtVidReader->Refresh();
+        }
+        ImGui::SameLine(0, 10);
+        sldintMaxValue = selectedClip ? selectedClip->OutHeight() : 0;
+        sldintValue = fftransFilter ? fftransFilter->GetCropMarginT() : 0;
+        if (ImGui::SliderInt("CropT", &sldintValue, 0, sldintMaxValue))
+        {
+            fftransFilter->SetCropMarginT(sldintValue);
+            g_mtVidReader->Refresh();
+        }
+        ImGui::SameLine(0, 10);
+        sldintMaxValue = selectedClip ? selectedClip->OutWidth() : 0;
+        sldintValue = fftransFilter ? fftransFilter->GetCropMarginR() : 0;
+        if (ImGui::SliderInt("CropR", &sldintValue, 0, sldintMaxValue))
+        {
+            fftransFilter->SetCropMarginR(sldintValue);
+            g_mtVidReader->Refresh();
+        }
+        ImGui::SameLine(0, 10);
+        sldintMaxValue = selectedClip ? selectedClip->OutHeight() : 0;
+        sldintValue = fftransFilter ? fftransFilter->GetCropMarginB() : 0;
+        if (ImGui::SliderInt("CropB", &sldintValue, 0, sldintMaxValue))
+        {
+            fftransFilter->SetCropMarginB(sldintValue);
+            g_mtVidReader->Refresh();
+        }
+        ImGui::EndDisabled();
 
-        ImGui::TextUnformatted("Video Tracks:");
+        // control line #4
+        ImGui::BeginDisabled(!fftransFilter);
+        float sldfltValue = fftransFilter ? fftransFilter->GetRotationAngle() : 0;
+        if (ImGui::SliderFloat("Angle", &sldfltValue, -360, 360, "%.1f"))
+        {
+            fftransFilter->SetRotation(sldfltValue);
+            g_mtVidReader->Refresh();
+        }
+        ImGui::EndDisabled();
+        ImGui::PopItemWidth();
+
+        // control line #5
+        ImGui::Spacing();
+        ImGui::TextUnformatted("Track status:");
         uint32_t vidTrackIdx = 1;
         for (auto track = g_mtVidReader->TrackListBegin(); track != g_mtVidReader->TrackListEnd(); track++)
         {
@@ -375,8 +373,46 @@ bool Application_Frame(void * handle, bool app_will_quit)
             ImGui::TextUnformatted(oss.str().c_str());
         }
 
+        // control line #5
         ImGui::Spacing();
+        ImGui::PushItemWidth(100);
+        if (ImGui::BeginCombo("##RemTrackOptions", selectTrackOpts[s_remTrackOptSelIdx].c_str()))
+        {
+            for (uint32_t i = 0; i < selectTrackOpts.size(); i++)
+            {
+                string& item = selectTrackOpts[i];
+                const bool isSelected = s_remTrackOptSelIdx == i;
+                if (ImGui::Selectable(item.c_str(), isSelected))
+                    s_remTrackOptSelIdx = i;
+                if (isSelected)
+                    ImGui::SetItemDefaultFocus();
+            }
+            ImGui::EndCombo();
+        }
+        ImGui::PopItemWidth();
+        ImGui::SameLine(0, 10);
+        ImGui::BeginDisabled(noTrack);
+        if (ImGui::Button("Remove Track"))
+        {
+            g_mtVidReader->RemoveTrackByIndex(s_remTrackOptSelIdx);
+            s_remTrackOptSelIdx = 0;
+        }
+        ImGui::EndDisabled();
+        ImGui::SameLine(0, 20);
+        if (ImGui::Button("Open subtitle file"))
+        {
+            const char *filters = "字幕文件(*.srt *.ass *.ssa){.srt,.ass,.ssa,.SRT,.ASS,.SSA},.*";
+            ImGuiFileDialog::Instance()->OpenDialog("ChooseSubtitleFileDlgKey", ICON_IGFD_FOLDER_OPEN " 打开字幕文件", 
+                                                    filters, 
+                                                    "/workspace/MediaFiles/", 
+                                                    1, 
+                                                    nullptr, 
+                                                    ImGuiFileDialogFlags_ShowBookmark |
+                                                    ImGuiFileDialogFlags_Modal);
+        }
 
+        // video
+        ImGui::Spacing(); ImGui::Spacing(); ImGui::Spacing();
         float mediaDur = (float)g_mtVidReader->Duration();
         double elapsedTime = chrono::duration_cast<chrono::duration<double>>((Clock::now()-g_playStartTp)).count();
         playPos = g_isPlay ? (g_playForward ? g_playStartPos+elapsedTime : g_playStartPos-elapsedTime) : g_playStartPos;
@@ -478,18 +514,15 @@ bool Application_Frame(void * handle, bool app_will_quit)
                 hTrack->OutWidth(), hTrack->OutHeight(), hTrack->FrameRate(),
                 (int64_t)(s_addClipStart*1000), (int64_t)(s_addClipStartOffset*1000), (int64_t)(s_addClipEndOffset*1000),
                 (int64_t)((playPos-s_addClipStart)*1000)));
-            FFTransformVideoFilter* fftransFilter = NewFFTransformVideoFilter();
-            if (!fftransFilter->Initialize(hTrack->OutWidth(), hTrack->OutHeight(), "RGBA"))
+            // FFTransformVideoFilter* fftransFilter = NewFFTransformVideoFilter();
+            // if (!fftransFilter->Initialize(hTrack->OutWidth(), hTrack->OutHeight(), "RGBA"))
+            // {
+            //     Log(Error) << "FFTransformVideoFilter::Initialize() FAILED! " << fftransFilter->GetError() << endl;
+            //     delete fftransFilter;
+            // }
+            // else
             {
-                Log(Error) << "FFTransformVideoFilter::Initialize() FAILED! " << fftransFilter->GetError() << endl;
-                delete fftransFilter;
-            }
-            else
-            {
-                fftransFilter->SetCropMargin(700, 100, 100, 100);
-                // fftransFilter->SetPositionOffset(0, -400);
-                fftransFilter->SetRotation(40);
-                hClip->SetFilter(VideoFilterHolder(fftransFilter));
+                // hClip->SetFilter(VideoFilterHolder(fftransFilter));
                 hTrack->InsertClip(hClip);
                 g_mtVidReader->Refresh();
 

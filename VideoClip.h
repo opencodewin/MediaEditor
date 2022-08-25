@@ -13,6 +13,9 @@ namespace DataLayer
     class VideoClip;
     using VideoClipHolder = std::shared_ptr<VideoClip>;
 
+    // forward declaration
+    struct FFTransformVideoFilter;
+
     class VideoClip
     {
     public:
@@ -36,6 +39,8 @@ namespace DataLayer
         int64_t End() const { return m_start+Duration(); }
         int64_t StartOffset() const { return m_startOffset; }
         int64_t EndOffset() const { return m_endOffset; }
+        uint32_t OutWidth() const { return m_srcReader->GetVideoOutWidth(); }
+        uint32_t OutHeight() const { return m_srcReader->GetVideoOutHeight(); }
         
         bool IsStartOffsetValid(int64_t startOffset);
         void ChangeStartOffset(int64_t startOffset);
@@ -43,6 +48,7 @@ namespace DataLayer
         void ChangeEndOffset(int64_t endOffset);
         VideoFilterHolder GetFilter() const { return m_filter; }
         void SetFilter(VideoFilterHolder filter);
+        FFTransformVideoFilter* GetTransformFilterPtr();
 
         void SeekTo(int64_t pos);
         void ReadVideoFrame(int64_t pos, ImGui::ImMat& vmat, bool& eof);
@@ -64,6 +70,7 @@ namespace DataLayer
         MediaInfo::Ratio m_frameRate;
         uint32_t m_frameIndex{0};
         VideoFilterHolder m_filter;
+        FFTransformVideoFilter* m_fftransFilter{nullptr};
         int64_t m_wakeupRange{1000};
     };
 

@@ -4,6 +4,7 @@
 #include <AlphaBlending_vulkan.h>
 #endif
 #include "VideoClip.h"
+#include "FFVideoFilter.h"
 #include "Logger.h"
 
 using namespace std;
@@ -26,7 +27,7 @@ namespace DataLayer
         m_srcReader = CreateMediaReader();
         if (!m_srcReader->Open(hParser))
             throw runtime_error(m_srcReader->GetError());
-        if (!m_srcReader->ConfigVideoReader(outWidth, outHeight))
+        if (!m_srcReader->ConfigVideoReader(0u, 0u))
             throw runtime_error(m_srcReader->GetError());
         if (frameRate.num <= 0 || frameRate.den <= 0)
             throw invalid_argument("Invalid argument value for 'frameRate'!");
@@ -45,11 +46,16 @@ namespace DataLayer
         bool suspend = readpos < -m_wakeupRange || readpos > Duration()+m_wakeupRange;
         if (!m_srcReader->Start(suspend))
             throw runtime_error(m_srcReader->GetError());
+        m_fftransFilter = NewFFTransformVideoFilter();
+        if (!m_fftransFilter->Initialize(outWidth, outHeight, "RGBA"))
+            throw runtime_error(m_fftransFilter->GetError());
     }
 
     VideoClip::~VideoClip()
     {
         ReleaseMediaReader(&m_srcReader);
+        delete m_fftransFilter;
+        m_fftransFilter = nullptr;
     }
 
     VideoClipHolder VideoClip::Clone( uint32_t outWidth, uint32_t outHeight, const MediaInfo::Ratio& frameRate) const
@@ -101,6 +107,11 @@ namespace DataLayer
         }
     }
 
+    FFTransformVideoFilter* VideoClip::GetTransformFilterPtr()
+    {
+        return m_fftransFilter;
+    }
+
     void VideoClip::SeekTo(int64_t pos)
     {
         if (pos > Duration())
@@ -130,7 +141,7 @@ namespace DataLayer
         VideoFilterHolder filter = m_filter;
         if (filter)
             image = filter->FilterImage(image, pos);
-        vmat = image;
+        vmat = m_fftransFilter->FilterImage(image, pos);
     }
 
     void VideoClip::NotifyReadPos(int64_t pos)

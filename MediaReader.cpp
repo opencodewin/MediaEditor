@@ -584,18 +584,51 @@ public:
         return dynamic_cast<MediaInfo::AudioStream*>(hInfo->streams[m_audStmIdx].get());
     }
 
+    uint32_t GetVideoOutWidth() const override
+    {
+        const MediaInfo::VideoStream* vidStream = GetVideoStream();
+        if (!vidStream)
+            return 0;
+        uint32_t w = m_frmCvt.GetOutWidth();
+        if (w > 0)
+            return w;
+        w = vidStream->width;
+        return w;
+    }
+
+    uint32_t GetVideoOutHeight() const override
+    {
+        const MediaInfo::VideoStream* vidStream = GetVideoStream();
+        if (!vidStream)
+            return 0;
+        uint32_t h = m_frmCvt.GetOutHeight();
+        if (h > 0)
+            return h;
+        h = vidStream->height;
+        return h;
+    }
+
     uint32_t GetAudioOutChannels() const override
     {
+        const MediaInfo::AudioStream* audStream = GetAudioStream();
+        if (!audStream)
+            return 0;
         return m_swrOutChannels;
     }
 
     uint32_t GetAudioOutSampleRate() const override
     {
+        const MediaInfo::AudioStream* audStream = GetAudioStream();
+        if (!audStream)
+            return 0;
         return m_swrOutSampleRate;
     }
 
     uint32_t GetAudioOutFrameSize() const override
     {
+        const MediaInfo::AudioStream* audStream = GetAudioStream();
+        if (!audStream)
+            return 0;
         return m_swrPassThrough ? m_audFrmSize : m_swrFrmSize;
     }
 
@@ -2685,8 +2718,8 @@ private:
     bool m_swrPassThrough{false};
     SwrContext* m_swrCtx{nullptr};
     AVSampleFormat m_swrOutSmpfmt{AV_SAMPLE_FMT_FLT};
-    int m_swrOutSampleRate;
-    int m_swrOutChannels;
+    int m_swrOutSampleRate{0};
+    int m_swrOutChannels{0};
     int64_t m_swrOutChnLyt;
     AVRational m_swrOutTimebase;
     int64_t m_swrOutStartTime;

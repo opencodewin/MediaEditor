@@ -29,8 +29,6 @@ namespace DataLayer
 
         virtual ~FFTransformVideoFilter_Impl()
         {
-            if (m_cropFg)
-                avfilter_graph_free(&m_cropFg);
             if (m_scaleFg)
                 avfilter_graph_free(&m_scaleFg);
             if (m_rotateFg)
@@ -141,6 +139,38 @@ namespace DataLayer
             m_cropT = top;
             m_cropR = right;
             m_cropB = bottom;
+            m_needUpdateCropParam = true;
+            return true;
+        }
+
+        bool SetCropMarginL(uint32_t value) override
+        {
+            lock_guard<mutex> lk(m_processLock);
+            m_cropL = value;
+            m_needUpdateCropParam = true;
+            return true;
+        }
+
+        bool SetCropMarginT(uint32_t value) override
+        {
+            lock_guard<mutex> lk(m_processLock);
+            m_cropT = value;
+            m_needUpdateCropParam = true;
+            return true;
+        }
+
+        bool SetCropMarginR(uint32_t value) override
+        {
+            lock_guard<mutex> lk(m_processLock);
+            m_cropR = value;
+            m_needUpdateCropParam = true;
+            return true;
+        }
+
+        bool SetCropMarginB(uint32_t value) override
+        {
+            lock_guard<mutex> lk(m_processLock);
+            m_cropB = value;
             m_needUpdateCropParam = true;
             return true;
         }
@@ -517,31 +547,24 @@ namespace DataLayer
             return avfg;
         }
 
-        bool FilterImage_Internal(const ImGui::ImMat& inMat, ImGui::ImMat& outMat, int64_t pos)
+        bool ConvertInMatToAVFrame(const ImGui::ImMat& inMat, SelfFreeAVFramePtr& avfrmPtr)
         {
-            lock_guard<mutex> lk(m_processLock);
-            m_inWidth = inMat.w;
-            m_inHeight = inMat.h;
-
-            int64_t pts = (int64_t)(m_inputCount++)*AV_TIME_BASE*m_inputFrameRate.den/m_inputFrameRate.num;
-            // ImMat => AVFrame
-            SelfFreeAVFramePtr avfrmPtr = AllocSelfFreeAVFramePtr();
-            if (!m_mat2frmCvt.ConvertImage(inMat, avfrmPtr.get(), pts))
+            if (!m_mat2frmCvt.ConvertImage(inMat, avfrmPtr.get(), avfrmPtr->pts))
             {
                 ostringstream oss;
                 oss << "FAILED to convert 'ImMat' to 'AVFrame'! Error message is '" << m_mat2frmCvt.GetError() << "'.";
                 m_errMsg = oss.str();
                 return false;
             }
+            return true;
+        }
 
-            const uint32_t inputWidth = avfrmPtr->width;
-            const uint32_t inputHeight = avfrmPtr->height;
-            int fferr;
-            // crop
+        bool PerformCropStage(const ImGui::ImMat& inMat, SelfFreeAVFramePtr& avfrmPtr)
+        {
             if (m_needUpdateCropParam)
             {
-                uint32_t rectX = m_cropL<inputWidth ? m_cropL : inputWidth-1;
-                uint32_t rectX1 = m_cropR<inputWidth ? inputWidth-m_cropR : 0;
+                uint32_t rectX = m_cropL<m_inWidth ? m_cropL : m_inWidth-1;
+                uint32_t rectX1 = m_cropR<m_inWidth ? m_inWidth-m_cropR : 0;
                 uint32_t rectW;
                 if (rectX < rectX1)
                     rectW = rectX1-rectX;
@@ -550,8 +573,8 @@ namespace DataLayer
                     rectW = rectX-rectX1;
                     rectX = rectX1;
                 }
-                uint32_t rectY = m_cropT<inputHeight ? m_cropT : inputHeight-1;
-                uint32_t rectY1 = m_cropB<inputHeight ? inputHeight-m_cropB : 0;
+                uint32_t rectY = m_cropT<m_inHeight ? m_cropT : m_inHeight-1;
+                uint32_t rectY1 = m_cropB<m_inHeight ? m_inHeight-m_cropB : 0;
                 uint32_t rectH;
                 if (rectY < rectY1)
                     rectH = rectY1-rectY;
@@ -566,87 +589,16 @@ namespace DataLayer
             }
             if (m_cropL != 0 || m_cropR != 0 || m_cropT != 0 || m_cropB != 0)
             {
-#if 0
-                if (!m_cropFg)
+                if (!avfrmPtr->data[0])
                 {
-                    ostringstream argsOss;
-                    int32_t w = avfrmPtr->width-m_cropL-m_cropR;
-                    int32_t h = avfrmPtr->height-m_cropT-m_cropB;
-                    argsOss << "crop=w=" << w << ":h=" << h << ":x=" << m_cropL << ":y=" << m_cropT;
-                    string filterArgs = argsOss.str();
-                    m_cropFg = CreateFilterGraph(filterArgs, avfrmPtr->width, avfrmPtr->height, (AVPixelFormat)avfrmPtr->format, &m_cropInputCtx, &m_cropOutputCtx);
-                    if (!m_cropFg)
+                    if (!ConvertInMatToAVFrame(inMat, avfrmPtr))
                         return false;
-                    m_needUpdateCropParam = false;
                 }
-                else if (m_needUpdateCropParam)
-                {
-                    char cmdArgs[32] = {0}, cmdRes[128] = {0};
-                    int32_t w = avfrmPtr->width-m_cropL-m_cropR;
-                    snprintf(cmdArgs, sizeof(cmdArgs)-1, "%d", w);
-                    fferr = avfilter_graph_send_command(m_scaleFg, "crop", "w", cmdArgs, cmdRes, sizeof(cmdRes)-1, 0);
-                    if (fferr < 0)
-                    {
-                        ostringstream oss;
-                        oss << "FAILED to invoke 'avfilter_graph_send_command()' to 'crop' on argument 'w' = " << w
-                            << "! fferr = " << fferr << ", response = '" << cmdRes <<"'.";
-                        m_errMsg = oss.str();
-                        return false;
-                    }
-                    int32_t h = avfrmPtr->height-m_cropT-m_cropB;
-                    snprintf(cmdArgs, sizeof(cmdArgs)-1, "%d", h);
-                    fferr = avfilter_graph_send_command(m_scaleFg, "crop", "h", cmdArgs, cmdRes, sizeof(cmdRes)-1, 0);
-                    if (fferr < 0)
-                    {
-                        ostringstream oss;
-                        oss << "FAILED to invoke 'avfilter_graph_send_command()' to 'crop' on argument 'h' = " << h
-                            << "! fferr = " << fferr << ", response = '" << cmdRes <<"'.";
-                        m_errMsg = oss.str();
-                        return false;
-                    }
-                    snprintf(cmdArgs, sizeof(cmdArgs)-1, "%d", m_cropL);
-                    fferr = avfilter_graph_send_command(m_scaleFg, "crop", "x", cmdArgs, cmdRes, sizeof(cmdRes)-1, 0);
-                    if (fferr < 0)
-                    {
-                        ostringstream oss;
-                        oss << "FAILED to invoke 'avfilter_graph_send_command()' to 'crop' on argument 'x' = " << m_cropL
-                            << "! fferr = " << fferr << ", response = '" << cmdRes <<"'.";
-                        m_errMsg = oss.str();
-                        return false;
-                    }
-                    snprintf(cmdArgs, sizeof(cmdArgs)-1, "%d", m_cropT);
-                    fferr = avfilter_graph_send_command(m_scaleFg, "crop", "y", cmdArgs, cmdRes, sizeof(cmdRes)-1, 0);
-                    if (fferr < 0)
-                    {
-                        ostringstream oss;
-                        oss << "FAILED to invoke 'avfilter_graph_send_command()' to 'crop' on argument 'y' = " << m_cropT
-                            << "! fferr = " << fferr << ", response = '" << cmdRes <<"'.";
-                        m_errMsg = oss.str();
-                        return false;
-                    }
-                    m_needUpdateCropParam = false;
-                }
-                fferr = av_buffersrc_write_frame(m_cropInputCtx, avfrmPtr.get());
-                if (fferr < 0)
-                {
-                    ostringstream oss;
-                    oss << "FAILED to invoke 'av_buffersrc_write_frame()' at 'crop' stage! fferr=" << fferr << ".";
-                    m_errMsg = oss.str();
-                    return false;
-                }
-                av_frame_unref(avfrmPtr.get());
-                fferr = av_buffersink_get_frame(m_cropOutputCtx, avfrmPtr.get());
-                if (fferr < 0)
-                {
-                    ostringstream oss;
-                    oss << "FAILED to invoke 'av_buffersink_get_frame()' at 'crop' stage! fferr=" << fferr << ".";
-                    m_errMsg = oss.str();
-                    return false;
-                }
-#else
+
+                int fferr;
                 SelfFreeAVFramePtr cropfrmPtr = AllocSelfFreeAVFramePtr();
-                cropfrmPtr->width = inputWidth;
-                cropfrmPtr->height = inputHeight;
+                cropfrmPtr->width = m_inWidth;
+                cropfrmPtr->height = m_inHeight;
                 cropfrmPtr->format = avfrmPtr->format;
                 fferr = av_frame_get_buffer(cropfrmPtr.get(), 0);
                 if (fferr < 0)
@@ -679,41 +631,43 @@ namespace DataLayer
                 }
                 av_frame_copy_props(cropfrmPtr.get(), avfrmPtr.get());
                 avfrmPtr = cropfrmPtr;
-#endif
             }
+            return true;
+        }
 
-            // scale
+        bool PerformScaleStage(const ImGui::ImMat& inMat, SelfFreeAVFramePtr& avfrmPtr)
+        {
             if (m_needUpdateScaleParam)
             {
-                uint32_t scaleOutWidth{inputWidth}, scaleOutHeight{inputHeight};
+                uint32_t scaleOutWidth{m_inWidth}, scaleOutHeight{m_inHeight};
                 switch (m_scaleType)
                 {
                     case SCALE_TYPE__FIT:
-                    if (inputWidth*m_outHeight > inputHeight*m_outWidth)
+                    if (m_inWidth*m_outHeight > m_inHeight*m_outWidth)
                     {
                         scaleOutWidth = m_outWidth;
-                        scaleOutHeight = (uint32_t)round((double)inputHeight*m_outWidth/inputWidth);
+                        scaleOutHeight = (uint32_t)round((double)m_inHeight*m_outWidth/m_inWidth);
                     }
                     else
                     {
                         scaleOutHeight = m_outHeight;
-                        scaleOutWidth = (uint32_t)round((double)inputWidth*m_outHeight/inputHeight);
+                        scaleOutWidth = (uint32_t)round((double)m_inWidth*m_outHeight/m_inHeight);
                     }
                     break;
                     case SCALE_TYPE__CROP:
-                    scaleOutWidth = inputWidth;
-                    scaleOutHeight = inputHeight;
+                    scaleOutWidth = m_inWidth;
+                    scaleOutHeight = m_inHeight;
                     break;
                     case SCALE_TYPE__FILL:
-                    if (inputWidth*m_outHeight > inputHeight*m_outWidth)
+                    if (m_inWidth*m_outHeight > m_inHeight*m_outWidth)
                     {
                         scaleOutHeight = m_outHeight;
-                        scaleOutWidth = (uint32_t)round((double)inputWidth*m_outHeight/inputHeight);
+                        scaleOutWidth = (uint32_t)round((double)m_inWidth*m_outHeight/m_inHeight);
                     }
                     else
                     {
                         scaleOutWidth = m_outWidth;
-                        scaleOutHeight = (uint32_t)round((double)inputHeight*m_outWidth/inputWidth);
+                        scaleOutHeight = (uint32_t)round((double)m_inHeight*m_outWidth/m_inWidth);
                     }
                     break;
                     case SCALE_TYPE__STRETCH:
@@ -723,11 +677,18 @@ namespace DataLayer
                 }
                 m_scaledWidthWithoutCrop = (uint32_t)round(scaleOutWidth*m_scaleRatioH);
                 m_scaledHeightWithoutCrop = (uint32_t)round(scaleOutHeight*m_scaleRatioV);
-                m_realScaleRatioH = (double)scaleOutWidth/inputWidth*m_scaleRatioH;
-                m_realScaleRatioV = (double)scaleOutHeight/inputHeight*m_scaleRatioV;
+                m_realScaleRatioH = (double)scaleOutWidth/m_inWidth*m_scaleRatioH;
+                m_realScaleRatioV = (double)scaleOutHeight/m_inHeight*m_scaleRatioV;
             }
             if (m_realScaleRatioH != 1 || m_realScaleRatioV != 1)
             {
+                if (!avfrmPtr->data[0])
+                {
+                    if (!ConvertInMatToAVFrame(inMat, avfrmPtr))
+                        return false;
+                }
+
+                int fferr;
                 if (!m_scaleFg)
                 {
                     const uint32_t outW = (uint32_t)round(m_realScaleRatioH*avfrmPtr->width);
@@ -785,10 +746,20 @@ namespace DataLayer
                     return false;
                 }
             }
+            return true;
+        }
 
-            // rotate
+        bool PerformRotateStage(const ImGui::ImMat& inMat, SelfFreeAVFramePtr& avfrmPtr)
+        {
             if (m_rotateAngle != 0)
             {
+                if (!avfrmPtr->data[0])
+                {
+                    if (!ConvertInMatToAVFrame(inMat, avfrmPtr))
+                        return false;
+                }
+
+                int fferr;
                 if (!m_rotateFg)
                 {
                     const uint32_t rotw = max(m_scaledWidthWithoutCrop, m_scaledHeightWithoutCrop);
@@ -835,78 +806,124 @@ namespace DataLayer
                     return false;
                 }
             }
+            return true;
+        }
 
-            // overlay
-            const int ovlyX = ((int)m_outWidth-avfrmPtr->width)/2+m_posOffsetH;
-            const int ovlyY = ((int)m_outHeight-avfrmPtr->height)/2+m_posOffsetV;
-            if (m_ovlyX != ovlyX || m_ovlyY != ovlyY)
+        bool PerformOverlayStage(const ImGui::ImMat& inMat, SelfFreeAVFramePtr& avfrmPtr)
+        {
+            if (!avfrmPtr->data[0] && (inMat.w != m_outWidth || inMat.h != m_outHeight || m_posOffsetH != 0 || m_posOffsetV != 0))
             {
-                m_ovlyX = ovlyX;
-                m_ovlyY = ovlyY;
-                m_needUpdateOverlayParam = true;
+                if (!ConvertInMatToAVFrame(inMat, avfrmPtr))
+                    return false;
             }
-            if (!m_overlayFg)
+            if (avfrmPtr->data[0] && (avfrmPtr->width != m_outWidth || avfrmPtr->height != m_outHeight || m_posOffsetH != 0 || m_posOffsetV != 0))
             {
-                m_overlayFg = CreateOverlayFilterGraph(m_outWidth, m_outHeight, (AVPixelFormat)avfrmPtr->format, m_ovlyX, m_ovlyY,
-                                                        &m_ovlyInput0Ctx, &m_ovlyInput1Ctx, &m_ovlyOutputCtx);
+                int fferr;
+                const int ovlyX = ((int)m_outWidth-avfrmPtr->width)/2+m_posOffsetH;
+                const int ovlyY = ((int)m_outHeight-avfrmPtr->height)/2+m_posOffsetV;
+                if (m_ovlyX != ovlyX || m_ovlyY != ovlyY)
+                {
+                    m_ovlyX = ovlyX;
+                    m_ovlyY = ovlyY;
+                    m_needUpdateOverlayParam = true;
+                }
                 if (!m_overlayFg)
-                    return false;
-                m_needUpdateOverlayParam = false;
-            }
-            else if (m_needUpdateOverlayParam)
-            {
-                char cmdArgs[32] = {0}, cmdRes[128] = {0};
-                snprintf(cmdArgs, sizeof(cmdArgs)-1, "%d", m_ovlyX);
-                fferr = avfilter_graph_send_command(m_rotateFg, "overlay", "x", cmdArgs, cmdRes, sizeof(cmdRes)-1, 0);
+                {
+                    m_overlayFg = CreateOverlayFilterGraph(m_outWidth, m_outHeight, (AVPixelFormat)avfrmPtr->format, m_ovlyX, m_ovlyY,
+                                                            &m_ovlyInput0Ctx, &m_ovlyInput1Ctx, &m_ovlyOutputCtx);
+                    if (!m_overlayFg)
+                        return false;
+                    m_needUpdateOverlayParam = false;
+                }
+                else if (m_needUpdateOverlayParam)
+                {
+                    char cmdArgs[32] = {0}, cmdRes[128] = {0};
+                    snprintf(cmdArgs, sizeof(cmdArgs)-1, "%d", m_ovlyX);
+                    fferr = avfilter_graph_send_command(m_overlayFg, "overlay", "x", cmdArgs, cmdRes, sizeof(cmdRes)-1, 0);
+                    if (fferr < 0)
+                    {
+                        ostringstream oss;
+                        oss << "FAILED to invoke 'avfilter_graph_send_command()' to 'overlay' on argument 'x' = " << m_ovlyX
+                            << "! fferr = " << fferr << ", response = '" << cmdRes <<"'.";
+                        m_errMsg = oss.str();
+                        return false;
+                    }
+                    snprintf(cmdArgs, sizeof(cmdArgs)-1, "%d", m_ovlyY);
+                    fferr = avfilter_graph_send_command(m_overlayFg, "overlay", "y", cmdArgs, cmdRes, sizeof(cmdRes)-1, 0);
+                    if (fferr < 0)
+                    {
+                        ostringstream oss;
+                        oss << "FAILED to invoke 'avfilter_graph_send_command()' to 'overlay' on argument 'y' = " << m_ovlyY
+                            << "! fferr = " << fferr << ", response = '" << cmdRes <<"'.";
+                        m_errMsg = oss.str();
+                        return false;
+                    }
+                    m_needUpdateOverlayParam = false;
+                }
+                m_ovlyBaseImg->pts = avfrmPtr->pts;
+                fferr = av_buffersrc_add_frame_flags(m_ovlyInput0Ctx, m_ovlyBaseImg, AV_BUFFERSRC_FLAG_NO_CHECK_FORMAT|AV_BUFFERSRC_FLAG_KEEP_REF);
                 if (fferr < 0)
                 {
                     ostringstream oss;
-                    oss << "FAILED to invoke 'avfilter_graph_send_command()' to 'overlay' on argument 'x' = " << m_ovlyX
-                        << "! fferr = " << fferr << ", response = '" << cmdRes <<"'.";
+                    oss << "FAILED to invoke 'av_buffersrc_add_frame_flags()' at 'overlay' stage for BASE image! fferr=" << fferr << ".";
                     m_errMsg = oss.str();
                     return false;
                 }
-                snprintf(cmdArgs, sizeof(cmdArgs)-1, "%d", m_ovlyY);
-                fferr = avfilter_graph_send_command(m_rotateFg, "overlay", "y", cmdArgs, cmdRes, sizeof(cmdRes)-1, 0);
+                fferr = av_buffersrc_add_frame_flags(m_ovlyInput1Ctx, avfrmPtr.get(), AV_BUFFERSRC_FLAG_NO_CHECK_FORMAT);
                 if (fferr < 0)
                 {
                     ostringstream oss;
-                    oss << "FAILED to invoke 'avfilter_graph_send_command()' to 'overlay' on argument 'y' = " << m_ovlyY
-                        << "! fferr = " << fferr << ", response = '" << cmdRes <<"'.";
+                    oss << "FAILED to invoke 'av_buffersrc_add_frame_flags()' at 'overlay' stage for OVERLAY image! fferr=" << fferr << ".";
                     m_errMsg = oss.str();
                     return false;
                 }
-                m_needUpdateOverlayParam = false;
+                av_frame_unref(avfrmPtr.get());
+                fferr = av_buffersink_get_frame(m_ovlyOutputCtx, avfrmPtr.get());
+                if (fferr < 0)
+                {
+                    ostringstream oss;
+                    oss << "FAILED to invoke 'av_buffersink_get_frame()' at 'overlay' stage! fferr=" << fferr << ".";
+                    m_errMsg = oss.str();
+                    return false;
+                }
             }
-            m_ovlyBaseImg->pts = pts;
-            fferr = av_buffersrc_write_frame(m_ovlyInput0Ctx, m_ovlyBaseImg);
-            if (fferr < 0)
-            {
-                ostringstream oss;
-                oss << "FAILED to invoke 'av_buffersrc_write_frame()' at 'overlay' stage for base image! fferr=" << fferr << ".";
-                m_errMsg = oss.str();
-                return false;
-            }
-            fferr = av_buffersrc_write_frame(m_ovlyInput1Ctx, avfrmPtr.get());
-            if (fferr < 0)
-            {
-                ostringstream oss;
-                oss << "FAILED to invoke 'av_buffersrc_write_frame()' at 'overlay' stage for overlay image! fferr=" << fferr << ".";
-                m_errMsg = oss.str();
-                return false;
-            }
-            av_frame_unref(avfrmPtr.get());
-            fferr = av_buffersink_get_frame(m_ovlyOutputCtx, avfrmPtr.get());
-            if (fferr < 0)
-            {
-                ostringstream oss;
-                oss << "FAILED to invoke 'av_buffersink_get_frame()' at 'overlay' stage! fferr=" << fferr << ".";
-                m_errMsg = oss.str();
-                return false;
-            }
+            return true;
+        }
 
-            // AVFrame => ImMat
-            m_frm2matCvt.ConvertImage(avfrmPtr.get(), outMat, inMat.time_stamp);
+        bool FilterImage_Internal(const ImGui::ImMat& inMat, ImGui::ImMat& outMat, int64_t pos)
+        {
+            lock_guard<mutex> lk(m_processLock);
+            m_inWidth = inMat.w;
+            m_inHeight = inMat.h;
+
+            // allocate intermediate AVFrame
+            SelfFreeAVFramePtr avfrmPtr = AllocSelfFreeAVFramePtr();
+            avfrmPtr->pts = (int64_t)(m_inputCount++)*AV_TIME_BASE*m_inputFrameRate.den/m_inputFrameRate.num;
+
+            if (!PerformCropStage(inMat, avfrmPtr))
+                return false;
+            if (!PerformScaleStage(inMat, avfrmPtr))
+                return false;
+            if (!PerformRotateStage(inMat, avfrmPtr))
+                return false;
+            if (!PerformOverlayStage(inMat, avfrmPtr))
+                return false;
+
+            if (avfrmPtr->data[0])
+            {
+                // AVFrame => ImMat
+                if (!m_frm2matCvt.ConvertImage(avfrmPtr.get(), outMat, inMat.time_stamp))
+                {
+                    ostringstream oss;
+                    oss << "FAILED to convert 'AVFrame' to 'ImMat'! Error message is '" << m_frm2matCvt.GetError() << "'.";
+                    m_errMsg = oss.str();
+                    return false;
+                }
+            }
+            else
+            {
+                outMat = inMat;
+            }
             return true;
         }
 
@@ -922,9 +939,9 @@ namespace DataLayer
         ImMatToAVFrameConverter m_mat2frmCvt;
         AVFrameToImMatConverter m_frm2matCvt;
 
-        AVFilterGraph* m_cropFg{nullptr};
-        AVFilterContext* m_cropInputCtx{nullptr};
-        AVFilterContext* m_cropOutputCtx{nullptr};
+        // AVFilterGraph* m_cropFg{nullptr};
+        // AVFilterContext* m_cropInputCtx{nullptr};
+        // AVFilterContext* m_cropOutputCtx{nullptr};
         bool m_needUpdateCropParam{false};
         uint32_t m_cropL{0}, m_cropR{0}, m_cropT{0}, m_cropB{0};
         uint32_t m_cropRectX{0}, m_cropRectY{0}, m_cropRectW{0}, m_cropRectH{0};
