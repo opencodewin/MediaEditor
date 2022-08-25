@@ -3443,7 +3443,8 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                                 }
                                 ImGui::EndDisabled();
                                 ImGui::SameLine();
-                                if (ImGui::DragFloat("##curve_video_filter_point_y", &point.point.y, 0.01f, editing_clip->mKeyPoints.GetCurveMin(i), editing_clip->mKeyPoints.GetCurveMax(i), "%.2f"))
+                                auto speed = fabs(editing_clip->mKeyPoints.GetCurveMax(i) - editing_clip->mKeyPoints.GetCurveMin(i)) / 500;
+                                if (ImGui::DragFloat("##curve_video_filter_point_y", &point.point.y, speed, editing_clip->mKeyPoints.GetCurveMin(i), editing_clip->mKeyPoints.GetCurveMax(i), "%.2f"))
                                 {
                                     editing_clip->mKeyPoints.EditPoint(i, p, point.point, point.type);
                                     timeline->mVideoFilterNeedUpdate = true;
