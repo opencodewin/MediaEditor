@@ -504,7 +504,6 @@ struct BaseEditingClip
 
     void* mHandle               {nullptr};              // main timeline handle
     MediaReader* mMediaReader   {nullptr};              // editing clip media reader
-    ImGui::KeyPointEditor       mKeyPoints;             // editing clip  key points
 
     BaseEditingClip(int64_t id, MEDIA_TYPE type, int64_t start, int64_t end, int64_t startOffset, int64_t endOffset, void* handle)
         : mID(id), mType(type), mStart(start), mEnd(end), mStartOffset(startOffset), mEndOffset(endOffset), mHandle(handle)
@@ -572,7 +571,6 @@ struct BaseEditingOverlap
     BaseEditingOverlap(Overlap* ovlp) : mOvlp(ovlp) {}
     std::pair<int64_t, int64_t> m_StartOffset;
     std::pair<MediaReader*, MediaReader*> mMediaReader;
-    ImGui::KeyPointEditor       mKeyPoints;             // editing overlap key points
 
     virtual void Seek(int64_t pos) = 0;
     virtual void Step(bool forward, int64_t step = 0) = 0;

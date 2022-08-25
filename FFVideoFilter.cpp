@@ -1,5 +1,6 @@
 #include <sstream>
 #include <mutex>
+#include <algorithm>
 #include "FFVideoFilter.h"
 #include "FFUtils.h"
 #include "Logger.h"
