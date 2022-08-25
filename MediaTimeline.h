@@ -699,6 +699,7 @@ struct audio_channel_data
 
 struct TimeLine
 {
+#define MAX_VIDEO_CACHE_FRAMES  3
     TimeLine();
     ~TimeLine();
     IDGenerator m_IDGenerator;              // Timeline ID generator
@@ -716,7 +717,7 @@ struct TimeLine
     int mWidth  {1920};                     // timeline Media Width, project saved, configured
     int mHeight {1080};                     // timeline Media Height, project saved, configured
     MediaInfo::Ratio mFrameRate {25, 1};    // timeline Media Frame rate, project saved, configured
-    int mMaxCachedVideoFrame    {10};       // timeline Media Video Frame cache size, project saved, configured
+    int mMaxCachedVideoFrame {MAX_VIDEO_CACHE_FRAMES};  // timeline Media Video Frame cache size, project saved, configured
 
     int mAudioChannels {2};                 // timeline audio channels, project saved, configured
     int mAudioSampleRate {44100};           // timeline audio sample rate, project saved, configured

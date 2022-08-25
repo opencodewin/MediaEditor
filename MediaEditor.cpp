@@ -1185,7 +1185,7 @@ static void NewTimeline()
         timeline->mWidth = g_media_editor_settings.VideoWidth;
         timeline->mHeight = g_media_editor_settings.VideoHeight;
         timeline->mFrameRate = g_media_editor_settings.VideoFrameRate;
-        timeline->mMaxCachedVideoFrame = g_media_editor_settings.VideoFrameCacheSize > 0 ? g_media_editor_settings.VideoFrameCacheSize : 10;
+        timeline->mMaxCachedVideoFrame = g_media_editor_settings.VideoFrameCacheSize > 0 ? g_media_editor_settings.VideoFrameCacheSize : MAX_VIDEO_CACHE_FRAMES;
         timeline->mAudioSampleRate = g_media_editor_settings.AudioSampleRate;
         timeline->mAudioChannels = g_media_editor_settings.AudioChannels;
         timeline->mAudioFormat = (AudioRender::PcmFormat)g_media_editor_settings.AudioFormat;
@@ -6472,7 +6472,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
                 timeline->mWidth = g_media_editor_settings.VideoWidth;
                 timeline->mHeight = g_media_editor_settings.VideoHeight;
                 timeline->mFrameRate = g_media_editor_settings.VideoFrameRate;
-                timeline->mMaxCachedVideoFrame = g_media_editor_settings.VideoFrameCacheSize > 0 ? g_media_editor_settings.VideoFrameCacheSize : 10;
+                timeline->mMaxCachedVideoFrame = g_media_editor_settings.VideoFrameCacheSize > 0 ? g_media_editor_settings.VideoFrameCacheSize : MAX_VIDEO_CACHE_FRAMES;
                 timeline->mAudioSampleRate = g_media_editor_settings.AudioSampleRate;
                 timeline->mAudioChannels = g_media_editor_settings.AudioChannels;
                 timeline->mAudioFormat = (AudioRender::PcmFormat)g_media_editor_settings.AudioFormat;

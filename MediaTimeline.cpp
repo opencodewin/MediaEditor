@@ -6005,7 +6005,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         ImGui::PushStyleColor(ImGuiCol_FrameBg, 0);
         ImVec2 childFramePos = ImGui::GetCursorScreenPos();
         ImVec2 childFrameSize(timline_size.x, timline_size.y - 8.0f - headerSize.y - HorizonScrollBarSize.y);
-        ImGui::BeginChildFrame(ImGui::GetID("timeline_Tracks"), childFrameSize, ImGuiWindowFlags_NoScrollbar /*| ImGuiWindowFlags_NoScrollWithMouse*/);
+        ImGui::BeginChildFrame(ImGui::GetID("timeline_Tracks"), childFrameSize, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
         auto VerticalScrollPos = ImGui::GetScrollY();
         auto VerticalScrollMax = ImGui::GetScrollMaxY();
         auto VerticalWindow = ImGui::GetCurrentWindow();
@@ -6692,19 +6692,18 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             {
                 overLegend = true;
             }
-            if (overHorizonScrollBar || overTopBar)
+            if (overLegend)
             {
-                // up-down wheel over scrollbar, scale canvas view
-                if (io.MouseWheel < -FLT_EPSILON && timeline->visibleTime <= timeline->GetEnd())
+                if (io.MouseWheel < -FLT_EPSILON || io.MouseWheel > FLT_EPSILON)
                 {
-                    timeline->msPixelWidthTarget *= 0.9f;
-                }
-                else if (io.MouseWheel > FLT_EPSILON)
-                {
-                    timeline->msPixelWidthTarget *= 1.1f;
+                    auto scroll_y = VerticalScrollPos;
+                    float offset = io.MouseWheel * 5 / VerticalBarHeightRatio + scroll_y;
+                    offset = ImClamp(offset, 0.f, VerticalScrollMax);
+                    ImGui::SetScrollY(VerticalWindow, offset);
+                    panningViewVerticalPos = offset;
                 }
             }
-            if (overTrackView || overHorizonScrollBar || overTopBar)
+            if (overCustomDraw || overTrackView || overHorizonScrollBar || overTopBar)
             {
                 // left-right wheel over blank area, moving canvas view
                 if (io.MouseWheelH < -FLT_EPSILON)
@@ -6716,6 +6715,15 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 {
                     timeline->firstTime += timeline->visibleTime / 16;
                     timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
+                }
+                // up-down wheel over scrollbar, scale canvas view
+                else if (io.MouseWheel < -FLT_EPSILON && timeline->visibleTime <= timeline->GetEnd())
+                {
+                    timeline->msPixelWidthTarget *= 0.9f;
+                }
+                else if (io.MouseWheel > FLT_EPSILON)
+                {
+                    timeline->msPixelWidthTarget *= 1.1f;
                 }
             }
         }
@@ -6789,7 +6797,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         {
             static const float cursorWidth = 2.f;
             float cursorOffset = contentMin.x + legendWidth + (timeline->currentTime - timeline->firstTime) * timeline->msPixelWidthTarget + 1;
-            draw_list->AddLine(ImVec2(cursorOffset, contentMin.y), ImVec2(cursorOffset, contentMin.y + timline_size.y - scrollSize), IM_COL32(0, 255, 0, 224), cursorWidth);
+            draw_list->AddLine(ImVec2(cursorOffset, contentMin.y), ImVec2(cursorOffset, contentMin.y + trackRect.Max.y - scrollSize), IM_COL32(0, 255, 0, 224), cursorWidth);
         }
         draw_list->PopClipRect();
         // alignment line
