@@ -3031,7 +3031,7 @@ void MediaTrack::SelectEditingClip(Clip * clip)
     int updated = 0;
     if (timeline->m_CallBacks.EditingClip)
     {
-        //timeline->Seek(clip->mStart); // why we need seek to start?
+        if (clip->mType == MEDIA_TEXT) timeline->Seek(clip->mStart);
         updated = timeline->m_CallBacks.EditingClip(clip->mType, clip);
     }
     // find old editing clip and reset BP
