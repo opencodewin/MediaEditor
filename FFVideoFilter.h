@@ -18,12 +18,14 @@ namespace DataLayer
         virtual bool Initialize(uint32_t outWidth, uint32_t outHeight, const std::string& outputFormat) = 0;
         virtual bool SetScaleType(ScaleType type) = 0;
         virtual bool SetPositionOffset(int32_t offsetH, int32_t offsetV) = 0;
+        virtual bool SetPositionOffsetH(int32_t value) = 0;
+        virtual bool SetPositionOffsetV(int32_t value) = 0;
         virtual bool SetCropMargin(uint32_t left, uint32_t top, uint32_t right, uint32_t bottom) = 0;
         virtual bool SetCropMarginL(uint32_t value) = 0;
         virtual bool SetCropMarginT(uint32_t value) = 0;
         virtual bool SetCropMarginR(uint32_t value) = 0;
         virtual bool SetCropMarginB(uint32_t value) = 0;
-        virtual bool SetRotation(double angle) = 0;
+        virtual bool SetRotationAngle(double angle) = 0;
         virtual bool SetScaleH(double scale) = 0;
         virtual bool SetScaleV(double scale) = 0;
 

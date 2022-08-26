@@ -65,6 +65,16 @@ namespace DataLayer
         return newInstance;
     }
 
+    uint32_t VideoClip::OutWidth() const
+    {
+        return m_fftransFilter->GetOutWidth();
+    }
+
+    uint32_t VideoClip::OutHeight() const
+    {
+        return m_fftransFilter->GetOutHeight();
+    }
+
     bool VideoClip::IsStartOffsetValid(int64_t startOffset)
     {
         if (startOffset < 0 || startOffset+m_endOffset >= m_srcDuration)

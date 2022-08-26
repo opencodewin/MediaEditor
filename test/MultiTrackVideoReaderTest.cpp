@@ -59,6 +59,20 @@ void Application_SetupContext(ImGuiContext* ctx)
 {
 }
 
+static uint32_t s_addClipOptSelIdx = 0;
+static double s_addClipStart = 0;
+static double s_addClipStartOffset = 0;
+static double s_addClipEndOffset = 0;
+static uint32_t s_remTrackOptSelIdx = 0;
+static uint32_t s_clipOpTrackSelIdx = 0;
+static uint32_t s_clipOpClipSelIdx = 0;
+static double s_changeClipStart = 0;
+static double s_changeClipStartOffset = 0;
+static double s_changeClipEndOffset = 0;
+static bool s_keepAspectRatio = true;
+static vector<string> s_fitScaleTypeSelections;
+static int s_fitScaleTypeSelIdx = 0;
+
 void Application_Initialize(void** handle)
 {
     GetDefaultLogger()
@@ -83,6 +97,8 @@ void Application_Initialize(void** handle)
     ImGuiIO& io = ImGui::GetIO();
     io.IniFilename = c_imguiIniPath.c_str();
 
+    s_fitScaleTypeSelections = { "fit", "crop", "fill", "stretch" };
+
     InitializeSubtitleLibrary();
 
     g_mtVidReader = CreateMultiTrackVideoReader();
@@ -106,17 +122,6 @@ void Application_Finalize(void** handle)
 	}
 #endif
 }
-
-static uint32_t s_addClipOptSelIdx = 0;
-static double s_addClipStart = 0;
-static double s_addClipStartOffset = 0;
-static double s_addClipEndOffset = 0;
-static uint32_t s_remTrackOptSelIdx = 0;
-static uint32_t s_clipOpTrackSelIdx = 0;
-static uint32_t s_clipOpClipSelIdx = 0;
-static double s_changeClipStart = 0;
-static double s_changeClipStartOffset = 0;
-static double s_changeClipEndOffset = 0;
 
 bool Application_Frame(void * handle, bool app_will_quit)
 {
@@ -299,7 +304,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
             fftransFilter = selectedClip->GetTransformFilterPtr();
         }
         ImGui::BeginDisabled(!fftransFilter);
-        int sldintMaxValue = selectedClip ? selectedClip->OutWidth() : 0;
+        int sldintMaxValue = selectedClip ? selectedClip->SrcWidth() : 0;
         int sldintValue = fftransFilter ? fftransFilter->GetCropMarginL() : 0;
         if (ImGui::SliderInt("CropL", &sldintValue, 0, sldintMaxValue))
         {
@@ -307,7 +312,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
             g_mtVidReader->Refresh();
         }
         ImGui::SameLine(0, 10);
-        sldintMaxValue = selectedClip ? selectedClip->OutHeight() : 0;
+        sldintMaxValue = selectedClip ? selectedClip->SrcHeight() : 0;
         sldintValue = fftransFilter ? fftransFilter->GetCropMarginT() : 0;
         if (ImGui::SliderInt("CropT", &sldintValue, 0, sldintMaxValue))
         {
@@ -315,7 +320,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
             g_mtVidReader->Refresh();
         }
         ImGui::SameLine(0, 10);
-        sldintMaxValue = selectedClip ? selectedClip->OutWidth() : 0;
+        sldintMaxValue = selectedClip ? selectedClip->SrcWidth() : 0;
         sldintValue = fftransFilter ? fftransFilter->GetCropMarginR() : 0;
         if (ImGui::SliderInt("CropR", &sldintValue, 0, sldintMaxValue))
         {
@@ -323,7 +328,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
             g_mtVidReader->Refresh();
         }
         ImGui::SameLine(0, 10);
-        sldintMaxValue = selectedClip ? selectedClip->OutHeight() : 0;
+        sldintMaxValue = selectedClip ? selectedClip->SrcHeight() : 0;
         sldintValue = fftransFilter ? fftransFilter->GetCropMarginB() : 0;
         if (ImGui::SliderInt("CropB", &sldintValue, 0, sldintMaxValue))
         {
@@ -337,13 +342,92 @@ bool Application_Frame(void * handle, bool app_will_quit)
         float sldfltValue = fftransFilter ? fftransFilter->GetRotationAngle() : 0;
         if (ImGui::SliderFloat("Angle", &sldfltValue, -360, 360, "%.1f"))
         {
-            fftransFilter->SetRotation(sldfltValue);
+            fftransFilter->SetRotationAngle(sldfltValue);
+            g_mtVidReader->Refresh();
+        }
+        ImGui::SameLine(0, 20);
+        sldintMaxValue = selectedClip ? selectedClip->OutWidth() : 0;
+        sldintValue = fftransFilter ? fftransFilter->GetPositionOffsetH() : 0;
+        if (ImGui::SliderInt("OffsetH", &sldintValue, -sldintMaxValue, sldintMaxValue))
+        {
+            fftransFilter->SetPositionOffsetH(sldintValue);
+            g_mtVidReader->Refresh();
+        }
+        ImGui::SameLine(0, 10);
+        sldintMaxValue = selectedClip ? selectedClip->OutHeight() : 0;
+        sldintValue = fftransFilter ? fftransFilter->GetPositionOffsetV() : 0;
+        if (ImGui::SliderInt("OffsetV", &sldintValue, -sldintMaxValue, sldintMaxValue))
+        {
+            fftransFilter->SetPositionOffsetV(sldintValue);
+            g_mtVidReader->Refresh();
+        }
+        ImGui::SameLine(0, 20);
+        if (ImGui::BeginCombo("Fit scale type", s_fitScaleTypeSelections[s_fitScaleTypeSelIdx].c_str()))
+        {
+            for (uint32_t i = 0; i < s_fitScaleTypeSelections.size(); i++)
+            {
+                string& item = s_fitScaleTypeSelections[i];
+                const bool isSelected = s_fitScaleTypeSelIdx == i;
+                if (ImGui::Selectable(item.c_str(), isSelected))
+                {
+                    s_fitScaleTypeSelIdx = i;
+                    DataLayer::ScaleType fitType;
+                    switch (i)
+                    {
+                        case 1:
+                        fitType = DataLayer::SCALE_TYPE__CROP;
+                        break;
+                        case 2:
+                        fitType = DataLayer::SCALE_TYPE__FILL;
+                        break;
+                        case 3:
+                        fitType = DataLayer::SCALE_TYPE__STRETCH;
+                        break;
+                        default:
+                        fitType = DataLayer::SCALE_TYPE__FIT;
+                    }
+                    fftransFilter->SetScaleType(fitType);
+                    g_mtVidReader->Refresh();
+                }
+                if (isSelected)
+                    ImGui::SetItemDefaultFocus();
+            }
+            ImGui::EndCombo();
+        }
+        ImGui::EndDisabled();
+
+        // control line #5
+        ImGui::BeginDisabled(!fftransFilter);
+        if (ImGui::Checkbox("Keep aspect-ratio", &s_keepAspectRatio) &&s_keepAspectRatio)
+        {
+            if (fftransFilter->GetScaleH() != fftransFilter->GetScaleV())
+            {
+                fftransFilter->SetScaleV(fftransFilter->GetScaleH());
+                g_mtVidReader->Refresh();
+            }
+        }
+        ImGui::SameLine(0, 10);
+        sldfltValue = fftransFilter ? fftransFilter->GetScaleH() : 0;
+        if (ImGui::SliderFloat("ScaleH", &sldfltValue, 0, 4, "%.1f"))
+        {
+            fftransFilter->SetScaleH(sldfltValue);
+            if (s_keepAspectRatio)
+                fftransFilter->SetScaleV(sldfltValue);
+            g_mtVidReader->Refresh();
+        }
+        ImGui::SameLine(0, 10);
+        sldfltValue = fftransFilter ? fftransFilter->GetScaleV() : 0;
+        if (ImGui::SliderFloat("ScaleV", &sldfltValue, 0, 4, "%.1f"))
+        {
+            fftransFilter->SetScaleV(sldfltValue);
+            if (s_keepAspectRatio)
+                fftransFilter->SetScaleH(sldfltValue);
             g_mtVidReader->Refresh();
         }
         ImGui::EndDisabled();
         ImGui::PopItemWidth();
 
-        // control line #5
+        // control line #6
         ImGui::Spacing();
         ImGui::TextUnformatted("Track status:");
         uint32_t vidTrackIdx = 1;

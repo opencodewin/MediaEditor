@@ -39,8 +39,10 @@ namespace DataLayer
         int64_t End() const { return m_start+Duration(); }
         int64_t StartOffset() const { return m_startOffset; }
         int64_t EndOffset() const { return m_endOffset; }
-        uint32_t OutWidth() const { return m_srcReader->GetVideoOutWidth(); }
-        uint32_t OutHeight() const { return m_srcReader->GetVideoOutHeight(); }
+        uint32_t SrcWidth() const { return m_srcReader->GetVideoOutWidth(); }
+        uint32_t SrcHeight() const { return m_srcReader->GetVideoOutHeight(); }
+        uint32_t OutWidth() const;
+        uint32_t OutHeight() const;
         
         bool IsStartOffsetValid(int64_t startOffset);
         void ChangeStartOffset(int64_t startOffset);

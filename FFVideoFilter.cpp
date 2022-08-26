@@ -133,6 +133,20 @@ namespace DataLayer
             return true;
         }
 
+        bool SetPositionOffsetH(int32_t value) override
+        {
+            lock_guard<mutex> lk(m_processLock);
+            m_posOffsetH = value;
+            return true;
+        }
+
+        bool SetPositionOffsetV(int32_t value) override
+        {
+            lock_guard<mutex> lk(m_processLock);
+            m_posOffsetV = value;
+            return true;
+        }
+
         bool SetCropMargin(uint32_t left, uint32_t top, uint32_t right, uint32_t bottom) override
         {
             lock_guard<mutex> lk(m_processLock);
@@ -176,7 +190,7 @@ namespace DataLayer
             return true;
         }
 
-        bool SetRotation(double angle) override
+        bool SetRotationAngle(double angle) override
         {
             lock_guard<mutex> lk(m_processLock);
             int32_t n = (int32_t)trunc(angle/360);
@@ -681,7 +695,26 @@ namespace DataLayer
                 m_realScaleRatioH = (double)scaleOutWidth/m_inWidth*m_scaleRatioH;
                 m_realScaleRatioV = (double)scaleOutHeight/m_inHeight*m_scaleRatioV;
             }
-            if (m_realScaleRatioH != 1 || m_realScaleRatioV != 1)
+            int fferr;
+            if (m_realScaleRatioH <= 0 || m_realScaleRatioV <= 0)
+            {
+                int64_t pts = avfrmPtr->pts;
+                av_frame_unref(avfrmPtr.get());
+                avfrmPtr->width = 2;
+                avfrmPtr->height = 2;
+                avfrmPtr->format = (int)m_unifiedInputPixfmt;
+                fferr = av_frame_get_buffer(avfrmPtr.get(), 0);
+                if (fferr < 0)
+                {
+                    ostringstream oss;
+                    oss << "FAILED to invoke 'av_frame_get_buffer()'! fferr=" << fferr << ".";
+                    m_errMsg = oss.str();
+                    return false;
+                }
+                avfrmPtr->pts = pts;
+                memset(avfrmPtr->buf[0]->data, 0, avfrmPtr->buf[0]->size);
+            }
+            else if (m_realScaleRatioH != 1 || m_realScaleRatioV != 1)
             {
                 if (!avfrmPtr->data[0])
                 {
@@ -689,7 +722,6 @@ namespace DataLayer
                         return false;
                 }
 
-                int fferr;
                 if (!m_scaleFg)
                 {
                     const uint32_t outW = (uint32_t)round(m_realScaleRatioH*avfrmPtr->width);
@@ -766,7 +798,7 @@ namespace DataLayer
                     const uint32_t rotw = max(m_scaledWidthWithoutCrop, m_scaledHeightWithoutCrop);
                     const uint32_t roth = rotw;
                     ostringstream argsOss;
-                    argsOss << "rotate=a=" << m_rotateAngle*M_PI/180 << ":ow=" << rotw << ":oh=" << roth;
+                    argsOss << "rotate=a=" << m_rotateAngle*M_PI/180 << ":ow=" << rotw << ":oh=" << roth << ":c=0x00000000";
                     string filterArgs = argsOss.str();
                     m_rotateFg = CreateFilterGraph(filterArgs, avfrmPtr->width, avfrmPtr->height, (AVPixelFormat)avfrmPtr->format, &m_rotateInputCtx, &m_rotateOutputCtx);
                     if (!m_rotateFg)
