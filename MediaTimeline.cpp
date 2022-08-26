@@ -3560,7 +3560,7 @@ static int thread_video_filter(TimeLine * timeline)
         }
         timeline->mVidFilterClipLock.lock();
         {
-            if (timeline->mVidFilterClip->mFrame.size() >= timeline->mMaxCachedVideoFrame)
+            if (!timeline->mVidFilterClip || timeline->mVidFilterClip->mFrame.size() >= timeline->mMaxCachedVideoFrame)
             {
                 timeline->mVidFilterClipLock.unlock();
                 ImGui::sleep((int)5);
@@ -3671,7 +3671,7 @@ static int thread_video_fusion(TimeLine * timeline)
         }
         timeline->mVidFusionLock.lock();
         {
-            if (timeline->mVidOverlap->mFrame.size() >= timeline->mMaxCachedVideoFrame)
+            if (!timeline->mVidOverlap || timeline->mVidOverlap->mFrame.size() >= timeline->mMaxCachedVideoFrame)
             {
                 timeline->mVidFusionLock.unlock();
                 ImGui::sleep((int)5);

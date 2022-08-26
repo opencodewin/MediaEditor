@@ -2989,7 +2989,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
     ImVec2 video_preview_pos = window_pos;
     float video_preview_height = (window_size.y - clip_timeline_height - clip_keypoint_height) * 2 / 3;
     float video_bluepoint_height = (window_size.y - clip_timeline_height - clip_keypoint_height) - video_preview_height;
-    float clip_setting_width = 384;
+    float clip_setting_width = 400;
     float clip_setting_height = window_size.y - video_preview_height;
     ImVec2 clip_setting_pos = video_preview_pos + ImVec2(window_size.x - clip_setting_width, video_preview_height);
     ImVec2 clip_setting_size(clip_setting_width, clip_setting_height);
@@ -3475,10 +3475,29 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                 ImGui::TreePop();
             }
             // Filter Node setting
-            if (ImGui::TreeNodeEx("Node Setting##video_filter", ImGuiTreeNodeFlags_DefaultOpen))
+            if (timeline && timeline->mVideoFilterBluePrint && timeline->mVideoFilterBluePrint->Blueprint_IsValid())
             {
-                // TODO::Dicky add Filter node setting
-                ImGui::TreePop();
+                if (ImGui::TreeNodeEx("Node Setting##video_filter", ImGuiTreeNodeFlags_DefaultOpen))
+                {
+                    auto nodes = timeline->mVideoFilterBluePrint->m_Document->m_Blueprint.GetNodes();
+                    for (auto node : nodes)
+                    {
+                        auto type = node->GetTypeInfo().m_Type;
+                        if (type == BluePrint::NodeType::EntryPoint || type == BluePrint::NodeType::ExitPoint)
+                            continue;
+                        if (!node->CustomLayout())
+                            continue;
+                        auto label_name = node->GetTypeInfo().m_Name;
+                        std::string lable_id = std::string(ICON_NODE) + " " + label_name + "##video_filter_node" + "@" + std::to_string(node->m_ID);
+                        if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
+                        {
+                            if (node->DrawCustomLayout(ImGui::GetCurrentContext(), 1.0, ImVec2(0, 0)))
+                                timeline->mVideoFilterNeedUpdate = true;
+                            ImGui::TreePop();
+                        }
+                    }
+                    ImGui::TreePop();
+                }
             }
         }
     }
@@ -3552,7 +3571,7 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
     ImVec2 video_preview_pos = window_pos;
     float video_preview_height = (window_size.y - clip_timeline_height - clip_keypoint_height) * 2 / 3;
     float video_bluepoint_height = (window_size.y - clip_timeline_height - clip_keypoint_height) - video_preview_height;
-    float clip_setting_width = 384;
+    float clip_setting_width = 400;
     float clip_setting_height = window_size.y - video_preview_height;
     ImVec2 clip_setting_pos = video_preview_pos + ImVec2(window_size.x - clip_setting_width, video_preview_height);
     ImVec2 clip_setting_size(clip_setting_width, clip_setting_height);
@@ -3964,10 +3983,29 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
                 ImGui::TreePop();
             }
             // Overlap Node setting
-            if (ImGui::TreeNodeEx("Node Setting##video_fusion", ImGuiTreeNodeFlags_DefaultOpen))
+            if (timeline && timeline->mVideoFusionBluePrint && timeline->mVideoFusionBluePrint->Blueprint_IsValid())
             {
-                // TODO::Dicky add Fusion node setting
-                ImGui::TreePop();
+                if (ImGui::TreeNodeEx("Node Setting##video_fusion", ImGuiTreeNodeFlags_DefaultOpen))
+                {
+                    auto nodes = timeline->mVideoFusionBluePrint->m_Document->m_Blueprint.GetNodes();
+                    for (auto node : nodes)
+                    {
+                        auto type = node->GetTypeInfo().m_Type;
+                        if (type == BluePrint::NodeType::EntryPoint || type == BluePrint::NodeType::ExitPoint)
+                            continue;
+                        if (!node->CustomLayout())
+                            continue;
+                        auto label_name = node->GetTypeInfo().m_Name;
+                        std::string lable_id = std::string(ICON_NODE) + " " + label_name + "##video_fusion_node" + "@" + std::to_string(node->m_ID);
+                        if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
+                        {
+                            if (node->DrawCustomLayout(ImGui::GetCurrentContext(), 1.0, ImVec2(0, 0)))
+                                timeline->mVideoFusionNeedUpdate = true;
+                            ImGui::TreePop();
+                        }
+                    }
+                    ImGui::TreePop();
+                }
             }
         }
     }
