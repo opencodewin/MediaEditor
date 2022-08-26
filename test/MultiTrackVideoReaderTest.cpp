@@ -408,7 +408,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
         }
         ImGui::SameLine(0, 10);
         sldfltValue = fftransFilter ? fftransFilter->GetScaleH() : 0;
-        if (ImGui::SliderFloat("ScaleH", &sldfltValue, 0, 4, "%.1f"))
+        if (ImGui::SliderFloat("ScaleH", &sldfltValue, 0, 4, "%.2f"))
         {
             fftransFilter->SetScaleH(sldfltValue);
             if (s_keepAspectRatio)
@@ -417,7 +417,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
         }
         ImGui::SameLine(0, 10);
         sldfltValue = fftransFilter ? fftransFilter->GetScaleV() : 0;
-        if (ImGui::SliderFloat("ScaleV", &sldfltValue, 0, 4, "%.1f"))
+        if (ImGui::SliderFloat("ScaleV", &sldfltValue, 0, 4, "%.2f"))
         {
             fftransFilter->SetScaleV(sldfltValue);
             if (s_keepAspectRatio)
@@ -561,6 +561,12 @@ bool Application_Frame(void * handle, bool app_will_quit)
             g_playStartPos = 60;
         }
 
+        ImGui::SameLine(0, 10);
+        if (ImGui::Button("Refresh"))
+        {
+            g_mtVidReader->Refresh();
+        }
+
         ImGui::Spacing();
 
         ostringstream oss;
@@ -598,23 +604,13 @@ bool Application_Frame(void * handle, bool app_will_quit)
                 hTrack->OutWidth(), hTrack->OutHeight(), hTrack->FrameRate(),
                 (int64_t)(s_addClipStart*1000), (int64_t)(s_addClipStartOffset*1000), (int64_t)(s_addClipEndOffset*1000),
                 (int64_t)((playPos-s_addClipStart)*1000)));
-            // FFTransformVideoFilter* fftransFilter = NewFFTransformVideoFilter();
-            // if (!fftransFilter->Initialize(hTrack->OutWidth(), hTrack->OutHeight(), "RGBA"))
-            // {
-            //     Log(Error) << "FFTransformVideoFilter::Initialize() FAILED! " << fftransFilter->GetError() << endl;
-            //     delete fftransFilter;
-            // }
-            // else
-            {
-                // hClip->SetFilter(VideoFilterHolder(fftransFilter));
-                hTrack->InsertClip(hClip);
-                g_mtVidReader->Refresh();
+            hTrack->InsertClip(hClip);
+            g_mtVidReader->Refresh();
 
-                s_addClipOptSelIdx = g_mtVidReader->TrackCount();
-                s_addClipStart = 0;
-                s_addClipStartOffset = 0;
-                s_addClipEndOffset = 0;
-            }
+            s_addClipOptSelIdx = g_mtVidReader->TrackCount();
+            s_addClipStart = 0;
+            s_addClipStartOffset = 0;
+            s_addClipEndOffset = 0;
         }
         ImGuiFileDialog::Instance()->Close();
     }

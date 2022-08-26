@@ -1,6 +1,7 @@
 #include <sstream>
 #include <mutex>
 #include <algorithm>
+#include <cmath>
 #include "FFVideoFilter.h"
 #include "FFUtils.h"
 #include "Logger.h"
@@ -54,6 +55,7 @@ namespace DataLayer
             }
             m_outWidth = outWidth;
             m_outHeight = outHeight;
+            m_diagonalLen = (uint32_t)ceil(sqrt(outWidth*outWidth+outHeight*outHeight));
             string fmtLowerCase(outputFormat);
             transform(fmtLowerCase.begin(), fmtLowerCase.end(), fmtLowerCase.begin(), [] (char c) {
                 if (c <= 'Z' && c >= 'A')
@@ -722,12 +724,48 @@ namespace DataLayer
                         return false;
                 }
 
+                int32_t rcalPosOffH{0}, rcalPosOffV{0};
+                if (m_posOffsetH != 0 || m_posOffsetV != 0)
+                {
+                    double offsetArc;
+                    if (m_posOffsetV == 0)
+                    {
+                        if (m_posOffsetH > 0)
+                            offsetArc = 0;
+                        else
+                            offsetArc = 180;
+                    }
+                    else if (m_posOffsetH == 0)
+                    {
+                        if (m_posOffsetV > 0)
+                            offsetArc = 90;
+                        else
+                            offsetArc = 270;
+                    }
+                    else
+                    {
+                        offsetArc = atan2(m_posOffsetV, m_posOffsetH);
+                    }
+                    offsetArc -= m_rotateAngle*M_PI/180;
+                    double r = sqrt(m_posOffsetH*m_posOffsetH+m_posOffsetV*m_posOffsetV);
+                    double posOffBrH = r*cos(offsetArc);
+                    double posOffBrV = r*sin(offsetArc);
+                    rcalPosOffH = (int32_t)round(posOffBrH/m_realScaleRatioH);
+                    rcalPosOffV = (int32_t)round(posOffBrV/m_realScaleRatioV);
+                    m_posOffCompH = -m_posOffsetH;
+                    m_posOffCompV = -m_posOffsetV;
+                }
+                uint32_t maxEdgeLen = m_diagonalLen+m_scaleSafePadding;
+                uint32_t outW = (uint32_t)round(m_realScaleRatioH*avfrmPtr->width);
+                uint32_t roiW = outW > maxEdgeLen ? maxEdgeLen : outW;
+                uint32_t rcalW = (uint32_t)round((double)m_inWidth*roiW/outW);
+                uint32_t outH = (uint32_t)round(m_realScaleRatioV*avfrmPtr->height);
+                uint32_t roiH = outH > maxEdgeLen ? maxEdgeLen : outH;
+                uint32_t rcalH = (uint32_t)round((double)m_inHeight*roiH/outH);
                 if (!m_scaleFg)
                 {
-                    const uint32_t outW = (uint32_t)round(m_realScaleRatioH*avfrmPtr->width);
-                    const uint32_t outH = (uint32_t)round(m_realScaleRatioV*avfrmPtr->height);
                     ostringstream argsOss;
-                    argsOss << "scale=w=" << outW << ":h=" << outH << ":eval=frame:flags=bicubic";
+                    argsOss << "scale=w=" << roiW << ":h=" << roiH << ":eval=frame:flags=bicubic";
                     string filterArgs = argsOss.str();
                     m_scaleFg = CreateFilterGraph(filterArgs, avfrmPtr->width, avfrmPtr->height, (AVPixelFormat)avfrmPtr->format, &m_scaleInputCtx, &m_scaleOutputCtx);
                     if (!m_scaleFg)
@@ -736,41 +774,63 @@ namespace DataLayer
                 }
                 else if (m_needUpdateScaleParam)
                 {
-                    const uint32_t outW = (uint32_t)round(m_realScaleRatioH*avfrmPtr->width);
-                    const uint32_t outH = (uint32_t)round(m_realScaleRatioV*avfrmPtr->height);
                     char cmdArgs[32] = {0}, cmdRes[128] = {0};
-                    snprintf(cmdArgs, sizeof(cmdArgs)-1, "%d", outW);
+                    snprintf(cmdArgs, sizeof(cmdArgs)-1, "%d", roiW);
                     fferr = avfilter_graph_send_command(m_scaleFg, "scale", "w", cmdArgs, cmdRes, sizeof(cmdRes)-1, 0);
                     if (fferr < 0)
                     {
                         ostringstream oss;
-                        oss << "FAILED to invoke 'avfilter_graph_send_command()' to 'scale' on argument 'w' = " << outW
+                        oss << "FAILED to invoke 'avfilter_graph_send_command()' to 'scale' on argument 'w' = " << roiW
                             << "! fferr = " << fferr << ", response = '" << cmdRes <<"'.";
                         m_errMsg = oss.str();
                         return false;
                     }
-                    snprintf(cmdArgs, sizeof(cmdArgs)-1, "%d", outH);
+                    snprintf(cmdArgs, sizeof(cmdArgs)-1, "%d", roiH);
                     fferr = avfilter_graph_send_command(m_scaleFg, "scale", "h", cmdArgs, cmdRes, sizeof(cmdRes)-1, 0);
                     if (fferr < 0)
                     {
                         ostringstream oss;
-                        oss << "FAILED to invoke 'avfilter_graph_send_command()' to 'scale' on argument 'h' = " << outH
+                        oss << "FAILED to invoke 'avfilter_graph_send_command()' to 'scale' on argument 'h' = " << roiH
                             << "! fferr = " << fferr << ", response = '" << cmdRes <<"'.";
                         m_errMsg = oss.str();
                         return false;
                     }
                     m_needUpdateScaleParam = false;
                 }
-                fferr = av_buffersrc_write_frame(m_scaleInputCtx, avfrmPtr.get());
+                SelfFreeAVFramePtr inputfrmPtr = avfrmPtr;
+                if (rcalW != avfrmPtr->width || rcalH != avfrmPtr->height)
+                {
+                    inputfrmPtr = AllocSelfFreeAVFramePtr();
+                    inputfrmPtr->width = rcalW;
+                    inputfrmPtr->height = rcalH;
+                    inputfrmPtr->format = avfrmPtr->format;
+                    memset(inputfrmPtr->data, 0, sizeof(inputfrmPtr->data));
+                    memset(inputfrmPtr->linesize, 0, sizeof(inputfrmPtr->linesize));
+                    memset(inputfrmPtr->buf, 0, sizeof(inputfrmPtr->buf));
+                    int32_t offX = (avfrmPtr->width-(int)rcalW)/2+rcalPosOffH;
+                    if (offX < 0) offX = 0;
+                    else if (offX+roiW > avfrmPtr->width) offX = avfrmPtr->width-roiW;
+                    int32_t offY = (avfrmPtr->height-(int)rcalH)/2+rcalPosOffV;
+                    if (offY < 0) offY = 0;
+                    else if (offY+roiH > avfrmPtr->height) offY = avfrmPtr->height-roiH;
+                    inputfrmPtr->data[0] = avfrmPtr->data[0]+offY*avfrmPtr->linesize[0]+offX*4;
+                    AVBufferRef* extBufRef = av_buffer_create(
+                        inputfrmPtr->data[0], rcalH*avfrmPtr->linesize[0]-offX*4,
+                        [](void*, uint8_t*){}, nullptr, AV_BUFFER_FLAG_READONLY);
+                    inputfrmPtr->linesize[0] = avfrmPtr->linesize[0];
+                    inputfrmPtr->buf[0] = extBufRef;
+                    av_frame_copy_props(inputfrmPtr.get(), avfrmPtr.get());
+                }
+                fferr = av_buffersrc_add_frame_flags(m_scaleInputCtx, inputfrmPtr.get(), AV_BUFFERSRC_FLAG_NO_CHECK_FORMAT);
                 if (fferr < 0)
                 {
                     ostringstream oss;
-                    oss << "FAILED to invoke 'av_buffersrc_write_frame()' at 'scale' stage! fferr=" << fferr << ".";
+                    oss << "FAILED to invoke 'av_buffersrc_add_frame_flags()' at 'scale' stage! fferr=" << fferr << ".";
                     m_errMsg = oss.str();
                     return false;
                 }
-                av_frame_unref(avfrmPtr.get());
-                fferr = av_buffersink_get_frame(m_scaleOutputCtx, avfrmPtr.get());
+                SelfFreeAVFramePtr outfrmPtr = AllocSelfFreeAVFramePtr();
+                fferr = av_buffersink_get_frame(m_scaleOutputCtx, outfrmPtr.get());
                 if (fferr < 0)
                 {
                     ostringstream oss;
@@ -778,6 +838,7 @@ namespace DataLayer
                     m_errMsg = oss.str();
                     return false;
                 }
+                avfrmPtr = outfrmPtr;
             }
             return true;
         }
@@ -791,6 +852,8 @@ namespace DataLayer
                     if (!ConvertInMatToAVFrame(inMat, avfrmPtr))
                         return false;
                 }
+                if (m_rotateFg && (avfrmPtr->width != m_rotInW || avfrmPtr->height != m_rotInH))
+                    avfilter_graph_free(&m_rotateFg);
 
                 int fferr;
                 if (!m_rotateFg)
@@ -803,6 +866,8 @@ namespace DataLayer
                     m_rotateFg = CreateFilterGraph(filterArgs, avfrmPtr->width, avfrmPtr->height, (AVPixelFormat)avfrmPtr->format, &m_rotateInputCtx, &m_rotateOutputCtx);
                     if (!m_rotateFg)
                         return false;
+                    m_rotInW = avfrmPtr->width;
+                    m_rotInH = avfrmPtr->height;
                     m_needUpdateRotateParam = false;
                 }
                 else if (m_needUpdateRotateParam)
@@ -844,16 +909,18 @@ namespace DataLayer
 
         bool PerformOverlayStage(const ImGui::ImMat& inMat, SelfFreeAVFramePtr& avfrmPtr)
         {
-            if (!avfrmPtr->data[0] && (inMat.w != m_outWidth || inMat.h != m_outHeight || m_posOffsetH != 0 || m_posOffsetV != 0))
+            const int32_t posOffH = m_posOffsetH+m_posOffCompH;
+            const int32_t posOffV = m_posOffsetV+m_posOffCompV;
+            if (!avfrmPtr->data[0] && (inMat.w != m_outWidth || inMat.h != m_outHeight || posOffH != 0 || posOffV != 0))
             {
                 if (!ConvertInMatToAVFrame(inMat, avfrmPtr))
                     return false;
             }
-            if (avfrmPtr->data[0] && (avfrmPtr->width != m_outWidth || avfrmPtr->height != m_outHeight || m_posOffsetH != 0 || m_posOffsetV != 0))
+            if (avfrmPtr->data[0] && (avfrmPtr->width != m_outWidth || avfrmPtr->height != m_outHeight || posOffH != 0 || posOffV != 0))
             {
                 int fferr;
-                const int ovlyX = ((int)m_outWidth-avfrmPtr->width)/2+m_posOffsetH;
-                const int ovlyY = ((int)m_outHeight-avfrmPtr->height)/2+m_posOffsetV;
+                const int ovlyX = ((int)m_outWidth-avfrmPtr->width)/2+posOffH;
+                const int ovlyY = ((int)m_outHeight-avfrmPtr->height)/2+posOffV;
                 if (m_ovlyX != ovlyX || m_ovlyY != ovlyY)
                 {
                     m_ovlyX = ovlyX;
@@ -963,6 +1030,7 @@ namespace DataLayer
     private:
         uint32_t m_inWidth{0}, m_inHeight{0};
         uint32_t m_outWidth{0}, m_outHeight{0};
+        uint32_t m_diagonalLen{0}, m_scaleSafePadding{10};
         AVPixelFormat m_unifiedInputPixfmt{AV_PIX_FMT_RGBA};
         AVPixelFormat m_unifiedOutputPixfmt{AV_PIX_FMT_NONE};
         ScaleType m_scaleType{SCALE_TYPE__FIT};
@@ -972,9 +1040,6 @@ namespace DataLayer
         ImMatToAVFrameConverter m_mat2frmCvt;
         AVFrameToImMatConverter m_frm2matCvt;
 
-        // AVFilterGraph* m_cropFg{nullptr};
-        // AVFilterContext* m_cropInputCtx{nullptr};
-        // AVFilterContext* m_cropOutputCtx{nullptr};
         bool m_needUpdateCropParam{false};
         uint32_t m_cropL{0}, m_cropR{0}, m_cropT{0}, m_cropB{0};
         uint32_t m_cropRectX{0}, m_cropRectY{0}, m_cropRectW{0}, m_cropRectH{0};
@@ -986,11 +1051,13 @@ namespace DataLayer
         double m_scaleRatioH{1}, m_scaleRatioV{1};
         double m_realScaleRatioH{1}, m_realScaleRatioV{1};
         uint32_t m_scaledWidthWithoutCrop{0}, m_scaledHeightWithoutCrop{0};
+        int32_t m_posOffCompH{0}, m_posOffCompV{0};
 
         AVFilterGraph* m_rotateFg{nullptr};
         AVFilterContext* m_rotateInputCtx{nullptr};
         AVFilterContext* m_rotateOutputCtx{nullptr};
         bool m_needUpdateRotateParam{false};
+        uint32_t m_rotInW{0}, m_rotInH{0};
         double m_rotateAngle{0};
 
         AVFilterGraph* m_overlayFg{nullptr};
