@@ -3492,7 +3492,10 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                         if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
                         {
                             if (node->DrawCustomLayout(ImGui::GetCurrentContext(), 1.0, ImVec2(0, 0)))
+                            {
+                                node->m_NeedUpdate = true;
                                 timeline->mVideoFilterNeedUpdate = true;
+                            }
                             ImGui::TreePop();
                         }
                     }
@@ -4000,7 +4003,10 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
                         if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
                         {
                             if (node->DrawCustomLayout(ImGui::GetCurrentContext(), 1.0, ImVec2(0, 0)))
+                            {
+                                node->m_NeedUpdate = true;
                                 timeline->mVideoFusionNeedUpdate = true;
+                            }
                             ImGui::TreePop();
                         }
                     }
