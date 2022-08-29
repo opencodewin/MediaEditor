@@ -3493,11 +3493,12 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                             continue;
                         if (!node->CustomLayout())
                             continue;
-                        auto label_name = node->GetTypeInfo().m_Name;
+                        auto label_name = node->m_Name;
                         std::string lable_id = std::string(ICON_NODE) + " " + label_name + "##video_filter_node" + "@" + std::to_string(node->m_ID);
                         if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
                         {
                             ImGui::ImCurveEdit::keys key;
+                            key.m_id = node->m_ID;
                             if (node->DrawCustomLayout(ImGui::GetCurrentContext(), 1.0, ImVec2(0, 0), &key))
                             {
                                 node->m_NeedUpdate = true;
@@ -3812,6 +3813,27 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
     ImGui::SetCursorScreenPos(clip_setting_pos);
     if (ImGui::BeginChild("##video_fusion_setting", clip_setting_size, false, setting_child_flags))
     {
+        auto addCurve = [&](std::string name, float _min, float _max, float _default)
+        {
+            auto found = editing_overlap->mKeyPoints.GetCurveIndex(name);
+            if (found == -1)
+            {
+                ImU32 color; ImGui::RandomColor(color, 1.f);
+                auto curve_index = editing_overlap->mKeyPoints.AddCurve(name, ImGui::ImCurveEdit::Linear, color, true, _min, _max, _default);
+                editing_overlap->mKeyPoints.AddPoint(curve_index, ImVec2(0.f, _min), ImGui::ImCurveEdit::Linear);
+                editing_overlap->mKeyPoints.AddPoint(curve_index, ImVec2(timeline->mVidOverlap->mEnd - timeline->mVidOverlap->mStart, _max), ImGui::ImCurveEdit::Linear);
+                // insert curve pin for blueprint entry node
+                if (timeline->mVideoFusionBluePrint)
+                {
+                    auto entry_node = timeline->mVideoFusionBluePrint->FindEntryPointNode();
+                    if (entry_node)
+                    {
+                        entry_node->InsertOutputPin(BluePrint::PinType::Float, name);
+                        timeline->mVideoFusionNeedUpdate = true;
+                    }
+                }
+            }
+        };
         ImVec2 sub_window_pos = ImGui::GetWindowPos(); // we need draw background with scroll view
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_TWO);
@@ -3853,24 +3875,7 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
                 ImGui::SameLine();
                 if (ImGui::Button(ICON_ADD "##insert_curve_video_fusion") || name_input_with_return)
                 {
-                    auto found = editing_overlap->mKeyPoints.GetCurveIndex(curve_name);
-                    if (found == -1)
-                    {
-                        ImU32 color; ImGui::RandomColor(color, 1.f);
-                        auto curve_index = editing_overlap->mKeyPoints.AddCurve(curve_name, ImGui::ImCurveEdit::Linear, color, true, 0.f, 1.f, 0.f);
-                        editing_overlap->mKeyPoints.AddPoint(curve_index, ImVec2(0.f, 0.f), ImGui::ImCurveEdit::Linear);
-                        editing_overlap->mKeyPoints.AddPoint(curve_index, ImVec2(timeline->mVidOverlap->mEnd - timeline->mVidOverlap->mStart, 1.f), ImGui::ImCurveEdit::Linear);
-                        // insert curve pin for blueprint entry node
-                        if (timeline->mVideoFusionBluePrint)
-                        {
-                            auto entry_node = timeline->mVideoFusionBluePrint->FindEntryPointNode();
-                            if (entry_node)
-                            {
-                                entry_node->InsertOutputPin(BluePrint::PinType::Float, curve_name);
-                                timeline->mVideoFusionNeedUpdate = true;
-                            }
-                        }
-                    }
+                    addCurve(curve_name, 0.f, 1.f, 1.f);
                 }
                 ImGui::PopStyleVar();
                 ImGui::EndDisabled();
@@ -4009,14 +4014,20 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
                             continue;
                         if (!node->CustomLayout())
                             continue;
-                        auto label_name = node->GetTypeInfo().m_Name;
+                        auto label_name = node->m_Name;
                         std::string lable_id = std::string(ICON_NODE) + " " + label_name + "##video_fusion_node" + "@" + std::to_string(node->m_ID);
                         if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
                         {
-                            if (node->DrawCustomLayout(ImGui::GetCurrentContext(), 1.0, ImVec2(0, 0)))
+                            ImGui::ImCurveEdit::keys key;
+                            key.m_id = node->m_ID;
+                            if (node->DrawCustomLayout(ImGui::GetCurrentContext(), 1.0, ImVec2(0, 0), &key))
                             {
                                 node->m_NeedUpdate = true;
                                 timeline->mVideoFusionNeedUpdate = true;
+                            }
+                            if (!key.name.empty())
+                            {
+                                addCurve(key.name, key.m_min, key.m_max, key.m_default);
                             }
                             ImGui::TreePop();
                         }
