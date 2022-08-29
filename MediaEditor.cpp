@@ -3289,6 +3289,29 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
     ImGui::SetCursorScreenPos(clip_setting_pos);
     if (ImGui::BeginChild("##video_filter_setting", clip_setting_size, false, setting_child_flags))
     {
+        auto addCurve = [&](std::string name, float _min, float _max, float _default)
+        {
+            auto found = editing_clip->mKeyPoints.GetCurveIndex(name);
+            if (found == -1)
+            {
+                ImU32 color; ImGui::RandomColor(color, 1.f);
+                auto curve_index = editing_clip->mKeyPoints.AddCurve(name, ImGui::ImCurveEdit::Smooth, color, true, _min, _max, _default);
+                editing_clip->mKeyPoints.AddPoint(curve_index, ImVec2(0.f, _min), ImGui::ImCurveEdit::Smooth);
+                editing_clip->mKeyPoints.AddPoint(curve_index, ImVec2(timeline->mVidFilterClip->mEnd - timeline->mVidFilterClip->mStart, _max), ImGui::ImCurveEdit::Smooth);
+                editing_clip->mKeyPoints.SetCurvePointDefault(curve_index, 0);
+                editing_clip->mKeyPoints.SetCurvePointDefault(curve_index, 1);
+                // insert curve pin for blueprint entry node
+                if (timeline->mVideoFilterBluePrint)
+                {
+                    auto entry_node = timeline->mVideoFilterBluePrint->FindEntryPointNode();
+                    if (entry_node)
+                    {
+                        entry_node->InsertOutputPin(BluePrint::PinType::Float, name);
+                        timeline->mVideoFilterNeedUpdate = true;
+                    }
+                }
+            }
+        };
         ImVec2 sub_window_pos = ImGui::GetWindowPos(); // we need draw background with scroll view
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_TWO);
@@ -3330,24 +3353,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                 ImGui::SameLine();
                 if (ImGui::Button(ICON_ADD "##insert_curve_video_filter") || name_input_with_return)
                 {
-                    auto found = editing_clip->mKeyPoints.GetCurveIndex(curve_name);
-                    if (found == -1)
-                    {
-                        ImU32 color; ImGui::RandomColor(color, 1.f);
-                        auto curve_index = editing_clip->mKeyPoints.AddCurve(curve_name, ImGui::ImCurveEdit::Smooth, color, true, 0.f, 1.f, 0.f);
-                        editing_clip->mKeyPoints.AddPoint(curve_index, ImVec2(0.f, 0.5f), ImGui::ImCurveEdit::Smooth);
-                        editing_clip->mKeyPoints.AddPoint(curve_index, ImVec2(timeline->mVidFilterClip->mEnd - timeline->mVidFilterClip->mStart, 0.5f), ImGui::ImCurveEdit::Smooth);
-                        // insert curve pin for blueprint entry node
-                        if (timeline->mVideoFilterBluePrint)
-                        {
-                            auto entry_node = timeline->mVideoFilterBluePrint->FindEntryPointNode();
-                            if (entry_node)
-                            {
-                                entry_node->InsertOutputPin(BluePrint::PinType::Float, curve_name);
-                                timeline->mVideoFilterNeedUpdate = true;
-                            }
-                        }
-                    }
+                    addCurve(curve_name, 0.f, 1.f, 0.5);
                 }
                 ImGui::PopStyleVar();
                 ImGui::EndDisabled();
@@ -3491,10 +3497,15 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                         std::string lable_id = std::string(ICON_NODE) + " " + label_name + "##video_filter_node" + "@" + std::to_string(node->m_ID);
                         if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
                         {
-                            if (node->DrawCustomLayout(ImGui::GetCurrentContext(), 1.0, ImVec2(0, 0)))
+                            ImGui::ImCurveEdit::keys key;
+                            if (node->DrawCustomLayout(ImGui::GetCurrentContext(), 1.0, ImVec2(0, 0), &key))
                             {
                                 node->m_NeedUpdate = true;
                                 timeline->mVideoFilterNeedUpdate = true;
+                            }
+                            if (!key.name.empty())
+                            {
+                                addCurve(key.name, key.m_min, key.m_max, key.m_default);
                             }
                             ImGui::TreePop();
                         }
