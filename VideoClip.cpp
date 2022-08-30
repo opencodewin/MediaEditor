@@ -151,8 +151,7 @@ namespace DataLayer
         VideoFilterHolder filter = m_filter;
         if (filter)
             image = filter->FilterImage(image, pos);
-        // vmat = m_fftransFilter->FilterImage(image, pos);
-        vmat = image;
+        vmat = m_fftransFilter->FilterImage(image, pos);
     }
 
     void VideoClip::NotifyReadPos(int64_t pos)
