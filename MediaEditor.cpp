@@ -308,6 +308,7 @@ struct MediaEditorSettings
     bool ExpandScope {false};
     // Histogram Scope tools
     bool HistogramLog {false};
+    bool HistogramSplited {false};
     float HistogramScale {0.1};
 
     // Waveform Scope tools
@@ -2725,6 +2726,7 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
 static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImRect& video_rect, bool audio_bar = true, bool monitors = true, bool force_update = false)
 {
     // preview control pannel
+    ImGuiIO& io = ImGui::GetIO();
     ImVec2 PanelBarPos;
     ImVec2 PanelBarSize;
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
@@ -2799,7 +2801,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImR
     ImGui::ShowTooltipOnHover("To End");
 
     bool loop = timeline ? timeline->bLoop : false;
-    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 32 + 8 + 32 + 8 + 32 + 8, PanelButtonY));
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 32 + 8 + 32 + 8 + 32 + 8, PanelButtonY + 4));
     if (ImGui::Button(loop ? ICON_LOOP : ICON_LOOP_ONE "##preview_loop", ImVec2(32, 32)))
     {
         if (timeline)
@@ -2809,6 +2811,14 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImR
         }
     }
     ImGui::ShowTooltipOnHover("Loop");
+    bool zoom = timeline ? timeline->bPreviewZoom : false;
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 32 + 8 + 32 + 8 + 32 + 8  + 32 + 8, PanelButtonY + 8));
+    if (ImGui::CheckButton(ICON_ZOOM "##preview_zoom", &zoom))
+    {
+        timeline->bPreviewZoom = zoom;
+    }
+    ImGui::ShowTooltipOnHover("Magnifying");
+
 
     // Time stamp on left of control panel
     auto PanelRightX = PanelBarPos.x + window_size.x - 150;
@@ -2875,9 +2885,45 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImR
         ImGui::ImMatToTexture(frame, timeline->mMainPreviewTexture);
         timeline->mLastFrameTime = frame.time_stamp * 1000;
     }
+    float pos_x = 0, pos_y = 0;
     float offset_x = 0, offset_y = 0;
     float tf_x = 0, tf_y = 0;
+    static float texture_zoom = 2.0f;
     ShowVideoWindow(draw_list, timeline->mMainPreviewTexture, PreviewPos, PreviewSize, offset_x, offset_y, tf_x, tf_y);
+    if (ImGui::IsItemHovered() && timeline->bPreviewZoom && timeline->mMainPreviewTexture)
+    {
+        ImVec4 tint_col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);   // No tint
+        ImVec4 border_col = ImVec4(1.0f, 1.0f, 1.0f, 0.5f); // 50% opaque white
+        float region_sz = 480.0f / texture_zoom;
+        float image_width = ImGui::ImGetTextureWidth(timeline->mMainPreviewTexture);
+        float image_height = ImGui::ImGetTextureHeight(timeline->mMainPreviewTexture);
+        float scale_w = image_width / (tf_x - offset_x);
+        float scale_h = image_height / (tf_y - offset_y);
+        pos_x = (io.MousePos.x - offset_x) * scale_w;
+        pos_y = (io.MousePos.y - offset_y) * scale_h;
+        float region_x = pos_x - region_sz * 0.5f;
+        float region_y = pos_y - region_sz * 0.5f;
+        if (region_x < 0.0f) { region_x = 0.0f; }
+        else if (region_x > image_width - region_sz) { region_x = image_width - region_sz; }
+        if (region_y < 0.0f) { region_y = 0.0f; }
+        else if (region_y > image_height - region_sz) { region_y = image_height - region_sz; }
+        ImGui::SetNextWindowBgAlpha(1.0);
+        ImGui::BeginTooltip();
+        ImVec2 uv0 = ImVec2((region_x) / image_width, (region_y) / image_height);
+        ImVec2 uv1 = ImVec2((region_x + region_sz) / image_width, (region_y + region_sz) / image_height);
+        ImGui::Image(timeline->mMainPreviewTexture, ImVec2(region_sz * texture_zoom, region_sz * texture_zoom), uv0, uv1, tint_col, border_col);
+        ImGui::EndTooltip();
+        if (io.MouseWheel < -FLT_EPSILON)
+        {
+            texture_zoom *= 0.9;
+            if (texture_zoom < 2.0) texture_zoom = 2.0;
+        }
+        else if (io.MouseWheel > FLT_EPSILON)
+        {
+            texture_zoom *= 1.1;
+            if (texture_zoom > 8.0) texture_zoom = 8.0;
+        }
+    }
     video_rect.Min = ImVec2(offset_x, offset_y);
     video_rect.Max = ImVec2(tf_x, tf_y);
     if (monitors)
@@ -3289,6 +3335,29 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
     ImGui::SetCursorScreenPos(clip_setting_pos);
     if (ImGui::BeginChild("##video_filter_setting", clip_setting_size, false, setting_child_flags))
     {
+        auto addCurve = [&](std::string name, float _min, float _max, float _default)
+        {
+            auto found = editing_clip->mKeyPoints.GetCurveIndex(name);
+            if (found == -1)
+            {
+                ImU32 color; ImGui::RandomColor(color, 1.f);
+                auto curve_index = editing_clip->mKeyPoints.AddCurve(name, ImGui::ImCurveEdit::Smooth, color, true, _min, _max, _default);
+                editing_clip->mKeyPoints.AddPoint(curve_index, ImVec2(0.f, _min), ImGui::ImCurveEdit::Smooth);
+                editing_clip->mKeyPoints.AddPoint(curve_index, ImVec2(timeline->mVidFilterClip->mEnd - timeline->mVidFilterClip->mStart, _max), ImGui::ImCurveEdit::Smooth);
+                editing_clip->mKeyPoints.SetCurvePointDefault(curve_index, 0);
+                editing_clip->mKeyPoints.SetCurvePointDefault(curve_index, 1);
+                // insert curve pin for blueprint entry node
+                if (timeline->mVideoFilterBluePrint)
+                {
+                    auto entry_node = timeline->mVideoFilterBluePrint->FindEntryPointNode();
+                    if (entry_node)
+                    {
+                        entry_node->InsertOutputPin(BluePrint::PinType::Float, name);
+                        timeline->mVideoFilterNeedUpdate = true;
+                    }
+                }
+            }
+        };
         ImVec2 sub_window_pos = ImGui::GetWindowPos(); // we need draw background with scroll view
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_TWO);
@@ -3330,24 +3399,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                 ImGui::SameLine();
                 if (ImGui::Button(ICON_ADD "##insert_curve_video_filter") || name_input_with_return)
                 {
-                    auto found = editing_clip->mKeyPoints.GetCurveIndex(curve_name);
-                    if (found == -1)
-                    {
-                        ImU32 color; ImGui::RandomColor(color, 1.f);
-                        auto curve_index = editing_clip->mKeyPoints.AddCurve(curve_name, ImGui::ImCurveEdit::Smooth, color, true, 0.f, 1.f, 0.f);
-                        editing_clip->mKeyPoints.AddPoint(curve_index, ImVec2(0.f, 0.5f), ImGui::ImCurveEdit::Smooth);
-                        editing_clip->mKeyPoints.AddPoint(curve_index, ImVec2(timeline->mVidFilterClip->mEnd - timeline->mVidFilterClip->mStart, 0.5f), ImGui::ImCurveEdit::Smooth);
-                        // insert curve pin for blueprint entry node
-                        if (timeline->mVideoFilterBluePrint)
-                        {
-                            auto entry_node = timeline->mVideoFilterBluePrint->FindEntryPointNode();
-                            if (entry_node)
-                            {
-                                entry_node->InsertOutputPin(BluePrint::PinType::Float, curve_name);
-                                timeline->mVideoFilterNeedUpdate = true;
-                            }
-                        }
-                    }
+                    addCurve(curve_name, 0.f, 1.f, 0.5);
                 }
                 ImGui::PopStyleVar();
                 ImGui::EndDisabled();
@@ -3487,14 +3539,20 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                             continue;
                         if (!node->CustomLayout())
                             continue;
-                        auto label_name = node->GetTypeInfo().m_Name;
+                        auto label_name = node->m_Name;
                         std::string lable_id = std::string(ICON_NODE) + " " + label_name + "##video_filter_node" + "@" + std::to_string(node->m_ID);
                         if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
                         {
-                            if (node->DrawCustomLayout(ImGui::GetCurrentContext(), 1.0, ImVec2(0, 0)))
+                            ImGui::ImCurveEdit::keys key;
+                            key.m_id = node->m_ID;
+                            if (node->DrawCustomLayout(ImGui::GetCurrentContext(), 1.0, ImVec2(0, 0), &key))
                             {
                                 node->m_NeedUpdate = true;
                                 timeline->mVideoFilterNeedUpdate = true;
+                            }
+                            if (!key.name.empty())
+                            {
+                                addCurve(key.name, key.m_min, key.m_max, key.m_default);
                             }
                             ImGui::TreePop();
                         }
@@ -3801,6 +3859,27 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
     ImGui::SetCursorScreenPos(clip_setting_pos);
     if (ImGui::BeginChild("##video_fusion_setting", clip_setting_size, false, setting_child_flags))
     {
+        auto addCurve = [&](std::string name, float _min, float _max, float _default)
+        {
+            auto found = editing_overlap->mKeyPoints.GetCurveIndex(name);
+            if (found == -1)
+            {
+                ImU32 color; ImGui::RandomColor(color, 1.f);
+                auto curve_index = editing_overlap->mKeyPoints.AddCurve(name, ImGui::ImCurveEdit::Linear, color, true, _min, _max, _default);
+                editing_overlap->mKeyPoints.AddPoint(curve_index, ImVec2(0.f, _min), ImGui::ImCurveEdit::Linear);
+                editing_overlap->mKeyPoints.AddPoint(curve_index, ImVec2(timeline->mVidOverlap->mEnd - timeline->mVidOverlap->mStart, _max), ImGui::ImCurveEdit::Linear);
+                // insert curve pin for blueprint entry node
+                if (timeline->mVideoFusionBluePrint)
+                {
+                    auto entry_node = timeline->mVideoFusionBluePrint->FindEntryPointNode();
+                    if (entry_node)
+                    {
+                        entry_node->InsertOutputPin(BluePrint::PinType::Float, name);
+                        timeline->mVideoFusionNeedUpdate = true;
+                    }
+                }
+            }
+        };
         ImVec2 sub_window_pos = ImGui::GetWindowPos(); // we need draw background with scroll view
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_TWO);
@@ -3842,24 +3921,7 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
                 ImGui::SameLine();
                 if (ImGui::Button(ICON_ADD "##insert_curve_video_fusion") || name_input_with_return)
                 {
-                    auto found = editing_overlap->mKeyPoints.GetCurveIndex(curve_name);
-                    if (found == -1)
-                    {
-                        ImU32 color; ImGui::RandomColor(color, 1.f);
-                        auto curve_index = editing_overlap->mKeyPoints.AddCurve(curve_name, ImGui::ImCurveEdit::Linear, color, true, 0.f, 1.f, 0.f);
-                        editing_overlap->mKeyPoints.AddPoint(curve_index, ImVec2(0.f, 0.f), ImGui::ImCurveEdit::Linear);
-                        editing_overlap->mKeyPoints.AddPoint(curve_index, ImVec2(timeline->mVidOverlap->mEnd - timeline->mVidOverlap->mStart, 1.f), ImGui::ImCurveEdit::Linear);
-                        // insert curve pin for blueprint entry node
-                        if (timeline->mVideoFusionBluePrint)
-                        {
-                            auto entry_node = timeline->mVideoFusionBluePrint->FindEntryPointNode();
-                            if (entry_node)
-                            {
-                                entry_node->InsertOutputPin(BluePrint::PinType::Float, curve_name);
-                                timeline->mVideoFusionNeedUpdate = true;
-                            }
-                        }
-                    }
+                    addCurve(curve_name, 0.f, 1.f, 1.f);
                 }
                 ImGui::PopStyleVar();
                 ImGui::EndDisabled();
@@ -3998,14 +4060,20 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
                             continue;
                         if (!node->CustomLayout())
                             continue;
-                        auto label_name = node->GetTypeInfo().m_Name;
+                        auto label_name = node->m_Name;
                         std::string lable_id = std::string(ICON_NODE) + " " + label_name + "##video_fusion_node" + "@" + std::to_string(node->m_ID);
                         if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
                         {
-                            if (node->DrawCustomLayout(ImGui::GetCurrentContext(), 1.0, ImVec2(0, 0)))
+                            ImGui::ImCurveEdit::keys key;
+                            key.m_id = node->m_ID;
+                            if (node->DrawCustomLayout(ImGui::GetCurrentContext(), 1.0, ImVec2(0, 0), &key))
                             {
                                 node->m_NeedUpdate = true;
                                 timeline->mVideoFusionNeedUpdate = true;
+                            }
+                            if (!key.name.empty())
+                            {
+                                addCurve(key.name, key.m_min, key.m_max, key.m_default);
                             }
                             ImGui::TreePop();
                         }
@@ -4874,6 +4942,8 @@ static void ShowMediaScopeSetting(int index, bool show_tooltips = true)
             // histogram setting
             ImGui::TextUnformatted("Log:"); ImGui::SameLine();
             ImGui::ToggleButton("##histogram_logview", &g_media_editor_settings.HistogramLog);
+            ImGui::TextUnformatted("Splited:"); ImGui::SameLine();
+            ImGui::ToggleButton("##histogram_splited", &g_media_editor_settings.HistogramSplited);
             if (ImGui::DragFloat("Scale##histogram_scale", &g_media_editor_settings.HistogramScale, 0.01f, 0.01f, 4.f, "%.2f"))
                 need_update_scope = true;
             if (show_tooltips)
@@ -5084,40 +5154,44 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                 }
                 if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
                 {
-                    g_media_editor_settings.HistogramScale = 1.0f;
+                    g_media_editor_settings.HistogramScale = 0.01f;
                     need_update_scope = true;
                 }
             }
             if (!mat_histogram.empty())
             {
+
                 ImGui::PushStyleColor(ImGuiCol_FrameBg, 0);
                 ImGui::SetCursorScreenPos(pos);
+                float height_scale = g_media_editor_settings.HistogramSplited ? 3.f : 1.f;
+                float height_offset = g_media_editor_settings.HistogramSplited ? size.y / 3.f : 0;
                 auto rmat = mat_histogram.channel(0);
-                ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(1.f, 0.f, 0.f, 1.0f));
-                ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(1.f, 0.f, 0.f, 0.5f));
-                ImGui::PlotLines("##rh", (float *)rmat.data, mat_histogram.w, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(size.x, size.y / 3), 4, false, true);
-                ImGui::PopStyleColor(2);
-                ImGui::SetCursorScreenPos(pos + ImVec2(0, size.y / 3));
                 auto gmat = mat_histogram.channel(1);
-                ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.f, 1.f, 0.f, 1.0f));
-                ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.f, 1.f, 0.f, 0.5f));
-                ImGui::PlotLines("##gh", (float *)gmat.data, mat_histogram.w, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(size.x, size.y / 3), 4, false, true);
-                ImGui::PopStyleColor(2);
-                ImGui::SetCursorScreenPos(pos + ImVec2(0, size.y * 2 / 3));
                 auto bmat = mat_histogram.channel(2);
+                ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(1.f, 0.f, 0.f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(1.f, 0.f, 0.f, 0.3f));
+                ImGui::PlotLines("##rh", (float *)rmat.data, mat_histogram.w, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(size.x, size.y / height_scale), 4, false, true);
+                ImGui::PopStyleColor(2);
+                ImGui::SetCursorScreenPos(pos + ImVec2(0, height_offset));
+                ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.f, 1.f, 0.f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.f, 1.f, 0.f, 0.3f));
+                ImGui::PlotLines("##gh", (float *)gmat.data, mat_histogram.w, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(size.x, size.y / height_scale), 4, false, true);
+                ImGui::PopStyleColor(2);
+                ImGui::SetCursorScreenPos(pos + ImVec2(0, height_offset * 2));
                 ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.f, 0.f, 1.f, 1.0f));
-                ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.f, 0.f, 1.f, 0.5f));
-                ImGui::PlotLines("##bh", (float *)bmat.data, mat_histogram.w, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(size.x, size.y / 3), 4, false, true);
+                ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.f, 0.f, 1.f, 0.3f));
+                ImGui::PlotLines("##bh", (float *)bmat.data, mat_histogram.w, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(size.x, size.y / height_scale), 4, false, true);
                 ImGui::PopStyleColor(2);
                 ImGui::PopStyleColor();
             }
             draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 0);
             // draw graticule line
             draw_list->PushClipRect(scrop_rect.Min, scrop_rect.Max);
+            float graticule_scale = g_media_editor_settings.HistogramSplited ? 3.f : 1.f;
             auto histogram_step = size.x / 10;
             auto histogram_sub_vstep = size.x / 50;
-            auto histogram_vstep = size.y / 3 * g_media_editor_settings.HistogramScale;
-            auto histogram_seg = size.y / 3 / histogram_vstep;
+            auto histogram_vstep = size.y * g_media_editor_settings.HistogramScale * 10 / graticule_scale;
+            auto histogram_seg = size.y / histogram_vstep / graticule_scale;
             for (int i = 1; i <= 10; i++)
             {
                 ImVec2 p0 = scrop_rect.Min + ImVec2(i * histogram_step, 0);
@@ -5126,15 +5200,18 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
             }
             for (int i = 0; i < histogram_seg; i++)
             {
-                ImVec2 pr0 = scrop_rect.Min + ImVec2(0, (size.y / 3) - i * histogram_vstep);
-                ImVec2 pr1 = scrop_rect.Min + ImVec2(scrop_rect.Max.x, (size.y / 3) - i * histogram_vstep);
-                draw_list->AddLine(pr0, pr1, IM_COL32(255, 128, 0, 32), 1);
-                ImVec2 pg0 = scrop_rect.Min + ImVec2(0, size.y / 3) + ImVec2(0, (size.y / 3) - i * histogram_vstep);
-                ImVec2 pg1 = scrop_rect.Min + ImVec2(0, size.y / 3) + ImVec2(scrop_rect.Max.x, (size.y / 3) - i * histogram_vstep);
-                draw_list->AddLine(pg0, pg1, IM_COL32(128, 255, 0, 32), 1);
-                ImVec2 pb0 = scrop_rect.Min + ImVec2(0, size.y * 2 / 3) + ImVec2(0, (size.y / 3) - i * histogram_vstep);
-                ImVec2 pb1 = scrop_rect.Min + ImVec2(0, size.y * 2 / 3) + ImVec2(scrop_rect.Max.x, (size.y / 3) - i * histogram_vstep);
-                draw_list->AddLine(pb0, pb1, IM_COL32(128, 128, 255, 32), 1);
+                ImVec2 pr0 = scrop_rect.Min + ImVec2(0, (size.y / graticule_scale) - i * histogram_vstep);
+                ImVec2 pr1 = scrop_rect.Min + ImVec2(scrop_rect.Max.x, (size.y / graticule_scale) - i * histogram_vstep);
+                draw_list->AddLine(pr0, pr1, g_media_editor_settings.HistogramSplited ? IM_COL32(255, 128, 0, 32) : COL_GRATICULE_DARK, 1);
+                if (g_media_editor_settings.HistogramSplited)
+                {
+                    ImVec2 pg0 = scrop_rect.Min + ImVec2(0, size.y / graticule_scale) + ImVec2(0, (size.y / graticule_scale) - i * histogram_vstep);
+                    ImVec2 pg1 = scrop_rect.Min + ImVec2(0, size.y / graticule_scale) + ImVec2(scrop_rect.Max.x, (size.y / graticule_scale) - i * histogram_vstep);
+                    draw_list->AddLine(pg0, pg1, IM_COL32(128, 255, 0, 32), 1);
+                    ImVec2 pb0 = scrop_rect.Min + ImVec2(0, size.y * 2 / graticule_scale) + ImVec2(0, (size.y / graticule_scale) - i * histogram_vstep);
+                    ImVec2 pb1 = scrop_rect.Min + ImVec2(0, size.y * 2 / graticule_scale) + ImVec2(scrop_rect.Max.x, (size.y / graticule_scale) - i * histogram_vstep);
+                    draw_list->AddLine(pb0, pb1, IM_COL32(128, 128, 255, 32), 1);
+                }
             }
             for (int i = 0; i < 50; i++)
             {
@@ -6173,6 +6250,7 @@ void Application_SetupContext(ImGuiContext* ctx)
         else if (sscanf(line, "ShowHelpTips=%d", &val_int) == 1) { setting->ShowHelpTooltips = val_int == 1; }
         else if (sscanf(line, "ExpandScope=%d", &val_int) == 1) { setting->ExpandScope = val_int == 1; }
         else if (sscanf(line, "HistogramLogView=%d", &val_int) == 1) { setting->HistogramLog = val_int == 1; }
+        else if (sscanf(line, "HistogramSplited=%d", &val_int) == 1) { setting->HistogramSplited = val_int == 1; }
         else if (sscanf(line, "HistogramScale=%f", &val_float) == 1) { setting->HistogramScale = val_float; }
         else if (sscanf(line, "WaveformMirror=%d", &val_int) == 1) { setting->WaveformMirror = val_int == 1; }
         else if (sscanf(line, "WaveformSeparate=%d", &val_int) == 1) { setting->WaveformSeparate = val_int == 1; }
@@ -6280,6 +6358,7 @@ void Application_SetupContext(ImGuiContext* ctx)
         out_buf->appendf("ShowHelpTips=%d\n", g_media_editor_settings.ShowHelpTooltips ? 1 : 0);
         out_buf->appendf("ExpandScope=%d\n", g_media_editor_settings.ExpandScope ? 1 : 0);
         out_buf->appendf("HistogramLogView=%d\n", g_media_editor_settings.HistogramLog ? 1 : 0);
+        out_buf->appendf("HistogramSplited=%d\n", g_media_editor_settings.HistogramSplited ? 1 : 0);
         out_buf->appendf("HistogramScale=%f\n", g_media_editor_settings.HistogramScale);
         out_buf->appendf("WaveformMirror=%d\n", g_media_editor_settings.WaveformMirror ? 1 : 0);
         out_buf->appendf("WaveformSeparate=%d\n", g_media_editor_settings.WaveformSeparate ? 1 : 0);
