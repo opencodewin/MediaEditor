@@ -2726,6 +2726,7 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
 static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImRect& video_rect, bool audio_bar = true, bool monitors = true, bool force_update = false)
 {
     // preview control pannel
+    ImGuiIO& io = ImGui::GetIO();
     ImVec2 PanelBarPos;
     ImVec2 PanelBarSize;
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
@@ -2800,7 +2801,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImR
     ImGui::ShowTooltipOnHover("To End");
 
     bool loop = timeline ? timeline->bLoop : false;
-    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 32 + 8 + 32 + 8 + 32 + 8, PanelButtonY));
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 32 + 8 + 32 + 8 + 32 + 8, PanelButtonY + 4));
     if (ImGui::Button(loop ? ICON_LOOP : ICON_LOOP_ONE "##preview_loop", ImVec2(32, 32)))
     {
         if (timeline)
@@ -2810,6 +2811,14 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImR
         }
     }
     ImGui::ShowTooltipOnHover("Loop");
+    bool zoom = timeline ? timeline->bPreviewZoom : false;
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 32 + 8 + 32 + 8 + 32 + 8  + 32 + 8, PanelButtonY + 8));
+    if (ImGui::CheckButton(ICON_ZOOM "##preview_zoom", &zoom))
+    {
+        timeline->bPreviewZoom = zoom;
+    }
+    ImGui::ShowTooltipOnHover("Magnifying");
+
 
     // Time stamp on left of control panel
     auto PanelRightX = PanelBarPos.x + window_size.x - 150;
@@ -2876,9 +2885,45 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImR
         ImGui::ImMatToTexture(frame, timeline->mMainPreviewTexture);
         timeline->mLastFrameTime = frame.time_stamp * 1000;
     }
+    float pos_x = 0, pos_y = 0;
     float offset_x = 0, offset_y = 0;
     float tf_x = 0, tf_y = 0;
+    static float texture_zoom = 2.0f;
     ShowVideoWindow(draw_list, timeline->mMainPreviewTexture, PreviewPos, PreviewSize, offset_x, offset_y, tf_x, tf_y);
+    if (ImGui::IsItemHovered() && timeline->bPreviewZoom && timeline->mMainPreviewTexture)
+    {
+        ImVec4 tint_col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);   // No tint
+        ImVec4 border_col = ImVec4(1.0f, 1.0f, 1.0f, 0.5f); // 50% opaque white
+        float region_sz = 480.0f / texture_zoom;
+        float image_width = ImGui::ImGetTextureWidth(timeline->mMainPreviewTexture);
+        float image_height = ImGui::ImGetTextureHeight(timeline->mMainPreviewTexture);
+        float scale_w = image_width / (tf_x - offset_x);
+        float scale_h = image_height / (tf_y - offset_y);
+        pos_x = (io.MousePos.x - offset_x) * scale_w;
+        pos_y = (io.MousePos.y - offset_y) * scale_h;
+        float region_x = pos_x - region_sz * 0.5f;
+        float region_y = pos_y - region_sz * 0.5f;
+        if (region_x < 0.0f) { region_x = 0.0f; }
+        else if (region_x > image_width - region_sz) { region_x = image_width - region_sz; }
+        if (region_y < 0.0f) { region_y = 0.0f; }
+        else if (region_y > image_height - region_sz) { region_y = image_height - region_sz; }
+        ImGui::SetNextWindowBgAlpha(1.0);
+        ImGui::BeginTooltip();
+        ImVec2 uv0 = ImVec2((region_x) / image_width, (region_y) / image_height);
+        ImVec2 uv1 = ImVec2((region_x + region_sz) / image_width, (region_y + region_sz) / image_height);
+        ImGui::Image(timeline->mMainPreviewTexture, ImVec2(region_sz * texture_zoom, region_sz * texture_zoom), uv0, uv1, tint_col, border_col);
+        ImGui::EndTooltip();
+        if (io.MouseWheel < -FLT_EPSILON)
+        {
+            texture_zoom *= 0.9;
+            if (texture_zoom < 2.0) texture_zoom = 2.0;
+        }
+        else if (io.MouseWheel > FLT_EPSILON)
+        {
+            texture_zoom *= 1.1;
+            if (texture_zoom > 8.0) texture_zoom = 8.0;
+        }
+    }
     video_rect.Min = ImVec2(offset_x, offset_y);
     video_rect.Max = ImVec2(tf_x, tf_y);
     if (monitors)

@@ -43,6 +43,7 @@
 #define ICON_DISABLE        u8"\uf204"
 #define ICON_ZOOM_IN        u8"\uf00e"
 #define ICON_ZOOM_OUT       u8"\uf010"
+#define ICON_ZOOM           u8"\uf3ee"
 #define ICON_ITEM_CUT       u8"\ue14e"
 #define ICON_SPEAKER        u8"\ue050"
 #define ICON_SPEAKER_MUTE   u8"\ue04f"
@@ -790,6 +791,7 @@ struct TimeLine
     float msPixelWidthTarget = 0.1f;
 
     bool bSeeking = false;
+    bool bPreviewZoom = false;
     bool bLoop = false;                     // project saved
     bool bCompare = false;                  // project saved
     bool bSelectLinked = true;              // project saved

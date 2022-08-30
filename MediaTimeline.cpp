@@ -4363,7 +4363,7 @@ void TimeLine::Step(bool forward)
 
 void TimeLine::Loop(bool loop)
 {
-
+    bLoop = loop;
 }
 
 void TimeLine::ToStart()
