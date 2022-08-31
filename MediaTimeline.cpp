@@ -809,8 +809,9 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
     }
     
     // check clip is cross track
-    if (mouse_track == -2)
+    if (mouse_track == -2 && track->m_Clips.size() > 1)
     {
+
         index = timeline->NewTrack("", mType, track->mExpanded);
         if (mType == MEDIA_TEXT)
         {
