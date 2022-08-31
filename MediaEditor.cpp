@@ -251,14 +251,14 @@ static const char* VideoEditorTabNames[] = {
     ICON_BLUE_PRINT,
     ICON_TRANS,
     ICON_CROP,
-    ICON_ROTATE
+    //ICON_ROTATE
 };
 
 static const char* VideoEditorTabTooltips[] = {
     "Video Filter",
     "Video Fusion",
-    "Video Crop",
-    "Video Rotate"
+    "Video Attribute",
+    //"Video Rotate"
 };
 
 static const char* AudioEditorTabNames[] = {
@@ -581,7 +581,27 @@ static bool UIPageChanged()
     return updated;
 }
 
-static int EditingClip(int type, void* handle)
+static int EditingClipAttribute(int type, void* handle)
+{
+    if (type == MEDIA_VIDEO)
+    {
+        MainWindowIndex = 1;
+        VideoEditorWindowIndex = 2;
+    }
+    else if (type == MEDIA_AUDIO)
+    {
+        MainWindowIndex = 2;
+        AudioEditorWindowIndex = 0; // ？
+    }
+    else if (type == MEDIA_TEXT)
+    {
+        MainWindowIndex = 3;
+    }
+    auto updated = UIPageChanged();
+    return updated ? 1 : 0;
+}
+
+static int EditingClipFilter(int type, void* handle)
 {
     if (type == MEDIA_VIDEO)
     {
@@ -1204,7 +1224,8 @@ static void NewTimeline()
         timeline->mFontName = g_media_editor_settings.FontName;
 
         // init callbacks
-        timeline->m_CallBacks.EditingClip = EditingClip;
+        timeline->m_CallBacks.EditingClipAttribute = EditingClipAttribute;
+        timeline->m_CallBacks.EditingClipFilter = EditingClipFilter;
         timeline->m_CallBacks.EditingOverlap = EditingOverlap;
 
         // init bp view
@@ -2947,25 +2968,13 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImR
  * Video Editor windows
  *
  ***************************************************************************************/
-static void ShowVideoCropWindow(ImDrawList *draw_list)
+static void ShowVideoAttributeWindow(ImDrawList *draw_list)
 {
     ImGui::SetWindowFontScale(1.2);
     ImGui::Indent(20);
     ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4, 0.4, 0.8, 0.8));
-    ImGui::TextUnformatted("Video Crop");
-    ImGui::PopStyleColor();
-    ImGui::PopStyleVar();
-    ImGui::SetWindowFontScale(1.0);
-}
-
-static void ShowVideoRotateWindow(ImDrawList *draw_list)
-{
-    ImGui::SetWindowFontScale(1.2);
-    ImGui::Indent(20);
-    ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4, 0.4, 0.8, 0.8));
-    ImGui::TextUnformatted("Video Rotate");
+    ImGui::TextUnformatted("Video Attribute");
     ImGui::PopStyleColor();
     ImGui::PopStyleVar();
     ImGui::SetWindowFontScale(1.0);
@@ -3651,7 +3660,7 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
     {
         timeline->mVideoFusionBluePrint->m_ViewSize = video_bluepoint_size;
     }
-    if (editing_overlap)
+    if (editing_overlap && timeline->mVidOverlap)
     {
         if (timeline->mVidOverlap->mStart != editing_overlap->mStart || timeline->mVidOverlap->mEnd != editing_overlap->mEnd)
         {
@@ -4107,8 +4116,7 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
         {
             case 0: ShowVideoFilterWindow(draw_list); break;
             case 1: ShowVideoFusionWindow(draw_list); break;
-            case 2: ShowVideoCropWindow(draw_list); break;
-            case 3: ShowVideoRotateWindow(draw_list); break;
+            case 2: ShowVideoAttributeWindow(draw_list); break;
             default: break;
         }
     }

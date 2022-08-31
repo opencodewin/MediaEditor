@@ -3017,10 +3017,10 @@ void MediaTrack::SelectEditingClip(Clip * clip)
         return;
     
     int updated = 0;
-    if (timeline->m_CallBacks.EditingClip)
+    if (timeline->m_CallBacks.EditingClipFilter)
     {
         if (clip->mType == MEDIA_TEXT) timeline->Seek(clip->mStart);
-        updated = timeline->m_CallBacks.EditingClip(clip->mType, clip);
+        updated = timeline->m_CallBacks.EditingClipFilter(clip->mType, clip);
     }
     // find old editing clip and reset BP
     auto editing_clip = timeline->FindEditingClip();
@@ -4785,7 +4785,15 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &view_r
                     }
                     else if (track->mExpanded && clip_area_rect.Contains(io.MousePos) && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
                     {
-                        track->SelectEditingClip(clip);
+                        const bool is_ctrl_key_only = (io.KeyMods == ImGuiKeyModFlags_Ctrl);
+                        bool bediting = ImGui::IsKeyDown(ImGuiKey_LeftCtrl) && is_ctrl_key_only;
+                        if (bediting)
+                        {
+                            if (m_CallBacks.EditingClipAttribute)
+                                m_CallBacks.EditingClipAttribute(clip->mType, clip);
+                        }
+                        else
+                            track->SelectEditingClip(clip);
                     }
                 }
             }
@@ -6462,6 +6470,20 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             {
                 ImGui::Separator();
                 auto clip = timeline->FindClipByID(clipMenuEntry);
+                if (ImGui::MenuItem(ICON_CROP " Edit Clip Attribute", nullptr, nullptr))
+                {
+                    if (timeline->m_CallBacks.EditingClipAttribute)
+                    {
+                        timeline->m_CallBacks.EditingClipAttribute(clip->mType, clip);
+                    }
+                }
+                if (ImGui::MenuItem(ICON_BLUE_PRINT " Edit Clip Filter", nullptr, nullptr))
+                {
+                    if (timeline->m_CallBacks.EditingClipFilter)
+                    {
+                        timeline->m_CallBacks.EditingClipFilter(clip->mType, clip);
+                    }
+                }
                 if (ImGui::MenuItem(ICON_MEDIA_DELETE_CLIP " Delete Clip", nullptr, nullptr))
                 {
                     delClipEntry.push_back(clipMenuEntry);
@@ -6469,35 +6491,6 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 if (clip->mGroupID != -1 && ImGui::MenuItem(ICON_MEDIA_UNGROUP " Ungroup Clip", nullptr, nullptr))
                 {
                     unGroupClipEntry.push_back(clipMenuEntry);
-                }
-            }
-
-            if (trackMenuEntry >= 0 && clipMenuEntry < 0)
-            {
-                auto track = timeline->m_Tracks[trackMenuEntry];
-                if (track->mType == MEDIA_TEXT)
-                {
-                    if (ImGui::MenuItem(ICON_MEDIA_TEXT  " Add Text", nullptr, nullptr))
-                    {
-                        if (track->mMttReader && menuMouseTime != -1)
-                        {
-                            auto& style = track->mMttReader->DefaultStyle();
-                            TextClip * clip = new TextClip(menuMouseTime, menuMouseTime + 5000, track->mID, track->mName, std::string(""), timeline);
-                            auto holder = track->mMttReader->NewClip(clip->mStart, clip->mEnd - clip->mStart);
-                            clip->SetClipDefault(style);
-                            clip->mClipHolder = holder;
-                            clip->mTrack = track;
-                            holder->EnableUsingTrackStyle(clip->mTrackStyle);
-                            timeline->m_Clips.push_back(clip);
-                            track->InsertClip(clip, holder->StartTime());
-                            track->SelectEditingClip(clip);
-                            if (timeline->m_CallBacks.EditingClip)
-                            {
-                                timeline->m_CallBacks.EditingClip(clip->mType, clip);
-                            }
-                            //action["clip_id"] = imgui_json::number(clip->mID);
-                        }
-                    }
                 }
             }
 
@@ -6529,6 +6522,37 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                     }
                 }
             }
+
+            if (trackMenuEntry >= 0 && clipMenuEntry < 0)
+            {
+                auto track = timeline->m_Tracks[trackMenuEntry];
+                if (track->mType == MEDIA_TEXT)
+                {
+                    ImGui::Separator();
+                    if (ImGui::MenuItem(ICON_MEDIA_TEXT  " Add Text", nullptr, nullptr))
+                    {
+                        if (track->mMttReader && menuMouseTime != -1)
+                        {
+                            auto& style = track->mMttReader->DefaultStyle();
+                            TextClip * clip = new TextClip(menuMouseTime, menuMouseTime + 5000, track->mID, track->mName, std::string(""), timeline);
+                            auto holder = track->mMttReader->NewClip(clip->mStart, clip->mEnd - clip->mStart);
+                            clip->SetClipDefault(style);
+                            clip->mClipHolder = holder;
+                            clip->mTrack = track;
+                            holder->EnableUsingTrackStyle(clip->mTrackStyle);
+                            timeline->m_Clips.push_back(clip);
+                            track->InsertClip(clip, holder->StartTime());
+                            track->SelectEditingClip(clip);
+                            if (timeline->m_CallBacks.EditingClipFilter)
+                            {
+                                timeline->m_CallBacks.EditingClipFilter(clip->mType, clip);
+                            }
+                            //action["clip_id"] = imgui_json::number(clip->mID);
+                        }
+                    }
+                }
+            }
+
             ImGui::PopStyleColor();
             ImGui::EndPopup();
         }

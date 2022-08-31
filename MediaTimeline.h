@@ -680,8 +680,9 @@ struct ClipGroup
 typedef int (*TimeLineCallback)(int type, void* handle);
 typedef struct TimeLineCallbackFunctions
 {
-    TimeLineCallback  EditingClip       {nullptr};
-    TimeLineCallback  EditingOverlap    {nullptr};
+    TimeLineCallback  EditingClipAttribute  {nullptr};
+    TimeLineCallback  EditingClipFilter     {nullptr};
+    TimeLineCallback  EditingOverlap        {nullptr};
 } TimeLineCallbackFunctions;
 
 struct audio_channel_data
