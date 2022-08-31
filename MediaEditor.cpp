@@ -2879,11 +2879,12 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImR
     PreviewSize = window_size - ImVec2(16 + (audio_bar ? 64 : 0), 16 + 48);
     auto frame = timeline->GetPreviewFrame();
     if (!frame.empty() && 
-        (timeline->mLastFrameTime == -1 || timeline->mLastFrameTime != (int64_t)(frame.time_stamp * 1000) || need_update_scope || force_update))
+        (timeline->mIsPreviewNeedUpdate || timeline->mLastFrameTime == -1 || timeline->mLastFrameTime != (int64_t)(frame.time_stamp * 1000) || need_update_scope || force_update))
     {
         CalculateVideoScope(frame);
         ImGui::ImMatToTexture(frame, timeline->mMainPreviewTexture);
         timeline->mLastFrameTime = frame.time_stamp * 1000;
+        timeline->mIsPreviewNeedUpdate = false;
     }
     float pos_x = 0, pos_y = 0;
     float offset_x = 0, offset_y = 0;

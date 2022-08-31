@@ -4083,6 +4083,21 @@ void TimeLine::MovingTrack(int& index, int& dst_index)
     {
         return;
     }
+
+    // sync to datalayer
+    if ((*iter)->mType == (*iter_dst)->mType)
+    {
+        if ((*iter)->mType == MEDIA_VIDEO)
+        {
+            if (dst_index > index)
+                mMtvReader->ChangeTrackViewOrder((*iter_dst)->mID, (*iter)->mID);
+            else
+                mMtvReader->ChangeTrackViewOrder((*iter)->mID, (*iter_dst)->mID);
+            mMtvReader->Refresh();
+            mIsPreviewNeedUpdate = true;
+        }
+        // do we need change other type of media?
+    }
     MediaTrack * tmp = *iter;
     *iter = *iter_dst;
     *iter_dst = tmp;
