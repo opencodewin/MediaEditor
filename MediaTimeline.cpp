@@ -811,12 +811,11 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
     // check clip is cross track
     if (mouse_track == -2 && track->m_Clips.size() > 1)
     {
-
         index = timeline->NewTrack("", mType, track->mExpanded);
         if (mType == MEDIA_TEXT)
         {
             MediaTrack * newTrack = timeline->m_Tracks[index];
-            newTrack->mMttReader = timeline->mMtvReader->NewEmptySubtitleTrack(newTrack->mID); //DataLayer::SubtitleTrack::NewEmptyTrack(newTrack->mID);
+            newTrack->mMttReader = timeline->mMtvReader->NewEmptySubtitleTrack(newTrack->mID);
             newTrack->mMttReader->SetFont(timeline->mFontName);
             newTrack->mMttReader->SetFrameSize(timeline->mWidth, timeline->mHeight);
             newTrack->mMttReader->EnableFullSizeOutput(false);
