@@ -191,8 +191,10 @@ Clip::Clip(int64_t start, int64_t end, int64_t id, MediaParserHolder mediaParser
     mLength = end - start;
     mHandle = handle;
     mMediaParser = mediaParser;
-    mKeyPoints.SetMin({0.f, 0.f});
-    mKeyPoints.SetMax(ImVec2(mLength, 1.f), true);
+    mFilterKeyPoints.SetMin({0.f, 0.f});
+    mFilterKeyPoints.SetMax(ImVec2(mLength, 1.f), true);
+    mAttributeKeyPoints.SetMin({0.f, 0.f});
+    mAttributeKeyPoints.SetMax(ImVec2(mLength, 1.f), true);
 }
 
 Clip::~Clip()
@@ -263,11 +265,18 @@ void Clip::Load(Clip * clip, const imgui_json::value& value)
         if (val.is_object()) clip->mFilterBP = val;
     }
 
-    // load curve
-    if (value.contains("KeyPoint"))
+    // load filter curve
+    if (value.contains("FilterKeyPoint"))
     {
-        auto& keypoint = value["KeyPoint"];
-        clip->mKeyPoints.Load(keypoint);
+        auto& keypoint = value["FilterKeyPoint"];
+        clip->mFilterKeyPoints.Load(keypoint);
+    }
+
+    // load attribute curve
+    if (value.contains("AttributeKeyPoint"))
+    {
+        auto& keypoint = value["AttributeKeyPoint"];
+        clip->mAttributeKeyPoints.Load(keypoint);
     }
 }
 
@@ -293,10 +302,15 @@ void Clip::Save(imgui_json::value& value)
         value["FilterBP"] = mFilterBP;
     }
 
-    // save curve setting
-    imgui_json::value keypoint;
-    mKeyPoints.Save(keypoint);
-    value["KeyPoint"] = keypoint;
+    // save Filter curve setting
+    imgui_json::value filter_keypoint;
+    mFilterKeyPoints.Save(filter_keypoint);
+    value["FilterKeyPoint"] = filter_keypoint;
+
+    // save Attribute curve setting
+    imgui_json::value attribute_keypoint;
+    mAttributeKeyPoints.Save(attribute_keypoint);
+    value["AttributeKeyPoint"] = attribute_keypoint;
 }
 
 int64_t Clip::Cropping(int64_t diff, int type)
@@ -395,12 +409,14 @@ int64_t Clip::Cropping(int64_t diff, int type)
             }
         }
     }
-    mKeyPoints.SetMax(ImVec2(mEnd - mStart, 1.f), true);
+    mFilterKeyPoints.SetMin(ImVec2(mStartOffset, 0.f), true);
+    mFilterKeyPoints.SetMax(ImVec2(mEnd - mStart + mStartOffset, 1.f), true);
     if (timeline->mVidFilterClip && timeline->mVidFilterClip->mID == mID)
     {
         timeline->mVidFilterClip->mStart = mStart;
         timeline->mVidFilterClip->mEnd = mEnd;
     }
+    //mAttributeKeyPoints.SetMax(ImVec2(mEnd - mStart, 1.f), true);
     track->Update();
     return new_diff;
 }
@@ -469,14 +485,16 @@ void Clip::Cutting(int64_t pos)
         new_clip->mStartOffset = new_start_offset;
         new_clip->mEnd = mEnd;
         new_clip->mEndOffset = mEndOffset;
-        new_clip->mKeyPoints.SetMax(ImVec2(new_clip->mEnd - new_clip->mStart, 1.f), true);
+        new_clip->mFilterKeyPoints.SetMin(ImVec2(new_clip->mStartOffset, 0.f), true);
+        new_clip->mFilterKeyPoints.SetMax(ImVec2(new_clip->mEnd - new_clip->mStart + new_clip->mStartOffset, 1.f), true);
+        //new_clip->mAttributeKeyPoints.SetMax(ImVec2(new_clip->mEnd - new_clip->mStart, 1.f), true);
         mEnd = adj_end;
         mEndOffset = adj_end_offset;
-        mKeyPoints.SetMax(ImVec2(mEnd - mStart, 1.f), true);
+        mFilterKeyPoints.SetMin(ImVec2(mStartOffset, 0.f), true);
+        mFilterKeyPoints.SetMax(ImVec2(mEnd - mStart + mStartOffset, 1.f), true);
         timeline->m_Clips.push_back(new_clip);
 
         // update curve
-        mKeyPoints.SetMax(ImVec2(mEnd - mStart, 1.f), true);
         if (timeline->mVidFilterClip && timeline->mVidFilterClip->mID == mID)
         {
             timeline->mVidFilterClip->mStart = mStart;
@@ -547,7 +565,6 @@ void Clip::Cutting(int64_t pos)
 
         timeline->SyncDataLayer();
     }
-    // TODO::Dicky update overlap
 }
 
 int64_t Clip::Moving(int64_t diff, int mouse_track)
@@ -1894,7 +1911,7 @@ void EditingVideoClip::Save()
     DataLayer::VideoClipHolder hClip = timeline->mMtvReader->GetClipById(clip->mID);
     BluePrintVideoFilter* bpvf = new BluePrintVideoFilter();
     bpvf->SetBluePrintFromJson(clip->mFilterBP);
-    bpvf->SetKeyPoint(clip->mKeyPoints);
+    bpvf->SetKeyPoint(clip->mFilterKeyPoints);
     DataLayer::VideoFilterHolder hFilter(bpvf);
     hClip->SetFilter(hFilter);
     timeline->mMtvReader->Refresh();
@@ -2136,8 +2153,8 @@ Overlap::Overlap(int64_t start, int64_t end, int64_t clip_first, int64_t clip_se
     m_Clip.first = clip_first;
     m_Clip.second = clip_second;
     mHandle = handle;
-    mKeyPoints.SetMin({0.f, 0.f});
-    mKeyPoints.SetMax(ImVec2(end - start, 1.f), true);
+    mFusionKeyPoints.SetMin({0.f, 0.f});
+    mFusionKeyPoints.SetMax(ImVec2(end - start, 1.f), true);
 }
 
 Overlap::~Overlap()
@@ -2173,7 +2190,7 @@ void Overlap::Update(int64_t start, int64_t start_clip_id, int64_t end, int64_t 
     m_Clip.second = end_clip_id;
     mStart = start;
     mEnd = end;
-    mKeyPoints.SetMax(ImVec2(mEnd - mStart, 1.f), true);
+    mFusionKeyPoints.SetMax(ImVec2(mEnd - mStart, 1.f), true);
 }
 
 void Overlap::Seek()
@@ -2242,7 +2259,7 @@ Overlap* Overlap::Load(const imgui_json::value& value, void * handle)
         if (value.contains("KeyPoint"))
         {
             auto& keypoint = value["KeyPoint"];
-            new_overlap->mKeyPoints.Load(keypoint);
+            new_overlap->mFusionKeyPoints.Load(keypoint);
         }
     }
     return new_overlap;
@@ -2267,7 +2284,7 @@ void Overlap::Save(imgui_json::value& value)
 
     // save curve setting
     imgui_json::value keypoint;
-    mKeyPoints.Save(keypoint);
+    mFusionKeyPoints.Save(keypoint);
     value["KeyPoint"] = keypoint;
 }
 
@@ -2645,7 +2662,7 @@ void EditingVideoOverlap::Save()
     DataLayer::VideoOverlapHolder hOvlp = timeline->mMtvReader->GetOverlapById(mOvlp->mID);
     BluePrintVideoTransition* bpvt = new BluePrintVideoTransition();
     bpvt->SetBluePrintFromJson(mOvlp->mFusionBP);
-    bpvt->SetKeyPoint(mOvlp->mKeyPoints);
+    bpvt->SetKeyPoint(mOvlp->mFusionKeyPoints);
     DataLayer::VideoTransitionHolder hTrans(bpvt);
     hOvlp->SetTransition(hTrans);
     timeline->mMtvReader->Refresh();
@@ -3028,30 +3045,33 @@ void MediaTrack::SelectClip(Clip * clip, bool appand)
     clip->bSelected = selected;
 }
 
-void MediaTrack::SelectEditingClip(Clip * clip)
+void MediaTrack::SelectEditingClip(Clip * clip, bool filter_editing)
 {
     TimeLine * timeline = (TimeLine *)m_Handle;
     if (!timeline || !clip)
         return;
     
     int updated = 0;
-    if (timeline->m_CallBacks.EditingClipFilter)
+    if (filter_editing && timeline->m_CallBacks.EditingClipFilter)
     {
         if (clip->mType == MEDIA_TEXT) timeline->Seek(clip->mStart);
         updated = timeline->m_CallBacks.EditingClipFilter(clip->mType, clip);
     }
+    else if (timeline->m_CallBacks.EditingClipAttribute)
+        updated = timeline->m_CallBacks.EditingClipAttribute(clip->mType, clip);
+
     // find old editing clip and reset BP
     auto editing_clip = timeline->FindEditingClip();
     if (editing_clip && editing_clip->mID == clip->mID)
     {
         if (editing_clip->mType == MEDIA_VIDEO)
         {
-            if (timeline->mVidFilterClip && timeline->mVideoFilterBluePrint && timeline->mVideoFilterBluePrint->Blueprint_IsValid())
+            if (filter_editing && timeline->mVidFilterClip && timeline->mVideoFilterBluePrint && timeline->mVideoFilterBluePrint->Blueprint_IsValid())
                 return;
         }
         if (editing_clip->mType == MEDIA_AUDIO)
         {
-            if (timeline->mAudFilterClip && timeline->mAudioFilterBluePrint && timeline->mAudioFilterBluePrint->Blueprint_IsValid())
+            if (filter_editing && timeline->mAudFilterClip && timeline->mAudioFilterBluePrint && timeline->mAudioFilterBluePrint->Blueprint_IsValid())
                 return;
         }
     }
@@ -3095,28 +3115,31 @@ void MediaTrack::SelectEditingClip(Clip * clip)
     }
 
     clip->bEditing = true;
-    if (clip->mType == MEDIA_VIDEO)
+    if (filter_editing)
     {
-        if (!timeline->mVidFilterClip)
-            timeline->mVidFilterClip = new EditingVideoClip((VideoClip*)clip);
-        if (timeline->mVideoFilterBluePrint && timeline->mVideoFilterBluePrint->m_Document)
-        {                
-            timeline->mVideoFilterBluePrintLock.lock();
-            timeline->mVideoFilterBluePrint->File_New_Filter(clip->mFilterBP, "VideoFilter", "Video");
-            timeline->mVideoFilterNeedUpdate = true;
-            timeline->mVideoFilterBluePrintLock.unlock();
+        if (clip->mType == MEDIA_VIDEO)
+        {
+            if (!timeline->mVidFilterClip)
+                timeline->mVidFilterClip = new EditingVideoClip((VideoClip*)clip);
+            if (timeline->mVideoFilterBluePrint && timeline->mVideoFilterBluePrint->m_Document)
+            {                
+                timeline->mVideoFilterBluePrintLock.lock();
+                timeline->mVideoFilterBluePrint->File_New_Filter(clip->mFilterBP, "VideoFilter", "Video");
+                timeline->mVideoFilterNeedUpdate = true;
+                timeline->mVideoFilterBluePrintLock.unlock();
+            }
         }
-    }
-    else if (clip->mType == MEDIA_AUDIO)
-    {
-        if (!timeline->mAudFilterClip)
-            timeline->mAudFilterClip = new EditingAudioClip((AudioClip*)clip);
-        if (timeline->mAudioFilterBluePrint && timeline->mAudioFilterBluePrint->m_Document)
-        {                
-            timeline->mAudioFilterBluePrintLock.lock();
-            timeline->mAudioFilterBluePrint->File_New_Filter(clip->mFilterBP, "AudioFilter", "Audio");
-            timeline->mAudioFilterNeedUpdate = true;
-            timeline->mAudioFilterBluePrintLock.unlock();
+        else if (clip->mType == MEDIA_AUDIO)
+        {
+            if (!timeline->mAudFilterClip)
+                timeline->mAudFilterClip = new EditingAudioClip((AudioClip*)clip);
+            if (timeline->mAudioFilterBluePrint && timeline->mAudioFilterBluePrint->m_Document)
+            {                
+                timeline->mAudioFilterBluePrintLock.lock();
+                timeline->mAudioFilterBluePrint->File_New_Filter(clip->mFilterBP, "AudioFilter", "Audio");
+                timeline->mAudioFilterNeedUpdate = true;
+                timeline->mAudioFilterBluePrintLock.unlock();
+            }
         }
     }
 }
@@ -3623,10 +3646,10 @@ static int thread_video_filter(TimeLine * timeline)
                     result.first.time_stamp = (double)current_time / 1000.f;
                     timeline->mVideoFilterBluePrintLock.lock();
                     // setup bp input curve
-                    for (int i = 0; i < editing_clip->mKeyPoints.GetCurveCount(); i++)
+                    for (int i = 0; i < editing_clip->mFilterKeyPoints.GetCurveCount(); i++)
                     {
-                        auto name = editing_clip->mKeyPoints.GetCurveName(i);
-                        auto value = editing_clip->mKeyPoints.GetValue(i, current_time);
+                        auto name = editing_clip->mFilterKeyPoints.GetCurveName(i);
+                        auto value = editing_clip->mFilterKeyPoints.GetValue(i, current_time);
                         timeline->mVideoFilterBluePrint->Blueprint_SetFilter(name, value);
                     }
                     if (timeline->mVideoFilterBluePrint->Blueprint_RunFilter(result.first, result.second))
@@ -3761,10 +3784,10 @@ static int thread_video_fusion(TimeLine * timeline)
                     current_time = current_time_first - timeline->mVidOverlap->m_StartOffset.first;
                     timeline->mVideoFusionBluePrintLock.lock();
                     // setup bp input curve
-                    for (int i = 0; i < editing_overlap->mKeyPoints.GetCurveCount(); i++)
+                    for (int i = 0; i < editing_overlap->mFusionKeyPoints.GetCurveCount(); i++)
                     {
-                        auto name = editing_overlap->mKeyPoints.GetCurveName(i);
-                        auto value = editing_overlap->mKeyPoints.GetValue(i, current_time);
+                        auto name = editing_overlap->mFusionKeyPoints.GetCurveName(i);
+                        auto value = editing_overlap->mFusionKeyPoints.GetValue(i, current_time);
                         timeline->mVideoFusionBluePrint->Blueprint_SetFusion(name, value);
                     }
                     if (timeline->mVideoFusionBluePrint->Blueprint_RunFusion(result.first.first, result.first.second, result.second, current_time, timeline->mVidOverlap->mDuration))
@@ -4744,20 +4767,21 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &view_r
             // draw clip status
             draw_list->PushClipRect(clip_title_pos_min, clip_title_pos_max, true);
             draw_list->AddText(clip_title_pos_min + ImVec2(4, 0), IM_COL32_WHITE, clip->mType == MEDIA_TEXT ? "T" : clip->mName.c_str());
-            // add clip curve point
-            for (int i = 0; i < clip->mKeyPoints.GetCurveCount(); i++)
+            // add clip filter curve point
+            for (int i = 0; i < clip->mFilterKeyPoints.GetCurveCount(); i++)
             {
-                auto curve_color = clip->mKeyPoints.GetCurveColor(i);
-                for (int p = 0; p < clip->mKeyPoints.GetCurvePointCount(i); p++)
+                auto curve_color = clip->mFilterKeyPoints.GetCurveColor(i);
+                for (int p = 0; p < clip->mFilterKeyPoints.GetCurvePointCount(i); p++)
                 {
-                    auto point = clip->mKeyPoints.GetPoint(i, p);
-                    if (point.point.x + clip->mStart >= firstTime && point.point.x + clip->mStart <= viewEndTime)
+                    auto point = clip->mFilterKeyPoints.GetPoint(i, p);
+                    if (point.point.x - clip->mStartOffset >= firstTime && point.point.x - clip->mStartOffset <= viewEndTime)
                     {
-                        ImVec2 center = ImVec2(clip_title_pos_min.x + (point.point.x + clip->mStart - firstTime) * msPixelWidthTarget, clip_title_pos_min.y + (clip_title_pos_max.y - clip_title_pos_min.y) / 2);
+                        ImVec2 center = ImVec2(clip_title_pos_min.x + (point.point.x - firstTime - clip->mStartOffset) * msPixelWidthTarget, clip_title_pos_min.y + (clip_title_pos_max.y - clip_title_pos_min.y) / 2);
                         draw_list->AddCircle(center, 3, curve_color, 0, 2);
                     }
                 }
             }
+            // TODO::Dicky add clip attribute curve point
             draw_list->PopClipRect();
 
             // draw custom view
@@ -4804,14 +4828,8 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &view_r
                     else if (track->mExpanded && clip_area_rect.Contains(io.MousePos) && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
                     {
                         const bool is_ctrl_key_only = (io.KeyMods == ImGuiKeyModFlags_Ctrl);
-                        bool bediting = ImGui::IsKeyDown(ImGuiKey_LeftCtrl) && is_ctrl_key_only;
-                        if (bediting)
-                        {
-                            if (m_CallBacks.EditingClipAttribute)
-                                m_CallBacks.EditingClipAttribute(clip->mType, clip);
-                        }
-                        else
-                            track->SelectEditingClip(clip);
+                        bool b_attr_editing = ImGui::IsKeyDown(ImGuiKey_LeftCtrl) && is_ctrl_key_only;
+                        track->SelectEditingClip(clip, !b_attr_editing);
                     }
                 }
             }
@@ -5112,7 +5130,7 @@ int TimeLine::Load(const imgui_json::value& value)
 
                 BluePrintVideoFilter* bpvf = new BluePrintVideoFilter();
                 bpvf->SetBluePrintFromJson(clip->mFilterBP);
-                bpvf->SetKeyPoint(clip->mKeyPoints);
+                bpvf->SetKeyPoint(clip->mFilterKeyPoints);
                 DataLayer::VideoFilterHolder hFilter(bpvf);
                 vidClip->SetFilter(hFilter);
             }
@@ -5424,7 +5442,7 @@ void TimeLine::SyncDataLayer()
                     vidOvlp->SetId(ovlp->mID);
                     BluePrintVideoTransition* bpvt = new BluePrintVideoTransition();
                     bpvt->SetBluePrintFromJson(ovlp->mFusionBP);
-                    bpvt->SetKeyPoint(ovlp->mKeyPoints);
+                    bpvt->SetKeyPoint(ovlp->mFusionKeyPoints);
                     DataLayer::VideoTransitionHolder hTrans(bpvt);
                     vidOvlp->SetTransition(hTrans);
                     found = true;
@@ -6489,19 +6507,14 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             {
                 ImGui::Separator();
                 auto clip = timeline->FindClipByID(clipMenuEntry);
+                auto track = timeline->FindTrackByClipID(clip->mID);
                 if (ImGui::MenuItem(ICON_CROP " Edit Clip Attribute", nullptr, nullptr))
                 {
-                    if (timeline->m_CallBacks.EditingClipAttribute)
-                    {
-                        timeline->m_CallBacks.EditingClipAttribute(clip->mType, clip);
-                    }
+                    track->SelectEditingClip(clip, false);
                 }
                 if (ImGui::MenuItem(ICON_BLUE_PRINT " Edit Clip Filter", nullptr, nullptr))
                 {
-                    if (timeline->m_CallBacks.EditingClipFilter)
-                    {
-                        timeline->m_CallBacks.EditingClipFilter(clip->mType, clip);
-                    }
+                    track->SelectEditingClip(clip, true);
                 }
                 if (ImGui::MenuItem(ICON_MEDIA_DELETE_CLIP " Delete Clip", nullptr, nullptr))
                 {
@@ -6561,7 +6574,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                             holder->EnableUsingTrackStyle(clip->mTrackStyle);
                             timeline->m_Clips.push_back(clip);
                             track->InsertClip(clip, holder->StartTime());
-                            track->SelectEditingClip(clip);
+                            track->SelectEditingClip(clip, false);
                             if (timeline->m_CallBacks.EditingClipFilter)
                             {
                                 timeline->m_CallBacks.EditingClipFilter(clip->mType, clip);

@@ -281,7 +281,7 @@ struct Overlap
     bool bEditing                   {false};    // overlap is editing, project saved
     std::pair<int64_t, int64_t>     m_Clip;     // overlaped clip's pair, project saved
     imgui_json::value mFusionBP;                // overlap transion blueprint, project saved
-    ImGui::KeyPointEditor mKeyPoints;           // overlap key points, project saved
+    ImGui::KeyPointEditor mFusionKeyPoints;     // overlap key points, project saved
     void * mHandle                  {nullptr};  // overlap belong to timeline 
     Overlap(int64_t start, int64_t end, int64_t clip_first, int64_t clip_second, MEDIA_TYPE type, void* handle);
     ~Overlap();
@@ -316,7 +316,8 @@ struct Clip
     int mTrackHeight            {0};
 
     imgui_json::value mFilterBP;                    // clip filter blue print, project saved
-    ImGui::KeyPointEditor mKeyPoints;               // clip key points, project saved
+    ImGui::KeyPointEditor mFilterKeyPoints;         // clip key points, project saved
+    ImGui::KeyPointEditor mAttributeKeyPoints;      // clip key points, project saved
 
     Clip(int64_t start, int64_t end, int64_t id, MediaParserHolder mediaParser, void * handle);
     virtual ~Clip();
@@ -633,7 +634,7 @@ struct MediaTrack
     void InsertClip(Clip * clip, int64_t pos = 0, bool update = true);
     void PushBackClip(Clip * clip);
     void SelectClip(Clip * clip, bool appand);
-    void SelectEditingClip(Clip * clip);
+    void SelectEditingClip(Clip * clip, bool filter_editing = false);
     void SelectEditingOverlap(Overlap * overlap);
     void DeleteClip(int64_t id);
     Clip * FindPrevClip(int64_t id);                // find prev clip in track, if not found then return null
