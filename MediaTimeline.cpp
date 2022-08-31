@@ -469,13 +469,11 @@ void Clip::Cutting(int64_t pos)
         new_clip->mStartOffset = new_start_offset;
         new_clip->mEnd = mEnd;
         new_clip->mEndOffset = mEndOffset;
+        new_clip->mKeyPoints.SetMax(ImVec2(new_clip->mEnd - new_clip->mStart, 1.f), true);
         mEnd = adj_end;
         mEndOffset = adj_end_offset;
         mKeyPoints.SetMax(ImVec2(mEnd - mStart, 1.f), true);
         timeline->m_Clips.push_back(new_clip);
-        track->InsertClip(new_clip, pos);
-        timeline->AddClipIntoGroup(new_clip, mGroupID);
-        timeline->Updata();
 
         // update curve
         mKeyPoints.SetMax(ImVec2(mEnd - mStart, 1.f), true);
@@ -484,6 +482,24 @@ void Clip::Cutting(int64_t pos)
             timeline->mVidFilterClip->mStart = mStart;
             timeline->mVidFilterClip->mEnd = mEnd;
         }
+
+        // need check overlap status and update overlap info on data layer(UI info will update on track update)
+        for (auto overlap : timeline->m_Overlaps)
+        {
+            if (overlap->m_Clip.first == mID || overlap->m_Clip.second == mID)
+            {
+                if (overlap->mStart >= new_clip->mStart && overlap->mEnd <= new_clip->mEnd)
+                {
+                    if (overlap->m_Clip.first == mID) overlap->m_Clip.first = new_clip->mID;
+                    if (overlap->m_Clip.second == mID) overlap->m_Clip.second = new_clip->mID;
+                }
+            }
+        }
+
+        // update timeline
+        track->InsertClip(new_clip, pos);
+        timeline->AddClipIntoGroup(new_clip, mGroupID);
+        timeline->Updata();
 
         // sync this action to data layer
         switch (mType)
