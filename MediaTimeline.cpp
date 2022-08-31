@@ -544,6 +544,8 @@ void Clip::Cutting(int64_t pos)
                 Logger::Log(Logger::WARN) << "Unhandled 'CUTTING' action!" << std::endl;
                 break;
         }
+
+        timeline->SyncDataLayer();
     }
     // TODO::Dicky update overlap
 }
@@ -5445,6 +5447,7 @@ void TimeLine::SyncDataLayer()
     if (syncedOverlapCount != vidOvlpCnt)
         Logger::Log(Logger::Error) << "Overlap SYNC FAILED! Synced count is " << syncedOverlapCount
             << ", while the count of video overlap array is " << vidOvlpCnt << "." << std::endl;
+    // TODO: sync audio and other types of data with data-layer
 }
 
 SnapshotGeneratorHolder TimeLine::GetSnapshotGenerator(int64_t mediaItemId)
@@ -6958,7 +6961,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                     // clip is not actually moved, so discard this move action
                     imgui_json::value emptyJson;
                     ongoingAction.swap(emptyJson);
-                    Logger::Log(Logger::DEBUG) << "!!!!!!!! action DISCARDED !!!!!!!!!!" << std::endl;
+                    Logger::Log(Logger::VERBOSE) << "!!!!!!!! action DISCARDED !!!!!!!!!!" << std::endl;
                 }
                 else if (orgStart != clip->mStart)
                 {
