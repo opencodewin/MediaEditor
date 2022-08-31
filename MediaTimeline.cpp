@@ -6924,24 +6924,29 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         ImGui::PopClipRect();
     }
     
-    if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
+    if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
     {
-        if (clipMovingEntry != -1 && timeline->mOngoingAction.contains("action"))
+        auto& ongoingAction = timeline->mOngoingAction;
+        if (clipMovingEntry != -1 && ongoingAction.contains("action"))
         {
-            int64_t clipId = timeline->mOngoingAction["clip_id"].get<imgui_json::number>();
+            int64_t clipId = ongoingAction["clip_id"].get<imgui_json::number>();
             Clip* clip = timeline->FindClipByID(clipId);
-            std::string actionName = timeline->mOngoingAction["action"].get<imgui_json::string>();
+            std::string actionName = ongoingAction["action"].get<imgui_json::string>();
             if (actionName == "MOVE_CLIP")
             {
-                if (timeline->mOngoingAction["start"].get<imgui_json::number>() == clip->mStart)
+                int64_t orgStart = ongoingAction["start"].get<imgui_json::number>();
+                bool acrossTrack = ongoingAction.contains("to_track_id") ?
+                    ongoingAction["to_track_id"].get<imgui_json::number>() != ongoingAction["from_track_id"].get<imgui_json::number>() : false;
+                if (!acrossTrack && orgStart == clip->mStart)
                 {
                     // clip is not actually moved, so discard this move action
                     imgui_json::value emptyJson;
-                    timeline->mOngoingAction.swap(emptyJson);
+                    ongoingAction.swap(emptyJson);
+                    Logger::Log(Logger::DEBUG) << "!!!!!!!! action DISCARDED !!!!!!!!!!" << std::endl;
                 }
-                else
+                else if (orgStart != clip->mStart)
                 {
-                    timeline->mOngoingAction["start"] = imgui_json::number(clip->mStart);
+                    ongoingAction["start"] = imgui_json::number(clip->mStart);
                     // add actions of other selected clips
                     for (auto clip : timeline->m_Clips)
                     {
@@ -6960,13 +6965,13 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             }
             else if (actionName == "CROP_CLIP")
             {
-                timeline->mOngoingAction["startOffset"] = imgui_json::number(clip->mStartOffset);
-                timeline->mOngoingAction["endOffset"] = imgui_json::number(clip->mEndOffset);
+                ongoingAction["startOffset"] = imgui_json::number(clip->mStartOffset);
+                ongoingAction["endOffset"] = imgui_json::number(clip->mEndOffset);
             }
 
-            if (timeline->mOngoingAction.contains("action"))
+            if (ongoingAction.contains("action"))
             {
-                timeline->mUiActions.push_back(std::move(timeline->mOngoingAction));
+                timeline->mUiActions.push_back(std::move(ongoingAction));
             }
         }
 

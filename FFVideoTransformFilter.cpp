@@ -782,8 +782,8 @@ namespace DataLayer
                     if (m_scaleInputOffX%2 == 1)
                         m_scaleInputOffX--;
                 }
-                Log(DEBUG) << "Scale stage params: InputOffset=" << m_scaleInputOffX << "," << m_scaleInputOffY << "; InputSize=" << m_scaleInputW << "x" << m_scaleInputH
-                        << "; OutputRoiSize=" << m_scaleOutputRoiW << "x" << m_scaleOutputRoiH << "; CompensateOff=" << m_posOffCompH << "," << m_posOffCompV << endl;
+                // Log(VERBOSE) << "Scale stage params: InputOffset=" << m_scaleInputOffX << "," << m_scaleInputOffY << "; InputSize=" << m_scaleInputW << "x" << m_scaleInputH
+                //         << "; OutputRoiSize=" << m_scaleOutputRoiW << "x" << m_scaleOutputRoiH << "; CompensateOff=" << m_posOffCompH << "," << m_posOffCompV << endl;
             }
             int fferr;
             if (m_realScaleRatioH <= 0 || m_realScaleRatioV <= 0)
