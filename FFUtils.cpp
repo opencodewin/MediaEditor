@@ -47,6 +47,17 @@ string TimestampToString(double timestamp)
     return MillisecToString((int64_t)(timestamp*1000));
 }
 
+AVPixelFormat GetAVPixelFormatByName(const std::string& name)
+{
+    string fmtLowerCase(name);
+    transform(fmtLowerCase.begin(), fmtLowerCase.end(), fmtLowerCase.begin(), [] (char c) {
+        if (c <= 'Z' && c >= 'A')
+            return (char)(c-('Z'-'z'));
+        return c;
+    });
+    return av_get_pix_fmt(fmtLowerCase.c_str());
+}
+
 ImColorFormat ConvertPixelFormatToColorFormat(AVPixelFormat pixfmt)
 {
     const AVPixFmtDescriptor* desc = av_pix_fmt_desc_get(pixfmt);
@@ -1125,8 +1136,25 @@ FFOverlayBlender::~FFOverlayBlender()
         avfilter_inout_free(&m_filterInputs);
 }
 
-bool FFOverlayBlender::Init()
+bool FFOverlayBlender::Init(const std::string& inputFormat, uint32_t w1, uint32_t h1, uint32_t w2, uint32_t h2, int32_t x, int32_t y, bool evalPerFrame)
 {
+    if (w1 == 0 || h1 == 0)
+    {
+        m_errMsg = "INVALID argument value for 'w1' or 'h1'!";
+        return false;
+    }
+    if (w2 == 0 || h2 == 0)
+    {
+        m_errMsg = "INVALID argument value for 'w2' or 'h2'!";
+        return false;
+    }
+    AVPixelFormat inPixfmt = GetAVPixelFormatByName(inputFormat);
+    if (inPixfmt == AV_PIX_FMT_NONE)
+    {
+        m_errMsg = "INVALID argument value for 'inputFormat'!";
+        return false;
+    }
+
     const AVFilter *buffersrc  = avfilter_get_by_name("buffer");
     const AVFilter *buffersink = avfilter_get_by_name("buffersink");
 
@@ -1139,7 +1167,7 @@ bool FFOverlayBlender::Init()
 
     int fferr;
     ostringstream oss;
-    oss << "1920:1080:pix_fmt=rgba:time_base=1/" << AV_TIME_BASE << ":sar=1";
+    oss << w1 << ":" << h1 << ":pix_fmt=" << (int)inPixfmt << ":time_base=1/" << AV_TIME_BASE << ":sar=1:frame_rate=25/1";
     string bufsrcArg = oss.str(); oss.str("");
     AVFilterContext* filterCtx = nullptr;
     string filterName = "base";
@@ -1164,6 +1192,8 @@ bool FFOverlayBlender::Init()
     m_bufSrcCtxs.push_back(filterCtx);
 
     filterName = "overlay"; filterCtx = nullptr;
+    oss << w2 << ":" << h2 << ":pix_fmt=" << (int)inPixfmt << ":time_base=1/" << AV_TIME_BASE << ":sar=1:frame_rate=25/1";
+    bufsrcArg = oss.str(); oss.str("");
     fferr = avfilter_graph_create_filter(&filterCtx, buffersrc, filterName.c_str(), bufsrcArg.c_str(), nullptr, m_avfg);
     if (fferr < 0)
     {
@@ -1213,7 +1243,7 @@ bool FFOverlayBlender::Init()
     m_filterInputs = filtInOutPtr;
     m_bufSinkCtxs.push_back(filterCtx);
 
-    oss << "[base][overlay] overlay=format=auto:eof_action=pass:eval=frame";
+    oss << "[base][overlay] overlay=x=" << x << ":y=" << y << ":format=auto:eof_action=pass:eval=" << (evalPerFrame ? "frame" : "init");
     string filterArgs = oss.str();
     fferr = avfilter_graph_parse_ptr(m_avfg, filterArgs.c_str(), &m_filterInputs, &m_filterOutputs, nullptr);
     if (fferr < 0)
@@ -1235,7 +1265,14 @@ bool FFOverlayBlender::Init()
         avfilter_inout_free(&m_filterOutputs);
     if (m_filterInputs)
         avfilter_inout_free(&m_filterInputs);
+    m_x = x;
+    m_y = y;
     return true;
+}
+
+bool FFOverlayBlender::Init()
+{
+    return Init("rgba", 1920, 1080, 1920, 1080, 0, 0, true);
 }
 
 ImGui::ImMat FFOverlayBlender::Blend(ImGui::ImMat& baseImage, ImGui::ImMat& overlayImage, int32_t x, int32_t y, uint32_t w, uint32_t h)
@@ -1245,29 +1282,37 @@ ImGui::ImMat FFOverlayBlender::Blend(ImGui::ImMat& baseImage, ImGui::ImMat& over
 
     int fferr;
     char cmdArgs[32] = {0}, cmdRes[128] = {0};
-    snprintf(cmdArgs, sizeof(cmdArgs)-1, "%d", x);
-    fferr = avfilter_graph_send_command(m_avfg, "overlay", "x", cmdArgs, cmdRes, sizeof(cmdRes)-1, 0);
-    if (fferr < 0)
+    if (m_x != x)
     {
-        ostringstream oss;
-        oss << "FAILED to invoke 'avfilter_graph_send_command()' on argument 'x' = " << x
-            << "! fferr = " << fferr << ", response = '" << cmdRes <<"'.";
-        m_errMsg = oss.str();
-        return ImGui::ImMat();
+        snprintf(cmdArgs, sizeof(cmdArgs)-1, "%d", x);
+        fferr = avfilter_graph_send_command(m_avfg, "overlay", "x", cmdArgs, cmdRes, sizeof(cmdRes)-1, 0);
+        if (fferr < 0)
+        {
+            ostringstream oss;
+            oss << "FAILED to invoke 'avfilter_graph_send_command()' on argument 'x' = " << x
+                << "! fferr = " << fferr << ", response = '" << cmdRes <<"'.";
+            m_errMsg = oss.str();
+            return ImGui::ImMat();
+        }
+        m_x = x;
     }
-    snprintf(cmdArgs, sizeof(cmdArgs)-1, "%d", y);
-    fferr = avfilter_graph_send_command(m_avfg, "overlay", "y", cmdArgs, cmdRes, sizeof(cmdRes)-1, 0);
-    if (fferr < 0)
+    if (m_y != y)
     {
-        ostringstream oss;
-        oss << "FAILED to invoke 'avfilter_graph_send_command()' on argument 'y' = " << x
-            << "! fferr = " << fferr << ", response = '" << cmdRes <<"'.";
-        m_errMsg = oss.str();
-        return ImGui::ImMat();
+        snprintf(cmdArgs, sizeof(cmdArgs)-1, "%d", y);
+        fferr = avfilter_graph_send_command(m_avfg, "overlay", "y", cmdArgs, cmdRes, sizeof(cmdRes)-1, 0);
+        if (fferr < 0)
+        {
+            ostringstream oss;
+            oss << "FAILED to invoke 'avfilter_graph_send_command()' on argument 'y' = " << x
+                << "! fferr = " << fferr << ", response = '" << cmdRes <<"'.";
+            m_errMsg = oss.str();
+            return ImGui::ImMat();
+        }
+        m_y = y;
     }
 
     ImGui::ImMat res = baseImage;
-    int64_t pts = (int64_t)(m_inputCount++)*AV_TIME_BASE/25;
+    int64_t pts = (m_inputCount++)*AV_TIME_BASE/25;
 
     ImMatWrapper_AVFrame baseImgWrapper(baseImage);
     SelfFreeAVFramePtr baseAvfrmPtr;
@@ -1330,6 +1375,11 @@ ImGui::ImMat FFOverlayBlender::Blend(ImGui::ImMat& baseImage, ImGui::ImMat& over
         return ImGui::ImMat();
     }
     return res;
+}
+
+ImGui::ImMat FFOverlayBlender::Blend(ImGui::ImMat& baseImage, ImGui::ImMat& overlayImage)
+{
+    return Blend(baseImage, overlayImage, m_x, m_y, overlayImage.w, overlayImage.h);
 }
 
 static MediaInfo::Ratio MediaInfoRatioFromAVRational(const AVRational& src)

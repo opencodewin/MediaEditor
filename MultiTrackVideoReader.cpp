@@ -42,6 +42,13 @@ public:
         m_readFrameIdx = 0;
         m_frameInterval = (double)m_frameRate.den/m_frameRate.num;
 
+        if (!m_mixBlender.Init("rgba", outWidth, outHeight, outWidth, outHeight, 0, 0, false))
+        {
+            ostringstream oss;
+            oss << "Mixer blender initialization FAILED! Error message: '" << m_mixBlender.GetError() << "'.";
+            m_errMsg = oss.str();
+            return false;
+        }
         if (!m_subBlender.Init())
         {
             ostringstream oss;
@@ -783,8 +790,13 @@ private:
                     {
                         ImGui::ImMat vmat;
                         (*trackIter)->ReadVideoFrame(vmat);
-                        if (!vmat.empty() && mixedFrame.empty())
-                            mixedFrame = vmat;
+                        if (!vmat.empty())
+                        {
+                            if (mixedFrame.empty())
+                                mixedFrame = vmat;
+                            else
+                                mixedFrame = m_mixBlender.Blend(vmat, mixedFrame);
+                        }
                         if (trackIter == m_tracks.begin())
                             timestamp = vmat.time_stamp;
                         else if (timestamp != vmat.time_stamp)
@@ -871,6 +883,7 @@ private:
     thread m_mixingThread;
     list<VideoTrackHolder> m_tracks;
     recursive_mutex m_trackLock;
+    FFOverlayBlender m_mixBlender;
 
     list<ImGui::ImMat> m_outputMats;
     mutex m_outputMatsLock;

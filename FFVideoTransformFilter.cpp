@@ -53,13 +53,7 @@ namespace DataLayer
             m_outHeight = outHeight;
             m_diagonalLen = (uint32_t)ceil(sqrt(outWidth*outWidth+outHeight*outHeight));
             if (m_diagonalLen%2 == 1) m_diagonalLen++;
-            string fmtLowerCase(outputFormat);
-            transform(fmtLowerCase.begin(), fmtLowerCase.end(), fmtLowerCase.begin(), [] (char c) {
-                if (c <= 'Z' && c >= 'A')
-                    return (char)(c-('Z'-'z'));
-                return c;
-            });
-            AVPixelFormat outputPixfmt = av_get_pix_fmt(fmtLowerCase.c_str());
+            AVPixelFormat outputPixfmt = GetAVPixelFormatByName(outputFormat);
             if (outputPixfmt == AV_PIX_FMT_NONE)
             {
                 ostringstream oss;
@@ -1029,6 +1023,7 @@ namespace DataLayer
             {
                 auto name = m_keyPoints.GetCurveName(i);
                 auto value = m_keyPoints.GetValue(i, pos);
+                // TODO: use curve value to adjust the params
             }
 
 

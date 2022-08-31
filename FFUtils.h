@@ -38,6 +38,7 @@ SelfFreeAVFramePtr AllocSelfFreeAVFramePtr();
 SelfFreeAVFramePtr CloneSelfFreeAVFramePtr(const AVFrame* avfrm);
 SelfFreeAVFramePtr WrapSelfFreeAVFramePtr(AVFrame* avfrm);
 
+AVPixelFormat GetAVPixelFormatByName(const std::string& name);
 ImColorFormat ConvertPixelFormatToColorFormat(AVPixelFormat pixfmt);
 bool ConvertAVFrameToImMat(const AVFrame* avfrm, ImGui::ImMat& vmat, double timestamp);
 bool ConvertImMatToAVFrame(const ImGui::ImMat& vmat, AVFrame* avfrm, int64_t pts);
@@ -159,6 +160,8 @@ public:
     FFOverlayBlender& operator=(const FFOverlayBlender&) = delete;
     ~FFOverlayBlender();
 
+    bool Init(const std::string& inputFormat, uint32_t w1, uint32_t h1, uint32_t w2, uint32_t h2, int32_t x, int32_t y, bool evalPerFrame);
+    ImGui::ImMat Blend(ImGui::ImMat& baseImage, ImGui::ImMat& overlayImage);
     bool Init();
     ImGui::ImMat Blend(ImGui::ImMat& baseImage, ImGui::ImMat& overlayImage, int32_t x, int32_t y, uint32_t w, uint32_t h);
 
@@ -170,7 +173,8 @@ private:
     AVFilterInOut* m_filterInputs{nullptr};
     std::vector<AVFilterContext*> m_bufSrcCtxs;
     std::vector<AVFilterContext*> m_bufSinkCtxs;
-    int32_t m_inputCount{0};
+    int32_t m_x{0}, m_y{0};
+    int64_t m_inputCount{0};
     ImMatToAVFrameConverter m_cvtMat2Avfrm;
     AVFrameToImMatConverter m_cvtAvfrm2Mat;
     bool m_cvtInited{false};
