@@ -2,7 +2,7 @@
 #include <mutex>
 #include <algorithm>
 #include <cmath>
-#include "FFVideoFilter.h"
+#include "VideoTransformFilter.h"
 #include "FFUtils.h"
 #include "Logger.h"
 extern "C"
@@ -22,14 +22,14 @@ using namespace Logger;
 
 namespace DataLayer
 {
-    const std::string FFTransformVideoFilter::FILTER_NAME = "FFTransformVideoFilter";
+    const std::string VideoTransformFilter::FILTER_NAME = "VideoTransformFilter";
 
-    class FFTransformVideoFilter_Impl : public FFTransformVideoFilter
+    class VideoTransformFilter_FFImpl : public VideoTransformFilter
     {
     public:
-        FFTransformVideoFilter_Impl() {}
+        VideoTransformFilter_FFImpl() {}
 
-        virtual ~FFTransformVideoFilter_Impl()
+        virtual ~VideoTransformFilter_FFImpl()
         {
             if (m_scaleFg)
                 avfilter_graph_free(&m_scaleFg);
@@ -192,6 +192,12 @@ namespace DataLayer
                 m_scaleRatioV = scale;
                 m_needUpdateScaleParam = true;
             }
+            return true;
+        }
+
+        bool SetKeyPoint(ImGui::KeyPointEditor &keypoint) override
+        {
+            m_keyPoints = keypoint;
             return true;
         }
 
@@ -1018,6 +1024,14 @@ namespace DataLayer
             m_inWidth = inMat.w;
             m_inHeight = inMat.h;
 
+            // check and update key points values
+            for (int i = 0; i < m_keyPoints.GetCurveCount(); i++)
+            {
+                auto name = m_keyPoints.GetCurveName(i);
+                auto value = m_keyPoints.GetValue(i, pos);
+            }
+
+
             // allocate intermediate AVFrame
             SelfFreeAVFramePtr avfrmPtr = AllocSelfFreeAVFramePtr();
             avfrmPtr->pts = (int64_t)(m_inputCount++)*AV_TIME_BASE*m_inputFrameRate.den/m_inputFrameRate.num;
@@ -1087,12 +1101,14 @@ namespace DataLayer
 
         int32_t m_posOffsetH{0}, m_posOffsetV{0};
 
+        ImGui::KeyPointEditor m_keyPoints;
+
         mutex m_processLock;
         string m_errMsg;
     };
 
-    FFTransformVideoFilter* NewFFTransformVideoFilter()
+    VideoTransformFilter* NewVideoTransformFilter()
     {
-        return new FFTransformVideoFilter_Impl();
+        return new VideoTransformFilter_FFImpl();
     }
 }

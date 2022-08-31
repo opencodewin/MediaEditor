@@ -15,7 +15,7 @@
 #include <cmath>
 #include <chrono>
 #include "MultiTrackVideoReader.h"
-#include "FFVideoFilter.h"
+#include "VideoTransformFilter.h"
 #include "FFUtils.h"
 #include "Logger.h"
 
@@ -296,7 +296,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
         ImGui::Spacing();
         ImGui::PushItemWidth(200);
         VideoClipHolder selectedClip;
-        FFTransformVideoFilter* fftransFilter = nullptr;
+        VideoTransformFilter* fftransFilter = nullptr;
         if (!noClip)
         {
             VideoTrackHolder hTrack = g_mtVidReader->GetTrackByIndex(s_clipOpTrackSelIdx);

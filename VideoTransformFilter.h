@@ -1,5 +1,6 @@
 #pragma once
 #include "VideoClip.h"
+#include "imgui_extra_widget.h"
 
 namespace DataLayer
 {
@@ -11,7 +12,7 @@ namespace DataLayer
         SCALE_TYPE__STRETCH,
     };
 
-    struct FFTransformVideoFilter : public VideoFilter
+    struct VideoTransformFilter : public VideoFilter
     {
         static const std::string FILTER_NAME;
 
@@ -28,6 +29,7 @@ namespace DataLayer
         virtual bool SetRotationAngle(double angle) = 0;
         virtual bool SetScaleH(double scale) = 0;
         virtual bool SetScaleV(double scale) = 0;
+        virtual bool SetKeyPoint(ImGui::KeyPointEditor &keypoint) = 0;
 
         virtual uint32_t GetInWidth() const = 0;
         virtual uint32_t GetInHeight() const = 0;
@@ -48,5 +50,5 @@ namespace DataLayer
         virtual std::string GetError() const = 0;
     };
 
-    FFTransformVideoFilter* NewFFTransformVideoFilter();
+    VideoTransformFilter* NewVideoTransformFilter();
 }

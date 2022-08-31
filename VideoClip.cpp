@@ -4,7 +4,7 @@
 #include <AlphaBlending_vulkan.h>
 #endif
 #include "VideoClip.h"
-#include "FFVideoFilter.h"
+#include "VideoTransformFilter.h"
 #include "Logger.h"
 
 using namespace std;
@@ -46,16 +46,16 @@ namespace DataLayer
         bool suspend = readpos < -m_wakeupRange || readpos > Duration()+m_wakeupRange;
         if (!m_srcReader->Start(suspend))
             throw runtime_error(m_srcReader->GetError());
-        m_fftransFilter = NewFFTransformVideoFilter();
-        if (!m_fftransFilter->Initialize(outWidth, outHeight, "RGBA"))
-            throw runtime_error(m_fftransFilter->GetError());
+        m_transFilter = NewVideoTransformFilter();
+        if (!m_transFilter->Initialize(outWidth, outHeight, "RGBA"))
+            throw runtime_error(m_transFilter->GetError());
     }
 
     VideoClip::~VideoClip()
     {
         ReleaseMediaReader(&m_srcReader);
-        delete m_fftransFilter;
-        m_fftransFilter = nullptr;
+        delete m_transFilter;
+        m_transFilter = nullptr;
     }
 
     VideoClipHolder VideoClip::Clone( uint32_t outWidth, uint32_t outHeight, const MediaInfo::Ratio& frameRate) const
@@ -67,12 +67,12 @@ namespace DataLayer
 
     uint32_t VideoClip::OutWidth() const
     {
-        return m_fftransFilter->GetOutWidth();
+        return m_transFilter->GetOutWidth();
     }
 
     uint32_t VideoClip::OutHeight() const
     {
-        return m_fftransFilter->GetOutHeight();
+        return m_transFilter->GetOutHeight();
     }
 
     bool VideoClip::IsStartOffsetValid(int64_t startOffset)
@@ -117,9 +117,9 @@ namespace DataLayer
         }
     }
 
-    FFTransformVideoFilter* VideoClip::GetTransformFilterPtr()
+    VideoTransformFilter* VideoClip::GetTransformFilterPtr()
     {
-        return m_fftransFilter;
+        return m_transFilter;
     }
 
     void VideoClip::SeekTo(int64_t pos)
@@ -151,7 +151,7 @@ namespace DataLayer
         VideoFilterHolder filter = m_filter;
         if (filter)
             image = filter->FilterImage(image, pos);
-        vmat = m_fftransFilter->FilterImage(image, pos);
+        vmat = m_transFilter->FilterImage(image, pos);
     }
 
     void VideoClip::NotifyReadPos(int64_t pos)

@@ -14,7 +14,7 @@ namespace DataLayer
     using VideoClipHolder = std::shared_ptr<VideoClip>;
 
     // forward declaration
-    struct FFTransformVideoFilter;
+    struct VideoTransformFilter;
 
     class VideoClip
     {
@@ -50,7 +50,7 @@ namespace DataLayer
         void ChangeEndOffset(int64_t endOffset);
         VideoFilterHolder GetFilter() const { return m_filter; }
         void SetFilter(VideoFilterHolder filter);
-        FFTransformVideoFilter* GetTransformFilterPtr();
+        VideoTransformFilter* GetTransformFilterPtr();
 
         void SeekTo(int64_t pos);
         void ReadVideoFrame(int64_t pos, ImGui::ImMat& vmat, bool& eof);
@@ -72,7 +72,7 @@ namespace DataLayer
         MediaInfo::Ratio m_frameRate;
         uint32_t m_frameIndex{0};
         VideoFilterHolder m_filter;
-        FFTransformVideoFilter* m_fftransFilter{nullptr};
+        VideoTransformFilter* m_transFilter{nullptr};
         int64_t m_wakeupRange{1000};
     };
 
