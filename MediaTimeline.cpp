@@ -416,7 +416,8 @@ int64_t Clip::Cropping(int64_t diff, int type)
         timeline->mVidFilterClip->mStart = mStart;
         timeline->mVidFilterClip->mEnd = mEnd;
     }
-    //mAttributeKeyPoints.SetMax(ImVec2(mEnd - mStart, 1.f), true);
+    mAttributeKeyPoints.SetMin(ImVec2(mStartOffset, 0.f), true);
+    mAttributeKeyPoints.SetMax(ImVec2(mEnd - mStart + mStartOffset, 1.f), true);
     track->Update();
     return new_diff;
 }
@@ -487,11 +488,14 @@ void Clip::Cutting(int64_t pos)
         new_clip->mEndOffset = mEndOffset;
         new_clip->mFilterKeyPoints.SetMin(ImVec2(new_clip->mStartOffset, 0.f), true);
         new_clip->mFilterKeyPoints.SetMax(ImVec2(new_clip->mEnd - new_clip->mStart + new_clip->mStartOffset, 1.f), true);
-        //new_clip->mAttributeKeyPoints.SetMax(ImVec2(new_clip->mEnd - new_clip->mStart, 1.f), true);
+        new_clip->mAttributeKeyPoints.SetMin(ImVec2(new_clip->mStartOffset, 1.f), true);
+        new_clip->mAttributeKeyPoints.SetMax(ImVec2(new_clip->mEnd - new_clip->mStart + new_clip->mStartOffset, 1.f), true);
         mEnd = adj_end;
         mEndOffset = adj_end_offset;
         mFilterKeyPoints.SetMin(ImVec2(mStartOffset, 0.f), true);
         mFilterKeyPoints.SetMax(ImVec2(mEnd - mStart + mStartOffset, 1.f), true);
+        mAttributeKeyPoints.SetMin(ImVec2(mStartOffset, 0.f), true);
+        mAttributeKeyPoints.SetMax(ImVec2(mEnd - mStart + mStartOffset, 1.f), true);
         timeline->m_Clips.push_back(new_clip);
 
         // update curve
@@ -4758,11 +4762,10 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &view_r
             if (clip->mGroupID != -1)
             {
                 auto color = GetGroupColor(clip->mGroupID);
-                draw_list->AddRectFilled(clip_title_pos_min, clip_title_pos_max, color);
+                draw_list->AddRectFilled(clip_title_pos_min, clip_title_pos_max, color, 4, ImDrawFlags_RoundCornersAll);
             }
             else
-                draw_list->AddRectFilled(clip_title_pos_min, clip_title_pos_max, IM_COL32(32,128,32,128));
-            draw_list->AddRect(clip_title_pos_min, clip_title_pos_max, IM_COL32_BLACK);
+                draw_list->AddRectFilled(clip_title_pos_min, clip_title_pos_max, IM_COL32(64,128,64,128), 4, ImDrawFlags_RoundCornersAll);
             
             // draw clip status
             draw_list->PushClipRect(clip_title_pos_min, clip_title_pos_max, true);
@@ -4795,13 +4798,13 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &view_r
             if (clip->bSelected)
             {
                 if (clip->bEditing)
-                    draw_list->AddRect(clip_pos_min, clip_pos_max, IM_COL32(255,0,255,224), 0, 0, 2.0f);
+                    draw_list->AddRect(clip_pos_min, clip_pos_max, IM_COL32(255,0,255,224), 4, ImDrawFlags_RoundCornersAll, 2.0f);
                 else
-                    draw_list->AddRect(clip_pos_min, clip_pos_max, IM_COL32(255,0,0,224), 0, 0, 2.0f);
+                    draw_list->AddRect(clip_pos_min, clip_pos_max, IM_COL32(255,0,0,224), 4, ImDrawFlags_RoundCornersAll, 2.0f);
             }
             else if (clip->bEditing)
             {
-                draw_list->AddRect(clip_pos_min, clip_pos_max, IM_COL32(0,0,255,224), 0, 0, 2.0f);
+                draw_list->AddRect(clip_pos_min, clip_pos_max, IM_COL32(0,0,255,224), 4, ImDrawFlags_RoundCornersAll, 2.0f);
             }
 
             // Clip select
@@ -4809,7 +4812,7 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &view_r
             {
                 if (clip_rect.Contains(io.MousePos) )
                 {
-                    draw_list->AddRect(clip_rect.Min, clip_rect.Max, IM_COL32(255,255,255,255), 0, 0, 1.0f);
+                    draw_list->AddRect(clip_rect.Min, clip_rect.Max, IM_COL32(255,255,255,255), 4, ImDrawFlags_RoundCornersAll, 2.0f);
                     const bool is_shift_key_only = (io.KeyMods == ImGuiKeyModFlags_Shift);
                     bool appand = (ImGui::IsKeyDown(ImGuiKey_LeftShift) || ImGui::IsKeyDown(ImGuiKey_RightShift)) && is_shift_key_only;
                     bool can_be_select = false;
@@ -4881,18 +4884,18 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &view_r
         {
             if (overlap->bEditing)
             {
-                draw_list->AddRect(overlap_pos_min, overlap_pos_max, IM_COL32(255, 0, 255, 255));
+                draw_list->AddRect(overlap_pos_min, overlap_pos_max, IM_COL32(255, 0, 255, 255), 4, ImDrawFlags_RoundCornersAll, 2.f);
             }
             if (overlap_rect.Contains(io.MousePos))
             {
-                draw_list->AddRectFilled(overlap_pos_min, overlap_pos_max, IM_COL32(255,32,32,128));
+                draw_list->AddRectFilled(overlap_pos_min, overlap_pos_max, IM_COL32(255,32,32,128), 4, ImDrawFlags_RoundCornersAll);
                 if (enable_select && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
                 {
                     track->SelectEditingOverlap(overlap);
                 }
             }
             else
-                draw_list->AddRectFilled(overlap_pos_min, overlap_pos_max, IM_COL32(128,32,32,128));
+                draw_list->AddRectFilled(overlap_pos_min, overlap_pos_max, IM_COL32(128,32,32,128), 4, ImDrawFlags_RoundCornersAll);
             draw_list->AddLine(overlap_pos_min, overlap_pos_max, IM_COL32(0, 0, 0, 255));
             draw_list->AddLine(ImVec2(overlap_pos_max.x, overlap_pos_min.y), ImVec2(overlap_pos_min.x, overlap_pos_max.y), IM_COL32(0, 0, 0, 255));
         }

@@ -1468,9 +1468,9 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
     (*item)->UpdateThumbnail();
     ImVec2 icon_size = ImVec2(media_icon_size, media_icon_size);
     // Draw Shadow for Icon
-    draw_list->AddRectFilled(icon_pos + ImVec2(6, 6), icon_pos + ImVec2(6, 6) + icon_size, IM_COL32(32, 32, 32, 255));
-    draw_list->AddRectFilled(icon_pos + ImVec2(4, 4), icon_pos + ImVec2(4, 4) + icon_size, IM_COL32(48, 48, 72, 255));
-    draw_list->AddRectFilled(icon_pos + ImVec2(2, 2), icon_pos + ImVec2(2, 2) + icon_size, IM_COL32(64, 64, 96, 255));
+    draw_list->AddRectFilled(icon_pos + ImVec2(6, 6), icon_pos + ImVec2(6, 6) + icon_size, IM_COL32(16, 16, 16, 255), 8, ImDrawFlags_RoundCornersAll);
+    draw_list->AddRectFilled(icon_pos + ImVec2(4, 4), icon_pos + ImVec2(4, 4) + icon_size, IM_COL32(32, 32, 48, 255), 8, ImDrawFlags_RoundCornersAll);
+    draw_list->AddRectFilled(icon_pos + ImVec2(2, 2), icon_pos + ImVec2(2, 2) + icon_size, IM_COL32(64, 64, 96, 255), 8, ImDrawFlags_RoundCornersAll);
     ImGui::SetCursorScreenPos(icon_pos);
     ImGui::InvisibleButton((*item)->mPath.c_str(), icon_size);
     if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
@@ -3046,7 +3046,7 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
                                                     nullptr, // clippingRect
                                                     &_changed,
                                                     nullptr, // selectedPoints
-                                                    0 /*timeline->mVidFilterClip->mCurrent - editing_clip->mStartOffset*/);
+                                                    timeline->currentTime - editing_clip->mStart/*timeline->mVidFilterClip->mCurrent - editing_clip->mStartOffset*/);
             //timeline->mVideoFilterNeedUpdate |= _changed;
         }
     }
