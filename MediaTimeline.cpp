@@ -1653,16 +1653,6 @@ void TextClip::Save(imgui_json::value& value)
     value["BackColor"] = imgui_json::vec4(mFontBackColor);
 }
 
-BluePrintVideoFilter::~BluePrintVideoFilter()
-{
-    if (mBp)
-    {
-        mBp->Finalize();
-        delete mBp;
-        mBp = nullptr;
-    }
-}
-
 ImGui::ImMat BluePrintVideoFilter::FilterImage(const ImGui::ImMat& vmat, int64_t pos)
 {
     std::lock_guard<std::mutex> lk(mBpLock);
@@ -1685,36 +1675,12 @@ ImGui::ImMat BluePrintVideoFilter::FilterImage(const ImGui::ImMat& vmat, int64_t
 
 void BluePrintVideoFilter::SetBluePrintFromJson(imgui_json::value& bpJson)
 {
-    BluePrint::BluePrintUI* bp = new BluePrint::BluePrintUI();
-    bp->Initialize();
     // Logger::Log(Logger::DEBUG) << "Create bp filter from json " << bpJson.dump() << std::endl;
-    bp->File_New_Filter(bpJson, "VideoFilter", "Video");
-    if (!bp->Blueprint_IsValid())
-    {
-        bp->Finalize();
-        delete bp;
-        return;
-    }
-    BluePrint::BluePrintUI* oldbp = nullptr;
-    {
-        std::lock_guard<std::mutex> lk(mBpLock);
-        oldbp = mBp;
-        mBp = bp;
-    }
-    if (oldbp)
-    {
-        oldbp->Finalize();
-        delete oldbp;
-    }
-}
-
-BluePrintVideoTransition::~BluePrintVideoTransition()
-{
-    if (mBp)
+    mBp->File_New_Filter(bpJson, "VideoFilter", "Video");
+    if (!mBp->Blueprint_IsValid())
     {
         mBp->Finalize();
-        delete mBp;
-        mBp = nullptr;
+        return;
     }
 }
 
@@ -1748,26 +1714,12 @@ ImGui::ImMat BluePrintVideoTransition::MixTwoImages(const ImGui::ImMat& vmat1, c
 
 void BluePrintVideoTransition::SetBluePrintFromJson(imgui_json::value& bpJson)
 {
-    BluePrint::BluePrintUI* bp = new BluePrint::BluePrintUI();
-    bp->Initialize();
     // Logger::Log(Logger::DEBUG) << "Create bp transition from json " << bpJson.dump() << std::endl;
-    bp->File_New_Fusion(bpJson, "VideoFusion", "Video");
-    if (!bp->Blueprint_IsValid())
+    mBp->File_New_Fusion(bpJson, "VideoFusion", "Video");
+    if (!mBp->Blueprint_IsValid())
     {
-        bp->Finalize();
-        delete bp;
+        mBp->Finalize();
         return;
-    }
-    BluePrint::BluePrintUI* oldbp = nullptr;
-    {
-        std::lock_guard<std::mutex> lk(mBpLock);
-        oldbp = mBp;
-        mBp = bp;
-    }
-    if (oldbp)
-    {
-        oldbp->Finalize();
-        delete oldbp;
     }
 }
 
@@ -1781,14 +1733,21 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
     mCurrent = mStartOffset;
 
     mSsGen = CreateSnapshotGenerator();
-    mMediaReader = CreateMediaReader();
-    if (!mSsGen || !mMediaReader)
+    if (!mSsGen)
     {
         Logger::Log(Logger::Error) << "Create Editing Video Clip FAILED!" << std::endl;
         return;
     }
     if (timeline) mSsGen->EnableHwAccel(timeline->mHardwareCodec);
+#ifdef OLD_UI
+    mMediaReader = CreateMediaReader();
+    if (!mMediaReader)
+    {
+        Logger::Log(Logger::Error) << "Create Editing Video Clip FAILED!" << std::endl;
+        return;
+    }
     if (timeline) mMediaReader->EnableHwAccel(timeline->mHardwareCodec);
+#endif
     if (!mSsGen->Open(vidclip->mSsViewer->GetMediaParser()))
     {
         Logger::Log(Logger::Error) << mSsGen->GetError() << std::endl;
@@ -1801,6 +1760,7 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
     mSsGen->SetSnapshotResizeFactor(snapshot_scale, snapshot_scale);
     mSsViewer = mSsGen->CreateViewer((double)mStartOffset / 1000);
 
+#ifdef OLD_UI
     // open video reader
     if (mMediaReader->Open(vidclip->mMediaParser))
     {
@@ -1813,17 +1773,20 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
             ReleaseMediaReader(&mMediaReader);
         }
     }
+#endif
     mClipFrameRate = vidclip->mClipFrameRate;
 }
 
 EditingVideoClip::~EditingVideoClip()
 {
+#ifdef OLD_UI
     if (mMediaReader) { ReleaseMediaReader(&mMediaReader); mMediaReader = nullptr; }
-    mSsViewer = nullptr;
-    mSsGen = nullptr;
     mFrameLock.lock();
     mFrame.clear();
     mFrameLock.unlock();
+#endif
+    mSsViewer = nullptr;
+    mSsGen = nullptr;
 }
 
 void EditingVideoClip::UpdateClipRange(Clip* clip)
@@ -1856,16 +1819,21 @@ void EditingVideoClip::Seek(int64_t pos)
     {
         return;
     }
+#ifdef OLD_UI
     mFrameLock.lock();
     mFrame.clear();
     mFrameLock.unlock();
+#endif
     mLastTime = -1;
     mCurrent = pos;
     alignTime(mCurrent, mClipFrameRate);
+
+#ifdef OLD_UI
     if (mMediaReader && mMediaReader->IsOpened())
     {
         mMediaReader->SeekTo((double)mCurrent / 1000.f);
     }
+#endif
 }
 
 void EditingVideoClip::Step(bool forward, int64_t step)
@@ -1925,9 +1893,9 @@ bool EditingVideoClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_fr
 {
     int ret = false;
     TimeLine * timeline = (TimeLine *)mHandle;
+#ifdef OLD_UI
     if (!timeline || mFrame.empty())
         return ret;
-
     auto frame_delay = mClipFrameRate.den * 1000 / mClipFrameRate.num;
     int64_t buffer_start = mFrame.begin()->first.time_stamp * 1000;
     int64_t buffer_end = buffer_start;
@@ -1993,6 +1961,7 @@ bool EditingVideoClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_fr
             break;
         }
     }
+#endif
     return ret;
 }
 
@@ -2325,6 +2294,7 @@ EditingVideoOverlap::EditingVideoOverlap(Overlap* ovlp)
         mEnd = ovlp->mEnd;
         mDuration = mEnd - mStart;
         
+#ifdef OLD_UI
         mMediaReader.first = CreateMediaReader();
         mMediaReader.second = CreateMediaReader();
 
@@ -2359,6 +2329,7 @@ EditingVideoOverlap::EditingVideoOverlap(Overlap* ovlp)
                 ReleaseMediaReader(&mMediaReader.second);
             }
         }
+#endif
         mClipFirstFrameRate = mClip1->mClipFrameRate;
         mClipSecondFrameRate = mClip2->mClipFrameRate;
     }
@@ -2370,11 +2341,13 @@ EditingVideoOverlap::EditingVideoOverlap(Overlap* ovlp)
 
 EditingVideoOverlap::~EditingVideoOverlap()
 {
+#ifdef OLD_UI
     if (mMediaReader.first) { ReleaseMediaReader(&mMediaReader.first); mMediaReader.first = nullptr; }
     if (mMediaReader.second) { ReleaseMediaReader(&mMediaReader.second); mMediaReader.second = nullptr; }
     mFrameLock.lock();
     mFrame.clear();
     mFrameLock.unlock();
+#endif
 }
 
 void EditingVideoOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom)
@@ -2501,13 +2474,15 @@ void EditingVideoOverlap::Seek(int64_t pos)
     {
         return;
     }
-    
+#ifdef OLD_UI
     mFrameLock.lock();
     mFrame.clear();
     mFrameLock.unlock();
+#endif
     mLastTime = -1;
     mCurrent = pos;
     alignTime(mCurrent, timeline->mFrameRate);
+#ifdef OLD_UI
     if (mMediaReader.first && mMediaReader.first->IsOpened())
     {
         int64_t pos = mCurrent + m_StartOffset.first;
@@ -2520,6 +2495,7 @@ void EditingVideoOverlap::Seek(int64_t pos)
         alignTime(pos, mClipSecondFrameRate);
         mMediaReader.second->SeekTo((double)pos / 1000.f);
     }
+#endif
 }
 
 void EditingVideoOverlap::Step(bool forward, int64_t step)
@@ -2565,9 +2541,9 @@ bool EditingVideoOverlap::GetFrame(std::pair<std::pair<ImGui::ImMat, ImGui::ImMa
 {
     int ret = false;
     TimeLine* timeline = (TimeLine*)(mOvlp->mHandle);
+#ifdef OLD_UI
     if (!timeline || mFrame.empty())
         return ret;
-
     auto frame_delay_first = mClipFirstFrameRate.den * 1000 / mClipFirstFrameRate.num;
     auto frame_delay_second = mClipSecondFrameRate.den * 1000 / mClipSecondFrameRate.num;
 
@@ -2647,6 +2623,7 @@ bool EditingVideoOverlap::GetFrame(std::pair<std::pair<ImGui::ImMat, ImGui::ImMa
             break;
         }
     }
+#endif
     return ret;
 }
 
@@ -3575,6 +3552,7 @@ int TimeLine::OnBluePrintChange(int type, std::string name, void* handle)
     return ret;
 }
 
+#ifdef OLD_UI
 static int thread_video_filter(TimeLine * timeline)
 {
     if (!timeline)
@@ -3828,6 +3806,7 @@ static int thread_video_fusion(TimeLine * timeline)
     timeline->mVideoFusionRunning = false;
     return 0;
 }
+#endif
 
 TimeLine::TimeLine()
     : mStart(0), mEnd(0), mPcmStream(this)
@@ -3880,14 +3859,15 @@ TimeLine::TimeLine()
 
     m_audio_channel_data.clear();
     m_audio_channel_data.resize(mAudioChannels);
-
+#ifdef OLD_UI
     mVideoFilterThread = new std::thread(thread_video_filter, this);
     mVideoFusionThread = new std::thread(thread_video_fusion, this);
+#endif
 }
 
 TimeLine::~TimeLine()
 {
-
+#ifdef OLD_UI
     if (mVideoFilterThread && mVideoFilterThread->joinable())
     {
         mVideoFilterDone = true;
@@ -3908,6 +3888,7 @@ TimeLine::~TimeLine()
     mFrameLock.lock();
     mFrame.clear();
     mFrameLock.unlock();
+#endif
 
     if (mMainPreviewTexture) { ImGui::ImDestroyTexture(mMainPreviewTexture); mMainPreviewTexture = nullptr; }
     

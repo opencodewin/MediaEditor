@@ -19,6 +19,8 @@
 #include <list>
 #include <chrono>
 
+#define OLD_UI
+
 #define ICON_MEDIA_TIMELINE u8"\uf538"
 #define ICON_MEDIA_BANK     u8"\ue907"
 #define ICON_MEDIA_TRANS    u8"\ue927"
@@ -454,7 +456,8 @@ struct TextClip : Clip
 class BluePrintVideoFilter : public DataLayer::VideoFilter
 {
 public:
-    virtual ~BluePrintVideoFilter();
+    BluePrintVideoFilter() { mBp = new BluePrint::BluePrintUI(); mBp->Initialize(); }
+    ~BluePrintVideoFilter() { if (mBp) { mBp->Finalize(); delete mBp; } }
 
     const std::string GetFilterName() const override { return "BluePrintVideoFilter"; }
     void ApplyTo(DataLayer::VideoClip* clip) override {}
@@ -464,7 +467,7 @@ public:
     void SetKeyPoint(ImGui::KeyPointEditor &keypoint) { mKeyPoints = keypoint; };
 
 private:
-    BluePrint::BluePrintUI* mBp{nullptr};
+    BluePrint::BluePrintUI* mBp {nullptr};
     ImGui::KeyPointEditor mKeyPoints;
     std::mutex mBpLock;
 };
@@ -472,7 +475,8 @@ private:
 class BluePrintVideoTransition : public DataLayer::VideoTransition
 {
 public:
-    virtual ~BluePrintVideoTransition();
+    BluePrintVideoTransition() { mBp = new BluePrint::BluePrintUI(); mBp->Initialize(); }
+    ~BluePrintVideoTransition() { if (mBp) { mBp->Finalize(); delete mBp; }}
 
     DataLayer::VideoTransitionHolder Clone() override;
     void ApplyTo(DataLayer::VideoOverlap* overlap) override { mOverlap = overlap; }
@@ -505,7 +509,9 @@ struct BaseEditingClip
     ImVec2 mViewWndSize         {0, 0};
 
     void* mHandle               {nullptr};              // main timeline handle
+#ifdef OLD_UI
     MediaReader* mMediaReader   {nullptr};              // editing clip media reader
+#endif
 
     BaseEditingClip(int64_t id, MEDIA_TYPE type, int64_t start, int64_t end, int64_t startOffset, int64_t endOffset, void* handle)
         : mID(id), mType(type), mStart(start), mEnd(end), mStartOffset(startOffset), mEndOffset(endOffset), mHandle(handle)
@@ -526,9 +532,11 @@ struct EditingVideoClip : BaseEditingClip
     ImVec2 mSnapSize            {0, 0};
     MediaInfo::Ratio mClipFrameRate {25, 1};                    // clip Frame rate
 
+    int64_t mLastFrameTime {-1};
+#ifdef OLD_UI
     std::mutex mFrameLock;                                      // clip frame mutex
     std::list<std::pair<ImGui::ImMat, ImGui::ImMat>> mFrame;    // clip timeline input/output frame pair
-    int64_t mLastFrameTime {-1};
+#endif
 
     EditingVideoClip(VideoClip* vidclip);
     virtual ~EditingVideoClip();
@@ -572,8 +580,9 @@ struct BaseEditingOverlap
 
     BaseEditingOverlap(Overlap* ovlp) : mOvlp(ovlp) {}
     std::pair<int64_t, int64_t> m_StartOffset;
+#ifdef OLD_UI
     std::pair<MediaReader*, MediaReader*> mMediaReader;
-
+#endif
     virtual void Seek(int64_t pos) = 0;
     virtual void Step(bool forward, int64_t step = 0) = 0;
     virtual bool GetFrame(std::pair<std::pair<ImGui::ImMat, ImGui::ImMat>, ImGui::ImMat>& in_out_frame) = 0;
@@ -592,8 +601,10 @@ struct EditingVideoOverlap : BaseEditingOverlap
     MediaInfo::Ratio mClipFirstFrameRate {25, 1};     // overlap clip first Frame rate
     MediaInfo::Ratio mClipSecondFrameRate {25, 1};     // overlap clip second Frame rate
 
+#ifdef OLD_UI
     std::mutex mFrameLock;
     std::list<std::pair<std::pair<ImGui::ImMat, ImGui::ImMat>, ImGui::ImMat>> mFrame;    // overlap timeline input pair/output frame pair
+#endif
 
     EditingVideoOverlap(Overlap* ovlp);
     virtual ~EditingVideoOverlap();
@@ -877,10 +888,12 @@ struct TimeLine
     std::mutex mAudioFusionBluePrintLock;   // Video Fusion BluePrint mutex
     bool mAudioFusionNeedUpdate {false};
 
-    std::mutex mFrameLock;                      // timeline frame mutex
-    std::list<ImGui::ImMat> mFrame;             // timeline output frame
     ImTextureID mMainPreviewTexture {nullptr};  // main preview texture
 
+#ifdef OLD_UI
+    std::mutex mFrameLock;                      // timeline frame mutex
+    std::list<ImGui::ImMat> mFrame;             // timeline output frame
+    
     std::thread * mVideoFilterThread {nullptr}; // Video Filter Thread, which is only one item/clip read from media
     bool mVideoFilterDone {false};              // Video Filter Thread should finished
     bool mVideoFilterRunning {false};           // Video Filter Thread is running
@@ -888,6 +901,7 @@ struct TimeLine
     std::thread * mVideoFusionThread {nullptr}; // Video Fusion Thread, which is only two item/clip read from media
     bool mVideoFusionDone {false};              // Video Fusion Thread should finished
     bool mVideoFusionRunning {false};           // Video Fusion Thread is running
+#endif
 
     ImTextureID mVideoFusionInputFirstTexture {nullptr};    // clip video fusion first input texture
     ImTextureID mVideoFusionInputSecondTexture {nullptr};   // clip video fusion second input texture

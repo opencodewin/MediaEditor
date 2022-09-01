@@ -3162,9 +3162,12 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
     ImGui::SetCursorScreenPos(video_preview_pos);
     if (ImGui::BeginChild("##video_filter_preview", video_preview_size, false, child_flags))
     {
+        bool force_update_preview = false;
+        ImRect video_rect;
         ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DEEP_DARK);
+#ifdef OLD_UI
         // Draw Video Filter Play control bar
         ImVec2 PanelBarPos = sub_window_pos + ImVec2(0, (sub_window_size.y - 36));
         ImVec2 PanelBarSize = ImVec2(sub_window_size.x, 36);
@@ -3353,8 +3356,10 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
             std::vector<int> filter_disabled_monitor = {MonitorIndexVideoFilterOrg};
             MonitorButton("video_filter_monitor_select", ImVec2(PanelBarPos.x + PanelBarSize.x - 100, PanelBarPos.y + 8), MonitorIndexVideoFiltered, filter_disabled_monitor, false, true);
         }
-
         ImGui::PopStyleColor(3);
+#else
+        ShowMediaPreviewWindow(draw_list, "Filter Preview", video_rect, false, false, force_update_preview);
+#endif
     }
     ImGui::EndChild();
 
@@ -3762,9 +3767,12 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
     ImGui::SetCursorScreenPos(video_preview_pos);
     if (ImGui::BeginChild("##video_fusion_preview", video_preview_size, false, child_flags))
     {
+        bool force_update_preview = false;
+        ImRect video_rect;
         ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DEEP_DARK);
+#ifdef OLD_UI
         // Draw Video Fusion Play control bar
         ImVec2 PanelBarPos = sub_window_pos + ImVec2(0, (sub_window_size.y - 36));
         ImVec2 PanelBarSize = ImVec2(sub_window_size.x, 36);
@@ -3877,8 +3885,10 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
             ShowVideoWindow(draw_list, timeline->mVideoFusionOutputTexture, OutputVideoPos, OutputVideoSize, offset_x, offset_y, tf_x, tf_y);
             draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32(255, 0, 0, 255), 0, 0, 2.0);
         }
-
         ImGui::PopStyleColor(3);
+#else
+        ShowMediaPreviewWindow(draw_list, "Fusion Preview", video_rect, false, false, force_update_preview);
+#endif
     }
     ImGui::EndChild();
 
