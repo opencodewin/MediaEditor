@@ -20,6 +20,7 @@ struct MultiTrackVideoReader
     virtual bool SeekTo(int64_t pos, bool async = false) = 0;
     virtual bool ReadVideoFrame(int64_t pos, ImGui::ImMat& vmat, bool seeking = false) = 0;
     virtual bool ReadNextVideoFrame(ImGui::ImMat& vmat) = 0;
+    virtual bool ReadClipSourceFrame(int64_t clipId, int64_t pos, ImGui::ImMat& vmat) = 0;
     virtual bool Refresh() = 0;
 
     virtual int64_t Duration() const = 0;

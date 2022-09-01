@@ -486,6 +486,11 @@ public:
         return true;
     }
 
+    bool ReadClipSourceFrame(int64_t clipId, int64_t pos, ImGui::ImMat& vmat) override
+    {
+        return false;
+    }
+
     bool Refresh() override
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
