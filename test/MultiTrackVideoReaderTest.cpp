@@ -52,7 +52,7 @@ void Application_GetWindowProperties(ApplicationWindowProperty& property)
     property.auto_merge = false;
     //property.power_save = false;
     property.width = 1280;
-    property.height = 720;
+    property.height = 840;
 }
 
 void Application_SetupContext(ImGuiContext* ctx)
@@ -72,6 +72,7 @@ static double s_changeClipEndOffset = 0;
 static bool s_keepAspectRatio = true;
 static vector<string> s_fitScaleTypeSelections;
 static int s_fitScaleTypeSelIdx = 0;
+static bool s_showClipSourceFrame = false;
 
 void Application_Initialize(void** handle)
 {
@@ -497,6 +498,10 @@ bool Application_Frame(void * handle, bool app_will_quit)
 
         // video
         ImGui::Spacing(); ImGui::Spacing(); ImGui::Spacing();
+        if (!selectedClip) s_showClipSourceFrame = false;
+        ImGui::BeginDisabled(!selectedClip);
+        ImGui::Checkbox("Show clip source frame", &s_showClipSourceFrame);
+        ImGui::EndDisabled();
         float mediaDur = (float)g_mtVidReader->Duration();
         double elapsedTime = chrono::duration_cast<chrono::duration<double>>((Clock::now()-g_playStartTp)).count();
         playPos = g_isPlay ? (g_playForward ? g_playStartPos+elapsedTime : g_playStartPos-elapsedTime) : g_playStartPos;
@@ -504,7 +509,11 @@ bool Application_Frame(void * handle, bool app_will_quit)
         if (playPos > mediaDur) playPos = mediaDur;
 
         ImGui::ImMat vmat;
-        if (g_mtVidReader->ReadVideoFrame((int64_t)(playPos*1000), vmat))
+        const int64_t readPos = (int64_t)(playPos*1000);
+        bool readRes = s_showClipSourceFrame ?
+            g_mtVidReader->ReadClipSourceFrame(selectedClip->Id(), readPos, vmat) :
+            g_mtVidReader->ReadVideoFrame(readPos, vmat);
+        if (readRes)
         {
             string imgTag = TimestampToString(vmat.time_stamp);
             bool imgValid = true;
