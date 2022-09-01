@@ -3046,7 +3046,7 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
                                                     nullptr, // clippingRect
                                                     &_changed,
                                                     nullptr, // selectedPoints
-                                                    0 /*timeline->mVidFilterClip->mCurrent - editing_clip->mStartOffset*/);
+                                                    timeline->currentTime - editing_clip->mStart/*timeline->mVidFilterClip->mCurrent - editing_clip->mStartOffset*/);
             //timeline->mVideoFilterNeedUpdate |= _changed;
         }
     }

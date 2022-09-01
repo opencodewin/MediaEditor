@@ -416,7 +416,8 @@ int64_t Clip::Cropping(int64_t diff, int type)
         timeline->mVidFilterClip->mStart = mStart;
         timeline->mVidFilterClip->mEnd = mEnd;
     }
-    //mAttributeKeyPoints.SetMax(ImVec2(mEnd - mStart, 1.f), true);
+    mAttributeKeyPoints.SetMin(ImVec2(mStartOffset, 0.f), true);
+    mAttributeKeyPoints.SetMax(ImVec2(mEnd - mStart + mStartOffset, 1.f), true);
     track->Update();
     return new_diff;
 }
@@ -487,11 +488,14 @@ void Clip::Cutting(int64_t pos)
         new_clip->mEndOffset = mEndOffset;
         new_clip->mFilterKeyPoints.SetMin(ImVec2(new_clip->mStartOffset, 0.f), true);
         new_clip->mFilterKeyPoints.SetMax(ImVec2(new_clip->mEnd - new_clip->mStart + new_clip->mStartOffset, 1.f), true);
-        //new_clip->mAttributeKeyPoints.SetMax(ImVec2(new_clip->mEnd - new_clip->mStart, 1.f), true);
+        new_clip->mAttributeKeyPoints.SetMin(ImVec2(new_clip->mStartOffset, 1.f), true);
+        new_clip->mAttributeKeyPoints.SetMax(ImVec2(new_clip->mEnd - new_clip->mStart + new_clip->mStartOffset, 1.f), true);
         mEnd = adj_end;
         mEndOffset = adj_end_offset;
         mFilterKeyPoints.SetMin(ImVec2(mStartOffset, 0.f), true);
         mFilterKeyPoints.SetMax(ImVec2(mEnd - mStart + mStartOffset, 1.f), true);
+        mAttributeKeyPoints.SetMin(ImVec2(mStartOffset, 0.f), true);
+        mAttributeKeyPoints.SetMax(ImVec2(mEnd - mStart + mStartOffset, 1.f), true);
         timeline->m_Clips.push_back(new_clip);
 
         // update curve
