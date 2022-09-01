@@ -84,6 +84,8 @@ namespace DataLayer
                 m_errMsg = "INVALID argument 'type'!";
                 return false;
             }
+            if (m_scaleType == type)
+                return true;
             m_scaleType = type;
             m_needUpdateScaleParam = true;
             return true;
@@ -92,6 +94,8 @@ namespace DataLayer
         bool SetPositionOffset(int32_t offsetH, int32_t offsetV) override
         {
             lock_guard<mutex> lk(m_processLock);
+            if (m_posOffsetH == offsetH && m_posOffsetV == offsetV)
+                return true;
             m_posOffsetH = offsetH;
             m_posOffsetV = offsetV;
             m_needUpdateScaleParam = true;
@@ -101,6 +105,8 @@ namespace DataLayer
         bool SetPositionOffsetH(int32_t value) override
         {
             lock_guard<mutex> lk(m_processLock);
+            if (m_posOffsetH == value)
+                return true;
             m_posOffsetH = value;
             m_needUpdateScaleParam = true;
             return true;
@@ -109,6 +115,8 @@ namespace DataLayer
         bool SetPositionOffsetV(int32_t value) override
         {
             lock_guard<mutex> lk(m_processLock);
+            if (m_posOffsetV == value)
+                return true;
             m_posOffsetV = value;
             m_needUpdateScaleParam = true;
             return true;
@@ -117,6 +125,8 @@ namespace DataLayer
         bool SetCropMargin(uint32_t left, uint32_t top, uint32_t right, uint32_t bottom) override
         {
             lock_guard<mutex> lk(m_processLock);
+            if (m_cropL == left && m_cropT == top && m_cropR == right && m_cropB == bottom)
+                return true;
             m_cropL = left;
             m_cropT = top;
             m_cropR = right;
@@ -128,6 +138,8 @@ namespace DataLayer
         bool SetCropMarginL(uint32_t value) override
         {
             lock_guard<mutex> lk(m_processLock);
+            if (m_cropL == value)
+                return true;
             m_cropL = value;
             m_needUpdateCropParam = true;
             return true;
@@ -136,6 +148,8 @@ namespace DataLayer
         bool SetCropMarginT(uint32_t value) override
         {
             lock_guard<mutex> lk(m_processLock);
+            if (m_cropT == value)
+                return true;
             m_cropT = value;
             m_needUpdateCropParam = true;
             return true;
@@ -144,6 +158,8 @@ namespace DataLayer
         bool SetCropMarginR(uint32_t value) override
         {
             lock_guard<mutex> lk(m_processLock);
+            if (m_cropR == value)
+                return true;
             m_cropR = value;
             m_needUpdateCropParam = true;
             return true;
@@ -152,6 +168,8 @@ namespace DataLayer
         bool SetCropMarginB(uint32_t value) override
         {
             lock_guard<mutex> lk(m_processLock);
+            if (m_cropB == value)
+                return true;
             m_cropB = value;
             m_needUpdateCropParam = true;
             return true;
@@ -161,7 +179,10 @@ namespace DataLayer
         {
             lock_guard<mutex> lk(m_processLock);
             int32_t n = (int32_t)trunc(angle/360);
-            m_rotateAngle = angle-n*360;
+            angle -= n*360;
+            if (m_rotateAngle == angle)
+                return true;
+            m_rotateAngle = angle;
             m_needUpdateRotateParam = true;
             m_needUpdateScaleParam = true;
             return true;
@@ -170,22 +191,20 @@ namespace DataLayer
         bool SetScaleH(double scale) override
         {
             lock_guard<mutex> lk(m_processLock);
-            if (m_scaleRatioH != scale)
-            {
-                m_scaleRatioH = scale;
-                m_needUpdateScaleParam = true;
-            }
+            if (m_scaleRatioH == scale)
+                return true;
+            m_scaleRatioH = scale;
+            m_needUpdateScaleParam = true;
             return true;
         }
 
         bool SetScaleV(double scale) override
         {
             lock_guard<mutex> lk(m_processLock);
-            if (m_scaleRatioV != scale)
-            {
-                m_scaleRatioV = scale;
-                m_needUpdateScaleParam = true;
-            }
+            if (m_scaleRatioV == scale)
+                return true;
+            m_scaleRatioV = scale;
+            m_needUpdateScaleParam = true;
             return true;
         }
 
@@ -1023,7 +1042,31 @@ namespace DataLayer
             {
                 auto name = m_keyPoints.GetCurveName(i);
                 auto value = m_keyPoints.GetValue(i, pos);
-                // TODO: use curve value to adjust the params
+                if (name == "CropMarginL")
+                    SetCropMarginL(value);
+                else if (name == "CropMarginT")
+                    SetCropMarginT(value);
+                else if (name == "CropMarginR")
+                    SetCropMarginR(value);
+                else if (name == "CropMarginB")
+                    SetCropMarginB(value);
+                else if (name == "Scale")
+                {
+                    SetScaleH(value);
+                    SetScaleV(value);
+                }
+                else if (name == "ScaleH")
+                    SetScaleH(value);
+                else if (name == "ScaleV")
+                    SetScaleV(value);
+                else if (name == "RotateAngle")
+                    SetRotationAngle(value);
+                else if (name == "PositionOffsetH")
+                    SetPositionOffsetH(value);
+                else if (name == "PositionOffsetV")
+                    SetPositionOffsetV(value);
+                else
+                    Log(WARN) << "UNKNOWN curve name '" << name << "', value=" << value << "." << endl;
             }
 
 
