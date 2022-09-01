@@ -488,7 +488,19 @@ public:
 
     bool ReadClipSourceFrame(int64_t clipId, int64_t pos, ImGui::ImMat& vmat) override
     {
-        return false;
+        auto clip = GetClipById(clipId);
+        if (!clip)
+            return false;
+        if (pos < clip->Start() || pos > clip->End())
+        {
+            ostringstream oss;
+            oss << "Argument 'pos' =" << pos << " is out of the range of Clip #" << clipId << "!";
+            m_errMsg = oss.str();
+            return false;
+        }
+        bool eof;
+        clip->ReadVideoFrame(pos-clip->Start(), vmat, eof, true);
+        return true;
     }
 
     bool Refresh() override
@@ -563,6 +575,12 @@ public:
             clip = track->GetClipById(clipId);
             if (clip)
                 break;
+        }
+        if (!clip)
+        {
+            ostringstream oss;
+            oss << "CANNOT find clip with id " << clipId << "!";
+            m_errMsg = oss.str();
         }
         return clip;
     }

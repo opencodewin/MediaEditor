@@ -2,6 +2,7 @@
 #include <atomic>
 #include <memory>
 #include <functional>
+#include <list>
 #include "immat.h"
 #include "MediaReader.h"
 
@@ -53,7 +54,7 @@ namespace DataLayer
         VideoTransformFilter* GetTransformFilterPtr();
 
         void SeekTo(int64_t pos);
-        void ReadVideoFrame(int64_t pos, ImGui::ImMat& vmat, bool& eof);
+        void ReadVideoFrame(int64_t pos, ImGui::ImMat& vmat, bool& eof, bool readSourceFrame = false);
         void NotifyReadPos(int64_t pos);
         void SetDirection(bool forward);
 
@@ -74,6 +75,8 @@ namespace DataLayer
         VideoFilterHolder m_filter;
         VideoTransformFilter* m_transFilter{nullptr};
         int64_t m_wakeupRange{1000};
+        std::list<ImGui::ImMat> m_frameCache;
+        uint32_t m_frameCacheSize{9};
     };
 
     struct VideoFilter

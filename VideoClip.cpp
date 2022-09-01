@@ -53,6 +53,7 @@ namespace DataLayer
 
     VideoClip::~VideoClip()
     {
+        m_frameCache.clear();
         ReleaseMediaReader(&m_srcReader);
         delete m_transFilter;
         m_transFilter = nullptr;
@@ -128,12 +129,21 @@ namespace DataLayer
             return;
         if (pos < 0)
             pos = 0;
-        if (!m_srcReader->SeekTo((double)(pos+m_startOffset)/1000))
-            throw runtime_error(m_srcReader->GetError());
+        const bool readForward = m_srcReader->IsDirectionForward();
+        const double ts = (double)pos/1000;
+        if (m_frameCache.empty() ||
+            (readForward && (ts < m_frameCache.front().time_stamp || ts > m_frameCache.back().time_stamp)) ||
+            (!readForward && (ts > m_frameCache.front().time_stamp || ts < m_frameCache.back().time_stamp)))
+        {
+            // Log(DEBUG) << "!!! clear frame cache !!!" << endl;
+            m_frameCache.clear();
+            if (!m_srcReader->SeekTo((double)(pos+m_startOffset)/1000))
+                throw runtime_error(m_srcReader->GetError());
+        }
         m_eof = false;
     }
 
-    void VideoClip::ReadVideoFrame(int64_t pos, ImGui::ImMat& vmat, bool& eof)
+    void VideoClip::ReadVideoFrame(int64_t pos, ImGui::ImMat& vmat, bool& eof, bool readSourceFrame)
     {
         if (m_eof)
         {
@@ -145,9 +155,47 @@ namespace DataLayer
             m_srcReader->Wakeup();
             // Log(DEBUG) << ">>>> Clip#" << m_id <<" is WAKEUP." << endl;
         }
+
         ImGui::ImMat image;
-        if (!m_srcReader->ReadVideoFrame((double)(pos+m_startOffset)/1000, image, eof))
-            throw runtime_error(m_srcReader->GetError());
+        // try to read image from cache
+        const double ts = (double)pos/1000;
+        const function<bool(ImGui::ImMat&)> checkFunc1 = [ts] (ImGui::ImMat& m) { return m.time_stamp > ts; };
+        const function<bool(ImGui::ImMat&)> checkFunc2 = [ts] (ImGui::ImMat& m) { return m.time_stamp < ts; };
+        const bool readForward = m_srcReader->IsDirectionForward();
+        auto checkFunc = readForward ? checkFunc1 : checkFunc2;
+        auto iter = find_if(m_frameCache.begin(), m_frameCache.end(), checkFunc);
+        if (iter != m_frameCache.end())
+        {
+            if (iter != m_frameCache.begin())
+            {
+                iter--;
+                image = *iter;
+            }
+            else
+                m_frameCache.clear();
+        }
+
+        // read image from MediaReader
+        if (image.empty())
+        {
+            if (!m_srcReader->ReadVideoFrame((double)(pos+m_startOffset)/1000, image, eof))
+                throw runtime_error(m_srcReader->GetError());
+            if (!image.empty() && (m_frameCache.empty() ||
+                (readForward && image.time_stamp > m_frameCache.back().time_stamp) ||
+                (!readForward && image.time_stamp < m_frameCache.back().time_stamp)))
+            {
+                m_frameCache.push_back(image);
+                while (m_frameCache.size() > m_frameCacheSize)
+                    m_frameCache.pop_front();
+            }
+        }
+
+        // return raw source frame or filtered frame
+        if (readSourceFrame)
+        {
+            vmat = image;
+            return;
+        }
         VideoFilterHolder filter = m_filter;
         if (filter)
             image = filter->FilterImage(image, pos);
@@ -173,6 +221,8 @@ namespace DataLayer
 
     void VideoClip::SetDirection(bool forward)
     {
+        // Log(DEBUG) << "!!! clear frame cache(2) !!!" << endl;
+        m_frameCache.clear();
         m_srcReader->SetDirection(forward);
     }
 
