@@ -456,8 +456,8 @@ struct TextClip : Clip
 class BluePrintVideoFilter : public DataLayer::VideoFilter
 {
 public:
-    BluePrintVideoFilter() { mBp = new BluePrint::BluePrintUI(); mBp->Initialize(); }
-    ~BluePrintVideoFilter() { if (mBp) { mBp->Finalize(); delete mBp; } }
+    BluePrintVideoFilter();
+    ~BluePrintVideoFilter();
 
     const std::string GetFilterName() const override { return "BluePrintVideoFilter"; }
     void ApplyTo(DataLayer::VideoClip* clip) override {}
@@ -467,6 +467,7 @@ public:
     void SetKeyPoint(ImGui::KeyPointEditor &keypoint) { mKeyPoints = keypoint; };
 
 private:
+    static int OnBluePrintChange(int type, std::string name, void* handle);
     BluePrint::BluePrintUI* mBp {nullptr};
     ImGui::KeyPointEditor mKeyPoints;
     std::mutex mBpLock;
@@ -475,8 +476,8 @@ private:
 class BluePrintVideoTransition : public DataLayer::VideoTransition
 {
 public:
-    BluePrintVideoTransition() { mBp = new BluePrint::BluePrintUI(); mBp->Initialize(); }
-    ~BluePrintVideoTransition() { if (mBp) { mBp->Finalize(); delete mBp; }}
+    BluePrintVideoTransition();
+    ~BluePrintVideoTransition();
 
     DataLayer::VideoTransitionHolder Clone() override;
     void ApplyTo(DataLayer::VideoOverlap* overlap) override { mOverlap = overlap; }
@@ -486,6 +487,7 @@ public:
     void SetKeyPoint(ImGui::KeyPointEditor &keypoint) { mKeyPoints = keypoint; };
 
 private:
+    static int OnBluePrintChange(int type, std::string name, void* handle);
     DataLayer::VideoOverlap* mOverlap;
     BluePrint::BluePrintUI* mBp{nullptr};
     ImGui::KeyPointEditor mKeyPoints;

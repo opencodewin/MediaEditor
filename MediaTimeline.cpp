@@ -1653,6 +1653,33 @@ void TextClip::Save(imgui_json::value& value)
     value["BackColor"] = imgui_json::vec4(mFontBackColor);
 }
 
+// BluePrintVideoFilter class
+int BluePrintVideoFilter::OnBluePrintChange(int type, std::string name, void* handle)
+{
+    int ret = BluePrint::BP_CBR_Nothing;
+    if (!handle)
+        return BluePrint::BP_CBR_Unknown;
+    return ret;
+}
+
+BluePrintVideoFilter::BluePrintVideoFilter()
+{
+    mBp = new BluePrint::BluePrintUI();
+    BluePrint::BluePrintCallbackFunctions callbacks;
+    callbacks.BluePrintOnChanged = OnBluePrintChange;
+    mBp->Initialize();
+    mBp->SetCallbacks(callbacks, this);
+}
+
+BluePrintVideoFilter::~BluePrintVideoFilter()
+{
+    if (mBp) 
+    {
+        mBp->Finalize(); 
+        delete mBp;
+    }
+}
+
 ImGui::ImMat BluePrintVideoFilter::FilterImage(const ImGui::ImMat& vmat, int64_t pos)
 {
     std::lock_guard<std::mutex> lk(mBpLock);
@@ -1681,6 +1708,33 @@ void BluePrintVideoFilter::SetBluePrintFromJson(imgui_json::value& bpJson)
     {
         mBp->Finalize();
         return;
+    }
+}
+
+// BluePrintVideoTransition class
+int BluePrintVideoTransition::OnBluePrintChange(int type, std::string name, void* handle)
+{
+    int ret = BluePrint::BP_CBR_Nothing;
+    if (!handle)
+        return BluePrint::BP_CBR_Unknown;
+    return ret;
+}
+
+BluePrintVideoTransition::BluePrintVideoTransition()
+{
+    mBp = new BluePrint::BluePrintUI();
+    mBp->Initialize();
+    BluePrint::BluePrintCallbackFunctions callbacks;
+    callbacks.BluePrintOnChanged = OnBluePrintChange;
+    mBp->SetCallbacks(callbacks, this);
+}
+
+BluePrintVideoTransition::~BluePrintVideoTransition()
+{
+    if (mBp)
+    {
+        mBp->Finalize();
+        delete mBp;
     }
 }
 
