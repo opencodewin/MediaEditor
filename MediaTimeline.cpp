@@ -1659,16 +1659,49 @@ int BluePrintVideoFilter::OnBluePrintChange(int type, std::string name, void* ha
     int ret = BluePrint::BP_CBR_Nothing;
     if (!handle)
         return BluePrint::BP_CBR_Unknown;
+    BluePrintVideoFilter * filter = (BluePrintVideoFilter *)handle;
+    if (name.compare("VideoFilter") == 0)
+    {
+        if (type == BluePrint::BP_CB_Link ||
+            type == BluePrint::BP_CB_Unlink ||
+            type == BluePrint::BP_CB_NODE_DELETED)
+        {
+            // need update
+            ret = BluePrint::BP_CBR_AutoLink;
+        }
+        else if (type == BluePrint::BP_CB_PARAM_CHANGED ||
+                type == BluePrint::BP_CB_SETTING_CHANGED)
+        {
+            // need update
+        }
+    }
+    if (name.compare("VideoFusion") == 0)
+    {
+        if (type == BluePrint::BP_CB_Link ||
+            type == BluePrint::BP_CB_Unlink ||
+            type == BluePrint::BP_CB_NODE_DELETED)
+        {
+            // need update
+            ret = BluePrint::BP_CBR_AutoLink;
+        }
+        else if (type == BluePrint::BP_CB_PARAM_CHANGED ||
+                type == BluePrint::BP_CB_SETTING_CHANGED)
+        {
+            // need update
+        }
+    }
     return ret;
 }
 
 BluePrintVideoFilter::BluePrintVideoFilter()
 {
+    imgui_json::value filter_BP; 
     mBp = new BluePrint::BluePrintUI();
     BluePrint::BluePrintCallbackFunctions callbacks;
     callbacks.BluePrintOnChanged = OnBluePrintChange;
     mBp->Initialize();
     mBp->SetCallbacks(callbacks, this);
+    mBp->File_New_Filter(filter_BP, "VideoFilter", "Video");
 }
 
 BluePrintVideoFilter::~BluePrintVideoFilter()
@@ -1717,6 +1750,37 @@ int BluePrintVideoTransition::OnBluePrintChange(int type, std::string name, void
     int ret = BluePrint::BP_CBR_Nothing;
     if (!handle)
         return BluePrint::BP_CBR_Unknown;
+    BluePrintVideoTransition * fusion = (BluePrintVideoTransition *)handle;
+    if (name.compare("VideoFilter") == 0)
+    {
+        if (type == BluePrint::BP_CB_Link ||
+            type == BluePrint::BP_CB_Unlink ||
+            type == BluePrint::BP_CB_NODE_DELETED)
+        {
+            // need update
+            ret = BluePrint::BP_CBR_AutoLink;
+        }
+        else if (type == BluePrint::BP_CB_PARAM_CHANGED ||
+                type == BluePrint::BP_CB_SETTING_CHANGED)
+        {
+            // need update
+        }
+    }
+    if (name.compare("VideoFusion") == 0)
+    {
+        if (type == BluePrint::BP_CB_Link ||
+            type == BluePrint::BP_CB_Unlink ||
+            type == BluePrint::BP_CB_NODE_DELETED)
+        {
+            // need update
+            ret = BluePrint::BP_CBR_AutoLink;
+        }
+        else if (type == BluePrint::BP_CB_PARAM_CHANGED ||
+                type == BluePrint::BP_CB_SETTING_CHANGED)
+        {
+            // need update
+        }
+    }
     return ret;
 }
 
@@ -1793,7 +1857,7 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
         return;
     }
     if (timeline) mSsGen->EnableHwAccel(timeline->mHardwareCodec);
-#ifdef OLD_UI
+#ifdef OLD_FILTER_UI
     mMediaReader = CreateMediaReader();
     if (!mMediaReader)
     {
@@ -1814,7 +1878,7 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
     mSsGen->SetSnapshotResizeFactor(snapshot_scale, snapshot_scale);
     mSsViewer = mSsGen->CreateViewer((double)mStartOffset / 1000);
 
-#ifdef OLD_UI
+#ifdef OLD_FILTER_UI
     // open video reader
     if (mMediaReader->Open(vidclip->mMediaParser))
     {
@@ -1833,7 +1897,7 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
 
 EditingVideoClip::~EditingVideoClip()
 {
-#ifdef OLD_UI
+#ifdef OLD_FILTER_UI
     if (mMediaReader) { ReleaseMediaReader(&mMediaReader); mMediaReader = nullptr; }
     mFrameLock.lock();
     mFrame.clear();
@@ -1873,7 +1937,7 @@ void EditingVideoClip::Seek(int64_t pos)
     {
         return;
     }
-#ifdef OLD_UI
+#ifdef OLD_FILTER_UI
     mFrameLock.lock();
     mFrame.clear();
     mFrameLock.unlock();
@@ -1882,7 +1946,7 @@ void EditingVideoClip::Seek(int64_t pos)
     mCurrent = pos;
     alignTime(mCurrent, mClipFrameRate);
 
-#ifdef OLD_UI
+#ifdef OLD_FILTER_UI
     if (mMediaReader && mMediaReader->IsOpened())
     {
         mMediaReader->SeekTo((double)mCurrent / 1000.f);
@@ -1926,14 +1990,14 @@ void EditingVideoClip::Save()
     auto clip = timeline->FindClipByID(mID);
     if (!clip)
         return;
-#ifdef OLD_UI
+#ifdef OLD_FILTER_UI
     timeline->mVideoFilterBluePrintLock.lock();
     if (timeline->mVideoFilterBluePrint && timeline->mVideoFilterBluePrint->Blueprint_IsValid())
     {
         clip->mFilterBP = timeline->mVideoFilterBluePrint->m_Document->Serialize();
     }
     timeline->mVideoFilterBluePrintLock.unlock();
-#endif
+
     // update video filter in datalayer
     DataLayer::VideoClipHolder hClip = timeline->mMtvReader->GetClipById(clip->mID);
     BluePrintVideoFilter* bpvf = new BluePrintVideoFilter();
@@ -1941,6 +2005,13 @@ void EditingVideoClip::Save()
     bpvf->SetKeyPoint(clip->mFilterKeyPoints);
     DataLayer::VideoFilterHolder hFilter(bpvf);
     hClip->SetFilter(hFilter);
+#else
+    auto bp = timeline->GetClipFilterBluePrint(clip->mID);
+    if (bp && bp->Blueprint_IsValid())
+    {
+        clip->mFilterBP = bp->m_Document->Serialize();
+    }
+#endif
     timeline->mMtvReader->Refresh();
 }
 
@@ -1948,7 +2019,7 @@ bool EditingVideoClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_fr
 {
     int ret = false;
     TimeLine * timeline = (TimeLine *)mHandle;
-#ifdef OLD_UI
+#ifdef OLD_FILTER_UI
     if (!timeline || mFrame.empty())
         return ret;
     auto frame_delay = mClipFrameRate.den * 1000 / mClipFrameRate.num;
@@ -2349,7 +2420,7 @@ EditingVideoOverlap::EditingVideoOverlap(Overlap* ovlp)
         mEnd = ovlp->mEnd;
         mDuration = mEnd - mStart;
         
-#ifdef OLD_UI
+#ifdef OLD_FUSION_UI
         mMediaReader.first = CreateMediaReader();
         mMediaReader.second = CreateMediaReader();
 
@@ -2396,7 +2467,7 @@ EditingVideoOverlap::EditingVideoOverlap(Overlap* ovlp)
 
 EditingVideoOverlap::~EditingVideoOverlap()
 {
-#ifdef OLD_UI
+#ifdef OLD_FUSION_UI
     if (mMediaReader.first) { ReleaseMediaReader(&mMediaReader.first); mMediaReader.first = nullptr; }
     if (mMediaReader.second) { ReleaseMediaReader(&mMediaReader.second); mMediaReader.second = nullptr; }
     mFrameLock.lock();
@@ -2529,7 +2600,7 @@ void EditingVideoOverlap::Seek(int64_t pos)
     {
         return;
     }
-#ifdef OLD_UI
+#ifdef OLD_FUSION_UI
     mFrameLock.lock();
     mFrame.clear();
     mFrameLock.unlock();
@@ -2537,7 +2608,7 @@ void EditingVideoOverlap::Seek(int64_t pos)
     mLastTime = -1;
     mCurrent = pos;
     alignTime(mCurrent, timeline->mFrameRate);
-#ifdef OLD_UI
+#ifdef OLD_FUSION_UI
     if (mMediaReader.first && mMediaReader.first->IsOpened())
     {
         int64_t pos = mCurrent + m_StartOffset.first;
@@ -2571,7 +2642,7 @@ void EditingVideoOverlap::Step(bool forward, int64_t step)
             mCurrent = mEnd - mStart;
             mLastTime = -1;
             bPlay = false;
-#ifdef OLD_UI
+#ifdef OLD_FUSION_UI
             timeline->mVideoFusionNeedUpdate = true;
 #endif
         }
@@ -2589,7 +2660,7 @@ void EditingVideoOverlap::Step(bool forward, int64_t step)
             mCurrent = 0;
             mLastTime = -1;
             bPlay = false;
-#ifdef OLD_UI
+#ifdef OLD_FUSION_UI
             timeline->mVideoFusionNeedUpdate = true;
 #endif
         }
@@ -2600,7 +2671,7 @@ bool EditingVideoOverlap::GetFrame(std::pair<std::pair<ImGui::ImMat, ImGui::ImMa
 {
     int ret = false;
     TimeLine* timeline = (TimeLine*)(mOvlp->mHandle);
-#ifdef OLD_UI
+#ifdef OLD_FUSION_UI
     if (!timeline || mFrame.empty())
         return ret;
     auto frame_delay_first = mClipFirstFrameRate.den * 1000 / mClipFirstFrameRate.num;
@@ -2691,14 +2762,13 @@ void EditingVideoOverlap::Save()
     TimeLine * timeline = (TimeLine *)(mOvlp->mHandle);
     if (!timeline)
         return;
-#ifdef OLD_UI
+#ifdef OLD_FUSION_UI
     timeline->mVideoFusionBluePrintLock.lock();
     if (timeline->mVideoFusionBluePrint && timeline->mVideoFusionBluePrint->Blueprint_IsValid())
     {
         mOvlp->mFusionBP = timeline->mVideoFusionBluePrint->m_Document->Serialize();
     }
     timeline->mVideoFusionBluePrintLock.unlock();
-#endif
     // update video filter in datalayer
     DataLayer::VideoOverlapHolder hOvlp = timeline->mMtvReader->GetOverlapById(mOvlp->mID);
     BluePrintVideoTransition* bpvt = new BluePrintVideoTransition();
@@ -2707,6 +2777,7 @@ void EditingVideoOverlap::Save()
     DataLayer::VideoTransitionHolder hTrans(bpvt);
     hOvlp->SetTransition(hTrans);
     timeline->mMtvReader->Refresh();
+#endif
 }
 
 }// namespace MediaTimeline
@@ -3105,18 +3176,27 @@ void MediaTrack::SelectEditingClip(Clip * clip, bool filter_editing)
     auto editing_clip = timeline->FindEditingClip();
     if (editing_clip && editing_clip->mID == clip->mID)
     {
-#ifdef OLD_UI
+#ifdef OLD_FILTER_UI
         if (editing_clip->mType == MEDIA_VIDEO)
         {
             if (filter_editing && timeline->mVidFilterClip && timeline->mVideoFilterBluePrint && timeline->mVideoFilterBluePrint->Blueprint_IsValid())
                 return;
         }
+#else
+        if (filter_editing)
+        {
+            if (editing_clip->mType == MEDIA_VIDEO)
+            {
+                auto bp = timeline->GetClipFilterBluePrint(editing_clip->mID);
+                if (bp && bp->Blueprint_IsValid()) return;
+            }
+        }
+#endif
         if (editing_clip->mType == MEDIA_AUDIO)
         {
             if (filter_editing && timeline->mAudFilterClip && timeline->mAudioFilterBluePrint && timeline->mAudioFilterBluePrint->Blueprint_IsValid())
                 return;
         }
-#endif
     }
     else if (editing_clip && editing_clip->mID != clip->mID)
     {
@@ -3133,7 +3213,7 @@ void MediaTrack::SelectEditingClip(Clip * clip, bool filter_editing)
             {
                 delete timeline->mVidFilterClip;
                 timeline->mVidFilterClip = nullptr;
-#ifdef OLD_UI
+#ifdef OLD_FILTER_UI
                 if (timeline->mVideoFilterInputTexture) {ImGui::ImDestroyTexture(timeline->mVideoFilterInputTexture); timeline->mVideoFilterInputTexture = nullptr;}
                 if (timeline->mVideoFilterOutputTexture) { ImGui::ImDestroyTexture(timeline->mVideoFilterOutputTexture); timeline->mVideoFilterOutputTexture = nullptr;  }
 #endif
@@ -3166,7 +3246,7 @@ void MediaTrack::SelectEditingClip(Clip * clip, bool filter_editing)
         {
             if (!timeline->mVidFilterClip)
                 timeline->mVidFilterClip = new EditingVideoClip((VideoClip*)clip);
-#ifdef OLD_UI
+#ifdef OLD_FILTER_UI
             if (timeline->mVideoFilterBluePrint && timeline->mVideoFilterBluePrint->m_Document)
             {                
                 timeline->mVideoFilterBluePrintLock.lock();
@@ -3206,7 +3286,7 @@ void MediaTrack::SelectEditingOverlap(Overlap * overlap)
         auto clip_second = timeline->FindClipByID(editing_overlap->m_Clip.second);
         if (clip_first && clip_second)
         {
-#ifdef OLD_UI
+#ifdef OLD_FUSION_UI
             if (clip_first->mType == MEDIA_VIDEO && 
                 clip_second->mType == MEDIA_VIDEO &&
                 timeline->mVideoFusionBluePrint &&
@@ -3235,7 +3315,7 @@ void MediaTrack::SelectEditingOverlap(Overlap * overlap)
         {
             delete timeline->mVidOverlap;
             timeline->mVidOverlap = nullptr;
-#ifdef OLD_UI
+#ifdef OLD_FUSION_UI
             if (timeline->mVideoFusionInputFirstTexture) { ImGui::ImDestroyTexture(timeline->mVideoFusionInputFirstTexture); timeline->mVideoFusionInputFirstTexture = nullptr; }
             if (timeline->mVideoFusionInputSecondTexture) { ImGui::ImDestroyTexture(timeline->mVideoFusionInputSecondTexture); timeline->mVideoFusionInputSecondTexture = nullptr; }
             if (timeline->mVideoFusionOutputTexture) { ImGui::ImDestroyTexture(timeline->mVideoFusionOutputTexture); timeline->mVideoFusionOutputTexture = nullptr;  }
@@ -3253,7 +3333,7 @@ void MediaTrack::SelectEditingOverlap(Overlap * overlap)
     {
         if (!timeline->mVidOverlap)
             timeline->mVidOverlap = new EditingVideoOverlap(overlap);
-#ifdef OLD_UI
+#ifdef OLD_FUSION_UI
         if (timeline->mVideoFusionBluePrint && timeline->mVideoFusionBluePrint->m_Document)
         {
             timeline->mVideoFusionBluePrintLock.lock();
@@ -3602,7 +3682,7 @@ int TimeLine::OnBluePrintChange(int type, std::string name, void* handle)
             type == BluePrint::BP_CB_Unlink ||
             type == BluePrint::BP_CB_NODE_DELETED)
         {
-#ifdef OLD_UI
+#ifdef OLD_FILTER_UI
             timeline->mVideoFilterNeedUpdate = true;
 #endif
             ret = BluePrint::BP_CBR_AutoLink;
@@ -3610,7 +3690,7 @@ int TimeLine::OnBluePrintChange(int type, std::string name, void* handle)
         else if (type == BluePrint::BP_CB_PARAM_CHANGED ||
                 type == BluePrint::BP_CB_SETTING_CHANGED)
         {
-#ifdef OLD_UI
+#ifdef OLD_FILTER_UI
             timeline->mVideoFilterNeedUpdate = true;
 #endif
         }
@@ -3621,7 +3701,7 @@ int TimeLine::OnBluePrintChange(int type, std::string name, void* handle)
             type == BluePrint::BP_CB_Unlink ||
             type == BluePrint::BP_CB_NODE_DELETED)
         {
-#ifdef OLD_UI
+#ifdef OLD_FUSION_UI
             timeline->mVideoFusionNeedUpdate = true;
 #endif
             ret = BluePrint::BP_CBR_AutoLink;
@@ -3629,7 +3709,7 @@ int TimeLine::OnBluePrintChange(int type, std::string name, void* handle)
         else if (type == BluePrint::BP_CB_PARAM_CHANGED ||
                 type == BluePrint::BP_CB_SETTING_CHANGED)
         {
-#ifdef OLD_UI
+#ifdef OLD_FUSION_UI
             timeline->mVideoFusionNeedUpdate = true;
 #endif
         }
@@ -3638,7 +3718,7 @@ int TimeLine::OnBluePrintChange(int type, std::string name, void* handle)
     return ret;
 }
 
-#ifdef OLD_UI
+#ifdef OLD_FILTER_UI
 static int thread_video_filter(TimeLine * timeline)
 {
     if (!timeline)
@@ -3749,7 +3829,9 @@ static int thread_video_filter(TimeLine * timeline)
     timeline->mVideoFilterRunning = false;
     return 0;
 }
+#endif
 
+#ifdef OLD_FUSION_UI
 static int thread_video_fusion(TimeLine * timeline)
 {
     if (!timeline)
@@ -3905,7 +3987,9 @@ TimeLine::TimeLine()
         mAudioRender->OpenDevice(mAudioSampleRate, mAudioChannels, mAudioFormat, &mPcmStream);
     }
 
-#ifdef OLD_UI
+    m_BP_UI.Initialize();
+
+#ifdef OLD_FILTER_UI
     mVideoFilterBluePrint = new BluePrint::BluePrintUI();
     if (mVideoFilterBluePrint)
     {
@@ -3925,7 +4009,7 @@ TimeLine::TimeLine()
         mAudioFilterBluePrint->SetCallbacks(callbacks, this);
     }
 
-#ifdef OLD_UI
+#ifdef OLD_FUSION_UI
     mVideoFusionBluePrint = new BluePrint::BluePrintUI();
     if (mVideoFusionBluePrint)
     {
@@ -3949,15 +4033,17 @@ TimeLine::TimeLine()
 
     m_audio_channel_data.clear();
     m_audio_channel_data.resize(mAudioChannels);
-#ifdef OLD_UI
+#ifdef OLD_FILTER_UI
     mVideoFilterThread = new std::thread(thread_video_filter, this);
+#endif
+#ifdef OLD_FUSION_UI
     mVideoFusionThread = new std::thread(thread_video_fusion, this);
 #endif
 }
 
 TimeLine::~TimeLine()
 {
-#ifdef OLD_UI
+#ifdef OLD_FILTER_UI
     if (mVideoFilterThread && mVideoFilterThread->joinable())
     {
         mVideoFilterDone = true;
@@ -3966,6 +4052,11 @@ TimeLine::~TimeLine()
         mVideoFilterThread = nullptr;
         mVideoFilterDone = false;
     }
+    mFrameLock.lock();
+    mFrame.clear();
+    mFrameLock.unlock();
+#endif
+#ifdef OLD_FUSION_UI
     if (mVideoFusionThread && mVideoFusionThread->joinable())
     {
         mVideoFusionDone = true;
@@ -3974,10 +4065,6 @@ TimeLine::~TimeLine()
         mVideoFusionThread = nullptr;
         mVideoFusionDone = false;
     }
-
-    mFrameLock.lock();
-    mFrame.clear();
-    mFrameLock.unlock();
 #endif
 
     if (mMainPreviewTexture) { ImGui::ImDestroyTexture(mMainPreviewTexture); mMainPreviewTexture = nullptr; }
@@ -3986,7 +4073,9 @@ TimeLine::~TimeLine()
 
     if (m_audio_vector_texture) { ImGui::ImDestroyTexture(m_audio_vector_texture); m_audio_vector_texture = nullptr; }
     
-#ifdef OLD_UI
+    m_BP_UI.Finalize();
+
+#ifdef OLD_FILTER_UI
     if (mVideoFilterBluePrint)
     {
         mVideoFilterBluePrint->Finalize();
@@ -4000,7 +4089,7 @@ TimeLine::~TimeLine()
         delete mAudioFilterBluePrint;
     }
 
-#ifdef OLD_UI
+#ifdef OLD_FUSION_UI
     if (mVideoFusionBluePrint)
     {
         mVideoFusionBluePrint->Finalize();
@@ -4017,10 +4106,11 @@ TimeLine::~TimeLine()
     for (auto clip : m_Clips) delete clip;
     for (auto item : media_items) delete item;
 
-#ifdef OLD_UI
+#ifdef OLD_FILTER_UI
     if (mVideoFilterInputTexture) { ImGui::ImDestroyTexture(mVideoFilterInputTexture); mVideoFilterInputTexture = nullptr; }
     if (mVideoFilterOutputTexture) { ImGui::ImDestroyTexture(mVideoFilterOutputTexture); mVideoFilterOutputTexture = nullptr;  }
-
+#endif
+#ifdef OLD_FUSION_UI
     if (mVideoFusionInputFirstTexture) { ImGui::ImDestroyTexture(mVideoFusionInputFirstTexture); mVideoFusionInputFirstTexture = nullptr; }
     if (mVideoFusionInputSecondTexture) { ImGui::ImDestroyTexture(mVideoFusionInputSecondTexture); mVideoFusionInputSecondTexture = nullptr; }
     if (mVideoFusionOutputTexture) { ImGui::ImDestroyTexture(mVideoFusionOutputTexture); mVideoFusionOutputTexture = nullptr;  }
@@ -4316,6 +4406,31 @@ void TimeLine::DeleteOverlap(int64_t id)
         else
             ++ iter;
     }
+}
+
+BluePrint::BluePrintUI* TimeLine::GetClipFilterBluePrint(int64_t id)
+{
+    auto clip = FindClipByID(id);
+    if (!clip)
+        return nullptr;
+    switch (clip->mType)
+    {
+        case MEDIA_VIDEO:
+        {
+            DataLayer::VideoClipHolder hClip = mMtvReader->GetClipById(id);
+            IM_ASSERT(hClip);
+            auto pvf = dynamic_cast<BluePrintVideoFilter *>(hClip->GetFilter().get());
+            if (!pvf) return nullptr;
+            return pvf->mBp;
+        }
+        case MEDIA_AUDIO:
+        {
+            return nullptr;
+        }
+        default:
+            return nullptr;
+    }
+    return nullptr;
 }
 
 void TimeLine::UpdateCurrent()
