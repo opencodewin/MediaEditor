@@ -1365,7 +1365,10 @@ private:
 
     pair<int64_t, int64_t> GetSeekPosBySsIndex(int32_t index)
     {
-        return GetSeekPosByMts(CalcSnapshotMts(index));
+        auto ptsPair = GetSeekPosByMts(CalcSnapshotMts(index));
+        if (index == m_vidMaxIndex && ptsPair.first == INT64_MAX && ptsPair.second == INT64_MAX)
+            ptsPair.first = m_hSeekPoints->back();
+        return ptsPair;
     }
 
     pair<int32_t, int32_t> CalcSsIndexPairFromPtsPair(const pair<int64_t, int64_t>& ptsPair)
