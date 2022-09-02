@@ -871,20 +871,28 @@ struct TimeLine
     // BP CallBacks
     static int OnBluePrintChange(int type, std::string name, void* handle);
 
+#ifdef OLD_UI
     BluePrint::BluePrintUI * mVideoFilterBluePrint {nullptr};
     std::mutex mVideoFilterBluePrintLock;   // Video Filter BluePrint mutex
     bool mVideoFilterNeedUpdate {false};
 
     ImTextureID mVideoFilterInputTexture {nullptr};  // clip video filter input texture
     ImTextureID mVideoFilterOutputTexture {nullptr};  // clip video filter output texture
+#endif
 
     BluePrint::BluePrintUI * mAudioFilterBluePrint {nullptr};
     std::mutex mAudioFilterBluePrintLock;   // Audio Filter BluePrint mutex
     bool mAudioFilterNeedUpdate {false};
 
+#ifdef OLD_UI
     BluePrint::BluePrintUI * mVideoFusionBluePrint {nullptr};
     std::mutex mVideoFusionBluePrintLock;   // Video Fusion BluePrint mutex
     bool mVideoFusionNeedUpdate {false};
+
+    ImTextureID mVideoFusionInputFirstTexture {nullptr};    // clip video fusion first input texture
+    ImTextureID mVideoFusionInputSecondTexture {nullptr};   // clip video fusion second input texture
+    ImTextureID mVideoFusionOutputTexture {nullptr};        // clip video fusion output texture
+#endif
 
     BluePrint::BluePrintUI * mAudioFusionBluePrint {nullptr};
     std::mutex mAudioFusionBluePrintLock;   // Video Fusion BluePrint mutex
@@ -904,10 +912,6 @@ struct TimeLine
     bool mVideoFusionDone {false};              // Video Fusion Thread should finished
     bool mVideoFusionRunning {false};           // Video Fusion Thread is running
 #endif
-
-    ImTextureID mVideoFusionInputFirstTexture {nullptr};    // clip video fusion first input texture
-    ImTextureID mVideoFusionInputSecondTexture {nullptr};   // clip video fusion second input texture
-    ImTextureID mVideoFusionOutputTexture {nullptr};        // clip video fusion output texture
 
     TimeLineCallbackFunctions  m_CallBacks;
 
