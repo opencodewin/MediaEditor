@@ -457,7 +457,7 @@ struct TextClip : Clip
 class BluePrintVideoFilter : public DataLayer::VideoFilter
 {
 public:
-    BluePrintVideoFilter();
+    BluePrintVideoFilter(void * handle = nullptr);
     ~BluePrintVideoFilter();
 
     const std::string GetFilterName() const override { return "BluePrintVideoFilter"; }
@@ -474,6 +474,7 @@ public:
 private:
     static int OnBluePrintChange(int type, std::string name, void* handle);
     std::mutex mBpLock;
+    void * mHandle {nullptr};
 };
 
 class BluePrintVideoTransition : public DataLayer::VideoTransition
@@ -499,6 +500,7 @@ private:
 
 struct BaseEditingClip
 {
+    void* mHandle               {nullptr};              // main timeline handle
     int64_t mID                 {-1};                   // editing clip ID
     MEDIA_TYPE mType            {MEDIA_UNKNOWN};
     int64_t mStart              {0};
@@ -506,15 +508,13 @@ struct BaseEditingClip
     int64_t mStartOffset        {0};                    // editing clip start time in media
     int64_t mEndOffset          {0};                    // editing clip end time in media
     int64_t mDuration           {0};
+    ImVec2 mViewWndSize         {0, 0};
+    bool bSeeking               {false};
+#ifdef OLD_FILTER_UI
     int64_t mCurrent            {0};                    // editing clip current time, project saved
     bool bPlay                  {false};                // editing clip play status
     bool bForward               {true};                 // editing clip play direction
-    bool bSeeking               {false};
     int64_t mLastTime           {-1};
-    ImVec2 mViewWndSize         {0, 0};
-
-    void* mHandle               {nullptr};              // main timeline handle
-#ifdef OLD_FILTER_UI
     MediaReader* mMediaReader   {nullptr};              // editing clip media reader
 #endif
 
@@ -537,6 +537,7 @@ struct EditingVideoClip : BaseEditingClip
     ImVec2 mSnapSize            {0, 0};
     MediaInfo::Ratio mClipFrameRate {25, 1};                    // clip Frame rate
 
+    BluePrintVideoFilter * mFilter {nullptr};
     int64_t mLastFrameTime {-1};
 #ifdef OLD_FILTER_UI
     std::mutex mFrameLock;                                      // clip frame mutex
@@ -940,7 +941,7 @@ struct TimeLine
     void MovingClip(int64_t id, int from_track_index, int to_track_index);
     void DeleteClip(int64_t id);
     void DeleteOverlap(int64_t id);
-    BluePrint::BluePrintUI* GetClipFilterBluePrint(int64_t id);
+    void SetClipFilterKeyPoint(int64_t id);
 
     void DoubleClick(int index, int64_t time);
     void Click(int index, int64_t time);
@@ -957,6 +958,7 @@ struct TimeLine
     void ToStart();
     void ToEnd();
     void UpdateCurrent();
+    void UpdataPreview();
     int64_t ValidDuration();
 
     AudioRender* mAudioRender {nullptr};                // audio render(SDL)
@@ -987,7 +989,7 @@ struct TimeLine
 };
 
 bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable = true);
-bool DrawClipTimeLine(BaseEditingClip * editingClip, int header_height, int custom_height);
+bool DrawClipTimeLine(BaseEditingClip * editingClip, int64_t CurrentTime, int header_height, int custom_height);
 bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int header_height, int custom_height);
 std::string TimelineMillisecToString(int64_t millisec, int show_millisec = 0);
 } // namespace MediaTimeline

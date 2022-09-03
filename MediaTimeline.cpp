@@ -536,7 +536,7 @@ void Clip::Cutting(int64_t pos)
                     vidTrack->OutWidth(), vidTrack->OutHeight(), vidTrack->FrameRate(),
                     new_clip->mStart, new_clip->mStartOffset, new_clip->mEndOffset, new_clip->mStartOffset));
                 vidTrack->InsertClip(newVidClip);
-                timeline->mMtvReader->Refresh();
+                timeline->UpdataPreview();
                 break;
             }
             case MEDIA_AUDIO:
@@ -1660,40 +1660,28 @@ int BluePrintVideoFilter::OnBluePrintChange(int type, std::string name, void* ha
     if (!handle)
         return BluePrint::BP_CBR_Unknown;
     BluePrintVideoFilter * filter = (BluePrintVideoFilter *)handle;
+    if (!filter) return ret;
+    TimeLine * timeline = (TimeLine *)filter->mHandle;
     if (name.compare("VideoFilter") == 0)
     {
         if (type == BluePrint::BP_CB_Link ||
             type == BluePrint::BP_CB_Unlink ||
             type == BluePrint::BP_CB_NODE_DELETED)
         {
-            // need update
+            if (timeline) timeline->UpdataPreview();
             ret = BluePrint::BP_CBR_AutoLink;
         }
         else if (type == BluePrint::BP_CB_PARAM_CHANGED ||
                 type == BluePrint::BP_CB_SETTING_CHANGED)
         {
-            // need update
-        }
-    }
-    if (name.compare("VideoFusion") == 0)
-    {
-        if (type == BluePrint::BP_CB_Link ||
-            type == BluePrint::BP_CB_Unlink ||
-            type == BluePrint::BP_CB_NODE_DELETED)
-        {
-            // need update
-            ret = BluePrint::BP_CBR_AutoLink;
-        }
-        else if (type == BluePrint::BP_CB_PARAM_CHANGED ||
-                type == BluePrint::BP_CB_SETTING_CHANGED)
-        {
-            // need update
+            if (timeline) timeline->UpdataPreview();
         }
     }
     return ret;
 }
 
-BluePrintVideoFilter::BluePrintVideoFilter()
+BluePrintVideoFilter::BluePrintVideoFilter(void * handle)
+    : mHandle(handle)
 {
     imgui_json::value filter_BP; 
     mBp = new BluePrint::BluePrintUI();
@@ -1751,21 +1739,6 @@ int BluePrintVideoTransition::OnBluePrintChange(int type, std::string name, void
     if (!handle)
         return BluePrint::BP_CBR_Unknown;
     BluePrintVideoTransition * fusion = (BluePrintVideoTransition *)handle;
-    if (name.compare("VideoFilter") == 0)
-    {
-        if (type == BluePrint::BP_CB_Link ||
-            type == BluePrint::BP_CB_Unlink ||
-            type == BluePrint::BP_CB_NODE_DELETED)
-        {
-            // need update
-            ret = BluePrint::BP_CBR_AutoLink;
-        }
-        else if (type == BluePrint::BP_CB_PARAM_CHANGED ||
-                type == BluePrint::BP_CB_SETTING_CHANGED)
-        {
-            // need update
-        }
-    }
     if (name.compare("VideoFusion") == 0)
     {
         if (type == BluePrint::BP_CB_Link ||
@@ -1846,10 +1819,12 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
 {
     TimeLine * timeline = (TimeLine *)vidclip->mHandle;
     mDuration = mEnd-mStart;
+    mClipFrameRate = vidclip->mClipFrameRate;
     if (mDuration < 0)
         throw std::invalid_argument("Clip duration is negative!");
+#ifdef OLD_FILTER_UI
     mCurrent = mStartOffset;
-
+#endif
     mSsGen = CreateSnapshotGenerator();
     if (!mSsGen)
     {
@@ -1891,8 +1866,18 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
             ReleaseMediaReader(&mMediaReader);
         }
     }
+#else
+    auto hClip = timeline->mMtvReader->GetClipById(vidclip->mID);
+    IM_ASSERT(hClip);
+    mFilter = dynamic_cast<BluePrintVideoFilter *>(hClip->GetFilter().get());
+    if (!mFilter)
+    {
+        mFilter = new BluePrintVideoFilter();
+        mFilter->SetKeyPoint(vidclip->mFilterKeyPoints);
+        DataLayer::VideoFilterHolder hFilter(mFilter);
+        hClip->SetFilter(hFilter);
+    }
 #endif
-    mClipFrameRate = vidclip->mClipFrameRate;
 }
 
 EditingVideoClip::~EditingVideoClip()
@@ -1905,6 +1890,7 @@ EditingVideoClip::~EditingVideoClip()
 #endif
     mSsViewer = nullptr;
     mSsGen = nullptr;
+    mFilter = nullptr;
 }
 
 void EditingVideoClip::UpdateClipRange(Clip* clip)
@@ -1918,16 +1904,22 @@ void EditingVideoClip::UpdateClipRange(Clip* clip)
         mStartOffset = clip->mStartOffset;
         mEndOffset = clip->mEndOffset;
         mDuration = mEnd - mStart;
+#ifdef OLD_FILTER_UI
         if (mCurrent < mStartOffset)
             mCurrent = mStartOffset;
         if (mCurrent > mStartOffset + mDuration)
             mCurrent = mStartOffset + mDuration;
+#endif
         CalcDisplayParams();
     }
 }
 
 void EditingVideoClip::Seek(int64_t pos)
 {
+    
+    TimeLine * timeline = (TimeLine *)mHandle;
+    if (!timeline)
+        return;
     static int64_t last_seek_pos = -1;
     if (last_seek_pos != pos)
     {
@@ -1941,21 +1933,23 @@ void EditingVideoClip::Seek(int64_t pos)
     mFrameLock.lock();
     mFrame.clear();
     mFrameLock.unlock();
-#endif
     mLastTime = -1;
     mCurrent = pos;
     alignTime(mCurrent, mClipFrameRate);
 
-#ifdef OLD_FILTER_UI
     if (mMediaReader && mMediaReader->IsOpened())
     {
         mMediaReader->SeekTo((double)mCurrent / 1000.f);
     }
+#else
+    timeline->bSeeking = true;
+    timeline->Seek(pos + mStart);
 #endif
 }
 
 void EditingVideoClip::Step(bool forward, int64_t step)
 {
+#ifdef OLD_FILTER_UI
     if (forward)
     {
         bForward = true;
@@ -1980,6 +1974,7 @@ void EditingVideoClip::Step(bool forward, int64_t step)
             bPlay = false;
         }
     }
+#endif
 }
 
 void EditingVideoClip::Save()
@@ -2006,13 +2001,12 @@ void EditingVideoClip::Save()
     DataLayer::VideoFilterHolder hFilter(bpvf);
     hClip->SetFilter(hFilter);
 #else
-    auto bp = timeline->GetClipFilterBluePrint(clip->mID);
-    if (bp && bp->Blueprint_IsValid())
+    if (mFilter && mFilter->mBp && mFilter->mBp->Blueprint_IsValid())
     {
-        clip->mFilterBP = bp->m_Document->Serialize();
+        clip->mFilterBP = mFilter->mBp->m_Document->Serialize();
     }
 #endif
-    timeline->mMtvReader->Refresh();
+    timeline->UpdataPreview();
 }
 
 bool EditingVideoClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame)
@@ -2167,7 +2161,9 @@ void EditingAudioClip::UpdateClipRange(Clip* clip)
 
 void EditingAudioClip::Seek(int64_t pos)
 {
+#ifdef OLD_FILTER_UI
     mCurrent = pos;
+#endif
 }
 
 void EditingAudioClip::Step(bool forward, int64_t step)
@@ -2776,7 +2772,7 @@ void EditingVideoOverlap::Save()
     bpvt->SetKeyPoint(mOvlp->mFusionKeyPoints);
     DataLayer::VideoTransitionHolder hTrans(bpvt);
     hOvlp->SetTransition(hTrans);
-    timeline->mMtvReader->Refresh();
+    timeline->UpdataPreview();
 #endif
 }
 
@@ -3185,11 +3181,12 @@ void MediaTrack::SelectEditingClip(Clip * clip, bool filter_editing)
 #else
         if (filter_editing)
         {
-            if (editing_clip->mType == MEDIA_VIDEO)
-            {
-                auto bp = timeline->GetClipFilterBluePrint(editing_clip->mID);
-                if (bp && bp->Blueprint_IsValid()) return;
-            }
+            if (editing_clip->mType == MEDIA_VIDEO &&
+                timeline->mVidFilterClip &&
+                timeline->mVidFilterClip->mFilter &&
+                timeline->mVidFilterClip->mFilter->mBp &&
+                timeline->mVidFilterClip->mFilter->mBp->Blueprint_IsValid())
+                return;
         }
 #endif
         if (editing_clip->mType == MEDIA_AUDIO)
@@ -3204,7 +3201,9 @@ void MediaTrack::SelectEditingClip(Clip * clip, bool filter_editing)
         {
             if (!updated && timeline->mVidFilterClip)
             {
+#ifdef OLD_FILTER_UI
                 timeline->mVidFilterClip->bPlay = false;
+#endif
                 timeline->mVidFilterClip->Save();
             }
             // update timeline video filter clip
@@ -3224,7 +3223,9 @@ void MediaTrack::SelectEditingClip(Clip * clip, bool filter_editing)
         {
             if (!updated && timeline->mAudFilterClip)
             {
+#ifdef OLD_FILTER_UI
                 timeline->mAudFilterClip->bPlay = false;
+#endif
                 timeline->mAudFilterClip->Save();
             }
             // update timeline Audio filter clip
@@ -4308,8 +4309,7 @@ void TimeLine::MovingTrack(int& index, int& dst_index)
                 mMtvReader->ChangeTrackViewOrder((*iter_dst)->mID, (*iter)->mID);
             else
                 mMtvReader->ChangeTrackViewOrder((*iter)->mID, (*iter_dst)->mID);
-            mMtvReader->Refresh();
-            mIsPreviewNeedUpdate = true;
+            UpdataPreview();
         }
         // do we need change other type of media?
     }
@@ -4408,11 +4408,11 @@ void TimeLine::DeleteOverlap(int64_t id)
     }
 }
 
-BluePrint::BluePrintUI* TimeLine::GetClipFilterBluePrint(int64_t id)
+void TimeLine::SetClipFilterKeyPoint(int64_t id)
 {
     auto clip = FindClipByID(id);
     if (!clip)
-        return nullptr;
+        return;
     switch (clip->mType)
     {
         case MEDIA_VIDEO:
@@ -4420,17 +4420,17 @@ BluePrint::BluePrintUI* TimeLine::GetClipFilterBluePrint(int64_t id)
             DataLayer::VideoClipHolder hClip = mMtvReader->GetClipById(id);
             IM_ASSERT(hClip);
             auto pvf = dynamic_cast<BluePrintVideoFilter *>(hClip->GetFilter().get());
-            if (!pvf) return nullptr;
-            return pvf->mBp;
+            if (!pvf) return;
+            pvf->SetKeyPoint(clip->mFilterKeyPoints);
+            return;
         }
         case MEDIA_AUDIO:
         {
-            return nullptr;
+            return;
         }
         default:
-            return nullptr;
+            return;
     }
-    return nullptr;
 }
 
 void TimeLine::UpdateCurrent()
@@ -4462,6 +4462,12 @@ void TimeLine::UpdateCurrent()
         }
     }
     if (firstTime < 0) firstTime = 0;
+}
+
+void TimeLine::UpdataPreview()
+{
+    mMtvReader->Refresh();
+    mIsPreviewNeedUpdate = true;
 }
 
 ImGui::ImMat TimeLine::GetPreviewFrame()
@@ -5326,7 +5332,7 @@ int TimeLine::Load(const imgui_json::value& value)
                     clip->mID, clip->mMediaParser,
                     clip->mStart, clip->mStartOffset, clip->mEndOffset, currentTime-clip->mStart);
 
-                BluePrintVideoFilter* bpvf = new BluePrintVideoFilter();
+                BluePrintVideoFilter* bpvf = new BluePrintVideoFilter(this);
                 bpvf->SetBluePrintFromJson(clip->mFilterBP);
                 bpvf->SetKeyPoint(clip->mFilterKeyPoints);
                 DataLayer::VideoFilterHolder hFilter(bpvf);
@@ -5347,7 +5353,7 @@ int TimeLine::Load(const imgui_json::value& value)
         }
     }
     SyncDataLayer();
-    mMtvReader->Refresh();
+    UpdataPreview();
     mMtaReader->SeekTo(currentTime);
     mMtaReader->Refresh();
     Logger::Log(Logger::VERBOSE) << *mMtvReader << std::endl;
@@ -5474,7 +5480,7 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
             vidTrack->OutWidth(), vidTrack->OutHeight(), vidTrack->FrameRate(),
             clip->mStart, clip->mStartOffset, clip->mEndOffset, currentTime-clip->mStart));
         vidTrack->InsertClip(vidClip);
-        mMtvReader->Refresh();
+        UpdataPreview();
     }
     else if (actionName == "MOVE_CLIP")
     {
@@ -5496,7 +5502,7 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
         {
             dstVidTrack->MoveClip(clip->mID, clip->mStart);
         }
-        mMtvReader->Refresh();
+        UpdataPreview();
     }
     else if (actionName == "CROP_CLIP")
     {
@@ -5505,7 +5511,7 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
         int64_t clipId = action["clip_id"].get<imgui_json::number>();
         Clip* clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
         vidTrack->ChangeClipRange(clip->mID, clip->mStartOffset, clip->mEndOffset);
-        mMtvReader->Refresh();
+        UpdataPreview();
     }
     else if (actionName == "REMOVE_CLIP")
     {
@@ -5513,7 +5519,7 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
         DataLayer::VideoTrackHolder vidTrack = mMtvReader->GetTrackById(trackId);
         int64_t clipId = action["clip_id"].get<imgui_json::number>();
         vidTrack->RemoveClipById(clipId);
-        mMtvReader->Refresh();
+        UpdataPreview();
     }
     else if (actionName == "ADD_TRACK")
     {
@@ -7624,7 +7630,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
 /***********************************************************************************************************
  * Draw Clip Timeline
  ***********************************************************************************************************/
-bool DrawClipTimeLine(BaseEditingClip * editingClip, int header_height, int custom_height)
+bool DrawClipTimeLine(BaseEditingClip * editingClip, int64_t CurrentTime, int header_height, int custom_height)
 {
     /***************************************************************************************
     |  0    5    10 v   15    20 <rule bar> 30     35      40      45       50       55    c
@@ -7674,14 +7680,14 @@ bool DrawClipTimeLine(BaseEditingClip * editingClip, int header_height, int cust
     draw_list->AddRectFilled(window_pos, window_pos + headerSize, COL_DARK_ONE, 0);
 
     ImRect movRect(window_pos, window_pos + window_size);
-    if ( !MovingCurrentTime && editingClip->mCurrent >= start && movRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && isFocused)
+    if ( !MovingCurrentTime && /*CurrentTime >= start &&*/ movRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && isFocused)
     {
         MovingCurrentTime = true;
         editingClip->bSeeking = true;
     }
     if (MovingCurrentTime && duration)
     {
-        auto oldPos = editingClip->mCurrent;
+        auto oldPos = CurrentTime;
         auto newPos = (int64_t)((io.MousePos.x - movRect.Min.x) / msPixelWidth) + start;
         if (newPos < start)
             newPos = start;
@@ -7730,12 +7736,12 @@ bool DrawClipTimeLine(BaseEditingClip * editingClip, int header_height, int cust
     drawLine(duration, header_height);
     // cursor Arrow
     const float arrowWidth = draw_list->_Data->FontSize;
-    float arrowOffset = window_pos.x + (editingClip->mCurrent - start) * msPixelWidth - arrowWidth * 0.5f;
+    float arrowOffset = window_pos.x + (CurrentTime - start) * msPixelWidth - arrowWidth * 0.5f;
     ImGui::RenderArrow(draw_list, ImVec2(arrowOffset, window_pos.y), COL_CURSOR_ARROW, ImGuiDir_Down);
     ImGui::SetWindowFontScale(0.8);
-    auto time_str = TimelineMillisecToString(editingClip->mCurrent, 2);
+    auto time_str = TimelineMillisecToString(CurrentTime, 2);
     ImVec2 str_size = ImGui::CalcTextSize(time_str.c_str(), nullptr, true);
-    float strOffset = window_pos.x + (editingClip->mCurrent - start) * msPixelWidth - str_size.x * 0.5f;
+    float strOffset = window_pos.x + (CurrentTime - start) * msPixelWidth - str_size.x * 0.5f;
     ImVec2 str_pos = ImVec2(strOffset, window_pos.y + 10);
     draw_list->AddRectFilled(str_pos + ImVec2(-3, 0), str_pos + str_size + ImVec2(3, 3), COL_CURSOR_TEXT_BG, 2.0, ImDrawFlags_RoundCornersAll);
     draw_list->AddText(str_pos, COL_CURSOR_TEXT, time_str.c_str());
@@ -7751,7 +7757,7 @@ bool DrawClipTimeLine(BaseEditingClip * editingClip, int header_height, int cust
 
     // cursor line
     static const float cursorWidth = 2.f;
-    float cursorOffset = contentMin.x + (editingClip ->mCurrent - start) * msPixelWidth - cursorWidth * 0.5f + 1;
+    float cursorOffset = contentMin.x + (CurrentTime - start) * msPixelWidth - cursorWidth * 0.5f + 1;
     draw_list->AddLine(ImVec2(cursorOffset, contentMin.y), ImVec2(cursorOffset, contentMax.y), IM_COL32(0, 255, 0, 224), cursorWidth);
     draw_list->PopClipRect();
     ImGui::EndGroup();
