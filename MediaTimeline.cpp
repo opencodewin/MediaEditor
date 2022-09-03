@@ -2084,8 +2084,16 @@ bool EditingVideoClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_fr
 #else
     if (!timeline)
         return ret;
-    auto frame_org = timeline->GetPreviewFrame(mID);
-    auto frame_preview = timeline->GetPreviewFrame();
+    auto frames = timeline->GetPreviewFrame();
+    ImGui::ImMat frame_org;
+    auto iter = std::find_if(frames.begin(), frames.end(), [this] (auto& cf) {
+        return cf.clipId == mID && cf.phase == DataLayer::CorrelativeFrame::PHASE_SOURCE_FRAME;
+    });
+    if (iter != frames.end())
+        frame_org = iter->frame;
+    ImGui::ImMat frame_preview;
+    if (!frames.empty())
+        frame_preview = frames[0].frame;
     in_out_frame.first = frame_org;
     in_out_frame.second = frame_preview;
     ret = true;
@@ -4475,7 +4483,7 @@ void TimeLine::UpdataPreview()
     mIsPreviewNeedUpdate = true;
 }
 
-ImGui::ImMat TimeLine::GetPreviewFrame(int64_t id)
+std::vector<DataLayer::CorrelativeFrame> TimeLine::GetPreviewFrame()
 {
     int64_t auddataPos, previewPos;
     if (mPcmStream.GetTimestampMs(auddataPos))
@@ -4516,12 +4524,11 @@ ImGui::ImMat TimeLine::GetPreviewFrame(int64_t id)
             }
         }
     }
-    if (id != -1)
-        mMtvReader->ReadClipSourceFrame(id, currentTime, frame);
-    else
-        mMtvReader->ReadVideoFrame(currentTime, frame, bSeeking);
+
+    std::vector<DataLayer::CorrelativeFrame> frames;
+    mMtvReader->ReadVideoFrameEx(currentTime, frames, bSeeking);
     if (mIsPreviewPlaying) UpdateCurrent();
-    return frame;
+    return frames;
 }
 
 float TimeLine::GetAudioLevel(int channel)

@@ -82,7 +82,7 @@ public:
         }
         newInstance->UpdateDuration();
         // seek to 0
-        newInstance->m_outputMats.clear();
+        newInstance->m_outputCache.clear();
         for (auto track : newInstance->m_tracks)
             track->SeekTo(0);
 
@@ -132,7 +132,7 @@ public:
         TerminateMixingThread();
 
         m_tracks.clear();
-        m_outputMats.clear();
+        m_outputCache.clear();
         m_configured = false;
         m_started = false;
         m_outWidth = 0;
@@ -181,7 +181,7 @@ public:
             UpdateDuration();
             for (auto track : m_tracks)
                 track->SeekTo(ReadPos());
-            m_outputMats.clear();
+            m_outputCache.clear();
         }
 
         StartMixingThread();
@@ -220,7 +220,7 @@ public:
                 UpdateDuration();
                 for (auto track : m_tracks)
                     track->SeekTo(ReadPos());
-                m_outputMats.clear();
+                m_outputCache.clear();
             }
         }
 
@@ -252,7 +252,7 @@ public:
                 UpdateDuration();
                 for (auto track : m_tracks)
                     track->SeekTo(ReadPos());
-                m_outputMats.clear();
+                m_outputCache.clear();
             }
         }
 
@@ -322,7 +322,7 @@ public:
 
         for (auto track : m_tracks)
             track->SeekTo(ReadPos());
-        m_outputMats.clear();
+        m_outputCache.clear();
 
         StartMixingThread();
         return true;
@@ -350,7 +350,7 @@ public:
         return true;
     }
 
-    bool ReadVideoFrame(int64_t pos, ImGui::ImMat& vmat, bool seeking) override
+    bool ReadVideoFrameEx(int64_t pos, std::vector<CorrelativeFrame>& frames, bool seeking) override
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
         if (!m_started)
@@ -363,21 +363,20 @@ public:
             m_errMsg = "Invalid argument value for 'pos'! Can NOT be NEGATIVE.";
             return false;
         }
-        vmat.release();
         if (m_tracks.empty())
             return false;
 
         {
-            lock_guard<mutex> lk2(m_outputMatsLock);
-            if (seeking && !m_outputMats.empty())
-                vmat = m_outputMats.front();
+            lock_guard<mutex> lk2(m_outputCacheLock);
+            if (seeking && !m_outputCache.empty())
+                frames = m_outputCache.front();
         }
-        if (seeking && vmat.empty())
-            vmat = m_seekingFlash;
+        if (seeking && frames.empty() && !m_seekingFlash.empty())
+            frames = m_seekingFlash;
 
         uint32_t targetFrmidx = (int64_t)(ceil((double)pos*m_frameRate.num/(m_frameRate.den*1000)));
-        if ((m_readForward && (targetFrmidx < m_readFrameIdx || targetFrmidx-m_readFrameIdx >= m_outputMatsMaxCount)) ||
-            (!m_readForward && (targetFrmidx > m_readFrameIdx || m_readFrameIdx-targetFrmidx >= m_outputMatsMaxCount)))
+        if ((m_readForward && (targetFrmidx < m_readFrameIdx || targetFrmidx-m_readFrameIdx >= m_outputCacheSize)) ||
+            (!m_readForward && (targetFrmidx > m_readFrameIdx || m_readFrameIdx-targetFrmidx >= m_outputCacheSize)))
         {
             if (!SeekTo(pos, seeking))
                 return false;
@@ -385,8 +384,8 @@ public:
 
         if (seeking)
         {
-            if (!m_subtrks.empty())
-                vmat = BlendSubtitle(vmat);
+            if (!m_subtrks.empty() && !frames.empty())
+                frames[0].frame = BlendSubtitle(frames[0].frame);
             return true;
         }
 
@@ -394,41 +393,42 @@ public:
         bool lockAquaired = false;
         while (!m_quit)
         {
-            m_outputMatsLock.lock();
+            m_outputCacheLock.lock();
             lockAquaired = true;
-            if ((m_readForward && targetFrmidx < m_outputMats.size()+m_readFrameIdx) ||
-                (!m_readForward && m_readFrameIdx < m_outputMats.size()+targetFrmidx))
+            if ((m_readForward && targetFrmidx < m_outputCache.size()+m_readFrameIdx) ||
+                (!m_readForward && m_readFrameIdx < m_outputCache.size()+targetFrmidx))
                 break;
-            m_outputMatsLock.unlock();
+            m_outputCacheLock.unlock();
             lockAquaired = false;
             this_thread::sleep_for(chrono::milliseconds(5));
         }
         if (m_quit)
         {
-            if (lockAquaired) m_outputMatsLock.unlock();
+            if (lockAquaired) m_outputCacheLock.unlock();
             m_errMsg = "This 'MultiTrackVideoReader' instance is quit.";
             return false;
         }
 
-        lock_guard<mutex> lk2(m_outputMatsLock, adopt_lock);
+        lock_guard<mutex> lk2(m_outputCacheLock, adopt_lock);
         if ((m_readForward && targetFrmidx > m_readFrameIdx) || (!m_readForward && m_readFrameIdx > targetFrmidx))
         {
             uint32_t popCnt = m_readForward ? targetFrmidx-m_readFrameIdx : m_readFrameIdx-targetFrmidx;
             while (popCnt-- > 0)
             {
-                m_outputMats.pop_front();
+                m_outputCache.pop_front();
                 if (m_readForward)
                     m_readFrameIdx++;
                 else
                     m_readFrameIdx--;
             }
         }
-        if (m_outputMats.empty())
+        if (m_outputCache.empty())
         {
             m_logger->Log(Error) << "No AVAILABLE frame to read!" << endl;
             return false;
         }
-        vmat = m_outputMats.front();
+        frames = m_outputCache.front();
+        auto& vmat = frames[0].frame;
         const double timestamp = (double)pos/1000;
         if (vmat.time_stamp > timestamp+m_frameInterval || vmat.time_stamp < timestamp-m_frameInterval)
             m_logger->Log(Error) << "WRONG image time stamp!! Required 'pos' is " << timestamp
@@ -439,7 +439,17 @@ public:
         return true;
     }
 
-    bool ReadNextVideoFrame(ImGui::ImMat& vmat) override
+    bool ReadVideoFrame(int64_t pos, ImGui::ImMat& vmat, bool seeking) override
+    {
+        vector<CorrelativeFrame> frames;
+        bool success = ReadVideoFrameEx(pos, frames, seeking);
+        if (!success)
+            return false;
+        vmat = frames[0].frame;
+        return true;
+    }
+
+    bool ReadNextVideoFrameEx(vector<CorrelativeFrame>& frames) override
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
         if (!m_started)
@@ -447,59 +457,51 @@ public:
             m_errMsg = "This MultiTrackVideoReader instance is NOT started yet!";
             return false;
         }
-        vmat.release();
         if (m_tracks.empty())
             return false;
 
         bool lockAquaired = false;
         while (!m_quit)
         {
-            m_outputMatsLock.lock();
+            m_outputCacheLock.lock();
             lockAquaired = true;
-            if (m_outputMats.size() > 1)
+            if (m_outputCache.size() > 1)
                 break;
-            m_outputMatsLock.unlock();
+            m_outputCacheLock.unlock();
             lockAquaired = false;
             this_thread::sleep_for(chrono::milliseconds(5));
         }
         if (m_quit)
         {
-            if (lockAquaired) m_outputMatsLock.unlock();
+            if (lockAquaired) m_outputCacheLock.unlock();
             m_errMsg = "This 'MultiTrackVideoReader' instance is quit.";
             return false;
         }
 
-        lock_guard<mutex> lk2(m_outputMatsLock, adopt_lock);
+        lock_guard<mutex> lk2(m_outputCacheLock, adopt_lock);
         if (m_readForward)
         {
-            m_outputMats.pop_front();
+            m_outputCache.pop_front();
             m_readFrameIdx++;
         }
         else if (m_readFrameIdx > 0)
         {
-            m_outputMats.pop_front();
+            m_outputCache.pop_front();
             m_readFrameIdx--;
         }
-        vmat = m_outputMats.front();
+        frames = m_outputCache.front();
         if (!m_subtrks.empty())
-            vmat = BlendSubtitle(vmat);
+            frames[0].frame = BlendSubtitle(frames[0].frame);
         return true;
     }
 
-    bool ReadClipSourceFrame(int64_t clipId, int64_t pos, ImGui::ImMat& vmat) override
+    bool ReadNextVideoFrame(ImGui::ImMat& vmat) override
     {
-        auto clip = GetClipById(clipId);
-        if (!clip)
+        vector<CorrelativeFrame> frames;
+        bool success = ReadNextVideoFrameEx(frames);
+        if (!success)
             return false;
-        if (pos < clip->Start() || pos > clip->End())
-        {
-            ostringstream oss;
-            oss << "Argument 'pos' =" << pos << " is out of the range of Clip #" << clipId << "!";
-            m_errMsg = oss.str();
-            return false;
-        }
-        bool eof;
-        clip->ReadVideoFrame(pos-clip->Start(), vmat, eof, true);
+        vmat = frames[0].frame;
         return true;
     }
 
@@ -794,17 +796,20 @@ private:
                 for (auto track : m_tracks)
                     track->SeekTo(seekPos);
                 {
-                    lock_guard<mutex> lk(m_outputMatsLock);
-                    if (!m_outputMats.empty())
-                        m_seekingFlash = m_outputMats.front();
-                    m_outputMats.clear();
+                    lock_guard<mutex> lk(m_outputCacheLock);
+                    if (!m_outputCache.empty())
+                        m_seekingFlash = m_outputCache.front();
+                    m_outputCache.clear();
                 }
                 afterSeek = true;
             }
 
-            if (m_outputMats.size() < m_outputMatsMaxCount)
+            if (m_outputCache.size() < m_outputCacheSize)
             {
                 ImGui::ImMat mixedFrame;
+                vector<CorrelativeFrame> frames;
+                frames.reserve(m_tracks.size()*7);
+                frames.push_back({CorrelativeFrame::PHASE_AFTER_MIXING, 0, 0, mixedFrame});
                 double timestamp = 0;
                 {
                     lock_guard<recursive_mutex> trackLk(m_trackLock);
@@ -812,7 +817,7 @@ private:
                     while (trackIter != m_tracks.end())
                     {
                         ImGui::ImMat vmat;
-                        (*trackIter)->ReadVideoFrame(vmat);
+                        (*trackIter)->ReadVideoFrame(frames, vmat);
                         if (!vmat.empty())
                         {
                             if (mixedFrame.empty())
@@ -847,9 +852,10 @@ private:
 
                 if (!afterSeek)
                 {
-                    lock_guard<mutex> lk(m_outputMatsLock);
-                    m_outputMats.push_back(mixedFrame);
-                    m_seekingFlash.release();
+                    lock_guard<mutex> lk(m_outputCacheLock);
+                    frames[0].frame = mixedFrame;
+                    m_outputCache.push_back(frames);
+                    m_seekingFlash.clear();
                     idleLoop = false;
                 }
             }
@@ -908,9 +914,9 @@ private:
     recursive_mutex m_trackLock;
     FFOverlayBlender m_mixBlender;
 
-    list<ImGui::ImMat> m_outputMats;
-    mutex m_outputMatsLock;
-    uint32_t m_outputMatsMaxCount{8};
+    list<vector<CorrelativeFrame>> m_outputCache;
+    mutex m_outputCacheLock;
+    uint32_t m_outputCacheSize{8};
 
     uint32_t m_outWidth{0};
     uint32_t m_outHeight{0};
@@ -922,7 +928,7 @@ private:
 
     int64_t m_seekPos{0};
     atomic_bool m_seeking{false};
-    ImGui::ImMat m_seekingFlash;
+    vector<CorrelativeFrame> m_seekingFlash;
 
     list<SubtitleTrackHolder> m_subtrks;
     mutex m_subtrkLock;

@@ -2915,7 +2915,10 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImR
     ImVec2 PreviewSize;
     PreviewPos = window_pos + ImVec2(8, 8);
     PreviewSize = window_size - ImVec2(16 + (audio_bar ? 64 : 0), 16 + 48);
-    auto frame = timeline->GetPreviewFrame();
+    auto frames = timeline->GetPreviewFrame();
+    ImGui::ImMat frame;
+    if (!frames.empty())
+        frame = frames[0].frame;
     if (!frame.empty() && 
         (timeline->mIsPreviewNeedUpdate || timeline->mLastFrameTime == -1 || timeline->mLastFrameTime != (int64_t)(frame.time_stamp * 1000) || need_update_scope || force_update))
     {

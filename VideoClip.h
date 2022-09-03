@@ -2,12 +2,28 @@
 #include <atomic>
 #include <memory>
 #include <functional>
+#include <vector>
 #include <list>
 #include "immat.h"
 #include "MediaReader.h"
 
 namespace DataLayer
 {
+    struct CorrelativeFrame
+    {
+        enum Phase
+        {
+            PHASE_SOURCE_FRAME = 0,
+            PHASE_AFTER_FILTER,
+            PHASE_AFTER_TRANSFORM,
+            PHASE_AFTER_TRANSITION,
+            PHASE_AFTER_MIXING,
+        } phase;
+        int64_t clipId;
+        int64_t trackId;
+        ImGui::ImMat frame;
+    };
+
     struct VideoFilter;
     using VideoFilterHolder = std::shared_ptr<VideoFilter>;
 
@@ -54,7 +70,7 @@ namespace DataLayer
         VideoTransformFilter* GetTransformFilterPtr();
 
         void SeekTo(int64_t pos);
-        void ReadVideoFrame(int64_t pos, ImGui::ImMat& vmat, bool& eof, bool readSourceFrame = false);
+        void ReadVideoFrame(int64_t pos, std::vector<CorrelativeFrame>& frames, ImGui::ImMat& out, bool& eof);
         void NotifyReadPos(int64_t pos);
         void SetDirection(bool forward);
 
@@ -116,7 +132,7 @@ namespace DataLayer
         VideoClipHolder RearClip() const { return m_rearClip; }
 
         void SeekTo(int64_t pos);
-        void ReadVideoFrame(int64_t pos, ImGui::ImMat& vmat, bool& eof);
+        void ReadVideoFrame(int64_t pos, std::vector<CorrelativeFrame>& frames, ImGui::ImMat& out, bool& eof);
 
         friend std::ostream& operator<<(std::ostream& os, VideoOverlap& overlap);
 

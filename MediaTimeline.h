@@ -947,7 +947,7 @@ struct TimeLine
 
     void CustomDraw(int index, ImDrawList *draw_list, const ImRect &view_rc, const ImRect &rc, const ImRect &titleRect, const ImRect &clippingTitleRect, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRect, bool is_moving, bool enable_select);
     
-    ImGui::ImMat GetPreviewFrame(int64_t id = -1);
+    std::vector<DataLayer::CorrelativeFrame> GetPreviewFrame();
     float GetAudioLevel(int channel);
 
     void Play(bool play, bool forward = true);

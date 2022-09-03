@@ -508,11 +508,20 @@ bool Application_Frame(void * handle, bool app_will_quit)
         if (playPos < 0) playPos = 0;
         if (playPos > mediaDur) playPos = mediaDur;
 
-        ImGui::ImMat vmat;
         const int64_t readPos = (int64_t)(playPos*1000);
-        bool readRes = s_showClipSourceFrame ?
-            g_mtVidReader->ReadClipSourceFrame(selectedClip->Id(), readPos, vmat) :
-            g_mtVidReader->ReadVideoFrame(readPos, vmat);
+        vector<CorrelativeFrame> frames;
+        bool readRes = g_mtVidReader->ReadVideoFrameEx(readRes, frames);
+        ImGui::ImMat vmat;
+        if (s_showClipSourceFrame)
+        {
+            auto iter = find_if(frames.begin(), frames.end(), [selectedClip] (auto& cf) {
+                return cf.clipId == selectedClip->Id() && cf.phase == CorrelativeFrame::PHASE_SOURCE_FRAME;
+            });
+            if (iter != frames.end())
+                vmat = iter->frame;
+        }
+        else if (!frames.empty())
+            vmat = frames[0].frame;
         if (readRes)
         {
             string imgTag = TimestampToString(vmat.time_stamp);

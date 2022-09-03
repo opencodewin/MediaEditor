@@ -36,7 +36,7 @@ namespace DataLayer
         std::list<VideoOverlapHolder>::iterator OverlapListEnd() { return m_overlaps.end(); }
 
         void SeekTo(int64_t pos);
-        void ReadVideoFrame(ImGui::ImMat& vmat);
+        void ReadVideoFrame(std::vector<CorrelativeFrame>& frames, ImGui::ImMat& out);
         void SetDirection(bool forward);
 
         int64_t Id() const { return m_id; }

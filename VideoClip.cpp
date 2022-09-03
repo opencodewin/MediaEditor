@@ -143,7 +143,7 @@ namespace DataLayer
         m_eof = false;
     }
 
-    void VideoClip::ReadVideoFrame(int64_t pos, ImGui::ImMat& vmat, bool& eof, bool readSourceFrame)
+    void VideoClip::ReadVideoFrame(int64_t pos, vector<CorrelativeFrame>& frames, ImGui::ImMat& out, bool& eof)
     {
         if (m_eof)
         {
@@ -189,17 +189,18 @@ namespace DataLayer
                     m_frameCache.pop_front();
             }
         }
+        frames.push_back({CorrelativeFrame::PHASE_SOURCE_FRAME, m_id, m_trackId, image});
 
-        // return raw source frame or filtered frame
-        if (readSourceFrame)
-        {
-            vmat = image;
-            return;
-        }
+        // process with external filter
         VideoFilterHolder filter = m_filter;
         if (filter)
             image = filter->FilterImage(image, pos);
-        vmat = m_transFilter->FilterImage(image, pos);
+        frames.push_back({CorrelativeFrame::PHASE_AFTER_FILTER, m_id, m_trackId, image});
+
+        // process with transform filter
+        image = m_transFilter->FilterImage(image, pos);
+        frames.push_back({CorrelativeFrame::PHASE_AFTER_TRANSFORM, m_id, m_trackId, image});
+        out = image;
     }
 
     void VideoClip::NotifyReadPos(int64_t pos)
@@ -332,23 +333,24 @@ namespace DataLayer
         m_rearClip->SeekTo(pos2);
     }
 
-    void VideoOverlap::ReadVideoFrame(int64_t pos, ImGui::ImMat& vmat, bool& eof)
+    void VideoOverlap::ReadVideoFrame(int64_t pos, vector<CorrelativeFrame>& frames, ImGui::ImMat& out, bool& eof)
     {
         if (pos < 0 || pos > Duration())
             throw invalid_argument("Argument 'pos' can NOT be NEGATIVE or larger than overlap duration!");
 
-        bool eof1{false};
         ImGui::ImMat vmat1;
+        bool eof1{false};
         int64_t pos1 = pos+(Start()-m_frontClip->Start());
-        m_frontClip->ReadVideoFrame(pos1, vmat1, eof1);
+        m_frontClip->ReadVideoFrame(pos1, frames, vmat1, eof1);
 
-        bool eof2{false};
         ImGui::ImMat vmat2;
+        bool eof2{false};
         int64_t pos2 = pos+(Start()-m_rearClip->Start());
-        m_rearClip->ReadVideoFrame(pos2, vmat2, eof2);
+        m_rearClip->ReadVideoFrame(pos2, frames, vmat2, eof2);
 
         VideoTransitionHolder transition = m_transition;
-        vmat = transition->MixTwoImages(vmat1, vmat2, pos, Duration());
+        out = transition->MixTwoImages(vmat1, vmat2, pos, Duration());
+        frames.push_back({CorrelativeFrame::PHASE_AFTER_TRANSITION, m_frontClip->Id(), m_frontClip->TrackId(), out});
 
         eof = eof1 || eof2;
         if (pos == Duration())

@@ -18,9 +18,10 @@ struct MultiTrackVideoReader
     virtual bool ChangeTrackViewOrder(int64_t targetId, int64_t insertAfterId) = 0;
     virtual bool SetDirection(bool forward) = 0;
     virtual bool SeekTo(int64_t pos, bool async = false) = 0;
+    virtual bool ReadVideoFrameEx(int64_t pos, std::vector<DataLayer::CorrelativeFrame>& frames, bool seeking = false) = 0;
     virtual bool ReadVideoFrame(int64_t pos, ImGui::ImMat& vmat, bool seeking = false) = 0;
+    virtual bool ReadNextVideoFrameEx(std::vector<DataLayer::CorrelativeFrame>& frames) = 0;
     virtual bool ReadNextVideoFrame(ImGui::ImMat& vmat) = 0;
-    virtual bool ReadClipSourceFrame(int64_t clipId, int64_t pos, ImGui::ImMat& vmat) = 0;
     virtual bool Refresh() = 0;
 
     virtual int64_t Duration() const = 0;
