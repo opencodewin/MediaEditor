@@ -19,7 +19,7 @@
 #include <list>
 #include <chrono>
 
-#define OLD_FILTER_UI
+//#define OLD_FILTER_UI
 #define OLD_FUSION_UI
 
 #define ICON_MEDIA_TIMELINE u8"\uf538"
@@ -881,10 +881,9 @@ struct TimeLine
     BluePrint::BluePrintUI * mVideoFilterBluePrint {nullptr};
     std::mutex mVideoFilterBluePrintLock;   // Video Filter BluePrint mutex
     bool mVideoFilterNeedUpdate {false};
-
+#endif
     ImTextureID mVideoFilterInputTexture {nullptr};  // clip video filter input texture
     ImTextureID mVideoFilterOutputTexture {nullptr};  // clip video filter output texture
-#endif
 
     BluePrint::BluePrintUI * mAudioFilterBluePrint {nullptr};
     std::mutex mAudioFilterBluePrintLock;   // Audio Filter BluePrint mutex
@@ -948,7 +947,7 @@ struct TimeLine
 
     void CustomDraw(int index, ImDrawList *draw_list, const ImRect &view_rc, const ImRect &rc, const ImRect &titleRect, const ImRect &clippingTitleRect, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRect, bool is_moving, bool enable_select);
     
-    ImGui::ImMat GetPreviewFrame();
+    ImGui::ImMat GetPreviewFrame(int64_t id = -1);
     float GetAudioLevel(int channel);
 
     void Play(bool play, bool forward = true);

@@ -2982,6 +2982,236 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImR
 
 /****************************************************************************************
  * 
+ * Media Filter Preview window
+ *
+ ***************************************************************************************/
+static void ShowVideoFilterPreviewWindow(ImDrawList *draw_list)
+{
+    // preview control pannel
+    ImGuiIO& io = ImGui::GetIO();
+    ImVec2 PanelBarPos;
+    ImVec2 PanelBarSize;
+    ImVec2 window_pos = ImGui::GetCursorScreenPos();
+    ImVec2 window_size = ImGui::GetWindowSize();
+    draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
+    PanelBarPos = window_pos + window_size - ImVec2(window_size.x, 48);
+    PanelBarSize = ImVec2(window_size.x, 48);
+    draw_list->AddRectFilled(PanelBarPos, PanelBarPos + PanelBarSize, COL_DARK_PANEL);
+
+    // Preview buttons Stop button is center of Panel bar
+    auto PanelCenterX = PanelBarPos.x + window_size.x / 2;
+    auto PanelButtonY = PanelBarPos.y + 8;
+
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0.5));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.2, 0.2, 0.2, 1.0));
+
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32 - 8 - 32 - 8 - 32, PanelButtonY));
+    if (ImGui::Button(ICON_TO_START "##preview_tostart", ImVec2(32, 32)))
+    {
+        if (timeline && timeline->mVidFilterClip)
+        {
+            timeline->Seek(timeline->mVidFilterClip->mStart);
+        }
+    }
+    ImGui::ShowTooltipOnHover("To Start");
+
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32 - 8 - 32, PanelButtonY));
+    if (ImGui::Button(ICON_STEP_BACKWARD "##preview_step_backward", ImVec2(32, 32)))
+    {
+        if (timeline && timeline->mVidFilterClip)
+        {
+            if (timeline->currentTime > timeline->mVidFilterClip->mStart)
+                timeline->Step(false);
+        }
+    }
+    ImGui::ShowTooltipOnHover("Step Prev");
+
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32, PanelButtonY));
+    if (ImGui::RotateButton(ICON_PLAY_BACKWARD "##preview_reverse", ImVec2(32, 32), 180))
+    {
+        if (timeline && timeline->mVidFilterClip)
+        {
+            if (timeline->currentTime > timeline->mVidFilterClip->mStart)
+                timeline->Play(true, false);
+        }
+    }
+    ImGui::ShowTooltipOnHover("Reverse");
+
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16, PanelButtonY));
+    if (ImGui::Button(ICON_STOP "##preview_stop", ImVec2(32, 32)))
+    {
+        if (timeline)
+            timeline->Play(false, true);
+    }
+    ImGui::ShowTooltipOnHover("Stop");
+
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8, PanelButtonY));
+    if (ImGui::Button(ICON_PLAY_FORWARD "##preview_play", ImVec2(32, 32)))
+    {
+        if (timeline && timeline->mVidFilterClip)
+        {
+            if (timeline->currentTime < timeline->mVidFilterClip->mEnd)
+                timeline->Play(true, true);
+        }
+    }
+    ImGui::ShowTooltipOnHover("Play");
+
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 32 + 8, PanelButtonY));
+    if (ImGui::Button(ICON_STEP_FORWARD "##preview_step_forward", ImVec2(32, 32)))
+    {
+        if (timeline && timeline->mVidFilterClip)
+        {
+            if (timeline->currentTime < timeline->mVidFilterClip->mEnd)
+                timeline->Step(true);
+        }
+    }
+    ImGui::ShowTooltipOnHover("Step Next");
+
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 32 + 8 + 32 + 8, PanelButtonY));
+    if (ImGui::Button(ICON_TO_END "##preview_toend", ImVec2(32, 32)))
+    {
+        if (timeline && timeline->mVidFilterClip)
+        {
+            timeline->Seek(timeline->mVidFilterClip->mEnd - 40);
+        }
+    }
+    ImGui::ShowTooltipOnHover("To End");
+
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 32 + 8 + 32 + 8 + 32 + 8, PanelButtonY + 6));
+    ImGui::CheckButton(ICON_COMPARE "##video_filter_compare", &timeline->bCompare);
+    ImGui::ShowTooltipOnHover("Zoom Compare");
+
+    // Time stamp on left of control panel
+    auto PanelRightX = PanelBarPos.x + window_size.x - 150;
+    auto PanelRightY = PanelBarPos.y + 8;
+    auto time_str = TimelineMillisecToString(timeline->currentTime, 3);
+    ImGui::SetWindowFontScale(1.5);
+    draw_list->AddText(ImVec2(PanelRightX, PanelRightY), timeline->mIsPreviewPlaying ? COL_MARK : COL_MARK_HALF, time_str.c_str());
+    ImGui::SetWindowFontScale(1.0);
+
+    // filter input texture area
+    ImVec2 InputVideoPos = window_pos + ImVec2(4, 4);
+    ImVec2 InputVideoSize = ImVec2(window_size.x / 2 - 8, window_size.y - PanelBarSize.y - 8);
+    ImVec2 OutputVideoPos = window_pos + ImVec2(window_size.x / 2 + 4, 4);
+    ImVec2 OutputVideoSize = ImVec2(window_size.x / 2 - 8, window_size.y - PanelBarSize.y - 8);
+    ImRect InputVideoRect(InputVideoPos, InputVideoPos + InputVideoSize);
+    ImRect OutVideoRect(OutputVideoPos, OutputVideoPos + OutputVideoSize);
+    ImVec2 VideoZoomPos = window_pos + ImVec2(0, window_size.y - PanelBarSize.y + 4);
+    if (timeline->mVidFilterClip)
+    {
+        static float texture_zoom = 1.0f;
+        if (InputVideoRect.Contains(io.MousePos) || OutVideoRect.Contains(io.MousePos))
+        {
+            if (io.MouseWheel < -FLT_EPSILON)
+            {
+                texture_zoom *= 0.9;
+                if (texture_zoom < 0.5) texture_zoom = 0.5;
+            }
+            else if (io.MouseWheel > FLT_EPSILON)
+            {
+                texture_zoom *= 1.1;
+                if (texture_zoom > 4.0) texture_zoom = 4.0;
+            }
+        }
+        float region_sz = 360.0f / texture_zoom;
+        std::pair<ImGui::ImMat, ImGui::ImMat> pair;
+        auto ret = timeline->mVidFilterClip->GetFrame(pair);
+        if (ret && 
+            (timeline->mIsPreviewNeedUpdate || timeline->mLastFrameTime == -1 || timeline->mLastFrameTime != (int64_t)(pair.first.time_stamp * 1000) || need_update_scope))
+        {
+            CalculateVideoScope(pair.second);
+            ImGui::ImMatToTexture(pair.first, timeline->mVideoFilterInputTexture);
+            ImGui::ImMatToTexture(pair.second, timeline->mVideoFilterOutputTexture);
+            timeline->mLastFrameTime = pair.first.time_stamp * 1000;
+            timeline->mIsPreviewNeedUpdate = false;
+        }
+        float pos_x = 0, pos_y = 0;
+        bool draw_compare = false;
+        ImVec4 tint_col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);   // No tint
+        ImVec4 border_col = ImVec4(1.0f, 1.0f, 1.0f, 0.5f); // 50% opaque white
+        float offset_x = 0, offset_y = 0;
+        float tf_x = 0, tf_y = 0;
+        // filter input texture area
+        ShowVideoWindow(draw_list, timeline->mVideoFilterInputTexture, InputVideoPos, InputVideoSize, offset_x, offset_y, tf_x, tf_y);
+        if (ImGui::IsItemHovered() && timeline->mVideoFilterInputTexture)
+        {
+            float image_width = ImGui::ImGetTextureWidth(timeline->mVideoFilterInputTexture);
+            float image_height = ImGui::ImGetTextureHeight(timeline->mVideoFilterInputTexture);
+            float scale_w = image_width / (tf_x - offset_x);
+            float scale_h = image_height / (tf_y - offset_y);
+            pos_x = (io.MousePos.x - offset_x) * scale_w;
+            pos_y = (io.MousePos.y - offset_y) * scale_h;
+            draw_compare = true;
+        }
+        // filter output texture area
+        ShowVideoWindow(draw_list, timeline->mVideoFilterOutputTexture, OutputVideoPos, OutputVideoSize, offset_x, offset_y, tf_x, tf_y);
+        if (ImGui::IsItemHovered() && timeline->mVideoFilterOutputTexture)
+        {
+            float image_width = ImGui::ImGetTextureWidth(timeline->mVideoFilterOutputTexture);
+            float image_height = ImGui::ImGetTextureHeight(timeline->mVideoFilterOutputTexture);
+            float scale_w = image_width / (tf_x - offset_x);
+            float scale_h = image_height / (tf_y - offset_y);
+            pos_x = (io.MousePos.x - offset_x) * scale_w;
+            pos_y = (io.MousePos.y - offset_y) * scale_h;
+            draw_compare = true;
+        }
+        if (timeline->bCompare && draw_compare)
+        {
+            if (timeline->mVideoFilterInputTexture)
+            {
+                float image_width = ImGui::ImGetTextureWidth(timeline->mVideoFilterInputTexture);
+                float image_height = ImGui::ImGetTextureHeight(timeline->mVideoFilterInputTexture);
+                float region_x = pos_x - region_sz * 0.5f;
+                float region_y = pos_y - region_sz * 0.5f;
+                if (region_x < 0.0f) { region_x = 0.0f; }
+                else if (region_x > image_width - region_sz) { region_x = image_width - region_sz; }
+                if (region_y < 0.0f) { region_y = 0.0f; }
+                else if (region_y > image_height - region_sz) { region_y = image_height - region_sz; }
+                ImGui::SetNextWindowPos(VideoZoomPos);
+                ImGui::SetNextWindowBgAlpha(1.0);
+                ImGui::BeginTooltip();
+                ImVec2 uv0 = ImVec2((region_x) / image_width, (region_y) / image_height);
+                ImVec2 uv1 = ImVec2((region_x + region_sz) / image_width, (region_y + region_sz) / image_height);
+                ImGui::Image(timeline->mVideoFilterInputTexture, ImVec2(region_sz * texture_zoom, region_sz * texture_zoom), uv0, uv1, tint_col, border_col);
+                ImGui::EndTooltip();
+            }
+            if (timeline->mVideoFilterOutputTexture)
+            {
+                float image_width = ImGui::ImGetTextureWidth(timeline->mVideoFilterOutputTexture);
+                float image_height = ImGui::ImGetTextureHeight(timeline->mVideoFilterOutputTexture);
+                float region_x = pos_x - region_sz * 0.5f;
+                float region_y = pos_y - region_sz * 0.5f;
+                if (region_x < 0.0f) { region_x = 0.0f; }
+                else if (region_x > image_width - region_sz) { region_x = image_width - region_sz; }
+                if (region_y < 0.0f) { region_y = 0.0f; }
+                else if (region_y > image_height - region_sz) { region_y = image_height - region_sz; }
+                ImGui::SetNextWindowBgAlpha(1.0);
+                ImGui::BeginTooltip();
+                ImGui::SameLine();
+                ImVec2 uv0 = ImVec2((region_x) / image_width, (region_y) / image_height);
+                ImVec2 uv1 = ImVec2((region_x + region_sz) / image_width, (region_y + region_sz) / image_height);
+                ImGui::Image(timeline->mVideoFilterOutputTexture, ImVec2(region_sz * texture_zoom, region_sz * texture_zoom), uv0, uv1, tint_col, border_col);
+                ImGui::EndTooltip();
+            }
+        }
+    }
+
+    // Show monitors
+    std::vector<int> org_disabled_monitor = {MonitorIndexVideoFiltered};
+    MonitorButton("video_filter_org_monitor_select", ImVec2(PanelBarPos.x + 20, PanelBarPos.y + 8), MonitorIndexVideoFilterOrg, org_disabled_monitor, false, true);
+    std::vector<int> filter_disabled_monitor = {MonitorIndexVideoFilterOrg};
+    MonitorButton("video_filter_monitor_select", ImVec2(PanelBarPos.x + PanelBarSize.x - 100, PanelBarPos.y + 8), MonitorIndexVideoFiltered, filter_disabled_monitor, false, true);
+
+    ImGui::PopStyleColor(3);
+
+    ImGui::SetCursorScreenPos(window_pos + ImVec2(40, 30));
+    ImGui::TextComplex("Video Filter", 2.0f, ImVec4(0.8, 0.8, 0.8, 0.2),
+                        0.1f, ImVec4(0.8, 0.8, 0.8, 0.3),
+                        ImVec2(4, 4), ImVec4(0.0, 0.0, 0.0, 0.5));
+}
+/****************************************************************************************
+ * 
  * Video Editor windows
  *
  ***************************************************************************************/
@@ -3218,8 +3448,6 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
     ImGui::SetCursorScreenPos(video_preview_pos);
     if (ImGui::BeginChild("##video_filter_preview", video_preview_size, false, child_flags))
     {
-        bool force_update_preview = false;
-        ImRect video_rect;
         ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DEEP_DARK);
@@ -3414,7 +3642,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
         }
         ImGui::PopStyleColor(3);
 #else
-        ShowMediaPreviewWindow(draw_list, "Filter Preview", video_rect, false, false, force_update_preview);
+        ShowVideoFilterPreviewWindow(draw_list);
 #endif
     }
     ImGui::EndChild();

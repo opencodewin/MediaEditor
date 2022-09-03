@@ -2081,6 +2081,14 @@ bool EditingVideoClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_fr
             break;
         }
     }
+#else
+    if (!timeline)
+        return ret;
+    auto frame_org = timeline->GetPreviewFrame(mID);
+    auto frame_preview = timeline->GetPreviewFrame();
+    in_out_frame.first = frame_org;
+    in_out_frame.second = frame_preview;
+    ret = true;
 #endif
     return ret;
 }
@@ -3212,10 +3220,8 @@ void MediaTrack::SelectEditingClip(Clip * clip, bool filter_editing)
             {
                 delete timeline->mVidFilterClip;
                 timeline->mVidFilterClip = nullptr;
-#ifdef OLD_FILTER_UI
                 if (timeline->mVideoFilterInputTexture) {ImGui::ImDestroyTexture(timeline->mVideoFilterInputTexture); timeline->mVideoFilterInputTexture = nullptr;}
                 if (timeline->mVideoFilterOutputTexture) { ImGui::ImDestroyTexture(timeline->mVideoFilterOutputTexture); timeline->mVideoFilterOutputTexture = nullptr;  }
-#endif
             }
             timeline->mVidFilterClipLock.unlock();
         }
@@ -4107,10 +4113,9 @@ TimeLine::~TimeLine()
     for (auto clip : m_Clips) delete clip;
     for (auto item : media_items) delete item;
 
-#ifdef OLD_FILTER_UI
     if (mVideoFilterInputTexture) { ImGui::ImDestroyTexture(mVideoFilterInputTexture); mVideoFilterInputTexture = nullptr; }
     if (mVideoFilterOutputTexture) { ImGui::ImDestroyTexture(mVideoFilterOutputTexture); mVideoFilterOutputTexture = nullptr;  }
-#endif
+
 #ifdef OLD_FUSION_UI
     if (mVideoFusionInputFirstTexture) { ImGui::ImDestroyTexture(mVideoFusionInputFirstTexture); mVideoFusionInputFirstTexture = nullptr; }
     if (mVideoFusionInputSecondTexture) { ImGui::ImDestroyTexture(mVideoFusionInputSecondTexture); mVideoFusionInputSecondTexture = nullptr; }
@@ -4470,7 +4475,7 @@ void TimeLine::UpdataPreview()
     mIsPreviewNeedUpdate = true;
 }
 
-ImGui::ImMat TimeLine::GetPreviewFrame()
+ImGui::ImMat TimeLine::GetPreviewFrame(int64_t id)
 {
     int64_t auddataPos, previewPos;
     if (mPcmStream.GetTimestampMs(auddataPos))
@@ -4511,7 +4516,10 @@ ImGui::ImMat TimeLine::GetPreviewFrame()
             }
         }
     }
-    mMtvReader->ReadVideoFrame(currentTime, frame, bSeeking);
+    if (id != -1)
+        mMtvReader->ReadClipSourceFrame(id, currentTime, frame);
+    else
+        mMtvReader->ReadVideoFrame(currentTime, frame, bSeeking);
     if (mIsPreviewPlaying) UpdateCurrent();
     return frame;
 }
