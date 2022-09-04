@@ -68,9 +68,7 @@ set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
 find_package(Threads REQUIRED)
 
 pkg_search_module(SDL2 REQUIRED sdl2)
-pkg_search_module(SDL2_IMAGE REQUIRED SDL2_image>=2.0.0)
 macro_log_feature(SDL2_FOUND "SDL2" "Simple DirectMedia Layer framework" "https://www.libsdl.org" TRUE)
-macro_log_feature(SDL2_IMAGE_FOUND "SDL2 Image" "Simple DirectMedia Layer image framework" "https://www.libsdl.org" TRUE)
 
 #
 # FFMPEG
