@@ -99,6 +99,7 @@ namespace DataLayer
     {
         virtual ~VideoFilter() {}
         virtual const std::string GetFilterName() const = 0;
+        virtual VideoFilterHolder Clone() = 0;
         virtual void ApplyTo(VideoClip* clip) = 0;
         virtual ImGui::ImMat FilterImage(const ImGui::ImMat& vmat, int64_t pos) = 0;
     };

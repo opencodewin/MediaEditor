@@ -284,6 +284,11 @@ namespace DataLayer
             return res;
         }
 
+        VideoFilterHolder Clone() override
+        {
+            return nullptr;
+        }
+
         string GetError() const override
         {
             return m_errMsg;

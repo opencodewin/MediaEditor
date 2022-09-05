@@ -460,6 +460,7 @@ public:
     ~BluePrintVideoFilter();
 
     const std::string GetFilterName() const override { return "BluePrintVideoFilter"; }
+    DataLayer::VideoFilterHolder Clone() override;
     void ApplyTo(DataLayer::VideoClip* clip) override {}
     ImGui::ImMat FilterImage(const ImGui::ImMat& vmat, int64_t pos) override;
 

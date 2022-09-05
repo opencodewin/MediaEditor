@@ -34,6 +34,9 @@ namespace DataLayer
             auto newClip = clip->Clone(outWidth, outHeight, frameRate);
             newInstance->m_clips.push_back(newClip);
             newClip->SetTrackId(m_id);
+            auto filter = clip->GetFilter();
+            if (filter)
+                newClip->SetFilter(filter->Clone());
             VideoClipHolder lastClip = newInstance->m_clips.back();
             newInstance->m_duration = lastClip->Start()+lastClip->Duration();
             newInstance->UpdateClipOverlap(newClip);
@@ -46,7 +49,9 @@ namespace DataLayer
             });
             if (iter != newInstance->m_overlaps.end())
             {
-                (*iter)->SetTransition(overlap->GetTransition()->Clone());
+                auto trans = overlap->GetTransition();
+                if (trans)
+                    (*iter)->SetTransition(trans->Clone());
             }
         }
         return newInstance;

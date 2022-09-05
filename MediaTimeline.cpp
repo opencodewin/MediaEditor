@@ -1701,6 +1701,15 @@ BluePrintVideoFilter::~BluePrintVideoFilter()
     }
 }
 
+DataLayer::VideoFilterHolder BluePrintVideoFilter::Clone()
+{
+    BluePrintVideoFilter* bpFilter = new BluePrintVideoFilter(mHandle);
+    auto bpJson = mBp->m_Document->Serialize();
+    bpFilter->SetBluePrintFromJson(bpJson);
+    bpFilter->SetKeyPoint(mKeyPoints);
+    return DataLayer::VideoFilterHolder(bpFilter);
+}
+
 ImGui::ImMat BluePrintVideoFilter::FilterImage(const ImGui::ImMat& vmat, int64_t pos)
 {
     std::lock_guard<std::mutex> lk(mBpLock);
