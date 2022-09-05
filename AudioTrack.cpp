@@ -1,8 +1,10 @@
 #include <sstream>
 #include <algorithm>
 #include "AudioTrack.h"
+#include "Logger.h"
 
 using namespace std;
+using namespace Logger;
 
 namespace DataLayer
 {
@@ -283,7 +285,6 @@ namespace DataLayer
                         readBytes = toRead;
                     }
                     readbufptr += readBytes;
-                    m_readSamples += readBytes/m_frameSize;
                     readSize += readBytes;
                 }
                 if (readSize >= size)
@@ -303,7 +304,6 @@ namespace DataLayer
                 toRead = size-readSize;
                 readBytes = ReadClipData(readbufptr, toRead);
                 readbufptr += readBytes;
-                m_readSamples += readBytes/m_frameSize;
                 readSize += readBytes;
             }
         }
@@ -331,7 +331,6 @@ namespace DataLayer
                         readBytes = toRead;
                     }
                     readbufptr += readBytes;
-                    m_readSamples -= readBytes/m_frameSize;
                     readSize += readBytes;
                 }
                 if (readSize >= size)
@@ -351,7 +350,6 @@ namespace DataLayer
                 toRead = size-readSize;
                 readBytes = ReadClipData(readbufptr, toRead);
                 readbufptr += readBytes;
-                m_readSamples -= readBytes/m_frameSize;
                 readSize += readBytes;
             }
         }
