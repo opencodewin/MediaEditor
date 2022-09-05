@@ -19,7 +19,6 @@
 #include <list>
 #include <chrono>
 
-//#define OLD_FILTER_UI
 #define OLD_FUSION_UI
 
 #define ICON_MEDIA_TIMELINE u8"\uf538"
@@ -510,14 +509,6 @@ struct BaseEditingClip
     int64_t mDuration           {0};
     ImVec2 mViewWndSize         {0, 0};
     bool bSeeking               {false};
-#ifdef OLD_FILTER_UI
-    int64_t mCurrent            {0};                    // editing clip current time, project saved
-    bool bPlay                  {false};                // editing clip play status
-    bool bForward               {true};                 // editing clip play direction
-    int64_t mLastTime           {-1};
-    MediaReader* mMediaReader   {nullptr};              // editing clip media reader
-#endif
-
     BaseEditingClip(int64_t id, MEDIA_TYPE type, int64_t start, int64_t end, int64_t startOffset, int64_t endOffset, void* handle)
         : mID(id), mType(type), mStart(start), mEnd(end), mStartOffset(startOffset), mEndOffset(endOffset), mHandle(handle)
     {}
@@ -526,7 +517,7 @@ struct BaseEditingClip
     virtual void Seek(int64_t pos) = 0;
     virtual void Step(bool forward, int64_t step = 0) = 0;
     virtual void Save() = 0;
-    virtual bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame) = 0;
+    virtual bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame = true) = 0;
     virtual void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom) = 0;
 };
 
@@ -539,10 +530,6 @@ struct EditingVideoClip : BaseEditingClip
 
     BluePrintVideoFilter * mFilter {nullptr};
     int64_t mLastFrameTime {-1};
-#ifdef OLD_FILTER_UI
-    std::mutex mFrameLock;                                      // clip frame mutex
-    std::list<std::pair<ImGui::ImMat, ImGui::ImMat>> mFrame;    // clip timeline input/output frame pair
-#endif
 
     EditingVideoClip(VideoClip* vidclip);
     virtual ~EditingVideoClip();
@@ -551,7 +538,7 @@ struct EditingVideoClip : BaseEditingClip
     void Seek(int64_t pos) override;
     void Step(bool forward, int64_t step = 0) override;
     void Save() override;
-    bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame) override;
+    bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame = true) override;
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom) override;
 
     void CalcDisplayParams();
@@ -566,7 +553,7 @@ struct EditingAudioClip : BaseEditingClip
     void Seek(int64_t pos) override;
     void Step(bool forward, int64_t step = 0) override;
     void Save() override;
-    bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame) override;
+    bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame = true) override;
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom) override;
 };
 
@@ -815,6 +802,8 @@ struct TimeLine
     bool bPreviewZoom = false;
     bool bLoop = false;                     // project saved
     bool bCompare = false;                  // project saved
+    bool bFilterOutputPreview = true;       // project saved
+    bool bFusionOutputPreview = true;       // project saved
     bool bSelectLinked = true;              // project saved
 
     std::mutex mVidFilterClipLock;          // timeline clip mutex
@@ -877,11 +866,6 @@ struct TimeLine
     // BP CallBacks
     static int OnBluePrintChange(int type, std::string name, void* handle);
 
-#ifdef OLD_FILTER_UI
-    BluePrint::BluePrintUI * mVideoFilterBluePrint {nullptr};
-    std::mutex mVideoFilterBluePrintLock;   // Video Filter BluePrint mutex
-    bool mVideoFilterNeedUpdate {false};
-#endif
     ImTextureID mVideoFilterInputTexture {nullptr};  // clip video filter input texture
     ImTextureID mVideoFilterOutputTexture {nullptr};  // clip video filter output texture
 
@@ -905,14 +889,6 @@ struct TimeLine
 
     ImTextureID mMainPreviewTexture {nullptr};  // main preview texture
 
-#ifdef OLD_FILTER_UI
-    std::mutex mFrameLock;                      // timeline frame mutex
-    std::list<ImGui::ImMat> mFrame;             // timeline output frame
-    
-    std::thread * mVideoFilterThread {nullptr}; // Video Filter Thread, which is only one item/clip read from media
-    bool mVideoFilterDone {false};              // Video Filter Thread should finished
-    bool mVideoFilterRunning {false};           // Video Filter Thread is running
-#endif
 #ifdef OLD_FUSION_UI
     std::thread * mVideoFusionThread {nullptr}; // Video Fusion Thread, which is only two item/clip read from media
     bool mVideoFusionDone {false};              // Video Fusion Thread should finished
@@ -926,7 +902,7 @@ struct TimeLine
     void SetStart(int64_t pos) { mStart = pos; }
     void SetEnd(int64_t pos) { mEnd = pos; }
     size_t GetCustomHeight(int index) { return (index < m_Tracks.size() && m_Tracks[index]->mExpanded) ? m_Tracks[index]->mTrackHeight : 0; }
-    void Updata();
+    void Update();
     void AlignTime(int64_t& time);
 
     int GetTrackCount() const { return (int)m_Tracks.size(); }
@@ -957,7 +933,7 @@ struct TimeLine
     void ToStart();
     void ToEnd();
     void UpdateCurrent();
-    void UpdataPreview();
+    void UpdatePreview();
     int64_t ValidDuration();
 
     AudioRender* mAudioRender {nullptr};                // audio render(SDL)

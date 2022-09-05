@@ -507,9 +507,6 @@ static bool UIPageChanged()
         if (timeline && timeline->mVidFilterClip)
         {
             timeline->mVidFilterClipLock.lock();
-#ifdef OLD_FILTER_UI
-            timeline->mVidFilterClip->bPlay = false;
-#endif
             timeline->mVidFilterClip->Save();
             timeline->mVidFilterClipLock.unlock();
             updated = true;
@@ -551,9 +548,6 @@ static bool UIPageChanged()
         if (timeline && timeline->mAudFilterClip)
         {
             timeline->mAudFilterClipLock.lock();
-#ifdef OLD_FILTER_UI
-            timeline->mAudFilterClip->bPlay = false;
-#endif
             timeline->mAudFilterClip->Save();
             timeline->mAudFilterClipLock.unlock();
         }
@@ -1235,12 +1229,6 @@ static void NewTimeline()
 
         // init bp view
         ImVec2 view_size = ImVec2(400, 200);
-#ifdef OLD_FILTER_UI
-        if (timeline->mVideoFilterBluePrint)
-        {
-            timeline->mVideoFilterBluePrint->m_ViewSize = view_size;
-        }
-#endif
 #ifdef OLD_FUSION_UI
         if (timeline->mVideoFusionBluePrint)
         {
@@ -1368,10 +1356,6 @@ static void SaveProject(std::string path)
         switch (editing_clip->mType)
         {
             case MEDIA_VIDEO:
-#ifdef OLD_FILTER_UI
-                if (timeline->mVideoFilterBluePrint && timeline->mVideoFilterBluePrint->m_Document->m_Blueprint.IsOpened()) 
-                    editing_clip->mFilterBP = timeline->mVideoFilterBluePrint->m_Document->Serialize();
-#else
             {
                 if (timeline->mVidFilterClip &&
                     timeline->mVidFilterClip->mFilter &&
@@ -1379,7 +1363,6 @@ static void SaveProject(std::string path)
                     timeline->mVidFilterClip->mFilter->mBp->Blueprint_IsValid())
                     editing_clip->mFilterBP = timeline->mVidFilterClip->mFilter->mBp->m_Document->Serialize();
             }
-#endif
             break;
             case MEDIA_AUDIO:
                 if (timeline->mAudioFilterBluePrint && timeline->mAudioFilterBluePrint->m_Document->m_Blueprint.IsOpened()) 
@@ -3049,7 +3032,7 @@ static void ShowVideoFilterPreviewWindow(ImDrawList *draw_list)
     }
     ImGui::ShowTooltipOnHover("Stop");
 
-    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8, PanelButtonY));
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + (32 + 8) * 0, PanelButtonY));
     if (ImGui::Button(ICON_PLAY_FORWARD "##preview_play", ImVec2(32, 32)))
     {
         if (timeline && timeline->mVidFilterClip)
@@ -3060,7 +3043,7 @@ static void ShowVideoFilterPreviewWindow(ImDrawList *draw_list)
     }
     ImGui::ShowTooltipOnHover("Play");
 
-    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 32 + 8, PanelButtonY));
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + (32 + 8) * 1, PanelButtonY));
     if (ImGui::Button(ICON_STEP_FORWARD "##preview_step_forward", ImVec2(32, 32)))
     {
         if (timeline && timeline->mVidFilterClip)
@@ -3071,7 +3054,7 @@ static void ShowVideoFilterPreviewWindow(ImDrawList *draw_list)
     }
     ImGui::ShowTooltipOnHover("Step Next");
 
-    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 32 + 8 + 32 + 8, PanelButtonY));
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + (32 + 8) * 2, PanelButtonY));
     if (ImGui::Button(ICON_TO_END "##preview_toend", ImVec2(32, 32)))
     {
         if (timeline && timeline->mVidFilterClip)
@@ -3081,12 +3064,19 @@ static void ShowVideoFilterPreviewWindow(ImDrawList *draw_list)
     }
     ImGui::ShowTooltipOnHover("To End");
 
-    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 32 + 8 + 32 + 8 + 32 + 8, PanelButtonY + 6));
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + (32 + 8) * 4, PanelButtonY + 6));
+    if (ImGui::CheckButton(timeline->bFilterOutputPreview ? ICON_MEDIA_PREVIEW : ICON_FILTER "##video_filter_output_preview", &timeline->bFilterOutputPreview))
+    {
+        timeline->UpdatePreview();
+    }
+    ImGui::ShowTooltipOnHover(timeline->bFilterOutputPreview ? "Filter Out" : "Preview Out");
+
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + (32 + 8) * 5, PanelButtonY + 6));
     ImGui::CheckButton(ICON_COMPARE "##video_filter_compare", &timeline->bCompare);
     ImGui::ShowTooltipOnHover("Zoom Compare");
 
     // Time stamp on left of control panel
-    auto PanelRightX = PanelBarPos.x + window_size.x - 150;
+    auto PanelRightX = PanelBarPos.x + window_size.x - 300;
     auto PanelRightY = PanelBarPos.y + 8;
     auto time_str = TimelineMillisecToString(timeline->currentTime, 3);
     ImGui::SetWindowFontScale(1.5);
@@ -3119,7 +3109,7 @@ static void ShowVideoFilterPreviewWindow(ImDrawList *draw_list)
         }
         float region_sz = 360.0f / texture_zoom;
         std::pair<ImGui::ImMat, ImGui::ImMat> pair;
-        auto ret = timeline->mVidFilterClip->GetFrame(pair);
+        auto ret = timeline->mVidFilterClip->GetFrame(pair, timeline->bFilterOutputPreview);
         if (ret && 
             (timeline->mIsPreviewNeedUpdate || timeline->mLastFrameTime == -1 || timeline->mLastFrameTime != (int64_t)(pair.first.time_stamp * 1000) || need_update_scope))
         {
@@ -3204,7 +3194,7 @@ static void ShowVideoFilterPreviewWindow(ImDrawList *draw_list)
     std::vector<int> org_disabled_monitor = {MonitorIndexVideoFiltered};
     MonitorButton("video_filter_org_monitor_select", ImVec2(PanelBarPos.x + 20, PanelBarPos.y + 8), MonitorIndexVideoFilterOrg, org_disabled_monitor, false, true);
     std::vector<int> filter_disabled_monitor = {MonitorIndexVideoFilterOrg};
-    MonitorButton("video_filter_monitor_select", ImVec2(PanelBarPos.x + PanelBarSize.x - 100, PanelBarPos.y + 8), MonitorIndexVideoFiltered, filter_disabled_monitor, false, true);
+    MonitorButton("video_filter_monitor_select", ImVec2(PanelBarPos.x + PanelBarSize.x - 80, PanelBarPos.y + 8), MonitorIndexVideoFiltered, filter_disabled_monitor, false, true);
 
     ImGui::PopStyleColor(3);
 
@@ -3321,40 +3311,6 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
  ***************************************************************************************/
 static void ShowVideoFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
 {
-#ifdef OLD_FILTER_UI
-    if (timeline && timeline->mVideoFilterBluePrint)
-    {
-        if (clip && !timeline->mVideoFilterBluePrint->m_Document->m_Blueprint.IsOpened())
-        {
-            auto track = timeline->FindTrackByClipID(clip->mID);
-            if (track)
-                track->SelectEditingClip(clip, true);
-            timeline->mVideoFilterBluePrint->View_ZoomToContent();
-        }
-        ImVec2 window_pos = ImGui::GetCursorScreenPos();
-        ImVec2 window_size = ImGui::GetWindowSize();
-        ImGui::SetCursorScreenPos(window_pos + ImVec2(3, 3));
-        ImGui::InvisibleButton("video_editor_blueprint_back_view", window_size - ImVec2(6, 6));
-        if (ImGui::BeginDragDropTarget() && timeline->mVideoFilterBluePrint->Blueprint_IsValid())
-        {
-            if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("Filter_drag_drop_Video"))
-            {
-                BluePrint::NodeTypeInfo * type = (BluePrint::NodeTypeInfo *)payload->Data;
-                if (type)
-                {
-                    timeline->mVideoFilterBluePrint->Edit_Insert(type->m_ID);
-                }
-            }
-            ImGui::EndDragDropTarget();
-        }
-        ImGui::SetCursorScreenPos(window_pos + ImVec2(1, 1));
-        if (ImGui::BeginChild("##video_editor_blueprint", window_size - ImVec2(2, 2), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
-        {
-            timeline->mVideoFilterBluePrint->Frame(true, true, clip != nullptr, BluePrint::BluePrintFlag::BluePrintFlag_Filter);
-        }
-        ImGui::EndChild();
-    }
-#else
     if (timeline && timeline->mVidFilterClip && timeline->mVidFilterClip->mFilter && timeline->mVidFilterClip->mFilter->mBp)
     {
         if (clip && !timeline->mVidFilterClip->mFilter->mBp->m_Document->m_Blueprint.IsOpened())
@@ -3387,7 +3343,6 @@ static void ShowVideoFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
         }
         ImGui::EndChild();
     }
-#endif
 }
 
 static void ShowVideoFilterWindow(ImDrawList *draw_list)
@@ -3406,7 +3361,14 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
 
     if (editing_clip && timeline->mVidFilterClip)
     {
-        timeline->mVidFilterClip->UpdateClipRange(editing_clip);
+        if (timeline->mVidFilterClip)
+        {
+            timeline->mVidFilterClip->UpdateClipRange(editing_clip);
+        }
+        else
+        {
+            timeline->mVidFilterClip = new EditingVideoClip((VideoClip*)editing_clip);
+        }
     }
     
     float clip_timeline_height = 80;
@@ -3435,14 +3397,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
     ImVec2 clip_keypoint_pos = g_media_editor_settings.VideoFilterCurveExpanded ? clip_timeline_pos + ImVec2(0, clip_timeline_height) : clip_timeline_pos + ImVec2(0, clip_timeline_height - 16);
     ImVec2 clip_keypoint_size(window_size.x - clip_setting_width, clip_keypoint_height);
     
-#ifdef OLD_FILTER_UI
-    if (editing_clip && timeline->mVideoFilterBluePrint)
-    {
-        timeline->mVideoFilterBluePrint->m_ViewSize = video_bluepoint_size;
-    }
-#else
     BluePrint::BluePrintUI* blueprint = (timeline->mVidFilterClip && timeline->mVidFilterClip->mFilter) ? timeline->mVidFilterClip->mFilter->mBp : nullptr;
-#endif
 
     ImGuiWindowFlags child_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings;
     ImGuiWindowFlags setting_child_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings;
@@ -3454,199 +3409,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
         ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DEEP_DARK);
-#ifdef OLD_FILTER_UI
-        // Draw Video Filter Play control bar
-        ImVec2 PanelBarPos = sub_window_pos + ImVec2(0, (sub_window_size.y - 36));
-        ImVec2 PanelBarSize = ImVec2(sub_window_size.x, 36);
-        draw_list->AddRectFilled(PanelBarPos, PanelBarPos + PanelBarSize, COL_DARK_PANEL);
-        // Preview buttons Stop button is center of Panel bar
-        auto PanelCenterX = PanelBarPos.x + sub_window_size.x / 2;
-        auto PanelButtonY = PanelBarPos.y + 2;
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0.5));
-        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.2, 0.2, 0.2, 1.0));
-        ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32 - 8 - 32 - 8 - 32, PanelButtonY));
-        if (ImGui::Button(ICON_TO_START "##video_filter_tostart", ImVec2(32, 32)))
-        {
-            if (timeline->mVidFilterClip && !timeline->mVidFilterClip->bPlay)
-            {
-                int64_t pos = timeline->mVidFilterClip->mStartOffset;
-                timeline->mVidFilterClip->Seek(pos);
-            }
-        } ImGui::ShowTooltipOnHover("To Start");
-        ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32 - 8 - 32, PanelButtonY));
-        if (ImGui::Button(ICON_STEP_BACKWARD "##video_filter_step_backward", ImVec2(32, 32)))
-        {
-            if (timeline->mVidFilterClip)
-            {
-                timeline->mVidFilterClip->Step(false);
-            }
-        } ImGui::ShowTooltipOnHover("Step Prev");
-        ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32, PanelButtonY));
-        if (ImGui::RotateButton(ICON_PLAY_BACKWARD "##video_filter_reverse", ImVec2(32, 32), 180))
-        {
-            if (timeline->mVidFilterClip)
-            {
-                timeline->mVidFilterClip->bForward = false;
-                timeline->mVidFilterClip->bPlay = true;
-            }
-        } ImGui::ShowTooltipOnHover("Reverse");
-        ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16, PanelButtonY));
-        if (ImGui::Button(ICON_STOP "##video_filter_stop", ImVec2(32, 32)))
-        {
-            if (timeline->mVidFilterClip)
-            {
-                timeline->mVidFilterClip->bPlay = false;
-                timeline->mVidFilterClip->mLastTime = -1;
-                timeline->mVidFilterClip->mLastFrameTime = -1;
-            }
-        } ImGui::ShowTooltipOnHover("Stop");
-        ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8, PanelButtonY));
-        if (ImGui::Button(ICON_PLAY_FORWARD "##video_filter_play", ImVec2(32, 32)))
-        {
-            if (timeline->mVidFilterClip)
-            {
-                timeline->mVidFilterClip->bForward = true;
-                timeline->mVidFilterClip->bPlay = true;
-            }
-        } ImGui::ShowTooltipOnHover("Play");
-        ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 32 + 8, PanelButtonY));
-        if (ImGui::Button(ICON_STEP_FORWARD "##video_filter_step_forward", ImVec2(32, 32)))
-        {
-            if (timeline->mVidFilterClip)
-            {
-                timeline->mVidFilterClip->Step(true);
-            }
-        } ImGui::ShowTooltipOnHover("Step Next");
-        ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 32 + 8 + 32 + 8, PanelButtonY));
-        if (ImGui::Button(ICON_TO_END "##video_filter_toend", ImVec2(32, 32)))
-        {
-            if (timeline->mVidFilterClip && !timeline->mVidFilterClip->bPlay)
-            {
-                int64_t pos = timeline->mVidFilterClip->mEnd - timeline->mVidFilterClip->mStart + timeline->mVidFilterClip->mStartOffset;
-                timeline->mVidFilterClip->Seek(pos);
-            }
-        } ImGui::ShowTooltipOnHover("To End");
-        ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 32 + 8 + 32 + 8 + 32 + 8, PanelButtonY + 6));
-        ImGui::CheckButton(ICON_COMPARE "##video_filter_compare", &timeline->bCompare);
-        ImGui::ShowTooltipOnHover("Zoom Compare");
-
-        // filter input texture area
-        ImVec2 InputVideoPos = sub_window_pos + ImVec2(4, 4);
-        ImVec2 InputVideoSize = ImVec2(sub_window_size.x / 2 - 8, sub_window_size.y - PanelBarSize.y - 8);
-        ImVec2 OutputVideoPos = sub_window_pos + ImVec2(sub_window_size.x / 2 + 4, 4);
-        ImVec2 OutputVideoSize = ImVec2(sub_window_size.x / 2 - 8, sub_window_size.y - PanelBarSize.y - 8);
-        ImRect InputVideoRect(InputVideoPos, InputVideoPos + InputVideoSize);
-        ImRect OutVideoRect(OutputVideoPos, OutputVideoPos + OutputVideoSize);
-        ImVec2 VideoZoomPos = sub_window_pos + ImVec2(0, sub_window_size.y - PanelBarSize.y + 4);
-        if (timeline->mVidFilterClip)
-        {
-            ImGuiIO& io = ImGui::GetIO();
-            static float texture_zoom = 1.0f;
-            if (InputVideoRect.Contains(io.MousePos) || OutVideoRect.Contains(io.MousePos))
-            {
-                if (io.MouseWheel < -FLT_EPSILON)
-                {
-                    texture_zoom *= 0.9;
-                    if (texture_zoom < 0.5) texture_zoom = 0.5;
-                }
-                else if (io.MouseWheel > FLT_EPSILON)
-                {
-                    texture_zoom *= 1.1;
-                    if (texture_zoom > 4.0) texture_zoom = 4.0;
-                }
-            }
-            float region_sz = 360.0f / texture_zoom;
-            std::pair<ImGui::ImMat, ImGui::ImMat> pair;
-            auto ret = timeline->mVidFilterClip->GetFrame(pair);
-            if (ret && 
-                (timeline->mVidFilterClip->mLastFrameTime == -1 || timeline->mVidFilterClip->mLastFrameTime != (int64_t)(pair.first.time_stamp * 1000) || need_update_scope))
-            {
-                CalculateVideoScope(pair.second);
-                ImGui::ImMatToTexture(pair.first, timeline->mVideoFilterInputTexture);
-                ImGui::ImMatToTexture(pair.second, timeline->mVideoFilterOutputTexture);
-                timeline->mVidFilterClip->mLastFrameTime = pair.first.time_stamp * 1000;
-            }
-            float pos_x = 0, pos_y = 0;
-            bool draw_compare = false;
-            ImVec4 tint_col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);   // No tint
-            ImVec4 border_col = ImVec4(1.0f, 1.0f, 1.0f, 0.5f); // 50% opaque white
-
-            float offset_x = 0, offset_y = 0;
-            float tf_x = 0, tf_y = 0;
-            // filter input texture area
-            ShowVideoWindow(draw_list, timeline->mVideoFilterInputTexture, InputVideoPos, InputVideoSize, offset_x, offset_y, tf_x, tf_y);
-            if (ImGui::IsItemHovered() && timeline->mVideoFilterInputTexture)
-            {
-                float image_width = ImGui::ImGetTextureWidth(timeline->mVideoFilterInputTexture);
-                float image_height = ImGui::ImGetTextureHeight(timeline->mVideoFilterInputTexture);
-                float scale_w = image_width / (tf_x - offset_x);
-                float scale_h = image_height / (tf_y - offset_y);
-                pos_x = (io.MousePos.x - offset_x) * scale_w;
-                pos_y = (io.MousePos.y - offset_y) * scale_h;
-                draw_compare = true;
-            }
-            // filter output texture area
-            ShowVideoWindow(draw_list, timeline->mVideoFilterOutputTexture, OutputVideoPos, OutputVideoSize, offset_x, offset_y, tf_x, tf_y);
-            if (ImGui::IsItemHovered() && timeline->mVideoFilterOutputTexture)
-            {
-                float image_width = ImGui::ImGetTextureWidth(timeline->mVideoFilterOutputTexture);
-                float image_height = ImGui::ImGetTextureHeight(timeline->mVideoFilterOutputTexture);
-                float scale_w = image_width / (tf_x - offset_x);
-                float scale_h = image_height / (tf_y - offset_y);
-                pos_x = (io.MousePos.x - offset_x) * scale_w;
-                pos_y = (io.MousePos.y - offset_y) * scale_h;
-                draw_compare = true;
-            }
-            if (timeline->bCompare && draw_compare)
-            {
-                if (timeline->mVideoFilterInputTexture)
-                {
-                    float image_width = ImGui::ImGetTextureWidth(timeline->mVideoFilterInputTexture);
-                    float image_height = ImGui::ImGetTextureHeight(timeline->mVideoFilterInputTexture);
-                    float region_x = pos_x - region_sz * 0.5f;
-                    float region_y = pos_y - region_sz * 0.5f;
-                    if (region_x < 0.0f) { region_x = 0.0f; }
-                    else if (region_x > image_width - region_sz) { region_x = image_width - region_sz; }
-                    if (region_y < 0.0f) { region_y = 0.0f; }
-                    else if (region_y > image_height - region_sz) { region_y = image_height - region_sz; }
-                    ImGui::SetNextWindowPos(VideoZoomPos);
-                    ImGui::SetNextWindowBgAlpha(1.0);
-                    ImGui::BeginTooltip();
-                    ImVec2 uv0 = ImVec2((region_x) / image_width, (region_y) / image_height);
-                    ImVec2 uv1 = ImVec2((region_x + region_sz) / image_width, (region_y + region_sz) / image_height);
-                    ImGui::Image(timeline->mVideoFilterInputTexture, ImVec2(region_sz * texture_zoom, region_sz * texture_zoom), uv0, uv1, tint_col, border_col);
-                    ImGui::EndTooltip();
-                }
-                if (timeline->mVideoFilterOutputTexture)
-                {
-                    float image_width = ImGui::ImGetTextureWidth(timeline->mVideoFilterOutputTexture);
-                    float image_height = ImGui::ImGetTextureHeight(timeline->mVideoFilterOutputTexture);
-                    float region_x = pos_x - region_sz * 0.5f;
-                    float region_y = pos_y - region_sz * 0.5f;
-                    if (region_x < 0.0f) { region_x = 0.0f; }
-                    else if (region_x > image_width - region_sz) { region_x = image_width - region_sz; }
-                    if (region_y < 0.0f) { region_y = 0.0f; }
-                    else if (region_y > image_height - region_sz) { region_y = image_height - region_sz; }
-                    ImGui::SetNextWindowBgAlpha(1.0);
-                    ImGui::BeginTooltip();
-                    ImGui::SameLine();
-                    ImVec2 uv0 = ImVec2((region_x) / image_width, (region_y) / image_height);
-                    ImVec2 uv1 = ImVec2((region_x + region_sz) / image_width, (region_y + region_sz) / image_height);
-                    ImGui::Image(timeline->mVideoFilterOutputTexture, ImVec2(region_sz * texture_zoom, region_sz * texture_zoom), uv0, uv1, tint_col, border_col);
-                    ImGui::EndTooltip();
-                }
-            }
-            // Show monitors
-            std::vector<int> org_disabled_monitor = {MonitorIndexVideoFiltered};
-            MonitorButton("video_filter_org_monitor_select", ImVec2(PanelBarPos.x + 20, PanelBarPos.y + 8), MonitorIndexVideoFilterOrg, org_disabled_monitor, false, true);
-            std::vector<int> filter_disabled_monitor = {MonitorIndexVideoFilterOrg};
-            MonitorButton("video_filter_monitor_select", ImVec2(PanelBarPos.x + PanelBarSize.x - 100, PanelBarPos.y + 8), MonitorIndexVideoFiltered, filter_disabled_monitor, false, true);
-        }
-        ImGui::PopStyleColor(3);
-#else
         ShowVideoFilterPreviewWindow(draw_list);
-#endif
     }
     ImGui::EndChild();
 
@@ -3669,11 +3432,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_TWO);
         // Draw Clip TimeLine
-#ifdef OLD_FILTER_UI
-        DrawClipTimeLine(timeline->mVidFilterClip, timeline->mVidFilterClip->mCurrent, 30, 50);
-#else
-        DrawClipTimeLine(timeline->mVidFilterClip, timeline->currentTime - timeline->mVidFilterClip->mStart, 30, 50);
-#endif
+        DrawClipTimeLine(timeline->mVidFilterClip, timeline->currentTime - (timeline->mVidFilterClip ? timeline->mVidFilterClip->mStart : 0), 30, 50);
     }
     ImGui::EndChild();
 
@@ -3714,20 +3473,12 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                                                         nullptr, // clippingRect
                                                         &_changed,
                                                         nullptr, // selectedPoints
-#ifdef OLD_FILTER_UI
-                                                        timeline->mVidFilterClip->mCurrent);
-#else
                                                         timeline->currentTime - timeline->mVidFilterClip->mStart);
-#endif
-#ifdef OLD_FILTER_UI
-                timeline->mVideoFilterNeedUpdate |= _changed;
-#else
                 if (_changed)
                 {
                     timeline->SetClipFilterKeyPoint(editing_clip->mID);
-                    timeline->UpdataPreview();
+                    timeline->UpdatePreview();
                 }
-#endif
             }
         }
         ImGui::EndChild();
@@ -3748,25 +3499,12 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                 editing_clip->mFilterKeyPoints.AddPoint(curve_index, ImVec2(editing_clip->mEnd - editing_clip->mStart + editing_clip->mStartOffset, _max), ImGui::ImCurveEdit::Smooth);
                 editing_clip->mFilterKeyPoints.SetCurvePointDefault(curve_index, 0);
                 editing_clip->mFilterKeyPoints.SetCurvePointDefault(curve_index, 1);
-#ifdef OLD_FILTER_UI
-                // insert curve pin for blueprint entry node
-                if (timeline->mVideoFilterBluePrint)
-                {
-                    auto entry_node = timeline->mVideoFilterBluePrint->FindEntryPointNode();
-                    if (entry_node)
-                    {
-                        entry_node->InsertOutputPin(BluePrint::PinType::Float, name);
-                        timeline->mVideoFilterNeedUpdate = true;
-                    }
-                }
-#else
                 if (blueprint)
                 {
                     auto entry_node = blueprint->FindEntryPointNode();
                     if (entry_node) entry_node->InsertOutputPin(BluePrint::PinType::Float, name);
-                    timeline->UpdataPreview();
+                    timeline->UpdatePreview();
                 }
-#endif
             }
         };
         ImVec2 sub_window_pos = ImGui::GetWindowPos(); // we need draw background with scroll view
@@ -3825,11 +3563,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                     if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
                     {
                         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
-#ifdef OLD_FILTER_UI
-                        float value = editing_clip->mFilterKeyPoints.GetValue(i, timeline->mVidFilterClip->mCurrent);
-#else
                         float value = editing_clip->mFilterKeyPoints.GetValue(i, timeline->currentTime - timeline->mVidFilterClip->mStart);
-#endif
                         ImGui::BracketSquare(true); ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0, 1.0, 0.0, 1.0)); ImGui::Text("%.2f", value); ImGui::PopStyleColor();
                         ImGui::PushItemWidth(60);
                         float curve_min = editing_clip->mFilterKeyPoints.GetCurveMin(i);
@@ -3837,35 +3571,23 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                         if (ImGui::DragFloat("##curve_video_filter_min", &curve_min, 0.1f, -FLT_MAX, curve_max, "%.1f"))
                         {
                             editing_clip->mFilterKeyPoints.SetCurveMin(i, curve_min);
-#ifdef OLD_FILTER_UI
-                            timeline->mVideoFilterNeedUpdate = true;
-#else
                             timeline->SetClipFilterKeyPoint(editing_clip->mID);
-                            timeline->UpdataPreview();
-#endif
+                            timeline->UpdatePreview();
                         } ImGui::ShowTooltipOnHover("Min");
                         ImGui::SameLine(0, 8);
                         if (ImGui::DragFloat("##curve_video_filter_max", &curve_max, 0.1f, curve_min, FLT_MAX, "%.1f"))
                         {
                             editing_clip->mFilterKeyPoints.SetCurveMax(i, curve_max);
-#ifdef OLD_FILTER_UI
-                            timeline->mVideoFilterNeedUpdate = true;
-#else
                             timeline->SetClipFilterKeyPoint(editing_clip->mID);
-                            timeline->UpdataPreview();
-#endif
+                            timeline->UpdatePreview();
                         } ImGui::ShowTooltipOnHover("Max");
                         ImGui::SameLine(0, 8);
                         float curve_default = editing_clip->mFilterKeyPoints.GetCurveDefault(i);
                         if (ImGui::DragFloat("##curve_video_filter_default", &curve_default, 0.1f, curve_min, curve_max, "%.1f"))
                         {
                             editing_clip->mFilterKeyPoints.SetCurveDefault(i, curve_default);
-#ifdef OLD_FILTER_UI
-                            timeline->mVideoFilterNeedUpdate = true;
-#else
                             timeline->SetClipFilterKeyPoint(editing_clip->mID);
-                            timeline->UpdataPreview();
-#endif
+                            timeline->UpdatePreview();
                         } ImGui::ShowTooltipOnHover("Default");
                         ImGui::PopItemWidth();
                         
@@ -3889,25 +3611,13 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                         {
                             // delete blueprint entry node pin
                             auto pin_name = editing_clip->mFilterKeyPoints.GetCurveName(i);
-#ifdef OLD_FILTER_UI
-                            if (timeline->mVideoFilterBluePrint)
-                            {
-                                auto entry_node = timeline->mVideoFilterBluePrint->FindEntryPointNode();
-                                if (entry_node)
-                                {
-                                    entry_node->DeleteOutputPin(pin_name);
-                                    timeline->mVideoFilterNeedUpdate = true;
-                                }
-                            }
-#else
                             if (blueprint)
                             {
                                 auto entry_node = blueprint->FindEntryPointNode();
                                 if (entry_node) entry_node->DeleteOutputPin(pin_name);
                                 timeline->SetClipFilterKeyPoint(editing_clip->mID);
-                                timeline->UpdataPreview();
+                                timeline->UpdatePreview();
                             }
-#endif
                             editing_clip->mFilterKeyPoints.DeleteCurve(i);
                             break_loop = true;
                         } ImGui::ShowTooltipOnHover("Delete");
@@ -3918,12 +3628,8 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                             {
                                 editing_clip->mFilterKeyPoints.SetCurvePointDefault(i, p);
                             }
-#ifdef OLD_FILTER_UI
-                            timeline->mVideoFilterNeedUpdate = true;
-#else
                             timeline->SetClipFilterKeyPoint(editing_clip->mID);
-                            timeline->UpdataPreview();
-#endif
+                            timeline->UpdatePreview();
                         } ImGui::ShowTooltipOnHover("Reset");
 
                         if (!break_loop)
@@ -3942,12 +3648,8 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                                 if (ImGui::DragTimeMS("##curve_video_filter_point_x", &point.point.x, editing_clip->mFilterKeyPoints.GetMax().x / 1000.f, editing_clip->mFilterKeyPoints.GetMin().x, editing_clip->mFilterKeyPoints.GetMax().x, 2))
                                 {
                                     editing_clip->mFilterKeyPoints.EditPoint(i, p, point.point, point.type);
-#ifdef OLD_FILTER_UI
-                                    timeline->mVideoFilterNeedUpdate = true;
-#else
                                     timeline->SetClipFilterKeyPoint(editing_clip->mID);
-                                    timeline->UpdataPreview();
-#endif
+                                    timeline->UpdatePreview();
                                 }
                                 ImGui::EndDisabled();
                                 ImGui::SameLine();
@@ -3955,23 +3657,15 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                                 if (ImGui::DragFloat("##curve_video_filter_point_y", &point.point.y, speed, editing_clip->mFilterKeyPoints.GetCurveMin(i), editing_clip->mFilterKeyPoints.GetCurveMax(i), "%.2f"))
                                 {
                                     editing_clip->mFilterKeyPoints.EditPoint(i, p, point.point, point.type);
-#ifdef OLD_FILTER_UI
-                                    timeline->mVideoFilterNeedUpdate = true;
-#else
                                     timeline->SetClipFilterKeyPoint(editing_clip->mID);
-                                    timeline->UpdataPreview();
-#endif
+                                    timeline->UpdatePreview();
                                 }
                                 ImGui::SameLine();
                                 if (ImGui::Combo("##curve_video_filter_type", (int*)&point.type, curve_type_list, curve_type_count))
                                 {
                                     editing_clip->mFilterKeyPoints.EditPoint(i, p, point.point, point.type);
-#ifdef OLD_FILTER_UI
-                                    timeline->mVideoFilterNeedUpdate = true;
-#else
                                     timeline->SetClipFilterKeyPoint(editing_clip->mID);
-                                    timeline->UpdataPreview();
-#endif
+                                    timeline->UpdatePreview();
                                 }
                                 ImGui::PopItemWidth();
                                 ImGui::PopID();
@@ -3987,41 +3681,6 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                 ImGui::TreePop();
             }
             // Filter Node setting
-#ifdef OLD_FILTER_UI
-            if (timeline && timeline->mVideoFilterBluePrint && timeline->mVideoFilterBluePrint->Blueprint_IsValid())
-            {
-                if (ImGui::TreeNodeEx("Node Setting##video_filter", ImGuiTreeNodeFlags_DefaultOpen))
-                {
-                    auto nodes = timeline->mVideoFilterBluePrint->m_Document->m_Blueprint.GetNodes();
-                    for (auto node : nodes)
-                    {
-                        auto type = node->GetTypeInfo().m_Type;
-                        if (type == BluePrint::NodeType::EntryPoint || type == BluePrint::NodeType::ExitPoint)
-                            continue;
-                        if (!node->CustomLayout())
-                            continue;
-                        auto label_name = node->m_Name;
-                        std::string lable_id = std::string(ICON_NODE) + " " + label_name + "##video_filter_node" + "@" + std::to_string(node->m_ID);
-                        if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
-                        {
-                            ImGui::ImCurveEdit::keys key;
-                            key.m_id = node->m_ID;
-                            if (node->DrawCustomLayout(ImGui::GetCurrentContext(), 1.0, ImVec2(0, 0), &key))
-                            {
-                                node->m_NeedUpdate = true;
-                                timeline->mVideoFilterNeedUpdate = true;
-                            }
-                            if (!key.name.empty())
-                            {
-                                addCurve(key.name, key.m_min, key.m_max, key.m_default);
-                            }
-                            ImGui::TreePop();
-                        }
-                    }
-                    ImGui::TreePop();
-                }
-            }
-#else
             if (blueprint && blueprint->Blueprint_IsValid())
             {
                 if (ImGui::TreeNodeEx("Node Setting##video_filter", ImGuiTreeNodeFlags_DefaultOpen))
@@ -4044,7 +3703,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                             {
                                 node->m_NeedUpdate = true;
                                 timeline->SetClipFilterKeyPoint(editing_clip->mID);
-                                timeline->UpdataPreview();
+                                timeline->UpdatePreview();
                             }
                             if (!key.name.empty())
                             {
@@ -4056,7 +3715,6 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                     ImGui::TreePop();
                 }
             }
-#endif
         }
     }
     ImGui::EndChild();
@@ -4355,7 +4013,7 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
                                                         &changed,
                                                         nullptr, // selectedPoints
                                                         timeline->mVidOverlap->mCurrent);
-#ifdef OLD_FILTER_UI
+#ifdef OLD_FUSION_UI
                 timeline->mVideoFusionNeedUpdate |= changed;
 #endif
             }
@@ -7463,7 +7121,6 @@ bool Application_Frame(void * handle, bool app_will_quit)
     }
     else if (MainWindowIndex == 1 && VideoEditorWindowIndex == 0)
     {
-#ifdef OLD_FILTER_UI
         // video filter
         if (MonitorIndexVideoFilterOrg != -1 && MonitorIndexVideoFilterOrg < platform_io.Monitors.Size)
         {
@@ -7488,12 +7145,11 @@ bool Application_Frame(void * handle, bool app_will_quit)
             ImGui::Begin(view_window_lable.c_str(), nullptr, flags | ImGuiWindowFlags_FullScreen);
             ShowVideoWindow(timeline->mVideoFilterOutputTexture, mon.MainPos, mon.MainSize);
             ImGui::SetCursorScreenPos(mon.MainPos + ImVec2(80, 60));
-            ImGui::TextComplex("Filter Output", 3.0f, ImVec4(0.8, 0.8, 0.8, 0.2),
+            ImGui::TextComplex(timeline->bFilterOutputPreview ? "Preview Output" : "Filter Output", 3.0f, ImVec4(0.8, 0.8, 0.8, 0.2),
                                 0.1f, ImVec4(0.8, 0.8, 0.8, 0.3),
                                 ImVec2(4, 4), ImVec4(0.0, 0.0, 0.0, 0.5));
             ImGui::End();
         }
-#endif
     }
 
     if (multiviewport)
