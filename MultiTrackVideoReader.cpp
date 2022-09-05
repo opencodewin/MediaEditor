@@ -372,7 +372,10 @@ public:
                 frames = m_outputCache.front();
         }
         if (seeking && frames.empty() && !m_seekingFlash.empty())
+        {
+            lock_guard<mutex> lk2(m_outputCacheLock);
             frames = m_seekingFlash;
+        }
 
         uint32_t targetFrmidx = (int64_t)(ceil((double)pos*m_frameRate.num/(m_frameRate.den*1000)));
         if ((m_readForward && (targetFrmidx < m_readFrameIdx || targetFrmidx-m_readFrameIdx >= m_outputCacheSize)) ||
@@ -797,8 +800,6 @@ private:
                     track->SeekTo(seekPos);
                 {
                     lock_guard<mutex> lk(m_outputCacheLock);
-                    if (!m_outputCache.empty())
-                        m_seekingFlash = m_outputCache.front();
                     m_outputCache.clear();
                 }
                 afterSeek = true;
@@ -839,6 +840,7 @@ private:
                     memset(mixedFrame.data, 0, mixedFrame.total()*mixedFrame.elemsize);
                     mixedFrame.time_stamp = timestamp;
                 }
+                frames[0].frame = mixedFrame;
 
                 if (afterSeek)
                 {
@@ -848,14 +850,14 @@ private:
                         m_readFrameIdx = frameIdx;
                         afterSeek = false;
                     }
+                    lock_guard<mutex> lk(m_outputCacheLock);
+                    m_seekingFlash = frames;
                 }
 
                 if (!afterSeek)
                 {
                     lock_guard<mutex> lk(m_outputCacheLock);
-                    frames[0].frame = mixedFrame;
                     m_outputCache.push_back(frames);
-                    m_seekingFlash.clear();
                     idleLoop = false;
                 }
             }

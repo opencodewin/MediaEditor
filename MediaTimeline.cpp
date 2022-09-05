@@ -1704,6 +1704,7 @@ BluePrintVideoFilter::~BluePrintVideoFilter()
 ImGui::ImMat BluePrintVideoFilter::FilterImage(const ImGui::ImMat& vmat, int64_t pos)
 {
     std::lock_guard<std::mutex> lk(mBpLock);
+    ImGui::ImMat outMat(vmat);
     if (mBp)
     {
         // setup bp input curve
@@ -1714,11 +1715,9 @@ ImGui::ImMat BluePrintVideoFilter::FilterImage(const ImGui::ImMat& vmat, int64_t
             mBp->Blueprint_SetFilter(name, value);
         }
         ImGui::ImMat inMat(vmat);
-        ImGui::ImMat outMat;
         mBp->Blueprint_RunFilter(inMat, outMat);
-        return outMat;
     }
-    return vmat;
+    return outMat;
 }
 
 void BluePrintVideoFilter::SetBluePrintFromJson(imgui_json::value& bpJson)
