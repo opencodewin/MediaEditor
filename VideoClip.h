@@ -92,7 +92,7 @@ namespace DataLayer
         VideoTransformFilter* m_transFilter{nullptr};
         int64_t m_wakeupRange{1000};
         std::list<ImGui::ImMat> m_frameCache;
-        uint32_t m_frameCacheSize{9};
+        uint32_t m_frameCacheSize{4};
     };
 
     struct VideoFilter

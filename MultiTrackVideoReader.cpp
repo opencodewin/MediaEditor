@@ -918,7 +918,7 @@ private:
 
     list<vector<CorrelativeFrame>> m_outputCache;
     mutex m_outputCacheLock;
-    uint32_t m_outputCacheSize{8};
+    uint32_t m_outputCacheSize{3};
 
     uint32_t m_outWidth{0};
     uint32_t m_outHeight{0};
