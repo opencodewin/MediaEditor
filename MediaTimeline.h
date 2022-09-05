@@ -19,7 +19,7 @@
 #include <list>
 #include <chrono>
 
-#define OLD_FUSION_UI
+//#define OLD_FUSION_UI
 
 #define ICON_MEDIA_TIMELINE u8"\uf538"
 #define ICON_MEDIA_BANK     u8"\ue907"
@@ -479,7 +479,7 @@ private:
 class BluePrintVideoTransition : public DataLayer::VideoTransition
 {
 public:
-    BluePrintVideoTransition();
+    BluePrintVideoTransition(void * handle = nullptr);
     ~BluePrintVideoTransition();
 
     DataLayer::VideoTransitionHolder Clone() override;
@@ -489,12 +489,15 @@ public:
     void SetBluePrintFromJson(imgui_json::value& bpJson);
     void SetKeyPoint(ImGui::KeyPointEditor &keypoint) { mKeyPoints = keypoint; };
 
+public:
+    BluePrint::BluePrintUI* mBp{nullptr};
+    ImGui::KeyPointEditor mKeyPoints;
+
 private:
     static int OnBluePrintChange(int type, std::string name, void* handle);
     DataLayer::VideoOverlap* mOverlap;
-    BluePrint::BluePrintUI* mBp{nullptr};
-    ImGui::KeyPointEditor mKeyPoints;
     std::mutex mBpLock;
+    void * mHandle {nullptr};
 };
 
 struct BaseEditingClip

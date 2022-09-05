@@ -1756,13 +1756,16 @@ int BluePrintVideoTransition::OnBluePrintChange(int type, std::string name, void
     return ret;
 }
 
-BluePrintVideoTransition::BluePrintVideoTransition()
+BluePrintVideoTransition::BluePrintVideoTransition(void * handle)
+    : mHandle(handle)
 {
+    imgui_json::value fusion_BP; 
     mBp = new BluePrint::BluePrintUI();
     mBp->Initialize();
     BluePrint::BluePrintCallbackFunctions callbacks;
     callbacks.BluePrintOnChanged = OnBluePrintChange;
     mBp->SetCallbacks(callbacks, this);
+    mBp->File_New_Fusion(fusion_BP, "VideoFusion", "Video");
 }
 
 BluePrintVideoTransition::~BluePrintVideoTransition()
