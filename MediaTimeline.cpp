@@ -415,6 +415,7 @@ int64_t Clip::Cropping(int64_t diff, int type)
     {
         timeline->mVidFilterClip->mStart = mStart;
         timeline->mVidFilterClip->mEnd = mEnd;
+        if (timeline->mVidFilterClip->mFilter) timeline->mVidFilterClip->mFilter->SetKeyPoint(mFilterKeyPoints);
     }
     mAttributeKeyPoints.SetMin(ImVec2(mStartOffset, 0.f), true);
     mAttributeKeyPoints.SetMax(ImVec2(mEnd - mStart + mStartOffset, 1.f), true);
@@ -503,6 +504,7 @@ void Clip::Cutting(int64_t pos)
         {
             timeline->mVidFilterClip->mStart = mStart;
             timeline->mVidFilterClip->mEnd = mEnd;
+            if (timeline->mVidFilterClip->mFilter) timeline->mVidFilterClip->mFilter->SetKeyPoint(mFilterKeyPoints);
         }
 
         // need check overlap status and update overlap info on data layer(UI info will update on track update)
@@ -1923,6 +1925,7 @@ void EditingVideoClip::Save()
     if (mFilter && mFilter->mBp && mFilter->mBp->Blueprint_IsValid())
     {
         clip->mFilterBP = mFilter->mBp->m_Document->Serialize();
+        clip->mFilterKeyPoints = mFilter->mKeyPoints;
     }
     timeline->UpdatePreview();
 }
@@ -2509,6 +2512,7 @@ void EditingVideoOverlap::Save()
     if (mFusion && mFusion->mBp && mFusion->mBp->Blueprint_IsValid())
     {
         overlap->mFusionBP = mFusion->mBp->m_Document->Serialize();
+        overlap->mFusionKeyPoints = mFusion->mKeyPoints;
     }
     timeline->UpdatePreview();
 }
@@ -3629,6 +3633,7 @@ int64_t TimeLine::DeleteTrack(int index)
             mStart = mEnd = 0;
             currentTime = firstTime = lastTime = visibleTime = 0;
         }
+        UpdatePreview();
     }
     return trackId;
 }
@@ -3764,56 +3769,6 @@ void TimeLine::DeleteOverlap(int64_t id)
         }
         else
             ++ iter;
-    }
-}
-
-void TimeLine::SetClipFilterKeyPoint(int64_t id)
-{
-    auto clip = FindClipByID(id);
-    if (!clip)
-        return;
-    switch (clip->mType)
-    {
-        case MEDIA_VIDEO:
-        {
-            DataLayer::VideoClipHolder hClip = mMtvReader->GetClipById(id);
-            IM_ASSERT(hClip);
-            auto pvf = dynamic_cast<BluePrintVideoFilter *>(hClip->GetFilter().get());
-            if (!pvf) return;
-            pvf->SetKeyPoint(clip->mFilterKeyPoints);
-            return;
-        }
-        case MEDIA_AUDIO:
-        {
-            return;
-        }
-        default:
-            return;
-    }
-}
-
-void TimeLine::SetOverlapFusionKeyPoint(int64_t id)
-{
-    auto overlap = FindOverlapByID(id);
-    if (!overlap)
-        return;
-    switch (overlap->mType)
-    {
-        case MEDIA_VIDEO:
-        {
-            DataLayer::VideoOverlapHolder hOvlp = mMtvReader->GetOverlapById(id);
-            IM_ASSERT(hOvlp);
-            auto pvo = dynamic_cast<BluePrintVideoTransition *>(hOvlp->GetTransition().get());
-            if (!pvo) return;
-            pvo->SetKeyPoint(overlap->mFusionKeyPoints);
-            return;
-        }
-        case MEDIA_AUDIO:
-        {
-            return;
-        }
-        default:
-            return;
     }
 }
 
@@ -4357,13 +4312,19 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &view_r
             // draw clip status
             draw_list->PushClipRect(clip_title_pos_min, clip_title_pos_max, true);
             draw_list->AddText(clip_title_pos_min + ImVec2(4, 0), IM_COL32_WHITE, clip->mType == MEDIA_TEXT ? "T" : clip->mName.c_str());
+            
             // add clip filter curve point
-            for (int i = 0; i < clip->mFilterKeyPoints.GetCurveCount(); i++)
+            ImGui::KeyPointEditor* keypoint = &clip->mFilterKeyPoints;
+            if (mVidFilterClip && mVidFilterClip->mID == clip->mID && mVidFilterClip->mFilter)
             {
-                auto curve_color = clip->mFilterKeyPoints.GetCurveColor(i);
-                for (int p = 0; p < clip->mFilterKeyPoints.GetCurvePointCount(i); p++)
+                keypoint = &mVidFilterClip->mFilter->mKeyPoints;
+            }
+            for (int i = 0; i < keypoint->GetCurveCount(); i++)
+            {
+                auto curve_color = keypoint->GetCurveColor(i);
+                for (int p = 0; p < keypoint->GetCurvePointCount(i); p++)
                 {
-                    auto point = clip->mFilterKeyPoints.GetPoint(i, p);
+                    auto point = keypoint->GetPoint(i, p);
                     if (point.point.x - clip->mStartOffset >= firstTime && point.point.x - clip->mStartOffset <= viewEndTime)
                     {
                         ImVec2 center = ImVec2(clip_title_pos_min.x + (point.point.x - firstTime - clip->mStartOffset) * msPixelWidthTarget, clip_title_pos_min.y + (clip_title_pos_max.y - clip_title_pos_min.y) / 2);

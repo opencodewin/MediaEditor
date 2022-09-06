@@ -894,8 +894,6 @@ struct TimeLine
     void MovingClip(int64_t id, int from_track_index, int to_track_index);
     void DeleteClip(int64_t id);
     void DeleteOverlap(int64_t id);
-    void SetOverlapFusionKeyPoint(int64_t id);
-    void SetClipFilterKeyPoint(int64_t id);
 
     void DoubleClick(int index, int64_t time);
     void Click(int index, int64_t time);

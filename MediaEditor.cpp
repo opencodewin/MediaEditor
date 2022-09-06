@@ -1353,7 +1353,10 @@ static void SaveProject(std::string path)
                     timeline->mVidFilterClip->mFilter &&
                     timeline->mVidFilterClip->mFilter->mBp &&
                     timeline->mVidFilterClip->mFilter->mBp->Blueprint_IsValid())
+                {
                     editing_clip->mFilterBP = timeline->mVidFilterClip->mFilter->mBp->m_Document->Serialize();
+                    editing_clip->mFilterKeyPoints = timeline->mVidFilterClip->mFilter->mKeyPoints;
+                }
             }
             break;
             case MEDIA_AUDIO:
@@ -1376,7 +1379,10 @@ static void SaveProject(std::string path)
                     timeline->mVidOverlap->mFusion &&
                     timeline->mVidOverlap->mFusion->mBp &&
                     timeline->mVidOverlap->mFusion->mBp->Blueprint_IsValid())
+                {
                     editing_overlap->mFusionBP = timeline->mVidOverlap->mFusion->mBp->m_Document->Serialize();
+                    editing_overlap->mFusionKeyPoints = timeline->mVidOverlap->mFusion->mKeyPoints;
+                }
             }
             break;
             case MEDIA_AUDIO:
@@ -3345,6 +3351,9 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
     if (!timeline)
         return;
     
+    BluePrintVideoFilter * filter = nullptr;
+    BluePrint::BluePrintUI* blueprint = nullptr;
+
     Clip * editing_clip = timeline->FindEditingClip();
     if (editing_clip && editing_clip->mType != MEDIA_VIDEO)
     {
@@ -3361,6 +3370,8 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
         {
             timeline->mVidFilterClip = new EditingVideoClip((VideoClip*)editing_clip);
         }
+        filter = timeline->mVidFilterClip->mFilter;
+        blueprint = filter ? filter->mBp : nullptr;
     }
     
     float clip_timeline_height = 80;
@@ -3388,8 +3399,6 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
     ImVec2 clip_timeline_size(window_size.x - clip_setting_width, clip_timeline_height);
     ImVec2 clip_keypoint_pos = g_media_editor_settings.VideoFilterCurveExpanded ? clip_timeline_pos + ImVec2(0, clip_timeline_height) : clip_timeline_pos + ImVec2(0, clip_timeline_height - 16);
     ImVec2 clip_keypoint_size(window_size.x - clip_setting_width, clip_keypoint_height);
-    
-    BluePrint::BluePrintUI* blueprint = (timeline->mVidFilterClip && timeline->mVidFilterClip->mFilter) ? timeline->mVidFilterClip->mFilter->mBp : nullptr;
 
     ImGuiWindowFlags child_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings;
     ImGuiWindowFlags setting_child_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings;
@@ -3405,7 +3414,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
     }
     ImGui::EndChild();
 
-    // draw clip blueprint
+    // draw filter blueprint
     ImGui::SetCursorScreenPos(video_bluepoint_pos);
     if (ImGui::BeginChild("##video_filter_blueprint", video_bluepoint_size, false, child_flags))
     {
@@ -3416,7 +3425,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
     }
     ImGui::EndChild();
 
-    // draw clip timeline
+    // draw filter timeline
     ImGui::SetCursorScreenPos(clip_timeline_pos);
     if (ImGui::BeginChild("##video_filter_timeline", clip_timeline_size, false, child_flags))
     {
@@ -3446,7 +3455,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
     draw_list->AddText(hidden_button_pos, IM_COL32_WHITE, ICON_FA_BEZIER_CURVE);
     ImGui::SetWindowFontScale(1.0);
 
-    // draw clip curve editor
+    // draw filter curve editor
     if (g_media_editor_settings.VideoFilterCurveExpanded)
     {
         ImGui::SetCursorScreenPos(clip_keypoint_pos);
@@ -3455,10 +3464,10 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
             ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
             ImVec2 sub_window_size = ImGui::GetWindowSize();
             draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_ONE);
-            if (editing_clip && timeline->mVidFilterClip)
+            if (timeline->mVidFilterClip && filter)
             {
                 bool _changed = false;
-                mouse_hold |= ImGui::ImCurveEdit::Edit(editing_clip->mFilterKeyPoints,
+                mouse_hold |= ImGui::ImCurveEdit::Edit(filter->mKeyPoints,
                                                         sub_window_size, 
                                                         ImGui::GetID("##video_filter_keypoint_editor"), 
                                                         CURVE_EDIT_FLAG_VALUE_LIMITED | CURVE_EDIT_FLAG_MOVE_CURVE | CURVE_EDIT_FLAG_KEEP_BEGIN_END | CURVE_EDIT_FLAG_DOCK_BEGIN_END, 
@@ -3466,43 +3475,42 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                                                         &_changed,
                                                         nullptr, // selectedPoints
                                                         timeline->currentTime - timeline->mVidFilterClip->mStart);
-                if (_changed)
-                {
-                    timeline->SetClipFilterKeyPoint(editing_clip->mID);
-                    timeline->UpdatePreview();
-                }
+                if (_changed) timeline->UpdatePreview();
             }
         }
         ImGui::EndChild();
     }
 
-    // draw clip setting
+    // draw filter setting
     ImGui::SetCursorScreenPos(clip_setting_pos);
     if (ImGui::BeginChild("##video_filter_setting", clip_setting_size, false, setting_child_flags))
     {
         auto addCurve = [&](std::string name, float _min, float _max, float _default)
         {
-            auto found = editing_clip->mFilterKeyPoints.GetCurveIndex(name);
-            if (found == -1)
+            if (filter)
             {
-                ImU32 color; ImGui::RandomColor(color, 1.f);
-                auto curve_index = editing_clip->mFilterKeyPoints.AddCurve(name, ImGui::ImCurveEdit::Smooth, color, true, _min, _max, _default);
-                editing_clip->mFilterKeyPoints.AddPoint(curve_index, ImVec2(editing_clip->mStartOffset, _min), ImGui::ImCurveEdit::Smooth);
-                editing_clip->mFilterKeyPoints.AddPoint(curve_index, ImVec2(editing_clip->mEnd - editing_clip->mStart + editing_clip->mStartOffset, _max), ImGui::ImCurveEdit::Smooth);
-                editing_clip->mFilterKeyPoints.SetCurvePointDefault(curve_index, 0);
-                editing_clip->mFilterKeyPoints.SetCurvePointDefault(curve_index, 1);
-                if (blueprint)
+                auto found = filter->mKeyPoints.GetCurveIndex(name);
+                if (found == -1)
                 {
-                    auto entry_node = blueprint->FindEntryPointNode();
-                    if (entry_node) entry_node->InsertOutputPin(BluePrint::PinType::Float, name);
-                    timeline->UpdatePreview();
+                    ImU32 color; ImGui::RandomColor(color, 1.f);
+                    auto curve_index = filter->mKeyPoints.AddCurve(name, ImGui::ImCurveEdit::Smooth, color, true, _min, _max, _default);
+                    filter->mKeyPoints.AddPoint(curve_index, ImVec2(editing_clip->mStartOffset, _min), ImGui::ImCurveEdit::Smooth);
+                    filter->mKeyPoints.AddPoint(curve_index, ImVec2(editing_clip->mEnd - editing_clip->mStart + editing_clip->mStartOffset, _max), ImGui::ImCurveEdit::Smooth);
+                    filter->mKeyPoints.SetCurvePointDefault(curve_index, 0);
+                    filter->mKeyPoints.SetCurvePointDefault(curve_index, 1);
+                    if (blueprint)
+                    {
+                        auto entry_node = blueprint->FindEntryPointNode();
+                        if (entry_node) entry_node->InsertOutputPin(BluePrint::PinType::Float, name);
+                        timeline->UpdatePreview();
+                    }
                 }
             }
         };
         ImVec2 sub_window_pos = ImGui::GetWindowPos(); // we need draw background with scroll view
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_TWO);
-        if (editing_clip && timeline->mVidFilterClip)
+        if (timeline->mVidFilterClip && filter)
         {
             // Filter curve setting
             if (ImGui::TreeNodeEx("Curve Setting##video_filter", ImGuiTreeNodeFlags_DefaultOpen))
@@ -3546,71 +3554,67 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                 ImGui::EndDisabled();
 
                 // list curves
-                for (int i = 0; i < editing_clip->mFilterKeyPoints.GetCurveCount(); i++)
+                for (int i = 0; i < filter->mKeyPoints.GetCurveCount(); i++)
                 {
                     bool break_loop = false;
                     ImGui::PushID(i);
-                    auto pCount = editing_clip->mFilterKeyPoints.GetCurvePointCount(i);
-                    std::string lable_id = std::string(ICON_CURVE) + " " + editing_clip->mFilterKeyPoints.GetCurveName(i) + " (" + std::to_string(pCount) + " keys)" + "##video_filter_curve";
+                    auto pCount = filter->mKeyPoints.GetCurvePointCount(i);
+                    std::string lable_id = std::string(ICON_CURVE) + " " + filter->mKeyPoints.GetCurveName(i) + " (" + std::to_string(pCount) + " keys)" + "##video_filter_curve";
                     if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
                     {
                         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
-                        float value = editing_clip->mFilterKeyPoints.GetValue(i, timeline->currentTime - timeline->mVidFilterClip->mStart);
+                        float value = filter->mKeyPoints.GetValue(i, timeline->currentTime - timeline->mVidFilterClip->mStart);
                         ImGui::BracketSquare(true); ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0, 1.0, 0.0, 1.0)); ImGui::Text("%.2f", value); ImGui::PopStyleColor();
                         ImGui::PushItemWidth(60);
-                        float curve_min = editing_clip->mFilterKeyPoints.GetCurveMin(i);
-                        float curve_max = editing_clip->mFilterKeyPoints.GetCurveMax(i);
+                        float curve_min = filter->mKeyPoints.GetCurveMin(i);
+                        float curve_max = filter->mKeyPoints.GetCurveMax(i);
                         if (ImGui::DragFloat("##curve_video_filter_min", &curve_min, 0.1f, -FLT_MAX, curve_max, "%.1f"))
                         {
-                            editing_clip->mFilterKeyPoints.SetCurveMin(i, curve_min);
-                            timeline->SetClipFilterKeyPoint(editing_clip->mID);
+                            filter->mKeyPoints.SetCurveMin(i, curve_min);
                             timeline->UpdatePreview();
                         } ImGui::ShowTooltipOnHover("Min");
                         ImGui::SameLine(0, 8);
                         if (ImGui::DragFloat("##curve_video_filter_max", &curve_max, 0.1f, curve_min, FLT_MAX, "%.1f"))
                         {
-                            editing_clip->mFilterKeyPoints.SetCurveMax(i, curve_max);
-                            timeline->SetClipFilterKeyPoint(editing_clip->mID);
+                            filter->mKeyPoints.SetCurveMax(i, curve_max);
                             timeline->UpdatePreview();
                         } ImGui::ShowTooltipOnHover("Max");
                         ImGui::SameLine(0, 8);
-                        float curve_default = editing_clip->mFilterKeyPoints.GetCurveDefault(i);
+                        float curve_default = filter->mKeyPoints.GetCurveDefault(i);
                         if (ImGui::DragFloat("##curve_video_filter_default", &curve_default, 0.1f, curve_min, curve_max, "%.1f"))
                         {
-                            editing_clip->mFilterKeyPoints.SetCurveDefault(i, curve_default);
-                            timeline->SetClipFilterKeyPoint(editing_clip->mID);
+                            filter->mKeyPoints.SetCurveDefault(i, curve_default);
                             timeline->UpdatePreview();
                         } ImGui::ShowTooltipOnHover("Default");
                         ImGui::PopItemWidth();
                         
                         ImGui::SameLine(0, 8);
                         ImGui::SetWindowFontScale(0.75);
-                        auto curve_color = ImGui::ColorConvertU32ToFloat4(editing_clip->mFilterKeyPoints.GetCurveColor(i));
+                        auto curve_color = ImGui::ColorConvertU32ToFloat4(filter->mKeyPoints.GetCurveColor(i));
                         if (ImGui::ColorEdit4("##curve_video_filter_color", (float*)&curve_color, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar))
                         {
-                            editing_clip->mFilterKeyPoints.SetCurveColor(i, ImGui::ColorConvertFloat4ToU32(curve_color));
+                            filter->mKeyPoints.SetCurveColor(i, ImGui::ColorConvertFloat4ToU32(curve_color));
                         } ImGui::ShowTooltipOnHover("Curve Color");
                         ImGui::SetWindowFontScale(1.0);
                         ImGui::SameLine(0, 4);
-                        bool is_visiable = editing_clip->mFilterKeyPoints.IsVisible(i);
+                        bool is_visiable = filter->mKeyPoints.IsVisible(i);
                         if (ImGui::Button(is_visiable ? ICON_WATCH : ICON_UNWATCH "##curve_video_filter_visiable"))
                         {
                             is_visiable = !is_visiable;
-                            editing_clip->mFilterKeyPoints.SetCurveVisible(i, is_visiable);
+                            filter->mKeyPoints.SetCurveVisible(i, is_visiable);
                         } ImGui::ShowTooltipOnHover( is_visiable ? "Hide" : "Show");
                         ImGui::SameLine(0, 4);
                         if (ImGui::Button(ICON_DELETE "##curve_video_filter_delete"))
                         {
                             // delete blueprint entry node pin
-                            auto pin_name = editing_clip->mFilterKeyPoints.GetCurveName(i);
+                            auto pin_name = filter->mKeyPoints.GetCurveName(i);
                             if (blueprint)
                             {
                                 auto entry_node = blueprint->FindEntryPointNode();
                                 if (entry_node) entry_node->DeleteOutputPin(pin_name);
-                                timeline->SetClipFilterKeyPoint(editing_clip->mID);
                                 timeline->UpdatePreview();
                             }
-                            editing_clip->mFilterKeyPoints.DeleteCurve(i);
+                            filter->mKeyPoints.DeleteCurve(i);
                             break_loop = true;
                         } ImGui::ShowTooltipOnHover("Delete");
                         ImGui::SameLine(0, 4);
@@ -3618,9 +3622,8 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                         {
                             for (int p = 0; p < pCount; p++)
                             {
-                                editing_clip->mFilterKeyPoints.SetCurvePointDefault(i, p);
+                                filter->mKeyPoints.SetCurvePointDefault(i, p);
                             }
-                            timeline->SetClipFilterKeyPoint(editing_clip->mID);
                             timeline->UpdatePreview();
                         } ImGui::ShowTooltipOnHover("Reset");
 
@@ -3632,31 +3635,28 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                                 bool is_disabled = false;
                                 ImGui::PushID(p);
                                 ImGui::PushItemWidth(96);
-                                auto point = editing_clip->mFilterKeyPoints.GetPoint(i, p);
+                                auto point = filter->mKeyPoints.GetPoint(i, p);
                                 ImGui::Diamond(false);
                                 if (p == 0 || p == pCount - 1)
                                     is_disabled = true;
                                 ImGui::BeginDisabled(is_disabled);
-                                if (ImGui::DragTimeMS("##curve_video_filter_point_x", &point.point.x, editing_clip->mFilterKeyPoints.GetMax().x / 1000.f, editing_clip->mFilterKeyPoints.GetMin().x, editing_clip->mFilterKeyPoints.GetMax().x, 2))
+                                if (ImGui::DragTimeMS("##curve_video_filter_point_x", &point.point.x, filter->mKeyPoints.GetMax().x / 1000.f, filter->mKeyPoints.GetMin().x, filter->mKeyPoints.GetMax().x, 2))
                                 {
-                                    editing_clip->mFilterKeyPoints.EditPoint(i, p, point.point, point.type);
-                                    timeline->SetClipFilterKeyPoint(editing_clip->mID);
+                                    filter->mKeyPoints.EditPoint(i, p, point.point, point.type);
                                     timeline->UpdatePreview();
                                 }
                                 ImGui::EndDisabled();
                                 ImGui::SameLine();
-                                auto speed = fabs(editing_clip->mFilterKeyPoints.GetCurveMax(i) - editing_clip->mFilterKeyPoints.GetCurveMin(i)) / 500;
-                                if (ImGui::DragFloat("##curve_video_filter_point_y", &point.point.y, speed, editing_clip->mFilterKeyPoints.GetCurveMin(i), editing_clip->mFilterKeyPoints.GetCurveMax(i), "%.2f"))
+                                auto speed = fabs(filter->mKeyPoints.GetCurveMax(i) - filter->mKeyPoints.GetCurveMin(i)) / 500;
+                                if (ImGui::DragFloat("##curve_video_filter_point_y", &point.point.y, speed, filter->mKeyPoints.GetCurveMin(i), filter->mKeyPoints.GetCurveMax(i), "%.2f"))
                                 {
-                                    editing_clip->mFilterKeyPoints.EditPoint(i, p, point.point, point.type);
-                                    timeline->SetClipFilterKeyPoint(editing_clip->mID);
+                                    filter->mKeyPoints.EditPoint(i, p, point.point, point.type);
                                     timeline->UpdatePreview();
                                 }
                                 ImGui::SameLine();
                                 if (ImGui::Combo("##curve_video_filter_type", (int*)&point.type, curve_type_list, curve_type_count))
                                 {
-                                    editing_clip->mFilterKeyPoints.EditPoint(i, p, point.point, point.type);
-                                    timeline->SetClipFilterKeyPoint(editing_clip->mID);
+                                    filter->mKeyPoints.EditPoint(i, p, point.point, point.type);
                                     timeline->UpdatePreview();
                                 }
                                 ImGui::PopItemWidth();
@@ -3694,7 +3694,6 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                             if (node->DrawCustomLayout(ImGui::GetCurrentContext(), 1.0, ImVec2(0, 0), &key))
                             {
                                 node->m_NeedUpdate = true;
-                                timeline->SetClipFilterKeyPoint(editing_clip->mID);
                                 timeline->UpdatePreview();
                             }
                             if (!key.name.empty())
@@ -3915,6 +3914,9 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
         }
     }
 
+    BluePrint::BluePrintUI* blueprint = nullptr;
+    BluePrintVideoTransition * fusion = nullptr;
+
     if (editing_overlap)
     {
         if (!timeline->mVidOverlap)
@@ -3929,6 +3931,8 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
             timeline->mVidOverlap->mDuration = timeline->mVidOverlap->mEnd - timeline->mVidOverlap->mStart;
 
         }
+        fusion = timeline->mVidOverlap->mFusion;
+        blueprint = fusion ? fusion->mBp : nullptr;
     }
 
     float clip_timeline_height = 30 + 50 + 50;
@@ -3949,8 +3953,6 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
     ImVec2 clip_timeline_size(window_size.x - clip_setting_width, clip_timeline_height);
     ImVec2 clip_keypoint_pos = g_media_editor_settings.VideoFusionCurveExpanded ? clip_timeline_pos + ImVec2(0, clip_timeline_height) : clip_timeline_pos + ImVec2(0, clip_timeline_height - 16);
     ImVec2 clip_keypoint_size(window_size.x - clip_setting_width, clip_keypoint_height);
-
-    BluePrint::BluePrintUI* blueprint = (timeline->mVidOverlap && timeline->mVidOverlap->mFusion) ? timeline->mVidOverlap->mFusion->mBp : nullptr;
 
     ImGuiWindowFlags child_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings;
     ImGuiWindowFlags setting_child_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings;
@@ -4018,10 +4020,10 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
             ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
             ImVec2 sub_window_size = ImGui::GetWindowSize();
             draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_ONE);
-            if (editing_overlap && timeline->mVidOverlap)
+            if (timeline->mVidOverlap && fusion)
             {
                 bool _changed = false;
-                mouse_hold |= ImGui::ImCurveEdit::Edit(editing_overlap->mFusionKeyPoints, 
+                mouse_hold |= ImGui::ImCurveEdit::Edit(fusion->mKeyPoints, 
                                                         sub_window_size, 
                                                         ImGui::GetID("##video_fusion_keypoint_editor"), 
                                                         CURVE_EDIT_FLAG_VALUE_LIMITED | CURVE_EDIT_FLAG_MOVE_CURVE | CURVE_EDIT_FLAG_KEEP_BEGIN_END | CURVE_EDIT_FLAG_DOCK_BEGIN_END, 
@@ -4029,11 +4031,7 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
                                                         &_changed,
                                                         nullptr, // selectedPoints
                                                         timeline->currentTime - timeline->mVidOverlap->mStart);
-                if (_changed)
-                {
-                    timeline->SetOverlapFusionKeyPoint(editing_overlap->mID);
-                    timeline->UpdatePreview();
-                }
+                if (_changed) timeline->UpdatePreview();
             }
         }
         ImGui::EndChild();
@@ -4045,26 +4043,29 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
     {
         auto addCurve = [&](std::string name, float _min, float _max, float _default)
         {
-            auto found = editing_overlap->mFusionKeyPoints.GetCurveIndex(name);
-            if (found == -1)
+            if (fusion)
             {
-                ImU32 color; ImGui::RandomColor(color, 1.f);
-                auto curve_index = editing_overlap->mFusionKeyPoints.AddCurve(name, ImGui::ImCurveEdit::Linear, color, true, _min, _max, _default);
-                editing_overlap->mFusionKeyPoints.AddPoint(curve_index, ImVec2(0.f, _min), ImGui::ImCurveEdit::Linear);
-                editing_overlap->mFusionKeyPoints.AddPoint(curve_index, ImVec2(timeline->mVidOverlap->mEnd - timeline->mVidOverlap->mStart, _max), ImGui::ImCurveEdit::Linear);
-                // insert curve pin for blueprint entry node
-                if (blueprint)
+                auto found = fusion->mKeyPoints.GetCurveIndex(name);
+                if (found == -1)
                 {
-                    auto entry_node = blueprint->FindEntryPointNode();
-                    if (entry_node) entry_node->InsertOutputPin(BluePrint::PinType::Float, name);
-                    timeline->UpdatePreview();
+                    ImU32 color; ImGui::RandomColor(color, 1.f);
+                    auto curve_index = fusion->mKeyPoints.AddCurve(name, ImGui::ImCurveEdit::Linear, color, true, _min, _max, _default);
+                    fusion->mKeyPoints.AddPoint(curve_index, ImVec2(0.f, _min), ImGui::ImCurveEdit::Linear);
+                    fusion->mKeyPoints.AddPoint(curve_index, ImVec2(timeline->mVidOverlap->mEnd - timeline->mVidOverlap->mStart, _max), ImGui::ImCurveEdit::Linear);
+                    // insert curve pin for blueprint entry node
+                    if (blueprint)
+                    {
+                        auto entry_node = blueprint->FindEntryPointNode();
+                        if (entry_node) entry_node->InsertOutputPin(BluePrint::PinType::Float, name);
+                        timeline->UpdatePreview();
+                    }
                 }
             }
         };
         ImVec2 sub_window_pos = ImGui::GetWindowPos(); // we need draw background with scroll view
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_TWO);
-        if (editing_overlap && timeline->mVidOverlap)
+        if (timeline->mVidOverlap && fusion)
         {
             // Overlap curve setting
             if (ImGui::TreeNodeEx("Curve Setting##video_fusion", ImGuiTreeNodeFlags_DefaultOpen))
@@ -4108,71 +4109,67 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
                 ImGui::EndDisabled();
 
                 // list curves
-                for (int i = 0; i < editing_overlap->mFusionKeyPoints.GetCurveCount(); i++)
+                for (int i = 0; i < fusion->mKeyPoints.GetCurveCount(); i++)
                 {
                     bool break_loop = false;
                     ImGui::PushID(i);
-                    auto pCount = editing_overlap->mFusionKeyPoints.GetCurvePointCount(i);
-                    std::string lable_id = std::string(ICON_CURVE) + " " + editing_overlap->mFusionKeyPoints.GetCurveName(i) + " (" + std::to_string(pCount) + " keys)" + "##video_fusion_curve";
+                    auto pCount = fusion->mKeyPoints.GetCurvePointCount(i);
+                    std::string lable_id = std::string(ICON_CURVE) + " " + fusion->mKeyPoints.GetCurveName(i) + " (" + std::to_string(pCount) + " keys)" + "##video_fusion_curve";
                     if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
                     {
                         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
-                        float value = editing_overlap->mFusionKeyPoints.GetValue(i, timeline->currentTime - timeline->mVidOverlap->mStart);
+                        float value = fusion->mKeyPoints.GetValue(i, timeline->currentTime - timeline->mVidOverlap->mStart);
                         ImGui::BracketSquare(true); ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0, 1.0, 0.0, 1.0)); ImGui::Text("%.2f", value); ImGui::PopStyleColor();
                         ImGui::PushItemWidth(60);
-                        float curve_min = editing_overlap->mFusionKeyPoints.GetCurveMin(i);
-                        float curve_max = editing_overlap->mFusionKeyPoints.GetCurveMax(i);
+                        float curve_min = fusion->mKeyPoints.GetCurveMin(i);
+                        float curve_max = fusion->mKeyPoints.GetCurveMax(i);
                         if (ImGui::DragFloat("##curve_video_fusion_min", &curve_min, 0.1f, -FLT_MAX, curve_max, "%.1f"))
                         {
-                            editing_overlap->mFusionKeyPoints.SetCurveMin(i, curve_min);
-                            timeline->SetOverlapFusionKeyPoint(editing_overlap->mID);
+                            fusion->mKeyPoints.SetCurveMin(i, curve_min);
                             timeline->UpdatePreview();
                         } ImGui::ShowTooltipOnHover("Min");
                         ImGui::SameLine(0, 8);
                         if (ImGui::DragFloat("##curve_video_fusion_max", &curve_max, 0.1f, curve_min, FLT_MAX, "%.1f"))
                         {
-                            editing_overlap->mFusionKeyPoints.SetCurveMax(i, curve_max);
-                            timeline->SetOverlapFusionKeyPoint(editing_overlap->mID);
+                            fusion->mKeyPoints.SetCurveMax(i, curve_max);
                             timeline->UpdatePreview();
                         } ImGui::ShowTooltipOnHover("Max");
                         ImGui::SameLine(0, 8);
-                        float curve_default = editing_overlap->mFusionKeyPoints.GetCurveDefault(i);
+                        float curve_default = fusion->mKeyPoints.GetCurveDefault(i);
                         if (ImGui::DragFloat("##curve_video_fusion_default", &curve_default, 0.1f, curve_min, curve_max, "%.1f"))
                         {
-                            editing_overlap->mFusionKeyPoints.SetCurveDefault(i, curve_default);
-                            timeline->SetOverlapFusionKeyPoint(editing_overlap->mID);
+                            fusion->mKeyPoints.SetCurveDefault(i, curve_default);
                             timeline->UpdatePreview();
                         } ImGui::ShowTooltipOnHover("Default");
                         ImGui::PopItemWidth();
 
                         ImGui::SameLine(0, 8);
                         ImGui::SetWindowFontScale(0.75);
-                        auto curve_color = ImGui::ColorConvertU32ToFloat4(editing_overlap->mFusionKeyPoints.GetCurveColor(i));
+                        auto curve_color = ImGui::ColorConvertU32ToFloat4(fusion->mKeyPoints.GetCurveColor(i));
                         if (ImGui::ColorEdit4("##curve_video_fusion_color", (float*)&curve_color, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar))
                         {
-                            editing_overlap->mFusionKeyPoints.SetCurveColor(i, ImGui::ColorConvertFloat4ToU32(curve_color));
+                            fusion->mKeyPoints.SetCurveColor(i, ImGui::ColorConvertFloat4ToU32(curve_color));
                         } ImGui::ShowTooltipOnHover("Curve Color");
                         ImGui::SetWindowFontScale(1.0);
                         ImGui::SameLine(0, 4);
-                        bool is_visiable = editing_overlap->mFusionKeyPoints.IsVisible(i);
+                        bool is_visiable = fusion->mKeyPoints.IsVisible(i);
                         if (ImGui::Button(is_visiable ? ICON_WATCH : ICON_UNWATCH "##curve_video_fusion_visiable"))
                         {
                             is_visiable = !is_visiable;
-                            editing_overlap->mFusionKeyPoints.SetCurveVisible(i, is_visiable);
+                            fusion->mKeyPoints.SetCurveVisible(i, is_visiable);
                         } ImGui::ShowTooltipOnHover( is_visiable ? "Hide" : "Show");
                         ImGui::SameLine(0, 4);
                         if (ImGui::Button(ICON_DELETE "##curve_video_fusion_delete"))
                         {
                             // delete blueprint entry node pin
-                            auto pin_name = editing_overlap->mFusionKeyPoints.GetCurveName(i);
+                            auto pin_name = fusion->mKeyPoints.GetCurveName(i);
                             if (blueprint)
                             {
                                 auto entry_node = blueprint->FindEntryPointNode();
                                 if (entry_node) entry_node->DeleteOutputPin(pin_name);
-                                timeline->SetOverlapFusionKeyPoint(editing_overlap->mID);
                                 timeline->UpdatePreview();
                             }
-                            editing_overlap->mFusionKeyPoints.DeleteCurve(i);
+                            fusion->mKeyPoints.DeleteCurve(i);
                             break_loop = true;
                         } ImGui::ShowTooltipOnHover("Delete");
                         ImGui::SameLine(0, 4);
@@ -4180,9 +4177,8 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
                         {
                             for (int p = 0; p < pCount; p++)
                             {
-                                editing_overlap->mFusionKeyPoints.SetCurvePointDefault(i, p);
+                                fusion->mKeyPoints.SetCurvePointDefault(i, p);
                             }
-                            timeline->SetOverlapFusionKeyPoint(editing_overlap->mID);
                             timeline->UpdatePreview();
                         } ImGui::ShowTooltipOnHover("Reset");
 
@@ -4194,30 +4190,27 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
                                 bool is_disabled = false;
                                 ImGui::PushID(p);
                                 ImGui::PushItemWidth(96);
-                                auto point = editing_overlap->mFusionKeyPoints.GetPoint(i, p);
+                                auto point = fusion->mKeyPoints.GetPoint(i, p);
                                 ImGui::Diamond(false);
                                 if (p == 0 || p == pCount - 1)
                                     is_disabled = true;
                                 ImGui::BeginDisabled(is_disabled);
-                                if (ImGui::DragTimeMS("##curve_video_fusion_point_x", &point.point.x, editing_overlap->mFusionKeyPoints.GetMax().x / 1000.f, editing_overlap->mFusionKeyPoints.GetMin().x, editing_overlap->mFusionKeyPoints.GetMax().x, 2))
+                                if (ImGui::DragTimeMS("##curve_video_fusion_point_x", &point.point.x, fusion->mKeyPoints.GetMax().x / 1000.f, fusion->mKeyPoints.GetMin().x, fusion->mKeyPoints.GetMax().x, 2))
                                 {
-                                    editing_overlap->mFusionKeyPoints.EditPoint(i, p, point.point, point.type);
-                                    timeline->SetOverlapFusionKeyPoint(editing_overlap->mID);
+                                    fusion->mKeyPoints.EditPoint(i, p, point.point, point.type);
                                     timeline->UpdatePreview();
                                 }
                                 ImGui::EndDisabled();
                                 ImGui::SameLine();
-                                if (ImGui::DragFloat("##curve_video_fusion_point_y", &point.point.y, 0.01f, editing_overlap->mFusionKeyPoints.GetCurveMin(i), editing_overlap->mFusionKeyPoints.GetCurveMax(i), "%.2f"))
+                                if (ImGui::DragFloat("##curve_video_fusion_point_y", &point.point.y, 0.01f, fusion->mKeyPoints.GetCurveMin(i), fusion->mKeyPoints.GetCurveMax(i), "%.2f"))
                                 {
-                                    editing_overlap->mFusionKeyPoints.EditPoint(i, p, point.point, point.type);
-                                    timeline->SetOverlapFusionKeyPoint(editing_overlap->mID);
+                                    fusion->mKeyPoints.EditPoint(i, p, point.point, point.type);
                                     timeline->UpdatePreview();
                                 }
                                 ImGui::SameLine();
                                 if (ImGui::Combo("##curve_video_fusion_type", (int*)&point.type, curve_type_list, curve_type_count))
                                 {
-                                    editing_overlap->mFusionKeyPoints.EditPoint(i, p, point.point, point.type);
-                                    timeline->SetOverlapFusionKeyPoint(editing_overlap->mID);
+                                    fusion->mKeyPoints.EditPoint(i, p, point.point, point.type);
                                     timeline->UpdatePreview();
                                 }
                                 ImGui::PopItemWidth();
@@ -4255,7 +4248,6 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
                             if (node->DrawCustomLayout(ImGui::GetCurrentContext(), 1.0, ImVec2(0, 0), &key))
                             {
                                 node->m_NeedUpdate = true;
-                                timeline->SetOverlapFusionKeyPoint(editing_overlap->mID);
                                 timeline->UpdatePreview();
                             }
                             if (!key.name.empty())
