@@ -36,6 +36,7 @@ static double g_playStartPos = 0.f;
 static Clock::time_point g_playStartTp;
 static bool g_isPlay = false;
 static bool g_playForward = true;
+static bool g_isSeeking = false;
 
 static ImTextureID g_imageTid;
 static ImVec2 g_imageDisplaySize = { 640, 440 };
@@ -510,7 +511,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
 
         const int64_t readPos = (int64_t)(playPos*1000);
         vector<CorrelativeFrame> frames;
-        bool readRes = g_mtVidReader->ReadVideoFrameEx(readRes, frames);
+        bool readRes = g_mtVidReader->ReadVideoFrameEx(readPos, frames, g_isSeeking);
         ImGui::ImMat vmat;
         if (s_showClipSourceFrame)
         {
@@ -552,6 +553,20 @@ bool Application_Frame(void * handle, bool app_will_quit)
             ImGui::TextUnformatted(imgTag.c_str());
         }
 
+        float currPos = playPos;
+        int64_t dur = g_mtVidReader->Duration();
+        if (ImGui::SliderFloat("Seek Pos", &currPos, 0, (float)dur/1000, "%.3f"))
+        {
+            g_isSeeking = true;
+            g_playStartTp = Clock::now();
+            g_playStartPos = currPos;
+        }
+
+        if (g_isSeeking && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+        {
+            g_isSeeking = false;
+        }
+
         string playBtnLabel = g_isPlay ? "Pause" : "Play ";
         if (ImGui::Button(playBtnLabel.c_str()))
         {
@@ -571,12 +586,6 @@ bool Application_Frame(void * handle, bool app_will_quit)
             g_playForward = notForward;
             g_playStartPos = playPos;
             g_playStartTp = Clock::now();
-        }
-
-        ImGui::SameLine(0, 10);
-        if (ImGui::Button("Seek to 60s"))
-        {
-            g_playStartPos = 60;
         }
 
         ImGui::SameLine(0, 10);

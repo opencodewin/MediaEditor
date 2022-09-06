@@ -688,6 +688,7 @@ private:
                         {
                             memcpy(amat.data, outfrm->data[0], outfrm->linesize[0]);
                             amat.time_stamp = ConvertPtsToTs(outfrm->pts);
+                            av_frame_unref(outfrm.get());
                             lock_guard<mutex> lk(m_outputMatsLock);
                             m_outputMats.push_back(amat);
                             idleLoop = false;

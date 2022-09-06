@@ -187,20 +187,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
     ImGui::SetNextWindowSize(io.DisplaySize);
     if (ImGui::Begin("MainWindow", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoResize))
     {
-        if (ImGui::Button((string(ICON_IGFD_FOLDER_OPEN)+" Open file").c_str()))
-        {
-            const char *filters = "视频文件(*.mp4 *.mov *.mkv *.webm *.avi){.mp4,.mov,.mkv,.webm,.avi,.MP4,.MOV,.MKV,WEBM,.AVI},.*";
-            ImGuiFileDialog::Instance()->OpenDialog("ChooseFileDlgKey", ICON_IGFD_FOLDER_OPEN " 打开视频文件", 
-                                                    filters, 
-                                                    "/mnt/data2/video/hd/", 
-                                                    1, 
-                                                    nullptr, 
-                                                    ImGuiFileDialogFlags_ShowBookmark |
-                                                    ImGuiFileDialogFlags_Modal);
-        }
-
-        ImGui::SameLine(0, 20);
-
+        // control line #1
         vector<string> trackNames;
         for (uint32_t i = 0; i < g_mtAudReader->TrackCount(); i++)
         {
@@ -229,57 +216,39 @@ bool Application_Frame(void * handle, bool app_will_quit)
             }
             ImGui::EndCombo();
         }
-        ImGui::SameLine(0, 20);
+        ImGui::SameLine(0, 10);
         ImGui::TextUnformatted("Start");
         ImGui::SameLine();
         ImGui::InputDouble("##Start", &s_addClipStart);
-        ImGui::SameLine(0, 20);
+        ImGui::SameLine(0, 10);
         ImGui::TextUnformatted("ClipStartOffset");
         ImGui::SameLine();
         ImGui::InputDouble("##ClipStartOffset", &s_addClipStartOffset);
-        ImGui::SameLine(0, 20);
+        ImGui::SameLine(0, 10);
         ImGui::TextUnformatted("ClipEndOffset");
         ImGui::SameLine();
         ImGui::InputDouble("##ClipEndOffset", &s_addClipEndOffset);
         ImGui::PopItemWidth();
+        ImGui::SameLine(0, 10);
+        if (ImGui::Button((string(ICON_IGFD_FOLDER_OPEN)+" Open file").c_str()))
+        {
+            const char *filters = "视频文件(*.mp3 *.m4a *.wav *.mp4 *.mov *.mkv *.webm *.avi){.mp3,.m4a,.wav,.mp4,.mov,.mkv,.webm,.avi,.MP3,.M4A,.WAV.MP4,.MOV,.MKV,WEBM,.AVI},.*";
+            ImGuiFileDialog::Instance()->OpenDialog("ChooseFileDlgKey", ICON_IGFD_FOLDER_OPEN " 打开音频文件", 
+                                                    filters, 
+                                                    "/mnt/data2/video/hd/", 
+                                                    1, 
+                                                    nullptr, 
+                                                    ImGuiFileDialogFlags_ShowBookmark |
+                                                    ImGuiFileDialogFlags_Modal);
+        }
 
+        // control line #2
         ImGui::Spacing();
-
         vector<string> selectTrackOpts(trackNames);
         if (selectTrackOpts.empty())
             selectTrackOpts.push_back("<No track>");
         bool noTrack = trackNames.empty();
-
         ImGui::PushItemWidth(100);
-        if (ImGui::BeginCombo("##RemTrackOptions", selectTrackOpts[s_remTrackOptSelIdx].c_str()))
-        {
-            for (uint32_t i = 0; i < selectTrackOpts.size(); i++)
-            {
-                string& item = selectTrackOpts[i];
-                const bool isSelected = s_remTrackOptSelIdx == i;
-                if (ImGui::Selectable(item.c_str(), isSelected))
-                    s_remTrackOptSelIdx = i;
-                if (isSelected)
-                    ImGui::SetItemDefaultFocus();
-            }
-            ImGui::EndCombo();
-        }
-        ImGui::PopItemWidth();
-        ImGui::SameLine(0, 20);
-
-        if (noTrack)
-            ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true);
-        if (ImGui::Button("Remove Track"))
-        {
-            g_mtAudReader->RemoveTrackByIndex(s_remTrackOptSelIdx);
-            s_remTrackOptSelIdx = 0;
-            g_audrnd->Flush();
-        }
-        if (noTrack)
-            ImGui::PopItemFlag();
-
-        ImGui::Spacing();
-
         ImGui::PushItemWidth(100);
         if (ImGui::BeginCombo("##MovClipSelTrackOptions", selectTrackOpts[s_clipOpTrackSelIdx].c_str()))
         {
@@ -294,9 +263,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
             }
             ImGui::EndCombo();
         }
-
         ImGui::SameLine(0, 10);
-
         vector<string> clipNames;
         if (!noTrack)
         {
@@ -335,12 +302,11 @@ bool Application_Frame(void * handle, bool app_will_quit)
             }
             ImGui::EndCombo();
         }
-
         ImGui::PopItemWidth();
-        ImGui::SameLine(0, 20);
-
-        if (noClip)
-            ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true);
+        ImGui::SameLine(0, 10);
+        ImGui::PopItemWidth();
+        ImGui::SameLine(0, 10);
+        ImGui::BeginDisabled(noClip);
         if (ImGui::Button("Remove Clip"))
         {
             AudioTrackHolder hTrack = g_mtAudReader->GetTrackByIndex(s_clipOpTrackSelIdx);
@@ -349,20 +315,15 @@ bool Application_Frame(void * handle, bool app_will_quit)
             s_clipOpClipSelIdx = 0;
             g_audrnd->Flush();
         }
-        if (noClip)
-            ImGui::PopItemFlag();
-
+        ImGui::EndDisabled();
         ImGui::SameLine(0, 20);
-
         ImGui::PushItemWidth(100);
         ImGui::TextUnformatted("tloff");
         ImGui::SameLine();
         ImGui::InputDouble("##tloff", &s_changeClipStart);
-        ImGui::SameLine(0, 10);
-
         ImGui::PopItemWidth();
-        if (noClip)
-            ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true);
+        ImGui::SameLine(0, 10);
+        ImGui::BeginDisabled(noClip);
         if (ImGui::Button("Move Clip"))
         {
             AudioTrackHolder hTrack = g_mtAudReader->GetTrackByIndex(s_clipOpTrackSelIdx);
@@ -370,10 +331,8 @@ bool Application_Frame(void * handle, bool app_will_quit)
             hTrack->MoveClip(hClip->Id(), (int64_t)(s_changeClipStart*1000));
             g_mtAudReader->Refresh();
         }
-        if (noClip)
-            ImGui::PopItemFlag();
-
-        ImGui::SameLine(0, 10);
+        ImGui::EndDisabled();
+        ImGui::SameLine(0, 20);
         ImGui::PushItemWidth(100);
         ImGui::TextUnformatted("off0");
         ImGui::SameLine();
@@ -382,11 +341,9 @@ bool Application_Frame(void * handle, bool app_will_quit)
         ImGui::TextUnformatted("off1");
         ImGui::SameLine();
         ImGui::InputDouble("##off1", &s_changeClipEndOffset);
-        ImGui::SameLine(0, 10);
         ImGui::PopItemWidth();
-
-        if (noClip)
-            ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true);
+        ImGui::SameLine(0, 10);
+        ImGui::BeginDisabled(noClip);
         if (ImGui::Button("Change Clip Range"))
         {
             AudioTrackHolder hTrack = g_mtAudReader->GetTrackByIndex(s_clipOpTrackSelIdx);
@@ -394,11 +351,10 @@ bool Application_Frame(void * handle, bool app_will_quit)
             hTrack->ChangeClipRange(hClip->Id(), (int64_t)(s_changeClipStartOffset*1000), (int64_t)(s_changeClipEndOffset*1000));
             g_mtAudReader->Refresh();
         }
-        if (noClip)
-            ImGui::PopItemFlag();
+        ImGui::EndDisabled();
 
+        // control line #3
         ImGui::Spacing();
-
         ImGui::TextUnformatted("Audio Tracks:");
         uint32_t audTrackIdx = 1;
         for (auto track = g_mtAudReader->TrackListBegin(); track != g_mtAudReader->TrackListEnd(); track++)
@@ -427,9 +383,49 @@ bool Application_Frame(void * handle, bool app_will_quit)
             ImGui::TextUnformatted(oss.str().c_str());
         }
 
+        // control line #4
+        ImGui::Spacing();
+        ImGui::PushItemWidth(100);
+        if (ImGui::BeginCombo("##RemTrackOptions", selectTrackOpts[s_remTrackOptSelIdx].c_str()))
+        {
+            for (uint32_t i = 0; i < selectTrackOpts.size(); i++)
+            {
+                string& item = selectTrackOpts[i];
+                const bool isSelected = s_remTrackOptSelIdx == i;
+                if (ImGui::Selectable(item.c_str(), isSelected))
+                    s_remTrackOptSelIdx = i;
+                if (isSelected)
+                    ImGui::SetItemDefaultFocus();
+            }
+            ImGui::EndCombo();
+        }
+        ImGui::PopItemWidth();
+        ImGui::SameLine(0, 10);
+        ImGui::BeginDisabled(noTrack);
+        if (ImGui::Button("Remove Track"))
+        {
+            g_mtAudReader->RemoveTrackByIndex(s_remTrackOptSelIdx);
+            s_remTrackOptSelIdx = 0;
+            g_audrnd->Flush();
+        }
+        ImGui::EndDisabled();
+
         ImGui::Spacing();
         ImGui::Dummy({10, 10});
 
+        float currPos = g_audPos;
+        int64_t dur = g_mtAudReader->Duration();
+        if (ImGui::SliderFloat("Seek Pos", &currPos, 0, (float)dur/1000, "%.3f"))
+        {
+            if (g_isPlay)
+                g_audrnd->Pause();
+            g_audrnd->Flush();
+            g_mtAudReader->SeekTo((int64_t)(currPos*1000));
+            if (g_isPlay)
+                g_audrnd->Resume();
+        }
+
+        ImGui::Spacing();
         string playBtnLabel = g_isPlay ? "Pause" : "Play ";
         if (ImGui::Button(playBtnLabel.c_str()))
         {

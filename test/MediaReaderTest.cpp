@@ -22,6 +22,7 @@ using namespace std;
 using namespace Logger;
 using Clock = chrono::steady_clock;
 
+static bool s_audioOnly = false;
 // video
 static MediaReader* g_vidrdr = nullptr;
 static double g_playStartPos = 0.f;
@@ -266,6 +267,9 @@ bool Application_Frame(void * handle, bool app_will_quit)
                 g_vidrdr->SetCacheDuration(G_DurTable[0].first, G_DurTable[0].second);
         }
 
+        ImGui::SameLine();
+        ImGui::Checkbox("Audio Only", &s_audioOnly);
+
         ImGui::Spacing();
 
         if (ImGui::SliderFloat("Position", &playPos, 0, mediaDur, "%.3f"))
@@ -340,11 +344,17 @@ bool Application_Frame(void * handle, bool app_will_quit)
             g_imageTid = nullptr;
             g_isLongCacheDur = false;
             string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
-            g_vidrdr->Open(filePathName);
-            g_vidrdr->ConfigVideoReader((uint32_t)g_imageDisplaySize.x, (uint32_t)g_imageDisplaySize.y);
-            g_vidrdr->Start();
-            g_audrdr->Open(g_vidrdr->GetMediaParser());
-            // g_audrdr->Open(filePathName);
+            if (!s_audioOnly)
+            {
+                g_vidrdr->Open(filePathName);
+                g_vidrdr->ConfigVideoReader((uint32_t)g_imageDisplaySize.x, (uint32_t)g_imageDisplaySize.y);
+                g_vidrdr->Start();
+                g_audrdr->Open(g_vidrdr->GetMediaParser());
+            }
+            else
+            {
+                g_audrdr->Open(filePathName);
+            }
             g_audrdr->ConfigAudioReader(c_audioRenderChannels, c_audioRenderSampleRate);
             g_audrdr->Start();
         }
