@@ -1747,6 +1747,8 @@ int BluePrintVideoTransition::OnBluePrintChange(int type, std::string name, void
     if (!handle)
         return BluePrint::BP_CBR_Unknown;
     BluePrintVideoTransition * fusion = (BluePrintVideoTransition *)handle;
+    if (!fusion) return ret;
+    TimeLine * timeline = (TimeLine *)fusion->mHandle;
     if (name.compare("VideoFusion") == 0)
     {
         if (type == BluePrint::BP_CB_Link ||
@@ -1754,12 +1756,14 @@ int BluePrintVideoTransition::OnBluePrintChange(int type, std::string name, void
             type == BluePrint::BP_CB_NODE_DELETED)
         {
             // need update
+            if (timeline) timeline->UpdatePreview();
             ret = BluePrint::BP_CBR_AutoLink;
         }
         else if (type == BluePrint::BP_CB_PARAM_CHANGED ||
                 type == BluePrint::BP_CB_SETTING_CHANGED)
         {
             // need update
+            if (timeline) timeline->UpdatePreview();
         }
     }
     return ret;
@@ -1857,7 +1861,7 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
     mFilter = dynamic_cast<BluePrintVideoFilter *>(hClip->GetFilter().get());
     if (!mFilter)
     {
-        mFilter = new BluePrintVideoFilter();
+        mFilter = new BluePrintVideoFilter(timeline); // ?
         mFilter->SetKeyPoint(vidclip->mFilterKeyPoints);
         DataLayer::VideoFilterHolder hFilter(mFilter);
         hClip->SetFilter(hFilter);
@@ -1868,7 +1872,7 @@ EditingVideoClip::~EditingVideoClip()
 {
     mSsViewer = nullptr;
     mSsGen = nullptr;
-    mFilter = nullptr;
+    mFilter = nullptr; // ?
 }
 
 void EditingVideoClip::UpdateClipRange(Clip* clip)
@@ -1948,7 +1952,7 @@ bool EditingVideoClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_fr
     else
     {
         auto iter = std::find_if(frames.begin(), frames.end(), [this] (auto& cf) {
-        return cf.clipId == mID && cf.phase == DataLayer::CorrelativeFrame::PHASE_AFTER_FILTER;
+            return cf.clipId == mID && cf.phase == DataLayer::CorrelativeFrame::PHASE_AFTER_FILTER;
         });
         if (iter != frames.end())
             in_out_frame.second = iter->frame;
@@ -2287,42 +2291,16 @@ EditingVideoOverlap::EditingVideoOverlap(Overlap* ovlp)
         mEnd = ovlp->mEnd;
         mDuration = mEnd - mStart;
         
-#ifdef OLD_FUSION_UI
-        mMediaReader.first = CreateMediaReader();
-        mMediaReader.second = CreateMediaReader();
-
-        if (!mMediaReader.first || !mMediaReader.second)
+        auto hOvlp = timeline->mMtvReader->GetOverlapById(mOvlp->mID);
+        IM_ASSERT(hOvlp);
+        mFusion = dynamic_cast<BluePrintVideoTransition *>(hOvlp->GetTransition().get());
+        if (!mFusion)
         {
-            Logger::Log(Logger::Error) << "Create Fusion Video Clip" << std::endl;
-            return;
+            mFusion = new BluePrintVideoTransition(timeline); // ?
+            mFusion->SetKeyPoint(mOvlp->mFusionKeyPoints);
+            DataLayer::VideoTransitionHolder hTrans(mFusion);
+            hOvlp->SetTransition(hTrans);
         }
-        if (timeline) mMediaReader.first->EnableHwAccel(timeline->mHardwareCodec);
-        if (timeline) mMediaReader.second->EnableHwAccel(timeline->mHardwareCodec);
-        // open first video reader
-        if (mMediaReader.first->Open(mClip1->mSsViewer->GetMediaParser()))
-        {
-            if (mMediaReader.first->ConfigVideoReader(1.f, 1.f))
-            {
-                mMediaReader.first->Start();
-            }
-            else
-            {
-                ReleaseMediaReader(&mMediaReader.first);
-            }
-        }
-        // open second video reader
-        if (mMediaReader.second->Open(vidclip2->mSsViewer->GetMediaParser()))
-        {
-            if (mMediaReader.second->ConfigVideoReader(1.f, 1.f))
-            {
-                mMediaReader.second->Start();
-            }
-            else
-            {
-                ReleaseMediaReader(&mMediaReader.second);
-            }
-        }
-#endif
         mClipFirstFrameRate = mClip1->mClipFrameRate;
         mClipSecondFrameRate = mClip2->mClipFrameRate;
     }
@@ -2334,13 +2312,11 @@ EditingVideoOverlap::EditingVideoOverlap(Overlap* ovlp)
 
 EditingVideoOverlap::~EditingVideoOverlap()
 {
-#ifdef OLD_FUSION_UI
-    if (mMediaReader.first) { ReleaseMediaReader(&mMediaReader.first); mMediaReader.first = nullptr; }
-    if (mMediaReader.second) { ReleaseMediaReader(&mMediaReader.second); mMediaReader.second = nullptr; }
-    mFrameLock.lock();
-    mFrame.clear();
-    mFrameLock.unlock();
-#endif
+    mViewer1 = nullptr;
+    mViewer2 = nullptr;
+    mSsGen1 = nullptr;
+    mSsGen2 = nullptr;
+    mFusion = nullptr; // ?
 }
 
 void EditingVideoOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom)
@@ -2467,160 +2443,58 @@ void EditingVideoOverlap::Seek(int64_t pos)
     {
         return;
     }
-#ifdef OLD_FUSION_UI
-    mFrameLock.lock();
-    mFrame.clear();
-    mFrameLock.unlock();
-#endif
-    mLastTime = -1;
-    mCurrent = pos;
-    alignTime(mCurrent, timeline->mFrameRate);
-#ifdef OLD_FUSION_UI
-    if (mMediaReader.first && mMediaReader.first->IsOpened())
-    {
-        int64_t pos = mCurrent + m_StartOffset.first;
-        alignTime(pos, mClipFirstFrameRate);
-        mMediaReader.first->SeekTo((double)pos / 1000.f);
-    }
-    if (mMediaReader.second && mMediaReader.second->IsOpened())
-    {
-        int64_t pos = mCurrent + m_StartOffset.second;
-        alignTime(pos, mClipSecondFrameRate);
-        mMediaReader.second->SeekTo((double)pos / 1000.f);
-    }
-#endif
+    timeline->bSeeking = true;
+    timeline->Seek(pos + mStart);
 }
 
 void EditingVideoOverlap::Step(bool forward, int64_t step)
 {
+}
+
+bool EditingVideoOverlap::GetFrame(std::pair<std::pair<ImGui::ImMat, ImGui::ImMat>, ImGui::ImMat>& in_out_frame, bool preview_frame)
+{
+    int ret = true;
     TimeLine* timeline = (TimeLine*)(mOvlp->mHandle);
     if (!timeline)
-        return;
-    if (forward)
+        return false;
+
+    auto frames = timeline->GetPreviewFrame();
+    ImGui::ImMat frame_org_first;
+    auto iter_first = std::find_if(frames.begin(), frames.end(), [this] (auto& cf) {
+        return cf.clipId == mOvlp->m_Clip.first && cf.phase == DataLayer::CorrelativeFrame::PHASE_SOURCE_FRAME;
+    });
+    if (iter_first != frames.end())
+        frame_org_first = iter_first->frame;
+    else
+        ret = false;
+    ImGui::ImMat frame_org_second;
+    auto iter_second = std::find_if(frames.begin(), frames.end(), [this] (auto& cf) {
+        return cf.clipId == mOvlp->m_Clip.second && cf.phase == DataLayer::CorrelativeFrame::PHASE_SOURCE_FRAME;
+    });
+    if (iter_second != frames.end())
+        frame_org_second = iter_second->frame;
+    else
+        ret = false;
+    
+    if (preview_frame)
     {
-        bForward = true;
-        if (step > 0) mCurrent += step;
+        if (!frames.empty())
+            in_out_frame.second = frames[0].frame;
         else
-        {
-            frameStepTime(mCurrent, 1, timeline->mFrameRate);
-        }
-        if (mCurrent > mEnd - mStart)
-        {
-            mCurrent = mEnd - mStart;
-            mLastTime = -1;
-            bPlay = false;
-#ifdef OLD_FUSION_UI
-            timeline->mVideoFusionNeedUpdate = true;
-#endif
-        }
+            ret = false;
     }
     else
     {
-        bForward = false;
-        if (step > 0) mCurrent -= step;
+        auto iter = std::find_if(frames.begin(), frames.end(), [this] (auto& cf) {
+            return cf.phase == DataLayer::CorrelativeFrame::PHASE_AFTER_TRANSITION;
+        });
+        if (iter != frames.end())
+            in_out_frame.second = iter->frame;
         else
-        {
-            frameStepTime(mCurrent, -1, timeline->mFrameRate);
-        }
-        if (mCurrent < 0)
-        {
-            mCurrent = 0;
-            mLastTime = -1;
-            bPlay = false;
-#ifdef OLD_FUSION_UI
-            timeline->mVideoFusionNeedUpdate = true;
-#endif
-        }
+            ret = false;
     }
-}
-
-bool EditingVideoOverlap::GetFrame(std::pair<std::pair<ImGui::ImMat, ImGui::ImMat>, ImGui::ImMat>& in_out_frame)
-{
-    int ret = false;
-    TimeLine* timeline = (TimeLine*)(mOvlp->mHandle);
-#ifdef OLD_FUSION_UI
-    if (!timeline || mFrame.empty())
-        return ret;
-    auto frame_delay_first = mClipFirstFrameRate.den * 1000 / mClipFirstFrameRate.num;
-    auto frame_delay_second = mClipSecondFrameRate.den * 1000 / mClipSecondFrameRate.num;
-
-    int64_t buffer_start_first = mFrame.begin()->first.first.time_stamp * 1000;
-    int64_t buffer_end_first = buffer_start_first;
-    frameStepTime(buffer_end_first, bForward ? timeline->mMaxCachedVideoFrame : -timeline->mMaxCachedVideoFrame, mClipFirstFrameRate);
-    if (buffer_start_first > buffer_end_first)
-        std::swap(buffer_start_first, buffer_end_first);
-
-    int64_t buffer_start_second = mFrame.begin()->first.second.time_stamp * 1000;
-    int64_t buffer_end_second = buffer_start_second;
-    frameStepTime(buffer_end_second, bForward ? timeline->mMaxCachedVideoFrame : -timeline->mMaxCachedVideoFrame, mClipSecondFrameRate);
-    if (buffer_start_second > buffer_end_second)
-        std::swap(buffer_start_second, buffer_end_second);
-
-    bool out_of_range = false;
-    if (mCurrent + m_StartOffset.first < buffer_start_first - frame_delay_first || mCurrent + m_StartOffset.first > buffer_end_first + frame_delay_first)
-        out_of_range = true;
-    if (mCurrent + m_StartOffset.second < buffer_start_second - frame_delay_second || mCurrent + m_StartOffset.second > buffer_end_second + frame_delay_second)
-        out_of_range = true;
-
-    for (auto pair = mFrame.begin(); pair != mFrame.end();)
-    {
-        bool need_erase = false;
-        int64_t time_diff_first = fabs(pair->first.first.time_stamp * 1000 - (mCurrent + m_StartOffset.first));
-        if (time_diff_first > frame_delay_first)
-            need_erase = true;
-        int64_t time_diff_second = fabs(pair->first.second.time_stamp * 1000 - (mCurrent + m_StartOffset.second));
-        if (time_diff_second > frame_delay_second)
-            need_erase = true;
-
-        if (need_erase || out_of_range)
-        {
-            // TODO::Dicky check seek will jitter
-            // if we on seek stage, may output last frame for smooth preview
-            //if (bSeeking && pair != mFrame.end())
-            //{
-            //    in_out_frame = *pair;
-            //    ret = true;
-            //}
-            mFrameLock.lock();
-            pair = mFrame.erase(pair);
-            mFrameLock.unlock();
-            if (ret) break;
-        }
-        else
-        {
-            in_out_frame = *pair;
-            ret = true;
-            // handle clip play event
-            if (bPlay)
-            {
-                bool need_step_time = false;
-                int64_t step_time = 0;
-                int64_t current_system_time = ImGui::get_current_time_usec() / 1000;
-                if (mLastTime != -1)
-                {
-                    step_time = current_system_time - mLastTime;
-                    if (step_time >= frame_delay_first || step_time >= frame_delay_second)
-                        need_step_time = true;
-                }
-                else
-                {
-                    mLastTime = current_system_time;
-                    need_step_time = true;
-                }
-                if (need_step_time)
-                {
-                    mLastTime = current_system_time;
-                    Step(bForward, step_time);
-                }
-            }
-            else
-            {
-                mLastTime = -1;
-            }
-            break;
-        }
-    }
-#endif
+    in_out_frame.first.first = frame_org_first;
+    in_out_frame.first.second = frame_org_second;
     return ret;
 }
 
@@ -2629,22 +2503,14 @@ void EditingVideoOverlap::Save()
     TimeLine * timeline = (TimeLine *)(mOvlp->mHandle);
     if (!timeline)
         return;
-#ifdef OLD_FUSION_UI
-    timeline->mVideoFusionBluePrintLock.lock();
-    if (timeline->mVideoFusionBluePrint && timeline->mVideoFusionBluePrint->Blueprint_IsValid())
+    auto overlap = timeline->FindOverlapByID(mOvlp->mID);
+    if (!overlap)
+        return;
+    if (mFusion && mFusion->mBp && mFusion->mBp->Blueprint_IsValid())
     {
-        mOvlp->mFusionBP = timeline->mVideoFusionBluePrint->m_Document->Serialize();
+        overlap->mFusionBP = mFusion->mBp->m_Document->Serialize();
     }
-    timeline->mVideoFusionBluePrintLock.unlock();
-    // update video filter in datalayer
-    DataLayer::VideoOverlapHolder hOvlp = timeline->mMtvReader->GetOverlapById(mOvlp->mID);
-    BluePrintVideoTransition* bpvt = new BluePrintVideoTransition();
-    bpvt->SetBluePrintFromJson(mOvlp->mFusionBP);
-    bpvt->SetKeyPoint(mOvlp->mFusionKeyPoints);
-    DataLayer::VideoTransitionHolder hTrans(bpvt);
-    hOvlp->SetTransition(hTrans);
     timeline->UpdatePreview();
-#endif
 }
 
 }// namespace MediaTimeline
@@ -3126,6 +2992,7 @@ void MediaTrack::SelectEditingOverlap(Overlap * overlap)
     
     // find old editing overlap and reset BP
     Overlap * editing_overlap = timeline->FindEditingOverlap();
+    timeline->Seek(overlap->mStart);
 
     if (editing_overlap && editing_overlap->mID != overlap->mID)
     {
@@ -3133,15 +3000,14 @@ void MediaTrack::SelectEditingOverlap(Overlap * overlap)
         auto clip_second = timeline->FindClipByID(editing_overlap->m_Clip.second);
         if (clip_first && clip_second)
         {
-#ifdef OLD_FUSION_UI
             if (clip_first->mType == MEDIA_VIDEO && 
                 clip_second->mType == MEDIA_VIDEO &&
-                timeline->mVideoFusionBluePrint &&
-                timeline->mVideoFusionBluePrint->Blueprint_IsValid())
+                timeline->mVidOverlap &&
+                timeline->mVidOverlap->mFusion &&
+                timeline->mVidOverlap->mFusion->mBp &&
+                timeline->mVidOverlap->mFusion->mBp->Blueprint_IsValid())
             {
-                timeline->mVideoFusionBluePrintLock.lock();
-                editing_overlap->mFusionBP = timeline->mVideoFusionBluePrint->m_Document->Serialize();
-                timeline->mVideoFusionBluePrintLock.unlock();
+                editing_overlap->mFusionBP = timeline->mVidOverlap->mFusion->mBp->m_Document->Serialize();
             }
             if (clip_first->mType == MEDIA_AUDIO && 
                 clip_second->mType == MEDIA_AUDIO &&
@@ -3152,7 +3018,6 @@ void MediaTrack::SelectEditingOverlap(Overlap * overlap)
                 editing_overlap->mFusionBP = timeline->mAudioFusionBluePrint->m_Document->Serialize();
                 timeline->mAudioFusionBluePrintLock.unlock();
             }
-#endif
         }
         if (timeline->mVidOverlap)
             timeline->mVidOverlap->Save();
@@ -3162,11 +3027,9 @@ void MediaTrack::SelectEditingOverlap(Overlap * overlap)
         {
             delete timeline->mVidOverlap;
             timeline->mVidOverlap = nullptr;
-#ifdef OLD_FUSION_UI
             if (timeline->mVideoFusionInputFirstTexture) { ImGui::ImDestroyTexture(timeline->mVideoFusionInputFirstTexture); timeline->mVideoFusionInputFirstTexture = nullptr; }
             if (timeline->mVideoFusionInputSecondTexture) { ImGui::ImDestroyTexture(timeline->mVideoFusionInputSecondTexture); timeline->mVideoFusionInputSecondTexture = nullptr; }
             if (timeline->mVideoFusionOutputTexture) { ImGui::ImDestroyTexture(timeline->mVideoFusionOutputTexture); timeline->mVideoFusionOutputTexture = nullptr;  }
-#endif
         }
     }
 
@@ -3180,15 +3043,6 @@ void MediaTrack::SelectEditingOverlap(Overlap * overlap)
     {
         if (!timeline->mVidOverlap)
             timeline->mVidOverlap = new EditingVideoOverlap(overlap);
-#ifdef OLD_FUSION_UI
-        if (timeline->mVideoFusionBluePrint && timeline->mVideoFusionBluePrint->m_Document)
-        {
-            timeline->mVideoFusionBluePrintLock.lock();
-            timeline->mVideoFusionBluePrint->File_New_Fusion(overlap->mFusionBP, "VideoFusion", "Video");
-            timeline->mVideoFusionNeedUpdate = true;
-            timeline->mVideoFusionBluePrintLock.unlock();
-        }
-#endif
     }
 
     if (first->mType == MEDIA_AUDIO && second->mType == MEDIA_AUDIO)
@@ -3553,151 +3407,6 @@ int TimeLine::OnBluePrintChange(int type, std::string name, void* handle)
     return ret;
 }
 
-#ifdef OLD_FUSION_UI
-static int thread_video_fusion(TimeLine * timeline)
-{
-    if (!timeline)
-        return -1;
-    timeline->mVideoFusionRunning = true;
-    while (!timeline->mVideoFusionDone)
-    {
-        if (timeline->mVideoFusionNeedUpdate && timeline->mVidOverlap)
-        {
-            timeline->mVidOverlap->mFrameLock.lock();
-            timeline->mVidOverlap->mFrame.clear();
-            timeline->mVidOverlap->mLastFrameTime = -1;
-            timeline->mVidOverlap->mFrameLock.unlock();
-            timeline->mVideoFusionNeedUpdate = false;
-        }
-        if (!timeline->mVidOverlap || !timeline->mVidOverlap->mMediaReader.first || !timeline->mVidOverlap->mMediaReader.second ||
-            !timeline->mVidOverlap->mMediaReader.first->IsOpened() || !timeline->mVidOverlap->mMediaReader.second->IsOpened() ||
-            !timeline->mVideoFusionBluePrint || !timeline->mVideoFusionBluePrint->Blueprint_IsValid())
-        {
-            ImGui::sleep((int)5);
-            continue;
-        }
-        Overlap * editing_overlap = timeline->FindEditingOverlap();
-        if (!editing_overlap)
-        {
-            ImGui::sleep((int)5);
-            continue;
-        }
-        timeline->mVidFusionLock.lock();
-        {
-            if (!timeline->mVidOverlap || timeline->mVidOverlap->mFrame.size() >= timeline->mMaxCachedVideoFrame)
-            {
-                timeline->mVidFusionLock.unlock();
-                ImGui::sleep((int)5);
-                continue;
-            }
-            int64_t current_time_first = 0;
-            int64_t current_time_second = 0;
-            int64_t current_time = 0;
-            timeline->mVidOverlap->mFrameLock.lock();
-            if (timeline->mVidOverlap->mFrame.empty() || timeline->mVidOverlap->bSeeking)
-            {
-                current_time_first = timeline->mVidOverlap->mCurrent + timeline->mVidOverlap->m_StartOffset.first;
-                current_time_second = timeline->mVidOverlap->mCurrent + timeline->mVidOverlap->m_StartOffset.second;
-            }
-            else
-            {
-                auto it = timeline->mVidOverlap->mFrame.end(); it--;
-                current_time_first = it->first.first.time_stamp * 1000;
-                current_time_second = it->first.second.time_stamp * 1000;
-            }
-            const int64_t frame_delay_first = timeline->mVidOverlap->mClipFirstFrameRate.den * 1000 / timeline->mVidOverlap->mClipFirstFrameRate.num;
-            const int64_t frame_delay_second = timeline->mVidOverlap->mClipSecondFrameRate.den * 1000 / timeline->mVidOverlap->mClipSecondFrameRate.num;
-            alignTime(current_time_first, timeline->mVidOverlap->mClipFirstFrameRate);
-            alignTime(current_time_second, timeline->mVidOverlap->mClipSecondFrameRate);
-            timeline->mVidOverlap->mFrameLock.unlock();
-            while (timeline->mVidOverlap->mFrame.size() < timeline->mMaxCachedVideoFrame)
-            {
-                bool eof_first = false;
-                bool eof_second = false;
-                if (timeline->mVideoFusionDone)
-                    break;
-                if (!timeline->mVidOverlap->mFrame.empty())
-                {
-                    int64_t buffer_start_first = timeline->mVidOverlap->mFrame.begin()->first.first.time_stamp * 1000;
-                    int64_t buffer_end_first = buffer_start_first;
-                    frameStepTime(buffer_end_first, timeline->mVidOverlap->bForward ? timeline->mMaxCachedVideoFrame : -timeline->mMaxCachedVideoFrame, timeline->mVidOverlap->mClipFirstFrameRate);
-                    if (buffer_start_first > buffer_end_first)
-                        std::swap(buffer_start_first, buffer_end_first);
-                    if (timeline->mVidOverlap->mCurrent + timeline->mVidOverlap->m_StartOffset.first < buffer_start_first - frame_delay_first ||
-                        timeline->mVidOverlap->mCurrent + timeline->mVidOverlap->m_StartOffset.first > buffer_end_first + frame_delay_first)
-                    {
-                        ImGui::sleep((int)5);
-                        break;
-                    }
-                    int64_t buffer_start_second = timeline->mVidOverlap->mFrame.begin()->first.second.time_stamp * 1000;
-                    int64_t buffer_end_second = buffer_start_second;
-                    frameStepTime(buffer_end_second, timeline->mVidOverlap->bForward ? timeline->mMaxCachedVideoFrame : -timeline->mMaxCachedVideoFrame, timeline->mVidOverlap->mClipSecondFrameRate);
-                    if (buffer_start_second > buffer_end_second)
-                        std::swap(buffer_start_second, buffer_end_second);
-                    if (timeline->mVidOverlap->mCurrent + timeline->mVidOverlap->m_StartOffset.second < buffer_start_second - frame_delay_second ||
-                        timeline->mVidOverlap->mCurrent + timeline->mVidOverlap->m_StartOffset.second > buffer_end_second + frame_delay_second)
-                    {
-                        ImGui::sleep((int)5);
-                        break;
-                    }
-                }
-                std::pair<std::pair<ImGui::ImMat, ImGui::ImMat>, ImGui::ImMat> result;
-                if ((timeline->mVidOverlap->mMediaReader.first->IsDirectionForward() && !timeline->mVidOverlap->bForward) ||
-                    (!timeline->mVidOverlap->mMediaReader.first->IsDirectionForward() && timeline->mVidOverlap->bForward))
-                    timeline->mVidOverlap->mMediaReader.first->SetDirection(timeline->mVidOverlap->bForward);
-                if ((timeline->mVidOverlap->mMediaReader.second->IsDirectionForward() && !timeline->mVidOverlap->bForward) ||
-                    (!timeline->mVidOverlap->mMediaReader.second->IsDirectionForward() && timeline->mVidOverlap->bForward))
-                    timeline->mVidOverlap->mMediaReader.second->SetDirection(timeline->mVidOverlap->bForward);
-                if (timeline->mVidOverlap->mMediaReader.first->ReadVideoFrame((float)current_time_first / 1000.0, result.first.first, eof_first) &&
-                    timeline->mVidOverlap->mMediaReader.second->ReadVideoFrame((float)current_time_second / 1000.0, result.first.second, eof_second))
-                {
-                    result.first.first.time_stamp = (double)current_time_first / 1000.f;
-                    result.first.second.time_stamp = (double)current_time_second / 1000.f;
-                    current_time = current_time_first - timeline->mVidOverlap->m_StartOffset.first;
-                    timeline->mVideoFusionBluePrintLock.lock();
-                    // setup bp input curve
-                    for (int i = 0; i < editing_overlap->mFusionKeyPoints.GetCurveCount(); i++)
-                    {
-                        auto name = editing_overlap->mFusionKeyPoints.GetCurveName(i);
-                        auto value = editing_overlap->mFusionKeyPoints.GetValue(i, current_time);
-                        timeline->mVideoFusionBluePrint->Blueprint_SetFusion(name, value);
-                    }
-                    if (timeline->mVideoFusionBluePrint->Blueprint_RunFusion(result.first.first, result.first.second, result.second, current_time, timeline->mVidOverlap->mDuration))
-                    {
-                        timeline->mVidOverlap->mFrameLock.lock();
-                        timeline->mVidOverlap->mFrame.push_back(result);
-                        timeline->mVidOverlap->mFrameLock.unlock();
-                        if (timeline->mVidOverlap->bForward)
-                        {
-                            frameStepTime(current_time_first, 1, timeline->mVidOverlap->mClipFirstFrameRate);
-                            if (current_time_first > timeline->mVidOverlap->mClip1->mEnd - timeline->mVidOverlap->mClip1->mStart + timeline->mVidOverlap->mClip1->mStartOffset)
-                                current_time_first = timeline->mVidOverlap->mClip1->mEnd - timeline->mVidOverlap->mClip1->mStart + timeline->mVidOverlap->mClip1->mStartOffset;
-                            frameStepTime(current_time_second, 1, timeline->mVidOverlap->mClipSecondFrameRate);
-                            if (current_time_second > timeline->mVidOverlap->mClip2->mEnd - timeline->mVidOverlap->mClip2->mStart + timeline->mVidOverlap->mClip2->mStartOffset)
-                                current_time_second = timeline->mVidOverlap->mClip2->mEnd - timeline->mVidOverlap->mClip2->mStart + timeline->mVidOverlap->mClip2->mStartOffset;
-                        }
-                        else
-                        {
-                            frameStepTime(current_time_first, -1, timeline->mVidOverlap->mClipFirstFrameRate);
-                            if (current_time_first < timeline->mVidOverlap->mClip1->mStartOffset)
-                                current_time_first = timeline->mVidOverlap->mClip1->mStartOffset;
-                            frameStepTime(current_time_second, -1, timeline->mVidOverlap->mClipSecondFrameRate);
-                            if (current_time_second < timeline->mVidOverlap->mClip2->mStartOffset)
-                                current_time_second = timeline->mVidOverlap->mClip2->mStartOffset;
-                        }
-                        
-                    }
-                    timeline->mVideoFusionBluePrintLock.unlock();
-                }
-            }
-        }
-        timeline->mVidFusionLock.unlock();
-    }
-    timeline->mVideoFusionRunning = false;
-    return 0;
-}
-#endif
-
 TimeLine::TimeLine()
     : mStart(0), mEnd(0), mPcmStream(this)
 {
@@ -3720,17 +3429,6 @@ TimeLine::TimeLine()
         mAudioFilterBluePrint->SetCallbacks(callbacks, this);
     }
 
-#ifdef OLD_FUSION_UI
-    mVideoFusionBluePrint = new BluePrint::BluePrintUI();
-    if (mVideoFusionBluePrint)
-    {
-        BluePrint::BluePrintCallbackFunctions callbacks;
-        callbacks.BluePrintOnChanged = OnBluePrintChange;
-        mVideoFusionBluePrint->Initialize();
-        mVideoFusionBluePrint->SetCallbacks(callbacks, this);
-    }
-#endif
-
     mAudioFusionBluePrint = new BluePrint::BluePrintUI();
     if (mAudioFusionBluePrint)
     {
@@ -3744,24 +3442,10 @@ TimeLine::TimeLine()
 
     m_audio_channel_data.clear();
     m_audio_channel_data.resize(mAudioChannels);
-#ifdef OLD_FUSION_UI
-    mVideoFusionThread = new std::thread(thread_video_fusion, this);
-#endif
 }
 
 TimeLine::~TimeLine()
 {
-#ifdef OLD_FUSION_UI
-    if (mVideoFusionThread && mVideoFusionThread->joinable())
-    {
-        mVideoFusionDone = true;
-        mVideoFusionThread->join();
-        delete mVideoFusionThread;
-        mVideoFusionThread = nullptr;
-        mVideoFusionDone = false;
-    }
-#endif
-
     if (mMainPreviewTexture) { ImGui::ImDestroyTexture(mMainPreviewTexture); mMainPreviewTexture = nullptr; }
     
     m_audio_channel_data.clear();
@@ -3776,14 +3460,6 @@ TimeLine::~TimeLine()
         delete mAudioFilterBluePrint;
     }
 
-#ifdef OLD_FUSION_UI
-    if (mVideoFusionBluePrint)
-    {
-        mVideoFusionBluePrint->Finalize();
-        delete mVideoFusionBluePrint;
-    }
-#endif
-
     if (mAudioFusionBluePrint)
     {
         mAudioFusionBluePrint->Finalize();
@@ -3796,11 +3472,9 @@ TimeLine::~TimeLine()
     if (mVideoFilterInputTexture) { ImGui::ImDestroyTexture(mVideoFilterInputTexture); mVideoFilterInputTexture = nullptr; }
     if (mVideoFilterOutputTexture) { ImGui::ImDestroyTexture(mVideoFilterOutputTexture); mVideoFilterOutputTexture = nullptr;  }
 
-#ifdef OLD_FUSION_UI
     if (mVideoFusionInputFirstTexture) { ImGui::ImDestroyTexture(mVideoFusionInputFirstTexture); mVideoFusionInputFirstTexture = nullptr; }
     if (mVideoFusionInputSecondTexture) { ImGui::ImDestroyTexture(mVideoFusionInputSecondTexture); mVideoFusionInputSecondTexture = nullptr; }
     if (mVideoFusionOutputTexture) { ImGui::ImDestroyTexture(mVideoFusionOutputTexture); mVideoFusionOutputTexture = nullptr;  }
-#endif
 
     if (mVidFilterClip)
     {
@@ -4107,6 +3781,31 @@ void TimeLine::SetClipFilterKeyPoint(int64_t id)
             auto pvf = dynamic_cast<BluePrintVideoFilter *>(hClip->GetFilter().get());
             if (!pvf) return;
             pvf->SetKeyPoint(clip->mFilterKeyPoints);
+            return;
+        }
+        case MEDIA_AUDIO:
+        {
+            return;
+        }
+        default:
+            return;
+    }
+}
+
+void TimeLine::SetOverlapFusionKeyPoint(int64_t id)
+{
+    auto overlap = FindOverlapByID(id);
+    if (!overlap)
+        return;
+    switch (overlap->mType)
+    {
+        case MEDIA_VIDEO:
+        {
+            DataLayer::VideoOverlapHolder hOvlp = mMtvReader->GetOverlapById(id);
+            IM_ASSERT(hOvlp);
+            auto pvo = dynamic_cast<BluePrintVideoTransition *>(hOvlp->GetTransition().get());
+            if (!pvo) return;
+            pvo->SetKeyPoint(overlap->mFusionKeyPoints);
             return;
         }
         case MEDIA_AUDIO:
@@ -5343,7 +5042,7 @@ void TimeLine::SyncDataLayer()
                     (ovlp->m_Clip.first == rearClipId && ovlp->m_Clip.second == frontClipId))
                 {
                     vidOvlp->SetId(ovlp->mID);
-                    BluePrintVideoTransition* bpvt = new BluePrintVideoTransition();
+                    BluePrintVideoTransition* bpvt = new BluePrintVideoTransition(this);
                     bpvt->SetBluePrintFromJson(ovlp->mFusionBP);
                     bpvt->SetKeyPoint(ovlp->mFusionKeyPoints);
                     DataLayer::VideoTransitionHolder hTrans(bpvt);
@@ -7379,7 +7078,7 @@ bool DrawClipTimeLine(BaseEditingClip * editingClip, int64_t CurrentTime, int he
     draw_list->AddRectFilled(window_pos, window_pos + headerSize, COL_DARK_ONE, 0);
 
     ImRect movRect(window_pos, window_pos + window_size);
-    if ( !MovingCurrentTime && /*CurrentTime >= start &&*/ movRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && isFocused)
+    if ( !MovingCurrentTime && movRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && isFocused)
     {
         MovingCurrentTime = true;
         editingClip->bSeeking = true;
@@ -7467,7 +7166,7 @@ bool DrawClipTimeLine(BaseEditingClip * editingClip, int64_t CurrentTime, int he
 /***********************************************************************************************************
  * Draw Fusion Timeline
  ***********************************************************************************************************/
-bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int header_height, int custom_height)
+bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int64_t CurrentTime, int header_height, int custom_height)
 {
     /***************************************************************************************
     |  0    5    10 v   15    20 <rule bar> 30     35      40      45       50       55    |
@@ -7505,10 +7204,6 @@ bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int header_height, int cu
     int64_t duration = ImMax(overlap->mOvlp->mEnd-overlap->mOvlp->mStart, (int64_t)1);
     int64_t start = 0;
     int64_t end = start + duration;
-    if (overlap->mCurrent < start)
-        overlap->mCurrent = start;
-    if (overlap->mCurrent >= end)
-        overlap->mCurrent = end;
 
     ImGui::BeginGroup();
     ImRect regionRect(window_pos + ImVec2(0, header_height), window_pos + window_size);
@@ -7523,14 +7218,14 @@ bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int header_height, int cu
     draw_list->AddRectFilled(window_pos, window_pos + headerSize, COL_DARK_ONE, 0);
 
     ImRect movRect(window_pos, window_pos + window_size);
-    if (!MovingCurrentTime && overlap->mCurrent >= start && movRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && isFocused)
+    if (!MovingCurrentTime && /*overlap->mCurrent >= start &&*/ movRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && isFocused)
     {
         MovingCurrentTime = true;
         overlap->bSeeking = true;
     }
     if (MovingCurrentTime && duration)
     {
-        auto oldPos = overlap->mCurrent;
+        auto oldPos = CurrentTime;
         auto newPos = (int64_t)((io.MousePos.x - movRect.Min.x) / msPixelWidth) + start;
         if (newPos < start)
             newPos = start;
@@ -7580,12 +7275,12 @@ bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int header_height, int cu
     drawLine(duration, header_height);
     // cursor Arrow
     const float arrowWidth = draw_list->_Data->FontSize;
-    float arrowOffset = window_pos.x + (overlap->mCurrent - start) * msPixelWidth - arrowWidth * 0.5f;
+    float arrowOffset = window_pos.x + (CurrentTime - start) * msPixelWidth - arrowWidth * 0.5f;
     ImGui::RenderArrow(draw_list, ImVec2(arrowOffset, window_pos.y), COL_CURSOR_ARROW, ImGuiDir_Down);
     ImGui::SetWindowFontScale(0.8);
-    auto time_str = TimelineMillisecToString(overlap->mCurrent, 2);
+    auto time_str = TimelineMillisecToString(CurrentTime, 2);
     ImVec2 str_size = ImGui::CalcTextSize(time_str.c_str(), nullptr, true);
-    float strOffset = window_pos.x + (overlap->mCurrent - start) * msPixelWidth - str_size.x * 0.5f;
+    float strOffset = window_pos.x + (CurrentTime - start) * msPixelWidth - str_size.x * 0.5f;
     ImVec2 str_pos = ImVec2(strOffset, window_pos.y + 10);
     draw_list->AddRectFilled(str_pos + ImVec2(-3, 0), str_pos + str_size + ImVec2(3, 3), COL_CURSOR_TEXT_BG, 2.0, ImDrawFlags_RoundCornersAll);
     draw_list->AddText(str_pos, COL_CURSOR_TEXT, time_str.c_str());
@@ -7599,7 +7294,7 @@ bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int header_height, int cu
     // cursor line
     draw_list->PushClipRect(custom_view_rect.Min, custom_view_rect.Max);
     static const float cursorWidth = 2.f;
-    float cursorOffset = contentMin.x + (overlap->mCurrent - start) * msPixelWidth - cursorWidth * 0.5f + 1;
+    float cursorOffset = contentMin.x + (CurrentTime - start) * msPixelWidth - cursorWidth * 0.5f + 1;
     draw_list->AddLine(ImVec2(cursorOffset, contentMin.y), ImVec2(cursorOffset, contentMax.y), IM_COL32(0, 255, 0, 224), cursorWidth);
     draw_list->PopClipRect();
     ImGui::EndGroup();

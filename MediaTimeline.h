@@ -19,8 +19,6 @@
 #include <list>
 #include <chrono>
 
-//#define OLD_FUSION_UI
-
 #define ICON_MEDIA_TIMELINE u8"\uf538"
 #define ICON_MEDIA_BANK     u8"\ue907"
 #define ICON_MEDIA_TRANS    u8"\ue927"
@@ -533,8 +531,8 @@ struct EditingVideoClip : BaseEditingClip
     MediaInfo::Ratio mClipFrameRate {25, 1};                    // clip Frame rate
 
     BluePrintVideoFilter * mFilter {nullptr};
-    int64_t mLastFrameTime {-1};
 
+public:
     EditingVideoClip(VideoClip* vidclip);
     virtual ~EditingVideoClip();
 
@@ -567,22 +565,14 @@ struct BaseEditingOverlap
     int64_t mStart;
     int64_t mEnd;
     int64_t mDuration;
-    int64_t mCurrent        {0};
-    int64_t mLastTime       {-1};
     ImVec2 mViewWndSize     {0, 0};
-
-    bool bPlay                  {false};                // editing overlap play status
-    bool bForward               {true};                 // editing overlap play direction
     bool bSeeking{false};
-
     BaseEditingOverlap(Overlap* ovlp) : mOvlp(ovlp) {}
     std::pair<int64_t, int64_t> m_StartOffset;
-#ifdef OLD_FUSION_UI
-    std::pair<MediaReader*, MediaReader*> mMediaReader;
-#endif
+
     virtual void Seek(int64_t pos) = 0;
     virtual void Step(bool forward, int64_t step = 0) = 0;
-    virtual bool GetFrame(std::pair<std::pair<ImGui::ImMat, ImGui::ImMat>, ImGui::ImMat>& in_out_frame) = 0;
+    virtual bool GetFrame(std::pair<std::pair<ImGui::ImMat, ImGui::ImMat>, ImGui::ImMat>& in_out_frame, bool preview_frame = true) = 0;
     virtual void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom) = 0;
     virtual void Save() = 0;
 };
@@ -593,22 +583,18 @@ struct EditingVideoOverlap : BaseEditingOverlap
     SnapshotGeneratorHolder mSsGen1, mSsGen2;
     SnapshotGenerator::ViewerHolder mViewer1, mViewer2;
     ImVec2 mSnapSize{0, 0};
-    int64_t mLastFrameTime  {-1};
-
     MediaInfo::Ratio mClipFirstFrameRate {25, 1};     // overlap clip first Frame rate
     MediaInfo::Ratio mClipSecondFrameRate {25, 1};     // overlap clip second Frame rate
 
-#ifdef OLD_FUSION_UI
-    std::mutex mFrameLock;
-    std::list<std::pair<std::pair<ImGui::ImMat, ImGui::ImMat>, ImGui::ImMat>> mFrame;    // overlap timeline input pair/output frame pair
-#endif
+    BluePrintVideoTransition* mFusion{nullptr};
 
+public:
     EditingVideoOverlap(Overlap* ovlp);
     virtual ~EditingVideoOverlap();
 
     void Seek(int64_t pos) override;
     void Step(bool forward, int64_t step = 0) override;
-    bool GetFrame(std::pair<std::pair<ImGui::ImMat, ImGui::ImMat>, ImGui::ImMat>& in_out_frame) override;
+    bool GetFrame(std::pair<std::pair<ImGui::ImMat, ImGui::ImMat>, ImGui::ImMat>& in_out_frame, bool preview_frame = true) override;
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom) override;
     void Save() override;
 
@@ -870,34 +856,22 @@ struct TimeLine
     // BP CallBacks
     static int OnBluePrintChange(int type, std::string name, void* handle);
 
+    ImTextureID mMainPreviewTexture {nullptr};  // main preview texture
+
     ImTextureID mVideoFilterInputTexture {nullptr};  // clip video filter input texture
     ImTextureID mVideoFilterOutputTexture {nullptr};  // clip video filter output texture
+
+    ImTextureID mVideoFusionInputFirstTexture {nullptr};    // clip video fusion first input texture
+    ImTextureID mVideoFusionInputSecondTexture {nullptr};   // clip video fusion second input texture
+    ImTextureID mVideoFusionOutputTexture {nullptr};        // clip video fusion output texture
 
     BluePrint::BluePrintUI * mAudioFilterBluePrint {nullptr};
     std::mutex mAudioFilterBluePrintLock;   // Audio Filter BluePrint mutex
     bool mAudioFilterNeedUpdate {false};
 
-#ifdef OLD_FUSION_UI
-    BluePrint::BluePrintUI * mVideoFusionBluePrint {nullptr};
-    std::mutex mVideoFusionBluePrintLock;   // Video Fusion BluePrint mutex
-    bool mVideoFusionNeedUpdate {false};
-
-    ImTextureID mVideoFusionInputFirstTexture {nullptr};    // clip video fusion first input texture
-    ImTextureID mVideoFusionInputSecondTexture {nullptr};   // clip video fusion second input texture
-    ImTextureID mVideoFusionOutputTexture {nullptr};        // clip video fusion output texture
-#endif
-
     BluePrint::BluePrintUI * mAudioFusionBluePrint {nullptr};
     std::mutex mAudioFusionBluePrintLock;   // Video Fusion BluePrint mutex
     bool mAudioFusionNeedUpdate {false};
-
-    ImTextureID mMainPreviewTexture {nullptr};  // main preview texture
-
-#ifdef OLD_FUSION_UI
-    std::thread * mVideoFusionThread {nullptr}; // Video Fusion Thread, which is only two item/clip read from media
-    bool mVideoFusionDone {false};              // Video Fusion Thread should finished
-    bool mVideoFusionRunning {false};           // Video Fusion Thread is running
-#endif
 
     TimeLineCallbackFunctions  m_CallBacks;
 
@@ -920,6 +894,7 @@ struct TimeLine
     void MovingClip(int64_t id, int from_track_index, int to_track_index);
     void DeleteClip(int64_t id);
     void DeleteOverlap(int64_t id);
+    void SetOverlapFusionKeyPoint(int64_t id);
     void SetClipFilterKeyPoint(int64_t id);
 
     void DoubleClick(int index, int64_t time);
@@ -969,6 +944,6 @@ struct TimeLine
 
 bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable = true);
 bool DrawClipTimeLine(BaseEditingClip * editingClip, int64_t CurrentTime, int header_height, int custom_height);
-bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int header_height, int custom_height);
+bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int64_t CurrentTime, int header_height, int custom_height);
 std::string TimelineMillisecToString(int64_t millisec, int show_millisec = 0);
 } // namespace MediaTimeline

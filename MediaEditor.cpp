@@ -521,7 +521,6 @@ static bool UIPageChanged()
         if (timeline && timeline->mVidOverlap)
         {
             timeline->mVidFusionLock.lock();
-            timeline->mVidOverlap->bPlay = false;
             timeline->mVidOverlap->Save();
             timeline->mVidFusionLock.unlock();
             updated = true;
@@ -1229,12 +1228,6 @@ static void NewTimeline()
 
         // init bp view
         ImVec2 view_size = ImVec2(400, 200);
-#ifdef OLD_FUSION_UI
-        if (timeline->mVideoFusionBluePrint)
-        {
-            timeline->mVideoFusionBluePrint->m_ViewSize = view_size;
-        }
-#endif
         if (timeline->mAudioFilterBluePrint)
         {
             timeline->mAudioFilterBluePrint->m_ViewSize = view_size;
@@ -1345,9 +1338,8 @@ static void SaveProject(std::string path)
         return;
 
     Logger::Log(Logger::DEBUG) << "[Project] Save project to file!!!" << std::endl;
-    // TODO::Dicky stop all play
-    timeline->Play(false, true);
 
+    timeline->Play(false, true);
     // check current editing clip, if it has bp then save it to clip
     Clip * editing_clip = timeline->FindEditingClip();
     if (editing_clip)
@@ -1376,20 +1368,20 @@ static void SaveProject(std::string path)
     Overlap * editing_overlap = timeline->FindEditingOverlap();
     if (editing_overlap)
     {
-        auto clip = timeline->FindClipByID(editing_overlap->m_Clip.first);
-        if (clip)
+        switch (editing_overlap->mType)
         {
-#ifdef OLD_FUSION_UI
-            switch (clip->mType)
+            case MEDIA_VIDEO:
             {
-                case MEDIA_VIDEO:
-                    if (timeline->mVideoFusionBluePrint && timeline->mVideoFusionBluePrint->m_Document->m_Blueprint.IsOpened()) 
-                        editing_overlap->mFusionBP = timeline->mVideoFusionBluePrint->m_Document->Serialize();
-                break;
-                default:
-                break;
+                if (timeline->mVidOverlap &&
+                    timeline->mVidOverlap->mFusion &&
+                    timeline->mVidOverlap->mFusion->mBp &&
+                    timeline->mVidOverlap->mFusion->mBp->Blueprint_IsValid())
+                    editing_overlap->mFusionBP = timeline->mVidOverlap->mFusion->mBp->m_Document->Serialize();
             }
-#endif
+            break;
+            case MEDIA_AUDIO:
+            break;
+            default: break;
         }
     }
 
@@ -2748,13 +2740,11 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImR
 {
     // preview control pannel
     ImGuiIO& io = ImGui::GetIO();
-    ImVec2 PanelBarPos;
-    ImVec2 PanelBarSize;
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
     draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
-    PanelBarPos = window_pos + window_size - ImVec2(window_size.x, 48);
-    PanelBarSize = ImVec2(window_size.x, 48);
+    ImVec2 PanelBarPos = window_pos + window_size - ImVec2(window_size.x, 48);
+    ImVec2 PanelBarSize = ImVec2(window_size.x, 48);
     draw_list->AddRectFilled(PanelBarPos, PanelBarPos + PanelBarSize, COL_DARK_PANEL);
 
     // Preview buttons Stop button is center of Panel bar
@@ -2765,7 +2755,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImR
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0.5));
     ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.2, 0.2, 0.2, 1.0));
 
-    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32 - 8 - 32 - 8 - 32, PanelButtonY));
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - (32 + 8) * 3, PanelButtonY));
     if (ImGui::Button(ICON_TO_START "##preview_tostart", ImVec2(32, 32)))
     {
         if (timeline)
@@ -2773,7 +2763,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImR
     }
     ImGui::ShowTooltipOnHover("To Start");
 
-    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32 - 8 - 32, PanelButtonY));
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - (32 + 8) * 2, PanelButtonY));
     if (ImGui::Button(ICON_STEP_BACKWARD "##preview_step_backward", ImVec2(32, 32)))
     {
         if (timeline)
@@ -2781,7 +2771,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImR
     }
     ImGui::ShowTooltipOnHover("Step Prev");
 
-    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32, PanelButtonY));
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - (32 + 8) * 1, PanelButtonY));
     if (ImGui::RotateButton(ICON_PLAY_BACKWARD "##preview_reverse", ImVec2(32, 32), 180))
     {
         if (timeline)
@@ -2805,7 +2795,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImR
     }
     ImGui::ShowTooltipOnHover("Play");
 
-    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 32 + 8, PanelButtonY));
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + (32 + 8) * 1, PanelButtonY));
     if (ImGui::Button(ICON_STEP_FORWARD "##preview_step_forward", ImVec2(32, 32)))
     {
         if (timeline)
@@ -2813,7 +2803,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImR
     }
     ImGui::ShowTooltipOnHover("Step Next");
 
-    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 32 + 8 + 32 + 8, PanelButtonY));
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + (32 + 8) * 2, PanelButtonY));
     if (ImGui::Button(ICON_TO_END "##preview_toend", ImVec2(32, 32)))
     {
         if (timeline)
@@ -2822,7 +2812,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImR
     ImGui::ShowTooltipOnHover("To End");
 
     bool loop = timeline ? timeline->bLoop : false;
-    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 32 + 8 + 32 + 8 + 32 + 8, PanelButtonY + 4));
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + (32 + 8) * 3, PanelButtonY + 4));
     if (ImGui::Button(loop ? ICON_LOOP : ICON_LOOP_ONE "##preview_loop", ImVec2(32, 32)))
     {
         if (timeline)
@@ -2833,7 +2823,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImR
     }
     ImGui::ShowTooltipOnHover("Loop");
     bool zoom = timeline ? timeline->bPreviewZoom : false;
-    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 32 + 8 + 32 + 8 + 32 + 8  + 32 + 8, PanelButtonY + 8));
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + (32 + 8) * 4, PanelButtonY + 8));
     if (ImGui::CheckButton(ICON_ZOOM "##preview_zoom", &zoom))
     {
         timeline->bPreviewZoom = zoom;
@@ -2975,13 +2965,11 @@ static void ShowVideoFilterPreviewWindow(ImDrawList *draw_list)
 {
     // preview control pannel
     ImGuiIO& io = ImGui::GetIO();
-    ImVec2 PanelBarPos;
-    ImVec2 PanelBarSize;
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
     draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
-    PanelBarPos = window_pos + window_size - ImVec2(window_size.x, 48);
-    PanelBarSize = ImVec2(window_size.x, 48);
+    ImVec2 PanelBarPos = window_pos + window_size - ImVec2(window_size.x, 48);
+    ImVec2 PanelBarSize = ImVec2(window_size.x, 48);
     draw_list->AddRectFilled(PanelBarPos, PanelBarPos + PanelBarSize, COL_DARK_PANEL);
 
     // Preview buttons Stop button is center of Panel bar
@@ -2992,7 +2980,7 @@ static void ShowVideoFilterPreviewWindow(ImDrawList *draw_list)
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0.5));
     ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.2, 0.2, 0.2, 1.0));
 
-    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32 - 8 - 32 - 8 - 32, PanelButtonY));
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - (32 + 8) * 3, PanelButtonY));
     if (ImGui::Button(ICON_TO_START "##preview_tostart", ImVec2(32, 32)))
     {
         if (timeline && timeline->mVidFilterClip)
@@ -3002,7 +2990,7 @@ static void ShowVideoFilterPreviewWindow(ImDrawList *draw_list)
     }
     ImGui::ShowTooltipOnHover("To Start");
 
-    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32 - 8 - 32, PanelButtonY));
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - (32 + 8) * 2, PanelButtonY));
     if (ImGui::Button(ICON_STEP_BACKWARD "##preview_step_backward", ImVec2(32, 32)))
     {
         if (timeline && timeline->mVidFilterClip)
@@ -3013,7 +3001,7 @@ static void ShowVideoFilterPreviewWindow(ImDrawList *draw_list)
     }
     ImGui::ShowTooltipOnHover("Step Prev");
 
-    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32, PanelButtonY));
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - (32 + 8) * 1, PanelButtonY));
     if (ImGui::RotateButton(ICON_PLAY_BACKWARD "##preview_reverse", ImVec2(32, 32), 180))
     {
         if (timeline && timeline->mVidFilterClip)
@@ -3024,7 +3012,7 @@ static void ShowVideoFilterPreviewWindow(ImDrawList *draw_list)
     }
     ImGui::ShowTooltipOnHover("Reverse");
 
-    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16, PanelButtonY));
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - (32 + 8) * 0, PanelButtonY));
     if (ImGui::Button(ICON_STOP "##preview_stop", ImVec2(32, 32)))
     {
         if (timeline)
@@ -3059,7 +3047,8 @@ static void ShowVideoFilterPreviewWindow(ImDrawList *draw_list)
     {
         if (timeline && timeline->mVidFilterClip)
         {
-            timeline->Seek(timeline->mVidFilterClip->mEnd - 40);
+            if (timeline->currentTime < timeline->mVidFilterClip->mEnd)
+                timeline->Seek(timeline->mVidFilterClip->mEnd - 40);
         }
     }
     ImGui::ShowTooltipOnHover("To End");
@@ -3286,8 +3275,11 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
                                                     nullptr, // clippingRect
                                                     &_changed,
                                                     nullptr, // selectedPoints
-                                                    timeline->currentTime - editing_clip->mStart/*timeline->mVidFilterClip->mCurrent - editing_clip->mStartOffset*/);
-            //timeline->mVideoFilterNeedUpdate |= _changed;
+                                                    timeline->currentTime - editing_clip->mStart);
+            if (_changed)
+            {
+                timeline->UpdatePreview();
+            }
         }
     }
     ImGui::EndChild();
@@ -3359,7 +3351,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
         editing_clip = nullptr;
     }
 
-    if (editing_clip && timeline->mVidFilterClip)
+    if (editing_clip)
     {
         if (timeline->mVidFilterClip)
         {
@@ -3727,28 +3719,27 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
  ***************************************************************************************/
 static void ShowVideoFusionBluePrintWindow(ImDrawList *draw_list, Overlap * overlap)
 {
-#ifdef OLD_FUSION_UI
-    if (timeline && timeline->mVideoFusionBluePrint)
+    if (timeline && timeline->mVidOverlap && timeline->mVidOverlap->mFusion && timeline->mVidOverlap->mFusion->mBp)
     {
-        if (overlap && !timeline->mVideoFusionBluePrint->m_Document->m_Blueprint.IsOpened())
+        if (overlap && !timeline->mVidOverlap->mFusion->mBp->m_Document->m_Blueprint.IsOpened())
         {
             auto track = timeline->FindTrackByClipID(overlap->m_Clip.first);
             if (track)
                 track->SelectEditingOverlap(overlap);
-            timeline->mVideoFusionBluePrint->View_ZoomToContent();
+            timeline->mVidOverlap->mFusion->mBp->View_ZoomToContent();
         }
         ImVec2 window_pos = ImGui::GetCursorScreenPos();
         ImVec2 window_size = ImGui::GetWindowSize();
         ImGui::SetCursorScreenPos(window_pos + ImVec2(3, 3));
         ImGui::InvisibleButton("video_fusion_blueprint_back_view", window_size - ImVec2(6, 6));
-        if (ImGui::BeginDragDropTarget() && timeline->mVideoFusionBluePrint->Blueprint_IsValid())
+        if (ImGui::BeginDragDropTarget() && timeline->mVidOverlap->mFusion->mBp->Blueprint_IsValid())
         {
             if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("Fusion_drag_drop_Video"))
             {
                 BluePrint::NodeTypeInfo * type = (BluePrint::NodeTypeInfo *)payload->Data;
                 if (type)
                 {
-                    timeline->mVideoFusionBluePrint->Edit_Insert(type->m_ID);
+                    timeline->mVidOverlap->mFusion->mBp->Edit_Insert(type->m_ID);
                 }
             }
             ImGui::EndDragDropTarget();
@@ -3756,11 +3747,151 @@ static void ShowVideoFusionBluePrintWindow(ImDrawList *draw_list, Overlap * over
         ImGui::SetCursorScreenPos(window_pos + ImVec2(1, 1));
         if (ImGui::BeginChild("##fusion_edit_blueprint", window_size - ImVec2(2, 2), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
         {
-            timeline->mVideoFusionBluePrint->Frame(true, true, overlap != nullptr, BluePrint::BluePrintFlag::BluePrintFlag_Fusion);
+            timeline->mVidOverlap->mFusion->mBp->Frame(true, true, overlap != nullptr, BluePrint::BluePrintFlag::BluePrintFlag_Fusion);
         }
         ImGui::EndChild();
     }
-#endif
+}
+
+static void ShowVideoFusionPreviewWindow(ImDrawList *draw_list)
+{
+    // Draw Video Fusion Play control bar
+    ImGuiIO& io = ImGui::GetIO();
+    ImVec2 window_pos = ImGui::GetCursorScreenPos();
+    ImVec2 window_size = ImGui::GetWindowSize();
+    draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
+    ImVec2 PanelBarPos = window_pos + ImVec2(0, (window_size.y - 36));
+    ImVec2 PanelBarSize = ImVec2(window_size.x, 36);
+    draw_list->AddRectFilled(PanelBarPos, PanelBarPos + PanelBarSize, COL_DARK_PANEL);
+    
+    // Preview buttons Stop button is center of Panel bar
+    auto PanelCenterX = PanelBarPos.x + window_size.x / 2;
+    auto PanelButtonY = PanelBarPos.y + 2;
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0.5));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.2, 0.2, 0.2, 1.0));
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - (32 + 8) * 3, PanelButtonY));
+    if (ImGui::Button(ICON_TO_START "##video_fusion_tostart", ImVec2(32, 32)))
+    {
+        if (timeline && timeline->mVidOverlap)
+        {
+            timeline->mVidOverlap->Seek(timeline->mVidOverlap->mStart);
+        }
+    } ImGui::ShowTooltipOnHover("To Start");
+    
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - (32 + 8) * 2, PanelButtonY));
+    if (ImGui::Button(ICON_STEP_BACKWARD "##video_fusion_step_backward", ImVec2(32, 32)))
+    {
+        if (timeline && timeline->mVidOverlap)
+        {
+            if (timeline->currentTime > timeline->mVidOverlap->mStart)
+                timeline->mVidOverlap->Step(false);
+        }
+    } ImGui::ShowTooltipOnHover("Step Prev");
+    
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - (32 + 8) * 1, PanelButtonY));
+    if (ImGui::RotateButton(ICON_PLAY_BACKWARD "##video_fusion_reverse", ImVec2(32, 32), 180))
+    {
+        if (timeline && timeline->mVidOverlap)
+        {
+            if (timeline->currentTime > timeline->mVidOverlap->mStart)
+                timeline->Play(true, false);
+        }
+    } ImGui::ShowTooltipOnHover("Reverse");
+    
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16, PanelButtonY));
+    if (ImGui::Button(ICON_STOP "##video_fusion_stop", ImVec2(32, 32)))
+    {
+        if (timeline)
+            timeline->Play(false, true);
+    } ImGui::ShowTooltipOnHover("Stop");
+    
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8, PanelButtonY));
+    if (ImGui::Button(ICON_PLAY_FORWARD "##video_fusion_play", ImVec2(32, 32)))
+    {
+        if (timeline && timeline->mVidOverlap)
+        {
+            if (timeline->currentTime < timeline->mVidOverlap->mEnd)
+                timeline->Play(true, true);
+        }
+    } ImGui::ShowTooltipOnHover("Play");
+    
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + (32 + 8) * 1, PanelButtonY));
+    if (ImGui::Button(ICON_STEP_FORWARD "##video_fusion_step_forward", ImVec2(32, 32)))
+    {
+        if (timeline && timeline->mVidOverlap)
+        {
+            if (timeline->currentTime < timeline->mVidOverlap->mEnd)
+                timeline->Step(true);
+        }
+    } ImGui::ShowTooltipOnHover("Step Next");
+    
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + (32 + 8) * 2, PanelButtonY));
+    if (ImGui::Button(ICON_TO_END "##video_fusion_toend", ImVec2(32, 32)))
+    {
+        if (timeline && timeline->mVidOverlap)
+        {
+            if (timeline->currentTime < timeline->mVidOverlap->mEnd)
+                timeline->Seek(timeline->mVidOverlap->mEnd - 40);
+        }
+    } ImGui::ShowTooltipOnHover("To End");
+
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + (32 + 8) * 4, PanelButtonY + 6));
+    if (ImGui::CheckButton(timeline->bFusionOutputPreview ? ICON_MEDIA_PREVIEW : ICON_TRANS "##video_fusion_output_preview", &timeline->bFusionOutputPreview))
+    {
+        timeline->UpdatePreview();
+    }
+    ImGui::ShowTooltipOnHover(timeline->bFusionOutputPreview ? "Fusion Out" : "Preview Out");
+
+    // Time stamp on left of control panel
+    auto PanelRightX = PanelBarPos.x + window_size.x - 300;
+    auto PanelRightY = PanelBarPos.y + 8;
+    auto time_str = TimelineMillisecToString(timeline->currentTime, 3);
+    ImGui::SetWindowFontScale(1.5);
+    draw_list->AddText(ImVec2(PanelRightX, PanelRightY), timeline->mIsPreviewPlaying ? COL_MARK : COL_MARK_HALF, time_str.c_str());
+    ImGui::SetWindowFontScale(1.0);
+
+    // fusion texture area
+    ImVec2 InputFirstVideoPos = window_pos + ImVec2(4, 4);
+    ImVec2 InputFirstVideoSize = ImVec2(window_size.x / 4 - 8, window_size.y - PanelBarSize.y - 8);
+    ImVec2 OutputVideoPos = window_pos + ImVec2(window_size.x / 4 + 8, 4);
+    ImVec2 OutputVideoSize = ImVec2(window_size.x / 2 - 32, window_size.y - PanelBarSize.y - 8);
+    ImVec2 InputSecondVideoPos = window_pos + ImVec2(window_size.x * 3 / 4 - 8, 4);
+    ImVec2 InputSecondVideoSize = InputFirstVideoSize;
+    
+    ImRect InputFirstVideoRect(InputFirstVideoPos, InputFirstVideoPos + InputFirstVideoSize);
+    ImRect InputSecondVideoRect(InputSecondVideoPos, InputSecondVideoPos + InputSecondVideoSize);
+    ImRect OutVideoRect(OutputVideoPos, OutputVideoPos + OutputVideoSize);
+    
+    if (timeline->mVidOverlap)
+    {
+        std::pair<std::pair<ImGui::ImMat, ImGui::ImMat>, ImGui::ImMat> pair;
+        auto ret = timeline->mVidOverlap->GetFrame(pair);
+        if (ret && 
+            (timeline->mIsPreviewNeedUpdate || timeline->mLastFrameTime == -1 || timeline->mLastFrameTime != (int64_t)(pair.first.first.time_stamp * 1000) || need_update_scope))
+        {
+            CalculateVideoScope(pair.second);
+            ImGui::ImMatToTexture(pair.first.first, timeline->mVideoFusionInputFirstTexture);
+            ImGui::ImMatToTexture(pair.first.second, timeline->mVideoFusionInputSecondTexture);
+            ImGui::ImMatToTexture(pair.second, timeline->mVideoFusionOutputTexture);
+            timeline->mLastFrameTime = pair.first.first.time_stamp * 1000;
+            timeline->mIsPreviewNeedUpdate = false;
+        }
+        ImVec4 tint_col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);   // No tint
+        ImVec4 border_col = ImVec4(1.0f, 1.0f, 1.0f, 0.5f); // 50% opaque white
+        float offset_x = 0, offset_y = 0;
+        float tf_x = 0, tf_y = 0;
+        // fusion first input texture area
+        ShowVideoWindow(draw_list, timeline->mVideoFusionInputFirstTexture, InputFirstVideoPos, InputFirstVideoSize, offset_x, offset_y, tf_x, tf_y);
+        draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32_WHITE, 0, 0, 1.0);
+        // fusion second input texture area
+        ShowVideoWindow(draw_list, timeline->mVideoFusionInputSecondTexture, InputSecondVideoPos, InputSecondVideoSize, offset_x, offset_y, tf_x, tf_y);
+        draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32_WHITE, 0, 0, 1.0);
+        // filter output texture area
+        ShowVideoWindow(draw_list, timeline->mVideoFusionOutputTexture, OutputVideoPos, OutputVideoSize, offset_x, offset_y, tf_x, tf_y);
+        draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32(255, 0, 0, 255), 0, 0, 2.0);
+    }
+    ImGui::PopStyleColor(3);
 }
 
 static void ShowVideoFusionWindow(ImDrawList *draw_list)
@@ -3784,6 +3915,22 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
         }
     }
 
+    if (editing_overlap)
+    {
+        if (!timeline->mVidOverlap)
+        {
+            timeline->mVidOverlap = new EditingVideoOverlap(editing_overlap);
+        }
+        else if (timeline->mVidOverlap->mStart != editing_overlap->mStart || timeline->mVidOverlap->mEnd != editing_overlap->mEnd)
+        {
+            // effect range changed for timeline->mVidOverlap
+            timeline->mVidOverlap->mStart = editing_overlap->mStart;
+            timeline->mVidOverlap->mEnd = editing_overlap->mEnd;
+            timeline->mVidOverlap->mDuration = timeline->mVidOverlap->mEnd - timeline->mVidOverlap->mStart;
+
+        }
+    }
+
     float clip_timeline_height = 30 + 50 + 50;
     float clip_keypoint_height = g_media_editor_settings.VideoFusionCurveExpanded ? 80 : 0;
     ImVec2 video_preview_pos = window_pos;
@@ -3803,22 +3950,7 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
     ImVec2 clip_keypoint_pos = g_media_editor_settings.VideoFusionCurveExpanded ? clip_timeline_pos + ImVec2(0, clip_timeline_height) : clip_timeline_pos + ImVec2(0, clip_timeline_height - 16);
     ImVec2 clip_keypoint_size(window_size.x - clip_setting_width, clip_keypoint_height);
 
-#ifdef OLD_FUSION_UI
-    if (editing_overlap && timeline->mVideoFusionBluePrint)
-    {
-        timeline->mVideoFusionBluePrint->m_ViewSize = video_bluepoint_size;
-    }
-#endif
-    if (editing_overlap && timeline->mVidOverlap)
-    {
-        if (timeline->mVidOverlap->mStart != editing_overlap->mStart || timeline->mVidOverlap->mEnd != editing_overlap->mEnd)
-        {
-            // effect range changed for timeline->mVidOverlap
-            timeline->mVidOverlap->mStart = editing_overlap->mStart;
-            timeline->mVidOverlap->mEnd = editing_overlap->mEnd;
-            timeline->mVidOverlap->mDuration = timeline->mVidOverlap->mEnd - timeline->mVidOverlap->mStart;
-        }
-    }
+    BluePrint::BluePrintUI* blueprint = (timeline->mVidOverlap && timeline->mVidOverlap->mFusion) ? timeline->mVidOverlap->mFusion->mBp : nullptr;
 
     ImGuiWindowFlags child_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings;
     ImGuiWindowFlags setting_child_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings;
@@ -3832,123 +3964,7 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
         ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DEEP_DARK);
-#ifdef OLD_FUSION_UI
-        // Draw Video Fusion Play control bar
-        ImVec2 PanelBarPos = sub_window_pos + ImVec2(0, (sub_window_size.y - 36));
-        ImVec2 PanelBarSize = ImVec2(sub_window_size.x, 36);
-        draw_list->AddRectFilled(PanelBarPos, PanelBarPos + PanelBarSize, COL_DARK_PANEL);
-        // Preview buttons Stop button is center of Panel bar
-        auto PanelCenterX = PanelBarPos.x + sub_window_size.x / 2;
-        auto PanelButtonY = PanelBarPos.y + 2;
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0.5));
-        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.2, 0.2, 0.2, 1.0));
-        ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32 - 8 - 32 - 8 - 32, PanelButtonY));
-        if (ImGui::Button(ICON_TO_START "##video_fusion_tostart", ImVec2(32, 32)))
-        {
-            if (timeline->mVidOverlap && !timeline->mVidOverlap->bPlay)
-            {
-                int64_t pos = 0;
-                timeline->mVidOverlap->Seek(pos);
-            }
-        } ImGui::ShowTooltipOnHover("To Start");
-        ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32 - 8 - 32, PanelButtonY));
-        if (ImGui::Button(ICON_STEP_BACKWARD "##video_fusion_step_backward", ImVec2(32, 32)))
-        {
-            if (timeline->mVidOverlap)
-            {
-                timeline->mVidOverlap->Step(false);
-            }
-        } ImGui::ShowTooltipOnHover("Step Prev");
-        ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - 8 - 32, PanelButtonY));
-        if (ImGui::RotateButton(ICON_PLAY_BACKWARD "##video_fusion_reverse", ImVec2(32, 32), 180))
-        {
-            if (timeline->mVidOverlap)
-            {
-                timeline->mVidOverlap->bForward = false;
-                timeline->mVidOverlap->bPlay = true;
-            }
-        } ImGui::ShowTooltipOnHover("Reverse");
-        ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16, PanelButtonY));
-        if (ImGui::Button(ICON_STOP "##video_fusion_stop", ImVec2(32, 32)))
-        {
-            if (timeline->mVidOverlap)
-            {
-                timeline->mVidOverlap->bPlay = false;
-                timeline->mVidOverlap->mLastTime = -1;
-                timeline->mVidOverlap->mLastFrameTime = -1;
-            }
-        } ImGui::ShowTooltipOnHover("Stop");
-        ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8, PanelButtonY));
-        if (ImGui::Button(ICON_PLAY_FORWARD "##video_fusion_play", ImVec2(32, 32)))
-        {
-            if (timeline->mVidOverlap)
-            {
-                timeline->mVidOverlap->bForward = true;
-                timeline->mVidOverlap->bPlay = true;
-            }
-        } ImGui::ShowTooltipOnHover("Play");
-        ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 32 + 8, PanelButtonY));
-        if (ImGui::Button(ICON_STEP_FORWARD "##video_fusion_step_forward", ImVec2(32, 32)))
-        {
-            if (timeline->mVidOverlap)
-            {
-                timeline->mVidOverlap->Step(true);
-            }
-        } ImGui::ShowTooltipOnHover("Step Next");
-        ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 32 + 8 + 32 + 8, PanelButtonY));
-        if (ImGui::Button(ICON_TO_END "##video_fusion_toend", ImVec2(32, 32)))
-        {
-            if (timeline->mVidOverlap && !timeline->mVidOverlap->bPlay)
-            {
-                int64_t pos = timeline->mVidOverlap->mEnd - timeline->mVidOverlap->mStart;
-                timeline->mVidOverlap->Seek(pos);
-            }
-        } ImGui::ShowTooltipOnHover("To End");
-
-        // fusion texture area
-        ImVec2 InputFirstVideoPos = sub_window_pos + ImVec2(4, 4);
-        ImVec2 InputFirstVideoSize = ImVec2(sub_window_size.x / 4 - 8, sub_window_size.y - PanelBarSize.y - 8);
-        ImVec2 OutputVideoPos = sub_window_pos + ImVec2(sub_window_size.x / 4 + 8, 4);
-        ImVec2 OutputVideoSize = ImVec2(sub_window_size.x / 2 - 32, sub_window_size.y - PanelBarSize.y - 8);
-        ImVec2 InputSecondVideoPos = sub_window_pos + ImVec2(sub_window_size.x * 3 / 4 - 8, 4);
-        ImVec2 InputSecondVideoSize = InputFirstVideoSize;
-        
-        ImRect InputFirstVideoRect(InputFirstVideoPos, InputFirstVideoPos + InputFirstVideoSize);
-        ImRect InputSecondVideoRect(InputSecondVideoPos, InputSecondVideoPos + InputSecondVideoSize);
-        ImRect OutVideoRect(OutputVideoPos, OutputVideoPos + OutputVideoSize);
-        
-        if (timeline->mVidOverlap)
-        {
-            std::pair<std::pair<ImGui::ImMat, ImGui::ImMat>, ImGui::ImMat> pair;
-            auto ret = timeline->mVidOverlap->GetFrame(pair);
-            if (ret && 
-                (timeline->mVidOverlap->mLastFrameTime == -1 || timeline->mVidOverlap->mLastFrameTime != (int64_t)(pair.first.first.time_stamp * 1000) || need_update_scope))
-            {
-                CalculateVideoScope(pair.second);
-                ImGui::ImMatToTexture(pair.first.first, timeline->mVideoFusionInputFirstTexture);
-                ImGui::ImMatToTexture(pair.first.second, timeline->mVideoFusionInputSecondTexture);
-                ImGui::ImMatToTexture(pair.second, timeline->mVideoFusionOutputTexture);
-                timeline->mVidOverlap->mLastFrameTime = pair.first.first.time_stamp * 1000;
-            }
-            ImVec4 tint_col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);   // No tint
-            ImVec4 border_col = ImVec4(1.0f, 1.0f, 1.0f, 0.5f); // 50% opaque white
-            float offset_x = 0, offset_y = 0;
-            float tf_x = 0, tf_y = 0;
-            // fusion first input texture area
-            ShowVideoWindow(draw_list, timeline->mVideoFusionInputFirstTexture, InputFirstVideoPos, InputFirstVideoSize, offset_x, offset_y, tf_x, tf_y);
-            draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32_WHITE, 0, 0, 1.0);
-            // fusion second input texture area
-            ShowVideoWindow(draw_list, timeline->mVideoFusionInputSecondTexture, InputSecondVideoPos, InputSecondVideoSize, offset_x, offset_y, tf_x, tf_y);
-            draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32_WHITE, 0, 0, 1.0);
-            // filter output texture area
-            ShowVideoWindow(draw_list, timeline->mVideoFusionOutputTexture, OutputVideoPos, OutputVideoSize, offset_x, offset_y, tf_x, tf_y);
-            draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32(255, 0, 0, 255), 0, 0, 2.0);
-        }
-        ImGui::PopStyleColor(3);
-#else
-        ShowMediaPreviewWindow(draw_list, "Fusion Preview", video_rect, false, false, force_update_preview);
-#endif
+        ShowVideoFusionPreviewWindow(draw_list);
     }
     ImGui::EndChild();
 
@@ -3971,7 +3987,7 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_TWO);
         // Draw Clip TimeLine
-        DrawOverlapTimeLine(timeline->mVidOverlap, 30, 50);
+        DrawOverlapTimeLine(timeline->mVidOverlap, timeline->currentTime - (timeline->mVidOverlap ? timeline->mVidOverlap->mStart : 0), 30, 50);
     }
     ImGui::EndChild();
 
@@ -4004,18 +4020,20 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
             draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_ONE);
             if (editing_overlap && timeline->mVidOverlap)
             {
-                bool changed = false;
+                bool _changed = false;
                 mouse_hold |= ImGui::ImCurveEdit::Edit(editing_overlap->mFusionKeyPoints, 
                                                         sub_window_size, 
                                                         ImGui::GetID("##video_fusion_keypoint_editor"), 
                                                         CURVE_EDIT_FLAG_VALUE_LIMITED | CURVE_EDIT_FLAG_MOVE_CURVE | CURVE_EDIT_FLAG_KEEP_BEGIN_END | CURVE_EDIT_FLAG_DOCK_BEGIN_END, 
                                                         nullptr, // clippingRect
-                                                        &changed,
+                                                        &_changed,
                                                         nullptr, // selectedPoints
-                                                        timeline->mVidOverlap->mCurrent);
-#ifdef OLD_FUSION_UI
-                timeline->mVideoFusionNeedUpdate |= changed;
-#endif
+                                                        timeline->currentTime - timeline->mVidOverlap->mStart);
+                if (_changed)
+                {
+                    timeline->SetOverlapFusionKeyPoint(editing_overlap->mID);
+                    timeline->UpdatePreview();
+                }
             }
         }
         ImGui::EndChild();
@@ -4035,17 +4053,12 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
                 editing_overlap->mFusionKeyPoints.AddPoint(curve_index, ImVec2(0.f, _min), ImGui::ImCurveEdit::Linear);
                 editing_overlap->mFusionKeyPoints.AddPoint(curve_index, ImVec2(timeline->mVidOverlap->mEnd - timeline->mVidOverlap->mStart, _max), ImGui::ImCurveEdit::Linear);
                 // insert curve pin for blueprint entry node
-#ifdef OLD_FUSION_UI
-                if (timeline->mVideoFusionBluePrint)
+                if (blueprint)
                 {
-                    auto entry_node = timeline->mVideoFusionBluePrint->FindEntryPointNode();
-                    if (entry_node)
-                    {
-                        entry_node->InsertOutputPin(BluePrint::PinType::Float, name);
-                        timeline->mVideoFusionNeedUpdate = true;
-                    }
+                    auto entry_node = blueprint->FindEntryPointNode();
+                    if (entry_node) entry_node->InsertOutputPin(BluePrint::PinType::Float, name);
+                    timeline->UpdatePreview();
                 }
-#endif
             }
         };
         ImVec2 sub_window_pos = ImGui::GetWindowPos(); // we need draw background with scroll view
@@ -4104,7 +4117,7 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
                     if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
                     {
                         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
-                        float value = editing_overlap->mFusionKeyPoints.GetValue(i, timeline->mVidOverlap->mCurrent);
+                        float value = editing_overlap->mFusionKeyPoints.GetValue(i, timeline->currentTime - timeline->mVidOverlap->mStart);
                         ImGui::BracketSquare(true); ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0, 1.0, 0.0, 1.0)); ImGui::Text("%.2f", value); ImGui::PopStyleColor();
                         ImGui::PushItemWidth(60);
                         float curve_min = editing_overlap->mFusionKeyPoints.GetCurveMin(i);
@@ -4112,26 +4125,23 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
                         if (ImGui::DragFloat("##curve_video_fusion_min", &curve_min, 0.1f, -FLT_MAX, curve_max, "%.1f"))
                         {
                             editing_overlap->mFusionKeyPoints.SetCurveMin(i, curve_min);
-#ifdef OLD_FUSION_UI
-                            timeline->mVideoFusionNeedUpdate = true;
-#endif
+                            timeline->SetOverlapFusionKeyPoint(editing_overlap->mID);
+                            timeline->UpdatePreview();
                         } ImGui::ShowTooltipOnHover("Min");
                         ImGui::SameLine(0, 8);
                         if (ImGui::DragFloat("##curve_video_fusion_max", &curve_max, 0.1f, curve_min, FLT_MAX, "%.1f"))
                         {
                             editing_overlap->mFusionKeyPoints.SetCurveMax(i, curve_max);
-#ifdef OLD_FUSION_UI
-                            timeline->mVideoFusionNeedUpdate = true;
-#endif
+                            timeline->SetOverlapFusionKeyPoint(editing_overlap->mID);
+                            timeline->UpdatePreview();
                         } ImGui::ShowTooltipOnHover("Max");
                         ImGui::SameLine(0, 8);
                         float curve_default = editing_overlap->mFusionKeyPoints.GetCurveDefault(i);
                         if (ImGui::DragFloat("##curve_video_fusion_default", &curve_default, 0.1f, curve_min, curve_max, "%.1f"))
                         {
                             editing_overlap->mFusionKeyPoints.SetCurveDefault(i, curve_default);
-#ifdef OLD_FUSION_UI
-                            timeline->mVideoFusionNeedUpdate = true;
-#endif
+                            timeline->SetOverlapFusionKeyPoint(editing_overlap->mID);
+                            timeline->UpdatePreview();
                         } ImGui::ShowTooltipOnHover("Default");
                         ImGui::PopItemWidth();
 
@@ -4155,17 +4165,13 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
                         {
                             // delete blueprint entry node pin
                             auto pin_name = editing_overlap->mFusionKeyPoints.GetCurveName(i);
-#ifdef OLD_FUSION_UI
-                            if (timeline->mVideoFusionBluePrint)
+                            if (blueprint)
                             {
-                                auto entry_node = timeline->mVideoFusionBluePrint->FindEntryPointNode();
-                                if (entry_node)
-                                {
-                                    entry_node->DeleteOutputPin(pin_name);
-                                    timeline->mVideoFusionNeedUpdate = true;
-                                }
+                                auto entry_node = blueprint->FindEntryPointNode();
+                                if (entry_node) entry_node->DeleteOutputPin(pin_name);
+                                timeline->SetOverlapFusionKeyPoint(editing_overlap->mID);
+                                timeline->UpdatePreview();
                             }
-#endif
                             editing_overlap->mFusionKeyPoints.DeleteCurve(i);
                             break_loop = true;
                         } ImGui::ShowTooltipOnHover("Delete");
@@ -4176,9 +4182,8 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
                             {
                                 editing_overlap->mFusionKeyPoints.SetCurvePointDefault(i, p);
                             }
-#ifdef OLD_FUSION_UI
-                            timeline->mVideoFusionNeedUpdate = true;
-#endif
+                            timeline->SetOverlapFusionKeyPoint(editing_overlap->mID);
+                            timeline->UpdatePreview();
                         } ImGui::ShowTooltipOnHover("Reset");
 
                         if (!break_loop)
@@ -4197,26 +4202,23 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
                                 if (ImGui::DragTimeMS("##curve_video_fusion_point_x", &point.point.x, editing_overlap->mFusionKeyPoints.GetMax().x / 1000.f, editing_overlap->mFusionKeyPoints.GetMin().x, editing_overlap->mFusionKeyPoints.GetMax().x, 2))
                                 {
                                     editing_overlap->mFusionKeyPoints.EditPoint(i, p, point.point, point.type);
-#ifdef OLD_FUSION_UI
-                                    timeline->mVideoFusionNeedUpdate = true;
-#endif
+                                    timeline->SetOverlapFusionKeyPoint(editing_overlap->mID);
+                                    timeline->UpdatePreview();
                                 }
                                 ImGui::EndDisabled();
                                 ImGui::SameLine();
                                 if (ImGui::DragFloat("##curve_video_fusion_point_y", &point.point.y, 0.01f, editing_overlap->mFusionKeyPoints.GetCurveMin(i), editing_overlap->mFusionKeyPoints.GetCurveMax(i), "%.2f"))
                                 {
                                     editing_overlap->mFusionKeyPoints.EditPoint(i, p, point.point, point.type);
-#ifdef OLD_FUSION_UI
-                                    timeline->mVideoFusionNeedUpdate = true;
-#endif
+                                    timeline->SetOverlapFusionKeyPoint(editing_overlap->mID);
+                                    timeline->UpdatePreview();
                                 }
                                 ImGui::SameLine();
                                 if (ImGui::Combo("##curve_video_fusion_type", (int*)&point.type, curve_type_list, curve_type_count))
                                 {
                                     editing_overlap->mFusionKeyPoints.EditPoint(i, p, point.point, point.type);
-#ifdef OLD_FUSION_UI
-                                    timeline->mVideoFusionNeedUpdate = true;
-#endif
+                                    timeline->SetOverlapFusionKeyPoint(editing_overlap->mID);
+                                    timeline->UpdatePreview();
                                 }
                                 ImGui::PopItemWidth();
                                 ImGui::PopID();
@@ -4232,12 +4234,11 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
                 ImGui::TreePop();
             }
             // Overlap Node setting
-#ifdef OLD_FUSION_UI
-            if (timeline && timeline->mVideoFusionBluePrint && timeline->mVideoFusionBluePrint->Blueprint_IsValid())
+            if (blueprint && blueprint->Blueprint_IsValid())
             {
                 if (ImGui::TreeNodeEx("Node Setting##video_fusion", ImGuiTreeNodeFlags_DefaultOpen))
                 {
-                    auto nodes = timeline->mVideoFusionBluePrint->m_Document->m_Blueprint.GetNodes();
+                    auto nodes = blueprint->m_Document->m_Blueprint.GetNodes();
                     for (auto node : nodes)
                     {
                         auto type = node->GetTypeInfo().m_Type;
@@ -4254,7 +4255,8 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
                             if (node->DrawCustomLayout(ImGui::GetCurrentContext(), 1.0, ImVec2(0, 0), &key))
                             {
                                 node->m_NeedUpdate = true;
-                                timeline->mVideoFusionNeedUpdate = true;
+                                timeline->SetOverlapFusionKeyPoint(editing_overlap->mID);
+                                timeline->UpdatePreview();
                             }
                             if (!key.name.empty())
                             {
@@ -4266,7 +4268,6 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
                     ImGui::TreePop();
                 }
             }
-#endif
         }
     }
     ImGui::EndChild();
@@ -4513,7 +4514,7 @@ static void ShowAudioFusionWindow(ImDrawList *draw_list)
         draw_list->AddRectFilled(fusion_timeline_window_pos, fusion_timeline_window_pos + fusion_timeline_window_size, COL_DARK_TWO);
 
         // Draw Clip TimeLine
-        DrawOverlapTimeLine(nullptr, 30, 50); // TODO:: Add Audio Overlap
+        DrawOverlapTimeLine(nullptr, 0, 30, 50); // TODO:: Add Audio Overlap
     }
     ImGui::EndChild();
 }
