@@ -1863,7 +1863,7 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
     mFilter = dynamic_cast<BluePrintVideoFilter *>(hClip->GetFilter().get());
     if (!mFilter)
     {
-        mFilter = new BluePrintVideoFilter(timeline); // ?
+        mFilter = new BluePrintVideoFilter(timeline);
         mFilter->SetKeyPoint(vidclip->mFilterKeyPoints);
         DataLayer::VideoFilterHolder hFilter(mFilter);
         hClip->SetFilter(hFilter);
@@ -1874,7 +1874,7 @@ EditingVideoClip::~EditingVideoClip()
 {
     mSsViewer = nullptr;
     mSsGen = nullptr;
-    mFilter = nullptr; // ?
+    mFilter = nullptr;
 }
 
 void EditingVideoClip::UpdateClipRange(Clip* clip)
@@ -1897,15 +1897,6 @@ void EditingVideoClip::Seek(int64_t pos)
     TimeLine * timeline = (TimeLine *)mHandle;
     if (!timeline)
         return;
-    static int64_t last_seek_pos = -1;
-    if (last_seek_pos != pos)
-    {
-        last_seek_pos = pos;
-    }
-    else
-    {
-        return;
-    }
     timeline->bSeeking = true;
     timeline->Seek(pos + mStart);
 }
@@ -2299,7 +2290,7 @@ EditingVideoOverlap::EditingVideoOverlap(Overlap* ovlp)
         mFusion = dynamic_cast<BluePrintVideoTransition *>(hOvlp->GetTransition().get());
         if (!mFusion)
         {
-            mFusion = new BluePrintVideoTransition(timeline); // ?
+            mFusion = new BluePrintVideoTransition(timeline);
             mFusion->SetKeyPoint(mOvlp->mFusionKeyPoints);
             DataLayer::VideoTransitionHolder hTrans(mFusion);
             hOvlp->SetTransition(hTrans);
@@ -2319,7 +2310,7 @@ EditingVideoOverlap::~EditingVideoOverlap()
     mViewer2 = nullptr;
     mSsGen1 = nullptr;
     mSsGen2 = nullptr;
-    mFusion = nullptr; // ?
+    mFusion = nullptr;
 }
 
 void EditingVideoOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom)
@@ -2437,17 +2428,8 @@ void EditingVideoOverlap::Seek(int64_t pos)
     TimeLine* timeline = (TimeLine*)(mOvlp->mHandle);
     if (!timeline)
         return;
-    static int64_t last_seek_pos = -1;
-    if (last_seek_pos != pos)
-    {
-        last_seek_pos = pos;
-    }
-    else
-    {
-        return;
-    }
     timeline->bSeeking = true;
-    timeline->Seek(pos + mStart);
+    timeline->Seek(pos);
 }
 
 void EditingVideoOverlap::Step(bool forward, int64_t step)
@@ -5002,12 +4984,15 @@ void TimeLine::SyncDataLayer()
                 if ((ovlp->m_Clip.first == frontClipId && ovlp->m_Clip.second == rearClipId) ||
                     (ovlp->m_Clip.first == rearClipId && ovlp->m_Clip.second == frontClipId))
                 {
-                    vidOvlp->SetId(ovlp->mID);
-                    BluePrintVideoTransition* bpvt = new BluePrintVideoTransition(this);
-                    bpvt->SetBluePrintFromJson(ovlp->mFusionBP);
-                    bpvt->SetKeyPoint(ovlp->mFusionKeyPoints);
-                    DataLayer::VideoTransitionHolder hTrans(bpvt);
-                    vidOvlp->SetTransition(hTrans);
+                    if (vidOvlp->Id() != ovlp->mID)
+                    {
+                        vidOvlp->SetId(ovlp->mID);
+                        BluePrintVideoTransition* bpvt = new BluePrintVideoTransition(this);
+                        bpvt->SetBluePrintFromJson(ovlp->mFusionBP);
+                        bpvt->SetKeyPoint(ovlp->mFusionKeyPoints);
+                        DataLayer::VideoTransitionHolder hTrans(bpvt);
+                        vidOvlp->SetTransition(hTrans);
+                    }
                     found = true;
                     break;
                 }
@@ -7193,7 +7178,7 @@ bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int64_t CurrentTime, int 
         if (newPos >= end)
             newPos = end;
         if (oldPos != newPos)
-            overlap->Seek(newPos); // call seek event
+            overlap->Seek(newPos + overlap->mStart); // call seek event
     }
     if (overlap->bSeeking && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
     {
