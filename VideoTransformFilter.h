@@ -46,7 +46,7 @@ namespace DataLayer
         virtual double GetRotationAngle() const = 0;
         virtual double GetScaleH() const = 0;
         virtual double GetScaleV() const = 0;
-        virtual ImGui::KeyPointEditor& GetKeyPoint() = 0;
+        virtual ImGui::KeyPointEditor* GetKeyPoint() = 0;
 
         virtual std::string GetError() const = 0;
     };

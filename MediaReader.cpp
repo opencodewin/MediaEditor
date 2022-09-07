@@ -2227,6 +2227,8 @@ private:
             m_needUpdateBldtsk = true;
         }
         m_cacheWnd.readPos = readPos;
+        m_logger->Log(VERBOSE) << "Cache window updated: { readPos=" << readPos << ", cacheBeginTs=" << m_cacheWnd.cacheBeginTs << ", cacheEndTs=" << m_cacheWnd.cacheEndTs
+                << ", seekPosShow=" << m_cacheWnd.seekPosShow << ", seekPos00=" << m_cacheWnd.seekPos00 << ", seekPos10=" << m_cacheWnd.seekPos10 << " }" << endl;
     }
 
     void ResetBuildTask()
@@ -2499,7 +2501,11 @@ private:
                 int64_t beginPts = CvtMtsToPts((int64_t)(currwnd.cacheBeginTs*1000));
                 beginPts = beginPts-beginPts%m_audioTaskPtsGap;
                 int64_t endPts = CvtMtsToPts((int64_t)(currwnd.cacheEndTs*1000))+1;
-                if (currwnd.seekPos00 <= m_bldtskSnapWnd.seekPos10)
+                if (currwnd.seekPos00 <= m_bldtskSnapWnd.seekPos00)
+                {
+                    beginPts = m_bldtskTimeOrder.back()->seekPts.second;
+                }
+                else if (currwnd.seekPos00 <= m_bldtskSnapWnd.seekPos10)
                 {
                     auto iter = m_bldtskTimeOrder.begin();
                     while (iter != m_bldtskTimeOrder.end())
@@ -2540,7 +2546,11 @@ private:
                 int64_t endPts = CvtMtsToPts((int64_t)(currwnd.cacheEndTs*1000))+1;
                 if (endPts%m_audioTaskPtsGap > 0)
                     endPts = endPts-endPts%m_audioTaskPtsGap+m_audioTaskPtsGap;
-                if (currwnd.seekPos10 >= m_bldtskSnapWnd.seekPos00)
+                if (currwnd.seekPos10 >= m_bldtskSnapWnd.seekPos10)
+                {
+                    endPts = m_bldtskTimeOrder.front()->seekPts.first;
+                }
+                else if (currwnd.seekPos10 >= m_bldtskSnapWnd.seekPos00)
                 {
                     // buildIndex1 = m_bldtskSnapWnd.cacheIdx0-1;
                     auto iter = m_bldtskTimeOrder.end();
@@ -2579,6 +2589,13 @@ private:
                 }
             }
             windowAreaChanged = true;
+            if (!m_bldtskTimeOrder.empty())
+            {
+                auto& first = m_bldtskTimeOrder.front();
+                auto& last = m_bldtskTimeOrder.back();
+                m_logger->Log(DEBUG) << "^^^ Build task updated, first task seekPts=(" << first->seekPts.first << "," << first->seekPts.second
+                        << "), last task seekPts=(" << last->seekPts.first << "," << last->seekPts.second << ")." << endl;
+            }
         }
         m_bldtskSnapWnd = currwnd;
 
