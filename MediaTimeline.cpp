@@ -416,6 +416,7 @@ int64_t Clip::Cropping(int64_t diff, int type)
         timeline->mVidFilterClip->mStart = mStart;
         timeline->mVidFilterClip->mEnd = mEnd;
         if (timeline->mVidFilterClip->mFilter) timeline->mVidFilterClip->mFilter->SetKeyPoint(mFilterKeyPoints);
+        if (timeline->mVidFilterClip->mAttribute) timeline->mVidFilterClip->mAttribute->SetKeyPoint(mAttributeKeyPoints);
     }
     mAttributeKeyPoints.SetMin(ImVec2(mStartOffset, 0.f), true);
     mAttributeKeyPoints.SetMax(ImVec2(mEnd - mStart + mStartOffset, 1.f), true);
@@ -505,6 +506,7 @@ void Clip::Cutting(int64_t pos)
             timeline->mVidFilterClip->mStart = mStart;
             timeline->mVidFilterClip->mEnd = mEnd;
             if (timeline->mVidFilterClip->mFilter) timeline->mVidFilterClip->mFilter->SetKeyPoint(mFilterKeyPoints);
+            if (timeline->mVidFilterClip->mAttribute) timeline->mVidFilterClip->mAttribute->SetKeyPoint(mAttributeKeyPoints);
         }
 
         // need check overlap status and update overlap info on data layer(UI info will update on track update)
@@ -1854,6 +1856,8 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
 
     mSsGen->SetCacheFactor(1);
     auto video_info = vidclip->mMediaParser->GetBestVideoStream();
+    mWidth = video_info->width;
+    mHeight = video_info->height;
     float snapshot_scale = video_info->height > 0 ? 50.f / (float)video_info->height : 0.1;
     mSsGen->SetSnapshotResizeFactor(snapshot_scale, snapshot_scale);
     mSsViewer = mSsGen->CreateViewer((double)mStartOffset / 1000);
@@ -1867,6 +1871,11 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
         mFilter->SetKeyPoint(vidclip->mFilterKeyPoints);
         DataLayer::VideoFilterHolder hFilter(mFilter);
         hClip->SetFilter(hFilter);
+    }
+    mAttribute = hClip->GetTransformFilterPtr();
+    if (mAttribute)
+    {
+        mAttribute->SetKeyPoint(vidclip->mAttributeKeyPoints);
     }
 }
 
@@ -1921,7 +1930,7 @@ void EditingVideoClip::Save()
     timeline->UpdatePreview();
 }
 
-bool EditingVideoClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame)
+bool EditingVideoClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame, bool attribute)
 {
     int ret = true;
     TimeLine * timeline = (TimeLine *)mHandle;
@@ -1945,8 +1954,8 @@ bool EditingVideoClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_fr
     }
     else
     {
-        auto iter = std::find_if(frames.begin(), frames.end(), [this] (auto& cf) {
-            return cf.clipId == mID && cf.phase == DataLayer::CorrelativeFrame::PHASE_AFTER_FILTER;
+        auto iter = std::find_if(frames.begin(), frames.end(), [&] (auto& cf) {
+            return cf.clipId == mID && cf.phase == attribute ? DataLayer::CorrelativeFrame::PHASE_AFTER_TRANSFORM : DataLayer::CorrelativeFrame::PHASE_AFTER_FILTER;
         });
         if (iter != frames.end())
             in_out_frame.second = iter->frame;
@@ -2057,7 +2066,7 @@ void EditingAudioClip::Save()
 
 }
 
-bool EditingAudioClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame)
+bool EditingAudioClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame, bool attribute)
 {
     return false;
 }
@@ -2948,24 +2957,22 @@ void MediaTrack::SelectEditingClip(Clip * clip, bool filter_editing)
     }
 
     clip->bEditing = true;
-    if (filter_editing)
+
+    if (clip->mType == MEDIA_VIDEO)
     {
-        if (clip->mType == MEDIA_VIDEO)
-        {
-            if (!timeline->mVidFilterClip)
-                timeline->mVidFilterClip = new EditingVideoClip((VideoClip*)clip);
-        }
-        else if (clip->mType == MEDIA_AUDIO)
-        {
-            if (!timeline->mAudFilterClip)
-                timeline->mAudFilterClip = new EditingAudioClip((AudioClip*)clip);
-            if (timeline->mAudioFilterBluePrint && timeline->mAudioFilterBluePrint->m_Document)
-            {                
-                timeline->mAudioFilterBluePrintLock.lock();
-                timeline->mAudioFilterBluePrint->File_New_Filter(clip->mFilterBP, "AudioFilter", "Audio");
-                timeline->mAudioFilterNeedUpdate = true;
-                timeline->mAudioFilterBluePrintLock.unlock();
-            }
+        if (!timeline->mVidFilterClip)
+            timeline->mVidFilterClip = new EditingVideoClip((VideoClip*)clip);
+    }
+    else if (clip->mType == MEDIA_AUDIO)
+    {
+        if (!timeline->mAudFilterClip)
+            timeline->mAudFilterClip = new EditingAudioClip((AudioClip*)clip);
+        if (timeline->mAudioFilterBluePrint && timeline->mAudioFilterBluePrint->m_Document)
+        {                
+            timeline->mAudioFilterBluePrintLock.lock();
+            timeline->mAudioFilterBluePrint->File_New_Filter(clip->mFilterBP, "AudioFilter", "Audio");
+            timeline->mAudioFilterNeedUpdate = true;
+            timeline->mAudioFilterBluePrintLock.unlock();
         }
     }
 }
@@ -4541,6 +4548,11 @@ int TimeLine::Load(const imgui_json::value& value)
         auto& val = value["FusionOutPreview"];
         if (val.is_boolean()) bFusionOutputPreview = val.get<imgui_json::boolean>();
     }
+    if (value.contains("AttributeOutPreview"))
+    {
+        auto& val = value["AttributeOutPreview"];
+        if (val.is_boolean()) bAttributeOutputPreview = val.get<imgui_json::boolean>();
+    }
     if (value.contains("SelectLinked"))
     {
         auto& val = value["SelectLinked"];
@@ -4761,6 +4773,7 @@ void TimeLine::Save(imgui_json::value& value)
     value["Compare"] = imgui_json::boolean(bCompare);
     value["FilterOutPreview"] = imgui_json::boolean(bFilterOutputPreview);
     value["FusionOutPreview"] = imgui_json::boolean(bFusionOutputPreview);
+    value["AttributeOutPreview"] = imgui_json::boolean(bAttributeOutputPreview);
     value["SelectLinked"] = imgui_json::boolean(bSelectLinked);
     value["IDGenerateState"] = imgui_json::number(m_IDGenerator.State());
     value["FontName"] = mFontName;

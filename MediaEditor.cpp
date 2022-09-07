@@ -1344,18 +1344,23 @@ static void SaveProject(std::string path)
     Clip * editing_clip = timeline->FindEditingClip();
     if (editing_clip)
     {
-
         switch (editing_clip->mType)
         {
             case MEDIA_VIDEO:
             {
-                if (timeline->mVidFilterClip &&
-                    timeline->mVidFilterClip->mFilter &&
-                    timeline->mVidFilterClip->mFilter->mBp &&
-                    timeline->mVidFilterClip->mFilter->mBp->Blueprint_IsValid())
+                if (timeline->mVidFilterClip)
                 {
-                    editing_clip->mFilterBP = timeline->mVidFilterClip->mFilter->mBp->m_Document->Serialize();
-                    editing_clip->mFilterKeyPoints = timeline->mVidFilterClip->mFilter->mKeyPoints;
+                    if (timeline->mVidFilterClip->mFilter &&
+                        timeline->mVidFilterClip->mFilter->mBp &&
+                        timeline->mVidFilterClip->mFilter->mBp->Blueprint_IsValid())
+                    {
+                        editing_clip->mFilterBP = timeline->mVidFilterClip->mFilter->mBp->m_Document->Serialize();
+                        editing_clip->mFilterKeyPoints = timeline->mVidFilterClip->mFilter->mKeyPoints;
+                    }
+                    if (timeline->mVidFilterClip->mAttribute)
+                    {
+                        timeline->mVidFilterClip->mAttribute->SetKeyPoint(editing_clip->mAttributeKeyPoints);
+                    }
                 }
             }
             break;
@@ -2967,7 +2972,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImR
  * Media Filter Preview window
  *
  ***************************************************************************************/
-static void ShowVideoFilterPreviewWindow(ImDrawList *draw_list)
+static void ShowVideoFilterPreviewWindow(ImDrawList *draw_list, bool attribute = false)
 {
     // preview control pannel
     ImGuiIO& io = ImGui::GetIO();
@@ -3059,12 +3064,24 @@ static void ShowVideoFilterPreviewWindow(ImDrawList *draw_list)
     }
     ImGui::ShowTooltipOnHover("To End");
 
-    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + (32 + 8) * 4, PanelButtonY + 6));
-    if (ImGui::CheckButton(timeline->bFilterOutputPreview ? ICON_MEDIA_PREVIEW : ICON_FILTER "##video_filter_output_preview", &timeline->bFilterOutputPreview))
+    if (attribute)
     {
-        timeline->UpdatePreview();
+        ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + (32 + 8) * 4, PanelButtonY + 6));
+        if (ImGui::CheckButton(timeline->bAttributeOutputPreview ? ICON_MEDIA_PREVIEW : ICON_FILTER "##video_filter_output_preview", &timeline->bAttributeOutputPreview))
+        {
+            timeline->UpdatePreview();
+        }
+        ImGui::ShowTooltipOnHover(timeline->bAttributeOutputPreview ? "Attribute Out" : "Preview Out");
     }
-    ImGui::ShowTooltipOnHover(timeline->bFilterOutputPreview ? "Filter Out" : "Preview Out");
+    else
+    {
+        ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + (32 + 8) * 4, PanelButtonY + 6));
+        if (ImGui::CheckButton(timeline->bFilterOutputPreview ? ICON_MEDIA_PREVIEW : ICON_FILTER "##video_filter_output_preview", &timeline->bFilterOutputPreview))
+        {
+            timeline->UpdatePreview();
+        }
+        ImGui::ShowTooltipOnHover(timeline->bFilterOutputPreview ? "Filter Out" : "Preview Out");
+    }
 
     ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + (32 + 8) * 5, PanelButtonY + 6));
     ImGui::CheckButton(ICON_COMPARE "##video_filter_compare", &timeline->bCompare);
@@ -3104,7 +3121,11 @@ static void ShowVideoFilterPreviewWindow(ImDrawList *draw_list)
         }
         float region_sz = 360.0f / texture_zoom;
         std::pair<ImGui::ImMat, ImGui::ImMat> pair;
-        auto ret = timeline->mVidFilterClip->GetFrame(pair, timeline->bFilterOutputPreview);
+        bool ret = false;
+        if (attribute)
+            ret = timeline->mVidFilterClip->GetFrame(pair, timeline->bFilterOutputPreview);
+        else
+            ret = timeline->mVidFilterClip->GetFrame(pair, timeline->bAttributeOutputPreview);
         if (ret && 
             (timeline->mIsPreviewNeedUpdate || timeline->mLastFrameTime == -1 || timeline->mLastFrameTime != (int64_t)(pair.first.time_stamp * 1000) || need_update_scope))
         {
@@ -3194,7 +3215,12 @@ static void ShowVideoFilterPreviewWindow(ImDrawList *draw_list)
     ImGui::PopStyleColor(3);
 
     ImGui::SetCursorScreenPos(window_pos + ImVec2(40, 30));
-    ImGui::TextComplex("Video Filter", 2.0f, ImVec4(0.8, 0.8, 0.8, 0.2),
+    if (attribute)
+        ImGui::TextComplex("Video Attribute", 2.0f, ImVec4(0.8, 0.8, 0.8, 0.2),
+                        0.1f, ImVec4(0.8, 0.8, 0.8, 0.3),
+                        ImVec2(4, 4), ImVec4(0.0, 0.0, 0.0, 0.5));
+    else
+        ImGui::TextComplex("Video Filter", 2.0f, ImVec4(0.8, 0.8, 0.8, 0.2),
                         0.1f, ImVec4(0.8, 0.8, 0.8, 0.3),
                         ImVec2(4, 4), ImVec4(0.0, 0.0, 0.0, 0.5));
 }
@@ -3212,10 +3238,17 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
     if (!timeline)
         return;
     
+    DataLayer::VideoTransformFilter * attribute = nullptr;
+    ImGui::KeyPointEditor* attribute_keypoint = nullptr;
     Clip * editing_clip = timeline->FindEditingClip();
     if (editing_clip && editing_clip->mType != MEDIA_VIDEO)
     {
         editing_clip = nullptr;
+    }
+    if (editing_clip)
+    {
+        attribute = timeline->mVidFilterClip->mAttribute;
+        if (attribute) attribute_keypoint = attribute->GetKeyPoint();
     }
 
     float clip_timeline_height = 80;
@@ -3249,7 +3282,7 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
         ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DEEP_DARK);
-        // TODO::Dicky add attribute preview
+        ShowVideoFilterPreviewWindow(draw_list, true);
     }
     ImGui::EndChild();
 
@@ -3260,7 +3293,7 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
         ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_TWO);
-        // TODO::Dicky Draw Clip TimeLine
+        DrawClipTimeLine(timeline->mVidFilterClip, timeline->currentTime - (timeline->mVidFilterClip ? timeline->mVidFilterClip->mStart : 0), 30, 50);
     }
     ImGui::EndChild();
 
@@ -3271,10 +3304,10 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
         ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_ONE);
-        if (editing_clip)
+        if (timeline->mVidFilterClip && attribute && attribute_keypoint)
         {
             bool _changed = false;
-            mouse_hold |= ImGui::ImCurveEdit::Edit(editing_clip->mAttributeKeyPoints,
+            mouse_hold |= ImGui::ImCurveEdit::Edit(*attribute_keypoint,
                                                     sub_window_size, 
                                                     ImGui::GetID("##video_attribute_keypoint_editor"), 
                                                     CURVE_EDIT_FLAG_VALUE_LIMITED | CURVE_EDIT_FLAG_MOVE_CURVE | CURVE_EDIT_FLAG_KEEP_BEGIN_END | CURVE_EDIT_FLAG_DOCK_BEGIN_END, 
@@ -3282,10 +3315,7 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
                                                     &_changed,
                                                     nullptr, // selectedPoints
                                                     timeline->currentTime - editing_clip->mStart);
-            if (_changed)
-            {
-                timeline->UpdatePreview();
-            }
+            if (_changed) timeline->UpdatePreview();
         }
     }
     ImGui::EndChild();
@@ -3294,10 +3324,86 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
     ImGui::SetCursorScreenPos(clip_setting_pos);
     if (ImGui::BeginChild("##video_attribute_setting", clip_setting_size, false, setting_child_flags))
     {
+        // Add Curve
+        auto addCurve = [&](std::string name, float _min, float _max, float _default)
+        {
+            if (attribute_keypoint)
+            {
+                auto found = attribute_keypoint->GetCurveIndex(name);
+                if (found == -1)
+                {
+                    ImU32 color; ImGui::RandomColor(color, 1.f);
+                    auto curve_index = attribute_keypoint->AddCurve(name, ImGui::ImCurveEdit::Smooth, color, true, _min, _max, _default);
+                    attribute_keypoint->AddPoint(curve_index, ImVec2(editing_clip->mStartOffset, _min), ImGui::ImCurveEdit::Smooth);
+                    attribute_keypoint->AddPoint(curve_index, ImVec2(editing_clip->mEnd - editing_clip->mStart + editing_clip->mStartOffset, _max), ImGui::ImCurveEdit::Smooth);
+                    attribute_keypoint->SetCurvePointDefault(curve_index, 0);
+                    attribute_keypoint->SetCurvePointDefault(curve_index, 1);
+                }
+            }
+        };
         ImVec2 sub_window_pos = ImGui::GetWindowPos(); // we need draw background with scroll view
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_BLACK_DARK);
-        // TODO::Dicky draw attribute setting
+        if (timeline->mVidFilterClip && attribute)
+        {
+            // Attribute Crop setting
+            if (ImGui::TreeNodeEx("Crop Setting##video_attribute", ImGuiTreeNodeFlags_DefaultOpen))
+            {
+                ImGui::ImCurveEdit::keys margin_key; margin_key.m_id = timeline->mVidFilterClip->mID;
+
+                int margin_l = attribute->GetCropMarginL();
+                bool has_curve_margin_l = attribute_keypoint ? attribute_keypoint->GetCurveIndex("CropMarginL") != -1 : false;
+                ImGui::BeginDisabled(has_curve_margin_l);
+                if (ImGui::SliderInt("Crop Left", &margin_l, 0, timeline->mVidFilterClip->mWidth))
+                {
+                    attribute->SetCropMarginL(margin_l);
+                    timeline->UpdatePreview();
+                }
+                ImGui::EndDisabled();
+                if (ImGui::ImCurveCheckEditKey("##add_curve_margin_l##video_attribute", &margin_key, has_curve_margin_l, "margin_l##video_attribute", -(float)timeline->mVidFilterClip->mWidth, (float)timeline->mVidFilterClip->mWidth, 0.f))
+                {
+                    if (has_curve_margin_l)
+                    {
+                        addCurve("CropMarginL", margin_key.m_min, margin_key.m_max, margin_key.m_default);
+                    }
+                    else if (attribute_keypoint)
+                    {
+                        attribute_keypoint->DeleteCurve("CropMarginL");
+                    }
+                    timeline->UpdatePreview();
+                }
+
+                int margin_t = attribute->GetCropMarginT();
+                int margin_r = attribute->GetCropMarginR();
+                int margin_b = attribute->GetCropMarginB();
+
+                ImGui::TreePop();
+            }
+            // Attribute Position setting
+            if (ImGui::TreeNodeEx("Position Setting##video_attribute", ImGuiTreeNodeFlags_DefaultOpen))
+            {
+
+                ImGui::TreePop();
+            }
+            // Attribute Scale setting
+            if (ImGui::TreeNodeEx("Scale Setting##video_attribute", ImGuiTreeNodeFlags_DefaultOpen))
+            {
+
+                ImGui::TreePop();
+            }
+            // Attribute Angle setting
+            if (ImGui::TreeNodeEx("Angle Setting##video_attribute", ImGuiTreeNodeFlags_DefaultOpen))
+            {
+
+                ImGui::TreePop();
+            }
+            // Attribute Curve setting
+            if (ImGui::TreeNodeEx("Curve Setting##video_attribute", ImGuiTreeNodeFlags_DefaultOpen))
+            {
+
+                ImGui::TreePop();
+            }
+        }
     }
     ImGui::EndChild();
 }

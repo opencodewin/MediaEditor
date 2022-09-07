@@ -9,6 +9,7 @@
 #include "MediaReader.h"
 #include "MultiTrackVideoReader.h"
 #include "MultiTrackAudioReader.h"
+#include "VideoTransformFilter.h"
 #include "MediaEncoder.h"
 #include "AudioRender.hpp"
 #include "SubtitleTrack.h"
@@ -519,7 +520,7 @@ struct BaseEditingClip
     virtual void Seek(int64_t pos) = 0;
     virtual void Step(bool forward, int64_t step = 0) = 0;
     virtual void Save() = 0;
-    virtual bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame = true) = 0;
+    virtual bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame = true, bool attribute = false) = 0;
     virtual void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom) = 0;
 };
 
@@ -528,9 +529,12 @@ struct EditingVideoClip : BaseEditingClip
     SnapshotGeneratorHolder mSsGen;
     SnapshotGenerator::ViewerHolder mSsViewer;
     ImVec2 mSnapSize            {0, 0};
+    uint32_t mWidth             {0};
+    uint32_t mHeight            {0};
     MediaInfo::Ratio mClipFrameRate {25, 1};                    // clip Frame rate
 
     BluePrintVideoFilter * mFilter {nullptr};
+    DataLayer::VideoTransformFilter * mAttribute {nullptr};
 
 public:
     EditingVideoClip(VideoClip* vidclip);
@@ -540,7 +544,7 @@ public:
     void Seek(int64_t pos) override;
     void Step(bool forward, int64_t step = 0) override;
     void Save() override;
-    bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame = true) override;
+    bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame = true, bool attribute = false) override;
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom) override;
 
     void CalcDisplayParams();
@@ -555,7 +559,7 @@ struct EditingAudioClip : BaseEditingClip
     void Seek(int64_t pos) override;
     void Step(bool forward, int64_t step = 0) override;
     void Save() override;
-    bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame = true) override;
+    bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame = true, bool attribute = false) override;
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom) override;
 };
 
@@ -793,6 +797,7 @@ struct TimeLine
     bool bLoop = false;                     // project saved
     bool bCompare = false;                  // project saved
     bool bFilterOutputPreview = true;       // project saved
+    bool bAttributeOutputPreview = true;    // project saved
     bool bFusionOutputPreview = true;       // project saved
     bool bSelectLinked = true;              // project saved
 
