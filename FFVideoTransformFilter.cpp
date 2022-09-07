@@ -270,6 +270,11 @@ namespace DataLayer
             return m_scaleRatioV;
         }
 
+        ImGui::KeyPointEditor& GetKeyPoint() override
+        {
+            return m_keyPoints;
+        }
+
         void ApplyTo(VideoClip* clip) override
         {}
 
