@@ -78,7 +78,7 @@ namespace DataLayer
 
         bool SetScaleType(ScaleType type) override
         {
-            lock_guard<mutex> lk(m_processLock);
+            lock_guard<recursive_mutex> lk(m_processLock);
             if (type < SCALE_TYPE__FIT || type > SCALE_TYPE__STRETCH)
             {
                 m_errMsg = "INVALID argument 'type'!";
@@ -93,7 +93,7 @@ namespace DataLayer
 
         bool SetPositionOffset(int32_t offsetH, int32_t offsetV) override
         {
-            lock_guard<mutex> lk(m_processLock);
+            lock_guard<recursive_mutex> lk(m_processLock);
             if (m_posOffsetH == offsetH && m_posOffsetV == offsetV)
                 return true;
             m_posOffsetH = offsetH;
@@ -104,7 +104,7 @@ namespace DataLayer
 
         bool SetPositionOffsetH(int32_t value) override
         {
-            lock_guard<mutex> lk(m_processLock);
+            lock_guard<recursive_mutex> lk(m_processLock);
             if (m_posOffsetH == value)
                 return true;
             m_posOffsetH = value;
@@ -114,7 +114,7 @@ namespace DataLayer
 
         bool SetPositionOffsetV(int32_t value) override
         {
-            lock_guard<mutex> lk(m_processLock);
+            lock_guard<recursive_mutex> lk(m_processLock);
             if (m_posOffsetV == value)
                 return true;
             m_posOffsetV = value;
@@ -124,7 +124,7 @@ namespace DataLayer
 
         bool SetCropMargin(uint32_t left, uint32_t top, uint32_t right, uint32_t bottom) override
         {
-            lock_guard<mutex> lk(m_processLock);
+            lock_guard<recursive_mutex> lk(m_processLock);
             if (m_cropL == left && m_cropT == top && m_cropR == right && m_cropB == bottom)
                 return true;
             m_cropL = left;
@@ -137,7 +137,7 @@ namespace DataLayer
 
         bool SetCropMarginL(uint32_t value) override
         {
-            lock_guard<mutex> lk(m_processLock);
+            lock_guard<recursive_mutex> lk(m_processLock);
             if (m_cropL == value)
                 return true;
             m_cropL = value;
@@ -147,7 +147,7 @@ namespace DataLayer
 
         bool SetCropMarginT(uint32_t value) override
         {
-            lock_guard<mutex> lk(m_processLock);
+            lock_guard<recursive_mutex> lk(m_processLock);
             if (m_cropT == value)
                 return true;
             m_cropT = value;
@@ -157,7 +157,7 @@ namespace DataLayer
 
         bool SetCropMarginR(uint32_t value) override
         {
-            lock_guard<mutex> lk(m_processLock);
+            lock_guard<recursive_mutex> lk(m_processLock);
             if (m_cropR == value)
                 return true;
             m_cropR = value;
@@ -167,7 +167,7 @@ namespace DataLayer
 
         bool SetCropMarginB(uint32_t value) override
         {
-            lock_guard<mutex> lk(m_processLock);
+            lock_guard<recursive_mutex> lk(m_processLock);
             if (m_cropB == value)
                 return true;
             m_cropB = value;
@@ -177,7 +177,7 @@ namespace DataLayer
 
         bool SetRotationAngle(double angle) override
         {
-            lock_guard<mutex> lk(m_processLock);
+            lock_guard<recursive_mutex> lk(m_processLock);
             int32_t n = (int32_t)trunc(angle/360);
             angle -= n*360;
             if (m_rotateAngle == angle)
@@ -190,7 +190,7 @@ namespace DataLayer
 
         bool SetScaleH(double scale) override
         {
-            lock_guard<mutex> lk(m_processLock);
+            lock_guard<recursive_mutex> lk(m_processLock);
             if (m_scaleRatioH == scale)
                 return true;
             m_scaleRatioH = scale;
@@ -200,7 +200,7 @@ namespace DataLayer
 
         bool SetScaleV(double scale) override
         {
-            lock_guard<mutex> lk(m_processLock);
+            lock_guard<recursive_mutex> lk(m_processLock);
             if (m_scaleRatioV == scale)
                 return true;
             m_scaleRatioV = scale;
@@ -210,6 +210,7 @@ namespace DataLayer
 
         bool SetKeyPoint(ImGui::KeyPointEditor &keypoint) override
         {
+            lock_guard<recursive_mutex> lk(m_processLock);
             m_keyPoints = keypoint;
             return true;
         }
@@ -1043,7 +1044,7 @@ namespace DataLayer
 
         bool FilterImage_Internal(const ImGui::ImMat& inMat, ImGui::ImMat& outMat, int64_t pos)
         {
-            lock_guard<mutex> lk(m_processLock);
+            lock_guard<recursive_mutex> lk(m_processLock);
             m_inWidth = inMat.w;
             m_inHeight = inMat.h;
 
@@ -1078,7 +1079,6 @@ namespace DataLayer
                 else
                     Log(WARN) << "UNKNOWN curve name '" << name << "', value=" << value << "." << endl;
             }
-
 
             // allocate intermediate AVFrame
             SelfFreeAVFramePtr avfrmPtr = AllocSelfFreeAVFramePtr();
@@ -1151,7 +1151,7 @@ namespace DataLayer
 
         ImGui::KeyPointEditor m_keyPoints;
 
-        mutex m_processLock;
+        recursive_mutex m_processLock;
         string m_errMsg;
     };
 
