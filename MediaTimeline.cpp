@@ -1897,15 +1897,6 @@ void EditingVideoClip::Seek(int64_t pos)
     TimeLine * timeline = (TimeLine *)mHandle;
     if (!timeline)
         return;
-    static int64_t last_seek_pos = -1;
-    if (last_seek_pos != pos)
-    {
-        last_seek_pos = pos;
-    }
-    else
-    {
-        return;
-    }
     timeline->bSeeking = true;
     timeline->Seek(pos + mStart);
 }
@@ -2437,17 +2428,8 @@ void EditingVideoOverlap::Seek(int64_t pos)
     TimeLine* timeline = (TimeLine*)(mOvlp->mHandle);
     if (!timeline)
         return;
-    static int64_t last_seek_pos = -1;
-    if (last_seek_pos != pos)
-    {
-        last_seek_pos = pos;
-    }
-    else
-    {
-        return;
-    }
     timeline->bSeeking = true;
-    timeline->Seek(pos + mStart);
+    timeline->Seek(pos);
 }
 
 void EditingVideoOverlap::Step(bool forward, int64_t step)
@@ -7196,7 +7178,7 @@ bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int64_t CurrentTime, int 
         if (newPos >= end)
             newPos = end;
         if (oldPos != newPos)
-            overlap->Seek(newPos); // call seek event
+            overlap->Seek(newPos + overlap->mStart); // call seek event
     }
     if (overlap->bSeeking && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
     {
