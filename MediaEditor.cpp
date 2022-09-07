@@ -3237,7 +3237,7 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
     ImVec2 video_preview_size(video_preview_width, video_preview_height);
     ImVec2 clip_timeline_pos = video_preview_pos + ImVec2(0, video_preview_height);
     ImVec2 clip_timeline_size(window_size.x - clip_setting_width, clip_timeline_height);
-    ImVec2 clip_keypoint_pos = clip_timeline_pos + ImVec2(0, clip_timeline_height - 16);
+    ImVec2 clip_keypoint_pos = clip_timeline_pos + ImVec2(0, clip_timeline_height);
     ImVec2 clip_keypoint_size(window_size.x - clip_setting_width, clip_keypoint_height);
 
     ImGuiWindowFlags child_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings;
@@ -3865,7 +3865,7 @@ static void ShowVideoFusionPreviewWindow(ImDrawList *draw_list)
     if (timeline->mVidOverlap)
     {
         std::pair<std::pair<ImGui::ImMat, ImGui::ImMat>, ImGui::ImMat> pair;
-        auto ret = timeline->mVidOverlap->GetFrame(pair);
+        auto ret = timeline->mVidOverlap->GetFrame(pair, timeline->bFusionOutputPreview);
         if (ret && 
             (timeline->mIsPreviewNeedUpdate || timeline->mLastFrameTime == -1 || timeline->mLastFrameTime != (int64_t)(pair.first.first.time_stamp * 1000) || need_update_scope))
         {
