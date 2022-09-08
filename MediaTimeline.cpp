@@ -1042,6 +1042,11 @@ Clip* VideoClip::Load(const imgui_json::value& value, void * handle)
                 auto& val = value["ScaleV"];
                 if (val.is_number()) new_clip->mScaleV = val.get<imgui_json::number>();
             }
+            if (value.contains("KeepAspectRatio"))
+            {
+                auto& val = value["KeepAspectRatio"];
+                if (val.is_boolean()) new_clip->mKeepAspectRatio = val.get<imgui_json::boolean>();
+            }
             if (value.contains("RotationAngle"))
             {
                 auto& val = value["RotationAngle"];
@@ -1191,6 +1196,7 @@ void VideoClip::Save(imgui_json::value& value)
     value["ScaleH"] = imgui_json::number(mScaleH);
     value["ScaleV"] = imgui_json::number(mScaleV);
     value["ScaleType"] = imgui_json::number(mScaleType);
+    value["KeepAspectRatio"] = imgui_json::boolean(mKeepAspectRatio);
 
     value["RotationAngle"] = imgui_json::number(mRotationAngle);
 }

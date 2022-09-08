@@ -276,6 +276,14 @@ static const char* TextEditorTabNames[] = {
     "Track Style",
 };
 
+static const char* VideoAttributeScaleType[] = {
+    "Fit",
+    "Crop",
+    "Fill",
+    "Stretch",
+};
+
+
 struct MediaEditorSettings
 {
     float TopViewHeight {0.6};              // Top view height percentage
@@ -3617,57 +3625,110 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
             if (ImGui::TreeNodeEx("Scale Setting##video_attribute", ImGuiTreeNodeFlags_DefaultOpen))
             {
                 ImGui::ImCurveEdit::keys margin_key; margin_key.m_id = timeline->mVidFilterClip->mID;
-                // TODO::Dicky need using ScaleType as scale method
-
-                // Scale H
-                float scale_h = attribute->GetScaleH();
-                bool has_curve_scale_h = attribute_keypoint ? attribute_keypoint->GetCurveIndex("ScaleH") != -1 : false;
-                ImGui::BeginDisabled(has_curve_scale_h);
-                if (ImGui::SliderFloat("Scale H", &scale_h, 0, 8.f, "%.1f"))
+                // ScaleType as scale method
+                DataLayer::ScaleType scale_type = attribute->GetScaleType();
+                ImGui::PushItemWidth(100);
+                if (ImGui::Combo("Scale Type##curve_video_attribute_scale_type", (int*)&scale_type, VideoAttributeScaleType, IM_ARRAYSIZE(VideoAttributeScaleType)))
                 {
-                    attribute->SetScaleH(scale_h);
+                    attribute->SetScaleType(scale_type);
                     timeline->UpdatePreview();
                 }
-                ImGui::EndDisabled();
-                if (ImGui::ImCurveCheckEditKey("##add_curve_scale_h##video_attribute", &margin_key, has_curve_scale_h, "scale_h##video_attribute", 0, 8.f, 0.f, 360))
+                ImGui::SameLine();
+                bool keep_aspect_ratio = editing_clip ? ((VideoClip*)editing_clip)->mKeepAspectRatio : false;
+                if (ImGui::Checkbox("Keep Ratio", &keep_aspect_ratio))
                 {
+                    ((VideoClip*)editing_clip)->mKeepAspectRatio = keep_aspect_ratio;
+                    if (keep_aspect_ratio)
+                    {
+                        if (attribute_keypoint) attribute_keypoint->DeleteCurve("ScaleH");
+                        if (attribute_keypoint) attribute_keypoint->DeleteCurve("ScaleV");
+                    }
+                    else
+                    {
+                        if (attribute_keypoint) attribute_keypoint->DeleteCurve("Scale");
+                    }
+                }
+                ImGui::PopItemWidth();
+
+                if (keep_aspect_ratio)
+                {
+                    float scale = (attribute->GetScaleH() + attribute->GetScaleV()) / 2;
+                    bool has_curve_scale = attribute_keypoint ? attribute_keypoint->GetCurveIndex("Scale") != -1 : false;
+                    ImGui::BeginDisabled(has_curve_scale);
+                    if (ImGui::SliderFloat("Scale", &scale, 0, 8.f, "%.1f"))
+                    {
+                        attribute->SetScaleH(scale);
+                        attribute->SetScaleV(scale);
+                        timeline->UpdatePreview();
+                    }
+                    ImGui::EndDisabled();
+                    if (ImGui::ImCurveCheckEditKey("##add_curve_scale##video_attribute", &margin_key, has_curve_scale, "scale##video_attribute", 0, 8.f, 1.f, 360))
+                    {
+                        if (has_curve_scale)
+                        {
+                            addCurve("Scale", margin_key.m_min, margin_key.m_max, margin_key.m_default);
+                        }
+                        else if (attribute_keypoint)
+                        {
+                            attribute_keypoint->DeleteCurve("Scale");
+                        }
+                        timeline->UpdatePreview();
+                    }
+                    if (has_curve_scale)
+                        EditCurve("Scale");
+                }
+                else
+                {
+                    // Scale H
+                    float scale_h = attribute->GetScaleH();
+                    bool has_curve_scale_h = attribute_keypoint ? attribute_keypoint->GetCurveIndex("ScaleH") != -1 : false;
+                    ImGui::BeginDisabled(has_curve_scale_h);
+                    if (ImGui::SliderFloat("Scale H", &scale_h, 0, 8.f, "%.1f"))
+                    {
+                        attribute->SetScaleH(scale_h);
+                        timeline->UpdatePreview();
+                    }
+                    ImGui::EndDisabled();
+                    if (ImGui::ImCurveCheckEditKey("##add_curve_scale_h##video_attribute", &margin_key, has_curve_scale_h, "scale_h##video_attribute", 0, 8.f, 1.f, 360))
+                    {
+                        if (has_curve_scale_h)
+                        {
+                            addCurve("ScaleH", margin_key.m_min, margin_key.m_max, margin_key.m_default);
+                        }
+                        else if (attribute_keypoint)
+                        {
+                            attribute_keypoint->DeleteCurve("ScaleH");
+                        }
+                        timeline->UpdatePreview();
+                    }
                     if (has_curve_scale_h)
-                    {
-                        addCurve("ScaleH", margin_key.m_min, margin_key.m_max, margin_key.m_default);
-                    }
-                    else if (attribute_keypoint)
-                    {
-                        attribute_keypoint->DeleteCurve("ScaleH");
-                    }
-                    timeline->UpdatePreview();
-                }
-                if (has_curve_scale_h)
-                    EditCurve("ScaleH");
+                        EditCurve("ScaleH");
 
-                // Scale V
-                float scale_v = attribute->GetScaleV();
-                bool has_curve_scale_v = attribute_keypoint ? attribute_keypoint->GetCurveIndex("ScaleV") != -1 : false;
-                ImGui::BeginDisabled(has_curve_scale_v);
-                if (ImGui::SliderFloat("Scale V", &scale_v, 0, 8.f, "%.1f"))
-                {
-                    attribute->SetScaleV(scale_v);
-                    timeline->UpdatePreview();
-                }
-                ImGui::EndDisabled();
-                if (ImGui::ImCurveCheckEditKey("##add_curve_scale_v##video_attribute", &margin_key, has_curve_scale_v, "scale_v##video_attribute", 0, 8.f, 0.f, 360))
-                {
+                    // Scale V
+                    float scale_v = attribute->GetScaleV();
+                    bool has_curve_scale_v = attribute_keypoint ? attribute_keypoint->GetCurveIndex("ScaleV") != -1 : false;
+                    ImGui::BeginDisabled(has_curve_scale_v);
+                    if (ImGui::SliderFloat("Scale V", &scale_v, 0, 8.f, "%.1f"))
+                    {
+                        attribute->SetScaleV(scale_v);
+                        timeline->UpdatePreview();
+                    }
+                    ImGui::EndDisabled();
+                    if (ImGui::ImCurveCheckEditKey("##add_curve_scale_v##video_attribute", &margin_key, has_curve_scale_v, "scale_v##video_attribute", 0, 8.f, 1.f, 360))
+                    {
+                        if (has_curve_scale_v)
+                        {
+                            addCurve("ScaleV", margin_key.m_min, margin_key.m_max, margin_key.m_default);
+                        }
+                        else if (attribute_keypoint)
+                        {
+                            attribute_keypoint->DeleteCurve("ScaleV");
+                        }
+                        timeline->UpdatePreview();
+                    }
                     if (has_curve_scale_v)
-                    {
-                        addCurve("ScaleV", margin_key.m_min, margin_key.m_max, margin_key.m_default);
-                    }
-                    else if (attribute_keypoint)
-                    {
-                        attribute_keypoint->DeleteCurve("ScaleV");
-                    }
-                    timeline->UpdatePreview();
+                        EditCurve("ScaleV");
                 }
-                if (has_curve_scale_v)
-                    EditCurve("ScaleV");
 
                 ImGui::TreePop();
             }
