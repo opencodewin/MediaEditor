@@ -552,6 +552,10 @@ void Clip::Cutting(int64_t pos)
                 DataLayer::VideoTrackHolder vidTrack = timeline->mMtvReader->GetTrackById(track->mID);
                 vidTrack->ChangeClipRange(mID, mStartOffset, mEndOffset);
                 DataLayer::VideoClipHolder thisVidClip = vidTrack->GetClipById(mID);
+                auto filter = dynamic_cast<BluePrintVideoFilter *>(thisVidClip->GetFilter().get());
+                if (filter) filter->SetKeyPoint(mFilterKeyPoints);
+                auto attribute = thisVidClip->GetTransformFilterPtr();
+                if (attribute) attribute->SetKeyPoint(mAttributeKeyPoints);
                 DataLayer::VideoClipHolder newVidClip(new DataLayer::VideoClip(
                     new_clip->mID, thisVidClip->GetMediaParser(),
                     vidTrack->OutWidth(), vidTrack->OutHeight(), vidTrack->FrameRate(),
@@ -868,26 +872,31 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
         }
     }
     
-    if (timeline->mVidFilterClip && timeline->mVidFilterClip->mID == mID)
+    auto moving_clip_keypoint = [&](Clip * clip)
     {
-        timeline->mVidFilterClip->mStart = mStart;
-        timeline->mVidFilterClip->mEnd = mEnd;
-        if (timeline->mVidFilterClip->mFilter)
+        if (timeline->mVidFilterClip && timeline->mVidFilterClip->mID == clip->mID)
         {
-            timeline->mVidFilterClip->mFilter->mKeyPoints.MoveTo(mStart);
-            mFilterKeyPoints = timeline->mVidFilterClip->mFilter->mKeyPoints;
+            timeline->mVidFilterClip->mStart = clip->mStart;
+            timeline->mVidFilterClip->mEnd = clip->mEnd;
+            if (timeline->mVidFilterClip->mFilter)
+            {
+                timeline->mVidFilterClip->mFilter->mKeyPoints.MoveTo(clip->mStart);
+                clip->mFilterKeyPoints = timeline->mVidFilterClip->mFilter->mKeyPoints;
+            }
+            if (timeline->mVidFilterClip->mAttribute)
+            {
+                timeline->mVidFilterClip->mAttribute->GetKeyPoint()->MoveTo(clip->mStart);
+                clip->mAttributeKeyPoints = *timeline->mVidFilterClip->mAttribute->GetKeyPoint();
+            }
         }
-        if (timeline->mVidFilterClip->mAttribute)
+        else
         {
-            timeline->mVidFilterClip->mAttribute->GetKeyPoint()->MoveTo(mStart);
-            mAttributeKeyPoints = *timeline->mVidFilterClip->mAttribute->GetKeyPoint();
+            clip->mFilterKeyPoints.MoveTo(clip->mStart);
+            clip->mAttributeKeyPoints.MoveTo(clip->mStart);
         }
-    }
-    else
-    {
-        mFilterKeyPoints.MoveTo(mStart);
-        mAttributeKeyPoints.MoveTo(mStart);
-    }
+    };
+
+    moving_clip_keypoint(this);
 
     // check clip is cross track
     if (mouse_track == -2 && track->m_Clips.size() > 1)
@@ -938,6 +947,7 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
                 int64_t clip_length = clip->mEnd - clip->mStart;
                 clip->mStart += new_diff;
                 clip->mEnd = clip->mStart + clip_length;
+                moving_clip_keypoint(clip);
             }
         }
     }
