@@ -343,6 +343,18 @@ struct VideoClip : Clip
     std::list<Snapshot> mVideoSnapshots;                // clip snapshots, including texture and timestamp info
     MediaInfo::Ratio mClipFrameRate {25, 1};            // clip Frame rate, project saved
 
+    // attribute
+    DataLayer::ScaleType mScaleType {DataLayer::ScaleType::SCALE_TYPE__FIT}; // clip attribute scale type, project saved
+    double mScaleH  {1.f};                              // clip attribute scale h, project saved
+    double mScaleV  {1.f};                              // clip attribute scale v, project saved
+    double mRotationAngle {0.f};                        // clip attribute rotate angle, project saved
+    int32_t mPositionOffsetH {0};                       // clip attribute position offset h, project saved
+    int32_t mPositionOffsetV {0};                       // clip attribute position offset v, project saved
+    uint32_t mCropMarginL {0};                          // clip attribute crop margin left, project saved
+    uint32_t mCropMarginT {0};                          // clip attribute crop margin top, project saved
+    uint32_t mCropMarginR {0};                          // clip attribute crop margin right, project saved
+    uint32_t mCropMarginB {0};                          // clip attribute crop margin bottom, project saved
+
     VideoClip(int64_t start, int64_t end, int64_t id, std::string name, MediaParserHolder hParser, SnapshotGenerator::ViewerHolder viewer, void* handle);
     ~VideoClip();
 

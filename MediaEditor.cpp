@@ -1349,19 +1349,7 @@ static void SaveProject(std::string path)
             case MEDIA_VIDEO:
             {
                 if (timeline->mVidFilterClip)
-                {
-                    if (timeline->mVidFilterClip->mFilter &&
-                        timeline->mVidFilterClip->mFilter->mBp &&
-                        timeline->mVidFilterClip->mFilter->mBp->Blueprint_IsValid())
-                    {
-                        editing_clip->mFilterBP = timeline->mVidFilterClip->mFilter->mBp->m_Document->Serialize();
-                        editing_clip->mFilterKeyPoints = timeline->mVidFilterClip->mFilter->mKeyPoints;
-                    }
-                    if (timeline->mVidFilterClip->mAttribute)
-                    {
-                        timeline->mVidFilterClip->mAttribute->SetKeyPoint(editing_clip->mAttributeKeyPoints);
-                    }
-                }
+                    timeline->mVidFilterClip->Save();
             }
             break;
             case MEDIA_AUDIO:
@@ -1380,14 +1368,8 @@ static void SaveProject(std::string path)
         {
             case MEDIA_VIDEO:
             {
-                if (timeline->mVidOverlap &&
-                    timeline->mVidOverlap->mFusion &&
-                    timeline->mVidOverlap->mFusion->mBp &&
-                    timeline->mVidOverlap->mFusion->mBp->Blueprint_IsValid())
-                {
-                    editing_overlap->mFusionBP = timeline->mVidOverlap->mFusion->mBp->m_Document->Serialize();
-                    editing_overlap->mFusionKeyPoints = timeline->mVidOverlap->mFusion->mKeyPoints;
-                }
+                if (timeline->mVidOverlap)
+                    timeline->mVidOverlap->Save();
             }
             break;
             case MEDIA_AUDIO:
@@ -3123,9 +3105,9 @@ static void ShowVideoFilterPreviewWindow(ImDrawList *draw_list, bool attribute =
         std::pair<ImGui::ImMat, ImGui::ImMat> pair;
         bool ret = false;
         if (attribute)
-            ret = timeline->mVidFilterClip->GetFrame(pair, timeline->bFilterOutputPreview);
+            ret = timeline->mVidFilterClip->GetFrame(pair, timeline->bAttributeOutputPreview, attribute);
         else
-            ret = timeline->mVidFilterClip->GetFrame(pair, timeline->bAttributeOutputPreview);
+            ret = timeline->mVidFilterClip->GetFrame(pair, timeline->bFilterOutputPreview);
         if (ret && 
             (timeline->mIsPreviewNeedUpdate || timeline->mLastFrameTime == -1 || timeline->mLastFrameTime != (int64_t)(pair.first.time_stamp * 1000) || need_update_scope))
         {
@@ -3239,7 +3221,6 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
         return;
     
     DataLayer::VideoTransformFilter * attribute = nullptr;
-    ImGui::KeyPointEditor* attribute_keypoint = nullptr;
     Clip * editing_clip = timeline->FindEditingClip();
     if (editing_clip && editing_clip->mType != MEDIA_VIDEO)
     {
@@ -3247,8 +3228,15 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
     }
     if (editing_clip)
     {
+        if (timeline->mVidFilterClip)
+        {
+            timeline->mVidFilterClip->UpdateClipRange(editing_clip);
+        }
+        else
+        {
+            timeline->mVidFilterClip = new EditingVideoClip((VideoClip*)editing_clip);
+        }
         attribute = timeline->mVidFilterClip->mAttribute;
-        if (attribute) attribute_keypoint = attribute->GetKeyPoint();
     }
 
     float clip_timeline_height = 80;
@@ -3293,7 +3281,7 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
         ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_TWO);
-        DrawClipTimeLine(timeline->mVidFilterClip, timeline->currentTime - (timeline->mVidFilterClip ? timeline->mVidFilterClip->mStart : 0), 30, 50);
+        DrawClipTimeLine(timeline->mVidFilterClip, timeline->currentTime/* - (timeline->mVidFilterClip ? timeline->mVidFilterClip->mStart : 0)*/, 30, 50);
     }
     ImGui::EndChild();
 
@@ -3304,17 +3292,17 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
         ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_ONE);
-        if (timeline->mVidFilterClip && attribute && attribute_keypoint)
+        if (timeline->mVidFilterClip && attribute)
         {
             bool _changed = false;
-            mouse_hold |= ImGui::ImCurveEdit::Edit(*attribute_keypoint,
+            mouse_hold |= ImGui::ImCurveEdit::Edit(*attribute->GetKeyPoint(),
                                                     sub_window_size, 
                                                     ImGui::GetID("##video_attribute_keypoint_editor"), 
                                                     CURVE_EDIT_FLAG_VALUE_LIMITED | CURVE_EDIT_FLAG_MOVE_CURVE | CURVE_EDIT_FLAG_KEEP_BEGIN_END | CURVE_EDIT_FLAG_DOCK_BEGIN_END, 
                                                     nullptr, // clippingRect
                                                     &_changed,
                                                     nullptr, // selectedPoints
-                                                    timeline->currentTime - editing_clip->mStart);
+                                                    timeline->currentTime);
             if (_changed) timeline->UpdatePreview();
         }
     }
@@ -3324,12 +3312,15 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
     ImGui::SetCursorScreenPos(clip_setting_pos);
     if (ImGui::BeginChild("##video_attribute_setting", clip_setting_size, false, setting_child_flags))
     {
+        char ** curve_type_list = nullptr;
+        auto curve_type_count = ImGui::ImCurveEdit::GetCurveTypeName(curve_type_list);
         // Add Curve
         auto addCurve = [&](std::string name, float _min, float _max, float _default)
         {
-            if (attribute_keypoint)
+            if (attribute)
             {
-                auto found = attribute_keypoint->GetCurveIndex(name);
+                auto attribute_keypoint = attribute->GetKeyPoint();
+                auto found = attribute_keypoint ? attribute_keypoint->GetCurveIndex(name) : -1;
                 if (found == -1)
                 {
                     ImU32 color; ImGui::RandomColor(color, 1.f);
@@ -3341,16 +3332,130 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
                 }
             }
         };
+        // Editor Curve
+        auto EditCurve = [&](std::string name) 
+        {
+            if (attribute)
+            {
+                auto attribute_keypoint = attribute->GetKeyPoint();
+                int index = attribute_keypoint ? attribute_keypoint->GetCurveIndex(name) : -1;
+                if (index != -1)
+                {
+                    bool break_loop = false;
+                    ImGui::PushID(ImGui::GetID(name.c_str()));
+                    auto pCount = attribute_keypoint->GetCurvePointCount(index);
+                    std::string lable_id = std::string(ICON_CURVE) + " " + name + " (" + std::to_string(pCount) + " keys)" + "##video_attribute_curve";
+                    if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
+                    {
+                        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
+                        float value = attribute_keypoint->GetValue(index, timeline->currentTime - editing_clip->mStart);
+                        ImGui::BracketSquare(true); ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0, 1.0, 0.0, 1.0)); ImGui::Text("%.2f", value); ImGui::PopStyleColor();
+                        
+                        ImGui::PushItemWidth(60);
+                        float curve_min = attribute_keypoint->GetCurveMin(index);
+                        float curve_max = attribute_keypoint->GetCurveMax(index);
+                        ImGui::BeginDisabled(true);
+                        ImGui::DragFloat("##curve_video_filter_min", &curve_min, 0.1f, -FLT_MAX, curve_max, "%.1f"); ImGui::ShowTooltipOnHover("Min");
+                        ImGui::SameLine(0, 8);
+                        ImGui::DragFloat("##curve_video_filter_max", &curve_max, 0.1f, curve_min, FLT_MAX, "%.1f"); ImGui::ShowTooltipOnHover("Max");
+                        ImGui::SameLine(0, 8);
+                        ImGui::EndDisabled();
+                        float curve_default = attribute_keypoint->GetCurveDefault(index);
+                        if (ImGui::DragFloat("##curve_video_attribute_default", &curve_default, 0.1f, curve_min, curve_max, "%.1f"))
+                        {
+                            attribute_keypoint->SetCurveDefault(index, curve_default);
+                            timeline->UpdatePreview();
+                        } ImGui::ShowTooltipOnHover("Default");
+                        ImGui::PopItemWidth();
+
+                        ImGui::SameLine(0, 8);
+                        ImGui::SetWindowFontScale(0.75);
+                        auto curve_color = ImGui::ColorConvertU32ToFloat4(attribute_keypoint->GetCurveColor(index));
+                        if (ImGui::ColorEdit4("##curve_video_attribute_color", (float*)&curve_color, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar))
+                        {
+                            attribute_keypoint->SetCurveColor(index, ImGui::ColorConvertFloat4ToU32(curve_color));
+                        } ImGui::ShowTooltipOnHover("Curve Color");
+                        ImGui::SetWindowFontScale(1.0);
+                        ImGui::SameLine(0, 4);
+                        bool is_visiable = attribute_keypoint->IsVisible(index);
+                        if (ImGui::Button(is_visiable ? ICON_WATCH : ICON_UNWATCH "##curve_video_attribute_visiable"))
+                        {
+                            is_visiable = !is_visiable;
+                            attribute_keypoint->SetCurveVisible(index, is_visiable);
+                        } ImGui::ShowTooltipOnHover(is_visiable ? "Hide" : "Show");
+                        ImGui::SameLine(0, 4);
+                        if (ImGui::Button(ICON_DELETE "##curve_video_attribute_delete"))
+                        {
+                            attribute_keypoint->DeleteCurve(index);
+                            timeline->UpdatePreview();
+                            break_loop = true;
+                        } ImGui::ShowTooltipOnHover("Delete");
+                        ImGui::SameLine(0, 4);
+                        if (ImGui::Button(ICON_RETURN_DEFAULT "##curve_video_attribute_reset"))
+                        {
+                            for (int p = 0; p < pCount; p++)
+                            {
+                                attribute_keypoint->SetCurvePointDefault(index, p);
+                            }
+                            timeline->UpdatePreview();
+                        } ImGui::ShowTooltipOnHover("Reset");
+
+                        if (!break_loop)
+                        {
+                            // list points
+                            for (int p = 0; p < pCount; p++)
+                            {
+                                bool is_disabled = false;
+                                ImGui::PushID(p);
+                                ImGui::PushItemWidth(96);
+                                auto point = attribute_keypoint->GetPoint(index, p);
+                                ImGui::Diamond(false);
+                                if (p == 0 || p == pCount - 1)
+                                    is_disabled = true;
+                                ImGui::BeginDisabled(is_disabled);
+                                if (ImGui::DragTimeMS("##curve_video_attribute_point_x", &point.point.x, attribute_keypoint->GetMax().x / 1000.f, attribute_keypoint->GetMin().x, attribute_keypoint->GetMax().x, 2))
+                                {
+                                    attribute_keypoint->EditPoint(index, p, point.point, point.type);
+                                    timeline->UpdatePreview();
+                                }
+                                ImGui::EndDisabled();
+                                ImGui::SameLine();
+                                auto speed = fabs(attribute_keypoint->GetCurveMax(index) - attribute_keypoint->GetCurveMin(index)) / 500;
+                                if (ImGui::DragFloat("##curve_video_attribute_point_y", &point.point.y, speed, attribute_keypoint->GetCurveMin(index), attribute_keypoint->GetCurveMax(index), "%.2f"))
+                                {
+                                    attribute_keypoint->EditPoint(index, p, point.point, point.type);
+                                    timeline->UpdatePreview();
+                                }
+                                ImGui::SameLine();
+                                if (ImGui::Combo("##curve_video_attribute_type", (int*)&point.type, curve_type_list, curve_type_count))
+                                {
+                                    attribute_keypoint->EditPoint(index, p, point.point, point.type);
+                                    timeline->UpdatePreview();
+                                }
+                                ImGui::PopItemWidth();
+                                ImGui::PopID();
+                            }
+                        }
+
+                        ImGui::PopStyleColor();
+                        ImGui::TreePop();
+                    }
+                    ImGui::PopID();
+                }
+            }
+        };
         ImVec2 sub_window_pos = ImGui::GetWindowPos(); // we need draw background with scroll view
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_BLACK_DARK);
         if (timeline->mVidFilterClip && attribute)
         {
+            ImGui::PushItemWidth(240);
+            auto attribute_keypoint = attribute->GetKeyPoint();
             // Attribute Crop setting
             if (ImGui::TreeNodeEx("Crop Setting##video_attribute", ImGuiTreeNodeFlags_DefaultOpen))
             {
                 ImGui::ImCurveEdit::keys margin_key; margin_key.m_id = timeline->mVidFilterClip->mID;
-
+                // Crop Margin Left
                 int margin_l = attribute->GetCropMarginL();
                 bool has_curve_margin_l = attribute_keypoint ? attribute_keypoint->GetCurveIndex("CropMarginL") != -1 : false;
                 ImGui::BeginDisabled(has_curve_margin_l);
@@ -3360,7 +3465,7 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
                     timeline->UpdatePreview();
                 }
                 ImGui::EndDisabled();
-                if (ImGui::ImCurveCheckEditKey("##add_curve_margin_l##video_attribute", &margin_key, has_curve_margin_l, "margin_l##video_attribute", -(float)timeline->mVidFilterClip->mWidth, (float)timeline->mVidFilterClip->mWidth, 0.f))
+                if (ImGui::ImCurveCheckEditKey("##add_curve_margin_l##video_attribute", &margin_key, has_curve_margin_l, "margin_l##video_attribute", 0.f, (float)timeline->mVidFilterClip->mWidth, 0.f, 360))
                 {
                     if (has_curve_margin_l)
                     {
@@ -3372,37 +3477,233 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
                     }
                     timeline->UpdatePreview();
                 }
+                if (has_curve_margin_l)
+                    EditCurve("CropMarginL");
 
+                // Crop Margin Top
                 int margin_t = attribute->GetCropMarginT();
+                bool has_curve_margin_t = attribute_keypoint ? attribute_keypoint->GetCurveIndex("CropMarginT") != -1 : false;
+                ImGui::BeginDisabled(has_curve_margin_t);
+                if (ImGui::SliderInt("Crop Top", &margin_t, 0, timeline->mVidFilterClip->mHeight))
+                {
+                    attribute->SetCropMarginT(margin_t);
+                    timeline->UpdatePreview();
+                }
+                ImGui::EndDisabled();
+                if (ImGui::ImCurveCheckEditKey("##add_curve_margin_t##video_attribute", &margin_key, has_curve_margin_t, "margin_t##video_attribute", 0.f, (float)timeline->mVidFilterClip->mHeight, 0.f, 360))
+                {
+                    if (has_curve_margin_t)
+                    {
+                        addCurve("CropMarginT", margin_key.m_min, margin_key.m_max, margin_key.m_default);
+                    }
+                    else if (attribute_keypoint)
+                    {
+                        attribute_keypoint->DeleteCurve("CropMarginT");
+                    }
+                    timeline->UpdatePreview();
+                }
+                if (has_curve_margin_t)
+                    EditCurve("CropMarginT");
+
+                // Crop Margin Right
                 int margin_r = attribute->GetCropMarginR();
+                bool has_curve_margin_r = attribute_keypoint ? attribute_keypoint->GetCurveIndex("CropMarginR") != -1 : false;
+                ImGui::BeginDisabled(has_curve_margin_r);
+                if (ImGui::SliderInt("Crop Right", &margin_r, 0, timeline->mVidFilterClip->mWidth))
+                {
+                    attribute->SetCropMarginR(margin_r);
+                    timeline->UpdatePreview();
+                }
+                ImGui::EndDisabled();
+                if (ImGui::ImCurveCheckEditKey("##add_curve_margin_r##video_attribute", &margin_key, has_curve_margin_r, "margin_r##video_attribute", 0.f, (float)timeline->mVidFilterClip->mWidth, 0.f, 360))
+                {
+                    if (has_curve_margin_r)
+                    {
+                        addCurve("CropMarginR", margin_key.m_min, margin_key.m_max, margin_key.m_default);
+                    }
+                    else if (attribute_keypoint)
+                    {
+                        attribute_keypoint->DeleteCurve("CropMarginR");
+                    }
+                    timeline->UpdatePreview();
+                }
+                if (has_curve_margin_r)
+                    EditCurve("CropMarginR");
+
+                // Crop Margin Bottom
                 int margin_b = attribute->GetCropMarginB();
+                bool has_curve_margin_b = attribute_keypoint ? attribute_keypoint->GetCurveIndex("CropMarginB") != -1 : false;
+                ImGui::BeginDisabled(has_curve_margin_b);
+                if (ImGui::SliderInt("Crop Bottom", &margin_b, 0, timeline->mVidFilterClip->mHeight))
+                {
+                    attribute->SetCropMarginB(margin_b);
+                    timeline->UpdatePreview();
+                }
+                ImGui::EndDisabled();
+                if (ImGui::ImCurveCheckEditKey("##add_curve_margin_b##video_attribute", &margin_key, has_curve_margin_b, "margin_b##video_attribute", 0.f, (float)timeline->mVidFilterClip->mHeight, 0.f, 360))
+                {
+                    if (has_curve_margin_b)
+                    {
+                        addCurve("CropMarginB", margin_key.m_min, margin_key.m_max, margin_key.m_default);
+                    }
+                    else if (attribute_keypoint)
+                    {
+                        attribute_keypoint->DeleteCurve("CropMarginB");
+                    }
+                    timeline->UpdatePreview();
+                }
+                if (has_curve_margin_b)
+                    EditCurve("CropMarginB");
 
                 ImGui::TreePop();
             }
             // Attribute Position setting
             if (ImGui::TreeNodeEx("Position Setting##video_attribute", ImGuiTreeNodeFlags_DefaultOpen))
             {
+                ImGui::ImCurveEdit::keys margin_key; margin_key.m_id = timeline->mVidFilterClip->mID;
+                // Position offset H
+                int position_h = attribute->GetPositionOffsetH();
+                bool has_curve_position_h = attribute_keypoint ? attribute_keypoint->GetCurveIndex("PositionOffsetH") != -1 : false;
+                ImGui::BeginDisabled(has_curve_position_h);
+                if (ImGui::SliderInt("Position H", &position_h, -timeline->mVidFilterClip->mWidth, timeline->mVidFilterClip->mWidth))
+                {
+                    attribute->SetPositionOffsetH(position_h);
+                    timeline->UpdatePreview();
+                }
+                ImGui::EndDisabled();
+                if (ImGui::ImCurveCheckEditKey("##add_curve_position_h##video_attribute", &margin_key, has_curve_position_h, "position_h##video_attribute", -(float)timeline->mVidFilterClip->mWidth, (float)timeline->mVidFilterClip->mWidth, 0.f, 360))
+                {
+                    if (has_curve_position_h)
+                    {
+                        addCurve("PositionOffsetH", margin_key.m_min, margin_key.m_max, margin_key.m_default);
+                    }
+                    else if (attribute_keypoint)
+                    {
+                        attribute_keypoint->DeleteCurve("PositionOffsetH");
+                    }
+                    timeline->UpdatePreview();
+                }
+                if (has_curve_position_h)
+                    EditCurve("PositionOffsetH");
+
+                // Position offset V
+                int position_v = attribute->GetPositionOffsetV();
+                bool has_curve_position_v = attribute_keypoint ? attribute_keypoint->GetCurveIndex("PositionOffsetV") != -1 : false;
+                ImGui::BeginDisabled(has_curve_position_v);
+                if (ImGui::SliderInt("Position V", &position_v, -timeline->mVidFilterClip->mHeight, timeline->mVidFilterClip->mHeight))
+                {
+                    attribute->SetPositionOffsetV(position_v);
+                    timeline->UpdatePreview();
+                }
+                ImGui::EndDisabled();
+                if (ImGui::ImCurveCheckEditKey("##add_curve_position_v##video_attribute", &margin_key, has_curve_position_v, "position_v##video_attribute", -(float)timeline->mVidFilterClip->mHeight, (float)timeline->mVidFilterClip->mHeight, 0.f, 360))
+                {
+                    if (has_curve_position_v)
+                    {
+                        addCurve("PositionOffsetV", margin_key.m_min, margin_key.m_max, margin_key.m_default);
+                    }
+                    else if (attribute_keypoint)
+                    {
+                        attribute_keypoint->DeleteCurve("PositionOffsetV");
+                    }
+                    timeline->UpdatePreview();
+                }
+                if (has_curve_position_v)
+                    EditCurve("PositionOffsetV");
 
                 ImGui::TreePop();
             }
             // Attribute Scale setting
             if (ImGui::TreeNodeEx("Scale Setting##video_attribute", ImGuiTreeNodeFlags_DefaultOpen))
             {
+                ImGui::ImCurveEdit::keys margin_key; margin_key.m_id = timeline->mVidFilterClip->mID;
+                // TODO::Dicky need using ScaleType as scale method
+
+                // Scale H
+                float scale_h = attribute->GetScaleH();
+                bool has_curve_scale_h = attribute_keypoint ? attribute_keypoint->GetCurveIndex("ScaleH") != -1 : false;
+                ImGui::BeginDisabled(has_curve_scale_h);
+                if (ImGui::SliderFloat("Scale H", &scale_h, 0, 8.f, "%.1f"))
+                {
+                    attribute->SetScaleH(scale_h);
+                    timeline->UpdatePreview();
+                }
+                ImGui::EndDisabled();
+                if (ImGui::ImCurveCheckEditKey("##add_curve_scale_h##video_attribute", &margin_key, has_curve_scale_h, "scale_h##video_attribute", 0, 8.f, 0.f, 360))
+                {
+                    if (has_curve_scale_h)
+                    {
+                        addCurve("ScaleH", margin_key.m_min, margin_key.m_max, margin_key.m_default);
+                    }
+                    else if (attribute_keypoint)
+                    {
+                        attribute_keypoint->DeleteCurve("ScaleH");
+                    }
+                    timeline->UpdatePreview();
+                }
+                if (has_curve_scale_h)
+                    EditCurve("ScaleH");
+
+                // Scale V
+                float scale_v = attribute->GetScaleV();
+                bool has_curve_scale_v = attribute_keypoint ? attribute_keypoint->GetCurveIndex("ScaleV") != -1 : false;
+                ImGui::BeginDisabled(has_curve_scale_v);
+                if (ImGui::SliderFloat("Scale V", &scale_v, 0, 8.f, "%.1f"))
+                {
+                    attribute->SetScaleV(scale_v);
+                    timeline->UpdatePreview();
+                }
+                ImGui::EndDisabled();
+                if (ImGui::ImCurveCheckEditKey("##add_curve_scale_v##video_attribute", &margin_key, has_curve_scale_v, "scale_v##video_attribute", 0, 8.f, 0.f, 360))
+                {
+                    if (has_curve_scale_v)
+                    {
+                        addCurve("ScaleV", margin_key.m_min, margin_key.m_max, margin_key.m_default);
+                    }
+                    else if (attribute_keypoint)
+                    {
+                        attribute_keypoint->DeleteCurve("ScaleV");
+                    }
+                    timeline->UpdatePreview();
+                }
+                if (has_curve_scale_v)
+                    EditCurve("ScaleV");
 
                 ImGui::TreePop();
             }
             // Attribute Angle setting
             if (ImGui::TreeNodeEx("Angle Setting##video_attribute", ImGuiTreeNodeFlags_DefaultOpen))
             {
+                ImGui::ImCurveEdit::keys margin_key; margin_key.m_id = timeline->mVidFilterClip->mID;
+
+                // Rotate angle
+                float angle = attribute->GetRotationAngle();
+                bool has_curve_angle = attribute_keypoint ? attribute_keypoint->GetCurveIndex("RotateAngle") != -1 : false;
+                ImGui::BeginDisabled(has_curve_angle);
+                if (ImGui::SliderFloat("Rotate Angle", &angle, -360.f, 360.f, "%.0f"))
+                {
+                    attribute->SetRotationAngle(angle);
+                    timeline->UpdatePreview();
+                }
+                ImGui::EndDisabled();
+                if (ImGui::ImCurveCheckEditKey("##add_curve_angle##video_attribute", &margin_key, has_curve_angle, "angle##video_attribute", -360.f, 360.f, 0.f, 360))
+                {
+                    if (has_curve_angle)
+                    {
+                        addCurve("RotateAngle", margin_key.m_min, margin_key.m_max, margin_key.m_default);
+                    }
+                    else if (attribute_keypoint)
+                    {
+                        attribute_keypoint->DeleteCurve("RotateAngle");
+                    }
+                    timeline->UpdatePreview();
+                }
+                if (has_curve_angle)
+                    EditCurve("RotateAngle");
 
                 ImGui::TreePop();
             }
-            // Attribute Curve setting
-            if (ImGui::TreeNodeEx("Curve Setting##video_attribute", ImGuiTreeNodeFlags_DefaultOpen))
-            {
-
-                ImGui::TreePop();
-            }
+            ImGui::PopItemWidth();
         }
     }
     ImGui::EndChild();
@@ -3539,7 +3840,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_TWO);
         // Draw Clip TimeLine
-        DrawClipTimeLine(timeline->mVidFilterClip, timeline->currentTime - (timeline->mVidFilterClip ? timeline->mVidFilterClip->mStart : 0), 30, 50);
+        DrawClipTimeLine(timeline->mVidFilterClip, timeline->currentTime/* - (timeline->mVidFilterClip ? timeline->mVidFilterClip->mStart : 0)*/, 30, 50);
     }
     ImGui::EndChild();
 

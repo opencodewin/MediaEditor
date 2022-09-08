@@ -409,8 +409,10 @@ int64_t Clip::Cropping(int64_t diff, int type)
             }
         }
     }
-    mFilterKeyPoints.SetMin(ImVec2(mStartOffset, 0.f), true);
-    mFilterKeyPoints.SetMax(ImVec2(mEnd - mStart + mStartOffset, 1.f), true);
+    mFilterKeyPoints.SetMin(ImVec2(mStartOffset + mStart, 0.f), true);
+    mFilterKeyPoints.SetMax(ImVec2(mEnd + mStartOffset, 1.f), true);
+    mAttributeKeyPoints.SetMin(ImVec2(mStartOffset, 0.f), true);
+    mAttributeKeyPoints.SetMax(ImVec2(mEnd - mStart + mStartOffset, 1.f), true);
     if (timeline->mVidFilterClip && timeline->mVidFilterClip->mID == mID)
     {
         timeline->mVidFilterClip->mStart = mStart;
@@ -418,8 +420,6 @@ int64_t Clip::Cropping(int64_t diff, int type)
         if (timeline->mVidFilterClip->mFilter) timeline->mVidFilterClip->mFilter->SetKeyPoint(mFilterKeyPoints);
         if (timeline->mVidFilterClip->mAttribute) timeline->mVidFilterClip->mAttribute->SetKeyPoint(mAttributeKeyPoints);
     }
-    mAttributeKeyPoints.SetMin(ImVec2(mStartOffset, 0.f), true);
-    mAttributeKeyPoints.SetMax(ImVec2(mEnd - mStart + mStartOffset, 1.f), true);
     track->Update();
     return new_diff;
 }
@@ -488,14 +488,14 @@ void Clip::Cutting(int64_t pos)
         new_clip->mStartOffset = new_start_offset;
         new_clip->mEnd = mEnd;
         new_clip->mEndOffset = mEndOffset;
-        new_clip->mFilterKeyPoints.SetMin(ImVec2(new_clip->mStartOffset, 0.f), true);
-        new_clip->mFilterKeyPoints.SetMax(ImVec2(new_clip->mEnd - new_clip->mStart + new_clip->mStartOffset, 1.f), true);
+        new_clip->mFilterKeyPoints.SetMin(ImVec2(new_clip->mStartOffset + new_clip->mStart, 0.f), true);
+        new_clip->mFilterKeyPoints.SetMax(ImVec2(new_clip->mEnd + new_clip->mStartOffset, 1.f), true);
         new_clip->mAttributeKeyPoints.SetMin(ImVec2(new_clip->mStartOffset, 1.f), true);
         new_clip->mAttributeKeyPoints.SetMax(ImVec2(new_clip->mEnd - new_clip->mStart + new_clip->mStartOffset, 1.f), true);
         mEnd = adj_end;
         mEndOffset = adj_end_offset;
-        mFilterKeyPoints.SetMin(ImVec2(mStartOffset, 0.f), true);
-        mFilterKeyPoints.SetMax(ImVec2(mEnd - mStart + mStartOffset, 1.f), true);
+        mFilterKeyPoints.SetMin(ImVec2(mStartOffset + mStart, 0.f), true);
+        mFilterKeyPoints.SetMax(ImVec2(mEnd + mStartOffset, 1.f), true);
         mAttributeKeyPoints.SetMin(ImVec2(mStartOffset, 0.f), true);
         mAttributeKeyPoints.SetMax(ImVec2(mEnd - mStart + mStartOffset, 1.f), true);
         timeline->m_Clips.push_back(new_clip);
@@ -989,6 +989,56 @@ Clip* VideoClip::Load(const imgui_json::value& value, void * handle)
                 auto& val = value["FrameRateDen"];
                 if (val.is_number()) new_clip->mClipFrameRate.den = val.get<imgui_json::number>();
             }
+            if (value.contains("ScaleType"))
+            {
+                auto& val = value["ScaleType"];
+                if (val.is_number()) new_clip->mScaleType = (DataLayer::ScaleType)val.get<imgui_json::number>();
+            }
+            if (value.contains("ScaleH"))
+            {
+                auto& val = value["ScaleH"];
+                if (val.is_number()) new_clip->mScaleH = val.get<imgui_json::number>();
+            }
+            if (value.contains("ScaleV"))
+            {
+                auto& val = value["ScaleV"];
+                if (val.is_number()) new_clip->mScaleV = val.get<imgui_json::number>();
+            }
+            if (value.contains("RotationAngle"))
+            {
+                auto& val = value["RotationAngle"];
+                if (val.is_number()) new_clip->mRotationAngle = val.get<imgui_json::number>();
+            }
+            if (value.contains("PositionOffsetH"))
+            {
+                auto& val = value["PositionOffsetH"];
+                if (val.is_number()) new_clip->mPositionOffsetH = val.get<imgui_json::number>();
+            }
+            if (value.contains("PositionOffsetV"))
+            {
+                auto& val = value["PositionOffsetV"];
+                if (val.is_number()) new_clip->mPositionOffsetV = val.get<imgui_json::number>();
+            }
+            if (value.contains("CropMarginL"))
+            {
+                auto& val = value["CropMarginL"];
+                if (val.is_number()) new_clip->mCropMarginL = val.get<imgui_json::number>();
+            }
+            if (value.contains("CropMarginT"))
+            {
+                auto& val = value["CropMarginT"];
+                if (val.is_number()) new_clip->mCropMarginT = val.get<imgui_json::number>();
+            }
+            if (value.contains("CropMarginR"))
+            {
+                auto& val = value["CropMarginR"];
+                if (val.is_number()) new_clip->mCropMarginR = val.get<imgui_json::number>();
+            }
+            if (value.contains("CropMarginB"))
+            {
+                auto& val = value["CropMarginB"];
+                if (val.is_number()) new_clip->mCropMarginB = val.get<imgui_json::number>();
+            }
             return new_clip;
         }
     }
@@ -1091,6 +1141,20 @@ void VideoClip::Save(imgui_json::value& value)
     // save video clip info
     value["FrameRateNum"] = imgui_json::number(mClipFrameRate.num);
     value["FrameRateDen"] = imgui_json::number(mClipFrameRate.den);
+
+    value["CropMarginL"] = imgui_json::number(mCropMarginL);
+    value["CropMarginT"] = imgui_json::number(mCropMarginT);
+    value["CropMarginR"] = imgui_json::number(mCropMarginR);
+    value["CropMarginB"] = imgui_json::number(mCropMarginB);
+
+    value["PositionOffsetH"] = imgui_json::number(mPositionOffsetH);
+    value["PositionOffsetV"] = imgui_json::number(mPositionOffsetV);
+
+    value["ScaleH"] = imgui_json::number(mScaleH);
+    value["ScaleV"] = imgui_json::number(mScaleV);
+    value["ScaleType"] = imgui_json::number(mScaleType);
+
+    value["RotationAngle"] = imgui_json::number(mRotationAngle);
 }
 
 // AudioClip Struct Member Functions
@@ -1875,6 +1939,16 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
     mAttribute = hClip->GetTransformFilterPtr();
     if (mAttribute)
     {
+        mAttribute->SetScaleType(vidclip->mScaleType);
+        mAttribute->SetScaleH(vidclip->mScaleH);
+        mAttribute->SetScaleV(vidclip->mScaleV);
+        mAttribute->SetPositionOffsetH(vidclip->mPositionOffsetH);
+        mAttribute->SetPositionOffsetV(vidclip->mPositionOffsetV);
+        mAttribute->SetRotationAngle(vidclip->mRotationAngle);
+        mAttribute->SetCropMarginL(vidclip->mCropMarginL);
+        mAttribute->SetCropMarginT(vidclip->mCropMarginT);
+        mAttribute->SetCropMarginR(vidclip->mCropMarginR);
+        mAttribute->SetCropMarginB(vidclip->mCropMarginB);
         mAttribute->SetKeyPoint(vidclip->mAttributeKeyPoints);
     }
 }
@@ -1899,6 +1973,7 @@ void EditingVideoClip::UpdateClipRange(Clip* clip)
         mDuration = mEnd - mStart;
         CalcDisplayParams();
     }
+    
 }
 
 void EditingVideoClip::Seek(int64_t pos)
@@ -1907,7 +1982,7 @@ void EditingVideoClip::Seek(int64_t pos)
     if (!timeline)
         return;
     timeline->bSeeking = true;
-    timeline->Seek(pos + mStart);
+    timeline->Seek(pos);
 }
 
 void EditingVideoClip::Step(bool forward, int64_t step)
@@ -1919,13 +1994,27 @@ void EditingVideoClip::Save()
     TimeLine * timeline = (TimeLine *)mHandle;
     if (!timeline)
         return;
-    auto clip = timeline->FindClipByID(mID);
-    if (!clip)
+    VideoClip * clip = (VideoClip *)timeline->FindClipByID(mID);
+    if (!clip || clip->mType != MEDIA_VIDEO)
         return;
     if (mFilter && mFilter->mBp && mFilter->mBp->Blueprint_IsValid())
     {
         clip->mFilterBP = mFilter->mBp->m_Document->Serialize();
         clip->mFilterKeyPoints = mFilter->mKeyPoints;
+    }
+    if (mAttribute)
+    {
+        clip->mAttributeKeyPoints = *mAttribute->GetKeyPoint();
+        clip->mScaleType = mAttribute->GetScaleType();
+        clip->mScaleH = mAttribute->GetScaleH();
+        clip->mScaleV = mAttribute->GetScaleV();
+        clip->mRotationAngle = mAttribute->GetRotationAngle();
+        clip->mPositionOffsetH = mAttribute->GetPositionOffsetH();
+        clip->mPositionOffsetV = mAttribute->GetPositionOffsetV();
+        clip->mCropMarginL = mAttribute->GetCropMarginL();
+        clip->mCropMarginT = mAttribute->GetCropMarginT();
+        clip->mCropMarginR = mAttribute->GetCropMarginR();
+        clip->mCropMarginB = mAttribute->GetCropMarginB();
     }
     timeline->UpdatePreview();
 }
@@ -1954,11 +2043,11 @@ bool EditingVideoClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_fr
     }
     else
     {
-        auto iter = std::find_if(frames.begin(), frames.end(), [&] (auto& cf) {
-            return cf.clipId == mID && cf.phase == attribute ? DataLayer::CorrelativeFrame::PHASE_AFTER_TRANSFORM : DataLayer::CorrelativeFrame::PHASE_AFTER_FILTER;
+        auto iter_out = std::find_if(frames.begin(), frames.end(), [&] (auto& cf) {
+            return cf.clipId == mID && cf.phase == (attribute ? DataLayer::CorrelativeFrame::PHASE_AFTER_TRANSFORM : DataLayer::CorrelativeFrame::PHASE_AFTER_FILTER);
         });
-        if (iter != frames.end())
-            in_out_frame.second = iter->frame;
+        if (iter_out != frames.end())
+            in_out_frame.second = iter_out->frame;
         else
             ret = false;
     }
@@ -2479,11 +2568,11 @@ bool EditingVideoOverlap::GetFrame(std::pair<std::pair<ImGui::ImMat, ImGui::ImMa
     }
     else
     {
-        auto iter = std::find_if(frames.begin(), frames.end(), [this] (auto& cf) {
+        auto iter_out = std::find_if(frames.begin(), frames.end(), [this] (auto& cf) {
             return cf.phase == DataLayer::CorrelativeFrame::PHASE_AFTER_TRANSITION;
         });
-        if (iter != frames.end())
-            in_out_frame.second = iter->frame;
+        if (iter_out != frames.end())
+            in_out_frame.second = iter_out->frame;
         else
             ret = false;
     }
@@ -4679,7 +4768,7 @@ int TimeLine::Load(const imgui_json::value& value)
             DataLayer::VideoTrackHolder vidTrack = mMtvReader->AddTrack(track->mID);
             for (auto clip : track->m_Clips)
             {
-                DataLayer::VideoClipHolder vidClip = vidTrack->AddNewClip(
+                DataLayer::VideoClipHolder hVidClip = vidTrack->AddNewClip(
                     clip->mID, clip->mMediaParser,
                     clip->mStart, clip->mStartOffset, clip->mEndOffset, currentTime-clip->mStart);
 
@@ -4687,7 +4776,23 @@ int TimeLine::Load(const imgui_json::value& value)
                 bpvf->SetBluePrintFromJson(clip->mFilterBP);
                 bpvf->SetKeyPoint(clip->mFilterKeyPoints);
                 DataLayer::VideoFilterHolder hFilter(bpvf);
-                vidClip->SetFilter(hFilter);
+                hVidClip->SetFilter(hFilter);
+                auto attribute = hVidClip->GetTransformFilterPtr();
+                if (attribute)
+                {
+                    VideoClip * vidclip = (VideoClip *)clip;
+                    attribute->SetScaleType(vidclip->mScaleType);
+                    attribute->SetScaleH(vidclip->mScaleH);
+                    attribute->SetScaleV(vidclip->mScaleV);
+                    attribute->SetPositionOffsetH(vidclip->mPositionOffsetH);
+                    attribute->SetPositionOffsetV(vidclip->mPositionOffsetV);
+                    attribute->SetRotationAngle(vidclip->mRotationAngle);
+                    attribute->SetCropMarginL(vidclip->mCropMarginL);
+                    attribute->SetCropMarginT(vidclip->mCropMarginT);
+                    attribute->SetCropMarginR(vidclip->mCropMarginR);
+                    attribute->SetCropMarginB(vidclip->mCropMarginB);
+                    attribute->SetKeyPoint(vidclip->mAttributeKeyPoints);
+                }
             }
         }
         else if (track->mType == MEDIA_AUDIO)
