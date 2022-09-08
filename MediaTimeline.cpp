@@ -2923,6 +2923,9 @@ void MediaTrack::InsertClip(Clip * clip, int64_t pos, bool update)
         clip->mEnd = clip->mStart + length;
         clip->ConfigViewWindow(mViewWndDur, mPixPerMs);
         clip->SetTrackHeight(mTrackHeight);
+        // Set keypoint
+        clip->mFilterKeyPoints.SetRangeX(clip->mStart, clip->mEnd, true);
+        clip->mAttributeKeyPoints.SetRangeX(clip->mStart, clip->mEnd, true);
         m_Clips.push_back(clip);
     }
     if (update) Update();
