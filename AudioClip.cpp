@@ -285,7 +285,7 @@ namespace DataLayer
 
         AudioTransitionHolder transition = m_transition;
         int64_t pos = m_frontClip->ReadPos()+m_frontClip->Start()-m_start;
-        amat = transition->MixTwoAudioMats(amat1, amat2, pos);
+        amat = transition->MixTwoAudioMats(amat1, amat2, pos+m_start);
 
         eof = eof1 || eof2;
     }

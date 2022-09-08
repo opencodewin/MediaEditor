@@ -194,11 +194,11 @@ namespace DataLayer
         // process with external filter
         VideoFilterHolder filter = m_filter;
         if (filter)
-            image = filter->FilterImage(image, pos);
+            image = filter->FilterImage(image, pos+m_start);
         frames.push_back({CorrelativeFrame::PHASE_AFTER_FILTER, m_id, m_trackId, image});
 
         // process with transform filter
-        image = m_transFilter->FilterImage(image, pos);
+        image = m_transFilter->FilterImage(image, pos+m_start);
         frames.push_back({CorrelativeFrame::PHASE_AFTER_TRANSFORM, m_id, m_trackId, image});
         out = image;
     }
@@ -349,7 +349,7 @@ namespace DataLayer
         m_rearClip->ReadVideoFrame(pos2, frames, vmat2, eof2);
 
         VideoTransitionHolder transition = m_transition;
-        out = transition->MixTwoImages(vmat1, vmat2, pos, Duration());
+        out = transition->MixTwoImages(vmat1, vmat2, pos+m_start, Duration());
         frames.push_back({CorrelativeFrame::PHASE_AFTER_TRANSITION, m_frontClip->Id(), m_frontClip->TrackId(), out});
 
         eof = eof1 || eof2;
