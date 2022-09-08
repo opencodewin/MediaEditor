@@ -3037,14 +3037,14 @@ void MediaTrack::SelectEditingClip(Clip * clip, bool filter_editing)
     int updated = 0;
     if (filter_editing && timeline->m_CallBacks.EditingClipFilter)
     {
-        timeline->Seek(clip->mStart);
         updated = timeline->m_CallBacks.EditingClipFilter(clip->mType, clip);
     }
     else if (timeline->m_CallBacks.EditingClipAttribute)
     {
-        timeline->Seek(clip->mStart);
         updated = timeline->m_CallBacks.EditingClipAttribute(clip->mType, clip);
     }
+    if (timeline->currentTime < clip->mStart || timeline->currentTime > clip->mEnd || timeline->currentTime < timeline->firstTime || timeline->currentTime > timeline->lastTime)
+        timeline->Seek(clip->mStart);
 
     // find old editing clip and reset BP
     auto editing_clip = timeline->FindEditingClip();
