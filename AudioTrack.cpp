@@ -106,7 +106,9 @@ namespace DataLayer
         bool rangeChanged = false;
         if (startOffset != hClip->StartOffset())
         {
+            int64_t bias = startOffset-hClip->StartOffset();
             hClip->ChangeStartOffset(startOffset);
+            hClip->SetStart(hClip->Start()+bias);
             rangeChanged = true;
         }
         if (endOffset != hClip->EndOffset())
