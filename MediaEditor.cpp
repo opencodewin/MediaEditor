@@ -3715,7 +3715,7 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
                     // Scale V
                     int curve_scale_v_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("ScaleV") : -1;
                     bool has_curve_scale_v = attribute_keypoint ? curve_scale_v_index != -1 : false;
-                    float scale_v = curve_scale_v_index ? attribute_keypoint->GetValue(curve_scale_v_index, timeline->currentTime) : attribute->GetScaleV();
+                    float scale_v = has_curve_scale_v ? attribute_keypoint->GetValue(curve_scale_v_index, timeline->currentTime) : attribute->GetScaleV();
                     ImGui::BeginDisabled(has_curve_scale_v);
                     if (ImGui::SliderFloat("Scale V", &scale_v, 0, 8.f, "%.1f"))
                     {
