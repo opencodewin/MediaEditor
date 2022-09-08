@@ -4436,25 +4436,45 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &view_r
             draw_list->AddText(clip_title_pos_min + ImVec2(4, 0), IM_COL32_WHITE, clip->mType == MEDIA_TEXT ? "T" : clip->mName.c_str());
             
             // add clip filter curve point
-            ImGui::KeyPointEditor* keypoint = &clip->mFilterKeyPoints;
+            ImGui::KeyPointEditor* keypoint_filter = &clip->mFilterKeyPoints;
             if (mVidFilterClip && mVidFilterClip->mID == clip->mID && mVidFilterClip->mFilter)
             {
-                keypoint = &mVidFilterClip->mFilter->mKeyPoints;
+                keypoint_filter = &mVidFilterClip->mFilter->mKeyPoints;
             }
-            for (int i = 0; i < keypoint->GetCurveCount(); i++)
+            for (int i = 0; i < keypoint_filter->GetCurveCount(); i++)
             {
-                auto curve_color = keypoint->GetCurveColor(i);
-                for (int p = 0; p < keypoint->GetCurvePointCount(i); p++)
+                auto curve_color = keypoint_filter->GetCurveColor(i);
+                for (int p = 0; p < keypoint_filter->GetCurvePointCount(i); p++)
                 {
-                    auto point = keypoint->GetPoint(i, p);
-                    if (point.point.x - clip->mStartOffset >= firstTime && point.point.x - clip->mStartOffset <= viewEndTime)
+                    auto point = keypoint_filter->GetPoint(i, p);
+                    if (point.point.x >= firstTime && point.point.x <= viewEndTime)
                     {
-                        ImVec2 center = ImVec2(clip_title_pos_min.x + (point.point.x - firstTime - clip->mStartOffset) * msPixelWidthTarget, clip_title_pos_min.y + (clip_title_pos_max.y - clip_title_pos_min.y) / 2);
+                        ImVec2 center = ImVec2(clippingRect.Min.x + (point.point.x - firstTime) * msPixelWidthTarget, clip_title_pos_min.y + (clip_title_pos_max.y - clip_title_pos_min.y) / 2);
                         draw_list->AddCircle(center, 3, curve_color, 0, 2);
                     }
                 }
             }
-            // TODO::Dicky add clip attribute curve point
+
+            // add clip attribute curve point
+            ImGui::KeyPointEditor* keypoint_attribute = &clip->mAttributeKeyPoints;
+            if (mVidFilterClip && mVidFilterClip->mID == clip->mID && mVidFilterClip->mAttribute)
+            {
+                keypoint_attribute = mVidFilterClip->mAttribute->GetKeyPoint();
+            }
+            for (int i = 0; i < keypoint_attribute->GetCurveCount(); i++)
+            {
+                auto curve_color = keypoint_attribute->GetCurveColor(i);
+                for (int p = 0; p < keypoint_attribute->GetCurvePointCount(i); p++)
+                {
+                    auto point = keypoint_attribute->GetPoint(i, p);
+                    if (point.point.x >= firstTime && point.point.x <= viewEndTime)
+                    {
+                        ImVec2 center = ImVec2(clippingRect.Min.x + (point.point.x - firstTime) * msPixelWidthTarget, clip_title_pos_min.y + (clip_title_pos_max.y - clip_title_pos_min.y) / 2);
+                        draw_list->AddRect(center - ImVec2(3, 3), center + ImVec2(3, 3), curve_color, 0, 2);
+                    }
+                }
+            }
+
             draw_list->PopClipRect();
 
             // draw custom view

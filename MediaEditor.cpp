@@ -3464,8 +3464,9 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
             {
                 ImGui::ImCurveEdit::keys margin_key; margin_key.m_id = timeline->mVidFilterClip->mID;
                 // Crop Margin Left
-                int margin_l = attribute->GetCropMarginL();
-                bool has_curve_margin_l = attribute_keypoint ? attribute_keypoint->GetCurveIndex("CropMarginL") != -1 : false;
+                int curve_margin_l_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("CropMarginL") : -1;
+                bool has_curve_margin_l = attribute_keypoint ? curve_margin_l_index != -1 : false;
+                int margin_l = has_curve_margin_l ? attribute_keypoint->GetValue(curve_margin_l_index, timeline->currentTime) : attribute->GetCropMarginL();
                 ImGui::BeginDisabled(has_curve_margin_l);
                 if (ImGui::SliderInt("Crop Left", &margin_l, 0, timeline->mVidFilterClip->mWidth))
                 {
@@ -3489,8 +3490,9 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
                     EditCurve("CropMarginL");
 
                 // Crop Margin Top
-                int margin_t = attribute->GetCropMarginT();
-                bool has_curve_margin_t = attribute_keypoint ? attribute_keypoint->GetCurveIndex("CropMarginT") != -1 : false;
+                int curve_margin_t_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("CropMarginT") : -1;
+                bool has_curve_margin_t = attribute_keypoint ? curve_margin_t_index != -1 : false;
+                int margin_t = has_curve_margin_t ? attribute_keypoint->GetValue(curve_margin_t_index, timeline->currentTime) : attribute->GetCropMarginT();
                 ImGui::BeginDisabled(has_curve_margin_t);
                 if (ImGui::SliderInt("Crop Top", &margin_t, 0, timeline->mVidFilterClip->mHeight))
                 {
@@ -3514,8 +3516,9 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
                     EditCurve("CropMarginT");
 
                 // Crop Margin Right
-                int margin_r = attribute->GetCropMarginR();
-                bool has_curve_margin_r = attribute_keypoint ? attribute_keypoint->GetCurveIndex("CropMarginR") != -1 : false;
+                int curve_margin_r_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("CropMarginR") : -1;
+                bool has_curve_margin_r = attribute_keypoint ? curve_margin_r_index != -1 : false;
+                int margin_r = has_curve_margin_r ? attribute_keypoint->GetValue(curve_margin_r_index, timeline->currentTime) : attribute->GetCropMarginR();
                 ImGui::BeginDisabled(has_curve_margin_r);
                 if (ImGui::SliderInt("Crop Right", &margin_r, 0, timeline->mVidFilterClip->mWidth))
                 {
@@ -3539,8 +3542,9 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
                     EditCurve("CropMarginR");
 
                 // Crop Margin Bottom
-                int margin_b = attribute->GetCropMarginB();
-                bool has_curve_margin_b = attribute_keypoint ? attribute_keypoint->GetCurveIndex("CropMarginB") != -1 : false;
+                int curve_margin_b_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("CropMarginB") : -1;
+                bool has_curve_margin_b = attribute_keypoint ? curve_margin_b_index != -1 : false;
+                int margin_b = has_curve_margin_b ? attribute_keypoint->GetValue(curve_margin_b_index, timeline->currentTime) : attribute->GetCropMarginB();
                 ImGui::BeginDisabled(has_curve_margin_b);
                 if (ImGui::SliderInt("Crop Bottom", &margin_b, 0, timeline->mVidFilterClip->mHeight))
                 {
@@ -3570,8 +3574,9 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
             {
                 ImGui::ImCurveEdit::keys margin_key; margin_key.m_id = timeline->mVidFilterClip->mID;
                 // Position offset H
-                int position_h = attribute->GetPositionOffsetH();
-                bool has_curve_position_h = attribute_keypoint ? attribute_keypoint->GetCurveIndex("PositionOffsetH") != -1 : false;
+                int curve_position_h_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("PositionOffsetH") : -1;
+                bool has_curve_position_h = attribute_keypoint ? curve_position_h_index != -1 : false;
+                int position_h = has_curve_position_h ? attribute_keypoint->GetValue(curve_position_h_index, timeline->currentTime) : attribute->GetPositionOffsetH();
                 ImGui::BeginDisabled(has_curve_position_h);
                 if (ImGui::SliderInt("Position H", &position_h, -timeline->mVidFilterClip->mWidth, timeline->mVidFilterClip->mWidth))
                 {
@@ -3595,8 +3600,9 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
                     EditCurve("PositionOffsetH");
 
                 // Position offset V
-                int position_v = attribute->GetPositionOffsetV();
-                bool has_curve_position_v = attribute_keypoint ? attribute_keypoint->GetCurveIndex("PositionOffsetV") != -1 : false;
+                int curve_position_v_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("PositionOffsetV") : -1;
+                bool has_curve_position_v = attribute_keypoint ? curve_position_v_index != -1 : false;
+                int position_v = has_curve_position_v ? attribute_keypoint->GetValue(curve_position_v_index, timeline->currentTime) : attribute->GetPositionOffsetV();
                 ImGui::BeginDisabled(has_curve_position_v);
                 if (ImGui::SliderInt("Position V", &position_v, -timeline->mVidFilterClip->mHeight, timeline->mVidFilterClip->mHeight))
                 {
@@ -3652,8 +3658,9 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
 
                 if (keep_aspect_ratio)
                 {
-                    float scale = (attribute->GetScaleH() + attribute->GetScaleV()) / 2;
-                    bool has_curve_scale = attribute_keypoint ? attribute_keypoint->GetCurveIndex("Scale") != -1 : false;
+                    int curve_scale_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("Scale") : -1;
+                    bool has_curve_scale = attribute_keypoint ? curve_scale_index != -1 : false;
+                    float scale = has_curve_scale ? attribute_keypoint->GetValue(curve_scale_index, timeline->currentTime) : (attribute->GetScaleH() + attribute->GetScaleV()) / 2;
                     ImGui::BeginDisabled(has_curve_scale);
                     if (ImGui::SliderFloat("Scale", &scale, 0, 8.f, "%.1f"))
                     {
@@ -3680,8 +3687,9 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
                 else
                 {
                     // Scale H
-                    float scale_h = attribute->GetScaleH();
-                    bool has_curve_scale_h = attribute_keypoint ? attribute_keypoint->GetCurveIndex("ScaleH") != -1 : false;
+                    int curve_scale_h_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("ScaleH") : -1;
+                    bool has_curve_scale_h = attribute_keypoint ? curve_scale_h_index != -1 : false;
+                    float scale_h = has_curve_scale_h ? attribute_keypoint->GetValue(curve_scale_h_index, timeline->currentTime) : attribute->GetScaleH();
                     ImGui::BeginDisabled(has_curve_scale_h);
                     if (ImGui::SliderFloat("Scale H", &scale_h, 0, 8.f, "%.1f"))
                     {
@@ -3705,8 +3713,9 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
                         EditCurve("ScaleH");
 
                     // Scale V
-                    float scale_v = attribute->GetScaleV();
-                    bool has_curve_scale_v = attribute_keypoint ? attribute_keypoint->GetCurveIndex("ScaleV") != -1 : false;
+                    int curve_scale_v_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("ScaleV") : -1;
+                    bool has_curve_scale_v = attribute_keypoint ? curve_scale_v_index != -1 : false;
+                    float scale_v = curve_scale_v_index ? attribute_keypoint->GetValue(curve_scale_v_index, timeline->currentTime) : attribute->GetScaleV();
                     ImGui::BeginDisabled(has_curve_scale_v);
                     if (ImGui::SliderFloat("Scale V", &scale_v, 0, 8.f, "%.1f"))
                     {
@@ -3738,8 +3747,9 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
                 ImGui::ImCurveEdit::keys margin_key; margin_key.m_id = timeline->mVidFilterClip->mID;
 
                 // Rotate angle
-                float angle = attribute->GetRotationAngle();
-                bool has_curve_angle = attribute_keypoint ? attribute_keypoint->GetCurveIndex("RotateAngle") != -1 : false;
+                int curve_angle_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("RotateAngle") : -1;
+                bool has_curve_angle = attribute_keypoint ? curve_angle_index != -1 : false;
+                float angle = has_curve_angle ? attribute_keypoint->GetValue(curve_angle_index, timeline->currentTime) : attribute->GetRotationAngle();
                 ImGui::BeginDisabled(has_curve_angle);
                 if (ImGui::SliderFloat("Rotate Angle", &angle, -360.f, 360.f, "%.0f"))
                 {
