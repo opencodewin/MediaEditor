@@ -3281,7 +3281,7 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
         ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_TWO);
-        DrawClipTimeLine(timeline->mVidFilterClip, timeline->currentTime/* - (timeline->mVidFilterClip ? timeline->mVidFilterClip->mStart : 0)*/, 30, 50);
+        DrawClipTimeLine(timeline->mVidFilterClip, timeline->currentTime, 30, 50);
     }
     ImGui::EndChild();
 
@@ -3325,8 +3325,8 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
                 {
                     ImU32 color; ImGui::RandomColor(color, 1.f);
                     auto curve_index = attribute_keypoint->AddCurve(name, ImGui::ImCurveEdit::Smooth, color, true, _min, _max, _default);
-                    attribute_keypoint->AddPoint(curve_index, ImVec2(editing_clip->mStartOffset, _min), ImGui::ImCurveEdit::Smooth);
-                    attribute_keypoint->AddPoint(curve_index, ImVec2(editing_clip->mEnd - editing_clip->mStart + editing_clip->mStartOffset, _max), ImGui::ImCurveEdit::Smooth);
+                    attribute_keypoint->AddPoint(curve_index, ImVec2(editing_clip->mStart, _min), ImGui::ImCurveEdit::Smooth);
+                    attribute_keypoint->AddPoint(curve_index, ImVec2(editing_clip->mEnd, _max), ImGui::ImCurveEdit::Smooth);
                     attribute_keypoint->SetCurvePointDefault(curve_index, 0);
                     attribute_keypoint->SetCurvePointDefault(curve_index, 1);
                 }
@@ -3348,7 +3348,7 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
                     if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
                     {
                         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
-                        float value = attribute_keypoint->GetValue(index, timeline->currentTime - editing_clip->mStart);
+                        float value = attribute_keypoint->GetValue(index, timeline->currentTime);
                         ImGui::BracketSquare(true); ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0, 1.0, 0.0, 1.0)); ImGui::Text("%.2f", value); ImGui::PopStyleColor();
                         
                         ImGui::PushItemWidth(60);
@@ -3840,7 +3840,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_TWO);
         // Draw Clip TimeLine
-        DrawClipTimeLine(timeline->mVidFilterClip, timeline->currentTime/* - (timeline->mVidFilterClip ? timeline->mVidFilterClip->mStart : 0)*/, 30, 50);
+        DrawClipTimeLine(timeline->mVidFilterClip, timeline->currentTime, 30, 50);
     }
     ImGui::EndChild();
 
@@ -3881,7 +3881,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                                                         nullptr, // clippingRect
                                                         &_changed,
                                                         nullptr, // selectedPoints
-                                                        timeline->currentTime - timeline->mVidFilterClip->mStart);
+                                                        timeline->currentTime);
                 if (_changed) timeline->UpdatePreview();
             }
         }
@@ -3901,8 +3901,8 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                 {
                     ImU32 color; ImGui::RandomColor(color, 1.f);
                     auto curve_index = filter->mKeyPoints.AddCurve(name, ImGui::ImCurveEdit::Smooth, color, true, _min, _max, _default);
-                    filter->mKeyPoints.AddPoint(curve_index, ImVec2(editing_clip->mStartOffset, _min), ImGui::ImCurveEdit::Smooth);
-                    filter->mKeyPoints.AddPoint(curve_index, ImVec2(editing_clip->mEnd - editing_clip->mStart + editing_clip->mStartOffset, _max), ImGui::ImCurveEdit::Smooth);
+                    filter->mKeyPoints.AddPoint(curve_index, ImVec2(editing_clip->mStart, _min), ImGui::ImCurveEdit::Smooth);
+                    filter->mKeyPoints.AddPoint(curve_index, ImVec2(editing_clip->mEnd, _max), ImGui::ImCurveEdit::Smooth);
                     filter->mKeyPoints.SetCurvePointDefault(curve_index, 0);
                     filter->mKeyPoints.SetCurvePointDefault(curve_index, 1);
                     if (blueprint)
@@ -3970,7 +3970,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                     if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
                     {
                         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
-                        float value = filter->mKeyPoints.GetValue(i, timeline->currentTime - timeline->mVidFilterClip->mStart);
+                        float value = filter->mKeyPoints.GetValue(i, timeline->currentTime);
                         ImGui::BracketSquare(true); ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0, 1.0, 0.0, 1.0)); ImGui::Text("%.2f", value); ImGui::PopStyleColor();
                         ImGui::PushItemWidth(60);
                         float curve_min = filter->mKeyPoints.GetCurveMin(i);

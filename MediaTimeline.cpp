@@ -409,16 +409,26 @@ int64_t Clip::Cropping(int64_t diff, int type)
             }
         }
     }
-    mFilterKeyPoints.SetMin(ImVec2(mStartOffset + mStart, 0.f), true);
-    mFilterKeyPoints.SetMax(ImVec2(mEnd + mStartOffset, 1.f), true);
-    mAttributeKeyPoints.SetMin(ImVec2(mStartOffset, 0.f), true);
-    mAttributeKeyPoints.SetMax(ImVec2(mEnd - mStart + mStartOffset, 1.f), true);
+    
     if (timeline->mVidFilterClip && timeline->mVidFilterClip->mID == mID)
     {
         timeline->mVidFilterClip->mStart = mStart;
         timeline->mVidFilterClip->mEnd = mEnd;
-        if (timeline->mVidFilterClip->mFilter) timeline->mVidFilterClip->mFilter->SetKeyPoint(mFilterKeyPoints);
-        if (timeline->mVidFilterClip->mAttribute) timeline->mVidFilterClip->mAttribute->SetKeyPoint(mAttributeKeyPoints);
+        if (timeline->mVidFilterClip->mFilter)
+        {
+            timeline->mVidFilterClip->mFilter->mKeyPoints.SetRangeX(mStart, mEnd, true);
+            mFilterKeyPoints = timeline->mVidFilterClip->mFilter->mKeyPoints;
+        }
+        if (timeline->mVidFilterClip->mAttribute)
+        {
+            timeline->mVidFilterClip->mAttribute->GetKeyPoint()->SetRangeX(mStart, mEnd, true);
+            mAttributeKeyPoints = *timeline->mVidFilterClip->mAttribute->GetKeyPoint();
+        }
+    }
+    else
+    {
+        mFilterKeyPoints.SetRangeX(mStart, mEnd, true);
+        mAttributeKeyPoints.SetRangeX(mStart, mEnd, true);
     }
     track->Update();
     return new_diff;
@@ -488,16 +498,10 @@ void Clip::Cutting(int64_t pos)
         new_clip->mStartOffset = new_start_offset;
         new_clip->mEnd = mEnd;
         new_clip->mEndOffset = mEndOffset;
-        new_clip->mFilterKeyPoints.SetMin(ImVec2(new_clip->mStartOffset + new_clip->mStart, 0.f), true);
-        new_clip->mFilterKeyPoints.SetMax(ImVec2(new_clip->mEnd + new_clip->mStartOffset, 1.f), true);
-        new_clip->mAttributeKeyPoints.SetMin(ImVec2(new_clip->mStartOffset, 1.f), true);
-        new_clip->mAttributeKeyPoints.SetMax(ImVec2(new_clip->mEnd - new_clip->mStart + new_clip->mStartOffset, 1.f), true);
+        new_clip->mFilterKeyPoints.SetRangeX(new_clip->mStart, new_clip->mEnd, true);
+        new_clip->mAttributeKeyPoints.SetRangeX(new_clip->mStart, new_clip->mEnd, true);
         mEnd = adj_end;
         mEndOffset = adj_end_offset;
-        mFilterKeyPoints.SetMin(ImVec2(mStartOffset + mStart, 0.f), true);
-        mFilterKeyPoints.SetMax(ImVec2(mEnd + mStartOffset, 1.f), true);
-        mAttributeKeyPoints.SetMin(ImVec2(mStartOffset, 0.f), true);
-        mAttributeKeyPoints.SetMax(ImVec2(mEnd - mStart + mStartOffset, 1.f), true);
         timeline->m_Clips.push_back(new_clip);
 
         // update curve
@@ -505,8 +509,21 @@ void Clip::Cutting(int64_t pos)
         {
             timeline->mVidFilterClip->mStart = mStart;
             timeline->mVidFilterClip->mEnd = mEnd;
-            if (timeline->mVidFilterClip->mFilter) timeline->mVidFilterClip->mFilter->SetKeyPoint(mFilterKeyPoints);
-            if (timeline->mVidFilterClip->mAttribute) timeline->mVidFilterClip->mAttribute->SetKeyPoint(mAttributeKeyPoints);
+            if (timeline->mVidFilterClip->mFilter)
+            {
+                timeline->mVidFilterClip->mFilter->mKeyPoints.SetRangeX(mStart, mEnd, true);
+                mFilterKeyPoints = timeline->mVidFilterClip->mFilter->mKeyPoints;
+            }
+            if (timeline->mVidFilterClip->mAttribute)
+            {
+                timeline->mVidFilterClip->mAttribute->GetKeyPoint()->SetRangeX(mStart, mEnd, true);
+                mAttributeKeyPoints = *timeline->mVidFilterClip->mAttribute->GetKeyPoint();
+            }
+        }
+        else
+        {
+            mFilterKeyPoints.SetRangeX(mStart, mEnd, true);
+            mAttributeKeyPoints.SetRangeX(mStart, mEnd, true);
         }
 
         // need check overlap status and update overlap info on data layer(UI info will update on track update)
@@ -851,6 +868,27 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
         }
     }
     
+    if (timeline->mVidFilterClip && timeline->mVidFilterClip->mID == mID)
+    {
+        timeline->mVidFilterClip->mStart = mStart;
+        timeline->mVidFilterClip->mEnd = mEnd;
+        if (timeline->mVidFilterClip->mFilter)
+        {
+            timeline->mVidFilterClip->mFilter->mKeyPoints.MoveTo(mStart);
+            mFilterKeyPoints = timeline->mVidFilterClip->mFilter->mKeyPoints;
+        }
+        if (timeline->mVidFilterClip->mAttribute)
+        {
+            timeline->mVidFilterClip->mAttribute->GetKeyPoint()->MoveTo(mStart);
+            mAttributeKeyPoints = *timeline->mVidFilterClip->mAttribute->GetKeyPoint();
+        }
+    }
+    else
+    {
+        mFilterKeyPoints.MoveTo(mStart);
+        mAttributeKeyPoints.MoveTo(mStart);
+    }
+
     // check clip is cross track
     if (mouse_track == -2 && track->m_Clips.size() > 1)
     {
@@ -7127,7 +7165,7 @@ bool DrawClipTimeLine(BaseEditingClip * editingClip, int64_t CurrentTime, int he
     bool isFocused = ImGui::IsWindowFocused();
     // modify start/end/offset range
     int64_t duration = ImMax(editingClip->mEnd - editingClip->mStart, (int64_t)1);
-    int64_t start = editingClip->mStartOffset;
+    int64_t start = editingClip->mStart;//editingClip->mStartOffset;
     int64_t end = start + duration;
 
     ImGui::BeginGroup();
