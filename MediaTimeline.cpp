@@ -6245,7 +6245,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
 
             if (empty_track_count > 0)
             {
-                if (ImGui::MenuItem(" " ICON_MEDIA_DELETE " Delete Empty Track", nullptr, nullptr))
+                if (ImGui::MenuItem("-" ICON_MEDIA_DELETE " Delete Empty Track", nullptr, nullptr))
                 {
                     removeEmptyTrack = true;
                 }
