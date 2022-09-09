@@ -194,7 +194,7 @@ static const char* ConfigureTabNames[] = {
 };
 
 static const char* ControlPanelTabNames[] = {
-    ICON_MEDIA_BANK " Meida",
+    ICON_MEDIA_BANK " Media",
     ICON_MEDIA_FILTERS " Filters",
     ICON_MEDIA_TRANS " Fusions",
     ICON_MEDIA_OUTPUT " Output"
@@ -202,10 +202,10 @@ static const char* ControlPanelTabNames[] = {
 
 static const char* ControlPanelTabTooltips[] = 
 {
-    "Meida Bank",
+    "Media Bank",
     "Filters Bank",
     "Fusion Bank",
-    "Meida Output"
+    "Media Output"
 };
 
 static const char* MainWindowTabNames[] = {
@@ -217,7 +217,7 @@ static const char* MainWindowTabNames[] = {
 
 static const char* MainWindowTabTooltips[] = 
 {
-    "Meida Preview",
+    "Media Preview",
     "Video Editor",
     "Audio Editor",
     "Text Editor",
@@ -1174,11 +1174,11 @@ static void ShowConfigure(MediaEditorSettings & config)
                     if (config.FontScaleLink) config.FontScaleX *= scale_ratio;
                     config.FontScaleY = scale_y;
                 }
-                ImGui::SliderInt("Font Position X", &config.FontPosOffsetX, -2000, 2000, "%d");
-                ImGui::SliderInt("Font Position Y", &config.FontPosOffsetY, -2000, 2000, "%d");
+                ImGui::SliderInt("Font position X", &config.FontPosOffsetX, -2000, 2000, "%d");
+                ImGui::SliderInt("Font position Y", &config.FontPosOffsetY, -2000, 2000, "%d");
                 ImGui::SliderFloat("Font spacing", &config.FontSpacing, 0.5, 5, "%.1f");
                 ImGui::SliderFloat("Font angle", &config.FontAngle, 0, 360, "%.1f");
-                ImGui::SliderFloat("Font outline Width", &config.FontOutlineWidth, 0, 5, "%.0f");
+                ImGui::SliderFloat("Font outline width", &config.FontOutlineWidth, 0, 5, "%.0f");
                 ImGui::Checkbox(ICON_FONT_UNDERLINE "##font_underLine", &config.FontUnderLine);
                 ImGui::SameLine();
                 ImGui::Checkbox(ICON_FONT_STRIKEOUT "##font_strike_out", &config.FontStrikeOut);
@@ -1190,7 +1190,7 @@ static void ShowConfigure(MediaEditorSettings & config)
                 ImGui::RadioButton("Drop##font_border_type", &config.FontBorderType, 1); ImGui::SameLine();
                 ImGui::RadioButton("Box##font_border_type", &config.FontBorderType, 3);
                 ImGui::SameLine(item_width); ImGui::TextUnformatted("Font Border Type");
-                ImGui::SliderFloat("Shadow depth", &config.FontShadowDepth, -20.f, 20.f, "%.1f");
+                ImGui::SliderFloat("Font shadow depth", &config.FontShadowDepth, -20.f, 20.f, "%.1f");
                 ImGui::ColorEdit4("FontColor##Primary", (float*)&config.FontPrimaryColor, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_AlphaBar);
                 ImGui::SameLine(item_width); ImGui::TextUnformatted("Font primary color");
                 ImGui::ColorEdit4("FontColor##Outline", (float*)&config.FontOutlineColor, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_AlphaBar);
@@ -1499,7 +1499,7 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
         // Show help tooltip
         if (timeline->mShowHelpTooltips)
         {
-            ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5);
+            ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5f);
             ImGui::BeginTooltip();
             ImGui::TextUnformatted("Help:");
             ImGui::TextUnformatted("    Slider mouse to overview");
@@ -1780,7 +1780,7 @@ static void ShowFusionBankIconWindow(ImDrawList *draw_list)
                 // Show help tooltip
                 if (timeline->mShowHelpTooltips)
                 {
-                    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5);
+                    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5f);
                     ImGui::BeginTooltip();
                     ImGui::TextUnformatted("Help:");
                     ImGui::TextUnformatted("    Drag fusion to blue print");
@@ -1906,7 +1906,7 @@ static void ShowFusionBankTreeWindow(ImDrawList *draw_list)
                 // Show help tooltip
                 if (timeline->mShowHelpTooltips)
                 {
-                    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5);
+                    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5f);
                     ImGui::BeginTooltip();
                     ImGui::TextUnformatted("Help:");
                     ImGui::TextUnformatted("    Drag fusion to blue print");
@@ -2010,7 +2010,7 @@ static void ShowFilterBankIconWindow(ImDrawList *draw_list)
                 // Show help tooltip
                 if (timeline->mShowHelpTooltips)
                 {
-                    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5);
+                    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5f);
                     ImGui::BeginTooltip();
                     ImGui::TextUnformatted("Help:");
                     ImGui::TextUnformatted("    Drag filter to blue print");
@@ -2136,7 +2136,7 @@ static void ShowFilterBankTreeWindow(ImDrawList *draw_list)
                 // Show help tooltip
                 if (timeline->mShowHelpTooltips)
                 {
-                    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5);
+                    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5f);
                     ImGui::BeginTooltip();
                     ImGui::TextUnformatted("Help:");
                     ImGui::TextUnformatted("    Drag filter to blue print");
@@ -5225,13 +5225,13 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
         ImGui::EndCombo();
     } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_font_family_default")) { track->mMttReader->SetFont(g_media_editor_settings.FontName); update_preview = true; }
     int offset_x = style.OffsetH();
-    if (ImGui::SliderInt("Font Position X", &offset_x, - timeline->mWidth , timeline->mWidth, "%d"))
+    if (ImGui::SliderInt("Font position X", &offset_x, - timeline->mWidth , timeline->mWidth, "%d"))
     {
         track->mMttReader->SetOffsetH(offset_x);
         update_preview = true;
     } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_font_offsetx_default")) { track->mMttReader->SetOffsetH(g_media_editor_settings.FontPosOffsetX); update_preview = true; }
     int offset_y = style.OffsetV();
-    if (ImGui::SliderInt("Font Position Y", &offset_y, - timeline->mHeight, timeline->mHeight, "%d"))
+    if (ImGui::SliderInt("Font position Y", &offset_y, - timeline->mHeight, timeline->mHeight, "%d"))
     {
         track->mMttReader->SetOffsetV(offset_y);
         update_preview = true;
@@ -5290,7 +5290,7 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
         update_preview = true;
     } ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_angle_default")) { track->mMttReader->SetAngle(g_media_editor_settings.FontAngle);update_preview = true;  }
     float outline_width = style.OutlineWidth();
-    if (ImGui::SliderFloat("Font outline Width", &outline_width, 0, 5, "%.0f"))
+    if (ImGui::SliderFloat("Font outline width", &outline_width, 0, 5, "%.0f"))
     {
         track->mMttReader->SetOutlineWidth(outline_width);
         update_preview = true;
@@ -5341,7 +5341,7 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
     ImGui::SameLine(size.x - 24); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_bordertype_default")) { track->mMttReader->SetBorderStyle(g_media_editor_settings.FontBorderType); update_preview = true; }
 
     float shadow_depth = style.ShadowDepth();
-    ImGui::SliderFloat("Shadow depth", &shadow_depth, -20.f, 20.f, "%.1f");
+    ImGui::SliderFloat("Font shadow depth", &shadow_depth, -20.f, 20.f, "%.1f");
     if (shadow_depth != style.ShadowDepth())
     {
         track->mMttReader->SetShadowDepth(shadow_depth);
@@ -6823,7 +6823,7 @@ static void ShowMediaAIWindow(ImDrawList *draw_list)
     ImGui::Indent(20);
     ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4, 0.4, 0.8, 0.8));
-    ImGui::TextUnformatted("Meida AI");
+    ImGui::TextUnformatted("Media AI");
     ImGui::PopStyleColor();
     ImGui::PopStyleVar();
     ImGui::SetWindowFontScale(1.0);
@@ -6841,6 +6841,8 @@ void Application_GetWindowProperties(ApplicationWindowProperty& property)
     //property.viewport = false;
     property.docking = false;
     property.auto_merge = false;
+    property.internationalize = true;
+    property.using_setting_path = false;
     //property.power_save = false;
 #if 1
     property.resizable = false;

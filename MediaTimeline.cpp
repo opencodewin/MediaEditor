@@ -1612,7 +1612,9 @@ void TextClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const Im
     drawList->AddRectFilled(leftTop, rightBottom, IM_COL32(16, 16, 16, 255));
     drawList->PushClipRect(leftTop, rightBottom, true);
     ImGui::SetWindowFontScale(0.75);
+    ImGui::PushStyleVar(ImGuiStyleVar_TextInternationalize, 0);
     drawList->AddText(leftTop + ImVec2(2, 2), IM_COL32_WHITE, mText.c_str());
+    ImGui::PopStyleVar();
     ImGui::SetWindowFontScale(1.0);
     drawList->PopClipRect();
     drawList->AddRect(leftTop, rightBottom, IM_COL32_BLACK);
@@ -6767,7 +6769,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
     // Show help tips
     if (timeline->mShowHelpTooltips)
     {
-        ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5);
+        ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5f);
         if (mouseTime != -1 && mouseClip != -1 && mouseEntry >= 0 && mouseEntry < timeline->m_Tracks.size())
         {
             if (mouseClip != -1 && !bMoving)
