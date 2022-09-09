@@ -3,6 +3,7 @@
 #include <atomic>
 #include <sstream>
 #include "MultiTrackVideoReader.h"
+#include "VideoBlender.h"
 #include "FFUtils.h"
 
 using namespace std;
@@ -42,17 +43,29 @@ public:
         m_readFrameIdx = 0;
         m_frameInterval = (double)m_frameRate.den/m_frameRate.num;
 
-        if (!m_mixBlender.Init("rgba", outWidth, outHeight, outWidth, outHeight, 0, 0, false))
+        m_mixBlender = CreateVideoBlender();
+        if (!m_mixBlender)
+        {
+            m_errMsg = "CANNOT create new 'VideoBlender' instance for mixing!";
+            return false;
+        }
+        if (!m_mixBlender->Init("rgba", outWidth, outHeight, outWidth, outHeight, 0, 0))
         {
             ostringstream oss;
-            oss << "Mixer blender initialization FAILED! Error message: '" << m_mixBlender.GetError() << "'.";
+            oss << "Mixer blender initialization FAILED! Error message: '" << m_mixBlender->GetError() << "'.";
             m_errMsg = oss.str();
             return false;
         }
-        if (!m_subBlender.Init())
+        m_subBlender = CreateVideoBlender();
+        if (!m_subBlender)
+        {
+            m_errMsg = "CANNOT create new 'VideoBlender' instance for subtitle!";
+            return false;
+        }
+        if (!m_subBlender->Init())
         {
             ostringstream oss;
-            oss << "Subtitle blender initialization FAILED! Error message: '" << m_subBlender.GetError() << "'.";
+            oss << "Subtitle blender initialization FAILED! Error message: '" << m_subBlender->GetError() << "'.";
             m_errMsg = oss.str();
             return false;
         }
@@ -824,7 +837,7 @@ private:
                             if (mixedFrame.empty())
                                 mixedFrame = vmat;
                             else
-                                mixedFrame = m_mixBlender.Blend(vmat, mixedFrame);
+                                mixedFrame = m_mixBlender->Blend(vmat, mixedFrame);
                         }
                         if (trackIter == m_tracks.begin())
                             timestamp = vmat.time_stamp;
@@ -891,10 +904,10 @@ private:
                     // blend subtitle-image
                     SubtitleImage::Rect dispRect = subImg.Area();
                     ImGui::ImMat submat = subImg.Vmat();
-                    res = m_subBlender.Blend(res, submat, dispRect.x, dispRect.y, dispRect.w, dispRect.y);
+                    res = m_subBlender->Blend(res, submat, dispRect.x, dispRect.y);
                     if (res.empty())
                     {
-                        m_logger->Log(Error) << "FAILED to blend subtitle on the output image! Error message is '" << m_subBlender.GetError() << "'." << endl;
+                        m_logger->Log(Error) << "FAILED to blend subtitle on the output image! Error message is '" << m_subBlender->GetError() << "'." << endl;
                     }
                 }
                 else
@@ -914,7 +927,7 @@ private:
     thread m_mixingThread;
     list<VideoTrackHolder> m_tracks;
     recursive_mutex m_trackLock;
-    FFOverlayBlender m_mixBlender;
+    VideoBlenderHolder m_mixBlender;
 
     list<vector<CorrelativeFrame>> m_outputCache;
     mutex m_outputCacheLock;
@@ -934,7 +947,7 @@ private:
 
     list<SubtitleTrackHolder> m_subtrks;
     mutex m_subtrkLock;
-    FFOverlayBlender m_subBlender;
+    VideoBlenderHolder m_subBlender;
 
     bool m_configured{false};
     bool m_started{false};
