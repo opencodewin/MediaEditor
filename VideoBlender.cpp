@@ -25,7 +25,7 @@ namespace DataLayer
             {
                 ImGui::VkMat vkmat;
                 vkmat.type = IM_DT_INT8;
-                m_vulkanBlender.blend(overlayImage, baseImage, vkmat, 1, x, y);
+                m_vulkanBlender.blend(overlayImage, baseImage, vkmat, x, y);
                 res = vkmat;
                 res.time_stamp = baseImage.time_stamp;
                 res.duration = baseImage.time_stamp;
