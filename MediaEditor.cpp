@@ -286,6 +286,7 @@ static const char* VideoAttributeScaleType[] = {
 
 struct MediaEditorSettings
 {
+    std::string UILanguage {"Default"};     // UI Language
     float TopViewHeight {0.6};              // Top view height percentage
     float BottomViewHeight {0.4};           // Bottom view height percentage
     float ControlPanelWidth {0.3};          // Control panel view width percentage
@@ -1029,6 +1030,28 @@ static void ShowConfigure(MediaEditorSettings & config)
         {
             case 0:
                 // system setting
+            {
+                ImGuiContext& g = *GImGui;
+                if (g.LanguagesLoaded && !g.StringMap.empty())
+                {
+                    const char* language_name = config.UILanguage.c_str();
+                    ImGui::TextUnformatted("UI Language");
+                    if (ImGui::BeginCombo("##system_setting_language", language_name))
+                    {
+                        for (auto it = g.StringMap.begin(); it != g.StringMap.end(); ++it)
+                        {
+                            bool is_selected = it->first == std::string(language_name);
+                            if (ImGui::Selectable(it->first.c_str(), is_selected))
+                            {
+                                config.UILanguage = it->first;
+                            }
+                            if (is_selected)
+                                ImGui::SetItemDefaultFocus();
+                        }
+                        ImGui::EndCombo();
+                    }
+                }
+
                 ImGui::TextUnformatted("Show UI Help Tips");
                 ImGui::ToggleButton("##show_ui_help_tooltips", &config.ShowHelpTooltips);
                 ImGui::Separator();
@@ -1042,6 +1065,7 @@ static void ShowConfigure(MediaEditorSettings & config)
                 ImGui::PushItemWidth(60);
                 ImGui::InputText("##Video_cache_size", buf_cache_size, 64, ImGuiInputTextFlags_CharsDecimal);
                 config.VideoFrameCacheSize = atoi(buf_cache_size);
+            }
             break;
             case 1:
             {
@@ -6875,6 +6899,7 @@ void Application_SetupContext(ImGuiContext* ctx)
         char val_path[1024] = {0};
         ImVec4 val_vec4 = {0, 0, 0, 0};
         if (sscanf(line, "ProjectPath=%[^|\n]", val_path) == 1) { setting->project_path = std::string(val_path); }
+        else if (sscanf(line, "UILanguage=%[^|\n]", val_path) == 1) { setting->UILanguage = std::string(val_path); }
         else if (sscanf(line, "BottomViewExpanded=%d", &val_int) == 1) { setting->BottomViewExpanded = val_int == 1; }
         else if (sscanf(line, "VideoFilterCurveExpanded=%d", &val_int) == 1) { setting->VideoFilterCurveExpanded = val_int == 1; }
         else if (sscanf(line, "VideoFusionCurveExpanded=%d", &val_int) == 1) { setting->VideoFusionCurveExpanded = val_int == 1; }
@@ -6983,6 +7008,7 @@ void Application_SetupContext(ImGuiContext* ctx)
         out_buf->reserve(out_buf->size() + g.SettingsWindows.size() * 6); // ballpark reserve
         out_buf->appendf("[%s][##MediaEditorSetting]\n", handler->TypeName);
         out_buf->appendf("ProjectPath=%s\n", g_media_editor_settings.project_path.c_str());
+        out_buf->appendf("UILanguage=%s\n", g_media_editor_settings.UILanguage.c_str());
         out_buf->appendf("BottomViewExpanded=%d\n", g_media_editor_settings.BottomViewExpanded ? 1 : 0);
         out_buf->appendf("VideoFilterCurveExpanded=%d\n", g_media_editor_settings.VideoFilterCurveExpanded ? 1 : 0);
         out_buf->appendf("VideoFusionCurveExpanded=%d\n", g_media_editor_settings.VideoFusionCurveExpanded ? 1 : 0);
@@ -7155,7 +7181,7 @@ void Application_Initialize(void** handle)
     // GetMediaReaderLogger()->SetShowLevels(Logger::DEBUG);
     // GetSnapshotGeneratorLogger()->SetShowLevels(Logger::DEBUG);
     // GetMediaEncoderLogger()->SetShowLevels(Logger::DEBUG);
-    GetSubtitleTrackLogger()->SetShowLevels(Logger::DEBUG);
+    // GetSubtitleTrackLogger()->SetShowLevels(Logger::DEBUG);
 
     if (!DataLayer::InitializeSubtitleLibrary())
         std::cout << "FAILED to initialize the subtitle library!" << std::endl;
@@ -7176,6 +7202,7 @@ void Application_Initialize(void** handle)
     m_cie = new ImGui::CIE_vulkan(gpu);
     m_vector = new ImGui::Vector_vulkan(gpu);
 #endif
+
     NewTimeline();
 }
 
@@ -7206,7 +7233,9 @@ bool Application_Frame(void * handle, bool app_will_quit)
     static bool show_debug = false;
     auto platform_io = ImGui::GetPlatformIO();
     bool is_splitter_hold = false;
-    
+    ImGuiContext& g = *GImGui;
+    if (!g_media_editor_settings.UILanguage.empty() && g.LanguageName != g_media_editor_settings.UILanguage)
+        g.LanguageName = g_media_editor_settings.UILanguage;
     const ImGuiFileDialogFlags fflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_DisableCreateDirectoryButton | ImGuiFileDialogFlags_Modal;
     const std::string video_file_dis = "*.mp4 *.mov *.mkv *.avi *.webm *.ts";
     const std::string video_file_suffix = ".mp4,.mov,.mkv,.avi,.webm,.ts";
