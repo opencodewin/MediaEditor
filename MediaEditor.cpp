@@ -4153,7 +4153,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
             // Filter Node setting
             if (blueprint && blueprint->Blueprint_IsValid())
             {
-                if (ImGui::TreeNodeEx("Node Setting##video_filter", ImGuiTreeNodeFlags_DefaultOpen))
+                if (ImGui::TreeNodeEx("Node Configure##video_filter", ImGuiTreeNodeFlags_DefaultOpen))
                 {
                     auto nodes = blueprint->m_Document->m_Blueprint.GetNodes();
                     for (auto node : nodes)
@@ -4702,7 +4702,7 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
             // Overlap Node setting
             if (blueprint && blueprint->Blueprint_IsValid())
             {
-                if (ImGui::TreeNodeEx("Node Setting##video_fusion", ImGuiTreeNodeFlags_DefaultOpen))
+                if (ImGui::TreeNodeEx("Node Configure##video_fusion", ImGuiTreeNodeFlags_DefaultOpen))
                 {
                     auto nodes = blueprint->m_Document->m_Blueprint.GetNodes();
                     for (auto node : nodes)

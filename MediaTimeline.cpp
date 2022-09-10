@@ -1931,7 +1931,7 @@ ImGui::ImMat BluePrintVideoTransition::MixTwoImages(const ImGui::ImMat& vmat1, c
         for (int i = 0; i < mKeyPoints.GetCurveCount(); i++)
         {
             auto name = mKeyPoints.GetCurveName(i);
-            auto value = mKeyPoints.GetValue(i, pos);
+            auto value = mKeyPoints.GetValue(i, pos - mOverlap->Start());
             mBp->Blueprint_SetFusion(name, value);
         }
         ImGui::ImMat inMat1(vmat1), inMat2(vmat2);
