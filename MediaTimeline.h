@@ -332,6 +332,7 @@ struct Clip
     virtual void SetTrackHeight(int trackHeight) { mTrackHeight = trackHeight; }
     virtual void SetViewWindowStart(int64_t millisec) {}
     virtual void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect) { drawList->AddRect(leftTop, rightBottom, IM_COL32_BLACK); }
+    virtual void DrawTooltips() {};
     static void Load(Clip * clip, const imgui_json::value& value);
     virtual void Save(imgui_json::value& value) = 0;
 };
@@ -429,6 +430,7 @@ struct TextClip : Clip
     void SetClipDefault(const TextClip* clip);
 
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect) override;
+    void DrawTooltips() override;
     int64_t Moving(int64_t diff, int mouse_track) override;
     int64_t Cropping(int64_t diff, int type) override;
 

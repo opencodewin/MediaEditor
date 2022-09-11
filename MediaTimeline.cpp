@@ -1620,6 +1620,15 @@ void TextClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const Im
     drawList->AddRect(leftTop, rightBottom, IM_COL32_BLACK);
 }
 
+void TextClip::DrawTooltips()
+{
+    ImGui::BeginTooltip();
+    ImGui::PushStyleVar(ImGuiStyleVar_TextInternationalize, 0);
+    ImGui::Text("%s", mText.c_str());
+    ImGui::PopStyleVar();
+    ImGui::EndTooltip();
+}
+
 Clip * TextClip::Load(const imgui_json::value& value, void * handle)
 {
     TimeLine * timeline = (TimeLine *)handle;
@@ -4542,6 +4551,7 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &view_r
                         bool b_attr_editing = ImGui::IsKeyDown(ImGuiKey_LeftCtrl) && is_ctrl_key_only;
                         track->SelectEditingClip(clip, !b_attr_editing);
                     }
+                    clip->DrawTooltips();
                 }
             }
         }
