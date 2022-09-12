@@ -1021,6 +1021,12 @@ Clip* VideoClip::Load(const imgui_json::value& value, void * handle)
         // media is in bank
         SnapshotGenerator::ViewerHolder hViewer;
         SnapshotGeneratorHolder hSsGen = timeline->GetSnapshotGenerator(item->mID);
+        if (!hSsGen)
+        {
+            // TODO::Dicky create media error, need show dummy clip
+            return nullptr;
+        }
+        
         hViewer = hSsGen->CreateViewer();
         VideoClip * new_clip = new VideoClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview->GetMediaParser(), hViewer, handle);
         if (new_clip)

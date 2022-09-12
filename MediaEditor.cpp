@@ -4419,16 +4419,21 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
         if (!timeline->mVidOverlap)
         {
             timeline->mVidOverlap = new EditingVideoOverlap(editing_overlap);
+            fusion = timeline->mVidOverlap->mFusion;
         }
         else if (timeline->mVidOverlap->mStart != editing_overlap->mStart || timeline->mVidOverlap->mEnd != editing_overlap->mEnd)
         {
+            fusion = timeline->mVidOverlap->mFusion;
             // effect range changed for timeline->mVidOverlap
             timeline->mVidOverlap->mStart = editing_overlap->mStart;
             timeline->mVidOverlap->mEnd = editing_overlap->mEnd;
             timeline->mVidOverlap->mDuration = timeline->mVidOverlap->mEnd - timeline->mVidOverlap->mStart;
-
+            if (fusion) fusion->mKeyPoints.SetMax(ImVec2(editing_overlap->mEnd - editing_overlap->mStart, 1.0f), true);
         }
-        fusion = timeline->mVidOverlap->mFusion;
+        else
+        {
+            fusion = timeline->mVidOverlap->mFusion;
+        }
         blueprint = fusion ? fusion->mBp : nullptr;
     }
 
