@@ -117,6 +117,9 @@ public:
         }
         lock_guard<recursive_mutex> lk(m_apiLock);
 
+        auto vidStream = GetVideoStream();
+        m_isImage = vidStream->isImage;
+
         if (!m_frmCvt.SetOutSize(outWidth, outHeight))
         {
             m_errMsg = m_frmCvt.GetError();
@@ -159,10 +162,11 @@ public:
         }
         lock_guard<recursive_mutex> lk(m_apiLock);
 
+        auto vidStream = GetVideoStream();
+        m_isImage = vidStream->isImage;
+
         m_ssWFacotr = outWidthFactor;
         m_ssHFacotr = outHeightFactor;
-
-        auto vidStream = GetVideoStream();
         uint32_t outWidth = (uint32_t)ceil(vidStream->width*outWidthFactor);
         if ((outWidth&0x1) == 1)
             outWidth++;
@@ -791,13 +795,22 @@ private:
 
         if (m_isVideoReader)
         {
-            m_hParser->EnableParseInfo(MediaParser::VIDEO_SEEK_POINTS);
-            m_hSeekPoints = m_hParser->GetVideoSeekPoints();
-            if (!m_hSeekPoints)
+            if (!m_isImage)
             {
-                m_errMsg = "FAILED to retrieve video seek points!";
-                m_logger->Log(Error) << m_errMsg << endl;
-                return false;
+                m_hParser->EnableParseInfo(MediaParser::VIDEO_SEEK_POINTS);
+                m_hSeekPoints = m_hParser->GetVideoSeekPoints();
+                if (!m_hSeekPoints)
+                {
+                    m_errMsg = "FAILED to retrieve video seek points!";
+                    m_logger->Log(Error) << m_errMsg << endl;
+                    return false;
+                }
+            }
+            else
+            {
+                vector<int64_t>* seekPoints = new vector<int64_t>(1);
+                seekPoints->at(0) = 0;
+                m_hSeekPoints = MediaParser::SeekPointsHolder(seekPoints);
             }
 
             m_vidAvStm = m_avfmtCtx->streams[m_vidStmIdx];
@@ -1428,11 +1441,15 @@ private:
                             avpktLoaded = false;
                         }
                         lastPktPts = INT64_MIN;
-                        int fferr = avformat_seek_file(m_avfmtCtx, stmidx, INT64_MIN, currTask->seekPts.first, currTask->seekPts.first, 0);
-                        if (fferr < 0)
+                        int fferr = 0;
+                        if (!m_isImage)
                         {
-                            m_logger->Log(Error) << "avformat_seek_file() FAILED for seeking to 'currTask->startPts'(" << currTask->seekPts.first << ")! fferr = " << fferr << "!" << endl;
-                            break;
+                            int fferr = avformat_seek_file(m_avfmtCtx, stmidx, INT64_MIN, currTask->seekPts.first, currTask->seekPts.first, 0);
+                            if (fferr < 0)
+                            {
+                                m_logger->Log(Error) << "avformat_seek_file() FAILED for seeking to 'currTask->startPts'(" << currTask->seekPts.first << ")! fferr = " << fferr << "!" << endl;
+                                break;
+                            }
                         }
                         demuxEof = false;
                         int64_t ptsAfterSeek = INT64_MIN;
@@ -2713,6 +2730,7 @@ private:
     bool m_opened{false};
     bool m_configured{false};
     bool m_isVideoReader;
+    bool m_isImage{false};
     bool m_started{false};
     bool m_prepared{false};
     recursive_mutex m_apiLock;
