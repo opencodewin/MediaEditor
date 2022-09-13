@@ -394,7 +394,7 @@ public:
             m_errMsg = "This 'MediaReader' is NOT started yet!";
             return;
         }
-        if (m_quit || !m_isVideoReader)
+        if (m_quit || !m_isVideoReader || m_isImage)
             return;
 
         ReleaseVideoResource();
@@ -408,7 +408,7 @@ public:
             m_errMsg = "This 'MediaReader' is NOT started yet!";
             return;
         }
-        if (!m_quit || !m_isVideoReader)
+        if (!m_quit || !m_isVideoReader || m_isImage)
             return;
 
         double readPos = m_prevReadPos;
@@ -1035,11 +1035,20 @@ private:
             m_auddecThread = thread(&MediaReader_Impl::AudioDecodeThreadProc, this);
             m_swrThread = thread(&MediaReader_Impl::GenerateAudioSamplesThreadProc, this);
         }
+        if (m_isImage)
+        {
+            m_releaseThread = thread(&MediaReader_Impl::ReleaseResourceProc, this);
+        }
     }
 
-    void WaitAllThreadsQuit()
+    void WaitAllThreadsQuit(bool callFromReleaseProc = false)
     {
         m_quit = true;
+        if (!callFromReleaseProc && m_releaseThread.joinable())
+        {
+            m_releaseThread.join();
+            m_releaseThread = thread();
+        }
         if (m_demuxThread.joinable())
         {
             m_demuxThread.join();
@@ -2718,6 +2727,103 @@ private:
         return m_audReadTask;
     }
 
+    void ReleaseResourceProc()
+    {
+        if (!m_isImage)
+        {
+            m_logger->Log(VERBOSE) << "Quit 'ReleaseResourceProc()', this only works for IMAGE source." << endl;
+            return;
+        }
+        while (!m_quit)
+        {
+            bool imgEof = true;
+            {
+                lock_guard<mutex> lk(m_bldtskByPriLock);
+                GopDecodeTaskHolder nxttsk = nullptr;
+                for (auto& tsk : m_bldtskPriOrder)
+                {
+                    if (!tsk->decodeEof)
+                    {
+                        imgEof = false;
+                        break;
+                    }
+                    for (auto& vf : tsk->vfAry)
+                    {
+                        if (!vf.ownfrm)
+                        {
+                            imgEof = false;
+                            break;
+                        }
+                    }
+                    if (!imgEof)
+                        break;
+                }
+            }
+            if (!m_prepared || !imgEof)
+                this_thread::sleep_for(chrono::milliseconds(100));
+            else
+                break;
+        }
+        if (!m_quit)
+        {
+            bool lockAquired = false;
+            while (!(lockAquired = m_apiLock.try_lock()) && !m_quit)
+                this_thread::sleep_for(chrono::milliseconds(5));
+            if (m_quit)
+            {
+                if (lockAquired) m_apiLock.unlock();
+                return;
+            }
+            lock_guard<recursive_mutex> lk(m_apiLock, adopt_lock);
+            m_logger->Log(DEBUG) << "AUTO RELEASE decoding resources." << endl;
+            ReleaseResources(true);
+        }
+    }
+
+    void ReleaseResources(bool callFromReleaseProc = false)
+    {
+        WaitAllThreadsQuit(callFromReleaseProc);
+        FlushAllQueues();
+
+        if (m_swrCtx)
+        {
+            swr_free(&m_swrCtx);
+            m_swrCtx = nullptr;
+        }
+        m_swrOutChannels = 0;
+        m_swrOutChnLyt = 0;
+        m_swrOutSampleRate = 0;
+        m_swrPassThrough = false;
+        if (m_auddecCtx)
+        {
+            avcodec_free_context(&m_auddecCtx);
+            m_auddecCtx = nullptr;
+        }
+        if (m_viddecCtx)
+        {
+            avcodec_free_context(&m_viddecCtx);
+            m_viddecCtx = nullptr;
+        }
+        if (m_viddecHwDevCtx)
+        {
+            av_buffer_unref(&m_viddecHwDevCtx);
+            m_viddecHwDevCtx = nullptr;
+        }
+        m_vidHwPixFmt = AV_PIX_FMT_NONE;
+        m_viddecDevType = AV_HWDEVICE_TYPE_NONE;
+        if (m_avfmtCtx)
+        {
+            avformat_close_input(&m_avfmtCtx);
+            m_avfmtCtx = nullptr;
+        }
+        m_vidAvStm = nullptr;
+        m_audAvStm = nullptr;
+        m_viddec = nullptr;
+        m_auddec = nullptr;
+
+        m_prepared = false;
+    }
+
 private:
     static atomic_uint32_t s_idCounter;
     uint32_t m_id;
@@ -2770,6 +2876,8 @@ private:
     thread m_auddecThread;
     // swr thread
     thread m_swrThread;
+    // release resource thread
+    thread m_releaseThread;
 
     double m_prevReadPos{0};
     ImGui::ImMat m_prevReadImg;
