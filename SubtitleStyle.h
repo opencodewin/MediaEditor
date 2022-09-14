@@ -1,6 +1,7 @@
 #pragma once
 #include <string>
 #include "imgui.h"
+#include "imgui_extra_widget.h"
 
 namespace DataLayer
 {
@@ -41,5 +42,6 @@ namespace DataLayer
         virtual SubtitleColor OutlineColor() const = 0;
         virtual SubtitleColor BackColor() const = 0;
         virtual SubtitleColor BackgroundColor() const = 0;
+        virtual ImGui::KeyPointEditor* GetKeyPoints() = 0;
     };
 }

@@ -48,10 +48,13 @@ namespace DataLayer
         virtual bool SetOutlineColor(const ImVec4& color) = 0;
         virtual bool SetBackColor(const ImVec4& color) = 0;
         virtual bool SetBackgroundColor(const ImVec4& color) = 0;
-        virtual bool ChangeClipTime(SubtitleClipHolder clip, int64_t startTime, int64_t duration) = 0;
+
+        // currently supported key-name: Scale, ScaleX, ScaleY, Spacing, Angle, OutlineWidth, ShadowDepth, OffsetH, OffsetV
+        virtual bool SetKeyPoints(const ImGui::KeyPointEditor& keyPoints) = 0;
 
         virtual SubtitleClipHolder NewClip(int64_t startTime, int64_t duration) = 0;
         virtual bool DeleteClip(SubtitleClipHolder hClip) = 0;
+        virtual bool ChangeClipTime(SubtitleClipHolder clip, int64_t startTime, int64_t duration) = 0;
         virtual SubtitleClipHolder GetClipByTime(int64_t ms) = 0;
         virtual SubtitleClipHolder GetCurrClip() = 0;
         virtual SubtitleClipHolder GetPrevClip() = 0;

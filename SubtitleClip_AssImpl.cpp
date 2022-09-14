@@ -10,12 +10,15 @@ SubtitleClip_AssImpl::SubtitleClip_AssImpl(ASS_Event* assEvent, ASS_Track* assTr
     , m_text(string(assEvent->Text))
 {}
 
-SubtitleImage SubtitleClip_AssImpl::Image()
+SubtitleImage SubtitleClip_AssImpl::Image(int64_t timeOffset)
 {
-    if (!m_assEvent)
-        return m_image;
+    if (!m_assEvent || !m_renderCb)
+        return SubtitleImage();
+    if (timeOffset < 0 || timeOffset >= Duration())
+        return SubtitleImage();
 
-    if (!m_image.Valid() && m_renderCb)
+    auto iter = m_renderedImages.find(timeOffset);
+    if (iter == m_renderedImages.end())
     {
         if (m_assTextChanged)
         {
@@ -30,9 +33,9 @@ SubtitleImage SubtitleClip_AssImpl::Image()
             m_assEvent->Text[len] = 0;
             m_assTextChanged = false;
         }
-        m_image = m_renderCb(this);
+        m_renderedImages[timeOffset] = m_renderCb(this, timeOffset);
     }
-    return m_image;
+    return m_renderedImages[timeOffset];
 }
 
 void SubtitleClip_AssImpl::EnableUsingTrackStyle(bool enable)
@@ -41,7 +44,7 @@ void SubtitleClip_AssImpl::EnableUsingTrackStyle(bool enable)
         return;
     m_useTrackStyle = enable;
     m_assTextChanged = true;
-    m_image.Invalidate();
+    m_renderedImages.clear();
 }
 
 void SubtitleClip_AssImpl::SetTrackStyle(const std::string& name)
@@ -73,7 +76,7 @@ void SubtitleClip_AssImpl::SetTrackStyle(const std::string& name)
         m_trackStyle = "Default";
 
     if (m_useTrackStyle)
-        m_image.Invalidate();
+        m_renderedImages.clear();
 }
 
 void SubtitleClip_AssImpl::SyncStyle(const SubtitleStyle& style)
@@ -103,7 +106,7 @@ void SubtitleClip_AssImpl::SyncStyle(const SubtitleStyle& style)
     if (!m_useTrackStyle)
     {
         m_assTextChanged = true;
-        m_image.Invalidate();
+        m_renderedImages.clear();
     }
 }
 
@@ -115,7 +118,7 @@ void SubtitleClip_AssImpl::SetFont(const std::string& font)
     if (!m_useTrackStyle)
     {
         m_assTextChanged = true;
-        m_image.Invalidate();
+        m_renderedImages.clear();
     }
 }
 
@@ -134,7 +137,7 @@ void SubtitleClip_AssImpl::SetScaleX(double value)
     if (!m_useTrackStyle)
     {
         m_assTextChanged = true;
-        m_image.Invalidate();
+        m_renderedImages.clear();
     }
 }
 
@@ -146,7 +149,7 @@ void SubtitleClip_AssImpl::SetScaleY(double value)
     if (!m_useTrackStyle)
     {
         m_assTextChanged = true;
-        m_image.Invalidate();
+        m_renderedImages.clear();
     }
 }
 
@@ -158,7 +161,7 @@ void SubtitleClip_AssImpl::SetSpacing(double value)
     if (!m_useTrackStyle)
     {
         m_assTextChanged = true;
-        m_image.Invalidate();
+        m_renderedImages.clear();
     }
 }
 
@@ -170,7 +173,7 @@ void SubtitleClip_AssImpl::SetPrimaryColor(const SubtitleColor& color)
     if (!m_useTrackStyle)
     {
         m_assTextChanged = true;
-        m_image.Invalidate();
+        m_renderedImages.clear();
     }
 }
 
@@ -182,7 +185,7 @@ void SubtitleClip_AssImpl::SetSecondaryColor(const SubtitleColor& color)
     if (!m_useTrackStyle)
     {
         m_assTextChanged = true;
-        m_image.Invalidate();
+        m_renderedImages.clear();
     }
 }
 
@@ -194,7 +197,7 @@ void SubtitleClip_AssImpl::SetOutlineColor(const SubtitleColor& color)
     if (!m_useTrackStyle)
     {
         m_assTextChanged = true;
-        m_image.Invalidate();
+        m_renderedImages.clear();
     }
 }
 
@@ -206,7 +209,7 @@ void SubtitleClip_AssImpl::SetBackColor(const SubtitleColor& color)
     if (!m_useTrackStyle)
     {
         m_assTextChanged = true;
-        m_image.Invalidate();
+        m_renderedImages.clear();
     }
 }
 
@@ -217,7 +220,7 @@ void SubtitleClip_AssImpl::SetBackgroundColor(const SubtitleColor& color)
     m_bgColor = color;
     if (!m_useTrackStyle)
     {
-        m_image.Invalidate();
+        m_renderedImages.clear();
     }
 }
 
@@ -259,7 +262,7 @@ void SubtitleClip_AssImpl::SetBold(bool enable)
     if (!m_useTrackStyle)
     {
         m_assTextChanged = true;
-        m_image.Invalidate();
+        m_renderedImages.clear();
     }
 }
 
@@ -271,7 +274,7 @@ void SubtitleClip_AssImpl::SetItalic(bool enable)
     if (!m_useTrackStyle)
     {
         m_assTextChanged = true;
-        m_image.Invalidate();
+        m_renderedImages.clear();
     }
 }
 
@@ -283,7 +286,7 @@ void SubtitleClip_AssImpl::SetUnderLine(bool enable)
     if (!m_useTrackStyle)
     {
         m_assTextChanged = true;
-        m_image.Invalidate();
+        m_renderedImages.clear();
     }
 }
 
@@ -295,7 +298,7 @@ void SubtitleClip_AssImpl::SetStrikeOut(bool enable)
     if (!m_useTrackStyle)
     {
         m_assTextChanged = true;
-        m_image.Invalidate();
+        m_renderedImages.clear();
     }
 }
 
@@ -307,7 +310,7 @@ void SubtitleClip_AssImpl::SetBorderWidth(double value)
     if (!m_useTrackStyle)
     {
         m_assTextChanged = true;
-        m_image.Invalidate();
+        m_renderedImages.clear();
     }
 }
 
@@ -319,7 +322,7 @@ void SubtitleClip_AssImpl::SetShadowDepth(double value)
     if (!m_useTrackStyle)
     {
         m_assTextChanged = true;
-        m_image.Invalidate();
+        m_renderedImages.clear();
     }
 }
 
@@ -331,7 +334,7 @@ void SubtitleClip_AssImpl::SetBlurEdge(bool enable)
     if (!m_useTrackStyle)
     {
         m_assTextChanged = true;
-        m_image.Invalidate();
+        m_renderedImages.clear();
     }
 }
 
@@ -344,7 +347,7 @@ void SubtitleClip_AssImpl::SetRotationX(double value)
     if (!m_useTrackStyle)
     {
         m_assTextChanged = true;
-        m_image.Invalidate();
+        m_renderedImages.clear();
     }
 }
 
@@ -357,7 +360,7 @@ void SubtitleClip_AssImpl::SetRotationY(double value)
     if (!m_useTrackStyle)
     {
         m_assTextChanged = true;
-        m_image.Invalidate();
+        m_renderedImages.clear();
     }
 }
 
@@ -370,7 +373,7 @@ void SubtitleClip_AssImpl::SetRotationZ(double value)
     if (!m_useTrackStyle)
     {
         m_assTextChanged = true;
-        m_image.Invalidate();
+        m_renderedImages.clear();
     }
 }
 
@@ -380,7 +383,7 @@ void SubtitleClip_AssImpl::SetOffsetH(int32_t value)
         return;
     m_offsetH = value;
     if (!m_useTrackStyle)
-        m_image.Invalidate();
+        m_renderedImages.clear();
 }
 
 void SubtitleClip_AssImpl::SetOffsetV(int32_t value)
@@ -389,7 +392,7 @@ void SubtitleClip_AssImpl::SetOffsetV(int32_t value)
         return;
     m_offsetV = value;
     if (!m_useTrackStyle)
-        m_image.Invalidate();
+        m_renderedImages.clear();
 }
 
 void SubtitleClip_AssImpl::SetAlignment(uint32_t value)
@@ -401,7 +404,7 @@ void SubtitleClip_AssImpl::SetAlignment(uint32_t value)
     if (!m_useTrackStyle)
     {
         m_assTextChanged = true;
-        m_image.Invalidate();
+        m_renderedImages.clear();
     }
 }
 
@@ -411,7 +414,7 @@ void SubtitleClip_AssImpl::SetText(const std::string& text)
         return;
     m_text = text;
     m_assTextChanged = true;
-    m_image.Invalidate();
+    m_renderedImages.clear();
 }
 
 void SubtitleClip_AssImpl::CloneStyle(SubtitleClipHolder from, double wRatio, double hRatio)
@@ -442,7 +445,7 @@ void SubtitleClip_AssImpl::CloneStyle(SubtitleClipHolder from, double wRatio, do
 
 void SubtitleClip_AssImpl::InvalidateImage()
 {
-    m_image.Invalidate();
+    m_renderedImages.clear();
 }
 
 void SubtitleClip_AssImpl::ResyncAssEventPtr(ASS_Event* assEvent)
@@ -457,7 +460,7 @@ void SubtitleClip_AssImpl::SetStartTime(int64_t startTime)
     if (!m_assEvent)
         return;
     m_assEvent->Start = startTime;
-    m_image.Invalidate();
+    m_renderedImages.clear();
 }
 
 void SubtitleClip_AssImpl::SetDuration(int64_t duration)
@@ -465,7 +468,7 @@ void SubtitleClip_AssImpl::SetDuration(int64_t duration)
     if (!m_assEvent)
         return;
     m_assEvent->Duration = duration;
-    m_image.Invalidate();
+    m_renderedImages.clear();
 }
 
 string SubtitleClip_AssImpl::GenerateAssChunk()
@@ -535,25 +538,29 @@ string SubtitleClip_AssImpl::GetAssText()
 
 void SubtitleClip_AssImpl::UpdateImageAreaX(int32_t bias)
 {
-    if (!m_image.Valid())
-        return;
-    SubtitleImage::Rect r{m_image.Area()};
-    r.x += bias;
-    m_image.UpdateArea(r);
+    for (auto& elem : m_renderedImages)
+    {
+        auto& image = elem.second;
+        SubtitleImage::Rect r{image.Area()};
+        r.x += bias;
+        image.UpdateArea(r);
+    }
 }
 
 void SubtitleClip_AssImpl::UpdateImageAreaY(int32_t bias)
 {
-    if (!m_image.Valid())
-        return;
-    SubtitleImage::Rect r{m_image.Area()};
-    r.y += bias;
-    m_image.UpdateArea(r);
+    for (auto& elem : m_renderedImages)
+    {
+        auto& image = elem.second;
+        SubtitleImage::Rect r{image.Area()};
+        r.y += bias;
+        image.UpdateArea(r);
+    }
 }
 
 void SubtitleClip_AssImpl::InvalidateClip()
 {
     m_assTrack = nullptr;
     m_assEvent = nullptr;
-    m_image.Invalidate();
+    m_renderedImages.clear();
 }

@@ -41,6 +41,7 @@ namespace DataLayer
         SubtitleColor OutlineColor() const override { return m_outlineColor; }
         SubtitleColor BackColor() const override { return m_backColor; }
         SubtitleColor BackgroundColor() const override { return m_bgColor; }
+        ImGui::KeyPointEditor* GetKeyPoints() override { return &m_keyPoints; }
 
         void BuildFromAssStyle(const ASS_Style* assStyle);
         ASS_Style* GetAssStylePtr() { return &m_assStyle; }
@@ -65,6 +66,8 @@ namespace DataLayer
         void SetOutlineColor(const SubtitleColor& color);
         void SetBackColor(const SubtitleColor& color);
         void SetBackgroundColor(const SubtitleColor& color);
+        void SetKeyPoints(const ImGui::KeyPointEditor& keyPoints) { m_keyPoints = keyPoints; }
+        void UpdateStyleByKeyPoints(int64_t pos);
 
     private:
         ASS_Style m_assStyle;
@@ -81,6 +84,7 @@ namespace DataLayer
         int m_bold{0};
         int m_italic{0};
         int m_alignment{2};
+        ImGui::KeyPointEditor m_keyPoints;
     };
 
     class SubtitleTrack_AssImpl : public SubtitleTrack
@@ -129,10 +133,11 @@ namespace DataLayer
         bool SetOutlineColor(const ImVec4& color) override;
         bool SetBackColor(const ImVec4& color) override;
         bool SetBackgroundColor(const ImVec4& color) override;
-        bool ChangeClipTime(SubtitleClipHolder clip, int64_t startTime, int64_t duration) override;
+        bool SetKeyPoints(const ImGui::KeyPointEditor& keyPoints) override;
 
         SubtitleClipHolder NewClip(int64_t startTime, int64_t duration) override;
         bool DeleteClip(SubtitleClipHolder hClip) override;
+        bool ChangeClipTime(SubtitleClipHolder clip, int64_t startTime, int64_t duration) override;
         SubtitleClipHolder GetClipByTime(int64_t ms) override;
         SubtitleClipHolder GetCurrClip() override;
         SubtitleClipHolder GetPrevClip() override;
@@ -158,7 +163,7 @@ namespace DataLayer
     private:
         bool ReadFile(const std::string& path);
         void ReleaseFFContext();
-        SubtitleImage RenderSubtitleClip(SubtitleClip* clip);
+        SubtitleImage RenderSubtitleClip(SubtitleClip* clip, int64_t timeOffset);
         void ClearRenderCache();
         void ToggleOverrideStyle();
 
@@ -178,6 +183,7 @@ namespace DataLayer
         bool m_outputFullSize{true};
         bool m_useOverrideStyle{false};
         SubtitleTrackStyle_AssImpl m_overrideStyle;
+        SubtitleImage m_prevRenderedImage;
 
         AVFormatContext* m_pAvfmtCtx{nullptr};
         AVCodecContext* m_pAvCdcCtx{nullptr};

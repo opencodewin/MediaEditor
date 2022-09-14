@@ -2,8 +2,10 @@
 #include <imvk_mat.h>
 #include <AlphaBlending_vulkan.h>
 #include "FFUtils.h"
+#include "Logger.h"
 
 using namespace std;
+using namespace Logger;
 
 namespace DataLayer
 {
@@ -26,11 +28,18 @@ namespace DataLayer
                 ImGui::VkMat vkmat;
                 vkmat.type = IM_DT_INT8;
                 m_vulkanBlender.blend(overlayImage, baseImage, vkmat, x, y);
-                res = vkmat;
-                res.time_stamp = baseImage.time_stamp;
-                res.duration = baseImage.time_stamp;
-                res.color_space = baseImage.color_space;
-                res.color_range = baseImage.color_range;
+                if (!vkmat.empty())
+                {
+                    res = vkmat;
+                    res.time_stamp = baseImage.time_stamp;
+                    res.duration = baseImage.time_stamp;
+                    res.color_space = baseImage.color_space;
+                    res.color_range = baseImage.color_range;
+                }
+                else
+                {
+                    res = baseImage;
+                }
             }
             else
             {
@@ -57,11 +66,18 @@ namespace DataLayer
                 ImGui::VkMat vkmat;
                 vkmat.type = IM_DT_INT8;
                 m_vulkanBlender.blend(overlayImage, baseImage, vkmat, m_ovlyX, m_ovlyY);
-                res = vkmat;
-                res.time_stamp = baseImage.time_stamp;
-                res.duration = baseImage.time_stamp;
-                res.color_space = baseImage.color_space;
-                res.color_range = baseImage.color_range;
+                if (!vkmat.empty())
+                {
+                    res = vkmat;
+                    res.time_stamp = baseImage.time_stamp;
+                    res.duration = baseImage.time_stamp;
+                    res.color_space = baseImage.color_space;
+                    res.color_range = baseImage.color_range;
+                }
+                else
+                {
+                    res = baseImage;
+                }
             }
             else
             {

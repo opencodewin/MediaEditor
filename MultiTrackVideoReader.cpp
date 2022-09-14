@@ -889,16 +889,17 @@ private:
 
         ImGui::ImMat res = vmat;
         bool cloned = false;
+        int64_t pos = (int64_t)(vmat.time_stamp*1000);
         lock_guard<mutex> lk(m_subtrkLock);
         for (auto& hSubTrack : m_subtrks)
         {
             if (!hSubTrack->IsVisible())
                 continue;
 
-            auto hSubClip = hSubTrack->GetClipByTime((int64_t)(vmat.time_stamp*1000));
+            auto hSubClip = hSubTrack->GetClipByTime(pos);
             if (hSubClip)
             {
-                auto subImg = hSubClip->Image();
+                auto subImg = hSubClip->Image(pos-hSubClip->StartTime());
                 if (subImg.Valid())
                 {
                     // blend subtitle-image
@@ -912,7 +913,7 @@ private:
                 }
                 else
                 {
-                    m_logger->Log(Error) << "Invalid 'SubtitleImage' at " << MillisecToString((int64_t)(vmat.time_stamp*1000)) << "." << endl;
+                    m_logger->Log(Error) << "Invalid 'SubtitleImage' at " << MillisecToString(pos) << "." << endl;
                 }
             }
         }

@@ -79,7 +79,7 @@ namespace DataLayer
         virtual int64_t Duration() const = 0;
         virtual int64_t EndTime() const = 0;
         virtual std::string Text() const = 0;
-        virtual SubtitleImage Image() = 0;
+        virtual SubtitleImage Image(int64_t timeOffset = 0) = 0;
 
         virtual void EnableUsingTrackStyle(bool enable) = 0;
         virtual void SetTrackStyle(const std::string& name) = 0;

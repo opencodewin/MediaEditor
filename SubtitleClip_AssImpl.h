@@ -1,11 +1,12 @@
 #pragma once
+#include <map>
 #include "ass/ass_types.h"
 #include "SubtitleClip.h"
 
 namespace DataLayer
 {
     class SubtitleClip_AssImpl;
-    using AssRenderCallback = std::function<SubtitleImage(SubtitleClip_AssImpl*)>;
+    using AssRenderCallback = std::function<SubtitleImage(SubtitleClip_AssImpl*, int64_t)>;
 
     class SubtitleClip_AssImpl : public SubtitleClip
     {
@@ -46,7 +47,7 @@ namespace DataLayer
         int64_t Duration() const override { return m_assEvent ? m_assEvent->Duration : -1; }
         int64_t EndTime() const override { return m_assEvent ? m_assEvent->Start+m_assEvent->Duration : -1; }
         std::string Text() const override { return m_text; }
-        SubtitleImage Image() override;
+        SubtitleImage Image(int64_t timeOffset = 0) override;
 
         void EnableUsingTrackStyle(bool enable) override;
         void SetTrackStyle(const std::string& name) override;
@@ -129,7 +130,7 @@ namespace DataLayer
         std::string m_text;
         std::string m_styledText;
         bool m_assTextChanged{false};
-        SubtitleImage m_image;
+        std::map<int64_t, SubtitleImage> m_renderedImages;
 
         ASS_Track* m_assTrack{nullptr};
         ASS_Event* m_assEvent{nullptr};

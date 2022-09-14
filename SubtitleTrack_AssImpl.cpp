@@ -16,6 +16,7 @@ using namespace std;
 using namespace DataLayer;
 using namespace Logger;
 using std::placeholders::_1;
+using std::placeholders::_2;
 
 static void PrintAssStyle(ALogger* logger, ASS_Style* s)
 {
@@ -236,6 +237,35 @@ void SubtitleTrackStyle_AssImpl::SetAlignment(int value)
     else if (a < 1 || a > 3)
         a = 2;
     m_assStyle.Alignment = a;
+}
+
+void SubtitleTrackStyle_AssImpl::UpdateStyleByKeyPoints(int64_t pos)
+{
+    for (int i = 0; i < m_keyPoints.GetCurveCount(); i++)
+    {
+        auto name = m_keyPoints.GetCurveName(i);
+        auto value = m_keyPoints.GetValue(i, pos);
+        if (name == "Scale")
+            SetScale(value);
+        else if (name == "ScaleX")
+            SetScaleX(value);
+        else if (name == "ScaleY")
+            SetScaleX(value);
+        else if (name == "Spacing")
+            SetSpacing(value);
+        else if (name == "Angle")
+            SetAngle(value);
+        else if (name == "OutlineWidth")
+            SetOutlineWidth(value);
+        else if (name == "ShadowDepth")
+            SetShadowDepth(value);
+        else if (name == "OffsetH")
+            SetOffsetH(value);
+        else if (name == "OffsetV")
+            SetOffsetH(value);
+        else
+            Log(WARN) << "[SubtitleTrackStyle_AssImpl] UNKNOWN curve name '" << name << "', value=" << value << "." << endl;
+    }
 }
 
 static bool SubClipSortCmp(const SubtitleClipHolder& a, const SubtitleClipHolder& b)
@@ -617,6 +647,12 @@ bool SubtitleTrack_AssImpl::SetBackgroundColor(const ImVec4& color)
     return SetBackgroundColor(_color);
 }
 
+bool SubtitleTrack_AssImpl::SetKeyPoints(const ImGui::KeyPointEditor& keyPoints)
+{
+    m_overrideStyle.SetKeyPoints(keyPoints);
+    return true;
+}
+
 bool SubtitleTrack_AssImpl::ChangeClipTime(SubtitleClipHolder clip, int64_t startTime, int64_t duration)
 {
     if (!clip)
@@ -889,7 +925,7 @@ SubtitleClipHolder SubtitleTrack_AssImpl::NewClip(int64_t startTime, int64_t dur
         }
     }
 
-    SubtitleClip_AssImpl* newAssClip = new SubtitleClip_AssImpl(assEvent, m_asstrk, bind(&SubtitleTrack_AssImpl::RenderSubtitleClip, this, _1));
+    SubtitleClip_AssImpl* newAssClip = new SubtitleClip_AssImpl(assEvent, m_asstrk, bind(&SubtitleTrack_AssImpl::RenderSubtitleClip, this, _1, _2));
     SubtitleClipHolder hNewClip(newAssClip);
     m_clips.insert(iter, hNewClip);
 
@@ -1414,7 +1450,7 @@ bool SubtitleTrack_AssImpl::ReadFile(const string& path)
         {
             ASS_Event* e = m_asstrk->events+i;
             e->ReadOrder = i;
-            SubtitleClip_AssImpl* assClip = new SubtitleClip_AssImpl(e, m_asstrk, bind(&SubtitleTrack_AssImpl::RenderSubtitleClip, this, _1));
+            SubtitleClip_AssImpl* assClip = new SubtitleClip_AssImpl(e, m_asstrk, bind(&SubtitleTrack_AssImpl::RenderSubtitleClip, this, _1, _2));
             SubtitleClipHolder hSubClip(assClip);
             m_clips.push_back(hSubClip);
             if (assClip->EndTime() > m_duration)
@@ -1471,11 +1507,14 @@ private:
     void* m_buf;
 };
 
-SubtitleImage SubtitleTrack_AssImpl::RenderSubtitleClip(SubtitleClip* clip)
+SubtitleImage SubtitleTrack_AssImpl::RenderSubtitleClip(SubtitleClip* clip, int64_t timeOffset)
 {
+    int64_t pos = clip->StartTime()+timeOffset;
+    m_overrideStyle.UpdateStyleByKeyPoints(pos);
+
     SubtitleClip_AssImpl* assClip = dynamic_cast<SubtitleClip_AssImpl*>(clip);
     int detectChange = 0;
-    ASS_Image* renderRes = ass_render_frame(m_assrnd, m_asstrk, clip->StartTime(), &detectChange);
+    ASS_Image* renderRes = ass_render_frame(m_assrnd, m_asstrk, pos, &detectChange);
     m_logger->Log(DEBUG) << "Render subtitle '" << assClip->GetAssText() << "', ASS_Image ptr=" << renderRes << ", detectChanged=" << detectChange << "." << endl;
     ImGui::ImMat vmat;
     if (!renderRes)
@@ -1518,6 +1557,20 @@ SubtitleImage SubtitleTrack_AssImpl::RenderSubtitleClip(SubtitleClip* clip)
     vmat.create_type((int)frmW, (int)frmH, 4, IM_DT_INT8);
     vmat.color_format = IM_CF_ABGR;
 
+    // calculate the final display box
+    SubtitleImage::Rect dispBox{assBox};
+    const int32_t offsetH = clip->IsUsingTrackStyle() ? m_overrideStyle.OffsetH() : clip->OffsetH();
+    const int32_t offsetV = clip->IsUsingTrackStyle() ? m_overrideStyle.OffsetV() : clip->OffsetV();
+    dispBox.x += offsetH;
+    dispBox.y += offsetV;
+
+    // if ASS_Image's content is not changed && only output text image, then return previous rendered image
+    if (!m_outputFullSize && (detectChange == 0 || detectChange == 1))
+    {
+        auto prevMat = m_prevRenderedImage.Vmat();
+        return SubtitleImage(prevMat, dispBox);
+    }
+
     uint32_t color;
     // fill the image with background color
     const SubtitleColor bgColor = clip->IsUsingTrackStyle() ? m_overrideStyle.BackgroundColor() : clip->BackgroundColor();
@@ -1528,11 +1581,6 @@ SubtitleImage SubtitleTrack_AssImpl::RenderSubtitleClip(SubtitleClip* clip)
     fill(mapary.begin(), mapary.end(), color);
 
     // if subtitle is outside of the visible area, then return blank picture
-    const int32_t offsetH = clip->IsUsingTrackStyle() ? m_overrideStyle.OffsetH() : clip->OffsetH();
-    const int32_t offsetV = clip->IsUsingTrackStyle() ? m_overrideStyle.OffsetV() : clip->OffsetV();
-    SubtitleImage::Rect dispBox{assBox};
-    dispBox.x += offsetH;
-    dispBox.y += offsetV;
     if (m_outputFullSize &&
        (dispBox.x+dispBox.w <= 0 || dispBox.y+dispBox.h <= 0 ||
         dispBox.x >= m_frmW || dispBox.y >= m_frmH))
@@ -1605,7 +1653,8 @@ SubtitleImage SubtitleTrack_AssImpl::RenderSubtitleClip(SubtitleClip* clip)
         assImage = assImage->next;
     }
 
-    return SubtitleImage(vmat, dispBox);
+    m_prevRenderedImage = SubtitleImage(vmat, dispBox);
+    return m_prevRenderedImage;
 }
 
 void SubtitleTrack_AssImpl::ClearRenderCache()
