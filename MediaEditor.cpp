@@ -296,6 +296,7 @@ struct MediaEditorSettings
     bool VideoFusionCurveExpanded {true};   // Video fusion curve view expended
     bool AudioFilterCurveExpanded {true};   // Audio filter curve view expended
     bool AudioFusionCurveExpanded {true};   // audio fusion curve view expended
+    bool TextCurveExpanded {true};          // Text curve view expended
     float OldBottomViewHeight {0.4};        // Old Bottom view height, recorde at non-expended
     bool showMeters {true};                 // show fps/GPU usage at top right of windows
 
@@ -5415,6 +5416,10 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
     draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
     float preview_view_width = window_size.x * 2 / 3;
     float style_editor_width = window_size.x - preview_view_width;
+    float text_keypoint_height = g_media_editor_settings.TextCurveExpanded ? 100 + 30 : 0;
+    float preview_view_height = window_size.y - text_keypoint_height;
+    ImVec2 text_keypoint_pos = window_pos + ImVec2(0, preview_view_height);
+    ImVec2 text_keypoint_size(window_size.x - style_editor_width, text_keypoint_height);
     if (!timeline)
         return;
     bool force_update_preview = false;
@@ -5436,8 +5441,11 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
         editing_clip->mFontPosY = current_image.Area().y;
     }
 
+    ImGuiWindowFlags child_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings;
+    ImGuiWindowFlags setting_child_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings;
+
     ImGui::SetCursorScreenPos(window_pos + ImVec2(preview_view_width, 0));
-    if (ImGui::BeginChild("##text_editor_style", ImVec2(style_editor_width, window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+    if (ImGui::BeginChild("##text_editor_style", ImVec2(style_editor_width, window_size.y), false, setting_child_flags))
     {
         ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(255,255,255,255));
         ImVec2 style_window_pos = ImGui::GetCursorScreenPos();
@@ -5500,13 +5508,13 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
             static const int numTabs = sizeof(TextEditorTabNames)/sizeof(TextEditorTabNames[0]);
             ImVec2 style_view_pos = ImGui::GetCursorPos();
             ImVec2 style_view_size(style_window_size.x, window_size.y - style_view_pos.y);
-            if (ImGui::BeginChild("##text_sytle_window", style_view_size - ImVec2(8, 0), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar))
+            if (ImGui::BeginChild("##text_sytle_window", style_view_size - ImVec2(8, 0), false, child_flags))
             {
                 if (ImGui::TabLabels(numTabs, TextEditorTabNames, StyleWindowIndex, nullptr , false, true, nullptr, nullptr, false, false, nullptr, nullptr))
                 {
                 }
 
-                if (ImGui::BeginChild("##style_Window_content", style_view_size - ImVec2(16, 32), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings))
+                if (ImGui::BeginChild("##style_Window_content", style_view_size - ImVec2(16, 32), false, child_flags))
                 {
                     ImVec2 style_setting_window_pos = ImGui::GetCursorScreenPos();
                     ImVec2 style_setting_window_size = ImGui::GetWindowSize();
@@ -5535,7 +5543,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
     ImRect video_rect;
     static bool MovingTextPos = false;
     static bool mouse_is_dragging = false;
-    if (ImGui::BeginChild("##text_editor_preview", ImVec2(preview_view_width, window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+    if (ImGui::BeginChild("##text_editor_preview", ImVec2(preview_view_width, preview_view_height), false, child_flags))
     {
         const float resize_handel_radius = 2;
         const ImVec2 handle_size(resize_handel_radius, resize_handel_radius);
@@ -5599,6 +5607,51 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
         draw_list->PopClipRect();
     }
     ImGui::EndChild();
+
+    // draw keypoint hidden button
+    ImVec2 hidden_button_pos = window_pos + ImVec2(0, preview_view_height - 16);
+    ImRect hidden_button_rect = ImRect(hidden_button_pos, hidden_button_pos + ImVec2(16, 16));
+    ImGui::SetWindowFontScale(0.75);
+    if (hidden_button_rect.Contains(ImGui::GetMousePos()))
+    {
+        draw_list->AddRectFilled(hidden_button_rect.Min, hidden_button_rect.Max, IM_COL32(64,64,64,255));
+        if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+        {
+            g_media_editor_settings.TextCurveExpanded = !g_media_editor_settings.TextCurveExpanded;
+        }
+        ImGui::BeginTooltip();
+        ImGui::TextUnformatted(g_media_editor_settings.TextCurveExpanded ? "Hide Curve View" : "Show Curve View");
+        ImGui::EndTooltip();
+    }
+    draw_list->AddText(hidden_button_pos, IM_COL32_WHITE, ICON_FA_BEZIER_CURVE);
+    ImGui::SetWindowFontScale(1.0);
+
+    // draw filter curve editor
+    if (g_media_editor_settings.TextCurveExpanded)
+    {
+        ImGui::SetCursorScreenPos(text_keypoint_pos);
+        if (ImGui::BeginChild("##text_keypoint", text_keypoint_size, false, child_flags))
+        {
+            ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 sub_window_size = ImGui::GetWindowSize();
+            draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_ONE);
+            if (editing_clip)
+            {
+                bool _changed = false;
+                mouse_hold |= ImGui::ImCurveEdit::Edit(editing_clip->mFilterKeyPoints,
+                                                        sub_window_size, 
+                                                        ImGui::GetID("##test_keypoint_editor"), 
+                                                        CURVE_EDIT_FLAG_VALUE_LIMITED | CURVE_EDIT_FLAG_MOVE_CURVE | CURVE_EDIT_FLAG_KEEP_BEGIN_END | CURVE_EDIT_FLAG_DOCK_BEGIN_END, 
+                                                        nullptr, // clippingRect
+                                                        &_changed,
+                                                        nullptr, // selectedPoints
+                                                        timeline->currentTime);
+                if (_changed) timeline->UpdatePreview();
+            }
+        }
+        ImGui::EndChild();
+    }
+
     if (!editing_clip || ImGui::IsMouseReleased(ImGuiMouseButton_Left))
     {
         MovingTextPos = false;
@@ -6910,6 +6963,7 @@ void Application_SetupContext(ImGuiContext* ctx)
         else if (sscanf(line, "VideoFusionCurveExpanded=%d", &val_int) == 1) { setting->VideoFusionCurveExpanded = val_int == 1; }
         else if (sscanf(line, "AudioFilterCurveExpanded=%d", &val_int) == 1) { setting->AudioFilterCurveExpanded = val_int == 1; }
         else if (sscanf(line, "AudioFusionCurveExpanded=%d", &val_int) == 1) { setting->AudioFusionCurveExpanded = val_int == 1; }
+        else if (sscanf(line, "TextCurveExpanded=%d", &val_int) == 1) { setting->TextCurveExpanded = val_int == 1; }
         else if (sscanf(line, "TopViewHeight=%f", &val_float) == 1) { setting->TopViewHeight = isnan(val_float) ?  0.6f : val_float; }
         else if (sscanf(line, "BottomViewHeight=%f", &val_float) == 1) { setting->BottomViewHeight = isnan(val_float) ? 0.4f : val_float; }
         else if (sscanf(line, "OldBottomViewHeight=%f", &val_float) == 1) { setting->OldBottomViewHeight = val_float; }
@@ -7019,6 +7073,7 @@ void Application_SetupContext(ImGuiContext* ctx)
         out_buf->appendf("VideoFusionCurveExpanded=%d\n", g_media_editor_settings.VideoFusionCurveExpanded ? 1 : 0);
         out_buf->appendf("AudioFilterCurveExpanded=%d\n", g_media_editor_settings.AudioFilterCurveExpanded ? 1 : 0);
         out_buf->appendf("AudioFusionCurveExpanded=%d\n", g_media_editor_settings.AudioFusionCurveExpanded ? 1 : 0);
+        out_buf->appendf("TextCurveExpanded=%d\n", g_media_editor_settings.TextCurveExpanded ? 1 : 0);
         out_buf->appendf("TopViewHeight=%f\n", g_media_editor_settings.TopViewHeight);
         out_buf->appendf("BottomViewHeight=%f\n", g_media_editor_settings.BottomViewHeight);
         out_buf->appendf("OldBottomViewHeight=%f\n", g_media_editor_settings.OldBottomViewHeight);
