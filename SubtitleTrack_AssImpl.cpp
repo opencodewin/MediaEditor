@@ -1191,6 +1191,36 @@ bool SubtitleTrack_AssImpl::SetFontDir(const string& path)
     return true;
 }
 
+static string StripAssStyleOverrideCodes(const char* assbuf, int len)
+{
+    ostringstream oss;
+    bool isPrevCharBackSlash = false;
+    bool isOverrideCode = false;
+    for (int i = 0; i < len; i++)
+    {
+        const char c = assbuf[i];
+        bool quitOverrideCode = false;
+        if (!isPrevCharBackSlash)
+        {
+            if (c == '\\')
+                isPrevCharBackSlash = true;
+            else if (c == '{')
+                isOverrideCode = true;
+            else if (c == '}')
+                quitOverrideCode = true;
+        }
+        else
+        {
+            isPrevCharBackSlash = false;
+        }
+        if (!isOverrideCode)
+            oss << c;
+        if (quitOverrideCode)
+            isOverrideCode = false;
+    }
+    return oss.str();
+}
+
 bool SubtitleTrack_AssImpl::ReadFile(const string& path)
 {
     ReleaseFFContext();
@@ -1341,10 +1371,11 @@ bool SubtitleTrack_AssImpl::ReadFile(const string& path)
                 char *ass_line = avsub.rects[i]->ass;
                 if (!ass_line)
                     break;
+                string strippedAssLine = StripAssStyleOverrideCodes(ass_line, strlen(ass_line));
 #if LIBAVCODEC_VERSION_MAJOR >= 59
-                ass_process_chunk(m_asstrk, ass_line, strlen(ass_line), start_time, duration);
+                ass_process_chunk(m_asstrk, (char*)(strippedAssLine.c_str()), strippedAssLine.size(), start_time, duration);
 #else
-                ass_process_data(m_asstrk, ass_line, strlen(ass_line));
+                ass_process_data(m_asstrk, (char*)(strippedAssLine.c_str()), strippedAssLine.size());
 #endif
             }
             avsubtitle_free(&avsub);
