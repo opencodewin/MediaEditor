@@ -1,6 +1,9 @@
 #include "VideoBlender.h"
+#include <imconfig.h>
 #include <imvk_mat.h>
+#if IMGUI_VULKAN_SHADER
 #include <AlphaBlending_vulkan.h>
+#endif
 #include "FFUtils.h"
 #include "Logger.h"
 
@@ -12,6 +15,15 @@ namespace DataLayer
     class VideoBlender_Impl : public VideoBlender
     {
     public:
+        VideoBlender_Impl()
+        {
+#if IMGUI_VULKAN_SHADER
+            m_useVulkan = true;
+#else
+            m_useVulkanImpl = false;
+#endif
+        }
+
         bool Init() override
         {
             bool success = m_ffBlender.Init();
@@ -23,8 +35,9 @@ namespace DataLayer
         ImGui::ImMat Blend(ImGui::ImMat& baseImage, ImGui::ImMat& overlayImage, int32_t x, int32_t y) override
         {
             ImGui::ImMat res;
-            if (m_useVulkanImpl)
+            if (m_useVulkan)
             {
+#if IMGUI_VULKAN_SHADER
                 ImGui::VkMat vkmat;
                 vkmat.type = IM_DT_INT8;
                 m_vulkanBlender.blend(overlayImage, baseImage, vkmat, x, y);
@@ -40,6 +53,7 @@ namespace DataLayer
                 {
                     res = baseImage;
                 }
+#endif
             }
             else
             {
@@ -61,8 +75,9 @@ namespace DataLayer
         ImGui::ImMat Blend(ImGui::ImMat& baseImage, ImGui::ImMat& overlayImage) override
         {
             ImGui::ImMat res;
-            if (m_useVulkanImpl)
+            if (m_useVulkan)
             {
+#if IMGUI_VULKAN_SHADER
                 ImGui::VkMat vkmat;
                 vkmat.type = IM_DT_INT8;
                 m_vulkanBlender.blend(overlayImage, baseImage, vkmat, m_ovlyX, m_ovlyY);
@@ -78,6 +93,7 @@ namespace DataLayer
                 {
                     res = baseImage;
                 }
+#endif
             }
             else
             {
@@ -86,15 +102,32 @@ namespace DataLayer
             return res;
         }
 
+        bool EnableUseVulkan(bool enable) override
+        {
+            if (m_useVulkan == enable)
+                return true;
+#if !IMGUI_VULKAN_SHADER
+            if (enable)
+            {
+                m_errMsg = "Vulkan code is DISABLED!";
+                return false;
+            }
+#endif
+            m_useVulkan = enable;
+            return true;
+        }
+
         std::string GetError() const override
         {
             return m_errMsg;
         }
 
     private:
-        bool m_useVulkanImpl{true};
+        bool m_useVulkan;
         int32_t m_ovlyX{0}, m_ovlyY{0};
+#if IMGUI_VULKAN_SHADER
         ImGui::AlphaBlending_vulkan m_vulkanBlender;
+#endif
         FFOverlayBlender m_ffBlender;
         string m_errMsg;
     };

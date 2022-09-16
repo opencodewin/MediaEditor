@@ -14,8 +14,6 @@ namespace DataLayer
 
     struct VideoTransformFilter : public VideoFilter
     {
-        static const std::string FILTER_NAME;
-
         virtual bool Initialize(uint32_t outWidth, uint32_t outHeight, const std::string& outputFormat) = 0;
         virtual bool SetScaleType(ScaleType type) = 0;
         virtual bool SetPositionOffset(int32_t offsetH, int32_t offsetV) = 0;

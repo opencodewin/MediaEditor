@@ -106,7 +106,8 @@ set(MEDIA_EDITOR_SRCS
     VideoTrack.cpp
     VideoClip.cpp
     VideoBlender.cpp
-    FFVideoTransformFilter.cpp
+    VideoTransformFilter.cpp
+    VideoTransformFilter_FFImpl.cpp
     MultiTrackAudioReader.cpp
     AudioTrack.cpp
     AudioClip.cpp
@@ -289,7 +290,8 @@ add_executable(
     VideoTrack.cpp
     VideoClip.cpp
     VideoBlender.cpp
-    FFVideoTransformFilter.cpp
+    VideoTransformFilter.cpp
+    VideoTransformFilter_FFImpl.cpp
     MediaReader.cpp
     MediaParser.cpp
     SubtitleClip_AssImpl.cpp
