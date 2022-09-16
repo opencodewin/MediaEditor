@@ -15,6 +15,13 @@ if (POLICY CMP0068)
     cmake_policy(SET CMP0068 NEW)
 endif()
 
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86|x86_64)")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx2 -mavx")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mavx2 -mavx")
+#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -msse4.2 -msse4.1 -mssse3 -msse2 -msse")
+#set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -msse4.2 -msse4.1 -mssse3 -msse2 -msse")
+endif()
+
 option(BUILD_TEST  "Build Test Application" ON)
 
 # Find the cmake modules
