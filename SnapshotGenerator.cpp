@@ -1689,7 +1689,7 @@ private:
             lock_guard<mutex> lk(m_taskRangeLock);
             list<GopDecodeTask::Range> taskRanges(m_taskRanges);
             m_taskRangeChanged = false;
-            return move(taskRanges);
+            return std::move(taskRanges);
         }
 
         void UpdateSnapwnd(double wndpos, bool force = false)

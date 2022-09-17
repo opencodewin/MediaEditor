@@ -161,13 +161,13 @@ vector<FontDescriptorHolder> FM::GetAvailableFonts()
         }
     }
 
-    return move(result);
+    return std::move(result);
 
     FcPatternDestroy(pattern);
     FcObjectSetDestroy(os);
     FcFontSetDestroy(fs);
 
-    return move(result);
+    return std::move(result);
 }
 
 unordered_map<string, vector<FontDescriptorHolder>> FM::GroupFontsByFamily(const vector<FontDescriptorHolder>& fonts)
@@ -180,7 +180,7 @@ unordered_map<string, vector<FontDescriptorHolder>> FM::GroupFontsByFamily(const
         {
             vector<FontDescriptorHolder> group;
             group.push_back(hFD);
-            result[hFD->Family()] = move(group);
+            result[hFD->Family()] = std::move(group);
         }
         else
         {

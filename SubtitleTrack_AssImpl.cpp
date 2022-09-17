@@ -164,7 +164,7 @@ void SubtitleTrackStyle_AssImpl::SetFont(const string& font)
     int l = font.size();
     unique_ptr<char[]> newfont(new char[l+1]);
     snprintf(newfont.get(), l+1, "%s", font.c_str());
-    m_fontName = move(newfont);
+    m_fontName = std::move(newfont);
     m_assStyle.FontName = m_fontName.get();
 }
 

@@ -1341,7 +1341,7 @@ static void InitializeOptionDescList(AVCodecPtr cdcptr, vector<MediaEncoder::Opt
                                     return v.value == enumval.value;
                                 });
                             if (dupIter == optdesc.enumValues.end())
-                                optdesc.enumValues.push_back(move(enumval));
+                                optdesc.enumValues.push_back(std::move(enumval));
                         }
 
                         // fix some option definitions
@@ -1355,7 +1355,7 @@ static void InitializeOptionDescList(AVCodecPtr cdcptr, vector<MediaEncoder::Opt
                             optdesc.tag = "b frames";
                         }
 
-                        s_vidcdcOptDescList.push_back(move(optdesc));
+                        s_vidcdcOptDescList.push_back(std::move(optdesc));
                     }
                 }
             }
@@ -1393,10 +1393,10 @@ static void InitializeOptionDescList(AVCodecPtr cdcptr, vector<MediaEncoder::Opt
                                     return v.value == enumval.value;
                                 });
                             if (dupIter == optdesc.enumValues.end())
-                                optdesc.enumValues.push_back(move(enumval));
+                                optdesc.enumValues.push_back(std::move(enumval));
                         }
 
-                        s_audcdcOptDescList.push_back(move(optdesc));
+                        s_audcdcOptDescList.push_back(std::move(optdesc));
                     }
                 }
             }
@@ -1444,7 +1444,7 @@ static MediaEncoder::EncoderDescription ConvertAVCodecToEncoderDescription(AVCod
                 {
                     auto& optdesc = *optdescIter;
                     optdesc.limitType = MediaEncoder::Option::OPLT_ENUM;
-                    optdesc.enumValues.push_back(move(enumval));
+                    optdesc.enumValues.push_back(std::move(enumval));
                 }
             }
             else
@@ -1455,10 +1455,10 @@ static MediaEncoder::EncoderDescription ConvertAVCodecToEncoderDescription(AVCod
         {
             MediaEncoder::Option::Description optdesc;
             if (ConvertAVOptionToOptionDescription(cdcptr, opt, optdesc))
-                encdesc.optDescList.push_back(move(optdesc));
+                encdesc.optDescList.push_back(std::move(optdesc));
         }
     }
-    return move(encdesc);
+    return std::move(encdesc);
 }
 
 bool MediaEncoder::FindEncoder(const string& codecName, std::vector<MediaEncoder::EncoderDescription>& encoderDescList)
@@ -1478,7 +1478,7 @@ bool MediaEncoder::FindEncoder(const string& codecName, std::vector<MediaEncoder
             continue;
         if ((p->capabilities&AV_CODEC_CAP_EXPERIMENTAL) != 0)
             continue;
-        encoderDescList.push_back(move(ConvertAVCodecToEncoderDescription(p)));
+        encoderDescList.push_back(std::move(ConvertAVCodecToEncoderDescription(p)));
     }
     return true;
 }
