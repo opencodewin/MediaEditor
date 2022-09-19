@@ -129,7 +129,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
             if (verticalMax < abs(hWaveform->minSample))
                 verticalMax = abs(hWaveform->minSample);
             ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.f, 1.f,0.f, 1.f));
-            ImGui::PlotLines("Waveform", hWaveform->pcm[0].data()+startOff, windowLen, 0, nullptr, -verticalMax, verticalMax, ImVec2(io.DisplaySize.x, 160), sizeof(float), false);
+            ImGui::PlotLinesEx("Waveform", hWaveform->pcm[0].data()+startOff, windowLen, 0, nullptr, -verticalMax, verticalMax, ImVec2(io.DisplaySize.x, 160), sizeof(float), false);
             ImGui::PopStyleColor();
         }
 
@@ -144,7 +144,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
         //     int windowLen = windowSize == 0 ? sampleSize : (int)(windowSize/hWaveform->aggregateDuration);
         //     if (startOff+windowLen > sampleSize) windowLen = sampleSize-startOff;
         //     ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.f, 1.f,0.f, 1.f));
-        //     ImGui::PlotLines("Waveform", hWaveform->pcm[0].data()+startOff, windowLen, 0, nullptr, -1.f, 1.f, ImVec2(io.DisplaySize.x, 160), sizeof(float), false);
+        //     ImGui::PlotLinesEx("Waveform", hWaveform->pcm[0].data()+startOff, windowLen, 0, nullptr, -1.f, 1.f, ImVec2(io.DisplaySize.x, 160), sizeof(float), false);
         //     ImGui::PopStyleColor();
         // }
 
