@@ -22,7 +22,6 @@ namespace DataLayer
     {
         virtual std::string Name() const = 0;
         virtual std::string Font() const = 0;
-        virtual double Scale() const = 0;
         virtual double ScaleX() const = 0;
         virtual double ScaleY() const = 0;
         virtual double Spacing() const = 0;

@@ -9,33 +9,13 @@ namespace DataLayer
     public:
         virtual ~VideoTransformFilter_FFImpl();
         const std::string GetFilterName() const override;
-        bool Initialize(uint32_t outWidth, uint32_t outHeight, const std::string& outputFormat) override;
-        std::string GetOutputPixelFormat() const override;
+        bool Initialize(uint32_t outWidth, uint32_t outHeight) override;
+        bool SetOutputFormat(const std::string& outputFormat) override;
+        bool SetRotationAngle(double angle) override;
+        bool SetPositionOffset(int32_t offsetH, int32_t offsetV) override;
+        bool SetPositionOffsetH(int32_t value) override;
+        bool SetPositionOffsetV(int32_t value) override;
         ImGui::ImMat FilterImage(const ImGui::ImMat& vmat, int64_t pos) override;
-
-        bool SetPositionOffset(int32_t offsetH, int32_t offsetV) override
-        {
-            bool res = VideoTransformFilter_Base::SetPositionOffset(offsetH, offsetV);
-            if (m_needUpdatePositionParam)
-                m_needUpdateScaleParam = true;
-            return res;
-        }
-
-        bool SetPositionOffsetH(int32_t value) override
-        {
-            bool res = VideoTransformFilter_Base::SetPositionOffsetH(value);
-            if (m_needUpdatePositionParam)
-                m_needUpdateScaleParam = true;
-            return res;
-        }
-
-        bool SetPositionOffsetV(int32_t value) override
-        {
-            bool res = VideoTransformFilter_Base::SetPositionOffsetV(value);
-            if (m_needUpdatePositionParam)
-                m_needUpdateScaleParam = true;
-            return res;
-        }
 
     private:
         AVFilterGraph* CreateFilterGraph(const std::string& filterArgs, uint32_t w, uint32_t h, AVPixelFormat inputPixfmt, AVFilterContext** inputCtx, AVFilterContext** outputCtx);
@@ -44,7 +24,7 @@ namespace DataLayer
         bool PerformScaleStage(const ImGui::ImMat& inMat, SelfFreeAVFramePtr& avfrmPtr);
         bool PerformRotateStage(const ImGui::ImMat& inMat, SelfFreeAVFramePtr& avfrmPtr);
         bool PerformPositionStage(const ImGui::ImMat& inMat, SelfFreeAVFramePtr& avfrmPtr);
-        bool FilterImage_Internal(const ImGui::ImMat& inMat, ImGui::ImMat& outMat, int64_t pos);
+        bool _filterImage(const ImGui::ImMat& inMat, ImGui::ImMat& outMat, int64_t pos);
 
     private:
         uint32_t m_diagonalLen{0}, m_scaleSafePadding{2};
@@ -61,7 +41,6 @@ namespace DataLayer
         AVFilterContext* m_scaleInputCtx{nullptr};
         AVFilterContext* m_scaleOutputCtx{nullptr};
         double m_realScaleRatioH{1}, m_realScaleRatioV{1};
-        uint32_t m_scaledWidthWithoutCrop{0}, m_scaledHeightWithoutCrop{0};
         uint32_t m_scaleOutputRoiW{0}, m_scaleOutputRoiH{0};
         uint32_t m_scaleInputW{0}, m_scaleInputH{0};
         int32_t m_scaleInputOffX{0}, m_scaleInputOffY{0};

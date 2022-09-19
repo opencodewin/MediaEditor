@@ -53,7 +53,6 @@ namespace DataLayer
         virtual bool IsUsingTrackStyle() const = 0;
         virtual std::string TrackStyle() const = 0;
         virtual std::string Font() const = 0;
-        // virtual uint32_t FontSize() const = 0;
         virtual double ScaleX() const = 0;
         virtual double ScaleY() const = 0;
         virtual double Spacing() const = 0;
@@ -85,7 +84,6 @@ namespace DataLayer
         virtual void SetTrackStyle(const std::string& name) = 0;
         virtual void SyncStyle(const SubtitleStyle& style) = 0;
         virtual void SetFont(const std::string& font) = 0;
-        // virtual void SetFontSize(uint32_t value) = 0;
         virtual void SetScaleX(double value) = 0;
         virtual void SetScaleY(double value) = 0;
         virtual void SetSpacing(double value) = 0;

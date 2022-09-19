@@ -14,7 +14,8 @@ namespace DataLayer
 
     struct VideoTransformFilter : public VideoFilter
     {
-        virtual bool Initialize(uint32_t outWidth, uint32_t outHeight, const std::string& outputFormat) = 0;
+        virtual bool Initialize(uint32_t outWidth, uint32_t outHeight) = 0;
+        virtual bool SetOutputFormat(const std::string& outputFormat) = 0;
         virtual bool SetScaleType(ScaleType type) = 0;
         virtual bool SetPositionOffset(int32_t offsetH, int32_t offsetV) = 0;
         virtual bool SetPositionOffsetH(int32_t value) = 0;
@@ -29,11 +30,11 @@ namespace DataLayer
         virtual bool SetScaleV(double scale) = 0;
         virtual bool SetKeyPoint(ImGui::KeyPointEditor &keypoint) = 0;
 
+        virtual std::string GetOutputFormat() const = 0;
         virtual uint32_t GetInWidth() const = 0;
         virtual uint32_t GetInHeight() const = 0;
         virtual uint32_t GetOutWidth() const = 0;
         virtual uint32_t GetOutHeight() const = 0;
-        virtual std::string GetOutputPixelFormat() const = 0;
         virtual ScaleType GetScaleType() const = 0;
         virtual int32_t GetPositionOffsetH() const = 0;
         virtual int32_t GetPositionOffsetV() const = 0;

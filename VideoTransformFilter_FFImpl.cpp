@@ -63,8 +63,9 @@ namespace DataLayer
         return "VideoTransformFilter_FFImpl";
     }
 
-    bool VideoTransformFilter_FFImpl::Initialize(uint32_t outWidth, uint32_t outHeight, const std::string& outputFormat)
+    bool VideoTransformFilter_FFImpl::Initialize(uint32_t outWidth, uint32_t outHeight)
     {
+        lock_guard<recursive_mutex> lk(m_processLock);
         if (outWidth == 0 || outHeight == 0)
         {
             m_errMsg = "INVALID argument! 'outWidth' and 'outHeight' must be positive value.";
@@ -74,6 +75,19 @@ namespace DataLayer
         m_outHeight = outHeight;
         m_diagonalLen = (uint32_t)ceil(sqrt(outWidth*outWidth+outHeight*outHeight));
         if (m_diagonalLen%2 == 1) m_diagonalLen++;
+
+        if (!SetOutputFormat("rgba"))
+        {
+            return false;
+        }
+
+        m_needUpdateScaleParam = true;
+        return true;
+    }
+
+    bool VideoTransformFilter_FFImpl::SetOutputFormat(const string& outputFormat)
+    {
+        lock_guard<recursive_mutex> lk(m_processLock);
         AVPixelFormat outputPixfmt = GetAVPixelFormatByName(outputFormat);
         if (outputPixfmt == AV_PIX_FMT_NONE)
         {
@@ -91,26 +105,57 @@ namespace DataLayer
             return false;
         }
         m_unifiedOutputPixfmt = outputPixfmt;
-
         m_mat2frmCvt.SetOutPixelFormat(m_unifiedInputPixfmt);
         m_frm2matCvt.SetOutColorFormat(imclrfmt);
-        m_needUpdateScaleParam = true;
-        return true;
-    }
 
-    string VideoTransformFilter_FFImpl::GetOutputPixelFormat() const
-    {
-        return string(av_get_pix_fmt_name(m_unifiedOutputPixfmt));
+        m_outputFormat = outputFormat;
+        return true;
     }
 
     ImGui::ImMat VideoTransformFilter_FFImpl::FilterImage(const ImGui::ImMat& vmat, int64_t pos)
     {
         ImGui::ImMat res;
-        if (!FilterImage_Internal(vmat, res, pos))
+        if (!_filterImage(vmat, res, pos))
         {
             res.release();
             Log(Error) << "FilterImage() FAILED! " << m_errMsg << endl;
         }
+        return res;
+    }
+
+    bool VideoTransformFilter_FFImpl::SetRotationAngle(double angle)
+    {
+        lock_guard<recursive_mutex> lk(m_processLock);
+        bool res = VideoTransformFilter_Base::SetRotationAngle(angle);
+        if (m_needUpdateRotateParam)
+            m_needUpdateScaleParam = true;
+        return res;
+    }
+
+    bool VideoTransformFilter_FFImpl::SetPositionOffset(int32_t offsetH, int32_t offsetV)
+    {
+        lock_guard<recursive_mutex> lk(m_processLock);
+        bool res = VideoTransformFilter_Base::SetPositionOffset(offsetH, offsetV);
+        if (m_needUpdatePositionParam)
+            m_needUpdateScaleParam = true;
+        return res;
+    }
+
+    bool VideoTransformFilter_FFImpl::SetPositionOffsetH(int32_t value)
+    {
+        lock_guard<recursive_mutex> lk(m_processLock);
+        bool res = VideoTransformFilter_Base::SetPositionOffsetH(value);
+        if (m_needUpdatePositionParam)
+            m_needUpdateScaleParam = true;
+        return res;
+    }
+
+    bool VideoTransformFilter_FFImpl::SetPositionOffsetV(int32_t value)
+    {
+        lock_guard<recursive_mutex> lk(m_processLock);
+        bool res = VideoTransformFilter_Base::SetPositionOffsetV(value);
+        if (m_needUpdatePositionParam)
+            m_needUpdateScaleParam = true;
         return res;
     }
 
@@ -352,8 +397,6 @@ namespace DataLayer
                 fitScaleHeight = m_outHeight;
                 break;
             }
-            m_scaledWidthWithoutCrop = (uint32_t)round(fitScaleWidth*m_scaleRatioH);
-            m_scaledHeightWithoutCrop = (uint32_t)round(fitScaleHeight*m_scaleRatioV);
             m_realScaleRatioH = (double)fitScaleWidth/m_inWidth*m_scaleRatioH;
             m_realScaleRatioV = (double)fitScaleHeight/m_inHeight*m_scaleRatioV;
 
@@ -660,7 +703,7 @@ namespace DataLayer
         return true;
     }
 
-    bool VideoTransformFilter_FFImpl::FilterImage_Internal(const ImGui::ImMat& inMat, ImGui::ImMat& outMat, int64_t pos)
+    bool VideoTransformFilter_FFImpl::_filterImage(const ImGui::ImMat& inMat, ImGui::ImMat& outMat, int64_t pos)
     {
         lock_guard<recursive_mutex> lk(m_processLock);
         m_inWidth = inMat.w;

@@ -110,14 +110,12 @@ SubtitleTrackStyle_AssImpl::SubtitleTrackStyle_AssImpl(const ASS_Style* style)
 SubtitleTrackStyle_AssImpl::SubtitleTrackStyle_AssImpl(const SubtitleTrackStyle_AssImpl& a)
 {
     BuildFromAssStyle(&a.m_assStyle);
-    m_scale = a.m_scale;
     m_offsetV = a.m_offsetV;
 }
 
 SubtitleTrackStyle_AssImpl& SubtitleTrackStyle_AssImpl::operator=(const SubtitleTrackStyle_AssImpl& a)
 {
     BuildFromAssStyle(&a.m_assStyle);
-    m_scale = a.m_scale;
     m_offsetV = a.m_offsetV;
     return *this;
 }
@@ -246,11 +244,14 @@ void SubtitleTrackStyle_AssImpl::UpdateStyleByKeyPoints(int64_t pos)
         auto name = m_keyPoints.GetCurveName(i);
         auto value = m_keyPoints.GetValue(i, pos);
         if (name == "Scale")
-            SetScale(value);
+        {
+            SetScaleX(value);
+            SetScaleY(value);
+        }
         else if (name == "ScaleX")
             SetScaleX(value);
         else if (name == "ScaleY")
-            SetScaleX(value);
+            SetScaleY(value);
         else if (name == "Spacing")
             SetSpacing(value);
         else if (name == "Angle")
@@ -344,17 +345,6 @@ bool SubtitleTrack_AssImpl::SetFont(const std::string& font)
     ass_set_selective_style_override(m_assrnd, m_overrideStyle.GetAssStylePtr());
     if (!m_useOverrideStyle)
         ToggleOverrideStyle();
-    ClearRenderCache();
-    return true;
-}
-
-bool SubtitleTrack_AssImpl::SetScale(double scale)
-{
-    if (m_overrideStyle.Scale() == scale)
-        return true;
-    m_logger->Log(DEBUG) << "Set font scale " << scale << endl;
-    m_overrideStyle.SetScale(scale);
-    ass_set_font_scale(m_assrnd, scale);
     ClearRenderCache();
     return true;
 }
@@ -1147,7 +1137,6 @@ SubtitleTrackHolder SubtitleTrack_AssImpl::Clone(uint32_t frmW, uint32_t frmH)
 
     auto& trkStyle = DefaultStyle();
     newTrk->SetFont(trkStyle.Font());
-    newTrk->SetScale(trkStyle.Scale());
     newTrk->SetScaleX(trkStyle.ScaleX());
     newTrk->SetScaleY(trkStyle.ScaleY());
     newTrk->SetSpacing(trkStyle.Spacing());

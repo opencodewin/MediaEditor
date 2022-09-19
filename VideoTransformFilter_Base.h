@@ -19,6 +19,9 @@ namespace DataLayer
         uint32_t GetOutHeight() const override
         { return m_outHeight; }
 
+        std::string GetOutputFormat() const override
+        { return m_outputFormat; }
+
         ScaleType GetScaleType() const override
         { return m_scaleType; }
 
@@ -160,7 +163,6 @@ namespace DataLayer
                 return true;
             m_rotateAngle = angle;
             m_needUpdateRotateParam = true;
-            m_needUpdateScaleParam = true;
             return true;
         }
 
@@ -203,6 +205,7 @@ namespace DataLayer
     protected:
         uint32_t m_inWidth{0}, m_inHeight{0};
         uint32_t m_outWidth{0}, m_outHeight{0};
+        std::string m_outputFormat;
         ScaleType m_scaleType{SCALE_TYPE__FIT};
         uint32_t m_cropL{0}, m_cropR{0}, m_cropT{0}, m_cropB{0};
         uint32_t m_cropRectX{0}, m_cropRectY{0}, m_cropRectW{0}, m_cropRectH{0};

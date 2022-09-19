@@ -1,5 +1,9 @@
 #include "VideoTransformFilter.h"
 #include "VideoTransformFilter_FFImpl.h"
+#include <imconfig.h>
+#if IMGUI_VULKAN_SHADER
+#include "VideoTransformFilter_VulkanImpl.h"
+#endif
 
 namespace DataLayer
 {
@@ -8,7 +12,14 @@ namespace DataLayer
     public:
         VideoTransformFilter_Delegate()
         {
+#if IMGUI_VULKAN_SHADER
+            if (m_useVulkan)
+                m_filter = &m_vkImpl;
+            else
+                m_filter = &m_ffImpl;
+#else
             m_filter = &m_ffImpl;
+#endif
         }
 
         const std::string GetFilterName() const override
@@ -31,9 +42,14 @@ namespace DataLayer
             return m_filter->FilterImage(vmat, pos);
         }
 
-        bool Initialize(uint32_t outWidth, uint32_t outHeight, const std::string& outputFormat) override
+        bool Initialize(uint32_t outWidth, uint32_t outHeight) override
         {
-            return m_filter->Initialize(outWidth, outHeight, outputFormat);
+            return m_filter->Initialize(outWidth, outHeight);
+        }
+
+        bool SetOutputFormat(const std::string& outputFormat) override
+        {
+            return m_filter->SetOutputFormat(outputFormat);
         }
 
         bool SetScaleType(ScaleType type) override
@@ -121,9 +137,9 @@ namespace DataLayer
             return m_filter->GetOutHeight();
         }
 
-        std::string GetOutputPixelFormat() const override
+        std::string GetOutputFormat() const override
         {
-            return m_filter->GetOutputPixelFormat();
+            return m_filter->GetOutputFormat();
         }
 
         ScaleType GetScaleType() const override
@@ -189,6 +205,10 @@ namespace DataLayer
     private:
         VideoTransformFilter* m_filter;
         VideoTransformFilter_FFImpl m_ffImpl;
+#if IMGUI_VULKAN_SHADER
+        VideoTransformFilter_VulkanImpl m_vkImpl;
+        bool m_useVulkan{true};
+#endif
     };
 
     VideoTransformFilter* NewVideoTransformFilter()

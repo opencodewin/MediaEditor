@@ -47,7 +47,7 @@ namespace DataLayer
         if (!m_srcReader->Start(suspend))
             throw runtime_error(m_srcReader->GetError());
         m_transFilter = NewVideoTransformFilter();
-        if (!m_transFilter->Initialize(outWidth, outHeight, "RGBA"))
+        if (!m_transFilter->Initialize(outWidth, outHeight))
             throw runtime_error(m_transFilter->GetError());
     }
 

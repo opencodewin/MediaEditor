@@ -21,7 +21,6 @@ namespace DataLayer
 
         std::string Name() const override { return std::string(m_name.get()); }
         std::string Font() const override { return std::string(m_assStyle.FontName); }
-        double Scale() const override { return m_scale; }
         double ScaleX() const override { return m_assStyle.ScaleX; }
         double ScaleY() const override { return m_assStyle.ScaleY; }
         double Spacing() const override { return m_assStyle.Spacing; }
@@ -46,7 +45,6 @@ namespace DataLayer
         void BuildFromAssStyle(const ASS_Style* assStyle);
         ASS_Style* GetAssStylePtr() { return &m_assStyle; }
         void SetFont(const std::string& font);
-        void SetScale(double scale) { m_scale = scale; }
         void SetScaleX(double value) { m_assStyle.ScaleX = value; }
         void SetScaleY(double value) { m_assStyle.ScaleY = value; }
         void SetSpacing(double value) { m_assStyle.Spacing = value; }
@@ -73,7 +71,6 @@ namespace DataLayer
         ASS_Style m_assStyle;
         std::unique_ptr<char[]> m_name;
         std::unique_ptr<char[]> m_fontName;
-        double m_scale{1};
         int32_t m_offsetH{0};
         int32_t m_offsetV{0};
         SubtitleColor m_primaryColor;
@@ -108,7 +105,6 @@ namespace DataLayer
         bool IsFullSizeOutput() const override { return m_outputFullSize; }
         bool EnableFullSizeOutput(bool enable) override;
         bool SetFont(const std::string& font) override;
-        bool SetScale(double value) override;
         bool SetScaleX(double value) override;
         bool SetScaleY(double value) override;
         bool SetSpacing(double value) override;

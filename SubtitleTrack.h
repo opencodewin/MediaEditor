@@ -23,7 +23,6 @@ namespace DataLayer
         virtual bool IsFullSizeOutput() const = 0;
         virtual bool EnableFullSizeOutput(bool enable) = 0;
         virtual bool SetFont(const std::string& font) = 0;
-        virtual bool SetScale(double value) = 0;
         virtual bool SetScaleX(double value) = 0;
         virtual bool SetScaleY(double value) = 0;
         virtual bool SetSpacing(double value) = 0;
