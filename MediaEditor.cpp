@@ -1588,7 +1588,7 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
                     ImVec2 plot_size(wave_size.x, channel_height);
                     int sampleSize = wavefrom->pcm[i].size();
                     std::string id_string = "##BankWaveform@" + std::to_string((*item)->mID) + "@" + std::to_string(i);
-                    ImGui::PlotLines(id_string.c_str(), &wavefrom->pcm[i][0], sampleSize, 0, nullptr, -wave_range / 2, wave_range / 2, plot_size, sizeof(float), false);
+                    ImGui::PlotLinesEx(id_string.c_str(), &wavefrom->pcm[i][0], sampleSize, 0, nullptr, -wave_range / 2, wave_range / 2, plot_size, sizeof(float), false);
                 }
                 ImGui::PopStyleColor(2);
             }
@@ -1620,7 +1620,7 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
             case MEDIA_TEXT: type_string = std::string(ICON_FA_FILE_CODE) + " "; break;
             default: break;
         }
-        type_string += TimelineMillisecToString(media_length * 1000, 2);
+        type_string += ImGuiHelper::MillisecToString(media_length * 1000, 2);
         ImGui::SetWindowFontScale(0.7);
         ImGui::TextUnformatted(type_string.c_str());
         ImGui::SetWindowFontScale(1.0);
@@ -2860,7 +2860,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImR
     // Time stamp on left of control panel
     auto PanelRightX = PanelBarPos.x + window_size.x - 150;
     auto PanelRightY = PanelBarPos.y + 8;
-    auto time_str = TimelineMillisecToString(timeline->currentTime, 3);
+    auto time_str = ImGuiHelper::MillisecToString(timeline->currentTime, 3);
     ImGui::SetWindowFontScale(1.5);
     draw_list->AddText(ImVec2(PanelRightX, PanelRightY), timeline->mIsPreviewPlaying ? COL_MARK : COL_MARK_HALF, time_str.c_str());
     ImGui::SetWindowFontScale(1.0);
@@ -3105,7 +3105,7 @@ static void ShowVideoFilterPreviewWindow(ImDrawList *draw_list, bool attribute =
     // Time stamp on left of control panel
     auto PanelRightX = PanelBarPos.x + window_size.x - 300;
     auto PanelRightY = PanelBarPos.y + 8;
-    auto time_str = TimelineMillisecToString(timeline->currentTime, 3);
+    auto time_str = ImGuiHelper::MillisecToString(timeline->currentTime, 3);
     ImGui::SetWindowFontScale(1.5);
     draw_list->AddText(ImVec2(PanelRightX, PanelRightY), timeline->mIsPreviewPlaying ? COL_MARK : COL_MARK_HALF, time_str.c_str());
     ImGui::SetWindowFontScale(1.0);
@@ -3328,14 +3328,16 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
         if (timeline->mVidFilterClip && attribute)
         {
             bool _changed = false;
+            float current_time = timeline->currentTime;
             mouse_hold |= ImGui::ImCurveEdit::Edit(*attribute->GetKeyPoint(),
                                                     sub_window_size, 
-                                                    ImGui::GetID("##video_attribute_keypoint_editor"), 
+                                                    ImGui::GetID("##video_attribute_keypoint_editor"),
+                                                    current_time,
                                                     CURVE_EDIT_FLAG_VALUE_LIMITED | CURVE_EDIT_FLAG_MOVE_CURVE | CURVE_EDIT_FLAG_KEEP_BEGIN_END | CURVE_EDIT_FLAG_DOCK_BEGIN_END, 
                                                     nullptr, // clippingRect
                                                     &_changed,
-                                                    nullptr, // selectedPoints
-                                                    timeline->currentTime);
+                                                    nullptr // selectedPoints
+                                                    );
             if (_changed) timeline->UpdatePreview();
         }
     }
@@ -3970,14 +3972,16 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
             if (timeline->mVidFilterClip && filter)
             {
                 bool _changed = false;
+                float current_time = timeline->currentTime;
                 mouse_hold |= ImGui::ImCurveEdit::Edit(filter->mKeyPoints,
                                                         sub_window_size, 
                                                         ImGui::GetID("##video_filter_keypoint_editor"), 
+                                                        current_time,
                                                         CURVE_EDIT_FLAG_VALUE_LIMITED | CURVE_EDIT_FLAG_MOVE_CURVE | CURVE_EDIT_FLAG_KEEP_BEGIN_END | CURVE_EDIT_FLAG_DOCK_BEGIN_END, 
                                                         nullptr, // clippingRect
                                                         &_changed,
-                                                        nullptr, // selectedPoints
-                                                        timeline->currentTime);
+                                                        nullptr // selectedPoints
+                                                        );
                 if (_changed) timeline->UpdatePreview();
             }
         }
@@ -4343,7 +4347,7 @@ static void ShowVideoFusionPreviewWindow(ImDrawList *draw_list)
     // Time stamp on left of control panel
     auto PanelRightX = PanelBarPos.x + window_size.x - 300;
     auto PanelRightY = PanelBarPos.y + 8;
-    auto time_str = TimelineMillisecToString(timeline->currentTime, 3);
+    auto time_str = ImGuiHelper::MillisecToString(timeline->currentTime, 3);
     ImGui::SetWindowFontScale(1.5);
     draw_list->AddText(ImVec2(PanelRightX, PanelRightY), timeline->mIsPreviewPlaying ? COL_MARK : COL_MARK_HALF, time_str.c_str());
     ImGui::SetWindowFontScale(1.0);
@@ -4464,7 +4468,6 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
     ImGui::SetCursorScreenPos(video_preview_pos);
     if (ImGui::BeginChild("##video_fusion_preview", video_preview_size, false, child_flags))
     {
-        bool force_update_preview = false;
         ImRect video_rect;
         ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 sub_window_size = ImGui::GetWindowSize();
@@ -4526,14 +4529,16 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
             if (timeline->mVidOverlap && fusion)
             {
                 bool _changed = false;
+                float current_time = timeline->currentTime - timeline->mVidOverlap->mStart;
                 mouse_hold |= ImGui::ImCurveEdit::Edit(fusion->mKeyPoints, 
                                                         sub_window_size, 
-                                                        ImGui::GetID("##video_fusion_keypoint_editor"), 
+                                                        ImGui::GetID("##video_fusion_keypoint_editor"),
+                                                        current_time,
                                                         CURVE_EDIT_FLAG_VALUE_LIMITED | CURVE_EDIT_FLAG_MOVE_CURVE | CURVE_EDIT_FLAG_KEEP_BEGIN_END | CURVE_EDIT_FLAG_DOCK_BEGIN_END, 
                                                         nullptr, // clippingRect
                                                         &_changed,
-                                                        nullptr, // selectedPoints
-                                                        timeline->currentTime - timeline->mVidOverlap->mStart);
+                                                        nullptr // selectedPoints
+                                                        );
                 if (_changed) timeline->UpdatePreview();
             }
         }
@@ -5461,8 +5466,8 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
         if (editing_clip)
         {
             // show clip time
-            auto start_time_str = std::string(ICON_CLIP_START) + " " + TimelineMillisecToString(editing_clip->mStart, 3);
-            auto end_time_str = TimelineMillisecToString(editing_clip->mEnd, 3) + " " + std::string(ICON_CLIP_END);
+            auto start_time_str = std::string(ICON_CLIP_START) + " " + ImGuiHelper::MillisecToString(editing_clip->mStart, 3);
+            auto end_time_str = ImGuiHelper::MillisecToString(editing_clip->mEnd, 3) + " " + std::string(ICON_CLIP_END);
             auto start_time_str_size = ImGui::CalcTextSize(start_time_str.c_str());
             auto end_time_str_size = ImGui::CalcTextSize(end_time_str.c_str());
             float time_str_offset = (style_window_size.x - start_time_str_size.x - end_time_str_size.x - 30) / 2;
@@ -5635,17 +5640,36 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
             ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
             ImVec2 sub_window_size = ImGui::GetWindowSize();
             draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_ONE);
-            if (editing_clip)
+            if (StyleWindowIndex == 0 && editing_clip)
             {
                 bool _changed = false;
-                mouse_hold |= ImGui::ImCurveEdit::Edit(editing_clip->mFilterKeyPoints,
+                float current_time = timeline->currentTime;
+                mouse_hold |= ImGui::ImCurveEdit::Edit(editing_clip->mAttributeKeyPoints,
                                                         sub_window_size, 
-                                                        ImGui::GetID("##test_keypoint_editor"), 
-                                                        CURVE_EDIT_FLAG_VALUE_LIMITED | CURVE_EDIT_FLAG_MOVE_CURVE | CURVE_EDIT_FLAG_KEEP_BEGIN_END | CURVE_EDIT_FLAG_DOCK_BEGIN_END, 
+                                                        ImGui::GetID("##text_clip_keypoint_editor"), 
+                                                        current_time,
+                                                        CURVE_EDIT_FLAG_VALUE_LIMITED | CURVE_EDIT_FLAG_MOVE_CURVE | CURVE_EDIT_FLAG_KEEP_BEGIN_END | CURVE_EDIT_FLAG_DOCK_BEGIN_END | CURVE_EDIT_FLAG_DRAW_TIMELINE, 
                                                         nullptr, // clippingRect
                                                         &_changed,
-                                                        nullptr, // selectedPoints
-                                                        timeline->currentTime);
+                                                        nullptr // selectedPoints
+                                                        );
+                if ((int64_t)current_time != timeline->currentTime) { timeline->bSeeking = true; timeline->Seek(current_time); }
+                if (_changed) timeline->UpdatePreview();
+            }
+            else if (StyleWindowIndex == 1 && editing_track)
+            {
+                bool _changed = false;
+                float current_time = timeline->currentTime;
+                mouse_hold |= ImGui::ImCurveEdit::Edit(editing_track->mKeyPoints,
+                                                        sub_window_size, 
+                                                        ImGui::GetID("##text_track_keypoint_editor"), 
+                                                        current_time,
+                                                        CURVE_EDIT_FLAG_VALUE_LIMITED | CURVE_EDIT_FLAG_MOVE_CURVE | CURVE_EDIT_FLAG_KEEP_BEGIN_END | CURVE_EDIT_FLAG_DOCK_BEGIN_END | CURVE_EDIT_FLAG_DRAW_TIMELINE, 
+                                                        nullptr, // clippingRect
+                                                        &_changed,
+                                                        nullptr // selectedPoints
+                                                        );
+                if ((int64_t)current_time != timeline->currentTime) { timeline->bSeeking = true; timeline->Seek(current_time); }
                 if (_changed) timeline->UpdatePreview();
             }
         }
@@ -5903,17 +5927,17 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                 auto bmat = mat_histogram.channel(2);
                 ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(1.f, 0.f, 0.f, 1.0f));
                 ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(1.f, 0.f, 0.f, 0.3f));
-                ImGui::PlotLines("##rh", (float *)rmat.data, mat_histogram.w, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(size.x, size.y / height_scale), 4, false, true);
+                ImGui::PlotLinesEx("##rh", (float *)rmat.data, mat_histogram.w, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(size.x, size.y / height_scale), 4, false, true);
                 ImGui::PopStyleColor(2);
                 ImGui::SetCursorScreenPos(pos + ImVec2(0, height_offset));
                 ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.f, 1.f, 0.f, 1.0f));
                 ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.f, 1.f, 0.f, 0.3f));
-                ImGui::PlotLines("##gh", (float *)gmat.data, mat_histogram.w, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(size.x, size.y / height_scale), 4, false, true);
+                ImGui::PlotLinesEx("##gh", (float *)gmat.data, mat_histogram.w, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(size.x, size.y / height_scale), 4, false, true);
                 ImGui::PopStyleColor(2);
                 ImGui::SetCursorScreenPos(pos + ImVec2(0, height_offset * 2));
                 ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.f, 0.f, 1.f, 1.0f));
                 ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.f, 0.f, 1.f, 0.3f));
-                ImGui::PlotLines("##bh", (float *)bmat.data, mat_histogram.w, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(size.x, size.y / height_scale), 4, false, true);
+                ImGui::PlotLinesEx("##bh", (float *)bmat.data, mat_histogram.w, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(size.x, size.y / height_scale), 4, false, true);
                 ImGui::PopStyleColor(2);
                 ImGui::PopStyleColor();
             }
@@ -6326,7 +6350,7 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                 if (!timeline->m_audio_channel_data[i].m_wave.empty())
                 {
                     ImGui::PushID(i);
-                    ImGui::PlotLines("##wave", (float *)timeline->m_audio_channel_data[i].m_wave.data, timeline->m_audio_channel_data[i].m_wave.w, 0, nullptr, -1.0 / g_media_editor_settings.AudioWaveScale , 1.0 / g_media_editor_settings.AudioWaveScale, channel_view_size, 4, false, false);
+                    ImGui::PlotLinesEx("##wave", (float *)timeline->m_audio_channel_data[i].m_wave.data, timeline->m_audio_channel_data[i].m_wave.w, 0, nullptr, -1.0 / g_media_editor_settings.AudioWaveScale , 1.0 / g_media_editor_settings.AudioWaveScale, channel_view_size, 4, false, false);
                     ImGui::PopID();
                 }
                 draw_list->AddRect(channel_min, channel_max, COL_SLIDER_HANDLE, 0);
@@ -6483,7 +6507,7 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                 if (!timeline->m_audio_channel_data[i].m_fft.empty())
                 {
                     ImGui::PushID(i);
-                    ImGui::PlotLines("##fft", (float *)timeline->m_audio_channel_data[i].m_fft.data, timeline->m_audio_channel_data[i].m_fft.w, 0, nullptr, 0.0, 1.0 / g_media_editor_settings.AudioFFTScale, channel_view_size, 4, false, true);
+                    ImGui::PlotLinesEx("##fft", (float *)timeline->m_audio_channel_data[i].m_fft.data, timeline->m_audio_channel_data[i].m_fft.w, 0, nullptr, 0.0, 1.0 / g_media_editor_settings.AudioFFTScale, channel_view_size, 4, false, true);
                     ImGui::PopID();
                 }
                 draw_list->AddRect(channel_min, channel_max, COL_SLIDER_HANDLE, 0);
@@ -6557,7 +6581,7 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                     ImGui::PushID(i);
                     ImGui::ImMat db_mat_inv = timeline->m_audio_channel_data[i].m_db.clone();
                     db_mat_inv += 90.f;
-                    ImGui::PlotLines("##db", (float *)db_mat_inv.data,db_mat_inv.w, 0, nullptr, 0.f, 90.f / g_media_editor_settings.AudioDBScale, channel_view_size, 4, false, true);
+                    ImGui::PlotLinesEx("##db", (float *)db_mat_inv.data,db_mat_inv.w, 0, nullptr, 0.f, 90.f / g_media_editor_settings.AudioDBScale, channel_view_size, 4, false, true);
                     ImGui::PopID();
                 }
                 draw_list->AddRect(channel_min, channel_max, COL_SLIDER_HANDLE, 0);

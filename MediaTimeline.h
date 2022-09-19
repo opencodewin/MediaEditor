@@ -635,6 +635,7 @@ struct MediaTrack
     bool mView      {true};                     // track is viewable, project saved
     bool mLocked    {false};                    // track is locked(can't moving or cropping by locked), project saved
     bool mSelected  {false};                    // track is selected, project saved
+    ImGui::KeyPointEditor mKeyPoints;           // track curves, project saved
     int64_t mViewWndDur     {0};
     float mPixPerMs         {0};
     DataLayer::SubtitleTrackHolder mMttReader {nullptr};
@@ -963,5 +964,4 @@ struct TimeLine
 bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable = true);
 bool DrawClipTimeLine(BaseEditingClip * editingClip, int64_t CurrentTime, int header_height, int custom_height);
 bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int64_t CurrentTime, int header_height, int custom_height);
-std::string TimelineMillisecToString(int64_t millisec, int show_millisec = 0);
 } // namespace MediaTimeline
