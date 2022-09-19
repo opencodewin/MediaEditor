@@ -2829,6 +2829,8 @@ void MediaTrack::Update()
             }
         }
     }
+    // update curve range
+    mKeyPoints.SetRangeX(timeline->mStart, timeline->mEnd, true);
 }
 
 void MediaTrack::CreateOverlap(int64_t start, int64_t start_clip_id, int64_t end, int64_t end_clip_id, MEDIA_TYPE type)
@@ -3308,6 +3310,14 @@ MediaTrack* MediaTrack::Load(const imgui_json::value& value, void * handle)
                     new_track->m_Overlaps.push_back(overlap);
             }
         }
+
+        // load curve into track
+        if (value.contains("KeyPoint"))
+        {
+            auto& keypoint = value["KeyPoint"];
+            new_track->mKeyPoints.Load(keypoint);
+        }
+
         // load subtitle track
         if (value.contains("SubTrack"))
         {
@@ -3444,6 +3454,11 @@ void MediaTrack::Save(imgui_json::value& value)
         overlaps.push_back(overlap_id_value);
     }
     if (m_Overlaps.size() > 0) value["OverlapIDS"] = overlaps;
+
+    // save track curves
+    imgui_json::value keypoint;
+    mKeyPoints.Save(keypoint);
+    value["KeyPoint"] = keypoint;
 
     // save subtitle track info
     if (mMttReader)
@@ -5633,44 +5648,6 @@ void TimeLine::_EncodeProc()
 
 namespace MediaTimeline
 {
-std::string TimelineMillisecToString(int64_t millisec, int show_millisec)
-{
-    std::ostringstream oss;
-    if (millisec < 0)
-    {
-        oss << "-";
-        millisec = -millisec;
-    }
-    uint64_t t = (uint64_t) millisec;
-    uint32_t milli = (uint32_t)(t%1000); t /= 1000;
-    uint32_t sec = (uint32_t)(t%60); t /= 60;
-    uint32_t min = (uint32_t)(t%60); t /= 60;
-    uint32_t hour = (uint32_t)t;
-    if (hour > 0)
-    {
-        oss << std::setfill('0') << std::setw(2) << hour << ':'
-            << std::setw(2) << min << ':'
-            << std::setw(2) << sec;
-        if (show_millisec == 3)
-            oss << '.' << std::setw(3) << milli;
-        else if (show_millisec == 2)
-            oss << '.' << std::setw(2) << milli / 10;
-        else if (show_millisec == 1)
-            oss << '.' << std::setw(1) << milli / 100;
-    }
-    else
-    {
-        oss << std::setfill('0') << std::setw(2) << min << ':'
-            << std::setw(2) << sec;
-        if (show_millisec == 3)
-            oss << '.' << std::setw(3) << milli;
-        else if (show_millisec == 2)
-            oss << '.' << std::setw(2) << milli / 10;
-        else if (show_millisec == 1)
-            oss << '.' << std::setw(1) << milli / 100;
-    }
-    return oss.str();
-}
 /***********************************************************************************************************
  * Draw Main Timeline
  ***********************************************************************************************************/
@@ -5789,7 +5766,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
     {
         // minimum view
         draw_list->AddRectFilled(canvas_pos + ImVec2(legendWidth, 0), ImVec2(timline_size.x + canvas_pos.x, canvas_pos.y + HeadHeight + 4), COL_DARK_ONE, 0);
-        auto info_str = TimelineMillisecToString(duration, 3);
+        auto info_str = ImGuiHelper::MillisecToString(duration, 3);
         info_str += " / ";
         info_str += std::to_string(trackCount) + " tracks";
         draw_list->AddText(ImVec2(canvas_pos.x + legendWidth + 2, canvas_pos.y + 4), IM_COL32_WHITE, info_str.c_str());
@@ -5876,15 +5853,15 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             bool baseIndex = ((i % modTimeCount) == 0) || (i == timeline->GetEnd() || i == timeline->GetStart());
             bool halfIndex = (i % halfModTime) == 0;
             int px = (int)contentMin.x + int(i * timeline->msPixelWidthTarget) + legendWidth - int(timeline->firstTime * timeline->msPixelWidthTarget);
-            int tiretStart = baseIndex ? 4 : (halfIndex ? 10 : 14);
-            int tiretEnd = baseIndex ? regionHeight : HeadHeight - 8;
+            int timeStart = baseIndex ? 4 : (halfIndex ? 10 : 14);
+            int timeEnd = baseIndex ? regionHeight : HeadHeight - 8;
             if (px <= (timline_size.x + contentMin.x) && px >= (contentMin.x + legendWidth))
             {
-                draw_list->AddLine(ImVec2((float)px, canvas_pos.y + (float)tiretStart), ImVec2((float)px, canvas_pos.y + (float)tiretEnd - 1), halfIndex ? COL_MARK : COL_MARK_HALF, halfIndex ? 2 : 1);
+                draw_list->AddLine(ImVec2((float)px, canvas_pos.y + (float)timeStart), ImVec2((float)px, canvas_pos.y + (float)timeEnd - 1), halfIndex ? COL_MARK : COL_MARK_HALF, halfIndex ? 2 : 1);
             }
             if (baseIndex && px > (contentMin.x + legendWidth))
             {
-                auto time_str = TimelineMillisecToString(i, 2);
+                auto time_str = ImGuiHelper::MillisecToString(i, 2);
                 ImGui::SetWindowFontScale(0.8);
                 draw_list->AddText(ImVec2((float)px + 3.f, canvas_pos.y + 8), COL_RULE_TEXT, time_str.c_str());
                 ImGui::SetWindowFontScale(1.0);
@@ -5893,11 +5870,11 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         auto drawLineContent = [&](int64_t i, int)
         {
             int px = (int)contentMin.x + int(i * timeline->msPixelWidthTarget) + legendWidth - int(timeline->firstTime * timeline->msPixelWidthTarget);
-            int tiretStart = int(contentMin.y);
-            int tiretEnd = int(contentMax.y);
+            int timeStart = int(contentMin.y);
+            int timeEnd = int(contentMax.y);
             if (px <= (timline_size.x + contentMin.x) && px >= (contentMin.x + legendWidth))
             {
-                draw_list->AddLine(ImVec2(float(px), float(tiretStart)), ImVec2(float(px), float(tiretEnd)), COL_SLOT_V_LINE, 1);
+                draw_list->AddLine(ImVec2(float(px), float(timeStart)), ImVec2(float(px), float(timeEnd)), COL_SLOT_V_LINE, 1);
             }
         };
         for (auto i = timeline->GetStart(); i <= timeline->GetEnd(); i += timeStep)
@@ -5914,7 +5891,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             float arrowOffset = contentMin.x + legendWidth + (timeline->currentTime - timeline->firstTime) * timeline->msPixelWidthTarget - arrowWidth * 0.5f + 1;
             ImGui::RenderArrow(draw_list, ImVec2(arrowOffset, canvas_pos.y), COL_CURSOR_ARROW, ImGuiDir_Down);
             ImGui::SetWindowFontScale(0.8);
-            auto time_str = TimelineMillisecToString(timeline->currentTime, 2);
+            auto time_str = ImGuiHelper::MillisecToString(timeline->currentTime, 2);
             ImVec2 str_size = ImGui::CalcTextSize(time_str.c_str(), nullptr, true);
             float strOffset = contentMin.x + legendWidth + (timeline->currentTime - timeline->firstTime) * timeline->msPixelWidthTarget - str_size.x * 0.5f + 1;
             ImVec2 str_pos = ImVec2(strOffset, canvas_pos.y + 10);
@@ -6169,9 +6146,9 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 if (timeline->mark_out <= timeline->mark_in) timeline->mark_in = -1;
             }
             ImGui::BeginTooltip();
-            ImGui::Text(" In:%s", TimelineMillisecToString(timeline->mark_in, 2).c_str());
-            ImGui::Text("Out:%s", TimelineMillisecToString(timeline->mark_out, 2).c_str());
-            ImGui::Text("Dur:%s", TimelineMillisecToString(timeline->mark_out - timeline->mark_in, 2).c_str());
+            ImGui::Text(" In:%s", ImGuiHelper::MillisecToString(timeline->mark_in, 2).c_str());
+            ImGui::Text("Out:%s", ImGuiHelper::MillisecToString(timeline->mark_out, 2).c_str());
+            ImGui::Text("Dur:%s", ImGuiHelper::MillisecToString(timeline->mark_out - timeline->mark_in, 2).c_str());
             ImGui::EndTooltip();
         }
 
@@ -6927,6 +6904,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                         {
                             timeline->mEnd = newTrack->mMttReader->Duration() + 1000;
                         }
+                        timeline->Update();
                     }
                 }
                 else
@@ -7171,7 +7149,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
     // for debug
     //ImGui::BeginTooltip();
     //ImGui::Text("%s", std::to_string(trackEntry).c_str());
-    //ImGui::Text("%s", TimelineMillisecToString(mouseTime).c_str());
+    //ImGui::Text("%s", ImGuiHelper::MillisecToString(mouseTime).c_str());
     //ImGui::EndTooltip();
     //ImGui::ShowMetricsWindow();
     // for debug end
@@ -7240,7 +7218,7 @@ bool DrawClipTimeLine(BaseEditingClip * editingClip, int64_t CurrentTime, int he
     draw_list->AddRectFilled(window_pos, window_pos + headerSize, COL_DARK_ONE, 0);
 
     ImRect movRect(window_pos, window_pos + window_size);
-    if ( !MovingCurrentTime && movRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && isFocused)
+    if (!MovingCurrentTime && movRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && isFocused)
     {
         MovingCurrentTime = true;
         editingClip->bSeeking = true;
@@ -7274,15 +7252,15 @@ bool DrawClipTimeLine(BaseEditingClip * editingClip, int64_t CurrentTime, int he
         bool baseIndex = ((i % modTimeCount) == 0) || (i == 0 || i == duration);
         bool halfIndex = (i % halfModTime) == 0;
         int px = (int)window_pos.x + int(i * msPixelWidth);
-        int tiretStart = baseIndex ? 4 : (halfIndex ? 10 : 14);
-        int tiretEnd = baseIndex ? regionHeight : header_height;
+        int timeStart = baseIndex ? 4 : (halfIndex ? 10 : 14);
+        int timeEnd = baseIndex ? regionHeight : header_height;
         if (px <= (window_size.x + window_pos.x) && px >= window_pos.x)
         {
-            draw_list->AddLine(ImVec2((float)px, window_pos.y + (float)tiretStart), ImVec2((float)px, window_pos.y + (float)tiretEnd - 1), halfIndex ? COL_MARK : COL_MARK_HALF, halfIndex ? 2 : 1);
+            draw_list->AddLine(ImVec2((float)px, window_pos.y + (float)timeStart), ImVec2((float)px, window_pos.y + (float)timeEnd - 1), halfIndex ? COL_MARK : COL_MARK_HALF, halfIndex ? 2 : 1);
         }
         if (baseIndex && px >= window_pos.x)
         {
-            auto time_str = TimelineMillisecToString(i + start, 2);
+            auto time_str = ImGuiHelper::MillisecToString(i + start, 2);
             ImGui::SetWindowFontScale(0.8);
             draw_list->AddText(ImVec2((float)px + 3.f, window_pos.y), COL_RULE_TEXT, time_str.c_str());
             ImGui::SetWindowFontScale(1.0);
@@ -7299,7 +7277,7 @@ bool DrawClipTimeLine(BaseEditingClip * editingClip, int64_t CurrentTime, int he
     float arrowOffset = window_pos.x + (CurrentTime - start) * msPixelWidth - arrowWidth * 0.5f;
     ImGui::RenderArrow(draw_list, ImVec2(arrowOffset, window_pos.y), COL_CURSOR_ARROW, ImGuiDir_Down);
     ImGui::SetWindowFontScale(0.8);
-    auto time_str = TimelineMillisecToString(CurrentTime, 2);
+    auto time_str = ImGuiHelper::MillisecToString(CurrentTime, 2);
     ImVec2 str_size = ImGui::CalcTextSize(time_str.c_str(), nullptr, true);
     float strOffset = window_pos.x + (CurrentTime - start) * msPixelWidth - str_size.x * 0.5f;
     ImVec2 str_pos = ImVec2(strOffset, window_pos.y + 10);
@@ -7415,15 +7393,15 @@ bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int64_t CurrentTime, int 
         bool baseIndex = ((i % modTimeCount) == 0) || (i == 0 || i == duration);
         bool halfIndex = (i % halfModTime) == 0;
         int px = (int)window_pos.x + int(i * msPixelWidth);
-        int tiretStart = baseIndex ? 4 : (halfIndex ? 10 : 14);
-        int tiretEnd = baseIndex ? regionHeight : header_height;
+        int timeStart = baseIndex ? 4 : (halfIndex ? 10 : 14);
+        int timeEnd = baseIndex ? regionHeight : header_height;
         if (px <= (window_size.x + window_pos.x) && px >= window_pos.x)
         {
-            draw_list->AddLine(ImVec2((float)px, window_pos.y + (float)tiretStart), ImVec2((float)px, window_pos.y + (float)tiretEnd - 1), halfIndex ? COL_MARK : COL_MARK_HALF, halfIndex ? 2 : 1);
+            draw_list->AddLine(ImVec2((float)px, window_pos.y + (float)timeStart), ImVec2((float)px, window_pos.y + (float)timeEnd - 1), halfIndex ? COL_MARK : COL_MARK_HALF, halfIndex ? 2 : 1);
         }
         if (baseIndex && px >= window_pos.x)
         {
-            auto time_str = TimelineMillisecToString(i + start, 2);
+            auto time_str = ImGuiHelper::MillisecToString(i + start, 2);
             ImGui::SetWindowFontScale(0.8);
             draw_list->AddText(ImVec2((float)px + 3.f, window_pos.y), COL_RULE_TEXT, time_str.c_str());
             ImGui::SetWindowFontScale(1.0);
@@ -7440,7 +7418,7 @@ bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int64_t CurrentTime, int 
     float arrowOffset = window_pos.x + (CurrentTime - start) * msPixelWidth - arrowWidth * 0.5f;
     ImGui::RenderArrow(draw_list, ImVec2(arrowOffset, window_pos.y), COL_CURSOR_ARROW, ImGuiDir_Down);
     ImGui::SetWindowFontScale(0.8);
-    auto time_str = TimelineMillisecToString(CurrentTime, 2);
+    auto time_str = ImGuiHelper::MillisecToString(CurrentTime, 2);
     ImVec2 str_size = ImGui::CalcTextSize(time_str.c_str(), nullptr, true);
     float strOffset = window_pos.x + (CurrentTime - start) * msPixelWidth - str_size.x * 0.5f;
     ImVec2 str_pos = ImVec2(strOffset, window_pos.y + 10);
