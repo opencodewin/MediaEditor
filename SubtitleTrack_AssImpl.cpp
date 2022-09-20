@@ -237,38 +237,6 @@ void SubtitleTrackStyle_AssImpl::SetAlignment(int value)
     m_assStyle.Alignment = a;
 }
 
-void SubtitleTrackStyle_AssImpl::UpdateStyleByKeyPoints(int64_t pos)
-{
-    for (int i = 0; i < m_keyPoints.GetCurveCount(); i++)
-    {
-        auto name = m_keyPoints.GetCurveName(i);
-        auto value = m_keyPoints.GetValue(i, pos);
-        if (name == "Scale")
-        {
-            SetScaleX(value);
-            SetScaleY(value);
-        }
-        else if (name == "ScaleX")
-            SetScaleX(value);
-        else if (name == "ScaleY")
-            SetScaleY(value);
-        else if (name == "Spacing")
-            SetSpacing(value);
-        else if (name == "Angle")
-            SetAngle(value);
-        else if (name == "OutlineWidth")
-            SetOutlineWidth(value);
-        else if (name == "ShadowDepth")
-            SetShadowDepth(value);
-        else if (name == "OffsetH")
-            SetOffsetH(value);
-        else if (name == "OffsetV")
-            SetOffsetH(value);
-        else
-            Log(WARN) << "[SubtitleTrackStyle_AssImpl] UNKNOWN curve name '" << name << "', value=" << value << "." << endl;
-    }
-}
-
 static bool SubClipSortCmp(const SubtitleClipHolder& a, const SubtitleClipHolder& b)
 {
     return a->StartTime() < b->StartTime();
@@ -351,6 +319,11 @@ bool SubtitleTrack_AssImpl::SetFont(const std::string& font)
 
 bool SubtitleTrack_AssImpl::SetScaleX(double value)
 {
+    return _SetScaleX(value);
+}
+
+bool SubtitleTrack_AssImpl::_SetScaleX(double value, bool clearCache)
+{
     if (m_overrideStyle.ScaleX() == value)
         return true;
     m_logger->Log(DEBUG) << "Set scaleX '" << value << "'" << endl;
@@ -358,11 +331,17 @@ bool SubtitleTrack_AssImpl::SetScaleX(double value)
     ass_set_selective_style_override(m_assrnd, m_overrideStyle.GetAssStylePtr());
     if (!m_useOverrideStyle)
         ToggleOverrideStyle();
-    ClearRenderCache();
+    if (clearCache)
+        ClearRenderCache();
     return true;
 }
 
 bool SubtitleTrack_AssImpl::SetScaleY(double value)
+{
+    return _SetScaleY(value);
+}
+
+bool SubtitleTrack_AssImpl::_SetScaleY(double value, bool clearCache)
 {
     if (m_overrideStyle.ScaleY() == value)
         return true;
@@ -371,11 +350,17 @@ bool SubtitleTrack_AssImpl::SetScaleY(double value)
     ass_set_selective_style_override(m_assrnd, m_overrideStyle.GetAssStylePtr());
     if (!m_useOverrideStyle)
         ToggleOverrideStyle();
-    ClearRenderCache();
+    if (clearCache)
+        ClearRenderCache();
     return true;
 }
 
 bool SubtitleTrack_AssImpl::SetSpacing(double value)
+{
+    return _SetSpacing(value);
+}
+
+bool SubtitleTrack_AssImpl::_SetSpacing(double value, bool clearCache)
 {
     if (m_overrideStyle.Spacing() == value)
         return true;
@@ -384,11 +369,17 @@ bool SubtitleTrack_AssImpl::SetSpacing(double value)
     ass_set_selective_style_override(m_assrnd, m_overrideStyle.GetAssStylePtr());
     if (!m_useOverrideStyle)
         ToggleOverrideStyle();
-    ClearRenderCache();
+    if (clearCache)
+        ClearRenderCache();
     return true;
 }
 
 bool SubtitleTrack_AssImpl::SetAngle(double value)
+{
+    return _SetAngle(value);
+}
+
+bool SubtitleTrack_AssImpl::_SetAngle(double value, bool clearCache)
 {
     if (m_overrideStyle.Angle() == value)
         return true;
@@ -397,11 +388,17 @@ bool SubtitleTrack_AssImpl::SetAngle(double value)
     ass_set_selective_style_override(m_assrnd, m_overrideStyle.GetAssStylePtr());
     if (!m_useOverrideStyle)
         ToggleOverrideStyle();
-    ClearRenderCache();
+    if (clearCache)
+        ClearRenderCache();
     return true;
 }
 
 bool SubtitleTrack_AssImpl::SetOutlineWidth(double value)
+{
+    return _SetOutlineWidth(value);
+}
+
+bool SubtitleTrack_AssImpl::_SetOutlineWidth(double value, bool clearCache)
 {
     if (m_overrideStyle.OutlineWidth() == value)
         return true;
@@ -410,11 +407,17 @@ bool SubtitleTrack_AssImpl::SetOutlineWidth(double value)
     ass_set_selective_style_override(m_assrnd, m_overrideStyle.GetAssStylePtr());
     if (!m_useOverrideStyle)
         ToggleOverrideStyle();
-    ClearRenderCache();
+    if (clearCache)
+        ClearRenderCache();
     return true;
 }
 
 bool SubtitleTrack_AssImpl::SetShadowDepth(double value)
+{
+    return _SetShadowDepth(value);
+}
+
+bool SubtitleTrack_AssImpl::_SetShadowDepth(double value, bool clearCache)
 {
     if (m_overrideStyle.ShadowDepth() == value)
         return true;
@@ -423,7 +426,8 @@ bool SubtitleTrack_AssImpl::SetShadowDepth(double value)
     ass_set_selective_style_override(m_assrnd, m_overrideStyle.GetAssStylePtr());
     if (!m_useOverrideStyle)
         ToggleOverrideStyle();
-    ClearRenderCache();
+    if (clearCache)
+        ClearRenderCache();
     return true;
 }
 
@@ -455,19 +459,27 @@ bool SubtitleTrack_AssImpl::SetAlignment(int value)
 
 bool SubtitleTrack_AssImpl::SetOffsetH(int value)
 {
+    return _SetOffsetH(value);
+}
+
+bool SubtitleTrack_AssImpl::_SetOffsetH(int value, bool clearCache)
+{
     if (m_overrideStyle.OffsetH() == value)
         return true;
     m_logger->Log(DEBUG) << "Set offsetH '" << value << "'" << endl;
     int32_t bias = value-m_overrideStyle.OffsetH();
     m_overrideStyle.SetOffsetH(value);
-    if (m_outputFullSize)
-        ClearRenderCache();
-    else
+    if (clearCache)
     {
-        for (auto& clip : m_clips)
+        if (m_outputFullSize)
+            ClearRenderCache();
+        else
         {
-            SubtitleClip_AssImpl* assClip = dynamic_cast<SubtitleClip_AssImpl*>(clip.get());
-            assClip->UpdateImageAreaX(bias);
+            for (auto& clip : m_clips)
+            {
+                SubtitleClip_AssImpl* assClip = dynamic_cast<SubtitleClip_AssImpl*>(clip.get());
+                assClip->UpdateImageAreaX(bias);
+            }
         }
     }
     return true;
@@ -475,19 +487,27 @@ bool SubtitleTrack_AssImpl::SetOffsetH(int value)
 
 bool SubtitleTrack_AssImpl::SetOffsetV(int value)
 {
+    return _SetOffsetV(value);
+}
+
+bool SubtitleTrack_AssImpl::_SetOffsetV(int value, bool clearCache)
+{
     if (m_overrideStyle.OffsetV() == value)
         return true;
     m_logger->Log(DEBUG) << "Set offsetV '" << value << "'" << endl;
     int32_t bias = value-m_overrideStyle.OffsetV();
     m_overrideStyle.SetOffsetV(value);
-    if (m_outputFullSize)
-        ClearRenderCache();
-    else
+    if (clearCache)
     {
-        for (auto& clip : m_clips)
+        if (m_outputFullSize)
+            ClearRenderCache();
+        else
         {
-            SubtitleClip_AssImpl* assClip = dynamic_cast<SubtitleClip_AssImpl*>(clip.get());
-            assClip->UpdateImageAreaY(bias);
+            for (auto& clip : m_clips)
+            {
+                SubtitleClip_AssImpl* assClip = dynamic_cast<SubtitleClip_AssImpl*>(clip.get());
+                assClip->UpdateImageAreaY(bias);
+            }
         }
     }
     return true;
@@ -635,6 +655,11 @@ bool SubtitleTrack_AssImpl::SetBackgroundColor(const ImVec4& color)
 {
     const SubtitleColor _color(color.x, color.y, color.z, color.w);
     return SetBackgroundColor(_color);
+}
+
+void SubtitleTrack_AssImpl::Refresh()
+{
+    ClearRenderCache();
 }
 
 bool SubtitleTrack_AssImpl::SetKeyPoints(const ImGui::KeyPointEditor& keyPoints)
@@ -1499,7 +1524,7 @@ private:
 SubtitleImage SubtitleTrack_AssImpl::RenderSubtitleClip(SubtitleClip* clip, int64_t timeOffset)
 {
     int64_t pos = clip->StartTime()+timeOffset;
-    m_overrideStyle.UpdateStyleByKeyPoints(pos);
+    UpdateTrackStyleByKeyPoints(pos);
 
     SubtitleClip_AssImpl* assClip = dynamic_cast<SubtitleClip_AssImpl*>(clip);
     int detectChange = 0;
@@ -1659,6 +1684,39 @@ void SubtitleTrack_AssImpl::ToggleOverrideStyle()
     if (m_useOverrideStyle)
         bit = ASS_OVERRIDE_FULL_STYLE;
     ass_set_selective_style_override_enabled(m_assrnd, bit);
+}
+
+void SubtitleTrack_AssImpl::UpdateTrackStyleByKeyPoints(int64_t pos)
+{
+    auto keyPoints = m_overrideStyle.GetKeyPoints();
+    for (int i = 0; i < keyPoints->GetCurveCount(); i++)
+    {
+        auto name = keyPoints->GetCurveName(i);
+        auto value = keyPoints->GetValue(i, pos);
+        if (name == "Scale")
+        {
+            _SetScaleX(value, false);
+            _SetScaleY(value, false);
+        }
+        else if (name == "ScaleX")
+            _SetScaleX(value, false);
+        else if (name == "ScaleY")
+            _SetScaleY(value, false);
+        else if (name == "Spacing")
+            _SetSpacing(value, false);
+        else if (name == "Angle")
+            _SetAngle(value, false);
+        else if (name == "OutlineWidth")
+            _SetOutlineWidth(value, false);
+        else if (name == "ShadowDepth")
+            _SetShadowDepth(value, false);
+        else if (name == "OffsetH")
+            _SetOffsetH(value, false);
+        else if (name == "OffsetV")
+            _SetOffsetV(value, false);
+        else
+            Log(WARN) << "[SubtitleTrack_AssImpl] UNKNOWN curve name '" << name << "', value=" << value << "." << endl;
+    }
 }
 
 SubtitleTrackHolder SubtitleTrack_AssImpl::BuildFromFile(int64_t id, const string& url)

@@ -6111,7 +6111,16 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
                                                         nullptr // selectedPoints
                                                         );
                 if ((int64_t)current_time != timeline->currentTime) { timeline->bSeeking = true; timeline->Seek(current_time); }
-                if (_changed) timeline->UpdatePreview();
+                if (_changed)
+                {
+                    timeline->UpdatePreview();
+                    auto subreader = editing_track->mMttReader;
+                    if (subreader)
+                    {
+                        subreader->SetKeyPoints(editing_track->mKeyPoints);
+                        subreader->Refresh();
+                    }
+                }
             }
         }
         ImGui::EndChild();

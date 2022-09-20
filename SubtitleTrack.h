@@ -47,6 +47,7 @@ namespace DataLayer
         virtual bool SetOutlineColor(const ImVec4& color) = 0;
         virtual bool SetBackColor(const ImVec4& color) = 0;
         virtual bool SetBackgroundColor(const ImVec4& color) = 0;
+        virtual void Refresh() = 0;
 
         // currently supported key-name: Scale, ScaleX, ScaleY, Spacing, Angle, OutlineWidth, ShadowDepth, OffsetH, OffsetV
         virtual bool SetKeyPoints(const ImGui::KeyPointEditor& keyPoints) = 0;

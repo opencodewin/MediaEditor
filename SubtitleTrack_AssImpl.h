@@ -65,7 +65,6 @@ namespace DataLayer
         void SetBackColor(const SubtitleColor& color);
         void SetBackgroundColor(const SubtitleColor& color);
         void SetKeyPoints(const ImGui::KeyPointEditor& keyPoints) { m_keyPoints = keyPoints; }
-        void UpdateStyleByKeyPoints(int64_t pos);
 
     private:
         ASS_Style m_assStyle;
@@ -129,6 +128,7 @@ namespace DataLayer
         bool SetOutlineColor(const ImVec4& color) override;
         bool SetBackColor(const ImVec4& color) override;
         bool SetBackgroundColor(const ImVec4& color) override;
+        void Refresh() override;
         bool SetKeyPoints(const ImGui::KeyPointEditor& keyPoints) override;
 
         SubtitleClipHolder NewClip(int64_t startTime, int64_t duration) override;
@@ -157,11 +157,20 @@ namespace DataLayer
         static SubtitleTrackHolder NewEmptyTrack(int64_t id);
 
     private:
+        bool _SetScaleX(double value, bool clearCache = true);
+        bool _SetScaleY(double value, bool clearCache = true);
+        bool _SetSpacing(double value, bool clearCache = true);
+        bool _SetAngle(double value, bool clearCache = true);
+        bool _SetOutlineWidth(double value, bool clearCache = true);
+        bool _SetShadowDepth(double value, bool clearCache = true);
+        bool _SetOffsetH(int value, bool clearCache = true);
+        bool _SetOffsetV(int value, bool clearCache = true);
         bool ReadFile(const std::string& path);
         void ReleaseFFContext();
         SubtitleImage RenderSubtitleClip(SubtitleClip* clip, int64_t timeOffset);
         void ClearRenderCache();
         void ToggleOverrideStyle();
+        void UpdateTrackStyleByKeyPoints(int64_t pos);
 
     private:
         Logger::ALogger* m_logger;
