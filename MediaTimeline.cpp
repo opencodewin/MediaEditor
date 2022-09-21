@@ -4022,7 +4022,7 @@ std::vector<DataLayer::CorrelativeFrame> TimeLine::GetPreviewFrame()
     }
 
     std::vector<DataLayer::CorrelativeFrame> frames;
-    mMtvReader->ReadVideoFrameEx(currentTime, frames, bSeeking);
+    mMtvReader->ReadVideoFrameEx(currentTime, frames, true);
     if (mIsPreviewPlaying) UpdateCurrent();
     return frames;
 }

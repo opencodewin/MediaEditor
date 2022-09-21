@@ -363,7 +363,7 @@ public:
         return true;
     }
 
-    bool ReadVideoFrameEx(int64_t pos, std::vector<CorrelativeFrame>& frames, bool seeking) override
+    bool ReadVideoFrameEx(int64_t pos, std::vector<CorrelativeFrame>& frames, bool nonblocking) override
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
         if (!m_started)
@@ -379,86 +379,103 @@ public:
         if (m_tracks.empty())
             return false;
 
-        {
-            lock_guard<mutex> lk2(m_outputCacheLock);
-            if (seeking && !m_outputCache.empty())
-                frames = m_outputCache.front();
-        }
-        if (seeking && frames.empty() && !m_seekingFlash.empty())
-        {
-            lock_guard<mutex> lk2(m_outputCacheLock);
-            frames = m_seekingFlash;
-        }
-
+        bool needSeek = false;
         uint32_t targetFrmidx = (int64_t)(ceil((double)pos*m_frameRate.num/(m_frameRate.den*1000)));
         if ((m_readForward && (targetFrmidx < m_readFrameIdx || targetFrmidx-m_readFrameIdx >= m_outputCacheSize)) ||
             (!m_readForward && (targetFrmidx > m_readFrameIdx || m_readFrameIdx-targetFrmidx >= m_outputCacheSize)))
         {
-            if (!SeekTo(pos, seeking))
-                return false;
+            needSeek = true;
         }
 
-        if (seeking)
+        if (nonblocking)
         {
+            lock_guard<mutex> lk2(m_outputCacheLock);
+            if ((m_readForward && targetFrmidx > m_readFrameIdx) || (!m_readForward && m_readFrameIdx > targetFrmidx))
+            {
+                uint32_t popCnt = m_readForward ? targetFrmidx-m_readFrameIdx : m_readFrameIdx-targetFrmidx;
+                while (popCnt-- > 0 && !m_outputCache.empty())
+                {
+                    m_outputCache.pop_front();
+                    if (m_readForward)
+                        m_readFrameIdx++;
+                    else
+                        m_readFrameIdx--;
+                }
+            }
+            if (!m_outputCache.empty())
+                frames = m_outputCache.front();
+            else if (!m_seekingFlash.empty())
+                frames = m_seekingFlash;
+
+            auto& vmat = frames[0].frame;
+            const double timestamp = (double)pos/1000;
+            m_logger->Log(VERBOSE) << "--> ReadVideoFrame lagging is " << timestamp-vmat.time_stamp << " second(s)." << endl;
+
             if (!m_subtrks.empty() && !frames.empty())
                 frames[0].frame = BlendSubtitle(frames[0].frame);
-            return true;
+            if (needSeek)
+                SeekTo(pos, true);
         }
+        else
+        {
+            if (needSeek && !SeekTo(pos, false))
+                return false;
 
-        // the frame queue may not be filled with the target frame, wait for the mixing thread to fill it
-        bool lockAquaired = false;
-        while (!m_quit)
-        {
-            m_outputCacheLock.lock();
-            lockAquaired = true;
-            if ((m_readForward && targetFrmidx < m_outputCache.size()+m_readFrameIdx) ||
-                (!m_readForward && m_readFrameIdx < m_outputCache.size()+targetFrmidx))
-                break;
-            m_outputCacheLock.unlock();
-            lockAquaired = false;
-            this_thread::sleep_for(chrono::milliseconds(5));
-        }
-        if (m_quit)
-        {
-            if (lockAquaired) m_outputCacheLock.unlock();
-            m_errMsg = "This 'MultiTrackVideoReader' instance is quit.";
-            return false;
-        }
-
-        lock_guard<mutex> lk2(m_outputCacheLock, adopt_lock);
-        if ((m_readForward && targetFrmidx > m_readFrameIdx) || (!m_readForward && m_readFrameIdx > targetFrmidx))
-        {
-            uint32_t popCnt = m_readForward ? targetFrmidx-m_readFrameIdx : m_readFrameIdx-targetFrmidx;
-            while (popCnt-- > 0)
+            // the frame queue may not be filled with the target frame, wait for the mixing thread to fill it
+            bool lockAquaired = false;
+            while (!m_quit)
             {
-                m_outputCache.pop_front();
-                if (m_readForward)
-                    m_readFrameIdx++;
-                else
-                    m_readFrameIdx--;
+                m_outputCacheLock.lock();
+                lockAquaired = true;
+                if ((m_readForward && targetFrmidx < m_outputCache.size()+m_readFrameIdx) ||
+                    (!m_readForward && m_readFrameIdx < m_outputCache.size()+targetFrmidx))
+                    break;
+                m_outputCacheLock.unlock();
+                lockAquaired = false;
+                this_thread::sleep_for(chrono::milliseconds(5));
             }
-        }
-        if (m_outputCache.empty())
-        {
-            m_logger->Log(Error) << "No AVAILABLE frame to read!" << endl;
-            return false;
-        }
-        frames = m_outputCache.front();
-        auto& vmat = frames[0].frame;
-        const double timestamp = (double)pos/1000;
-        if (vmat.time_stamp > timestamp+m_frameInterval || vmat.time_stamp < timestamp-m_frameInterval)
-            m_logger->Log(Error) << "WRONG image time stamp!! Required 'pos' is " << timestamp
-                << ", output vmat time stamp is " << vmat.time_stamp << "." << endl;
+            if (m_quit)
+            {
+                if (lockAquaired) m_outputCacheLock.unlock();
+                m_errMsg = "This 'MultiTrackVideoReader' instance is quit.";
+                return false;
+            }
 
-        if (!m_subtrks.empty())
-            vmat = BlendSubtitle(vmat);
+            lock_guard<mutex> lk2(m_outputCacheLock, adopt_lock);
+            if ((m_readForward && targetFrmidx > m_readFrameIdx) || (!m_readForward && m_readFrameIdx > targetFrmidx))
+            {
+                uint32_t popCnt = m_readForward ? targetFrmidx-m_readFrameIdx : m_readFrameIdx-targetFrmidx;
+                while (popCnt-- > 0)
+                {
+                    m_outputCache.pop_front();
+                    if (m_readForward)
+                        m_readFrameIdx++;
+                    else
+                        m_readFrameIdx--;
+                }
+            }
+            if (m_outputCache.empty())
+            {
+                m_logger->Log(Error) << "No AVAILABLE frame to read!" << endl;
+                return false;
+            }
+            frames = m_outputCache.front();
+            auto& vmat = frames[0].frame;
+            const double timestamp = (double)pos/1000;
+            if (vmat.time_stamp > timestamp+m_frameInterval || vmat.time_stamp < timestamp-m_frameInterval)
+                m_logger->Log(Error) << "WRONG image time stamp!! Required 'pos' is " << timestamp
+                    << ", output vmat time stamp is " << vmat.time_stamp << "." << endl;
+
+            if (!m_subtrks.empty())
+                vmat = BlendSubtitle(vmat);
+        }
         return true;
     }
 
-    bool ReadVideoFrame(int64_t pos, ImGui::ImMat& vmat, bool seeking) override
+    bool ReadVideoFrame(int64_t pos, ImGui::ImMat& vmat, bool nonblocking) override
     {
         vector<CorrelativeFrame> frames;
-        bool success = ReadVideoFrameEx(pos, frames, seeking);
+        bool success = ReadVideoFrameEx(pos, frames, nonblocking);
         if (!success)
             return false;
         vmat = frames[0].frame;
@@ -871,6 +888,7 @@ private:
                 {
                     lock_guard<mutex> lk(m_outputCacheLock);
                     m_outputCache.push_back(frames);
+                    m_seekingFlash = frames;
                     idleLoop = false;
                 }
             }
