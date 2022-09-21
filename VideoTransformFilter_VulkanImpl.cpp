@@ -1,3 +1,4 @@
+#include <imgui.h>
 #if IMGUI_VULKAN_SHADER
 #include "VideoTransformFilter_VulkanImpl.h"
 #include "Logger.h"
