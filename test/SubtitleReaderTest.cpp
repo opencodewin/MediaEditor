@@ -645,6 +645,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
             {
                 g_subtrack->SetFrameSize(1920, 1080);
                 g_subtrack->SetBackgroundColor(SubtitleColor{0.2, 0.2, 0.2, 1});
+                g_subtrack->SetAlignment(5);
                 // g_subtrack->SaveAs("~/test_encsub.sRt");
             }
         }

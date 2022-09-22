@@ -33,6 +33,8 @@ namespace DataLayer
         virtual bool SetAlignment(int value) = 0;
         virtual bool SetOffsetH(int32_t value) = 0;
         virtual bool SetOffsetV(int32_t value) = 0;
+        virtual bool SetOffsetCompensationV(int32_t value) = 0;
+        virtual int32_t GetOffsetCompensationV() const = 0;
         virtual bool SetItalic(int value) = 0;
         virtual bool SetBold(int value) = 0;
         virtual bool SetUnderLine(bool enable) = 0;

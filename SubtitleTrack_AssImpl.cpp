@@ -278,6 +278,7 @@ bool SubtitleTrack_AssImpl::InitAss()
         return false;
     }
     ass_set_fonts(m_assrnd, NULL, NULL, ASS_FONTPROVIDER_AUTODETECT, NULL, 1);
+    ass_set_pixel_aspect(m_assrnd, 1);
     m_asstrk = ass_new_track(s_asslib);
     if (!m_asstrk)
     {
@@ -508,6 +509,26 @@ bool SubtitleTrack_AssImpl::_SetOffsetV(int value, bool clearCache)
                 SubtitleClip_AssImpl* assClip = dynamic_cast<SubtitleClip_AssImpl*>(clip.get());
                 assClip->UpdateImageAreaY(bias);
             }
+        }
+    }
+    return true;
+}
+
+bool SubtitleTrack_AssImpl::SetOffsetCompensationV(int32_t value)
+{
+    if (m_offsetCompensationV == value)
+        return true;
+    m_logger->Log(DEBUG) << "Set offsetCompensationV '" << value << "'" << endl;
+    int32_t bias = value-m_offsetCompensationV;
+    m_offsetCompensationV = value;
+    if (m_outputFullSize)
+        ClearRenderCache();
+    else
+    {
+        for (auto& clip : m_clips)
+        {
+            SubtitleClip_AssImpl* assClip = dynamic_cast<SubtitleClip_AssImpl*>(clip.get());
+            assClip->UpdateImageAreaY(bias);
         }
     }
     return true;
@@ -1576,7 +1597,9 @@ SubtitleImage SubtitleTrack_AssImpl::RenderSubtitleClip(SubtitleClip* clip, int6
     const int32_t offsetH = clip->IsUsingTrackStyle() ? m_overrideStyle.OffsetH() : clip->OffsetH();
     const int32_t offsetV = clip->IsUsingTrackStyle() ? m_overrideStyle.OffsetV() : clip->OffsetV();
     dispBox.x += offsetH;
-    dispBox.y += offsetV;
+    dispBox.y += offsetV+m_offsetCompensationV;
+    m_logger->Log(DEBUG) << "--> assBox:{ " << assBox.x << ", " << assBox.y << ", " << assBox.w << ", " << assBox.h
+            << " }, offsetH/V=( " << offsetH << ", " << offsetV << ")." << endl;
 
     // if ASS_Image's content is not changed && only output text image, then return previous rendered image
     if (!m_outputFullSize && (detectChange == 0 || detectChange == 1))

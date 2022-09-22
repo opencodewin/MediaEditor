@@ -7712,6 +7712,7 @@ void Application_Initialize(void** handle)
     ImGui::ResetTabLabelStyle(ImGui::ImGuiTabLabelStyle_Dark, *tab_style);
 
     Logger::GetDefaultLogger()->SetShowLevels(Logger::DEBUG);
+    // GetMultiTrackVideoReaderLogger()->SetShowLevels(Logger::VERBOSE);
     // GetMediaReaderLogger()->SetShowLevels(Logger::DEBUG);
     // GetSnapshotGeneratorLogger()->SetShowLevels(Logger::DEBUG);
     // GetMediaEncoderLogger()->SetShowLevels(Logger::DEBUG);

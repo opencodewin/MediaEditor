@@ -649,6 +649,8 @@ public:
     {
         SubtitleTrackHolder newSubTrack = SubtitleTrack::BuildFromFile(id, url);
         newSubTrack->SetFrameSize(m_outWidth, m_outHeight);
+        newSubTrack->SetAlignment(5);
+        newSubTrack->SetOffsetCompensationV((int32_t)((double)m_outHeight*0.43));
         newSubTrack->EnableFullSizeOutput(false);
         lock_guard<mutex> lk(m_subtrkLock);
         if (insertAfterId == INT64_MAX)
@@ -680,6 +682,8 @@ public:
     {
         SubtitleTrackHolder newSubTrack = SubtitleTrack::NewEmptyTrack(id);
         newSubTrack->SetFrameSize(m_outWidth, m_outHeight);
+        newSubTrack->SetAlignment(5);
+        newSubTrack->SetOffsetCompensationV((int32_t)((double)m_outHeight*0.43));
         newSubTrack->EnableFullSizeOutput(false);
         lock_guard<mutex> lk(m_subtrkLock);
         if (insertAfterId == INT64_MAX)

@@ -114,6 +114,8 @@ namespace DataLayer
         bool SetAlignment(int value) override;
         bool SetOffsetH(int value) override;
         bool SetOffsetV(int value) override;
+        bool SetOffsetCompensationV(int32_t value) override;
+        int32_t GetOffsetCompensationV() const override { return m_offsetCompensationV; }
         bool SetItalic(int value) override;
         bool SetBold(int value) override;
         bool SetUnderLine(bool enable) override;
@@ -185,6 +187,7 @@ namespace DataLayer
         int m_defaultStyleIdx{-1};
         ASS_Renderer* m_assrnd{nullptr};
         uint32_t m_frmW{0}, m_frmH{0};
+        int32_t m_offsetCompensationV{0};
         bool m_outputFullSize{true};
         bool m_useOverrideStyle{false};
         SubtitleTrackStyle_AssImpl m_overrideStyle;
