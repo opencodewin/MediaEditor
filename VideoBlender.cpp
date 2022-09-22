@@ -1,7 +1,7 @@
 #include "VideoBlender.h"
 #include <imconfig.h>
-#include <imvk_mat.h>
 #if IMGUI_VULKAN_SHADER
+#include <imvk_mat.h>
 #include <AlphaBlending_vulkan.h>
 #endif
 #include "FFUtils.h"
@@ -20,7 +20,7 @@ namespace DataLayer
 #if IMGUI_VULKAN_SHADER
             m_useVulkan = true;
 #else
-            m_useVulkanImpl = false;
+            m_useVulkan = false;
 #endif
         }
 
