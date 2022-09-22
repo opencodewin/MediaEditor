@@ -1315,7 +1315,7 @@ private:
 
             needLoop = ((readTask && !readTask->cancel) || (!readTask && wait) || !idleLoop) && toReadSize > 0 && !m_audReadEof && !m_quit;
             if (needLoop && idleLoop)
-                this_thread::sleep_for(chrono::milliseconds(2));
+                this_thread::sleep_for(chrono::milliseconds(5));
         } while (needLoop);
         size = readSize;
         return true;
@@ -2078,7 +2078,7 @@ private:
             }
 
             if (idleLoop)
-                this_thread::sleep_for(chrono::milliseconds(1));
+                this_thread::sleep_for(chrono::milliseconds(5));
         }
         if (avfrmLoaded)
             av_frame_unref(&avfrm);
@@ -2202,7 +2202,7 @@ private:
             }
 
             if (idleLoop)
-                this_thread::sleep_for(chrono::milliseconds(1));
+                this_thread::sleep_for(chrono::milliseconds(5));
         }
         m_logger->Log(DEBUG) << "Leave GenerateAudioSamplesThreadProc()." << endl;
     }
