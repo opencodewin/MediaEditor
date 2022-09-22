@@ -339,8 +339,12 @@ public:
                 }
                 m_audencfrm->format = m_audencSmpfmt;
                 m_audencfrm->sample_rate = m_audencCtx->sample_rate;
+#if !defined(FF_API_OLD_CHANNEL_LAYOUT) && (LIBAVUTIL_VERSION_MAJOR < 58)
                 m_audencfrm->channels = m_audencCtx->channels;
                 m_audencfrm->channel_layout = m_audencCtx->channel_layout;
+#else
+                m_audencfrm->ch_layout = m_audencCtx->ch_layout;
+#endif
                 m_audencfrm->nb_samples = m_audencFrameSamples;
                 fferr = av_frame_get_buffer(m_audencfrm.get(), 0);
                 if (fferr < 0)
@@ -703,8 +707,12 @@ private:
         }
 
         m_audencCtx->sample_fmt = m_audencSmpfmt;
+#if !defined(FF_API_OLD_CHANNEL_LAYOUT) && (LIBAVUTIL_VERSION_MAJOR < 58)
         m_audencCtx->channels = channels;
         m_audencCtx->channel_layout = av_get_default_channel_layout(channels);
+#else
+        av_channel_layout_default(&m_audencCtx->ch_layout, channels);
+#endif
         m_audencCtx->sample_rate = sampleRate;
         m_audencCtx->bit_rate = bitRate;
         m_audencCtx->time_base = { 1, (int)sampleRate };
@@ -742,9 +750,15 @@ private:
 
         if (m_audinpSmpfmt != m_audencSmpfmt)
         {
+#if !defined(FF_API_OLD_CHANNEL_LAYOUT) && (LIBAVUTIL_VERSION_MAJOR < 58)
             m_swrCtx = swr_alloc_set_opts(nullptr, m_audencCtx->channel_layout, m_audencSmpfmt, m_audencCtx->sample_rate,
                 m_audencCtx->channel_layout, m_audinpSmpfmt, m_audencCtx->sample_rate, 0, nullptr);
             if (!m_swrCtx)
+#else
+            fferr = swr_alloc_set_opts2(&m_swrCtx, &m_audencCtx->ch_layout, m_audencSmpfmt, m_audencCtx->sample_rate,
+                &m_audencCtx->ch_layout, m_audinpSmpfmt, m_audencCtx->sample_rate, 0, nullptr);
+            if (fferr < 0)
+#endif
             {
                 m_errMsg = "FAILED to setup SwrContext for audio input format conversion!";
                 return false;

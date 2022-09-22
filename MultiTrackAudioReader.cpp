@@ -52,9 +52,13 @@ public:
 
         Close();
 
-        m_outChannels = outChannels;
         m_outSampleRate = outSampleRate;
+#if !defined(FF_API_OLD_CHANNEL_LAYOUT) && (LIBAVUTIL_VERSION_MAJOR < 58)
+        m_outChannels = outChannels;
         m_outChannelLayout = av_get_default_channel_layout(outChannels);
+#else
+        av_channel_layout_default(&m_outChlyt, outChannels);
+#endif
         m_outSamplesPerFrame = outSamplesPerFrame;
         m_samplePos = 0;
         m_readPos = 0;
@@ -136,7 +140,11 @@ public:
         m_outputMats.clear();
         m_configured = false;
         m_started = false;
+#if !defined(FF_API_OLD_CHANNEL_LAYOUT) && (LIBAVUTIL_VERSION_MAJOR < 58)
         m_outChannels = 0;
+#else
+        m_outChlyt = {AV_CHANNEL_ORDER_UNSPEC, 0};
+#endif
         m_outSampleRate = 0;
         m_outSamplesPerFrame = 1024;
     }
@@ -152,7 +160,11 @@ public:
 
         TerminateMixingThread();
 
+#if !defined(FF_API_OLD_CHANNEL_LAYOUT) && (LIBAVUTIL_VERSION_MAJOR < 58)
         AudioTrackHolder hTrack(new AudioTrack(trackId, m_outChannels, m_outSampleRate));
+#else
+        AudioTrackHolder hTrack(new AudioTrack(trackId, m_outChlyt.nb_channels, m_outSampleRate));
+#endif
         hTrack->SetDirection(m_readForward);
         {
             lock_guard<recursive_mutex> lk2(m_trackLock);
@@ -502,8 +514,14 @@ private:
 
         ostringstream oss;
         oss << "time_base=1/" << m_outSampleRate << ":sample_rate=" << m_outSampleRate
-            << ":sample_fmt=" << av_get_sample_fmt_name(AV_SAMPLE_FMT_FLT)
-            << ":channel_layout=" << av_get_default_channel_layout(m_outChannels);
+            << ":sample_fmt=" << av_get_sample_fmt_name(AV_SAMPLE_FMT_FLT);
+#if !defined(FF_API_OLD_CHANNEL_LAYOUT) && (LIBAVUTIL_VERSION_MAJOR < 58)
+        oss << ":channel_layout=" << av_get_default_channel_layout(m_outChannels);
+#else
+        char chlytDescBuff[256] = {0};
+        av_channel_layout_describe(&m_outChlyt, chlytDescBuff, sizeof(chlytDescBuff));
+        oss << ":channel_layout=" << chlytDescBuff;
+#endif
         string bufsrcArgs = oss.str(); oss.str("");
         int fferr;
 
@@ -648,8 +666,12 @@ private:
                         {
                             SelfFreeAVFramePtr avfrm = AllocSelfFreeAVFramePtr();
                             avfrm->format = AV_SAMPLE_FMT_FLT;
+#if !defined(FF_API_OLD_CHANNEL_LAYOUT) && (LIBAVUTIL_VERSION_MAJOR < 58)
                             avfrm->channels = m_outChannels;
                             avfrm->channel_layout = m_outChannelLayout;
+#else
+                            avfrm->ch_layout = m_outChlyt;
+#endif
                             avfrm->sample_rate = m_outSampleRate;
                             avfrm->nb_samples = m_outSamplesPerFrame;
                             avfrm->pts = m_samplePos;
@@ -683,7 +705,12 @@ private:
                     if (fferr >= 0)
                     {
                         ImGui::ImMat amat;
-                        amat.create((int)m_outSamplesPerFrame, 1, (int)m_outChannels, (size_t)4);
+#if !defined(FF_API_OLD_CHANNEL_LAYOUT) && (LIBAVUTIL_VERSION_MAJOR < 58)
+                        int outChannels = m_outChannels;
+#else
+                        int outChannels = m_outChlyt.nb_channels;
+#endif
+                        amat.create((int)m_outSamplesPerFrame, 1, outChannels, (size_t)4);
                         if (amat.total()*4 == outfrm->linesize[0])
                         {
                             memcpy(amat.data, outfrm->data[0], outfrm->linesize[0]);
@@ -704,7 +731,12 @@ private:
                 else
                 {
                     ImGui::ImMat amat;
-                    amat.create((int)m_outSamplesPerFrame, 1, (int)m_outChannels, (size_t)4);
+#if !defined(FF_API_OLD_CHANNEL_LAYOUT) && (LIBAVUTIL_VERSION_MAJOR < 58)
+                        int outChannels = m_outChannels;
+#else
+                        int outChannels = m_outChlyt.nb_channels;
+#endif
+                    amat.create((int)m_outSamplesPerFrame, 1, outChannels, (size_t)4);
                     memset(amat.data, 0, amat.total()*amat.elemsize);
                     amat.time_stamp = (double)m_samplePos/m_outSampleRate;
                     if (m_readForward)
@@ -734,9 +766,13 @@ private:
     recursive_mutex m_trackLock;
     int64_t m_duration{0};
     int64_t m_samplePos{0};
-    uint32_t m_outChannels{0};
     uint32_t m_outSampleRate{0};
+#if !defined(FF_API_OLD_CHANNEL_LAYOUT) && (LIBAVUTIL_VERSION_MAJOR < 58)
+    uint32_t m_outChannels{0};
     int64_t m_outChannelLayout{0};
+#else
+    AVChannelLayout m_outChlyt{AV_CHANNEL_ORDER_UNSPEC, 0};
+#endif
     uint32_t m_blockSize{0};
     uint32_t m_outSamplesPerFrame{1024};
     int64_t m_readPos{0};

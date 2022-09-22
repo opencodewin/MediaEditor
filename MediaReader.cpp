@@ -213,8 +213,12 @@ public:
         }
         lock_guard<recursive_mutex> lk(m_apiLock);
 
-        m_swrOutChannels = outChannels;
         m_swrOutSampleRate = outSampleRate;
+#if !defined(FF_API_OLD_CHANNEL_LAYOUT) && (LIBAVUTIL_VERSION_MAJOR < 58)
+        m_swrOutChannels = outChannels;
+#else
+        av_channel_layout_default(&m_swrOutChlyt, outChannels);
+#endif
 
         m_isVideoReader = false;
         m_configured = true;
@@ -255,8 +259,12 @@ public:
             swr_free(&m_swrCtx);
             m_swrCtx = nullptr;
         }
+#if !defined(FF_API_OLD_CHANNEL_LAYOUT) && (LIBAVUTIL_VERSION_MAJOR < 58)
         m_swrOutChannels = 0;
         m_swrOutChnLyt = 0;
+#else
+        m_swrOutChlyt = {AV_CHANNEL_ORDER_UNSPEC, 0};
+#endif
         m_swrOutSampleRate = 0;
         m_swrPassThrough = false;
         if (m_auddecCtx)
@@ -617,7 +625,11 @@ public:
         const MediaInfo::AudioStream* audStream = GetAudioStream();
         if (!audStream)
             return 0;
+#if !defined(FF_API_OLD_CHANNEL_LAYOUT) && (LIBAVUTIL_VERSION_MAJOR < 58)
         return m_swrOutChannels;
+#else
+        return m_swrOutChlyt.nb_channels;
+#endif
     }
 
     uint32_t GetAudioOutSampleRate() const override
@@ -987,10 +999,11 @@ private:
         m_logger->Log(DEBUG) << "Audio decoder '" << m_auddec->name << "' opened." << endl;
 
         // setup sw resampler
+        AVSampleFormat inSmpfmt = (AVSampleFormat)m_audAvStm->codecpar->format;
+        int inSampleRate = m_audAvStm->codecpar->sample_rate;
+#if !defined(FF_API_OLD_CHANNEL_LAYOUT) && (LIBAVUTIL_VERSION_MAJOR < 58)
         int inChannels = m_audAvStm->codecpar->channels;
         uint64_t inChnLyt = m_audAvStm->codecpar->channel_layout;
-        int inSampleRate = m_audAvStm->codecpar->sample_rate;
-        AVSampleFormat inSmpfmt = (AVSampleFormat)m_audAvStm->codecpar->format;
         m_swrOutChnLyt = av_get_default_channel_layout(m_swrOutChannels);
         if (inChnLyt <= 0)
             inChnLyt = av_get_default_channel_layout(inChannels);
@@ -998,6 +1011,13 @@ private:
         {
             m_swrCtx = swr_alloc_set_opts(NULL, m_swrOutChnLyt, m_swrOutSmpfmt, m_swrOutSampleRate, inChnLyt, inSmpfmt, inSampleRate, 0, nullptr);
             if (!m_swrCtx)
+#else
+        auto& inChlyt = m_audAvStm->codecpar->ch_layout;
+        if (av_channel_layout_compare(&m_swrOutChlyt, &inChlyt) || m_swrOutSmpfmt != inSmpfmt || m_swrOutSampleRate != inSampleRate)
+        {
+            fferr = swr_alloc_set_opts2(&m_swrCtx, &m_swrOutChlyt, m_swrOutSmpfmt, m_swrOutSampleRate, &inChlyt, inSmpfmt, inSampleRate, 0, nullptr);
+            if (fferr < 0)
+#endif
             {
                 m_errMsg = "FAILED to invoke 'swr_alloc_set_opts()' to create 'SwrContext'!";
                 return false;
@@ -1011,7 +1031,11 @@ private:
             }
             m_swrOutTimebase = { 1, m_swrOutSampleRate };
             m_swrOutStartTime = av_rescale_q(m_audAvStm->start_time, m_audAvStm->time_base, m_swrOutTimebase);
+#if !defined(FF_API_OLD_CHANNEL_LAYOUT) && (LIBAVUTIL_VERSION_MAJOR < 58)
             m_swrFrmSize = av_get_bytes_per_sample(m_swrOutSmpfmt)*m_swrOutChannels;
+#else
+            m_swrFrmSize = av_get_bytes_per_sample(m_swrOutSmpfmt)*m_swrOutChlyt.nb_channels;
+#endif
             m_swrPassThrough = false;
         }
         else
@@ -2132,8 +2156,12 @@ private:
                             av_frame_copy_props(dstfrm, srcfrm);
                             dstfrm->format = (int)m_swrOutSmpfmt;
                             dstfrm->sample_rate = m_swrOutSampleRate;
+#if !defined(FF_API_OLD_CHANNEL_LAYOUT) && (LIBAVUTIL_VERSION_MAJOR < 58)
                             dstfrm->channels = m_swrOutChannels;
                             dstfrm->channel_layout = m_swrOutChnLyt;
+#else
+                            dstfrm->ch_layout = m_swrOutChlyt;
+#endif
                             dstfrm->nb_samples = swr_get_out_samples(m_swrCtx, srcfrm->nb_samples);
                             fferr = av_frame_get_buffer(dstfrm, 0);
                             if (fferr < 0)
@@ -2790,8 +2818,12 @@ private:
             swr_free(&m_swrCtx);
             m_swrCtx = nullptr;
         }
+#if !defined(FF_API_OLD_CHANNEL_LAYOUT) && (LIBAVUTIL_VERSION_MAJOR < 58)
         m_swrOutChannels = 0;
         m_swrOutChnLyt = 0;
+#else
+        m_swrOutChlyt = {AV_CHANNEL_ORDER_UNSPEC, 0};
+#endif
         m_swrOutSampleRate = 0;
         m_swrPassThrough = false;
         if (m_auddecCtx)
@@ -2860,8 +2892,12 @@ private:
     SwrContext* m_swrCtx{nullptr};
     AVSampleFormat m_swrOutSmpfmt{AV_SAMPLE_FMT_FLT};
     int m_swrOutSampleRate{0};
+#if !defined(FF_API_OLD_CHANNEL_LAYOUT) && (LIBAVUTIL_VERSION_MAJOR < 58)
     int m_swrOutChannels{0};
     int64_t m_swrOutChnLyt;
+#else
+    AVChannelLayout m_swrOutChlyt{AV_CHANNEL_ORDER_UNSPEC, 0};
+#endif
     AVRational m_swrOutTimebase;
     int64_t m_swrOutStartTime;
     uint32_t m_swrFrmSize{0};

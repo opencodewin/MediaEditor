@@ -316,8 +316,12 @@ bool MakeAVFrameCopy(AVFrame* dst, const AVFrame* src)
     dst->format = src->format;
     dst->width = src->width;
     dst->height = src->height;
+#if !defined(FF_API_OLD_CHANNEL_LAYOUT) && (LIBAVUTIL_VERSION_MAJOR < 58)
     dst->channels = src->channels;
     dst->channel_layout = src->channel_layout;
+#else
+    dst->ch_layout = src->ch_layout;
+#endif
     dst->sample_rate = dst->sample_rate;
     int fferr;
     if ((fferr = av_frame_get_buffer(dst, 0)) < 0)
