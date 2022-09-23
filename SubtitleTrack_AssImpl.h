@@ -40,7 +40,7 @@ namespace DataLayer
         SubtitleColor OutlineColor() const override { return m_outlineColor; }
         SubtitleColor BackColor() const override { return m_backColor; }
         SubtitleColor BackgroundColor() const override { return m_bgColor; }
-        ImGui::KeyPointEditor* GetKeyPoints() override { return &m_keyPoints; }
+        ImGui::KeyPointEditor* GetKeyPoints() { return &m_keyPoints; }
 
         void BuildFromAssStyle(const ASS_Style* assStyle);
         ASS_Style* GetAssStylePtr() { return &m_assStyle; }
@@ -132,6 +132,7 @@ namespace DataLayer
         bool SetBackgroundColor(const ImVec4& color) override;
         void Refresh() override;
         bool SetKeyPoints(const ImGui::KeyPointEditor& keyPoints) override;
+        ImGui::KeyPointEditor* GetKeyPoints() override;
 
         SubtitleClipHolder NewClip(int64_t startTime, int64_t duration) override;
         bool DeleteClip(SubtitleClipHolder hClip) override;

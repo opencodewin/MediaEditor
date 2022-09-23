@@ -2830,7 +2830,8 @@ void MediaTrack::Update()
         }
     }
     // update curve range
-    mKeyPoints.SetRangeX(timeline->mStart, timeline->mEnd, true);
+    if (mMttReader)
+        mMttReader->GetKeyPoints()->SetRangeX(timeline->mStart, timeline->mEnd, true);
 }
 
 void MediaTrack::CreateOverlap(int64_t start, int64_t start_clip_id, int64_t end, int64_t end_clip_id, MEDIA_TYPE type)
@@ -3311,13 +3312,6 @@ MediaTrack* MediaTrack::Load(const imgui_json::value& value, void * handle)
             }
         }
 
-        // load curve into track
-        if (value.contains("KeyPoint"))
-        {
-            auto& keypoint = value["KeyPoint"];
-            new_track->mKeyPoints.Load(keypoint);
-        }
-
         // load subtitle track
         if (value.contains("SubTrack"))
         {
@@ -3409,6 +3403,11 @@ MediaTrack* MediaTrack::Load(const imgui_json::value& value, void * handle)
                 auto& val = track["ScaleLink"];
                 if (val.is_boolean()) new_track->mTextTrackScaleLink = val.get<imgui_json::boolean>();
             }
+            if (track.contains("KeyPoint"))
+            {
+                auto& keypoint = track["KeyPoint"];
+                new_track->mMttReader->GetKeyPoints()->Load(keypoint);
+            }
             new_track->mMttReader->SetFrameSize(timeline->mWidth, timeline->mHeight);
             new_track->mMttReader->EnableFullSizeOutput(false);
             for (auto clip : new_track->m_Clips)
@@ -3455,11 +3454,6 @@ void MediaTrack::Save(imgui_json::value& value)
     }
     if (m_Overlaps.size() > 0) value["OverlapIDS"] = overlaps;
 
-    // save track curves
-    imgui_json::value keypoint;
-    mKeyPoints.Save(keypoint);
-    value["KeyPoint"] = keypoint;
-
     // save subtitle track info
     if (mMttReader)
     {
@@ -3482,6 +3476,9 @@ void MediaTrack::Save(imgui_json::value& value)
         subtrack["PrimaryColor"] = imgui_json::vec4(style.PrimaryColor().ToImVec4());
         subtrack["OutlineColor"] = imgui_json::vec4(style.OutlineColor().ToImVec4());
         subtrack["ScaleLink"] = imgui_json::boolean(mTextTrackScaleLink);
+        imgui_json::value keypoint;
+        mMttReader->GetKeyPoints()->Save(keypoint);
+        subtrack["KeyPoint"] = keypoint;
         value["SubTrack"] = subtrack;
     }
 }

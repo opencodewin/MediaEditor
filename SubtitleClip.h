@@ -74,6 +74,7 @@ namespace DataLayer
         virtual int32_t OffsetH() const = 0;
         virtual int32_t OffsetV() const = 0;
         virtual uint32_t Alignment() const = 0;
+        virtual ImGui::KeyPointEditor* GetKeyPoints() = 0;
         virtual int64_t StartTime() const = 0;
         virtual int64_t Duration() const = 0;
         virtual int64_t EndTime() const = 0;
@@ -110,6 +111,7 @@ namespace DataLayer
         virtual void SetOffsetH(int32_t value) = 0;
         virtual void SetOffsetV(int32_t value) = 0;
         virtual void SetAlignment(uint32_t value) = 0;
+        virtual void SetKeyPoints(const ImGui::KeyPointEditor& keyPoints) = 0;
         virtual void SetText(const std::string& text) = 0;
 
         virtual void CloneStyle(SubtitleClipHolder from, double wRatio = 1, double hRatio = 1) = 0;

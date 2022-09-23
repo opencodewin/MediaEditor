@@ -43,6 +43,7 @@ namespace DataLayer
         int32_t OffsetH() const override { return m_offsetH; }
         int32_t OffsetV() const override { return m_offsetV; }
         uint32_t Alignment() const override { return m_alignment; }
+        ImGui::KeyPointEditor* GetKeyPoints() override { return &m_keyPoints; }
         int64_t StartTime() const override { return m_assEvent ? m_assEvent->Start : -1; }
         int64_t Duration() const override { return m_assEvent ? m_assEvent->Duration : -1; }
         int64_t EndTime() const override { return m_assEvent ? m_assEvent->Start+m_assEvent->Duration : -1; }
@@ -80,6 +81,7 @@ namespace DataLayer
         void SetOffsetH(int32_t value) override;
         void SetOffsetV(int32_t value) override;
         void SetAlignment(uint32_t value) override;
+        void SetKeyPoints(const ImGui::KeyPointEditor& keyPoints) override;
         void SetText(const std::string& text) override;
 
         void CloneStyle(SubtitleClipHolder from, double wRatio = 1, double hRatio = 1) override;
@@ -95,10 +97,22 @@ namespace DataLayer
         std::string GenerateAssChunk();
         std::string GenerateStyledText();
         std::string GetAssText();
-        bool IsAssTextChanged() const { return m_assTextChanged; }
+        bool IsAssTextChanged() const { return m_styledTextNeedUpdate; }
         void UpdateImageAreaX(int32_t bias);
         void UpdateImageAreaY(int32_t bias);
         void InvalidateClip();
+
+    private:
+        void _SetScaleX(double value, bool clearCache = true);
+        void _SetScaleY(double value, bool clearCache = true);
+        void _SetSpacing(double value, bool clearCache = true);
+        void _SetBorderWidth(double value, bool clearCache = true);
+        void _SetShadowDepth(double value, bool clearCache = true);
+        void _SetRotationX(double value, bool clearCache = true);
+        void _SetRotationY(double value, bool clearCache = true);
+        void _SetRotationZ(double value, bool clearCache = true);
+        void _SetOffsetH(int value, bool clearCache = true);
+        void _SetOffsetV(int value, bool clearCache = true);
 
     private:
         SubtitleType m_type;
@@ -127,9 +141,10 @@ namespace DataLayer
         int32_t m_offsetH{0};
         int32_t m_offsetV{0};
         uint32_t m_alignment{2};
+        ImGui::KeyPointEditor m_keyPoints;
         std::string m_text;
         std::string m_styledText;
-        bool m_assTextChanged{false};
+        bool m_styledTextNeedUpdate{false};
         std::map<int64_t, SubtitleImage> m_renderedImages;
 
         ASS_Track* m_assTrack{nullptr};

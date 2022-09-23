@@ -53,6 +53,7 @@ namespace DataLayer
 
         // currently supported key-name: Scale, ScaleX, ScaleY, Spacing, Angle, OutlineWidth, ShadowDepth, OffsetH, OffsetV
         virtual bool SetKeyPoints(const ImGui::KeyPointEditor& keyPoints) = 0;
+        virtual ImGui::KeyPointEditor* GetKeyPoints() = 0;
 
         virtual SubtitleClipHolder NewClip(int64_t startTime, int64_t duration) = 0;
         virtual bool DeleteClip(SubtitleClipHolder hClip) = 0;

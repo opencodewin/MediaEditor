@@ -5449,75 +5449,76 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
         return false;
     bool update_preview = false;
     // Add Curve
-    auto& key_point = track->mKeyPoints;
+    auto keyPointsPtr = track->mMttReader->GetKeyPoints();
     char ** curve_type_list = nullptr;
     auto curve_type_count = ImGui::ImCurveEdit::GetCurveTypeName(curve_type_list);
     auto addCurve = [&](std::string name, float _min, float _max, float _default)
     {
-        auto found = key_point.GetCurveIndex(name);
+        auto found = keyPointsPtr->GetCurveIndex(name);
         if (found == -1)
         {
             ImU32 color; ImGui::RandomColor(color, 1.f);
-            auto curve_index = key_point.AddCurve(name, ImGui::ImCurveEdit::Smooth, color, true, _min, _max, _default);
-            key_point.AddPoint(curve_index, ImVec2(key_point.GetMin().x, _min), ImGui::ImCurveEdit::Smooth);
-            key_point.AddPoint(curve_index, ImVec2(key_point.GetMax().x, _max), ImGui::ImCurveEdit::Smooth);
-            key_point.SetCurvePointDefault(curve_index, 0);
-            key_point.SetCurvePointDefault(curve_index, 1);
+            auto curve_index = keyPointsPtr->AddCurve(name, ImGui::ImCurveEdit::Smooth, color, true, _min, _max, _default);
+            keyPointsPtr->AddPoint(curve_index, ImVec2(keyPointsPtr->GetMin().x, _min), ImGui::ImCurveEdit::Smooth);
+            keyPointsPtr->AddPoint(curve_index, ImVec2(keyPointsPtr->GetMax().x, _max), ImGui::ImCurveEdit::Smooth);
+            keyPointsPtr->SetCurvePointDefault(curve_index, 0);
+            keyPointsPtr->SetCurvePointDefault(curve_index, 1);
+            update_preview = true;
         }
     };
     // Editor Curve
     auto EditCurve = [&](std::string name) 
     {
-        int index = key_point.GetCurveIndex(name);
+        int index = keyPointsPtr->GetCurveIndex(name);
         if (index != -1)
         {
             ImGui::Separator();
             bool break_loop = false;
             ImGui::PushID(ImGui::GetID(name.c_str()));
-            auto pCount = key_point.GetCurvePointCount(index);
+            auto pCount = keyPointsPtr->GetCurvePointCount(index);
             std::string lable_id = std::string(ICON_CURVE) + " " + name + " (" + std::to_string(pCount) + " keys)" + "##text_track_curve";
             if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
             {
                 ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
-                float value = key_point.GetValue(index, timeline->currentTime);
+                float value = keyPointsPtr->GetValue(index, timeline->currentTime);
                 ImGui::BracketSquare(true); ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0, 1.0, 0.0, 1.0)); ImGui::Text("%.2f", value); ImGui::PopStyleColor();
                 
                 ImGui::PushItemWidth(60);
-                float curve_min = key_point.GetCurveMin(index);
-                float curve_max = key_point.GetCurveMax(index);
+                float curve_min = keyPointsPtr->GetCurveMin(index);
+                float curve_max = keyPointsPtr->GetCurveMax(index);
                 ImGui::BeginDisabled(true);
                 ImGui::DragFloat("##curve_text_track_min", &curve_min, 0.1f, -FLT_MAX, curve_max, "%.1f"); ImGui::ShowTooltipOnHover("Min");
                 ImGui::SameLine(0, 8);
                 ImGui::DragFloat("##curve_text_track_max", &curve_max, 0.1f, curve_min, FLT_MAX, "%.1f"); ImGui::ShowTooltipOnHover("Max");
                 ImGui::SameLine(0, 8);
                 ImGui::EndDisabled();
-                float curve_default = key_point.GetCurveDefault(index);
+                float curve_default = keyPointsPtr->GetCurveDefault(index);
                 if (ImGui::DragFloat("##curve_text_track_default", &curve_default, 0.1f, curve_min, curve_max, "%.1f"))
                 {
-                    key_point.SetCurveDefault(index, curve_default);
+                    keyPointsPtr->SetCurveDefault(index, curve_default);
                     update_preview = true;
                 } ImGui::ShowTooltipOnHover("Default");
                 ImGui::PopItemWidth();
 
                 ImGui::SameLine(0, 8);
                 ImGui::SetWindowFontScale(0.75);
-                auto curve_color = ImGui::ColorConvertU32ToFloat4(key_point.GetCurveColor(index));
+                auto curve_color = ImGui::ColorConvertU32ToFloat4(keyPointsPtr->GetCurveColor(index));
                 if (ImGui::ColorEdit4("##curve_text_track_color", (float*)&curve_color, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar))
                 {
-                    key_point.SetCurveColor(index, ImGui::ColorConvertFloat4ToU32(curve_color));
+                    keyPointsPtr->SetCurveColor(index, ImGui::ColorConvertFloat4ToU32(curve_color));
                 } ImGui::ShowTooltipOnHover("Curve Color");
                 ImGui::SetWindowFontScale(1.0);
                 ImGui::SameLine(0, 4);
-                bool is_visiable = key_point.IsVisible(index);
+                bool is_visiable = keyPointsPtr->IsVisible(index);
                 if (ImGui::Button(is_visiable ? ICON_WATCH : ICON_UNWATCH "##curve_text_track_visiable"))
                 {
                     is_visiable = !is_visiable;
-                    key_point.SetCurveVisible(index, is_visiable);
+                    keyPointsPtr->SetCurveVisible(index, is_visiable);
                 } ImGui::ShowTooltipOnHover(is_visiable ? "Hide" : "Show");
                 ImGui::SameLine(0, 4);
                 if (ImGui::Button(ICON_DELETE "##curve_text_track_delete"))
                 {
-                    key_point.DeleteCurve(index);
+                    keyPointsPtr->DeleteCurve(index);
                     update_preview = true;
                     break_loop = true;
                 } ImGui::ShowTooltipOnHover("Delete");
@@ -5526,7 +5527,7 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
                 {
                     for (int p = 0; p < pCount; p++)
                     {
-                        key_point.SetCurvePointDefault(index, p);
+                        keyPointsPtr->SetCurvePointDefault(index, p);
                     }
                     update_preview = true;
                 } ImGui::ShowTooltipOnHover("Reset");
@@ -5539,28 +5540,28 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
                         bool is_disabled = false;
                         ImGui::PushID(p);
                         ImGui::PushItemWidth(96);
-                        auto point = key_point.GetPoint(index, p);
+                        auto point = keyPointsPtr->GetPoint(index, p);
                         ImGui::Diamond(false);
                         if (p == 0 || p == pCount - 1)
                             is_disabled = true;
                         ImGui::BeginDisabled(is_disabled);
-                        if (ImGui::DragTimeMS("##curve_text_track_point_x", &point.point.x, key_point.GetMax().x / 1000.f, key_point.GetMin().x, key_point.GetMax().x, 2))
+                        if (ImGui::DragTimeMS("##curve_text_track_point_x", &point.point.x, keyPointsPtr->GetMax().x / 1000.f, keyPointsPtr->GetMin().x, keyPointsPtr->GetMax().x, 2))
                         {
-                            key_point.EditPoint(index, p, point.point, point.type);
+                            keyPointsPtr->EditPoint(index, p, point.point, point.type);
                             update_preview = true;
                         }
                         ImGui::EndDisabled();
                         ImGui::SameLine();
-                        auto speed = fabs(key_point.GetCurveMax(index) - key_point.GetCurveMin(index)) / 500;
-                        if (ImGui::DragFloat("##curve_text_track_point_y", &point.point.y, speed, key_point.GetCurveMin(index), key_point.GetCurveMax(index), "%.2f"))
+                        auto speed = fabs(keyPointsPtr->GetCurveMax(index) - keyPointsPtr->GetCurveMin(index)) / 500;
+                        if (ImGui::DragFloat("##curve_text_track_point_y", &point.point.y, speed, keyPointsPtr->GetCurveMin(index), keyPointsPtr->GetCurveMax(index), "%.2f"))
                         {
-                            key_point.EditPoint(index, p, point.point, point.type);
+                            keyPointsPtr->EditPoint(index, p, point.point, point.type);
                             update_preview = true;
                         }
                         ImGui::SameLine();
                         if (ImGui::Combo("##curve_text_track_type", (int*)&point.type, curve_type_list, curve_type_count))
                         {
-                            key_point.EditPoint(index, p, point.point, point.type);
+                            keyPointsPtr->EditPoint(index, p, point.point, point.type);
                             update_preview = true;
                         }
                         ImGui::PopItemWidth();
@@ -5601,7 +5602,7 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
     } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_font_family_default")) { track->mMttReader->SetFont(g_media_editor_settings.FontName); update_preview = true; }
     
     int offset_x = style.OffsetH();
-    int curve_pos_x_index = key_point.GetCurveIndex("OffsetH");
+    int curve_pos_x_index = keyPointsPtr->GetCurveIndex("OffsetH");
     bool has_curve_pos_x = curve_pos_x_index != -1;
     ImGui::BeginDisabled(has_curve_pos_x);
     if (ImGui::SliderInt("Font position X", &offset_x, - timeline->mWidth , timeline->mWidth, "%d"))
@@ -5613,13 +5614,13 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
     if (ImGui::ImCurveCheckEditKey("##add_curve_text_pos_x##text_track_ediror", &text_key, has_curve_pos_x, "text_pos_x##text_track_ediror",  - (float)timeline->mWidth , (float)timeline->mWidth, g_media_editor_settings.FontPosOffsetX, curve_button_offset))
     {
         if (has_curve_pos_x) addCurve("OffsetH", text_key.m_min, text_key.m_max, text_key.m_default);
-        else key_point.DeleteCurve("OffsetH");
+        else keyPointsPtr->DeleteCurve("OffsetH");
         update_preview = true;
     }
     if (has_curve_pos_x) EditCurve("OffsetH");
 
     int offset_y = style.OffsetV();
-    int curve_pos_y_index = key_point.GetCurveIndex("OffsetV");
+    int curve_pos_y_index = keyPointsPtr->GetCurveIndex("OffsetV");
     bool has_curve_pos_y = curve_pos_y_index != -1;
     ImGui::BeginDisabled(has_curve_pos_y);
     if (ImGui::SliderInt("Font position Y", &offset_y, - timeline->mHeight, timeline->mHeight, "%d"))
@@ -5631,7 +5632,7 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
     if (ImGui::ImCurveCheckEditKey("##add_curve_text_pos_y##text_track_ediror", &text_key, has_curve_pos_y, "text_pos_y##text_track_ediror",  - (float)timeline->mHeight , (float)timeline->mHeight, g_media_editor_settings.FontPosOffsetY, curve_button_offset))
     {
         if (has_curve_pos_y) addCurve("OffsetV", text_key.m_min, text_key.m_max, text_key.m_default);
-        else key_point.DeleteCurve("OffsetV");
+        else keyPointsPtr->DeleteCurve("OffsetV");
         update_preview = true;
     }
     if (has_curve_pos_y) EditCurve("OffsetV");
@@ -5651,7 +5652,7 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
     } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_font_italic_default")) { track->mMttReader->SetItalic(g_media_editor_settings.FontItalic); update_preview = true; }
     
     float scale_x = style.ScaleX();
-    int curve_scale_x_index = key_point.GetCurveIndex("ScaleX");
+    int curve_scale_x_index = keyPointsPtr->GetCurveIndex("ScaleX");
     bool has_curve_scale_x = curve_scale_x_index != -1;
     ImGui::BeginDisabled(has_curve_scale_x);
     if (ImGui::SliderFloat("Font scale X", &scale_x, 0.2, 10, "%.1f"))
@@ -5665,7 +5666,7 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
     if (ImGui::ImCurveCheckEditKey("##add_curve_text_scale_x##text_track_ediror", &text_key, has_curve_scale_x, "text_scale_x##text_track_ediror",  0.2f, 10.f, g_media_editor_settings.FontScaleX, curve_button_offset))
     {
         if (has_curve_scale_x) addCurve("ScaleX", text_key.m_min, text_key.m_max, text_key.m_default);
-        else key_point.DeleteCurve("ScaleX");
+        else keyPointsPtr->DeleteCurve("ScaleX");
         update_preview = true;
     }
     if (has_curve_scale_x) EditCurve("ScaleX");
@@ -5685,7 +5686,7 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
     draw_list->AddText(link_button_pos, link_button_color, link_button_text.c_str());
     
     float scale_y = style.ScaleY();
-    int curve_scale_y_index = key_point.GetCurveIndex("ScaleY");
+    int curve_scale_y_index = keyPointsPtr->GetCurveIndex("ScaleY");
     bool has_curve_scale_y = curve_scale_y_index != -1;
     ImGui::BeginDisabled(has_curve_scale_y);
     if (ImGui::SliderFloat("Font scale Y", &scale_y, 0.2, 10, "%.1f"))
@@ -5699,13 +5700,13 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
     if (ImGui::ImCurveCheckEditKey("##add_curve_text_scale_y##text_track_ediror", &text_key, has_curve_scale_y, "text_scale_y##text_track_ediror",  0.2f, 10.f, g_media_editor_settings.FontScaleY, curve_button_offset))
     {
         if (has_curve_scale_y) addCurve("ScaleY", text_key.m_min, text_key.m_max, text_key.m_default);
-        else key_point.DeleteCurve("ScaleY");
+        else keyPointsPtr->DeleteCurve("ScaleY");
         update_preview = true;
     }
     if (has_curve_scale_y) EditCurve("ScaleY");
     
     float spacing = style.Spacing();
-    int curve_spacing_index = key_point.GetCurveIndex("Spacing");
+    int curve_spacing_index = keyPointsPtr->GetCurveIndex("Spacing");
     bool has_curve_spacing = curve_spacing_index != -1;
     ImGui::BeginDisabled(has_curve_spacing);
     if (ImGui::SliderFloat("Font spacing", &spacing, 0.5, 5, "%.1f"))
@@ -5717,13 +5718,13 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
     if (ImGui::ImCurveCheckEditKey("##add_curve_text_spacing##text_track_ediror", &text_key, has_curve_spacing, "text_spacing##text_track_ediror",  0.5f, 5.f, g_media_editor_settings.FontSpacing, curve_button_offset))
     {
         if (has_curve_spacing) addCurve("Spacing", text_key.m_min, text_key.m_max, text_key.m_default);
-        else key_point.DeleteCurve("Spacing");
+        else keyPointsPtr->DeleteCurve("Spacing");
         update_preview = true;
     }
     if (has_curve_spacing) EditCurve("Spacing");
     
     float angle = style.Angle();
-    int curve_angle_index = key_point.GetCurveIndex("Angle");
+    int curve_angle_index = keyPointsPtr->GetCurveIndex("Angle");
     bool has_curve_angle = curve_angle_index != -1;
     ImGui::BeginDisabled(has_curve_angle);
     if (ImGui::SliderFloat("Font angle", &angle, 0, 360, "%.1f"))
@@ -5735,13 +5736,13 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
     if (ImGui::ImCurveCheckEditKey("##add_curve_text_angle##text_track_ediror", &text_key, has_curve_angle, "text_angle##text_track_ediror",  0.f, 360.f, g_media_editor_settings.FontAngle, curve_button_offset))
     {
         if (has_curve_angle) addCurve("Angle", text_key.m_min, text_key.m_max, text_key.m_default);
-        else key_point.DeleteCurve("Angle");
+        else keyPointsPtr->DeleteCurve("Angle");
         update_preview = true;
     }
     if (has_curve_angle) EditCurve("Angle");
     
     float outline_width = style.OutlineWidth();
-    int curve_outline_width_index = key_point.GetCurveIndex("OutlineWidth");
+    int curve_outline_width_index = keyPointsPtr->GetCurveIndex("OutlineWidth");
     bool has_curve_outline_width = curve_outline_width_index != -1;
     ImGui::BeginDisabled(has_curve_outline_width);
     if (ImGui::SliderFloat("Font outline width", &outline_width, 0, 5, "%.0f"))
@@ -5753,7 +5754,7 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
     if (ImGui::ImCurveCheckEditKey("##add_curve_text_outline_width##text_track_ediror", &text_key, has_curve_outline_width, "text_outline_width##text_track_ediror",  0.f, 5.f, g_media_editor_settings.FontOutlineWidth, curve_button_offset))
     {
         if (has_curve_outline_width) addCurve("OutlineWidth", text_key.m_min, text_key.m_max, text_key.m_default);
-        else key_point.DeleteCurve("OutlineWidth");
+        else keyPointsPtr->DeleteCurve("OutlineWidth");
         update_preview = true;
     }
     if (has_curve_outline_width) EditCurve("OutlineWidth");
@@ -5803,7 +5804,7 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
     ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_bordertype_default")) { track->mMttReader->SetBorderStyle(g_media_editor_settings.FontBorderType); update_preview = true; }
 
     float shadow_depth = style.ShadowDepth();
-    int curve_outline_shadow_depth = key_point.GetCurveIndex("ShadowDepth");
+    int curve_outline_shadow_depth = keyPointsPtr->GetCurveIndex("ShadowDepth");
     bool has_curve_shadow_depth = curve_outline_shadow_depth != -1;
     ImGui::BeginDisabled(has_curve_shadow_depth);
     ImGui::SliderFloat("Font shadow depth", &shadow_depth, -20.f, 20.f, "%.1f");
@@ -5817,7 +5818,7 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
     if (ImGui::ImCurveCheckEditKey("##add_curve_text_shadow_depth##text_track_ediror", &text_key, has_curve_shadow_depth, "text_shadow_depth##text_track_ediror",  -20.f, 20.f, g_media_editor_settings.FontShadowDepth, curve_button_offset))
     {
         if (has_curve_shadow_depth) addCurve("ShadowDepth", text_key.m_min, text_key.m_max, text_key.m_default);
-        else key_point.DeleteCurve("ShadowDepth");
+        else keyPointsPtr->DeleteCurve("ShadowDepth");
         update_preview = true;
     }
     if (has_curve_shadow_depth) EditCurve("ShadowDepth");
@@ -5848,6 +5849,9 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
     ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_back_color_default")) { track->mMttReader->SetBackColor(g_media_editor_settings.FontBackColor); update_preview = true; }
 
     ImGui::PopItemWidth();
+
+    if (update_preview)
+        track->mMttReader->Refresh();
     return update_preview;
 }
 
@@ -5878,7 +5882,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
     else if (editing_clip && editing_clip->mClipHolder)
     {
         editing_track = (MediaTrack *)editing_clip->mTrack;
-        current_image = editing_clip->mClipHolder->Image();
+        current_image = editing_clip->mClipHolder->Image(timeline->currentTime-editing_clip->mStart);
         default_size = ImVec2(current_image.Area().w, current_image.Area().h);
         editing_clip->mFontPosX = current_image.Area().x;
         editing_clip->mFontPosY = current_image.Area().y;
@@ -6101,7 +6105,8 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
             {
                 bool _changed = false;
                 float current_time = timeline->currentTime;
-                mouse_hold |= ImGui::ImCurveEdit::Edit(editing_track->mKeyPoints,
+                auto keyPointsPtr = editing_track->mMttReader->GetKeyPoints();
+                mouse_hold |= ImGui::ImCurveEdit::Edit(*keyPointsPtr,
                                                         sub_window_size, 
                                                         ImGui::GetID("##text_track_keypoint_editor"), 
                                                         current_time,
@@ -6114,12 +6119,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
                 if (_changed)
                 {
                     timeline->UpdatePreview();
-                    auto subreader = editing_track->mMttReader;
-                    if (subreader)
-                    {
-                        subreader->SetKeyPoints(editing_track->mKeyPoints);
-                        subreader->Refresh();
-                    }
+                    editing_track->mMttReader->Refresh();
                 }
             }
         }

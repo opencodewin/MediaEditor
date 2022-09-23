@@ -689,6 +689,11 @@ bool SubtitleTrack_AssImpl::SetKeyPoints(const ImGui::KeyPointEditor& keyPoints)
     return true;
 }
 
+ImGui::KeyPointEditor* SubtitleTrack_AssImpl::GetKeyPoints()
+{
+    return m_overrideStyle.GetKeyPoints();
+}
+
 bool SubtitleTrack_AssImpl::ChangeClipTime(SubtitleClipHolder clip, int64_t startTime, int64_t duration)
 {
     if (!clip)

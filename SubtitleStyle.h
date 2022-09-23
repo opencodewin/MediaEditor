@@ -41,6 +41,5 @@ namespace DataLayer
         virtual SubtitleColor OutlineColor() const = 0;
         virtual SubtitleColor BackColor() const = 0;
         virtual SubtitleColor BackgroundColor() const = 0;
-        virtual ImGui::KeyPointEditor* GetKeyPoints() = 0;
     };
 }
