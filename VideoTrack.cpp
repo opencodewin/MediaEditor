@@ -60,7 +60,7 @@ namespace DataLayer
     VideoClipHolder VideoTrack::AddNewClip(int64_t clipId, MediaParserHolder hParser, int64_t start, int64_t startOffset, int64_t endOffset, int64_t readPos)
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
-        VideoClipHolder hClip(new VideoClip(clipId, hParser, m_outWidth, m_outHeight, m_frameRate, start, startOffset, endOffset, readPos-start));
+        VideoClipHolder hClip = VideoClip::CreateVideoInstance(clipId, hParser, m_outWidth, m_outHeight, m_frameRate, start, startOffset, endOffset, readPos-start);
         InsertClip(hClip);
         return hClip;
     }

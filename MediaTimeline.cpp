@@ -556,10 +556,10 @@ void Clip::Cutting(int64_t pos)
                 if (filter) filter->SetKeyPoint(mFilterKeyPoints);
                 auto attribute = thisVidClip->GetTransformFilterPtr();
                 if (attribute) attribute->SetKeyPoint(mAttributeKeyPoints);
-                DataLayer::VideoClipHolder newVidClip(new DataLayer::VideoClip(
+                DataLayer::VideoClipHolder newVidClip = DataLayer::VideoClip::CreateVideoInstance(
                     new_clip->mID, thisVidClip->GetMediaParser(),
                     vidTrack->OutWidth(), vidTrack->OutHeight(), vidTrack->FrameRate(),
-                    new_clip->mStart, new_clip->mStartOffset, new_clip->mEndOffset, new_clip->mStartOffset));
+                    new_clip->mStart, new_clip->mStartOffset, new_clip->mEndOffset, new_clip->mStartOffset);
                 vidTrack->InsertClip(newVidClip);
                 timeline->UpdatePreview();
                 break;
@@ -5044,10 +5044,10 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
         DataLayer::VideoTrackHolder vidTrack = mMtvReader->GetTrackById(trackId, true);
         int64_t clipId = action["clip_id"].get<imgui_json::number>();
         Clip* clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
-        DataLayer::VideoClipHolder vidClip(new DataLayer::VideoClip(
+        DataLayer::VideoClipHolder vidClip = DataLayer::VideoClip::CreateVideoInstance(
             clip->mID, clip->mMediaParser,
             vidTrack->OutWidth(), vidTrack->OutHeight(), vidTrack->FrameRate(),
-            clip->mStart, clip->mStartOffset, clip->mEndOffset, currentTime-clip->mStart));
+            clip->mStart, clip->mStartOffset, clip->mEndOffset, currentTime-clip->mStart);
         vidTrack->InsertClip(vidClip);
         UpdatePreview();
     }

@@ -30,7 +30,6 @@ namespace DataLayer
         int64_t EndOffset() const { return m_endOffset; }
         int64_t ReadPos() const { return m_readPos; }
 
-        bool IsStartOffsetValid(int64_t startOffset);
         void ChangeStartOffset(int64_t startOffset);
         bool IsEndOffsetValid(int64_t endOffset);
         void ChangeEndOffset(int64_t endOffset);

@@ -33,66 +33,44 @@ namespace DataLayer
     // forward declaration
     struct VideoTransformFilter;
 
-    class VideoClip
+    struct VideoClip
     {
-    public:
-        VideoClip(
+        ~VideoClip() {}
+        static VideoClipHolder CreateVideoInstance(
             int64_t id, MediaParserHolder hParser,
             uint32_t outWidth, uint32_t outHeight, const MediaInfo::Ratio& frameRate,
             int64_t start, int64_t startOffset, int64_t endOffset, int64_t readpos);
-        VideoClip(const VideoClip&) = delete;
-        VideoClip(VideoClip&&) = delete;
-        VideoClip& operator=(const VideoClip&) = delete;
-        ~VideoClip();
-        VideoClipHolder Clone( uint32_t outWidth, uint32_t outHeight, const MediaInfo::Ratio& frameRate) const;
+        static VideoClipHolder CreateImageInstance(
+            int64_t id, MediaParserHolder hParser,
+            uint32_t outWidth, uint32_t outHeight, int64_t start, int64_t duration);
 
-        int64_t Id() const { return m_id; }
-        int64_t TrackId() const { return m_trackId; }
-        void SetTrackId(int64_t trackId) { m_trackId = trackId; }
-        MediaParserHolder GetMediaParser() const { return m_srcReader->GetMediaParser(); }
-        int64_t Duration() const { return m_srcDuration-m_startOffset-m_endOffset; }
-        void SetStart(double start) { m_start = start; }
-        int64_t Start() const { return m_start; }
-        int64_t End() const { return m_start+Duration(); }
-        int64_t StartOffset() const { return m_startOffset; }
-        int64_t EndOffset() const { return m_endOffset; }
-        uint32_t SrcWidth() const { return m_srcReader->GetVideoOutWidth(); }
-        uint32_t SrcHeight() const { return m_srcReader->GetVideoOutHeight(); }
-        uint32_t OutWidth() const;
-        uint32_t OutHeight() const;
-        
-        bool IsStartOffsetValid(int64_t startOffset);
-        void ChangeStartOffset(int64_t startOffset);
-        bool IsEndOffsetValid(int64_t endOffset);
-        void ChangeEndOffset(int64_t endOffset);
-        VideoFilterHolder GetFilter() const { return m_filter; }
-        void SetFilter(VideoFilterHolder filter);
-        VideoTransformFilter* GetTransformFilterPtr();
+        virtual VideoClipHolder Clone(uint32_t outWidth, uint32_t outHeight, const MediaInfo::Ratio& frameRate) const = 0;
+        virtual MediaParserHolder GetMediaParser() const = 0;
+        virtual int64_t Id() const = 0;
+        virtual int64_t TrackId() const = 0;
+        virtual int64_t Start() const = 0;
+        virtual int64_t End() const = 0;
+        virtual int64_t StartOffset() const = 0;
+        virtual int64_t EndOffset() const = 0;
+        virtual int64_t Duration() const = 0;
+        virtual uint32_t SrcWidth() const = 0;
+        virtual uint32_t SrcHeight() const = 0;
+        virtual uint32_t OutWidth() const = 0;
+        virtual uint32_t OutHeight() const = 0;
 
-        void SeekTo(int64_t pos);
-        void ReadVideoFrame(int64_t pos, std::vector<CorrelativeFrame>& frames, ImGui::ImMat& out, bool& eof);
-        void NotifyReadPos(int64_t pos);
-        void SetDirection(bool forward);
+        virtual void SetTrackId(int64_t trackId) = 0;
+        virtual void SetStart(int64_t start) = 0;
+        virtual void ChangeStartOffset(int64_t startOffset) = 0;
+        virtual void ChangeEndOffset(int64_t endOffset) = 0;
+        virtual void ReadVideoFrame(int64_t pos, std::vector<CorrelativeFrame>& frames, ImGui::ImMat& out, bool& eof) = 0;
+        virtual void SeekTo(int64_t pos) = 0;
+        virtual void NotifyReadPos(int64_t pos) = 0;
+        virtual void SetDirection(bool forward) = 0;
+        virtual void SetFilter(VideoFilterHolder filter) = 0;
+        virtual VideoFilterHolder GetFilter() const = 0;
+        virtual VideoTransformFilter* GetTransformFilterPtr() = 0;
 
         friend std::ostream& operator<<(std::ostream& os, VideoClip& clip);
-
-    private:
-        int64_t m_id;
-        int64_t m_trackId{-1};
-        MediaInfo::InfoHolder m_hInfo;
-        MediaReader* m_srcReader;
-        int64_t m_srcDuration;
-        int64_t m_start;
-        int64_t m_startOffset;
-        int64_t m_endOffset;
-        bool m_eof{false};
-        MediaInfo::Ratio m_frameRate;
-        uint32_t m_frameIndex{0};
-        VideoFilterHolder m_filter;
-        VideoTransformFilter* m_transFilter{nullptr};
-        int64_t m_wakeupRange{1000};
-        std::list<ImGui::ImMat> m_frameCache;
-        uint32_t m_frameCacheSize{4};
     };
 
     struct VideoFilter

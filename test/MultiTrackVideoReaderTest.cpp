@@ -626,11 +626,11 @@ bool Application_Frame(void * handle, bool app_will_quit)
             if (!hParser->Open(filePathName))
                 throw std::runtime_error(hParser->GetError());
             int64_t clipId = g_idIndex++;
-            VideoClipHolder hClip(new VideoClip(
+            VideoClipHolder hClip = VideoClip::CreateVideoInstance(
                 clipId, hParser,
                 hTrack->OutWidth(), hTrack->OutHeight(), hTrack->FrameRate(),
                 (int64_t)(s_addClipStart*1000), (int64_t)(s_addClipStartOffset*1000), (int64_t)(s_addClipEndOffset*1000),
-                (int64_t)((playPos-s_addClipStart)*1000)));
+                (int64_t)((playPos-s_addClipStart)*1000));
             hTrack->InsertClip(hClip);
             g_mtVidReader->Refresh();
 

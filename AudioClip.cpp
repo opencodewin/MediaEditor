@@ -48,13 +48,6 @@ namespace DataLayer
         return newInstance;
     }
 
-    bool AudioClip::IsStartOffsetValid(int64_t startOffset)
-    {
-        if (startOffset < 0 || startOffset+m_endOffset >= m_srcDuration)
-            return false;
-        return true;
-    }
-
     void AudioClip::ChangeStartOffset(int64_t startOffset)
     {
         if (startOffset == m_startOffset)
