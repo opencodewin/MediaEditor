@@ -607,7 +607,7 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
         return index;
     
     ImGuiIO &io = ImGui::GetIO();
-    const bool is_super_key_only = (io.KeyMods == ImGuiKeyModFlags_Super);
+    const bool is_super_key_only = (io.KeyMods == ImGuiModFlags_Super);
     bool single = (ImGui::IsKeyDown(ImGuiKey_LeftSuper) || ImGui::IsKeyDown(ImGuiKey_RightSuper)) && is_super_key_only;
 
     int track_index = timeline->FindTrackIndexByClipID(mID);
@@ -4548,7 +4548,7 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &view_r
                 if (clip_rect.Contains(io.MousePos) )
                 {
                     draw_list->AddRect(clip_rect.Min, clip_rect.Max, IM_COL32(255,255,255,255), 4, ImDrawFlags_RoundCornersAll, 2.0f);
-                    const bool is_shift_key_only = (io.KeyMods == ImGuiKeyModFlags_Shift);
+                    const bool is_shift_key_only = (io.KeyMods == ImGuiModFlags_Shift);
                     bool appand = (ImGui::IsKeyDown(ImGuiKey_LeftShift) || ImGui::IsKeyDown(ImGuiKey_RightShift)) && is_shift_key_only;
                     bool can_be_select = false;
                     if (is_moving && !clip->bSelected)
@@ -4565,7 +4565,7 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &view_r
                     }
                     else if (track->mExpanded && clip_area_rect.Contains(io.MousePos) && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
                     {
-                        const bool is_ctrl_key_only = (io.KeyMods == ImGuiKeyModFlags_Ctrl);
+                        const bool is_ctrl_key_only = (io.KeyMods == ImGuiModFlags_Ctrl);
                         bool b_attr_editing = ImGui::IsKeyDown(ImGuiKey_LeftCtrl) && is_ctrl_key_only;
                         track->SelectEditingClip(clip, !b_attr_editing);
                     }
@@ -5705,7 +5705,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
     static bool bCutting = false;
     static bool bCropping = false;
     static bool bMoving = false;
-    const bool is_alt_key_only = (io.KeyMods == ImGuiKeyModFlags_Alt);
+    const bool is_alt_key_only = (io.KeyMods == ImGuiModFlags_Alt);
     bCutting = ImGui::IsKeyDown(ImGuiKey_LeftAlt) && is_alt_key_only;
     bool overTrackView = false;
     bool overHorizonScrollBar = false;
