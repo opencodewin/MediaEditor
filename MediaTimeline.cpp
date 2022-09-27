@@ -5874,12 +5874,12 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 draw_list->AddLine(ImVec2(float(px), float(timeStart)), ImVec2(float(px), float(timeEnd)), COL_SLOT_V_LINE, 1);
             }
         };
-        for (auto i = timeline->GetStart(); i <= timeline->GetEnd(); i += timeStep)
+        auto _mark_start = (timeline->firstTime / timeStep) * timeStep;
+        auto _mark_end = (timeline->lastTime / timeStep) * timeStep;
+        for (auto i = _mark_start; i <= _mark_end; i += timeStep)
         {
             drawLine(i, HeadHeight);
         }
-        drawLine(timeline->GetStart(), HeadHeight);
-        drawLine(timeline->GetEnd(), HeadHeight);
 
         // cursor Arrow
         if (timeline->currentTime >= timeline->firstTime && timeline->currentTime <= timeline->GetEnd())
@@ -5932,12 +5932,10 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         // cropping rect so track bars are not visible in the legend on the left when scrolled
         draw_list->PushClipRect(childFramePos + ImVec2(float(legendWidth), 0.f), childFramePos + childFrameSize);
         // vertical time lines in content area
-        for (auto i = timeline->GetStart(); i <= timeline->GetEnd(); i += timeStep)
+        for (auto i = _mark_start; i <= _mark_end; i += timeStep)
         {
             drawLineContent(i, int(contentHeight));
         }
-        drawLineContent(timeline->GetStart(), int(contentHeight));
-        drawLineContent(timeline->GetEnd(), int(contentHeight));
 
         // track
         customHeight = 0;
