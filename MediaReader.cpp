@@ -452,7 +452,6 @@ public:
 
     bool ReadVideoFrame(double pos, ImGui::ImMat& m, bool& eof, bool wait) override
     {
-        lock_guard<recursive_mutex> lk(m_apiLock);
         if (!m_started)
         {
             m_errMsg = "This 'MediaReader' instance is NOT STARTED yet!";
@@ -464,6 +463,14 @@ public:
             eof = true;
             return false;
         }
+        while (!m_quitThread && !m_prepared)
+            this_thread::sleep_for(chrono::milliseconds(5));
+        if (m_close)
+        {
+            m_errMsg = "This 'MediaReader' instance is CLOSED!";
+            return false;
+        }
+        lock_guard<recursive_mutex> lk(m_apiLock);
         eof = false;
         if (pos == m_prevReadPos && !m_prevReadImg.empty())
         {
@@ -490,19 +497,19 @@ public:
 
     bool ReadAudioSamples(uint8_t* buf, uint32_t& size, double& pos, bool& eof, bool wait) override
     {
-        lock_guard<recursive_mutex> lk(m_apiLock);
         if (!m_started)
         {
             m_errMsg = "This 'MediaReader' instance is NOT STARTED yet!";
             return false;
         }
-        while (!m_prepared && !m_close)
+        while (!m_quitThread && !m_prepared)
             this_thread::sleep_for(chrono::milliseconds(5));
         if (m_close)
         {
             m_errMsg = "This 'MediaReader' instance is closed!";
             return false;
         }
+        lock_guard<recursive_mutex> lk(m_apiLock);
         eof = false;
 
         if (m_audReadEof)
@@ -1114,14 +1121,6 @@ private:
 
     bool ReadVideoFrame_Internal(double ts, ImGui::ImMat& m, bool wait)
     {
-        while (!m_quitThread && !m_prepared)
-            this_thread::sleep_for(chrono::milliseconds(5));
-        if (m_close)
-        {
-            m_errMsg = "This 'MediaReader' instance is CLOSED!";
-            return false;
-        }
-
         UpdateCacheWindow(ts);
 
         GopDecodeTaskHolder targetTask;
