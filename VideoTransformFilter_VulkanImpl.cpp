@@ -154,8 +154,17 @@ namespace DataLayer
 
         if (m_cropperX != 0 || m_cropperY != 0 || m_inWidth != m_outWidth || m_inHeight != m_outHeight)
         {
-            ImGui::VkMat vkmat; vkmat.type = outMat.type;
-            m_cropper.crop(outMat, vkmat, m_cropperX, m_cropperY, m_outWidth, m_outHeight);
+            ImGui::VkMat vkmat;
+            vkmat.type = outMat.type;
+            vkmat.w = m_outWidth;
+            vkmat.h = m_outHeight;
+            int srcX = m_cropperX>=0 ? m_cropperX : 0;
+            int srcY = m_cropperY>=0 ? m_cropperY : 0;
+            int srcW = srcX+m_outWidth>m_inWidth ? (int)m_inWidth-srcX : m_outWidth;
+            int srcH = srcY+m_outHeight>m_inHeight ? (int)m_inHeight-srcY : m_outHeight;
+            int dstX = m_cropperX>=0 ? 0 : -m_cropperX;
+            int dstY = m_cropperY>=0 ? 0 : -m_cropperY;
+            m_cropper.cropto(outMat, vkmat, srcX, srcY, srcW, srcH, dstX, dstY);
             vkmat.time_stamp = outMat.time_stamp;
             vkmat.rate = outMat.rate;
             vkmat.flags = outMat.flags;
