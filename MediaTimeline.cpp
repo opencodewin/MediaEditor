@@ -1285,12 +1285,12 @@ void AudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
         if (window_size.x > 0 && mWaveform->pcm[0].size() > 0)
         {
             int sample_stride = window_length / window_size.x;
-            start_offset = start_offset / sample_stride * sample_stride;
             ImGui::SetCursorScreenPos(customViewStart);
-            int zoom = ImMin(sample_stride, 32);
+            int min_zoom = ImMax(window_length >> 15, 16);
+            int zoom = ImMin(sample_stride, min_zoom);
             start_offset = start_offset / zoom * zoom; // align start_offset
-#if 1
             ImGui::PushClipRect(leftTop, rightBottom, true);
+#if 1
             ImPlot::PushStyleVar(ImPlotStyleVar_PlotPadding, {0, 0});
             ImPlot::PushStyleVar(ImPlotStyleVar_PlotBorderSize, 0.f);
             ImPlot::PushStyleColor(ImPlotCol_PlotBg, {0, 0, 0, 0});
@@ -1304,15 +1304,13 @@ void AudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
             }
             ImPlot::PopStyleColor();
             ImPlot::PopStyleVar(2);
-            ImGui::PopClipRect();
 #else
-            drawList->PushClipRect(leftTop, rightBottom, true);
             ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(1.f, 1.f, 0.f, 1.0f));
             ImGui::PlotLinesEx(id_string.c_str(), &mWaveform->pcm[0][start_offset], window_length / zoom, 0, nullptr, -wave_range / 2, wave_range / 2, window_size, sizeof(float) * zoom, false);
             ImGui::PopStyleColor();
             drawList->AddLine(ImVec2(leftTop.x, leftTop.y + draw_size.y / 2), ImVec2(rightBottom.x, leftTop.y + draw_size.y / 2), IM_COL32(255, 255, 255, 128));
-            drawList->PopClipRect();
 #endif
+            drawList->PopClipRect();
         }        
     }
 }
@@ -6062,12 +6060,12 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 draw_list->AddLine(ImVec2(float(px), float(timeStart)), ImVec2(float(px), float(timeEnd)), COL_SLOT_V_LINE, 1);
             }
         };
-        for (auto i = timeline->GetStart(); i <= timeline->GetEnd(); i += timeStep)
+        auto _mark_start = (timeline->firstTime / timeStep) * timeStep;
+        auto _mark_end = (timeline->lastTime / timeStep) * timeStep;
+        for (auto i = _mark_start; i <= _mark_end; i += timeStep)
         {
             drawLine(i, HeadHeight);
         }
-        drawLine(timeline->GetStart(), HeadHeight);
-        drawLine(timeline->GetEnd(), HeadHeight);
 
         // cursor Arrow
         if (timeline->currentTime >= timeline->firstTime && timeline->currentTime <= timeline->GetEnd())
@@ -6120,12 +6118,10 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         // cropping rect so track bars are not visible in the legend on the left when scrolled
         draw_list->PushClipRect(childFramePos + ImVec2(float(legendWidth), 0.f), childFramePos + childFrameSize);
         // vertical time lines in content area
-        for (auto i = timeline->GetStart(); i <= timeline->GetEnd(); i += timeStep)
+        for (auto i = _mark_start; i <= _mark_end; i += timeStep)
         {
             drawLineContent(i, int(contentHeight));
         }
-        drawLineContent(timeline->GetStart(), int(contentHeight));
-        drawLineContent(timeline->GetEnd(), int(contentHeight));
 
         // track
         customHeight = 0;
