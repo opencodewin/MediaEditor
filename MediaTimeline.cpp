@@ -2338,7 +2338,8 @@ void EditingAudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, 
         int sampleSize = waveform->pcm[i].size();
         if (sampleSize <= 0) continue;
         int sample_stride = sampleSize / window_size.x;
-        int zoom = ImMin(sample_stride, 32);
+        int min_zoom = ImMax(sampleSize >> 15, 16);
+        int zoom = ImMin(sample_stride, min_zoom);
         ImPlot::PushStyleVar(ImPlotStyleVar_PlotPadding, {0, 0});
         ImPlot::PushStyleVar(ImPlotStyleVar_PlotBorderSize, 0.f);
         ImPlot::PushStyleColor(ImPlotCol_PlotBg, {0, 0, 0, 0});
