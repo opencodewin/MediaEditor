@@ -124,6 +124,8 @@ namespace DataLayer
             m_affineMat.at<float>(2, 1) = beta_10 * center_x + (1 - alpha_11) * center_y - m_posOffsetV;
             m_needUpdateScaleParam = m_needUpdateRotateParam = m_needUpdatePositionParam = false;
             UpdatePassThrough();
+            m_cropperX = ((int32_t)m_inWidth-(int32_t)m_outWidth)/2;
+            m_cropperY = ((int32_t)m_inHeight-(int32_t)m_outHeight)/2;
         }
         if (m_needUpdateCropParam)
         {
@@ -147,6 +149,16 @@ namespace DataLayer
             vkmat.time_stamp = inMat.time_stamp;
             vkmat.rate = inMat.rate;
             vkmat.flags = inMat.flags;
+            outMat = vkmat;
+        }
+
+        if (m_cropperX != 0 || m_cropperY != 0 || m_inWidth != m_outWidth || m_inHeight != m_outHeight)
+        {
+            ImGui::VkMat vkmat; vkmat.type = outMat.type;
+            m_cropper.crop(outMat, vkmat, m_cropperX, m_cropperY, m_outWidth, m_outHeight);
+            vkmat.time_stamp = outMat.time_stamp;
+            vkmat.rate = outMat.rate;
+            vkmat.flags = outMat.flags;
             outMat = vkmat;
         }
         return true;
