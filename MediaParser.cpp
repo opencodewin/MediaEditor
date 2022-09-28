@@ -176,55 +176,46 @@ public:
 
     MediaInfo::InfoHolder GetMediaInfo(bool wait) override
     {
-        if (m_hMediaInfo || !wait)
-            return m_hMediaInfo;
-
-        TaskHolder hTask;
-        {
-            lock_guard<mutex> lk(m_taskTableLock);
-            auto iter = m_taskTable.find(MEDIA_INFO);
-            if (iter == m_taskTable.end())
-                return m_hMediaInfo;
-            hTask = iter->second;
-        }
-        if (!hTask)
-            return m_hMediaInfo;
-        {
-            unique_lock<mutex> lk(m_pendingTaskQLock);
-            m_taskDoneCv.wait(lk, [hTask]() { return hTask->isDone(); });
-        }
+        if (wait)
+            WaitTaskDone(MEDIA_INFO);
         return m_hMediaInfo;
     }
 
-    bool HasVideo() const override
+    bool HasVideo() override
     {
+        WaitTaskDone(MEDIA_INFO);
         return m_bestVidStmIdx >= 0;
     }
 
-    bool HasAudio() const override
+    bool HasAudio() override
     {
+        WaitTaskDone(MEDIA_INFO);
         return m_bestAudStmIdx >= 0;
     }
 
-    int GetBestVideoStreamIndex() const override
+    int GetBestVideoStreamIndex() override
     {
+        WaitTaskDone(MEDIA_INFO);
         return m_bestVidStmIdx;
     }
 
-    int GetBestAudioStreamIndex() const override
+    int GetBestAudioStreamIndex() override
     {
+        WaitTaskDone(MEDIA_INFO);
         return m_bestAudStmIdx;
     }
 
-    MediaInfo::VideoStream* GetBestVideoStream() const override
+    MediaInfo::VideoStream* GetBestVideoStream() override
     {
+        WaitTaskDone(MEDIA_INFO);
         if (m_bestVidStmIdx < 0)
             return nullptr;
         return dynamic_cast<MediaInfo::VideoStream*>(m_hMediaInfo->streams[m_bestVidStmIdx].get());
     }
 
-    MediaInfo::AudioStream* GetBestAudioStream() const override
+    MediaInfo::AudioStream* GetBestAudioStream() override
     {
+        WaitTaskDone(MEDIA_INFO);
         if (m_bestAudStmIdx < 0)
             return nullptr;
         return dynamic_cast<MediaInfo::AudioStream*>(m_hMediaInfo->streams[m_bestAudStmIdx].get());
@@ -232,23 +223,8 @@ public:
 
     SeekPointsHolder GetVideoSeekPoints(bool wait) override
     {
-        if (m_hVidSeekPoints || !wait)
-            return m_hVidSeekPoints;
-
-        TaskHolder hTask;
-        {
-            lock_guard<mutex> lk(m_taskTableLock);
-            auto iter = m_taskTable.find(VIDEO_SEEK_POINTS);
-            if (iter == m_taskTable.end())
-                return m_hVidSeekPoints;
-            hTask = iter->second;
-        }
-        if (!hTask)
-            return m_hVidSeekPoints;
-        {
-            unique_lock<mutex> lk(m_pendingTaskQLock);
-            m_taskDoneCv.wait(lk, [hTask]() { return hTask->isDone(); });
-        }
+        if (wait)
+            WaitTaskDone(VIDEO_SEEK_POINTS);
         return m_hVidSeekPoints;
     }
 
@@ -464,6 +440,22 @@ private:
             return false;
         }
         return true;
+    }
+
+    void WaitTaskDone(InfoType type)
+    {
+        TaskHolder hTask;
+        {
+            lock_guard<mutex> lk(m_taskTableLock);
+            auto iter = m_taskTable.find(type);
+            hTask = iter->second;
+        }
+        if (!hTask)
+            return;
+        {
+            unique_lock<mutex> lk(m_pendingTaskQLock);
+            m_taskDoneCv.wait(lk, [hTask]() { return hTask->isDone(); });
+        }
     }
 
 private:

@@ -24,12 +24,12 @@ struct MediaParser
     virtual std::string GetUrl() const = 0;
 
     virtual MediaInfo::InfoHolder GetMediaInfo(bool wait = true) = 0;
-    virtual bool HasVideo() const = 0;
-    virtual bool HasAudio() const = 0;
-    virtual int GetBestVideoStreamIndex() const = 0;
-    virtual int GetBestAudioStreamIndex() const = 0;
-    virtual MediaInfo::VideoStream* GetBestVideoStream() const = 0;
-    virtual MediaInfo::AudioStream* GetBestAudioStream() const = 0;
+    virtual bool HasVideo() = 0;
+    virtual bool HasAudio() = 0;
+    virtual int GetBestVideoStreamIndex() = 0;
+    virtual int GetBestAudioStreamIndex() = 0;
+    virtual MediaInfo::VideoStream* GetBestVideoStream() = 0;
+    virtual MediaInfo::AudioStream* GetBestAudioStream() = 0;
 
     using SeekPointsHolder = std::shared_ptr<std::vector<int64_t>>;
     virtual SeekPointsHolder GetVideoSeekPoints(bool wait = true) = 0;

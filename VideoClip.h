@@ -48,6 +48,7 @@ namespace DataLayer
         virtual MediaParserHolder GetMediaParser() const = 0;
         virtual int64_t Id() const = 0;
         virtual int64_t TrackId() const = 0;
+        virtual bool IsImage() const = 0;
         virtual int64_t Start() const = 0;
         virtual int64_t End() const = 0;
         virtual int64_t StartOffset() const = 0;
@@ -62,6 +63,7 @@ namespace DataLayer
         virtual void SetStart(int64_t start) = 0;
         virtual void ChangeStartOffset(int64_t startOffset) = 0;
         virtual void ChangeEndOffset(int64_t endOffset) = 0;
+        virtual void SetDuration(int64_t duration) = 0;
         virtual void ReadVideoFrame(int64_t pos, std::vector<CorrelativeFrame>& frames, ImGui::ImMat& out, bool& eof) = 0;
         virtual void SeekTo(int64_t pos) = 0;
         virtual void NotifyReadPos(int64_t pos) = 0;

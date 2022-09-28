@@ -577,6 +577,22 @@ void Clip::Cutting(int64_t pos)
                 timeline->mMtaReader->Refresh();
                 break;
             }
+            case MEDIA_PICTURE:
+            {
+                DataLayer::VideoTrackHolder vidTrack = timeline->mMtvReader->GetTrackById(track->mID);
+                vidTrack->ChangeClipRange(mID, mStartOffset, mEndOffset);
+                DataLayer::VideoClipHolder thisImgClip = vidTrack->GetClipById(mID);
+                auto filter = dynamic_cast<BluePrintVideoFilter *>(thisImgClip->GetFilter().get());
+                if (filter) filter->SetKeyPoint(mFilterKeyPoints);
+                auto attribute = thisImgClip->GetTransformFilterPtr();
+                if (attribute) attribute->SetKeyPoint(mAttributeKeyPoints);
+                DataLayer::VideoClipHolder newImgClip = DataLayer::VideoClip::CreateImageInstance(
+                    new_clip->mID, thisImgClip->GetMediaParser(),
+                    vidTrack->OutWidth(), vidTrack->OutHeight(), new_clip->mStart, new_clip->mEnd);
+                vidTrack->InsertClip(newImgClip);
+                timeline->UpdatePreview();
+                break;
+            }
             case MEDIA_TEXT:
             {
                 DataLayer::SubtitleTrackHolder subTrack = timeline->mMtvReader->GetSubtitleTrackById(track->mID);
@@ -1474,6 +1490,61 @@ Clip * ImageClip::Load(const imgui_json::value& value, void * handle)
         {
             Clip::Load(new_clip, value);
             // load image info
+            if (value.contains("ScaleType"))
+            {
+                auto& val = value["ScaleType"];
+                if (val.is_number()) new_clip->mScaleType = (DataLayer::ScaleType)val.get<imgui_json::number>();
+            }
+            if (value.contains("ScaleH"))
+            {
+                auto& val = value["ScaleH"];
+                if (val.is_number()) new_clip->mScaleH = val.get<imgui_json::number>();
+            }
+            if (value.contains("ScaleV"))
+            {
+                auto& val = value["ScaleV"];
+                if (val.is_number()) new_clip->mScaleV = val.get<imgui_json::number>();
+            }
+            if (value.contains("KeepAspectRatio"))
+            {
+                auto& val = value["KeepAspectRatio"];
+                if (val.is_boolean()) new_clip->mKeepAspectRatio = val.get<imgui_json::boolean>();
+            }
+            if (value.contains("RotationAngle"))
+            {
+                auto& val = value["RotationAngle"];
+                if (val.is_number()) new_clip->mRotationAngle = val.get<imgui_json::number>();
+            }
+            if (value.contains("PositionOffsetH"))
+            {
+                auto& val = value["PositionOffsetH"];
+                if (val.is_number()) new_clip->mPositionOffsetH = val.get<imgui_json::number>();
+            }
+            if (value.contains("PositionOffsetV"))
+            {
+                auto& val = value["PositionOffsetV"];
+                if (val.is_number()) new_clip->mPositionOffsetV = val.get<imgui_json::number>();
+            }
+            if (value.contains("CropMarginL"))
+            {
+                auto& val = value["CropMarginL"];
+                if (val.is_number()) new_clip->mCropMarginL = val.get<imgui_json::number>();
+            }
+            if (value.contains("CropMarginT"))
+            {
+                auto& val = value["CropMarginT"];
+                if (val.is_number()) new_clip->mCropMarginT = val.get<imgui_json::number>();
+            }
+            if (value.contains("CropMarginR"))
+            {
+                auto& val = value["CropMarginR"];
+                if (val.is_number()) new_clip->mCropMarginR = val.get<imgui_json::number>();
+            }
+            if (value.contains("CropMarginB"))
+            {
+                auto& val = value["CropMarginB"];
+                if (val.is_number()) new_clip->mCropMarginB = val.get<imgui_json::number>();
+            }
             return new_clip;
         }
     }
@@ -1488,6 +1559,20 @@ void ImageClip::Save(imgui_json::value& value)
 {
     Clip::Save(value);
     // save image clip info
+    value["CropMarginL"] = imgui_json::number(mCropMarginL);
+    value["CropMarginT"] = imgui_json::number(mCropMarginT);
+    value["CropMarginR"] = imgui_json::number(mCropMarginR);
+    value["CropMarginB"] = imgui_json::number(mCropMarginB);
+
+    value["PositionOffsetH"] = imgui_json::number(mPositionOffsetH);
+    value["PositionOffsetV"] = imgui_json::number(mPositionOffsetV);
+
+    value["ScaleH"] = imgui_json::number(mScaleH);
+    value["ScaleV"] = imgui_json::number(mScaleV);
+    value["ScaleType"] = imgui_json::number(mScaleType);
+    value["KeepAspectRatio"] = imgui_json::boolean(mKeepAspectRatio);
+
+    value["RotationAngle"] = imgui_json::number(mRotationAngle);
 }
 
 // TextClip Struct Member Functions
@@ -4917,6 +5002,37 @@ int TimeLine::Load(const imgui_json::value& value)
                     clip->mStart, clip->mStartOffset, clip->mEndOffset);
             }
         }
+        else if (track->mType == MEDIA_PICTURE)
+        {
+            DataLayer::VideoTrackHolder vidTrack = mMtvReader->AddTrack(track->mID);
+            for (auto clip : track->m_Clips)
+            {
+                DataLayer::VideoClipHolder hVidClip = vidTrack->AddNewClip(
+                    clip->mID, clip->mMediaParser, clip->mStart, clip->mEnd-clip->mStart, 0, 0);
+
+                BluePrintVideoFilter* bpvf = new BluePrintVideoFilter(this);
+                bpvf->SetBluePrintFromJson(clip->mFilterBP);
+                bpvf->SetKeyPoint(clip->mFilterKeyPoints);
+                DataLayer::VideoFilterHolder hFilter(bpvf);
+                hVidClip->SetFilter(hFilter);
+                auto attribute = hVidClip->GetTransformFilterPtr();
+                if (attribute)
+                {
+                    ImageClip * imgclip = (ImageClip *)clip;
+                    attribute->SetScaleType(imgclip->mScaleType);
+                    attribute->SetScaleH(imgclip->mScaleH);
+                    attribute->SetScaleV(imgclip->mScaleV);
+                    attribute->SetPositionOffsetH(imgclip->mPositionOffsetH);
+                    attribute->SetPositionOffsetV(imgclip->mPositionOffsetV);
+                    attribute->SetRotationAngle(imgclip->mRotationAngle);
+                    attribute->SetCropMarginL(imgclip->mCropMarginL);
+                    attribute->SetCropMarginT(imgclip->mCropMarginT);
+                    attribute->SetCropMarginR(imgclip->mCropMarginR);
+                    attribute->SetCropMarginB(imgclip->mCropMarginB);
+                    attribute->SetKeyPoint(imgclip->mAttributeKeyPoints);
+                }
+            }
+        }
     }
     SyncDataLayer();
     UpdatePreview();
@@ -5019,6 +5135,8 @@ void TimeLine::PerformUiActions()
             PerformVideoAction(action);
         else if (mediaType == MEDIA_AUDIO)
             PerformAudioAction(action);
+        else if (mediaType == MEDIA_PICTURE)
+            PerformImageAction(action);
         else
         {
             Logger::Log(Logger::DEBUG) << "Skip action due to unsupported MEDIA_TYPE: " << action.dump() << "." << std::endl;
@@ -5174,6 +5292,76 @@ void TimeLine::PerformAudioAction(imgui_json::value& action)
     else
     {
         Logger::Log(Logger::WARN) << "UNHANDLED UI ACTION(Video): '" << actionName << "'." << std::endl;
+    }
+}
+
+void TimeLine::PerformImageAction(imgui_json::value& action)
+{
+    std::string actionName = action["action"].get<imgui_json::string>();
+    if (actionName == "ADD_CLIP")
+    {
+        int64_t trackId = action["to_track_id"].get<imgui_json::number>();
+        DataLayer::VideoTrackHolder vidTrack = mMtvReader->GetTrackById(trackId, true);
+        int64_t clipId = action["clip_id"].get<imgui_json::number>();
+        Clip* clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
+        DataLayer::VideoClipHolder imgClip = DataLayer::VideoClip::CreateImageInstance(
+            clip->mID, clip->mMediaParser,
+            vidTrack->OutWidth(), vidTrack->OutHeight(), clip->mStart, clip->mEnd);
+        vidTrack->InsertClip(imgClip);
+        UpdatePreview();
+    }
+    else if (actionName == "MOVE_CLIP")
+    {
+        int64_t srcTrackId = action["from_track_id"].get<imgui_json::number>();
+        int64_t dstTrackId = srcTrackId;
+        if (action.contains("to_track_id"))
+            dstTrackId = action["to_track_id"].get<imgui_json::number>();
+        DataLayer::VideoTrackHolder dstVidTrack = mMtvReader->GetTrackById(dstTrackId);
+        int64_t clipId = action["clip_id"].get<imgui_json::number>();
+        Clip* clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
+        if (srcTrackId != dstTrackId)
+        {
+            DataLayer::VideoTrackHolder srcVidTrack = mMtvReader->GetTrackById(srcTrackId);
+            DataLayer::VideoClipHolder imgClip = srcVidTrack->RemoveClipById(clip->mID);
+            imgClip->SetStart(clip->mStart);
+            dstVidTrack->InsertClip(imgClip);
+        }
+        else
+        {
+            dstVidTrack->MoveClip(clip->mID, clip->mStart);
+        }
+        UpdatePreview();
+    }
+    else if (actionName == "CROP_CLIP")
+    {
+        int64_t trackId = action["from_track_id"].get<imgui_json::number>();
+        DataLayer::VideoTrackHolder vidTrack = mMtvReader->GetTrackById(trackId);
+        int64_t clipId = action["clip_id"].get<imgui_json::number>();
+        Clip* clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
+        vidTrack->ChangeClipRange(clip->mID, clip->mStart, clip->mEnd);
+        UpdatePreview();
+    }
+    else if (actionName == "REMOVE_CLIP")
+    {
+        int64_t trackId = action["from_track_id"].get<imgui_json::number>();
+        DataLayer::VideoTrackHolder vidTrack = mMtvReader->GetTrackById(trackId);
+        int64_t clipId = action["clip_id"].get<imgui_json::number>();
+        vidTrack->RemoveClipById(clipId);
+        UpdatePreview();
+    }
+    else if (actionName == "ADD_TRACK")
+    {
+        int64_t trackId = action["track_id"].get<imgui_json::number>();
+        mMtvReader->AddTrack(trackId);
+    }
+    else if (actionName == "REMOVE_TRACK")
+    {
+        int64_t trackId = action["track_id"].get<imgui_json::number>();
+        mMtvReader->RemoveTrackById(trackId);
+    }
+    else
+    {
+        Logger::Log(Logger::WARN) << "UNHANDLED UI ACTION(Image): '" << actionName << "'." << std::endl;
     }
 }
 

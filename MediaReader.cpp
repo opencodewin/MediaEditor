@@ -100,14 +100,15 @@ public:
             uint32_t outWidth, uint32_t outHeight,
             ImColorFormat outClrfmt, ImInterpolateMode rszInterp) override
     {
+        lock_guard<recursive_mutex> lk(m_apiLock);
         if (!m_opened)
         {
-            m_errMsg = "Can NOT configure a 'MediaReader' until it's been configured!";
+            m_errMsg = "This 'MediaReader' instance is NOT OPENED yet!";
             return false;
         }
         if (m_started)
         {
-            m_errMsg = "Can NOT configure a 'MediaReader' after it's already started!";
+            m_errMsg = "This 'MediaReader' instance is ALREADY STARTED!";
             return false;
         }
         if (m_vidStmIdx < 0)
@@ -115,7 +116,6 @@ public:
             m_errMsg = "Can NOT configure this 'MediaReader' as video reader since no video stream is found!";
             return false;
         }
-        lock_guard<recursive_mutex> lk(m_apiLock);
 
         auto vidStream = GetVideoStream();
         m_isImage = vidStream->isImage;
@@ -230,12 +230,12 @@ public:
 
     bool Start(bool suspend) override
     {
+        lock_guard<recursive_mutex> lk(m_apiLock);
         if (!m_configured)
         {
-            m_errMsg = "Can NOT start a 'MediaReader' until it's been configured!";
+            m_errMsg = "This 'MediaReader' instance is NOT CONFIGURED yet!";
             return false;
         }
-        lock_guard<recursive_mutex> lk(m_apiLock);
         if (m_started)
             return true;
 
@@ -249,7 +249,7 @@ public:
 
     void Close() override
     {
-        m_quit = true;
+        m_close = true;
         lock_guard<recursive_mutex> lk(m_apiLock);
         WaitAllThreadsQuit();
         FlushAllQueues();
@@ -385,6 +385,11 @@ public:
     void SetDirection(bool forward) override
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
+        if (!m_opened)
+        {
+            m_errMsg = "This 'MediaReader' instance is NOT OPENED yet!";
+            return;
+        }
         if (m_readForward != forward)
         {
             m_readForward = forward;
@@ -402,7 +407,7 @@ public:
             m_errMsg = "This 'MediaReader' is NOT started yet!";
             return;
         }
-        if (m_quit || !m_isVideoReader || m_isImage)
+        if (m_quitThread || !m_isVideoReader || m_isImage)
             return;
 
         ReleaseVideoResource();
@@ -416,7 +421,7 @@ public:
             m_errMsg = "This 'MediaReader' is NOT started yet!";
             return;
         }
-        if (!m_quit || !m_isVideoReader || m_isImage)
+        if (!m_quitThread || !m_isVideoReader || m_isImage)
             return;
 
         double readPos = m_prevReadPos;
@@ -437,7 +442,7 @@ public:
 
     bool IsSuspended() const override
     {
-        return m_started && m_quit;
+        return m_started && m_quitThread;
     }
 
     bool IsDirectionForward() const override
@@ -447,9 +452,10 @@ public:
 
     bool ReadVideoFrame(double pos, ImGui::ImMat& m, bool& eof, bool wait) override
     {
+        lock_guard<recursive_mutex> lk(m_apiLock);
         if (!m_started)
         {
-            m_errMsg = "Invalid state! Can NOT read video frame from a 'MediaReader' until it's started!";
+            m_errMsg = "This 'MediaReader' instance is NOT STARTED yet!";
             return false;
         }
         if (pos < 0 || pos > m_vidDurTs)
@@ -459,17 +465,12 @@ public:
             return false;
         }
         eof = false;
-        if ((pos == m_prevReadPos || m_quit) && !m_prevReadImg.empty())
+        if (pos == m_prevReadPos && !m_prevReadImg.empty())
         {
             m = m_prevReadImg;
             return true;
         }
-        while (!m_prepared && !m_quit)
-            this_thread::sleep_for(chrono::milliseconds(5));
-        if (m_quit)
-            return false;
 
-        lock_guard<recursive_mutex> lk(m_apiLock);
         bool success = ReadVideoFrame_Internal(pos, m, wait);
         if (success)
         {
@@ -489,15 +490,19 @@ public:
 
     bool ReadAudioSamples(uint8_t* buf, uint32_t& size, double& pos, bool& eof, bool wait) override
     {
+        lock_guard<recursive_mutex> lk(m_apiLock);
         if (!m_started)
         {
-            m_errMsg = "Invalid state! Can NOT read video frame from a 'MediaReader' until it's started!";
+            m_errMsg = "This 'MediaReader' instance is NOT STARTED yet!";
             return false;
         }
-        while (!m_prepared && !m_quit)
+        while (!m_prepared && !m_close)
             this_thread::sleep_for(chrono::milliseconds(5));
-        if (m_quit)
+        if (m_close)
+        {
+            m_errMsg = "This 'MediaReader' instance is closed!";
             return false;
+        }
         eof = false;
 
         if (m_audReadEof)
@@ -508,7 +513,6 @@ public:
             return true;
         }
 
-        lock_guard<recursive_mutex> lk(m_apiLock);
         bool success = ReadAudioSamples_Internal(buf, size, pos, wait);
         double readDur = m_swrPassThrough ?
                 (double)size/m_audFrmSize/m_swrOutSampleRate :
@@ -678,12 +682,12 @@ private:
 
     int64_t CvtVidPtsToMts(int64_t pts)
     {
-        return av_rescale_q(pts-m_vidAvStm->start_time, m_vidAvStm->time_base, MILLISEC_TIMEBASE);
+        return av_rescale_q(pts-m_vidStartTime, m_vidTimeBase, MILLISEC_TIMEBASE);
     }
 
     int64_t CvtVidMtsToPts(int64_t mts)
     {
-        return av_rescale_q(mts, MILLISEC_TIMEBASE, m_vidAvStm->time_base)+m_vidAvStm->start_time;
+        return av_rescale_q(mts, MILLISEC_TIMEBASE, m_vidTimeBase)+m_vidStartTime;
     }
 
     int64_t CvtAudPtsToMts(int64_t pts)
@@ -789,10 +793,10 @@ private:
             locked = m_apiLock.try_lock();
             if (!locked)
                 this_thread::sleep_for(chrono::milliseconds(5));
-        } while (!locked && !m_quit);
-        if (m_quit)
+        } while (!locked && !m_quitThread);
+        if (m_quitThread)
         {
-            m_errMsg = "This instance is quiting.";
+            m_logger->Log(WARN) << "Abort 'Prepare' procedure! 'm_quitThread' is set!" << endl;
             return false;
         }
 
@@ -826,6 +830,8 @@ private:
             }
 
             m_vidAvStm = m_avfmtCtx->streams[m_vidStmIdx];
+            m_vidStartTime = m_vidAvStm->start_time;
+            m_vidTimeBase = m_vidAvStm->time_base;
 
             m_viddec = avcodec_find_decoder(m_vidAvStm->codecpar->codec_id);
             if (m_viddec == nullptr)
@@ -1047,7 +1053,7 @@ private:
 
     void StartAllThreads()
     {
-        m_quit = false;
+        m_quitThread = false;
         m_demuxThread = thread(&MediaReader_Impl::DemuxThreadProc, this);
         if (m_isVideoReader)
         {
@@ -1067,7 +1073,7 @@ private:
 
     void WaitAllThreadsQuit(bool callFromReleaseProc = false)
     {
-        m_quit = true;
+        m_quitThread = true;
         if (!callFromReleaseProc && m_releaseThread.joinable())
         {
             m_releaseThread.join();
@@ -1108,12 +1114,12 @@ private:
 
     bool ReadVideoFrame_Internal(double ts, ImGui::ImMat& m, bool wait)
     {
-        if (!m_opened)
-            return false;
-        if (!m_prepared)
+        while (!m_quitThread && !m_prepared)
+            this_thread::sleep_for(chrono::milliseconds(5));
+        if (m_close)
         {
-            m.time_stamp = ts;
-            return true;
+            m_errMsg = "This 'MediaReader' instance is CLOSED!";
+            return false;
         }
 
         UpdateCacheWindow(ts);
@@ -1136,7 +1142,7 @@ private:
                     break;
             }
             this_thread::sleep_for(chrono::milliseconds(5));
-        } while (!m_quit);
+        } while (!m_close);
         if (!targetTask)
         {
             m.time_stamp = ts;
@@ -1144,8 +1150,10 @@ private:
         }
         if (targetTask->demuxEof && targetTask->frmPtsAry.empty())
         {
-            m_logger->Log(WARN) << "Current task [" << targetTask->seekPts.first << "(" << MillisecToString(CvtPtsToMts(targetTask->seekPts.first)) << "), "
-                << targetTask->seekPts.second << "(" << MillisecToString(CvtPtsToMts(targetTask->seekPts.second)) << ")) has NO FRM PTS!" << endl;
+            ostringstream oss;
+            oss << "Current task [" << targetTask->seekPts.first << "(" << MillisecToString(CvtPtsToMts(targetTask->seekPts.first)) << "), "
+                << targetTask->seekPts.second << "(" << MillisecToString(CvtPtsToMts(targetTask->seekPts.second)) << ")) has NO FRM PTS!";
+            m_errMsg = oss.str();
             return false;
         }
         if (targetTask->vfAry.empty() && !wait)
@@ -1182,12 +1190,12 @@ private:
                     break;
             }
             this_thread::sleep_for(chrono::milliseconds(5));
-        } while (!m_quit);
+        } while (!m_close);
 
         if (foundBestFrame)
         {
             if (wait)
-                while(!m_quit && !bestfrmIter->ownfrm)
+                while(!m_close && !bestfrmIter->ownfrm)
                     this_thread::sleep_for(chrono::milliseconds(5));
             if (bestfrmIter->ownfrm)
             {
@@ -1337,7 +1345,7 @@ private:
                 }
             }
 
-            needLoop = ((readTask && !readTask->cancel) || (!readTask && wait) || !idleLoop) && toReadSize > 0 && !m_audReadEof && !m_quit;
+            needLoop = ((readTask && !readTask->cancel) || (!readTask && wait) || !idleLoop) && toReadSize > 0 && !m_audReadEof && !m_close;
             if (needLoop && idleLoop)
                 this_thread::sleep_for(chrono::milliseconds(5));
         } while (needLoop);
@@ -1436,7 +1444,7 @@ private:
         lastTaskSeekPts1 = INT64_MIN;
         bool demuxEof = false;
         int stmidx = m_isVideoReader ? m_vidStmIdx : m_audStmIdx;
-        while (!m_quit)
+        while (!m_quitThread)
         {
             bool idleLoop = true;
 
@@ -1619,8 +1627,8 @@ private:
                     return false;
                 }
             }
-        } while (fferr >= 0 && !m_quit);
-        if (m_quit)
+        } while (fferr >= 0 && !m_quitThread);
+        if (m_quitThread)
             return false;
         return true;
     }
@@ -1700,7 +1708,7 @@ private:
     {
         m_logger->Log(DEBUG) << "Enter VideoDecodeThreadProc()..." << endl;
 
-        while (!m_prepared && !m_quit)
+        while (!m_prepared && !m_quitThread)
             this_thread::sleep_for(chrono::milliseconds(5));
 
         GopDecodeTaskHolder currTask;
@@ -1708,7 +1716,7 @@ private:
         bool avfrmLoaded = false;
         bool needResetDecoder = false;
         bool sentNullPacket = false;
-        while (!m_quit)
+        while (!m_quitThread)
         {
             bool idleLoop = true;
             bool quitLoop = false;
@@ -1791,7 +1799,7 @@ private:
                             idleLoop = false;
                         }
                     }
-                } while (hasOutput && !m_quit && (!currTask || !currTask->cancel));
+                } while (hasOutput && !m_quitThread && (!currTask || !currTask->cancel));
                 if (quitLoop)
                     break;
                 if (currTask && currTask->cancel)
@@ -1857,13 +1865,13 @@ private:
     {
         m_logger->Log(DEBUG) << "Enter GenerateVideoFrameThreadProc()..." << endl;
 
-        while (!m_prepared && !m_quit)
+        while (!m_prepared && !m_quitThread)
             this_thread::sleep_for(chrono::milliseconds(5));
-        if (m_quit)
+        if (m_quitThread)
             return;
 
         GopDecodeTaskHolder currTask;
-        while (!m_quit)
+        while (!m_quitThread)
         {
             bool idleLoop = true;
 
@@ -1986,15 +1994,15 @@ private:
     {
         m_logger->Log(DEBUG) << "Enter AudioDecodeThreadProc()..." << endl;
 
-        while (!m_prepared && !m_quit)
+        while (!m_prepared && !m_quitThread)
             this_thread::sleep_for(chrono::milliseconds(5));
-        if (m_quit)
+        if (m_quitThread)
             return;
 
         GopDecodeTaskHolder currTask;
         AVFrame avfrm = {0};
         bool avfrmLoaded = false;
-        while (!m_quit)
+        while (!m_quitThread)
         {
             bool idleLoop = true;
             bool quitLoop = false;
@@ -2067,7 +2075,7 @@ private:
                         avfrmLoaded = false;
                         idleLoop = false;
                     }
-                } while (hasOutput && !m_quit);
+                } while (hasOutput && !m_quitThread);
                 if (quitLoop)
                     break;
 
@@ -2113,15 +2121,15 @@ private:
     {
         m_logger->Log(DEBUG) << "Enter GenerateAudioSamplesThreadProc()..." << endl;
 
-        while (!m_prepared && !m_quit)
+        while (!m_prepared && !m_quitThread)
             this_thread::sleep_for(chrono::milliseconds(5));
-        if (m_quit)
+        if (m_quitThread)
             return;
 
         uint32_t audFrmSize = m_swrFrmSize;
         GopDecodeTaskHolder currTask;
         AVRational audTimebase = m_audAvStm->time_base;
-        while (!m_quit)
+        while (!m_quitThread)
         {
             bool idleLoop = true;
 
@@ -2762,7 +2770,7 @@ private:
             m_logger->Log(VERBOSE) << "Quit 'ReleaseResourceProc()', this only works for IMAGE source." << endl;
             return;
         }
-        while (!m_quit)
+        while (!m_quitThread)
         {
             bool imgEof = true;
             {
@@ -2792,12 +2800,12 @@ private:
             else
                 break;
         }
-        if (!m_quit)
+        if (!m_quitThread)
         {
             bool lockAquired = false;
-            while (!(lockAquired = m_apiLock.try_lock()) && !m_quit)
+            while (!(lockAquired = m_apiLock.try_lock()) && !m_quitThread)
                 this_thread::sleep_for(chrono::milliseconds(5));
-            if (m_quit)
+            if (m_quitThread)
             {
                 if (lockAquired) m_apiLock.unlock();
                 return;
@@ -2811,7 +2819,8 @@ private:
     void ReleaseResources(bool callFromReleaseProc = false)
     {
         WaitAllThreadsQuit(callFromReleaseProc);
-        FlushAllQueues();
+        // DO NOT flush task queues here! Because ReadVideoFrame still need to find the target image frame in the queue.
+        // This is only for IMAGE instance.
 
         if (m_swrCtx)
         {
@@ -2872,7 +2881,7 @@ private:
     bool m_started{false};
     bool m_prepared{false};
     recursive_mutex m_apiLock;
-    bool m_quit{false};
+    bool m_close{false}, m_quitThread{false};
 
     AVFormatContext* m_avfmtCtx{nullptr};
     int m_vidStmIdx{-1};
@@ -2887,6 +2896,8 @@ private:
     AVPixelFormat m_vidHwPixFmt{AV_PIX_FMT_NONE};
     AVHWDeviceType m_viddecDevType{AV_HWDEVICE_TYPE_NONE};
     AVBufferRef* m_viddecHwDevCtx{nullptr};
+    int64_t m_vidStartTime{0};
+    AVRational m_vidTimeBase;
     AVCodecContext* m_auddecCtx{nullptr};
     bool m_swrPassThrough{false};
     SwrContext* m_swrCtx{nullptr};

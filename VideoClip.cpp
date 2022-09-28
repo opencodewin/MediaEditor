@@ -34,6 +34,9 @@ namespace DataLayer
             m_hInfo = hParser->GetMediaInfo();
             if (hParser->GetBestVideoStreamIndex() < 0)
                 throw invalid_argument("Argument 'hParser' has NO VIDEO stream!");
+            auto vidStm = hParser->GetBestVideoStream();
+            if (vidStm->isImage)
+                throw invalid_argument("This video stream is an IMAGE, it should be instantiated with a 'VideoClip_ImageImpl' instance!");
             m_srcReader = CreateMediaReader();
             if (!m_srcReader->Open(hParser))
                 throw runtime_error(m_srcReader->GetError());
@@ -89,6 +92,11 @@ namespace DataLayer
         int64_t TrackId() const override
         {
             return m_trackId;
+        }
+
+        bool IsImage() const override
+        {
+            return false;
         }
 
         int64_t Start() const override
@@ -166,6 +174,11 @@ namespace DataLayer
             if (m_startOffset+endOffset >= m_srcDuration)
                 throw invalid_argument("Argument 'startOffset/endOffset', clip duration is NOT LARGER than 0!");
             m_endOffset = endOffset;
+        }
+
+        void SetDuration(int64_t duration) override
+        {
+            throw runtime_error("'VideoClip_VideoImpl' dose NOT SUPPORT setting duration!");
         }
 
         void ReadVideoFrame(int64_t pos, vector<CorrelativeFrame>& frames, ImGui::ImMat& out, bool& eof) override
@@ -325,6 +338,9 @@ namespace DataLayer
             m_hInfo = hParser->GetMediaInfo();
             if (hParser->GetBestVideoStreamIndex() < 0)
                 throw invalid_argument("Argument 'hParser' has NO VIDEO stream!");
+            auto vidStm = hParser->GetBestVideoStream();
+            if (!vidStm->isImage)
+                throw invalid_argument("This video stream is NOT an IMAGE, it should be instantiated with a 'VideoClip_VideoImpl' instance!");
             m_srcReader = CreateMediaReader();
             if (!m_srcReader->Open(hParser))
                 throw runtime_error(m_srcReader->GetError());
@@ -368,6 +384,11 @@ namespace DataLayer
         int64_t TrackId() const override
         {
             return m_trackId;
+        }
+
+        bool IsImage() const override
+        {
+            return true;
         }
 
         int64_t Start() const override
@@ -430,6 +451,13 @@ namespace DataLayer
 
         void ChangeEndOffset(int64_t endOffset) override
         {}
+
+        void SetDuration(int64_t duration) override
+        {
+            if (duration <= 0)
+                throw invalid_argument("Argument 'duration' must be a positive integer!");
+            m_srcDuration = duration;
+        }
 
         void ReadVideoFrame(int64_t pos, vector<CorrelativeFrame>& frames, ImGui::ImMat& out, bool& eof) override
         {
@@ -499,6 +527,13 @@ namespace DataLayer
             int64_t start, int64_t startOffset, int64_t endOffset, int64_t readpos)
     {
         return VideoClipHolder(new VideoClip_VideoImpl(id, hParser, outWidth, outHeight, frameRate, start, startOffset, endOffset, readpos));
+    }
+
+    VideoClipHolder VideoClip::CreateImageInstance(
+            int64_t id, MediaParserHolder hParser,
+            uint32_t outWidth, uint32_t outHeight, int64_t start, int64_t duration)
+    {
+        return VideoClipHolder(new VideoClip_ImageImpl(id, hParser, outWidth, outHeight, start, duration));
     }
 
     ///////////////////////////////////////////////////////////////////////////////////////////

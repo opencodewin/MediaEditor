@@ -60,7 +60,12 @@ namespace DataLayer
     VideoClipHolder VideoTrack::AddNewClip(int64_t clipId, MediaParserHolder hParser, int64_t start, int64_t startOffset, int64_t endOffset, int64_t readPos)
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
-        VideoClipHolder hClip = VideoClip::CreateVideoInstance(clipId, hParser, m_outWidth, m_outHeight, m_frameRate, start, startOffset, endOffset, readPos-start);
+        VideoClipHolder hClip;
+        auto vidstream = hParser->GetBestVideoStream();
+        if (vidstream->isImage)
+            hClip = VideoClip::CreateImageInstance(clipId, hParser, m_outWidth, m_outHeight, start, startOffset);
+        else
+            hClip = VideoClip::CreateVideoInstance(clipId, hParser, m_outWidth, m_outHeight, m_frameRate, start, startOffset, endOffset, readPos-start);
         InsertClip(hClip);
         return hClip;
     }
@@ -121,17 +126,35 @@ namespace DataLayer
             throw invalid_argument("Invalid value for argument 'id'!");
 
         bool rangeChanged = false;
-        if (startOffset != hClip->StartOffset())
+        if (hClip->IsImage())
         {
-            int64_t bias = startOffset-hClip->StartOffset();
-            hClip->ChangeStartOffset(startOffset);
-            hClip->SetStart(hClip->Start()+bias);
-            rangeChanged = true;
+            int64_t start = startOffset>endOffset ? endOffset : startOffset;
+            if (start != hClip->Start())
+            {
+                hClip->SetStart(start);
+                rangeChanged = true;
+            }
+            int64_t duration = startOffset>endOffset ? startOffset-endOffset : endOffset-startOffset;
+            if (duration != hClip->Duration())
+            {
+                hClip->SetDuration(duration);
+                rangeChanged = true;
+            }
         }
-        if (endOffset != hClip->EndOffset())
+        else
         {
-            hClip->ChangeEndOffset(endOffset);
-            rangeChanged = true;
+            if (startOffset != hClip->StartOffset())
+            {
+                int64_t bias = startOffset-hClip->StartOffset();
+                hClip->ChangeStartOffset(startOffset);
+                hClip->SetStart(hClip->Start()+bias);
+                rangeChanged = true;
+            }
+            if (endOffset != hClip->EndOffset())
+            {
+                hClip->ChangeEndOffset(endOffset);
+                rangeChanged = true;
+            }
         }
         if (!rangeChanged)
             return;
