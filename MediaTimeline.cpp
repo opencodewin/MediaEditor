@@ -3918,7 +3918,7 @@ void TimeLine::MovingTrack(int& index, int& dst_index)
     // sync to datalayer
     if ((*iter)->mType == (*iter_dst)->mType)
     {
-        if ((*iter)->mType == MEDIA_VIDEO)
+        if ((*iter)->mType == MEDIA_VIDEO || (*iter)->mType == MEDIA_PICTURE)
         {
             if (dst_index > index)
                 mMtvReader->ChangeTrackViewOrder((*iter_dst)->mID, (*iter)->mID);
