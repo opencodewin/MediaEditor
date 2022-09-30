@@ -206,18 +206,22 @@ namespace MediaTimeline
 #define DEFAULT_TRACK_HEIGHT        0
 #define DEFAULT_VIDEO_TRACK_HEIGHT  40
 #define DEFAULT_AUDIO_TRACK_HEIGHT  20
-#define DEFAULT_IMAGE_TRACK_HEIGHT  30
 #define DEFAULT_TEXT_TRACK_HEIGHT   20
 
-enum MEDIA_TYPE : int
-{
-    MEDIA_UNKNOWN = -1,
-    MEDIA_VIDEO = 0,
-    MEDIA_AUDIO = 1,
-    MEDIA_PICTURE = 2,
-    MEDIA_TEXT = 3,
-    // ...
-};
+
+#define MEDIA_UNKNOWN               0
+#define MEDIA_VIDEO                 0x00000010
+#define MEDIA_SUBTYPE_VIDEO_IMAGE   0x00000011
+#define MEDIA_AUDIO                 0x00001000
+#define MEDIA_SUBTYPE_AUDIO_MIDI    0x00001100
+#define MEDIA_TEXT                  0x00100000
+#define MEDIA_SUBTYPE_TEXT_SUBTITLE 0x00110000
+#define MEDIA_CUSTOM                0x10000000
+
+#define IS_VIDEO(t) (t & MEDIA_VIDEO)
+#define IS_AUDIO(t) (t & MEDIA_AUDIO)
+#define IS_TEXT(t)  (t & MEDIA_TEXT)
+#define IS_SAME_TYPE(t1, t2) (t1 & t2)
 
 enum AudioVectorScopeMode  : int
 {
@@ -246,9 +250,9 @@ struct MediaItem
     int64_t mStart  {0};                    // whole Media start in ms
     int64_t mEnd    {0};                    // whole Media end in ms
     MediaOverview * mMediaOverview;
-    MEDIA_TYPE mMediaType {MEDIA_UNKNOWN};
+    uint32_t mMediaType {MEDIA_UNKNOWN};
     std::vector<ImTextureID> mMediaThumbnail;
-    MediaItem(const std::string& name, const std::string& path, MEDIA_TYPE type, void* handle);
+    MediaItem(const std::string& name, const std::string& path, uint32_t type, void* handle);
     ~MediaItem();
     void UpdateThumbnail();
 };
@@ -272,7 +276,7 @@ struct Snapshot
 struct Overlap
 {
     int64_t mID                     {-1};       // overlap ID, project saved
-    MEDIA_TYPE mType                {MEDIA_UNKNOWN};
+    uint32_t mType                  {MEDIA_UNKNOWN};
     int64_t mStart                  {0};        // overlap start time at timeline, project saved
     int64_t mEnd                    {0};        // overlap end time at timeline, project saved
     int64_t mCurrent                {0};        // overlap current time, project saved
@@ -284,7 +288,7 @@ struct Overlap
     imgui_json::value mFusionBP;                // overlap transion blueprint, project saved
     ImGui::KeyPointEditor mFusionKeyPoints;     // overlap key points, project saved
     void * mHandle                  {nullptr};  // overlap belong to timeline 
-    Overlap(int64_t start, int64_t end, int64_t clip_first, int64_t clip_second, MEDIA_TYPE type, void* handle);
+    Overlap(int64_t start, int64_t end, int64_t clip_first, int64_t clip_second, uint32_t type, void* handle);
     ~Overlap();
 
     bool IsOverlapValid();
@@ -299,7 +303,7 @@ struct Clip
     int64_t mID                 {-1};               // clip ID, project saved
     int64_t mMediaID            {-1};               // clip media ID in media bank, project saved
     int64_t mGroupID            {-1};               // Group ID clip belong, project saved
-    MEDIA_TYPE mType            {MEDIA_UNKNOWN};    // clip type, project saved
+    uint32_t mType              {MEDIA_UNKNOWN};    // clip type, project saved
     std::string mName;                              // clip name, project saved
     std::string mPath;                              // clip media path, project saved
     int64_t mStart              {0};                // clip start time in timeline, project saved
@@ -532,7 +536,7 @@ struct BaseEditingClip
 {
     void* mHandle               {nullptr};              // main timeline handle
     int64_t mID                 {-1};                   // editing clip ID
-    MEDIA_TYPE mType            {MEDIA_UNKNOWN};
+    uint32_t mType              {MEDIA_UNKNOWN};
     int64_t mStart              {0};
     int64_t mEnd                {0};
     int64_t mStartOffset        {0};                    // editing clip start time in media
@@ -540,7 +544,7 @@ struct BaseEditingClip
     int64_t mDuration           {0};
     ImVec2 mViewWndSize         {0, 0};
     bool bSeeking               {false};
-    BaseEditingClip(int64_t id, MEDIA_TYPE type, int64_t start, int64_t end, int64_t startOffset, int64_t endOffset, void* handle)
+    BaseEditingClip(int64_t id, uint32_t type, int64_t start, int64_t end, int64_t startOffset, int64_t endOffset, void* handle)
         : mID(id), mType(type), mStart(start), mEnd(end), mStartOffset(startOffset), mEndOffset(endOffset), mHandle(handle)
     {}
 
@@ -636,7 +640,7 @@ public:
 struct MediaTrack
 {
     int64_t mID             {-1};               // track ID, project saved
-    MEDIA_TYPE mType        {MEDIA_UNKNOWN};    // track type, project saved
+    uint32_t mType          {MEDIA_UNKNOWN};    // track type, project saved
     std::string mName;                          // track name, project saved
     std::vector<Clip *> m_Clips;                // track clips, project saved(id only)
     std::vector<Overlap *> m_Overlaps;          // track overlaps, project saved(id only)
@@ -652,7 +656,7 @@ struct MediaTrack
     float mPixPerMs         {0};
     DataLayer::SubtitleTrackHolder mMttReader {nullptr};
     bool mTextTrackScaleLink {true};
-    MediaTrack(std::string name, MEDIA_TYPE type, void * handle);
+    MediaTrack(std::string name, uint32_t type, void * handle);
     ~MediaTrack();
 
     bool DrawTrackControlBar(ImDrawList *draw_list, ImRect rc);
@@ -666,7 +670,7 @@ struct MediaTrack
     Clip * FindPrevClip(int64_t id);                // find prev clip in track, if not found then return null
     Clip * FindNextClip(int64_t id);                // find next clip in track, if not found then return null
     Clip * FindClips(int64_t time, int& count);     // find clips at time, count means clip number at time
-    void CreateOverlap(int64_t start, int64_t start_clip_id, int64_t end, int64_t end_clip_id, MEDIA_TYPE type);
+    void CreateOverlap(int64_t start, int64_t start_clip_id, int64_t end, int64_t end_clip_id, uint32_t type);
     Overlap * FindExistOverlap(int64_t start_clip_id, int64_t end_clip_id);
     void Update();                                  // update track clip include clip order and overlap area
     static MediaTrack* Load(const imgui_json::value& value, void * handle);
@@ -918,9 +922,9 @@ struct TimeLine
     void AlignTime(int64_t& time);
 
     int GetTrackCount() const { return (int)m_Tracks.size(); }
-    int GetTrackCount(MEDIA_TYPE type);
+    int GetTrackCount(uint32_t type);
     int GetEmptyTrackCount();
-    int NewTrack(const std::string& name, MEDIA_TYPE type, bool expand);
+    int NewTrack(const std::string& name, uint32_t type, bool expand);
     int64_t DeleteTrack(int index);
     void SelectTrack(int index);
     void MovingTrack(int& index, int& dst_index);

@@ -590,17 +590,17 @@ static bool UIPageChanged()
 
 static int EditingClipAttribute(int type, void* handle)
 {
-    if (type == MEDIA_VIDEO)
+    if (IS_VIDEO(type))
     {
         MainWindowIndex = 1;
         VideoEditorWindowIndex = 2;
     }
-    else if (type == MEDIA_AUDIO)
+    else if (IS_AUDIO(type))
     {
         MainWindowIndex = 2;
         AudioEditorWindowIndex = 0; // ？
     }
-    else if (type == MEDIA_TEXT)
+    else if (IS_TEXT(type))
     {
         MainWindowIndex = 3;
     }
@@ -610,17 +610,17 @@ static int EditingClipAttribute(int type, void* handle)
 
 static int EditingClipFilter(int type, void* handle)
 {
-    if (type == MEDIA_VIDEO)
+    if (IS_VIDEO(type))
     {
         MainWindowIndex = 1;
         VideoEditorWindowIndex = 0;
     }
-    else if (type == MEDIA_AUDIO)
+    else if (IS_AUDIO(type))
     {
         MainWindowIndex = 2;
         AudioEditorWindowIndex = 0;
     }
-    else if (type == MEDIA_TEXT)
+    else if (IS_TEXT(type))
     {
         MainWindowIndex = 3;
     }
@@ -630,12 +630,12 @@ static int EditingClipFilter(int type, void* handle)
 
 static int EditingOverlap(int type, void* handle)
 {
-    if (type == MEDIA_VIDEO)
+    if (IS_VIDEO(type))
     {
         MainWindowIndex = 1;
         VideoEditorWindowIndex = 1;
     }
-    else if (type == MEDIA_AUDIO)
+    else if (IS_AUDIO(type))
     {
         MainWindowIndex = 2;
         AudioEditorWindowIndex = 1;
@@ -1312,7 +1312,7 @@ static int LoadProject(std::string path)
             int64_t id = -1;
             std::string name;
             std::string path;
-            MediaTimeline::MEDIA_TYPE type = MEDIA_UNKNOWN;
+            uint32_t type = MEDIA_UNKNOWN;
             if (media.contains("id"))
             {
                 auto& val = media["id"];
@@ -1342,7 +1342,7 @@ static int LoadProject(std::string path)
                 auto& val = media["type"];
                 if (val.is_number())
                 {
-                    type = (MediaTimeline::MEDIA_TYPE)val.get<imgui_json::number>();
+                    type = val.get<imgui_json::number>();
                 }
             }
             
@@ -1377,19 +1377,14 @@ static void SaveProject(std::string path)
     Clip * editing_clip = timeline->FindEditingClip();
     if (editing_clip)
     {
-        switch (editing_clip->mType)
+        if (IS_VIDEO(editing_clip->mType))
         {
-            case MEDIA_VIDEO:
-            {
-                if (timeline->mVidFilterClip)
-                    timeline->mVidFilterClip->Save();
-            }
-            break;
-            case MEDIA_AUDIO:
-                if (timeline->mAudioFilterBluePrint && timeline->mAudioFilterBluePrint->m_Document->m_Blueprint.IsOpened()) 
+            if (timeline->mVidFilterClip) timeline->mVidFilterClip->Save();
+        }
+        else if (IS_AUDIO(editing_clip->mType))
+        {
+            if (timeline->mAudioFilterBluePrint && timeline->mAudioFilterBluePrint->m_Document->m_Blueprint.IsOpened()) 
                     editing_clip->mFilterBP = timeline->mAudioFilterBluePrint->m_Document->Serialize();
-            break;
-            default: break;
         }
     }
 
@@ -1397,17 +1392,13 @@ static void SaveProject(std::string path)
     Overlap * editing_overlap = timeline->FindEditingOverlap();
     if (editing_overlap)
     {
-        switch (editing_overlap->mType)
+        if (IS_VIDEO(editing_overlap->mType))
         {
-            case MEDIA_VIDEO:
-            {
-                if (timeline->mVidOverlap)
-                    timeline->mVidOverlap->Save();
-            }
-            break;
-            case MEDIA_AUDIO:
-            break;
-            default: break;
+            if (timeline->mVidOverlap) timeline->mVidOverlap->Save();
+        }
+        else if (IS_AUDIO(editing_overlap->mType))
+        {
+
         }
     }
 
@@ -1514,7 +1505,7 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
         float percent = pos_x / icon_size.x;
         ImClamp(percent, 0.0f, 1.0f);
         int texture_index = (*item)->mMediaThumbnail.size() * percent;
-        if ((*item)->mMediaType == MEDIA_PICTURE)
+        if ((*item)->mMediaType == MEDIA_SUBTYPE_VIDEO_IMAGE)
             texture_index = 0;
         if (!(*item)->mMediaThumbnail.empty())
         {
@@ -1611,14 +1602,20 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
         auto media_length = (*item)->mMediaOverview->GetMediaParser()->GetMediaInfo()->duration;
         ImGui::SetCursorScreenPos(icon_pos + ImVec2(4, 4));
         std::string type_string = "? ";
-        switch ((*item)->mMediaType)
+        if (IS_VIDEO((*item)->mMediaType))
         {
-            case MEDIA_UNKNOWN: break;
-            case MEDIA_VIDEO: type_string = std::string(ICON_FA_FILE_VIDEO) + " "; break;
-            case MEDIA_AUDIO: type_string = std::string(ICON_FA_FILE_AUDIO) + " "; break;
-            case MEDIA_PICTURE: type_string = std::string(ICON_FA_FILE_IMAGE) + " "; break;
-            case MEDIA_TEXT: type_string = std::string(ICON_FA_FILE_CODE) + " "; break;
-            default: break;
+            if ((*item)->mMediaType == MEDIA_SUBTYPE_VIDEO_IMAGE) type_string = std::string(ICON_FA_FILE_IMAGE) + " ";
+            else type_string = std::string(ICON_FA_FILE_VIDEO) + " ";
+        }
+        else if (IS_AUDIO((*item)->mMediaType))
+        {
+            if ((*item)->mMediaType == MEDIA_SUBTYPE_AUDIO_MIDI) type_string = std::string(ICON_FA_FILE_WAVEFORM) + " ";
+            else type_string = std::string(ICON_FA_FILE_AUDIO) + " ";
+        }
+        else if (IS_TEXT((*item)->mMediaType))
+        {
+            if ((*item)->mMediaType == MEDIA_SUBTYPE_TEXT_SUBTITLE) type_string = std::string(ICON_FA_FILE_CODE) + " ";
+            else type_string = std::string(ICON_FA_FILE_LINES) + " ";
         }
         type_string += ImGuiHelper::MillisecToString(media_length * 1000, 2);
         ImGui::SetWindowFontScale(0.7);
@@ -3255,7 +3252,7 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
     
     DataLayer::VideoTransformFilter * attribute = nullptr;
     Clip * editing_clip = timeline->FindEditingClip();
-    if (editing_clip && editing_clip->mType != MEDIA_VIDEO)
+    if (editing_clip && !IS_VIDEO(editing_clip->mType))
     {
         editing_clip = nullptr;
     }
@@ -3807,7 +3804,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
     BluePrint::BluePrintUI* blueprint = nullptr;
 
     Clip * editing_clip = timeline->FindEditingClip();
-    if (editing_clip && editing_clip->mType != MEDIA_VIDEO)
+    if (editing_clip && !IS_VIDEO(editing_clip->mType))
     {
         editing_clip = nullptr;
     }
@@ -4357,7 +4354,7 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
         auto clip_first = timeline->FindClipByID(editing_overlap->m_Clip.first);
         auto clip_second = timeline->FindClipByID(editing_overlap->m_Clip.second);
         if (!clip_first || !clip_second || 
-            clip_first->mType != MEDIA_VIDEO || clip_second->mType != MEDIA_VIDEO)
+            !IS_VIDEO(clip_first->mType) || !IS_VIDEO(clip_second->mType))
         {
             editing_overlap = nullptr;
         }
@@ -8231,7 +8228,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
             auto userDatas = std::string((const char*)ImGuiFileDialog::Instance()->GetUserDatas());
             if (userDatas.compare("Media Source") == 0)
             {
-                MediaTimeline::MEDIA_TYPE type = MEDIA_UNKNOWN;
+                uint32_t type = MEDIA_UNKNOWN;
                 if (!file_suffix.empty())
                 {
                     if ((file_suffix.compare(".mp4") == 0) ||
@@ -8249,6 +8246,10 @@ bool Application_Frame(void * handle, bool app_will_quit)
                             (file_suffix.compare(".dts") == 0) ||
                             (file_suffix.compare(".ogg") == 0))
                         type = MEDIA_AUDIO;
+                    else
+                        if ((file_suffix.compare(".mid") == 0) ||
+                            (file_suffix.compare(".midi") == 0))
+                        type = MEDIA_SUBTYPE_AUDIO_MIDI;
                     else 
                         if ((file_suffix.compare(".jpg") == 0) ||
                             (file_suffix.compare(".jpeg") == 0) ||
@@ -8256,7 +8257,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
                             (file_suffix.compare(".gif") == 0) ||
                             (file_suffix.compare(".tiff") == 0) ||
                             (file_suffix.compare(".webp") == 0))
-                        type = MEDIA_PICTURE;
+                        type = MEDIA_SUBTYPE_VIDEO_IMAGE;
                     else
                         if ((file_suffix.compare(".txt") == 0) ||
                             (file_suffix.compare(".srt") == 0) ||
@@ -8264,7 +8265,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
                             (file_suffix.compare(".stl") == 0) ||
                             (file_suffix.compare(".lrc") == 0) ||
                             (file_suffix.compare(".xml") == 0))
-                        type = MEDIA_TEXT;
+                        type = MEDIA_SUBTYPE_TEXT_SUBTITLE;
                 }
                 if (timeline)
                 {

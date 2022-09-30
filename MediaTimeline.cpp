@@ -106,7 +106,7 @@ namespace MediaTimeline
 /***********************************************************************************************************
  * MediaItem Struct Member Functions
  ***********************************************************************************************************/
-MediaItem::MediaItem(const std::string& name, const std::string& path, MEDIA_TYPE type, void* handle)
+MediaItem::MediaItem(const std::string& name, const std::string& path, uint32_t type, void* handle)
 {
     TimeLine * timeline = (TimeLine *)handle;
     mID = timeline ? timeline->m_IDGenerator.GenerateID() : ImGui::get_current_time_usec();
@@ -126,10 +126,17 @@ MediaItem::MediaItem(const std::string& name, const std::string& path, MEDIA_TYP
     if (mMediaOverview && mMediaOverview->IsOpened())
     {
         mStart = 0;
-        if (mMediaOverview->HasVideo() && type != MEDIA_PICTURE)
+        if (mMediaOverview->HasVideo())
         {
-            mMediaOverview->GetMediaParser()->EnableParseInfo(MediaParser::VIDEO_SEEK_POINTS);
-            mEnd = mMediaOverview->GetVideoDuration();
+            if (type == MEDIA_SUBTYPE_VIDEO_IMAGE)
+            {
+                mEnd = 5000;
+            }
+            else
+            {
+                mMediaOverview->GetMediaParser()->EnableParseInfo(MediaParser::VIDEO_SEEK_POINTS);
+                mEnd = mMediaOverview->GetVideoDuration();
+            }
         }
         else if (mMediaOverview->HasAudio())
         {
@@ -450,24 +457,9 @@ void Clip::Cutting(int64_t pos)
     int64_t new_start_offset = mStartOffset + (pos - mStart);
     // create new clip base on current clip
     Clip * new_clip = nullptr;
-    switch (mType)
+    if (IS_VIDEO(mType))
     {
-        case MEDIA_VIDEO:
-        {
-            VideoClip* vidclip = dynamic_cast<VideoClip*>(this);
-            SnapshotGenerator::ViewerHolder hViewer = vidclip->mSsViewer->CreateViewer();
-            auto new_video_clip = new VideoClip(mStart, mEnd, mMediaID, mName, mMediaParser, hViewer, timeline);
-            new_clip = new_video_clip;
-        }
-        break;
-        case MEDIA_AUDIO:
-        {
-            AudioClip* audclip = dynamic_cast<AudioClip*>(this);
-            auto new_audio_clip = new AudioClip(mStart, mEnd, mMediaID, mName, audclip->mOverview, timeline);
-            new_clip = new_audio_clip;
-        }
-        break;
-        case MEDIA_PICTURE:
+        if (mType == MEDIA_SUBTYPE_VIDEO_IMAGE)
         {
             ImageClip* imgclip = dynamic_cast<ImageClip*>(this);
             auto new_image_clip = new ImageClip(mStart, mEnd, mMediaID, mName, imgclip->mOverview, timeline);
@@ -475,20 +467,29 @@ void Clip::Cutting(int64_t pos)
             new_start_offset = 0;
             adj_end_offset = 0;
         }
-        break;
-        case MEDIA_TEXT:
+        else
         {
-            TextClip* textClip = dynamic_cast<TextClip*>(this);
-            auto new_text_clip = new TextClip(new_start, mEnd, mMediaID, mName, textClip->mText, timeline);
-            new_text_clip->SetClipDefault(textClip);
-            new_text_clip->CreateClipHold(track);
-            new_clip = new_text_clip;
-            // adj current text clip time
-            track->mMttReader->ChangeClipTime(textClip->mClipHolder, mStart, adj_end - mStart);
+            VideoClip* vidclip = dynamic_cast<VideoClip*>(this);
+            SnapshotGenerator::ViewerHolder hViewer = vidclip->mSsViewer->CreateViewer();
+            auto new_video_clip = new VideoClip(mStart, mEnd, mMediaID, mName, mMediaParser, hViewer, timeline);
+            new_clip = new_video_clip;
         }
-        break;
-        default:
-        break;
+    }
+    else if (IS_AUDIO(mType))
+    {
+        AudioClip* audclip = dynamic_cast<AudioClip*>(this);
+        auto new_audio_clip = new AudioClip(mStart, mEnd, mMediaID, mName, audclip->mOverview, timeline);
+        new_clip = new_audio_clip;
+    }
+    else if (IS_TEXT(mType))
+    {
+        TextClip* textClip = dynamic_cast<TextClip*>(this);
+        auto new_text_clip = new TextClip(new_start, mEnd, mMediaID, mName, textClip->mText, timeline);
+        new_text_clip->SetClipDefault(textClip);
+        new_text_clip->CreateClipHold(track);
+        new_clip = new_text_clip;
+        // adj current text clip time
+        track->mMttReader->ChangeClipTime(textClip->mClipHolder, mStart, adj_end - mStart);
     }
 
     // insert new clip into track and timeline
@@ -545,69 +546,47 @@ void Clip::Cutting(int64_t pos)
         timeline->Update();
 
         // sync this action to data layer
-        switch (mType)
+        if (IS_VIDEO(mType))
         {
-            case MEDIA_VIDEO:
-            {
-                DataLayer::VideoTrackHolder vidTrack = timeline->mMtvReader->GetTrackById(track->mID);
-                vidTrack->ChangeClipRange(mID, mStartOffset, mEndOffset);
-                DataLayer::VideoClipHolder thisVidClip = vidTrack->GetClipById(mID);
-                auto filter = dynamic_cast<BluePrintVideoFilter *>(thisVidClip->GetFilter().get());
-                if (filter) filter->SetKeyPoint(mFilterKeyPoints);
-                auto attribute = thisVidClip->GetTransformFilterPtr();
-                if (attribute) attribute->SetKeyPoint(mAttributeKeyPoints);
-                DataLayer::VideoClipHolder newVidClip = DataLayer::VideoClip::CreateVideoInstance(
-                    new_clip->mID, thisVidClip->GetMediaParser(),
-                    vidTrack->OutWidth(), vidTrack->OutHeight(), vidTrack->FrameRate(),
-                    new_clip->mStart, new_clip->mStartOffset, new_clip->mEndOffset, new_clip->mStartOffset);
-                vidTrack->InsertClip(newVidClip);
-                timeline->UpdatePreview();
-                break;
-            }
-            case MEDIA_AUDIO:
-            {
-                DataLayer::AudioTrackHolder audTrack = timeline->mMtaReader->GetTrackById(track->mID);
-                audTrack->ChangeClipRange(mID, mStartOffset, mEndOffset);
-                DataLayer::AudioClipHolder thisAudClip = audTrack->GetClipById(mID);
-                DataLayer::AudioClipHolder newAudClip(new DataLayer::AudioClip(
-                    new_clip->mID, thisAudClip->GetMediaParser(),
-                    audTrack->OutChannels(), audTrack->OutSampleRate(),
-                    new_clip->mStart, new_clip->mStartOffset, new_clip->mEndOffset, new_clip->mStartOffset));
-                audTrack->InsertClip(newAudClip);
-                timeline->mMtaReader->Refresh();
-                break;
-            }
-            case MEDIA_PICTURE:
-            {
-                DataLayer::VideoTrackHolder vidTrack = timeline->mMtvReader->GetTrackById(track->mID);
-                vidTrack->ChangeClipRange(mID, mStartOffset, mEndOffset);
-                DataLayer::VideoClipHolder thisImgClip = vidTrack->GetClipById(mID);
-                auto filter = dynamic_cast<BluePrintVideoFilter *>(thisImgClip->GetFilter().get());
-                if (filter) filter->SetKeyPoint(mFilterKeyPoints);
-                auto attribute = thisImgClip->GetTransformFilterPtr();
-                if (attribute) attribute->SetKeyPoint(mAttributeKeyPoints);
-                DataLayer::VideoClipHolder newImgClip = DataLayer::VideoClip::CreateImageInstance(
-                    new_clip->mID, thisImgClip->GetMediaParser(),
-                    vidTrack->OutWidth(), vidTrack->OutHeight(), new_clip->mStart, new_clip->mEnd);
-                vidTrack->InsertClip(newImgClip);
-                timeline->UpdatePreview();
-                break;
-            }
-            case MEDIA_TEXT:
-            {
-                DataLayer::SubtitleTrackHolder subTrack = timeline->mMtvReader->GetSubtitleTrackById(track->mID);
-                DataLayer::SubtitleClipHolder thisSubClip = subTrack->GetClipByTime(mStart);
-                subTrack->ChangeClipTime(thisSubClip, mStart, mEnd-mStart);
-                DataLayer::SubtitleClipHolder newSubClip = subTrack->NewClip(new_clip->mStart, new_clip->mEnd-new_clip->mStart);
-                newSubClip->SetText(thisSubClip->Text());
-                newSubClip->CloneStyle(thisSubClip);
-                break;
-            }
-            default:
-                Logger::Log(Logger::WARN) << "Unhandled 'CUTTING' action!" << std::endl;
-                break;
+            DataLayer::VideoTrackHolder vidTrack = timeline->mMtvReader->GetTrackById(track->mID);
+            vidTrack->ChangeClipRange(mID, mStartOffset, mEndOffset);
+            DataLayer::VideoClipHolder thisVidClip = vidTrack->GetClipById(mID);
+            auto filter = dynamic_cast<BluePrintVideoFilter *>(thisVidClip->GetFilter().get());
+            if (filter) filter->SetKeyPoint(mFilterKeyPoints);
+            auto attribute = thisVidClip->GetTransformFilterPtr();
+            if (attribute) attribute->SetKeyPoint(mAttributeKeyPoints);
+            DataLayer::VideoClipHolder newVidClip = DataLayer::VideoClip::CreateVideoInstance(
+                new_clip->mID, thisVidClip->GetMediaParser(),
+                vidTrack->OutWidth(), vidTrack->OutHeight(), vidTrack->FrameRate(),
+                new_clip->mStart, new_clip->mStartOffset, new_clip->mEndOffset, new_clip->mStartOffset);
+            vidTrack->InsertClip(newVidClip);
+            timeline->UpdatePreview();
         }
-
+        else if (IS_AUDIO(mType))
+        {
+            DataLayer::AudioTrackHolder audTrack = timeline->mMtaReader->GetTrackById(track->mID);
+            audTrack->ChangeClipRange(mID, mStartOffset, mEndOffset);
+            DataLayer::AudioClipHolder thisAudClip = audTrack->GetClipById(mID);
+            DataLayer::AudioClipHolder newAudClip(new DataLayer::AudioClip(
+                new_clip->mID, thisAudClip->GetMediaParser(),
+                audTrack->OutChannels(), audTrack->OutSampleRate(),
+                new_clip->mStart, new_clip->mStartOffset, new_clip->mEndOffset, new_clip->mStartOffset));
+            audTrack->InsertClip(newAudClip);
+            timeline->mMtaReader->Refresh();
+        }
+        else if (IS_TEXT(mType))
+        {
+            DataLayer::SubtitleTrackHolder subTrack = timeline->mMtvReader->GetSubtitleTrackById(track->mID);
+            DataLayer::SubtitleClipHolder thisSubClip = subTrack->GetClipByTime(mStart);
+            subTrack->ChangeClipTime(thisSubClip, mStart, mEnd-mStart);
+            DataLayer::SubtitleClipHolder newSubClip = subTrack->NewClip(new_clip->mStart, new_clip->mEnd-new_clip->mStart);
+            newSubClip->SetText(thisSubClip->Text());
+            newSubClip->CloneStyle(thisSubClip);
+        }
+        else
+        {
+            Logger::Log(Logger::WARN) << "Unhandled 'CUTTING' action!" << std::endl;
+        }
         timeline->SyncDataLayer();
     }
 }
@@ -623,8 +602,8 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
         return index;
     
     ImGuiIO &io = ImGui::GetIO();
-    const bool is_super_key_only = (io.KeyMods == ImGuiModFlags_Super);
-    bool single = (ImGui::IsKeyDown(ImGuiKey_LeftSuper) || ImGui::IsKeyDown(ImGuiKey_RightSuper)) && is_super_key_only;
+    const bool is_alt_key_only = (io.KeyMods == ImGuiMod_Alt);
+    bool single = (ImGui::IsKeyDown(ImGuiKey_LeftAlt) || ImGui::IsKeyDown(ImGuiKey_RightAlt)) && is_alt_key_only;
 
     int track_index = timeline->FindTrackIndexByClipID(mID);
     int64_t length = mEnd - mStart;
@@ -1379,8 +1358,14 @@ ImageClip::ImageClip(int64_t start, int64_t end, int64_t id, std::string name, M
 {
     if (overview)
     {
-        mType = MEDIA_PICTURE;
+        mType = MEDIA_SUBTYPE_VIDEO_IMAGE;
         mName = name;
+        const MediaInfo::VideoStream* video_stream = mOverview->GetVideoStream();
+        if (video_stream)
+        {
+            mWidth = video_stream->width;
+            mHeight = video_stream->height;
+        }
         PrepareSnapImage();
     }
 }
@@ -1393,6 +1378,7 @@ ImageClip::~ImageClip()
 
 void ImageClip::PrepareSnapImage()
 {
+    int _width = 0, _height = 0;
     if (!mOverview->GetSnapshots(mSnapImages))
     {
         Logger::Log(Logger::Error) << mOverview->GetError() << std::endl;
@@ -1401,24 +1387,29 @@ void ImageClip::PrepareSnapImage()
     if (!mSnapImages.empty() && !mSnapImages[0].empty() && !mImgTexture)
     {
         ImMatToTexture(mSnapImages[0], mImgTexture);
-        mWidth = mSnapImages[0].w;
-        mHeight = mSnapImages[0].h;
+        _width = mSnapImages[0].w;
+        _height = mSnapImages[0].h;
     }
-    if (mTrackHeight > 0 && mWidth > 0 && mHeight > 0)
+    if (mTrackHeight > 0 && _width > 0 && _height > 0)
     {
         mSnapHeight = mTrackHeight;
-        mSnapWidth = mTrackHeight*mWidth/mHeight;
+        mSnapWidth = mTrackHeight * _width / _height;
     }
 }
 
 void ImageClip::SetTrackHeight(int trackHeight)
 {
     Clip::SetTrackHeight(trackHeight);
-
-    if (mWidth > 0 && mHeight > 0)
+    int _width = 0, _height = 0;
+    if (!mSnapImages.empty())
+    {
+        _width = mSnapImages[0].w;
+        _height = mSnapImages[0].h;
+    }
+    if (_width > 0 && _height > 0)
     {
         mSnapHeight = trackHeight;
-        mSnapWidth = trackHeight*mWidth/mHeight;
+        mSnapWidth = trackHeight * _width / _height;
     }
 }
 
@@ -2360,7 +2351,7 @@ void EditingAudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, 
 
 namespace MediaTimeline
 {
-Overlap::Overlap(int64_t start, int64_t end, int64_t clip_first, int64_t clip_second, MEDIA_TYPE type, void* handle)
+Overlap::Overlap(int64_t start, int64_t end, int64_t clip_first, int64_t clip_second, uint32_t type, void* handle)
 {
     TimeLine * timeline = (TimeLine *)handle;
     mID = timeline ? timeline->m_IDGenerator.GenerateID() : ImGui::get_current_time_usec();
@@ -2759,7 +2750,7 @@ namespace MediaTimeline
 /***********************************************************************************************************
  * MediaTrack Struct Member Functions
  ***********************************************************************************************************/
-MediaTrack::MediaTrack(std::string name, MEDIA_TYPE type, void * handle)
+MediaTrack::MediaTrack(std::string name, uint32_t type, void * handle)
     : m_Handle(handle),
       mType(type)
 {
@@ -2772,28 +2763,25 @@ MediaTrack::MediaTrack(std::string name, MEDIA_TYPE type, void * handle)
         {
             auto media_count = timeline->GetTrackCount(type);
             media_count ++;
-            switch (type)
+            if (IS_VIDEO(type))
             {
-                case MEDIA_VIDEO:
-                    mName = "V:";
-                    mTrackHeight = DEFAULT_VIDEO_TRACK_HEIGHT;
-                break;
-                case MEDIA_AUDIO:
-                    mName = "A:";
-                    mTrackHeight = DEFAULT_AUDIO_TRACK_HEIGHT;
-                break;
-                case MEDIA_PICTURE:
-                    mName = "P:";
-                    mTrackHeight = DEFAULT_IMAGE_TRACK_HEIGHT;
-                break;
-                case MEDIA_TEXT:
-                    mName = "T:";
-                    mTrackHeight = DEFAULT_TEXT_TRACK_HEIGHT;
-                break;
-                default:
-                    mName = "U:";
-                    mTrackHeight = DEFAULT_TRACK_HEIGHT;
-                break;
+                mName = "V:";
+                mTrackHeight = DEFAULT_VIDEO_TRACK_HEIGHT;
+            }
+            else if (IS_AUDIO(type))
+            {
+                mName = "A:";
+                mTrackHeight = DEFAULT_AUDIO_TRACK_HEIGHT;
+            }
+            else if (IS_TEXT(type))
+            {
+                mName = "T:";
+                mTrackHeight = DEFAULT_TEXT_TRACK_HEIGHT;
+            }
+            else
+            {
+                mName = "U:";
+                mTrackHeight = DEFAULT_TRACK_HEIGHT;
             }
             mName += std::to_string(media_count);
         }
@@ -2918,7 +2906,7 @@ void MediaTrack::Update()
         mMttReader->GetKeyPoints()->SetRangeX(timeline->mStart, timeline->mEnd, true);
 }
 
-void MediaTrack::CreateOverlap(int64_t start, int64_t start_clip_id, int64_t end, int64_t end_clip_id, MEDIA_TYPE type)
+void MediaTrack::CreateOverlap(int64_t start, int64_t start_clip_id, int64_t end, int64_t end_clip_id, uint32_t type)
 {
     TimeLine * timeline = (TimeLine *)m_Handle;
     if (!timeline)
@@ -2991,7 +2979,7 @@ void MediaTrack::PushBackClip(Clip * clip)
 bool MediaTrack::CanInsertClip(Clip * clip, int64_t pos)
 {
     bool can_insert_clip = true;
-    if (!clip || mType != clip->mType)
+    if (!clip || !IS_SAME_TYPE(mType, clip->mType))
     {
         can_insert_clip = false;
     }
@@ -3309,7 +3297,7 @@ void MediaTrack::SelectEditingOverlap(Overlap * overlap)
 
 MediaTrack* MediaTrack::Load(const imgui_json::value& value, void * handle)
 {
-    MEDIA_TYPE type = MEDIA_UNKNOWN;
+    uint32_t type = MEDIA_UNKNOWN;
     std::string name;
     TimeLine * timeline = (TimeLine *)handle;
     if (!timeline)
@@ -3318,7 +3306,7 @@ MediaTrack* MediaTrack::Load(const imgui_json::value& value, void * handle)
     if (value.contains("Type"))
     {
         auto& val = value["Type"];
-        if (val.is_number()) type = (MEDIA_TYPE)val.get<imgui_json::number>();
+        if (val.is_number()) type = val.get<imgui_json::number>();
     }
     if (value.contains("Name"))
     {
@@ -3889,7 +3877,7 @@ int64_t TimeLine::DeleteTrack(int index)
     return trackId;
 }
 
-int TimeLine::NewTrack(const std::string& name, MEDIA_TYPE type, bool expand)
+int TimeLine::NewTrack(const std::string& name, uint32_t type, bool expand)
 {
     auto new_track = new MediaTrack(name, type, this);
     new_track->mPixPerMs = msPixelWidthTarget;
@@ -3916,8 +3904,7 @@ void TimeLine::MovingTrack(int& index, int& dst_index)
     }
 
     // sync to datalayer
-    if (((*iter)->mType == MEDIA_VIDEO || (*iter)->mType == MEDIA_PICTURE) &&
-        ((*iter_dst)->mType == MEDIA_VIDEO || (*iter_dst)->mType == MEDIA_PICTURE))
+    if (IS_VIDEO((*iter)->mType) && IS_VIDEO((*iter_dst)->mType))
     {
         if (dst_index > index)
             mMtvReader->ChangeTrackViewOrder((*iter_dst)->mID, (*iter)->mID);
@@ -4368,7 +4355,7 @@ int64_t TimeLine::NextClipStart(int64_t pos)
     return next_start;
 }
 
-int TimeLine::GetTrackCount(MEDIA_TYPE type)
+int TimeLine::GetTrackCount(uint32_t type)
 {
     return std::count_if(m_Tracks.begin(), m_Tracks.end(), [type](const MediaTrack * track){
         return track->mType == type;
@@ -4893,21 +4880,25 @@ int TimeLine::Load(const imgui_json::value& value)
     {
         for (auto& clip : *mediaClipArray)
         {
-            MEDIA_TYPE type = MEDIA_UNKNOWN;
+            uint32_t type = MEDIA_UNKNOWN;
             if (clip.contains("Type"))
             {
                 auto& val = clip["Type"];
-                if (val.is_number()) type = (MEDIA_TYPE)val.get<imgui_json::number>();
+                if (val.is_number()) type = val.get<imgui_json::number>();
             }
             Clip * media_clip = nullptr;
-            switch (type)
+            if (IS_VIDEO(type))
             {
-                case MEDIA_VIDEO: media_clip = VideoClip::Load(clip, this); break;
-                case MEDIA_AUDIO: media_clip = AudioClip::Load(clip, this); break;
-                case MEDIA_PICTURE: media_clip = ImageClip::Load(clip, this); break;
-                case MEDIA_TEXT: media_clip = TextClip::Load(clip, this); break;
-                default:
-                break;
+                if (type == MEDIA_SUBTYPE_VIDEO_IMAGE) media_clip = ImageClip::Load(clip, this);
+                else media_clip = VideoClip::Load(clip, this);
+            }
+            else if (IS_AUDIO(type))
+            {
+                media_clip = AudioClip::Load(clip, this);
+            }
+            else if (IS_TEXT(type))
+            {
+                media_clip = TextClip::Load(clip, this);
             }
             if (media_clip)
                 m_Clips.push_back(media_clip);
@@ -4955,7 +4946,7 @@ int TimeLine::Load(const imgui_json::value& value)
     // build data layer multi-track video reader
     for (auto track : m_Tracks)
     {
-        if (track->mType == MEDIA_VIDEO)
+        if (IS_VIDEO(track->mType))
         {
             DataLayer::VideoTrackHolder vidTrack = mMtvReader->AddTrack(track->mID);
             for (auto clip : track->m_Clips)
@@ -4987,7 +4978,7 @@ int TimeLine::Load(const imgui_json::value& value)
                 }
             }
         }
-        else if (track->mType == MEDIA_AUDIO)
+        else if (IS_AUDIO(track->mType))
         {
             DataLayer::AudioTrackHolder audTrack = mMtaReader->AddTrack(track->mID);
             for (auto clip : track->m_Clips)
@@ -4999,6 +4990,7 @@ int TimeLine::Load(const imgui_json::value& value)
                     clip->mStart, clip->mStartOffset, clip->mEndOffset);
             }
         }
+        /*
         else if (track->mType == MEDIA_PICTURE)
         {
             DataLayer::VideoTrackHolder vidTrack = mMtvReader->AddTrack(track->mID);
@@ -5030,6 +5022,7 @@ int TimeLine::Load(const imgui_json::value& value)
                 }
             }
         }
+        */
     }
     SyncDataLayer();
     UpdatePreview();
@@ -5125,14 +5118,14 @@ void TimeLine::PerformUiActions()
     for (auto& action : mUiActions)
     {
         Logger::Log(Logger::VERBOSE) << "\t" << action.dump() << std::endl;
-        MEDIA_TYPE mediaType = MEDIA_UNKNOWN;
+        uint32_t mediaType = MEDIA_UNKNOWN;
         if (action.contains("media_type"))
-            mediaType = (MEDIA_TYPE)action["media_type"].get<imgui_json::number>();
+            mediaType = action["media_type"].get<imgui_json::number>();
         if (mediaType == MEDIA_VIDEO)
             PerformVideoAction(action);
         else if (mediaType == MEDIA_AUDIO)
             PerformAudioAction(action);
-        else if (mediaType == MEDIA_PICTURE)
+        else if (mediaType == MEDIA_SUBTYPE_VIDEO_IMAGE)
             PerformImageAction(action);
         else
         {
@@ -5890,8 +5883,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
     static bool bCutting = false;
     static bool bCropping = false;
     static bool bMoving = false;
-    const bool is_alt_key_only = (io.KeyMods == ImGuiModFlags_Alt);
-    bCutting = ImGui::IsKeyDown(ImGuiKey_LeftAlt) && is_alt_key_only;
+    const bool is_super_key_only = (io.KeyMods == ImGuiMod_Super);
+    bCutting = ImGui::IsKeyDown(ImGuiKey_LeftSuper) && is_super_key_only;
     bool overTrackView = false;
     bool overHorizonScrollBar = false;
     bool overCustomDraw = false;
@@ -6406,10 +6399,6 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             if (ImGui::MenuItem("+" ICON_MEDIA_AUDIO " Insert Empty Audio Track", nullptr, nullptr))
             {
                 insertEmptyTrackType = MEDIA_AUDIO;
-            }
-            if (ImGui::MenuItem( "+" ICON_MEDIA_IMAGE " Insert Empty Image Track", nullptr, nullptr))
-            {
-                insertEmptyTrackType = MEDIA_PICTURE;
             }
             if (ImGui::MenuItem( "+" ICON_MEDIA_TEXT " Insert Empty Text Track", nullptr, nullptr))
             {
@@ -7015,7 +7004,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                     action["to_track_id"] = imgui_json::number(track->mID);
                 action["start"] = imgui_json::number(item->mStart);
                 action["end"] = imgui_json::number(item->mEnd);
-                if (item->mMediaType == MEDIA_PICTURE)
+                if (item->mMediaType == MEDIA_SUBTYPE_VIDEO_IMAGE)
                 {
                     ImageClip * new_image_clip = new ImageClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, timeline);
                     action["clip_id"] = imgui_json::number(new_image_clip->mID);
@@ -7029,7 +7018,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                     }
                     else
                     {
-                        int newTrackIndex = timeline->NewTrack("", MEDIA_PICTURE, true);
+                        int newTrackIndex = timeline->NewTrack("", MEDIA_VIDEO, true);
                         MediaTrack * newTrack = timeline->m_Tracks[newTrackIndex];
                         newTrack->InsertClip(new_image_clip, mouseTime);
                         action["to_track_id"] = imgui_json::number(newTrack->mID);
@@ -7055,7 +7044,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                         action["to_track_id"] = imgui_json::number(newTrack->mID);
                     }
                 } 
-                else if (item->mMediaType == MEDIA_TEXT)
+                else if (item->mMediaType == MEDIA_SUBTYPE_TEXT_SUBTITLE)
                 {
                     // subtitle track isn't like other media tracks, it need load clips after insert a empty track
                     // text clip don't band with media item
@@ -7234,7 +7223,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         MediaTrack* track = timeline->m_Tracks[delTrackEntry];
         if (track && !track->mLocked)
         {
-            MEDIA_TYPE trackMediaType = track->mType;
+            uint32_t trackMediaType = track->mType;
             int64_t delTrackId = timeline->DeleteTrack(delTrackEntry);
             if (delTrackId != -1)
             {
@@ -7269,6 +7258,27 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
     }
 
     // handle insert event
+    if (IS_VIDEO(insertEmptyTrackType))
+    {
+        timeline->NewTrack("", MEDIA_VIDEO, true);
+        ret = true;
+    }
+    else if (IS_AUDIO(insertEmptyTrackType))
+    {
+        timeline->NewTrack("", MEDIA_AUDIO, true);
+        ret = true;
+    }
+    else if (IS_TEXT(insertEmptyTrackType))
+    {
+        int newTrackIndex = timeline->NewTrack("", MEDIA_TEXT, true);
+        MediaTrack * newTrack = timeline->m_Tracks[newTrackIndex];
+        newTrack->mMttReader = timeline->mMtvReader->NewEmptySubtitleTrack(newTrack->mID);
+        newTrack->mMttReader->SetFont(timeline->mFontName);
+        newTrack->mMttReader->SetFrameSize(timeline->mWidth, timeline->mHeight);
+        newTrack->mMttReader->EnableFullSizeOutput(false);
+        ret = true;
+    }
+    /*
     switch(insertEmptyTrackType)
     {
         case MEDIA_UNKNOWN: break;
@@ -7281,14 +7291,14 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             ret = true;
         break;
         case MEDIA_PICTURE:
-            timeline->NewTrack("", MEDIA_PICTURE, true);
+            timeline->NewTrack("", MEDIA_SUBTYPE_VIDEO_IMAGE, true);
             ret = true;
         break;
         case MEDIA_TEXT:
         {
             int newTrackIndex = timeline->NewTrack("", MEDIA_TEXT, true);
             MediaTrack * newTrack = timeline->m_Tracks[newTrackIndex];
-            newTrack->mMttReader = timeline->mMtvReader->NewEmptySubtitleTrack(newTrack->mID); //DataLayer::SubtitleTrack::NewEmptyTrack(newTrack->mID);
+            newTrack->mMttReader = timeline->mMtvReader->NewEmptySubtitleTrack(newTrack->mID);
             newTrack->mMttReader->SetFont(timeline->mFontName);
             newTrack->mMttReader->SetFrameSize(timeline->mWidth, timeline->mHeight);
             newTrack->mMttReader->EnableFullSizeOutput(false);
@@ -7298,6 +7308,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         default:
         break;
     }
+    */
     
     // handle group event
     if (groupClipEntry.size() > 0)
