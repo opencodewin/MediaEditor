@@ -7711,12 +7711,14 @@ void Application_Initialize(void** handle)
     }
     ImGui::ResetTabLabelStyle(ImGui::ImGuiTabLabelStyle_Dark, *tab_style);
 
-    Logger::GetDefaultLogger()->SetShowLevels(Logger::DEBUG);
+    Logger::GetDefaultLogger()->SetShowLevels(Logger::INFO);
     // GetMultiTrackVideoReaderLogger()->SetShowLevels(Logger::VERBOSE);
     // GetMediaReaderLogger()->SetShowLevels(Logger::DEBUG);
     // GetSnapshotGeneratorLogger()->SetShowLevels(Logger::DEBUG);
     // GetMediaEncoderLogger()->SetShowLevels(Logger::DEBUG);
     // GetSubtitleTrackLogger()->SetShowLevels(Logger::DEBUG);
+    // GetMediaOverviewLogger()->SetShowLevels(Logger::DEBUG);
+    av_log_set_level(AV_LOG_FATAL);
 
     if (!DataLayer::InitializeSubtitleLibrary())
         std::cout << "FAILED to initialize the subtitle library!" << std::endl;

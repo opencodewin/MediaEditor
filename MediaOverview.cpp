@@ -947,8 +947,12 @@ private:
                     else if (fferr != AVERROR(EAGAIN))
                     {
                         m_logger->Log(Error) << "FAILED to invoke 'avcodec_send_packet'(VideoDecodeThreadProc)! return code is "
-                            << fferr << "." << endl;
-                        break;
+                            << fferr << ". url = '" << m_hParser->GetUrl() << "'." << endl;
+                        {
+                            lock_guard<mutex> lk(m_vidpktQLock);
+                            m_vidpktQ.pop_front();
+                        }
+                        av_packet_free(&avpkt);
                     }
                 }
                 else if (m_demuxVidEof)

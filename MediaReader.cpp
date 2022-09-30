@@ -1821,7 +1821,18 @@ private:
                             av_packet_free(&avpkt);
                             idleLoop = false;
                         }
-                        else if (fferr != AVERROR(EAGAIN) && fferr != AVERROR_INVALIDDATA)
+                        else if (fferr == AVERROR_INVALIDDATA)
+                        {
+                            m_logger->Log(WARN) << "(VIDEO)avcodec_send_packet() return AVERROR_INVALIDDATA when decoding AVPacket with pts=" << avpkt->pts
+                                << " from file '" << m_hParser->GetUrl() << "'. DISCARD this PACKET." << endl;
+                            {
+                                lock_guard<mutex> lk(currTask->avpktQLock);
+                                currTask->avpktQ.pop_front();
+                            }
+                            av_packet_free(&avpkt);
+                            idleLoop = false;
+                        }
+                        else if (fferr != AVERROR(EAGAIN))
                         {
                             m_errMsg = FFapiFailureMessage("avcodec_send_packet", fferr);
                             m_logger->Log(Error) << "FAILED to invoke 'avcodec_send_packet'(VideoDecodeThreadProc)! return code is "
