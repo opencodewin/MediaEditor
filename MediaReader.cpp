@@ -837,7 +837,7 @@ private:
             }
 
             m_vidAvStm = m_avfmtCtx->streams[m_vidStmIdx];
-            m_vidStartTime = m_vidAvStm->start_time;
+            m_vidStartTime = m_vidAvStm->start_time != AV_NOPTS_VALUE ? m_vidAvStm->start_time : 0;
             m_vidTimeBase = m_vidAvStm->time_base;
 
             m_viddec = avcodec_find_decoder(m_vidAvStm->codecpar->codec_id);

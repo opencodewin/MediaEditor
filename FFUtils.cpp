@@ -1447,7 +1447,10 @@ MediaInfo::InfoHolder GenerateMediaInfoByAVFormatContext(const AVFormatContext* 
                     vidStream->frameNum = (uint64_t)(stream->duration*av_q2d(stream->avg_frame_rate));
             }
             else
+            {
                 vidStream->frameNum = stream->nb_frames > 0 ? stream->nb_frames : 1;
+                if (vidStream->duration < 0) vidStream->duration = 0;
+            }
             switch (codecpar->color_trc)
             {
                 case AVCOL_TRC_SMPTE2084:

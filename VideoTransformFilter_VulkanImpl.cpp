@@ -144,7 +144,7 @@ namespace DataLayer
             outMat = inMat;
         else
         {
-            ImGui::VkMat vkmat; vkmat.type = inMat.type;
+            ImGui::VkMat vkmat; vkmat.type = IM_DT_INT8;
             m_warpAffine.filter(inMat, vkmat, m_affineMat, m_interpMode, ImPixel(0, 0, 0, 0), m_cropRect);
             vkmat.time_stamp = inMat.time_stamp;
             vkmat.rate = inMat.rate;
@@ -155,7 +155,7 @@ namespace DataLayer
         if (m_cropperX != 0 || m_cropperY != 0 || m_inWidth != m_outWidth || m_inHeight != m_outHeight)
         {
             ImGui::VkMat vkmat;
-            vkmat.type = outMat.type;
+            vkmat.type = IM_DT_INT8;
             vkmat.w = m_outWidth;
             vkmat.h = m_outHeight;
             int srcX = m_cropperX>=0 ? m_cropperX : 0;
