@@ -2984,7 +2984,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImR
  * Media Filter Preview window
  *
  ***************************************************************************************/
-static void ShowVideoFilterPreviewWindow(ImDrawList *draw_list, bool attribute = false)
+static void ShowVideoFilterPreviewWindow(ImDrawList *draw_list, int64_t start, int64_t end, bool attribute = false)
 {
     // preview control pannel
     ImGuiIO& io = ImGui::GetIO();
@@ -3008,7 +3008,7 @@ static void ShowVideoFilterPreviewWindow(ImDrawList *draw_list, bool attribute =
     {
         if (timeline && timeline->mVidFilterClip)
         {
-            timeline->Seek(timeline->mVidFilterClip->mStart);
+            timeline->Seek(start);
         }
     }
     ImGui::ShowTooltipOnHover("To Start");
@@ -3018,7 +3018,7 @@ static void ShowVideoFilterPreviewWindow(ImDrawList *draw_list, bool attribute =
     {
         if (timeline && timeline->mVidFilterClip)
         {
-            if (timeline->currentTime > timeline->mVidFilterClip->mStart)
+            if (timeline->currentTime > start)
                 timeline->Step(false);
         }
     }
@@ -3029,7 +3029,7 @@ static void ShowVideoFilterPreviewWindow(ImDrawList *draw_list, bool attribute =
     {
         if (timeline && timeline->mVidFilterClip)
         {
-            if (timeline->currentTime > timeline->mVidFilterClip->mStart)
+            if (timeline->currentTime > start)
                 timeline->Play(true, false);
         }
     }
@@ -3048,7 +3048,7 @@ static void ShowVideoFilterPreviewWindow(ImDrawList *draw_list, bool attribute =
     {
         if (timeline && timeline->mVidFilterClip)
         {
-            if (timeline->currentTime < timeline->mVidFilterClip->mEnd)
+            if (timeline->currentTime < end)
                 timeline->Play(true, true);
         }
     }
@@ -3059,7 +3059,7 @@ static void ShowVideoFilterPreviewWindow(ImDrawList *draw_list, bool attribute =
     {
         if (timeline && timeline->mVidFilterClip)
         {
-            if (timeline->currentTime < timeline->mVidFilterClip->mEnd)
+            if (timeline->currentTime < end)
                 timeline->Step(true);
         }
     }
@@ -3070,8 +3070,8 @@ static void ShowVideoFilterPreviewWindow(ImDrawList *draw_list, bool attribute =
     {
         if (timeline && timeline->mVidFilterClip)
         {
-            if (timeline->currentTime < timeline->mVidFilterClip->mEnd)
-                timeline->Seek(timeline->mVidFilterClip->mEnd - 40);
+            if (timeline->currentTime < end)
+                timeline->Seek(end - 40);
         }
     }
     ImGui::ShowTooltipOnHover("To End");
@@ -3147,6 +3147,12 @@ static void ShowVideoFilterPreviewWindow(ImDrawList *draw_list, bool attribute =
             ImGui::ImMatToTexture(pair.second, timeline->mVideoFilterOutputTexture);
             timeline->mLastFrameTime = output_timestamp;
             timeline->mIsPreviewNeedUpdate = false;
+        }
+        if (timeline->mIsPreviewPlaying && (timeline->currentTime < start || timeline->currentTime > end))
+        {
+            // reach clip border
+            if (timeline->currentTime < start) { timeline->Play(false, false); timeline->Seek(start); }
+            if (timeline->currentTime > end) { timeline->Play(false, true); timeline->Seek(end); }
         }
         float pos_x = 0, pos_y = 0;
         bool draw_compare = false;
@@ -3301,7 +3307,8 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
         ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DEEP_DARK);
-        ShowVideoFilterPreviewWindow(draw_list, true);
+        if (editing_clip) ShowVideoFilterPreviewWindow(draw_list, editing_clip->mStart, editing_clip->mEnd, true);
+        else ShowVideoFilterPreviewWindow(draw_list, timeline->GetStart(), timeline->GetEnd(), true);
     }
     ImGui::EndChild();
 
@@ -3860,7 +3867,8 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
         ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DEEP_DARK);
-        ShowVideoFilterPreviewWindow(draw_list);
+        if (editing_clip) ShowVideoFilterPreviewWindow(draw_list, editing_clip->mStart, editing_clip->mEnd);
+        else ShowVideoFilterPreviewWindow(draw_list, timeline->GetStart(), timeline->GetEnd());
     }
     ImGui::EndChild();
 
@@ -4336,7 +4344,14 @@ static void ShowVideoFusionPreviewWindow(ImDrawList *draw_list)
         // filter output texture area
         ShowVideoWindow(draw_list, timeline->mVideoFusionOutputTexture, OutputVideoPos, OutputVideoSize, offset_x, offset_y, tf_x, tf_y);
         draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32(255, 0, 0, 255), 0, 0, 2.0);
+        if (timeline->mIsPreviewPlaying && (timeline->currentTime < timeline->mVidOverlap->mStart || timeline->currentTime > timeline->mVidOverlap->mEnd))
+        {
+            // reach clip border
+            if (timeline->currentTime < timeline->mVidOverlap->mStart) { timeline->Play(false, false); timeline->Seek(timeline->mVidOverlap->mStart); }
+            if (timeline->currentTime > timeline->mVidOverlap->mEnd) { timeline->Play(false, true); timeline->Seek(timeline->mVidOverlap->mEnd); }
+        }
     }
+    
     ImGui::PopStyleColor(3);
 }
 
