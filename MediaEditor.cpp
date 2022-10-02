@@ -2759,7 +2759,7 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
  * Media Preview window
  *
  ***************************************************************************************/
-static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImRect& video_rect, bool audio_bar = true, bool monitors = true, bool force_update = false)
+static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImRect& video_rect, int64_t start = -1, int64_t end = -1, bool audio_bar = true, bool monitors = true, bool force_update = false)
 {
     // preview control pannel
     ImGuiIO& io = ImGui::GetIO();
@@ -2782,7 +2782,10 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImR
     if (ImGui::Button(ICON_TO_START "##preview_tostart", ImVec2(32, 32)))
     {
         if (timeline)
-            timeline->ToStart();
+        {
+            if (start < 0) timeline->ToStart();
+            else timeline->Seek(start);
+        }            
     }
     ImGui::ShowTooltipOnHover("To Start");
 
@@ -2790,7 +2793,10 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImR
     if (ImGui::Button(ICON_STEP_BACKWARD "##preview_step_backward", ImVec2(32, 32)))
     {
         if (timeline)
-            timeline->Step(false);
+        {
+            if (start < 0) timeline->Step(false);
+            else if (timeline->currentTime > start) timeline->Step(false);
+        }
     }
     ImGui::ShowTooltipOnHover("Step Prev");
 
@@ -2798,15 +2804,17 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImR
     if (ImGui::RotateButton(ICON_PLAY_BACKWARD "##preview_reverse", ImVec2(32, 32), 180))
     {
         if (timeline)
-            timeline->Play(true, false);
+        {
+            if (start < 0) timeline->Play(true, false);
+            else if (timeline->currentTime > start) timeline->Play(true, false);
+        }
     }
     ImGui::ShowTooltipOnHover("Reverse");
 
     ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16, PanelButtonY));
     if (ImGui::Button(ICON_STOP "##preview_stop", ImVec2(32, 32)))
     {
-        if (timeline)
-            timeline->Play(false, true);
+        if (timeline) timeline->Play(false, true);
     }
     ImGui::ShowTooltipOnHover("Stop");
 
@@ -2814,7 +2822,10 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImR
     if (ImGui::Button(ICON_PLAY_FORWARD "##preview_play", ImVec2(32, 32)))
     {
         if (timeline)
-            timeline->Play(true, true);
+        {
+            if (start < 0 || end < 0) timeline->Play(true, true);
+            else if (timeline->currentTime < end) timeline->Play(true, true);
+        }
     }
     ImGui::ShowTooltipOnHover("Play");
 
@@ -2822,7 +2833,10 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImR
     if (ImGui::Button(ICON_STEP_FORWARD "##preview_step_forward", ImVec2(32, 32)))
     {
         if (timeline)
-            timeline->Step(true);
+        {
+            if (end < 0) timeline->Step(true);
+            else if (timeline->currentTime < end) timeline->Step(true);
+        }
     }
     ImGui::ShowTooltipOnHover("Step Next");
 
@@ -2830,7 +2844,10 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImR
     if (ImGui::Button(ICON_TO_END "##preview_toend", ImVec2(32, 32)))
     {
         if (timeline)
-            timeline->ToEnd();
+        {
+            if (end < 0) timeline->ToEnd();
+            else timeline->Seek(end);
+        }
     }
     ImGui::ShowTooltipOnHover("To End");
 
@@ -2923,6 +2940,17 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImR
         timeline->mLastFrameTime = frame.time_stamp * 1000;
         timeline->mIsPreviewNeedUpdate = false;
     }
+
+    if (start > 0 && end > 0)
+    {
+        if (timeline->mIsPreviewPlaying && (timeline->currentTime < start || timeline->currentTime > end))
+        {
+            // reach clip border
+            if (timeline->currentTime < start) { timeline->Play(false, false); timeline->Seek(start); }
+            if (timeline->currentTime > end) { timeline->Play(false, true); timeline->Seek(end); }
+        }
+    }
+
     float pos_x = 0, pos_y = 0;
     float offset_x = 0, offset_y = 0;
     float tf_x = 0, tf_y = 0;
@@ -6010,7 +6038,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
     {
         const float resize_handel_radius = 2;
         const ImVec2 handle_size(resize_handel_radius, resize_handel_radius);
-        ShowMediaPreviewWindow(draw_list, "Text Preview", video_rect, false, false, force_update_preview || MovingTextPos);
+        ShowMediaPreviewWindow(draw_list, "Text Preview", video_rect, editing_clip ? editing_clip->mStart : -1, editing_clip ? editing_clip->mEnd : -1, false, false, force_update_preview || MovingTextPos);
         // show test rect on preview view and add UI editor
         draw_list->PushClipRect(video_rect.Min, video_rect.Max);
         if (editing_clip && current_image.Valid() && timeline->currentTime >= editing_clip->mStart && timeline->currentTime <= editing_clip->mEnd)
