@@ -343,10 +343,18 @@ struct Clip
 
 struct VideoClip : Clip
 {
+    // video info
     SnapshotGenerator::ViewerHolder mSsViewer;
     std::vector<VideoSnapshotInfo> mVideoSnapshotInfos; // clip snapshots info, with all croped range
     std::list<Snapshot> mVideoSnapshots;                // clip snapshots, including texture and timestamp info
     MediaInfo::Ratio mClipFrameRate {25, 1};            // clip Frame rate, project saved
+
+    // image info
+    int mWidth          {0};        // image width, project saved
+    int mHeight         {0};        // image height, project saved
+    int mColorFormat    {0};        // image color format, project saved
+    MediaOverview * mOverview   {nullptr};
+    ImTextureID mImgTexture     {0};
 
     // attribute
     DataLayer::ScaleType mScaleType {DataLayer::ScaleType::SCALE_TYPE__FIT}; // clip attribute scale type, project saved
@@ -362,6 +370,7 @@ struct VideoClip : Clip
     uint32_t mCropMarginB {0};                          // clip attribute crop margin bottom, project saved
 
     VideoClip(int64_t start, int64_t end, int64_t id, std::string name, MediaParserHolder hParser, SnapshotGenerator::ViewerHolder viewer, void* handle);
+    VideoClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle);
     ~VideoClip();
 
     void ConfigViewWindow(int64_t wndDur, float pixPerMs) override;
@@ -396,47 +405,6 @@ struct AudioClip : Clip
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect) override;
     static Clip * Load(const imgui_json::value& value, void * handle);
     void Save(imgui_json::value& value) override;
-};
-
-struct ImageClip : Clip
-{
-    int mWidth          {0};        // image width, project saved
-    int mHeight         {0};        // image height, project saved
-    int mColorFormat    {0};        // image color format, project saved
-    MediaOverview * mOverview   {nullptr};
-
-    // attribute
-    DataLayer::ScaleType mScaleType {DataLayer::ScaleType::SCALE_TYPE__FIT}; // clip attribute scale type, project saved
-    double mScaleH  {1.f};                              // clip attribute scale h, project saved
-    double mScaleV  {1.f};                              // clip attribute scale v, project saved
-    bool mKeepAspectRatio {false};                      // clip attribute scale keep aspect ratio, project saved
-    double mRotationAngle {0.f};                        // clip attribute rotate angle, project saved
-    int32_t mPositionOffsetH {0};                       // clip attribute position offset h, project saved
-    int32_t mPositionOffsetV {0};                       // clip attribute position offset v, project saved
-    uint32_t mCropMarginL {0};                          // clip attribute crop margin left, project saved
-    uint32_t mCropMarginT {0};                          // clip attribute crop margin top, project saved
-    uint32_t mCropMarginR {0};                          // clip attribute crop margin right, project saved
-    uint32_t mCropMarginB {0};                          // clip attribute crop margin bottom, project saved
-
-    ImageClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle);
-    ~ImageClip();
-
-    void SetTrackHeight(int trackHeight) override;
-    void SetViewWindowStart(int64_t millisec) override;
-    void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect) override;
-
-    static Clip * Load(const imgui_json::value& value, void * handle);
-    void Save(imgui_json::value& value) override;
-
-private:
-    void PrepareSnapImage();
-
-private:
-    float mSnapWidth            {0};
-    float mSnapHeight           {0};
-    std::vector<ImGui::ImMat> mSnapImages;
-    ImTextureID mImgTexture     {0};
-    int64_t mClipViewStartPos;
 };
 
 struct TextClip : Clip
@@ -564,6 +532,9 @@ struct EditingVideoClip : BaseEditingClip
     uint32_t mWidth             {0};
     uint32_t mHeight            {0};
     MediaInfo::Ratio mClipFrameRate {25, 1};                    // clip Frame rate
+
+    // for image clip
+    ImTextureID mImgTexture     {0};
 
     BluePrintVideoFilter * mFilter {nullptr};
     DataLayer::VideoTransformFilter * mAttribute {nullptr};

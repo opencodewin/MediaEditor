@@ -333,7 +333,7 @@ int64_t Clip::Cropping(int64_t diff, int type)
     if (type == 0)
     {
         // cropping start
-        if (mType == MEDIA_VIDEO || mType == MEDIA_AUDIO)
+        if ((IS_VIDEO(mType) && mType != MEDIA_SUBTYPE_VIDEO_IMAGE) || IS_AUDIO(mType))
         {
             // audio video stream have length limit
             if (mStart + diff < mEnd - ceil(frame_duration) && mStart + diff >= timeline->mStart)
@@ -376,7 +376,7 @@ int64_t Clip::Cropping(int64_t diff, int type)
     else
     {
         // cropping end
-        if (mType == MEDIA_VIDEO || mType == MEDIA_AUDIO)
+        if ((IS_VIDEO(mType) && mType != MEDIA_SUBTYPE_VIDEO_IMAGE) || IS_AUDIO(mType))
         {
             // audio video stream have length limit
             if (mEnd + diff > mStart + ceil(frame_duration))
@@ -461,8 +461,8 @@ void Clip::Cutting(int64_t pos)
     {
         if (mType == MEDIA_SUBTYPE_VIDEO_IMAGE)
         {
-            ImageClip* imgclip = dynamic_cast<ImageClip*>(this);
-            auto new_image_clip = new ImageClip(mStart, mEnd, mMediaID, mName, imgclip->mOverview, timeline);
+            VideoClip* imgclip = dynamic_cast<VideoClip*>(this);
+            auto new_image_clip = new VideoClip(mStart, mEnd, mMediaID, mName, imgclip->mOverview, timeline);
             new_clip = new_image_clip;
             new_start_offset = 0;
             adj_end_offset = 0;
@@ -980,18 +980,58 @@ VideoClip::VideoClip(int64_t start, int64_t end, int64_t id, std::string name, M
             hViewer->Release();
             return;
         }
+        mWidth = video_stream->width;
+        mHeight = video_stream->height;
+        mPath = info->url;
+    }
+}
+
+VideoClip::VideoClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle)
+    : Clip(start, end, id, overview->GetMediaParser(), handle), mOverview(overview)
+{
+    if (overview)
+    {
+        mType = MEDIA_SUBTYPE_VIDEO_IMAGE;
+        mName = name;
+        MediaInfo::InfoHolder info = overview->GetMediaParser()->GetMediaInfo();
+        const MediaInfo::VideoStream* video_stream = mOverview->GetVideoStream();
+        if (!info || !video_stream)
+        {
+            mOverview = nullptr;
+            return;
+        }
+        mWidth = video_stream->width;
+        mHeight = video_stream->height;
+        int _width = 0, _height = 0;
+        std::vector<ImGui::ImMat> snap_images;
+        if (mOverview->GetSnapshots(snap_images))
+        {
+            if (!snap_images.empty() && !snap_images[0].empty() && !mImgTexture)
+            {
+                ImMatToTexture(snap_images[0], mImgTexture);
+                _width = snap_images[0].w;
+                _height = snap_images[0].h;
+            }
+            if (mTrackHeight > 0 && _width > 0 && _height > 0)
+            {
+                mSnapHeight = mTrackHeight;
+                mSnapWidth = mTrackHeight * _width / _height;
+            }
+        }
+
         mPath = info->url;
     }
 }
 
 VideoClip::~VideoClip()
 {
-    mSsViewer->Release();
+    if (mSsViewer) mSsViewer->Release();
     for (auto& snap : mVideoSnapshots)
     {
         if (snap.texture) { ImGui::ImDestroyTexture(snap.texture); snap.texture = nullptr; }
     }
     mVideoSnapshots.clear();
+    if (mImgTexture) { ImGui::ImDestroyTexture(mImgTexture); mImgTexture = nullptr; }
 }
 
 Clip* VideoClip::Load(const imgui_json::value& value, void * handle)
@@ -1014,16 +1054,24 @@ Clip* VideoClip::Load(const imgui_json::value& value, void * handle)
     if (item)
     {
         // media is in bank
-        SnapshotGenerator::ViewerHolder hViewer;
-        SnapshotGeneratorHolder hSsGen = timeline->GetSnapshotGenerator(item->mID);
-        if (!hSsGen)
+        VideoClip * new_clip = nullptr;
+        if (item->mMediaType == MEDIA_SUBTYPE_VIDEO_IMAGE)
         {
-            // TODO::Dicky create media error, need show dummy clip
-            return nullptr;
+            new_clip = new VideoClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, handle);
         }
-        
-        hViewer = hSsGen->CreateViewer();
-        VideoClip * new_clip = new VideoClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview->GetMediaParser(), hViewer, handle);
+        else
+        {
+            SnapshotGenerator::ViewerHolder hViewer;
+            SnapshotGeneratorHolder hSsGen = timeline->GetSnapshotGenerator(item->mID);
+            if (!hSsGen)
+            {
+                // TODO::Dicky create media error, need show dummy clip
+                return nullptr;
+            }
+
+            hViewer = hSsGen->CreateViewer();
+            new_clip = new VideoClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview->GetMediaParser(), hViewer, handle);
+        }
         if (new_clip)
         {
             Clip::Load(new_clip, value);
@@ -1124,54 +1172,87 @@ void VideoClip::SetViewWindowStart(int64_t millisec)
     mClipViewStartPos = mStartOffset;
     if (millisec > mStart)
         mClipViewStartPos += millisec-mStart;
-    if (!mSsViewer->GetSnapshots((double)mClipViewStartPos/1000, mSnapImages))
-        throw std::runtime_error(mSsViewer->GetError());
-    mSsViewer->UpdateSnapshotTexture(mSnapImages);
+    if (mType != MEDIA_SUBTYPE_VIDEO_IMAGE)
+    {
+        if (!mSsViewer->GetSnapshots((double)mClipViewStartPos/1000, mSnapImages))
+            throw std::runtime_error(mSsViewer->GetError());
+        mSsViewer->UpdateSnapshotTexture(mSnapImages);
+    }
 }
 
 void VideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect)
 {
-    ImVec2 snapLeftTop = leftTop;
-    float snapDispWidth;
-    GetSnapshotGeneratorLogger()->Log(Logger::DEBUG) << "[1]>>>>> Begin display snapshot" << std::endl;
-    for (int i = 0; i < mSnapImages.size(); i++)
+    if (mImgTexture)
     {
-        auto& img = mSnapImages[i];
-        ImVec2 uvMin(0, 0), uvMax(1, 1);
-        float snapDispWidth = img->mTimestampMs >= mClipViewStartPos ? mSnapWidth : mSnapWidth - (mClipViewStartPos - img->mTimestampMs) * mPixPerMs;
-        if (img->mTimestampMs < mClipViewStartPos)
+        int _width = ImGui::ImGetTextureWidth(mImgTexture);
+        int _height = ImGui::ImGetTextureHeight(mImgTexture);
+        if (_width > 0 && _height > 0)
         {
-            snapDispWidth = mSnapWidth - (mClipViewStartPos - img->mTimestampMs) * mPixPerMs;
-            uvMin.x = 1 - snapDispWidth / mSnapWidth;
+            int trackHeight = rightBottom.y - leftTop.y;
+            int snapHeight = trackHeight;
+            int snapWidth = trackHeight * _width / _height;
+            ImVec2 imgLeftTop = leftTop;
+            float snapDispWidth = snapWidth;
+            while (imgLeftTop.x < rightBottom.x)
+            {
+                ImVec2 uvMin{0, 0}, uvMax{1, 1};
+                if (snapDispWidth < snapWidth)
+                    uvMin.x = 1 - snapDispWidth / snapWidth;
+                if (imgLeftTop.x + snapDispWidth > rightBottom.x)
+                {
+                    uvMax.x = 1 - (imgLeftTop.x + snapDispWidth - rightBottom.x) / snapWidth;
+                    snapDispWidth = rightBottom.x - imgLeftTop.x;
+                }
+                drawList->AddImage(mImgTexture, imgLeftTop, {imgLeftTop.x + snapDispWidth, rightBottom.y}, uvMin, uvMax);
+                imgLeftTop.x += snapDispWidth;
+                snapDispWidth = snapWidth;
+            }
         }
-        if (snapDispWidth <= 0)
-            continue;
-        if (snapLeftTop.x+snapDispWidth >= rightBottom.x)
-        {
-            snapDispWidth = rightBottom.x - snapLeftTop.x;
-            uvMax.x = snapDispWidth / mSnapWidth;
-        }
-        if (img->mTextureReady)
-        {
-            ImTextureID tid = *(img->mTextureHolder);
-            GetSnapshotGeneratorLogger()->Log(Logger::DEBUG) << "[1]\t\t display tid=" << tid << std::endl;
-            drawList->AddImage(tid, snapLeftTop, {snapLeftTop.x + snapDispWidth, rightBottom.y}, uvMin, uvMax);
-        }
-        else
-        {
-            drawList->AddRectFilled(snapLeftTop, {snapLeftTop.x + snapDispWidth, rightBottom.y}, IM_COL32_BLACK);
-            auto center_pos = snapLeftTop + ImVec2(snapDispWidth, mSnapHeight) / 2;
-            ImVec4 color_main(1.0, 1.0, 1.0, 1.0);
-            ImVec4 color_back(0.5, 0.5, 0.5, 1.0);
-            ImGui::SetCursorScreenPos(center_pos - ImVec2(8, 8));
-            ImGui::LoadingIndicatorCircle("Running", 1.0f, &color_main, &color_back);
-            drawList->AddRect(snapLeftTop, {snapLeftTop.x + snapDispWidth, rightBottom.y}, COL_FRAME_RECT);
-        }
-        snapLeftTop.x += snapDispWidth;
-        if (snapLeftTop.x >= rightBottom.x)
-            break;
     }
-    GetSnapshotGeneratorLogger()->Log(Logger::DEBUG) << "[1]<<<<< End display snapshot" << std::endl;
+    else
+    {
+        ImVec2 snapLeftTop = leftTop;
+        float snapDispWidth;
+        GetSnapshotGeneratorLogger()->Log(Logger::DEBUG) << "[1]>>>>> Begin display snapshot" << std::endl;
+        for (int i = 0; i < mSnapImages.size(); i++)
+        {
+            auto& img = mSnapImages[i];
+            ImVec2 uvMin(0, 0), uvMax(1, 1);
+            float snapDispWidth = img->mTimestampMs >= mClipViewStartPos ? mSnapWidth : mSnapWidth - (mClipViewStartPos - img->mTimestampMs) * mPixPerMs;
+            if (img->mTimestampMs < mClipViewStartPos)
+            {
+                snapDispWidth = mSnapWidth - (mClipViewStartPos - img->mTimestampMs) * mPixPerMs;
+                uvMin.x = 1 - snapDispWidth / mSnapWidth;
+            }
+            if (snapDispWidth <= 0)
+                continue;
+            if (snapLeftTop.x+snapDispWidth >= rightBottom.x)
+            {
+                snapDispWidth = rightBottom.x - snapLeftTop.x;
+                uvMax.x = snapDispWidth / mSnapWidth;
+            }
+            if (img->mTextureReady)
+            {
+                ImTextureID tid = *(img->mTextureHolder);
+                GetSnapshotGeneratorLogger()->Log(Logger::DEBUG) << "[1]\t\t display tid=" << tid << std::endl;
+                drawList->AddImage(tid, snapLeftTop, {snapLeftTop.x + snapDispWidth, rightBottom.y}, uvMin, uvMax);
+            }
+            else
+            {
+                drawList->AddRectFilled(snapLeftTop, {snapLeftTop.x + snapDispWidth, rightBottom.y}, IM_COL32_BLACK);
+                auto center_pos = snapLeftTop + ImVec2(snapDispWidth, mSnapHeight) / 2;
+                ImVec4 color_main(1.0, 1.0, 1.0, 1.0);
+                ImVec4 color_back(0.5, 0.5, 0.5, 1.0);
+                ImGui::SetCursorScreenPos(center_pos - ImVec2(8, 8));
+                ImGui::LoadingIndicatorCircle("Running", 1.0f, &color_main, &color_back);
+                drawList->AddRect(snapLeftTop, {snapLeftTop.x + snapDispWidth, rightBottom.y}, COL_FRAME_RECT);
+            }
+            snapLeftTop.x += snapDispWidth;
+            if (snapLeftTop.x >= rightBottom.x)
+                break;
+        }
+        GetSnapshotGeneratorLogger()->Log(Logger::DEBUG) << "[1]<<<<< End display snapshot" << std::endl;
+    }
 }
 
 void VideoClip::CalcDisplayParams()
@@ -1350,218 +1431,6 @@ void AudioClip::Save(imgui_json::value& value)
     value["Channels"] = imgui_json::number(mAudioChannels);
     value["SampleRate"] = imgui_json::number(mAudioSampleRate);
     value["Format"] = imgui_json::number(mAudioFormat);
-}
-
-// ImageClip Struct Member Functions
-ImageClip::ImageClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle)
-    : Clip(start, end, id, overview->GetMediaParser(), handle), mOverview(overview)
-{
-    if (overview)
-    {
-        mType = MEDIA_SUBTYPE_VIDEO_IMAGE;
-        mName = name;
-        const MediaInfo::VideoStream* video_stream = mOverview->GetVideoStream();
-        if (video_stream)
-        {
-            mWidth = video_stream->width;
-            mHeight = video_stream->height;
-        }
-        PrepareSnapImage();
-    }
-}
-
-ImageClip::~ImageClip()
-{
-    if (mImgTexture)
-        ImGui::ImDestroyTexture(mImgTexture);
-}
-
-void ImageClip::PrepareSnapImage()
-{
-    int _width = 0, _height = 0;
-    if (!mOverview->GetSnapshots(mSnapImages))
-    {
-        Logger::Log(Logger::Error) << mOverview->GetError() << std::endl;
-        return;
-    }
-    if (!mSnapImages.empty() && !mSnapImages[0].empty() && !mImgTexture)
-    {
-        ImMatToTexture(mSnapImages[0], mImgTexture);
-        _width = mSnapImages[0].w;
-        _height = mSnapImages[0].h;
-    }
-    if (mTrackHeight > 0 && _width > 0 && _height > 0)
-    {
-        mSnapHeight = mTrackHeight;
-        mSnapWidth = mTrackHeight * _width / _height;
-    }
-}
-
-void ImageClip::SetTrackHeight(int trackHeight)
-{
-    Clip::SetTrackHeight(trackHeight);
-    int _width = 0, _height = 0;
-    if (!mSnapImages.empty())
-    {
-        _width = mSnapImages[0].w;
-        _height = mSnapImages[0].h;
-    }
-    if (_width > 0 && _height > 0)
-    {
-        mSnapHeight = trackHeight;
-        mSnapWidth = trackHeight * _width / _height;
-    }
-}
-
-void ImageClip::SetViewWindowStart(int64_t millisec)
-{
-    mClipViewStartPos = millisec;
-    if (millisec < mStart)
-        mClipViewStartPos = mStart;
-}
-
-void ImageClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect)
-{
-    if (mSnapWidth == 0)
-    {
-        PrepareSnapImage();
-        if (mSnapWidth == 0)
-            return;
-    }
-
-    ImVec2 imgLeftTop = leftTop;
-    float snapDispWidth = mSnapWidth;
-    int img1stIndex = (int)floor((double)mClipViewStartPos*mPixPerMs/mSnapWidth);
-    int64_t img1stPos = (int64_t)((double)img1stIndex*mSnapWidth/mPixPerMs);
-    if (img1stPos < mClipViewStartPos)
-        snapDispWidth -= (mClipViewStartPos-img1stPos)*mPixPerMs;
-    while (imgLeftTop.x < rightBottom.x)
-    {
-        ImVec2 uvMin{0, 0}, uvMax{1, 1};
-        if (snapDispWidth < mSnapWidth)
-            uvMin.x = 1-snapDispWidth/mSnapWidth;
-        if (imgLeftTop.x+snapDispWidth > rightBottom.x)
-        {
-            uvMax.x = 1-(imgLeftTop.x+snapDispWidth-rightBottom.x)/mSnapWidth;
-            snapDispWidth = rightBottom.x-imgLeftTop.x;
-        }
-        if (mImgTexture)
-            drawList->AddImage(mImgTexture, imgLeftTop, {imgLeftTop.x+snapDispWidth, rightBottom.y}, uvMin, uvMax);
-        else
-            drawList->AddRect(imgLeftTop, {imgLeftTop.x+snapDispWidth, rightBottom.y}, IM_COL32_BLACK);
-        imgLeftTop.x += snapDispWidth;
-        snapDispWidth = mSnapWidth;
-    }
-}
-
-Clip * ImageClip::Load(const imgui_json::value& value, void * handle)
-{
-    TimeLine * timeline = (TimeLine *)handle;
-    if (!timeline || timeline->media_items.size() <= 0)
-        return nullptr;
-
-    int64_t id = -1;
-    MediaItem * item = nullptr;
-    if (value.contains("MediaID"))
-    {
-        auto& val = value["MediaID"];
-        if (val.is_number()) id = val.get<imgui_json::number>();
-    }
-    if (id != -1)
-    {
-        item = timeline->FindMediaItemByID(id);
-    }
-
-    if (item)
-    {
-        ImageClip * new_clip = new ImageClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, handle);
-        if (new_clip)
-        {
-            Clip::Load(new_clip, value);
-            // load image info
-            if (value.contains("ScaleType"))
-            {
-                auto& val = value["ScaleType"];
-                if (val.is_number()) new_clip->mScaleType = (DataLayer::ScaleType)val.get<imgui_json::number>();
-            }
-            if (value.contains("ScaleH"))
-            {
-                auto& val = value["ScaleH"];
-                if (val.is_number()) new_clip->mScaleH = val.get<imgui_json::number>();
-            }
-            if (value.contains("ScaleV"))
-            {
-                auto& val = value["ScaleV"];
-                if (val.is_number()) new_clip->mScaleV = val.get<imgui_json::number>();
-            }
-            if (value.contains("KeepAspectRatio"))
-            {
-                auto& val = value["KeepAspectRatio"];
-                if (val.is_boolean()) new_clip->mKeepAspectRatio = val.get<imgui_json::boolean>();
-            }
-            if (value.contains("RotationAngle"))
-            {
-                auto& val = value["RotationAngle"];
-                if (val.is_number()) new_clip->mRotationAngle = val.get<imgui_json::number>();
-            }
-            if (value.contains("PositionOffsetH"))
-            {
-                auto& val = value["PositionOffsetH"];
-                if (val.is_number()) new_clip->mPositionOffsetH = val.get<imgui_json::number>();
-            }
-            if (value.contains("PositionOffsetV"))
-            {
-                auto& val = value["PositionOffsetV"];
-                if (val.is_number()) new_clip->mPositionOffsetV = val.get<imgui_json::number>();
-            }
-            if (value.contains("CropMarginL"))
-            {
-                auto& val = value["CropMarginL"];
-                if (val.is_number()) new_clip->mCropMarginL = val.get<imgui_json::number>();
-            }
-            if (value.contains("CropMarginT"))
-            {
-                auto& val = value["CropMarginT"];
-                if (val.is_number()) new_clip->mCropMarginT = val.get<imgui_json::number>();
-            }
-            if (value.contains("CropMarginR"))
-            {
-                auto& val = value["CropMarginR"];
-                if (val.is_number()) new_clip->mCropMarginR = val.get<imgui_json::number>();
-            }
-            if (value.contains("CropMarginB"))
-            {
-                auto& val = value["CropMarginB"];
-                if (val.is_number()) new_clip->mCropMarginB = val.get<imgui_json::number>();
-            }
-            return new_clip;
-        }
-    }
-    else
-    {
-        // media isn't in bank we need create new media item first ?
-    }
-    return nullptr;
-}
-
-void ImageClip::Save(imgui_json::value& value)
-{
-    Clip::Save(value);
-    // save image clip info
-    value["CropMarginL"] = imgui_json::number(mCropMarginL);
-    value["CropMarginT"] = imgui_json::number(mCropMarginT);
-    value["CropMarginR"] = imgui_json::number(mCropMarginR);
-    value["CropMarginB"] = imgui_json::number(mCropMarginB);
-
-    value["PositionOffsetH"] = imgui_json::number(mPositionOffsetH);
-    value["PositionOffsetV"] = imgui_json::number(mPositionOffsetV);
-
-    value["ScaleH"] = imgui_json::number(mScaleH);
-    value["ScaleV"] = imgui_json::number(mScaleV);
-    value["ScaleType"] = imgui_json::number(mScaleType);
-    value["KeepAspectRatio"] = imgui_json::boolean(mKeepAspectRatio);
-
-    value["RotationAngle"] = imgui_json::number(mRotationAngle);
 }
 
 // TextClip Struct Member Functions
@@ -2048,28 +1917,35 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
     TimeLine * timeline = (TimeLine *)vidclip->mHandle;
     mDuration = mEnd-mStart;
     mClipFrameRate = vidclip->mClipFrameRate;
+    mWidth = vidclip->mWidth;
+    mHeight = vidclip->mHeight;
     if (mDuration < 0)
         throw std::invalid_argument("Clip duration is negative!");
-    mSsGen = CreateSnapshotGenerator();
-    if (!mSsGen)
+    
+    if (vidclip->mType == MEDIA_SUBTYPE_VIDEO_IMAGE)
     {
-        Logger::Log(Logger::Error) << "Create Editing Video Clip FAILED!" << std::endl;
-        return;
+        mImgTexture = vidclip->mImgTexture;
     }
-    if (timeline) mSsGen->EnableHwAccel(timeline->mHardwareCodec);
-    if (!mSsGen->Open(vidclip->mSsViewer->GetMediaParser()))
+    else
     {
-        Logger::Log(Logger::Error) << mSsGen->GetError() << std::endl;
-        return;
-    }
+        mSsGen = CreateSnapshotGenerator();
+        if (!mSsGen)
+        {
+            Logger::Log(Logger::Error) << "Create Editing Video Clip FAILED!" << std::endl;
+            return;
+        }
+        if (timeline) mSsGen->EnableHwAccel(timeline->mHardwareCodec);
+        if (!mSsGen->Open(vidclip->mSsViewer->GetMediaParser()))
+        {
+            Logger::Log(Logger::Error) << mSsGen->GetError() << std::endl;
+            return;
+        }
 
-    mSsGen->SetCacheFactor(1);
-    auto video_info = vidclip->mMediaParser->GetBestVideoStream();
-    mWidth = video_info->width;
-    mHeight = video_info->height;
-    float snapshot_scale = video_info->height > 0 ? 50.f / (float)video_info->height : 0.1;
-    mSsGen->SetSnapshotResizeFactor(snapshot_scale, snapshot_scale);
-    mSsViewer = mSsGen->CreateViewer((double)mStartOffset / 1000);
+        mSsGen->SetCacheFactor(1);
+        float snapshot_scale = mHeight > 0 ? 50.f / (float)mHeight : 0.1;
+        mSsGen->SetSnapshotResizeFactor(snapshot_scale, snapshot_scale);
+        mSsViewer = mSsGen->CreateViewer((double)mStartOffset / 1000);
+    }
 
     auto hClip = timeline->mMtvReader->GetClipById(vidclip->mID);
     IM_ASSERT(hClip);
@@ -2140,7 +2016,7 @@ void EditingVideoClip::Save()
     if (!timeline)
         return;
     VideoClip * clip = (VideoClip *)timeline->FindClipByID(mID);
-    if (!clip || clip->mType != MEDIA_VIDEO)
+    if (!clip || !IS_VIDEO(clip->mType))
         return;
     if (mFilter && mFilter->mBp && mFilter->mBp->Blueprint_IsValid())
     {
@@ -2202,58 +2078,88 @@ bool EditingVideoClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_fr
 
 void EditingVideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom)
 {
-    ImVec2 viewWndSize = { rightBottom.x - leftTop.x, rightBottom.y - leftTop.y };
-    if (mViewWndSize.x != viewWndSize.x || mViewWndSize.y != viewWndSize.y)
+    if (mImgTexture)
     {
-        mViewWndSize = viewWndSize;
-        if (mViewWndSize.x == 0 || mViewWndSize.y == 0)
-            return;
-        auto vidStream = mSsViewer->GetMediaParser()->GetBestVideoStream();
-        if (vidStream->width == 0 || vidStream->height == 0)
+        int _width = ImGui::ImGetTextureWidth(mImgTexture);
+        int _height = ImGui::ImGetTextureHeight(mImgTexture);
+        if (_width > 0 && _height > 0)
         {
-            Logger::Log(Logger::Error) << "Snapshot video size is INVALID! Width or height is ZERO." << std::endl;
-            return;
+            int trackHeight = rightBottom.y - leftTop.y;
+            int snapHeight = trackHeight;
+            int snapWidth = trackHeight * _width / _height;
+            ImVec2 imgLeftTop = leftTop;
+            float snapDispWidth = snapWidth;
+            while (imgLeftTop.x < rightBottom.x)
+            {
+                ImVec2 uvMin{0, 0}, uvMax{1, 1};
+                if (snapDispWidth < snapWidth)
+                    uvMin.x = 1 - snapDispWidth / snapWidth;
+                if (imgLeftTop.x + snapDispWidth > rightBottom.x)
+                {
+                    uvMax.x = 1 - (imgLeftTop.x + snapDispWidth - rightBottom.x) / snapWidth;
+                    snapDispWidth = rightBottom.x - imgLeftTop.x;
+                }
+                drawList->AddImage(mImgTexture, imgLeftTop, {imgLeftTop.x + snapDispWidth, rightBottom.y}, uvMin, uvMax);
+                imgLeftTop.x += snapDispWidth;
+                snapDispWidth = snapWidth;
+            }
         }
-        mSnapSize.y = viewWndSize.y;
-        mSnapSize.x = mSnapSize.y * vidStream->width / vidStream->height;
-        CalcDisplayParams();
     }
-
-    std::vector<SnapshotGenerator::ImageHolder> snapImages;
-    if (!mSsViewer->GetSnapshots((double)mStartOffset / 1000, snapImages))
+    else
     {
-        Logger::Log(Logger::Error) << mSsViewer->GetError() << std::endl;
-        return;
-    }
-    mSsViewer->UpdateSnapshotTexture(snapImages);
-
-    ImVec2 imgLeftTop = leftTop;
-    for (int i = 0; i < snapImages.size(); i++)
-    {
-        ImVec2 snapDispSize = mSnapSize;
-        ImVec2 uvMin{0, 0}, uvMax{1, 1};
-        if (imgLeftTop.x+mSnapSize.x > rightBottom.x)
+        ImVec2 viewWndSize = { rightBottom.x - leftTop.x, rightBottom.y - leftTop.y };
+        if (mViewWndSize.x != viewWndSize.x || mViewWndSize.y != viewWndSize.y)
         {
-            snapDispSize.x = rightBottom.x - imgLeftTop.x;
-            uvMax.x = snapDispSize.x / mSnapSize.x;
-        }
-        auto& img = snapImages[i];
-        if (img->mTextureReady)
-            drawList->AddImage(*(img->mTextureHolder), imgLeftTop, imgLeftTop + snapDispSize, uvMin, uvMax);
-        else
-        {
-            drawList->AddRectFilled(imgLeftTop, imgLeftTop + snapDispSize, IM_COL32_BLACK);
-            auto center_pos = imgLeftTop + snapDispSize / 2;
-            ImVec4 color_main(1.0, 1.0, 1.0, 1.0);
-            ImVec4 color_back(0.5, 0.5, 0.5, 1.0);
-            ImGui::SetCursorScreenPos(center_pos - ImVec2(8, 8));
-            ImGui::LoadingIndicatorCircle("Running", 1.0f, &color_main, &color_back);
-            drawList->AddRect(imgLeftTop, imgLeftTop + snapDispSize, COL_FRAME_RECT);
+            mViewWndSize = viewWndSize;
+            if (mViewWndSize.x == 0 || mViewWndSize.y == 0)
+                return;
+            auto vidStream = mSsViewer->GetMediaParser()->GetBestVideoStream();
+            if (vidStream->width == 0 || vidStream->height == 0)
+            {
+                Logger::Log(Logger::Error) << "Snapshot video size is INVALID! Width or height is ZERO." << std::endl;
+                return;
+            }
+            mSnapSize.y = viewWndSize.y;
+            mSnapSize.x = mSnapSize.y * vidStream->width / vidStream->height;
+            CalcDisplayParams();
         }
 
-        imgLeftTop.x += snapDispSize.x;
-        if (imgLeftTop.x >= rightBottom.x)
-            break;
+        std::vector<SnapshotGenerator::ImageHolder> snapImages;
+        if (!mSsViewer->GetSnapshots((double)mStartOffset / 1000, snapImages))
+        {
+            Logger::Log(Logger::Error) << mSsViewer->GetError() << std::endl;
+            return;
+        }
+        mSsViewer->UpdateSnapshotTexture(snapImages);
+
+        ImVec2 imgLeftTop = leftTop;
+        for (int i = 0; i < snapImages.size(); i++)
+        {
+            ImVec2 snapDispSize = mSnapSize;
+            ImVec2 uvMin{0, 0}, uvMax{1, 1};
+            if (imgLeftTop.x+mSnapSize.x > rightBottom.x)
+            {
+                snapDispSize.x = rightBottom.x - imgLeftTop.x;
+                uvMax.x = snapDispSize.x / mSnapSize.x;
+            }
+            auto& img = snapImages[i];
+            if (img->mTextureReady)
+                drawList->AddImage(*(img->mTextureHolder), imgLeftTop, imgLeftTop + snapDispSize, uvMin, uvMax);
+            else
+            {
+                drawList->AddRectFilled(imgLeftTop, imgLeftTop + snapDispSize, IM_COL32_BLACK);
+                auto center_pos = imgLeftTop + snapDispSize / 2;
+                ImVec4 color_main(1.0, 1.0, 1.0, 1.0);
+                ImVec4 color_back(0.5, 0.5, 0.5, 1.0);
+                ImGui::SetCursorScreenPos(center_pos - ImVec2(8, 8));
+                ImGui::LoadingIndicatorCircle("Running", 1.0f, &color_main, &color_back);
+                drawList->AddRect(imgLeftTop, imgLeftTop + snapDispSize, COL_FRAME_RECT);
+            }
+
+            imgLeftTop.x += snapDispSize.x;
+            if (imgLeftTop.x >= rightBottom.x)
+                break;
+        }
     }
 }
 
@@ -3147,14 +3053,14 @@ void MediaTrack::SelectEditingClip(Clip * clip, bool filter_editing)
     {
         if (filter_editing)
         {
-            if (editing_clip->mType == MEDIA_VIDEO &&
+            if (IS_VIDEO(editing_clip->mType) &&
                 timeline->mVidFilterClip &&
                 timeline->mVidFilterClip->mFilter &&
                 timeline->mVidFilterClip->mFilter->mBp &&
                 timeline->mVidFilterClip->mFilter->mBp->Blueprint_IsValid())
                 return;
         }
-        if (editing_clip->mType == MEDIA_AUDIO)
+        if (IS_AUDIO(editing_clip->mType))
         {
             if (filter_editing && timeline->mAudFilterClip && timeline->mAudioFilterBluePrint && timeline->mAudioFilterBluePrint->Blueprint_IsValid())
                 return;
@@ -3162,7 +3068,7 @@ void MediaTrack::SelectEditingClip(Clip * clip, bool filter_editing)
     }
     else if (editing_clip && editing_clip->mID != clip->mID)
     {
-        if (editing_clip->mType == MEDIA_VIDEO)
+        if (IS_VIDEO(editing_clip->mType))
         {
             if (!updated && timeline->mVidFilterClip)
             {
@@ -3179,7 +3085,7 @@ void MediaTrack::SelectEditingClip(Clip * clip, bool filter_editing)
             }
             timeline->mVidFilterClipLock.unlock();
         }
-        else if (editing_clip->mType == MEDIA_AUDIO)
+        else if (IS_AUDIO(editing_clip->mType))
         {
             if (!updated && timeline->mAudFilterClip)
             {
@@ -3199,12 +3105,12 @@ void MediaTrack::SelectEditingClip(Clip * clip, bool filter_editing)
 
     clip->bEditing = true;
 
-    if (clip->mType == MEDIA_VIDEO)
+    if (IS_VIDEO(clip->mType))
     {
         if (!timeline->mVidFilterClip)
             timeline->mVidFilterClip = new EditingVideoClip((VideoClip*)clip);
     }
-    else if (clip->mType == MEDIA_AUDIO)
+    else if (IS_AUDIO(clip->mType))
     {
         if (!timeline->mAudFilterClip)
             timeline->mAudFilterClip = new EditingAudioClip((AudioClip*)clip);
@@ -3234,8 +3140,8 @@ void MediaTrack::SelectEditingOverlap(Overlap * overlap)
         auto clip_second = timeline->FindClipByID(editing_overlap->m_Clip.second);
         if (clip_first && clip_second)
         {
-            if (clip_first->mType == MEDIA_VIDEO && 
-                clip_second->mType == MEDIA_VIDEO &&
+            if (IS_VIDEO(clip_first->mType) && 
+                IS_VIDEO(clip_second->mType) &&
                 timeline->mVidOverlap &&
                 timeline->mVidOverlap->mFusion &&
                 timeline->mVidOverlap->mFusion->mBp &&
@@ -3243,8 +3149,8 @@ void MediaTrack::SelectEditingOverlap(Overlap * overlap)
             {
                 editing_overlap->mFusionBP = timeline->mVidOverlap->mFusion->mBp->m_Document->Serialize();
             }
-            if (clip_first->mType == MEDIA_AUDIO && 
-                clip_second->mType == MEDIA_AUDIO &&
+            if (IS_AUDIO(clip_first->mType) && 
+                IS_AUDIO(clip_second->mType) &&
                 timeline->mAudioFusionBluePrint &&
                 timeline->mAudioFusionBluePrint->Blueprint_IsValid())
             {
@@ -3273,13 +3179,13 @@ void MediaTrack::SelectEditingOverlap(Overlap * overlap)
     if (!first || !second)
         return;
 
-    if (first->mType == MEDIA_VIDEO && second->mType == MEDIA_VIDEO)
+    if (IS_VIDEO(first->mType) && IS_VIDEO(second->mType))
     {
         if (!timeline->mVidOverlap)
             timeline->mVidOverlap = new EditingVideoOverlap(overlap);
     }
 
-    if (first->mType == MEDIA_AUDIO && second->mType == MEDIA_AUDIO)
+    if (IS_AUDIO(first->mType) && IS_AUDIO(second->mType))
     {
         if (timeline->mAudioFusionBluePrint && timeline->mAudioFusionBluePrint->m_Document)
         {
@@ -4889,8 +4795,7 @@ int TimeLine::Load(const imgui_json::value& value)
             Clip * media_clip = nullptr;
             if (IS_VIDEO(type))
             {
-                if (type == MEDIA_SUBTYPE_VIDEO_IMAGE) media_clip = ImageClip::Load(clip, this);
-                else media_clip = VideoClip::Load(clip, this);
+                media_clip = VideoClip::Load(clip, this);
             }
             else if (IS_AUDIO(type))
             {
@@ -4951,9 +4856,11 @@ int TimeLine::Load(const imgui_json::value& value)
             DataLayer::VideoTrackHolder vidTrack = mMtvReader->AddTrack(track->mID);
             for (auto clip : track->m_Clips)
             {
-                DataLayer::VideoClipHolder hVidClip = vidTrack->AddNewClip(
-                    clip->mID, clip->mMediaParser,
-                    clip->mStart, clip->mStartOffset, clip->mEndOffset, currentTime-clip->mStart);
+                DataLayer::VideoClipHolder hVidClip;
+                if (clip->mType == MEDIA_SUBTYPE_VIDEO_IMAGE)
+                    hVidClip = vidTrack->AddNewClip(clip->mID, clip->mMediaParser, clip->mStart, clip->mEnd-clip->mStart, 0, 0);
+                else
+                    hVidClip = vidTrack->AddNewClip(clip->mID, clip->mMediaParser, clip->mStart, clip->mStartOffset, clip->mEndOffset, currentTime-clip->mStart);
 
                 BluePrintVideoFilter* bpvf = new BluePrintVideoFilter(this);
                 bpvf->SetBluePrintFromJson(clip->mFilterBP);
@@ -4990,39 +4897,6 @@ int TimeLine::Load(const imgui_json::value& value)
                     clip->mStart, clip->mStartOffset, clip->mEndOffset);
             }
         }
-        /*
-        else if (track->mType == MEDIA_PICTURE)
-        {
-            DataLayer::VideoTrackHolder vidTrack = mMtvReader->AddTrack(track->mID);
-            for (auto clip : track->m_Clips)
-            {
-                DataLayer::VideoClipHolder hVidClip = vidTrack->AddNewClip(
-                    clip->mID, clip->mMediaParser, clip->mStart, clip->mEnd-clip->mStart, 0, 0);
-
-                BluePrintVideoFilter* bpvf = new BluePrintVideoFilter(this);
-                bpvf->SetBluePrintFromJson(clip->mFilterBP);
-                bpvf->SetKeyPoint(clip->mFilterKeyPoints);
-                DataLayer::VideoFilterHolder hFilter(bpvf);
-                hVidClip->SetFilter(hFilter);
-                auto attribute = hVidClip->GetTransformFilterPtr();
-                if (attribute)
-                {
-                    ImageClip * imgclip = (ImageClip *)clip;
-                    attribute->SetScaleType(imgclip->mScaleType);
-                    attribute->SetScaleH(imgclip->mScaleH);
-                    attribute->SetScaleV(imgclip->mScaleV);
-                    attribute->SetPositionOffsetH(imgclip->mPositionOffsetH);
-                    attribute->SetPositionOffsetV(imgclip->mPositionOffsetV);
-                    attribute->SetRotationAngle(imgclip->mRotationAngle);
-                    attribute->SetCropMarginL(imgclip->mCropMarginL);
-                    attribute->SetCropMarginT(imgclip->mCropMarginT);
-                    attribute->SetCropMarginR(imgclip->mCropMarginR);
-                    attribute->SetCropMarginB(imgclip->mCropMarginB);
-                    attribute->SetKeyPoint(imgclip->mAttributeKeyPoints);
-                }
-            }
-        }
-        */
     }
     SyncDataLayer();
     UpdatePreview();
@@ -5121,12 +4995,15 @@ void TimeLine::PerformUiActions()
         uint32_t mediaType = MEDIA_UNKNOWN;
         if (action.contains("media_type"))
             mediaType = action["media_type"].get<imgui_json::number>();
-        if (mediaType == MEDIA_VIDEO)
-            PerformVideoAction(action);
-        else if (mediaType == MEDIA_AUDIO)
+        if (IS_VIDEO(mediaType))
+        {
+            if (mediaType == MEDIA_SUBTYPE_VIDEO_IMAGE)
+                PerformImageAction(action);
+            else
+                PerformVideoAction(action);
+        }
+        else if (IS_AUDIO(mediaType))
             PerformAudioAction(action);
-        else if (mediaType == MEDIA_SUBTYPE_VIDEO_IMAGE)
-            PerformImageAction(action);
         else
         {
             Logger::Log(Logger::DEBUG) << "Skip action due to unsupported MEDIA_TYPE: " << action.dump() << "." << std::endl;
@@ -5413,7 +5290,7 @@ void TimeLine::SyncDataLayer()
     int vidOvlpCnt = 0;
     for (auto ovlp : m_Overlaps)
     {
-        if (ovlp->mType == MEDIA_VIDEO)
+        if (IS_VIDEO(ovlp->mType))
             vidOvlpCnt++;
     }
     if (syncedOverlapCount != vidOvlpCnt)
@@ -5430,7 +5307,7 @@ SnapshotGeneratorHolder TimeLine::GetSnapshotGenerator(int64_t mediaItemId)
     MediaItem* mi = FindMediaItemByID(mediaItemId);
     if (!mi)
         return nullptr;
-    if (mi->mMediaType != MEDIA_VIDEO)
+    if (!IS_VIDEO(mi->mMediaType) || mi->mMediaType == MEDIA_SUBTYPE_VIDEO_IMAGE)
         return nullptr;
     SnapshotGeneratorHolder hSsGen = CreateSnapshotGenerator();
     hSsGen->EnableHwAccel(mHardwareCodec);
@@ -7006,7 +6883,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 action["end"] = imgui_json::number(item->mEnd);
                 if (item->mMediaType == MEDIA_SUBTYPE_VIDEO_IMAGE)
                 {
-                    ImageClip * new_image_clip = new ImageClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, timeline);
+                    VideoClip * new_image_clip = new VideoClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, timeline);
                     action["clip_id"] = imgui_json::number(new_image_clip->mID);
                     timeline->m_Clips.push_back(new_image_clip);
                     bool can_insert_clip = track ? track->CanInsertClip(new_image_clip, mouseTime) : false;
@@ -7278,37 +7155,6 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         newTrack->mMttReader->EnableFullSizeOutput(false);
         ret = true;
     }
-    /*
-    switch(insertEmptyTrackType)
-    {
-        case MEDIA_UNKNOWN: break;
-        case MEDIA_VIDEO:
-            timeline->NewTrack("", MEDIA_VIDEO, true);
-            ret = true;
-        break;
-        case MEDIA_AUDIO:
-            timeline->NewTrack("", MEDIA_AUDIO, true);
-            ret = true;
-        break;
-        case MEDIA_PICTURE:
-            timeline->NewTrack("", MEDIA_SUBTYPE_VIDEO_IMAGE, true);
-            ret = true;
-        break;
-        case MEDIA_TEXT:
-        {
-            int newTrackIndex = timeline->NewTrack("", MEDIA_TEXT, true);
-            MediaTrack * newTrack = timeline->m_Tracks[newTrackIndex];
-            newTrack->mMttReader = timeline->mMtvReader->NewEmptySubtitleTrack(newTrack->mID);
-            newTrack->mMttReader->SetFont(timeline->mFontName);
-            newTrack->mMttReader->SetFrameSize(timeline->mWidth, timeline->mHeight);
-            newTrack->mMttReader->EnableFullSizeOutput(false);
-            ret = true;
-        }
-        break;
-        default:
-        break;
-    }
-    */
     
     // handle group event
     if (groupClipEntry.size() > 0)

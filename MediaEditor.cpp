@@ -3138,13 +3138,14 @@ static void ShowVideoFilterPreviewWindow(ImDrawList *draw_list, bool attribute =
             ret = timeline->mVidFilterClip->GetFrame(pair, timeline->bAttributeOutputPreview, attribute);
         else
             ret = timeline->mVidFilterClip->GetFrame(pair, timeline->bFilterOutputPreview);
+        int64_t output_timestamp = pair.second.time_stamp * 1000;
         if (ret && 
-            (timeline->mIsPreviewNeedUpdate || timeline->mLastFrameTime == -1 || timeline->mLastFrameTime != (int64_t)(pair.first.time_stamp * 1000) || need_update_scope))
+            (timeline->mIsPreviewNeedUpdate || timeline->mLastFrameTime == -1 || timeline->mLastFrameTime != output_timestamp || need_update_scope))
         {
             CalculateVideoScope(pair.second);
             ImGui::ImMatToTexture(pair.first, timeline->mVideoFilterInputTexture);
             ImGui::ImMatToTexture(pair.second, timeline->mVideoFilterOutputTexture);
-            timeline->mLastFrameTime = pair.first.time_stamp * 1000;
+            timeline->mLastFrameTime = output_timestamp;
             timeline->mIsPreviewNeedUpdate = false;
         }
         float pos_x = 0, pos_y = 0;
