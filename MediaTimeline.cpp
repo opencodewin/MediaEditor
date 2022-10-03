@@ -911,7 +911,8 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
     {
         MediaTrack * track = timeline->m_Tracks[mouse_track];
         auto media_type = track->mType;
-        if (mType == media_type)
+        //if (mType == media_type)
+        if (IS_SAME_TYPE(mType, media_type))
         {
             // check clip is suitable for moving cross track base on overlap status
             bool can_moving = true;
@@ -2411,26 +2412,42 @@ EditingVideoOverlap::EditingVideoOverlap(Overlap* ovlp)
     if (vidclip1 && vidclip2)
     {
         mClip1 = vidclip1; mClip2 = vidclip2;
-        mSsGen1 = CreateSnapshotGenerator();
-        if (timeline) mSsGen1->EnableHwAccel(timeline->mHardwareCodec);
-        if (!mSsGen1->Open(vidclip1->mSsViewer->GetMediaParser()))
-            throw std::runtime_error("FAILED to open the snapshot generator for the 1st video clip!");
-        auto video1_info = vidclip1->mSsViewer->GetMediaParser()->GetBestVideoStream();
-        float snapshot_scale1 = video1_info->height > 0 ? 50.f / (float)video1_info->height : 0.1;
-        mSsGen1->SetCacheFactor(1.0);
-        mSsGen1->SetSnapshotResizeFactor(snapshot_scale1, snapshot_scale1);
-        m_StartOffset.first = vidclip1->mStartOffset + ovlp->mStart - vidclip1->mStart;
-        mViewer1 = mSsGen1->CreateViewer(m_StartOffset.first);
-        mSsGen2 = CreateSnapshotGenerator();
-        if (timeline) mSsGen2->EnableHwAccel(timeline->mHardwareCodec);
-        if (!mSsGen2->Open(vidclip2->mSsViewer->GetMediaParser()))
-            throw std::runtime_error("FAILED to open the snapshot generator for the 2nd video clip!");
-        auto video2_info = vidclip2->mSsViewer->GetMediaParser()->GetBestVideoStream();
-        float snapshot_scale2 = video2_info->height > 0 ? 50.f / (float)video2_info->height : 0.1;
-        mSsGen2->SetCacheFactor(1.0);
-        mSsGen2->SetSnapshotResizeFactor(snapshot_scale2, snapshot_scale2);
-        m_StartOffset.second = vidclip2->mStartOffset + ovlp->mStart - vidclip2->mStart;
-        mViewer2 = mSsGen2->CreateViewer(m_StartOffset.second);
+        if (mClip1->mType == MEDIA_VIDEO)
+        {
+            mSsGen1 = CreateSnapshotGenerator();
+            if (timeline) mSsGen1->EnableHwAccel(timeline->mHardwareCodec);
+            if (!mSsGen1->Open(vidclip1->mSsViewer->GetMediaParser()))
+                throw std::runtime_error("FAILED to open the snapshot generator for the 1st video clip!");
+            auto video1_info = vidclip1->mSsViewer->GetMediaParser()->GetBestVideoStream();
+            float snapshot_scale1 = video1_info->height > 0 ? 50.f / (float)video1_info->height : 0.1;
+            mSsGen1->SetCacheFactor(1.0);
+            mSsGen1->SetSnapshotResizeFactor(snapshot_scale1, snapshot_scale1);
+            m_StartOffset.first = vidclip1->mStartOffset + ovlp->mStart - vidclip1->mStart;
+            mViewer1 = mSsGen1->CreateViewer(m_StartOffset.first);
+        }
+        else
+        {
+            m_StartOffset.first = ovlp->mStart - vidclip1->mStart;
+            if (vidclip1->mImgTexture) mImgTexture1 = vidclip1->mImgTexture;
+        }
+        if (mClip2->mType == MEDIA_VIDEO)
+        {
+            mSsGen2 = CreateSnapshotGenerator();
+            if (timeline) mSsGen2->EnableHwAccel(timeline->mHardwareCodec);
+            if (!mSsGen2->Open(vidclip2->mSsViewer->GetMediaParser()))
+                throw std::runtime_error("FAILED to open the snapshot generator for the 2nd video clip!");
+            auto video2_info = vidclip2->mSsViewer->GetMediaParser()->GetBestVideoStream();
+            float snapshot_scale2 = video2_info->height > 0 ? 50.f / (float)video2_info->height : 0.1;
+            mSsGen2->SetCacheFactor(1.0);
+            mSsGen2->SetSnapshotResizeFactor(snapshot_scale2, snapshot_scale2);
+            m_StartOffset.second = vidclip2->mStartOffset + ovlp->mStart - vidclip2->mStart;
+            mViewer2 = mSsGen2->CreateViewer(m_StartOffset.second);
+        }
+        else
+        {
+            m_StartOffset.second = ovlp->mStart - vidclip2->mStart;
+            if (vidclip2->mImgTexture) mImgTexture2 = vidclip2->mImgTexture;
+        }
         mStart = ovlp->mStart;
         mEnd = ovlp->mEnd;
         mDuration = mEnd - mStart;
@@ -2479,14 +2496,34 @@ void EditingVideoOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
     {
         mViewWndSize = viewWndSize;
         // TODO: need to consider the situation that 1st and 2nd video doesn't have the same size. (wyvern)
-        const MediaInfo::VideoStream* vidStream = mSsGen1->GetVideoStream();
-        if (vidStream->width == 0 || vidStream->height == 0)
+        if (mSsGen1 || mSsGen2)
+        {
+            const MediaInfo::VideoStream* vidStream = mSsGen1 ? mSsGen1->GetVideoStream() : mSsGen2->GetVideoStream();
+            if (vidStream->width == 0 || vidStream->height == 0)
+            {
+                Logger::Log(Logger::Error) << "Snapshot video size is INVALID! Width or height is ZERO." << std::endl;
+                return;
+            }
+            mSnapSize.y = viewWndSize.y/2;
+            mSnapSize.x = mSnapSize.y * vidStream->width / vidStream->height;
+        }
+        else if (mImgTexture1 || mImgTexture2)
+        {
+            int width = ImGui::ImGetTextureWidth(mImgTexture1 ? mImgTexture1 : mImgTexture2);
+            int height = ImGui::ImGetTextureHeight(mImgTexture1 ? mImgTexture1 : mImgTexture2);
+            if (width == 0 || height == 0)
+            {
+                Logger::Log(Logger::Error) << "Snapshot video size is INVALID! Width or height is ZERO." << std::endl;
+                return;
+            }
+            mSnapSize.y = viewWndSize.y / 2;
+            mSnapSize.x = mSnapSize.y * width / height;
+        }
+        else
         {
             Logger::Log(Logger::Error) << "Snapshot video size is INVALID! Width or height is ZERO." << std::endl;
             return;
         }
-        mSnapSize.y = viewWndSize.y/2;
-        mSnapSize.x = mSnapSize.y * vidStream->width / vidStream->height;
     }
     if (mViewWndSize.x == 0 || mViewWndSize.y == 0)
         return;
@@ -2496,72 +2533,133 @@ void EditingVideoOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
     }
 
     // get snapshot images
-    m_StartOffset.first = mClip1->mStartOffset + mOvlp->mStart-mClip1->mStart;
     std::vector<SnapshotGenerator::ImageHolder> snapImages1;
-    if (!mViewer1->GetSnapshots((double)m_StartOffset.first/1000, snapImages1))
+    if (mViewer1)
     {
-        Logger::Log(Logger::Error) << mViewer1->GetError() << std::endl;
-        return;
+        m_StartOffset.first = mClip1->mStartOffset + mOvlp->mStart-mClip1->mStart;
+        if (!mViewer1->GetSnapshots((double)m_StartOffset.first/1000, snapImages1))
+        {
+            Logger::Log(Logger::Error) << mViewer1->GetError() << std::endl;
+            return;
+        }
+        mViewer1->UpdateSnapshotTexture(snapImages1);
     }
-    mViewer1->UpdateSnapshotTexture(snapImages1);
-    m_StartOffset.second = mClip2->mStartOffset + mOvlp->mStart-mClip2->mStart;
     std::vector<SnapshotGenerator::ImageHolder> snapImages2;
-    if (!mViewer2->GetSnapshots((double)m_StartOffset.second/1000, snapImages2))
+    if (mViewer2)
     {
-        Logger::Log(Logger::Error) << mViewer2->GetError() << std::endl;
-        return;
+        m_StartOffset.second = mClip2->mStartOffset + mOvlp->mStart-mClip2->mStart;
+        if (!mViewer2->GetSnapshots((double)m_StartOffset.second/1000, snapImages2))
+        {
+            Logger::Log(Logger::Error) << mViewer2->GetError() << std::endl;
+            return;
+        }
+        mViewer2->UpdateSnapshotTexture(snapImages2);
     }
-    mViewer2->UpdateSnapshotTexture(snapImages2);
 
     // draw snapshot images
-    ImVec2 imgLeftTop = leftTop;
-    auto imgIter1 = snapImages1.begin();
-    auto imgIter2 = snapImages2.begin();
-    while (imgIter1 != snapImages1.end() || imgIter2 != snapImages2.end())
+    if (snapImages1.size() > 0)
     {
-        ImVec2 snapDispSize = mSnapSize;
-        ImVec2 uvMin{0, 0}, uvMax{1, 1};
-        if (imgLeftTop.x+mSnapSize.x > rightBottom.x)
+        ImVec2 imgLeftTop = leftTop;
+        auto imgIter1 = snapImages1.begin();
+        while (imgIter1 != snapImages1.end())
         {
-            snapDispSize.x = rightBottom.x - imgLeftTop.x;
-            uvMax.x = snapDispSize.x / mSnapSize.x;
+            ImVec2 snapDispSize = mSnapSize;
+            ImVec2 uvMin{0, 0}, uvMax{1, 1};
+            if (imgLeftTop.x+mSnapSize.x > rightBottom.x)
+            {
+                snapDispSize.x = rightBottom.x - imgLeftTop.x;
+                uvMax.x = snapDispSize.x / mSnapSize.x;
+            }
+            if (imgIter1 != snapImages1.end() && (*imgIter1)->mTextureReady)
+            {
+                auto& img = *imgIter1++;
+                drawList->AddImage(*(img->mTextureHolder), imgLeftTop, imgLeftTop + snapDispSize, uvMin, uvMax);
+            }
+            else
+            {
+                drawList->AddRectFilled(imgLeftTop, imgLeftTop + snapDispSize, IM_COL32_BLACK);
+                auto center_pos = imgLeftTop + snapDispSize / 2;
+                ImVec4 color_main(1.0, 1.0, 1.0, 1.0);
+                ImVec4 color_back(0.5, 0.5, 0.5, 1.0);
+                ImGui::SetCursorScreenPos(center_pos - ImVec2(8, 8));
+                ImGui::LoadingIndicatorCircle("Running", 1.0f, &color_main, &color_back);
+                drawList->AddRect(imgLeftTop, imgLeftTop + snapDispSize, COL_FRAME_RECT);
+            }
+            imgLeftTop.x += snapDispSize.x;
+            if (imgLeftTop.x >= rightBottom.x)
+                break;
         }
-
-        if (imgIter1 != snapImages1.end() && (*imgIter1)->mTextureReady)
+    }
+    else if (mImgTexture1)
+    {
+        ImVec2 imgLeftTop = leftTop;
+        while (1)
         {
-            auto& img = *imgIter1++;
-            drawList->AddImage(*(img->mTextureHolder), imgLeftTop, imgLeftTop + snapDispSize, uvMin, uvMax);
+            ImVec2 snapDispSize = mSnapSize;
+            ImVec2 uvMin{0, 0}, uvMax{1, 1};
+            if (imgLeftTop.x+mSnapSize.x > rightBottom.x)
+            {
+                snapDispSize.x = rightBottom.x - imgLeftTop.x;
+                uvMax.x = snapDispSize.x / mSnapSize.x;
+            }
+            drawList->AddImage(mImgTexture1, imgLeftTop, imgLeftTop + snapDispSize, uvMin, uvMax);
+            imgLeftTop.x += snapDispSize.x;
+            if (imgLeftTop.x >= rightBottom.x)
+                break;
         }
-        else
+    }
+    if (snapImages2.size() > 0)
+    {
+        ImVec2 imgLeftTop = leftTop;
+        auto imgIter2 = snapImages2.begin();
+        while (imgIter2 != snapImages2.end())
         {
-            drawList->AddRectFilled(imgLeftTop, imgLeftTop + snapDispSize, IM_COL32_BLACK);
-            auto center_pos = imgLeftTop + snapDispSize / 2;
-            ImVec4 color_main(1.0, 1.0, 1.0, 1.0);
-            ImVec4 color_back(0.5, 0.5, 0.5, 1.0);
-            ImGui::SetCursorScreenPos(center_pos - ImVec2(8, 8));
-            ImGui::LoadingIndicatorCircle("Running", 1.0f, &color_main, &color_back);
-            drawList->AddRect(imgLeftTop, imgLeftTop + snapDispSize, COL_FRAME_RECT);
+            ImVec2 snapDispSize = mSnapSize;
+            ImVec2 uvMin{0, 0}, uvMax{1, 1};
+            if (imgLeftTop.x+mSnapSize.x > rightBottom.x)
+            {
+                snapDispSize.x = rightBottom.x - imgLeftTop.x;
+                uvMax.x = snapDispSize.x / mSnapSize.x;
+            }
+            ImVec2 img2LeftTop = {imgLeftTop.x, imgLeftTop.y+mSnapSize.y};
+            if (imgIter2 != snapImages2.end() && (*imgIter2)->mTextureReady)
+            {
+                auto& img = *imgIter2++;
+                drawList->AddImage(*(img->mTextureHolder), img2LeftTop, img2LeftTop + snapDispSize, uvMin, uvMax);
+            }
+            else
+            {
+                drawList->AddRectFilled(img2LeftTop, img2LeftTop + snapDispSize, IM_COL32_BLACK);
+                auto center_pos = img2LeftTop + snapDispSize / 2;
+                ImVec4 color_main(1.0, 1.0, 1.0, 1.0);
+                ImVec4 color_back(0.5, 0.5, 0.5, 1.0);
+                ImGui::SetCursorScreenPos(center_pos - ImVec2(8, 8));
+                ImGui::LoadingIndicatorCircle("Running", 1.0f, &color_main, &color_back);
+                drawList->AddRect(img2LeftTop, img2LeftTop + snapDispSize, COL_FRAME_RECT);
+            }
+            imgLeftTop.x += snapDispSize.x;
+            if (imgLeftTop.x >= rightBottom.x)
+                break;
         }
-        ImVec2 img2LeftTop = {imgLeftTop.x, imgLeftTop.y+mSnapSize.y};
-        if (imgIter2 != snapImages2.end() && (*imgIter2)->mTextureReady)
+    }
+    else if (mImgTexture2)
+    {
+        ImVec2 imgLeftTop = leftTop;
+        while (1)
         {
-            auto& img = *imgIter2++;
-            drawList->AddImage(*(img->mTextureHolder), img2LeftTop, img2LeftTop + snapDispSize, uvMin, uvMax);
+            ImVec2 snapDispSize = mSnapSize;
+            ImVec2 uvMin{0, 0}, uvMax{1, 1};
+            if (imgLeftTop.x+mSnapSize.x > rightBottom.x)
+            {
+                snapDispSize.x = rightBottom.x - imgLeftTop.x;
+                uvMax.x = snapDispSize.x / mSnapSize.x;
+            }
+            ImVec2 img2LeftTop = {imgLeftTop.x, imgLeftTop.y+mSnapSize.y};
+            drawList->AddImage(mImgTexture2, img2LeftTop, img2LeftTop + snapDispSize, uvMin, uvMax);
+            imgLeftTop.x += snapDispSize.x;
+            if (imgLeftTop.x >= rightBottom.x)
+                break;
         }
-        else
-        {
-            drawList->AddRectFilled(img2LeftTop, img2LeftTop + snapDispSize, IM_COL32_BLACK);
-            auto center_pos = img2LeftTop + snapDispSize / 2;
-            ImVec4 color_main(1.0, 1.0, 1.0, 1.0);
-            ImVec4 color_back(0.5, 0.5, 0.5, 1.0);
-            ImGui::SetCursorScreenPos(center_pos - ImVec2(8, 8));
-            ImGui::LoadingIndicatorCircle("Running", 1.0f, &color_main, &color_back);
-            drawList->AddRect(img2LeftTop, img2LeftTop + snapDispSize, COL_FRAME_RECT);
-        }
-
-        imgLeftTop.x += snapDispSize.x;
-        if (imgLeftTop.x >= rightBottom.x)
-            break;
     }
 }
 
@@ -2569,8 +2667,8 @@ void EditingVideoOverlap::CalcDisplayParams()
 {
     double snapWndSize = (double)mDuration / 1000;
     double snapCntInView = (double)mViewWndSize.x / mSnapSize.x;
-    mSsGen1->ConfigSnapWindow(snapWndSize, snapCntInView);
-    mSsGen2->ConfigSnapWindow(snapWndSize, snapCntInView);
+    if (mSsGen1) mSsGen1->ConfigSnapWindow(snapWndSize, snapCntInView);
+    if (mSsGen2) mSsGen2->ConfigSnapWindow(snapWndSize, snapCntInView);
 }
 
 void EditingVideoOverlap::Seek(int64_t pos)

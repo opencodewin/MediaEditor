@@ -589,6 +589,8 @@ struct EditingVideoOverlap : BaseEditingOverlap
     VideoClip *mClip1, *mClip2;
     SnapshotGeneratorHolder mSsGen1, mSsGen2;
     SnapshotGenerator::ViewerHolder mViewer1, mViewer2;
+    ImTextureID mImgTexture1 {0};
+    ImTextureID mImgTexture2 {0};
     ImVec2 mSnapSize{0, 0};
     MediaInfo::Ratio mClipFirstFrameRate {25, 1};     // overlap clip first Frame rate
     MediaInfo::Ratio mClipSecondFrameRate {25, 1};     // overlap clip second Frame rate
