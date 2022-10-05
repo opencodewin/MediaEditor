@@ -557,7 +557,7 @@ struct EditingAudioClip : BaseEditingClip
 {
     EditingAudioClip(AudioClip* vidclip);
     virtual ~EditingAudioClip();
-
+    ImGui::KeyPointEditor mKeyPoints;
     void UpdateClipRange(Clip* clip) override;
     void Seek(int64_t pos) override;
     void Step(bool forward, int64_t step = 0) override;

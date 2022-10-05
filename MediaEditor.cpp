@@ -1706,7 +1706,6 @@ static void ShowMediaBankWindow(ImDrawList *draw_list, float media_icon_size)
     ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
     ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
     draw_list->AddText(window_pos + ImVec2(8, 0), IM_COL32(56, 56, 56, 128), "Media Bank");
-    //draw_list->AddText(window_pos + ImVec2(8, 32), IM_COL32(56, 56, 56, 128), "Bank");
     ImGui::PopStyleColor();
     ImGui::PopStyleVar();
     ImGui::SetWindowFontScale(1.0);
@@ -1730,6 +1729,7 @@ static void ShowMediaBankWindow(ImDrawList *draw_list, float media_icon_size)
         return;
     }
     // Show Media Icons
+    ImGui::SetCursorPos({20, 20});
     int icon_number_pre_row = window_size.x / (media_icon_size + 24);
     for (auto item = timeline->media_items.begin(); item != timeline->media_items.end();)
     {
@@ -1763,8 +1763,8 @@ static void ShowFusionBankIconWindow(ImDrawList *draw_list)
     ImGui::Indent(20);
     ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
     ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
-    draw_list->AddText(window_pos + ImVec2(8, 0), IM_COL32(56, 56, 56, 128), "Fusion");
-    draw_list->AddText(window_pos + ImVec2(8, 48), IM_COL32(56, 56, 56, 128), "Bank");
+    draw_list->AddText(window_pos + ImVec2(8, 0), IM_COL32(56, 56, 56, 128), "Fusion Bank");
+    //draw_list->AddText(window_pos + ImVec2(8, 48), IM_COL32(56, 56, 56, 128), "Bank");
     ImGui::PopStyleColor();
     ImGui::PopStyleVar();
     ImGui::SetWindowFontScale(1.0);
@@ -1772,6 +1772,7 @@ static void ShowFusionBankIconWindow(ImDrawList *draw_list)
     if (!timeline)
         return;
     // Show Fusion Icons
+    ImGui::SetCursorPos({20, 20});
     if (timeline->m_BP_UI.m_Document)
     {
         auto &bp = timeline->m_BP_UI.m_Document->m_Blueprint;
@@ -1826,8 +1827,8 @@ static void ShowFusionBankTreeWindow(ImDrawList *draw_list)
     ImGui::SetWindowFontScale(2.5);
     ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
     ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
-    draw_list->AddText(window_pos + ImVec2(8, 0), IM_COL32(56, 56, 56, 128), "Fusion");
-    draw_list->AddText(window_pos + ImVec2(8, 48), IM_COL32(56, 56, 56, 128), "Bank");
+    draw_list->AddText(window_pos + ImVec2(8, 0), IM_COL32(56, 56, 56, 128), "Fusion Bank");
+    //draw_list->AddText(window_pos + ImVec2(8, 48), IM_COL32(56, 56, 56, 128), "Bank");
     ImGui::PopStyleColor();
     ImGui::PopStyleVar();
     ImGui::SetWindowFontScale(1.0);
@@ -1993,8 +1994,8 @@ static void ShowFilterBankIconWindow(ImDrawList *draw_list)
     ImGui::Indent(20);
     ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
     ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
-    draw_list->AddText(window_pos + ImVec2(8, 0), IM_COL32(56, 56, 56, 128), "Filter");
-    draw_list->AddText(window_pos + ImVec2(8, 48), IM_COL32(56, 56, 56, 128), "Bank");
+    draw_list->AddText(window_pos + ImVec2(8, 0), IM_COL32(56, 56, 56, 128), "Filters Bank");
+    //draw_list->AddText(window_pos + ImVec2(8, 48), IM_COL32(56, 56, 56, 128), "Bank");
     ImGui::PopStyleColor();
     ImGui::PopStyleVar();
     ImGui::SetWindowFontScale(1.0);
@@ -2002,6 +2003,7 @@ static void ShowFilterBankIconWindow(ImDrawList *draw_list)
     if (!timeline)
         return;
     // Show Filter Icons
+    ImGui::SetCursorPos({20, 20});
     if (timeline->m_BP_UI.m_Document)
     {
         auto &bp = timeline->m_BP_UI.m_Document->m_Blueprint;
@@ -2056,8 +2058,8 @@ static void ShowFilterBankTreeWindow(ImDrawList *draw_list)
     ImGui::SetWindowFontScale(2.5);
     ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
     ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
-    draw_list->AddText(window_pos + ImVec2(8, 0), IM_COL32(56, 56, 56, 128), "Filter");
-    draw_list->AddText(window_pos + ImVec2(8, 48), IM_COL32(56, 56, 56, 128), "Bank");
+    draw_list->AddText(window_pos + ImVec2(8, 0), IM_COL32(56, 56, 56, 128), "Filters Bank");
+    //draw_list->AddText(window_pos + ImVec2(8, 48), IM_COL32(56, 56, 56, 128), "Bank");
     ImGui::PopStyleColor();
     ImGui::PopStyleVar();
     ImGui::SetWindowFontScale(1.0);
@@ -2225,19 +2227,19 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
     ImGui::SetWindowFontScale(2.5);
     ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
     ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
-    draw_list->AddText(window_pos + ImVec2(8, 0), IM_COL32(56, 56, 56, 128), "Media");
-    draw_list->AddText(window_pos + ImVec2(8, 48), IM_COL32(56, 56, 56, 128), "Output");
+    draw_list->AddText(window_pos + ImVec2(8, 0), IM_COL32(56, 56, 56, 128), "Media Output");
+    //draw_list->AddText(window_pos + ImVec2(8, 48), IM_COL32(56, 56, 56, 128), "Output");
     ImGui::PopStyleColor();
     ImGui::PopStyleVar();
     ImGui::SetWindowFontScale(1.0);
     if (!timeline)
         return;
 
-    ImGui::SetCursorPos({20, 20});
+    ImGui::SetCursorPos({20, 50});
     if (ImGui::Button("MAKE VIDEO"))
     {
         g_encoderConfigErrorMessage.clear();
-        ImGui::OpenPopup("Make Video##MakeVideoDlyKey", ImGuiPopupFlags_NoOpenOverExistingPopup);
+        ImGui::OpenPopup("Make Media##MakeVideoDlyKey", ImGuiPopupFlags_NoOpenOverExistingPopup);
     }
     ImGui::Dummy(ImVec2(0, 10));
     if (ImGui::BeginChild("##Subcp01"))
@@ -2668,8 +2670,8 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
         ImGui::EndChild();
     }
 
-    // Make video dialog
-    if (ImGui::BeginPopupModal("Make Video##MakeVideoDlyKey", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings))
+    // Make Media dialog
+    if (ImGui::BeginPopupModal("Make Media##MakeVideoDlyKey", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings))
     {
         const ImVec2 lineGap {0, 6};
         ImGui::TextUnformatted("Output path:"); ImGui::SameLine(0, 10);
@@ -4835,7 +4837,6 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list)
     draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
     float audio_view_width = window_size.x * 2 / 3;
     float audio_editor_width = window_size.x - audio_view_width;
-
     if (!timeline)
         return;
 
@@ -4858,49 +4859,333 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list)
     float clip_header_height = 30;
     float clip_channel_height = 50;
     float clip_timeline_height = clip_header_height;
+    float clip_keypoint_height = g_media_editor_settings.AudioFilterCurveExpanded ? 160 : 0;
+    ImVec2 preview_pos = window_pos;
+    float preview_width = audio_view_width;
+
     if (editing_clip)
     {
         int channels = ((AudioClip *)editing_clip)->mAudioChannels;
         clip_timeline_height += channels * clip_channel_height;
     }
-    float editor_main_height = window_size.y - clip_timeline_height - 4;
-
+    float preview_height = window_size.y - clip_timeline_height - clip_keypoint_height - 4;
+    float audio_blueprint_height = window_size.y / 2;
     if (editing_clip && timeline->mAudioFilterBluePrint)
     {
-        timeline->mAudioFilterBluePrint->m_ViewSize = ImVec2(audio_editor_width, editor_main_height);
+        timeline->mAudioFilterBluePrint->m_ViewSize = ImVec2(audio_editor_width, audio_blueprint_height);
     }
+    float clip_timeline_width = audio_view_width;
+    ImVec2 clip_timeline_pos = window_pos + ImVec2(0, preview_height);
+    ImVec2 clip_timeline_size(clip_timeline_width, clip_timeline_height);
+    ImVec2 clip_keypoint_pos = g_media_editor_settings.AudioFusionCurveExpanded ? clip_timeline_pos + ImVec2(0, clip_timeline_height) : clip_timeline_pos + ImVec2(0, clip_timeline_height - 16);
+    ImVec2 clip_keypoint_size(audio_view_width, clip_keypoint_height);
+    ImVec2 clip_setting_pos = window_pos + ImVec2(audio_view_width, window_size.y / 2);
+    ImVec2 clip_setting_size(audio_editor_width, window_size.y / 2);
 
-    if (ImGui::BeginChild("##audio_filter_main", ImVec2(window_size.x, editor_main_height), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+    ImGuiWindowFlags child_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings;
+    ImGuiWindowFlags setting_child_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings;
+
+    if (ImGui::BeginChild("##audio_filter_preview", ImVec2(preview_width, preview_height), false, child_flags))
     {
-        ImVec2 clip_window_pos = ImGui::GetCursorScreenPos();
-        ImVec2 clip_window_size = ImGui::GetWindowSize();
-        if (ImGui::BeginChild("##filter_audio_view", ImVec2(audio_view_width, clip_window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
-        {
-            ImVec2 audio_view_window_pos = ImGui::GetCursorScreenPos();
-            ImVec2 audio_view_window_size = ImGui::GetWindowSize();
-            draw_list->AddRectFilled(audio_view_window_pos, audio_view_window_pos + audio_view_window_size, COL_DEEP_DARK);
-            // TODO::Dicky add Audio view control
-        }
-        ImGui::EndChild();
-        ImGui::SetCursorScreenPos(clip_window_pos + ImVec2(audio_view_width, 0));
-        if (ImGui::BeginChild("##audio_filter_blueprint", ImVec2(audio_editor_width, clip_window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
-        {
-            ImVec2 editor_view_window_pos = ImGui::GetCursorScreenPos();
-            ImVec2 editor_view_window_size = ImGui::GetWindowSize();
-            draw_list->AddRectFilled(editor_view_window_pos, editor_view_window_pos + editor_view_window_size, COL_DARK_ONE);
-            ShowAudioFilterBluePrintWindow(draw_list, editing_clip);
-        }
-        ImGui::EndChild();
+        ImRect video_rect;
+        ImVec2 audio_view_window_pos = ImGui::GetCursorScreenPos();
+        ImVec2 audio_view_window_size = ImGui::GetWindowSize();
+        draw_list->AddRectFilled(audio_view_window_pos, audio_view_window_pos + audio_view_window_size, COL_DEEP_DARK);
+        ShowMediaPreviewWindow(draw_list, "Audio Filter", video_rect, editing_clip ? editing_clip->mStart : -1, editing_clip ? editing_clip->mEnd : -1, false, false, false);
     }
     ImGui::EndChild();
-    if (ImGui::BeginChild("##audio_filter_timeline", ImVec2(window_size.x, clip_timeline_height), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+
+    ImGui::SetCursorScreenPos(clip_timeline_pos);
+    if (ImGui::BeginChild("##audio_filter_timeline", clip_timeline_size, false, child_flags))
     {
         ImVec2 clip_timeline_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 clip_timeline_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(clip_timeline_window_pos, clip_timeline_window_pos + clip_timeline_window_size, COL_DARK_TWO);
+        DrawClipTimeLine(timeline->mAudFilterClip, timeline->currentTime, clip_header_height, clip_timeline_height - clip_header_height);
+    }
+    ImGui::EndChild();
+    // draw keypoint hidden button
+    ImVec2 hidden_button_pos = window_pos + ImVec2(0, preview_height - 16);
+    ImRect hidden_button_rect = ImRect(hidden_button_pos, hidden_button_pos + ImVec2(16, 16));
+    ImGui::SetWindowFontScale(0.75);
+    if (hidden_button_rect.Contains(ImGui::GetMousePos()))
+    {
+        draw_list->AddRectFilled(hidden_button_rect.Min, hidden_button_rect.Max, IM_COL32(64,64,64,255));
+        if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+        {
+            g_media_editor_settings.AudioFilterCurveExpanded = !g_media_editor_settings.AudioFilterCurveExpanded;
+        }
+        ImGui::BeginTooltip();
+        ImGui::TextUnformatted(g_media_editor_settings.TextCurveExpanded ? "Hide Curve View" : "Show Curve View");
+        ImGui::EndTooltip();
+    }
+    draw_list->AddText(hidden_button_pos, IM_COL32_WHITE, ICON_FA_BEZIER_CURVE);
+    ImGui::SetWindowFontScale(1.0);
 
-        // Draw Clip TimeLine TODO::Dicky
-        DrawClipTimeLine(timeline->mAudFilterClip, 0, clip_header_height, clip_timeline_height - clip_header_height);
+    // draw filter curve editor
+    if (g_media_editor_settings.AudioFilterCurveExpanded)
+    {
+        ImGui::SetCursorScreenPos(clip_keypoint_pos);
+        if (ImGui::BeginChild("##audio_filter_keypoint", clip_keypoint_size, false, child_flags))
+        {
+            ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 sub_window_size = ImGui::GetWindowSize();
+            draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_ONE);
+            if (timeline->mAudFilterClip)
+            {
+                bool _changed = false;
+                float current_time = timeline->currentTime;
+                mouse_hold |= ImGui::ImCurveEdit::Edit(timeline->mAudFilterClip->mKeyPoints,
+                                                        sub_window_size, 
+                                                        ImGui::GetID("##audio_filter_keypoint_editor"), 
+                                                        current_time,
+                                                        CURVE_EDIT_FLAG_VALUE_LIMITED | CURVE_EDIT_FLAG_MOVE_CURVE | CURVE_EDIT_FLAG_KEEP_BEGIN_END | CURVE_EDIT_FLAG_DOCK_BEGIN_END, 
+                                                        nullptr, // clippingRect
+                                                        &_changed,
+                                                        nullptr // selectedPoints
+                                                        );
+                if (_changed) timeline->UpdatePreview();
+            }
+        }
+        ImGui::EndChild();
+    }
+
+
+    ImGui::SetCursorScreenPos(window_pos + ImVec2(audio_view_width, 0));
+    if (ImGui::BeginChild("##audio_filter_blueprint", ImVec2(audio_editor_width, audio_blueprint_height), false, child_flags))
+    {
+        ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+        ImVec2 sub_window_size = ImGui::GetWindowSize();
+        draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_ONE);
+        ShowAudioFilterBluePrintWindow(draw_list, editing_clip);
+    }
+    ImGui::EndChild();
+    // Draw Audio filter setting
+    ImGui::SetCursorScreenPos(clip_setting_pos);
+    if (ImGui::BeginChild("##audio_filter_setting", clip_setting_size, false, setting_child_flags))
+    {
+        auto addCurve = [&](std::string name, float _min, float _max, float _default)
+        {
+            if (timeline->mAudFilterClip)
+            {
+                auto found = timeline->mAudFilterClip->mKeyPoints.GetCurveIndex(name);
+                if (found == -1)
+                {
+                    ImU32 color; ImGui::RandomColor(color, 1.f);
+                    auto curve_index = timeline->mAudFilterClip->mKeyPoints.AddCurve(name, ImGui::ImCurveEdit::Smooth, color, true, _min, _max, _default);
+                    timeline->mAudFilterClip->mKeyPoints.AddPoint(curve_index, ImVec2(editing_clip->mStart, _min), ImGui::ImCurveEdit::Smooth);
+                    timeline->mAudFilterClip->mKeyPoints.AddPoint(curve_index, ImVec2(editing_clip->mEnd, _max), ImGui::ImCurveEdit::Smooth);
+                    timeline->mAudFilterClip->mKeyPoints.SetCurvePointDefault(curve_index, 0);
+                    timeline->mAudFilterClip->mKeyPoints.SetCurvePointDefault(curve_index, 1);
+                    if (timeline->mAudioFilterBluePrint)
+                    {
+                        auto entry_node = timeline->mAudioFilterBluePrint->FindEntryPointNode();
+                        if (entry_node) entry_node->InsertOutputPin(BluePrint::PinType::Float, name);
+                        timeline->UpdatePreview();
+                    }
+                }
+            }
+        };
+        ImVec2 sub_window_pos = ImGui::GetWindowPos(); // we need draw background with scroll view
+        ImVec2 sub_window_size = ImGui::GetWindowSize();
+        //draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_TWO);
+        if (timeline->mAudFilterClip)
+        {
+            // Filter curve setting
+            if (ImGui::TreeNodeEx("Curve Setting##audio_filter", ImGuiTreeNodeFlags_DefaultOpen))
+            {
+                char ** curve_type_list = nullptr;
+                auto curve_type_count = ImGui::ImCurveEdit::GetCurveTypeName(curve_type_list);
+                bool name_input_with_return = false;
+                static std::string curve_name = "";
+                std::string value = curve_name;
+                if (ImGui::InputTextWithHint("##new_curve_name_audio_filter", "Input curve name", (char*)value.data(), value.size() + 1, ImGuiInputTextFlags_CallbackEdit | ImGuiInputTextFlags_CallbackResize | ImGuiInputTextFlags_EnterReturnsTrue, [](ImGuiInputTextCallbackData* data) -> int
+                {
+                    if (data->EventFlag == ImGuiInputTextFlags_CallbackResize)
+                    {
+                        auto& stringValue = *static_cast<string*>(data->UserData);
+                        ImVector<char>* my_str = (ImVector<char>*)data->UserData;
+                        //IM_ASSERT(stringValue.data() == data->Buf);
+                        stringValue.resize(data->BufSize);
+                        data->Buf = (char*)stringValue.data();
+                    }
+                    else if (data->EventFlag == ImGuiInputTextFlags_CallbackEdit)
+                    {
+                        auto& stringValue = *static_cast<string*>(data->UserData);
+                        stringValue = std::string(data->Buf);
+                    }
+                    return 0;
+                }, &value))
+                {
+                    value.resize(strlen(value.c_str()));
+                    curve_name = value;
+                    name_input_with_return = true;
+                }
+
+                ImGui::BeginDisabled(curve_name.empty());
+                ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 8.0f);
+                ImGui::SameLine();
+                if (ImGui::Button(ICON_ADD "##insert_curve_audio_filter") || name_input_with_return)
+                {
+                    addCurve(curve_name, 0.f, 1.f, 0.5);
+                }
+                ImGui::PopStyleVar();
+                ImGui::EndDisabled();
+
+                // list curves
+                for (int i = 0; i < timeline->mAudFilterClip->mKeyPoints.GetCurveCount(); i++)
+                {
+                    bool break_loop = false;
+                    ImGui::PushID(i);
+                    auto pCount = timeline->mAudFilterClip->mKeyPoints.GetCurvePointCount(i);
+                    std::string lable_id = std::string(ICON_CURVE) + " " + timeline->mAudFilterClip->mKeyPoints.GetCurveName(i) + " (" + std::to_string(pCount) + " keys)" + "##audio_filter_curve";
+                    if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
+                    {
+                        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
+                        float value = timeline->mAudFilterClip->mKeyPoints.GetValue(i, timeline->currentTime);
+                        ImGui::BracketSquare(true); ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0, 1.0, 0.0, 1.0)); ImGui::Text("%.2f", value); ImGui::PopStyleColor();
+                        ImGui::PushItemWidth(60);
+                        float curve_min = timeline->mAudFilterClip->mKeyPoints.GetCurveMin(i);
+                        float curve_max = timeline->mAudFilterClip->mKeyPoints.GetCurveMax(i);
+                        if (ImGui::DragFloat("##curve_audio_filter_min", &curve_min, 0.1f, -FLT_MAX, curve_max, "%.1f"))
+                        {
+                            timeline->mAudFilterClip->mKeyPoints.SetCurveMin(i, curve_min);
+                            timeline->UpdatePreview();
+                        } ImGui::ShowTooltipOnHover("Min");
+                        ImGui::SameLine(0, 8);
+                        if (ImGui::DragFloat("##curve_audio_filter_max", &curve_max, 0.1f, curve_min, FLT_MAX, "%.1f"))
+                        {
+                            timeline->mAudFilterClip->mKeyPoints.SetCurveMax(i, curve_max);
+                            timeline->UpdatePreview();
+                        } ImGui::ShowTooltipOnHover("Max");
+                        ImGui::SameLine(0, 8);
+                        float curve_default = timeline->mAudFilterClip->mKeyPoints.GetCurveDefault(i);
+                        if (ImGui::DragFloat("##curve_audio_filter_default", &curve_default, 0.1f, curve_min, curve_max, "%.1f"))
+                        {
+                            timeline->mAudFilterClip->mKeyPoints.SetCurveDefault(i, curve_default);
+                            timeline->UpdatePreview();
+                        } ImGui::ShowTooltipOnHover("Default");
+                        ImGui::PopItemWidth();
+                        
+                        ImGui::SameLine(0, 8);
+                        ImGui::SetWindowFontScale(0.75);
+                        auto curve_color = ImGui::ColorConvertU32ToFloat4(timeline->mAudFilterClip->mKeyPoints.GetCurveColor(i));
+                        if (ImGui::ColorEdit4("##curve_audio_filter_color", (float*)&curve_color, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar))
+                        {
+                            timeline->mAudFilterClip->mKeyPoints.SetCurveColor(i, ImGui::ColorConvertFloat4ToU32(curve_color));
+                        } ImGui::ShowTooltipOnHover("Curve Color");
+                        ImGui::SetWindowFontScale(1.0);
+                        ImGui::SameLine(0, 4);
+                        bool is_visiable = timeline->mAudFilterClip->mKeyPoints.IsVisible(i);
+                        if (ImGui::Button(is_visiable ? ICON_WATCH : ICON_UNWATCH "##curve_audio_filter_visiable"))
+                        {
+                            is_visiable = !is_visiable;
+                            timeline->mAudFilterClip->mKeyPoints.SetCurveVisible(i, is_visiable);
+                        } ImGui::ShowTooltipOnHover( is_visiable ? "Hide" : "Show");
+                        ImGui::SameLine(0, 4);
+                        if (ImGui::Button(ICON_DELETE "##curve_audio_filter_delete"))
+                        {
+                            // delete blueprint entry node pin
+                            auto pin_name = timeline->mAudFilterClip->mKeyPoints.GetCurveName(i);
+                            if (timeline->mAudioFilterBluePrint)
+                            {
+                                auto entry_node = timeline->mAudioFilterBluePrint->FindEntryPointNode();
+                                if (entry_node) entry_node->DeleteOutputPin(pin_name);
+                                timeline->UpdatePreview();
+                            }
+                            timeline->mAudFilterClip->mKeyPoints.DeleteCurve(i);
+                            break_loop = true;
+                        } ImGui::ShowTooltipOnHover("Delete");
+                        ImGui::SameLine(0, 4);
+                        if (ImGui::Button(ICON_RETURN_DEFAULT "##curve_audio_filter_reset"))
+                        {
+                            for (int p = 0; p < pCount; p++)
+                            {
+                                timeline->mAudFilterClip->mKeyPoints.SetCurvePointDefault(i, p);
+                            }
+                            timeline->UpdatePreview();
+                        } ImGui::ShowTooltipOnHover("Reset");
+
+                        if (!break_loop)
+                        {
+                            // list points
+                            for (int p = 0; p < pCount; p++)
+                            {
+                                bool is_disabled = false;
+                                ImGui::PushID(p);
+                                ImGui::PushItemWidth(96);
+                                auto point = timeline->mAudFilterClip->mKeyPoints.GetPoint(i, p);
+                                ImGui::Diamond(false);
+                                if (p == 0 || p == pCount - 1)
+                                    is_disabled = true;
+                                ImGui::BeginDisabled(is_disabled);
+                                if (ImGui::DragTimeMS("##curve_audio_filter_point_x", &point.point.x, timeline->mAudFilterClip->mKeyPoints.GetMax().x / 1000.f, timeline->mAudFilterClip->mKeyPoints.GetMin().x, timeline->mAudFilterClip->mKeyPoints.GetMax().x, 2))
+                                {
+                                    timeline->mAudFilterClip->mKeyPoints.EditPoint(i, p, point.point, point.type);
+                                    timeline->UpdatePreview();
+                                }
+                                ImGui::EndDisabled();
+                                ImGui::SameLine();
+                                auto speed = fabs(timeline->mAudFilterClip->mKeyPoints.GetCurveMax(i) - timeline->mAudFilterClip->mKeyPoints.GetCurveMin(i)) / 500;
+                                if (ImGui::DragFloat("##curve_audio_filter_point_y", &point.point.y, speed, timeline->mAudFilterClip->mKeyPoints.GetCurveMin(i), timeline->mAudFilterClip->mKeyPoints.GetCurveMax(i), "%.2f"))
+                                {
+                                    timeline->mAudFilterClip->mKeyPoints.EditPoint(i, p, point.point, point.type);
+                                    timeline->UpdatePreview();
+                                }
+                                ImGui::SameLine();
+                                if (ImGui::Combo("##curve_audio_filter_type", (int*)&point.type, curve_type_list, curve_type_count))
+                                {
+                                    timeline->mAudFilterClip->mKeyPoints.EditPoint(i, p, point.point, point.type);
+                                    timeline->UpdatePreview();
+                                }
+                                ImGui::PopItemWidth();
+                                ImGui::PopID();
+                            }
+                        }
+                        ImGui::PopStyleColor();
+                        ImGui::TreePop();
+                    }
+                    ImGui::PopID();
+                    if (break_loop) break;
+                }
+
+                ImGui::TreePop();
+            }
+            // Filter Node setting
+            if (timeline->mAudioFilterBluePrint && timeline->mAudioFilterBluePrint->Blueprint_IsValid())
+            {
+                if (ImGui::TreeNodeEx("Node Configure##audio_filter", ImGuiTreeNodeFlags_DefaultOpen))
+                {
+                    auto nodes = timeline->mAudioFilterBluePrint->m_Document->m_Blueprint.GetNodes();
+                    for (auto node : nodes)
+                    {
+                        auto type = node->GetTypeInfo().m_Type;
+                        if (type == BluePrint::NodeType::EntryPoint || type == BluePrint::NodeType::ExitPoint)
+                            continue;
+                        if (!node->CustomLayout())
+                            continue;
+                        auto label_name = node->m_Name;
+                        std::string lable_id = std::string(ICON_NODE) + " " + label_name + "##audio_filter_node" + "@" + std::to_string(node->m_ID);
+                        if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
+                        {
+                            ImGui::ImCurveEdit::keys key;
+                            key.m_id = node->m_ID;
+                            if (node->DrawCustomLayout(ImGui::GetCurrentContext(), 1.0, ImVec2(0, 0), &key))
+                            {
+                                node->m_NeedUpdate = true;
+                                timeline->UpdatePreview();
+                            }
+                            if (!key.name.empty())
+                            {
+                                addCurve(key.name, key.m_min, key.m_max, key.m_default);
+                            }
+                            ImGui::TreePop();
+                        }
+                    }
+                    ImGui::TreePop();
+                }
+            }
+        }
     }
     ImGui::EndChild();
 }
@@ -7862,7 +8147,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
     UpdateBreathing();
     ImGui::Begin("Content", nullptr, flags);
     // for debug
-    if (show_debug) ImGui::ShowMetricsWindow(&show_debug);
+    //if (show_debug) ImGui::ShowMetricsWindow(&show_debug);
     // for debug end
 
     if (show_about)
@@ -8007,12 +8292,15 @@ bool Application_Frame(void * handle, bool app_will_quit)
             show_configure = true;
         }
         ImGui::ShowTooltipOnHover("Configure");
+/*
         if (ImGui::Button(ICON_UI_DEBUG "##UIDebug", ImVec2(tool_icon_size, tool_icon_size)))
         {
             // open debug window
             show_debug = !show_debug;
         }
-        ImGui::ShowTooltipOnHover("UI Metric");
+        ImGui::ShowTooltipOnHover("UI Debug");
+*/
+
         if (ImGui::Button(ICON_FA_POWER_OFF "##Quit", ImVec2(tool_icon_size, tool_icon_size)))
         {
             // Mark to quit

@@ -6367,22 +6367,22 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             auto selected_clip_count = timeline->GetSelectedClipCount();
             auto empty_track_count = timeline->GetEmptyTrackCount();
             
-            if (ImGui::MenuItem("+" ICON_MEDIA_VIDEO  " Insert Empty Video Track", nullptr, nullptr))
+            if (ImGui::MenuItem(ICON_MEDIA_VIDEO  " Insert Empty Video Track", nullptr, nullptr))
             {
                 insertEmptyTrackType = MEDIA_VIDEO;
             }
-            if (ImGui::MenuItem("+" ICON_MEDIA_AUDIO " Insert Empty Audio Track", nullptr, nullptr))
+            if (ImGui::MenuItem(ICON_MEDIA_AUDIO " Insert Empty Audio Track", nullptr, nullptr))
             {
                 insertEmptyTrackType = MEDIA_AUDIO;
             }
-            if (ImGui::MenuItem( "+" ICON_MEDIA_TEXT " Insert Empty Text Track", nullptr, nullptr))
+            if (ImGui::MenuItem(ICON_MEDIA_TEXT " Insert Empty Text Track", nullptr, nullptr))
             {
                 insertEmptyTrackType = MEDIA_TEXT;
             }
 
             if (empty_track_count > 0)
             {
-                if (ImGui::MenuItem("-" ICON_MEDIA_DELETE " Delete Empty Track", nullptr, nullptr))
+                if (ImGui::MenuItem(ICON_MEDIA_DELETE " Delete Empty Track", nullptr, nullptr))
                 {
                     removeEmptyTrack = true;
                 }
