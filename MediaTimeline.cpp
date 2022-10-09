@@ -2183,6 +2183,11 @@ void EditingAudioClip::UpdateClipRange(Clip* clip)
 
 void EditingAudioClip::Seek(int64_t pos)
 {
+    TimeLine * timeline = (TimeLine *)mHandle;
+    if (!timeline)
+        return;
+    timeline->bSeeking = true;
+    timeline->Seek(pos);
 }
 
 void EditingAudioClip::Step(bool forward, int64_t step)
