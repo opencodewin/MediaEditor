@@ -656,7 +656,14 @@ public:
         const MediaInfo::AudioStream* audStream = GetAudioStream();
         if (!audStream)
             return 0;
-        return m_swrPassThrough ? m_audFrmSize : m_swrFrmSize;
+        uint32_t frameSize = m_swrPassThrough ? m_audFrmSize : m_swrFrmSize;
+        if (frameSize > 0 || !m_started)
+            return frameSize;
+
+        while (!m_quitThread && !m_prepared)
+            this_thread::sleep_for(chrono::milliseconds(5));
+        frameSize = m_swrPassThrough ? m_audFrmSize : m_swrFrmSize;
+        return frameSize;
     }
 
     bool IsHwAccelEnabled() const override

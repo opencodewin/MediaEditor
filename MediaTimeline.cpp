@@ -584,7 +584,7 @@ void Clip::Cutting(int64_t pos)
             DataLayer::AudioClipHolder newAudClip = DataLayer::AudioClip::CreateAudioInstance(
                 new_clip->mID, thisAudClip->GetMediaParser(),
                 audTrack->OutChannels(), audTrack->OutSampleRate(),
-                new_clip->mStart, new_clip->mStartOffset, new_clip->mEndOffset, new_clip->mStartOffset);
+                new_clip->mStart, new_clip->mStartOffset, new_clip->mEndOffset);
             audTrack->InsertClip(newAudClip);
             timeline->mMtaReader->Refresh();
         }
@@ -5235,7 +5235,7 @@ void TimeLine::PerformAudioAction(imgui_json::value& action)
         DataLayer::AudioClipHolder audClip = DataLayer::AudioClip::CreateAudioInstance(
             clip->mID, clip->mMediaParser,
             audTrack->OutChannels(), audTrack->OutSampleRate(),
-            clip->mStart, clip->mStartOffset, clip->mEndOffset, currentTime-clip->mStart);
+            clip->mStart, clip->mStartOffset, clip->mEndOffset);
         audTrack->InsertClip(audClip);
         mMtaReader->Refresh();
     }

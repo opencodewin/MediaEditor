@@ -16,7 +16,7 @@ namespace DataLayer
         static AudioClipHolder CreateAudioInstance(
             int64_t id, MediaParserHolder hParser,
             uint32_t outChannels, uint32_t outSampleRate,
-            int64_t start, int64_t startOffset, int64_t endOffset, int64_t readPos);
+            int64_t start, int64_t startOffset, int64_t endOffset);
 
         virtual AudioClipHolder Clone(uint32_t outChannels, uint32_t outSampleRate) const = 0;
         virtual MediaParserHolder GetMediaParser() const = 0;
@@ -28,14 +28,16 @@ namespace DataLayer
         virtual int64_t EndOffset() const = 0;
         virtual int64_t Duration() const = 0;
         virtual int64_t ReadPos() const = 0;
+        virtual uint32_t OutChannels() const = 0;
+        virtual uint32_t OutSampleRate() const = 0;
+        virtual uint32_t LeftSamples() const = 0;
 
         virtual void SetTrackId(int64_t trackId) = 0;
         virtual void SetStart(int64_t start) = 0;
         virtual void ChangeStartOffset(int64_t startOffset) = 0;
         virtual void ChangeEndOffset(int64_t endOffset) = 0;
         virtual void SeekTo(int64_t pos) = 0;
-        virtual void ReadAudioSamples(uint8_t* buf, uint32_t& size, bool& eof) = 0;
-        virtual uint32_t ReadAudioSamples(ImGui::ImMat& amat, uint32_t readSamples, bool& eof) = 0;
+        virtual ImGui::ImMat ReadAudioSamples(uint32_t& readSamples, bool& eof) = 0;
         virtual void SetDirection(bool forward) = 0;
         virtual void SetFilter(AudioFilterHolder filter) = 0;
         virtual AudioFilterHolder GetFilter() const = 0;
@@ -46,7 +48,6 @@ namespace DataLayer
         virtual ~AudioFilter() {}
         virtual void ApplyTo(AudioClip* clip) = 0;
         virtual ImGui::ImMat FilterPcm(const ImGui::ImMat& amat, int64_t pos) = 0;
-        virtual void FilterPcm(uint8_t* buf, uint32_t size, int64_t pos) = 0;
     };
 
     struct AudioTransition;
@@ -76,8 +77,7 @@ namespace DataLayer
         AudioClipHolder RearClip() const { return m_rearClip; }
 
         void SeekTo(int64_t pos);
-        uint32_t ReadAudioSamples(uint8_t* buf, uint32_t size, bool& eof);
-        void ReadAudioSamples(ImGui::ImMat& amat, uint32_t readSamples, bool& eof);
+        ImGui::ImMat ReadAudioSamples(uint32_t& readSamples, bool& eof);
 
         friend std::ostream& operator<<(std::ostream& os, AudioOverlap& overlap);
 
@@ -97,6 +97,5 @@ namespace DataLayer
         virtual ~AudioTransition() {}
         virtual void ApplyTo(AudioOverlap* overlap) = 0;
         virtual ImGui::ImMat MixTwoAudioMats(const ImGui::ImMat& amat1, const ImGui::ImMat& amat2, int64_t pos) = 0;
-        virtual void MixTwoPcmBuffers(const uint8_t* src1, const uint8_t* src2, uint8_t* dst, uint32_t size, int64_t pos) = 0;
     };
 }

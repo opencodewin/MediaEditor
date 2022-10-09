@@ -48,8 +48,7 @@ namespace DataLayer
     AudioClipHolder AudioTrack::AddNewClip(int64_t clipId, MediaParserHolder hParser, int64_t start, int64_t startOffset, int64_t endOffset)
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
-        int64_t readPos = m_readSamples*1000/m_outSampleRate;
-        AudioClipHolder hClip = AudioClip::CreateAudioInstance(clipId, hParser, m_outChannels, m_outSampleRate, start, startOffset, endOffset, readPos);
+        AudioClipHolder hClip = AudioClip::CreateAudioInstance(clipId, hParser, m_outChannels, m_outSampleRate, start, startOffset, endOffset);
         InsertClip(hClip);
         return hClip;
     }
@@ -293,13 +292,18 @@ namespace DataLayer
                     break;
 
                 bool eof = false;
-                toRead = size-readSize;
-                readBytes = ovlp->ReadAudioSamples(readbufptr, toRead, eof);
+                uint32_t readSamples = (size-readSize)/m_frameSize;
+                ImGui::ImMat amat = ovlp->ReadAudioSamples(readSamples, eof);
+                if (!amat.empty())
+                {
+                    uint32_t copySize = readSamples*m_frameSize;
+                    memcpy(readbufptr, amat.data, copySize);
+                    readbufptr += copySize;
+                    readSize += copySize;
+                    m_readSamples += readSamples;
+                }
                 if (eof)
                     m_readOverlapIter++;
-                readbufptr += readBytes;
-                m_readSamples += readBytes/m_frameSize;
-                readSize += readBytes;
             }
             if (readSize < size)
             {
@@ -339,11 +343,16 @@ namespace DataLayer
                     break;
 
                 bool eof = false;
-                toRead = size-readSize;
-                readBytes = ovlp->ReadAudioSamples(readbufptr, toRead, eof);
-                readbufptr += readBytes;
-                m_readSamples -= readBytes/m_frameSize;
-                readSize += readBytes;
+                uint32_t readSamples = (size-readSize)/m_frameSize;
+                ImGui::ImMat amat = ovlp->ReadAudioSamples(readSamples, eof);
+                if (!amat.empty())
+                {
+                    uint32_t copySize = readSamples*m_frameSize;
+                    memcpy(readbufptr, amat.data, copySize);
+                    readbufptr += copySize;
+                    readSize += copySize;
+                    m_readSamples += readSamples;
+                }
                 if (eof && m_readOverlapIter != m_overlaps.begin())
                     m_readOverlapIter--;
             }
@@ -365,6 +374,7 @@ namespace DataLayer
         {
             if (m_readClipIter == m_clips.end())
                 return 0;
+
             do {
                 int64_t readPos = m_readSamples*1000/m_outSampleRate;
                 if (readPos < (*m_readClipIter)->Start())
@@ -396,12 +406,16 @@ namespace DataLayer
                 if (eof)
                     break;
 
-                uint8_t* readPtr = buf+readSize;
-                uint32_t toReadSize = size-readSize;
+                uint32_t readSamples = (size-readSize)/m_frameSize;
                 eof = false;
-                (*m_readClipIter)->ReadAudioSamples(readPtr, toReadSize, eof);
-                readSize += toReadSize;
-                m_readSamples += toReadSize/m_frameSize;
+                ImGui::ImMat amat = (*m_readClipIter)->ReadAudioSamples(readSamples, eof);
+                if (!amat.empty())
+                {
+                    uint32_t copySize = readSamples*m_frameSize;
+                    memcpy(buf+readSize, amat.data, copySize);
+                    readSize += copySize;
+                    m_readSamples += readSamples;
+                }
                 if (eof)
                     m_readClipIter++;
             } while (readSize < size && m_readClipIter != m_clips.end());
@@ -412,6 +426,7 @@ namespace DataLayer
                 return 0;
             if (m_readClipIter == m_clips.end())
                 m_readClipIter--;
+
             do
             {
                 int64_t readPos = m_readSamples*1000/m_outSampleRate;
@@ -445,12 +460,16 @@ namespace DataLayer
                 if (eof)
                     break;
 
-                uint8_t* readPtr = buf+readSize;
-                uint32_t toRead = size-readSize;
+                uint32_t readSamples = (size-readSize)/m_frameSize;
                 eof = false;
-                (*m_readClipIter)->ReadAudioSamples(readPtr, toRead, eof);
-                readSize += toRead;
-                m_readSamples -= toRead/m_frameSize;
+                ImGui::ImMat amat = (*m_readClipIter)->ReadAudioSamples(readSamples, eof);
+                if (!amat.empty())
+                {
+                    uint32_t copySize = readSamples*m_frameSize;
+                    memcpy(buf+readSize, amat.data, copySize);
+                    readSize += copySize;
+                    m_readSamples -= readSamples;
+                }
                 if (eof)
                 {
                     if (m_readClipIter != m_clips.begin())

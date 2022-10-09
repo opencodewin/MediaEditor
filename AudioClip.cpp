@@ -13,7 +13,7 @@ namespace DataLayer
         AudioClip_AudioImpl(
             int64_t id, MediaParserHolder hParser,
             uint32_t outChannels, uint32_t outSampleRate,
-            int64_t start, int64_t startOffset, int64_t endOffset, int64_t readPos)
+            int64_t start, int64_t startOffset, int64_t endOffset)
             : m_id(id), m_start(start)
         {
             m_hInfo = hParser->GetMediaInfo();
@@ -31,14 +31,12 @@ namespace DataLayer
                 throw invalid_argument("Argument 'endOffset' can NOT be POSITIVE!");
             if (startOffset+endOffset >= m_srcDuration)
                 throw invalid_argument("Argument 'startOffset/endOffset', clip duration is NOT LARGER than 0!");
+            m_start = start;
             m_startOffset = startOffset;
             m_endOffset = endOffset;
-            if (readPos < 0 || readPos >= Duration()) readPos = 0;
-            if (!m_srcReader->SeekTo((double)(startOffset+readPos)/1000))
-                throw runtime_error(m_srcReader->GetError());
+            m_totalSamples = Duration()*outSampleRate/1000;
             if (!m_srcReader->Start())
                 throw runtime_error(m_srcReader->GetError());
-            m_start = start;
         }
 
         ~AudioClip_AudioImpl()
@@ -49,7 +47,7 @@ namespace DataLayer
         AudioClipHolder Clone(uint32_t outChannels, uint32_t outSampleRate) const override
         {
             AudioClipHolder newInstance = AudioClipHolder(new AudioClip_AudioImpl(
-                m_id, m_srcReader->GetMediaParser(), outChannels, outSampleRate, m_start, m_startOffset, m_endOffset, 0));
+                m_id, m_srcReader->GetMediaParser(), outChannels, outSampleRate, m_start, m_startOffset, m_endOffset));
             return newInstance;
         }
 
@@ -95,7 +93,22 @@ namespace DataLayer
 
         int64_t ReadPos() const override
         {
-            return m_readPos;
+            return m_readSamples*1000/m_srcReader->GetAudioOutSampleRate()+m_start;
+        }
+
+        uint32_t OutChannels() const override
+        {
+            return m_srcReader->GetAudioOutChannels();
+        }
+
+        uint32_t OutSampleRate() const override
+        {
+            return m_srcReader->GetAudioOutSampleRate();
+        }
+
+        uint32_t LeftSamples() const override
+        {
+            return m_totalSamples > m_readSamples ? (uint32_t)(m_totalSamples-m_readSamples) : 0;
         }
 
         void SetTrackId(int64_t trackId) override
@@ -105,6 +118,7 @@ namespace DataLayer
 
         void SetStart(int64_t start) override
         {
+            int64_t bias = start-m_start;
             m_start = start;
         }
 
@@ -117,6 +131,9 @@ namespace DataLayer
             if (startOffset+m_endOffset >= m_srcDuration)
                 throw invalid_argument("Argument 'startOffset/endOffset', clip duration is NOT LARGER than 0!");
             m_startOffset = startOffset;
+            const int64_t newTotalSamples = Duration()*m_srcReader->GetAudioOutSampleRate()/1000;
+            m_readSamples += newTotalSamples-m_totalSamples;
+            m_totalSamples = newTotalSamples;
         }
 
         void ChangeEndOffset(int64_t endOffset) override
@@ -128,6 +145,7 @@ namespace DataLayer
             if (m_startOffset+endOffset >= m_srcDuration)
                 throw invalid_argument("Argument 'startOffset/endOffset', clip duration is NOT LARGER than 0!");
             m_endOffset = endOffset;
+            m_totalSamples = Duration()*m_srcReader->GetAudioOutSampleRate()/1000;
         }
 
         void SeekTo(int64_t pos) override
@@ -138,77 +156,51 @@ namespace DataLayer
                 pos = Duration()-1;
             if (!m_srcReader->SeekTo((double)(pos+m_startOffset)/1000))
                 throw runtime_error(m_srcReader->GetError());
-            m_readPos = pos;
+            m_readSamples = pos*m_srcReader->GetAudioOutSampleRate()/1000;
             m_eof = false;
         }
 
-        void ReadAudioSamples(uint8_t* buf, uint32_t& size, bool& eof) override
+        ImGui::ImMat ReadAudioSamples(uint32_t& readSamples, bool& eof) override
         {
-            if (m_eof)
+            if (m_eof || m_totalSamples <= m_readSamples)
             {
-                eof = true;
-                size = 0;
-                return;
-            }
-            uint32_t readSize = size;
-            double pos;
-            if (!m_srcReader->ReadAudioSamples(buf, readSize, pos, eof))
-                throw runtime_error(m_srcReader->GetError());
-            if (m_pcmFrameSize == 0)
-            {
-                m_pcmFrameSize = m_srcReader->GetAudioOutFrameSize();
-                m_pcmSizePerSec = m_srcReader->GetAudioOutSampleRate()*m_pcmFrameSize;
-            }
-            double endpos = pos+(double)size/m_pcmSizePerSec;
-            if (endpos >= m_srcDuration-m_endOffset)
-            {
-                readSize = (uint32_t)((m_srcDuration-m_endOffset-pos)*m_pcmSizePerSec/m_pcmFrameSize)*m_pcmFrameSize;
+                readSamples = 0;
                 m_eof = eof = true;
+                return ImGui::ImMat();
             }
-            size = readSize;
 
-            if (m_filter)
-                m_filter->FilterPcm(buf, size, (int64_t)(pos*1000));
-        }
-
-        uint32_t ReadAudioSamples(ImGui::ImMat& amat, uint32_t readSamples, bool& eof) override
-        {
-            amat.release();
-            if (m_eof)
-            {
-                eof = true;
-                return 0;
-            }
+            uint32_t sampleRate = m_srcReader->GetAudioOutSampleRate();
             if (m_pcmFrameSize == 0)
             {
                 m_pcmFrameSize = m_srcReader->GetAudioOutFrameSize();
-                m_pcmSizePerSec = m_srcReader->GetAudioOutSampleRate()*m_pcmFrameSize;
+                m_pcmSizePerSec = sampleRate*m_pcmFrameSize;
             }
+
+            const uint32_t leftSamples = m_totalSamples-m_readSamples;
+            if (readSamples > leftSamples)
+                readSamples = leftSamples;
             uint32_t bufSize = readSamples*m_pcmFrameSize;
-            if (bufSize == 0)
-                return 0;
             int channels = m_srcReader->GetAudioOutChannels();
+            ImGui::ImMat amat;
             amat.create((int)readSamples, (int)1, channels, (size_t)(m_pcmFrameSize/channels));
             if (!amat.data)
                 throw runtime_error("FAILED to allocate buffer for 'amat'!");
+
             uint32_t readSize = bufSize;
-            double pos;
-            if (!m_srcReader->ReadAudioSamples((uint8_t*)amat.data, readSize, pos, eof))
+            double srcpos;
+            bool srceof{false};
+            if (!m_srcReader->ReadAudioSamples((uint8_t*)amat.data, readSize, srcpos, srceof))
                 throw runtime_error(m_srcReader->GetError());
-            int64_t endpos = (int64_t)((pos+(double)readSize/m_pcmSizePerSec)*1000);
-            if (endpos > m_srcDuration-m_endOffset)
-            {
-                readSize = (uint32_t)(((double)(m_srcDuration-m_endOffset)/1000-pos)*m_pcmSizePerSec/m_pcmFrameSize)*m_pcmFrameSize;
-                m_eof = eof = true;
-                endpos = m_srcDuration-m_endOffset;
-            }
-            m_readPos = endpos-m_startOffset;
             if (readSize < bufSize)
                 memset((uint8_t*)amat.data+readSize, 0, bufSize-readSize);
+            amat.time_stamp = (double)m_readSamples/sampleRate+(double)m_start/1000.;
+            m_readSamples += readSamples;
+            if (m_readSamples >= m_totalSamples)
+                m_eof = eof = true;
 
             if (m_filter)
-                amat = m_filter->FilterPcm(amat, (int64_t)(pos*1000));
-            return readSize;
+                amat = m_filter->FilterPcm(amat, (int64_t)(amat.time_stamp*1000));
+            return amat;
         }
 
         void SetDirection(bool forward) override
@@ -247,16 +239,17 @@ namespace DataLayer
         int64_t m_endOffset;
         uint32_t m_pcmSizePerSec{0};
         uint32_t m_pcmFrameSize{0};
-        int64_t m_readPos{0};
+        int64_t m_readSamples{0};
+        int64_t m_totalSamples;
         bool m_eof{false};
     };
 
     AudioClipHolder AudioClip::CreateAudioInstance(
         int64_t id, MediaParserHolder hParser,
         uint32_t outChannels, uint32_t outSampleRate,
-        int64_t start, int64_t startOffset, int64_t endOffset, int64_t readPos)
+        int64_t start, int64_t startOffset, int64_t endOffset)
     {
-        return AudioClipHolder(new AudioClip_AudioImpl(id, hParser, outChannels, outSampleRate, start, startOffset, endOffset, readPos));
+        return AudioClipHolder(new AudioClip_AudioImpl(id, hParser, outChannels, outSampleRate, start, startOffset, endOffset));
     }
 
     ///////////////////////////////////////////////////////////////////////////////////////////
@@ -273,11 +266,6 @@ namespace DataLayer
         ImGui::ImMat MixTwoAudioMats(const ImGui::ImMat& amat1, const ImGui::ImMat& amat2, int64_t pos) override
         {
             return amat2;
-        }
-
-        void MixTwoPcmBuffers(const uint8_t* src1, const uint8_t* src2, uint8_t* dst, uint32_t size, int64_t pos) override
-        {
-            memcpy(dst, src2, size);
         }
 
     private:
@@ -346,50 +334,28 @@ namespace DataLayer
         m_rearClip->SeekTo(pos2);
     }
 
-    uint32_t AudioOverlap::ReadAudioSamples(uint8_t* buf, uint32_t size, bool& eof)
+    ImGui::ImMat AudioOverlap::ReadAudioSamples(uint32_t& readSamples, bool& eof)
     {
-        int64_t pos = m_frontClip->ReadPos()+m_frontClip->Start()-m_start;
-        bool eof1{false};
-        unique_ptr<uint8_t[]> buf1(new uint8_t[size]);
-        uint32_t readBytes1 = size;
-        m_frontClip->ReadAudioSamples(buf1.get(), readBytes1, eof1);
-        if (readBytes1 == 0)
+        const uint32_t leftSamples1 = m_frontClip->LeftSamples();
+        if (leftSamples1 < readSamples)
+            readSamples = leftSamples1;
+        const uint32_t leftSamples2 = m_rearClip->LeftSamples();
+        if (leftSamples2 < readSamples)
+            readSamples = leftSamples2;
+        if (readSamples == 0)
         {
             eof = true;
-            return 0;
+            return ImGui::ImMat();
         }
 
-        bool eof2{false};
-        unique_ptr<uint8_t[]> buf2(new uint8_t[readBytes1]);
-        uint32_t readBytes2 = readBytes1;
-        m_rearClip->ReadAudioSamples(buf2.get(), readBytes2, eof2);
-        if (readBytes2 < readBytes1)
-        {
-            memset(buf2.get()+readBytes2, 0, readBytes1-readBytes2);
-            eof2 = true;
-        }
-
-        AudioTransitionHolder transition = m_transition;
-        transition->MixTwoPcmBuffers(buf1.get(), buf2.get(), buf, readBytes1, pos);
-        eof = eof1 || eof2;
-        return readBytes1;
-    }
-
-    void AudioOverlap::ReadAudioSamples(ImGui::ImMat& amat, uint32_t readSamples, bool& eof)
-    {
         bool eof1{false};
-        ImGui::ImMat amat1;
-        m_frontClip->ReadAudioSamples(amat1, readSamples, eof1);
-
+        ImGui::ImMat amat1 = m_frontClip->ReadAudioSamples(readSamples, eof1);
         bool eof2{false};
-        ImGui::ImMat amat2;
-        m_rearClip->ReadAudioSamples(amat2, readSamples, eof2);
-
+        ImGui::ImMat amat2 = m_rearClip->ReadAudioSamples(readSamples, eof2);
         AudioTransitionHolder transition = m_transition;
-        int64_t pos = m_frontClip->ReadPos()+m_frontClip->Start()-m_start;
-        amat = transition->MixTwoAudioMats(amat1, amat2, pos+m_start);
-
+        ImGui::ImMat amat = transition->MixTwoAudioMats(amat1, amat2, (int64_t)(amat1.time_stamp*1000));
         eof = eof1 || eof2;
+        return amat;
     }
 
     std::ostream& operator<<(std::ostream& os, AudioOverlap& overlap)
