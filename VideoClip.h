@@ -35,7 +35,7 @@ namespace DataLayer
 
     struct VideoClip
     {
-        ~VideoClip() {}
+        virtual ~VideoClip() {}
         static VideoClipHolder CreateVideoInstance(
             int64_t id, MediaParserHolder hParser,
             uint32_t outWidth, uint32_t outHeight, const MediaInfo::Ratio& frameRate,

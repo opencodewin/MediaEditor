@@ -567,10 +567,10 @@ void Clip::Cutting(int64_t pos)
             DataLayer::AudioTrackHolder audTrack = timeline->mMtaReader->GetTrackById(track->mID);
             audTrack->ChangeClipRange(mID, mStartOffset, mEndOffset);
             DataLayer::AudioClipHolder thisAudClip = audTrack->GetClipById(mID);
-            DataLayer::AudioClipHolder newAudClip(new DataLayer::AudioClip(
+            DataLayer::AudioClipHolder newAudClip = DataLayer::AudioClip::CreateAudioInstance(
                 new_clip->mID, thisAudClip->GetMediaParser(),
                 audTrack->OutChannels(), audTrack->OutSampleRate(),
-                new_clip->mStart, new_clip->mStartOffset, new_clip->mEndOffset, new_clip->mStartOffset));
+                new_clip->mStart, new_clip->mStartOffset, new_clip->mEndOffset, new_clip->mStartOffset);
             audTrack->InsertClip(newAudClip);
             timeline->mMtaReader->Refresh();
         }
@@ -5198,10 +5198,10 @@ void TimeLine::PerformAudioAction(imgui_json::value& action)
         DataLayer::AudioTrackHolder audTrack = mMtaReader->GetTrackById(trackId, true);
         int64_t clipId = action["clip_id"].get<imgui_json::number>();
         Clip* clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
-        DataLayer::AudioClipHolder audClip(new DataLayer::AudioClip(
+        DataLayer::AudioClipHolder audClip = DataLayer::AudioClip::CreateAudioInstance(
             clip->mID, clip->mMediaParser,
             audTrack->OutChannels(), audTrack->OutSampleRate(),
-            clip->mStart, clip->mStartOffset, clip->mEndOffset, currentTime-clip->mStart));
+            clip->mStart, clip->mStartOffset, clip->mEndOffset, currentTime-clip->mStart);
         audTrack->InsertClip(audClip);
         mMtaReader->Refresh();
     }

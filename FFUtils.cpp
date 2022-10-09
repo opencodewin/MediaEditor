@@ -638,7 +638,6 @@ bool AVFrameToImMatConverter::ConvertImage(const AVFrame* avfrm, ImGui::ImMat& o
         ImGui::VkMat rgbMat;
         rgbMat.type = IM_DT_INT8;
         rgbMat.color_format = IM_CF_ABGR;
-#if 1
         rgbMat.w = m_outWidth;
         rgbMat.h = m_outHeight;
         if (!m_imgClrCvt->ConvertColorFormat(inMat, rgbMat, m_resizeInterp))
@@ -654,36 +653,6 @@ bool AVFrameToImMatConverter::ConvertImage(const AVFrame* avfrm, ImGui::ImMat& o
         else
             outMat = rgbMat;
         outMat.time_stamp = timestamp;
-#else
-        if (!m_imgClrCvt->ConvertColorFormat(inMat, rgbMat))
-        {
-            m_errMsg = m_imgClrCvt->GetError();
-            return false;
-        }
-        ImGui::ImMat outTmp;
-        // Resize
-        uint32_t outWidth = m_outWidth == 0 ? rgbMat.w : m_outWidth;
-        uint32_t outHeight = m_outHeight == 0 ? rgbMat.h : m_outHeight;
-        if (outWidth != rgbMat.w || outHeight != rgbMat.h)
-        {
-            ImGui::VkMat rszMat;
-            rszMat.type = IM_DT_INT8;
-            m_imgRsz->Resize(rgbMat, rszMat, (float)outWidth/rgbMat.w, (float)outHeight/rgbMat.h, m_resizeInterp);
-            outTmp = rszMat;
-        }
-        else
-            outTmp = rgbMat;
-
-        if (m_outputCpuMat && outTmp.device == IM_DD_VULKAN)
-        {
-            ImGui::VkMat vkMat = outTmp;
-            outMat.type = IM_DT_INT8;
-            m_imgClrCvt->Conv(vkMat, outMat);
-        }
-        else
-            outMat = outTmp;
-        outMat.time_stamp = timestamp;
-#endif
         return true;
 #else
         m_errMsg = "Vulkan shader components is NOT ENABLED!";

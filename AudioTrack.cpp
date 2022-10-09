@@ -49,7 +49,7 @@ namespace DataLayer
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
         int64_t readPos = m_readSamples*1000/m_outSampleRate;
-        AudioClipHolder hClip(new AudioClip(clipId, hParser, m_outChannels, m_outSampleRate, start, startOffset, endOffset, readPos));
+        AudioClipHolder hClip = AudioClip::CreateAudioInstance(clipId, hParser, m_outChannels, m_outSampleRate, start, startOffset, endOffset, readPos);
         InsertClip(hClip);
         return hClip;
     }

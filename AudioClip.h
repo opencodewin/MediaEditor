@@ -7,51 +7,38 @@ namespace DataLayer
 {
     class AudioClip;
     using AudioClipHolder = std::shared_ptr<AudioClip>;
+    struct AudioFilter;
+    using AudioFilterHolder = std::shared_ptr<AudioFilter>;
 
-    class AudioClip
+    struct AudioClip
     {
-    public:
-        AudioClip(int64_t id, MediaParserHolder hParser, uint32_t outChannels, uint32_t outSampleRate, int64_t start, int64_t startOffset, int64_t endOffset, int64_t readPos);
-        AudioClip(const AudioClip&) = delete;
-        AudioClip(AudioClip&&) = delete;
-        AudioClip& operator=(const AudioClip&) = delete;
-        ~AudioClip();
-        AudioClipHolder Clone(uint32_t outChannels, uint32_t outSampleRate) const;
+        virtual ~AudioClip() {}
+        static AudioClipHolder CreateAudioInstance(
+            int64_t id, MediaParserHolder hParser,
+            uint32_t outChannels, uint32_t outSampleRate,
+            int64_t start, int64_t startOffset, int64_t endOffset, int64_t readPos);
 
-        int64_t Id() const { return m_id; }
-        int64_t TrackId() const { return m_trackId; }
-        void SetTrackId(int64_t trackId) { m_trackId = trackId; }
-        MediaParserHolder GetMediaParser() const { return m_srcReader->GetMediaParser(); }
-        void SetStart(int64_t start) { m_start = start; }
-        int64_t Duration() const { return m_srcDuration-m_startOffset-m_endOffset; }
-        int64_t Start() const { return m_start; }
-        int64_t End() const { return m_start+Duration(); }
-        int64_t StartOffset() const { return m_startOffset; }
-        int64_t EndOffset() const { return m_endOffset; }
-        int64_t ReadPos() const { return m_readPos; }
+        virtual AudioClipHolder Clone(uint32_t outChannels, uint32_t outSampleRate) const = 0;
+        virtual MediaParserHolder GetMediaParser() const = 0;
+        virtual int64_t Id() const = 0;
+        virtual int64_t TrackId() const = 0;
+        virtual int64_t Start() const = 0;
+        virtual int64_t End() const = 0;
+        virtual int64_t StartOffset() const = 0;
+        virtual int64_t EndOffset() const = 0;
+        virtual int64_t Duration() const = 0;
+        virtual int64_t ReadPos() const = 0;
 
-        void ChangeStartOffset(int64_t startOffset);
-        bool IsEndOffsetValid(int64_t endOffset);
-        void ChangeEndOffset(int64_t endOffset);
-
-        void SeekTo(int64_t pos);
-        void ReadAudioSamples(uint8_t* buf, uint32_t& size, bool& eof);
-        uint32_t ReadAudioSamples(ImGui::ImMat& amat, uint32_t readSamples, bool& eof);
-        void SetDirection(bool forward);
-
-    private:
-        int64_t m_id;
-        int64_t m_trackId{-1};
-        MediaInfo::InfoHolder m_hInfo;
-        MediaReader* m_srcReader;
-        int64_t m_srcDuration;
-        int64_t m_start;
-        int64_t m_startOffset;
-        int64_t m_endOffset;
-        uint32_t m_pcmSizePerSec{0};
-        uint32_t m_pcmFrameSize{0};
-        int64_t m_readPos{0};
-        bool m_eof{false};
+        virtual void SetTrackId(int64_t trackId) = 0;
+        virtual void SetStart(int64_t start) = 0;
+        virtual void ChangeStartOffset(int64_t startOffset) = 0;
+        virtual void ChangeEndOffset(int64_t endOffset) = 0;
+        virtual void SeekTo(int64_t pos) = 0;
+        virtual void ReadAudioSamples(uint8_t* buf, uint32_t& size, bool& eof) = 0;
+        virtual uint32_t ReadAudioSamples(ImGui::ImMat& amat, uint32_t readSamples, bool& eof) = 0;
+        virtual void SetDirection(bool forward) = 0;
+        virtual void SetFilter(AudioFilterHolder filter) = 0;
+        virtual AudioFilterHolder GetFilter() const = 0;
     };
 
     struct AudioFilter
@@ -59,6 +46,7 @@ namespace DataLayer
         virtual ~AudioFilter() {}
         virtual void ApplyTo(AudioClip* clip) = 0;
         virtual ImGui::ImMat FilterPcm(const ImGui::ImMat& amat, int64_t pos) = 0;
+        virtual void FilterPcm(uint8_t* buf, uint32_t size, int64_t pos) = 0;
     };
 
     struct AudioTransition;

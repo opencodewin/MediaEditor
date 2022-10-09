@@ -7,147 +7,256 @@ namespace DataLayer
     ///////////////////////////////////////////////////////////////////////////////////////////
     // AudioClip
     ///////////////////////////////////////////////////////////////////////////////////////////
-    AudioClip::AudioClip(int64_t id, MediaParserHolder hParser, uint32_t outChannels, uint32_t outSampleRate, int64_t start, int64_t startOffset, int64_t endOffset, int64_t readPos)
-        : m_id(id), m_start(start)
+    class AudioClip_AudioImpl : public AudioClip
     {
-        m_hInfo = hParser->GetMediaInfo();
-        if (hParser->GetBestAudioStreamIndex() < 0)
-            throw invalid_argument("Argument 'hParser' has NO AUDIO stream!");
-        m_srcReader = CreateMediaReader();
-        if (!m_srcReader->Open(hParser))
-            throw runtime_error(m_srcReader->GetError());
-        if (!m_srcReader->ConfigAudioReader(outChannels, outSampleRate))
-            throw runtime_error(m_srcReader->GetError());
-        m_srcDuration = (int64_t)(m_srcReader->GetAudioStream()->duration*1000);
-        if (startOffset < 0)
-            throw invalid_argument("Argument 'startOffset' can NOT be NEGATIVE!");
-        if (endOffset < 0)
-            throw invalid_argument("Argument 'endOffset' can NOT be POSITIVE!");
-        if (startOffset+endOffset >= m_srcDuration)
-            throw invalid_argument("Argument 'startOffset/endOffset', clip duration is NOT LARGER than 0!");
-        m_startOffset = startOffset;
-        m_endOffset = endOffset;
-        if (readPos < 0 || readPos >= Duration()) readPos = 0;
-        if (!m_srcReader->SeekTo((double)(startOffset+readPos)/1000))
-            throw runtime_error(m_srcReader->GetError());
-        if (!m_srcReader->Start())
-            throw runtime_error(m_srcReader->GetError());
-
-        m_start = start;
-    }
-
-    AudioClip::~AudioClip()
-    {
-        ReleaseMediaReader(&m_srcReader);
-    }
-
-    AudioClipHolder AudioClip::Clone(uint32_t outChannels, uint32_t outSampleRate) const
-    {
-        AudioClipHolder newInstance = AudioClipHolder(new AudioClip(
-            m_id, m_srcReader->GetMediaParser(), outChannels, outSampleRate, m_start, m_startOffset, m_endOffset, 0));
-        return newInstance;
-    }
-
-    void AudioClip::ChangeStartOffset(int64_t startOffset)
-    {
-        if (startOffset == m_startOffset)
-            return;
-        if (startOffset < 0)
-            throw invalid_argument("Argument 'startOffset' can NOT be NEGATIVE!");
-        if (startOffset+m_endOffset >= m_srcDuration)
-            throw invalid_argument("Argument 'startOffset/endOffset', clip duration is NOT LARGER than 0!");
-        m_startOffset = startOffset;
-    }
-
-    void AudioClip::ChangeEndOffset(int64_t endOffset)
-    {
-        if (endOffset == m_endOffset)
-            return;
-        if (endOffset < 0)
-            throw invalid_argument("Argument 'endOffset' can NOT be POSITIVE!");
-        if (m_startOffset+endOffset >= m_srcDuration)
-            throw invalid_argument("Argument 'startOffset/endOffset', clip duration is NOT LARGER than 0!");
-        m_endOffset = endOffset;
-    }
-
-    void AudioClip::SeekTo(int64_t pos)
-    {
-        if (pos < 0)
-            pos = 0;
-        else if (pos > Duration())
-            pos = Duration()-1;
-        if (!m_srcReader->SeekTo((double)(pos+m_startOffset)/1000))
-            throw runtime_error(m_srcReader->GetError());
-        m_readPos = pos;
-        m_eof = false;
-    }
-
-    void AudioClip::ReadAudioSamples(uint8_t* buf, uint32_t& size, bool& eof)
-    {
-        if (m_eof)
+    public:
+        AudioClip_AudioImpl(
+            int64_t id, MediaParserHolder hParser,
+            uint32_t outChannels, uint32_t outSampleRate,
+            int64_t start, int64_t startOffset, int64_t endOffset, int64_t readPos)
+            : m_id(id), m_start(start)
         {
-            eof = true;
-            size = 0;
-            return;
+            m_hInfo = hParser->GetMediaInfo();
+            if (hParser->GetBestAudioStreamIndex() < 0)
+                throw invalid_argument("Argument 'hParser' has NO AUDIO stream!");
+            m_srcReader = CreateMediaReader();
+            if (!m_srcReader->Open(hParser))
+                throw runtime_error(m_srcReader->GetError());
+            if (!m_srcReader->ConfigAudioReader(outChannels, outSampleRate))
+                throw runtime_error(m_srcReader->GetError());
+            m_srcDuration = (int64_t)(m_srcReader->GetAudioStream()->duration*1000);
+            if (startOffset < 0)
+                throw invalid_argument("Argument 'startOffset' can NOT be NEGATIVE!");
+            if (endOffset < 0)
+                throw invalid_argument("Argument 'endOffset' can NOT be POSITIVE!");
+            if (startOffset+endOffset >= m_srcDuration)
+                throw invalid_argument("Argument 'startOffset/endOffset', clip duration is NOT LARGER than 0!");
+            m_startOffset = startOffset;
+            m_endOffset = endOffset;
+            if (readPos < 0 || readPos >= Duration()) readPos = 0;
+            if (!m_srcReader->SeekTo((double)(startOffset+readPos)/1000))
+                throw runtime_error(m_srcReader->GetError());
+            if (!m_srcReader->Start())
+                throw runtime_error(m_srcReader->GetError());
+            m_start = start;
         }
-        uint32_t readSize = size;
-        double pos;
-        if (!m_srcReader->ReadAudioSamples(buf, readSize, pos, eof))
-            throw runtime_error(m_srcReader->GetError());
-        if (m_pcmFrameSize == 0)
-        {
-            m_pcmFrameSize = m_srcReader->GetAudioOutFrameSize();
-            m_pcmSizePerSec = m_srcReader->GetAudioOutSampleRate()*m_pcmFrameSize;
-        }
-        double endpos = pos+(double)size/m_pcmSizePerSec;
-        if (endpos >= m_srcDuration-m_endOffset)
-        {
-            readSize = (uint32_t)((m_srcDuration-m_endOffset-pos)*m_pcmSizePerSec/m_pcmFrameSize)*m_pcmFrameSize;
-            m_eof = eof = true;
-        }
-        size = readSize;
-    }
 
-    uint32_t AudioClip::ReadAudioSamples(ImGui::ImMat& amat, uint32_t readSamples, bool& eof)
-    {
-        amat.release();
-        if (m_eof)
+        ~AudioClip_AudioImpl()
         {
-            eof = true;
-            return 0;
+            ReleaseMediaReader(&m_srcReader);
         }
-        if (m_pcmFrameSize == 0)
-        {
-            m_pcmFrameSize = m_srcReader->GetAudioOutFrameSize();
-            m_pcmSizePerSec = m_srcReader->GetAudioOutSampleRate()*m_pcmFrameSize;
-        }
-        uint32_t bufSize = readSamples*m_pcmFrameSize;
-        if (bufSize == 0)
-            return 0;
-        int channels = m_srcReader->GetAudioOutChannels();
-        amat.create((int)readSamples, (int)1, channels, (size_t)(m_pcmFrameSize/channels));
-        if (!amat.data)
-            throw runtime_error("FAILED to allocate buffer for 'amat'!");
-        uint32_t readSize = bufSize;
-        double pos;
-        if (!m_srcReader->ReadAudioSamples((uint8_t*)amat.data, readSize, pos, eof))
-            throw runtime_error(m_srcReader->GetError());
-        int64_t endpos = (int64_t)((pos+(double)readSize/m_pcmSizePerSec)*1000);
-        if (endpos > m_srcDuration-m_endOffset)
-        {
-            readSize = (uint32_t)(((double)(m_srcDuration-m_endOffset)/1000-pos)*m_pcmSizePerSec/m_pcmFrameSize)*m_pcmFrameSize;
-            m_eof = eof = true;
-            endpos = m_srcDuration-m_endOffset;
-        }
-        m_readPos = endpos-m_startOffset;
-        if (readSize < bufSize)
-            memset((uint8_t*)amat.data+readSize, 0, bufSize-readSize);
-        return readSize;
-    }
 
-    void AudioClip::SetDirection(bool forward)
+        AudioClipHolder Clone(uint32_t outChannels, uint32_t outSampleRate) const override
+        {
+            AudioClipHolder newInstance = AudioClipHolder(new AudioClip_AudioImpl(
+                m_id, m_srcReader->GetMediaParser(), outChannels, outSampleRate, m_start, m_startOffset, m_endOffset, 0));
+            return newInstance;
+        }
+
+        MediaParserHolder GetMediaParser() const override
+        {
+            return m_srcReader->GetMediaParser();
+        }
+
+        int64_t Id() const override
+        {
+            return m_id;
+        }
+
+        int64_t TrackId() const override
+        {
+            return m_trackId;
+        }
+
+        int64_t Start() const override
+        {
+            return m_start;
+        }
+
+        int64_t End() const override
+        {
+            return m_start+Duration();
+        }
+
+        int64_t StartOffset() const override
+        {
+            return m_startOffset;
+        }
+
+        int64_t EndOffset() const override
+        {
+            return m_endOffset;
+        }
+
+        int64_t Duration() const override
+        {
+            return m_srcDuration-m_startOffset-m_endOffset;
+        }
+
+        int64_t ReadPos() const override
+        {
+            return m_readPos;
+        }
+
+        void SetTrackId(int64_t trackId) override
+        {
+            m_trackId = trackId;
+        }
+
+        void SetStart(int64_t start) override
+        {
+            m_start = start;
+        }
+
+        void ChangeStartOffset(int64_t startOffset) override
+        {
+            if (startOffset == m_startOffset)
+                return;
+            if (startOffset < 0)
+                throw invalid_argument("Argument 'startOffset' can NOT be NEGATIVE!");
+            if (startOffset+m_endOffset >= m_srcDuration)
+                throw invalid_argument("Argument 'startOffset/endOffset', clip duration is NOT LARGER than 0!");
+            m_startOffset = startOffset;
+        }
+
+        void ChangeEndOffset(int64_t endOffset) override
+        {
+            if (endOffset == m_endOffset)
+                return;
+            if (endOffset < 0)
+                throw invalid_argument("Argument 'endOffset' can NOT be POSITIVE!");
+            if (m_startOffset+endOffset >= m_srcDuration)
+                throw invalid_argument("Argument 'startOffset/endOffset', clip duration is NOT LARGER than 0!");
+            m_endOffset = endOffset;
+        }
+
+        void SeekTo(int64_t pos) override
+        {
+            if (pos < 0)
+                pos = 0;
+            else if (pos > Duration())
+                pos = Duration()-1;
+            if (!m_srcReader->SeekTo((double)(pos+m_startOffset)/1000))
+                throw runtime_error(m_srcReader->GetError());
+            m_readPos = pos;
+            m_eof = false;
+        }
+
+        void ReadAudioSamples(uint8_t* buf, uint32_t& size, bool& eof) override
+        {
+            if (m_eof)
+            {
+                eof = true;
+                size = 0;
+                return;
+            }
+            uint32_t readSize = size;
+            double pos;
+            if (!m_srcReader->ReadAudioSamples(buf, readSize, pos, eof))
+                throw runtime_error(m_srcReader->GetError());
+            if (m_pcmFrameSize == 0)
+            {
+                m_pcmFrameSize = m_srcReader->GetAudioOutFrameSize();
+                m_pcmSizePerSec = m_srcReader->GetAudioOutSampleRate()*m_pcmFrameSize;
+            }
+            double endpos = pos+(double)size/m_pcmSizePerSec;
+            if (endpos >= m_srcDuration-m_endOffset)
+            {
+                readSize = (uint32_t)((m_srcDuration-m_endOffset-pos)*m_pcmSizePerSec/m_pcmFrameSize)*m_pcmFrameSize;
+                m_eof = eof = true;
+            }
+            size = readSize;
+
+            if (m_filter)
+                m_filter->FilterPcm(buf, size, (int64_t)(pos*1000));
+        }
+
+        uint32_t ReadAudioSamples(ImGui::ImMat& amat, uint32_t readSamples, bool& eof) override
+        {
+            amat.release();
+            if (m_eof)
+            {
+                eof = true;
+                return 0;
+            }
+            if (m_pcmFrameSize == 0)
+            {
+                m_pcmFrameSize = m_srcReader->GetAudioOutFrameSize();
+                m_pcmSizePerSec = m_srcReader->GetAudioOutSampleRate()*m_pcmFrameSize;
+            }
+            uint32_t bufSize = readSamples*m_pcmFrameSize;
+            if (bufSize == 0)
+                return 0;
+            int channels = m_srcReader->GetAudioOutChannels();
+            amat.create((int)readSamples, (int)1, channels, (size_t)(m_pcmFrameSize/channels));
+            if (!amat.data)
+                throw runtime_error("FAILED to allocate buffer for 'amat'!");
+            uint32_t readSize = bufSize;
+            double pos;
+            if (!m_srcReader->ReadAudioSamples((uint8_t*)amat.data, readSize, pos, eof))
+                throw runtime_error(m_srcReader->GetError());
+            int64_t endpos = (int64_t)((pos+(double)readSize/m_pcmSizePerSec)*1000);
+            if (endpos > m_srcDuration-m_endOffset)
+            {
+                readSize = (uint32_t)(((double)(m_srcDuration-m_endOffset)/1000-pos)*m_pcmSizePerSec/m_pcmFrameSize)*m_pcmFrameSize;
+                m_eof = eof = true;
+                endpos = m_srcDuration-m_endOffset;
+            }
+            m_readPos = endpos-m_startOffset;
+            if (readSize < bufSize)
+                memset((uint8_t*)amat.data+readSize, 0, bufSize-readSize);
+
+            if (m_filter)
+                amat = m_filter->FilterPcm(amat, (int64_t)(pos*1000));
+            return readSize;
+        }
+
+        void SetDirection(bool forward) override
+        {
+            m_srcReader->SetDirection(forward);
+        }
+
+        void SetFilter(AudioFilterHolder filter) override
+        {
+            if (filter)
+            {
+                filter->ApplyTo(this);
+                m_filter = filter;
+            }
+            else
+            {
+                m_filter = nullptr;
+            }
+        }
+
+        AudioFilterHolder GetFilter() const override
+        {
+            return m_filter;
+        }
+
+
+    private:
+        int64_t m_id;
+        int64_t m_trackId{-1};
+        MediaInfo::InfoHolder m_hInfo;
+        MediaReader* m_srcReader;
+        AudioFilterHolder m_filter;
+        int64_t m_srcDuration;
+        int64_t m_start;
+        int64_t m_startOffset;
+        int64_t m_endOffset;
+        uint32_t m_pcmSizePerSec{0};
+        uint32_t m_pcmFrameSize{0};
+        int64_t m_readPos{0};
+        bool m_eof{false};
+    };
+
+    AudioClipHolder AudioClip::CreateAudioInstance(
+        int64_t id, MediaParserHolder hParser,
+        uint32_t outChannels, uint32_t outSampleRate,
+        int64_t start, int64_t startOffset, int64_t endOffset, int64_t readPos)
     {
-        m_srcReader->SetDirection(forward);
+        return AudioClipHolder(new AudioClip_AudioImpl(id, hParser, outChannels, outSampleRate, start, startOffset, endOffset, readPos));
     }
 
     ///////////////////////////////////////////////////////////////////////////////////////////

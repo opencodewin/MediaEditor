@@ -1823,7 +1823,7 @@ private:
                         }
                         else if (fferr == AVERROR_INVALIDDATA)
                         {
-                            m_logger->Log(WARN) << "(VIDEO)avcodec_send_packet() return AVERROR_INVALIDDATA when decoding AVPacket with pts=" << avpkt->pts
+                            m_logger->Log(DEBUG) << "(VIDEO)avcodec_send_packet() return AVERROR_INVALIDDATA when decoding AVPacket with pts=" << avpkt->pts
                                 << " from file '" << m_hParser->GetUrl() << "'. DISCARD this PACKET." << endl;
                             {
                                 lock_guard<mutex> lk(currTask->avpktQLock);
