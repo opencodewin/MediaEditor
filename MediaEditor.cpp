@@ -540,14 +540,8 @@ static bool UIPageChanged()
     if (LastMainWindowIndex == 1 && LastVideoEditorWindowIndex == 2 && (
         MainWindowIndex != 1 || VideoEditorWindowIndex != 2))
     {
-        // we leave video crop windows
-        Logger::Log(Logger::DEBUG) << "[Changed page] leaving video crop page!!!" << std::endl;
-    }
-    if (LastMainWindowIndex == 1 && LastVideoEditorWindowIndex == 3 && (
-        MainWindowIndex != 1 || VideoEditorWindowIndex != 3))
-    {
-        // we leave video rotate windows
-        Logger::Log(Logger::DEBUG) << "[Changed page] leaving video rotate page!!!" << std::endl;
+        // we leave video attribute windows
+        Logger::Log(Logger::DEBUG) << "[Changed page] leaving video attribute page!!!" << std::endl;
     }
     if (LastMainWindowIndex == 2 && LastAudioEditorWindowIndex == 0 && (
         MainWindowIndex != 2 || AudioEditorWindowIndex != 0))
@@ -1383,6 +1377,7 @@ static void SaveProject(std::string path)
         }
         else if (IS_AUDIO(editing_clip->mType))
         {
+            if (timeline->mAudFilterClip) timeline->mAudFilterClip->Save();
             if (timeline->mAudioFilterBluePrint && timeline->mAudioFilterBluePrint->m_Document->m_Blueprint.IsOpened()) 
                     editing_clip->mFilterBP = timeline->mAudioFilterBluePrint->m_Document->Serialize();
         }
@@ -1398,7 +1393,7 @@ static void SaveProject(std::string path)
         }
         else if (IS_AUDIO(editing_overlap->mType))
         {
-
+            // TODO::Dicky Save audio fusion
         }
     }
 
