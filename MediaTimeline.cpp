@@ -3684,6 +3684,19 @@ int TimeLine::OnBluePrintChange(int type, std::string name, void* handle)
         {
         }
     }
+    if (name.compare("AudioFilter") == 0)
+    {
+        if (type == BluePrint::BP_CB_Link ||
+            type == BluePrint::BP_CB_Unlink ||
+            type == BluePrint::BP_CB_NODE_DELETED)
+        {
+            ret = BluePrint::BP_CBR_AutoLink;
+        }
+        else if (type == BluePrint::BP_CB_PARAM_CHANGED ||
+                type == BluePrint::BP_CB_SETTING_CHANGED)
+        {
+        }
+    }
 
     return ret;
 }
