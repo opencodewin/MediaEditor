@@ -4891,7 +4891,7 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list)
         ImVec2 audio_view_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 audio_view_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(audio_view_window_pos, audio_view_window_pos + audio_view_window_size, COL_DEEP_DARK);
-        ShowMediaPreviewWindow(draw_list, "Audio Filter", video_rect, editing_clip ? editing_clip->mStart : -1, editing_clip ? editing_clip->mEnd : -1, false, false, false);
+        ShowMediaPreviewWindow(draw_list, "Audio Filter", video_rect, editing_clip ? editing_clip->mStart : -1, editing_clip ? editing_clip->mEnd : -1, true, false, false);
     }
     ImGui::EndChild();
 
