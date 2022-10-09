@@ -432,6 +432,13 @@ int64_t Clip::Cropping(int64_t diff, int type)
             mAttributeKeyPoints = *timeline->mVidFilterClip->mAttribute->GetKeyPoint();
         }
     }
+    else if (timeline->mAudFilterClip && timeline->mAudFilterClip->mID == mID)
+    {
+        timeline->mAudFilterClip->mStart = mStart;
+        timeline->mAudFilterClip->mEnd = mEnd;
+        timeline->mAudFilterClip->mKeyPoints.SetRangeX(mStart, mEnd, true);
+        mFilterKeyPoints = timeline->mAudFilterClip->mKeyPoints;
+    }
     else
     {
         mFilterKeyPoints.SetRangeX(mStart, mEnd, true);
@@ -520,6 +527,13 @@ void Clip::Cutting(int64_t pos)
                 timeline->mVidFilterClip->mAttribute->GetKeyPoint()->SetRangeX(mStart, mEnd, true);
                 mAttributeKeyPoints = *timeline->mVidFilterClip->mAttribute->GetKeyPoint();
             }
+        }
+        if (timeline->mAudFilterClip && timeline->mAudFilterClip->mID == mID)
+        {
+            timeline->mAudFilterClip->mStart = mStart;
+            timeline->mAudFilterClip->mEnd = mEnd;
+            timeline->mAudFilterClip->mKeyPoints.SetRangeX(mStart, mEnd, true);
+            mFilterKeyPoints = timeline->mAudFilterClip->mKeyPoints;
         }
         else
         {
@@ -883,6 +897,13 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
                 timeline->mVidFilterClip->mAttribute->GetKeyPoint()->MoveTo(clip->mStart);
                 clip->mAttributeKeyPoints = *timeline->mVidFilterClip->mAttribute->GetKeyPoint();
             }
+        }
+        if (timeline->mAudFilterClip && timeline->mAudFilterClip->mID == clip->mID)
+        {
+            timeline->mAudFilterClip->mStart = clip->mStart;
+            timeline->mAudFilterClip->mEnd = clip->mEnd;
+            timeline->mAudFilterClip->mKeyPoints.MoveTo(clip->mStart);
+            clip->mFilterKeyPoints = timeline->mAudFilterClip->mKeyPoints;
         }
         else
         {
@@ -2173,7 +2194,9 @@ void EditingVideoClip::CalcDisplayParams()
 
 EditingAudioClip::EditingAudioClip(AudioClip* audclip)
     : BaseEditingClip(audclip->mID, audclip->mType, audclip->mStart, audclip->mEnd, audclip->mStartOffset, audclip->mEndOffset, audclip->mHandle)
-{}
+{
+    mKeyPoints = audclip->mFilterKeyPoints;
+}
 
 EditingAudioClip::~EditingAudioClip()
 {}
@@ -2183,6 +2206,11 @@ void EditingAudioClip::UpdateClipRange(Clip* clip)
 
 void EditingAudioClip::Seek(int64_t pos)
 {
+    TimeLine * timeline = (TimeLine *)mHandle;
+    if (!timeline)
+        return;
+    timeline->bSeeking = true;
+    timeline->Seek(pos);
 }
 
 void EditingAudioClip::Step(bool forward, int64_t step)
@@ -2202,6 +2230,7 @@ void EditingAudioClip::Save()
         clip->mFilterBP = timeline->mAudioFilterBluePrint->m_Document->Serialize();
     }
     timeline->mAudioFilterBluePrintLock.unlock();
+    clip->mFilterKeyPoints = mKeyPoints;
 
     // TODO::Dicky update audio filter in datalayer
 
@@ -2227,17 +2256,22 @@ void EditingAudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, 
     drawList->AddRectFilled(leftTop, rightBottom, IM_COL32(16, 16, 16, 255));
     drawList->AddRect(leftTop, rightBottom, IM_COL32(128, 128, 128, 255));
     float wave_range = fmax(fabs(waveform->minSample), fabs(waveform->maxSample));
+    int64_t start_time = clip->mStart;
+    int64_t end_time = clip->mEnd;
+    int start_offset = (int)((double)(clip->mStartOffset) / 1000.f / waveform->aggregateDuration);
     auto window_size = rightBottom - leftTop;
     window_size.y /= waveform->pcm.size();
+    int window_length = (int)((double)(end_time - start_time) / 1000.f / waveform->aggregateDuration);
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
     for (int i = 0; i < waveform->pcm.size(); i++)
     {
         std::string id_string = "##Waveform_editing@" + std::to_string(mID) + "@" +std::to_string(i);
-        int sampleSize = waveform->pcm[i].size();
-        if (sampleSize <= 0) continue;
-        int sample_stride = sampleSize / window_size.x;
-        int min_zoom = ImMax(sampleSize >> 15, 16);
+        //int sampleSize = waveform->pcm[i].size();
+        //if (sampleSize <= 0) continue;
+        int sample_stride = window_length / window_size.x;
+        int min_zoom = ImMax(window_length >> 15, 16);
         int zoom = ImMin(sample_stride, min_zoom);
+        start_offset = start_offset / zoom * zoom; // align start_offset
         ImPlot::PushStyleVar(ImPlotStyleVar_PlotPadding, {0, 0});
         ImPlot::PushStyleVar(ImPlotStyleVar_PlotBorderSize, 0.f);
         ImPlot::PushStyleColor(ImPlotCol_PlotBg, {0, 0, 0, 0});
@@ -2245,8 +2279,8 @@ void EditingAudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, 
         {
             std::string plot_id = id_string + "_line";
             ImPlot::SetupAxes(NULL, NULL, ImPlotAxisFlags_NoDecorations, ImPlotAxisFlags_NoDecorations);
-            ImPlot::SetupAxesLimits(0, sampleSize / zoom, -wave_range, wave_range, ImGuiCond_Always);
-            ImPlot::PlotLine(plot_id.c_str(), waveform->pcm[i].data(), sampleSize / zoom, 1.0, 0.0, 0, 0, sizeof(float) * zoom);
+            ImPlot::SetupAxesLimits(0, window_length / zoom, -wave_range, wave_range, ImGuiCond_Always);
+            ImPlot::PlotLine(plot_id.c_str(), &waveform->pcm[i][start_offset], window_length / zoom, 1.0, 0.0, 0, 0, sizeof(float) * zoom);
             ImPlot::EndPlot();
         }
         ImPlot::PopStyleColor();
