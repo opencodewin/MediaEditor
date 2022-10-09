@@ -3994,7 +3994,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
         };
         ImVec2 sub_window_pos = ImGui::GetWindowPos(); // we need draw background with scroll view
         ImVec2 sub_window_size = ImGui::GetWindowSize();
-        draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_TWO);
+        draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_BLACK_DARK);
         if (timeline->mVidFilterClip && filter)
         {
             // Filter curve setting
@@ -4557,7 +4557,7 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
         };
         ImVec2 sub_window_pos = ImGui::GetWindowPos(); // we need draw background with scroll view
         ImVec2 sub_window_size = ImGui::GetWindowSize();
-        draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_TWO);
+        draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_BLACK_DARK);
         if (timeline->mVidOverlap && fusion)
         {
             // Overlap curve setting
@@ -4983,7 +4983,7 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list)
         };
         ImVec2 sub_window_pos = ImGui::GetWindowPos(); // we need draw background with scroll view
         ImVec2 sub_window_size = ImGui::GetWindowSize();
-        //draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_TWO);
+        draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_BLACK_DARK);
         if (timeline->mAudFilterClip)
         {
             // Filter curve setting
