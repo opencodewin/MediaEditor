@@ -500,6 +500,24 @@ private:
     void * mHandle {nullptr};
 };
 
+class BluePrintAudioFilter : public DataLayer::AudioFilter
+{
+public:
+    BluePrintAudioFilter(void * handle = nullptr);
+    ~BluePrintAudioFilter();
+    void ApplyTo(AudioClip* clip);
+    ImGui::ImMat FilterPcm(const ImGui::ImMat& amat, int64_t pos);
+};
+
+class BluePrintAudioTransition : public DataLayer::AudioTransition
+{
+public:
+    BluePrintAudioTransition(void * handle = nullptr);
+    ~BluePrintAudioTransition();
+    void ApplyTo(DataLayer::AudioOverlap* overlap);
+    ImGui::ImMat MixTwoAudioMats(const ImGui::ImMat& amat1, const ImGui::ImMat& amat2, int64_t pos);
+};
+
 struct BaseEditingClip
 {
     void* mHandle               {nullptr};              // main timeline handle

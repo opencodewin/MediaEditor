@@ -983,7 +983,10 @@ bool Clip::isLinkedWith(Clip * clip)
 
     return false;
 }
+} // namespace MediaTimeline
 
+namespace MediaTimeline
+{
 // VideoClip Struct Member Functions
 VideoClip::VideoClip(int64_t start, int64_t end, int64_t id, std::string name, MediaParserHolder hParser, SnapshotGenerator::ViewerHolder hViewer, void* handle)
     : Clip(start, end, id, hParser, handle)
@@ -1314,7 +1317,10 @@ void VideoClip::Save(imgui_json::value& value)
 
     value["RotationAngle"] = imgui_json::number(mRotationAngle);
 }
+} // namespace MediaTimeline
 
+namespace MediaTimeline
+{
 // AudioClip Struct Member Functions
 AudioClip::AudioClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle)
     : Clip(start, end, id, overview->GetMediaParser(), handle), mOverview(overview)
@@ -1454,7 +1460,10 @@ void AudioClip::Save(imgui_json::value& value)
     value["SampleRate"] = imgui_json::number(mAudioSampleRate);
     value["Format"] = imgui_json::number(mAudioFormat);
 }
+} // namespace MediaTimeline
 
+namespace MediaTimeline
+{
 // TextClip Struct Member Functions
 TextClip::TextClip(int64_t start, int64_t end, int64_t id, std::string name, std::string text, void* handle)
     : Clip(start, end, id, nullptr, handle)
@@ -1756,7 +1765,10 @@ void TextClip::Save(imgui_json::value& value)
     value["OutlineColor"] = imgui_json::vec4(mFontOutlineColor);
     value["BackColor"] = imgui_json::vec4(mFontBackColor);
 }
+} // namespace MediaTimeline
 
+namespace MediaTimeline
+{
 // BluePrintVideoFilter class
 int BluePrintVideoFilter::OnBluePrintChange(int type, std::string name, void* handle)
 {
@@ -1843,7 +1855,10 @@ void BluePrintVideoFilter::SetBluePrintFromJson(imgui_json::value& bpJson)
         return;
     }
 }
+} // namespace MediaTimeline
 
+namespace MediaTimeline
+{
 // BluePrintVideoTransition class
 int BluePrintVideoTransition::OnBluePrintChange(int type, std::string name, void* handle)
 {
@@ -1932,7 +1947,10 @@ void BluePrintVideoTransition::SetBluePrintFromJson(imgui_json::value& bpJson)
         return;
     }
 }
+} // namespace MediaTimeline
 
+namespace MediaTimeline
+{
 EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
     : BaseEditingClip(vidclip->mID, vidclip->mType, vidclip->mStart, vidclip->mEnd, vidclip->mStartOffset, vidclip->mEndOffset, vidclip->mHandle)
 {
@@ -2191,7 +2209,10 @@ void EditingVideoClip::CalcDisplayParams()
     double snapCntInView = (double)mViewWndSize.x / mSnapSize.x;
     mSsGen->ConfigSnapWindow(snapWndSize, snapCntInView);
 }
+} // namespace MediaTimeline
 
+namespace MediaTimeline
+{
 EditingAudioClip::EditingAudioClip(AudioClip* audclip)
     : BaseEditingClip(audclip->mID, audclip->mType, audclip->mStart, audclip->mEnd, audclip->mStartOffset, audclip->mEndOffset, audclip->mHandle)
 {
@@ -2436,7 +2457,10 @@ void Overlap::Save(imgui_json::value& value)
     mFusionKeyPoints.Save(keypoint);
     value["KeyPoint"] = keypoint;
 }
+} // namespace MediaTimeline
 
+namespace MediaTimeline
+{
 EditingVideoOverlap::EditingVideoOverlap(Overlap* ovlp)
     : BaseEditingOverlap(ovlp)
 {
@@ -2780,7 +2804,6 @@ void EditingVideoOverlap::Save()
     }
     timeline->UpdatePreview();
 }
-
 }// namespace MediaTimeline
 
 namespace MediaTimeline
@@ -2788,9 +2811,9 @@ namespace MediaTimeline
 /***********************************************************************************************************
  * MediaTrack Struct Member Functions
  ***********************************************************************************************************/
-MediaTrack::MediaTrack(std::string name, uint32_t type, void * handle)
-    : m_Handle(handle),
-      mType(type)
+MediaTrack::MediaTrack(std::string name, uint32_t type, void * handle) :
+    m_Handle(handle),
+    mType(type)
 {
     TimeLine * timeline = (TimeLine *)handle;
     mID = timeline ? timeline->m_IDGenerator.GenerateID() : ImGui::get_current_time_usec();
