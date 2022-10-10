@@ -1251,14 +1251,6 @@ static void NewTimeline()
         timeline->m_CallBacks.EditingClipAttribute = EditingClipAttribute;
         timeline->m_CallBacks.EditingClipFilter = EditingClipFilter;
         timeline->m_CallBacks.EditingOverlap = EditingOverlap;
-
-
-        // init bp view
-        ImVec2 view_size = ImVec2(400, 200);
-        if (timeline->mAudioFusionBluePrint)
-        {
-            timeline->mAudioFusionBluePrint->m_ViewSize = view_size;
-        }
     }
 }
 
@@ -4873,7 +4865,7 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list)
     float clip_timeline_width = audio_view_width;
     ImVec2 clip_timeline_pos = window_pos + ImVec2(0, preview_height);
     ImVec2 clip_timeline_size(clip_timeline_width, clip_timeline_height);
-    ImVec2 clip_keypoint_pos = g_media_editor_settings.AudioFusionCurveExpanded ? clip_timeline_pos + ImVec2(0, clip_timeline_height) : clip_timeline_pos + ImVec2(0, clip_timeline_height - 16);
+    ImVec2 clip_keypoint_pos = g_media_editor_settings.AudioFilterCurveExpanded ? clip_timeline_pos + ImVec2(0, clip_timeline_height) : clip_timeline_pos + ImVec2(0, clip_timeline_height - 16);
     ImVec2 clip_keypoint_size(audio_view_width, clip_keypoint_height);
     ImVec2 clip_setting_pos = window_pos + ImVec2(audio_view_width, window_size.y / 2);
     ImVec2 clip_setting_size(audio_editor_width, window_size.y / 2);
@@ -4956,6 +4948,7 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list)
         ShowAudioFilterBluePrintWindow(draw_list, editing_clip);
     }
     ImGui::EndChild();
+
     // Draw Audio filter setting
     ImGui::SetCursorScreenPos(clip_setting_pos);
     if (ImGui::BeginChild("##audio_filter_setting", clip_setting_size, false, setting_child_flags))
@@ -5188,27 +5181,27 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list)
 
 static void ShowAudioFusionBluePrintWindow(ImDrawList *draw_list, Overlap * overlap)
 {
-    if (timeline && timeline->mAudioFusionBluePrint)
+    if (timeline && timeline->mAudOverlap && timeline->mAudOverlap->mFusion && timeline->mAudOverlap->mFusion->mBp)
     {
-        if (overlap && !timeline->mAudioFusionBluePrint->m_Document->m_Blueprint.IsOpened())
+        if (overlap && !timeline->mAudOverlap->mFusion->mBp->m_Document->m_Blueprint.IsOpened())
         {
             auto track = timeline->FindTrackByClipID(overlap->m_Clip.first);
             if (track)
                 track->SelectEditingOverlap(overlap);
-            timeline->mAudioFusionBluePrint->View_ZoomToContent();
+            timeline->mAudOverlap->mFusion->mBp->View_ZoomToContent();
         }
         ImVec2 window_pos = ImGui::GetCursorScreenPos();
         ImVec2 window_size = ImGui::GetWindowSize();
         ImGui::SetCursorScreenPos(window_pos + ImVec2(3, 3));
         ImGui::InvisibleButton("audio_fusion_blueprint_back_view", window_size - ImVec2(6, 6));
-        if (ImGui::BeginDragDropTarget() && timeline->mAudioFusionBluePrint->Blueprint_IsValid())
+        if (ImGui::BeginDragDropTarget() && timeline->mAudOverlap->mFusion->mBp->Blueprint_IsValid())
         {
-            if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("Fusion_drag_drop_Video"))
+            if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("Fusion_drag_drop_Audio"))
             {
                 BluePrint::NodeTypeInfo * type = (BluePrint::NodeTypeInfo *)payload->Data;
                 if (type)
                 {
-                    timeline->mAudioFusionBluePrint->Edit_Insert(type->m_ID);
+                    timeline->mAudOverlap->mFusion->mBp->Edit_Insert(type->m_ID);
                 }
             }
             ImGui::EndDragDropTarget();
@@ -5216,7 +5209,7 @@ static void ShowAudioFusionBluePrintWindow(ImDrawList *draw_list, Overlap * over
         ImGui::SetCursorScreenPos(window_pos + ImVec2(1, 1));
         if (ImGui::BeginChild("##audio_fusion_blueprint", window_size - ImVec2(2, 2), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
         {
-            timeline->mAudioFusionBluePrint->Frame(true, true, overlap != nullptr, BluePrint::BluePrintFlag::BluePrintFlag_Fusion);
+            timeline->mAudOverlap->mFusion->mBp->Frame(true, true, overlap != nullptr, BluePrint::BluePrintFlag::BluePrintFlag_Fusion);
         }
         ImGui::EndChild();
     }
@@ -5227,63 +5220,381 @@ static void ShowAudioFusionWindow(ImDrawList *draw_list)
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
     draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
-    float fusion_timeline_height = 130;
-    float fusion_main_height = window_size.y - fusion_timeline_height - 4;
     float audio_view_width = window_size.x * 2 / 3;
-    float audio_fusion_width = window_size.x - audio_view_width;
+    float audio_editor_width = window_size.x - audio_view_width;
     if (!timeline)
         return;
 
     Overlap * editing_overlap = timeline->FindEditingOverlap();
+
     if (editing_overlap)
     {
         auto clip_first = timeline->FindClipByID(editing_overlap->m_Clip.first);
         auto clip_second = timeline->FindClipByID(editing_overlap->m_Clip.second);
         if (!clip_first || !clip_second || 
-            clip_first->mType != MEDIA_AUDIO || clip_second->mType != MEDIA_AUDIO)
+            !IS_AUDIO(clip_first->mType) || !IS_AUDIO(clip_second->mType))
         {
             editing_overlap = nullptr;
         }
     }
 
-    if (editing_overlap && timeline->mAudioFusionBluePrint)
+    BluePrint::BluePrintUI* blueprint = nullptr;
+    BluePrintAudioTransition * fusion = nullptr;
+
+    if (editing_overlap)
     {
-        timeline->mAudioFusionBluePrint->m_ViewSize = ImVec2(audio_fusion_width, fusion_main_height);
+        if (!timeline->mAudOverlap)
+        {
+            timeline->mAudOverlap = new EditingAudioOverlap(editing_overlap);
+            fusion = timeline->mAudOverlap->mFusion;
+        }
+        else if (timeline->mAudOverlap->mStart != editing_overlap->mStart || timeline->mAudOverlap->mEnd != editing_overlap->mEnd)
+        {
+            fusion = timeline->mAudOverlap->mFusion;
+            // effect range changed for timeline->mAudOverlap
+            timeline->mAudOverlap->mStart = editing_overlap->mStart;
+            timeline->mAudOverlap->mEnd = editing_overlap->mEnd;
+            timeline->mAudOverlap->mDuration = timeline->mAudOverlap->mEnd - timeline->mAudOverlap->mStart;
+            if (fusion) fusion->mKeyPoints.SetMax(ImVec2(editing_overlap->mEnd - editing_overlap->mStart, 1.0f), true);
+        }
+        else
+        {
+            fusion = timeline->mAudOverlap->mFusion;
+        }
+        blueprint = fusion ? fusion->mBp : nullptr;
     }
 
-    if (ImGui::BeginChild("##audio_fusion_main", ImVec2(window_size.x, fusion_main_height), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+    float clip_header_height = 30;
+    float clip_channel_height = 30;
+    float clip_timeline_height = clip_header_height;
+    float clip_keypoint_height = g_media_editor_settings.AudioFusionCurveExpanded ? 120 : 0;
+    ImVec2 preview_pos = window_pos;
+    float preview_width = audio_view_width;
+
+    if (editing_overlap && timeline->mAudOverlap)
     {
-        ImVec2 fusion_window_pos = ImGui::GetCursorScreenPos();
-        ImVec2 fusion_window_size = ImGui::GetWindowSize();
-        
-        if (ImGui::BeginChild("##fusion_audio_view", ImVec2(audio_view_width, fusion_window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
-        {
-            ImVec2 audio_view_window_pos = ImGui::GetCursorScreenPos();
-            ImVec2 audio_view_window_size = ImGui::GetWindowSize();
-            draw_list->AddRectFilled(audio_view_window_pos, audio_view_window_pos + audio_view_window_size, COL_DEEP_DARK);
-            // TODO::Dicky audio fusion
-        }
-        ImGui::EndChild();
-        ImGui::SetCursorScreenPos(window_pos + ImVec2(audio_view_width, 0));
-        if (ImGui::BeginChild("##audio_fusion_views", ImVec2(audio_fusion_width, fusion_window_size.y), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
-        {
-            ImVec2 fusion_view_window_pos = ImGui::GetCursorScreenPos();
-            ImVec2 fusion_view_window_size = ImGui::GetWindowSize();
-            draw_list->AddRectFilled(fusion_view_window_pos, fusion_view_window_pos + fusion_view_window_size, COL_DARK_ONE);
-            ShowAudioFusionBluePrintWindow(draw_list, editing_overlap);
-        }
-        ImGui::EndChild();
+        int channels = timeline->mAudOverlap->mFirstAudioChannels + timeline->mAudOverlap->mSecondAudioChannels;
+        clip_timeline_height += channels * clip_channel_height;
+    }
+    float preview_height = window_size.y - clip_timeline_height - clip_keypoint_height - 4;
+    float audio_blueprint_height = window_size.y / 2;
+    if (editing_overlap && blueprint)
+    {
+        blueprint->m_ViewSize = ImVec2(audio_editor_width, audio_blueprint_height);
+    }
+
+    float clip_timeline_width = audio_view_width;
+    ImVec2 clip_timeline_pos = window_pos + ImVec2(0, preview_height);
+    ImVec2 clip_timeline_size(clip_timeline_width, clip_timeline_height);
+    ImVec2 clip_keypoint_pos = g_media_editor_settings.AudioFusionCurveExpanded ? clip_timeline_pos + ImVec2(0, clip_timeline_height) : clip_timeline_pos + ImVec2(0, clip_timeline_height - 16);
+    ImVec2 clip_keypoint_size(audio_view_width, clip_keypoint_height);
+    ImVec2 clip_setting_pos = window_pos + ImVec2(audio_view_width, window_size.y / 2);
+    ImVec2 clip_setting_size(audio_editor_width, window_size.y / 2);
+
+    ImGuiWindowFlags child_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings;
+    ImGuiWindowFlags setting_child_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings;
+
+    if (ImGui::BeginChild("##audio_fusion_preview", ImVec2(preview_width, preview_height), false, child_flags))
+    {
+        ImRect video_rect;
+        ImVec2 audio_view_window_pos = ImGui::GetCursorScreenPos();
+        ImVec2 audio_view_window_size = ImGui::GetWindowSize();
+        draw_list->AddRectFilled(audio_view_window_pos, audio_view_window_pos + audio_view_window_size, COL_DEEP_DARK);
+        ShowMediaPreviewWindow(draw_list, "Audio Fusion", video_rect, editing_overlap ? editing_overlap->mStart : -1, editing_overlap ? editing_overlap->mEnd : -1, true, false, false);
     }
     ImGui::EndChild();
-    
-    if (ImGui::BeginChild("##audio_fusion_timeline", ImVec2(window_size.x, fusion_timeline_height), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
-    {
-        ImVec2 fusion_timeline_window_pos = ImGui::GetCursorScreenPos();
-        ImVec2 fusion_timeline_window_size = ImGui::GetWindowSize();
-        draw_list->AddRectFilled(fusion_timeline_window_pos, fusion_timeline_window_pos + fusion_timeline_window_size, COL_DARK_TWO);
 
-        // Draw Clip TimeLine
-        DrawOverlapTimeLine(nullptr, 0, 30, 50); // TODO:: Add Audio Overlap
+    ImGui::SetCursorScreenPos(clip_timeline_pos);
+    if (ImGui::BeginChild("##audio_fusion_timeline", clip_timeline_size, false, child_flags))
+    {
+        ImVec2 clip_timeline_window_pos = ImGui::GetCursorScreenPos();
+        ImVec2 clip_timeline_window_size = ImGui::GetWindowSize();
+        draw_list->AddRectFilled(clip_timeline_window_pos, clip_timeline_window_pos + clip_timeline_window_size, COL_DARK_TWO);
+        // TODO::draw
+        DrawOverlapTimeLine(nullptr, timeline->currentTime, clip_header_height, clip_timeline_height - clip_header_height);
+    }
+    ImGui::EndChild();
+
+    // draw keypoint hidden button
+    ImVec2 hidden_button_pos = window_pos + ImVec2(0, preview_height - 16);
+    ImRect hidden_button_rect = ImRect(hidden_button_pos, hidden_button_pos + ImVec2(16, 16));
+    ImGui::SetWindowFontScale(0.75);
+    if (hidden_button_rect.Contains(ImGui::GetMousePos()))
+    {
+        draw_list->AddRectFilled(hidden_button_rect.Min, hidden_button_rect.Max, IM_COL32(64,64,64,255));
+        if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+        {
+            g_media_editor_settings.AudioFusionCurveExpanded = !g_media_editor_settings.AudioFusionCurveExpanded;
+        }
+        ImGui::BeginTooltip();
+        ImGui::TextUnformatted(g_media_editor_settings.TextCurveExpanded ? "Hide Curve View" : "Show Curve View");
+        ImGui::EndTooltip();
+    }
+    draw_list->AddText(hidden_button_pos, IM_COL32_WHITE, ICON_FA_BEZIER_CURVE);
+    ImGui::SetWindowFontScale(1.0);
+
+    // draw fusion curve editor
+    if (g_media_editor_settings.AudioFusionCurveExpanded)
+    {
+        ImGui::SetCursorScreenPos(clip_keypoint_pos);
+        if (ImGui::BeginChild("##audio_fusion_keypoint", clip_keypoint_size, false, child_flags))
+        {
+            ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 sub_window_size = ImGui::GetWindowSize();
+            draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_ONE);
+            if (timeline->mAudOverlap && fusion)
+            {
+                bool _changed = false;
+                float current_time = timeline->currentTime;
+                mouse_hold |= ImGui::ImCurveEdit::Edit(fusion->mKeyPoints,
+                                                        sub_window_size, 
+                                                        ImGui::GetID("##audio_fusion_keypoint_editor"), 
+                                                        current_time,
+                                                        CURVE_EDIT_FLAG_VALUE_LIMITED | CURVE_EDIT_FLAG_MOVE_CURVE | CURVE_EDIT_FLAG_KEEP_BEGIN_END | CURVE_EDIT_FLAG_DOCK_BEGIN_END, 
+                                                        nullptr, // clippingRect
+                                                        &_changed,
+                                                        nullptr // selectedPoints
+                                                        );
+                if (_changed) timeline->UpdatePreview();
+            }
+        }
+        ImGui::EndChild();
+    }
+
+    ImGui::SetCursorScreenPos(window_pos + ImVec2(audio_view_width, 0));
+    if (ImGui::BeginChild("##audio_fusion_blueprint", ImVec2(audio_editor_width, audio_blueprint_height), false, child_flags))
+    {
+        ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+        ImVec2 sub_window_size = ImGui::GetWindowSize();
+        draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_ONE);
+        ShowAudioFusionBluePrintWindow(draw_list, editing_overlap);
+    }
+    ImGui::EndChild();
+
+    // Draw Audio fusion setting
+    ImGui::SetCursorScreenPos(clip_setting_pos);
+    if (ImGui::BeginChild("##audio_fusion_setting", clip_setting_size, false, setting_child_flags))
+    {
+        auto addCurve = [&](std::string name, float _min, float _max, float _default)
+        {
+            if (fusion)
+            {
+                auto found = fusion->mKeyPoints.GetCurveIndex(name);
+                if (found == -1)
+                {
+                    ImU32 color; ImGui::RandomColor(color, 1.f);
+                    auto curve_index = fusion->mKeyPoints.AddCurve(name, ImGui::ImCurveEdit::Linear, color, true, _min, _max, _default);
+                    fusion->mKeyPoints.AddPoint(curve_index, ImVec2(0.f, _min), ImGui::ImCurveEdit::Linear);
+                    fusion->mKeyPoints.AddPoint(curve_index, ImVec2(timeline->mAudOverlap->mEnd - timeline->mAudOverlap->mStart, _max), ImGui::ImCurveEdit::Linear);
+                    if (blueprint)
+                    {
+                        auto entry_node = blueprint->FindEntryPointNode();
+                        if (entry_node) entry_node->InsertOutputPin(BluePrint::PinType::Float, name);
+                        timeline->UpdatePreview();
+                    }
+                }
+            }
+        };
+        ImVec2 sub_window_pos = ImGui::GetWindowPos(); // we need draw background with scroll view
+        ImVec2 sub_window_size = ImGui::GetWindowSize();
+        draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_BLACK_DARK);
+        if (timeline->mAudOverlap && fusion)
+        {
+            // Fusion curve setting
+            if (ImGui::TreeNodeEx("Curve Setting##audio_fusion", ImGuiTreeNodeFlags_DefaultOpen))
+            {
+                char ** curve_type_list = nullptr;
+                auto curve_type_count = ImGui::ImCurveEdit::GetCurveTypeName(curve_type_list);
+                bool name_input_with_return = false;
+                static std::string curve_name = "";
+                std::string value = curve_name;
+                if (ImGui::InputTextWithHint("##new_curve_name_audio_fusion", "Input curve name", (char*)value.data(), value.size() + 1, ImGuiInputTextFlags_CallbackEdit | ImGuiInputTextFlags_CallbackResize | ImGuiInputTextFlags_EnterReturnsTrue, [](ImGuiInputTextCallbackData* data) -> int
+                {
+                    if (data->EventFlag == ImGuiInputTextFlags_CallbackResize)
+                    {
+                        auto& stringValue = *static_cast<string*>(data->UserData);
+                        ImVector<char>* my_str = (ImVector<char>*)data->UserData;
+                        //IM_ASSERT(stringValue.data() == data->Buf);
+                        stringValue.resize(data->BufSize);
+                        data->Buf = (char*)stringValue.data();
+                    }
+                    else if (data->EventFlag == ImGuiInputTextFlags_CallbackEdit)
+                    {
+                        auto& stringValue = *static_cast<string*>(data->UserData);
+                        stringValue = std::string(data->Buf);
+                    }
+                    return 0;
+                }, &value))
+                {
+                    value.resize(strlen(value.c_str()));
+                    curve_name = value;
+                    name_input_with_return = true;
+                }
+
+                ImGui::BeginDisabled(curve_name.empty());
+                ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 8.0f);
+                ImGui::SameLine();
+                if (ImGui::Button(ICON_ADD "##insert_curve_audio_fusion") || name_input_with_return)
+                {
+                    addCurve(curve_name, 0.f, 1.f, 1.0);
+                }
+                ImGui::PopStyleVar();
+                ImGui::EndDisabled();
+
+                // list curves
+                for (int i = 0; i < fusion->mKeyPoints.GetCurveCount(); i++)
+                {
+                    bool break_loop = false;
+                    ImGui::PushID(i);
+                    auto pCount = fusion->mKeyPoints.GetCurvePointCount(i);
+                    std::string lable_id = std::string(ICON_CURVE) + " " + fusion->mKeyPoints.GetCurveName(i) + " (" + std::to_string(pCount) + " keys)" + "##audio_fusion_curve";
+                    if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
+                    {
+                        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
+                        float value = fusion->mKeyPoints.GetValue(i, timeline->currentTime);
+                        ImGui::BracketSquare(true); ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0, 1.0, 0.0, 1.0)); ImGui::Text("%.2f", value); ImGui::PopStyleColor();
+                        ImGui::PushItemWidth(60);
+                        float curve_min = fusion->mKeyPoints.GetCurveMin(i);
+                        float curve_max = fusion->mKeyPoints.GetCurveMax(i);
+                        if (ImGui::DragFloat("##curve_audio_fusion_min", &curve_min, 0.1f, -FLT_MAX, curve_max, "%.1f"))
+                        {
+                            fusion->mKeyPoints.SetCurveMin(i, curve_min);
+                            timeline->UpdatePreview();
+                        } ImGui::ShowTooltipOnHover("Min");
+                        ImGui::SameLine(0, 8);
+                        if (ImGui::DragFloat("##curve_audio_fusion_max", &curve_max, 0.1f, curve_min, FLT_MAX, "%.1f"))
+                        {
+                            fusion->mKeyPoints.SetCurveMax(i, curve_max);
+                            timeline->UpdatePreview();
+                        } ImGui::ShowTooltipOnHover("Max");
+                        ImGui::SameLine(0, 8);
+                        float curve_default = fusion->mKeyPoints.GetCurveDefault(i);
+                        if (ImGui::DragFloat("##curve_audio_fusion_default", &curve_default, 0.1f, curve_min, curve_max, "%.1f"))
+                        {
+                            fusion->mKeyPoints.SetCurveDefault(i, curve_default);
+                            timeline->UpdatePreview();
+                        } ImGui::ShowTooltipOnHover("Default");
+                        ImGui::PopItemWidth();
+                        
+                        ImGui::SameLine(0, 8);
+                        ImGui::SetWindowFontScale(0.75);
+                        auto curve_color = ImGui::ColorConvertU32ToFloat4(fusion->mKeyPoints.GetCurveColor(i));
+                        if (ImGui::ColorEdit4("##curve_audio_fusion_color", (float*)&curve_color, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar))
+                        {
+                            fusion->mKeyPoints.SetCurveColor(i, ImGui::ColorConvertFloat4ToU32(curve_color));
+                        } ImGui::ShowTooltipOnHover("Curve Color");
+                        ImGui::SetWindowFontScale(1.0);
+                        ImGui::SameLine(0, 4);
+                        bool is_visiable = fusion->mKeyPoints.IsVisible(i);
+                        if (ImGui::Button(is_visiable ? ICON_WATCH : ICON_UNWATCH "##curve_audio_fusion_visiable"))
+                        {
+                            is_visiable = !is_visiable;
+                            fusion->mKeyPoints.SetCurveVisible(i, is_visiable);
+                        } ImGui::ShowTooltipOnHover( is_visiable ? "Hide" : "Show");
+                        ImGui::SameLine(0, 4);
+                        if (ImGui::Button(ICON_DELETE "##curve_audio_fusion_delete"))
+                        {
+                            // delete blueprint entry node pin
+                            auto pin_name = fusion->mKeyPoints.GetCurveName(i);
+                            if (blueprint)
+                            {
+                                auto entry_node = blueprint->FindEntryPointNode();
+                                if (entry_node) entry_node->DeleteOutputPin(pin_name);
+                                timeline->UpdatePreview();
+                            }
+                            fusion->mKeyPoints.DeleteCurve(i);
+                            break_loop = true;
+                        } ImGui::ShowTooltipOnHover("Delete");
+                        ImGui::SameLine(0, 4);
+                        if (ImGui::Button(ICON_RETURN_DEFAULT "##curve_audio_fusion_reset"))
+                        {
+                            for (int p = 0; p < pCount; p++)
+                            {
+                                fusion->mKeyPoints.SetCurvePointDefault(i, p);
+                            }
+                            timeline->UpdatePreview();
+                        } ImGui::ShowTooltipOnHover("Reset");
+
+                        if (!break_loop)
+                        {
+                            // list points
+                            for (int p = 0; p < pCount; p++)
+                            {
+                                bool is_disabled = false;
+                                ImGui::PushID(p);
+                                ImGui::PushItemWidth(96);
+                                auto point = fusion->mKeyPoints.GetPoint(i, p);
+                                ImGui::Diamond(false);
+                                if (p == 0 || p == pCount - 1)
+                                    is_disabled = true;
+                                ImGui::BeginDisabled(is_disabled);
+                                if (ImGui::DragTimeMS("##curve_audio_fusion_point_x", &point.point.x, fusion->mKeyPoints.GetMax().x / 1000.f, fusion->mKeyPoints.GetMin().x, fusion->mKeyPoints.GetMax().x, 2))
+                                {
+                                    fusion->mKeyPoints.EditPoint(i, p, point.point, point.type);
+                                    timeline->UpdatePreview();
+                                }
+                                ImGui::EndDisabled();
+                                ImGui::SameLine();
+                                auto speed = fabs(fusion->mKeyPoints.GetCurveMax(i) - fusion->mKeyPoints.GetCurveMin(i)) / 500;
+                                if (ImGui::DragFloat("##curve_audio_fusion_point_y", &point.point.y, speed, fusion->mKeyPoints.GetCurveMin(i), fusion->mKeyPoints.GetCurveMax(i), "%.2f"))
+                                {
+                                    fusion->mKeyPoints.EditPoint(i, p, point.point, point.type);
+                                    timeline->UpdatePreview();
+                                }
+                                ImGui::SameLine();
+                                if (ImGui::Combo("##curve_audio_fusion_type", (int*)&point.type, curve_type_list, curve_type_count))
+                                {
+                                    fusion->mKeyPoints.EditPoint(i, p, point.point, point.type);
+                                    timeline->UpdatePreview();
+                                }
+                                ImGui::PopItemWidth();
+                                ImGui::PopID();
+                            }
+                        }
+                        ImGui::PopStyleColor();
+                        ImGui::TreePop();
+                    }
+                    ImGui::PopID();
+                    if (break_loop) break;
+                }
+
+                ImGui::TreePop();
+            }
+            // Fusion Node setting
+            if (blueprint && blueprint->Blueprint_IsValid())
+            {
+                if (ImGui::TreeNodeEx("Node Configure##audio_fusion", ImGuiTreeNodeFlags_DefaultOpen))
+                {
+                    auto nodes = blueprint->m_Document->m_Blueprint.GetNodes();
+                    for (auto node : nodes)
+                    {
+                        auto type = node->GetTypeInfo().m_Type;
+                        if (type == BluePrint::NodeType::EntryPoint || type == BluePrint::NodeType::ExitPoint)
+                            continue;
+                        if (!node->CustomLayout())
+                            continue;
+                        auto label_name = node->m_Name;
+                        std::string lable_id = std::string(ICON_NODE) + " " + label_name + "##audio_fusion_node" + "@" + std::to_string(node->m_ID);
+                        if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
+                        {
+                            ImGui::ImCurveEdit::keys key;
+                            key.m_id = node->m_ID;
+                            if (node->DrawCustomLayout(ImGui::GetCurrentContext(), 1.0, ImVec2(0, 0), &key))
+                            {
+                                node->m_NeedUpdate = true;
+                                timeline->UpdatePreview();
+                            }
+                            if (!key.name.empty())
+                            {
+                                addCurve(key.name, key.m_min, key.m_max, key.m_default);
+                            }
+                            ImGui::TreePop();
+                        }
+                    }
+                    ImGui::TreePop();
+                }
+            }
+        }
     }
     ImGui::EndChild();
 }

@@ -29,6 +29,7 @@ struct MultiTrackAudioReader
     virtual DataLayer::AudioTrackHolder GetTrackByIndex(uint32_t idx) = 0;
     virtual DataLayer::AudioTrackHolder GetTrackById(int64_t trackId, bool createIfNotExists = false) = 0;
     virtual DataLayer::AudioClipHolder GetClipById(int64_t clipId) = 0;
+    virtual DataLayer::AudioOverlapHolder GetOverlapById(int64_t ovlpId) = 0;
 
     virtual std::string GetError() const = 0;
 };

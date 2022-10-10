@@ -524,8 +524,21 @@ class BluePrintAudioTransition : public DataLayer::AudioTransition
 public:
     BluePrintAudioTransition(void * handle = nullptr);
     ~BluePrintAudioTransition();
-    void ApplyTo(DataLayer::AudioOverlap* overlap);
-    ImGui::ImMat MixTwoAudioMats(const ImGui::ImMat& amat1, const ImGui::ImMat& amat2, int64_t pos);
+    void ApplyTo(DataLayer::AudioOverlap* overlap) override {}
+    ImGui::ImMat MixTwoAudioMats(const ImGui::ImMat& amat1, const ImGui::ImMat& amat2, int64_t pos) override;
+
+    void SetBluePrintFromJson(imgui_json::value& bpJson);
+    void SetKeyPoint(ImGui::KeyPointEditor &keypoint) { mKeyPoints = keypoint; };
+
+public:
+    BluePrint::BluePrintUI* mBp{nullptr};
+    ImGui::KeyPointEditor mKeyPoints;
+
+private:
+    static int OnBluePrintChange(int type, std::string name, void* handle);
+    DataLayer::AudioOverlap* mOverlap;
+    std::mutex mBpLock;
+    void * mHandle {nullptr};
 };
 
 struct BaseEditingClip
@@ -644,6 +657,26 @@ public:
     void Save() override;
 
     void CalcDisplayParams();
+};
+
+struct EditingAudioOverlap : BaseEditingOverlap
+{
+    AudioClip *mClip1, *mClip2;
+    MediaOverview::WaveformHolder mFirstWaveform {nullptr};  // clip audio snapshot
+    MediaOverview::WaveformHolder mSecondWaveform {nullptr};  // clip audio snapshot
+    int mFirstAudioChannels;
+    int mSecondAudioChannels;
+    BluePrintAudioTransition* mFusion{nullptr};
+
+public:
+    EditingAudioOverlap(Overlap* ovlp);
+    virtual ~EditingAudioOverlap();
+
+    void Seek(int64_t pos) override;
+    void Step(bool forward, int64_t step = 0) override;
+    bool GetFrame(std::pair<std::pair<ImGui::ImMat, ImGui::ImMat>, ImGui::ImMat>& in_out_frame, bool preview_frame = true) override { return false; }
+    void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom) override;
+    void Save() override;
 };
 
 struct MediaTrack
@@ -849,7 +882,7 @@ struct TimeLine
     std::mutex mVidFusionLock;              // timeline overlap mutex
     EditingVideoOverlap* mVidOverlap    {nullptr};
     std::mutex mAudFusionLock;              // timeline overlap mutex
-    EditingVideoOverlap* mAudOverlap    {nullptr};
+    EditingAudioOverlap* mAudOverlap    {nullptr};
 
     MultiTrackVideoReader* mMtvReader   {nullptr};
     MultiTrackAudioReader* mMtaReader   {nullptr};
@@ -911,10 +944,6 @@ struct TimeLine
     ImTextureID mVideoFusionInputFirstTexture {nullptr};    // clip video fusion first input texture
     ImTextureID mVideoFusionInputSecondTexture {nullptr};   // clip video fusion second input texture
     ImTextureID mVideoFusionOutputTexture {nullptr};        // clip video fusion output texture
-
-    BluePrint::BluePrintUI * mAudioFusionBluePrint {nullptr};
-    std::mutex mAudioFusionBluePrintLock;   // Video Fusion BluePrint mutex
-    bool mAudioFusionNeedUpdate {false};
 
     TimeLineCallbackFunctions  m_CallBacks;
 

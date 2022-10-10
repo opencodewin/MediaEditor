@@ -1780,6 +1780,27 @@ void TextClip::Save(imgui_json::value& value)
 namespace MediaTimeline
 {
 // BluePrintVideoFilter class
+BluePrintVideoFilter::BluePrintVideoFilter(void * handle)
+    : mHandle(handle)
+{
+    imgui_json::value filter_BP; 
+    mBp = new BluePrint::BluePrintUI();
+    BluePrint::BluePrintCallbackFunctions callbacks;
+    callbacks.BluePrintOnChanged = OnBluePrintChange;
+    mBp->Initialize();
+    mBp->SetCallbacks(callbacks, this);
+    mBp->File_New_Filter(filter_BP, "VideoFilter", "Video");
+}
+
+BluePrintVideoFilter::~BluePrintVideoFilter()
+{
+    if (mBp) 
+    {
+        mBp->Finalize(); 
+        delete mBp;
+    }
+}
+
 int BluePrintVideoFilter::OnBluePrintChange(int type, std::string name, void* handle)
 {
     int ret = BluePrint::BP_CBR_Nothing;
@@ -1804,27 +1825,6 @@ int BluePrintVideoFilter::OnBluePrintChange(int type, std::string name, void* ha
         }
     }
     return ret;
-}
-
-BluePrintVideoFilter::BluePrintVideoFilter(void * handle)
-    : mHandle(handle)
-{
-    imgui_json::value filter_BP; 
-    mBp = new BluePrint::BluePrintUI();
-    BluePrint::BluePrintCallbackFunctions callbacks;
-    callbacks.BluePrintOnChanged = OnBluePrintChange;
-    mBp->Initialize();
-    mBp->SetCallbacks(callbacks, this);
-    mBp->File_New_Filter(filter_BP, "VideoFilter", "Video");
-}
-
-BluePrintVideoFilter::~BluePrintVideoFilter()
-{
-    if (mBp) 
-    {
-        mBp->Finalize(); 
-        delete mBp;
-    }
 }
 
 DataLayer::VideoFilterHolder BluePrintVideoFilter::Clone()
@@ -1870,6 +1870,27 @@ void BluePrintVideoFilter::SetBluePrintFromJson(imgui_json::value& bpJson)
 namespace MediaTimeline
 {
 // BluePrintVideoTransition class
+BluePrintVideoTransition::BluePrintVideoTransition(void * handle)
+    : mHandle(handle)
+{
+    imgui_json::value fusion_BP; 
+    mBp = new BluePrint::BluePrintUI();
+    mBp->Initialize();
+    BluePrint::BluePrintCallbackFunctions callbacks;
+    callbacks.BluePrintOnChanged = OnBluePrintChange;
+    mBp->SetCallbacks(callbacks, this);
+    mBp->File_New_Fusion(fusion_BP, "VideoFusion", "Video");
+}
+
+BluePrintVideoTransition::~BluePrintVideoTransition()
+{
+    if (mBp)
+    {
+        mBp->Finalize();
+        delete mBp;
+    }
+}
+
 int BluePrintVideoTransition::OnBluePrintChange(int type, std::string name, void* handle)
 {
     int ret = BluePrint::BP_CBR_Nothing;
@@ -1896,27 +1917,6 @@ int BluePrintVideoTransition::OnBluePrintChange(int type, std::string name, void
         }
     }
     return ret;
-}
-
-BluePrintVideoTransition::BluePrintVideoTransition(void * handle)
-    : mHandle(handle)
-{
-    imgui_json::value fusion_BP; 
-    mBp = new BluePrint::BluePrintUI();
-    mBp->Initialize();
-    BluePrint::BluePrintCallbackFunctions callbacks;
-    callbacks.BluePrintOnChanged = OnBluePrintChange;
-    mBp->SetCallbacks(callbacks, this);
-    mBp->File_New_Fusion(fusion_BP, "VideoFusion", "Video");
-}
-
-BluePrintVideoTransition::~BluePrintVideoTransition()
-{
-    if (mBp)
-    {
-        mBp->Finalize();
-        delete mBp;
-    }
 }
 
 DataLayer::VideoTransitionHolder BluePrintVideoTransition::Clone()
@@ -2034,6 +2034,92 @@ void BluePrintAudioFilter::SetBluePrintFromJson(imgui_json::value& bpJson)
     }
 }
 } // namespace MediaTimeline
+
+namespace MediaTimeline
+{
+// BluePrintAudioTransition class
+BluePrintAudioTransition::BluePrintAudioTransition(void * handle)
+    : mHandle(handle)
+{
+    imgui_json::value fusion_BP; 
+    mBp = new BluePrint::BluePrintUI();
+    mBp->Initialize();
+    BluePrint::BluePrintCallbackFunctions callbacks;
+    callbacks.BluePrintOnChanged = OnBluePrintChange;
+    mBp->SetCallbacks(callbacks, this);
+    mBp->File_New_Fusion(fusion_BP, "AudioFusion", "Audio");
+}
+
+BluePrintAudioTransition::~BluePrintAudioTransition()
+{
+    if (mBp)
+    {
+        mBp->Finalize();
+        delete mBp;
+    }
+}
+
+int BluePrintAudioTransition::OnBluePrintChange(int type, std::string name, void* handle)
+{
+    int ret = BluePrint::BP_CBR_Nothing;
+    if (!handle)
+        return BluePrint::BP_CBR_Unknown;
+    BluePrintAudioTransition * fusion = (BluePrintAudioTransition *)handle;
+    if (!fusion) return ret;
+    TimeLine * timeline = (TimeLine *)fusion->mHandle;
+    if (name.compare("AudioFusion") == 0)
+    {
+        if (type == BluePrint::BP_CB_Link ||
+            type == BluePrint::BP_CB_Unlink ||
+            type == BluePrint::BP_CB_NODE_DELETED)
+        {
+            // need update
+            if (timeline) timeline->UpdatePreview();
+            ret = BluePrint::BP_CBR_AutoLink;
+        }
+        else if (type == BluePrint::BP_CB_PARAM_CHANGED ||
+                type == BluePrint::BP_CB_SETTING_CHANGED)
+        {
+            // need update
+            //if (timeline) timeline->UpdatePreview();
+        }
+    }
+    return ret;
+}
+
+ImGui::ImMat BluePrintAudioTransition::MixTwoAudioMats(const ImGui::ImMat& amat1, const ImGui::ImMat& amat2, int64_t pos)
+{
+    std::lock_guard<std::mutex> lk(mBpLock);
+    if (mBp)
+    {
+        // setup bp input curve
+        for (int i = 0; i < mKeyPoints.GetCurveCount(); i++)
+        {
+            auto name = mKeyPoints.GetCurveName(i);
+            auto value = mKeyPoints.GetValue(i, pos - mOverlap->Start());
+            mBp->Blueprint_SetFusion(name, value);
+        }
+        ImGui::ImMat inMat1(amat1), inMat2(amat2);
+        ImGui::ImMat outMat;
+        mBp->Blueprint_RunFusion(inMat1, inMat2, outMat, pos, 0); // ?
+        return outMat;
+    }
+    return amat1;
+}
+
+void BluePrintAudioTransition::SetBluePrintFromJson(imgui_json::value& bpJson)
+{
+    // Logger::Log(Logger::DEBUG) << "Create bp transition from json " << bpJson.dump() << std::endl;
+    mBp->File_New_Fusion(bpJson, "AudioFusion", "Audio");
+    if (!mBp->Blueprint_IsValid())
+    {
+        mBp->Finalize();
+        return;
+    }
+}
+
+} // namespace MediaTimeline
+
 
 namespace MediaTimeline
 {
@@ -2906,6 +2992,87 @@ void EditingVideoOverlap::Save()
 
 namespace MediaTimeline
 {
+EditingAudioOverlap::EditingAudioOverlap(Overlap* ovlp)
+    : BaseEditingOverlap(ovlp)
+{
+    TimeLine* timeline = (TimeLine*)(ovlp->mHandle);
+    AudioClip* audclip1 = (AudioClip*)timeline->FindClipByID(ovlp->m_Clip.first);
+    AudioClip* audclip2 = (AudioClip*)timeline->FindClipByID(ovlp->m_Clip.second);
+    if (audclip1 && audclip2)
+    {
+        mClip1 = audclip1; mClip2 = audclip2;
+        m_StartOffset.first = audclip1->mStartOffset + ovlp->mStart - audclip1->mStart;
+        m_StartOffset.second = audclip2->mStartOffset + ovlp->mStart - audclip2->mStart;
+        mFirstWaveform = audclip1->mWaveform;
+        mSecondWaveform = audclip2->mWaveform;
+        mFirstAudioChannels = audclip1->mAudioChannels;
+        mSecondAudioChannels = audclip2->mAudioChannels;
+        mStart = ovlp->mStart;
+        mEnd = ovlp->mEnd;
+        mDuration = mEnd - mStart;
+        auto hOvlp = timeline->mMtaReader->GetOverlapById(mOvlp->mID);
+        IM_ASSERT(hOvlp);
+        /*
+        mFusion = dynamic_cast<BluePrintAudioTransition *>(hOvlp->GetTransition().get());
+        if (!mFusion)
+        {
+            mFusion = new BluePrintAudioTransition(timeline);
+            mFusion->SetKeyPoint(mOvlp->mFusionKeyPoints);
+            DataLayer::AudioTransitionHolder hTrans(mFusion);
+            hOvlp->SetTransition(hTrans);
+        }
+        */
+    }
+    else
+    {
+        Logger::Log(Logger::Error) << "FAILED to initialize 'EditingAudioOverlap' instance! One or both of the source audio clip can not be found." << std::endl;
+    }
+}
+
+EditingAudioOverlap::~EditingAudioOverlap()
+{
+    mFirstWaveform = nullptr;
+    mSecondWaveform = nullptr;
+    mFusion = nullptr;
+}
+
+void EditingAudioOverlap::Seek(int64_t pos)
+{
+    TimeLine* timeline = (TimeLine*)(mOvlp->mHandle);
+    if (!timeline)
+        return;
+    timeline->bSeeking = true;
+    timeline->Seek(pos);
+}
+
+void EditingAudioOverlap::Step(bool forward, int64_t step)
+{
+}
+
+void EditingAudioOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom)
+{
+    // TODO::Dicky
+}
+
+void EditingAudioOverlap::Save()
+{
+    TimeLine * timeline = (TimeLine *)(mOvlp->mHandle);
+    if (!timeline)
+        return;
+    auto overlap = timeline->FindOverlapByID(mOvlp->mID);
+    if (!overlap)
+        return;
+    if (mFusion && mFusion->mBp && mFusion->mBp->Blueprint_IsValid())
+    {
+        overlap->mFusionBP = mFusion->mBp->m_Document->Serialize();
+        overlap->mFusionKeyPoints = mFusion->mKeyPoints;
+    }
+}
+
+} // namespace MediaTimeline
+
+namespace MediaTimeline
+{
 /***********************************************************************************************************
  * MediaTrack Struct Member Functions
  ***********************************************************************************************************/
@@ -3398,12 +3565,12 @@ void MediaTrack::SelectEditingOverlap(Overlap * overlap)
             }
             if (IS_AUDIO(clip_first->mType) && 
                 IS_AUDIO(clip_second->mType) &&
-                timeline->mAudioFusionBluePrint &&
-                timeline->mAudioFusionBluePrint->Blueprint_IsValid())
+                timeline->mAudOverlap &&
+                timeline->mAudOverlap->mFusion &&
+                timeline->mAudOverlap->mFusion->mBp &&
+                timeline->mAudOverlap->mFusion->mBp->Blueprint_IsValid())
             {
-                timeline->mAudioFusionBluePrintLock.lock();
-                editing_overlap->mFusionBP = timeline->mAudioFusionBluePrint->m_Document->Serialize();
-                timeline->mAudioFusionBluePrintLock.unlock();
+                editing_overlap->mFusionBP = timeline->mAudOverlap->mFusion->mBp->m_Document->Serialize();
             }
         }
         if (timeline->mVidOverlap)
@@ -3434,13 +3601,8 @@ void MediaTrack::SelectEditingOverlap(Overlap * overlap)
 
     if (IS_AUDIO(first->mType) && IS_AUDIO(second->mType))
     {
-        if (timeline->mAudioFusionBluePrint && timeline->mAudioFusionBluePrint->m_Document)
-        {
-            timeline->mAudioFusionBluePrintLock.lock();
-            timeline->mAudioFusionBluePrint->File_New_Fusion(overlap->mFusionBP, "AudioFusion", "Audio");
-            timeline->mAudioFusionNeedUpdate = true;
-            timeline->mAudioFusionBluePrintLock.unlock();
-        }
+        if (!timeline->mAudOverlap)
+            timeline->mAudOverlap = new EditingAudioOverlap(overlap);
     }
     if (timeline->m_CallBacks.EditingOverlap)
     {
@@ -3829,15 +3991,6 @@ TimeLine::TimeLine()
 
     m_BP_UI.Initialize();
 
-    mAudioFusionBluePrint = new BluePrint::BluePrintUI();
-    if (mAudioFusionBluePrint)
-    {
-        BluePrint::BluePrintCallbackFunctions callbacks;
-        callbacks.BluePrintOnChanged = OnBluePrintChange;
-        mAudioFusionBluePrint->Initialize();
-        mAudioFusionBluePrint->SetCallbacks(callbacks, this);
-    }
-
     ConfigureDataLayer();
 
     m_audio_channel_data.clear();
@@ -3854,11 +4007,6 @@ TimeLine::~TimeLine()
     
     m_BP_UI.Finalize();
 
-    if (mAudioFusionBluePrint)
-    {
-        mAudioFusionBluePrint->Finalize();
-        delete mAudioFusionBluePrint;
-    }
     for (auto track : m_Tracks) delete track;
     for (auto clip : m_Clips) delete clip;
     for (auto item : media_items) delete item;
@@ -4133,6 +4281,13 @@ void TimeLine::DeleteClip(int64_t id)
             delete mVidFilterClip;
             mVidFilterClip = nullptr;
             mVidFilterClipLock.unlock();
+        }
+        else if (mAudFilterClip && clip->mID == mAudFilterClip->mID)
+        {
+            mAudFilterClipLock.lock();
+            delete mAudFilterClip;
+            mAudFilterClip = nullptr;
+            mAudFilterClipLock.unlock();
         }
         DeleteClipFromGroup(clip, clip->mGroupID);
         delete clip;

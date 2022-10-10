@@ -27,6 +27,7 @@ namespace DataLayer
 
         AudioClipHolder GetClipByIndex(uint32_t index);
         AudioClipHolder GetClipById(int64_t id);
+        AudioOverlapHolder GetOverlapById(int64_t id);
         uint32_t ClipCount() const { return m_clips.size(); }
         std::list<AudioClipHolder>::iterator ClipListBegin() { return m_clips.begin(); }
         std::list<AudioClipHolder>::iterator ClipListEnd() { return m_clips.end(); }

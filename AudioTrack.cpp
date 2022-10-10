@@ -515,6 +515,17 @@ namespace DataLayer
         return nullptr;
     }
 
+    AudioOverlapHolder AudioTrack::GetOverlapById(int64_t id)
+    {
+        lock_guard<recursive_mutex> lk(m_apiLock);
+        auto iter = find_if(m_overlaps.begin(), m_overlaps.end(), [id] (const AudioOverlapHolder& ovlp) {
+            return ovlp->Id() == id;
+        });
+        if (iter != m_overlaps.end())
+            return *iter;
+        return nullptr;
+    }
+
     bool AudioTrack::CheckClipRangeValid(int64_t clipId, int64_t start, int64_t end)
     {
         for (auto& overlap : m_overlaps)
