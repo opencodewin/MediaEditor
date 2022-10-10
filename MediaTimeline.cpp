@@ -624,8 +624,7 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
         return index;
     
     ImGuiIO &io = ImGui::GetIO();
-    const bool is_alt_key_only = (io.KeyMods == ImGuiMod_Alt);
-    bool single = (ImGui::IsKeyDown(ImGuiKey_LeftAlt) || ImGui::IsKeyDown(ImGuiKey_RightAlt)) && is_alt_key_only;
+    bool single = ImGui::IsKeyDown(ImGuiKey_LeftCtrl) && (io.KeyMods == ImGuiMod_Ctrl);
 
     int track_index = timeline->FindTrackIndexByClipID(mID);
     int64_t length = mEnd - mStart;
@@ -4790,8 +4789,7 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &view_r
                     }
                     else if (track->mExpanded && clip_area_rect.Contains(io.MousePos) && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
                     {
-                        const bool is_ctrl_key_only = (io.KeyMods == ImGuiModFlags_Ctrl);
-                        bool b_attr_editing = ImGui::IsKeyDown(ImGuiKey_LeftCtrl) && is_ctrl_key_only;
+                        bool b_attr_editing = ImGui::IsKeyDown(ImGuiKey_LeftShift) && (io.KeyMods == ImGuiModFlags_Shift);
                         track->SelectEditingClip(clip, !b_attr_editing);
                     }
                     clip->DrawTooltips();
@@ -6015,8 +6013,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
     static bool bCutting = false;
     static bool bCropping = false;
     static bool bMoving = false;
-    const bool is_super_key_only = (io.KeyMods == ImGuiMod_Super);
-    bCutting = ImGui::IsKeyDown(ImGuiKey_LeftSuper) && is_super_key_only;
+    bCutting = ImGui::IsKeyDown(ImGuiKey_LeftAlt) && (io.KeyMods == ImGuiMod_Alt);
     bool overTrackView = false;
     bool overHorizonScrollBar = false;
     bool overCustomDraw = false;
