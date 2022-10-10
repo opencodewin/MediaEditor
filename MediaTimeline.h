@@ -505,8 +505,18 @@ class BluePrintAudioFilter : public DataLayer::AudioFilter
 public:
     BluePrintAudioFilter(void * handle = nullptr);
     ~BluePrintAudioFilter();
-    void ApplyTo(AudioClip* clip);
-    ImGui::ImMat FilterPcm(const ImGui::ImMat& amat, int64_t pos);
+    void ApplyTo(DataLayer::AudioClip* clip) override {}
+    ImGui::ImMat FilterPcm(const ImGui::ImMat& amat, int64_t pos) override;
+
+    void SetBluePrintFromJson(imgui_json::value& bpJson);
+    void SetKeyPoint(ImGui::KeyPointEditor &keypoint) { mKeyPoints = keypoint; };
+public:
+    BluePrint::BluePrintUI* mBp {nullptr};
+    ImGui::KeyPointEditor mKeyPoints;
+private:
+    static int OnBluePrintChange(int type, std::string name, void* handle);
+    std::mutex mBpLock;
+    void * mHandle {nullptr};
 };
 
 class BluePrintAudioTransition : public DataLayer::AudioTransition
@@ -573,9 +583,17 @@ public:
 
 struct EditingAudioClip : BaseEditingClip
 {
+    int mAudioChannels  {2}; 
+    int mAudioSampleRate {44100};
+    AudioRender::PcmFormat mAudioFormat {AudioRender::PcmFormat::FLOAT32};
+    MediaOverview::WaveformHolder mWaveform {nullptr};
+
+    BluePrintAudioFilter * mFilter {nullptr};
+
+public:
     EditingAudioClip(AudioClip* vidclip);
     virtual ~EditingAudioClip();
-    ImGui::KeyPointEditor mKeyPoints;
+
     void UpdateClipRange(Clip* clip) override;
     void Seek(int64_t pos) override;
     void Step(bool forward, int64_t step = 0) override;
@@ -893,10 +911,6 @@ struct TimeLine
     ImTextureID mVideoFusionInputFirstTexture {nullptr};    // clip video fusion first input texture
     ImTextureID mVideoFusionInputSecondTexture {nullptr};   // clip video fusion second input texture
     ImTextureID mVideoFusionOutputTexture {nullptr};        // clip video fusion output texture
-
-    BluePrint::BluePrintUI * mAudioFilterBluePrint {nullptr};
-    std::mutex mAudioFilterBluePrintLock;   // Audio Filter BluePrint mutex
-    bool mAudioFilterNeedUpdate {false};
 
     BluePrint::BluePrintUI * mAudioFusionBluePrint {nullptr};
     std::mutex mAudioFusionBluePrintLock;   // Video Fusion BluePrint mutex

@@ -436,8 +436,11 @@ int64_t Clip::Cropping(int64_t diff, int type)
     {
         timeline->mAudFilterClip->mStart = mStart;
         timeline->mAudFilterClip->mEnd = mEnd;
-        timeline->mAudFilterClip->mKeyPoints.SetRangeX(mStart, mEnd, true);
-        mFilterKeyPoints = timeline->mAudFilterClip->mKeyPoints;
+        if (timeline->mAudFilterClip->mFilter)
+        {
+            timeline->mAudFilterClip->mFilter->mKeyPoints.SetRangeX(mStart, mEnd, true);
+            mFilterKeyPoints = timeline->mAudFilterClip->mFilter->mKeyPoints;
+        }
     }
     else
     {
@@ -532,8 +535,11 @@ void Clip::Cutting(int64_t pos)
         {
             timeline->mAudFilterClip->mStart = mStart;
             timeline->mAudFilterClip->mEnd = mEnd;
-            timeline->mAudFilterClip->mKeyPoints.SetRangeX(mStart, mEnd, true);
-            mFilterKeyPoints = timeline->mAudFilterClip->mKeyPoints;
+            if (timeline->mAudFilterClip->mFilter)
+            {
+                timeline->mAudFilterClip->mFilter->mKeyPoints.SetRangeX(mStart, mEnd, true);
+                mFilterKeyPoints = timeline->mAudFilterClip->mFilter->mKeyPoints;
+            }
         }
         else
         {
@@ -581,6 +587,8 @@ void Clip::Cutting(int64_t pos)
             DataLayer::AudioTrackHolder audTrack = timeline->mMtaReader->GetTrackById(track->mID);
             audTrack->ChangeClipRange(mID, mStartOffset, mEndOffset);
             DataLayer::AudioClipHolder thisAudClip = audTrack->GetClipById(mID);
+            auto filter = dynamic_cast<BluePrintAudioFilter *>(thisAudClip->GetFilter().get());
+            if (filter) filter->SetKeyPoint(mFilterKeyPoints);
             DataLayer::AudioClipHolder newAudClip = DataLayer::AudioClip::CreateAudioInstance(
                 new_clip->mID, thisAudClip->GetMediaParser(),
                 audTrack->OutChannels(), audTrack->OutSampleRate(),
@@ -902,8 +910,11 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
         {
             timeline->mAudFilterClip->mStart = clip->mStart;
             timeline->mAudFilterClip->mEnd = clip->mEnd;
-            timeline->mAudFilterClip->mKeyPoints.MoveTo(clip->mStart);
-            clip->mFilterKeyPoints = timeline->mAudFilterClip->mKeyPoints;
+            if (timeline->mAudFilterClip->mFilter)
+            {
+                timeline->mAudFilterClip->mFilter->mKeyPoints.MoveTo(clip->mStart);
+                clip->mFilterKeyPoints = timeline->mAudFilterClip->mFilter->mKeyPoints;
+            }
         }
         else
         {
@@ -1951,6 +1962,82 @@ void BluePrintVideoTransition::SetBluePrintFromJson(imgui_json::value& bpJson)
 
 namespace MediaTimeline
 {
+BluePrintAudioFilter::BluePrintAudioFilter(void * handle)
+    : mHandle(handle)
+{
+    imgui_json::value filter_BP; 
+    mBp = new BluePrint::BluePrintUI();
+    BluePrint::BluePrintCallbackFunctions callbacks;
+    callbacks.BluePrintOnChanged = OnBluePrintChange;
+    mBp->Initialize();
+    mBp->SetCallbacks(callbacks, this);
+    mBp->File_New_Filter(filter_BP, "AudioFilter", "Audio");
+}
+
+BluePrintAudioFilter::~BluePrintAudioFilter()
+{
+    if (mBp) { mBp->Finalize();  delete mBp; mBp = nullptr; }
+}
+
+int BluePrintAudioFilter::OnBluePrintChange(int type, std::string name, void* handle)
+{
+    int ret = BluePrint::BP_CBR_Nothing;
+    if (!handle)
+        return BluePrint::BP_CBR_Unknown;
+    BluePrintAudioFilter * filter = (BluePrintAudioFilter *)handle;
+    if (!filter) return ret;
+    TimeLine * timeline = (TimeLine *)filter->mHandle;
+    if (name.compare("AudioFilter") == 0)
+    {
+        if (type == BluePrint::BP_CB_Link ||
+            type == BluePrint::BP_CB_Unlink ||
+            type == BluePrint::BP_CB_NODE_DELETED)
+        {
+            if (timeline) timeline->UpdatePreview();
+            ret = BluePrint::BP_CBR_AutoLink;
+        }
+        else if (type == BluePrint::BP_CB_PARAM_CHANGED ||
+                type == BluePrint::BP_CB_SETTING_CHANGED)
+        {
+            if (timeline) timeline->UpdatePreview();
+        }
+    }
+    return ret;
+}
+
+ImGui::ImMat BluePrintAudioFilter::FilterPcm(const ImGui::ImMat& amat, int64_t pos)
+{
+    std::lock_guard<std::mutex> lk(mBpLock);
+    ImGui::ImMat outMat(amat);
+    if (mBp)
+    {
+        // setup bp input curve
+        for (int i = 0; i < mKeyPoints.GetCurveCount(); i++)
+        {
+            auto name = mKeyPoints.GetCurveName(i);
+            auto value = mKeyPoints.GetValue(i, pos);
+            mBp->Blueprint_SetFilter(name, value);
+        }
+        ImGui::ImMat inMat(amat);
+        mBp->Blueprint_RunFilter(inMat, outMat);
+    }
+    return outMat;
+}
+
+void BluePrintAudioFilter::SetBluePrintFromJson(imgui_json::value& bpJson)
+{
+    // Logger::Log(Logger::DEBUG) << "Create bp filter from json " << bpJson.dump() << std::endl;
+    mBp->File_New_Filter(bpJson, "AudioFilter", "Audio");
+    if (!mBp->Blueprint_IsValid())
+    {
+        mBp->Finalize();
+        return;
+    }
+}
+} // namespace MediaTimeline
+
+namespace MediaTimeline
+{
 EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
     : BaseEditingClip(vidclip->mID, vidclip->mType, vidclip->mStart, vidclip->mEnd, vidclip->mStartOffset, vidclip->mEndOffset, vidclip->mHandle)
 {
@@ -2216,7 +2303,24 @@ namespace MediaTimeline
 EditingAudioClip::EditingAudioClip(AudioClip* audclip)
     : BaseEditingClip(audclip->mID, audclip->mType, audclip->mStart, audclip->mEnd, audclip->mStartOffset, audclip->mEndOffset, audclip->mHandle)
 {
-    mKeyPoints = audclip->mFilterKeyPoints;
+    TimeLine * timeline = (TimeLine *)audclip->mHandle;
+    mDuration = mEnd-mStart;
+    mAudioChannels = audclip->mAudioChannels;
+    mAudioSampleRate = audclip->mAudioSampleRate;
+    mAudioFormat = audclip->mAudioFormat;
+    mWaveform = audclip->mWaveform;
+    if (mDuration < 0)
+        throw std::invalid_argument("Clip duration is negative!");
+    auto hClip = timeline->mMtaReader->GetClipById(audclip->mID);
+    IM_ASSERT(hClip);
+    mFilter = dynamic_cast<BluePrintAudioFilter *>(hClip->GetFilter().get());
+    if (!mFilter)
+    {
+        mFilter = new BluePrintAudioFilter(timeline);
+        mFilter->SetKeyPoint(audclip->mFilterKeyPoints);
+        DataLayer::AudioFilterHolder hFilter(mFilter);
+        hClip->SetFilter(hFilter);
+    }
 }
 
 EditingAudioClip::~EditingAudioClip()
@@ -2245,16 +2349,11 @@ void EditingAudioClip::Save()
     auto clip = timeline->FindClipByID(mID);
     if (!clip)
         return;
-    timeline->mAudioFilterBluePrintLock.lock();
-    if (timeline->mAudioFilterBluePrint && timeline->mAudioFilterBluePrint->Blueprint_IsValid())
+    if (mFilter && mFilter->mBp && mFilter->mBp->Blueprint_IsValid())
     {
-        clip->mFilterBP = timeline->mAudioFilterBluePrint->m_Document->Serialize();
+        clip->mFilterBP = mFilter->mBp->m_Document->Serialize();
+        clip->mFilterKeyPoints = mFilter->mKeyPoints;
     }
-    timeline->mAudioFilterBluePrintLock.unlock();
-    clip->mFilterKeyPoints = mKeyPoints;
-
-    // TODO::Dicky update audio filter in datalayer
-
 }
 
 bool EditingAudioClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame, bool attribute)
@@ -3214,10 +3313,11 @@ void MediaTrack::SelectEditingClip(Clip * clip, bool filter_editing)
                 timeline->mVidFilterClip->mFilter->mBp &&
                 timeline->mVidFilterClip->mFilter->mBp->Blueprint_IsValid())
                 return;
-        }
-        if (IS_AUDIO(editing_clip->mType))
-        {
-            if (filter_editing && timeline->mAudFilterClip && timeline->mAudioFilterBluePrint && timeline->mAudioFilterBluePrint->Blueprint_IsValid())
+            if (IS_AUDIO(editing_clip->mType) &&
+                timeline->mAudFilterClip &&
+                timeline->mAudFilterClip->mFilter &&
+                timeline->mAudFilterClip->mFilter->mBp &&
+                timeline->mAudFilterClip->mFilter->mBp->Blueprint_IsValid())
                 return;
         }
     }
@@ -3269,13 +3369,6 @@ void MediaTrack::SelectEditingClip(Clip * clip, bool filter_editing)
     {
         if (!timeline->mAudFilterClip)
             timeline->mAudFilterClip = new EditingAudioClip((AudioClip*)clip);
-        if (timeline->mAudioFilterBluePrint && timeline->mAudioFilterBluePrint->m_Document)
-        {                
-            timeline->mAudioFilterBluePrintLock.lock();
-            timeline->mAudioFilterBluePrint->File_New_Filter(clip->mFilterBP, "AudioFilter", "Audio");
-            timeline->mAudioFilterNeedUpdate = true;
-            timeline->mAudioFilterBluePrintLock.unlock();
-        }
     }
 }
 
@@ -3737,15 +3830,6 @@ TimeLine::TimeLine()
 
     m_BP_UI.Initialize();
 
-    mAudioFilterBluePrint = new BluePrint::BluePrintUI();
-    if (mAudioFilterBluePrint)
-    {
-        BluePrint::BluePrintCallbackFunctions callbacks;
-        callbacks.BluePrintOnChanged = OnBluePrintChange;
-        mAudioFilterBluePrint->Initialize();
-        mAudioFilterBluePrint->SetCallbacks(callbacks, this);
-    }
-
     mAudioFusionBluePrint = new BluePrint::BluePrintUI();
     if (mAudioFusionBluePrint)
     {
@@ -3770,12 +3854,6 @@ TimeLine::~TimeLine()
     if (m_audio_vector_texture) { ImGui::ImDestroyTexture(m_audio_vector_texture); m_audio_vector_texture = nullptr; }
     
     m_BP_UI.Finalize();
-
-    if (mAudioFilterBluePrint)
-    {
-        mAudioFilterBluePrint->Finalize();
-        delete mAudioFilterBluePrint;
-    }
 
     if (mAudioFusionBluePrint)
     {
@@ -4629,6 +4707,10 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &view_r
             {
                 keypoint_filter = &mVidFilterClip->mFilter->mKeyPoints;
             }
+            else if (mAudFilterClip && mAudFilterClip->mID == clip->mID && mAudFilterClip->mFilter)
+            {
+                keypoint_filter = &mAudFilterClip->mFilter->mKeyPoints;
+            }
             for (int i = 0; i < keypoint_filter->GetCurveCount(); i++)
             {
                 auto curve_color = keypoint_filter->GetCurveColor(i);
@@ -5060,9 +5142,14 @@ int TimeLine::Load(const imgui_json::value& value)
             {
                 if (!clip->mMediaParser)
                     continue;
-                DataLayer::AudioClipHolder audClip = audTrack->AddNewClip(
+                DataLayer::AudioClipHolder hAudClip = audTrack->AddNewClip(
                     clip->mID, clip->mMediaParser,
                     clip->mStart, clip->mStartOffset, clip->mEndOffset);
+                BluePrintAudioFilter* bpaf = new BluePrintAudioFilter(this);
+                bpaf->SetBluePrintFromJson(clip->mFilterBP);
+                bpaf->SetKeyPoint(clip->mFilterKeyPoints);
+                DataLayer::AudioFilterHolder hFilter(bpaf);
+                hAudClip->SetFilter(hFilter);
             }
         }
     }

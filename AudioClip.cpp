@@ -194,6 +194,9 @@ namespace DataLayer
             if (readSize < bufSize)
                 memset((uint8_t*)amat.data+readSize, 0, bufSize-readSize);
             amat.time_stamp = (double)m_readSamples/sampleRate+(double)m_start/1000.;
+            amat.rate.num = sampleRate;
+            amat.rate.den = 1;
+            amat.flags &= IM_MAT_FLAGS_AUDIO_FRAME;
             m_readSamples += readSamples;
             if (m_readSamples >= m_totalSamples)
                 m_eof = eof = true;
