@@ -425,6 +425,9 @@ struct MediaEditorSettings
 
 static std::string ini_file = "Media_Editor.ini";
 static TimeLine * timeline = nullptr;
+static std::thread * g_loading_thread {nullptr};
+static bool g_project_loading {false};
+static float g_project_loading_percentage {0};
 static ImGui::TabLabelStyle * tab_style = &ImGui::TabLabelStyle::Get();
 static MediaEditorSettings g_media_editor_settings;
 static MediaEditorSettings g_new_setting;
@@ -1274,20 +1277,26 @@ static void NewProject()
     project_need_save = true;
 }
 
-static int LoadProject(std::string path)
+static void LoadThread(std::string path)
 {
+    g_project_loading = true;
+    g_project_loading_percentage = 0;
     Logger::Log(Logger::DEBUG) << "[Project] Load project from file!!!" << std::endl;
-    CleanProject();
-
+    g_project_loading_percentage = 0.1;
     auto loadResult = imgui_json::value::load(path);
     if (!loadResult.second)
-        return -1;
+    {
+        g_project_loading_percentage = 1.0f;
+        g_project_loading = false;
+        return;
+    }
+    g_project_loading_percentage = 0.2;
 
-    // first load media bank
     auto project = loadResult.first;
     const imgui_json::array* mediaBankArray = nullptr;
     if (imgui_json::GetPtrTo(project, "MediaBank", mediaBankArray))
     {
+        float percentage = mediaBankArray->size() > 0 ?  0.6 / mediaBankArray->size() : 0;
         for (auto& media : *mediaBankArray)
         {
             MediaItem * item = nullptr;
@@ -1331,8 +1340,11 @@ static int LoadProject(std::string path)
             item = new MediaItem(name, path, type, timeline);
             if (id != -1) item->mID = id;
             timeline->media_items.push_back(item);
+            g_project_loading_percentage += percentage;
         }
     }
+
+    g_project_loading_percentage = 0.8;
 
     // second load TimeLine
     if (timeline && project.contains("TimeLine"))
@@ -1343,8 +1355,9 @@ static int LoadProject(std::string path)
 
     g_media_editor_settings.project_path = path;
     quit_save_confirm = false;
-
-    return 0;
+    project_need_save = true;
+    g_project_loading_percentage = 1.0;
+    g_project_loading = false;
 }
 
 static void SaveProject(std::string path)
@@ -1379,7 +1392,7 @@ static void SaveProject(std::string path)
         }
         else if (IS_AUDIO(editing_overlap->mType))
         {
-            // TODO::Dicky Save audio fusion
+            if (timeline->mAudOverlap) timeline->mAudOverlap->Save();
         }
     }
 
@@ -4413,7 +4426,9 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
         blueprint = fusion ? fusion->mBp : nullptr;
     }
 
-    float clip_timeline_height = 30 + 50 + 50;
+    float clip_header_height = 30;
+    float clip_channel_height = 50;
+    float clip_timeline_height = clip_header_height + clip_channel_height * 2;
     float clip_keypoint_height = g_media_editor_settings.VideoFusionCurveExpanded ? 80 : 0;
     ImVec2 video_preview_pos = window_pos;
     float video_preview_height = (window_size.y - clip_timeline_height - clip_keypoint_height) * 2 / 3;
@@ -4466,7 +4481,7 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_TWO);
         // Draw Clip TimeLine
-        DrawOverlapTimeLine(timeline->mVidOverlap, timeline->currentTime - (timeline->mVidOverlap ? timeline->mVidOverlap->mStart : 0), 30, 50);
+        DrawOverlapTimeLine(timeline->mVidOverlap, timeline->currentTime - (timeline->mVidOverlap ? timeline->mVidOverlap->mStart : 0), clip_header_height, clip_channel_height);
     }
     ImGui::EndChild();
 
@@ -5265,17 +5280,12 @@ static void ShowAudioFusionWindow(ImDrawList *draw_list)
     }
 
     float clip_header_height = 30;
-    float clip_channel_height = 30;
-    float clip_timeline_height = clip_header_height;
+    float clip_channel_height = 60;
+    float clip_timeline_height = clip_header_height + clip_channel_height * 2;
     float clip_keypoint_height = g_media_editor_settings.AudioFusionCurveExpanded ? 120 : 0;
     ImVec2 preview_pos = window_pos;
     float preview_width = audio_view_width;
 
-    if (editing_overlap && timeline->mAudOverlap)
-    {
-        int channels = timeline->mAudOverlap->mFirstAudioChannels + timeline->mAudOverlap->mSecondAudioChannels;
-        clip_timeline_height += channels * clip_channel_height;
-    }
     float preview_height = window_size.y - clip_timeline_height - clip_keypoint_height - 4;
     float audio_blueprint_height = window_size.y / 2;
     if (editing_overlap && blueprint)
@@ -5310,8 +5320,7 @@ static void ShowAudioFusionWindow(ImDrawList *draw_list)
         ImVec2 clip_timeline_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 clip_timeline_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(clip_timeline_window_pos, clip_timeline_window_pos + clip_timeline_window_size, COL_DARK_TWO);
-        // TODO::draw
-        DrawOverlapTimeLine(nullptr, timeline->currentTime, clip_header_height, clip_timeline_height - clip_header_height);
+        DrawOverlapTimeLine(timeline->mAudOverlap, timeline->currentTime - (timeline->mAudOverlap ? timeline->mAudOverlap->mStart : 0), clip_header_height, clip_channel_height);
     }
     ImGui::EndChild();
 
@@ -5345,7 +5354,7 @@ static void ShowAudioFusionWindow(ImDrawList *draw_list)
             if (timeline->mAudOverlap && fusion)
             {
                 bool _changed = false;
-                float current_time = timeline->currentTime;
+                float current_time = timeline->currentTime - timeline->mAudOverlap->mStart;
                 mouse_hold |= ImGui::ImCurveEdit::Edit(fusion->mKeyPoints,
                                                         sub_window_size, 
                                                         ImGui::GetID("##audio_fusion_keypoint_editor"), 
@@ -8282,11 +8291,10 @@ void Application_SetupContext(ImGuiContext* ctx)
     setting_ini_handler.ApplyAllFn = [](ImGuiContext* ctx, ImGuiSettingsHandler* handler)
     {
         // handle project after all setting is loaded 
-        // TODO::Dicky may need a thread to load project and splash screen for waiting
         if (!g_media_editor_settings.project_path.empty())
         {
-            if (LoadProject(g_media_editor_settings.project_path) == 0)
-                project_need_save = true;
+            CleanProject();
+            g_loading_thread = new std::thread(LoadThread, g_media_editor_settings.project_path);
         }
 #if IMGUI_VULKAN_SHADER
         if (m_cie) 
@@ -8458,10 +8466,33 @@ bool Application_Frame(void * handle, bool app_will_quit)
     //if (show_debug) ImGui::ShowMetricsWindow(&show_debug);
     // for debug end
 
+    if (g_project_loading)
+    {
+        ImGui::OpenPopup("Project Loading", ImGuiPopupFlags_AnyPopup);
+    }
+
+    if (ImGui::BeginPopupModal("Project Loading", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings))
+    {
+        ImGui::Text("Project Loading...");
+        ImGui::Separator();
+        ImGui::BufferingBar("##project_loading_bar", g_project_loading_percentage, ImVec2(400, 6), 0.75, ImGui::GetColorU32(ImGuiCol_Button), ImGui::GetColorU32(ImGuiCol_ButtonHovered));
+        if (!g_project_loading) ImGui::CloseCurrentPopup();
+        ImGui::EndPopup();
+    }
+
+    if (g_project_loading)
+    {
+        if (multiviewport) ImGui::PopStyleVar(2);
+        ImGui::PopStyleVar(2);
+        ImGui::End();
+        return app_will_quit;
+    }
+
     if (show_about)
     {
         ImGui::OpenPopup(ICON_FA_CIRCLE_INFO " About", ImGuiPopupFlags_AnyPopup);
     }
+
     if (multiviewport)
         ImGui::SetNextWindowViewport(viewport->ID);
     if (ImGui::BeginPopupModal(ICON_FA_CIRCLE_INFO " About", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings))
@@ -8930,8 +8961,16 @@ bool Application_Frame(void * handle, bool app_will_quit)
                 {
                     SaveProject(g_media_editor_settings.project_path);
                 }
-                LoadProject(file_path);
-                project_need_save = true;
+                //LoadProject(file_path);
+                //project_need_save = true;
+                if (g_project_loading)
+                {
+                    if (g_loading_thread && g_loading_thread->joinable())
+                        g_loading_thread->join();
+                    g_project_loading = false;
+                    g_loading_thread = nullptr;
+                }
+                g_loading_thread = new std::thread(LoadThread, file_path);
             }
             if (userDatas.compare("ProjectSave") == 0)
             {

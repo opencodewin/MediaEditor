@@ -662,10 +662,6 @@ public:
 struct EditingAudioOverlap : BaseEditingOverlap
 {
     AudioClip *mClip1, *mClip2;
-    MediaOverview::WaveformHolder mFirstWaveform {nullptr};  // clip audio snapshot
-    MediaOverview::WaveformHolder mSecondWaveform {nullptr};  // clip audio snapshot
-    int mFirstAudioChannels;
-    int mSecondAudioChannels;
     BluePrintAudioTransition* mFusion{nullptr};
 
 public:
