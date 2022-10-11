@@ -66,6 +66,7 @@ namespace DataLayer
         AudioOverlap(int64_t id, AudioClipHolder hClip1, AudioClipHolder hClip2);
 
         void Update();
+        AudioTransitionHolder GetTransition() const { return m_transition; }
         void SetTransition(AudioTransitionHolder trans);
 
         int64_t Id() const { return m_id; }
