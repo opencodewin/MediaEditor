@@ -524,7 +524,7 @@ class BluePrintAudioTransition : public DataLayer::AudioTransition
 public:
     BluePrintAudioTransition(void * handle = nullptr);
     ~BluePrintAudioTransition();
-    void ApplyTo(DataLayer::AudioOverlap* overlap) override {}
+    void ApplyTo(DataLayer::AudioOverlap* overlap) override { mOverlap = overlap; }
     ImGui::ImMat MixTwoAudioMats(const ImGui::ImMat& amat1, const ImGui::ImMat& amat2, int64_t pos) override;
 
     void SetBluePrintFromJson(imgui_json::value& bpJson);

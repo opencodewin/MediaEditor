@@ -2540,10 +2540,33 @@ bool Overlap::IsOverlapValid()
 
 void Overlap::Update(int64_t start, int64_t start_clip_id, int64_t end, int64_t end_clip_id)
 {
+    TimeLine * timeline = (TimeLine *)mHandle;
+    if (!timeline)
+        return;
     m_Clip.first = start_clip_id;
     m_Clip.second = end_clip_id;
     mStart = start;
     mEnd = end;
+    if (IS_VIDEO(mType))
+    {
+        auto hOvlp = timeline->mMtvReader->GetOverlapById(mID);
+        if (hOvlp)
+        {
+            auto fusion = dynamic_cast<BluePrintVideoTransition *>(hOvlp->GetTransition().get());
+            if (fusion)
+                fusion->mKeyPoints.SetMax(ImVec2(mEnd - mStart, 1.f), true);
+        }
+    }
+    else if (IS_AUDIO(mType))
+    {
+        auto hOvlp = timeline->mMtaReader->GetOverlapById(mID);
+        if (hOvlp)
+        {
+            auto fusion = dynamic_cast<BluePrintAudioTransition *>(hOvlp->GetTransition().get());
+            if (fusion)
+                fusion->mKeyPoints.SetMax(ImVec2(mEnd - mStart, 1.f), true);
+        }
+    }
     mFusionKeyPoints.SetMax(ImVec2(mEnd - mStart, 1.f), true);
 }
 
@@ -4398,6 +4421,11 @@ void TimeLine::DeleteOverlap(int64_t id)
             {
                 delete mVidOverlap;
                 mVidOverlap = nullptr;
+            }
+            if (mAudOverlap && mAudOverlap->mOvlp == overlap)
+            {
+                delete mAudOverlap;
+                mAudOverlap = nullptr;
             }
             delete overlap;
         }
