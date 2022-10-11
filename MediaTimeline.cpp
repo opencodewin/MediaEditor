@@ -2769,7 +2769,7 @@ void EditingVideoOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
                 Logger::Log(Logger::Error) << "Snapshot video size is INVALID! Width or height is ZERO." << std::endl;
                 return;
             }
-            mSnapSize.y = viewWndSize.y/2;
+            mSnapSize.y = viewWndSize.y / 2;
             mSnapSize.x = mSnapSize.y * vidStream->width / vidStream->height;
         }
         else if (mImgTexture1 || mImgTexture2)
@@ -2792,17 +2792,15 @@ void EditingVideoOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
     }
     if (mViewWndSize.x == 0 || mViewWndSize.y == 0)
         return;
-    if (ovlpRngChanged || vwndChanged)
-    {
-        CalcDisplayParams();
-    }
+
+    CalcDisplayParams();
 
     // get snapshot images
     std::vector<SnapshotGenerator::ImageHolder> snapImages1;
     if (mViewer1)
     {
-        m_StartOffset.first = mClip1->mStartOffset + mOvlp->mStart-mClip1->mStart;
-        if (!mViewer1->GetSnapshots((double)m_StartOffset.first/1000, snapImages1))
+        m_StartOffset.first = mClip1->mStartOffset + mOvlp->mStart - mClip1->mStart;
+        if (!mViewer1->GetSnapshots((double)m_StartOffset.first / 1000, snapImages1))
         {
             Logger::Log(Logger::Error) << mViewer1->GetError() << std::endl;
             return;
@@ -2812,8 +2810,8 @@ void EditingVideoOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
     std::vector<SnapshotGenerator::ImageHolder> snapImages2;
     if (mViewer2)
     {
-        m_StartOffset.second = mClip2->mStartOffset + mOvlp->mStart-mClip2->mStart;
-        if (!mViewer2->GetSnapshots((double)m_StartOffset.second/1000, snapImages2))
+        m_StartOffset.second = mClip2->mStartOffset + mOvlp->mStart - mClip2->mStart;
+        if (!mViewer2->GetSnapshots((double)m_StartOffset.second / 1000, snapImages2))
         {
             Logger::Log(Logger::Error) << mViewer2->GetError() << std::endl;
             return;
