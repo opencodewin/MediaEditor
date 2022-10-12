@@ -524,7 +524,7 @@ class BluePrintAudioTransition : public DataLayer::AudioTransition
 public:
     BluePrintAudioTransition(void * handle = nullptr);
     ~BluePrintAudioTransition();
-    void ApplyTo(DataLayer::AudioOverlap* overlap) override {}
+    void ApplyTo(DataLayer::AudioOverlap* overlap) override { mOverlap = overlap; }
     ImGui::ImMat MixTwoAudioMats(const ImGui::ImMat& amat1, const ImGui::ImMat& amat2, int64_t pos) override;
 
     void SetBluePrintFromJson(imgui_json::value& bpJson);
@@ -662,10 +662,6 @@ public:
 struct EditingAudioOverlap : BaseEditingOverlap
 {
     AudioClip *mClip1, *mClip2;
-    MediaOverview::WaveformHolder mFirstWaveform {nullptr};  // clip audio snapshot
-    MediaOverview::WaveformHolder mSecondWaveform {nullptr};  // clip audio snapshot
-    int mFirstAudioChannels;
-    int mSecondAudioChannels;
     BluePrintAudioTransition* mFusion{nullptr};
 
 public:

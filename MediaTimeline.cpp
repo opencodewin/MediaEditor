@@ -2540,10 +2540,33 @@ bool Overlap::IsOverlapValid()
 
 void Overlap::Update(int64_t start, int64_t start_clip_id, int64_t end, int64_t end_clip_id)
 {
+    TimeLine * timeline = (TimeLine *)mHandle;
+    if (!timeline)
+        return;
     m_Clip.first = start_clip_id;
     m_Clip.second = end_clip_id;
     mStart = start;
     mEnd = end;
+    if (IS_VIDEO(mType))
+    {
+        auto hOvlp = timeline->mMtvReader->GetOverlapById(mID);
+        if (hOvlp)
+        {
+            auto fusion = dynamic_cast<BluePrintVideoTransition *>(hOvlp->GetTransition().get());
+            if (fusion)
+                fusion->mKeyPoints.SetMax(ImVec2(mEnd - mStart, 1.f), true);
+        }
+    }
+    else if (IS_AUDIO(mType))
+    {
+        auto hOvlp = timeline->mMtaReader->GetOverlapById(mID);
+        if (hOvlp)
+        {
+            auto fusion = dynamic_cast<BluePrintAudioTransition *>(hOvlp->GetTransition().get());
+            if (fusion)
+                fusion->mKeyPoints.SetMax(ImVec2(mEnd - mStart, 1.f), true);
+        }
+    }
     mFusionKeyPoints.SetMax(ImVec2(mEnd - mStart, 1.f), true);
 }
 
@@ -2746,7 +2769,7 @@ void EditingVideoOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
                 Logger::Log(Logger::Error) << "Snapshot video size is INVALID! Width or height is ZERO." << std::endl;
                 return;
             }
-            mSnapSize.y = viewWndSize.y/2;
+            mSnapSize.y = viewWndSize.y / 2;
             mSnapSize.x = mSnapSize.y * vidStream->width / vidStream->height;
         }
         else if (mImgTexture1 || mImgTexture2)
@@ -2769,17 +2792,15 @@ void EditingVideoOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
     }
     if (mViewWndSize.x == 0 || mViewWndSize.y == 0)
         return;
-    if (ovlpRngChanged || vwndChanged)
-    {
-        CalcDisplayParams();
-    }
+
+    CalcDisplayParams();
 
     // get snapshot images
     std::vector<SnapshotGenerator::ImageHolder> snapImages1;
     if (mViewer1)
     {
-        m_StartOffset.first = mClip1->mStartOffset + mOvlp->mStart-mClip1->mStart;
-        if (!mViewer1->GetSnapshots((double)m_StartOffset.first/1000, snapImages1))
+        m_StartOffset.first = mClip1->mStartOffset + mOvlp->mStart - mClip1->mStart;
+        if (!mViewer1->GetSnapshots((double)m_StartOffset.first / 1000, snapImages1))
         {
             Logger::Log(Logger::Error) << mViewer1->GetError() << std::endl;
             return;
@@ -2789,8 +2810,8 @@ void EditingVideoOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
     std::vector<SnapshotGenerator::ImageHolder> snapImages2;
     if (mViewer2)
     {
-        m_StartOffset.second = mClip2->mStartOffset + mOvlp->mStart-mClip2->mStart;
-        if (!mViewer2->GetSnapshots((double)m_StartOffset.second/1000, snapImages2))
+        m_StartOffset.second = mClip2->mStartOffset + mOvlp->mStart - mClip2->mStart;
+        if (!mViewer2->GetSnapshots((double)m_StartOffset.second / 1000, snapImages2))
         {
             Logger::Log(Logger::Error) << mViewer2->GetError() << std::endl;
             return;
@@ -3003,16 +3024,11 @@ EditingAudioOverlap::EditingAudioOverlap(Overlap* ovlp)
         mClip1 = audclip1; mClip2 = audclip2;
         m_StartOffset.first = audclip1->mStartOffset + ovlp->mStart - audclip1->mStart;
         m_StartOffset.second = audclip2->mStartOffset + ovlp->mStart - audclip2->mStart;
-        mFirstWaveform = audclip1->mWaveform;
-        mSecondWaveform = audclip2->mWaveform;
-        mFirstAudioChannels = audclip1->mAudioChannels;
-        mSecondAudioChannels = audclip2->mAudioChannels;
         mStart = ovlp->mStart;
         mEnd = ovlp->mEnd;
         mDuration = mEnd - mStart;
         auto hOvlp = timeline->mMtaReader->GetOverlapById(mOvlp->mID);
         IM_ASSERT(hOvlp);
-        /*
         mFusion = dynamic_cast<BluePrintAudioTransition *>(hOvlp->GetTransition().get());
         if (!mFusion)
         {
@@ -3021,7 +3037,6 @@ EditingAudioOverlap::EditingAudioOverlap(Overlap* ovlp)
             DataLayer::AudioTransitionHolder hTrans(mFusion);
             hOvlp->SetTransition(hTrans);
         }
-        */
     }
     else
     {
@@ -3031,8 +3046,6 @@ EditingAudioOverlap::EditingAudioOverlap(Overlap* ovlp)
 
 EditingAudioOverlap::~EditingAudioOverlap()
 {
-    mFirstWaveform = nullptr;
-    mSecondWaveform = nullptr;
     mFusion = nullptr;
 }
 
@@ -3051,7 +3064,107 @@ void EditingAudioOverlap::Step(bool forward, int64_t step)
 
 void EditingAudioOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom)
 {
-    // TODO::Dicky
+    // update display params
+    bool ovlpRngChanged = mOvlp->mStart != mStart || mOvlp->mEnd != mEnd;
+    if (ovlpRngChanged)
+    {
+        mStart = mOvlp->mStart;
+        mEnd = mOvlp->mEnd;
+        mDuration = mEnd - mStart;
+    }
+    ImVec2 viewWndSize = { rightBottom.x - leftTop.x, rightBottom.y - leftTop.y };
+    bool vwndChanged = mViewWndSize.x != viewWndSize.x || mViewWndSize.y != viewWndSize.y;
+    if (vwndChanged && viewWndSize.x != 0 && viewWndSize.y != 0)
+    {
+        mViewWndSize = viewWndSize;
+    }
+
+    auto window_size = rightBottom - leftTop;
+    window_size.y /= 2;
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
+    ImPlot::PushStyleVar(ImPlotStyleVar_PlotPadding, {0, 0});
+    ImPlot::PushStyleVar(ImPlotStyleVar_PlotBorderSize, 0.f);
+    ImPlot::PushStyleColor(ImPlotCol_PlotBg, {0, 0, 0, 0});
+    if (mClip1 && mClip1->mWaveform)
+    {
+        ImGui::SetCursorScreenPos(leftTop);
+        drawList->AddRectFilled(leftTop, leftTop + window_size, IM_COL32(16, 16, 16, 255));
+        drawList->AddRect(leftTop, leftTop + window_size, IM_COL32(128, 128, 128, 255));
+
+        MediaOverview::WaveformHolder waveform = mClip1->mWaveform;
+        int sampleSize = waveform->pcm[0].size();
+        float wave_range = fmax(fabs(waveform->minSample), fabs(waveform->maxSample));
+        int64_t start_time = std::max(mClip1->mStart, mStart);
+        int64_t end_time = std::min(mClip1->mEnd, mEnd);
+        IM_ASSERT(start_time <= end_time);
+        int start_offset = (int)((double)((mStart - mClip1->mStart)) / 1000.f / waveform->aggregateDuration);
+        start_offset = std::max(start_offset, 0);
+        int window_length = (int)((double)(end_time - start_time) / 1000.f / waveform->aggregateDuration);
+        window_length = std::min(window_length, sampleSize);
+        auto clip_window_size = window_size;
+        clip_window_size.y /= waveform->pcm.size();
+        for (int i = 0; i < waveform->pcm.size(); i++)
+        {
+            std::string id_string = "##Waveform_overlap@" + std::to_string(mClip1->mID) + "@" +std::to_string(i);
+            int sample_stride = window_length / clip_window_size.x;
+            int min_zoom = ImMax(window_length >> 15, 16);
+            int zoom = ImMin(sample_stride, min_zoom);
+            start_offset = start_offset / zoom * zoom; // align start_offset
+            
+            if (ImPlot::BeginPlot(id_string.c_str(), clip_window_size, ImPlotFlags_CanvasOnly | ImPlotFlags_NoFrame | ImPlotFlags_NoInputs))
+            {
+                std::string plot_id = id_string + "_line";
+                ImPlot::SetupAxes(NULL, NULL, ImPlotAxisFlags_NoDecorations, ImPlotAxisFlags_NoDecorations);
+                ImPlot::SetupAxesLimits(0, window_length / zoom, -wave_range, wave_range, ImGuiCond_Always);
+                ImPlot::PlotLine(plot_id.c_str(), &waveform->pcm[i][start_offset], window_length / zoom, 1.0, 0.0, 0, 0, sizeof(float) * zoom);
+                ImPlot::EndPlot();
+            }
+            if (i > 0)
+                drawList->AddLine(leftTop + ImVec2(0, clip_window_size.y * i), leftTop + ImVec2(clip_window_size.x, clip_window_size.y * i), IM_COL32(64, 64, 64, 255));
+        }
+    }
+    if (mClip2)
+    {
+        auto clip2_pos = leftTop + ImVec2(0, window_size.y);
+        ImGui::SetCursorScreenPos(clip2_pos);
+        drawList->AddRectFilled(clip2_pos, clip2_pos + window_size, IM_COL32(32, 32, 32, 255));
+        drawList->AddRect(clip2_pos, clip2_pos + window_size, IM_COL32(128, 128, 128, 255));
+
+        MediaOverview::WaveformHolder waveform = mClip2->mWaveform;
+        int sampleSize = waveform->pcm[0].size();
+        float wave_range = fmax(fabs(waveform->minSample), fabs(waveform->maxSample));
+        int64_t start_time = std::max(mClip2->mStart, mStart);
+        int64_t end_time = std::min(mClip2->mEnd, mEnd);
+        IM_ASSERT(start_time <= end_time);
+        int start_offset = (int)((double)((mStart - mClip2->mStart)) / 1000.f / waveform->aggregateDuration);
+        start_offset = std::max(start_offset, 0);
+        int window_length = (int)((double)(end_time - start_time) / 1000.f / waveform->aggregateDuration);
+        window_length = std::min(window_length, sampleSize);
+        auto clip_window_size = window_size;
+        clip_window_size.y /= waveform->pcm.size();
+        for (int i = 0; i < waveform->pcm.size(); i++)
+        {
+            std::string id_string = "##Waveform_overlap@" + std::to_string(mClip2->mID) + "@" +std::to_string(i);
+            int sample_stride = window_length / clip_window_size.x;
+            int min_zoom = ImMax(window_length >> 15, 16);
+            int zoom = ImMin(sample_stride, min_zoom);
+            start_offset = start_offset / zoom * zoom; // align start_offset
+            
+            if (ImPlot::BeginPlot(id_string.c_str(), clip_window_size, ImPlotFlags_CanvasOnly | ImPlotFlags_NoFrame | ImPlotFlags_NoInputs))
+            {
+                std::string plot_id = id_string + "_line";
+                ImPlot::SetupAxes(NULL, NULL, ImPlotAxisFlags_NoDecorations, ImPlotAxisFlags_NoDecorations);
+                ImPlot::SetupAxesLimits(0, window_length / zoom, -wave_range, wave_range, ImGuiCond_Always);
+                ImPlot::PlotLine(plot_id.c_str(), &waveform->pcm[i][start_offset], window_length / zoom, 1.0, 0.0, 0, 0, sizeof(float) * zoom);
+                ImPlot::EndPlot();
+            }
+            if (i > 0)
+                drawList->AddLine(clip2_pos + ImVec2(0, clip_window_size.y * i), clip2_pos + ImVec2(clip_window_size.x, clip_window_size.y * i), IM_COL32(64, 64, 64, 255));
+        }
+    }
+    ImPlot::PopStyleColor();
+    ImPlot::PopStyleVar(2);
+    ImGui::PopStyleVar();
 }
 
 void EditingAudioOverlap::Save()
@@ -4307,6 +4420,11 @@ void TimeLine::DeleteOverlap(int64_t id)
                 delete mVidOverlap;
                 mVidOverlap = nullptr;
             }
+            if (mAudOverlap && mAudOverlap->mOvlp == overlap)
+            {
+                delete mAudOverlap;
+                mAudOverlap = nullptr;
+            }
             delete overlap;
         }
         else
@@ -5422,7 +5540,7 @@ void TimeLine::PerformUiActions()
     {
         Logger::Log(Logger::VERBOSE) << "] #UiActions" << std::endl << std::endl;
         SyncDataLayer();
-        Logger::Log(Logger::VERBOSE) << *mMtvReader << std::endl << std::endl;
+        //Logger::Log(Logger::VERBOSE) << *mMtvReader << std::endl << std::endl;
     }
 
     mUiActions.clear();
@@ -5695,15 +5813,55 @@ void TimeLine::SyncDataLayer()
                 syncedOverlapCount++;
         }
     }
-    int vidOvlpCnt = 0;
+    // audio
+    auto audTrackIter = mMtaReader->TrackListBegin();
+    while (audTrackIter != mMtaReader->TrackListEnd())
+    {
+        auto& audTrack = *audTrackIter++;
+        auto ovlpIter = audTrack->OverlapListBegin();
+        while (ovlpIter != audTrack->OverlapListEnd())
+        {
+            auto& audOvlp = *ovlpIter++;
+            const int64_t frontClipId = audOvlp->FrontClip()->Id();
+            const int64_t rearClipId = audOvlp->RearClip()->Id();
+            bool found = false;
+            for (auto ovlp : m_Overlaps)
+            {
+                if ((ovlp->m_Clip.first == frontClipId && ovlp->m_Clip.second == rearClipId) ||
+                    (ovlp->m_Clip.first == rearClipId && ovlp->m_Clip.second == frontClipId))
+                {
+                    if (audOvlp->Id() != ovlp->mID)
+                    {
+                        audOvlp->SetId(ovlp->mID);
+                        BluePrintAudioTransition* bpat = new BluePrintAudioTransition(this);
+                        bpat->SetBluePrintFromJson(ovlp->mFusionBP);
+                        bpat->SetKeyPoint(ovlp->mFusionKeyPoints);
+                        DataLayer::AudioTransitionHolder hTrans(bpat);
+                        audOvlp->SetTransition(hTrans);
+                    }
+                    found = true;
+                    break;
+                }
+            }
+            if (!found)
+                Logger::Log(Logger::Error) << "CANNOT find matching audio OVERLAP! Front clip id is " << frontClipId
+                    << ", rear clip id is " << rearClipId << "." << std::endl;
+            else
+                syncedOverlapCount++;
+        }
+    }
+
+    int OvlpCnt = 0;
     for (auto ovlp : m_Overlaps)
     {
         if (IS_VIDEO(ovlp->mType))
-            vidOvlpCnt++;
+            OvlpCnt++;
+        if (IS_AUDIO(ovlp->mType))
+            OvlpCnt ++;
     }
-    if (syncedOverlapCount != vidOvlpCnt)
+    if (syncedOverlapCount != OvlpCnt)
         Logger::Log(Logger::Error) << "Overlap SYNC FAILED! Synced count is " << syncedOverlapCount
-            << ", while the count of video overlap array is " << vidOvlpCnt << "." << std::endl;
+            << ", while the count of video overlap array is " << OvlpCnt << "." << std::endl;
     // TODO: sync audio and other types of data with data-layer
 }
 
@@ -5819,14 +5977,21 @@ void TimeLine::SimplePcmStream::Flush()
 void TimeLine::CalculateAudioScopeData(ImGui::ImMat& mat_in)
 {
     ImGui::ImMat mat;
-    mat.create_type(mat_in.w, 1, mat_in.c, mat_in.type);
-    float * data = (float *)mat_in.data;
-    for (int x = 0; x < mat.w; x++)
+    if (mat_in.elempack > 1)
     {
-        for (int i = 0; i < mat.c; i++)
+        mat.create_type(mat_in.w, 1, mat_in.c, mat_in.type);
+        float * data = (float *)mat_in.data;
+        for (int x = 0; x < mat.w; x++)
         {
-            mat.at<float>(x, 0, i) = data[x * mat.c + i];
+            for (int i = 0; i < mat.c; i++)
+            {
+                mat.at<float>(x, 0, i) = data[x * mat.c + i];
+            }
         }
+    }
+    else
+    {
+        mat = mat_in;
     }
     for (int i = 0; i < mat.c; i++)
     {
