@@ -194,7 +194,7 @@ public:
         return true;
     }
 
-    bool ConfigAudioReader(uint32_t outChannels, uint32_t outSampleRate) override
+    bool ConfigAudioReader(uint32_t outChannels, uint32_t outSampleRate, const string& outPcmFormat) override
     {
         if (!m_opened)
         {
@@ -211,7 +211,17 @@ public:
             m_errMsg = "Can NOT configure this 'MediaReader' as audio reader since no audio stream is found!";
             return false;
         }
+        AVSampleFormat outSmpfmt = av_get_sample_fmt(outPcmFormat.c_str());
+        if (outSmpfmt == AV_SAMPLE_FMT_NONE)
+        {
+            ostringstream oss;
+            oss << "Invalid arguments 'outPcmFormat'! '" << outPcmFormat << "' is NOT a SAMPLE FORMAT.";
+            m_errMsg = oss.str();
+            return false;
+        }
         lock_guard<recursive_mutex> lk(m_apiLock);
+        m_swrOutSmpfmt = outSmpfmt;
+        m_isOutFmtPlanar = av_sample_fmt_is_planar(outSmpfmt);
 
         m_swrOutSampleRate = outSampleRate;
 #if !defined(FF_API_OLD_CHANNEL_LAYOUT) && (LIBAVUTIL_VERSION_MAJOR < 58)
@@ -443,6 +453,11 @@ public:
     bool IsSuspended() const override
     {
         return m_started && m_quitThread;
+    }
+
+    bool IsPlanar() const override
+    {
+        return m_isOutFmtPlanar;
     }
 
     bool IsDirectionForward() const override
@@ -1220,7 +1235,9 @@ private:
     bool ReadAudioSamples_Internal(uint8_t* buf, uint32_t& size, double& pos, bool wait)
     {
         uint8_t* dstptr = buf;
-        uint32_t readSize = 0, toReadSize = size, skipSize;
+        const uint32_t outChannels = GetAudioOutChannels();
+        uint32_t readSize = 0, toReadSize = IsPlanar() ? size/outChannels : size;
+        uint32_t skipSize;
         skipSize = m_audReadOffset > 0 ? m_audReadOffset : 0;
         unique_ptr<list<AudioFrame>::iterator> fwditerPtr;
         unique_ptr<list<AudioFrame>::reverse_iterator> bwditerPtr;
@@ -1272,7 +1289,9 @@ private:
                             m_prevReadPos = pos;
                             isPosSet = true;
                         }
-                        if (skipSize >= readfrm->linesize[0])
+                        uint32_t dataSizePerPlan = readfrm->nb_samples*GetAudioOutFrameSize();
+                        if (IsPlanar()) dataSizePerPlan /= outChannels;
+                        if (skipSize >= dataSizePerPlan)
                         {
                             bool reachEnd;
                             if (m_readForward)
@@ -1287,7 +1306,7 @@ private:
                             }
                             if (!reachEnd)
                             {
-                                skipSize -= readfrm->linesize[0];
+                                skipSize -= dataSizePerPlan;
                                 idleLoop = false;
                             }
                             else
@@ -1301,15 +1320,26 @@ private:
                         }
                         else
                         {
-                            uint32_t copySize = readfrm->linesize[0]-skipSize;
+                            uint32_t copySize = dataSizePerPlan-skipSize;
                             bool moveToNext = true;
-                            if (copySize > toReadSize)
+                            if (copySize > toReadSize-readSize)
                             {
-                                copySize = toReadSize;
+                                copySize = toReadSize-readSize;
                                 moveToNext = false;
                             }
-                            memcpy(dstptr+readSize, readfrm->data[0]+skipSize, copySize);
-                            toReadSize -= copySize;
+                            if (IsPlanar())
+                            {
+                                uint8_t* planBufPtr = dstptr+readSize;
+                                for (uint32_t i = 0; i < outChannels; i++)
+                                {
+                                    memcpy(planBufPtr, readfrm->data[i]+skipSize, copySize);
+                                    planBufPtr += toReadSize;
+                                }
+                            }
+                            else
+                            {
+                                memcpy(dstptr+readSize, readfrm->data[0]+skipSize, copySize);
+                            }
                             readSize += copySize;
                             skipSize = 0;
                             m_audReadOffset += copySize;
@@ -1351,11 +1381,11 @@ private:
                 }
             }
 
-            needLoop = ((readTask && !readTask->cancel) || (!readTask && wait) || !idleLoop) && toReadSize > 0 && !m_audReadEof && !m_close;
+            needLoop = ((readTask && !readTask->cancel) || (!readTask && wait) || !idleLoop) && toReadSize > readSize && !m_audReadEof && !m_close;
             if (needLoop && idleLoop)
                 this_thread::sleep_for(chrono::milliseconds(5));
         } while (needLoop);
-        size = readSize;
+        size = IsPlanar() ? readSize*outChannels : readSize;
         return true;
     }
 
@@ -2205,11 +2235,33 @@ private:
                             if (fferr < dstfrm->nb_samples)
                             {
                                 dstfrm->nb_samples = fferr;
-                                dstfrm->linesize[0] = fferr*m_swrFrmSize;
                             }
                             af.pts = dstfrm->pts;
-                            if (m_fpPcmFile)
-                                fwrite(dstfrm->data[0], 1, dstfrm->linesize[0], m_fpPcmFile);
+                        }
+                        if (m_fpPcmFile)
+                        {
+                            int frameSize = m_swrPassThrough ? m_audFrmSize : m_swrFrmSize;
+                            if (IsPlanar())
+                            {
+#if !defined(FF_API_OLD_CHANNEL_LAYOUT) && (LIBAVUTIL_VERSION_MAJOR < 58)
+                                int frmChannels = fwdfrm->channels;
+#else
+                                int frmChannels = fwdfrm->ch_layout.nb_channels;
+#endif
+                                int bytesPerSample = frameSize/frmChannels;
+                                int offset = 0;
+                                for (int i = 0; i < fwdfrm->nb_samples; i++)
+                                {
+                                    for (int j = 0; j < frmChannels; j++)
+                                        fwrite(fwdfrm->data[j]+offset, 1, bytesPerSample, m_fpPcmFile);
+                                    offset += bytesPerSample;
+                                }
+                            }
+                            else
+                            {
+                                const int writeSize = fwdfrm->nb_samples*frameSize;
+                                fwrite(fwdfrm->data[0], 1, writeSize, m_fpPcmFile);
+                            }
                         }
 
                         bwdfrm = AllocSelfFreeAVFramePtr();
@@ -2238,7 +2290,6 @@ private:
                             srcptr -= audFrmSize;
                             dstptr += audFrmSize;
                         }
-                        bwdfrm->linesize[0] = fwdfrm->linesize[0];
                         bwdfrm->pts = fwdfrm->pts+fwdfrm->nb_samples;
 
                         af.decfrm = nullptr;
@@ -2929,6 +2980,7 @@ private:
     AVRational m_swrOutTimebase;
     int64_t m_swrOutStartTime;
     uint32_t m_swrFrmSize{0};
+    bool m_isOutFmtPlanar{false};
 
     // demuxing thread
     thread m_demuxThread;

@@ -62,7 +62,9 @@ public:
         m_outSamplesPerFrame = outSamplesPerFrame;
         m_samplePos = 0;
         m_readPos = 0;
-        m_blockSize = outChannels*4;  // for now, output sample format only supports float32 data type, thus 4 bytes per sample.
+        m_frameSize = outChannels*4;  // for now, output sample format only supports float32 data type, thus 4 bytes per sample.
+        m_isTrackOutputPlanar = av_sample_fmt_is_planar(m_trackOutSmpfmt);
+        m_matAvfrmCvter = new AudioImMatAVFrameConverter(outSampleRate);
 
         m_configured = true;
         return true;
@@ -147,6 +149,11 @@ public:
 #endif
         m_outSampleRate = 0;
         m_outSamplesPerFrame = 1024;
+        if (m_matAvfrmCvter)
+        {
+            delete m_matAvfrmCvter;
+            m_matAvfrmCvter = nullptr;
+        }
     }
 
     AudioTrackHolder AddTrack(int64_t trackId) override
@@ -385,7 +392,7 @@ public:
     {
         if (!m_configured)
             return -1;
-        uint32_t sampleCnt = sizeInByte/m_blockSize;
+        uint32_t sampleCnt = sizeInByte/m_frameSize;
         return av_rescale_q(sampleCnt, {1, (int)m_outSampleRate}, MILLISEC_TIMEBASE);
     }
 
@@ -529,7 +536,7 @@ private:
 
         ostringstream oss;
         oss << "time_base=1/" << m_outSampleRate << ":sample_rate=" << m_outSampleRate
-            << ":sample_fmt=" << av_get_sample_fmt_name(AV_SAMPLE_FMT_FLT);
+            << ":sample_fmt=" << av_get_sample_fmt_name(m_trackOutSmpfmt);
 #if !defined(FF_API_OLD_CHANNEL_LAYOUT) && (LIBAVUTIL_VERSION_MAJOR < 58)
         oss << ":channel_layout=" << av_get_default_channel_layout(m_outChannels);
 #else
@@ -544,7 +551,6 @@ private:
         for (uint32_t i = 0; i < m_tracks.size(); i++)
         {
             oss << "in_" << i;
-            // oss << "in";
             string filtName = oss.str(); oss.str("");
             m_logger->Log(DEBUG) << "buffersrc name '" << filtName << "'." << endl;
 
@@ -588,7 +594,7 @@ private:
                 return false;
             }
 
-            const AVSampleFormat out_sample_fmts[] = { AV_SAMPLE_FMT_FLT, (AVSampleFormat)-1 };
+            const AVSampleFormat out_sample_fmts[] = { m_mixOutSmpfmt, (AVSampleFormat)-1 };
             fferr = av_opt_set_int_list(bufSinkCtx, "sample_fmts", out_sample_fmts, -1, AV_OPT_SEARCH_CHILDREN);
             if (fferr < 0)
             {
@@ -679,31 +685,11 @@ private:
                         uint32_t i = 0;
                         for (auto iter = m_tracks.begin(); iter != m_tracks.end(); iter++, i++)
                         {
-                            SelfFreeAVFramePtr avfrm = AllocSelfFreeAVFramePtr();
-                            avfrm->format = AV_SAMPLE_FMT_FLT;
-#if !defined(FF_API_OLD_CHANNEL_LAYOUT) && (LIBAVUTIL_VERSION_MAJOR < 58)
-                            avfrm->channels = m_outChannels;
-                            avfrm->channel_layout = m_outChannelLayout;
-#else
-                            avfrm->ch_layout = m_outChlyt;
-#endif
-                            avfrm->sample_rate = m_outSampleRate;
-                            avfrm->nb_samples = m_outSamplesPerFrame;
-                            avfrm->pts = m_samplePos;
-                            fferr = av_frame_get_buffer(avfrm.get(), 0);
-                            if (fferr < 0)
-                            {
-                                m_logger->Log(Error) << "FAILED to invoke 'av_frame_get_buffer'(In MixingThreadProc)! fferr=" << fferr << "." << endl;
-                                break;
-                            }
-                            uint32_t toRead = avfrm->linesize[0];
                             auto& track = *iter;
-                            double pos;
-                            track->ReadAudioSamples(avfrm->data[0], toRead, pos);
-                            if (toRead < avfrm->linesize[0])
-                                memset(avfrm->data[0]+toRead, 0, avfrm->linesize[0]-toRead);
-
-                            fferr = av_buffersrc_add_frame(m_bufSrcCtxs[i], avfrm.get());
+                            ImGui::ImMat amat = track->ReadAudioSamples(m_outSamplesPerFrame);
+                            SelfFreeAVFramePtr audfrm = AllocSelfFreeAVFramePtr();
+                            m_matAvfrmCvter->ConvertImMatToAVFrame(amat, audfrm.get(), m_samplePos);
+                            fferr = av_buffersrc_add_frame(m_bufSrcCtxs[i], audfrm.get());
                             if (fferr < 0)
                             {
                                 m_logger->Log(Error) << "FAILED to invoke 'av_buffersrc_add_frame'(In MixingThreadProc)! fferr=" << fferr << "." << endl;
@@ -730,6 +716,8 @@ private:
                         {
                             memcpy(amat.data, outfrm->data[0], outfrm->linesize[0]);
                             amat.time_stamp = ConvertPtsToTs(outfrm->pts);
+                            amat.rate = { (int)m_outSampleRate, 1 };
+                            amat.elempack = outChannels;
                             av_frame_unref(outfrm.get());
                             lock_guard<mutex> lk(m_outputMatsLock);
                             m_outputMats.push_back(amat);
@@ -747,13 +735,15 @@ private:
                 {
                     ImGui::ImMat amat;
 #if !defined(FF_API_OLD_CHANNEL_LAYOUT) && (LIBAVUTIL_VERSION_MAJOR < 58)
-                        int outChannels = m_outChannels;
+                    int outChannels = m_outChannels;
 #else
-                        int outChannels = m_outChlyt.nb_channels;
+                    int outChannels = m_outChlyt.nb_channels;
 #endif
                     amat.create((int)m_outSamplesPerFrame, 1, outChannels, (size_t)4);
                     memset(amat.data, 0, amat.total()*amat.elemsize);
                     amat.time_stamp = (double)m_samplePos/m_outSampleRate;
+                    amat.rate = { (int)m_outSampleRate, 1 };
+                    amat.elempack = outChannels;
                     if (m_readForward)
                         m_samplePos += m_outSamplesPerFrame;
                     else
@@ -776,6 +766,7 @@ private:
     string m_errMsg;
     recursive_mutex m_apiLock;
     thread m_mixingThread;
+    AVSampleFormat m_mixOutSmpfmt{AV_SAMPLE_FMT_FLT};
 
     list<AudioTrackHolder> m_tracks;
     recursive_mutex m_trackLock;
@@ -788,12 +779,15 @@ private:
 #else
     AVChannelLayout m_outChlyt{AV_CHANNEL_ORDER_UNSPEC, 0};
 #endif
-    uint32_t m_blockSize{0};
+    AVSampleFormat m_trackOutSmpfmt{AV_SAMPLE_FMT_FLTP};
+    bool m_isTrackOutputPlanar{false};
+    uint32_t m_frameSize{0};
     uint32_t m_outSamplesPerFrame{1024};
     int64_t m_readPos{0};
     bool m_readForward{true};
     bool m_eof{false};
 
+    AudioImMatAVFrameConverter* m_matAvfrmCvter{nullptr};
     list<ImGui::ImMat> m_outputMats;
     mutex m_outputMatsLock;
     uint32_t m_outputMatsMaxCount{32};

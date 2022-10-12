@@ -143,12 +143,12 @@ private:
 class ImMatWrapper_AVFrame
 {
 public:
-    ImMatWrapper_AVFrame(ImGui::ImMat& mat) : m_mat(mat) {}
-
-    AVFrame* GetWrapper(int64_t pts = 0);
+    ImMatWrapper_AVFrame(ImGui::ImMat& mat, bool isVideo) : m_mat(mat), m_isVideo(isVideo) {}
+    SelfFreeAVFramePtr GetWrapper(int64_t pts = 0);
 
 private:
     ImGui::ImMat m_mat;
+    bool m_isVideo;
 };
 
 class FFOverlayBlender
@@ -182,6 +182,18 @@ private:
     std::string m_errMsg;
 };
 
+class AudioImMatAVFrameConverter
+{
+public:
+    AudioImMatAVFrameConverter(uint32_t sampleRate) : m_sampleRate(sampleRate) {}
+    uint32_t SampleRate() const { return m_sampleRate; }
+
+    bool ConvertAVFrameToImMat(const AVFrame* avfrm, ImGui::ImMat& amat, double timestamp);
+    bool ConvertImMatToAVFrame(const ImGui::ImMat& amat, AVFrame* avfrm, int64_t pts);
+
+private:
+    uint32_t m_sampleRate;
+};
 
 #include "MediaInfo.h"
 

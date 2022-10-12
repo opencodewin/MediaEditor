@@ -255,6 +255,7 @@ namespace DataLayer
     void AudioTrack::ReadAudioSamples(uint8_t* buf, uint32_t& size, double& pos)
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
+        pos = (double)m_readSamples/m_outSampleRate;
         uint32_t readSize = 0;
         if (m_overlaps.empty())
         {
@@ -269,7 +270,6 @@ namespace DataLayer
             int64_t readPosEnd = (m_readSamples+size/m_frameSize)*1000/m_outSampleRate;
             uint8_t* readbufptr = buf;
             uint32_t toRead, readBytes;
-            pos = (double)readPosBegin/1000.;
             while (readSize < size && m_readOverlapIter != m_overlaps.end() && (*m_readOverlapIter)->Start() < readPosEnd)
             {
                 auto& ovlp = *m_readOverlapIter;
@@ -320,7 +320,6 @@ namespace DataLayer
             int64_t readPosEnd = (m_readSamples-size/m_frameSize)*1000/m_outSampleRate;
             uint8_t* readbufptr = buf;
             uint32_t toRead, readBytes;
-            pos = (double)readPosBegin/1000.;
             while (readSize < size && (m_readOverlapIter != m_overlaps.begin() || readPosBegin > (*m_readOverlapIter)->Start()))
             {
                 auto& ovlp = *m_readOverlapIter;
@@ -365,6 +364,20 @@ namespace DataLayer
             }
         }
         size = readSize;
+    }
+
+    ImGui::ImMat AudioTrack::ReadAudioSamples(uint32_t readSamples)
+    {
+        lock_guard<recursive_mutex> lk(m_apiLock);
+        ImGui::ImMat amat;
+        amat.create((int)readSamples, 1, (int)OutChannels(), m_bytesPerSample);
+        uint32_t bufsize = amat.total()*amat.elemsize;
+        double pos = 0;
+        ReadAudioSamples((uint8_t*)amat.data, bufsize, pos);
+        amat.elempack = 1;
+        amat.rate = { (int)OutSampleRate(), 1 };
+        amat.time_stamp = pos;
+        return amat;
     }
 
     uint32_t AudioTrack::ReadClipData(uint8_t* buf, uint32_t size)

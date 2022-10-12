@@ -13,7 +13,7 @@ struct MediaReader
     virtual bool ConfigVideoReader(
             float outWidthFactor, float outHeightFactor,
             ImColorFormat outClrfmt = IM_CF_RGBA, ImInterpolateMode rszInterp = IM_INTERPOLATE_BICUBIC) = 0;
-    virtual bool ConfigAudioReader(uint32_t outChannels, uint32_t outSampleRate) = 0;
+    virtual bool ConfigAudioReader(uint32_t outChannels, uint32_t outSampleRate, const std::string& outPcmFormat = "fltp") = 0;
     virtual bool Start(bool suspend = false) = 0;
     virtual void Close() = 0;
     virtual bool SeekTo(double pos) = 0;
@@ -31,6 +31,7 @@ struct MediaReader
     virtual bool IsVideoReader() const = 0;
     virtual bool IsDirectionForward() const = 0;
     virtual bool IsSuspended() const = 0;
+    virtual bool IsPlanar() const = 0;
 
     virtual bool SetCacheDuration(double forwardDur, double backwardDur) = 0;
     virtual std::pair<double, double> GetCacheDuration() const = 0;

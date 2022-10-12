@@ -1061,31 +1061,103 @@ static void ImMatWrapper_AVFrame_buffer_free(void *opaque, uint8_t *data)
     return;
 }
 
-AVFrame* ImMatWrapper_AVFrame::GetWrapper(int64_t pts)
+static AVSampleFormat GetAVSampleFormatByDataType(ImDataType dataType, bool isPlanar)
 {
-    AVFrame* avfrm = av_frame_alloc();
+    AVSampleFormat smpfmt;
+    switch (dataType)
+    {
+        case IM_DT_INT8:
+            smpfmt = isPlanar ? AV_SAMPLE_FMT_U8P : AV_SAMPLE_FMT_U8;
+            break;
+        case IM_DT_INT16:
+            smpfmt = isPlanar ? AV_SAMPLE_FMT_S16P : AV_SAMPLE_FMT_S16;
+            break;
+        case IM_DT_INT32:
+            smpfmt = isPlanar ? AV_SAMPLE_FMT_S32P : AV_SAMPLE_FMT_S32;
+            break;
+        case IM_DT_INT64:
+            smpfmt = isPlanar ? AV_SAMPLE_FMT_S64P : AV_SAMPLE_FMT_S64;
+            break;
+        case IM_DT_FLOAT32:
+            smpfmt = isPlanar ? AV_SAMPLE_FMT_FLTP : AV_SAMPLE_FMT_FLT;
+            break;
+        case IM_DT_FLOAT64:
+            smpfmt = isPlanar ? AV_SAMPLE_FMT_DBLP : AV_SAMPLE_FMT_DBL;
+            break;
+        default:
+            smpfmt = AV_SAMPLE_FMT_NONE;
+    }
+    return smpfmt;
+}
+
+SelfFreeAVFramePtr ImMatWrapper_AVFrame::GetWrapper(int64_t pts)
+{
+    SelfFreeAVFramePtr avfrm = AllocSelfFreeAVFramePtr();
     if (!avfrm)
     {
         Log(Error) << "FAILED to allocate new AVFrame instance by 'av_frame_alloc()'!" << endl;
         return nullptr;
     }
-    avfrm->width = m_mat.w;
-    avfrm->height = m_mat.h;
-    AVPixelFormat pixfmt = ConvertColorFormatToPixelFormat(m_mat.color_format, m_mat.type);
-    if (pixfmt == AV_PIX_FMT_NONE)
+    if (m_isVideo)
     {
-        Log(Error) << "CANNOT find suitable AVPixelFormat for ImColorFormat " << m_mat.color_format << "!" << endl;
-        av_frame_free(&avfrm);
-        return nullptr;
+        avfrm->width = m_mat.w;
+        avfrm->height = m_mat.h;
+        AVPixelFormat pixfmt = ConvertColorFormatToPixelFormat(m_mat.color_format, m_mat.type);
+        if (pixfmt == AV_PIX_FMT_NONE)
+        {
+            Log(Error) << "CANNOT find suitable AVPixelFormat for ImColorFormat " << m_mat.color_format << "!" << endl;
+            return nullptr;
+        }
+        avfrm->format = (int)pixfmt;
+        AVBufferRef* extBufRef = av_buffer_create((uint8_t*)m_mat.data, m_mat.total()*m_mat.elemsize, ImMatWrapper_AVFrame_buffer_free, this, AV_BUFFER_FLAG_READONLY);
+        memset(avfrm->data, 0, sizeof(avfrm->data));
+        memset(avfrm->linesize, 0, sizeof(avfrm->linesize));
+        memset(avfrm->buf, 0, sizeof(avfrm->buf));
+        avfrm->data[0] = (uint8_t*)m_mat.data;
+        avfrm->linesize[0] = m_mat.w*m_mat.c*m_mat.elemsize;
+        avfrm->buf[0] = extBufRef;
     }
-    avfrm->format = (int)pixfmt;
-    AVBufferRef* extBufRef = av_buffer_create((uint8_t*)m_mat.data, m_mat.total()*m_mat.elemsize, ImMatWrapper_AVFrame_buffer_free, this, AV_BUFFER_FLAG_READONLY);
-    memset(avfrm->data, 0, sizeof(avfrm->data));
-    memset(avfrm->linesize, 0, sizeof(avfrm->linesize));
-    memset(avfrm->buf, 0, sizeof(avfrm->buf));
-    avfrm->data[0] = (uint8_t*)m_mat.data;
-    avfrm->linesize[0] = m_mat.w*m_mat.c*m_mat.elemsize;
-    avfrm->buf[0] = extBufRef;
+    else
+    {
+        memset(avfrm->data, 0, sizeof(avfrm->data));
+        memset(avfrm->linesize, 0, sizeof(avfrm->linesize));
+        memset(avfrm->buf, 0, sizeof(avfrm->buf));
+        avfrm->nb_samples = m_mat.w;
+        const int channels = m_mat.c;
+#if !defined(FF_API_OLD_CHANNEL_LAYOUT) && (LIBAVUTIL_VERSION_MAJOR < 58)
+        avfrm->channels = channels;
+        avfrm->channel_layout = av_get_default_channel_layout(channels);
+#else
+        av_channel_layout_default(&avfrm->ch_layout, channels);
+#endif
+        bool isPlanar = channels==1 ? false : m_mat.elempack==1;
+        AVSampleFormat smpfmt = GetAVSampleFormatByDataType(m_mat.type, isPlanar);
+        avfrm->format = (int)smpfmt;
+        avfrm->sample_rate = m_mat.rate.num;
+        const int bytesPerSample = av_get_bytes_per_sample(smpfmt);
+        if (isPlanar)
+        {
+            int bytesPerPlan = avfrm->nb_samples*bytesPerSample;
+            avfrm->linesize[0] = bytesPerPlan;
+            uint8_t* bufptr = (uint8_t*)m_mat.data;
+            for (int i = 0; i < channels; i++)
+            {
+                AVBufferRef* extBufRef = av_buffer_create(bufptr, bytesPerPlan, ImMatWrapper_AVFrame_buffer_free, this, AV_BUFFER_FLAG_READONLY);
+                avfrm->data[i] = bufptr;
+                avfrm->buf[i] = extBufRef;
+                bufptr += bytesPerPlan;
+            }
+        }
+        else
+        {
+            int bufsize = avfrm->nb_samples*bytesPerSample*channels;
+            avfrm->linesize[0] = bufsize;
+            uint8_t* bufptr = (uint8_t*)m_mat.data;
+            AVBufferRef* extBufRef = av_buffer_create(bufptr, bufsize, ImMatWrapper_AVFrame_buffer_free, this, AV_BUFFER_FLAG_READONLY);
+            avfrm->data[0] = bufptr;
+            avfrm->buf[0] = extBufRef;
+        }
+    }
     avfrm->pts = pts;
     return avfrm;
 }
@@ -1288,7 +1360,7 @@ ImGui::ImMat FFOverlayBlender::Blend(ImGui::ImMat& baseImage, ImGui::ImMat& over
     ImGui::ImMat res = baseImage;
     int64_t pts = (m_inputCount++)*AV_TIME_BASE/25;
 
-    ImMatWrapper_AVFrame baseImgWrapper(baseImage);
+    ImMatWrapper_AVFrame baseImgWrapper(baseImage, true);
     SelfFreeAVFramePtr baseAvfrmPtr;
     if (baseImage.device != IM_DD_CPU)
     {
@@ -1297,7 +1369,7 @@ ImGui::ImMat FFOverlayBlender::Blend(ImGui::ImMat& baseImage, ImGui::ImMat& over
     }
     else
     {
-        baseAvfrmPtr = WrapSelfFreeAVFramePtr(baseImgWrapper.GetWrapper(pts));
+        baseAvfrmPtr = baseImgWrapper.GetWrapper(pts);
     }
     fferr = av_buffersrc_add_frame_flags(m_bufSrcCtxs[0], baseAvfrmPtr.get(), AV_BUFFERSRC_FLAG_NO_CHECK_FORMAT);
     if (fferr < 0)
@@ -1307,7 +1379,7 @@ ImGui::ImMat FFOverlayBlender::Blend(ImGui::ImMat& baseImage, ImGui::ImMat& over
         m_errMsg = oss.str();
         return ImGui::ImMat();
     }
-    ImMatWrapper_AVFrame ovlyImgWrapper(overlayImage);
+    ImMatWrapper_AVFrame ovlyImgWrapper(overlayImage, true);
     SelfFreeAVFramePtr ovlyAvfrmPtr;
     if (overlayImage.device != IM_DD_CPU)
     {
@@ -1316,7 +1388,7 @@ ImGui::ImMat FFOverlayBlender::Blend(ImGui::ImMat& baseImage, ImGui::ImMat& over
     }
     else
     {
-        ovlyAvfrmPtr = WrapSelfFreeAVFramePtr(ovlyImgWrapper.GetWrapper(pts));
+        ovlyAvfrmPtr = ovlyImgWrapper.GetWrapper(pts);
     }
     fferr = av_buffersrc_add_frame_flags(m_bufSrcCtxs[1], ovlyAvfrmPtr.get(), AV_BUFFERSRC_FLAG_NO_CHECK_FORMAT);
     if (fferr < 0)
@@ -1354,6 +1426,149 @@ ImGui::ImMat FFOverlayBlender::Blend(ImGui::ImMat& baseImage, ImGui::ImMat& over
 ImGui::ImMat FFOverlayBlender::Blend(ImGui::ImMat& baseImage, ImGui::ImMat& overlayImage)
 {
     return Blend(baseImage, overlayImage, m_x, m_y, overlayImage.w, overlayImage.h);
+}
+
+static ImDataType GetImDataTypeByAVSampleFormat(AVSampleFormat smpfmt)
+{
+    ImDataType dtype = IM_DT_UNDEFINED;
+    switch (smpfmt)
+    {
+    case AV_SAMPLE_FMT_U8:
+    case AV_SAMPLE_FMT_U8P:
+        dtype = IM_DT_INT8;
+        break;
+    case AV_SAMPLE_FMT_S16:
+    case AV_SAMPLE_FMT_S16P:
+        dtype = IM_DT_INT16;
+        break;
+    case AV_SAMPLE_FMT_S32:
+    case AV_SAMPLE_FMT_S32P:
+        dtype = IM_DT_INT32;
+        break;
+    case AV_SAMPLE_FMT_FLT:
+    case AV_SAMPLE_FMT_FLTP:
+        dtype = IM_DT_FLOAT32;
+        break;
+    case AV_SAMPLE_FMT_DBL:
+    case AV_SAMPLE_FMT_DBLP:
+        dtype = IM_DT_FLOAT64;
+        break;
+    case AV_SAMPLE_FMT_S64:
+    case AV_SAMPLE_FMT_S64P:
+        dtype = IM_DT_INT64;
+        break;
+    default:
+        break;
+    }
+    return dtype;
+}
+
+static AVSampleFormat GetAVSampleFormatByImDataType(ImDataType dtype, bool isPlanar)
+{
+    AVSampleFormat smpfmt = AV_SAMPLE_FMT_NONE;
+    switch (dtype)
+    {
+    case IM_DT_INT8:
+        smpfmt = AV_SAMPLE_FMT_U8;
+        break;
+    case IM_DT_INT16:
+        smpfmt = AV_SAMPLE_FMT_S16;
+        break;
+    case IM_DT_INT32:
+        smpfmt = AV_SAMPLE_FMT_S32;
+        break;
+    case IM_DT_FLOAT32:
+        smpfmt = AV_SAMPLE_FMT_FLT;
+        break;
+    case IM_DT_FLOAT64:
+        smpfmt = AV_SAMPLE_FMT_DBL;
+        break;
+    case IM_DT_INT64:
+        smpfmt = AV_SAMPLE_FMT_S64;
+        break;
+    default:
+        break;
+    }
+    if (smpfmt != AV_SAMPLE_FMT_NONE && isPlanar)
+        smpfmt = av_get_planar_sample_fmt(smpfmt);
+    return smpfmt;
+}
+
+bool AudioImMatAVFrameConverter::ConvertAVFrameToImMat(const AVFrame* avfrm, ImGui::ImMat& amat, double timestamp)
+{
+    amat.release();
+    ImDataType dtype = GetImDataTypeByAVSampleFormat((AVSampleFormat)avfrm->format);
+    bool isPlanar = av_sample_fmt_is_planar((AVSampleFormat)avfrm->format) == 1;
+#if !defined(FF_API_OLD_CHANNEL_LAYOUT) && (LIBAVUTIL_VERSION_MAJOR < 58)
+    const int channels = avfrm->channels;
+#else
+    const int channels = avfrm->ch_layout.nb_channels;
+#endif
+    amat.create_type(avfrm->nb_samples, (int)1, channels, dtype);
+    amat.elempack = isPlanar ? 1 : channels;
+    int bytesPerSample = av_get_bytes_per_sample((AVSampleFormat)avfrm->format);
+    int bytesPerLine = avfrm->nb_samples*bytesPerSample*(isPlanar?1:channels);
+    if (isPlanar)
+    {
+        uint8_t* dstptr = (uint8_t*)amat.data;
+        for (int i = 0; i < channels; i++)
+        {
+            const uint8_t* srcptr = i < 8 ? avfrm->data[i] : avfrm->extended_data[i-8];
+            memcpy(dstptr, srcptr, bytesPerLine);
+            dstptr += bytesPerLine;
+        }
+    }
+    else
+    {
+        int totalBytes = bytesPerLine;
+        memcpy(amat.data, avfrm->data[0], totalBytes);
+    }
+    amat.rate = { avfrm->sample_rate, 1 };
+    amat.time_stamp = timestamp;
+    amat.elempack = isPlanar ? 1 : channels;
+    return true;
+}
+
+bool AudioImMatAVFrameConverter::ConvertImMatToAVFrame(const ImGui::ImMat& amat, AVFrame* avfrm, int64_t pts)
+{
+    av_frame_unref(avfrm);
+    bool isPlanar = amat.elempack == 1;
+    avfrm->format = (int)GetAVSampleFormatByImDataType(amat.type, isPlanar);
+    avfrm->nb_samples = amat.w;
+    const int channels = amat.c;
+#if !defined(FF_API_OLD_CHANNEL_LAYOUT) && (LIBAVUTIL_VERSION_MAJOR < 58)
+    avfrm->channels = channels;
+    avfrm->channel_layout = av_get_default_channel_layout(channels);
+#else
+    av_channel_layout_default(&avfrm->ch_layout, channels);
+#endif
+    int fferr = av_frame_get_buffer(avfrm, 0);
+    if (fferr < 0)
+    {
+        std::cerr << "FAILED to allocate buffer for audio AVFrame! format=" << av_get_sample_fmt_name((AVSampleFormat)avfrm->format)
+                << ", nb_samples=" << avfrm->nb_samples << ", channels=" << channels << ". fferr=" << fferr << "." << std::endl;
+        return false;
+    }
+    int bytesPerSample = av_get_bytes_per_sample((AVSampleFormat)avfrm->format);
+    int bytesPerLine = avfrm->nb_samples*bytesPerSample*(isPlanar?1:channels);
+    if (isPlanar)
+    {
+        const uint8_t* srcptr = (const uint8_t*)amat.data;
+        for (int i = 0; i < channels; i++)
+        {
+            uint8_t* dstptr = i < 8 ? avfrm->data[i] : avfrm->extended_data[i-8];
+            memcpy(dstptr, srcptr, bytesPerLine);
+            srcptr += bytesPerLine;
+        }
+    }
+    else
+    {
+        int totalBytes = bytesPerLine;
+        memcpy(avfrm->data[0], amat.data, totalBytes);
+    }
+    avfrm->sample_rate = amat.rate.num;
+    avfrm->pts = pts;
+    return true;
 }
 
 static MediaInfo::Ratio MediaInfoRatioFromAVRational(const AVRational& src)

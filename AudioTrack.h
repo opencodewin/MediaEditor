@@ -37,12 +37,14 @@ namespace DataLayer
 
         void SeekTo(int64_t pos);
         void ReadAudioSamples(uint8_t* buf, uint32_t& size, double& pos);
+        ImGui::ImMat ReadAudioSamples(uint32_t readSamples);
         void SetDirection(bool forward);
 
         int64_t Id() const { return m_id; }
         int64_t Duration() const { return m_duration; }
         uint32_t OutChannels() const { return m_outChannels; }
         uint32_t OutSampleRate() const { return m_outSampleRate; }
+        uint32_t OutFrameSize() const { return m_frameSize; }
 
     private:
         static std::function<bool(const AudioClipHolder&, const AudioClipHolder&)> CLIP_SORT_CMP;
