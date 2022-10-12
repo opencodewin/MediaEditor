@@ -1806,7 +1806,11 @@ static void ShowFusionBankIconWindow(ImDrawList *draw_list)
                 }
             }
             ImGui::SetCursorScreenPos(icon_pos);
-            ImGui::Button((std::string(ICON_BANK) + "##bank_fusion" + type->m_Name).c_str() , ImVec2(fusion_icon_size, fusion_icon_size));
+            auto node = type->m_Factory(bp);
+            if (node) 
+                node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(fusion_icon_size, fusion_icon_size)); 
+            else 
+                ImGui::Button((std::string(ICON_BANK) + "##bank_fusion" + type->m_Name).c_str(), ImVec2(fusion_icon_size, fusion_icon_size));
             ImGui::SameLine(); ImGui::TextUnformatted(type->m_Name.c_str());
         }
     }
@@ -1903,14 +1907,20 @@ static void ShowFusionBankTreeWindow(ImDrawList *draw_list)
             }
         }
 
-        auto AddFusion = [](void* data)
+        auto AddFusion = [&](void* data)
         {
             const BluePrint::NodeTypeInfo* type = (const BluePrint::NodeTypeInfo*)data;
             auto catalog = BluePrint::GetCatalogInfo(type->m_Catalog);
             if (catalog.size() < 2 || catalog[0].compare("Fusion") != 0)
                 return;
             std::string drag_type = "Fusion_drag_drop_" + catalog[1];
-            ImGui::Button((std::string(ICON_BANK) + " " + type->m_Name).c_str(), ImVec2(0, 32));
+            auto node = type->m_Factory(bp);
+            if (node) 
+                node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(32, 32));
+            else 
+                ImGui::TextUnformatted(ICON_BANK);
+            ImGui::SameLine();
+            ImGui::Button(type->m_Name.c_str(), ImVec2(0, 32));
             if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
             {
                 ImGui::SetDragDropPayload(drag_type.c_str(), type, sizeof(BluePrint::NodeTypeInfo));
@@ -1989,7 +1999,6 @@ static void ShowFilterBankIconWindow(ImDrawList *draw_list)
     ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
     ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
     draw_list->AddText(window_pos + ImVec2(8, 0), IM_COL32(56, 56, 56, 128), "Filters Bank");
-    //draw_list->AddText(window_pos + ImVec2(8, 48), IM_COL32(56, 56, 56, 128), "Bank");
     ImGui::PopStyleColor();
     ImGui::PopStyleVar();
     ImGui::SetWindowFontScale(1.0);
@@ -2037,7 +2046,11 @@ static void ShowFilterBankIconWindow(ImDrawList *draw_list)
                 }
             }
             ImGui::SetCursorScreenPos(icon_pos);
-            ImGui::Button((std::string(ICON_BANK) + "##bank_filter" + type->m_Name).c_str() , ImVec2(filter_icon_size, filter_icon_size));
+            auto node = type->m_Factory(bp);
+            if (node) 
+                node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(filter_icon_size, filter_icon_size)); 
+            else 
+                ImGui::Button((std::string(ICON_BANK) + "##bank_filter" + type->m_Name).c_str(), ImVec2(filter_icon_size, filter_icon_size));
             ImGui::SameLine(); ImGui::TextUnformatted(type->m_Name.c_str());
         }
     }
@@ -2053,7 +2066,6 @@ static void ShowFilterBankTreeWindow(ImDrawList *draw_list)
     ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
     ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
     draw_list->AddText(window_pos + ImVec2(8, 0), IM_COL32(56, 56, 56, 128), "Filters Bank");
-    //draw_list->AddText(window_pos + ImVec2(8, 48), IM_COL32(56, 56, 56, 128), "Bank");
     ImGui::PopStyleColor();
     ImGui::PopStyleVar();
     ImGui::SetWindowFontScale(1.0);
@@ -2134,14 +2146,20 @@ static void ShowFilterBankTreeWindow(ImDrawList *draw_list)
             }
         }
 
-        auto AddFilter = [](void* data)
+        auto AddFilter = [&](void* data)
         {
             const BluePrint::NodeTypeInfo* type = (const BluePrint::NodeTypeInfo*)data;
             auto catalog = BluePrint::GetCatalogInfo(type->m_Catalog);
             if (catalog.size() < 2 || catalog[0].compare("Filter") != 0)
                 return;
             std::string drag_type = "Filter_drag_drop_" + catalog[1];
-            ImGui::Button((std::string(ICON_BANK) + " " + type->m_Name).c_str(), ImVec2(0, 32));
+            auto node = type->m_Factory(bp);
+            if (node) 
+                node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(32, 32));
+            else 
+                ImGui::TextUnformatted(ICON_BANK);
+            ImGui::SameLine();
+            ImGui::Button(type->m_Name.c_str(), ImVec2(0, 32));
             if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
             {
                 ImGui::SetDragDropPayload(drag_type.c_str(), type, sizeof(BluePrint::NodeTypeInfo));
