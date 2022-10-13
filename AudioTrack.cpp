@@ -252,65 +252,131 @@ namespace DataLayer
         m_readSamples = pos*m_outSampleRate/1000;
     }
 
+    void AudioTrack::CopyMatData(uint8_t** dstbuf, uint32_t dstOffset, ImGui::ImMat& srcmat)
+    {
+        if (m_isPlanar)
+        {
+            if (srcmat.elempack == 1 || m_outChannels == 1)
+            {
+                uint32_t lineSize = srcmat.w*m_bytesPerSample;
+                uint8_t* srcptr = (uint8_t*)srcmat.data;
+                for (int i = 0; i < m_outChannels; i++)
+                {
+                    memcpy(dstbuf[i]+dstOffset, srcptr, lineSize);
+                    srcptr += lineSize;
+                }
+            }
+            else
+            {
+                unique_ptr<uint8_t*[]> dstlinebuf(new uint8_t* [m_outChannels]);
+                for (int i = 0; i < m_outChannels; i++)
+                    dstlinebuf[i] = dstbuf[i]+dstOffset;
+                uint8_t* srcptr = (uint8_t*)srcmat.data;
+                for (int j = 0; j < srcmat.w; j++)
+                {
+                    for (int i = 0; i < m_outChannels; i++)
+                    {
+                        memcpy(dstlinebuf[i], srcptr, m_bytesPerSample);
+                        dstlinebuf[i] += m_bytesPerSample;
+                        srcptr += m_bytesPerSample;
+                    }
+                }
+            }
+        }
+        else
+        {
+            if (srcmat.elempack == 1 && m_outChannels != 1)
+            {
+                uint8_t* dstptr = dstbuf[0]+dstOffset;
+                unique_ptr<uint8_t*[]> srclinebuf(new uint8_t* [m_outChannels]);
+                for (int i = 0; i < m_outChannels; i++)
+                    srclinebuf[i] = (uint8_t*)srcmat.data+i*srcmat.w*m_bytesPerSample;
+                for (int j = 0; j < srcmat.w; j++)
+                {
+                    for (int i = 0; i < m_outChannels; i++)
+                    {
+                        memcpy(dstptr, srclinebuf[i], m_bytesPerSample);
+                        dstptr += m_bytesPerSample;
+                        srclinebuf[i] += m_bytesPerSample;
+                    }
+                }
+            }
+            else
+            {
+                memcpy(dstbuf[0]+dstOffset, srcmat.data, srcmat.w*m_frameSize);
+            }
+        }
+    }
+
     void AudioTrack::ReadAudioSamples(uint8_t* buf, uint32_t& size, double& pos)
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
         pos = (double)m_readSamples/m_outSampleRate;
-        uint32_t readSize = 0;
+        uint32_t readSamples = 0, toReadSamples = size/m_frameSize;
+        unique_ptr<uint8_t*[]> planbuf(new uint8_t* [m_outChannels]);
+        for (int i = 0; i < m_outChannels; i++)
+            planbuf[i] = buf+i*toReadSamples*m_bytesPerSample;
         if (m_overlaps.empty())
         {
-            readSize = ReadClipData(buf, size);
-            size = readSize;
+            readSamples = ReadClipData(planbuf.get(), toReadSamples);
+            size = readSamples*m_frameSize;
             return;
         }
 
+        uint32_t toReadSamples2, readSamples2;
         if (m_readForward)
         {
             int64_t readPosBegin = m_readSamples*1000/m_outSampleRate;
             int64_t readPosEnd = (m_readSamples+size/m_frameSize)*1000/m_outSampleRate;
-            uint8_t* readbufptr = buf;
-            uint32_t toRead, readBytes;
-            while (readSize < size && m_readOverlapIter != m_overlaps.end() && (*m_readOverlapIter)->Start() < readPosEnd)
+            while (readSamples < toReadSamples && m_readOverlapIter != m_overlaps.end() && (*m_readOverlapIter)->Start() < readPosEnd)
             {
                 auto& ovlp = *m_readOverlapIter;
                 if (ovlp->Start() > readPosBegin)
                 {
-                    toRead = (ovlp->Start()-readPosBegin)*m_pcmSizePerSec/1000;
-                    toRead -= toRead%m_frameSize;
-                    if (toRead > size)
-                        toRead = size;
-                    readBytes = ReadClipData(readbufptr, toRead);
-                    if (readBytes < toRead)
+                    toReadSamples2 = (ovlp->Start()-readPosBegin)*m_outSampleRate/1000;
+                    if (toReadSamples2 > toReadSamples-readSamples)
+                        toReadSamples2 = toReadSamples-readSamples;
+                    readSamples2 = ReadClipData(planbuf.get(), toReadSamples2);
+                    readSamples += readSamples2;
+                    if (m_isPlanar)
                     {
-                        memset(readbufptr+readBytes, 0, toRead-readBytes);
-                        readBytes = toRead;
+                        for (int i = 0; i < m_outChannels; i++)
+                            planbuf[i] += readSamples2*m_bytesPerSample;
                     }
-                    readbufptr += readBytes;
-                    readSize += readBytes;
+                    else
+                    {
+                        planbuf[0] += readSamples2*m_frameSize;
+                    }
                 }
-                if (readSize >= size)
+                if (readSamples >= toReadSamples)
                     break;
 
                 bool eof = false;
-                uint32_t readSamples = (size-readSize)/m_frameSize;
-                ImGui::ImMat amat = ovlp->ReadAudioSamples(readSamples, eof);
+                toReadSamples2 = toReadSamples-readSamples;
+                ImGui::ImMat amat = ovlp->ReadAudioSamples(toReadSamples2, eof);
                 if (!amat.empty())
                 {
-                    uint32_t copySize = readSamples*m_frameSize;
-                    memcpy(readbufptr, amat.data, copySize);
-                    readbufptr += copySize;
-                    readSize += copySize;
-                    m_readSamples += readSamples;
+                    CopyMatData(planbuf.get(), 0, amat);
+                    readSamples += amat.w;
+                    if (m_isPlanar)
+                    {
+                        for (int i = 0; i < m_outChannels; i++)
+                            planbuf[i] += amat.w*m_bytesPerSample;
+                    }
+                    else
+                    {
+                        planbuf[0] += amat.w*m_frameSize;
+                    }
+                    m_readSamples += amat.w;
                 }
                 if (eof)
                     m_readOverlapIter++;
             }
-            if (readSize < size)
+            if (readSamples < toReadSamples)
             {
-                toRead = size-readSize;
-                readBytes = ReadClipData(readbufptr, toRead);
-                readbufptr += readBytes;
-                readSize += readBytes;
+                toReadSamples2 = toReadSamples-readSamples;
+                readSamples2 = ReadClipData(planbuf.get(), toReadSamples2);
+                readSamples += readSamples2;
             }
         }
         else
@@ -318,52 +384,58 @@ namespace DataLayer
             if (m_readOverlapIter == m_overlaps.end()) m_readOverlapIter--;
             int64_t readPosBegin = m_readSamples*1000/m_outSampleRate;
             int64_t readPosEnd = (m_readSamples-size/m_frameSize)*1000/m_outSampleRate;
-            uint8_t* readbufptr = buf;
-            uint32_t toRead, readBytes;
-            while (readSize < size && (m_readOverlapIter != m_overlaps.begin() || readPosBegin > (*m_readOverlapIter)->Start()))
+            while (readSamples < toReadSamples && (m_readOverlapIter != m_overlaps.begin() || readPosBegin > (*m_readOverlapIter)->Start()))
             {
                 auto& ovlp = *m_readOverlapIter;
                 if (readPosBegin > ovlp->End())
                 {
-                    toRead = (readPosBegin-ovlp->End())*m_pcmSizePerSec/1000;
-                    toRead -= toRead%m_frameSize;
-                    if (toRead > size)
-                        toRead = size;
-                    readBytes = ReadClipData(readbufptr, toRead);
-                    if (readBytes < toRead)
+                    toReadSamples2 = (readPosBegin-ovlp->End())*m_outSampleRate/1000;
+                    if (toReadSamples2 > toReadSamples-readSamples)
+                        toReadSamples2 = toReadSamples-readSamples;
+                    readSamples2 = ReadClipData(planbuf.get(), toReadSamples2);
+                    readSamples += readSamples2;
+                    if (m_isPlanar)
                     {
-                        memset(readbufptr+readBytes, 0, toRead-readBytes);
-                        readBytes = toRead;
+                        for (int i = 0; i < m_outChannels; i++)
+                            planbuf[i] += readSamples2*m_bytesPerSample;
                     }
-                    readbufptr += readBytes;
-                    readSize += readBytes;
+                    else
+                    {
+                        planbuf[0] += readSamples2*m_frameSize;
+                    }
                 }
-                if (readSize >= size)
+                if (readSamples >= toReadSamples)
                     break;
 
                 bool eof = false;
-                uint32_t readSamples = (size-readSize)/m_frameSize;
-                ImGui::ImMat amat = ovlp->ReadAudioSamples(readSamples, eof);
+                toReadSamples2 = toReadSamples-readSamples;
+                ImGui::ImMat amat = ovlp->ReadAudioSamples(toReadSamples2, eof);
                 if (!amat.empty())
                 {
-                    uint32_t copySize = readSamples*m_frameSize;
-                    memcpy(readbufptr, amat.data, copySize);
-                    readbufptr += copySize;
-                    readSize += copySize;
-                    m_readSamples += readSamples;
+                    CopyMatData(planbuf.get(), 0, amat);
+                    readSamples += amat.w;
+                    if (m_isPlanar)
+                    {
+                        for (int i = 0; i < m_outChannels; i++)
+                            planbuf[i] += amat.w*m_bytesPerSample;
+                    }
+                    else
+                    {
+                        planbuf[0] += amat.w*m_frameSize;
+                    }
+                    m_readSamples += amat.w;
                 }
                 if (eof && m_readOverlapIter != m_overlaps.begin())
                     m_readOverlapIter--;
             }
-            if (readSize < size)
+            if (readSamples < toReadSamples)
             {
-                toRead = size-readSize;
-                readBytes = ReadClipData(readbufptr, toRead);
-                readbufptr += readBytes;
-                readSize += readBytes;
+                toReadSamples2 = toReadSamples-readSamples;
+                readSamples2 = ReadClipData(planbuf.get(), toReadSamples2);
+                readSamples += readSamples2;
             }
         }
-        size = readSize;
+        size = readSamples*m_frameSize;
     }
 
     ImGui::ImMat AudioTrack::ReadAudioSamples(uint32_t readSamples)
@@ -380,9 +452,9 @@ namespace DataLayer
         return amat;
     }
 
-    uint32_t AudioTrack::ReadClipData(uint8_t* buf, uint32_t size)
+    uint32_t AudioTrack::ReadClipData(uint8_t** buf, uint32_t toReadSamples)
     {
-        uint32_t readSize = 0;
+        uint32_t readSamples = 0;
         if (m_readForward)
         {
             if (m_readClipIter == m_clips.end())
@@ -395,14 +467,22 @@ namespace DataLayer
                     int64_t skipSamples = (*m_readClipIter)->Start()*m_outSampleRate/1000-m_readSamples;
                     if (skipSamples > 0)
                     {
-                        if (skipSamples*m_frameSize > size-readSize)
-                            skipSamples = (size-readSize)/m_frameSize;
-                        uint32_t skipSize = (uint32_t)(skipSamples*m_frameSize);
-                        memset(buf+readSize, 0, skipSize);
-                        readSize += skipSize;
+                        if (skipSamples > toReadSamples-readSamples)
+                            skipSamples = toReadSamples-readSamples;
+                        uint32_t skipSize = m_isPlanar ? (uint32_t)(skipSamples*m_bytesPerSample) : (uint32_t)(skipSamples*m_frameSize);
+                        if (m_isPlanar)
+                        {
+                            for (int i = 0; i < m_outChannels; i++)
+                                memset(buf[i]+readSamples*m_bytesPerSample, 0, skipSize);
+                        }
+                        else
+                        {
+                            memset(buf[0]+readSamples*m_frameSize, 0, skipSize);
+                        }
+                        readSamples += skipSamples;
                         m_readSamples += skipSamples;
                     }
-                    if (readSize >= size)
+                    if (readSamples >= toReadSamples)
                         break;
                 }
 
@@ -419,19 +499,20 @@ namespace DataLayer
                 if (eof)
                     break;
 
-                uint32_t readSamples = (size-readSize)/m_frameSize;
+                uint32_t readClipSamples = toReadSamples-readSamples;
                 eof = false;
-                ImGui::ImMat amat = (*m_readClipIter)->ReadAudioSamples(readSamples, eof);
+                ImGui::ImMat amat = (*m_readClipIter)->ReadAudioSamples(readClipSamples, eof);
                 if (!amat.empty())
                 {
-                    uint32_t copySize = readSamples*m_frameSize;
-                    memcpy(buf+readSize, amat.data, copySize);
-                    readSize += copySize;
-                    m_readSamples += readSamples;
+                    uint32_t dstOffset = m_isPlanar ? readSamples*m_bytesPerSample : readSamples*m_frameSize;
+                    CopyMatData(buf, dstOffset, amat);
+                    readSamples += readClipSamples;
+                    m_readSamples += readClipSamples;
                 }
                 if (eof)
                     m_readClipIter++;
-            } while (readSize < size && m_readClipIter != m_clips.end());
+            }
+            while (readSamples < toReadSamples && m_readClipIter != m_clips.end());
         }
         else
         {
@@ -448,14 +529,22 @@ namespace DataLayer
                     int64_t skipSamples = m_readSamples-(*m_readClipIter)->End()*m_outSampleRate/1000;
                     if (skipSamples > 0)
                     {
-                        if (skipSamples*m_frameSize > size-readSize)
-                            skipSamples = (size-readSize)/m_frameSize;
-                        uint32_t skipSize = (uint32_t)(skipSamples*m_frameSize);
-                        memset(buf+readSize, 0, skipSize);
-                        readSize += skipSize;
+                        if (skipSamples > toReadSamples-readSamples)
+                            skipSamples = toReadSamples-readSamples;
+                        uint32_t skipSize = m_isPlanar ? (uint32_t)(skipSamples*m_bytesPerSample) : (uint32_t)(skipSamples*m_frameSize);
+                        if (m_isPlanar)
+                        {
+                            for (int i = 0; i < m_outChannels; i++)
+                                memset(buf[i]+readSamples*m_bytesPerSample, 0, skipSize);
+                        }
+                        else
+                        {
+                            memset(buf[0]+readSamples*m_frameSize, 0, skipSize);
+                        }
+                        readSamples += skipSamples;
                         m_readSamples -= skipSamples;
                     }
-                    if (readSize >= size || m_readSamples <= 0)
+                    if (readSamples >= toReadSamples || m_readSamples <= 0)
                         break;
                 }
 
@@ -473,15 +562,15 @@ namespace DataLayer
                 if (eof)
                     break;
 
-                uint32_t readSamples = (size-readSize)/m_frameSize;
+                uint32_t readClipSamples = toReadSamples-readSamples;
                 eof = false;
-                ImGui::ImMat amat = (*m_readClipIter)->ReadAudioSamples(readSamples, eof);
+                ImGui::ImMat amat = (*m_readClipIter)->ReadAudioSamples(readClipSamples, eof);
                 if (!amat.empty())
                 {
-                    uint32_t copySize = readSamples*m_frameSize;
-                    memcpy(buf+readSize, amat.data, copySize);
-                    readSize += copySize;
-                    m_readSamples -= readSamples;
+                    uint32_t dstOffset = m_isPlanar ? readSamples*m_bytesPerSample : readSamples*m_frameSize;
+                    CopyMatData(buf, dstOffset, amat);
+                    readSamples += readClipSamples;
+                    m_readSamples += readClipSamples;
                 }
                 if (eof)
                 {
@@ -490,9 +579,10 @@ namespace DataLayer
                     else
                         break;
                 }
-            } while (readSize < size && m_readSamples > 0);
+            }
+            while (readSamples < toReadSamples && m_readSamples > 0);
         }
-        return readSize;
+        return readSamples;
     }
 
     void AudioTrack::SetDirection(bool forward)

@@ -51,7 +51,8 @@ namespace DataLayer
         static std::function<bool(const AudioOverlapHolder&, const AudioOverlapHolder&)> OVERLAP_SORT_CMP;
         bool CheckClipRangeValid(int64_t clipId, int64_t start, int64_t end);
         void UpdateClipOverlap(AudioClipHolder hClip, bool remove = false);
-        uint32_t ReadClipData(uint8_t* buf, uint32_t size);
+        uint32_t ReadClipData(uint8_t** buf, uint32_t toReadSamples);
+        void CopyMatData(uint8_t** dstbuf, uint32_t dstOffset, ImGui::ImMat& srcmat);
 
     private:
         int64_t m_id;
@@ -68,5 +69,6 @@ namespace DataLayer
         int64_t m_readSamples{0};
         int64_t m_duration{0};
         bool m_readForward{true};
+        bool m_isPlanar{true};
     };
 }
