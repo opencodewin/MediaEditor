@@ -2173,7 +2173,6 @@ private:
         if (m_quitThread)
             return;
 
-        uint32_t audFrmSize = m_swrFrmSize;
         GopDecodeTaskHolder currTask;
         AVRational audTimebase = m_audAvStm->time_base;
         while (!m_quitThread)
@@ -2264,33 +2263,12 @@ private:
                             }
                         }
 
-                        bwdfrm = AllocSelfFreeAVFramePtr();
+                        bwdfrm = GenerateBackwardAudioFrame(fwdfrm);
                         if (!bwdfrm)
                         {
-                            m_logger->Log(Error) << "FAILED to allocate new AVFrame for backward pcm frame!" << endl;
+                            m_logger->Log(Error) << "FAILED to GENERATE backward audio frame!" << endl;
                             break;
                         }
-                        bwdfrm->format = fwdfrm->format;
-                        bwdfrm->sample_rate = fwdfrm->sample_rate;
-                        bwdfrm->channels = fwdfrm->channels;
-                        bwdfrm->channel_layout = fwdfrm->channel_layout;
-                        bwdfrm->nb_samples = fwdfrm->nb_samples;
-                        fferr = av_frame_get_buffer(bwdfrm.get(), 0);
-                        if (fferr < 0)
-                        {
-                            m_logger->Log(Error) << "av_frame_get_buffer(UpdatePcmThreadProc2) FAILED with return code " << fferr << endl;
-                            break;
-                        }
-                        av_frame_copy_props(bwdfrm.get(), fwdfrm.get());
-                        uint8_t* srcptr = fwdfrm->data[0]+(fwdfrm->nb_samples-1)*audFrmSize;
-                        uint8_t* dstptr = bwdfrm->data[0];
-                        for (int i = 0; i < fwdfrm->nb_samples; i++)
-                        {
-                            memcpy(dstptr, srcptr, audFrmSize);
-                            srcptr -= audFrmSize;
-                            dstptr += audFrmSize;
-                        }
-                        bwdfrm->pts = fwdfrm->pts+fwdfrm->nb_samples;
 
                         af.decfrm = nullptr;
                         af.fwdfrm = fwdfrm;
@@ -2309,6 +2287,138 @@ private:
                 this_thread::sleep_for(chrono::milliseconds(5));
         }
         m_logger->Log(DEBUG) << "Leave GenerateAudioSamplesThreadProc()." << endl;
+    }
+
+    SelfFreeAVFramePtr GenerateBackwardAudioFrame(SelfFreeAVFramePtr fwdfrm)
+    {
+        SelfFreeAVFramePtr bwdfrm = AllocSelfFreeAVFramePtr();
+        if (!bwdfrm)
+        {
+            m_logger->Log(Error) << "FAILED to allocate new AVFrame for backward pcm frame!" << endl;
+            return nullptr;
+        }
+        bwdfrm->format = fwdfrm->format;
+        bwdfrm->sample_rate = fwdfrm->sample_rate;
+#if !defined(FF_API_OLD_CHANNEL_LAYOUT) && (LIBAVUTIL_VERSION_MAJOR < 58)
+        int frmChannels = fwdfrm->channels;
+        bwdfrm->channels = frmChannels;
+        bwdfrm->channel_layout = fwdfrm->channel_layout;
+#else
+        int frmChannels = fwdfrm->ch_layout.nb_channels;
+        bwdfrm->ch_layout = fwdfrm->ch_layout;
+#endif
+        bwdfrm->nb_samples = fwdfrm->nb_samples;
+        int fferr;
+        fferr = av_frame_get_buffer(bwdfrm.get(), 0);
+        if (fferr < 0)
+        {
+            m_logger->Log(Error) << "av_frame_get_buffer(GenerateBackwardAudioFrame) FAILED with return code " << fferr << endl;
+            return nullptr;
+        }
+        av_frame_copy_props(bwdfrm.get(), fwdfrm.get());
+        uint32_t audFrmSize = m_swrPassThrough ? m_audFrmSize : m_swrFrmSize;
+        if (IsPlanar())
+        {
+            audFrmSize /= frmChannels;
+            if (audFrmSize == 1)
+            {
+                for (int j = 0; j < frmChannels; j++)
+                {
+                    uint8_t* srcptr = fwdfrm->data[j]+fwdfrm->nb_samples-1;
+                    uint8_t* dstptr = bwdfrm->data[j];
+                    for (int i = 0; i < fwdfrm->nb_samples; i++)
+                        *dstptr++ = *srcptr--;
+                }
+            }
+            else if (audFrmSize == 2)
+            {
+                for (int j = 0; j < frmChannels; j++)
+                {
+                    uint16_t* srcptr = (uint16_t*)(fwdfrm->data[j])+fwdfrm->nb_samples-1;
+                    uint16_t* dstptr = (uint16_t*)(bwdfrm->data[j]);
+                    for (int i = 0; i < fwdfrm->nb_samples; i++)
+                        *dstptr++ = *srcptr--;
+                }
+            }
+            else if (audFrmSize == 4)
+            {
+                for (int j = 0; j < frmChannels; j++)
+                {
+                    uint32_t* srcptr = (uint32_t*)(fwdfrm->data[j])+fwdfrm->nb_samples-1;
+                    uint32_t* dstptr = (uint32_t*)(bwdfrm->data[j]);
+                    for (int i = 0; i < fwdfrm->nb_samples; i++)
+                        *dstptr++ = *srcptr--;
+                }
+            }
+            else if (audFrmSize == 8)
+            {
+                for (int j = 0; j < frmChannels; j++)
+                {
+                    uint64_t* srcptr = (uint64_t*)(fwdfrm->data[j])+fwdfrm->nb_samples-1;
+                    uint64_t* dstptr = (uint64_t*)(bwdfrm->data[j]);
+                    for (int i = 0; i < fwdfrm->nb_samples; i++)
+                        *dstptr++ = *srcptr--;
+                }
+            }
+            else
+            {
+                for (int j = 0; j < frmChannels; j++)
+                {
+                    uint8_t* srcptr = fwdfrm->data[j]+(fwdfrm->nb_samples-1)*audFrmSize;
+                    uint8_t* dstptr = bwdfrm->data[j];
+                    for (int i = 0; i < fwdfrm->nb_samples; i++)
+                    {
+                        memcpy(dstptr, srcptr, audFrmSize);
+                        srcptr -= audFrmSize;
+                        dstptr += audFrmSize;
+                    }
+                }
+            }
+        }
+        else
+        {
+            if (audFrmSize == 1)
+            {
+                uint8_t* srcptr = fwdfrm->data[0]+fwdfrm->nb_samples-1;
+                uint8_t* dstptr = bwdfrm->data[0];
+                for (int i = 0; i < fwdfrm->nb_samples; i++)
+                    *dstptr++ = *srcptr--;
+            }
+            else if (audFrmSize == 2)
+            {
+                uint16_t* srcptr = (uint16_t*)(fwdfrm->data[0])+fwdfrm->nb_samples-1;
+                uint16_t* dstptr = (uint16_t*)(bwdfrm->data[0]);
+                for (int i = 0; i < fwdfrm->nb_samples; i++)
+                    *dstptr++ = *srcptr--;
+            }
+            else if (audFrmSize == 4)
+            {
+                uint32_t* srcptr = (uint32_t*)(fwdfrm->data[0])+fwdfrm->nb_samples-1;
+                uint32_t* dstptr = (uint32_t*)(bwdfrm->data[0]);
+                for (int i = 0; i < fwdfrm->nb_samples; i++)
+                    *dstptr++ = *srcptr--;
+            }
+            else if (audFrmSize == 8)
+            {
+                uint64_t* srcptr = (uint64_t*)(fwdfrm->data[0])+fwdfrm->nb_samples-1;
+                uint64_t* dstptr = (uint64_t*)(bwdfrm->data[0]);
+                for (int i = 0; i < fwdfrm->nb_samples; i++)
+                    *dstptr++ = *srcptr--;
+            }
+            else
+            {
+                uint8_t* srcptr = fwdfrm->data[0]+(fwdfrm->nb_samples-1)*audFrmSize;
+                uint8_t* dstptr = bwdfrm->data[0];
+                for (int i = 0; i < fwdfrm->nb_samples; i++)
+                {
+                    memcpy(dstptr, srcptr, audFrmSize);
+                    srcptr -= audFrmSize;
+                    dstptr += audFrmSize;
+                }
+            }
+        }
+        bwdfrm->pts = fwdfrm->pts+fwdfrm->nb_samples;
+        return bwdfrm;
     }
 
     pair<int64_t, int64_t> GetSeekPosByTs(double ts)
