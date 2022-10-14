@@ -64,6 +64,39 @@ namespace DataLayer
     bool VideoTransformFilter_VulkanImpl::_filterImage(const ImGui::ImMat& inMat, ImGui::ImMat& outMat, int64_t pos)
     {
         m_inWidth = inMat.w; m_inHeight = inMat.h;
+
+        // check and update key points values
+        for (int i = 0; i < m_keyPoints.GetCurveCount(); i++)
+        {
+            auto name = m_keyPoints.GetCurveName(i);
+            auto value = m_keyPoints.GetValue(i, pos);
+            if (name == "CropMarginL")
+                SetCropMarginL(value);
+            else if (name == "CropMarginT")
+                SetCropMarginT(value);
+            else if (name == "CropMarginR")
+                SetCropMarginR(value);
+            else if (name == "CropMarginB")
+                SetCropMarginB(value);
+            else if (name == "Scale")
+            {
+                SetScaleH(value);
+                SetScaleV(value);
+            }
+            else if (name == "ScaleH")
+                SetScaleH(value);
+            else if (name == "ScaleV")
+                SetScaleV(value);
+            else if (name == "RotateAngle")
+                SetRotationAngle(value);
+            else if (name == "PositionOffsetH")
+                SetPositionOffsetH(value);
+            else if (name == "PositionOffsetV")
+                SetPositionOffsetV(value);
+            else
+                Log(WARN) << "UNKNOWN curve name '" << name << "', value=" << value << "." << endl;
+        }
+
         if (m_needUpdateScaleParam)
         {
             uint32_t fitScaleWidth{m_inWidth}, fitScaleHeight{m_inHeight};
