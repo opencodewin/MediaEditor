@@ -4,12 +4,13 @@
 #include <sstream>
 #include <iomanip>
 #include <list>
+#include <unordered_map>
 #include <atomic>
 #include <memory>
 #include <cmath>
 #include <algorithm>
 #include "imgui_helper.h"
-#include "MediaSnapshot.h"
+#include "SnapshotGenerator.h"
 #include "FFUtils.h"
 extern "C"
 {
@@ -434,6 +435,16 @@ public:
         return m_vidFrmCnt;
     }
 
+    bool IsHwAccelEnabled() const override
+    {
+        return m_vidPreferUseHw;
+    }
+
+    void EnableHwAccel(bool enable) override
+    {
+        m_vidPreferUseHw = enable;
+    }
+
     string GetError() const override
     {
         return m_errMsg;
@@ -474,15 +485,15 @@ private:
             m_ssIntvMts = m_vidfrmIntvMts;
         else if (m_ssIntvMts-m_vidfrmIntvMts <= 0.5)
             m_ssIntvMts = m_vidfrmIntvMts;
+        m_ssIntvPts = av_rescale_q(m_ssIntvMts*1000, MICROSEC_TIMEBASE, m_vidStream->time_base);
         m_vidMaxIndex = (uint32_t)floor(((double)m_vidDurMts-m_vidfrmIntvMts)/m_ssIntvMts);
         m_maxCacheSize = (uint32_t)ceil(m_wndFrmCnt*m_cacheFactor);
         uint32_t intWndFrmCnt = (uint32_t)ceil(m_wndFrmCnt);
         if (m_maxCacheSize < intWndFrmCnt)
             m_maxCacheSize = intWndFrmCnt;
-        if (m_maxCacheSize > m_vidMaxIndex+1)
-            m_maxCacheSize = m_vidMaxIndex+1;
+        // if (m_maxCacheSize > m_vidMaxIndex+1)
+        //     m_maxCacheSize = m_vidMaxIndex+1;
         m_prevWndCacheSize = (m_maxCacheSize-intWndFrmCnt)/2;
-        m_postWndCacheSize = m_maxCacheSize-intWndFrmCnt-m_prevWndCacheSize;
     }
 
     bool IsSsIdxValid(int32_t idx) const
@@ -521,10 +532,8 @@ private:
             AVRational timebase = { vidStream->timebase.num, vidStream->timebase.den };
             m_vidfrmIntvMts = av_q2d(av_inv_q(avgFrmRate))*1000.;
             m_vidfrmIntvMtsHalf = ceil(m_vidfrmIntvMts)/2;
-            if (avgFrmRate.num*avgFrmRate.num > 0)
-                m_vidfrmIntvPts = (avgFrmRate.den*timebase.den)/(avgFrmRate.num*timebase.num);
-            else
-                m_vidfrmIntvPts = 0;
+            m_vidfrmIntvPts = av_rescale_q(1, av_inv_q(avgFrmRate), timebase);
+            m_vidfrmIntvPtsHalf = m_vidfrmIntvPts/2;
 
             if (m_useRszFactor)
             {
@@ -717,7 +726,7 @@ private:
 
     void DemuxThreadProc()
     {
-        m_logger->Log(DEBUG) << "Enter DemuxThreadProc()..." << endl;
+        m_logger->Log(VERBOSE) << "Enter DemuxThreadProc()..." << endl;
 
         if (!m_prepared && !Prepare())
         {
@@ -729,10 +738,7 @@ private:
         AVPacket avpkt = {0};
         bool avpktLoaded = false;
         GopDecodeTaskHolder currTask = nullptr;
-        int64_t lastGopSsPktPts;
-        int32_t currPktSsIdx;
-        uint32_t gopSmallestIdx;
-        bool currPktChecked;
+        int64_t lastGopSsPts;
         bool demuxEof = false;
         while (!m_quit)
         {
@@ -746,17 +752,14 @@ private:
                 if (!currTask || currTask->cancel || currTask->demuxerEof)
                 {
                     if (currTask && currTask->cancel)
-                        m_logger->Log(DEBUG) << "~~~~ Current demux task canceled" << endl;
+                        m_logger->Log(VERBOSE) << "~~~~ Current demux task canceled" << endl;
                     currTask = FindNextDemuxTask();
                     if (currTask)
                     {
                         currTask->demuxing = true;
                         taskChanged = true;
-                        currPktChecked = false;
-                        lastGopSsPktPts = INT64_MAX;
-                        currPktSsIdx = -1;
-                        gopSmallestIdx = INT32_MAX;
-                        m_logger->Log(DEBUG) << "--> Change demux task, ssIdxPair=[" << currTask->TaskRange().SsIdx().first << ", " << currTask->TaskRange().SsIdx().second
+                        lastGopSsPts = INT64_MAX;
+                        m_logger->Log(VERBOSE) << "--> Change demux task, ssIdxPair=[" << currTask->TaskRange().SsIdx().first << ", " << currTask->TaskRange().SsIdx().second
                             << "), seekPtsPair=[" << currTask->TaskRange().SeekPts().first << "{" << MillisecToString(CvtVidPtsToMts(currTask->TaskRange().SeekPts().first)) << "}"
                             << ", " << currTask->TaskRange().SeekPts().second << "{" << MillisecToString(CvtVidPtsToMts(currTask->TaskRange().SeekPts().second)) << "}" << endl;
                     }
@@ -788,8 +791,7 @@ private:
                                 demuxEof = true;
                             else if (ptsAfterSeek != seekPts0)
                             {
-                                m_logger->Log(WARN) << "WARNING! 'ptsAfterSeek'(" << ptsAfterSeek << ") != 'ssTask->startPts'(" << seekPts0 << ")!" << endl;
-                                // currTask->seekPts.first = ptsAfterSeek;
+                                m_logger->Log(WARN) << "'ptsAfterSeek'(" << ptsAfterSeek << ") != 'ssTask->startPts'(" << seekPts0 << ")!" << endl;
                             }
                         }
                     }
@@ -800,7 +802,6 @@ private:
                         if (fferr == 0)
                         {
                             avpktLoaded = true;
-                            currPktChecked = false;
                             idleLoop = false;
                         }
                         else
@@ -811,7 +812,7 @@ private:
                                 demuxEof = true;
                             }
                             else
-                                m_logger->Log(Error) << "Demuxer ERROR! 'av_read_frame' returns " << fferr << "." << endl;
+                                m_logger->Log(Error) << "Demuxer ERROR! av_read_frame() returns " << fferr << "." << endl;
                         }
                     }
 
@@ -819,44 +820,36 @@ private:
                     {
                         if (avpkt.stream_index == m_vidStmIdx)
                         {
-                            if (!currPktChecked)
+                            if (avpkt.pts >= currTask->TaskRange().SeekPts().second || avpkt.pts > lastGopSsPts)
                             {
-                                int64_t mts = CvtVidPtsToMts(avpkt.pts);
-                                uint32_t ssIdx;
-                                bool isSs = IsSnapshotFrame(mts, ssIdx, avpkt.pts);
-                                if (isSs)
+                                for (auto& elem : currTask->ssCandidatePts)
                                 {
-                                    currPktSsIdx = ssIdx;
-                                    if (gopSmallestIdx > ssIdx)
-                                        gopSmallestIdx = ssIdx;
-                                    if (ssIdx == currTask->TaskRange().SsIdx().second-1)
-                                        lastGopSsPktPts = avpkt.pts;
-                                }
-                                currPktChecked = true;
-                            }
-                            if (avpkt.pts >= currTask->TaskRange().SeekPts().second || avpkt.pts > lastGopSsPktPts)
-                            {
-                                if (gopSmallestIdx > currTask->TaskRange().SsIdx().first)
-                                {
-                                    m_logger->Log(Error) << "!!!!!! ABNORMAL SS INDEX (1) !!!!!! demux task eof, but the smallest gop ss index is larger than task's first index, "
-                                        << gopSmallestIdx << " > " << currTask->TaskRange().SsIdx().first << "." << endl;
-                                }
-                                if (currPktSsIdx < currTask->TaskRange().SsIdx().second-1)
-                                {
-                                    bool gopEnd = avpkt.pts >= currTask->TaskRange().SeekPts().second;
-                                    m_logger->Log(Error) << "!!!!!! ABNORMAL SS INDEX (2) !!!!!! demux task eof, but last pkt index is " << currPktSsIdx
-                                        << ", which is smaller than task's second index " << currTask->TaskRange().SsIdx().second
-                                        << ", REASON is " << (gopEnd ? "GOP-END" : "SSIDX-END") << endl;
+                                    if (elem.second.first == INT64_MIN)
+                                        m_logger->Log(WARN) << "!! ABNORMAL SS CANDIDATE !! Current demux task eof, but no candidate frame is found for SS #" << elem.first << "." << endl;
+                                    else
+                                        m_logger->Log(DEBUG) << "SS candidate #" << elem.first << ": pts=" << elem.second.first << ", bias=" << elem.second.second << endl;
                                 }
                                 currTask->demuxerEof = true;
                             }
 
                             if (!currTask->demuxerEof)
                             {
+                                uint32_t bias{0};
+                                int32_t ssIdx = checkFrameSsBias(avpkt.pts, bias);
+                                // update SS candidates frame
+                                auto candIter = currTask->ssCandidatePts.find(ssIdx);
+                                if (candIter != currTask->ssCandidatePts.end())
+                                {
+                                    if (candIter->second.first == INT64_MIN || candIter->second.second > bias)
+                                        candIter->second = { avpkt.pts, bias };
+                                }
+                                if (ssIdx == currTask->m_range.SsIdx().second-1 && bias <= m_vidfrmIntvPtsHalf)
+                                    lastGopSsPts = avpkt.pts;
+
                                 AVPacket* enqpkt = av_packet_clone(&avpkt);
                                 if (!enqpkt)
                                 {
-                                    m_logger->Log(Error) << "FAILED to invoke 'av_packet_clone(DemuxThreadProc)'!" << endl;
+                                    m_logger->Log(Error) << "FAILED to invoke [DEMUX]av_packet_clone()!" << endl;
                                     break;
                                 }
                                 {
@@ -888,7 +881,7 @@ private:
             currTask->demuxerEof = true;
         if (avpktLoaded)
             av_packet_unref(&avpkt);
-        m_logger->Log(DEBUG) << "Leave DemuxThreadProc()." << endl;
+        m_logger->Log(VERBOSE) << "Leave DemuxThreadProc()." << endl;
     }
 
     bool ReadNextStreamPacket(int stmIdx, AVPacket* avpkt, bool* avpktLoaded, int64_t* pts)
@@ -928,7 +921,7 @@ private:
 
     void VideoDecodeThreadProc()
     {
-        m_logger->Log(DEBUG) << "Enter VideoDecodeThreadProc()..." << endl;
+        m_logger->Log(VERBOSE) << "Enter VideoDecodeThreadProc()..." << endl;
 
         while (!m_prepared && !m_quit)
             this_thread::sleep_for(chrono::milliseconds(5));
@@ -946,7 +939,7 @@ private:
 
             if (currTask && currTask->cancel)
             {
-                m_logger->Log(DEBUG) << "~~~~ Current video task canceled" << endl;
+                m_logger->Log(VERBOSE) << "~~~~ Current video task canceled" << endl;
                 if (avfrmLoaded)
                 {
                     av_frame_unref(&avfrm);
@@ -963,7 +956,8 @@ private:
                 {
                     currTask->decoding = true;
                     inputEof = false;
-                    // m_logger->Log(DEBUG) << "==> Change decoding task to build index (" << currTask->ssIdxPair.first << " ~ " << currTask->ssIdxPair.second << ")." << endl;
+                    m_logger->Log(VERBOSE) << "==> Change [VIDEO]decoding task to build SS ["
+                        << currTask->m_range.SsIdx().first << ", " << currTask->m_range.SsIdx().second << ")." << endl;
                 }
                 else if (oldTask)
                 {
@@ -989,7 +983,7 @@ private:
                         int fferr = avcodec_receive_frame(m_viddecCtx, &avfrm);
                         if (fferr == 0)
                         {
-                            // m_logger->Log(DEBUG) << "<<< Get video frame pts=" << avfrm.pts << "(" << MillisecToString(CvtVidPtsToMts(avfrm.pts)) << ")." << endl;
+                            m_logger->Log(VERBOSE) << "<<< [VIDEO]avcodec_receive_frame() pts=" << avfrm.pts << "(" << MillisecToString(CvtVidPtsToMts(avfrm.pts)) << ")." << endl;
                             avfrmLoaded = true;
                             idleLoop = false;
                         }
@@ -997,8 +991,7 @@ private:
                         {
                             if (fferr != AVERROR_EOF)
                             {
-                                m_logger->Log(Error) << "FAILED to invoke 'avcodec_receive_frame'(VideoDecodeThreadProc)! return code is "
-                                    << fferr << "." << endl;
+                                m_logger->Log(Error) << "FAILED to invoke [VIDEO]avcodec_receive_frame()! return code is " << fferr << "." << endl;
                                 quitLoop = true;
                                 break;
                             }
@@ -1006,7 +999,7 @@ private:
                             {
                                 idleLoop = false;
                                 needResetDecoder = true;
-                                // m_logger->Log(DEBUG) << "Video decoder current task reaches EOF!" << endl;
+                                m_logger->Log(VERBOSE) << "Video decoder current task reaches EOF!" << endl;
                             }
                         }
                     }
@@ -1014,18 +1007,22 @@ private:
                     hasOutput = avfrmLoaded;
                     if (avfrmLoaded)
                     {
-                        int64_t mts = CvtVidPtsToMts(avfrm.pts);
-                        uint32_t index;
-                        bool isSnapshot = IsSnapshotFrame(mts, index, avfrm.pts);
-                        if (!isSnapshot)
+                        int32_t ssIdx{-1};
+                        GopDecodeTaskHolder ssGopTask = FindFrameSsPosition(avfrm.pts, ssIdx);
+                        if (!ssGopTask)
                         {
+                            m_logger->Log(VERBOSE) << "Drop video frame pts=" << avfrm.pts << ", ssIdx=" << ssIdx << ". No corresponding GopDecoderTask can be found." << endl;
                             av_frame_unref(&avfrm);
                             avfrmLoaded = false;
                             idleLoop = false;
                         }
                         else if (m_pendingVidfrmCnt < m_maxPendingVidfrmCnt)
                         {
-                            EnqueueSnapshotAVFrame(&avfrm, index);
+                            m_logger->Log(DEBUG) << "Enqueue SS#" << ssIdx << ", pts=" << avfrm.pts << " to GopDecodeTask, which its range is ssIdxPair=["
+                                << ssGopTask->m_range.SsIdx().first << ", " << ssGopTask->m_range.SsIdx().second << "), ptsPair=["
+                                << ssGopTask->m_range.SeekPts().first << ", " << ssGopTask->m_range.SeekPts().second << ")." << endl;
+                            if (!EnqueueSnapshotAVFrame(ssGopTask, &avfrm, ssIdx))
+                                m_logger->Log(WARN) << "FAILED to enqueue SS#" << ssIdx << ", pts=" << avfrm.pts << "." << endl;
                             av_frame_unref(&avfrm);
                             avfrmLoaded = false;
                             idleLoop = false;
@@ -1040,23 +1037,31 @@ private:
                 {
                     if (!currTask->avpktQ.empty())
                     {
+                        bool popAvpkt = false;
                         AVPacket* avpkt = currTask->avpktQ.front();
                         int fferr = avcodec_send_packet(m_viddecCtx, avpkt);
                         if (fferr == 0)
                         {
-                            // m_logger->Log(DEBUG) << ">>> Send video packet pts=" << avpkt->pts << "(" << MillisecToString(CvtVidPtsToMts(avpkt->pts)) << ")." << endl;
+                            m_logger->Log(VERBOSE) << ">>> [VIDEO]avcodec_send_packet() pts=" << avpkt->pts << "(" << MillisecToString(CvtVidPtsToMts(avpkt->pts)) << ")." << endl;
+                            popAvpkt = true;
+                        }
+                        else if (fferr != AVERROR(EAGAIN) && fferr != AVERROR_INVALIDDATA)
+                        {
+                            m_logger->Log(Error) << "FAILED to invoke [VIDEO]avcodec_send_packet()! return code is " << fferr << "." << endl;
+                            quitLoop = true;
+                        }
+                        else if (fferr == AVERROR_INVALIDDATA)
+                        {
+                            popAvpkt = true;
+                        }
+                        if (popAvpkt)
+                        {
                             {
                                 lock_guard<mutex> lk(currTask->avpktQLock);
                                 currTask->avpktQ.pop_front();
                             }
                             av_packet_free(&avpkt);
                             idleLoop = false;
-                        }
-                        else if (fferr != AVERROR(EAGAIN) && fferr != AVERROR_INVALIDDATA)
-                        {
-                            m_logger->Log(Error) << "FAILED to invoke 'avcodec_send_packet'(VideoDecodeThreadProc)! return code is "
-                                << fferr << "." << endl;
-                            quitLoop = true;
                         }
                     }
                     else if (currTask->demuxerEof)
@@ -1076,12 +1081,12 @@ private:
             currTask->decoderEof = true;
         if (avfrmLoaded)
             av_frame_unref(&avfrm);
-        m_logger->Log(DEBUG) << "Leave VideoDecodeThreadProc()." << endl;
+        m_logger->Log(VERBOSE) << "Leave VideoDecodeThreadProc()." << endl;
     }
 
     void UpdateSnapshotThreadProc()
     {
-        m_logger->Log(DEBUG) << "Enter UpdateSnapshotThreadProc()." << endl;
+        m_logger->Log(VERBOSE) << "Enter UpdateSnapshotThreadProc()." << endl;
         GopDecodeTaskHolder currTask;
         while (!m_quit)
         {
@@ -1119,7 +1124,7 @@ private:
             if (idleLoop)
                 this_thread::sleep_for(chrono::milliseconds(5));
         }
-        m_logger->Log(DEBUG) << "Leave UpdateSnapshotThreadProc()." << endl;
+        m_logger->Log(VERBOSE) << "Leave UpdateSnapshotThreadProc()." << endl;
     }
 
     void StartAllThreads()
@@ -1204,7 +1209,7 @@ private:
 
             friend bool operator==(const Range& oprnd1, const Range& oprnd2)
             {
-                if (oprnd1.m_seekPts.first == -1 && oprnd2.m_seekPts.second == -1)
+                if (oprnd1.m_seekPts.first == INT64_MIN && oprnd2.m_seekPts.second == INT64_MIN)
                     return false;
                 bool e1 = oprnd1.m_seekPts.first == oprnd2.m_seekPts.first;
                 bool e2 = oprnd1.m_seekPts.second == oprnd2.m_seekPts.second;
@@ -1216,7 +1221,7 @@ private:
             }
 
         private:
-            pair<int64_t, int64_t> m_seekPts{-1, -1};
+            pair<int64_t, int64_t> m_seekPts{INT64_MIN, INT64_MIN};
             pair<int32_t, int32_t> m_ssIdx{-1, -1};
             int32_t m_distanceToViewWnd{0};
             bool m_isInView{false};
@@ -1224,7 +1229,12 @@ private:
 
         GopDecodeTask(SnapshotGenerator_Impl* owner, const Range& range)
             : m_owner(owner), m_range(range)
-        {}
+        {
+            for (int32_t ssIdx = range.SsIdx().first; ssIdx < range.SsIdx().second; ssIdx++)
+            {
+                ssCandidatePts[ssIdx] = { INT64_MIN, 0 };
+            }
+        }
 
         ~GopDecodeTask()
         {
@@ -1251,6 +1261,7 @@ private:
 
         SnapshotGenerator_Impl* m_owner;
         Range m_range;
+        unordered_map<int32_t, pair<int64_t, uint32_t>> ssCandidatePts;
         bool isEndOfGop{true};
         list<Snapshot> ssAry;
         atomic_int32_t ssfrmCnt{0};
@@ -1268,7 +1279,7 @@ private:
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
         if (!m_prepared)
-            return { wndpos, -1, -1, -1, -1, -1, -1 };
+            return { wndpos, -1, -1, -1, -1, INT64_MIN, INT64_MIN };
         int32_t index0 = CalcSsIndexFromTs(wndpos);
         int32_t index1 = CalcSsIndexFromTs(wndpos+m_snapWindowSize);
         int32_t cacheIdx0 = index0-(int32_t)m_prevWndCacheSize;
@@ -1278,13 +1289,32 @@ private:
         return { wndpos, index0, index1, cacheIdx0, cacheIdx1, seekPos0.first, seekPos1.first };
     }
 
-    bool IsSnapshotFrame(int64_t mts, uint32_t& index, int64_t pts)
+    GopDecodeTaskHolder FindFrameSsPosition(int64_t pts, int32_t& ssIdx)
     {
-        index = (int32_t)round((double)mts/m_ssIntvMts);
-        double diff = abs(index*m_ssIntvMts-mts);
-        bool isSs = diff <= m_vidfrmIntvMtsHalf;
-        // m_logger->Log(DEBUG) << "---> IsSnapshotFrame : pts=" << pts << ", mts=" << mts << ", index=" << index << ", diff=" << diff << ", m_vidfrmIntvMtsHalf=" << m_vidfrmIntvMtsHalf << endl;
-        return isSs;
+        ssIdx = (int32_t)round((double)pts/m_ssIntvPts);
+        uint32_t bias = (uint32_t)abs(m_ssIntvPts*ssIdx-pts);
+        GopDecodeTaskHolder task;
+        {
+            lock_guard<mutex> lk(m_goptskListReadLocks[0]);
+            auto iter = find_if(m_goptskList.begin(), m_goptskList.end(), [pts, ssIdx, bias] (const GopDecodeTaskHolder& t) {
+                if (ssIdx < t->TaskRange().SsIdx().first || ssIdx >= t->TaskRange().SsIdx().second)
+                    return false;
+                auto candIter = t->ssCandidatePts.find(ssIdx);
+                if (candIter != t->ssCandidatePts.end() && (candIter->second.first == pts || candIter->second.second > bias))
+                    return true;
+                return false;
+            });
+            if (iter != m_goptskList.end())
+                task = *iter;
+        }
+        return task;
+    }
+
+    int32_t checkFrameSsBias(int64_t pts, uint32_t& bias)
+    {
+        int32_t index = (int32_t)round((double)pts/m_ssIntvPts);
+        bias = (uint32_t)abs(m_ssIntvPts*index-pts);
+        return index;
     }
 
     bool IsSpecificSnapshotFrame(uint32_t index, int64_t mts)
@@ -1295,8 +1325,9 @@ private:
 
     int64_t CalcSnapshotMts(int32_t index)
     {
-        int32_t frameCount = (int32_t)round(index*m_ssIntvMts/m_vidfrmIntvMts);
-        return (int64_t)round(frameCount*m_vidfrmIntvMts);
+        if (m_ssIntvPts > 0)
+            return CvtVidPtsToMts(index*m_ssIntvPts);
+        return 0;
     }
 
     double CalcSnapshotTimestamp(uint32_t index)
@@ -1311,16 +1342,19 @@ private:
 
     pair<int64_t, int64_t> GetSeekPosByMts(int64_t mts)
     {
-        if (mts < 0 || mts > m_vidDurMts)
-            return { -1, -1 };
+        if (mts < 0)
+            return { INT64_MIN, INT64_MIN };
+        if (mts > m_vidDurMts)
+            return { INT64_MAX, INT64_MAX };
         int64_t targetPts = CvtVidMtsToPts(mts);
+        int64_t offsetCompensation = m_vidfrmIntvPtsHalf;
         auto iter = find_if(m_hSeekPoints->begin(), m_hSeekPoints->end(),
-            [targetPts](int64_t keyPts) { return keyPts > targetPts; });
+            [targetPts, offsetCompensation](int64_t keyPts) { return keyPts-offsetCompensation > targetPts; });
         if (iter != m_hSeekPoints->begin())
             iter--;
         int64_t first = *iter++;
         int64_t second = iter == m_hSeekPoints->end() ? INT64_MAX : *iter;
-        if (targetPts >= second || (second-targetPts) < m_vidfrmIntvPts/2)
+        if (targetPts >= second || (second-targetPts) < offsetCompensation)
         {
             first = second;
             iter++;
@@ -1331,15 +1365,21 @@ private:
 
     pair<int64_t, int64_t> GetSeekPosBySsIndex(int32_t index)
     {
-        return GetSeekPosByMts(CalcSnapshotMts(index));
+        auto ptsPair = GetSeekPosByMts(CalcSnapshotMts(index));
+        if (index == m_vidMaxIndex && ptsPair.first == INT64_MAX && ptsPair.second == INT64_MAX)
+            ptsPair.first = m_hSeekPoints->back();
+        return ptsPair;
     }
 
     pair<int32_t, int32_t> CalcSsIndexPairFromPtsPair(const pair<int64_t, int64_t>& ptsPair)
     {
         int64_t mts0 = CvtVidPtsToMts(ptsPair.first);
-        int64_t mts1 = CvtVidPtsToMts(ptsPair.second);
-        int32_t idx0 = (int32_t)ceil((double)(mts0-m_vidfrmIntvMtsHalf)/m_ssIntvMts);
-        int32_t idx1 = (int32_t)ceil((double)(mts1-m_vidfrmIntvMtsHalf)/m_ssIntvMts);
+        int32_t idx0 = (int32_t)ceil((double)(ptsPair.first-m_vidfrmIntvPtsHalf)/m_ssIntvPts);
+        int32_t idx1;
+        if (ptsPair.second == INT64_MAX)
+            idx1 = m_vidMaxIndex+1;
+        else
+            idx1 = (int32_t)ceil((double)(ptsPair.second-m_vidfrmIntvPtsHalf)/m_ssIntvPts);
         if (idx1 == idx0) idx1++;
         return { idx0, idx1 };
     }
@@ -1478,14 +1518,25 @@ private:
     GopDecodeTaskHolder FindNextDecoderTask()
     {
         lock_guard<mutex> lk(m_goptskListReadLocks[1]);
-        GopDecodeTaskHolder nxttsk = nullptr;
-        for (auto& tsk : m_goptskList)
-            if (!tsk->cancel && tsk->demuxing && !tsk->decoding)
+        GopDecodeTaskHolder candidateTask = nullptr;
+        int32_t shortestDistanceToViewWnd = INT32_MAX;
+        for (auto& task : m_goptskList)
+        {
+            if (!task->cancel && task->demuxing && !task->decoding)
             {
-                nxttsk = tsk;
-                break;
+                if (task->IsInView())
+                {
+                    candidateTask = task;
+                    break;
+                }
+                else if (shortestDistanceToViewWnd > task->DistanceToViewWnd())
+                {
+                    candidateTask = task;
+                    shortestDistanceToViewWnd = task->DistanceToViewWnd();
+                }
             }
-        return nxttsk;
+        }
+        return candidateTask;
     }
 
     GopDecodeTaskHolder FindNextSsUpdateTask()
@@ -1501,61 +1552,52 @@ private:
         return nxttsk;
     }
 
-    bool EnqueueSnapshotAVFrame(AVFrame* frm, uint32_t ssIdx)
+    bool EnqueueSnapshotAVFrame(GopDecodeTaskHolder ssGopTask, AVFrame* frm, int32_t ssIdx)
     {
-        GopDecodeTaskHolder goptask;
         {
             lock_guard<mutex> lk(m_goptskListReadLocks[0]);
-            auto iter = find_if(m_goptskList.begin(), m_goptskList.end(), [ssIdx] (const GopDecodeTaskHolder& task) {
-                return ssIdx >= task->TaskRange().SsIdx().first && ssIdx < task->TaskRange().SsIdx().second;
-            });
-            if (iter != m_goptskList.end())
-                goptask = *iter;
-        }
-        if (goptask)
-        {
-            Snapshot ss;
-            ss.index = ssIdx;
-            ss.avfrm = av_frame_clone(frm);
-            if (!ss.avfrm)
-            {
-                m_logger->Log(Error) << "FAILED to invoke 'av_frame_clone()' to allocate new AVFrame for SS!" << endl;
+            auto iter = find(m_goptskList.begin(), m_goptskList.end(), ssGopTask);
+            if (iter == m_goptskList.end())
                 return false;
-            }
-            // m_logger->Log(DEBUG) << "Adding SS#" << ssIdx << "." << endl;
-            if (goptask->ssAry.empty())
-            {
-                goptask->ssAry.push_back(ss);
-                goptask->ssfrmCnt++;
-                m_pendingVidfrmCnt++;
-            }
-            else
-            {
-                auto ssRvsIter = find_if(goptask->ssAry.rbegin(), goptask->ssAry.rend(), [ssIdx] (const Snapshot& ss) {
-                    return ss.index <= ssIdx;
-                });
-                if (ssRvsIter != goptask->ssAry.rend() && ssRvsIter->index == ssIdx)
-                {
-                    m_logger->Log(DEBUG) << "Found duplicated SS#" << ssIdx << ", dropping this SS. pts=" << frm->pts
-                        << ", t=" << MillisecToString(CvtVidPtsToMts(frm->pts)) << "." << endl;
-                    if (ss.avfrm)
-                        av_frame_free(&ss.avfrm);
-                }
-                else
-                {
-                    auto ssFwdIter = ssRvsIter.base();
-                    goptask->ssAry.insert(ssFwdIter, ss);
-                    goptask->ssfrmCnt++;
-                    m_pendingVidfrmCnt++;
-                }
-            }
-            return true;
+        }
+
+        Snapshot ss;
+        ss.index = ssIdx;
+        ss.avfrm = av_frame_clone(frm);
+        if (!ss.avfrm)
+        {
+            m_logger->Log(Error) << "FAILED to invoke 'av_frame_clone()' to allocate new AVFrame for SS!" << endl;
+            return false;
+        }
+
+        // m_logger->Log(DEBUG) << "Adding SS#" << ssIdx << "." << endl;
+        if (ssGopTask->ssAry.empty())
+        {
+            ssGopTask->ssAry.push_back(ss);
+            ssGopTask->ssfrmCnt++;
+            m_pendingVidfrmCnt++;
         }
         else
         {
-            m_logger->Log(DEBUG) << "Dropping SS#" << ssIdx << " due to no matching task is found." << endl;
+            auto ssRvsIter = find_if(ssGopTask->ssAry.rbegin(), ssGopTask->ssAry.rend(), [ssIdx] (const Snapshot& ss) {
+                return ss.index <= ssIdx;
+            });
+            if (ssRvsIter != ssGopTask->ssAry.rend() && ssRvsIter->index == ssIdx)
+            {
+                m_logger->Log(DEBUG) << "Found duplicated SS#" << ssIdx << ", dropping this SS. pts=" << frm->pts
+                    << ", t=" << MillisecToString(CvtVidPtsToMts(frm->pts)) << "." << endl;
+                if (ss.avfrm)
+                    av_frame_free(&ss.avfrm);
+            }
+            else
+            {
+                auto ssFwdIter = ssRvsIter.base();
+                ssGopTask->ssAry.insert(ssFwdIter, ss);
+                ssGopTask->ssfrmCnt++;
+                m_pendingVidfrmCnt++;
+            }
         }
-        return false;
+        return true;
     }
 
     class Viewer_Impl : public Viewer
@@ -1565,7 +1607,7 @@ private:
             : m_owner(owner)
         {
             m_logger = owner->m_logger;
-            UpdateSnapwnd(wndpos);
+            UpdateSnapwnd(wndpos, true);
         }
 
         bool Seek(double pos) override
@@ -1595,6 +1637,11 @@ private:
             return m_owner->ReleaseViewer(this);
         }
 
+        MediaParserHolder GetMediaParser() const override
+        {
+            return m_owner->GetMediaParser();
+        }
+
         string GetError() const override
         {
             return m_owner->GetError();
@@ -1620,7 +1667,7 @@ private:
                     img->mTextureHolder = TextureHolder(new ImTextureID(0), [this] (ImTextureID* pTid) {
                         if (*pTid)
                         {
-                            GetMediaSnapshotLogger()->Log(VERBOSE) << "[3]\t\t\treleasing tid=" << *pTid << endl;
+                            GetSnapshotGeneratorLogger()->Log(VERBOSE) << "[3]\t\t\treleasing tid=" << *pTid << endl;
                             ImGui::ImDestroyTexture(*pTid);
                         }
                         delete pTid;
@@ -1642,7 +1689,7 @@ private:
             lock_guard<mutex> lk(m_taskRangeLock);
             list<GopDecodeTask::Range> taskRanges(m_taskRanges);
             m_taskRangeChanged = false;
-            return move(taskRanges);
+            return std::move(taskRanges);
         }
 
         void UpdateSnapwnd(double wndpos, bool force = false)
@@ -1650,7 +1697,8 @@ private:
             SnapWindow snapwnd = m_owner->CreateSnapWindow(wndpos);
             list<GopDecodeTask::Range> taskRanges;
             bool taskRangeChanged = false;
-            if ((force || snapwnd.cacheIdx0 != m_snapwnd.cacheIdx0) && (snapwnd.seekPos00 >= 0 || snapwnd.seekPos10 >= 0))
+            if ((force || snapwnd.viewIdx0 != m_snapwnd.viewIdx0 || snapwnd.viewIdx1 != m_snapwnd.viewIdx1) &&
+                (snapwnd.seekPos00 != INT64_MIN || snapwnd.seekPos10 != INT64_MIN))
             {
                 int32_t buildIdx0 = snapwnd.cacheIdx0 >= 0 ? snapwnd.cacheIdx0 : 0;
                 int32_t buildIdx1 = snapwnd.cacheIdx1 <= m_owner->m_vidMaxIndex ? snapwnd.cacheIdx1 : m_owner->m_vidMaxIndex;
@@ -1659,6 +1707,13 @@ private:
                 {
                     auto ptsPair = m_owner->GetSeekPosBySsIndex(buildIdx0);
                     auto ssIdxPair = m_owner->CalcSsIndexPairFromPtsPair(ptsPair);
+                    if (ssIdxPair.second <= buildIdx0)
+                    {
+                        m_logger->Log(WARN) << "Snap window DOESN'T PROCEED! 'buildIdx0'(" << buildIdx0 << ") is NOT INCLUDED in the next 'ssIdxPair'["
+                            << ssIdxPair.first << ", " << ssIdxPair.second << ")." << endl;
+                        buildIdx0++;
+                        continue;
+                    }
                     bool isInView = (snapwnd.IsInView(ssIdxPair.first) && m_owner->IsSsIdxValid(ssIdxPair.first)) ||
                                     (snapwnd.IsInView(ssIdxPair.second) && m_owner->IsSsIdxValid(ssIdxPair.second));
                     int32_t distanceToViewWnd = isInView ? 0 : (ssIdxPair.second <= snapwnd.viewIdx0 ?
@@ -1669,7 +1724,7 @@ private:
                 }
                 taskRangeChanged = true;
             }
-            else if (snapwnd.seekPos00 < 0 && snapwnd.seekPos10 < 0 && !m_taskRanges.empty())
+            else if (snapwnd.seekPos00 == INT64_MIN && snapwnd.seekPos10 == INT64_MIN && !m_taskRanges.empty())
             {
                 taskRangeChanged = true;
             }
@@ -1678,7 +1733,7 @@ private:
                 m_snapwnd = snapwnd;
                 m_logger->Log(DEBUG) << ">>>>> Snapwnd updated: { wndpos=" << snapwnd.wndpos
                     << ", viewIdx=[" << snapwnd.viewIdx0 << ", " << snapwnd.viewIdx1
-                    << "], cacheIdx=[" << snapwnd.cacheIdx0 << ", " << snapwnd.cacheIdx1 << "] <<<<<<<" << endl;
+                    << "], cacheIdx=[" << snapwnd.cacheIdx0 << ", " << snapwnd.cacheIdx1 << "] } <<<<<<<" << endl;
             }
             if (taskRangeChanged)
             {
@@ -1740,13 +1795,15 @@ private:
     uint32_t m_vidMaxIndex;
     double m_snapWindowSize;
     double m_wndFrmCnt;
-    double m_vidfrmIntvMts;
-    double m_vidfrmIntvMtsHalf;
-    int64_t m_vidfrmIntvPts;
-    double m_ssIntvMts;
+    double m_vidfrmIntvMts{0};
+    double m_vidfrmIntvMtsHalf{0};
+    int64_t m_vidfrmIntvPts{0};
+    int64_t m_vidfrmIntvPtsHalf{0};
+    double m_ssIntvMts{0};
+    int64_t m_ssIntvPts{0};
     double m_cacheFactor{10.0};
     uint32_t m_maxCacheSize{0};
-    uint32_t m_prevWndCacheSize, m_postWndCacheSize;
+    uint32_t m_prevWndCacheSize;
     list<ViewerHolder> m_viewers;
     mutex m_viewerListLock;
     list<GopDecodeTaskHolder> m_goptskPrepareList;

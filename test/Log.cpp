@@ -8,8 +8,8 @@ using namespace std;
 #define IMGUI_DEFINE_MATH_OPERATORS
 #endif
 #include "imgui_internal.h"
+#include "imgui_extra_widget.h"
 
-#include "ImGuiToolkit.h"
 #include "Log.h"
 
 #define COLOR_NAVIGATOR 0.1f, 0.1f, 0.1f
@@ -71,21 +71,21 @@ struct AppLog
     {
         switch (type)
         {
-            case LOG_INFO:      ImGui::Text(ICON_FA5_INFO_CIRCLE); break;
-            case LOG_NOTIFY:    ImGui::Text(ICON_FA5_QUESTION_CIRCLE); break;
+            case LOG_INFO:      ImGui::Text(ICON_FA_CIRCLE_INFO); break;
+            case LOG_NOTIFY:    ImGui::Text(ICON_FA_CIRCLE_QUESTION); break;
             case LOG_DEBUG:
                 ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.f, 1.f, 0.f, 1.f));
-                ImGui::Text(ICON_FA5_CROSSHAIRS);
+                ImGui::Text(ICON_FA_CROSSHAIRS);
                 ImGui::PopStyleColor();
                 break;
             case LOG_WARNING:
                 ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 1.f, 0.f, 1.f));
-                ImGui::Text(ICON_FA5_EXCLAMATION_CIRCLE);
+                ImGui::Text(ICON_FA_CIRCLE_EXCLAMATION);
                 ImGui::PopStyleColor();
                 break;
             case LOG_ERROR:
                 ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 0.f, 0.f, 1.f));
-                ImGui::Text(ICON_FA5_TIMES_CIRCLE);
+                ImGui::Text(ICON_FA_CIRCLE_XMARK);
                 ImGui::PopStyleColor();
                 break;
             default: break;
@@ -107,11 +107,11 @@ struct AppLog
         //  window
         ImGui::SameLine(0, 0);
         static bool numbering = true;
-        ImGuiToolkit::ButtonToggle( ICON_FA5_SORT_NUMERIC_DOWN, &numbering );
+        ImGui::ToggleButton(ICON_FA_SORT_DOWN, &numbering);
         ImGui::SameLine();
-        bool clear = ImGui::Button( ICON_FA5_BACKSPACE " Clear");
+        bool clear = ImGui::Button( ICON_FA_BACKWARD " Clear");
         ImGui::SameLine();
-        bool copy = ImGui::Button( ICON_FA5_COPY " Copy");
+        bool copy = ImGui::Button( ICON_FA_COPY " Copy");
         ImGui::SameLine();
         Filter.Draw("Filter", -60.0f);
 
@@ -128,7 +128,6 @@ struct AppLog
         if (copy)
             ImGui::LogToClipboard();
 
-        ImGuiToolkit::PushFont(ImGuiToolkit::FONT_MONO);
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
 
         mtx.lock();
@@ -191,7 +190,6 @@ struct AppLog
         mtx.unlock();
 
         ImGui::PopStyleVar();
-        ImGui::PopFont();
 
         // Auto scroll
         if (ImGui::GetScrollY() >= ImGui::GetScrollMaxY())
@@ -294,7 +292,7 @@ void Log::Error(const char* fmt, ...)
 void Log::ShowLogWindow(bool* p_open)
 {
     ImGui::SetNextWindowSize(ImVec2(700, 600), ImGuiCond_FirstUseEver);
-    logs.Draw( ICON_FA5_LIST_UL " Logs", p_open);
+    logs.Draw( ICON_FA_LIST_UL " Logs", p_open);
 }
 
 void Log::Render(bool showWarnings, bool show_notifies, bool show_errors)
@@ -315,7 +313,7 @@ void Log::Render(bool showWarnings, bool show_notifies, bool show_errors)
         float height = ImGui::GetTextLineHeightWithSpacing() * notifications.size();
         float y = -height + std::min( notifications_timeout * height * 10.f, height );
 
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 3.0);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 3.0f);
         ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(COLOR_NAVIGATOR, 1.f));
         ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(COLOR_NAVIGATOR, 1.f));
 
@@ -326,7 +324,7 @@ void Log::Render(bool showWarnings, bool show_notifies, bool show_errors)
         {
             ImGui::PushTextWrapPos(ImGui::GetCursorPos().x + width);
             for (list<string>::iterator it=notifications.begin(); it != notifications.end(); ++it) {
-                ImGui::Text( ICON_FA5_INFO "  %s\n", (*it).c_str());
+                ImGui::Text( ICON_FA_INFO "  %s\n", (*it).c_str());
             }
             ImGui::PopTextWrapPos();
 
@@ -346,7 +344,6 @@ void Log::Render(bool showWarnings, bool show_notifies, bool show_errors)
         ImGui::OpenPopup("Warning##log_warning");
         if (ImGui::BeginPopupModal("Warning##log_warning", NULL, ImGuiWindowFlags_AlwaysAutoResize))
         {
-            //ImGuiToolkit::Icon(9, 4);
             ImGui::SameLine(0, 10);
             ImGui::SetNextItemWidth(width);
             ImGui::TextColored(ImVec4(1.0f,0.6f,0.0f,1.0f), "%zu error(s) occured.\n\n", warnings.size());

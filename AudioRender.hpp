@@ -15,6 +15,7 @@ struct AudioRender
     {
         virtual uint32_t Read(uint8_t* buff, uint32_t buffSize, bool blocking = false) = 0;
         virtual void Flush() = 0;
+        virtual bool GetTimestampMs(int64_t& ts) = 0;
     };
 
     virtual bool Initialize() = 0;
@@ -23,6 +24,7 @@ struct AudioRender
     virtual bool Pause() = 0;
     virtual bool Resume() = 0;
     virtual void Flush() = 0;
+    virtual uint32_t GetBufferedDataSize() = 0;
 
     virtual std::string GetError() const = 0;
 };

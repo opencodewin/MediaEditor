@@ -1,63 +1,12 @@
 #include "MediaTimeline.h"
 #include "MediaInfo.h"
 #include <imgui_helper.h>
+#include <imgui_extra_widget.h>
+#include <implot.h>
 #include <cmath>
 #include <sstream>
 #include <iomanip>
 #include "Logger.h"
-
-static std::string MillisecToString(int64_t millisec, int show_millisec = 0)
-{
-    std::ostringstream oss;
-    if (millisec < 0)
-    {
-        oss << "-";
-        millisec = -millisec;
-    }
-    uint64_t t = (uint64_t) millisec;
-    uint32_t milli = (uint32_t)(t%1000); t /= 1000;
-    uint32_t sec = (uint32_t)(t%60); t /= 60;
-    uint32_t min = (uint32_t)(t%60); t /= 60;
-    uint32_t hour = (uint32_t)t;
-    if (hour > 0)
-    {
-        oss << std::setfill('0') << std::setw(2) << hour << ':'
-            << std::setw(2) << min << ':'
-            << std::setw(2) << sec;
-        if (show_millisec == 3)
-            oss << '.' << std::setw(3) << milli;
-        else if (show_millisec == 2)
-            oss << '.' << std::setw(2) << milli / 10;
-        else if (show_millisec == 1)
-            oss << '.' << std::setw(1) << milli / 100;
-    }
-    else
-    {
-        oss << std::setfill('0') << std::setw(2) << min << ':'
-            << std::setw(2) << sec;
-        if (show_millisec == 3)
-            oss << '.' << std::setw(3) << milli;
-        else if (show_millisec == 2)
-            oss << '.' << std::setw(2) << milli / 10;
-        else if (show_millisec == 1)
-            oss << '.' << std::setw(1) << milli / 100;
-    }
-    return oss.str();
-}
-
-static bool ExpendButton(ImDrawList *draw_list, ImVec2 pos, bool expand = true)
-{
-    ImGuiIO &io = ImGui::GetIO();
-    ImRect delRect(pos, ImVec2(pos.x + 16, pos.y + 16));
-    bool overDel = delRect.Contains(io.MousePos);
-    int delColor = IM_COL32_WHITE;
-    float midy = pos.y + 16 / 2 - 0.5f;
-    float midx = pos.x + 16 / 2 - 0.5f;
-    draw_list->AddRect(delRect.Min, delRect.Max, delColor, 4);
-    draw_list->AddLine(ImVec2(delRect.Min.x + 3, midy), ImVec2(delRect.Max.x - 4, midy), delColor, 2);
-    if (expand) draw_list->AddLine(ImVec2(midx, delRect.Min.y + 3), ImVec2(midx, delRect.Max.y - 4), delColor, 2);
-    return overDel;
-}
 
 static bool TimelineButton(ImDrawList *draw_list, const char * label, ImVec2 pos, ImVec2 size, std::string tooltips = "", ImVec4 hover_color = ImVec4(0.5f, 0.5f, 0.75f, 1.0f))
 {
@@ -103,12 +52,12 @@ static void RenderMouseCursor(const char* mouse_cursor, ImVec2 offset = ImVec2(0
         auto& buf = draw_list->VtxBuffer;
         float s = sin(rad), c = cos(rad);
         for (int i = rotation_start_index; i < buf.Size; i++)
-		    l = ImMin(l, buf[i].pos), u = ImMax(u, buf[i].pos);
+            l = ImMin(l, buf[i].pos), u = ImMax(u, buf[i].pos);
         ImVec2 center = ImVec2((l.x + u.x) / 2, (l.y + u.y) / 2);
-	    center = ImRotate(center, s, c) - center;
+        center = ImRotate(center, s, c) - center;
         
         for (int i = rotation_start_index; i < buf.Size; i++)
-		    buf[i].pos = ImRotate(buf[i].pos, s, c) - center;
+            buf[i].pos = ImRotate(buf[i].pos, s, c) - center;
     }
 }
 
@@ -157,7 +106,7 @@ namespace MediaTimeline
 /***********************************************************************************************************
  * MediaItem Struct Member Functions
  ***********************************************************************************************************/
-MediaItem::MediaItem(const std::string& name, const std::string& path, MEDIA_TYPE type, void* handle)
+MediaItem::MediaItem(const std::string& name, const std::string& path, uint32_t type, void* handle)
 {
     TimeLine * timeline = (TimeLine *)handle;
     mID = timeline ? timeline->m_IDGenerator.GenerateID() : ImGui::get_current_time_usec();
@@ -165,6 +114,10 @@ MediaItem::MediaItem(const std::string& name, const std::string& path, MEDIA_TYP
     mPath = path;
     mMediaType = type;
     mMediaOverview = CreateMediaOverview();
+    if (timeline)
+    {
+        mMediaOverview->EnableHwAccel(timeline->mHardwareCodec);
+    }
     if (!path.empty() && mMediaOverview)
     {
         mMediaOverview->SetSnapshotResizeFactor(0.1, 0.1);
@@ -173,10 +126,17 @@ MediaItem::MediaItem(const std::string& name, const std::string& path, MEDIA_TYP
     if (mMediaOverview && mMediaOverview->IsOpened())
     {
         mStart = 0;
-        if (mMediaOverview->HasVideo() && type != MEDIA_PICTURE)
+        if (mMediaOverview->HasVideo())
         {
-            mMediaOverview->GetMediaParser()->EnableParseInfo(MediaParser::VIDEO_SEEK_POINTS);
-            mEnd = mMediaOverview->GetVideoDuration();
+            if (type == MEDIA_SUBTYPE_VIDEO_IMAGE)
+            {
+                mEnd = 5000;
+            }
+            else
+            {
+                mMediaOverview->GetMediaParser()->EnableParseInfo(MediaParser::VIDEO_SEEK_POINTS);
+                mEnd = mMediaOverview->GetVideoDuration();
+            }
         }
         else if (mMediaOverview->HasAudio())
         {
@@ -184,7 +144,6 @@ MediaItem::MediaItem(const std::string& name, const std::string& path, MEDIA_TYP
         }
         else
         {
-            // image or text? 
             mEnd = 5000;
         }
     }
@@ -222,39 +181,6 @@ void MediaItem::UpdateThumbnail()
         }
     }
 }
-
-SnapshotGeneratorHolder MediaItem::GetSnapshotGenerator()
-{
-    if (mMediaType == MEDIA_VIDEO && !mSsGen && mMediaOverview && mMediaOverview->IsOpened())
-    {
-        mSsGen = CreateSnapshotGenerator();
-        mSsGen->Open(mMediaOverview->GetMediaParser());
-        mSsGen->SetSnapshotResizeFactor(0.1, 0.1);
-        mSsGen->SetCacheFactor(9);
-        ConfigSnapshot(mViewWndDur, mPixPerMs);
-    }
-    return mSsGen;
-}
-
-void MediaItem::ConfigSnapshot(int64_t viewWndDur, float pixPerMs)
-{
-    mViewWndDur = viewWndDur;
-    mPixPerMs = pixPerMs;
-    if (mSsGen)
-    {
-        const MediaInfo::VideoStream* video_stream = mSsGen->GetVideoStream();
-        float snapHeight = DEFAULT_VIDEO_TRACK_HEIGHT;  // TODO: video clip UI height is hard coded here, should be fixed later (wyvern)
-        MediaInfo::Ratio displayAspectRatio = {
-            (int32_t)(video_stream->width * video_stream->sampleAspectRatio.num), (int32_t)(video_stream->height * video_stream->sampleAspectRatio.den) };
-        float snapWidth = snapHeight * displayAspectRatio.num / displayAspectRatio.den;
-        double windowSize = (double)viewWndDur / 1000;
-        if (windowSize > video_stream->duration)
-            windowSize = video_stream->duration;
-        double snapsInViewWindow = std::max((float)((double)pixPerMs*windowSize * 1000 / snapWidth), 1.f);
-        if (!mSsGen->ConfigSnapWindow(windowSize, snapsInViewWindow))
-            throw std::runtime_error(mSsGen->GetError());
-    }
-}
 } //namespace MediaTimeline
 
 namespace MediaTimeline
@@ -272,6 +198,10 @@ Clip::Clip(int64_t start, int64_t end, int64_t id, MediaParserHolder mediaParser
     mLength = end - start;
     mHandle = handle;
     mMediaParser = mediaParser;
+    mFilterKeyPoints.SetMin({0.f, 0.f});
+    mFilterKeyPoints.SetMax(ImVec2(mLength, 1.f), true);
+    mAttributeKeyPoints.SetMin({0.f, 0.f});
+    mAttributeKeyPoints.SetMax(ImVec2(mLength, 1.f), true);
 }
 
 Clip::~Clip()
@@ -325,11 +255,35 @@ void Clip::Load(Clip * clip, const imgui_json::value& value)
         auto& val = value["Editing"];
         if (val.is_boolean()) clip->bEditing = val.get<imgui_json::boolean>();
     }
+    if (value.contains("Path"))
+    {
+        auto& val = value["Path"];
+        if (val.is_string()) clip->mPath = val.get<imgui_json::string>();
+    }
+    if (value.contains("Name"))
+    {
+        auto& val = value["Name"];
+        if (val.is_string()) clip->mName = val.get<imgui_json::string>();
+    }
     // load filter bp
     if (value.contains("FilterBP"))
     {
         auto& val = value["FilterBP"];
         if (val.is_object()) clip->mFilterBP = val;
+    }
+
+    // load filter curve
+    if (value.contains("FilterKeyPoint"))
+    {
+        auto& keypoint = value["FilterKeyPoint"];
+        clip->mFilterKeyPoints.Load(keypoint);
+    }
+
+    // load attribute curve
+    if (value.contains("AttributeKeyPoint"))
+    {
+        auto& keypoint = value["AttributeKeyPoint"];
+        clip->mAttributeKeyPoints.Load(keypoint);
     }
 }
 
@@ -354,6 +308,16 @@ void Clip::Save(imgui_json::value& value)
     {
         value["FilterBP"] = mFilterBP;
     }
+
+    // save Filter curve setting
+    imgui_json::value filter_keypoint;
+    mFilterKeyPoints.Save(filter_keypoint);
+    value["FilterKeyPoint"] = filter_keypoint;
+
+    // save Attribute curve setting
+    imgui_json::value attribute_keypoint;
+    mAttributeKeyPoints.Save(attribute_keypoint);
+    value["AttributeKeyPoint"] = attribute_keypoint;
 }
 
 int64_t Clip::Cropping(int64_t diff, int type)
@@ -363,13 +327,13 @@ int64_t Clip::Cropping(int64_t diff, int type)
     if (!timeline)
         return new_diff;
     auto track = timeline->FindTrackByClipID(mID);
-    if (!track)
+    if (!track || track->mLocked)
         return new_diff;
     float frame_duration = (timeline->mFrameRate.den > 0 && timeline->mFrameRate.num > 0) ? timeline->mFrameRate.den * 1000.0 / timeline->mFrameRate.num : 40;
     if (type == 0)
     {
         // cropping start
-        if (mType == MEDIA_VIDEO || mType == MEDIA_AUDIO)
+        if ((IS_VIDEO(mType) && mType != MEDIA_SUBTYPE_VIDEO_IMAGE) || IS_AUDIO(mType))
         {
             // audio video stream have length limit
             if (mStart + diff < mEnd - ceil(frame_duration) && mStart + diff >= timeline->mStart)
@@ -412,7 +376,7 @@ int64_t Clip::Cropping(int64_t diff, int type)
     else
     {
         // cropping end
-        if (mType == MEDIA_VIDEO || mType == MEDIA_AUDIO)
+        if ((IS_VIDEO(mType) && mType != MEDIA_SUBTYPE_VIDEO_IMAGE) || IS_AUDIO(mType))
         {
             // audio video stream have length limit
             if (mEnd + diff > mStart + ceil(frame_duration))
@@ -452,6 +416,37 @@ int64_t Clip::Cropping(int64_t diff, int type)
             }
         }
     }
+    
+    if (timeline->mVidFilterClip && timeline->mVidFilterClip->mID == mID)
+    {
+        timeline->mVidFilterClip->mStart = mStart;
+        timeline->mVidFilterClip->mEnd = mEnd;
+        if (timeline->mVidFilterClip->mFilter)
+        {
+            timeline->mVidFilterClip->mFilter->mKeyPoints.SetRangeX(mStart, mEnd, true);
+            mFilterKeyPoints = timeline->mVidFilterClip->mFilter->mKeyPoints;
+        }
+        if (timeline->mVidFilterClip->mAttribute)
+        {
+            timeline->mVidFilterClip->mAttribute->GetKeyPoint()->SetRangeX(mStart, mEnd, true);
+            mAttributeKeyPoints = *timeline->mVidFilterClip->mAttribute->GetKeyPoint();
+        }
+    }
+    else if (timeline->mAudFilterClip && timeline->mAudFilterClip->mID == mID)
+    {
+        timeline->mAudFilterClip->mStart = mStart;
+        timeline->mAudFilterClip->mEnd = mEnd;
+        if (timeline->mAudFilterClip->mFilter)
+        {
+            timeline->mAudFilterClip->mFilter->mKeyPoints.SetRangeX(mStart, mEnd, true);
+            mFilterKeyPoints = timeline->mAudFilterClip->mFilter->mKeyPoints;
+        }
+    }
+    else
+    {
+        mFilterKeyPoints.SetRangeX(mStart, mEnd, true);
+        mAttributeKeyPoints.SetRangeX(mStart, mEnd, true);
+    }
     track->Update();
     return new_diff;
 }
@@ -462,7 +457,7 @@ void Clip::Cutting(int64_t pos)
     if (!timeline)
         return;
     auto track = timeline->FindTrackByClipID(mID);
-    if (!track)
+    if (!track || track->mLocked)
         return;
     
     // calculate new pos
@@ -472,56 +467,149 @@ void Clip::Cutting(int64_t pos)
     int64_t new_start_offset = mStartOffset + (pos - mStart);
     // create new clip base on current clip
     Clip * new_clip = nullptr;
-    switch (mType)
+    if (IS_VIDEO(mType))
     {
-        case MEDIA_VIDEO:
+        if (mType == MEDIA_SUBTYPE_VIDEO_IMAGE)
+        {
+            VideoClip* imgclip = dynamic_cast<VideoClip*>(this);
+            auto new_image_clip = new VideoClip(mStart, mEnd, mMediaID, mName, imgclip->mOverview, timeline);
+            new_clip = new_image_clip;
+            new_start_offset = 0;
+            adj_end_offset = 0;
+        }
+        else
         {
             VideoClip* vidclip = dynamic_cast<VideoClip*>(this);
             SnapshotGenerator::ViewerHolder hViewer = vidclip->mSsViewer->CreateViewer();
             auto new_video_clip = new VideoClip(mStart, mEnd, mMediaID, mName, mMediaParser, hViewer, timeline);
             new_clip = new_video_clip;
         }
-        break;
-        case MEDIA_AUDIO:
-        {
-            AudioClip* audclip = dynamic_cast<AudioClip*>(this);
-            auto new_audio_clip = new AudioClip(mStart, mEnd, mMediaID, mName, audclip->mOverview, timeline);
-            new_clip = new_audio_clip;
-        }
-        break;
-        case MEDIA_PICTURE:
-        {
-            ImageClip* imgclip = dynamic_cast<ImageClip*>(this);
-            auto new_image_clip = new ImageClip(mStart, mEnd, mMediaID, mName, imgclip->mOverview, timeline);
-            new_clip = new_image_clip;
-            new_start_offset = 0;
-            adj_end_offset = 0;
-        }
-        break;
-        case MEDIA_TEXT:
-        {
-            auto new_text_clip = new TextClip(mStart, mEnd, mMediaID, mName, mMediaParser, timeline);
-            new_clip = new_text_clip;
-        }
-        break;
-        default:
-        break;
+    }
+    else if (IS_AUDIO(mType))
+    {
+        AudioClip* audclip = dynamic_cast<AudioClip*>(this);
+        auto new_audio_clip = new AudioClip(mStart, mEnd, mMediaID, mName, audclip->mOverview, timeline);
+        new_clip = new_audio_clip;
+    }
+    else if (IS_TEXT(mType))
+    {
+        TextClip* textClip = dynamic_cast<TextClip*>(this);
+        auto new_text_clip = new TextClip(new_start, mEnd, mMediaID, mName, textClip->mText, timeline);
+        new_text_clip->SetClipDefault(textClip);
+        new_text_clip->CreateClipHold(track);
+        new_clip = new_text_clip;
+        // adj current text clip time
+        track->mMttReader->ChangeClipTime(textClip->mClipHolder, mStart, adj_end - mStart);
     }
 
     // insert new clip into track and timeline
     if (new_clip)
     {
-        
         new_clip->mStart = new_start;
         new_clip->mStartOffset = new_start_offset;
         new_clip->mEnd = mEnd;
         new_clip->mEndOffset = mEndOffset;
+        new_clip->mFilterKeyPoints.SetRangeX(new_clip->mStart, new_clip->mEnd, true);
+        new_clip->mAttributeKeyPoints.SetRangeX(new_clip->mStart, new_clip->mEnd, true);
         mEnd = adj_end;
         mEndOffset = adj_end_offset;
         timeline->m_Clips.push_back(new_clip);
+
+        // update curve
+        if (timeline->mVidFilterClip && timeline->mVidFilterClip->mID == mID)
+        {
+            timeline->mVidFilterClip->mStart = mStart;
+            timeline->mVidFilterClip->mEnd = mEnd;
+            if (timeline->mVidFilterClip->mFilter)
+            {
+                timeline->mVidFilterClip->mFilter->mKeyPoints.SetRangeX(mStart, mEnd, true);
+                mFilterKeyPoints = timeline->mVidFilterClip->mFilter->mKeyPoints;
+            }
+            if (timeline->mVidFilterClip->mAttribute)
+            {
+                timeline->mVidFilterClip->mAttribute->GetKeyPoint()->SetRangeX(mStart, mEnd, true);
+                mAttributeKeyPoints = *timeline->mVidFilterClip->mAttribute->GetKeyPoint();
+            }
+        }
+        if (timeline->mAudFilterClip && timeline->mAudFilterClip->mID == mID)
+        {
+            timeline->mAudFilterClip->mStart = mStart;
+            timeline->mAudFilterClip->mEnd = mEnd;
+            if (timeline->mAudFilterClip->mFilter)
+            {
+                timeline->mAudFilterClip->mFilter->mKeyPoints.SetRangeX(mStart, mEnd, true);
+                mFilterKeyPoints = timeline->mAudFilterClip->mFilter->mKeyPoints;
+            }
+        }
+        else
+        {
+            mFilterKeyPoints.SetRangeX(mStart, mEnd, true);
+            mAttributeKeyPoints.SetRangeX(mStart, mEnd, true);
+        }
+
+        // need check overlap status and update overlap info on data layer(UI info will update on track update)
+        for (auto overlap : timeline->m_Overlaps)
+        {
+            if (overlap->m_Clip.first == mID || overlap->m_Clip.second == mID)
+            {
+                if (overlap->mStart >= new_clip->mStart && overlap->mEnd <= new_clip->mEnd)
+                {
+                    if (overlap->m_Clip.first == mID) overlap->m_Clip.first = new_clip->mID;
+                    if (overlap->m_Clip.second == mID) overlap->m_Clip.second = new_clip->mID;
+                }
+            }
+        }
+
+        // update timeline
         track->InsertClip(new_clip, pos);
         timeline->AddClipIntoGroup(new_clip, mGroupID);
-        timeline->Updata();
+        timeline->Update();
+
+        // sync this action to data layer
+        if (IS_VIDEO(mType))
+        {
+            DataLayer::VideoTrackHolder vidTrack = timeline->mMtvReader->GetTrackById(track->mID);
+            vidTrack->ChangeClipRange(mID, mStartOffset, mEndOffset);
+            DataLayer::VideoClipHolder thisVidClip = vidTrack->GetClipById(mID);
+            auto filter = dynamic_cast<BluePrintVideoFilter *>(thisVidClip->GetFilter().get());
+            if (filter) filter->SetKeyPoint(mFilterKeyPoints);
+            auto attribute = thisVidClip->GetTransformFilterPtr();
+            if (attribute) attribute->SetKeyPoint(mAttributeKeyPoints);
+            DataLayer::VideoClipHolder newVidClip = DataLayer::VideoClip::CreateVideoInstance(
+                new_clip->mID, thisVidClip->GetMediaParser(),
+                vidTrack->OutWidth(), vidTrack->OutHeight(), vidTrack->FrameRate(),
+                new_clip->mStart, new_clip->mStartOffset, new_clip->mEndOffset, new_clip->mStartOffset);
+            vidTrack->InsertClip(newVidClip);
+            timeline->UpdatePreview();
+        }
+        else if (IS_AUDIO(mType))
+        {
+            DataLayer::AudioTrackHolder audTrack = timeline->mMtaReader->GetTrackById(track->mID);
+            audTrack->ChangeClipRange(mID, mStartOffset, mEndOffset);
+            DataLayer::AudioClipHolder thisAudClip = audTrack->GetClipById(mID);
+            auto filter = dynamic_cast<BluePrintAudioFilter *>(thisAudClip->GetFilter().get());
+            if (filter) filter->SetKeyPoint(mFilterKeyPoints);
+            DataLayer::AudioClipHolder newAudClip = DataLayer::AudioClip::CreateAudioInstance(
+                new_clip->mID, thisAudClip->GetMediaParser(),
+                audTrack->OutChannels(), audTrack->OutSampleRate(),
+                new_clip->mStart, new_clip->mStartOffset, new_clip->mEndOffset);
+            audTrack->InsertClip(newAudClip);
+            timeline->mMtaReader->Refresh();
+        }
+        else if (IS_TEXT(mType))
+        {
+            DataLayer::SubtitleTrackHolder subTrack = timeline->mMtvReader->GetSubtitleTrackById(track->mID);
+            DataLayer::SubtitleClipHolder thisSubClip = subTrack->GetClipByTime(mStart);
+            subTrack->ChangeClipTime(thisSubClip, mStart, mEnd-mStart);
+            DataLayer::SubtitleClipHolder newSubClip = subTrack->NewClip(new_clip->mStart, new_clip->mEnd-new_clip->mStart);
+            newSubClip->SetText(thisSubClip->Text());
+            newSubClip->CloneStyle(thisSubClip);
+        }
+        else
+        {
+            Logger::Log(Logger::WARN) << "Unhandled 'CUTTING' action!" << std::endl;
+        }
+        timeline->SyncDataLayer();
     }
 }
 
@@ -536,8 +624,7 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
         return index;
     
     ImGuiIO &io = ImGui::GetIO();
-    const bool is_super_key_only = (io.KeyMods == ImGuiKeyModFlags_Super);
-    bool single = (ImGui::IsKeyDown(ImGuiKey_LeftSuper) || ImGui::IsKeyDown(ImGuiKey_RightSuper)) && is_super_key_only;
+    bool single = ImGui::IsKeyDown(ImGuiKey_LeftCtrl) && (io.KeyMods == ImGuiMod_Ctrl);
 
     int track_index = timeline->FindTrackIndexByClipID(mID);
     int64_t length = mEnd - mStart;
@@ -566,6 +653,19 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
         }
     }
 
+    // check all selected clip's lock status
+    for (auto clip : timeline->m_Clips)
+    {
+        if (clip->bSelected)
+        {
+            auto track = timeline->FindTrackByClipID(clip->mID);
+            if (track && track->mLocked)
+            {
+                return index;
+            }
+        }
+    }
+    
     // get all clip time march point
     std::vector<int64_t> selected_start_points;
     std::vector<int64_t> selected_end_points;
@@ -788,17 +888,62 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
         }
     }
     
+    auto moving_clip_keypoint = [&](Clip * clip)
+    {
+        if (timeline->mVidFilterClip && timeline->mVidFilterClip->mID == clip->mID)
+        {
+            timeline->mVidFilterClip->mStart = clip->mStart;
+            timeline->mVidFilterClip->mEnd = clip->mEnd;
+            if (timeline->mVidFilterClip->mFilter)
+            {
+                timeline->mVidFilterClip->mFilter->mKeyPoints.MoveTo(clip->mStart);
+                clip->mFilterKeyPoints = timeline->mVidFilterClip->mFilter->mKeyPoints;
+            }
+            if (timeline->mVidFilterClip->mAttribute)
+            {
+                timeline->mVidFilterClip->mAttribute->GetKeyPoint()->MoveTo(clip->mStart);
+                clip->mAttributeKeyPoints = *timeline->mVidFilterClip->mAttribute->GetKeyPoint();
+            }
+        }
+        if (timeline->mAudFilterClip && timeline->mAudFilterClip->mID == clip->mID)
+        {
+            timeline->mAudFilterClip->mStart = clip->mStart;
+            timeline->mAudFilterClip->mEnd = clip->mEnd;
+            if (timeline->mAudFilterClip->mFilter)
+            {
+                timeline->mAudFilterClip->mFilter->mKeyPoints.MoveTo(clip->mStart);
+                clip->mFilterKeyPoints = timeline->mAudFilterClip->mFilter->mKeyPoints;
+            }
+        }
+        else
+        {
+            clip->mFilterKeyPoints.MoveTo(clip->mStart);
+            clip->mAttributeKeyPoints.MoveTo(clip->mStart);
+        }
+    };
+
+    moving_clip_keypoint(this);
+
     // check clip is cross track
-    if (mouse_track == -2)
+    if (mouse_track == -2 && track->m_Clips.size() > 1)
     {
         index = timeline->NewTrack("", mType, track->mExpanded);
+        if (mType == MEDIA_TEXT)
+        {
+            MediaTrack * newTrack = timeline->m_Tracks[index];
+            newTrack->mMttReader = timeline->mMtvReader->NewEmptySubtitleTrack(newTrack->mID);
+            newTrack->mMttReader->SetFont(timeline->mFontName);
+            newTrack->mMttReader->SetFrameSize(timeline->mWidth, timeline->mHeight);
+            newTrack->mMttReader->EnableFullSizeOutput(false);
+        }
         timeline->MovingClip(mID, track_index, index);
     }
     else if (mouse_track >= 0 && mouse_track != track_index)
     {
         MediaTrack * track = timeline->m_Tracks[mouse_track];
         auto media_type = track->mType;
-        if (mType == media_type)
+        //if (mType == media_type)
+        if (IS_SAME_TYPE(mType, media_type))
         {
             // check clip is suitable for moving cross track base on overlap status
             bool can_moving = true;
@@ -829,10 +974,11 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
                 int64_t clip_length = clip->mEnd - clip->mStart;
                 clip->mStart += new_diff;
                 clip->mEnd = clip->mStart + clip_length;
+                moving_clip_keypoint(clip);
             }
         }
     }
-    timeline->Updata();
+    timeline->Update();
     io.MouseDelta.x = new_diff;
     return index;
 }
@@ -847,7 +993,10 @@ bool Clip::isLinkedWith(Clip * clip)
 
     return false;
 }
+} // namespace MediaTimeline
 
+namespace MediaTimeline
+{
 // VideoClip Struct Member Functions
 VideoClip::VideoClip(int64_t start, int64_t end, int64_t id, std::string name, MediaParserHolder hParser, SnapshotGenerator::ViewerHolder hViewer, void* handle)
     : Clip(start, end, id, hParser, handle)
@@ -866,26 +1015,58 @@ VideoClip::VideoClip(int64_t start, int64_t end, int64_t id, std::string name, M
             hViewer->Release();
             return;
         }
+        mWidth = video_stream->width;
+        mHeight = video_stream->height;
+        mPath = info->url;
+    }
+}
+
+VideoClip::VideoClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle)
+    : Clip(start, end, id, overview->GetMediaParser(), handle), mOverview(overview)
+{
+    if (overview)
+    {
+        mType = MEDIA_SUBTYPE_VIDEO_IMAGE;
+        mName = name;
+        MediaInfo::InfoHolder info = overview->GetMediaParser()->GetMediaInfo();
+        const MediaInfo::VideoStream* video_stream = mOverview->GetVideoStream();
+        if (!info || !video_stream)
+        {
+            mOverview = nullptr;
+            return;
+        }
+        mWidth = video_stream->width;
+        mHeight = video_stream->height;
+        int _width = 0, _height = 0;
+        std::vector<ImGui::ImMat> snap_images;
+        if (mOverview->GetSnapshots(snap_images))
+        {
+            if (!snap_images.empty() && !snap_images[0].empty() && !mImgTexture)
+            {
+                ImMatToTexture(snap_images[0], mImgTexture);
+                _width = snap_images[0].w;
+                _height = snap_images[0].h;
+            }
+            if (mTrackHeight > 0 && _width > 0 && _height > 0)
+            {
+                mSnapHeight = mTrackHeight;
+                mSnapWidth = mTrackHeight * _width / _height;
+            }
+        }
+
         mPath = info->url;
     }
 }
 
 VideoClip::~VideoClip()
 {
-    mSsViewer->Release();
+    if (mSsViewer) mSsViewer->Release();
     for (auto& snap : mVideoSnapshots)
     {
         if (snap.texture) { ImGui::ImDestroyTexture(snap.texture); snap.texture = nullptr; }
     }
     mVideoSnapshots.clear();
-}
-
-void VideoClip::Seek()
-{
-}
-
-void VideoClip::Step(bool forward, int64_t step)
-{
+    if (mImgTexture) { ImGui::ImDestroyTexture(mImgTexture); mImgTexture = nullptr; }
 }
 
 Clip* VideoClip::Load(const imgui_json::value& value, void * handle)
@@ -908,8 +1089,24 @@ Clip* VideoClip::Load(const imgui_json::value& value, void * handle)
     if (item)
     {
         // media is in bank
-        SnapshotGenerator::ViewerHolder hViewer = item->GetSnapshotGenerator()->CreateViewer();
-        VideoClip * new_clip = new VideoClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview->GetMediaParser(), hViewer, handle);
+        VideoClip * new_clip = nullptr;
+        if (item->mMediaType == MEDIA_SUBTYPE_VIDEO_IMAGE)
+        {
+            new_clip = new VideoClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, handle);
+        }
+        else
+        {
+            SnapshotGenerator::ViewerHolder hViewer;
+            SnapshotGeneratorHolder hSsGen = timeline->GetSnapshotGenerator(item->mID);
+            if (!hSsGen)
+            {
+                // TODO::Dicky create media error, need show dummy clip
+                return nullptr;
+            }
+
+            hViewer = hSsGen->CreateViewer();
+            new_clip = new VideoClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview->GetMediaParser(), hViewer, handle);
+        }
         if (new_clip)
         {
             Clip::Load(new_clip, value);
@@ -923,6 +1120,61 @@ Clip* VideoClip::Load(const imgui_json::value& value, void * handle)
             {
                 auto& val = value["FrameRateDen"];
                 if (val.is_number()) new_clip->mClipFrameRate.den = val.get<imgui_json::number>();
+            }
+            if (value.contains("ScaleType"))
+            {
+                auto& val = value["ScaleType"];
+                if (val.is_number()) new_clip->mScaleType = (DataLayer::ScaleType)val.get<imgui_json::number>();
+            }
+            if (value.contains("ScaleH"))
+            {
+                auto& val = value["ScaleH"];
+                if (val.is_number()) new_clip->mScaleH = val.get<imgui_json::number>();
+            }
+            if (value.contains("ScaleV"))
+            {
+                auto& val = value["ScaleV"];
+                if (val.is_number()) new_clip->mScaleV = val.get<imgui_json::number>();
+            }
+            if (value.contains("KeepAspectRatio"))
+            {
+                auto& val = value["KeepAspectRatio"];
+                if (val.is_boolean()) new_clip->mKeepAspectRatio = val.get<imgui_json::boolean>();
+            }
+            if (value.contains("RotationAngle"))
+            {
+                auto& val = value["RotationAngle"];
+                if (val.is_number()) new_clip->mRotationAngle = val.get<imgui_json::number>();
+            }
+            if (value.contains("PositionOffsetH"))
+            {
+                auto& val = value["PositionOffsetH"];
+                if (val.is_number()) new_clip->mPositionOffsetH = val.get<imgui_json::number>();
+            }
+            if (value.contains("PositionOffsetV"))
+            {
+                auto& val = value["PositionOffsetV"];
+                if (val.is_number()) new_clip->mPositionOffsetV = val.get<imgui_json::number>();
+            }
+            if (value.contains("CropMarginL"))
+            {
+                auto& val = value["CropMarginL"];
+                if (val.is_number()) new_clip->mCropMarginL = val.get<imgui_json::number>();
+            }
+            if (value.contains("CropMarginT"))
+            {
+                auto& val = value["CropMarginT"];
+                if (val.is_number()) new_clip->mCropMarginT = val.get<imgui_json::number>();
+            }
+            if (value.contains("CropMarginR"))
+            {
+                auto& val = value["CropMarginR"];
+                if (val.is_number()) new_clip->mCropMarginR = val.get<imgui_json::number>();
+            }
+            if (value.contains("CropMarginB"))
+            {
+                auto& val = value["CropMarginB"];
+                if (val.is_number()) new_clip->mCropMarginB = val.get<imgui_json::number>();
             }
             return new_clip;
         }
@@ -955,54 +1207,87 @@ void VideoClip::SetViewWindowStart(int64_t millisec)
     mClipViewStartPos = mStartOffset;
     if (millisec > mStart)
         mClipViewStartPos += millisec-mStart;
-    if (!mSsViewer->GetSnapshots((double)mClipViewStartPos/1000, mSnapImages))
-        throw std::runtime_error(mSsViewer->GetError());
-    mSsViewer->UpdateSnapshotTexture(mSnapImages);
+    if (mType != MEDIA_SUBTYPE_VIDEO_IMAGE)
+    {
+        if (!mSsViewer->GetSnapshots((double)mClipViewStartPos/1000, mSnapImages))
+            throw std::runtime_error(mSsViewer->GetError());
+        mSsViewer->UpdateSnapshotTexture(mSnapImages);
+    }
 }
 
 void VideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect)
 {
-    ImVec2 snapLeftTop = leftTop;
-    float snapDispWidth;
-    GetMediaSnapshotLogger()->Log(Logger::DEBUG) << "[1]>>>>> Begin display snapshot" << std::endl;
-    for (int i = 0; i < mSnapImages.size(); i++)
+    if (mImgTexture)
     {
-        auto& img = mSnapImages[i];
-        ImVec2 uvMin(0, 0), uvMax(1, 1);
-        float snapDispWidth = img->mTimestampMs >= mClipViewStartPos ? mSnapWidth : mSnapWidth - (mClipViewStartPos - img->mTimestampMs) * mPixPerMs;
-        if (img->mTimestampMs < mClipViewStartPos)
+        int _width = ImGui::ImGetTextureWidth(mImgTexture);
+        int _height = ImGui::ImGetTextureHeight(mImgTexture);
+        if (_width > 0 && _height > 0)
         {
-            snapDispWidth = mSnapWidth - (mClipViewStartPos - img->mTimestampMs) * mPixPerMs;
-            uvMin.x = 1 - snapDispWidth / mSnapWidth;
+            int trackHeight = rightBottom.y - leftTop.y;
+            int snapHeight = trackHeight;
+            int snapWidth = trackHeight * _width / _height;
+            ImVec2 imgLeftTop = leftTop;
+            float snapDispWidth = snapWidth;
+            while (imgLeftTop.x < rightBottom.x)
+            {
+                ImVec2 uvMin{0, 0}, uvMax{1, 1};
+                if (snapDispWidth < snapWidth)
+                    uvMin.x = 1 - snapDispWidth / snapWidth;
+                if (imgLeftTop.x + snapDispWidth > rightBottom.x)
+                {
+                    uvMax.x = 1 - (imgLeftTop.x + snapDispWidth - rightBottom.x) / snapWidth;
+                    snapDispWidth = rightBottom.x - imgLeftTop.x;
+                }
+                drawList->AddImage(mImgTexture, imgLeftTop, {imgLeftTop.x + snapDispWidth, rightBottom.y}, uvMin, uvMax);
+                imgLeftTop.x += snapDispWidth;
+                snapDispWidth = snapWidth;
+            }
         }
-        if (snapDispWidth <= 0)
-            continue;
-        if (snapLeftTop.x+snapDispWidth >= rightBottom.x)
-        {
-            snapDispWidth = rightBottom.x - snapLeftTop.x;
-            uvMax.x = snapDispWidth / mSnapWidth;
-        }
-        if (img->mTextureReady)
-        {
-            ImTextureID tid = *(img->mTextureHolder);
-            GetMediaSnapshotLogger()->Log(Logger::DEBUG) << "[1]\t\t display tid=" << tid << std::endl;
-            drawList->AddImage(tid, snapLeftTop, {snapLeftTop.x + snapDispWidth, rightBottom.y}, uvMin, uvMax);
-        }
-        else
-        {
-            drawList->AddRectFilled(snapLeftTop, {snapLeftTop.x + snapDispWidth, rightBottom.y}, IM_COL32_BLACK);
-            auto center_pos = snapLeftTop + ImVec2(snapDispWidth, mSnapHeight) / 2;
-            ImVec4 color_main(1.0, 1.0, 1.0, 1.0);
-            ImVec4 color_back(0.5, 0.5, 0.5, 1.0);
-            ImGui::SetCursorScreenPos(center_pos - ImVec2(8, 8));
-            ImGui::LoadingIndicatorCircle("Running", 1.0f, &color_main, &color_back);
-            drawList->AddRect(snapLeftTop, {snapLeftTop.x + snapDispWidth, rightBottom.y}, COL_FRAME_RECT);
-        }
-        snapLeftTop.x += snapDispWidth;
-        if (snapLeftTop.x >= rightBottom.x)
-            break;
     }
-    GetMediaSnapshotLogger()->Log(Logger::DEBUG) << "[1]<<<<< End display snapshot" << std::endl;
+    else
+    {
+        ImVec2 snapLeftTop = leftTop;
+        float snapDispWidth;
+        GetSnapshotGeneratorLogger()->Log(Logger::DEBUG) << "[1]>>>>> Begin display snapshot" << std::endl;
+        for (int i = 0; i < mSnapImages.size(); i++)
+        {
+            auto& img = mSnapImages[i];
+            ImVec2 uvMin(0, 0), uvMax(1, 1);
+            float snapDispWidth = img->mTimestampMs >= mClipViewStartPos ? mSnapWidth : mSnapWidth - (mClipViewStartPos - img->mTimestampMs) * mPixPerMs;
+            if (img->mTimestampMs < mClipViewStartPos)
+            {
+                snapDispWidth = mSnapWidth - (mClipViewStartPos - img->mTimestampMs) * mPixPerMs;
+                uvMin.x = 1 - snapDispWidth / mSnapWidth;
+            }
+            if (snapDispWidth <= 0)
+                continue;
+            if (snapLeftTop.x+snapDispWidth >= rightBottom.x)
+            {
+                snapDispWidth = rightBottom.x - snapLeftTop.x;
+                uvMax.x = snapDispWidth / mSnapWidth;
+            }
+            if (img->mTextureReady)
+            {
+                ImTextureID tid = *(img->mTextureHolder);
+                GetSnapshotGeneratorLogger()->Log(Logger::DEBUG) << "[1]\t\t display tid=" << tid << std::endl;
+                drawList->AddImage(tid, snapLeftTop, {snapLeftTop.x + snapDispWidth, rightBottom.y}, uvMin, uvMax);
+            }
+            else
+            {
+                drawList->AddRectFilled(snapLeftTop, {snapLeftTop.x + snapDispWidth, rightBottom.y}, IM_COL32_BLACK);
+                auto center_pos = snapLeftTop + ImVec2(snapDispWidth, mSnapHeight) / 2;
+                ImVec4 color_main(1.0, 1.0, 1.0, 1.0);
+                ImVec4 color_back(0.5, 0.5, 0.5, 1.0);
+                ImGui::SetCursorScreenPos(center_pos - ImVec2(8, 8));
+                ImGui::LoadingIndicatorCircle("Running", 1.0f, &color_main, &color_back);
+                drawList->AddRect(snapLeftTop, {snapLeftTop.x + snapDispWidth, rightBottom.y}, COL_FRAME_RECT);
+            }
+            snapLeftTop.x += snapDispWidth;
+            if (snapLeftTop.x >= rightBottom.x)
+                break;
+        }
+        GetSnapshotGeneratorLogger()->Log(Logger::DEBUG) << "[1]<<<<< End display snapshot" << std::endl;
+    }
 }
 
 void VideoClip::CalcDisplayParams()
@@ -1026,13 +1311,31 @@ void VideoClip::Save(imgui_json::value& value)
     // save video clip info
     value["FrameRateNum"] = imgui_json::number(mClipFrameRate.num);
     value["FrameRateDen"] = imgui_json::number(mClipFrameRate.den);
-}
 
+    value["CropMarginL"] = imgui_json::number(mCropMarginL);
+    value["CropMarginT"] = imgui_json::number(mCropMarginT);
+    value["CropMarginR"] = imgui_json::number(mCropMarginR);
+    value["CropMarginB"] = imgui_json::number(mCropMarginB);
+
+    value["PositionOffsetH"] = imgui_json::number(mPositionOffsetH);
+    value["PositionOffsetV"] = imgui_json::number(mPositionOffsetV);
+
+    value["ScaleH"] = imgui_json::number(mScaleH);
+    value["ScaleV"] = imgui_json::number(mScaleV);
+    value["ScaleType"] = imgui_json::number(mScaleType);
+    value["KeepAspectRatio"] = imgui_json::boolean(mKeepAspectRatio);
+
+    value["RotationAngle"] = imgui_json::number(mRotationAngle);
+}
+} // namespace MediaTimeline
+
+namespace MediaTimeline
+{
 // AudioClip Struct Member Functions
 AudioClip::AudioClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle)
     : Clip(start, end, id, overview->GetMediaParser(), handle), mOverview(overview)
 {
-    if (handle && overview)
+    if (handle && mMediaParser)
     {
         mType = MEDIA_AUDIO;
         mName = name;
@@ -1051,19 +1354,6 @@ AudioClip::~AudioClip()
 {
 }
 
-void AudioClip::Seek()
-{
-}
-
-void AudioClip::Step(bool forward, int64_t step)
-{
-}
-
-bool AudioClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame)
-{
-    return false;
-}
-
 void AudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect)
 {
     TimeLine * timeline = (TimeLine *)mHandle;
@@ -1075,29 +1365,49 @@ void AudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
     if (mWaveform->pcm.size() > 0)
     {
         std::string id_string = "##Waveform@" + std::to_string(mID);
-        drawList->AddRectFilled(leftTop, rightBottom, IM_COL32(128, 128, 128, 128));
+        drawList->AddRectFilled(leftTop, rightBottom, IM_COL32(16, 16, 16, 255));
         drawList->AddRect(leftTop, rightBottom, IM_COL32_BLACK);
         float wave_range = fmax(fabs(mWaveform->minSample), fabs(mWaveform->maxSample));
         int sampleSize = mWaveform->pcm[0].size();
-        int64_t start_time = std::max(mStart - mStartOffset, timeline->firstTime);
-        int64_t end_time = std::min(mEnd + mEndOffset, timeline->lastTime);
-        int start_offset = (int)((double)(start_time - mStart - mStartOffset) / 1000.f / mWaveform->aggregateDuration);
+        int64_t start_time = std::max(mStart, timeline->firstTime);
+        int64_t end_time = std::min(mEnd, timeline->lastTime);
+        int start_offset = (int)((double)(mStartOffset) / 1000.f / mWaveform->aggregateDuration);
+        if (mStart < timeline->firstTime)
+            start_offset = (int)((double)(timeline->firstTime - mStart + mStartOffset) / 1000.f / mWaveform->aggregateDuration);
         start_offset = std::max(start_offset, 0);
         int window_length = (int)((double)(end_time - start_time) / 1000.f / mWaveform->aggregateDuration);
         window_length = std::min(window_length, sampleSize);
         ImVec2 customViewStart = ImVec2((start_time - timeline->firstTime) * timeline->msPixelWidthTarget + clipRect.Min.x, clipRect.Min.y);
         ImVec2 customViewEnd = ImVec2((end_time - timeline->firstTime)  * timeline->msPixelWidthTarget + clipRect.Min.x, clipRect.Max.y);
         auto window_size = customViewEnd - customViewStart;
-        if (window_size.x > 0)
+        if (window_size.x > 0 && mWaveform->pcm[0].size() > 0)
         {
             int sample_stride = window_length / window_size.x;
-            start_offset = start_offset / sample_stride * sample_stride;
-            drawList->PushClipRect(leftTop, rightBottom, true);
             ImGui::SetCursorScreenPos(customViewStart);
+            int min_zoom = ImMax(window_length >> 15, 16);
+            int zoom = ImMin(sample_stride, min_zoom);
+            start_offset = start_offset / zoom * zoom; // align start_offset
+            ImGui::PushClipRect(leftTop, rightBottom, true);
+#if 1
+            ImPlot::PushStyleVar(ImPlotStyleVar_PlotPadding, {0, 0});
+            ImPlot::PushStyleVar(ImPlotStyleVar_PlotBorderSize, 0.f);
+            ImPlot::PushStyleColor(ImPlotCol_PlotBg, {0, 0, 0, 0});
+            if (ImPlot::BeginPlot(id_string.c_str(), window_size, ImPlotFlags_CanvasOnly | ImPlotFlags_NoFrame | ImPlotFlags_NoInputs))
+            {
+                std::string plot_id = id_string + "_line";
+                ImPlot::SetupAxes(NULL, NULL, ImPlotAxisFlags_NoDecorations, ImPlotAxisFlags_NoDecorations);
+                ImPlot::SetupAxesLimits(0, window_length / zoom, -wave_range / 2, wave_range / 2, ImGuiCond_Always);
+                ImPlot::PlotLine(plot_id.c_str(), &mWaveform->pcm[0][start_offset], window_length / zoom, 1.0, 0.0, 0, 0, sizeof(float) * zoom);
+                ImPlot::EndPlot();
+            }
+            ImPlot::PopStyleColor();
+            ImPlot::PopStyleVar(2);
+#else
             ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(1.f, 1.f, 0.f, 1.0f));
-            ImGui::PlotLines(id_string.c_str(), &mWaveform->pcm[0][start_offset], window_size.x, 0, nullptr, -wave_range / 2, wave_range / 2, window_size, sizeof(float) * sample_stride, false);
+            ImGui::PlotLinesEx(id_string.c_str(), &mWaveform->pcm[0][start_offset], window_length / zoom, 0, nullptr, -wave_range / 2, wave_range / 2, window_size, sizeof(float) * zoom, false);
             ImGui::PopStyleColor();
             drawList->AddLine(ImVec2(leftTop.x, leftTop.y + draw_size.y / 2), ImVec2(rightBottom.x, leftTop.y + draw_size.y / 2), IM_COL32(255, 255, 255, 128));
+#endif
             drawList->PopClipRect();
         }        
     }
@@ -1160,166 +1470,20 @@ void AudioClip::Save(imgui_json::value& value)
     value["SampleRate"] = imgui_json::number(mAudioSampleRate);
     value["Format"] = imgui_json::number(mAudioFormat);
 }
+} // namespace MediaTimeline
 
-// ImageClip Struct Member Functions
-ImageClip::ImageClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle)
-    : Clip(start, end, id, overview->GetMediaParser(), handle), mOverview(overview)
+namespace MediaTimeline
 {
-    if (overview)
-    {
-        mType = MEDIA_PICTURE;
-        mName = name;
-        PrepareSnapImage();
-    }
-}
-
-ImageClip::~ImageClip()
-{
-    if (mImgTexture)
-        ImGui::ImDestroyTexture(mImgTexture);
-}
-
-void ImageClip::PrepareSnapImage()
-{
-    if (!mOverview->GetSnapshots(mSnapImages))
-    {
-        Logger::Log(Logger::Error) << mOverview->GetError() << std::endl;
-        return;
-    }
-    if (!mSnapImages.empty() && !mSnapImages[0].empty() && !mImgTexture)
-    {
-        ImMatToTexture(mSnapImages[0], mImgTexture);
-        mWidth = mSnapImages[0].w;
-        mHeight = mSnapImages[0].h;
-    }
-    if (mTrackHeight > 0 && mWidth > 0 && mHeight > 0)
-    {
-        mSnapHeight = mTrackHeight;
-        mSnapWidth = mTrackHeight*mWidth/mHeight;
-    }
-}
-
-void ImageClip::Seek()
-{
-}
-
-void ImageClip::Step(bool forward, int64_t step)
-{
-}
-
-bool ImageClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame)
-{
-    return false;
-}
-
-void ImageClip::SetTrackHeight(int trackHeight)
-{
-    Clip::SetTrackHeight(trackHeight);
-
-    if (mWidth > 0 && mHeight > 0)
-    {
-        mSnapHeight = trackHeight;
-        mSnapWidth = trackHeight*mWidth/mHeight;
-    }
-}
-
-void ImageClip::SetViewWindowStart(int64_t millisec)
-{
-    mClipViewStartPos = millisec;
-    if (millisec < mStart)
-        mClipViewStartPos = mStart;
-}
-
-void ImageClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect)
-{
-    if (mSnapWidth == 0)
-    {
-        PrepareSnapImage();
-        if (mSnapWidth == 0)
-            return;
-    }
-
-    ImVec2 imgLeftTop = leftTop;
-    float snapDispWidth = mSnapWidth;
-    int img1stIndex = (int)floor((double)mClipViewStartPos*mPixPerMs/mSnapWidth);
-    int64_t img1stPos = (int64_t)((double)img1stIndex*mSnapWidth/mPixPerMs);
-    if (img1stPos < mClipViewStartPos)
-        snapDispWidth -= (mClipViewStartPos-img1stPos)*mPixPerMs;
-    while (imgLeftTop.x < rightBottom.x)
-    {
-        ImVec2 uvMin{0, 0}, uvMax{1, 1};
-        if (snapDispWidth < mSnapWidth)
-            uvMin.x = 1-snapDispWidth/mSnapWidth;
-        if (imgLeftTop.x+snapDispWidth > rightBottom.x)
-        {
-            uvMax.x = 1-(imgLeftTop.x+snapDispWidth-rightBottom.x)/mSnapWidth;
-            snapDispWidth = rightBottom.x-imgLeftTop.x;
-        }
-        if (mImgTexture)
-            drawList->AddImage(mImgTexture, imgLeftTop, {imgLeftTop.x+snapDispWidth, rightBottom.y}, uvMin, uvMax);
-        else
-            drawList->AddRect(imgLeftTop, {imgLeftTop.x+snapDispWidth, rightBottom.y}, IM_COL32_BLACK);
-        imgLeftTop.x += snapDispWidth;
-        snapDispWidth = mSnapWidth;
-    }
-}
-
-Clip * ImageClip::Load(const imgui_json::value& value, void * handle)
-{
-    TimeLine * timeline = (TimeLine *)handle;
-    if (!timeline || timeline->media_items.size() <= 0)
-        return nullptr;
-
-    int64_t id = -1;
-    MediaItem * item = nullptr;
-    if (value.contains("MediaID"))
-    {
-        auto& val = value["MediaID"];
-        if (val.is_number()) id = val.get<imgui_json::number>();
-    }
-    if (id != -1)
-    {
-        item = timeline->FindMediaItemByID(id);
-    }
-
-    if (item)
-    {
-        ImageClip * new_clip = new ImageClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, handle);
-        if (new_clip)
-        {
-            Clip::Load(new_clip, value);
-            // load image info
-            return new_clip;
-        }
-    }
-    else
-    {
-        // media isn't in bank we need create new media item first ?
-    }
-    return nullptr;
-}
-
-void ImageClip::Save(imgui_json::value& value)
-{
-    Clip::Save(value);
-    // save image clip info
-}
-
 // TextClip Struct Member Functions
-TextClip::TextClip(int64_t start, int64_t end, int64_t id, std::string name, MediaParserHolder hParser, void* handle)
-    : Clip(start, end, id, hParser, handle)
+TextClip::TextClip(int64_t start, int64_t end, int64_t id, std::string name, std::string text, void* handle)
+    : Clip(start, end, id, nullptr, handle)
 {
-    if (handle && hParser)
+    if (handle)
     {
         mType = MEDIA_TEXT;
         mName = name;
-        MediaInfo::InfoHolder info = hParser->GetMediaInfo();
-        if (!info)
-        {
-            return;
-        }
-        mPath = info->url;
-        // TODO::Dicky
+        mText = text;
+        mTrackStyle = true;
     }
 }
 
@@ -1327,17 +1491,132 @@ TextClip::~TextClip()
 {
 }
 
-void TextClip::Seek()
+void TextClip::SetClipDefault(const DataLayer::SubtitleStyle & style)
 {
+    mTrackStyle = true;
+    mFontScaleX = style.ScaleX();
+    mFontScaleY = style.ScaleY();
+    mFontItalic = style.Italic() > 0;
+    mFontBold = style.Bold() > 0;
+    mFontAngleX = style.Angle();
+    mFontAngleY = style.Angle();
+    mFontAngleZ = style.Angle();
+    mFontOutlineWidth = style.OutlineWidth();
+    mFontSpacing = style.Spacing();
+    mFontAlignment = style.Alignment();
+    mFontUnderLine = style.UnderLine();
+    mFontStrikeOut = style.StrikeOut();
+    mFontName = style.Font();
+    mFontOffsetH = style.OffsetH();
+    mFontOffsetV = style.OffsetV();
+    mFontShadowDepth = fabs(style.ShadowDepth());
+    mFontPrimaryColor = style.PrimaryColor().ToImVec4();
+    mFontOutlineColor = style.OutlineColor().ToImVec4();
+    mFontBackColor = style.BackColor().ToImVec4();
+
+    // pos value need load later 
+    mFontPosX = - FLT_MAX;
+    mFontPosY = - FLT_MAX;
 }
 
-void TextClip::Step(bool forward, int64_t step)
+void TextClip::SetClipDefault(const TextClip* clip)
 {
+    mTrackStyle = clip->mTrackStyle;
+    mFontScaleX = clip->mFontScaleX;
+    mFontScaleY = clip->mFontScaleY;
+    mFontItalic = clip->mFontItalic;
+    mFontBold = clip->mFontBold;
+    mFontAngleX = clip->mFontAngleX;
+    mFontAngleY = clip->mFontAngleY;
+    mFontAngleZ = clip->mFontAngleZ;
+    mFontOutlineWidth = clip->mFontOutlineWidth;
+    mFontSpacing = clip->mFontSpacing;
+    mFontAlignment = clip->mFontAlignment;
+    mFontUnderLine = clip->mFontUnderLine;
+    mFontStrikeOut = clip->mFontStrikeOut;
+    mFontName = clip->mFontName;
+    mFontOffsetH = clip->mFontOffsetH;
+    mFontOffsetV = clip->mFontOffsetV;
+    mFontShadowDepth = clip->mFontShadowDepth;
+    mFontPrimaryColor = clip->mFontPrimaryColor;
+    mFontOutlineColor = clip->mFontOutlineColor;
+    mFontBackColor = clip->mFontBackColor;
+    // pos value need load later 
+    mFontPosX = - FLT_MAX;
+    mFontPosY = - FLT_MAX;
 }
 
-bool TextClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame)
+void TextClip::CreateClipHold(void * _track)
 {
-    return false;
+    MediaTrack * track = (MediaTrack *)_track;
+    if (!track || !track->mMttReader)
+        return;
+    mClipHolder = track->mMttReader->NewClip(mStart, mEnd - mStart);
+    mTrack = track;
+    mClipHolder->SetText(mText);
+    mClipHolder->EnableUsingTrackStyle(mTrackStyle);
+    if (!mTrackStyle)
+    {
+        mClipHolder->SetFont(mFontName);
+        mClipHolder->SetOffsetH(mFontOffsetH);
+        mClipHolder->SetOffsetV(mFontOffsetV);
+        mClipHolder->SetScaleX(mFontScaleX);
+        mClipHolder->SetScaleY(mFontScaleY);
+        mClipHolder->SetSpacing(mFontSpacing);
+        mClipHolder->SetRotationX(mFontAngleX);
+        mClipHolder->SetRotationY(mFontAngleY);
+        mClipHolder->SetRotationZ(mFontAngleZ);
+        mClipHolder->SetBorderWidth(mFontOutlineWidth);
+        mClipHolder->SetBold(mFontBold);
+        mClipHolder->SetItalic(mFontItalic);
+        mClipHolder->SetUnderLine(mFontUnderLine);
+        mClipHolder->SetStrikeOut(mFontStrikeOut);
+        mClipHolder->SetAlignment(mFontAlignment);
+        mClipHolder->SetShadowDepth(mFontShadowDepth);
+        mClipHolder->SetPrimaryColor(mFontPrimaryColor);
+        mClipHolder->SetOutlineColor(mFontOutlineColor);
+        mClipHolder->SetBackColor(mFontBackColor);
+    }
+}
+
+int64_t TextClip::Moving(int64_t diff, int mouse_track)
+{
+    auto ret = Clip::Moving(diff, mouse_track);
+    MediaTrack * track = (MediaTrack*)mTrack;
+    if (track && track->mMttReader)
+        track->mMttReader->ChangeClipTime(mClipHolder, mStart, mEnd - mStart);
+    return ret;
+}
+
+int64_t TextClip::Cropping(int64_t diff, int type)
+{
+    auto ret = Clip::Cropping(diff, type);
+    MediaTrack * track = (MediaTrack*)mTrack;
+    if (track && track->mMttReader)
+        track->mMttReader->ChangeClipTime(mClipHolder, mStart, mEnd - mStart);
+    return ret;
+}
+
+void TextClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect)
+{
+    drawList->AddRectFilled(leftTop, rightBottom, IM_COL32(16, 16, 16, 255));
+    drawList->PushClipRect(leftTop, rightBottom, true);
+    ImGui::SetWindowFontScale(0.75);
+    ImGui::PushStyleVar(ImGuiStyleVar_TextInternationalize, 0);
+    drawList->AddText(leftTop + ImVec2(2, 2), IM_COL32_WHITE, mText.c_str());
+    ImGui::PopStyleVar();
+    ImGui::SetWindowFontScale(1.0);
+    drawList->PopClipRect();
+    drawList->AddRect(leftTop, rightBottom, IM_COL32_BLACK);
+}
+
+void TextClip::DrawTooltips()
+{
+    ImGui::BeginTooltip();
+    ImGui::PushStyleVar(ImGuiStyleVar_TextInternationalize, 0);
+    ImGui::Text("%s", mText.c_str());
+    ImGui::PopStyleVar();
+    ImGui::EndTooltip();
 }
 
 Clip * TextClip::Load(const imgui_json::value& value, void * handle)
@@ -1346,31 +1625,125 @@ Clip * TextClip::Load(const imgui_json::value& value, void * handle)
     if (!timeline || timeline->media_items.size() <= 0)
         return nullptr;
     
-    int64_t id = -1;
-    MediaItem * item = nullptr;
-    if (value.contains("MediaID"))
+    // text clip don't band with media item
     {
-        auto& val = value["MediaID"];
-        if (val.is_number()) id = val.get<imgui_json::number>();
-    }
-    if (id != -1)
-    {
-        item = timeline->FindMediaItemByID(id);
-    }
-
-    if (item)
-    {
-        TextClip * new_clip = new TextClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview->GetMediaParser(), handle);
+        TextClip * new_clip = new TextClip(0, 0, 0, std::string(""), std::string(""), handle);
         if (new_clip)
         {
             Clip::Load(new_clip, value);
             // load text info
+            if (value.contains("Text"))
+            {
+                auto& val = value["Text"];
+                if (val.is_string()) new_clip->mText = val.get<imgui_json::string>();
+            }
+            if (value.contains("TrackStyle"))
+            {
+                auto& val = value["TrackStyle"];
+                if (val.is_boolean()) new_clip->mTrackStyle = val.get<imgui_json::boolean>();
+            }
+            if (value.contains("Name"))
+            {
+                auto& val = value["Name"];
+                if (val.is_string()) new_clip->mFontName = val.get<imgui_json::string>();
+            }
+            if (value.contains("ScaleLink"))
+            {
+                auto& val = value["ScaleLink"];
+                if (val.is_boolean()) new_clip->mScaleSettingLink = val.get<imgui_json::boolean>();
+            }
+            if (value.contains("ScaleX"))
+            {
+                auto& val = value["ScaleX"];
+                if (val.is_number()) new_clip->mFontScaleX = val.get<imgui_json::number>();
+            }
+            if (value.contains("ScaleY"))
+            {
+                auto& val = value["ScaleY"];
+                if (val.is_number()) new_clip->mFontScaleY = val.get<imgui_json::number>();
+            }
+            if (value.contains("Spacing"))
+            {
+                auto& val = value["Spacing"];
+                if (val.is_number()) new_clip->mFontSpacing = val.get<imgui_json::number>();
+            }
+            if (value.contains("AngleX"))
+            {
+                auto& val = value["AngleX"];
+                if (val.is_number()) new_clip->mFontAngleX = val.get<imgui_json::number>();
+            }
+            if (value.contains("AngleY"))
+            {
+                auto& val = value["AngleY"];
+                if (val.is_number()) new_clip->mFontAngleY = val.get<imgui_json::number>();
+            }
+            if (value.contains("AngleZ"))
+            {
+                auto& val = value["AngleZ"];
+                if (val.is_number()) new_clip->mFontAngleZ = val.get<imgui_json::number>();
+            }
+            if (value.contains("OutlineWidth"))
+            {
+                auto& val = value["OutlineWidth"];
+                if (val.is_number()) new_clip->mFontOutlineWidth = val.get<imgui_json::number>();
+            }
+            if (value.contains("Alignment"))
+            {
+                auto& val = value["Alignment"];
+                if (val.is_number()) new_clip->mFontAlignment = val.get<imgui_json::number>();
+            }
+            if (value.contains("Bold"))
+            {
+                auto& val = value["Bold"];
+                if (val.is_boolean()) new_clip->mFontBold = val.get<imgui_json::boolean>();
+            }
+            if (value.contains("Italic"))
+            {
+                auto& val = value["Italic"];
+                if (val.is_boolean()) new_clip->mFontItalic = val.get<imgui_json::boolean>();
+            }
+            if (value.contains("UnderLine"))
+            {
+                auto& val = value["UnderLine"];
+                if (val.is_boolean()) new_clip->mFontUnderLine = val.get<imgui_json::boolean>();
+            }
+            if (value.contains("StrikeOut"))
+            {
+                auto& val = value["StrikeOut"];
+                if (val.is_boolean()) new_clip->mFontStrikeOut = val.get<imgui_json::boolean>();
+            }
+            if (value.contains("OffsetX"))
+            {
+                auto& val = value["OffsetX"];
+                if (val.is_number()) new_clip->mFontOffsetH = val.get<imgui_json::number>();
+            }
+            if (value.contains("OffsetY"))
+            {
+                auto& val = value["OffsetY"];
+                if (val.is_number()) new_clip->mFontOffsetV = val.get<imgui_json::number>();
+            }
+            if (value.contains("ShadowDepth"))
+            {
+                auto& val = value["ShadowDepth"];
+                if (val.is_number()) new_clip->mFontShadowDepth = val.get<imgui_json::number>();
+            }
+            if (value.contains("PrimaryColor"))
+            {
+                auto& val = value["PrimaryColor"];
+                if (val.is_vec4()) new_clip->mFontPrimaryColor = val.get<imgui_json::vec4>();
+            }
+            if (value.contains("OutlineColor"))
+            {
+                auto& val = value["OutlineColor"];
+                if (val.is_vec4()) new_clip->mFontOutlineColor = val.get<imgui_json::vec4>();
+            }
+            if (value.contains("BackColor"))
+            {
+                auto& val = value["BackColor"];
+                if (val.is_vec4()) new_clip->mFontBackColor = val.get<imgui_json::vec4>();
+            }
             return new_clip;
         }
-    }
-    else
-    {
-        // media isn't in bank we need create new media item first ?
     }
     return nullptr;
 }
@@ -1379,105 +1752,445 @@ void TextClip::Save(imgui_json::value& value)
 {
     Clip::Save(value);
     // save Text clip info
+    value["Text"] = mText;
+    value["TrackStyle"] = imgui_json::boolean(mTrackStyle);
+    value["Name"] = mFontName;
+    value["ScaleLink"] = imgui_json::boolean(mScaleSettingLink);
+    value["ScaleX"] = imgui_json::number(mFontScaleX);
+    value["ScaleY"] = imgui_json::number(mFontScaleY);
+    value["Spacing"] = imgui_json::number(mFontSpacing);
+    value["AngleX"] = imgui_json::number(mFontAngleX);
+    value["AngleY"] = imgui_json::number(mFontAngleY);
+    value["AngleZ"] = imgui_json::number(mFontAngleZ);
+    value["OutlineWidth"] = imgui_json::number(mFontOutlineWidth);
+    value["Alignment"] = imgui_json::number(mFontAlignment);
+    value["Bold"] = imgui_json::boolean(mFontBold);
+    value["Italic"] = imgui_json::boolean(mFontItalic);
+    value["UnderLine"] = imgui_json::boolean(mFontUnderLine);
+    value["StrikeOut"] = imgui_json::boolean(mFontStrikeOut);
+    value["OffsetX"] = imgui_json::number(mFontOffsetH);
+    value["OffsetY"] = imgui_json::number(mFontOffsetV);
+    value["ShadowDepth"] = imgui_json::number(mFontShadowDepth);
+    value["PrimaryColor"] = imgui_json::vec4(mFontPrimaryColor);
+    value["OutlineColor"] = imgui_json::vec4(mFontOutlineColor);
+    value["BackColor"] = imgui_json::vec4(mFontBackColor);
+}
+} // namespace MediaTimeline
+
+namespace MediaTimeline
+{
+// BluePrintVideoFilter class
+BluePrintVideoFilter::BluePrintVideoFilter(void * handle)
+    : mHandle(handle)
+{
+    imgui_json::value filter_BP; 
+    mBp = new BluePrint::BluePrintUI();
+    BluePrint::BluePrintCallbackFunctions callbacks;
+    callbacks.BluePrintOnChanged = OnBluePrintChange;
+    mBp->Initialize();
+    mBp->SetCallbacks(callbacks, this);
+    mBp->File_New_Filter(filter_BP, "VideoFilter", "Video");
 }
 
 BluePrintVideoFilter::~BluePrintVideoFilter()
 {
-    if (mBp)
+    if (mBp) 
     {
-        mBp->Finalize();
+        mBp->Finalize(); 
         delete mBp;
-        mBp = nullptr;
     }
+}
+
+int BluePrintVideoFilter::OnBluePrintChange(int type, std::string name, void* handle)
+{
+    int ret = BluePrint::BP_CBR_Nothing;
+    if (!handle)
+        return BluePrint::BP_CBR_Unknown;
+    BluePrintVideoFilter * filter = (BluePrintVideoFilter *)handle;
+    if (!filter) return ret;
+    TimeLine * timeline = (TimeLine *)filter->mHandle;
+    if (name.compare("VideoFilter") == 0)
+    {
+        if (type == BluePrint::BP_CB_Link ||
+            type == BluePrint::BP_CB_Unlink ||
+            type == BluePrint::BP_CB_NODE_DELETED)
+        {
+            if (timeline) timeline->UpdatePreview();
+            ret = BluePrint::BP_CBR_AutoLink;
+        }
+        else if (type == BluePrint::BP_CB_PARAM_CHANGED ||
+                type == BluePrint::BP_CB_SETTING_CHANGED)
+        {
+            if (timeline) timeline->UpdatePreview();
+        }
+    }
+    return ret;
+}
+
+DataLayer::VideoFilterHolder BluePrintVideoFilter::Clone()
+{
+    BluePrintVideoFilter* bpFilter = new BluePrintVideoFilter(mHandle);
+    auto bpJson = mBp->m_Document->Serialize();
+    bpFilter->SetBluePrintFromJson(bpJson);
+    bpFilter->SetKeyPoint(mKeyPoints);
+    return DataLayer::VideoFilterHolder(bpFilter);
 }
 
 ImGui::ImMat BluePrintVideoFilter::FilterImage(const ImGui::ImMat& vmat, int64_t pos)
 {
     std::lock_guard<std::mutex> lk(mBpLock);
+    ImGui::ImMat outMat(vmat);
     if (mBp)
     {
+        // setup bp input curve
+        for (int i = 0; i < mKeyPoints.GetCurveCount(); i++)
+        {
+            auto name = mKeyPoints.GetCurveName(i);
+            auto value = mKeyPoints.GetValue(i, pos);
+            mBp->Blueprint_SetFilter(name, value);
+        }
         ImGui::ImMat inMat(vmat);
-        ImGui::ImMat outMat;
         mBp->Blueprint_RunFilter(inMat, outMat);
-        return outMat;
     }
-    return vmat;
+    return outMat;
 }
 
 void BluePrintVideoFilter::SetBluePrintFromJson(imgui_json::value& bpJson)
 {
-    BluePrint::BluePrintUI* bp = new BluePrint::BluePrintUI();
-    bp->Initialize();
     // Logger::Log(Logger::DEBUG) << "Create bp filter from json " << bpJson.dump() << std::endl;
-    bp->File_New_Filter(bpJson, "VideoFilter", "Video");
-    if (!bp->Blueprint_IsValid())
+    mBp->File_New_Filter(bpJson, "VideoFilter", "Video");
+    if (!mBp->Blueprint_IsValid())
     {
-        bp->Finalize();
-        delete bp;
+        mBp->Finalize();
         return;
     }
-    BluePrint::BluePrintUI* oldbp = nullptr;
+}
+} // namespace MediaTimeline
+
+namespace MediaTimeline
+{
+// BluePrintVideoTransition class
+BluePrintVideoTransition::BluePrintVideoTransition(void * handle)
+    : mHandle(handle)
+{
+    imgui_json::value fusion_BP; 
+    mBp = new BluePrint::BluePrintUI();
+    mBp->Initialize();
+    BluePrint::BluePrintCallbackFunctions callbacks;
+    callbacks.BluePrintOnChanged = OnBluePrintChange;
+    mBp->SetCallbacks(callbacks, this);
+    mBp->File_New_Fusion(fusion_BP, "VideoFusion", "Video");
+}
+
+BluePrintVideoTransition::~BluePrintVideoTransition()
+{
+    if (mBp)
     {
-        std::lock_guard<std::mutex> lk(mBpLock);
-        oldbp = mBp;
-        mBp = bp;
-    }
-    if (oldbp)
-    {
-        oldbp->Finalize();
-        delete oldbp;
+        mBp->Finalize();
+        delete mBp;
     }
 }
 
+int BluePrintVideoTransition::OnBluePrintChange(int type, std::string name, void* handle)
+{
+    int ret = BluePrint::BP_CBR_Nothing;
+    if (!handle)
+        return BluePrint::BP_CBR_Unknown;
+    BluePrintVideoTransition * fusion = (BluePrintVideoTransition *)handle;
+    if (!fusion) return ret;
+    TimeLine * timeline = (TimeLine *)fusion->mHandle;
+    if (name.compare("VideoFusion") == 0)
+    {
+        if (type == BluePrint::BP_CB_Link ||
+            type == BluePrint::BP_CB_Unlink ||
+            type == BluePrint::BP_CB_NODE_DELETED)
+        {
+            // need update
+            if (timeline) timeline->UpdatePreview();
+            ret = BluePrint::BP_CBR_AutoLink;
+        }
+        else if (type == BluePrint::BP_CB_PARAM_CHANGED ||
+                type == BluePrint::BP_CB_SETTING_CHANGED)
+        {
+            // need update
+            if (timeline) timeline->UpdatePreview();
+        }
+    }
+    return ret;
+}
+
+DataLayer::VideoTransitionHolder BluePrintVideoTransition::Clone()
+{
+    BluePrintVideoTransition* bpTrans = new BluePrintVideoTransition;
+    auto bpJson = mBp->m_Document->Serialize();
+    bpTrans->SetBluePrintFromJson(bpJson);
+    return DataLayer::VideoTransitionHolder(bpTrans);
+}
+
+ImGui::ImMat BluePrintVideoTransition::MixTwoImages(const ImGui::ImMat& vmat1, const ImGui::ImMat& vmat2, int64_t pos, int64_t dur)
+{
+    std::lock_guard<std::mutex> lk(mBpLock);
+    if (mBp)
+    {
+        // setup bp input curve
+        for (int i = 0; i < mKeyPoints.GetCurveCount(); i++)
+        {
+            auto name = mKeyPoints.GetCurveName(i);
+            auto value = mKeyPoints.GetValue(i, pos - mOverlap->Start());
+            mBp->Blueprint_SetFusion(name, value);
+        }
+        ImGui::ImMat inMat1(vmat1), inMat2(vmat2);
+        ImGui::ImMat outMat;
+        mBp->Blueprint_RunFusion(inMat1, inMat2, outMat, pos, dur);
+        return outMat;
+    }
+    return vmat1;
+}
+
+void BluePrintVideoTransition::SetBluePrintFromJson(imgui_json::value& bpJson)
+{
+    // Logger::Log(Logger::DEBUG) << "Create bp transition from json " << bpJson.dump() << std::endl;
+    mBp->File_New_Fusion(bpJson, "VideoFusion", "Video");
+    if (!mBp->Blueprint_IsValid())
+    {
+        mBp->Finalize();
+        return;
+    }
+}
+} // namespace MediaTimeline
+
+namespace MediaTimeline
+{
+BluePrintAudioFilter::BluePrintAudioFilter(void * handle)
+    : mHandle(handle)
+{
+    imgui_json::value filter_BP; 
+    mBp = new BluePrint::BluePrintUI();
+    BluePrint::BluePrintCallbackFunctions callbacks;
+    callbacks.BluePrintOnChanged = OnBluePrintChange;
+    mBp->Initialize();
+    mBp->SetCallbacks(callbacks, this);
+    mBp->File_New_Filter(filter_BP, "AudioFilter", "Audio");
+}
+
+BluePrintAudioFilter::~BluePrintAudioFilter()
+{
+    if (mBp) { mBp->Finalize();  delete mBp; mBp = nullptr; }
+}
+
+int BluePrintAudioFilter::OnBluePrintChange(int type, std::string name, void* handle)
+{
+    int ret = BluePrint::BP_CBR_Nothing;
+    if (!handle)
+        return BluePrint::BP_CBR_Unknown;
+    BluePrintAudioFilter * filter = (BluePrintAudioFilter *)handle;
+    if (!filter) return ret;
+    TimeLine * timeline = (TimeLine *)filter->mHandle;
+    if (name.compare("AudioFilter") == 0)
+    {
+        if (type == BluePrint::BP_CB_Link ||
+            type == BluePrint::BP_CB_Unlink ||
+            type == BluePrint::BP_CB_NODE_DELETED)
+        {
+            if (timeline) timeline->UpdatePreview();
+            ret = BluePrint::BP_CBR_AutoLink;
+        }
+        else if (type == BluePrint::BP_CB_PARAM_CHANGED ||
+                type == BluePrint::BP_CB_SETTING_CHANGED)
+        {
+            if (timeline) timeline->UpdatePreview();
+        }
+    }
+    return ret;
+}
+
+ImGui::ImMat BluePrintAudioFilter::FilterPcm(const ImGui::ImMat& amat, int64_t pos)
+{
+    std::lock_guard<std::mutex> lk(mBpLock);
+    ImGui::ImMat outMat(amat);
+    if (mBp)
+    {
+        // setup bp input curve
+        for (int i = 0; i < mKeyPoints.GetCurveCount(); i++)
+        {
+            auto name = mKeyPoints.GetCurveName(i);
+            auto value = mKeyPoints.GetValue(i, pos);
+            mBp->Blueprint_SetFilter(name, value);
+        }
+        ImGui::ImMat inMat(amat);
+        mBp->Blueprint_RunFilter(inMat, outMat);
+    }
+    return outMat;
+}
+
+void BluePrintAudioFilter::SetBluePrintFromJson(imgui_json::value& bpJson)
+{
+    // Logger::Log(Logger::DEBUG) << "Create bp filter from json " << bpJson.dump() << std::endl;
+    mBp->File_New_Filter(bpJson, "AudioFilter", "Audio");
+    if (!mBp->Blueprint_IsValid())
+    {
+        mBp->Finalize();
+        return;
+    }
+}
+} // namespace MediaTimeline
+
+namespace MediaTimeline
+{
+// BluePrintAudioTransition class
+BluePrintAudioTransition::BluePrintAudioTransition(void * handle)
+    : mHandle(handle)
+{
+    imgui_json::value fusion_BP; 
+    mBp = new BluePrint::BluePrintUI();
+    mBp->Initialize();
+    BluePrint::BluePrintCallbackFunctions callbacks;
+    callbacks.BluePrintOnChanged = OnBluePrintChange;
+    mBp->SetCallbacks(callbacks, this);
+    mBp->File_New_Fusion(fusion_BP, "AudioFusion", "Audio");
+}
+
+BluePrintAudioTransition::~BluePrintAudioTransition()
+{
+    if (mBp)
+    {
+        mBp->Finalize();
+        delete mBp;
+    }
+}
+
+int BluePrintAudioTransition::OnBluePrintChange(int type, std::string name, void* handle)
+{
+    int ret = BluePrint::BP_CBR_Nothing;
+    if (!handle)
+        return BluePrint::BP_CBR_Unknown;
+    BluePrintAudioTransition * fusion = (BluePrintAudioTransition *)handle;
+    if (!fusion) return ret;
+    TimeLine * timeline = (TimeLine *)fusion->mHandle;
+    if (name.compare("AudioFusion") == 0)
+    {
+        if (type == BluePrint::BP_CB_Link ||
+            type == BluePrint::BP_CB_Unlink ||
+            type == BluePrint::BP_CB_NODE_DELETED)
+        {
+            // need update
+            if (timeline) timeline->UpdatePreview();
+            ret = BluePrint::BP_CBR_AutoLink;
+        }
+        else if (type == BluePrint::BP_CB_PARAM_CHANGED ||
+                type == BluePrint::BP_CB_SETTING_CHANGED)
+        {
+            // need update
+            //if (timeline) timeline->UpdatePreview();
+        }
+    }
+    return ret;
+}
+
+ImGui::ImMat BluePrintAudioTransition::MixTwoAudioMats(const ImGui::ImMat& amat1, const ImGui::ImMat& amat2, int64_t pos)
+{
+    std::lock_guard<std::mutex> lk(mBpLock);
+    if (mBp)
+    {
+        // setup bp input curve
+        for (int i = 0; i < mKeyPoints.GetCurveCount(); i++)
+        {
+            auto name = mKeyPoints.GetCurveName(i);
+            auto value = mKeyPoints.GetValue(i, pos - mOverlap->Start());
+            mBp->Blueprint_SetFusion(name, value);
+        }
+        ImGui::ImMat inMat1(amat1), inMat2(amat2);
+        ImGui::ImMat outMat;
+        mBp->Blueprint_RunFusion(inMat1, inMat2, outMat, pos, 0); // ?
+        return outMat;
+    }
+    return amat1;
+}
+
+void BluePrintAudioTransition::SetBluePrintFromJson(imgui_json::value& bpJson)
+{
+    // Logger::Log(Logger::DEBUG) << "Create bp transition from json " << bpJson.dump() << std::endl;
+    mBp->File_New_Fusion(bpJson, "AudioFusion", "Audio");
+    if (!mBp->Blueprint_IsValid())
+    {
+        mBp->Finalize();
+        return;
+    }
+}
+
+} // namespace MediaTimeline
+
+
+namespace MediaTimeline
+{
 EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
     : BaseEditingClip(vidclip->mID, vidclip->mType, vidclip->mStart, vidclip->mEnd, vidclip->mStartOffset, vidclip->mEndOffset, vidclip->mHandle)
 {
     TimeLine * timeline = (TimeLine *)vidclip->mHandle;
     mDuration = mEnd-mStart;
+    mClipFrameRate = vidclip->mClipFrameRate;
+    mWidth = vidclip->mWidth;
+    mHeight = vidclip->mHeight;
     if (mDuration < 0)
         throw std::invalid_argument("Clip duration is negative!");
-    mCurrPos = mStartOffset;
-
-    mSnapshot = CreateMediaSnapshot();
-    mMediaReader = CreateMediaReader();
-    if (!mSnapshot || !mMediaReader)
+    
+    if (vidclip->mType == MEDIA_SUBTYPE_VIDEO_IMAGE)
     {
-        Logger::Log(Logger::Error) << "Create Editing Video Clip" << std::endl;
-        return;
+        mImgTexture = vidclip->mImgTexture;
     }
-    if (!mSnapshot->Open(vidclip->mMediaParser))
+    else
     {
-        Logger::Log(Logger::Error) << mSnapshot->GetError() << std::endl;
-        return;
-    }
-    mSnapshot->SetCacheFactor(1);
-    mSnapshot->SetSnapshotResizeFactor(0.1, 0.1);
-    mSnapshot->Seek((double)mStartOffset / 1000);
-
-    // open video reader
-    if (mMediaReader->Open(vidclip->mMediaParser))
-    {
-        if (mMediaReader->ConfigVideoReader(1.f, 1.f))
+        mSsGen = CreateSnapshotGenerator();
+        if (!mSsGen)
         {
-            mMediaReader->Start();
+            Logger::Log(Logger::Error) << "Create Editing Video Clip FAILED!" << std::endl;
+            return;
         }
-        else
+        if (timeline) mSsGen->EnableHwAccel(timeline->mHardwareCodec);
+        if (!mSsGen->Open(vidclip->mSsViewer->GetMediaParser()))
         {
-            ReleaseMediaReader(&mMediaReader);
+            Logger::Log(Logger::Error) << mSsGen->GetError() << std::endl;
+            return;
         }
+
+        mSsGen->SetCacheFactor(1);
+        float snapshot_scale = mHeight > 0 ? 50.f / (float)mHeight : 0.1;
+        mSsGen->SetSnapshotResizeFactor(snapshot_scale, snapshot_scale);
+        mSsViewer = mSsGen->CreateViewer((double)mStartOffset / 1000);
     }
-    mClipFrameRate = vidclip->mClipFrameRate;
-    if (timeline)
-        mMaxCachedVideoFrame = timeline->mMaxCachedVideoFrame;
+
+    auto hClip = timeline->mMtvReader->GetClipById(vidclip->mID);
+    IM_ASSERT(hClip);
+    mFilter = dynamic_cast<BluePrintVideoFilter *>(hClip->GetFilter().get());
+    if (!mFilter)
+    {
+        mFilter = new BluePrintVideoFilter(timeline);
+        mFilter->SetKeyPoint(vidclip->mFilterKeyPoints);
+        DataLayer::VideoFilterHolder hFilter(mFilter);
+        hClip->SetFilter(hFilter);
+    }
+    mAttribute = hClip->GetTransformFilterPtr();
+    if (mAttribute)
+    {
+        mAttribute->SetScaleType(vidclip->mScaleType);
+        mAttribute->SetScaleH(vidclip->mScaleH);
+        mAttribute->SetScaleV(vidclip->mScaleV);
+        mAttribute->SetPositionOffsetH(vidclip->mPositionOffsetH);
+        mAttribute->SetPositionOffsetV(vidclip->mPositionOffsetV);
+        mAttribute->SetRotationAngle(vidclip->mRotationAngle);
+        mAttribute->SetCropMarginL(vidclip->mCropMarginL);
+        mAttribute->SetCropMarginT(vidclip->mCropMarginT);
+        mAttribute->SetCropMarginR(vidclip->mCropMarginR);
+        mAttribute->SetCropMarginB(vidclip->mCropMarginB);
+        mAttribute->SetKeyPoint(vidclip->mAttributeKeyPoints);
+    }
 }
 
 EditingVideoClip::~EditingVideoClip()
 {
-    if (mMediaReader) { ReleaseMediaReader(&mMediaReader); mMediaReader = nullptr; }
-    if (mSnapshot) { ReleaseMediaSnapshot(&mSnapshot); mSnapshot = nullptr; }
-    mFrameLock.lock();
-    mFrame.clear();
-    mFrameLock.unlock();
+    mSsViewer = nullptr;
+    mSsGen = nullptr;
+    mFilter = nullptr;
 }
 
 void EditingVideoClip::UpdateClipRange(Clip* clip)
@@ -1491,54 +2204,22 @@ void EditingVideoClip::UpdateClipRange(Clip* clip)
         mStartOffset = clip->mStartOffset;
         mEndOffset = clip->mEndOffset;
         mDuration = mEnd - mStart;
-        if (mCurrPos < mStartOffset)
-            mCurrPos = mStartOffset;
-        if (mCurrPos > mStartOffset + mDuration)
-            mCurrPos = mStartOffset + mDuration;
         CalcDisplayParams();
     }
+    
 }
 
 void EditingVideoClip::Seek(int64_t pos)
 {
-    mFrameLock.lock();
-    mFrame.clear();
-    mFrameLock.unlock();
-    mLastTime = -1;
-    mCurrPos = pos;
-    if (mMediaReader && mMediaReader->IsOpened())
-    {
-        alignTime(mCurrPos, mClipFrameRate);
-        mMediaReader->SeekTo((double)mCurrPos / 1000.f);
-    }
+    TimeLine * timeline = (TimeLine *)mHandle;
+    if (!timeline)
+        return;
+    timeline->bSeeking = true;
+    timeline->Seek(pos);
 }
 
 void EditingVideoClip::Step(bool forward, int64_t step)
 {
-    if (forward)
-    {
-        bForward = true;
-        if (step > 0) mCurrPos += step;
-        else frameStepTime(mCurrPos, 1, mClipFrameRate);
-        if (mCurrPos >= mEnd - mStart + mStartOffset)
-        {
-            mCurrPos = mEnd - mStart + mStartOffset;
-            mLastTime = -1;
-            bPlay = false;
-        }
-    }
-    else
-    {
-        bForward = false;
-        if (step > 0) mCurrPos -= step;
-        else frameStepTime(mCurrPos, -1, mClipFrameRate);
-        if (mCurrPos <= mStartOffset)
-        {
-            mCurrPos = mStartOffset;
-            mLastTime = -1;
-            bPlay = false;
-        }
-    }
 }
 
 void EditingVideoClip::Save()
@@ -1546,167 +2227,186 @@ void EditingVideoClip::Save()
     TimeLine * timeline = (TimeLine *)mHandle;
     if (!timeline)
         return;
-    auto clip = timeline->FindClipByID(mID);
-    if (!clip)
+    VideoClip * clip = (VideoClip *)timeline->FindClipByID(mID);
+    if (!clip || !IS_VIDEO(clip->mType))
         return;
-    timeline->mVideoFilterBluePrintLock.lock();
-    if (timeline->mVideoFilterBluePrint && timeline->mVideoFilterBluePrint->Blueprint_IsValid())
+    if (mFilter && mFilter->mBp && mFilter->mBp->Blueprint_IsValid())
     {
-        clip->mFilterBP = timeline->mVideoFilterBluePrint->m_Document->Serialize();
+        clip->mFilterBP = mFilter->mBp->m_Document->Serialize();
+        clip->mFilterKeyPoints = mFilter->mKeyPoints;
     }
-    timeline->mVideoFilterBluePrintLock.unlock();
-
-    // update video filter in datalayer
-    DataLayer::VideoClipHolder hClip = timeline->mMtvReader->GetClipById(clip->mID);
-    BluePrintVideoFilter* bpvf = new BluePrintVideoFilter();
-    bpvf->SetBluePrintFromJson(clip->mFilterBP);
-    DataLayer::VideoFilterHolder hFilter(bpvf);
-    hClip->SetFilter(hFilter);
-    timeline->mMtvReader->Refresh();
+    if (mAttribute)
+    {
+        clip->mAttributeKeyPoints = *mAttribute->GetKeyPoint();
+        clip->mScaleType = mAttribute->GetScaleType();
+        clip->mScaleH = mAttribute->GetScaleH();
+        clip->mScaleV = mAttribute->GetScaleV();
+        clip->mRotationAngle = mAttribute->GetRotationAngle();
+        clip->mPositionOffsetH = mAttribute->GetPositionOffsetH();
+        clip->mPositionOffsetV = mAttribute->GetPositionOffsetV();
+        clip->mCropMarginL = mAttribute->GetCropMarginL();
+        clip->mCropMarginT = mAttribute->GetCropMarginT();
+        clip->mCropMarginR = mAttribute->GetCropMarginR();
+        clip->mCropMarginB = mAttribute->GetCropMarginB();
+    }
+    timeline->UpdatePreview();
 }
 
-bool EditingVideoClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame)
+bool EditingVideoClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame, bool attribute)
 {
-    int ret = false;
-    if (mFrame.empty())
-        return ret;
-
-    auto frame_delay = mClipFrameRate.den * 1000 / mClipFrameRate.num;
-    int64_t buffer_start = mFrame.begin()->first.time_stamp * 1000;
-    int64_t buffer_end = buffer_start;
-    frameStepTime(buffer_end, bForward ? mMaxCachedVideoFrame : -mMaxCachedVideoFrame, mClipFrameRate);
-    if (buffer_start > buffer_end)
-        std::swap(buffer_start, buffer_end);
-
-    bool out_of_range = false;
-    if (mCurrPos < buffer_start - frame_delay || mCurrPos > buffer_end + frame_delay)
-        out_of_range = true;
-
-    for (auto pair = mFrame.begin(); pair != mFrame.end();)
+    int ret = true;
+    TimeLine * timeline = (TimeLine *)mHandle;
+    if (!timeline)
+        return false;
+    auto frames = timeline->GetPreviewFrame();
+    ImGui::ImMat frame_org;
+    auto iter = std::find_if(frames.begin(), frames.end(), [this] (auto& cf) {
+        return cf.clipId == mID && cf.phase == DataLayer::CorrelativeFrame::PHASE_SOURCE_FRAME;
+    });
+    if (iter != frames.end())
+        frame_org = iter->frame;
+    else
+        ret = false;
+    if (preview_frame)
     {
-        bool need_erase = false;
-        int64_t time_diff = fabs(pair->first.time_stamp * 1000 - mCurrPos);
-        if (time_diff > frame_delay)
-            need_erase = true;
-
-        if (need_erase || out_of_range)
-        {
-            // if we on seek stage, may output last frame for smooth preview
-            if (bSeeking && pair != mFrame.end())
-            {
-                in_out_frame = *pair;
-                ret = true;
-            }
-            mFrameLock.lock();
-            pair = mFrame.erase(pair);
-            mFrameLock.unlock();
-            if (ret) break;
-        }
+        if (!frames.empty())
+            in_out_frame.second = frames[0].frame;
         else
-        {
-            in_out_frame = *pair;
-            ret = true;
-            // handle clip play event
-            if (bPlay)
-            {
-                bool need_step_time = false;
-                int64_t step_time = 0;
-                int64_t current_system_time = ImGui::get_current_time_usec() / 1000;
-                if (mLastTime != -1)
-                {
-                    step_time = current_system_time - mLastTime;
-                    if (step_time >= frame_delay)
-                        need_step_time = true;
-                }
-                else
-                {
-                    mLastTime = current_system_time;
-                    need_step_time = true;
-                }
-                if (need_step_time)
-                {
-                    Step(bForward, step_time);
-                    mLastTime = current_system_time;
-                }
-            }
-            else
-            {
-                mLastTime = -1;
-            }
-            break;
-        }
+            ret = false;
     }
+    else
+    {
+        auto iter_out = std::find_if(frames.begin(), frames.end(), [&] (auto& cf) {
+            return cf.clipId == mID && cf.phase == (attribute ? DataLayer::CorrelativeFrame::PHASE_AFTER_TRANSFORM : DataLayer::CorrelativeFrame::PHASE_AFTER_FILTER);
+        });
+        if (iter_out != frames.end())
+            in_out_frame.second = iter_out->frame;
+        else
+            ret = false;
+    }
+    in_out_frame.first = frame_org;
     return ret;
 }
 
 void EditingVideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom)
 {
-    ImVec2 viewWndSize = { rightBottom.x - leftTop.x, rightBottom.y - leftTop.y };
-    if (mViewWndSize.x != viewWndSize.x || mViewWndSize.y != viewWndSize.y)
+    if (mImgTexture)
     {
-        mViewWndSize = viewWndSize;
-        if (mViewWndSize.x == 0 || mViewWndSize.y == 0)
+        int _width = ImGui::ImGetTextureWidth(mImgTexture);
+        int _height = ImGui::ImGetTextureHeight(mImgTexture);
+        if (_width > 0 && _height > 0)
+        {
+            int trackHeight = rightBottom.y - leftTop.y;
+            int snapHeight = trackHeight;
+            int snapWidth = trackHeight * _width / _height;
+            ImVec2 imgLeftTop = leftTop;
+            float snapDispWidth = snapWidth;
+            while (imgLeftTop.x < rightBottom.x)
+            {
+                ImVec2 uvMin{0, 0}, uvMax{1, 1};
+                if (snapDispWidth < snapWidth)
+                    uvMin.x = 1 - snapDispWidth / snapWidth;
+                if (imgLeftTop.x + snapDispWidth > rightBottom.x)
+                {
+                    uvMax.x = 1 - (imgLeftTop.x + snapDispWidth - rightBottom.x) / snapWidth;
+                    snapDispWidth = rightBottom.x - imgLeftTop.x;
+                }
+                drawList->AddImage(mImgTexture, imgLeftTop, {imgLeftTop.x + snapDispWidth, rightBottom.y}, uvMin, uvMax);
+                imgLeftTop.x += snapDispWidth;
+                snapDispWidth = snapWidth;
+            }
+        }
+    }
+    else
+    {
+        ImVec2 viewWndSize = { rightBottom.x - leftTop.x, rightBottom.y - leftTop.y };
+        if (mViewWndSize.x != viewWndSize.x || mViewWndSize.y != viewWndSize.y)
+        {
+            mViewWndSize = viewWndSize;
+            if (mViewWndSize.x == 0 || mViewWndSize.y == 0)
+                return;
+            auto vidStream = mSsViewer->GetMediaParser()->GetBestVideoStream();
+            if (vidStream->width == 0 || vidStream->height == 0)
+            {
+                Logger::Log(Logger::Error) << "Snapshot video size is INVALID! Width or height is ZERO." << std::endl;
+                return;
+            }
+            mSnapSize.y = viewWndSize.y;
+            mSnapSize.x = mSnapSize.y * vidStream->width / vidStream->height;
+            CalcDisplayParams();
+        }
+
+        std::vector<SnapshotGenerator::ImageHolder> snapImages;
+        if (!mSsViewer->GetSnapshots((double)mStartOffset / 1000, snapImages))
+        {
+            Logger::Log(Logger::Error) << mSsViewer->GetError() << std::endl;
             return;
-        const MediaInfo::VideoStream* vidStream = mSnapshot->GetVideoStream();
-        if (vidStream->width == 0 || vidStream->height == 0)
-        {
-            Logger::Log(Logger::Error) << "Snapshot video size is INVALID! Width or height is ZERO." << std::endl;
-            return;
         }
-        mSnapSize.y = viewWndSize.y;
-        mSnapSize.x = mSnapSize.y * vidStream->width / vidStream->height;
-        CalcDisplayParams();
-    }
+        mSsViewer->UpdateSnapshotTexture(snapImages);
 
-    std::vector<MediaSnapshot::ImageHolder> snapImages;
-    if (!mSnapshot->GetSnapshots(snapImages, (double)mStartOffset / 1000))
-    {
-        Logger::Log(Logger::Error) << mSnapshot->GetError() << std::endl;
-        return;
-    }
-    mSnapshot->UpdateSnapshotTexture(snapImages);
-
-    ImVec2 imgLeftTop = leftTop;
-    for (int i = 0; i < snapImages.size(); i++)
-    {
-        ImVec2 snapDispSize = mSnapSize;
-        ImVec2 uvMin{0, 0}, uvMax{1, 1};
-        if (imgLeftTop.x+mSnapSize.x > rightBottom.x)
+        ImVec2 imgLeftTop = leftTop;
+        for (int i = 0; i < snapImages.size(); i++)
         {
-            snapDispSize.x = rightBottom.x - imgLeftTop.x;
-            uvMax.x = snapDispSize.x / mSnapSize.x;
-        }
-        auto& img = snapImages[i];
-        if (img->mTextureReady)
-            drawList->AddImage(*(img->mTextureHolder), imgLeftTop, imgLeftTop + snapDispSize, uvMin, uvMax);
-        else
-        {
-            drawList->AddRectFilled(imgLeftTop, imgLeftTop + snapDispSize, IM_COL32_BLACK);
-            auto center_pos = imgLeftTop + snapDispSize / 2;
-            ImVec4 color_main(1.0, 1.0, 1.0, 1.0);
-            ImVec4 color_back(0.5, 0.5, 0.5, 1.0);
-            ImGui::SetCursorScreenPos(center_pos - ImVec2(8, 8));
-            ImGui::LoadingIndicatorCircle("Running", 1.0f, &color_main, &color_back);
-            drawList->AddRect(imgLeftTop, imgLeftTop + snapDispSize, COL_FRAME_RECT);
-        }
+            ImVec2 snapDispSize = mSnapSize;
+            ImVec2 uvMin{0, 0}, uvMax{1, 1};
+            if (imgLeftTop.x+mSnapSize.x > rightBottom.x)
+            {
+                snapDispSize.x = rightBottom.x - imgLeftTop.x;
+                uvMax.x = snapDispSize.x / mSnapSize.x;
+            }
+            auto& img = snapImages[i];
+            if (img->mTextureReady)
+                drawList->AddImage(*(img->mTextureHolder), imgLeftTop, imgLeftTop + snapDispSize, uvMin, uvMax);
+            else
+            {
+                drawList->AddRectFilled(imgLeftTop, imgLeftTop + snapDispSize, IM_COL32_BLACK);
+                auto center_pos = imgLeftTop + snapDispSize / 2;
+                ImVec4 color_main(1.0, 1.0, 1.0, 1.0);
+                ImVec4 color_back(0.5, 0.5, 0.5, 1.0);
+                ImGui::SetCursorScreenPos(center_pos - ImVec2(8, 8));
+                ImGui::LoadingIndicatorCircle("Running", 1.0f, &color_main, &color_back);
+                drawList->AddRect(imgLeftTop, imgLeftTop + snapDispSize, COL_FRAME_RECT);
+            }
 
-        imgLeftTop.x += snapDispSize.x;
-        if (imgLeftTop.x >= rightBottom.x)
-            break;
+            imgLeftTop.x += snapDispSize.x;
+            if (imgLeftTop.x >= rightBottom.x)
+                break;
+        }
     }
-    mSnapshot->ReleaseSnapshotTexture();
 }
 
 void EditingVideoClip::CalcDisplayParams()
 {
     double snapWndSize = (double)mDuration / 1000;
     double snapCntInView = (double)mViewWndSize.x / mSnapSize.x;
-    mSnapshot->ConfigSnapWindow(snapWndSize, snapCntInView);
+    mSsGen->ConfigSnapWindow(snapWndSize, snapCntInView);
 }
+} // namespace MediaTimeline
 
+namespace MediaTimeline
+{
 EditingAudioClip::EditingAudioClip(AudioClip* audclip)
     : BaseEditingClip(audclip->mID, audclip->mType, audclip->mStart, audclip->mEnd, audclip->mStartOffset, audclip->mEndOffset, audclip->mHandle)
-{}
+{
+    TimeLine * timeline = (TimeLine *)audclip->mHandle;
+    mDuration = mEnd-mStart;
+    mAudioChannels = audclip->mAudioChannels;
+    mAudioSampleRate = audclip->mAudioSampleRate;
+    mAudioFormat = audclip->mAudioFormat;
+    mWaveform = audclip->mWaveform;
+    if (mDuration < 0)
+        throw std::invalid_argument("Clip duration is negative!");
+    auto hClip = timeline->mMtaReader->GetClipById(audclip->mID);
+    IM_ASSERT(hClip);
+    mFilter = dynamic_cast<BluePrintAudioFilter *>(hClip->GetFilter().get());
+    if (!mFilter)
+    {
+        mFilter = new BluePrintAudioFilter(timeline);
+        mFilter->SetKeyPoint(audclip->mFilterKeyPoints);
+        DataLayer::AudioFilterHolder hFilter(mFilter);
+        hClip->SetFilter(hFilter);
+    }
+}
 
 EditingAudioClip::~EditingAudioClip()
 {}
@@ -1716,7 +2416,11 @@ void EditingAudioClip::UpdateClipRange(Clip* clip)
 
 void EditingAudioClip::Seek(int64_t pos)
 {
-    mCurrPos = pos;
+    TimeLine * timeline = (TimeLine *)mHandle;
+    if (!timeline)
+        return;
+    timeline->bSeeking = true;
+    timeline->Seek(pos);
 }
 
 void EditingAudioClip::Step(bool forward, int64_t step)
@@ -1730,37 +2434,81 @@ void EditingAudioClip::Save()
     auto clip = timeline->FindClipByID(mID);
     if (!clip)
         return;
-    timeline->mAudioFilterBluePrintLock.lock();
-    if (timeline->mAudioFilterBluePrint && timeline->mAudioFilterBluePrint->Blueprint_IsValid())
+    if (mFilter && mFilter->mBp && mFilter->mBp->Blueprint_IsValid())
     {
-        clip->mFilterBP = timeline->mAudioFilterBluePrint->m_Document->Serialize();
+        clip->mFilterBP = mFilter->mBp->m_Document->Serialize();
+        clip->mFilterKeyPoints = mFilter->mKeyPoints;
     }
-    timeline->mAudioFilterBluePrintLock.unlock();
-
-    // TODO::Dicky update audio filter in datalayer
-
 }
 
-bool EditingAudioClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame)
+bool EditingAudioClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame, bool attribute)
 {
     return false;
 }
 
 void EditingAudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom)
-{}
+{
+    TimeLine * timeline = (TimeLine *)mHandle;
+    if (!timeline)
+        return;
+    auto clip = timeline->FindClipByID(mID);
+    if (!clip)
+        return;
+    AudioClip * aclip = (AudioClip *)clip;
+    if (!aclip->mWaveform || aclip->mWaveform->pcm.size() <= 0)
+        return;
+    MediaOverview::WaveformHolder waveform = aclip->mWaveform;
+    drawList->AddRectFilled(leftTop, rightBottom, IM_COL32(16, 16, 16, 255));
+    drawList->AddRect(leftTop, rightBottom, IM_COL32(128, 128, 128, 255));
+    float wave_range = fmax(fabs(waveform->minSample), fabs(waveform->maxSample));
+    int64_t start_time = clip->mStart;
+    int64_t end_time = clip->mEnd;
+    int start_offset = (int)((double)(clip->mStartOffset) / 1000.f / waveform->aggregateDuration);
+    auto window_size = rightBottom - leftTop;
+    window_size.y /= waveform->pcm.size();
+    int window_length = (int)((double)(end_time - start_time) / 1000.f / waveform->aggregateDuration);
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
+    for (int i = 0; i < waveform->pcm.size(); i++)
+    {
+        std::string id_string = "##Waveform_editing@" + std::to_string(mID) + "@" +std::to_string(i);
+        //int sampleSize = waveform->pcm[i].size();
+        //if (sampleSize <= 0) continue;
+        int sample_stride = window_length / window_size.x;
+        int min_zoom = ImMax(window_length >> 15, 16);
+        int zoom = ImMin(sample_stride, min_zoom);
+        start_offset = start_offset / zoom * zoom; // align start_offset
+        ImPlot::PushStyleVar(ImPlotStyleVar_PlotPadding, {0, 0});
+        ImPlot::PushStyleVar(ImPlotStyleVar_PlotBorderSize, 0.f);
+        ImPlot::PushStyleColor(ImPlotCol_PlotBg, {0, 0, 0, 0});
+        if (ImPlot::BeginPlot(id_string.c_str(), window_size, ImPlotFlags_CanvasOnly | ImPlotFlags_NoFrame | ImPlotFlags_NoInputs))
+        {
+            std::string plot_id = id_string + "_line";
+            ImPlot::SetupAxes(NULL, NULL, ImPlotAxisFlags_NoDecorations, ImPlotAxisFlags_NoDecorations);
+            ImPlot::SetupAxesLimits(0, window_length / zoom, -wave_range, wave_range, ImGuiCond_Always);
+            ImPlot::PlotLine(plot_id.c_str(), &waveform->pcm[i][start_offset], window_length / zoom, 1.0, 0.0, 0, 0, sizeof(float) * zoom);
+            ImPlot::EndPlot();
+        }
+        ImPlot::PopStyleColor();
+        ImPlot::PopStyleVar(2);
+    }
+    ImGui::PopStyleVar();
+}
 } //namespace MediaTimeline/Clip
 
 namespace MediaTimeline
 {
-Overlap::Overlap(int64_t start, int64_t end, int64_t clip_first, int64_t clip_second, void* handle)
+Overlap::Overlap(int64_t start, int64_t end, int64_t clip_first, int64_t clip_second, uint32_t type, void* handle)
 {
     TimeLine * timeline = (TimeLine *)handle;
     mID = timeline ? timeline->m_IDGenerator.GenerateID() : ImGui::get_current_time_usec();
+    mType = type;
     mStart = start;
     mEnd = end;
     m_Clip.first = clip_first;
     m_Clip.second = clip_second;
     mHandle = handle;
+    mFusionKeyPoints.SetMin({0.f, 0.f});
+    mFusionKeyPoints.SetMax(ImVec2(end - start, 1.f), true);
 }
 
 Overlap::~Overlap()
@@ -1792,10 +2540,34 @@ bool Overlap::IsOverlapValid()
 
 void Overlap::Update(int64_t start, int64_t start_clip_id, int64_t end, int64_t end_clip_id)
 {
+    TimeLine * timeline = (TimeLine *)mHandle;
+    if (!timeline)
+        return;
     m_Clip.first = start_clip_id;
     m_Clip.second = end_clip_id;
     mStart = start;
     mEnd = end;
+    if (IS_VIDEO(mType))
+    {
+        auto hOvlp = timeline->mMtvReader->GetOverlapById(mID);
+        if (hOvlp)
+        {
+            auto fusion = dynamic_cast<BluePrintVideoTransition *>(hOvlp->GetTransition().get());
+            if (fusion)
+                fusion->mKeyPoints.SetMax(ImVec2(mEnd - mStart, 1.f), true);
+        }
+    }
+    else if (IS_AUDIO(mType))
+    {
+        auto hOvlp = timeline->mMtaReader->GetOverlapById(mID);
+        if (hOvlp)
+        {
+            auto fusion = dynamic_cast<BluePrintAudioTransition *>(hOvlp->GetTransition().get());
+            if (fusion)
+                fusion->mKeyPoints.SetMax(ImVec2(mEnd - mStart, 1.f), true);
+        }
+    }
+    mFusionKeyPoints.SetMax(ImVec2(mEnd - mStart, 1.f), true);
 }
 
 void Overlap::Seek()
@@ -1833,7 +2605,10 @@ Overlap* Overlap::Load(const imgui_json::value& value, void * handle)
         if (val.is_number()) second = val.get<imgui_json::number>();
     }
 
-    Overlap * new_overlap = new Overlap(start, end, first, second, handle);
+    Clip* firstClip = timeline->FindClipByID(first);
+    if (!firstClip)
+        return nullptr;
+    Overlap * new_overlap = new Overlap(start, end, first, second, firstClip->mType, handle);
     if (new_overlap)
     {
         if (value.contains("ID"))
@@ -1857,6 +2632,12 @@ Overlap* Overlap::Load(const imgui_json::value& value, void * handle)
             auto& val = value["FusionBP"];
             if (val.is_object()) new_overlap->mFusionBP = val;
         }
+        // load curve
+        if (value.contains("KeyPoint"))
+        {
+            auto& keypoint = value["KeyPoint"];
+            new_overlap->mFusionKeyPoints.Load(keypoint);
+        }
     }
     return new_overlap;
 }
@@ -1877,18 +2658,540 @@ void Overlap::Save(imgui_json::value& value)
     {
         value["FusionBP"] = mFusionBP;
     }
+
+    // save curve setting
+    imgui_json::value keypoint;
+    mFusionKeyPoints.Save(keypoint);
+    value["KeyPoint"] = keypoint;
+}
+} // namespace MediaTimeline
+
+namespace MediaTimeline
+{
+EditingVideoOverlap::EditingVideoOverlap(Overlap* ovlp)
+    : BaseEditingOverlap(ovlp)
+{
+    TimeLine* timeline = (TimeLine*)(ovlp->mHandle);
+    VideoClip* vidclip1 = (VideoClip*)timeline->FindClipByID(ovlp->m_Clip.first);
+    VideoClip* vidclip2 = (VideoClip*)timeline->FindClipByID(ovlp->m_Clip.second);
+    if (vidclip1 && vidclip2)
+    {
+        mClip1 = vidclip1; mClip2 = vidclip2;
+        if (mClip1->mType == MEDIA_VIDEO)
+        {
+            mSsGen1 = CreateSnapshotGenerator();
+            if (timeline) mSsGen1->EnableHwAccel(timeline->mHardwareCodec);
+            if (!mSsGen1->Open(vidclip1->mSsViewer->GetMediaParser()))
+                throw std::runtime_error("FAILED to open the snapshot generator for the 1st video clip!");
+            auto video1_info = vidclip1->mSsViewer->GetMediaParser()->GetBestVideoStream();
+            float snapshot_scale1 = video1_info->height > 0 ? 50.f / (float)video1_info->height : 0.1;
+            mSsGen1->SetCacheFactor(1.0);
+            mSsGen1->SetSnapshotResizeFactor(snapshot_scale1, snapshot_scale1);
+            m_StartOffset.first = vidclip1->mStartOffset + ovlp->mStart - vidclip1->mStart;
+            mViewer1 = mSsGen1->CreateViewer(m_StartOffset.first);
+        }
+        else
+        {
+            m_StartOffset.first = ovlp->mStart - vidclip1->mStart;
+            if (vidclip1->mImgTexture) mImgTexture1 = vidclip1->mImgTexture;
+        }
+        if (mClip2->mType == MEDIA_VIDEO)
+        {
+            mSsGen2 = CreateSnapshotGenerator();
+            if (timeline) mSsGen2->EnableHwAccel(timeline->mHardwareCodec);
+            if (!mSsGen2->Open(vidclip2->mSsViewer->GetMediaParser()))
+                throw std::runtime_error("FAILED to open the snapshot generator for the 2nd video clip!");
+            auto video2_info = vidclip2->mSsViewer->GetMediaParser()->GetBestVideoStream();
+            float snapshot_scale2 = video2_info->height > 0 ? 50.f / (float)video2_info->height : 0.1;
+            mSsGen2->SetCacheFactor(1.0);
+            mSsGen2->SetSnapshotResizeFactor(snapshot_scale2, snapshot_scale2);
+            m_StartOffset.second = vidclip2->mStartOffset + ovlp->mStart - vidclip2->mStart;
+            mViewer2 = mSsGen2->CreateViewer(m_StartOffset.second);
+        }
+        else
+        {
+            m_StartOffset.second = ovlp->mStart - vidclip2->mStart;
+            if (vidclip2->mImgTexture) mImgTexture2 = vidclip2->mImgTexture;
+        }
+        mStart = ovlp->mStart;
+        mEnd = ovlp->mEnd;
+        mDuration = mEnd - mStart;
+        
+        auto hOvlp = timeline->mMtvReader->GetOverlapById(mOvlp->mID);
+        IM_ASSERT(hOvlp);
+        mFusion = dynamic_cast<BluePrintVideoTransition *>(hOvlp->GetTransition().get());
+        if (!mFusion)
+        {
+            mFusion = new BluePrintVideoTransition(timeline);
+            mFusion->SetKeyPoint(mOvlp->mFusionKeyPoints);
+            DataLayer::VideoTransitionHolder hTrans(mFusion);
+            hOvlp->SetTransition(hTrans);
+        }
+        mClipFirstFrameRate = mClip1->mClipFrameRate;
+        mClipSecondFrameRate = mClip2->mClipFrameRate;
+    }
+    else
+    {
+        Logger::Log(Logger::Error) << "FAILED to initialize 'EditingVideoOverlap' instance! One or both of the source video clip can not be found." << std::endl;
+    }
 }
 
+EditingVideoOverlap::~EditingVideoOverlap()
+{
+    mViewer1 = nullptr;
+    mViewer2 = nullptr;
+    mSsGen1 = nullptr;
+    mSsGen2 = nullptr;
+    mFusion = nullptr;
+}
+
+void EditingVideoOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom)
+{
+    // update display params
+    bool ovlpRngChanged = mOvlp->mStart != mStart || mOvlp->mEnd != mEnd;
+    if (ovlpRngChanged)
+    {
+        mStart = mOvlp->mStart;
+        mEnd = mOvlp->mEnd;
+        mDuration = mEnd - mStart;
+    }
+    ImVec2 viewWndSize = { rightBottom.x - leftTop.x, rightBottom.y - leftTop.y };
+    bool vwndChanged = mViewWndSize.x != viewWndSize.x || mViewWndSize.y != viewWndSize.y;
+    if (vwndChanged && viewWndSize.x != 0 && viewWndSize.y != 0)
+    {
+        mViewWndSize = viewWndSize;
+        // TODO: need to consider the situation that 1st and 2nd video doesn't have the same size. (wyvern)
+        if (mSsGen1 || mSsGen2)
+        {
+            const MediaInfo::VideoStream* vidStream = mSsGen1 ? mSsGen1->GetVideoStream() : mSsGen2->GetVideoStream();
+            if (vidStream->width == 0 || vidStream->height == 0)
+            {
+                Logger::Log(Logger::Error) << "Snapshot video size is INVALID! Width or height is ZERO." << std::endl;
+                return;
+            }
+            mSnapSize.y = viewWndSize.y / 2;
+            mSnapSize.x = mSnapSize.y * vidStream->width / vidStream->height;
+        }
+        else if (mImgTexture1 || mImgTexture2)
+        {
+            int width = ImGui::ImGetTextureWidth(mImgTexture1 ? mImgTexture1 : mImgTexture2);
+            int height = ImGui::ImGetTextureHeight(mImgTexture1 ? mImgTexture1 : mImgTexture2);
+            if (width == 0 || height == 0)
+            {
+                Logger::Log(Logger::Error) << "Snapshot video size is INVALID! Width or height is ZERO." << std::endl;
+                return;
+            }
+            mSnapSize.y = viewWndSize.y / 2;
+            mSnapSize.x = mSnapSize.y * width / height;
+        }
+        else
+        {
+            Logger::Log(Logger::Error) << "Snapshot video size is INVALID! Width or height is ZERO." << std::endl;
+            return;
+        }
+    }
+    if (mViewWndSize.x == 0 || mViewWndSize.y == 0)
+        return;
+
+    CalcDisplayParams();
+
+    // get snapshot images
+    std::vector<SnapshotGenerator::ImageHolder> snapImages1;
+    if (mViewer1)
+    {
+        m_StartOffset.first = mClip1->mStartOffset + mOvlp->mStart - mClip1->mStart;
+        if (!mViewer1->GetSnapshots((double)m_StartOffset.first / 1000, snapImages1))
+        {
+            Logger::Log(Logger::Error) << mViewer1->GetError() << std::endl;
+            return;
+        }
+        mViewer1->UpdateSnapshotTexture(snapImages1);
+    }
+    std::vector<SnapshotGenerator::ImageHolder> snapImages2;
+    if (mViewer2)
+    {
+        m_StartOffset.second = mClip2->mStartOffset + mOvlp->mStart - mClip2->mStart;
+        if (!mViewer2->GetSnapshots((double)m_StartOffset.second / 1000, snapImages2))
+        {
+            Logger::Log(Logger::Error) << mViewer2->GetError() << std::endl;
+            return;
+        }
+        mViewer2->UpdateSnapshotTexture(snapImages2);
+    }
+
+    // draw snapshot images
+    if (snapImages1.size() > 0)
+    {
+        ImVec2 imgLeftTop = leftTop;
+        auto imgIter1 = snapImages1.begin();
+        while (imgIter1 != snapImages1.end())
+        {
+            ImVec2 snapDispSize = mSnapSize;
+            ImVec2 uvMin{0, 0}, uvMax{1, 1};
+            if (imgLeftTop.x+mSnapSize.x > rightBottom.x)
+            {
+                snapDispSize.x = rightBottom.x - imgLeftTop.x;
+                uvMax.x = snapDispSize.x / mSnapSize.x;
+            }
+            if (imgIter1 != snapImages1.end() && (*imgIter1)->mTextureReady)
+            {
+                auto& img = *imgIter1++;
+                drawList->AddImage(*(img->mTextureHolder), imgLeftTop, imgLeftTop + snapDispSize, uvMin, uvMax);
+            }
+            else
+            {
+                drawList->AddRectFilled(imgLeftTop, imgLeftTop + snapDispSize, IM_COL32_BLACK);
+                auto center_pos = imgLeftTop + snapDispSize / 2;
+                ImVec4 color_main(1.0, 1.0, 1.0, 1.0);
+                ImVec4 color_back(0.5, 0.5, 0.5, 1.0);
+                ImGui::SetCursorScreenPos(center_pos - ImVec2(8, 8));
+                ImGui::LoadingIndicatorCircle("Running", 1.0f, &color_main, &color_back);
+                drawList->AddRect(imgLeftTop, imgLeftTop + snapDispSize, COL_FRAME_RECT);
+            }
+            imgLeftTop.x += snapDispSize.x;
+            if (imgLeftTop.x >= rightBottom.x)
+                break;
+        }
+    }
+    else if (mImgTexture1)
+    {
+        ImVec2 imgLeftTop = leftTop;
+        while (1)
+        {
+            ImVec2 snapDispSize = mSnapSize;
+            ImVec2 uvMin{0, 0}, uvMax{1, 1};
+            if (imgLeftTop.x+mSnapSize.x > rightBottom.x)
+            {
+                snapDispSize.x = rightBottom.x - imgLeftTop.x;
+                uvMax.x = snapDispSize.x / mSnapSize.x;
+            }
+            drawList->AddImage(mImgTexture1, imgLeftTop, imgLeftTop + snapDispSize, uvMin, uvMax);
+            imgLeftTop.x += snapDispSize.x;
+            if (imgLeftTop.x >= rightBottom.x)
+                break;
+        }
+    }
+    if (snapImages2.size() > 0)
+    {
+        ImVec2 imgLeftTop = leftTop;
+        auto imgIter2 = snapImages2.begin();
+        while (imgIter2 != snapImages2.end())
+        {
+            ImVec2 snapDispSize = mSnapSize;
+            ImVec2 uvMin{0, 0}, uvMax{1, 1};
+            if (imgLeftTop.x+mSnapSize.x > rightBottom.x)
+            {
+                snapDispSize.x = rightBottom.x - imgLeftTop.x;
+                uvMax.x = snapDispSize.x / mSnapSize.x;
+            }
+            ImVec2 img2LeftTop = {imgLeftTop.x, imgLeftTop.y+mSnapSize.y};
+            if (imgIter2 != snapImages2.end() && (*imgIter2)->mTextureReady)
+            {
+                auto& img = *imgIter2++;
+                drawList->AddImage(*(img->mTextureHolder), img2LeftTop, img2LeftTop + snapDispSize, uvMin, uvMax);
+            }
+            else
+            {
+                drawList->AddRectFilled(img2LeftTop, img2LeftTop + snapDispSize, IM_COL32_BLACK);
+                auto center_pos = img2LeftTop + snapDispSize / 2;
+                ImVec4 color_main(1.0, 1.0, 1.0, 1.0);
+                ImVec4 color_back(0.5, 0.5, 0.5, 1.0);
+                ImGui::SetCursorScreenPos(center_pos - ImVec2(8, 8));
+                ImGui::LoadingIndicatorCircle("Running", 1.0f, &color_main, &color_back);
+                drawList->AddRect(img2LeftTop, img2LeftTop + snapDispSize, COL_FRAME_RECT);
+            }
+            imgLeftTop.x += snapDispSize.x;
+            if (imgLeftTop.x >= rightBottom.x)
+                break;
+        }
+    }
+    else if (mImgTexture2)
+    {
+        ImVec2 imgLeftTop = leftTop;
+        while (1)
+        {
+            ImVec2 snapDispSize = mSnapSize;
+            ImVec2 uvMin{0, 0}, uvMax{1, 1};
+            if (imgLeftTop.x+mSnapSize.x > rightBottom.x)
+            {
+                snapDispSize.x = rightBottom.x - imgLeftTop.x;
+                uvMax.x = snapDispSize.x / mSnapSize.x;
+            }
+            ImVec2 img2LeftTop = {imgLeftTop.x, imgLeftTop.y+mSnapSize.y};
+            drawList->AddImage(mImgTexture2, img2LeftTop, img2LeftTop + snapDispSize, uvMin, uvMax);
+            imgLeftTop.x += snapDispSize.x;
+            if (imgLeftTop.x >= rightBottom.x)
+                break;
+        }
+    }
+}
+
+void EditingVideoOverlap::CalcDisplayParams()
+{
+    double snapWndSize = (double)mDuration / 1000;
+    double snapCntInView = (double)mViewWndSize.x / mSnapSize.x;
+    if (mSsGen1) mSsGen1->ConfigSnapWindow(snapWndSize, snapCntInView);
+    if (mSsGen2) mSsGen2->ConfigSnapWindow(snapWndSize, snapCntInView);
+}
+
+void EditingVideoOverlap::Seek(int64_t pos)
+{
+    TimeLine* timeline = (TimeLine*)(mOvlp->mHandle);
+    if (!timeline)
+        return;
+    timeline->bSeeking = true;
+    timeline->Seek(pos);
+}
+
+void EditingVideoOverlap::Step(bool forward, int64_t step)
+{
+}
+
+bool EditingVideoOverlap::GetFrame(std::pair<std::pair<ImGui::ImMat, ImGui::ImMat>, ImGui::ImMat>& in_out_frame, bool preview_frame)
+{
+    int ret = true;
+    TimeLine* timeline = (TimeLine*)(mOvlp->mHandle);
+    if (!timeline)
+        return false;
+
+    auto frames = timeline->GetPreviewFrame();
+    ImGui::ImMat frame_org_first;
+    auto iter_first = std::find_if(frames.begin(), frames.end(), [this] (auto& cf) {
+        return cf.clipId == mOvlp->m_Clip.first && cf.phase == DataLayer::CorrelativeFrame::PHASE_SOURCE_FRAME;
+    });
+    if (iter_first != frames.end())
+        frame_org_first = iter_first->frame;
+    else
+        ret = false;
+    ImGui::ImMat frame_org_second;
+    auto iter_second = std::find_if(frames.begin(), frames.end(), [this] (auto& cf) {
+        return cf.clipId == mOvlp->m_Clip.second && cf.phase == DataLayer::CorrelativeFrame::PHASE_SOURCE_FRAME;
+    });
+    if (iter_second != frames.end())
+        frame_org_second = iter_second->frame;
+    else
+        ret = false;
+    
+    if (preview_frame)
+    {
+        if (!frames.empty())
+            in_out_frame.second = frames[0].frame;
+        else
+            ret = false;
+    }
+    else
+    {
+        auto iter_out = std::find_if(frames.begin(), frames.end(), [this] (auto& cf) {
+            return cf.phase == DataLayer::CorrelativeFrame::PHASE_AFTER_TRANSITION;
+        });
+        if (iter_out != frames.end())
+            in_out_frame.second = iter_out->frame;
+        else
+            ret = false;
+    }
+    in_out_frame.first.first = frame_org_first;
+    in_out_frame.first.second = frame_org_second;
+    return ret;
+}
+
+void EditingVideoOverlap::Save()
+{
+    TimeLine * timeline = (TimeLine *)(mOvlp->mHandle);
+    if (!timeline)
+        return;
+    auto overlap = timeline->FindOverlapByID(mOvlp->mID);
+    if (!overlap)
+        return;
+    if (mFusion && mFusion->mBp && mFusion->mBp->Blueprint_IsValid())
+    {
+        overlap->mFusionBP = mFusion->mBp->m_Document->Serialize();
+        overlap->mFusionKeyPoints = mFusion->mKeyPoints;
+    }
+    timeline->UpdatePreview();
+}
 }// namespace MediaTimeline
+
+namespace MediaTimeline
+{
+EditingAudioOverlap::EditingAudioOverlap(Overlap* ovlp)
+    : BaseEditingOverlap(ovlp)
+{
+    TimeLine* timeline = (TimeLine*)(ovlp->mHandle);
+    AudioClip* audclip1 = (AudioClip*)timeline->FindClipByID(ovlp->m_Clip.first);
+    AudioClip* audclip2 = (AudioClip*)timeline->FindClipByID(ovlp->m_Clip.second);
+    if (audclip1 && audclip2)
+    {
+        mClip1 = audclip1; mClip2 = audclip2;
+        m_StartOffset.first = audclip1->mStartOffset + ovlp->mStart - audclip1->mStart;
+        m_StartOffset.second = audclip2->mStartOffset + ovlp->mStart - audclip2->mStart;
+        mStart = ovlp->mStart;
+        mEnd = ovlp->mEnd;
+        mDuration = mEnd - mStart;
+        auto hOvlp = timeline->mMtaReader->GetOverlapById(mOvlp->mID);
+        IM_ASSERT(hOvlp);
+        mFusion = dynamic_cast<BluePrintAudioTransition *>(hOvlp->GetTransition().get());
+        if (!mFusion)
+        {
+            mFusion = new BluePrintAudioTransition(timeline);
+            mFusion->SetKeyPoint(mOvlp->mFusionKeyPoints);
+            DataLayer::AudioTransitionHolder hTrans(mFusion);
+            hOvlp->SetTransition(hTrans);
+        }
+    }
+    else
+    {
+        Logger::Log(Logger::Error) << "FAILED to initialize 'EditingAudioOverlap' instance! One or both of the source audio clip can not be found." << std::endl;
+    }
+}
+
+EditingAudioOverlap::~EditingAudioOverlap()
+{
+    mFusion = nullptr;
+}
+
+void EditingAudioOverlap::Seek(int64_t pos)
+{
+    TimeLine* timeline = (TimeLine*)(mOvlp->mHandle);
+    if (!timeline)
+        return;
+    timeline->bSeeking = true;
+    timeline->Seek(pos);
+}
+
+void EditingAudioOverlap::Step(bool forward, int64_t step)
+{
+}
+
+void EditingAudioOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom)
+{
+    // update display params
+    bool ovlpRngChanged = mOvlp->mStart != mStart || mOvlp->mEnd != mEnd;
+    if (ovlpRngChanged)
+    {
+        mStart = mOvlp->mStart;
+        mEnd = mOvlp->mEnd;
+        mDuration = mEnd - mStart;
+    }
+    ImVec2 viewWndSize = { rightBottom.x - leftTop.x, rightBottom.y - leftTop.y };
+    bool vwndChanged = mViewWndSize.x != viewWndSize.x || mViewWndSize.y != viewWndSize.y;
+    if (vwndChanged && viewWndSize.x != 0 && viewWndSize.y != 0)
+    {
+        mViewWndSize = viewWndSize;
+    }
+
+    auto window_size = rightBottom - leftTop;
+    window_size.y /= 2;
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
+    ImPlot::PushStyleVar(ImPlotStyleVar_PlotPadding, {0, 0});
+    ImPlot::PushStyleVar(ImPlotStyleVar_PlotBorderSize, 0.f);
+    ImPlot::PushStyleColor(ImPlotCol_PlotBg, {0, 0, 0, 0});
+    if (mClip1 && mClip1->mWaveform)
+    {
+        ImGui::SetCursorScreenPos(leftTop);
+        drawList->AddRectFilled(leftTop, leftTop + window_size, IM_COL32(16, 16, 16, 255));
+        drawList->AddRect(leftTop, leftTop + window_size, IM_COL32(128, 128, 128, 255));
+
+        MediaOverview::WaveformHolder waveform = mClip1->mWaveform;
+        int sampleSize = waveform->pcm[0].size();
+        float wave_range = fmax(fabs(waveform->minSample), fabs(waveform->maxSample));
+        int64_t start_time = std::max(mClip1->mStart, mStart);
+        int64_t end_time = std::min(mClip1->mEnd, mEnd);
+        IM_ASSERT(start_time <= end_time);
+        int start_offset = (int)((double)((mStart - mClip1->mStart)) / 1000.f / waveform->aggregateDuration);
+        start_offset = std::max(start_offset, 0);
+        int window_length = (int)((double)(end_time - start_time) / 1000.f / waveform->aggregateDuration);
+        window_length = std::min(window_length, sampleSize);
+        auto clip_window_size = window_size;
+        clip_window_size.y /= waveform->pcm.size();
+        for (int i = 0; i < waveform->pcm.size(); i++)
+        {
+            std::string id_string = "##Waveform_overlap@" + std::to_string(mClip1->mID) + "@" +std::to_string(i);
+            int sample_stride = window_length / clip_window_size.x;
+            int min_zoom = ImMax(window_length >> 15, 16);
+            int zoom = ImMin(sample_stride, min_zoom);
+            start_offset = start_offset / zoom * zoom; // align start_offset
+            
+            if (ImPlot::BeginPlot(id_string.c_str(), clip_window_size, ImPlotFlags_CanvasOnly | ImPlotFlags_NoFrame | ImPlotFlags_NoInputs))
+            {
+                std::string plot_id = id_string + "_line";
+                ImPlot::SetupAxes(NULL, NULL, ImPlotAxisFlags_NoDecorations, ImPlotAxisFlags_NoDecorations);
+                ImPlot::SetupAxesLimits(0, window_length / zoom, -wave_range, wave_range, ImGuiCond_Always);
+                ImPlot::PlotLine(plot_id.c_str(), &waveform->pcm[i][start_offset], window_length / zoom, 1.0, 0.0, 0, 0, sizeof(float) * zoom);
+                ImPlot::EndPlot();
+            }
+            if (i > 0)
+                drawList->AddLine(leftTop + ImVec2(0, clip_window_size.y * i), leftTop + ImVec2(clip_window_size.x, clip_window_size.y * i), IM_COL32(64, 64, 64, 255));
+        }
+    }
+    if (mClip2)
+    {
+        auto clip2_pos = leftTop + ImVec2(0, window_size.y);
+        ImGui::SetCursorScreenPos(clip2_pos);
+        drawList->AddRectFilled(clip2_pos, clip2_pos + window_size, IM_COL32(32, 32, 32, 255));
+        drawList->AddRect(clip2_pos, clip2_pos + window_size, IM_COL32(128, 128, 128, 255));
+
+        MediaOverview::WaveformHolder waveform = mClip2->mWaveform;
+        int sampleSize = waveform->pcm[0].size();
+        float wave_range = fmax(fabs(waveform->minSample), fabs(waveform->maxSample));
+        int64_t start_time = std::max(mClip2->mStart, mStart);
+        int64_t end_time = std::min(mClip2->mEnd, mEnd);
+        IM_ASSERT(start_time <= end_time);
+        int start_offset = (int)((double)((mStart - mClip2->mStart)) / 1000.f / waveform->aggregateDuration);
+        start_offset = std::max(start_offset, 0);
+        int window_length = (int)((double)(end_time - start_time) / 1000.f / waveform->aggregateDuration);
+        window_length = std::min(window_length, sampleSize);
+        auto clip_window_size = window_size;
+        clip_window_size.y /= waveform->pcm.size();
+        for (int i = 0; i < waveform->pcm.size(); i++)
+        {
+            std::string id_string = "##Waveform_overlap@" + std::to_string(mClip2->mID) + "@" +std::to_string(i);
+            int sample_stride = window_length / clip_window_size.x;
+            int min_zoom = ImMax(window_length >> 15, 16);
+            int zoom = ImMin(sample_stride, min_zoom);
+            start_offset = start_offset / zoom * zoom; // align start_offset
+            
+            if (ImPlot::BeginPlot(id_string.c_str(), clip_window_size, ImPlotFlags_CanvasOnly | ImPlotFlags_NoFrame | ImPlotFlags_NoInputs))
+            {
+                std::string plot_id = id_string + "_line";
+                ImPlot::SetupAxes(NULL, NULL, ImPlotAxisFlags_NoDecorations, ImPlotAxisFlags_NoDecorations);
+                ImPlot::SetupAxesLimits(0, window_length / zoom, -wave_range, wave_range, ImGuiCond_Always);
+                ImPlot::PlotLine(plot_id.c_str(), &waveform->pcm[i][start_offset], window_length / zoom, 1.0, 0.0, 0, 0, sizeof(float) * zoom);
+                ImPlot::EndPlot();
+            }
+            if (i > 0)
+                drawList->AddLine(clip2_pos + ImVec2(0, clip_window_size.y * i), clip2_pos + ImVec2(clip_window_size.x, clip_window_size.y * i), IM_COL32(64, 64, 64, 255));
+        }
+    }
+    ImPlot::PopStyleColor();
+    ImPlot::PopStyleVar(2);
+    ImGui::PopStyleVar();
+}
+
+void EditingAudioOverlap::Save()
+{
+    TimeLine * timeline = (TimeLine *)(mOvlp->mHandle);
+    if (!timeline)
+        return;
+    auto overlap = timeline->FindOverlapByID(mOvlp->mID);
+    if (!overlap)
+        return;
+    if (mFusion && mFusion->mBp && mFusion->mBp->Blueprint_IsValid())
+    {
+        overlap->mFusionBP = mFusion->mBp->m_Document->Serialize();
+        overlap->mFusionKeyPoints = mFusion->mKeyPoints;
+    }
+}
+
+} // namespace MediaTimeline
 
 namespace MediaTimeline
 {
 /***********************************************************************************************************
  * MediaTrack Struct Member Functions
  ***********************************************************************************************************/
-MediaTrack::MediaTrack(std::string name, MEDIA_TYPE type, void * handle)
-    : m_Handle(handle),
-      mType(type)
+MediaTrack::MediaTrack(std::string name, uint32_t type, void * handle) :
+    m_Handle(handle),
+    mType(type)
 {
     TimeLine * timeline = (TimeLine *)handle;
     mID = timeline ? timeline->m_IDGenerator.GenerateID() : ImGui::get_current_time_usec();
@@ -1899,28 +3202,25 @@ MediaTrack::MediaTrack(std::string name, MEDIA_TYPE type, void * handle)
         {
             auto media_count = timeline->GetTrackCount(type);
             media_count ++;
-            switch (type)
+            if (IS_VIDEO(type))
             {
-                case MEDIA_VIDEO:
-                    mName = "V:";
-                    mTrackHeight = DEFAULT_VIDEO_TRACK_HEIGHT;
-                break;
-                case MEDIA_AUDIO:
-                    mName = "A:";
-                    mTrackHeight = DEFAULT_AUDIO_TRACK_HEIGHT;
-                break;
-                case MEDIA_PICTURE:
-                    mName = "P:";
-                    mTrackHeight = DEFAULT_IMAGE_TRACK_HEIGHT;
-                break;
-                case MEDIA_TEXT:
-                    mName = "T:";
-                    mTrackHeight = DEFAULT_TEXT_TRACK_HEIGHT;
-                break;
-                default:
-                    mName = "U:";
-                    mTrackHeight = DEFAULT_TRACK_HEIGHT;
-                break;
+                mName = "V:";
+                mTrackHeight = DEFAULT_VIDEO_TRACK_HEIGHT;
+            }
+            else if (IS_AUDIO(type))
+            {
+                mName = "A:";
+                mTrackHeight = DEFAULT_AUDIO_TRACK_HEIGHT;
+            }
+            else if (IS_TEXT(type))
+            {
+                mName = "T:";
+                mTrackHeight = DEFAULT_TEXT_TRACK_HEIGHT;
+            }
+            else
+            {
+                mName = "U:";
+                mTrackHeight = DEFAULT_TRACK_HEIGHT;
             }
             mName += std::to_string(media_count);
         }
@@ -1954,6 +3254,11 @@ MediaTrack::~MediaTrack()
     if (linked_track)
     {
         linked_track->mLinkedTrack = -1;
+    }
+
+    if (mMttReader)
+    {
+        timeline->mMtvReader->RemoveSubtitleTrackById(mID);
     }
 }
 
@@ -2030,20 +3335,23 @@ void MediaTrack::Update()
                     if (overlap)
                         overlap->Update(start, (*iter)->mID, end, (*next)->mID);
                     else
-                        CreateOverlap(start, (*iter)->mID, end, (*next)->mID);
+                        CreateOverlap(start, (*iter)->mID, end, (*next)->mID, (*iter)->mType);
                 }
             }
         }
     }
+    // update curve range
+    if (mMttReader)
+        mMttReader->GetKeyPoints()->SetRangeX(timeline->mStart, timeline->mEnd, true);
 }
 
-void MediaTrack::CreateOverlap(int64_t start, int64_t start_clip_id, int64_t end, int64_t end_clip_id)
+void MediaTrack::CreateOverlap(int64_t start, int64_t start_clip_id, int64_t end, int64_t end_clip_id, uint32_t type)
 {
     TimeLine * timeline = (TimeLine *)m_Handle;
     if (!timeline)
         return;
 
-    Overlap * new_overlap = new Overlap(start, end, start_clip_id, end_clip_id, timeline);
+    Overlap * new_overlap = new Overlap(start, end, start_clip_id, end_clip_id, type, timeline);
     timeline->m_Overlaps.push_back(new_overlap);
     m_Overlaps.push_back(new_overlap);
     // sort track overlap by overlap start time
@@ -2079,6 +3387,15 @@ void MediaTrack::DeleteClip(int64_t id)
     });
     if (iter != m_Clips.end())
     {
+        if ((*iter)->mType == MEDIA_TEXT)
+        {
+            TextClip * tclip = dynamic_cast<TextClip *>(*iter);
+            // if clip is text clip, need delete from track holder
+            if (mMttReader && tclip->mClipHolder)
+            {
+                mMttReader->DeleteClip(tclip->mClipHolder);
+            }
+        }
         m_Clips.erase(iter);
     }
     Update();
@@ -2101,7 +3418,7 @@ void MediaTrack::PushBackClip(Clip * clip)
 bool MediaTrack::CanInsertClip(Clip * clip, int64_t pos)
 {
     bool can_insert_clip = true;
-    if (!clip || mType != clip->mType)
+    if (!clip || !IS_SAME_TYPE(mType, clip->mType))
     {
         can_insert_clip = false;
     }
@@ -2120,11 +3437,12 @@ bool MediaTrack::CanInsertClip(Clip * clip, int64_t pos)
     return can_insert_clip;
 }
 
-void MediaTrack::InsertClip(Clip * clip, int64_t pos)
+void MediaTrack::InsertClip(Clip * clip, int64_t pos, bool update)
 {
     TimeLine * timeline = (TimeLine *)m_Handle;
     if (!timeline || !clip)
         return;
+        
     auto iter = std::find_if(m_Clips.begin(), m_Clips.end(), [clip](const Clip * _clip)
     {
         return _clip->mID == clip->mID;
@@ -2136,9 +3454,12 @@ void MediaTrack::InsertClip(Clip * clip, int64_t pos)
         clip->mEnd = clip->mStart + length;
         clip->ConfigViewWindow(mViewWndDur, mPixPerMs);
         clip->SetTrackHeight(mTrackHeight);
+        // Set keypoint
+        clip->mFilterKeyPoints.SetRangeX(clip->mStart, clip->mEnd, true);
+        clip->mAttributeKeyPoints.SetRangeX(clip->mStart, clip->mEnd, true);
         m_Clips.push_back(clip);
     }
-    Update();
+    if (update) Update();
 }
 
 Clip * MediaTrack::FindPrevClip(int64_t id)
@@ -2241,39 +3562,50 @@ void MediaTrack::SelectClip(Clip * clip, bool appand)
     clip->bSelected = selected;
 }
 
-void MediaTrack::SelectEditingClip(Clip * clip)
+void MediaTrack::SelectEditingClip(Clip * clip, bool filter_editing)
 {
     TimeLine * timeline = (TimeLine *)m_Handle;
     if (!timeline || !clip)
         return;
     
     int updated = 0;
-    if (timeline->m_CallBacks.EditingClip)
+    if (filter_editing && timeline->m_CallBacks.EditingClipFilter)
     {
-        updated = timeline->m_CallBacks.EditingClip(clip->mType, clip);
+        updated = timeline->m_CallBacks.EditingClipFilter(clip->mType, clip);
     }
+    else if (timeline->m_CallBacks.EditingClipAttribute)
+    {
+        updated = timeline->m_CallBacks.EditingClipAttribute(clip->mType, clip);
+    }
+    if (timeline->currentTime < clip->mStart || timeline->currentTime > clip->mEnd || timeline->currentTime < timeline->firstTime || timeline->currentTime > timeline->lastTime)
+        timeline->Seek(clip->mStart);
+
     // find old editing clip and reset BP
     auto editing_clip = timeline->FindEditingClip();
     if (editing_clip && editing_clip->mID == clip->mID)
     {
-        if (editing_clip->mType == MEDIA_VIDEO)
+        if (filter_editing)
         {
-            if (timeline->mVidFilterClip && timeline->mVideoFilterBluePrint && timeline->mVideoFilterBluePrint->Blueprint_IsValid())
+            if (IS_VIDEO(editing_clip->mType) &&
+                timeline->mVidFilterClip &&
+                timeline->mVidFilterClip->mFilter &&
+                timeline->mVidFilterClip->mFilter->mBp &&
+                timeline->mVidFilterClip->mFilter->mBp->Blueprint_IsValid())
                 return;
-        }
-        if (editing_clip->mType == MEDIA_AUDIO)
-        {
-            if (timeline->mAudFilterClip && timeline->mAudioFilterBluePrint && timeline->mAudioFilterBluePrint->Blueprint_IsValid())
+            if (IS_AUDIO(editing_clip->mType) &&
+                timeline->mAudFilterClip &&
+                timeline->mAudFilterClip->mFilter &&
+                timeline->mAudFilterClip->mFilter->mBp &&
+                timeline->mAudFilterClip->mFilter->mBp->Blueprint_IsValid())
                 return;
         }
     }
     else if (editing_clip && editing_clip->mID != clip->mID)
     {
-        if (editing_clip->mType == MEDIA_VIDEO)
+        if (IS_VIDEO(editing_clip->mType))
         {
             if (!updated && timeline->mVidFilterClip)
             {
-                timeline->mVidFilterClip->bPlay = false;
                 timeline->mVidFilterClip->Save();
             }
             // update timeline video filter clip
@@ -2287,11 +3619,10 @@ void MediaTrack::SelectEditingClip(Clip * clip)
             }
             timeline->mVidFilterClipLock.unlock();
         }
-        else if (editing_clip->mType == MEDIA_AUDIO)
+        else if (IS_AUDIO(editing_clip->mType))
         {
             if (!updated && timeline->mAudFilterClip)
             {
-                timeline->mAudFilterClip->bPlay = false;
                 timeline->mAudFilterClip->Save();
             }
             // update timeline Audio filter clip
@@ -2307,33 +3638,20 @@ void MediaTrack::SelectEditingClip(Clip * clip)
     }
 
     clip->bEditing = true;
-    if (clip->mType == MEDIA_VIDEO)
+
+    if (IS_VIDEO(clip->mType))
     {
-        if (timeline->mVideoFilterBluePrint && timeline->mVideoFilterBluePrint->m_Document)
-        {                
-            timeline->mVideoFilterBluePrintLock.lock();
-            timeline->mVideoFilterBluePrint->File_New_Filter(clip->mFilterBP, "VideoFilter", "Video");
-            timeline->mVideoFilterNeedUpdate = true;
-            timeline->mVideoFilterBluePrintLock.unlock();
-        }
         if (!timeline->mVidFilterClip)
             timeline->mVidFilterClip = new EditingVideoClip((VideoClip*)clip);
     }
-    else if (clip->mType == MEDIA_AUDIO)
+    else if (IS_AUDIO(clip->mType))
     {
-        if (timeline->mAudioFilterBluePrint && timeline->mAudioFilterBluePrint->m_Document)
-        {                
-            timeline->mAudioFilterBluePrintLock.lock();
-            timeline->mAudioFilterBluePrint->File_New_Filter(clip->mFilterBP, "AudioFilter", "Audio");
-            timeline->mAudioFilterNeedUpdate = true;
-            timeline->mAudioFilterBluePrintLock.unlock();
-        }
         if (!timeline->mAudFilterClip)
             timeline->mAudFilterClip = new EditingAudioClip((AudioClip*)clip);
     }
 }
 
-void MediaTrack::EditingOverlap(Overlap * overlap)
+void MediaTrack::SelectEditingOverlap(Overlap * overlap)
 {
     TimeLine * timeline = (TimeLine *)m_Handle;
     if (!timeline || !overlap)
@@ -2341,32 +3659,45 @@ void MediaTrack::EditingOverlap(Overlap * overlap)
     
     // find old editing overlap and reset BP
     Overlap * editing_overlap = timeline->FindEditingOverlap();
+    timeline->Seek(overlap->mStart);
+
     if (editing_overlap && editing_overlap->mID != overlap->mID)
     {
         auto clip_first = timeline->FindClipByID(editing_overlap->m_Clip.first);
         auto clip_second = timeline->FindClipByID(editing_overlap->m_Clip.second);
         if (clip_first && clip_second)
         {
-            if (clip_first->mType == MEDIA_VIDEO && 
-                clip_second->mType == MEDIA_VIDEO &&
-                timeline->mVideoFusionBluePrint &&
-                timeline->mVideoFusionBluePrint->Blueprint_IsValid())
+            if (IS_VIDEO(clip_first->mType) && 
+                IS_VIDEO(clip_second->mType) &&
+                timeline->mVidOverlap &&
+                timeline->mVidOverlap->mFusion &&
+                timeline->mVidOverlap->mFusion->mBp &&
+                timeline->mVidOverlap->mFusion->mBp->Blueprint_IsValid())
             {
-                timeline->mVideoFusionBluePrintLock.lock();
-                editing_overlap->mFusionBP = timeline->mVideoFusionBluePrint->m_Document->Serialize();
-                timeline->mVideoFusionBluePrintLock.unlock();
+                editing_overlap->mFusionBP = timeline->mVidOverlap->mFusion->mBp->m_Document->Serialize();
             }
-            if (clip_first->mType == MEDIA_AUDIO && 
-                clip_second->mType == MEDIA_AUDIO &&
-                timeline->mAudioFusionBluePrint &&
-                timeline->mAudioFusionBluePrint->Blueprint_IsValid())
+            if (IS_AUDIO(clip_first->mType) && 
+                IS_AUDIO(clip_second->mType) &&
+                timeline->mAudOverlap &&
+                timeline->mAudOverlap->mFusion &&
+                timeline->mAudOverlap->mFusion->mBp &&
+                timeline->mAudOverlap->mFusion->mBp->Blueprint_IsValid())
             {
-                timeline->mAudioFusionBluePrintLock.lock();
-                editing_overlap->mFusionBP = timeline->mAudioFusionBluePrint->m_Document->Serialize();
-                timeline->mAudioFusionBluePrintLock.unlock();
+                editing_overlap->mFusionBP = timeline->mAudOverlap->mFusion->mBp->m_Document->Serialize();
             }
         }
+        if (timeline->mVidOverlap)
+            timeline->mVidOverlap->Save();
         editing_overlap->bEditing = false;
+
+        if (timeline->mVidOverlap)
+        {
+            delete timeline->mVidOverlap;
+            timeline->mVidOverlap = nullptr;
+            if (timeline->mVideoFusionInputFirstTexture) { ImGui::ImDestroyTexture(timeline->mVideoFusionInputFirstTexture); timeline->mVideoFusionInputFirstTexture = nullptr; }
+            if (timeline->mVideoFusionInputSecondTexture) { ImGui::ImDestroyTexture(timeline->mVideoFusionInputSecondTexture); timeline->mVideoFusionInputSecondTexture = nullptr; }
+            if (timeline->mVideoFusionOutputTexture) { ImGui::ImDestroyTexture(timeline->mVideoFusionOutputTexture); timeline->mVideoFusionOutputTexture = nullptr;  }
+        }
     }
 
     overlap->bEditing = true;
@@ -2374,21 +3705,17 @@ void MediaTrack::EditingOverlap(Overlap * overlap)
     auto second = timeline->FindClipByID(overlap->m_Clip.second);
     if (!first || !second)
         return;
-    if (first->mType == MEDIA_VIDEO && second->mType == MEDIA_VIDEO &&
-        timeline->mVideoFusionBluePrint && timeline->mVideoFusionBluePrint->m_Document)
-    {                
-        timeline->mVideoFusionBluePrintLock.lock();
-        timeline->mVideoFusionBluePrint->File_New_Fusion(overlap->mFusionBP, "VideoFusion", "Video");
-        timeline->mVideoFusionNeedUpdate = true;
-        timeline->mVideoFusionBluePrintLock.unlock();
+
+    if (IS_VIDEO(first->mType) && IS_VIDEO(second->mType))
+    {
+        if (!timeline->mVidOverlap)
+            timeline->mVidOverlap = new EditingVideoOverlap(overlap);
     }
-    if (first->mType == MEDIA_AUDIO && second->mType == MEDIA_AUDIO &&
-        timeline->mAudioFusionBluePrint && timeline->mAudioFusionBluePrint->m_Document)
-    {                
-        timeline->mAudioFusionBluePrintLock.lock();
-        timeline->mAudioFusionBluePrint->File_New_Fusion(overlap->mFusionBP, "AudioFusion", "Audio");
-        timeline->mAudioFusionNeedUpdate = true;
-        timeline->mAudioFusionBluePrintLock.unlock();
+
+    if (IS_AUDIO(first->mType) && IS_AUDIO(second->mType))
+    {
+        if (!timeline->mAudOverlap)
+            timeline->mAudOverlap = new EditingAudioOverlap(overlap);
     }
     if (timeline->m_CallBacks.EditingOverlap)
     {
@@ -2398,7 +3725,7 @@ void MediaTrack::EditingOverlap(Overlap * overlap)
 
 MediaTrack* MediaTrack::Load(const imgui_json::value& value, void * handle)
 {
-    MEDIA_TYPE type = MEDIA_UNKNOWN;
+    uint32_t type = MEDIA_UNKNOWN;
     std::string name;
     TimeLine * timeline = (TimeLine *)handle;
     if (!timeline)
@@ -2407,7 +3734,7 @@ MediaTrack* MediaTrack::Load(const imgui_json::value& value, void * handle)
     if (value.contains("Type"))
     {
         auto& val = value["Type"];
-        if (val.is_number()) type = (MEDIA_TYPE)val.get<imgui_json::number>();
+        if (val.is_number()) type = val.get<imgui_json::number>();
     }
     if (value.contains("Name"))
     {
@@ -2457,7 +3784,7 @@ MediaTrack* MediaTrack::Load(const imgui_json::value& value, void * handle)
 
         // load and check clip into track
         const imgui_json::array* clipIDArray = nullptr;
-        if (BluePrint::GetPtrTo(value, "ClipIDS", clipIDArray))
+        if (imgui_json::GetPtrTo(value, "ClipIDS", clipIDArray))
         {
             for (auto& id_val : *clipIDArray)
             {
@@ -2474,7 +3801,7 @@ MediaTrack* MediaTrack::Load(const imgui_json::value& value, void * handle)
 
         // load and check overlap into track
         const imgui_json::array* overlapIDArray = nullptr;
-        if (BluePrint::GetPtrTo(value, "OverlapIDS", overlapIDArray))
+        if (imgui_json::GetPtrTo(value, "OverlapIDS", overlapIDArray))
         {
             for (auto& id_val : *overlapIDArray)
             {
@@ -2482,6 +3809,114 @@ MediaTrack* MediaTrack::Load(const imgui_json::value& value, void * handle)
                 Overlap * overlap = timeline->FindOverlapByID(overlap_id);
                 if (overlap)
                     new_track->m_Overlaps.push_back(overlap);
+            }
+        }
+
+        // load subtitle track
+        if (value.contains("SubTrack"))
+        {
+            auto& track = value["SubTrack"];
+            int64_t track_id = 0;
+            if (track.contains("ID"))
+            {
+                auto& val = track["ID"];
+                if (val.is_number()) track_id = val.get<imgui_json::number>();
+            }
+            new_track->mMttReader = timeline->mMtvReader->NewEmptySubtitleTrack(track_id); //DataLayer::SubtitleTrack::NewEmptyTrack(track_id);
+            if (track.contains("Font"))
+            {
+                auto& val = track["Font"];
+                if (val.is_string()) new_track->mMttReader->SetFont(val.get<imgui_json::string>());
+            }
+            if (track.contains("OffsetX"))
+            {
+                auto& val = track["OffsetX"];
+                if (val.is_number()) new_track->mMttReader->SetOffsetH(val.get<imgui_json::number>());
+            }
+            if (track.contains("OffsetY"))
+            {
+                auto& val = track["OffsetY"];
+                if (val.is_number()) new_track->mMttReader->SetOffsetV(val.get<imgui_json::number>());
+            }
+            if (track.contains("ScaleX"))
+            {
+                auto& val = track["ScaleX"];
+                if (val.is_number()) new_track->mMttReader->SetScaleX(val.get<imgui_json::number>());
+            }
+            if (track.contains("ScaleY"))
+            {
+                auto& val = track["ScaleY"];
+                if (val.is_number()) new_track->mMttReader->SetScaleY(val.get<imgui_json::number>());
+            }
+            if (track.contains("Spacing"))
+            {
+                auto& val = track["Spacing"];
+                if (val.is_number()) new_track->mMttReader->SetSpacing(val.get<imgui_json::number>());
+            }
+            if (track.contains("Angle"))
+            {
+                auto& val = track["Angle"];
+                if (val.is_number()) new_track->mMttReader->SetAngle(val.get<imgui_json::number>());
+            }
+            if (track.contains("OutlineWidth"))
+            {
+                auto& val = track["OutlineWidth"];
+                if (val.is_number()) new_track->mMttReader->SetOutlineWidth(val.get<imgui_json::number>());
+            }
+            if (track.contains("Alignment"))
+            {
+                auto& val = track["Alignment"];
+                if (val.is_number()) new_track->mMttReader->SetAlignment(val.get<imgui_json::number>());
+            }
+            if (track.contains("Italic"))
+            {
+                auto& val = track["Italic"];
+                if (val.is_number()) new_track->mMttReader->SetItalic(val.get<imgui_json::number>());
+            }
+            if (track.contains("Bold"))
+            {
+                auto& val = track["Bold"];
+                if (val.is_number()) new_track->mMttReader->SetBold(val.get<imgui_json::number>());
+            }
+            if (track.contains("UnderLine"))
+            {
+                auto& val = track["UnderLine"];
+                if (val.is_boolean()) new_track->mMttReader->SetUnderLine(val.get<imgui_json::boolean>());
+            }
+            if (track.contains("StrikeOut"))
+            {
+                auto& val = track["StrikeOut"];
+                if (val.is_boolean()) new_track->mMttReader->SetStrikeOut(val.get<imgui_json::boolean>());
+            }
+            if (track.contains("PrimaryColor"))
+            {
+                auto& val = track["PrimaryColor"];
+                if (val.is_vec4()) new_track->mMttReader->SetPrimaryColor(val.get<imgui_json::vec4>());
+            }
+            if (track.contains("OutlineColor"))
+            {
+                auto& val = track["OutlineColor"];
+                if (val.is_vec4()) new_track->mMttReader->SetOutlineColor(val.get<imgui_json::vec4>());
+            }
+            if (track.contains("ScaleLink"))
+            {
+                auto& val = track["ScaleLink"];
+                if (val.is_boolean()) new_track->mTextTrackScaleLink = val.get<imgui_json::boolean>();
+            }
+            if (track.contains("KeyPoint"))
+            {
+                auto& keypoint = track["KeyPoint"];
+                new_track->mMttReader->GetKeyPoints()->Load(keypoint);
+            }
+            new_track->mMttReader->SetFrameSize(timeline->mWidth, timeline->mHeight);
+            new_track->mMttReader->EnableFullSizeOutput(false);
+            for (auto clip : new_track->m_Clips)
+            {
+                if (clip->mType == MEDIA_TEXT)
+                {
+                    TextClip * tclip = dynamic_cast<TextClip *>(clip);
+                    tclip->CreateClipHold(new_track);
+                }
             }
         }
     }
@@ -2518,6 +3953,34 @@ void MediaTrack::Save(imgui_json::value& value)
         overlaps.push_back(overlap_id_value);
     }
     if (m_Overlaps.size() > 0) value["OverlapIDS"] = overlaps;
+
+    // save subtitle track info
+    if (mMttReader)
+    {
+        imgui_json::value subtrack;
+        auto& style = mMttReader->DefaultStyle();
+        subtrack["ID"] = imgui_json::number(mMttReader->Id());
+        subtrack["Font"] = style.Font();
+        subtrack["OffsetX"] = imgui_json::number(style.OffsetH());
+        subtrack["OffsetY"] = imgui_json::number(style.OffsetV());
+        subtrack["ScaleX"] = imgui_json::number(style.ScaleX());
+        subtrack["ScaleY"] = imgui_json::number(style.ScaleY());
+        subtrack["Spacing"] = imgui_json::number(style.Spacing());
+        subtrack["Angle"] = imgui_json::number(style.Angle());
+        subtrack["OutlineWidth"] = imgui_json::number(style.OutlineWidth());
+        subtrack["Alignment"] = imgui_json::number(style.Alignment());
+        subtrack["Italic"] = imgui_json::number(style.Italic());
+        subtrack["Bold"] = imgui_json::number(style.Bold());
+        subtrack["UnderLine"] = imgui_json::boolean(style.UnderLine());
+        subtrack["StrikeOut"] = imgui_json::boolean(style.StrikeOut());
+        subtrack["PrimaryColor"] = imgui_json::vec4(style.PrimaryColor().ToImVec4());
+        subtrack["OutlineColor"] = imgui_json::vec4(style.OutlineColor().ToImVec4());
+        subtrack["ScaleLink"] = imgui_json::boolean(mTextTrackScaleLink);
+        imgui_json::value keypoint;
+        mMttReader->GetKeyPoints()->Save(keypoint);
+        subtrack["KeyPoint"] = keypoint;
+        value["SubTrack"] = subtrack;
+    }
 }
 
 } // namespace MediaTimeline/MediaTrack
@@ -2531,11 +3994,7 @@ ClipGroup::ClipGroup(void * handle)
 {
     TimeLine * timeline = (TimeLine *)handle;
     mID = timeline? timeline->m_IDGenerator.GenerateID() : ImGui::get_current_time_usec();
-    
-    int r = std::rand() % 255;
-    int g = std::rand() % 255;
-    int b = std::rand() % 255;
-    mColor = IM_COL32(r, g, b, 128);
+    ImGui::RandomColor(mColor, 0.5f);
 }
 
 void ClipGroup::Load(const imgui_json::value& value)
@@ -2551,7 +4010,7 @@ void ClipGroup::Load(const imgui_json::value& value)
         if (val.is_number()) mColor = val.get<imgui_json::number>();
     }
     const imgui_json::array* clipIDArray = nullptr;
-    if (BluePrint::GetPtrTo(value, "ClipIDS", clipIDArray))
+    if (imgui_json::GetPtrTo(value, "ClipIDS", clipIDArray))
     {
         for (auto& id_val : *clipIDArray)
         {
@@ -2595,226 +4054,82 @@ int TimeLine::OnBluePrintChange(int type, std::string name, void* handle)
             type == BluePrint::BP_CB_Unlink ||
             type == BluePrint::BP_CB_NODE_DELETED)
         {
-            timeline->mVideoFilterNeedUpdate = true;
             ret = BluePrint::BP_CBR_AutoLink;
         }
         else if (type == BluePrint::BP_CB_PARAM_CHANGED ||
                 type == BluePrint::BP_CB_SETTING_CHANGED)
         {
-            timeline->mVideoFilterNeedUpdate = true;
         }
     }
     if (name.compare("VideoFusion") == 0)
     {
+        if (type == BluePrint::BP_CB_Link ||
+            type == BluePrint::BP_CB_Unlink ||
+            type == BluePrint::BP_CB_NODE_DELETED)
+        {
+            ret = BluePrint::BP_CBR_AutoLink;
+        }
+        else if (type == BluePrint::BP_CB_PARAM_CHANGED ||
+                type == BluePrint::BP_CB_SETTING_CHANGED)
+        {
+        }
+    }
+    if (name.compare("AudioFilter") == 0)
+    {
+        if (type == BluePrint::BP_CB_Link ||
+            type == BluePrint::BP_CB_Unlink ||
+            type == BluePrint::BP_CB_NODE_DELETED)
+        {
+            ret = BluePrint::BP_CBR_AutoLink;
+        }
+        else if (type == BluePrint::BP_CB_PARAM_CHANGED ||
+                type == BluePrint::BP_CB_SETTING_CHANGED)
+        {
+        }
     }
 
     return ret;
 }
 
-static int thread_video_filter(TimeLine * timeline)
-{
-    if (!timeline)
-        return -1;
-    timeline->mVideoFilterRunning = true;
-    while (!timeline->mVideoFilterDone)
-    {
-        if (!timeline->mVidFilterClip || !timeline->mVidFilterClip->mMediaReader || !timeline->mVidFilterClip->mMediaReader->IsOpened() ||
-            !timeline->mVideoFilterBluePrint || !timeline->mVideoFilterBluePrint->Blueprint_IsValid())
-        {
-            timeline->mVideoFilterNeedUpdate = false;
-            ImGui::sleep((int)5);
-            continue;
-        }
-        timeline->mVidFilterClipLock.lock();
-        {
-            if (!timeline->mVidFilterClip || !timeline->mVidFilterClip->mMediaReader)
-            {
-                timeline->mVidFilterClipLock.unlock();
-                ImGui::sleep((int)5);
-                continue;
-            }
-            if (timeline->mVideoFilterNeedUpdate)
-            {
-                timeline->mVidFilterClip->mFrameLock.lock();
-                timeline->mVidFilterClip->mFrame.clear();
-                timeline->mVidFilterClip->mFrameLock.unlock();
-                timeline->mVideoFilterNeedUpdate = false;
-            }
-            if (timeline->mVidFilterClip->mFrame.size() >= timeline->mMaxCachedVideoFrame)
-            {
-                timeline->mVidFilterClipLock.unlock();
-                ImGui::sleep((int)5);
-                continue;
-            }
-            int64_t current_time = 0;
-            timeline->mVidFilterClip->mFrameLock.lock();
-            if (timeline->mVidFilterClip->mFrame.empty() || timeline->mVidFilterClip->bSeeking)
-                current_time = timeline->mVidFilterClip->mCurrPos;
-            else
-            {
-                auto it = timeline->mVidFilterClip->mFrame.end(); it--;
-                current_time = it->first.time_stamp * 1000;
-            }
-            const int64_t frame_delay = timeline->mVidFilterClip->mClipFrameRate.den * 1000 / timeline->mVidFilterClip->mClipFrameRate.num;
-            alignTime(current_time, timeline->mVidFilterClip->mClipFrameRate);
-            timeline->mVidFilterClip->mFrameLock.unlock();
-            while (timeline->mVidFilterClip->mFrame.size() < timeline->mMaxCachedVideoFrame)
-            {
-                bool eof = false;
-                if (timeline->mVideoFilterDone)
-                    break;
-                if (!timeline->mVidFilterClip->mFrame.empty())
-                {
-                    int64_t buffer_start = timeline->mVidFilterClip->mFrame.begin()->first.time_stamp * 1000;
-                    int64_t buffer_end = buffer_start;
-                    frameStepTime(buffer_end, timeline->mVidFilterClip->bForward ? timeline->mMaxCachedVideoFrame : -timeline->mMaxCachedVideoFrame, timeline->mVidFilterClip->mClipFrameRate);
-                    if (buffer_start > buffer_end)
-                        std::swap(buffer_start, buffer_end);
-                    if (timeline->mVidFilterClip->mCurrPos < buffer_start - frame_delay || timeline->mVidFilterClip->mCurrPos > buffer_end + frame_delay)
-                    {
-                        ImGui::sleep((int)5);
-                        break;
-                    }
-                }
-                std::pair<ImGui::ImMat, ImGui::ImMat> result;
-                if ((timeline->mVidFilterClip->mMediaReader->IsDirectionForward() && !timeline->mVidFilterClip->bForward) ||
-                    (!timeline->mVidFilterClip->mMediaReader->IsDirectionForward() && timeline->mVidFilterClip->bForward))
-                    timeline->mVidFilterClip->mMediaReader->SetDirection(timeline->mVidFilterClip->bForward);
-                if (timeline->mVidFilterClip->mMediaReader->ReadVideoFrame((float)current_time / 1000.0, result.first, eof))
-                {
-                    result.first.time_stamp = (double)current_time / 1000.f;
-                    timeline->mVideoFilterBluePrintLock.lock();
-                    if (timeline->mVideoFilterBluePrint->Blueprint_RunFilter(result.first, result.second))
-                    {
-                        timeline->mVidFilterClip->mFrameLock.lock();
-                        timeline->mVidFilterClip->mFrame.push_back(result);
-                        timeline->mVidFilterClip->mFrameLock.unlock();
-                        if (timeline->mVidFilterClip->bForward)
-                        {
-                            frameStepTime(current_time, 1, timeline->mVidFilterClip->mClipFrameRate);
-                            if (current_time > timeline->mVidFilterClip->mEnd - timeline->mVidFilterClip->mStart + timeline->mVidFilterClip->mStartOffset)
-                                current_time = timeline->mVidFilterClip->mEnd - timeline->mVidFilterClip->mStart + timeline->mVidFilterClip->mStartOffset;
-                        }
-                        else
-                        {
-                            frameStepTime(current_time, -1, timeline->mVidFilterClip->mClipFrameRate);
-                            if (current_time < timeline->mVidFilterClip->mStartOffset)
-                            {
-                                current_time = timeline->mVidFilterClip->mStartOffset;
-                            }
-                        }
-                    }
-                    timeline->mVideoFilterBluePrintLock.unlock();
-                }
-            }
-        }
-        timeline->mVidFilterClipLock.unlock();
-    }
-    timeline->mVideoFilterRunning = false;
-    return 0;
-}
-
 TimeLine::TimeLine()
-    : mStart(0), mEnd(0)
+    : mStart(0), mEnd(0), mPcmStream(this)
 {
     std::srand(std::time(0)); // init std::rand
-    /*
-    mPCMStream = new PcmStream(this);
+
     mAudioRender = CreateAudioRender();
     if (mAudioRender)
     {
-        mAudioRender->OpenDevice(mAudioSampleRate, mAudioChannels, mAudioFormat, mPCMStream);
-    }
-    */
-
-    mVideoFilterBluePrint = new BluePrint::BluePrintUI();
-    if (mVideoFilterBluePrint)
-    {
-        BluePrint::BluePrintCallbackFunctions callbacks;
-        callbacks.BluePrintOnChanged = OnBluePrintChange;
-        mVideoFilterBluePrint->Initialize();
-        mVideoFilterBluePrint->SetCallbacks(callbacks, this);
+        mAudioRender->OpenDevice(mAudioSampleRate, mAudioChannels, mAudioFormat, &mPcmStream);
     }
 
-    mAudioFilterBluePrint = new BluePrint::BluePrintUI();
-    if (mAudioFilterBluePrint)
-    {
-        BluePrint::BluePrintCallbackFunctions callbacks;
-        callbacks.BluePrintOnChanged = OnBluePrintChange;
-        mAudioFilterBluePrint->Initialize();
-        mAudioFilterBluePrint->SetCallbacks(callbacks, this);
-    }
-
-    mVideoFusionBluePrint = new BluePrint::BluePrintUI();
-    if (mVideoFusionBluePrint)
-    {
-        BluePrint::BluePrintCallbackFunctions callbacks;
-        callbacks.BluePrintOnChanged = OnBluePrintChange;
-        mVideoFusionBluePrint->Initialize();
-        mVideoFusionBluePrint->SetCallbacks(callbacks, this);
-    }
-
-    mAudioFusionBluePrint = new BluePrint::BluePrintUI();
-    if (mAudioFusionBluePrint)
-    {
-        BluePrint::BluePrintCallbackFunctions callbacks;
-        callbacks.BluePrintOnChanged = OnBluePrintChange;
-        mAudioFusionBluePrint->Initialize();
-        mAudioFusionBluePrint->SetCallbacks(callbacks, this);
-    }
+    m_BP_UI.Initialize();
 
     ConfigureDataLayer();
 
-    for (int i = 0; i < mAudioChannels; i++)
-        mAudioLevel.push_back(0);
-
-    mVideoFilterThread = new std::thread(thread_video_filter, this);
+    m_audio_channel_data.clear();
+    m_audio_channel_data.resize(mAudioChannels);
 }
 
 TimeLine::~TimeLine()
 {
-
-    if (mVideoFilterThread && mVideoFilterThread->joinable())
-    {
-        mVideoFilterDone = true;
-        mVideoFilterThread->join();
-        delete mVideoFilterThread;
-        mVideoFilterThread = nullptr;
-        mVideoFilterDone = false;
-    }
-
-    mFrameLock.lock();
-    mFrame.clear();
-    mFrameLock.unlock();
-
     if (mMainPreviewTexture) { ImGui::ImDestroyTexture(mMainPreviewTexture); mMainPreviewTexture = nullptr; }
-    mAudioLevel.clear();
-    if (mVideoFilterBluePrint)
-    {
-        mVideoFilterBluePrint->Finalize();
-        delete mVideoFilterBluePrint;
-    }
-    if (mAudioFilterBluePrint)
-    {
-        mAudioFilterBluePrint->Finalize();
-        delete mAudioFilterBluePrint;
-    }
-    if (mVideoFusionBluePrint)
-    {
-        mVideoFusionBluePrint->Finalize();
-        delete mVideoFusionBluePrint;
-    }
-    if (mAudioFusionBluePrint)
-    {
-        mAudioFusionBluePrint->Finalize();
-        delete mAudioFusionBluePrint;
-    }
+    
+    m_audio_channel_data.clear();
+
+    if (m_audio_vector_texture) { ImGui::ImDestroyTexture(m_audio_vector_texture); m_audio_vector_texture = nullptr; }
+    
+    m_BP_UI.Finalize();
+
     for (auto track : m_Tracks) delete track;
     for (auto clip : m_Clips) delete clip;
     for (auto item : media_items) delete item;
 
     if (mVideoFilterInputTexture) { ImGui::ImDestroyTexture(mVideoFilterInputTexture); mVideoFilterInputTexture = nullptr; }
     if (mVideoFilterOutputTexture) { ImGui::ImDestroyTexture(mVideoFilterOutputTexture); mVideoFilterOutputTexture = nullptr;  }
+
+    if (mVideoFusionInputFirstTexture) { ImGui::ImDestroyTexture(mVideoFusionInputFirstTexture); mVideoFusionInputFirstTexture = nullptr; }
+    if (mVideoFusionInputSecondTexture) { ImGui::ImDestroyTexture(mVideoFusionInputSecondTexture); mVideoFusionInputSecondTexture = nullptr; }
+    if (mVideoFusionOutputTexture) { ImGui::ImDestroyTexture(mVideoFusionOutputTexture); mVideoFusionOutputTexture = nullptr;  }
 
     if (mVidFilterClip)
     {
@@ -2826,10 +4141,41 @@ TimeLine::~TimeLine()
         delete mAudFilterClip;
         mAudFilterClip = nullptr;
     }
+    if (mVidOverlap)
+    {
+        delete mVidOverlap;
+        mVidOverlap = nullptr;
+    }
+    if (mAudOverlap)
+    {
+        delete mAudOverlap;
+        mAudOverlap = nullptr;
+    }
+
+    if (mAudioRender)
+    {
+        ReleaseAudioRender(&mAudioRender);
+        mAudioRender = nullptr;
+    }
 
     if (mMtvReader)
     {
         ReleaseMultiTrackVideoReader(&mMtvReader);
+        mMtvReader = nullptr;
+    }
+    if (mMtaReader)
+    {
+        ReleaseMultiTrackAudioReader(&mMtaReader);
+        mMtaReader = nullptr;
+    }
+    if (mEncoder)
+    {
+        ReleaseMediaEncoder(&mEncoder);
+        mEncoder = nullptr;
+    }
+    if (mEncodingThread.joinable())
+    {
+        StopEncoding();
     }
 }
 
@@ -2838,7 +4184,7 @@ void TimeLine::AlignTime(int64_t& time)
     alignTime(time, mFrameRate);
 }
 
-void TimeLine::Updata()
+void TimeLine::Update()
 {
     int64_t start_min = INT64_MAX;
     int64_t end_max = INT64_MIN;
@@ -2938,18 +4284,19 @@ int64_t TimeLine::DeleteTrack(int index)
             mStart = mEnd = 0;
             currentTime = firstTime = lastTime = visibleTime = 0;
         }
+        UpdatePreview();
     }
     return trackId;
 }
 
-int TimeLine::NewTrack(const std::string& name, MEDIA_TYPE type, bool expand)
+int TimeLine::NewTrack(const std::string& name, uint32_t type, bool expand)
 {
     auto new_track = new MediaTrack(name, type, this);
     new_track->mPixPerMs = msPixelWidthTarget;
     new_track->mViewWndDur = visibleTime;
     new_track->mExpanded = expand;
     m_Tracks.push_back(new_track);
-    Updata();
+    Update();
 
     imgui_json::value action;
     action["action"] = "ADD_TRACK";
@@ -2967,6 +4314,17 @@ void TimeLine::MovingTrack(int& index, int& dst_index)
     {
         return;
     }
+
+    // sync to datalayer
+    if (IS_VIDEO((*iter)->mType) && IS_VIDEO((*iter_dst)->mType))
+    {
+        if (dst_index > index)
+            mMtvReader->ChangeTrackViewOrder((*iter_dst)->mID, (*iter)->mID);
+        else
+            mMtvReader->ChangeTrackViewOrder((*iter)->mID, (*iter_dst)->mID);
+        UpdatePreview();
+    }
+    // do we need change other type of media?
     MediaTrack * tmp = *iter;
     *iter = *iter_dst;
     *iter_dst = tmp;
@@ -3001,6 +4359,20 @@ void TimeLine::MovingClip(int64_t id, int from_track_index, int to_track_index)
     if (iter != m_Clips.end())
     {
         auto clip = *iter;
+        if (clip->mType == MEDIA_TEXT)
+        {
+            TextClip * tclip = dynamic_cast<TextClip *>(clip);
+            // need remove from source track holder
+            if (track->mMttReader && tclip->mClipHolder)
+            {
+                track->mMttReader->DeleteClip(tclip->mClipHolder);
+            }
+            // and add into dst track holder
+            tclip->CreateClipHold(dst_track);
+            tclip->mMediaID = dst_track->mID;
+            tclip->mName = dst_track->mName;
+        }
+
         dst_track->InsertClip(clip, clip->mStart);
         mOngoingAction["to_track_id"] = imgui_json::number(dst_track->mID);
     }
@@ -3023,6 +4395,13 @@ void TimeLine::DeleteClip(int64_t id)
             mVidFilterClip = nullptr;
             mVidFilterClipLock.unlock();
         }
+        else if (mAudFilterClip && clip->mID == mAudFilterClip->mID)
+        {
+            mAudFilterClipLock.lock();
+            delete mAudFilterClip;
+            mAudFilterClip = nullptr;
+            mAudFilterClipLock.unlock();
+        }
         DeleteClipFromGroup(clip, clip->mGroupID);
         delete clip;
     }
@@ -3036,6 +4415,16 @@ void TimeLine::DeleteOverlap(int64_t id)
         {
             Overlap * overlap = *iter;
             iter = m_Overlaps.erase(iter);
+            if (mVidOverlap && mVidOverlap->mOvlp == overlap)
+            {
+                delete mVidOverlap;
+                mVidOverlap = nullptr;
+            }
+            if (mAudOverlap && mAudOverlap->mOvlp == overlap)
+            {
+                delete mAudOverlap;
+                mAudOverlap = nullptr;
+            }
             delete overlap;
         }
         else
@@ -3074,21 +4463,64 @@ void TimeLine::UpdateCurrent()
     if (firstTime < 0) firstTime = 0;
 }
 
-ImGui::ImMat TimeLine::GetPreviewFrame()
+void TimeLine::UpdatePreview()
 {
-    double elapsedTime = std::chrono::duration_cast<std::chrono::duration<double>>((PlayerClock::now() - mPlayTriggerTp)).count();
-    mPreviewPos = mIsPreviewPlaying ? (mIsPreviewForward ? mPreviewResumePos+elapsedTime : mPreviewResumePos-elapsedTime) : mPreviewResumePos;
-    ImGui::ImMat frame;
-    currentTime = (int64_t)(mPreviewPos * 1000);
-    mMtvReader->ReadVideoFrame(currentTime, frame, bSeeking);
-    if (mIsPreviewPlaying) UpdateCurrent();
-    return frame;
+    mMtvReader->Refresh();
+    mIsPreviewNeedUpdate = true;
 }
 
-int TimeLine::GetAudioLevel(int channel)
+std::vector<DataLayer::CorrelativeFrame> TimeLine::GetPreviewFrame()
 {
-    if (channel < mAudioLevel.size())
-        return mAudioLevel[channel];
+    int64_t auddataPos, previewPos;
+    if (mPcmStream.GetTimestampMs(auddataPos))
+    {
+        int64_t bufferedDur = mMtaReader->SizeToDuration(mAudioRender->GetBufferedDataSize());
+        previewPos = mIsPreviewForward ? auddataPos-bufferedDur : auddataPos+bufferedDur;
+    }
+    else
+    {
+        int64_t elapsedTime = (int64_t)(std::chrono::duration_cast<std::chrono::duration<double>>((PlayerClock::now() - mPlayTriggerTp)).count()*1000);
+        previewPos = mIsPreviewPlaying ? (mIsPreviewForward ? mPreviewResumePos+elapsedTime : mPreviewResumePos-elapsedTime) : mPreviewResumePos;
+    }
+    ImGui::ImMat frame;
+    currentTime = previewPos;
+    if (mIsPreviewPlaying)
+    {
+        bool playEof = false;
+        int64_t dur = ValidDuration();
+        if (!mIsPreviewForward && currentTime <= 0)
+        {
+            currentTime = 0;
+            playEof = true;
+        }
+        else if (mIsPreviewForward && currentTime >= dur)
+        {
+            currentTime = dur;
+            playEof = true;
+        }
+        if (playEof)
+        {
+            mIsPreviewPlaying = false;
+            mPreviewResumePos = currentTime;
+            if (mAudioRender)
+                mAudioRender->Pause();
+            for (auto& audio : m_audio_channel_data)
+            {
+                audio.m_decibel = 0;
+            }
+        }
+    }
+
+    std::vector<DataLayer::CorrelativeFrame> frames;
+    mMtvReader->ReadVideoFrameEx(currentTime, frames, true);
+    if (mIsPreviewPlaying) UpdateCurrent();
+    return frames;
+}
+
+float TimeLine::GetAudioLevel(int channel)
+{
+    if (channel < m_audio_channel_data.size())
+        return m_audio_channel_data[channel].m_decibel;
     return 0;
 }
 
@@ -3104,47 +4536,115 @@ int TimeLine::GetSelectedClipCount()
 
 void TimeLine::Play(bool play, bool forward)
 {
+    bool needSeekAudio = false;
+    if (mIsStepMode)
+    {
+        mIsStepMode = false;
+        if (mAudioRender)
+            needSeekAudio = true;
+    }
     if (forward != mIsPreviewForward)
     {
         mMtvReader->SetDirection(forward);
+        mMtaReader->SetDirection(forward);
         mIsPreviewForward = forward;
         mPlayTriggerTp = PlayerClock::now();
-        mPreviewResumePos = mPreviewPos;
+        mPreviewResumePos = currentTime;
+        needSeekAudio = true;
+    }
+    if (needSeekAudio && mAudioRender)
+    {
+        mAudioRender->Flush();
+        mMtaReader->SeekTo(currentTime);
     }
     if (play != mIsPreviewPlaying)
     {
         mIsPreviewPlaying = play;
         if (play)
+        {
             mPlayTriggerTp = PlayerClock::now();
+            if (mAudioRender)
+                mAudioRender->Resume();
+        }
         else
-            mPreviewResumePos = mPreviewPos;
+        {
+            mLastFrameTime = -1;
+            mPreviewResumePos = currentTime;
+            if (mAudioRender)
+                mAudioRender->Pause();
+            for (auto& audio : m_audio_channel_data)
+            {
+                audio.m_decibel = 0;
+            }
+        }
     }
 }
 
 void TimeLine::Seek(int64_t msPos)
 {
     mPlayTriggerTp = PlayerClock::now();
-    mPreviewResumePos = (double)msPos/1000;
+    mPreviewResumePos = msPos;
+    if (mAudioRender)
+    {
+        if (mIsPreviewPlaying)
+            mAudioRender->Pause();
+        mAudioRender->Flush();
+        mMtaReader->SeekTo(msPos);
+        if (mIsPreviewPlaying)
+            mAudioRender->Resume();
+    }
 }
 
 void TimeLine::Step(bool forward)
 {
+    if (mIsPreviewPlaying)
+    {
+        mIsPreviewPlaying = false;
+        if (mAudioRender)
+            mAudioRender->Pause();
+    }
+    if (!mIsStepMode)
+    {
+        mIsStepMode = true;
+        if (mAudioRender)
+            mAudioRender->Flush();
+    }
+    if (forward != mIsPreviewForward)
+    {
+        mMtvReader->SetDirection(forward);
+        mMtaReader->SetDirection(forward);
+        mIsPreviewForward = forward;
+    }
+    ImGui::ImMat vmat;
+    mMtvReader->ReadNextVideoFrame(vmat);
+    currentTime = std::round(vmat.time_stamp*1000);
+    mPreviewResumePos = currentTime;
 
+    UpdateCurrent();
 }
 
 void TimeLine::Loop(bool loop)
 {
-
+    bLoop = loop;
 }
 
 void TimeLine::ToStart()
 {
-
+    Seek(0);
 }
 
 void TimeLine::ToEnd()
 {
+    int64_t dur = ValidDuration();
+    if (dur > 0) dur -= 1;
+    Seek(dur);
+}
 
+int64_t TimeLine::ValidDuration()
+{
+    int64_t vdur = mMtvReader->Duration();
+    int64_t adur = mMtaReader->Duration();
+    return vdur > adur ? vdur : adur;
 }
 
 MediaItem* TimeLine::FindMediaItemByName(std::string name)
@@ -3279,10 +4779,17 @@ int64_t TimeLine::NextClipStart(int64_t pos)
     return next_start;
 }
 
-int TimeLine::GetTrackCount(MEDIA_TYPE type)
+int TimeLine::GetTrackCount(uint32_t type)
 {
     return std::count_if(m_Tracks.begin(), m_Tracks.end(), [type](const MediaTrack * track){
         return track->mType == type;
+    });
+}
+
+int TimeLine::GetEmptyTrackCount()
+{
+    return std::count_if(m_Tracks.begin(), m_Tracks.end(), [&](const MediaTrack * track){
+        return track->m_Clips.size() == 0;
     });
 }
 
@@ -3444,7 +4951,8 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &view_r
             clip_pos_max = custom_pos_max;
         }
         // Check if clip is outof view rect then don't draw
-        ImRect clip_rect(clip_pos_min, clip_pos_max);
+        ImRect clip_rect(clip_title_pos_min, clip_pos_max);
+        ImRect clip_area_rect(clip_pos_min, clip_pos_max);
         if (!clip_rect.Overlaps(view_rc))
         {
             draw_clip = false;
@@ -3456,15 +4964,59 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &view_r
             if (clip->mGroupID != -1)
             {
                 auto color = GetGroupColor(clip->mGroupID);
-                draw_list->AddRectFilled(clip_title_pos_min, clip_title_pos_max, color);
+                draw_list->AddRectFilled(clip_title_pos_min, clip_title_pos_max, color, 4, ImDrawFlags_RoundCornersAll);
             }
             else
-                draw_list->AddRectFilled(clip_title_pos_min, clip_title_pos_max, IM_COL32(32,128,32,128));
-            draw_list->AddRect(clip_title_pos_min, clip_title_pos_max, IM_COL32_BLACK);
+                draw_list->AddRectFilled(clip_title_pos_min, clip_title_pos_max, IM_COL32(64,128,64,128), 4, ImDrawFlags_RoundCornersAll);
             
             // draw clip status
             draw_list->PushClipRect(clip_title_pos_min, clip_title_pos_max, true);
-            draw_list->AddText(clip_title_pos_min + ImVec2(4, 0), IM_COL32_WHITE, clip->mName.c_str());
+            draw_list->AddText(clip_title_pos_min + ImVec2(4, 0), IM_COL32_WHITE, clip->mType == MEDIA_TEXT ? "T" : clip->mName.c_str());
+            
+            // add clip filter curve point
+            ImGui::KeyPointEditor* keypoint_filter = &clip->mFilterKeyPoints;
+            if (mVidFilterClip && mVidFilterClip->mID == clip->mID && mVidFilterClip->mFilter)
+            {
+                keypoint_filter = &mVidFilterClip->mFilter->mKeyPoints;
+            }
+            else if (mAudFilterClip && mAudFilterClip->mID == clip->mID && mAudFilterClip->mFilter)
+            {
+                keypoint_filter = &mAudFilterClip->mFilter->mKeyPoints;
+            }
+            for (int i = 0; i < keypoint_filter->GetCurveCount(); i++)
+            {
+                auto curve_color = keypoint_filter->GetCurveColor(i);
+                for (int p = 0; p < keypoint_filter->GetCurvePointCount(i); p++)
+                {
+                    auto point = keypoint_filter->GetPoint(i, p);
+                    if (point.point.x >= firstTime && point.point.x <= viewEndTime)
+                    {
+                        ImVec2 center = ImVec2(clippingRect.Min.x + (point.point.x - firstTime) * msPixelWidthTarget, clip_title_pos_min.y + (clip_title_pos_max.y - clip_title_pos_min.y) / 2);
+                        draw_list->AddCircle(center, 3, curve_color, 0, 2);
+                    }
+                }
+            }
+
+            // add clip attribute curve point
+            ImGui::KeyPointEditor* keypoint_attribute = &clip->mAttributeKeyPoints;
+            if (mVidFilterClip && mVidFilterClip->mID == clip->mID && mVidFilterClip->mAttribute)
+            {
+                keypoint_attribute = mVidFilterClip->mAttribute->GetKeyPoint();
+            }
+            for (int i = 0; i < keypoint_attribute->GetCurveCount(); i++)
+            {
+                auto curve_color = keypoint_attribute->GetCurveColor(i);
+                for (int p = 0; p < keypoint_attribute->GetCurvePointCount(i); p++)
+                {
+                    auto point = keypoint_attribute->GetPoint(i, p);
+                    if (point.point.x >= firstTime && point.point.x <= viewEndTime)
+                    {
+                        ImVec2 center = ImVec2(clippingRect.Min.x + (point.point.x - firstTime) * msPixelWidthTarget, clip_title_pos_min.y + (clip_title_pos_max.y - clip_title_pos_min.y) / 2);
+                        draw_list->AddRect(center - ImVec2(3, 3), center + ImVec2(3, 3), curve_color, 0, 2);
+                    }
+                }
+            }
+
             draw_list->PopClipRect();
 
             // draw custom view
@@ -3478,45 +5030,43 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &view_r
             if (clip->bSelected)
             {
                 if (clip->bEditing)
-                    draw_list->AddRect(clip_pos_min, clip_pos_max, IM_COL32(255,0,255,224), 0, 0, 2.0f);
+                    draw_list->AddRect(clip_pos_min, clip_pos_max, IM_COL32(255,0,255,224), 4, ImDrawFlags_RoundCornersAll, 2.0f);
                 else
-                    draw_list->AddRect(clip_pos_min, clip_pos_max, IM_COL32(255,0,0,224), 0, 0, 2.0f);
+                    draw_list->AddRect(clip_pos_min, clip_pos_max, IM_COL32(255,0,0,224), 4, ImDrawFlags_RoundCornersAll, 2.0f);
             }
             else if (clip->bEditing)
             {
-                draw_list->AddRect(clip_pos_min, clip_pos_max, IM_COL32(0,0,255,224), 0, 0, 2.0f);
+                draw_list->AddRect(clip_pos_min, clip_pos_max, IM_COL32(0,0,255,224), 4, ImDrawFlags_RoundCornersAll, 2.0f);
             }
 
             // Clip select
             if (enable_select)
             {
-                ImGui::SetCursorScreenPos(clip_title_pos_min);
-                ImGui::PushID(clip->mID);
-                const ImGuiID id = ImGui::GetCurrentWindow()->GetID("#track_clips");
-                ImGui::PopID();
-                ImGui::BeginChildFrame(id, clip_pos_max - clip_title_pos_min, ImGuiWindowFlags_NoScrollbar);
-                ImGui::InvisibleButton("#track_clips", clip_pos_max - clip_title_pos_min);
-                if (ImGui::IsItemHovered())
+                if (clip_rect.Contains(io.MousePos) )
                 {
+                    draw_list->AddRect(clip_rect.Min, clip_rect.Max, IM_COL32(255,255,255,255), 4, ImDrawFlags_RoundCornersAll, 2.0f);
+                    const bool is_shift_key_only = (io.KeyMods == ImGuiModFlags_Shift);
+                    bool appand = (ImGui::IsKeyDown(ImGuiKey_LeftShift) || ImGui::IsKeyDown(ImGuiKey_RightShift)) && is_shift_key_only;
                     bool can_be_select = false;
                     if (is_moving && !clip->bSelected)
                         can_be_select = true;
                     else if (!is_moving && !clip->bSelected)
                         can_be_select = true;
+                    else if (appand)
+                        can_be_select = true;
                     if (can_be_select && !mouse_clicked && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
                     {
-                        const bool is_shift_key_only = (io.KeyMods == ImGuiKeyModFlags_Shift);
-                        bool appand = (ImGui::IsKeyDown(ImGuiKey_LeftShift) || ImGui::IsKeyDown(ImGuiKey_RightShift)) && is_shift_key_only;
                         track->SelectClip(clip, appand);
                         SelectTrack(index);
                         mouse_clicked = true;
                     }
-                    else if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+                    else if (track->mExpanded && clip_area_rect.Contains(io.MousePos) && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
                     {
-                        track->SelectEditingClip(clip);
+                        bool b_attr_editing = ImGui::IsKeyDown(ImGuiKey_LeftShift) && (io.KeyMods == ImGuiModFlags_Shift);
+                        track->SelectEditingClip(clip, !b_attr_editing);
                     }
+                    clip->DrawTooltips();
                 }
-                ImGui::EndChildFrame();
             }
         }
     }
@@ -3564,31 +5114,22 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &view_r
 
         if (draw_overlap && cursor_end > cursor_start)
         {
-            ImGui::SetCursorScreenPos(overlap_pos_min);
-            ImGui::PushID(overlap->mID);
-            const ImGuiID id = ImGui::GetCurrentWindow()->GetID("#clip_overlap");
-            ImGui::PopID();
-            ImGui::BeginChildFrame(id, overlap_pos_max - overlap_pos_min, ImGuiWindowFlags_NoScrollbar);
-            ImGui::InvisibleButton("#clip_overlap", overlap_pos_max - overlap_pos_min);
-            if (ImGui::IsItemHovered())
+            if (overlap->bEditing)
             {
-                draw_list->AddRectFilled(overlap_pos_min, overlap_pos_max, IM_COL32(255,32,32,128));
-                if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+                draw_list->AddRect(overlap_pos_min, overlap_pos_max, IM_COL32(255, 0, 255, 255), 4, ImDrawFlags_RoundCornersAll, 2.f);
+            }
+            if (overlap_rect.Contains(io.MousePos))
+            {
+                draw_list->AddRectFilled(overlap_pos_min, overlap_pos_max, IM_COL32(255,32,32,128), 4, ImDrawFlags_RoundCornersAll);
+                if (enable_select && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
                 {
-                    track->EditingOverlap(overlap);
+                    track->SelectEditingOverlap(overlap);
                 }
             }
             else
-                draw_list->AddRectFilled(overlap_pos_min, overlap_pos_max, IM_COL32(128,32,32,128));
-            
+                draw_list->AddRectFilled(overlap_pos_min, overlap_pos_max, IM_COL32(128,32,32,128), 4, ImDrawFlags_RoundCornersAll);
             draw_list->AddLine(overlap_pos_min, overlap_pos_max, IM_COL32(0, 0, 0, 255));
             draw_list->AddLine(ImVec2(overlap_pos_max.x, overlap_pos_min.y), ImVec2(overlap_pos_min.x, overlap_pos_max.y), IM_COL32(0, 0, 0, 255));
-            
-            if (overlap->bEditing)
-            {
-                draw_list->AddRect(overlap_pos_min, overlap_pos_max, IM_COL32(255, 0, 255, 255));
-            }
-            ImGui::EndChildFrame();
         }
     }
     draw_list->PopClipRect();
@@ -3604,71 +5145,7 @@ int TimeLine::Load(const imgui_json::value& value)
         if (val.is_number()) state = val.get<imgui_json::number>();
         m_IDGenerator.SetState(state);
     }
-    // load media clip
-    const imgui_json::array* mediaClipArray = nullptr;
-    if (BluePrint::GetPtrTo(value, "MediaClip", mediaClipArray))
-    {
-        for (auto& clip : *mediaClipArray)
-        {
-            MEDIA_TYPE type = MEDIA_UNKNOWN;
-            if (clip.contains("Type"))
-            {
-                auto& val = clip["Type"];
-                if (val.is_number()) type = (MEDIA_TYPE)val.get<imgui_json::number>();
-            }
-            Clip * media_clip = nullptr;
-            switch (type)
-            {
-                case MEDIA_VIDEO: media_clip = VideoClip::Load(clip, this); break;
-                case MEDIA_AUDIO: media_clip = AudioClip::Load(clip, this); break;
-                case MEDIA_PICTURE: media_clip = ImageClip::Load(clip, this); break;
-                case MEDIA_TEXT: media_clip = TextClip::Load(clip, this); break;
-                default:
-                break;
-            }
-            if (media_clip)
-                m_Clips.push_back(media_clip);
-        }
-    }
-
-    // load media group
-    const imgui_json::array* mediaGroupArray = nullptr;
-    if (BluePrint::GetPtrTo(value, "MediaGroup", mediaGroupArray))
-    {
-        for (auto& group : *mediaGroupArray)
-        {
-            ClipGroup new_group(this);
-            new_group.Load(group);
-            m_Groups.push_back(new_group);
-        }
-    }
-
-    // load media overlap
-    const imgui_json::array* mediaOverlapArray = nullptr;
-    if (BluePrint::GetPtrTo(value, "MediaOverlap", mediaOverlapArray))
-    {
-        for (auto& overlap : *mediaOverlapArray)
-        {
-            Overlap * new_overlap = Overlap::Load(overlap, this);
-            if (new_overlap)
-                m_Overlaps.push_back(new_overlap);
-        }
-    }
-
-    // load media track
-    const imgui_json::array* mediaTrackArray = nullptr;
-    if (BluePrint::GetPtrTo(value, "MediaTrack", mediaTrackArray))
-    {
-        for (auto& track : *mediaTrackArray)
-        {
-            MediaTrack * media_track = MediaTrack::Load(track, this);
-            if (media_track)
-            {
-                m_Tracks.push_back(media_track);
-            }
-        }
-    }
-
+    
     // load global info
     if (value.contains("Start"))
     {
@@ -3729,7 +5206,17 @@ int TimeLine::Load(const imgui_json::value& value)
     {
         auto& val = value["CurrentTime"];
         if (val.is_number()) currentTime = val.get<imgui_json::number>();
-        mPreviewResumePos = (double)currentTime/1000;
+        mPreviewResumePos = currentTime;
+    }
+    if (value.contains("MarkIn"))
+    {
+        auto& val = value["MarkIn"];
+        if (val.is_number()) mark_in = val.get<imgui_json::number>();
+    }
+    if (value.contains("MarkOut"))
+    {
+        auto& val = value["MarkOut"];
+        if (val.is_number()) mark_out = val.get<imgui_json::number>();
     }
     if (value.contains("PreviewForward"))
     {
@@ -3741,37 +5228,206 @@ int TimeLine::Load(const imgui_json::value& value)
         auto& val = value["Loop"];
         if (val.is_boolean()) bLoop = val.get<imgui_json::boolean>();
     }
+    if (value.contains("Compare"))
+    {
+        auto& val = value["Compare"];
+        if (val.is_boolean()) bCompare = val.get<imgui_json::boolean>();
+    }
+    if (value.contains("FilterOutPreview"))
+    {
+        auto& val = value["FilterOutPreview"];
+        if (val.is_boolean()) bFilterOutputPreview = val.get<imgui_json::boolean>();
+    }
+    if (value.contains("FusionOutPreview"))
+    {
+        auto& val = value["FusionOutPreview"];
+        if (val.is_boolean()) bFusionOutputPreview = val.get<imgui_json::boolean>();
+    }
+    if (value.contains("AttributeOutPreview"))
+    {
+        auto& val = value["AttributeOutPreview"];
+        if (val.is_boolean()) bAttributeOutputPreview = val.get<imgui_json::boolean>();
+    }
     if (value.contains("SelectLinked"))
     {
         auto& val = value["SelectLinked"];
         if (val.is_boolean()) bSelectLinked = val.get<imgui_json::boolean>();
     }
     
-    Updata();
+    if (value.contains("FontName"))
+    {
+        auto& val = value["FontName"];
+        if (val.is_string()) mFontName = val.get<imgui_json::string>();
+    }
+
+    if (value.contains("OutputName"))
+    {
+        auto& val = value["OutputName"];
+        if (val.is_string()) mOutputName = val.get<imgui_json::string>();
+    }
+
+    if (value.contains("OutputPath"))
+    {
+        auto& val = value["OutputPath"];
+        if (val.is_string()) mOutputPath = val.get<imgui_json::string>();
+    }
+    
+    if (value.contains("OutputVideoCode"))
+    {
+        auto& val = value["OutputVideoCode"];
+        if (val.is_string()) mVideoCodec = val.get<imgui_json::string>();
+    }
+
+    if (value.contains("OutputAudioCode"))
+    {
+        auto& val = value["OutputAudioCode"];
+        if (val.is_string()) mAudioCodec = val.get<imgui_json::string>();
+    }
+
+    if (value.contains("OutputVideo"))
+    {
+        auto& val = value["OutputVideo"];
+        if (val.is_boolean()) bExportVideo = val.get<imgui_json::boolean>();
+    }
+
+    if (value.contains("OutputAudio"))
+    {
+        auto& val = value["OutputAudio"];
+        if (val.is_boolean()) bExportAudio = val.get<imgui_json::boolean>();
+    }
+    Update();
     //Seek();
 
     // load data layer
     ConfigureDataLayer();
-    // build multi-track video reader
+
+    // load media clip
+    const imgui_json::array* mediaClipArray = nullptr;
+    if (imgui_json::GetPtrTo(value, "MediaClip", mediaClipArray))
+    {
+        for (auto& clip : *mediaClipArray)
+        {
+            uint32_t type = MEDIA_UNKNOWN;
+            if (clip.contains("Type"))
+            {
+                auto& val = clip["Type"];
+                if (val.is_number()) type = val.get<imgui_json::number>();
+            }
+            Clip * media_clip = nullptr;
+            if (IS_VIDEO(type))
+            {
+                media_clip = VideoClip::Load(clip, this);
+            }
+            else if (IS_AUDIO(type))
+            {
+                media_clip = AudioClip::Load(clip, this);
+            }
+            else if (IS_TEXT(type))
+            {
+                media_clip = TextClip::Load(clip, this);
+            }
+            if (media_clip)
+                m_Clips.push_back(media_clip);
+        }
+    }
+
+    // load media group
+    const imgui_json::array* mediaGroupArray = nullptr;
+    if (imgui_json::GetPtrTo(value, "MediaGroup", mediaGroupArray))
+    {
+        for (auto& group : *mediaGroupArray)
+        {
+            ClipGroup new_group(this);
+            new_group.Load(group);
+            m_Groups.push_back(new_group);
+        }
+    }
+
+    // load media overlap
+    const imgui_json::array* mediaOverlapArray = nullptr;
+    if (imgui_json::GetPtrTo(value, "MediaOverlap", mediaOverlapArray))
+    {
+        for (auto& overlap : *mediaOverlapArray)
+        {
+            Overlap * new_overlap = Overlap::Load(overlap, this);
+            if (new_overlap)
+                m_Overlaps.push_back(new_overlap);
+        }
+    }
+
+    // load media track
+    const imgui_json::array* mediaTrackArray = nullptr;
+    if (imgui_json::GetPtrTo(value, "MediaTrack", mediaTrackArray))
+    {
+        for (auto& track : *mediaTrackArray)
+        {
+            MediaTrack * media_track = MediaTrack::Load(track, this);
+            if (media_track)
+            {
+                m_Tracks.push_back(media_track);
+            }
+        }
+    }
+
+    // build data layer multi-track video reader
     for (auto track : m_Tracks)
     {
-        if (track->mType != MEDIA_VIDEO)
-            continue;
-        DataLayer::VideoTrackHolder vidTrack = mMtvReader->AddTrack(track->mID);
-        for (auto clip : track->m_Clips)
+        if (IS_VIDEO(track->mType))
         {
-            DataLayer::VideoClipHolder vidClip = vidTrack->AddNewClip(
-                clip->mID, clip->mMediaParser,
-                clip->mStart, clip->mStartOffset, clip->mEndOffset);
+            DataLayer::VideoTrackHolder vidTrack = mMtvReader->AddTrack(track->mID);
+            for (auto clip : track->m_Clips)
+            {
+                DataLayer::VideoClipHolder hVidClip;
+                if (clip->mType == MEDIA_SUBTYPE_VIDEO_IMAGE)
+                    hVidClip = vidTrack->AddNewClip(clip->mID, clip->mMediaParser, clip->mStart, clip->mEnd-clip->mStart, 0, 0);
+                else
+                    hVidClip = vidTrack->AddNewClip(clip->mID, clip->mMediaParser, clip->mStart, clip->mStartOffset, clip->mEndOffset, currentTime-clip->mStart);
 
-            BluePrintVideoFilter* bpvf = new BluePrintVideoFilter();
-            bpvf->SetBluePrintFromJson(clip->mFilterBP);
-            DataLayer::VideoFilterHolder hFilter(bpvf);
-            vidClip->SetFilter(hFilter);
+                BluePrintVideoFilter* bpvf = new BluePrintVideoFilter(this);
+                bpvf->SetBluePrintFromJson(clip->mFilterBP);
+                bpvf->SetKeyPoint(clip->mFilterKeyPoints);
+                DataLayer::VideoFilterHolder hFilter(bpvf);
+                hVidClip->SetFilter(hFilter);
+                auto attribute = hVidClip->GetTransformFilterPtr();
+                if (attribute)
+                {
+                    VideoClip * vidclip = (VideoClip *)clip;
+                    attribute->SetScaleType(vidclip->mScaleType);
+                    attribute->SetScaleH(vidclip->mScaleH);
+                    attribute->SetScaleV(vidclip->mScaleV);
+                    attribute->SetPositionOffsetH(vidclip->mPositionOffsetH);
+                    attribute->SetPositionOffsetV(vidclip->mPositionOffsetV);
+                    attribute->SetRotationAngle(vidclip->mRotationAngle);
+                    attribute->SetCropMarginL(vidclip->mCropMarginL);
+                    attribute->SetCropMarginT(vidclip->mCropMarginT);
+                    attribute->SetCropMarginR(vidclip->mCropMarginR);
+                    attribute->SetCropMarginB(vidclip->mCropMarginB);
+                    attribute->SetKeyPoint(vidclip->mAttributeKeyPoints);
+                }
+            }
+        }
+        else if (IS_AUDIO(track->mType))
+        {
+            DataLayer::AudioTrackHolder audTrack = mMtaReader->AddTrack(track->mID);
+            for (auto clip : track->m_Clips)
+            {
+                if (!clip->mMediaParser)
+                    continue;
+                DataLayer::AudioClipHolder hAudClip = audTrack->AddNewClip(
+                    clip->mID, clip->mMediaParser,
+                    clip->mStart, clip->mStartOffset, clip->mEndOffset);
+                BluePrintAudioFilter* bpaf = new BluePrintAudioFilter(this);
+                bpaf->SetBluePrintFromJson(clip->mFilterBP);
+                bpaf->SetKeyPoint(clip->mFilterKeyPoints);
+                DataLayer::AudioFilterHolder hFilter(bpaf);
+                hAudClip->SetFilter(hFilter);
+            }
         }
     }
     SyncDataLayer();
-    mMtvReader->Refresh();
+    UpdatePreview();
+    mMtaReader->SeekTo(currentTime);
+    mMtaReader->Refresh();
     Logger::Log(Logger::VERBOSE) << *mMtvReader << std::endl;
     return 0;
 }
@@ -3831,10 +5487,23 @@ void TimeLine::Save(imgui_json::value& value)
     value["msPixelWidth"] = imgui_json::number(msPixelWidthTarget);
     value["FirstTime"] = imgui_json::number(firstTime);
     value["CurrentTime"] = imgui_json::number(currentTime);
+    value["MarkIn"] = imgui_json::number(mark_in);
+    value["MarkOut"] = imgui_json::number(mark_out);
     value["PreviewForward"] = imgui_json::boolean(mIsPreviewForward);
     value["Loop"] = imgui_json::boolean(bLoop);
+    value["Compare"] = imgui_json::boolean(bCompare);
+    value["FilterOutPreview"] = imgui_json::boolean(bFilterOutputPreview);
+    value["FusionOutPreview"] = imgui_json::boolean(bFusionOutputPreview);
+    value["AttributeOutPreview"] = imgui_json::boolean(bAttributeOutputPreview);
     value["SelectLinked"] = imgui_json::boolean(bSelectLinked);
     value["IDGenerateState"] = imgui_json::number(m_IDGenerator.State());
+    value["FontName"] = mFontName;
+    value["OutputName"] = mOutputName;
+    value["OutputPath"] = mOutputPath;
+    value["OutputVideoCode"] = mVideoCodec;
+    value["OutputAudioCode"] = mAudioCodec;
+    value["OutputVideo"] = imgui_json::boolean(bExportVideo);
+    value["OutputAudio"] = imgui_json::boolean(bExportAudio);
 }
 
 void TimeLine::PerformUiActions()
@@ -3849,91 +5518,244 @@ void TimeLine::PerformUiActions()
     for (auto& action : mUiActions)
     {
         Logger::Log(Logger::VERBOSE) << "\t" << action.dump() << std::endl;
-        MEDIA_TYPE mediaType = MEDIA_UNKNOWN;
+        uint32_t mediaType = MEDIA_UNKNOWN;
         if (action.contains("media_type"))
-            mediaType = (MEDIA_TYPE)action["media_type"].get<imgui_json::number>();
-        if (mediaType != MEDIA_VIDEO)
+            mediaType = action["media_type"].get<imgui_json::number>();
+        if (IS_VIDEO(mediaType))
+        {
+            if (mediaType == MEDIA_SUBTYPE_VIDEO_IMAGE)
+                PerformImageAction(action);
+            else
+                PerformVideoAction(action);
+        }
+        else if (IS_AUDIO(mediaType))
+            PerformAudioAction(action);
+        else
         {
             Logger::Log(Logger::DEBUG) << "Skip action due to unsupported MEDIA_TYPE: " << action.dump() << "." << std::endl;
             continue;
-        }
-
-        std::string actionName = action["action"].get<imgui_json::string>();
-        if (actionName == "ADD_CLIP")
-        {
-            int64_t trackId = action["to_track_id"].get<imgui_json::number>();
-            DataLayer::VideoTrackHolder vidTrack = mMtvReader->GetTrackById(trackId, true);
-            int64_t clipId = action["clip_id"].get<imgui_json::number>();
-            Clip* clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
-            DataLayer::VideoClipHolder vidClip(new DataLayer::VideoClip(
-                clip->mID, clip->mMediaParser,
-                vidTrack->OutWidth(), vidTrack->OutHeight(), vidTrack->FrameRate(),
-                clip->mStart, clip->mStartOffset, clip->mEndOffset));
-            vidTrack->InsertClip(vidClip);
-            mMtvReader->Refresh();
-        }
-        else if (actionName == "MOVE_CLIP")
-        {
-            int64_t srcTrackId = action["from_track_id"].get<imgui_json::number>();
-            int64_t dstTrackId = srcTrackId;
-            if (action.contains("to_track_id"))
-                dstTrackId = action["to_track_id"].get<imgui_json::number>();
-            DataLayer::VideoTrackHolder dstVidTrack = mMtvReader->GetTrackById(dstTrackId);
-            int64_t clipId = action["clip_id"].get<imgui_json::number>();
-            Clip* clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
-            if (srcTrackId != dstTrackId)
-            {
-                DataLayer::VideoTrackHolder srcVidTrack = mMtvReader->GetTrackById(srcTrackId);
-                DataLayer::VideoClipHolder vidClip = srcVidTrack->RemoveClipById(clip->mID);
-                vidClip->SetStart(clip->mStart);
-                dstVidTrack->InsertClip(vidClip);
-            }
-            else
-            {
-                dstVidTrack->MoveClip(clip->mID, clip->mStart);
-            }
-            mMtvReader->Refresh();
-        }
-        else if (actionName == "CROP_CLIP")
-        {
-            int64_t trackId = action["from_track_id"].get<imgui_json::number>();
-            DataLayer::VideoTrackHolder vidTrack = mMtvReader->GetTrackById(trackId);
-            int64_t clipId = action["clip_id"].get<imgui_json::number>();
-            Clip* clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
-            vidTrack->ChangeClipRange(clip->mID, clip->mStartOffset, clip->mEndOffset);
-            mMtvReader->Refresh();
-        }
-        else if (actionName == "REMOVE_CLIP")
-        {
-            int64_t trackId = action["from_track_id"].get<imgui_json::number>();
-            DataLayer::VideoTrackHolder vidTrack = mMtvReader->GetTrackById(trackId);
-            int64_t clipId = action["clip_id"].get<imgui_json::number>();
-            vidTrack->RemoveClipById(clipId);
-            mMtvReader->Refresh();
-        }
-        else if (actionName == "ADD_TRACK")
-        {
-            int64_t trackId = action["track_id"].get<imgui_json::number>();
-            mMtvReader->AddTrack(trackId);
-        }
-        else if (actionName == "REMOVE_TRACK")
-        {
-            int64_t trackId = action["track_id"].get<imgui_json::number>();
-            mMtvReader->RemoveTrackById(trackId);
-        }
-        else
-        {
-            Logger::Log(Logger::WARN) << "UNHANDLED UI ACTION: '" << actionName << "'." << std::endl;
         }
     }
     if (!mUiActions.empty())
     {
         Logger::Log(Logger::VERBOSE) << "] #UiActions" << std::endl << std::endl;
         SyncDataLayer();
-        Logger::Log(Logger::VERBOSE) << *mMtvReader << std::endl << std::endl;
+        //Logger::Log(Logger::VERBOSE) << *mMtvReader << std::endl << std::endl;
     }
 
     mUiActions.clear();
+}
+
+void TimeLine::PerformVideoAction(imgui_json::value& action)
+{
+    std::string actionName = action["action"].get<imgui_json::string>();
+    if (actionName == "ADD_CLIP")
+    {
+        int64_t trackId = action["to_track_id"].get<imgui_json::number>();
+        DataLayer::VideoTrackHolder vidTrack = mMtvReader->GetTrackById(trackId, true);
+        int64_t clipId = action["clip_id"].get<imgui_json::number>();
+        Clip* clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
+        DataLayer::VideoClipHolder vidClip = DataLayer::VideoClip::CreateVideoInstance(
+            clip->mID, clip->mMediaParser,
+            vidTrack->OutWidth(), vidTrack->OutHeight(), vidTrack->FrameRate(),
+            clip->mStart, clip->mStartOffset, clip->mEndOffset, currentTime-clip->mStart);
+        vidTrack->InsertClip(vidClip);
+        UpdatePreview();
+    }
+    else if (actionName == "MOVE_CLIP")
+    {
+        int64_t srcTrackId = action["from_track_id"].get<imgui_json::number>();
+        int64_t dstTrackId = srcTrackId;
+        if (action.contains("to_track_id"))
+            dstTrackId = action["to_track_id"].get<imgui_json::number>();
+        DataLayer::VideoTrackHolder dstVidTrack = mMtvReader->GetTrackById(dstTrackId);
+        int64_t clipId = action["clip_id"].get<imgui_json::number>();
+        Clip* clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
+        if (srcTrackId != dstTrackId)
+        {
+            DataLayer::VideoTrackHolder srcVidTrack = mMtvReader->GetTrackById(srcTrackId);
+            DataLayer::VideoClipHolder vidClip = srcVidTrack->RemoveClipById(clip->mID);
+            vidClip->SetStart(clip->mStart);
+            dstVidTrack->InsertClip(vidClip);
+        }
+        else
+        {
+            dstVidTrack->MoveClip(clip->mID, clip->mStart);
+        }
+        UpdatePreview();
+    }
+    else if (actionName == "CROP_CLIP")
+    {
+        int64_t trackId = action["from_track_id"].get<imgui_json::number>();
+        DataLayer::VideoTrackHolder vidTrack = mMtvReader->GetTrackById(trackId);
+        int64_t clipId = action["clip_id"].get<imgui_json::number>();
+        Clip* clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
+        vidTrack->ChangeClipRange(clip->mID, clip->mStartOffset, clip->mEndOffset);
+        UpdatePreview();
+    }
+    else if (actionName == "REMOVE_CLIP")
+    {
+        int64_t trackId = action["from_track_id"].get<imgui_json::number>();
+        DataLayer::VideoTrackHolder vidTrack = mMtvReader->GetTrackById(trackId);
+        int64_t clipId = action["clip_id"].get<imgui_json::number>();
+        vidTrack->RemoveClipById(clipId);
+        UpdatePreview();
+    }
+    else if (actionName == "ADD_TRACK")
+    {
+        int64_t trackId = action["track_id"].get<imgui_json::number>();
+        mMtvReader->AddTrack(trackId);
+    }
+    else if (actionName == "REMOVE_TRACK")
+    {
+        int64_t trackId = action["track_id"].get<imgui_json::number>();
+        mMtvReader->RemoveTrackById(trackId);
+    }
+    else
+    {
+        Logger::Log(Logger::WARN) << "UNHANDLED UI ACTION(Video): '" << actionName << "'." << std::endl;
+    }
+}
+
+void TimeLine::PerformAudioAction(imgui_json::value& action)
+{
+    std::string actionName = action["action"].get<imgui_json::string>();
+    if (actionName == "ADD_CLIP")
+    {
+        int64_t trackId = action["to_track_id"].get<imgui_json::number>();
+        DataLayer::AudioTrackHolder audTrack = mMtaReader->GetTrackById(trackId, true);
+        int64_t clipId = action["clip_id"].get<imgui_json::number>();
+        Clip* clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
+        DataLayer::AudioClipHolder audClip = DataLayer::AudioClip::CreateAudioInstance(
+            clip->mID, clip->mMediaParser,
+            audTrack->OutChannels(), audTrack->OutSampleRate(),
+            clip->mStart, clip->mStartOffset, clip->mEndOffset);
+        audTrack->InsertClip(audClip);
+        mMtaReader->Refresh();
+    }
+    else if (actionName == "MOVE_CLIP")
+    {
+        int64_t srcTrackId = action["from_track_id"].get<imgui_json::number>();
+        int64_t dstTrackId = srcTrackId;
+        if (action.contains("to_track_id"))
+            dstTrackId = action["to_track_id"].get<imgui_json::number>();
+        DataLayer::AudioTrackHolder dstAudTrack = mMtaReader->GetTrackById(dstTrackId);
+        int64_t clipId = action["clip_id"].get<imgui_json::number>();
+        Clip* clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
+        if (srcTrackId != dstTrackId)
+        {
+            DataLayer::AudioTrackHolder srcAudTrack = mMtaReader->GetTrackById(srcTrackId);
+            DataLayer::AudioClipHolder audClip = srcAudTrack->RemoveClipById(clip->mID);
+            audClip->SetStart(clip->mStart);
+            dstAudTrack->InsertClip(audClip);
+        }
+        else
+        {
+            dstAudTrack->MoveClip(clip->mID, clip->mStart);
+        }
+        mMtaReader->Refresh();
+    }
+    else if (actionName == "CROP_CLIP")
+    {
+        int64_t trackId = action["from_track_id"].get<imgui_json::number>();
+        DataLayer::AudioTrackHolder audTrack = mMtaReader->GetTrackById(trackId);
+        int64_t clipId = action["clip_id"].get<imgui_json::number>();
+        Clip* clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
+        audTrack->ChangeClipRange(clip->mID, clip->mStartOffset, clip->mEndOffset);
+        mMtaReader->Refresh();
+    }
+    else if (actionName == "REMOVE_CLIP")
+    {
+        int64_t trackId = action["from_track_id"].get<imgui_json::number>();
+        DataLayer::AudioTrackHolder audTrack = mMtaReader->GetTrackById(trackId);
+        int64_t clipId = action["clip_id"].get<imgui_json::number>();
+        audTrack->RemoveClipById(clipId);
+        mMtaReader->Refresh();
+    }
+    else if (actionName == "ADD_TRACK")
+    {
+        int64_t trackId = action["track_id"].get<imgui_json::number>();
+        mMtaReader->AddTrack(trackId);
+    }
+    else if (actionName == "REMOVE_TRACK")
+    {
+        int64_t trackId = action["track_id"].get<imgui_json::number>();
+        mMtaReader->RemoveTrackById(trackId);
+    }
+    else
+    {
+        Logger::Log(Logger::WARN) << "UNHANDLED UI ACTION(Video): '" << actionName << "'." << std::endl;
+    }
+}
+
+void TimeLine::PerformImageAction(imgui_json::value& action)
+{
+    std::string actionName = action["action"].get<imgui_json::string>();
+    if (actionName == "ADD_CLIP")
+    {
+        int64_t trackId = action["to_track_id"].get<imgui_json::number>();
+        DataLayer::VideoTrackHolder vidTrack = mMtvReader->GetTrackById(trackId, true);
+        int64_t clipId = action["clip_id"].get<imgui_json::number>();
+        Clip* clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
+        DataLayer::VideoClipHolder imgClip = DataLayer::VideoClip::CreateImageInstance(
+            clip->mID, clip->mMediaParser,
+            vidTrack->OutWidth(), vidTrack->OutHeight(), clip->mStart, clip->mEnd);
+        vidTrack->InsertClip(imgClip);
+        UpdatePreview();
+    }
+    else if (actionName == "MOVE_CLIP")
+    {
+        int64_t srcTrackId = action["from_track_id"].get<imgui_json::number>();
+        int64_t dstTrackId = srcTrackId;
+        if (action.contains("to_track_id"))
+            dstTrackId = action["to_track_id"].get<imgui_json::number>();
+        DataLayer::VideoTrackHolder dstVidTrack = mMtvReader->GetTrackById(dstTrackId);
+        int64_t clipId = action["clip_id"].get<imgui_json::number>();
+        Clip* clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
+        if (srcTrackId != dstTrackId)
+        {
+            DataLayer::VideoTrackHolder srcVidTrack = mMtvReader->GetTrackById(srcTrackId);
+            DataLayer::VideoClipHolder imgClip = srcVidTrack->RemoveClipById(clip->mID);
+            imgClip->SetStart(clip->mStart);
+            dstVidTrack->InsertClip(imgClip);
+        }
+        else
+        {
+            dstVidTrack->MoveClip(clip->mID, clip->mStart);
+        }
+        UpdatePreview();
+    }
+    else if (actionName == "CROP_CLIP")
+    {
+        int64_t trackId = action["from_track_id"].get<imgui_json::number>();
+        DataLayer::VideoTrackHolder vidTrack = mMtvReader->GetTrackById(trackId);
+        int64_t clipId = action["clip_id"].get<imgui_json::number>();
+        Clip* clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
+        vidTrack->ChangeClipRange(clip->mID, clip->mStart, clip->mEnd);
+        UpdatePreview();
+    }
+    else if (actionName == "REMOVE_CLIP")
+    {
+        int64_t trackId = action["from_track_id"].get<imgui_json::number>();
+        DataLayer::VideoTrackHolder vidTrack = mMtvReader->GetTrackById(trackId);
+        int64_t clipId = action["clip_id"].get<imgui_json::number>();
+        vidTrack->RemoveClipById(clipId);
+        UpdatePreview();
+    }
+    else if (actionName == "ADD_TRACK")
+    {
+        int64_t trackId = action["track_id"].get<imgui_json::number>();
+        mMtvReader->AddTrack(trackId);
+    }
+    else if (actionName == "REMOVE_TRACK")
+    {
+        int64_t trackId = action["track_id"].get<imgui_json::number>();
+        mMtvReader->RemoveTrackById(trackId);
+    }
+    else
+    {
+        Logger::Log(Logger::WARN) << "UNHANDLED UI ACTION(Image): '" << actionName << "'." << std::endl;
+    }
 }
 
 void TimeLine::ConfigureDataLayer()
@@ -3943,15 +5765,22 @@ void TimeLine::ConfigureDataLayer()
     mMtvReader = CreateMultiTrackVideoReader();
     mMtvReader->Configure(mWidth, mHeight, mFrameRate);
     mMtvReader->Start();
+    if (mMtaReader)
+        ReleaseMultiTrackAudioReader(&mMtaReader);
+    mMtaReader = CreateMultiTrackAudioReader();
+    mMtaReader->Configure(mAudioChannels, mAudioSampleRate);
+    mMtaReader->Start();
+    mPcmStream.SetAudioReader(mMtaReader);
 }
 
 void TimeLine::SyncDataLayer()
 {
+    // video
     int syncedOverlapCount = 0;
-    auto trackIter = mMtvReader->TrackListBegin();
-    while (trackIter != mMtvReader->TrackListEnd())
+    auto vidTrackIter = mMtvReader->TrackListBegin();
+    while (vidTrackIter != mMtvReader->TrackListEnd())
     {
-        auto& vidTrack = *trackIter++;
+        auto& vidTrack = *vidTrackIter++;
         auto ovlpIter = vidTrack->OverlapListBegin();
         while (ovlpIter != vidTrack->OverlapListEnd())
         {
@@ -3964,7 +5793,15 @@ void TimeLine::SyncDataLayer()
                 if ((ovlp->m_Clip.first == frontClipId && ovlp->m_Clip.second == rearClipId) ||
                     (ovlp->m_Clip.first == rearClipId && ovlp->m_Clip.second == frontClipId))
                 {
-                    vidOvlp->SetId(ovlp->mID);
+                    if (vidOvlp->Id() != ovlp->mID)
+                    {
+                        vidOvlp->SetId(ovlp->mID);
+                        BluePrintVideoTransition* bpvt = new BluePrintVideoTransition(this);
+                        bpvt->SetBluePrintFromJson(ovlp->mFusionBP);
+                        bpvt->SetKeyPoint(ovlp->mFusionKeyPoints);
+                        DataLayer::VideoTransitionHolder hTrans(bpvt);
+                        vidOvlp->SetTransition(hTrans);
+                    }
                     found = true;
                     break;
                 }
@@ -3976,11 +5813,462 @@ void TimeLine::SyncDataLayer()
                 syncedOverlapCount++;
         }
     }
-    if (syncedOverlapCount != m_Overlaps.size())
+    // audio
+    auto audTrackIter = mMtaReader->TrackListBegin();
+    while (audTrackIter != mMtaReader->TrackListEnd())
+    {
+        auto& audTrack = *audTrackIter++;
+        auto ovlpIter = audTrack->OverlapListBegin();
+        while (ovlpIter != audTrack->OverlapListEnd())
+        {
+            auto& audOvlp = *ovlpIter++;
+            const int64_t frontClipId = audOvlp->FrontClip()->Id();
+            const int64_t rearClipId = audOvlp->RearClip()->Id();
+            bool found = false;
+            for (auto ovlp : m_Overlaps)
+            {
+                if ((ovlp->m_Clip.first == frontClipId && ovlp->m_Clip.second == rearClipId) ||
+                    (ovlp->m_Clip.first == rearClipId && ovlp->m_Clip.second == frontClipId))
+                {
+                    if (audOvlp->Id() != ovlp->mID)
+                    {
+                        audOvlp->SetId(ovlp->mID);
+                        BluePrintAudioTransition* bpat = new BluePrintAudioTransition(this);
+                        bpat->SetBluePrintFromJson(ovlp->mFusionBP);
+                        bpat->SetKeyPoint(ovlp->mFusionKeyPoints);
+                        DataLayer::AudioTransitionHolder hTrans(bpat);
+                        audOvlp->SetTransition(hTrans);
+                    }
+                    found = true;
+                    break;
+                }
+            }
+            if (!found)
+                Logger::Log(Logger::Error) << "CANNOT find matching audio OVERLAP! Front clip id is " << frontClipId
+                    << ", rear clip id is " << rearClipId << "." << std::endl;
+            else
+                syncedOverlapCount++;
+        }
+    }
+
+    int OvlpCnt = 0;
+    for (auto ovlp : m_Overlaps)
+    {
+        if (IS_VIDEO(ovlp->mType))
+            OvlpCnt++;
+        if (IS_AUDIO(ovlp->mType))
+            OvlpCnt ++;
+    }
+    if (syncedOverlapCount != OvlpCnt)
         Logger::Log(Logger::Error) << "Overlap SYNC FAILED! Synced count is " << syncedOverlapCount
-            << ", while the size of overlap array is " << m_Overlaps.size() << "." << std::endl;
+            << ", while the count of video overlap array is " << OvlpCnt << "." << std::endl;
+    // TODO: sync audio and other types of data with data-layer
 }
 
+SnapshotGeneratorHolder TimeLine::GetSnapshotGenerator(int64_t mediaItemId)
+{
+    auto iter = m_VidSsGenTable.find(mediaItemId);
+    if (iter != m_VidSsGenTable.end())
+        return iter->second;
+    MediaItem* mi = FindMediaItemByID(mediaItemId);
+    if (!mi)
+        return nullptr;
+    if (!IS_VIDEO(mi->mMediaType) || mi->mMediaType == MEDIA_SUBTYPE_VIDEO_IMAGE)
+        return nullptr;
+    SnapshotGeneratorHolder hSsGen = CreateSnapshotGenerator();
+    hSsGen->EnableHwAccel(mHardwareCodec);
+    if (!hSsGen->Open(mi->mMediaOverview->GetMediaParser()))
+    {
+        Logger::Log(Logger::Error) << hSsGen->GetError() << std::endl;
+        return nullptr;
+    }
+    auto video_info = mi->mMediaOverview->GetMediaParser()->GetBestVideoStream();
+    float snapshot_scale = video_info->height > 0 ? DEFAULT_VIDEO_TRACK_HEIGHT / (float)video_info->height : 0.1;
+    hSsGen->SetSnapshotResizeFactor(snapshot_scale, snapshot_scale);
+    hSsGen->SetCacheFactor(9);
+    if (visibleTime > 0 && msPixelWidthTarget > 0)
+    {
+        const MediaInfo::VideoStream* video_stream = hSsGen->GetVideoStream();
+        float snapHeight = DEFAULT_VIDEO_TRACK_HEIGHT;  // TODO: video clip UI height is hard coded here, should be fixed later (wyvern)
+        MediaInfo::Ratio displayAspectRatio = {
+            (int32_t)(video_stream->width * video_stream->sampleAspectRatio.num), (int32_t)(video_stream->height * video_stream->sampleAspectRatio.den) };
+        float snapWidth = snapHeight * displayAspectRatio.num / displayAspectRatio.den;
+        double windowSize = (double)visibleTime / 1000;
+        if (windowSize > video_stream->duration)
+            windowSize = video_stream->duration;
+        double snapsInViewWindow = std::max((float)((double)msPixelWidthTarget*windowSize * 1000 / snapWidth), 1.f);
+        if (!hSsGen->ConfigSnapWindow(windowSize, snapsInViewWindow))
+            throw std::runtime_error(hSsGen->GetError());
+    }
+    m_VidSsGenTable[mediaItemId] = hSsGen;
+    return hSsGen;
+}
+
+void TimeLine::ConfigSnapshotWindow(int64_t viewWndDur)
+{
+    if (visibleTime == viewWndDur)
+        return;
+
+    visibleTime = viewWndDur;
+    for (auto& elem : m_VidSsGenTable)
+    {
+        auto& ssGen = elem.second;
+        const MediaInfo::VideoStream* video_stream = ssGen->GetVideoStream();
+        float snapHeight = DEFAULT_VIDEO_TRACK_HEIGHT;  // TODO: video clip UI height is hard coded here, should be fixed later (wyvern)
+        MediaInfo::Ratio displayAspectRatio = {
+            (int32_t)(video_stream->width * video_stream->sampleAspectRatio.num), (int32_t)(video_stream->height * video_stream->sampleAspectRatio.den) };
+        float snapWidth = snapHeight * displayAspectRatio.num / displayAspectRatio.den;
+        double windowSize = (double)visibleTime / 1000;
+        if (windowSize > video_stream->duration)
+            windowSize = video_stream->duration;
+        double snapsInViewWindow = std::max((float)((double)msPixelWidthTarget*windowSize * 1000 / snapWidth), 1.f);
+        if (!ssGen->ConfigSnapWindow(windowSize, snapsInViewWindow))
+            throw std::runtime_error(ssGen->GetError());
+    }
+    for (auto& track : m_Tracks)
+        track->ConfigViewWindow(visibleTime, msPixelWidthTarget);
+}
+
+uint32_t TimeLine::SimplePcmStream::Read(uint8_t* buff, uint32_t buffSize, bool blocking)
+{
+    if (!m_areader)
+        return 0;
+    std::lock_guard<std::mutex> lk(m_amatLock);
+    uint32_t readSize = 0;
+    while (readSize < buffSize)
+    {
+        uint32_t amatTotalDataSize = m_amat.total()*m_amat.elemsize;
+        if (m_readPosInAmat < amatTotalDataSize)
+        {
+            uint32_t copySize = buffSize-readSize;
+            if (copySize > amatTotalDataSize)
+                copySize = amatTotalDataSize;
+            memcpy(buff+readSize, (uint8_t*)m_amat.data+m_readPosInAmat, copySize);
+            readSize += copySize;
+            m_readPosInAmat += copySize;
+        }
+        if (m_readPosInAmat >= amatTotalDataSize)
+        {
+            ImGui::ImMat amat;
+            bool eof;
+            if (!m_areader->ReadAudioSamples(amat, eof))
+                return 0;
+            m_amat = amat;
+            m_owner->CalculateAudioScopeData(m_amat);
+            m_readPosInAmat = 0;
+        }
+    }
+    if (!m_amat.empty())
+    {
+        m_timestampMs = (int64_t)(m_amat.time_stamp*1000)+m_areader->SizeToDuration(m_readPosInAmat);
+        m_tsValid = true;
+    }
+    return buffSize;
+}
+
+void TimeLine::SimplePcmStream::Flush()
+{
+    std::lock_guard<std::mutex> lk(m_amatLock);
+    m_amat.release();
+    m_readPosInAmat = 0;
+    m_tsValid = false;
+}
+
+void TimeLine::CalculateAudioScopeData(ImGui::ImMat& mat_in)
+{
+    ImGui::ImMat mat;
+    if (mat_in.elempack > 1)
+    {
+        mat.create_type(mat_in.w, 1, mat_in.c, mat_in.type);
+        float * data = (float *)mat_in.data;
+        for (int x = 0; x < mat.w; x++)
+        {
+            for (int i = 0; i < mat.c; i++)
+            {
+                mat.at<float>(x, 0, i) = data[x * mat.c + i];
+            }
+        }
+    }
+    else
+    {
+        mat = mat_in;
+    }
+    for (int i = 0; i < mat.c; i++)
+    {
+        if (i < mAudioChannels)
+        {
+            m_audio_channel_data[i].m_wave.clone_from(mat.channel(i));
+            m_audio_channel_data[i].m_fft.clone_from(mat.channel(i));
+            ImGui::ImRFFT((float *)m_audio_channel_data[i].m_fft.data, m_audio_channel_data[i].m_fft.w, true);
+            m_audio_channel_data[i].m_db.create_type((mat.w >> 1) + 1, IM_DT_FLOAT32);
+            m_audio_channel_data[i].m_DBMaxIndex = ImGui::ImReComposeDB((float*)m_audio_channel_data[i].m_fft.data, (float *)m_audio_channel_data[i].m_db.data, mat.w, false);
+            m_audio_channel_data[i].m_DBShort.create_type(20, IM_DT_FLOAT32);
+            ImGui::ImReComposeDBShort((float*)m_audio_channel_data[i].m_fft.data, (float*)m_audio_channel_data[i].m_DBShort.data, mat.w);
+            m_audio_channel_data[i].m_DBLong.create_type(76, IM_DT_FLOAT32);
+            ImGui::ImReComposeDBLong((float*)m_audio_channel_data[i].m_fft.data, (float*)m_audio_channel_data[i].m_DBLong.data, mat.w);
+            m_audio_channel_data[i].m_decibel = ImGui::ImDoDecibel((float*)m_audio_channel_data[i].m_fft.data, mat.w);
+            if (m_audio_channel_data[i].m_Spectrogram.w != (mat.w >> 1) + 1)
+            {
+                m_audio_channel_data[i].m_Spectrogram.create_type((mat.w >> 1) + 1, 256, 4, IM_DT_INT8);
+            }
+            if (!m_audio_channel_data[i].m_Spectrogram.empty())
+            {
+                auto w = m_audio_channel_data[i].m_Spectrogram.w;
+                auto c = m_audio_channel_data[i].m_Spectrogram.c;
+                memmove(m_audio_channel_data[i].m_Spectrogram.data, (char *)m_audio_channel_data[i].m_Spectrogram.data + w * c, m_audio_channel_data[i].m_Spectrogram.total() - w * c);
+                uint32_t * last_line = (uint32_t *)m_audio_channel_data[i].m_Spectrogram.row_c<uint8_t>(255);
+                for (int n = 0; n < w; n++)
+                {
+                    float value = m_audio_channel_data[i].m_db.at<float>(n) * M_SQRT2 + 64 + mAudioSpectrogramOffset;
+                    value = ImClamp(value, -64.f, 63.f);
+                    float light = (value + 64) / 127.f;
+                    value = (int)((value + 64) + 170) % 255; 
+                    auto hue = value / 255.f;
+                    auto color = ImColor::HSV(hue, 1.0, light * mAudioSpectrogramLight);
+                    last_line[n] = color;
+                }
+            }
+        }
+    }
+    if (mat.c >= 2)
+    {
+        if (m_audio_vector.empty())
+        {
+            m_audio_vector.create_type(256, 256, 4, IM_DT_INT8);
+            m_audio_vector.fill((int8_t)0);
+            m_audio_vector.elempack = 4;
+        }
+        if (!m_audio_vector.empty())
+        {
+            float zoom = mAudioVectorScale;
+            float hw = m_audio_vector.w / 2;
+            float hh = m_audio_vector.h / 2;
+            int samples = mat_in.w;
+            m_audio_vector *= 0.99f;
+            for (int n = 0; n < samples; n++)
+            {
+                float s1 = m_audio_channel_data[0].m_wave.at<float>(n, 0);
+                float s2 = m_audio_channel_data[1].m_wave.at<float>(n, 0);
+                int x = hw;
+                int y = hh;
+
+                if (mAudioVectorMode == LISSAJOUS)
+                {
+                    x = ((s2 - s1) * zoom / 2 + 1) * hw;
+                    y = (1.0 - (s1 + s2) * zoom / 2) * hh;
+                }
+                else if (mAudioVectorMode == LISSAJOUS_XY)
+                {
+                    x = (s2 * zoom + 1) * hw;
+                    y = (s1 * zoom + 1) * hh;
+                }
+                else
+                {
+                    float sx, sy, cx, cy;
+                    sx = s2 * zoom;
+                    sy = s1 * zoom;
+                    cx = sx * sqrtf(1 - 0.5 * sy * sy);
+                    cy = sy * sqrtf(1 - 0.5 * sx * sx);
+                    x = hw + hw * ImSign(cx + cy) * (cx - cy) * .7;
+                    y = m_audio_vector.h - m_audio_vector.h * fabsf(cx + cy) * .7;
+                }
+                x = ImClamp(x, 0, m_audio_vector.w - 1);
+                y = ImClamp(y, 0, m_audio_vector.h - 1);
+                uint8_t r = ImClamp(m_audio_vector.at<uint8_t>(x, y, 0) + 30, 0, 255);
+                uint8_t g = ImClamp(m_audio_vector.at<uint8_t>(x, y, 1) + 50, 0, 255);
+                uint8_t b = ImClamp(m_audio_vector.at<uint8_t>(x, y, 2) + 30, 0, 255);
+                m_audio_vector.draw_dot(x, y, ImPixel(r / 255.0, g / 255.0, b / 255.0, 1.f));
+            }
+        }
+    }
+}
+
+bool TimeLine::ConfigEncoder(const std::string& outputPath, VideoEncoderParams& vidEncParams, AudioEncoderParams& audEncParams, std::string& errMsg)
+{
+    if (mEncoder)
+    {
+        ReleaseMediaEncoder(&mEncoder);
+        mEncoder = nullptr;
+    }
+    mEncoder = CreateMediaEncoder();
+    if (!mEncoder->Open(outputPath))
+    {
+        errMsg = mEncoder->GetError();
+        return false;
+    }
+    // Video
+    std::string vidEncImgFormat;
+    if (!mEncoder->ConfigureVideoStream(
+        vidEncParams.codecName, vidEncParams.imageFormat, vidEncParams.width, vidEncParams.height,
+        vidEncParams.frameRate, vidEncParams.bitRate, &vidEncParams.extraOpts))
+    {
+        errMsg = mEncoder->GetError();
+        return false;
+    }
+    if (mEncMtvReader)
+    {
+        ReleaseMultiTrackVideoReader(&mEncMtvReader);
+        mEncMtvReader = nullptr;
+    }
+    mEncMtvReader = mMtvReader->CloneAndConfigure(vidEncParams.width, vidEncParams.height, vidEncParams.frameRate);
+    // Audio
+    std::string audEncSmpFormat;
+    if (!mEncoder->ConfigureAudioStream(
+        audEncParams.codecName, audEncParams.sampleFormat, audEncParams.channels,
+        audEncParams.sampleRate, audEncParams.bitRate))
+    {
+        errMsg = mEncoder->GetError();
+        return false;
+    }
+    if (mEncMtaReader)
+    {
+        ReleaseMultiTrackAudioReader(&mEncMtaReader);
+        mEncMtaReader = nullptr;
+    }
+    mEncMtaReader = mMtaReader->CloneAndConfigure(audEncParams.channels, audEncParams.sampleRate, audEncParams.samplesPerFrame);
+    return true;
+}
+
+void TimeLine::StartEncoding()
+{
+    if (mEncodingThread.joinable())
+        return;
+    mEncodeProcErrMsg.clear();
+    mEncodingProgress = 0;
+    mQuitEncoding = false;
+    mIsEncoding = true;
+    mEncodingThread = std::thread(&TimeLine::_EncodeProc, this);
+}
+
+void TimeLine::StopEncoding()
+{
+    if (!mEncodingThread.joinable())
+        return;
+    mQuitEncoding = true;
+    mEncodingThread.join();
+    mEncodingThread = std::thread();
+
+    if (mEncMtvReader)
+    {
+        ReleaseMultiTrackVideoReader(&mEncMtvReader);
+        mEncMtvReader = nullptr;
+    }
+    if (mEncMtaReader)
+    {
+        ReleaseMultiTrackAudioReader(&mEncMtaReader);
+        mEncMtaReader = nullptr;
+    }
+}
+
+void TimeLine::_EncodeProc()
+{
+    Logger::Log(Logger::DEBUG) << ">>>>>>>>>>> Enter encoding proc >>>>>>>>>>>>" << std::endl;
+    mEncoder->Start();
+    bool vidInputEof = false;
+    bool audInputEof = false;
+    double audpos = 0, vidpos = 0;
+    double maxEncodeDuration = 0;
+    uint32_t vidFrameCount = 0;
+    MediaInfo::Ratio outFrameRate = mEncoder->GetVideoFrameRate();
+    ImGui::ImMat vmat, amat;
+    uint32_t pcmbufSize = 8192;
+    uint8_t* pcmbuf = new uint8_t[pcmbufSize];
+    double viddur = (double)mEncMtvReader->Duration()/1000;
+    double dur = (double)ValidDuration()/1000;
+    double encpos = 0;
+    while (!mQuitEncoding && (!vidInputEof || !audInputEof))
+    {
+        if ((!vidInputEof && vidpos <= audpos) || audInputEof)
+        {
+            vidpos = (double)vidFrameCount*outFrameRate.den/outFrameRate.num;
+            vidFrameCount++;
+            bool eof = vidpos >= viddur;
+            if (!eof)
+            {
+                if (!mEncMtvReader->ReadVideoFrame((int64_t)(vidpos*1000), vmat))
+                {
+                    std::ostringstream oss;
+                    oss << "[video] '" << mEncMtvReader->GetError() << "'.";
+                    mEncodeProcErrMsg = oss.str();
+                    break;
+                }
+                vmat.time_stamp = vidpos;
+                if (!mEncoder->EncodeVideoFrame(vmat))
+                {
+                    std::ostringstream oss;
+                    oss << "[video] '" << mEncoder->GetError() << "'.";
+                    mEncodeProcErrMsg = oss.str();
+                    break;
+                }
+                if (vidpos > encpos)
+                {
+                    encpos = vidpos;
+                    mEncodingProgress = encpos/dur;
+                }
+            }
+            else
+            {
+                vmat.release();
+                if (!mEncoder->EncodeVideoFrame(vmat))
+                {
+                    std::ostringstream oss;
+                    oss << "[video] '" << mEncoder->GetError() << "'.";
+                    mEncodeProcErrMsg = oss.str();
+                    break;
+                }
+                vidInputEof = true;
+            }
+        }
+        else
+        {
+            bool eof;
+            uint32_t readSize = pcmbufSize;
+            if (!mEncMtaReader->ReadAudioSamples(amat, eof) && !eof)
+            {
+                std::ostringstream oss;
+                oss << "[audio] '" << mEncMtaReader->GetError() << "'.";
+                mEncodeProcErrMsg = oss.str();
+                break;
+            }
+            audpos = amat.time_stamp;
+            if (!eof)
+            {
+                if (!mEncoder->EncodeAudioSamples(amat))
+                {
+                    std::ostringstream oss;
+                    oss << "[audio] '" << mEncoder->GetError() << "'.";
+                    mEncodeProcErrMsg = oss.str();
+                    break;
+                }
+                if (amat.time_stamp > encpos)
+                {
+                    encpos = amat.time_stamp;
+                    mEncodingProgress = encpos/dur;
+                }
+            }
+            else
+            {
+                amat.release();
+                if (!mEncoder->EncodeAudioSamples(amat))
+                {
+                    std::ostringstream oss;
+                    oss << "[audio] '" << mEncoder->GetError() << "'.";
+                    mEncodeProcErrMsg = oss.str();
+                    break;
+                }
+                audInputEof = true;
+            }
+        }
+    }
+    if (!mQuitEncoding && mEncodeProcErrMsg.empty())
+    {
+        mEncodingProgress = 1;
+    }
+    mEncoder->FinishEncoding();
+    mEncoder->Close();
+    mIsEncoding = false;
+    Logger::Log(Logger::DEBUG) << "<<<<<<<<<<<<< Quit encoding proc <<<<<<<<<<<<<<<<" << std::endl;
+}
 } // namespace MediaTimeline/TimeLine
 
 namespace MediaTimeline
@@ -3988,35 +6276,35 @@ namespace MediaTimeline
 /***********************************************************************************************************
  * Draw Main Timeline
  ***********************************************************************************************************/
-bool DrawTimeLine(TimeLine *timeline, bool *expanded)
+bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
 {
-    /*************************************************************************************************************
-     * [-]------------------------------------ header area ----------------------------------------------------- +
-     *                    |  0    5    10 v   15    20 <rule bar> 30     35      40      45       50       55    c
-     * ___________________|_______________|_____________________________________________________________________ a
-     s | title     [+][-] |               |          Item bar                                                    n
-     l |     legend       |---------------|--------------------------------------------------------------------- v
-     o |                  |               |        custom area                                                   a 
-     t |                  |               |                                                                      s                                            
-     s |__________________|_______________|_____________________________________________________________________ |
-     * | title     [+][-] |               |          Item bar                                                    h
-     * |     legend       |---------------|--------------------------------------------------------------------- e
-     * |                  |               |                                                                      i
-     * |                  |               |        custom area                                                   g
-     * |________________________________________________________________________________________________________ h
-     * | title     [+][-] |               |          Item bar  <compact view>                                    t
-     * |__________________|_______________|_____________________________________________________________________ +
-     *                                                                                                           +
-     *                     [     <==slider==>                                                                  ] +
-     ++++++++++++++++++++++++++++++++++++++++ canvas width +++++++++++++++++++++++++++++++++++++++++++++++++++++++
-     *************************************************************************************************************/
+    /************************************************************************************************************
+    * [-]------------------------------------ header area ----------------------------------------------------- +
+    *                    |  0    5    10 v   15    20 <rule bar> 30     35      40      45       50       55    c
+    * ___________________|_______________|_____________________________________________________________________ a
+    s | title     [+][-] |               |          Item bar                                                    n
+    l |     legend       |---------------|--------------------------------------------------------------------- v
+    o |                  |               |        custom area                                                   a 
+    t |                  |               |                                                                      s                                            
+    s |__________________|_______________|_____________________________________________________________________ |
+    * | title     [+][-] |               |          Item bar                                                    h
+    * |     legend       |---------------|--------------------------------------------------------------------- e
+    * |                  |               |                                                                      i
+    * |                  |               |        custom area                                                   g
+    * |________________________________________________________________________________________________________ h
+    * | title     [+][-] |               |          Item bar  <compact view>                                    t
+    * |__________________|_______________|_____________________________________________________________________ +
+    *                                                                                                           +
+    *                     [     <==slider==>                                                                  ] +
+    ++++++++++++++++++++++++++++++++++++++++ canvas width +++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    *************************************************************************************************************/
     bool ret = false;
     ImGuiIO &io = ImGui::GetIO();
     int cx = (int)(io.MousePos.x);
     int cy = (int)(io.MousePos.y);
     int scrollSize = 16;
-    int trackHeadHeight = 20;
-    int HeadHeight = 20;
+    int trackHeadHeight = 16;
+    int HeadHeight = 28;
     int legendWidth = 200;
     int trackCount = timeline->GetTrackCount();
     int64_t duration = ImMax(timeline->GetEnd() - timeline->GetStart(), (int64_t)1);
@@ -4026,25 +6314,32 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
     static bool MovingCurrentTime = false;
     static int trackMovingEntry = -1;
     static int trackEntry = -1;
+    static int trackMenuEntry = -1;
+    static int64_t clipMenuEntry = -1;
     static int64_t clipMovingEntry = -1;
-    static int64_t clipEntry = -1;
     static int clipMovingPart = -1;
     int delTrackEntry = -1;
     int mouseEntry = -1;
     int legendEntry = -1;
     int64_t mouseClip = -1;
     int64_t mouseTime = -1;
+    static int64_t menuMouseTime = -1;
     std::vector<int64_t> delClipEntry;
     std::vector<int64_t> groupClipEntry;
     std::vector<int64_t> unGroupClipEntry;
     bool removeEmptyTrack = false;
+    int insertEmptyTrackType = MEDIA_UNKNOWN;
     static bool menuIsOpened = false;
     static bool bCutting = false;
     static bool bCropping = false;
     static bool bMoving = false;
-    const bool is_alt_key_only = (io.KeyMods == ImGuiKeyModFlags_Alt);
-    bCutting = ImGui::IsKeyDown(ImGuiKey_LeftAlt) && is_alt_key_only;
-    
+    bCutting = ImGui::IsKeyDown(ImGuiKey_LeftAlt) && (io.KeyMods == ImGuiMod_Alt);
+    bool overTrackView = false;
+    bool overHorizonScrollBar = false;
+    bool overCustomDraw = false;
+    bool overLegend = false;
+    bool overTopBar = false;
+
     ImDrawList *draw_list = ImGui::GetWindowDrawList();
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
@@ -4055,19 +6350,11 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         return ret;
     // zoom in/out    
     int64_t newVisibleTime = (int64_t)floorf((timline_size.x - legendWidth) / timeline->msPixelWidthTarget);
-    if (timeline->visibleTime != newVisibleTime)
-    {
-        timeline->visibleTime = newVisibleTime;
-        for (auto& item : timeline->media_items)
-            item->ConfigSnapshot(timeline->visibleTime, timeline->msPixelWidthTarget);
-        for (auto &track : timeline->m_Tracks)
-            track->ConfigViewWindow(timeline->visibleTime, timeline->msPixelWidthTarget);
-    }
-    timeline->visibleTime = (int64_t)floorf((timline_size.x - legendWidth) / timeline->msPixelWidthTarget);
+    timeline->ConfigSnapshotWindow(newVisibleTime);
     const float HorizonBarWidthRatio = ImMin(timeline->visibleTime / (float)duration, 1.f);
     const float HorizonBarWidthInPixels = std::max(HorizonBarWidthRatio * (timline_size.x - legendWidth), (float)scrollSize);
     const float HorizonBarPos = HorizonBarWidthRatio * (timline_size.x - legendWidth);
-    ImRect regionRect(canvas_pos + ImVec2(0, HeadHeight), canvas_pos + timline_size);
+    ImRect regionRect(canvas_pos, canvas_pos + timline_size);
     ImRect HorizonScrollBarRect;
     ImRect HorizonScrollHandleBarRect;
     static ImVec2 panningViewHorizonSource;
@@ -4075,6 +6362,9 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
 
     static ImVec2 panningViewVerticalSource;
     static float panningViewVerticalPos;
+
+    static float headerMarkPos = -1;
+    static int markMovingEntry = -1;
 
     float minPixelWidthTarget = ImMin(timeline->msPixelWidthTarget, (float)(timline_size.x - legendWidth) / (float)duration);
     float frame_duration = (timeline->mFrameRate.den > 0 && timeline->mFrameRate.num > 0) ? timeline->mFrameRate.den * 1000.0 / timeline->mFrameRate.num : 40;
@@ -4090,7 +6380,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         controlHeight += int(timeline->GetCustomHeight(i));
 
     // draw backbround
-    draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DARK_TWO);
+    //draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DARK_TWO);
 
     ImGui::BeginGroup();
     bool isFocused = ImGui::IsWindowFocused();
@@ -4099,30 +6389,48 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
     if ((expanded && !*expanded) || !trackCount)
     {
         // minimum view
-        ImGui::InvisibleButton("canvas_minimum", ImVec2(timline_size.x - canvas_pos.x, (float)HeadHeight));
-        draw_list->AddRectFilled(canvas_pos, ImVec2(timline_size.x + canvas_pos.x, canvas_pos.y + HeadHeight), COL_DARK_ONE, 0);
-        auto info_str = MillisecToString(duration, 3);
+        draw_list->AddRectFilled(canvas_pos + ImVec2(legendWidth, 0), ImVec2(timline_size.x + canvas_pos.x, canvas_pos.y + HeadHeight + 4), COL_DARK_ONE, 0);
+        auto info_str = ImGuiHelper::MillisecToString(duration, 3);
         info_str += " / ";
-        info_str += std::to_string(trackCount) + " entries";
-        draw_list->AddText(ImVec2(canvas_pos.x + 40, canvas_pos.y + 2), IM_COL32_WHITE, info_str.c_str());
+        info_str += std::to_string(trackCount) + " tracks";
+        draw_list->AddText(ImVec2(canvas_pos.x + legendWidth + 2, canvas_pos.y + 4), IM_COL32_WHITE, info_str.c_str());
+        if (!trackCount && *expanded)
+        {
+            ImGui::SetWindowFontScale(4);
+            auto pos_center = canvas_pos + canvas_size / 2;
+            std::string tips_string = "Please Drag Media Here";
+            auto string_width = ImGui::CalcTextSize(tips_string.c_str());
+            auto tips_pos = pos_center - string_width / 2;
+            ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
+            ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
+            draw_list->AddText(tips_pos, IM_COL32(255, 255, 255, 128), tips_string.c_str());
+            ImGui::PopStyleColor();
+            ImGui::PopStyleVar();
+            ImGui::SetWindowFontScale(1.0);
+        }
     }
     else
     {
         // normal view
         ImVec2 headerSize(timline_size.x - 4.f, (float)HeadHeight);
         ImVec2 HorizonScrollBarSize(timline_size.x, scrollSize);
-        ImVec2 VerticalScrollBarSize(scrollSize / 2, canvas_size.y - scrollSize);
+        ImVec2 VerticalScrollBarSize(scrollSize / 2, canvas_size.y - scrollSize - HeadHeight);
+        ImRect HeaderAreaRect(canvas_pos + ImVec2(legendWidth, 0), canvas_pos + headerSize);
         ImGui::InvisibleButton("topBar", headerSize);
-        draw_list->AddRectFilled(canvas_pos, canvas_pos + headerSize, COL_DARK_ONE, 0);
+
+        // draw Header bg
+        draw_list->AddRectFilled(HeaderAreaRect.Min, HeaderAreaRect.Max, COL_DARK_ONE, 0);
+        
         if (!trackCount) 
         {
             ImGui::EndGroup();
-            return false;
+            return ret;
         }
+        
         ImGui::PushStyleColor(ImGuiCol_FrameBg, 0);
         ImVec2 childFramePos = ImGui::GetCursorScreenPos();
         ImVec2 childFrameSize(timline_size.x, timline_size.y - 8.0f - headerSize.y - HorizonScrollBarSize.y);
-        ImGui::BeginChildFrame(ImGui::GetID("timeline_Tracks"), childFrameSize, ImGuiWindowFlags_NoScrollbar /*| ImGuiWindowFlags_NoScrollWithMouse*/);
+        ImGui::BeginChildFrame(ImGui::GetID("timeline_Tracks"), childFrameSize, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
         auto VerticalScrollPos = ImGui::GetScrollY();
         auto VerticalScrollMax = ImGui::GetScrollMaxY();
         auto VerticalWindow = ImGui::GetCurrentWindow();
@@ -4134,7 +6442,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         const ImRect legendAreaRect(contentMin, ImVec2(contentMin.x + legendWidth, contentMin.y + timline_size.y - (HeadHeight + 8)));
         const ImRect trackRect(ImVec2(contentMin.x + legendWidth, contentMin.y), contentMax);
         const ImRect trackAreaRect(ImVec2(contentMin.x + legendWidth, contentMin.y), ImVec2(contentMax.x, contentMin.y + timline_size.y - (HeadHeight + scrollSize + 8)));
-        
+        const ImRect topRect(ImVec2(contentMin.x + legendWidth, canvas_pos.y), ImVec2(contentMin.x + timline_size.x, canvas_pos.y + HeadHeight));
+
         const float contentHeight = contentMax.y - contentMin.y;
         // full canvas background
         draw_list->AddRectFilled(canvas_pos + ImVec2(4, HeadHeight + 4), canvas_pos + ImVec2(4, HeadHeight + 4) + timline_size - ImVec2(8, HeadHeight + scrollSize + 8), COL_CANVAS_BG, 0);
@@ -4151,7 +6460,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         // calculate mouse pos to time
         mouseTime = (int64_t)((cx - contentMin.x - legendWidth) / timeline->msPixelWidthTarget) + timeline->firstTime;
         //timeline->AlignTime(mouseTime);
-        menuIsOpened = ImGui::IsPopupOpen("##timeline-context-menu");
+        menuIsOpened = ImGui::IsPopupOpen("##timeline-context-menu") || ImGui::IsPopupOpen("##timeline-header-context-menu");
 
         //header
         //header time and lines
@@ -4168,36 +6477,36 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             bool baseIndex = ((i % modTimeCount) == 0) || (i == timeline->GetEnd() || i == timeline->GetStart());
             bool halfIndex = (i % halfModTime) == 0;
             int px = (int)contentMin.x + int(i * timeline->msPixelWidthTarget) + legendWidth - int(timeline->firstTime * timeline->msPixelWidthTarget);
-            int tiretStart = baseIndex ? 4 : (halfIndex ? 10 : 14);
-            int tiretEnd = baseIndex ? regionHeight : HeadHeight;
+            int timeStart = baseIndex ? 4 : (halfIndex ? 10 : 14);
+            int timeEnd = baseIndex ? regionHeight : HeadHeight - 8;
             if (px <= (timline_size.x + contentMin.x) && px >= (contentMin.x + legendWidth))
             {
-                draw_list->AddLine(ImVec2((float)px, canvas_pos.y + (float)tiretStart), ImVec2((float)px, canvas_pos.y + (float)tiretEnd - 1), halfIndex ? COL_MARK : COL_MARK_HALF, halfIndex ? 2 : 1);
+                draw_list->AddLine(ImVec2((float)px, canvas_pos.y + (float)timeStart), ImVec2((float)px, canvas_pos.y + (float)timeEnd - 1), halfIndex ? COL_MARK : COL_MARK_HALF, halfIndex ? 2 : 1);
             }
             if (baseIndex && px > (contentMin.x + legendWidth))
             {
-                auto time_str = MillisecToString(i, 2);
+                auto time_str = ImGuiHelper::MillisecToString(i, 2);
                 ImGui::SetWindowFontScale(0.8);
-                draw_list->AddText(ImVec2((float)px + 3.f, canvas_pos.y), COL_RULE_TEXT, time_str.c_str());
+                draw_list->AddText(ImVec2((float)px + 3.f, canvas_pos.y + 8), COL_RULE_TEXT, time_str.c_str());
                 ImGui::SetWindowFontScale(1.0);
             }
         };
         auto drawLineContent = [&](int64_t i, int)
         {
             int px = (int)contentMin.x + int(i * timeline->msPixelWidthTarget) + legendWidth - int(timeline->firstTime * timeline->msPixelWidthTarget);
-            int tiretStart = int(contentMin.y);
-            int tiretEnd = int(contentMax.y);
+            int timeStart = int(contentMin.y);
+            int timeEnd = int(contentMax.y);
             if (px <= (timline_size.x + contentMin.x) && px >= (contentMin.x + legendWidth))
             {
-                draw_list->AddLine(ImVec2(float(px), float(tiretStart)), ImVec2(float(px), float(tiretEnd)), COL_SLOT_V_LINE, 1);
+                draw_list->AddLine(ImVec2(float(px), float(timeStart)), ImVec2(float(px), float(timeEnd)), COL_SLOT_V_LINE, 1);
             }
         };
-        for (auto i = timeline->GetStart(); i <= timeline->GetEnd(); i += timeStep)
+        auto _mark_start = (timeline->firstTime / timeStep) * timeStep;
+        auto _mark_end = (timeline->lastTime / timeStep) * timeStep;
+        for (auto i = _mark_start; i <= _mark_end; i += timeStep)
         {
             drawLine(i, HeadHeight);
         }
-        drawLine(timeline->GetStart(), HeadHeight);
-        drawLine(timeline->GetEnd(), HeadHeight);
 
         // cursor Arrow
         if (timeline->currentTime >= timeline->firstTime && timeline->currentTime <= timeline->GetEnd())
@@ -4206,7 +6515,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             float arrowOffset = contentMin.x + legendWidth + (timeline->currentTime - timeline->firstTime) * timeline->msPixelWidthTarget - arrowWidth * 0.5f + 1;
             ImGui::RenderArrow(draw_list, ImVec2(arrowOffset, canvas_pos.y), COL_CURSOR_ARROW, ImGuiDir_Down);
             ImGui::SetWindowFontScale(0.8);
-            auto time_str = MillisecToString(timeline->currentTime, 2);
+            auto time_str = ImGuiHelper::MillisecToString(timeline->currentTime, 2);
             ImVec2 str_size = ImGui::CalcTextSize(time_str.c_str(), nullptr, true);
             float strOffset = contentMin.x + legendWidth + (timeline->currentTime - timeline->firstTime) * timeline->msPixelWidthTarget - str_size.x * 0.5f + 1;
             ImVec2 str_pos = ImVec2(strOffset, canvas_pos.y + 10);
@@ -4241,8 +6550,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             auto itemCustomHeight = timeline->GetCustomHeight(i);
             ImVec2 button_size = ImVec2(14, 14);
             ImVec2 tpos(contentMin.x, contentMin.y + i * trackHeadHeight + customHeight);
-            bool ret = TimelineButton(draw_list, ICON_TRASH, ImVec2(contentMin.x + legendWidth - button_size.x - 4, tpos.y + 2), button_size, "delete");
-            if (ret && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+            bool is_delete = TimelineButton(draw_list, ICON_TRASH, ImVec2(contentMin.x + legendWidth - button_size.x - 4, tpos.y + 2), button_size, "delete");
+            if (is_delete && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
                 delTrackEntry = i;
             customHeight += itemCustomHeight;
         }
@@ -4250,12 +6559,10 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         // cropping rect so track bars are not visible in the legend on the left when scrolled
         draw_list->PushClipRect(childFramePos + ImVec2(float(legendWidth), 0.f), childFramePos + childFrameSize);
         // vertical time lines in content area
-        //for (auto i = timeline->GetStart(); i <= timeline->GetEnd(); i += timeStep)
-        //{
-        //    drawLineContent(i, int(contentHeight));
-        //}
-        //drawLineContent(timeline->GetStart(), int(contentHeight));
-        //drawLineContent(timeline->GetEnd(), int(contentHeight));
+        for (auto i = _mark_start; i <= _mark_end; i += timeStep)
+        {
+            drawLineContent(i, int(contentHeight));
+        }
 
         // track
         customHeight = 0;
@@ -4293,7 +6600,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             // Ensure grabable handles for track
             if (legendEntry != -1 && legendEntry < timeline->m_Tracks.size())
             {
-                if (ImGui::IsMouseClicked(0) && !MovingHorizonScrollBar && !MovingCurrentTime && !menuIsOpened)
+                if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingHorizonScrollBar && !MovingCurrentTime && !menuIsOpened && editable)
                 {
                     trackMovingEntry = legendEntry;
                 }
@@ -4344,7 +6651,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                                 draw_list->AddLine(P1, P2, IM_COL32(0, 0, 255, 255), 2);
                                 RenderMouseCursor(ICON_CUTTING, ImVec2(7, 0), 1.0, -90);
                             }
-                            if (ImGui::IsMouseClicked(0) && !MovingHorizonScrollBar && !MovingCurrentTime && !menuIsOpened)
+                            if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingHorizonScrollBar && !MovingCurrentTime && !menuIsOpened && editable)
                             {
                                 if (j == 2 && bCutting && count <= 1)
                                 {
@@ -4358,6 +6665,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                                     timeline->mOngoingAction["clip_id"] = imgui_json::number(clip->mID);
                                     timeline->mOngoingAction["media_type"] = imgui_json::number(clip->mType);
                                     timeline->mOngoingAction["from_track_id"] = imgui_json::number(track->mID);
+                                    timeline->mOngoingAction["start"] = imgui_json::number(clip->mStart);
                                     if (j <= 1)
                                     {
                                         timeline->mOngoingAction["action"] = "CROP_CLIP";
@@ -4442,14 +6750,48 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             }
         }
 
-        if (!menuIsOpened && !bCropping && !bCutting && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+        // mark moving
+        if (markMovingEntry != -1 && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
+        {
+            ImGui::CaptureMouseFromApp();
+            int64_t mouse_time = (int64_t)((io.MousePos.x - topRect.Min.x) / timeline->msPixelWidthTarget) + timeline->firstTime;
+            if (markMovingEntry == 0)
+            {
+                timeline->mark_in = mouse_time;
+                if (timeline->mark_in < 0) timeline->mark_in = 0;
+                if (timeline->mark_in >= timeline->mark_out) timeline->mark_out = -1;
+            }
+            else
+            {
+                timeline->mark_out = mouse_time;
+                if (timeline->mark_out < 0) timeline->mark_out = 0;
+                if (timeline->mark_out <= timeline->mark_in) timeline->mark_in = -1;
+            }
+            ImGui::BeginTooltip();
+            ImGui::Text(" In:%s", ImGuiHelper::MillisecToString(timeline->mark_in, 2).c_str());
+            ImGui::Text("Out:%s", ImGuiHelper::MillisecToString(timeline->mark_out, 2).c_str());
+            ImGui::Text("Dur:%s", ImGuiHelper::MillisecToString(timeline->mark_out - timeline->mark_in, 2).c_str());
+            ImGui::EndTooltip();
+        }
+
+        if (trackAreaRect.Contains(io.MousePos) && editable && !menuIsOpened && !bCropping && !bCutting && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
             timeline->Click(mouseEntry, mouseTime);
 
         if (trackAreaRect.Contains(io.MousePos) && ImGui::IsMouseReleased(ImGuiMouseButton_Right) && !ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Right))
         {
             if (mouseClip != -1)
-                clipEntry = mouseClip;
+                clipMenuEntry = mouseClip;
+            if (mouseEntry >= 0)
+                trackMenuEntry = mouseEntry;
+            if (mouseTime != -1)
+                menuMouseTime = mouseTime;
             ImGui::OpenPopup("##timeline-context-menu");
+            menuIsOpened = true;
+        }
+        if (HeaderAreaRect.Contains(io.MousePos) && !menuIsOpened && !bCropping && !bCutting&& ImGui::IsMouseDown(ImGuiMouseButton_Right))
+        {
+            headerMarkPos = io.MousePos.x;
+            ImGui::OpenPopup("##timeline-header-context-menu");
             menuIsOpened = true;
         }
 
@@ -4459,63 +6801,149 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         // handle menu
         if (!menuIsOpened)
         {
-            clipEntry = -1;
+            headerMarkPos = -1;
+            trackMenuEntry = -1;
+            clipMenuEntry = -1;
+            menuMouseTime = -1;
+        }
+
+        if (ImGui::BeginPopup("##timeline-header-context-menu"))
+        {
+            if (headerMarkPos >= 0)
+            {
+                int64_t mouse_time = (int64_t)((headerMarkPos - topRect.Min.x) / timeline->msPixelWidthTarget) + timeline->firstTime;
+                if (ImGui::MenuItem("+ Add mark in", nullptr, nullptr))
+                {
+                    if (timeline->mark_out != -1 && mouse_time > timeline->mark_out)
+                        timeline->mark_out = -1;
+                    timeline->mark_in = mouse_time;
+                    headerMarkPos = -1;
+                }
+                if (ImGui::MenuItem("+ Add mark out", nullptr, nullptr))
+                {
+                    if (timeline->mark_in != -1 && mouse_time < timeline->mark_in)
+                        timeline->mark_in = -1;
+                    timeline->mark_out = mouse_time;
+                    headerMarkPos = -1;
+                }
+                if (ImGui::MenuItem("- Delete mark point", nullptr, nullptr))
+                {
+                    timeline->mark_in = timeline->mark_out = -1;
+                    headerMarkPos = -1;
+                }
+            }
+            ImGui::EndPopup();
         }
 
         if (ImGui::BeginPopup("##timeline-context-menu"))
         {
             ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(255,255,255,255));
             auto selected_clip_count = timeline->GetSelectedClipCount();
-            if (ImGui::MenuItem("Delete Empty Track", nullptr, nullptr))
+            auto empty_track_count = timeline->GetEmptyTrackCount();
+            
+            if (ImGui::MenuItem(ICON_MEDIA_VIDEO  " Insert Empty Video Track", nullptr, nullptr))
             {
-                removeEmptyTrack = true;
-                menuIsOpened = false;
+                insertEmptyTrackType = MEDIA_VIDEO;
             }
-            if (clipEntry != -1)
+            if (ImGui::MenuItem(ICON_MEDIA_AUDIO " Insert Empty Audio Track", nullptr, nullptr))
             {
-                auto clip = timeline->FindClipByID(clipEntry);
-                if (ImGui::MenuItem("Delete Clip", nullptr, nullptr))
+                insertEmptyTrackType = MEDIA_AUDIO;
+            }
+            if (ImGui::MenuItem(ICON_MEDIA_TEXT " Insert Empty Text Track", nullptr, nullptr))
+            {
+                insertEmptyTrackType = MEDIA_TEXT;
+            }
+
+            if (empty_track_count > 0)
+            {
+                if (ImGui::MenuItem(ICON_MEDIA_DELETE " Delete Empty Track", nullptr, nullptr))
                 {
-                    delClipEntry.push_back(clipEntry);
-                    menuIsOpened = false;
-                }
-                if (clip->mGroupID != -1 && ImGui::MenuItem("Ungroup Clip", nullptr, nullptr))
-                {
-                    unGroupClipEntry.push_back(clipEntry);
-                    menuIsOpened = false;
+                    removeEmptyTrack = true;
                 }
             }
+
+            if (clipMenuEntry != -1)
+            {
+                ImGui::Separator();
+                auto clip = timeline->FindClipByID(clipMenuEntry);
+                auto track = timeline->FindTrackByClipID(clip->mID);
+                if (ImGui::MenuItem(ICON_CROP " Edit Clip Attribute", nullptr, nullptr))
+                {
+                    track->SelectEditingClip(clip, false);
+                }
+                if (ImGui::MenuItem(ICON_BLUE_PRINT " Edit Clip Filter", nullptr, nullptr))
+                {
+                    track->SelectEditingClip(clip, true);
+                }
+                if (ImGui::MenuItem(ICON_MEDIA_DELETE_CLIP " Delete Clip", nullptr, nullptr))
+                {
+                    delClipEntry.push_back(clipMenuEntry);
+                }
+                if (clip->mGroupID != -1 && ImGui::MenuItem(ICON_MEDIA_UNGROUP " Ungroup Clip", nullptr, nullptr))
+                {
+                    unGroupClipEntry.push_back(clipMenuEntry);
+                }
+            }
+
             if (selected_clip_count > 0)
             {
                 ImGui::Separator();
-                if (ImGui::MenuItem("Delete Selected", nullptr, nullptr))
+                if (ImGui::MenuItem(ICON_MEDIA_DELETE_CLIP " Delete Selected", nullptr, nullptr))
                 {
                     for (auto clip : timeline->m_Clips)
                     {
                         if (clip->bSelected)
                             delClipEntry.push_back(clip->mID);
                     }
-                    menuIsOpened = false;
                 }
-                if (selected_clip_count > 1 && ImGui::MenuItem("Group Selected", nullptr, nullptr))
+                if (selected_clip_count > 1 && ImGui::MenuItem(ICON_MEDIA_GROUP " Group Selected", nullptr, nullptr))
                 {
                     for (auto clip : timeline->m_Clips)
                     {
                         if (clip->bSelected)
                             groupClipEntry.push_back(clip->mID);
                     }
-                    menuIsOpened = false;
                 }
-                if (ImGui::MenuItem("Ungroup Selected", nullptr, nullptr))
+                if (ImGui::MenuItem(ICON_MEDIA_UNGROUP " Ungroup Selected", nullptr, nullptr))
                 {
                     for (auto clip : timeline->m_Clips)
                     {
                         if (clip->bSelected)
                             unGroupClipEntry.push_back(clip->mID);
                     }
-                    menuIsOpened = false;
                 }
             }
+
+            if (trackMenuEntry >= 0 && clipMenuEntry < 0)
+            {
+                auto track = timeline->m_Tracks[trackMenuEntry];
+                if (track->mType == MEDIA_TEXT)
+                {
+                    ImGui::Separator();
+                    if (ImGui::MenuItem(ICON_MEDIA_TEXT  " Add Text", nullptr, nullptr))
+                    {
+                        if (track->mMttReader && menuMouseTime != -1)
+                        {
+                            auto& style = track->mMttReader->DefaultStyle();
+                            TextClip * clip = new TextClip(menuMouseTime, menuMouseTime + 5000, track->mID, track->mName, std::string(""), timeline);
+                            auto holder = track->mMttReader->NewClip(clip->mStart, clip->mEnd - clip->mStart);
+                            clip->SetClipDefault(style);
+                            clip->mClipHolder = holder;
+                            clip->mTrack = track;
+                            holder->EnableUsingTrackStyle(clip->mTrackStyle);
+                            timeline->m_Clips.push_back(clip);
+                            track->InsertClip(clip, holder->StartTime());
+                            track->SelectEditingClip(clip, false);
+                            if (timeline->m_CallBacks.EditingClipFilter)
+                            {
+                                timeline->m_CallBacks.EditingClipFilter(clip->mType, clip);
+                            }
+                            //action["clip_id"] = imgui_json::number(clip->mID);
+                        }
+                    }
+                }
+            }
+
             ImGui::PopStyleColor();
             ImGui::EndPopup();
         }
@@ -4612,14 +7040,14 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                 timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
             }
         }
-        else if (inHorizonScrollHandle && ImGui::IsMouseClicked(0) && !MovingCurrentTime && clipMovingEntry == -1)
+        else if (inHorizonScrollHandle && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingCurrentTime && clipMovingEntry == -1 && !menuIsOpened && editable)
         {
             ImGui::CaptureMouseFromApp();
             MovingHorizonScrollBar = true;
             panningViewHorizonSource = io.MousePos;
             panningViewHorizonTime = - timeline->firstTime;
         }
-        else if (inHorizonScrollBar && ImGui::IsMouseReleased(0))
+        else if (inHorizonScrollBar && ImGui::IsMouseReleased(ImGuiMouseButton_Left) && !menuIsOpened && editable)
         {
             float msPerPixelInBar = HorizonBarPos / (float)timeline->visibleTime;
             timeline->firstTime = int((io.MousePos.x - legendWidth - contentMin.x) / msPerPixelInBar);
@@ -4628,7 +7056,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         }
 
         // Vertical Scroll bar
-        auto vertical_scroll_pos = ImVec2(canvas_pos.x + canvas_size.x - scrollSize / 2, canvas_pos.y);
+        auto vertical_scroll_pos = ImVec2(canvas_pos.x - scrollSize * 2, canvas_pos.y + HeadHeight);
         const float VerticalBarHeightRatio = ImMin(VerticalScrollBarSize.y / (VerticalScrollBarSize.y + VerticalScrollMax), 1.f);
         const float VerticalBarHeightInPixels = std::max(VerticalBarHeightRatio * VerticalScrollBarSize.y, (float)scrollSize / 2);
         ImGui::SetCursorScreenPos(vertical_scroll_pos);
@@ -4657,14 +7085,14 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                 ImGui::SetScrollY(VerticalWindow, offset);
             }
         }
-        else if (inVerticalScrollHandle && ImGui::IsMouseClicked(0) && !MovingCurrentTime && clipMovingEntry == -1)
+        else if (inVerticalScrollHandle && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingCurrentTime && clipMovingEntry == -1 && !menuIsOpened && editable)
         {
             ImGui::CaptureMouseFromApp();
             MovingVerticalScrollBar = true;
             panningViewVerticalSource = io.MousePos;
             panningViewVerticalPos = VerticalScrollPos;
         }
-        else if (inVerticalScrollBar && ImGui::IsMouseReleased(0))
+        else if (inVerticalScrollBar && ImGui::IsMouseReleased(ImGuiMouseButton_Left) && !menuIsOpened && editable)
         {
             float offset = (io.MousePos.y - vertical_scroll_pos.y) / VerticalBarHeightRatio;
             offset = ImClamp(offset, 0.f, VerticalScrollMax);
@@ -4674,10 +7102,10 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         // handle mouse wheel event
         if (regionRect.Contains(io.MousePos))
         {
-            bool overTrackView = false;
-            bool overHorizonScrollBar = false;
-            bool overCustomDraw = false;
-            bool overLegend = false;
+            if (topRect.Contains(io.MousePos))
+            {
+                overTopBar = true;
+            }
             if (trackRect.Contains(io.MousePos))
             {
                 overCustomDraw = true;
@@ -4694,19 +7122,18 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             {
                 overLegend = true;
             }
-            if (overHorizonScrollBar)
+            if (overLegend)
             {
-                // up-down wheel over scrollbar, scale canvas view
-                if (io.MouseWheel < -FLT_EPSILON && timeline->visibleTime <= timeline->GetEnd())
+                if (io.MouseWheel < -FLT_EPSILON || io.MouseWheel > FLT_EPSILON)
                 {
-                    timeline->msPixelWidthTarget *= 0.9f;
-                }
-                else if (io.MouseWheel > FLT_EPSILON)
-                {
-                    timeline->msPixelWidthTarget *= 1.1f;
+                    auto scroll_y = VerticalScrollPos;
+                    float offset = io.MouseWheel * 5 / VerticalBarHeightRatio + scroll_y;
+                    offset = ImClamp(offset, 0.f, VerticalScrollMax);
+                    ImGui::SetScrollY(VerticalWindow, offset);
+                    panningViewVerticalPos = offset;
                 }
             }
-            if (overTrackView || overHorizonScrollBar)
+            if (overCustomDraw || overTrackView || overHorizonScrollBar || overTopBar)
             {
                 // left-right wheel over blank area, moving canvas view
                 if (io.MouseWheelH < -FLT_EPSILON)
@@ -4718,6 +7145,15 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                 {
                     timeline->firstTime += timeline->visibleTime / 16;
                     timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
+                }
+                // up-down wheel over scrollbar, scale canvas view
+                else if (io.MouseWheel < -FLT_EPSILON && timeline->visibleTime <= timeline->GetEnd())
+                {
+                    timeline->msPixelWidthTarget *= 0.9f;
+                }
+                else if (io.MouseWheel > FLT_EPSILON)
+                {
+                    timeline->msPixelWidthTarget *= 1.1f;
                 }
             }
         }
@@ -4752,11 +7188,11 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         // time metric
         bool movable = true;
         if ((timeline->mVidFilterClip && timeline->mVidFilterClip->bSeeking) ||
-            (timeline->mAudFilterClip && timeline->mAudFilterClip->bSeeking))
+            (timeline->mAudFilterClip && timeline->mAudFilterClip->bSeeking) ||
+            menuIsOpened || !editable)
         {
             movable = false;
         }
-        ImRect topRect(ImVec2(contentMin.x + legendWidth, canvas_pos.y), ImVec2(contentMin.x + timline_size.x, canvas_pos.y + HeadHeight));
         ImGui::SetCursorScreenPos(topRect.Min);
         ImGui::BeginChildFrame(ImGui::GetCurrentWindow()->GetID("#timeline metric"), topRect.GetSize(), ImGuiWindowFlags_NoScrollbar);
         if (movable && !MovingCurrentTime && !MovingHorizonScrollBar && clipMovingEntry == -1 && timeline->currentTime >= 0 && topRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left))
@@ -4789,9 +7225,9 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         draw_list->PushClipRect(custom_view_rect.Min, custom_view_rect.Max);
         if (trackCount > 0 && timeline->currentTime >= timeline->firstTime && timeline->currentTime <= timeline->GetEnd())
         {
-            static const float cursorWidth = 3.f;
+            static const float cursorWidth = 2.f;
             float cursorOffset = contentMin.x + legendWidth + (timeline->currentTime - timeline->firstTime) * timeline->msPixelWidthTarget + 1;
-            draw_list->AddLine(ImVec2(cursorOffset, contentMin.y), ImVec2(cursorOffset, contentMax.y), IM_COL32(0, 255, 0, 128), cursorWidth);
+            draw_list->AddLine(ImVec2(cursorOffset, contentMin.y), ImVec2(cursorOffset, contentMin.y + trackRect.Max.y - scrollSize), IM_COL32(0, 255, 0, 224), cursorWidth);
         }
         draw_list->PopClipRect();
         // alignment line
@@ -4805,50 +7241,193 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         draw_list->PopClipRect();
 
         ImGui::PopStyleColor();
-    }
 
-    if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
-    {
-        if (clipMovingEntry != -1 && timeline->mOngoingAction.contains("action"))
+        // draw mark range for timeline header bar and draw shadow out of mark range 
+        ImGui::PushClipRect(HeaderAreaRect.Min, HeaderAreaRect.Min + ImVec2(trackAreaRect.GetWidth() + 8, contentMin.y + timline_size.y - scrollSize), false);
+        if (timeline->mark_in >= timeline->firstTime && timeline->mark_in <= timeline->lastTime)
         {
-            int64_t clipId = timeline->mOngoingAction["clip_id"].get<imgui_json::number>();
+            float mark_in_offset = (timeline->mark_in - timeline->firstTime) * timeline->msPixelWidthTarget;
+            if (timeline->mark_out >= timeline->lastTime)
+            {
+                draw_list->AddRectFilled(HeaderAreaRect.Min + ImVec2(mark_in_offset, 0), HeaderAreaRect.Max - ImVec2(0, HeadHeight - 8), COL_MARK_BAR, 0);
+            }
+            else if (timeline->mark_out > timeline->firstTime)
+            {
+                float mark_out_offset = (timeline->mark_out - timeline->firstTime) * timeline->msPixelWidthTarget;
+                draw_list->AddRectFilled(HeaderAreaRect.Min + ImVec2(mark_in_offset, 0), HeaderAreaRect.Min + ImVec2(mark_out_offset, 8), COL_MARK_BAR, 0);
+            }
+            
+            ImRect handle_rect(HeaderAreaRect.Min + ImVec2(mark_in_offset, 0), HeaderAreaRect.Min + ImVec2(mark_in_offset + 8, 8));
+            if (handle_rect.Contains(io.MousePos))
+            {
+                draw_list->AddCircleFilled(HeaderAreaRect.Min + ImVec2(mark_in_offset + 2, 4), 4, COL_MARK_DOT_LIGHT);
+                if (ImGui::IsMouseDown(ImGuiMouseButton_Left))
+                {
+                    markMovingEntry = 0;
+                }
+            }
+            else
+            {
+                draw_list->AddCircleFilled(HeaderAreaRect.Min + ImVec2(mark_in_offset + 2, 4), 4, COL_MARK_DOT);
+            }
+            // add left area shadow
+            draw_list->AddRectFilled(HeaderAreaRect.Min, HeaderAreaRect.Min + ImVec2(mark_in_offset, timline_size.y - scrollSize), IM_COL32(0,0,0,128));
+        }
+        if (timeline->mark_out >= timeline->firstTime && timeline->mark_out <= timeline->lastTime)
+        {
+            float mark_out_offset = (timeline->mark_out - timeline->firstTime) * timeline->msPixelWidthTarget;
+            if (timeline->mark_in != -1 && timeline->mark_in < timeline->firstTime)
+            {
+                draw_list->AddRectFilled(HeaderAreaRect.Min, HeaderAreaRect.Min + ImVec2(mark_out_offset, 8), COL_MARK_BAR, 0);
+            }
+            else if (timeline->mark_in != -1 && timeline->mark_in < timeline->lastTime)
+            {
+                float mark_in_offset = (timeline->mark_in - timeline->firstTime) * timeline->msPixelWidthTarget;
+                draw_list->AddRectFilled(HeaderAreaRect.Min + ImVec2(mark_in_offset, 0), HeaderAreaRect.Min + ImVec2(mark_out_offset, 8), COL_MARK_BAR, 0);
+            }
+            
+            ImRect handle_rect(HeaderAreaRect.Min + ImVec2(mark_out_offset - 4, 0), HeaderAreaRect.Min + ImVec2(mark_out_offset + 4, 8));
+            if (handle_rect.Contains(io.MousePos))
+            {
+                draw_list->AddCircleFilled(HeaderAreaRect.Min + ImVec2(mark_out_offset + 2, 4), 4, COL_MARK_DOT_LIGHT);
+                if (ImGui::IsMouseDown(ImGuiMouseButton_Left))
+                {
+                    markMovingEntry = 1;
+                }
+            }
+            else
+            {
+                draw_list->AddCircleFilled(HeaderAreaRect.Min + ImVec2(mark_out_offset + 2, 4), 4, COL_MARK_DOT);
+            }
+            // add right area shadow
+            draw_list->AddRectFilled(HeaderAreaRect.Min + ImVec2(mark_out_offset + 4, 0), HeaderAreaRect.Min + ImVec2(timline_size.x + 8, timline_size.y - scrollSize), IM_COL32(0,0,0,128));
+        }
+        if (timeline->mark_in != -1 && timeline->mark_in < timeline->firstTime && timeline->mark_out >= timeline->lastTime)
+        {
+            draw_list->AddRectFilled(HeaderAreaRect.Min , HeaderAreaRect.Max - ImVec2(0, HeadHeight - 8), COL_MARK_BAR, 0);
+        }
+
+        if ((timeline->mark_in != -1 && timeline->mark_in >= timeline->lastTime) || (timeline->mark_out != -1 && timeline->mark_out <= timeline->firstTime))
+        {
+            // add shadow on whole timeline
+            draw_list->AddRectFilled(HeaderAreaRect.Min, HeaderAreaRect.Min + ImVec2(timline_size.x + 8, timline_size.y - scrollSize), IM_COL32(0,0,0,128));
+        }
+        ImGui::PopClipRect();
+    }
+    
+    if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+    {
+        auto& ongoingAction = timeline->mOngoingAction;
+        if (clipMovingEntry != -1 && ongoingAction.contains("action"))
+        {
+            int64_t clipId = ongoingAction["clip_id"].get<imgui_json::number>();
             Clip* clip = timeline->FindClipByID(clipId);
-            std::string actionName = timeline->mOngoingAction["action"].get<imgui_json::string>();
+            std::string actionName = ongoingAction["action"].get<imgui_json::string>();
             if (actionName == "MOVE_CLIP")
             {
-                timeline->mOngoingAction["start"] = imgui_json::number(clip->mStart);
-                // add actions of other selected clips
-                for (auto clip : timeline->m_Clips)
+                int64_t orgStart = ongoingAction["start"].get<imgui_json::number>();
+                bool acrossTrack = ongoingAction.contains("to_track_id") ?
+                    ongoingAction["to_track_id"].get<imgui_json::number>() != ongoingAction["from_track_id"].get<imgui_json::number>() : false;
+                if (!acrossTrack && orgStart == clip->mStart)
                 {
-                    if (clip->mID == clipId || !clip->bSelected)
-                        continue;
-                    imgui_json::value action;
-                    action["action"] = "MOVE_CLIP";
-                    action["clip_id"] = imgui_json::number(clip->mID);
-                    action["media_type"] = imgui_json::number(clip->mType);
-                    MediaTrack* track = timeline->FindTrackByClipID(clip->mID);
-                    action["from_track_id"] = imgui_json::number(track->mID);
-                    action["start"] = imgui_json::number(clip->mStart);
-                    timeline->mUiActions.push_back(std::move(action));
+                    // clip is not actually moved, so discard this move action
+                    imgui_json::value emptyJson;
+                    ongoingAction.swap(emptyJson);
+                    Logger::Log(Logger::VERBOSE) << "!!!!!!!! action DISCARDED !!!!!!!!!!" << std::endl;
+                }
+                else if (orgStart != clip->mStart)
+                {
+                    ongoingAction["start"] = imgui_json::number(clip->mStart);
+                    // add actions of other selected clips
+                    for (auto clip : timeline->m_Clips)
+                    {
+                        if (clip->mID == clipId || !clip->bSelected)
+                            continue;
+                        imgui_json::value action;
+                        action["action"] = "MOVE_CLIP";
+                        action["clip_id"] = imgui_json::number(clip->mID);
+                        action["media_type"] = imgui_json::number(clip->mType);
+                        MediaTrack* track = timeline->FindTrackByClipID(clip->mID);
+                        action["from_track_id"] = imgui_json::number(track->mID);
+                        action["start"] = imgui_json::number(clip->mStart);
+                        timeline->mUiActions.push_back(std::move(action));
+                    }
                 }
             }
             else if (actionName == "CROP_CLIP")
             {
-                timeline->mOngoingAction["startOffset"] = imgui_json::number(clip->mStartOffset);
-                timeline->mOngoingAction["endOffset"] = imgui_json::number(clip->mEndOffset);
+                ongoingAction["startOffset"] = imgui_json::number(clip->mStartOffset);
+                ongoingAction["endOffset"] = imgui_json::number(clip->mEndOffset);
             }
-            timeline->mUiActions.push_back(std::move(timeline->mOngoingAction));
+
+            if (ongoingAction.contains("action"))
+            {
+                timeline->mUiActions.push_back(std::move(ongoingAction));
+            }
         }
 
         clipMovingEntry = -1;
         clipMovingPart = -1;
         trackMovingEntry = -1;
+        markMovingEntry = -1;
         trackEntry = -1;
         bCropping = false;
         bMoving = false;
         timeline->mConnectedPoints = -1;
         ImGui::CaptureMouseFromApp(false);
     }
+
+    // Show help tips
+    if (timeline->mShowHelpTooltips)
+    {
+        ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5f);
+        if (mouseTime != -1 && mouseClip != -1 && mouseEntry >= 0 && mouseEntry < timeline->m_Tracks.size())
+        {
+            if (mouseClip != -1 && !bMoving)
+            {
+                ImGui::BeginTooltip();
+                ImGui::TextUnformatted("Help:");
+                ImGui::TextUnformatted("    Left botton click to select clip");
+                ImGui::TextUnformatted("    Left botton double click to editing clip");
+                ImGui::TextUnformatted("    Left botton double click title bar zip/unzip clip");
+                ImGui::TextUnformatted("    Hold left Shift key to appand select");
+                ImGui::TextUnformatted("    Hold left Alt/Option key to cut clip");
+                ImGui::EndTooltip();
+            }
+            else if (bMoving)
+            {
+                ImGui::BeginTooltip();
+                ImGui::TextUnformatted("Help:");
+                ImGui::TextUnformatted("    Hold left Command/Win key to single select");
+                ImGui::EndTooltip();
+            }
+        }
+        if (overHorizonScrollBar)
+        {
+            ImGui::BeginTooltip();
+            ImGui::TextUnformatted("Help:");
+            ImGui::TextUnformatted("    Mouse wheel up/down zooming timeline");
+            ImGui::TextUnformatted("    Mouse wheel left/right moving timeline");
+            ImGui::EndTooltip();
+        }
+        if (overTrackView)
+        {
+            ImGui::BeginTooltip();
+            ImGui::TextUnformatted("Help:");
+            ImGui::TextUnformatted("    Mouse wheel left/right moving timeline");
+            ImGui::EndTooltip();
+        }
+        if (overLegend)
+        {
+            ImGui::BeginTooltip();
+            ImGui::TextUnformatted("Help:");
+            ImGui::TextUnformatted("    Drag track up/down to re-order");
+            ImGui::EndTooltip();
+        }
+        ImGui::PopStyleVar();
+    }
+    // Show help tips end
+
     ImGui::EndGroup();
 
     // handle drag drop
@@ -4874,9 +7453,9 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                     action["to_track_id"] = imgui_json::number(track->mID);
                 action["start"] = imgui_json::number(item->mStart);
                 action["end"] = imgui_json::number(item->mEnd);
-                if (item->mMediaType == MEDIA_PICTURE)
+                if (item->mMediaType == MEDIA_SUBTYPE_VIDEO_IMAGE)
                 {
-                    ImageClip * new_image_clip = new ImageClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, timeline);
+                    VideoClip * new_image_clip = new VideoClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, timeline);
                     action["clip_id"] = imgui_json::number(new_image_clip->mID);
                     timeline->m_Clips.push_back(new_image_clip);
                     bool can_insert_clip = track ? track->CanInsertClip(new_image_clip, mouseTime) : false;
@@ -4884,11 +7463,11 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                     {
                         // update clip info and push into track
                         track->InsertClip(new_image_clip, mouseTime);
-                        timeline->Updata();
+                        timeline->Update();
                     }
                     else
                     {
-                        int newTrackIndex = timeline->NewTrack("", MEDIA_PICTURE, true);
+                        int newTrackIndex = timeline->NewTrack("", MEDIA_VIDEO, true);
                         MediaTrack * newTrack = timeline->m_Tracks[newTrackIndex];
                         newTrack->InsertClip(new_image_clip, mouseTime);
                         action["to_track_id"] = imgui_json::number(newTrack->mID);
@@ -4904,7 +7483,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                     {
                         // update clip info and push into track
                         track->InsertClip(new_audio_clip, mouseTime);
-                        timeline->Updata();
+                        timeline->Update();
                     }
                     else
                     {
@@ -4914,12 +7493,37 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                         action["to_track_id"] = imgui_json::number(newTrack->mID);
                     }
                 } 
-                else if (item->mMediaType == MEDIA_TEXT)
+                else if (item->mMediaType == MEDIA_SUBTYPE_TEXT_SUBTITLE)
                 {
-                    TextClip * new_text_clip = new TextClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview->GetMediaParser(), timeline);
-                    action["clip_id"] = imgui_json::number(new_text_clip->mID);
-                    timeline->m_Clips.push_back(new_text_clip);
-                    // TODO::Dicky add text support
+                    // subtitle track isn't like other media tracks, it need load clips after insert a empty track
+                    // text clip don't band with media item
+                    int newTrackIndex = timeline->NewTrack("", MEDIA_TEXT, true);
+                    MediaTrack * newTrack = timeline->m_Tracks[newTrackIndex];
+                    newTrack->mMttReader = timeline->mMtvReader->BuildSubtitleTrackFromFile(newTrack->mID, item->mPath);//DataLayer::SubtitleTrack::BuildFromFile(newTrack->mID, item->mPath);
+                    if (newTrack->mMttReader)
+                    {
+                        auto& style = newTrack->mMttReader->DefaultStyle();
+                        newTrack->mMttReader->SetFrameSize(timeline->mWidth, timeline->mHeight);
+                        newTrack->mMttReader->SeekToIndex(0);
+                        newTrack->mMttReader->EnableFullSizeOutput(false);
+                        DataLayer::SubtitleClipHolder hSubClip = newTrack->mMttReader->GetCurrClip();
+                        while (hSubClip)
+                        {
+                            TextClip * new_text_clip = new TextClip(hSubClip->StartTime(), hSubClip->EndTime(), newTrack->mID, newTrack->mName, hSubClip->Text(), timeline);
+                            new_text_clip->SetClipDefault(style);
+                            new_text_clip->mClipHolder = hSubClip;
+                            new_text_clip->mTrack = newTrack;
+                            timeline->m_Clips.push_back(new_text_clip);
+                            newTrack->InsertClip(new_text_clip, hSubClip->StartTime(), false);
+                            action["clip_id"] = imgui_json::number(new_text_clip->mID);
+                            hSubClip = newTrack->mMttReader->GetNextClip();
+                        }
+                        if (newTrack->mMttReader->Duration() > timeline->mEnd)
+                        {
+                            timeline->mEnd = newTrack->mMttReader->Duration() + 1000;
+                        }
+                        timeline->Update();
+                    }
                 }
                 else
                 {
@@ -4929,9 +7533,12 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                     AudioClip * new_audio_clip = nullptr;
                     const MediaInfo::VideoStream* video_stream = item->mMediaOverview->GetVideoStream();
                     const MediaInfo::AudioStream* audio_stream = item->mMediaOverview->GetAudioStream();
+                    const MediaInfo::SubtitleStream * subtitle_stream = nullptr;
                     if (video_stream)
                     {
-                        SnapshotGenerator::ViewerHolder hViewer = item->GetSnapshotGenerator()->CreateViewer();
+                        SnapshotGenerator::ViewerHolder hViewer;
+                        SnapshotGeneratorHolder hSsGen = timeline->GetSnapshotGenerator(item->mID);
+                        if (hSsGen) hViewer = hSsGen->CreateViewer();
                         new_video_clip = new VideoClip(item->mStart, item->mEnd, item->mID, item->mName + ":Video", item->mMediaOverview->GetMediaParser(), hViewer, timeline);
                         action["clip_id"] = imgui_json::number(new_video_clip->mID);
                         timeline->m_Clips.push_back(new_video_clip);
@@ -4940,7 +7547,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                         {
                             // update clip info and push into track
                             track->InsertClip(new_video_clip, mouseTime);
-                            timeline->Updata();
+                            timeline->Update();
                             videoTrack = track;
                         }
                         else
@@ -4956,6 +7563,11 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                     {
                         new_audio_clip = new AudioClip(item->mStart, item->mEnd, item->mID, item->mName + ":Audio", item->mMediaOverview, timeline);
                         timeline->m_Clips.push_back(new_audio_clip);
+                        imgui_json::value action2;
+                        action2["action"] = "ADD_CLIP";
+                        action2["media_type"] = imgui_json::number(new_audio_clip->mType);
+                        action2["clip_id"] = imgui_json::number(new_audio_clip->mID);
+                        action2["start"] = (double)new_audio_clip->mStart/1000;
                         if (!create_new_track)
                         {
                             if (new_video_clip)
@@ -4975,7 +7587,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                                             }
                                             timeline->AddClipIntoGroup(new_audio_clip, new_video_clip->mGroupID);
                                             relative_track->InsertClip(new_audio_clip, mouseTime);
-                                            timeline->Updata();
+                                            action2["to_track_id"] = imgui_json::number(relative_track->mID);
+                                            timeline->Update();
                                         }
                                         else
                                             create_new_track = true;
@@ -4994,7 +7607,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                                 {
                                     // update clip info and push into track
                                     track->InsertClip(new_audio_clip, mouseTime);
-                                    timeline->Updata();
+                                    action2["to_track_id"] = imgui_json::number(track->mID);
+                                    timeline->Update();
                                 }
                                 else
                                 {
@@ -5016,34 +7630,23 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                             int newTrackIndex = timeline->NewTrack("", MEDIA_AUDIO, true);
                             MediaTrack * audioTrack = timeline->m_Tracks[newTrackIndex];
                             audioTrack->InsertClip(new_audio_clip, mouseTime);
+                            action2["to_track_id"] = imgui_json::number(audioTrack->mID);
                             if (videoTrack)
                             {
                                 videoTrack->mLinkedTrack = audioTrack->mID;
                                 audioTrack->mLinkedTrack = videoTrack->mID;
                             }
 
-                            imgui_json::value action2;
-                            action2["action"] = "ADD_CLIP";
-                            action2["media_type"] = imgui_json::number(new_audio_clip->mType);
-                            action2["clip_id"] = imgui_json::number(new_audio_clip->mID);
-                            action2["to_track_id"] = imgui_json::number(audioTrack->mID);
-                            action2["start"] = (double)new_audio_clip->mStart/1000;
-                            timeline->mUiActions.push_back(std::move(action2));
                         }
+                        timeline->mUiActions.push_back(std::move(action2));
                     }
+                    // TODO::Dicky add subtitle stream here?
                 }
                 timeline->mUiActions.push_back(std::move(action));
+                ret = true;
             }
         }
         ImGui::EndDragDropTarget();
-    }
-
-    // handle expanded button event
-    if (expanded)
-    {
-        bool overExpanded = ExpendButton(draw_list, ImVec2(canvas_pos.x + 2, canvas_pos.y + 2), !*expanded);
-        if (overExpanded && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
-            *expanded = !*expanded;
     }
 
     // handle delete event
@@ -5055,26 +7658,31 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
         action["media_type"] = imgui_json::number(clip->mType);
         action["clip_id"] = imgui_json::number(clipId);
         auto track = timeline->FindTrackByClipID(clipId);
-        if (track)
+        if (track && !track->mLocked)
         {
             track->DeleteClip(clipId);
             action["from_track_id"] = imgui_json::number(track->mID);
+            timeline->DeleteClip(clipId);
+            timeline->mUiActions.push_back(std::move(action));
+            ret = true;
         }
-        timeline->DeleteClip(clipId);
-        timeline->mUiActions.push_back(std::move(action));
     }
     if (delTrackEntry != -1)
     {
         MediaTrack* track = timeline->m_Tracks[delTrackEntry];
-        MEDIA_TYPE trackMediaType = track->mType;
-        int64_t delTrackId = timeline->DeleteTrack(delTrackEntry);
-        if (delTrackId != -1)
+        if (track && !track->mLocked)
         {
-            imgui_json::value action;
-            action["action"] = "REMOVE_TRACK";
-            action["media_type"] = imgui_json::number(trackMediaType);
-            action["track_id"] = imgui_json::number(delTrackId);
-            timeline->mUiActions.push_back(std::move(action));
+            uint32_t trackMediaType = track->mType;
+            int64_t delTrackId = timeline->DeleteTrack(delTrackEntry);
+            if (delTrackId != -1)
+            {
+                imgui_json::value action;
+                action["action"] = "REMOVE_TRACK";
+                action["media_type"] = imgui_json::number(trackMediaType);
+                action["track_id"] = imgui_json::number(delTrackId);
+                timeline->mUiActions.push_back(std::move(action));
+                ret = true;
+            }
         }
     }
     if (removeEmptyTrack)
@@ -5091,12 +7699,35 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
                 timeline->mUiActions.push_back(std::move(action));
                 iter = timeline->m_Tracks.erase(iter);
                 delete track;
+                ret = true;
             }
             else
                 ++iter;
         }
     }
 
+    // handle insert event
+    if (IS_VIDEO(insertEmptyTrackType))
+    {
+        timeline->NewTrack("", MEDIA_VIDEO, true);
+        ret = true;
+    }
+    else if (IS_AUDIO(insertEmptyTrackType))
+    {
+        timeline->NewTrack("", MEDIA_AUDIO, true);
+        ret = true;
+    }
+    else if (IS_TEXT(insertEmptyTrackType))
+    {
+        int newTrackIndex = timeline->NewTrack("", MEDIA_TEXT, true);
+        MediaTrack * newTrack = timeline->m_Tracks[newTrackIndex];
+        newTrack->mMttReader = timeline->mMtvReader->NewEmptySubtitleTrack(newTrack->mID);
+        newTrack->mMttReader->SetFont(timeline->mFontName);
+        newTrack->mMttReader->SetFrameSize(timeline->mWidth, timeline->mHeight);
+        newTrack->mMttReader->EnableFullSizeOutput(false);
+        ret = true;
+    }
+    
     // handle group event
     if (groupClipEntry.size() > 0)
     {
@@ -5107,24 +7738,27 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
             auto clip = timeline->FindClipByID(clip_id);
             timeline->AddClipIntoGroup(clip, new_group.mID);
         }
+        ret = true;
     }
 
     for (auto clip_id : unGroupClipEntry)
     {
         auto clip = timeline->FindClipByID(clip_id);
         timeline->DeleteClipFromGroup(clip, clip->mGroupID);
+        ret = true;
     }
 
     // handle track moving
     if (trackMovingEntry != -1 && trackEntry != -1 && trackMovingEntry != trackEntry)
     {
         timeline->MovingTrack(trackMovingEntry, trackEntry);
+        ret = true;
     }
 
     // for debug
     //ImGui::BeginTooltip();
     //ImGui::Text("%s", std::to_string(trackEntry).c_str());
-    //ImGui::Text("%s", MillisecToString(mouseTime).c_str());
+    //ImGui::Text("%s", ImGuiHelper::MillisecToString(mouseTime).c_str());
     //ImGui::EndTooltip();
     //ImGui::ShowMetricsWindow();
     // for debug end
@@ -5132,7 +7766,10 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
     if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
     {
         if (!timeline->mUiActions.empty())
+        {
             timeline->PerformUiActions();
+            ret = true;
+        }
     }
     return ret;
 }
@@ -5140,55 +7777,64 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded)
 /***********************************************************************************************************
  * Draw Clip Timeline
  ***********************************************************************************************************/
-bool DrawClipTimeLine(BaseEditingClip * editingClip)
+bool DrawClipTimeLine(BaseEditingClip * editingClip, int64_t CurrentTime, int header_height, int custom_height)
 {
-    /*************************************************************************************************************
-     |  0    5    10 v   15    20 <rule bar> 30     35      40      45       50       55    c
-     |_______________|_____________________________________________________________________ a
-     |               |        custom area                                                   n 
-     |               |                                                                      v                                            
-     |_______________|_____________________________________________________________________ a
-     ************************************************************************************************************/
+    /***************************************************************************************
+    |  0    5    10 v   15    20 <rule bar> 30     35      40      45       50       55    c
+    |_______________|_____________________________________________________________________ a
+    |               |        custom area                                                   n 
+    |               |                                                                      v                                            
+    |_______________|_____________________________________________________________________ a
+    ****************************************************************************************/
     bool ret = false;
+    ImDrawList *draw_list = ImGui::GetWindowDrawList();
+    ImVec2 window_pos = ImGui::GetCursorScreenPos();
+    ImVec2 window_size = ImGui::GetWindowSize();
     if (!editingClip)
+    {
+        ImGui::SetWindowFontScale(2);
+        auto pos_center = window_pos + window_size / 2;
+        std::string tips_string = "Please Select Clip by Double Click From Main Timeline";
+        auto string_width = ImGui::CalcTextSize(tips_string.c_str());
+        auto tips_pos = pos_center - string_width / 2;
+        ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
+        ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
+        draw_list->AddText(tips_pos, IM_COL32(255, 255, 255, 128), tips_string.c_str());
+        ImGui::PopStyleColor();
+        ImGui::PopStyleVar();
         return ret;
+    }
 
     ImGuiIO &io = ImGui::GetIO();
     int cx = (int)(io.MousePos.x);
     int cy = (int)(io.MousePos.y);
-    int headHeight = 30;
-    int customHeight = 70;
     static bool MovingCurrentTime = false;
     bool isFocused = ImGui::IsWindowFocused();
     // modify start/end/offset range
     int64_t duration = ImMax(editingClip->mEnd - editingClip->mStart, (int64_t)1);
-    int64_t start = editingClip->mStartOffset;
+    int64_t start = editingClip->mStart;//editingClip->mStartOffset;
     int64_t end = start + duration;
 
     ImGui::BeginGroup();
-    ImDrawList *draw_list = ImGui::GetWindowDrawList();
-    ImVec2 window_pos = ImGui::GetCursorScreenPos();
-    ImVec2 window_size = ImGui::GetWindowSize();
-    ImRect regionRect(window_pos + ImVec2(0, headHeight), window_pos + window_size);
-    
+    ImRect regionRect(window_pos + ImVec2(0, header_height), window_pos + window_size);
     float msPixelWidth = (float)(window_size.x) / (float)duration;
-    ImRect custom_view_rect(window_pos + ImVec2(0, headHeight), window_pos + window_size);
+    ImRect custom_view_rect(window_pos + ImVec2(0, header_height), window_pos + window_size);
 
     //header
     //header time and lines
-    ImVec2 headerSize(window_size.x, (float)headHeight);
-    ImGui::InvisibleButton("ClipTopBar", headerSize);
+    ImVec2 headerSize(window_size.x, (float)header_height);
+    ImGui::InvisibleButton("ClipTimelineBar#filter", headerSize);
     draw_list->AddRectFilled(window_pos, window_pos + headerSize, COL_DARK_ONE, 0);
 
     ImRect movRect(window_pos, window_pos + window_size);
-    if ( !MovingCurrentTime && editingClip->mCurrPos >= start && movRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && isFocused)
+    if (!MovingCurrentTime && movRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && isFocused)
     {
         MovingCurrentTime = true;
         editingClip->bSeeking = true;
     }
     if (MovingCurrentTime && duration)
     {
-        auto oldPos = editingClip->mCurrPos;
+        auto oldPos = CurrentTime;
         auto newPos = (int64_t)((io.MousePos.x - movRect.Min.x) / msPixelWidth) + start;
         if (newPos < start)
             newPos = start;
@@ -5215,15 +7861,15 @@ bool DrawClipTimeLine(BaseEditingClip * editingClip)
         bool baseIndex = ((i % modTimeCount) == 0) || (i == 0 || i == duration);
         bool halfIndex = (i % halfModTime) == 0;
         int px = (int)window_pos.x + int(i * msPixelWidth);
-        int tiretStart = baseIndex ? 4 : (halfIndex ? 10 : 14);
-        int tiretEnd = baseIndex ? regionHeight : headHeight;
+        int timeStart = baseIndex ? 4 : (halfIndex ? 10 : 14);
+        int timeEnd = baseIndex ? regionHeight : header_height;
         if (px <= (window_size.x + window_pos.x) && px >= window_pos.x)
         {
-            draw_list->AddLine(ImVec2((float)px, window_pos.y + (float)tiretStart), ImVec2((float)px, window_pos.y + (float)tiretEnd - 1), halfIndex ? COL_MARK : COL_MARK_HALF, halfIndex ? 2 : 1);
+            draw_list->AddLine(ImVec2((float)px, window_pos.y + (float)timeStart), ImVec2((float)px, window_pos.y + (float)timeEnd - 1), halfIndex ? COL_MARK : COL_MARK_HALF, halfIndex ? 2 : 1);
         }
         if (baseIndex && px >= window_pos.x)
         {
-            auto time_str = MillisecToString(i + start, 2);
+            auto time_str = ImGuiHelper::MillisecToString(i + start, 2);
             ImGui::SetWindowFontScale(0.8);
             draw_list->AddText(ImVec2((float)px + 3.f, window_pos.y), COL_RULE_TEXT, time_str.c_str());
             ImGui::SetWindowFontScale(1.0);
@@ -5231,35 +7877,35 @@ bool DrawClipTimeLine(BaseEditingClip * editingClip)
     };
     for (auto i = 0; i < duration; i+= timeStep)
     {
-        drawLine(i, headHeight);
+        drawLine(i, header_height);
     }
-    drawLine(0, headHeight);
-    drawLine(duration, headHeight);
+    drawLine(0, header_height);
+    drawLine(duration, header_height);
     // cursor Arrow
     const float arrowWidth = draw_list->_Data->FontSize;
-    float arrowOffset = window_pos.x + (editingClip->mCurrPos - start) * msPixelWidth - arrowWidth * 0.5f;
+    float arrowOffset = window_pos.x + (CurrentTime - start) * msPixelWidth - arrowWidth * 0.5f;
     ImGui::RenderArrow(draw_list, ImVec2(arrowOffset, window_pos.y), COL_CURSOR_ARROW, ImGuiDir_Down);
     ImGui::SetWindowFontScale(0.8);
-    auto time_str = MillisecToString(editingClip->mCurrPos, 2);
+    auto time_str = ImGuiHelper::MillisecToString(CurrentTime, 2);
     ImVec2 str_size = ImGui::CalcTextSize(time_str.c_str(), nullptr, true);
-    float strOffset = window_pos.x + (editingClip->mCurrPos - start) * msPixelWidth - str_size.x * 0.5f;
+    float strOffset = window_pos.x + (CurrentTime - start) * msPixelWidth - str_size.x * 0.5f;
     ImVec2 str_pos = ImVec2(strOffset, window_pos.y + 10);
     draw_list->AddRectFilled(str_pos + ImVec2(-3, 0), str_pos + str_size + ImVec2(3, 3), COL_CURSOR_TEXT_BG, 2.0, ImDrawFlags_RoundCornersAll);
     draw_list->AddText(str_pos, COL_CURSOR_TEXT, time_str.c_str());
     ImGui::SetWindowFontScale(1.0);
 
     draw_list->PushClipRect(custom_view_rect.Min, custom_view_rect.Max);
-    ImVec2 contentMin(window_pos.x, window_pos.y + (float)headHeight);
-    ImVec2 contentMax(window_pos.x + window_size.x, window_pos.y + (float)headHeight + float(customHeight));
+    ImVec2 contentMin(window_pos.x, window_pos.y + (float)header_height);
+    ImVec2 contentMax(window_pos.x + window_size.x, window_pos.y + (float)header_height + float(custom_height));
 
     // snapshot
     editingClip->DrawContent(draw_list, contentMin, contentMax);
     // draw_list->AddRect(contentMin+ImVec2(3, 3), contentMax+ImVec2(-3, -3), IM_COL32_WHITE);
 
     // cursor line
-    static const float cursorWidth = 3.f;
-    float cursorOffset = contentMin.x + (editingClip ->mCurrPos - start) * msPixelWidth - cursorWidth * 0.5f + 1;
-    draw_list->AddLine(ImVec2(cursorOffset, contentMin.y), ImVec2(cursorOffset, contentMax.y), IM_COL32(0, 255, 0, 128), cursorWidth);
+    static const float cursorWidth = 2.f;
+    float cursorOffset = contentMin.x + (CurrentTime - start) * msPixelWidth - cursorWidth * 0.5f + 1;
+    draw_list->AddLine(ImVec2(cursorOffset, contentMin.y), ImVec2(cursorOffset, contentMax.y), IM_COL32(0, 255, 0, 224), cursorWidth);
     draw_list->PopClipRect();
     ImGui::EndGroup();
 
@@ -5269,67 +7915,73 @@ bool DrawClipTimeLine(BaseEditingClip * editingClip)
 /***********************************************************************************************************
  * Draw Fusion Timeline
  ***********************************************************************************************************/
-bool DrawOverlapTimeLine(Overlap * overlap)
+bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int64_t CurrentTime, int header_height, int custom_height)
 {
-    /*************************************************************************************************************
-     |  0    5    10 v   15    20 <rule bar> 30     35      40      45       50       55    
-     |_______________|_____________________________________________________________________ c
-     |               |        clip 1 custom area                                            a 
-     |               |                                                                      n                                            
-     |_______________|_____________________________________________________________________ v
-     |               |        clip 2 custom area                                            a 
-     |               |                                                                      s                                           
-     |_______________|_____________________________________________________________________     
-    ************************************************************************************************************/
+    /***************************************************************************************
+    |  0    5    10 v   15    20 <rule bar> 30     35      40      45       50       55    |
+    |_______________|_____________________________________________________________________ c
+    |               |        clip 1 custom area                                            a 
+    |               |                                                                      n                                            
+    |_______________|_____________________________________________________________________ v
+    |               |        clip 2 custom area                                            a 
+    |               |                                                                      s                                           
+    |_______________|_____________________________________________________________________ |    
+    ***************************************************************************************/
     bool ret = false;
-    if (!overlap) return ret;
-    ImGuiIO &io = ImGui::GetIO();
-    int cx = (int)(io.MousePos.x);
-    int cy = (int)(io.MousePos.y);
-    int headHeight = 30;
-    int customHeight = 70;
-    static bool MovingCurrentTime = false;
-    bool isFocused = ImGui::IsWindowFocused();
-    int64_t duration = ImMax(overlap->mEnd - overlap->mStart, (int64_t)1);
-    int64_t start = 0;
-    int64_t end = start + duration;
-    if (overlap->mCurrent < start)
-        overlap->mCurrent = start;
-    if (overlap->mCurrent >= end)
-        overlap->mCurrent = end;
-
-    ImGui::BeginGroup();
     ImDrawList *draw_list = ImGui::GetWindowDrawList();
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
-    ImRect regionRect(window_pos + ImVec2(0, headHeight), window_pos + window_size);
+    if (!overlap)
+    {
+        ImGui::SetWindowFontScale(2);
+        auto pos_center = window_pos + window_size / 2;
+        std::string tips_string = "Please Select Overlap by Double Click From Main Timeline";
+        auto string_width = ImGui::CalcTextSize(tips_string.c_str());
+        auto tips_pos = pos_center - string_width / 2;
+        ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
+        ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
+        draw_list->AddText(tips_pos, IM_COL32(255, 255, 255, 128), tips_string.c_str());
+        ImGui::PopStyleColor();
+        ImGui::PopStyleVar();
+        return ret;
+    }
+    ImGuiIO &io = ImGui::GetIO();
+    int cx = (int)(io.MousePos.x);
+    int cy = (int)(io.MousePos.y);
+    static bool MovingCurrentTime = false;
+    bool isFocused = ImGui::IsWindowFocused();
+    int64_t duration = ImMax(overlap->mOvlp->mEnd-overlap->mOvlp->mStart, (int64_t)1);
+    int64_t start = 0;
+    int64_t end = start + duration;
+
+    ImGui::BeginGroup();
+    ImRect regionRect(window_pos + ImVec2(0, header_height), window_pos + window_size);
     
     float msPixelWidth = (float)(window_size.x) / (float)duration;
-    ImRect custom_view_rect(window_pos + ImVec2(0, headHeight), window_pos + window_size);
+    ImRect custom_view_rect(window_pos + ImVec2(0, header_height), window_pos + window_size);
 
     //header
     //header time and lines
-    ImVec2 headerSize(window_size.x, (float)headHeight);
-    ImGui::InvisibleButton("ClipTopBar", headerSize);
+    ImVec2 headerSize(window_size.x, (float)header_height);
+    ImGui::InvisibleButton("ClipTimelineBar#overlap", headerSize);
     draw_list->AddRectFilled(window_pos, window_pos + headerSize, COL_DARK_ONE, 0);
 
-    ImRect topRect(window_pos, window_pos + headerSize);
-    if (!MovingCurrentTime && overlap->mCurrent >= start && topRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && isFocused)
+    ImRect movRect(window_pos, window_pos + window_size);
+    if (!MovingCurrentTime && /*overlap->mCurrent >= start &&*/ movRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && isFocused)
     {
         MovingCurrentTime = true;
         overlap->bSeeking = true;
     }
     if (MovingCurrentTime && duration)
     {
-        auto old_time = overlap->mCurrent;
-        overlap->mCurrent = (int64_t)((io.MousePos.x - topRect.Min.x) / msPixelWidth) + start;
-        //alignTime(overlap->mCurrent, clip->mClipFrameRate);
-        if (overlap->mCurrent < start)
-            overlap->mCurrent = start;
-        if (overlap->mCurrent >= end)
-            overlap->mCurrent = end;
-        if (old_time != overlap->mCurrent)
-            overlap->Seek(); // call seek event
+        auto oldPos = CurrentTime;
+        auto newPos = (int64_t)((io.MousePos.x - movRect.Min.x) / msPixelWidth) + start;
+        if (newPos < start)
+            newPos = start;
+        if (newPos >= end)
+            newPos = end;
+        if (oldPos != newPos)
+            overlap->Seek(newPos + overlap->mStart); // call seek event
     }
     if (overlap->bSeeking && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
     {
@@ -5350,15 +8002,15 @@ bool DrawOverlapTimeLine(Overlap * overlap)
         bool baseIndex = ((i % modTimeCount) == 0) || (i == 0 || i == duration);
         bool halfIndex = (i % halfModTime) == 0;
         int px = (int)window_pos.x + int(i * msPixelWidth);
-        int tiretStart = baseIndex ? 4 : (halfIndex ? 10 : 14);
-        int tiretEnd = baseIndex ? regionHeight : headHeight;
+        int timeStart = baseIndex ? 4 : (halfIndex ? 10 : 14);
+        int timeEnd = baseIndex ? regionHeight : header_height;
         if (px <= (window_size.x + window_pos.x) && px >= window_pos.x)
         {
-            draw_list->AddLine(ImVec2((float)px, window_pos.y + (float)tiretStart), ImVec2((float)px, window_pos.y + (float)tiretEnd - 1), halfIndex ? COL_MARK : COL_MARK_HALF, halfIndex ? 2 : 1);
+            draw_list->AddLine(ImVec2((float)px, window_pos.y + (float)timeStart), ImVec2((float)px, window_pos.y + (float)timeEnd - 1), halfIndex ? COL_MARK : COL_MARK_HALF, halfIndex ? 2 : 1);
         }
         if (baseIndex && px >= window_pos.x)
         {
-            auto time_str = MillisecToString(i + start, 2);
+            auto time_str = ImGuiHelper::MillisecToString(i + start, 2);
             ImGui::SetWindowFontScale(0.8);
             draw_list->AddText(ImVec2((float)px + 3.f, window_pos.y), COL_RULE_TEXT, time_str.c_str());
             ImGui::SetWindowFontScale(1.0);
@@ -5366,33 +8018,33 @@ bool DrawOverlapTimeLine(Overlap * overlap)
     };
     for (auto i = 0; i < duration; i+= timeStep)
     {
-        drawLine(i, headHeight);
+        drawLine(i, header_height);
     }
-    drawLine(0, headHeight);
-    drawLine(duration, headHeight);
+    drawLine(0, header_height);
+    drawLine(duration, header_height);
     // cursor Arrow
     const float arrowWidth = draw_list->_Data->FontSize;
-    float arrowOffset = window_pos.x + (overlap->mCurrent - start) * msPixelWidth - arrowWidth * 0.5f;
+    float arrowOffset = window_pos.x + (CurrentTime - start) * msPixelWidth - arrowWidth * 0.5f;
     ImGui::RenderArrow(draw_list, ImVec2(arrowOffset, window_pos.y), COL_CURSOR_ARROW, ImGuiDir_Down);
     ImGui::SetWindowFontScale(0.8);
-    auto time_str = MillisecToString(overlap->mCurrent, 2);
+    auto time_str = ImGuiHelper::MillisecToString(CurrentTime, 2);
     ImVec2 str_size = ImGui::CalcTextSize(time_str.c_str(), nullptr, true);
-    float strOffset = window_pos.x + (overlap->mCurrent - start) * msPixelWidth - str_size.x * 0.5f;
+    float strOffset = window_pos.x + (CurrentTime - start) * msPixelWidth - str_size.x * 0.5f;
     ImVec2 str_pos = ImVec2(strOffset, window_pos.y + 10);
     draw_list->AddRectFilled(str_pos + ImVec2(-3, 0), str_pos + str_size + ImVec2(3, 3), COL_CURSOR_TEXT_BG, 2.0, ImDrawFlags_RoundCornersAll);
     draw_list->AddText(str_pos, COL_CURSOR_TEXT, time_str.c_str());
     ImGui::SetWindowFontScale(1.0);
 
     // snapshot
-    // TODO::Dicky
+    ImVec2 contentMin(window_pos.x, window_pos.y + (float)header_height);
+    ImVec2 contentMax(window_pos.x + window_size.x, window_pos.y + (float)header_height + float(custom_height) * 2);
+    overlap->DrawContent(draw_list, contentMin, contentMax);
 
     // cursor line
     draw_list->PushClipRect(custom_view_rect.Min, custom_view_rect.Max);
-    ImVec2 contentMin(window_pos.x, window_pos.y + (float)headHeight);
-    ImVec2 contentMax(window_pos.x + window_size.x, window_pos.y + (float)headHeight + float(customHeight) * 2);
-    static const float cursorWidth = 3.f;
-    float cursorOffset = contentMin.x + (overlap->mCurrent - start) * msPixelWidth - cursorWidth * 0.5f + 1;
-    draw_list->AddLine(ImVec2(cursorOffset, contentMin.y), ImVec2(cursorOffset, contentMax.y), IM_COL32(0, 255, 0, 128), cursorWidth);
+    static const float cursorWidth = 2.f;
+    float cursorOffset = contentMin.x + (CurrentTime - start) * msPixelWidth - cursorWidth * 0.5f + 1;
+    draw_list->AddLine(ImVec2(cursorOffset, contentMin.y), ImVec2(cursorOffset, contentMax.y), IM_COL32(0, 255, 0, 224), cursorWidth);
     draw_list->PopClipRect();
     ImGui::EndGroup();
     return ret;

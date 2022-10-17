@@ -22,6 +22,7 @@ using namespace std;
 using namespace Logger;
 using Clock = chrono::steady_clock;
 
+static bool s_audioOnly = false;
 // video
 static MediaReader* g_vidrdr = nullptr;
 static double g_playStartPos = 0.f;
@@ -41,6 +42,9 @@ const int c_audioRenderChannels = 2;
 const int c_audioRenderSampleRate = 44100;
 const AudioRender::PcmFormat c_audioRenderFormat = AudioRender::PcmFormat::FLOAT32;
 static double g_audPos = 0;
+// dump pcm for debug
+bool g_dumpPcm = false;
+FILE* g_fpPcmFile = NULL;
 
 const string c_imguiIniPath = "ms_test.ini";
 const string c_bookmarkPath = "bookmark.ini";
@@ -60,10 +64,17 @@ public:
         if (!m_audrdr->ReadAudioSamples(buff, readSize, pos, eof, blocking))
             return 0;
         g_audPos = pos;
+        if (g_fpPcmFile)
+            fwrite(buff, 1, readSize, g_fpPcmFile);
         return readSize;
     }
 
     void Flush() override {}
+
+    bool GetTimestampMs(int64_t& ts) override
+    {
+        return false;
+    }
 
 private:
     MediaReader* m_audrdr;
@@ -91,6 +102,8 @@ void Application_Initialize(void** handle)
 {
     GetDefaultLogger()
         ->SetShowLevels(DEBUG);
+    GetMediaParserLogger()
+        ->SetShowLevels(DEBUG);
     GetMediaReaderLogger()
         ->SetShowLevels(DEBUG);
 
@@ -115,6 +128,8 @@ void Application_Initialize(void** handle)
     g_pcmStream = new SimplePcmStream(g_audrdr);
     g_audrnd = CreateAudioRender();
     g_audrnd->OpenDevice(c_audioRenderSampleRate, c_audioRenderChannels, c_audioRenderFormat, g_pcmStream);
+    if (g_dumpPcm)
+        g_fpPcmFile = fopen("MediaReaderTest_PcmDump.pcm", "wb");
 }
 
 void Application_Finalize(void** handle)
@@ -146,6 +161,8 @@ void Application_Finalize(void** handle)
 		configFileWriter.close();
 	}
 #endif
+    if (g_dumpPcm)
+        fclose(g_fpPcmFile);
 }
 
 bool Application_Frame(void * handle, bool app_will_quit)
@@ -160,7 +177,13 @@ bool Application_Frame(void * handle, bool app_will_quit)
         if (ImGui::Button((string(ICON_IGFD_FOLDER_OPEN)+" Open file").c_str()))
         {
             const char *filters = "视频文件(*.mp4 *.mov *.mkv *.webm *.avi){.mp4,.mov,.mkv,.webm,.avi,.MP4,.MOV,.MKV,WEBM,.AVI},.*";
-            ImGuiFileDialog::Instance()->OpenModal("ChooseFileDlgKey", ICON_IGFD_FOLDER_OPEN " 打开视频文件", filters, "/mnt/data2/video/hd/", 1, nullptr, ImGuiFileDialogFlags_ShowBookmark);
+            ImGuiFileDialog::Instance()->OpenDialog("ChooseFileDlgKey", ICON_IGFD_FOLDER_OPEN " 打开视频文件", 
+                                                    filters, 
+                                                    "/mnt/data2/video/hd/", 
+                                                    1, 
+                                                    nullptr, 
+                                                    ImGuiFileDialogFlags_ShowBookmark |
+                                                    ImGuiFileDialogFlags_Modal);
         }
 
         ImGui::SameLine();
@@ -200,6 +223,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
             g_isPlay = !g_isPlay;
             if (g_isPlay)
             {
+                g_vidrdr->Wakeup();
                 g_playStartTp = Clock::now();
                 if (g_audrdr->IsOpened())
                     g_audrnd->Resume();
@@ -209,6 +233,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
                 g_playStartPos = playPos;
                 if (g_audrdr->IsOpened())
                     g_audrnd->Pause();
+                g_vidrdr->Suspend();
             }
         }
 
@@ -241,6 +266,9 @@ bool Application_Frame(void * handle, bool app_will_quit)
             else
                 g_vidrdr->SetCacheDuration(G_DurTable[0].first, G_DurTable[0].second);
         }
+
+        ImGui::SameLine();
+        ImGui::Checkbox("Audio Only", &s_audioOnly);
 
         ImGui::Spacing();
 
@@ -316,11 +344,17 @@ bool Application_Frame(void * handle, bool app_will_quit)
             g_imageTid = nullptr;
             g_isLongCacheDur = false;
             string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
-            g_vidrdr->Open(filePathName);
-            g_vidrdr->ConfigVideoReader(g_imageDisplaySize.x, g_imageDisplaySize.y);
-            g_vidrdr->Start();
-            g_audrdr->Open(g_vidrdr->GetMediaParser());
-            // g_audrdr->Open(filePathName);
+            if (!s_audioOnly)
+            {
+                g_vidrdr->Open(filePathName);
+                g_vidrdr->ConfigVideoReader((uint32_t)g_imageDisplaySize.x, (uint32_t)g_imageDisplaySize.y);
+                g_vidrdr->Start();
+                g_audrdr->Open(g_vidrdr->GetMediaParser());
+            }
+            else
+            {
+                g_audrdr->Open(filePathName);
+            }
             g_audrdr->ConfigAudioReader(c_audioRenderChannels, c_audioRenderSampleRate);
             g_audrdr->Start();
         }

@@ -11,6 +11,7 @@ namespace MediaInfo
         UNKNOWN = 0,
         VIDEO,
         AUDIO,
+        SUBTITLE,
     };
 
     struct Ratio
@@ -52,14 +53,18 @@ namespace MediaInfo
         uint32_t sampleRate{0};
         uint8_t bitDepth{0};
     };
-    
+
+    struct SubtitleStream : public Stream
+    {
+        SubtitleStream() { type = SUBTITLE; }
+    };
 
     struct Info
     {
         std::string url;
         std::vector<StreamHolder> streams;
-        double startTime;
-        double duration;
+        double startTime{0};
+        double duration{-1};
     };
 
     using InfoHolder = std::shared_ptr<Info>;

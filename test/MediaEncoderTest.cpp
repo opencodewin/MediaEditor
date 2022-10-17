@@ -30,7 +30,23 @@ int main(int argc, const char* argv[])
         return -1;
     }
     // GetMediaReaderLogger()->SetShowLevels(DEBUG);
+    GetDefaultLogger()->SetShowLevels(DEBUG);
     GetMediaEncoderLogger()->SetShowLevels(DEBUG);
+
+    string codecHint = "hevc";
+    vector<MediaEncoder::EncoderDescription> encoderDescList;
+    MediaEncoder::FindEncoder(codecHint, encoderDescList);
+    Log(DEBUG) << "Results for searching codec hint '" << codecHint << "':" << endl;
+    if (encoderDescList.empty())
+        Log(DEBUG) << "NO ENCODER IS FOUND." << endl;
+    else
+    {
+        for (int i = 0; i < encoderDescList.size(); i++)
+        {
+            auto& encdesc = encoderDescList[i];
+            Log(DEBUG) << "[" << i << "] " << encdesc << endl;
+        }
+    }
 
     string vidEncCodec = "h264";
     uint32_t outWidth{1920}, outHeight{1080};
@@ -91,8 +107,13 @@ int main(int argc, const char* argv[])
         Log(Error) << "FAILED to open MediaEncoder by '" << argv[2] << "'! Error is '" << mencoder->GetError() << "'." << endl;
         return -6;
     }
+
+    vector<MediaEncoder::Option> extraOpts = {
+        { "profile",                { MediaEncoder::Option::OPVT_STRING, {}, "baseline" } },
+        { "aspect",                 { MediaEncoder::Option::OPVT_STRING, {}, "4:3" } },
+    };
     string vidEncImgFormat;
-    if (vidreader && !mencoder->ConfigureVideoStream(vidEncCodec, vidEncImgFormat, outWidth, outHeight, outFrameRate, outVidBitRate))
+    if (vidreader && !mencoder->ConfigureVideoStream(vidEncCodec, vidEncImgFormat, outWidth, outHeight, outFrameRate, outVidBitRate, &extraOpts))
     {
         Log(Error) << "FAILED to configure video encoder! Error is '" << mencoder->GetError() << "'." << endl;
         return -7;

@@ -160,7 +160,7 @@ namespace Logger
             if (buffer)
             {
                 setp(buffer.get(), buffer.get()+size);
-                m_buffer = move(buffer);
+                m_buffer = std::move(buffer);
             }
         }
 

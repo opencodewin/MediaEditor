@@ -4,8 +4,8 @@
 #include <application.h>
 #include <imgui_helper.h>
 #include <ImGuiFileDialog.h>
-#include <imgui_knob.h>
-#include "ImGuiToolkit.h"
+#include <imgui_extra_widget.h>
+#include "FFUtils.h"
 #include <iostream>
 #include <sstream>
 #include <fstream>
@@ -153,7 +153,13 @@ bool Application_Frame(void * handle, bool app_will_quit)
         {
             //ImGui::ShowTooltipOnHover("Open Media File.");
             const char *filters = "视频文件(*.mp4 *.mov *.mkv *.webm *.avi){.mp4,.mov,.mkv,.webm,.avi,.MP4,.MOV,.MKV,WEBM,.AVI},.*";
-			ImGuiFileDialog::Instance()->OpenModal("ChooseFileDlgKey", ICON_IGFD_FOLDER_OPEN " 打开视频文件", filters, "/mnt/data2/video/hd/", 1, nullptr, ImGuiFileDialogFlags_ShowBookmark);
+			ImGuiFileDialog::Instance()->OpenDialog("ChooseFileDlgKey", ICON_IGFD_FOLDER_OPEN " 打开视频文件", 
+                                                    filters, 
+                                                    "/mnt/data2/video/hd/", 
+                                                    1, 
+                                                    nullptr, 
+                                                    ImGuiFileDialogFlags_ShowBookmark |
+                                                    ImGuiFileDialogFlags_Modal);
         }
         ImGui::ShowTooltipOnHover("Open Media File.");
 //         // add open camera button
@@ -191,7 +197,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
         // ImGui::ShowTooltipOnHover("Step Next Frame.");
         // add mute button
         ImGui::SameLine();
-        if (ImGui::Button(g_player->IsOpened() ? muted ? ICON_FA5_VOLUME_MUTE : ICON_FA5_VOLUME_UP : ICON_FA5_VOLUME_UP, size))
+        if (ImGui::Button(g_player->IsOpened() ? muted ? ICON_FA_VOLUME_OFF : ICON_FA_VOLUME_HIGH : ICON_FA_VOLUME_HIGH, size))
         {
             muted = !muted;
         }
@@ -249,14 +255,14 @@ bool Application_Frame(void * handle, bool app_will_quit)
         // ImGui::ShowTooltipOnHover("HDR decoder");
         // add show log button
         ImGui::SameLine();
-        ImGui::ToggleButton(ICON_FA5_LIST_UL, &show_log_window, size * 0.75);
+        ImGui::ToggleButton(ICON_FA_LIST_UL, &show_log_window, size * 0.75);
         ImGui::ShowTooltipOnHover("Show Log");
         // add button end
 
         // show time info
         ImGui::SameLine(); ImGui::Dummy(size);
         ImGui::SameLine();
-        ImGui::Text("%s/%s", ImGuiToolkit::MillisecToString(g_player->GetPlayPos()).c_str(), ImGuiToolkit::MillisecToString(g_player->GetDuration()).c_str());
+        ImGui::Text("%s/%s", MillisecToString(g_player->GetPlayPos()).c_str(), MillisecToString(g_player->GetDuration()).c_str());
 
         ImGui::Unindent((i - 32.0f) * 0.4f);
         ImGui::Separator();
@@ -285,14 +291,13 @@ bool Application_Frame(void * handle, bool app_will_quit)
         auto timescale_width = io.DisplaySize.x - padding;
         if (g_player->IsOpened())
         {
-            uint64_t pos = g_player->GetPlayPos();
-            uint64_t duration = g_player->GetDuration();
-            uint64_t step = duration/500;
-            if (ImGuiToolkit::TimelineSlider("##timeline", &pos, duration, step, timescale_width))
+            float pos = g_player->GetPlayPos() / 1000.0;
+            float duration = g_player->GetDuration() / 1000.0;
+            if (ImGui::SliderFloat("##timeline", &pos, 0.f, duration, "%.1f"))
             {
                 // g_player->Seek(pos);
                 // g_player->Seek(pos, true);
-                g_player->SeekAsync(pos);
+                g_player->SeekAsync(pos * 1000);
             }
             else if (g_player->IsSeeking())
             {
@@ -301,8 +306,8 @@ bool Application_Frame(void * handle, bool app_will_quit)
         }
         else
         {
-            uint64_t seek_t = 0;
-            ImGuiToolkit::TimelineSlider("##timeline", &seek_t, 0, 0, timescale_width);
+            float seek_t = 0;
+            ImGui::SliderFloat("##timeline", &seek_t, 0.f, 0.f, "%.1f");
         }
         ImGui::Separator();
 
@@ -442,7 +447,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
         }
         else
         {
-            std::cout << "Empty video ImMat at " << ImGuiToolkit::MillisecToString(g_player->GetPlayPos()) << std::endl;
+            std::cout << "Empty video ImMat at " << MillisecToString(g_player->GetPlayPos()) << std::endl;
         }
     }
     if (g_texture)

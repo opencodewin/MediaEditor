@@ -1,11 +1,11 @@
 #include <imgui.h>
 #include <application.h>
 #include <imgui_helper.h>
+#include <imgui_extra_widget.h>
 #include <ImGuiFileDialog.h>
 #include <string>
 #include <sstream>
 #include "MediaOverview.h"
-#include "MediaSnapshot.h"
 #include "FFUtils.h"
 #include "Logger.h"
 
@@ -104,7 +104,13 @@ bool Application_Frame(void * handle, bool app_will_quit)
         if (ImGui::Button((string(ICON_IGFD_FOLDER_OPEN)+" Open file").c_str()))
         {
             const char *filters = "视频文件(*.mp4 *.mov *.mkv *.webm *.avi){.mp4,.mov,.mkv,.webm,.avi,.MP4,.MOV,.MKV,WEBM,.AVI},.*";
-            ImGuiFileDialog::Instance()->OpenModal("ChooseFileDlgKey", ICON_IGFD_FOLDER_OPEN " 打开视频文件", filters, "/mnt/data2/video/hd/", 1, nullptr, ImGuiFileDialogFlags_ShowBookmark);
+            ImGuiFileDialog::Instance()->OpenDialog("ChooseFileDlgKey", ICON_IGFD_FOLDER_OPEN " 打开视频文件", 
+                                                    filters, 
+                                                    "/mnt/data2/video/hd/", 
+                                                    1, 
+                                                    nullptr, 
+                                                    ImGuiFileDialogFlags_ShowBookmark |
+                                                    ImGuiFileDialogFlags_Modal);
         }
 
         ImGui::Spacing();
@@ -123,7 +129,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
             if (verticalMax < abs(hWaveform->minSample))
                 verticalMax = abs(hWaveform->minSample);
             ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.f, 1.f,0.f, 1.f));
-            ImGui::PlotLines("Waveform", hWaveform->pcm[0].data()+startOff, windowLen, 0, nullptr, -verticalMax, verticalMax, ImVec2(io.DisplaySize.x, 160), sizeof(float), false);
+            ImGui::PlotLinesEx("Waveform", hWaveform->pcm[0].data()+startOff, windowLen, 0, nullptr, -verticalMax, verticalMax, ImVec2(io.DisplaySize.x, 160), sizeof(float), false);
             ImGui::PopStyleColor();
         }
 
@@ -138,7 +144,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
         //     int windowLen = windowSize == 0 ? sampleSize : (int)(windowSize/hWaveform->aggregateDuration);
         //     if (startOff+windowLen > sampleSize) windowLen = sampleSize-startOff;
         //     ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.f, 1.f,0.f, 1.f));
-        //     ImGui::PlotLines("Waveform", hWaveform->pcm[0].data()+startOff, windowLen, 0, nullptr, -1.f, 1.f, ImVec2(io.DisplaySize.x, 160), sizeof(float), false);
+        //     ImGui::PlotLinesEx("Waveform", hWaveform->pcm[0].data()+startOff, windowLen, 0, nullptr, -1.f, 1.f, ImVec2(io.DisplaySize.x, 160), sizeof(float), false);
         //     ImGui::PopStyleColor();
         // }
 

@@ -1,7 +1,10 @@
 #include <thread>
 #include <algorithm>
 #include <atomic>
+#include <sstream>
 #include "MultiTrackVideoReader.h"
+#include "VideoBlender.h"
+#include "FFUtils.h"
 
 using namespace std;
 using namespace Logger;
@@ -37,10 +40,84 @@ public:
         m_outWidth = outWidth;
         m_outHeight = outHeight;
         m_frameRate = frameRate;
-        m_readFrames = 0;
+        m_readFrameIdx = 0;
+        m_frameInterval = (double)m_frameRate.den/m_frameRate.num;
+
+        m_mixBlender = CreateVideoBlender();
+        if (!m_mixBlender)
+        {
+            m_errMsg = "CANNOT create new 'VideoBlender' instance for mixing!";
+            return false;
+        }
+        if (!m_mixBlender->Init("rgba", outWidth, outHeight, outWidth, outHeight, 0, 0))
+        {
+            ostringstream oss;
+            oss << "Mixer blender initialization FAILED! Error message: '" << m_mixBlender->GetError() << "'.";
+            m_errMsg = oss.str();
+            return false;
+        }
+        m_subBlender = CreateVideoBlender();
+        if (!m_subBlender)
+        {
+            m_errMsg = "CANNOT create new 'VideoBlender' instance for subtitle!";
+            return false;
+        }
+        if (!m_subBlender->Init())
+        {
+            ostringstream oss;
+            oss << "Subtitle blender initialization FAILED! Error message: '" << m_subBlender->GetError() << "'.";
+            m_errMsg = oss.str();
+            return false;
+        }
 
         m_configured = true;
         return true;
+    }
+
+    MultiTrackVideoReader* CloneAndConfigure(uint32_t outWidth, uint32_t outHeight, const MediaInfo::Ratio& frameRate) override
+    {
+        lock_guard<recursive_mutex> lk(m_apiLock);
+        MultiTrackVideoReader_Impl* newInstance = new MultiTrackVideoReader_Impl();
+        if (!newInstance->Configure(outWidth, outHeight, frameRate))
+        {
+            m_errMsg = newInstance->GetError();
+            newInstance->Close(); delete newInstance;
+            return nullptr;
+        }
+
+        // clone all the video tracks
+        {
+            lock_guard<recursive_mutex> lk2(m_trackLock);
+            for (auto track : m_tracks)
+            {
+                newInstance->m_tracks.push_back(track->Clone(outWidth, outHeight, frameRate));
+            }
+        }
+        newInstance->UpdateDuration();
+        // seek to 0
+        newInstance->m_outputCache.clear();
+        for (auto track : newInstance->m_tracks)
+            track->SeekTo(0);
+
+        // clone all the subtitle tracks
+        {
+            lock_guard<mutex> lk2(m_subtrkLock);
+            for (auto subtrk : m_subtrks)
+            {
+                if (!subtrk->IsVisible())
+                    continue;
+                newInstance->m_subtrks.push_back(subtrk->Clone(outWidth, outHeight));
+            }
+        }
+
+        // start new instance
+        if (!newInstance->Start())
+        {
+            m_errMsg = newInstance->GetError();
+            newInstance->Close(); delete newInstance;
+            return nullptr;
+        }
+        return newInstance;
     }
 
     bool Start() override
@@ -68,15 +145,16 @@ public:
         TerminateMixingThread();
 
         m_tracks.clear();
-        m_outputMats.clear();
+        m_outputCache.clear();
         m_configured = false;
         m_started = false;
         m_outWidth = 0;
         m_outHeight = 0;
         m_frameRate = { 0, 0 };
+        m_frameInterval = 0;
     }
 
-    VideoTrackHolder AddTrack(int64_t trackId) override
+    VideoTrackHolder AddTrack(int64_t trackId, int64_t insertAfterId = INT64_MAX) override
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
         if (!m_started)
@@ -87,19 +165,40 @@ public:
 
         TerminateMixingThread();
 
-        VideoTrackHolder hTrack(new VideoTrack(trackId, m_outWidth, m_outHeight, m_frameRate));
-        hTrack->SetDirection(m_readForward);
+        VideoTrackHolder hNewTrack(new VideoTrack(trackId, m_outWidth, m_outHeight, m_frameRate));
+        hNewTrack->SetDirection(m_readForward);
         {
             lock_guard<recursive_mutex> lk2(m_trackLock);
-            m_tracks.push_back(hTrack);
+            if (insertAfterId == INT64_MAX)
+            {
+                m_tracks.push_back(hNewTrack);
+            }
+            else
+            {
+                auto iter = m_tracks.begin();
+                if (insertAfterId != INT64_MIN)
+                {
+                    iter = find_if(m_tracks.begin(), m_tracks.end(), [insertAfterId] (auto trk) {
+                        return trk->Id() == insertAfterId;
+                    });
+                    if (iter == m_tracks.end())
+                    {
+                        ostringstream oss;
+                        oss << "CANNOT find the video track specified by argument 'insertAfterId' " << insertAfterId << "!";
+                        m_errMsg = oss.str();
+                        return nullptr;
+                    }
+                }
+                m_tracks.insert(iter, hNewTrack);
+            }
+            UpdateDuration();
+            for (auto track : m_tracks)
+                track->SeekTo(ReadPos());
+            m_outputCache.clear();
         }
 
-        for (auto track : m_tracks)
-            track->SeekTo(ReadPos());
-        m_outputMats.clear();
-
         StartMixingThread();
-        return hTrack;
+        return hNewTrack;
     }
 
     VideoTrackHolder RemoveTrackByIndex(uint32_t index) override
@@ -118,21 +217,25 @@ public:
 
         TerminateMixingThread();
 
-        auto iter = m_tracks.begin();
-        while (index > 0)
-        {
-            iter++;
-            index--;
-        }
-        auto delTrack = *iter;
+        VideoTrackHolder delTrack;
         {
             lock_guard<recursive_mutex> lk2(m_trackLock);
-            m_tracks.erase(iter);
+            auto iter = m_tracks.begin();
+            while (index > 0 && iter != m_tracks.end())
+            {
+                iter++;
+                index--;
+            }
+            if (iter != m_tracks.end())
+            {
+                delTrack = *iter;
+                m_tracks.erase(iter);
+                UpdateDuration();
+                for (auto track : m_tracks)
+                    track->SeekTo(ReadPos());
+                m_outputCache.clear();
+            }
         }
-
-        for (auto track : m_tracks)
-            track->SeekTo(ReadPos());
-        m_outputMats.clear();
 
         StartMixingThread();
         return delTrack;
@@ -147,24 +250,76 @@ public:
             return nullptr;
         }
 
-        lock_guard<recursive_mutex> lk2(m_trackLock);
-        auto iter = find_if(m_tracks.begin(), m_tracks.end(), [trackId] (const VideoTrackHolder& track) {
-            return track->Id() == trackId;
-        });
-        if (iter == m_tracks.end())
-            return nullptr;
-
         TerminateMixingThread();
 
-        VideoTrackHolder delTrack = *iter;
-        m_tracks.erase(iter);
-
-        for (auto track : m_tracks)
-            track->SeekTo(ReadPos());
-        m_outputMats.clear();
+        VideoTrackHolder delTrack;
+        {
+            lock_guard<recursive_mutex> lk2(m_trackLock);
+            auto iter = find_if(m_tracks.begin(), m_tracks.end(), [trackId] (const VideoTrackHolder& track) {
+                return track->Id() == trackId;
+            });
+            if (iter != m_tracks.end())
+            {
+                delTrack = *iter;
+                m_tracks.erase(iter);
+                UpdateDuration();
+                for (auto track : m_tracks)
+                    track->SeekTo(ReadPos());
+                m_outputCache.clear();
+            }
+        }
 
         StartMixingThread();
         return delTrack;
+    }
+
+    bool ChangeTrackViewOrder(int64_t targetId, int64_t insertAfterId) override
+    {
+        lock_guard<recursive_mutex> lk(m_apiLock);
+        if (targetId == insertAfterId)
+        {
+            m_errMsg = "INVALID arguments! 'targetId' must NOT be the SAME as 'insertAfterId'!";
+            return false;
+        }
+
+        lock_guard<recursive_mutex> lk2(m_trackLock);
+        auto targetTrackIter = find_if(m_tracks.begin(), m_tracks.end(), [targetId] (auto trk) {
+            return trk->Id() == targetId;
+        });
+        if (targetTrackIter == m_tracks.end())
+        {
+            ostringstream oss;
+            oss << "CANNOT find the video track specified by argument 'targetId' " << targetId << "!";
+            m_errMsg = oss.str();
+            return false;
+        }
+        if (insertAfterId == INT64_MAX)
+        {
+            auto moveTrack = *targetTrackIter;
+            m_tracks.erase(targetTrackIter);
+            m_tracks.push_back(moveTrack);
+        }
+        else
+        {
+            auto insertAfterIter = m_tracks.begin();
+            if (insertAfterId != INT64_MIN)
+            {
+                insertAfterIter = find_if(m_tracks.begin(), m_tracks.end(), [insertAfterId] (auto trk) {
+                    return trk->Id() == insertAfterId;
+                });
+                if (insertAfterIter == m_tracks.end())
+                {
+                    ostringstream oss;
+                    oss << "CANNOT find the video track specified by argument 'insertAfterId' " << insertAfterId << "!";
+                    m_errMsg = oss.str();
+                    return false;
+                }
+            }
+            auto moveTrack = *targetTrackIter;
+            m_tracks.erase(targetTrackIter);
+            m_tracks.insert(insertAfterIter, moveTrack);
+        }
+        return true;
     }
 
     bool SetDirection(bool forward) override
@@ -180,7 +335,7 @@ public:
 
         for (auto track : m_tracks)
             track->SeekTo(ReadPos());
-        m_outputMats.clear();
+        m_outputCache.clear();
 
         StartMixingThread();
         return true;
@@ -208,7 +363,7 @@ public:
         return true;
     }
 
-    bool ReadVideoFrame(int64_t pos, ImGui::ImMat& vmat, bool seeking) override
+    bool ReadVideoFrameEx(int64_t pos, std::vector<CorrelativeFrame>& frames, bool nonblocking) override
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
         if (!m_started)
@@ -221,56 +376,111 @@ public:
             m_errMsg = "Invalid argument value for 'pos'! Can NOT be NEGATIVE.";
             return false;
         }
-        vmat.release();
 
+        bool needSeek = false;
+        uint32_t targetFrmidx = (int64_t)(ceil((double)pos*m_frameRate.num/(m_frameRate.den*1000)));
+        if ((m_readForward && (targetFrmidx < m_readFrameIdx || targetFrmidx-m_readFrameIdx >= m_outputCacheSize)) ||
+            (!m_readForward && (targetFrmidx > m_readFrameIdx || m_readFrameIdx-targetFrmidx >= m_outputCacheSize)))
         {
-            lock_guard<mutex> lk2(m_outputMatsLock);
-            if (seeking && !m_outputMats.empty())
-                vmat = m_outputMats.front();
+            needSeek = true;
         }
-        if (seeking && vmat.empty())
-            vmat = m_seekingFlash;
 
-        uint32_t targetFrmidx = (int64_t)((double)pos*m_frameRate.num/(m_frameRate.den*1000));
-        if (m_readForward && (targetFrmidx < m_readFrames || targetFrmidx-m_readFrames >= m_outputMatsMaxCount) ||
-            !m_readForward && (targetFrmidx > m_readFrames || m_readFrames-targetFrmidx >= m_outputMatsMaxCount))
+        if (nonblocking)
         {
-            if (!SeekTo(pos, seeking))
+            lock_guard<mutex> lk2(m_outputCacheLock);
+            if ((m_readForward && targetFrmidx > m_readFrameIdx) || (!m_readForward && m_readFrameIdx > targetFrmidx))
+            {
+                uint32_t popCnt = m_readForward ? targetFrmidx-m_readFrameIdx : m_readFrameIdx-targetFrmidx;
+                while (popCnt-- > 0 && !m_outputCache.empty())
+                {
+                    m_outputCache.pop_front();
+                    if (m_readForward)
+                        m_readFrameIdx++;
+                    else
+                        m_readFrameIdx--;
+                }
+            }
+            if (!m_outputCache.empty())
+                frames = m_outputCache.front();
+            else if (!m_seekingFlash.empty())
+                frames = m_seekingFlash;
+
+            auto& vmat = frames[0].frame;
+            const double timestamp = (double)pos/1000;
+            m_logger->Log(VERBOSE) << "--> ReadVideoFrame lagging is " << timestamp-vmat.time_stamp << " second(s)." << endl;
+
+            if (!m_subtrks.empty() && !frames.empty())
+                frames[0].frame = BlendSubtitle(frames[0].frame);
+            if (needSeek)
+                SeekTo(pos, true);
+        }
+        else
+        {
+            if (needSeek && !SeekTo(pos, false))
                 return false;
-        }
 
-        if (seeking)
-            return true;
+            // the frame queue may not be filled with the target frame, wait for the mixing thread to fill it
+            bool lockAquaired = false;
+            while (!m_quit)
+            {
+                m_outputCacheLock.lock();
+                lockAquaired = true;
+                if ((m_readForward && targetFrmidx < m_outputCache.size()+m_readFrameIdx) ||
+                    (!m_readForward && m_readFrameIdx < m_outputCache.size()+targetFrmidx))
+                    break;
+                m_outputCacheLock.unlock();
+                lockAquaired = false;
+                this_thread::sleep_for(chrono::milliseconds(5));
+            }
+            if (m_quit)
+            {
+                if (lockAquaired) m_outputCacheLock.unlock();
+                m_errMsg = "This 'MultiTrackVideoReader' instance is quit.";
+                return false;
+            }
 
-        // the frame queue may not be filled with the target frame, wait for the mixing thread to fill it
-        while ((m_readForward && targetFrmidx-m_readFrames >= m_outputMats.size() ||
-            !m_readForward && m_readFrames-targetFrmidx >= m_outputMats.size()) && !m_quit)
-            this_thread::sleep_for(chrono::milliseconds(5));
-        if (m_quit)
-        {
-            m_errMsg = "This 'MultiTrackVideoReader' instance is quit.";
-            return false;
-        }
+            lock_guard<mutex> lk2(m_outputCacheLock, adopt_lock);
+            if ((m_readForward && targetFrmidx > m_readFrameIdx) || (!m_readForward && m_readFrameIdx > targetFrmidx))
+            {
+                uint32_t popCnt = m_readForward ? targetFrmidx-m_readFrameIdx : m_readFrameIdx-targetFrmidx;
+                while (popCnt-- > 0)
+                {
+                    m_outputCache.pop_front();
+                    if (m_readForward)
+                        m_readFrameIdx++;
+                    else
+                        m_readFrameIdx--;
+                }
+            }
+            if (m_outputCache.empty())
+            {
+                m_logger->Log(Error) << "No AVAILABLE frame to read!" << endl;
+                return false;
+            }
+            frames = m_outputCache.front();
+            auto& vmat = frames[0].frame;
+            const double timestamp = (double)pos/1000;
+            if (vmat.time_stamp > timestamp+m_frameInterval || vmat.time_stamp < timestamp-m_frameInterval)
+                m_logger->Log(Error) << "WRONG image time stamp!! Required 'pos' is " << timestamp
+                    << ", output vmat time stamp is " << vmat.time_stamp << "." << endl;
 
-        lock_guard<mutex> lk2(m_outputMatsLock);
-        uint32_t popCnt = m_readForward ? targetFrmidx-m_readFrames : m_readFrames-targetFrmidx;
-        while (popCnt-- > 0)
-        {
-            m_outputMats.pop_front();
-            if (m_readForward)
-                m_readFrames++;
-            else
-                m_readFrames--;
+            if (!m_subtrks.empty())
+                vmat = BlendSubtitle(vmat);
         }
-        vmat = m_outputMats.front();
-        const double timestamp = (double)pos/1000;
-        if (timestamp < vmat.time_stamp || timestamp > vmat.time_stamp+(double)m_frameRate.den/m_frameRate.num)
-            m_logger->Log(Error) << "WRONG image time stamp!! Required 'pos' is " << timestamp
-                << ", output vmat time stamp is " << vmat.time_stamp << "." << endl;
         return true;
     }
 
-    bool ReadNextVideoFrame(ImGui::ImMat& vmat) override
+    bool ReadVideoFrame(int64_t pos, ImGui::ImMat& vmat, bool nonblocking) override
+    {
+        vector<CorrelativeFrame> frames;
+        bool success = ReadVideoFrameEx(pos, frames, nonblocking);
+        if (!success)
+            return false;
+        vmat = frames[0].frame;
+        return true;
+    }
+
+    bool ReadNextVideoFrameEx(vector<CorrelativeFrame>& frames) override
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
         if (!m_started)
@@ -279,21 +489,48 @@ public:
             return false;
         }
 
-        while (m_outputMats.empty() && !m_quit)
+        bool lockAquaired = false;
+        while (!m_quit)
+        {
+            m_outputCacheLock.lock();
+            lockAquaired = true;
+            if (m_outputCache.size() > 1)
+                break;
+            m_outputCacheLock.unlock();
+            lockAquaired = false;
             this_thread::sleep_for(chrono::milliseconds(5));
+        }
         if (m_quit)
         {
+            if (lockAquaired) m_outputCacheLock.unlock();
             m_errMsg = "This 'MultiTrackVideoReader' instance is quit.";
             return false;
         }
 
-        lock_guard<mutex> lk2(m_outputMatsLock);
-        vmat = m_outputMats.front();
-        m_outputMats.pop_front();
+        lock_guard<mutex> lk2(m_outputCacheLock, adopt_lock);
         if (m_readForward)
-            m_readFrames++;
-        else
-            m_readFrames--;
+        {
+            m_outputCache.pop_front();
+            m_readFrameIdx++;
+        }
+        else if (m_readFrameIdx > 0)
+        {
+            m_outputCache.pop_front();
+            m_readFrameIdx--;
+        }
+        frames = m_outputCache.front();
+        if (!m_subtrks.empty())
+            frames[0].frame = BlendSubtitle(frames[0].frame);
+        return true;
+    }
+
+    bool ReadNextVideoFrame(ImGui::ImMat& vmat) override
+    {
+        vector<CorrelativeFrame> frames;
+        bool success = ReadNextVideoFrameEx(frames);
+        if (!success)
+            return false;
+        vmat = frames[0].frame;
         return true;
     }
 
@@ -304,6 +541,11 @@ public:
         {
             m_errMsg = "This MultiTrackVideoReader instance is NOT started yet!";
             return false;
+        }
+
+        {
+            lock_guard<recursive_mutex> lk2(m_trackLock);
+            UpdateDuration();
         }
 
         SeekTo(ReadPos(), false);
@@ -353,7 +595,7 @@ public:
             return nullptr;
     }
 
-    DataLayer::VideoClipHolder GetClipById(int64_t clipId) override
+    VideoClipHolder GetClipById(int64_t clipId) override
     {
         lock(m_apiLock, m_trackLock);
         lock_guard<recursive_mutex> lk(m_apiLock, adopt_lock);
@@ -365,29 +607,177 @@ public:
             if (clip)
                 break;
         }
+        if (!clip)
+        {
+            ostringstream oss;
+            oss << "CANNOT find clip with id " << clipId << "!";
+            m_errMsg = oss.str();
+        }
         return clip;
     }
 
-    int64_t Duration() override
+    VideoOverlapHolder GetOverlapById(int64_t ovlpId) override
     {
-        if (m_tracks.empty())
-            return 0;
-        int64_t dur = 0;
-        m_trackLock.lock();
-        const list<VideoTrackHolder> tracks(m_tracks);
-        m_trackLock.unlock();
-        for (auto& track : tracks)
+        lock(m_apiLock, m_trackLock);
+        lock_guard<recursive_mutex> lk(m_apiLock, adopt_lock);
+        lock_guard<recursive_mutex> lk2(m_trackLock, adopt_lock);
+        VideoOverlapHolder ovlp;
+        for (auto& track : m_tracks)
         {
-            const int64_t trackDur = track->Duration();
-            if (trackDur > dur)
-                dur = trackDur;
+            ovlp = track->GetOverlapById(ovlpId);
+            if (ovlp)
+                break;
         }
-        return dur;
+        return ovlp;
+    }
+
+    int64_t Duration() const override
+    {
+        return m_duration;
     }
 
     int64_t ReadPos() const override
     {
-        return (int64_t)((double)m_readFrames*1000*m_frameRate.den/m_frameRate.num);
+        return (int64_t)((double)m_readFrameIdx*1000*m_frameRate.den/m_frameRate.num);
+    }
+
+    SubtitleTrackHolder BuildSubtitleTrackFromFile(int64_t id, const string& url, int64_t insertAfterId = INT64_MAX) override
+    {
+        SubtitleTrackHolder newSubTrack = SubtitleTrack::BuildFromFile(id, url);
+        newSubTrack->SetFrameSize(m_outWidth, m_outHeight);
+        newSubTrack->SetAlignment(5);
+        newSubTrack->SetOffsetCompensationV((int32_t)((double)m_outHeight*0.43));
+        newSubTrack->EnableFullSizeOutput(false);
+        lock_guard<mutex> lk(m_subtrkLock);
+        if (insertAfterId == INT64_MAX)
+        {
+            m_subtrks.push_back(newSubTrack);
+        }
+        else
+        {
+            auto insertAfterIter = m_subtrks.begin();
+            if (insertAfterId != INT64_MIN)
+            {
+                insertAfterIter = find_if(m_subtrks.begin(), m_subtrks.end(), [insertAfterId] (auto trk) {
+                    return trk->Id() == insertAfterId;
+                });
+                if (insertAfterIter == m_subtrks.end())
+                {
+                    ostringstream oss;
+                    oss << "CANNOT find the subtitle track specified by argument 'insertAfterId' " << insertAfterId << "!";
+                    m_errMsg = oss.str();
+                    return nullptr;
+                }
+            }
+            m_subtrks.insert(insertAfterIter, newSubTrack);
+        }
+        return newSubTrack;
+    }
+
+    SubtitleTrackHolder NewEmptySubtitleTrack(int64_t id, int64_t insertAfterId = INT64_MAX) override
+    {
+        SubtitleTrackHolder newSubTrack = SubtitleTrack::NewEmptyTrack(id);
+        newSubTrack->SetFrameSize(m_outWidth, m_outHeight);
+        newSubTrack->SetAlignment(5);
+        newSubTrack->SetOffsetCompensationV((int32_t)((double)m_outHeight*0.43));
+        newSubTrack->EnableFullSizeOutput(false);
+        lock_guard<mutex> lk(m_subtrkLock);
+        if (insertAfterId == INT64_MAX)
+        {
+            m_subtrks.push_back(newSubTrack);
+        }
+        else
+        {
+            auto insertAfterIter = m_subtrks.begin();
+            if (insertAfterId != INT64_MIN)
+            {
+                insertAfterIter = find_if(m_subtrks.begin(), m_subtrks.end(), [insertAfterId] (auto trk) {
+                    return trk->Id() == insertAfterId;
+                });
+                if (insertAfterIter == m_subtrks.end())
+                {
+                    ostringstream oss;
+                    oss << "CANNOT find the subtitle track specified by argument 'insertAfterId' " << insertAfterId << "!";
+                    m_errMsg = oss.str();
+                    return nullptr;
+                }
+            }
+            m_subtrks.insert(insertAfterIter, newSubTrack);
+        }
+        return newSubTrack;
+    }
+
+    SubtitleTrackHolder GetSubtitleTrackById(int64_t trackId) override
+    {
+        lock_guard<mutex> lk(m_subtrkLock);
+        auto iter = find_if(m_subtrks.begin(), m_subtrks.end(), [trackId] (SubtitleTrackHolder& hTrk) {
+            return hTrk->Id() == trackId;
+        });
+        if (iter == m_subtrks.end())
+            return nullptr;
+        return *iter;
+    }
+
+    SubtitleTrackHolder RemoveSubtitleTrackById(int64_t trackId) override
+    {
+        lock_guard<mutex> lk(m_subtrkLock);
+        auto iter = find_if(m_subtrks.begin(), m_subtrks.end(), [trackId] (SubtitleTrackHolder& hTrk) {
+            return hTrk->Id() == trackId;
+        });
+        if (iter == m_subtrks.end())
+            return nullptr;
+        SubtitleTrackHolder hTrk = *iter;
+        m_subtrks.erase(iter);
+        return hTrk;
+    }
+
+    bool ChangeSubtitleTrackViewOrder(int64_t targetId, int64_t insertAfterId) override
+    {
+        lock_guard<recursive_mutex> lk(m_apiLock);
+        if (targetId == insertAfterId)
+        {
+            m_errMsg = "INVALID arguments! 'targetId' must NOT be the SAME as 'insertAfterId'!";
+            return false;
+        }
+
+        lock_guard<mutex> lk2(m_subtrkLock);
+        auto targetTrackIter = find_if(m_subtrks.begin(), m_subtrks.end(), [targetId] (auto trk) {
+            return trk->Id() == targetId;
+        });
+        if (targetTrackIter == m_subtrks.end())
+        {
+            ostringstream oss;
+            oss << "CANNOT find the video track specified by argument 'targetId' " << targetId << "!";
+            m_errMsg = oss.str();
+            return false;
+        }
+        if (insertAfterId == INT64_MAX)
+        {
+            auto moveTrack = *targetTrackIter;
+            m_subtrks.erase(targetTrackIter);
+            m_subtrks.push_back(moveTrack);
+        }
+        else
+        {
+            auto insertAfterIter = m_subtrks.begin();
+            if (insertAfterId != INT64_MIN)
+            {
+                insertAfterIter = find_if(m_subtrks.begin(), m_subtrks.end(), [insertAfterId] (auto trk) {
+                    return trk->Id() == insertAfterId;
+                });
+                if (insertAfterIter == m_subtrks.end())
+                {
+                    ostringstream oss;
+                    oss << "CANNOT find the video track specified by argument 'insertAfterId' " << insertAfterId << "!";
+                    m_errMsg = oss.str();
+                    return false;
+                }
+            }
+            auto moveTrack = *targetTrackIter;
+            m_subtrks.erase(targetTrackIter);
+            m_subtrks.insert(insertAfterIter, moveTrack);
+        }
+        return true;
     }
 
     string GetError() const override
@@ -396,6 +786,18 @@ public:
     }
 
 private:
+    void UpdateDuration()
+    {
+        int64_t dur = 0;
+        for (auto& track : m_tracks)
+        {
+            const int64_t trackDur = track->Duration();
+            if (trackDur > dur)
+                dur = trackDur;
+        }
+        m_duration = dur;
+    }
+
     void StartMixingThread()
     {
         m_quit = false;
@@ -415,6 +817,7 @@ private:
     {
         m_logger->Log(DEBUG) << "Enter MixingThreadProc(VIDEO)..." << endl;
 
+        bool afterSeek = false;
         while (!m_quit)
         {
             bool idleLoop = true;
@@ -422,29 +825,42 @@ private:
             if (m_seeking.exchange(false))
             {
                 const int64_t seekPos = m_seekPos;
-                m_readFrames = (int64_t)((double)seekPos*m_frameRate.num/(m_frameRate.den*1000));
+                m_readFrameIdx = (int64_t)(ceil((double)seekPos*m_frameRate.num/(m_frameRate.den*1000)));
                 for (auto track : m_tracks)
                     track->SeekTo(seekPos);
                 {
-                    lock_guard<mutex> lk(m_outputMatsLock);
-                    if (!m_outputMats.empty())
-                        m_seekingFlash = m_outputMats.front();
-                    m_outputMats.clear();
+                    lock_guard<mutex> lk(m_outputCacheLock);
+                    m_outputCache.clear();
                 }
+                afterSeek = true;
             }
 
-            if (m_outputMats.size() < m_outputMatsMaxCount)
+            if (m_outputCache.size() < m_outputCacheSize)
             {
                 ImGui::ImMat mixedFrame;
+                vector<CorrelativeFrame> frames;
+                frames.reserve(m_tracks.size()*7);
+                frames.push_back({CorrelativeFrame::PHASE_AFTER_MIXING, 0, 0, mixedFrame});
+                double timestamp = 0;
                 {
                     lock_guard<recursive_mutex> trackLk(m_trackLock);
                     auto trackIter = m_tracks.begin();
                     while (trackIter != m_tracks.end())
                     {
                         ImGui::ImMat vmat;
-                        (*trackIter)->ReadVideoFrame(vmat);
-                        if (!vmat.empty() && mixedFrame.empty())
-                            mixedFrame = vmat;
+                        (*trackIter)->ReadVideoFrame(frames, vmat);
+                        if (!vmat.empty())
+                        {
+                            if (mixedFrame.empty())
+                                mixedFrame = vmat;
+                            else
+                                mixedFrame = m_mixBlender->Blend(vmat, mixedFrame);
+                        }
+                        if (trackIter == m_tracks.begin())
+                            timestamp = vmat.time_stamp;
+                        else if (timestamp != vmat.time_stamp)
+                            m_logger->Log(WARN) << "'vmat' got from non-1st track has DIFFERENT TIMESTAMP against the 1st track! "
+                                << timestamp << " != " << vmat.time_stamp << "." << endl;
                         trackIter++;
                     }
                 }
@@ -452,14 +868,29 @@ private:
                 {
                     mixedFrame.create_type(m_outWidth, m_outHeight, 4, IM_DT_INT8);
                     memset(mixedFrame.data, 0, mixedFrame.total()*mixedFrame.elemsize);
+                    mixedFrame.time_stamp = timestamp;
+                }
+                frames[0].frame = mixedFrame;
+
+                if (afterSeek)
+                {
+                    int64_t frameIdx = (int64_t)(round(timestamp*m_frameRate.num/m_frameRate.den));
+                    if ((m_readForward && frameIdx >= m_readFrameIdx) || (!m_readForward && frameIdx <= m_readFrameIdx))
+                    {
+                        m_readFrameIdx = frameIdx;
+                        afterSeek = false;
+                    }
+                    lock_guard<mutex> lk(m_outputCacheLock);
+                    m_seekingFlash = frames;
                 }
 
+                if (!afterSeek)
                 {
-                    lock_guard<mutex> lk(m_outputMatsLock);
-                    m_outputMats.push_back(mixedFrame);
-                    m_seekingFlash.release();
+                    lock_guard<mutex> lk(m_outputCacheLock);
+                    m_outputCache.push_back(frames);
+                    m_seekingFlash = frames;
+                    idleLoop = false;
                 }
-                idleLoop = false;
             }
 
             if (idleLoop)
@@ -467,6 +898,44 @@ private:
         }
 
         m_logger->Log(DEBUG) << "Leave MixingThreadProc(VIDEO)." << endl;
+    }
+
+    ImGui::ImMat BlendSubtitle(ImGui::ImMat& vmat)
+    {
+        if (m_subtrks.empty())
+            return vmat;
+
+        ImGui::ImMat res = vmat;
+        bool cloned = false;
+        int64_t pos = (int64_t)(vmat.time_stamp*1000);
+        lock_guard<mutex> lk(m_subtrkLock);
+        for (auto& hSubTrack : m_subtrks)
+        {
+            if (!hSubTrack->IsVisible())
+                continue;
+
+            auto hSubClip = hSubTrack->GetClipByTime(pos);
+            if (hSubClip)
+            {
+                auto subImg = hSubClip->Image(pos-hSubClip->StartTime());
+                if (subImg.Valid())
+                {
+                    // blend subtitle-image
+                    SubtitleImage::Rect dispRect = subImg.Area();
+                    ImGui::ImMat submat = subImg.Vmat();
+                    res = m_subBlender->Blend(res, submat, dispRect.x, dispRect.y);
+                    if (res.empty())
+                    {
+                        m_logger->Log(Error) << "FAILED to blend subtitle on the output image! Error message is '" << m_subBlender->GetError() << "'." << endl;
+                    }
+                }
+                else
+                {
+                    m_logger->Log(Error) << "Invalid 'SubtitleImage' at " << MillisecToString(pos) << "." << endl;
+                }
+            }
+        }
+        return res;
     }
 
 private:
@@ -477,20 +946,27 @@ private:
     thread m_mixingThread;
     list<VideoTrackHolder> m_tracks;
     recursive_mutex m_trackLock;
+    VideoBlenderHolder m_mixBlender;
 
-    list<ImGui::ImMat> m_outputMats;
-    mutex m_outputMatsLock;
-    uint32_t m_outputMatsMaxCount{8};
+    list<vector<CorrelativeFrame>> m_outputCache;
+    mutex m_outputCacheLock;
+    uint32_t m_outputCacheSize{3};
 
     uint32_t m_outWidth{0};
     uint32_t m_outHeight{0};
     MediaInfo::Ratio m_frameRate;
-    uint32_t m_readFrames{0};
+    double m_frameInterval{0};
+    int64_t m_duration{0};
+    uint32_t m_readFrameIdx{0};
     bool m_readForward{true};
 
     int64_t m_seekPos{0};
     atomic_bool m_seeking{false};
-    ImGui::ImMat m_seekingFlash;
+    vector<CorrelativeFrame> m_seekingFlash;
+
+    list<SubtitleTrackHolder> m_subtrks;
+    mutex m_subtrkLock;
+    VideoBlenderHolder m_subBlender;
 
     bool m_configured{false};
     bool m_started{false};

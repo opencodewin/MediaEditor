@@ -318,6 +318,16 @@ public:
         return m_audAvStm->codecpar->sample_rate;
     }
 
+    bool IsHwAccelEnabled() const override
+    {
+        return m_vidPreferUseHw;
+    }
+
+    void EnableHwAccel(bool enable) override
+    {
+        m_vidPreferUseHw = enable;
+    }
+
     string GetError() const override
     {
         return m_errMsg;
@@ -366,6 +376,7 @@ private:
             return false;
         }
 
+        m_vidfrmIntvTs = 0;
         if (HasVideo())
         {
             MediaInfo::VideoStream* vidStream = dynamic_cast<MediaInfo::VideoStream*>(m_hMediaInfo->streams[m_vidStmIdx].get());
@@ -374,7 +385,8 @@ private:
             m_vidDurMts = (int64_t)(vidStream->duration*1000);
             m_vidFrmCnt = vidStream->frameNum;
             AVRational avgFrmRate = { vidStream->avgFrameRate.num, vidStream->avgFrameRate.den };
-            m_vidfrmIntvTs = av_q2d(av_inv_q(avgFrmRate));
+            if (avgFrmRate.den <= 0)
+                m_vidfrmIntvTs = av_q2d(av_inv_q(avgFrmRate));
 
             if (m_isImage)
                 m_frmCvt.SetUseVulkanConverter(false);
@@ -404,7 +416,7 @@ private:
             // in 40ms there are 48000*0.04 = 1920 pcm samples,
             // 200 pixels for displaying 1920 samples,
             // so aggregate 1920 samples to 200 results in 1920/200 = 9.6
-            double vidfrmIntvTs = HasVideo() ? m_vidfrmIntvTs : 0.04;
+            double vidfrmIntvTs = m_vidfrmIntvTs > 0 ? m_vidfrmIntvTs : 0.04;
             if (m_fixedAggregateSamples > 0)
                 hWaveform->aggregateSamples = m_fixedAggregateSamples;
             else
@@ -598,19 +610,31 @@ private:
         m_logger->Log(DEBUG) << "Audio decoder '" << m_auddec->name << "' opened." << endl;
 
         // setup sw resampler
-        int inChannels = m_audAvStm->codecpar->channels;
-        uint64_t inChnLyt = m_audAvStm->codecpar->channel_layout;
         int inSampleRate = m_audAvStm->codecpar->sample_rate;
         AVSampleFormat inSmpfmt = (AVSampleFormat)m_audAvStm->codecpar->format;
+        m_swrOutSampleRate = inSampleRate;
+#if !defined(FF_API_OLD_CHANNEL_LAYOUT) && (LIBAVUTIL_VERSION_MAJOR < 58)
+        int inChannels = m_audAvStm->codecpar->channels;
+        uint64_t inChnLyt = m_audAvStm->codecpar->channel_layout;
         m_swrOutChannels = inChannels > 2 ? 2 : inChannels;
         m_swrOutChnLyt = av_get_default_channel_layout(m_swrOutChannels);
-        m_swrOutSampleRate = inSampleRate;
         if (inChnLyt <= 0)
             inChnLyt = av_get_default_channel_layout(inChannels);
         if (m_swrOutChnLyt != inChnLyt || m_swrOutSmpfmt != inSmpfmt || m_swrOutSampleRate != inSampleRate)
         {
             m_swrCtx = swr_alloc_set_opts(NULL, m_swrOutChnLyt, m_swrOutSmpfmt, m_swrOutSampleRate, inChnLyt, inSmpfmt, inSampleRate, 0, nullptr);
             if (!m_swrCtx)
+#else
+        auto& inChlyt = m_audAvStm->codecpar->ch_layout;
+        if (inChlyt.nb_channels <= 2)
+            m_swrOutChlyt = inChlyt;
+        else
+            av_channel_layout_default(&m_swrOutChlyt, 2);
+        if (av_channel_layout_compare(&m_swrOutChlyt, &inChlyt) || m_swrOutSmpfmt != inSmpfmt || m_swrOutSampleRate != inSampleRate)
+        {
+            fferr = swr_alloc_set_opts2(&m_swrCtx, &m_swrOutChlyt, m_swrOutSmpfmt, m_swrOutSampleRate, &inChlyt, inSmpfmt, inSampleRate, 0, nullptr);
+            if (fferr < 0)
+#endif
             {
                 m_errMsg = "FAILED to invoke 'swr_alloc_set_opts()' to create 'SwrContext'!";
                 return false;
@@ -922,9 +946,13 @@ private:
                     }
                     else if (fferr != AVERROR(EAGAIN))
                     {
-                        m_logger->Log(Error) << "FAILED to invoke 'avcodec_send_packet'(VideoDecodeThreadProc)! return code is "
-                            << fferr << "." << endl;
-                        break;
+                        m_logger->Log(WARN) << "FAILED to invoke 'avcodec_send_packet'(VideoDecodeThreadProc)! return code is "
+                            << fferr << ". url = '" << m_hParser->GetUrl() << "'." << endl;
+                        {
+                            lock_guard<mutex> lk(m_vidpktQLock);
+                            m_vidpktQ.pop_front();
+                        }
+                        av_packet_free(&avpkt);
                     }
                 }
                 else if (m_demuxVidEof)
@@ -1249,8 +1277,12 @@ private:
                     }
                     dstfrm->format = (int)m_swrOutSmpfmt;
                     dstfrm->sample_rate = m_swrOutSampleRate;
+#if !defined(FF_API_OLD_CHANNEL_LAYOUT) && (LIBAVUTIL_VERSION_MAJOR < 58)
                     dstfrm->channels = m_swrOutChannels;
                     dstfrm->channel_layout = m_swrOutChnLyt;
+#else
+                    dstfrm->ch_layout = m_swrOutChlyt;
+#endif
                     dstfrm->nb_samples = swr_get_out_samples(m_swrCtx, srcfrm->nb_samples);
                     int fferr = av_frame_get_buffer(dstfrm, 0);
                     if (fferr < 0)
@@ -1368,8 +1400,12 @@ private:
             swr_free(&m_swrCtx);
             m_swrCtx = nullptr;
         }
+#if !defined(FF_API_OLD_CHANNEL_LAYOUT) && (LIBAVUTIL_VERSION_MAJOR < 58)
         m_swrOutChannels = 0;
         m_swrOutChnLyt = 0;
+#else
+        m_swrOutChlyt = {AV_CHANNEL_ORDER_UNSPEC, 0};
+#endif
         m_swrOutSampleRate = 0;
         m_swrPassThrough = false;
         if (m_auddecCtx)
@@ -1412,7 +1448,7 @@ private:
     {
         while (!m_quit)
         {
-            if (!m_prepared || m_viddecCtx && !m_genSsEof || m_auddecCtx && !m_genWfEof)
+            if (!m_prepared || (m_viddecCtx && !m_genSsEof) || (m_auddecCtx && !m_genWfEof))
                 this_thread::sleep_for(chrono::milliseconds(100));
             else
                 break;
@@ -1428,6 +1464,7 @@ private:
                 return;
             }
             lock_guard<recursive_mutex> lk(m_apiLock, adopt_lock);
+            m_logger->Log(DEBUG) << "AUTO RELEASE decoding resources." << endl;
             ReleaseResources(true);
         }
     }
@@ -1459,8 +1496,12 @@ private:
     SwrContext* m_swrCtx{nullptr};
     AVSampleFormat m_swrOutSmpfmt{AV_SAMPLE_FMT_FLTP};
     int m_swrOutSampleRate;
+#if !defined(FF_API_OLD_CHANNEL_LAYOUT) && (LIBAVUTIL_VERSION_MAJOR < 58)
     int m_swrOutChannels;
     int64_t m_swrOutChnLyt;
+#else
+    AVChannelLayout m_swrOutChlyt{AV_CHANNEL_ORDER_UNSPEC, 0};
+#endif
 
     // demux video thread
     thread m_demuxVidThread;
@@ -1476,7 +1517,7 @@ private:
     bool m_viddecEof{false};
     // generate snapshots thread
     thread m_genSsThread;
-    bool m_genSsEof;
+    bool m_genSsEof{false};
     // demux audio thread
     thread m_demuxAudThread;
     list<AVPacket*> m_audpktQ;

@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <string>
 #include <memory>
+#include <vector>
 #include <imconfig.h>
 #include <immat.h>
 #if IMGUI_VULKAN_SHADER
@@ -13,6 +14,7 @@ extern "C"
     #include "libavutil/pixdesc.h"
     #include "libavutil/frame.h"
     #include "libswscale/swscale.h"
+    #include "libavfilter/avfilter.h"
 }
 
 #if LIBAVFORMAT_VERSION_MAJOR >= 59
@@ -22,6 +24,7 @@ typedef AVCodec*            AVCodecPtr;
 #endif
 
 extern const AVRational MILLISEC_TIMEBASE;
+extern const AVRational MICROSEC_TIMEBASE;
 extern const AVRational FF_AV_TIMEBASE;
 
 std::string MillisecToString(int64_t millisec);
@@ -33,8 +36,10 @@ bool HwFrameToSwFrame(AVFrame* swfrm, const AVFrame* hwfrm);
 using SelfFreeAVFramePtr = std::shared_ptr<AVFrame>;
 SelfFreeAVFramePtr AllocSelfFreeAVFramePtr();
 SelfFreeAVFramePtr CloneSelfFreeAVFramePtr(const AVFrame* avfrm);
+SelfFreeAVFramePtr WrapSelfFreeAVFramePtr(AVFrame* avfrm);
 
-int AVPixelFormatToImColorFormat(AVPixelFormat pixfmt);
+AVPixelFormat GetAVPixelFormatByName(const std::string& name);
+ImColorFormat ConvertPixelFormatToColorFormat(AVPixelFormat pixfmt);
 bool ConvertAVFrameToImMat(const AVFrame* avfrm, ImGui::ImMat& vmat, double timestamp);
 bool ConvertImMatToAVFrame(const ImGui::ImMat& vmat, AVFrame* avfrm, int64_t pts);
 
@@ -97,7 +102,7 @@ public:
     bool SetOutColorSpace(AVColorSpace clrspc);
     bool SetOutColorRange(AVColorRange clrrng);
     bool SetResizeInterpolateMode(ImInterpolateMode interp);
-    bool ConvertImage(ImGui::ImMat& inMat, AVFrame* avfrm, int64_t pts);
+    bool ConvertImage(const ImGui::ImMat& inMat, AVFrame* avfrm, int64_t pts);
 
     uint32_t GetOutWidth() const { return m_outWidth; }
     uint32_t GetOutHeight() const { return m_outHeight; }
@@ -135,6 +140,60 @@ private:
     std::string m_errMsg;
 };
 
+class ImMatWrapper_AVFrame
+{
+public:
+    ImMatWrapper_AVFrame(ImGui::ImMat& mat, bool isVideo) : m_mat(mat), m_isVideo(isVideo) {}
+    SelfFreeAVFramePtr GetWrapper(int64_t pts = 0);
+
+private:
+    ImGui::ImMat m_mat;
+    bool m_isVideo;
+};
+
+class FFOverlayBlender
+{
+public:
+    FFOverlayBlender();
+    FFOverlayBlender(const FFOverlayBlender&) = delete;
+    FFOverlayBlender(FFOverlayBlender&&) = default;
+    FFOverlayBlender& operator=(const FFOverlayBlender&) = delete;
+    ~FFOverlayBlender();
+
+    bool Init(const std::string& inputFormat, uint32_t w1, uint32_t h1, uint32_t w2, uint32_t h2, int32_t x, int32_t y, bool evalPerFrame);
+    ImGui::ImMat Blend(ImGui::ImMat& baseImage, ImGui::ImMat& overlayImage);
+    bool Init();
+    ImGui::ImMat Blend(ImGui::ImMat& baseImage, ImGui::ImMat& overlayImage, int32_t x, int32_t y, uint32_t w, uint32_t h);
+
+    std::string GetError() const { return m_errMsg; }
+
+private:
+    AVFilterGraph* m_avfg{nullptr};
+    AVFilterInOut* m_filterOutputs{nullptr};
+    AVFilterInOut* m_filterInputs{nullptr};
+    std::vector<AVFilterContext*> m_bufSrcCtxs;
+    std::vector<AVFilterContext*> m_bufSinkCtxs;
+    int32_t m_x{0}, m_y{0};
+    int64_t m_inputCount{0};
+    ImMatToAVFrameConverter m_cvtMat2Avfrm;
+    AVFrameToImMatConverter m_cvtAvfrm2Mat;
+    bool m_cvtInited{false};
+
+    std::string m_errMsg;
+};
+
+class AudioImMatAVFrameConverter
+{
+public:
+    AudioImMatAVFrameConverter(uint32_t sampleRate) : m_sampleRate(sampleRate) {}
+    uint32_t SampleRate() const { return m_sampleRate; }
+
+    bool ConvertAVFrameToImMat(const AVFrame* avfrm, ImGui::ImMat& amat, double timestamp);
+    bool ConvertImMatToAVFrame(const ImGui::ImMat& amat, AVFrame* avfrm, int64_t pts);
+
+private:
+    uint32_t m_sampleRate;
+};
 
 #include "MediaInfo.h"
 

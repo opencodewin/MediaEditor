@@ -9,12 +9,18 @@ extern "C"
 {
     #include "libavutil/pixdesc.h"
     #include "libavutil/hwcontext.h"
+    #include "libavutil/avutil.h"
+    #include "libavutil/opt.h"
+    #include "libavcodec/codec_desc.h"
+    #include "libavfilter/buffersrc.h"
+    #include "libavfilter/buffersink.h"
 }
 
 using namespace std;
 using namespace Logger;
 
 const AVRational MILLISEC_TIMEBASE = { 1, 1000 };
+const AVRational MICROSEC_TIMEBASE = { 1, 1000000 };
 const AVRational FF_AV_TIMEBASE = { 1, AV_TIME_BASE };
 
 string MillisecToString(int64_t millisec)
@@ -42,102 +48,18 @@ string TimestampToString(double timestamp)
     return MillisecToString((int64_t)(timestamp*1000));
 }
 
-int AVPixelFormatToImColorFormat(AVPixelFormat pixfmt)
+AVPixelFormat GetAVPixelFormatByName(const std::string& name)
 {
-    int clrfmt = -1;
-    switch (pixfmt)
-    {
-        case AV_PIX_FMT_YUV420P:
-        case AV_PIX_FMT_YUVJ420P:
-        case AV_PIX_FMT_YUV420P9:
-        case AV_PIX_FMT_YUV420P10:
-        case AV_PIX_FMT_YUV420P12:
-        case AV_PIX_FMT_YUV420P14:
-        case AV_PIX_FMT_YUV420P16:
-            clrfmt = IM_CF_YUV420;
-            break;
-        case AV_PIX_FMT_YUV422P:
-        case AV_PIX_FMT_YUVJ422P:
-        case AV_PIX_FMT_YUV422P9:
-        case AV_PIX_FMT_YUV422P10:
-        case AV_PIX_FMT_YUV422P12:
-        case AV_PIX_FMT_YUV422P14:
-        case AV_PIX_FMT_YUV422P16:
-            clrfmt = IM_CF_YUV422;
-            break;
-        case AV_PIX_FMT_YUV444P:
-        case AV_PIX_FMT_YUVJ444P:
-        case AV_PIX_FMT_YUV444P9:
-        case AV_PIX_FMT_YUV444P10:
-        case AV_PIX_FMT_YUV444P12:
-        case AV_PIX_FMT_YUV444P14:
-        case AV_PIX_FMT_YUV444P16:
-            clrfmt = IM_CF_YUV444;
-            break;
-        case AV_PIX_FMT_NV12:
-        case AV_PIX_FMT_NV21:
-        case AV_PIX_FMT_NV16:
-        case AV_PIX_FMT_NV24:
-        case AV_PIX_FMT_NV42:
-            clrfmt = IM_CF_NV12;
-            break;
-        case AV_PIX_FMT_NV20:
-        case AV_PIX_FMT_P010:
-        case AV_PIX_FMT_P016:
-            clrfmt = IM_CF_P010LE;
-            break;
-        case AV_PIX_FMT_YUVA420P:
-        case AV_PIX_FMT_YUVA422P:
-        case AV_PIX_FMT_YUVA444P:
-            clrfmt = IM_CF_YUVA;
-            break;
-        case AV_PIX_FMT_GRAY8:
-        case AV_PIX_FMT_GRAY10:
-        case AV_PIX_FMT_GRAY12:
-        case AV_PIX_FMT_GRAY14:
-        case AV_PIX_FMT_GRAY16:
-            clrfmt = IM_CF_GRAY;
-            break;
-        case AV_PIX_FMT_RGB8:
-        case AV_PIX_FMT_RGB24:
-        case AV_PIX_FMT_RGB555:
-        case AV_PIX_FMT_RGB565:
-        case AV_PIX_FMT_RGB48:
-            clrfmt = IM_CF_RGB;
-            break;
-        case AV_PIX_FMT_BGR8:
-        case AV_PIX_FMT_BGR24:
-        case AV_PIX_FMT_BGR555:
-        case AV_PIX_FMT_BGR565:
-        case AV_PIX_FMT_BGR48:
-            clrfmt = IM_CF_BGR;
-            break;
-        case AV_PIX_FMT_RGBA:
-        case AV_PIX_FMT_RGB0:
-        case AV_PIX_FMT_RGBA64:
-            clrfmt = IM_CF_RGBA;
-            break;
-        case AV_PIX_FMT_BGRA:
-        case AV_PIX_FMT_BGR0:
-        case AV_PIX_FMT_BGRA64:
-            clrfmt = IM_CF_BGRA;
-            break;
-        case AV_PIX_FMT_ARGB:
-        case AV_PIX_FMT_0RGB:
-            clrfmt = IM_CF_ARGB;
-            break;
-        case AV_PIX_FMT_ABGR:
-        case AV_PIX_FMT_0BGR:
-            clrfmt = IM_CF_ABGR;
-            break;
-        default:
-            Log(Error) << "No matching 'ImColorFormat' value for 'AVPixelFormat' " << (int)pixfmt << "!" << endl;
-            break;
-    }
-    return clrfmt;
+    string fmtLowerCase(name);
+    transform(fmtLowerCase.begin(), fmtLowerCase.end(), fmtLowerCase.begin(), [] (char c) {
+        if (c <= 'Z' && c >= 'A')
+            return (char)(c-('Z'-'z'));
+        return c;
+    });
+    return av_get_pix_fmt(fmtLowerCase.c_str());
 }
 
-static ImColorFormat ConvertPixelFormatToColorFormat(AVPixelFormat pixfmt)
+ImColorFormat ConvertPixelFormatToColorFormat(AVPixelFormat pixfmt)
 {
     const AVPixFmtDescriptor* desc = av_pix_fmt_desc_get(pixfmt);
     ImColorFormat clrfmt = (ImColorFormat)-1;
@@ -145,17 +67,17 @@ static ImColorFormat ConvertPixelFormatToColorFormat(AVPixelFormat pixfmt)
         pixfmt == AV_PIX_FMT_GRAY14 || pixfmt == AV_PIX_FMT_GRAY16 || pixfmt == AV_PIX_FMT_GRAYF32)
         clrfmt = IM_CF_GRAY;
     else if (pixfmt == AV_PIX_FMT_BGR24 || pixfmt == AV_PIX_FMT_BGR48)
-        clrfmt = IM_CF_BGR;
-    else if (pixfmt == AV_PIX_FMT_ABGR || pixfmt == AV_PIX_FMT_0BGR)
-        clrfmt = IM_CF_ABGR;
-    else if (pixfmt == AV_PIX_FMT_BGRA || pixfmt == AV_PIX_FMT_BGR0 || pixfmt == AV_PIX_FMT_BGRA64)
-        clrfmt = IM_CF_BGRA;
-    else if (pixfmt == AV_PIX_FMT_RGB24 || pixfmt == AV_PIX_FMT_RGB48)
         clrfmt = IM_CF_RGB;
-    else if (pixfmt == AV_PIX_FMT_ARGB || pixfmt == AV_PIX_FMT_0RGB)
-        clrfmt = IM_CF_ARGB;
-    else if (pixfmt == AV_PIX_FMT_RGBA || pixfmt == AV_PIX_FMT_RGB0 || pixfmt == AV_PIX_FMT_RGBA64)
+    else if (pixfmt == AV_PIX_FMT_ABGR || pixfmt == AV_PIX_FMT_0BGR)
         clrfmt = IM_CF_RGBA;
+    else if (pixfmt == AV_PIX_FMT_BGRA || pixfmt == AV_PIX_FMT_BGR0 || pixfmt == AV_PIX_FMT_BGRA64)
+        clrfmt = IM_CF_ARGB;
+    else if (pixfmt == AV_PIX_FMT_RGB24 || pixfmt == AV_PIX_FMT_RGB48)
+        clrfmt = IM_CF_BGR;
+    else if (pixfmt == AV_PIX_FMT_ARGB || pixfmt == AV_PIX_FMT_0RGB)
+        clrfmt = IM_CF_BGRA;
+    else if (pixfmt == AV_PIX_FMT_RGBA || pixfmt == AV_PIX_FMT_RGB0 || pixfmt == AV_PIX_FMT_RGBA64)
+        clrfmt = IM_CF_ABGR;
     else if (pixfmt == AV_PIX_FMT_YUV420P || pixfmt == AV_PIX_FMT_YUV420P10 || pixfmt == AV_PIX_FMT_YUV420P12 ||
         pixfmt == AV_PIX_FMT_YUV420P14 || pixfmt == AV_PIX_FMT_YUV420P16)
         clrfmt = IM_CF_YUV420;
@@ -211,40 +133,40 @@ static AVPixelFormat ConvertColorFormatToPixelFormat(ImColorFormat clrfmt, ImDat
     else if (clrfmt == IM_CF_BGR)
     {
         if (dtype == IM_DT_INT8)
-            pixfmt = AV_PIX_FMT_BGR24;
+            pixfmt = AV_PIX_FMT_RGB24;
         else if (dtype == IM_DT_INT16)
-            pixfmt = AV_PIX_FMT_BGR48;
+            pixfmt = AV_PIX_FMT_RGB48;
     }
     else if (clrfmt == IM_CF_ABGR)
     {
         if (dtype == IM_DT_INT8)
-            pixfmt = AV_PIX_FMT_ABGR;
+            pixfmt = AV_PIX_FMT_RGBA;
+        else if (dtype == IM_DT_INT16)
+            pixfmt = AV_PIX_FMT_RGBA64;
     }
     else if (clrfmt == IM_CF_BGRA)
+    {
+        if (dtype == IM_DT_INT8)
+            pixfmt = AV_PIX_FMT_ARGB;
+    }
+    else if (clrfmt == IM_CF_RGB)
+    {
+        if (dtype == IM_DT_INT8)
+            pixfmt = AV_PIX_FMT_BGR24;
+        else if (dtype == IM_DT_INT16)
+            pixfmt = AV_PIX_FMT_BGR48;
+    }
+    else if (clrfmt == IM_CF_ARGB)
     {
         if (dtype == IM_DT_INT8)
             pixfmt = AV_PIX_FMT_BGRA;
         else if (dtype == IM_DT_INT16)
             pixfmt = AV_PIX_FMT_BGRA64;
     }
-    else if (clrfmt == IM_CF_RGB)
-    {
-        if (dtype == IM_DT_INT8)
-            pixfmt = AV_PIX_FMT_RGB24;
-        else if (dtype == IM_DT_INT16)
-            pixfmt = AV_PIX_FMT_RGB48;
-    }
-    else if (clrfmt == IM_CF_ARGB)
-    {
-        if (dtype == IM_DT_INT8)
-            pixfmt = AV_PIX_FMT_ARGB;
-    }
     else if (clrfmt == IM_CF_RGBA)
     {
         if (dtype == IM_DT_INT8)
-            pixfmt = AV_PIX_FMT_RGBA;
-        else if (dtype == IM_DT_INT16)
-            pixfmt = AV_PIX_FMT_RGBA64;
+            pixfmt = AV_PIX_FMT_ABGR;
     }
     else if (clrfmt == IM_CF_YUV420)
     {
@@ -358,6 +280,17 @@ SelfFreeAVFramePtr CloneSelfFreeAVFramePtr(const AVFrame* avfrm)
     return frm;
 }
 
+SelfFreeAVFramePtr WrapSelfFreeAVFramePtr(AVFrame* avfrm)
+{
+    SelfFreeAVFramePtr frm = shared_ptr<AVFrame>(avfrm, [](AVFrame* avfrm) {
+        if (avfrm)
+            av_frame_free(&avfrm);
+    });
+    if (!frm.get())
+        return nullptr;
+    return frm;
+}
+
 bool IsHwFrame(const AVFrame* avfrm)
 {
     const AVPixFmtDescriptor* desc = av_pix_fmt_desc_get((AVPixelFormat)avfrm->format);
@@ -383,8 +316,12 @@ bool MakeAVFrameCopy(AVFrame* dst, const AVFrame* src)
     dst->format = src->format;
     dst->width = src->width;
     dst->height = src->height;
+#if !defined(FF_API_OLD_CHANNEL_LAYOUT) && (LIBAVUTIL_VERSION_MAJOR < 58)
     dst->channels = src->channels;
     dst->channel_layout = src->channel_layout;
+#else
+    dst->ch_layout = src->ch_layout;
+#endif
     dst->sample_rate = dst->sample_rate;
     int fferr;
     if ((fferr = av_frame_get_buffer(dst, 0)) < 0)
@@ -435,10 +372,10 @@ bool ConvertAVFrameToImMat(const AVFrame* avfrm, ImGui::ImMat& vmat, double time
                                 avfrm->colorspace == AVCOL_SPC_BT2020_CL ? IM_CS_BT2020 : IM_CS_BT709;
     ImColorRange color_range =  avfrm->color_range == AVCOL_RANGE_MPEG ? IM_CR_NARROW_RANGE :
                                 avfrm->color_range == AVCOL_RANGE_JPEG ? IM_CR_FULL_RANGE : IM_CR_NARROW_RANGE;
-    int clrfmt = AVPixelFormatToImColorFormat((AVPixelFormat)avfrm->format);
-    if (clrfmt < 0)
+    ImColorFormat clrfmt = ConvertPixelFormatToColorFormat((AVPixelFormat)avfrm->format);
+    if ((int)clrfmt < 0)
         return false;
-    ImColorFormat color_format = (ImColorFormat)clrfmt;
+    ImColorFormat color_format = clrfmt;
     const int width = avfrm->width;
     const int height = avfrm->height;
 
@@ -689,39 +626,32 @@ bool AVFrameToImMatConverter::ConvertImage(const AVFrame* avfrm, ImGui::ImMat& o
             m_errMsg = "Failed to invoke 'ConvertAVFrameToImMat()'!";
             return false;
         }
+        if (inMat.color_format == IM_CF_ABGR || inMat.color_format == IM_CF_ARGB ||
+            inMat.color_format == IM_CF_RGBA || inMat.color_format == IM_CF_BGRA)
+        {
+            outMat = inMat;
+            outMat.time_stamp = timestamp;
+            return true;
+        }
 
         // YUV -> RGB
         ImGui::VkMat rgbMat;
-        const AVPixFmtDescriptor* desc = av_pix_fmt_desc_get((AVPixelFormat)avfrm->format);
         rgbMat.type = IM_DT_INT8;
-        if (!m_imgClrCvt->ConvertColorFormat(inMat, rgbMat))
+        rgbMat.color_format = IM_CF_ABGR;
+        rgbMat.w = m_outWidth;
+        rgbMat.h = m_outHeight;
+        if (!m_imgClrCvt->ConvertColorFormat(inMat, rgbMat, m_resizeInterp))
         {
             m_errMsg = m_imgClrCvt->GetError();
             return false;
         }
-
-        ImGui::ImMat outTmp;
-        // Resize
-        uint32_t outWidth = m_outWidth == 0 ? rgbMat.w : m_outWidth;
-        uint32_t outHeight = m_outHeight == 0 ? rgbMat.h : m_outHeight;
-        if (outWidth != rgbMat.w || outHeight != rgbMat.h)
+        if (m_outputCpuMat && rgbMat.device == IM_DD_VULKAN)
         {
-            ImGui::VkMat rszMat;
-            rszMat.type = IM_DT_INT8;
-            m_imgRsz->Resize(rgbMat, rszMat, (float)outWidth/rgbMat.w, (float)outHeight/rgbMat.h, m_resizeInterp);
-            outTmp = rszMat;
-        }
-        else
-            outTmp = rgbMat;
-
-        if (m_outputCpuMat && outTmp.device == IM_DD_VULKAN)
-        {
-            ImGui::VkMat vkMat = outTmp;
             outMat.type = IM_DT_INT8;
-            m_imgClrCvt->Conv(vkMat, outMat);
+            m_imgClrCvt->Conv(rgbMat, outMat);
         }
         else
-            outMat = outTmp;
+            outMat = rgbMat;
         outMat.time_stamp = timestamp;
         return true;
 #else
@@ -993,7 +923,7 @@ bool ImMatToAVFrameConverter::SetResizeInterpolateMode(ImInterpolateMode interp)
     return true;
 }
 
-bool ImMatToAVFrameConverter::ConvertImage(ImGui::ImMat& vmat, AVFrame* avfrm, int64_t pts)
+bool ImMatToAVFrameConverter::ConvertImage(const ImGui::ImMat& vmat, AVFrame* avfrm, int64_t pts)
 {
     ImGui::ImMat inMat = vmat;
     if (m_useVulkanComponents)
@@ -1055,7 +985,9 @@ bool ImMatToAVFrameConverter::ConvertImage(ImGui::ImMat& vmat, AVFrame* avfrm, i
     }
 #endif
 
-    if (m_outPixfmt == cvtPixfmt && m_outWidth == inMat.w && m_outHeight == inMat.h)
+    int outWidth = m_outWidth>0 ? m_outWidth : inMat.w;
+    int outHeight = m_outHeight>0 ? m_outHeight : inMat.h;
+    if (m_outPixfmt == cvtPixfmt && outWidth == inMat.w && outHeight == inMat.h)
     {
         if (!ConvertImMatToAVFrame(inMat, avfrm, pts))
         {
@@ -1084,11 +1016,12 @@ bool ImMatToAVFrameConverter::ConvertImage(ImGui::ImMat& vmat, AVFrame* avfrm, i
             sws_freeContext(m_swsCtx);
             m_swsCtx = nullptr;
         }
-        m_swsCtx = sws_getContext(inMat.w, inMat.h, cvtPixfmt, m_outWidth, m_outHeight, m_outPixfmt, m_swsFlags, nullptr, nullptr, nullptr);
+        m_swsCtx = sws_getContext(inMat.w, inMat.h, cvtPixfmt, outWidth, outHeight, m_outPixfmt, m_swsFlags, nullptr, nullptr, nullptr);
         if (!m_swsCtx)
         {
             ostringstream oss;
-            oss << "FAILED to create SwsContext from WxH(" << inMat.w << "x" << inMat.h << "):Fmt(" << (int)cvtPixfmt << ") -> WxH(" << m_outWidth << "x" << m_outHeight << "):Fmt(" << (int)m_outPixfmt << ") with flags(" << m_swsFlags << ")!";
+            oss << "FAILED to create SwsContext from WxH(" << inMat.w << "x" << inMat.h << "):Fmt(" << (int)cvtPixfmt
+                << ") -> WxH(" << outWidth << "x" << outHeight << "):Fmt(" << (int)m_outPixfmt << ") with flags(" << m_swsFlags << ")!";
             m_errMsg = oss.str();
             return false;
         }
@@ -1105,8 +1038,8 @@ bool ImMatToAVFrameConverter::ConvertImage(ImGui::ImMat& vmat, AVFrame* avfrm, i
 
     av_frame_unref(avfrm);
     avfrm->format = m_outPixfmt;
-    avfrm->width = m_outWidth;
-    avfrm->height = m_outHeight;
+    avfrm->width = outWidth;
+    avfrm->height = outHeight;
     int fferr;
     fferr = av_frame_get_buffer(avfrm, 0);
     if (fferr < 0)
@@ -1116,13 +1049,529 @@ bool ImMatToAVFrameConverter::ConvertImage(ImGui::ImMat& vmat, AVFrame* avfrm, i
         m_errMsg = oss.str();
         return false;
     }
-    fferr = sws_scale(m_swsCtx, cvtfrm->data, cvtfrm->linesize, 0, m_outHeight, avfrm->data, avfrm->linesize);
+    fferr = sws_scale(m_swsCtx, cvtfrm->data, cvtfrm->linesize, 0, outHeight, avfrm->data, avfrm->linesize);
     av_frame_copy_props(avfrm, cvtfrm.get());
 
     return true;
 }
 
-MediaInfo::Ratio MediaInfoRatioFromAVRational(const AVRational& src)
+static void ImMatWrapper_AVFrame_buffer_free(void *opaque, uint8_t *data)
+{
+    // do nothing
+    return;
+}
+
+static AVSampleFormat GetAVSampleFormatByDataType(ImDataType dataType, bool isPlanar)
+{
+    AVSampleFormat smpfmt;
+    switch (dataType)
+    {
+        case IM_DT_INT8:
+            smpfmt = isPlanar ? AV_SAMPLE_FMT_U8P : AV_SAMPLE_FMT_U8;
+            break;
+        case IM_DT_INT16:
+            smpfmt = isPlanar ? AV_SAMPLE_FMT_S16P : AV_SAMPLE_FMT_S16;
+            break;
+        case IM_DT_INT32:
+            smpfmt = isPlanar ? AV_SAMPLE_FMT_S32P : AV_SAMPLE_FMT_S32;
+            break;
+        case IM_DT_INT64:
+            smpfmt = isPlanar ? AV_SAMPLE_FMT_S64P : AV_SAMPLE_FMT_S64;
+            break;
+        case IM_DT_FLOAT32:
+            smpfmt = isPlanar ? AV_SAMPLE_FMT_FLTP : AV_SAMPLE_FMT_FLT;
+            break;
+        case IM_DT_FLOAT64:
+            smpfmt = isPlanar ? AV_SAMPLE_FMT_DBLP : AV_SAMPLE_FMT_DBL;
+            break;
+        default:
+            smpfmt = AV_SAMPLE_FMT_NONE;
+    }
+    return smpfmt;
+}
+
+SelfFreeAVFramePtr ImMatWrapper_AVFrame::GetWrapper(int64_t pts)
+{
+    SelfFreeAVFramePtr avfrm = AllocSelfFreeAVFramePtr();
+    if (!avfrm)
+    {
+        Log(Error) << "FAILED to allocate new AVFrame instance by 'av_frame_alloc()'!" << endl;
+        return nullptr;
+    }
+    if (m_isVideo)
+    {
+        avfrm->width = m_mat.w;
+        avfrm->height = m_mat.h;
+        AVPixelFormat pixfmt = ConvertColorFormatToPixelFormat(m_mat.color_format, m_mat.type);
+        if (pixfmt == AV_PIX_FMT_NONE)
+        {
+            Log(Error) << "CANNOT find suitable AVPixelFormat for ImColorFormat " << m_mat.color_format << "!" << endl;
+            return nullptr;
+        }
+        avfrm->format = (int)pixfmt;
+        AVBufferRef* extBufRef = av_buffer_create((uint8_t*)m_mat.data, m_mat.total()*m_mat.elemsize, ImMatWrapper_AVFrame_buffer_free, this, AV_BUFFER_FLAG_READONLY);
+        memset(avfrm->data, 0, sizeof(avfrm->data));
+        memset(avfrm->linesize, 0, sizeof(avfrm->linesize));
+        memset(avfrm->buf, 0, sizeof(avfrm->buf));
+        avfrm->data[0] = (uint8_t*)m_mat.data;
+        avfrm->linesize[0] = m_mat.w*m_mat.c*m_mat.elemsize;
+        avfrm->buf[0] = extBufRef;
+    }
+    else
+    {
+        memset(avfrm->data, 0, sizeof(avfrm->data));
+        memset(avfrm->linesize, 0, sizeof(avfrm->linesize));
+        memset(avfrm->buf, 0, sizeof(avfrm->buf));
+        avfrm->nb_samples = m_mat.w;
+        const int channels = m_mat.c;
+#if !defined(FF_API_OLD_CHANNEL_LAYOUT) && (LIBAVUTIL_VERSION_MAJOR < 58)
+        avfrm->channels = channels;
+        avfrm->channel_layout = av_get_default_channel_layout(channels);
+#else
+        av_channel_layout_default(&avfrm->ch_layout, channels);
+#endif
+        bool isPlanar = channels==1 ? false : m_mat.elempack==1;
+        AVSampleFormat smpfmt = GetAVSampleFormatByDataType(m_mat.type, isPlanar);
+        avfrm->format = (int)smpfmt;
+        avfrm->sample_rate = m_mat.rate.num;
+        const int bytesPerSample = av_get_bytes_per_sample(smpfmt);
+        if (isPlanar)
+        {
+            int bytesPerPlan = avfrm->nb_samples*bytesPerSample;
+            avfrm->linesize[0] = bytesPerPlan;
+            uint8_t* bufptr = (uint8_t*)m_mat.data;
+            for (int i = 0; i < channels; i++)
+            {
+                AVBufferRef* extBufRef = av_buffer_create(bufptr, bytesPerPlan, ImMatWrapper_AVFrame_buffer_free, this, AV_BUFFER_FLAG_READONLY);
+                avfrm->data[i] = bufptr;
+                avfrm->buf[i] = extBufRef;
+                bufptr += bytesPerPlan;
+            }
+        }
+        else
+        {
+            int bufsize = avfrm->nb_samples*bytesPerSample*channels;
+            avfrm->linesize[0] = bufsize;
+            uint8_t* bufptr = (uint8_t*)m_mat.data;
+            AVBufferRef* extBufRef = av_buffer_create(bufptr, bufsize, ImMatWrapper_AVFrame_buffer_free, this, AV_BUFFER_FLAG_READONLY);
+            avfrm->data[0] = bufptr;
+            avfrm->buf[0] = extBufRef;
+        }
+    }
+    avfrm->pts = pts;
+    return avfrm;
+}
+
+FFOverlayBlender::FFOverlayBlender()
+{
+    m_cvtMat2Avfrm.SetOutPixelFormat(AV_PIX_FMT_RGBA);
+}
+
+FFOverlayBlender::~FFOverlayBlender()
+{
+    if (m_avfg)
+    {
+        avfilter_graph_free(&m_avfg);
+        m_avfg = nullptr;
+    }
+    m_bufSrcCtxs.clear();
+    m_bufSinkCtxs.clear();
+    if (m_filterOutputs)
+        avfilter_inout_free(&m_filterOutputs);
+    if (m_filterInputs)
+        avfilter_inout_free(&m_filterInputs);
+}
+
+bool FFOverlayBlender::Init(const std::string& inputFormat, uint32_t w1, uint32_t h1, uint32_t w2, uint32_t h2, int32_t x, int32_t y, bool evalPerFrame)
+{
+    if (w1 == 0 || h1 == 0)
+    {
+        m_errMsg = "INVALID argument value for 'w1' or 'h1'!";
+        return false;
+    }
+    if (w2 == 0 || h2 == 0)
+    {
+        m_errMsg = "INVALID argument value for 'w2' or 'h2'!";
+        return false;
+    }
+    AVPixelFormat inPixfmt = GetAVPixelFormatByName(inputFormat);
+    if (inPixfmt == AV_PIX_FMT_NONE)
+    {
+        m_errMsg = "INVALID argument value for 'inputFormat'!";
+        return false;
+    }
+
+    const AVFilter *buffersrc  = avfilter_get_by_name("buffer");
+    const AVFilter *buffersink = avfilter_get_by_name("buffersink");
+
+    m_avfg = avfilter_graph_alloc();
+    if (!m_avfg)
+    {
+        m_errMsg = "FAILED to allocate new 'AVFilterGraph'!";
+        return false;
+    }
+
+    int fferr;
+    ostringstream oss;
+    oss << w1 << ":" << h1 << ":pix_fmt=" << (int)inPixfmt << ":time_base=1/" << AV_TIME_BASE << ":sar=1:frame_rate=25/1";
+    string bufsrcArg = oss.str(); oss.str("");
+    AVFilterContext* filterCtx = nullptr;
+    string filterName = "base";
+    fferr = avfilter_graph_create_filter(&filterCtx, buffersrc, filterName.c_str(), bufsrcArg.c_str(), nullptr, m_avfg);
+    if (fferr < 0)
+    {
+        oss << "FAILED when invoking 'avfilter_graph_create_filter' for INPUT '" << filterName << "'! fferr=" << fferr << ".";
+        m_errMsg = oss.str();
+        return false;
+    }
+    AVFilterInOut* filtInOutPtr = avfilter_inout_alloc();
+    if (!filtInOutPtr)
+    {
+        m_errMsg = "FAILED to allocate 'AVFilterInOut' instance!";
+        return false;
+    }
+    filtInOutPtr->name       = av_strdup(filterName.c_str());
+    filtInOutPtr->filter_ctx = filterCtx;
+    filtInOutPtr->pad_idx    = 0;
+    filtInOutPtr->next       = nullptr;
+    m_filterOutputs = filtInOutPtr;
+    m_bufSrcCtxs.push_back(filterCtx);
+
+    filterName = "overlay"; filterCtx = nullptr;
+    oss << w2 << ":" << h2 << ":pix_fmt=" << (int)inPixfmt << ":time_base=1/" << AV_TIME_BASE << ":sar=1:frame_rate=25/1";
+    bufsrcArg = oss.str(); oss.str("");
+    fferr = avfilter_graph_create_filter(&filterCtx, buffersrc, filterName.c_str(), bufsrcArg.c_str(), nullptr, m_avfg);
+    if (fferr < 0)
+    {
+        oss << "FAILED when invoking 'avfilter_graph_create_filter' for INPUT '" << filterName << "'! fferr=" << fferr << ".";
+        m_errMsg = oss.str();
+        return false;
+    }
+    filtInOutPtr = avfilter_inout_alloc();
+    if (!filtInOutPtr)
+    {
+        m_errMsg = "FAILED to allocate 'AVFilterInOut' instance!";
+        return false;
+    }
+    filtInOutPtr->name       = av_strdup(filterName.c_str());
+    filtInOutPtr->filter_ctx = filterCtx;
+    filtInOutPtr->pad_idx    = 0;
+    filtInOutPtr->next       = nullptr;
+    m_filterOutputs->next = filtInOutPtr;
+    m_bufSrcCtxs.push_back(filterCtx);
+
+    filterName = "out"; filterCtx = nullptr;
+    fferr = avfilter_graph_create_filter(&filterCtx, buffersink, filterName.c_str(), nullptr, nullptr, m_avfg);
+    if (fferr < 0)
+    {
+        oss << "FAILED when invoking 'avfilter_graph_create_filter' for OUTPUT 'out'! fferr=" << fferr << ".";
+        m_errMsg = oss.str();
+        return false;
+    }
+    const AVPixelFormat out_pix_fmts[] = { AV_PIX_FMT_RGBA, (AVPixelFormat)-1 };
+    fferr = av_opt_set_int_list(filterCtx, "pix_fmts", out_pix_fmts, -1, AV_OPT_SEARCH_CHILDREN);
+    if (fferr < 0)
+    {
+        oss << "FAILED when invoking 'av_opt_set_int_list' for OUTPUTS! fferr=" << fferr << ".";
+        m_errMsg = oss.str();
+        return false;
+    }
+    filtInOutPtr = avfilter_inout_alloc();
+    if (!filtInOutPtr)
+    {
+        m_errMsg = "FAILED to allocate 'AVFilterInOut' instance!";
+        return false;
+    }
+    filtInOutPtr->name        = av_strdup(filterName.c_str());
+    filtInOutPtr->filter_ctx  = filterCtx;
+    filtInOutPtr->pad_idx     = 0;
+    filtInOutPtr->next        = nullptr;
+    m_filterInputs = filtInOutPtr;
+    m_bufSinkCtxs.push_back(filterCtx);
+
+    oss << "[base][overlay] overlay=x=" << x << ":y=" << y << ":format=auto:eof_action=pass:eval=" << (evalPerFrame ? "frame" : "init");
+    string filterArgs = oss.str();
+    fferr = avfilter_graph_parse_ptr(m_avfg, filterArgs.c_str(), &m_filterInputs, &m_filterOutputs, nullptr);
+    if (fferr < 0)
+    {
+        oss << "FAILED to invoke 'avfilter_graph_parse_ptr'! fferr=" << fferr << ".";
+        m_errMsg = oss.str();
+        return false;
+    }
+
+    fferr = avfilter_graph_config(m_avfg, nullptr);
+    if (fferr < 0)
+    {
+        oss << "FAILED to invoke 'avfilter_graph_config'! fferr=" << fferr << ".";
+        m_errMsg = oss.str();
+        return false;
+    }
+
+    if (m_filterOutputs)
+        avfilter_inout_free(&m_filterOutputs);
+    if (m_filterInputs)
+        avfilter_inout_free(&m_filterInputs);
+    m_x = x;
+    m_y = y;
+    return true;
+}
+
+bool FFOverlayBlender::Init()
+{
+    return Init("rgba", 1920, 1080, 1920, 1080, 0, 0, true);
+}
+
+ImGui::ImMat FFOverlayBlender::Blend(ImGui::ImMat& baseImage, ImGui::ImMat& overlayImage, int32_t x, int32_t y, uint32_t w, uint32_t h)
+{
+    if (baseImage.empty() || overlayImage.empty())
+        return baseImage;
+
+    int fferr;
+    char cmdArgs[32] = {0}, cmdRes[128] = {0};
+    if (m_x != x)
+    {
+        snprintf(cmdArgs, sizeof(cmdArgs)-1, "%d", x);
+        fferr = avfilter_graph_send_command(m_avfg, "overlay", "x", cmdArgs, cmdRes, sizeof(cmdRes)-1, 0);
+        if (fferr < 0)
+        {
+            ostringstream oss;
+            oss << "FAILED to invoke 'avfilter_graph_send_command()' on argument 'x' = " << x
+                << "! fferr = " << fferr << ", response = '" << cmdRes <<"'.";
+            m_errMsg = oss.str();
+            return ImGui::ImMat();
+        }
+        m_x = x;
+    }
+    if (m_y != y)
+    {
+        snprintf(cmdArgs, sizeof(cmdArgs)-1, "%d", y);
+        fferr = avfilter_graph_send_command(m_avfg, "overlay", "y", cmdArgs, cmdRes, sizeof(cmdRes)-1, 0);
+        if (fferr < 0)
+        {
+            ostringstream oss;
+            oss << "FAILED to invoke 'avfilter_graph_send_command()' on argument 'y' = " << x
+                << "! fferr = " << fferr << ", response = '" << cmdRes <<"'.";
+            m_errMsg = oss.str();
+            return ImGui::ImMat();
+        }
+        m_y = y;
+    }
+
+    ImGui::ImMat res = baseImage;
+    int64_t pts = (m_inputCount++)*AV_TIME_BASE/25;
+
+    ImMatWrapper_AVFrame baseImgWrapper(baseImage, true);
+    SelfFreeAVFramePtr baseAvfrmPtr;
+    if (baseImage.device != IM_DD_CPU)
+    {
+        baseAvfrmPtr = AllocSelfFreeAVFramePtr();
+        m_cvtMat2Avfrm.ConvertImage(baseImage, baseAvfrmPtr.get(), pts);
+    }
+    else
+    {
+        baseAvfrmPtr = baseImgWrapper.GetWrapper(pts);
+    }
+    fferr = av_buffersrc_add_frame_flags(m_bufSrcCtxs[0], baseAvfrmPtr.get(), AV_BUFFERSRC_FLAG_NO_CHECK_FORMAT);
+    if (fferr < 0)
+    {
+        ostringstream oss;
+        oss << "FAILED to invoke 'av_buffersrc_add_frame_flags()' for 'base' image! fferr = " << fferr << ".";
+        m_errMsg = oss.str();
+        return ImGui::ImMat();
+    }
+    ImMatWrapper_AVFrame ovlyImgWrapper(overlayImage, true);
+    SelfFreeAVFramePtr ovlyAvfrmPtr;
+    if (overlayImage.device != IM_DD_CPU)
+    {
+        ovlyAvfrmPtr = AllocSelfFreeAVFramePtr();
+        m_cvtMat2Avfrm.ConvertImage(overlayImage, ovlyAvfrmPtr.get(), pts);
+    }
+    else
+    {
+        ovlyAvfrmPtr = ovlyImgWrapper.GetWrapper(pts);
+    }
+    fferr = av_buffersrc_add_frame_flags(m_bufSrcCtxs[1], ovlyAvfrmPtr.get(), AV_BUFFERSRC_FLAG_NO_CHECK_FORMAT);
+    if (fferr < 0)
+    {
+        ostringstream oss;
+        oss << "FAILED to invoke 'av_buffersrc_add_frame_flags()' for 'overlay' image! fferr = " << fferr << ".";
+        m_errMsg = oss.str();
+        return ImGui::ImMat();
+    }
+    SelfFreeAVFramePtr outAvfrmPtr = AllocSelfFreeAVFramePtr();
+    fferr = av_buffersink_get_frame(m_bufSinkCtxs[0], outAvfrmPtr.get());
+    if (fferr < 0)
+    {
+        ostringstream oss; 
+        oss << "FAILED to invoke 'av_buffersink_get_frame()' for 'out' image! fferr = " << fferr << ".";
+        m_errMsg = oss.str();
+        return ImGui::ImMat();
+    }
+    if (!m_cvtInited)
+    {
+        m_cvtAvfrm2Mat.SetOutSize(outAvfrmPtr->width, outAvfrmPtr->height);
+        m_cvtAvfrm2Mat.SetOutColorFormat(baseImage.color_format);
+        m_cvtInited = true;
+    }
+    if (!m_cvtAvfrm2Mat.ConvertImage(outAvfrmPtr.get(), res, baseImage.time_stamp))
+    {
+        ostringstream oss;
+        oss << "FAILED to convert output AVFrame to ImMat! Converter error message is '" << m_cvtAvfrm2Mat.GetError() << "'.";
+        m_errMsg = oss.str();
+        return ImGui::ImMat();
+    }
+    return res;
+}
+
+ImGui::ImMat FFOverlayBlender::Blend(ImGui::ImMat& baseImage, ImGui::ImMat& overlayImage)
+{
+    return Blend(baseImage, overlayImage, m_x, m_y, overlayImage.w, overlayImage.h);
+}
+
+static ImDataType GetImDataTypeByAVSampleFormat(AVSampleFormat smpfmt)
+{
+    ImDataType dtype = IM_DT_UNDEFINED;
+    switch (smpfmt)
+    {
+    case AV_SAMPLE_FMT_U8:
+    case AV_SAMPLE_FMT_U8P:
+        dtype = IM_DT_INT8;
+        break;
+    case AV_SAMPLE_FMT_S16:
+    case AV_SAMPLE_FMT_S16P:
+        dtype = IM_DT_INT16;
+        break;
+    case AV_SAMPLE_FMT_S32:
+    case AV_SAMPLE_FMT_S32P:
+        dtype = IM_DT_INT32;
+        break;
+    case AV_SAMPLE_FMT_FLT:
+    case AV_SAMPLE_FMT_FLTP:
+        dtype = IM_DT_FLOAT32;
+        break;
+    case AV_SAMPLE_FMT_DBL:
+    case AV_SAMPLE_FMT_DBLP:
+        dtype = IM_DT_FLOAT64;
+        break;
+    case AV_SAMPLE_FMT_S64:
+    case AV_SAMPLE_FMT_S64P:
+        dtype = IM_DT_INT64;
+        break;
+    default:
+        break;
+    }
+    return dtype;
+}
+
+static AVSampleFormat GetAVSampleFormatByImDataType(ImDataType dtype, bool isPlanar)
+{
+    AVSampleFormat smpfmt = AV_SAMPLE_FMT_NONE;
+    switch (dtype)
+    {
+    case IM_DT_INT8:
+        smpfmt = AV_SAMPLE_FMT_U8;
+        break;
+    case IM_DT_INT16:
+        smpfmt = AV_SAMPLE_FMT_S16;
+        break;
+    case IM_DT_INT32:
+        smpfmt = AV_SAMPLE_FMT_S32;
+        break;
+    case IM_DT_FLOAT32:
+        smpfmt = AV_SAMPLE_FMT_FLT;
+        break;
+    case IM_DT_FLOAT64:
+        smpfmt = AV_SAMPLE_FMT_DBL;
+        break;
+    case IM_DT_INT64:
+        smpfmt = AV_SAMPLE_FMT_S64;
+        break;
+    default:
+        break;
+    }
+    if (smpfmt != AV_SAMPLE_FMT_NONE && isPlanar)
+        smpfmt = av_get_planar_sample_fmt(smpfmt);
+    return smpfmt;
+}
+
+bool AudioImMatAVFrameConverter::ConvertAVFrameToImMat(const AVFrame* avfrm, ImGui::ImMat& amat, double timestamp)
+{
+    amat.release();
+    ImDataType dtype = GetImDataTypeByAVSampleFormat((AVSampleFormat)avfrm->format);
+    bool isPlanar = av_sample_fmt_is_planar((AVSampleFormat)avfrm->format) == 1;
+#if !defined(FF_API_OLD_CHANNEL_LAYOUT) && (LIBAVUTIL_VERSION_MAJOR < 58)
+    const int channels = avfrm->channels;
+#else
+    const int channels = avfrm->ch_layout.nb_channels;
+#endif
+    amat.create_type(avfrm->nb_samples, (int)1, channels, dtype);
+    amat.elempack = isPlanar ? 1 : channels;
+    int bytesPerSample = av_get_bytes_per_sample((AVSampleFormat)avfrm->format);
+    int bytesPerLine = avfrm->nb_samples*bytesPerSample*(isPlanar?1:channels);
+    if (isPlanar)
+    {
+        uint8_t* dstptr = (uint8_t*)amat.data;
+        for (int i = 0; i < channels; i++)
+        {
+            const uint8_t* srcptr = i < 8 ? avfrm->data[i] : avfrm->extended_data[i-8];
+            memcpy(dstptr, srcptr, bytesPerLine);
+            dstptr += bytesPerLine;
+        }
+    }
+    else
+    {
+        int totalBytes = bytesPerLine;
+        memcpy(amat.data, avfrm->data[0], totalBytes);
+    }
+    amat.rate = { avfrm->sample_rate, 1 };
+    amat.time_stamp = timestamp;
+    amat.elempack = isPlanar ? 1 : channels;
+    return true;
+}
+
+bool AudioImMatAVFrameConverter::ConvertImMatToAVFrame(const ImGui::ImMat& amat, AVFrame* avfrm, int64_t pts)
+{
+    av_frame_unref(avfrm);
+    bool isPlanar = amat.elempack == 1;
+    avfrm->format = (int)GetAVSampleFormatByImDataType(amat.type, isPlanar);
+    avfrm->nb_samples = amat.w;
+    const int channels = amat.c;
+#if !defined(FF_API_OLD_CHANNEL_LAYOUT) && (LIBAVUTIL_VERSION_MAJOR < 58)
+    avfrm->channels = channels;
+    avfrm->channel_layout = av_get_default_channel_layout(channels);
+#else
+    av_channel_layout_default(&avfrm->ch_layout, channels);
+#endif
+    int fferr = av_frame_get_buffer(avfrm, 0);
+    if (fferr < 0)
+    {
+        std::cerr << "FAILED to allocate buffer for audio AVFrame! format=" << av_get_sample_fmt_name((AVSampleFormat)avfrm->format)
+                << ", nb_samples=" << avfrm->nb_samples << ", channels=" << channels << ". fferr=" << fferr << "." << std::endl;
+        return false;
+    }
+    int bytesPerSample = av_get_bytes_per_sample((AVSampleFormat)avfrm->format);
+    int bytesPerLine = avfrm->nb_samples*bytesPerSample*(isPlanar?1:channels);
+    if (isPlanar)
+    {
+        const uint8_t* srcptr = (const uint8_t*)amat.data;
+        for (int i = 0; i < channels; i++)
+        {
+            uint8_t* dstptr = i < 8 ? avfrm->data[i] : avfrm->extended_data[i-8];
+            memcpy(dstptr, srcptr, bytesPerLine);
+            srcptr += bytesPerLine;
+        }
+    }
+    else
+    {
+        int totalBytes = bytesPerLine;
+        memcpy(avfrm->data[0], amat.data, totalBytes);
+    }
+    avfrm->sample_rate = amat.rate.num;
+    avfrm->pts = pts;
+    return true;
+}
+
+static MediaInfo::Ratio MediaInfoRatioFromAVRational(const AVRational& src)
 {
     return { src.num, src.den };
 }
@@ -1132,8 +1581,10 @@ MediaInfo::InfoHolder GenerateMediaInfoByAVFormatContext(const AVFormatContext* 
     MediaInfo::InfoHolder hInfo(new MediaInfo::Info());
     hInfo->url = string(avfmtCtx->url);
     double fftb = av_q2d(FF_AV_TIMEBASE);
-    hInfo->duration = avfmtCtx->duration*fftb;
-    hInfo->startTime = avfmtCtx->start_time*fftb;
+    if (avfmtCtx->duration != AV_NOPTS_VALUE)
+        hInfo->duration = avfmtCtx->duration*fftb;
+    if (avfmtCtx->start_time != AV_NOPTS_VALUE)
+        hInfo->startTime = avfmtCtx->start_time*fftb;
     hInfo->streams.reserve(avfmtCtx->nb_streams);
     for (uint32_t i = 0; i < avfmtCtx->nb_streams; i++)
     {
@@ -1162,8 +1613,13 @@ MediaInfo::InfoHolder GenerateMediaInfoByAVFormatContext(const AVFormatContext* 
                 vidStream->sampleAspectRatio = {1, 1};
             vidStream->avgFrameRate = MediaInfoRatioFromAVRational(stream->avg_frame_rate);
             vidStream->realFrameRate = MediaInfoRatioFromAVRational(stream->r_frame_rate);
+            auto cdcdesc = avcodec_descriptor_get(codecpar->codec_id);
+            string mimeType = cdcdesc && cdcdesc->mime_types ? string(cdcdesc->mime_types[0]) : "";
             string demuxerName(avfmtCtx->iformat->name);
-            if (demuxerName.find("image2") != string::npos || demuxerName.find("_pipe") != string::npos)
+            if (demuxerName.find("image2") != string::npos ||
+                demuxerName.find("_pipe") != string::npos ||
+                demuxerName.find("mp3") != string::npos ||
+                mimeType.find("image/") != string::npos)
                 vidStream->isImage = true;
             if (!vidStream->isImage)
             {
@@ -1175,7 +1631,10 @@ MediaInfo::InfoHolder GenerateMediaInfoByAVFormatContext(const AVFormatContext* 
                     vidStream->frameNum = (uint64_t)(stream->duration*av_q2d(stream->avg_frame_rate));
             }
             else
+            {
                 vidStream->frameNum = stream->nb_frames > 0 ? stream->nb_frames : 1;
+                if (vidStream->duration < 0) vidStream->duration = 0;
+            }
             switch (codecpar->color_trc)
             {
                 case AVCOL_TRC_SMPTE2084:
@@ -1186,7 +1645,7 @@ MediaInfo::InfoHolder GenerateMediaInfoByAVFormatContext(const AVFormatContext* 
                     vidStream->isHdr = false;
             }
             const AVPixFmtDescriptor* desc = av_pix_fmt_desc_get((AVPixelFormat)codecpar->format);
-            if (desc->nb_components > 0)
+            if (desc && desc->nb_components > 0)
                 vidStream->bitDepth = desc->comp[0].depth;
             hStream = MediaInfo::StreamHolder(vidStream);
         }
@@ -1207,6 +1666,21 @@ MediaInfo::InfoHolder GenerateMediaInfoByAVFormatContext(const AVFormatContext* 
             audStream->sampleRate = codecpar->sample_rate;
             audStream->bitDepth = av_get_bytes_per_sample((AVSampleFormat)codecpar->format) << 3;
             hStream = MediaInfo::StreamHolder(audStream);
+        }
+        else if (codecpar->codec_type == AVMEDIA_TYPE_SUBTITLE)
+        {
+            auto subStream = new MediaInfo::SubtitleStream();
+            subStream->bitRate = codecpar->bit_rate;
+            if (stream->start_time != AV_NOPTS_VALUE)
+                subStream->startTime = stream->start_time*streamtb;
+            else
+                subStream->startTime = hInfo->startTime;
+            if (stream->duration > 0)
+                subStream->duration = stream->duration*streamtb;
+            else
+                subStream->duration = hInfo->duration;
+            subStream->timebase = MediaInfoRatioFromAVRational(stream->time_base);
+            hStream = MediaInfo::StreamHolder(subStream);
         }
         if (hStream)
             hInfo->streams.push_back(hStream);
