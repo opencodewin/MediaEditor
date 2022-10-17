@@ -376,8 +376,6 @@ public:
             m_errMsg = "Invalid argument value for 'pos'! Can NOT be NEGATIVE.";
             return false;
         }
-        if (m_tracks.empty())
-            return false;
 
         bool needSeek = false;
         uint32_t targetFrmidx = (int64_t)(ceil((double)pos*m_frameRate.num/(m_frameRate.den*1000)));
@@ -490,8 +488,6 @@ public:
             m_errMsg = "This MultiTrackVideoReader instance is NOT started yet!";
             return false;
         }
-        if (m_tracks.empty())
-            return false;
 
         bool lockAquaired = false;
         while (!m_quit)

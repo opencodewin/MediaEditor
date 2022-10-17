@@ -2957,6 +2957,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImR
         else
         {
             frame.create_type(timeline->mWidth, timeline->mHeight, 4, IM_DT_INT8);
+            frame.fill((int8_t)0);
             CalculateVideoScope(frame);
             ImGui::ImMatToTexture(frame, timeline->mMainPreviewTexture);
         }
