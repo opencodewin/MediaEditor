@@ -1006,6 +1006,12 @@ struct TimeLine
     void SyncDataLayer();
     SnapshotGeneratorHolder GetSnapshotGenerator(int64_t mediaItemId);
     void ConfigSnapshotWindow(int64_t viewWndDur);
+
+    std::list<imgui_json::value> mHistoryRecords;
+    std::list<imgui_json::value>::iterator mRecordIter;
+    void AddNewRecord(imgui_json::value& record);
+    bool UndoOneRecord();
+    bool RedoOneRecord();
 };
 
 bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable = true);

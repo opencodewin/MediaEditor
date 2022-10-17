@@ -4108,6 +4108,7 @@ TimeLine::TimeLine()
 
     m_audio_channel_data.clear();
     m_audio_channel_data.resize(mAudioChannels);
+    mRecordIter = mHistoryRecords.begin();
 }
 
 TimeLine::~TimeLine()
@@ -6269,6 +6270,112 @@ void TimeLine::_EncodeProc()
     mIsEncoding = false;
     Logger::Log(Logger::DEBUG) << "<<<<<<<<<<<<< Quit encoding proc <<<<<<<<<<<<<<<<" << std::endl;
 }
+
+void TimeLine::AddNewRecord(imgui_json::value& record)
+{
+    // truncate the history record list if needed
+    if (mRecordIter != mHistoryRecords.end())
+        mHistoryRecords.erase(mRecordIter, mHistoryRecords.end());
+    mHistoryRecords.push_back(std::move(record));
+    mRecordIter = mHistoryRecords.end();
+}
+
+bool TimeLine::UndoOneRecord()
+{
+    if (mRecordIter == mHistoryRecords.begin())
+        return false;
+
+    mRecordIter--;
+    auto& record = *mRecordIter;
+    auto& actions = record["actions"].get<imgui_json::array>();
+    for (auto& action : actions)
+    {
+        std::string& actionName = action["action"].get<imgui_json::string>();
+        if (actionName == "ADD_TRACK")
+        {
+            // undo 'ADD_TRACK'
+            int64_t trackId = action["track_id"].get<imgui_json::number>();
+            int i = 0;
+            for (; i < m_Tracks.size(); i++)
+            {
+                if (m_Tracks[i]->mID == trackId)
+                    break;
+            }
+            if (i < m_Tracks.size())
+            {
+                DeleteTrack(i);
+                imgui_json::value undoAction = action;
+                undoAction["action"] = "REMOVE_TRACK";
+                mUiActions.push_back(std::move(undoAction));
+            }
+        }
+        else if (actionName == "ADD_CLIP")
+        {
+            // undo 'ADD_CLIP'
+            int64_t clipId = action["clip_id"].get<imgui_json::number>();
+            auto track = FindTrackByClipID(clipId);
+            if (track)
+            {
+                track->DeleteClip(clipId);
+                DeleteClip(clipId);
+                imgui_json::value undoAction = action;
+                undoAction["action"] = "REMOVE_CLIP";
+                mUiActions.push_back(std::move(undoAction));
+            }
+        }
+        else
+        {
+            Logger::Log(Logger::WARN) << "Unhandled UNDO action '" << actionName << "'!" << std::endl;
+        }
+    }
+    return true;
+}
+
+bool TimeLine::RedoOneRecord()
+{
+    if (mRecordIter == mHistoryRecords.begin())
+        return false;
+
+    auto& record = *mRecordIter;
+    mRecordIter++;
+    auto& actions = record["actions"].get<imgui_json::array>();
+    for (auto& action : actions)
+    {
+        std::string& actionName = action["action"].get<imgui_json::string>();
+        if (actionName == "ADD_TRACK")
+        {
+            uint32_t type = action["media_type"].get<imgui_json::number>();
+            int newTrackIndex = NewTrack("", type, true);
+            m_Tracks[newTrackIndex]->mID = action["track_id"].get<imgui_json::number>();
+        }
+        else if (actionName == "ADD_CLIP")
+        {
+            MediaTrack* track = FindTrackByID(action["to_track_id"].get<imgui_json::number>());
+            MediaItem* item = FindMediaItemByID(action["media_id"].get<imgui_json::number>());
+            uint32_t type = action["media_type"].get<imgui_json::number>();
+            if (type == MEDIA_VIDEO)
+            {
+                SnapshotGenerator::ViewerHolder hViewer;
+                SnapshotGeneratorHolder hSsGen = GetSnapshotGenerator(item->mID);
+                if (hSsGen) hViewer = hSsGen->CreateViewer();
+                new VideoClip(item->mStart, item->mEnd, item->mID, item->mName + ":Video", item->mMediaOverview->GetMediaParser(), hViewer, this);
+            }
+            else if (type == MEDIA_SUBTYPE_VIDEO_IMAGE)
+            {
+                VideoClip* newClip = new VideoClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, this);
+            }
+            else if (type == MEDIA_AUDIO)
+            {
+                AudioClip* newClip = new AudioClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, this);
+            }
+            else
+            {
+
+            }
+        }
+    }
+    return true;
+}
 } // namespace MediaTimeline/TimeLine
 
 namespace MediaTimeline
@@ -7449,6 +7556,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 imgui_json::value action;
                 action["action"] = "ADD_CLIP";
                 action["media_type"] = imgui_json::number(item->mMediaType);
+                action["media_id"] = imgui_json::number(item->mID);
                 if (track)
                     action["to_track_id"] = imgui_json::number(track->mID);
                 action["start"] = imgui_json::number(item->mStart);
@@ -7763,10 +7871,25 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
     //ImGui::ShowMetricsWindow();
     // for debug end
 
+    if (ImGui::IsKeyDown(ImGuiKey_Z) && io.KeyMods == ImGuiModFlags_Ctrl)
+    {
+        if (!timeline->mUiActions.empty())
+            Logger::Log(Logger::WARN) << "TimeLine::mUiActions is NOT EMPTY when UNDO is triggered!" << std::endl;
+        timeline->UndoOneRecord();
+    }
+
     if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
     {
         if (!timeline->mUiActions.empty())
         {
+            // add to history record list
+            imgui_json::value historyRecord;
+            historyRecord["time"] = ImGui::get_current_time();
+            auto& actions = timeline->mUiActions;
+            historyRecord["actions"] = imgui_json::array(actions.begin(), actions.end());
+            timeline->AddNewRecord(historyRecord);
+
+            // perform actions
             timeline->PerformUiActions();
             ret = true;
         }
