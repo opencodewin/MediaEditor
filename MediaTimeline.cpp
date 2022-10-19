@@ -6353,24 +6353,34 @@ bool TimeLine::RedoOneRecord()
             MediaTrack* track = FindTrackByID(action["to_track_id"].get<imgui_json::number>());
             MediaItem* item = FindMediaItemByID(action["media_id"].get<imgui_json::number>());
             uint32_t type = action["media_type"].get<imgui_json::number>();
+            int64_t pos = action["start"].get<imgui_json::number>();
+            Clip* newClip = nullptr;
             if (type == MEDIA_VIDEO)
             {
                 SnapshotGenerator::ViewerHolder hViewer;
                 SnapshotGeneratorHolder hSsGen = GetSnapshotGenerator(item->mID);
                 if (hSsGen) hViewer = hSsGen->CreateViewer();
-                new VideoClip(item->mStart, item->mEnd, item->mID, item->mName + ":Video", item->mMediaOverview->GetMediaParser(), hViewer, this);
+                newClip = new VideoClip(item->mStart, item->mEnd, item->mID, item->mName+":Video", item->mMediaOverview->GetMediaParser(), hViewer, this);
             }
             else if (type == MEDIA_SUBTYPE_VIDEO_IMAGE)
             {
-                VideoClip* newClip = new VideoClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, this);
+                newClip = new VideoClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, this);
             }
             else if (type == MEDIA_AUDIO)
             {
-                AudioClip* newClip = new AudioClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, this);
+                if (item->mMediaType == MEDIA_VIDEO)
+                    newClip = new AudioClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, this);
+                else
+                    newClip = new AudioClip(item->mStart, item->mEnd, item->mID, item->mName+":Audio", item->mMediaOverview, this);
             }
             else
             {
-
+                Logger::Log(Logger::WARN) << "Unhandled 'ADD_CLIP' action for media type " << type << "!" << std::endl;
+            }
+            if (newClip)
+            {
+                m_Clips.push_back(newClip);
+                track->InsertClip(newClip, pos, true);
             }
         }
     }
@@ -7871,11 +7881,20 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
     //ImGui::ShowMetricsWindow();
     // for debug end
 
-    if (ImGui::IsKeyDown(ImGuiKey_Z) && io.KeyMods == ImGuiModFlags_Ctrl)
+    if (ImGui::IsKeyDown(ImGuiKey_Z))
     {
-        if (!timeline->mUiActions.empty())
-            Logger::Log(Logger::WARN) << "TimeLine::mUiActions is NOT EMPTY when UNDO is triggered!" << std::endl;
-        timeline->UndoOneRecord();
+        if (io.KeyMods == ImGuiModFlags_Ctrl)
+        {
+            if (!timeline->mUiActions.empty())
+                Logger::Log(Logger::WARN) << "TimeLine::mUiActions is NOT EMPTY when UNDO is triggered!" << std::endl;
+            timeline->UndoOneRecord();
+        }
+        else if (io.KeyMods == (ImGuiModFlags_Ctrl|ImGuiModFlags_Shift))
+        {
+            if (!timeline->mUiActions.empty())
+                Logger::Log(Logger::WARN) << "TimeLine::mUiActions is NOT EMPTY when REDO is triggered!" << std::endl;
+            timeline->RedoOneRecord();
+        }
     }
 
     if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
