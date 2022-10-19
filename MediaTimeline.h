@@ -51,6 +51,7 @@
 #define ICON_FILTER         u8"\uf331"
 #define ICON_MUSIC          u8"\ue3a1"
 #define ICON_MUSIC_DISABLE  u8"\ue440"
+#define ICON_AUDIO_MIXING   u8"\ue429"
 #define ICON_MUSIC_RECT     u8"\ue030"
 #define ICON_MAGIC_3        u8"\ue663"
 #define ICON_MAGIC_1        u8"\ue664"
@@ -675,6 +676,61 @@ public:
     void Save() override;
 };
 
+struct audio_channel_data
+{
+    ImGui::ImMat m_wave;
+    ImGui::ImMat m_fft;
+    ImGui::ImMat m_db;
+    ImGui::ImMat m_DBShort;
+    ImGui::ImMat m_DBLong;
+    ImGui::ImMat m_Spectrogram;
+    ImTextureID texture_spectrogram {nullptr};
+    float m_decibel {0};
+    int m_DBMaxIndex {-1};
+    ~audio_channel_data() { if (texture_spectrogram) ImGui::ImDestroyTexture(texture_spectrogram); }
+};
+
+#define MAX_GAIN 12
+#define MIN_GAIN -12
+struct audio_band_config
+{
+    uint32_t centerFreq;  // in Hz
+    uint32_t bandWidth;  // in Hz
+    int32_t gain;  // in db
+};
+
+struct AudioAttribute
+{
+    std::mutex audio_mutex;
+    // meters
+    int left_stack {0};                         // audio left meter stack
+    int left_count {0};                         // audio left meter count
+    int right_stack {0};                        // audio right meter stack
+    int right_count {0};                        // audio right meter count
+
+    std::vector<audio_channel_data> channel_data; // audio channel data
+    ImGui::ImMat m_audio_vector;
+    ImTextureID m_audio_vector_texture {nullptr};
+    float mAudioVectorScale  {1};
+    int mAudioVectorMode {LISSAJOUS};
+    float mAudioSpectrogramOffset {0.0};
+    float mAudioSpectrogramLight {1.0};
+
+
+    // gain setting
+    float mAudioGain    {0};                    // audio gain, project saved
+
+    // equalizer setting
+    bool bEqualizer     {false};                // enable audio equalizer, project saved
+    audio_band_config mBandCfg[10];             // timeline audio band equalizer, project saved
+
+    // pan setting
+    bool bPan       {false};                    // enable audio pan, project saved
+    ImVec2 audio_pan    {0, 0};                 // audio pan, project saved
+
+    
+};
+
 struct MediaTrack
 {
     int64_t mID             {-1};               // track ID, project saved
@@ -690,6 +746,8 @@ struct MediaTrack
     bool mView      {true};                     // track is viewable, project saved
     bool mLocked    {false};                    // track is locked(can't moving or cropping by locked), project saved
     bool mSelected  {false};                    // track is selected, project saved
+    AudioAttribute mAudioTrackAttribute;        // audio track attribute, project saved
+
     int64_t mViewWndDur     {0};
     float mPixPerMs         {0};
     DataLayer::SubtitleTrackHolder mMttReader {nullptr};
@@ -754,20 +812,6 @@ typedef struct TimeLineCallbackFunctions
     TimeLineCallback  EditingOverlap        {nullptr};
 } TimeLineCallbackFunctions;
 
-struct audio_channel_data
-{
-    ImGui::ImMat m_wave;
-    ImGui::ImMat m_fft;
-    ImGui::ImMat m_db;
-    ImGui::ImMat m_DBShort;
-    ImGui::ImMat m_DBLong;
-    ImGui::ImMat m_Spectrogram;
-    ImTextureID texture_spectrogram {nullptr};
-    float m_decibel {0};
-    int m_DBMaxIndex {-1};
-    ~audio_channel_data() { if (texture_spectrogram) ImGui::ImDestroyTexture(texture_spectrogram); }
-};
-
 struct TimeLine
 {
 #define MAX_VIDEO_CACHE_FRAMES  3
@@ -793,6 +837,7 @@ struct TimeLine
     int mAudioChannels {2};                 // timeline audio channels, project saved, configured
     int mAudioSampleRate {44100};           // timeline audio sample rate, project saved, configured
     AudioRender::PcmFormat mAudioFormat {AudioRender::PcmFormat::FLOAT32}; // timeline audio format, project saved, configured
+    AudioAttribute mAudioAttribute;         // timeline audio attribute, need save
 
     BluePrint::BluePrintUI m_BP_UI;         // for node catalog
 
@@ -842,14 +887,7 @@ struct TimeLine
     std::string mEncodeProcErrMsg;
     float mEncodingProgress;
 
-    std::vector<audio_channel_data> m_audio_channel_data;   // timeline audio data replace audio levels
-    ImGui::ImMat m_audio_vector;
-    ImTextureID m_audio_vector_texture {nullptr};
-    float mAudioVectorScale  {1};
-    int mAudioVectorMode {LISSAJOUS};
     void CalculateAudioScopeData(ImGui::ImMat& mat);
-    float mAudioSpectrogramOffset {0.0};
-    float mAudioSpectrogramLight {1.0};
 
     int64_t attract_docking_pixels {10};    // clip attract docking sucking in pixels range, pulling range is 1/5
     int64_t mConnectedPoints = -1;
