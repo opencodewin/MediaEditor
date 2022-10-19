@@ -1254,6 +1254,9 @@ static void NewTimeline()
         timeline->m_CallBacks.EditingClipAttribute = EditingClipAttribute;
         timeline->m_CallBacks.EditingClipFilter = EditingClipFilter;
         timeline->m_CallBacks.EditingOverlap = EditingOverlap;
+
+        // set global variables
+        DataLayer::VideoClip::USE_HWACCEL = timeline->mHardwareCodec;
     }
 }
 

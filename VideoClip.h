@@ -72,6 +72,8 @@ namespace DataLayer
         virtual VideoFilterHolder GetFilter() const = 0;
         virtual VideoTransformFilter* GetTransformFilterPtr() = 0;
 
+        static bool USE_HWACCEL;
+
         friend std::ostream& operator<<(std::ostream& os, VideoClip& clip);
     };
 
