@@ -51,6 +51,7 @@
 #define ICON_FILTER         u8"\uf331"
 #define ICON_MUSIC          u8"\ue3a1"
 #define ICON_MUSIC_DISABLE  u8"\ue440"
+#define ICON_AUDIO_MIXING   u8"\ue429"
 #define ICON_MUSIC_RECT     u8"\ue030"
 #define ICON_MAGIC_3        u8"\ue663"
 #define ICON_MAGIC_1        u8"\ue664"
@@ -675,6 +676,86 @@ public:
     void Save() override;
 };
 
+struct audio_channel_data
+{
+    ImGui::ImMat m_wave;
+    ImGui::ImMat m_fft;
+    ImGui::ImMat m_db;
+    ImGui::ImMat m_DBShort;
+    ImGui::ImMat m_DBLong;
+    ImGui::ImMat m_Spectrogram;
+    ImTextureID texture_spectrogram {nullptr};
+    float m_decibel {0};
+    int m_DBMaxIndex {-1};
+    ~audio_channel_data() { if (texture_spectrogram) ImGui::ImDestroyTexture(texture_spectrogram); }
+};
+
+#define MAX_GAIN 12
+#define MIN_GAIN -12
+struct audio_band_config
+{
+    uint32_t centerFreq;  // in Hz
+    uint32_t bandWidth;  // in Hz
+    int32_t gain;  // in db
+};
+
+struct AudioAttribute
+{
+    std::mutex audio_mutex;
+    // meters
+    int left_stack {0};                         // audio left meter stack
+    int left_count {0};                         // audio left meter count
+    int right_stack {0};                        // audio right meter stack
+    int right_count {0};                        // audio right meter count
+
+    std::vector<audio_channel_data> channel_data; // audio channel data
+    ImGui::ImMat m_audio_vector;
+    ImTextureID m_audio_vector_texture {nullptr};
+    float mAudioVectorScale  {1};
+    int mAudioVectorMode {LISSAJOUS};
+    float mAudioSpectrogramOffset {0.0};
+    float mAudioSpectrogramLight {1.0};
+
+
+    // gain setting
+    float mAudioGain    {0};                    // audio gain, project saved
+
+    // equalizer setting
+    bool bEqualizer     {false};                // enable audio equalizer, project saved
+    audio_band_config mBandCfg[10];             // timeline audio band equalizer, project saved
+
+    // pan setting
+    bool bPan       {false};                    // enable audio pan, project saved
+    ImVec2 audio_pan    {0, 0};                 // audio pan, project saved
+
+    // limiter
+    bool bLimiter   {false};                    // enable audio limiter, project saved
+    float limit     {1};                        // audio limiter, project saved(0.0625-1)
+    float limiter_attack    {5};                // audio limiter attack, project saved(0.1-80ms)
+    float limiter_release   {50};               // audio limiter release, project saved(1-8000ms)
+
+    // compressor
+    bool bCompressor        {false};             // enable audio compressor, project saved
+    float compressor_thd    {0.125};             // audio compressor threshold, project saved(0.001-1)
+    float compressor_ratio  {2.0};               // audio compressor ratio, project saved(1-20)
+    float compressor_knee   {2.82843};           // audio compressor knee, project saved(1-8)
+    float compressor_mix    {1};                 // audio compressor mix, project saved(0-1)
+    float compressor_attack {20};                // audio compressor attack, project saved(0.01-2000)
+    float compressor_release{250};               // audio compressor release, project saved(0.01-9000)
+    float compressor_makeup {1};                 // audio compressor makeup, project saved(1-64)
+    float compressor_level_sc {1};               // audio compressor sidechain gain, project saved(0.015-64)
+
+    // gate
+    bool bGate            {false};               // enable audio gate, project saved
+    float gate_thd        {0.125};               // audio gate threshold, project saved(0-1)
+    float gate_range      {0.06125};             // audio gate range, project saved(0-1)
+    float gate_ratio      {2.0};                 // audio gate ratio, project saved(1-9000)
+    float gate_attack     {20};                  // audio gate attack, project saved(0.01-9000)
+    float gate_release    {250};                 // audio gate release, project saved(0.01-9000)
+    float gate_makeup     {1.0};                 // audio gate makeup, project saved(1-64)
+    float gate_knee       {2.82843};             // audio gate knee, project saved(1-8)
+};
+
 struct MediaTrack
 {
     int64_t mID             {-1};               // track ID, project saved
@@ -690,6 +771,8 @@ struct MediaTrack
     bool mView      {true};                     // track is viewable, project saved
     bool mLocked    {false};                    // track is locked(can't moving or cropping by locked), project saved
     bool mSelected  {false};                    // track is selected, project saved
+    AudioAttribute mAudioTrackAttribute;        // audio track attribute, project saved
+
     int64_t mViewWndDur     {0};
     float mPixPerMs         {0};
     DataLayer::SubtitleTrackHolder mMttReader {nullptr};
@@ -754,20 +837,6 @@ typedef struct TimeLineCallbackFunctions
     TimeLineCallback  EditingOverlap        {nullptr};
 } TimeLineCallbackFunctions;
 
-struct audio_channel_data
-{
-    ImGui::ImMat m_wave;
-    ImGui::ImMat m_fft;
-    ImGui::ImMat m_db;
-    ImGui::ImMat m_DBShort;
-    ImGui::ImMat m_DBLong;
-    ImGui::ImMat m_Spectrogram;
-    ImTextureID texture_spectrogram {nullptr};
-    float m_decibel {0};
-    int m_DBMaxIndex {-1};
-    ~audio_channel_data() { if (texture_spectrogram) ImGui::ImDestroyTexture(texture_spectrogram); }
-};
-
 struct TimeLine
 {
 #define MAX_VIDEO_CACHE_FRAMES  3
@@ -793,6 +862,7 @@ struct TimeLine
     int mAudioChannels {2};                 // timeline audio channels, project saved, configured
     int mAudioSampleRate {44100};           // timeline audio sample rate, project saved, configured
     AudioRender::PcmFormat mAudioFormat {AudioRender::PcmFormat::FLOAT32}; // timeline audio format, project saved, configured
+    AudioAttribute mAudioAttribute;         // timeline audio attribute, need save
 
     BluePrint::BluePrintUI m_BP_UI;         // for node catalog
 
@@ -842,14 +912,7 @@ struct TimeLine
     std::string mEncodeProcErrMsg;
     float mEncodingProgress;
 
-    std::vector<audio_channel_data> m_audio_channel_data;   // timeline audio data replace audio levels
-    ImGui::ImMat m_audio_vector;
-    ImTextureID m_audio_vector_texture {nullptr};
-    float mAudioVectorScale  {1};
-    int mAudioVectorMode {LISSAJOUS};
     void CalculateAudioScopeData(ImGui::ImMat& mat);
-    float mAudioSpectrogramOffset {0.0};
-    float mAudioSpectrogramLight {1.0};
 
     int64_t attract_docking_pixels {10};    // clip attract docking sucking in pixels range, pulling range is 1/5
     int64_t mConnectedPoints = -1;
