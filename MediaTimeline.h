@@ -728,7 +728,32 @@ struct AudioAttribute
     bool bPan       {false};                    // enable audio pan, project saved
     ImVec2 audio_pan    {0, 0};                 // audio pan, project saved
 
-    
+    // limiter
+    bool bLimiter   {false};                    // enable audio limiter, project saved
+    float limit     {1};                        // audio limiter, project saved(0.0625-1)
+    float limiter_attack    {5};                // audio limiter attack, project saved(0.1-80ms)
+    float limiter_release   {50};               // audio limiter release, project saved(1-8000ms)
+
+    // compressor
+    bool bCompressor        {false};             // enable audio compressor, project saved
+    float compressor_thd    {0.125};             // audio compressor threshold, project saved(0.001-1)
+    float compressor_ratio  {2.0};               // audio compressor ratio, project saved(1-20)
+    float compressor_knee   {2.82843};           // audio compressor knee, project saved(1-8)
+    float compressor_mix    {1};                 // audio compressor mix, project saved(0-1)
+    float compressor_attack {20};                // audio compressor attack, project saved(0.01-2000)
+    float compressor_release{250};               // audio compressor release, project saved(0.01-9000)
+    float compressor_makeup {1};                 // audio compressor makeup, project saved(1-64)
+    float compressor_level_sc {1};               // audio compressor sidechain gain, project saved(0.015-64)
+
+    // gate
+    bool bGate            {false};               // enable audio gate, project saved
+    float gate_thd        {0.125};               // audio gate threshold, project saved(0-1)
+    float gate_range      {0.06125};             // audio gate range, project saved(0-1)
+    float gate_ratio      {2.0};                 // audio gate ratio, project saved(1-9000)
+    float gate_attack     {20};                  // audio gate attack, project saved(0.01-9000)
+    float gate_release    {250};                 // audio gate release, project saved(0.01-9000)
+    float gate_makeup     {1.0};                 // audio gate makeup, project saved(1-64)
+    float gate_knee       {2.82843};             // audio gate knee, project saved(1-8)
 };
 
 struct MediaTrack
