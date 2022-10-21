@@ -4794,15 +4794,22 @@ int TimeLine::GetEmptyTrackCount()
     });
 }
 
-int64_t TimeLine::NewGroup(Clip * clip)
+int64_t TimeLine::NewGroup(Clip * clip, int64_t id, ImU32 color)
 {
     if (!clip)
         return -1;
     DeleteClipFromGroup(clip, clip->mGroupID);
     ClipGroup new_group(this);
+    if (id != -1) new_group.mID = id;
+    if (color != 0) new_group.mColor = color;
     new_group.m_Grouped_Clips.push_back(clip->mID);
     m_Groups.push_back(new_group);
     clip->mGroupID = new_group.mID;
+    imgui_json::value action;
+    action["action"] = "ADD_GROUP";
+    action["group_id"] = imgui_json::number(new_group.mID);
+    action["color"] = imgui_json::number(new_group.mColor);
+    mUiActions.push_back(std::move(action));
     return clip->mGroupID;
 }
 
@@ -4844,6 +4851,11 @@ void TimeLine::DeleteClipFromGroup(Clip *clip, int64_t group_id)
         }
         if (need_erase)
         {
+            imgui_json::value action;
+            action["action"] = "REMOVE_GROUP";
+            action["group_id"] = imgui_json::number(iter->mID);
+            action["color"] = imgui_json::number(iter->mColor);
+            mUiActions.push_back(std::move(action));
             iter = m_Groups.erase(iter);
         }
         else
@@ -5507,18 +5519,24 @@ void TimeLine::Save(imgui_json::value& value)
     value["OutputAudio"] = imgui_json::boolean(bExportAudio);
 }
 
+void TimeLine::PrintUiActions()
+{
+    if (mUiActions.empty())
+        return;
+    Logger::Log(Logger::VERBOSE) << std::endl << "UiActions : [" << std::endl;
+    for (auto& action : mUiActions)
+        Logger::Log(Logger::VERBOSE) << "\t" << action.dump() << std::endl;
+    Logger::Log(Logger::VERBOSE) << "] #UiActions" << std::endl << std::endl;
+}
+
 void TimeLine::PerformUiActions()
 {
     if (mUiActions.empty())
         return;
 
-    if (!mUiActions.empty())
-    {
-        Logger::Log(Logger::VERBOSE) << std::endl << "UiActions : [" << std::endl;
-    }
+    PrintUiActions();
     for (auto& action : mUiActions)
     {
-        Logger::Log(Logger::VERBOSE) << "\t" << action.dump() << std::endl;
         uint32_t mediaType = MEDIA_UNKNOWN;
         if (action.contains("media_type"))
             mediaType = action["media_type"].get<imgui_json::number>();
@@ -5539,9 +5557,7 @@ void TimeLine::PerformUiActions()
     }
     if (!mUiActions.empty())
     {
-        Logger::Log(Logger::VERBOSE) << "] #UiActions" << std::endl << std::endl;
         SyncDataLayer();
-        //Logger::Log(Logger::VERBOSE) << *mMtvReader << std::endl << std::endl;
     }
 
     mUiActions.clear();
@@ -6287,6 +6303,7 @@ bool TimeLine::UndoOneRecord()
 
     mRecordIter--;
     auto& record = *mRecordIter;
+    Logger::Log(Logger::VERBOSE) << "UNDO record: " << record.dump() << std::endl;
     auto& actions = record["actions"].get<imgui_json::array>();
     for (auto& action : actions)
     {
@@ -6333,12 +6350,14 @@ bool TimeLine::UndoOneRecord()
 
 bool TimeLine::RedoOneRecord()
 {
-    if (mRecordIter == mHistoryRecords.begin())
+    if (mRecordIter == mHistoryRecords.end())
         return false;
 
     auto& record = *mRecordIter;
-    mRecordIter++;
     auto& actions = record["actions"].get<imgui_json::array>();
+    mRecordIter++;
+    ImU32 groupColor = 0;
+    Logger::Log(Logger::VERBOSE) << "REDO record: " << record.dump() << std::endl;
     for (auto& action : actions)
     {
         std::string& actionName = action["action"].get<imgui_json::string>();
@@ -6353,7 +6372,8 @@ bool TimeLine::RedoOneRecord()
             MediaTrack* track = FindTrackByID(action["to_track_id"].get<imgui_json::number>());
             MediaItem* item = FindMediaItemByID(action["media_id"].get<imgui_json::number>());
             uint32_t type = action["media_type"].get<imgui_json::number>();
-            int64_t pos = action["start"].get<imgui_json::number>();
+            int64_t pos = action["pos"].get<imgui_json::number>();
+            int64_t clipId = action["clip_id"].get<imgui_json::number>();
             Clip* newClip = nullptr;
             if (type == MEDIA_VIDEO)
             {
@@ -6379,9 +6399,37 @@ bool TimeLine::RedoOneRecord()
             }
             if (newClip)
             {
+                newClip->mID = clipId;
                 m_Clips.push_back(newClip);
                 track->InsertClip(newClip, pos, true);
+                int64_t groupId = action["group_id"].get<imgui_json::number>();
+                if (groupId != -1)
+                {
+                    auto iter = std::find_if(m_Groups.begin(), m_Groups.end(), [groupId] (auto& group) {
+                        return group.mID == groupId;
+                    });
+                    if (iter == m_Groups.end())
+                        NewGroup(newClip, groupId, groupColor);
+                    else
+                        AddClipIntoGroup(newClip, groupId);
+                }
+                mUiActions.push_back(action);
             }
+        }
+        else if (actionName == "ADD_GROUP")
+        {
+            int64_t groupId = action["group_id"].get<imgui_json::number>();
+            auto iter = std::find_if(m_Groups.begin(), m_Groups.end(), [groupId] (auto& group) {
+                return group.mID == groupId;
+            });
+            if (iter == m_Groups.end())
+                groupColor = (ImU32)action["color"].get<imgui_json::number>();
+            else
+                iter->mColor = (ImU32)action["color"].get<imgui_json::number>();
+        }
+        else
+        {
+            Logger::Log(Logger::WARN) << "Unhandled REDO action '" << actionName << "'!" << std::endl;
         }
     }
     return true;
@@ -7569,8 +7617,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 action["media_id"] = imgui_json::number(item->mID);
                 if (track)
                     action["to_track_id"] = imgui_json::number(track->mID);
-                action["start"] = imgui_json::number(item->mStart);
-                action["end"] = imgui_json::number(item->mEnd);
+                action["pos"] = imgui_json::number(mouseTime);
                 if (item->mMediaType == MEDIA_SUBTYPE_VIDEO_IMAGE)
                 {
                     VideoClip * new_image_clip = new VideoClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, timeline);
@@ -7590,6 +7637,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                         newTrack->InsertClip(new_image_clip, mouseTime);
                         action["to_track_id"] = imgui_json::number(newTrack->mID);
                     }
+                    action["group_id"] = imgui_json::number(new_image_clip->mGroupID);
                 }
                 else if (item->mMediaType == MEDIA_AUDIO)
                 {
@@ -7610,6 +7658,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                         newTrack->InsertClip(new_audio_clip, mouseTime);
                         action["to_track_id"] = imgui_json::number(newTrack->mID);
                     }
+                    action["group_id"] = imgui_json::number(new_audio_clip->mGroupID);
                 } 
                 else if (item->mMediaType == MEDIA_SUBTYPE_TEXT_SUBTITLE)
                 {
@@ -7684,8 +7733,9 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                         imgui_json::value action2;
                         action2["action"] = "ADD_CLIP";
                         action2["media_type"] = imgui_json::number(new_audio_clip->mType);
+                        action2["media_id"] = imgui_json::number(item->mID);
                         action2["clip_id"] = imgui_json::number(new_audio_clip->mID);
-                        action2["start"] = (double)new_audio_clip->mStart/1000;
+                        action2["pos"] = imgui_json::number(mouseTime);
                         if (!create_new_track)
                         {
                             if (new_video_clip)
@@ -7756,6 +7806,10 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                             }
 
                         }
+                        if (new_video_clip)
+                            action["group_id"] = imgui_json::number(new_video_clip->mGroupID);
+                        if (new_audio_clip)
+                            action2["group_id"] = imgui_json::number(new_audio_clip->mGroupID);
                         timeline->mUiActions.push_back(std::move(action2));
                     }
                     // TODO::Dicky add subtitle stream here?
@@ -7881,12 +7935,16 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
     //ImGui::ShowMetricsWindow();
     // for debug end
 
-    if (ImGui::IsKeyDown(ImGuiKey_Z))
+    if (ImGui::IsKeyPressed(ImGuiKey_Z, false))
     {
         if (io.KeyMods == ImGuiModFlags_Ctrl)
         {
             if (!timeline->mUiActions.empty())
+            {
                 Logger::Log(Logger::WARN) << "TimeLine::mUiActions is NOT EMPTY when UNDO is triggered!" << std::endl;
+                timeline->PrintUiActions();
+            }
+            Logger::Log(Logger::WARN) << "----- HERE !!!!" << std::endl;
             timeline->UndoOneRecord();
         }
         else if (io.KeyMods == (ImGuiModFlags_Ctrl|ImGuiModFlags_Shift))
@@ -7895,6 +7953,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 Logger::Log(Logger::WARN) << "TimeLine::mUiActions is NOT EMPTY when REDO is triggered!" << std::endl;
             timeline->RedoOneRecord();
         }
+        timeline->PerformUiActions();
     }
 
     if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))

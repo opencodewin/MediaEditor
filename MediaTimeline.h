@@ -893,6 +893,7 @@ struct TimeLine
 
     imgui_json::value mOngoingAction;
     std::list<imgui_json::value> mUiActions;
+    void PrintUiActions();
     void PerformUiActions();
     void PerformVideoAction(imgui_json::value& action);
     void PerformAudioAction(imgui_json::value& action);
@@ -995,7 +996,7 @@ struct TimeLine
     int GetSelectedClipCount();                         // Get current selected clip count
     int64_t NextClipStart(Clip * clip);                 // Get next clip start pos by clip, if don't have next clip, then return -1
     int64_t NextClipStart(int64_t pos);                 // Get next clip start pos by time, if don't have next clip, then return -1
-    int64_t NewGroup(Clip * clip);                      // Create a new group with clip ID
+    int64_t NewGroup(Clip * clip, int64_t id = -1, ImU32 color = 0); // Create a new group with clip ID
     void AddClipIntoGroup(Clip * clip, int64_t group_id); // Insert clip into group
     void DeleteClipFromGroup(Clip *clip, int64_t group_id); // Delete clip from group
     ImU32 GetGroupColor(int64_t group_id);              // Get Group color by id
