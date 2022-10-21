@@ -12,6 +12,8 @@ using namespace Logger;
 
 namespace DataLayer
 {
+    bool VideoClip::USE_HWACCEL = true;
+
     ostream& operator<<(ostream& os, VideoClip& clip)
     {
         os << "{'id':" << clip.Id() << ", 'start':" << clip.Start()
@@ -38,6 +40,7 @@ namespace DataLayer
             if (vidStm->isImage)
                 throw invalid_argument("This video stream is an IMAGE, it should be instantiated with a 'VideoClip_ImageImpl' instance!");
             m_srcReader = CreateMediaReader();
+            m_srcReader->EnableHwAccel(VideoClip::USE_HWACCEL);
             if (!m_srcReader->Open(hParser))
                 throw runtime_error(m_srcReader->GetError());
             if (!m_srcReader->ConfigVideoReader(0u, 0u))

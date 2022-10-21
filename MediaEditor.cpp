@@ -1254,6 +1254,9 @@ static void NewTimeline()
         timeline->m_CallBacks.EditingClipAttribute = EditingClipAttribute;
         timeline->m_CallBacks.EditingClipFilter = EditingClipFilter;
         timeline->m_CallBacks.EditingOverlap = EditingOverlap;
+
+        // set global variables
+        DataLayer::VideoClip::USE_HWACCEL = timeline->mHardwareCodec;
     }
 }
 
@@ -8380,7 +8383,7 @@ void Application_Initialize(void** handle)
     }
     ImGui::ResetTabLabelStyle(ImGui::ImGuiTabLabelStyle_Dark, *tab_style);
 
-    Logger::GetDefaultLogger()->SetShowLevels(Logger::INFO);
+    Logger::GetDefaultLogger()->SetShowLevels(Logger::VERBOSE);
     // GetMultiTrackVideoReaderLogger()->SetShowLevels(Logger::VERBOSE);
     // GetMediaReaderLogger()->SetShowLevels(Logger::DEBUG);
     // GetSnapshotGeneratorLogger()->SetShowLevels(Logger::DEBUG);
