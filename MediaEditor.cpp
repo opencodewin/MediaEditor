@@ -3420,8 +3420,7 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
                                                     current_time,
                                                     CURVE_EDIT_FLAG_VALUE_LIMITED | CURVE_EDIT_FLAG_MOVE_CURVE | CURVE_EDIT_FLAG_KEEP_BEGIN_END | CURVE_EDIT_FLAG_DOCK_BEGIN_END, 
                                                     nullptr, // clippingRect
-                                                    &_changed,
-                                                    nullptr // selectedPoints
+                                                    &_changed
                                                     );
             if (_changed) timeline->UpdatePreview();
         }
@@ -4031,8 +4030,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                                                         current_time,
                                                         CURVE_EDIT_FLAG_VALUE_LIMITED | CURVE_EDIT_FLAG_MOVE_CURVE | CURVE_EDIT_FLAG_KEEP_BEGIN_END | CURVE_EDIT_FLAG_DOCK_BEGIN_END, 
                                                         nullptr, // clippingRect
-                                                        &_changed,
-                                                        nullptr // selectedPoints
+                                                        &_changed
                                                         );
                 if (_changed) timeline->UpdatePreview();
             }
@@ -4616,8 +4614,7 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
                                                         current_time,
                                                         CURVE_EDIT_FLAG_VALUE_LIMITED | CURVE_EDIT_FLAG_MOVE_CURVE | CURVE_EDIT_FLAG_KEEP_BEGIN_END | CURVE_EDIT_FLAG_DOCK_BEGIN_END, 
                                                         nullptr, // clippingRect
-                                                        &_changed,
-                                                        nullptr // selectedPoints
+                                                        &_changed
                                                         );
                 if (_changed) timeline->UpdatePreview();
             }
@@ -5056,8 +5053,7 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list)
                                                         current_time,
                                                         CURVE_EDIT_FLAG_VALUE_LIMITED | CURVE_EDIT_FLAG_MOVE_CURVE | CURVE_EDIT_FLAG_KEEP_BEGIN_END | CURVE_EDIT_FLAG_DOCK_BEGIN_END, 
                                                         nullptr, // clippingRect
-                                                        &_changed,
-                                                        nullptr // selectedPoints
+                                                        &_changed
                                                         );
                 if (_changed) timeline->UpdatePreview();
             }
@@ -5490,8 +5486,7 @@ static void ShowAudioFusionWindow(ImDrawList *draw_list)
                                                         current_time,
                                                         CURVE_EDIT_FLAG_VALUE_LIMITED | CURVE_EDIT_FLAG_MOVE_CURVE | CURVE_EDIT_FLAG_KEEP_BEGIN_END | CURVE_EDIT_FLAG_DOCK_BEGIN_END, 
                                                         nullptr, // clippingRect
-                                                        &_changed,
-                                                        nullptr // selectedPoints
+                                                        &_changed
                                                         );
                 if (_changed) timeline->UpdatePreview();
             }
@@ -7289,8 +7284,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
                                                         current_time,
                                                         CURVE_EDIT_FLAG_VALUE_LIMITED | CURVE_EDIT_FLAG_MOVE_CURVE | CURVE_EDIT_FLAG_KEEP_BEGIN_END | CURVE_EDIT_FLAG_DOCK_BEGIN_END | CURVE_EDIT_FLAG_DRAW_TIMELINE, 
                                                         nullptr, // clippingRect
-                                                        &_changed,
-                                                        nullptr // selectedPoints
+                                                        &_changed
                                                         );
                 if ((int64_t)current_time != timeline->currentTime) { timeline->bSeeking = true; timeline->Seek(current_time); }
                 if (_changed) timeline->UpdatePreview();
@@ -7306,8 +7300,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
                                                         current_time,
                                                         CURVE_EDIT_FLAG_VALUE_LIMITED | CURVE_EDIT_FLAG_MOVE_CURVE | CURVE_EDIT_FLAG_KEEP_BEGIN_END | CURVE_EDIT_FLAG_DOCK_BEGIN_END | CURVE_EDIT_FLAG_DRAW_TIMELINE, 
                                                         nullptr, // clippingRect
-                                                        &_changed,
-                                                        nullptr // selectedPoints
+                                                        &_changed
                                                         );
                 if ((int64_t)current_time != timeline->currentTime) { timeline->bSeeking = true; timeline->Seek(current_time); }
                 if (_changed)
