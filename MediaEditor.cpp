@@ -321,6 +321,7 @@ struct MediaEditorSettings
     // Histogram Scope tools
     bool HistogramLog {false};
     bool HistogramSplited {false};
+    bool HistogramYRGB  {false};
     float HistogramScale {0.1};
 
     // Waveform Scope tools
@@ -7338,6 +7339,8 @@ static void ShowMediaScopeSetting(int index, bool show_tooltips = true)
             ImGui::ToggleButton("##histogram_logview", &g_media_editor_settings.HistogramLog);
             ImGui::TextUnformatted("Splited:"); ImGui::SameLine();
             ImGui::ToggleButton("##histogram_splited", &g_media_editor_settings.HistogramSplited);
+            ImGui::TextUnformatted("YRGB:"); ImGui::SameLine();
+            ImGui::ToggleButton("##histogram_yrgb", &g_media_editor_settings.HistogramYRGB);
             if (ImGui::DragFloat("Scale##histogram_scale", &g_media_editor_settings.HistogramScale, 0.01f, 0.002f, 4.f, "%.3f"))
                 need_update_scope = true;
             if (show_tooltips)
@@ -7557,11 +7560,12 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
 
                 ImGui::PushStyleColor(ImGuiCol_FrameBg, 0);
                 ImGui::SetCursorScreenPos(pos);
-                float height_scale = g_media_editor_settings.HistogramSplited ? 3.f : 1.f;
-                float height_offset = g_media_editor_settings.HistogramSplited ? size.y / 3.f : 0;
+                float height_scale = g_media_editor_settings.HistogramSplited ? g_media_editor_settings.HistogramYRGB ? 4.f : 3.f : 1.f;
+                float height_offset = g_media_editor_settings.HistogramSplited ? g_media_editor_settings.HistogramYRGB ? size.y / 4.f : size.y / 3.f : 0;
                 auto rmat = mat_histogram.channel(0);
                 auto gmat = mat_histogram.channel(1);
                 auto bmat = mat_histogram.channel(2);
+                auto ymat = mat_histogram.channel(3);
                 ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(1.f, 0.f, 0.f, 1.0f));
                 ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(1.f, 0.f, 0.f, 0.3f));
                 ImGui::PlotLinesEx("##rh", &((float *)rmat.data)[1], mat_histogram.w - 1, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(size.x, size.y / height_scale), 4, false, true);
@@ -7576,12 +7580,20 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                 ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.f, 0.f, 1.f, 0.3f));
                 ImGui::PlotLinesEx("##bh", &((float *)bmat.data)[1], mat_histogram.w - 1, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(size.x, size.y / height_scale), 4, false, true);
                 ImGui::PopStyleColor(2);
+                if (g_media_editor_settings.HistogramYRGB)
+                {
+                    ImGui::SetCursorScreenPos(pos + ImVec2(0, height_offset * 3));
+                    ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(1.f, 1.f, 1.f, 1.0f));
+                    ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(1.f, 1.f, 1.f, 0.3f));
+                    ImGui::PlotLinesEx("##yh", &((float *)ymat.data)[1], mat_histogram.w - 1, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(size.x, size.y / height_scale), 4, false, true);
+                    ImGui::PopStyleColor(2);
+                }
                 ImGui::PopStyleColor();
             }
             draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 0);
             // draw graticule line
             draw_list->PushClipRect(scrop_rect.Min, scrop_rect.Max);
-            float graticule_scale = g_media_editor_settings.HistogramSplited ? 3.f : 1.f;
+            float graticule_scale = g_media_editor_settings.HistogramSplited ? g_media_editor_settings.HistogramYRGB ? 4.0f : 3.f : 1.f;
             auto histogram_step = size.x / 10;
             auto histogram_sub_vstep = size.x / 50;
             auto histogram_vstep = size.y * g_media_editor_settings.HistogramScale * 10 / graticule_scale;
@@ -8661,6 +8673,7 @@ void Application_SetupContext(ImGuiContext* ctx)
         else if (sscanf(line, "ExpandScope=%d", &val_int) == 1) { setting->ExpandScope = val_int == 1; }
         else if (sscanf(line, "HistogramLogView=%d", &val_int) == 1) { setting->HistogramLog = val_int == 1; }
         else if (sscanf(line, "HistogramSplited=%d", &val_int) == 1) { setting->HistogramSplited = val_int == 1; }
+        else if (sscanf(line, "HistogramYRGB=%d", &val_int) == 1) { setting->HistogramYRGB = val_int == 1; }
         else if (sscanf(line, "HistogramScale=%f", &val_float) == 1) { setting->HistogramScale = val_float; }
         else if (sscanf(line, "WaveformMirror=%d", &val_int) == 1) { setting->WaveformMirror = val_int == 1; }
         else if (sscanf(line, "WaveformSeparate=%d", &val_int) == 1) { setting->WaveformSeparate = val_int == 1; }
@@ -8771,6 +8784,7 @@ void Application_SetupContext(ImGuiContext* ctx)
         out_buf->appendf("ExpandScope=%d\n", g_media_editor_settings.ExpandScope ? 1 : 0);
         out_buf->appendf("HistogramLogView=%d\n", g_media_editor_settings.HistogramLog ? 1 : 0);
         out_buf->appendf("HistogramSplited=%d\n", g_media_editor_settings.HistogramSplited ? 1 : 0);
+        out_buf->appendf("HistogramYRGB=%d\n", g_media_editor_settings.HistogramYRGB ? 1 : 0);
         out_buf->appendf("HistogramScale=%f\n", g_media_editor_settings.HistogramScale);
         out_buf->appendf("WaveformMirror=%d\n", g_media_editor_settings.WaveformMirror ? 1 : 0);
         out_buf->appendf("WaveformSeparate=%d\n", g_media_editor_settings.WaveformSeparate ? 1 : 0);
