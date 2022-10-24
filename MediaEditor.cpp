@@ -3415,7 +3415,8 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
         {
             bool _changed = false;
             float current_time = timeline->currentTime;
-            mouse_hold |= ImGui::ImCurveEdit::Edit(*attribute->GetKeyPoint(),
+            mouse_hold |= ImGui::ImCurveEdit::Edit( nullptr,
+                                                    *attribute->GetKeyPoint(),
                                                     sub_window_size, 
                                                     ImGui::GetID("##video_attribute_keypoint_editor"),
                                                     current_time,
@@ -4025,7 +4026,8 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
             {
                 bool _changed = false;
                 float current_time = timeline->currentTime;
-                mouse_hold |= ImGui::ImCurveEdit::Edit(filter->mKeyPoints,
+                mouse_hold |= ImGui::ImCurveEdit::Edit( nullptr,
+                                                        filter->mKeyPoints,
                                                         sub_window_size, 
                                                         ImGui::GetID("##video_filter_keypoint_editor"), 
                                                         current_time,
@@ -4609,7 +4611,8 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
             {
                 bool _changed = false;
                 float current_time = timeline->currentTime - timeline->mVidOverlap->mStart;
-                mouse_hold |= ImGui::ImCurveEdit::Edit(fusion->mKeyPoints, 
+                mouse_hold |= ImGui::ImCurveEdit::Edit( nullptr,
+                                                        fusion->mKeyPoints, 
                                                         sub_window_size, 
                                                         ImGui::GetID("##video_fusion_keypoint_editor"),
                                                         current_time,
@@ -5048,7 +5051,8 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list)
             {
                 bool _changed = false;
                 float current_time = timeline->currentTime;
-                mouse_hold |= ImGui::ImCurveEdit::Edit(filter->mKeyPoints,
+                mouse_hold |= ImGui::ImCurveEdit::Edit( nullptr,
+                                                        filter->mKeyPoints,
                                                         sub_window_size, 
                                                         ImGui::GetID("##audio_filter_keypoint_editor"), 
                                                         current_time,
@@ -5481,7 +5485,8 @@ static void ShowAudioFusionWindow(ImDrawList *draw_list)
             {
                 bool _changed = false;
                 float current_time = timeline->currentTime - timeline->mAudOverlap->mStart;
-                mouse_hold |= ImGui::ImCurveEdit::Edit(fusion->mKeyPoints,
+                mouse_hold |= ImGui::ImCurveEdit::Edit( nullptr,
+                                                        fusion->mKeyPoints,
                                                         sub_window_size, 
                                                         ImGui::GetID("##audio_fusion_keypoint_editor"), 
                                                         current_time,
@@ -7279,7 +7284,8 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
             {
                 bool _changed = false;
                 float current_time = timeline->currentTime;
-                mouse_hold |= ImGui::ImCurveEdit::Edit(editing_clip->mAttributeKeyPoints,
+                mouse_hold |= ImGui::ImCurveEdit::Edit( nullptr,
+                                                        editing_clip->mAttributeKeyPoints,
                                                         sub_window_size, 
                                                         ImGui::GetID("##text_clip_keypoint_editor"), 
                                                         current_time,
@@ -7295,7 +7301,8 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
                 bool _changed = false;
                 float current_time = timeline->currentTime;
                 auto keyPointsPtr = editing_track->mMttReader->GetKeyPoints();
-                mouse_hold |= ImGui::ImCurveEdit::Edit(*keyPointsPtr,
+                mouse_hold |= ImGui::ImCurveEdit::Edit( nullptr,
+                                                        *keyPointsPtr,
                                                         sub_window_size, 
                                                         ImGui::GetID("##text_track_keypoint_editor"), 
                                                         current_time,
