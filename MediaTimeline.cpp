@@ -8068,7 +8068,11 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
 
     if (ImGui::IsKeyPressed(ImGuiKey_Z, false))
     {
+#ifdef __APPLE__
+        if (io.KeyMods == ImGuiModFlags_Super)
+#else
         if (io.KeyMods == ImGuiModFlags_Ctrl)
+#endif
         {
             if (!timeline->mUiActions.empty())
             {
@@ -8077,7 +8081,11 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             }
             timeline->UndoOneRecord();
         }
+#ifdef __APPLE__
+        else if (io.KeyMods == (ImGuiModFlags_Super|ImGuiModFlags_Shift))
+#else
         else if (io.KeyMods == (ImGuiModFlags_Ctrl|ImGuiModFlags_Shift))
+#endif
         {
             if (!timeline->mUiActions.empty())
                 Logger::Log(Logger::WARN) << "TimeLine::mUiActions is NOT EMPTY when REDO is triggered!" << std::endl;
