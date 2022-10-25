@@ -2,6 +2,7 @@
 #include <string>
 #include "imgui.h"
 #include "imgui_extra_widget.h"
+#include "imgui_curve.h"
 
 namespace DataLayer
 {
