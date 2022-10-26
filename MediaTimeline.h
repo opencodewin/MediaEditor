@@ -1076,6 +1076,8 @@ struct TimeLine
     void AddNewRecord(imgui_json::value& record);
     bool UndoOneRecord();
     bool RedoOneRecord();
+    bool AddNewClip(const imgui_json::value& clip_json, int64_t track_id);
+    bool AddNewClip(int64_t media_id, uint32_t media_type, int64_t track_id, int64_t start, int64_t start_offset, int64_t end_offset, int64_t group_id, int64_t clip_id = -1);
 };
 
 bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable = true);
