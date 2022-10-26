@@ -650,7 +650,7 @@ static bool ExpendButton(ImDrawList *draw_list, ImVec2 pos, bool expand = true)
     ImGuiIO &io = ImGui::GetIO();
     ImRect delRect(pos, ImVec2(pos.x + 16, pos.y + 16));
     bool overDel = delRect.Contains(io.MousePos);
-    int delColor = IM_COL32_WHITE;
+    ImU32 delColor = IM_COL32_WHITE;
     float midy = pos.y + 16 / 2 - 0.5f;
     float midx = pos.x + 16 / 2 - 0.5f;
     draw_list->AddRect(delRect.Min, delRect.Max, delColor, 4);

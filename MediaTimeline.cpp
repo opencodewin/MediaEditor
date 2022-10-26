@@ -6928,7 +6928,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             ImGui::SetWindowFontScale(1.0);
         }
         // crop content
-        draw_list->PushClipRect(childFramePos, childFramePos + childFrameSize);
+        draw_list->PushClipRect(childFramePos, childFramePos + childFrameSize, true);
 
         // track background
         size_t customHeight = 0;
@@ -6960,8 +6960,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             customHeight += itemCustomHeight;
         }
 
-        // cropping rect so track bars are not visible in the legend on the left when scrolled
-        draw_list->PushClipRect(childFramePos + ImVec2(float(legendWidth), 0.f), childFramePos + childFrameSize);
+        draw_list->PushClipRect(childFramePos + ImVec2(float(legendWidth), 0.f), childFramePos + childFrameSize, true);
         // vertical time lines in content area
         for (auto i = _mark_start; i <= _mark_end; i += timeStep)
         {
