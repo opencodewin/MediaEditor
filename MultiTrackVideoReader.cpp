@@ -404,6 +404,11 @@ public:
                 frames = m_outputCache.front();
             else if (!m_seekingFlash.empty())
                 frames = m_seekingFlash;
+            else
+            {
+                m_logger->Log(WARN) << "No AVAILABLE frame to read!" << endl;
+                return false;
+            }
 
             auto& vmat = frames[0].frame;
             const double timestamp = (double)pos/1000;
