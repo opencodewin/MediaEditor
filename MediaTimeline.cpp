@@ -6435,6 +6435,30 @@ bool TimeLine::UndoOneRecord()
             undoAction["to_track_id"] = action["from_track_id"];
             mUiActions.push_back(std::move(undoAction));
         }
+        else if (actionName == "CROP_CLIP")
+        {
+            // undo 'CROP_CLIP'
+            auto clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
+            int64_t orgStartOffset = action["org_start_offset"].get<imgui_json::number>();
+            int64_t orgEndOffset = action["org_end_offset"].get<imgui_json::number>();
+            int64_t newStartOffset = action["new_start_offset"].get<imgui_json::number>();
+            int64_t newEndOffset = action["new_end_offset"].get<imgui_json::number>();
+            if (orgStartOffset != newStartOffset)
+                clip->Cropping(newStartOffset-orgStartOffset, 0);
+            if (orgEndOffset != newEndOffset)
+                clip->Cropping(newEndOffset-orgEndOffset, 1);
+
+            imgui_json::value undoAction;
+            undoAction["action"] = "CROP_CLIP";
+            undoAction["clip_id"] = action["clip_id"];
+            undoAction["media_type"] = action["media_type"];
+            undoAction["from_track_id"] = action["from_track_id"];
+            undoAction["org_start_offset"] = action["new_start_offset"];
+            undoAction["new_start_offset"] = action["org_start_offset"];
+            undoAction["org_end_offset"] = action["new_end_offset"];
+            undoAction["new_end_offset"] = action["org_end_offset"];
+            mUiActions.push_back(std::move(undoAction));
+        }
         else if (actionName == "REMOVE_CLIP")
         {
             // undo 'REMOVE_CLIP'
@@ -6563,6 +6587,20 @@ bool TimeLine::RedoOneRecord()
             auto track = FindTrackByClipID(clipId);
             track->DeleteClip(clipId);
             DeleteClip(clipId);
+
+            mUiActions.push_back(action);
+        }
+        else if (actionName == "CROP_CLIP")
+        {
+            auto clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
+            int64_t orgStartOffset = action["org_start_offset"].get<imgui_json::number>();
+            int64_t orgEndOffset = action["org_end_offset"].get<imgui_json::number>();
+            int64_t newStartOffset = action["new_start_offset"].get<imgui_json::number>();
+            int64_t newEndOffset = action["new_end_offset"].get<imgui_json::number>();
+            if (orgStartOffset != newStartOffset)
+                clip->Cropping(orgStartOffset-newStartOffset, 0);
+            if (orgEndOffset != newEndOffset)
+                clip->Cropping(orgEndOffset-newEndOffset, 1);
 
             mUiActions.push_back(action);
         }
