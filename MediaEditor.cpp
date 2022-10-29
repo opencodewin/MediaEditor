@@ -1790,6 +1790,7 @@ static void ShowFusionBankIconWindow(ImDrawList *draw_list)
             draw_list->AddRectFilled(icon_pos + ImVec2(6, 6), icon_pos + ImVec2(6, 6) + icon_size, IM_COL32(32, 32, 32, 255));
             draw_list->AddRectFilled(icon_pos + ImVec2(4, 4), icon_pos + ImVec2(4, 4) + icon_size, IM_COL32(48, 48, 72, 255));
             draw_list->AddRectFilled(icon_pos + ImVec2(2, 2), icon_pos + ImVec2(2, 2) + icon_size, IM_COL32(64, 64, 96, 255));
+            draw_list->AddRectFilled(icon_pos, icon_pos + icon_size, COL_BLACK_DARK);
             ImGui::InvisibleButton(type->m_Name.c_str(), icon_size);
             if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
             {
@@ -1811,13 +1812,16 @@ static void ShowFusionBankIconWindow(ImDrawList *draw_list)
                     ImGui::PopStyleVar();
                 }
             }
-            ImGui::SetCursorScreenPos(icon_pos);
+            ImGui::SetCursorScreenPos(icon_pos + ImVec2(2, 2));
             auto node = type->m_Factory(bp);
             if (node) 
                 node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(fusion_icon_size, fusion_icon_size)); 
             else 
                 ImGui::Button((std::string(ICON_BANK) + "##bank_fusion" + type->m_Name).c_str(), ImVec2(fusion_icon_size, fusion_icon_size));
-            ImGui::SameLine(); ImGui::TextUnformatted(type->m_Name.c_str());
+            float gap = (icon_size.y - ImGui::GetFontSize()) / 2.0f;
+            ImGui::SetCursorScreenPos(icon_pos + ImVec2(icon_size.x + 8, gap));
+            ImGui::TextUnformatted(type->m_Name.c_str());
+            ImGui::Spacing();
         }
     }
 }
@@ -2030,6 +2034,7 @@ static void ShowFilterBankIconWindow(ImDrawList *draw_list)
             draw_list->AddRectFilled(icon_pos + ImVec2(6, 6), icon_pos + ImVec2(6, 6) + icon_size, IM_COL32(32, 32, 32, 255));
             draw_list->AddRectFilled(icon_pos + ImVec2(4, 4), icon_pos + ImVec2(4, 4) + icon_size, IM_COL32(48, 48, 72, 255));
             draw_list->AddRectFilled(icon_pos + ImVec2(2, 2), icon_pos + ImVec2(2, 2) + icon_size, IM_COL32(64, 64, 96, 255));
+            draw_list->AddRectFilled(icon_pos, icon_pos + icon_size, COL_BLACK_DARK);
             ImGui::InvisibleButton(type->m_Name.c_str(), icon_size);
             if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
             {
@@ -2051,13 +2056,16 @@ static void ShowFilterBankIconWindow(ImDrawList *draw_list)
                     ImGui::PopStyleVar();
                 }
             }
-            ImGui::SetCursorScreenPos(icon_pos);
+            ImGui::SetCursorScreenPos(icon_pos + ImVec2(2, 2));
             auto node = type->m_Factory(bp);
             if (node) 
                 node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(filter_icon_size, filter_icon_size)); 
             else 
                 ImGui::Button((std::string(ICON_BANK) + "##bank_filter" + type->m_Name).c_str(), ImVec2(filter_icon_size, filter_icon_size));
-            ImGui::SameLine(); ImGui::TextUnformatted(type->m_Name.c_str());
+            float gap = (icon_size.y - ImGui::GetFontSize()) / 2.0f;
+            ImGui::SetCursorScreenPos(icon_pos + ImVec2(icon_size.x + 8, gap));
+            ImGui::TextUnformatted(type->m_Name.c_str());
+            ImGui::Spacing();
         }
     }
 }
