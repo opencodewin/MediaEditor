@@ -4075,6 +4075,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                 }
             }
         };
+        
         ImVec2 sub_window_pos = ImGui::GetWindowPos(); // we need draw background with scroll view
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_BLACK_DARK);
@@ -4254,7 +4255,9 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                         if (!node->CustomLayout())
                             continue;
                         auto label_name = node->m_Name;
-                        std::string lable_id = std::string(ICON_NODE) + " " + label_name + "##video_filter_node" + "@" + std::to_string(node->m_ID);
+                        std::string lable_id = label_name + "##video_filter_node" + "@" + std::to_string(node->m_ID);
+                        node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(28, 28));
+                        ImGui::SameLine(40);
                         if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
                         {
                             ImGui::ImCurveEdit::keys key;
@@ -4837,7 +4840,9 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
                         if (!node->CustomLayout())
                             continue;
                         auto label_name = node->m_Name;
-                        std::string lable_id = std::string(ICON_NODE) + " " + label_name + "##video_fusion_node" + "@" + std::to_string(node->m_ID);
+                        std::string lable_id = label_name + "##video_fusion_node" + "@" + std::to_string(node->m_ID);
+                        node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(28, 28));
+                        ImGui::SameLine(40);
                         if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
                         {
                             ImGui::ImCurveEdit::keys key;
@@ -5290,7 +5295,9 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list)
                         if (!node->CustomLayout())
                             continue;
                         auto label_name = node->m_Name;
-                        std::string lable_id = std::string(ICON_NODE) + " " + label_name + "##audio_filter_node" + "@" + std::to_string(node->m_ID);
+                        std::string lable_id = label_name + "##audio_filter_node" + "@" + std::to_string(node->m_ID);
+                        node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(28, 28));
+                        ImGui::SameLine(40);
                         if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
                         {
                             ImGui::ImCurveEdit::keys key;
@@ -5721,7 +5728,9 @@ static void ShowAudioFusionWindow(ImDrawList *draw_list)
                         if (!node->CustomLayout())
                             continue;
                         auto label_name = node->m_Name;
-                        std::string lable_id = std::string(ICON_NODE) + " " + label_name + "##audio_fusion_node" + "@" + std::to_string(node->m_ID);
+                        std::string lable_id = label_name + "##audio_fusion_node" + "@" + std::to_string(node->m_ID);
+                        node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(28, 28));
+                        ImGui::SameLine(40);
                         if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
                         {
                             ImGui::ImCurveEdit::keys key;
