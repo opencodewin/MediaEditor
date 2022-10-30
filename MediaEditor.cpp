@@ -787,8 +787,9 @@ static bool MonitorButton(const char * label, ImVec2 pos, int& monitor_index, st
 // System view
 static void ShowAbout()
 {
-    ImGui::Text("Media Editor Demo(ImGui)");
+    ImGui::Text("Media Editor Community");
     ImGui::Separator();
+    ImGui::Text("       V1.0.0");
     ImGui::Text("  TanluTeam 2022");
     ImGui::Separator();
     ImGui::ShowImGuiInfo();
@@ -8628,12 +8629,25 @@ static void ShowMediaAIWindow(ImDrawList *draw_list)
  ***************************************************************************************/
 void Application_GetWindowProperties(ApplicationWindowProperty& property)
 {
-    property.name = "Media Editor";
+    auto exec_path = ImGuiHelper::exec_path();
+    // add language
+    property.language_path = 
+#if defined(__APPLE__)
+        exec_path + "../Resources/";
+#elif defined(_WIN32)
+        exec_path + "../languages/";
+#elif defined(__linux__)
+        exec_path + "../languages/";
+#else
+        std::string();
+#endif
+
+    property.name = APP_NAME;
     //property.viewport = false;
     property.docking = false;
     property.auto_merge = false;
     property.internationalize = true;
-    property.using_setting_path = false;
+    //property.using_setting_path = false;
     //property.power_save = false;
 #if 1
     property.resizable = false;
@@ -8931,10 +8945,10 @@ void Application_Initialize(void** handle)
 {
     ImPlot::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
+    auto application_setting_path = ImGuiHelper::settings_path(APP_NAME);
     ImFontAtlas* atlas = io.Fonts;
     ImFont* font = atlas->Fonts[0];
     io.FontDefault = font;
-    io.IniFilename = ini_file.c_str();
     if (io.ConfigFlags & ImGuiConfigFlags_EnableLowRefreshMode)
     {
         ImGui::SetTableLabelBreathingSpeed(0.01, 0.5);
