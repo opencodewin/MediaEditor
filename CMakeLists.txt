@@ -194,7 +194,31 @@ set(MACOSX_BUNDLE_PLIST_FILE ${CMAKE_SOURCE_DIR}/resources/Info.plist)
 set_target_properties(${MEDIA_EDITOR_BINARY} PROPERTIES MACOSX_BUNDLE_INFO_PLIST ${MACOSX_BUNDLE_PLIST_FILE})
 set_target_properties(${MEDIA_EDITOR_BINARY} PROPERTIES MACOSX_BUNDLE TRUE MACOSX_FRAMEWORK_IDENTIFIER com.tanlu.me RESOURCE "${RESOURCE_FILES}")
 elseif(WIN32)
-# TODO
+add_executable(
+    ${MEDIA_EDITOR_BINARY}
+    ${MEDIA_EDITOR_SRCS}
+    ${MEDIA_EDITOR_INCS}
+    ${CMAKE_SOURCE_DIR}/resources/logo.rc
+)
+target_include_directories(
+    ${MEDIA_EDITOR_BINARY} PRIVATE
+    ${SDL2_INCLUDE_DIRS}
+    ${IMGUI_BLUEPRINT_INCLUDE_DIRS}
+    ${IMGUI_INCLUDE_DIR}
+)
+target_compile_definitions(${MEDIA_EDITOR_BINARY} PUBLIC APP_NAME="${MEDIA_EDITOR_BINARY}")
+#set_property(TARGET ${MEDIA_EDITOR_BINARY} PROPERTY CXX_STANDARD 17)
+set_property(TARGET ${MEDIA_EDITOR_BINARY} PROPERTY C_STANDARD 11)
+target_link_libraries(
+    ${MEDIA_EDITOR_BINARY} 
+    LINK_PRIVATE
+    ${IMGUI_BLUEPRINT_SDK_LIBRARYS}
+    ${IMGUI_LIBRARYS}
+    PkgConfig::FFMPEG
+    PkgConfig::LIBASS
+    Fontconfig::Fontconfig
+    Threads::Threads
+)
 else()
 add_executable(
     ${MEDIA_EDITOR_BINARY}
@@ -499,6 +523,68 @@ if(APPLE)
 
 elseif(UNIX)
 elseif(WIN32)
+macro(prepareNSIS_Link linkName appName params)
+        #prepare start menu links
+        LIST(APPEND CPACK_NSIS_CREATE_ICONS_EXTRA "  CreateShortCut '$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\${linkName}.lnk' '$INSTDIR\\\\bin\\\\${appName}.exe' '${params}'")
+        LIST(APPEND CPACK_NSIS_DELETE_ICONS_EXTRA "  Delete '$SMPROGRAMS\\\\$START_MENU\\\\${linkName}.lnk'")
+
+        #prepare desktop links
+        LIST(APPEND CPACK_NSIS_CREATE_ICONS_EXTRA  "  CreateShortCut '$DESKTOP\\\\${linkName}.lnk' '$INSTDIR\\\\bin\\\\${appName}.exe' '${params}'")
+        LIST(APPEND CPACK_NSIS_DELETE_ICONS_EXTRA  "  Delete '$DESKTOP\\\\${linkName}.lnk'")
+
+        #replace new line
+        string (REPLACE ";" "\n" CPACK_NSIS_CREATE_ICONS_EXTRA "${CPACK_NSIS_CREATE_ICONS_EXTRA}")
+        string (REPLACE ";" "\n" CPACK_NSIS_DELETE_ICONS_EXTRA "${CPACK_NSIS_DELETE_ICONS_EXTRA}")
+    endmacro()
+
+    set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/install")
+    install(TARGETS me
+            RUNTIME DESTINATION bin
+            LIBRARY DESTINATION bin
+            COMPONENT applications)
+    
+    # Install the SDL (all those installed with mingw64 )
+    install(FILES   "C:/msys64/mingw64/bin/SDL2.dll"
+                    "C:/msys64/mingw64/bin/SDL2_image.dll"
+            DESTINATION bin COMPONENT binaries)
+
+    # Install the GLFW/GLEW (all those installed with mingw64 )
+    install(FILES   "C:/msys64/mingw64/bin/glfw3.dll"
+                    "C:/msys64/mingw64/bin/glew32.dll"
+            DESTINATION bin COMPONENT binaries)
+    
+    # Install the mingw library (all those installed with mingw64 )
+    install(FILES   "C:/msys64/mingw64/bin/libgcc_s_seh-1.dll"
+                    "C:/msys64/mingw64/bin/libwinpthread-1.dll"
+                    "C:/msys64/mingw64/bin/libstdc++-6.dll"
+                    "C:/msys64/mingw64/bin/zlib1.dll"
+            DESTINATION bin COMPONENT binaries)
+    
+    # Install the msys (all those installed with msys )
+    install(FILES   "C:/msys64/usr/bin/msys-ncursesw6.dll"
+                    "C:/msys64/usr/bin/msys-2.0.dll"
+            DESTINATION bin COMPONENT binaries)
+
+    # Install the built library
+    file(GLOB BUILT_LIBS "${CMAKE_BINARY_DIR}/*.dll")
+    install(FILES   ${BUILT_LIBS}
+            DESTINATION bin COMPONENT binaries)
+
+    # Install Resource File
+    install(FILES  "${PROJECT_SOURCE_DIR}/resources/me_language.ini"
+            DESTINATION languages COMPONENT Demo)
+    #install(DIRECTORY  "${PROJECT_SOURCE_DIR}/???/"
+    #        DESTINATION ??? COMPONENT SoundFont)
+
+    set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL OFF)
+    set(CPACK_NSIS_MUI_ICON "${CMAKE_CURRENT_SOURCE_DIR}/resources/me_logo.ico")
+    set(CPACK_NSIS_MUI_UNIICON "${CMAKE_CURRENT_SOURCE_DIR}/resources/me_logo.ico")
+    set(CPACK_NSIS_MODIFY_PATH OFF)
+    set(CPACK_PACKAGE_NAME me)
+    set(CPACK_NSIS_DISPLAY_NAME me)
+    set(CPACK_PACKAGE_INSTALL_DIRECTORY me)
+    
+    prepareNSIS_Link("me" "me" "")
 endif(APPLE)
 
 # Package full name
