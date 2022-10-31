@@ -1284,10 +1284,11 @@ void VideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
             {
                 drawList->AddRectFilled(snapLeftTop, {snapLeftTop.x + snapDispWidth, rightBottom.y}, IM_COL32_BLACK);
                 auto center_pos = snapLeftTop + ImVec2(snapDispWidth, mSnapHeight) / 2;
-                ImVec4 color_main(1.0, 1.0, 1.0, 1.0);
-                ImVec4 color_back(0.5, 0.5, 0.5, 1.0);
                 ImGui::SetCursorScreenPos(center_pos - ImVec2(8, 8));
-                ImGui::LoadingIndicatorCircle("Running", 1.0f, &color_main, &color_back);
+                //ImVec4 color_main(1.0, 1.0, 1.0, 1.0);
+                //ImVec4 color_back(0.5, 0.5, 0.5, 1.0);
+                //ImGui::LoadingIndicatorCircle("Running", 1.0f, &color_main, &color_back);
+                ImGui::SpinnerBarsRotateFade("Running", 3, 6, 2, ImColor(128, 128, 128), 7.6f, 6);
                 drawList->AddRect(snapLeftTop, {snapLeftTop.x + snapDispWidth, rightBottom.y}, COL_FRAME_RECT);
             }
             snapLeftTop.x += snapDispWidth;
@@ -2369,10 +2370,11 @@ void EditingVideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, 
             {
                 drawList->AddRectFilled(imgLeftTop, imgLeftTop + snapDispSize, IM_COL32_BLACK);
                 auto center_pos = imgLeftTop + snapDispSize / 2;
-                ImVec4 color_main(1.0, 1.0, 1.0, 1.0);
-                ImVec4 color_back(0.5, 0.5, 0.5, 1.0);
                 ImGui::SetCursorScreenPos(center_pos - ImVec2(8, 8));
-                ImGui::LoadingIndicatorCircle("Running", 1.0f, &color_main, &color_back);
+                //ImVec4 color_main(1.0, 1.0, 1.0, 1.0);
+                //ImVec4 color_back(0.5, 0.5, 0.5, 1.0);
+                //ImGui::LoadingIndicatorCircle("Running", 1.0f, &color_main, &color_back);
+                ImGui::SpinnerBarsRotateFade("Running", 3, 6, 2, ImColor(128, 128, 128), 7.6f, 6);
                 drawList->AddRect(imgLeftTop, imgLeftTop + snapDispSize, COL_FRAME_RECT);
             }
 
@@ -2850,10 +2852,11 @@ void EditingVideoOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
             {
                 drawList->AddRectFilled(imgLeftTop, imgLeftTop + snapDispSize, IM_COL32_BLACK);
                 auto center_pos = imgLeftTop + snapDispSize / 2;
-                ImVec4 color_main(1.0, 1.0, 1.0, 1.0);
-                ImVec4 color_back(0.5, 0.5, 0.5, 1.0);
                 ImGui::SetCursorScreenPos(center_pos - ImVec2(8, 8));
-                ImGui::LoadingIndicatorCircle("Running", 1.0f, &color_main, &color_back);
+                //ImVec4 color_main(1.0, 1.0, 1.0, 1.0);
+                //ImVec4 color_back(0.5, 0.5, 0.5, 1.0);
+                //ImGui::LoadingIndicatorCircle("Running", 1.0f, &color_main, &color_back);
+                ImGui::SpinnerBarsRotateFade("Running", 3, 6, 2, ImColor(128, 128, 128), 7.6f, 6);
                 drawList->AddRect(imgLeftTop, imgLeftTop + snapDispSize, COL_FRAME_RECT);
             }
             imgLeftTop.x += snapDispSize.x;
@@ -2902,10 +2905,11 @@ void EditingVideoOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
             {
                 drawList->AddRectFilled(img2LeftTop, img2LeftTop + snapDispSize, IM_COL32_BLACK);
                 auto center_pos = img2LeftTop + snapDispSize / 2;
-                ImVec4 color_main(1.0, 1.0, 1.0, 1.0);
-                ImVec4 color_back(0.5, 0.5, 0.5, 1.0);
                 ImGui::SetCursorScreenPos(center_pos - ImVec2(8, 8));
-                ImGui::LoadingIndicatorCircle("Running", 1.0f, &color_main, &color_back);
+                //ImVec4 color_main(1.0, 1.0, 1.0, 1.0);
+                //ImVec4 color_back(0.5, 0.5, 0.5, 1.0);
+                //ImGui::LoadingIndicatorCircle("Running", 1.0f, &color_main, &color_back);
+                ImGui::SpinnerBarsRotateFade("Running", 3, 6, 2, ImColor(128, 128, 128), 7.6f, 6);
                 drawList->AddRect(img2LeftTop, img2LeftTop + snapDispSize, COL_FRAME_RECT);
             }
             imgLeftTop.x += snapDispSize.x;

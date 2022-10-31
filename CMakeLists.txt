@@ -523,7 +523,7 @@ if(APPLE)
 
 elseif(UNIX)
 elseif(WIN32)
-macro(prepareNSIS_Link linkName appName params)
+    macro(prepareNSIS_Link linkName appName params)
         #prepare start menu links
         LIST(APPEND CPACK_NSIS_CREATE_ICONS_EXTRA "  CreateShortCut '$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\${linkName}.lnk' '$INSTDIR\\\\bin\\\\${appName}.exe' '${params}'")
         LIST(APPEND CPACK_NSIS_DELETE_ICONS_EXTRA "  Delete '$SMPROGRAMS\\\\$START_MENU\\\\${linkName}.lnk'")
@@ -542,33 +542,24 @@ macro(prepareNSIS_Link linkName appName params)
             RUNTIME DESTINATION bin
             LIBRARY DESTINATION bin
             COMPONENT applications)
-    
-    # Install the SDL (all those installed with mingw64 )
-    install(FILES   "C:/msys64/mingw64/bin/SDL2.dll"
-                    "C:/msys64/mingw64/bin/SDL2_image.dll"
-            DESTINATION bin COMPONENT binaries)
 
-    # Install the GLFW/GLEW (all those installed with mingw64 )
-    install(FILES   "C:/msys64/mingw64/bin/glfw3.dll"
-                    "C:/msys64/mingw64/bin/glew32.dll"
-            DESTINATION bin COMPONENT binaries)
-    
-    # Install the mingw library (all those installed with mingw64 )
-    install(FILES   "C:/msys64/mingw64/bin/libgcc_s_seh-1.dll"
-                    "C:/msys64/mingw64/bin/libwinpthread-1.dll"
-                    "C:/msys64/mingw64/bin/libstdc++-6.dll"
-                    "C:/msys64/mingw64/bin/zlib1.dll"
-            DESTINATION bin COMPONENT binaries)
-    
-    # Install the msys (all those installed with msys )
-    install(FILES   "C:/msys64/usr/bin/msys-ncursesw6.dll"
-                    "C:/msys64/usr/bin/msys-2.0.dll"
-            DESTINATION bin COMPONENT binaries)
-
-    # Install the built library
-    file(GLOB BUILT_LIBS "${CMAKE_BINARY_DIR}/*.dll")
-    install(FILES   ${BUILT_LIBS}
-            DESTINATION bin COMPONENT binaries)
+    install( CODE [[
+        execute_process(COMMAND ldd ${CMAKE_BINARY_DIR}/me.exe OUTPUT_VARIABLE ldd_out)
+        string (REPLACE "\n" ";" ldd_out_lines "${ldd_out}")
+        foreach (line ${ldd_out_lines})
+            string (REGEX REPLACE "^.* => | \(.*\)" "" pruned ${line})
+            string (STRIP ${pruned} dep_filename)
+            if (IS_ABSOLUTE ${dep_filename})
+                string (REGEX MATCH "SYSTEM32|System32|WinSxS" system_lib ${dep_filename})
+                if ("${system_lib}" STREQUAL "")
+                    set(dep_path "")
+                    string (PREPEND dep_path "C:/msys64" ${dep_filename})
+                    message("Link librarys: " ${dep_path})
+                    file(COPY ${dep_path} DESTINATION install/bin FOLLOW_SYMLINK_CHAIN)
+                endif()
+            endif()
+        endforeach()
+    ]])
 
     # Install Resource File
     install(FILES  "${PROJECT_SOURCE_DIR}/resources/me_language.ini"
