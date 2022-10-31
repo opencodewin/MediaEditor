@@ -125,6 +125,7 @@ public:
         m_hMediaInfo = nullptr;
 
         m_vidStartMts = 0;
+        m_vidStartPts = 0;
         m_vidDurMts = 0;
         m_vidFrmCnt = 0;
         m_vidMaxIndex = 0;
@@ -470,12 +471,12 @@ private:
 
     int64_t CvtVidPtsToMts(int64_t pts)
     {
-        return av_rescale_q(pts-m_vidStream->start_time, m_vidStream->time_base, MILLISEC_TIMEBASE);
+        return av_rescale_q(pts-m_vidStartPts, m_vidStream->time_base, MILLISEC_TIMEBASE);
     }
 
     int64_t CvtVidMtsToPts(int64_t mts)
     {
-        return av_rescale_q(mts, MILLISEC_TIMEBASE, m_vidStream->time_base)+m_vidStream->start_time;
+        return av_rescale_q(mts, MILLISEC_TIMEBASE, m_vidStream->time_base)+m_vidStartPts;
     }
 
     void CalcWindowVariables()
@@ -586,6 +587,7 @@ private:
         if (HasVideo())
         {
             m_vidStream = m_avfmtCtx->streams[m_vidStmIdx];
+            m_vidStartPts = m_vidStream->start_time;
 
             m_viddec = avcodec_find_decoder(m_vidStream->codecpar->codec_id);
             if (m_viddec == nullptr)
@@ -1326,7 +1328,7 @@ private:
     int64_t CalcSnapshotMts(int32_t index)
     {
         if (m_ssIntvPts > 0)
-            return CvtVidPtsToMts(index*m_ssIntvPts);
+            return CvtVidPtsToMts(index*m_ssIntvPts+m_vidStartPts);
         return 0;
     }
 
@@ -1374,12 +1376,12 @@ private:
     pair<int32_t, int32_t> CalcSsIndexPairFromPtsPair(const pair<int64_t, int64_t>& ptsPair)
     {
         int64_t mts0 = CvtVidPtsToMts(ptsPair.first);
-        int32_t idx0 = (int32_t)ceil((double)(ptsPair.first-m_vidfrmIntvPtsHalf)/m_ssIntvPts);
+        int32_t idx0 = (int32_t)ceil((double)(ptsPair.first-m_vidStartPts-m_vidfrmIntvPtsHalf)/m_ssIntvPts);
         int32_t idx1;
         if (ptsPair.second == INT64_MAX)
             idx1 = m_vidMaxIndex+1;
         else
-            idx1 = (int32_t)ceil((double)(ptsPair.second-m_vidfrmIntvPtsHalf)/m_ssIntvPts);
+            idx1 = (int32_t)ceil((double)(ptsPair.second-m_vidStartPts-m_vidfrmIntvPtsHalf)/m_ssIntvPts);
         if (idx1 == idx0) idx1++;
         return { idx0, idx1 };
     }
@@ -1790,6 +1792,7 @@ private:
     thread m_updateSsThread;
 
     int64_t m_vidStartMts{0};
+    int64_t m_vidStartPts{0};
     int64_t m_vidDurMts{0};
     int64_t m_vidFrmCnt{0};
     uint32_t m_vidMaxIndex;
