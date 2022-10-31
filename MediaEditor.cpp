@@ -2976,13 +2976,13 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImR
             ImGui::ImMatToTexture(frame, timeline->mMainPreviewTexture);
             timeline->mLastFrameTime = frame.time_stamp * 1000;
         }
-        else
-        {
-            frame.create_type(timeline->mWidth, timeline->mHeight, 4, IM_DT_INT8);
-            frame.fill((int8_t)0);
-            CalculateVideoScope(frame);
-            ImGui::ImMatToTexture(frame, timeline->mMainPreviewTexture);
-        }
+        // else
+        // {
+        //     frame.create_type(timeline->mWidth, timeline->mHeight, 4, IM_DT_INT8);
+        //     frame.fill((int8_t)0);
+        //     CalculateVideoScope(frame);
+        //     ImGui::ImMatToTexture(frame, timeline->mMainPreviewTexture);
+        // }
         timeline->mIsPreviewNeedUpdate = false;
     }
 

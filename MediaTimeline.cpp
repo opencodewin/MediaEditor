@@ -4522,7 +4522,8 @@ std::vector<DataLayer::CorrelativeFrame> TimeLine::GetPreviewFrame()
     }
 
     std::vector<DataLayer::CorrelativeFrame> frames;
-    mMtvReader->ReadVideoFrameEx(currentTime, frames, true);
+    const bool needPreciseFrame = !bSeeking;
+    mMtvReader->ReadVideoFrameEx(currentTime, frames, true, needPreciseFrame);
     if (mIsPreviewPlaying) UpdateCurrent();
     return frames;
 }

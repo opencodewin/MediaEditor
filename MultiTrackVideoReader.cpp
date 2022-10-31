@@ -363,7 +363,7 @@ public:
         return true;
     }
 
-    bool ReadVideoFrameEx(int64_t pos, std::vector<CorrelativeFrame>& frames, bool nonblocking) override
+    bool ReadVideoFrameEx(int64_t pos, std::vector<CorrelativeFrame>& frames, bool nonblocking, bool precise) override
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
         if (!m_started)
@@ -378,7 +378,7 @@ public:
         }
 
         bool needSeek = false;
-        uint32_t targetFrmidx = (int64_t)(ceil((double)pos*m_frameRate.num/(m_frameRate.den*1000)));
+        uint32_t targetFrmidx = (int64_t)(floor((double)pos*m_frameRate.num/(m_frameRate.den*1000)));
         if ((m_readForward && (targetFrmidx < m_readFrameIdx || targetFrmidx-m_readFrameIdx >= m_outputCacheSize)) ||
             (!m_readForward && (targetFrmidx > m_readFrameIdx || m_readFrameIdx-targetFrmidx >= m_outputCacheSize)))
         {
@@ -400,13 +400,31 @@ public:
                         m_readFrameIdx--;
                 }
             }
-            if (!m_outputCache.empty())
+            if (precise)
+            {
+                if (targetFrmidx != m_readFrameIdx || m_outputCache.empty())
+                {
+                    if (needSeek)
+                        SeekTo(pos, true);
+                    return false;
+                }
                 frames = m_outputCache.front();
+            }
+            else if (!m_outputCache.empty())
+            {
+                m_logger->Log(VERBOSE) << "---> USE m_outputCache.front()" << endl;
+                frames = m_outputCache.front();
+            }
             else if (!m_seekingFlash.empty())
+            {
+                m_logger->Log(VERBOSE) << "---> USE m_seekingFlash." << endl;
                 frames = m_seekingFlash;
+            }
             else
             {
                 m_logger->Log(WARN) << "No AVAILABLE frame to read!" << endl;
+                if (needSeek)
+                    SeekTo(pos, true);
                 return false;
             }
 
@@ -478,7 +496,7 @@ public:
     bool ReadVideoFrame(int64_t pos, ImGui::ImMat& vmat, bool nonblocking) override
     {
         vector<CorrelativeFrame> frames;
-        bool success = ReadVideoFrameEx(pos, frames, nonblocking);
+        bool success = ReadVideoFrameEx(pos, frames, nonblocking, true);
         if (!success)
             return false;
         vmat = frames[0].frame;
@@ -830,7 +848,7 @@ private:
             if (m_seeking.exchange(false))
             {
                 const int64_t seekPos = m_seekPos;
-                m_readFrameIdx = (int64_t)(ceil((double)seekPos*m_frameRate.num/(m_frameRate.den*1000)));
+                m_readFrameIdx = (int64_t)(floor((double)seekPos*m_frameRate.num/(m_frameRate.den*1000)));
                 for (auto track : m_tracks)
                     track->SeekTo(seekPos);
                 {
@@ -955,7 +973,7 @@ private:
 
     list<vector<CorrelativeFrame>> m_outputCache;
     mutex m_outputCacheLock;
-    uint32_t m_outputCacheSize{3};
+    uint32_t m_outputCacheSize{4};
 
     uint32_t m_outWidth{0};
     uint32_t m_outHeight{0};
