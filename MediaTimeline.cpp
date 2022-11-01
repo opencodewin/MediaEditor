@@ -947,7 +947,7 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
         MediaTrack * track = timeline->m_Tracks[mouse_track];
         auto media_type = track->mType;
         //if (mType == media_type)
-        if (IS_SAME_TYPE(mType, media_type))
+        if (IS_SAME_TYPE(mType, media_type) && !track->mLocked)
         {
             // check clip is suitable for moving cross track base on overlap status
             bool can_moving = true;
