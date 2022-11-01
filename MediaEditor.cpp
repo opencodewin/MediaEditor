@@ -320,9 +320,9 @@ struct MediaEditorSettings
     bool ExpandScope {false};
     // Histogram Scope tools
     bool HistogramLog {false};
-    bool HistogramSplited {false};
-    bool HistogramYRGB  {false};
-    float HistogramScale {0.1};
+    bool HistogramSplited {true};
+    bool HistogramYRGB  {true};
+    float HistogramScale {0.001};
 
     // Waveform Scope tools
     bool WaveformMirror {true};
@@ -9388,7 +9388,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
         if (overExpanded && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
             _expanded = !_expanded;
         ImGui::SetCursorScreenPos(panel_pos + ImVec2(32, 0));
-        bool changed = DrawTimeLine(timeline,  &_expanded, !is_splitter_hold && !mouse_hold);
+        bool changed = DrawTimeLine(timeline,  &_expanded, !is_splitter_hold && !mouse_hold && !show_configure && !show_about);
         project_need_save |= changed;
         if (g_media_editor_settings.BottomViewExpanded != _expanded)
         {

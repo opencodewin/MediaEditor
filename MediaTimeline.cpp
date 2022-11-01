@@ -5049,9 +5049,10 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &view_r
             // draw custom view
             if (track->mExpanded)
             {
-                draw_list->PushClipRect(clippingRect.Min, clippingRect.Max, true);
+                // can't using draw_list->PushClipRect, maybe all PushClipRect with screen pos/size need change to ImGui::PushClipRect
+                ImGui::PushClipRect(clippingRect.Min, clippingRect.Max, true);
                 clip->DrawContent(draw_list, clip_pos_min, clip_pos_max, clippingRect);
-                draw_list->PopClipRect();
+                ImGui::PopClipRect();
             }
 
             if (clip->bSelected)
@@ -7541,7 +7542,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         }
 
         // handle mouse wheel event
-        if (regionRect.Contains(io.MousePos))
+        if (regionRect.Contains(io.MousePos) && !menuIsOpened && editable)
         {
             if (topRect.Contains(io.MousePos))
             {
@@ -7623,7 +7624,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         // draw custom
         draw_list->PushClipRect(childFramePos, childFramePos + childFrameSize);
         for (auto &customDraw : customDraws)
-            timeline->CustomDraw(customDraw.index, draw_list, ImRect(childFramePos, childFramePos + childFrameSize), customDraw.customRect, customDraw.titleRect, customDraw.clippingTitleRect, customDraw.legendRect, customDraw.clippingRect, customDraw.legendClippingRect, bMoving, !menuIsOpened && !bCutting);
+            timeline->CustomDraw(customDraw.index, draw_list, ImRect(childFramePos, childFramePos + childFrameSize), customDraw.customRect, customDraw.titleRect, customDraw.clippingTitleRect, customDraw.legendRect, customDraw.clippingRect, customDraw.legendClippingRect, bMoving, !menuIsOpened && !bCutting && editable);
         draw_list->PopClipRect();
 
         // record moving or cropping action
