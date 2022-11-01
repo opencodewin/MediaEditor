@@ -628,7 +628,7 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
     if (!timeline)
         return index;
     auto track = timeline->FindTrackByClipID(mID);
-    if (!track)
+    if (!track || track->mLocked)
         return index;
     
     ImGuiIO &io = ImGui::GetIO();
@@ -3289,7 +3289,7 @@ bool MediaTrack::DrawTrackControlBar(ImDrawList *draw_list, ImRect rc)
     }
     if (mType == MEDIA_AUDIO)
     {
-        bool ret = TimelineButton(draw_list, mView ? ICON_SPEAKER_MUTE : ICON_SPEAKER, ImVec2(rc.Min.x + button_size.x * button_count * 1.5 + 6, rc.Max.y - button_size.y - 2), button_size, mView ? "voice" : "mute");
+        bool ret = TimelineButton(draw_list, mView ? ICON_SPEAKER : ICON_SPEAKER_MUTE, ImVec2(rc.Min.x + button_size.x * button_count * 1.5 + 6, rc.Max.y - button_size.y - 2), button_size, mView ? "mute" : "voice");
         if (ret && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
             mView = !mView;
         button_count ++;
