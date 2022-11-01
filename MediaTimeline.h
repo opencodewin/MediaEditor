@@ -38,8 +38,8 @@
 #define ICON_MEDIA_UNGROUP  u8"\ue552"
 #define ICON_SLIDER_MINIMUM u8"\uf424"
 #define ICON_SLIDER_MAXIMUM u8"\uf422"
-#define ICON_VIEW           u8"\uf06e"
-#define ICON_VIEW_DISABLE   u8"\uf070"
+#define ICON_VIEW           u8"\ue8f4"
+#define ICON_VIEW_DISABLE   u8"\ue8f5"
 #define ICON_ENABLE         u8"\uf205"
 #define ICON_DISABLE        u8"\uf204"
 #define ICON_ZOOM_IN        u8"\uf00e"
@@ -62,8 +62,8 @@
 #define ICON_STRAW          u8"\ue3b8"
 #define ICON_CROP           u8"\uf125"
 #define ICON_ROTATE         u8"\ue437"
-#define ICON_LOCKED         u8"\uf023"
-#define ICON_UNLOCK         u8"\uf09c"
+#define ICON_LOCKED         u8"\ue897"
+#define ICON_UNLOCK         u8"\ue898"
 #define ICON_TRASH          u8"\uf014"
 #define ICON_CLONE          u8"\uf2d2"
 #define ICON_ADD            u8"\uf067"
@@ -320,6 +320,7 @@ struct Clip
     int64_t mViewWndDur         {0};
     float mPixPerMs             {0};
     int mTrackHeight            {0};
+    bool bMoving                {false};            // clip is moving
 
     imgui_json::value mFilterBP;                    // clip filter blue print, project saved
     ImGui::KeyPointEditor mFilterKeyPoints;         // clip key points, project saved

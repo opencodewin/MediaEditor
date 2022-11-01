@@ -628,7 +628,7 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
     if (!timeline)
         return index;
     auto track = timeline->FindTrackByClipID(mID);
-    if (!track)
+    if (!track || track->mLocked)
         return index;
     
     ImGuiIO &io = ImGui::GetIO();
@@ -642,6 +642,9 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
 
     int64_t group_start = mStart;
     int64_t group_end = mEnd;
+    std::vector<Clip *> moving_clips;
+    bMoving = true;
+    moving_clips.push_back(this);
     if (!single)
     {
         // check all select clip
@@ -649,6 +652,9 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
         {
             if (clip->bSelected && clip->mID != mID)
             {
+                auto clip_track = timeline->FindTrackByClipID(clip->mID);
+                if (clip_track && clip_track->mLocked)
+                    continue;
                 if (clip->mStart < group_start)
                 {
                     group_start = clip->mStart;
@@ -657,19 +663,8 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
                 {
                     group_end = clip->mEnd;
                 }
-            }
-        }
-    }
-
-    // check all selected clip's lock status
-    for (auto clip : timeline->m_Clips)
-    {
-        if (clip->bSelected)
-        {
-            auto track = timeline->FindTrackByClipID(clip->mID);
-            if (track && track->mLocked)
-            {
-                return index;
+                clip->bMoving = true;
+                moving_clips.push_back(clip);
             }
         }
     }
@@ -681,7 +676,7 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
     std::vector<int64_t> unselected_end_points;
     for (auto clip : timeline->m_Clips)
     {
-        if ((single && clip->mID == mID) || (!single && clip->bSelected))
+        if ((single && clip->mID == mID) || (!single && clip->bSelected && clip->bMoving))
         {
             selected_start_points.push_back(clip->mStart);
             selected_end_points.push_back(clip->mEnd);
@@ -798,7 +793,8 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
     }
     else
     {
-        for (auto clip : timeline->m_Clips)
+        //for (auto clip : timeline->m_Clips)
+        for (auto clip : moving_clips)
         {
             if (clip->bSelected)
             {
@@ -826,7 +822,7 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
         std::vector<std::pair<int64_t, int64_t>> clips;
         for (auto clip : track->m_Clips)
         {
-            bool is_moving = single ? clip->mID == mID : clip->bSelected;
+            bool is_moving = single ? clip->mID == mID : clip->bMoving; //clip->bSelected;
             if (is_moving)
                 clips.push_back({clip->mStart + diff ,clip->mEnd + diff});
             else
@@ -951,7 +947,7 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
         MediaTrack * track = timeline->m_Tracks[mouse_track];
         auto media_type = track->mType;
         //if (mType == media_type)
-        if (IS_SAME_TYPE(mType, media_type))
+        if (IS_SAME_TYPE(mType, media_type) && !track->mLocked)
         {
             // check clip is suitable for moving cross track base on overlap status
             bool can_moving = true;
@@ -975,7 +971,7 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
 
     if (!single)
     {
-        for (auto &clip : timeline->m_Clips)
+        for (auto &clip : moving_clips)
         {
             if (clip->bSelected && clip->mID != mID)
             {
@@ -987,6 +983,9 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
         }
     }
     timeline->Update();
+    // clean clip moving flags
+    for (auto& clip : moving_clips)
+        clip->bMoving = false;
     io.MouseDelta.x = new_diff;
     return index;
 }
@@ -3289,7 +3288,7 @@ bool MediaTrack::DrawTrackControlBar(ImDrawList *draw_list, ImRect rc)
     }
     if (mType == MEDIA_AUDIO)
     {
-        bool ret = TimelineButton(draw_list, mView ? ICON_SPEAKER_MUTE : ICON_SPEAKER, ImVec2(rc.Min.x + button_size.x * button_count * 1.5 + 6, rc.Max.y - button_size.y - 2), button_size, mView ? "voice" : "mute");
+        bool ret = TimelineButton(draw_list, mView ? ICON_SPEAKER : ICON_SPEAKER_MUTE, ImVec2(rc.Min.x + button_size.x * button_count * 1.5 + 6, rc.Max.y - button_size.y - 2), button_size, mView ? "mute" : "voice");
         if (ret && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
             mView = !mView;
         button_count ++;

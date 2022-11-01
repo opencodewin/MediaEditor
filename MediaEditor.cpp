@@ -9019,6 +9019,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
     static bool show_about = false;
     static bool show_configure = false;
     static bool show_debug = false;
+    static bool show_file_dialog = false;
     auto platform_io = ImGui::GetPlatformIO();
     bool is_splitter_hold = false;
     ImGuiContext& g = *GImGui;
@@ -9198,6 +9199,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
         if (ImGui::Button(ICON_OPEN_PROJECT "##OpenProject", ImVec2(tool_icon_size, tool_icon_size)))
         {
             // Open Project
+            show_file_dialog = true;
             ImGuiFileDialog::Instance()->OpenDialog("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Open Project File", 
                                                     pfilters.c_str(),
                                                     ".",
@@ -9215,6 +9217,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
         if (ImGui::Button(ICON_SAVE_PROJECT "##SaveProject", ImVec2(tool_icon_size, tool_icon_size)))
         {
             // Save Project
+            show_file_dialog = true;
             ImGuiFileDialog::Instance()->OpenDialog("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Save Project File", 
                                                     pfilters.c_str(),
                                                     ".",
@@ -9226,6 +9229,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
         if (ImGui::Button(ICON_IGFD_ADD "##AddMedia", ImVec2(tool_icon_size, tool_icon_size)))
         {
             // Open Media Source
+            show_file_dialog = true;
             ImGuiFileDialog::Instance()->OpenDialog("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Choose Media File", 
                                                     ffilters.c_str(),
                                                     ".",
@@ -9389,7 +9393,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
         if (overExpanded && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
             _expanded = !_expanded;
         ImGui::SetCursorScreenPos(panel_pos + ImVec2(32, 0));
-        bool changed = DrawTimeLine(timeline,  &_expanded, !is_splitter_hold && !mouse_hold && !show_configure && !show_about);
+        bool changed = DrawTimeLine(timeline,  &_expanded, !is_splitter_hold && !mouse_hold && !show_configure && !show_about && !show_file_dialog);
         project_need_save |= changed;
         if (g_media_editor_settings.BottomViewExpanded != _expanded)
         {
@@ -9475,6 +9479,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
         {
             if (quit_save_confirm || g_media_editor_settings.project_path.empty())
             {
+                show_file_dialog = true;
                 ImGuiFileDialog::Instance()->OpenDialog("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Save Project File", 
                                                         pfilters.c_str(),
                                                         ".",
@@ -9594,12 +9599,14 @@ bool Application_Frame(void * handle, bool app_will_quit)
                 SaveProject(file_path);
                 app_done = true;
             }
+            show_file_dialog = false;
         }
         else
         {
             auto userDatas = std::string((const char*)ImGuiFileDialog::Instance()->GetUserDatas());
             if (userDatas.compare("ProjectSaveQuit") == 0)
                 app_done = true;
+            show_file_dialog = false;
         }
         ImGuiFileDialog::Instance()->Close();
     }
