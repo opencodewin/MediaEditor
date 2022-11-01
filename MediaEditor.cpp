@@ -548,6 +548,14 @@ static bool UIPageChanged()
     {
         // we leave video attribute windows
         Logger::Log(Logger::DEBUG) << "[Changed page] leaving video attribute page!!!" << std::endl;
+        if (timeline && timeline->mVidFilterClip)
+        {
+            timeline->mVidFilterClipLock.lock();
+            timeline->mVidFilterClip->Save();
+            timeline->mVidFilterClipLock.unlock();
+            updated = true;
+            need_update_scope = true;
+        }
     }
     if (LastMainWindowIndex == 2 && LastAudioEditorWindowIndex == 0 && (
         MainWindowIndex != 2 || AudioEditorWindowIndex != 0))
@@ -2975,15 +2983,8 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImR
             CalculateVideoScope(frame);
             ImGui::ImMatToTexture(frame, timeline->mMainPreviewTexture);
             timeline->mLastFrameTime = frame.time_stamp * 1000;
+            timeline->mIsPreviewNeedUpdate = false;
         }
-        // else
-        // {
-        //     frame.create_type(timeline->mWidth, timeline->mHeight, 4, IM_DT_INT8);
-        //     frame.fill((int8_t)0);
-        //     CalculateVideoScope(frame);
-        //     ImGui::ImMatToTexture(frame, timeline->mMainPreviewTexture);
-        // }
-        timeline->mIsPreviewNeedUpdate = false;
     }
 
     if (start > 0 && end > 0)
