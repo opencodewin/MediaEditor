@@ -320,6 +320,7 @@ struct Clip
     int64_t mViewWndDur         {0};
     float mPixPerMs             {0};
     int mTrackHeight            {0};
+    bool bMoving                {false};            // clip is moving
 
     imgui_json::value mFilterBP;                    // clip filter blue print, project saved
     ImGui::KeyPointEditor mFilterKeyPoints;         // clip key points, project saved
