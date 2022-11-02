@@ -4303,9 +4303,11 @@ int64_t TimeLine::DeleteTrack(int index)
     return trackId;
 }
 
-int TimeLine::NewTrack(const std::string& name, uint32_t type, bool expand)
+int TimeLine::NewTrack(const std::string& name, uint32_t type, bool expand, int64_t id)
 {
     auto new_track = new MediaTrack(name, type, this);
+    if (id != -1)
+        new_track->mID = id;
     new_track->mPixPerMs = msPixelWidthTarget;
     new_track->mViewWndDur = visibleTime;
     new_track->mExpanded = expand;
@@ -6427,6 +6429,7 @@ bool TimeLine::UndoOneRecord()
             }
             Clip* clip = FindClipByID(clipId);
             clip->mStart = orgStart;
+            clip->mEnd = clip->mStart+clip->mLength;
             MovingClip(clipId, toTrackIndex, fromTrackIndex);
             Update();
 
@@ -6524,8 +6527,7 @@ bool TimeLine::RedoOneRecord()
         if (actionName == "ADD_TRACK")
         {
             uint32_t type = action["media_type"].get<imgui_json::number>();
-            int newTrackIndex = NewTrack("", type, true);
-            m_Tracks[newTrackIndex]->mID = action["track_id"].get<imgui_json::number>();
+            int newTrackIndex = NewTrack("", type, true, (int64_t)action["track_id"].get<imgui_json::number>());
         }
         else if (actionName == "ADD_CLIP")
         {
