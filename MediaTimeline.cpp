@@ -469,6 +469,8 @@ void Clip::Cutting(int64_t pos)
         return;
     
     // calculate new pos
+    int64_t org_end = mEnd;
+    int64_t org_end_offset = mEndOffset;
     int64_t adj_end = pos;
     int64_t adj_end_offset = mEndOffset + (mEnd - pos);
     int64_t new_start = pos;
@@ -517,6 +519,7 @@ void Clip::Cutting(int64_t pos)
         new_clip->mStartOffset = new_start_offset;
         new_clip->mEnd = mEnd;
         new_clip->mEndOffset = mEndOffset;
+        new_clip->mLength = new_clip->mEnd-new_clip->mStart;
         new_clip->mFilterKeyPoints.SetRangeX(new_clip->mStart, new_clip->mEnd, true);
         new_clip->mAttributeKeyPoints.SetRangeX(new_clip->mStart, new_clip->mEnd, true);
         mEnd = adj_end;
@@ -573,51 +576,33 @@ void Clip::Cutting(int64_t pos)
         timeline->AddClipIntoGroup(new_clip, mGroupID);
         timeline->Update();
 
-        // sync this action to data layer
-        if (IS_VIDEO(mType))
-        {
-            DataLayer::VideoTrackHolder vidTrack = timeline->mMtvReader->GetTrackById(track->mID);
-            vidTrack->ChangeClipRange(mID, mStartOffset, mEndOffset);
-            DataLayer::VideoClipHolder thisVidClip = vidTrack->GetClipById(mID);
-            auto filter = dynamic_cast<BluePrintVideoFilter *>(thisVidClip->GetFilter().get());
-            if (filter) filter->SetKeyPoint(mFilterKeyPoints);
-            auto attribute = thisVidClip->GetTransformFilterPtr();
-            if (attribute) attribute->SetKeyPoint(mAttributeKeyPoints);
-            DataLayer::VideoClipHolder newVidClip = DataLayer::VideoClip::CreateVideoInstance(
-                new_clip->mID, thisVidClip->GetMediaParser(),
-                vidTrack->OutWidth(), vidTrack->OutHeight(), vidTrack->FrameRate(),
-                new_clip->mStart, new_clip->mStartOffset, new_clip->mEndOffset, new_clip->mStartOffset);
-            vidTrack->InsertClip(newVidClip);
-            timeline->UpdatePreview();
-        }
-        else if (IS_AUDIO(mType))
-        {
-            DataLayer::AudioTrackHolder audTrack = timeline->mMtaReader->GetTrackById(track->mID);
-            audTrack->ChangeClipRange(mID, mStartOffset, mEndOffset);
-            DataLayer::AudioClipHolder thisAudClip = audTrack->GetClipById(mID);
-            auto filter = dynamic_cast<BluePrintAudioFilter *>(thisAudClip->GetFilter().get());
-            if (filter) filter->SetKeyPoint(mFilterKeyPoints);
-            DataLayer::AudioClipHolder newAudClip = DataLayer::AudioClip::CreateAudioInstance(
-                new_clip->mID, thisAudClip->GetMediaParser(),
-                audTrack->OutChannels(), audTrack->OutSampleRate(),
-                new_clip->mStart, new_clip->mStartOffset, new_clip->mEndOffset);
-            audTrack->InsertClip(newAudClip);
-            timeline->mMtaReader->Refresh();
-        }
-        else if (IS_TEXT(mType))
-        {
-            DataLayer::SubtitleTrackHolder subTrack = timeline->mMtvReader->GetSubtitleTrackById(track->mID);
-            DataLayer::SubtitleClipHolder thisSubClip = subTrack->GetClipByTime(mStart);
-            subTrack->ChangeClipTime(thisSubClip, mStart, mEnd-mStart);
-            DataLayer::SubtitleClipHolder newSubClip = subTrack->NewClip(new_clip->mStart, new_clip->mEnd-new_clip->mStart);
-            newSubClip->SetText(thisSubClip->Text());
-            newSubClip->CloneStyle(thisSubClip);
-        }
-        else
-        {
-            Logger::Log(Logger::WARN) << "Unhandled 'CUTTING' action!" << std::endl;
-        }
-        timeline->SyncDataLayer();
+        // sync cutting action to data layer by simulating it as crop+add actions
+        // simulate CROP_CLIP
+        imgui_json::value action1;
+        action1["action"] = "CROP_CLIP";
+        action1["from_track_id"] = imgui_json::number(track->mID);
+        action1["clip_id"] = imgui_json::number(mID);
+        action1["media_type"] = imgui_json::number(mType);
+        action1["new_start"] = action1["org_start"] = imgui_json::number(mStart);
+        action1["new_start_offset"] = action1["org_start_offset"] = imgui_json::number(mStartOffset);
+        action1["org_end"] = imgui_json::number(org_end);
+        action1["org_end_offset"] = imgui_json::number(org_end_offset);
+        action1["new_end"] = imgui_json::number(mEnd);
+        action1["new_end_offset"] = imgui_json::number(mEndOffset);
+        // simulate ADD_CLIP
+        imgui_json::value action2;
+        action2["action"] = "ADD_CLIP";
+        action2["to_track_id"] = imgui_json::number(track->mID);
+        action2["clip_id"] = imgui_json::number(new_clip->mID);
+        action2["media_type"] = imgui_json::number(new_clip->mType);
+        action2["media_id"] = imgui_json::number(new_clip->mMediaID);
+        action2["group_id"] = imgui_json::number(new_clip->mGroupID);
+        action2["start"] = imgui_json::number(new_clip->mStart);
+        action2["start_offset"] = imgui_json::number(new_clip->mStartOffset);
+        action2["end"] = imgui_json::number(new_clip->mEnd);
+        action2["end_offset"] = imgui_json::number(new_clip->mEndOffset);
+        timeline->mUiActions.push_back(std::move(action1));
+        timeline->mUiActions.push_back(std::move(action2));
     }
 }
 
@@ -6583,6 +6568,7 @@ bool TimeLine::RedoOneRecord()
             }
             Clip* clip = FindClipByID(clipId);
             clip->mStart = newStart;
+            clip->mEnd = newStart+clip->mLength;
             MovingClip(clipId, fromTrackIndex, toTrackIndex);
             Update();
 
@@ -6699,6 +6685,7 @@ bool TimeLine::AddNewClip(int64_t media_id, uint32_t media_type, int64_t track_i
 
     if (clip_id != -1)
         newClip->mID = clip_id;
+    newClip->mStart = start;
     newClip->mStartOffset = start_offset;
     newClip->mEndOffset = end_offset;
     newClip->mLength -= start_offset+end_offset;
