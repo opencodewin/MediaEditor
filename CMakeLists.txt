@@ -491,8 +491,8 @@ if(APPLE)
     # Install Resource File
     install(FILES  "${PROJECT_SOURCE_DIR}/languages/me_language.ini"
             DESTINATION "${resources_dir}" COMPONENT Runtime)
-    #install(DIRECTORY  "${PROJECT_SOURCE_DIR}/"
-    #        DESTINATION "${resources_dir}/" COMPONENT Runtime)
+    install(FILES  "${PROJECT_SOURCE_DIR}/resources/me_logo.png"
+            DESTINATION "${resources_dir}/" COMPONENT Runtime)
 
     # package runtime fixup bundle
     set(APPS "\${CMAKE_INSTALL_PREFIX}/me.app")

@@ -8642,6 +8642,15 @@ void Application_GetWindowProperties(ApplicationWindowProperty& property)
 #else
         std::string();
 #endif
+    property.icon_path =  
+#if defined(__APPLE__)
+        exec_path + "../Resources/me_logo.png";
+#elif defined(__linux__)
+        //exec_path + "me.png";
+        exec_path + "../../me.png";
+#else
+        std::string();
+#endif
 
     property.name = APP_NAME;
     //property.viewport = false;
