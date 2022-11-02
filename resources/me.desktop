@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Categories=AudioVideo;
+Terminal=false
+Name=MediaEditor
+Exec=me
+Icon=me

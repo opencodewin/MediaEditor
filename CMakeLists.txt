@@ -2,7 +2,6 @@ cmake_minimum_required(VERSION 3.5.1)
 project(MediaEditor)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_SKIP_RPATH ON)
 set(CMAKE_MACOSX_RPATH 0)
 set(CMAKE_INCLUDE_CURRENTDIR ON)
 if (POLICY CMP0054)
@@ -490,7 +489,7 @@ if(APPLE)
     set(resources_dir me.app/Contents/Resources/)
 
     # Install Resource File
-    install(FILES  "${PROJECT_SOURCE_DIR}/resources/me_language.ini"
+    install(FILES  "${PROJECT_SOURCE_DIR}/languages/me_language.ini"
             DESTINATION "${resources_dir}" COMPONENT Runtime)
     #install(DIRECTORY  "${PROJECT_SOURCE_DIR}/"
     #        DESTINATION "${resources_dir}/" COMPONENT Runtime)
@@ -522,6 +521,39 @@ if(APPLE)
     endif()
 
 elseif(UNIX)
+    set(CPACK_SYSTEM_NAME  "me")
+    if (IMGUI_VULKAN)
+        if (IMGUI_SDL2)
+            set(CPACK_SYSTEM_NAME  "ME_SDL2_Vulkan")
+        elseif (IMGUI_GLFW)
+            set(CPACK_SYSTEM_NAME  "ME_GLFW_Vulkan")
+        endif()
+    elseif (IMGUI_GL3)
+        if (IMGUI_SDL2)
+            set(CPACK_SYSTEM_NAME  "ME_SDL2_OpenGL3")
+        elseif (IMGUI_GLFW)
+            set(CPACK_SYSTEM_NAME  "ME_GLFW_OpenGL3")
+        endif()
+    elseif (IMGUI_GL2)
+        if (IMGUI_SDL2)
+            set(CPACK_SYSTEM_NAME  "ME_SDL2_OpenGL2")
+        elseif (IMGUI_GLFW)
+            set(CPACK_SYSTEM_NAME  "ME_GLFW_OpenGL2")
+        endif()
+    endif()
+
+    install(CODE "
+        include(../cmake/appimage.cmake)
+        make_appimage(
+            PROJECT_DIR \"${PROJECT_SOURCE_DIR}\"
+            EXE \"me\"
+            NAME \"MediaEditor\"
+            OUTPUT_NAME \"${CPACK_SYSTEM_NAME}\"
+            DESKTOP_SRC \"${PROJECT_SOURCE_DIR}/resources/me.desktop\"
+            ICON_SRC \"${PROJECT_SOURCE_DIR}/resources/me_logo.png\"
+            RESOURCE_FILES \"${PROJECT_SOURCE_DIR}/languages/me_language.ini\"
+        )
+    " COMPONENT Runtime)
 elseif(WIN32)
     macro(prepareNSIS_Link linkName appName params)
         #prepare start menu links
@@ -562,7 +594,7 @@ elseif(WIN32)
     ]])
 
     # Install Resource File
-    install(FILES  "${PROJECT_SOURCE_DIR}/resources/me_language.ini"
+    install(FILES  "${PROJECT_SOURCE_DIR}/languages/me_language.ini"
             DESTINATION languages COMPONENT Demo)
     #install(DIRECTORY  "${PROJECT_SOURCE_DIR}/???/"
     #        DESTINATION ??? COMPONENT SoundFont)

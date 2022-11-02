@@ -3,6 +3,7 @@
 #include <iomanip>
 #include <memory>
 #include <functional>
+#include <algorithm>
 #include "Logger.h"
 #include "FFUtils.h"
 extern "C"
