@@ -8,7 +8,7 @@
 	<array>
 		<dict>
 			<key>CFBundleTypeName</key>
-			<string>ME</string>
+			<string>Media Editor Community</string>
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>LSHandlerRank</key>
@@ -17,24 +17,24 @@
 			<true/>
 			<key>LSItemContentTypes</key>
 			<array>
-				<string>com.tanlu.me</string>
+				<string>com.tanlu.mec</string>
 			</array>
 		</dict>
 	</array>
 	<key>CFBundleExecutable</key>
-	<string>me</string>
+	<string>mec</string>
 	<key>CFBundleGetInfoString</key>
-	<string>ME - Media Editor</string>
+	<string>Media Editor Community</string>
 	<key>CFBundleIconFile</key>
-	<string>me_logo.icns</string>
+	<string>mec_logo.icns</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.tanlu.me</string>
+	<string>com.tanlu.mec</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleLongVersionString</key>
         <string>1.0.0</string>
 	<key>CFBundleName</key>
-	<string>me</string>
+	<string>mec</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

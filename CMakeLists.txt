@@ -114,7 +114,7 @@ add_compile_options(-Wno-ignored-attributes -Wno-inconsistent-dllimport -Wno-dep
 #
 #  Application
 #
-set(MEDIA_EDITOR_BINARY "me")
+set(MEDIA_EDITOR_BINARY "mec")
 set(MEDIA_EDITOR_SRCS
     MediaEditor.cpp
     MediaTimeline.cpp
@@ -156,7 +156,7 @@ set(MEDIA_EDITOR_INCS
 )
 
 if(APPLE)
-set(MACOSX_BUNDLE_ICON me_logo.icns)
+set(MACOSX_BUNDLE_ICON mec_logo.icns)
 set(MACOSX_BUNDLE_ICON_FILE ${CMAKE_SOURCE_DIR}/resources/${MACOSX_BUNDLE_ICON})
 # set where in the bundle to put the icns file
 set_source_files_properties(${MACOSX_BUNDLE_ICON_FILE} PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
@@ -191,7 +191,7 @@ target_link_libraries(
 # set the Info.plist file
 set(MACOSX_BUNDLE_PLIST_FILE ${CMAKE_SOURCE_DIR}/resources/Info.plist)
 set_target_properties(${MEDIA_EDITOR_BINARY} PROPERTIES MACOSX_BUNDLE_INFO_PLIST ${MACOSX_BUNDLE_PLIST_FILE})
-set_target_properties(${MEDIA_EDITOR_BINARY} PROPERTIES MACOSX_BUNDLE TRUE MACOSX_FRAMEWORK_IDENTIFIER com.tanlu.me RESOURCE "${RESOURCE_FILES}")
+set_target_properties(${MEDIA_EDITOR_BINARY} PROPERTIES MACOSX_BUNDLE TRUE MACOSX_FRAMEWORK_IDENTIFIER com.tanlu.mec RESOURCE "${RESOURCE_FILES}")
 elseif(WIN32)
 add_executable(
     ${MEDIA_EDITOR_BINARY}
@@ -447,27 +447,28 @@ target_include_directories(
 endif(BUILD_TEST)
 
 ### DEFINE THE PACKAGING (OS specific)
+set(CPACK_SYSTEM_NAME  "mec")
 if (IMGUI_VULKAN)
     if (IMGUI_SDL2)
-        set(CPACK_SYSTEM_NAME  "ME_SDL2_Vulkan")
+        set(CPACK_SYSTEM_NAME  "MEC_SDL2_Vulkan")
     elseif (IMGUI_GLFW)
-        set(CPACK_SYSTEM_NAME  "ME_GLFW_Vulkan")
+        set(CPACK_SYSTEM_NAME  "MEC_GLFW_Vulkan")
     endif()
 elseif (IMGUI_GL3)
     if (IMGUI_SDL2)
-        set(CPACK_SYSTEM_NAME  "ME_SDL2_OpenGL3")
+        set(CPACK_SYSTEM_NAME  "MEC_SDL2_OpenGL3")
     elseif (IMGUI_GLFW)
-        set(CPACK_SYSTEM_NAME  "ME_GLFW_OpenGL3")
+        set(CPACK_SYSTEM_NAME  "MEC_GLFW_OpenGL3")
     endif()
 elseif (IMGUI_GL2)
     if (IMGUI_SDL2)
-        set(CPACK_SYSTEM_NAME  "ME_SDL2_OpenGL2")
+        set(CPACK_SYSTEM_NAME  "MEC_SDL2_OpenGL2")
     elseif (IMGUI_GLFW)
-        set(CPACK_SYSTEM_NAME  "ME_GLFW_OpenGL2")
+        set(CPACK_SYSTEM_NAME  "MEC_GLFW_OpenGL2")
     endif()
 endif()
 set(CPACK_RESOURCE_FILE_LICENSE "${PROJECT_SOURCE_DIR}/LICENSE")
-set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "ME installation.")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "MEC installation.")
 set(CPACK_PACKAGE_VENDOR "Tanlu")
 set(CPACK_PACKAGE_VERSION ${PROJECT_VER})
 set(CPACK_PACKAGE_VERSION_MAJOR ${PROJECT_VER_MAJOR})
@@ -480,22 +481,22 @@ if(APPLE)
     set(CPACK_GENERATOR DragNDrop)
     set(CPACK_BINARY_DRAGNDROP ON)
     # OSX cpack info
-    install(TARGETS me
+    install(TARGETS mec
             CONFIGURATIONS Release RelWithDebInfo
             BUNDLE  DESTINATION . COMPONENT Runtime
             RUNTIME DESTINATION bin COMPONENT Runtime
     )
-    set(frameworks_dir me.app/Contents/Frameworks/)
-    set(resources_dir me.app/Contents/Resources/)
+    set(frameworks_dir mec.app/Contents/Frameworks/)
+    set(resources_dir mec.app/Contents/Resources/)
 
     # Install Resource File
-    install(FILES  "${PROJECT_SOURCE_DIR}/languages/me_language.ini"
+    install(FILES  "${PROJECT_SOURCE_DIR}/languages/mec_language.ini"
             DESTINATION "${resources_dir}" COMPONENT Runtime)
-    install(FILES  "${PROJECT_SOURCE_DIR}/resources/me_logo.png"
+    install(FILES  "${PROJECT_SOURCE_DIR}/resources/mec_logo.png"
             DESTINATION "${resources_dir}/" COMPONENT Runtime)
 
     # package runtime fixup bundle
-    set(APPS "\${CMAKE_INSTALL_PREFIX}/me.app")
+    set(APPS "\${CMAKE_INSTALL_PREFIX}/mec.app")
     set(DIRS ${FRAMEWORKS_PATH})
     list (APPEND DIRS "/usr/local/lib/")
     INSTALL(CODE "
@@ -521,37 +522,16 @@ if(APPLE)
     endif()
 
 elseif(UNIX)
-    set(CPACK_SYSTEM_NAME  "me")
-    if (IMGUI_VULKAN)
-        if (IMGUI_SDL2)
-            set(CPACK_SYSTEM_NAME  "ME_SDL2_Vulkan")
-        elseif (IMGUI_GLFW)
-            set(CPACK_SYSTEM_NAME  "ME_GLFW_Vulkan")
-        endif()
-    elseif (IMGUI_GL3)
-        if (IMGUI_SDL2)
-            set(CPACK_SYSTEM_NAME  "ME_SDL2_OpenGL3")
-        elseif (IMGUI_GLFW)
-            set(CPACK_SYSTEM_NAME  "ME_GLFW_OpenGL3")
-        endif()
-    elseif (IMGUI_GL2)
-        if (IMGUI_SDL2)
-            set(CPACK_SYSTEM_NAME  "ME_SDL2_OpenGL2")
-        elseif (IMGUI_GLFW)
-            set(CPACK_SYSTEM_NAME  "ME_GLFW_OpenGL2")
-        endif()
-    endif()
-
     install(CODE "
         include(../cmake/appimage.cmake)
         make_appimage(
             PROJECT_DIR \"${PROJECT_SOURCE_DIR}\"
-            EXE \"me\"
-            NAME \"MediaEditor\"
+            EXE \"mec\"
+            NAME \"Media Editor Community\"
             OUTPUT_NAME \"${CPACK_SYSTEM_NAME}\"
-            DESKTOP_SRC \"${PROJECT_SOURCE_DIR}/resources/me.desktop\"
-            ICON_SRC \"${PROJECT_SOURCE_DIR}/resources/me_logo.png\"
-            RESOURCE_FILES \"${PROJECT_SOURCE_DIR}/languages/me_language.ini\"
+            DESKTOP_SRC \"${PROJECT_SOURCE_DIR}/resources/mec.desktop\"
+            ICON_SRC \"${PROJECT_SOURCE_DIR}/resources/mec_logo.png\"
+            RESOURCE_FILES \"${PROJECT_SOURCE_DIR}/languages/mec_language.ini\"
         )
     " COMPONENT Runtime)
 elseif(WIN32)
@@ -570,13 +550,13 @@ elseif(WIN32)
     endmacro()
 
     set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/install")
-    install(TARGETS me
+    install(TARGETS mec
             RUNTIME DESTINATION bin
             LIBRARY DESTINATION bin
             COMPONENT applications)
 
     install( CODE [[
-        execute_process(COMMAND ldd ${CMAKE_BINARY_DIR}/me.exe OUTPUT_VARIABLE ldd_out)
+        execute_process(COMMAND ldd ${CMAKE_BINARY_DIR}/mec.exe OUTPUT_VARIABLE ldd_out)
         string (REPLACE "\n" ";" ldd_out_lines "${ldd_out}")
         foreach (line ${ldd_out_lines})
             string (REGEX REPLACE "^.* => | \(.*\)" "" pruned ${line})
@@ -594,20 +574,20 @@ elseif(WIN32)
     ]])
 
     # Install Resource File
-    install(FILES  "${PROJECT_SOURCE_DIR}/languages/me_language.ini"
+    install(FILES  "${PROJECT_SOURCE_DIR}/languages/mec_language.ini"
             DESTINATION languages COMPONENT Demo)
     #install(DIRECTORY  "${PROJECT_SOURCE_DIR}/???/"
     #        DESTINATION ??? COMPONENT SoundFont)
 
     set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL OFF)
-    set(CPACK_NSIS_MUI_ICON "${CMAKE_CURRENT_SOURCE_DIR}/resources/me_logo.ico")
-    set(CPACK_NSIS_MUI_UNIICON "${CMAKE_CURRENT_SOURCE_DIR}/resources/me_logo.ico")
+    set(CPACK_NSIS_MUI_ICON "${CMAKE_CURRENT_SOURCE_DIR}/resources/mec_logo.ico")
+    set(CPACK_NSIS_MUI_UNIICON "${CMAKE_CURRENT_SOURCE_DIR}/resources/mec_logo.ico")
     set(CPACK_NSIS_MODIFY_PATH OFF)
-    set(CPACK_PACKAGE_NAME me)
-    set(CPACK_NSIS_DISPLAY_NAME me)
-    set(CPACK_PACKAGE_INSTALL_DIRECTORY me)
+    set(CPACK_PACKAGE_NAME mec)
+    set(CPACK_NSIS_DISPLAY_NAME mec)
+    set(CPACK_PACKAGE_INSTALL_DIRECTORY mec)
     
-    prepareNSIS_Link("me" "me" "")
+    prepareNSIS_Link("mec" "mec" "")
 endif(APPLE)
 
 # Package full name

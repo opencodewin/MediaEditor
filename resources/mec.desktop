@@ -3,5 +3,5 @@ Type=Application
 Categories=AudioVideo;
 Terminal=false
 Name=MediaEditor
-Exec=me
-Icon=me
+Exec=mec
+Icon=mec

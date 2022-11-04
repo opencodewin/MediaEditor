@@ -8644,10 +8644,10 @@ void Application_GetWindowProperties(ApplicationWindowProperty& property)
 #endif
     property.icon_path =  
 #if defined(__APPLE__)
-        exec_path + "../Resources/me_logo.png";
+        exec_path + "../Resources/mec_logo.png";
 #elif defined(__linux__)
-        //exec_path + "me.png";
-        exec_path + "../../me.png";
+        //exec_path + "mec.png";
+        exec_path + "../../mec.png";
 #else
         std::string();
 #endif
