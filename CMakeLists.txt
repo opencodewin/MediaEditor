@@ -470,10 +470,10 @@ endif()
 set(CPACK_RESOURCE_FILE_LICENSE "${PROJECT_SOURCE_DIR}/LICENSE")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "MEC installation.")
 set(CPACK_PACKAGE_VENDOR "Tanlu")
-set(CPACK_PACKAGE_VERSION ${PROJECT_VER})
-set(CPACK_PACKAGE_VERSION_MAJOR ${PROJECT_VER_MAJOR})
-set(CPACK_PACKAGE_VERSION_MINOR ${PROJECT_VER_MINOR})
-set(CPACK_PACKAGE_VERSION_PATCH ${PROJECT_VER_PATCH})
+set(CPACK_PACKAGE_VERSION 1.0.0)
+set(CPACK_PACKAGE_VERSION_MAJOR 1)
+set(CPACK_PACKAGE_VERSION_MINOR 0)
+set(CPACK_PACKAGE_VERSION_PATCH 0)
 
 if(APPLE)
     set(CMAKE_INSTALL_PREFIX ${PROJECT_BINARY_DIR})
@@ -555,8 +555,9 @@ elseif(WIN32)
             LIBRARY DESTINATION bin
             COMPONENT applications)
 
+    install( CODE "set(APPS \"${CMAKE_INSTALL_PREFIX}/bin/mec.exe\")" )
     install( CODE [[
-        execute_process(COMMAND ldd ${CMAKE_BINARY_DIR}/mec.exe OUTPUT_VARIABLE ldd_out)
+        execute_process(COMMAND ldd ${APPS} OUTPUT_VARIABLE ldd_out)
         string (REPLACE "\n" ";" ldd_out_lines "${ldd_out}")
         foreach (line ${ldd_out_lines})
             string (REGEX REPLACE "^.* => | \(.*\)" "" pruned ${line})
@@ -567,7 +568,11 @@ elseif(WIN32)
                     set(dep_path "")
                     string (PREPEND dep_path "C:/msys64" ${dep_filename})
                     message("Link librarys: " ${dep_path})
-                    file(COPY ${dep_path} DESTINATION install/bin FOLLOW_SYMLINK_CHAIN)
+                    file(INSTALL 
+                        DESTINATION "${CMAKE_INSTALL_PREFIX}/bin" 
+                        FOLLOW_SYMLINK_CHAIN
+                        FILES ${dep_path}
+                    )
                 endif()
             endif()
         endforeach()
@@ -575,13 +580,12 @@ elseif(WIN32)
 
     # Install Resource File
     install(FILES  "${PROJECT_SOURCE_DIR}/languages/mec_language.ini"
-            DESTINATION languages COMPONENT Demo)
-    #install(DIRECTORY  "${PROJECT_SOURCE_DIR}/???/"
-    #        DESTINATION ??? COMPONENT SoundFont)
+            DESTINATION languages COMPONENT Resource)
 
     set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL OFF)
     set(CPACK_NSIS_MUI_ICON "${CMAKE_CURRENT_SOURCE_DIR}/resources/mec_logo.ico")
     set(CPACK_NSIS_MUI_UNIICON "${CMAKE_CURRENT_SOURCE_DIR}/resources/mec_logo.ico")
+    set(CPACK_NSIS_INSTALLED_ICON_NAME bin\\\\mec.exe)
     set(CPACK_NSIS_MODIFY_PATH OFF)
     set(CPACK_PACKAGE_NAME mec)
     set(CPACK_NSIS_DISPLAY_NAME mec)
