@@ -355,7 +355,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
             {
                 g_audrdr->Open(filePathName);
             }
-            g_audrdr->ConfigAudioReader(c_audioRenderChannels, c_audioRenderSampleRate);
+            g_audrdr->ConfigAudioReader(c_audioRenderChannels, c_audioRenderSampleRate, "flt");
             g_audrdr->Start();
         }
         ImGuiFileDialog::Instance()->Close();
