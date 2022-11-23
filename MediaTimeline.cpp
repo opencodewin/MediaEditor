@@ -4482,7 +4482,7 @@ std::vector<DataLayer::CorrelativeFrame> TimeLine::GetPreviewFrame()
         int64_t elapsedTime = (int64_t)(std::chrono::duration_cast<std::chrono::duration<double>>((PlayerClock::now() - mPlayTriggerTp)).count()*1000);
         previewPos = mIsPreviewPlaying ? (mIsPreviewForward ? mPreviewResumePos+elapsedTime : mPreviewResumePos-elapsedTime) : mPreviewResumePos;
     }
-    ImGui::ImMat frame;
+
     currentTime = previewPos;
     if (mIsPreviewPlaying)
     {
