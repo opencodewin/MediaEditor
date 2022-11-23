@@ -493,6 +493,11 @@ public:
             m = m_prevReadImg;
             return true;
         }
+        if (IsSuspended())
+        {
+            m_errMsg = "This 'MediaReader' instance is SUSPENDED!";
+            return false;
+        }
 
         bool success = ReadVideoFrame_Internal(pos, m, wait);
         if (success)

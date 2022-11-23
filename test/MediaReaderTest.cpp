@@ -223,7 +223,8 @@ bool Application_Frame(void * handle, bool app_will_quit)
             g_isPlay = !g_isPlay;
             if (g_isPlay)
             {
-                g_vidrdr->Wakeup();
+                if (g_vidrdr->IsSuspended())
+                    g_vidrdr->Wakeup();
                 g_playStartTp = Clock::now();
                 if (g_audrdr->IsOpened())
                     g_audrnd->Resume();
@@ -233,7 +234,6 @@ bool Application_Frame(void * handle, bool app_will_quit)
                 g_playStartPos = playPos;
                 if (g_audrdr->IsOpened())
                     g_audrnd->Pause();
-                g_vidrdr->Suspend();
             }
         }
 
@@ -253,6 +253,17 @@ bool Application_Frame(void * handle, bool app_will_quit)
             {
                 g_audrdr->SetDirection(notForward);
             }
+        }
+
+        ImGui::SameLine();
+
+        string suspendBtnLabel = g_vidrdr->IsSuspended() ? "WakeUp" : "Suspend";
+        if (ImGui::Button(suspendBtnLabel.c_str()))
+        {
+            if (g_vidrdr->IsSuspended())
+                g_vidrdr->Wakeup();
+            else
+                g_vidrdr->Suspend();
         }
 
         ImGui::SameLine();
@@ -284,13 +295,14 @@ bool Application_Frame(void * handle, bool app_will_quit)
 
         ImGui::Spacing();
 
-        if (g_vidrdr->IsOpened())
+        string imgTag;
+        if (g_vidrdr->IsOpened() && !g_vidrdr->IsSuspended())
         {
             bool eof;
             ImGui::ImMat vmat;
             if (g_vidrdr->ReadVideoFrame(playPos, vmat, eof))
             {
-                string imgTag = TimestampToString(vmat.time_stamp);
+                imgTag = TimestampToString(vmat.time_stamp);
                 bool imgValid = true;
                 if (vmat.empty())
                 {
@@ -307,17 +319,18 @@ bool Application_Frame(void * handle, bool app_will_quit)
                     imgTag += "(bad format)";
                 }
                 if (imgValid)
-                {
                     ImGui::ImMatToTexture(vmat, g_imageTid);
-                    if (g_imageTid) ImGui::Image(g_imageTid, g_imageDisplaySize);
-                }
-                else
-                {
-                    ImGui::Dummy(g_imageDisplaySize);
-                }
-                ImGui::TextUnformatted(imgTag.c_str());
+            }
+            else
+            {
+                Log(Error) << "FAILED to read video frame: " << g_vidrdr->GetError() << endl;
             }
         }
+        if (g_imageTid)
+            ImGui::Image(g_imageTid, g_imageDisplaySize);
+        else
+            ImGui::Dummy(g_imageDisplaySize);
+        ImGui::TextUnformatted(imgTag.c_str());
 
         ImGui::Spacing();
 
