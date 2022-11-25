@@ -3191,39 +3191,31 @@ MediaTrack::MediaTrack(std::string name, uint32_t type, void * handle) :
 {
     TimeLine * timeline = (TimeLine *)handle;
     mID = timeline ? timeline->m_IDGenerator.GenerateID() : ImGui::get_current_time_usec();
-    if (name.empty())
+    if (timeline)
     {
-        TimeLine * timeline = (TimeLine *)m_Handle;
-        if (timeline)
+        auto media_count = timeline->GetTrackCount(type);
+        media_count ++;
+        if (IS_VIDEO(type))
         {
-            auto media_count = timeline->GetTrackCount(type);
-            media_count ++;
-            if (IS_VIDEO(type))
-            {
-                mName = "V:";
-                mTrackHeight = DEFAULT_VIDEO_TRACK_HEIGHT;
-            }
-            else if (IS_AUDIO(type))
-            {
-                mName = "A:";
-                mTrackHeight = DEFAULT_AUDIO_TRACK_HEIGHT;
-            }
-            else if (IS_TEXT(type))
-            {
-                mName = "T:";
-                mTrackHeight = DEFAULT_TEXT_TRACK_HEIGHT;
-            }
-            else
-            {
-                mName = "U:";
-                mTrackHeight = DEFAULT_TRACK_HEIGHT;
-            }
-            mName += std::to_string(media_count);
+            if (name.empty()) mName = "V:"; else mName = name;
+            mTrackHeight = DEFAULT_VIDEO_TRACK_HEIGHT;
         }
-    }
-    else
-    {
-        mName = name;
+        else if (IS_AUDIO(type))
+        {
+            if (name.empty()) mName = "A:"; else mName = name;
+            mTrackHeight = DEFAULT_AUDIO_TRACK_HEIGHT;
+        }
+        else if (IS_TEXT(type))
+        {
+            if (name.empty()) mName = "T:"; else mName = name;
+            mTrackHeight = DEFAULT_TEXT_TRACK_HEIGHT;
+        }
+        else
+        {
+            if (name.empty()) mName = "U:"; else mName = name;
+            mTrackHeight = DEFAULT_TRACK_HEIGHT;
+        }
+        if (name.empty()) mName += std::to_string(media_count);
     }
 }
 
