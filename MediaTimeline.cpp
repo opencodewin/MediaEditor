@@ -7050,7 +7050,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                         const float max_handle_width = clipP2.x - clipP1.x / 3.0f;
                         const float min_handle_width = ImMin(10.0f, max_handle_width);
                         const float handle_width = ImClamp(timeline->msPixelWidthTarget / 2.0f, min_handle_width, max_handle_width);
-                        ImRect rects[3] = {ImRect(clipP1, ImVec2(clipP1.x + handle_width, clipP2.y)), ImRect(ImVec2(clipP2.x - handle_width, clipP1.y), clipP2), ImRect(clipP1, clipP3)};
+                        ImRect rects[3] = {ImRect(clipP1, ImVec2(clipP1.x + handle_width, clipP2.y)), ImRect(ImVec2(clipP2.x - handle_width, clipP1.y), clipP2), ImRect(clipP1 + ImVec2(handle_width, 0), clipP3 - ImVec2(handle_width, 0))};
 
                         for (int j = 1; j >= 0; j--)
                         {
