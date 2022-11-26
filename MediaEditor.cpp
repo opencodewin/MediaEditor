@@ -5001,10 +5001,6 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list)
     }
     float preview_height = window_size.y - clip_timeline_height - clip_keypoint_height - 4;
     float audio_blueprint_height = window_size.y / 2;
-    if (editing_clip && blueprint)
-    {
-        blueprint->m_ViewSize = ImVec2(audio_editor_width, audio_blueprint_height);
-    }
     float clip_timeline_width = audio_view_width;
     ImVec2 clip_timeline_pos = window_pos + ImVec2(0, preview_height);
     ImVec2 clip_timeline_size(clip_timeline_width, clip_timeline_height);
@@ -5435,11 +5431,6 @@ static void ShowAudioFusionWindow(ImDrawList *draw_list)
 
     float preview_height = window_size.y - clip_timeline_height - clip_keypoint_height - 4;
     float audio_blueprint_height = window_size.y / 2;
-    if (editing_overlap && blueprint)
-    {
-        blueprint->m_ViewSize = ImVec2(audio_editor_width, audio_blueprint_height);
-    }
-
     float clip_timeline_width = audio_view_width;
     ImVec2 clip_timeline_pos = window_pos + ImVec2(0, preview_height);
     ImVec2 clip_timeline_size(clip_timeline_width, clip_timeline_height);
