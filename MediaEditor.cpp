@@ -9026,8 +9026,8 @@ bool Application_Frame(void * handle, bool app_will_quit)
     if (!g_media_editor_settings.UILanguage.empty() && g.LanguageName != g_media_editor_settings.UILanguage)
         g.LanguageName = g_media_editor_settings.UILanguage;
     const ImGuiFileDialogFlags fflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_DisableCreateDirectoryButton | ImGuiFileDialogFlags_Modal;
-    const std::string video_file_dis = "*.mp4 *.mov *.mkv *.avi *.webm *.ts";
-    const std::string video_file_suffix = ".mp4,.mov,.mkv,.avi,.webm,.ts";
+    const std::string video_file_dis = "*.mp4 *.mov *.mkv *.mxf *.avi *.webm *.ts";
+    const std::string video_file_suffix = ".mp4,.mov,.mkv,.mxf,.avi,.webm,.ts";
     const std::string audio_file_dis = "*.wav *.mp3 *.aac *.ogg *.ac3 *.dts";
     const std::string audio_file_suffix = ".wav,.mp3,.aac,.ogg,.ac3,.dts";
     const std::string image_file_dis = "*.png *.gif *.jpg *.jpeg *.tiff *.webp";
@@ -9519,6 +9519,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
                     if ((file_suffix.compare(".mp4") == 0) ||
                         (file_suffix.compare(".mov") == 0) ||
                         (file_suffix.compare(".mkv") == 0) ||
+                        (file_suffix.compare(".mxf") == 0) ||
                         (file_suffix.compare(".avi") == 0) ||
                         (file_suffix.compare(".webm") == 0) ||
                         (file_suffix.compare(".ts") == 0))
