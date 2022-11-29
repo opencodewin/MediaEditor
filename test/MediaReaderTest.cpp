@@ -22,7 +22,9 @@ using namespace std;
 using namespace Logger;
 using Clock = chrono::steady_clock;
 
-static bool s_audioOnly = false;
+static bool g_videoOnly = false;
+static bool g_audioOnly = false;
+static bool g_useHwAccel = true;
 // video
 static MediaReader* g_vidrdr = nullptr;
 static double g_playStartPos = 0.f;
@@ -279,7 +281,11 @@ bool Application_Frame(void * handle, bool app_will_quit)
         }
 
         ImGui::SameLine();
-        ImGui::Checkbox("Audio Only", &s_audioOnly);
+        ImGui::Checkbox("Audio Only", &g_audioOnly);
+        ImGui::SameLine();
+        ImGui::Checkbox("Video Only", &g_videoOnly);
+        ImGui::SameLine();
+        ImGui::Checkbox("Use HW Accelaration", &g_useHwAccel);
 
         ImGui::Spacing();
 
@@ -357,19 +363,23 @@ bool Application_Frame(void * handle, bool app_will_quit)
             g_imageTid = nullptr;
             g_isLongCacheDur = false;
             string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
-            if (!s_audioOnly)
+            MediaParserHolder hParser = CreateMediaParser();
+            hParser->Open(filePathName);
+            if (hParser->HasVideo() && !g_audioOnly)
             {
-                g_vidrdr->Open(filePathName);
+                g_vidrdr->EnableHwAccel(g_useHwAccel);
+                g_vidrdr->Open(hParser);
                 g_vidrdr->ConfigVideoReader((uint32_t)g_imageDisplaySize.x, (uint32_t)g_imageDisplaySize.y);
                 g_vidrdr->Start();
-                g_audrdr->Open(g_vidrdr->GetMediaParser());
             }
-            else
+            if (hParser->HasAudio() && !g_videoOnly)
             {
-                g_audrdr->Open(filePathName);
+                g_audrdr->Open(hParser);
+                g_audrdr->ConfigAudioReader(c_audioRenderChannels, c_audioRenderSampleRate, "flt");
+                g_audrdr->Start();
             }
-            g_audrdr->ConfigAudioReader(c_audioRenderChannels, c_audioRenderSampleRate, "flt");
-            g_audrdr->Start();
+            if (!g_vidrdr->IsOpened() && !g_audrdr->IsOpened())
+                Log(Error) << "Neither VIDEO nor AUDIO stream is ready for playback!" << endl;
         }
         ImGuiFileDialog::Instance()->Close();
     }

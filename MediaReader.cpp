@@ -1618,6 +1618,26 @@ private:
                                     currTask->frmPtsAry.push_back(enqpkt->pts);
                                     lastPktPts = enqpkt->pts;
                                 }
+                                if (enqpkt->pts < currTask->seekPts.first)
+                                {
+                                    m_logger->Log(DEBUG) << "-=-> Change current task 'seekPts.first' from " << currTask->seekPts.first << " to " << enqpkt->pts << endl;
+                                    currTask->seekPts.first = enqpkt->pts;
+                                    if (enqpkt->pts < m_cacheWnd.seekPos00)
+                                    {
+                                        m_logger->Log(DEBUG) << "-==> Change cache window 'seekPos00' from " << m_cacheWnd.seekPos00 << " to " << enqpkt->pts << endl;
+                                        m_cacheWnd.seekPos00 = enqpkt->pts;
+                                    }
+                                }
+                                else if (enqpkt->pts > currTask->seekPts.second)
+                                {
+                                    m_logger->Log(DEBUG) << "-=-> Change current task 'seekPts.second' from " << currTask->seekPts.second << " to " << enqpkt->pts << endl;
+                                    currTask->seekPts.second = enqpkt->pts;
+                                    if (enqpkt->pts > m_cacheWnd.seekPos10)
+                                    {
+                                        m_logger->Log(DEBUG) << "-==> Change cache window 'seekPos10' from " << m_cacheWnd.seekPos10 << " to " << enqpkt->pts << endl;
+                                        m_cacheWnd.seekPos10 = enqpkt->pts;
+                                    }
+                                }
                             }
                             av_packet_unref(&avpkt);
                             avpktLoaded = false;
@@ -2548,9 +2568,11 @@ private:
                     while (iter != m_bldtskTimeOrder.end())
                     {
                         auto& tsk = *iter;
-                        if (tsk->seekPts.first < currwnd.seekPos00)
+                        if (tsk->seekPts.second < currwnd.seekPos00)
                         {
                             tsk->cancel = true;
+                            m_logger->Log(DEBUG) << "^^> Remove task 'seekPts.first'=" << (*iter)->seekPts.first << "(" << MillisecToString(CvtPtsToMts((*iter)->seekPts.first)) << ")"
+                                << ", 'seekPts.second'=" << (*iter)->seekPts.second << "(" << MillisecToString(CvtPtsToMts((*iter)->seekPts.second)) << ")" << endl;
                             iter = m_bldtskTimeOrder.erase(iter);
                         }
                         else
@@ -2560,6 +2582,7 @@ private:
                 }
                 else
                 {
+                    m_logger->Log(DEBUG) << "^^> CLEAR ALL TASKS." << endl;
                     for (auto& tsk : m_bldtskTimeOrder)
                         tsk->cancel = true;
                     m_bldtskTimeOrder.clear();
@@ -2600,6 +2623,8 @@ private:
                         if (tsk->seekPts.first > currwnd.seekPos10)
                         {
                             tsk->cancel = true;
+                            m_logger->Log(DEBUG) << "^^> Remove task 'seekPts.first'=" << (*iter)->seekPts.first << "(" << MillisecToString(CvtPtsToMts((*iter)->seekPts.first)) << ")"
+                                << ", 'seekPts.second'=" << (*iter)->seekPts.second << "(" << MillisecToString(CvtPtsToMts((*iter)->seekPts.second)) << ")" << endl;
                             iter = m_bldtskTimeOrder.erase(iter);
                             iter--;
                         }
@@ -2610,6 +2635,7 @@ private:
                 }
                 else
                 {
+                    m_logger->Log(DEBUG) << "^^> CLEAR ALL TASKS." << endl;
                     for (auto& tsk : m_bldtskTimeOrder)
                         tsk->cancel = true;
                     m_bldtskTimeOrder.clear();
