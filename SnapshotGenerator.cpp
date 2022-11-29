@@ -942,9 +942,9 @@ private:
             bool idleLoop = true;
             bool quitLoop = false;
 
-            if (currTask && currTask->cancel)
+            if (currTask && (currTask->cancel || currTask->redoDecoding))
             {
-                m_logger->Log(VERBOSE) << "~~~~ Current video task canceled" << endl;
+                m_logger->Log(VERBOSE) << "~~~~ Current video task canceled or redo-decoding" << endl;
                 if (avfrmLoaded)
                 {
                     av_frame_unref(&avfrm);
@@ -1064,8 +1064,8 @@ private:
                             {
                                 lock_guard<mutex> lk(currTask->avpktQLock);
                                 currTask->avpktQ.pop_front();
+                                currTask->avpktBkupQ.push_back(avpkt);
                             }
-                            av_packet_free(&avpkt);
                             idleLoop = false;
                         }
                     }
@@ -1097,20 +1097,33 @@ private:
         {
             bool idleLoop = true;
 
-            if (!currTask || currTask->cancel || currTask->ssfrmCnt <= 0)
+            if (!currTask || currTask->cancel || currTask->ssfrmCnt <= 0 || currTask->redoDecoding)
             {
                 currTask = FindNextSsUpdateTask();
             }
 
             if (currTask)
             {
-                for (Snapshot& ss : currTask->ssAry)
+                auto ssIter = currTask->ssAry.begin();
+                while (ssIter != currTask->ssAry.end())
                 {
+                    auto& ss = *ssIter;
                     if (ss.avfrm)
                     {
                         double ts = (double)CvtVidPtsToMts(ss.avfrm->pts)/1000.;
                         if (!m_frmCvt.ConvertImage(ss.avfrm, ss.img->mImgMat, ts))
-                            m_logger->Log(Error) << "FAILED to convert AVFrame to ImGui::ImMat! Message is '" << m_frmCvt.GetError() << "'." << endl;
+                        {
+                            m_logger->Log(Error) << "FAILED to convert AVFrame(pts=" << ss.avfrm->pts << ", mts=" << CvtVidPtsToMts(ss.avfrm->pts)
+                                    << ") to ImGui::ImMat! Message is '" << m_frmCvt.GetError() << "'." << endl;
+                            av_frame_free(&ss.avfrm);
+                            currTask->ssfrmCnt--;
+                            m_pendingVidfrmCnt--;
+                            currTask->redoDecoding = true;
+                            currTask->ssAry.erase(ssIter);
+                            idleLoop = false;
+                            break;
+                        }
+
                         av_frame_free(&ss.avfrm);
                         ss.avfrm = nullptr;
                         currTask->ssfrmCnt--;
@@ -1123,6 +1136,7 @@ private:
                         ss.img->mTimestampMs = CalcSnapshotMts(ss.index);
                         idleLoop = false;
                     }
+                    ssIter++;
                 }
             }
 
@@ -1245,6 +1259,8 @@ private:
         {
             for (AVPacket* avpkt : avpktQ)
                 av_packet_free(&avpkt);
+            for (AVPacket* avpkt : avpktBkupQ)
+                av_packet_free(&avpkt);
             for (Snapshot& ss : ssAry)
             {
                 if (ss.avfrm)
@@ -1271,10 +1287,12 @@ private:
         list<Snapshot> ssAry;
         atomic_int32_t ssfrmCnt{0};
         list<AVPacket*> avpktQ;
+        list<AVPacket*> avpktBkupQ;
         mutex avpktQLock;
         bool demuxing{false};
         bool demuxerEof{false};
         bool decoding{false};
+        bool redoDecoding{false};
         bool decoderEof{false};
         bool cancel{false};
     };
@@ -1527,7 +1545,7 @@ private:
         int32_t shortestDistanceToViewWnd = INT32_MAX;
         for (auto& task : m_goptskList)
         {
-            if (!task->cancel && task->demuxing && !task->decoding)
+            if (!task->cancel && task->demuxing && (!task->decoding || task->redoDecoding))
             {
                 if (task->IsInView())
                 {
@@ -1541,6 +1559,24 @@ private:
                 }
             }
         }
+        if (candidateTask && candidateTask->redoDecoding)
+        {
+            m_logger->Log(DEBUG) << "---> REDO decoding on GopDecodeTask, ssIdxPair=["
+                    << candidateTask->m_range.SsIdx().first << ", " << candidateTask->m_range.SsIdx().second << "), ptsPair=["
+                    << candidateTask->m_range.SeekPts().first << ", " << candidateTask->m_range.SeekPts().second << ")." << endl;
+            candidateTask->redoDecoding = false;
+            candidateTask->decoderEof = false;
+            while (!candidateTask->avpktQ.empty())
+            {
+                candidateTask->avpktBkupQ.push_back(candidateTask->avpktQ.front());
+                candidateTask->avpktQ.pop_front();
+            }
+            while (!candidateTask->avpktBkupQ.empty())
+            {
+                candidateTask->avpktQ.push_back(candidateTask->avpktBkupQ.front());
+                candidateTask->avpktBkupQ.pop_front();
+            }
+        }
         return candidateTask;
     }
 
@@ -1549,7 +1585,7 @@ private:
         lock_guard<mutex> lk(m_goptskListReadLocks[2]);
         GopDecodeTaskHolder nxttsk = nullptr;
         for (auto& tsk : m_goptskList)
-            if (!tsk->cancel && tsk->ssfrmCnt > 0)
+            if (!tsk->cancel && tsk->ssfrmCnt > 0 && !tsk->redoDecoding)
             {
                 nxttsk = tsk;
                 break;
@@ -1711,7 +1747,11 @@ private:
                 while (buildIdx0 <= buildIdx1)
                 {
                     auto ptsPair = m_owner->GetSeekPosBySsIndex(buildIdx0);
-                    auto ssIdxPair = m_owner->CalcSsIndexPairFromPtsPair(ptsPair);
+                    uint32_t bias;
+                    auto ssIdx0 = m_owner->checkFrameSsBias(ptsPair.first, bias);
+                    auto ssIdx1 = m_owner->checkFrameSsBias(ptsPair.second, bias);
+                    if (ssIdx0 == ssIdx1) ssIdx1++;
+                    pair<int32_t, int32_t> ssIdxPair = { ssIdx0, ssIdx1 };
                     if (ssIdxPair.second <= buildIdx0)
                     {
                         m_logger->Log(WARN) << "Snap window DOESN'T PROCEED! 'buildIdx0'(" << buildIdx0 << ") is NOT INCLUDED in the next 'ssIdxPair'["
@@ -1816,7 +1856,7 @@ private:
     list<GopDecodeTaskHolder> m_goptskList;
     mutex m_goptskListReadLocks[3];
     atomic_int32_t m_pendingVidfrmCnt{0};
-    int32_t m_maxPendingVidfrmCnt{4};
+    int32_t m_maxPendingVidfrmCnt{2};
     // textures
     list<TextureHolder> m_deprecatedTextures;
     mutex m_deprecatedTextureLock;
