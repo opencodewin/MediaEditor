@@ -526,12 +526,16 @@ private:
 
     bool OpenHwVideoDecoder()
     {
-        m_vidHwPixFmt = AV_PIX_FMT_NONE;
+        int fferr;
+        AVHWDeviceType hwDevType = AV_HWDEVICE_TYPE_NONE;
+        AVCodecContext* hwDecCtx = nullptr;
+        AVBufferRef* devCtx;
         for (int i = 0; ; i++)
         {
             const AVCodecHWConfig* config = avcodec_get_hw_config(m_viddec, i);
             if (!config)
             {
+                m_vidHwPixFmt = AV_PIX_FMT_NONE;
                 ostringstream oss;
                 oss << "Decoder '" << m_viddec->name << "' does NOT support hardware acceleration.";
                 m_errMsg = oss.str();
@@ -542,44 +546,43 @@ private:
                 if (m_vidUseHwType == AV_HWDEVICE_TYPE_NONE || m_vidUseHwType == config->device_type)
                 {
                     m_vidHwPixFmt = config->pix_fmt;
-                    m_viddecDevType = config->device_type;
+                    hwDevType = config->device_type;
+                    hwDecCtx = avcodec_alloc_context3(m_viddec);
+                    if (!hwDecCtx)
+                        continue;
+                    hwDecCtx->opaque = this;
+                    fferr = avcodec_parameters_to_context(hwDecCtx, m_vidAvStm->codecpar);
+                    if (fferr < 0)
+                    {
+                        avcodec_free_context(&hwDecCtx);
+                        continue;
+                    }
+                    hwDecCtx->get_format = get_hw_format;
+                    devCtx = nullptr;
+                    fferr = av_hwdevice_ctx_create(&devCtx, hwDevType, nullptr, nullptr, 0);
+                    if (fferr < 0)
+                    {
+                        avcodec_free_context(&hwDecCtx);
+                        if (devCtx) av_buffer_unref(&devCtx);
+                        continue;
+                    }
+                    hwDecCtx->hw_device_ctx = av_buffer_ref(devCtx);
+                    fferr = avcodec_open2(hwDecCtx, m_viddec, nullptr);
+                    if (fferr < 0)
+                    {
+                        avcodec_free_context(&hwDecCtx);
+                        av_buffer_unref(&devCtx);
+                        continue;
+                    }
                     break;
                 }
             }
         }
+
+        m_viddecDevType = hwDevType;
+        m_viddecCtx = hwDecCtx;
+        m_viddecHwDevCtx = devCtx;
         m_logger->Log(DEBUG) << "Use hardware device type '" << av_hwdevice_get_type_name(m_viddecDevType) << "'." << endl;
-
-        m_viddecCtx = avcodec_alloc_context3(m_viddec);
-        if (!m_viddecCtx)
-        {
-            m_errMsg = "FAILED to allocate new AVCodecContext!";
-            return false;
-        }
-        m_viddecCtx->opaque = this;
-
-        int fferr;
-        fferr = avcodec_parameters_to_context(m_viddecCtx, m_vidAvStm->codecpar);
-        if (fferr < 0)
-        {
-            m_errMsg = FFapiFailureMessage("avcodec_parameters_to_context", fferr);
-            return false;
-        }
-        m_viddecCtx->get_format = get_hw_format;
-
-        fferr = av_hwdevice_ctx_create(&m_viddecHwDevCtx, m_viddecDevType, nullptr, nullptr, 0);
-        if (fferr < 0)
-        {
-            m_errMsg = FFapiFailureMessage("av_hwdevice_ctx_create", fferr);
-            return false;
-        }
-        m_viddecCtx->hw_device_ctx = av_buffer_ref(m_viddecHwDevCtx);
-
-        fferr = avcodec_open2(m_viddecCtx, m_viddec, nullptr);
-        if (fferr < 0)
-        {
-            m_errMsg = FFapiFailureMessage("avcodec_open2", fferr);
-            return false;
-        }
         m_logger->Log(DEBUG) << "Video decoder(HW) '" << m_viddecCtx->codec->name << "' opened." << endl;
         return true;
     }
@@ -1576,12 +1579,20 @@ ALogger* GetMediaOverviewLogger()
 
 static AVPixelFormat get_hw_format(AVCodecContext *ctx, const AVPixelFormat *pix_fmts)
 {
-    MediaOverview_Impl* ms = reinterpret_cast<MediaOverview_Impl*>(ctx->opaque);
+    MediaOverview_Impl* mo = reinterpret_cast<MediaOverview_Impl*>(ctx->opaque);
     const AVPixelFormat *p;
-    for (p = pix_fmts; *p != -1; p++) {
-        if (ms->CheckHwPixFmt(*p))
+    AVPixelFormat candidateSwfmt = AV_PIX_FMT_NONE;
+    for (p = pix_fmts; *p != AV_PIX_FMT_NONE; p++) {
+        const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(*p);
+        if (!(desc->flags & AV_PIX_FMT_FLAG_HWACCEL) && candidateSwfmt == AV_PIX_FMT_NONE)
+        {
+            // save this software format as candidate
+            candidateSwfmt = *p;
+        }
+        if (mo->CheckHwPixFmt(*p))
             return *p;
     }
+    return candidateSwfmt;
     return AV_PIX_FMT_NONE;
 }
 
