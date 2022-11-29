@@ -3189,11 +3189,18 @@ static AVPixelFormat get_hw_format(AVCodecContext *ctx, const AVPixelFormat *pix
 {
     MediaReader_Impl* mrd = reinterpret_cast<MediaReader_Impl*>(ctx->opaque);
     const AVPixelFormat *p;
+    AVPixelFormat candidateSwfmt = AV_PIX_FMT_NONE;
     for (p = pix_fmts; *p != AV_PIX_FMT_NONE; p++) {
+        const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(*p);
+        if (!(desc->flags & AV_PIX_FMT_FLAG_HWACCEL) && candidateSwfmt == AV_PIX_FMT_NONE)
+        {
+            // save this software format as candidate
+            candidateSwfmt = *p;
+        }
         if (mrd->CheckHwPixFmt(*p))
             return *p;
     }
-    return AV_PIX_FMT_NONE;
+    return candidateSwfmt;
 }
 
 MediaReader* CreateMediaReader()
