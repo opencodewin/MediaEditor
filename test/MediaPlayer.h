@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <string>
 #include <immat.h>
+#include <imgui_helper.h>
 #include "AudioRender.hpp"
 
 struct MediaPlayer
@@ -28,6 +29,13 @@ struct MediaPlayer
     virtual uint64_t GetDuration() const = 0;
     virtual int64_t GetPlayPos() const = 0; 
     virtual ImGui::ImMat GetVideo() const = 0;
+
+    virtual int GetAudioChannels() const = 0;
+    virtual int GetAudioMeterStack(int channel) const = 0;
+    virtual int GetAudioMeterCount(int channel) const = 0;
+    virtual void SetAudioMeterStack(int channel, int stack) = 0;
+    virtual void SetAudioMeterCount(int channel, int count) = 0;
+    virtual float GetAudioMeterValue(int channel, double pts) = 0;
 
     enum class PlayMode
     {
