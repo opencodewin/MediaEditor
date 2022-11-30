@@ -6,6 +6,7 @@
 #include <list>
 #include <atomic>
 #include <limits>
+#include <vector>
 #include <cmath>
 #include <algorithm>
 #include "MediaPlayer.h"
@@ -28,6 +29,18 @@ extern "C"
 using namespace std;
 
 static AVPixelFormat get_hw_format(AVCodecContext *ctx, const AVPixelFormat *pix_fmts);
+
+struct AudioDB
+{
+    double audio_pts {0};
+    float audio_decibel {0};
+};
+struct AudioAttribute
+{
+    int audio_stack {0};
+    int audio_count {0};
+    std::vector<AudioDB> audio_value;
+};
 
 class MediaPlayer_FFImpl : public MediaPlayer
 {
@@ -75,6 +88,11 @@ public:
         {
             swr_free(&m_swrCtx);
             m_swrCtx = nullptr;
+        }
+        if (m_swrDBCtx)
+        {
+            swr_free(&m_swrDBCtx);
+            m_swrDBCtx = nullptr;
         }
         m_swrOutChannels = 0;
         m_swrOutChnLyt = 0;
@@ -440,6 +458,64 @@ public:
         return m_vidMat;
     }
 
+    int GetAudioChannels() const override
+    {
+        return m_channel_data.size();
+    }
+
+    int GetAudioMeterStack(int channel) const override
+    {
+        if (channel < m_channel_data.size())
+        {
+            return m_channel_data[channel].audio_stack;
+        }
+        return 0;
+    }
+
+    int GetAudioMeterCount(int channel) const override
+    {
+        if (channel < m_channel_data.size())
+        {
+            return m_channel_data[channel].audio_count;
+        }
+        return 0;
+    }
+
+    void SetAudioMeterStack(int channel, int stack) override
+    {
+        if (channel < m_channel_data.size())
+        {
+            m_channel_data[channel].audio_stack = stack;
+        }
+    }
+    void SetAudioMeterCount(int channel, int count) override
+    {
+        if (channel < m_channel_data.size())
+        {
+            m_channel_data[channel].audio_count = count;
+        }
+    }
+
+    float GetAudioMeterValue(int channel, double pts) override
+    {
+        if (channel < m_channel_data.size())
+        {
+            //return m_channel_data[channel].m_decibel;
+            for (auto it = m_channel_data[channel].audio_value.begin(); it != m_channel_data[channel].audio_value.end();)
+            {
+                if (it->audio_pts < pts)
+                {
+                    it = m_channel_data[channel].audio_value.erase(it);
+                }
+                else
+                {
+                    return it->audio_decibel;
+                }
+            }
+        }
+        return 0;
+    }
+
     bool SetPlayMode(PlayMode mode) override
     {
         lock_guard<recursive_mutex> lk(m_ctlLock);
@@ -657,6 +733,27 @@ private:
             return false;
         }
         cout << "Audio decoder '" << m_auddec->name << "' opened." << endl;
+
+        // setup autio meter
+        for (int a = 0; a < m_audStream->codecpar->channels; a++)
+        {
+            AudioAttribute new_channel;
+            m_channel_data.push_back(new_channel);
+        }
+        //m_swrDBCtx = swr_alloc_set_opts(NULL, m_audStream->codecpar->channel_layout, AV_SAMPLE_FMT_FLTP, m_audStream->codecpar->sample_rate, 
+        //                                    m_audStream->codecpar->channel_layout, (AVSampleFormat)m_audStream->codecpar->format, m_audStream->codecpar->sample_rate, 0, nullptr);
+        fferr = swr_alloc_set_opts2(&m_swrDBCtx, &m_audStream->codecpar->ch_layout, AV_SAMPLE_FMT_FLTP, m_audStream->codecpar->sample_rate, 
+                                            &m_audStream->codecpar->ch_layout, (AVSampleFormat)m_audStream->codecpar->format, m_audStream->codecpar->sample_rate, 0, nullptr);
+        if (!m_swrDBCtx || fferr != 0)
+        {
+            m_errMessage = "FAILED to invoke 'swr_alloc_set_opts()' to create 'SwrDBContext'!";
+            return false;
+        }
+        if (swr_init(m_swrDBCtx) < 0)
+        {
+            SetFFError("swr_init", fferr);
+            return false;
+        }
 
         // setup sw resampler
         int inChannels = m_audStream->codecpar->channels;
@@ -1213,6 +1310,51 @@ private:
                 {
                     AVFrame* srcfrm = m_audfrmQ.front();;
                     AVFrame* dstfrm = nullptr;
+                    // do audio data scope here
+                    if (m_swrDBCtx)
+                    {
+                        AVFrame* dstDBfrm = nullptr;
+                        dstDBfrm = av_frame_alloc();
+                        if (dstDBfrm)
+                        {
+                            dstDBfrm->format = (int)AV_SAMPLE_FMT_FLTP;
+                            dstDBfrm->sample_rate = m_audStream->codecpar->sample_rate;
+                            dstDBfrm->channels = m_audStream->codecpar->channels;
+                            dstDBfrm->channel_layout = m_audStream->codecpar->channel_layout;
+                            dstDBfrm->nb_samples = swr_get_out_samples(m_swrDBCtx, srcfrm->nb_samples);
+                            int fferr = av_frame_get_buffer(dstDBfrm, 0);
+                            if (fferr >= 0)
+                            {
+                                av_frame_copy_props(dstDBfrm, srcfrm);
+                                dstDBfrm->pts = swr_next_pts(m_swrDBCtx, srcfrm->pts);
+                                int64_t mts = av_rescale_q(dstDBfrm->pts, m_audStream->time_base, MILLISEC_TIMEBASE);
+                                fferr = swr_convert(m_swrDBCtx, dstDBfrm->data, dstDBfrm->nb_samples, (const uint8_t **)srcfrm->data, srcfrm->nb_samples);
+                                if (fferr >= 0)
+                                {
+                                    for (int c = 0; c < dstDBfrm->channels; c++)
+                                    {
+                                        if (c < m_channel_data.size())
+                                        {
+                                            int sample_size = dstDBfrm->nb_samples > 512 ? 512 : dstDBfrm->nb_samples > 256 ? 256 : dstDBfrm->nb_samples > 128 ? 128 : 64;
+                                            ImGui::ImMat mat_wav;
+                                            mat_wav.create_type(sample_size, 1, 1, dstDBfrm->data[c], IM_DT_FLOAT32);
+                                            ImGui::ImMat mat_fft;
+                                            mat_fft.clone_from(mat_wav);
+                                            ImGui::ImRFFT((float *)mat_fft.data, mat_fft.w, true);
+                                            AudioDB db_value;
+                                            db_value.audio_pts = (double)mts / 1000.0;
+                                            db_value.audio_decibel = ImGui::ImDoDecibel((float*)mat_fft.data, mat_fft.w);
+                                            if (m_channel_data[c].audio_value.size() > 1024)
+                                                m_channel_data[c].audio_value.erase(m_channel_data[c].audio_value.begin());
+                                            m_channel_data[c].audio_value.push_back(db_value);
+                                        }
+                                    }
+                                    av_frame_free(&dstDBfrm);
+                                }
+                            }
+                        }
+                    }
+
                     if (m_swrPassThrough)
                     {
                         dstfrm = srcfrm;
@@ -1685,6 +1827,7 @@ private:
     AVHWDeviceType m_viddecDevType{AV_HWDEVICE_TYPE_NONE};
     AVBufferRef* m_viddecHwDevCtx{nullptr};
     SwrContext* m_swrCtx{nullptr};
+    SwrContext* m_swrDBCtx{nullptr};
     AVSampleFormat m_swrOutSmpfmt{AV_SAMPLE_FMT_S16};
     int m_swrOutSampleRate;
     int m_swrOutChannels;
@@ -1751,6 +1894,7 @@ private:
     ImGui::ImMat m_vidMat;
     AudioRender* m_audrnd{nullptr};
     AudioByteStream m_audByteStream;
+    std::vector<AudioAttribute> m_channel_data;
 };
 
 constexpr MediaPlayer_FFImpl::TimePoint MediaPlayer_FFImpl::CLOCK_MIN = MediaPlayer_FFImpl::Clock::time_point::min();
@@ -1765,7 +1909,7 @@ static AVPixelFormat get_hw_format(AVCodecContext *ctx, const AVPixelFormat *pix
         if (mp->CheckHwPixFmt(*p))
             return *p;
     }
-    return AV_PIX_FMT_NONE;
+    return ctx->pix_fmt;; // if not found HW pix fmt, using software fmt
 }
 
 MediaPlayer* CreateMediaPlayer()
