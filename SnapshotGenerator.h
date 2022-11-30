@@ -48,7 +48,7 @@ struct SnapshotGenerator
     virtual bool IsOpened() const = 0;
     virtual bool HasVideo() const = 0;
     virtual bool HasAudio() const = 0;
-    virtual bool ConfigSnapWindow(double& windowSize, double frameCount) = 0;
+    virtual bool ConfigSnapWindow(double& windowSize, double frameCount, bool forceRefresh = false) = 0;
     virtual bool SetCacheFactor(double cacheFactor) = 0;
     virtual double GetMinWindowSize() const = 0;
     virtual double GetMaxWindowSize() const = 0;

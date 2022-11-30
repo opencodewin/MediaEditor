@@ -105,6 +105,9 @@ bool Application_Frame(void * handle, bool app_will_quit)
                                                     filters, "~/Videos/", 1, nullptr, 
                                                     ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_Modal);
         }
+        ImGui::SameLine();
+        if (ImGui::Button("Refresh snapwnd configuration"))
+            g_ssgen->ConfigSnapWindow(g_windowSize, g_windowFrames, true);
 
         ImGui::Spacing();
 

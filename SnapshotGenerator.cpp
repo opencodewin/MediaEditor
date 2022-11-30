@@ -235,7 +235,7 @@ public:
         return m_audStmIdx >= 0;
     }
 
-    bool ConfigSnapWindow(double& windowSize, double frameCount) override
+    bool ConfigSnapWindow(double& windowSize, double frameCount, bool forceRefresh) override
     {
         lock_guard<recursive_mutex> lk(m_apiLock);
         if (frameCount < 1)
@@ -250,7 +250,7 @@ public:
         double maxWndSize = GetMaxWindowSize();
         if (windowSize > maxWndSize)
             windowSize = maxWndSize;
-        if (m_snapWindowSize == windowSize && m_wndFrmCnt == frameCount)
+        if (m_snapWindowSize == windowSize && m_wndFrmCnt == frameCount && !forceRefresh)
             return true;
 
         WaitAllThreadsQuit();
@@ -827,14 +827,21 @@ private:
                         {
                             if (avpkt.pts >= currTask->TaskRange().SeekPts().second || avpkt.pts > lastGopSsPts)
                             {
+                                bool canReadMore = avpkt.pts < currTask->TaskRange().SeekPts().second+CvtVidMtsToPts(200);
+                                bool candidatesComplete = true;
                                 for (auto& elem : currTask->ssCandidatePts)
                                 {
                                     if (elem.second.first == INT64_MIN)
-                                        m_logger->Log(WARN) << "!! ABNORMAL SS CANDIDATE !! Current demux task eof, but no candidate frame is found for SS #" << elem.first << "." << endl;
-                                    else
-                                        m_logger->Log(DEBUG) << "SS candidate #" << elem.first << ": pts=" << elem.second.first << ", bias=" << elem.second.second << endl;
+                                    {
+                                        candidatesComplete = false;
+                                        if (canReadMore)
+                                            m_logger->Log(DEBUG) << "Missing data for SS candidate #" << elem.first << ", need to read more packets." << endl;
+                                        else
+                                            m_logger->Log(WARN) << "!! ABNORMAL SS CANDIDATE !! Current demux task eof, but no candidate frame is found for SS #" << elem.first << "." << endl;
+                                    }
                                 }
-                                currTask->demuxerEof = true;
+                                if (candidatesComplete || !canReadMore)
+                                    currTask->demuxerEof = true;
                             }
 
                             if (!currTask->demuxerEof)
@@ -847,6 +854,12 @@ private:
                                 {
                                     if (candIter->second.first == INT64_MIN || candIter->second.second > bias)
                                         candIter->second = { avpkt.pts, bias };
+                                }
+                                else
+                                {
+                                    m_logger->Log(DEBUG) << ">> Extra SS candidate << SS candidate #" << ssIdx << ": pts=" << avpkt.pts << "(ts="
+                                            << MillisecToString(CvtVidPtsToMts(avpkt.pts)) << "), bias=" << bias << endl;
+                                    currTask->ssCandidatePts[ssIdx] = { avpkt.pts, bias };
                                 }
                                 if (ssIdx == currTask->m_range.SsIdx().second-1 && bias <= m_vidfrmIntvPtsHalf)
                                     lastGopSsPts = avpkt.pts;
@@ -1023,11 +1036,11 @@ private:
                         }
                         else if (m_pendingVidfrmCnt < m_maxPendingVidfrmCnt)
                         {
-                            m_logger->Log(DEBUG) << "Enqueue SS#" << ssIdx << ", pts=" << avfrm.pts << " to GopDecodeTask, which its range is ssIdxPair=["
-                                << ssGopTask->m_range.SsIdx().first << ", " << ssGopTask->m_range.SsIdx().second << "), ptsPair=["
-                                << ssGopTask->m_range.SeekPts().first << ", " << ssGopTask->m_range.SeekPts().second << ")." << endl;
+                            m_logger->Log(DEBUG) << "Enqueue SS#" << ssIdx << ", pts=" << avfrm.pts << "(ts=" << MillisecToString(CvtVidPtsToMts(avfrm.pts))
+                                << ") to GopDecodeTask: ssIdxPair=[" << ssGopTask->m_range.SsIdx().first << ", " << ssGopTask->m_range.SsIdx().second
+                                << "), ptsPair=[" << ssGopTask->m_range.SeekPts().first << ", " << ssGopTask->m_range.SeekPts().second << ")." << endl;
                             if (!EnqueueSnapshotAVFrame(ssGopTask, &avfrm, ssIdx))
-                                m_logger->Log(WARN) << "FAILED to enqueue SS#" << ssIdx << ", pts=" << avfrm.pts << "." << endl;
+                                m_logger->Log(WARN) << "FAILED to enqueue SS#" << ssIdx << ", pts=" << avfrm.pts << "(ts=" << MillisecToString(CvtVidPtsToMts(avfrm.pts)) << ")." << endl;
                             av_frame_unref(&avfrm);
                             avfrmLoaded = false;
                             idleLoop = false;
@@ -1316,19 +1329,27 @@ private:
     {
         ssIdx = (int32_t)round((double)pts/m_ssIntvPts);
         uint32_t bias = (uint32_t)abs(m_ssIntvPts*ssIdx-pts);
+        bool noEntry = true;
         GopDecodeTaskHolder task;
         {
             lock_guard<mutex> lk(m_goptskListReadLocks[0]);
-            auto iter = find_if(m_goptskList.begin(), m_goptskList.end(), [pts, ssIdx, bias] (const GopDecodeTaskHolder& t) {
-                if (ssIdx < t->TaskRange().SsIdx().first || ssIdx >= t->TaskRange().SsIdx().second)
-                    return false;
+            auto iter = m_goptskList.begin();
+            while (iter != m_goptskList.end())
+            {
+                auto& t = *iter++;
                 auto candIter = t->ssCandidatePts.find(ssIdx);
-                if (candIter != t->ssCandidatePts.end() && (candIter->second.first == pts || candIter->second.second > bias))
-                    return true;
-                return false;
-            });
-            if (iter != m_goptskList.end())
-                task = *iter;
+                if (candIter == t->ssCandidatePts.end())
+                    continue;
+                noEntry = false;
+                if (candIter->second.first == pts || candIter->second.second > bias)
+                {
+                    task = t;
+                    break;
+                }
+            }
+            if (noEntry)
+                m_logger->Log(DEBUG) << ">>> CANNOT find SS candidate entry for #" << ssIdx << ", pts=" << pts
+                        << "(mts=" << MillisecToString(CvtVidPtsToMts(pts)) << ")." << endl;
         }
         return task;
     }
@@ -1394,10 +1415,10 @@ private:
         return ptsPair;
     }
 
-    pair<int32_t, int32_t> CalcSsIndexPairFromPtsPair(const pair<int64_t, int64_t>& ptsPair)
+    pair<int32_t, int32_t> CalcSsIndexPairFromPtsPair(const pair<int64_t, int64_t>& ptsPair, int32_t startIdx)
     {
-        int64_t mts0 = CvtVidPtsToMts(ptsPair.first);
         int32_t idx0 = (int32_t)ceil((double)(ptsPair.first-m_vidStartPts-m_vidfrmIntvPtsHalf)/m_ssIntvPts);
+        if (idx0 > startIdx) idx0 = startIdx;
         int32_t idx1;
         if (ptsPair.second == INT64_MAX)
             idx1 = m_vidMaxIndex+1;
@@ -1474,13 +1495,14 @@ private:
             });
             if (iter == totalTaskRanges.end())
             {
+                m_logger->Log(DEBUG) << "~~~~> Erase UNUSED task range [" << (*taskIter)->TaskRange().SsIdx().first << ", " << (*taskIter)->TaskRange().SsIdx().second << ")" << endl;
                 task->cancel = true;
-                m_logger->Log(DEBUG) << "~~~~> Erase task range [" << (*taskIter)->TaskRange().SsIdx().first << ", " << (*taskIter)->TaskRange().SsIdx().second << ")" << endl;
                 taskIter = m_goptskPrepareList.erase(taskIter);
                 updated = true;
             }
             else
             {
+                m_logger->Log(DEBUG) << "~~~~> Remove DUPLICATED task range [" << (*taskIter)->TaskRange().SsIdx().first << ", " << (*taskIter)->TaskRange().SsIdx().second << ")" << endl;
                 task->m_range.SetInView(iter->IsInView());
                 totalTaskRanges.erase(iter);
                 taskIter++;
@@ -1493,6 +1515,13 @@ private:
             m_goptskPrepareList.push_back(hTask);
             updated = true;
         }
+        m_logger->Log(DEBUG) << ">>>>> GopTask list task ranges <<<<<<<" << endl << "\t";
+        for (auto& goptsk : m_goptskPrepareList)
+        {
+            auto& range = goptsk->TaskRange();
+            m_logger->Log(DEBUG) << "[" << range.SsIdx().first << ", " << range.SsIdx().second << "), ";
+        }
+        m_logger->Log(DEBUG) << "updated=" << updated << endl;
 
         // Update GopDecodeTask list
         if (updated)
@@ -1747,11 +1776,7 @@ private:
                 while (buildIdx0 <= buildIdx1)
                 {
                     auto ptsPair = m_owner->GetSeekPosBySsIndex(buildIdx0);
-                    uint32_t bias;
-                    auto ssIdx0 = m_owner->checkFrameSsBias(ptsPair.first, bias);
-                    auto ssIdx1 = m_owner->checkFrameSsBias(ptsPair.second, bias);
-                    if (ssIdx0 == ssIdx1) ssIdx1++;
-                    pair<int32_t, int32_t> ssIdxPair = { ssIdx0, ssIdx1 };
+                    auto ssIdxPair = m_owner->CalcSsIndexPairFromPtsPair(ptsPair, buildIdx0);
                     if (ssIdxPair.second <= buildIdx0)
                     {
                         m_logger->Log(WARN) << "Snap window DOESN'T PROCEED! 'buildIdx0'(" << buildIdx0 << ") is NOT INCLUDED in the next 'ssIdxPair'["
