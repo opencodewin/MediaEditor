@@ -1765,7 +1765,7 @@ static AVPixelFormat get_hw_format(AVCodecContext *ctx, const AVPixelFormat *pix
         if (mp->CheckHwPixFmt(*p))
             return *p;
     }
-    return AV_PIX_FMT_NONE;
+    return ctx->pix_fmt;; // if not found HW pix fmt, using software fmt
 }
 
 MediaPlayer* CreateMediaPlayer()
