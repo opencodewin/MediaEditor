@@ -137,6 +137,11 @@ public:
             return false;
         }
 
+        m_vidDurTs = vidStream->duration;
+        AVRational avgFrmRate = { vidStream->avgFrameRate.num, vidStream->avgFrameRate.den };
+        AVRational timebase = { vidStream->timebase.num, vidStream->timebase.den };
+        m_vidfrmIntvMts = av_q2d(av_inv_q(avgFrmRate))*1000.;
+
         m_isVideoReader = true;
         m_configured = true;
         return true;
@@ -190,12 +195,17 @@ public:
             return false;
         }
 
+        m_vidDurTs = vidStream->duration;
+        AVRational avgFrmRate = { vidStream->avgFrameRate.num, vidStream->avgFrameRate.den };
+        AVRational timebase = { vidStream->timebase.num, vidStream->timebase.den };
+        m_vidfrmIntvMts = av_q2d(av_inv_q(avgFrmRate))*1000.;
+
         m_isVideoReader = true;
         m_configured = true;
         return true;
     }
 
-    bool ConfigAudioReader(uint32_t outChannels, uint32_t outSampleRate, const string& outPcmFormat) override
+    bool ConfigAudioReader(uint32_t outChannels, uint32_t outSampleRate, const string& outPcmFormat, uint32_t audioStreamIndex) override
     {
         if (!m_opened)
         {
@@ -216,7 +226,7 @@ public:
         if (outSmpfmt == AV_SAMPLE_FMT_NONE)
         {
             ostringstream oss;
-            oss << "Invalid arguments 'outPcmFormat'! '" << outPcmFormat << "' is NOT a SAMPLE FORMAT.";
+            oss << "Invalid argument 'outPcmFormat'! '" << outPcmFormat << "' is NOT a SAMPLE FORMAT.";
             m_errMsg = oss.str();
             return false;
         }
@@ -231,11 +241,48 @@ public:
         av_channel_layout_default(&m_swrOutChlyt, outChannels);
 #endif
 
+        uint32_t index = 0;
+        int audioIndexInStreams = -1;
+        for (auto i = 0; i < m_avfmtCtx->nb_streams; i++)
+        {
+            if (m_avfmtCtx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_AUDIO)
+            {
+                if (audioStreamIndex == index)
+                {
+                    audioIndexInStreams = i;
+                    break;
+                }
+                index++;
+            }
+        }
+        if (index != audioStreamIndex)
+        {
+            ostringstream oss;
+            oss << "Invalid argument 'audioStreamIndex'(" << audioStreamIndex << "), NO SUCH AUDIO stream in the source!";
+            m_errMsg = oss.str();
+            return false;
+        }
+        m_audStmIdx = audioIndexInStreams;
+
+        if (m_audStmIdx >= 0)
+        {
+            MediaInfo::AudioStream* audStream = dynamic_cast<MediaInfo::AudioStream*>(m_hMediaInfo->streams[m_audStmIdx].get());
+            m_audDurTs = audStream->duration;
+            m_audFrmSize = (audStream->bitDepth>>3)*audStream->channels;
+        }
+
         m_isVideoReader = false;
         m_configured = true;
 
         if (m_dumpPcm)
+        {
+            if (m_fpPcmFile)
+            {
+                fclose(m_fpPcmFile);
+                m_fpPcmFile = nullptr;
+            }
             m_fpPcmFile = fopen("MediaReaderDump.pcm", "wb");
+        }
         return true;
     }
 
@@ -255,6 +302,85 @@ public:
         else
             ReleaseVideoResource();
         m_started = true;
+        return true;
+    }
+
+    bool Stop() override
+    {
+        lock_guard<recursive_mutex> lk(m_apiLock);
+        if (!m_configured)
+        {
+            m_errMsg = "This 'MediaReader' instance is NOT CONFIGURED yet!";
+            return false;
+        }
+        if (!m_started)
+            return true;
+
+        WaitAllThreadsQuit();
+        FlushAllQueues();
+
+        if (m_swrCtx)
+        {
+            swr_free(&m_swrCtx);
+            m_swrCtx = nullptr;
+        }
+#if !defined(FF_API_OLD_CHANNEL_LAYOUT) && (LIBAVUTIL_VERSION_MAJOR < 58)
+        m_swrOutChannels = 0;
+        m_swrOutChnLyt = 0;
+#else
+        m_swrOutChlyt = {AV_CHANNEL_ORDER_UNSPEC, 0};
+#endif
+        m_swrOutSampleRate = 0;
+        m_swrPassThrough = false;
+        if (m_auddecCtx)
+        {
+            avcodec_free_context(&m_auddecCtx);
+            m_auddecCtx = nullptr;
+        }
+        if (m_viddecCtx)
+        {
+            avcodec_free_context(&m_viddecCtx);
+            m_viddecCtx = nullptr;
+        }
+        if (m_viddecHwDevCtx)
+        {
+            av_buffer_unref(&m_viddecHwDevCtx);
+            m_viddecHwDevCtx = nullptr;
+        }
+        m_vidHwPixFmt = AV_PIX_FMT_NONE;
+        m_viddecDevType = AV_HWDEVICE_TYPE_NONE;
+        m_vidAvStm = nullptr;
+        m_audAvStm = nullptr;
+        m_viddec = nullptr;
+        m_auddec = nullptr;
+
+        m_prevReadPos = 0;
+        m_prevReadImg.release();
+        m_readForward = true;
+        m_seekPosUpdated = false;
+        m_seekPosTs = 0;
+        m_vidfrmIntvMts = 0;
+        m_hSeekPoints = nullptr;
+        m_vidDurTs = 0;
+        m_audDurTs = 0;
+        m_audFrmSize = 0;
+        m_audReadTask = nullptr;
+        m_audReadOffset = -1;
+        m_audReadEof = false;
+        m_audReadNextTaskSeekPts0 = INT64_MIN;
+        m_swrFrmSize = 0;
+        m_swrOutStartTime = 0;
+
+        m_prepared = false;
+        m_started = false;
+        m_configured = false;
+        m_errMsg = "";
+
+        if (m_fpPcmFile)
+        {
+            fclose(m_fpPcmFile);
+            m_fpPcmFile = NULL;
+        }
         return true;
     }
 
@@ -329,8 +455,8 @@ public:
         m_prepared = false;
         m_started = false;
         m_configured = false;
+        m_streamInfoFound = false;
         m_opened = false;
-
         m_errMsg = "";
 
         if (m_fpPcmFile)
@@ -771,22 +897,6 @@ private:
             return false;
         }
 
-        if (m_vidStmIdx >= 0)
-        {
-            MediaInfo::VideoStream* vidStream = dynamic_cast<MediaInfo::VideoStream*>(m_hMediaInfo->streams[m_vidStmIdx].get());
-            m_vidDurTs = vidStream->duration;
-            AVRational avgFrmRate = { vidStream->avgFrameRate.num, vidStream->avgFrameRate.den };
-            AVRational timebase = { vidStream->timebase.num, vidStream->timebase.den };
-            m_vidfrmIntvMts = av_q2d(av_inv_q(avgFrmRate))*1000.;
-        }
-
-        if (m_audStmIdx >= 0)
-        {
-            MediaInfo::AudioStream* audStream = dynamic_cast<MediaInfo::AudioStream*>(m_hMediaInfo->streams[m_audStmIdx].get());
-            m_audDurTs = audStream->duration;
-            m_audFrmSize = (audStream->bitDepth>>3)*audStream->channels;
-        }
-
         m_seekPosTs = 0;
         m_seekPosUpdated = true;
 
@@ -837,11 +947,15 @@ private:
 
         lock_guard<recursive_mutex> lk(m_apiLock, adopt_lock);
         int fferr;
-        fferr = avformat_find_stream_info(m_avfmtCtx, nullptr);
-        if (fferr < 0)
+        if (!m_streamInfoFound)
         {
-            m_errMsg = FFapiFailureMessage("avformat_open_input", fferr);
-            return false;
+            fferr = avformat_find_stream_info(m_avfmtCtx, nullptr);
+            if (fferr < 0)
+            {
+                m_errMsg = FFapiFailureMessage("avformat_find_stream_info", fferr);
+                return false;
+            }
+            m_streamInfoFound = true;
         }
 
         if (m_isVideoReader)
@@ -3089,6 +3203,7 @@ private:
     MediaParser::SeekPointsHolder m_hSeekPoints;
     bool m_opened{false};
     bool m_configured{false};
+    bool m_streamInfoFound{false};
     bool m_isVideoReader;
     bool m_isImage{false};
     bool m_started{false};

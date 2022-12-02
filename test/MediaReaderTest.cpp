@@ -25,6 +25,8 @@ using Clock = chrono::steady_clock;
 static bool g_videoOnly = false;
 static bool g_audioOnly = false;
 static bool g_useHwAccel = true;
+static int32_t g_audioStreamCount = 0;
+static int32_t g_chooseAudioIndex = -1;
 // video
 static MediaReader* g_vidrdr = nullptr;
 static double g_playStartPos = 0.f;
@@ -185,6 +187,33 @@ bool Application_Frame(void * handle, bool app_will_quit)
         }
 
         ImGui::SameLine();
+        ImGui::BeginDisabled(g_audioStreamCount < 2);
+        ImGui::PushItemWidth(100);
+        ostringstream audstmOptTagOss;
+        audstmOptTagOss << g_chooseAudioIndex;
+        string audstmOptTag = audstmOptTagOss.str();
+        if (ImGui::BeginCombo("##AudstmSelTrackOptions", audstmOptTag.c_str()))
+        {
+            for (int32_t i = 0; i < g_audioStreamCount; i++)
+            {
+                audstmOptTagOss.str("");
+                audstmOptTagOss << i;
+                audstmOptTag = audstmOptTagOss.str();
+                const bool isSelected = g_chooseAudioIndex == i;
+                if (ImGui::Selectable(audstmOptTag.c_str(), isSelected))
+                {
+                    g_chooseAudioIndex = i;
+                    g_audrdr->Stop();
+                    g_audrdr->ConfigAudioReader(c_audioRenderChannels, c_audioRenderSampleRate, "flt", g_chooseAudioIndex);
+                    g_audrdr->Start();
+                }
+                if (isSelected)
+                    ImGui::SetItemDefaultFocus();
+            }
+            ImGui::EndCombo();
+        }
+        ImGui::PopItemWidth();
+        ImGui::EndDisabled();
 
         bool isForward;
         float playPos;
@@ -215,6 +244,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
         if (playPos < 0) playPos = 0;
         if (playPos > mediaDur) playPos = mediaDur;
 
+        ImGui::SameLine();
         string playBtnLabel = g_isPlay ? "Pause" : "Play ";
         if (ImGui::Button(playBtnLabel.c_str()))
         {
@@ -236,7 +266,6 @@ bool Application_Frame(void * handle, bool app_will_quit)
         }
 
         ImGui::SameLine();
-
         string dirBtnLabel = isForward ? "Backword" : "Forward";
         if (ImGui::Button(dirBtnLabel.c_str()))
         {
@@ -254,7 +283,6 @@ bool Application_Frame(void * handle, bool app_will_quit)
         }
 
         ImGui::SameLine();
-
         string suspendBtnLabel = g_vidrdr->IsSuspended() ? "WakeUp" : "Suspend";
         if (ImGui::Button(suspendBtnLabel.c_str()))
         {
@@ -265,7 +293,6 @@ bool Application_Frame(void * handle, bool app_will_quit)
         }
 
         ImGui::SameLine();
-
         string cdurBtnLabel = g_isLongCacheDur ? "Short cache duration" : "Long cache duration";
         if (ImGui::Button(cdurBtnLabel.c_str()))
         {
@@ -284,7 +311,6 @@ bool Application_Frame(void * handle, bool app_will_quit)
         ImGui::Checkbox("Use HW Accelaration", &g_useHwAccel);
 
         ImGui::Spacing();
-
         if (ImGui::SliderFloat("Position", &playPos, 0, mediaDur, "%.3f"))
         {
             if (g_vidrdr->IsOpened())
@@ -296,7 +322,6 @@ bool Application_Frame(void * handle, bool app_will_quit)
         }
 
         ImGui::Spacing();
-
         string imgTag;
         if (g_vidrdr->IsOpened() && !g_vidrdr->IsSuspended())
         {
@@ -335,7 +360,6 @@ bool Application_Frame(void * handle, bool app_will_quit)
         ImGui::TextUnformatted(imgTag.c_str());
 
         ImGui::Spacing();
-
         ostringstream oss;
         oss << "Audio pos: " << TimestampToString(g_audPos);
         string audTag = oss.str();
@@ -354,6 +378,8 @@ bool Application_Frame(void * handle, bool app_will_quit)
 		{
             g_vidrdr->Close();
             g_audrdr->Close();
+            g_audioStreamCount = 0;
+            g_chooseAudioIndex = -1;
             if (g_imageTid)
                 ImGui::ImDestroyTexture(g_imageTid);
             g_imageTid = nullptr;
@@ -371,7 +397,14 @@ bool Application_Frame(void * handle, bool app_will_quit)
             if (hParser->HasAudio() && !g_videoOnly)
             {
                 g_audrdr->Open(hParser);
-                g_audrdr->ConfigAudioReader(c_audioRenderChannels, c_audioRenderSampleRate, "flt");
+                auto mediaInfo = hParser->GetMediaInfo();
+                for (auto stream : mediaInfo->streams)
+                {
+                    if (stream->type == MediaInfo::AUDIO)
+                        g_audioStreamCount++;
+                }
+                g_chooseAudioIndex = 0;
+                g_audrdr->ConfigAudioReader(c_audioRenderChannels, c_audioRenderSampleRate, "flt", g_chooseAudioIndex);
                 g_audrdr->Start();
             }
             if (!g_vidrdr->IsOpened() && !g_audrdr->IsOpened())
