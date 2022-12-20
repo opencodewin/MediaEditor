@@ -740,10 +740,13 @@ private:
             AudioAttribute new_channel;
             m_channel_data.push_back(new_channel);
         }
-        //m_swrDBCtx = swr_alloc_set_opts(NULL, m_audStream->codecpar->channel_layout, AV_SAMPLE_FMT_FLTP, m_audStream->codecpar->sample_rate, 
-        //                                    m_audStream->codecpar->channel_layout, (AVSampleFormat)m_audStream->codecpar->format, m_audStream->codecpar->sample_rate, 0, nullptr);
+#if !defined(FF_API_OLD_CHANNEL_LAYOUT) && (LIBAVUTIL_VERSION_MAJOR < 58)
+        m_swrDBCtx = swr_alloc_set_opts(NULL, m_audStream->codecpar->channel_layout, AV_SAMPLE_FMT_FLTP, m_audStream->codecpar->sample_rate, 
+                                        m_audStream->codecpar->channel_layout, (AVSampleFormat)m_audStream->codecpar->format, m_audStream->codecpar->sample_rate, 0, nullptr);
+#else
         fferr = swr_alloc_set_opts2(&m_swrDBCtx, &m_audStream->codecpar->ch_layout, AV_SAMPLE_FMT_FLTP, m_audStream->codecpar->sample_rate, 
-                                            &m_audStream->codecpar->ch_layout, (AVSampleFormat)m_audStream->codecpar->format, m_audStream->codecpar->sample_rate, 0, nullptr);
+                                    &m_audStream->codecpar->ch_layout, (AVSampleFormat)m_audStream->codecpar->format, m_audStream->codecpar->sample_rate, 0, nullptr);
+#endif
         if (!m_swrDBCtx || fferr != 0)
         {
             m_errMessage = "FAILED to invoke 'swr_alloc_set_opts()' to create 'SwrDBContext'!";
