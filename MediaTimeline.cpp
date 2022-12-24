@@ -6767,6 +6767,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
     bool overLegend = false;
     bool overTopBar = false;
     bool clipClickedTriggered = false;
+    bool bAnyPopup = ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId);
+    if (bAnyPopup) editable = false;
 
     ImDrawList *draw_list = ImGui::GetWindowDrawList();
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
