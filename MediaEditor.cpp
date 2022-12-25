@@ -3242,6 +3242,7 @@ static void ShowVideoFilterPreviewWindow(ImDrawList *draw_list, int64_t start, i
         float tf_x = 0, tf_y = 0;
         // filter input texture area
         ShowVideoWindow(draw_list, timeline->mVideoFilterInputTexture, InputVideoPos, InputVideoSize, offset_x, offset_y, tf_x, tf_y);
+        draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32(128,128,128,128), 0, 0, 1.0);
         if (ImGui::IsItemHovered() && timeline->mVideoFilterInputTexture)
         {
             float image_width = ImGui::ImGetTextureWidth(timeline->mVideoFilterInputTexture);
@@ -3254,6 +3255,7 @@ static void ShowVideoFilterPreviewWindow(ImDrawList *draw_list, int64_t start, i
         }
         // filter output texture area
         ShowVideoWindow(draw_list, timeline->mVideoFilterOutputTexture, OutputVideoPos, OutputVideoSize, offset_x, offset_y, tf_x, tf_y);
+        draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32(128,128,128,128), 0, 0, 1.0);
         if (ImGui::IsItemHovered() && timeline->mVideoFilterOutputTexture)
         {
             float image_width = ImGui::ImGetTextureWidth(timeline->mVideoFilterOutputTexture);
@@ -3313,15 +3315,15 @@ static void ShowVideoFilterPreviewWindow(ImDrawList *draw_list, int64_t start, i
 
     ImGui::PopStyleColor(3);
 
-    ImGui::SetCursorScreenPos(window_pos + ImVec2(40, 30));
+    ImGui::SetCursorScreenPos(window_pos + ImVec2(20, 10));
     if (attribute)
         ImGui::TextComplex("Video Attribute", 2.0f, ImVec4(0.8, 0.8, 0.8, 0.2),
                         0.1f, ImVec4(0.8, 0.8, 0.8, 0.3),
-                        ImVec2(4, 4), ImVec4(0.0, 0.0, 0.0, 0.5));
+                        ImVec2(2, 2), ImVec4(0.0, 0.0, 0.0, 0.5));
     else
         ImGui::TextComplex("Video Filter", 2.0f, ImVec4(0.8, 0.8, 0.8, 0.2),
                         0.1f, ImVec4(0.8, 0.8, 0.8, 0.3),
-                        ImVec2(4, 4), ImVec4(0.0, 0.0, 0.0, 0.5));
+                        ImVec2(2, 2), ImVec4(0.0, 0.0, 0.0, 0.5));
 }
 /****************************************************************************************
  * 
@@ -4475,13 +4477,13 @@ static void ShowVideoFusionPreviewWindow(ImDrawList *draw_list)
         float tf_x = 0, tf_y = 0;
         // fusion first input texture area
         ShowVideoWindow(draw_list, timeline->mVideoFusionInputFirstTexture, InputFirstVideoPos, InputFirstVideoSize, offset_x, offset_y, tf_x, tf_y);
-        draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32_WHITE, 0, 0, 1.0);
+        draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32(128,128,128,128), 0, 0, 1.0);
         // fusion second input texture area
         ShowVideoWindow(draw_list, timeline->mVideoFusionInputSecondTexture, InputSecondVideoPos, InputSecondVideoSize, offset_x, offset_y, tf_x, tf_y);
-        draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32_WHITE, 0, 0, 1.0);
+        draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32(128,128,128,128), 0, 0, 1.0);
         // filter output texture area
         ShowVideoWindow(draw_list, timeline->mVideoFusionOutputTexture, OutputVideoPos, OutputVideoSize, offset_x, offset_y, tf_x, tf_y);
-        draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32(255, 0, 0, 255), 0, 0, 2.0);
+        draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32(192, 192, 192, 128), 0, 0, 2.0);
         if (timeline->mIsPreviewPlaying && (timeline->currentTime < timeline->mVidOverlap->mStart || timeline->currentTime > timeline->mVidOverlap->mEnd))
         {
             // reach clip border
