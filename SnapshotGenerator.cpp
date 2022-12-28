@@ -486,14 +486,12 @@ private:
             m_ssIntvMts = m_vidfrmIntvMts;
         else if (m_ssIntvMts-m_vidfrmIntvMts <= 0.5)
             m_ssIntvMts = m_vidfrmIntvMts;
-        m_ssIntvPts = av_rescale_q(m_ssIntvMts*1000, MICROSEC_TIMEBASE, m_vidStream->time_base);
+        m_ssIntvPts = m_ssIntvMts*m_vidStream->time_base.den/(1000.*m_vidStream->time_base.num); //av_rescale_q(m_ssIntvMts*1000, MICROSEC_TIMEBASE, m_vidStream->time_base);
         m_vidMaxIndex = (uint32_t)floor(((double)m_vidDurMts-m_vidfrmIntvMts)/m_ssIntvMts);
         m_maxCacheSize = (uint32_t)ceil(m_wndFrmCnt*m_cacheFactor);
         uint32_t intWndFrmCnt = (uint32_t)ceil(m_wndFrmCnt);
         if (m_maxCacheSize < intWndFrmCnt)
             m_maxCacheSize = intWndFrmCnt;
-        // if (m_maxCacheSize > m_vidMaxIndex+1)
-        //     m_maxCacheSize = m_vidMaxIndex+1;
         m_prevWndCacheSize = (m_maxCacheSize-intWndFrmCnt)/2;
     }
 
@@ -1262,7 +1260,9 @@ private:
         GopDecodeTask(SnapshotGenerator_Impl* owner, const Range& range)
             : m_owner(owner), m_range(range)
         {
-            for (int32_t ssIdx = range.SsIdx().first; ssIdx < range.SsIdx().second; ssIdx++)
+            int32_t idxBegin = range.SsIdx().first < 0 ? 0 : range.SsIdx().first;
+            int32_t idxEnd = range.SsIdx().second > owner->m_vidMaxIndex+1 ? owner->m_vidMaxIndex+1 : range.SsIdx().second;
+            for (int32_t ssIdx = idxBegin; ssIdx < idxEnd; ssIdx++)
             {
                 ssCandidatePts[ssIdx] = { INT64_MIN, 0 };
             }
@@ -1328,7 +1328,7 @@ private:
     GopDecodeTaskHolder FindFrameSsPosition(int64_t pts, int32_t& ssIdx)
     {
         ssIdx = (int32_t)round((double)pts/m_ssIntvPts);
-        uint32_t bias = (uint32_t)abs(m_ssIntvPts*ssIdx-pts);
+        uint32_t bias = (uint32_t)floor(abs(m_ssIntvPts*ssIdx-pts));
         bool noEntry = true;
         GopDecodeTaskHolder task;
         {
@@ -1357,7 +1357,7 @@ private:
     int32_t checkFrameSsBias(int64_t pts, uint32_t& bias)
     {
         int32_t index = (int32_t)round((double)pts/m_ssIntvPts);
-        bias = (uint32_t)abs(m_ssIntvPts*index-pts);
+        bias = (uint32_t)floor(abs(m_ssIntvPts*index-pts));
         return index;
     }
 
@@ -1370,7 +1370,7 @@ private:
     int64_t CalcSnapshotMts(int32_t index)
     {
         if (m_ssIntvPts > 0)
-            return CvtVidPtsToMts(index*m_ssIntvPts+m_vidStartPts);
+            return CvtVidPtsToMts(floor(index*m_ssIntvPts+m_vidStartPts));
         return 0;
     }
 
@@ -1871,7 +1871,7 @@ private:
     int64_t m_vidfrmIntvPts{0};
     int64_t m_vidfrmIntvPtsHalf{0};
     double m_ssIntvMts{0};
-    int64_t m_ssIntvPts{0};
+    double m_ssIntvPts{0};
     double m_cacheFactor{10.0};
     uint32_t m_maxCacheSize{0};
     uint32_t m_prevWndCacheSize;
