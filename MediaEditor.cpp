@@ -1828,7 +1828,7 @@ static void ShowFusionBankIconWindow(ImDrawList *draw_list)
                 }
             }
             ImGui::SetCursorScreenPos(icon_pos + ImVec2(2, 2));
-            auto node = type->m_Factory(bp);
+            auto node = type->m_Factory(&bp);
             if (node) 
                 node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(fusion_icon_size, fusion_icon_size)); 
             else 
@@ -1939,7 +1939,7 @@ static void ShowFusionBankTreeWindow(ImDrawList *draw_list)
             if (catalog.size() < 2 || catalog[0].compare("Fusion") != 0)
                 return;
             std::string drag_type = "Fusion_drag_drop_" + catalog[1];
-            auto node = type->m_Factory(bp);
+            auto node = type->m_Factory(&bp);
             if (node) 
                 node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(32, 32));
             else 
@@ -2072,7 +2072,7 @@ static void ShowFilterBankIconWindow(ImDrawList *draw_list)
                 }
             }
             ImGui::SetCursorScreenPos(icon_pos + ImVec2(2, 2));
-            auto node = type->m_Factory(bp);
+            auto node = type->m_Factory(&bp);
             if (node) 
                 node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(filter_icon_size, filter_icon_size)); 
             else 
@@ -2182,7 +2182,7 @@ static void ShowFilterBankTreeWindow(ImDrawList *draw_list)
             if (catalog.size() < 2 || catalog[0].compare("Filter") != 0)
                 return;
             std::string drag_type = "Filter_drag_drop_" + catalog[1];
-            auto node = type->m_Factory(bp);
+            auto node = type->m_Factory(&bp);
             if (node) 
                 node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(32, 32));
             else 

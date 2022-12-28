@@ -448,6 +448,17 @@ target_include_directories(
     ${IMGUI_INCLUDE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
+
+add_executable(
+    transition_make
+    test/TransitionMake.cpp
+)
+target_link_libraries(
+    transition_make
+    ${IMGUI_LIBRARYS}
+    ${SDL2_STATIC_LDFLAGS}
+    ${SDL2_IMAGE_LIBRARY}
+)
 endif(BUILD_TEST)
 
 ### DEFINE THE PACKAGING (OS specific)
