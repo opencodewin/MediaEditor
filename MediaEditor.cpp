@@ -1792,11 +1792,13 @@ static void ShowFusionBankIconWindow(ImDrawList *draw_list)
     {
         auto &bp = timeline->m_BP_UI.m_Document->m_Blueprint;
         auto node_reg = bp.GetNodeRegistry();
-        for (auto type : node_reg->GetTypes())
+        //for (auto type : node_reg->GetTypes())
+        for (auto node : node_reg->GetNodes())
         {
-            auto catalog = BluePrint::GetCatalogInfo(type->m_Catalog);
+            auto catalog = BluePrint::GetCatalogInfo(node->GetCatalog());
             if (catalog.size() < 2 || catalog[0].compare("Fusion") != 0)
                 continue;
+            auto type = node->GetTypeInfo();
             std::string drag_type = "Fusion_drag_drop_" + catalog[1];
             ImGui::Dummy(ImVec2(0, 16));
             auto icon_pos = ImGui::GetCursorScreenPos();
@@ -1806,12 +1808,12 @@ static void ShowFusionBankIconWindow(ImDrawList *draw_list)
             draw_list->AddRectFilled(icon_pos + ImVec2(4, 4), icon_pos + ImVec2(4, 4) + icon_size, IM_COL32(48, 48, 72, 255));
             draw_list->AddRectFilled(icon_pos + ImVec2(2, 2), icon_pos + ImVec2(2, 2) + icon_size, IM_COL32(64, 64, 96, 255));
             draw_list->AddRectFilled(icon_pos, icon_pos + icon_size, COL_BLACK_DARK);
-            ImGui::InvisibleButton(type->m_Name.c_str(), icon_size);
+            ImGui::InvisibleButton(type.m_Name.c_str(), icon_size);
             if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
             {
-                ImGui::SetDragDropPayload(drag_type.c_str(), type, sizeof(BluePrint::NodeTypeInfo));
+                ImGui::SetDragDropPayload(drag_type.c_str(), node, sizeof(BluePrint::Node));
                 ImGui::TextUnformatted(ICON_BANK " Add Fusion");
-                ImGui::TextUnformatted(type->m_Name.c_str());
+                ImGui::TextUnformatted(type.m_Name.c_str());
                 ImGui::EndDragDropSource();
             }
             if (ImGui::IsItemHovered())
@@ -1828,14 +1830,10 @@ static void ShowFusionBankIconWindow(ImDrawList *draw_list)
                 }
             }
             ImGui::SetCursorScreenPos(icon_pos + ImVec2(2, 2));
-            auto node = type->m_Factory(&bp);
-            if (node) 
-                node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(fusion_icon_size, fusion_icon_size)); 
-            else 
-                ImGui::Button((std::string(ICON_BANK) + "##bank_fusion" + type->m_Name).c_str(), ImVec2(fusion_icon_size, fusion_icon_size));
+            node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(fusion_icon_size, fusion_icon_size)); 
             float gap = (icon_size.y - ImGui::GetFontSize()) / 2.0f;
             ImGui::SetCursorScreenPos(icon_pos + ImVec2(icon_size.x + 8, gap));
-            ImGui::TextUnformatted(type->m_Name.c_str());
+            ImGui::TextUnformatted(type.m_Name.c_str());
             ImGui::Spacing();
         }
     }
@@ -1859,26 +1857,27 @@ static void ShowFusionBankTreeWindow(ImDrawList *draw_list)
     // Show Fusion Tree
     if (timeline->m_BP_UI.m_Document)
     {
-        std::vector<const BluePrint::NodeTypeInfo*> fusions;
+        std::vector<const BluePrint::Node*> fusions;
         auto &bp = timeline->m_BP_UI.m_Document->m_Blueprint;
         auto node_reg = bp.GetNodeRegistry();
         // find all fusions
-        for (auto type : node_reg->GetTypes())
+        for (auto node : node_reg->GetNodes())
         {
-            auto catalog = BluePrint::GetCatalogInfo(type->m_Catalog);
+            auto catalog = BluePrint::GetCatalogInfo(node->GetCatalog());
             if (!catalog.size() || catalog[0].compare("Fusion") != 0)
                 continue;
-            fusions.push_back(type);
+            fusions.push_back(node);
         }
 
         // make fusion type as tree
         ImGui::ImTree fusion_tree;
         fusion_tree.name = "Fusion";
-        for (auto type : fusions)
+        for (auto node : fusions)
         {
-            auto catalog = BluePrint::GetCatalogInfo(type->m_Catalog);
+            auto catalog = BluePrint::GetCatalogInfo(node->GetCatalog());
             if (!catalog.size())
                 continue;
+            auto type = node->GetTypeInfo();
             if (catalog.size() > 1)
             {
                 auto children = fusion_tree.FindChildren(catalog[1]);
@@ -1888,13 +1887,13 @@ static void ShowFusionBankTreeWindow(ImDrawList *draw_list)
                     if (catalog.size() > 2)
                     {
                         ImGui::ImTree sub_sub_tree(catalog[2]);
-                        ImGui::ImTree end_sub(type->m_Name, (void *)type);
+                        ImGui::ImTree end_sub(type.m_Name, (void *)node);
                         sub_sub_tree.childrens.push_back(end_sub);
                         subtree.childrens.push_back(sub_sub_tree);
                     }
                     else
                     {
-                        ImGui::ImTree end_sub(type->m_Name, (void *)type);
+                        ImGui::ImTree end_sub(type.m_Name, (void *)node);
                         subtree.childrens.push_back(end_sub);
                     }
 
@@ -1908,49 +1907,47 @@ static void ShowFusionBankTreeWindow(ImDrawList *draw_list)
                         if (!sub_children)
                         {
                             ImGui::ImTree subtree(catalog[2]);
-                            ImGui::ImTree end_sub(type->m_Name, (void *)type);
+                            ImGui::ImTree end_sub(type.m_Name, (void *)node);
                             subtree.childrens.push_back(end_sub);
                             children->childrens.push_back(subtree);
                         }
                         else
                         {
-                            ImGui::ImTree end_sub(type->m_Name, (void *)type);
+                            ImGui::ImTree end_sub(type.m_Name, (void *)node);
                             sub_children->childrens.push_back(end_sub);
                         }
                     }
                     else
                     {
-                        ImGui::ImTree end_sub(type->m_Name, (void *)type);
+                        ImGui::ImTree end_sub(type.m_Name, (void *)node);
                         children->childrens.push_back(end_sub);
                     }
                 }
             }
             else
             {
-                ImGui::ImTree end_sub(type->m_Name, (void *)type);
+                ImGui::ImTree end_sub(type.m_Name, (void *)node);
                 fusion_tree.childrens.push_back(end_sub);
             }
         }
 
         auto AddFusion = [&](void* data)
         {
-            const BluePrint::NodeTypeInfo* type = (const BluePrint::NodeTypeInfo*)data;
-            auto catalog = BluePrint::GetCatalogInfo(type->m_Catalog);
+            const BluePrint::Node* node = (const BluePrint::Node*)data;
+            if (!node) return;
+            auto type = node->GetTypeInfo();
+            auto catalog = BluePrint::GetCatalogInfo(type.m_Catalog);
             if (catalog.size() < 2 || catalog[0].compare("Fusion") != 0)
                 return;
             std::string drag_type = "Fusion_drag_drop_" + catalog[1];
-            auto node = type->m_Factory(&bp);
-            if (node) 
-                node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(32, 32));
-            else 
-                ImGui::TextUnformatted(ICON_BANK);
+            node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(32, 32));
             ImGui::SameLine();
-            ImGui::Button(type->m_Name.c_str(), ImVec2(0, 32));
+            ImGui::Button(type.m_Name.c_str(), ImVec2(0, 32));
             if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
             {
-                ImGui::SetDragDropPayload(drag_type.c_str(), type, sizeof(BluePrint::NodeTypeInfo));
+                ImGui::SetDragDropPayload(drag_type.c_str(), node, sizeof(BluePrint::Node));
                 ImGui::TextUnformatted(ICON_BANK " Add Fusion");
-                ImGui::TextUnformatted(type->m_Name.c_str());
+                ImGui::TextUnformatted(type.m_Name.c_str());
                 ImGui::EndDragDropSource();
             }
             if (ImGui::IsItemHovered())
@@ -2036,11 +2033,12 @@ static void ShowFilterBankIconWindow(ImDrawList *draw_list)
     {
         auto &bp = timeline->m_BP_UI.m_Document->m_Blueprint;
         auto node_reg = bp.GetNodeRegistry();
-        for (auto type : node_reg->GetTypes())
+        for (auto node : node_reg->GetNodes())
         {
-            auto catalog = BluePrint::GetCatalogInfo(type->m_Catalog);
+            auto catalog = BluePrint::GetCatalogInfo(node->GetCatalog());
             if (catalog.size() < 2 || catalog[0].compare("Filter") != 0)
                 continue;
+            auto type = node->GetTypeInfo();
             std::string drag_type = "Filter_drag_drop_" + catalog[1];
             ImGui::Dummy(ImVec2(0, 16));
             auto icon_pos = ImGui::GetCursorScreenPos();
@@ -2050,12 +2048,12 @@ static void ShowFilterBankIconWindow(ImDrawList *draw_list)
             draw_list->AddRectFilled(icon_pos + ImVec2(4, 4), icon_pos + ImVec2(4, 4) + icon_size, IM_COL32(48, 48, 72, 255));
             draw_list->AddRectFilled(icon_pos + ImVec2(2, 2), icon_pos + ImVec2(2, 2) + icon_size, IM_COL32(64, 64, 96, 255));
             draw_list->AddRectFilled(icon_pos, icon_pos + icon_size, COL_BLACK_DARK);
-            ImGui::InvisibleButton(type->m_Name.c_str(), icon_size);
+            ImGui::InvisibleButton(type.m_Name.c_str(), icon_size);
             if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
             {
-                ImGui::SetDragDropPayload(drag_type.c_str(), type, sizeof(BluePrint::NodeTypeInfo));
+                ImGui::SetDragDropPayload(drag_type.c_str(), node, sizeof(BluePrint::Node));
                 ImGui::TextUnformatted(ICON_BANK " Add Filter");
-                ImGui::TextUnformatted(type->m_Name.c_str());
+                ImGui::TextUnformatted(type.m_Name.c_str());
                 ImGui::EndDragDropSource();
             }
             if (ImGui::IsItemHovered())
@@ -2072,14 +2070,10 @@ static void ShowFilterBankIconWindow(ImDrawList *draw_list)
                 }
             }
             ImGui::SetCursorScreenPos(icon_pos + ImVec2(2, 2));
-            auto node = type->m_Factory(&bp);
-            if (node) 
-                node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(filter_icon_size, filter_icon_size)); 
-            else 
-                ImGui::Button((std::string(ICON_BANK) + "##bank_filter" + type->m_Name).c_str(), ImVec2(filter_icon_size, filter_icon_size));
+            node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(filter_icon_size, filter_icon_size)); 
             float gap = (icon_size.y - ImGui::GetFontSize()) / 2.0f;
             ImGui::SetCursorScreenPos(icon_pos + ImVec2(icon_size.x + 8, gap));
-            ImGui::TextUnformatted(type->m_Name.c_str());
+            ImGui::TextUnformatted(type.m_Name.c_str());
             ImGui::Spacing();
         }
     }
@@ -2102,26 +2096,27 @@ static void ShowFilterBankTreeWindow(ImDrawList *draw_list)
     // Show Filter Tree
     if (timeline->m_BP_UI.m_Document)
     {
-        std::vector<const BluePrint::NodeTypeInfo*> filters;
-        auto &bp = timeline->m_BP_UI.m_Document->m_Blueprint;
+        std::vector<const BluePrint::Node*> filters;
+        auto bp = timeline->m_BP_UI.m_Document->m_Blueprint;
         auto node_reg = bp.GetNodeRegistry();
         // find all filters
-        for (auto type : node_reg->GetTypes())
+        for (auto node : node_reg->GetNodes())
         {
-            auto catalog = BluePrint::GetCatalogInfo(type->m_Catalog);
+            auto catalog = BluePrint::GetCatalogInfo(node->GetCatalog());
             if (!catalog.size() || catalog[0].compare("Filter") != 0)
                 continue;
-            filters.push_back(type);
+            filters.push_back(node);
         }
 
         // make filter type as tree
         ImGui::ImTree filter_tree;
         filter_tree.name = "Filters";
-        for (auto type : filters)
+        for (auto node : filters)
         {
-            auto catalog = BluePrint::GetCatalogInfo(type->m_Catalog);
+            auto catalog = BluePrint::GetCatalogInfo(node->GetCatalog());
             if (!catalog.size())
                 continue;
+            auto type = node->GetTypeInfo();
             if (catalog.size() > 1)
             {
                 auto children = filter_tree.FindChildren(catalog[1]);
@@ -2131,13 +2126,13 @@ static void ShowFilterBankTreeWindow(ImDrawList *draw_list)
                     if (catalog.size() > 2)
                     {
                         ImGui::ImTree sub_sub_tree(catalog[2]);
-                        ImGui::ImTree end_sub(type->m_Name, (void *)type);
+                        ImGui::ImTree end_sub(type.m_Name, (void *)node);
                         sub_sub_tree.childrens.push_back(end_sub);
                         subtree.childrens.push_back(sub_sub_tree);
                     }
                     else
                     {
-                        ImGui::ImTree end_sub(type->m_Name, (void *)type);
+                        ImGui::ImTree end_sub(type.m_Name, (void *)node);
                         subtree.childrens.push_back(end_sub);
                     }
 
@@ -2151,49 +2146,47 @@ static void ShowFilterBankTreeWindow(ImDrawList *draw_list)
                         if (!sub_children)
                         {
                             ImGui::ImTree subtree(catalog[2]);
-                            ImGui::ImTree end_sub(type->m_Name, (void *)type);
+                            ImGui::ImTree end_sub(type.m_Name, (void *)node);
                             subtree.childrens.push_back(end_sub);
                             children->childrens.push_back(subtree);
                         }
                         else
                         {
-                            ImGui::ImTree end_sub(type->m_Name, (void *)type);
+                            ImGui::ImTree end_sub(type.m_Name, (void *)node);
                             sub_children->childrens.push_back(end_sub);
                         }
                     }
                     else
                     {
-                        ImGui::ImTree end_sub(type->m_Name, (void *)type);
+                        ImGui::ImTree end_sub(type.m_Name, (void *)node);
                         children->childrens.push_back(end_sub);
                     }
                 }
             }
             else
             {
-                ImGui::ImTree end_sub(type->m_Name, (void *)type);
+                ImGui::ImTree end_sub(type.m_Name, (void *)node);
                 filter_tree.childrens.push_back(end_sub);
             }
         }
 
         auto AddFilter = [&](void* data)
         {
-            const BluePrint::NodeTypeInfo* type = (const BluePrint::NodeTypeInfo*)data;
-            auto catalog = BluePrint::GetCatalogInfo(type->m_Catalog);
+            const BluePrint::Node* node = (const BluePrint::Node*)data;
+            if (!node) return;
+            auto type = node->GetTypeInfo();
+            auto catalog = BluePrint::GetCatalogInfo(type.m_Catalog);
             if (catalog.size() < 2 || catalog[0].compare("Filter") != 0)
                 return;
             std::string drag_type = "Filter_drag_drop_" + catalog[1];
-            auto node = type->m_Factory(&bp);
-            if (node) 
-                node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(32, 32));
-            else 
-                ImGui::TextUnformatted(ICON_BANK);
+            node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(32, 32));
             ImGui::SameLine();
-            ImGui::Button(type->m_Name.c_str(), ImVec2(0, 32));
+            ImGui::Button(type.m_Name.c_str(), ImVec2(0, 32));
             if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
             {
-                ImGui::SetDragDropPayload(drag_type.c_str(), type, sizeof(BluePrint::NodeTypeInfo));
+                ImGui::SetDragDropPayload(drag_type.c_str(), node, sizeof(BluePrint::Node));
                 ImGui::TextUnformatted(ICON_BANK " Add Filter");
-                ImGui::TextUnformatted(type->m_Name.c_str());
+                ImGui::TextUnformatted(type.m_Name.c_str());
                 ImGui::EndDragDropSource();
             }
             if (ImGui::IsItemHovered())
@@ -3882,10 +3875,10 @@ static void ShowVideoFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
         {
             if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("Filter_drag_drop_Video"))
             {
-                BluePrint::NodeTypeInfo * type = (BluePrint::NodeTypeInfo *)payload->Data;
-                if (type)
+                const BluePrint::Node * node = (const BluePrint::Node *)payload->Data;
+                if (node)
                 {
-                    timeline->mVidFilterClip->mFilter->mBp->Edit_Insert(type->m_ID);
+                    timeline->mVidFilterClip->mFilter->mBp->Edit_Insert(node->GetTypeID());
                 }
             }
             ImGui::EndDragDropTarget();
@@ -4316,10 +4309,10 @@ static void ShowVideoFusionBluePrintWindow(ImDrawList *draw_list, Overlap * over
         {
             if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("Fusion_drag_drop_Video"))
             {
-                BluePrint::NodeTypeInfo * type = (BluePrint::NodeTypeInfo *)payload->Data;
-                if (type)
+                const BluePrint::Node * node = (const BluePrint::Node *)payload->Data;
+                if (node)
                 {
-                    timeline->mVidOverlap->mFusion->mBp->Edit_Insert(type->m_ID);
+                    timeline->mVidOverlap->mFusion->mBp->Edit_Insert(node->GetTypeID());
                 }
             }
             ImGui::EndDragDropTarget();
@@ -4927,10 +4920,10 @@ static void ShowAudioFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
         {
             if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("Filter_drag_drop_Audio"))
             {
-                BluePrint::NodeTypeInfo * type = (BluePrint::NodeTypeInfo *)payload->Data;
-                if (type)
+                const BluePrint::Node * node = (const BluePrint::Node *)payload->Data;
+                if (node)
                 {
-                    timeline->mAudFilterClip->mFilter->mBp->Edit_Insert(type->m_ID);
+                    timeline->mAudFilterClip->mFilter->mBp->Edit_Insert(node->GetTypeID());
                 }
             }
             ImGui::EndDragDropTarget();
@@ -5347,10 +5340,10 @@ static void ShowAudioFusionBluePrintWindow(ImDrawList *draw_list, Overlap * over
         {
             if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("Fusion_drag_drop_Audio"))
             {
-                BluePrint::NodeTypeInfo * type = (BluePrint::NodeTypeInfo *)payload->Data;
-                if (type)
+                const BluePrint::Node * node = (const BluePrint::Node *)payload->Data;
+                if (node)
                 {
-                    timeline->mAudOverlap->mFusion->mBp->Edit_Insert(type->m_ID);
+                    timeline->mAudOverlap->mFusion->mBp->Edit_Insert(node->GetTypeID());
                 }
             }
             ImGui::EndDragDropTarget();
