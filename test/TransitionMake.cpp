@@ -6,7 +6,7 @@
 #include <immat.h>
 #include <ImVulkanShader.h>
 #include <CopyTo_vulkan.h>
-#include <Pinwheel_vulkan.h>
+#include <ZoomInCircles_vulkan.h>
 
 int main(int argc, char** argv)
 {
@@ -19,7 +19,7 @@ int main(int argc, char** argv)
     if (!data_a || !data_b)
         return -1;
 
-    ImGui::Pinwheel_vulkan m_fusion(0);
+    ImGui::ZoomInCircles_vulkan m_fusion(0);
     ImGui::CopyTo_vulkan m_copy(0);
 
     ImGui::ImMat mat_a, mat_b;
@@ -35,9 +35,9 @@ int main(int argc, char** argv)
         for (int w = 0; w < 4; w++)
         {
             float progress = (float)(h * 4 + w) / 15.0;
-            ImPixel color(0.0f, 0.0f, 0.0f, 1.0f);
+            ImPixel color(0.15f, 0.15f, 0.15f, 1.0f);
             ImPixel color2(0.6f, 0.8f, 1.0f, 1.0f);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, 2.0);
+            m_fusion.transition(mat_a, mat_b, mat_t, progress);
             m_copy.copyTo(mat_t, result, w * width_a, h * height_a);
         }
     }

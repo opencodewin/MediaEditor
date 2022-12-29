@@ -3441,6 +3441,7 @@ void MediaTrack::InsertClip(Clip * clip, int64_t pos, bool update)
     {
         return _clip->mID == clip->mID;
     });
+    if (pos != -1) timeline->AlignTime(pos);
     if (iter == m_Clips.end())
     {
         int64_t length = clip->mEnd - clip->mStart;
