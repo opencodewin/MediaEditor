@@ -370,7 +370,11 @@ namespace DataLayer
                     m_readSamples += amat.w;
                 }
                 if (eof)
+                {
                     m_readOverlapIter++;
+                    if (m_readOverlapIter == m_overlaps.end())
+                        break;
+                }
             }
             if (readSamples < toReadSamples)
             {
@@ -425,8 +429,13 @@ namespace DataLayer
                     }
                     m_readSamples += amat.w;
                 }
-                if (eof && m_readOverlapIter != m_overlaps.begin())
-                    m_readOverlapIter--;
+                if (eof)
+                {
+                    if (m_readOverlapIter != m_overlaps.begin())
+                        m_readOverlapIter--;
+                    else
+                        break;
+                }
             }
             if (readSamples < toReadSamples)
             {

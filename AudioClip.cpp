@@ -108,7 +108,11 @@ namespace DataLayer
 
         uint32_t LeftSamples() const override
         {
-            return m_totalSamples > m_readSamples ? (uint32_t)(m_totalSamples-m_readSamples) : 0;
+            bool isForward = m_srcReader->IsDirectionForward();
+            if (isForward)
+                return m_totalSamples > m_readSamples ? (uint32_t)(m_totalSamples-m_readSamples) : 0;
+            else
+                return m_readSamples > m_totalSamples ? 0 : (m_readSamples >= 0 ? (uint32_t)m_readSamples : 0);
         }
 
         void SetTrackId(int64_t trackId) override
@@ -162,7 +166,8 @@ namespace DataLayer
 
         ImGui::ImMat ReadAudioSamples(uint32_t& readSamples, bool& eof) override
         {
-            if (m_eof || m_totalSamples <= m_readSamples)
+            const uint32_t leftSamples = LeftSamples();
+            if (m_eof || leftSamples == 0)
             {
                 readSamples = 0;
                 m_eof = eof = true;
@@ -176,7 +181,6 @@ namespace DataLayer
                 m_pcmSizePerSec = sampleRate*m_pcmFrameSize;
             }
 
-            const uint32_t leftSamples = m_totalSamples-m_readSamples;
             if (readSamples > leftSamples)
                 readSamples = leftSamples;
             uint32_t bufSize = readSamples*m_pcmFrameSize;
@@ -198,8 +202,13 @@ namespace DataLayer
             amat.rate.num = sampleRate;
             amat.rate.den = 1;
             amat.flags &= IM_MAT_FLAGS_AUDIO_FRAME;
-            m_readSamples += readSamples;
-            if (m_readSamples >= m_totalSamples)
+            const bool isForward = m_srcReader->IsDirectionForward();
+            if (isForward)
+                m_readSamples += readSamples;
+            else
+                m_readSamples -= readSamples;
+            const uint32_t leftSamples2 = LeftSamples();
+            if (leftSamples2 == 0)
                 m_eof = eof = true;
 
             if (m_filter)
