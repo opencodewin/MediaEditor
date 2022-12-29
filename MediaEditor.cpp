@@ -1770,7 +1770,7 @@ static void ShowMediaBankWindow(ImDrawList *draw_list, float media_icon_size)
  ***************************************************************************************/
 static void ShowFusionBankIconWindow(ImDrawList *draw_list)
 {
-    float fusion_icon_size = 48;
+    ImVec2 fusion_icon_size{96, 54};
     ImGuiIO& io = ImGui::GetIO();
     ImVec2 window_pos = ImGui::GetWindowPos();
     ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
@@ -1802,7 +1802,7 @@ static void ShowFusionBankIconWindow(ImDrawList *draw_list)
             std::string drag_type = "Fusion_drag_drop_" + catalog[1];
             ImGui::Dummy(ImVec2(0, 16));
             auto icon_pos = ImGui::GetCursorScreenPos();
-            ImVec2 icon_size = ImVec2(fusion_icon_size, fusion_icon_size);
+            ImVec2 icon_size = fusion_icon_size;
             // Draw Shadow for Icon
             draw_list->AddRectFilled(icon_pos + ImVec2(6, 6), icon_pos + ImVec2(6, 6) + icon_size, IM_COL32(32, 32, 32, 255));
             draw_list->AddRectFilled(icon_pos + ImVec2(4, 4), icon_pos + ImVec2(4, 4) + icon_size, IM_COL32(48, 48, 72, 255));
@@ -1830,7 +1830,7 @@ static void ShowFusionBankIconWindow(ImDrawList *draw_list)
                 }
             }
             ImGui::SetCursorScreenPos(icon_pos + ImVec2(2, 2));
-            node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(fusion_icon_size, fusion_icon_size)); 
+            node->DrawNodeLogo(ImGui::GetCurrentContext(), fusion_icon_size); 
             float gap = (icon_size.y - ImGui::GetFontSize()) / 2.0f;
             ImGui::SetCursorScreenPos(icon_pos + ImVec2(icon_size.x + 8, gap));
             ImGui::TextUnformatted(type.m_Name.c_str());
@@ -1940,7 +1940,7 @@ static void ShowFusionBankTreeWindow(ImDrawList *draw_list)
             if (catalog.size() < 2 || catalog[0].compare("Fusion") != 0)
                 return;
             std::string drag_type = "Fusion_drag_drop_" + catalog[1];
-            node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(32, 32));
+            node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(56, 32));
             ImGui::SameLine();
             ImGui::Button(type.m_Name.c_str(), ImVec2(0, 32));
             if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
@@ -4844,7 +4844,7 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
                             continue;
                         auto label_name = node->m_Name;
                         std::string lable_id = label_name + "##video_fusion_node" + "@" + std::to_string(node->m_ID);
-                        node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(28, 28));
+                        node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(50, 28));
                         ImGui::SameLine(40);
                         if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
                         {
