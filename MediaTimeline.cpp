@@ -337,6 +337,7 @@ int64_t Clip::Cropping(int64_t diff, int type)
     auto track = timeline->FindTrackByClipID(mID);
     if (!track || track->mLocked)
         return new_diff;
+    timeline->AlignTime(diff);
     float frame_duration = (timeline->mFrameRate.den > 0 && timeline->mFrameRate.num > 0) ? timeline->mFrameRate.den * 1000.0 / timeline->mFrameRate.num : 40;
     if (type == 0)
     {
@@ -468,6 +469,7 @@ void Clip::Cutting(int64_t pos)
     if (!track || track->mLocked)
         return;
     
+    timeline->AlignTime(pos);
     // calculate new pos
     int64_t org_end = mEnd;
     int64_t org_end_offset = mEndOffset;
@@ -859,6 +861,7 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
     {
         new_diff = diff;
         mStart += new_diff;
+        timeline->AlignTime(mStart);
         mEnd = mStart + length;
     }
     else
@@ -867,12 +870,14 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
         {
             new_diff = start - group_start;
             mStart += new_diff;
+            timeline->AlignTime(mStart);
             mEnd = mStart + length;
         }
         if (diff > 0 && end != -1 && group_end + diff > end)
         {
             new_diff = end - group_end;
             mStart = end - length;
+            timeline->AlignTime(mStart);
             mEnd = mStart + length;
         }
     }
@@ -962,6 +967,7 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
             {
                 int64_t clip_length = clip->mEnd - clip->mStart;
                 clip->mStart += new_diff;
+                timeline->AlignTime(clip->mStart);
                 clip->mEnd = clip->mStart + clip_length;
                 moving_clip_keypoint(clip);
             }
