@@ -4845,7 +4845,7 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
                         auto label_name = node->m_Name;
                         std::string lable_id = label_name + "##video_fusion_node" + "@" + std::to_string(node->m_ID);
                         node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(50, 28));
-                        ImGui::SameLine(40);
+                        ImGui::SameLine(70);
                         if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
                         {
                             ImGui::ImCurveEdit::keys key;
