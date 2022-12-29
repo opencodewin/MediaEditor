@@ -5,8 +5,8 @@
 #include <stb_image_write.h>
 #include <immat.h>
 #include <ImVulkanShader.h>
+#include <BookFlip_vulkan.h>
 #include <CopyTo_vulkan.h>
-#include <AlphaBlending_vulkan.h>
 
 int main(int argc, char** argv)
 {
@@ -19,8 +19,8 @@ int main(int argc, char** argv)
     if (!data_a || !data_b)
         return -1;
 
-    ImGui::CopyTo_vulkan  m_copy(0);
-    ImGui::AlphaBlending_vulkan  m_alpha(0);
+    ImGui::BookFlip_vulkan m_fusion(0);
+    ImGui::CopyTo_vulkan m_copy(0);
 
     ImGui::ImMat mat_a, mat_b;
     mat_a.create_type(width_a, height_a, component_a, data_a, IM_DT_INT8);
@@ -34,9 +34,10 @@ int main(int argc, char** argv)
     {
         for (int w = 0; w < 4; w++)
         {
-            float alpha = (float)(h * 4 + w) / 15.0;
-            alpha = 1.0f - alpha;
-            m_alpha.blend(mat_a, mat_b, mat_t, alpha);
+            ImGui::VkMat im_First_Blur;
+            ImGui::VkMat im_Second_Blur;
+            float percentage = (float)(h * 4 + w) / 15.0;
+            m_fusion.transition(mat_a, mat_b, mat_t, percentage);
             m_copy.copyTo(mat_t, result, w * width_a, h * height_a);
         }
     }
