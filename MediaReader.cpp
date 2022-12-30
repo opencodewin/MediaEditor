@@ -619,7 +619,7 @@ public:
             m = m_prevReadImg;
             return true;
         }
-        if (IsSuspended())
+        if (IsSuspended() && !m_isImage)
         {
             m_errMsg = "This 'MediaReader' instance is SUSPENDED!";
             return false;
