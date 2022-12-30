@@ -129,12 +129,13 @@ namespace DataLayer
         if (hClip->IsImage())
         {
             int64_t start = startOffset>endOffset ? endOffset : startOffset;
+            int64_t end = startOffset>endOffset ? startOffset : endOffset;
             if (start != hClip->Start())
             {
                 hClip->SetStart(start);
                 rangeChanged = true;
             }
-            int64_t duration = startOffset>endOffset ? startOffset-endOffset : endOffset-startOffset;
+            int64_t duration = end-start;
             if (duration != hClip->Duration())
             {
                 hClip->SetDuration(duration);

@@ -5781,9 +5781,9 @@ void TimeLine::PerformImageAction(imgui_json::value& action)
         int64_t trackId = action["from_track_id"].get<imgui_json::number>();
         DataLayer::VideoTrackHolder vidTrack = mMtvReader->GetTrackById(trackId);
         int64_t clipId = action["clip_id"].get<imgui_json::number>();
-        int64_t newStartOffset = action["new_start_offset"].get<imgui_json::number>();
-        int64_t newEndOffset = action["new_end_offset"].get<imgui_json::number>();
-        vidTrack->ChangeClipRange(clipId, newStartOffset, newEndOffset);
+        int64_t newStart = action["new_start"].get<imgui_json::number>();
+        int64_t newEnd = action["new_end"].get<imgui_json::number>();
+        vidTrack->ChangeClipRange(clipId, newStart, newEnd);
         UpdatePreview();
     }
     else if (actionName == "REMOVE_CLIP")
@@ -6431,14 +6431,30 @@ bool TimeLine::UndoOneRecord()
         {
             // undo 'CROP_CLIP'
             auto clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
-            int64_t orgStartOffset = action["org_start_offset"].get<imgui_json::number>();
-            int64_t orgEndOffset = action["org_end_offset"].get<imgui_json::number>();
-            int64_t newStartOffset = action["new_start_offset"].get<imgui_json::number>();
-            int64_t newEndOffset = action["new_end_offset"].get<imgui_json::number>();
-            if (orgStartOffset != newStartOffset)
-                clip->Cropping(newStartOffset-orgStartOffset, 0);
-            if (orgEndOffset != newEndOffset)
-                clip->Cropping(newEndOffset-orgEndOffset, 1);
+            auto clipType = clip->mType;
+            int64_t startDiff{0}, endDiff{0};
+            if (IS_VIDEO(clipType) && clipType != MEDIA_SUBTYPE_VIDEO_IMAGE || IS_AUDIO(clipType))
+            {
+                int64_t orgStartOffset = action["org_start_offset"].get<imgui_json::number>();
+                int64_t orgEndOffset = action["org_end_offset"].get<imgui_json::number>();
+                int64_t newStartOffset = action["new_start_offset"].get<imgui_json::number>();
+                int64_t newEndOffset = action["new_end_offset"].get<imgui_json::number>();
+                startDiff = newStartOffset-orgStartOffset;
+                endDiff = newEndOffset-orgEndOffset;
+            }
+            else
+            {
+                int64_t orgStart = action["org_start"].get<imgui_json::number>();
+                int64_t orgEnd = action["org_end"].get<imgui_json::number>();
+                int64_t newStart = action["new_start"].get<imgui_json::number>();
+                int64_t newEnd = action["new_end"].get<imgui_json::number>();
+                startDiff = orgStart-newStart;
+                endDiff = orgEnd-newEnd;
+            }
+            if (startDiff != 0)
+                clip->Cropping(startDiff, 0);
+            if (endDiff)
+                clip->Cropping(endDiff, 1);
 
             imgui_json::value undoAction;
             undoAction["action"] = "CROP_CLIP";
@@ -6449,6 +6465,10 @@ bool TimeLine::UndoOneRecord()
             undoAction["new_start_offset"] = action["org_start_offset"];
             undoAction["org_end_offset"] = action["new_end_offset"];
             undoAction["new_end_offset"] = action["org_end_offset"];
+            undoAction["org_start"] = action["new_start"];
+            undoAction["new_start"] = action["org_start"];
+            undoAction["org_end"] = action["new_end"];
+            undoAction["new_end"] = action["org_end"];
             mUiActions.push_back(std::move(undoAction));
         }
         else if (actionName == "REMOVE_CLIP")
@@ -6585,14 +6605,30 @@ bool TimeLine::RedoOneRecord()
         else if (actionName == "CROP_CLIP")
         {
             auto clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
-            int64_t orgStartOffset = action["org_start_offset"].get<imgui_json::number>();
-            int64_t orgEndOffset = action["org_end_offset"].get<imgui_json::number>();
-            int64_t newStartOffset = action["new_start_offset"].get<imgui_json::number>();
-            int64_t newEndOffset = action["new_end_offset"].get<imgui_json::number>();
-            if (orgStartOffset != newStartOffset)
-                clip->Cropping(orgStartOffset-newStartOffset, 0);
-            if (orgEndOffset != newEndOffset)
-                clip->Cropping(orgEndOffset-newEndOffset, 1);
+            auto clipType = clip->mType;
+            int64_t startDiff{0}, endDiff{0};
+            if (IS_VIDEO(clipType) && clipType != MEDIA_SUBTYPE_VIDEO_IMAGE || IS_AUDIO(clipType))
+            {
+                int64_t orgStartOffset = action["org_start_offset"].get<imgui_json::number>();
+                int64_t orgEndOffset = action["org_end_offset"].get<imgui_json::number>();
+                int64_t newStartOffset = action["new_start_offset"].get<imgui_json::number>();
+                int64_t newEndOffset = action["new_end_offset"].get<imgui_json::number>();
+                startDiff = orgStartOffset-newStartOffset;
+                endDiff = orgEndOffset-newEndOffset;
+            }
+            else
+            {
+                int64_t orgStart = action["org_start"].get<imgui_json::number>();
+                int64_t orgEnd = action["org_end"].get<imgui_json::number>();
+                int64_t newStart = action["new_start"].get<imgui_json::number>();
+                int64_t newEnd = action["new_end"].get<imgui_json::number>();
+                startDiff = newStart-orgStart;
+                endDiff = newEnd-orgEnd;
+            }
+            if (startDiff != 0)
+                clip->Cropping(startDiff, 0);
+            if (endDiff)
+                clip->Cropping(endDiff, 1);
 
             mUiActions.push_back(action);
         }
@@ -7627,6 +7663,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             ongoingAction["media_type"] = imgui_json::number(clip->mType);
             ongoingAction["from_track_id"] = imgui_json::number(track->mID);
             ongoingAction["org_start"] = imgui_json::number(clip->mStart);
+            ongoingAction["org_end"] = imgui_json::number(clip->mEnd);
             ongoingAction["org_start_offset"] = imgui_json::number(clip->mStartOffset);
             ongoingAction["org_end_offset"] = imgui_json::number(clip->mEndOffset);
             timeline->mOngoingActions.push_back(std::move(ongoingAction));
@@ -7814,16 +7851,19 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 {
                     int64_t orgStartOffset = action["org_start_offset"].get<imgui_json::number>();
                     int64_t orgEndOffset = action["org_end_offset"].get<imgui_json::number>();
-                    if (orgStartOffset != clip->mStartOffset || orgEndOffset != clip->mEndOffset)
+                    int64_t orgStart = action["org_start"].get<imgui_json::number>();
+                    int64_t orgEnd = action["org_end"].get<imgui_json::number>();
+                    if (orgStartOffset != clip->mStartOffset || orgEndOffset != clip->mEndOffset ||
+                        orgStart != clip->mStart || orgEnd != clip->mEnd)
                     {
                         action["new_start_offset"] = imgui_json::number(clip->mStartOffset);
                         action["new_end_offset"] = imgui_json::number(clip->mEndOffset);
+                        action["new_start"] = imgui_json::number(clip->mStart);
+                        action["new_end"] = imgui_json::number(clip->mEnd);
                         timeline->mUiActions.push_back(std::move(action));
                     }
                     else
-                    {
                         Logger::Log(Logger::VERBOSE) << "-- Unchanged CROP action DISCARDED --" << std::endl;
-                    }
                 }
                 else
                 {
