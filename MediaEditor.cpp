@@ -3684,7 +3684,7 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
                 bool has_curve_position_h = attribute_keypoint ? curve_position_h_index != -1 : false;
                 int position_h = has_curve_position_h ? attribute_keypoint->GetValue(curve_position_h_index, timeline->currentTime) : attribute->GetPositionOffsetH();
                 ImGui::BeginDisabled(has_curve_position_h);
-                if (ImGui::SliderInt("Position H", &position_h, -timeline->mVidFilterClip->mWidth, timeline->mVidFilterClip->mWidth))
+                if (ImGui::SliderInt("Position H", &position_h, -timeline->mWidth, timeline->mWidth))
                 {
                     attribute->SetPositionOffsetH(position_h);
                     timeline->UpdatePreview();
@@ -3704,7 +3704,7 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
                 bool has_curve_position_v = attribute_keypoint ? curve_position_v_index != -1 : false;
                 int position_v = has_curve_position_v ? attribute_keypoint->GetValue(curve_position_v_index, timeline->currentTime) : attribute->GetPositionOffsetV();
                 ImGui::BeginDisabled(has_curve_position_v);
-                if (ImGui::SliderInt("Position V", &position_v, -timeline->mVidFilterClip->mHeight, timeline->mVidFilterClip->mHeight))
+                if (ImGui::SliderInt("Position V", &position_v, -timeline->mHeight, timeline->mHeight))
                 {
                     attribute->SetPositionOffsetV(position_v);
                     timeline->UpdatePreview();
