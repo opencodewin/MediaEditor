@@ -1,7 +1,7 @@
 #pragma once
 #include "VideoTransformFilter_Base.h"
 #include <warpAffine_vulkan.h>
-#include <Crop_vulkan.h>
+// #include <Crop_vulkan.h>
 
 namespace DataLayer
 {
@@ -24,8 +24,8 @@ namespace DataLayer
         ImPixel m_cropRect;
         ImInterpolateMode m_interpMode{IM_INTERPOLATE_BICUBIC};
         bool m_passThrough{false};
-        ImGui::Crop_vulkan m_cropper;
-        int32_t m_cropperX{0}, m_cropperY{0};
+        // ImGui::Crop_vulkan m_cropper;
+        // int32_t m_cropperX{0}, m_cropperY{0};
         std::string m_errMsg;
     };
 }
