@@ -147,14 +147,16 @@ namespace DataLayer
             float alpha_11 = cos(_angle) * _y_scale;
             float beta_01 = sin(_angle) * _x_scale;
             float beta_10 = sin(_angle) * _y_scale;
-            int center_x = m_inWidth / 2 + m_posOffsetH;
-            int center_y = m_inHeight / 2 + m_posOffsetV;
+            float _x_offset = ((float)m_outWidth - (float)m_inWidth) / 2;
+            float _y_offset = ((float)m_outHeight - (float)m_inHeight) / 2;
+            int center_x = m_inWidth / 2 + m_posOffsetH + _x_offset;
+            int center_y = m_inHeight / 2 + m_posOffsetV + _y_offset;
             m_affineMat.at<float>(0, 0) =  alpha_00;
             m_affineMat.at<float>(1, 0) = beta_01;
-            m_affineMat.at<float>(2, 0) = (1 - alpha_00) * center_x - beta_01 * center_y - m_posOffsetH;
+            m_affineMat.at<float>(2, 0) = (1 - alpha_00) * center_x - beta_01 * center_y - m_posOffsetH - _x_offset;
             m_affineMat.at<float>(0, 1) = -beta_10;
             m_affineMat.at<float>(1, 1) = alpha_11;
-            m_affineMat.at<float>(2, 1) = beta_10 * center_x + (1 - alpha_11) * center_y - m_posOffsetV;
+            m_affineMat.at<float>(2, 1) = beta_10 * center_x + (1 - alpha_11) * center_y - m_posOffsetV - _y_offset;
             m_needUpdateScaleParam = m_needUpdateRotateParam = m_needUpdatePositionParam = false;
             UpdatePassThrough();
             m_cropperX = ((int32_t)m_inWidth-(int32_t)m_outWidth)/2;
@@ -178,6 +180,7 @@ namespace DataLayer
         else
         {
             ImGui::VkMat vkmat; vkmat.type = IM_DT_INT8;
+            vkmat.w = m_outWidth; vkmat.h = m_outHeight;
             m_warpAffine.filter(inMat, vkmat, m_affineMat, m_interpMode, ImPixel(0, 0, 0, 0), m_cropRect);
             vkmat.time_stamp = inMat.time_stamp;
             vkmat.rate = inMat.rate;
@@ -185,24 +188,24 @@ namespace DataLayer
             outMat = vkmat;
         }
 
-        if (m_cropperX != 0 || m_cropperY != 0 || m_inWidth != m_outWidth || m_inHeight != m_outHeight)
-        {
-            ImGui::VkMat vkmat;
-            vkmat.type = IM_DT_INT8;
-            vkmat.w = m_outWidth;
-            vkmat.h = m_outHeight;
-            int srcX = m_cropperX>=0 ? m_cropperX : 0;
-            int srcY = m_cropperY>=0 ? m_cropperY : 0;
-            int srcW = srcX+m_outWidth>m_inWidth ? (int)m_inWidth-srcX : m_outWidth;
-            int srcH = srcY+m_outHeight>m_inHeight ? (int)m_inHeight-srcY : m_outHeight;
-            int dstX = m_cropperX>=0 ? 0 : -m_cropperX;
-            int dstY = m_cropperY>=0 ? 0 : -m_cropperY;
-            m_cropper.cropto(outMat, vkmat, srcX, srcY, srcW, srcH, dstX, dstY);
-            vkmat.time_stamp = outMat.time_stamp;
-            vkmat.rate = outMat.rate;
-            vkmat.flags = outMat.flags;
-            outMat = vkmat;
-        }
+        // if (m_cropperX != 0 || m_cropperY != 0 || m_inWidth != m_outWidth || m_inHeight != m_outHeight)
+        // {
+        //     ImGui::VkMat vkmat;
+        //     vkmat.type = IM_DT_INT8;
+        //     vkmat.w = m_outWidth;
+        //     vkmat.h = m_outHeight;
+        //     int srcX = m_cropperX>=0 ? m_cropperX : 0;
+        //     int srcY = m_cropperY>=0 ? m_cropperY : 0;
+        //     int srcW = srcX+m_outWidth>m_inWidth ? (int)m_inWidth-srcX : m_outWidth;
+        //     int srcH = srcY+m_outHeight>m_inHeight ? (int)m_inHeight-srcY : m_outHeight;
+        //     int dstX = m_cropperX>=0 ? 0 : -m_cropperX;
+        //     int dstY = m_cropperY>=0 ? 0 : -m_cropperY;
+        //     m_cropper.cropto(outMat, vkmat, srcX, srcY, srcW, srcH, dstX, dstY);
+        //     vkmat.time_stamp = outMat.time_stamp;
+        //     vkmat.rate = outMat.rate;
+        //     vkmat.flags = outMat.flags;
+        //     outMat = vkmat;
+        // }
         return true;
     }
 
