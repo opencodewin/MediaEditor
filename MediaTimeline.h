@@ -852,6 +852,7 @@ struct TimeLine
     std::unordered_map<int64_t, SnapshotGeneratorHolder> m_VidSsGenTable;  // Snapshot generator for video media item, provide snapshots for VideoClip
     int64_t mStart   {0};                   // whole timeline start in ms, project saved
     int64_t mEnd     {0};                   // whole timeline end in ms, project saved
+    bool m_in_threads {false};
 
     bool mShowHelpTooltips      {true};     // timeline show help tooltips, project saved, configured
     bool mHardwareCodec         {true};     // timeline Video/Audio decode/encode try to enable HW if available;
@@ -1014,6 +1015,7 @@ struct TimeLine
     void SetEnd(int64_t pos) { mEnd = pos; }
     size_t GetCustomHeight(int index) { return (index < m_Tracks.size() && m_Tracks[index]->mExpanded) ? m_Tracks[index]->mTrackHeight : 0; }
     void Update();
+    void UpdateRange();
     void AlignTime(int64_t& time);
 
     int GetTrackCount() const { return (int)m_Tracks.size(); }

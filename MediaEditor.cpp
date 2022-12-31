@@ -1312,7 +1312,7 @@ static void LoadThread(std::string path)
         return;
     }
     g_project_loading_percentage = 0.2;
-
+    timeline->m_in_threads = true;
     auto project = loadResult.first;
     const imgui_json::array* mediaBankArray = nullptr;
     if (imgui_json::GetPtrTo(project, "MediaBank", mediaBankArray))
@@ -1379,6 +1379,7 @@ static void LoadThread(std::string path)
     project_need_save = true;
     g_project_loading_percentage = 1.0;
     g_project_loading = false;
+    timeline->m_in_threads = false;
 }
 
 static void SaveProject(std::string path)

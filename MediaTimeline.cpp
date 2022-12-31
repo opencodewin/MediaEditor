@@ -457,6 +457,7 @@ int64_t Clip::Cropping(int64_t diff, int type)
         mAttributeKeyPoints.SetRangeX(mStart, mEnd, true);
     }
     track->Update();
+    timeline->UpdateRange();
     return new_diff;
 }
 
@@ -1033,13 +1034,14 @@ VideoClip::VideoClip(int64_t start, int64_t end, int64_t id, std::string name, M
             mOverview = nullptr;
             return;
         }
+        TimeLine * timeline = (TimeLine *)handle;
         mWidth = video_stream->width;
         mHeight = video_stream->height;
         int _width = 0, _height = 0;
         std::vector<ImGui::ImMat> snap_images;
         if (mOverview->GetSnapshots(snap_images))
         {
-            if (!snap_images.empty() && !snap_images[0].empty() && !mImgTexture)
+            if (!snap_images.empty() && !snap_images[0].empty() && !mImgTexture && timeline && !timeline->m_in_threads)
             {
                 ImMatToTexture(snap_images[0], mImgTexture);
                 _width = snap_images[0].w;
@@ -1242,7 +1244,7 @@ void VideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
             }
         }
     }
-    else
+    else if (!mSnapImages.empty())
     {
         ImVec2 snapLeftTop = leftTop;
         float snapDispWidth;
@@ -1286,6 +1288,25 @@ void VideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
                 break;
         }
         GetSnapshotGeneratorLogger()->Log(Logger::DEBUG) << "[1]<<<<< End display snapshot" << std::endl;
+    }
+    else
+    {
+        int _width = 0, _height = 0;
+        std::vector<ImGui::ImMat> snap_images;
+        if (mOverview->GetSnapshots(snap_images))
+        {
+            if (!snap_images.empty() && !snap_images[0].empty())
+            {
+                ImMatToTexture(snap_images[0], mImgTexture);
+                _width = snap_images[0].w;
+                _height = snap_images[0].h;
+            }
+            if (mTrackHeight > 0 && _width > 0 && _height > 0)
+            {
+                mSnapHeight = mTrackHeight;
+                mSnapWidth = mTrackHeight * _width / _height;
+            }
+        }
     }
 }
 
@@ -4182,7 +4203,7 @@ void TimeLine::AlignTime(int64_t& time)
     alignTime(time, mFrameRate);
 }
 
-void TimeLine::Update()
+void TimeLine::UpdateRange()
 {
     int64_t start_min = INT64_MAX;
     int64_t end_max = INT64_MIN;
@@ -4199,6 +4220,11 @@ void TimeLine::Update()
     {
         mEnd = end_max + TIMELINE_OVER_LENGTH;
     }
+}
+
+void TimeLine::Update()
+{
+    UpdateRange();
 
     // update track
     for (auto track : m_Tracks)
