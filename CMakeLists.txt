@@ -452,6 +452,7 @@ target_include_directories(
 add_executable(
     transition_make
     test/TransitionMake.cpp
+    ${IMGUI_APP_ENTRY_SRC}
 )
 target_link_libraries(
     transition_make
