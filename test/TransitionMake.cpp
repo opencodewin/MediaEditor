@@ -80,6 +80,7 @@ ImGui::ImMat g_mat_d;
 ImTextureID g_texture_1 = nullptr;
 ImTextureID g_texture_2 = nullptr;
 ImTextureID g_texture_d = nullptr;
+ImGui::CopyTo_vulkan * g_copy = nullptr;
 
 static const char* fusion_items[] = {
     "AlphaBlending",
@@ -138,7 +139,7 @@ static const char* fusion_items[] = {
     "ZoomInCircles"
 };
 
-static void ShowVideoWindow(ImDrawList *draw_list, ImTextureID texture, ImVec2& pos, ImVec2& size, float& offset_x, float& offset_y, float& tf_x, float& tf_y, bool bLandscape = true)
+static void ShowVideoWindow(ImDrawList *draw_list, ImTextureID texture, ImVec2& pos, ImVec2& size, float& offset_x, float& offset_y, float& tf_x, float& tf_y, float aspectRatio, ImVec2 start = ImVec2(0.f, 0.f), ImVec2 end = ImVec2(1.f, 1.f), bool bLandscape = true)
 {
     if (texture)
     {
@@ -146,7 +147,6 @@ static void ShowVideoWindow(ImDrawList *draw_list, ImTextureID texture, ImVec2& 
         ImGui::InvisibleButton(("##video_window" + std::to_string((long long)texture)).c_str(), size);
         bool bViewisLandscape = size.x >= size.y ? true : false;
         bViewisLandscape |= bLandscape;
-        float aspectRatio = (float)ImGui::ImGetTextureWidth(texture) / (float)ImGui::ImGetTextureHeight(texture);
         bool bRenderisLandscape = aspectRatio > 1.f ? true : false;
         bool bNeedChangeScreenInfo = bViewisLandscape ^ bRenderisLandscape;
         float adj_w = bNeedChangeScreenInfo ? size.y : size.x;
@@ -162,8 +162,8 @@ static void ShowVideoWindow(ImDrawList *draw_list, ImTextureID texture, ImVec2& 
             texture,
             ImVec2(offset_x, offset_y),
             ImVec2(offset_x + adj_x, offset_y + adj_y),
-            ImVec2(0, 0),
-            ImVec2(1, 1)
+            start,
+            end
         );
         tf_x = offset_x + adj_x;
         tf_y = offset_y + adj_y;
@@ -181,6 +181,32 @@ static void load_image(std::string path, ImGui::ImMat & mat)
         mat.create_type(width, height, component, data, IM_DT_INT8);
     }
 }
+
+static void transition(int col, int row, int cols, int rows, int type, ImGui::ImMat& mat_a, ImGui::ImMat& mat_b, ImGui::ImMat& result)
+{
+    ImGui::ImMat mat_t;
+    mat_t.type = mat_a.type;
+    float progress = (float)(row * cols + col) / (float)(rows * cols - 1);
+    switch (type)
+    {
+        case 0:
+        {
+            ImGui::AlphaBlending_vulkan m_fusion(0);
+            float alpha = 1.0f - progress;
+            m_fusion.blend(mat_a, mat_b, mat_t, alpha);
+        }
+        break;
+        case 1:
+        {
+            ImGui::BookFlip_vulkan m_fusion(0);
+            m_fusion.transition(mat_a, mat_b, mat_t, progress);
+        }
+        break;
+        default: break;
+    }
+    g_copy->copyTo(mat_t, result, col * mat_a.w, row * mat_a.h);
+}
+
 // Application Framework Functions
 void Application_GetWindowProperties(ApplicationWindowProperty& property)
 {
@@ -275,11 +301,17 @@ bool Application_Frame(void * handle, bool app_will_quit)
     bool app_done = false;
     auto& io = ImGui::GetIO();
     static int fusion_index = 0;
+    static int fusion_col_images = 4;
+    static int fusion_row_images = 4;
+    static int fusion_image_index = 0;
+    static int output_quality = 70;
+    static ImGui::ImMat result;
     ImGui::SetNextWindowPos({0, 0});
     ImGui::SetNextWindowSize(io.DisplaySize);
     ImGui::Begin("MainWindow", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoResize);
 
     const char *filters = "Image Files(*.png){.png,.PNG},.*";
+    const char *dst_filters = "Image Files(*.jpg){.jpg,.HPG},.*";
     ImVec2 minSize = ImVec2(600, 800);
 	ImVec2 maxSize = ImVec2(FLT_MAX, FLT_MAX);
     ImGuiFileDialogFlags vflags = ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_Modal | ImGuiFileDialogFlags_ShowBookmark;
@@ -301,16 +333,41 @@ bool Application_Frame(void * handle, bool app_will_quit)
 
     if (ImGui::Button(ICON_IGFD_FOLDER_OPEN " Choose Dist File"))
             ImGuiFileDialog::Instance()->OpenDialog("##MediaDistDlgKey", ICON_IGFD_FOLDER_OPEN " Choose Dist File", 
-                                                    filters, 
+                                                    dst_filters, 
                                                     g_dist.empty() ? "." : g_dist,
                                                     1, IGFDUserDatas("Dist"), vflags | ImGuiFileDialogFlags_ConfirmOverwrite);
     ImGui::SameLine(0);
     ImGui::TextUnformatted(g_dist_name.c_str());
 
-    ImGui::Combo("Fusion", &fusion_index, fusion_items, IM_ARRAYSIZE(fusion_items));
+    if (ImGui::Button("Save Image"))
+    {
+        if (!g_dist.empty() && !result.empty())
+        {
+            stbi_write_jpg(g_dist.c_str(), result.w, result.h, result.c, result.data, 70);
+        }
+    }
+    bool need_update = false;
+    if (ImGui::Combo("Fusion", &fusion_index, fusion_items, IM_ARRAYSIZE(fusion_items)))
+    {
+        fusion_image_index = 0;
+        need_update = true;
+    }
+    if (ImGui::SliderInt("Image cols", &fusion_col_images, 2, 8))
+    {
+        fusion_image_index = 0;
+        need_update = true;
+    }
+    if (ImGui::SliderInt("Image rows", &fusion_row_images, 2, 8))
+    {
+        fusion_image_index = 0;
+        need_update = true;
+    }
+
+    ImGui::SliderInt("Image quality", &output_quality, 40, 100);
 
     if (!g_mat_1.empty() && !g_texture_1) ImGui::ImMatToTexture(g_mat_1, g_texture_1);
     if (!g_mat_2.empty() && !g_texture_2) ImGui::ImMatToTexture(g_mat_2, g_texture_2);
+    if (!g_copy) g_copy = new ImGui::CopyTo_vulkan(0);
 
     auto draw_list = ImGui::GetWindowDrawList();
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
@@ -321,6 +378,12 @@ bool Application_Frame(void * handle, bool app_will_quit)
     ImVec2 SecondVideoPos = window_pos + ImVec2(window_size.x / 2 + 4, 4);
     ImVec2 SecondVideoSize = ImVec2(window_size.x / 2 - 8, window_size.y / 4);
     ImRect SecondVideoRect(SecondVideoPos, SecondVideoPos + SecondVideoSize);
+    ImVec2 DistVideoPos = window_pos + ImVec2(4, FirstVideoSize.y + 32);
+    ImVec2 DistVideoSize = ImVec2(window_size.x / 2 - 8, window_size.y / 4);
+    ImRect DistVideoRect(DistVideoPos, DistVideoPos + DistVideoSize);
+    ImVec2 DistImagePos = window_pos + ImVec2(window_size.x / 2 + 4, FirstVideoSize.y + 32);
+    ImVec2 DistImageSize = ImVec2(window_size.x / 2 - 8, window_size.y / 4);
+    ImRect DistImageRect(DistImagePos, DistImagePos + DistImageSize);
 
     ImVec4 tint_col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);   // No tint
     ImVec4 border_col = ImVec4(1.0f, 1.0f, 1.0f, 0.5f); // 50% opaque white
@@ -329,17 +392,47 @@ bool Application_Frame(void * handle, bool app_will_quit)
     // Draw source 1
     if (g_texture_1)
     {
-        ShowVideoWindow(draw_list, g_texture_1, FirstVideoPos, FirstVideoSize, offset_x, offset_y, tf_x, tf_y);
+        ShowVideoWindow(draw_list, g_texture_1, FirstVideoPos, FirstVideoSize, offset_x, offset_y, tf_x, tf_y, (float)g_mat_1.w / (float)g_mat_1.h);
         draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32(128,128,128,128), 0, 0, 1.0);
     }
 
     // Draw source 2
     if (g_texture_2)
     {
-        ShowVideoWindow(draw_list, g_texture_2, SecondVideoPos, SecondVideoSize, offset_x, offset_y, tf_x, tf_y);
+        ShowVideoWindow(draw_list, g_texture_2, SecondVideoPos, SecondVideoSize, offset_x, offset_y, tf_x, tf_y, (float)g_mat_2.w / (float)g_mat_2.h);
         draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32(128,128,128,128), 0, 0, 1.0);
     }
 
+    // Draw result
+    if (g_texture_d)
+    {
+        ImGui::SetCursorScreenPos(DistVideoPos);
+        int col = (fusion_image_index / 4) % fusion_col_images;
+        int row = (fusion_image_index / 4) / fusion_col_images;
+        float start_x = (float)col / (float)fusion_col_images;
+        float start_y = (float)row / (float)fusion_row_images;
+        ShowVideoWindow(draw_list, g_texture_d, DistVideoPos, DistVideoSize, offset_x, offset_y, tf_x, tf_y, (float)g_mat_1.w / (float)g_mat_1.h, ImVec2(start_x, start_y), ImVec2(start_x + 1.f / (float)fusion_col_images, start_y + 1.f / (float)fusion_row_images));
+        draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32(128,128,128,128), 0, 0, 1.0);
+
+        fusion_image_index ++; if (fusion_image_index >= fusion_col_images * fusion_row_images * 4) fusion_image_index = 0;
+
+        ShowVideoWindow(draw_list, g_texture_d, DistImagePos, DistImageSize, offset_x, offset_y, tf_x, tf_y, (float)ImGui::ImGetTextureWidth(g_texture_d) / (float)ImGui::ImGetTextureHeight(g_texture_d));
+        draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32(128,128,128,128), 0, 0, 1.0);
+    }
+
+    // prepare for fusion
+    if (!g_mat_1.empty() && !g_mat_2.empty() && !g_texture_d)
+    {
+        result.create_type(g_mat_1.w * fusion_col_images, g_mat_1.h * fusion_row_images, 4, IM_DT_INT8);
+        for (int h = 0; h < fusion_row_images; h++)
+        {
+            for (int w = 0; w < fusion_col_images; w++)
+            {
+                transition(w, h, fusion_col_images, fusion_row_images, fusion_index, g_mat_1, g_mat_2, result);
+            }
+        }
+        ImGui::ImMatToTexture(result, g_texture_d);
+    }
     // handle file open
     if (ImGuiFileDialog::Instance()->Display("##MediaSourceDlgKey", ImGuiWindowFlags_NoCollapse, minSize, maxSize))
     {
@@ -351,14 +444,14 @@ bool Application_Frame(void * handle, bool app_will_quit)
                 g_source_1 = ImGuiFileDialog::Instance()->GetFilePathName();
                 g_source_name_1 = ImGuiFileDialog::Instance()->GetCurrentFileName();
                 load_image(g_source_1, g_mat_1);
-                if (g_texture_1) { ImGui::ImDestroyTexture(g_texture_1); g_texture_1 = nullptr; }
+                need_update = true;
             }
             else if (userDatas.compare("Source 2") == 0)
             {
                 g_source_2 = ImGuiFileDialog::Instance()->GetFilePathName();
                 g_source_name_2 = ImGuiFileDialog::Instance()->GetCurrentFileName();
                 load_image(g_source_2, g_mat_2);
-                if (g_texture_2) { ImGui::ImDestroyTexture(g_texture_2); g_texture_2 = nullptr; }
+                need_update = true;
             }
         }
         // close
@@ -376,53 +469,21 @@ bool Application_Frame(void * handle, bool app_will_quit)
         ImGuiFileDialog::Instance()->Close();
     }
 
+    if (need_update)
+    {
+        if (g_texture_1) { ImGui::ImDestroyTexture(g_texture_1); g_texture_1 = nullptr; }
+        if (g_texture_2) { ImGui::ImDestroyTexture(g_texture_2); g_texture_2 = nullptr; }
+        if (g_texture_d) { ImGui::ImDestroyTexture(g_texture_d); g_texture_d = nullptr; }
+    }
+
     ImGui::End();
     if (app_will_quit)
     {
+        if (g_texture_1) { ImGui::ImDestroyTexture(g_texture_1); g_texture_1 = nullptr; }
+        if (g_texture_2) { ImGui::ImDestroyTexture(g_texture_2); g_texture_2 = nullptr; }
+        if (g_texture_d) { ImGui::ImDestroyTexture(g_texture_d); g_texture_d = nullptr; }
+        if (g_copy) { delete g_copy; g_copy = nullptr; }
         app_done = true;
     }
     return app_done;
 }
-/*
-#include <ZoomInCircles_vulkan.h>
-
-int main(int argc, char** argv)
-{
-    int width_a = 0, height_a = 0, component_a = 0;
-    uint8_t * data_a = nullptr;
-    data_a = stbi_load("/Users/dicky/Desktop/A.png", &width_a, &height_a, &component_a, 4);
-    int width_b = 0, height_b = 0, component_b = 0;
-    uint8_t * data_b = nullptr;
-    data_b = stbi_load("/Users/dicky/Desktop/B.png", &width_b, &height_b, &component_b, 4);
-    if (!data_a || !data_b)
-        return -1;
-
-    ImGui::ZoomInCircles_vulkan m_fusion(0);
-    ImGui::CopyTo_vulkan m_copy(0);
-
-    ImGui::ImMat mat_a, mat_b;
-    mat_a.create_type(width_a, height_a, component_a, data_a, IM_DT_INT8);
-    mat_b.create_type(width_b, height_b, component_b, data_b, IM_DT_INT8);
-    ImGui::ImMat result;
-    result.create_type(width_a * 4, height_a * 4, 4, IM_DT_INT8);
-
-    ImGui::ImMat mat_t;
-    mat_t.type = mat_a.type;
-    for (int h = 0; h < 4; h++)
-    {
-        for (int w = 0; w < 4; w++)
-        {
-            float progress = (float)(h * 4 + w) / 15.0;
-            ImPixel color(0.15f, 0.15f, 0.15f, 1.0f);
-            ImPixel color2(0.6f, 0.8f, 1.0f, 1.0f);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress);
-            m_copy.copyTo(mat_t, result, w * width_a, h * height_a);
-        }
-    }
-    
-    
-    stbi_write_jpg("/Users/dicky/Desktop/C.jpg", result.w, result.h, result.c, result.data, 70);
-
-    return 0;
-}
-*/
