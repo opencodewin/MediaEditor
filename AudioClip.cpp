@@ -1,4 +1,6 @@
+#include <sstream>
 #include "AudioClip.h"
+#include "SysUtils.h"
 
 using namespace std;
 
@@ -13,13 +15,21 @@ namespace DataLayer
         AudioClip_AudioImpl(
             int64_t id, MediaParserHolder hParser,
             uint32_t outChannels, uint32_t outSampleRate,
-            int64_t start, int64_t startOffset, int64_t endOffset)
+            int64_t start, int64_t startOffset, int64_t endOffset, bool exclusiveLogger = false)
             : m_id(id), m_start(start)
         {
             m_hInfo = hParser->GetMediaInfo();
             if (hParser->GetBestAudioStreamIndex() < 0)
                 throw invalid_argument("Argument 'hParser' has NO AUDIO stream!");
-            m_srcReader = CreateMediaReader();
+            string loggerName = "";
+            if (exclusiveLogger)
+            {
+                auto fileName = GetFileNameFromPath(hParser->GetUrl());
+                ostringstream oss;
+                oss << "AUD@" << fileName << "";
+                loggerName = oss.str();
+            }
+            m_srcReader = CreateMediaReader(loggerName);
             if (!m_srcReader->Open(hParser))
                 throw runtime_error(m_srcReader->GetError());
             if (!m_srcReader->ConfigAudioReader(outChannels, outSampleRate))

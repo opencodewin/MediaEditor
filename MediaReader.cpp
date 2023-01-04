@@ -33,10 +33,18 @@ class MediaReader_Impl : public MediaReader
 public:
     static ALogger* s_logger;
 
-    MediaReader_Impl()
+    MediaReader_Impl(const string& loggerName = "")
     {
         m_id = s_idCounter++;
-        m_logger = GetMediaReaderLogger();
+        if (loggerName.empty())
+        {
+            m_logger = GetMediaReaderLogger();
+        }
+        else
+        {
+            m_logger = GetLogger(loggerName);
+            m_logger->SetShowLevels(DEBUG);
+        }
     }
 
     MediaReader_Impl(const MediaReader_Impl&) = delete;
@@ -1616,7 +1624,11 @@ private:
                 {
                     lastTaskSeekPts1 = currTask->seekPts.second;
                     if (currTask->cancel)
-                        m_logger->Log(DEBUG) << "~~~~ Current demux task canceled" << endl;
+                    {
+                        m_logger->Log(DEBUG) << "~~~~ Old demux task canceled, startPts=" 
+                            << currTask->seekPts.first << "(" << MillisecToString(CvtPtsToMts(currTask->seekPts.first)) << ")"
+                            << ", endPts=" << currTask->seekPts.second << "(" << MillisecToString(CvtPtsToMts(currTask->seekPts.second)) << ")" << endl;
+                    }
                 }
                 currTask = FindNextDemuxTask();
                 if (currTask)
@@ -1726,6 +1738,7 @@ private:
                             }
                             {
                                 lock_guard<mutex> lk(currTask->avpktQLock);
+                                // m_logger->Log(DEBUG) << "-> Queuing AVPacket of stream#" << stmidx << ", pts=" << enqpkt->pts << "." << endl;
                                 currTask->avpktQ.push_back(enqpkt);
                                 if (lastPktPts != enqpkt->pts)
                                 {
@@ -1736,20 +1749,20 @@ private:
                                 {
                                     m_logger->Log(DEBUG) << "-=-> Change current task 'seekPts.first' from " << currTask->seekPts.first << " to " << enqpkt->pts << endl;
                                     currTask->seekPts.first = enqpkt->pts;
-                                    if (enqpkt->pts < m_cacheWnd.seekPos00)
+                                    if (enqpkt->pts < m_bldtskSnapWnd.seekPos00)
                                     {
-                                        m_logger->Log(DEBUG) << "-==> Change cache window 'seekPos00' from " << m_cacheWnd.seekPos00 << " to " << enqpkt->pts << endl;
-                                        m_cacheWnd.seekPos00 = enqpkt->pts;
+                                        m_logger->Log(DEBUG) << "-==> Change build-task window 'seekPos00' from " << m_bldtskSnapWnd.seekPos00 << " to " << enqpkt->pts << endl;
+                                        m_bldtskSnapWnd.seekPos00 = enqpkt->pts;
                                     }
                                 }
                                 else if (enqpkt->pts > currTask->seekPts.second)
                                 {
                                     m_logger->Log(DEBUG) << "-=-> Change current task 'seekPts.second' from " << currTask->seekPts.second << " to " << enqpkt->pts << endl;
                                     currTask->seekPts.second = enqpkt->pts;
-                                    if (enqpkt->pts > m_cacheWnd.seekPos10)
+                                    if (enqpkt->pts > m_bldtskSnapWnd.seekPos10)
                                     {
-                                        m_logger->Log(DEBUG) << "-==> Change cache window 'seekPos10' from " << m_cacheWnd.seekPos10 << " to " << enqpkt->pts << endl;
-                                        m_cacheWnd.seekPos10 = enqpkt->pts;
+                                        m_logger->Log(DEBUG) << "-==> Change build-task window 'seekPos10' from " << m_bldtskSnapWnd.seekPos10 << " to " << enqpkt->pts << endl;
+                                        m_bldtskSnapWnd.seekPos10 = enqpkt->pts;
                                     }
                                 }
                             }
@@ -1900,30 +1913,33 @@ private:
             bool idleLoop = true;
             bool quitLoop = false;
 
-            if (currTask && currTask->cancel)
-            {
-                m_logger->Log(DEBUG) << "~~~~ Current video task canceled" << endl;
-                if (avfrmLoaded)
-                {
-                    av_frame_unref(&avfrm);
-                    avfrmLoaded = false;
-                }
-                currTask = nullptr;
-            }
-
-            if (!currTask || currTask->decInputEof)
+            if (!currTask || currTask->cancel || currTask->decInputEof)
             {
                 GopDecodeTaskHolder oldTask = currTask;
                 currTask = FindNextDecoderTask();
                 if (currTask)
                 {
                     currTask->decoding = true;
-                    // m_logger->Log(DEBUG) << "==> Change decoding task to build index (" << currTask->ssIdxPair.first << " ~ " << currTask->ssIdxPair.second << ")." << endl;
+                    m_logger->Log(DEBUG) << "==> Change decoding task, startPts="
+                        << currTask->seekPts.first << "(" << MillisecToString(CvtPtsToMts(currTask->seekPts.first)) << ")"
+                        << ", endPts=" << currTask->seekPts.second << "(" << MillisecToString(CvtPtsToMts(currTask->seekPts.second)) << ")" << endl;
                 }
-                else if (oldTask)
+                if (oldTask)
                 {
-                    avcodec_send_packet(m_viddecCtx, nullptr);
-                    sentNullPacket = true;
+                    if (oldTask->cancel && avfrmLoaded)
+                    {
+                        m_logger->Log(DEBUG) << "~~~~ Old video task canceled, startPts="
+                            << oldTask->seekPts.first << "(" << MillisecToString(CvtPtsToMts(oldTask->seekPts.first)) << ")"
+                            << ", endPts=" << oldTask->seekPts.second << "(" << MillisecToString(CvtPtsToMts(oldTask->seekPts.second)) << ")" << endl;
+                        av_frame_unref(&avfrm);
+                        avfrmLoaded = false;
+                    }
+                    if (oldTask->cancel || !currTask || oldTask->seekPts.second != currTask->seekPts.first)
+                    {
+                        // m_logger->Log(DEBUG) << ">>>--->>> Sending NULL ptr to video decoder <<<---<<<" << endl;
+                        avcodec_send_packet(m_viddecCtx, nullptr);
+                        sentNullPacket = true;
+                    }
                 }
             }
 
@@ -1934,97 +1950,106 @@ private:
                 sentNullPacket = false;
             }
 
-            if (currTask || sentNullPacket)
-            {
-                // retrieve output frame
-                bool hasOutput;
-                do{
-                    if (!avfrmLoaded)
-                    {
-                        int fferr = avcodec_receive_frame(m_viddecCtx, &avfrm);
-                        if (fferr == 0)
-                        {
-                            // m_logger->Log(DEBUG) << "<<< Get video frame pts=" << avfrm.pts << "(" << MillisecToString(CvtPtsToMts(avfrm.pts)) << ")." << endl;
-                            avfrmLoaded = true;
-                            idleLoop = false;
-                        }
-                        else if (fferr != AVERROR(EAGAIN))
-                        {
-                            if (fferr != AVERROR_EOF)
-                            {
-                                m_errMsg = FFapiFailureMessage("avcodec_receive_frame", fferr);
-                                m_logger->Log(Error) << "FAILED to invoke 'avcodec_receive_frame'(VideoDecodeThreadProc)! return code is "
-                                    << fferr << "." << endl;
-                                quitLoop = true;
-                                break;
-                            }
-                            else
-                            {
-                                idleLoop = false;
-                                needResetDecoder = true;
-                                // m_logger->Log(DEBUG) << "Video decoder current task reaches EOF!" << endl;
-                            }
-                        }
-                    }
-
-                    hasOutput = avfrmLoaded;
-                    if (avfrmLoaded)
-                    {
-                        if (m_pendingVidfrmCnt < m_maxPendingVidfrmCnt)
-                        {
-                            EnqueueSnapshotAVFrame(&avfrm);
-                            av_frame_unref(&avfrm);
-                            avfrmLoaded = false;
-                            idleLoop = false;
-                        }
-                    }
-                } while (hasOutput && !m_quitThread && (!currTask || !currTask->cancel));
-                if (quitLoop)
-                    break;
-                if (currTask && currTask->cancel)
-                    continue;
-
-                // input packet to decoder
-                if (!sentNullPacket)
+            // retrieve output frame
+            bool hasOutput;
+            do{
+                if (!avfrmLoaded)
                 {
-                    if (!currTask->avpktQ.empty())
+                    int fferr = avcodec_receive_frame(m_viddecCtx, &avfrm);
+                    if (fferr == 0)
                     {
-                        AVPacket* avpkt = currTask->avpktQ.front();
-                        int fferr = avcodec_send_packet(m_viddecCtx, avpkt);
-                        if (fferr == 0)
-                        {
-                            // m_logger->Log(DEBUG) << ">>> Send video packet pts=" << avpkt->pts << "(" << MillisecToString(CvtPtsToMts(avpkt->pts)) << ")." << endl;
-                            {
-                                lock_guard<mutex> lk(currTask->avpktQLock);
-                                currTask->avpktQ.pop_front();
-                            }
-                            av_packet_free(&avpkt);
-                            idleLoop = false;
-                        }
-                        else if (fferr == AVERROR_INVALIDDATA)
-                        {
-                            m_logger->Log(DEBUG) << "(VIDEO)avcodec_send_packet() return AVERROR_INVALIDDATA when decoding AVPacket with pts=" << avpkt->pts
-                                << " from file '" << m_hParser->GetUrl() << "'. DISCARD this PACKET." << endl;
-                            {
-                                lock_guard<mutex> lk(currTask->avpktQLock);
-                                currTask->avpktQ.pop_front();
-                            }
-                            av_packet_free(&avpkt);
-                            idleLoop = false;
-                        }
-                        else if (fferr != AVERROR(EAGAIN))
-                        {
-                            m_errMsg = FFapiFailureMessage("avcodec_send_packet", fferr);
-                            m_logger->Log(Error) << "FAILED to invoke 'avcodec_send_packet'(VideoDecodeThreadProc)! return code is "
-                                << fferr << "." << endl;
-                            break;
-                        }
-                    }
-                    else if (currTask->demuxEof)
-                    {
-                        currTask->decInputEof = true;
+                        // m_logger->Log(DEBUG) << "<<< Get video frame pts=" << avfrm.pts << "(" << MillisecToString(CvtPtsToMts(avfrm.pts)) << ")." << endl;
+                        avfrmLoaded = true;
                         idleLoop = false;
                     }
+                    else if (fferr != AVERROR(EAGAIN))
+                    {
+                        if (fferr != AVERROR_EOF)
+                        {
+                            m_errMsg = FFapiFailureMessage("avcodec_receive_frame", fferr);
+                            m_logger->Log(Error) << "FAILED to invoke 'avcodec_receive_frame'(VideoDecodeThreadProc)! return code is "
+                                << fferr << "." << endl;
+                            quitLoop = true;
+                            break;
+                        }
+                        else
+                        {
+                            idleLoop = false;
+                            needResetDecoder = true;
+                            // m_logger->Log(DEBUG) << "Video decoder current task reaches EOF!" << endl;
+                        }
+                    }
+                    // else
+                    // {
+                    //     m_logger->Log(DEBUG) << "<<<<<<--- avcodec_receive_frame() returns EAGAIN." << endl;
+                    // }
+                }
+
+                hasOutput = avfrmLoaded;
+                if (avfrmLoaded)
+                {
+                    if (m_pendingVidfrmCnt < m_maxPendingVidfrmCnt)
+                    {
+                        EnqueueSnapshotAVFrame(&avfrm);
+                        av_frame_unref(&avfrm);
+                        avfrmLoaded = false;
+                        idleLoop = false;
+                    }
+                    else
+                    {
+                        this_thread::sleep_for(chrono::milliseconds(5));
+                    }
+                }
+            } while (hasOutput && !m_quitThread && (!currTask || !currTask->cancel));
+            if (quitLoop)
+                break;
+            if (currTask && currTask->cancel)
+                continue;
+
+            if (currTask && !sentNullPacket)
+            {
+                // input packet to decoder
+                if (!currTask->avpktQ.empty())
+                {
+                    AVPacket* avpkt = currTask->avpktQ.front();
+                    int fferr = avcodec_send_packet(m_viddecCtx, avpkt);
+                    if (fferr == 0)
+                    {
+                        // m_logger->Log(DEBUG) << ">>> Send video packet pts=" << avpkt->pts << "(" << MillisecToString(CvtPtsToMts(avpkt->pts)) << ")." << endl;
+                        {
+                            lock_guard<mutex> lk(currTask->avpktQLock);
+                            currTask->avpktQ.pop_front();
+                        }
+                        av_packet_free(&avpkt);
+                        idleLoop = false;
+                    }
+                    else if (fferr == AVERROR_INVALIDDATA)
+                    {
+                        m_logger->Log(DEBUG) << "(VIDEO)avcodec_send_packet() return AVERROR_INVALIDDATA when decoding AVPacket with pts=" << avpkt->pts
+                            << " from file '" << m_hParser->GetUrl() << "'. DISCARD this PACKET." << endl;
+                        {
+                            lock_guard<mutex> lk(currTask->avpktQLock);
+                            currTask->avpktQ.pop_front();
+                        }
+                        av_packet_free(&avpkt);
+                        idleLoop = false;
+                    }
+                    else if (fferr != AVERROR(EAGAIN))
+                    {
+                        m_errMsg = FFapiFailureMessage("avcodec_send_packet", fferr);
+                        m_logger->Log(Error) << "FAILED to invoke 'avcodec_send_packet'(VideoDecodeThreadProc)! return code is "
+                            << fferr << "." << endl;
+                        break;
+                    }
+                    // else
+                    // {
+                    //     m_logger->Log(DEBUG) << "--->>>>>> avcodec_send_packet() returns EAGAIN." << endl;
+                    // }
+                }
+                else if (currTask->demuxEof)
+                {
+                    currTask->decInputEof = true;
+                    idleLoop = false;
                 }
             }
 
@@ -3318,9 +3343,9 @@ static AVPixelFormat get_hw_format(AVCodecContext *ctx, const AVPixelFormat *pix
     return candidateSwfmt;
 }
 
-MediaReader* CreateMediaReader()
+MediaReader* CreateMediaReader(const string& loggerName)
 {
-    return new MediaReader_Impl();
+    return new MediaReader_Impl(loggerName);
 }
 
 void ReleaseMediaReader(MediaReader** msrc)

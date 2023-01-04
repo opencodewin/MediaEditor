@@ -51,7 +51,7 @@ struct MediaReader
     virtual std::string GetError() const = 0;
 };
 
-MediaReader* CreateMediaReader();
+MediaReader* CreateMediaReader(const std::string& loggerName = "");
 void ReleaseMediaReader(MediaReader** mreader);
 
 Logger::ALogger* GetMediaReaderLogger();
