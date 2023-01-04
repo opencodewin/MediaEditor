@@ -12,6 +12,7 @@
 #include <immat.h>
 #include <ImVulkanShader.h>
 #include "AlphaBlending_vulkan.h"
+#include "LinearBlur_vulkan.h"
 #include "BookFlip_vulkan.h"
 #include "Bounce_vulkan.h"
 #include "BowTie_vulkan.h"
@@ -203,7 +204,10 @@ static void transition(int col, int row, int cols, int rows, int type, ImGui::Im
         break;
         case 1:
         {
-            // TODO::Dicky need re-write fusion Blur
+            float m_intensity {0.1};
+            int m_passes {6};
+            ImGui::LinearBlur_vulkan m_fusion(0);
+            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_intensity, m_passes);
         }
         break;
         case 2:
