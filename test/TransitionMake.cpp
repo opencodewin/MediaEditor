@@ -31,6 +31,7 @@
 #include "Cube_vulkan.h"
 #include "DirectionalWarp_vulkan.h"
 #include "DoomScreen_vulkan.h"
+#include "Door_vulkan.h"
 #include "Doorway_vulkan.h"
 #include "Dreamy_vulkan.h"
 #include "DreamyZoom_vulkan.h"
@@ -352,7 +353,10 @@ static void transition(int col, int row, int cols, int rows, int type, ImGui::Im
         break;
         case 20:
         {
-            // TODO::Dicky need re-write fusion Door
+            bool m_bOpen        {true};
+            bool m_bHorizon     {true};
+            ImGui::Door_vulkan m_fusion(0);
+            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_bOpen, m_bHorizon);
         }
         break;
         case 21:
