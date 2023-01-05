@@ -35,6 +35,7 @@
 #include "Doorway_vulkan.h"
 #include "Dreamy_vulkan.h"
 #include "DreamyZoom_vulkan.h"
+#include "Fade_vulkan.h"
 #include "Flyeye_vulkan.h"
 #include "GlitchDisplace_vulkan.h"
 #include "GlitchMemories_vulkan.h"
@@ -384,7 +385,10 @@ static void transition(int col, int row, int cols, int rows, int type, ImGui::Im
         break;
         case 24:
         {
-            // TODO::Dicky need re-write fusion Fade
+            ImPixel m_color {0.0f, 0.0f, 0.0f, 1.0f};
+            int m_type {1};
+            ImGui::Fade_vulkan m_fusion(0);
+            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_type, m_color);
         }
         break;
         case 25:
