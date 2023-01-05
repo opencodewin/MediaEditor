@@ -1788,6 +1788,7 @@ static void ShowFusionBankIconWindow(ImDrawList *draw_list)
     if (!timeline)
         return;
     // Show Fusion Icons
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
     ImGui::SetCursorPos({20, 20});
     if (timeline->m_BP_UI.m_Document)
     {
@@ -1834,10 +1835,11 @@ static void ShowFusionBankIconWindow(ImDrawList *draw_list)
             node->DrawNodeLogo(ImGui::GetCurrentContext(), fusion_icon_size); 
             float gap = (icon_size.y - ImGui::GetFontSize()) / 2.0f;
             ImGui::SetCursorScreenPos(icon_pos + ImVec2(icon_size.x + 8, gap));
-            ImGui::TextUnformatted(type.m_Name.c_str());
+            ImGui::Button(type.m_Name.c_str(), ImVec2(0, 32));
             ImGui::Spacing();
         }
     }
+    ImGui::PopStyleColor();
 }
 
 static void ShowFusionBankTreeWindow(ImDrawList *draw_list)
@@ -1941,9 +1943,9 @@ static void ShowFusionBankTreeWindow(ImDrawList *draw_list)
             if (catalog.size() < 2 || catalog[0].compare("Fusion") != 0)
                 return;
             std::string drag_type = "Fusion_drag_drop_" + catalog[1];
-            node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(56, 32));
-            ImGui::SameLine();
-            ImGui::Button(type.m_Name.c_str(), ImVec2(0, 32));
+            auto icon_pos = ImGui::GetCursorScreenPos();
+            ImVec2 icon_size = ImVec2(56, 32);
+            ImGui::InvisibleButton(type.m_Name.c_str(), icon_size);
             if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
             {
                 ImGui::SetDragDropPayload(drag_type.c_str(), node, sizeof(BluePrint::Node));
@@ -1964,6 +1966,10 @@ static void ShowFusionBankTreeWindow(ImDrawList *draw_list)
                     ImGui::PopStyleVar();
                 }
             }
+            ImGui::SetCursorScreenPos(icon_pos);
+            node->DrawNodeLogo(ImGui::GetCurrentContext(), icon_size);
+            ImGui::SameLine();
+            ImGui::Button(type.m_Name.c_str(), ImVec2(0, 32));
         };
 
         // draw fusion tree
@@ -2029,6 +2035,7 @@ static void ShowFilterBankIconWindow(ImDrawList *draw_list)
     if (!timeline)
         return;
     // Show Filter Icons
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
     ImGui::SetCursorPos({20, 20});
     if (timeline->m_BP_UI.m_Document)
     {
@@ -2074,10 +2081,11 @@ static void ShowFilterBankIconWindow(ImDrawList *draw_list)
             node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(filter_icon_size, filter_icon_size)); 
             float gap = (icon_size.y - ImGui::GetFontSize()) / 2.0f;
             ImGui::SetCursorScreenPos(icon_pos + ImVec2(icon_size.x + 8, gap));
-            ImGui::TextUnformatted(type.m_Name.c_str());
+            ImGui::Button(type.m_Name.c_str(), ImVec2(0, 32));
             ImGui::Spacing();
         }
     }
+    ImGui::PopStyleColor();
 }
 
 static void ShowFilterBankTreeWindow(ImDrawList *draw_list)
@@ -2180,9 +2188,9 @@ static void ShowFilterBankTreeWindow(ImDrawList *draw_list)
             if (catalog.size() < 2 || catalog[0].compare("Filter") != 0)
                 return;
             std::string drag_type = "Filter_drag_drop_" + catalog[1];
-            node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(32, 32));
-            ImGui::SameLine();
-            ImGui::Button(type.m_Name.c_str(), ImVec2(0, 32));
+            auto icon_pos = ImGui::GetCursorScreenPos();
+            ImVec2 icon_size = ImVec2(32, 32);
+            ImGui::InvisibleButton(type.m_Name.c_str(), icon_size);
             if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
             {
                 ImGui::SetDragDropPayload(drag_type.c_str(), node, sizeof(BluePrint::Node));
@@ -2203,6 +2211,10 @@ static void ShowFilterBankTreeWindow(ImDrawList *draw_list)
                     ImGui::PopStyleVar();
                 }
             }
+            ImGui::SetCursorScreenPos(icon_pos);
+            node->DrawNodeLogo(ImGui::GetCurrentContext(), icon_size);
+            ImGui::SameLine();
+            ImGui::Button(type.m_Name.c_str(), ImVec2(0, 32));
         };
 
         // draw filter tree

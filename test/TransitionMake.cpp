@@ -58,6 +58,7 @@
 #include "Ripple_vulkan.h"
 #include "RotateScale_vulkan.h"
 #include "SimpleZoom_vulkan.h"
+#include "Slider_vulkan.h"
 #include "SquaresWire_vulkan.h"
 #include "Squeeze_vulkan.h"
 #include "StereoViewer_vulkan.h"
@@ -67,6 +68,7 @@
 #include "Wind_vulkan.h"
 #include "WindowBlinds_vulkan.h"
 #include "WindowSlice_vulkan.h"
+#include "Wipe_vulkan.h"
 #include "ZoomInCircles_vulkan.h"
 #include <CopyTo_vulkan.h>
 #include <unistd.h>
@@ -144,6 +146,7 @@ static const char* fusion_items[] = {
     "Wind",
     "WindowBlinds",
     "WindowSlice",
+    "Wipe",
     "ZoomInCircles"
 };
 
@@ -566,7 +569,10 @@ static void transition(int col, int row, int cols, int rows, int type, ImGui::Im
         break;
         case 48:
         {
-            // TODO::Dicky need re-write fusion Slider
+            int m_type {0};
+            bool m_Out {true};
+            ImGui::Slider_vulkan m_fusion(0);
+            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_Out, m_type);
         }
         break;
         case 49:
@@ -639,6 +645,13 @@ static void transition(int col, int row, int cols, int rows, int type, ImGui::Im
         }
         break;
         case 58:
+        {
+            int m_type {0};
+            ImGui::Wipe_vulkan m_fusion(0);
+            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_type);
+        }
+        break;
+        case 59:
         {
             ImGui::ZoomInCircles_vulkan m_fusion(0);
             m_fusion.transition(mat_a, mat_b, mat_t, progress);
