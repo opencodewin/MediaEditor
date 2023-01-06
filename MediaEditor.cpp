@@ -9225,6 +9225,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
         if (ImGui::Button(ICON_NEW_PROJECT "##NewProject", ImVec2(tool_icon_size, tool_icon_size)))
         {
             // New Project
+            // TODO::Dicky need check current project need to save, and if current project isn't set project path, need opendialog to save
             NewProject();
         }
         ImGui::ShowTooltipOnHover("New Project");
@@ -9590,8 +9591,6 @@ bool Application_Frame(void * handle, bool app_will_quit)
                 {
                     SaveProject(g_media_editor_settings.project_path);
                 }
-                //LoadProject(file_path);
-                //project_need_save = true;
                 if (g_project_loading)
                 {
                     if (g_loading_thread && g_loading_thread->joinable())
@@ -9599,6 +9598,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
                     g_project_loading = false;
                     g_loading_thread = nullptr;
                 }
+                CleanProject();
                 g_loading_thread = new std::thread(LoadThread, file_path);
             }
             if (userDatas.compare("ProjectSave") == 0)
