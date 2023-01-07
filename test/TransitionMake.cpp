@@ -46,6 +46,7 @@
 #include "LuminanceMelt_vulkan.h"
 #include "Morph_vulkan.h"
 #include "Mosaic_vulkan.h"
+#include "Move_vulkan.h"
 #include "MultiplyBlend_vulkan.h"
 #include "PageCurl_vulkan.h"
 #include "Perlin_vulkan.h"
@@ -56,6 +57,7 @@
 #include "Radial_vulkan.h"
 #include "RandomSquares_vulkan.h"
 #include "Ripple_vulkan.h"
+#include "Rolls_vulkan.h"
 #include "RotateScale_vulkan.h"
 #include "SimpleZoom_vulkan.h"
 #include "Slider_vulkan.h"
@@ -134,6 +136,7 @@ static const char* fusion_items[] = {
     "Radial",
     "RandomSquares",
     "Ripple",
+    "Rolls",
     "RotateScale",
     "SimpleZoom",
     "Slider",
@@ -340,8 +343,9 @@ static void transition(int col, int row, int cols, int rows, int type, ImGui::Im
         case 18:
         {
             float m_smoothness   {0.5f};
+            ImVec2 m_direction   {-1.0, 1.0};
             ImGui::DirectionalWarp_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_smoothness, -1.0, 1.0);
+            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_smoothness, m_direction.x, m_direction.y);
         }
         break;
         case 19:
@@ -475,7 +479,9 @@ static void transition(int col, int row, int cols, int rows, int type, ImGui::Im
         break;
         case 35:
         {
-            // TODO::Dicky need re-write fusion Move
+            ImVec2 m_direction   {-1.0, 1.0};
+            ImGui::Move_vulkan m_fusion(0);
+            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_direction.x, m_direction.y);
         }
         break;
         case 36:
@@ -553,6 +559,14 @@ static void transition(int col, int row, int cols, int rows, int type, ImGui::Im
         break;
         case 46:
         {
+            int m_type       {0};
+            bool m_RotDown   {false};
+            ImGui::Rolls_vulkan m_fusion(0);
+            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_RotDown, m_type);
+        }
+        break;
+        case 47:
+        {
             float m_rotations   {1.f};
             float m_scale       {8.0f};
             ImPixel m_backColor {0.15f, 0.15f, 0.15f, 1.0f};
@@ -560,14 +574,14 @@ static void transition(int col, int row, int cols, int rows, int type, ImGui::Im
             m_fusion.transition(mat_a, mat_b, mat_t, progress, m_backColor, m_rotations, m_scale);
         }
         break;
-        case 47:
+        case 48:
         {
             float m_quickness   {0.8f};
             ImGui::SimpleZoom_vulkan m_fusion(0);
             m_fusion.transition(mat_a, mat_b, mat_t, progress, m_quickness);
         }
         break;
-        case 48:
+        case 49:
         {
             int m_type {0};
             bool m_Out {true};
@@ -575,7 +589,7 @@ static void transition(int col, int row, int cols, int rows, int type, ImGui::Im
             m_fusion.transition(mat_a, mat_b, mat_t, progress, m_Out, m_type);
         }
         break;
-        case 49:
+        case 50:
         {
             float m_smoothness  {1.6f};
             int m_size          {10};
@@ -584,14 +598,14 @@ static void transition(int col, int row, int cols, int rows, int type, ImGui::Im
             m_fusion.transition(mat_a, mat_b, mat_t, progress, m_smoothness, m_size, m_direction.x, m_direction.y);
         }
         break;
-        case 50:
+        case 51:
         {
             float m_separation  {0.04f};
             ImGui::Squeeze_vulkan m_fusion(0);
             m_fusion.transition(mat_a, mat_b, mat_t, progress, m_separation);
         }
         break;
-        case 51:
+        case 52:
         {
             float m_zoom        {0.88f};
             float m_corner_radius {0.22f};
@@ -599,7 +613,7 @@ static void transition(int col, int row, int cols, int rows, int type, ImGui::Im
             m_fusion.transition(mat_a, mat_b, mat_t, progress, m_zoom, m_corner_radius);
         }
         break;
-        case 52:
+        case 53:
         {
             float m_reflection  {0.4f};
             float m_perspective {0.2f};
@@ -608,14 +622,14 @@ static void transition(int col, int row, int cols, int rows, int type, ImGui::Im
             m_fusion.transition(mat_a, mat_b, mat_t, progress, m_reflection, m_perspective, m_depth);
         }
         break;
-        case 53:
+        case 54:
         {
             float m_radius      {1.f};
             ImGui::Swirl_vulkan m_fusion(0);
             m_fusion.transition(mat_a, mat_b, mat_t, progress, m_radius);
         }
         break;
-        case 54:
+        case 55:
         {
             float m_speed       {30.f};
             float m_amplitude   {30.f};
@@ -623,20 +637,20 @@ static void transition(int col, int row, int cols, int rows, int type, ImGui::Im
             m_fusion.transition(mat_a, mat_b, mat_t, progress, m_speed, m_amplitude);
         }
         break;
-        case 55:
+        case 56:
         {
             float m_size        {0.2f};
             ImGui::Wind_vulkan m_fusion(0);
             m_fusion.transition(mat_a, mat_b, mat_t, progress, m_size);
         }
         break;
-        case 56:
+        case 57:
         {
             ImGui::WindowBlinds_vulkan m_fusion(0);
             m_fusion.transition(mat_a, mat_b, mat_t, progress);
         }
         break;
-        case 57:
+        case 58:
         {
             float m_smoothness  {1.f};
             float m_count       {10.f};
@@ -644,14 +658,14 @@ static void transition(int col, int row, int cols, int rows, int type, ImGui::Im
             m_fusion.transition(mat_a, mat_b, mat_t, progress, m_smoothness, m_count);
         }
         break;
-        case 58:
+        case 59:
         {
             int m_type {0};
             ImGui::Wipe_vulkan m_fusion(0);
             m_fusion.transition(mat_a, mat_b, mat_t, progress, m_type);
         }
         break;
-        case 59:
+        case 60:
         {
             ImGui::ZoomInCircles_vulkan m_fusion(0);
             m_fusion.transition(mat_a, mat_b, mat_t, progress);
