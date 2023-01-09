@@ -144,7 +144,6 @@ set(MEDIA_EDITOR_SRCS
     FontDescriptor.cpp
     FontManager_Fontconfig.cpp
     FFUtils.cpp
-    SysUtils.cpp
     Logger.cpp
     ${IMGUI_APP_ENTRY_SRC}
 )
@@ -355,7 +354,6 @@ add_executable(
     MediaParser.cpp
     AudioRender_Impl_Sdl2.cpp
     FFUtils.cpp
-    SysUtils.cpp
     Logger.cpp
     ${IMGUI_APP_ENTRY_SRC}
 )
