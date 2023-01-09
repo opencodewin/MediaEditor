@@ -196,6 +196,63 @@ static void load_image(std::string path, ImGui::ImMat & mat)
     }
 }
 
+// stbi image custom context
+typedef struct {
+    int last_pos;
+    void *context;
+} stbi_mem_context;
+
+static void custom_stbi_write_mem(void *context, void *data, int size)
+{
+    stbi_mem_context *c = (stbi_mem_context*)context; 
+    char *dst = (char *)c->context;
+    char *src = (char *)data;
+    int cur_pos = c->last_pos;
+    for (int i = 0; i < size; i++) {
+        dst[cur_pos++] = src[i];
+    }
+    c->last_pos = cur_pos;
+}
+
+static bool binary_to_compressed_c(const char* filename, const char* symbol, void * data, int data_sz, int w, int h, int cols, int rows)
+{
+    // Read file
+    FILE* f = fopen(filename, "wb");
+    if (!f) return false;
+
+    // Compress
+    int maxlen = data_sz + 512 + (data_sz >> 2) + sizeof(int); // total guess
+    char* compressed = (char*)data;
+    int compressed_sz = data_sz;
+
+    //fprintf(f, "// File: '%s' (%d bytes)\n", filename, (int)data_sz);
+    //fprintf(f, "// Exported using binary_to_compressed_c.cpp\n");
+    const char* static_str = "    ";
+    const char* compressed_str = "";
+    {
+        fprintf(f, "%sconst unsigned int %s_%swidth = %d;\n", static_str, symbol, compressed_str, w);
+        fprintf(f, "%sconst unsigned int %s_%sheight = %d;\n", static_str, symbol, compressed_str, h);
+        fprintf(f, "%sconst unsigned int %s_%scols = %d;\n", static_str, symbol, compressed_str, cols);
+        fprintf(f, "%sconst unsigned int %s_%srows = %d;\n", static_str, symbol, compressed_str, rows);
+        fprintf(f, "%sconst unsigned int %s_%ssize = %d;\n", static_str, symbol, compressed_str, (int)compressed_sz);
+        fprintf(f, "%sconst unsigned int %s_%sdata[%d/4] =\n{", static_str, symbol, compressed_str, (int)((compressed_sz + 3) / 4)*4);
+        int column = 0;
+        for (int i = 0; i < compressed_sz; i += 4)
+        {
+            unsigned int d = *(unsigned int*)(compressed + i);
+            if ((column++ % 12) == 0)
+                fprintf(f, "\n    0x%08x, ", d);
+            else
+                fprintf(f, "0x%08x, ", d);
+        }
+        fprintf(f, "\n};");
+    }
+
+    // Cleanup
+    fclose(f);
+    return true;
+}
+
 static void transition(int col, int row, int cols, int rows, int type, ImGui::ImMat& mat_a, ImGui::ImMat& mat_b, ImGui::ImMat& result)
 {
     ImGui::ImMat mat_t;
@@ -332,7 +389,7 @@ static void transition(int col, int row, int cols, int rows, int type, ImGui::Im
         break;
         case 17:
         {
-            float m_persp       {0.9f};
+            float m_persp       {0.6f};
             float m_unzoom      {0.05f};
             float m_reflection  {0.4f};
             float m_floating    {1.0f};
@@ -453,6 +510,7 @@ static void transition(int col, int row, int cols, int rows, int type, ImGui::Im
             ImGui::KaleidoScope_vulkan m_fusion(0);
             m_fusion.transition(mat_a, mat_b, mat_t, progress, m_speed, m_angle, m_power);
         }
+        break;
         case 32:
         {
             float m_threshold   {0.8f};
@@ -773,8 +831,11 @@ bool Application_Frame(void * handle, bool app_will_quit)
     static int fusion_col_images = 4;
     static int fusion_row_images = 4;
     static int fusion_image_index = 0;
-    static int output_quality = 70;
+    static int output_quality = 90;
+    static void * data_memory = nullptr;
+    static stbi_mem_context image_context {0, nullptr};
     static ImGui::ImMat result;
+    if (!data_memory) { data_memory = malloc(4 * 1024 * 1024); image_context.last_pos = 0; image_context.context = data_memory; }
     ImGui::SetNextWindowPos({0, 0});
     ImGui::SetNextWindowSize(io.DisplaySize);
     ImGui::Begin("MainWindow", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoResize);
@@ -812,9 +873,23 @@ bool Application_Frame(void * handle, bool app_will_quit)
     {
         if (!g_dist.empty() && !result.empty())
         {
-            stbi_write_jpg(g_dist.c_str(), result.w, result.h, result.c, result.data, 70);
+            stbi_write_jpg(g_dist.c_str(), result.w, result.h, result.c, result.data, output_quality);
         }
     }
+
+    if (ImGui::Button("Generate"))
+    {
+        if (!g_dist.empty() && !result.empty())
+        {
+            image_context.last_pos = 0;
+            int ret = stbi_write_jpg_to_func(custom_stbi_write_mem, &image_context, result.w, result.h, result.c, result.data, output_quality);
+            if (ret)
+            {
+                binary_to_compressed_c("/Users/dicky/Desktop/logo.cpp", "logo", image_context.context, image_context.last_pos, g_mat_1.w, g_mat_1.h, fusion_col_images, fusion_row_images);
+            }
+        }
+    }
+
     bool need_update = false;
     if (ImGui::Combo("Fusion", &fusion_index, fusion_items, IM_ARRAYSIZE(fusion_items), 30))
     {
@@ -952,6 +1027,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
         if (g_texture_2) { ImGui::ImDestroyTexture(g_texture_2); g_texture_2 = nullptr; }
         if (g_texture_d) { ImGui::ImDestroyTexture(g_texture_d); g_texture_d = nullptr; }
         if (g_copy) { delete g_copy; g_copy = nullptr; }
+        if (data_memory) { free(data_memory); data_memory = nullptr; }
         app_done = true;
     }
     return app_done;
