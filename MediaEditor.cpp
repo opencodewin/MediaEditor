@@ -3956,6 +3956,9 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
     }
     
     float clip_timeline_height = 80;
+#if USING_NEW_CLIP_TIMELINE
+    clip_timeline_height += 12;
+#endif
     float clip_keypoint_height = g_media_editor_settings.VideoFilterCurveExpanded ? 80 : 0;
     ImVec2 video_preview_pos = window_pos;
     float video_preview_height = (window_size.y - clip_timeline_height - clip_keypoint_height) * 2 / 3;
@@ -4015,7 +4018,11 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_TWO);
         // Draw Clip TimeLine
+#if USING_NEW_CLIP_TIMELINE
+        DrawClipTimeLineNew(timeline, timeline->mVidFilterClip, timeline->currentTime, 30, 50);
+#else
         DrawClipTimeLine(timeline->mVidFilterClip, timeline->currentTime, 30, 50);
+#endif
     }
     ImGui::EndChild();
 

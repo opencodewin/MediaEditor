@@ -20,6 +20,8 @@
 #include <list>
 #include <chrono>
 
+#define USING_NEW_CLIP_TIMELINE     0       // for developing
+
 #define ICON_MEDIA_TIMELINE u8"\uf538"
 #define ICON_MEDIA_BANK     u8"\ue907"
 #define ICON_MEDIA_TRANS    u8"\ue927"
@@ -326,6 +328,11 @@ struct Clip
     ImGui::KeyPointEditor mFilterKeyPoints;         // clip key points, project saved
     ImGui::KeyPointEditor mAttributeKeyPoints;      // clip key points, project saved
 
+    int64_t firstTime = 0;
+    int64_t lastTime = 0;
+    int64_t visibleTime = 0;
+    float msPixelWidthTarget = -1.f;
+
     Clip(int64_t start, int64_t end, int64_t id, MediaParserHolder mediaParser, void * handle);
     virtual ~Clip();
 
@@ -555,10 +562,17 @@ struct BaseEditingClip
     int64_t mDuration           {0};
     ImVec2 mViewWndSize         {0, 0};
     bool bSeeking               {false};
+
+    int64_t firstTime = 0;
+    int64_t lastTime = 0;
+    int64_t visibleTime = 0;
+    float msPixelWidthTarget = -1.f;
+
     BaseEditingClip(int64_t id, uint32_t type, int64_t start, int64_t end, int64_t startOffset, int64_t endOffset, void* handle)
         : mID(id), mType(type), mStart(start), mEnd(end), mStartOffset(startOffset), mEndOffset(endOffset), mHandle(handle)
     {}
 
+    virtual void CalcDisplayParams(int64_t viewWndDur) = 0;
     virtual void UpdateClipRange(Clip* clip) = 0;
     virtual void Seek(int64_t pos) = 0;
     virtual void Step(bool forward, int64_t step = 0) = 0;
@@ -586,14 +600,13 @@ public:
     EditingVideoClip(VideoClip* vidclip);
     virtual ~EditingVideoClip();
 
+    void CalcDisplayParams(int64_t viewWndDur) override;
     void UpdateClipRange(Clip* clip) override;
     void Seek(int64_t pos) override;
     void Step(bool forward, int64_t step = 0) override;
     void Save() override;
     bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame = true, bool attribute = false) override;
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom) override;
-
-    void CalcDisplayParams();
 };
 
 struct EditingAudioClip : BaseEditingClip
@@ -609,6 +622,7 @@ public:
     EditingAudioClip(AudioClip* vidclip);
     virtual ~EditingAudioClip();
 
+    void CalcDisplayParams(int64_t viewWndDur) override;
     void UpdateClipRange(Clip* clip) override;
     void Seek(int64_t pos) override;
     void Step(bool forward, int64_t step = 0) override;
@@ -860,6 +874,7 @@ struct TimeLine
     int mHeight {1080};                     // timeline Media Height, project saved, configured
     MediaInfo::Ratio mFrameRate {25, 1};    // timeline Media Frame rate, project saved, configured
     int mMaxCachedVideoFrame {MAX_VIDEO_CACHE_FRAMES};  // timeline Media Video Frame cache size, project saved, configured
+    float mSnapShotWidth        {60.0};
 
     int mAudioChannels {2};                 // timeline audio channels, project saved, configured
     int mAudioSampleRate {44100};           // timeline audio sample rate, project saved, configured
@@ -1085,5 +1100,6 @@ struct TimeLine
 
 bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable = true);
 bool DrawClipTimeLine(BaseEditingClip * editingClip, int64_t CurrentTime, int header_height, int custom_height);
+bool DrawClipTimeLineNew(TimeLine* main_timeline, BaseEditingClip * editingClip, int64_t CurrentTime, int header_height, int custom_height);
 bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int64_t CurrentTime, int header_height, int custom_height);
 } // namespace MediaTimeline
