@@ -1749,21 +1749,11 @@ private:
                                 {
                                     m_logger->Log(DEBUG) << "-=-> Change current task 'seekPts.first' from " << currTask->seekPts.first << " to " << enqpkt->pts << endl;
                                     currTask->seekPts.first = enqpkt->pts;
-                                    if (enqpkt->pts < m_bldtskSnapWnd.seekPos00)
-                                    {
-                                        m_logger->Log(DEBUG) << "-==> Change build-task window 'seekPos00' from " << m_bldtskSnapWnd.seekPos00 << " to " << enqpkt->pts << endl;
-                                        m_bldtskSnapWnd.seekPos00 = enqpkt->pts;
-                                    }
                                 }
                                 else if (enqpkt->pts > currTask->seekPts.second)
                                 {
                                     m_logger->Log(DEBUG) << "-=-> Change current task 'seekPts.second' from " << currTask->seekPts.second << " to " << enqpkt->pts << endl;
                                     currTask->seekPts.second = enqpkt->pts;
-                                    if (enqpkt->pts > m_bldtskSnapWnd.seekPos10)
-                                    {
-                                        m_logger->Log(DEBUG) << "-==> Change build-task window 'seekPos10' from " << m_bldtskSnapWnd.seekPos10 << " to " << enqpkt->pts << endl;
-                                        m_bldtskSnapWnd.seekPos10 = enqpkt->pts;
-                                    }
                                 }
                             }
                             av_packet_unref(&avpkt);
