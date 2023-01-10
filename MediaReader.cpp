@@ -1976,7 +1976,7 @@ private:
                         {
                             idleLoop = false;
                             needResetDecoder = true;
-                            // m_logger->Log(DEBUG) << "Video decoder current task reaches EOF!" << endl;
+                            m_logger->Log(VERBOSE) << "Video decoder current task reaches EOF!" << endl;
                         }
                     }
                     // else
