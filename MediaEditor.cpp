@@ -1788,6 +1788,7 @@ static void ShowFusionBankIconWindow(ImDrawList *draw_list)
     if (!timeline)
         return;
     // Show Fusion Icons
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
     ImGui::SetCursorPos({20, 20});
     if (timeline->m_BP_UI.m_Document)
     {
@@ -1834,10 +1835,11 @@ static void ShowFusionBankIconWindow(ImDrawList *draw_list)
             node->DrawNodeLogo(ImGui::GetCurrentContext(), fusion_icon_size); 
             float gap = (icon_size.y - ImGui::GetFontSize()) / 2.0f;
             ImGui::SetCursorScreenPos(icon_pos + ImVec2(icon_size.x + 8, gap));
-            ImGui::TextUnformatted(type.m_Name.c_str());
+            ImGui::Button(type.m_Name.c_str(), ImVec2(0, 32));
             ImGui::Spacing();
         }
     }
+    ImGui::PopStyleColor();
 }
 
 static void ShowFusionBankTreeWindow(ImDrawList *draw_list)
@@ -1941,9 +1943,9 @@ static void ShowFusionBankTreeWindow(ImDrawList *draw_list)
             if (catalog.size() < 2 || catalog[0].compare("Fusion") != 0)
                 return;
             std::string drag_type = "Fusion_drag_drop_" + catalog[1];
-            node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(56, 32));
-            ImGui::SameLine();
-            ImGui::Button(type.m_Name.c_str(), ImVec2(0, 32));
+            auto icon_pos = ImGui::GetCursorScreenPos();
+            ImVec2 icon_size = ImVec2(56, 32);
+            ImGui::InvisibleButton(type.m_Name.c_str(), icon_size);
             if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
             {
                 ImGui::SetDragDropPayload(drag_type.c_str(), node, sizeof(BluePrint::Node));
@@ -1964,6 +1966,10 @@ static void ShowFusionBankTreeWindow(ImDrawList *draw_list)
                     ImGui::PopStyleVar();
                 }
             }
+            ImGui::SetCursorScreenPos(icon_pos);
+            node->DrawNodeLogo(ImGui::GetCurrentContext(), icon_size);
+            ImGui::SameLine();
+            ImGui::Button(type.m_Name.c_str(), ImVec2(0, 32));
         };
 
         // draw fusion tree
@@ -2029,6 +2035,7 @@ static void ShowFilterBankIconWindow(ImDrawList *draw_list)
     if (!timeline)
         return;
     // Show Filter Icons
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
     ImGui::SetCursorPos({20, 20});
     if (timeline->m_BP_UI.m_Document)
     {
@@ -2074,10 +2081,11 @@ static void ShowFilterBankIconWindow(ImDrawList *draw_list)
             node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(filter_icon_size, filter_icon_size)); 
             float gap = (icon_size.y - ImGui::GetFontSize()) / 2.0f;
             ImGui::SetCursorScreenPos(icon_pos + ImVec2(icon_size.x + 8, gap));
-            ImGui::TextUnformatted(type.m_Name.c_str());
+            ImGui::Button(type.m_Name.c_str(), ImVec2(0, 32));
             ImGui::Spacing();
         }
     }
+    ImGui::PopStyleColor();
 }
 
 static void ShowFilterBankTreeWindow(ImDrawList *draw_list)
@@ -2180,9 +2188,9 @@ static void ShowFilterBankTreeWindow(ImDrawList *draw_list)
             if (catalog.size() < 2 || catalog[0].compare("Filter") != 0)
                 return;
             std::string drag_type = "Filter_drag_drop_" + catalog[1];
-            node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(32, 32));
-            ImGui::SameLine();
-            ImGui::Button(type.m_Name.c_str(), ImVec2(0, 32));
+            auto icon_pos = ImGui::GetCursorScreenPos();
+            ImVec2 icon_size = ImVec2(32, 32);
+            ImGui::InvisibleButton(type.m_Name.c_str(), icon_size);
             if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
             {
                 ImGui::SetDragDropPayload(drag_type.c_str(), node, sizeof(BluePrint::Node));
@@ -2203,6 +2211,10 @@ static void ShowFilterBankTreeWindow(ImDrawList *draw_list)
                     ImGui::PopStyleVar();
                 }
             }
+            ImGui::SetCursorScreenPos(icon_pos);
+            node->DrawNodeLogo(ImGui::GetCurrentContext(), icon_size);
+            ImGui::SameLine();
+            ImGui::Button(type.m_Name.c_str(), ImVec2(0, 32));
         };
 
         // draw filter tree
@@ -9213,7 +9225,23 @@ bool Application_Frame(void * handle, bool app_will_quit)
         if (ImGui::Button(ICON_NEW_PROJECT "##NewProject", ImVec2(tool_icon_size, tool_icon_size)))
         {
             // New Project
-            NewProject();
+            if (!project_need_save)
+                NewProject();
+            else if (g_media_editor_settings.project_path.empty())
+            {
+                show_file_dialog = true;
+                ImGuiFileDialog::Instance()->OpenDialog("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Save Project File", 
+                                                    pfilters.c_str(),
+                                                    ".",
+                                                    1, 
+                                                    IGFDUserDatas("ProjectSaveAndNew"), 
+                                                    pflags);
+            }
+            else
+            {
+                // conform save to project file
+                ImGui::OpenPopup(ICON_FA_CIRCLE_INFO " Save Project File", ImGuiPopupFlags_AnyPopup);
+            }
         }
         ImGui::ShowTooltipOnHover("New Project");
         if (ImGui::Button(ICON_SAVE_PROJECT "##SaveProject", ImVec2(tool_icon_size, tool_icon_size)))
@@ -9262,6 +9290,26 @@ bool Application_Frame(void * handle, bool app_will_quit)
         }
         ImGui::ShowTooltipOnHover("Quit");
         ImGui::PopStyleColor(3);
+
+        if (ImGui::BeginPopupModal(ICON_FA_CIRCLE_INFO " Save Project File", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings))
+        {
+            ImGui::TextUnformatted("Project need to save");
+            ImGui::TextUnformatted("Do you need save current project?");
+            if (ImGui::Button("OK", ImVec2(40, 0)))
+            {
+                SaveProject(g_media_editor_settings.project_path);
+                ImGui::CloseCurrentPopup();
+                NewProject();
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("NO", ImVec2(40, 0)))
+            {
+                ImGui::CloseCurrentPopup();
+                NewProject();
+            }
+            ImGui::SetItemDefaultFocus();
+            ImGui::EndPopup();
+        }
 
         // add banks window
         ImVec2 bank_pos = window_pos + ImVec2(4 + tool_icon_size, 0);
@@ -9578,8 +9626,6 @@ bool Application_Frame(void * handle, bool app_will_quit)
                 {
                     SaveProject(g_media_editor_settings.project_path);
                 }
-                //LoadProject(file_path);
-                //project_need_save = true;
                 if (g_project_loading)
                 {
                     if (g_loading_thread && g_loading_thread->joinable())
@@ -9587,6 +9633,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
                     g_project_loading = false;
                     g_loading_thread = nullptr;
                 }
+                CleanProject();
                 g_loading_thread = new std::thread(LoadThread, file_path);
             }
             if (userDatas.compare("ProjectSave") == 0)
@@ -9594,6 +9641,13 @@ bool Application_Frame(void * handle, bool app_will_quit)
                 if (file_suffix.empty())
                     file_path += ".mep";
                 SaveProject(file_path);
+            }
+            if (userDatas.compare("ProjectSaveAndNew") == 0)
+            {
+                if (file_suffix.empty())
+                    file_path += ".mep";
+                SaveProject(file_path);
+                NewProject();
             }
             if (userDatas.compare("ProjectSaveQuit") == 0)
             {

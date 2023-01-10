@@ -1,8 +1,16 @@
 #include <sstream>
 #include "AudioClip.h"
-#include "SysUtils.h"
 
 using namespace std;
+
+static string GetFileNameFromPath(const string& path)
+{
+    auto pos = path.rfind("/");
+    if (pos == string::npos)
+        pos = path.rfind("\\");
+    auto fileName = pos==string::npos ? path : path.substr(pos+1);
+    return std::move(fileName);
+}
 
 namespace DataLayer
 {

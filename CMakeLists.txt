@@ -144,7 +144,6 @@ set(MEDIA_EDITOR_SRCS
     FontDescriptor.cpp
     FontManager_Fontconfig.cpp
     FFUtils.cpp
-    SysUtils.cpp
     Logger.cpp
     ${IMGUI_APP_ENTRY_SRC}
 )
@@ -160,6 +159,7 @@ set(MEDIA_EDITOR_INCS
     FFUtils.h
 )
 
+if (IMGUI_APPS)
 if(APPLE)
 set(MACOSX_BUNDLE_ICON mec_logo.icns)
 set(MACOSX_BUNDLE_ICON_FILE ${CMAKE_SOURCE_DIR}/resources/${MACOSX_BUNDLE_ICON})
@@ -354,7 +354,6 @@ add_executable(
     MediaParser.cpp
     AudioRender_Impl_Sdl2.cpp
     FFUtils.cpp
-    SysUtils.cpp
     Logger.cpp
     ${IMGUI_APP_ENTRY_SRC}
 )
@@ -451,6 +450,7 @@ target_include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
+if(IMGUI_VULKAN_SHADER)
 add_executable(
     transition_make
     test/TransitionMake.cpp
@@ -462,7 +462,9 @@ target_link_libraries(
     ${SDL2_STATIC_LDFLAGS}
     ${SDL2_IMAGE_LIBRARY}
 )
+endif(IMGUI_VULKAN_SHADER)
 endif(BUILD_TEST)
+endif(IMGUI_APPS)
 
 ### DEFINE THE PACKAGING (OS specific)
 set(CPACK_SYSTEM_NAME  "mec")
@@ -493,6 +495,7 @@ set(CPACK_PACKAGE_VERSION_MAJOR 1)
 set(CPACK_PACKAGE_VERSION_MINOR 0)
 set(CPACK_PACKAGE_VERSION_PATCH 0)
 
+if(IMGUI_APPS)
 if(APPLE)
     set(CMAKE_INSTALL_PREFIX ${PROJECT_BINARY_DIR})
     # Bundle target
@@ -611,6 +614,7 @@ elseif(WIN32)
     
     prepareNSIS_Link("mec" "mec" "")
 endif(APPLE)
+endif(IMGUI_APPS)
 
 # Package full name
 set(CPACK_PACKAGE_FILE_NAME "${CPACK_SYSTEM_NAME}")
