@@ -2517,6 +2517,7 @@ void EditingAudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, 
     auto window_size = rightBottom - leftTop;
     window_size.y /= waveform->pcm.size();
     int window_length = (int)((double)(end_time - start_time) / 1000.f / waveform->aggregateDuration);
+    ImGui::SetCursorScreenPos(leftTop);
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
     for (int i = 0; i < waveform->pcm.size(); i++)
     {
@@ -7322,7 +7323,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             ImGui::OpenPopup("##timeline-context-menu");
             menuIsOpened = true;
         }
-        if (HeaderAreaRect.Contains(io.MousePos) && !menuIsOpened && !bCropping && !bCutting&& ImGui::IsMouseDown(ImGuiMouseButton_Right))
+        if (HeaderAreaRect.Contains(io.MousePos) && !menuIsOpened && !bCropping && !bCutting && ImGui::IsMouseDown(ImGuiMouseButton_Right))
         {
             headerMarkPos = io.MousePos.x;
             ImGui::OpenPopup("##timeline-header-context-menu");
@@ -8623,6 +8624,12 @@ bool DrawClipTimeLineNew(TimeLine* main_timeline, BaseEditingClip * editingClip,
 
     if (editingClip->visibleTime >= duration)
         editingClip->firstTime = 0;
+    else if (editingClip->firstTime + editingClip->visibleTime > duration)
+    {
+        editingClip->firstTime = duration - editingClip->visibleTime;
+        main_timeline->AlignTime(editingClip->firstTime);
+        editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
+    }
     editingClip->lastTime = editingClip->firstTime + editingClip->visibleTime;
 
     ImGui::BeginGroup();
@@ -8721,6 +8728,38 @@ bool DrawClipTimeLineNew(TimeLine* main_timeline, BaseEditingClip * editingClip,
         }
 
         // handle menu
+        if (HeaderAreaRect.Contains(io.MousePos) && !menuIsOpened && ImGui::IsMouseDown(ImGuiMouseButton_Right))
+        {
+            ImGui::OpenPopup("##clip_timeline-header-context-menu");
+            menuIsOpened = true;
+        }
+        if (trackAreaRect.Contains(io.MousePos) && ImGui::IsMouseReleased(ImGuiMouseButton_Right) && !ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Right))
+        {
+            ImGui::OpenPopup("##clip_timeline-context-menu");
+            menuIsOpened = true;
+        }
+
+        if (ImGui::BeginPopup("##clip_timeline-header-context-menu"))
+        {
+            if (ImGui::MenuItem(ICON_SLIDER_FRAME " Frame accuracy", nullptr, nullptr))
+            {
+                editingClip->msPixelWidthTarget = maxPixelWidthTarget;
+            }
+            if (ImGui::MenuItem(ICON_SLIDER_CLIP " Clip accuracy", nullptr, nullptr))
+            {
+                editingClip->msPixelWidthTarget = minPixelWidthTarget;
+                editingClip->firstTime = 0;
+            }
+            if (ImGui::MenuItem(ICON_CURRENT_TIME " Current Time", nullptr, nullptr))
+            {
+            }
+            ImGui::EndPopup();
+        }
+
+        if (ImGui::BeginPopup("##clip_timeline-context-menu"))
+        {
+            ImGui::EndPopup();
+        }
 
         ImGui::EndChildFrame();
 
@@ -8729,9 +8768,9 @@ bool DrawClipTimeLineNew(TimeLine* main_timeline, BaseEditingClip * editingClip,
         ImGui::InvisibleButton("clip_HorizonScrollBar", HorizonScrollBarSize);
         ImVec2 HorizonScrollAreaMin = window_pos + ImVec2(0, header_height + custom_height);
         ImVec2 HorizonScrollAreaMax = HorizonScrollAreaMin + HorizonScrollBarSize;
-        float HorizonStartOffset = ((float)(editingClip->firstTime) / (float)duration) * (timline_size.x);
+        float HorizonStartOffset = ((float)(editingClip->firstTime) / (float)duration) * (timline_size.x - scrollSize);
         ImVec2 HorizonScrollBarMin(HorizonScrollAreaMin.x, HorizonScrollAreaMin.y - 2);        // whole bar area
-        ImVec2 HorizonScrollBarMax(HorizonScrollAreaMin.x + timline_size.x, HorizonScrollAreaMax.y - 1);      // whole bar area
+        ImVec2 HorizonScrollBarMax(HorizonScrollAreaMin.x + timline_size.x - scrollSize, HorizonScrollAreaMax.y - 1);      // whole bar area
         HorizonScrollBarRect = ImRect(HorizonScrollBarMin, HorizonScrollBarMax);
         bool inHorizonScrollBar = HorizonScrollBarRect.Contains(io.MousePos);
         draw_list->AddRectFilled(HorizonScrollBarMin, HorizonScrollBarMax, COL_SLIDER_BG, 8);
@@ -8819,7 +8858,7 @@ bool DrawClipTimeLineNew(TimeLine* main_timeline, BaseEditingClip * editingClip,
         // time metric
         ImGui::SetCursorScreenPos(topRect.Min);
         ImGui::BeginChildFrame(ImGui::GetCurrentWindow()->GetID("#timeline metric"), topRect.GetSize(), ImGuiWindowFlags_NoScrollbar);
-        if (!MovingCurrentTime && !MovingHorizonScrollBar && currentTime >= 0 && topRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left))
+        if (!MovingCurrentTime && !MovingHorizonScrollBar && currentTime >= 0 && topRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && !menuIsOpened)
         {
             MovingCurrentTime = true;
             editingClip->bSeeking = true;

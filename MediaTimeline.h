@@ -21,6 +21,7 @@
 #include <chrono>
 
 #define USING_NEW_CLIP_TIMELINE     0       // for developing
+#define USING_NEW_CURVE_EDIT        0       // for developing
 
 #define ICON_MEDIA_TIMELINE u8"\uf538"
 #define ICON_MEDIA_BANK     u8"\ue907"
@@ -40,6 +41,9 @@
 #define ICON_MEDIA_UNGROUP  u8"\ue552"
 #define ICON_SLIDER_MINIMUM u8"\uf424"
 #define ICON_SLIDER_MAXIMUM u8"\uf422"
+#define ICON_SLIDER_FRAME   u8"\ue8eb"
+#define ICON_SLIDER_CLIP    u8"\ue8ed"
+#define ICON_CURRENT_TIME   u8"\ue3e8"
 #define ICON_VIEW           u8"\ue8f4"
 #define ICON_VIEW_DISABLE   u8"\ue8f5"
 #define ICON_ENABLE         u8"\uf205"

@@ -3382,6 +3382,9 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
     }
 
     float clip_timeline_height = 80;
+#if USING_NEW_CLIP_TIMELINE
+    clip_timeline_height += 12;
+#endif
     float clip_keypoint_height = window_size.y / 3 - clip_timeline_height;
     ImVec2 video_preview_pos = window_pos;
     float video_preview_height = window_size.y - clip_timeline_height - clip_keypoint_height;
@@ -3424,7 +3427,11 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
         ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_TWO);
+#if USING_NEW_CLIP_TIMELINE
+        DrawClipTimeLineNew(timeline, timeline->mVidFilterClip, timeline->currentTime, 30, 50);
+#else
         DrawClipTimeLine(timeline->mVidFilterClip, timeline->currentTime, 30, 50);
+#endif
     }
     ImGui::EndChild();
 
@@ -4057,6 +4064,23 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
             {
                 bool _changed = false;
                 float current_time = timeline->currentTime;
+                float align_time = timeline->mFrameRate.num > 0 ? ((float)timeline->mFrameRate.den * 1000.f / (float)timeline->mFrameRate.num) : 0;
+                filter->mKeyPoints.SetCurveAlign(ImVec2(align_time, -1.0));
+#if USING_NEW_CURVE_EDIT
+                mouse_hold |= ImGui::ImCurveEdit::Edit( nullptr,
+                                                        filter->mKeyPoints,
+                                                        sub_window_size, 
+                                                        ImGui::GetID("##video_filter_keypoint_editor"), 
+                                                        current_time,
+                                                        timeline->mVidFilterClip->firstTime,
+                                                        timeline->mVidFilterClip->lastTime,
+                                                        timeline->mVidFilterClip->visibleTime,
+                                                        timeline->mVidFilterClip->msPixelWidthTarget,
+                                                        CURVE_EDIT_FLAG_VALUE_LIMITED | CURVE_EDIT_FLAG_MOVE_CURVE | CURVE_EDIT_FLAG_KEEP_BEGIN_END | CURVE_EDIT_FLAG_DOCK_BEGIN_END, 
+                                                        nullptr, // clippingRect
+                                                        &_changed
+                                                        );
+#else
                 mouse_hold |= ImGui::ImCurveEdit::Edit( nullptr,
                                                         filter->mKeyPoints,
                                                         sub_window_size, 
@@ -4066,6 +4090,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                                                         nullptr, // clippingRect
                                                         &_changed
                                                         );
+#endif
                 if (_changed) timeline->UpdatePreview();
             }
         }
@@ -5011,7 +5036,10 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list)
     float clip_header_height = 30;
     float clip_channel_height = 50;
     float clip_timeline_height = clip_header_height;
-    float clip_keypoint_height = g_media_editor_settings.AudioFilterCurveExpanded ? 160 : 0;
+#if USING_NEW_CLIP_TIMELINE
+    clip_timeline_height += 12;
+#endif
+    float clip_keypoint_height = g_media_editor_settings.AudioFilterCurveExpanded ? 100 : 0;
     ImVec2 preview_pos = window_pos;
     float preview_width = audio_view_width;
 
@@ -5049,11 +5077,16 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list)
         ImVec2 clip_timeline_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 clip_timeline_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(clip_timeline_window_pos, clip_timeline_window_pos + clip_timeline_window_size, COL_DARK_TWO);
+#if USING_NEW_CLIP_TIMELINE
+        DrawClipTimeLineNew(timeline, timeline->mAudFilterClip, timeline->currentTime, clip_header_height, clip_timeline_height - clip_header_height - 12);
+#else
         DrawClipTimeLine(timeline->mAudFilterClip, timeline->currentTime, clip_header_height, clip_timeline_height - clip_header_height);
+#endif
     }
     ImGui::EndChild();
+
     // draw keypoint hidden button
-    ImVec2 hidden_button_pos = window_pos + ImVec2(0, preview_height - 16);
+    ImVec2 hidden_button_pos = clip_keypoint_pos - ImVec2(16, 0);
     ImRect hidden_button_rect = ImRect(hidden_button_pos, hidden_button_pos + ImVec2(16, 16));
     ImGui::SetWindowFontScale(0.75);
     if (hidden_button_rect.Contains(ImGui::GetMousePos()))
@@ -5064,7 +5097,7 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list)
             g_media_editor_settings.AudioFilterCurveExpanded = !g_media_editor_settings.AudioFilterCurveExpanded;
         }
         ImGui::BeginTooltip();
-        ImGui::TextUnformatted(g_media_editor_settings.TextCurveExpanded ? "Hide Curve View" : "Show Curve View");
+        ImGui::TextUnformatted(g_media_editor_settings.AudioFilterCurveExpanded ? "Hide Curve View" : "Show Curve View");
         ImGui::EndTooltip();
     }
     draw_list->AddText(hidden_button_pos, IM_COL32_WHITE, ICON_FA_BEZIER_CURVE);
