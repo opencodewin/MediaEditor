@@ -11,7 +11,7 @@
 #include "MultiTrackAudioReader.h"
 #include "VideoTransformFilter.h"
 #include "MediaEncoder.h"
-#include "AudioRender.hpp"
+#include "AudioRender.h"
 #include "SubtitleTrack.h"
 #include "UI.h"
 #include <thread>
@@ -370,7 +370,7 @@ struct VideoClip : Clip
     ImTextureID mImgTexture     {0};
 
     // attribute
-    DataLayer::ScaleType mScaleType {DataLayer::ScaleType::SCALE_TYPE__FIT}; // clip attribute scale type, project saved
+    MediaCore::ScaleType mScaleType {MediaCore::ScaleType::SCALE_TYPE__FIT}; // clip attribute scale type, project saved
     double mScaleH  {1.f};                              // clip attribute scale h, project saved
     double mScaleV  {1.f};                              // clip attribute scale v, project saved
     bool mKeepAspectRatio {false};                      // clip attribute scale keep aspect ratio, project saved
@@ -424,7 +424,7 @@ struct TextClip : Clip
 {
     TextClip(int64_t start, int64_t end, int64_t id, std::string name, std::string text, void* handle);
     ~TextClip();
-    void SetClipDefault(const DataLayer::SubtitleStyle & style);
+    void SetClipDefault(const MediaCore::SubtitleStyle & style);
     void SetClipDefault(const TextClip* clip);
 
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect) override;
@@ -461,19 +461,19 @@ struct TextClip : Clip
     ImVec4 mFontPrimaryColor {0, 0, 0, 0};
     ImVec4 mFontOutlineColor {0, 0, 0, 0};
     ImVec4 mFontBackColor {0, 0, 0, 0};
-    DataLayer::SubtitleClipHolder mClipHolder {nullptr};
+    MediaCore::SubtitleClipHolder mClipHolder {nullptr};
     void* mTrack {nullptr};
 };
 
-class BluePrintVideoFilter : public DataLayer::VideoFilter
+class BluePrintVideoFilter : public MediaCore::VideoFilter
 {
 public:
     BluePrintVideoFilter(void * handle = nullptr);
     ~BluePrintVideoFilter();
 
     const std::string GetFilterName() const override { return "BluePrintVideoFilter"; }
-    DataLayer::VideoFilterHolder Clone() override;
-    void ApplyTo(DataLayer::VideoClip* clip) override {}
+    MediaCore::VideoFilterHolder Clone() override;
+    void ApplyTo(MediaCore::VideoClip* clip) override {}
     ImGui::ImMat FilterImage(const ImGui::ImMat& vmat, int64_t pos) override;
 
     void SetBluePrintFromJson(imgui_json::value& bpJson);
@@ -489,14 +489,14 @@ private:
     void * mHandle {nullptr};
 };
 
-class BluePrintVideoTransition : public DataLayer::VideoTransition
+class BluePrintVideoTransition : public MediaCore::VideoTransition
 {
 public:
     BluePrintVideoTransition(void * handle = nullptr);
     ~BluePrintVideoTransition();
 
-    DataLayer::VideoTransitionHolder Clone() override;
-    void ApplyTo(DataLayer::VideoOverlap* overlap) override { mOverlap = overlap; }
+    MediaCore::VideoTransitionHolder Clone() override;
+    void ApplyTo(MediaCore::VideoOverlap* overlap) override { mOverlap = overlap; }
     ImGui::ImMat MixTwoImages(const ImGui::ImMat& vmat1, const ImGui::ImMat& vmat2, int64_t pos, int64_t dur) override;
 
     void SetBluePrintFromJson(imgui_json::value& bpJson);
@@ -508,17 +508,17 @@ public:
 
 private:
     static int OnBluePrintChange(int type, std::string name, void* handle);
-    DataLayer::VideoOverlap* mOverlap;
+    MediaCore::VideoOverlap* mOverlap;
     std::mutex mBpLock;
     void * mHandle {nullptr};
 };
 
-class BluePrintAudioFilter : public DataLayer::AudioFilter
+class BluePrintAudioFilter : public MediaCore::AudioFilter
 {
 public:
     BluePrintAudioFilter(void * handle = nullptr);
     ~BluePrintAudioFilter();
-    void ApplyTo(DataLayer::AudioClip* clip) override {}
+    void ApplyTo(MediaCore::AudioClip* clip) override {}
     ImGui::ImMat FilterPcm(const ImGui::ImMat& amat, int64_t pos) override;
 
     void SetBluePrintFromJson(imgui_json::value& bpJson);
@@ -532,12 +532,12 @@ private:
     void * mHandle {nullptr};
 };
 
-class BluePrintAudioTransition : public DataLayer::AudioTransition
+class BluePrintAudioTransition : public MediaCore::AudioTransition
 {
 public:
     BluePrintAudioTransition(void * handle = nullptr);
     ~BluePrintAudioTransition();
-    void ApplyTo(DataLayer::AudioOverlap* overlap) override { mOverlap = overlap; }
+    void ApplyTo(MediaCore::AudioOverlap* overlap) override { mOverlap = overlap; }
     ImGui::ImMat MixTwoAudioMats(const ImGui::ImMat& amat1, const ImGui::ImMat& amat2, int64_t pos) override;
 
     void SetBluePrintFromJson(imgui_json::value& bpJson);
@@ -549,7 +549,7 @@ public:
 
 private:
     static int OnBluePrintChange(int type, std::string name, void* handle);
-    DataLayer::AudioOverlap* mOverlap;
+    MediaCore::AudioOverlap* mOverlap;
     std::mutex mBpLock;
     void * mHandle {nullptr};
 };
@@ -600,7 +600,7 @@ struct EditingVideoClip : BaseEditingClip
     ImTextureID mImgTexture     {0};
 
     BluePrintVideoFilter * mFilter {nullptr};
-    DataLayer::VideoTransformFilter * mAttribute {nullptr};
+    MediaCore::VideoTransformFilter * mAttribute {nullptr};
 
 public:
     EditingVideoClip(VideoClip* vidclip);
@@ -796,7 +796,7 @@ struct MediaTrack
 
     int64_t mViewWndDur     {0};
     float mPixPerMs         {0};
-    DataLayer::SubtitleTrackHolder mMttReader {nullptr};
+    MediaCore::SubtitleTrackHolder mMttReader {nullptr};
     bool mTextTrackScaleLink {true};
     MediaTrack(std::string name, uint32_t type, void * handle);
     ~MediaTrack();
@@ -1056,7 +1056,7 @@ struct TimeLine
 
     void CustomDraw(int index, ImDrawList *draw_list, const ImRect &view_rc, const ImRect &rc, const ImRect &titleRect, const ImRect &clippingTitleRect, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRect, bool is_moving, bool enable_select);
     
-    std::vector<DataLayer::CorrelativeFrame> GetPreviewFrame();
+    std::vector<MediaCore::CorrelativeFrame> GetPreviewFrame();
     float GetAudioLevel(int channel);
 
     void Play(bool play, bool forward = true);

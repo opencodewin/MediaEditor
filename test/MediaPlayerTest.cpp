@@ -15,7 +15,6 @@
 // #include <Lut3D.h>
 #endif
 #include "Log.h"
-#include "AudioRender.hpp"
 #include "MediaPlayer.h"
 
 static std::string ini_file = "Media_Player.ini";

@@ -4,3 +4,6 @@
 [submodule "blueprintsdk"]
 	path = blueprintsdk
 	url = git@github.com:tanluteam/blueprintsdk.git
+[submodule "MediaCore"]
+	path = MediaCore
+	url = git@github.com:tanluteam/MediaCore.git

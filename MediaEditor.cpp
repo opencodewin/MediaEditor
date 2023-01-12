@@ -1274,7 +1274,7 @@ static void NewTimeline()
         timeline->m_CallBacks.EditingOverlap = EditingOverlap;
 
         // set global variables
-        DataLayer::VideoClip::USE_HWACCEL = timeline->mHardwareCodec;
+        MediaCore::VideoClip::USE_HWACCEL = timeline->mHardwareCodec;
     }
 }
 
@@ -3362,7 +3362,7 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
     if (!timeline)
         return;
     
-    DataLayer::VideoTransformFilter * attribute = nullptr;
+    MediaCore::VideoTransformFilter * attribute = nullptr;
     Clip * editing_clip = timeline->FindEditingClip();
     if (editing_clip && !IS_VIDEO(editing_clip->mType))
     {
@@ -3764,7 +3764,7 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
             {
                 ImGui::ImCurveEdit::keys margin_key; margin_key.m_id = timeline->mVidFilterClip->mID;
                 // ScaleType as scale method
-                DataLayer::ScaleType scale_type = attribute->GetScaleType();
+                MediaCore::ScaleType scale_type = attribute->GetScaleType();
                 ImGui::PushItemWidth(100);
                 if (ImGui::Combo("Scale Type##curve_video_attribute_scale_type", (int*)&scale_type, VideoAttributeScaleType, IM_ARRAYSIZE(VideoAttributeScaleType)))
                 {
@@ -7167,7 +7167,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
     bool force_update_preview = false;
     ImGuiIO &io = ImGui::GetIO();
     ImVec2 default_size(0, 0);
-    DataLayer::SubtitleImage current_image;
+    MediaCore::SubtitleImage current_image;
     TextClip * editing_clip = dynamic_cast<TextClip*>(timeline->FindEditingClip());
     MediaTrack * editing_track = nullptr;
     if (editing_clip && editing_clip->mType != MEDIA_TEXT)
@@ -9061,7 +9061,7 @@ void Application_Initialize(void** handle)
     // GetMediaOverviewLogger()->SetShowLevels(Logger::DEBUG);
     av_log_set_level(AV_LOG_FATAL);
 
-    if (!DataLayer::InitializeSubtitleLibrary())
+    if (!MediaCore::InitializeSubtitleLibrary())
         std::cout << "FAILED to initialize the subtitle library!" << std::endl;
     else
     {
@@ -9097,7 +9097,7 @@ void Application_Finalize(void** handle)
     if (cie_texture) { ImGui::ImDestroyTexture(cie_texture); cie_texture = nullptr; }
     if (vector_texture) { ImGui::ImDestroyTexture(vector_texture); vector_texture = nullptr; }
     ImPlot::DestroyContext();
-    DataLayer::ReleaseSubtitleLibrary();
+    MediaCore::ReleaseSubtitleLibrary();
 }
 
 bool Application_Frame(void * handle, bool app_will_quit)

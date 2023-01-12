@@ -21,7 +21,7 @@
 
 using namespace std;
 using namespace Logger;
-using namespace DataLayer;
+using namespace MediaCore;
 using Clock = chrono::steady_clock;
 
 static atomic_int64_t g_idIndex{1};
@@ -373,20 +373,20 @@ bool Application_Frame(void * handle, bool app_will_quit)
                 if (ImGui::Selectable(item.c_str(), isSelected))
                 {
                     s_fitScaleTypeSelIdx = i;
-                    DataLayer::ScaleType fitType;
+                    MediaCore::ScaleType fitType;
                     switch (i)
                     {
                         case 1:
-                        fitType = DataLayer::SCALE_TYPE__CROP;
+                        fitType = MediaCore::SCALE_TYPE__CROP;
                         break;
                         case 2:
-                        fitType = DataLayer::SCALE_TYPE__FILL;
+                        fitType = MediaCore::SCALE_TYPE__FILL;
                         break;
                         case 3:
-                        fitType = DataLayer::SCALE_TYPE__STRETCH;
+                        fitType = MediaCore::SCALE_TYPE__STRETCH;
                         break;
                         default:
-                        fitType = DataLayer::SCALE_TYPE__FIT;
+                        fitType = MediaCore::SCALE_TYPE__FIT;
                     }
                     fftransFilter->SetScaleType(fitType);
                     g_mtVidReader->Refresh();

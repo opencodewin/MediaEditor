@@ -10,7 +10,7 @@
 
 using namespace std;
 using namespace Logger;
-using namespace DataLayer;
+using namespace MediaCore;
 using namespace FM;
 
 const string c_imguiIniPath = "subrdrtest.ini";

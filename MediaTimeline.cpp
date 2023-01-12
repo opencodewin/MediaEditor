@@ -1124,7 +1124,7 @@ Clip* VideoClip::Load(const imgui_json::value& value, void * handle)
             if (value.contains("ScaleType"))
             {
                 auto& val = value["ScaleType"];
-                if (val.is_number()) new_clip->mScaleType = (DataLayer::ScaleType)val.get<imgui_json::number>();
+                if (val.is_number()) new_clip->mScaleType = (MediaCore::ScaleType)val.get<imgui_json::number>();
             }
             if (value.contains("ScaleH"))
             {
@@ -1512,7 +1512,7 @@ TextClip::~TextClip()
 {
 }
 
-void TextClip::SetClipDefault(const DataLayer::SubtitleStyle & style)
+void TextClip::SetClipDefault(const MediaCore::SubtitleStyle & style)
 {
     mTrackStyle = true;
     mFontScaleX = style.ScaleX();
@@ -1848,13 +1848,13 @@ int BluePrintVideoFilter::OnBluePrintChange(int type, std::string name, void* ha
     return ret;
 }
 
-DataLayer::VideoFilterHolder BluePrintVideoFilter::Clone()
+MediaCore::VideoFilterHolder BluePrintVideoFilter::Clone()
 {
     BluePrintVideoFilter* bpFilter = new BluePrintVideoFilter(mHandle);
     auto bpJson = mBp->m_Document->Serialize();
     bpFilter->SetBluePrintFromJson(bpJson);
     bpFilter->SetKeyPoint(mKeyPoints);
-    return DataLayer::VideoFilterHolder(bpFilter);
+    return MediaCore::VideoFilterHolder(bpFilter);
 }
 
 ImGui::ImMat BluePrintVideoFilter::FilterImage(const ImGui::ImMat& vmat, int64_t pos)
@@ -1940,12 +1940,12 @@ int BluePrintVideoTransition::OnBluePrintChange(int type, std::string name, void
     return ret;
 }
 
-DataLayer::VideoTransitionHolder BluePrintVideoTransition::Clone()
+MediaCore::VideoTransitionHolder BluePrintVideoTransition::Clone()
 {
     BluePrintVideoTransition* bpTrans = new BluePrintVideoTransition;
     auto bpJson = mBp->m_Document->Serialize();
     bpTrans->SetBluePrintFromJson(bpJson);
-    return DataLayer::VideoTransitionHolder(bpTrans);
+    return MediaCore::VideoTransitionHolder(bpTrans);
 }
 
 ImGui::ImMat BluePrintVideoTransition::MixTwoImages(const ImGui::ImMat& vmat1, const ImGui::ImMat& vmat2, int64_t pos, int64_t dur)
@@ -2224,7 +2224,7 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
     {
         mFilter = new BluePrintVideoFilter(timeline);
         mFilter->SetKeyPoint(vidclip->mFilterKeyPoints);
-        DataLayer::VideoFilterHolder hFilter(mFilter);
+        MediaCore::VideoFilterHolder hFilter(mFilter);
         hClip->SetFilter(hFilter);
     }
     mAttribute = hClip->GetTransformFilterPtr();
@@ -2325,7 +2325,7 @@ bool EditingVideoClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_fr
     auto frames = timeline->GetPreviewFrame();
     ImGui::ImMat frame_org;
     auto iter = std::find_if(frames.begin(), frames.end(), [this] (auto& cf) {
-        return cf.clipId == mID && cf.phase == DataLayer::CorrelativeFrame::PHASE_SOURCE_FRAME;
+        return cf.clipId == mID && cf.phase == MediaCore::CorrelativeFrame::PHASE_SOURCE_FRAME;
     });
     if (iter != frames.end())
         frame_org = iter->frame;
@@ -2341,7 +2341,7 @@ bool EditingVideoClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_fr
     else
     {
         auto iter_out = std::find_if(frames.begin(), frames.end(), [&] (auto& cf) {
-            return cf.clipId == mID && cf.phase == (attribute ? DataLayer::CorrelativeFrame::PHASE_AFTER_TRANSFORM : DataLayer::CorrelativeFrame::PHASE_AFTER_FILTER);
+            return cf.clipId == mID && cf.phase == (attribute ? MediaCore::CorrelativeFrame::PHASE_AFTER_TRANSFORM : MediaCore::CorrelativeFrame::PHASE_AFTER_FILTER);
         });
         if (iter_out != frames.end())
             in_out_frame.second = iter_out->frame;
@@ -2483,7 +2483,7 @@ EditingAudioClip::EditingAudioClip(AudioClip* audclip)
     {
         mFilter = new BluePrintAudioFilter(timeline);
         mFilter->SetKeyPoint(audclip->mFilterKeyPoints);
-        DataLayer::AudioFilterHolder hFilter(mFilter);
+        MediaCore::AudioFilterHolder hFilter(mFilter);
         hClip->SetFilter(hFilter);
     }
 }
@@ -2817,7 +2817,7 @@ EditingVideoOverlap::EditingVideoOverlap(Overlap* ovlp)
         {
             mFusion = new BluePrintVideoTransition(timeline);
             mFusion->SetKeyPoint(mOvlp->mFusionKeyPoints);
-            DataLayer::VideoTransitionHolder hTrans(mFusion);
+            MediaCore::VideoTransitionHolder hTrans(mFusion);
             hOvlp->SetTransition(hTrans);
         }
         mClipFirstFrameRate = mClip1->mClipFrameRate;
@@ -3052,7 +3052,7 @@ bool EditingVideoOverlap::GetFrame(std::pair<std::pair<ImGui::ImMat, ImGui::ImMa
     auto frames = timeline->GetPreviewFrame();
     ImGui::ImMat frame_org_first;
     auto iter_first = std::find_if(frames.begin(), frames.end(), [this] (auto& cf) {
-        return cf.clipId == mOvlp->m_Clip.first && cf.phase == DataLayer::CorrelativeFrame::PHASE_SOURCE_FRAME;
+        return cf.clipId == mOvlp->m_Clip.first && cf.phase == MediaCore::CorrelativeFrame::PHASE_SOURCE_FRAME;
     });
     if (iter_first != frames.end())
         frame_org_first = iter_first->frame;
@@ -3060,7 +3060,7 @@ bool EditingVideoOverlap::GetFrame(std::pair<std::pair<ImGui::ImMat, ImGui::ImMa
         ret = false;
     ImGui::ImMat frame_org_second;
     auto iter_second = std::find_if(frames.begin(), frames.end(), [this] (auto& cf) {
-        return cf.clipId == mOvlp->m_Clip.second && cf.phase == DataLayer::CorrelativeFrame::PHASE_SOURCE_FRAME;
+        return cf.clipId == mOvlp->m_Clip.second && cf.phase == MediaCore::CorrelativeFrame::PHASE_SOURCE_FRAME;
     });
     if (iter_second != frames.end())
         frame_org_second = iter_second->frame;
@@ -3077,7 +3077,7 @@ bool EditingVideoOverlap::GetFrame(std::pair<std::pair<ImGui::ImMat, ImGui::ImMa
     else
     {
         auto iter_out = std::find_if(frames.begin(), frames.end(), [this] (auto& cf) {
-            return cf.phase == DataLayer::CorrelativeFrame::PHASE_AFTER_TRANSITION;
+            return cf.phase == MediaCore::CorrelativeFrame::PHASE_AFTER_TRANSITION;
         });
         if (iter_out != frames.end())
             in_out_frame.second = iter_out->frame;
@@ -3129,7 +3129,7 @@ EditingAudioOverlap::EditingAudioOverlap(Overlap* ovlp)
         {
             mFusion = new BluePrintAudioTransition(timeline);
             mFusion->SetKeyPoint(mOvlp->mFusionKeyPoints);
-            DataLayer::AudioTransitionHolder hTrans(mFusion);
+            MediaCore::AudioTransitionHolder hTrans(mFusion);
             hOvlp->SetTransition(hTrans);
         }
     }
@@ -3912,7 +3912,7 @@ MediaTrack* MediaTrack::Load(const imgui_json::value& value, void * handle)
                 auto& val = track["ID"];
                 if (val.is_number()) track_id = val.get<imgui_json::number>();
             }
-            new_track->mMttReader = timeline->mMtvReader->NewEmptySubtitleTrack(track_id); //DataLayer::SubtitleTrack::NewEmptyTrack(track_id);
+            new_track->mMttReader = timeline->mMtvReader->NewEmptySubtitleTrack(track_id); //MediaCore::SubtitleTrack::NewEmptyTrack(track_id);
             if (track.contains("Font"))
             {
                 auto& val = track["Font"];
@@ -4568,7 +4568,7 @@ void TimeLine::UpdatePreview()
     mIsPreviewNeedUpdate = true;
 }
 
-std::vector<DataLayer::CorrelativeFrame> TimeLine::GetPreviewFrame()
+std::vector<MediaCore::CorrelativeFrame> TimeLine::GetPreviewFrame()
 {
     int64_t auddataPos, previewPos;
     if (mPcmStream.GetTimestampMs(auddataPos))
@@ -4610,7 +4610,7 @@ std::vector<DataLayer::CorrelativeFrame> TimeLine::GetPreviewFrame()
         }
     }
 
-    std::vector<DataLayer::CorrelativeFrame> frames;
+    std::vector<MediaCore::CorrelativeFrame> frames;
     const bool needPreciseFrame = !bSeeking;
     mMtvReader->ReadVideoFrameEx(currentTime, frames, true, needPreciseFrame);
     if (mIsPreviewPlaying) UpdateCurrent();
@@ -5487,10 +5487,10 @@ int TimeLine::Load(const imgui_json::value& value)
     {
         if (IS_VIDEO(track->mType))
         {
-            DataLayer::VideoTrackHolder vidTrack = mMtvReader->AddTrack(track->mID);
+            MediaCore::VideoTrackHolder vidTrack = mMtvReader->AddTrack(track->mID);
             for (auto clip : track->m_Clips)
             {
-                DataLayer::VideoClipHolder hVidClip;
+                MediaCore::VideoClipHolder hVidClip;
                 if (clip->mType == MEDIA_SUBTYPE_VIDEO_IMAGE)
                     hVidClip = vidTrack->AddNewClip(clip->mID, clip->mMediaParser, clip->mStart, clip->mEnd-clip->mStart, 0, 0);
                 else
@@ -5499,7 +5499,7 @@ int TimeLine::Load(const imgui_json::value& value)
                 BluePrintVideoFilter* bpvf = new BluePrintVideoFilter(this);
                 bpvf->SetBluePrintFromJson(clip->mFilterBP);
                 bpvf->SetKeyPoint(clip->mFilterKeyPoints);
-                DataLayer::VideoFilterHolder hFilter(bpvf);
+                MediaCore::VideoFilterHolder hFilter(bpvf);
                 hVidClip->SetFilter(hFilter);
                 auto attribute = hVidClip->GetTransformFilterPtr();
                 if (attribute)
@@ -5521,18 +5521,18 @@ int TimeLine::Load(const imgui_json::value& value)
         }
         else if (IS_AUDIO(track->mType))
         {
-            DataLayer::AudioTrackHolder audTrack = mMtaReader->AddTrack(track->mID);
+            MediaCore::AudioTrackHolder audTrack = mMtaReader->AddTrack(track->mID);
             for (auto clip : track->m_Clips)
             {
                 if (!clip->mMediaParser)
                     continue;
-                DataLayer::AudioClipHolder hAudClip = audTrack->AddNewClip(
+                MediaCore::AudioClipHolder hAudClip = audTrack->AddNewClip(
                     clip->mID, clip->mMediaParser,
                     clip->mStart, clip->mStartOffset, clip->mEndOffset);
                 BluePrintAudioFilter* bpaf = new BluePrintAudioFilter(this);
                 bpaf->SetBluePrintFromJson(clip->mFilterBP);
                 bpaf->SetKeyPoint(clip->mFilterKeyPoints);
-                DataLayer::AudioFilterHolder hFilter(bpaf);
+                MediaCore::AudioFilterHolder hFilter(bpaf);
                 hAudClip->SetFilter(hFilter);
             }
         }
@@ -5669,10 +5669,10 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
     if (actionName == "ADD_CLIP")
     {
         int64_t trackId = action["to_track_id"].get<imgui_json::number>();
-        DataLayer::VideoTrackHolder vidTrack = mMtvReader->GetTrackById(trackId, true);
+        MediaCore::VideoTrackHolder vidTrack = mMtvReader->GetTrackById(trackId, true);
         int64_t clipId = action["clip_id"].get<imgui_json::number>();
         Clip* clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
-        DataLayer::VideoClipHolder vidClip = DataLayer::VideoClip::CreateVideoInstance(
+        MediaCore::VideoClipHolder vidClip = MediaCore::VideoClip::CreateVideoInstance(
             clip->mID, clip->mMediaParser,
             vidTrack->OutWidth(), vidTrack->OutHeight(), vidTrack->FrameRate(),
             clip->mStart, clip->mStartOffset, clip->mEndOffset, currentTime-clip->mStart);
@@ -5681,7 +5681,7 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
             BluePrintVideoFilter* bpvf = new BluePrintVideoFilter(this);
             bpvf->SetBluePrintFromJson(clip->mFilterBP);
             bpvf->SetKeyPoint(clip->mFilterKeyPoints);
-            DataLayer::VideoFilterHolder hFilter(bpvf);
+            MediaCore::VideoFilterHolder hFilter(bpvf);
             vidClip->SetFilter(hFilter);
             auto attribute = vidClip->GetTransformFilterPtr();
             if (attribute)
@@ -5709,13 +5709,13 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
         int64_t dstTrackId = srcTrackId;
         if (action.contains("to_track_id"))
             dstTrackId = action["to_track_id"].get<imgui_json::number>();
-        DataLayer::VideoTrackHolder dstVidTrack = mMtvReader->GetTrackById(dstTrackId);
+        MediaCore::VideoTrackHolder dstVidTrack = mMtvReader->GetTrackById(dstTrackId);
         int64_t clipId = action["clip_id"].get<imgui_json::number>();
         int64_t newStart = action["new_start"].get<imgui_json::number>();
         if (srcTrackId != dstTrackId)
         {
-            DataLayer::VideoTrackHolder srcVidTrack = mMtvReader->GetTrackById(srcTrackId);
-            DataLayer::VideoClipHolder vidClip = srcVidTrack->RemoveClipById(clipId);
+            MediaCore::VideoTrackHolder srcVidTrack = mMtvReader->GetTrackById(srcTrackId);
+            MediaCore::VideoClipHolder vidClip = srcVidTrack->RemoveClipById(clipId);
             vidClip->SetStart(newStart);
             dstVidTrack->InsertClip(vidClip);
         }
@@ -5728,7 +5728,7 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
     else if (actionName == "CROP_CLIP")
     {
         int64_t trackId = action["from_track_id"].get<imgui_json::number>();
-        DataLayer::VideoTrackHolder vidTrack = mMtvReader->GetTrackById(trackId);
+        MediaCore::VideoTrackHolder vidTrack = mMtvReader->GetTrackById(trackId);
         int64_t clipId = action["clip_id"].get<imgui_json::number>();
         int64_t newStartOffset = action["new_start_offset"].get<imgui_json::number>();
         int64_t newEndOffset = action["new_end_offset"].get<imgui_json::number>();
@@ -5738,7 +5738,7 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
     else if (actionName == "REMOVE_CLIP")
     {
         int64_t trackId = action["from_track_id"].get<imgui_json::number>();
-        DataLayer::VideoTrackHolder vidTrack = mMtvReader->GetTrackById(trackId);
+        MediaCore::VideoTrackHolder vidTrack = mMtvReader->GetTrackById(trackId);
         int64_t clipId = action["clip_json"]["ID"].get<imgui_json::number>();
         vidTrack->RemoveClipById(clipId);
         UpdatePreview();
@@ -5765,10 +5765,10 @@ void TimeLine::PerformAudioAction(imgui_json::value& action)
     if (actionName == "ADD_CLIP")
     {
         int64_t trackId = action["to_track_id"].get<imgui_json::number>();
-        DataLayer::AudioTrackHolder audTrack = mMtaReader->GetTrackById(trackId, true);
+        MediaCore::AudioTrackHolder audTrack = mMtaReader->GetTrackById(trackId, true);
         int64_t clipId = action["clip_id"].get<imgui_json::number>();
         Clip* clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
-        DataLayer::AudioClipHolder audClip = DataLayer::AudioClip::CreateAudioInstance(
+        MediaCore::AudioClipHolder audClip = MediaCore::AudioClip::CreateAudioInstance(
             clip->mID, clip->mMediaParser,
             audTrack->OutChannels(), audTrack->OutSampleRate(),
             clip->mStart, clip->mStartOffset, clip->mEndOffset);
@@ -5777,7 +5777,7 @@ void TimeLine::PerformAudioAction(imgui_json::value& action)
             BluePrintAudioFilter* bpaf = new BluePrintAudioFilter(this);
             bpaf->SetBluePrintFromJson(clip->mFilterBP);
             bpaf->SetKeyPoint(clip->mFilterKeyPoints);
-            DataLayer::AudioFilterHolder hFilter(bpaf);
+            MediaCore::AudioFilterHolder hFilter(bpaf);
             audClip->SetFilter(hFilter);
         }
         audTrack->InsertClip(audClip);
@@ -5789,13 +5789,13 @@ void TimeLine::PerformAudioAction(imgui_json::value& action)
         int64_t dstTrackId = srcTrackId;
         if (action.contains("to_track_id"))
             dstTrackId = action["to_track_id"].get<imgui_json::number>();
-        DataLayer::AudioTrackHolder dstAudTrack = mMtaReader->GetTrackById(dstTrackId);
+        MediaCore::AudioTrackHolder dstAudTrack = mMtaReader->GetTrackById(dstTrackId);
         int64_t clipId = action["clip_id"].get<imgui_json::number>();
         int64_t newStart = action["new_start"].get<imgui_json::number>();
         if (srcTrackId != dstTrackId)
         {
-            DataLayer::AudioTrackHolder srcAudTrack = mMtaReader->GetTrackById(srcTrackId);
-            DataLayer::AudioClipHolder audClip = srcAudTrack->RemoveClipById(clipId);
+            MediaCore::AudioTrackHolder srcAudTrack = mMtaReader->GetTrackById(srcTrackId);
+            MediaCore::AudioClipHolder audClip = srcAudTrack->RemoveClipById(clipId);
             audClip->SetStart(newStart);
             dstAudTrack->InsertClip(audClip);
         }
@@ -5808,7 +5808,7 @@ void TimeLine::PerformAudioAction(imgui_json::value& action)
     else if (actionName == "CROP_CLIP")
     {
         int64_t trackId = action["from_track_id"].get<imgui_json::number>();
-        DataLayer::AudioTrackHolder audTrack = mMtaReader->GetTrackById(trackId);
+        MediaCore::AudioTrackHolder audTrack = mMtaReader->GetTrackById(trackId);
         int64_t clipId = action["clip_id"].get<imgui_json::number>();
         int64_t newStartOffset = action["new_start_offset"].get<imgui_json::number>();
         int64_t newEndOffset = action["new_end_offset"].get<imgui_json::number>();
@@ -5818,7 +5818,7 @@ void TimeLine::PerformAudioAction(imgui_json::value& action)
     else if (actionName == "REMOVE_CLIP")
     {
         int64_t trackId = action["from_track_id"].get<imgui_json::number>();
-        DataLayer::AudioTrackHolder audTrack = mMtaReader->GetTrackById(trackId);
+        MediaCore::AudioTrackHolder audTrack = mMtaReader->GetTrackById(trackId);
         int64_t clipId = action["clip_json"]["ID"].get<imgui_json::number>();
         audTrack->RemoveClipById(clipId);
         mMtaReader->Refresh();
@@ -5845,10 +5845,10 @@ void TimeLine::PerformImageAction(imgui_json::value& action)
     if (actionName == "ADD_CLIP")
     {
         int64_t trackId = action["to_track_id"].get<imgui_json::number>();
-        DataLayer::VideoTrackHolder vidTrack = mMtvReader->GetTrackById(trackId, true);
+        MediaCore::VideoTrackHolder vidTrack = mMtvReader->GetTrackById(trackId, true);
         int64_t clipId = action["clip_id"].get<imgui_json::number>();
         Clip* clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
-        DataLayer::VideoClipHolder imgClip = DataLayer::VideoClip::CreateImageInstance(
+        MediaCore::VideoClipHolder imgClip = MediaCore::VideoClip::CreateImageInstance(
             clip->mID, clip->mMediaParser,
             vidTrack->OutWidth(), vidTrack->OutHeight(), clip->mStart, clip->mEnd);
         vidTrack->InsertClip(imgClip);
@@ -5860,13 +5860,13 @@ void TimeLine::PerformImageAction(imgui_json::value& action)
         int64_t dstTrackId = srcTrackId;
         if (action.contains("to_track_id"))
             dstTrackId = action["to_track_id"].get<imgui_json::number>();
-        DataLayer::VideoTrackHolder dstVidTrack = mMtvReader->GetTrackById(dstTrackId);
+        MediaCore::VideoTrackHolder dstVidTrack = mMtvReader->GetTrackById(dstTrackId);
         int64_t clipId = action["clip_id"].get<imgui_json::number>();
         int64_t newStart = action["new_start"].get<imgui_json::number>();
         if (srcTrackId != dstTrackId)
         {
-            DataLayer::VideoTrackHolder srcVidTrack = mMtvReader->GetTrackById(srcTrackId);
-            DataLayer::VideoClipHolder imgClip = srcVidTrack->RemoveClipById(clipId);
+            MediaCore::VideoTrackHolder srcVidTrack = mMtvReader->GetTrackById(srcTrackId);
+            MediaCore::VideoClipHolder imgClip = srcVidTrack->RemoveClipById(clipId);
             imgClip->SetStart(newStart);
             dstVidTrack->InsertClip(imgClip);
         }
@@ -5879,7 +5879,7 @@ void TimeLine::PerformImageAction(imgui_json::value& action)
     else if (actionName == "CROP_CLIP")
     {
         int64_t trackId = action["from_track_id"].get<imgui_json::number>();
-        DataLayer::VideoTrackHolder vidTrack = mMtvReader->GetTrackById(trackId);
+        MediaCore::VideoTrackHolder vidTrack = mMtvReader->GetTrackById(trackId);
         int64_t clipId = action["clip_id"].get<imgui_json::number>();
         int64_t newStart = action["new_start"].get<imgui_json::number>();
         int64_t newEnd = action["new_end"].get<imgui_json::number>();
@@ -5889,7 +5889,7 @@ void TimeLine::PerformImageAction(imgui_json::value& action)
     else if (actionName == "REMOVE_CLIP")
     {
         int64_t trackId = action["from_track_id"].get<imgui_json::number>();
-        DataLayer::VideoTrackHolder vidTrack = mMtvReader->GetTrackById(trackId);
+        MediaCore::VideoTrackHolder vidTrack = mMtvReader->GetTrackById(trackId);
         int64_t clipId = action["clip_json"]["ID"].get<imgui_json::number>();
         vidTrack->RemoveClipById(clipId);
         UpdatePreview();
@@ -5951,7 +5951,7 @@ void TimeLine::SyncDataLayer()
                         BluePrintVideoTransition* bpvt = new BluePrintVideoTransition(this);
                         bpvt->SetBluePrintFromJson(ovlp->mFusionBP);
                         bpvt->SetKeyPoint(ovlp->mFusionKeyPoints);
-                        DataLayer::VideoTransitionHolder hTrans(bpvt);
+                        MediaCore::VideoTransitionHolder hTrans(bpvt);
                         vidOvlp->SetTransition(hTrans);
                     }
                     found = true;
@@ -5988,7 +5988,7 @@ void TimeLine::SyncDataLayer()
                         BluePrintAudioTransition* bpat = new BluePrintAudioTransition(this);
                         bpat->SetBluePrintFromJson(ovlp->mFusionBP);
                         bpat->SetKeyPoint(ovlp->mFusionKeyPoints);
-                        DataLayer::AudioTransitionHolder hTrans(bpat);
+                        MediaCore::AudioTransitionHolder hTrans(bpat);
                         audOvlp->SetTransition(hTrans);
                     }
                     found = true;
@@ -8117,14 +8117,14 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                     // text clip don't band with media item
                     int newTrackIndex = timeline->NewTrack("", MEDIA_TEXT, true);
                     MediaTrack * newTrack = timeline->m_Tracks[newTrackIndex];
-                    newTrack->mMttReader = timeline->mMtvReader->BuildSubtitleTrackFromFile(newTrack->mID, item->mPath);//DataLayer::SubtitleTrack::BuildFromFile(newTrack->mID, item->mPath);
+                    newTrack->mMttReader = timeline->mMtvReader->BuildSubtitleTrackFromFile(newTrack->mID, item->mPath);//MediaCore::SubtitleTrack::BuildFromFile(newTrack->mID, item->mPath);
                     if (newTrack->mMttReader)
                     {
                         auto& style = newTrack->mMttReader->DefaultStyle();
                         newTrack->mMttReader->SetFrameSize(timeline->mWidth, timeline->mHeight);
                         newTrack->mMttReader->SeekToIndex(0);
                         newTrack->mMttReader->EnableFullSizeOutput(false);
-                        DataLayer::SubtitleClipHolder hSubClip = newTrack->mMttReader->GetCurrClip();
+                        MediaCore::SubtitleClipHolder hSubClip = newTrack->mMttReader->GetCurrClip();
                         while (hSubClip)
                         {
                             TextClip * new_text_clip = new TextClip(hSubClip->StartTime(), hSubClip->EndTime(), newTrack->mID, newTrack->mName, hSubClip->Text(), timeline);

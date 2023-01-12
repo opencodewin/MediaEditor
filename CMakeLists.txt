@@ -81,7 +81,17 @@ include_directories(
     ${IMGUI_BLUEPRINT_INCLUDE_DIRS}
 )
 
-find_package(Fontconfig REQUIRED)
+# >>> include MediaCore as dependency
+set(BUILD_DEPENDENCY_IMGUI OFF)
+set(BUILD_MEDIACORE_TEST OFF)
+add_subdirectory(MediaCore)
+set_target_properties(
+    MediaCore
+    PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}"
+    RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}"
+)
+# <<<
 
 # Basics
 set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
@@ -105,11 +115,6 @@ if(PKG_CONFIG_FOUND)
         libavdevice
     )
     macro_log_feature(FFMPEG_FOUND "FFMpeg" "Multimedia framework" "https://ffmpeg.org" TRUE)
-
-    pkg_check_modules(
-        LIBASS REQUIRED IMPORTED_TARGET
-        libass
-    )
 endif(PKG_CONFIG_FOUND)
 
 macro_display_feature_log()
@@ -122,41 +127,11 @@ set(MEDIA_EDITOR_BINARY "mec")
 set(MEDIA_EDITOR_SRCS
     MediaEditor.cpp
     MediaTimeline.cpp
-    MultiTrackVideoReader.cpp
-    VideoTrack.cpp
-    VideoClip.cpp
-    VideoBlender.cpp
-    VideoTransformFilter.cpp
-    VideoTransformFilter_FFImpl.cpp
-    VideoTransformFilter_VulkanImpl.cpp
-    MultiTrackAudioReader.cpp
-    AudioTrack.cpp
-    AudioClip.cpp
-    MediaOverview.cpp
-    SnapshotGenerator.cpp
-    MediaParser.cpp
-    MediaReader.cpp
-    MediaEncoder.cpp
-    AudioRender_Impl_Sdl2.cpp
-    SubtitleClip_AssImpl.cpp
-    SubtitleTrack.cpp
-    SubtitleTrack_AssImpl.cpp
-    FontDescriptor.cpp
-    FontManager_Fontconfig.cpp
-    FFUtils.cpp
-    Logger.cpp
     ${IMGUI_APP_ENTRY_SRC}
 )
 
 set(MEDIA_EDITOR_INCS
     MediaTimeline.h
-    MediaOverview.h
-    SnapshotGenerator.h
-    MediaReader.h
-    MediaEncoder.h
-    AudioRender_Impl_Sdl2.hpp
-    AudioRender.hpp
-    FFUtils.h
 )
 
 if (IMGUI_APPS)
@@ -186,11 +161,9 @@ set_property(TARGET ${MEDIA_EDITOR_BINARY} PROPERTY C_STANDARD 11)
 target_link_libraries(
     ${MEDIA_EDITOR_BINARY} 
     LINK_PRIVATE
+    MeidaCore
     ${IMGUI_BLUEPRINT_SDK_LIBRARYS}
     ${IMGUI_LIBRARYS}
-    PkgConfig::FFMPEG
-    PkgConfig::LIBASS
-    Fontconfig::Fontconfig
     Threads::Threads
 )
 # set the Info.plist file
@@ -216,11 +189,9 @@ set_property(TARGET ${MEDIA_EDITOR_BINARY} PROPERTY C_STANDARD 11)
 target_link_libraries(
     ${MEDIA_EDITOR_BINARY} 
     LINK_PRIVATE
+    MeidaCore
     ${IMGUI_BLUEPRINT_SDK_LIBRARYS}
     ${IMGUI_LIBRARYS}
-    PkgConfig::FFMPEG
-    PkgConfig::LIBASS
-    Fontconfig::Fontconfig
     Threads::Threads
 )
 else()
@@ -241,11 +212,9 @@ set_property(TARGET ${MEDIA_EDITOR_BINARY} PROPERTY C_STANDARD 11)
 target_link_libraries(
     ${MEDIA_EDITOR_BINARY} 
     LINK_PRIVATE
+    MediaCore
     ${IMGUI_BLUEPRINT_SDK_LIBRARYS}
     ${IMGUI_LIBRARYS}
-    PkgConfig::FFMPEG
-    PkgConfig::LIBASS
-    Fontconfig::Fontconfig
     Threads::Threads
 )
 endif(APPLE)
@@ -257,194 +226,15 @@ add_executable(
     test/MediaPlayerTest.cpp
     test/MediaPlayer.cpp
     test/Log.cpp
-    AudioRender.hpp
-    AudioRender_Impl_Sdl2.cpp
-    FFUtils.cpp
-    Logger.cpp
     ${IMGUI_APP_ENTRY_SRC}
 )
 target_link_libraries(
     media_player_test
+    MediaCore
     ${IMGUI_LIBRARYS}
-    PkgConfig::FFMPEG
 )
 target_include_directories(
     media_player_test PRIVATE
-    ${SDL2_INCLUDE_DIRS}
-    ${IMGUI_INCLUDE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}
-)
-
-# MediaSnapshot Test
-add_executable(
-    media_snapshot_test
-    test/MediaSnapshotTest.cpp
-    SnapshotGenerator.cpp
-    MediaOverview.cpp
-    MediaParser.cpp
-    FFUtils.cpp
-    Logger.cpp
-    ${IMGUI_APP_ENTRY_SRC}
-)
-target_link_libraries(
-    media_snapshot_test
-    ${IMGUI_LIBRARYS}
-    PkgConfig::FFMPEG
-)
-target_include_directories(
-    media_snapshot_test PRIVATE
-    ${SDL2_INCLUDE_DIRS}
-    ${IMGUI_INCLUDE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}
-)
-
-# MediaOverview Test
-add_executable(
-    media_overview_test
-    test/MediaOverviewTest.cpp
-    MediaOverview.cpp
-    MediaParser.cpp
-    FFUtils.cpp
-    Logger.cpp
-    ${IMGUI_APP_ENTRY_SRC}
-)
-target_link_libraries(
-    media_overview_test
-    ${IMGUI_LIBRARYS}
-    PkgConfig::FFMPEG
-)
-target_include_directories(
-    media_overview_test PRIVATE
-    ${SDL2_INCLUDE_DIRS}
-    ${IMGUI_INCLUDE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}
-)
-
-# MediaReader Test
-add_executable(
-    media_reader_test
-    test/MediaReaderTest.cpp
-    MediaReader.cpp
-    MediaParser.cpp
-    AudioRender_Impl_Sdl2.cpp
-    FFUtils.cpp
-    Logger.cpp
-    ${IMGUI_APP_ENTRY_SRC}
-)
-target_link_libraries(
-    media_reader_test
-    ${IMGUI_LIBRARYS}
-    PkgConfig::FFMPEG
-)
-target_include_directories(
-    media_reader_test PRIVATE
-    ${SDL2_INCLUDE_DIRS}
-    ${IMGUI_INCLUDE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}
-)
-
-# MultiTrackAudioReader Test
-add_executable(
-    multi_track_audio_reader_test
-    test/MultiTrackAudioReaderTest.cpp
-    MultiTrackAudioReader.cpp
-    AudioTrack.cpp
-    AudioClip.cpp
-    MediaReader.cpp
-    MediaParser.cpp
-    AudioRender_Impl_Sdl2.cpp
-    FFUtils.cpp
-    Logger.cpp
-    ${IMGUI_APP_ENTRY_SRC}
-)
-target_link_libraries(
-    multi_track_audio_reader_test
-    ${IMGUI_LIBRARYS}
-    PkgConfig::FFMPEG
-)
-target_include_directories(
-    multi_track_audio_reader_test PRIVATE
-    ${SDL2_INCLUDE_DIRS}
-    ${IMGUI_INCLUDE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}
-)
-
-# MultiTrackVideoReader Test
-add_executable(
-    multi_track_video_reader_test
-    test/MultiTrackVideoReaderTest.cpp
-    MultiTrackVideoReader.cpp
-    VideoTrack.cpp
-    VideoClip.cpp
-    VideoBlender.cpp
-    VideoTransformFilter.cpp
-    VideoTransformFilter_FFImpl.cpp
-    VideoTransformFilter_VulkanImpl.cpp
-    MediaReader.cpp
-    MediaParser.cpp
-    SubtitleClip_AssImpl.cpp
-    SubtitleTrack.cpp
-    SubtitleTrack_AssImpl.cpp
-    FFUtils.cpp
-    Logger.cpp
-    ${IMGUI_APP_ENTRY_SRC}
-)
-target_link_libraries(
-    multi_track_video_reader_test
-    ${IMGUI_LIBRARYS}
-    PkgConfig::FFMPEG
-    PkgConfig::LIBASS
-)
-target_include_directories(
-    multi_track_video_reader_test PRIVATE
-    ${IMGUI_INCLUDE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}
-)
-
-# MediaEncoder Test
-add_executable(
-    media_encoder_test
-    test/MediaEncoderTest.cpp
-    MediaEncoder.cpp
-    MediaReader.cpp
-    MediaParser.cpp
-    FFUtils.cpp
-    Logger.cpp
-)
-target_link_libraries(
-    media_encoder_test
-    ${IMGUI_LIBRARYS}
-    PkgConfig::FFMPEG
-)
-target_include_directories(
-    media_encoder_test PRIVATE
-    ${SDL2_INCLUDE_DIRS}
-    ${IMGUI_INCLUDE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}
-)
-
-# SubtitleReaderTest
-add_executable(
-    subtitle_reader_test
-    test/SubtitleReaderTest.cpp
-    SubtitleClip_AssImpl.cpp
-    SubtitleTrack.cpp
-    SubtitleTrack_AssImpl.cpp
-    FontDescriptor.cpp
-    FontManager_Fontconfig.cpp
-    FFUtils.cpp
-    Logger.cpp
-    ${IMGUI_APP_ENTRY_SRC}
-)
-target_link_libraries(
-    subtitle_reader_test
-    ${IMGUI_LIBRARYS}
-    PkgConfig::FFMPEG
-    PkgConfig::LIBASS
-    Fontconfig::Fontconfig
-)
-target_include_directories(
-    subtitle_reader_test PRIVATE
     ${SDL2_INCLUDE_DIRS}
     ${IMGUI_INCLUDE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}
