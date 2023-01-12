@@ -2440,8 +2440,8 @@ void EditingVideoClip::CalcDisplayParams(int64_t viewWndDur)
 {
     if (!mViewWndSize.x || !mSnapSize.x)
         return;
-    if (visibleTime == viewWndDur)
-        return;
+    //if (visibleTime == viewWndDur)
+    //    return;
     visibleTime = viewWndDur;
     double snapWndSize = (double)viewWndDur / 1000;
     double snapCntInView = (double)mViewWndSize.x / mSnapSize.x;

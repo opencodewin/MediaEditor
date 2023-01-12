@@ -183,6 +183,7 @@ target_include_directories(
     ${SDL2_INCLUDE_DIRS}
     ${IMGUI_BLUEPRINT_INCLUDE_DIRS}
     ${IMGUI_INCLUDE_DIR}
+    ${MEDIACORE_INCLUDE_DIRS}
 )
 target_compile_definitions(${MEDIA_EDITOR_BINARY} PUBLIC APP_NAME="${MEDIA_EDITOR_BINARY}")
 #set_property(TARGET ${MEDIA_EDITOR_BINARY} PROPERTY CXX_STANDARD 17)
@@ -190,7 +191,7 @@ set_property(TARGET ${MEDIA_EDITOR_BINARY} PROPERTY C_STANDARD 11)
 target_link_libraries(
     ${MEDIA_EDITOR_BINARY} 
     LINK_PRIVATE
-    MeidaCore
+    ${MEDIACORE_LIBRARYS}
     ${IMGUI_BLUEPRINT_SDK_LIBRARYS}
     ${IMGUI_LIBRARYS}
     Threads::Threads
@@ -231,7 +232,7 @@ add_executable(
 )
 target_link_libraries(
     media_player_test
-    MediaCore
+    ${MEDIACORE_LIBRARYS}
     ${IMGUI_LIBRARYS}
 )
 target_include_directories(
