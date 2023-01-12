@@ -576,6 +576,8 @@ struct BaseEditingClip
         : mID(id), mType(type), mStart(start), mEnd(end), mStartOffset(startOffset), mEndOffset(endOffset), mHandle(handle)
     {}
 
+    void UpdateCurrent(bool forward, int64_t currentTime);
+
     virtual void CalcDisplayParams(int64_t viewWndDur) = 0;
     virtual void UpdateClipRange(Clip* clip) = 0;
     virtual void Seek(int64_t pos) = 0;

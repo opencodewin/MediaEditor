@@ -1403,6 +1403,7 @@ void AudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
         if (window_size.x > 0 && mWaveform->pcm[0].size() > 0)
         {
             int sample_stride = window_length / window_size.x;
+            if (sample_stride <= 0) sample_stride = 1;
             ImGui::SetCursorScreenPos(customViewStart);
             int min_zoom = ImMax(window_length >> 15, 16);
             int zoom = ImMin(sample_stride, min_zoom);
@@ -2140,6 +2141,39 @@ void BluePrintAudioTransition::SetBluePrintFromJson(imgui_json::value& bpJson)
 
 } // namespace MediaTimeline
 
+namespace MediaTimeline
+{
+void BaseEditingClip::UpdateCurrent(bool forward, int64_t currentTime)
+{
+    if (!forward)
+    {
+        if (currentTime < firstTime + visibleTime / 2)
+        {
+            firstTime = currentTime - visibleTime / 2;
+        }
+        else if (currentTime > firstTime + visibleTime)
+        {
+            firstTime = currentTime - visibleTime;
+        }
+    }
+    else
+    {
+        if (mEnd - currentTime < visibleTime / 2)
+        {
+            firstTime = mEnd - visibleTime;
+        }
+        else if (currentTime > firstTime + visibleTime / 2)
+        {
+            firstTime = currentTime - visibleTime / 2;
+        }
+        else if (currentTime < firstTime)
+        {
+            firstTime = currentTime;
+        }
+    }
+    if (firstTime < 0) firstTime = 0;
+}
+} // namespace MediaTimeline
 
 namespace MediaTimeline
 {
@@ -2511,9 +2545,9 @@ void EditingAudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, 
     drawList->AddRectFilled(leftTop, rightBottom, IM_COL32(16, 16, 16, 255));
     drawList->AddRect(leftTop, rightBottom, IM_COL32(128, 128, 128, 255));
     float wave_range = fmax(fabs(waveform->minSample), fabs(waveform->maxSample));
-    int64_t start_time = clip->mStart;
-    int64_t end_time = clip->mEnd;
-    int start_offset = (int)((double)(clip->mStartOffset) / 1000.f / waveform->aggregateDuration);
+    int64_t start_time = firstTime; //clip->mStart;
+    int64_t end_time = firstTime + visibleTime; //clip->mEnd;
+    int start_offset = (int)((double)(clip->mStartOffset + firstTime) / 1000.f / waveform->aggregateDuration);
     auto window_size = rightBottom - leftTop;
     window_size.y /= waveform->pcm.size();
     int window_length = (int)((double)(end_time - start_time) / 1000.f / waveform->aggregateDuration);
@@ -2525,6 +2559,7 @@ void EditingAudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, 
         //int sampleSize = waveform->pcm[i].size();
         //if (sampleSize <= 0) continue;
         int sample_stride = window_length / window_size.x;
+        if (sample_stride <= 0) sample_stride = 1;
         int min_zoom = ImMax(window_length >> 15, 16);
         int zoom = ImMin(sample_stride, min_zoom);
         start_offset = start_offset / zoom * zoom; // align start_offset
@@ -3167,6 +3202,7 @@ void EditingAudioOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
         {
             std::string id_string = "##Waveform_overlap@" + std::to_string(mClip1->mID) + "@" +std::to_string(i);
             int sample_stride = window_length / clip_window_size.x;
+            if (sample_stride <= 0) sample_stride = 1;
             int min_zoom = ImMax(window_length >> 15, 16);
             int zoom = ImMin(sample_stride, min_zoom);
             start_offset = start_offset / zoom * zoom; // align start_offset
@@ -3206,6 +3242,7 @@ void EditingAudioOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
         {
             std::string id_string = "##Waveform_overlap@" + std::to_string(mClip2->mID) + "@" +std::to_string(i);
             int sample_stride = window_length / clip_window_size.x;
+            if (sample_stride <= 0) sample_stride = 1;
             int min_zoom = ImMax(window_length >> 15, 16);
             int zoom = ImMin(sample_stride, min_zoom);
             start_offset = start_offset / zoom * zoom; // align start_offset
@@ -8582,6 +8619,7 @@ bool DrawClipTimeLineNew(TimeLine* main_timeline, BaseEditingClip * editingClip,
     static bool MovingCurrentTime = false;
     static bool menuIsOpened = false;
     int64_t mouseTime = -1;
+    static int64_t menuMouseTime = -1;
     bool overHorizonScrollBar = false;
     bool overCustomDraw = false;
     bool overTopBar = false;
@@ -8601,6 +8639,12 @@ bool DrawClipTimeLineNew(TimeLine* main_timeline, BaseEditingClip * editingClip,
         float frame_duration = (video_clip->mClipFrameRate.den > 0 && video_clip->mClipFrameRate.num > 0) ? video_clip->mClipFrameRate.den * 1000.0 / video_clip->mClipFrameRate.num : 40;
         maxPixelWidthTarget = (video_clip->mSnapSize.x > 0 ? video_clip->mSnapSize.x : 60.f) / frame_duration;
         view_frames = video_clip->mSnapSize.x > 0 ? (window_size.x / video_clip->mSnapSize.x) : 16;
+    }
+    else if (IS_AUDIO(editingClip->mType))
+    {
+        float frame_duration = (main_timeline->mFrameRate.den > 0 && main_timeline->mFrameRate.num > 0) ? main_timeline->mFrameRate.den * 1000.0 / main_timeline->mFrameRate.num : 40;
+        maxPixelWidthTarget = 40.f / frame_duration;
+        view_frames = window_size.x / 40.f;
     }
 
     // zoom in/out
@@ -8728,22 +8772,42 @@ bool DrawClipTimeLineNew(TimeLine* main_timeline, BaseEditingClip * editingClip,
         }
 
         // handle menu
-        if (HeaderAreaRect.Contains(io.MousePos) && !menuIsOpened && ImGui::IsMouseDown(ImGuiMouseButton_Right))
-        {
-            ImGui::OpenPopup("##clip_timeline-header-context-menu");
-            menuIsOpened = true;
-        }
+        //if (HeaderAreaRect.Contains(io.MousePos) && !menuIsOpened && ImGui::IsMouseDown(ImGuiMouseButton_Right))
+        //{
+        //    if (mouseTime != -1) menuMouseTime = mouseTime;
+        //    ImGui::OpenPopup("##clip_timeline-header-context-menu");
+        //    menuIsOpened = true;
+        //}
         if (trackAreaRect.Contains(io.MousePos) && ImGui::IsMouseReleased(ImGuiMouseButton_Right) && !ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Right))
         {
+            if (mouseTime != -1) menuMouseTime = mouseTime;
             ImGui::OpenPopup("##clip_timeline-context-menu");
             menuIsOpened = true;
         }
 
+        // handle menu
+        if (!menuIsOpened)
+        {
+            menuMouseTime = -1;
+        }
+
         if (ImGui::BeginPopup("##clip_timeline-header-context-menu"))
+        {
+            ImGui::EndPopup();
+        }
+
+        if (ImGui::BeginPopup("##clip_timeline-context-menu"))
         {
             if (ImGui::MenuItem(ICON_SLIDER_FRAME " Frame accuracy", nullptr, nullptr))
             {
                 editingClip->msPixelWidthTarget = maxPixelWidthTarget;
+                if (menuMouseTime != -1)
+                {
+                    int64_t new_visible_time = (int64_t)floorf((timline_size.x) / editingClip->msPixelWidthTarget);
+                    editingClip->firstTime = menuMouseTime - new_visible_time / 2;
+                    main_timeline->AlignTime(editingClip->firstTime);
+                    editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - new_visible_time, (int64_t)0));
+                }
             }
             if (ImGui::MenuItem(ICON_SLIDER_CLIP " Clip accuracy", nullptr, nullptr))
             {
@@ -8752,12 +8816,10 @@ bool DrawClipTimeLineNew(TimeLine* main_timeline, BaseEditingClip * editingClip,
             }
             if (ImGui::MenuItem(ICON_CURRENT_TIME " Current Time", nullptr, nullptr))
             {
+                editingClip->firstTime = currentTime - editingClip->visibleTime / 2;
+                main_timeline->AlignTime(editingClip->firstTime);
+                editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
             }
-            ImGui::EndPopup();
-        }
-
-        if (ImGui::BeginPopup("##clip_timeline-context-menu"))
-        {
             ImGui::EndPopup();
         }
 
@@ -8896,6 +8958,9 @@ bool DrawClipTimeLineNew(TimeLine* main_timeline, BaseEditingClip * editingClip,
     }
 
     ImGui::EndGroup();
+
+    // handle playing curses move
+    if (main_timeline->mIsPreviewPlaying) editingClip->UpdateCurrent(main_timeline->mIsPreviewForward, currentTime);
 
     return ret;
 }

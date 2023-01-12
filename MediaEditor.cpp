@@ -3446,6 +3446,23 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
         {
             bool _changed = false;
             float current_time = timeline->currentTime;
+            float align_time = timeline->mFrameRate.num > 0 ? ((float)timeline->mFrameRate.den * 1000.f / (float)timeline->mFrameRate.num) : 0;
+            attribute->GetKeyPoint()->SetCurveAlign(ImVec2(align_time, -1.0));
+#if USING_NEW_CURVE_EDIT
+            mouse_hold |= ImGui::ImCurveEdit::Edit( nullptr,
+                                                    *attribute->GetKeyPoint(),
+                                                    sub_window_size, 
+                                                    ImGui::GetID("##video_attribute_keypoint_editor"),
+                                                    current_time,
+                                                    timeline->mVidFilterClip->firstTime,
+                                                    timeline->mVidFilterClip->lastTime,
+                                                    timeline->mVidFilterClip->visibleTime,
+                                                    timeline->mVidFilterClip->msPixelWidthTarget,
+                                                    CURVE_EDIT_FLAG_VALUE_LIMITED | CURVE_EDIT_FLAG_MOVE_CURVE | CURVE_EDIT_FLAG_KEEP_BEGIN_END | CURVE_EDIT_FLAG_DOCK_BEGIN_END, 
+                                                    nullptr, // clippingRect
+                                                    &_changed
+                                                    );
+#else
             mouse_hold |= ImGui::ImCurveEdit::Edit( nullptr,
                                                     *attribute->GetKeyPoint(),
                                                     sub_window_size, 
@@ -3456,6 +3473,7 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
                                                     &_changed
                                                     );
             if (_changed) timeline->UpdatePreview();
+#endif
         }
     }
     ImGui::EndChild();
@@ -5116,6 +5134,23 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list)
             {
                 bool _changed = false;
                 float current_time = timeline->currentTime;
+                float align_time = timeline->mFrameRate.num > 0 ? ((float)timeline->mFrameRate.den * 1000.f / (float)timeline->mFrameRate.num) : 0;
+                filter->mKeyPoints.SetCurveAlign(ImVec2(align_time, -1.0));
+#if USING_NEW_CURVE_EDIT
+                mouse_hold |= ImGui::ImCurveEdit::Edit( nullptr,
+                                                        filter->mKeyPoints,
+                                                        sub_window_size, 
+                                                        ImGui::GetID("##audio_filter_keypoint_editor"), 
+                                                        current_time,
+                                                        timeline->mAudFilterClip->firstTime,
+                                                        timeline->mAudFilterClip->lastTime,
+                                                        timeline->mAudFilterClip->visibleTime,
+                                                        timeline->mAudFilterClip->msPixelWidthTarget,
+                                                        CURVE_EDIT_FLAG_VALUE_LIMITED | CURVE_EDIT_FLAG_MOVE_CURVE | CURVE_EDIT_FLAG_KEEP_BEGIN_END | CURVE_EDIT_FLAG_DOCK_BEGIN_END, 
+                                                        nullptr, // clippingRect
+                                                        &_changed
+                                                        );
+#else
                 mouse_hold |= ImGui::ImCurveEdit::Edit( nullptr,
                                                         filter->mKeyPoints,
                                                         sub_window_size, 
@@ -5125,6 +5160,7 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list)
                                                         nullptr, // clippingRect
                                                         &_changed
                                                         );
+#endif
                 if (_changed) timeline->UpdatePreview();
             }
         }
