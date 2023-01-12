@@ -153,6 +153,7 @@ target_include_directories(
     ${MEDIA_EDITOR_BINARY} PRIVATE
     ${SDL2_INCLUDE_DIRS}
     ${IMGUI_BLUEPRINT_INCLUDE_DIRS}
+    ${MEDIACORE_INCLUDE_DIRS}
     ${IMGUI_INCLUDE_DIR}
 )
 target_compile_definitions(${MEDIA_EDITOR_BINARY} PUBLIC APP_NAME="${MEDIA_EDITOR_BINARY}")
@@ -161,9 +162,9 @@ set_property(TARGET ${MEDIA_EDITOR_BINARY} PROPERTY C_STANDARD 11)
 target_link_libraries(
     ${MEDIA_EDITOR_BINARY} 
     LINK_PRIVATE
-    MeidaCore
     ${IMGUI_BLUEPRINT_SDK_LIBRARYS}
     ${IMGUI_LIBRARYS}
+    ${MEDIACORE_LIBRARYS}
     Threads::Threads
 )
 # set the Info.plist file
