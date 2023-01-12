@@ -20,9 +20,6 @@
 #include <list>
 #include <chrono>
 
-#define USING_NEW_CLIP_TIMELINE     0       // for developing
-#define USING_NEW_CURVE_EDIT        0       // for developing
-
 #define ICON_MEDIA_TIMELINE u8"\uf538"
 #define ICON_MEDIA_BANK     u8"\ue907"
 #define ICON_MEDIA_TRANS    u8"\ue927"
@@ -1105,7 +1102,6 @@ struct TimeLine
 };
 
 bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable = true);
-bool DrawClipTimeLine(BaseEditingClip * editingClip, int64_t CurrentTime, int header_height, int custom_height);
-bool DrawClipTimeLineNew(TimeLine* main_timeline, BaseEditingClip * editingClip, int64_t CurrentTime, int header_height, int custom_height);
+bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, int64_t CurrentTime, int header_height, int custom_height, int curve_height, ImGui::KeyPointEditor* key_point);
 bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int64_t CurrentTime, int header_height, int custom_height);
 } // namespace MediaTimeline
