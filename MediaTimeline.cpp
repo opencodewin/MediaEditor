@@ -8477,6 +8477,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     static bool menuIsOpened = false;
     int64_t mouseTime = -1;
     static int64_t menuMouseTime = -1;
+    static ImVec2 menuMousePos = ImVec2(-1, -1);
     static bool mouse_hold = false;
     bool overHorizonScrollBar = false;
     bool overCustomDraw = false;
@@ -8568,7 +8569,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         // calculate mouse pos to time
         mouseTime = (int64_t)((cx - contentMin.x) / editingClip->msPixelWidthTarget) + editingClip->firstTime;
         main_timeline->AlignTime(mouseTime);
-        menuIsOpened = ImGui::IsPopupOpen("##clip_timeline-context-menu") || ImGui::IsPopupOpen("##clip_timeline-header-context-menu");
+        menuIsOpened = ImGui::IsPopupOpen("##clip_timeline-context-menu");
 
         //header
         //header time and lines
@@ -8617,7 +8618,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         }
 
         // cursor Arrow
-        if (currentTime >= editingClip->firstTime && currentTime <= duration)
+        if (currentTime >= editingClip->firstTime && currentTime <= editingClip->lastTime)
         {
             const float arrowWidth = draw_list->_Data->FontSize;
             float arrowOffset = contentMin.x + (currentTime - editingClip->firstTime) * editingClip->msPixelWidthTarget - arrowWidth * 0.5f + 1;
@@ -8633,15 +8634,13 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         }
 
         // handle menu
-        //if (HeaderAreaRect.Contains(io.MousePos) && !menuIsOpened && ImGui::IsMouseDown(ImGuiMouseButton_Right))
-        //{
-        //    if (mouseTime != -1) menuMouseTime = mouseTime;
-        //    ImGui::OpenPopup("##clip_timeline-header-context-menu");
-        //    menuIsOpened = true;
-        //}
-        if (trackAreaRect.Contains(io.MousePos) && ImGui::IsMouseReleased(ImGuiMouseButton_Right) && !ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Right))
+        if ((HeaderAreaRect.Contains(io.MousePos) || trackAreaRect.Contains(io.MousePos)) && ImGui::IsMouseReleased(ImGuiMouseButton_Right) && !ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Right) && !menuIsOpened)
         {
-            if (mouseTime != -1) menuMouseTime = mouseTime;
+            if (mouseTime != -1) 
+            {
+                menuMouseTime = mouseTime;
+                menuMousePos = io.MousePos;
+            }
             ImGui::OpenPopup("##clip_timeline-context-menu");
             menuIsOpened = true;
         }
@@ -8650,11 +8649,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         if (!menuIsOpened)
         {
             menuMouseTime = -1;
-        }
-
-        if (ImGui::BeginPopup("##clip_timeline-header-context-menu"))
-        {
-            ImGui::EndPopup();
+            menuMousePos = ImVec2(-1, -1);
         }
 
         if (ImGui::BeginPopup("##clip_timeline-context-menu"))
@@ -8681,6 +8676,27 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                 main_timeline->AlignTime(editingClip->firstTime);
                 editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
             }
+
+            if (HeaderAreaRect.Contains(menuMousePos))
+            {
+                // TODO::Add Header items
+            }
+            if (trackAreaRect.Contains(menuMousePos))
+            {
+                // TODO::Add Clip items
+            }
+            if (curveRect.Contains(menuMousePos))
+            {
+                // TODO::Add Curve items
+                ImGui::Separator();
+                if (ImGui::MenuItem(ICON_CROPPING_RIGHT " Next key", nullptr, nullptr))
+                {
+                }
+                if (ImGui::MenuItem(ICON_CROPPING_LEFT " Prev key", nullptr, nullptr))
+                {
+                }
+            }
+
             ImGui::EndPopup();
         }
 
@@ -8797,10 +8813,10 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
             auto old_time = currentTime;
             currentTime = (int64_t)((io.MousePos.x - topRect.Min.x) / editingClip->msPixelWidthTarget) + editingClip->firstTime;
             main_timeline->AlignTime(currentTime);
-            if (currentTime < 0)
-                currentTime = 0;
-            if (currentTime >= duration)
-                currentTime = duration;
+            if (currentTime < editingClip->firstTime)
+                currentTime = editingClip->firstTime;
+            if (currentTime > editingClip->lastTime)
+                currentTime = editingClip->lastTime;
             main_timeline->Seek(currentTime + start);
         }
         if (editingClip->bSeeking && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
@@ -8816,7 +8832,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         if (currentTime >= editingClip->firstTime && currentTime <= duration)
         {
             static const float cursorWidth = 2.f;
-            float cursorOffset = contentMin.x + (currentTime - editingClip->firstTime) * editingClip->msPixelWidthTarget + 2;
+            float cursorOffset = contentMin.x + (currentTime - editingClip->firstTime) * editingClip->msPixelWidthTarget - 0.5f;
             draw_list->AddLine(ImVec2(cursorOffset, window_pos.y + header_height), ImVec2(cursorOffset, window_pos.y + header_height + custom_height), IM_COL32(0, 255, 0, 224), cursorWidth);
         }
         draw_list->PopClipRect();
@@ -8829,25 +8845,28 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
             ImVec2 curveFramePos = window_pos + ImVec2(0, header_height + custom_height);
             ImVec2 curveFrameSize(timline_size.x, curve_height);
             ImGui::SetCursorScreenPos(curveFramePos);
-            ImGui::BeginChildFrame(ImGui::GetID("clip_curve"), curveFrameSize, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
-            draw_list->AddRectFilled(curveFramePos, curveFramePos + curveFrameSize, COL_DARK_ONE);
-            bool _changed = false;
-            float current_time = currentTime + start;
-            key_point->SetCurveAlign(ImVec2(frame_duration, -1.0));
-            mouse_hold |= ImGui::ImCurveEdit::Edit( nullptr,
-                                                    key_point,
-                                                    curveFrameSize, 
-                                                    ImGui::GetID("##clip_keypoint_editor"), 
-                                                    current_time,
-                                                    editingClip->firstTime,
-                                                    editingClip->lastTime,
-                                                    editingClip->visibleTime,
-                                                    editingClip->msPixelWidthTarget,
-                                                    CURVE_EDIT_FLAG_VALUE_LIMITED | CURVE_EDIT_FLAG_MOVE_CURVE | CURVE_EDIT_FLAG_KEEP_BEGIN_END | CURVE_EDIT_FLAG_DOCK_BEGIN_END, 
-                                                    nullptr, // clippingRect
-                                                    &_changed);
-            if (_changed) main_timeline->UpdatePreview();
-            ImGui::EndChildFrame();
+            if (ImGui::BeginChild("##clip_curve", curveFrameSize, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+            {
+                ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+                ImVec2 sub_window_size = ImGui::GetWindowSize();
+                draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_ONE);
+                bool _changed = false;
+                float current_time = currentTime + start;
+                key_point->SetCurveAlign(ImVec2(frame_duration, -1.0));
+                mouse_hold |= ImGui::ImCurveEdit::Edit( nullptr,
+                                                        key_point,
+                                                        sub_window_size, 
+                                                        ImGui::GetID("##clip_keypoint_editor"), 
+                                                        !menuIsOpened,
+                                                        current_time,
+                                                        editingClip->firstTime,
+                                                        editingClip->lastTime,
+                                                        CURVE_EDIT_FLAG_VALUE_LIMITED | CURVE_EDIT_FLAG_MOVE_CURVE | CURVE_EDIT_FLAG_KEEP_BEGIN_END | CURVE_EDIT_FLAG_DOCK_BEGIN_END, 
+                                                        nullptr, // clippingRect
+                                                        &_changed);
+                if (_changed) main_timeline->UpdatePreview();
+            }
+            ImGui::EndChild();
         }
     }
 

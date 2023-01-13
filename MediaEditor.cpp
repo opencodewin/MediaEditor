@@ -4590,6 +4590,7 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
                                                         &fusion->mKeyPoints, 
                                                         sub_window_size, 
                                                         ImGui::GetID("##video_fusion_keypoint_editor"),
+                                                        true,
                                                         current_time,
                                                         CURVE_EDIT_FLAG_VALUE_LIMITED | CURVE_EDIT_FLAG_MOVE_CURVE | CURVE_EDIT_FLAG_KEEP_BEGIN_END | CURVE_EDIT_FLAG_DOCK_BEGIN_END, 
                                                         nullptr, // clippingRect
@@ -5431,6 +5432,7 @@ static void ShowAudioFusionWindow(ImDrawList *draw_list)
                                                         &fusion->mKeyPoints,
                                                         sub_window_size, 
                                                         ImGui::GetID("##audio_fusion_keypoint_editor"), 
+                                                        true,
                                                         current_time,
                                                         CURVE_EDIT_FLAG_VALUE_LIMITED | CURVE_EDIT_FLAG_MOVE_CURVE | CURVE_EDIT_FLAG_KEEP_BEGIN_END | CURVE_EDIT_FLAG_DOCK_BEGIN_END, 
                                                         nullptr, // clippingRect
@@ -7232,6 +7234,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
                                                         &editing_clip->mAttributeKeyPoints,
                                                         sub_window_size, 
                                                         ImGui::GetID("##text_clip_keypoint_editor"), 
+                                                        true,
                                                         current_time,
                                                         CURVE_EDIT_FLAG_VALUE_LIMITED | CURVE_EDIT_FLAG_MOVE_CURVE | CURVE_EDIT_FLAG_KEEP_BEGIN_END | CURVE_EDIT_FLAG_DOCK_BEGIN_END | CURVE_EDIT_FLAG_DRAW_TIMELINE, 
                                                         nullptr, // clippingRect
@@ -7249,6 +7252,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
                                                         keyPointsPtr,
                                                         sub_window_size, 
                                                         ImGui::GetID("##text_track_keypoint_editor"), 
+                                                        true,
                                                         current_time,
                                                         CURVE_EDIT_FLAG_VALUE_LIMITED | CURVE_EDIT_FLAG_MOVE_CURVE | CURVE_EDIT_FLAG_KEEP_BEGIN_END | CURVE_EDIT_FLAG_DOCK_BEGIN_END | CURVE_EDIT_FLAG_DRAW_TIMELINE, 
                                                         nullptr, // clippingRect
