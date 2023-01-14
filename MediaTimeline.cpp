@@ -8685,15 +8685,27 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
             {
                 // TODO::Add Clip items
             }
-            if (curveRect.Contains(menuMousePos))
+            if (curveRect.Contains(menuMousePos) && key_point)
             {
-                // TODO::Add Curve items
+                // Add Curve items
                 ImGui::Separator();
                 if (ImGui::MenuItem(ICON_CROPPING_RIGHT " Next key", nullptr, nullptr))
                 {
+                    auto point = key_point->GetNextPoint(menuMouseTime);
+                    currentTime = point.x;
+                    main_timeline->Seek(currentTime + start);
+                    editingClip->firstTime = currentTime - editingClip->visibleTime / 2;
+                    main_timeline->AlignTime(editingClip->firstTime);
+                    editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
                 }
                 if (ImGui::MenuItem(ICON_CROPPING_LEFT " Prev key", nullptr, nullptr))
                 {
+                    auto point = key_point->GetPrevPoint(menuMouseTime);
+                    currentTime = point.x;
+                    main_timeline->Seek(currentTime + start);
+                    editingClip->firstTime = currentTime - editingClip->visibleTime / 2;
+                    main_timeline->AlignTime(editingClip->firstTime);
+                    editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
                 }
             }
 
