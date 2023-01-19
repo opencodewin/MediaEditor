@@ -6,9 +6,12 @@ plugins/*
 projects/*
 .vscode/
 .cache/
+/output
 *.ini
 *.node
 *.cfg
 *.json
 *.mep
-/output
+*.mp4
+*.mov
+*.txt
