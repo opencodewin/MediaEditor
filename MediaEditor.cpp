@@ -2720,6 +2720,7 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
     // Make Media dialog
     if (ImGui::BeginPopupModal("Make Media##MakeVideoDlyKey", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings))
     {
+        static double encoder_start = -1, encoder_end = -1, encode_duration = -1;;
         const ImVec2 lineGap {0, 6};
         ImGui::TextUnformatted("Output path:"); ImGui::SameLine(0, 10);
         std::string fullpath = timeline->mOutputPath+"/"+timeline->mOutputName
@@ -2755,6 +2756,8 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
                 if (timeline->ConfigEncoder(fullpath, vidEncParams, audEncParams, g_encoderConfigErrorMessage))
                 {
                     timeline->StartEncoding();
+                    encode_duration = -1;
+                    encoder_start = ImGui::get_current_time();
                 }
             }
         }
@@ -2776,6 +2779,18 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
         {
             ImGui::TextColored({1., 1, 1, 1.}, "%.2f%%", timeline->mEncodingProgress*100);
             ImGui::Dummy(lineGap);
+        }
+        else if (encoder_start > 0)
+        {
+            encoder_end = ImGui::get_current_time();
+            encode_duration = encoder_end - encoder_start;
+            encoder_end = encoder_start = -1;
+        }
+
+        if (encode_duration > 0)
+        {
+            ImGui::SameLine();
+            ImGui::TextColored({1., 1, 1, 1.}, "%.2fs", encode_duration);
         }
 
         btnText = "Ok";
