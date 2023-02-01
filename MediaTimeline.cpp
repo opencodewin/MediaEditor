@@ -6280,7 +6280,11 @@ bool TimeLine::ConfigEncoder(const std::string& outputPath, VideoEncoderParams& 
 void TimeLine::StartEncoding()
 {
     if (mEncodingThread.joinable())
-        return;
+    {
+        mQuitEncoding = true;
+        mEncodingThread.join();
+        //return;
+    }
     mEncodeProcErrMsg.clear();
     mEncodingProgress = 0;
     mEncodingDuration = (double)ValidDuration()/1000.f;
@@ -6416,7 +6420,7 @@ void TimeLine::_EncodeProc()
             }
         }
         mEncodingMutex.unlock();
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
     }
     if (!mQuitEncoding && mEncodeProcErrMsg.empty())
     {
