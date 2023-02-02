@@ -3436,7 +3436,7 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
     if (!timeline)
         return;
     
-    MediaCore::VideoTransformFilter * attribute = nullptr;
+    MediaCore::VideoTransformFilterHolder attribute;
     Clip * editing_clip = timeline->FindEditingClip();
     if (editing_clip && !IS_VIDEO(editing_clip->mType))
     {

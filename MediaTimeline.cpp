@@ -1945,6 +1945,7 @@ MediaCore::VideoTransitionHolder BluePrintVideoTransition::Clone()
     BluePrintVideoTransition* bpTrans = new BluePrintVideoTransition;
     auto bpJson = mBp->m_Document->Serialize();
     bpTrans->SetBluePrintFromJson(bpJson);
+    bpTrans->SetKeyPoint(mKeyPoints);
     return MediaCore::VideoTransitionHolder(bpTrans);
 }
 
@@ -2227,7 +2228,7 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
         MediaCore::VideoFilterHolder hFilter(mFilter);
         hClip->SetFilter(hFilter);
     }
-    mAttribute = hClip->GetTransformFilterPtr();
+    mAttribute = hClip->GetTransformFilter();
     if (mAttribute)
     {
         mAttribute->SetScaleType(vidclip->mScaleType);
@@ -5491,7 +5492,7 @@ int TimeLine::Load(const imgui_json::value& value)
                 bpvf->SetKeyPoint(clip->mFilterKeyPoints);
                 MediaCore::VideoFilterHolder hFilter(bpvf);
                 hVidClip->SetFilter(hFilter);
-                auto attribute = hVidClip->GetTransformFilterPtr();
+                auto attribute = hVidClip->GetTransformFilter();
                 if (attribute)
                 {
                     VideoClip * vidclip = (VideoClip *)clip;
@@ -5673,7 +5674,7 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
             bpvf->SetKeyPoint(clip->mFilterKeyPoints);
             MediaCore::VideoFilterHolder hFilter(bpvf);
             vidClip->SetFilter(hFilter);
-            auto attribute = vidClip->GetTransformFilterPtr();
+            auto attribute = vidClip->GetTransformFilter();
             if (attribute)
             {
                 VideoClip * vidclip = (VideoClip *)clip;

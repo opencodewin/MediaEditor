@@ -598,7 +598,7 @@ struct EditingVideoClip : BaseEditingClip
     ImTextureID mImgTexture     {0};
 
     BluePrintVideoFilter * mFilter {nullptr};
-    MediaCore::VideoTransformFilter * mAttribute {nullptr};
+    MediaCore::VideoTransformFilterHolder mAttribute {nullptr};
 
 public:
     EditingVideoClip(VideoClip* vidclip);
