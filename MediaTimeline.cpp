@@ -1248,7 +1248,7 @@ void VideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
     {
         ImVec2 snapLeftTop = leftTop;
         float snapDispWidth;
-        GetSnapshotGeneratorLogger()->Log(Logger::DEBUG) << "[1]>>>>> Begin display snapshot" << std::endl;
+        GetSnapshotGeneratorLogger()->Log(Logger::VERBOSE) << "[1]>>>>> Begin display snapshot" << std::endl;
         for (int i = 0; i < mSnapImages.size(); i++)
         {
             auto& img = mSnapImages[i];
@@ -1269,7 +1269,7 @@ void VideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
             if (img->mTextureReady)
             {
                 ImTextureID tid = *(img->mTextureHolder);
-                GetSnapshotGeneratorLogger()->Log(Logger::DEBUG) << "[1]\t\t display tid=" << tid << std::endl;
+                GetSnapshotGeneratorLogger()->Log(Logger::VERBOSE) << "[1]\t\t display tid=" << tid << std::endl;
                 drawList->AddImage(tid, snapLeftTop, {snapLeftTop.x + snapDispWidth, rightBottom.y}, uvMin, uvMax);
             }
             else
@@ -1287,7 +1287,7 @@ void VideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
             if (snapLeftTop.x >= rightBottom.x)
                 break;
         }
-        GetSnapshotGeneratorLogger()->Log(Logger::DEBUG) << "[1]<<<<< End display snapshot" << std::endl;
+        GetSnapshotGeneratorLogger()->Log(Logger::VERBOSE) << "[1]<<<<< End display snapshot" << std::endl;
     }
     else
     {
