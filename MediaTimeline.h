@@ -91,6 +91,7 @@
 #define ICON_UNWATCH        u8"\ue8f5"
 #define ICON_DELETE         u8"\ue92b"
 #define ICON_CURVE          u8"\ue463"
+#define ICON_MAKE_VIDEO     u8"\ue52a"
 
 #define ICON_FONT_BOLD      u8"\ue238"
 #define ICON_FONT_ITALIC    u8"\ue23f"
@@ -926,11 +927,17 @@ struct TimeLine
     void StartEncoding();
     void StopEncoding();
     void _EncodeProc();
+    // encoding 
     std::thread mEncodingThread;
     bool mIsEncoding {false};
     bool mQuitEncoding {false};
     std::string mEncodeProcErrMsg;
-    float mEncodingProgress;
+    float mEncodingProgress {0};
+    float mEncodingDuration {0};
+    std::mutex mEncodingMutex;
+    ImGui::ImMat mEncodingVFrame;
+    ImGui::ImMat mEncodingAFrame;
+    ImTextureID mEncodingPreviewTexture {nullptr};  // encoding preview texture
 
     void CalculateAudioScopeData(ImGui::ImMat& mat);
 

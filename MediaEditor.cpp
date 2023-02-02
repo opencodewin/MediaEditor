@@ -2275,7 +2275,8 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
     ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
     ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
     draw_list->AddText(window_pos + ImVec2(8, 0), IM_COL32(56, 56, 56, 128), "Media Output");
-    //draw_list->AddText(window_pos + ImVec2(8, 48), IM_COL32(56, 56, 56, 128), "Output");
+    static int encoder_stage = 0; // 0:unknown 1:encoding 2:finished
+    static double encoder_start = -1, encoder_end = -1, encode_duration = -1;
     ImGui::PopStyleColor();
     ImGui::PopStyleVar();
     ImGui::SetWindowFontScale(1.0);
@@ -2283,11 +2284,15 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
         return;
 
     ImGui::SetCursorPos({20, 50});
-    if (ImGui::Button("MAKE VIDEO"))
+    ImGui::SetWindowFontScale(1.2);
+    if (ImGui::ColoredButton(ICON_MAKE_VIDEO " Make Video", ImVec2(window_size.x - 40, 48.f), IM_COL32(255, 255, 255, 255), IM_COL32(50, 220, 60, 255), IM_COL32(69, 150, 70, 255),10.0f))
     {
         g_encoderConfigErrorMessage.clear();
-        ImGui::OpenPopup("Make Media##MakeVideoDlyKey", ImGuiPopupFlags_NoOpenOverExistingPopup);
+        encoder_stage = 0;
+        encoder_end = encoder_start = encode_duration = -1;
+        ImGui::OpenPopup("Make Media##MakeVideoDlyKey", ImGuiPopupFlags_AnyPopup);
     }
+    ImGui::SetWindowFontScale(1.0);
     ImGui::Dummy(ImVec2(0, 10));
     if (ImGui::BeginChild("##Subcp01"))
     {
@@ -2713,31 +2718,89 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
         ImGui::EndDisabled(); // disable if param as timline
         ImGui::EndDisabled(); // disable if no audio
         ImGui::Separator();
-
-        ImGui::EndChild();
     }
+    ImGui::EndChild();
 
     // Make Media dialog
+    if (multiviewport)
+        ImGui::SetNextWindowViewport(viewport->ID);
     if (ImGui::BeginPopupModal("Make Media##MakeVideoDlyKey", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings))
     {
-        static double encoder_start = -1, encoder_end = -1, encode_duration = -1;;
-        const ImVec2 lineGap {0, 6};
         ImGui::TextUnformatted("Output path:"); ImGui::SameLine(0, 10);
         std::string fullpath = timeline->mOutputPath+"/"+timeline->mOutputName
             +"."+OutFormats[g_media_editor_settings.OutputFormatIndex].suffix;
-        ImGui::TextColored({0.7, 0.7, 0.7, 1}, "%s", fullpath.c_str());
-        ImGui::Dummy(lineGap);
+        ImGui::Text("%s", fullpath.c_str());
+        ImVec2 preview_size = ImVec2(640, 360);
+        ImVec2 preview_pos = ImGui::GetCursorScreenPos();
+        float pos_x = 0, pos_y = 0;
+        float offset_x = 0, offset_y = 0;
+        float tf_x = 0, tf_y = 0;
+        if (timeline->mIsEncoding)
+        {
+            if (timeline->mEncodingMutex.try_lock())
+            {
+                if (!timeline->mEncodingVFrame.empty())
+                {
+                    ImGui::ImMatToTexture(timeline->mEncodingVFrame, timeline->mEncodingPreviewTexture);
+                    ShowVideoWindow(ImGui::GetWindowDrawList(), timeline->mEncodingPreviewTexture, preview_pos, preview_size, offset_x, offset_y, tf_x, tf_y);
+                }
+                else
+                {
+                    ImGui::Dummy(preview_size);
+                }
+                timeline->mEncodingMutex.unlock();
+            }
+            else if (timeline->mEncodingPreviewTexture)
+            {
+                ShowVideoWindow(ImGui::GetWindowDrawList(), timeline->mEncodingPreviewTexture, preview_pos, preview_size, offset_x, offset_y, tf_x, tf_y);
+            }
+            else
+            {
+                ImGui::Dummy(preview_size);
+            }
+        }
+        else if (timeline->mEncodingPreviewTexture)
+        {
+            ShowVideoWindow(ImGui::GetWindowDrawList(), timeline->mEncodingPreviewTexture, preview_pos, preview_size, offset_x, offset_y, tf_x, tf_y);
+        }
+        else if (timeline->mMainPreviewTexture)
+        {
+            ShowVideoWindow(ImGui::GetWindowDrawList(), timeline->mMainPreviewTexture, preview_pos, preview_size, offset_x, offset_y, tf_x, tf_y);
+        }
+        else
+        {
+            ImGui::Dummy(preview_size);
+        }
+        if (timeline->mIsEncoding)
+            ImGui::SpinnerDnaDots("SpinnerEncoding", 12, 3, ImColor(255, 255, 255), 8, 8, 0.25f, true);
+        else
+            ImGui::Dummy(ImVec2(32, 32));
+        ImGui::SameLine();
+        ImGui::ProgressBar("##encoding_progress",timeline->mEncodingProgress, 0.f, 1.f, "%1.1f%%", ImVec2(540, 16), 
+                                ImVec4(1.f, 1.f, 1.f, 1.f), ImVec4(0.f, 0.f, 0.f, 1.f), ImVec4(1.f, 1.f, 1.f, 1.f));
 
         const ImVec2 btnPaddingSize { 30, 14 };
         std::string btnText;
         ImVec2 btnTxtSize;
-        btnText = timeline->mIsEncoding ? "Stop encoding " : "Start encoding";
+        btnText = "Ok";
         btnTxtSize = ImGui::CalcTextSize(btnText.c_str());
-        if (ImGui::Button(btnText.c_str(), btnTxtSize+btnPaddingSize))
+        ImGui::BeginDisabled(timeline->mIsEncoding);
+        if (ImGui::Button(btnText.c_str(), btnTxtSize + btnPaddingSize))
+        {
+            if (timeline->mEncodingPreviewTexture) { ImGui::ImDestroyTexture(timeline->mEncodingPreviewTexture); timeline->mEncodingPreviewTexture = nullptr; }
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndDisabled();
+        ImGui::SameLine();
+        
+        btnText = timeline->mIsEncoding ? "Stop encoding" : "Start encoding";
+        btnTxtSize = ImGui::CalcTextSize(btnText.c_str());
+        if (encoder_stage != 2 && ImGui::Button(btnText.c_str(), btnTxtSize + btnPaddingSize))
         {
             if (timeline->mIsEncoding)
             {
                 timeline->StopEncoding();
+                encoder_stage = 2;
             }
             else
             {
@@ -2758,47 +2821,43 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
                     timeline->StartEncoding();
                     encode_duration = -1;
                     encoder_start = ImGui::get_current_time();
+                    encoder_stage = 1;
                 }
             }
         }
-        ImGui::Dummy(lineGap);
-
         if (!g_encoderConfigErrorMessage.empty())
         {
             ImGui::TextColored({1., 0.2, 0.2, 1.}, "%s", g_encoderConfigErrorMessage.c_str());
-            ImGui::Dummy(lineGap);
         }
 
         if (!timeline->mEncodeProcErrMsg.empty())
         {
             ImGui::TextColored({1., 0.5, 0.5, 1.}, "%s", timeline->mEncodeProcErrMsg.c_str());
-            ImGui::Dummy(lineGap);
         }
 
         if (timeline->mIsEncoding)
         {
-            ImGui::TextColored({1., 1, 1, 1.}, "%.2f%%", timeline->mEncodingProgress*100);
-            ImGui::Dummy(lineGap);
+            encoder_end = ImGui::get_current_time();
+            encode_duration = encoder_end - encoder_start;
+            float encoding_time = timeline->mEncodingProgress * timeline->mEncodingDuration;
+            float encoding_speed = encoding_time / (encode_duration + FLT_EPSILON);
+            float estimated_time = (1.f - timeline->mEncodingProgress) * timeline->mEncodingDuration / (encoding_speed + FLT_EPSILON);
+            ImGui::SameLine();
+            ImGui::TextUnformatted("Speed:"); ImGui::SameLine(); ImGui::Text("%.2fx", encoding_speed); ImGui::SameLine();
+            ImGui::TextUnformatted("Estimated:"); ImGui::SameLine(); ImGui::Text("%s", ImGuiHelper::MillisecToString(estimated_time * 1000, 1).c_str());
         }
         else if (encoder_start > 0)
         {
-            encoder_end = ImGui::get_current_time();
-            encode_duration = encoder_end - encoder_start;
             encoder_end = encoder_start = -1;
+            encoder_stage = 2;
         }
 
-        if (encode_duration > 0)
+        if (encoder_stage == 2 && encode_duration > 0)
         {
             ImGui::SameLine();
-            ImGui::TextColored({1., 1, 1, 1.}, "%.2fs", encode_duration);
+            ImGui::TextUnformatted("Encoding finished. Spend Time"); ImGui::SameLine();
+            ImGui::Text("%s", ImGuiHelper::MillisecToString(encode_duration * 1000, 3).c_str());
         }
-
-        btnText = "Ok";
-        btnTxtSize = ImGui::CalcTextSize(btnText.c_str());
-        ImGui::BeginDisabled(timeline->mIsEncoding);
-        if (ImGui::Button(btnText.c_str(), btnTxtSize+btnPaddingSize))
-            ImGui::CloseCurrentPopup();
-        ImGui::EndDisabled();
         ImGui::EndPopup();
     }
 
