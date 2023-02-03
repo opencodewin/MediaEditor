@@ -823,6 +823,11 @@ void Application_Finalize(void** handle)
     if (g_texture_d) ImGui::ImDestroyTexture(g_texture_d);
 }
 
+void Application_DropFromSystem(std::vector<std::string>& drops)
+{
+
+}
+
 bool Application_Frame(void * handle, bool app_will_quit)
 {
     bool app_done = false;
