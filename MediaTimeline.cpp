@@ -6324,7 +6324,7 @@ void TimeLine::_EncodeProc()
     double maxEncodeDuration = 0;
     uint32_t vidFrameCount = 0;
     MediaInfo::Ratio outFrameRate = mEncoder->GetVideoFrameRate();
-    //ImGui::ImMat vmat, amat;
+    ImGui::ImMat vmat, amat;
     uint32_t pcmbufSize = 8192;
     uint8_t* pcmbuf = new uint8_t[pcmbufSize];
     double viddur = (double)mEncMtvReader->Duration()/1000;
@@ -6332,46 +6332,50 @@ void TimeLine::_EncodeProc()
     double encpos = 0;
     while (!mQuitEncoding && (!vidInputEof || !audInputEof))
     {
-        mEncodingMutex.lock();
+        bool idleLoop = true;
         if ((!vidInputEof && vidpos <= audpos) || audInputEof)
         {
             vidpos = (double)vidFrameCount*outFrameRate.den/outFrameRate.num;
-            vidFrameCount++;
             bool eof = vidpos >= viddur;
             if (!eof)
             {
-                if (!mEncMtvReader->ReadVideoFrame((int64_t)(vidpos*1000), mEncodingVFrame))
+                if (!mEncMtvReader->ReadVideoFrame((int64_t)(vidpos*1000), vmat))
                 {
                     std::ostringstream oss;
                     oss << "[video] '" << mEncMtvReader->GetError() << "'.";
                     mEncodeProcErrMsg = oss.str();
-                    mEncodingMutex.unlock();
                     break;
                 }
-                mEncodingVFrame.time_stamp = vidpos;
-                if (!mEncoder->EncodeVideoFrame(mEncodingVFrame))
+                if (!vmat.empty())
                 {
-                    std::ostringstream oss;
-                    oss << "[video] '" << mEncoder->GetError() << "'.";
-                    mEncodeProcErrMsg = oss.str();
-                    mEncodingMutex.unlock();
-                    break;
-                }
-                if (vidpos > encpos)
-                {
-                    encpos = vidpos;
-                    mEncodingProgress = encpos/dur;
+                    vidFrameCount++;
+                    vmat.time_stamp = vidpos;
+                    {
+                        std::lock_guard<std::mutex> lk(mEncodingMutex);
+                        mEncodingVFrame = vmat;
+                    }
+                    if (!mEncoder->EncodeVideoFrame(vmat))
+                    {
+                        std::ostringstream oss;
+                        oss << "[video] '" << mEncoder->GetError() << "'.";
+                        mEncodeProcErrMsg = oss.str();
+                        break;
+                    }
+                    if (vidpos > encpos)
+                    {
+                        encpos = vidpos;
+                        mEncodingProgress = encpos/dur;
+                    }
                 }
             }
             else
             {
-                mEncodingVFrame.release();
-                if (!mEncoder->EncodeVideoFrame(mEncodingVFrame))
+                vmat.release();
+                if (!mEncoder->EncodeVideoFrame(vmat))
                 {
                     std::ostringstream oss;
                     oss << "[video] '" << mEncoder->GetError() << "'.";
                     mEncodeProcErrMsg = oss.str();
-                    mEncodingMutex.unlock();
                     break;
                 }
                 vidInputEof = true;
@@ -6381,47 +6385,46 @@ void TimeLine::_EncodeProc()
         {
             bool eof;
             uint32_t readSize = pcmbufSize;
-            if (!mEncMtaReader->ReadAudioSamples(mEncodingAFrame, eof) && !eof)
+            if (!mEncMtaReader->ReadAudioSamples(amat, eof) && !eof)
             {
                 std::ostringstream oss;
                 oss << "[audio] '" << mEncMtaReader->GetError() << "'.";
                 mEncodeProcErrMsg = oss.str();
-                mEncodingMutex.unlock();
                 break;
             }
-            audpos = mEncodingAFrame.time_stamp;
-            if (!eof)
+            if (!eof && !amat.empty())
             {
-                if (!mEncoder->EncodeAudioSamples(mEncodingAFrame))
+                audpos = amat.time_stamp;
+                if (!mEncoder->EncodeAudioSamples(amat))
                 {
                     std::ostringstream oss;
                     oss << "[audio] '" << mEncoder->GetError() << "'.";
                     mEncodeProcErrMsg = oss.str();
-                    mEncodingMutex.unlock();
                     break;
                 }
-                if (mEncodingAFrame.time_stamp > encpos)
+                if (amat.time_stamp > encpos)
                 {
-                    encpos = mEncodingAFrame.time_stamp;
+                    encpos = amat.time_stamp;
                     mEncodingProgress = encpos/dur;
                 }
             }
-            else
+            else if (eof)
             {
-                mEncodingAFrame.release();
-                if (!mEncoder->EncodeAudioSamples(mEncodingAFrame))
+                amat.release();
+                {
+                    std::lock_guard<std::mutex> lk(mEncodingMutex);
+                    mEncodingAFrame = amat;
+                }
+                if (!mEncoder->EncodeAudioSamples(amat))
                 {
                     std::ostringstream oss;
                     oss << "[audio] '" << mEncoder->GetError() << "'.";
                     mEncodeProcErrMsg = oss.str();
-                    mEncodingMutex.unlock();
                     break;
                 }
                 audInputEof = true;
             }
         }
-        mEncodingMutex.unlock();
-        std::this_thread::sleep_for(std::chrono::milliseconds(2));
     }
     if (!mQuitEncoding && mEncodeProcErrMsg.empty())
     {

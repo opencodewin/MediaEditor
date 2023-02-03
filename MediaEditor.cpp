@@ -2737,20 +2737,16 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
         float tf_x = 0, tf_y = 0;
         if (timeline->mIsEncoding)
         {
-            if (timeline->mEncodingMutex.try_lock())
+            ImGui::ImMat encMatV;
             {
-                if (!timeline->mEncodingVFrame.empty())
-                {
-                    ImGui::ImMatToTexture(timeline->mEncodingVFrame, timeline->mEncodingPreviewTexture);
-                    ShowVideoWindow(ImGui::GetWindowDrawList(), timeline->mEncodingPreviewTexture, preview_pos, preview_size, offset_x, offset_y, tf_x, tf_y);
-                }
-                else
-                {
-                    ImGui::Dummy(preview_size);
-                }
-                timeline->mEncodingMutex.unlock();
+                std::lock_guard<std::mutex> lk(timeline->mEncodingMutex);
+                encMatV = timeline->mEncodingVFrame;
             }
-            else if (timeline->mEncodingPreviewTexture)
+            if (!encMatV.empty())
+            {
+                ImGui::ImMatToTexture(encMatV, timeline->mEncodingPreviewTexture);
+            }
+            if (timeline->mEncodingPreviewTexture)
             {
                 ShowVideoWindow(ImGui::GetWindowDrawList(), timeline->mEncodingPreviewTexture, preview_pos, preview_size, offset_x, offset_y, tf_x, tf_y);
             }
