@@ -2293,7 +2293,7 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
         ImGui::OpenPopup("Make Media##MakeVideoDlyKey", ImGuiPopupFlags_AnyPopup);
     }
     ImGui::SetWindowFontScale(1.0);
-    ImGui::Dummy(ImVec2(0, 10));
+
     if (ImGui::BeginChild("##Subcp01"))
     {
         ImGui::Dummy(ImVec2(0, 20));
@@ -9089,6 +9089,8 @@ bool Application_Frame(void * handle, bool app_will_quit)
         ImGui::OpenPopup("Project Loading", ImGuiPopupFlags_AnyPopup);
     }
 
+    if (multiviewport)
+        ImGui::SetNextWindowViewport(viewport->ID);
     if (ImGui::BeginPopupModal("Project Loading", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings))
     {
         ImGui::Text("Project Loading...");
