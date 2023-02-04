@@ -433,6 +433,7 @@ struct MediaEditorSettings
 };
 
 static std::string ini_file = "Media_Editor.ini";
+static std::vector<std::string> import_url;    // import file url from system drag
 static TimeLine * timeline = nullptr;
 static std::thread * g_loading_thread {nullptr};
 static bool g_project_loading {false};
@@ -1489,6 +1490,70 @@ static inline std::string GetAudioChannelName(int channels)
     else return "Channels " + std::to_string(channels);
 }
 
+static bool InsertMedia(const std::string path)
+{
+    auto file_suffix = ImGuiHelper::path_suffix(path);
+    auto name = ImGuiHelper::path_filename(path);
+    uint32_t type = MEDIA_UNKNOWN;
+    if (!file_suffix.empty())
+    {
+        if ((file_suffix.compare(".mp4") == 0) ||
+            (file_suffix.compare(".mov") == 0) ||
+            (file_suffix.compare(".mkv") == 0) ||
+            (file_suffix.compare(".mxf") == 0) ||
+            (file_suffix.compare(".avi") == 0) ||
+            (file_suffix.compare(".webm") == 0) ||
+            (file_suffix.compare(".ts") == 0))
+            type = MEDIA_VIDEO;
+        else 
+            if ((file_suffix.compare(".wav") == 0) ||
+                (file_suffix.compare(".mp3") == 0) ||
+                (file_suffix.compare(".aac") == 0) ||
+                (file_suffix.compare(".ac3") == 0) ||
+                (file_suffix.compare(".dts") == 0) ||
+                (file_suffix.compare(".ogg") == 0))
+            type = MEDIA_AUDIO;
+        else
+            if ((file_suffix.compare(".mid") == 0) ||
+                (file_suffix.compare(".midi") == 0))
+            type = MEDIA_SUBTYPE_AUDIO_MIDI;
+        else 
+            if ((file_suffix.compare(".jpg") == 0) ||
+                (file_suffix.compare(".jpeg") == 0) ||
+                (file_suffix.compare(".png") == 0) ||
+                (file_suffix.compare(".gif") == 0) ||
+                (file_suffix.compare(".tiff") == 0) ||
+                (file_suffix.compare(".webp") == 0))
+            type = MEDIA_SUBTYPE_VIDEO_IMAGE;
+        else
+            if ((file_suffix.compare(".txt") == 0) ||
+                (file_suffix.compare(".srt") == 0) ||
+                (file_suffix.compare(".ass") == 0) ||
+                (file_suffix.compare(".stl") == 0) ||
+                (file_suffix.compare(".lrc") == 0) ||
+                (file_suffix.compare(".xml") == 0))
+            type = MEDIA_SUBTYPE_TEXT_SUBTITLE;
+    }
+    if (timeline)
+    {
+        // check media is already in bank
+        auto iter = std::find_if(timeline->media_items.begin(), timeline->media_items.end(), [name, path, type](const MediaItem* item)
+        {
+            return  name.compare(item->mName) == 0 &&
+                    path.compare(item->mPath) == 0 &&
+                    type == item->mMediaType;
+        });
+        if (iter == timeline->media_items.end() && type != MEDIA_UNKNOWN)
+        {
+            MediaItem * item = new MediaItem(name, path, type, timeline);
+            timeline->media_items.push_back(item);
+            project_need_save = true;
+            return project_need_save;
+        }
+    }
+    return false;
+}
+
 static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem *>::iterator item, ImDrawList *draw_list, ImVec2 icon_pos, float media_icon_size)
 {
     ImTextureID texture = nullptr;
@@ -1714,8 +1779,12 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
 static void ShowMediaBankWindow(ImDrawList *draw_list, float media_icon_size)
 {
     ImGuiIO& io = ImGui::GetIO();
+    bool multiviewport = io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable;
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
+    static std::vector<std::string> failed_items;
     ImVec2 window_pos = ImGui::GetWindowPos();
     ImVec2 window_size = ImGui::GetWindowSize();
+    ImVec2 contant_size = ImGui::GetContentRegionAvail();
     ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
     ImGui::SetWindowFontScale(2.5);
     ImGui::Indent(20);
@@ -1728,7 +1797,7 @@ static void ShowMediaBankWindow(ImDrawList *draw_list, float media_icon_size)
 
     if (!timeline)
         return;
-    
+
     if (timeline->media_items.empty())
     {
         ImGui::SetWindowFontScale(2.0);
@@ -1742,7 +1811,7 @@ static void ShowMediaBankWindow(ImDrawList *draw_list, float media_icon_size)
         ImGui::PopStyleColor();
         ImGui::PopStyleVar();
         ImGui::SetWindowFontScale(1.0);
-        return;
+        //return;
     }
     // Show Media Icons
     ImGui::SetCursorPos({20, 20});
@@ -1762,6 +1831,51 @@ static void ShowMediaBankWindow(ImDrawList *draw_list, float media_icon_size)
         ImGui::SetCursorScreenPos(icon_pos + ImVec2(0, media_icon_size));
     }
     ImGui::Dummy(ImVec2(0, 24));
+
+    // Handle drag drop from system
+    ImGui::SetCursorScreenPos(window_pos);
+    ImGui::InvisibleButton("media_bank_view", contant_size);
+    if (ImGui::BeginDragDropTarget())
+    {
+        if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("FILES"))
+        {
+            if (timeline)
+            {
+                for (auto path : import_url)
+                {
+                    auto ret = InsertMedia(path);
+                    if (!ret)
+                    {
+                        auto filename = ImGuiHelper::path_filename(path);
+                        failed_items.push_back(filename);
+                    }
+                }
+                import_url.clear();
+                if (!failed_items.empty())
+                {
+                    ImGui::OpenPopup("Failed loading media", ImGuiPopupFlags_AnyPopup);
+                }
+            }
+        }
+        ImGui::EndDragDropTarget();
+    }
+
+    if (multiviewport)
+        ImGui::SetNextWindowViewport(viewport->ID);
+    if (ImGui::BeginPopupModal("Failed loading media", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings))
+    {
+        ImGui::TextUnformatted("Can't load following Media:");
+        for (auto name : failed_items)
+        {
+            ImGui::Text("%s", name.c_str());
+        }
+        if (ImGui::Button("OK", ImVec2(60, 0)))
+        {
+            failed_items.clear();
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
 }
 
 /****************************************************************************************
@@ -9020,7 +9134,16 @@ void Application_Finalize(void** handle)
 
 void Application_DropFromSystem(std::vector<std::string>& drops)
 {
-
+    if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceExtern | ImGuiDragDropFlags_SourceNoPreviewTooltip | ImGuiDragDropFlags_AcceptPeekOnly))
+	{
+        if (timeline)
+        {
+            import_url.clear();
+            for (auto path : drops) import_url.push_back(path);
+            ImGui::SetDragDropPayload("FILES", timeline, sizeof(timeline));
+        }
+		ImGui::EndDragDropSource();
+	}
 }
 
 bool Application_Frame(void * handle, bool app_will_quit)
@@ -9564,62 +9687,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
             auto userDatas = std::string((const char*)ImGuiFileDialog::Instance()->GetUserDatas());
             if (userDatas.compare("Media Source") == 0)
             {
-                uint32_t type = MEDIA_UNKNOWN;
-                if (!file_suffix.empty())
-                {
-                    if ((file_suffix.compare(".mp4") == 0) ||
-                        (file_suffix.compare(".mov") == 0) ||
-                        (file_suffix.compare(".mkv") == 0) ||
-                        (file_suffix.compare(".mxf") == 0) ||
-                        (file_suffix.compare(".avi") == 0) ||
-                        (file_suffix.compare(".webm") == 0) ||
-                        (file_suffix.compare(".ts") == 0))
-                        type = MEDIA_VIDEO;
-                    else 
-                        if ((file_suffix.compare(".wav") == 0) ||
-                            (file_suffix.compare(".mp3") == 0) ||
-                            (file_suffix.compare(".aac") == 0) ||
-                            (file_suffix.compare(".ac3") == 0) ||
-                            (file_suffix.compare(".dts") == 0) ||
-                            (file_suffix.compare(".ogg") == 0))
-                        type = MEDIA_AUDIO;
-                    else
-                        if ((file_suffix.compare(".mid") == 0) ||
-                            (file_suffix.compare(".midi") == 0))
-                        type = MEDIA_SUBTYPE_AUDIO_MIDI;
-                    else 
-                        if ((file_suffix.compare(".jpg") == 0) ||
-                            (file_suffix.compare(".jpeg") == 0) ||
-                            (file_suffix.compare(".png") == 0) ||
-                            (file_suffix.compare(".gif") == 0) ||
-                            (file_suffix.compare(".tiff") == 0) ||
-                            (file_suffix.compare(".webp") == 0))
-                        type = MEDIA_SUBTYPE_VIDEO_IMAGE;
-                    else
-                        if ((file_suffix.compare(".txt") == 0) ||
-                            (file_suffix.compare(".srt") == 0) ||
-                            (file_suffix.compare(".ass") == 0) ||
-                            (file_suffix.compare(".stl") == 0) ||
-                            (file_suffix.compare(".lrc") == 0) ||
-                            (file_suffix.compare(".xml") == 0))
-                        type = MEDIA_SUBTYPE_TEXT_SUBTITLE;
-                }
-                if (timeline)
-                {
-                    // check media is already in bank
-                    auto iter = std::find_if(timeline->media_items.begin(), timeline->media_items.end(), [file_name, file_path, type](const MediaItem* item)
-                    {
-                        return  file_name.compare(item->mName) == 0 &&
-                                file_path.compare(item->mPath) == 0 &&
-                                type == item->mMediaType;
-                    });
-                    if (iter == timeline->media_items.end())
-                    {
-                        MediaItem * item = new MediaItem(file_name, file_path, type, timeline);
-                        timeline->media_items.push_back(item);
-                        project_need_save = true;
-                    }
-                }
+                InsertMedia(file_path);
             }
             if (userDatas.compare("ProjectOpen") == 0)
             {
