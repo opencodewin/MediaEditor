@@ -1963,7 +1963,7 @@ ImGui::ImMat BluePrintVideoTransition::MixTwoImages(const ImGui::ImMat& vmat1, c
         }
         ImGui::ImMat inMat1(vmat1), inMat2(vmat2);
         ImGui::ImMat outMat;
-        mBp->Blueprint_RunFusion(inMat1, inMat2, outMat, pos, dur);
+        mBp->Blueprint_RunFusion(inMat1, inMat2, outMat, pos - mOverlap->Start(), dur);
         return outMat;
     }
     return vmat1;
@@ -2123,7 +2123,7 @@ ImGui::ImMat BluePrintAudioTransition::MixTwoAudioMats(const ImGui::ImMat& amat1
         }
         ImGui::ImMat inMat1(amat1), inMat2(amat2);
         ImGui::ImMat outMat;
-        mBp->Blueprint_RunFusion(inMat1, inMat2, outMat, pos, 0); // ?
+        mBp->Blueprint_RunFusion(inMat1, inMat2, outMat, pos - mOverlap->Start(), 0); // ?
         return outMat;
     }
     return amat1;
@@ -2377,6 +2377,16 @@ void EditingVideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, 
                 imgLeftTop.x += snapDispWidth;
                 snapDispWidth = snapWidth;
             }
+            // if media type is image, Image texture is already generate, but mSnapSize and mViewWndSize is empty
+            if (mSnapSize.x == 0 || mSnapSize.y == 0)
+            {
+                mSnapSize.x = snapWidth;
+                mSnapSize.y = snapHeight;
+            }
+            if (mViewWndSize.x == 0 || mViewWndSize.y == 0)
+            {
+                mViewWndSize = ImVec2(rightBottom.x - leftTop.x, rightBottom.y - leftTop.y);
+            }
         }
     }
     else
@@ -2444,9 +2454,12 @@ void EditingVideoClip::CalcDisplayParams(int64_t viewWndDur)
     //if (visibleTime == viewWndDur)
     //    return;
     visibleTime = viewWndDur;
-    double snapWndSize = (double)viewWndDur / 1000;
-    double snapCntInView = (double)mViewWndSize.x / mSnapSize.x;
-    mSsGen->ConfigSnapWindow(snapWndSize, snapCntInView);
+    if (!IS_IMAGE(mType))
+    {
+        double snapWndSize = (double)viewWndDur / 1000;
+        double snapCntInView = (double)mViewWndSize.x / mSnapSize.x;
+        mSsGen->ConfigSnapWindow(snapWndSize, snapCntInView);
+    }
 }
 } // namespace MediaTimeline
 
@@ -8509,7 +8522,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     if (timline_size.y - header_height <= 0)
         return ret;
 
-    float minPixelWidthTarget = ImMin(0.05f, (float)(timline_size.x) / (float)duration);
+    float minPixelWidthTarget = (float)(timline_size.x) / (float)duration; //ImMin(0.1f, (float)(timline_size.x) / (float)duration);
     float maxPixelWidthTarget = 20.f;
     int view_frames = 16;
     if (IS_VIDEO(editingClip->mType))
