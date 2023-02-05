@@ -291,7 +291,26 @@ static const char* VideoAttributeScaleType[] = {
     "Stretch",
 };
 
-
+const std::string video_file_dis = "*.mp4 *.mov *.mkv *.mxf *.avi *.webm *.ts";
+const std::string video_file_suffix = ".mp4,.mov,.mkv,.mxf,.avi,.webm,.ts";
+const std::string audio_file_dis = "*.wav *.mp3 *.aac *.ogg *.ac3 *.dts";
+const std::string audio_file_suffix = ".wav,.mp3,.aac,.ogg,.ac3,.dts";
+const std::string image_file_dis = "*.png *.gif *.jpg *.jpeg *.tiff *.webp";
+const std::string image_file_suffix = ".png,.gif,.jpg,.jpeg,.tiff,.webp";
+const std::string text_file_dis = "*.txt *.srt *.ass *.stl *.lrc *.xml";
+const std::string text_file_suffix = ".txt,.srt,.ass,.stl,.lrc,.xml";
+const std::string video_filter = "Video files (" + video_file_dis + "){" + video_file_suffix + "}";
+const std::string audio_filter = "Audio files (" + audio_file_dis + "){" + audio_file_suffix + "}";
+const std::string image_filter = "Image files (" + image_file_dis + "){" + image_file_suffix + "}";
+const std::string text_filter = "SubTitle files (" + text_file_dis + "){" + text_file_suffix + "}";
+const std::string ffilters = "All Support Files (" + video_file_dis + " " + audio_file_dis + " " + image_file_dis + " " + text_file_dis + ")" + "{" +
+                                                    video_file_suffix + "," + audio_file_suffix + "," + image_file_suffix + "," + text_file_suffix + "}" + "," +
+                                                    video_filter + "," +
+                                                    audio_filter + "," +
+                                                    image_filter + "," +
+                                                    text_filter + "," +
+                                                    ".*";
+                                                    
 struct MediaEditorSettings
 {
     std::string UILanguage {"Default"};     // UI Language
@@ -1554,6 +1573,35 @@ static bool InsertMedia(const std::string path)
     return false;
 }
 
+static bool InsertMediaAddIcon(ImDrawList *draw_list, ImVec2 icon_pos, float media_icon_size)
+{
+    bool ret = false;
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.25, 0.25, 0.4, 1.0));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0, 0, 0, 0));
+    ImVec2 icon_size = ImVec2(media_icon_size, media_icon_size);
+    draw_list->AddRectFilled(icon_pos + ImVec2(6, 6), icon_pos + ImVec2(6, 6) + icon_size, IM_COL32(16, 16, 16, 255), 8, ImDrawFlags_RoundCornersAll);
+    draw_list->AddRectFilled(icon_pos + ImVec2(4, 4), icon_pos + ImVec2(4, 4) + icon_size, IM_COL32(32, 32, 48, 255), 8, ImDrawFlags_RoundCornersAll);
+    draw_list->AddRectFilled(icon_pos + ImVec2(2, 2), icon_pos + ImVec2(2, 2) + icon_size, IM_COL32(0, 0, 0, 255), 8, ImDrawFlags_RoundCornersAll);
+    ImGui::SetCursorScreenPos(icon_pos);
+    ImGui::SetWindowFontScale(2.0);
+    if (ImGui::Button(ICON_IGFD_ADD "##AddMedia", icon_size))
+    {
+        ret = true;
+        ImGuiFileDialog::Instance()->OpenDialog("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Choose Media File", 
+                                                    ffilters.c_str(),
+                                                    ".",
+                                                    1, 
+                                                    IGFDUserDatas("Media Source"), 
+                                                    ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_DisableCreateDirectoryButton | ImGuiFileDialogFlags_Modal);
+    }
+    ImGui::SetWindowFontScale(1.0);
+    ImGui::ShowTooltipOnHover("Add new media into bank");
+    ImGui::SetCursorScreenPos(icon_pos);
+    ImGui::PopStyleColor(3);
+    return ret;
+}
+
 static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem *>::iterator item, ImDrawList *draw_list, ImVec2 icon_pos, float media_icon_size)
 {
     ImTextureID texture = nullptr;
@@ -1801,35 +1849,41 @@ static void ShowMediaBankWindow(ImDrawList *draw_list, float media_icon_size)
     if (timeline->media_items.empty())
     {
         ImGui::SetWindowFontScale(2.0);
-        ImGui::Indent(20);
+        //ImGui::Indent(20);
         ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
         ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
         ImU32 text_color = IM_COL32(ui_breathing * 255, ui_breathing * 255, ui_breathing * 255, 255);
-        draw_list->AddText(window_pos + ImVec2(8,  80), IM_COL32(56, 56, 56, 128), "Please Click");
-        draw_list->AddText(window_pos + ImVec2(8, 112), text_color, "<-- Here");
-        draw_list->AddText(window_pos + ImVec2(8, 144), IM_COL32(56, 56, 56, 128), "To Add Media");
+        draw_list->AddText(window_pos + ImVec2(128,  48), IM_COL32(56, 56, 56, 128), "Please Click");
+        draw_list->AddText(window_pos + ImVec2(128,  80), text_color, "<-- Here");
+        draw_list->AddText(window_pos + ImVec2(128, 112), IM_COL32(56, 56, 56, 128), "To Add Media");
+        draw_list->AddText(window_pos + ImVec2( 10, 144), IM_COL32(56, 56, 56, 128), "Or Drag Files From Brower");
         ImGui::PopStyleColor();
         ImGui::PopStyleVar();
         ImGui::SetWindowFontScale(1.0);
-        //return;
     }
     // Show Media Icons
     ImGui::SetCursorPos({20, 20});
     int icon_number_pre_row = window_size.x / (media_icon_size + 24);
+    // insert empty icon for add media
+    auto icon_pos = ImGui::GetCursorScreenPos() + ImVec2(0, 24);
+    InsertMediaAddIcon(draw_list, icon_pos, media_icon_size);
+    bool media_add_icon = true;
     for (auto item = timeline->media_items.begin(); item != timeline->media_items.end();)
     {
-        auto icon_pos = ImGui::GetCursorScreenPos() + ImVec2(0, 24);
-        for (int i = 0; i < icon_number_pre_row; i++)
+        if (!media_add_icon) icon_pos = ImGui::GetCursorScreenPos() + ImVec2(0, 24);
+        for (int i = media_add_icon ? 1 : 0; i < icon_number_pre_row; i++)
         {
             auto row_icon_pos = icon_pos + ImVec2(i * (media_icon_size + 24), 0);
             item = InsertMediaIcon(item, draw_list, row_icon_pos, media_icon_size);
             if (item == timeline->media_items.end())
                 break;
         }
+        media_add_icon = false;
         if (item == timeline->media_items.end())
             break;
         ImGui::SetCursorScreenPos(icon_pos + ImVec2(0, media_icon_size));
     }
+
     ImGui::Dummy(ImVec2(0, 24));
 
     // Handle drag drop from system
@@ -9162,25 +9216,6 @@ bool Application_Frame(void * handle, bool app_will_quit)
     if (!g_media_editor_settings.UILanguage.empty() && g.LanguageName != g_media_editor_settings.UILanguage)
         g.LanguageName = g_media_editor_settings.UILanguage;
     const ImGuiFileDialogFlags fflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_DisableCreateDirectoryButton | ImGuiFileDialogFlags_Modal;
-    const std::string video_file_dis = "*.mp4 *.mov *.mkv *.mxf *.avi *.webm *.ts";
-    const std::string video_file_suffix = ".mp4,.mov,.mkv,.mxf,.avi,.webm,.ts";
-    const std::string audio_file_dis = "*.wav *.mp3 *.aac *.ogg *.ac3 *.dts";
-    const std::string audio_file_suffix = ".wav,.mp3,.aac,.ogg,.ac3,.dts";
-    const std::string image_file_dis = "*.png *.gif *.jpg *.jpeg *.tiff *.webp";
-    const std::string image_file_suffix = ".png,.gif,.jpg,.jpeg,.tiff,.webp";
-    const std::string text_file_dis = "*.txt *.srt *.ass *.stl *.lrc *.xml";
-    const std::string text_file_suffix = ".txt,.srt,.ass,.stl,.lrc,.xml";
-    const std::string video_filter = "Video files (" + video_file_dis + "){" + video_file_suffix + "}";
-    const std::string audio_filter = "Audio files (" + audio_file_dis + "){" + audio_file_suffix + "}";
-    const std::string image_filter = "Image files (" + image_file_dis + "){" + image_file_suffix + "}";
-    const std::string text_filter = "SubTitle files (" + text_file_dis + "){" + text_file_suffix + "}";
-    const std::string ffilters = "All Support Files (" + video_file_dis + " " + audio_file_dis + " " + image_file_dis + " " + text_file_dis + ")" + "{" +
-                                                        video_file_suffix + "," + audio_file_suffix + "," + image_file_suffix + "," + text_file_suffix + "}" + "," +
-                                                        video_filter + "," +
-                                                        audio_filter + "," +
-                                                        image_filter + "," +
-                                                        text_filter + "," +
-                                                        ".*";
     const ImGuiFileDialogFlags pflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_ConfirmOverwrite | ImGuiFileDialogFlags_Modal;
     const std::string pfilters = "Project files (*.mep){.mep},.*";
     ImGuiIO& io = ImGui::GetIO(); (void)io;
@@ -9380,18 +9415,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
                                                     pflags);
         }
         ImGui::ShowTooltipOnHover("Save Project As...");
-        if (ImGui::Button(ICON_IGFD_ADD "##AddMedia", ImVec2(tool_icon_size, tool_icon_size)))
-        {
-            // Open Media Source
-            show_file_dialog = true;
-            ImGuiFileDialog::Instance()->OpenDialog("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Choose Media File", 
-                                                    ffilters.c_str(),
-                                                    ".",
-                                                    1, 
-                                                    IGFDUserDatas("Media Source"), 
-                                                    fflags);
-        }
-        ImGui::ShowTooltipOnHover("Add new media into bank");
+
         if (ImGui::Button(ICON_FA_WHMCS "##Configure", ImVec2(tool_icon_size, tool_icon_size)))
         {
             // Show Setting
