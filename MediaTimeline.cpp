@@ -432,12 +432,12 @@ int64_t Clip::Cropping(int64_t diff, int type)
         timeline->mVidFilterClip->mEnd = mEnd;
         if (timeline->mVidFilterClip->mFilter)
         {
-            timeline->mVidFilterClip->mFilter->mKeyPoints.SetRangeX(mStart, mEnd, true);
+            timeline->mVidFilterClip->mFilter->mKeyPoints.SetRangeX(0, mEnd - mStart, true);
             mFilterKeyPoints = timeline->mVidFilterClip->mFilter->mKeyPoints;
         }
         if (timeline->mVidFilterClip->mAttribute)
         {
-            timeline->mVidFilterClip->mAttribute->GetKeyPoint()->SetRangeX(mStart, mEnd, true);
+            timeline->mVidFilterClip->mAttribute->GetKeyPoint()->SetRangeX(0, mEnd - mStart, true);
             mAttributeKeyPoints = *timeline->mVidFilterClip->mAttribute->GetKeyPoint();
         }
     }
@@ -447,14 +447,14 @@ int64_t Clip::Cropping(int64_t diff, int type)
         timeline->mAudFilterClip->mEnd = mEnd;
         if (timeline->mAudFilterClip->mFilter)
         {
-            timeline->mAudFilterClip->mFilter->mKeyPoints.SetRangeX(mStart, mEnd, true);
+            timeline->mAudFilterClip->mFilter->mKeyPoints.SetRangeX(0, mEnd - mStart, true);
             mFilterKeyPoints = timeline->mAudFilterClip->mFilter->mKeyPoints;
         }
     }
     else
     {
-        mFilterKeyPoints.SetRangeX(mStart, mEnd, true);
-        mAttributeKeyPoints.SetRangeX(mStart, mEnd, true);
+        mFilterKeyPoints.SetRangeX(0, mEnd - mStart, true);
+        mAttributeKeyPoints.SetRangeX(0, mEnd - mStart, true);
     }
     track->Update();
     timeline->UpdateRange();
@@ -523,8 +523,8 @@ void Clip::Cutting(int64_t pos)
         new_clip->mEnd = mEnd;
         new_clip->mEndOffset = mEndOffset;
         new_clip->mLength = new_clip->mEnd-new_clip->mStart;
-        new_clip->mFilterKeyPoints.SetRangeX(new_clip->mStart, new_clip->mEnd, true);
-        new_clip->mAttributeKeyPoints.SetRangeX(new_clip->mStart, new_clip->mEnd, true);
+        new_clip->mFilterKeyPoints.SetRangeX(0, new_clip->mEnd - new_clip->mStart, true);
+        new_clip->mAttributeKeyPoints.SetRangeX(0, new_clip->mEnd - new_clip->mStart, true);
         mEnd = adj_end;
         mEndOffset = adj_end_offset;
         timeline->m_Clips.push_back(new_clip);
@@ -536,12 +536,12 @@ void Clip::Cutting(int64_t pos)
             timeline->mVidFilterClip->mEnd = mEnd;
             if (timeline->mVidFilterClip->mFilter)
             {
-                timeline->mVidFilterClip->mFilter->mKeyPoints.SetRangeX(mStart, mEnd, true);
+                timeline->mVidFilterClip->mFilter->mKeyPoints.SetRangeX(0, mEnd - mStart, true);
                 mFilterKeyPoints = timeline->mVidFilterClip->mFilter->mKeyPoints;
             }
             if (timeline->mVidFilterClip->mAttribute)
             {
-                timeline->mVidFilterClip->mAttribute->GetKeyPoint()->SetRangeX(mStart, mEnd, true);
+                timeline->mVidFilterClip->mAttribute->GetKeyPoint()->SetRangeX(0, mEnd - mStart, true);
                 mAttributeKeyPoints = *timeline->mVidFilterClip->mAttribute->GetKeyPoint();
             }
         }
@@ -551,14 +551,14 @@ void Clip::Cutting(int64_t pos)
             timeline->mAudFilterClip->mEnd = mEnd;
             if (timeline->mAudFilterClip->mFilter)
             {
-                timeline->mAudFilterClip->mFilter->mKeyPoints.SetRangeX(mStart, mEnd, true);
+                timeline->mAudFilterClip->mFilter->mKeyPoints.SetRangeX(0, mEnd - mStart, true);
                 mFilterKeyPoints = timeline->mAudFilterClip->mFilter->mKeyPoints;
             }
         }
         else
         {
-            mFilterKeyPoints.SetRangeX(mStart, mEnd, true);
-            mAttributeKeyPoints.SetRangeX(mStart, mEnd, true);
+            mFilterKeyPoints.SetRangeX(0, mEnd - mStart, true);
+            mAttributeKeyPoints.SetRangeX(0, mEnd - mStart, true);
         }
 
         // need check overlap status and update overlap info on data layer(UI info will update on track update)
@@ -889,31 +889,11 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
         {
             timeline->mVidFilterClip->mStart = clip->mStart;
             timeline->mVidFilterClip->mEnd = clip->mEnd;
-            if (timeline->mVidFilterClip->mFilter)
-            {
-                timeline->mVidFilterClip->mFilter->mKeyPoints.MoveTo(clip->mStart);
-                clip->mFilterKeyPoints = timeline->mVidFilterClip->mFilter->mKeyPoints;
-            }
-            if (timeline->mVidFilterClip->mAttribute)
-            {
-                timeline->mVidFilterClip->mAttribute->GetKeyPoint()->MoveTo(clip->mStart);
-                clip->mAttributeKeyPoints = *timeline->mVidFilterClip->mAttribute->GetKeyPoint();
-            }
         }
         if (timeline->mAudFilterClip && timeline->mAudFilterClip->mID == clip->mID)
         {
             timeline->mAudFilterClip->mStart = clip->mStart;
             timeline->mAudFilterClip->mEnd = clip->mEnd;
-            if (timeline->mAudFilterClip->mFilter)
-            {
-                timeline->mAudFilterClip->mFilter->mKeyPoints.MoveTo(clip->mStart);
-                clip->mFilterKeyPoints = timeline->mAudFilterClip->mFilter->mKeyPoints;
-            }
-        }
-        else
-        {
-            clip->mFilterKeyPoints.MoveTo(clip->mStart);
-            clip->mAttributeKeyPoints.MoveTo(clip->mStart);
         }
     };
 
@@ -3435,7 +3415,7 @@ void MediaTrack::Update()
     }
     // update curve range
     if (mMttReader)
-        mMttReader->GetKeyPoints()->SetRangeX(timeline->mStart, timeline->mEnd, true);
+        mMttReader->GetKeyPoints()->SetRangeX(0, timeline->mEnd - timeline->mStart, true);
 }
 
 void MediaTrack::CreateOverlap(int64_t start, int64_t start_clip_id, int64_t end, int64_t end_clip_id, uint32_t type)
@@ -3549,8 +3529,8 @@ void MediaTrack::InsertClip(Clip * clip, int64_t pos, bool update)
         clip->ConfigViewWindow(mViewWndDur, mPixPerMs);
         clip->SetTrackHeight(mTrackHeight);
         // Set keypoint
-        clip->mFilterKeyPoints.SetRangeX(clip->mStart, clip->mEnd, true);
-        clip->mAttributeKeyPoints.SetRangeX(clip->mStart, clip->mEnd, true);
+        clip->mFilterKeyPoints.SetRangeX(0, clip->mEnd - clip->mStart, true);
+        clip->mAttributeKeyPoints.SetRangeX(0, clip->mEnd - clip->mStart, true);
         m_Clips.push_back(clip);
     }
     if (update) Update();
@@ -5105,9 +5085,10 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &view_r
                 for (int p = 0; p < keypoint_filter->GetCurvePointCount(i); p++)
                 {
                     auto point = keypoint_filter->GetPoint(i, p);
-                    if (point.point.x >= firstTime && point.point.x <= viewEndTime)
+                    auto pos = point.point.x + clip->mStart;
+                    if (pos >= firstTime && pos <= viewEndTime)
                     {
-                        ImVec2 center = ImVec2(clippingRect.Min.x + (point.point.x - firstTime) * msPixelWidthTarget, clip_title_pos_min.y + (clip_title_pos_max.y - clip_title_pos_min.y) / 2);
+                        ImVec2 center = ImVec2(clippingRect.Min.x + (pos - firstTime) * msPixelWidthTarget, clip_title_pos_min.y + (clip_title_pos_max.y - clip_title_pos_min.y) / 2);
                         draw_list->AddCircle(center, 3, curve_color, 0, 2);
                     }
                 }
@@ -5125,9 +5106,10 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &view_r
                 for (int p = 0; p < keypoint_attribute->GetCurvePointCount(i); p++)
                 {
                     auto point = keypoint_attribute->GetPoint(i, p);
-                    if (point.point.x >= firstTime && point.point.x <= viewEndTime)
+                    auto pos = point.point.x + clip->mStart;
+                    if (pos >= firstTime && pos <= viewEndTime)
                     {
-                        ImVec2 center = ImVec2(clippingRect.Min.x + (point.point.x - firstTime) * msPixelWidthTarget, clip_title_pos_min.y + (clip_title_pos_max.y - clip_title_pos_min.y) / 2);
+                        ImVec2 center = ImVec2(clippingRect.Min.x + (pos - firstTime) * msPixelWidthTarget, clip_title_pos_min.y + (clip_title_pos_max.y - clip_title_pos_min.y) / 2);
                         draw_list->AddRect(center - ImVec2(3, 3), center + ImVec2(3, 3), curve_color, 0, 2);
                     }
                 }
@@ -8492,6 +8474,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         draw_list->AddText(tips_pos, IM_COL32(255, 255, 255, 128), tips_string.c_str());
         ImGui::PopStyleColor();
         ImGui::PopStyleVar();
+        ImGui::SetWindowFontScale(1);
         return ret;
     }
     ImGuiIO &io = ImGui::GetIO();
@@ -8523,6 +8506,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         return ret;
 
     float minPixelWidthTarget = (float)(timline_size.x) / (float)duration; //ImMin(0.1f, (float)(timline_size.x) / (float)duration);
+    //float minPixelWidthTarget = ImMin(0.1f, (float)(timline_size.x) / (float)duration);
     float maxPixelWidthTarget = 20.f;
     int view_frames = 16;
     if (IS_VIDEO(editingClip->mType))
@@ -8894,7 +8878,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                 ImVec2 sub_window_size = ImGui::GetWindowSize();
                 draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_ONE);
                 bool _changed = false;
-                float current_time = currentTime + start;
+                float current_time = currentTime;// + start;
                 key_point->SetCurveAlign(ImVec2(frame_duration, -1.0));
                 mouse_hold |= ImGui::ImCurveEdit::Edit( nullptr,
                                                         key_point,

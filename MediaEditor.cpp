@@ -3684,8 +3684,8 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
                 {
                     ImU32 color; ImGui::RandomColor(color, 1.f);
                     auto curve_index = attribute_keypoint->AddCurve(name, ImGui::ImCurveEdit::Smooth, color, true, _min, _max, _default);
-                    attribute_keypoint->AddPoint(curve_index, ImVec2(editing_clip->mStart, _min), ImGui::ImCurveEdit::Smooth);
-                    attribute_keypoint->AddPoint(curve_index, ImVec2(editing_clip->mEnd, _max), ImGui::ImCurveEdit::Smooth);
+                    attribute_keypoint->AddPoint(curve_index, ImVec2(0, _min), ImGui::ImCurveEdit::Smooth);
+                    attribute_keypoint->AddPoint(curve_index, ImVec2(editing_clip->mEnd - editing_clip->mStart, _max), ImGui::ImCurveEdit::Smooth);
                     attribute_keypoint->SetCurvePointDefault(curve_index, 0);
                     attribute_keypoint->SetCurvePointDefault(curve_index, 1);
                 }
@@ -4264,8 +4264,8 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                 {
                     ImU32 color; ImGui::RandomColor(color, 1.f);
                     auto curve_index = filter->mKeyPoints.AddCurve(name, ImGui::ImCurveEdit::Smooth, color, true, _min, _max, _default);
-                    filter->mKeyPoints.AddPoint(curve_index, ImVec2(editing_clip->mStart, _min), ImGui::ImCurveEdit::Smooth);
-                    filter->mKeyPoints.AddPoint(curve_index, ImVec2(editing_clip->mEnd, _max), ImGui::ImCurveEdit::Smooth);
+                    filter->mKeyPoints.AddPoint(curve_index, ImVec2(/*editing_clip->mStart*/ 0, _min), ImGui::ImCurveEdit::Smooth);
+                    filter->mKeyPoints.AddPoint(curve_index, ImVec2(editing_clip->mEnd - editing_clip->mStart, _max), ImGui::ImCurveEdit::Smooth);
                     filter->mKeyPoints.SetCurvePointDefault(curve_index, 0);
                     filter->mKeyPoints.SetCurvePointDefault(curve_index, 1);
                     if (blueprint)

@@ -225,8 +225,9 @@ namespace MediaTimeline
 
 #define IS_VIDEO(t) (t & MEDIA_VIDEO)
 #define IS_AUDIO(t) (t & MEDIA_AUDIO)
-#define IS_IMAGE(t) (t & MEDIA_SUBTYPE_VIDEO_IMAGE)
+#define IS_IMAGE(t) ((t & MEDIA_SUBTYPE_VIDEO_IMAGE) == MEDIA_SUBTYPE_VIDEO_IMAGE)
 #define IS_TEXT(t)  (t & MEDIA_TEXT)
+#define IS_SUBTITLE ((t & MEDIA_SUBTYPE_TEXT_SUBTITLE) == MEDIA_SUBTYPE_TEXT_SUBTITLE)
 #define IS_SAME_TYPE(t1, t2) (t1 & t2)
 
 enum AudioVectorScopeMode  : int
