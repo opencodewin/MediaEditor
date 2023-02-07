@@ -5527,7 +5527,6 @@ int TimeLine::Load(const imgui_json::value& value)
     UpdatePreview();
     mMtaReader->SeekTo(currentTime);
     mMtaReader->Refresh();
-    Logger::Log(Logger::VERBOSE) << *mMtvReader << std::endl;
     return 0;
 }
 
@@ -5836,7 +5835,7 @@ void TimeLine::PerformImageAction(imgui_json::value& action)
         Clip* clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
         MediaCore::VideoClipHolder imgClip = MediaCore::VideoClip::CreateImageInstance(
             clip->mID, clip->mMediaParser,
-            vidTrack->OutWidth(), vidTrack->OutHeight(), clip->mStart, clip->mEnd);
+            vidTrack->OutWidth(), vidTrack->OutHeight(), clip->mStart, clip->mLength);
         vidTrack->InsertClip(imgClip);
         UpdatePreview();
     }
@@ -5997,6 +5996,7 @@ void TimeLine::SyncDataLayer()
         if (IS_AUDIO(ovlp->mType))
             OvlpCnt ++;
     }
+    Logger::Log(Logger::VERBOSE) << *mMtvReader << std::endl;
     if (syncedOverlapCount != OvlpCnt)
         Logger::Log(Logger::Error) << "Overlap SYNC FAILED! Synced count is " << syncedOverlapCount
             << ", while the count of video overlap array is " << OvlpCnt << "." << std::endl;
