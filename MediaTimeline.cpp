@@ -8091,6 +8091,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                         int newTrackIndex = timeline->NewTrack("", MEDIA_VIDEO, true);
                         MediaTrack * newTrack = timeline->m_Tracks[newTrackIndex];
                         newTrack->InsertClip(new_image_clip, mouseTime);
+                        timeline->Update();
                         action["to_track_id"] = imgui_json::number(newTrack->mID);
                     }
                     action["group_id"] = imgui_json::number(new_image_clip->mGroupID);
