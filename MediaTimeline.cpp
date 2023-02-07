@@ -8113,6 +8113,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                         int newTrackIndex = timeline->NewTrack("", MEDIA_AUDIO, true);
                         MediaTrack * newTrack = timeline->m_Tracks[newTrackIndex];
                         newTrack->InsertClip(new_audio_clip, mouseTime);
+                        timeline->Update();
                         action["to_track_id"] = imgui_json::number(newTrack->mID);
                     }
                     action["group_id"] = imgui_json::number(new_audio_clip->mGroupID);
@@ -8179,6 +8180,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                             int newTrackIndex = timeline->NewTrack("", MEDIA_VIDEO, true);
                             videoTrack = timeline->m_Tracks[newTrackIndex];
                             videoTrack->InsertClip(new_video_clip, mouseTime);
+                            timeline->Update();
                             create_new_track = true;
                             action["to_track_id"] = imgui_json::number(videoTrack->mID);
                         }
@@ -8257,6 +8259,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                             int newTrackIndex = timeline->NewTrack("", MEDIA_AUDIO, true);
                             MediaTrack * audioTrack = timeline->m_Tracks[newTrackIndex];
                             audioTrack->InsertClip(new_audio_clip, mouseTime);
+                            timeline->Update();
                             action2["to_track_id"] = imgui_json::number(audioTrack->mID);
                             if (videoTrack)
                             {
