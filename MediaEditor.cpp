@@ -9081,6 +9081,10 @@ void Application_SetupContext(ImGuiContext* ctx)
             CleanProject();
             g_loading_thread = new std::thread(LoadThread, g_media_editor_settings.project_path);
         }
+        else
+        {
+            NewTimeline();
+        }
 #if IMGUI_VULKAN_SHADER
         if (m_cie) 
             m_cie->SetParam(g_media_editor_settings.CIEColorSystem, 
@@ -9122,7 +9126,6 @@ void Application_Initialize(void** handle)
 {
     ImPlot::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
-    auto application_setting_path = ImGuiHelper::settings_path(APP_NAME);
     ImFontAtlas* atlas = io.Fonts;
     ImFont* font = atlas->Fonts[0];
     io.FontDefault = font;
@@ -9166,8 +9169,8 @@ void Application_Initialize(void** handle)
     m_cie = new ImGui::CIE_vulkan(gpu);
     m_vector = new ImGui::Vector_vulkan(gpu);
 #endif
-
-    NewTimeline();
+    if (!ImGuiHelper::file_exists(io.IniFilename))
+        NewTimeline();
 }
 
 void Application_Finalize(void** handle)
@@ -9212,6 +9215,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
     static bool show_file_dialog = false;
     auto platform_io = ImGui::GetPlatformIO();
     bool is_splitter_hold = false;
+    if (!timeline) return app_will_quit;
     ImGuiContext& g = *GImGui;
     if (!g_media_editor_settings.UILanguage.empty() && g.LanguageName != g_media_editor_settings.UILanguage)
         g.LanguageName = g_media_editor_settings.UILanguage;
