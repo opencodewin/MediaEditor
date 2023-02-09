@@ -1838,7 +1838,7 @@ static void ShowMediaBankWindow(ImDrawList *draw_list, float media_icon_size)
     ImGui::Indent(20);
     ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
     ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
-    draw_list->AddText(window_pos + ImVec2(8, 0), IM_COL32(56, 56, 56, 128), "Media Bank");
+    draw_list->AddText(window_pos + ImVec2(8, 0), COL_GRAY_TEXT, "Media Bank");
     ImGui::PopStyleColor();
     ImGui::PopStyleVar();
     ImGui::SetWindowFontScale(1.0);
@@ -1853,10 +1853,10 @@ static void ShowMediaBankWindow(ImDrawList *draw_list, float media_icon_size)
         ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
         ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
         ImU32 text_color = IM_COL32(ui_breathing * 255, ui_breathing * 255, ui_breathing * 255, 255);
-        draw_list->AddText(window_pos + ImVec2(128,  48), IM_COL32(56, 56, 56, 128), "Please Click");
+        draw_list->AddText(window_pos + ImVec2(128,  48), COL_GRAY_TEXT, "Please Click");
         draw_list->AddText(window_pos + ImVec2(128,  80), text_color, "<-- Here");
-        draw_list->AddText(window_pos + ImVec2(128, 112), IM_COL32(56, 56, 56, 128), "To Add Media");
-        draw_list->AddText(window_pos + ImVec2( 10, 144), IM_COL32(56, 56, 56, 128), "Or Drag Files From Brower");
+        draw_list->AddText(window_pos + ImVec2(128, 112), COL_GRAY_TEXT, "To Add Media");
+        draw_list->AddText(window_pos + ImVec2( 10, 144), COL_GRAY_TEXT, "Or Drag Files From Brower");
         ImGui::PopStyleColor();
         ImGui::PopStyleVar();
         ImGui::SetWindowFontScale(1.0);
@@ -1947,8 +1947,7 @@ static void ShowFusionBankIconWindow(ImDrawList *draw_list)
     ImGui::Indent(20);
     ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
     ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
-    draw_list->AddText(window_pos + ImVec2(8, 0), IM_COL32(56, 56, 56, 128), "Fusion Bank");
-    //draw_list->AddText(window_pos + ImVec2(8, 48), IM_COL32(56, 56, 56, 128), "Bank");
+    draw_list->AddText(window_pos + ImVec2(8, 0), COL_GRAY_TEXT, "Fusion Bank");
     ImGui::PopStyleColor();
     ImGui::PopStyleVar();
     ImGui::SetWindowFontScale(1.0);
@@ -2019,8 +2018,7 @@ static void ShowFusionBankTreeWindow(ImDrawList *draw_list)
     ImGui::SetWindowFontScale(2.5);
     ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
     ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
-    draw_list->AddText(window_pos + ImVec2(8, 0), IM_COL32(56, 56, 56, 128), "Fusion Bank");
-    //draw_list->AddText(window_pos + ImVec2(8, 48), IM_COL32(56, 56, 56, 128), "Bank");
+    draw_list->AddText(window_pos + ImVec2(8, 0), COL_GRAY_TEXT, "Fusion Bank");
     ImGui::PopStyleColor();
     ImGui::PopStyleVar();
     ImGui::SetWindowFontScale(1.0);
@@ -2195,7 +2193,7 @@ static void ShowFilterBankIconWindow(ImDrawList *draw_list)
     ImGui::Indent(20);
     ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
     ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
-    draw_list->AddText(window_pos + ImVec2(8, 0), IM_COL32(56, 56, 56, 128), "Filters Bank");
+    draw_list->AddText(window_pos + ImVec2(8, 0), COL_GRAY_TEXT, "Filters Bank");
     ImGui::PopStyleColor();
     ImGui::PopStyleVar();
     ImGui::SetWindowFontScale(1.0);
@@ -2265,7 +2263,7 @@ static void ShowFilterBankTreeWindow(ImDrawList *draw_list)
     ImGui::SetWindowFontScale(2.5);
     ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
     ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
-    draw_list->AddText(window_pos + ImVec2(8, 0), IM_COL32(56, 56, 56, 128), "Filters Bank");
+    draw_list->AddText(window_pos + ImVec2(8, 0), COL_GRAY_TEXT, "Filters Bank");
     ImGui::PopStyleColor();
     ImGui::PopStyleVar();
     ImGui::SetWindowFontScale(1.0);
@@ -2442,7 +2440,7 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
     ImGui::SetWindowFontScale(2.5);
     ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
     ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
-    draw_list->AddText(window_pos + ImVec2(8, 0), IM_COL32(56, 56, 56, 128), "Media Output");
+    draw_list->AddText(window_pos + ImVec2(8, 0), COL_GRAY_TEXT, "Media Output");
     static int encoder_stage = 0; // 0:unknown 1:encoding 2:finished
     static double encoder_start = -1, encoder_end = -1, encode_duration = -1;
     ImGui::PopStyleColor();
@@ -9081,6 +9079,10 @@ void Application_SetupContext(ImGuiContext* ctx)
             CleanProject();
             g_loading_thread = new std::thread(LoadThread, g_media_editor_settings.project_path);
         }
+        else
+        {
+            NewTimeline();
+        }
 #if IMGUI_VULKAN_SHADER
         if (m_cie) 
             m_cie->SetParam(g_media_editor_settings.CIEColorSystem, 
@@ -9122,7 +9124,6 @@ void Application_Initialize(void** handle)
 {
     ImPlot::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
-    auto application_setting_path = ImGuiHelper::settings_path(APP_NAME);
     ImFontAtlas* atlas = io.Fonts;
     ImFont* font = atlas->Fonts[0];
     io.FontDefault = font;
@@ -9166,8 +9167,8 @@ void Application_Initialize(void** handle)
     m_cie = new ImGui::CIE_vulkan(gpu);
     m_vector = new ImGui::Vector_vulkan(gpu);
 #endif
-
-    NewTimeline();
+    if (!ImGuiHelper::file_exists(io.IniFilename))
+        NewTimeline();
 }
 
 void Application_Finalize(void** handle)
@@ -9212,6 +9213,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
     static bool show_file_dialog = false;
     auto platform_io = ImGui::GetPlatformIO();
     bool is_splitter_hold = false;
+    if (!timeline) return app_will_quit;
     ImGuiContext& g = *GImGui;
     if (!g_media_editor_settings.UILanguage.empty() && g.LanguageName != g_media_editor_settings.UILanguage)
         g.LanguageName = g_media_editor_settings.UILanguage;
