@@ -4365,6 +4365,7 @@ int64_t TimeLine::DeleteTrack(int index)
         {
             mStart = mEnd = 0;
             currentTime = firstTime = lastTime = visibleTime = 0;
+            mark_in = mark_out = -1;
         }
         UpdatePreview();
     }
@@ -4728,7 +4729,34 @@ int64_t TimeLine::ValidDuration()
 {
     int64_t vdur = mMtvReader->Duration();
     int64_t adur = mMtaReader->Duration();
-    return vdur > adur ? vdur : adur;
+    int64_t media_range = vdur > adur ? vdur : adur;
+    if (!mEncodingInRange)
+    {
+        mEncoding_start = 0;
+        mEncoding_end = media_range;
+        return media_range;
+    }
+    else if (mark_out == -1 || mark_in == -1 || mark_out <= mark_in)
+    {
+        mEncoding_start = 0;
+        mEncoding_end = media_range;
+        return media_range;
+    }
+    else
+    {
+        auto _mark_in = mark_in;
+        auto _mark_out = mark_out;
+        if (mark_out > media_range) _mark_out = media_range;
+        if (_mark_out <= _mark_in)
+        {
+            mEncoding_start = 0;
+            mEncoding_end = 0;
+            return 0;
+        }
+        mEncoding_start = _mark_in;
+        mEncoding_end = _mark_out;
+        return _mark_out - _mark_in;
+    }
 }
 
 MediaItem* TimeLine::FindMediaItemByName(std::string name)
@@ -6322,19 +6350,22 @@ void TimeLine::_EncodeProc()
     ImGui::ImMat vmat, amat;
     uint32_t pcmbufSize = 8192;
     uint8_t* pcmbuf = new uint8_t[pcmbufSize];
-    double viddur = (double)mEncMtvReader->Duration()/1000;
-    double dur = (double)ValidDuration()/1000;
+    double viddur = (double)mEncMtvReader->Duration() / 1000;
+    double dur = (double)ValidDuration() / 1000;
     double encpos = 0;
+    double enc_start = (double)mEncoding_start / 1000;
+    double enc_end = (double)mEncoding_end / 1000;
+    if (mEncMtaReader) mEncMtaReader->SeekTo(mEncoding_start);
     while (!mQuitEncoding && (!vidInputEof || !audInputEof))
     {
         bool idleLoop = true;
         if ((!vidInputEof && vidpos <= audpos) || audInputEof)
         {
-            vidpos = (double)vidFrameCount*outFrameRate.den/outFrameRate.num;
-            bool eof = vidpos >= viddur;
+            vidpos = (double)vidFrameCount * outFrameRate.den / outFrameRate.num + enc_start;
+            bool eof = vidpos >= enc_end; //viddur;
             if (!eof)
             {
-                if (!mEncMtvReader->ReadVideoFrame((int64_t)(vidpos*1000), vmat))
+                if (!mEncMtvReader->ReadVideoFrame((int64_t)(vidpos * 1000), vmat))
                 {
                     std::ostringstream oss;
                     oss << "[video] '" << mEncMtvReader->GetError() << "'.";
@@ -6344,7 +6375,7 @@ void TimeLine::_EncodeProc()
                 if (!vmat.empty())
                 {
                     vidFrameCount++;
-                    vmat.time_stamp = vidpos;
+                    vmat.time_stamp = vidpos - enc_start;
                     {
                         std::lock_guard<std::mutex> lk(mEncodingMutex);
                         mEncodingVFrame = vmat;
@@ -6359,7 +6390,7 @@ void TimeLine::_EncodeProc()
                     if (vidpos > encpos)
                     {
                         encpos = vidpos;
-                        mEncodingProgress = encpos/dur;
+                        mEncodingProgress = (encpos - enc_start) / dur;
                     }
                 }
             }
@@ -6387,9 +6418,11 @@ void TimeLine::_EncodeProc()
                 mEncodeProcErrMsg = oss.str();
                 break;
             }
+            if (audpos > enc_end) eof = true;
             if (!eof && !amat.empty())
             {
                 audpos = amat.time_stamp;
+                amat.time_stamp -= enc_start;
                 if (!mEncoder->EncodeAudioSamples(amat))
                 {
                     std::ostringstream oss;
@@ -6397,13 +6430,13 @@ void TimeLine::_EncodeProc()
                     mEncodeProcErrMsg = oss.str();
                     break;
                 }
-                if (amat.time_stamp > encpos)
+                if (audpos > encpos)
                 {
-                    encpos = amat.time_stamp;
-                    mEncodingProgress = encpos/dur;
+                    encpos = audpos;
+                    mEncodingProgress = (encpos - enc_start) / dur;
                 }
             }
-            else if (eof)
+            else
             {
                 amat.release();
                 {
@@ -7335,11 +7368,19 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 if (timeline->mark_in < 0) timeline->mark_in = 0;
                 if (timeline->mark_in >= timeline->mark_out) timeline->mark_out = -1;
             }
-            else
+            else if (markMovingEntry == 1)
             {
                 timeline->mark_out = mouse_time;
                 if (timeline->mark_out < 0) timeline->mark_out = 0;
                 if (timeline->mark_out <= timeline->mark_in) timeline->mark_in = -1;
+            }
+            else
+            {
+                int64_t diffTime = int64_t(io.MouseDelta.x / timeline->msPixelWidthTarget);
+                if (timeline->mark_in + diffTime < timeline->mStart) diffTime = timeline->mark_in - timeline->mStart;
+                if (timeline->mark_out + diffTime > timeline->mEnd) diffTime = timeline->mEnd - timeline->mark_out;
+                timeline->mark_in += diffTime;
+                timeline->mark_out += diffTime;
             }
             ImGui::BeginTooltip();
             ImGui::Text(" In:%s", ImGuiHelper::MillisecToString(timeline->mark_in, 2).c_str());
@@ -7347,7 +7388,6 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             ImGui::Text("Dur:%s", ImGuiHelper::MillisecToString(timeline->mark_out - timeline->mark_in, 2).c_str());
             ImGui::EndTooltip();
         }
-        // TODO::Dicky move mark range?
 
         if (trackAreaRect.Contains(io.MousePos) && editable && !menuIsOpened && !bCropping && !bCutting && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
             timeline->Click(mouseEntry, mouseTime);
@@ -7813,7 +7853,98 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         }
         ImGui::SetCursorScreenPos(topRect.Min);
         ImGui::BeginChildFrame(ImGui::GetCurrentWindow()->GetID("#timeline metric"), topRect.GetSize(), ImGuiWindowFlags_NoScrollbar);
-        if (movable && !MovingCurrentTime && !MovingHorizonScrollBar && clipMovingEntry == -1 && timeline->currentTime >= 0 && topRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left))
+
+        // draw mark range for timeline header bar and draw shadow out of mark range 
+        ImGui::PushClipRect(HeaderAreaRect.Min, HeaderAreaRect.Min + ImVec2(trackAreaRect.GetWidth() + 8, contentMin.y + timline_size.y - scrollSize), false);
+        ImRect mark_rect = HeaderAreaRect;
+        bool mark_in_view = false;
+        if (timeline->mark_in >= timeline->firstTime && timeline->mark_in <= timeline->lastTime)
+        {
+            float mark_in_offset = (timeline->mark_in - timeline->firstTime) * timeline->msPixelWidthTarget;
+            if (timeline->mark_out >= timeline->lastTime)
+            {
+                draw_list->AddRectFilled(HeaderAreaRect.Min + ImVec2(mark_in_offset, 0), HeaderAreaRect.Max - ImVec2(0, HeadHeight - 8), COL_MARK_BAR, 0);
+            }
+            else if (timeline->mark_out > timeline->firstTime)
+            {
+                float mark_out_offset = (timeline->mark_out - timeline->firstTime) * timeline->msPixelWidthTarget;
+                draw_list->AddRectFilled(HeaderAreaRect.Min + ImVec2(mark_in_offset, 0), HeaderAreaRect.Min + ImVec2(mark_out_offset, 8), COL_MARK_BAR, 0);
+            }
+            
+            ImRect handle_rect(HeaderAreaRect.Min + ImVec2(mark_in_offset, 0), HeaderAreaRect.Min + ImVec2(mark_in_offset + 8, 8));
+            if (handle_rect.Contains(io.MousePos))
+            {
+                draw_list->AddCircleFilled(HeaderAreaRect.Min + ImVec2(mark_in_offset + 2, 4), 4, COL_MARK_DOT_LIGHT);
+                if (ImGui::IsMouseDown(ImGuiMouseButton_Left) && markMovingEntry == -1)
+                {
+                    markMovingEntry = 0;
+                }
+            }
+            else
+            {
+                draw_list->AddCircleFilled(HeaderAreaRect.Min + ImVec2(mark_in_offset + 2, 4), 4, COL_MARK_DOT);
+            }
+            // add left area shadow
+            draw_list->AddRectFilled(HeaderAreaRect.Min, HeaderAreaRect.Min + ImVec2(mark_in_offset, timline_size.y - scrollSize), IM_COL32(0,0,0,128));
+            mark_rect.Min = HeaderAreaRect.Min + ImVec2(mark_in_offset, 0);
+            mark_in_view = true;
+        }
+        if (timeline->mark_out >= timeline->firstTime && timeline->mark_out <= timeline->lastTime)
+        {
+            float mark_out_offset = (timeline->mark_out - timeline->firstTime) * timeline->msPixelWidthTarget;
+            if (timeline->mark_in != -1 && timeline->mark_in < timeline->firstTime)
+            {
+                draw_list->AddRectFilled(HeaderAreaRect.Min, HeaderAreaRect.Min + ImVec2(mark_out_offset, 8), COL_MARK_BAR, 0);
+            }
+            else if (timeline->mark_in != -1 && timeline->mark_in < timeline->lastTime)
+            {
+                float mark_in_offset = (timeline->mark_in - timeline->firstTime) * timeline->msPixelWidthTarget;
+                draw_list->AddRectFilled(HeaderAreaRect.Min + ImVec2(mark_in_offset, 0), HeaderAreaRect.Min + ImVec2(mark_out_offset, 8), COL_MARK_BAR, 0);
+            }
+            
+            ImRect handle_rect(HeaderAreaRect.Min + ImVec2(mark_out_offset - 4, 0), HeaderAreaRect.Min + ImVec2(mark_out_offset + 4, 8));
+            if (handle_rect.Contains(io.MousePos))
+            {
+                draw_list->AddCircleFilled(HeaderAreaRect.Min + ImVec2(mark_out_offset + 2, 4), 4, COL_MARK_DOT_LIGHT);
+                if (ImGui::IsMouseDown(ImGuiMouseButton_Left) && markMovingEntry == -1)
+                {
+                    markMovingEntry = 1;
+                }
+            }
+            else
+            {
+                draw_list->AddCircleFilled(HeaderAreaRect.Min + ImVec2(mark_out_offset + 2, 4), 4, COL_MARK_DOT);
+            }
+            // add right area shadow
+            draw_list->AddRectFilled(HeaderAreaRect.Min + ImVec2(mark_out_offset + 4, 0), HeaderAreaRect.Min + ImVec2(timline_size.x + 8, timline_size.y - scrollSize), IM_COL32(0,0,0,128));
+            mark_rect.Max = HeaderAreaRect.Min + ImVec2(mark_out_offset + 4, 8);
+            mark_in_view = true;
+        }
+        if (timeline->mark_in != -1 && timeline->mark_in < timeline->firstTime && timeline->mark_out >= timeline->lastTime)
+        {
+            draw_list->AddRectFilled(HeaderAreaRect.Min , HeaderAreaRect.Max - ImVec2(0, HeadHeight - 8), COL_MARK_BAR, 0);
+            mark_in_view = true;
+        }
+
+        if ((timeline->mark_in != -1 && timeline->mark_in >= timeline->lastTime) || (timeline->mark_out != -1 && timeline->mark_out <= timeline->firstTime))
+        {
+            // add shadow on whole timeline
+            draw_list->AddRectFilled(HeaderAreaRect.Min, HeaderAreaRect.Min + ImVec2(timline_size.x + 8, timline_size.y - scrollSize), IM_COL32(0,0,0,128));
+        }
+        if (timeline->mark_in == -1 || timeline->mark_out == -1)
+            mark_in_view = false;
+        
+        if (mark_in_view && mark_rect.Contains(io.MousePos))
+        {
+            if (ImGui::IsMouseDown(ImGuiMouseButton_Left) && markMovingEntry == -1)
+            {
+                markMovingEntry = 2;
+            }
+        }
+        ImGui::PopClipRect();
+
+        // check current time moving
+        if (movable && !MovingCurrentTime && markMovingEntry == -1 && !MovingHorizonScrollBar && clipMovingEntry == -1 && timeline->currentTime >= 0 && topRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left))
         {
             MovingCurrentTime = true;
             timeline->bSeeking = true;
@@ -7859,78 +7990,6 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         draw_list->PopClipRect();
 
         ImGui::PopStyleColor();
-
-        // draw mark range for timeline header bar and draw shadow out of mark range 
-        ImGui::PushClipRect(HeaderAreaRect.Min, HeaderAreaRect.Min + ImVec2(trackAreaRect.GetWidth() + 8, contentMin.y + timline_size.y - scrollSize), false);
-        if (timeline->mark_in >= timeline->firstTime && timeline->mark_in <= timeline->lastTime)
-        {
-            float mark_in_offset = (timeline->mark_in - timeline->firstTime) * timeline->msPixelWidthTarget;
-            if (timeline->mark_out >= timeline->lastTime)
-            {
-                draw_list->AddRectFilled(HeaderAreaRect.Min + ImVec2(mark_in_offset, 0), HeaderAreaRect.Max - ImVec2(0, HeadHeight - 8), COL_MARK_BAR, 0);
-            }
-            else if (timeline->mark_out > timeline->firstTime)
-            {
-                float mark_out_offset = (timeline->mark_out - timeline->firstTime) * timeline->msPixelWidthTarget;
-                draw_list->AddRectFilled(HeaderAreaRect.Min + ImVec2(mark_in_offset, 0), HeaderAreaRect.Min + ImVec2(mark_out_offset, 8), COL_MARK_BAR, 0);
-            }
-            
-            ImRect handle_rect(HeaderAreaRect.Min + ImVec2(mark_in_offset, 0), HeaderAreaRect.Min + ImVec2(mark_in_offset + 8, 8));
-            if (handle_rect.Contains(io.MousePos))
-            {
-                draw_list->AddCircleFilled(HeaderAreaRect.Min + ImVec2(mark_in_offset + 2, 4), 4, COL_MARK_DOT_LIGHT);
-                if (ImGui::IsMouseDown(ImGuiMouseButton_Left))
-                {
-                    markMovingEntry = 0;
-                }
-            }
-            else
-            {
-                draw_list->AddCircleFilled(HeaderAreaRect.Min + ImVec2(mark_in_offset + 2, 4), 4, COL_MARK_DOT);
-            }
-            // add left area shadow
-            draw_list->AddRectFilled(HeaderAreaRect.Min, HeaderAreaRect.Min + ImVec2(mark_in_offset, timline_size.y - scrollSize), IM_COL32(0,0,0,128));
-        }
-        if (timeline->mark_out >= timeline->firstTime && timeline->mark_out <= timeline->lastTime)
-        {
-            float mark_out_offset = (timeline->mark_out - timeline->firstTime) * timeline->msPixelWidthTarget;
-            if (timeline->mark_in != -1 && timeline->mark_in < timeline->firstTime)
-            {
-                draw_list->AddRectFilled(HeaderAreaRect.Min, HeaderAreaRect.Min + ImVec2(mark_out_offset, 8), COL_MARK_BAR, 0);
-            }
-            else if (timeline->mark_in != -1 && timeline->mark_in < timeline->lastTime)
-            {
-                float mark_in_offset = (timeline->mark_in - timeline->firstTime) * timeline->msPixelWidthTarget;
-                draw_list->AddRectFilled(HeaderAreaRect.Min + ImVec2(mark_in_offset, 0), HeaderAreaRect.Min + ImVec2(mark_out_offset, 8), COL_MARK_BAR, 0);
-            }
-            
-            ImRect handle_rect(HeaderAreaRect.Min + ImVec2(mark_out_offset - 4, 0), HeaderAreaRect.Min + ImVec2(mark_out_offset + 4, 8));
-            if (handle_rect.Contains(io.MousePos))
-            {
-                draw_list->AddCircleFilled(HeaderAreaRect.Min + ImVec2(mark_out_offset + 2, 4), 4, COL_MARK_DOT_LIGHT);
-                if (ImGui::IsMouseDown(ImGuiMouseButton_Left))
-                {
-                    markMovingEntry = 1;
-                }
-            }
-            else
-            {
-                draw_list->AddCircleFilled(HeaderAreaRect.Min + ImVec2(mark_out_offset + 2, 4), 4, COL_MARK_DOT);
-            }
-            // add right area shadow
-            draw_list->AddRectFilled(HeaderAreaRect.Min + ImVec2(mark_out_offset + 4, 0), HeaderAreaRect.Min + ImVec2(timline_size.x + 8, timline_size.y - scrollSize), IM_COL32(0,0,0,128));
-        }
-        if (timeline->mark_in != -1 && timeline->mark_in < timeline->firstTime && timeline->mark_out >= timeline->lastTime)
-        {
-            draw_list->AddRectFilled(HeaderAreaRect.Min , HeaderAreaRect.Max - ImVec2(0, HeadHeight - 8), COL_MARK_BAR, 0);
-        }
-
-        if ((timeline->mark_in != -1 && timeline->mark_in >= timeline->lastTime) || (timeline->mark_out != -1 && timeline->mark_out <= timeline->firstTime))
-        {
-            // add shadow on whole timeline
-            draw_list->AddRectFilled(HeaderAreaRect.Min, HeaderAreaRect.Min + ImVec2(timline_size.x + 8, timline_size.y - scrollSize), IM_COL32(0,0,0,128));
-        }
-        ImGui::PopClipRect();
     }
     
     if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))

@@ -2873,14 +2873,14 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
             g_media_editor_settings.OutputAudioChannels = g_media_editor_settings.AudioChannels;
         }
         ImGui::BeginDisabled(g_media_editor_settings.OutputAudioSettingAsTimeline);
-            if (ImGui::Combo("Audio Sample Rate", &g_media_editor_settings.OutputAudioSampleRateIndex, audio_sample_rate_items, IM_ARRAYSIZE(audio_sample_rate_items)))
-            {
-                SetSampleRate(g_media_editor_settings.OutputAudioSampleRate, g_media_editor_settings.OutputAudioSampleRateIndex);
-            }
-            if (ImGui::Combo("Audio Channels", &g_media_editor_settings.OutputAudioChannelsIndex, audio_channels_items, IM_ARRAYSIZE(audio_channels_items)))
-            {
-                SetAudioChannel(g_media_editor_settings.OutputAudioChannels, g_media_editor_settings.OutputAudioChannelsIndex);
-            }
+        if (ImGui::Combo("Audio Sample Rate", &g_media_editor_settings.OutputAudioSampleRateIndex, audio_sample_rate_items, IM_ARRAYSIZE(audio_sample_rate_items)))
+        {
+            SetSampleRate(g_media_editor_settings.OutputAudioSampleRate, g_media_editor_settings.OutputAudioSampleRateIndex);
+        }
+        if (ImGui::Combo("Audio Channels", &g_media_editor_settings.OutputAudioChannelsIndex, audio_channels_items, IM_ARRAYSIZE(audio_channels_items)))
+        {
+            SetAudioChannel(g_media_editor_settings.OutputAudioChannels, g_media_editor_settings.OutputAudioChannelsIndex);
+        }
         ImGui::EndDisabled(); // disable if param as timline
         ImGui::EndDisabled(); // disable if no audio
         ImGui::Separator();
@@ -2941,6 +2941,32 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
         ImGui::ProgressBar("##encoding_progress",timeline->mEncodingProgress, 0.f, 1.f, "%1.1f%%", ImVec2(540, 16), 
                                 ImVec4(1.f, 1.f, 1.f, 1.f), ImVec4(0.f, 0.f, 0.f, 1.f), ImVec4(1.f, 1.f, 1.f, 1.f));
 
+        auto valid_duration = timeline->ValidDuration();
+
+        if (encoder_stage == 2 && encode_duration > 0)
+        {
+            ImGui::TextUnformatted("Encoding finished. Spend Time:"); ImGui::SameLine();
+            ImGui::Text("%s", ImGuiHelper::MillisecToString(encode_duration * 1000, 3).c_str());
+            ImGui::SameLine();
+            ImGui::TextUnformatted("Speed:"); ImGui::SameLine();
+            float encoding_speed = timeline->mEncodingDuration / (encode_duration + FLT_EPSILON);
+            ImGui::Text("%.2fx", encoding_speed);
+        }
+        else if (timeline->mIsEncoding)
+        {
+            encoder_end = ImGui::get_current_time();
+            encode_duration = encoder_end - encoder_start;
+            float encoding_time = timeline->mEncodingProgress * timeline->mEncodingDuration;
+            float encoding_speed = encoding_time / (encode_duration + FLT_EPSILON);
+            float estimated_time = (1.f - timeline->mEncodingProgress) * timeline->mEncodingDuration / (encoding_speed + FLT_EPSILON);
+            ImGui::TextUnformatted("Speed:"); ImGui::SameLine(); ImGui::Text("%.2fx", encoding_speed); ImGui::SameLine();
+            ImGui::TextUnformatted("Estimated:"); ImGui::SameLine(); ImGui::Text("%s", ImGuiHelper::MillisecToString(estimated_time * 1000, 1).c_str());
+        }
+        else
+        {
+            ImGui::Text("Output duration:%s", ImGuiHelper::MillisecToString(valid_duration, 2).c_str());
+        }
+
         const ImVec2 btnPaddingSize { 30, 14 };
         std::string btnText;
         ImVec2 btnTxtSize;
@@ -2964,7 +2990,7 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
                 timeline->StopEncoding();
                 encoder_stage = 2;
             }
-            else
+            else if (valid_duration > 0)
             {
                 // config encoders
                 TimeLine::VideoEncoderParams vidEncParams;
@@ -2987,6 +3013,17 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
                 }
             }
         }
+        if (timeline->mark_in != -1 && timeline->mark_out != -1 && encoder_stage != 2)
+        {
+            ImGui::SameLine();
+            ImGui::BeginDisabled(timeline->mIsEncoding);
+            ImGui::Checkbox("Encoding in mark range", &timeline->mEncodingInRange);
+            ImGui::EndDisabled();
+        }
+        else
+        {
+            timeline->mEncodingInRange = false;
+        }
         if (!g_encoderConfigErrorMessage.empty())
         {
             ImGui::TextColored({1., 0.2, 0.2, 1.}, "%s", g_encoderConfigErrorMessage.c_str());
@@ -2997,28 +3034,10 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
             ImGui::TextColored({1., 0.5, 0.5, 1.}, "%s", timeline->mEncodeProcErrMsg.c_str());
         }
 
-        if (timeline->mIsEncoding)
-        {
-            encoder_end = ImGui::get_current_time();
-            encode_duration = encoder_end - encoder_start;
-            float encoding_time = timeline->mEncodingProgress * timeline->mEncodingDuration;
-            float encoding_speed = encoding_time / (encode_duration + FLT_EPSILON);
-            float estimated_time = (1.f - timeline->mEncodingProgress) * timeline->mEncodingDuration / (encoding_speed + FLT_EPSILON);
-            ImGui::SameLine();
-            ImGui::TextUnformatted("Speed:"); ImGui::SameLine(); ImGui::Text("%.2fx", encoding_speed); ImGui::SameLine();
-            ImGui::TextUnformatted("Estimated:"); ImGui::SameLine(); ImGui::Text("%s", ImGuiHelper::MillisecToString(estimated_time * 1000, 1).c_str());
-        }
-        else if (encoder_start > 0)
+        if (!timeline->mIsEncoding && encoder_start > 0)
         {
             encoder_end = encoder_start = -1;
             encoder_stage = 2;
-        }
-
-        if (encoder_stage == 2 && encode_duration > 0)
-        {
-            ImGui::SameLine();
-            ImGui::TextUnformatted("Encoding finished. Spend Time"); ImGui::SameLine();
-            ImGui::Text("%s", ImGuiHelper::MillisecToString(encode_duration * 1000, 3).c_str());
         }
         ImGui::EndPopup();
     }
