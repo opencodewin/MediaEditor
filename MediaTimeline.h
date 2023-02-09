@@ -934,6 +934,9 @@ struct TimeLine
     std::thread mEncodingThread;
     bool mIsEncoding {false};
     bool mQuitEncoding {false};
+    bool mEncodingInRange {false};
+    int64_t mEncoding_start {0};
+    int64_t mEncoding_end {0};
     std::string mEncodeProcErrMsg;
     float mEncodingProgress {0};
     float mEncodingDuration {0};
