@@ -5781,9 +5781,9 @@ void TimeLine::PerformAudioAction(imgui_json::value& action)
         MediaCore::AudioTrackHolder audTrack = mMtaReader->GetTrackById(trackId, true);
         int64_t clipId = action["clip_id"].get<imgui_json::number>();
         Clip* clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
-        MediaCore::AudioClipHolder audClip = MediaCore::AudioClip::CreateAudioInstance(
+        MediaCore::AudioClipHolder audClip = MediaCore::AudioClip::CreateInstance(
             clip->mID, clip->mMediaParser,
-            audTrack->OutChannels(), audTrack->OutSampleRate(),
+            audTrack->OutChannels(), audTrack->OutSampleRate(), audTrack->OutSampleFormat(),
             clip->mStart, clip->mStartOffset, clip->mEndOffset);
         if (action.contains("clip_json"))
         {
