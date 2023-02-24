@@ -1,9 +1,9 @@
 [submodule "imgui"]
 	path = imgui
-	url = git@github.com:tanluteam/imgui.git
+	url = git@github.com:opencodewin/imgui.git
 [submodule "blueprintsdk"]
 	path = blueprintsdk
-	url = git@github.com:tanluteam/blueprintsdk.git
+	url = git@github.com:opencodewin/blueprintsdk.git
 [submodule "MediaCore"]
 	path = MediaCore
-	url = git@github.com:tanluteam/MediaCore.git
+	url = git@github.com:opencodewin/MediaCore.git
