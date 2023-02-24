@@ -441,7 +441,7 @@ bool Application_Frame(void * handle, bool app_will_quit)
             // }
             // else
                 im_RGB = in_RGB;
-            ImGui::ImGenerateOrUpdateTexture(g_texture, im_RGB.w, im_RGB.h, im_RGB.c, im_RGB.buffer_offset(), (const unsigned char *)im_RGB.buffer());
+            ImGui::ImGenerateOrUpdateTexture(g_texture, im_RGB.w, im_RGB.h, im_RGB.c, (const unsigned char *)&im_RGB, true);
 #endif
 #else
 #ifdef VIDEO_FORMAT_RGBA
