@@ -824,7 +824,7 @@ static void ShowAbout()
     ImGui::Text("Media Editor Community");
     ImGui::Separator();
     ImGui::Text("       V1.0.0");
-    ImGui::Text("  TanluTeam 2022");
+    ImGui::Text("  CodeWin 2023");
     ImGui::Separator();
     ImGui::ShowImGuiInfo();
     ImGui::Separator();

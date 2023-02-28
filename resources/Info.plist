@@ -17,7 +17,7 @@
 			<true/>
 			<key>LSItemContentTypes</key>
 			<array>
-				<string>com.tanlu.mec</string>
+				<string>com.Code-Win.mec</string>
 			</array>
 		</dict>
 	</array>
@@ -28,7 +28,7 @@
 	<key>CFBundleIconFile</key>
 	<string>mec_logo.icns</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.tanlu.mec</string>
+	<string>com.Code-Win.mec</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleLongVersionString</key>
@@ -57,7 +57,7 @@
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSHumanReadableCopyright</key>
-        <string>Copyright © 2022 Tanlu Team. All rights reserved.</string>
+        <string>Copyright © 2023 CodeWin Team. All rights reserved.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 </dict>
