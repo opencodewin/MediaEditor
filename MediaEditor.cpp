@@ -1040,6 +1040,18 @@ static void SetAudioFormat(MediaEditorSettings & config, int index)
     }
 }
 
+static std::string GetFrequencyTag(uint32_t freq)
+{
+    char tag[16]= {0};
+    if (freq < 1000)
+        sprintf(tag, "%u", freq);
+    else if (freq%1000 > 0)
+        snprintf(tag, sizeof(tag)-1, "%.1fK", (float)(freq/1000));
+    else
+        snprintf(tag, sizeof(tag)-1, "%uK", freq/1000);
+    return std::string(tag);
+}
+
 static void ShowConfigure(MediaEditorSettings & config)
 {
     ImGuiIO &io = ImGui::GetIO();
@@ -5939,18 +5951,6 @@ static void ShowAudioFusionWindow(ImDrawList *draw_list)
     ImGui::EndChild();
 }
 
-static std::string GetFrequencyTag(uint32_t freq)
-{
-    char tag[16]= {0};
-    if (freq < 1000)
-        sprintf(tag, "%u", freq);
-    else if (freq%1000 > 0)
-        snprintf(tag, sizeof(tag)-1, "%.1fK", (float)(freq/1000));
-    else
-        snprintf(tag, sizeof(tag)-1, "%uK", freq/1000);
-    return std::string(tag);
-}
-
 static void ShowAudioMixingWindow(ImDrawList *draw_list)
 {
     /*
@@ -6036,7 +6036,18 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list)
                 ImGui::SetCursorScreenPos(current_pos + ImVec2(count * 48 + name_str_offset, 0));
                 ImGui::TextColored({ 0.7, 0.9, 0.7, 1.0 }, "%s", track->mName.c_str());
                 ImGui::SetCursorScreenPos(current_pos + ImVec2(count * 48 + 12, 16));
-                ImGui::VSliderFloat("##track_gain", slider_size, &track->mAudioTrackAttribute.mAudioGain, -96, 10, "");
+                auto atHolder = timeline->mMtaReader->GetTrackById(track->mID);
+                if (atHolder)
+                {
+                    auto aeFilter = atHolder->GetAudioEffectFilter();
+                    auto volParams = aeFilter->GetVolumeParams();
+                    track->mAudioTrackAttribute.mAudioGain = volParams.volume;
+                    if (ImGui::VSliderFloat("##track_gain", slider_size, &track->mAudioTrackAttribute.mAudioGain, 0, 2, ""))
+                    {
+                        volParams.volume = track->mAudioTrackAttribute.mAudioGain;
+                        aeFilter->SetVolumeParams(&volParams);
+                    }
+                }
                 ImGui::PopID();
                 sprintf(value_str, "%.1f", track->mAudioTrackAttribute.mAudioGain);
                 auto value_str_size = ImGui::CalcTextSize(value_str);

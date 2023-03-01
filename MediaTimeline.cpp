@@ -3886,6 +3886,17 @@ MediaTrack* MediaTrack::Load(const imgui_json::value& value, void * handle)
             }
         }
 
+        // load audio attribute 20230301
+        if (value.contains("AudioAttribute"))
+        {
+            auto& audio_attr = value["AudioAttribute"];
+            if (audio_attr.contains("AudioGain"))
+            {
+                auto& val = audio_attr["AudioGain"];
+                if (val.is_number()) new_track->mAudioTrackAttribute.mAudioGain = val.get<imgui_json::number>();
+            }
+        }
+
         // load subtitle track
         if (value.contains("SubTrack"))
         {
@@ -4027,6 +4038,13 @@ void MediaTrack::Save(imgui_json::value& value)
         overlaps.push_back(overlap_id_value);
     }
     if (m_Overlaps.size() > 0) value["OverlapIDS"] = overlaps;
+
+    // save audio attribute 20230301
+    imgui_json::value audio_attr;
+    {
+        audio_attr["AudioGain"] = imgui_json::number(mAudioTrackAttribute.mAudioGain);
+    }
+    value["AudioAttribute"] = audio_attr;
 
     // save subtitle track info
     if (mMttReader)
@@ -5549,6 +5567,12 @@ int TimeLine::Load(const imgui_json::value& value)
                 MediaCore::AudioFilterHolder hFilter(bpaf);
                 hAudClip->SetFilter(hFilter);
             }
+            // audio attribute 20230301
+            auto aeFilter = audTrack->GetAudioEffectFilter();
+            // gain
+            auto volParams = aeFilter->GetVolumeParams();
+            volParams.volume = track->mAudioTrackAttribute.mAudioGain;
+            aeFilter->SetVolumeParams(&volParams);
         }
     }
     SyncDataLayer();
@@ -5940,7 +5964,7 @@ void TimeLine::ConfigureDataLayer()
 
 void TimeLine::SyncDataLayer()
 {
-    // video
+    // video overlap
     int syncedOverlapCount = 0;
     auto vidTrackIter = mMtvReader->TrackListBegin();
     while (vidTrackIter != mMtvReader->TrackListEnd())
@@ -5978,7 +6002,7 @@ void TimeLine::SyncDataLayer()
                 syncedOverlapCount++;
         }
     }
-    // audio
+    // audio overlap
     auto audTrackIter = mMtaReader->TrackListBegin();
     while (audTrackIter != mMtaReader->TrackListEnd())
     {

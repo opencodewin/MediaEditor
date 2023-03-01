@@ -740,7 +740,7 @@ struct AudioAttribute
 
 
     // gain setting
-    float mAudioGain    {0};                    // audio gain, project saved
+    float mAudioGain    {1.0};                  // audio gain, project saved
 
     // equalizer setting
     bool bEqualizer     {false};                // enable audio equalizer, project saved
@@ -748,7 +748,7 @@ struct AudioAttribute
 
     // pan setting
     bool bPan       {false};                    // enable audio pan, project saved
-    ImVec2 audio_pan    {0, 0};                 // audio pan, project saved
+    ImVec2 audio_pan    {0.5, 0.5};             // audio pan, project saved
 
     // limiter
     bool bLimiter   {false};                    // enable audio limiter, project saved
