@@ -83,7 +83,10 @@ include_directories(
 
 # >>> include MediaCore as dependency
 set(BUILD_DEPENDENCY_IMGUI OFF)
-set(BUILD_MEDIACORE_TEST OFF)
+option(BUILD_MEDIACORE_TEST              "Build MediaCore test" OFF)
+if (BUILD_MEDIACORE_TEST)
+set(IMGUI_SRC_PATH ${CMAKE_SOURCE_DIR}/imgui)
+endif()
 add_subdirectory(MediaCore)
 set_target_properties(
     MediaCore
