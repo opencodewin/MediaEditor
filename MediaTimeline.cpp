@@ -3886,7 +3886,7 @@ MediaTrack* MediaTrack::Load(const imgui_json::value& value, void * handle)
             }
         }
 
-        // load audio attribute 20230301
+        // load audio attribute
         if (value.contains("AudioAttribute"))
         {
             auto& audio_attr = value["AudioAttribute"];
@@ -4039,7 +4039,7 @@ void MediaTrack::Save(imgui_json::value& value)
     }
     if (m_Overlaps.size() > 0) value["OverlapIDS"] = overlaps;
 
-    // save audio attribute 20230301
+    // save audio attribute
     imgui_json::value audio_attr;
     {
         audio_attr["AudioGain"] = imgui_json::number(mAudioTrackAttribute.mAudioGain);
@@ -5514,7 +5514,18 @@ int TimeLine::Load(const imgui_json::value& value)
         }
     }
 
-    // build data layer multi-track video reader
+    // load audio attribute 20230301
+    if (value.contains("AudioAttribute"))
+    {
+        auto& audio_attr = value["AudioAttribute"];
+        if (audio_attr.contains("AudioGain"))
+        {
+            auto& val = audio_attr["AudioGain"];
+            if (val.is_number()) mAudioAttribute.mAudioGain = val.get<imgui_json::number>();
+        }
+    }
+
+    // build data layer multi-track media reader
     for (auto track : m_Tracks)
     {
         if (IS_VIDEO(track->mType))
@@ -5575,6 +5586,14 @@ int TimeLine::Load(const imgui_json::value& value)
             aeFilter->SetVolumeParams(&volParams);
         }
     }
+
+    // build data layer audio attribute 20230301
+    auto amFilter = mMtaReader->GetAudioEffectFilter();
+    auto volMaster = amFilter->GetVolumeParams();
+    volMaster.volume = mAudioAttribute.mAudioGain;
+    amFilter->SetVolumeParams(&volMaster);
+
+
     SyncDataLayer();
     UpdatePreview();
     mMtaReader->SeekTo(currentTime);
@@ -5623,6 +5642,14 @@ void TimeLine::Save(imgui_json::value& value)
         media_tracks.push_back(media_track);
     }
     if (m_Tracks.size() > 0) value["MediaTrack"] = media_tracks;
+
+    // save audio attribute 20230301
+    imgui_json::value audio_attr;
+    {
+        audio_attr["AudioGain"] = imgui_json::number(mAudioAttribute.mAudioGain);
+    }
+    value["AudioAttribute"] = audio_attr;
+
 
     // save global timeline info
     value["Start"] = imgui_json::number(mStart);

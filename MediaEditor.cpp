@@ -6004,6 +6004,7 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list)
     ImGui::SetCursorScreenPos(mixing_pos);
     if (ImGui::BeginChild("##audio_mixing", mixing_size, false, setting_child_flags))
     {
+        char value_str[64] = {0};
         ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DEEP_DARK);
@@ -6018,17 +6019,27 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list)
         ImGui::SetCursorScreenPos(current_pos + ImVec2(sub_window_size.x - 60 + str_offset, 0));
         ImGui::TextColored({ 0.9, 0.3, 0.3, 1.0 }, "Master");
         ImGui::SetCursorScreenPos(current_pos + ImVec2(sub_window_size.x - 48, 16));
-        static int main_gain = 0; // TODO::Get main gain setting
-        ImGui::VSliderInt("##master_gain", slider_size, &main_gain, -96, 10, "");
+        //static int main_gain = 0; // TODO::Get main gain setting
+        auto amFilter = timeline->mMtaReader->GetAudioEffectFilter();
+        auto volMaster = amFilter->GetVolumeParams();
+        timeline->mAudioAttribute.mAudioGain = volMaster.volume;
+        if (ImGui::VSliderFloat("##master_gain", slider_size, &timeline->mAudioAttribute.mAudioGain, 0, 2, ""))
+        {
+            volMaster.volume = timeline->mAudioAttribute.mAudioGain;
+            amFilter->SetVolumeParams(&volMaster);
+        }
         ImGui::SetCursorScreenPos(current_pos + ImVec2(sub_window_size.x - 48, sub_window_size.y - header_height - 32));
-        ImGui::TextColored({ 0.9, 0.7, 0.7, 1.0 }, "%ddB", main_gain);
+        //ImGui::TextColored({ 0.9, 0.7, 0.7, 1.0 }, "%ddB", main_gain);
+        sprintf(value_str, "%.1f", timeline->mAudioAttribute.mAudioGain);
+        auto value_str_size = ImGui::CalcTextSize(value_str);
+        auto value_str_offset = value_str_size.x < 48 ? (48 - value_str_size.x) / 2 : 0;
+        ImGui::TextColored({ 0.9, 0.7, 0.7, 1.0 }, "%s", value_str);
         // draw channels gain
         int count = 0;
         for (auto track : timeline->m_Tracks)
         {
             if (IS_AUDIO(track->mType))
             {
-                char value_str[64] = {0};
                 ImGui::BeginGroup();
                 ImGui::PushID(count);
                 auto name_str_size = ImGui::CalcTextSize(track->mName.c_str());
