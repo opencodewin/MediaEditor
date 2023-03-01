@@ -70,5 +70,7 @@ MEC uses CMake as its building system but instructions are highly dependent on y
 MEC is **[GPLv2 licensed](LICENSE)**. You may use, distribute and copy it under the license terms.
 
 <a href="https://github.com/opencodewin/MediaEditor/graphs/contributors"><img src="docs/assets/built-by-developers.svg" height="25"></a>
+
 <a href="https://www.code-win.com/download"><img src="docs/assets/check-it-out.svg" height="25"></a>
-<a href="https://github.com/opencodewin/MediaEditor"><img src="hdocs/assets/winter-is-coming.svg" height="25"></a>
+
+<a href="https://github.com/opencodewin/MediaEditor"><img src="docs/assets/winter-is-coming.svg" height="25"></a>
