@@ -6175,9 +6175,10 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list)
     // draw pan UI
     ImGui::SetCursorScreenPos(pan_pos);
     ImGui::BeginGroup();
+    bool pan_changed = false;
     ImGui::TextUnformatted("Audio Pan");
     ImGui::SameLine();
-    ImGui::ToggleButton("##audio_pan_enabe", &timeline->mAudioAttribute.bPan);
+    pan_changed |= ImGui::ToggleButton("##audio_pan_enabe", &timeline->mAudioAttribute.bPan);
     ImGui::Separator();
     if (ImGui::BeginChild("##audio_pan", pan_size - ImVec2(0, 32), false, setting_child_flags))
     {
@@ -6190,15 +6191,28 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list)
         float pos_offset = sub_window_size.x <= w ? 0 : (sub_window_size.x - w) / 2;
         ImGui::SetCursorScreenPos(sub_window_pos + ImVec2(pos_offset, 32));
         ImGui::BeginDisabled(!timeline->mAudioAttribute.bPan);
-        ImGui::InputVec2("##audio_pan_input", &timeline->mAudioAttribute.audio_pan, ImVec2(-1.f, -1.f), ImVec2(1.f, 1.f), 1.0, false, false);
+        auto audio_pan = timeline->mAudioAttribute.audio_pan - ImVec2(0.5, 0.5);
+        audio_pan.y = -audio_pan.y;
+        pan_changed |= ImGui::InputVec2("##audio_pan_input", &audio_pan, ImVec2(-0.5f, -0.5f), ImVec2(0.5f, 0.5f), 1.0, false, false);
         ImGui::PopItemWidth();
         ImGui::Separator();
-        auto knob_pos = ImGui::GetCursorScreenPos();
-        auto knob_offset_x = (sub_window_size.x - 100) / 3;
+        auto knob_pos = ImGui::GetCursorScreenPos() + ImVec2(0, 40);
+        auto knob_offset_x = (sub_window_size.x - 160) / 3;
         ImGui::SetCursorScreenPos(knob_pos + ImVec2(knob_offset_x, 0));
-        ImGui::Knob("Left/Right", &timeline->mAudioAttribute.audio_pan.x, -1.0f, 1.0f, NAN, 0.f, 50, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.2f", 10);
-        ImGui::SetCursorScreenPos(knob_pos + ImVec2(knob_offset_x * 2 + 50, 0));
-        ImGui::Knob("Front/Back", &timeline->mAudioAttribute.audio_pan.y, -1.0f, 1.0f, NAN, 0.f, 50, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.2f", 10);
+        pan_changed |= ImGui::Knob("Left/Right", &audio_pan.x, -0.5f, 0.5f, NAN, 0.f, 80, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.2f", 10);
+        ImGui::SetCursorScreenPos(knob_pos + ImVec2(knob_offset_x * 2 + 80, 0));
+        pan_changed |= ImGui::Knob("Front/Back", &audio_pan.y, -0.5f, 0.5f, NAN, 0.f, 80, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.2f", 10);
+        if (pan_changed)
+        {
+            audio_pan.y = -audio_pan.y;
+            audio_pan += ImVec2(0.5, 0.5);
+            timeline->mAudioAttribute.audio_pan = audio_pan;
+            auto aeFilter = timeline->mMtaReader->GetAudioEffectFilter();
+            auto panParams = aeFilter->GetPanParams();
+            panParams.x = timeline->mAudioAttribute.bPan ? timeline->mAudioAttribute.audio_pan.x : 0.5f;
+            panParams.y = timeline->mAudioAttribute.bPan ? timeline->mAudioAttribute.audio_pan.y : 0.5f;
+            aeFilter->SetPanParams(&panParams);
+        }
         ImGui::EndDisabled();
     }
     ImGui::EndChild();

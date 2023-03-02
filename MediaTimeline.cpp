@@ -5523,6 +5523,16 @@ int TimeLine::Load(const imgui_json::value& value)
             auto& val = audio_attr["AudioGain"];
             if (val.is_number()) mAudioAttribute.mAudioGain = val.get<imgui_json::number>();
         }
+        if (audio_attr.contains("AudioPanEnabled"))
+        {
+            auto& val = audio_attr["AudioPanEnabled"];
+            if (val.is_boolean()) mAudioAttribute.bPan = val.get<imgui_json::boolean>();
+        }
+        if (audio_attr.contains("AudioPan"))
+        {
+            auto& val = audio_attr["AudioPan"];
+            if (val.is_vec2()) mAudioAttribute.audio_pan = val.get<imgui_json::vec2>();
+        }
     }
 
     // build data layer multi-track media reader
@@ -5578,7 +5588,7 @@ int TimeLine::Load(const imgui_json::value& value)
                 MediaCore::AudioFilterHolder hFilter(bpaf);
                 hAudClip->SetFilter(hFilter);
             }
-            // audio attribute 20230301
+            // audio attribute
             auto aeFilter = audTrack->GetAudioEffectFilter();
             // gain
             auto volParams = aeFilter->GetVolumeParams();
@@ -5589,9 +5599,15 @@ int TimeLine::Load(const imgui_json::value& value)
 
     // build data layer audio attribute 20230301
     auto amFilter = mMtaReader->GetAudioEffectFilter();
+    // gain
     auto volMaster = amFilter->GetVolumeParams();
     volMaster.volume = mAudioAttribute.mAudioGain;
     amFilter->SetVolumeParams(&volMaster);
+    // pan
+    auto panParams = amFilter->GetPanParams();
+    panParams.x = mAudioAttribute.bPan ? mAudioAttribute.audio_pan.x : 0.5f;
+    panParams.y = mAudioAttribute.bPan ? mAudioAttribute.audio_pan.y : 0.5f;
+    amFilter->SetPanParams(&panParams);
 
 
     SyncDataLayer();
@@ -5647,9 +5663,10 @@ void TimeLine::Save(imgui_json::value& value)
     imgui_json::value audio_attr;
     {
         audio_attr["AudioGain"] = imgui_json::number(mAudioAttribute.mAudioGain);
+        audio_attr["AudioPanEnabled"] = imgui_json::boolean(mAudioAttribute.bPan);
+        audio_attr["AudioPan"] = imgui_json::vec2(mAudioAttribute.audio_pan);
     }
     value["AudioAttribute"] = audio_attr;
-
 
     // save global timeline info
     value["Start"] = imgui_json::number(mStart);
