@@ -6000,6 +6000,7 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list)
     ImVec2 compressor_size = bottom_view_size - ImVec2(equalizer_size.x + pan_size.x + gate_size.x + limiter_size.x, 0);
 
     ImGuiWindowFlags setting_child_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings;
+    auto amFilter = timeline->mMtaReader->GetAudioEffectFilter();
     // draw mixing UI
     ImGui::SetCursorScreenPos(mixing_pos);
     if (ImGui::BeginChild("##audio_mixing", mixing_size, false, setting_child_flags))
@@ -6020,7 +6021,6 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list)
         ImGui::TextColored({ 0.9, 0.3, 0.3, 1.0 }, "Master");
         ImGui::SetCursorScreenPos(current_pos + ImVec2(sub_window_size.x - 48, 16));
         //static int main_gain = 0; // TODO::Get main gain setting
-        auto amFilter = timeline->mMtaReader->GetAudioEffectFilter();
         auto volMaster = amFilter->GetVolumeParams();
         timeline->mAudioAttribute.mAudioGain = volMaster.volume;
         if (ImGui::VSliderFloat("##master_gain", slider_size, &timeline->mAudioAttribute.mAudioGain, 0, 2, ""))
@@ -6207,11 +6207,10 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list)
             audio_pan.y = -audio_pan.y;
             audio_pan += ImVec2(0.5, 0.5);
             timeline->mAudioAttribute.audio_pan = audio_pan;
-            auto aeFilter = timeline->mMtaReader->GetAudioEffectFilter();
-            auto panParams = aeFilter->GetPanParams();
+            auto panParams = amFilter->GetPanParams();
             panParams.x = timeline->mAudioAttribute.bPan ? timeline->mAudioAttribute.audio_pan.x : 0.5f;
             panParams.y = timeline->mAudioAttribute.bPan ? timeline->mAudioAttribute.audio_pan.y : 0.5f;
-            aeFilter->SetPanParams(&panParams);
+            amFilter->SetPanParams(&panParams);
         }
         ImGui::EndDisabled();
     }
@@ -6310,9 +6309,10 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list)
     // draw limiter UI
     ImGui::SetCursorScreenPos(limiter_pos);
     ImGui::BeginGroup();
+    bool limiter_changed = false;
     ImGui::TextUnformatted("Limiter");
     ImGui::SameLine();
-    ImGui::ToggleButton("##audio_limiter_enabe", &timeline->mAudioAttribute.bLimiter);
+    limiter_changed |= ImGui::ToggleButton("##audio_limiter_enabe", &timeline->mAudioAttribute.bLimiter);
     ImGui::Separator();
     if (ImGui::BeginChild("##audio_limiter", limiter_size - ImVec2(0, 32), false, setting_child_flags))
     {
@@ -6324,13 +6324,21 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list)
         auto knob_pos = ImGui::GetCursorScreenPos();
         auto knob_offset_x = (sub_window_size.x - 80) / 2;
         ImGui::SetCursorScreenPos(knob_pos + ImVec2(knob_offset_x, 4));
-        ImGui::Knob("Limit", &timeline->mAudioAttribute.limit, 0.0625f, 1.0f, NAN, 1.f, 80, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.3f", 10);
+        limiter_changed |= ImGui::Knob("Limit", &timeline->mAudioAttribute.limit, 0.0625f, 1.0f, NAN, 1.f, 80, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.3f", 10);
         auto knob_time_offset_x = (sub_window_size.x - 50) / 2;
         ImGui::SetCursorScreenPos(knob_pos + ImVec2(knob_time_offset_x, 140));
-        ImGui::Knob("Attack##limiter", &timeline->mAudioAttribute.limiter_attack, 0.1f, 80.0f, NAN, 5.f, 50, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.1fms", 10);
+        limiter_changed |= ImGui::Knob("Attack##limiter", &timeline->mAudioAttribute.limiter_attack, 0.1f, 80.0f, NAN, 5.f, 50, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.1fms", 10);
         auto knob_level_offset_x = (sub_window_size.x - 50) / 2;
         ImGui::SetCursorScreenPos(knob_pos + ImVec2(knob_level_offset_x, 240));
-        ImGui::Knob("Release##limiter", &timeline->mAudioAttribute.limiter_release, 1.f, 8000.0f, NAN, 50.f, 50, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.0fms", 10);
+        limiter_changed |= ImGui::Knob("Release##limiter", &timeline->mAudioAttribute.limiter_release, 1.f, 8000.0f, NAN, 50.f, 50, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.0fms", 10);
+        if (limiter_changed)
+        {
+            auto limiterParams = amFilter->GetLimiterParams();
+            limiterParams.limit = timeline->mAudioAttribute.bLimiter ? timeline->mAudioAttribute.limit : 1.0;
+            limiterParams.attack = timeline->mAudioAttribute.bLimiter ? timeline->mAudioAttribute.limiter_attack : 5;
+            limiterParams.release = timeline->mAudioAttribute.bLimiter ? timeline->mAudioAttribute.limiter_release : 50;
+            amFilter->SetLimiterParams(&limiterParams);
+        }
         ImGui::EndDisabled();
     }
     ImGui::EndChild();

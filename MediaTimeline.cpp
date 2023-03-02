@@ -5533,6 +5533,33 @@ int TimeLine::Load(const imgui_json::value& value)
             auto& val = audio_attr["AudioPan"];
             if (val.is_vec2()) mAudioAttribute.audio_pan = val.get<imgui_json::vec2>();
         }
+        if (audio_attr.contains("AudioLimiterEnabled"))
+        {
+            auto& val = audio_attr["AudioLimiterEnabled"];
+            if (val.is_boolean()) mAudioAttribute.bLimiter = val.get<imgui_json::boolean>();
+        }
+        if (audio_attr.contains("AudioLimiter"))
+        {
+            auto& val = audio_attr["AudioLimiter"];
+            if (val.is_object())
+            {
+                if (val.contains("limit"))
+                {
+                    auto& _val = val["limit"];
+                    if (_val.is_number()) mAudioAttribute.limit = _val.get<imgui_json::number>();
+                }
+                if (val.contains("attack"))
+                {
+                    auto& _val = val["attack"];
+                    if (_val.is_number()) mAudioAttribute.limiter_attack = _val.get<imgui_json::number>();
+                }
+                if (val.contains("release"))
+                {
+                    auto& _val = val["release"];
+                    if (_val.is_number()) mAudioAttribute.limiter_release = _val.get<imgui_json::number>();
+                }
+            }
+        }
     }
 
     // build data layer multi-track media reader
@@ -5608,6 +5635,12 @@ int TimeLine::Load(const imgui_json::value& value)
     panParams.x = mAudioAttribute.bPan ? mAudioAttribute.audio_pan.x : 0.5f;
     panParams.y = mAudioAttribute.bPan ? mAudioAttribute.audio_pan.y : 0.5f;
     amFilter->SetPanParams(&panParams);
+    // limiter
+    auto limiterParams = amFilter->GetLimiterParams();
+    limiterParams.limit = mAudioAttribute.bLimiter ? mAudioAttribute.limit : 1.0;
+    limiterParams.attack = mAudioAttribute.bLimiter ? mAudioAttribute.limiter_attack : 5;
+    limiterParams.release = mAudioAttribute.bLimiter ? mAudioAttribute.limiter_release : 50;
+    amFilter->SetLimiterParams(&limiterParams);
 
 
     SyncDataLayer();
@@ -5665,6 +5698,14 @@ void TimeLine::Save(imgui_json::value& value)
         audio_attr["AudioGain"] = imgui_json::number(mAudioAttribute.mAudioGain);
         audio_attr["AudioPanEnabled"] = imgui_json::boolean(mAudioAttribute.bPan);
         audio_attr["AudioPan"] = imgui_json::vec2(mAudioAttribute.audio_pan);
+        audio_attr["AudioLimiterEnabled"] = imgui_json::boolean(mAudioAttribute.bLimiter);
+        imgui_json::value audio_attr_limiter;
+        {
+            audio_attr_limiter["limit"] = imgui_json::number(mAudioAttribute.limit);
+            audio_attr_limiter["attack"] = imgui_json::number(mAudioAttribute.limiter_attack);
+            audio_attr_limiter["release"] = imgui_json::number(mAudioAttribute.limiter_release);
+        }
+        audio_attr["AudioLimiter"] = audio_attr_limiter;
     }
     value["AudioAttribute"] = audio_attr;
 
