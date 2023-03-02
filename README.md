@@ -64,7 +64,7 @@ be sure you have the following submodules in order to run MEC successfully:
 *  mediacore (https://github.com/opencodewin/MediaCore.git)
 
 ## Building
-MEC uses CMake as its building system but instructions are highly dependent on your operating system and target platform. Fortunately **[we've got you covered](docs/How-to-Build.md)**.
+MEC uses CMake as its building system but instructions are highly dependent on your operating system and target platform. Fortunately **[we've got you covered](docs/addit/How-to-Built.md)**.
 
 ## License
 MEC is **[GPLv2 licensed](LICENSE)**. You may use, distribute and copy it under the license terms.
