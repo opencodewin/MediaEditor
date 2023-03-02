@@ -6020,21 +6020,21 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list)
         ImGui::SetCursorScreenPos(current_pos + ImVec2(sub_window_size.x - 60 + str_offset, 0));
         ImGui::TextColored({ 0.9, 0.3, 0.3, 1.0 }, "Master");
         ImGui::SetCursorScreenPos(current_pos + ImVec2(sub_window_size.x - 48, 16));
-        //static int main_gain = 0; // TODO::Get main gain setting
         auto volMaster = amFilter->GetVolumeParams();
         timeline->mAudioAttribute.mAudioGain = volMaster.volume;
-        if (ImGui::VSliderFloat("##master_gain", slider_size, &timeline->mAudioAttribute.mAudioGain, 0, 2, ""))
+        float vol = (timeline->mAudioAttribute.mAudioGain - 1.f) * 96.f;
+        if (ImGui::VSliderFloat("##master_gain", slider_size, &vol, -96.f, 32.f, "", ImGuiSliderFlags_Mark))
         {
+            timeline->mAudioAttribute.mAudioGain = (vol / 96.f) + 1.f;
             volMaster.volume = timeline->mAudioAttribute.mAudioGain;
             amFilter->SetVolumeParams(&volMaster);
         }
-        ImGui::SetCursorScreenPos(current_pos + ImVec2(sub_window_size.x - 48, sub_window_size.y - header_height - 32));
-        //ImGui::TextColored({ 0.9, 0.7, 0.7, 1.0 }, "%ddB", main_gain);
-        sprintf(value_str, "%.1f", timeline->mAudioAttribute.mAudioGain);
-        auto value_str_size = ImGui::CalcTextSize(value_str);
-        auto value_str_offset = value_str_size.x < 48 ? (48 - value_str_size.x) / 2 : 0;
+        sprintf(value_str, "%.1fdB", vol);
+        auto vol_str_size = ImGui::CalcTextSize(value_str);
+        auto vol_str_offset = vol_str_size.x < 64 ? (64 - vol_str_size.x) / 2 : 0;
+        ImGui::SetCursorScreenPos(current_pos + ImVec2(sub_window_size.x - 64 + vol_str_offset, sub_window_size.y - header_height - 32));
         ImGui::TextColored({ 0.9, 0.7, 0.7, 1.0 }, "%s", value_str);
-        // draw channels gain
+        // draw track gain
         int count = 0;
         for (auto track : timeline->m_Tracks)
         {
@@ -6053,14 +6053,16 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list)
                     auto aeFilter = atHolder->GetAudioEffectFilter();
                     auto volParams = aeFilter->GetVolumeParams();
                     track->mAudioTrackAttribute.mAudioGain = volParams.volume;
-                    if (ImGui::VSliderFloat("##track_gain", slider_size, &track->mAudioTrackAttribute.mAudioGain, 0, 2, ""))
+                    float volTrack = (track->mAudioTrackAttribute.mAudioGain - 1.f) * 96.f;
+                    if (ImGui::VSliderFloat("##track_gain", slider_size, &volTrack, -96.f, 32.f, "", ImGuiSliderFlags_Mark))
                     {
+                        track->mAudioTrackAttribute.mAudioGain = (volTrack / 96.f) + 1.f;
                         volParams.volume = track->mAudioTrackAttribute.mAudioGain;
                         aeFilter->SetVolumeParams(&volParams);
                     }
                 }
                 ImGui::PopID();
-                sprintf(value_str, "%.1f", track->mAudioTrackAttribute.mAudioGain);
+                sprintf(value_str, "%.1fdB", (track->mAudioTrackAttribute.mAudioGain - 1.f) * 96.f);
                 auto value_str_size = ImGui::CalcTextSize(value_str);
                 auto value_str_offset = value_str_size.x < 48 ? (48 - value_str_size.x) / 2 : 0;
                 ImGui::SetCursorScreenPos(current_pos + ImVec2(count * 48 + value_str_offset, sub_window_size.y - header_height - 32));
@@ -6239,7 +6241,7 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list)
             ImGui::TextUnformatted(cfTag.c_str());
             ImGui::PushID(i);
             int gain = timeline->mAudioAttribute.mBandCfg[i].gain;
-            ImGui::VSliderInt("##band_gain", ImVec2(24, sub_window_size.y - 48), &gain, MIN_GAIN, MAX_GAIN, "");
+            ImGui::VSliderInt("##band_gain", ImVec2(24, sub_window_size.y - 48), &gain, MIN_GAIN, MAX_GAIN, "", ImGuiSliderFlags_Mark);
             ImGui::PopID();
             if (gain != timeline->mAudioAttribute.mBandCfg[i].gain)
             {
