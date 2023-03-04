@@ -298,7 +298,7 @@ if(APPLE)
     set(CPACK_BINARY_DRAGNDROP ON)
     # OSX cpack info
     install(TARGETS mec
-            CONFIGURATIONS Release RelWithDebInfo
+            CONFIGURATIONS Release MinSizeRel RelWithDebInfo Debug
             BUNDLE  DESTINATION . COMPONENT Runtime
             RUNTIME DESTINATION bin COMPONENT Runtime
     )
@@ -316,8 +316,9 @@ if(APPLE)
     set(DIRS ${FRAMEWORKS_PATH})
     list (APPEND DIRS "/usr/local/lib/")
     INSTALL(CODE "
+        include(InstallRequiredSystemLibraries)
         include(BundleUtilities)
-        fixup_bundle(\"${APPS}\"   \"\"  \"${DIRS}\")
+        fixup_bundle(\"${APPS}\" \"\" \"${DIRS}\")
     " COMPONENT Runtime)
 
     set(APPLE_CODESIGN_ENTITLEMENTS "${CMAKE_CURRENT_SOURCE_DIR}/resources/entitlements.plist")
