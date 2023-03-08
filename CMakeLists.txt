@@ -27,6 +27,10 @@ elseif(CMAKE_OSX_ARCHITECTURES MATCHES "x86" OR CMAKE_SYSTEM_PROCESSOR MATCHES "
     if(MSVC OR MSVC_IDE)
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /arch:AVX2 /arch:AVX /arch:FMA /arch:SSE /arch:SSE2 /arch:SSSE3 /arch:SSE4.1 /arch:SSE4.2")
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /arch:AVX2 /arch:AVX /arch:FMA /arch:SSE /arch:SSE2 /arch:SSSE3 /arch:SSE4.1 /arch:SSE4.2")
+    elseif (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+        ### we disable wasm simd support because safari isn't support it yet
+        #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -msse4.2 -msse4.1 -mssse3 -msse2 -msse -mrelaxed-simd")
+        #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -msse4.2 -msse4.1 -mssse3 -msse2 -msse -mrelaxed-simd")
     else()
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx2 -mavx")
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mavx2 -mavx")
@@ -34,6 +38,14 @@ elseif(CMAKE_OSX_ARCHITECTURES MATCHES "x86" OR CMAKE_SYSTEM_PROCESSOR MATCHES "
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -msse4.2 -msse4.1 -mssse3 -msse2 -msse")
     endif()
 endif()
+
+if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -s USE_SDL=2  -s USE_GLFW=3 -s USE_WEBGPU=1 -s WASM=1 -s ALLOW_MEMORY_GROWTH=1 -s DISABLE_EXCEPTION_CATCHING=1 -s EXIT_RUNTIME=1 -s ASSERTIONS=1 -Wno-unused-command-line-argument")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -s USE_SDL=2  -s USE_GLFW=3 -s USE_WEBGPU=1 -s WASM=1 -s ALLOW_MEMORY_GROWTH=1 -s DISABLE_EXCEPTION_CATCHING=1 -s EXIT_RUNTIME=1 -s ASSERTIONS=1 -Wno-unused-command-line-argument")
+#set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pthread -s USE_PTHREADS=1 -s PTHREAD_POOL_SIZE=4")
+#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-pthreads-mem-growth -pthread -s USE_PTHREADS=1 -s PTHREAD_POOL_SIZE=4")
+#set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-pthreads-mem-growth -pthread -s USE_PTHREADS=1 -s PTHREAD_POOL_SIZE=4")
+endif (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
 
 option(BUILD_TEST  "Build Test Application" ON)
 
@@ -82,6 +94,7 @@ include_directories(
 )
 
 # >>> include MediaCore as dependency
+if (NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
 set(BUILD_DEPENDENCY_IMGUI OFF)
 option(BUILD_MEDIACORE_TEST              "Build MediaCore test" OFF)
 if (BUILD_MEDIACORE_TEST)
@@ -416,3 +429,4 @@ endif(IMGUI_APPS)
 set(CPACK_PACKAGE_FILE_NAME "${CPACK_SYSTEM_NAME}")
 # To Create a package, run "cpack"
 include(CPack)
+endif (NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
