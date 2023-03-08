@@ -608,13 +608,47 @@ static bool UIPageChanged()
         // we leave text editor windows
         Logger::Log(Logger::DEBUG) << "[Changed page] leaving Text editor page!!!" << std::endl;
     }
-    /*
-    if (LastMainWindowIndex == 4 && MainWindowIndex != 4)
+
+    if (MainWindowIndex == 1 && VideoEditorWindowIndex == 0 && (
+        LastMainWindowIndex != 1 || LastVideoEditorWindowIndex != 0))
     {
-        // we leave media AI windows
-        Logger::Log(Logger::DEBUG) << "[Changed page] leaving media AI page!!!" << std::endl;
+        // we enter video filter windows
+        Logger::Log(Logger::DEBUG) << "[Changed page] Enter video filter page!!!" << std::endl;
     }
-    */
+
+    if (MainWindowIndex == 1 && VideoEditorWindowIndex == 1 && (
+        LastMainWindowIndex != 1 || LastVideoEditorWindowIndex != 1))
+    {
+        // we enter video fusion windows
+        Logger::Log(Logger::DEBUG) << "[Changed page] Enter video fusion page!!!" << std::endl;
+    }
+
+    if (MainWindowIndex == 1 && VideoEditorWindowIndex == 2 && (
+        LastMainWindowIndex != 1 || LastVideoEditorWindowIndex != 2))
+    {
+        // we enter video attribute windows
+        Logger::Log(Logger::DEBUG) << "[Changed page] Enter video attribute page!!!" << std::endl;
+    }
+
+    if (MainWindowIndex == 2 && AudioEditorWindowIndex == 0 && (
+        LastMainWindowIndex != 2 || LastAudioEditorWindowIndex != 0))
+    {
+        // we enter audio filter windows
+        Logger::Log(Logger::DEBUG) << "[Changed page] Enter audio filter page!!!" << std::endl;
+    }
+
+    if (MainWindowIndex == 2 && AudioEditorWindowIndex == 1 && (
+        LastMainWindowIndex != 2 || LastAudioEditorWindowIndex != 1))
+    {
+        // we enter audio fusion windows
+        Logger::Log(Logger::DEBUG) << "[Changed page] Enter audio fusion page!!!" << std::endl;
+    }
+
+    if (MainWindowIndex == 3 && LastMainWindowIndex != 3)
+    {
+        // we enter text editor windows
+        Logger::Log(Logger::DEBUG) << "[Changed page] Enter text editor page!!!" << std::endl;
+    }
     
     LastMainWindowIndex = MainWindowIndex;
     LastVideoEditorWindowIndex = VideoEditorWindowIndex;
