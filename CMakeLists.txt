@@ -328,6 +328,7 @@ if(APPLE)
     set(APPS "\${CMAKE_INSTALL_PREFIX}/mec.app")
     set(DIRS ${FRAMEWORKS_PATH})
     list (APPEND DIRS "/usr/local/lib/")
+    list (APPEND DIRS "${PROJECT_BINARY_DIR}")
     INSTALL(CODE "
         include(InstallRequiredSystemLibraries)
         include(BundleUtilities)
