@@ -6459,76 +6459,76 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
         return false;
     bool update_preview = false;
     // Add Curve
-    auto& key_point = clip->mAttributeKeyPoints;
+    auto key_point = &clip->mAttributeKeyPoints;
     char ** curve_type_list = nullptr;
     auto curve_type_count = ImGui::ImCurveEdit::GetCurveTypeName(curve_type_list);
     auto addCurve = [&](std::string name, float _min, float _max, float _default)
     {
-        auto found = key_point.GetCurveIndex(name);
+        auto found = key_point->GetCurveIndex(name);
         if (found == -1)
         {
             ImU32 color; ImGui::RandomColor(color, 1.f);
-            auto curve_index = key_point.AddCurve(name, ImGui::ImCurveEdit::Smooth, color, true, _min, _max, _default);
-            key_point.AddPoint(curve_index, ImVec2(key_point.GetMin().x, _min), ImGui::ImCurveEdit::Smooth);
-            key_point.AddPoint(curve_index, ImVec2(key_point.GetMax().x, _max), ImGui::ImCurveEdit::Smooth);
-            key_point.SetCurvePointDefault(curve_index, 0);
-            key_point.SetCurvePointDefault(curve_index, 1);
+            auto curve_index = key_point->AddCurve(name, ImGui::ImCurveEdit::Smooth, color, true, _min, _max, _default);
+            key_point->AddPoint(curve_index, ImVec2(key_point->GetMin().x, _min), ImGui::ImCurveEdit::Smooth);
+            key_point->AddPoint(curve_index, ImVec2(key_point->GetMax().x, _max), ImGui::ImCurveEdit::Smooth);
+            key_point->SetCurvePointDefault(curve_index, 0);
+            key_point->SetCurvePointDefault(curve_index, 1);
         }
     };
     
     // Editor Curve
     auto EditCurve = [&](std::string name) 
     {
-        int index = key_point.GetCurveIndex(name);
+        int index = key_point->GetCurveIndex(name);
         if (index != -1)
         {
             ImGui::Separator();
             bool break_loop = false;
             ImGui::PushID(ImGui::GetID(name.c_str()));
-            auto pCount = key_point.GetCurvePointCount(index);
+            auto pCount = key_point->GetCurvePointCount(index);
             std::string lable_id = std::string(ICON_CURVE) + " " + name + " (" + std::to_string(pCount) + " keys)" + "##text_clip_curve";
             if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
             {
                 ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
-                float value = key_point.GetValue(index, timeline->currentTime);
+                float value = key_point->GetValue(index, timeline->currentTime - clip->mStart);
                 ImGui::BracketSquare(true); ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0, 1.0, 0.0, 1.0)); ImGui::Text("%.2f", value); ImGui::PopStyleColor();
                 
                 ImGui::PushItemWidth(60);
-                float curve_min = key_point.GetCurveMin(index);
-                float curve_max = key_point.GetCurveMax(index);
+                float curve_min = key_point->GetCurveMin(index);
+                float curve_max = key_point->GetCurveMax(index);
                 ImGui::BeginDisabled(true);
                 ImGui::DragFloat("##curve_text_clip_min", &curve_min, 0.1f, -FLT_MAX, curve_max, "%.1f"); ImGui::ShowTooltipOnHover("Min");
                 ImGui::SameLine(0, 8);
                 ImGui::DragFloat("##curve_text_clip_max", &curve_max, 0.1f, curve_min, FLT_MAX, "%.1f"); ImGui::ShowTooltipOnHover("Max");
                 ImGui::SameLine(0, 8);
                 ImGui::EndDisabled();
-                float curve_default = key_point.GetCurveDefault(index);
+                float curve_default = key_point->GetCurveDefault(index);
                 if (ImGui::DragFloat("##curve_text_clip_default", &curve_default, 0.1f, curve_min, curve_max, "%.1f"))
                 {
-                    key_point.SetCurveDefault(index, curve_default);
+                    key_point->SetCurveDefault(index, curve_default);
                     update_preview = true;
                 } ImGui::ShowTooltipOnHover("Default");
                 ImGui::PopItemWidth();
 
                 ImGui::SameLine(0, 8);
                 ImGui::SetWindowFontScale(0.75);
-                auto curve_color = ImGui::ColorConvertU32ToFloat4(key_point.GetCurveColor(index));
+                auto curve_color = ImGui::ColorConvertU32ToFloat4(key_point->GetCurveColor(index));
                 if (ImGui::ColorEdit4("##curve_text_clip_color", (float*)&curve_color, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar))
                 {
-                    key_point.SetCurveColor(index, ImGui::ColorConvertFloat4ToU32(curve_color));
+                    key_point->SetCurveColor(index, ImGui::ColorConvertFloat4ToU32(curve_color));
                 } ImGui::ShowTooltipOnHover("Curve Color");
                 ImGui::SetWindowFontScale(1.0);
                 ImGui::SameLine(0, 4);
-                bool is_visiable = key_point.IsVisible(index);
+                bool is_visiable = key_point->IsVisible(index);
                 if (ImGui::Button(is_visiable ? ICON_WATCH : ICON_UNWATCH "##curve_text_clip_visiable"))
                 {
                     is_visiable = !is_visiable;
-                    key_point.SetCurveVisible(index, is_visiable);
+                    key_point->SetCurveVisible(index, is_visiable);
                 } ImGui::ShowTooltipOnHover(is_visiable ? "Hide" : "Show");
                 ImGui::SameLine(0, 4);
                 if (ImGui::Button(ICON_DELETE "##curve_text_clip_delete"))
                 {
-                    key_point.DeleteCurve(index);
+                    key_point->DeleteCurve(index);
                     update_preview = true;
                     break_loop = true;
                 } ImGui::ShowTooltipOnHover("Delete");
@@ -6537,7 +6537,7 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
                 {
                     for (int p = 0; p < pCount; p++)
                     {
-                        key_point.SetCurvePointDefault(index, p);
+                        key_point->SetCurvePointDefault(index, p);
                     }
                     update_preview = true;
                 } ImGui::ShowTooltipOnHover("Reset");
@@ -6550,28 +6550,28 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
                         bool is_disabled = false;
                         ImGui::PushID(p);
                         ImGui::PushItemWidth(96);
-                        auto point = key_point.GetPoint(index, p);
+                        auto point = key_point->GetPoint(index, p);
                         ImGui::Diamond(false);
                         if (p == 0 || p == pCount - 1)
                             is_disabled = true;
                         ImGui::BeginDisabled(is_disabled);
-                        if (ImGui::DragTimeMS("##curve_text_clip_point_x", &point.point.x, key_point.GetMax().x / 1000.f, key_point.GetMin().x, key_point.GetMax().x, 2))
+                        if (ImGui::DragTimeMS("##curve_text_clip_point_x", &point.point.x, key_point->GetMax().x / 1000.f, key_point->GetMin().x, key_point->GetMax().x, 2))
                         {
-                            key_point.EditPoint(index, p, point.point, point.type);
+                            key_point->EditPoint(index, p, point.point, point.type);
                             update_preview = true;
                         }
                         ImGui::EndDisabled();
                         ImGui::SameLine();
-                        auto speed = fabs(key_point.GetCurveMax(index) - key_point.GetCurveMin(index)) / 500;
-                        if (ImGui::DragFloat("##curve_text_clip_point_y", &point.point.y, speed, key_point.GetCurveMin(index), key_point.GetCurveMax(index), "%.2f"))
+                        auto speed = fabs(key_point->GetCurveMax(index) - key_point->GetCurveMin(index)) / 500;
+                        if (ImGui::DragFloat("##curve_text_clip_point_y", &point.point.y, speed, key_point->GetCurveMin(index), key_point->GetCurveMax(index), "%.2f"))
                         {
-                            key_point.EditPoint(index, p, point.point, point.type);
+                            key_point->EditPoint(index, p, point.point, point.type);
                             update_preview = true;
                         }
                         ImGui::SameLine();
                         if (ImGui::Combo("##curve_text_clip_type", (int*)&point.type, curve_type_list, curve_type_count))
                         {
-                            key_point.EditPoint(index, p, point.point, point.type);
+                            key_point->EditPoint(index, p, point.point, point.type);
                             update_preview = true;
                         }
                         ImGui::PopItemWidth();
@@ -6612,7 +6612,7 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     
     ImGui::ImCurveEdit::keys text_key; text_key.m_id = clip->mID;
     float pos_x = clip->mFontPosX;
-    int curve_pos_x_index = key_point.GetCurveIndex("OffsetH");
+    int curve_pos_x_index = key_point->GetCurveIndex("OffsetH");
     bool has_curve_pos_x = curve_pos_x_index != -1;
     ImGui::BeginDisabled(has_curve_pos_x);
     if (ImGui::SliderFloat("Font position X", &pos_x, - default_size.x, timeline->mWidth, "%.0f"))
@@ -6627,13 +6627,13 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     if (ImGui::ImCurveCheckEditKey("##add_curve_text_pos_x##text_clip_ediror", &text_key, has_curve_pos_x, "text_pos_x##text_clip_ediror",  - (float)default_size.x , (float)timeline->mWidth, 0, curve_button_offset))
     {
         if (has_curve_pos_x) addCurve("OffsetH", text_key.m_min, text_key.m_max, text_key.m_default);
-        else key_point.DeleteCurve("OffsetH");
+        else { key_point->DeleteCurve("OffsetH"); clip->mClipHolder->SetOffsetH(clip->mFontOffsetH); }
         update_preview = true;
     }
     if (has_curve_pos_x) EditCurve("OffsetH");
     
     float pos_y = clip->mFontPosY;
-    int curve_pos_y_index = key_point.GetCurveIndex("OffsetV");
+    int curve_pos_y_index = key_point->GetCurveIndex("OffsetV");
     bool has_curve_pos_y = curve_pos_y_index != -1;
     ImGui::BeginDisabled(has_curve_pos_y);
     if (ImGui::SliderFloat("Font position Y", &pos_y, - default_size.y, timeline->mHeight, "%.0f"))
@@ -6648,13 +6648,13 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     if (ImGui::ImCurveCheckEditKey("##add_curve_text_pos_y##text_clip_ediror", &text_key, has_curve_pos_y, "text_pos_y##text_clip_ediror",  - (float)default_size.y , (float)timeline->mHeight, 0, curve_button_offset))
     {
         if (has_curve_pos_y) addCurve("OffsetV", text_key.m_min, text_key.m_max, text_key.m_default);
-        else key_point.DeleteCurve("OffsetV");
+        else { key_point->DeleteCurve("OffsetV"); clip->mClipHolder->SetOffsetV(clip->mFontOffsetV); }
         update_preview = true;
     }
     if (has_curve_pos_y) EditCurve("OffsetV");
     
     float scale_x = clip->mFontScaleX;
-    int curve_scale_x_index = key_point.GetCurveIndex("ScaleX");
+    int curve_scale_x_index = key_point->GetCurveIndex("ScaleX");
     bool has_curve_scale_x = curve_scale_x_index != -1;
     ImGui::BeginDisabled(has_curve_scale_x);
     if (ImGui::SliderFloat("Font scale X", &scale_x, 0.2, 10, "%.1f"))
@@ -6662,14 +6662,14 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
         float scale_ratio = scale_x / clip->mFontScaleX;
         if (clip->mScaleSettingLink) { clip->mFontScaleY *= scale_ratio; clip->mClipHolder->SetScaleY(clip->mFontScaleY); }
         clip->mFontScaleX = scale_x;
-        clip->mClipHolder->SetScaleX(scale_x);
+        clip->mClipHolder->SetScaleX(clip->mFontScaleX);
         update_preview = true;
     } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##scalex_default")) { clip->mFontScaleX = style.ScaleX(); clip->mClipHolder->SetScaleX(style.ScaleX()); update_preview = true; }
     ImGui::EndDisabled();
     if (ImGui::ImCurveCheckEditKey("##add_curve_text_scale_x##text_clip_ediror", &text_key, has_curve_scale_x, "text_pscale_x##text_clip_ediror",  0.2f , 10.f, style.ScaleX(), curve_button_offset))
     {
         if (has_curve_scale_x) addCurve("ScaleX", text_key.m_min, text_key.m_max, text_key.m_default);
-        else key_point.DeleteCurve("ScaleX");
+        else { key_point->DeleteCurve("ScaleX"); clip->mClipHolder->SetScaleX(clip->mFontScaleX); }
         update_preview = true;
     }
     if (has_curve_scale_x) EditCurve("ScaleX");
@@ -6691,7 +6691,7 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     draw_list->AddText(link_button_pos, link_button_color, link_button_text.c_str());
 
     float scale_y = clip->mFontScaleY;
-    int curve_scale_y_index = key_point.GetCurveIndex("ScaleY");
+    int curve_scale_y_index = key_point->GetCurveIndex("ScaleY");
     bool has_curve_scale_y = curve_scale_y_index != -1;
     ImGui::BeginDisabled(has_curve_scale_y);
     if (ImGui::SliderFloat("Font scale Y", &scale_y, 0.2, 10, "%.1f"))
@@ -6699,20 +6699,20 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
         float scale_ratio = scale_y / clip->mFontScaleY;
         if (clip->mScaleSettingLink) { clip->mFontScaleX *= scale_ratio; clip->mClipHolder->SetScaleX(clip->mFontScaleX); }
         clip->mFontScaleY = scale_y;
-        clip->mClipHolder->SetScaleY(scale_y);
+        clip->mClipHolder->SetScaleY(clip->mFontScaleY);
         update_preview = true;
     } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##scaley_default")) { clip->mFontScaleY = style.ScaleY(); clip->mClipHolder->SetScaleY(style.ScaleY()); update_preview = true; }
     ImGui::EndDisabled();
     if (ImGui::ImCurveCheckEditKey("##add_curve_text_scale_y##text_clip_ediror", &text_key, has_curve_scale_y, "text_scale_y##text_clip_ediror",  0.2f , 10.f, style.ScaleY(), curve_button_offset))
     {
         if (has_curve_scale_y) addCurve("ScaleY", text_key.m_min, text_key.m_max, text_key.m_default);
-        else key_point.DeleteCurve("ScaleY");
+        else { key_point->DeleteCurve("ScaleY"); clip->mClipHolder->SetScaleY(clip->mFontScaleY); }
         update_preview = true;
     }
     if (has_curve_scale_y) EditCurve("ScaleY");
     
     float spacing = clip->mFontSpacing;
-    int curve_spacing_index = key_point.GetCurveIndex("Spacing");
+    int curve_spacing_index = key_point->GetCurveIndex("Spacing");
     bool has_curve_spacing = curve_spacing_index != -1;
     ImGui::BeginDisabled(has_curve_spacing);
     if (ImGui::SliderFloat("Font spacing", &spacing, 0.5, 5, "%.1f"))
@@ -6725,13 +6725,13 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     if (ImGui::ImCurveCheckEditKey("##add_curve_text_spacing##text_clip_ediror", &text_key, has_curve_spacing, "text_spacing##text_clip_ediror",  0.5f , 5.f, style.Spacing(), curve_button_offset))
     {
         if (has_curve_spacing) addCurve("Spacing", text_key.m_min, text_key.m_max, text_key.m_default);
-        else key_point.DeleteCurve("Spacing");
+        else { key_point->DeleteCurve("Spacing"); clip->mClipHolder->SetSpacing(clip->mFontSpacing); }
         update_preview = true;
     }
     if (has_curve_spacing) EditCurve("Spacing");
     
     float anglex = clip->mFontAngleX;
-    int curve_anglex_index = key_point.GetCurveIndex("AngleX");
+    int curve_anglex_index = key_point->GetCurveIndex("AngleX");
     bool has_curve_anglex = curve_anglex_index != -1;
     ImGui::BeginDisabled(has_curve_anglex);
     if (ImGui::SliderFloat("Font angle X", &anglex, 0, 360, "%.1f"))
@@ -6744,13 +6744,13 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     if (ImGui::ImCurveCheckEditKey("##add_curve_text_anglex##text_clip_ediror", &text_key, has_curve_anglex, "text_anglex##text_clip_ediror",  0.f , 360.f, style.Angle(), curve_button_offset))
     {
         if (has_curve_anglex) addCurve("AngleX", text_key.m_min, text_key.m_max, text_key.m_default);
-        else key_point.DeleteCurve("AngleX");
+        else { key_point->DeleteCurve("AngleX"); clip->mClipHolder->SetRotationX(clip->mFontAngleX); }
         update_preview = true;
     }
     if (has_curve_anglex) EditCurve("AngleX");
     
     float angley = clip->mFontAngleY;
-    int curve_angley_index = key_point.GetCurveIndex("AngleY");
+    int curve_angley_index = key_point->GetCurveIndex("AngleY");
     bool has_curve_angley = curve_angley_index != -1;
     ImGui::BeginDisabled(has_curve_angley);
     if (ImGui::SliderFloat("Font angle Y", &angley, 0, 360, "%.1f"))
@@ -6763,13 +6763,13 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     if (ImGui::ImCurveCheckEditKey("##add_curve_text_angley##text_clip_ediror", &text_key, has_curve_angley, "text_angley##text_clip_ediror",  0.f , 360.f, style.Angle(), curve_button_offset))
     {
         if (has_curve_angley) addCurve("AngleY", text_key.m_min, text_key.m_max, text_key.m_default);
-        else key_point.DeleteCurve("AngleY");
+        else { key_point->DeleteCurve("AngleY"); clip->mClipHolder->SetRotationY(clip->mFontAngleY); }
         update_preview = true;
     }
     if (has_curve_angley) EditCurve("AngleY");
     
     float anglez = clip->mFontAngleZ;
-    int curve_anglez_index = key_point.GetCurveIndex("AngleZ");
+    int curve_anglez_index = key_point->GetCurveIndex("AngleZ");
     bool has_curve_anglez = curve_anglez_index != -1;
     ImGui::BeginDisabled(has_curve_anglez);
     if (ImGui::SliderFloat("Font angle Z", &anglez, 0, 360, "%.1f"))
@@ -6782,13 +6782,13 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     if (ImGui::ImCurveCheckEditKey("##add_curve_text_anglez##text_clip_ediror", &text_key, has_curve_anglez, "text_anglez##text_clip_ediror",  0.f , 360.f, style.Angle(), curve_button_offset))
     {
         if (has_curve_anglez) addCurve("AngleZ", text_key.m_min, text_key.m_max, text_key.m_default);
-        else key_point.DeleteCurve("AngleZ");
+        else { key_point->DeleteCurve("AngleZ"); clip->mClipHolder->SetRotationZ(clip->mFontAngleZ); }
         update_preview = true;
     }
     if (has_curve_anglez) EditCurve("AngleZ");
 
     float outline_width = clip->mFontOutlineWidth;
-    int curve_outline_width_index = key_point.GetCurveIndex("OutlineWidth");
+    int curve_outline_width_index = key_point->GetCurveIndex("OutlineWidth");
     bool has_curve_outline_width = curve_outline_width_index != -1;
     ImGui::BeginDisabled(has_curve_outline_width);
     if (ImGui::SliderFloat("Font outline width", &outline_width, 0, 5, "%.0f"))
@@ -6801,13 +6801,13 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     if (ImGui::ImCurveCheckEditKey("##add_curve_text_outline_width##text_clip_ediror", &text_key, has_curve_outline_width, "text_outline_width##text_clip_ediror",  0.f , 5.f, style.OutlineWidth(), curve_button_offset))
     {
         if (has_curve_outline_width) addCurve("OutlineWidth", text_key.m_min, text_key.m_max, text_key.m_default);
-        else key_point.DeleteCurve("OutlineWidth");
+        else { key_point->DeleteCurve("OutlineWidth"); clip->mClipHolder->SetBorderWidth(clip->mFontOutlineWidth); }
         update_preview = true;
     }
     if (has_curve_outline_width) EditCurve("OutlineWidth");
     
     float shadow_depth = clip->mFontShadowDepth;
-    int curve_shadow_depth_index = key_point.GetCurveIndex("ShadowDepth");
+    int curve_shadow_depth_index = key_point->GetCurveIndex("ShadowDepth");
     bool has_curve_shadow_depth = curve_shadow_depth_index != -1;
     ImGui::BeginDisabled(has_curve_shadow_depth);
     if (ImGui::SliderFloat("Font shadow depth", &shadow_depth, 0.f, 20.f, "%.1f"))
@@ -6820,7 +6820,7 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     if (ImGui::ImCurveCheckEditKey("##add_curve_text_shadow_depth##text_clip_ediror", &text_key, has_curve_shadow_depth, "text_shadow_depth##text_clip_ediror",  0.f , 20.f, style.ShadowDepth(), curve_button_offset))
     {
         if (has_curve_shadow_depth) addCurve("ShadowDepth", text_key.m_min, text_key.m_max, text_key.m_default);
-        else key_point.DeleteCurve("ShadowDepth");
+        else { key_point->DeleteCurve("ShadowDepth"); clip->mClipHolder->SetShadowDepth(clip->mFontShadowDepth); }
         update_preview = true;
     }
     if (has_curve_shadow_depth) EditCurve("ShadowDepth");
@@ -6899,6 +6899,7 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
 
     ImGui::PopItemWidth();
 
+    if (update_preview && clip->mClipHolder) clip->mClipHolder->SetKeyPoints(clip->mAttributeKeyPoints); 
     return update_preview;
 }
 
@@ -7564,9 +7565,10 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
             if (StyleWindowIndex == 0 && editing_clip)
             {
                 bool _changed = false;
-                float current_time = timeline->currentTime;
+                float current_time = timeline->currentTime - editing_clip->mStart;
+                auto keyPointsPtr = &editing_clip->mAttributeKeyPoints;
                 mouse_hold |= ImGui::ImCurveEdit::Edit( nullptr,
-                                                        &editing_clip->mAttributeKeyPoints,
+                                                        keyPointsPtr,
                                                         sub_window_size, 
                                                         ImGui::GetID("##text_clip_keypoint_editor"), 
                                                         true,
@@ -7575,8 +7577,9 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
                                                         nullptr, // clippingRect
                                                         &_changed
                                                         );
+                current_time += editing_clip->mStart;
                 if ((int64_t)current_time != timeline->currentTime) { timeline->bSeeking = true; timeline->Seek(current_time); }
-                if (_changed) timeline->UpdatePreview();
+                if (_changed && editing_clip->mClipHolder) { editing_clip->mClipHolder->SetKeyPoints(editing_clip->mAttributeKeyPoints); timeline->UpdatePreview(); }
             }
             else if (StyleWindowIndex == 1 && editing_track)
             {

@@ -1743,6 +1743,7 @@ Clip * TextClip::Load(const imgui_json::value& value, void * handle)
                 auto& val = value["BackColor"];
                 if (val.is_vec4()) new_clip->mFontBackColor = val.get<imgui_json::vec4>();
             }
+
             return new_clip;
         }
     }
@@ -4001,6 +4002,7 @@ MediaTrack* MediaTrack::Load(const imgui_json::value& value, void * handle)
                 {
                     TextClip * tclip = dynamic_cast<TextClip *>(clip);
                     tclip->CreateClipHold(new_track);
+                    if (tclip->mClipHolder) tclip->mClipHolder->SetKeyPoints(tclip->mAttributeKeyPoints);
                 }
             }
         }
