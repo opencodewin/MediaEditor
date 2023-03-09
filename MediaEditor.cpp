@@ -7367,7 +7367,6 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
 
     ImGuiWindowFlags child_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings;
     ImGuiWindowFlags setting_child_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings;
-
     ImGui::SetCursorScreenPos(window_pos + ImVec2(preview_view_width, 0));
     if (ImGui::BeginChild("##text_editor_style", ImVec2(style_editor_width, window_size.y), false, setting_child_flags))
     {
@@ -7448,7 +7447,8 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
                     if (StyleWindowIndex == 0)
                     {
                         // clip style
-                        ImGui::BeginDisabled(editing_clip->mTrackStyle);
+                        bool bEnabled = timeline->currentTime >= editing_clip->mStart && timeline->currentTime <= editing_clip->mEnd;
+                        ImGui::BeginDisabled(editing_clip->mTrackStyle || !bEnabled);
                         force_update_preview |= edit_text_clip_style(draw_list, editing_clip, style_setting_window_size, default_size);
                         ImGui::EndDisabled();
                     }
