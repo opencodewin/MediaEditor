@@ -727,7 +727,7 @@ static bool ExpendButton(ImDrawList *draw_list, ImVec2 pos, bool expand = true)
     return overDel;
 }
 
-static void ShowVideoWindow(ImTextureID texture, ImVec2& pos, ImVec2& size)
+static void ShowVideoWindow(ImTextureID texture, ImVec2 pos, ImVec2 size)
 {
     if (texture)
     {
@@ -752,19 +752,22 @@ static void ShowVideoWindow(ImTextureID texture, ImVec2& pos, ImVec2& size)
     }
 }
 
-static void ShowVideoWindow(ImDrawList *draw_list, ImTextureID texture, ImVec2& pos, ImVec2& size, float& offset_x, float& offset_y, float& tf_x, float& tf_y, bool bLandscape = true)
+static void ShowVideoWindow(ImDrawList *draw_list, ImTextureID texture, ImVec2 pos, ImVec2 size, float& offset_x, float& offset_y, float& tf_x, float& tf_y, bool bLandscape = true)
 {
     if (texture)
     {
         ImGui::SetCursorScreenPos(pos);
         ImGui::InvisibleButton(("##video_window" + std::to_string((long long)texture)).c_str(), size);
         bool bViewisLandscape = size.x >= size.y ? true : false;
-        bViewisLandscape |= bLandscape;
-        float aspectRatio = (float)ImGui::ImGetTextureWidth(texture) / (float)ImGui::ImGetTextureHeight(texture);
+        float texture_width = ImGui::ImGetTextureWidth(texture);
+        float texture_height = ImGui::ImGetTextureHeight(texture);
+        float aspectRatio = texture_width / texture_height;
         bool bRenderisLandscape = aspectRatio > 1.f ? true : false;
         bool bNeedChangeScreenInfo = bViewisLandscape ^ bRenderisLandscape;
-        float adj_w = bNeedChangeScreenInfo ? size.y : size.x;
-        float adj_h = bNeedChangeScreenInfo ? size.x : size.y;
+        float adj_w = bViewisLandscape ? (bNeedChangeScreenInfo ? size.y * aspectRatio : size.x) : 
+                                        (bNeedChangeScreenInfo ? size.x : size.y / aspectRatio);
+        float adj_h = bViewisLandscape ? (bNeedChangeScreenInfo ? size.x : size.y * aspectRatio) :
+                                        (bNeedChangeScreenInfo ? size.x / aspectRatio : size.y);
         float adj_x = adj_h * aspectRatio;
         float adj_y = adj_h;
         if (adj_x > adj_w) { adj_y *= adj_w / adj_x; adj_x = adj_w; }
@@ -1710,27 +1713,9 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
     ImGui::SetCursorScreenPos(icon_pos);
     if (texture)
     {
-        auto tex_w = ImGui::ImGetTextureWidth(texture);
-        auto tex_h = ImGui::ImGetTextureHeight(texture);
-        float aspectRatio = (float)tex_w / (float)tex_h;
-        bool bViewisLandscape = icon_size.x >= icon_size.y ? true : false;
-        bool bRenderisLandscape = aspectRatio > 1.f ? true : false;
-        bool bNeedChangeScreenInfo = bViewisLandscape ^ bRenderisLandscape;
-        float adj_w = bNeedChangeScreenInfo ? icon_size.y : icon_size.x - 2;
-        float adj_h = bNeedChangeScreenInfo ? icon_size.x - 2 : icon_size.y;
-        float adj_x = adj_h * aspectRatio;
-        float adj_y = adj_h;
-        if (adj_x > adj_w) { adj_y *= adj_w / adj_x; adj_x = adj_w; }
-        float offset_x = (icon_size.x - adj_x + 4) / 2.0;
-        float offset_y = (icon_size.y - adj_y) / 2.0;
-        ImGui::PushID((void*)(intptr_t)texture);
-        const ImGuiID id = ImGui::GetCurrentWindow()->GetID("#image");
-        ImGui::PopID();
-        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(offset_x, offset_y));
-        ImGui::ImageButtonEx(id, texture, ImVec2(adj_w - offset_x * 2 + 6, adj_h - offset_y * 2), 
-                            ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), 
-                            ImVec4(0.0f, 0.0f, 0.0f, 1.0f), ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-        ImGui::PopStyleVar();
+        float offset_x = 0, offset_y = 0;
+        float tf_x = 0, tf_y = 0;
+        ShowVideoWindow(draw_list, texture, icon_pos + ImVec2(4, 16), icon_size - ImVec2(4, 32), offset_x, offset_y, tf_x, tf_y);
     }
     else
     {
