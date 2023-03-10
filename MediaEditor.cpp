@@ -727,64 +727,65 @@ static bool ExpendButton(ImDrawList *draw_list, ImVec2 pos, bool expand = true)
     return overDel;
 }
 
-static void ShowVideoWindow(ImTextureID texture, ImVec2 pos, ImVec2 size)
-{
-    if (texture)
-    {
-        bool bViewisLandscape = size.x >= size.y ? true : false;
-        float aspectRatio = (float)ImGui::ImGetTextureWidth(texture) / (float)ImGui::ImGetTextureHeight(texture);
-        bool bRenderisLandscape = aspectRatio > 1.f ? true : false;
-        bool bNeedChangeScreenInfo = bViewisLandscape ^ bRenderisLandscape;
-        float adj_w = bNeedChangeScreenInfo ? size.y : size.x;
-        float adj_h = bNeedChangeScreenInfo ? size.x : size.y;
-        float adj_x = adj_h * aspectRatio;
-        float adj_y = adj_h;
-        if (adj_x > adj_w) { adj_y *= adj_w / adj_x; adj_x = adj_w; }
-        float offset_x = pos.x + (size.x - adj_x) / 2.0;
-        float offset_y = pos.y + (size.y - adj_y) / 2.0;
-        ImGui::GetWindowDrawList()->AddImage(
-            texture,
-            ImVec2(offset_x, offset_y),
-            ImVec2(offset_x + adj_x, offset_y + adj_y),
-            ImVec2(0, 0),
-            ImVec2(1, 1)
-        );
-    }
-}
-
 static void ShowVideoWindow(ImDrawList *draw_list, ImTextureID texture, ImVec2 pos, ImVec2 size, float& offset_x, float& offset_y, float& tf_x, float& tf_y, bool bLandscape = true)
 {
     if (texture)
     {
         ImGui::SetCursorScreenPos(pos);
         ImGui::InvisibleButton(("##video_window" + std::to_string((long long)texture)).c_str(), size);
-        bool bViewisLandscape = size.x >= size.y ? true : false;
+        
         float texture_width = ImGui::ImGetTextureWidth(texture);
         float texture_height = ImGui::ImGetTextureHeight(texture);
-        float aspectRatio = texture_width / texture_height;
-        bool bRenderisLandscape = aspectRatio > 1.f ? true : false;
-        bool bNeedChangeScreenInfo = bViewisLandscape ^ bRenderisLandscape;
-        float adj_w = bViewisLandscape ? (bNeedChangeScreenInfo ? size.y * aspectRatio : size.x) : 
-                                        (bNeedChangeScreenInfo ? size.x : size.y / aspectRatio);
-        float adj_h = bViewisLandscape ? (bNeedChangeScreenInfo ? size.x : size.y * aspectRatio) :
-                                        (bNeedChangeScreenInfo ? size.x / aspectRatio : size.y);
-        float adj_x = adj_h * aspectRatio;
-        float adj_y = adj_h;
-        if (adj_x > adj_w) { adj_y *= adj_w / adj_x; adj_x = adj_w; }
-        tf_x = (size.x - adj_x) / 2.0;
-        tf_y = (size.y - adj_y) / 2.0;
+        float aspectRatioTexture = texture_width / texture_height;
+        float aspectRatioView = size.x / size.y;
+        bool bTextureisLandscape = aspectRatioTexture > 1.f ? true : false;
+        bool bViewisLandscape = aspectRatioView > 1.f ? true : false;
+        float adj_w = 0, adj_h = 0;
+        if ((bViewisLandscape && bTextureisLandscape) || (!bViewisLandscape && !bTextureisLandscape))
+        {
+            if (aspectRatioTexture >= aspectRatioView)
+            {
+                adj_w = size.x;
+                adj_h = adj_w / aspectRatioTexture;
+            }
+            else
+            {
+                adj_h = size.y;
+                adj_w = adj_h * aspectRatioTexture;
+            }
+        }
+        else if (bViewisLandscape && !bTextureisLandscape)
+        {
+            adj_h = size.y;
+            adj_w = adj_h * aspectRatioTexture;
+        }
+        else if (!bViewisLandscape && bTextureisLandscape)
+        {
+            adj_w = size.x;
+            adj_h = adj_w / aspectRatioTexture;
+        }
+        tf_x = (size.x - adj_w) / 2.0;
+        tf_y = (size.y - adj_h) / 2.0;
         offset_x = pos.x + tf_x;
         offset_y = pos.y + tf_y;
+        draw_list->AddRectFilled(ImVec2(offset_x, offset_y), ImVec2(offset_x + adj_w, offset_y + adj_h), IM_COL32_BLACK);
         draw_list->AddImage(
             texture,
             ImVec2(offset_x, offset_y),
-            ImVec2(offset_x + adj_x, offset_y + adj_y),
+            ImVec2(offset_x + adj_w, offset_y + adj_h),
             ImVec2(0, 0),
             ImVec2(1, 1)
         );
-        tf_x = offset_x + adj_x;
-        tf_y = offset_y + adj_y;
+        tf_x = offset_x + adj_w;
+        tf_y = offset_y + adj_h;
     }
+}
+
+static void ShowVideoWindow(ImTextureID texture, ImVec2 pos, ImVec2 size)
+{
+    float offset_x = 0, offset_y = 0;
+    float tf_x = 0, tf_y = 0;
+    ShowVideoWindow(ImGui::GetWindowDrawList(), texture, pos, size, offset_x, offset_y, tf_x, tf_y);
 }
 
 static void CalculateVideoScope(ImGui::ImMat& mat)
@@ -1713,9 +1714,7 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
     ImGui::SetCursorScreenPos(icon_pos);
     if (texture)
     {
-        float offset_x = 0, offset_y = 0;
-        float tf_x = 0, tf_y = 0;
-        ShowVideoWindow(draw_list, texture, icon_pos + ImVec2(4, 16), icon_size - ImVec2(4, 32), offset_x, offset_y, tf_x, tf_y);
+        ShowVideoWindow(texture, icon_pos + ImVec2(4, 16), icon_size - ImVec2(4, 32));
     }
     else
     {
@@ -2930,8 +2929,6 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
         ImVec2 preview_size = ImVec2(640, 360);
         ImVec2 preview_pos = ImGui::GetCursorScreenPos();
         float pos_x = 0, pos_y = 0;
-        float offset_x = 0, offset_y = 0;
-        float tf_x = 0, tf_y = 0;
         if (timeline->mIsEncoding)
         {
             ImGui::ImMat encMatV;
@@ -2945,7 +2942,7 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
             }
             if (timeline->mEncodingPreviewTexture)
             {
-                ShowVideoWindow(ImGui::GetWindowDrawList(), timeline->mEncodingPreviewTexture, preview_pos, preview_size, offset_x, offset_y, tf_x, tf_y);
+                ShowVideoWindow(timeline->mEncodingPreviewTexture, preview_pos, preview_size);
             }
             else
             {
@@ -2954,11 +2951,11 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
         }
         else if (timeline->mEncodingPreviewTexture)
         {
-            ShowVideoWindow(ImGui::GetWindowDrawList(), timeline->mEncodingPreviewTexture, preview_pos, preview_size, offset_x, offset_y, tf_x, tf_y);
+            ShowVideoWindow(timeline->mEncodingPreviewTexture, preview_pos, preview_size);
         }
         else if (timeline->mMainPreviewTexture)
         {
-            ShowVideoWindow(ImGui::GetWindowDrawList(), timeline->mMainPreviewTexture, preview_pos, preview_size, offset_x, offset_y, tf_x, tf_y);
+            ShowVideoWindow(timeline->mMainPreviewTexture, preview_pos, preview_size);
         }
         else
         {
