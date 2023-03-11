@@ -1743,7 +1743,7 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
         }
         else
         {
-            if ((*item)->mMediaType == MEDIA_AUDIO && (*item)->mMediaOverview)
+            if (IS_AUDIO((*item)->mMediaType) && (*item)->mMediaOverview)
             {
                 auto wavefrom = (*item)->mMediaOverview->GetWaveform();
                 if (wavefrom && wavefrom->pcm.size() > 0)
@@ -1775,6 +1775,10 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
                     ImGui::SetWindowFontScale(1.0);
                 }
             }
+            else if (IS_TEXT((*item)->mMediaType))
+            {
+                ImGui::Button(ICON_MEDIA_TEXT "Text", ImVec2(media_icon_size, media_icon_size));
+            }
             else
                 ImGui::Button((*item)->mName.c_str(), ImVec2(media_icon_size, media_icon_size));
         }
@@ -1795,11 +1799,6 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
             {
                 if ((*item)->mMediaType == MEDIA_SUBTYPE_AUDIO_MIDI) type_string = std::string(ICON_FA_FILE_WAVEFORM) + " ";
                 else type_string = std::string(ICON_FA_FILE_AUDIO) + " ";
-            }
-            else if (IS_TEXT((*item)->mMediaType))
-            {
-                if ((*item)->mMediaType == MEDIA_SUBTYPE_TEXT_SUBTITLE) type_string = std::string(ICON_FA_FILE_CODE) + " ";
-                else type_string = std::string(ICON_FA_FILE_LINES) + " ";
             }
             type_string += ImGuiHelper::MillisecToString(media_length * 1000, 2);
             ImGui::SetWindowFontScale(0.7);
@@ -1856,6 +1855,18 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
             }
             ImGui::PopStyleColor(3);
         }
+        else if (IS_TEXT((*item)->mMediaType) && ImGuiHelper::file_exists((*item)->mPath))
+        {
+            ImGui::SetCursorScreenPos(icon_pos + ImVec2(4, 4));
+            std::string type_string;
+            if ((*item)->mMediaType == MEDIA_SUBTYPE_TEXT_SUBTITLE) type_string = std::string(ICON_FA_FILE_CODE);
+            else type_string = std::string(ICON_FA_FILE_LINES);
+            ImGui::SetWindowFontScale(0.7);
+            ImGui::TextUnformatted(type_string.c_str());
+            ImGui::SetWindowFontScale(1.0);
+            ImGui::ShowTooltipOnHover("%s", (*item)->mPath.c_str());
+            ImGui::SetCursorScreenPos(icon_pos + ImVec2(0, media_icon_size - 20));
+        }
     }
     else
     {
@@ -1910,7 +1921,19 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
         bool _overButton = _rect.Contains(io.MousePos);
         if (_overButton && io.MouseClicked[0])
         {
-            // TODO::Dicky add re-locate media
+            std::string filter;
+            if ((*item)->mMediaType == MEDIA_SUBTYPE_VIDEO_IMAGE) filter = image_filter;
+            else if (IS_VIDEO((*item)->mMediaType)) filter = video_filter;
+            else if (IS_AUDIO((*item)->mMediaType)) filter = audio_filter;
+            else if (IS_TEXT((*item)->mMediaType)) filter = text_filter;
+            else filter = ".*";
+            ImGuiFileDialog::Instance()->OpenDialog("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Choose Media File", 
+                                                    filter.c_str(),
+                                                    ".",
+                                                    1, 
+                                                    IGFDUserDatas("Relocate Media Source"), 
+                                                    ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_DisableCreateDirectoryButton | ImGuiFileDialogFlags_Modal);
+
         }
         ImGui::ShowTooltipOnHover("Locate Media");
     }
@@ -9930,6 +9953,10 @@ bool Application_Frame(void * handle, bool app_will_quit)
             if (userDatas.compare("Media Source") == 0)
             {
                 InsertMedia(file_path);
+            }
+            if (userDatas.compare("Relocate Media Source") == 0)
+            {
+                // TODO::Dicky add relocate source
             }
             if (userDatas.compare("ProjectOpen") == 0)
             {
