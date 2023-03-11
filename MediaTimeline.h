@@ -167,6 +167,10 @@
 #define ICON_SETTING_LINK   u8"\uf0c1"
 #define ICON_SETTING_UNLINK u8"\uf127"
 
+#define ICON_ERROR_MEDIA    u8"\ue160"
+#define ICON_ERROR_FRAME    u8"\uf410"
+#define ICON_ERROR_AUDIO    u8"\ue440"
+
 #define COL_FRAME_RECT      IM_COL32( 16,  16,  96, 255)
 #define COL_LIGHT_BLUR      IM_COL32( 16, 128, 255, 255)
 #define COL_CANVAS_BG       IM_COL32( 36,  36,  36, 255)
@@ -201,6 +205,7 @@
 #define COL_MARK_BAR        IM_COL32(128, 128, 128, 170)
 #define COL_MARK_DOT        IM_COL32(170, 170, 170, 224)
 #define COL_MARK_DOT_LIGHT  IM_COL32(255, 255, 255, 224)
+#define COL_ERROR_MEDIA     IM_COL32(160,   0,   0, 224)
 
 #define HALF_COLOR(c)       (c & 0xFFFFFF) | 0x40000000;
 #define TIMELINE_OVER_LENGTH    5000        // add 5 seconds end of timeline
@@ -214,14 +219,16 @@ namespace MediaTimeline
 
 
 #define MEDIA_UNKNOWN               0
-#define MEDIA_VIDEO                 0x00000010
-#define MEDIA_SUBTYPE_VIDEO_IMAGE   0x00000011
+#define MEDIA_DUMMY                 0x00000001
+#define MEDIA_VIDEO                 0x00000100
+#define MEDIA_SUBTYPE_VIDEO_IMAGE   0x00000110
 #define MEDIA_AUDIO                 0x00001000
 #define MEDIA_SUBTYPE_AUDIO_MIDI    0x00001100
 #define MEDIA_TEXT                  0x00100000
 #define MEDIA_SUBTYPE_TEXT_SUBTITLE 0x00110000
 #define MEDIA_CUSTOM                0x10000000
 
+#define IS_DUMMY(t) (t & MEDIA_DUMMY)
 #define IS_VIDEO(t) (t & MEDIA_VIDEO)
 #define IS_AUDIO(t) (t & MEDIA_AUDIO)
 #define IS_IMAGE(t) ((t & MEDIA_SUBTYPE_VIDEO_IMAGE) == MEDIA_SUBTYPE_VIDEO_IMAGE)
@@ -253,6 +260,7 @@ struct MediaItem
     int64_t mID;                            // media ID
     std::string mName;
     std::string mPath;
+    bool mValid {false};                    // Media source is valid
     int64_t mStart  {0};                    // whole Media start in ms
     int64_t mEnd    {0};                    // whole Media end in ms
     MediaOverview * mMediaOverview;
@@ -383,6 +391,7 @@ struct VideoClip : Clip
 
     VideoClip(int64_t start, int64_t end, int64_t id, std::string name, MediaParserHolder hParser, SnapshotGenerator::ViewerHolder viewer, void* handle);
     VideoClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle);
+    VideoClip(int64_t start, int64_t end, int64_t id, std::string name, void* handle); // dummy clip
     ~VideoClip();
 
     void ConfigViewWindow(int64_t wndDur, float pixPerMs) override;
@@ -412,6 +421,7 @@ struct AudioClip : Clip
     MediaOverview * mOverview {nullptr};
 
     AudioClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle);
+    AudioClip(int64_t start, int64_t end, int64_t id, std::string name, void* handle);
     ~AudioClip();
 
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect) override;
@@ -422,6 +432,7 @@ struct AudioClip : Clip
 struct TextClip : Clip
 {
     TextClip(int64_t start, int64_t end, int64_t id, std::string name, std::string text, void* handle);
+    TextClip(int64_t start, int64_t end, int64_t id, std::string name, void* handle);
     ~TextClip();
     void SetClipDefault(const MediaCore::SubtitleStyle & style);
     void SetClipDefault(const TextClip* clip);
@@ -824,7 +835,9 @@ struct MediaTrack
         mViewWndDur = wndDur;
         mPixPerMs = pixPerMs;
         for (auto& clip : m_Clips)
-            clip->ConfigViewWindow(wndDur, pixPerMs);
+        {
+            if (!IS_DUMMY(clip->mType)) clip->ConfigViewWindow(wndDur, pixPerMs);
+        }
     }
 };
 

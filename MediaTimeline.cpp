@@ -27,9 +27,8 @@ static bool TimelineButton(ImDrawList *draw_list, const char * label, ImVec2 pos
     ImGui::SetWindowFontScale(0.75);
     draw_list->AddText(pos, ImGui::GetColorU32(color), label);
     ImGui::SetWindowFontScale(1.0);
-    if (overButton && !tooltips.empty())
+    if (overButton && !tooltips.empty() && ImGui::BeginTooltip())
     {
-        ImGui::BeginTooltip();
         ImGui::TextUnformatted(tooltips.c_str());
         ImGui::EndTooltip();
     }
@@ -154,6 +153,12 @@ MediaItem::MediaItem(const std::string& name, const std::string& path, uint32_t 
         {
             mEnd = 5000;
         }
+        mValid = true;
+    }
+    else if (mMediaOverview && IS_TEXT(type))
+    {
+        if (ImGuiHelper::file_exists(mPath))
+            mValid = true;
     }
 }
 
@@ -337,6 +342,8 @@ int64_t Clip::Cropping(int64_t diff, int type)
     auto track = timeline->FindTrackByClipID(mID);
     if (!track || track->mLocked)
         return new_diff;
+    if (IS_DUMMY(mType))
+        return new_diff;
     timeline->AlignTime(diff);
     float frame_duration = (timeline->mFrameRate.den > 0 && timeline->mFrameRate.num > 0) ? timeline->mFrameRate.den * 1000.0 / timeline->mFrameRate.num : 40;
     if (type == 0)
@@ -468,6 +475,8 @@ void Clip::Cutting(int64_t pos)
         return;
     auto track = timeline->FindTrackByClipID(mID);
     if (!track || track->mLocked)
+        return;
+    if (IS_DUMMY(mType))
         return;
     
     timeline->AlignTime(pos);
@@ -618,6 +627,8 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
     auto track = timeline->FindTrackByClipID(mID);
     if (!track || track->mLocked)
         return index;
+    if (IS_DUMMY(mType))
+        return index;
     
     ImGuiIO &io = ImGui::GetIO();
     bool single = ImGui::IsKeyDown(ImGuiKey_LeftCtrl) && (io.KeyMods == ImGuiMod_Ctrl);
@@ -642,6 +653,8 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
             {
                 auto clip_track = timeline->FindTrackByClipID(clip->mID);
                 if (clip_track && clip_track->mLocked)
+                    continue;
+                if (IS_DUMMY(clip->mType))
                     continue;
                 if (clip->mStart < group_start)
                 {
@@ -1038,6 +1051,13 @@ VideoClip::VideoClip(int64_t start, int64_t end, int64_t id, std::string name, M
     }
 }
 
+VideoClip::VideoClip(int64_t start, int64_t end, int64_t id, std::string name, void* handle)
+    : Clip(start, end, id, nullptr, handle)
+{
+    mType = MEDIA_DUMMY;
+    mName = name;
+}
+
 VideoClip::~VideoClip()
 {
     if (mSsViewer) mSsViewer->Release();
@@ -1070,7 +1090,15 @@ Clip* VideoClip::Load(const imgui_json::value& value, void * handle)
     {
         // media is in bank
         VideoClip * new_clip = nullptr;
-        if (item->mMediaType == MEDIA_SUBTYPE_VIDEO_IMAGE)
+        if (!item->mValid)
+        {
+            new_clip = new VideoClip(item->mStart, item->mEnd, item->mID, item->mName, handle);
+            if (item->mMediaType == MEDIA_SUBTYPE_VIDEO_IMAGE)
+                new_clip->mType |= MEDIA_SUBTYPE_VIDEO_IMAGE;
+            else
+                new_clip->mType |= MEDIA_VIDEO;
+        }
+        else if (item->mMediaType == MEDIA_SUBTYPE_VIDEO_IMAGE)
         {
             new_clip = new VideoClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, handle);
         }
@@ -1187,7 +1215,7 @@ void VideoClip::SetViewWindowStart(int64_t millisec)
     mClipViewStartPos = mStartOffset;
     if (millisec > mStart)
         mClipViewStartPos += millisec-mStart;
-    if (mType != MEDIA_SUBTYPE_VIDEO_IMAGE)
+    if (!IS_DUMMY(mType) && mType != MEDIA_SUBTYPE_VIDEO_IMAGE)
     {
         if (!mSsViewer->GetSnapshots((double)mClipViewStartPos/1000, mSnapImages))
             throw std::runtime_error(mSsViewer->GetError());
@@ -1197,6 +1225,42 @@ void VideoClip::SetViewWindowStart(int64_t millisec)
 
 void VideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect)
 {
+    if (IS_DUMMY(mType))
+    {
+        int trackHeight = rightBottom.y - leftTop.y;
+        int snapHeight = trackHeight;
+        int snapWidth = trackHeight * 4 / 3;
+        ImVec2 imgLeftTop = leftTop;
+        float snapDispWidth = snapWidth;
+        while (imgLeftTop.x < rightBottom.x)
+        {
+            ImVec2 uvMin{0, 0}, uvMax{1, 1};
+            if (snapDispWidth < snapWidth)
+                uvMin.x = 1 - snapDispWidth / snapWidth;
+            if (imgLeftTop.x + snapDispWidth > rightBottom.x)
+            {
+                uvMax.x = 1 - (imgLeftTop.x + snapDispWidth - rightBottom.x) / snapWidth;
+                snapDispWidth = rightBottom.x - imgLeftTop.x;
+            }
+            auto frame_min = imgLeftTop;
+            auto frame_max = ImVec2(imgLeftTop.x + snapDispWidth, rightBottom.y);
+            drawList->AddRectFilled(frame_min, frame_max, COL_ERROR_MEDIA, 8, ImDrawFlags_RoundCornersAll);
+            drawList->AddRect(frame_min, frame_max, IM_COL32(0, 0, 0, 255));
+            drawList->AddLine(frame_min, frame_max, IM_COL32_BLACK);
+            drawList->AddLine(frame_min + ImVec2(0, trackHeight), frame_max - ImVec2(0, trackHeight), IM_COL32_BLACK);
+            std::string error_mark = std::string(ICON_ERROR_FRAME);
+            ImGui::SetWindowFontScale(1.2);
+            auto error_mark_size = ImGui::CalcTextSize(error_mark.c_str());
+            float _xoft = (frame_max.x - frame_min.x - error_mark_size.x) / 2;
+            float _yoft = (frame_max.y - frame_min.y - error_mark_size.y) / 2;
+            if (_xoft >= 0 && _yoft >= 0)
+                drawList->AddText(frame_min + ImVec2(_xoft, _yoft), IM_COL32_WHITE, ICON_ERROR_FRAME);
+            ImGui::SetWindowFontScale(1.0);
+            imgLeftTop.x += snapDispWidth;
+            snapDispWidth = snapWidth;
+        }
+        return;
+    }
     if (mImgTexture)
     {
         int _width = ImGui::ImGetTextureWidth(mImgTexture);
@@ -1350,6 +1414,13 @@ AudioClip::AudioClip(int64_t start, int64_t end, int64_t id, std::string name, M
     }
 }
 
+AudioClip::AudioClip(int64_t start, int64_t end, int64_t id, std::string name, void* handle)
+    : Clip(start, end, id, nullptr, handle)
+{
+    mType = MEDIA_DUMMY | MEDIA_AUDIO;
+    mName = name;
+}
+
 AudioClip::~AudioClip()
 {
 }
@@ -1357,7 +1428,24 @@ AudioClip::~AudioClip()
 void AudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect)
 {
     TimeLine * timeline = (TimeLine *)mHandle;
-    if (!timeline || timeline->media_items.size() <= 0 || !mWaveform)
+    if (!timeline)
+        return;
+    if (IS_DUMMY(mType))
+    {
+        int trackHeight = rightBottom.y - leftTop.y;
+        drawList->AddRectFilled(leftTop, rightBottom, COL_ERROR_MEDIA, 8, ImDrawFlags_RoundCornersAll);
+        drawList->AddLine(leftTop, rightBottom, IM_COL32_BLACK);
+        drawList->AddLine(leftTop + ImVec2(0, trackHeight), rightBottom - ImVec2(0, trackHeight), IM_COL32_BLACK);
+        ImGui::SetWindowFontScale(1.2);
+        std::string error_mark = std::string(ICON_ERROR_AUDIO);
+        auto error_mark_size = ImGui::CalcTextSize(error_mark.c_str());
+        float _xoft = (rightBottom.x - leftTop.x - error_mark_size.x) / 2;
+        float _yoft = (rightBottom.y - leftTop.y - error_mark_size.y) / 2;
+        drawList->AddText(leftTop + ImVec2(_xoft, _yoft), IM_COL32_WHITE, ICON_ERROR_AUDIO);
+        ImGui::SetWindowFontScale(1.0);
+        return;
+    }
+    if (timeline->media_items.size() <= 0 || !mWaveform)
         return;
 
     ImVec2 draw_size = rightBottom - leftTop;
@@ -1433,7 +1521,11 @@ Clip * AudioClip::Load(const imgui_json::value& value, void * handle)
     }
     if (item)
     {
-        AudioClip * new_clip = new AudioClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, handle);
+        AudioClip * new_clip = nullptr;
+        if (item->mValid)
+            new_clip = new AudioClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, handle);
+        else
+            new_clip = new AudioClip(item->mStart, item->mEnd, item->mID, item->mName, handle);
         if (new_clip)
         {
             Clip::Load(new_clip, value);
@@ -1486,6 +1578,13 @@ TextClip::TextClip(int64_t start, int64_t end, int64_t id, std::string name, std
         mText = text;
         mTrackStyle = true;
     }
+}
+
+TextClip::TextClip(int64_t start, int64_t end, int64_t id, std::string name, void* handle)
+    : Clip(start, end, id, nullptr, handle)
+{
+    mType = MEDIA_DUMMY | MEDIA_TEXT;
+    mName = name;
 }
 
 TextClip::~TextClip()
@@ -1613,11 +1712,13 @@ void TextClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const Im
 
 void TextClip::DrawTooltips()
 {
-    ImGui::BeginTooltip();
-    ImGui::PushStyleVar(ImGuiStyleVar_TextInternationalize, 0);
-    ImGui::Text("%s", mText.c_str());
-    ImGui::PopStyleVar();
-    ImGui::EndTooltip();
+    if (ImGui::BeginTooltip())
+    {
+        ImGui::PushStyleVar(ImGuiStyleVar_TextInternationalize, 0);
+        ImGui::Text("%s", mText.c_str());
+        ImGui::PopStyleVar();
+        ImGui::EndTooltip();
+    }
 }
 
 Clip * TextClip::Load(const imgui_json::value& value, void * handle)
@@ -3642,6 +3743,8 @@ void MediaTrack::SelectEditingClip(Clip * clip, bool filter_editing)
     TimeLine * timeline = (TimeLine *)m_Handle;
     if (!timeline || !clip)
         return;
+    if (IS_DUMMY(clip->mType))
+        return;
     
     int updated = 0;
     if (filter_editing && timeline->m_CallBacks.EditingClipFilter)
@@ -3779,6 +3882,8 @@ void MediaTrack::SelectEditingOverlap(Overlap * overlap)
     auto first = timeline->FindClipByID(overlap->m_Clip.first);
     auto second = timeline->FindClipByID(overlap->m_Clip.second);
     if (!first || !second)
+        return;
+    if (IS_DUMMY(first->mType) || IS_DUMMY(second->mType))
         return;
 
     if (IS_VIDEO(first->mType) && IS_VIDEO(second->mType))
@@ -5210,7 +5315,8 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &view_r
                     else if (track->mExpanded && clip_area_rect.Contains(io.MousePos) && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
                     {
                         bool b_attr_editing = ImGui::IsKeyDown(ImGuiKey_LeftShift) && (io.KeyMods == ImGuiModFlags_Shift);
-                        track->SelectEditingClip(clip, !b_attr_editing);
+                        if (!IS_DUMMY(clip->mType))
+                            track->SelectEditingClip(clip, !b_attr_editing);
                     }
                     clip->DrawTooltips();
                 }
@@ -5572,6 +5678,8 @@ int TimeLine::Load(const imgui_json::value& value)
             MediaCore::VideoTrackHolder vidTrack = mMtvReader->AddTrack(track->mID);
             for (auto clip : track->m_Clips)
             {
+                if (IS_DUMMY(clip->mType))
+                    continue;
                 MediaCore::VideoClipHolder hVidClip;
                 if (clip->mType == MEDIA_SUBTYPE_VIDEO_IMAGE)
                     hVidClip = vidTrack->AddNewClip(clip->mID, clip->mMediaParser, clip->mStart, clip->mEnd-clip->mStart, 0, 0);
@@ -5606,7 +5714,7 @@ int TimeLine::Load(const imgui_json::value& value)
             MediaCore::AudioTrackHolder audTrack = mMtaReader->AddTrack(track->mID);
             for (auto clip : track->m_Clips)
             {
-                if (!clip->mMediaParser)
+                if (IS_DUMMY(clip->mType) || !clip->mMediaParser)
                     continue;
                 MediaCore::AudioClipHolder hAudClip = audTrack->AddNewClip(
                     clip->mID, clip->mMediaParser,
@@ -7429,10 +7537,12 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                     trackEntry = -2; // end of tracks
                 }
             }
-            //ImGui::BeginTooltip();
-            //ImGui::Text("Draging track:%s", std::to_string(trackMovingEntry).c_str());
-            //ImGui::Text("currrent track:%s", std::to_string(trackEntry).c_str());
-            //ImGui::EndTooltip();
+            //if (ImGui::BeginTooltip())
+            //{
+            //    ImGui::Text("Draging track:%s", std::to_string(trackMovingEntry).c_str());
+            //    ImGui::Text("currrent track:%s", std::to_string(trackEntry).c_str());
+            //    ImGui::EndTooltip();
+            //}
         }
 
         // clip cropping or moving
@@ -7493,11 +7603,13 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 timeline->mark_in += diffTime;
                 timeline->mark_out += diffTime;
             }
-            ImGui::BeginTooltip();
-            ImGui::Text(" In:%s", ImGuiHelper::MillisecToString(timeline->mark_in, 2).c_str());
-            ImGui::Text("Out:%s", ImGuiHelper::MillisecToString(timeline->mark_out, 2).c_str());
-            ImGui::Text("Dur:%s", ImGuiHelper::MillisecToString(timeline->mark_out - timeline->mark_in, 2).c_str());
-            ImGui::EndTooltip();
+            if (ImGui::BeginTooltip())
+            {
+                ImGui::Text(" In:%s", ImGuiHelper::MillisecToString(timeline->mark_in, 2).c_str());
+                ImGui::Text("Out:%s", ImGuiHelper::MillisecToString(timeline->mark_out, 2).c_str());
+                ImGui::Text("Dur:%s", ImGuiHelper::MillisecToString(timeline->mark_out - timeline->mark_in, 2).c_str());
+                ImGui::EndTooltip();
+            }
         }
 
         if (trackAreaRect.Contains(io.MousePos) && editable && !menuIsOpened && !bCropping && !bCutting && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
@@ -7593,6 +7705,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 ImGui::Separator();
                 auto clip = timeline->FindClipByID(clipMenuEntry);
                 auto track = timeline->FindTrackByClipID(clip->mID);
+                bool disable_editing = IS_DUMMY(clip->mType);
+                ImGui::BeginDisabled(disable_editing);
                 if (ImGui::MenuItem(ICON_CROP " Edit Clip Attribute", nullptr, nullptr))
                 {
                     track->SelectEditingClip(clip, false);
@@ -7601,6 +7715,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 {
                     track->SelectEditingClip(clip, true);
                 }
+                ImGui::EndDisabled();
                 if (ImGui::MenuItem(ICON_MEDIA_DELETE_CLIP " Delete Clip", nullptr, nullptr))
                 {
                     delClipEntry.push_back(clipMenuEntry);
@@ -8172,9 +8287,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5f);
         if (mouseTime != -1 && mouseClip != -1 && mouseEntry >= 0 && mouseEntry < timeline->m_Tracks.size())
         {
-            if (mouseClip != -1 && !bMoving)
+            if (mouseClip != -1 && !bMoving && ImGui::BeginTooltip())
             {
-                ImGui::BeginTooltip();
                 ImGui::TextUnformatted("Help:");
                 ImGui::TextUnformatted("    Left botton click to select clip");
                 ImGui::TextUnformatted("    Left botton double click to editing clip");
@@ -8183,32 +8297,28 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 ImGui::TextUnformatted("    Hold left Alt/Option key to cut clip");
                 ImGui::EndTooltip();
             }
-            else if (bMoving)
+            else if (bMoving && ImGui::BeginTooltip())
             {
-                ImGui::BeginTooltip();
                 ImGui::TextUnformatted("Help:");
                 ImGui::TextUnformatted("    Hold left Command/Win key to single select");
                 ImGui::EndTooltip();
             }
         }
-        if (overHorizonScrollBar)
+        if (overHorizonScrollBar && ImGui::BeginTooltip())
         {
-            ImGui::BeginTooltip();
             ImGui::TextUnformatted("Help:");
             ImGui::TextUnformatted("    Mouse wheel up/down zooming timeline");
             ImGui::TextUnformatted("    Mouse wheel left/right moving timeline");
             ImGui::EndTooltip();
         }
-        if (overTrackView)
+        if (overTrackView && ImGui::BeginTooltip())
         {
-            ImGui::BeginTooltip();
             ImGui::TextUnformatted("Help:");
             ImGui::TextUnformatted("    Mouse wheel left/right moving timeline");
             ImGui::EndTooltip();
         }
-        if (overLegend)
+        if (overLegend && ImGui::BeginTooltip())
         {
-            ImGui::BeginTooltip();
             ImGui::TextUnformatted("Help:");
             ImGui::TextUnformatted("    Drag track up/down to re-order");
             ImGui::EndTooltip();
@@ -8564,11 +8674,13 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
     }
 
     // for debug
-    //ImGui::BeginTooltip();
-    //ImGui::Text("%s", std::to_string(trackEntry).c_str());
-    //ImGui::Text("%s", ImGuiHelper::MillisecToString(mouseTime).c_str());
-    //ImGui::EndTooltip();
-    //ImGui::ShowMetricsWindow();
+    //if (ImGui::BeginTooltip())
+    //{
+    //    ImGui::Text("%s", std::to_string(trackEntry).c_str());
+    //    ImGui::Text("%s", ImGuiHelper::MillisecToString(mouseTime).c_str());
+    //    ImGui::EndTooltip();
+    //    ImGui::ShowMetricsWindow();
+    //}
     // for debug end
 
     if (ImGui::IsKeyPressed(ImGuiKey_Z, false))

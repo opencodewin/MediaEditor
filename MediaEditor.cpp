@@ -838,16 +838,18 @@ static bool MonitorButton(const char * label, ImVec2 pos, int& monitor_index, st
         {
             ImGuiPlatformMonitor& mon = platform_io.Monitors[monitor_n];
             ImGui::SetNextWindowViewport(viewport->ID);
-            ImGui::BeginTooltip();
-            ImGui::BulletText("Monitor #%d:", monitor_n);
-            ImGui::Text("DPI %.0f", mon.DpiScale * 100.0f);
-            ImGui::Text("MainSize (%.0f,%.0f)", mon.MainSize.x, mon.MainSize.y);
-            ImGui::Text("WorkSize (%.0f,%.0f)", mon.WorkSize.x, mon.WorkSize.y);
-            ImGui::Text("MainMin (%.0f,%.0f)",  mon.MainPos.x,  mon.MainPos.y);
-            ImGui::Text("MainMax (%.0f,%.0f)",  mon.MainPos.x + mon.MainSize.x, mon.MainPos.y + mon.MainSize.y);
-            ImGui::Text("WorkMin (%.0f,%.0f)",  mon.WorkPos.x,  mon.WorkPos.y);
-            ImGui::Text("WorkMax (%.0f,%.0f)",  mon.WorkPos.x + mon.WorkSize.x, mon.WorkPos.y + mon.WorkSize.y);
-            ImGui::EndTooltip();
+            if (ImGui::BeginTooltip())
+            {
+                ImGui::BulletText("Monitor #%d:", monitor_n);
+                ImGui::Text("DPI %.0f", mon.DpiScale * 100.0f);
+                ImGui::Text("MainSize (%.0f,%.0f)", mon.MainSize.x, mon.MainSize.y);
+                ImGui::Text("WorkSize (%.0f,%.0f)", mon.WorkSize.x, mon.WorkSize.y);
+                ImGui::Text("MainMin (%.0f,%.0f)",  mon.MainPos.x,  mon.MainPos.y);
+                ImGui::Text("MainMax (%.0f,%.0f)",  mon.MainPos.x + mon.MainSize.x, mon.MainPos.y + mon.MainSize.y);
+                ImGui::Text("WorkMin (%.0f,%.0f)",  mon.WorkPos.x,  mon.WorkPos.y);
+                ImGui::Text("WorkMax (%.0f,%.0f)",  mon.WorkPos.x + mon.WorkSize.x, mon.WorkPos.y + mon.WorkSize.y);
+                ImGui::EndTooltip();
+            }
         }
         auto icon_height = 32;//ImGui::GetTextLineHeight();
         if (!vertical) ImGui::SameLine();
@@ -1430,6 +1432,25 @@ static void LoadThread(std::string path)
             
             item = new MediaItem(name, path, type, timeline);
             if (id != -1) item->mID = id;
+            if (!item->mValid)
+            {
+                if (media.contains("start"))
+                {
+                    auto& val = media["start"];
+                    if (val.is_number())
+                    {
+                        item->mStart = val.get<imgui_json::number>();
+                    }
+                }
+                if (media.contains("end"))
+                {
+                    auto& val = media["end"];
+                    if (val.is_number())
+                    {
+                        item->mEnd = val.get<imgui_json::number>();
+                    }
+                }
+            }
             timeline->media_items.push_back(item);
             g_project_loading_percentage += percentage;
         }
@@ -1497,6 +1518,8 @@ static void SaveProject(std::string path)
         item["name"] = media->mName;
         item["path"] = media->mPath;
         item["type"] = imgui_json::number(media->mMediaType);
+        item["start"] = imgui_json::number(media->mStart);
+        item["end"] = imgui_json::number(media->mEnd);
         media_bank.push_back(item);
     }
     g_project["MediaBank"] = media_bank;
@@ -1665,172 +1688,231 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
     draw_list->AddRectFilled(icon_pos + ImVec2(2, 2), icon_pos + ImVec2(2, 2) + icon_size, IM_COL32(64, 64, 96, 255), 8, ImDrawFlags_RoundCornersAll);
     ImGui::SetCursorScreenPos(icon_pos);
     ImGui::InvisibleButton((*item)->mPath.c_str(), icon_size);
-    if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
+    
+    if ((*item)->mValid)
     {
-        ImGui::SetDragDropPayload("Media_drag_drop", *item, sizeof(MediaItem));
-        ImGui::TextUnformatted((*item)->mName.c_str());
-        if (!(*item)->mMediaThumbnail.empty() && (*item)->mMediaThumbnail[0])
+        if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
         {
-            auto tex_w = ImGui::ImGetTextureWidth((*item)->mMediaThumbnail[0]);
-            auto tex_h = ImGui::ImGetTextureHeight((*item)->mMediaThumbnail[0]);
-            float aspectRatio = (float)tex_w / (float)tex_h;
-            ImGui::Image((*item)->mMediaThumbnail[0], ImVec2(icon_size.x, icon_size.y / aspectRatio));
+            ImGui::SetDragDropPayload("Media_drag_drop", *item, sizeof(MediaItem));
+            ImGui::TextUnformatted((*item)->mName.c_str());
+            if (!(*item)->mMediaThumbnail.empty() && (*item)->mMediaThumbnail[0])
+            {
+                auto tex_w = ImGui::ImGetTextureWidth((*item)->mMediaThumbnail[0]);
+                auto tex_h = ImGui::ImGetTextureHeight((*item)->mMediaThumbnail[0]);
+                float aspectRatio = (float)tex_w / (float)tex_h;
+                ImGui::Image((*item)->mMediaThumbnail[0], ImVec2(icon_size.x, icon_size.y / aspectRatio));
+            }
+            ImGui::EndDragDropSource();
         }
-        ImGui::EndDragDropSource();
-    }
-    if (ImGui::IsItemHovered())
-    {
-        float pos_x = io.MousePos.x - icon_pos.x;
-        float percent = pos_x / icon_size.x;
-        ImClamp(percent, 0.0f, 1.0f);
-        int texture_index = (*item)->mMediaThumbnail.size() * percent;
-        if ((*item)->mMediaType == MEDIA_SUBTYPE_VIDEO_IMAGE)
-            texture_index = 0;
-        if (!(*item)->mMediaThumbnail.empty())
+        if (ImGui::IsItemHovered())
         {
-            texture = (*item)->mMediaThumbnail[texture_index];
+            float pos_x = io.MousePos.x - icon_pos.x;
+            float percent = pos_x / icon_size.x;
+            ImClamp(percent, 0.0f, 1.0f);
+            int texture_index = (*item)->mMediaThumbnail.size() * percent;
+            if ((*item)->mMediaType == MEDIA_SUBTYPE_VIDEO_IMAGE)
+                texture_index = 0;
+            if (!(*item)->mMediaThumbnail.empty())
+            {
+                texture = (*item)->mMediaThumbnail[texture_index];
+            }
+
+            // Show help tooltip
+            if (timeline->mShowHelpTooltips && ImGui::BeginTooltip())
+            {
+                ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5f);
+                ImGui::TextUnformatted("Help:");
+                ImGui::TextUnformatted("    Slider mouse to overview");
+                ImGui::TextUnformatted("    Drag media to timeline");
+                ImGui::PopStyleVar();
+                ImGui::EndTooltip();
+            }
+        }
+        else if (!(*item)->mMediaThumbnail.empty())
+        {
+            if ((*item)->mMediaThumbnail.size() > 1)
+                texture = (*item)->mMediaThumbnail[1];
+            else
+                texture = (*item)->mMediaThumbnail[0];
         }
 
-        // Show help tooltip
-        if (timeline->mShowHelpTooltips)
+        ImGui::SetCursorScreenPos(icon_pos);
+        if (texture)
         {
-            ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5f);
-            ImGui::BeginTooltip();
-            ImGui::TextUnformatted("Help:");
-            ImGui::TextUnformatted("    Slider mouse to overview");
-            ImGui::TextUnformatted("    Drag media to timeline");
-            ImGui::EndTooltip();
-            ImGui::PopStyleVar();
+            ShowVideoWindow(texture, icon_pos + ImVec2(4, 16), icon_size - ImVec2(4, 32));
         }
-    }
-    else if (!(*item)->mMediaThumbnail.empty())
-    {
-        if ((*item)->mMediaThumbnail.size() > 1)
-            texture = (*item)->mMediaThumbnail[1];
         else
-            texture = (*item)->mMediaThumbnail[0];
-    }
+        {
+            if ((*item)->mMediaType == MEDIA_AUDIO && (*item)->mMediaOverview)
+            {
+                auto wavefrom = (*item)->mMediaOverview->GetWaveform();
+                if (wavefrom && wavefrom->pcm.size() > 0)
+                {
+                    ImVec2 wave_pos = icon_pos + ImVec2(4, 28);
+                    ImVec2 wave_size = icon_size - ImVec2(8, 48);
+                    ImGui::SetCursorScreenPos(icon_pos);
+                    float wave_range = fmax(fabs(wavefrom->minSample), fabs(wavefrom->maxSample));
+                    int channels = wavefrom->pcm.size();
+                    if (channels > 2) channels = 2;
+                    int channel_height = wave_size.y / channels;
+                    ImGui::PushStyleColor(ImGuiCol_FrameBg, 0);
+                    ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.f, 1.f, 0.f, 1.0f));
+                    for (int i = 0; i < channels; i++)
+                    {
+                        ImGui::SetCursorScreenPos(wave_pos + ImVec2(0, i * channel_height));
+                        ImVec2 plot_size(wave_size.x, channel_height);
+                        int sampleSize = wavefrom->pcm[i].size();
+                        std::string id_string = "##BankWaveform@" + std::to_string((*item)->mID) + "@" + std::to_string(i);
+                        ImGui::PlotLinesEx(id_string.c_str(), &wavefrom->pcm[i][0], sampleSize, 0, nullptr, -wave_range / 2, wave_range / 2, plot_size, sizeof(float), false);
+                    }
+                    ImGui::PopStyleColor(2);
+                }
+                else
+                {
+                    std::string lable = std::string(ICON_MEDIA_WAVE) + "##" + (*item)->mName + "@" + std::to_string((*item)->mID);
+                    ImGui::SetWindowFontScale(2.5);
+                    ImGui::Button(lable.c_str(), ImVec2(media_icon_size, media_icon_size));
+                    ImGui::SetWindowFontScale(1.0);
+                }
+            }
+            else
+                ImGui::Button((*item)->mName.c_str(), ImVec2(media_icon_size, media_icon_size));
+        }
 
-    ImGui::SetCursorScreenPos(icon_pos);
-    if (texture)
-    {
-        ShowVideoWindow(texture, icon_pos + ImVec2(4, 16), icon_size - ImVec2(4, 32));
+        if ((*item)->mMediaOverview && (*item)->mMediaOverview->IsOpened())
+        {
+            auto has_video = (*item)->mMediaOverview->HasVideo();
+            auto has_audio = (*item)->mMediaOverview->HasAudio();
+            auto media_length = (*item)->mMediaOverview->GetMediaParser()->GetMediaInfo()->duration;
+            ImGui::SetCursorScreenPos(icon_pos + ImVec2(4, 4));
+            std::string type_string = "? ";
+            if (IS_VIDEO((*item)->mMediaType))
+            {
+                if ((*item)->mMediaType == MEDIA_SUBTYPE_VIDEO_IMAGE) type_string = std::string(ICON_FA_FILE_IMAGE) + " ";
+                else type_string = std::string(ICON_FA_FILE_VIDEO) + " ";
+            }
+            else if (IS_AUDIO((*item)->mMediaType))
+            {
+                if ((*item)->mMediaType == MEDIA_SUBTYPE_AUDIO_MIDI) type_string = std::string(ICON_FA_FILE_WAVEFORM) + " ";
+                else type_string = std::string(ICON_FA_FILE_AUDIO) + " ";
+            }
+            else if (IS_TEXT((*item)->mMediaType))
+            {
+                if ((*item)->mMediaType == MEDIA_SUBTYPE_TEXT_SUBTITLE) type_string = std::string(ICON_FA_FILE_CODE) + " ";
+                else type_string = std::string(ICON_FA_FILE_LINES) + " ";
+            }
+            type_string += ImGuiHelper::MillisecToString(media_length * 1000, 2);
+            ImGui::SetWindowFontScale(0.7);
+            ImGui::TextUnformatted(type_string.c_str());
+            ImGui::SetWindowFontScale(1.0);
+            ImGui::ShowTooltipOnHover("%s", (*item)->mPath.c_str());
+            ImGui::SetCursorScreenPos(icon_pos + ImVec2(0, media_icon_size - 20));
+
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0, 0, 0, 0));
+            if (has_video)
+            {
+                auto stream = (*item)->mMediaOverview->GetVideoStream();
+                if (stream)
+                {
+                    auto video_icon = GetVideoIcon(stream->width, stream->height);
+                    ImGui::SetWindowFontScale(1.2);
+                    ImGui::Button(video_icon.c_str(), ImVec2(24, 24));
+                    if (ImGui::IsItemHovered() && ImGui::BeginTooltip())
+                    {
+                        std::string bitrate_str = stream->bitRate >= 1000000 ? std::to_string((float)stream->bitRate / 1000000) + "Mbps" :
+                                                stream->bitRate >= 1000 ? std::to_string((float)stream->bitRate / 1000) + "Kbps" :
+                                                std::to_string(stream->bitRate) + "bps";
+                        ImGui::Text("S: %d x %d", stream->width, stream->height);
+                        ImGui::Text("B: %s", bitrate_str.c_str());
+                        ImGui::Text("F: %.3ffps", stream->avgFrameRate.den > 0 ? stream->avgFrameRate.num / stream->avgFrameRate.den : 0.0);
+                        ImGui::EndTooltip();
+                    }
+                    ImGui::SameLine(0, 0);
+                    if (stream->isHdr)
+                    {
+                        ImGui::Button(ICON_HDR, ImVec2(24, 24));
+                        ImGui::SameLine(0, 0);
+                    }
+                    ImGui::SetWindowFontScale(0.6);
+                    ImGui::Button((std::to_string(stream->bitDepth) + "bit").c_str(), ImVec2(24, 24));
+                    ImGui::SetWindowFontScale(1.0);
+                    ImGui::SameLine(0, 0);
+                }
+            }
+            if (has_audio)
+            {
+                auto stream = (*item)->mMediaOverview->GetAudioStream();
+                if (stream)
+                {
+                    auto audio_channels = stream->channels;
+                    auto audio_sample_rate = stream->sampleRate;
+                    std::string audio_icon = audio_channels >= 2 ? ICON_STEREO : ICON_MONO;
+                    ImGui::Button(audio_icon.c_str(), ImVec2(24, 24));
+                    ImGui::ShowTooltipOnHover("%d %s", audio_sample_rate, GetAudioChannelName(audio_channels).c_str());
+                    ImGui::SameLine(0 ,0);
+                }
+            }
+            ImGui::PopStyleColor(3);
+        }
     }
     else
     {
-        if ((*item)->mMediaType == MEDIA_AUDIO && (*item)->mMediaOverview)
-        {
-            auto wavefrom = (*item)->mMediaOverview->GetWaveform();
-            if (wavefrom && wavefrom->pcm.size() > 0)
-            {
-                ImVec2 wave_pos = icon_pos + ImVec2(4, 28);
-                ImVec2 wave_size = icon_size - ImVec2(8, 48);
-                ImGui::SetCursorScreenPos(icon_pos);
-                float wave_range = fmax(fabs(wavefrom->minSample), fabs(wavefrom->maxSample));
-                int channels = wavefrom->pcm.size();
-                if (channels > 2) channels = 2;
-                int channel_height = wave_size.y / channels;
-                ImGui::PushStyleColor(ImGuiCol_FrameBg, 0);
-                ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.f, 1.f, 0.f, 1.0f));
-                for (int i = 0; i < channels; i++)
-                {
-                    ImGui::SetCursorScreenPos(wave_pos + ImVec2(0, i * channel_height));
-                    ImVec2 plot_size(wave_size.x, channel_height);
-                    int sampleSize = wavefrom->pcm[i].size();
-                    std::string id_string = "##BankWaveform@" + std::to_string((*item)->mID) + "@" + std::to_string(i);
-                    ImGui::PlotLinesEx(id_string.c_str(), &wavefrom->pcm[i][0], sampleSize, 0, nullptr, -wave_range / 2, wave_range / 2, plot_size, sizeof(float), false);
-                }
-                ImGui::PopStyleColor(2);
-            }
-            else
-            {
-                std::string lable = std::string(ICON_MEDIA_WAVE) + "##" + (*item)->mName + "@" + std::to_string((*item)->mID);
-                ImGui::SetWindowFontScale(2.5);
-                ImGui::Button(lable.c_str(), ImVec2(media_icon_size, media_icon_size));
-                ImGui::SetWindowFontScale(1.0);
-            }
-        }
-        else
-            ImGui::Button((*item)->mName.c_str(), ImVec2(media_icon_size, media_icon_size));
-    }
+        // Media lost or path isn't right
+        auto error_area_min = icon_pos + ImVec2(4, 16);
+        auto error_area_max = error_area_min + icon_size - ImVec2(4, 32);
+        draw_list->AddRectFilled(error_area_min, error_area_max, COL_ERROR_MEDIA);
+        draw_list->AddLine(error_area_min, error_area_max, IM_COL32_BLACK);
+        draw_list->AddLine(error_area_min + ImVec2(0, icon_size.y - 32), error_area_max + ImVec2(0, - icon_size.y + 32), IM_COL32_BLACK);
+        ImGui::SetWindowFontScale(2.0);
+        std::string error_mark = std::string(ICON_ERROR_MEDIA);
+        auto error_mark_size = ImGui::CalcTextSize(error_mark.c_str());
+        float _xoft = (error_area_max.x - error_area_min.x - error_mark_size.x) / 2;
+        float _yoft = (error_area_max.y - error_area_min.y - error_mark_size.y) / 2;
+        draw_list->AddText(error_area_min + ImVec2(_xoft, _yoft), IM_COL32_WHITE, ICON_ERROR_MEDIA);
+        ImGui::SetWindowFontScale(1.0);
 
-    if ((*item)->mMediaOverview && (*item)->mMediaOverview->IsOpened())
-    {
-        auto has_video = (*item)->mMediaOverview->HasVideo();
-        auto has_audio = (*item)->mMediaOverview->HasAudio();
-        auto media_length = (*item)->mMediaOverview->GetMediaParser()->GetMediaInfo()->duration;
         ImGui::SetCursorScreenPos(icon_pos + ImVec2(4, 4));
         std::string type_string = "? ";
         if (IS_VIDEO((*item)->mMediaType))
         {
-            if ((*item)->mMediaType == MEDIA_SUBTYPE_VIDEO_IMAGE) type_string = std::string(ICON_FA_FILE_IMAGE) + " ";
-            else type_string = std::string(ICON_FA_FILE_VIDEO) + " ";
+            if ((*item)->mMediaType == MEDIA_SUBTYPE_VIDEO_IMAGE) type_string = std::string(ICON_FA_FILE_IMAGE);
+            else type_string = std::string(ICON_FA_FILE_VIDEO);
         }
         else if (IS_AUDIO((*item)->mMediaType))
         {
-            if ((*item)->mMediaType == MEDIA_SUBTYPE_AUDIO_MIDI) type_string = std::string(ICON_FA_FILE_WAVEFORM) + " ";
-            else type_string = std::string(ICON_FA_FILE_AUDIO) + " ";
+            if ((*item)->mMediaType == MEDIA_SUBTYPE_AUDIO_MIDI) type_string = std::string(ICON_FA_FILE_WAVEFORM);
+            else type_string = std::string(ICON_FA_FILE_AUDIO);
         }
         else if (IS_TEXT((*item)->mMediaType))
         {
-            if ((*item)->mMediaType == MEDIA_SUBTYPE_TEXT_SUBTITLE) type_string = std::string(ICON_FA_FILE_CODE) + " ";
-            else type_string = std::string(ICON_FA_FILE_LINES) + " ";
+            if ((*item)->mMediaType == MEDIA_SUBTYPE_TEXT_SUBTITLE) type_string = std::string(ICON_FA_FILE_CODE);
+            else type_string = std::string(ICON_FA_FILE_LINES);
         }
-        type_string += ImGuiHelper::MillisecToString(media_length * 1000, 2);
         ImGui::SetWindowFontScale(0.7);
         ImGui::TextUnformatted(type_string.c_str());
-        ImGui::SetWindowFontScale(1.0);
         ImGui::ShowTooltipOnHover("%s", (*item)->mPath.c_str());
-        ImGui::SetCursorScreenPos(icon_pos + ImVec2(0, media_icon_size - 20));
+        ImGui::SetWindowFontScale(0.8);
+        std::string err_str = "*Media Missing*";
+        auto str_size = ImGui::CalcTextSize(err_str.c_str());
+        float x_oft = (media_icon_size - str_size.x) / 2;
+        float y_oft = (16 - str_size.y) / 2;
+        ImGui::SetCursorScreenPos(icon_pos + ImVec2(x_oft, media_icon_size - y_oft - str_size.y));
+        ImGui::TextUnformatted(err_str.c_str());
+        ImGui::SetWindowFontScale(1.0);
 
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0));
-        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0, 0, 0, 0));
-        if (has_video)
+        ImGui::SetCursorScreenPos(icon_pos + ImVec2(media_icon_size - 36, 0));
+        ImGui::SetWindowFontScale(0.8);
+        ImGui::Button((std::string(ICON_ZOOM "##relocate_media") + (*item)->mPath).c_str(), ImVec2(16, 16));
+        ImGui::SetWindowFontScale(1.0);
+        ImRect _rect(icon_pos + ImVec2(media_icon_size - 36, 0), icon_pos + ImVec2(media_icon_size - 36, 0) + ImVec2(16, 16));
+        bool _overButton = _rect.Contains(io.MousePos);
+        if (_overButton && io.MouseClicked[0])
         {
-            auto stream = (*item)->mMediaOverview->GetVideoStream();
-            if (stream)
-            {
-                auto video_icon = GetVideoIcon(stream->width, stream->height);
-                ImGui::SetWindowFontScale(1.2);
-                ImGui::Button(video_icon.c_str(), ImVec2(24, 24));
-                if (ImGui::IsItemHovered())
-                {
-                    std::string bitrate_str = stream->bitRate >= 1000000 ? std::to_string((float)stream->bitRate / 1000000) + "Mbps" :
-                                            stream->bitRate >= 1000 ? std::to_string((float)stream->bitRate / 1000) + "Kbps" :
-                                            std::to_string(stream->bitRate) + "bps";
-                    ImGui::BeginTooltip();
-                    ImGui::Text("S: %d x %d", stream->width, stream->height);
-                    ImGui::Text("B: %s", bitrate_str.c_str());
-                    ImGui::Text("F: %.3ffps", stream->avgFrameRate.den > 0 ? stream->avgFrameRate.num / stream->avgFrameRate.den : 0.0);
-                    ImGui::EndTooltip();
-                }
-                ImGui::SameLine(0, 0);
-                if (stream->isHdr)
-                {
-                    ImGui::Button(ICON_HDR, ImVec2(24, 24));
-                    ImGui::SameLine(0, 0);
-                }
-                ImGui::SetWindowFontScale(0.6);
-                ImGui::Button((std::to_string(stream->bitDepth) + "bit").c_str(), ImVec2(24, 24));
-                ImGui::SetWindowFontScale(1.0);
-                ImGui::SameLine(0, 0);
-            }
+            // TODO::Dicky add re-locate media
         }
-        if (has_audio)
-        {
-            auto stream = (*item)->mMediaOverview->GetAudioStream();
-            if (stream)
-            {
-                auto audio_channels = stream->channels;
-                auto audio_sample_rate = stream->sampleRate;
-                std::string audio_icon = audio_channels >= 2 ? ICON_STEREO : ICON_MONO;
-                ImGui::Button(audio_icon.c_str(), ImVec2(24, 24));
-                ImGui::ShowTooltipOnHover("%d %s", audio_sample_rate, GetAudioChannelName(audio_channels).c_str());
-                ImGui::SameLine(0 ,0);
-            }
-        }
-        ImGui::PopStyleColor(3);
+        ImGui::ShowTooltipOnHover("Locate Media");
     }
 
     ImGui::SetCursorScreenPos(icon_pos + ImVec2(media_icon_size - 16, 0));
@@ -2018,15 +2100,13 @@ static void ShowFusionBankIconWindow(ImDrawList *draw_list)
             if (ImGui::IsItemHovered())
             {
                 // Show help tooltip
-                if (timeline->mShowHelpTooltips)
+                if (timeline->mShowHelpTooltips && ImGui::BeginTooltip())
                 {
                     ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5f);
-                    ImGui::BeginTooltip();
                     ImGui::TextUnformatted("Help:");
                     ImGui::TextUnformatted("    Drag fusion to blue print");
-                    ImGui::EndTooltip();
                     ImGui::PopStyleVar();
-                }
+                    ImGui::EndTooltip();                }
             }
             ImGui::SetCursorScreenPos(icon_pos + ImVec2(2, 2));
             node->DrawNodeLogo(ImGui::GetCurrentContext(), fusion_icon_size); 
@@ -2152,14 +2232,13 @@ static void ShowFusionBankTreeWindow(ImDrawList *draw_list)
             if (ImGui::IsItemHovered())
             {
                 // Show help tooltip
-                if (timeline->mShowHelpTooltips)
+                if (timeline->mShowHelpTooltips && ImGui::BeginTooltip())
                 {
                     ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5f);
-                    ImGui::BeginTooltip();
                     ImGui::TextUnformatted("Help:");
                     ImGui::TextUnformatted("    Drag fusion to blue print");
-                    ImGui::EndTooltip();
                     ImGui::PopStyleVar();
+                    ImGui::EndTooltip();
                 }
             }
             ImGui::SetCursorScreenPos(icon_pos);
@@ -2263,14 +2342,13 @@ static void ShowFilterBankIconWindow(ImDrawList *draw_list)
             if (ImGui::IsItemHovered())
             {
                 // Show help tooltip
-                if (timeline->mShowHelpTooltips)
+                if (timeline->mShowHelpTooltips && ImGui::BeginTooltip())
                 {
                     ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5f);
-                    ImGui::BeginTooltip();
                     ImGui::TextUnformatted("Help:");
                     ImGui::TextUnformatted("    Drag filter to blue print");
-                    ImGui::EndTooltip();
                     ImGui::PopStyleVar();
+                    ImGui::EndTooltip();
                 }
             }
             ImGui::SetCursorScreenPos(icon_pos + ImVec2(2, 2));
@@ -2397,14 +2475,13 @@ static void ShowFilterBankTreeWindow(ImDrawList *draw_list)
             if (ImGui::IsItemHovered())
             {
                 // Show help tooltip
-                if (timeline->mShowHelpTooltips)
+                if (timeline->mShowHelpTooltips && ImGui::BeginTooltip())
                 {
                     ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5f);
-                    ImGui::BeginTooltip();
                     ImGui::TextUnformatted("Help:");
                     ImGui::TextUnformatted("    Drag filter to blue print");
-                    ImGui::EndTooltip();
                     ImGui::PopStyleVar();
+                    ImGui::EndTooltip();
                 }
             }
             ImGui::SetCursorScreenPos(icon_pos);
@@ -2543,9 +2620,8 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
                 timeline->mOutputPath = value;
             }
         }
-        if (ImGui::IsItemHovered() && !timeline->mOutputPath.empty())
+        if (ImGui::IsItemHovered() && !timeline->mOutputPath.empty() && ImGui::BeginTooltip())
         {
-            ImGui::BeginTooltip();
             ImGui::TextUnformatted(timeline->mOutputPath.c_str());
             ImGui::EndTooltip();
         }
@@ -3315,11 +3391,13 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImR
         if (region_y < 0.0f) { region_y = 0.0f; }
         else if (region_y > image_height - region_sz) { region_y = image_height - region_sz; }
         ImGui::SetNextWindowBgAlpha(1.0);
-        ImGui::BeginTooltip();
-        ImVec2 uv0 = ImVec2((region_x) / image_width, (region_y) / image_height);
-        ImVec2 uv1 = ImVec2((region_x + region_sz) / image_width, (region_y + region_sz) / image_height);
-        ImGui::Image(timeline->mMainPreviewTexture, ImVec2(region_sz * texture_zoom, region_sz * texture_zoom), uv0, uv1, tint_col, border_col);
-        ImGui::EndTooltip();
+        if (ImGui::BeginTooltip())
+        {
+            ImVec2 uv0 = ImVec2((region_x) / image_width, (region_y) / image_height);
+            ImVec2 uv1 = ImVec2((region_x + region_sz) / image_width, (region_y + region_sz) / image_height);
+            ImGui::Image(timeline->mMainPreviewTexture, ImVec2(region_sz * texture_zoom, region_sz * texture_zoom), uv0, uv1, tint_col, border_col);
+            ImGui::EndTooltip();
+        }
         if (io.MouseWheel < -FLT_EPSILON)
         {
             texture_zoom *= 0.9;
@@ -3569,11 +3647,13 @@ static void ShowVideoFilterPreviewWindow(ImDrawList *draw_list, int64_t start, i
                 else if (region_y > image_height - region_sz) { region_y = image_height - region_sz; }
                 ImGui::SetNextWindowPos(VideoZoomPos);
                 ImGui::SetNextWindowBgAlpha(1.0);
-                ImGui::BeginTooltip();
-                ImVec2 uv0 = ImVec2((region_x) / image_width, (region_y) / image_height);
-                ImVec2 uv1 = ImVec2((region_x + region_sz) / image_width, (region_y + region_sz) / image_height);
-                ImGui::Image(timeline->mVideoFilterInputTexture, ImVec2(region_sz * texture_zoom, region_sz * texture_zoom), uv0, uv1, tint_col, border_col);
-                ImGui::EndTooltip();
+                if (ImGui::BeginTooltip())
+                {
+                    ImVec2 uv0 = ImVec2((region_x) / image_width, (region_y) / image_height);
+                    ImVec2 uv1 = ImVec2((region_x + region_sz) / image_width, (region_y + region_sz) / image_height);
+                    ImGui::Image(timeline->mVideoFilterInputTexture, ImVec2(region_sz * texture_zoom, region_sz * texture_zoom), uv0, uv1, tint_col, border_col);
+                    ImGui::EndTooltip();
+                }
             }
             if (timeline->mVideoFilterOutputTexture)
             {
@@ -3586,12 +3666,14 @@ static void ShowVideoFilterPreviewWindow(ImDrawList *draw_list, int64_t start, i
                 if (region_y < 0.0f) { region_y = 0.0f; }
                 else if (region_y > image_height - region_sz) { region_y = image_height - region_sz; }
                 ImGui::SetNextWindowBgAlpha(1.0);
-                ImGui::BeginTooltip();
-                ImGui::SameLine();
-                ImVec2 uv0 = ImVec2((region_x) / image_width, (region_y) / image_height);
-                ImVec2 uv1 = ImVec2((region_x + region_sz) / image_width, (region_y + region_sz) / image_height);
-                ImGui::Image(timeline->mVideoFilterOutputTexture, ImVec2(region_sz * texture_zoom, region_sz * texture_zoom), uv0, uv1, tint_col, border_col);
-                ImGui::EndTooltip();
+                if (ImGui::BeginTooltip())
+                {
+                    ImGui::SameLine();
+                    ImVec2 uv0 = ImVec2((region_x) / image_width, (region_y) / image_height);
+                    ImVec2 uv1 = ImVec2((region_x + region_sz) / image_width, (region_y + region_sz) / image_height);
+                    ImGui::Image(timeline->mVideoFilterOutputTexture, ImVec2(region_sz * texture_zoom, region_sz * texture_zoom), uv0, uv1, tint_col, border_col);
+                    ImGui::EndTooltip();
+                }
             }
         }
     }
@@ -4289,9 +4371,11 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
         {
             g_media_editor_settings.VideoFilterCurveExpanded = !g_media_editor_settings.VideoFilterCurveExpanded;
         }
-        ImGui::BeginTooltip();
-        ImGui::TextUnformatted(g_media_editor_settings.VideoFilterCurveExpanded ? "Hide Curve View" : "Show Curve View");
-        ImGui::EndTooltip();
+        if (ImGui::BeginTooltip())
+        {
+            ImGui::TextUnformatted(g_media_editor_settings.VideoFilterCurveExpanded ? "Hide Curve View" : "Show Curve View");
+            ImGui::EndTooltip();
+        }
     }
     draw_list->AddText(hidden_button_pos, IM_COL32_WHITE, ICON_FA_BEZIER_CURVE);
     ImGui::SetWindowFontScale(1.0);
@@ -4849,9 +4933,11 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
         {
             g_media_editor_settings.VideoFusionCurveExpanded = !g_media_editor_settings.VideoFusionCurveExpanded;
         }
-        ImGui::BeginTooltip();
-        ImGui::TextUnformatted(g_media_editor_settings.VideoFusionCurveExpanded ? "Hide Curve View" : "Show Curve View");
-        ImGui::EndTooltip();
+        if (ImGui::BeginTooltip())
+        {
+            ImGui::TextUnformatted(g_media_editor_settings.VideoFusionCurveExpanded ? "Hide Curve View" : "Show Curve View");
+            ImGui::EndTooltip();
+        }
     }
     draw_list->AddText(hidden_button_pos, IM_COL32_WHITE, ICON_FA_BEZIER_CURVE);
     ImGui::SetWindowFontScale(1.0);
@@ -5289,9 +5375,11 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list)
         {
             g_media_editor_settings.AudioFilterCurveExpanded = !g_media_editor_settings.AudioFilterCurveExpanded;
         }
-        ImGui::BeginTooltip();
-        ImGui::TextUnformatted(g_media_editor_settings.AudioFilterCurveExpanded ? "Hide Curve View" : "Show Curve View");
-        ImGui::EndTooltip();
+        if (ImGui::BeginTooltip())
+        {
+            ImGui::TextUnformatted(g_media_editor_settings.AudioFilterCurveExpanded ? "Hide Curve View" : "Show Curve View");
+            ImGui::EndTooltip();
+        }
     }
     draw_list->AddText(hidden_button_pos, IM_COL32_WHITE, ICON_FA_BEZIER_CURVE);
     ImGui::SetWindowFontScale(1.0);
@@ -5691,9 +5779,11 @@ static void ShowAudioFusionWindow(ImDrawList *draw_list)
         {
             g_media_editor_settings.AudioFusionCurveExpanded = !g_media_editor_settings.AudioFusionCurveExpanded;
         }
-        ImGui::BeginTooltip();
-        ImGui::TextUnformatted(g_media_editor_settings.TextCurveExpanded ? "Hide Curve View" : "Show Curve View");
-        ImGui::EndTooltip();
+        if (ImGui::BeginTooltip())
+        {
+            ImGui::TextUnformatted(g_media_editor_settings.TextCurveExpanded ? "Hide Curve View" : "Show Curve View");
+            ImGui::EndTooltip();
+        }
     }
     draw_list->AddText(hidden_button_pos, IM_COL32_WHITE, ICON_FA_BEZIER_CURVE);
     ImGui::SetWindowFontScale(1.0);
@@ -7528,9 +7618,11 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
         {
             g_media_editor_settings.TextCurveExpanded = !g_media_editor_settings.TextCurveExpanded;
         }
-        ImGui::BeginTooltip();
-        ImGui::TextUnformatted(g_media_editor_settings.TextCurveExpanded ? "Hide Curve View" : "Show Curve View");
-        ImGui::EndTooltip();
+        if (ImGui::BeginTooltip())
+        {
+            ImGui::TextUnformatted(g_media_editor_settings.TextCurveExpanded ? "Hide Curve View" : "Show Curve View");
+            ImGui::EndTooltip();
+        }
     }
     draw_list->AddText(hidden_button_pos, IM_COL32_WHITE, ICON_FA_BEZIER_CURVE);
     ImGui::SetWindowFontScale(1.0);
@@ -7810,9 +7902,11 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                     if (g_media_editor_settings.HistogramScale < 0.002)
                         g_media_editor_settings.HistogramScale = 0.002;
                     need_update_scope = true;
-                    ImGui::BeginTooltip();
-                    ImGui::Text("Scale:%f", g_media_editor_settings.HistogramScale);
-                    ImGui::EndTooltip();
+                    if (ImGui::BeginTooltip())
+                    {
+                        ImGui::Text("Scale:%f", g_media_editor_settings.HistogramScale);
+                        ImGui::EndTooltip();
+                    }
                 }
                 else if (io.MouseWheel > FLT_EPSILON)
                 {
@@ -7820,9 +7914,11 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                     if (g_media_editor_settings.HistogramScale > 4.0f)
                         g_media_editor_settings.HistogramScale = 4.0;
                     need_update_scope = true;
-                    ImGui::BeginTooltip();
-                    ImGui::Text("Scale:%f", g_media_editor_settings.HistogramScale);
-                    ImGui::EndTooltip();
+                    if (ImGui::BeginTooltip())
+                    {
+                        ImGui::Text("Scale:%f", g_media_editor_settings.HistogramScale);
+                        ImGui::EndTooltip();
+                    }
                 }
                 if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
                 {
@@ -7917,9 +8013,11 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                     if (g_media_editor_settings.WaveformIntensity < 0.1)
                         g_media_editor_settings.WaveformIntensity = 0.1;
                     need_update_scope = true;
-                    ImGui::BeginTooltip();
-                    ImGui::Text("Intensity:%f", g_media_editor_settings.WaveformIntensity);
-                    ImGui::EndTooltip();
+                    if (ImGui::BeginTooltip())
+                    {
+                        ImGui::Text("Intensity:%f", g_media_editor_settings.WaveformIntensity);
+                        ImGui::EndTooltip();
+                    }
                 }
                 else if (io.MouseWheel > FLT_EPSILON)
                 {
@@ -7927,9 +8025,11 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                     if (g_media_editor_settings.WaveformIntensity > 4.0f)
                         g_media_editor_settings.WaveformIntensity = 4.0;
                     need_update_scope = true;
-                    ImGui::BeginTooltip();
-                    ImGui::Text("Intensity:%f", g_media_editor_settings.WaveformIntensity);
-                    ImGui::EndTooltip();
+                    if (ImGui::BeginTooltip())
+                    {
+                        ImGui::Text("Intensity:%f", g_media_editor_settings.WaveformIntensity);
+                        ImGui::EndTooltip();
+                    }
                 }
                 if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
                 {
@@ -7994,9 +8094,11 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                     if (g_media_editor_settings.CIEIntensity < 0.01)
                         g_media_editor_settings.CIEIntensity = 0.01;
                     need_update_scope = true;
-                    ImGui::BeginTooltip();
-                    ImGui::Text("Intensity:%f", g_media_editor_settings.CIEIntensity);
-                    ImGui::EndTooltip();
+                    if (ImGui::BeginTooltip())
+                    {
+                        ImGui::Text("Intensity:%f", g_media_editor_settings.CIEIntensity);
+                        ImGui::EndTooltip();
+                    }
                 }
                 else if (io.MouseWheel > FLT_EPSILON)
                 {
@@ -8004,9 +8106,11 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                     if (g_media_editor_settings.CIEIntensity > 1.0f)
                         g_media_editor_settings.CIEIntensity = 1.0;
                     need_update_scope = true;
-                    ImGui::BeginTooltip();
-                    ImGui::Text("Intensity:%f", g_media_editor_settings.CIEIntensity);
-                    ImGui::EndTooltip();
+                    if (ImGui::BeginTooltip())
+                    {
+                        ImGui::Text("Intensity:%f", g_media_editor_settings.CIEIntensity);
+                        ImGui::EndTooltip();
+                    }
                 }
                 if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
                 {
@@ -8099,9 +8203,11 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                     if (g_media_editor_settings.VectorIntensity < 0.01)
                         g_media_editor_settings.VectorIntensity = 0.01;
                     need_update_scope = true;
-                    ImGui::BeginTooltip();
-                    ImGui::Text("Intensity:%f", g_media_editor_settings.VectorIntensity);
-                    ImGui::EndTooltip();
+                    if (ImGui::BeginTooltip())
+                    {
+                        ImGui::Text("Intensity:%f", g_media_editor_settings.VectorIntensity);
+                        ImGui::EndTooltip();
+                    }
                 }
                 else if (io.MouseWheel > FLT_EPSILON)
                 {
@@ -8109,9 +8215,11 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                     if (g_media_editor_settings.VectorIntensity > 1.0f)
                         g_media_editor_settings.VectorIntensity = 1.0;
                     need_update_scope = true;
-                    ImGui::BeginTooltip();
-                    ImGui::Text("Intensity:%f", g_media_editor_settings.VectorIntensity);
-                    ImGui::EndTooltip();
+                    if (ImGui::BeginTooltip())
+                    {
+                        ImGui::Text("Intensity:%f", g_media_editor_settings.VectorIntensity);
+                        ImGui::EndTooltip();
+                    }
                 }
                 if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
                 {
@@ -8218,18 +8326,22 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                     g_media_editor_settings.AudioWaveScale *= 0.9f;
                     if (g_media_editor_settings.AudioWaveScale < 0.1)
                         g_media_editor_settings.AudioWaveScale = 0.1;
-                    ImGui::BeginTooltip();
-                    ImGui::Text("Scale:%f", g_media_editor_settings.AudioWaveScale);
-                    ImGui::EndTooltip();
+                    if (ImGui::BeginTooltip())
+                    {
+                        ImGui::Text("Scale:%f", g_media_editor_settings.AudioWaveScale);
+                        ImGui::EndTooltip();
+                    }
                 }
                 else if (io.MouseWheel > FLT_EPSILON)
                 {
                     g_media_editor_settings.AudioWaveScale *= 1.1f;
                     if (g_media_editor_settings.AudioWaveScale > 4.0f)
                         g_media_editor_settings.AudioWaveScale = 4.0;
-                    ImGui::BeginTooltip();
-                    ImGui::Text("Scale:%f", g_media_editor_settings.AudioWaveScale);
-                    ImGui::EndTooltip();
+                    if (ImGui::BeginTooltip())
+                    {
+                        ImGui::Text("Scale:%f", g_media_editor_settings.AudioWaveScale);
+                        ImGui::EndTooltip();
+                    }
                 }
                 if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
                     g_media_editor_settings.AudioWaveScale = 1.f;
@@ -8302,9 +8414,11 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                     if (g_media_editor_settings.AudioVectorScale < 0.5)
                         g_media_editor_settings.AudioVectorScale = 0.5;
                     timeline->mAudioAttribute.mAudioVectorScale = g_media_editor_settings.AudioVectorScale;
-                    ImGui::BeginTooltip();
-                    ImGui::Text("Zoom:%f", g_media_editor_settings.AudioVectorScale);
-                    ImGui::EndTooltip();
+                    if (ImGui::BeginTooltip())
+                    {
+                        ImGui::Text("Zoom:%f", g_media_editor_settings.AudioVectorScale);
+                        ImGui::EndTooltip();
+                    }
                 }
                 else if (io.MouseWheel > FLT_EPSILON)
                 {
@@ -8312,9 +8426,11 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                     if (g_media_editor_settings.AudioVectorScale > 4.0f)
                         g_media_editor_settings.AudioVectorScale = 4.0;
                     timeline->mAudioAttribute.mAudioVectorScale = g_media_editor_settings.AudioVectorScale;
-                    ImGui::BeginTooltip();
-                    ImGui::Text("Zoom:%f", g_media_editor_settings.AudioVectorScale);
-                    ImGui::EndTooltip();
+                    if (ImGui::BeginTooltip())
+                    {
+                        ImGui::Text("Zoom:%f", g_media_editor_settings.AudioVectorScale);
+                        ImGui::EndTooltip();
+                    }
                 }
                 if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
                 {
@@ -8387,18 +8503,22 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                     g_media_editor_settings.AudioFFTScale *= 0.9f;
                     if (g_media_editor_settings.AudioFFTScale < 0.1)
                         g_media_editor_settings.AudioFFTScale = 0.1;
-                    ImGui::BeginTooltip();
-                    ImGui::Text("Scale:%f", g_media_editor_settings.AudioFFTScale);
-                    ImGui::EndTooltip();
+                    if (ImGui::BeginTooltip())
+                    {
+                        ImGui::Text("Scale:%f", g_media_editor_settings.AudioFFTScale);
+                        ImGui::EndTooltip();
+                    }
                 }
                 else if (io.MouseWheel > FLT_EPSILON)
                 {
                     g_media_editor_settings.AudioFFTScale *= 1.1f;
                     if (g_media_editor_settings.AudioFFTScale > 4.0f)
                         g_media_editor_settings.AudioFFTScale = 4.0;
-                    ImGui::BeginTooltip();
-                    ImGui::Text("Scale:%f", g_media_editor_settings.AudioFFTScale);
-                    ImGui::EndTooltip();
+                    if (ImGui::BeginTooltip())
+                    {
+                        ImGui::Text("Scale:%f", g_media_editor_settings.AudioFFTScale);
+                        ImGui::EndTooltip();
+                    }
                 }
                 if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
                     g_media_editor_settings.AudioFFTScale = 1.f;
@@ -8461,18 +8581,22 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                     g_media_editor_settings.AudioDBScale *= 0.9f;
                     if (g_media_editor_settings.AudioDBScale < 0.1)
                         g_media_editor_settings.AudioDBScale = 0.1;
-                    ImGui::BeginTooltip();
-                    ImGui::Text("Scale:%f", g_media_editor_settings.AudioDBScale);
-                    ImGui::EndTooltip();
+                    if (ImGui::BeginTooltip())
+                    {
+                        ImGui::Text("Scale:%f", g_media_editor_settings.AudioDBScale);
+                        ImGui::EndTooltip();
+                    }
                 }
                 else if (io.MouseWheel > FLT_EPSILON)
                 {
                     g_media_editor_settings.AudioDBScale *= 1.1f;
                     if (g_media_editor_settings.AudioDBScale > 4.0f)
                         g_media_editor_settings.AudioDBScale = 4.0;
-                    ImGui::BeginTooltip();
-                    ImGui::Text("Scale:%f", g_media_editor_settings.AudioDBScale);
-                    ImGui::EndTooltip();
+                    if (ImGui::BeginTooltip())
+                    {
+                        ImGui::Text("Scale:%f", g_media_editor_settings.AudioDBScale);
+                        ImGui::EndTooltip();
+                    }
                 }
                 if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
                     g_media_editor_settings.AudioDBScale = 1.f;
@@ -8568,9 +8692,11 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                     if (g_media_editor_settings.AudioSpectrogramLight < 0.1)
                         g_media_editor_settings.AudioSpectrogramLight = 0.1;
                     timeline->mAudioAttribute.mAudioSpectrogramLight = g_media_editor_settings.AudioSpectrogramLight;
-                    ImGui::BeginTooltip();
-                    ImGui::Text("Light:%f", g_media_editor_settings.AudioSpectrogramLight);
-                    ImGui::EndTooltip();
+                    if (ImGui::BeginTooltip())
+                    {
+                        ImGui::Text("Light:%f", g_media_editor_settings.AudioSpectrogramLight);
+                        ImGui::EndTooltip();
+                    }
                 }
                 else if (io.MouseWheel > FLT_EPSILON)
                 {
@@ -8578,9 +8704,11 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                     if (g_media_editor_settings.AudioSpectrogramLight > 1.0f)
                         g_media_editor_settings.AudioSpectrogramLight = 1.0;
                     timeline->mAudioAttribute.mAudioSpectrogramLight = g_media_editor_settings.AudioSpectrogramLight;
-                    ImGui::BeginTooltip();
-                    ImGui::Text("Light:%f", g_media_editor_settings.AudioSpectrogramLight);
-                    ImGui::EndTooltip();
+                    if (ImGui::BeginTooltip())
+                    {
+                        ImGui::Text("Light:%f", g_media_editor_settings.AudioSpectrogramLight);
+                        ImGui::EndTooltip();
+                    }
                 }
                 else if (io.MouseWheelH < -FLT_EPSILON)
                 {
@@ -8588,9 +8716,11 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                     if (g_media_editor_settings.AudioSpectrogramOffset < -96.0)
                         g_media_editor_settings.AudioSpectrogramOffset = -96.0;
                     timeline->mAudioAttribute.mAudioSpectrogramOffset = g_media_editor_settings.AudioSpectrogramOffset;
-                    ImGui::BeginTooltip();
-                    ImGui::Text("Offset:%f", g_media_editor_settings.AudioSpectrogramOffset);
-                    ImGui::EndTooltip();
+                    if (ImGui::BeginTooltip())
+                    {
+                        ImGui::Text("Offset:%f", g_media_editor_settings.AudioSpectrogramOffset);
+                        ImGui::EndTooltip();
+                    }
                 }
                 else if (io.MouseWheelH > FLT_EPSILON)
                 {
@@ -8598,9 +8728,11 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                     if (g_media_editor_settings.AudioSpectrogramOffset > 96.0)
                         g_media_editor_settings.AudioSpectrogramOffset = 96.0;
                     timeline->mAudioAttribute.mAudioSpectrogramOffset = g_media_editor_settings.AudioSpectrogramOffset;
-                    ImGui::BeginTooltip();
-                    ImGui::Text("Offset:%f", g_media_editor_settings.AudioSpectrogramOffset);
-                    ImGui::EndTooltip();
+                    if (ImGui::BeginTooltip())
+                    {
+                        ImGui::Text("Offset:%f", g_media_editor_settings.AudioSpectrogramOffset);
+                        ImGui::EndTooltip();
+                    }
                 }
                 if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
                 {
