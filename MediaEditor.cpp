@@ -9216,6 +9216,7 @@ void Application_GetWindowProperties(ApplicationWindowProperty& property)
     property.internationalize = true;
     //property.using_setting_path = false;
     //property.power_save = false;
+    property.font_scale = 2.0f;
 #if 1
     property.resizable = false;
     property.full_size = true;
