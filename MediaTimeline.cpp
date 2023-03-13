@@ -4864,13 +4864,29 @@ std::vector<MediaCore::CorrelativeFrame> TimeLine::GetPreviewFrame()
         int64_t dur = ValidDuration();
         if (!mIsPreviewForward && currentTime <= 0)
         {
-            currentTime = 0;
-            playEof = true;
+            if (bLoop)
+            {
+                currentTime = dur;
+                Seek(currentTime);
+            }
+            else
+            {
+                currentTime = 0;
+                playEof = true;
+            }
         }
         else if (mIsPreviewForward && currentTime >= dur)
         {
-            currentTime = dur;
-            playEof = true;
+            if (bLoop)
+            {
+                currentTime = 0;
+                Seek(currentTime);
+            }
+            else
+            {
+                currentTime = dur;
+                playEof = true;
+            }
         }
         if (playEof)
         {
