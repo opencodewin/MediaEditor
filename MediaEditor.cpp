@@ -2187,6 +2187,10 @@ static void ShowMediaBankWindow(ImDrawList *draw_list, float media_icon_size)
                         auto filename = ImGuiHelper::path_filename(path);
                         failed_items.push_back(filename);
                     }
+                    else
+                    {
+                        pfd::notify("Import File Succeed", path, pfd::icon::info);
+                    }
                 }
                 import_url.clear();
                 if (!failed_items.empty())
