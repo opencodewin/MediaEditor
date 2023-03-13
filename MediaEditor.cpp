@@ -1085,7 +1085,7 @@ static std::string GetFrequencyTag(uint32_t freq)
 {
     char tag[16]= {0};
     if (freq < 1000)
-        sprintf(tag, "%u", freq);
+        snprintf(tag, sizeof(tag)-1, "%u", freq);
     else if (freq%1000 > 0)
         snprintf(tag, sizeof(tag)-1, "%.1fK", (float)(freq/1000));
     else
@@ -1103,13 +1103,13 @@ static void ShowConfigure(MediaEditorSettings & config)
     static int channels_index = GetChannelIndex(config.AudioChannels);
     static int format_index = GetAudioFormatIndex(config.AudioFormat);
 
-    static char buf_cache_size[64] = {0}; sprintf(buf_cache_size, "%d", config.VideoFrameCacheSize);
-    static char buf_res_x[64] = {0}; sprintf(buf_res_x, "%d", config.VideoWidth);
-    static char buf_res_y[64] = {0}; sprintf(buf_res_y, "%d", config.VideoHeight);
-    static char buf_par_x[64] = {0}; sprintf(buf_par_x, "%d", config.PixelAspectRatio.num);
-    static char buf_par_y[64] = {0}; sprintf(buf_par_y, "%d", config.PixelAspectRatio.den);
-    static char buf_fmr_x[64] = {0}; sprintf(buf_fmr_x, "%d", config.VideoFrameRate.num);
-    static char buf_fmr_y[64] = {0}; sprintf(buf_fmr_y, "%d", config.VideoFrameRate.den);
+    static char buf_cache_size[64] = {0}; snprintf(buf_cache_size, 64, "%d", config.VideoFrameCacheSize);
+    static char buf_res_x[64] = {0}; snprintf(buf_res_x, 64, "%d", config.VideoWidth);
+    static char buf_res_y[64] = {0}; snprintf(buf_res_y, 64, "%d", config.VideoHeight);
+    static char buf_par_x[64] = {0}; snprintf(buf_par_x, 64, "%d", config.PixelAspectRatio.num);
+    static char buf_par_y[64] = {0}; snprintf(buf_par_y, 64, "%d", config.PixelAspectRatio.den);
+    static char buf_fmr_x[64] = {0}; snprintf(buf_fmr_x, 64, "%d", config.VideoFrameRate.num);
+    static char buf_fmr_y[64] = {0}; snprintf(buf_fmr_y, 64, "%d", config.VideoFrameRate.den);
 
     static const int numConfigureTabs = sizeof(ConfigureTabNames)/sizeof(ConfigureTabNames[0]);
     if (ImGui::BeginChild("##ConfigureView", ImVec2(800, 600), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
@@ -2999,12 +2999,12 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
 
         // Video codec global
         ImGui::TextUnformatted("Video Setting: "); ImGui::SameLine(0.f, 0.f);
-        static char buf_res_x[64] = {0}; sprintf(buf_res_x, "%d", g_media_editor_settings.OutputVideoResolutionWidth);
-        static char buf_res_y[64] = {0}; sprintf(buf_res_y, "%d", g_media_editor_settings.OutputVideoResolutionHeight);
-        static char buf_par_x[64] = {0}; sprintf(buf_par_x, "%d", g_media_editor_settings.OutputVideoPixelAspectRatio.num);
-        static char buf_par_y[64] = {0}; sprintf(buf_par_y, "%d", g_media_editor_settings.OutputVideoPixelAspectRatio.den);
-        static char buf_fmr_x[64] = {0}; sprintf(buf_fmr_x, "%d", g_media_editor_settings.OutputVideoFrameRate.num);
-        static char buf_fmr_y[64] = {0}; sprintf(buf_fmr_y, "%d", g_media_editor_settings.OutputVideoFrameRate.den);
+        static char buf_res_x[64] = {0}; snprintf(buf_res_x, 64, "%d", g_media_editor_settings.OutputVideoResolutionWidth);
+        static char buf_res_y[64] = {0}; snprintf(buf_res_y, 64, "%d", g_media_editor_settings.OutputVideoResolutionHeight);
+        static char buf_par_x[64] = {0}; snprintf(buf_par_x, 64, "%d", g_media_editor_settings.OutputVideoPixelAspectRatio.num);
+        static char buf_par_y[64] = {0}; snprintf(buf_par_y, 64, "%d", g_media_editor_settings.OutputVideoPixelAspectRatio.den);
+        static char buf_fmr_x[64] = {0}; snprintf(buf_fmr_x, 64, "%d", g_media_editor_settings.OutputVideoFrameRate.num);
+        static char buf_fmr_y[64] = {0}; snprintf(buf_fmr_y, 64, "%d", g_media_editor_settings.OutputVideoFrameRate.den);
 
         ImGui::Checkbox("as Timeline##video_setting", &g_media_editor_settings.OutputVideoSettingAsTimeline);
         if (g_media_editor_settings.OutputVideoSettingAsTimeline)
@@ -6311,7 +6311,7 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list)
             volMaster.volume = timeline->mAudioAttribute.mAudioGain;
             amFilter->SetVolumeParams(&volMaster);
         }
-        sprintf(value_str, "%.1fdB", vol);
+        snprintf(value_str, 64, "%.1fdB", vol);
         auto vol_str_size = ImGui::CalcTextSize(value_str);
         auto vol_str_offset = vol_str_size.x < 64 ? (64 - vol_str_size.x) / 2 : 0;
         ImGui::SetCursorScreenPos(current_pos + ImVec2(sub_window_size.x - 64 + vol_str_offset, sub_window_size.y - header_height - 32));
@@ -6344,7 +6344,7 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list)
                     }
                 }
                 ImGui::PopID();
-                sprintf(value_str, "%.1fdB", (track->mAudioTrackAttribute.mAudioGain - 1.f) * 96.f);
+                snprintf(value_str, 64, "%.1fdB", (track->mAudioTrackAttribute.mAudioGain - 1.f) * 96.f);
                 auto value_str_size = ImGui::CalcTextSize(value_str);
                 auto value_str_offset = value_str_size.x < 48 ? (48 - value_str_size.x) / 2 : 0;
                 ImGui::SetCursorScreenPos(current_pos + ImVec2(count * 48 + value_str_offset, sub_window_size.y - header_height - 32));

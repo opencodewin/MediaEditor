@@ -263,7 +263,7 @@ struct MediaItem
     bool mValid {false};                    // Media source is valid
     int64_t mStart  {0};                    // whole Media start in ms
     int64_t mEnd    {0};                    // whole Media end in ms
-    MediaOverview * mMediaOverview;
+    MediaOverview * mMediaOverview {nullptr};
     uint32_t mMediaType {MEDIA_UNKNOWN};
     std::vector<ImTextureID> mMediaThumbnail;
     MediaItem(const std::string& name, const std::string& path, uint32_t type, void* handle);
