@@ -268,6 +268,8 @@ struct MediaItem
     std::vector<ImTextureID> mMediaThumbnail;
     MediaItem(const std::string& name, const std::string& path, uint32_t type, void* handle);
     ~MediaItem();
+    void UpdateItem(const std::string& name, const std::string& path, void* handle);
+    void ReleaseItem();
     void UpdateThumbnail();
 };
 
@@ -394,6 +396,10 @@ struct VideoClip : Clip
     VideoClip(int64_t start, int64_t end, int64_t id, std::string name, void* handle); // dummy clip
     ~VideoClip();
 
+    void UpdateClip(MediaParserHolder hParser, SnapshotGenerator::ViewerHolder viewer, int64_t duration);
+    void UpdateClip(MediaOverview * overview);
+    void CalcDisplayParams();
+
     void ConfigViewWindow(int64_t wndDur, float pixPerMs) override;
     void SetTrackHeight(int trackHeight) override;
     void SetViewWindowStart(int64_t millisec) override;
@@ -401,9 +407,6 @@ struct VideoClip : Clip
 
     static Clip * Load(const imgui_json::value& value, void * handle);
     void Save(imgui_json::value& value) override;
-
-private:
-    void CalcDisplayParams();
 
 private:
     float mSnapWidth                {0};
@@ -423,6 +426,8 @@ struct AudioClip : Clip
     AudioClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle);
     AudioClip(int64_t start, int64_t end, int64_t id, std::string name, void* handle);
     ~AudioClip();
+
+    void UpdateClip(MediaOverview * overview, int64_t duration);
 
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect) override;
     static Clip * Load(const imgui_json::value& value, void * handle);

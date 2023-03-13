@@ -117,9 +117,31 @@ MediaItem::MediaItem(const std::string& name, const std::string& path, uint32_t 
 {
     TimeLine * timeline = (TimeLine *)handle;
     mID = timeline ? timeline->m_IDGenerator.GenerateID() : ImGui::get_current_time_usec();
+    mMediaType = type;
+    UpdateItem(name, path, handle);
+}
+
+MediaItem::~MediaItem()
+{
+    ReleaseMediaOverview(&mMediaOverview);
+    mMediaOverview = nullptr;
+    for (auto thumb : mMediaThumbnail)
+    {
+        ImGui::ImDestroyTexture(thumb); 
+        thumb = nullptr;
+    }
+}
+
+void MediaItem::UpdateItem(const std::string& name, const std::string& path, void* handle)
+{
+    TimeLine * timeline = (TimeLine *)handle;
+    ReleaseItem();
+    auto old_name = mName;
+    auto old_path = mPath;
+    auto old_start = mStart;
+    auto old_end = mEnd;
     mName = name;
     mPath = path;
-    mMediaType = type;
     mMediaOverview = CreateMediaOverview();
     if (timeline)
     {
@@ -135,7 +157,7 @@ MediaItem::MediaItem(const std::string& name, const std::string& path, uint32_t 
         mStart = 0;
         if (mMediaOverview->HasVideo())
         {
-            if (type == MEDIA_SUBTYPE_VIDEO_IMAGE)
+            if (mMediaType == MEDIA_SUBTYPE_VIDEO_IMAGE)
             {
                 mEnd = 5000;
             }
@@ -153,16 +175,21 @@ MediaItem::MediaItem(const std::string& name, const std::string& path, uint32_t 
         {
             mEnd = 5000;
         }
+        if ((old_start !=0 && mStart != old_start) || (old_end != 0 && mEnd != old_end))
+        {
+            ReleaseItem();
+            return;
+        }
         mValid = true;
     }
-    else if (mMediaOverview && IS_TEXT(type))
+    else if (mMediaOverview && IS_TEXT(mMediaType))
     {
         if (ImGuiHelper::file_exists(mPath))
             mValid = true;
     }
 }
 
-MediaItem::~MediaItem()
+void MediaItem::ReleaseItem()
 {
     ReleaseMediaOverview(&mMediaOverview);
     mMediaOverview = nullptr;
@@ -171,7 +198,9 @@ MediaItem::~MediaItem()
         ImGui::ImDestroyTexture(thumb); 
         thumb = nullptr;
     }
+    mValid = false;
 }
+
 void MediaItem::UpdateThumbnail()
 {
     if (mMediaOverview && mMediaOverview->IsOpened())
@@ -1005,6 +1034,7 @@ VideoClip::VideoClip(int64_t start, int64_t end, int64_t id, std::string name, M
         if (!info || !video_stream)
         {
             hViewer->Release();
+            mType |= MEDIA_DUMMY;
             return;
         }
         mWidth = video_stream->width;
@@ -1025,6 +1055,7 @@ VideoClip::VideoClip(int64_t start, int64_t end, int64_t id, std::string name, M
         if (!info || !video_stream)
         {
             mOverview = nullptr;
+            mType |= MEDIA_DUMMY;
             return;
         }
         TimeLine * timeline = (TimeLine *)handle;
@@ -1054,7 +1085,7 @@ VideoClip::VideoClip(int64_t start, int64_t end, int64_t id, std::string name, M
 VideoClip::VideoClip(int64_t start, int64_t end, int64_t id, std::string name, void* handle)
     : Clip(start, end, id, nullptr, handle)
 {
-    mType = MEDIA_DUMMY;
+    mType = MEDIA_VIDEO | MEDIA_DUMMY;
     mName = name;
 }
 
@@ -1069,6 +1100,81 @@ VideoClip::~VideoClip()
     if (mImgTexture) { ImGui::ImDestroyTexture(mImgTexture); mImgTexture = nullptr; }
 }
 
+void VideoClip::UpdateClip(MediaParserHolder hParser, SnapshotGenerator::ViewerHolder viewer, int64_t duration)
+{
+    if (viewer)
+    {
+        mType = MEDIA_VIDEO;
+        mMediaParser = hParser;
+        mSsViewer = viewer;
+        MediaInfo::InfoHolder info = hParser->GetMediaInfo();
+        const MediaInfo::VideoStream* video_stream = hParser->GetBestVideoStream();
+        if (!info || !video_stream)
+        {
+            viewer->Release();
+            mType |= MEDIA_DUMMY;
+            return;
+        }
+        if (mWidth != video_stream->width || mHeight != video_stream->height)
+        {
+            viewer->Release();
+            mType |= MEDIA_DUMMY;
+            return;
+        }
+        if (mEnd - mStart > duration)
+        {
+            viewer->Release();
+            mType |= MEDIA_DUMMY;
+            return;
+        }
+
+        mPath = info->url;
+    }
+}
+
+void VideoClip::UpdateClip(MediaOverview * overview)
+{
+    if (overview)
+    {
+        mType = MEDIA_SUBTYPE_VIDEO_IMAGE;
+        mOverview = overview;
+        mMediaParser = overview->GetMediaParser();
+        MediaInfo::InfoHolder info = overview->GetMediaParser()->GetMediaInfo();
+        const MediaInfo::VideoStream* video_stream = mOverview->GetVideoStream();
+        if (!info || !video_stream)
+        {
+            mOverview = nullptr;
+            mType |= MEDIA_DUMMY;
+            return;
+        }
+        if (mWidth != video_stream->width || mHeight != video_stream->height)
+        {
+            mOverview = nullptr;
+            mType |= MEDIA_DUMMY;
+            return;
+        }
+        int _width = 0, _height = 0;
+        std::vector<ImGui::ImMat> snap_images;
+        if (mOverview->GetSnapshots(snap_images))
+        {
+            TimeLine * timeline = (TimeLine *)mHandle;
+            if (!snap_images.empty() && !snap_images[0].empty() && !mImgTexture && timeline && !timeline->m_in_threads)
+            {
+                ImMatToTexture(snap_images[0], mImgTexture);
+                _width = snap_images[0].w;
+                _height = snap_images[0].h;
+            }
+            if (mTrackHeight > 0 && _width > 0 && _height > 0)
+            {
+                mSnapHeight = mTrackHeight;
+                mSnapWidth = mTrackHeight * _width / _height;
+            }
+        }
+
+        mPath = info->url;
+    }
+}
+
 Clip* VideoClip::Load(const imgui_json::value& value, void * handle)
 {
     TimeLine * timeline = (TimeLine *)handle;
@@ -1076,6 +1182,7 @@ Clip* VideoClip::Load(const imgui_json::value& value, void * handle)
         return nullptr;
 
     int64_t id = -1;
+    int width = 0, height = 0;
     MediaItem * item = nullptr;
     if (value.contains("MediaID"))
     {
@@ -1086,6 +1193,17 @@ Clip* VideoClip::Load(const imgui_json::value& value, void * handle)
     {
         item = timeline->FindMediaItemByID(id);
     }
+    if (value.contains("width"))
+    {
+        auto& val = value["width"];
+        if (val.is_number()) width = val.get<imgui_json::number>();
+    }
+    if (value.contains("height"))
+    {
+        auto& val = value["height"];
+        if (val.is_number()) height = val.get<imgui_json::number>();
+    }
+
     if (item)
     {
         // media is in bank
@@ -1117,8 +1235,20 @@ Clip* VideoClip::Load(const imgui_json::value& value, void * handle)
         }
         if (new_clip)
         {
+            if ((width != 0 && new_clip->mWidth != width) || 
+                (height != 0 && new_clip->mHeight != height))
+            {
+                new_clip->mType |= MEDIA_DUMMY;
+                new_clip->mWidth = width;
+                new_clip->mHeight = height;
+            }
             Clip::Load(new_clip, value);
             // load video info
+            if (value.contains("FrameRateDen"))
+            {
+                auto& val = value["FrameRateDen"];
+                if (val.is_number()) new_clip->mClipFrameRate.den = val.get<imgui_json::number>();
+            }
             if (value.contains("FrameRateNum"))
             {
                 auto& val = value["FrameRateNum"];
@@ -1373,6 +1503,8 @@ void VideoClip::Save(imgui_json::value& value)
 {
     Clip::Save(value);
     // save video clip info
+    value["width"] = imgui_json::number(mWidth);
+    value["height"] = imgui_json::number(mHeight);
     value["FrameRateNum"] = imgui_json::number(mClipFrameRate.num);
     value["FrameRateDen"] = imgui_json::number(mClipFrameRate.den);
 
@@ -1407,8 +1539,11 @@ AudioClip::AudioClip(int64_t start, int64_t end, int64_t id, std::string name, M
         const MediaInfo::AudioStream* audio_stream = mMediaParser->GetBestAudioStream();
         if (!info || !audio_stream)
         {
+            mType |= MEDIA_DUMMY;
             return;
         }
+        mAudioSampleRate = audio_stream->sampleRate;
+        mAudioChannels = audio_stream->channels;
         mPath = info->url;
         mWaveform = overview->GetWaveform();
     }
@@ -1423,6 +1558,36 @@ AudioClip::AudioClip(int64_t start, int64_t end, int64_t id, std::string name, v
 
 AudioClip::~AudioClip()
 {
+}
+
+void AudioClip::UpdateClip(MediaOverview * overview, int64_t duration)
+{
+    if (overview)
+    {
+        mType = MEDIA_AUDIO;
+        mOverview = overview;
+        mMediaParser = overview->GetMediaParser();
+        MediaInfo::InfoHolder info = mMediaParser->GetMediaInfo();
+        const MediaInfo::AudioStream* audio_stream = mMediaParser->GetBestAudioStream();
+        if (!info || !audio_stream)
+        {
+            mType |= MEDIA_DUMMY;
+            return;
+        }
+        if (mAudioSampleRate != audio_stream->sampleRate ||
+            mAudioChannels != audio_stream->channels)
+        {
+            mType |= MEDIA_DUMMY;
+            return;
+        }
+        if (mEnd - mStart > duration)
+        {
+            mType |= MEDIA_DUMMY;
+            return;
+        }
+        mPath = info->url;
+        mWaveform = overview->GetWaveform();
+    }
 }
 
 void AudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect)

@@ -5,6 +5,7 @@
 #include <imgui_json.h>
 #include <implot.h>
 #include <ImGuiFileDialog.h>
+#include <portable-file-dialogs.h>
 #include <ImGuiTabWindow.h>
 #if IMGUI_VULKAN_SHADER
 #include <Histogram_vulkan.h>
@@ -1582,10 +1583,8 @@ static inline std::string GetAudioChannelName(int channels)
     else return "Channels " + std::to_string(channels);
 }
 
-static bool InsertMedia(const std::string path)
+static uint32_t CheckMediaType(std::string file_suffix)
 {
-    auto file_suffix = ImGuiHelper::path_suffix(path);
-    auto name = ImGuiHelper::path_filename(path);
     uint32_t type = MEDIA_UNKNOWN;
     if (!file_suffix.empty())
     {
@@ -1626,6 +1625,14 @@ static bool InsertMedia(const std::string path)
                 (file_suffix.compare(".xml") == 0))
             type = MEDIA_SUBTYPE_TEXT_SUBTITLE;
     }
+    return type;
+}
+
+static bool InsertMedia(const std::string path)
+{
+    auto file_suffix = ImGuiHelper::path_suffix(path);
+    auto name = ImGuiHelper::path_filename(path);
+    auto type = CheckMediaType(file_suffix);
     if (timeline)
     {
         // check media is already in bank
@@ -1644,6 +1651,148 @@ static bool InsertMedia(const std::string path)
         }
     }
     return false;
+}
+
+static bool ReloadMedia(std::string path, MediaItem* item)
+{
+    bool updated = true;
+    if (!timeline)
+        return false;
+    // first update media item
+    auto file_suffix = ImGuiHelper::path_suffix(path);
+    auto name = ImGuiHelper::path_filename(path);
+    // check type match
+    auto type = CheckMediaType(file_suffix);
+    if (type != item->mMediaType)
+        return false;
+    auto old_name = item->mName;
+    auto old_path = item->mPath;
+    auto old_start = item->mStart;
+    auto old_end = item->mEnd;
+    item->UpdateItem(name, path, timeline);
+    if (item->mValid)
+    {
+        // need update timeline clip which is using current Media
+        for (auto clip : timeline->m_Clips)
+        {
+            if (clip->mMediaID == item->mID && IS_DUMMY(clip->mType))
+            {
+                // reload clip from new item
+                if (IS_IMAGE(clip->mType))
+                {
+                    VideoClip * new_clip = (VideoClip *)clip;
+                    new_clip->UpdateClip(item->mMediaOverview);
+                }
+                else if (IS_VIDEO(clip->mType))
+                {
+                    VideoClip * new_clip = (VideoClip *)clip;
+                    SnapshotGenerator::ViewerHolder hViewer;
+                    SnapshotGeneratorHolder hSsGen = timeline->GetSnapshotGenerator(item->mID);
+                    if (hSsGen)
+                    {
+                        hViewer = hSsGen->CreateViewer();
+                        new_clip->UpdateClip(item->mMediaOverview->GetMediaParser(), hViewer, item->mEnd - item->mStart);
+                    }
+                    // update video snapshot
+                    if (!IS_DUMMY(new_clip->mType))
+                        new_clip->CalcDisplayParams();
+                }
+                else if (IS_AUDIO(clip->mType))
+                {
+                    AudioClip * new_clip = (AudioClip *)clip;
+                    new_clip->UpdateClip(item->mMediaOverview, item->mEnd - item->mStart);
+                }
+                else if (IS_TEXT(clip->mType))
+                {
+                    // Text clip don't need update clip
+                }
+                auto track = timeline->FindTrackByClipID(clip->mID);
+                if (track && !IS_DUMMY(clip->mType))
+                {
+                    // build data layer multi-track media reader
+                    if (IS_VIDEO(clip->mType))
+                    {
+                        MediaCore::VideoTrackHolder vidTrack = timeline->mMtvReader->GetTrackById(track->mID);
+                        if (vidTrack)
+                        {
+                            MediaCore::VideoClipHolder hVidClip;
+                            if (clip->mType == MEDIA_SUBTYPE_VIDEO_IMAGE)
+                                hVidClip = vidTrack->AddNewClip(clip->mID, clip->mMediaParser, clip->mStart, clip->mEnd-clip->mStart, 0, 0);
+                            else
+                                hVidClip = vidTrack->AddNewClip(clip->mID, clip->mMediaParser, clip->mStart, clip->mStartOffset, clip->mEndOffset, timeline->currentTime - clip->mStart);
+                        
+                            BluePrintVideoFilter* bpvf = new BluePrintVideoFilter(timeline);
+                            bpvf->SetBluePrintFromJson(clip->mFilterBP);
+                            bpvf->SetKeyPoint(clip->mFilterKeyPoints);
+                            MediaCore::VideoFilterHolder hFilter(bpvf);
+                            hVidClip->SetFilter(hFilter);
+                            auto attribute = hVidClip->GetTransformFilter();
+                            if (attribute)
+                            {
+                                VideoClip * vidclip = (VideoClip *)clip;
+                                attribute->SetScaleType(vidclip->mScaleType);
+                                attribute->SetScaleH(vidclip->mScaleH);
+                                attribute->SetScaleV(vidclip->mScaleV);
+                                attribute->SetPositionOffsetH(vidclip->mPositionOffsetH);
+                                attribute->SetPositionOffsetV(vidclip->mPositionOffsetV);
+                                attribute->SetRotationAngle(vidclip->mRotationAngle);
+                                attribute->SetCropMarginL(vidclip->mCropMarginL);
+                                attribute->SetCropMarginT(vidclip->mCropMarginT);
+                                attribute->SetCropMarginR(vidclip->mCropMarginR);
+                                attribute->SetCropMarginB(vidclip->mCropMarginB);
+                                attribute->SetKeyPoint(vidclip->mAttributeKeyPoints);
+                            }
+                        }
+                        clip->SetViewWindowStart(timeline->firstTime);
+                    }
+                    else if (IS_AUDIO(clip->mType))
+                    {
+                        MediaCore::AudioTrackHolder audTrack = timeline->mMtaReader->GetTrackById(track->mID);
+                        if (audTrack)
+                        {
+                            MediaCore::AudioClipHolder hAudClip = audTrack->AddNewClip(clip->mID, clip->mMediaParser, clip->mStart, clip->mStartOffset, clip->mEndOffset);
+                            BluePrintAudioFilter* bpaf = new BluePrintAudioFilter(timeline);
+                            bpaf->SetBluePrintFromJson(clip->mFilterBP);
+                            bpaf->SetKeyPoint(clip->mFilterKeyPoints);
+                            MediaCore::AudioFilterHolder hFilter(bpaf);
+                            hAudClip->SetFilter(hFilter);
+                            // audio attribute
+                            auto aeFilter = audTrack->GetAudioEffectFilter();
+                            // gain
+                            auto volParams = aeFilter->GetVolumeParams();
+                            volParams.volume = track->mAudioTrackAttribute.mAudioGain;
+                            aeFilter->SetVolumeParams(&volParams);
+                        }
+                    }
+                }
+                if (IS_DUMMY(clip->mType))
+                {
+                    updated = false;
+                    break;
+                }
+            }
+        }
+        if (!updated)
+        {
+            item->ReleaseItem();
+            item->mName = old_name;
+            item->mPath = old_path;
+            item->mStart = old_start;
+            item->mEnd = old_end;
+        }
+        // update preview
+        timeline->UpdatePreview();
+    }
+    else
+    {
+        item->ReleaseItem();
+        item->mName = old_name;
+        item->mPath = old_path;
+        item->mStart = old_start;
+        item->mEnd = old_end;
+        return false;
+    }
+    return updated;
 }
 
 static bool InsertMediaAddIcon(ImDrawList *draw_list, ImVec2 icon_pos, float media_icon_size)
@@ -1777,7 +1926,7 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
             }
             else if (IS_TEXT((*item)->mMediaType))
             {
-                ImGui::Button(ICON_MEDIA_TEXT "Text", ImVec2(media_icon_size, media_icon_size));
+                ImGui::Button(ICON_MEDIA_TEXT " Text", ImVec2(media_icon_size, media_icon_size));
             }
             else
                 ImGui::Button((*item)->mName.c_str(), ImVec2(media_icon_size, media_icon_size));
@@ -1927,15 +2076,15 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
             else if (IS_AUDIO((*item)->mMediaType)) filter = audio_filter;
             else if (IS_TEXT((*item)->mMediaType)) filter = text_filter;
             else filter = ".*";
-            ImGuiFileDialog::Instance()->OpenDialog("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Choose Media File", 
+            ImGuiFileDialog::Instance()->OpenDialog("##MediaEditReloadDlgKey", ICON_IGFD_FOLDER_OPEN " Choose Media File", 
                                                     filter.c_str(),
                                                     ".",
                                                     1, 
-                                                    IGFDUserDatas("Relocate Media Source"), 
+                                                    IGFDUserDatas((*item)), 
                                                     ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_DisableCreateDirectoryButton | ImGuiFileDialogFlags_Modal);
 
         }
-        ImGui::ShowTooltipOnHover("Locate Media");
+        ImGui::ShowTooltipOnHover("Reload Media");
     }
 
     ImGui::SetCursorScreenPos(icon_pos + ImVec2(media_icon_size - 16, 0));
@@ -9940,8 +10089,24 @@ bool Application_Frame(void * handle, bool app_will_quit)
     // File Dialog
     ImVec2 minSize = ImVec2(600, 600);
 	ImVec2 maxSize = ImVec2(FLT_MAX, FLT_MAX);
-    if (multiviewport)
-        ImGui::SetNextWindowViewport(viewport->ID);
+    if (multiviewport) ImGui::SetNextWindowViewport(viewport->ID);
+    if (ImGuiFileDialog::Instance()->Display("##MediaEditReloadDlgKey", ImGuiWindowFlags_NoCollapse, minSize, maxSize))
+    {
+        if (ImGuiFileDialog::Instance()->IsOk())
+        {
+            auto file_path = ImGuiFileDialog::Instance()->GetFilePathName();
+            auto userDatas = (MediaItem*)ImGuiFileDialog::Instance()->GetUserDatas();
+            if (!ReloadMedia(file_path, userDatas))
+            {
+                pfd::message("Reload Failed", "Can't reload media, maybe it isn't the same file?",
+                                    pfd::choice::ok,
+                                    pfd::icon::error);
+            }
+            show_file_dialog = false;
+        }
+        ImGuiFileDialog::Instance()->Close();
+    }
+    if (multiviewport) ImGui::SetNextWindowViewport(viewport->ID);
     if (ImGuiFileDialog::Instance()->Display("##MediaEditFileDlgKey", ImGuiWindowFlags_NoCollapse, minSize, maxSize))
     {
         if (ImGuiFileDialog::Instance()->IsOk())
@@ -9953,10 +10118,6 @@ bool Application_Frame(void * handle, bool app_will_quit)
             if (userDatas.compare("Media Source") == 0)
             {
                 InsertMedia(file_path);
-            }
-            if (userDatas.compare("Relocate Media Source") == 0)
-            {
-                // TODO::Dicky add relocate source
             }
             if (userDatas.compare("ProjectOpen") == 0)
             {
