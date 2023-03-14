@@ -35,39 +35,6 @@ static bool TimelineButton(ImDrawList *draw_list, const char * label, ImVec2 pos
     return overButton;
 }
 
-static void RenderMouseCursor(const char* mouse_cursor, ImVec2 offset = ImVec2(0 ,0), float base_scale = 1.0, int rotate = 0, ImU32 col_fill = IM_COL32_WHITE, ImU32 col_border = IM_COL32_BLACK, ImU32 col_shadow = IM_COL32(0, 0, 0, 48))
-{
-    ImGuiViewportP* viewport = (ImGuiViewportP*)ImGui::GetWindowViewport();
-    ImDrawList* draw_list = ImGui::GetForegroundDrawList(viewport);
-    ImGuiIO& io = ImGui::GetIO();
-    const float FontSize = draw_list->_Data->FontSize;
-    ImVec2 size(FontSize, FontSize);
-    const ImVec2 pos = io.MousePos - offset;
-    const float scale = base_scale * viewport->DpiScale;
-    if (!viewport->GetMainRect().Overlaps(ImRect(pos, pos + ImVec2(size.x + 2, size.y + 2) * scale)))
-        return;
-
-    ImGui::SetMouseCursor(ImGuiMouseCursor_None);
-    int rotation_start_index = draw_list->VtxBuffer.Size;
-    draw_list->AddText(pos + ImVec2(-1, -1), col_border, mouse_cursor);
-    draw_list->AddText(pos + ImVec2(1, 1), col_shadow, mouse_cursor);
-    draw_list->AddText(pos, col_fill, mouse_cursor);
-    if (rotate != 0)
-    {
-        float rad = M_PI / 180 * (90 - rotate);
-        ImVec2 l(FLT_MAX, FLT_MAX), u(-FLT_MAX, -FLT_MAX); // bounds
-        auto& buf = draw_list->VtxBuffer;
-        float s = sin(rad), c = cos(rad);
-        for (int i = rotation_start_index; i < buf.Size; i++)
-            l = ImMin(l, buf[i].pos), u = ImMax(u, buf[i].pos);
-        ImVec2 center = ImVec2((l.x + u.x) / 2, (l.y + u.y) / 2);
-        center = ImRotate(center, s, c) - center;
-        
-        for (int i = rotation_start_index; i < buf.Size; i++)
-            buf[i].pos = ImRotate(buf[i].pos, s, c) - center;
-    }
-}
-
 static void alignTime(int64_t& time, MediaInfo::Ratio rate)
 {
     if (rate.den && rate.num)
@@ -7643,9 +7610,9 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                             if (!rc.Contains(io.MousePos))
                                 continue;
                             if (j == 0)
-                                RenderMouseCursor(ICON_CROPPING_LEFT, ImVec2(4, 0));
+                                ImGui::RenderMouseCursor(ICON_CROPPING_LEFT, ImVec2(4, 0));
                             else
-                                RenderMouseCursor(ICON_CROPPING_RIGHT, ImVec2(12, 0));
+                                ImGui::RenderMouseCursor(ICON_CROPPING_RIGHT, ImVec2(12, 0));
                             draw_list->AddRectFilled(rc.Min, rc.Max, IM_COL32(255,0,0,255), 0);
                         }
                         for (int j = 0; j < 3; j++)
@@ -7661,7 +7628,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                                 ImVec2 P1(cx, canvas_pos.y + (float)HeadHeight + 8.f);
                                 ImVec2 P2(cx, canvas_pos.y + (float)HeadHeight + float(controlHeight) + 8.f);
                                 draw_list->AddLine(P1, P2, IM_COL32(0, 0, 255, 255), 2);
-                                RenderMouseCursor(ICON_CUTTING, ImVec2(7, 0), 1.0, -90);
+                                ImGui::RenderMouseCursor(ICON_CUTTING, ImVec2(7, 0), 1.0, -90);
                             }
                             if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingHorizonScrollBar && !MovingCurrentTime && !menuIsOpened && editable)
                             {

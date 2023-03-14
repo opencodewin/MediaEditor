@@ -822,7 +822,7 @@ static bool MonitorButton(const char * label, ImVec2 pos, int& monitor_index, st
         if (show_main) selected |= is_current_monitor;
         std::string icon_str = (is_current_monitor && !show_main) ? g_media_editor_settings.ExpandScope ? ICON_DRAWING_PIN : ICON_EXPANMD : monitor_icons[monitor_n];
         std::string monitor_label = icon_str + "##monitor_index" + std::string(label);
-        if (ImGui::CheckButton(monitor_label.c_str(), &selected))
+        if (ImGui::CheckButton(monitor_label.c_str(), &selected, ImVec4(0.2, 0.5, 0.2, 1.0)))
         {
             if (monitor_n == current_monitor)
             { 
@@ -3454,7 +3454,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImR
     {
         bool zoom = timeline ? timeline->bPreviewZoom : false;
         ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + (32 + 8) * 4, PanelButtonY + 8));
-        if (ImGui::CheckButton(ICON_ZOOM "##preview_zoom", &zoom))
+        if (ImGui::CheckButton(ICON_ZOOM "##preview_zoom", &zoom, ImVec4(0.5, 0.5, 0.0, 1.0)))
         {
             timeline->bPreviewZoom = zoom;
         }
@@ -3702,7 +3702,7 @@ static void ShowVideoFilterPreviewWindow(ImDrawList *draw_list, int64_t start, i
     if (attribute)
     {
         ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + (32 + 8) * 4, PanelButtonY + 6));
-        if (ImGui::CheckButton(timeline->bAttributeOutputPreview ? ICON_MEDIA_PREVIEW : ICON_FILTER "##video_filter_output_preview", &timeline->bAttributeOutputPreview))
+        if (ImGui::CheckButton(timeline->bAttributeOutputPreview ? ICON_MEDIA_PREVIEW : ICON_FILTER "##video_filter_output_preview", &timeline->bAttributeOutputPreview, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive)))
         {
             timeline->UpdatePreview();
         }
@@ -3711,7 +3711,7 @@ static void ShowVideoFilterPreviewWindow(ImDrawList *draw_list, int64_t start, i
     else
     {
         ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + (32 + 8) * 4, PanelButtonY + 6));
-        if (ImGui::CheckButton(timeline->bFilterOutputPreview ? ICON_MEDIA_PREVIEW : ICON_FILTER "##video_filter_output_preview", &timeline->bFilterOutputPreview))
+        if (ImGui::CheckButton(timeline->bFilterOutputPreview ? ICON_MEDIA_PREVIEW : ICON_FILTER "##video_filter_output_preview", &timeline->bFilterOutputPreview, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive)))
         {
             timeline->UpdatePreview();
         }
@@ -3719,7 +3719,7 @@ static void ShowVideoFilterPreviewWindow(ImDrawList *draw_list, int64_t start, i
     }
 
     ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + (32 + 8) * 5, PanelButtonY + 6));
-    ImGui::CheckButton(ICON_COMPARE "##video_filter_compare", &timeline->bCompare);
+    ImGui::CheckButton(ICON_COMPARE "##video_filter_compare", &timeline->bCompare, ImVec4(0.5, 0.5, 0.0, 1.0));
     ImGui::ShowTooltipOnHover("Zoom Compare");
 
     // Time stamp on left of control panel
@@ -3794,7 +3794,29 @@ static void ShowVideoFilterPreviewWindow(ImDrawList *draw_list, int64_t start, i
             float scale_h = image_height / (tf_y - offset_y);
             pos_x = (io.MousePos.x - offset_x) * scale_w;
             pos_y = (io.MousePos.y - offset_y) * scale_h;
-            draw_compare = true;
+            if (io.MouseType == 1)
+            {
+                ImGui::RenderMouseCursor(ICON_STRAW, ImVec2(2, 12));
+                draw_list->AddRect(io.MousePos - ImVec2(2, 2), io.MousePos + ImVec2(2, 2), IM_COL32(255,0, 0,255));
+
+                auto pixel = ImGui::ImGetTexturePixel(timeline->mVideoFilterInputTexture, pos_x, pos_y);
+                if (ImGui::BeginTooltip())
+                {
+                    ImGui::ColorButton("##straw_color", ImVec4(pixel.r, pixel.g, pixel.b, pixel.a), 0, ImVec2(64,64));
+                    ImGui::Text("x:%d y:%d", (int)pos_x, (int)pos_y);
+                    ImGui::Text("R:%d G:%d B:%d A:%d", (int)(pixel.r * 255), (int)(pixel.g * 255), (int)(pixel.b * 255), (int)(pixel.a * 255));
+                    ImGui::EndTooltip();
+                }
+                if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+                {
+                    io.MouseStrawed = true;
+                    io.MouseStrawValue = ImVec4(pixel.r, pixel.g, pixel.b, pixel.a);
+                }
+            }
+            else
+            {
+                draw_compare = true;
+            }
         }
         // filter output texture area
         ShowVideoWindow(draw_list, timeline->mVideoFilterOutputTexture, OutputVideoPos, OutputVideoSize, offset_x, offset_y, tf_x, tf_y);
@@ -4928,7 +4950,7 @@ static void ShowVideoFusionPreviewWindow(ImDrawList *draw_list)
     } ImGui::ShowTooltipOnHover("To End");
 
     ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + (32 + 8) * 4, PanelButtonY + 6));
-    if (ImGui::CheckButton(timeline->bFusionOutputPreview ? ICON_MEDIA_PREVIEW : ICON_TRANS "##video_fusion_output_preview", &timeline->bFusionOutputPreview))
+    if (ImGui::CheckButton(timeline->bFusionOutputPreview ? ICON_MEDIA_PREVIEW : ICON_TRANS "##video_fusion_output_preview", &timeline->bFusionOutputPreview, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive)))
     {
         timeline->UpdatePreview();
     }
