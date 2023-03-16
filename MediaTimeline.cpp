@@ -6483,11 +6483,11 @@ uint32_t TimeLine::SimplePcmStream::Read(uint8_t* buff, uint32_t buffSize, bool 
         }
         if (m_readPosInAmat >= amatTotalDataSize)
         {
-            ImGui::ImMat amat;
+            std::vector<MediaCore::CorrelativeFrame> amats;
             bool eof;
-            if (!m_areader->ReadAudioSamples(amat, eof))
+            if (!m_areader->ReadAudioSamplesEx(amats, eof))
                 return 0;
-            m_amat = amat;
+            m_amat = amats[0].frame;
             if (m_owner->mAudioAttribute.audio_mutex.try_lock())
             {
                 m_owner->CalculateAudioScopeData(m_amat);
