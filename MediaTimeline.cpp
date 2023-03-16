@@ -5770,7 +5770,7 @@ int TimeLine::Load(const imgui_json::value& value)
         }
     }
 
-    // load audio attribute 20230301
+    // load audio attribute
     if (value.contains("AudioAttribute"))
     {
         auto& audio_attr = value["AudioAttribute"];
@@ -5813,6 +5813,126 @@ int TimeLine::Load(const imgui_json::value& value)
                 {
                     auto& _val = val["release"];
                     if (_val.is_number()) mAudioAttribute.limiter_release = _val.get<imgui_json::number>();
+                }
+            }
+        }
+        if (audio_attr.contains("AudioGateEnabled"))
+        {
+            auto& val = audio_attr["AudioGateEnabled"];
+            if (val.is_boolean()) mAudioAttribute.bGate = val.get<imgui_json::boolean>();
+        }
+        if (audio_attr.contains("AudioGate"))
+        {
+            auto& val = audio_attr["AudioGate"];
+            if (val.is_object())
+            {
+                if (val.contains("threshold"))
+                {
+                    auto& _val = val["threshold"];
+                    if (_val.is_number()) mAudioAttribute.gate_thd = _val.get<imgui_json::number>();
+                }
+                if (val.contains("range"))
+                {
+                    auto& _val = val["range"];
+                    if (_val.is_number()) mAudioAttribute.gate_range = _val.get<imgui_json::number>();
+                }
+                if (val.contains("ratio"))
+                {
+                    auto& _val = val["ratio"];
+                    if (_val.is_number()) mAudioAttribute.gate_ratio = _val.get<imgui_json::number>();
+                }
+                if (val.contains("attack"))
+                {
+                    auto& _val = val["attack"];
+                    if (_val.is_number()) mAudioAttribute.gate_attack = _val.get<imgui_json::number>();
+                }
+                if (val.contains("release"))
+                {
+                    auto& _val = val["release"];
+                    if (_val.is_number()) mAudioAttribute.gate_release = _val.get<imgui_json::number>();
+                }
+                if (val.contains("makeup"))
+                {
+                    auto& _val = val["makeup"];
+                    if (_val.is_number()) mAudioAttribute.gate_makeup = _val.get<imgui_json::number>();
+                }
+                if (val.contains("knee"))
+                {
+                    auto& _val = val["knee"];
+                    if (_val.is_number()) mAudioAttribute.gate_knee = _val.get<imgui_json::number>();
+                }
+            }
+        }
+        if (audio_attr.contains("AudioCompressorEnabled"))
+        {
+            auto& val = audio_attr["AudioCompressorEnabled"];
+            if (val.is_boolean()) mAudioAttribute.bCompressor = val.get<imgui_json::boolean>();
+        }
+        if (audio_attr.contains("AudioCompressor"))
+        {
+            auto& val = audio_attr["AudioCompressor"];
+            if (val.is_object())
+            {
+                if (val.contains("threshold"))
+                {
+                    auto& _val = val["threshold"];
+                    if (_val.is_number()) mAudioAttribute.compressor_thd = _val.get<imgui_json::number>();
+                }
+                if (val.contains("ratio"))
+                {
+                    auto& _val = val["ratio"];
+                    if (_val.is_number()) mAudioAttribute.compressor_ratio = _val.get<imgui_json::number>();
+                }
+                if (val.contains("knee"))
+                {
+                    auto& _val = val["knee"];
+                    if (_val.is_number()) mAudioAttribute.compressor_knee = _val.get<imgui_json::number>();
+                }
+                if (val.contains("mix"))
+                {
+                    auto& _val = val["mix"];
+                    if (_val.is_number()) mAudioAttribute.compressor_mix = _val.get<imgui_json::number>();
+                }
+                if (val.contains("attack"))
+                {
+                    auto& _val = val["attack"];
+                    if (_val.is_number()) mAudioAttribute.compressor_attack = _val.get<imgui_json::number>();
+                }
+                if (val.contains("release"))
+                {
+                    auto& _val = val["release"];
+                    if (_val.is_number()) mAudioAttribute.compressor_release = _val.get<imgui_json::number>();
+                }
+                if (val.contains("makeup"))
+                {
+                    auto& _val = val["makeup"];
+                    if (_val.is_number()) mAudioAttribute.compressor_makeup = _val.get<imgui_json::number>();
+                }
+                if (val.contains("levelIn"))
+                {
+                    auto& _val = val["levelIn"];
+                    if (_val.is_number()) mAudioAttribute.compressor_level_sc = _val.get<imgui_json::number>();
+                }
+            }
+        }
+        if (audio_attr.contains("AudioEqualizerEnabled"))
+        {
+            auto& val = audio_attr["AudioEqualizerEnabled"];
+            if (val.is_boolean()) mAudioAttribute.bEqualizer = val.get<imgui_json::boolean>();
+        }
+        if (audio_attr.contains("AudioEqualizer"))
+        {
+            auto& val = audio_attr["AudioEqualizer"];
+            if (val.is_array())
+            {
+                auto& gainsAry = val.get<imgui_json::array>();
+                int idx = 0;
+                for (auto& jval : gainsAry)
+                {
+                    mAudioAttribute.mBandCfg[idx].gain = (int32_t)jval.get<imgui_json::number>();
+                    if (idx >= 10)
+                    break;
+                    idx++;
                 }
             }
         }
@@ -5882,7 +6002,7 @@ int TimeLine::Load(const imgui_json::value& value)
         }
     }
 
-    // build data layer audio attribute 20230301
+    // build data layer audio attribute
     auto amFilter = mMtaReader->GetAudioEffectFilter();
     // gain
     auto volMaster = amFilter->GetVolumeParams();
@@ -5899,7 +6019,34 @@ int TimeLine::Load(const imgui_json::value& value)
     limiterParams.attack = mAudioAttribute.bLimiter ? mAudioAttribute.limiter_attack : 5;
     limiterParams.release = mAudioAttribute.bLimiter ? mAudioAttribute.limiter_release : 50;
     amFilter->SetLimiterParams(&limiterParams);
-
+    // gate
+    auto gateParams = amFilter->GetGateParams();
+    gateParams.threshold = mAudioAttribute.bGate ? mAudioAttribute.gate_thd : 0.f;
+    gateParams.range = mAudioAttribute.bGate ? mAudioAttribute.gate_range : 0.f;
+    gateParams.ratio = mAudioAttribute.bGate ? mAudioAttribute.gate_ratio : 2.f;
+    gateParams.attack = mAudioAttribute.bGate ? mAudioAttribute.gate_attack : 20.f;
+    gateParams.release = mAudioAttribute.bGate ? mAudioAttribute.gate_release : 250.f;
+    gateParams.makeup = mAudioAttribute.bGate ? mAudioAttribute.gate_makeup : 1.f;
+    gateParams.knee = mAudioAttribute.bGate ? mAudioAttribute.gate_knee : 2.82843f;
+    amFilter->SetGateParams(&gateParams);
+    // compressor
+    auto compressorParams = amFilter->GetCompressorParams();
+    compressorParams.threshold = mAudioAttribute.bCompressor ? mAudioAttribute.compressor_thd : 1.f;
+    compressorParams.ratio = mAudioAttribute.bCompressor ? mAudioAttribute.compressor_ratio : 2.f;
+    compressorParams.knee = mAudioAttribute.bCompressor ? mAudioAttribute.compressor_knee : 2.82843f;
+    compressorParams.mix = mAudioAttribute.bCompressor ? mAudioAttribute.compressor_mix : 1.f;
+    compressorParams.attack = mAudioAttribute.bCompressor ? mAudioAttribute.compressor_attack : 20.f;
+    compressorParams.release = mAudioAttribute.bCompressor ? mAudioAttribute.compressor_release : 250.f;
+    compressorParams.makeup = mAudioAttribute.bCompressor ? mAudioAttribute.compressor_makeup : 1.f;
+    compressorParams.levelIn = mAudioAttribute.bCompressor ? mAudioAttribute.compressor_level_sc : 1.f;
+    amFilter->SetCompressorParams(&compressorParams);
+    // equalizer
+    for (int i = 0; i < 10; i++)
+    {
+        auto equalizerParams = amFilter->GetEqualizerParamsByIndex(i);
+        equalizerParams.gain = mAudioAttribute.bEqualizer ? mAudioAttribute.mBandCfg[i].gain : 0;
+        amFilter->SetEqualizerParamsByIndex(&equalizerParams, i);
+    }
 
     SyncDataLayer();
     UpdatePreview();
@@ -5950,12 +6097,15 @@ void TimeLine::Save(imgui_json::value& value)
     }
     if (m_Tracks.size() > 0) value["MediaTrack"] = media_tracks;
 
-    // save audio attribute 20230301
+    // save audio attribute
     imgui_json::value audio_attr;
     {
+        // gain
         audio_attr["AudioGain"] = imgui_json::number(mAudioAttribute.mAudioGain);
+        // pan
         audio_attr["AudioPanEnabled"] = imgui_json::boolean(mAudioAttribute.bPan);
         audio_attr["AudioPan"] = imgui_json::vec2(mAudioAttribute.audio_pan);
+        // limiter
         audio_attr["AudioLimiterEnabled"] = imgui_json::boolean(mAudioAttribute.bLimiter);
         imgui_json::value audio_attr_limiter;
         {
@@ -5964,6 +6114,39 @@ void TimeLine::Save(imgui_json::value& value)
             audio_attr_limiter["release"] = imgui_json::number(mAudioAttribute.limiter_release);
         }
         audio_attr["AudioLimiter"] = audio_attr_limiter;
+        // gate
+        audio_attr["AudioGateEnabled"] = imgui_json::boolean(mAudioAttribute.bGate);
+        imgui_json::value audio_attr_gate;
+        {
+            audio_attr_gate["threshold"] = imgui_json::number(mAudioAttribute.gate_thd);
+            audio_attr_gate["range"] = imgui_json::number(mAudioAttribute.gate_range);
+            audio_attr_gate["ratio"] = imgui_json::number(mAudioAttribute.gate_ratio);
+            audio_attr_gate["attack"] = imgui_json::number(mAudioAttribute.gate_attack);
+            audio_attr_gate["release"] = imgui_json::number(mAudioAttribute.gate_release);
+            audio_attr_gate["makeup"] = imgui_json::number(mAudioAttribute.gate_makeup);
+            audio_attr_gate["knee"] = imgui_json::number(mAudioAttribute.gate_knee);
+        }
+        audio_attr["AudioGate"] = audio_attr_gate;
+        // compressor
+        audio_attr["AudioCompressorEnabled"] = imgui_json::boolean(mAudioAttribute.bCompressor);
+        imgui_json::value audio_attr_compressor;
+        {
+            audio_attr_compressor["threshold"] = imgui_json::number(mAudioAttribute.compressor_thd);
+            audio_attr_compressor["ratio"] = imgui_json::number(mAudioAttribute.compressor_ratio);
+            audio_attr_compressor["knee"] = imgui_json::number(mAudioAttribute.compressor_knee);
+            audio_attr_compressor["mix"] = imgui_json::number(mAudioAttribute.compressor_mix);
+            audio_attr_compressor["attack"] = imgui_json::number(mAudioAttribute.compressor_attack);
+            audio_attr_compressor["release"] = imgui_json::number(mAudioAttribute.compressor_release);
+            audio_attr_compressor["makeup"] = imgui_json::number(mAudioAttribute.compressor_makeup);
+            audio_attr_compressor["levelIn"] = imgui_json::number(mAudioAttribute.compressor_level_sc);
+        }
+        audio_attr["AudioCompressor"] = audio_attr_compressor;
+        // equalizer
+        audio_attr["AudioEqualizerEnabled"] = imgui_json::boolean(mAudioAttribute.bEqualizer);
+        imgui_json::array bandGains;
+        for (auto& bandCfg : mAudioAttribute.mBandCfg)
+            bandGains.push_back(imgui_json::number(bandCfg.gain));
+        audio_attr["AudioEqualizer"] = bandGains;
     }
     value["AudioAttribute"] = audio_attr;
 
