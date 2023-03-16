@@ -2276,7 +2276,7 @@ static void ShowFusionBankIconWindow(ImDrawList *draw_list)
             if (ImGui::IsItemHovered())
             {
                 // Show help tooltip
-                if (timeline->mShowHelpTooltips && ImGui::BeginTooltip())
+                if (timeline->mShowHelpTooltips && !ImGui::IsDragDropActive() && ImGui::BeginTooltip())
                 {
                     ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5f);
                     ImGui::TextUnformatted("Help:");
@@ -2408,7 +2408,7 @@ static void ShowFusionBankTreeWindow(ImDrawList *draw_list)
             if (ImGui::IsItemHovered())
             {
                 // Show help tooltip
-                if (timeline->mShowHelpTooltips && ImGui::BeginTooltip())
+                if (timeline->mShowHelpTooltips && !ImGui::IsDragDropActive() && ImGui::BeginTooltip())
                 {
                     ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5f);
                     ImGui::TextUnformatted("Help:");
@@ -2518,7 +2518,7 @@ static void ShowFilterBankIconWindow(ImDrawList *draw_list)
             if (ImGui::IsItemHovered())
             {
                 // Show help tooltip
-                if (timeline->mShowHelpTooltips && ImGui::BeginTooltip())
+                if (timeline->mShowHelpTooltips && !ImGui::IsDragDropActive() && ImGui::BeginTooltip())
                 {
                     ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5f);
                     ImGui::TextUnformatted("Help:");
@@ -2651,7 +2651,7 @@ static void ShowFilterBankTreeWindow(ImDrawList *draw_list)
             if (ImGui::IsItemHovered())
             {
                 // Show help tooltip
-                if (timeline->mShowHelpTooltips && ImGui::BeginTooltip())
+                if (timeline->mShowHelpTooltips && !ImGui::IsDragDropActive() && ImGui::BeginTooltip())
                 {
                     ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5f);
                     ImGui::TextUnformatted("Help:");

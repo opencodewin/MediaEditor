@@ -8686,7 +8686,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
     }
 
     // Show help tips
-    if (timeline->mShowHelpTooltips)
+    if (timeline->mShowHelpTooltips && !ImGui::IsDragDropActive())
     {
         ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5f);
         if (mouseTime != -1 && mouseClip != -1 && mouseEntry >= 0 && mouseEntry < timeline->m_Tracks.size())
@@ -8694,9 +8694,11 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             if (mouseClip != -1 && !bMoving && ImGui::BeginTooltip())
             {
                 ImGui::TextUnformatted("Help:");
-                ImGui::TextUnformatted("    Left botton click to select clip");
-                ImGui::TextUnformatted("    Left botton double click to editing clip");
-                ImGui::TextUnformatted("    Left botton double click title bar zip/unzip clip");
+                ImGui::TextUnformatted("    Left button click to select clip");
+                ImGui::TextUnformatted("    Left button double click to editing clip");
+                ImGui::TextUnformatted("    Left button double click title bar zip/unzip clip");
+                ImGui::TextUnformatted("    Hold left button and drag left/right to move clip position");
+                ImGui::TextUnformatted("    Hold left button and drag up/down to move clip cross track");
                 ImGui::TextUnformatted("    Hold left Shift key to appand select");
                 ImGui::TextUnformatted("    Hold left Alt/Option key to cut clip");
                 ImGui::EndTooltip();
@@ -8708,16 +8710,10 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 ImGui::EndTooltip();
             }
         }
-        if (overHorizonScrollBar && ImGui::BeginTooltip())
+        if ((overTrackView || overHorizonScrollBar) && !bMoving && ImGui::BeginTooltip())
         {
             ImGui::TextUnformatted("Help:");
             ImGui::TextUnformatted("    Mouse wheel up/down zooming timeline");
-            ImGui::TextUnformatted("    Mouse wheel left/right moving timeline");
-            ImGui::EndTooltip();
-        }
-        if (overTrackView && ImGui::BeginTooltip())
-        {
-            ImGui::TextUnformatted("Help:");
             ImGui::TextUnformatted("    Mouse wheel left/right moving timeline");
             ImGui::EndTooltip();
         }
