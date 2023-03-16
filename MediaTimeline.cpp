@@ -5863,6 +5863,58 @@ int TimeLine::Load(const imgui_json::value& value)
                 }
             }
         }
+        if (audio_attr.contains("AudioCompressorEnabled"))
+        {
+            auto& val = audio_attr["AudioCompressorEnabled"];
+            if (val.is_boolean()) mAudioAttribute.bCompressor = val.get<imgui_json::boolean>();
+        }
+        if (audio_attr.contains("AudioCompressor"))
+        {
+            auto& val = audio_attr["AudioCompressor"];
+            if (val.is_object())
+            {
+                if (val.contains("threshold"))
+                {
+                    auto& _val = val["threshold"];
+                    if (_val.is_number()) mAudioAttribute.compressor_thd = _val.get<imgui_json::number>();
+                }
+                if (val.contains("ratio"))
+                {
+                    auto& _val = val["ratio"];
+                    if (_val.is_number()) mAudioAttribute.compressor_ratio = _val.get<imgui_json::number>();
+                }
+                if (val.contains("knee"))
+                {
+                    auto& _val = val["knee"];
+                    if (_val.is_number()) mAudioAttribute.compressor_knee = _val.get<imgui_json::number>();
+                }
+                if (val.contains("mix"))
+                {
+                    auto& _val = val["mix"];
+                    if (_val.is_number()) mAudioAttribute.compressor_mix = _val.get<imgui_json::number>();
+                }
+                if (val.contains("attack"))
+                {
+                    auto& _val = val["attack"];
+                    if (_val.is_number()) mAudioAttribute.compressor_attack = _val.get<imgui_json::number>();
+                }
+                if (val.contains("release"))
+                {
+                    auto& _val = val["release"];
+                    if (_val.is_number()) mAudioAttribute.compressor_release = _val.get<imgui_json::number>();
+                }
+                if (val.contains("makeup"))
+                {
+                    auto& _val = val["makeup"];
+                    if (_val.is_number()) mAudioAttribute.compressor_makeup = _val.get<imgui_json::number>();
+                }
+                if (val.contains("levelIn"))
+                {
+                    auto& _val = val["levelIn"];
+                    if (_val.is_number()) mAudioAttribute.compressor_level_sc = _val.get<imgui_json::number>();
+                }
+            }
+        }
     }
 
     // build data layer multi-track media reader
@@ -5956,6 +6008,18 @@ int TimeLine::Load(const imgui_json::value& value)
     gateParams.makeup = mAudioAttribute.gate_makeup;
     gateParams.knee = mAudioAttribute.gate_knee;
     amFilter->SetGateParams(&gateParams);
+    // compressor
+    auto compressorParams = amFilter->GetCompressorParams();
+    compressorParams.threshold = mAudioAttribute.compressor_thd;
+    compressorParams.ratio = mAudioAttribute.compressor_ratio;
+    compressorParams.knee = mAudioAttribute.compressor_knee;
+    compressorParams.mix = mAudioAttribute.compressor_mix;
+    compressorParams.attack = mAudioAttribute.compressor_attack;
+    compressorParams.release = mAudioAttribute.compressor_release;
+    compressorParams.makeup = mAudioAttribute.compressor_makeup;
+    compressorParams.levelIn = mAudioAttribute.compressor_level_sc;
+    amFilter->SetCompressorParams(&compressorParams);
+
 
     SyncDataLayer();
     UpdatePreview();
@@ -6036,6 +6100,20 @@ void TimeLine::Save(imgui_json::value& value)
             audio_attr_gate["knee"] = imgui_json::number(mAudioAttribute.gate_knee);
         }
         audio_attr["AudioGate"] = audio_attr_gate;
+        // compressor
+        audio_attr["AudioCompressorEnabled"] = imgui_json::boolean(mAudioAttribute.bCompressor);
+        imgui_json::value audio_attr_compressor;
+        {
+            audio_attr_compressor["threshold"] = imgui_json::number(mAudioAttribute.compressor_thd);
+            audio_attr_compressor["ratio"] = imgui_json::number(mAudioAttribute.compressor_ratio);
+            audio_attr_compressor["knee"] = imgui_json::number(mAudioAttribute.compressor_knee);
+            audio_attr_compressor["mix"] = imgui_json::number(mAudioAttribute.compressor_mix);
+            audio_attr_compressor["attack"] = imgui_json::number(mAudioAttribute.compressor_attack);
+            audio_attr_compressor["release"] = imgui_json::number(mAudioAttribute.compressor_release);
+            audio_attr_compressor["makeup"] = imgui_json::number(mAudioAttribute.compressor_makeup);
+            audio_attr_compressor["levelIn"] = imgui_json::number(mAudioAttribute.compressor_level_sc);
+        }
+        audio_attr["AudioCompressor"] = audio_attr_compressor;
     }
     value["AudioAttribute"] = audio_attr;
 

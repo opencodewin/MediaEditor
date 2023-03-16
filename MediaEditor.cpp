@@ -6611,31 +6611,18 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list)
         if (gate_changed)
         {
             auto gateParams = amFilter->GetGateParams();
-            gateParams.threshold = timeline->mAudioAttribute.gate_thd;
-            gateParams.range = timeline->mAudioAttribute.gate_range;
-            gateParams.ratio = timeline->mAudioAttribute.gate_ratio;
-            gateParams.attack = timeline->mAudioAttribute.gate_attack;
-            gateParams.release = timeline->mAudioAttribute.gate_release;
-            gateParams.makeup = timeline->mAudioAttribute.gate_makeup;
-            gateParams.knee = timeline->mAudioAttribute.gate_knee;
+            gateParams.threshold = timeline->mAudioAttribute.bGate ? timeline->mAudioAttribute.gate_thd : 0.f;
+            gateParams.range = timeline->mAudioAttribute.bGate ? timeline->mAudioAttribute.gate_range : 0.f;
+            gateParams.ratio = timeline->mAudioAttribute.bGate ? timeline->mAudioAttribute.gate_ratio : 2.f;
+            gateParams.attack = timeline->mAudioAttribute.bGate ? timeline->mAudioAttribute.gate_attack : 20.f;
+            gateParams.release = timeline->mAudioAttribute.bGate ? timeline->mAudioAttribute.gate_release : 250.f;
+            gateParams.makeup = timeline->mAudioAttribute.bGate ? timeline->mAudioAttribute.gate_makeup : 1.f;
+            gateParams.knee = timeline->mAudioAttribute.bGate ? timeline->mAudioAttribute.gate_knee : 2.82843f;
             amFilter->SetGateParams(&gateParams);
         }
         ImGui::EndDisabled();
     }
     ImGui::EndChild();
-    if (!timeline->mAudioAttribute.bGate)
-    {
-        // set value to default, gate filter will not effect
-        auto gateParams = amFilter->GetGateParams();
-        gateParams.threshold = 0.f;
-        gateParams.range = 0.f;
-        gateParams.ratio = 2.f;
-        gateParams.attack = 20.f;
-        gateParams.release = 250.f;
-        gateParams.makeup = 1.f;
-        gateParams.knee = 2.82843f;
-        amFilter->SetGateParams(&gateParams);
-    }
     ImGui::EndGroup();
 
     // draw limiter UI
@@ -6679,9 +6666,10 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list)
     // draw compressor UI
     ImGui::SetCursorScreenPos(compressor_pos);
     ImGui::BeginGroup();
+    bool compressor_changed = false;
     ImGui::TextUnformatted("Compressor");
     ImGui::SameLine();
-    ImGui::ToggleButton("##audio_compressor_enabe", &timeline->mAudioAttribute.bCompressor);
+    compressor_changed |= ImGui::ToggleButton("##audio_compressor_enabe", &timeline->mAudioAttribute.bCompressor);
     ImGui::Separator();
     if (ImGui::BeginChild("##audio_compressor", compressor_size - ImVec2(0, 32), false, setting_child_flags))
     {
@@ -6693,24 +6681,36 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list)
         auto knob_pos = ImGui::GetCursorScreenPos();
         auto knob_offset_x = (sub_window_size.x - 320) / 5;
         ImGui::SetCursorScreenPos(knob_pos + ImVec2(knob_offset_x, 4));
-        ImGui::Knob("Threshold##compressor", &timeline->mAudioAttribute.compressor_thd, 0.001f, 1.0f, NAN, 0.125f, 80, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.3f", 10);
+        compressor_changed |= ImGui::Knob("Threshold##compressor", &timeline->mAudioAttribute.compressor_thd, 0.001f, 1.0f, NAN, 0.125f, 80, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.3f", 10);
         ImGui::SetCursorScreenPos(knob_pos + ImVec2(knob_offset_x * 2 + 80, 4));
-        ImGui::Knob("Ratio##compressor", &timeline->mAudioAttribute.compressor_ratio, 1.f, 20.0f, NAN, 2.f, 80, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.0f", 10);
+        compressor_changed |= ImGui::Knob("Ratio##compressor", &timeline->mAudioAttribute.compressor_ratio, 1.f, 20.0f, NAN, 2.f, 80, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.0f", 10);
         ImGui::SetCursorScreenPos(knob_pos + ImVec2(knob_offset_x * 3 + 160, 4));
-        ImGui::Knob("Knee##compressor", &timeline->mAudioAttribute.compressor_knee, 1.f, 8.0f, NAN, 2.82843f, 80, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.3f", 10);
+        compressor_changed |= ImGui::Knob("Knee##compressor", &timeline->mAudioAttribute.compressor_knee, 1.f, 8.0f, NAN, 2.82843f, 80, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.3f", 10);
         ImGui::SetCursorScreenPos(knob_pos + ImVec2(knob_offset_x * 4 + 240, 4));
-        ImGui::Knob("Mix##compressor", &timeline->mAudioAttribute.compressor_mix, 1.f, 1.0f, NAN, 1.0f, 80, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.3f", 10);
+        compressor_changed |= ImGui::Knob("Mix##compressor", &timeline->mAudioAttribute.compressor_mix, 0.f, 1.0f, NAN, 1.0f, 80, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.3f", 10);
         auto knob_time_offset_x = (sub_window_size.x - 100) / 3;
         ImGui::SetCursorScreenPos(knob_pos + ImVec2(knob_time_offset_x, 140));
-        ImGui::Knob("Attack##compressor", &timeline->mAudioAttribute.compressor_attack, 0.01f, 2000.0f, NAN, 20.f, 50, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.0fms", 10);
+        compressor_changed |= ImGui::Knob("Attack##compressor", &timeline->mAudioAttribute.compressor_attack, 0.01f, 2000.0f, NAN, 20.f, 50, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.0fms", 10);
         ImGui::SetCursorScreenPos(knob_pos + ImVec2(knob_time_offset_x * 2 + 50, 140));
-        ImGui::Knob("Release##compressor", &timeline->mAudioAttribute.compressor_release, 0.01f, 9000.0f, NAN, 250.f, 50, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.0fms", 10);
+        compressor_changed |= ImGui::Knob("Release##compressor", &timeline->mAudioAttribute.compressor_release, 0.01f, 9000.0f, NAN, 250.f, 50, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.0fms", 10);
         auto knob_level_offset_x = (sub_window_size.x - 160) / 3;
         ImGui::SetCursorScreenPos(knob_pos + ImVec2(knob_level_offset_x, 240));
-        ImGui::Knob("Make Up##compressor", &timeline->mAudioAttribute.compressor_makeup, 1.f, 64.0f, NAN, 1.f, 80, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.0f", 10);
+        compressor_changed |= ImGui::Knob("Make Up##compressor", &timeline->mAudioAttribute.compressor_makeup, 1.f, 64.0f, NAN, 1.f, 80, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.0f", 10);
         ImGui::SetCursorScreenPos(knob_pos + ImVec2(knob_level_offset_x * 2 + 80, 240));
-        ImGui::Knob("Level SC##compressor", &timeline->mAudioAttribute.compressor_level_sc, 0.015f, 64.0f, NAN, 1.f, 80, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.3f", 10);
-
+        compressor_changed |= ImGui::Knob("Level SC##compressor", &timeline->mAudioAttribute.compressor_level_sc, 0.015f, 64.0f, NAN, 1.f, 80, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.3f", 10);
+        if (compressor_changed)
+        {
+            auto compressorParams = amFilter->GetCompressorParams();
+            compressorParams.threshold = timeline->mAudioAttribute.bCompressor ? timeline->mAudioAttribute.compressor_thd : 1.f;
+            compressorParams.ratio = timeline->mAudioAttribute.bCompressor ? timeline->mAudioAttribute.compressor_ratio : 2.f;
+            compressorParams.knee = timeline->mAudioAttribute.bCompressor ? timeline->mAudioAttribute.compressor_knee : 2.82843f;
+            compressorParams.mix = timeline->mAudioAttribute.bCompressor ? timeline->mAudioAttribute.compressor_mix : 1.f;
+            compressorParams.attack = timeline->mAudioAttribute.bCompressor ? timeline->mAudioAttribute.compressor_attack : 20.f;
+            compressorParams.release = timeline->mAudioAttribute.bCompressor ? timeline->mAudioAttribute.compressor_release : 250.f;
+            compressorParams.makeup = timeline->mAudioAttribute.bCompressor ? timeline->mAudioAttribute.compressor_makeup : 1.f;
+            compressorParams.levelIn = timeline->mAudioAttribute.bCompressor ? timeline->mAudioAttribute.compressor_level_sc : 1.f;
+            amFilter->SetCompressorParams(&compressorParams);
+        }
         ImGui::EndDisabled();
     }
     ImGui::EndChild();
