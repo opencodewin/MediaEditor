@@ -6526,9 +6526,10 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list)
     // draw equalizer UI
     ImGui::SetCursorScreenPos(equalizer_pos);
     ImGui::BeginGroup();
+    bool equalizer_changed = false;
     ImGui::TextUnformatted("Equalizer");
     ImGui::SameLine();
-    ImGui::ToggleButton("##audio_equalizer_enabe", &timeline->mAudioAttribute.bEqualizer);
+    equalizer_changed |= ImGui::ToggleButton("##audio_equalizer_enabe", &timeline->mAudioAttribute.bEqualizer);
     ImGui::Separator();
     if (ImGui::BeginChild("##audio_equalizer", equalizer_size - ImVec2(0, 32), false, setting_child_flags))
     {
@@ -6544,26 +6545,9 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list)
             std::string cfTag = GetFrequencyTag(timeline->mAudioAttribute.mBandCfg[i].centerFreq);
             ImGui::TextUnformatted(cfTag.c_str());
             ImGui::PushID(i);
-            int gain = timeline->mAudioAttribute.mBandCfg[i].gain;
-            ImGui::VSliderInt("##band_gain", ImVec2(24, sub_window_size.y - 48), &gain, MIN_GAIN, MAX_GAIN, "", ImGuiSliderFlags_Mark);
+            equalizer_changed |= ImGui::VSliderInt("##band_gain", ImVec2(24, sub_window_size.y - 48), &timeline->mAudioAttribute.mBandCfg[i].gain, MIN_GAIN, MAX_GAIN, "", ImGuiSliderFlags_Mark);
             ImGui::PopID();
-            if (gain != timeline->mAudioAttribute.mBandCfg[i].gain)
-            {
-                char targetFilter[32] = {0};
-                snprintf(targetFilter, sizeof(targetFilter)-1, "equalizer@%d", i);
-                char cmdarg[8] = {0};
-                snprintf(cmdarg, sizeof(cmdarg)-1, "%d", gain);
-                char res[128] = {0};
-                //int fferr = avfilter_graph_send_command(m_filterGraph, targetFilter, "gain", cmdarg, res, sizeof(res)-1, 0);
-                //if (fferr < 0)
-                //{
-                //    std::ostringstream oss;
-                //    oss << "FAILED to invoke 'avfilter_graph_send_command' to set gain value " << gain << " to target filter '" << targetFilter << "'!";
-                //    throw std::runtime_error(oss.str());
-                //}
-                timeline->mAudioAttribute.mBandCfg[i].gain = gain;
-            }
-            ImGui::Text("%d", gain);
+            ImGui::Text("%d", timeline->mAudioAttribute.mBandCfg[i].gain);
             ImGui::EndGroup();
         }
         ImGui::EndDisabled();
@@ -6573,6 +6557,15 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list)
         ImGui::TextColored({ 0.4, 0.4, 0.9, 1.0 }, "dB");
     }
     ImGui::EndChild();
+    if (equalizer_changed)
+    {
+        for (int i = 0; i < 10; i++)
+        {
+            auto equalizerParams = amFilter->GetEqualizerParamsByIndex(i);
+            equalizerParams.gain = timeline->mAudioAttribute.bEqualizer ? timeline->mAudioAttribute.mBandCfg[i].gain : 0.0f;
+            amFilter->SetEqualizerParamsByIndex(&equalizerParams, i);
+        }
+    }
     ImGui::EndGroup();
 
     // draw gate UI

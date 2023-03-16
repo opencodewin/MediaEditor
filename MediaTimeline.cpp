@@ -5770,7 +5770,7 @@ int TimeLine::Load(const imgui_json::value& value)
         }
     }
 
-    // load audio attribute 20230301
+    // load audio attribute
     if (value.contains("AudioAttribute"))
     {
         auto& audio_attr = value["AudioAttribute"];
@@ -5915,6 +5915,27 @@ int TimeLine::Load(const imgui_json::value& value)
                 }
             }
         }
+        if (audio_attr.contains("AudioEqualizerEnabled"))
+        {
+            auto& val = audio_attr["AudioEqualizerEnabled"];
+            if (val.is_boolean()) mAudioAttribute.bEqualizer = val.get<imgui_json::boolean>();
+        }
+        if (audio_attr.contains("AudioEqualizer"))
+        {
+            auto& val = audio_attr["AudioEqualizer"];
+            if (val.is_array())
+            {
+                auto& gainsAry = val.get<imgui_json::array>();
+                int idx = 0;
+                for (auto& jval : gainsAry)
+                {
+                    mAudioAttribute.mBandCfg[idx].gain = (int32_t)jval.get<imgui_json::number>();
+                    if (idx >= 10)
+                    break;
+                    idx++;
+                }
+            }
+        }
     }
 
     // build data layer multi-track media reader
@@ -5981,7 +6002,7 @@ int TimeLine::Load(const imgui_json::value& value)
         }
     }
 
-    // build data layer audio attribute 20230301
+    // build data layer audio attribute
     auto amFilter = mMtaReader->GetAudioEffectFilter();
     // gain
     auto volMaster = amFilter->GetVolumeParams();
@@ -6000,26 +6021,32 @@ int TimeLine::Load(const imgui_json::value& value)
     amFilter->SetLimiterParams(&limiterParams);
     // gate
     auto gateParams = amFilter->GetGateParams();
-    gateParams.threshold = mAudioAttribute.gate_thd;
-    gateParams.range = mAudioAttribute.gate_range;
-    gateParams.ratio = mAudioAttribute.gate_ratio;
-    gateParams.attack = mAudioAttribute.gate_attack;
-    gateParams.release = mAudioAttribute.gate_release;
-    gateParams.makeup = mAudioAttribute.gate_makeup;
-    gateParams.knee = mAudioAttribute.gate_knee;
+    gateParams.threshold = mAudioAttribute.bGate ? mAudioAttribute.gate_thd : 0.f;
+    gateParams.range = mAudioAttribute.bGate ? mAudioAttribute.gate_range : 0.f;
+    gateParams.ratio = mAudioAttribute.bGate ? mAudioAttribute.gate_ratio : 2.f;
+    gateParams.attack = mAudioAttribute.bGate ? mAudioAttribute.gate_attack : 20.f;
+    gateParams.release = mAudioAttribute.bGate ? mAudioAttribute.gate_release : 250.f;
+    gateParams.makeup = mAudioAttribute.bGate ? mAudioAttribute.gate_makeup : 1.f;
+    gateParams.knee = mAudioAttribute.bGate ? mAudioAttribute.gate_knee : 2.82843f;
     amFilter->SetGateParams(&gateParams);
     // compressor
     auto compressorParams = amFilter->GetCompressorParams();
-    compressorParams.threshold = mAudioAttribute.compressor_thd;
-    compressorParams.ratio = mAudioAttribute.compressor_ratio;
-    compressorParams.knee = mAudioAttribute.compressor_knee;
-    compressorParams.mix = mAudioAttribute.compressor_mix;
-    compressorParams.attack = mAudioAttribute.compressor_attack;
-    compressorParams.release = mAudioAttribute.compressor_release;
-    compressorParams.makeup = mAudioAttribute.compressor_makeup;
-    compressorParams.levelIn = mAudioAttribute.compressor_level_sc;
+    compressorParams.threshold = mAudioAttribute.bCompressor ? mAudioAttribute.compressor_thd : 1.f;
+    compressorParams.ratio = mAudioAttribute.bCompressor ? mAudioAttribute.compressor_ratio : 2.f;
+    compressorParams.knee = mAudioAttribute.bCompressor ? mAudioAttribute.compressor_knee : 2.82843f;
+    compressorParams.mix = mAudioAttribute.bCompressor ? mAudioAttribute.compressor_mix : 1.f;
+    compressorParams.attack = mAudioAttribute.bCompressor ? mAudioAttribute.compressor_attack : 20.f;
+    compressorParams.release = mAudioAttribute.bCompressor ? mAudioAttribute.compressor_release : 250.f;
+    compressorParams.makeup = mAudioAttribute.bCompressor ? mAudioAttribute.compressor_makeup : 1.f;
+    compressorParams.levelIn = mAudioAttribute.bCompressor ? mAudioAttribute.compressor_level_sc : 1.f;
     amFilter->SetCompressorParams(&compressorParams);
-
+    // equalizer
+    for (int i = 0; i < 10; i++)
+    {
+        auto equalizerParams = amFilter->GetEqualizerParamsByIndex(i);
+        equalizerParams.gain = mAudioAttribute.bEqualizer ? mAudioAttribute.mBandCfg[i].gain : 0;
+        amFilter->SetEqualizerParamsByIndex(&equalizerParams, i);
+    }
 
     SyncDataLayer();
     UpdatePreview();
@@ -6070,7 +6097,7 @@ void TimeLine::Save(imgui_json::value& value)
     }
     if (m_Tracks.size() > 0) value["MediaTrack"] = media_tracks;
 
-    // save audio attribute 20230301
+    // save audio attribute
     imgui_json::value audio_attr;
     {
         // gain
@@ -6114,6 +6141,12 @@ void TimeLine::Save(imgui_json::value& value)
             audio_attr_compressor["levelIn"] = imgui_json::number(mAudioAttribute.compressor_level_sc);
         }
         audio_attr["AudioCompressor"] = audio_attr_compressor;
+        // equalizer
+        audio_attr["AudioEqualizerEnabled"] = imgui_json::boolean(mAudioAttribute.bEqualizer);
+        imgui_json::array bandGains;
+        for (auto& bandCfg : mAudioAttribute.mBandCfg)
+            bandGains.push_back(imgui_json::number(bandCfg.gain));
+        audio_attr["AudioEqualizer"] = bandGains;
     }
     value["AudioAttribute"] = audio_attr;
 
