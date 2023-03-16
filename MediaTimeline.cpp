@@ -3536,6 +3536,9 @@ MediaTrack::MediaTrack(std::string name, uint32_t type, void * handle) :
         }
         if (name.empty()) mName += std::to_string(media_count);
     }
+    mAudioTrackAttribute.channel_data.clear();
+    mAudioTrackAttribute.channel_data.resize(mAudioChannels);
+    memcpy(&mAudioTrackAttribute.mBandCfg, &DEFAULT_BAND_CFG, sizeof(mAudioTrackAttribute.mBandCfg));
 }
 
 MediaTrack::~MediaTrack()
@@ -4033,6 +4036,49 @@ void MediaTrack::SelectEditingOverlap(Overlap * overlap)
     {
         timeline->m_CallBacks.EditingOverlap(first->mType, overlap);
     }
+}
+
+void MediaTrack::CalculateAudioScopeData(ImGui::ImMat& mat_in)
+{
+    ImGui::ImMat mat;
+    if (mat_in.elempack > 1)
+    {
+        mat.create_type(mat_in.w, 1, mat_in.c, mat_in.type);
+        float * data = (float *)mat_in.data;
+        for (int x = 0; x < mat.w; x++)
+        {
+            for (int i = 0; i < mat.c; i++)
+            {
+                mat.at<float>(x, 0, i) = data[x * mat.c + i];
+            }
+        }
+    }
+    else
+    {
+        mat = mat_in;
+    }
+    for (int i = 0; i < mat.c; i++)
+    {
+        if (i < mAudioChannels)
+        {
+            // we only calculate decibel for now
+            auto & channel_data = mAudioTrackAttribute.channel_data[i];
+            channel_data.m_wave.clone_from(mat.channel(i));
+            channel_data.m_fft.clone_from(mat.channel(i));
+            ImGui::ImRFFT((float *)channel_data.m_fft.data, channel_data.m_fft.w, true);
+            channel_data.m_decibel = ImGui::ImDoDecibel((float*)channel_data.m_fft.data, mat.w);
+        }
+    }
+}
+
+float MediaTrack::GetAudioLevel(int channel)
+{
+    if (IS_AUDIO(mType))
+    {
+        if (channel < mAudioTrackAttribute.channel_data.size())
+            return mAudioTrackAttribute.channel_data[channel].m_decibel;
+    }
+    return 0;
 }
 
 MediaTrack* MediaTrack::Load(const imgui_json::value& value, void * handle)
@@ -4861,9 +4907,14 @@ std::vector<MediaCore::CorrelativeFrame> TimeLine::GetPreviewFrame()
             mPreviewResumePos = currentTime;
             if (mAudioRender)
                 mAudioRender->Pause();
-            for (auto& audio : mAudioAttribute.channel_data)
+            for (auto& audio : mAudioAttribute.channel_data) audio.m_decibel = 0;
+            for (auto track : m_Tracks)
             {
-                audio.m_decibel = 0;
+                if (IS_AUDIO(track->mType))
+                {
+                    for (auto& track_audio : track->mAudioTrackAttribute.channel_data)
+                        track_audio.m_decibel = 0;
+                }
             }
         }
     }
@@ -4930,9 +4981,14 @@ void TimeLine::Play(bool play, bool forward)
             mPreviewResumePos = currentTime;
             if (mAudioRender)
                 mAudioRender->Pause();
-            for (auto& audio : mAudioAttribute.channel_data)
+            for (auto& audio : mAudioAttribute.channel_data) audio.m_decibel = 0;
+            for (auto track : m_Tracks)
             {
-                audio.m_decibel = 0;
+                if (IS_AUDIO(track->mType))
+                {
+                    for (auto& track_audio : track->mAudioTrackAttribute.channel_data)
+                        track_audio.m_decibel = 0;
+                }
             }
         }
     }
@@ -6670,11 +6726,28 @@ uint32_t TimeLine::SimplePcmStream::Read(uint8_t* buff, uint32_t buffSize, bool 
             bool eof;
             if (!m_areader->ReadAudioSamplesEx(amats, eof))
                 return 0;
+            // main audio out
             m_amat = amats[0].frame;
             if (m_owner->mAudioAttribute.audio_mutex.try_lock())
             {
                 m_owner->CalculateAudioScopeData(m_amat);
                 m_owner->mAudioAttribute.audio_mutex.unlock();
+            }
+            // channel audio
+            for (auto amat : amats)
+            {
+                if (amat.phase == MediaCore::CorrelativeFrame::PHASE_AFTER_TRANSITION)
+                {
+                    auto track = m_owner->FindTrackByID(amat.trackId);
+                    if (track && IS_AUDIO(track->mType))
+                    {
+                        if (track->mAudioTrackAttribute.audio_mutex.try_lock())
+                        {
+                            track->CalculateAudioScopeData(amat.frame);
+                            track->mAudioTrackAttribute.audio_mutex.unlock();
+                        }
+                    }
+                }
             }
             m_readPosInAmat = 0;
         }

@@ -807,6 +807,10 @@ struct MediaTrack
     bool mView      {true};                     // track is viewable, project saved
     bool mLocked    {false};                    // track is locked(can't moving or cropping by locked), project saved
     bool mSelected  {false};                    // track is selected, project saved
+    
+    int mAudioChannels {2};                     // track audio channels, project saved, configured
+    int mAudioSampleRate {44100};               // track audio sample rate, project saved, configured
+    AudioRender::PcmFormat mAudioFormat {AudioRender::PcmFormat::FLOAT32}; // timeline audio format, project saved, configured
     AudioAttribute mAudioTrackAttribute;        // audio track attribute, project saved
 
     int64_t mViewWndDur     {0};
@@ -829,6 +833,10 @@ struct MediaTrack
     Clip * FindClips(int64_t time, int& count);     // find clips at time, count means clip number at time
     void CreateOverlap(int64_t start, int64_t start_clip_id, int64_t end, int64_t end_clip_id, uint32_t type);
     Overlap * FindExistOverlap(int64_t start_clip_id, int64_t end_clip_id);
+    
+    void CalculateAudioScopeData(ImGui::ImMat& mat_in);
+    float GetAudioLevel(int channel);
+
     void Update();                                  // update track clip include clip order and overlap area
     static MediaTrack* Load(const imgui_json::value& value, void * handle);
     void Save(imgui_json::value& value);

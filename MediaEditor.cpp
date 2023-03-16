@@ -3502,16 +3502,12 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImR
             }
         }
 
-        static int left_stack = 0;
-        static int left_count = 0;
-        static int right_stack = 0;
-        static int right_count = 0;
         int l_level = timeline->GetAudioLevel(0);
         int r_level = timeline->GetAudioLevel(1);
         ImGui::SetCursorScreenPos(AudioUVLeftPos);
-        ImGui::UvMeter("##luv", AudioUVLeftSize, &l_level, 0, 96, AudioUVLeftSize.y / 4, &left_stack, &left_count, 0.2, audio_bar_seg);
+        ImGui::UvMeter("##luv", AudioUVLeftSize, &l_level, 0, 96, AudioUVLeftSize.y / 4, &timeline->mAudioAttribute.left_stack, &timeline->mAudioAttribute.left_count, 0.2, audio_bar_seg);
         ImGui::SetCursorScreenPos(AudioUVRightPos);
-        ImGui::UvMeter("##ruv", AudioUVRightSize, &r_level, 0, 96, AudioUVRightSize.y / 4, &right_stack, &right_count, 0.2, audio_bar_seg);
+        ImGui::UvMeter("##ruv", AudioUVRightSize, &r_level, 0, 96, AudioUVRightSize.y / 4, &timeline->mAudioAttribute.right_stack, &timeline->mAudioAttribute.right_count, 0.2, audio_bar_seg);
     }
 
     // video texture area
@@ -6395,17 +6391,15 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list)
         auto str_offset = str_size.x < 48 ? (48 - str_size.x) / 2 : 0;
         ImGui::SetCursorScreenPos(current_pos + ImVec2(sub_window_size.x - 76 + str_offset, 0));
         ImGui::TextColored({ 0.9, 0.3, 0.3, 1.0 }, "Master");
-        static int left_stack = 0;
-        static int left_count = 0;
-        static int right_stack = 0;
-        static int right_count = 0;
+        timeline->mAudioAttribute.audio_mutex.lock();
         int l_level = timeline->GetAudioLevel(0);
         int r_level = timeline->GetAudioLevel(1);
+        timeline->mAudioAttribute.audio_mutex.unlock();
         auto AudioMeterPos = current_pos + ImVec2(sub_window_size.x - 30, 16);
         ImGui::SetCursorScreenPos(current_pos + ImVec2(sub_window_size.x - 60, 16));
-        ImGui::UvMeter("##luv", ImVec2(meter_size.x / 2, meter_size.y), &l_level, 0, 96, meter_size.y / 4, &left_stack, &left_count, 0.2, audio_bar_seg);
+        ImGui::UvMeter("##luv", ImVec2(meter_size.x / 2, meter_size.y), &l_level, 0, 96, meter_size.y / 4, &timeline->mAudioAttribute.left_stack, &timeline->mAudioAttribute.left_count, 0.2, audio_bar_seg);
         ImGui::SetCursorScreenPos(current_pos + ImVec2(sub_window_size.x - 44, 16));
-        ImGui::UvMeter("##ruv", ImVec2(meter_size.x / 2, meter_size.y), &r_level, 0, 96, meter_size.y / 4, &right_stack, &right_count, 0.2, audio_bar_seg);
+        ImGui::UvMeter("##ruv", ImVec2(meter_size.x / 2, meter_size.y), &r_level, 0, 96, meter_size.y / 4, &timeline->mAudioAttribute.right_stack, &timeline->mAudioAttribute.right_count, 0.2, audio_bar_seg);
         // draw main mark
         for (int i = 0; i <= 96; i+= 5)
         {
@@ -6439,10 +6433,13 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list)
                 ImGui::SetCursorScreenPos(current_pos + ImVec2(count * 48 + 12, 16));
                 auto channel_meter_pos = current_pos + ImVec2(count * 48 + 12, 16);
                 ImGui::SetCursorScreenPos(channel_meter_pos);
-                // TODO::Get Channels level
-                ImGui::UvMeter("##luv", ImVec2(meter_size.x / 2, meter_size.y), &l_level, 0, 96, meter_size.y / 4, &track->mAudioTrackAttribute.left_stack, &track->mAudioTrackAttribute.left_count, 0.2, audio_bar_seg);
+                track->mAudioTrackAttribute.audio_mutex.lock();
+                int tl_level = track->GetAudioLevel(0);
+                int tr_level = track->GetAudioLevel(1);
+                track->mAudioTrackAttribute.audio_mutex.unlock();
+                ImGui::UvMeter("##tluv", ImVec2(meter_size.x / 2, meter_size.y), &tl_level, 0, 96, meter_size.y / 4, &track->mAudioTrackAttribute.left_stack, &track->mAudioTrackAttribute.left_count, 0.2, audio_bar_seg);
                 ImGui::SetCursorScreenPos(channel_meter_pos + ImVec2(14, 0));
-                ImGui::UvMeter("##ruv", ImVec2(meter_size.x / 2, meter_size.y), &r_level, 0, 96, meter_size.y / 4, &track->mAudioTrackAttribute.right_stack, &track->mAudioTrackAttribute.right_count, 0.2, audio_bar_seg);
+                ImGui::UvMeter("##truv", ImVec2(meter_size.x / 2, meter_size.y), &tr_level, 0, 96, meter_size.y / 4, &track->mAudioTrackAttribute.right_stack, &track->mAudioTrackAttribute.right_count, 0.2, audio_bar_seg);
                 // draw channel mark
                 for (int i = 0; i <= 96; i+= 5)
                 {
