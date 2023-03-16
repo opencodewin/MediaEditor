@@ -6578,9 +6578,10 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list)
     // draw gate UI
     ImGui::SetCursorScreenPos(gate_pos);
     ImGui::BeginGroup();
+    bool gate_changed = false;
     ImGui::TextUnformatted("Gate");
     ImGui::SameLine();
-    ImGui::ToggleButton("##audio_gate_enabe", &timeline->mAudioAttribute.bGate);
+    gate_changed |= ImGui::ToggleButton("##audio_gate_enabe", &timeline->mAudioAttribute.bGate);
     ImGui::Separator();
     if (ImGui::BeginChild("##audio_gate", gate_size - ImVec2(0, 32), false, setting_child_flags))
     {
@@ -6592,24 +6593,49 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list)
         auto knob_pos = ImGui::GetCursorScreenPos();
         auto knob_offset_x = (sub_window_size.x - 240) / 4;
         ImGui::SetCursorScreenPos(knob_pos + ImVec2(knob_offset_x, 4));
-        ImGui::Knob("Threshold##gate", &timeline->mAudioAttribute.gate_thd, 0.f, 1.0f, NAN, 0.125f, 80, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.3f", 10);
+        gate_changed |= ImGui::Knob("Threshold##gate", &timeline->mAudioAttribute.gate_thd, 0.f, 1.0f, NAN, 0.125f, 80, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.3f", 10);
         ImGui::SetCursorScreenPos(knob_pos + ImVec2(knob_offset_x * 2 + 80, 4));
-        ImGui::Knob("Range##gate", &timeline->mAudioAttribute.gate_range, 0.f, 1.0f, NAN, 0.06125f, 80, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.3f", 10);
+        gate_changed |= ImGui::Knob("Range##gate", &timeline->mAudioAttribute.gate_range, 0.f, 1.0f, NAN, 0.06125f, 80, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.3f", 10);
         ImGui::SetCursorScreenPos(knob_pos + ImVec2(knob_offset_x * 3 + 160, 4));
-        ImGui::Knob("Ratio##gate", &timeline->mAudioAttribute.gate_ratio, 1.f, 9000.0f, NAN, 2.f, 80, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.0f", 10);
+        gate_changed |= ImGui::Knob("Ratio##gate", &timeline->mAudioAttribute.gate_ratio, 1.f, 9000.0f, NAN, 2.f, 80, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.0f", 10);
         auto knob_time_offset_x = (sub_window_size.x - 100) / 3;
         ImGui::SetCursorScreenPos(knob_pos + ImVec2(knob_time_offset_x, 140));
-        ImGui::Knob("Attack##gate", &timeline->mAudioAttribute.gate_attack, 0.01f, 9000.0f, NAN, 20.f, 50, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.0fms", 10);
+        gate_changed |= ImGui::Knob("Attack##gate", &timeline->mAudioAttribute.gate_attack, 0.01f, 9000.0f, NAN, 20.f, 50, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.0fms", 10);
         ImGui::SetCursorScreenPos(knob_pos + ImVec2(knob_time_offset_x * 2 + 50, 140));
-        ImGui::Knob("Release##gate", &timeline->mAudioAttribute.gate_release, 0.01f, 9000.0f, NAN, 250.f, 50, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.0fms", 10);
+        gate_changed |= ImGui::Knob("Release##gate", &timeline->mAudioAttribute.gate_release, 0.01f, 9000.0f, NAN, 250.f, 50, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.0fms", 10);
         auto knob_level_offset_x = (sub_window_size.x - 160) / 3;
         ImGui::SetCursorScreenPos(knob_pos + ImVec2(knob_level_offset_x, 240));
-        ImGui::Knob("Make Up##gate", &timeline->mAudioAttribute.gate_makeup, 1.f, 64.0f, NAN, 1.f, 80, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.0f", 10);
+        gate_changed |= ImGui::Knob("Make Up##gate", &timeline->mAudioAttribute.gate_makeup, 1.f, 64.0f, NAN, 1.f, 80, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.0f", 10);
         ImGui::SetCursorScreenPos(knob_pos + ImVec2(knob_level_offset_x * 2 + 80, 240));
-        ImGui::Knob("Knee##gate", &timeline->mAudioAttribute.gate_knee, 1.0f, 8.0f, NAN, 2.82843f, 80, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.3f", 10);
+        gate_changed |= ImGui::Knob("Knee##gate", &timeline->mAudioAttribute.gate_knee, 1.0f, 8.0f, NAN, 2.82843f, 80, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.3f", 10);
+        if (gate_changed)
+        {
+            auto gateParams = amFilter->GetGateParams();
+            gateParams.threshold = timeline->mAudioAttribute.gate_thd;
+            gateParams.range = timeline->mAudioAttribute.gate_range;
+            gateParams.ratio = timeline->mAudioAttribute.gate_ratio;
+            gateParams.attack = timeline->mAudioAttribute.gate_attack;
+            gateParams.release = timeline->mAudioAttribute.gate_release;
+            gateParams.makeup = timeline->mAudioAttribute.gate_makeup;
+            gateParams.knee = timeline->mAudioAttribute.gate_knee;
+            amFilter->SetGateParams(&gateParams);
+        }
         ImGui::EndDisabled();
     }
     ImGui::EndChild();
+    if (!timeline->mAudioAttribute.bGate)
+    {
+        // set value to default, gate filter will not effect
+        auto gateParams = amFilter->GetGateParams();
+        gateParams.threshold = 0.f;
+        gateParams.range = 0.f;
+        gateParams.ratio = 2.f;
+        gateParams.attack = 20.f;
+        gateParams.release = 250.f;
+        gateParams.makeup = 1.f;
+        gateParams.knee = 2.82843f;
+        amFilter->SetGateParams(&gateParams);
+    }
     ImGui::EndGroup();
 
     // draw limiter UI

@@ -5816,6 +5816,53 @@ int TimeLine::Load(const imgui_json::value& value)
                 }
             }
         }
+        if (audio_attr.contains("AudioGateEnabled"))
+        {
+            auto& val = audio_attr["AudioGateEnabled"];
+            if (val.is_boolean()) mAudioAttribute.bGate = val.get<imgui_json::boolean>();
+        }
+        if (audio_attr.contains("AudioGate"))
+        {
+            auto& val = audio_attr["AudioGate"];
+            if (val.is_object())
+            {
+                if (val.contains("threshold"))
+                {
+                    auto& _val = val["threshold"];
+                    if (_val.is_number()) mAudioAttribute.gate_thd = _val.get<imgui_json::number>();
+                }
+                if (val.contains("range"))
+                {
+                    auto& _val = val["range"];
+                    if (_val.is_number()) mAudioAttribute.gate_range = _val.get<imgui_json::number>();
+                }
+                if (val.contains("ratio"))
+                {
+                    auto& _val = val["ratio"];
+                    if (_val.is_number()) mAudioAttribute.gate_ratio = _val.get<imgui_json::number>();
+                }
+                if (val.contains("attack"))
+                {
+                    auto& _val = val["attack"];
+                    if (_val.is_number()) mAudioAttribute.gate_attack = _val.get<imgui_json::number>();
+                }
+                if (val.contains("release"))
+                {
+                    auto& _val = val["release"];
+                    if (_val.is_number()) mAudioAttribute.gate_release = _val.get<imgui_json::number>();
+                }
+                if (val.contains("makeup"))
+                {
+                    auto& _val = val["makeup"];
+                    if (_val.is_number()) mAudioAttribute.gate_makeup = _val.get<imgui_json::number>();
+                }
+                if (val.contains("knee"))
+                {
+                    auto& _val = val["knee"];
+                    if (_val.is_number()) mAudioAttribute.gate_knee = _val.get<imgui_json::number>();
+                }
+            }
+        }
     }
 
     // build data layer multi-track media reader
@@ -5899,7 +5946,16 @@ int TimeLine::Load(const imgui_json::value& value)
     limiterParams.attack = mAudioAttribute.bLimiter ? mAudioAttribute.limiter_attack : 5;
     limiterParams.release = mAudioAttribute.bLimiter ? mAudioAttribute.limiter_release : 50;
     amFilter->SetLimiterParams(&limiterParams);
-
+    // gate
+    auto gateParams = amFilter->GetGateParams();
+    gateParams.threshold = mAudioAttribute.gate_thd;
+    gateParams.range = mAudioAttribute.gate_range;
+    gateParams.ratio = mAudioAttribute.gate_ratio;
+    gateParams.attack = mAudioAttribute.gate_attack;
+    gateParams.release = mAudioAttribute.gate_release;
+    gateParams.makeup = mAudioAttribute.gate_makeup;
+    gateParams.knee = mAudioAttribute.gate_knee;
+    amFilter->SetGateParams(&gateParams);
 
     SyncDataLayer();
     UpdatePreview();
@@ -5953,9 +6009,12 @@ void TimeLine::Save(imgui_json::value& value)
     // save audio attribute 20230301
     imgui_json::value audio_attr;
     {
+        // gain
         audio_attr["AudioGain"] = imgui_json::number(mAudioAttribute.mAudioGain);
+        // pan
         audio_attr["AudioPanEnabled"] = imgui_json::boolean(mAudioAttribute.bPan);
         audio_attr["AudioPan"] = imgui_json::vec2(mAudioAttribute.audio_pan);
+        // limiter
         audio_attr["AudioLimiterEnabled"] = imgui_json::boolean(mAudioAttribute.bLimiter);
         imgui_json::value audio_attr_limiter;
         {
@@ -5964,6 +6023,19 @@ void TimeLine::Save(imgui_json::value& value)
             audio_attr_limiter["release"] = imgui_json::number(mAudioAttribute.limiter_release);
         }
         audio_attr["AudioLimiter"] = audio_attr_limiter;
+        // gate
+        audio_attr["AudioGateEnabled"] = imgui_json::boolean(mAudioAttribute.bGate);
+        imgui_json::value audio_attr_gate;
+        {
+            audio_attr_gate["threshold"] = imgui_json::number(mAudioAttribute.gate_thd);
+            audio_attr_gate["range"] = imgui_json::number(mAudioAttribute.gate_range);
+            audio_attr_gate["ratio"] = imgui_json::number(mAudioAttribute.gate_ratio);
+            audio_attr_gate["attack"] = imgui_json::number(mAudioAttribute.gate_attack);
+            audio_attr_gate["release"] = imgui_json::number(mAudioAttribute.gate_release);
+            audio_attr_gate["makeup"] = imgui_json::number(mAudioAttribute.gate_makeup);
+            audio_attr_gate["knee"] = imgui_json::number(mAudioAttribute.gate_knee);
+        }
+        audio_attr["AudioGate"] = audio_attr_gate;
     }
     value["AudioAttribute"] = audio_attr;
 
