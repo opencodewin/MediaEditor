@@ -2337,7 +2337,7 @@ ImGui::ImMat BluePrintAudioTransition::MixTwoAudioMats(const ImGui::ImMat& amat1
         }
         ImGui::ImMat inMat1(amat1), inMat2(amat2);
         ImGui::ImMat outMat;
-        mBp->Blueprint_RunFusion(inMat1, inMat2, outMat, pos - mOverlap->Start(), 0); // ?
+        mBp->Blueprint_RunFusion(inMat1, inMat2, outMat, pos - mOverlap->Start(), mOverlap->End() - mOverlap->Start());
         return outMat;
     }
     return amat1;

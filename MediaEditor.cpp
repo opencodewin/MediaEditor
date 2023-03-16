@@ -4657,7 +4657,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                     if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
                     {
                         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
-                        float value = filter->mKeyPoints.GetValue(i, timeline->currentTime);
+                        float value = filter->mKeyPoints.GetValue(i, timeline->currentTime - timeline->mVidFilterClip->mStart);
                         ImGui::BracketSquare(true); ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0, 1.0, 0.0, 1.0)); ImGui::Text("%.2f", value); ImGui::PopStyleColor();
                         ImGui::PushItemWidth(60);
                         float curve_min = filter->mKeyPoints.GetCurveMin(i);
@@ -4850,25 +4850,6 @@ static void ShowVideoFusionBluePrintWindow(ImDrawList *draw_list, Overlap * over
 
 static void ShowVideoFusionPreviewWindow(ImDrawList *draw_list)
 {
-    /*
-    ┏━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┓
-    ┃                   ┃                          ┃                     ┃
-    ┃                   ┃                          ┃                     ┃
-    ┃      first        ┃          preview         ┃       second        ┃
-    ┃                   ┃                          ┃                     ┃
-    ┃                   ┃                          ┃                     ┃
-    ┣━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━┫
-    ┃                          |<  <  []  >  >|                          ┃
-    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┫
-    ┃          blueprint                         ┃                       ┃ 
-    ┃                                            ┃                       ┃ 
-    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫    fusion edit        ┃ 
-    ┃             timeline                       ┃                       ┃
-    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫                       ┃
-    ┃              curves                        ┃                       ┃
-    ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━┛
-    */
-
     // Draw Video Fusion Play control bar
     ImGuiIO& io = ImGui::GetIO();
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
@@ -5012,6 +4993,25 @@ static void ShowVideoFusionPreviewWindow(ImDrawList *draw_list)
 
 static void ShowVideoFusionWindow(ImDrawList *draw_list)
 {
+    /*
+    ┏━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┓
+    ┃                   ┃                          ┃                     ┃
+    ┃                   ┃                          ┃                     ┃
+    ┃      first        ┃          preview         ┃       second        ┃
+    ┃                   ┃                          ┃                     ┃
+    ┃                   ┃                          ┃                     ┃
+    ┣━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━┫
+    ┃                          |<  <  []  >  >|                          ┃
+    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┫
+    ┃          blueprint                         ┃                       ┃ 
+    ┃                                            ┃                       ┃ 
+    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫    fusion edit        ┃ 
+    ┃             timeline                       ┃                       ┃
+    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫                       ┃
+    ┃              curves                        ┃                       ┃
+    ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━┛
+    */
+
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
     draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
@@ -5601,8 +5601,8 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list)
                 {
                     ImU32 color; ImGui::RandomColor(color, 1.f);
                     auto curve_index = filter->mKeyPoints.AddCurve(name, ImGui::ImCurveEdit::Smooth, color, true, _min, _max, _default);
-                    filter->mKeyPoints.AddPoint(curve_index, ImVec2(editing_clip->mStart, _min), ImGui::ImCurveEdit::Smooth);
-                    filter->mKeyPoints.AddPoint(curve_index, ImVec2(editing_clip->mEnd, _max), ImGui::ImCurveEdit::Smooth);
+                    filter->mKeyPoints.AddPoint(curve_index, ImVec2(0, _min), ImGui::ImCurveEdit::Smooth);
+                    filter->mKeyPoints.AddPoint(curve_index, ImVec2(editing_clip->mEnd - editing_clip->mStart, _max), ImGui::ImCurveEdit::Smooth);
                     filter->mKeyPoints.SetCurvePointDefault(curve_index, 0);
                     filter->mKeyPoints.SetCurvePointDefault(curve_index, 1);
                     if (blueprint)
@@ -5670,7 +5670,7 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list)
                     if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
                     {
                         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
-                        float value = filter->mKeyPoints.GetValue(i, timeline->currentTime);
+                        float value = filter->mKeyPoints.GetValue(i, timeline->currentTime - timeline->mAudFilterClip->mStart);
                         ImGui::BracketSquare(true); ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0, 1.0, 0.0, 1.0)); ImGui::Text("%.2f", value); ImGui::PopStyleColor();
                         ImGui::PushItemWidth(60);
                         float curve_min = filter->mKeyPoints.GetCurveMin(i);
@@ -6101,7 +6101,7 @@ static void ShowAudioFusionWindow(ImDrawList *draw_list)
                     if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
                     {
                         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
-                        float value = fusion->mKeyPoints.GetValue(i, timeline->currentTime);
+                        float value = fusion->mKeyPoints.GetValue(i, timeline->currentTime - timeline->mAudOverlap->mStart);
                         ImGui::BracketSquare(true); ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0, 1.0, 0.0, 1.0)); ImGui::Text("%.2f", value); ImGui::PopStyleColor();
                         ImGui::PushItemWidth(60);
                         float curve_min = fusion->mKeyPoints.GetCurveMin(i);
