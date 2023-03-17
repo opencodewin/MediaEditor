@@ -32,22 +32,7 @@ ImGui::ColorConvert_vulkan * m_yuv2rgb {nullptr};
     }
 
 // Application Framework Functions
-void Application_GetWindowProperties(ApplicationWindowProperty& property)
-{
-    property.name = "Media Player";
-    property.viewport = false;
-    property.docking = false;
-    property.auto_merge = false;
-    //property.power_save = false;
-    property.width = 1280;
-    property.height = 720;
-}
-
-void Application_SetupContext(ImGuiContext* ctx)
-{
-}
-
-void Application_Initialize(void** handle)
+static void MediaPlayer_Initialize(void** handle)
 {
 #ifdef USE_BOOKMARK
 	// load bookmarks
@@ -79,7 +64,7 @@ void Application_Initialize(void** handle)
 #endif
 }
 
-void Application_Finalize(void** handle)
+static void MediaPlayer_Finalize(void** handle)
 {
 #if IMGUI_VULKAN_SHADER
     if (m_yuv2rgb) { delete m_yuv2rgb; m_yuv2rgb = nullptr; }
@@ -100,12 +85,7 @@ void Application_Finalize(void** handle)
 #endif
 }
 
-void Application_DropFromSystem(std::vector<std::string>& drops)
-{
-
-}
-
-bool Application_Frame(void * handle, bool app_will_quit)
+static bool MediaPlayer_Frame(void * handle, bool app_will_quit)
 {
     static bool show_ctrlbar = true;
     static bool show_log_window = false; 
@@ -479,4 +459,18 @@ bool Application_Frame(void * handle, bool app_will_quit)
         app_done = true;
     }
     return app_done;
+}
+
+void Application_Setup(ApplicationWindowProperty& property)
+{
+    property.name = "Media Player";
+    property.viewport = false;
+    property.docking = false;
+    property.auto_merge = false;
+    //property.power_save = false;
+    property.width = 1280;
+    property.height = 720;
+    property.application.Application_Initialize = MediaPlayer_Initialize;
+    property.application.Application_Finalize = MediaPlayer_Finalize;
+    property.application.Application_Frame = MediaPlayer_Frame;
 }

@@ -9223,49 +9223,7 @@ static void ShowMediaAIWindow(ImDrawList *draw_list)
  * Application Framework
  *
  ***************************************************************************************/
-void Application_GetWindowProperties(ApplicationWindowProperty& property)
-{
-    auto exec_path = ImGuiHelper::exec_path();
-    // add language
-    property.language_path = 
-#if defined(__APPLE__)
-        exec_path + "../Resources/";
-#elif defined(_WIN32)
-        exec_path + "../languages/";
-#elif defined(__linux__)
-        exec_path + "../languages/";
-#else
-        std::string();
-#endif
-    property.icon_path =  
-#if defined(__APPLE__)
-        exec_path + "../Resources/mec_logo.png";
-#elif defined(__linux__)
-        //exec_path + "mec.png";
-        exec_path + "../../mec.png";
-#else
-        std::string();
-#endif
-
-    property.name = APP_NAME;
-    //property.viewport = false;
-    property.docking = false;
-    property.auto_merge = false;
-    property.internationalize = true;
-    //property.using_setting_path = false;
-    //property.power_save = false;
-    property.font_scale = 2.0f;
-#if 1
-    property.resizable = false;
-    property.full_size = true;
-    //property.full_screen = true;
-#else
-    property.width = DEFAULT_MAIN_VIEW_WIDTH;
-    property.height = DEFAULT_MAIN_VIEW_HEIGHT;
-#endif
-}
-
-void Application_SetupContext(ImGuiContext* ctx)
+static void MediaEditor_SetupContext(ImGuiContext* ctx)
 {
     if (!ctx)
         return;
@@ -9551,7 +9509,7 @@ void Application_SetupContext(ImGuiContext* ctx)
 #endif
 }
 
-void Application_Initialize(void** handle)
+static void MediaEditor_Initialize(void** handle)
 {
     ImPlot::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
@@ -9602,7 +9560,7 @@ void Application_Initialize(void** handle)
         NewTimeline();
 }
 
-void Application_Finalize(void** handle)
+static void MediaEditor_Finalize(void** handle)
 {
     if (timeline) { delete timeline; timeline = nullptr; }
 #if IMGUI_VULKAN_SHADER
@@ -9618,7 +9576,7 @@ void Application_Finalize(void** handle)
     MediaCore::ReleaseSubtitleLibrary();
 }
 
-void Application_DropFromSystem(std::vector<std::string>& drops)
+static void MediaEditor_DropFromSystem(std::vector<std::string>& drops)
 {
     if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceExtern | ImGuiDragDropFlags_SourceNoPreviewTooltip | ImGuiDragDropFlags_AcceptPeekOnly))
 	{
@@ -9632,7 +9590,7 @@ void Application_DropFromSystem(std::vector<std::string>& drops)
 	}
 }
 
-bool Application_Frame(void * handle, bool app_will_quit)
+static bool MediaEditor_Frame(void * handle, bool app_will_quit)
 {
     static bool app_done = false;
     const float media_icon_size = 96; 
@@ -10218,4 +10176,51 @@ bool Application_Frame(void * handle, bool app_will_quit)
         mouse_hold = false;
     }
     return app_done;
+}
+
+void Application_Setup(ApplicationWindowProperty& property)
+{
+    auto exec_path = ImGuiHelper::exec_path();
+    // add language
+    property.language_path = 
+#if defined(__APPLE__)
+        exec_path + "../Resources/";
+#elif defined(_WIN32)
+        exec_path + "../languages/";
+#elif defined(__linux__)
+        exec_path + "../languages/";
+#else
+        std::string();
+#endif
+    property.icon_path =  
+#if defined(__APPLE__)
+        exec_path + "../Resources/mec_logo.png";
+#elif defined(__linux__)
+        //exec_path + "mec.png";
+        exec_path + "../../mec.png";
+#else
+        std::string();
+#endif
+
+    property.name = APP_NAME;
+    //property.viewport = false;
+    property.docking = false;
+    property.auto_merge = false;
+    property.internationalize = true;
+    //property.using_setting_path = false;
+    //property.power_save = false;
+    property.font_scale = 2.0f;
+#if 1
+    property.resizable = false;
+    property.full_size = true;
+    //property.full_screen = true;
+#else
+    property.width = DEFAULT_MAIN_VIEW_WIDTH;
+    property.height = DEFAULT_MAIN_VIEW_HEIGHT;
+#endif
+    property.application.Application_SetupContext = MediaEditor_SetupContext;
+    property.application.Application_Initialize = MediaEditor_Initialize;
+    property.application.Application_Finalize = MediaEditor_Finalize;
+    property.application.Application_DropFromSystem = MediaEditor_DropFromSystem;
+    property.application.Application_Frame = MediaEditor_Frame;
 }

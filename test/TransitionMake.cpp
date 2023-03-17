@@ -3,10 +3,6 @@
 #include <imgui_helper.h>
 #include <application.h>
 #include <ImGuiFileDialog.h>
-//#define STB_IMAGE_IMPLEMENTATION
-//#include <stb_image.h>
-//#define STB_IMAGE_WRITE_IMPLEMENTATION
-//#include <stb_image_write.h>
 #include <immat.h>
 #include <ImVulkanShader.h>
 #include "AlphaBlending_vulkan.h"
@@ -733,55 +729,7 @@ static void transition(int col, int row, int cols, int rows, int type, ImGui::Im
 }
 
 // Application Framework Functions
-void Application_GetWindowProperties(ApplicationWindowProperty& property)
-{
-    property.name = "Transition Maker";
-    property.viewport = false;
-    property.docking = false;
-    property.auto_merge = false;
-    //property.power_save = false;
-    property.width = 1680;
-    property.height = 900;
-
-    // get opt
-    if (property.argc > 1 && property.argv)
-    {
-        int o = -1;
-        const char *option_str = "1:2:o:";
-        while ((o = getopt(property.argc, property.argv, option_str)) != -1)
-        {
-            switch (o)
-            {
-                case '1': g_source_1 = std::string(optarg); break;
-                case '2': g_source_2 = std::string(optarg); break;
-                case 'o': g_dist = std::string(optarg); break;
-                default: break;
-            }
-        }
-        if (!g_source_1.empty())
-        {
-            auto pos = g_source_1.find_last_of("\\/");
-            if (pos != std::string::npos)
-                g_source_name_1 = g_source_1.substr(pos + 1);
-            load_image(g_source_1, g_mat_1);
-        }
-        if (!g_source_2.empty())
-        {
-            auto pos = g_source_2.find_last_of("\\/");
-            if (pos != std::string::npos)
-                g_source_name_2 = g_source_2.substr(pos + 1);
-            load_image(g_source_2, g_mat_2);
-        }
-        if (!g_dist.empty())
-        {
-            auto pos = g_dist.find_last_of("\\/");
-            if (pos != std::string::npos)
-                g_dist_name = g_dist.substr(pos + 1);
-        }
-    }
-}
-
-void Application_SetupContext(ImGuiContext* ctx)
+static void TransitionMake_SetupContext(ImGuiContext* ctx)
 {
 #ifdef USE_BOOKMARK
     ImGuiSettingsHandler bookmark_ini_handler;
@@ -809,24 +757,14 @@ void Application_SetupContext(ImGuiContext* ctx)
 #endif
 }
 
-void Application_Initialize(void** handle)
-{
-
-}
-
-void Application_Finalize(void** handle)
+static void TransitionMake_Finalize(void** handle)
 {
     if (g_texture_1) ImGui::ImDestroyTexture(g_texture_1);
     if (g_texture_2) ImGui::ImDestroyTexture(g_texture_2);
     if (g_texture_d) ImGui::ImDestroyTexture(g_texture_d);
 }
 
-void Application_DropFromSystem(std::vector<std::string>& drops)
-{
-
-}
-
-bool Application_Frame(void * handle, bool app_will_quit)
+static bool TransitionMake_Frame(void * handle, bool app_will_quit)
 {
     bool app_done = false;
     auto& io = ImGui::GetIO();
@@ -1034,4 +972,55 @@ bool Application_Frame(void * handle, bool app_will_quit)
         app_done = true;
     }
     return app_done;
+}
+
+void Application_Setup(ApplicationWindowProperty& property)
+{
+    property.name = "Transition Maker";
+    property.viewport = false;
+    property.docking = false;
+    property.auto_merge = false;
+    //property.power_save = false;
+    property.width = 1680;
+    property.height = 900;
+
+    // get opt
+    if (property.argc > 1 && property.argv)
+    {
+        int o = -1;
+        const char *option_str = "1:2:o:";
+        while ((o = getopt(property.argc, property.argv, option_str)) != -1)
+        {
+            switch (o)
+            {
+                case '1': g_source_1 = std::string(optarg); break;
+                case '2': g_source_2 = std::string(optarg); break;
+                case 'o': g_dist = std::string(optarg); break;
+                default: break;
+            }
+        }
+        if (!g_source_1.empty())
+        {
+            auto pos = g_source_1.find_last_of("\\/");
+            if (pos != std::string::npos)
+                g_source_name_1 = g_source_1.substr(pos + 1);
+            load_image(g_source_1, g_mat_1);
+        }
+        if (!g_source_2.empty())
+        {
+            auto pos = g_source_2.find_last_of("\\/");
+            if (pos != std::string::npos)
+                g_source_name_2 = g_source_2.substr(pos + 1);
+            load_image(g_source_2, g_mat_2);
+        }
+        if (!g_dist.empty())
+        {
+            auto pos = g_dist.find_last_of("\\/");
+            if (pos != std::string::npos)
+                g_dist_name = g_dist.substr(pos + 1);
+        }
+    }
+    property.application.Application_SetupContext = TransitionMake_SetupContext;
+    property.application.Application_Finalize = TransitionMake_Finalize;
+    property.application.Application_Frame = TransitionMake_Frame;
 }
