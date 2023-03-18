@@ -9223,7 +9223,7 @@ static void ShowMediaAIWindow(ImDrawList *draw_list)
  * Application Framework
  *
  ***************************************************************************************/
-static void MediaEditor_SetupContext(ImGuiContext* ctx)
+static void MediaEditor_SetupContext(ImGuiContext* ctx, bool in_splash)
 {
     if (!ctx)
         return;
@@ -10178,6 +10178,41 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
     return app_done;
 }
 
+bool MediaEditor_Splash_Screen(void* handle, bool app_will_quit)
+{
+    static int x = 0;
+    auto& io = ImGui::GetIO();
+    ImGuiCond cond = ImGuiCond_None;
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+                            ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | 
+                            ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus;
+    ImGui::SetNextWindowPos(ImVec2(0, 0));
+    ImGui::SetNextWindowSize(io.DisplaySize, cond);
+    ImGui::SetNextWindowBgAlpha(0.5);
+    ImGui::Begin("Content", nullptr, flags);
+    ImGui::SetWindowFontScale(2.0);
+    std::string str = "Media Editor Splash";
+    auto mark_size = ImGui::CalcTextSize(str.c_str());
+    float xoft = (io.DisplaySize.x - mark_size.x) / 2;
+    float yoft = (io.DisplaySize.y - mark_size.y) / 2;
+    ImGui::GetWindowDrawList()->AddText(ImVec2(xoft, yoft), IM_COL32_WHITE, str.c_str());
+    ImGui::SetWindowFontScale(1.0);
+
+    ImGui::SetCursorPos(ImVec2(4, io.DisplaySize.y - 32));
+    float progress = (float)x / 100.f;
+    ImGui::ProgressBar("##splash_progress", progress, 0.f, 1.f, "", ImVec2(io.DisplaySize.x - 16, 8), 
+                                ImVec4(1.f, 1.f, 1.f, 1.f), ImVec4(0.f, 0.f, 0.f, 1.f), ImVec4(1.f, 1.f, 1.f, 1.f));
+    ImGui::End();
+
+    if (x < 100)
+    {
+        ImGui::sleep(1);
+        x++;
+        return false;
+    }
+    return true;
+}
+
 void Application_Setup(ApplicationWindowProperty& property)
 {
     auto exec_path = ImGuiHelper::exec_path();
@@ -10218,9 +10253,12 @@ void Application_Setup(ApplicationWindowProperty& property)
     property.width = DEFAULT_MAIN_VIEW_WIDTH;
     property.height = DEFAULT_MAIN_VIEW_HEIGHT;
 #endif
+    property.splash_screen_width = 600;
+    property.splash_screen_height = 400;
     property.application.Application_SetupContext = MediaEditor_SetupContext;
     property.application.Application_Initialize = MediaEditor_Initialize;
     property.application.Application_Finalize = MediaEditor_Finalize;
     property.application.Application_DropFromSystem = MediaEditor_DropFromSystem;
+    //property.application.Application_SplashScreen = MediaEditor_Splash_Screen;
     property.application.Application_Frame = MediaEditor_Frame;
 }

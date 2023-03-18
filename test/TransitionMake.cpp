@@ -729,7 +729,7 @@ static void transition(int col, int row, int cols, int rows, int type, ImGui::Im
 }
 
 // Application Framework Functions
-static void TransitionMake_SetupContext(ImGuiContext* ctx)
+static void TransitionMake_SetupContext(ImGuiContext* ctx, bool in_splash)
 {
 #ifdef USE_BOOKMARK
     ImGuiSettingsHandler bookmark_ini_handler;
