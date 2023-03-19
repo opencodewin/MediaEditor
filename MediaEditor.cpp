@@ -471,6 +471,7 @@ static bool quit_save_confirm = true;
 static bool project_need_save = false;
 static bool mouse_hold = false;
 static uint32_t scope_flags = 0xFFFFFFFF;
+static bool set_context_in_splash = false;
 
 static int ConfigureIndex = 0;              // default timeline setting
 static int ControlPanelIndex = 0;           // default Media Bank window
@@ -1371,7 +1372,7 @@ static void NewProject()
     project_need_save = true;
 }
 
-static void LoadThread(std::string path)
+static void LoadThread(std::string path, bool in_splash)
 {
     g_project_loading = true;
     g_project_loading_percentage = 0;
@@ -9227,6 +9228,7 @@ static void MediaEditor_SetupContext(ImGuiContext* ctx, bool in_splash)
 {
     if (!ctx)
         return;
+    set_context_in_splash = in_splash;
     // Setup MediaEditorSetting
     ImGuiSettingsHandler setting_ini_handler;
     setting_ini_handler.TypeName = "MediaEditorSetting";
@@ -9466,7 +9468,7 @@ static void MediaEditor_SetupContext(ImGuiContext* ctx, bool in_splash)
         if (!g_media_editor_settings.project_path.empty())
         {
             CleanProject();
-            g_loading_thread = new std::thread(LoadThread, g_media_editor_settings.project_path);
+            g_loading_thread = new std::thread(LoadThread, g_media_editor_settings.project_path, set_context_in_splash);
         }
         else
         {
@@ -9638,20 +9640,23 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
     //if (show_debug) ImGui::ShowMetricsWindow(&show_debug);
     // for debug end
 
-    if (g_project_loading)
+    if (!set_context_in_splash)
     {
-        ImGui::OpenPopup("Project Loading", ImGuiPopupFlags_AnyPopup);
-    }
+        if (g_project_loading)
+        {
+            ImGui::OpenPopup("Project Loading", ImGuiPopupFlags_AnyPopup);
+        }
 
-    if (multiviewport)
-        ImGui::SetNextWindowViewport(viewport->ID);
-    if (ImGui::BeginPopupModal("Project Loading", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings))
-    {
-        ImGui::Text("Project Loading...");
-        ImGui::Separator();
-        ImGui::BufferingBar("##project_loading_bar", g_project_loading_percentage, ImVec2(400, 6), 0.75, ImGui::GetColorU32(ImGuiCol_Button), ImGui::GetColorU32(ImGuiCol_ButtonHovered));
-        if (!g_project_loading) ImGui::CloseCurrentPopup();
-        ImGui::EndPopup();
+        if (multiviewport)
+            ImGui::SetNextWindowViewport(viewport->ID);
+        if (ImGui::BeginPopupModal("Project Loading", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings))
+        {
+            ImGui::Text("Project Loading...");
+            ImGui::Separator();
+            ImGui::BufferingBar("##project_loading_bar", g_project_loading_percentage, ImVec2(400, 6), 0.75, ImGui::GetColorU32(ImGuiCol_Button), ImGui::GetColorU32(ImGuiCol_ButtonHovered));
+            if (!g_project_loading) ImGui::CloseCurrentPopup();
+            ImGui::EndPopup();
+        }
     }
 
     if (g_project_loading)
@@ -10134,7 +10139,8 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
                     g_loading_thread = nullptr;
                 }
                 CleanProject();
-                g_loading_thread = new std::thread(LoadThread, file_path);
+                set_context_in_splash = false;
+                g_loading_thread = new std::thread(LoadThread, file_path, set_context_in_splash);
             }
             if (userDatas.compare("ProjectSave") == 0)
             {
@@ -10180,8 +10186,18 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
 
 bool MediaEditor_Splash_Screen(void* handle, bool app_will_quit)
 {
-    static int x = 0;
+    ApplicationWindowProperty * property = (ApplicationWindowProperty*) handle;
+    static int32_t splash_start_time = ImGui::get_current_time_msec();
+    int32_t splash_current_time = ImGui::get_current_time_msec();
+    static bool title_finished = true;
+    static ImTextureID codewin_texture = nullptr;
+    static ImTextureID logo_texture = nullptr;
+    if (!logo_texture && property && !property->icon_path.empty()) logo_texture = ImGui::ImLoadTexture(property->icon_path.c_str());
+    if (!codewin_texture) codewin_texture = ImGui::ImCreateTexture(codewin::codewin_pixels, codewin::codewin_width, codewin::codewin_height);
     auto& io = ImGui::GetIO();
+    ImGuiContext& g = *GImGui;
+    if (!g_media_editor_settings.UILanguage.empty() && g.LanguageName != g_media_editor_settings.UILanguage)
+        g.LanguageName = g_media_editor_settings.UILanguage;
     ImGuiCond cond = ImGuiCond_None;
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
                             ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | 
@@ -10190,27 +10206,64 @@ bool MediaEditor_Splash_Screen(void* handle, bool app_will_quit)
     ImGui::SetNextWindowSize(io.DisplaySize, cond);
     ImGui::SetNextWindowBgAlpha(0.5);
     ImGui::Begin("Content", nullptr, flags);
-    ImGui::SetWindowFontScale(2.0);
-    std::string str = "Media Editor Splash";
-    auto mark_size = ImGui::CalcTextSize(str.c_str());
-    float xoft = (io.DisplaySize.x - mark_size.x) / 2;
-    float yoft = (io.DisplaySize.y - mark_size.y) / 2;
-    ImGui::GetWindowDrawList()->AddText(ImVec2(xoft, yoft), IM_COL32_WHITE, str.c_str());
-    ImGui::SetWindowFontScale(1.0);
-
-    ImGui::SetCursorPos(ImVec2(4, io.DisplaySize.y - 32));
-    float progress = (float)x / 100.f;
-    ImGui::ProgressBar("##splash_progress", progress, 0.f, 1.f, "", ImVec2(io.DisplaySize.x - 16, 8), 
-                                ImVec4(1.f, 1.f, 1.f, 1.f), ImVec4(0.f, 0.f, 0.f, 1.f), ImVec4(1.f, 1.f, 1.f, 1.f));
-    ImGui::End();
-
-    if (x < 100)
+    auto draw_list = ImGui::GetWindowDrawList();
+    ImVec2 window_pos = ImGui::GetWindowPos();
+    ImVec2 window_size = ImGui::GetWindowSize();
+    draw_list->AddRectFilled(ImVec2(0, 0), io.DisplaySize, IM_COL32_WHITE);
+    if (logo_texture || codewin_texture)
     {
-        ImGui::sleep(1);
-        x++;
-        return false;
+        float logo_alpha = ImMin((float)(splash_current_time - splash_start_time) / 2000.f, 1.f);
+        if (logo_texture)
+        {
+            ImGui::SetCursorPos(ImVec2(32, (io.DisplaySize.y - 256 - 32) / 2));
+            ImGui::Image(logo_texture, ImVec2(256, 256), ImVec2(0, 0), ImVec2(1, 1), ImVec4(1, 1, 1, logo_alpha));
+        }
+        if (codewin_texture && logo_alpha >= 1.0)
+        {
+            float codewin_alpha = ImMin((float)(splash_current_time - splash_start_time - 2000) / 500.f, 1.f);
+            ImVec2 codewin_pos = ImVec2(32 + 256 - 70, (io.DisplaySize.y - 256 - 32) / 2 + 256 - 66);
+            codewin_pos += ImVec2(32.f * codewin_alpha, 32.f * codewin_alpha);
+            ImVec2 codewin_size = ImVec2(64, 64) - ImVec2(32.f * codewin_alpha, 32.f * codewin_alpha);
+            ImGui::SetCursorPos(codewin_pos);
+            ImGui::Image(codewin_texture, codewin_size, ImVec2(0, 0), ImVec2(1, 1), ImVec4(1, 1, 1, codewin_alpha));
+        }
     }
-    return true;
+    
+    {
+        float title_alpha = ImMin((float)(splash_current_time - splash_start_time) / 5000.f, 1.f);
+        ImGui::SetWindowFontScale(3.0);
+        std::string str = "Media Editor Community";
+        auto mark_size = ImGui::CalcTextSize(str.c_str());
+        float xoft = (logo_texture ? 32 + 256 : 0) + (io.DisplaySize.x - mark_size.x - (logo_texture ? 256 : 0)) / 2;
+        float yoft = (io.DisplaySize.y - mark_size.y - 32) / 2;
+        ImGui::GetWindowDrawList()->AddText(ImVec2(xoft, yoft), IM_COL32(0, 0, 255, title_alpha * 255), str.c_str());
+        ImGui::SetWindowFontScale(1.0);
+        std::string copy_str = "Copyright(c) 2023 OpenCodeWin Team";
+        auto copy_size = ImGui::CalcTextSize(copy_str.c_str());
+        ImGui::GetWindowDrawList()->AddText(ImVec2(io.DisplaySize.x - copy_size.x - 16, io.DisplaySize.y - 32 - 32), IM_COL32(0, 0, 0, title_alpha * 255), copy_str.c_str());
+        if (title_alpha < 1.0) title_finished = false;
+        else title_finished = true;
+    }
+
+    if (g_project_loading)
+    {
+        std::string load_str = "Project Loading...";
+        auto loading_size = ImGui::CalcTextSize(load_str.c_str());
+        float xoft = (io.DisplaySize.x - loading_size.x) / 2;
+        float yoft = io.DisplaySize.y - loading_size.y - 32 - 8;
+        ImGui::GetWindowDrawList()->AddText(ImVec2(xoft, yoft), IM_COL32(0, 0, 0, 255), load_str.c_str());
+        ImGui::SetCursorPos(ImVec2(4, io.DisplaySize.y - 32));
+        ImGui::ProgressBar("##splash_progress", g_project_loading_percentage, 0.f, 1.f, "", ImVec2(io.DisplaySize.x - 16, 8), 
+                                ImVec4(0.3f, 0.3f, 0.8f, 1.f), ImVec4(0.1f, 0.1f, 0.2f, 1.f), ImVec4(0.f, 0.f, 0.8f, 1.f));
+    }
+    ImGui::End();
+    bool should_finished = title_finished && !g_project_loading;
+    if (should_finished)
+    {
+        if (logo_texture) ImGui::ImDestroyTexture(logo_texture);
+        if (codewin_texture) ImGui::ImDestroyTexture(codewin_texture);
+    }
+    return should_finished;
 }
 
 void Application_Setup(ApplicationWindowProperty& property)
@@ -10253,12 +10306,13 @@ void Application_Setup(ApplicationWindowProperty& property)
     property.width = DEFAULT_MAIN_VIEW_WIDTH;
     property.height = DEFAULT_MAIN_VIEW_HEIGHT;
 #endif
-    property.splash_screen_width = 600;
+    property.splash_screen_width = 800;
     property.splash_screen_height = 400;
+    property.splash_screen_alpha = 0.9;
     property.application.Application_SetupContext = MediaEditor_SetupContext;
     property.application.Application_Initialize = MediaEditor_Initialize;
     property.application.Application_Finalize = MediaEditor_Finalize;
     property.application.Application_DropFromSystem = MediaEditor_DropFromSystem;
-    //property.application.Application_SplashScreen = MediaEditor_Splash_Screen;
+    property.application.Application_SplashScreen = MediaEditor_Splash_Screen;
     property.application.Application_Frame = MediaEditor_Frame;
 }
