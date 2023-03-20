@@ -518,6 +518,14 @@ static ImTextureID vector_texture {nullptr};
 static std::unordered_map<std::string, std::vector<FM::FontDescriptorHolder>> fontTable;
 static std::vector<string> fontFamilies;     // system fonts
 
+static void GetVersion(int& major, int& minor, int& patch, int& build)
+{
+    major = MEDIAEDITOR_VERSION_MAJOR;
+    minor = MEDIAEDITOR_VERSION_MINOR;
+    patch = MEDIAEDITOR_VERSION_PATCH;
+    build = MEDIAEDITOR_VERSION_BUILD;
+}
+
 static void UpdateBreathing()
 {
     ui_breathing -= ui_breathing_step;
@@ -865,8 +873,11 @@ static void ShowAbout()
 {
     ImGui::Text("Media Editor Community");
     ImGui::Separator();
-    ImGui::Text("       V1.0.0");
-    ImGui::Text("  CodeWin 2023");
+    int ver_major = 0, ver_minor = 0, ver_patch = 0, ver_build = 0;
+    GetVersion(ver_major, ver_minor, ver_patch, ver_build);
+    std::string version_string = "Version: " + std::to_string(ver_major) + "." + std::to_string(ver_minor) + "." + std::to_string(ver_patch) + "." + std::to_string(ver_build);
+    ImGui::TextUnformatted(version_string.c_str());
+    ImGui::TextUnformatted("  CodeWin 2023");
     ImGui::Separator();
     ImGui::ShowImGuiInfo();
     ImGui::Separator();
@@ -10231,13 +10242,60 @@ bool MediaEditor_Splash_Screen(void* handle, bool app_will_quit)
     
     {
         float title_alpha = ImMin((float)(splash_current_time - splash_start_time) / 5000.f, 1.f);
-        ImGui::SetWindowFontScale(3.0);
-        std::string str = "Media Editor Community";
+        ImGui::SetWindowFontScale(4.0);
+        std::string str = "Media Editor";
         auto mark_size = ImGui::CalcTextSize(str.c_str());
         float xoft = (logo_texture ? 32 + 256 : 0) + (io.DisplaySize.x - mark_size.x - (logo_texture ? 256 : 0)) / 2;
-        float yoft = (io.DisplaySize.y - mark_size.y - 32) / 2;
+        float yoft = (io.DisplaySize.y - mark_size.y - 32) / 2 - 32;
         ImGui::GetWindowDrawList()->AddText(ImVec2(xoft, yoft), IM_COL32(0, 0, 255, title_alpha * 255), str.c_str());
+        ImGui::SetWindowFontScale(2.0);
+        std::string cstr = "Community";
+        auto csize = ImGui::CalcTextSize(cstr.c_str());
+        float cxoft = xoft + mark_size.x - csize.x + 32;
+        float cyoft = yoft + mark_size.y - 16;
+        ImGui::GetWindowDrawList()->AddText(ImVec2(cxoft, cyoft), IM_COL32(0, 192, 0, title_alpha * 255), cstr.c_str());
+
+        int ver_major = 0, ver_minor = 0, ver_patch = 0, ver_build = 0;
+        // Media Editor Version
+        ImGui::SetWindowFontScale(1.5);
+        GetVersion(ver_major, ver_minor, ver_patch, ver_build);
+        std::string version_string = "Version: " + std::to_string(ver_major) + "." + std::to_string(ver_minor) + "." + std::to_string(ver_patch) + "." + std::to_string(ver_build);
+        auto version_size = ImGui::CalcTextSize(version_string.c_str());
+        float vxoft = xoft;
+        float vyoft = yoft + mark_size.y + 8;
+        ImGui::GetWindowDrawList()->AddText(ImVec2(vxoft, vyoft), IM_COL32(0, 0, 0, title_alpha * 255), version_string.c_str());
         ImGui::SetWindowFontScale(1.0);
+        // imgui version
+        ImGui::GetVersion(ver_major, ver_minor, ver_patch, ver_build);
+        version_string = "ImGui: " + std::to_string(ver_major) + "." + std::to_string(ver_minor) + "." + std::to_string(ver_patch) + "." + std::to_string(ver_build);
+        version_size = ImGui::CalcTextSize(version_string.c_str());
+        vxoft = io.DisplaySize.x - version_size.x - 32;
+        vyoft = io.DisplaySize.y - 18 * 4 - 32 - 32;
+        ImGui::GetWindowDrawList()->AddText(ImVec2(vxoft, vyoft), IM_COL32(0, 0, 0, title_alpha * 255), version_string.c_str());
+        // MediaCore version
+        MediaCore::GetVersion(ver_major, ver_minor, ver_patch, ver_build);
+        version_string = "MediaCore: " + std::to_string(ver_major) + "." + std::to_string(ver_minor) + "." + std::to_string(ver_patch) + "." + std::to_string(ver_build);
+        version_size = ImGui::CalcTextSize(version_string.c_str());
+        vxoft = io.DisplaySize.x - version_size.x - 32;
+        vyoft = io.DisplaySize.y - 18 * 3 - 32 - 32;
+        ImGui::GetWindowDrawList()->AddText(ImVec2(vxoft, vyoft), IM_COL32(0, 0, 0, title_alpha * 255), version_string.c_str());
+        // Blurprint SDK version
+        BluePrint::GetVersion(ver_major, ver_minor, ver_patch, ver_build);
+        version_string = "BluePrint: " + std::to_string(ver_major) + "." + std::to_string(ver_minor) + "." + std::to_string(ver_patch) + "." + std::to_string(ver_build);
+        version_size = ImGui::CalcTextSize(version_string.c_str());
+        vxoft = io.DisplaySize.x - version_size.x - 32;
+        vyoft = io.DisplaySize.y - 18 * 2 - 32 - 32;
+        ImGui::GetWindowDrawList()->AddText(ImVec2(vxoft, vyoft), IM_COL32(0, 0, 0, title_alpha * 255), version_string.c_str());
+#if IMGUI_VULKAN_SHADER
+        // vkshader version
+        ImGui::ImVulkanGetVersion(ver_major, ver_minor, ver_patch, ver_build);
+        version_string = "VkShader: " + std::to_string(ver_major) + "." + std::to_string(ver_minor) + "." + std::to_string(ver_patch) + "." + std::to_string(ver_build);
+        version_size = ImGui::CalcTextSize(version_string.c_str());
+        vxoft = io.DisplaySize.x - version_size.x - 32;
+        vyoft = io.DisplaySize.y - 18 * 1 - 32 - 32;
+        ImGui::GetWindowDrawList()->AddText(ImVec2(vxoft, vyoft), IM_COL32(0, 0, 0, title_alpha * 255), version_string.c_str());
+#endif
+        // copyright
         std::string copy_str = "Copyright(c) 2023 OpenCodeWin Team";
         auto copy_size = ImGui::CalcTextSize(copy_str.c_str());
         ImGui::GetWindowDrawList()->AddText(ImVec2(io.DisplaySize.x - copy_size.x - 16, io.DisplaySize.y - 32 - 32), IM_COL32(0, 0, 0, title_alpha * 255), copy_str.c_str());
