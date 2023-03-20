@@ -10343,9 +10343,11 @@ void Application_Setup(ApplicationWindowProperty& property)
         exec_path + "../Resources/mec_logo.png";
 #elif defined(__linux__)
         //exec_path + "mec.png";
-        exec_path + "../../mec.png";
-#else
         exec_path + "../resources/mec_logo.png";
+#elif defined(_WIN32)
+        exec_path + "../resources/mec_logo.png";
+#else
+        std::string();
 #endif
 
     property.name = APP_NAME;

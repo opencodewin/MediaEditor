@@ -30,6 +30,7 @@ function(make_appimage)
 
     # copy resource files
     file(COPY "${ARGS_RESOURCE_FILES}" DESTINATION "${APPDIR}/usr/languages/")
+    file(COPY "${ARGS_ICON_SRC}" DESTINATION "${APPDIR}/usr/resources/")
     #file(COPY "${ARGS_PROJECT_DIR}/xxx" DESTINATION "${APPDIR}/usr")
 
     # prepare desktop and icon file
