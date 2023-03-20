@@ -422,6 +422,8 @@ elseif(WIN32)
     # Install Resource File
     install(FILES  "${PROJECT_SOURCE_DIR}/languages/mec_language.ini"
             DESTINATION languages COMPONENT Resource)
+    install(FILES  "${PROJECT_SOURCE_DIR}/resources/mec_logo.png"
+            DESTINATION resources COMPONENT Resource)
 
     set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL OFF)
     set(CPACK_NSIS_MUI_ICON "${CMAKE_CURRENT_SOURCE_DIR}/resources/mec_logo.ico")

@@ -10345,7 +10345,7 @@ void Application_Setup(ApplicationWindowProperty& property)
         //exec_path + "mec.png";
         exec_path + "../../mec.png";
 #else
-        std::string();
+        exec_path + "../resources/mec_logo.png";
 #endif
 
     property.name = APP_NAME;
