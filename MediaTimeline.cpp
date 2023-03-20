@@ -1430,7 +1430,7 @@ void VideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
         }
         GetSnapshotGeneratorLogger()->Log(Logger::VERBOSE) << "[1]<<<<< End display snapshot" << std::endl;
     }
-    else
+    else if (mOverview)
     {
         int _width = 0, _height = 0;
         std::vector<ImGui::ImMat> snap_images;
