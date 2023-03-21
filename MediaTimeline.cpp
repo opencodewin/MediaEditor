@@ -1605,11 +1605,10 @@ void AudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
             int sample_stride = window_length / window_size.x;
             if (sample_stride <= 0) sample_stride = 1;
             ImGui::SetCursorScreenPos(customViewStart);
-            int min_zoom = ImMax(window_length >> 15, 16);
+            int min_zoom = ImMax(window_length >> 13, 16);
             int zoom = ImMin(sample_stride, min_zoom);
             start_offset = start_offset / zoom * zoom; // align start_offset
             ImGui::PushClipRect(leftTop, rightBottom, true);
-#if 1
             ImPlot::PushStyleVar(ImPlotStyleVar_PlotPadding, {0, 0});
             ImPlot::PushStyleVar(ImPlotStyleVar_PlotBorderSize, 0.f);
             ImPlot::PushStyleColor(ImPlotCol_PlotBg, {0, 0, 0, 0});
@@ -1623,12 +1622,6 @@ void AudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
             }
             ImPlot::PopStyleColor();
             ImPlot::PopStyleVar(2);
-#else
-            ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(1.f, 1.f, 0.f, 1.0f));
-            ImGui::PlotLinesEx(id_string.c_str(), &mWaveform->pcm[0][start_offset], window_length / zoom, 0, nullptr, -wave_range / 2, wave_range / 2, window_size, sizeof(float) * zoom, false);
-            ImGui::PopStyleColor();
-            drawList->AddLine(ImVec2(leftTop.x, leftTop.y + draw_size.y / 2), ImVec2(rightBottom.x, leftTop.y + draw_size.y / 2), IM_COL32(255, 255, 255, 128));
-#endif
             drawList->PopClipRect();
         }        
     }
@@ -6839,7 +6832,7 @@ void TimeLine::CalculateAudioScopeData(ImGui::ImMat& mat_in)
             float hw = mAudioAttribute.m_audio_vector.w / 2;
             float hh = mAudioAttribute.m_audio_vector.h / 2;
             int samples = mat_in.w;
-            mAudioAttribute.m_audio_vector *= 0.99f;
+            mAudioAttribute.m_audio_vector -= 3;
             for (int n = 0; n < samples; n++)
             {
                 float s1 = mAudioAttribute.channel_data[0].m_wave.at<float>(n, 0);
