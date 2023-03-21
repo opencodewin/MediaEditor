@@ -1,56 +1,49 @@
-![mec](docs/assets/mec.gif)
-<p align="center">
-  <strong>
-    <a href="https://www.code-win.com">website</a>
-    •
-    <a href="https://www.code-win.com/docs">docs</a>
-    •
-    <a href="https://www.code-win.com/community">community</a>
-    •
-    <a href="https://www.code-win.com/addons">add-ons</a>
-  </strong>
-</p>
+<h1 align="center">
+  <img src="docs/assets/mec_index.jpeg" height="400"/>
+</h1>
 
 <p align="center">
   <a href="LICENSE"><img alt="License" src="docs/assets/license.svg"></a>
-  <a href="https://www.code-win.com/docs"><img alt="Documentation" src="docs/assets/code-doc.svg"></a>
+  <a href="https://github.com/opencodewin/MediaEditor/docs/addit/wiki.md"><img alt="Documentation" src="docs/assets/code-doc.svg"></a>
   <a href="https://github.com/opencodewin/MediaEditor/pulls"><img alt="PRs Welcome" src="docs/assets/prs.svg"></a>
   <a href="#how-to-contribute"><img alt="Contributions Welcome" src="docs/assets/contribute.svg"></a>
   <a href="https://github.com/opencodewin/MediaEditor/commits/master"><img alt="Commits" src="docs/assets/latest.svg"></a>
 </p>
 
-<a href="https://www.code-win.com/download" target="_blank">
-  <img src="docs/assets/google_play.png" height="80"/>
-</a>
-
 <h1 align="center">
-  Welcome to Media Editor Custom Software!
+  Welcome to Media Editor Community Software!
 </h1>
 
-MEC is a **free and open source** software for media editing. Available as a native application for **Linux, macOS and Windows operating systems**, MEC runs on most common processor architectures.
+Media Editor Community(MEC) is a **free and open source** software for media editing. Available as a native application for **Linux, macOS and Windows operating systems**, MEC runs on most common processor architectures.
 
 ## Features
-* Cross-platform (Linux, Mac, and Windows)
-* Support for many video, audio, and image formats (based on FFmpeg)
-* Powerful curve-based Key frame animations
-* Desktop integration (drag and drop support)
-* Unlimited tracks / layers
-* Clip resizing, scaling, trimming, snapping, rotation, and cutting
-* Video transitions with real-time previews
-* Compositing, image overlays, watermarks
-* Title templates, title creation, sub-titles
-* Advanced Timeline (including Drag & drop, scrolling, panning, zooming, and snapping)
-* Frame accuracy (step through each frame of video)
-* Time-mapping and speed changes on clips (slow/fast, forward/backward, etc...)
-* Audio mixing and editing
-* Digital video effects, including brightness, gamma, hue, greyscale, chroma key, and many more!
-* Render videos in many codecs and formats (based on FFmpeg)
+**Adapt to various types of content:**
+* Import and edit videos from standard definition to 4K resolution
+* Support multiple major professional camera formats
+* Support multi-display playback and viewing of high-definition media
+
+**More efficient editing:**
+* Support magnetic snapping, which can smoothly adjust adjacent clips when arranging them to eliminate gaps, conflicts, and synchronization issues.
+* Support frame-by-frame preview, combined with convenient cropping tools, to fine-tune your cropping at the frame level.
+* Support clip groups to manage and move clips.
+
+**Diversified special effects and transition effects:**
+* Support about 30 built-in video special effects, including video enhancement, edge detection, matte extraction, picture smoothing, and noise reduction.
+* Support about 60 built-in video transition effects.
+* Support various hidden subtitle formats, without the need for any third-party software.
+* Support audio mixing, including gain, mixing, and equalizer.
+
+**Rich color correction tools:**
+* Support color balance, color jitter correction tools, etc.
+* Support manual color correction tools, including color curve, brightness/saturation curve, etc.
+* Support various built-in LUT 3D solutions.
+
+**Convenient export:**
+* Multiple professional export formats, including QuickTime, Matroska, Material Exchange Format, etc.
+* Support exporting selected range of clip content.
 
 ## Getting Started
-MEC's developers work hard to make it support a large range of devices and operating systems. We provide final as well as development builds. To get started, head over to the **[downloads section](https://www.code-win.com/download)** and simply select the platform that you want to install it on. A **[quick start guide](https://www.code-win.com/docs)** to help you get acquainted with MEC is available in our docs.
-
-## How to Contribute
-MEC is created by users for users and **we welcome every contribution**. There are no highly paid developers or poorly paid support personnel on the phones ready to take your call. There are only users who have seen a problem and done their best to fix it. This means MEC will always need the contributions of users like you.
+MEC's developers work hard to make it support a large range of devices and operating systems. We provide final as well as development builds. To get started, head over to the **[downloads section](https://github.com/opencodewin/MediaEditor/releases)** and simply select the platform that you want to install it on. A **[quick guide](docs/addit/wiki.md)** to help you get acquainted with MEC is available in our docs.
 
 ## Dependencies
 Although installers are much easier to use, if you must build from 
@@ -64,13 +57,9 @@ be sure you have the following submodules in order to run MEC successfully:
 *  mediacore (https://github.com/opencodewin/MediaCore.git)
 
 ## Building
-MEC uses CMake as its building system but instructions are highly dependent on your operating system and target platform. Fortunately **[we've got you covered](docs/addit/How-to-Built.md)**.
+MEC uses CMake as its building system but instructions are highly dependent on your operating system and target platform. **[Building from source](docs/addit/How-to-Built.md)**.
 
 ## License
-MEC is **[GPLv2 licensed](LICENSE)**. You may use, distribute and copy it under the license terms.
+MEC is **[GPLv3 licensed](LICENSE)**. You may use, distribute and copy it under the license terms.
 
 <a href="https://github.com/opencodewin/MediaEditor/graphs/contributors"><img src="docs/assets/built-by-developers.svg" height="25"></a>
-
-<a href="https://www.code-win.com/download"><img src="docs/assets/check-it-out.svg" height="25"></a>
-
-<a href="https://github.com/opencodewin/MediaEditor"><img src="docs/assets/winter-is-coming.svg" height="25"></a>
