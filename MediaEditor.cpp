@@ -453,8 +453,11 @@ struct MediaEditorSettings
 };
 
 static std::string ini_file = "Media_Editor.ini";
+static std::string icon_file;
 static std::vector<std::string> import_url;    // import file url from system drag
 static TimeLine * timeline = nullptr;
+static ImTextureID codewin_texture = nullptr;
+static ImTextureID logo_texture = nullptr;
 static std::thread * g_loading_thread {nullptr};
 static bool g_project_loading {false};
 static float g_project_loading_percentage {0};
@@ -869,15 +872,104 @@ static bool MonitorButton(const char * label, ImVec2 pos, int& monitor_index, st
 }
 
 // System view
-static void ShowAbout()
+static bool Show_Version(ImDrawList* draw_list, int32_t start_time)
 {
-    ImGui::Text("Media Editor Community");
-    ImGui::Separator();
-    int ver_major = 0, ver_minor = 0, ver_patch = 0, ver_build = 0;
-    GetVersion(ver_major, ver_minor, ver_patch, ver_build);
-    std::string version_string = "Version: " + std::to_string(ver_major) + "." + std::to_string(ver_minor) + "." + std::to_string(ver_patch) + "." + std::to_string(ver_build);
-    ImGui::TextUnformatted(version_string.c_str());
-    ImGui::TextUnformatted("  CodeWin 2023");
+    bool title_finished = true;
+    int32_t current_time = ImGui::get_current_time_msec();  
+    ImVec2 window_pos = ImGui::GetWindowPos();
+    ImVec2 window_size = ImGui::GetWindowSize();
+    draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
+    if (logo_texture || codewin_texture)
+    {
+        float logo_alpha = ImMin((float)(current_time - start_time) / 2000.f, 1.f);
+        if (logo_texture)
+        {
+            auto texture_pos =  window_pos + ImVec2(32, (window_size.y - 256 - 32) / 2);
+            draw_list->AddImage(logo_texture, texture_pos, texture_pos + ImVec2(256, 256), ImVec2(0, 0), ImVec2(1, 1), IM_COL32(255, 255, 255, logo_alpha * 255));
+        }
+        if (codewin_texture && logo_alpha >= 1.0)
+        {
+            float codewin_alpha = ImMin((float)(current_time - start_time - 2000) / 500.f, 1.f);
+            ImVec2 codewin_pos = window_pos + ImVec2(32 + 256 - 70, (window_size.y - 256 - 32) / 2 + 256 - 66);
+            codewin_pos += ImVec2(32.f * codewin_alpha, 32.f * codewin_alpha);
+            ImVec2 codewin_size = ImVec2(64, 64) - ImVec2(32.f * codewin_alpha, 32.f * codewin_alpha);
+            draw_list->AddImage(codewin_texture, codewin_pos, codewin_pos + codewin_size, ImVec2(0, 0), ImVec2(1, 1), IM_COL32(255, 255, 255, codewin_alpha * 255));
+        }
+    }
+    {
+        float title_alpha = ImMin((float)(current_time - start_time) / 5000.f, 1.f);
+        ImGui::SetWindowFontScale(4.0);
+        ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphShadowOffset, ImVec2(4, 4));
+        ImGui::PushStyleColor(ImGuiCol_TexGlyphShadow, ImVec4(0.0, 0.0, 0.0, 1.0));
+        std::string str = "Media Editor";
+        auto mark_size = ImGui::CalcTextSize(str.c_str());
+        float xoft = (logo_texture ? 32 + 256 : 0) + (window_size.x - mark_size.x - (logo_texture ? 256 : 0)) / 2;
+        float yoft = (window_size.y - mark_size.y - 32) / 2 - 32;
+        ImGui::GetWindowDrawList()->AddText(window_pos + ImVec2(xoft, yoft), IM_COL32(255, 255, 255, title_alpha * 255), str.c_str());
+        ImGui::PopStyleColor();
+        ImGui::PopStyleVar();
+        ImGui::SetWindowFontScale(2.0);
+        std::string cstr = "Community";
+        auto csize = ImGui::CalcTextSize(cstr.c_str());
+        float cxoft = xoft + mark_size.x - csize.x + 32;
+        float cyoft = yoft + mark_size.y - 16;
+        ImGui::GetWindowDrawList()->AddText(window_pos + ImVec2(cxoft, cyoft), IM_COL32(128, 255, 128, title_alpha * 255), cstr.c_str());
+
+        int ver_major = 0, ver_minor = 0, ver_patch = 0, ver_build = 0;
+        // Media Editor Version
+        ImGui::SetWindowFontScale(1.2);
+        GetVersion(ver_major, ver_minor, ver_patch, ver_build);
+        std::string version_string = "Version: " + std::to_string(ver_major) + "." + std::to_string(ver_minor) + "." + std::to_string(ver_patch) + "." + std::to_string(ver_build);
+        auto version_size = ImGui::CalcTextSize(version_string.c_str());
+        float vxoft = xoft;
+        float vyoft = yoft + mark_size.y + 8;
+        ImGui::GetWindowDrawList()->AddText(window_pos + ImVec2(vxoft, vyoft), IM_COL32(255, 255, 255, title_alpha * 255), version_string.c_str());
+        ImGui::SetWindowFontScale(1.0);
+        // imgui version
+        ImGui::GetVersion(ver_major, ver_minor, ver_patch, ver_build);
+        version_string = "ImGui: " + std::to_string(ver_major) + "." + std::to_string(ver_minor) + "." + std::to_string(ver_patch) + "." + std::to_string(ver_build);
+        version_size = ImGui::CalcTextSize(version_string.c_str());
+        vxoft = window_size.x - version_size.x - 32;
+        vyoft = window_size.y - 18 * 4 - 32 - 32;
+        ImGui::GetWindowDrawList()->AddText(window_pos + ImVec2(vxoft, vyoft), IM_COL32(255, 255, 255, title_alpha * 255), version_string.c_str());
+        // MediaCore version
+        MediaCore::GetVersion(ver_major, ver_minor, ver_patch, ver_build);
+        version_string = "MediaCore: " + std::to_string(ver_major) + "." + std::to_string(ver_minor) + "." + std::to_string(ver_patch) + "." + std::to_string(ver_build);
+        version_size = ImGui::CalcTextSize(version_string.c_str());
+        vxoft = window_size.x - version_size.x - 32;
+        vyoft = window_size.y - 18 * 3 - 32 - 32;
+        ImGui::GetWindowDrawList()->AddText(window_pos + ImVec2(vxoft, vyoft), IM_COL32(255, 255, 255, title_alpha * 255), version_string.c_str());
+        // Blurprint SDK version
+        BluePrint::GetVersion(ver_major, ver_minor, ver_patch, ver_build);
+        version_string = "BluePrint: " + std::to_string(ver_major) + "." + std::to_string(ver_minor) + "." + std::to_string(ver_patch) + "." + std::to_string(ver_build);
+        version_size = ImGui::CalcTextSize(version_string.c_str());
+        vxoft = window_size.x - version_size.x - 32;
+        vyoft = window_size.y - 18 * 2 - 32 - 32;
+        ImGui::GetWindowDrawList()->AddText(window_pos + ImVec2(vxoft, vyoft), IM_COL32(255, 255, 255, title_alpha * 255), version_string.c_str());
+#if IMGUI_VULKAN_SHADER
+        // vkshader version
+        ImGui::ImVulkanGetVersion(ver_major, ver_minor, ver_patch, ver_build);
+        version_string = "VkShader: " + std::to_string(ver_major) + "." + std::to_string(ver_minor) + "." + std::to_string(ver_patch) + "." + std::to_string(ver_build);
+        version_size = ImGui::CalcTextSize(version_string.c_str());
+        vxoft = window_size.x - version_size.x - 32;
+        vyoft = window_size.y - 18 * 1 - 32 - 32;
+        ImGui::GetWindowDrawList()->AddText(window_pos + ImVec2(vxoft, vyoft), IM_COL32(255, 255, 255, title_alpha * 255), version_string.c_str());
+#endif
+        // copyright
+        std::string copy_str = "Copyright(c) 2023 OpenCodeWin Team";
+        auto copy_size = ImGui::CalcTextSize(copy_str.c_str());
+        ImGui::GetWindowDrawList()->AddText(window_pos + ImVec2(window_size.x - copy_size.x - 16, window_size.y - 32 - 24), IM_COL32(128, 128, 255, title_alpha * 255), copy_str.c_str());
+        if (title_alpha < 1.0) title_finished = false;
+        else title_finished = true;
+    }
+    return title_finished;
+}
+
+static void ShowAbout(int32_t about_start_time)
+{
+    ImGui::BeginChild("MediaEditor Version", ImVec2(800, 400));
+    Show_Version(ImGui::GetWindowDrawList(), about_start_time);
+    ImGui::EndChild();
     ImGui::Separator();
     ImGui::ShowImGuiInfo();
     ImGui::Separator();
@@ -9572,8 +9664,14 @@ static void MediaEditor_Initialize(void** handle)
     m_cie = new ImGui::CIE_vulkan(gpu);
     m_vector = new ImGui::Vector_vulkan(gpu);
 #endif
-    if (!ImGuiHelper::file_exists(io.IniFilename))
+    if (!timeline)
         NewTimeline();
+    // reload texture
+    if (logo_texture) { ImGui::ImDestroyTexture(logo_texture); logo_texture = nullptr; }
+    if (codewin_texture) { ImGui::ImDestroyTexture(codewin_texture); codewin_texture = nullptr; }
+    if (!logo_texture && !icon_file.empty()) logo_texture = ImGui::ImLoadTexture(icon_file.c_str());
+    if (!codewin_texture) codewin_texture = ImGui::ImCreateTexture(codewin::codewin_pixels, codewin::codewin_width, codewin::codewin_height);
+
 }
 
 static void MediaEditor_Finalize(void** handle)
@@ -9588,6 +9686,9 @@ static void MediaEditor_Finalize(void** handle)
     if (waveform_texture) { ImGui::ImDestroyTexture(waveform_texture); waveform_texture = nullptr; }
     if (cie_texture) { ImGui::ImDestroyTexture(cie_texture); cie_texture = nullptr; }
     if (vector_texture) { ImGui::ImDestroyTexture(vector_texture); vector_texture = nullptr; }
+    if (logo_texture) { ImGui::ImDestroyTexture(logo_texture); logo_texture = nullptr; }
+    if (codewin_texture) { ImGui::ImDestroyTexture(codewin_texture); codewin_texture = nullptr; }
+
     ImPlot::DestroyContext();
     MediaCore::ReleaseSubtitleLibrary();
 }
@@ -9690,10 +9791,12 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
         ImGui::SetNextWindowViewport(viewport->ID);
     if (ImGui::BeginPopupModal(ICON_FA_CIRCLE_INFO " About", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings))
     {
-        ShowAbout();
+        static int32_t about_start_time = 0;
+        if (about_start_time == 0) about_start_time = ImGui::get_current_time_msec();
+        ShowAbout(about_start_time);
         int i = ImGui::GetCurrentWindow()->ContentSize.x;
         ImGui::Indent((i - 40.0f) * 0.5f);
-        if (ImGui::Button("OK", ImVec2(40, 0))) { show_about = false; ImGui::CloseCurrentPopup(); }
+        if (ImGui::Button("OK", ImVec2(40, 0))) { show_about = false; about_start_time = 0; ImGui::CloseCurrentPopup(); }
         ImGui::SetItemDefaultFocus();
         ImGui::EndPopup();
     }
@@ -10200,13 +10303,8 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
 
 bool MediaEditor_Splash_Screen(void* handle, bool app_will_quit)
 {
-    ApplicationWindowProperty * property = (ApplicationWindowProperty*) handle;
-    static int32_t splash_start_time = ImGui::get_current_time_msec();
-    int32_t splash_current_time = ImGui::get_current_time_msec();
-    static bool title_finished = true;
-    static ImTextureID codewin_texture = nullptr;
-    static ImTextureID logo_texture = nullptr;
-    if (!logo_texture && property && !property->icon_path.empty()) logo_texture = ImGui::ImLoadTexture(property->icon_path.c_str());
+    static int32_t splash_start_time = ImGui::get_current_time_msec();   
+    if (!logo_texture && !icon_file.empty()) logo_texture = ImGui::ImLoadTexture(icon_file.c_str());
     if (!codewin_texture) codewin_texture = ImGui::ImCreateTexture(codewin::codewin_pixels, codewin::codewin_width, codewin::codewin_height);
     auto& io = ImGui::GetIO();
     ImGuiContext& g = *GImGui;
@@ -10218,112 +10316,24 @@ bool MediaEditor_Splash_Screen(void* handle, bool app_will_quit)
                             ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus;
     ImGui::SetNextWindowPos(ImVec2(0, 0));
     ImGui::SetNextWindowSize(io.DisplaySize, cond);
-    ImGui::SetNextWindowBgAlpha(0.5);
+    //ImGui::SetNextWindowBgAlpha(0.5);
     ImGui::Begin("Content", nullptr, flags);
     auto draw_list = ImGui::GetWindowDrawList();
-    ImVec2 window_pos = ImGui::GetWindowPos();
-    ImVec2 window_size = ImGui::GetWindowSize();
-    draw_list->AddRectFilled(ImVec2(0, 0), io.DisplaySize, IM_COL32_WHITE);
-    if (logo_texture || codewin_texture)
-    {
-        float logo_alpha = ImMin((float)(splash_current_time - splash_start_time) / 2000.f, 1.f);
-        if (logo_texture)
-        {
-            ImGui::SetCursorPos(ImVec2(32, (io.DisplaySize.y - 256 - 32) / 2));
-            ImGui::Image(logo_texture, ImVec2(256, 256), ImVec2(0, 0), ImVec2(1, 1), ImVec4(1, 1, 1, logo_alpha));
-        }
-        if (codewin_texture && logo_alpha >= 1.0)
-        {
-            float codewin_alpha = ImMin((float)(splash_current_time - splash_start_time - 2000) / 500.f, 1.f);
-            ImVec2 codewin_pos = ImVec2(32 + 256 - 70, (io.DisplaySize.y - 256 - 32) / 2 + 256 - 66);
-            codewin_pos += ImVec2(32.f * codewin_alpha, 32.f * codewin_alpha);
-            ImVec2 codewin_size = ImVec2(64, 64) - ImVec2(32.f * codewin_alpha, 32.f * codewin_alpha);
-            ImGui::SetCursorPos(codewin_pos);
-            ImGui::Image(codewin_texture, codewin_size, ImVec2(0, 0), ImVec2(1, 1), ImVec4(1, 1, 1, codewin_alpha));
-        }
-    }
-    
-    {
-        float title_alpha = ImMin((float)(splash_current_time - splash_start_time) / 5000.f, 1.f);
-        ImGui::SetWindowFontScale(4.0);
-        std::string str = "Media Editor";
-        auto mark_size = ImGui::CalcTextSize(str.c_str());
-        float xoft = (logo_texture ? 32 + 256 : 0) + (io.DisplaySize.x - mark_size.x - (logo_texture ? 256 : 0)) / 2;
-        float yoft = (io.DisplaySize.y - mark_size.y - 32) / 2 - 32;
-        ImGui::GetWindowDrawList()->AddText(ImVec2(xoft, yoft), IM_COL32(0, 0, 255, title_alpha * 255), str.c_str());
-        ImGui::SetWindowFontScale(2.0);
-        std::string cstr = "Community";
-        auto csize = ImGui::CalcTextSize(cstr.c_str());
-        float cxoft = xoft + mark_size.x - csize.x + 32;
-        float cyoft = yoft + mark_size.y - 16;
-        ImGui::GetWindowDrawList()->AddText(ImVec2(cxoft, cyoft), IM_COL32(0, 192, 0, title_alpha * 255), cstr.c_str());
-
-        int ver_major = 0, ver_minor = 0, ver_patch = 0, ver_build = 0;
-        // Media Editor Version
-        ImGui::SetWindowFontScale(1.5);
-        GetVersion(ver_major, ver_minor, ver_patch, ver_build);
-        std::string version_string = "Version: " + std::to_string(ver_major) + "." + std::to_string(ver_minor) + "." + std::to_string(ver_patch) + "." + std::to_string(ver_build);
-        auto version_size = ImGui::CalcTextSize(version_string.c_str());
-        float vxoft = xoft;
-        float vyoft = yoft + mark_size.y + 8;
-        ImGui::GetWindowDrawList()->AddText(ImVec2(vxoft, vyoft), IM_COL32(0, 0, 0, title_alpha * 255), version_string.c_str());
-        ImGui::SetWindowFontScale(1.0);
-        // imgui version
-        ImGui::GetVersion(ver_major, ver_minor, ver_patch, ver_build);
-        version_string = "ImGui: " + std::to_string(ver_major) + "." + std::to_string(ver_minor) + "." + std::to_string(ver_patch) + "." + std::to_string(ver_build);
-        version_size = ImGui::CalcTextSize(version_string.c_str());
-        vxoft = io.DisplaySize.x - version_size.x - 32;
-        vyoft = io.DisplaySize.y - 18 * 4 - 32 - 32;
-        ImGui::GetWindowDrawList()->AddText(ImVec2(vxoft, vyoft), IM_COL32(0, 0, 0, title_alpha * 255), version_string.c_str());
-        // MediaCore version
-        MediaCore::GetVersion(ver_major, ver_minor, ver_patch, ver_build);
-        version_string = "MediaCore: " + std::to_string(ver_major) + "." + std::to_string(ver_minor) + "." + std::to_string(ver_patch) + "." + std::to_string(ver_build);
-        version_size = ImGui::CalcTextSize(version_string.c_str());
-        vxoft = io.DisplaySize.x - version_size.x - 32;
-        vyoft = io.DisplaySize.y - 18 * 3 - 32 - 32;
-        ImGui::GetWindowDrawList()->AddText(ImVec2(vxoft, vyoft), IM_COL32(0, 0, 0, title_alpha * 255), version_string.c_str());
-        // Blurprint SDK version
-        BluePrint::GetVersion(ver_major, ver_minor, ver_patch, ver_build);
-        version_string = "BluePrint: " + std::to_string(ver_major) + "." + std::to_string(ver_minor) + "." + std::to_string(ver_patch) + "." + std::to_string(ver_build);
-        version_size = ImGui::CalcTextSize(version_string.c_str());
-        vxoft = io.DisplaySize.x - version_size.x - 32;
-        vyoft = io.DisplaySize.y - 18 * 2 - 32 - 32;
-        ImGui::GetWindowDrawList()->AddText(ImVec2(vxoft, vyoft), IM_COL32(0, 0, 0, title_alpha * 255), version_string.c_str());
-#if IMGUI_VULKAN_SHADER
-        // vkshader version
-        ImGui::ImVulkanGetVersion(ver_major, ver_minor, ver_patch, ver_build);
-        version_string = "VkShader: " + std::to_string(ver_major) + "." + std::to_string(ver_minor) + "." + std::to_string(ver_patch) + "." + std::to_string(ver_build);
-        version_size = ImGui::CalcTextSize(version_string.c_str());
-        vxoft = io.DisplaySize.x - version_size.x - 32;
-        vyoft = io.DisplaySize.y - 18 * 1 - 32 - 32;
-        ImGui::GetWindowDrawList()->AddText(ImVec2(vxoft, vyoft), IM_COL32(0, 0, 0, title_alpha * 255), version_string.c_str());
-#endif
-        // copyright
-        std::string copy_str = "Copyright(c) 2023 OpenCodeWin Team";
-        auto copy_size = ImGui::CalcTextSize(copy_str.c_str());
-        ImGui::GetWindowDrawList()->AddText(ImVec2(io.DisplaySize.x - copy_size.x - 16, io.DisplaySize.y - 32 - 32), IM_COL32(0, 0, 0, title_alpha * 255), copy_str.c_str());
-        if (title_alpha < 1.0) title_finished = false;
-        else title_finished = true;
-    }
-
+    bool title_finished = Show_Version(draw_list, splash_start_time);
     if (g_project_loading)
     {
         std::string load_str = "Project Loading...";
         auto loading_size = ImGui::CalcTextSize(load_str.c_str());
         float xoft = (io.DisplaySize.x - loading_size.x) / 2;
         float yoft = io.DisplaySize.y - loading_size.y - 32 - 8;
-        ImGui::GetWindowDrawList()->AddText(ImVec2(xoft, yoft), IM_COL32(0, 0, 0, 255), load_str.c_str());
+        draw_list->AddText(ImVec2(xoft, yoft), IM_COL32(255, 255, 255, 255), load_str.c_str());
         ImGui::SetCursorPos(ImVec2(4, io.DisplaySize.y - 32));
         ImGui::ProgressBar("##splash_progress", g_project_loading_percentage, 0.f, 1.f, "", ImVec2(io.DisplaySize.x - 16, 8), 
                                 ImVec4(0.3f, 0.3f, 0.8f, 1.f), ImVec4(0.1f, 0.1f, 0.2f, 1.f), ImVec4(0.f, 0.f, 0.8f, 1.f));
     }
+
     ImGui::End();
     bool should_finished = title_finished && !g_project_loading;
-    if (should_finished)
-    {
-        if (logo_texture) ImGui::ImDestroyTexture(logo_texture);
-        if (codewin_texture) ImGui::ImDestroyTexture(codewin_texture);
-    }
     return should_finished;
 }
 
@@ -10341,6 +10351,7 @@ void Application_Setup(ApplicationWindowProperty& property)
 #else
         std::string();
 #endif
+    icon_file = 
     property.icon_path =  
 #if defined(__APPLE__)
         exec_path + "../Resources/mec_logo.png";
@@ -10371,7 +10382,7 @@ void Application_Setup(ApplicationWindowProperty& property)
 #endif
     property.splash_screen_width = 800;
     property.splash_screen_height = 400;
-    property.splash_screen_alpha = 0.9;
+    property.splash_screen_alpha = 0.95;
     property.application.Application_SetupContext = MediaEditor_SetupContext;
     property.application.Application_Initialize = MediaEditor_Initialize;
     property.application.Application_Finalize = MediaEditor_Finalize;
