@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="LICENSE"><img alt="License" src="docs/assets/license.svg"></a>
-  <a href="https://github.com/opencodewin/MediaEditor/docs/addit/wiki.md"><img alt="Documentation" src="docs/assets/code-doc.svg"></a>
+  <a href="https://github.com/opencodewin/MediaEditor/wiki"><img alt="Documentation" src="docs/assets/code-doc.svg"></a>
   <a href="https://github.com/opencodewin/MediaEditor/pulls"><img alt="PRs Welcome" src="docs/assets/prs.svg"></a>
   <a href="#how-to-contribute"><img alt="Contributions Welcome" src="docs/assets/contribute.svg"></a>
   <a href="https://github.com/opencodewin/MediaEditor/commits/master"><img alt="Commits" src="docs/assets/latest.svg"></a>
@@ -58,6 +58,9 @@ be sure you have the following submodules in order to run MEC successfully:
 
 ## Building
 MEC uses CMake as its building system but instructions are highly dependent on your operating system and target platform. **[Building from source](docs/addit/How-to-Built.md)**.
+
+## how-to-contribute
+MEC is created by users for users and **we welcome every contribution**. There are no highly paid developers or poorly paid support personnel on the phones ready to take your call. There are only users who have seen a problem and done their best to fix it. This means MEC will always need the contributions of users like you.
 
 ## License
 MEC is **[GPLv3 licensed](LICENSE)**. You may use, distribute and copy it under the license terms.

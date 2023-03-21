@@ -1,5 +1,5 @@
-## Using the Media Editor Community.
-Some steps in the process are not necessarily necessary, and others may need to be added as well. Also, the workflow is not necessarily linear. For example, you can import more media files for your project after you have completed the editing and effects.
+## Using Media Editor Community.
+Some steps in the process are not necessarily, and others may need to be added as well. Also, the workflow is not necessarily linear. For example, you can import more media files for your project after you have completed the editing and effects.
 
 ### Step 1: Prepare your media files
 To use the Media Editor, you need to transfer your media files (video, audio, and images) from the recording device to your local workstation or an external storage device.
