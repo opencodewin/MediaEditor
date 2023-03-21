@@ -7,6 +7,7 @@
 #include <sstream>
 #include <iomanip>
 #include "Logger.h"
+#include "DebugHelper.h"
 
 const MediaTimeline::audio_band_config DEFAULT_BAND_CFG[10] = {
     { 32,       32,         0 },        { 64,       64,         0 },
@@ -6287,7 +6288,7 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
         MediaCore::VideoClipHolder vidClip = MediaCore::VideoClip::CreateVideoInstance(
             clip->mID, clip->mMediaParser,
             vidTrack->OutWidth(), vidTrack->OutHeight(), vidTrack->FrameRate(),
-            clip->mStart, clip->mStartOffset, clip->mEndOffset, currentTime-clip->mStart);
+            clip->mStart, clip->mStartOffset, clip->mEndOffset, currentTime-clip->mStart, vidTrack->Direction());
         if (action.contains("clip_json"))
         {
             BluePrintVideoFilter* bpvf = new BluePrintVideoFilter(this);
@@ -8823,7 +8824,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                         timeline->Update();
                     }
                 }
-                else
+                else  // add a video clip
                 {
                     bool create_new_track = false;
                     MediaTrack * videoTrack = nullptr;

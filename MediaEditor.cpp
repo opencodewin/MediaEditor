@@ -9541,14 +9541,17 @@ static void MediaEditor_Initialize(void** handle)
     }
     ImGui::ResetTabLabelStyle(ImGui::ImGuiTabLabelStyle_Dark, *tab_style);
 
-    Logger::GetDefaultLogger()->SetShowLevels(Logger::VERBOSE);
+#if defined(NDEBUG)
+    av_log_set_level(AV_LOG_FATAL);
+#else
+    Logger::GetDefaultLogger()->SetShowLevels(Logger::DEBUG);
     // GetMultiTrackVideoReaderLogger()->SetShowLevels(Logger::VERBOSE);
     // GetMediaReaderLogger()->SetShowLevels(Logger::DEBUG);
     // GetSnapshotGeneratorLogger()->SetShowLevels(Logger::DEBUG);
     // GetMediaEncoderLogger()->SetShowLevels(Logger::DEBUG);
     // GetSubtitleTrackLogger()->SetShowLevels(Logger::DEBUG);
     // GetMediaOverviewLogger()->SetShowLevels(Logger::DEBUG);
-    av_log_set_level(AV_LOG_FATAL);
+#endif
 
     if (!MediaCore::InitializeSubtitleLibrary())
         std::cout << "FAILED to initialize the subtitle library!" << std::endl;
