@@ -353,6 +353,7 @@ struct MediaEditorSettings
     // Waveform Scope tools
     bool WaveformMirror {true};
     bool WaveformSeparate {false};
+    bool WaveformShowY {false};
     float WaveformIntensity {2.0};
 #if IMGUI_VULKAN_SHADER
     // CIE Scope tools
@@ -805,7 +806,7 @@ static void CalculateVideoScope(ImGui::ImMat& mat)
 {
 #if IMGUI_VULKAN_SHADER
     if (m_histogram && (scope_flags & SCOPE_VIDEO_HISTOGRAM)) m_histogram->scope(mat, mat_histogram, 256, g_media_editor_settings.HistogramScale, g_media_editor_settings.HistogramLog);
-    if (m_waveform && (scope_flags & SCOPE_VIDEO_WAVEFORM)) m_waveform->scope(mat, mat_waveform, 256, g_media_editor_settings.WaveformIntensity, g_media_editor_settings.WaveformSeparate);
+    if (m_waveform && (scope_flags & SCOPE_VIDEO_WAVEFORM)) m_waveform->scope(mat, mat_waveform, 256, g_media_editor_settings.WaveformIntensity, g_media_editor_settings.WaveformSeparate, g_media_editor_settings.WaveformShowY);
     if (m_cie && (scope_flags & SCOPE_VIDEO_CIE)) m_cie->scope(mat, mat_cie, g_media_editor_settings.CIEIntensity, g_media_editor_settings.CIEShowColor);
     if (m_vector && (scope_flags & SCOPE_VIDEO_VECTOR)) m_vector->scope(mat, mat_vector, g_media_editor_settings.VectorIntensity);
 #endif
@@ -8044,6 +8045,9 @@ static void ShowMediaScopeSetting(int index, bool show_tooltips = true)
             ImGui::TextUnformatted("Separate:"); ImGui::SameLine();
             if (ImGui::ToggleButton("##waveform_separate", &g_media_editor_settings.WaveformSeparate))
                 need_update_scope = true;
+            ImGui::TextUnformatted("Show Y:"); ImGui::SameLine();
+            if (ImGui::ToggleButton("##waveform_separate", &g_media_editor_settings.WaveformShowY))
+                need_update_scope = true;
             if (ImGui::DragFloat("Intensity##WaveformIntensity", &g_media_editor_settings.WaveformIntensity, 0.05f, 0.f, 4.f, "%.1f"))
                 need_update_scope = true;
             if (show_tooltips)
@@ -9384,6 +9388,7 @@ static void MediaEditor_SetupContext(ImGuiContext* ctx, bool in_splash)
         else if (sscanf(line, "HistogramScale=%f", &val_float) == 1) { setting->HistogramScale = val_float; }
         else if (sscanf(line, "WaveformMirror=%d", &val_int) == 1) { setting->WaveformMirror = val_int == 1; }
         else if (sscanf(line, "WaveformSeparate=%d", &val_int) == 1) { setting->WaveformSeparate = val_int == 1; }
+        else if (sscanf(line, "WaveformShowY=%d", &val_int) == 1) { setting->WaveformShowY = val_int == 1; }
         else if (sscanf(line, "WaveformIntensity=%f", &val_float) == 1) { setting->WaveformIntensity = val_float; }
         else if (sscanf(line, "CIECorrectGamma=%d", &val_int) == 1) { setting->CIECorrectGamma = val_int == 1; }
         else if (sscanf(line, "CIEShowColor=%d", &val_int) == 1) { setting->CIEShowColor = val_int == 1; }
@@ -9495,6 +9500,7 @@ static void MediaEditor_SetupContext(ImGuiContext* ctx, bool in_splash)
         out_buf->appendf("HistogramScale=%f\n", g_media_editor_settings.HistogramScale);
         out_buf->appendf("WaveformMirror=%d\n", g_media_editor_settings.WaveformMirror ? 1 : 0);
         out_buf->appendf("WaveformSeparate=%d\n", g_media_editor_settings.WaveformSeparate ? 1 : 0);
+        out_buf->appendf("WaveformShowY=%d\n", g_media_editor_settings.WaveformShowY ? 1 : 0);
         out_buf->appendf("WaveformIntensity=%f\n", g_media_editor_settings.WaveformIntensity);
         out_buf->appendf("CIECorrectGamma=%d\n", g_media_editor_settings.CIECorrectGamma ? 1 : 0);
         out_buf->appendf("CIEShowColor=%d\n", g_media_editor_settings.CIEShowColor ? 1 : 0);
