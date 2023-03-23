@@ -879,6 +879,8 @@ static bool Show_Version(ImDrawList* draw_list, int32_t start_time)
     int32_t current_time = ImGui::get_current_time_msec();  
     ImVec2 window_pos = ImGui::GetWindowPos();
     ImVec2 window_size = ImGui::GetWindowSize();
+    if (!logo_texture && !icon_file.empty()) logo_texture = ImGui::ImLoadTexture(icon_file.c_str());
+    if (!codewin_texture) codewin_texture = ImGui::ImCreateTexture(codewin::codewin_pixels, codewin::codewin_width, codewin::codewin_height);
     draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
     if (logo_texture || codewin_texture)
     {
@@ -9670,14 +9672,7 @@ static void MediaEditor_Initialize(void** handle)
     m_cie = new ImGui::CIE_vulkan(gpu);
     m_vector = new ImGui::Vector_vulkan(gpu);
 #endif
-    if (!timeline)
-        NewTimeline();
-    // reload texture
-    if (logo_texture) { ImGui::ImDestroyTexture(logo_texture); logo_texture = nullptr; }
-    if (codewin_texture) { ImGui::ImDestroyTexture(codewin_texture); codewin_texture = nullptr; }
-    if (!logo_texture && !icon_file.empty()) logo_texture = ImGui::ImLoadTexture(icon_file.c_str());
-    if (!codewin_texture) codewin_texture = ImGui::ImCreateTexture(codewin::codewin_pixels, codewin::codewin_width, codewin::codewin_height);
-
+    if (!ImGuiHelper::file_exists(io.IniFilename) && !timeline)  NewTimeline();
 }
 
 static void MediaEditor_Finalize(void** handle)
@@ -10309,9 +10304,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
 
 bool MediaEditor_Splash_Screen(void* handle, bool app_will_quit)
 {
-    static int32_t splash_start_time = ImGui::get_current_time_msec();   
-    if (!logo_texture && !icon_file.empty()) logo_texture = ImGui::ImLoadTexture(icon_file.c_str());
-    if (!codewin_texture) codewin_texture = ImGui::ImCreateTexture(codewin::codewin_pixels, codewin::codewin_width, codewin::codewin_height);
+    static int32_t splash_start_time = ImGui::get_current_time_msec();
     auto& io = ImGui::GetIO();
     ImGuiContext& g = *GImGui;
     if (!g_media_editor_settings.UILanguage.empty() && g.LanguageName != g_media_editor_settings.UILanguage)
@@ -10340,6 +10333,11 @@ bool MediaEditor_Splash_Screen(void* handle, bool app_will_quit)
 
     ImGui::End();
     bool should_finished = title_finished && !g_project_loading;
+    if (should_finished)
+    {
+        if (logo_texture) { ImGui::ImDestroyTexture(logo_texture); logo_texture = nullptr; }
+        if (codewin_texture) { ImGui::ImDestroyTexture(codewin_texture); codewin_texture = nullptr; }
+    }
     return should_finished;
 }
 
