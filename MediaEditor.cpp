@@ -292,6 +292,13 @@ static const char* VideoAttributeScaleType[] = {
     "Stretch",
 };
 
+static const char* VideoPreviewScale[] = {
+    "1:1",
+    "1/2",
+    "1/4",
+    "1/8",
+};
+
 const std::string video_file_dis = "*.mp4 *.mov *.mkv *.mxf *.avi *.webm *.ts";
 const std::string video_file_suffix = ".mp4,.mov,.mkv,.mxf,.avi,.webm,.ts";
 const std::string audio_file_dis = "*.wav *.mp3 *.aac *.ogg *.ac3 *.dts";
@@ -331,6 +338,7 @@ struct MediaEditorSettings
     bool HardwareCodec {true};              // try HW codec
     int VideoWidth  {1920};                 // timeline Media Width
     int VideoHeight {1080};                 // timeline Media Height
+    float PreviewScale {0.5};               // timeline Media Video Preview scale
     MediaInfo::Ratio VideoFrameRate {25000, 1000};// timeline frame rate
     MediaInfo::Ratio PixelAspectRatio {1, 1}; // timeline pixel aspect ratio
     int ColorSpaceIndex {1};                // timeline color space default is bt 709
@@ -1200,10 +1208,32 @@ static std::string GetFrequencyTag(uint32_t freq)
     return std::string(tag);
 }
 
+static int GetPreviewScaleIndex(float scale)
+{
+    if (scale >= 1) return 0;
+    if (scale < 1 && scale >= 0.5) return 1;
+    if (scale < 0.5 && scale >= 0.25) return 2;
+    if (scale < 0.25 && scale >= 0.125) return 3;
+    return 1;
+}
+
+static void SetPreviewScale(MediaEditorSettings & config, int index)
+{
+    switch (index)
+    {
+        case 0: config.PreviewScale = 1.0; break;
+        case 1: config.PreviewScale = 0.5; break;
+        case 2: config.PreviewScale = 0.25; break;
+        case 3: config.PreviewScale = 0.125; break;
+        default: config.PreviewScale = 0.5; break;
+    }
+}
+
 static void ShowConfigure(MediaEditorSettings & config)
 {
     ImGuiIO &io = ImGui::GetIO();
     static int resolution_index = GetResolutionIndex(config.VideoWidth, config.VideoHeight);
+    static int preview_scale_index = GetPreviewScaleIndex(config.PreviewScale);
     static int pixel_aspect_index = GetPixelAspectRatioIndex(config.PixelAspectRatio);
     static int frame_rate_index = GetVideoFrameIndex(config.VideoFrameRate);
     static int sample_rate_index = GetSampleRateIndex(config.AudioSampleRate);
@@ -1267,17 +1297,17 @@ static void ShowConfigure(MediaEditorSettings & config)
             {
                 // timeline setting
                 ImGui::BulletText(ICON_MEDIA_VIDEO " Video");
-                if (ImGui::Combo("Resultion", &resolution_index, resolution_items, IM_ARRAYSIZE(resolution_items)))
+                if (ImGui::Combo("Resolution", &resolution_index, resolution_items, IM_ARRAYSIZE(resolution_items)))
                 {
                     SetResolution(config.VideoWidth, config.VideoHeight, resolution_index);
                 }
                 ImGui::BeginDisabled(resolution_index != 0);
                 ImGui::PushItemWidth(60);
-                ImGui::InputText("##Resultion_x", buf_res_x, 64, ImGuiInputTextFlags_CharsDecimal);
+                ImGui::InputText("##Resolution_x", buf_res_x, 64, ImGuiInputTextFlags_CharsDecimal);
                 ImGui::SameLine();
                 ImGui::TextUnformatted("X");
                 ImGui::SameLine();
-                ImGui::InputText("##Resultion_y", buf_res_y, 64, ImGuiInputTextFlags_CharsDecimal);
+                ImGui::InputText("##Resolution_y", buf_res_y, 64, ImGuiInputTextFlags_CharsDecimal);
                 ImGui::PopItemWidth();
                 ImGui::EndDisabled();
                 if (resolution_index == 0)
@@ -1285,7 +1315,10 @@ static void ShowConfigure(MediaEditorSettings & config)
                     config.VideoWidth = atoi(buf_res_x);
                     config.VideoHeight = atoi(buf_res_y);
                 }
-
+                if (ImGui::Combo("Preview Scale", &preview_scale_index, VideoPreviewScale, IM_ARRAYSIZE(VideoPreviewScale)))
+                {
+                    SetPreviewScale(config, preview_scale_index);
+                }
                 if (ImGui::Combo("Pixel Aspect Ratio", &pixel_aspect_index, pixel_aspect_items, IM_ARRAYSIZE(pixel_aspect_items)))
                 {
                     SetPixelAspectRatio(config.PixelAspectRatio, pixel_aspect_index);
@@ -1436,6 +1469,7 @@ static void NewTimeline()
         timeline->mHardwareCodec = g_media_editor_settings.HardwareCodec;
         timeline->mWidth = g_media_editor_settings.VideoWidth;
         timeline->mHeight = g_media_editor_settings.VideoHeight;
+        timeline->mPreviewScale = g_media_editor_settings.PreviewScale;
         timeline->mFrameRate = g_media_editor_settings.VideoFrameRate;
         timeline->mMaxCachedVideoFrame = g_media_editor_settings.VideoFrameCacheSize > 0 ? g_media_editor_settings.VideoFrameCacheSize : MAX_VIDEO_CACHE_FRAMES;
         timeline->mAudioSampleRate = g_media_editor_settings.AudioSampleRate;
@@ -3128,19 +3162,19 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
             g_media_editor_settings.OutputColorTransferIndex = g_media_editor_settings.ColorTransferIndex;
         }
         ImGui::BeginDisabled(g_media_editor_settings.OutputVideoSettingAsTimeline);
-            if (ImGui::Combo("Resultion", &g_media_editor_settings.OutputVideoResolutionIndex, resolution_items, IM_ARRAYSIZE(resolution_items)))
+            if (ImGui::Combo("Resolution", &g_media_editor_settings.OutputVideoResolutionIndex, resolution_items, IM_ARRAYSIZE(resolution_items)))
             {
                 SetResolution(g_media_editor_settings.OutputVideoResolutionWidth, g_media_editor_settings.OutputVideoResolutionHeight, g_media_editor_settings.OutputVideoResolutionIndex);
             }
             ImGui::BeginDisabled(g_media_editor_settings.OutputVideoResolutionIndex != 0);
                 ImGui::PushItemWidth(60);
-                ImGui::InputText("##Output_Resultion_x", buf_res_x, 64, ImGuiInputTextFlags_CharsDecimal);
+                ImGui::InputText("##Output_Resolution_x", buf_res_x, 64, ImGuiInputTextFlags_CharsDecimal);
                 ImGui::SameLine();
                 ImGui::TextUnformatted("X");
                 ImGui::SameLine();
-                ImGui::InputText("##Output_Resultion_y", buf_res_y, 64, ImGuiInputTextFlags_CharsDecimal);
+                ImGui::InputText("##Output_Resolution_y", buf_res_y, 64, ImGuiInputTextFlags_CharsDecimal);
                 ImGui::PopItemWidth();
-            ImGui::EndDisabled(); // disable if resultion not custom
+            ImGui::EndDisabled(); // disable if resolution not custom
             if (g_media_editor_settings.OutputVideoResolutionIndex == 0)
             {
                 g_media_editor_settings.OutputVideoResolutionWidth = atoi(buf_res_x);
@@ -3352,7 +3386,9 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
         }
         else
         {
-            ImGui::Text("Output duration:%s", ImGuiHelper::MillisecToString(valid_duration, 2).c_str());
+            ImGui::TextUnformatted("Output duration:");
+            ImGui::SameLine();
+            ImGui::Text("%s", ImGuiHelper::MillisecToString(valid_duration, 2).c_str());
         }
 
         const ImVec2 btnPaddingSize { 30, 14 };
@@ -9372,6 +9408,7 @@ static void MediaEditor_SetupContext(ImGuiContext* ctx, bool in_splash)
         else if (sscanf(line, "HWCodec=%d", &val_int) == 1) { setting->HardwareCodec = val_int == 1; }
         else if (sscanf(line, "VideoWidth=%d", &val_int) == 1) { setting->VideoWidth = val_int; }
         else if (sscanf(line, "VideoHeight=%d", &val_int) == 1) { setting->VideoHeight = val_int; }
+        else if (sscanf(line, "PreviewScale=%f", &val_float) == 1) { setting->PreviewScale = val_float; }
         else if (sscanf(line, "VideoFrameRateNum=%d", &val_int) == 1) { setting->VideoFrameRate.num = val_int; }
         else if (sscanf(line, "VideoFrameRateDen=%d", &val_int) == 1) { setting->VideoFrameRate.den = val_int; }
         else if (sscanf(line, "PixelAspectRatioNum=%d", &val_int) == 1) { setting->PixelAspectRatio.num = val_int; }
@@ -9484,6 +9521,7 @@ static void MediaEditor_SetupContext(ImGuiContext* ctx, bool in_splash)
         out_buf->appendf("HWCodec=%d\n", g_media_editor_settings.HardwareCodec ? 1 : 0);
         out_buf->appendf("VideoWidth=%d\n", g_media_editor_settings.VideoWidth);
         out_buf->appendf("VideoHeight=%d\n", g_media_editor_settings.VideoHeight);
+        out_buf->appendf("PreviewScale=%f\n", g_media_editor_settings.PreviewScale);
         out_buf->appendf("VideoFrameRateNum=%d\n", g_media_editor_settings.VideoFrameRate.num);
         out_buf->appendf("VideoFrameRateDen=%d\n", g_media_editor_settings.VideoFrameRate.den);
         out_buf->appendf("PixelAspectRatioNum=%d\n", g_media_editor_settings.PixelAspectRatio.num);
@@ -9823,6 +9861,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
                 timeline->mHardwareCodec = g_media_editor_settings.HardwareCodec;
                 timeline->mWidth = g_media_editor_settings.VideoWidth;
                 timeline->mHeight = g_media_editor_settings.VideoHeight;
+                timeline->mPreviewScale = g_media_editor_settings.PreviewScale;
                 timeline->mFrameRate = g_media_editor_settings.VideoFrameRate;
                 timeline->mMaxCachedVideoFrame = g_media_editor_settings.VideoFrameCacheSize > 0 ? g_media_editor_settings.VideoFrameCacheSize : MAX_VIDEO_CACHE_FRAMES;
                 timeline->mAudioSampleRate = g_media_editor_settings.AudioSampleRate;
