@@ -1823,7 +1823,7 @@ static bool ReloadMedia(std::string path, MediaItem* item)
                         if (vidTrack)
                         {
                             MediaCore::VideoClipHolder hVidClip;
-                            if (clip->mType == MEDIA_SUBTYPE_VIDEO_IMAGE)
+                            if (IS_IMAGE(clip->mType))
                                 hVidClip = vidTrack->AddNewClip(clip->mID, clip->mMediaParser, clip->mStart, clip->mEnd-clip->mStart, 0, 0);
                             else
                                 hVidClip = vidTrack->AddNewClip(clip->mID, clip->mMediaParser, clip->mStart, clip->mStartOffset, clip->mEndOffset, timeline->currentTime - clip->mStart);
@@ -1966,7 +1966,7 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
             float percent = pos_x / icon_size.x;
             ImClamp(percent, 0.0f, 1.0f);
             int texture_index = (*item)->mMediaThumbnail.size() * percent;
-            if ((*item)->mMediaType == MEDIA_SUBTYPE_VIDEO_IMAGE)
+            if (IS_IMAGE((*item)->mMediaType))
                 texture_index = 0;
             if (!(*item)->mMediaThumbnail.empty())
             {
@@ -2048,12 +2048,12 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
             std::string type_string = "? ";
             if (IS_VIDEO((*item)->mMediaType))
             {
-                if ((*item)->mMediaType == MEDIA_SUBTYPE_VIDEO_IMAGE) type_string = std::string(ICON_FA_FILE_IMAGE) + " ";
+                if (IS_IMAGE((*item)->mMediaType)) type_string = std::string(ICON_FA_FILE_IMAGE) + " ";
                 else type_string = std::string(ICON_FA_FILE_VIDEO) + " ";
             }
             else if (IS_AUDIO((*item)->mMediaType))
             {
-                if ((*item)->mMediaType == MEDIA_SUBTYPE_AUDIO_MIDI) type_string = std::string(ICON_FA_FILE_WAVEFORM) + " ";
+                if (IS_MIDI((*item)->mMediaType)) type_string = std::string(ICON_FA_FILE_WAVEFORM) + " ";
                 else type_string = std::string(ICON_FA_FILE_AUDIO) + " ";
             }
             if (!IS_IMAGE((*item)->mMediaType))
@@ -2116,7 +2116,7 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
         {
             ImGui::SetCursorScreenPos(icon_pos + ImVec2(4, 4));
             std::string type_string;
-            if ((*item)->mMediaType == MEDIA_SUBTYPE_TEXT_SUBTITLE) type_string = std::string(ICON_FA_FILE_CODE);
+            if (IS_SUBTITLE((*item)->mMediaType)) type_string = std::string(ICON_FA_FILE_CODE);
             else type_string = std::string(ICON_FA_FILE_LINES);
             ImGui::SetWindowFontScale(0.7);
             ImGui::TextUnformatted(type_string.c_str());
@@ -2145,17 +2145,17 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
         std::string type_string = "? ";
         if (IS_VIDEO((*item)->mMediaType))
         {
-            if ((*item)->mMediaType == MEDIA_SUBTYPE_VIDEO_IMAGE) type_string = std::string(ICON_FA_FILE_IMAGE);
+            if (IS_IMAGE((*item)->mMediaType)) type_string = std::string(ICON_FA_FILE_IMAGE);
             else type_string = std::string(ICON_FA_FILE_VIDEO);
         }
         else if (IS_AUDIO((*item)->mMediaType))
         {
-            if ((*item)->mMediaType == MEDIA_SUBTYPE_AUDIO_MIDI) type_string = std::string(ICON_FA_FILE_WAVEFORM);
+            if (IS_MIDI((*item)->mMediaType)) type_string = std::string(ICON_FA_FILE_WAVEFORM);
             else type_string = std::string(ICON_FA_FILE_AUDIO);
         }
         else if (IS_TEXT((*item)->mMediaType))
         {
-            if ((*item)->mMediaType == MEDIA_SUBTYPE_TEXT_SUBTITLE) type_string = std::string(ICON_FA_FILE_CODE);
+            if (IS_SUBTITLE((*item)->mMediaType)) type_string = std::string(ICON_FA_FILE_CODE);
             else type_string = std::string(ICON_FA_FILE_LINES);
         }
         ImGui::SetWindowFontScale(0.7);
@@ -2179,7 +2179,7 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
         if (_overButton && io.MouseClicked[0])
         {
             std::string filter;
-            if ((*item)->mMediaType == MEDIA_SUBTYPE_VIDEO_IMAGE) filter = image_filter;
+            if (IS_IMAGE((*item)->mMediaType)) filter = image_filter;
             else if (IS_VIDEO((*item)->mMediaType)) filter = video_filter;
             else if (IS_AUDIO((*item)->mMediaType)) filter = audio_filter;
             else if (IS_TEXT((*item)->mMediaType)) filter = text_filter;
@@ -7746,7 +7746,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
     MediaCore::SubtitleImage current_image;
     TextClip * editing_clip = dynamic_cast<TextClip*>(timeline->FindEditingClip());
     MediaTrack * editing_track = nullptr;
-    if (editing_clip && editing_clip->mType != MEDIA_TEXT)
+    if (editing_clip && !IS_TEXT(editing_clip->mType))
     {
         editing_clip = nullptr;
     }
