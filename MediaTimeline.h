@@ -1066,6 +1066,8 @@ struct TimeLine
 
     TimeLineCallbackFunctions  m_CallBacks;
 
+    int32_t GetPreviewWidth() { return mWidth * mPreviewScale; }
+    int32_t GetPreviewHeight() { return mHeight * mPreviewScale; }
     int64_t GetStart() const { return mStart; }
     int64_t GetEnd() const { return mEnd; }
     void SetStart(int64_t pos) { mStart = pos; }

@@ -1582,7 +1582,7 @@ void AudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
         return;
 
     ImVec2 draw_size = rightBottom - leftTop;
-    // TODO::Dicky opt 
+    // TODO::Dicky opt more for audio waveform draw
     if (mWaveform->pcm.size() > 0)
     {
         std::string id_string = "##Waveform@" + std::to_string(mID);
@@ -4739,7 +4739,7 @@ int TimeLine::NewTrack(const std::string& name, uint32_t type, bool expand, int6
         while ((*searchIter)->mType != type && searchIter != m_Tracks.begin())
             searchIter--;
         if ((*searchIter)->mType == type)
-            afterId == (*searchIter)->mID;
+            afterId = (*searchIter)->mID;
     }
 
     Update();
@@ -6621,7 +6621,7 @@ void TimeLine::ConfigureDataLayer()
     if (mMtvReader)
         ReleaseMultiTrackVideoReader(&mMtvReader);
     mMtvReader = CreateMultiTrackVideoReader();
-    mMtvReader->Configure(mWidth, mHeight, mFrameRate);
+    mMtvReader->Configure(GetPreviewWidth(), GetPreviewHeight(), mFrameRate);
     mMtvReader->Start();
     if (mMtaReader)
         ReleaseMultiTrackAudioReader(&mMtaReader);
@@ -6993,6 +6993,29 @@ bool TimeLine::ConfigEncoder(const std::string& outputPath, VideoEncoderParams& 
         mEncMtvReader = nullptr;
     }
     mEncMtvReader = mMtvReader->CloneAndConfigure(vidEncParams.width, vidEncParams.height, vidEncParams.frameRate);
+    float out_scale_x = vidEncParams.width / mWidth;
+    float out_scale_y = vidEncParams.height / mHeight;
+    // TODO::Dicky need update some setting because of timeline video size/ video preview scale and encode size difference
+    auto vidTrackIter = mEncMtvReader->TrackListBegin();
+    while (vidTrackIter != mEncMtvReader->TrackListEnd())
+    {
+        auto& vidTrack = *vidTrackIter++;
+        auto vidClipIter = vidTrack->ClipListBegin();
+        while (vidClipIter != vidTrack->ClipListEnd())
+        {
+            auto& vidClip = *vidClipIter++;
+            auto attribute = vidClip->GetTransformFilter();
+            if (attribute)
+            {
+                auto offset_h = attribute->GetPositionOffsetH();
+                offset_h = offset_h / mPreviewScale * out_scale_x;
+                attribute->SetPositionOffsetH(offset_h);
+                auto offset_v = attribute->GetPositionOffsetV();
+                offset_v = offset_v / mPreviewScale * out_scale_y;
+                attribute->SetPositionOffsetV(offset_v);
+            }
+        }
+    }
     // Audio
     std::string audEncSmpFormat;
     if (!mEncoder->ConfigureAudioStream(
@@ -9499,11 +9522,11 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
 
             if (HeaderAreaRect.Contains(menuMousePos))
             {
-                // TODO::Add Header items
+                // TODO::Dicky Clip timeline Add Header menu items?
             }
             if (trackAreaRect.Contains(menuMousePos))
             {
-                // TODO::Add Clip items
+                // TODO::Dicky Clip timeline Add Clip menu items?
             }
             if (curveRect.Contains(menuMousePos) && key_point)
             {

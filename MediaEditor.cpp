@@ -3687,7 +3687,8 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImR
     float pos_x = 0, pos_y = 0;
     float offset_x = 0, offset_y = 0;
     float tf_x = 0, tf_y = 0;
-    static float texture_zoom = 2.0f;
+    ImVec2 scale_range = ImVec2(2.0 / timeline->mPreviewScale, 8.0 / timeline->mPreviewScale);
+    static float texture_zoom = scale_range.x;
     ShowVideoWindow(draw_list, timeline->mMainPreviewTexture, PreviewPos, PreviewSize, offset_x, offset_y, tf_x, tf_y);
     if (ImGui::IsItemHovered() && timeline->bPreviewZoom && timeline->mMainPreviewTexture)
     {
@@ -3717,12 +3718,12 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImR
         if (io.MouseWheel < -FLT_EPSILON)
         {
             texture_zoom *= 0.9;
-            if (texture_zoom < 2.0) texture_zoom = 2.0;
+            if (texture_zoom < scale_range.x) texture_zoom = scale_range.x;
         }
         else if (io.MouseWheel > FLT_EPSILON)
         {
             texture_zoom *= 1.1;
-            if (texture_zoom > 8.0) texture_zoom = 8.0;
+            if (texture_zoom > scale_range.y) texture_zoom = scale_range.y;
         }
     }
     video_rect.Min = ImVec2(offset_x, offset_y);
@@ -3880,18 +3881,19 @@ static void ShowVideoFilterPreviewWindow(ImDrawList *draw_list, int64_t start, i
     ImVec2 VideoZoomPos = window_pos + ImVec2(0, window_size.y - PanelBarSize.y + 4);
     if (timeline->mVidFilterClip)
     {
-        static float texture_zoom = 1.0f;
+        ImVec2 scale_range = ImVec2(0.5 / timeline->mPreviewScale, 4.0 / timeline->mPreviewScale);
+        static float texture_zoom = scale_range.x;
         if (InputVideoRect.Contains(io.MousePos) || OutVideoRect.Contains(io.MousePos))
         {
             if (io.MouseWheel < -FLT_EPSILON)
             {
                 texture_zoom *= 0.9;
-                if (texture_zoom < 0.5) texture_zoom = 0.5;
+                if (texture_zoom < scale_range.x) texture_zoom = scale_range.x;
             }
             else if (io.MouseWheel > FLT_EPSILON)
             {
                 texture_zoom *= 1.1;
-                if (texture_zoom > 4.0) texture_zoom = 4.0;
+                if (texture_zoom > scale_range.y) texture_zoom = scale_range.y;
             }
         }
         float region_sz = 360.0f / texture_zoom;
@@ -4375,10 +4377,11 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
                 int curve_position_h_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("PositionOffsetH") : -1;
                 bool has_curve_position_h = attribute_keypoint ? curve_position_h_index != -1 : false;
                 int position_h = has_curve_position_h ? attribute_keypoint->GetValue(curve_position_h_index, timeline->currentTime) : attribute->GetPositionOffsetH();
+                position_h /= timeline->mPreviewScale;
                 ImGui::BeginDisabled(has_curve_position_h);
                 if (ImGui::SliderInt("Position H", &position_h, -timeline->mWidth, timeline->mWidth))
                 {
-                    attribute->SetPositionOffsetH(position_h);
+                    attribute->SetPositionOffsetH(position_h * timeline->mPreviewScale);
                     timeline->UpdatePreview();
                 }
                 ImGui::SameLine(sub_window_size.x - 66); if (ImGui::Button(ICON_RETURN_DEFAULT "##position_h_default")) { attribute->SetPositionOffsetH(0); timeline->UpdatePreview(); }
@@ -4395,10 +4398,11 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
                 int curve_position_v_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("PositionOffsetV") : -1;
                 bool has_curve_position_v = attribute_keypoint ? curve_position_v_index != -1 : false;
                 int position_v = has_curve_position_v ? attribute_keypoint->GetValue(curve_position_v_index, timeline->currentTime) : attribute->GetPositionOffsetV();
+                position_v /= timeline->mPreviewScale;
                 ImGui::BeginDisabled(has_curve_position_v);
                 if (ImGui::SliderInt("Position V", &position_v, -timeline->mHeight, timeline->mHeight))
                 {
-                    attribute->SetPositionOffsetV(position_v);
+                    attribute->SetPositionOffsetV(position_v * timeline->mPreviewScale);
                     timeline->UpdatePreview();
                 }
                 ImGui::SameLine(sub_window_size.x - 66); if (ImGui::Button(ICON_RETURN_DEFAULT "##position_v_default")) { attribute->SetPositionOffsetV(0); timeline->UpdatePreview(); }
@@ -9684,7 +9688,7 @@ static void MediaEditor_Initialize(void** handle)
     av_log_set_level(AV_LOG_FATAL);
 #else
     Logger::GetDefaultLogger()->SetShowLevels(Logger::DEBUG);
-    // GetMultiTrackVideoReaderLogger()->SetShowLevels(Logger::DEBUG);
+    // GetMultiTrackVideoReaderLogger()->SetShowLevels(Logger::VERBOSE);
     // GetMediaReaderLogger()->SetShowLevels(Logger::DEBUG);
     // GetSnapshotGeneratorLogger()->SetShowLevels(Logger::DEBUG);
     // GetMediaEncoderLogger()->SetShowLevels(Logger::DEBUG);
