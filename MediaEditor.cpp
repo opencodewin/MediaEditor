@@ -2056,7 +2056,8 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
                 if ((*item)->mMediaType == MEDIA_SUBTYPE_AUDIO_MIDI) type_string = std::string(ICON_FA_FILE_WAVEFORM) + " ";
                 else type_string = std::string(ICON_FA_FILE_AUDIO) + " ";
             }
-            type_string += ImGuiHelper::MillisecToString(media_length * 1000, 2);
+            if (!IS_IMAGE((*item)->mMediaType))
+                type_string += ImGuiHelper::MillisecToString(media_length * 1000, 2);
             ImGui::SetWindowFontScale(0.7);
             ImGui::TextUnformatted(type_string.c_str());
             ImGui::SetWindowFontScale(1.0);
