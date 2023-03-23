@@ -5631,6 +5631,11 @@ int TimeLine::Load(const imgui_json::value& value)
         auto& val = value["VideoHeight"];
         if (val.is_number()) mHeight = val.get<imgui_json::number>();
     }
+    if (value.contains("PreviewScale"))
+    {
+        auto& val = value["PreviewScale"];
+        if (val.is_number()) mPreviewScale = val.get<imgui_json::number>();
+    }
     if (value.contains("FrameRateNum"))
     {
         auto& val = value["FrameRateNum"];
@@ -6218,6 +6223,7 @@ void TimeLine::Save(imgui_json::value& value)
     value["End"] = imgui_json::number(mEnd);
     value["VideoWidth"] = imgui_json::number(mWidth);
     value["VideoHeight"] = imgui_json::number(mHeight);
+    value["PreviewScale"] = imgui_json::number(mPreviewScale);
     value["FrameRateNum"] = imgui_json::number(mFrameRate.num);
     value["FrameRateDen"] = imgui_json::number(mFrameRate.den);
     value["AudioChannels"] = imgui_json::number(mAudioChannels);

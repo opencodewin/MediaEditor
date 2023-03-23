@@ -904,6 +904,7 @@ struct TimeLine
     bool mHardwareCodec         {true};     // timeline Video/Audio decode/encode try to enable HW if available;
     int mWidth  {1920};                     // timeline Media Width, project saved, configured
     int mHeight {1080};                     // timeline Media Height, project saved, configured
+    float mPreviewScale {0.5};              // timeline preview video size scale, usually < 1.0, default is 0.5
     MediaInfo::Ratio mFrameRate {25, 1};    // timeline Media Frame rate, project saved, configured
     int mMaxCachedVideoFrame {MAX_VIDEO_CACHE_FRAMES};  // timeline Media Video Frame cache size, project saved, configured
     float mSnapShotWidth        {60.0};
