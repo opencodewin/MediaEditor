@@ -4991,9 +4991,10 @@ void TimeLine::Seek(int64_t msPos)
     {
         // begin to seek
         bSeeking = true;
-        if (mIsPreviewPlaying && mAudioRender)
+        if (mAudioRender)
         {
-            mAudioRender->Pause();
+            if (mIsPreviewPlaying)
+                mAudioRender->Pause();
             mAudioRender->Flush();
         }
     }
@@ -5010,7 +5011,7 @@ void TimeLine::StopSeek()
     if (bSeeking)
     {
         bSeeking = false;
-        if (mIsPreviewPlaying && mAudioRender)
+        if (mAudioRender && mIsPreviewPlaying)
             mAudioRender->Resume();
     }
 }
