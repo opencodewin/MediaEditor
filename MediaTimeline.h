@@ -1077,8 +1077,8 @@ struct TimeLine
     int GetTrackCount() const { return (int)m_Tracks.size(); }
     int GetTrackCount(uint32_t type);
     int GetEmptyTrackCount();
-    int NewTrack(const std::string& name, uint32_t type, bool expand, int64_t id = -1);
-    int64_t DeleteTrack(int index);
+    int NewTrack(const std::string& name, uint32_t type, bool expand, int64_t id = -1, int64_t afterUiTrkId = -1);
+    int64_t DeleteTrack(int index, int64_t* pAfterId = nullptr, int64_t* pAfterUiTrkId = nullptr);
     void SelectTrack(int index);
     void MovingTrack(int& index, int& dst_index);
 

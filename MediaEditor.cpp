@@ -9646,7 +9646,7 @@ static void MediaEditor_Initialize(void** handle)
     av_log_set_level(AV_LOG_FATAL);
 #else
     Logger::GetDefaultLogger()->SetShowLevels(Logger::DEBUG);
-    // GetMultiTrackVideoReaderLogger()->SetShowLevels(Logger::VERBOSE);
+    // GetMultiTrackVideoReaderLogger()->SetShowLevels(Logger::DEBUG);
     // GetMediaReaderLogger()->SetShowLevels(Logger::DEBUG);
     // GetSnapshotGeneratorLogger()->SetShowLevels(Logger::DEBUG);
     // GetMediaEncoderLogger()->SetShowLevels(Logger::DEBUG);

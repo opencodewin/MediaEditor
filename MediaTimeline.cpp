@@ -4646,13 +4646,38 @@ void TimeLine::SelectTrack(int index)
     }
 }
 
-int64_t TimeLine::DeleteTrack(int index)
+int64_t TimeLine::DeleteTrack(int index, int64_t* pAfterId, int64_t* pAfterUiTrkId)
 {
     int64_t trackId = -1;
     if (index >= 0 && index < m_Tracks.size())
     {
         auto track = m_Tracks[index];
         trackId = track->mID;
+        // find the same media type track which the deleted track is after, return its ID for UNDO operation.
+        if (pAfterId)
+        {
+            if (index == 0)
+            {
+                *pAfterId = -2;
+            }
+            else
+            {
+                auto iter = m_Tracks.begin()+index-1;
+                while ((*iter)->mType != track->mType && iter != m_Tracks.begin())
+                    iter--;
+                if ((*iter)->mType == track->mType)
+                    *pAfterId = (*iter)->mID;
+                else
+                    *pAfterId = -1;
+            }
+        }
+        if (pAfterUiTrkId)
+        {
+            if (index == 0)
+                *pAfterUiTrkId = -2;
+            else
+                *pAfterUiTrkId = m_Tracks[index-1]->mID;
+        }
         m_Tracks.erase(m_Tracks.begin() + index);
         delete track;
         if (m_Tracks.size() == 0)
@@ -4666,7 +4691,7 @@ int64_t TimeLine::DeleteTrack(int index)
     return trackId;
 }
 
-int TimeLine::NewTrack(const std::string& name, uint32_t type, bool expand, int64_t id)
+int TimeLine::NewTrack(const std::string& name, uint32_t type, bool expand, int64_t id, int64_t afterUiTrkId)
 {
     auto new_track = new MediaTrack(name, type, this);
     if (id != -1)
@@ -4674,13 +4699,59 @@ int TimeLine::NewTrack(const std::string& name, uint32_t type, bool expand, int6
     new_track->mPixPerMs = msPixelWidthTarget;
     new_track->mViewWndDur = visibleTime;
     new_track->mExpanded = expand;
-    m_Tracks.push_back(new_track);
+
+    // find 'after_track_id' and 'after_ui_track_id' for UI action
+    auto searchIter = m_Tracks.begin();
+    if (afterUiTrkId == -1) // add the new track at the tail
+    {
+        if (m_Tracks.empty())
+            afterUiTrkId = -1;
+        else
+            afterUiTrkId = m_Tracks.back()->mID;
+        m_Tracks.push_back(new_track);
+        searchIter = m_Tracks.end()-1;
+    }
+    else  // insert the new track after the specifed track with id = afterUiTrkId
+    {
+        auto iter = std::find_if(m_Tracks.begin(), m_Tracks.end(), [afterUiTrkId] (auto& t) {
+            return t->mID == afterUiTrkId;
+        });
+        if (iter != m_Tracks.end())
+        {
+            iter++;
+            searchIter = m_Tracks.insert(iter, new_track);
+        }
+        else
+        {
+            Logger::Log(Logger::WARN) << "CANNOT find the specifed track with id eqaul to 'afterUiTrkId'(" << afterUiTrkId << ")!" << std::endl;
+            if (m_Tracks.empty())
+                afterUiTrkId = -1;
+            else
+                afterUiTrkId = m_Tracks.back()->mID;
+            m_Tracks.push_back(new_track);
+            searchIter = m_Tracks.end()-1;
+        }
+    }
+    int64_t afterId = -1;
+    if (searchIter != m_Tracks.begin())
+    {
+        searchIter--;
+        while ((*searchIter)->mType != type && searchIter != m_Tracks.begin())
+            searchIter--;
+        if ((*searchIter)->mType == type)
+            afterId == (*searchIter)->mID;
+    }
+
     Update();
 
     imgui_json::value action;
     action["action"] = "ADD_TRACK";
     action["media_type"] = imgui_json::number(type);
     action["track_id"] = imgui_json::number(new_track->mID);
+    // 'after_track_id' is the argument required by DataLayer for API MultiTrackVideoReader::AddTrack()
+    action["after_track_id"] = imgui_json::number(afterId);
+    // 'after_ui_track_id' is saved for UNDO/REDO operation to retore the deleted track to the original position
+    action["after_ui_track_id"] = imgui_json::number(afterUiTrkId);
     mUiActions.push_back(std::move(action));
     return m_Tracks.size() - 1;
 }
@@ -4697,10 +4768,11 @@ void TimeLine::MovingTrack(int& index, int& dst_index)
     // sync to datalayer
     if (IS_VIDEO((*iter)->mType) && IS_VIDEO((*iter_dst)->mType))
     {
-        if (dst_index > index)
+        if (dst_index < index)
             mMtvReader->ChangeTrackViewOrder((*iter_dst)->mID, (*iter)->mID);
         else
             mMtvReader->ChangeTrackViewOrder((*iter)->mID, (*iter_dst)->mID);
+        Logger::Log(Logger::VERBOSE) << *mMtvReader << std::endl;
         UpdatePreview();
     }
     // do we need change other type of media?
@@ -6372,7 +6444,8 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
     else if (actionName == "ADD_TRACK")
     {
         int64_t trackId = action["track_id"].get<imgui_json::number>();
-        mMtvReader->AddTrack(trackId);
+        int64_t afterId = action["after_track_id"].get<imgui_json::number>();
+        mMtvReader->AddTrack(trackId, afterId);
     }
     else if (actionName == "REMOVE_TRACK")
     {
@@ -6523,6 +6596,7 @@ void TimeLine::PerformImageAction(imgui_json::value& action)
     else if (actionName == "ADD_TRACK")
     {
         int64_t trackId = action["track_id"].get<imgui_json::number>();
+        int64_t afterId = action["after_track_id"].get<imgui_json::number>();
         mMtvReader->AddTrack(trackId);
     }
     else if (actionName == "REMOVE_TRACK")
@@ -7121,7 +7195,6 @@ bool TimeLine::UndoOneRecord()
         std::string& actionName = action["action"].get<imgui_json::string>();
         if (actionName == "ADD_TRACK")
         {
-            // undo 'ADD_TRACK'
             int64_t trackId = action["track_id"].get<imgui_json::number>();
             int i = 0;
             for (; i < m_Tracks.size(); i++)
@@ -7137,9 +7210,15 @@ bool TimeLine::UndoOneRecord()
                 mUiActions.push_back(std::move(undoAction));
             }
         }
+        else if (actionName == "REMOVE_TRACK")
+        {
+            int64_t trackId = action["track_id"].get<imgui_json::number>();
+            int64_t afterUiTrkId = action["after_ui_track_id"].get<imgui_json::number>();
+            uint32_t type = action["media_type"].get<imgui_json::number>();
+            NewTrack("", type, true, trackId, afterUiTrkId);
+        }
         else if (actionName == "ADD_CLIP")
         {
-            // undo 'ADD_CLIP'
             int64_t clipId = action["clip_id"].get<imgui_json::number>();
             auto clip = FindClipByID(clipId);
             imgui_json::value undoAction = action;
@@ -7156,7 +7235,6 @@ bool TimeLine::UndoOneRecord()
         }
         else if (actionName == "MOVE_CLIP")
         {
-            // undo 'MOVE_CLIP'
             int64_t clipId = action["clip_id"].get<imgui_json::number>();
             int64_t orgStart = action["org_start"].get<imgui_json::number>();
             int64_t fromTrackId = action["from_track_id"].get<imgui_json::number>();
@@ -7197,7 +7275,6 @@ bool TimeLine::UndoOneRecord()
         }
         else if (actionName == "CROP_CLIP")
         {
-            // undo 'CROP_CLIP'
             auto clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
             auto clipType = clip->mType;
             int64_t startDiff{0}, endDiff{0};
@@ -7241,7 +7318,6 @@ bool TimeLine::UndoOneRecord()
         }
         else if (actionName == "REMOVE_CLIP")
         {
-            // undo 'REMOVE_CLIP'
             AddNewClip(action["clip_json"], action["from_track_id"].get<imgui_json::number>());
             Update();
             imgui_json::value undoAction;
@@ -7266,7 +7342,6 @@ bool TimeLine::UndoOneRecord()
         }
         else if (actionName == "REMOVE_GROUP")
         {
-            // undo 'REMOVE_GROUP'
             int64_t groupId = action["group_id"].get<imgui_json::number>();
             groupColor = (ImU32)action["color"].get<imgui_json::number>();
             auto iter = std::find_if(m_Groups.begin(), m_Groups.end(), [groupId] (auto& group) {
@@ -7298,8 +7373,25 @@ bool TimeLine::RedoOneRecord()
         std::string& actionName = action["action"].get<imgui_json::string>();
         if (actionName == "ADD_TRACK")
         {
+            int64_t trackId = action["track_id"].get<imgui_json::number>();
+            int64_t afterUiTrkId = action["after_ui_track_id"].get<imgui_json::number>();
             uint32_t type = action["media_type"].get<imgui_json::number>();
-            int newTrackIndex = NewTrack("", type, true, (int64_t)action["track_id"].get<imgui_json::number>());
+            NewTrack("", type, true, trackId, afterUiTrkId);
+        }
+        else if (actionName == "REMOVE_TRACK")
+        {
+            int64_t trackId = action["track_id"].get<imgui_json::number>();
+            int i = 0;
+            for (; i < m_Tracks.size(); i++)
+            {
+                if (m_Tracks[i]->mID == trackId)
+                    break;
+            }
+            if (i < m_Tracks.size())
+            {
+                DeleteTrack(i);
+                mUiActions.push_back(action);
+            }
         }
         else if (actionName == "ADD_CLIP")
         {
@@ -8994,13 +9086,16 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         if (track && !track->mLocked)
         {
             uint32_t trackMediaType = track->mType;
-            int64_t delTrackId = timeline->DeleteTrack(delTrackEntry);
+            int64_t afterId = 0, afterUiTrkId = 0;
+            int64_t delTrackId = timeline->DeleteTrack(delTrackEntry, &afterId, &afterUiTrkId);
             if (delTrackId != -1)
             {
                 imgui_json::value action;
                 action["action"] = "REMOVE_TRACK";
                 action["media_type"] = imgui_json::number(trackMediaType);
                 action["track_id"] = imgui_json::number(delTrackId);
+                action["after_track_id"] = imgui_json::number(afterId);
+                action["after_ui_track_id"] = imgui_json::number(afterUiTrkId);
                 timeline->mUiActions.push_back(std::move(action));
                 ret = true;
             }
@@ -9008,22 +9103,37 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
     }
     if (removeEmptyTrack)
     {
-        for (auto iter = timeline->m_Tracks.begin(); iter != timeline->m_Tracks.end();)
+        int index = 0, trackNum = timeline->m_Tracks.size();
+        while (index < trackNum)
         {
-            if ((*iter)->m_Clips.size() <= 0)
+            auto pTrack = timeline->m_Tracks[index];
+            if (!pTrack || pTrack->mLocked)
             {
-                auto track = *iter;
-                imgui_json::value action;
-                action["action"] = "REMOVE_TRACK";
-                action["media_type"] = imgui_json::number(track->mType);
-                action["track_id"] = imgui_json::number(track->mID);
-                timeline->mUiActions.push_back(std::move(action));
-                iter = timeline->m_Tracks.erase(iter);
-                delete track;
-                ret = true;
+                index++;
+                continue;
+            }
+            if (pTrack->m_Clips.size() <= 0)
+            {
+                uint32_t trackMediaType = pTrack->mType;
+                int64_t afterId = 0, afterUiTrkId = 0;
+                int64_t delTrackId = timeline->DeleteTrack(index, &afterId, &afterUiTrkId);
+                if (delTrackId != -1)
+                {
+                    imgui_json::value action;
+                    action["action"] = "REMOVE_TRACK";
+                    action["media_type"] = imgui_json::number(trackMediaType);
+                    action["track_id"] = imgui_json::number(delTrackId);
+                    action["after_track_id"] = imgui_json::number(afterId);
+                    action["after_ui_track_id"] = imgui_json::number(afterUiTrkId);
+                    timeline->mUiActions.push_back(std::move(action));
+                    ret = true;
+                    trackNum = timeline->m_Tracks.size();
+                }
             }
             else
-                ++iter;
+            {
+                index++;
+            }
         }
     }
 
