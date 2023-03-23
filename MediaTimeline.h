@@ -419,7 +419,7 @@ struct AudioClip : Clip
 {
     int mAudioChannels  {2};                // clip audio channels, project saved
     int mAudioSampleRate {44100};           // clip audio sample rate, project saved
-    AudioRender::PcmFormat mAudioFormat {AudioRender::PcmFormat::FLOAT32}; // clip audio type, project saved
+    MediaCore::AudioRender::PcmFormat mAudioFormat {MediaCore::AudioRender::PcmFormat::FLOAT32}; // clip audio type, project saved
     MediaOverview::WaveformHolder mWaveform {nullptr};  // clip audio snapshot
     MediaOverview * mOverview {nullptr};
 
@@ -634,7 +634,7 @@ struct EditingAudioClip : BaseEditingClip
 {
     int mAudioChannels  {2}; 
     int mAudioSampleRate {44100};
-    AudioRender::PcmFormat mAudioFormat {AudioRender::PcmFormat::FLOAT32};
+    MediaCore::AudioRender::PcmFormat mAudioFormat {MediaCore::AudioRender::PcmFormat::FLOAT32};
     MediaOverview::WaveformHolder mWaveform {nullptr};
 
     BluePrintAudioFilter * mFilter {nullptr};
@@ -810,7 +810,7 @@ struct MediaTrack
     
     int mAudioChannels {2};                     // track audio channels, project saved, configured
     int mAudioSampleRate {44100};               // track audio sample rate, project saved, configured
-    AudioRender::PcmFormat mAudioFormat {AudioRender::PcmFormat::FLOAT32}; // timeline audio format, project saved, configured
+    MediaCore::AudioRender::PcmFormat mAudioFormat {MediaCore::AudioRender::PcmFormat::FLOAT32}; // timeline audio format, project saved, configured
     AudioAttribute mAudioTrackAttribute;        // audio track attribute, project saved
 
     int64_t mViewWndDur     {0};
@@ -909,7 +909,7 @@ struct TimeLine
 
     int mAudioChannels {2};                 // timeline audio channels, project saved, configured
     int mAudioSampleRate {44100};           // timeline audio sample rate, project saved, configured
-    AudioRender::PcmFormat mAudioFormat {AudioRender::PcmFormat::FLOAT32}; // timeline audio format, project saved, configured
+    MediaCore::AudioRender::PcmFormat mAudioFormat {MediaCore::AudioRender::PcmFormat::FLOAT32}; // timeline audio format, project saved, configured
     AudioAttribute mAudioAttribute;         // timeline audio attribute, need save
 
     BluePrint::BluePrintUI m_BP_UI;         // for node catalog
@@ -1019,7 +1019,7 @@ struct TimeLine
     void PerformAudioAction(imgui_json::value& action);
     void PerformImageAction(imgui_json::value& action);
 
-    class SimplePcmStream : public AudioRender::ByteStream
+    class SimplePcmStream : public MediaCore::AudioRender::ByteStream
     {
     public:
         SimplePcmStream(TimeLine* owner) : m_owner(owner) {}
@@ -1095,6 +1095,7 @@ struct TimeLine
 
     void Play(bool play, bool forward = true);
     void Seek(int64_t msPos);
+    void StopSeek();
     void Step(bool forward = true);
     void Loop(bool loop);
     void ToStart();
@@ -1103,7 +1104,7 @@ struct TimeLine
     void UpdatePreview();
     int64_t ValidDuration();
 
-    AudioRender* mAudioRender {nullptr};                // audio render(SDL)
+    MediaCore::AudioRender* mAudioRender {nullptr};                // audio render(SDL)
 
     MediaItem* FindMediaItemByName(std::string name);   // Find media from bank by name
     MediaItem* FindMediaItemByID(int64_t id);           // Find media from bank by ID

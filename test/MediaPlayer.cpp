@@ -27,6 +27,7 @@ extern "C"
 }
 
 using namespace std;
+using namespace MediaCore;
 
 static AVPixelFormat get_hw_format(AVCodecContext *ctx, const AVPixelFormat *pix_fmts);
 

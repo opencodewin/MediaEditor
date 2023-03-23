@@ -7,7 +7,7 @@
 
 struct MediaPlayer
 {
-    virtual bool SetAudioRender(AudioRender* audrnd) = 0;
+    virtual bool SetAudioRender(MediaCore::AudioRender* audrnd) = 0;
     virtual bool Open(const std::string& url) = 0;
     virtual bool Close() = 0;
     virtual bool Play() = 0;

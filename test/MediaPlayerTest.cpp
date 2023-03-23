@@ -18,7 +18,7 @@
 static std::string ini_file = "Media_Player.ini";
 static std::string bookmark_path = "bookmark.ini";
 static ImTextureID g_texture = 0;
-AudioRender* g_audrnd = nullptr;
+MediaCore::AudioRender* g_audrnd = nullptr;
 MediaPlayer* g_player = nullptr;
 #if IMGUI_VULKAN_SHADER
 ImGui::ColorConvert_vulkan * m_yuv2rgb {nullptr};
@@ -45,7 +45,7 @@ static void MediaPlayer_Initialize(void** handle)
 		docFile.close();
 	}
 #endif
-    g_audrnd = CreateAudioRender();
+    g_audrnd = MediaCore::CreateAudioRender();
 #if !IMGUI_APPLICATION_PLATFORM_SDL2
     if (!g_audrnd->Initialize())
         std::cerr << g_audrnd->GetError() << std::endl;
@@ -73,7 +73,7 @@ static void MediaPlayer_Finalize(void** handle)
     if (g_texture) { ImGui::ImDestroyTexture(g_texture); g_texture = nullptr; }
 
     ReleaseMediaPlayer(&g_player);
-    ReleaseAudioRender(&g_audrnd);
+    MediaCore::ReleaseAudioRender(&g_audrnd);
 #ifdef USE_BOOKMARK
 	// save bookmarks
 	std::ofstream configFileWriter(bookmark_path, std::ios::out);

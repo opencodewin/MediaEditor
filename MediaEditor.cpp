@@ -1437,7 +1437,7 @@ static void NewTimeline()
         timeline->mMaxCachedVideoFrame = g_media_editor_settings.VideoFrameCacheSize > 0 ? g_media_editor_settings.VideoFrameCacheSize : MAX_VIDEO_CACHE_FRAMES;
         timeline->mAudioSampleRate = g_media_editor_settings.AudioSampleRate;
         timeline->mAudioChannels = g_media_editor_settings.AudioChannels;
-        timeline->mAudioFormat = (AudioRender::PcmFormat)g_media_editor_settings.AudioFormat;
+        timeline->mAudioFormat = (MediaCore::AudioRender::PcmFormat)g_media_editor_settings.AudioFormat;
         timeline->mShowHelpTooltips = g_media_editor_settings.ShowHelpTooltips;
         timeline->mAudioAttribute.mAudioSpectrogramLight = g_media_editor_settings.AudioSpectrogramLight;
         timeline->mAudioAttribute.mAudioSpectrogramOffset = g_media_editor_settings.AudioSpectrogramOffset;
@@ -7970,7 +7970,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
                                                         &_changed
                                                         );
                 current_time += editing_clip->mStart;
-                if ((int64_t)current_time != timeline->currentTime) { timeline->bSeeking = true; timeline->Seek(current_time); }
+                if ((int64_t)current_time != timeline->currentTime) { timeline->Seek(current_time); }
                 if (_changed && editing_clip->mClipHolder) { editing_clip->mClipHolder->SetKeyPoints(editing_clip->mAttributeKeyPoints); timeline->UpdatePreview(); }
             }
             else if (StyleWindowIndex == 1 && editing_track)
@@ -7988,7 +7988,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
                                                         nullptr, // clippingRect
                                                         &_changed
                                                         );
-                if ((int64_t)current_time != timeline->currentTime) { timeline->bSeeking = true; timeline->Seek(current_time); }
+                if ((int64_t)current_time != timeline->currentTime) { timeline->Seek(current_time); }
                 if (_changed)
                 {
                     timeline->UpdatePreview();
@@ -9825,7 +9825,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
                 timeline->mMaxCachedVideoFrame = g_media_editor_settings.VideoFrameCacheSize > 0 ? g_media_editor_settings.VideoFrameCacheSize : MAX_VIDEO_CACHE_FRAMES;
                 timeline->mAudioSampleRate = g_media_editor_settings.AudioSampleRate;
                 timeline->mAudioChannels = g_media_editor_settings.AudioChannels;
-                timeline->mAudioFormat = (AudioRender::PcmFormat)g_media_editor_settings.AudioFormat;
+                timeline->mAudioFormat = (MediaCore::AudioRender::PcmFormat)g_media_editor_settings.AudioFormat;
                 timeline->mShowHelpTooltips = g_media_editor_settings.ShowHelpTooltips;
                 timeline->mFontName = g_media_editor_settings.FontName;
             }

@@ -1669,7 +1669,7 @@ Clip * AudioClip::Load(const imgui_json::value& value, void * handle)
             if (value.contains("Format"))
             {
                 auto& val = value["Format"];
-                if (val.is_number()) new_clip->mAudioFormat = (AudioRender::PcmFormat)val.get<imgui_json::number>();
+                if (val.is_number()) new_clip->mAudioFormat = (MediaCore::AudioRender::PcmFormat)val.get<imgui_json::number>();
             }
             return new_clip;
         }
@@ -2480,7 +2480,6 @@ void EditingVideoClip::Seek(int64_t pos)
     TimeLine * timeline = (TimeLine *)mHandle;
     if (!timeline)
         return;
-    timeline->bSeeking = true;
     timeline->Seek(pos);
 }
 
@@ -2711,7 +2710,6 @@ void EditingAudioClip::Seek(int64_t pos)
     TimeLine * timeline = (TimeLine *)mHandle;
     if (!timeline)
         return;
-    timeline->bSeeking = true;
     timeline->Seek(pos);
 }
 
@@ -3246,7 +3244,6 @@ void EditingVideoOverlap::Seek(int64_t pos)
     TimeLine* timeline = (TimeLine*)(mOvlp->mHandle);
     if (!timeline)
         return;
-    timeline->bSeeking = true;
     timeline->Seek(pos);
 }
 
@@ -3361,7 +3358,6 @@ void EditingAudioOverlap::Seek(int64_t pos)
     TimeLine* timeline = (TimeLine*)(mOvlp->mHandle);
     if (!timeline)
         return;
-    timeline->bSeeking = true;
     timeline->Seek(pos);
 }
 
@@ -4467,7 +4463,7 @@ TimeLine::TimeLine()
 {
     std::srand(std::time(0)); // init std::rand
 
-    mAudioRender = CreateAudioRender();
+    mAudioRender = MediaCore::CreateAudioRender();
     if (mAudioRender)
     {
         mAudioRender->OpenDevice(mAudioSampleRate, mAudioChannels, mAudioFormat, &mPcmStream);
@@ -4528,7 +4524,7 @@ TimeLine::~TimeLine()
 
     if (mAudioRender)
     {
-        ReleaseAudioRender(&mAudioRender);
+        MediaCore::ReleaseAudioRender(&mAudioRender);
         mAudioRender = nullptr;
     }
 
@@ -4990,15 +4986,30 @@ void TimeLine::Play(bool play, bool forward)
 
 void TimeLine::Seek(int64_t msPos)
 {
-    mPlayTriggerTp = PlayerClock::now();
-    mPreviewResumePos = msPos;
-    if (mAudioRender)
+    if (!bSeeking)
     {
-        if (mIsPreviewPlaying)
+        // begin to seek
+        bSeeking = true;
+        if (mIsPreviewPlaying && mAudioRender)
+        {
             mAudioRender->Pause();
-        mAudioRender->Flush();
+            mAudioRender->Flush();
+        }
+    }
+    mPlayTriggerTp = PlayerClock::now();
+    if (mAudioRender && msPos != mPreviewResumePos)
+    {
         mMtaReader->SeekTo(msPos);
-        if (mIsPreviewPlaying)
+    }
+    mPreviewResumePos = msPos;
+}
+
+void TimeLine::StopSeek()
+{
+    if (bSeeking)
+    {
+        bSeeking = false;
+        if (mIsPreviewPlaying && mAudioRender)
             mAudioRender->Resume();
     }
 }
@@ -5641,7 +5652,7 @@ int TimeLine::Load(const imgui_json::value& value)
     if (value.contains("AudioFormat"))
     {
         auto& val = value["AudioFormat"];
-        if (val.is_number()) mAudioFormat = (AudioRender::PcmFormat)val.get<imgui_json::number>();
+        if (val.is_number()) mAudioFormat = (MediaCore::AudioRender::PcmFormat)val.get<imgui_json::number>();
     }
     if (value.contains("msPixelWidth"))
     {
@@ -8571,7 +8582,6 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         if (movable && !MovingCurrentTime && markMovingEntry == -1 && !MovingHorizonScrollBar && clipMovingEntry == -1 && timeline->currentTime >= 0 && topRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left))
         {
             MovingCurrentTime = true;
-            timeline->bSeeking = true;
         }
         if (MovingCurrentTime && duration)
         {
@@ -8589,7 +8599,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         if (timeline->bSeeking && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
         {
             MovingCurrentTime = false;
-            timeline->bSeeking = false;
+            timeline->StopSeek();
         }
         ImGui::EndChildFrame();
 
