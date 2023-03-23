@@ -353,6 +353,7 @@ struct MediaEditorSettings
     // Waveform Scope tools
     bool WaveformMirror {true};
     bool WaveformSeparate {false};
+    bool WaveformShowY {false};
     float WaveformIntensity {2.0};
 #if IMGUI_VULKAN_SHADER
     // CIE Scope tools
@@ -805,7 +806,7 @@ static void CalculateVideoScope(ImGui::ImMat& mat)
 {
 #if IMGUI_VULKAN_SHADER
     if (m_histogram && (scope_flags & SCOPE_VIDEO_HISTOGRAM)) m_histogram->scope(mat, mat_histogram, 256, g_media_editor_settings.HistogramScale, g_media_editor_settings.HistogramLog);
-    if (m_waveform && (scope_flags & SCOPE_VIDEO_WAVEFORM)) m_waveform->scope(mat, mat_waveform, 256, g_media_editor_settings.WaveformIntensity, g_media_editor_settings.WaveformSeparate);
+    if (m_waveform && (scope_flags & SCOPE_VIDEO_WAVEFORM)) m_waveform->scope(mat, mat_waveform, 256, g_media_editor_settings.WaveformIntensity, g_media_editor_settings.WaveformSeparate, g_media_editor_settings.WaveformShowY);
     if (m_cie && (scope_flags & SCOPE_VIDEO_CIE)) m_cie->scope(mat, mat_cie, g_media_editor_settings.CIEIntensity, g_media_editor_settings.CIEShowColor);
     if (m_vector && (scope_flags & SCOPE_VIDEO_VECTOR)) m_vector->scope(mat, mat_vector, g_media_editor_settings.VectorIntensity);
 #endif
@@ -878,6 +879,8 @@ static bool Show_Version(ImDrawList* draw_list, int32_t start_time)
     int32_t current_time = ImGui::get_current_time_msec();  
     ImVec2 window_pos = ImGui::GetWindowPos();
     ImVec2 window_size = ImGui::GetWindowSize();
+    if (!logo_texture && !icon_file.empty()) logo_texture = ImGui::ImLoadTexture(icon_file.c_str());
+    if (!codewin_texture) codewin_texture = ImGui::ImCreateTexture(codewin::codewin_pixels, codewin::codewin_width, codewin::codewin_height);
     draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
     if (logo_texture || codewin_texture)
     {
@@ -1820,7 +1823,7 @@ static bool ReloadMedia(std::string path, MediaItem* item)
                         if (vidTrack)
                         {
                             MediaCore::VideoClipHolder hVidClip;
-                            if (clip->mType == MEDIA_SUBTYPE_VIDEO_IMAGE)
+                            if (IS_IMAGE(clip->mType))
                                 hVidClip = vidTrack->AddNewClip(clip->mID, clip->mMediaParser, clip->mStart, clip->mEnd-clip->mStart, 0, 0);
                             else
                                 hVidClip = vidTrack->AddNewClip(clip->mID, clip->mMediaParser, clip->mStart, clip->mStartOffset, clip->mEndOffset, timeline->currentTime - clip->mStart);
@@ -1963,7 +1966,7 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
             float percent = pos_x / icon_size.x;
             ImClamp(percent, 0.0f, 1.0f);
             int texture_index = (*item)->mMediaThumbnail.size() * percent;
-            if ((*item)->mMediaType == MEDIA_SUBTYPE_VIDEO_IMAGE)
+            if (IS_IMAGE((*item)->mMediaType))
                 texture_index = 0;
             if (!(*item)->mMediaThumbnail.empty())
             {
@@ -2045,15 +2048,16 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
             std::string type_string = "? ";
             if (IS_VIDEO((*item)->mMediaType))
             {
-                if ((*item)->mMediaType == MEDIA_SUBTYPE_VIDEO_IMAGE) type_string = std::string(ICON_FA_FILE_IMAGE) + " ";
+                if (IS_IMAGE((*item)->mMediaType)) type_string = std::string(ICON_FA_FILE_IMAGE) + " ";
                 else type_string = std::string(ICON_FA_FILE_VIDEO) + " ";
             }
             else if (IS_AUDIO((*item)->mMediaType))
             {
-                if ((*item)->mMediaType == MEDIA_SUBTYPE_AUDIO_MIDI) type_string = std::string(ICON_FA_FILE_WAVEFORM) + " ";
+                if (IS_MIDI((*item)->mMediaType)) type_string = std::string(ICON_FA_FILE_WAVEFORM) + " ";
                 else type_string = std::string(ICON_FA_FILE_AUDIO) + " ";
             }
-            type_string += ImGuiHelper::MillisecToString(media_length * 1000, 2);
+            if (!IS_IMAGE((*item)->mMediaType))
+                type_string += ImGuiHelper::MillisecToString(media_length * 1000, 2);
             ImGui::SetWindowFontScale(0.7);
             ImGui::TextUnformatted(type_string.c_str());
             ImGui::SetWindowFontScale(1.0);
@@ -2112,7 +2116,7 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
         {
             ImGui::SetCursorScreenPos(icon_pos + ImVec2(4, 4));
             std::string type_string;
-            if ((*item)->mMediaType == MEDIA_SUBTYPE_TEXT_SUBTITLE) type_string = std::string(ICON_FA_FILE_CODE);
+            if (IS_SUBTITLE((*item)->mMediaType)) type_string = std::string(ICON_FA_FILE_CODE);
             else type_string = std::string(ICON_FA_FILE_LINES);
             ImGui::SetWindowFontScale(0.7);
             ImGui::TextUnformatted(type_string.c_str());
@@ -2141,17 +2145,17 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
         std::string type_string = "? ";
         if (IS_VIDEO((*item)->mMediaType))
         {
-            if ((*item)->mMediaType == MEDIA_SUBTYPE_VIDEO_IMAGE) type_string = std::string(ICON_FA_FILE_IMAGE);
+            if (IS_IMAGE((*item)->mMediaType)) type_string = std::string(ICON_FA_FILE_IMAGE);
             else type_string = std::string(ICON_FA_FILE_VIDEO);
         }
         else if (IS_AUDIO((*item)->mMediaType))
         {
-            if ((*item)->mMediaType == MEDIA_SUBTYPE_AUDIO_MIDI) type_string = std::string(ICON_FA_FILE_WAVEFORM);
+            if (IS_MIDI((*item)->mMediaType)) type_string = std::string(ICON_FA_FILE_WAVEFORM);
             else type_string = std::string(ICON_FA_FILE_AUDIO);
         }
         else if (IS_TEXT((*item)->mMediaType))
         {
-            if ((*item)->mMediaType == MEDIA_SUBTYPE_TEXT_SUBTITLE) type_string = std::string(ICON_FA_FILE_CODE);
+            if (IS_SUBTITLE((*item)->mMediaType)) type_string = std::string(ICON_FA_FILE_CODE);
             else type_string = std::string(ICON_FA_FILE_LINES);
         }
         ImGui::SetWindowFontScale(0.7);
@@ -2175,7 +2179,7 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
         if (_overButton && io.MouseClicked[0])
         {
             std::string filter;
-            if ((*item)->mMediaType == MEDIA_SUBTYPE_VIDEO_IMAGE) filter = image_filter;
+            if (IS_IMAGE((*item)->mMediaType)) filter = image_filter;
             else if (IS_VIDEO((*item)->mMediaType)) filter = video_filter;
             else if (IS_AUDIO((*item)->mMediaType)) filter = audio_filter;
             else if (IS_TEXT((*item)->mMediaType)) filter = text_filter;
@@ -7742,7 +7746,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
     MediaCore::SubtitleImage current_image;
     TextClip * editing_clip = dynamic_cast<TextClip*>(timeline->FindEditingClip());
     MediaTrack * editing_track = nullptr;
-    if (editing_clip && editing_clip->mType != MEDIA_TEXT)
+    if (editing_clip && !IS_TEXT(editing_clip->mType))
     {
         editing_clip = nullptr;
     }
@@ -8043,6 +8047,9 @@ static void ShowMediaScopeSetting(int index, bool show_tooltips = true)
                 need_update_scope = true;
             ImGui::TextUnformatted("Separate:"); ImGui::SameLine();
             if (ImGui::ToggleButton("##waveform_separate", &g_media_editor_settings.WaveformSeparate))
+                need_update_scope = true;
+            ImGui::TextUnformatted("Show Y:"); ImGui::SameLine();
+            if (ImGui::ToggleButton("##waveform_separate", &g_media_editor_settings.WaveformShowY))
                 need_update_scope = true;
             if (ImGui::DragFloat("Intensity##WaveformIntensity", &g_media_editor_settings.WaveformIntensity, 0.05f, 0.f, 4.f, "%.1f"))
                 need_update_scope = true;
@@ -9384,6 +9391,7 @@ static void MediaEditor_SetupContext(ImGuiContext* ctx, bool in_splash)
         else if (sscanf(line, "HistogramScale=%f", &val_float) == 1) { setting->HistogramScale = val_float; }
         else if (sscanf(line, "WaveformMirror=%d", &val_int) == 1) { setting->WaveformMirror = val_int == 1; }
         else if (sscanf(line, "WaveformSeparate=%d", &val_int) == 1) { setting->WaveformSeparate = val_int == 1; }
+        else if (sscanf(line, "WaveformShowY=%d", &val_int) == 1) { setting->WaveformShowY = val_int == 1; }
         else if (sscanf(line, "WaveformIntensity=%f", &val_float) == 1) { setting->WaveformIntensity = val_float; }
         else if (sscanf(line, "CIECorrectGamma=%d", &val_int) == 1) { setting->CIECorrectGamma = val_int == 1; }
         else if (sscanf(line, "CIEShowColor=%d", &val_int) == 1) { setting->CIEShowColor = val_int == 1; }
@@ -9495,6 +9503,7 @@ static void MediaEditor_SetupContext(ImGuiContext* ctx, bool in_splash)
         out_buf->appendf("HistogramScale=%f\n", g_media_editor_settings.HistogramScale);
         out_buf->appendf("WaveformMirror=%d\n", g_media_editor_settings.WaveformMirror ? 1 : 0);
         out_buf->appendf("WaveformSeparate=%d\n", g_media_editor_settings.WaveformSeparate ? 1 : 0);
+        out_buf->appendf("WaveformShowY=%d\n", g_media_editor_settings.WaveformShowY ? 1 : 0);
         out_buf->appendf("WaveformIntensity=%f\n", g_media_editor_settings.WaveformIntensity);
         out_buf->appendf("CIECorrectGamma=%d\n", g_media_editor_settings.CIECorrectGamma ? 1 : 0);
         out_buf->appendf("CIEShowColor=%d\n", g_media_editor_settings.CIEShowColor ? 1 : 0);
@@ -9664,14 +9673,7 @@ static void MediaEditor_Initialize(void** handle)
     m_cie = new ImGui::CIE_vulkan(gpu);
     m_vector = new ImGui::Vector_vulkan(gpu);
 #endif
-    if (!timeline)
-        NewTimeline();
-    // reload texture
-    if (logo_texture) { ImGui::ImDestroyTexture(logo_texture); logo_texture = nullptr; }
-    if (codewin_texture) { ImGui::ImDestroyTexture(codewin_texture); codewin_texture = nullptr; }
-    if (!logo_texture && !icon_file.empty()) logo_texture = ImGui::ImLoadTexture(icon_file.c_str());
-    if (!codewin_texture) codewin_texture = ImGui::ImCreateTexture(codewin::codewin_pixels, codewin::codewin_width, codewin::codewin_height);
-
+    if (!ImGuiHelper::file_exists(io.IniFilename) && !timeline)  NewTimeline();
 }
 
 static void MediaEditor_Finalize(void** handle)
@@ -10303,9 +10305,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
 
 bool MediaEditor_Splash_Screen(void* handle, bool app_will_quit)
 {
-    static int32_t splash_start_time = ImGui::get_current_time_msec();   
-    if (!logo_texture && !icon_file.empty()) logo_texture = ImGui::ImLoadTexture(icon_file.c_str());
-    if (!codewin_texture) codewin_texture = ImGui::ImCreateTexture(codewin::codewin_pixels, codewin::codewin_width, codewin::codewin_height);
+    static int32_t splash_start_time = ImGui::get_current_time_msec();
     auto& io = ImGui::GetIO();
     ImGuiContext& g = *GImGui;
     if (!g_media_editor_settings.UILanguage.empty() && g.LanguageName != g_media_editor_settings.UILanguage)
@@ -10334,6 +10334,11 @@ bool MediaEditor_Splash_Screen(void* handle, bool app_will_quit)
 
     ImGui::End();
     bool should_finished = title_finished && !g_project_loading;
+    if (should_finished)
+    {
+        if (logo_texture) { ImGui::ImDestroyTexture(logo_texture); logo_texture = nullptr; }
+        if (codewin_texture) { ImGui::ImDestroyTexture(codewin_texture); codewin_texture = nullptr; }
+    }
     return should_finished;
 }
 

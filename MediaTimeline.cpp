@@ -125,7 +125,7 @@ void MediaItem::UpdateItem(const std::string& name, const std::string& path, voi
         mStart = 0;
         if (mMediaOverview->HasVideo())
         {
-            if (mMediaType == MEDIA_SUBTYPE_VIDEO_IMAGE)
+            if (IS_IMAGE(mMediaType))
             {
                 mEnd = 5000;
             }
@@ -346,7 +346,7 @@ int64_t Clip::Cropping(int64_t diff, int type)
     if (type == 0)
     {
         // cropping start
-        if ((IS_VIDEO(mType) && mType != MEDIA_SUBTYPE_VIDEO_IMAGE) || IS_AUDIO(mType))
+        if ((IS_VIDEO(mType) && !IS_IMAGE(mType)) || IS_AUDIO(mType))
         {
             // audio video stream have length limit
             if (mStart + diff < mEnd - ceil(frame_duration) && mStart + diff >= timeline->mStart)
@@ -389,7 +389,7 @@ int64_t Clip::Cropping(int64_t diff, int type)
     else
     {
         // cropping end
-        if ((IS_VIDEO(mType) && mType != MEDIA_SUBTYPE_VIDEO_IMAGE) || IS_AUDIO(mType))
+        if ((IS_VIDEO(mType) && !IS_IMAGE(mType)) || IS_AUDIO(mType))
         {
             // audio video stream have length limit
             if (mEnd + diff > mStart + ceil(frame_duration))
@@ -488,7 +488,7 @@ void Clip::Cutting(int64_t pos)
     Clip * new_clip = nullptr;
     if (IS_VIDEO(mType))
     {
-        if (mType == MEDIA_SUBTYPE_VIDEO_IMAGE)
+        if (IS_IMAGE(mType))
         {
             VideoClip* imgclip = dynamic_cast<VideoClip*>(this);
             auto new_image_clip = new VideoClip(mStart, mEnd, mMediaID, mName, imgclip->mOverview, timeline);
@@ -913,7 +913,7 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
     if (mouse_track == -2 && track->m_Clips.size() > 1)
     {
         index = timeline->NewTrack("", mType, track->mExpanded);
-        if (mType == MEDIA_TEXT)
+        if (IS_TEXT(mType))
         {
             MediaTrack * newTrack = timeline->m_Tracks[index];
             newTrack->mMttReader = timeline->mMtvReader->NewEmptySubtitleTrack(newTrack->mID);
@@ -1179,12 +1179,12 @@ Clip* VideoClip::Load(const imgui_json::value& value, void * handle)
         if (!item->mValid)
         {
             new_clip = new VideoClip(item->mStart, item->mEnd, item->mID, item->mName, handle);
-            if (item->mMediaType == MEDIA_SUBTYPE_VIDEO_IMAGE)
+            if (IS_IMAGE(item->mMediaType))
                 new_clip->mType |= MEDIA_SUBTYPE_VIDEO_IMAGE;
             else
                 new_clip->mType |= MEDIA_VIDEO;
         }
-        else if (item->mMediaType == MEDIA_SUBTYPE_VIDEO_IMAGE)
+        else if (IS_IMAGE(item->mMediaType))
         {
             new_clip = new VideoClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, handle);
         }
@@ -1313,7 +1313,7 @@ void VideoClip::SetViewWindowStart(int64_t millisec)
     mClipViewStartPos = mStartOffset;
     if (millisec > mStart)
         mClipViewStartPos += millisec-mStart;
-    if (!IS_DUMMY(mType) && mType != MEDIA_SUBTYPE_VIDEO_IMAGE)
+    if (!IS_DUMMY(mType) && !IS_IMAGE(mType))
     {
         if (!mSsViewer->GetSnapshots((double)mClipViewStartPos/1000, mSnapImages))
             throw std::runtime_error(mSsViewer->GetError());
@@ -2401,7 +2401,7 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
     if (mDuration < 0)
         throw std::invalid_argument("Clip duration is negative!");
     
-    if (vidclip->mType == MEDIA_SUBTYPE_VIDEO_IMAGE)
+    if (IS_IMAGE(vidclip->mType))
     {
         mImgTexture = vidclip->mImgTexture;
     }
@@ -2980,7 +2980,12 @@ EditingVideoOverlap::EditingVideoOverlap(Overlap* ovlp)
     if (vidclip1 && vidclip2)
     {
         mClip1 = vidclip1; mClip2 = vidclip2;
-        if (mClip1->mType == MEDIA_VIDEO)
+        if (IS_IMAGE(mClip1->mType))
+        {
+            m_StartOffset.first = ovlp->mStart - vidclip1->mStart;
+            if (vidclip1->mImgTexture) mImgTexture1 = vidclip1->mImgTexture;
+        }
+        else
         {
             mSsGen1 = CreateSnapshotGenerator();
             if (timeline) mSsGen1->EnableHwAccel(timeline->mHardwareCodec);
@@ -2993,12 +2998,13 @@ EditingVideoOverlap::EditingVideoOverlap(Overlap* ovlp)
             m_StartOffset.first = vidclip1->mStartOffset + ovlp->mStart - vidclip1->mStart;
             mViewer1 = mSsGen1->CreateViewer(m_StartOffset.first);
         }
-        else
+
+        if (IS_IMAGE(mClip2->mType))
         {
-            m_StartOffset.first = ovlp->mStart - vidclip1->mStart;
-            if (vidclip1->mImgTexture) mImgTexture1 = vidclip1->mImgTexture;
+            m_StartOffset.second = ovlp->mStart - vidclip2->mStart;
+            if (vidclip2->mImgTexture) mImgTexture2 = vidclip2->mImgTexture;
         }
-        if (mClip2->mType == MEDIA_VIDEO)
+        else
         {
             mSsGen2 = CreateSnapshotGenerator();
             if (timeline) mSsGen2->EnableHwAccel(timeline->mHardwareCodec);
@@ -3010,11 +3016,6 @@ EditingVideoOverlap::EditingVideoOverlap(Overlap* ovlp)
             mSsGen2->SetSnapshotResizeFactor(snapshot_scale2, snapshot_scale2);
             m_StartOffset.second = vidclip2->mStartOffset + ovlp->mStart - vidclip2->mStart;
             mViewer2 = mSsGen2->CreateViewer(m_StartOffset.second);
-        }
-        else
-        {
-            m_StartOffset.second = ovlp->mStart - vidclip2->mStart;
-            if (vidclip2->mImgTexture) mImgTexture2 = vidclip2->mImgTexture;
         }
         mStart = ovlp->mStart;
         mEnd = ovlp->mEnd;
@@ -3575,7 +3576,7 @@ bool MediaTrack::DrawTrackControlBar(ImDrawList *draw_list, ImRect rc)
             mLocked = !mLocked;
         button_count ++;
     }
-    if (mType == MEDIA_AUDIO)
+    if (IS_AUDIO(mType))
     {
         bool ret = TimelineButton(draw_list, mView ? ICON_SPEAKER : ICON_SPEAKER_MUTE, ImVec2(rc.Min.x + button_size.x * button_count * 1.5 + 6, rc.Max.y - button_size.y - 2), button_size, mView ? "mute" : "voice");
         if (ret && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
@@ -3687,7 +3688,7 @@ void MediaTrack::DeleteClip(int64_t id)
     });
     if (iter != m_Clips.end())
     {
-        if ((*iter)->mType == MEDIA_TEXT)
+        if (IS_TEXT((*iter)->mType))
         {
             TextClip * tclip = dynamic_cast<TextClip *>(*iter);
             // if clip is text clip, need delete from track holder
@@ -4271,7 +4272,7 @@ MediaTrack* MediaTrack::Load(const imgui_json::value& value, void * handle)
             new_track->mMttReader->EnableFullSizeOutput(false);
             for (auto clip : new_track->m_Clips)
             {
-                if (clip->mType == MEDIA_TEXT)
+                if (IS_TEXT(clip->mType))
                 {
                     TextClip * tclip = dynamic_cast<TextClip *>(clip);
                     tclip->CreateClipHold(new_track);
@@ -4737,7 +4738,7 @@ void TimeLine::MovingClip(int64_t id, int from_track_index, int to_track_index)
     if (iter != m_Clips.end())
     {
         auto clip = *iter;
-        if (clip->mType == MEDIA_TEXT)
+        if (IS_TEXT(clip->mType))
         {
             TextClip * tclip = dynamic_cast<TextClip *>(clip);
             // need remove from source track holder
@@ -5429,7 +5430,7 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &view_r
             
             // draw clip status
             draw_list->PushClipRect(clip_title_pos_min, clip_title_pos_max, true);
-            draw_list->AddText(clip_title_pos_min + ImVec2(4, 0), IM_COL32_WHITE, clip->mType == MEDIA_TEXT ? "T" : clip->mName.c_str());
+            draw_list->AddText(clip_title_pos_min + ImVec2(4, 0), IM_COL32_WHITE, IS_TEXT(clip->mType) ? "T" : clip->mName.c_str());
             
             // add clip filter curve point
             ImGui::KeyPointEditor* keypoint_filter = &clip->mFilterKeyPoints;
@@ -6010,7 +6011,7 @@ int TimeLine::Load(const imgui_json::value& value)
                 if (IS_DUMMY(clip->mType))
                     continue;
                 MediaCore::VideoClipHolder hVidClip;
-                if (clip->mType == MEDIA_SUBTYPE_VIDEO_IMAGE)
+                if (IS_IMAGE(clip->mType))
                     hVidClip = vidTrack->AddNewClip(clip->mID, clip->mMediaParser, clip->mStart, clip->mEnd-clip->mStart, 0, 0);
                 else
                     hVidClip = vidTrack->AddNewClip(clip->mID, clip->mMediaParser, clip->mStart, clip->mStartOffset, clip->mEndOffset, currentTime-clip->mStart);
@@ -6266,7 +6267,7 @@ void TimeLine::PerformUiActions()
             mediaType = action["media_type"].get<imgui_json::number>();
         if (IS_VIDEO(mediaType))
         {
-            if (mediaType == MEDIA_SUBTYPE_VIDEO_IMAGE)
+            if (IS_IMAGE(mediaType))
                 PerformImageAction(action);
             else
                 PerformVideoAction(action);
@@ -6649,7 +6650,7 @@ SnapshotGeneratorHolder TimeLine::GetSnapshotGenerator(int64_t mediaItemId)
     MediaItem* mi = FindMediaItemByID(mediaItemId);
     if (!mi)
         return nullptr;
-    if (!IS_VIDEO(mi->mMediaType) || mi->mMediaType == MEDIA_SUBTYPE_VIDEO_IMAGE)
+    if (!IS_VIDEO(mi->mMediaType) || IS_IMAGE(mi->mMediaType))
         return nullptr;
     SnapshotGeneratorHolder hSsGen = CreateSnapshotGenerator();
     hSsGen->EnableHwAccel(mHardwareCodec);
@@ -7199,7 +7200,7 @@ bool TimeLine::UndoOneRecord()
             auto clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
             auto clipType = clip->mType;
             int64_t startDiff{0}, endDiff{0};
-            if (IS_VIDEO(clipType) && clipType != MEDIA_SUBTYPE_VIDEO_IMAGE || IS_AUDIO(clipType))
+            if ((IS_VIDEO(clipType) && !IS_IMAGE(clipType)) || IS_AUDIO(clipType))
             {
                 int64_t orgStartOffset = action["org_start_offset"].get<imgui_json::number>();
                 int64_t orgEndOffset = action["org_end_offset"].get<imgui_json::number>();
@@ -7373,7 +7374,7 @@ bool TimeLine::RedoOneRecord()
             auto clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
             auto clipType = clip->mType;
             int64_t startDiff{0}, endDiff{0};
-            if (IS_VIDEO(clipType) && clipType != MEDIA_SUBTYPE_VIDEO_IMAGE || IS_AUDIO(clipType))
+            if ((IS_VIDEO(clipType) && !IS_IMAGE(clipType)) || IS_AUDIO(clipType))
             {
                 int64_t orgStartOffset = action["org_start_offset"].get<imgui_json::number>();
                 int64_t orgEndOffset = action["org_end_offset"].get<imgui_json::number>();
@@ -7460,23 +7461,20 @@ bool TimeLine::AddNewClip(int64_t media_id, uint32_t media_type, int64_t track_i
         return false;
     }
     Clip* newClip = nullptr;
-    if (media_type == MEDIA_VIDEO)
+    if (IS_VIDEO(media_type) && !IS_IMAGE(media_type))
     {
         SnapshotGenerator::ViewerHolder hViewer;
         SnapshotGeneratorHolder hSsGen = GetSnapshotGenerator(item->mID);
         if (hSsGen) hViewer = hSsGen->CreateViewer();
         newClip = new VideoClip(item->mStart, item->mEnd, item->mID, item->mName+":Video", item->mMediaOverview->GetMediaParser(), hViewer, this);
     }
-    else if (media_type == MEDIA_SUBTYPE_VIDEO_IMAGE)
+    else if (IS_IMAGE(media_type))
     {
         newClip = new VideoClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, this);
     }
-    else if (media_type == MEDIA_AUDIO)
+    else if (IS_AUDIO(media_type))
     {
-        if (item->mMediaType == MEDIA_VIDEO)
-            newClip = new AudioClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, this);
-        else
-            newClip = new AudioClip(item->mStart, item->mEnd, item->mID, item->mName+":Audio", item->mMediaOverview, this);
+        newClip = new AudioClip(item->mStart, item->mEnd, item->mID, item->mName+":Audio", item->mMediaOverview, this);
     }
     else
     {
@@ -8167,7 +8165,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             if (trackMenuEntry >= 0 && clipMenuEntry < 0)
             {
                 auto track = timeline->m_Tracks[trackMenuEntry];
-                if (track->mType == MEDIA_TEXT)
+                if (IS_TEXT(track->mType))
                 {
                     ImGui::Separator();
                     if (ImGui::MenuItem(ICON_MEDIA_TEXT  " Add Text", nullptr, nullptr))
@@ -8758,7 +8756,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 action["start"] = imgui_json::number(mouseTime);
                 action["start_offset"] = imgui_json::number(0);
                 action["end_offset"] = imgui_json::number(0);
-                if (item->mMediaType == MEDIA_SUBTYPE_VIDEO_IMAGE)
+                if (IS_IMAGE(item->mMediaType))
                 {
                     VideoClip * new_image_clip = new VideoClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, timeline);
                     action["clip_id"] = imgui_json::number(new_image_clip->mID);
@@ -8780,7 +8778,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                     }
                     action["group_id"] = imgui_json::number(new_image_clip->mGroupID);
                 }
-                else if (item->mMediaType == MEDIA_AUDIO)
+                else if (IS_AUDIO(item->mMediaType))
                 {
                     AudioClip * new_audio_clip = new AudioClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, timeline);
                     action["clip_id"] = imgui_json::number(new_audio_clip->mID);
@@ -8802,7 +8800,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                     }
                     action["group_id"] = imgui_json::number(new_audio_clip->mGroupID);
                 } 
-                else if (item->mMediaType == MEDIA_SUBTYPE_TEXT_SUBTITLE)
+                else if (IS_SUBTITLE(item->mMediaType))
                 {
                     // subtitle track isn't like other media tracks, it need load clips after insert a empty track
                     // text clip don't band with media item
@@ -8889,7 +8887,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                                 if (track && track->mLinkedTrack != -1)
                                 {
                                     MediaTrack * relative_track = timeline->FindTrackByID(track->mLinkedTrack);
-                                    if (relative_track && relative_track->mType == MEDIA_AUDIO)
+                                    if (relative_track && IS_AUDIO(relative_track->mType))
                                     {
                                         bool can_insert_clip = relative_track->CanInsertClip(new_audio_clip, mouseTime);
                                         if (can_insert_clip)
