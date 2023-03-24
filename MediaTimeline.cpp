@@ -4646,19 +4646,23 @@ void TimeLine::SelectTrack(int index)
     }
 }
 
-int64_t TimeLine::DeleteTrack(int index, int64_t* pAfterId, int64_t* pAfterUiTrkId)
+int64_t TimeLine::DeleteTrack(int index, imgui_json::value* pActionJson)
 {
     int64_t trackId = -1;
     if (index >= 0 && index < m_Tracks.size())
     {
         auto track = m_Tracks[index];
         trackId = track->mID;
-        // find the same media type track which the deleted track is after, return its ID for UNDO operation.
-        if (pAfterId)
+
+        // save action json for UNDO operation
+        if (pActionJson)
         {
+            // find the same media type track which the deleted track is after, return its ID for UNDO operation.
+            int64_t afterTrackId, afterUiTrkId;
             if (index == 0)
             {
-                *pAfterId = -2;
+                afterTrackId = -2;
+                afterUiTrkId = -2;
             }
             else
             {
@@ -4666,18 +4670,66 @@ int64_t TimeLine::DeleteTrack(int index, int64_t* pAfterId, int64_t* pAfterUiTrk
                 while ((*iter)->mType != track->mType && iter != m_Tracks.begin())
                     iter--;
                 if ((*iter)->mType == track->mType)
-                    *pAfterId = (*iter)->mID;
+                    afterTrackId = (*iter)->mID;
                 else
-                    *pAfterId = -1;
+                    afterTrackId = -1;
+                afterUiTrkId = m_Tracks[index-1]->mID;
+            }
+            auto& action = *pActionJson;
+            action["action"] = "REMOVE_TRACK";
+            action["media_type"] = imgui_json::number(track->mType);
+            action["track_id"] = imgui_json::number(track->mID);
+            action["after_track_id"] = imgui_json::number(afterTrackId);
+            action["after_ui_track_id"] = imgui_json::number(afterUiTrkId);
+            imgui_json::value trackJson;
+            track->Save(trackJson);
+            action["track_json"] = trackJson;
+            std::vector<int64_t> relatedGroupIds;
+            if (!m_Clips.empty())
+            {
+                imgui_json::value containedClips;
+                for (auto clip : m_Clips)
+                {
+                    imgui_json::value clipJson;
+                    clip->Save(clipJson);
+                    containedClips.push_back(clipJson);
+                    if (clip->mGroupID != -1)
+                    {
+                        auto iter = std::find(relatedGroupIds.begin(), relatedGroupIds.end(), clip->mGroupID);
+                        if (iter == relatedGroupIds.end())
+                            relatedGroupIds.push_back(clip->mGroupID);
+                    }
+                }
+                action["contained_clips"] = containedClips;
+            }
+            if (!relatedGroupIds.empty())
+            {
+                imgui_json::value relatedGroups;
+                for (auto& group : m_Groups)
+                {
+                    auto iter = std::find(relatedGroupIds.begin(), relatedGroupIds.end(), group.mID);
+                    if (iter != relatedGroupIds.end())
+                    {
+                        imgui_json::value groupJson;
+                        group.Save(groupJson);
+                        relatedGroups.push_back(groupJson);
+                    }
+                }
+                action["related_groups"] = relatedGroups;
+            }
+            if (!m_Overlaps.empty())
+            {
+                imgui_json::value containedOverlaps;
+                for (auto overlap : m_Overlaps)
+                {
+                    imgui_json::value overlapJson;
+                    overlap->Save(overlapJson);
+                    containedOverlaps.push_back(overlapJson);
+                }
+                action["contained_overlaps"] = containedOverlaps;
             }
         }
-        if (pAfterUiTrkId)
-        {
-            if (index == 0)
-                *pAfterUiTrkId = -2;
-            else
-                *pAfterUiTrkId = m_Tracks[index-1]->mID;
-        }
+
         m_Tracks.erase(m_Tracks.begin() + index);
         delete track;
         if (m_Tracks.size() == 0)
@@ -4754,6 +4806,203 @@ int TimeLine::NewTrack(const std::string& name, uint32_t type, bool expand, int6
     action["after_ui_track_id"] = imgui_json::number(afterUiTrkId);
     mUiActions.push_back(std::move(action));
     return m_Tracks.size() - 1;
+}
+
+bool TimeLine::RestoreTrack(imgui_json::value& action)
+{
+    if (!action.contains("action") || action["action"].get<imgui_json::string>() != "REMOVE_TRACK")
+    {
+        Logger::Log(Logger::WARN) << "WRONG ARGUMENT! Restore track must take a 'REMOVE_TRACK' action as input." << std::endl;
+        return false;
+    }
+    int64_t trackId = action["track_json"]["ID"].get<imgui_json::number>();
+    // restore auto deleted groups
+    if (action.contains("related_groups"))
+    {
+        auto& relatedGroups = action["related_groups"].get<imgui_json::array>();
+        for (auto& groupJson : relatedGroups)
+        {
+            int64_t gid = groupJson["ID"].get<imgui_json::number>();
+            auto iter = std::find_if(m_Groups.begin(), m_Groups.end(), [gid] (auto& g) {
+                return g.mID == gid;
+            });
+            if (iter == m_Groups.end())
+            {
+                ClipGroup grp(this);
+                grp.Load(groupJson);
+                m_Groups.push_back(grp);
+            }
+        }
+    }
+    // restore the contained clips
+    if (action.contains("contained_clips"))
+    {
+        auto& containedClips = action["contained_clips"].get<imgui_json::array>();
+        for (auto& clipJson : containedClips)
+        {
+            Clip* c = nullptr;
+            uint32_t type = clipJson["Type"].get<imgui_json::number>();
+            if (IS_VIDEO(type))
+                c = VideoClip::Load(clipJson, this);
+            else if (IS_AUDIO(type))
+                c = AudioClip::Load(clipJson, this);
+            else if (IS_TEXT(type))
+                c = TextClip::Load(clipJson, this);
+            else
+            {
+                Logger::Log(Logger::WARN) << "FAILED to restore clip (id=";
+                if (clipJson.contains("ID"))
+                    Logger::Log(Logger::WARN) << (int64_t)(clipJson["ID"].get<imgui_json::number>());
+                else
+                    Logger::Log(Logger::WARN) << "unknown";
+                Logger::Log(Logger::WARN) << ")! Unsupported media type value " << type << "." << std::endl;
+            }
+            if (c)
+            {
+                m_Clips.push_back(c);
+                // restore group
+                if (c->mGroupID != -1)
+                {
+                    int64_t gid = c->mGroupID;
+                    auto iter = std::find_if(m_Groups.begin(), m_Groups.end(), [gid] (auto& g) {
+                        return g.mID == gid;
+                    });
+                    if (iter != m_Groups.end())
+                    {
+                        auto iter2 = std::find(iter->m_Grouped_Clips.begin(), iter->m_Grouped_Clips.end(), c->mID);
+                        if (iter2 == iter->m_Grouped_Clips.end())
+                            iter->m_Grouped_Clips.push_back(c->mID);
+                    }
+                    else
+                    {
+                        Logger::Log(Logger::WARN) << "Warning during restoring track(id=" << trackId << "): Cannot add clip(id="
+                            << c->mID << ") into ClipGroup(id=" << gid << "), the group does NOT EXIST!" << std::endl;
+                    }
+                }
+            }
+        }
+    }
+    // restore the contained overlaps
+    if (action.contains("contained_overlaps"))
+    {
+        auto& containedOverlaps = action["contained_overlaps"].get<imgui_json::array>();
+        for (auto& overlapJson : containedOverlaps)
+        {
+            Overlap* o = Overlap::Load(overlapJson, this);
+            if (o)
+                m_Overlaps.push_back(o);
+        }
+    }
+    // restore the removed track
+    MediaTrack* t = MediaTrack::Load(action["track_json"], this);
+    int64_t afterUiTrkId = -1;
+    if (action.contains("after_ui_track_id"))
+        afterUiTrkId = action["after_ui_track_id"].get<imgui_json::number>();
+    // insert the track into the specified position in the track list
+    auto searchIter = m_Tracks.begin();
+    if (afterUiTrkId == -1) // add the new track at the tail
+    {
+        m_Tracks.push_back(t);
+        searchIter = m_Tracks.end()-1;
+    }
+    else  // insert the new track after the specifed track with id = afterUiTrkId
+    {
+        auto iter = m_Tracks.begin();
+        if (afterUiTrkId != -2)
+        {
+            iter = std::find_if(m_Tracks.begin(), m_Tracks.end(), [afterUiTrkId] (auto& t) {
+                    return t->mID == afterUiTrkId;
+                });
+            if (iter != m_Tracks.end())
+                iter++;
+            else
+                Logger::Log(Logger::WARN) << "Warning during restoring track(id=" << trackId
+                    << "): CANNOT find the specifed track with id eqaul to 'afterUiTrkId'(" << afterUiTrkId << ")!" << std::endl;
+        }
+        searchIter = m_Tracks.insert(iter, t);
+    }
+    int64_t afterTrackId = -2;
+    if (searchIter != m_Tracks.begin())
+    {
+        searchIter--;
+        while ((*searchIter)->mType != t->mType && searchIter != m_Tracks.begin())
+            searchIter--;
+        if ((*searchIter)->mType == t->mType)
+            afterTrackId = (*searchIter)->mID;
+    }
+    int64_t afterTrackId2 = -1;
+    if (action.contains("after_track_id"))
+        afterTrackId2 = action["after_track_id"].get<imgui_json::number>();
+    if (afterTrackId != afterTrackId2)
+        Logger::Log(Logger::WARN) << "Warning during restoring track(id=" << trackId
+            << "): Actual 'afterTrackId'(" << afterTrackId << ") is NOT EQUAL to the value stored in json ("
+            << afterTrackId2 << ")!" << std::endl;
+
+    // restore DataLayer stat
+    if (IS_VIDEO(t->mType))
+    {
+        MediaCore::VideoTrackHolder hVidTrk = mMtvReader->AddTrack(t->mID, afterTrackId);
+        for (auto c : t->m_Clips)
+        {
+            if (IS_DUMMY(c->mType))
+                continue;
+            MediaCore::VideoClipHolder hVidClip;
+            if (IS_IMAGE(c->mType))
+                hVidClip = hVidTrk->AddNewClip(c->mID, c->mMediaParser, c->mStart, c->mEnd-c->mStart, 0, 0);
+            else
+                hVidClip = hVidTrk->AddNewClip(c->mID, c->mMediaParser, c->mStart, c->mStartOffset, c->mEndOffset, currentTime-c->mStart);
+            BluePrintVideoFilter* bpvf = new BluePrintVideoFilter(this);
+            bpvf->SetBluePrintFromJson(c->mFilterBP);
+            bpvf->SetKeyPoint(c->mFilterKeyPoints);
+            MediaCore::VideoFilterHolder hFilter(bpvf);
+            hVidClip->SetFilter(hFilter);
+            auto attribute = hVidClip->GetTransformFilter();
+            if (attribute)
+            {
+                VideoClip* vidclip = (VideoClip*)c;
+                attribute->SetScaleType(vidclip->mScaleType);
+                attribute->SetScaleH(vidclip->mScaleH);
+                attribute->SetScaleV(vidclip->mScaleV);
+                attribute->SetPositionOffsetH(vidclip->mPositionOffsetH);
+                attribute->SetPositionOffsetV(vidclip->mPositionOffsetV);
+                attribute->SetRotationAngle(vidclip->mRotationAngle);
+                attribute->SetCropMarginL(vidclip->mCropMarginL);
+                attribute->SetCropMarginT(vidclip->mCropMarginT);
+                attribute->SetCropMarginR(vidclip->mCropMarginR);
+                attribute->SetCropMarginB(vidclip->mCropMarginB);
+                attribute->SetKeyPoint(vidclip->mAttributeKeyPoints);
+            }
+        }
+        UpdatePreview();
+    }
+    else if (IS_AUDIO(t->mType))
+    {
+        MediaCore::AudioTrackHolder hAudTrk = mMtaReader->AddTrack(t->mID);
+        for (auto c : t->m_Clips)
+        {
+            if (IS_DUMMY(c->mType))
+                continue;
+            MediaCore::AudioClipHolder hAudClip = hAudTrk->AddNewClip(
+                c->mID, c->mMediaParser,
+                c->mStart, c->mStartOffset, c->mEndOffset);
+            BluePrintAudioFilter* bpaf = new BluePrintAudioFilter(this);
+            bpaf->SetBluePrintFromJson(c->mFilterBP);
+            bpaf->SetKeyPoint(c->mFilterKeyPoints);
+            MediaCore::AudioFilterHolder hFilter(bpaf);
+            hAudClip->SetFilter(hFilter);
+        }
+        // audio attribute
+        auto aeFilter = hAudTrk->GetAudioEffectFilter();
+        // gain
+        auto volParams = aeFilter->GetVolumeParams();
+        volParams.volume = t->mAudioTrackAttribute.mAudioGain;
+        aeFilter->SetVolumeParams(&volParams);
+        mMtaReader->UpdateDuration();
+        mMtaReader->SeekTo(currentTime);
+    }
+
+    SyncDataLayer();
+    return true;
 }
 
 void TimeLine::MovingTrack(int& index, int& dst_index)
@@ -6190,8 +6439,9 @@ int TimeLine::Load(const imgui_json::value& value)
 
     SyncDataLayer();
     UpdatePreview();
+    mMtaReader->UpdateDuration();
     mMtaReader->SeekTo(currentTime);
-    mMtaReader->Refresh();
+
     return 0;
 }
 
@@ -7241,10 +7491,7 @@ bool TimeLine::UndoOneRecord()
         }
         else if (actionName == "REMOVE_TRACK")
         {
-            int64_t trackId = action["track_id"].get<imgui_json::number>();
-            int64_t afterUiTrkId = action["after_ui_track_id"].get<imgui_json::number>();
-            uint32_t type = action["media_type"].get<imgui_json::number>();
-            NewTrack("", type, true, trackId, afterUiTrkId);
+            RestoreTrack(action);
         }
         else if (actionName == "ADD_CLIP")
         {
@@ -9116,15 +9363,10 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         {
             uint32_t trackMediaType = track->mType;
             int64_t afterId = 0, afterUiTrkId = 0;
-            int64_t delTrackId = timeline->DeleteTrack(delTrackEntry, &afterId, &afterUiTrkId);
+            imgui_json::value action;
+            int64_t delTrackId = timeline->DeleteTrack(delTrackEntry, &action);
             if (delTrackId != -1)
             {
-                imgui_json::value action;
-                action["action"] = "REMOVE_TRACK";
-                action["media_type"] = imgui_json::number(trackMediaType);
-                action["track_id"] = imgui_json::number(delTrackId);
-                action["after_track_id"] = imgui_json::number(afterId);
-                action["after_ui_track_id"] = imgui_json::number(afterUiTrkId);
                 timeline->mUiActions.push_back(std::move(action));
                 ret = true;
             }
@@ -9145,15 +9387,10 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             {
                 uint32_t trackMediaType = pTrack->mType;
                 int64_t afterId = 0, afterUiTrkId = 0;
-                int64_t delTrackId = timeline->DeleteTrack(index, &afterId, &afterUiTrkId);
+                imgui_json::value action;
+                int64_t delTrackId = timeline->DeleteTrack(index, &action);
                 if (delTrackId != -1)
                 {
-                    imgui_json::value action;
-                    action["action"] = "REMOVE_TRACK";
-                    action["media_type"] = imgui_json::number(trackMediaType);
-                    action["track_id"] = imgui_json::number(delTrackId);
-                    action["after_track_id"] = imgui_json::number(afterId);
-                    action["after_ui_track_id"] = imgui_json::number(afterUiTrkId);
                     timeline->mUiActions.push_back(std::move(action));
                     ret = true;
                     trackNum = timeline->m_Tracks.size();
