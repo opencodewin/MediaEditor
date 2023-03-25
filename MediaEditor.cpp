@@ -418,8 +418,8 @@ struct MediaEditorSettings
     int FontBold {0};
     bool FontUnderLine {false};
     bool FontStrikeOut {false};
-    int FontPosOffsetX {0};
-    int FontPosOffsetY {0};
+    float FontPosOffsetX {0};
+    float FontPosOffsetY {0};
     int FontBorderType {1};
     float FontShadowDepth {0.0f};
     ImVec4 FontPrimaryColor {1, 1, 1, 1};
@@ -1427,8 +1427,8 @@ static void ShowConfigure(MediaEditorSettings & config)
                     if (config.FontScaleLink) config.FontScaleX *= scale_ratio;
                     config.FontScaleY = scale_y;
                 }
-                ImGui::SliderInt("Font position X", &config.FontPosOffsetX, -2000, 2000, "%d");
-                ImGui::SliderInt("Font position Y", &config.FontPosOffsetY, -2000, 2000, "%d");
+                ImGui::SliderFloat("Font position X", &config.FontPosOffsetX, -2.f, 2.f, "%.2f");
+                ImGui::SliderFloat("Font position Y", &config.FontPosOffsetY, -2.f, 2.f, "%.2f");
                 ImGui::SliderFloat("Font spacing", &config.FontSpacing, 0.5, 5, "%.1f");
                 ImGui::SliderFloat("Font angle", &config.FontAngle, 0, 360, "%.1f");
                 ImGui::SliderFloat("Font outline width", &config.FontOutlineWidth, 0, 5, "%.0f");
@@ -4290,16 +4290,16 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
                 // Crop Margin Left
                 int curve_margin_l_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("CropMarginL") : -1;
                 bool has_curve_margin_l = attribute_keypoint ? curve_margin_l_index != -1 : false;
-                int margin_l = has_curve_margin_l ? attribute_keypoint->GetValue(curve_margin_l_index, timeline->currentTime) : attribute->GetCropMarginL();
+                float margin_l = has_curve_margin_l ? attribute_keypoint->GetValue(curve_margin_l_index, timeline->currentTime) : attribute->GetCropMarginLScale();
                 ImGui::BeginDisabled(has_curve_margin_l);
-                if (ImGui::SliderInt("Crop Left", &margin_l, 0, timeline->mVidFilterClip->mWidth))
+                if (ImGui::SliderFloat("Crop Left", &margin_l, 0.f, 1.f))
                 {
                     attribute->SetCropMarginL(margin_l);
                     timeline->UpdatePreview();
                 }
-                ImGui::SameLine(sub_window_size.x - 66); if (ImGui::Button(ICON_RETURN_DEFAULT "##crop_marhin_l_default")) { attribute->SetCropMarginL(0); timeline->UpdatePreview(); }
+                ImGui::SameLine(sub_window_size.x - 66); if (ImGui::Button(ICON_RETURN_DEFAULT "##crop_marhin_l_default")) { attribute->SetCropMarginL(0.f); timeline->UpdatePreview(); }
                 ImGui::EndDisabled();
-                if (ImGui::ImCurveCheckEditKey("##add_curve_margin_l##video_attribute", &margin_key, has_curve_margin_l, "margin_l##video_attribute", 0.f, (float)timeline->mVidFilterClip->mWidth, 0.f, 360))
+                if (ImGui::ImCurveCheckEditKey("##add_curve_margin_l##video_attribute", &margin_key, has_curve_margin_l, "margin_l##video_attribute", 0.f, 1.f, 0.f, 360))
                 {
                     if (has_curve_margin_l) addCurve("CropMarginL", margin_key.m_min, margin_key.m_max, margin_key.m_default);
                     else if (attribute_keypoint) attribute_keypoint->DeleteCurve("CropMarginL");
@@ -4310,16 +4310,16 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
                 // Crop Margin Top
                 int curve_margin_t_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("CropMarginT") : -1;
                 bool has_curve_margin_t = attribute_keypoint ? curve_margin_t_index != -1 : false;
-                int margin_t = has_curve_margin_t ? attribute_keypoint->GetValue(curve_margin_t_index, timeline->currentTime) : attribute->GetCropMarginT();
+                float margin_t = has_curve_margin_t ? attribute_keypoint->GetValue(curve_margin_t_index, timeline->currentTime) : attribute->GetCropMarginTScale();
                 ImGui::BeginDisabled(has_curve_margin_t);
-                if (ImGui::SliderInt("Crop Top", &margin_t, 0, timeline->mVidFilterClip->mHeight))
+                if (ImGui::SliderFloat("Crop Top", &margin_t, 0.f, 1.f))
                 {
                     attribute->SetCropMarginT(margin_t);
                     timeline->UpdatePreview();
                 }
-                ImGui::SameLine(sub_window_size.x - 66); if (ImGui::Button(ICON_RETURN_DEFAULT "##crop_marhin_t_default")) { attribute->SetCropMarginT(0); timeline->UpdatePreview(); }
+                ImGui::SameLine(sub_window_size.x - 66); if (ImGui::Button(ICON_RETURN_DEFAULT "##crop_marhin_t_default")) { attribute->SetCropMarginT(0.f); timeline->UpdatePreview(); }
                 ImGui::EndDisabled();
-                if (ImGui::ImCurveCheckEditKey("##add_curve_margin_t##video_attribute", &margin_key, has_curve_margin_t, "margin_t##video_attribute", 0.f, (float)timeline->mVidFilterClip->mHeight, 0.f, 360))
+                if (ImGui::ImCurveCheckEditKey("##add_curve_margin_t##video_attribute", &margin_key, has_curve_margin_t, "margin_t##video_attribute", 0.f, 1.f, 0.f, 360))
                 {
                     if (has_curve_margin_t) addCurve("CropMarginT", margin_key.m_min, margin_key.m_max, margin_key.m_default);
                     else if (attribute_keypoint) attribute_keypoint->DeleteCurve("CropMarginT");
@@ -4330,16 +4330,16 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
                 // Crop Margin Right
                 int curve_margin_r_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("CropMarginR") : -1;
                 bool has_curve_margin_r = attribute_keypoint ? curve_margin_r_index != -1 : false;
-                int margin_r = has_curve_margin_r ? attribute_keypoint->GetValue(curve_margin_r_index, timeline->currentTime) : attribute->GetCropMarginR();
+                float margin_r = has_curve_margin_r ? attribute_keypoint->GetValue(curve_margin_r_index, timeline->currentTime) : attribute->GetCropMarginRScale();
                 ImGui::BeginDisabled(has_curve_margin_r);
-                if (ImGui::SliderInt("Crop Right", &margin_r, 0, timeline->mVidFilterClip->mWidth))
+                if (ImGui::SliderFloat("Crop Right", &margin_r, 0.f, 1.f))
                 {
                     attribute->SetCropMarginR(margin_r);
                     timeline->UpdatePreview();
                 }
-                ImGui::SameLine(sub_window_size.x - 66); if (ImGui::Button(ICON_RETURN_DEFAULT "##crop_marhin_r_default")) { attribute->SetCropMarginR(0); timeline->UpdatePreview(); }
+                ImGui::SameLine(sub_window_size.x - 66); if (ImGui::Button(ICON_RETURN_DEFAULT "##crop_marhin_r_default")) { attribute->SetCropMarginR(0.f); timeline->UpdatePreview(); }
                 ImGui::EndDisabled();
-                if (ImGui::ImCurveCheckEditKey("##add_curve_margin_r##video_attribute", &margin_key, has_curve_margin_r, "margin_r##video_attribute", 0.f, (float)timeline->mVidFilterClip->mWidth, 0.f, 360))
+                if (ImGui::ImCurveCheckEditKey("##add_curve_margin_r##video_attribute", &margin_key, has_curve_margin_r, "margin_r##video_attribute", 0.f, 1.f, 0.f, 360))
                 {
                     if (has_curve_margin_r) addCurve("CropMarginR", margin_key.m_min, margin_key.m_max, margin_key.m_default);
                     else if (attribute_keypoint) attribute_keypoint->DeleteCurve("CropMarginR");
@@ -4350,16 +4350,16 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
                 // Crop Margin Bottom
                 int curve_margin_b_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("CropMarginB") : -1;
                 bool has_curve_margin_b = attribute_keypoint ? curve_margin_b_index != -1 : false;
-                int margin_b = has_curve_margin_b ? attribute_keypoint->GetValue(curve_margin_b_index, timeline->currentTime) : attribute->GetCropMarginB();
+                float margin_b = has_curve_margin_b ? attribute_keypoint->GetValue(curve_margin_b_index, timeline->currentTime) : attribute->GetCropMarginBScale();
                 ImGui::BeginDisabled(has_curve_margin_b);
-                if (ImGui::SliderInt("Crop Bottom", &margin_b, 0, timeline->mVidFilterClip->mHeight))
+                if (ImGui::SliderFloat("Crop Bottom", &margin_b, 0.f, 1.f))
                 {
                     attribute->SetCropMarginB(margin_b);
                     timeline->UpdatePreview();
                 }
-                ImGui::SameLine(sub_window_size.x - 66); if (ImGui::Button(ICON_RETURN_DEFAULT "##crop_marhin_b_default")) { attribute->SetCropMarginB(0); timeline->UpdatePreview(); }
+                ImGui::SameLine(sub_window_size.x - 66); if (ImGui::Button(ICON_RETURN_DEFAULT "##crop_marhin_b_default")) { attribute->SetCropMarginB(0.f); timeline->UpdatePreview(); }
                 ImGui::EndDisabled();
-                if (ImGui::ImCurveCheckEditKey("##add_curve_margin_b##video_attribute", &margin_key, has_curve_margin_b, "margin_b##video_attribute", 0.f, (float)timeline->mVidFilterClip->mHeight, 0.f, 360))
+                if (ImGui::ImCurveCheckEditKey("##add_curve_margin_b##video_attribute", &margin_key, has_curve_margin_b, "margin_b##video_attribute", 0.f, 1.f, 0.f, 360))
                 {
                     if (has_curve_margin_b) addCurve("CropMarginB", margin_key.m_min, margin_key.m_max, margin_key.m_default);
                     else if (attribute_keypoint) attribute_keypoint->DeleteCurve("CropMarginB");
@@ -4376,17 +4376,16 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
                 // Position offset H
                 int curve_position_h_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("PositionOffsetH") : -1;
                 bool has_curve_position_h = attribute_keypoint ? curve_position_h_index != -1 : false;
-                int position_h = has_curve_position_h ? attribute_keypoint->GetValue(curve_position_h_index, timeline->currentTime) : attribute->GetPositionOffsetH();
-                position_h /= timeline->mPreviewScale;
+                float position_h = has_curve_position_h ? attribute_keypoint->GetValue(curve_position_h_index, timeline->currentTime) : attribute->GetPositionOffsetHScale();
                 ImGui::BeginDisabled(has_curve_position_h);
-                if (ImGui::SliderInt("Position H", &position_h, -timeline->mWidth, timeline->mWidth))
+                if (ImGui::SliderFloat("Position H", &position_h, -1.f, 1.f))
                 {
-                    attribute->SetPositionOffsetH(position_h * timeline->mPreviewScale);
+                    attribute->SetPositionOffsetH(position_h);
                     timeline->UpdatePreview();
                 }
-                ImGui::SameLine(sub_window_size.x - 66); if (ImGui::Button(ICON_RETURN_DEFAULT "##position_h_default")) { attribute->SetPositionOffsetH(0); timeline->UpdatePreview(); }
+                ImGui::SameLine(sub_window_size.x - 66); if (ImGui::Button(ICON_RETURN_DEFAULT "##position_h_default")) { attribute->SetPositionOffsetH(0.f); timeline->UpdatePreview(); }
                 ImGui::EndDisabled();
-                if (ImGui::ImCurveCheckEditKey("##add_curve_position_h##video_attribute", &margin_key, has_curve_position_h, "position_h##video_attribute", -(float)timeline->mVidFilterClip->mWidth, (float)timeline->mVidFilterClip->mWidth, 0.f, 360))
+                if (ImGui::ImCurveCheckEditKey("##add_curve_position_h##video_attribute", &margin_key, has_curve_position_h, "position_h##video_attribute", -1.f, 1.f, 0.f, 360))
                 {
                     if (has_curve_position_h) addCurve("PositionOffsetH", margin_key.m_min, margin_key.m_max, margin_key.m_default);
                     else if (attribute_keypoint) attribute_keypoint->DeleteCurve("PositionOffsetH");
@@ -4397,17 +4396,16 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
                 // Position offset V
                 int curve_position_v_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("PositionOffsetV") : -1;
                 bool has_curve_position_v = attribute_keypoint ? curve_position_v_index != -1 : false;
-                int position_v = has_curve_position_v ? attribute_keypoint->GetValue(curve_position_v_index, timeline->currentTime) : attribute->GetPositionOffsetV();
-                position_v /= timeline->mPreviewScale;
+                float position_v = has_curve_position_v ? attribute_keypoint->GetValue(curve_position_v_index, timeline->currentTime) : attribute->GetPositionOffsetVScale();
                 ImGui::BeginDisabled(has_curve_position_v);
-                if (ImGui::SliderInt("Position V", &position_v, -timeline->mHeight, timeline->mHeight))
+                if (ImGui::SliderFloat("Position V", &position_v, -1.f, 1.f))
                 {
-                    attribute->SetPositionOffsetV(position_v * timeline->mPreviewScale);
+                    attribute->SetPositionOffsetV(position_v);
                     timeline->UpdatePreview();
                 }
-                ImGui::SameLine(sub_window_size.x - 66); if (ImGui::Button(ICON_RETURN_DEFAULT "##position_v_default")) { attribute->SetPositionOffsetV(0); timeline->UpdatePreview(); }
+                ImGui::SameLine(sub_window_size.x - 66); if (ImGui::Button(ICON_RETURN_DEFAULT "##position_v_default")) { attribute->SetPositionOffsetV(0.f); timeline->UpdatePreview(); }
                 ImGui::EndDisabled();
-                if (ImGui::ImCurveCheckEditKey("##add_curve_position_v##video_attribute", &margin_key, has_curve_position_v, "position_v##video_attribute", -(float)timeline->mVidFilterClip->mHeight, (float)timeline->mVidFilterClip->mHeight, 0.f, 360))
+                if (ImGui::ImCurveCheckEditKey("##add_curve_position_v##video_attribute", &margin_key, has_curve_position_v, "position_v##video_attribute", -1.f, 1.f, 0.f, 360))
                 {
                     if (has_curve_position_v) addCurve("PositionOffsetV", margin_key.m_min, margin_key.m_max, margin_key.m_default);
                     else if (attribute_keypoint) attribute_keypoint->DeleteCurve("PositionOffsetV");
@@ -7049,16 +7047,16 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     int curve_pos_x_index = key_point->GetCurveIndex("OffsetH");
     bool has_curve_pos_x = curve_pos_x_index != -1;
     ImGui::BeginDisabled(has_curve_pos_x);
-    if (ImGui::SliderFloat("Font position X", &pos_x, - default_size.x, timeline->mWidth, "%.0f"))
+    if (ImGui::SliderFloat("Font position X", &pos_x, - default_size.x, 1.f, "%.2f"))
     {
         float offset_x = pos_x - clip->mFontPosX;
         clip->mFontOffsetH += offset_x;
         clip->mClipHolder->SetOffsetH(clip->mFontOffsetH);
         clip->mFontPosX = pos_x;
         update_preview = true;
-    } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##posx_default")) { clip->mFontOffsetH = 0; clip->mClipHolder->SetOffsetH(0); update_preview = true; }
+    } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##posx_default")) { clip->mFontOffsetH = 0; clip->mClipHolder->SetOffsetH(0.f); update_preview = true; }
     ImGui::EndDisabled();
-    if (ImGui::ImCurveCheckEditKey("##add_curve_text_pos_x##text_clip_ediror", &text_key, has_curve_pos_x, "text_pos_x##text_clip_ediror",  - (float)default_size.x , (float)timeline->mWidth, 0, curve_button_offset))
+    if (ImGui::ImCurveCheckEditKey("##add_curve_text_pos_x##text_clip_ediror", &text_key, has_curve_pos_x, "text_pos_x##text_clip_ediror",  - (float)default_size.x , 1.f, pos_x, curve_button_offset))
     {
         if (has_curve_pos_x) addCurve("OffsetH", text_key.m_min, text_key.m_max, text_key.m_default);
         else { key_point->DeleteCurve("OffsetH"); clip->mClipHolder->SetOffsetH(clip->mFontOffsetH); }
@@ -7070,16 +7068,16 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     int curve_pos_y_index = key_point->GetCurveIndex("OffsetV");
     bool has_curve_pos_y = curve_pos_y_index != -1;
     ImGui::BeginDisabled(has_curve_pos_y);
-    if (ImGui::SliderFloat("Font position Y", &pos_y, - default_size.y, timeline->mHeight, "%.0f"))
+    if (ImGui::SliderFloat("Font position Y", &pos_y, - default_size.y, 1.0, "%.2f"))
     {
         float offset_y = pos_y - clip->mFontPosY;
         clip->mFontOffsetV += offset_y;
         clip->mClipHolder->SetOffsetV(clip->mFontOffsetV);
         clip->mFontPosY = pos_y;
         update_preview = true;
-    } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##posy_default")) { clip->mFontOffsetV = 0; clip->mClipHolder->SetOffsetV(0); update_preview = true; }
+    } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##posy_default")) { clip->mFontOffsetV = 0; clip->mClipHolder->SetOffsetV(0.f); update_preview = true; }
     ImGui::EndDisabled();
-    if (ImGui::ImCurveCheckEditKey("##add_curve_text_pos_y##text_clip_ediror", &text_key, has_curve_pos_y, "text_pos_y##text_clip_ediror",  - (float)default_size.y , (float)timeline->mHeight, 0, curve_button_offset))
+    if (ImGui::ImCurveCheckEditKey("##add_curve_text_pos_y##text_clip_ediror", &text_key, has_curve_pos_y, "text_pos_y##text_clip_ediror",  - (float)default_size.y , 1.f, pos_y, curve_button_offset))
     {
         if (has_curve_pos_y) addCurve("OffsetV", text_key.m_min, text_key.m_max, text_key.m_default);
         else { key_point->DeleteCurve("OffsetV"); clip->mClipHolder->SetOffsetV(clip->mFontOffsetV); }
@@ -7495,17 +7493,17 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
         ImGui::EndCombo();
     } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_font_family_default")) { track->mMttReader->SetFont(g_media_editor_settings.FontName); update_preview = true; }
     
-    int offset_x = style.OffsetH();
+    float offset_x = style.OffsetHScale();
     int curve_pos_x_index = keyPointsPtr->GetCurveIndex("OffsetH");
     bool has_curve_pos_x = curve_pos_x_index != -1;
     ImGui::BeginDisabled(has_curve_pos_x);
-    if (ImGui::SliderInt("Font position X", &offset_x, - timeline->mWidth , timeline->mWidth, "%d"))
+    if (ImGui::SliderFloat("Font position X", &offset_x, -1.f , 1.f, "%.2f"))
     {
         track->mMttReader->SetOffsetH(offset_x);
         update_preview = true;
     } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_font_offsetx_default")) { track->mMttReader->SetOffsetH(g_media_editor_settings.FontPosOffsetX); update_preview = true; }
     ImGui::EndDisabled();
-    if (ImGui::ImCurveCheckEditKey("##add_curve_text_pos_x##text_track_ediror", &text_key, has_curve_pos_x, "text_pos_x##text_track_ediror",  - (float)timeline->mWidth , (float)timeline->mWidth, g_media_editor_settings.FontPosOffsetX, curve_button_offset))
+    if (ImGui::ImCurveCheckEditKey("##add_curve_text_pos_x##text_track_ediror", &text_key, has_curve_pos_x, "text_pos_x##text_track_ediror",  -1.f , 1.f, g_media_editor_settings.FontPosOffsetX, curve_button_offset))
     {
         if (has_curve_pos_x) addCurve("OffsetH", text_key.m_min, text_key.m_max, text_key.m_default);
         else keyPointsPtr->DeleteCurve("OffsetH");
@@ -7513,17 +7511,17 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
     }
     if (has_curve_pos_x) EditCurve("OffsetH");
 
-    int offset_y = style.OffsetV();
+    float offset_y = style.OffsetVScale();
     int curve_pos_y_index = keyPointsPtr->GetCurveIndex("OffsetV");
     bool has_curve_pos_y = curve_pos_y_index != -1;
     ImGui::BeginDisabled(has_curve_pos_y);
-    if (ImGui::SliderInt("Font position Y", &offset_y, - timeline->mHeight, timeline->mHeight, "%d"))
+    if (ImGui::SliderFloat("Font position Y", &offset_y, -1.f, 1.f, "%.2f"))
     {
         track->mMttReader->SetOffsetV(offset_y);
         update_preview = true;
     } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_font_offsety_default")) { track->mMttReader->SetOffsetV(g_media_editor_settings.FontPosOffsetY); update_preview = true; }
     ImGui::EndDisabled();
-    if (ImGui::ImCurveCheckEditKey("##add_curve_text_pos_y##text_track_ediror", &text_key, has_curve_pos_y, "text_pos_y##text_track_ediror",  - (float)timeline->mHeight , (float)timeline->mHeight, g_media_editor_settings.FontPosOffsetY, curve_button_offset))
+    if (ImGui::ImCurveCheckEditKey("##add_curve_text_pos_y##text_track_ediror", &text_key, has_curve_pos_y, "text_pos_y##text_track_ediror",  -1.f , 1.f, g_media_editor_settings.FontPosOffsetY, curve_button_offset))
     {
         if (has_curve_pos_y) addCurve("OffsetV", text_key.m_min, text_key.m_max, text_key.m_default);
         else keyPointsPtr->DeleteCurve("OffsetV");
@@ -7794,9 +7792,9 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
     {
         editing_track = (MediaTrack *)editing_clip->mTrack;
         current_image = editing_clip->mClipHolder->Image(timeline->currentTime-editing_clip->mStart);
-        default_size = ImVec2(current_image.Area().w, current_image.Area().h);
-        editing_clip->mFontPosX = current_image.Area().x;
-        editing_clip->mFontPosY = current_image.Area().y;
+        default_size = ImVec2((float)current_image.Area().w / (float)timeline->GetPreviewWidth(), (float)current_image.Area().h / (float)timeline->GetPreviewHeight());
+        editing_clip->mFontPosX = (float)current_image.Area().x / (float)timeline->GetPreviewWidth();
+        editing_clip->mFontPosY = (float)current_image.Area().y / (float)timeline->GetPreviewHeight();
     }
 
     ImGuiWindowFlags child_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings;
@@ -7913,10 +7911,8 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
         draw_list->PushClipRect(video_rect.Min, video_rect.Max);
         if (editing_clip && current_image.Valid() && timeline->currentTime >= editing_clip->mStart && timeline->currentTime <= editing_clip->mEnd)
         {
-            float scale_w =  video_rect.GetWidth() / timeline->mWidth;
-            float scale_h =  video_rect.GetHeight() / timeline->mHeight;
-            ImVec2 text_pos_min = ImVec2(editing_clip->mFontPosX * scale_w, editing_clip->mFontPosY * scale_h);
-            ImVec2 text_pos_max = text_pos_min + ImVec2(default_size.x * scale_w, default_size.y * scale_h);
+            ImVec2 text_pos_min = ImVec2(editing_clip->mFontPosX * video_rect.GetWidth(), editing_clip->mFontPosY * video_rect.GetHeight());
+            ImVec2 text_pos_max = text_pos_min + ImVec2(default_size.x * video_rect.GetWidth(), default_size.y * video_rect.GetHeight());
             ImRect text_rect(video_rect.Min + text_pos_min, video_rect.Min + text_pos_max);
             ImRect text_lt_rect(text_rect.Min - handle_size, text_rect.Min + handle_size);
             ImRect text_rt_rect(text_rect.Min + ImVec2(text_rect.GetWidth(), 0) - handle_size, text_rect.Min + ImVec2(text_rect.GetWidth(), 0) + handle_size);
@@ -7950,9 +7946,9 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
                 {
                     ImGui::CaptureMouseFromApp();
                     mouse_is_dragging = true;
-                    editing_clip->mFontOffsetH += io.MouseDelta.x / scale_w;
+                    editing_clip->mFontOffsetH += io.MouseDelta.x / video_rect.GetWidth();
                     editing_clip->mClipHolder->SetOffsetH(editing_clip->mFontOffsetH);
-                    editing_clip->mFontOffsetV += io.MouseDelta.y / scale_h;
+                    editing_clip->mFontOffsetV += io.MouseDelta.y / video_rect.GetHeight();
                     editing_clip->mClipHolder->SetOffsetV(editing_clip->mFontOffsetV);
 
                     // draw meters on video
@@ -9464,8 +9460,8 @@ static void MediaEditor_SetupContext(ImGuiContext* ctx, bool in_splash)
         else if (sscanf(line, "FontBold=%d", &val_int) == 1) { setting->FontBold = val_int; }
         else if (sscanf(line, "FontUnderLine=%d", &val_int) == 1) { setting->FontUnderLine = val_int == 1; }
         else if (sscanf(line, "FontStrikeOut=%d", &val_int) == 1) { setting->FontStrikeOut = val_int == 1; }
-        else if (sscanf(line, "FontPosOffsetX=%d", &val_int) == 1) { setting->FontPosOffsetX = val_int; }
-        else if (sscanf(line, "FontPosOffsetY=%d", &val_int) == 1) { setting->FontPosOffsetY = val_int; }
+        else if (sscanf(line, "FontPosOffsetX=%f", &val_float) == 1) { setting->FontPosOffsetX = val_float; }
+        else if (sscanf(line, "FontPosOffsetY=%f", &val_float) == 1) { setting->FontPosOffsetY = val_float; }
         else if (sscanf(line, "FontBorderType=%d", &val_int) == 1) { setting->FontBorderType = val_int; }
         else if (sscanf(line, "FontShadowDepth=%f", &val_float) == 1) { setting->FontShadowDepth = val_float; }
         else if (sscanf(line, "FontPrimaryColor=%f,%f,%f,%f", &val_vec4.x, &val_vec4.y, &val_vec4.z, &val_vec4.w) == 1) { setting->FontPrimaryColor = val_vec4; }
@@ -9577,8 +9573,8 @@ static void MediaEditor_SetupContext(ImGuiContext* ctx, bool in_splash)
         out_buf->appendf("FontBold=%d\n", g_media_editor_settings.FontBold);
         out_buf->appendf("FontUnderLine=%d\n", g_media_editor_settings.FontUnderLine ? 1 : 0);
         out_buf->appendf("FontStrikeOut=%d\n", g_media_editor_settings.FontStrikeOut ? 1 : 0);
-        out_buf->appendf("FontPosOffsetX=%d\n", g_media_editor_settings.FontPosOffsetX);
-        out_buf->appendf("FontPosOffsetY=%d\n", g_media_editor_settings.FontPosOffsetY);
+        out_buf->appendf("FontPosOffsetX=%f\n", g_media_editor_settings.FontPosOffsetX);
+        out_buf->appendf("FontPosOffsetY=%f\n", g_media_editor_settings.FontPosOffsetY);
         out_buf->appendf("FontBorderType=%d\n", g_media_editor_settings.FontBorderType);
         out_buf->appendf("FontShadowDepth=%f\n", g_media_editor_settings.FontShadowDepth);
         out_buf->appendf("FontPrimaryColor=%f,%f,%f,%f\n", g_media_editor_settings.FontPrimaryColor.x, g_media_editor_settings.FontPrimaryColor.y, g_media_editor_settings.FontPrimaryColor.z, g_media_editor_settings.FontPrimaryColor.w);

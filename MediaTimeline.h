@@ -385,12 +385,12 @@ struct VideoClip : Clip
     double mScaleV  {1.f};                              // clip attribute scale v, project saved
     bool mKeepAspectRatio {false};                      // clip attribute scale keep aspect ratio, project saved
     double mRotationAngle {0.f};                        // clip attribute rotate angle, project saved
-    int32_t mPositionOffsetH {0};                       // clip attribute position offset h, project saved
-    int32_t mPositionOffsetV {0};                       // clip attribute position offset v, project saved
-    uint32_t mCropMarginL {0};                          // clip attribute crop margin left, project saved
-    uint32_t mCropMarginT {0};                          // clip attribute crop margin top, project saved
-    uint32_t mCropMarginR {0};                          // clip attribute crop margin right, project saved
-    uint32_t mCropMarginB {0};                          // clip attribute crop margin bottom, project saved
+    float mPositionOffsetH {0.f};                       // clip attribute position offset h, project saved
+    float mPositionOffsetV {0.f};                       // clip attribute position offset v, project saved
+    float mCropMarginL {0.f};                           // clip attribute crop margin left, project saved
+    float mCropMarginT {0.f};                           // clip attribute crop margin top, project saved
+    float mCropMarginR {0.f};                           // clip attribute crop margin right, project saved
+    float mCropMarginB {0.f};                           // clip attribute crop margin bottom, project saved
 
     VideoClip(int64_t start, int64_t end, int64_t id, std::string name, MediaParserHolder hParser, SnapshotGenerator::ViewerHolder viewer, void* handle);
     VideoClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle);

@@ -918,7 +918,7 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
             MediaTrack * newTrack = timeline->m_Tracks[index];
             newTrack->mMttReader = timeline->mMtvReader->NewEmptySubtitleTrack(newTrack->mID);
             newTrack->mMttReader->SetFont(timeline->mFontName);
-            newTrack->mMttReader->SetFrameSize(timeline->mWidth, timeline->mHeight);
+            newTrack->mMttReader->SetFrameSize(timeline->GetPreviewWidth(), timeline->GetPreviewHeight());
             newTrack->mMttReader->EnableFullSizeOutput(false);
         }
         timeline->MovingClip(mID, track_index, index);
@@ -1733,8 +1733,8 @@ void TextClip::SetClipDefault(const MediaCore::SubtitleStyle & style)
     mFontUnderLine = style.UnderLine();
     mFontStrikeOut = style.StrikeOut();
     mFontName = style.Font();
-    mFontOffsetH = style.OffsetH();
-    mFontOffsetV = style.OffsetV();
+    mFontOffsetH = style.OffsetHScale();
+    mFontOffsetV = style.OffsetVScale();
     mFontShadowDepth = fabs(style.ShadowDepth());
     mFontPrimaryColor = style.PrimaryColor().ToImVec4();
     mFontOutlineColor = style.OutlineColor().ToImVec4();
@@ -2511,12 +2511,12 @@ void EditingVideoClip::Save()
         clip->mScaleH = mAttribute->GetScaleH();
         clip->mScaleV = mAttribute->GetScaleV();
         clip->mRotationAngle = mAttribute->GetRotationAngle();
-        clip->mPositionOffsetH = mAttribute->GetPositionOffsetH();
-        clip->mPositionOffsetV = mAttribute->GetPositionOffsetV();
-        clip->mCropMarginL = mAttribute->GetCropMarginL();
-        clip->mCropMarginT = mAttribute->GetCropMarginT();
-        clip->mCropMarginR = mAttribute->GetCropMarginR();
-        clip->mCropMarginB = mAttribute->GetCropMarginB();
+        clip->mPositionOffsetH = mAttribute->GetPositionOffsetHScale();
+        clip->mPositionOffsetV = mAttribute->GetPositionOffsetVScale();
+        clip->mCropMarginL = mAttribute->GetCropMarginLScale();
+        clip->mCropMarginT = mAttribute->GetCropMarginTScale();
+        clip->mCropMarginR = mAttribute->GetCropMarginRScale();
+        clip->mCropMarginB = mAttribute->GetCropMarginBScale();
     }
     timeline->UpdatePreview();
 }
@@ -4191,12 +4191,12 @@ MediaTrack* MediaTrack::Load(const imgui_json::value& value, void * handle)
             if (track.contains("OffsetX"))
             {
                 auto& val = track["OffsetX"];
-                if (val.is_number()) new_track->mMttReader->SetOffsetH(val.get<imgui_json::number>());
+                if (val.is_number()) new_track->mMttReader->SetOffsetH((float)val.get<imgui_json::number>());
             }
             if (track.contains("OffsetY"))
             {
                 auto& val = track["OffsetY"];
-                if (val.is_number()) new_track->mMttReader->SetOffsetV(val.get<imgui_json::number>());
+                if (val.is_number()) new_track->mMttReader->SetOffsetV((float)val.get<imgui_json::number>());
             }
             if (track.contains("ScaleX"))
             {
@@ -4268,7 +4268,7 @@ MediaTrack* MediaTrack::Load(const imgui_json::value& value, void * handle)
                 auto& keypoint = track["KeyPoint"];
                 new_track->mMttReader->GetKeyPoints()->Load(keypoint);
             }
-            new_track->mMttReader->SetFrameSize(timeline->mWidth, timeline->mHeight);
+            new_track->mMttReader->SetFrameSize(timeline->GetPreviewWidth(), timeline->GetPreviewHeight());
             new_track->mMttReader->EnableFullSizeOutput(false);
             for (auto clip : new_track->m_Clips)
             {
@@ -4329,8 +4329,8 @@ void MediaTrack::Save(imgui_json::value& value)
         auto& style = mMttReader->DefaultStyle();
         subtrack["ID"] = imgui_json::number(mMttReader->Id());
         subtrack["Font"] = style.Font();
-        subtrack["OffsetX"] = imgui_json::number(style.OffsetH());
-        subtrack["OffsetY"] = imgui_json::number(style.OffsetV());
+        subtrack["OffsetX"] = imgui_json::number(style.OffsetHScale());
+        subtrack["OffsetY"] = imgui_json::number(style.OffsetVScale());
         subtrack["ScaleX"] = imgui_json::number(style.ScaleX());
         subtrack["ScaleY"] = imgui_json::number(style.ScaleY());
         subtrack["Spacing"] = imgui_json::number(style.Spacing());
@@ -7243,29 +7243,7 @@ bool TimeLine::ConfigEncoder(const std::string& outputPath, VideoEncoderParams& 
         mEncMtvReader = nullptr;
     }
     mEncMtvReader = mMtvReader->CloneAndConfigure(vidEncParams.width, vidEncParams.height, vidEncParams.frameRate);
-    float out_scale_x = vidEncParams.width / mWidth;
-    float out_scale_y = vidEncParams.height / mHeight;
-    // TODO::Dicky need update some setting because of timeline video size/ video preview scale and encode size difference
-    auto vidTrackIter = mEncMtvReader->TrackListBegin();
-    while (vidTrackIter != mEncMtvReader->TrackListEnd())
-    {
-        auto& vidTrack = *vidTrackIter++;
-        auto vidClipIter = vidTrack->ClipListBegin();
-        while (vidClipIter != vidTrack->ClipListEnd())
-        {
-            auto& vidClip = *vidClipIter++;
-            auto attribute = vidClip->GetTransformFilter();
-            if (attribute)
-            {
-                auto offset_h = attribute->GetPositionOffsetH();
-                offset_h = offset_h / mPreviewScale * out_scale_x;
-                attribute->SetPositionOffsetH(offset_h);
-                auto offset_v = attribute->GetPositionOffsetV();
-                offset_v = offset_v / mPreviewScale * out_scale_y;
-                attribute->SetPositionOffsetV(offset_v);
-            }
-        }
-    }
+
     // Audio
     std::string audEncSmpFormat;
     if (!mEncoder->ConfigureAudioStream(
@@ -8541,8 +8519,10 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                     {
                         if (track->mMttReader && menuMouseTime != -1)
                         {
+                            int64_t text_time = menuMouseTime;
+                            timeline->AlignTime(text_time);
                             auto& style = track->mMttReader->DefaultStyle();
-                            TextClip * clip = new TextClip(menuMouseTime, menuMouseTime + 5000, track->mID, track->mName, std::string(""), timeline);
+                            TextClip * clip = new TextClip(text_time, text_time + 5000, track->mID, track->mName, std::string(""), timeline);
                             auto holder = track->mMttReader->NewClip(clip->mStart, clip->mEnd - clip->mStart);
                             clip->SetClipDefault(style);
                             clip->mClipHolder = holder;
@@ -9179,7 +9159,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                     if (newTrack->mMttReader)
                     {
                         auto& style = newTrack->mMttReader->DefaultStyle();
-                        newTrack->mMttReader->SetFrameSize(timeline->mWidth, timeline->mHeight);
+                        newTrack->mMttReader->SetFrameSize(timeline->GetPreviewWidth(), timeline->GetPreviewHeight());
                         newTrack->mMttReader->SeekToIndex(0);
                         newTrack->mMttReader->EnableFullSizeOutput(false);
                         MediaCore::SubtitleClipHolder hSubClip = newTrack->mMttReader->GetCurrClip();
@@ -9420,7 +9400,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         MediaTrack * newTrack = timeline->m_Tracks[newTrackIndex];
         newTrack->mMttReader = timeline->mMtvReader->NewEmptySubtitleTrack(newTrack->mID);
         newTrack->mMttReader->SetFont(timeline->mFontName);
-        newTrack->mMttReader->SetFrameSize(timeline->mWidth, timeline->mHeight);
+        newTrack->mMttReader->SetFrameSize(timeline->GetPreviewWidth(), timeline->GetPreviewHeight());
         newTrack->mMttReader->EnableFullSizeOutput(false);
         ret = true;
     }
