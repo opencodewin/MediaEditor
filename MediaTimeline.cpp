@@ -117,7 +117,7 @@ void MediaItem::UpdateItem(const std::string& name, const std::string& path, voi
     }
     if (!path.empty() && mMediaOverview)
     {
-        mMediaOverview->SetSnapshotResizeFactor(0.1, 0.1);
+        mMediaOverview->SetSnapshotResizeFactor(0.05, 0.05);
         mMediaOverview->Open(path, 50);
     }
     if (mMediaOverview && mMediaOverview->IsOpened())
@@ -2421,7 +2421,7 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
         }
 
         mSsGen->SetCacheFactor(1);
-        float snapshot_scale = mHeight > 0 ? 50.f / (float)mHeight : 0.1;
+        float snapshot_scale = mHeight > 0 ? 50.f / (float)mHeight : 0.05;
         mSsGen->SetSnapshotResizeFactor(snapshot_scale, snapshot_scale);
         mSsViewer = mSsGen->CreateViewer((double)mStartOffset / 1000);
     }
@@ -2770,7 +2770,7 @@ void EditingAudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, 
         //if (sampleSize <= 0) continue;
         int sample_stride = window_length / window_size.x;
         if (sample_stride <= 0) sample_stride = 1;
-        int min_zoom = ImMax(window_length >> 15, 16);
+        int min_zoom = ImMax(window_length >> 13, 16);
         int zoom = ImMin(sample_stride, min_zoom);
         start_offset = start_offset / zoom * zoom; // align start_offset
         ImPlot::PushStyleVar(ImPlotStyleVar_PlotPadding, {0, 0});
@@ -2992,7 +2992,7 @@ EditingVideoOverlap::EditingVideoOverlap(Overlap* ovlp)
             if (!mSsGen1->Open(vidclip1->mSsViewer->GetMediaParser()))
                 throw std::runtime_error("FAILED to open the snapshot generator for the 1st video clip!");
             auto video1_info = vidclip1->mSsViewer->GetMediaParser()->GetBestVideoStream();
-            float snapshot_scale1 = video1_info->height > 0 ? 50.f / (float)video1_info->height : 0.1;
+            float snapshot_scale1 = video1_info->height > 0 ? 50.f / (float)video1_info->height : 0.05;
             mSsGen1->SetCacheFactor(1.0);
             mSsGen1->SetSnapshotResizeFactor(snapshot_scale1, snapshot_scale1);
             m_StartOffset.first = vidclip1->mStartOffset + ovlp->mStart - vidclip1->mStart;
@@ -3011,7 +3011,7 @@ EditingVideoOverlap::EditingVideoOverlap(Overlap* ovlp)
             if (!mSsGen2->Open(vidclip2->mSsViewer->GetMediaParser()))
                 throw std::runtime_error("FAILED to open the snapshot generator for the 2nd video clip!");
             auto video2_info = vidclip2->mSsViewer->GetMediaParser()->GetBestVideoStream();
-            float snapshot_scale2 = video2_info->height > 0 ? 50.f / (float)video2_info->height : 0.1;
+            float snapshot_scale2 = video2_info->height > 0 ? 50.f / (float)video2_info->height : 0.05;
             mSsGen2->SetCacheFactor(1.0);
             mSsGen2->SetSnapshotResizeFactor(snapshot_scale2, snapshot_scale2);
             m_StartOffset.second = vidclip2->mStartOffset + ovlp->mStart - vidclip2->mStart;
@@ -3412,7 +3412,7 @@ void EditingAudioOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
             std::string id_string = "##Waveform_overlap@" + std::to_string(mClip1->mID) + "@" +std::to_string(i);
             int sample_stride = window_length / clip_window_size.x;
             if (sample_stride <= 0) sample_stride = 1;
-            int min_zoom = ImMax(window_length >> 15, 16);
+            int min_zoom = ImMax(window_length >> 13, 16);
             int zoom = ImMin(sample_stride, min_zoom);
             start_offset = start_offset / zoom * zoom; // align start_offset
             
@@ -3452,7 +3452,7 @@ void EditingAudioOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
             std::string id_string = "##Waveform_overlap@" + std::to_string(mClip2->mID) + "@" +std::to_string(i);
             int sample_stride = window_length / clip_window_size.x;
             if (sample_stride <= 0) sample_stride = 1;
-            int min_zoom = ImMax(window_length >> 15, 16);
+            int min_zoom = ImMax(window_length >> 13, 16);
             int zoom = ImMin(sample_stride, min_zoom);
             start_offset = start_offset / zoom * zoom; // align start_offset
             
@@ -6991,7 +6991,7 @@ SnapshotGeneratorHolder TimeLine::GetSnapshotGenerator(int64_t mediaItemId)
         return nullptr;
     }
     auto video_info = mi->mMediaOverview->GetMediaParser()->GetBestVideoStream();
-    float snapshot_scale = video_info->height > 0 ? DEFAULT_VIDEO_TRACK_HEIGHT / (float)video_info->height : 0.1;
+    float snapshot_scale = video_info->height > 0 ? DEFAULT_VIDEO_TRACK_HEIGHT / (float)video_info->height : 0.05;
     hSsGen->SetSnapshotResizeFactor(snapshot_scale, snapshot_scale);
     hSsGen->SetCacheFactor(9);
     if (visibleTime > 0 && msPixelWidthTarget > 0)
