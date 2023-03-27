@@ -9,7 +9,7 @@
 #include "Logger.h"
 #include "DebugHelper.h"
 
-#define AUDIO_WAVEFORM_IMPLOT   1
+#define AUDIO_WAVEFORM_IMPLOT   0
 
 const MediaTimeline::audio_band_config DEFAULT_BAND_CFG[10] = {
     { 32,       32,         0 },        { 64,       64,         0 },
@@ -57,15 +57,12 @@ static void frameStepTime(int64_t& time, int32_t offset, MediaInfo::Ratio rate)
     }
 }
 
-static void waveFrameResample(float * wave, int length, int size, ImGui::ImMat& plot_frame_max, ImGui::ImMat& plot_frame_min, ImGui::ImMat& plot_frame_xs)
+static void waveFrameResample(float * wave, int samples, int size, int zoom, ImGui::ImMat& plot_frame_max, ImGui::ImMat& plot_frame_min)
 {
-    int samples = length / size;
     plot_frame_max.create_type(size, 1, 1, IM_DT_FLOAT32);
     plot_frame_min.create_type(size, 1, 1, IM_DT_FLOAT32);
-    plot_frame_xs.create_type(size, 1,  1, IM_DT_FLOAT32);
     float * out_channel_data_max = (float *)plot_frame_max.data;
     float * out_channel_data_min = (float *)plot_frame_min.data;
-    float * out_channel_data_xs = (float *)plot_frame_xs.data;
     for (int i = 0; i < size; i++)
     {
         float max_val = -FLT_MAX;
@@ -76,7 +73,7 @@ static void waveFrameResample(float * wave, int length, int size, ImGui::ImMat& 
         }
         else
         {
-            for (int n = 0; n < samples; n++)
+            for (int n = 0; n < samples; n += zoom)
             {
                 float val = wave[i * samples + n];
                 if (max_val < val) max_val = val;
@@ -84,16 +81,15 @@ static void waveFrameResample(float * wave, int length, int size, ImGui::ImMat& 
             }
             if (max_val < 0 && min_val < 0)
             {
-                max_val = min_val = min_val;
+                max_val = min_val;
             }
             else if (max_val > 0 && min_val > 0)
             {
-                max_val = min_val = max_val;
+                min_val = max_val;
             }
         }
         out_channel_data_max[i] = ImMin(max_val, 1.f);
         out_channel_data_min[i] = ImMax(min_val, -1.f);
-        out_channel_data_xs[i] = i;
     }
 }
 
@@ -1649,9 +1645,9 @@ void AudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
             if (sample_stride <= 0) sample_stride = 1;
             int min_zoom = ImMax(window_length >> 13, 16);
             int zoom = ImMin(sample_stride, min_zoom);
-            start_offset = start_offset / zoom * zoom; // align start_offset
             ImGui::PushClipRect(leftTop, rightBottom, true);
 #if AUDIO_WAVEFORM_IMPLOT
+            start_offset = start_offset / zoom * zoom; // align start_offset
             ImGui::SetCursorScreenPos(customViewStart);
             ImPlot::PushStyleVar(ImPlotStyleVar_PlotPadding, {0, 0});
             ImPlot::PushStyleVar(ImPlotStyleVar_PlotBorderSize, 0.f);
@@ -1667,13 +1663,14 @@ void AudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
             ImPlot::PopStyleColor();
             ImPlot::PopStyleVar(2);
 #else
+            start_offset = start_offset / sample_stride * sample_stride; // align start_offset
             ImGui::PushStyleColor(ImGuiCol_FrameBg, 0);
             ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.4f, 0.4f, 0.8f, 1.0f));
             ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.3f, 0.3f, 0.8f, 0.5f));
             std::string plot_max_id = id_string + "_line_max";
             std::string plot_min_id = id_string + "_line_min";
-            ImGui::ImMat plot_frame_max, plot_frame_min, plot_frame_xs;
-            waveFrameResample(&mWaveform->pcm[0][start_offset], window_length, draw_size.x, plot_frame_max, plot_frame_min, plot_frame_xs);
+            ImGui::ImMat plot_frame_max, plot_frame_min;
+            waveFrameResample(&mWaveform->pcm[0][start_offset], sample_stride, draw_size.x, zoom, plot_frame_max, plot_frame_min);
             ImGui::SetCursorScreenPos(customViewStart);
             ImGui::PlotLinesEx(plot_max_id.c_str(), (float *)plot_frame_max.data, plot_frame_max.w, 0, nullptr, -wave_range, wave_range, draw_size, sizeof(float), false, true);
             ImGui::SetCursorScreenPos(customViewStart);
@@ -2829,8 +2826,8 @@ void EditingAudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, 
         if (sample_stride <= 0) sample_stride = 1;
         int min_zoom = ImMax(window_length >> 13, 16);
         int zoom = ImMin(sample_stride, min_zoom);
-        start_offset = start_offset / zoom * zoom; // align start_offset
 #if AUDIO_WAVEFORM_IMPLOT
+        start_offset = start_offset / zoom * zoom; // align start_offset
         ImPlot::PushStyleVar(ImPlotStyleVar_PlotPadding, {0, 0});
         ImPlot::PushStyleVar(ImPlotStyleVar_PlotBorderSize, 0.f);
         ImPlot::PushStyleColor(ImPlotCol_PlotBg, {0, 0, 0, 0});
@@ -2845,13 +2842,14 @@ void EditingAudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, 
         ImPlot::PopStyleColor();
         ImPlot::PopStyleVar(2);
 #else
+        start_offset = start_offset / sample_stride * sample_stride; // align start_offset
         ImGui::PushStyleColor(ImGuiCol_FrameBg, 0);
         ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.4f, 0.8f, 0.4f, 1.0f));
         ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.3f, 0.8f, 0.3f, 0.5f));
         std::string plot_max_id = id_string + "_line_max";
         std::string plot_min_id = id_string + "_line_min";
-        ImGui::ImMat plot_frame_max, plot_frame_min, plot_frame_xs;
-        waveFrameResample(&mWaveform->pcm[i][start_offset], window_length, window_size.x, plot_frame_max, plot_frame_min, plot_frame_xs);
+        ImGui::ImMat plot_frame_max, plot_frame_min;
+        waveFrameResample(&mWaveform->pcm[i][start_offset], sample_stride, window_size.x, zoom, plot_frame_max, plot_frame_min);
         ImGui::SetCursorScreenPos(leftTop + ImVec2(0, i * window_size.y));
         ImGui::PlotLinesEx(plot_max_id.c_str(), (float *)plot_frame_max.data, plot_frame_max.w, 0, nullptr, -wave_range, wave_range, window_size, sizeof(float), false, true);
         ImGui::SetCursorScreenPos(leftTop + ImVec2(0, i * window_size.y));
@@ -3489,8 +3487,8 @@ void EditingAudioOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
             if (sample_stride <= 0) sample_stride = 1;
             int min_zoom = ImMax(window_length >> 13, 16);
             int zoom = ImMin(sample_stride, min_zoom);
-            start_offset = start_offset / zoom * zoom; // align start_offset
 #if AUDIO_WAVEFORM_IMPLOT
+            start_offset = start_offset / zoom * zoom; // align start_offset
             if (ImPlot::BeginPlot(id_string.c_str(), clip_window_size, ImPlotFlags_CanvasOnly | ImPlotFlags_NoFrame | ImPlotFlags_NoInputs))
             {
                 std::string plot_id = id_string + "_line";
@@ -3500,10 +3498,11 @@ void EditingAudioOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
                 ImPlot::EndPlot();
             }
 #else
+            start_offset = start_offset / sample_stride * sample_stride; // align start_offset
             std::string plot_max_id = id_string + "_line_max";
             std::string plot_min_id = id_string + "_line_min";
-            ImGui::ImMat plot_frame_max, plot_frame_min, plot_frame_xs;
-            waveFrameResample(&waveform->pcm[i][start_offset], window_length, clip_window_size.x, plot_frame_max, plot_frame_min, plot_frame_xs);
+            ImGui::ImMat plot_frame_max, plot_frame_min;
+            waveFrameResample(&waveform->pcm[i][start_offset], sample_stride, clip_window_size.x, zoom, plot_frame_max, plot_frame_min);
             ImGui::SetCursorScreenPos(leftTop + ImVec2(0, i * clip_window_size.y));
             ImGui::PlotLinesEx(plot_max_id.c_str(), (float *)plot_frame_max.data, plot_frame_max.w, 0, nullptr, -wave_range, wave_range, clip_window_size, sizeof(float), false, true);
             ImGui::SetCursorScreenPos(leftTop + ImVec2(0, i * clip_window_size.y));
@@ -3543,8 +3542,8 @@ void EditingAudioOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
             if (sample_stride <= 0) sample_stride = 1;
             int min_zoom = ImMax(window_length >> 13, 16);
             int zoom = ImMin(sample_stride, min_zoom);
-            start_offset = start_offset / zoom * zoom; // align start_offset
 #if AUDIO_WAVEFORM_IMPLOT
+            start_offset = start_offset / zoom * zoom; // align start_offset
             if (ImPlot::BeginPlot(id_string.c_str(), clip_window_size, ImPlotFlags_CanvasOnly | ImPlotFlags_NoFrame | ImPlotFlags_NoInputs))
             {
                 std::string plot_id = id_string + "_line";
@@ -3554,10 +3553,11 @@ void EditingAudioOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
                 ImPlot::EndPlot();
             }
 #else
+            start_offset = start_offset / sample_stride * sample_stride; // align start_offset
             std::string plot_max_id = id_string + "_line_max";
             std::string plot_min_id = id_string + "_line_min";
-            ImGui::ImMat plot_frame_max, plot_frame_min, plot_frame_xs;
-            waveFrameResample(&waveform->pcm[i][start_offset], window_length, clip_window_size.x, plot_frame_max, plot_frame_min, plot_frame_xs);
+            ImGui::ImMat plot_frame_max, plot_frame_min;
+            waveFrameResample(&waveform->pcm[i][start_offset], sample_stride, clip_window_size.x, zoom, plot_frame_max, plot_frame_min);
             ImGui::SetCursorScreenPos(clip2_pos + ImVec2(0, i * clip_window_size.y));
             ImGui::PlotLinesEx(plot_max_id.c_str(), (float *)plot_frame_max.data, plot_frame_max.w, 0, nullptr, -wave_range, wave_range, clip_window_size, sizeof(float), false, true);
             ImGui::SetCursorScreenPos(clip2_pos + ImVec2(0, i * clip_window_size.y));
