@@ -4913,6 +4913,7 @@ bool TimeLine::RestoreTrack(imgui_json::value& action)
         Logger::Log(Logger::WARN) << "WRONG ARGUMENT! Restore track must take a 'REMOVE_TRACK' action as input." << std::endl;
         return false;
     }
+    std::vector<int64_t> restoredGroupIds;
     int64_t trackId = action["track_json"]["ID"].get<imgui_json::number>();
     // restore auto deleted groups
     if (action.contains("related_groups"))
@@ -4928,6 +4929,7 @@ bool TimeLine::RestoreTrack(imgui_json::value& action)
             {
                 ClipGroup grp(this);
                 grp.Load(groupJson);
+                restoredGroupIds.push_back(grp.mID);
                 m_Groups.push_back(grp);
             }
         }
@@ -4976,6 +4978,22 @@ bool TimeLine::RestoreTrack(imgui_json::value& action)
                         Logger::Log(Logger::WARN) << "Warning during restoring track(id=" << trackId << "): Cannot add clip(id="
                             << c->mID << ") into ClipGroup(id=" << gid << "), the group does NOT EXIST!" << std::endl;
                     }
+                }
+            }
+        }
+        // restore group id for clips
+        for (auto gid : restoredGroupIds)
+        {
+            auto iter = std::find_if(m_Groups.begin(), m_Groups.end(), [gid] (auto& g) {
+                return g.mID == gid;
+            });
+            if (iter != m_Groups.end())
+            {
+                for (auto cid : iter->m_Grouped_Clips)
+                {
+                    auto pClip = FindClipByID(cid);
+                    if (pClip)
+                        pClip->mGroupID = gid;
                 }
             }
         }
