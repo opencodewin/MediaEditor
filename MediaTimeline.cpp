@@ -9991,7 +9991,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         // time metric
         ImGui::SetCursorScreenPos(topRect.Min);
         ImGui::BeginChildFrame(ImGui::GetCurrentWindow()->GetID("#timeline metric"), topRect.GetSize(), ImGuiWindowFlags_NoScrollbar);
-        if (!MovingCurrentTime && !MovingHorizonScrollBar && currentTime >= 0 && topRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && !menuIsOpened)
+        if (!MovingCurrentTime && !MovingHorizonScrollBar && currentTime >= 0 && topRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && !menuIsOpened && !mouse_hold)
         {
             MovingCurrentTime = true;
             editingClip->bSeeking = true;
