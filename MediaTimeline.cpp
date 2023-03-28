@@ -5587,6 +5587,17 @@ MediaTrack * TimeLine::FindTrackByClipID(int64_t id)
     return nullptr;
 }
 
+MediaTrack * TimeLine::FindEmptyTrackByType(uint32_t type)
+{
+    auto iter = std::find_if(m_Tracks.begin(), m_Tracks.end(), [type](const MediaTrack* track)
+    {
+        return track->m_Clips.size() == 0 && IS_SAME_TYPE(track->mType, type);
+    });
+    if (iter != m_Tracks.end())
+        return *iter;
+    return nullptr;
+}
+
 int TimeLine::FindTrackIndexByClipID(int64_t id)
 {
     int track_found = -1;
@@ -9379,6 +9390,24 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                                     else
                                         create_new_track = true;
                                 }
+                                else if (track)
+                                {
+                                    // no mLinkedTrack with track, we try to find empty audio track first
+                                    MediaTrack * empty_track = timeline->FindEmptyTrackByType(MEDIA_AUDIO);
+                                    if (empty_track)
+                                    {
+                                        if (new_video_clip->mGroupID == -1)
+                                        {
+                                            timeline->NewGroup(new_video_clip);
+                                        }
+                                        timeline->AddClipIntoGroup(new_audio_clip, new_video_clip->mGroupID);
+                                        empty_track->InsertClip(new_audio_clip, mouseTime);
+                                        action2["to_track_id"] = imgui_json::number(empty_track->mID);
+                                        timeline->Update();
+                                    }
+                                    else
+                                        create_new_track = true;
+                                }
                                 else
                                     create_new_track = true;
                             }
@@ -9409,9 +9438,13 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                                 }
                                 timeline->AddClipIntoGroup(new_audio_clip, new_video_clip->mGroupID);
                             }
-
-                            int newTrackIndex = timeline->NewTrack("", MEDIA_AUDIO, true);
-                            MediaTrack * audioTrack = timeline->m_Tracks[newTrackIndex];
+                            //  we try to find empty audio track first
+                            MediaTrack * audioTrack = timeline->FindEmptyTrackByType(MEDIA_AUDIO);
+                            if (!audioTrack)
+                            {
+                                int newTrackIndex = timeline->NewTrack("", MEDIA_AUDIO, true);
+                                audioTrack = timeline->m_Tracks[newTrackIndex];
+                            }
                             audioTrack->InsertClip(new_audio_clip, mouseTime);
                             timeline->Update();
                             action2["to_track_id"] = imgui_json::number(audioTrack->mID);
@@ -9420,7 +9453,6 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                                 videoTrack->mLinkedTrack = audioTrack->mID;
                                 audioTrack->mLinkedTrack = videoTrack->mID;
                             }
-
                         }
                         if (new_video_clip)
                             action["group_id"] = imgui_json::number(new_video_clip->mGroupID);

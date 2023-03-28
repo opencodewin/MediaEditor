@@ -1121,6 +1121,7 @@ struct TimeLine
     MediaItem* FindMediaItemByID(int64_t id);           // Find media from bank by ID
     MediaTrack * FindTrackByID(int64_t id);             // Find track by ID
     MediaTrack * FindTrackByClipID(int64_t id);         // Find track by clip ID
+    MediaTrack * FindEmptyTrackByType(uint32_t type);   // Find first empty track by type
     int FindTrackIndexByClipID(int64_t id);             // Find track by clip ID
     Clip * FindClipByID(int64_t id);                    // Find clip with clip ID
     Clip * FindEditingClip();                           // Find clip which is editing
