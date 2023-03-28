@@ -4129,7 +4129,7 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
     {
         ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 sub_window_size = ImGui::GetWindowSize();
-        draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_TWO);
+        //draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_TWO);
         mouse_hold |= DrawClipTimeLine(timeline, timeline->mVidFilterClip, timeline->currentTime, 30, 50, clip_keypoint_height, attribute ? attribute->GetKeyPoint() : nullptr);
     }
     ImGui::EndChild();
@@ -4694,7 +4694,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
     {
         ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 sub_window_size = ImGui::GetWindowSize();
-        draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_TWO);
+        //draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_TWO);
         // Draw Clip TimeLine
         mouse_hold |= DrawClipTimeLine(timeline, timeline->mVidFilterClip, timeline->currentTime, 30, 50, clip_keypoint_height, filter ? &filter->mKeyPoints : nullptr);
     }
@@ -5307,6 +5307,10 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
                                                         );
                 if (_changed) timeline->UpdatePreview();
             }
+            // draw cursor line after curve draw
+            static const float cursorWidth = 2.f;
+            float cursorOffset = sub_window_pos.x + (timeline->currentTime - timeline->mVidOverlap->mStart) * timeline->mVidOverlap->msPixelWidth - 0.5f;
+            draw_list->AddLine(ImVec2(cursorOffset, sub_window_pos.y), ImVec2(cursorOffset, sub_window_pos.y + sub_window_size.y), COL_CURSOR_LINE_R, cursorWidth);
         }
         ImGui::EndChild();
     }
@@ -6153,6 +6157,10 @@ static void ShowAudioFusionWindow(ImDrawList *draw_list)
                                                         );
                 if (_changed) timeline->UpdatePreview();
             }
+            // draw cursor line after curve draw
+            static const float cursorWidth = 2.f;
+            float cursorOffset = sub_window_pos.x + (timeline->currentTime - timeline->mAudOverlap->mStart) * timeline->mAudOverlap->msPixelWidth - 0.5f;
+            draw_list->AddLine(ImVec2(cursorOffset, sub_window_pos.y), ImVec2(cursorOffset, sub_window_pos.y + sub_window_size.y), COL_CURSOR_LINE_R, cursorWidth);
         }
         ImGui::EndChild();
     }

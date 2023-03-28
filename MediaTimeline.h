@@ -189,9 +189,14 @@
 #define COL_SLIDER_MOVING   IM_COL32(144, 144, 144, 255)
 #define COL_SLIDER_HANDLE   IM_COL32(112, 112, 112, 255)
 #define COL_SLIDER_SIZING   IM_COL32(170, 170, 170, 255)
-#define COL_CURSOR_ARROW    IM_COL32(  0, 255,   0, 255)
+#define COL_CURSOR_ARROW    IM_COL32(  0, 255,   0, 192)
+#define COL_CURSOR_LINE     IM_COL32(  0, 255,   0, 128)
 #define COL_CURSOR_TEXT_BG  IM_COL32(  0, 128,   0, 144)
 #define COL_CURSOR_TEXT     IM_COL32(  0, 255,   0, 255)
+#define COL_CURSOR_ARROW_R  IM_COL32(255,   0,   0, 192)
+#define COL_CURSOR_LINE_R   IM_COL32(255,   0,   0, 128)
+#define COL_CURSOR_TEXT_BR  IM_COL32(128,   0,   0, 144)
+#define COL_CURSOR_TEXT_R   IM_COL32(255, 160, 160, 255)
 #define COL_DARK_ONE        IM_COL32( 33,  33,  38, 255)
 #define COL_DARK_TWO        IM_COL32( 40,  40,  46, 255)
 #define COL_DARK_PANEL      IM_COL32( 48,  48,  54, 255)
@@ -660,6 +665,7 @@ struct BaseEditingOverlap
     int64_t mEnd;
     int64_t mDuration;
     ImVec2 mViewWndSize     {0, 0};
+    float msPixelWidth {0};
     bool bSeeking{false};
     BaseEditingOverlap(Overlap* ovlp) : mOvlp(ovlp) {}
     std::pair<int64_t, int64_t> m_StartOffset;

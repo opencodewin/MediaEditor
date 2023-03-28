@@ -2679,29 +2679,34 @@ void EditingVideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, 
         ImVec2 imgLeftTop = leftTop;
         for (int i = 0; i < snapImages.size(); i++)
         {
-            ImVec2 snapDispSize = mSnapSize;
-            ImVec2 uvMin{0, 0}, uvMax{1, 1};
-            if (imgLeftTop.x+mSnapSize.x > rightBottom.x)
-            {
-                snapDispSize.x = rightBottom.x - imgLeftTop.x;
-                uvMax.x = snapDispSize.x / mSnapSize.x;
-            }
             auto& img = snapImages[i];
-            if (img->mTextureReady)
-                drawList->AddImage(*(img->mTextureHolder), imgLeftTop, imgLeftTop + snapDispSize, uvMin, uvMax);
-            else
+            ImVec2 uvMin{0, 0}, uvMax{1, 1};
+            float snapDispWidth = img->mTimestampMs >= mStartOffset + firstTime ? mSnapSize.x : mSnapSize.x - (mStartOffset + firstTime - img->mTimestampMs) * msPixelWidthTarget;
+            if (img->mTimestampMs < mStartOffset + firstTime)
             {
-                drawList->AddRectFilled(imgLeftTop, imgLeftTop + snapDispSize, IM_COL32_BLACK);
-                auto center_pos = imgLeftTop + snapDispSize / 2;
-                ImGui::SetCursorScreenPos(center_pos - ImVec2(8, 8));
-                //ImVec4 color_main(1.0, 1.0, 1.0, 1.0);
-                //ImVec4 color_back(0.5, 0.5, 0.5, 1.0);
-                //ImGui::LoadingIndicatorCircle("Running", 1.0f, &color_main, &color_back);
-                ImGui::SpinnerBarsRotateFade("Running", 3, 6, 2, ImColor(128, 128, 128), 7.6f, 6);
-                drawList->AddRect(imgLeftTop, imgLeftTop + snapDispSize, COL_FRAME_RECT);
+                snapDispWidth = mSnapSize.x - (mStartOffset + firstTime - img->mTimestampMs) * msPixelWidthTarget;
+                uvMin.x = 1 - snapDispWidth / mSnapSize.x;
+            }
+            if (snapDispWidth <= 0)
+                continue;
+            if (imgLeftTop.x + snapDispWidth >= rightBottom.x)
+            {
+                snapDispWidth = rightBottom.x - imgLeftTop.x;
+                uvMax.x = snapDispWidth / mSnapSize.x;
             }
 
-            imgLeftTop.x += snapDispSize.x;
+            if (img->mTextureReady)
+                drawList->AddImage(*(img->mTextureHolder), imgLeftTop, {imgLeftTop.x + snapDispWidth, rightBottom.y}, uvMin, uvMax);
+            else
+            {
+                drawList->AddRectFilled(imgLeftTop, {imgLeftTop.x + snapDispWidth, rightBottom.y}, IM_COL32_BLACK);
+                auto center_pos = imgLeftTop + mSnapSize / 2;
+                ImGui::SetCursorScreenPos(center_pos - ImVec2(8, 8));
+                ImGui::SpinnerBarsRotateFade("Running", 3, 6, 2, ImColor(128, 128, 128), 7.6f, 6);
+                drawList->AddRect(imgLeftTop, {imgLeftTop.x + snapDispWidth, rightBottom.y}, COL_FRAME_RECT);
+            }
+
+            imgLeftTop.x += snapDispWidth;
             if (imgLeftTop.x >= rightBottom.x)
                 break;
         }
@@ -9075,7 +9080,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         {
             static const float cursorWidth = 2.f;
             float cursorOffset = contentMin.x + legendWidth + (timeline->currentTime - timeline->firstTime) * timeline->msPixelWidthTarget + 1;
-            draw_list->AddLine(ImVec2(cursorOffset, contentMin.y), ImVec2(cursorOffset, contentMin.y + trackRect.Max.y - scrollSize), IM_COL32(0, 255, 0, 224), cursorWidth);
+            draw_list->AddLine(ImVec2(cursorOffset, contentMin.y), ImVec2(cursorOffset, contentMin.y + trackRect.Max.y - scrollSize), COL_CURSOR_LINE, cursorWidth);
         }
         draw_list->PopClipRect();
         // alignment line
@@ -9795,22 +9800,6 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
             drawLine(i, header_height);
         }
 
-        // cursor Arrow
-        if (currentTime >= editingClip->firstTime && currentTime <= editingClip->lastTime)
-        {
-            const float arrowWidth = draw_list->_Data->FontSize;
-            float arrowOffset = contentMin.x + (currentTime - editingClip->firstTime) * editingClip->msPixelWidthTarget - arrowWidth * 0.5f + 1;
-            ImGui::RenderArrow(draw_list, ImVec2(arrowOffset, canvas_pos.y), COL_CURSOR_ARROW, ImGuiDir_Down);
-            ImGui::SetWindowFontScale(0.8);
-            auto time_str = ImGuiHelper::MillisecToString(currentTime, 2);
-            ImVec2 str_size = ImGui::CalcTextSize(time_str.c_str(), nullptr, true);
-            float strOffset = contentMin.x + (currentTime - editingClip->firstTime) * editingClip->msPixelWidthTarget - str_size.x * 0.5f + 1;
-            ImVec2 str_pos = ImVec2(strOffset, canvas_pos.y + 10);
-            draw_list->AddRectFilled(str_pos + ImVec2(-3, 0), str_pos + str_size + ImVec2(3, 3), COL_CURSOR_TEXT_BG, 2.0, ImDrawFlags_RoundCornersAll);
-            draw_list->AddText(str_pos, COL_CURSOR_TEXT, time_str.c_str());
-            ImGui::SetWindowFontScale(1.0);
-        }
-
         // handle menu
         if ((HeaderAreaRect.Contains(io.MousePos) || trackAreaRect.Contains(io.MousePos)) && ImGui::IsMouseReleased(ImGuiMouseButton_Right) && !ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Right) && !menuIsOpened)
         {
@@ -9988,7 +9977,9 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         }
 
         // draw clip content
+        ImGui::PushClipRect(contentMin, contentMax, true);
         editingClip->DrawContent(draw_list, contentMin, contentMax);
+        ImGui::PopClipRect();
 
         // time metric
         ImGui::SetCursorScreenPos(topRect.Min);
@@ -10015,15 +10006,31 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
             editingClip->bSeeking = false;
         }
         ImGui::EndChildFrame();
-
-        // cursor line
+        
+        // handle playing curses move
+        if (main_timeline->mIsPreviewPlaying) editingClip->UpdateCurrent(main_timeline->mIsPreviewForward, currentTime);
+        
+        // draw cursor
         ImRect custom_view_rect(window_pos, window_pos + ImVec2(window_size.x, header_height + custom_height));
-        draw_list->PushClipRect(custom_view_rect.Min, custom_view_rect.Max);
-        if (currentTime >= editingClip->firstTime && currentTime <= duration)
+        draw_list->PushClipRect(custom_view_rect.Min - ImVec2(32, 0), custom_view_rect.Max + ImVec2(32, 0));
+        if (currentTime >= editingClip->firstTime && currentTime <= editingClip->lastTime)
         {
+            // cursor arrow
+            const float arrowWidth = draw_list->_Data->FontSize;
+            float arrowOffset = contentMin.x + (currentTime - editingClip->firstTime) * editingClip->msPixelWidthTarget - arrowWidth * 0.5f + 1;
+            ImGui::RenderArrow(draw_list, ImVec2(arrowOffset, canvas_pos.y), COL_CURSOR_ARROW_R, ImGuiDir_Down);
+            ImGui::SetWindowFontScale(0.8);
+            auto time_str = ImGuiHelper::MillisecToString(currentTime, 2);
+            ImVec2 str_size = ImGui::CalcTextSize(time_str.c_str(), nullptr, true);
+            float strOffset = contentMin.x + (currentTime - editingClip->firstTime) * editingClip->msPixelWidthTarget - str_size.x * 0.5f + 1;
+            ImVec2 str_pos = ImVec2(strOffset, canvas_pos.y + 10);
+            draw_list->AddRectFilled(str_pos + ImVec2(-3, 0), str_pos + str_size + ImVec2(3, 3), COL_CURSOR_TEXT_BR, 2.0, ImDrawFlags_RoundCornersAll);
+            draw_list->AddText(str_pos, COL_CURSOR_TEXT_R, time_str.c_str());
+            ImGui::SetWindowFontScale(1.0);
+            // cursor line
             static const float cursorWidth = 2.f;
             float cursorOffset = contentMin.x + (currentTime - editingClip->firstTime) * editingClip->msPixelWidthTarget - 0.5f;
-            draw_list->AddLine(ImVec2(cursorOffset, window_pos.y + header_height), ImVec2(cursorOffset, window_pos.y + header_height + custom_height), IM_COL32(0, 255, 0, 224), cursorWidth);
+            draw_list->AddLine(ImVec2(cursorOffset, window_pos.y + header_height), ImVec2(cursorOffset, window_pos.y + header_height + custom_height), COL_CURSOR_LINE_R, cursorWidth);
         }
         draw_list->PopClipRect();
 
@@ -10057,6 +10064,10 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                 if (_changed) main_timeline->UpdatePreview();
             }
             ImGui::EndChild();
+            // Draw cursor line after curve draw
+            static const float cursorWidth = 2.f;
+            float cursorOffset = contentMin.x + (currentTime - editingClip->firstTime) * editingClip->msPixelWidthTarget - 0.5f;
+            draw_list->AddLine(ImVec2(cursorOffset, window_pos.y + header_height + custom_height), ImVec2(cursorOffset, window_pos.y + header_height + custom_height + curve_height), COL_CURSOR_LINE_R, cursorWidth);
         }
     }
 
@@ -10066,9 +10077,6 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     {
         mouse_hold = false;
     }
-    // handle playing curses move
-    if (main_timeline->mIsPreviewPlaying) editingClip->UpdateCurrent(main_timeline->mIsPreviewForward, currentTime);
-
     return mouse_hold;
 }
 
@@ -10117,7 +10125,7 @@ bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int64_t CurrentTime, int 
     ImGui::BeginGroup();
     ImRect regionRect(window_pos + ImVec2(0, header_height), window_pos + window_size);
     
-    float msPixelWidth = (float)(window_size.x) / (float)duration;
+    overlap->msPixelWidth = (float)(window_size.x) / (float)duration;
     ImRect custom_view_rect(window_pos + ImVec2(0, header_height), window_pos + window_size);
 
     //header
@@ -10135,7 +10143,7 @@ bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int64_t CurrentTime, int 
     if (MovingCurrentTime && duration)
     {
         auto oldPos = CurrentTime;
-        auto newPos = (int64_t)((io.MousePos.x - movRect.Min.x) / msPixelWidth) + start;
+        auto newPos = (int64_t)((io.MousePos.x - movRect.Min.x) / overlap->msPixelWidth) + start;
         if (newPos < start)
             newPos = start;
         if (newPos >= end)
@@ -10151,7 +10159,7 @@ bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int64_t CurrentTime, int 
 
     int64_t modTimeCount = 10;
     int timeStep = 1;
-    while ((modTimeCount * msPixelWidth) < 100)
+    while ((modTimeCount * overlap->msPixelWidth) < 100)
     {
         modTimeCount *= 10;
         timeStep *= 10;
@@ -10161,7 +10169,7 @@ bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int64_t CurrentTime, int 
     {
         bool baseIndex = ((i % modTimeCount) == 0) || (i == 0 || i == duration);
         bool halfIndex = (i % halfModTime) == 0;
-        int px = (int)window_pos.x + int(i * msPixelWidth);
+        int px = (int)window_pos.x + int(i * overlap->msPixelWidth);
         int timeStart = baseIndex ? 4 : (halfIndex ? 10 : 14);
         int timeEnd = baseIndex ? regionHeight : header_height;
         if (px <= (window_size.x + window_pos.x) && px >= window_pos.x)
@@ -10183,17 +10191,21 @@ bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int64_t CurrentTime, int 
     drawLine(0, header_height);
     drawLine(duration, header_height);
     // cursor Arrow
+    ImVec2 headerMin = window_pos;
+    ImVec2 headerMax = headerMin + headerSize;
+    draw_list->PushClipRect(headerMin - ImVec2(32, 0), headerMax + ImVec2(32, 0));
     const float arrowWidth = draw_list->_Data->FontSize;
-    float arrowOffset = window_pos.x + (CurrentTime - start) * msPixelWidth - arrowWidth * 0.5f;
-    ImGui::RenderArrow(draw_list, ImVec2(arrowOffset, window_pos.y), COL_CURSOR_ARROW, ImGuiDir_Down);
+    float arrowOffset = window_pos.x + (CurrentTime - start) * overlap->msPixelWidth - arrowWidth * 0.5f;
+    ImGui::RenderArrow(draw_list, ImVec2(arrowOffset, window_pos.y), COL_CURSOR_ARROW_R, ImGuiDir_Down);
     ImGui::SetWindowFontScale(0.8);
     auto time_str = ImGuiHelper::MillisecToString(CurrentTime, 2);
     ImVec2 str_size = ImGui::CalcTextSize(time_str.c_str(), nullptr, true);
-    float strOffset = window_pos.x + (CurrentTime - start) * msPixelWidth - str_size.x * 0.5f;
+    float strOffset = window_pos.x + (CurrentTime - start) * overlap->msPixelWidth - str_size.x * 0.5f;
     ImVec2 str_pos = ImVec2(strOffset, window_pos.y + 10);
-    draw_list->AddRectFilled(str_pos + ImVec2(-3, 0), str_pos + str_size + ImVec2(3, 3), COL_CURSOR_TEXT_BG, 2.0, ImDrawFlags_RoundCornersAll);
-    draw_list->AddText(str_pos, COL_CURSOR_TEXT, time_str.c_str());
+    draw_list->AddRectFilled(str_pos + ImVec2(-3, 0), str_pos + str_size + ImVec2(3, 3), COL_CURSOR_TEXT_BR, 2.0, ImDrawFlags_RoundCornersAll);
+    draw_list->AddText(str_pos, COL_CURSOR_TEXT_R, time_str.c_str());
     ImGui::SetWindowFontScale(1.0);
+    draw_list->PopClipRect();
 
     // snapshot
     ImVec2 contentMin(window_pos.x, window_pos.y + (float)header_height);
@@ -10203,8 +10215,8 @@ bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int64_t CurrentTime, int 
     // cursor line
     draw_list->PushClipRect(custom_view_rect.Min, custom_view_rect.Max);
     static const float cursorWidth = 2.f;
-    float cursorOffset = contentMin.x + (CurrentTime - start) * msPixelWidth - cursorWidth * 0.5f + 1;
-    draw_list->AddLine(ImVec2(cursorOffset, contentMin.y), ImVec2(cursorOffset, contentMax.y), IM_COL32(0, 255, 0, 224), cursorWidth);
+    float cursorOffset = contentMin.x + (CurrentTime - start) * overlap->msPixelWidth - cursorWidth * 0.5f + 1;
+    draw_list->AddLine(ImVec2(cursorOffset, contentMin.y), ImVec2(cursorOffset, contentMax.y), COL_CURSOR_LINE_R, cursorWidth);
     draw_list->PopClipRect();
     ImGui::EndGroup();
     return ret;
