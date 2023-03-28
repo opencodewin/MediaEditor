@@ -4757,10 +4757,10 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
             {
                 char ** curve_type_list = nullptr;
                 auto curve_type_count = ImGui::ImCurveEdit::GetCurveTypeName(curve_type_list);
-                bool name_input_with_return = false;
                 static std::string curve_name = "";
                 std::string value = curve_name;
-                if (ImGui::InputTextWithHint("##new_curve_name_video_filter", "Input curve name", (char*)value.data(), value.size() + 1, ImGuiInputTextFlags_CallbackEdit | ImGuiInputTextFlags_CallbackResize | ImGuiInputTextFlags_EnterReturnsTrue, [](ImGuiInputTextCallbackData* data) -> int
+                bool name_input_empty = curve_name.empty();
+                if (ImGui::InputTextWithHint("##new_curve_name_video_filter", "Input curve name", (char*)value.data(), value.size() + 1, ImGuiInputTextFlags_CallbackEdit | ImGuiInputTextFlags_CallbackResize, [](ImGuiInputTextCallbackData* data) -> int
                 {
                     if (data->EventFlag == ImGuiInputTextFlags_CallbackResize)
                     {
@@ -4780,16 +4780,17 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                 {
                     value.resize(strlen(value.c_str()));
                     curve_name = value;
-                    name_input_with_return = true;
+                    name_input_empty = curve_name.empty();
                 }
 
-                ImGui::BeginDisabled(curve_name.empty());
+                ImGui::BeginDisabled(name_input_empty);
                 ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 8.0f);
                 ImGui::SameLine();
-                if (ImGui::Button(ICON_ADD "##insert_curve_video_filter") || name_input_with_return)
+                if (ImGui::Button(ICON_ADD "##insert_curve_video_filter"))
                 {
                     addCurve(curve_name, 0.f, 1.f, 0.5);
                 }
+                ImGui::ShowTooltipOnHover("Add custom curve");
                 ImGui::PopStyleVar();
                 ImGui::EndDisabled();
 
@@ -5351,9 +5352,9 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
                 char ** curve_type_list = nullptr;
                 auto curve_type_count = ImGui::ImCurveEdit::GetCurveTypeName(curve_type_list);
                 static std::string curve_name = "";
-                bool name_input_with_return = false;
                 std::string value = curve_name;
-                if (ImGui::InputTextWithHint("##new_curve_name_video_fusion", "Input curve name", (char*)value.data(), value.size() + 1, ImGuiInputTextFlags_CallbackEdit | ImGuiInputTextFlags_CallbackResize | ImGuiInputTextFlags_EnterReturnsTrue, [](ImGuiInputTextCallbackData* data) -> int
+                bool name_input_empty = curve_name.empty();
+                if (ImGui::InputTextWithHint("##new_curve_name_video_fusion", "Input curve name", (char*)value.data(), value.size() + 1, ImGuiInputTextFlags_CallbackEdit | ImGuiInputTextFlags_CallbackResize, [](ImGuiInputTextCallbackData* data) -> int
                 {
                     if (data->EventFlag == ImGuiInputTextFlags_CallbackResize)
                     {
@@ -5373,16 +5374,17 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
                 {
                     value.resize(strlen(value.c_str()));
                     curve_name = value;
-                    name_input_with_return = true;
+                    name_input_empty = curve_name.empty();
                 }
 
-                ImGui::BeginDisabled(curve_name.empty());
+                ImGui::BeginDisabled(name_input_empty);
                 ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 8.0f);
                 ImGui::SameLine();
-                if (ImGui::Button(ICON_ADD "##insert_curve_video_fusion") || name_input_with_return)
+                if (ImGui::Button(ICON_ADD "##insert_curve_video_fusion"))
                 {
                     addCurve(curve_name, 0.f, 1.f, 1.f);
                 }
+                ImGui::ShowTooltipOnHover("Add custom curve");
                 ImGui::PopStyleVar();
                 ImGui::EndDisabled();
 
@@ -5774,10 +5776,10 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list)
             {
                 char ** curve_type_list = nullptr;
                 auto curve_type_count = ImGui::ImCurveEdit::GetCurveTypeName(curve_type_list);
-                bool name_input_with_return = false;
                 static std::string curve_name = "";
                 std::string value = curve_name;
-                if (ImGui::InputTextWithHint("##new_curve_name_audio_filter", "Input curve name", (char*)value.data(), value.size() + 1, ImGuiInputTextFlags_CallbackEdit | ImGuiInputTextFlags_CallbackResize | ImGuiInputTextFlags_EnterReturnsTrue, [](ImGuiInputTextCallbackData* data) -> int
+                bool name_input_empty = curve_name.empty();
+                if (ImGui::InputTextWithHint("##new_curve_name_audio_filter", "Input curve name", (char*)value.data(), value.size() + 1, ImGuiInputTextFlags_CallbackEdit | ImGuiInputTextFlags_CallbackResize, [](ImGuiInputTextCallbackData* data) -> int
                 {
                     if (data->EventFlag == ImGuiInputTextFlags_CallbackResize)
                     {
@@ -5797,16 +5799,17 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list)
                 {
                     value.resize(strlen(value.c_str()));
                     curve_name = value;
-                    name_input_with_return = true;
+                    name_input_empty = curve_name.empty();
                 }
 
-                ImGui::BeginDisabled(curve_name.empty());
+                ImGui::BeginDisabled(name_input_empty);
                 ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 8.0f);
                 ImGui::SameLine();
-                if (ImGui::Button(ICON_ADD "##insert_curve_audio_filter") || name_input_with_return)
+                if (ImGui::Button(ICON_ADD "##insert_curve_audio_filter"))
                 {
                     addCurve(curve_name, 0.f, 1.f, 0.5);
                 }
+                ImGui::ShowTooltipOnHover("Add custom curve");
                 ImGui::PopStyleVar();
                 ImGui::EndDisabled();
 
@@ -6209,10 +6212,10 @@ static void ShowAudioFusionWindow(ImDrawList *draw_list)
             {
                 char ** curve_type_list = nullptr;
                 auto curve_type_count = ImGui::ImCurveEdit::GetCurveTypeName(curve_type_list);
-                bool name_input_with_return = false;
                 static std::string curve_name = "";
                 std::string value = curve_name;
-                if (ImGui::InputTextWithHint("##new_curve_name_audio_fusion", "Input curve name", (char*)value.data(), value.size() + 1, ImGuiInputTextFlags_CallbackEdit | ImGuiInputTextFlags_CallbackResize | ImGuiInputTextFlags_EnterReturnsTrue, [](ImGuiInputTextCallbackData* data) -> int
+                bool name_input_empty = curve_name.empty();
+                if (ImGui::InputTextWithHint("##new_curve_name_audio_fusion", "Input curve name", (char*)value.data(), value.size() + 1, ImGuiInputTextFlags_CallbackEdit | ImGuiInputTextFlags_CallbackResize, [](ImGuiInputTextCallbackData* data) -> int
                 {
                     if (data->EventFlag == ImGuiInputTextFlags_CallbackResize)
                     {
@@ -6232,16 +6235,17 @@ static void ShowAudioFusionWindow(ImDrawList *draw_list)
                 {
                     value.resize(strlen(value.c_str()));
                     curve_name = value;
-                    name_input_with_return = true;
+                    name_input_empty = curve_name.empty();
                 }
 
-                ImGui::BeginDisabled(curve_name.empty());
+                ImGui::BeginDisabled(name_input_empty);
                 ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 8.0f);
                 ImGui::SameLine();
-                if (ImGui::Button(ICON_ADD "##insert_curve_audio_fusion") || name_input_with_return)
+                if (ImGui::Button(ICON_ADD "##insert_curve_audio_fusion"))
                 {
                     addCurve(curve_name, 0.f, 1.f, 1.0);
                 }
+                ImGui::ShowTooltipOnHover("Add custom curve");
                 ImGui::PopStyleVar();
                 ImGui::EndDisabled();
 
@@ -7838,7 +7842,6 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
             ImGui::TextUnformatted(end_time_str.c_str());
             // show clip text
             std::string value = editing_clip->mText;
-            //if (ImGui::InputTextMultiline("##text_clip_string", (char*)value.data(), value.size() + 1, ImVec2(style_window_size.x, 64), ImGuiInputTextFlags_CallbackEdit | ImGuiInputTextFlags_CallbackResize, [](ImGuiInputTextCallbackData* data) -> int
             if (ImGui::InputTextEx("##text_clip_string", "Please input text here", (char*)value.data(), value.size() + 1, ImVec2(style_window_size.x, 64), ImGuiInputTextFlags_CallbackEdit | ImGuiInputTextFlags_CallbackResize | ImGuiInputTextFlags_Multiline, [](ImGuiInputTextCallbackData* data) -> int
             {
                 if (data->EventFlag == ImGuiInputTextFlags_CallbackResize)
