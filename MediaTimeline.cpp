@@ -5848,6 +5848,7 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &view_r
         bool draw_clip = false;
         float cursor_start = 0;
         float cursor_end  = 0;
+        ImDrawFlags flag = ImDrawFlags_RoundCornersNone;
         if (clip->mStart <= firstTime && clip->mEnd > firstTime && clip->mEnd <= viewEndTime)
         {
             /***********************************************************
@@ -5858,6 +5859,7 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &view_r
             cursor_start = clippingRect.Min.x;
             cursor_end = clippingRect.Min.x + (clip->mEnd - firstTime) * msPixelWidthTarget;
             draw_clip = true;
+            flag |= ImDrawFlags_RoundCornersRight;
         }
         else if (clip->mStart >= firstTime && clip->mEnd <= viewEndTime)
         {
@@ -5869,6 +5871,7 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &view_r
             cursor_start = clippingRect.Min.x + (clip->mStart - firstTime) * msPixelWidthTarget;
             cursor_end = clippingRect.Min.x + (clip->mEnd - firstTime) * msPixelWidthTarget;
             draw_clip = true;
+            flag |= ImDrawFlags_RoundCornersAll;
         }
         else if (clip->mStart >= firstTime && clip->mStart < viewEndTime && clip->mEnd >= viewEndTime)
         {
@@ -5880,6 +5883,7 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &view_r
             cursor_start = clippingRect.Min.x + (clip->mStart - firstTime) * msPixelWidthTarget;
             cursor_end = clippingRect.Max.x;
             draw_clip = true;
+            flag |= ImDrawFlags_RoundCornersLeft;
         }
         else if (clip->mStart <= firstTime && clip->mEnd >= viewEndTime)
         {
@@ -5892,6 +5896,10 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &view_r
             cursor_end  = clippingRect.Max.x;
             draw_clip = true;
         }
+        if (clip->mStart == firstTime)
+            flag |= ImDrawFlags_RoundCornersLeft;
+        if (clip->mEnd == viewEndTime)
+            flag |= ImDrawFlags_RoundCornersRight;
 
         ImVec2 clip_title_pos_min = ImVec2(cursor_start, clippingTitleRect.Min.y);
         ImVec2 clip_title_pos_max = ImVec2(cursor_end, clippingTitleRect.Max.y);
@@ -5918,10 +5926,10 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &view_r
             if (clip->mGroupID != -1)
             {
                 auto color = GetGroupColor(clip->mGroupID);
-                draw_list->AddRectFilled(clip_title_pos_min, clip_title_pos_max, color, 4, ImDrawFlags_RoundCornersAll);
+                draw_list->AddRectFilled(clip_title_pos_min, clip_title_pos_max, color, 4, flag);
             }
             else
-                draw_list->AddRectFilled(clip_title_pos_min, clip_title_pos_max, IM_COL32(64,128,64,128), 4, ImDrawFlags_RoundCornersAll);
+                draw_list->AddRectFilled(clip_title_pos_min, clip_title_pos_max, IM_COL32(64,128,64,128), 4, flag);
             
             // draw clip status
             draw_list->PushClipRect(clip_title_pos_min, clip_title_pos_max, true);
@@ -5987,13 +5995,13 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &view_r
             if (clip->bSelected)
             {
                 if (clip->bEditing)
-                    draw_list->AddRect(clip_pos_min, clip_pos_max, IM_COL32(255,0,255,224), 4, ImDrawFlags_RoundCornersAll, 2.0f);
+                    draw_list->AddRect(clip_pos_min, clip_pos_max, IM_COL32(255,0,255,224), 4, flag, 2.0f);
                 else
-                    draw_list->AddRect(clip_pos_min, clip_pos_max, IM_COL32(255,0,0,224), 4, ImDrawFlags_RoundCornersAll, 2.0f);
+                    draw_list->AddRect(clip_pos_min, clip_pos_max, IM_COL32(255,0,0,224), 4, flag, 2.0f);
             }
             else if (clip->bEditing)
             {
-                draw_list->AddRect(clip_pos_min, clip_pos_max, IM_COL32(0,0,255,224), 4, ImDrawFlags_RoundCornersAll, 2.0f);
+                draw_list->AddRect(clip_pos_min, clip_pos_max, IM_COL32(0,0,255,224), 4, flag, 2.0f);
             }
 
             // Clip select
@@ -6001,7 +6009,7 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &view_r
             {
                 if (clip_rect.Contains(io.MousePos) )
                 {
-                    draw_list->AddRect(clip_rect.Min, clip_rect.Max, IM_COL32(255,255,255,255), 4, ImDrawFlags_RoundCornersAll, 2.0f);
+                    draw_list->AddRect(clip_rect.Min, clip_rect.Max, IM_COL32(255,255,255,255), 4, flag, 2.0f);
                     const bool is_shift_key_only = (io.KeyMods == ImGuiModFlags_Shift);
                     bool appand = (ImGui::IsKeyDown(ImGuiKey_LeftShift) || ImGui::IsKeyDown(ImGuiKey_RightShift)) && is_shift_key_only;
                     bool can_be_select = false;
@@ -9451,6 +9459,22 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                                         }
                                         else
                                             create_new_track = true;
+                                    }
+                                    else
+                                        create_new_track = true;
+                                }
+                                else if (track)
+                                {
+                                    // no mLinkedTrack with track, we try to find empty audio track first
+                                    MediaTrack * empty_track = timeline->FindEmptyTrackByType(MEDIA_AUDIO);
+                                    if (empty_track)
+                                    {
+                                        if (new_video_clip->mGroupID == -1)
+                                        {
+                                            timeline->NewGroup(new_video_clip);
+                                        }
+                                        timeline->AddClipIntoGroup(new_audio_clip, new_video_clip->mGroupID);
+                                        empty_track->InsertClip(new_audio_clip, mouseTime);
                                     }
                                     else
                                         create_new_track = true;

@@ -7838,7 +7838,8 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
             ImGui::TextUnformatted(end_time_str.c_str());
             // show clip text
             std::string value = editing_clip->mText;
-            if (ImGui::InputTextMultiline("##text_clip_string", (char*)value.data(), value.size() + 1, ImVec2(style_window_size.x, 64), ImGuiInputTextFlags_CallbackEdit | ImGuiInputTextFlags_CallbackResize, [](ImGuiInputTextCallbackData* data) -> int
+            //if (ImGui::InputTextMultiline("##text_clip_string", (char*)value.data(), value.size() + 1, ImVec2(style_window_size.x, 64), ImGuiInputTextFlags_CallbackEdit | ImGuiInputTextFlags_CallbackResize, [](ImGuiInputTextCallbackData* data) -> int
+            if (ImGui::InputTextEx("##text_clip_string", "Please input text here", (char*)value.data(), value.size() + 1, ImVec2(style_window_size.x, 64), ImGuiInputTextFlags_CallbackEdit | ImGuiInputTextFlags_CallbackResize | ImGuiInputTextFlags_Multiline, [](ImGuiInputTextCallbackData* data) -> int
             {
                 if (data->EventFlag == ImGuiInputTextFlags_CallbackResize)
                 {
@@ -9798,7 +9799,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_GrabRounding, 12.0f);
     UpdateBreathing();
-    ImGui::Begin("Content", nullptr, flags);
+    ImGui::Begin("Main Editor", nullptr, flags);
     // for debug
     //if (show_debug) ImGui::ShowMetricsWindow(&show_debug);
     // for debug end
@@ -10363,8 +10364,7 @@ bool MediaEditor_Splash_Screen(void* handle, bool app_will_quit)
                             ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus;
     ImGui::SetNextWindowPos(ImVec2(0, 0));
     ImGui::SetNextWindowSize(io.DisplaySize, cond);
-    //ImGui::SetNextWindowBgAlpha(0.5);
-    ImGui::Begin("Content", nullptr, flags);
+    ImGui::Begin("MediaEditor Splash", nullptr, flags);
     auto draw_list = ImGui::GetWindowDrawList();
     bool title_finished = Show_Version(draw_list, splash_start_time);
     if (g_project_loading)
