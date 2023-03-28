@@ -176,8 +176,8 @@
 #define COL_CANVAS_BG       IM_COL32( 36,  36,  36, 255)
 #define COL_LEGEND_BG       IM_COL32( 33,  33,  38, 255)
 #define COL_PANEL_BG        IM_COL32( 36,  36,  40, 255)
-#define COL_MARK            IM_COL32(255, 255, 255, 255)
-#define COL_MARK_HALF       IM_COL32(128, 128, 128, 255)
+#define COL_MARK            IM_COL32(255, 255, 255, 128)
+#define COL_MARK_HALF       IM_COL32(128, 128, 128, 128)
 #define COL_RULE_TEXT       IM_COL32(224, 224, 224, 255)
 #define COL_SLOT_DEFAULT    IM_COL32( 80,  80, 100, 255)
 #define COL_SLOT_ODD        IM_COL32( 58,  58,  58, 255)
@@ -189,9 +189,14 @@
 #define COL_SLIDER_MOVING   IM_COL32(144, 144, 144, 255)
 #define COL_SLIDER_HANDLE   IM_COL32(112, 112, 112, 255)
 #define COL_SLIDER_SIZING   IM_COL32(170, 170, 170, 255)
-#define COL_CURSOR_ARROW    IM_COL32(  0, 255,   0, 255)
+#define COL_CURSOR_ARROW    IM_COL32(  0, 255,   0, 192)
+#define COL_CURSOR_LINE     IM_COL32(  0, 255,   0, 128)
 #define COL_CURSOR_TEXT_BG  IM_COL32(  0, 128,   0, 144)
 #define COL_CURSOR_TEXT     IM_COL32(  0, 255,   0, 255)
+#define COL_CURSOR_ARROW_R  IM_COL32(255,   0,   0, 192)
+#define COL_CURSOR_LINE_R   IM_COL32(255,   0,   0, 128)
+#define COL_CURSOR_TEXT_BR  IM_COL32(128,   0,   0, 144)
+#define COL_CURSOR_TEXT_R   IM_COL32(255, 160, 160, 255)
 #define COL_DARK_ONE        IM_COL32( 33,  33,  38, 255)
 #define COL_DARK_TWO        IM_COL32( 40,  40,  46, 255)
 #define COL_DARK_PANEL      IM_COL32( 48,  48,  54, 255)
@@ -660,6 +665,7 @@ struct BaseEditingOverlap
     int64_t mEnd;
     int64_t mDuration;
     ImVec2 mViewWndSize     {0, 0};
+    float msPixelWidth {0};
     bool bSeeking{false};
     BaseEditingOverlap(Overlap* ovlp) : mOvlp(ovlp) {}
     std::pair<int64_t, int64_t> m_StartOffset;
@@ -1117,6 +1123,7 @@ struct TimeLine
     MediaItem* FindMediaItemByID(int64_t id);           // Find media from bank by ID
     MediaTrack * FindTrackByID(int64_t id);             // Find track by ID
     MediaTrack * FindTrackByClipID(int64_t id);         // Find track by clip ID
+    MediaTrack * FindEmptyTrackByType(uint32_t type);   // Find first empty track by type
     int FindTrackIndexByClipID(int64_t id);             // Find track by clip ID
     Clip * FindClipByID(int64_t id);                    // Find clip with clip ID
     Clip * FindEditingClip();                           // Find clip which is editing
