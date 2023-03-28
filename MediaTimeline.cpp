@@ -505,7 +505,7 @@ int64_t Clip::Cropping(int64_t diff, int type)
     return new_diff;
 }
 
-void Clip::Cutting(int64_t pos)
+void Clip::Cutting(int64_t pos, std::list<imgui_json::value>* pActionList)
 {
     TimeLine * timeline = (TimeLine *)mHandle;
     if (!timeline)
@@ -524,57 +524,31 @@ void Clip::Cutting(int64_t pos)
     int64_t adj_end_offset = mEndOffset + (mEnd - pos);
     int64_t new_start = pos;
     int64_t new_start_offset = mStartOffset + (pos - mStart);
-    // create new clip base on current clip
-    Clip * new_clip = nullptr;
-    if (IS_VIDEO(mType))
-    {
-        if (IS_IMAGE(mType))
-        {
-            VideoClip* imgclip = dynamic_cast<VideoClip*>(this);
-            auto new_image_clip = new VideoClip(mStart, mEnd, mMediaID, mName, imgclip->mOverview, timeline);
-            new_clip = new_image_clip;
-            new_start_offset = 0;
-            adj_end_offset = 0;
-        }
-        else
-        {
-            VideoClip* vidclip = dynamic_cast<VideoClip*>(this);
-            SnapshotGenerator::ViewerHolder hViewer = vidclip->mSsViewer->CreateViewer();
-            auto new_video_clip = new VideoClip(mStart, mEnd, mMediaID, mName, mMediaParser, hViewer, timeline);
-            new_clip = new_video_clip;
-        }
-    }
-    else if (IS_AUDIO(mType))
-    {
-        AudioClip* audclip = dynamic_cast<AudioClip*>(this);
-        auto new_audio_clip = new AudioClip(mStart, mEnd, mMediaID, mName, audclip->mOverview, timeline);
-        new_clip = new_audio_clip;
-    }
-    else if (IS_TEXT(mType))
-    {
-        TextClip* textClip = dynamic_cast<TextClip*>(this);
-        auto new_text_clip = new TextClip(new_start, mEnd, mMediaID, mName, textClip->mText, timeline);
-        new_text_clip->SetClipDefault(textClip);
-        new_text_clip->CreateClipHold(track);
-        new_clip = new_text_clip;
-        // adj current text clip time
-        track->mMttReader->ChangeClipTime(textClip->mClipHolder, mStart, adj_end - mStart);
-    }
 
-    // insert new clip into track and timeline
-    if (new_clip)
+    // crop this clip's end
+    mEnd = adj_end;
+    mEndOffset = adj_end_offset;
+    if (pActionList)
     {
-        new_clip->mStart = new_start;
-        new_clip->mStartOffset = new_start_offset;
-        new_clip->mEnd = mEnd;
-        new_clip->mEndOffset = mEndOffset;
-        new_clip->mLength = new_clip->mEnd-new_clip->mStart;
-        new_clip->mFilterKeyPoints.SetRangeX(0, new_clip->mEnd - new_clip->mStart, true);
-        new_clip->mAttributeKeyPoints.SetRangeX(0, new_clip->mEnd - new_clip->mStart, true);
-        mEnd = adj_end;
-        mEndOffset = adj_end_offset;
-        timeline->m_Clips.push_back(new_clip);
-
+        imgui_json::value action;
+        action["action"] = "CROP_CLIP";
+        action["media_type"] = imgui_json::number(mType);
+        action["clip_id"] = imgui_json::number(mID);
+        action["from_track_id"] = imgui_json::number(track->mID);
+        action["new_start"] = action["org_start"] = imgui_json::number(mStart);
+        action["new_start_offset"] = action["org_start_offset"] = imgui_json::number(mStartOffset);
+        action["org_end"] = imgui_json::number(org_end);
+        action["org_end_offset"] = imgui_json::number(org_end_offset);
+        action["new_end"] = imgui_json::number(mEnd);
+        action["new_end_offset"] = imgui_json::number(mEndOffset);
+        pActionList->push_back(std::move(action));
+    }
+    // and add a new clip start at this clip's end
+    int64_t newClipId = -1;
+    if ((newClipId = timeline->AddNewClip(mMediaID, mType, track->mID,
+            new_start, new_start_offset, org_end, org_end_offset,
+            mGroupID, -1, pActionList)) >= 0)
+    {
         // update curve
         if (timeline->mVidFilterClip && timeline->mVidFilterClip->mID == mID)
         {
@@ -612,47 +586,15 @@ void Clip::Cutting(int64_t pos)
         {
             if (overlap->m_Clip.first == mID || overlap->m_Clip.second == mID)
             {
-                if (overlap->mStart >= new_clip->mStart && overlap->mEnd <= new_clip->mEnd)
+                if (overlap->mStart >= new_start && overlap->mEnd <= org_end)
                 {
-                    if (overlap->m_Clip.first == mID) overlap->m_Clip.first = new_clip->mID;
-                    if (overlap->m_Clip.second == mID) overlap->m_Clip.second = new_clip->mID;
+                    if (overlap->m_Clip.first == mID) overlap->m_Clip.first = newClipId;
+                    if (overlap->m_Clip.second == mID) overlap->m_Clip.second = newClipId;
                 }
             }
         }
-
-        // update timeline
-        track->InsertClip(new_clip, pos);
-        timeline->AddClipIntoGroup(new_clip, mGroupID);
-        timeline->Update();
-
-        // sync cutting action to data layer by simulating it as crop+add actions
-        // simulate CROP_CLIP
-        imgui_json::value action1;
-        action1["action"] = "CROP_CLIP";
-        action1["from_track_id"] = imgui_json::number(track->mID);
-        action1["clip_id"] = imgui_json::number(mID);
-        action1["media_type"] = imgui_json::number(mType);
-        action1["new_start"] = action1["org_start"] = imgui_json::number(mStart);
-        action1["new_start_offset"] = action1["org_start_offset"] = imgui_json::number(mStartOffset);
-        action1["org_end"] = imgui_json::number(org_end);
-        action1["org_end_offset"] = imgui_json::number(org_end_offset);
-        action1["new_end"] = imgui_json::number(mEnd);
-        action1["new_end_offset"] = imgui_json::number(mEndOffset);
-        // simulate ADD_CLIP
-        imgui_json::value action2;
-        action2["action"] = "ADD_CLIP";
-        action2["to_track_id"] = imgui_json::number(track->mID);
-        action2["clip_id"] = imgui_json::number(new_clip->mID);
-        action2["media_type"] = imgui_json::number(new_clip->mType);
-        action2["media_id"] = imgui_json::number(new_clip->mMediaID);
-        action2["group_id"] = imgui_json::number(new_clip->mGroupID);
-        action2["start"] = imgui_json::number(new_clip->mStart);
-        action2["start_offset"] = imgui_json::number(new_clip->mStartOffset);
-        action2["end"] = imgui_json::number(new_clip->mEnd);
-        action2["end_offset"] = imgui_json::number(new_clip->mEndOffset);
-        timeline->mUiActions.push_back(std::move(action1));
-        timeline->mUiActions.push_back(std::move(action2));
     }
+    timeline->Update();
 }
 
 int64_t Clip::Moving(int64_t diff, int mouse_track)
@@ -952,7 +894,7 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
     // check clip is cross track
     if (mouse_track == -2 && track->m_Clips.size() > 1)
     {
-        index = timeline->NewTrack("", mType, track->mExpanded);
+        index = timeline->NewTrack("", mType, track->mExpanded, -1, -1, &timeline->mUiActions);
         if (IS_TEXT(mType))
         {
             MediaTrack * newTrack = timeline->m_Tracks[index];
@@ -2886,7 +2828,6 @@ Overlap::Overlap(int64_t start, int64_t end, int64_t clip_first, int64_t clip_se
 
 Overlap::~Overlap()
 {
-
 }
 
 bool Overlap::IsOverlapValid()
@@ -3632,33 +3573,6 @@ MediaTrack::MediaTrack(std::string name, uint32_t type, void * handle) :
 
 MediaTrack::~MediaTrack()
 {
-    TimeLine * timeline = (TimeLine *)m_Handle;
-    if (!timeline)
-        return;
-
-    // remove overlaps from timeline
-    for (auto overlap : m_Overlaps)
-    {
-        timeline->DeleteOverlap(overlap->mID);
-    }
-
-    // remove clips from timeline
-    for (auto clip : m_Clips)
-    {
-        timeline->DeleteClip(clip->mID);
-    }
-
-    // remove linked track info
-    auto linked_track = timeline->FindTrackByID(mLinkedTrack);
-    if (linked_track)
-    {
-        linked_track->mLinkedTrack = -1;
-    }
-
-    if (mMttReader)
-    {
-        timeline->mMtvReader->RemoveSubtitleTrackById(mID);
-    }
 }
 
 bool MediaTrack::DrawTrackControlBar(ImDrawList *draw_list, ImRect rc)
@@ -3797,7 +3711,6 @@ void MediaTrack::DeleteClip(int64_t id)
         }
         m_Clips.erase(iter);
     }
-    Update();
 }
 
 void MediaTrack::PushBackClip(Clip * clip)
@@ -3836,7 +3749,7 @@ bool MediaTrack::CanInsertClip(Clip * clip, int64_t pos)
     return can_insert_clip;
 }
 
-void MediaTrack::InsertClip(Clip * clip, int64_t pos, bool update)
+void MediaTrack::InsertClip(Clip * clip, int64_t pos, bool update, std::list<imgui_json::value>* pActionList)
 {
     TimeLine * timeline = (TimeLine *)m_Handle;
     if (!timeline || !clip)
@@ -3858,6 +3771,17 @@ void MediaTrack::InsertClip(Clip * clip, int64_t pos, bool update)
         clip->mFilterKeyPoints.SetRangeX(0, clip->mEnd - clip->mStart, true);
         clip->mAttributeKeyPoints.SetRangeX(0, clip->mEnd - clip->mStart, true);
         m_Clips.push_back(clip);
+        if (pActionList)
+        {
+            imgui_json::value action;
+            action["action"] = "ADD_CLIP";
+            action["media_type"] = imgui_json::number(clip->mType);
+            action["to_track_id"] = imgui_json::number(mID);
+            imgui_json::value clipJson;
+            clip->Save(clipJson);
+            action["clip_json"] = clipJson;
+            pActionList->push_back(std::move(action));
+        }
     }
     if (update) Update();
 }
@@ -4488,18 +4412,12 @@ void ClipGroup::Load(const imgui_json::value& value)
 
 void ClipGroup::Save(imgui_json::value& value)
 {
-    if (m_Grouped_Clips.size() > 0)
-    {
-        value["ID"] = imgui_json::number(mID);
-        value["Color"] = imgui_json::number(mColor);
-        imgui_json::value clips;
-        for (auto clip : m_Grouped_Clips)
-        {
-            imgui_json::value clip_id_value = imgui_json::number(clip);
-            clips.push_back(clip_id_value);
-        }
-        value["ClipIDS"] = clips;
-    }
+    value["ID"] = imgui_json::number(mID);
+    value["Color"] = imgui_json::number(mColor);
+    imgui_json::array clipIdsJson;
+    for (auto cid : m_Grouped_Clips)
+        clipIdsJson.push_back(imgui_json::number(cid));
+    value["ClipIDS"] = clipIdsJson;
 }
 } // namespace MediaTimeline
 
@@ -4591,6 +4509,7 @@ TimeLine::~TimeLine()
 
     for (auto track : m_Tracks) delete track;
     for (auto clip : m_Clips) delete clip;
+    for (auto overlap : m_Overlaps)  delete overlap;
     for (auto item : media_items) delete item;
 
     if (mVideoFilterInputTexture) { ImGui::ImDestroyTexture(mVideoFilterInputTexture); mVideoFilterInputTexture = nullptr; }
@@ -4744,104 +4663,124 @@ void TimeLine::SelectTrack(int index)
     }
 }
 
-int64_t TimeLine::DeleteTrack(int index, imgui_json::value* pActionJson)
+int64_t TimeLine::DeleteTrack(int index, std::list<imgui_json::value>* pActionList)
 {
-    int64_t trackId = -1;
-    if (index >= 0 && index < m_Tracks.size())
+    if (index < 0 || index >= m_Tracks.size())
+        return -1;
+
+    auto pTrack = m_Tracks[index];
+    auto trackId = pTrack->mID;
+    // save action json for UNDO operation
+    if (pActionList)
     {
-        auto track = m_Tracks[index];
-        trackId = track->mID;
-
-        // save action json for UNDO operation
-        if (pActionJson)
+        // find the same media type track which the deleted track is after, return its ID for UNDO operation.
+        int64_t afterTrackId, afterUiTrkId;
+        if (index == 0)
         {
-            // find the same media type track which the deleted track is after, return its ID for UNDO operation.
-            int64_t afterTrackId, afterUiTrkId;
-            if (index == 0)
-            {
-                afterTrackId = -2;
-                afterUiTrkId = -2;
-            }
+            afterTrackId = -2;
+            afterUiTrkId = -2;
+        }
+        else
+        {
+            auto iter = m_Tracks.begin()+index-1;
+            while ((*iter)->mType != pTrack->mType && iter != m_Tracks.begin())
+                iter--;
+            if ((*iter)->mType == pTrack->mType)
+                afterTrackId = (*iter)->mID;
             else
-            {
-                auto iter = m_Tracks.begin()+index-1;
-                while ((*iter)->mType != track->mType && iter != m_Tracks.begin())
-                    iter--;
-                if ((*iter)->mType == track->mType)
-                    afterTrackId = (*iter)->mID;
-                else
-                    afterTrackId = -1;
-                afterUiTrkId = m_Tracks[index-1]->mID;
-            }
-            auto& action = *pActionJson;
-            action["action"] = "REMOVE_TRACK";
-            action["media_type"] = imgui_json::number(track->mType);
-            action["track_id"] = imgui_json::number(track->mID);
-            action["after_track_id"] = imgui_json::number(afterTrackId);
-            action["after_ui_track_id"] = imgui_json::number(afterUiTrkId);
-            imgui_json::value trackJson;
-            track->Save(trackJson);
-            action["track_json"] = trackJson;
-            std::vector<int64_t> relatedGroupIds;
-            if (!m_Clips.empty())
-            {
-                imgui_json::value containedClips;
-                for (auto clip : m_Clips)
-                {
-                    imgui_json::value clipJson;
-                    clip->Save(clipJson);
-                    containedClips.push_back(clipJson);
-                    if (clip->mGroupID != -1)
-                    {
-                        auto iter = std::find(relatedGroupIds.begin(), relatedGroupIds.end(), clip->mGroupID);
-                        if (iter == relatedGroupIds.end())
-                            relatedGroupIds.push_back(clip->mGroupID);
-                    }
-                }
-                action["contained_clips"] = containedClips;
-            }
-            if (!relatedGroupIds.empty())
-            {
-                imgui_json::value relatedGroups;
-                for (auto& group : m_Groups)
-                {
-                    auto iter = std::find(relatedGroupIds.begin(), relatedGroupIds.end(), group.mID);
-                    if (iter != relatedGroupIds.end())
-                    {
-                        imgui_json::value groupJson;
-                        group.Save(groupJson);
-                        relatedGroups.push_back(groupJson);
-                    }
-                }
-                action["related_groups"] = relatedGroups;
-            }
-            if (!m_Overlaps.empty())
-            {
-                imgui_json::value containedOverlaps;
-                for (auto overlap : m_Overlaps)
-                {
-                    imgui_json::value overlapJson;
-                    overlap->Save(overlapJson);
-                    containedOverlaps.push_back(overlapJson);
-                }
-                action["contained_overlaps"] = containedOverlaps;
-            }
+                afterTrackId = -1;
+            afterUiTrkId = m_Tracks[index-1]->mID;
         }
-
-        m_Tracks.erase(m_Tracks.begin() + index);
-        delete track;
-        if (m_Tracks.size() == 0)
+        imgui_json::value action;
+        action["action"] = "REMOVE_TRACK";
+        action["media_type"] = imgui_json::number(pTrack->mType);
+        action["after_track_id"] = imgui_json::number(afterTrackId);
+        action["after_ui_track_id"] = imgui_json::number(afterUiTrkId);
+        imgui_json::value trackJson;
+        pTrack->Save(trackJson);
+        action["track_json"] = trackJson;
+        std::vector<int64_t> relatedGroupIds;
+        auto& containedClips = pTrack->m_Clips;
+        if (!containedClips.empty())
         {
-            mStart = mEnd = 0;
-            currentTime = firstTime = lastTime = visibleTime = 0;
-            mark_in = mark_out = -1;
+            imgui_json::value containedClipsJson;
+            for (auto clip : containedClips)
+            {
+                imgui_json::value clipJson;
+                clip->Save(clipJson);
+                containedClipsJson.push_back(clipJson);
+                if (clip->mGroupID != -1)
+                {
+                    auto iter = std::find(relatedGroupIds.begin(), relatedGroupIds.end(), clip->mGroupID);
+                    if (iter == relatedGroupIds.end())
+                        relatedGroupIds.push_back(clip->mGroupID);
+                }
+            }
+            action["contained_clips"] = containedClipsJson;
         }
-        UpdatePreview();
+        if (!relatedGroupIds.empty())
+        {
+            imgui_json::value relatedGroups;
+            for (auto& group : m_Groups)
+            {
+                auto iter = std::find(relatedGroupIds.begin(), relatedGroupIds.end(), group.mID);
+                if (iter != relatedGroupIds.end())
+                {
+                    imgui_json::value groupJson;
+                    group.Save(groupJson);
+                    relatedGroups.push_back(groupJson);
+                }
+            }
+            action["related_groups"] = relatedGroups;
+        }
+        auto& containedOverlaps = pTrack->m_Overlaps;
+        if (!containedOverlaps.empty())
+        {
+            imgui_json::value containedOverlapsJson;
+            for (auto overlap : containedOverlaps)
+            {
+                imgui_json::value overlapJson;
+                overlap->Save(overlapJson);
+                containedOverlapsJson.push_back(overlapJson);
+            }
+            action["contained_overlaps"] = containedOverlapsJson;
+        }
+        pActionList->push_back(std::move(action));
     }
+
+    // remove overlaps in this track
+    std::vector<Overlap*> delOverlaps(pTrack->m_Overlaps);
+    for (auto overlap : delOverlaps)
+    {
+        DeleteOverlap(overlap->mID);
+    }
+    // remove clips in this track
+    std::vector<Clip*> delClips(pTrack->m_Clips);
+    for (auto clip : delClips)
+    {
+        DeleteClip(clip->mID, nullptr);
+    }
+    // remove linked track info
+    auto linked_track = FindTrackByID(pTrack->mLinkedTrack);
+    if (linked_track)
+    {
+        linked_track->mLinkedTrack = -1;
+    }
+    // remove this track from array
+    m_Tracks.erase(m_Tracks.begin() + index);
+    delete pTrack;
+    if (m_Tracks.size() == 0)
+    {
+        mStart = mEnd = 0;
+        currentTime = firstTime = lastTime = visibleTime = 0;
+        mark_in = mark_out = -1;
+    }
+
+    UpdatePreview();
     return trackId;
 }
 
-int TimeLine::NewTrack(const std::string& name, uint32_t type, bool expand, int64_t id, int64_t afterUiTrkId)
+int TimeLine::NewTrack(const std::string& name, uint32_t type, bool expand, int64_t id, int64_t afterUiTrkId, std::list<imgui_json::value>* pActionList)
 {
     auto new_track = new MediaTrack(name, type, this);
     if (id != -1)
@@ -4882,27 +4821,31 @@ int TimeLine::NewTrack(const std::string& name, uint32_t type, bool expand, int6
             searchIter = m_Tracks.end()-1;
         }
     }
-    int64_t afterId = -1;
-    if (searchIter != m_Tracks.begin())
-    {
-        searchIter--;
-        while ((*searchIter)->mType != type && searchIter != m_Tracks.begin())
-            searchIter--;
-        if ((*searchIter)->mType == type)
-            afterId = (*searchIter)->mID;
-    }
-
     Update();
 
-    imgui_json::value action;
-    action["action"] = "ADD_TRACK";
-    action["media_type"] = imgui_json::number(type);
-    action["track_id"] = imgui_json::number(new_track->mID);
-    // 'after_track_id' is the argument required by DataLayer for API MultiTrackVideoReader::AddTrack()
-    action["after_track_id"] = imgui_json::number(afterId);
-    // 'after_ui_track_id' is saved for UNDO/REDO operation to retore the deleted track to the original position
-    action["after_ui_track_id"] = imgui_json::number(afterUiTrkId);
-    mUiActions.push_back(std::move(action));
+    if (pActionList)
+    {
+        int64_t afterId = -1;
+        if (searchIter != m_Tracks.begin())
+        {
+            searchIter--;
+            while ((*searchIter)->mType != type && searchIter != m_Tracks.begin())
+                searchIter--;
+            if ((*searchIter)->mType == type)
+                afterId = (*searchIter)->mID;
+        }
+        imgui_json::value action;
+        action["action"] = "ADD_TRACK";
+        action["media_type"] = imgui_json::number(type);
+        imgui_json::value trackJson;
+        new_track->Save(trackJson);
+        action["track_json"] = trackJson;
+        // 'after_track_id' is the argument required by DataLayer for API MultiTrackVideoReader::AddTrack()
+        action["after_track_id"] = imgui_json::number(afterId);
+        // 'after_ui_track_id' is saved for UNDO/REDO operation to retore the deleted track to the original position
+        action["after_ui_track_id"] = imgui_json::number(afterUiTrkId);
+        pActionList->push_back(std::move(action));
+    }
     return m_Tracks.size() - 1;
 }
 
@@ -5193,12 +5136,16 @@ void TimeLine::MovingClip(int64_t id, int from_track_index, int to_track_index)
     }
 }
 
-void TimeLine::DeleteClip(int64_t id)
+bool TimeLine::DeleteClip(int64_t id, std::list<imgui_json::value>* pActionList)
 {
+    auto track = FindTrackByClipID(id);
+    if (!track || track->mLocked)
+        return false;
+    track->DeleteClip(id);
+
     auto iter = std::find_if(m_Clips.begin(), m_Clips.end(), [id](const Clip* clip) {
         return clip->mID == id;
     });
-
     if (iter != m_Clips.end())
     {
         auto clip = *iter;
@@ -5218,8 +5165,21 @@ void TimeLine::DeleteClip(int64_t id)
             mAudFilterClipLock.unlock();
         }
         DeleteClipFromGroup(clip, clip->mGroupID);
+
+        if (pActionList)
+        {
+            imgui_json::value action;
+            action["action"] = "REMOVE_CLIP";
+            action["media_type"] = imgui_json::number(clip->mType);
+            action["from_track_id"] = imgui_json::number(track->mID);
+            imgui_json::value clip_json;
+            clip->Save(clip_json);
+            action["clip_json"] = clip_json;
+            pActionList->push_back(std::move(action));
+        }
         delete clip;
     }
+    return true;
 }
 
 void TimeLine::DeleteOverlap(int64_t id)
@@ -5678,42 +5638,109 @@ int TimeLine::GetEmptyTrackCount()
     });
 }
 
-int64_t TimeLine::NewGroup(Clip * clip, int64_t id, ImU32 color)
+int64_t TimeLine::NewGroup(Clip * clip, int64_t id, ImU32 color, std::list<imgui_json::value>* pActionList)
 {
-    if (!clip)
-        return -1;
-    DeleteClipFromGroup(clip, clip->mGroupID);
     ClipGroup new_group(this);
-    if (id != -1) new_group.mID = id;
+    if (id != -1)
+        new_group.mID = id;
+    else
+        id = new_group.mID;
     if (color != 0) new_group.mColor = color;
-    new_group.m_Grouped_Clips.push_back(clip->mID);
-    m_Groups.push_back(new_group);
-    clip->mGroupID = new_group.mID;
-    imgui_json::value action;
-    action["action"] = "ADD_GROUP";
-    action["group_id"] = imgui_json::number(new_group.mID);
-    action["color"] = imgui_json::number(new_group.mColor);
-    mUiActions.push_back(std::move(action));
-    return clip->mGroupID;
+    auto iter = std::find_if(m_Groups.begin(), m_Groups.end(), [id] (auto& g) {
+        return g.mID == id;
+    });
+    if (iter == m_Groups.end())
+    {
+        m_Groups.push_back(new_group);
+        iter = m_Groups.end()-1;
+    }
+    else
+        iter->mColor = new_group.mColor;
+
+    if (clip)
+    {
+        DeleteClipFromGroup(clip, clip->mGroupID);
+        iter->m_Grouped_Clips.push_back(clip->mID);
+        clip->mGroupID = id;
+    }
+
+    if (pActionList)
+    {
+        imgui_json::value action1;
+        action1["action"] = "ADD_GROUP";
+        imgui_json::value groupJson;
+        new_group.Save(groupJson);
+        action1["group_json"] = groupJson;
+        pActionList->push_back(std::move(action1));
+        if (clip)
+        {
+            imgui_json::value action2;
+            action2["action"] = "ADD_CLIP_INTO_GROUP";
+            action2["clip_id"] = imgui_json::number(clip->mID);
+            action2["group_id"] = imgui_json::number(id);
+            pActionList->push_back(std::move(action2));
+        }
+    }
+    return id;
 }
 
-void TimeLine::AddClipIntoGroup(Clip * clip, int64_t group_id)
+int64_t TimeLine::RestoreGroup(const imgui_json::value& groupJson)
+{
+    int64_t gid = NewGroup(nullptr, groupJson["ID"].get<imgui_json::number>(), groupJson["Color"].get<imgui_json::number>());
+    if (gid != -1)
+    {
+        auto giter = std::find_if(m_Groups.begin(), m_Groups.end(), [gid] (auto& g) {
+            return g.mID == gid;
+        });
+        assert(giter != m_Groups.end());
+        auto citer = giter->m_Grouped_Clips.begin();
+        while (citer != giter->m_Grouped_Clips.end())
+        {
+            auto cid = *citer;
+            auto c = FindClipByID(cid);
+            if (c)
+            {
+                c->mGroupID = gid;
+                citer++;
+            }
+            else
+            {
+                citer = giter->m_Grouped_Clips.erase(citer);
+            }
+        }
+    }
+    else
+    {
+        Logger::Log(Logger::WARN) << "FAILED to restore clip group from JSON: " << groupJson.dump() << std::endl;
+    }
+    return gid;
+}
+
+void TimeLine::AddClipIntoGroup(Clip * clip, int64_t group_id, std::list<imgui_json::value>* pActionList)
 {
     if (!clip || group_id == -1 || clip->mGroupID == group_id)
         return;
     // remove clip if clip is already in some group
-    DeleteClipFromGroup(clip, clip->mGroupID);
+    DeleteClipFromGroup(clip, clip->mGroupID, pActionList);
     for (auto & group : m_Groups)
     {
         if (group_id == group.mID)
         {
             group.m_Grouped_Clips.push_back(clip->mID);
             clip->mGroupID = group_id;
+            if (pActionList)
+            {
+                imgui_json::value action;
+                action["action"] = "ADD_CLIP_INTO_GROUP";
+                action["clip_id"] = imgui_json::number(clip->mID);
+                action["group_id"] = imgui_json::number(group_id);
+                pActionList->push_back(std::move(action));
+            }
         }
     }
 }
 
-void TimeLine::DeleteClipFromGroup(Clip *clip, int64_t group_id)
+void TimeLine::DeleteClipFromGroup(Clip *clip, int64_t group_id, std::list<imgui_json::value>* pActionList)
 {
     if (group_id == -1 || !clip)
         return;
@@ -5731,15 +5758,27 @@ void TimeLine::DeleteClipFromGroup(Clip *clip, int64_t group_id)
                 (*iter).m_Grouped_Clips.erase(clip_iter);
                 if ((*iter).m_Grouped_Clips.size() <= 0)
                     need_erase = true;
+                if (pActionList)
+                {
+                    imgui_json::value action;
+                    action["action"] = "DELETE_CLIP_FROM_GROUP";
+                    action["clip_id"] = imgui_json::number(clip->mID);
+                    action["group_id"] = imgui_json::number(iter->mID);
+                    pActionList->push_back(std::move(action));
+                }
             }
         }
         if (need_erase)
         {
-            imgui_json::value action;
-            action["action"] = "REMOVE_GROUP";
-            action["group_id"] = imgui_json::number(iter->mID);
-            action["color"] = imgui_json::number(iter->mColor);
-            mUiActions.push_back(std::move(action));
+            if (pActionList)
+            {
+                imgui_json::value action;
+                action["action"] = "REMOVE_GROUP";
+                imgui_json::value groupJson;
+                iter->Save(groupJson);
+                action["group_json"] = groupJson;
+                pActionList->push_back(std::move(action));
+            }
             iter = m_Groups.erase(iter);
         }
         else
@@ -6554,10 +6593,6 @@ int TimeLine::Load(const imgui_json::value& value)
     }
 
     SyncDataLayer();
-    UpdatePreview();
-    mMtaReader->UpdateDuration();
-    mMtaReader->SeekTo(currentTime);
-
     return 0;
 }
 
@@ -6689,14 +6724,34 @@ void TimeLine::Save(imgui_json::value& value)
     value["OutputAudio"] = imgui_json::boolean(bExportAudio);
 }
 
-void TimeLine::PrintUiActions()
+void TimeLine::PrintActionList(const std::string& title, const std::list<imgui_json::value>& actionList)
 {
-    if (mUiActions.empty())
-        return;
-    Logger::Log(Logger::VERBOSE) << std::endl << "UiActions : [" << std::endl;
-    for (auto& action : mUiActions)
-        Logger::Log(Logger::VERBOSE) << "\t" << action.dump() << std::endl;
-    Logger::Log(Logger::VERBOSE) << "] #UiActions" << std::endl << std::endl;
+    Logger::Log(Logger::VERBOSE) << std::endl << title << " : [" << std::endl;
+    if (actionList.empty())
+    {
+        Logger::Log(Logger::VERBOSE) << "(EMPTY)" << std::endl;
+    }
+    else
+    {
+        for (auto& action : actionList)
+            Logger::Log(Logger::VERBOSE) << "\t" << action.dump() << "," << std::endl;
+    }
+    Logger::Log(Logger::VERBOSE) << "] #" << title << std::endl << std::endl;
+}
+
+void TimeLine::PrintActionList(const std::string& title, const imgui_json::array& actionList)
+{
+    Logger::Log(Logger::VERBOSE) << std::endl << title << " : [" << std::endl;
+    if (actionList.empty())
+    {
+        Logger::Log(Logger::VERBOSE) << "(EMPTY)" << std::endl;
+    }
+    else
+    {
+        for (auto& action : actionList)
+            Logger::Log(Logger::VERBOSE) << "\t" << action.dump() << "," << std::endl;
+    }
+    Logger::Log(Logger::VERBOSE) << "] #" << title << std::endl << std::endl;
 }
 
 void TimeLine::PerformUiActions()
@@ -6704,7 +6759,7 @@ void TimeLine::PerformUiActions()
     if (mUiActions.empty())
         return;
 
-    PrintUiActions();
+    PrintActionList("UiActions", mUiActions);
     for (auto& action : mUiActions)
     {
         uint32_t mediaType = MEDIA_UNKNOWN;
@@ -6719,7 +6774,9 @@ void TimeLine::PerformUiActions()
         }
         else if (IS_AUDIO(mediaType))
             PerformAudioAction(action);
-        else
+        else if (IS_TEXT(mediaType))
+            PerformTextAction(action);
+        else if (mediaType != MEDIA_UNKNOWN)
         {
             Logger::Log(Logger::DEBUG) << "Skip action due to unsupported MEDIA_TYPE: " << action.dump() << "." << std::endl;
             continue;
@@ -6740,37 +6797,42 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
     {
         int64_t trackId = action["to_track_id"].get<imgui_json::number>();
         MediaCore::VideoTrackHolder vidTrack = mMtvReader->GetTrackById(trackId, true);
-        int64_t clipId = action["clip_id"].get<imgui_json::number>();
-        Clip* clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
+        int64_t clipId = action["clip_json"]["ID"].get<imgui_json::number>();
+        Clip* clip = FindClipByID(clipId);
         MediaCore::VideoClipHolder vidClip = MediaCore::VideoClip::CreateVideoInstance(
             clip->mID, clip->mMediaParser,
             vidTrack->OutWidth(), vidTrack->OutHeight(), vidTrack->FrameRate(),
             clip->mStart, clip->mStartOffset, clip->mEndOffset, currentTime-clip->mStart, vidTrack->Direction());
-        if (action.contains("clip_json"))
+        BluePrintVideoFilter* bpvf = new BluePrintVideoFilter(this);
+        bpvf->SetBluePrintFromJson(clip->mFilterBP);
+        bpvf->SetKeyPoint(clip->mFilterKeyPoints);
+        MediaCore::VideoFilterHolder hFilter(bpvf);
+        vidClip->SetFilter(hFilter);
+        auto attribute = vidClip->GetTransformFilter();
+        if (attribute)
         {
-            BluePrintVideoFilter* bpvf = new BluePrintVideoFilter(this);
-            bpvf->SetBluePrintFromJson(clip->mFilterBP);
-            bpvf->SetKeyPoint(clip->mFilterKeyPoints);
-            MediaCore::VideoFilterHolder hFilter(bpvf);
-            vidClip->SetFilter(hFilter);
-            auto attribute = vidClip->GetTransformFilter();
-            if (attribute)
-            {
-                VideoClip * vidclip = (VideoClip *)clip;
-                attribute->SetScaleType(vidclip->mScaleType);
-                attribute->SetScaleH(vidclip->mScaleH);
-                attribute->SetScaleV(vidclip->mScaleV);
-                attribute->SetPositionOffsetH(vidclip->mPositionOffsetH);
-                attribute->SetPositionOffsetV(vidclip->mPositionOffsetV);
-                attribute->SetRotationAngle(vidclip->mRotationAngle);
-                attribute->SetCropMarginL(vidclip->mCropMarginL);
-                attribute->SetCropMarginT(vidclip->mCropMarginT);
-                attribute->SetCropMarginR(vidclip->mCropMarginR);
-                attribute->SetCropMarginB(vidclip->mCropMarginB);
-                attribute->SetKeyPoint(vidclip->mAttributeKeyPoints);
-            }
+            VideoClip * vidclip = (VideoClip *)clip;
+            attribute->SetScaleType(vidclip->mScaleType);
+            attribute->SetScaleH(vidclip->mScaleH);
+            attribute->SetScaleV(vidclip->mScaleV);
+            attribute->SetPositionOffsetH(vidclip->mPositionOffsetH);
+            attribute->SetPositionOffsetV(vidclip->mPositionOffsetV);
+            attribute->SetRotationAngle(vidclip->mRotationAngle);
+            attribute->SetCropMarginL(vidclip->mCropMarginL);
+            attribute->SetCropMarginT(vidclip->mCropMarginT);
+            attribute->SetCropMarginR(vidclip->mCropMarginR);
+            attribute->SetCropMarginB(vidclip->mCropMarginB);
+            attribute->SetKeyPoint(vidclip->mAttributeKeyPoints);
         }
         vidTrack->InsertClip(vidClip);
+        UpdatePreview();
+    }
+    else if (actionName == "REMOVE_CLIP")
+    {
+        int64_t trackId = action["from_track_id"].get<imgui_json::number>();
+        MediaCore::VideoTrackHolder vidTrack = mMtvReader->GetTrackById(trackId);
+        int64_t clipId = action["clip_json"]["ID"].get<imgui_json::number>();
+        vidTrack->RemoveClipById(clipId);
         UpdatePreview();
     }
     else if (actionName == "MOVE_CLIP")
@@ -6805,23 +6867,15 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
         vidTrack->ChangeClipRange(clipId, newStartOffset, newEndOffset);
         UpdatePreview();
     }
-    else if (actionName == "REMOVE_CLIP")
-    {
-        int64_t trackId = action["from_track_id"].get<imgui_json::number>();
-        MediaCore::VideoTrackHolder vidTrack = mMtvReader->GetTrackById(trackId);
-        int64_t clipId = action["clip_json"]["ID"].get<imgui_json::number>();
-        vidTrack->RemoveClipById(clipId);
-        UpdatePreview();
-    }
     else if (actionName == "ADD_TRACK")
     {
-        int64_t trackId = action["track_id"].get<imgui_json::number>();
+        int64_t trackId = action["track_json"]["ID"].get<imgui_json::number>();
         int64_t afterId = action["after_track_id"].get<imgui_json::number>();
         mMtvReader->AddTrack(trackId, afterId);
     }
     else if (actionName == "REMOVE_TRACK")
     {
-        int64_t trackId = action["track_id"].get<imgui_json::number>();
+        int64_t trackId = action["track_json"]["ID"].get<imgui_json::number>();
         mMtvReader->RemoveTrackById(trackId);
     }
     else
@@ -6837,21 +6891,26 @@ void TimeLine::PerformAudioAction(imgui_json::value& action)
     {
         int64_t trackId = action["to_track_id"].get<imgui_json::number>();
         MediaCore::AudioTrackHolder audTrack = mMtaReader->GetTrackById(trackId, true);
-        int64_t clipId = action["clip_id"].get<imgui_json::number>();
-        Clip* clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
+        int64_t clipId = action["clip_json"]["ID"].get<imgui_json::number>();
+        Clip* clip = FindClipByID(clipId);
         MediaCore::AudioClipHolder audClip = MediaCore::AudioClip::CreateInstance(
             clip->mID, clip->mMediaParser,
             audTrack->OutChannels(), audTrack->OutSampleRate(), audTrack->OutSampleFormat(),
             clip->mStart, clip->mStartOffset, clip->mEndOffset);
-        if (action.contains("clip_json"))
-        {
-            BluePrintAudioFilter* bpaf = new BluePrintAudioFilter(this);
-            bpaf->SetBluePrintFromJson(clip->mFilterBP);
-            bpaf->SetKeyPoint(clip->mFilterKeyPoints);
-            MediaCore::AudioFilterHolder hFilter(bpaf);
-            audClip->SetFilter(hFilter);
-        }
+        BluePrintAudioFilter* bpaf = new BluePrintAudioFilter(this);
+        bpaf->SetBluePrintFromJson(clip->mFilterBP);
+        bpaf->SetKeyPoint(clip->mFilterKeyPoints);
+        MediaCore::AudioFilterHolder hFilter(bpaf);
+        audClip->SetFilter(hFilter);
         audTrack->InsertClip(audClip);
+        mMtaReader->Refresh();
+    }
+    else if (actionName == "REMOVE_CLIP")
+    {
+        int64_t trackId = action["from_track_id"].get<imgui_json::number>();
+        MediaCore::AudioTrackHolder audTrack = mMtaReader->GetTrackById(trackId);
+        int64_t clipId = action["clip_json"]["ID"].get<imgui_json::number>();
+        audTrack->RemoveClipById(clipId);
         mMtaReader->Refresh();
     }
     else if (actionName == "MOVE_CLIP")
@@ -6886,22 +6945,14 @@ void TimeLine::PerformAudioAction(imgui_json::value& action)
         audTrack->ChangeClipRange(clipId, newStartOffset, newEndOffset);
         mMtaReader->Refresh();
     }
-    else if (actionName == "REMOVE_CLIP")
-    {
-        int64_t trackId = action["from_track_id"].get<imgui_json::number>();
-        MediaCore::AudioTrackHolder audTrack = mMtaReader->GetTrackById(trackId);
-        int64_t clipId = action["clip_json"]["ID"].get<imgui_json::number>();
-        audTrack->RemoveClipById(clipId);
-        mMtaReader->Refresh();
-    }
     else if (actionName == "ADD_TRACK")
     {
-        int64_t trackId = action["track_id"].get<imgui_json::number>();
+        int64_t trackId = action["track_json"]["ID"].get<imgui_json::number>();
         mMtaReader->AddTrack(trackId);
     }
     else if (actionName == "REMOVE_TRACK")
     {
-        int64_t trackId = action["track_id"].get<imgui_json::number>();
+        int64_t trackId = action["track_json"]["ID"].get<imgui_json::number>();
         mMtaReader->RemoveTrackById(trackId);
     }
     else
@@ -6917,12 +6968,20 @@ void TimeLine::PerformImageAction(imgui_json::value& action)
     {
         int64_t trackId = action["to_track_id"].get<imgui_json::number>();
         MediaCore::VideoTrackHolder vidTrack = mMtvReader->GetTrackById(trackId, true);
-        int64_t clipId = action["clip_id"].get<imgui_json::number>();
-        Clip* clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
+        int64_t clipId = action["clip_json"]["ID"].get<imgui_json::number>();
+        Clip* clip = FindClipByID(clipId);
         MediaCore::VideoClipHolder imgClip = MediaCore::VideoClip::CreateImageInstance(
             clip->mID, clip->mMediaParser,
             vidTrack->OutWidth(), vidTrack->OutHeight(), clip->mStart, clip->mLength);
         vidTrack->InsertClip(imgClip);
+        UpdatePreview();
+    }
+    else if (actionName == "REMOVE_CLIP")
+    {
+        int64_t trackId = action["from_track_id"].get<imgui_json::number>();
+        MediaCore::VideoTrackHolder vidTrack = mMtvReader->GetTrackById(trackId);
+        int64_t clipId = action["clip_json"]["ID"].get<imgui_json::number>();
+        vidTrack->RemoveClipById(clipId);
         UpdatePreview();
     }
     else if (actionName == "MOVE_CLIP")
@@ -6957,28 +7016,38 @@ void TimeLine::PerformImageAction(imgui_json::value& action)
         vidTrack->ChangeClipRange(clipId, newStart, newEnd);
         UpdatePreview();
     }
-    else if (actionName == "REMOVE_CLIP")
-    {
-        int64_t trackId = action["from_track_id"].get<imgui_json::number>();
-        MediaCore::VideoTrackHolder vidTrack = mMtvReader->GetTrackById(trackId);
-        int64_t clipId = action["clip_json"]["ID"].get<imgui_json::number>();
-        vidTrack->RemoveClipById(clipId);
-        UpdatePreview();
-    }
     else if (actionName == "ADD_TRACK")
     {
-        int64_t trackId = action["track_id"].get<imgui_json::number>();
+        int64_t trackId = action["track_json"]["ID"].get<imgui_json::number>();
         int64_t afterId = action["after_track_id"].get<imgui_json::number>();
         mMtvReader->AddTrack(trackId);
     }
     else if (actionName == "REMOVE_TRACK")
     {
-        int64_t trackId = action["track_id"].get<imgui_json::number>();
+        int64_t trackId = action["track_json"]["ID"].get<imgui_json::number>();
         mMtvReader->RemoveTrackById(trackId);
     }
     else
     {
         Logger::Log(Logger::WARN) << "UNHANDLED UI ACTION(Image): '" << actionName << "'." << std::endl;
+    }
+}
+
+void TimeLine::PerformTextAction(imgui_json::value& action)
+{
+    std::string actionName = action["action"].get<imgui_json::string>();
+    if (actionName == "ADD_TRACK")
+    {
+        Logger::Log(Logger::INFO) << "Adding TEXT track is handled else where.." << std::endl;
+    }
+    else if (actionName == "REMOVE_TRACK")
+    {
+        int64_t trackId = action["track_json"]["ID"].get<imgui_json::number>();
+        mMtvReader->RemoveSubtitleTrackById(trackId);
+    }
+    else
+    {
+        Logger::Log(Logger::WARN) << "UNHANDLED UI ACTION(Text): '" << actionName << "'." << std::endl;
     }
 }
 
@@ -7001,6 +7070,8 @@ void TimeLine::SyncDataLayer()
 {
     // video overlap
     int syncedOverlapCount = 0;
+    bool needUpdatePreview = false;
+    bool needRefreshAudio = false;
     auto vidTrackIter = mMtvReader->TrackListBegin();
     while (vidTrackIter != mMtvReader->TrackListEnd())
     {
@@ -7025,6 +7096,7 @@ void TimeLine::SyncDataLayer()
                         bpvt->SetKeyPoint(ovlp->mFusionKeyPoints);
                         MediaCore::VideoTransitionHolder hTrans(bpvt);
                         vidOvlp->SetTransition(hTrans);
+                        needUpdatePreview = true;
                     }
                     found = true;
                     break;
@@ -7062,6 +7134,7 @@ void TimeLine::SyncDataLayer()
                         bpat->SetKeyPoint(ovlp->mFusionKeyPoints);
                         MediaCore::AudioTransitionHolder hTrans(bpat);
                         audOvlp->SetTransition(hTrans);
+                        needRefreshAudio = true;
                     }
                     found = true;
                     break;
@@ -7074,6 +7147,10 @@ void TimeLine::SyncDataLayer()
                 syncedOverlapCount++;
         }
     }
+    if (needUpdatePreview)
+        UpdatePreview();
+    if (needRefreshAudio)
+        mMtaReader->Refresh();
 
     int OvlpCnt = 0;
     for (auto ovlp : m_Overlaps)
@@ -7083,7 +7160,8 @@ void TimeLine::SyncDataLayer()
         if (IS_AUDIO(ovlp->mType))
             OvlpCnt ++;
     }
-    Logger::Log(Logger::VERBOSE) << *mMtvReader << std::endl;
+    Logger::Log(Logger::VERBOSE) << std::endl << *mMtvReader << std::endl;
+    Logger::Log(Logger::VERBOSE) << *mMtaReader << std::endl << std::endl;
     if (syncedOverlapCount != OvlpCnt)
         Logger::Log(Logger::Error) << "Overlap SYNC FAILED! Synced count is " << syncedOverlapCount
             << ", while the count of video overlap array is " << OvlpCnt << "." << std::endl;
@@ -7557,10 +7635,9 @@ bool TimeLine::UndoOneRecord()
 
     mRecordIter--;
     auto& record = *mRecordIter;
-    Logger::Log(Logger::VERBOSE) << "UNDO record: " << record.dump() << std::endl;
     auto& actions = record["actions"].get<imgui_json::array>();
+    PrintActionList("UNDO record", actions);
     auto iter = actions.end();
-    ImU32 groupColor = 0;
     while (iter != actions.begin())
     {
         iter--;
@@ -7568,16 +7645,16 @@ bool TimeLine::UndoOneRecord()
         std::string& actionName = action["action"].get<imgui_json::string>();
         if (actionName == "ADD_TRACK")
         {
-            int64_t trackId = action["track_id"].get<imgui_json::number>();
-            int i = 0;
-            for (; i < m_Tracks.size(); i++)
+            int64_t trackId = action["track_json"]["ID"].get<imgui_json::number>();
+            int index = 0;
+            for (; index < m_Tracks.size(); index++)
             {
-                if (m_Tracks[i]->mID == trackId)
+                if (m_Tracks[index]->mID == trackId)
                     break;
             }
-            if (i < m_Tracks.size())
+            if (index < m_Tracks.size())
             {
-                DeleteTrack(i);
+                DeleteTrack(index, nullptr);
                 imgui_json::value undoAction = action;
                 undoAction["action"] = "REMOVE_TRACK";
                 mUiActions.push_back(std::move(undoAction));
@@ -7589,18 +7666,24 @@ bool TimeLine::UndoOneRecord()
         }
         else if (actionName == "ADD_CLIP")
         {
-            int64_t clipId = action["clip_id"].get<imgui_json::number>();
-            auto clip = FindClipByID(clipId);
-            imgui_json::value undoAction = action;
+            DeleteClip(action["clip_json"]["ID"].get<imgui_json::number>(), nullptr);
+            Update();
+            imgui_json::value undoAction;
             undoAction["action"] = "REMOVE_CLIP";
-            undoAction.erase("to_track_id");
+            undoAction["media_type"] = action["media_type"];
             undoAction["from_track_id"] = action["to_track_id"];
-            imgui_json::value clipJson;
-            clip->Save(clipJson);
-            undoAction["clip_json"] = clipJson;
-            auto track = FindTrackByClipID(clipId);
-            track->DeleteClip(clipId);
-            DeleteClip(clipId);
+            undoAction["clip_json"] = action["clip_json"];
+            mUiActions.push_back(std::move(undoAction));
+        }
+        else if (actionName == "REMOVE_CLIP")
+        {
+            AddNewClip(action["clip_json"], action["from_track_id"].get<imgui_json::number>());
+            Update();
+            imgui_json::value undoAction;
+            undoAction["action"] = "ADD_CLIP";
+            undoAction["media_type"] = action["media_type"];
+            undoAction["to_track_id"] = action["from_track_id"];
+            undoAction["clip_json"] = action["clip_json"];
             mUiActions.push_back(std::move(undoAction));
         }
         else if (actionName == "MOVE_CLIP")
@@ -7686,39 +7769,42 @@ bool TimeLine::UndoOneRecord()
             undoAction["new_end"] = action["org_end"];
             mUiActions.push_back(std::move(undoAction));
         }
-        else if (actionName == "REMOVE_CLIP")
+        else if (actionName == "ADD_GROUP")
         {
-            AddNewClip(action["clip_json"], action["from_track_id"].get<imgui_json::number>());
-            Update();
-            imgui_json::value undoAction;
-            undoAction["action"] = "ADD_CLIP";
-            undoAction["to_track_id"] = action["from_track_id"];
-            undoAction["media_type"] = action["clip_json"]["Type"];
-            undoAction["start"] = action["clip_json"]["Start"];
-            undoAction["start_offset"] = action["clip_json"]["StartOffset"];
-            undoAction["end_offset"] = action["clip_json"]["EndOffset"];
-            undoAction["clip_id"] = action["clip_json"]["ID"];
-            undoAction["clip_json"] = action["clip_json"];
-            if (groupColor != 0)
+            int64_t gid = action["group_json"]["ID"].get<imgui_json::number>();
+            auto giter = std::find_if(m_Groups.begin(), m_Groups.end(), [gid] (auto& g) {
+                return g.mID == gid;
+            });
+            if (giter != m_Groups.end())
             {
-                int64_t groupId = action["clip_json"]["GroupID"].get<imgui_json::number>();
-                auto iter = std::find_if(m_Groups.begin(), m_Groups.end(), [groupId] (auto& group) {
-                    return group.mID == groupId;
-                });
-                if (iter != m_Groups.end())
-                    iter->mColor = groupColor;
+                std::vector<int64_t> containedClipIds(giter->m_Grouped_Clips);
+                for (auto cid : containedClipIds)
+                {
+                    auto c = FindClipByID(cid);
+                    DeleteClipFromGroup(c, gid);
+                }
             }
-            mUiActions.push_back(std::move(undoAction));
         }
         else if (actionName == "REMOVE_GROUP")
         {
-            int64_t groupId = action["group_id"].get<imgui_json::number>();
-            groupColor = (ImU32)action["color"].get<imgui_json::number>();
-            auto iter = std::find_if(m_Groups.begin(), m_Groups.end(), [groupId] (auto& group) {
-                return group.mID == groupId;
-            });
-            if (iter != m_Groups.end())
-                iter->mColor = groupColor;
+            RestoreGroup(action["group_json"]);
+        }
+        else if (actionName == "ADD_CLIP_INTO_GROUP")
+        {
+            auto pClip = FindClipByID(action["clip_id"].get<imgui_json::number>());
+            DeleteClipFromGroup(pClip, action["group_id"].get<imgui_json::number>());
+        }
+        else if (actionName == "DELETE_CLIP_FROM_GROUP")
+        {
+            auto pClip = FindClipByID(action["clip_id"].get<imgui_json::number>());
+            AddClipIntoGroup(pClip, action["group_id"].get<imgui_json::number>());
+        }
+        else if (actionName == "LINK_TRACK")
+        {
+            auto pTrack1 = FindTrackByID(action["track_id1"].get<imgui_json::number>());
+            pTrack1->mLinkedTrack = -1;
+            auto pTrack2 = FindTrackByID(action["track_id2"].get<imgui_json::number>());
+            pTrack2->mLinkedTrack = -1;
         }
         else
         {
@@ -7737,20 +7823,21 @@ bool TimeLine::RedoOneRecord()
     auto& actions = record["actions"].get<imgui_json::array>();
     mRecordIter++;
     ImU32 groupColor = 0;
-    Logger::Log(Logger::VERBOSE) << "REDO record: " << record.dump() << std::endl;
+    PrintActionList("REDO record", actions);
     for (auto& action : actions)
     {
         std::string& actionName = action["action"].get<imgui_json::string>();
         if (actionName == "ADD_TRACK")
         {
-            int64_t trackId = action["track_id"].get<imgui_json::number>();
-            int64_t afterUiTrkId = action["after_ui_track_id"].get<imgui_json::number>();
             uint32_t type = action["media_type"].get<imgui_json::number>();
+            int64_t trackId = action["track_json"]["ID"].get<imgui_json::number>();
+            int64_t afterUiTrkId = action["after_ui_track_id"].get<imgui_json::number>();
             NewTrack("", type, true, trackId, afterUiTrkId);
+            mUiActions.push_back(action);
         }
         else if (actionName == "REMOVE_TRACK")
         {
-            int64_t trackId = action["track_id"].get<imgui_json::number>();
+            int64_t trackId = action["track_json"]["ID"].get<imgui_json::number>();
             int i = 0;
             for (; i < m_Tracks.size(); i++)
             {
@@ -7759,37 +7846,22 @@ bool TimeLine::RedoOneRecord()
             }
             if (i < m_Tracks.size())
             {
-                DeleteTrack(i);
+                DeleteTrack(i, nullptr);
                 mUiActions.push_back(action);
             }
         }
         else if (actionName == "ADD_CLIP")
         {
-            AddNewClip(action["media_id"].get<imgui_json::number>(), action["media_type"].get<imgui_json::number>(), action["to_track_id"].get<imgui_json::number>(),
-                action["start"].get<imgui_json::number>(), action["start_offset"].get<imgui_json::number>(), action["end_offset"].get<imgui_json::number>(),
-                action["group_id"].get<imgui_json::number>(), action["clip_id"].get<imgui_json::number>());
+            AddNewClip(action["clip_json"], action["to_track_id"].get<imgui_json::number>());
             Update();
-            if (groupColor != 0)
-            {
-                int64_t groupId = action["group_id"].get<imgui_json::number>();
-                auto iter = std::find_if(m_Groups.begin(), m_Groups.end(), [groupId] (auto& group) {
-                    return group.mID == groupId;
-                });
-                if (iter != m_Groups.end())
-                    iter->mColor = groupColor;
-            }
-
             mUiActions.push_back(action);
         }
-        else if (actionName == "ADD_GROUP")
+        else if (actionName == "REMOVE_CLIP")
         {
-            int64_t groupId = action["group_id"].get<imgui_json::number>();
-            groupColor = (ImU32)action["color"].get<imgui_json::number>();
-            auto iter = std::find_if(m_Groups.begin(), m_Groups.end(), [groupId] (auto& group) {
-                return group.mID == groupId;
-            });
-            if (iter != m_Groups.end())
-                iter->mColor = groupColor;
+            int64_t clipId = action["clip_json"]["ID"].get<imgui_json::number>();
+            DeleteClip(clipId, nullptr);
+            Update();
+            mUiActions.push_back(action);
         }
         else if (actionName == "MOVE_CLIP")
         {
@@ -7823,15 +7895,6 @@ bool TimeLine::RedoOneRecord()
 
             mUiActions.push_back(action);
         }
-        else if (actionName == "REMOVE_CLIP")
-        {
-            int64_t clipId = action["clip_json"]["ID"].get<imgui_json::number>();
-            auto track = FindTrackByClipID(clipId);
-            track->DeleteClip(clipId);
-            DeleteClip(clipId);
-
-            mUiActions.push_back(action);
-        }
         else if (actionName == "CROP_CLIP")
         {
             auto clip = FindClipByID(action["clip_id"].get<imgui_json::number>());
@@ -7862,6 +7925,43 @@ bool TimeLine::RedoOneRecord()
 
             mUiActions.push_back(action);
         }
+        else if (actionName == "ADD_GROUP")
+        {
+            RestoreGroup(action["group_json"]);
+        }
+        else if (actionName == "REMOVE_GROUP")
+        {
+            int64_t gid = action["group_json"]["ID"].get<imgui_json::number>();
+            auto giter = std::find_if(m_Groups.begin(), m_Groups.end(), [gid] (auto& g) {
+                return g.mID == gid;
+            });
+            if (giter != m_Groups.end())
+            {
+                std::vector<int64_t> containedClipIds(giter->m_Grouped_Clips);
+                for (auto cid : containedClipIds)
+                {
+                    auto c = FindClipByID(cid);
+                    DeleteClipFromGroup(c, gid);
+                }
+            }
+        }
+        else if (actionName == "ADD_CLIP_INTO_GROUP")
+        {
+            auto pClip = FindClipByID(action["clip_id"].get<imgui_json::number>());
+            AddClipIntoGroup(pClip, action["group_id"].get<imgui_json::number>());
+        }
+        else if (actionName == "DELETE_CLIP_FROM_GROUP")
+        {
+            auto pClip = FindClipByID(action["clip_id"].get<imgui_json::number>());
+            DeleteClipFromGroup(pClip, action["group_id"].get<imgui_json::number>());
+        }
+        else if (actionName == "LINK_TRACK")
+        {
+            auto pTrack1 = FindTrackByID(action["track_id1"].get<imgui_json::number>());
+            auto pTrack2 = FindTrackByID(action["track_id2"].get<imgui_json::number>());
+            pTrack1->mLinkedTrack = pTrack2->mID;
+            pTrack2->mLinkedTrack = pTrack1->mID;
+        }
         else
         {
             Logger::Log(Logger::WARN) << "Unhandled REDO action '" << actionName << "'!" << std::endl;
@@ -7870,13 +7970,13 @@ bool TimeLine::RedoOneRecord()
     return true;
 }
 
-bool TimeLine::AddNewClip(const imgui_json::value& clip_json, int64_t track_id)
+int64_t TimeLine::AddNewClip(const imgui_json::value& clip_json, int64_t track_id, std::list<imgui_json::value>* pActionList)
 {
     MediaTrack* track = FindTrackByID(track_id);
     if (!track)
     {
         Logger::Log(Logger::Error) << "FAILED to invoke 'TimeLine::AddNewClip()'! Target 'MediaTrack' does NOT exist." << std::endl;
-        return false;
+        return -1;
     }
     const uint32_t mediaType = clip_json["Type"].get<imgui_json::number>();
     Clip* newClip = nullptr;
@@ -7893,7 +7993,7 @@ bool TimeLine::AddNewClip(const imgui_json::value& clip_json, int64_t track_id)
         break;
     }
     m_Clips.push_back(newClip);
-    track->InsertClip(newClip, newClip->mStart, true);
+    track->InsertClip(newClip, newClip->mStart, true, pActionList);
 
     int64_t groupId = clip_json["GroupID"].get<imgui_json::number>();
     if (groupId != -1)
@@ -7902,26 +8002,29 @@ bool TimeLine::AddNewClip(const imgui_json::value& clip_json, int64_t track_id)
             return group.mID == groupId;
         });
         if (iter == m_Groups.end())
-            NewGroup(newClip, groupId);
+            NewGroup(newClip, groupId, 0, pActionList);
         else
-            AddClipIntoGroup(newClip, groupId);
+            AddClipIntoGroup(newClip, groupId, pActionList);
     }
-    return true;
+    return newClip->mID;
 }
 
-bool TimeLine::AddNewClip(int64_t media_id, uint32_t media_type, int64_t track_id, int64_t start, int64_t start_offset, int64_t end_offset, int64_t group_id, int64_t clip_id)
+int64_t TimeLine::AddNewClip(
+        int64_t media_id, uint32_t media_type, int64_t track_id,
+        int64_t start, int64_t start_offset, int64_t end, int64_t end_offset,
+        int64_t group_id, int64_t clip_id, std::list<imgui_json::value>* pActionList)
 {
     MediaItem* item = FindMediaItemByID(media_id);
     if (!item)
     {
         Logger::Log(Logger::Error) << "FAILED to invoke 'TimeLine::AddNewClip()'! Target 'MediaItem' does NOT exist." << std::endl;
-        return false;
+        return -1;
     }
     MediaTrack* track = FindTrackByID(track_id);
     if (!track)
     {
         Logger::Log(Logger::Error) << "FAILED to invoke 'TimeLine::AddNewClip()'! Target 'MediaTrack' does NOT exist." << std::endl;
-        return false;
+        return -1;
     }
     Clip* newClip = nullptr;
     if (IS_VIDEO(media_type) && !IS_IMAGE(media_type))
@@ -7939,32 +8042,44 @@ bool TimeLine::AddNewClip(int64_t media_id, uint32_t media_type, int64_t track_i
     {
         newClip = new AudioClip(item->mStart, item->mEnd, item->mID, item->mName+":Audio", item->mMediaOverview, this);
     }
+    else if (IS_TEXT(media_type))
+    {
+        newClip = new TextClip(start, end, track->mID, track->mName, "", this);
+    }
     else
     {
-        Logger::Log(Logger::Error) << "Unhandled 'ADD_CLIP' action for media type " << media_type << "!" << std::endl;
-        return false;
+        Logger::Log(Logger::Error) << "Unsupported media type " << media_type << " for TimeLine::AddNewClip()!" << std::endl;
+        return -1;
     }
 
     if (clip_id != -1)
         newClip->mID = clip_id;
     newClip->mStart = start;
-    newClip->mStartOffset = start_offset;
-    newClip->mEndOffset = end_offset;
+    if (IS_IMAGE(media_type) || IS_TEXT(media_type))
+    {
+        newClip->mStartOffset = 0;
+        newClip->mEndOffset = 0;
+    }
+    else
+    {
+        newClip->mStartOffset = start_offset;
+        newClip->mEndOffset = end_offset;
+    }
     newClip->mLength -= start_offset+end_offset;
     newClip->mEnd = start+newClip->mLength;
     m_Clips.push_back(newClip);
-    track->InsertClip(newClip, start, true);
+    track->InsertClip(newClip, start, true, pActionList);
     if (group_id != -1)
     {
         auto iter = std::find_if(m_Groups.begin(), m_Groups.end(), [group_id] (auto& group) {
             return group.mID == group_id;
         });
         if (iter == m_Groups.end())
-            NewGroup(newClip, group_id);
+            NewGroup(newClip, group_id, 0, pActionList);
         else
-            AddClipIntoGroup(newClip, group_id);
+            AddClipIntoGroup(newClip, group_id, pActionList);
     }
-    return true;
+    return newClip->mID;
 }
 } // namespace MediaTimeline/TimeLine
 
@@ -8079,6 +8194,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
     int controlHeight = trackCount * trackHeadHeight;
     for (int i = 0; i < trackCount; i++)
         controlHeight += int(timeline->GetCustomHeight(i));
+
+    std::list<imgui_json::value> actionList; // wyvern: add this 'actionList' to save the operation records, for UNDO/REDO.
 
     // draw backbround
     //draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DARK_TWO);
@@ -8356,7 +8473,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                             {
                                 if (j == 2 && bCutting && count <= 1)
                                 {
-                                    clip->Cutting(mouseTime);
+                                    clip->Cutting(mouseTime, &timeline->mUiActions);
                                 }
                                 else
                                 {
@@ -9108,7 +9225,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                     {
                         action["to_track_id"] = imgui_json::number(toTrack->mID);
                         action["new_start"] = imgui_json::number(clip->mStart);
-                        timeline->mUiActions.push_back(std::move(action));
+                        actionList.push_back(std::move(action));
                     }
                     else
                     {
@@ -9128,7 +9245,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                         action["new_end_offset"] = imgui_json::number(clip->mEndOffset);
                         action["new_start"] = imgui_json::number(clip->mStart);
                         action["new_end"] = imgui_json::number(clip->mEnd);
-                        timeline->mUiActions.push_back(std::move(action));
+                        actionList.push_back(std::move(action));
                     }
                     else
                         Logger::Log(Logger::VERBOSE) << "-- Unchanged CROP action DISCARDED --" << std::endl;
@@ -9212,64 +9329,35 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             MediaItem * item = (MediaItem*)payload->Data;
             if (item)
             {
-                imgui_json::value action;
-                action["action"] = "ADD_CLIP";
-                action["media_type"] = imgui_json::number(item->mMediaType);
-                action["media_id"] = imgui_json::number(item->mID);
-                if (track)
-                    action["to_track_id"] = imgui_json::number(track->mID);
-                action["start"] = imgui_json::number(mouseTime);
-                action["start_offset"] = imgui_json::number(0);
-                action["end_offset"] = imgui_json::number(0);
                 if (IS_IMAGE(item->mMediaType))
                 {
                     VideoClip * new_image_clip = new VideoClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, timeline);
-                    action["clip_id"] = imgui_json::number(new_image_clip->mID);
                     timeline->m_Clips.push_back(new_image_clip);
-                    bool can_insert_clip = track ? track->CanInsertClip(new_image_clip, mouseTime) : false;
-                    if (can_insert_clip)
+                    MediaTrack* insertTrack = track;
+                    if (!track || !track->CanInsertClip(new_image_clip, mouseTime))
                     {
-                        // update clip info and push into track
-                        track->InsertClip(new_image_clip, mouseTime);
-                        timeline->Update();
+                        int newTrackIndex = timeline->NewTrack("", MEDIA_VIDEO, true, -1, -1, &actionList);
+                        insertTrack = timeline->m_Tracks[newTrackIndex];
                     }
-                    else
-                    {
-                        int newTrackIndex = timeline->NewTrack("", MEDIA_VIDEO, true);
-                        MediaTrack * newTrack = timeline->m_Tracks[newTrackIndex];
-                        newTrack->InsertClip(new_image_clip, mouseTime);
-                        timeline->Update();
-                        action["to_track_id"] = imgui_json::number(newTrack->mID);
-                    }
-                    action["group_id"] = imgui_json::number(new_image_clip->mGroupID);
+                    insertTrack->InsertClip(new_image_clip, mouseTime, true, &actionList);
                 }
                 else if (IS_AUDIO(item->mMediaType))
                 {
                     AudioClip * new_audio_clip = new AudioClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, timeline);
-                    action["clip_id"] = imgui_json::number(new_audio_clip->mID);
                     timeline->m_Clips.push_back(new_audio_clip);
-                    bool can_insert_clip = track ? track->CanInsertClip(new_audio_clip, mouseTime) : false;
-                    if (can_insert_clip)
+                    MediaTrack* insertTrack = track;
+                    if (!track || !track->CanInsertClip(new_audio_clip, mouseTime))
                     {
-                        // update clip info and push into track
-                        track->InsertClip(new_audio_clip, mouseTime);
-                        timeline->Update();
+                        int newTrackIndex = timeline->NewTrack("", MEDIA_AUDIO, true, -1, -1, &actionList);
+                        insertTrack = timeline->m_Tracks[newTrackIndex];
                     }
-                    else
-                    {
-                        int newTrackIndex = timeline->NewTrack("", MEDIA_AUDIO, true);
-                        MediaTrack * newTrack = timeline->m_Tracks[newTrackIndex];
-                        newTrack->InsertClip(new_audio_clip, mouseTime);
-                        timeline->Update();
-                        action["to_track_id"] = imgui_json::number(newTrack->mID);
-                    }
-                    action["group_id"] = imgui_json::number(new_audio_clip->mGroupID);
+                    insertTrack->InsertClip(new_audio_clip, mouseTime, true, &actionList);
                 } 
                 else if (IS_SUBTITLE(item->mMediaType))
                 {
                     // subtitle track isn't like other media tracks, it need load clips after insert a empty track
                     // text clip don't band with media item
-                    int newTrackIndex = timeline->NewTrack("", MEDIA_TEXT, true);
+                    int newTrackIndex = timeline->NewTrack("", MEDIA_TEXT, true, -1, -1, &actionList);
                     MediaTrack * newTrack = timeline->m_Tracks[newTrackIndex];
                     newTrack->mMttReader = timeline->mMtvReader->BuildSubtitleTrackFromFile(newTrack->mID, item->mPath);//MediaCore::SubtitleTrack::BuildFromFile(newTrack->mID, item->mPath);
                     if (newTrack->mMttReader)
@@ -9287,14 +9375,12 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                             new_text_clip->mTrack = newTrack;
                             timeline->m_Clips.push_back(new_text_clip);
                             newTrack->InsertClip(new_text_clip, hSubClip->StartTime(), false);
-                            action["clip_id"] = imgui_json::number(new_text_clip->mID);
                             hSubClip = newTrack->mMttReader->GetNextClip();
                         }
                         if (newTrack->mMttReader->Duration() > timeline->mEnd)
                         {
                             timeline->mEnd = newTrack->mMttReader->Duration() + 1000;
                         }
-                        timeline->Update();
                     }
                 }
                 else  // add a video clip
@@ -9312,38 +9398,19 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                         SnapshotGeneratorHolder hSsGen = timeline->GetSnapshotGenerator(item->mID);
                         if (hSsGen) hViewer = hSsGen->CreateViewer();
                         new_video_clip = new VideoClip(item->mStart, item->mEnd, item->mID, item->mName + ":Video", item->mMediaOverview->GetMediaParser(), hViewer, timeline);
-                        action["clip_id"] = imgui_json::number(new_video_clip->mID);
                         timeline->m_Clips.push_back(new_video_clip);
-                        bool can_insert_clip = track ? track->CanInsertClip(new_video_clip, mouseTime) : false;
-                        if (can_insert_clip)
+                        videoTrack = track;
+                        if (!track || !track->CanInsertClip(new_video_clip, mouseTime))
                         {
-                            // update clip info and push into track
-                            track->InsertClip(new_video_clip, mouseTime);
-                            timeline->Update();
-                            videoTrack = track;
-                        }
-                        else
-                        {
-                            int newTrackIndex = timeline->NewTrack("", MEDIA_VIDEO, true);
+                            int newTrackIndex = timeline->NewTrack("", MEDIA_VIDEO, true, -1, -1, &actionList);
                             videoTrack = timeline->m_Tracks[newTrackIndex];
-                            videoTrack->InsertClip(new_video_clip, mouseTime);
-                            timeline->Update();
-                            create_new_track = true;
-                            action["to_track_id"] = imgui_json::number(videoTrack->mID);
                         }
+                        videoTrack->InsertClip(new_video_clip, mouseTime, true, &actionList);
                     }
                     if (audio_stream)
                     {
                         new_audio_clip = new AudioClip(item->mStart, item->mEnd, item->mID, item->mName + ":Audio", item->mMediaOverview, timeline);
                         timeline->m_Clips.push_back(new_audio_clip);
-                        imgui_json::value action2;
-                        action2["action"] = "ADD_CLIP";
-                        action2["media_type"] = imgui_json::number(new_audio_clip->mType);
-                        action2["media_id"] = imgui_json::number(item->mID);
-                        action2["clip_id"] = imgui_json::number(new_audio_clip->mID);
-                        action2["start"] = imgui_json::number(mouseTime);
-                        action2["start_offset"] = imgui_json::number(0);
-                        action2["end_offset"] = imgui_json::number(0);
                         if (!create_new_track)
                         {
                             if (new_video_clip)
@@ -9359,12 +9426,10 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                                         {
                                             if (new_video_clip->mGroupID == -1)
                                             {
-                                                timeline->NewGroup(new_video_clip);
+                                                timeline->NewGroup(new_video_clip, -1L, 0U, &actionList);
                                             }
-                                            timeline->AddClipIntoGroup(new_audio_clip, new_video_clip->mGroupID);
-                                            relative_track->InsertClip(new_audio_clip, mouseTime);
-                                            action2["to_track_id"] = imgui_json::number(relative_track->mID);
-                                            timeline->Update();
+                                            relative_track->InsertClip(new_audio_clip, mouseTime, true, &actionList);
+                                            timeline->AddClipIntoGroup(new_audio_clip, new_video_clip->mGroupID, &actionList);
                                         }
                                         else
                                             create_new_track = true;
@@ -9382,9 +9447,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                                 if (can_insert_clip)
                                 {
                                     // update clip info and push into track
-                                    track->InsertClip(new_audio_clip, mouseTime);
-                                    action2["to_track_id"] = imgui_json::number(track->mID);
-                                    timeline->Update();
+                                    track->InsertClip(new_audio_clip, mouseTime, true, &actionList);
                                 }
                                 else
                                 {
@@ -9398,32 +9461,30 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                             {
                                 if (new_video_clip->mGroupID == -1)
                                 {
-                                    timeline->NewGroup(new_video_clip);
+                                    timeline->NewGroup(new_video_clip, -1L, 0U, &actionList);
                                 }
-                                timeline->AddClipIntoGroup(new_audio_clip, new_video_clip->mGroupID);
+                                timeline->AddClipIntoGroup(new_audio_clip, new_video_clip->mGroupID, &actionList);
                             }
 
-                            int newTrackIndex = timeline->NewTrack("", MEDIA_AUDIO, true);
+                            int newTrackIndex = timeline->NewTrack("", MEDIA_AUDIO, true, -1, -1, &actionList);
                             MediaTrack * audioTrack = timeline->m_Tracks[newTrackIndex];
-                            audioTrack->InsertClip(new_audio_clip, mouseTime);
-                            timeline->Update();
-                            action2["to_track_id"] = imgui_json::number(audioTrack->mID);
+                            audioTrack->InsertClip(new_audio_clip, mouseTime, true, &actionList);
                             if (videoTrack)
                             {
                                 videoTrack->mLinkedTrack = audioTrack->mID;
                                 audioTrack->mLinkedTrack = videoTrack->mID;
+                                imgui_json::value action;
+                                action["action"] = "LINK_TRACK";
+                                action["track_id1"] = imgui_json::number(videoTrack->mID);
+                                action["track_id2"] = imgui_json::number(audioTrack->mID);
+                                actionList.push_back(std::move(action));
                             }
 
                         }
-                        if (new_video_clip)
-                            action["group_id"] = imgui_json::number(new_video_clip->mGroupID);
-                        if (new_audio_clip)
-                            action2["group_id"] = imgui_json::number(new_audio_clip->mGroupID);
-                        timeline->mUiActions.push_back(std::move(action2));
                     }
                     // TODO::Dicky add subtitle stream here?
                 }
-                timeline->mUiActions.push_back(std::move(action));
+                timeline->Update();
                 ret = true;
             }
         }
@@ -9433,22 +9494,9 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
     // handle delete event
     for (auto clipId : delClipEntry)
     {
-        auto track = timeline->FindTrackByClipID(clipId);
-        if (track && !track->mLocked)
+        if (timeline->DeleteClip(clipId, &timeline->mUiActions))
         {
-            // record this action
-            auto clip = timeline->FindClipByID(clipId);
-            imgui_json::value action;
-            action["action"] = "REMOVE_CLIP";
-            action["media_type"] = imgui_json::number(clip->mType);
-            action["from_track_id"] = imgui_json::number(track->mID);
-            imgui_json::value clip_json;
-            clip->Save(clip_json);
-            action["clip_json"] = clip_json;
-            timeline->mUiActions.push_back(std::move(action));
-
-            track->DeleteClip(clipId);
-            timeline->DeleteClip(clipId);
+            timeline->Update();
             ret = true;
         }
     }
@@ -9460,13 +9508,12 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             uint32_t trackMediaType = track->mType;
             int64_t afterId = 0, afterUiTrkId = 0;
             imgui_json::value action;
-            int64_t delTrackId = timeline->DeleteTrack(delTrackEntry, &action);
+            int64_t delTrackId = timeline->DeleteTrack(delTrackEntry, &timeline->mUiActions);
             if (delTrackId != -1)
-            {
-                timeline->mUiActions.push_back(std::move(action));
                 ret = true;
-            }
         }
+        if (ret)
+            timeline->Update();
     }
     if (removeEmptyTrack)
     {
@@ -9483,11 +9530,9 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             {
                 uint32_t trackMediaType = pTrack->mType;
                 int64_t afterId = 0, afterUiTrkId = 0;
-                imgui_json::value action;
-                int64_t delTrackId = timeline->DeleteTrack(index, &action);
+                int64_t delTrackId = timeline->DeleteTrack(index, &timeline->mUiActions);
                 if (delTrackId != -1)
                 {
-                    timeline->mUiActions.push_back(std::move(action));
                     ret = true;
                     trackNum = timeline->m_Tracks.size();
                 }
@@ -9502,12 +9547,12 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
     // handle insert event
     if (IS_VIDEO(insertEmptyTrackType))
     {
-        timeline->NewTrack("", MEDIA_VIDEO, true);
+        timeline->NewTrack("", MEDIA_VIDEO, true, -1, -1, &timeline->mUiActions);
         ret = true;
     }
     else if (IS_AUDIO(insertEmptyTrackType))
     {
-        timeline->NewTrack("", MEDIA_AUDIO, true);
+        timeline->NewTrack("", MEDIA_AUDIO, true, -1, -1, &timeline->mUiActions);
         ret = true;
     }
     else if (IS_TEXT(insertEmptyTrackType))
@@ -9524,12 +9569,11 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
     // handle group event
     if (groupClipEntry.size() > 0)
     {
-        ClipGroup new_group(timeline);
-        timeline->m_Groups.push_back(new_group);
+        auto new_gourp_id = timeline->NewGroup(nullptr, -1L, 0U, &timeline->mUiActions);
         for (auto clip_id : groupClipEntry)
         {
             auto clip = timeline->FindClipByID(clip_id);
-            timeline->AddClipIntoGroup(clip, new_group.mID);
+            timeline->AddClipIntoGroup(clip, new_gourp_id, &timeline->mUiActions);
         }
         ret = true;
     }
@@ -9537,7 +9581,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
     for (auto clip_id : unGroupClipEntry)
     {
         auto clip = timeline->FindClipByID(clip_id);
-        timeline->DeleteClipFromGroup(clip, clip->mGroupID);
+        timeline->DeleteClipFromGroup(clip, clip->mGroupID, &timeline->mUiActions);
         ret = true;
     }
 
@@ -9566,10 +9610,10 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         if (io.KeyMods == ImGuiModFlags_Ctrl)
 #endif
         {
-            if (!timeline->mUiActions.empty())
+            if (!actionList.empty())
             {
                 Logger::Log(Logger::WARN) << "TimeLine::mUiActions is NOT EMPTY when UNDO is triggered!" << std::endl;
-                timeline->PrintUiActions();
+                timeline->PrintActionList("UiActions", actionList);
             }
             timeline->UndoOneRecord();
         }
@@ -9579,28 +9623,32 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         else if (io.KeyMods == (ImGuiModFlags_Ctrl|ImGuiModFlags_Shift))
 #endif
         {
-            if (!timeline->mUiActions.empty())
+            if (!actionList.empty())
+            {
                 Logger::Log(Logger::WARN) << "TimeLine::mUiActions is NOT EMPTY when REDO is triggered!" << std::endl;
+                timeline->PrintActionList("UiActions", actionList);
+            }
             timeline->RedoOneRecord();
         }
+        timeline->Update();
         timeline->PerformUiActions();
     }
 
     if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
-    {
-        if (!timeline->mUiActions.empty())
-        {
-            // add to history record list
-            imgui_json::value historyRecord;
-            historyRecord["time"] = ImGui::get_current_time();
-            auto& actions = timeline->mUiActions;
-            historyRecord["actions"] = imgui_json::array(actions.begin(), actions.end());
-            timeline->AddNewRecord(historyRecord);
+        timeline->mUiActions.splice(timeline->mUiActions.end(), actionList);
 
-            // perform actions
-            timeline->PerformUiActions();
-            ret = true;
-        }
+    if (!timeline->mUiActions.empty())
+    {
+        // add to history record list
+        imgui_json::value historyRecord;
+        historyRecord["time"] = ImGui::get_current_time();
+        auto& actions = timeline->mUiActions;
+        historyRecord["actions"] = imgui_json::array(actions.begin(), actions.end());
+        timeline->AddNewRecord(historyRecord);
+
+        // perform actions
+        timeline->PerformUiActions();
+        ret = true;
     }
     return ret;
 }

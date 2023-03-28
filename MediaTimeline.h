@@ -352,7 +352,7 @@ struct Clip
 
     virtual int64_t Moving(int64_t diff, int mouse_track);
     virtual int64_t Cropping(int64_t diff, int type);
-    void Cutting(int64_t pos);
+    void Cutting(int64_t pos, std::list<imgui_json::value>* pActionList);
     bool isLinkedWith(Clip * clip);
     
     virtual void ConfigViewWindow(int64_t wndDur, float pixPerMs) { mViewWndDur = wndDur; mPixPerMs = pixPerMs; }
@@ -823,7 +823,7 @@ struct MediaTrack
 
     bool DrawTrackControlBar(ImDrawList *draw_list, ImRect rc);
     bool CanInsertClip(Clip * clip, int64_t pos);
-    void InsertClip(Clip * clip, int64_t pos = 0, bool update = true);
+    void InsertClip(Clip * clip, int64_t pos = 0, bool update = true, std::list<imgui_json::value>* pActionList = nullptr);
     void PushBackClip(Clip * clip);
     void SelectClip(Clip * clip, bool appand);
     void SelectEditingClip(Clip * clip, bool filter_editing = false);
@@ -1015,11 +1015,13 @@ struct TimeLine
 
     imgui_json::array mOngoingActions;
     std::list<imgui_json::value> mUiActions;
-    void PrintUiActions();
+    void PrintActionList(const std::string& title, const std::list<imgui_json::value>& actionList);
+    void PrintActionList(const std::string& title, const imgui_json::array& actionList);
     void PerformUiActions();
     void PerformVideoAction(imgui_json::value& action);
     void PerformAudioAction(imgui_json::value& action);
     void PerformImageAction(imgui_json::value& action);
+    void PerformTextAction(imgui_json::value& action);
 
     class SimplePcmStream : public MediaCore::AudioRender::ByteStream
     {
@@ -1080,14 +1082,14 @@ struct TimeLine
     int GetTrackCount() const { return (int)m_Tracks.size(); }
     int GetTrackCount(uint32_t type);
     int GetEmptyTrackCount();
-    int NewTrack(const std::string& name, uint32_t type, bool expand, int64_t id = -1, int64_t afterUiTrkId = -1);
+    int NewTrack(const std::string& name, uint32_t type, bool expand, int64_t id = -1, int64_t afterUiTrkId = -1, std::list<imgui_json::value>* pActionList = nullptr);
     bool RestoreTrack(imgui_json::value& action);
-    int64_t DeleteTrack(int index, imgui_json::value* pActionJson = nullptr);
+    int64_t DeleteTrack(int index, std::list<imgui_json::value>* pActionList);
     void SelectTrack(int index);
     void MovingTrack(int& index, int& dst_index);
 
     void MovingClip(int64_t id, int from_track_index, int to_track_index);
-    void DeleteClip(int64_t id);
+    bool DeleteClip(int64_t id, std::list<imgui_json::value>* pActionList);
     void DeleteOverlap(int64_t id);
 
     void DoubleClick(int index, int64_t time);
@@ -1123,9 +1125,10 @@ struct TimeLine
     int GetSelectedClipCount();                         // Get current selected clip count
     int64_t NextClipStart(Clip * clip);                 // Get next clip start pos by clip, if don't have next clip, then return -1
     int64_t NextClipStart(int64_t pos);                 // Get next clip start pos by time, if don't have next clip, then return -1
-    int64_t NewGroup(Clip * clip, int64_t id = -1, ImU32 color = 0); // Create a new group with clip ID
-    void AddClipIntoGroup(Clip * clip, int64_t group_id); // Insert clip into group
-    void DeleteClipFromGroup(Clip *clip, int64_t group_id); // Delete clip from group
+    int64_t NewGroup(Clip * clip, int64_t id = -1, ImU32 color = 0, std::list<imgui_json::value>* pActionList = nullptr); // Create a new group with clip ID
+    int64_t RestoreGroup(const imgui_json::value& groupJson);
+    void AddClipIntoGroup(Clip * clip, int64_t group_id, std::list<imgui_json::value>* pActionList = nullptr); // Insert clip into group
+    void DeleteClipFromGroup(Clip *clip, int64_t group_id, std::list<imgui_json::value>* pActionList = nullptr); // Delete clip from group
     ImU32 GetGroupColor(int64_t group_id);              // Get Group color by id
     int Load(const imgui_json::value& value);
     void Save(imgui_json::value& value);
@@ -1140,8 +1143,8 @@ struct TimeLine
     void AddNewRecord(imgui_json::value& record);
     bool UndoOneRecord();
     bool RedoOneRecord();
-    bool AddNewClip(const imgui_json::value& clip_json, int64_t track_id);
-    bool AddNewClip(int64_t media_id, uint32_t media_type, int64_t track_id, int64_t start, int64_t start_offset, int64_t end_offset, int64_t group_id, int64_t clip_id = -1);
+    int64_t AddNewClip(const imgui_json::value& clip_json, int64_t track_id, std::list<imgui_json::value>* pActionList = nullptr);
+    int64_t AddNewClip(int64_t media_id, uint32_t media_type, int64_t track_id, int64_t start, int64_t start_offset, int64_t end, int64_t end_offset, int64_t group_id, int64_t clip_id = -1, std::list<imgui_json::value>* pActionList = nullptr);
 };
 
 bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable = true);
