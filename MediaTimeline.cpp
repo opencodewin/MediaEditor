@@ -9471,10 +9471,10 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                                     {
                                         if (new_video_clip->mGroupID == -1)
                                         {
-                                            timeline->NewGroup(new_video_clip);
+                                            timeline->NewGroup(new_video_clip, -1L, 0U, &actionList);
                                         }
-                                        timeline->AddClipIntoGroup(new_audio_clip, new_video_clip->mGroupID);
-                                        empty_track->InsertClip(new_audio_clip, mouseTime);
+                                        timeline->AddClipIntoGroup(new_audio_clip, new_video_clip->mGroupID, &actionList);
+                                        empty_track->InsertClip(new_audio_clip, mouseTime, true, &actionList);
                                     }
                                     else
                                         create_new_track = true;
