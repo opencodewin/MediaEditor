@@ -9515,7 +9515,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                                 int newTrackIndex = timeline->NewTrack("", MEDIA_AUDIO, true, -1, -1, &actionList);
                                 audioTrack = timeline->m_Tracks[newTrackIndex];
                             }
-                            audioTrack->InsertClip(new_audio_clip, mouseTime);
+                            audioTrack->InsertClip(new_audio_clip, mouseTime, true, &actionList);
                             if (videoTrack)
                             {
                                 videoTrack->mLinkedTrack = audioTrack->mID;
