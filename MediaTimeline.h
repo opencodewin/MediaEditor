@@ -1141,7 +1141,7 @@ struct TimeLine
     void Save(imgui_json::value& value);
 
     void ConfigureDataLayer();
-    void SyncDataLayer();
+    void SyncDataLayer(bool forceRefresh = false);
     SnapshotGeneratorHolder GetSnapshotGenerator(int64_t mediaItemId);
     void ConfigSnapshotWindow(int64_t viewWndDur);
 

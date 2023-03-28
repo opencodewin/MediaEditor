@@ -5067,7 +5067,7 @@ bool TimeLine::RestoreTrack(imgui_json::value& action)
         mMtaReader->SeekTo(currentTime);
     }
 
-    SyncDataLayer();
+    SyncDataLayer(true);
     return true;
 }
 
@@ -6618,7 +6618,8 @@ int TimeLine::Load(const imgui_json::value& value)
         amFilter->SetEqualizerParamsByIndex(&equalizerParams, i);
     }
 
-    SyncDataLayer();
+    SyncDataLayer(true);
+    mMtaReader->SeekTo(currentTime);
     return 0;
 }
 
@@ -7092,7 +7093,7 @@ void TimeLine::ConfigureDataLayer()
     mPcmStream.SetAudioReader(mMtaReader);
 }
 
-void TimeLine::SyncDataLayer()
+void TimeLine::SyncDataLayer(bool forceRefresh)
 {
     // video overlap
     int syncedOverlapCount = 0;
@@ -7173,9 +7174,9 @@ void TimeLine::SyncDataLayer()
                 syncedOverlapCount++;
         }
     }
-    if (needUpdatePreview)
+    if (needUpdatePreview || forceRefresh)
         UpdatePreview();
-    if (needRefreshAudio)
+    if (needRefreshAudio || forceRefresh)
         mMtaReader->Refresh();
 
     int OvlpCnt = 0;
