@@ -19,8 +19,8 @@
 #include <imgui.h>
 #include <imgui_json.h>
 #include <imgui_extra_widget.h>
-#include "MediaOverview.h"
-#include "SnapshotGenerator.h"
+#include "Overview.h"
+#include "Snapshot.h"
 #include "MediaReader.h"
 #include "MultiTrackVideoReader.h"
 #include "MultiTrackAudioReader.h"
@@ -286,7 +286,7 @@ struct MediaItem
     bool mValid {false};                    // Media source is valid
     int64_t mStart  {0};                    // whole Media start in ms
     int64_t mEnd    {0};                    // whole Media end in ms
-    MediaOverview * mMediaOverview {nullptr};
+    MediaCore::Overview::Holder mMediaOverview;
     uint32_t mMediaType {MEDIA_UNKNOWN};
     std::vector<ImTextureID> mMediaThumbnail;
     MediaItem(const std::string& name, const std::string& path, uint32_t type, void* handle);
@@ -354,7 +354,7 @@ struct Clip
     bool bEditing               {false};            // clip is Editing by double click selected, project saved
     std::mutex mLock;                               // clip mutex, not using yet
     void * mHandle              {nullptr};          // clip belong to timeline 
-    MediaParserHolder mMediaParser;
+    MediaCore::MediaParser::Holder mMediaParser;
     int64_t mViewWndDur         {0};
     float mPixPerMs             {0};
     int mTrackHeight            {0};
@@ -369,7 +369,7 @@ struct Clip
     int64_t visibleTime = 0;
     float msPixelWidthTarget = -1.f;
 
-    Clip(int64_t start, int64_t end, int64_t id, MediaParserHolder mediaParser, void * handle);
+    Clip(int64_t start, int64_t end, int64_t id, MediaCore::MediaParser::Holder mediaParser, void * handle);
     virtual ~Clip();
 
     virtual int64_t Moving(int64_t diff, int mouse_track);
@@ -389,16 +389,16 @@ struct Clip
 struct VideoClip : Clip
 {
     // video info
-    SnapshotGenerator::ViewerHolder mSsViewer;
+    MediaCore::Snapshot::Viewer::Holder mSsViewer;
     std::vector<VideoSnapshotInfo> mVideoSnapshotInfos; // clip snapshots info, with all croped range
     std::list<Snapshot> mVideoSnapshots;                // clip snapshots, including texture and timestamp info
-    MediaInfo::Ratio mClipFrameRate {25, 1};            // clip Frame rate, project saved
+    MediaCore::Ratio mClipFrameRate {25, 1};            // clip Frame rate, project saved
 
     // image info
     int mWidth          {0};        // image width, project saved
     int mHeight         {0};        // image height, project saved
     int mColorFormat    {0};        // image color format, project saved
-    MediaOverview * mOverview   {nullptr};
+    MediaCore::Overview::Holder mOverview;
     ImTextureID mImgTexture     {0};
 
     // attribute
@@ -414,13 +414,13 @@ struct VideoClip : Clip
     float mCropMarginR {0.f};                           // clip attribute crop margin right, project saved
     float mCropMarginB {0.f};                           // clip attribute crop margin bottom, project saved
 
-    VideoClip(int64_t start, int64_t end, int64_t id, std::string name, MediaParserHolder hParser, SnapshotGenerator::ViewerHolder viewer, void* handle);
-    VideoClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle);
+    VideoClip(int64_t start, int64_t end, int64_t id, std::string name, MediaCore::MediaParser::Holder hParser, MediaCore::Snapshot::Viewer::Holder viewer, void* handle);
+    VideoClip(int64_t start, int64_t end, int64_t id, std::string name, MediaCore::Overview::Holder overview, void* handle);
     VideoClip(int64_t start, int64_t end, int64_t id, std::string name, void* handle); // dummy clip
     ~VideoClip();
 
-    void UpdateClip(MediaParserHolder hParser, SnapshotGenerator::ViewerHolder viewer, int64_t duration);
-    void UpdateClip(MediaOverview * overview);
+    void UpdateClip(MediaCore::MediaParser::Holder hParser, MediaCore::Snapshot::Viewer::Holder viewer, int64_t duration);
+    void UpdateClip(MediaCore::Overview::Holder overview);
     void CalcDisplayParams();
 
     void ConfigViewWindow(int64_t wndDur, float pixPerMs) override;
@@ -435,7 +435,7 @@ private:
     float mSnapWidth                {0};
     float mSnapHeight               {0};
     int64_t mClipViewStartPos;
-    std::vector<SnapshotGenerator::ImageHolder> mSnapImages;
+    std::vector<MediaCore::Snapshot::Image::Holder> mSnapImages;
 };
 
 struct AudioClip : Clip
@@ -443,14 +443,14 @@ struct AudioClip : Clip
     int mAudioChannels  {2};                // clip audio channels, project saved
     int mAudioSampleRate {44100};           // clip audio sample rate, project saved
     MediaCore::AudioRender::PcmFormat mAudioFormat {MediaCore::AudioRender::PcmFormat::FLOAT32}; // clip audio type, project saved
-    MediaOverview::WaveformHolder mWaveform {nullptr};  // clip audio snapshot
-    MediaOverview * mOverview {nullptr};
+    MediaCore::Overview::Waveform::Holder mWaveform {nullptr};  // clip audio snapshot
+    MediaCore::Overview::Holder mOverview;
 
-    AudioClip(int64_t start, int64_t end, int64_t id, std::string name, MediaOverview * overview, void* handle);
+    AudioClip(int64_t start, int64_t end, int64_t id, std::string name, MediaCore::Overview::Holder overview, void* handle);
     AudioClip(int64_t start, int64_t end, int64_t id, std::string name, void* handle);
     ~AudioClip();
 
-    void UpdateClip(MediaOverview * overview, int64_t duration);
+    void UpdateClip(MediaCore::Overview::Holder overview, int64_t duration);
 
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect) override;
     static Clip * Load(const imgui_json::value& value, void * handle);
@@ -513,7 +513,7 @@ public:
     ~BluePrintVideoFilter();
 
     const std::string GetFilterName() const override { return "BluePrintVideoFilter"; }
-    MediaCore::VideoFilterHolder Clone() override;
+    MediaCore::VideoFilter::Holder Clone() override;
     void ApplyTo(MediaCore::VideoClip* clip) override {}
     ImGui::ImMat FilterImage(const ImGui::ImMat& vmat, int64_t pos) override;
 
@@ -536,7 +536,7 @@ public:
     BluePrintVideoTransition(void * handle = nullptr);
     ~BluePrintVideoTransition();
 
-    MediaCore::VideoTransitionHolder Clone() override;
+    MediaCore::VideoTransition::Holder Clone() override;
     void ApplyTo(MediaCore::VideoOverlap* overlap) override { mOverlap = overlap; }
     ImGui::ImMat MixTwoImages(const ImGui::ImMat& vmat1, const ImGui::ImMat& vmat2, int64_t pos, int64_t dur) override;
 
@@ -630,12 +630,12 @@ struct BaseEditingClip
 
 struct EditingVideoClip : BaseEditingClip
 {
-    SnapshotGeneratorHolder mSsGen;
-    SnapshotGenerator::ViewerHolder mSsViewer;
+    MediaCore::Snapshot::Generator::Holder mSsGen;
+    MediaCore::Snapshot::Viewer::Holder mSsViewer;
     ImVec2 mSnapSize            {0, 0};
     uint32_t mWidth             {0};
     uint32_t mHeight            {0};
-    MediaInfo::Ratio mClipFrameRate {25, 1};                    // clip Frame rate
+    MediaCore::Ratio mClipFrameRate {25, 1};                    // clip Frame rate
 
     // for image clip
     ImTextureID mImgTexture     {0};
@@ -661,7 +661,7 @@ struct EditingAudioClip : BaseEditingClip
     int mAudioChannels  {2}; 
     int mAudioSampleRate {44100};
     MediaCore::AudioRender::PcmFormat mAudioFormat {MediaCore::AudioRender::PcmFormat::FLOAT32};
-    MediaOverview::WaveformHolder mWaveform {nullptr};
+    MediaCore::Overview::Waveform::Holder mWaveform {nullptr};
 
     BluePrintAudioFilter * mFilter {nullptr};
 
@@ -700,13 +700,13 @@ struct BaseEditingOverlap
 struct EditingVideoOverlap : BaseEditingOverlap
 {
     VideoClip *mClip1, *mClip2;
-    SnapshotGeneratorHolder mSsGen1, mSsGen2;
-    SnapshotGenerator::ViewerHolder mViewer1, mViewer2;
+    MediaCore::Snapshot::Generator::Holder mSsGen1, mSsGen2;
+    MediaCore::Snapshot::Viewer::Holder mViewer1, mViewer2;
     ImTextureID mImgTexture1 {0};
     ImTextureID mImgTexture2 {0};
     ImVec2 mSnapSize{0, 0};
-    MediaInfo::Ratio mClipFirstFrameRate {25, 1};     // overlap clip first Frame rate
-    MediaInfo::Ratio mClipSecondFrameRate {25, 1};     // overlap clip second Frame rate
+    MediaCore::Ratio mClipFirstFrameRate {25, 1};     // overlap clip first Frame rate
+    MediaCore::Ratio mClipSecondFrameRate {25, 1};     // overlap clip second Frame rate
 
     BluePrintVideoTransition* mFusion{nullptr};
 
@@ -921,7 +921,7 @@ struct TimeLine
     std::vector<Clip *> m_Clips;            // timeline clips, project saved
     std::vector<ClipGroup> m_Groups;        // timeline clip groups, project saved
     std::vector<Overlap *> m_Overlaps;      // timeline clip overlap, project saved
-    std::unordered_map<int64_t, SnapshotGeneratorHolder> m_VidSsGenTable;  // Snapshot generator for video media item, provide snapshots for VideoClip
+    std::unordered_map<int64_t, MediaCore::Snapshot::Generator::Holder> m_VidSsGenTable;  // Snapshot generator for video media item, provide snapshots for VideoClip
     int64_t mStart   {0};                   // whole timeline start in ms, project saved
     int64_t mEnd     {0};                   // whole timeline end in ms, project saved
     bool m_in_threads {false};
@@ -931,7 +931,7 @@ struct TimeLine
     int mWidth  {1920};                     // timeline Media Width, project saved, configured
     int mHeight {1080};                     // timeline Media Height, project saved, configured
     float mPreviewScale {0.5};              // timeline preview video size scale, usually < 1.0, default is 0.5
-    MediaInfo::Ratio mFrameRate {25, 1};    // timeline Media Frame rate, project saved, configured
+    MediaCore::Ratio mFrameRate {25, 1};    // timeline Media Frame rate, project saved, configured
     int mMaxCachedVideoFrame {MAX_VIDEO_CACHE_FRAMES};  // timeline Media Video Frame cache size, project saved, configured
     float mSnapShotWidth        {60.0};
 
@@ -951,7 +951,7 @@ struct TimeLine
     std::string mAudioCodec {"aac"};
     bool bExportVideo {true};
     bool bExportAudio {true};
-    MediaEncoder* mEncoder {nullptr};
+    MediaCore::MediaEncoder::Holder mEncoder;
 
     struct VideoEncoderParams
     {
@@ -959,9 +959,9 @@ struct TimeLine
         std::string imageFormat;
         uint32_t width;
         uint32_t height;
-        MediaInfo::Ratio frameRate;
+        MediaCore::Ratio frameRate;
         uint64_t bitRate;
-        std::vector<MediaEncoder::Option> extraOpts;
+        std::vector<MediaCore::MediaEncoder::Option> extraOpts;
     };
 
     struct AudioEncoderParams
@@ -972,11 +972,11 @@ struct TimeLine
         uint32_t sampleRate;
         uint64_t bitRate;
         uint32_t samplesPerFrame {1024};
-        std::vector<MediaEncoder::Option> extraOpts;
+        std::vector<MediaCore::MediaEncoder::Option> extraOpts;
     };
 
-    MultiTrackVideoReader* mEncMtvReader {nullptr};
-    MultiTrackAudioReader* mEncMtaReader {nullptr};
+    MediaCore::MultiTrackVideoReader::Holder mEncMtvReader;
+    MediaCore::MultiTrackAudioReader::Holder mEncMtaReader;
 
     bool ConfigEncoder(const std::string& outputPath, VideoEncoderParams& vidEncParams, AudioEncoderParams& audEncParams, std::string& errMsg);
     void StartEncoding();
@@ -1028,8 +1028,8 @@ struct TimeLine
     std::mutex mAudFusionLock;              // timeline overlap mutex
     EditingAudioOverlap* mAudOverlap    {nullptr};
 
-    MultiTrackVideoReader* mMtvReader   {nullptr};
-    MultiTrackAudioReader* mMtaReader   {nullptr};
+    MediaCore::MultiTrackVideoReader::Holder mMtvReader;
+    MediaCore::MultiTrackAudioReader::Holder mMtaReader;
     int64_t mPreviewResumePos               {0};
     bool mIsPreviewNeedUpdate               {false};
     bool mIsPreviewPlaying                  {false};
@@ -1053,7 +1053,7 @@ struct TimeLine
     {
     public:
         SimplePcmStream(TimeLine* owner) : m_owner(owner) {}
-        void SetAudioReader(MultiTrackAudioReader* areader) { m_areader = areader; }
+        void SetAudioReader(MediaCore::MultiTrackAudioReader::Holder areader) { m_areader = areader; }
         uint32_t Read(uint8_t* buff, uint32_t buffSize, bool blocking) override;
         void Flush() override;
         bool GetTimestampMs(int64_t& ts) override
@@ -1069,7 +1069,7 @@ struct TimeLine
 
     private:
         TimeLine* m_owner;
-        MultiTrackAudioReader* m_areader;
+        MediaCore::MultiTrackAudioReader::Holder m_areader;
         ImGui::ImMat m_amat;
         uint32_t m_readPosInAmat{0};
         bool m_tsValid{false};
@@ -1162,7 +1162,7 @@ struct TimeLine
 
     void ConfigureDataLayer();
     void SyncDataLayer(bool forceRefresh = false);
-    SnapshotGeneratorHolder GetSnapshotGenerator(int64_t mediaItemId);
+    MediaCore::Snapshot::Generator::Holder GetSnapshotGenerator(int64_t mediaItemId);
     void ConfigSnapshotWindow(int64_t viewWndDur);
 
     std::list<imgui_json::value> mHistoryRecords;

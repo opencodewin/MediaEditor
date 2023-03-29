@@ -356,8 +356,8 @@ struct MediaEditorSettings
     int VideoWidth  {1920};                 // timeline Media Width
     int VideoHeight {1080};                 // timeline Media Height
     float PreviewScale {0.5};               // timeline Media Video Preview scale
-    MediaInfo::Ratio VideoFrameRate {25000, 1000};// timeline frame rate
-    MediaInfo::Ratio PixelAspectRatio {1, 1}; // timeline pixel aspect ratio
+    MediaCore::Ratio VideoFrameRate {25000, 1000};// timeline frame rate
+    MediaCore::Ratio PixelAspectRatio {1, 1}; // timeline pixel aspect ratio
     int ColorSpaceIndex {1};                // timeline color space default is bt 709
     int ColorTransferIndex {0};             // timeline color transfer default is bt 709
     int VideoFrameCacheSize {10};           // timeline video cache size
@@ -457,9 +457,9 @@ struct MediaEditorSettings
     int OutputVideoResolutionWidth {-1};         // custom setting
     int OutputVideoResolutionHeight {-1};        // custom setting
     int OutputVideoPixelAspectRatioIndex {-1};
-    MediaInfo::Ratio OutputVideoPixelAspectRatio {1, 1};// custom setting
+    MediaCore::Ratio OutputVideoPixelAspectRatio {1, 1};// custom setting
     int OutputVideoFrameRateIndex {-1};
-    MediaInfo::Ratio OutputVideoFrameRate {25000, 1000};// custom setting
+    MediaCore::Ratio OutputVideoFrameRate {25000, 1000};// custom setting
     int OutputColorSpaceIndex {-1};
     int OutputColorTransferIndex {-1};
     int OutputVideoBitrateStrategyindex {0};            // 0=cbr 1:vbr default cbr
@@ -492,9 +492,9 @@ static MediaEditorSettings g_media_editor_settings;
 static MediaEditorSettings g_new_setting;
 static imgui_json::value g_project;
 static bool g_vidEncSelChanged = true;
-static std::vector<MediaEncoder::EncoderDescription> g_currVidEncDescList;
+static std::vector<MediaCore::MediaEncoder::Description> g_currVidEncDescList;
 static bool g_audEncSelChanged = true;
-static std::vector<MediaEncoder::EncoderDescription> g_currAudEncDescList;
+static std::vector<MediaCore::MediaEncoder::Description> g_currAudEncDescList;
 static std::string g_encoderConfigErrorMessage;
 static bool quit_save_confirm = true;
 static bool project_need_save = false;
@@ -1061,7 +1061,7 @@ static void SetResolution(int& width, int& height, int index)
     }
 }
 
-static int GetPixelAspectRatioIndex(MediaInfo::Ratio ratio)
+static int GetPixelAspectRatioIndex(MediaCore::Ratio ratio)
 {
     if (ratio.num == 1 && ratio.den == 1)
         return 1;
@@ -1078,7 +1078,7 @@ static int GetPixelAspectRatioIndex(MediaInfo::Ratio ratio)
     return 0;
 }
 
-static void SetPixelAspectRatio(MediaInfo::Ratio& ratio, int index)
+static void SetPixelAspectRatio(MediaCore::Ratio& ratio, int index)
 {
     switch (index)
     {
@@ -1092,7 +1092,7 @@ static void SetPixelAspectRatio(MediaInfo::Ratio& ratio, int index)
     }
 }
 
-static int GetVideoFrameIndex(MediaInfo::Ratio fps)
+static int GetVideoFrameIndex(MediaCore::Ratio fps)
 {
     if (fps.num == 24000 && fps.den == 1001)
         return 1;
@@ -1117,7 +1117,7 @@ static int GetVideoFrameIndex(MediaInfo::Ratio fps)
     return 0;
 }
 
-static void SetVideoFrameRate(MediaInfo::Ratio & rate, int index)
+static void SetVideoFrameRate(MediaCore::Ratio & rate, int index)
 {
     switch (index)
     {
@@ -1844,8 +1844,8 @@ static bool ReloadMedia(std::string path, MediaItem* item)
                 else if (IS_VIDEO(clip->mType))
                 {
                     VideoClip * new_clip = (VideoClip *)clip;
-                    SnapshotGenerator::ViewerHolder hViewer;
-                    SnapshotGeneratorHolder hSsGen = timeline->GetSnapshotGenerator(item->mID);
+                    MediaCore::Snapshot::Viewer::Holder hViewer;
+                    MediaCore::Snapshot::Generator::Holder hSsGen = timeline->GetSnapshotGenerator(item->mID);
                     if (hSsGen)
                     {
                         hViewer = hSsGen->CreateViewer();
@@ -1870,10 +1870,10 @@ static bool ReloadMedia(std::string path, MediaItem* item)
                     // build data layer multi-track media reader
                     if (IS_VIDEO(clip->mType))
                     {
-                        MediaCore::VideoTrackHolder vidTrack = timeline->mMtvReader->GetTrackById(track->mID);
+                        MediaCore::VideoTrack::Holder vidTrack = timeline->mMtvReader->GetTrackById(track->mID);
                         if (vidTrack)
                         {
-                            MediaCore::VideoClipHolder hVidClip;
+                            MediaCore::VideoClip::Holder hVidClip;
                             if (IS_IMAGE(clip->mType))
                                 hVidClip = vidTrack->AddNewClip(clip->mID, clip->mMediaParser, clip->mStart, clip->mEnd-clip->mStart, 0, 0);
                             else
@@ -1882,7 +1882,7 @@ static bool ReloadMedia(std::string path, MediaItem* item)
                             BluePrintVideoFilter* bpvf = new BluePrintVideoFilter(timeline);
                             bpvf->SetBluePrintFromJson(clip->mFilterBP);
                             bpvf->SetKeyPoint(clip->mFilterKeyPoints);
-                            MediaCore::VideoFilterHolder hFilter(bpvf);
+                            MediaCore::VideoFilter::Holder hFilter(bpvf);
                             hVidClip->SetFilter(hFilter);
                             auto attribute = hVidClip->GetTransformFilter();
                             if (attribute)
@@ -1905,14 +1905,14 @@ static bool ReloadMedia(std::string path, MediaItem* item)
                     }
                     else if (IS_AUDIO(clip->mType))
                     {
-                        MediaCore::AudioTrackHolder audTrack = timeline->mMtaReader->GetTrackById(track->mID);
+                        MediaCore::AudioTrack::Holder audTrack = timeline->mMtaReader->GetTrackById(track->mID);
                         if (audTrack)
                         {
-                            MediaCore::AudioClipHolder hAudClip = audTrack->AddNewClip(clip->mID, clip->mMediaParser, clip->mStart, clip->mStartOffset, clip->mEndOffset);
+                            MediaCore::AudioClip::Holder hAudClip = audTrack->AddNewClip(clip->mID, clip->mMediaParser, clip->mStart, clip->mStartOffset, clip->mEndOffset);
                             BluePrintAudioFilter* bpaf = new BluePrintAudioFilter(timeline);
                             bpaf->SetBluePrintFromJson(clip->mFilterBP);
                             bpaf->SetKeyPoint(clip->mFilterKeyPoints);
-                            MediaCore::AudioFilterHolder hFilter(bpaf);
+                            MediaCore::AudioFilter::Holder hFilter(bpaf);
                             hAudClip->SetFilter(hFilter);
                             // audio attribute
                             auto aeFilter = audTrack->GetAudioEffectFilter();
@@ -2995,12 +2995,12 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
             return true;
         };
         auto codec_type_getter = [](void* data, int idx, const char** out_text){
-            std::vector<MediaEncoder::EncoderDescription> * codecs = (std::vector<MediaEncoder::EncoderDescription>*)data;
+            std::vector<MediaCore::MediaEncoder::Description> * codecs = (std::vector<MediaCore::MediaEncoder::Description>*)data;
             *out_text = codecs->at(idx).longName.c_str();
             return true;
         };
         auto codec_option_getter = [](void* data, int idx, const char** out_text){
-            std::vector<MediaEncoder::Option::EnumValue> * profiles = (std::vector<MediaEncoder::Option::EnumValue>*)data;
+            std::vector<MediaCore::MediaEncoder::Option::EnumValue> * profiles = (std::vector<MediaCore::MediaEncoder::Option::EnumValue>*)data;
             *out_text = profiles->at(idx).name.c_str();
             return true;
         };
@@ -3030,7 +3030,7 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
             if (g_vidEncSelChanged)
             {
                 string codecHint = OutputVideoCodec[g_media_editor_settings.OutputVideoCodecIndex].codec;
-                if (!MediaEncoder::FindEncoder(codecHint, g_currVidEncDescList))
+                if (!MediaCore::MediaEncoder::FindEncoder(codecHint, g_currVidEncDescList))
                 {
                     g_currVidEncDescList.clear();
                 }
@@ -3294,7 +3294,7 @@ static void ShowMediaOutputWindow(ImDrawList *draw_list)
             if (g_audEncSelChanged)
             {
                 std::string codecHint = OutputAudioCodec[g_media_editor_settings.OutputAudioCodecIndex].codec;
-                if (!MediaEncoder::FindEncoder(codecHint, g_currAudEncDescList))
+                if (!MediaCore::MediaEncoder::FindEncoder(codecHint, g_currAudEncDescList))
                 {
                     g_currAudEncDescList.clear();
                 }
@@ -9720,12 +9720,12 @@ static void MediaEditor_Initialize(void** handle)
     av_log_set_level(AV_LOG_FATAL);
 #else
     Logger::GetDefaultLogger()->SetShowLevels(Logger::DEBUG);
-    // GetMultiTrackVideoReaderLogger()->SetShowLevels(Logger::VERBOSE);
-    // GetMediaReaderLogger()->SetShowLevels(Logger::DEBUG);
-    // GetSnapshotGeneratorLogger()->SetShowLevels(Logger::DEBUG);
-    // GetMediaEncoderLogger()->SetShowLevels(Logger::DEBUG);
-    GetSubtitleTrackLogger()->SetShowLevels(Logger::DEBUG);
-    // GetMediaOverviewLogger()->SetShowLevels(Logger::DEBUG);
+    // MediaCore::MultiTrackVideoReader::GetLogger()->SetShowLevels(Logger::DEBUG);
+    // MediaCore::MediaReader::GetLogger()->SetShowLevels(Logger::DEBUG);
+    // MediaCore::Snapshot::GetLogger()->SetShowLevels(Logger::DEBUG);
+    // MediaCore::MediaEncoder::GetLogger()->SetShowLevels(Logger::DEBUG);
+    // MediaCore::Overview::GetLogger()->SetShowLevels(Logger::DEBUG);
+    // GetSubtitleTrackLogger()->SetShowLevels(Logger::DEBUG);
 #endif
 
     if (!MediaCore::InitializeSubtitleLibrary())

@@ -45,7 +45,7 @@ static void MediaPlayer_Initialize(void** handle)
 		docFile.close();
 	}
 #endif
-    g_audrnd = MediaCore::CreateAudioRender();
+    g_audrnd = MediaCore::AudioRender::CreateInstance();
 #if !IMGUI_APPLICATION_PLATFORM_SDL2
     if (!g_audrnd->Initialize())
         std::cerr << g_audrnd->GetError() << std::endl;
@@ -73,7 +73,7 @@ static void MediaPlayer_Finalize(void** handle)
     if (g_texture) { ImGui::ImDestroyTexture(g_texture); g_texture = nullptr; }
 
     ReleaseMediaPlayer(&g_player);
-    MediaCore::ReleaseAudioRender(&g_audrnd);
+    MediaCore::AudioRender::ReleaseInstance(&g_audrnd);
 #ifdef USE_BOOKMARK
 	// save bookmarks
 	std::ofstream configFileWriter(bookmark_path, std::ios::out);
