@@ -7443,7 +7443,7 @@ void TimeLine::CalculateAudioScopeData(ImGui::ImMat& mat_in)
             float hw = mAudioAttribute.m_audio_vector.w / 2;
             float hh = mAudioAttribute.m_audio_vector.h / 2;
             int samples = mat_in.w;
-            mAudioAttribute.m_audio_vector -= 3;
+            mAudioAttribute.m_audio_vector -= 127;
             for (int n = 0; n < samples; n++)
             {
                 float s1 = mAudioAttribute.channel_data[0].m_wave.at<float>(n, 0);
