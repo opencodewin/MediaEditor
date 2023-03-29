@@ -9,11 +9,10 @@
 ## Step 2: Building source code
 ### Supported platforms
 Currently supported distributions are:
-- [Microsoft Windows 10 and above](Microsoft-Windows)
-- [Ubuntu 20.04 LTS and above](Ubuntu)
-- [MacOS](MacOS)
+-   [Microsoft Windows 10 and above](#microsoft-windows)
+-   [Ubuntu 20.04 LTS and above](#ubuntu)
+-   [MacOS, includes apple silicon](#macos)
 
-### Step 2.1 building source code in Microsoft Windows
 ### Microsoft Windows
 #### 1. Install MSYS2(Mingw64)
 - [x] [MSYS2](https://www.msys2.org) is a collection of **tools and libraries** providing you with an easy-to-use environment for **building, installing and running native Windows software**.
@@ -29,7 +28,6 @@ Currently supported distributions are:
     mkdir build && cd build && \
     cmake .. && make -j8
 
-### Step 2.2 building source code in Ubuntu
 ### Ubuntu
 #### 1. Install related packages
     sudo apt update && sudo apt install build-essential cmake git \
@@ -41,7 +39,6 @@ Currently supported distributions are:
     mkdir build && cd build && \
     cmake .. && make -j8
 
-### Step 2.1 building source code in MacOS
 ### MacOS
 #### 1. Install Xcode Command Line Tools
     xcode-select --install

@@ -19,7 +19,7 @@ Media Editor Community(MEC) is a **free and open source** software for media edi
 ## Features
 **Adapt to various types of content:**
 * Import and edit videos from standard definition to 4K resolution
-* Support multiple major professional camera formats
+* Support multiple major media formats
 * Support multi-display playback and viewing of high-definition media
 
 **More efficient editing:**
@@ -30,7 +30,7 @@ Media Editor Community(MEC) is a **free and open source** software for media edi
 **Diversified special effects and transition effects:**
 * Support about 30 built-in video special effects, including video enhancement, edge detection, matte extraction, picture smoothing, and noise reduction.
 * Support about 60 built-in video transition effects.
-* Support various hidden subtitle formats, without the need for any third-party software.
+* Support various subtitle formats, without the need for any third-party software.
 * Support audio mixing, including gain, mixing, and equalizer.
 
 **Rich color correction tools:**
@@ -43,7 +43,7 @@ Media Editor Community(MEC) is a **free and open source** software for media edi
 * Support exporting selected range of clip content.
 
 ## Getting Started
-MEC's developers work hard to make it support a large range of devices and operating systems. We provide final as well as development builds. To get started, head over to the **[downloads section](https://github.com/opencodewin/MediaEditor/releases)** and simply select the platform that you want to install it on. A **[quick guide](docs/addit/wiki.md)** to help you get acquainted with MEC is available in our docs.
+MEC's developers work hard to make it support a large range of devices and operating systems. We provide final as well as development builds. To get started, head over to the **[downloads section](https://github.com/opencodewin/MediaEditor/releases)** and simply select the platform that you want to install it on. A **[quick guide](docs/addit/Quick-Start.md)** to help you get acquainted with MEC is available in our docs.
 
 ## Dependencies
 Although installers are much easier to use, if you must build from 
