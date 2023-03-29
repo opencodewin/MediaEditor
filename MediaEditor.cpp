@@ -5309,9 +5309,12 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
                 if (_changed) timeline->UpdatePreview();
             }
             // draw cursor line after curve draw
-            static const float cursorWidth = 2.f;
-            float cursorOffset = sub_window_pos.x + (timeline->currentTime - timeline->mVidOverlap->mStart) * timeline->mVidOverlap->msPixelWidth - 0.5f;
-            draw_list->AddLine(ImVec2(cursorOffset, sub_window_pos.y), ImVec2(cursorOffset, sub_window_pos.y + sub_window_size.y), COL_CURSOR_LINE_R, cursorWidth);
+            if (timeline && timeline->mVidOverlap)
+            {
+                static const float cursorWidth = 2.f;
+                float cursorOffset = sub_window_pos.x + (timeline->currentTime - timeline->mVidOverlap->mStart) * timeline->mVidOverlap->msPixelWidth - 0.5f;
+                draw_list->AddLine(ImVec2(cursorOffset, sub_window_pos.y), ImVec2(cursorOffset, sub_window_pos.y + sub_window_size.y), COL_CURSOR_LINE_R, cursorWidth);
+            }
         }
         ImGui::EndChild();
     }
@@ -6161,9 +6164,12 @@ static void ShowAudioFusionWindow(ImDrawList *draw_list)
                 if (_changed) timeline->UpdatePreview();
             }
             // draw cursor line after curve draw
-            static const float cursorWidth = 2.f;
-            float cursorOffset = sub_window_pos.x + (timeline->currentTime - timeline->mAudOverlap->mStart) * timeline->mAudOverlap->msPixelWidth - 0.5f;
-            draw_list->AddLine(ImVec2(cursorOffset, sub_window_pos.y), ImVec2(cursorOffset, sub_window_pos.y + sub_window_size.y), COL_CURSOR_LINE_R, cursorWidth);
+            if (timeline && timeline->mAudOverlap)
+            {
+                static const float cursorWidth = 2.f;
+                float cursorOffset = sub_window_pos.x + (timeline->currentTime - timeline->mAudOverlap->mStart) * timeline->mAudOverlap->msPixelWidth - 0.5f;
+                draw_list->AddLine(ImVec2(cursorOffset, sub_window_pos.y), ImVec2(cursorOffset, sub_window_pos.y + sub_window_size.y), COL_CURSOR_LINE_R, cursorWidth);
+            }
         }
         ImGui::EndChild();
     }
