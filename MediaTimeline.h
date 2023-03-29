@@ -447,6 +447,8 @@ struct TextClip : Clip
     ~TextClip();
     void SetClipDefault(const MediaCore::SubtitleStyle & style);
     void SetClipDefault(const TextClip* clip);
+    void SyncClipAttributes();
+    void EnableUsingTrackStyle(bool enable);
 
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect) override;
     void DrawTooltips() override;
@@ -482,6 +484,7 @@ struct TextClip : Clip
     ImVec4 mFontPrimaryColor {0, 0, 0, 0};
     ImVec4 mFontOutlineColor {0, 0, 0, 0};
     ImVec4 mFontBackColor {0, 0, 0, 0};
+    bool mIsInited {false};
     MediaCore::SubtitleClipHolder mClipHolder {nullptr};
     void* mTrack {nullptr};
 };

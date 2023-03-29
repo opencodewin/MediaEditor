@@ -1735,10 +1735,12 @@ void TextClip::SetClipDefault(const MediaCore::SubtitleStyle & style)
     mFontPrimaryColor = style.PrimaryColor().ToImVec4();
     mFontOutlineColor = style.OutlineColor().ToImVec4();
     mFontBackColor = style.BackColor().ToImVec4();
-
     // pos value need load later 
     mFontPosX = - FLT_MAX;
     mFontPosY = - FLT_MAX;
+
+    if (!mTrackStyle)
+        SyncClipAttributes();
 }
 
 void TextClip::SetClipDefault(const TextClip* clip)
@@ -1766,18 +1768,14 @@ void TextClip::SetClipDefault(const TextClip* clip)
     // pos value need load later 
     mFontPosX = - FLT_MAX;
     mFontPosY = - FLT_MAX;
+
+    if (!mTrackStyle)
+        SyncClipAttributes();
 }
 
-void TextClip::CreateClipHold(void * _track)
+void TextClip::SyncClipAttributes()
 {
-    MediaTrack * track = (MediaTrack *)_track;
-    if (!track || !track->mMttReader)
-        return;
-    mClipHolder = track->mMttReader->NewClip(mStart, mEnd - mStart);
-    mTrack = track;
-    mClipHolder->SetText(mText);
-    mClipHolder->EnableUsingTrackStyle(mTrackStyle);
-    if (!mTrackStyle)
+    if (mClipHolder)
     {
         mClipHolder->SetFont(mFontName);
         mClipHolder->SetOffsetH(mFontOffsetH);
@@ -1799,6 +1797,61 @@ void TextClip::CreateClipHold(void * _track)
         mClipHolder->SetOutlineColor(mFontOutlineColor);
         mClipHolder->SetBackColor(mFontBackColor);
     }
+}
+
+void TextClip::EnableUsingTrackStyle(bool enable)
+{
+    if (mTrackStyle != enable)
+    {
+        mTrackStyle = enable;
+        if (mClipHolder)
+        {
+            if (!enable)
+                SyncClipAttributes();
+            mClipHolder->EnableUsingTrackStyle(enable);
+        }
+    }
+}
+
+void TextClip::CreateClipHold(void * _track)
+{
+    MediaTrack * track = (MediaTrack *)_track;
+    if (!track || !track->mMttReader)
+        return;
+    mClipHolder = track->mMttReader->NewClip(mStart, mEnd - mStart);
+    mTrack = track;
+    mMediaID = track->mID;
+    mName = track->mName;
+    mClipHolder->SetText(mText);
+    mClipHolder->EnableUsingTrackStyle(mTrackStyle);
+    if (!mIsInited)
+    {
+        mFontName = mClipHolder->Font();
+        mFontOffsetH = mClipHolder->OffsetHScale();
+        mFontOffsetV = mClipHolder->OffsetVScale();
+        mFontScaleX = mClipHolder->ScaleX();
+        mFontScaleY = mClipHolder->ScaleY();
+        mFontSpacing = mClipHolder->Spacing();
+        mFontAngleX = mClipHolder->RotationX();
+        mFontAngleY = mClipHolder->RotationY();
+        mFontAngleZ = mClipHolder->RotationZ();
+        mFontOutlineWidth = mClipHolder->BorderWidth();
+        mFontBold = mClipHolder->Bold();
+        mFontItalic = mClipHolder->Italic();
+        mFontUnderLine = mClipHolder->UnderLine();
+        mFontStrikeOut = mClipHolder->StrikeOut();
+        mFontAlignment = mClipHolder->Alignment();
+        mFontShadowDepth = mClipHolder->ShadowDepth();
+        mFontPrimaryColor = mClipHolder->PrimaryColor().ToImVec4();
+        mFontOutlineColor = mClipHolder->OutlineColor().ToImVec4();
+        mFontBackColor = mClipHolder->BackColor().ToImVec4();
+        mIsInited = true;
+    }
+    else if (!mTrackStyle)
+    {
+        SyncClipAttributes();
+    }
+    mClipHolder->SetKeyPoints(mAttributeKeyPoints);
 }
 
 int64_t TextClip::Moving(int64_t diff, int mouse_track)
@@ -1846,131 +1899,127 @@ void TextClip::DrawTooltips()
 Clip * TextClip::Load(const imgui_json::value& value, void * handle)
 {
     TimeLine * timeline = (TimeLine *)handle;
-    if (!timeline || timeline->media_items.size() <= 0)
+    if (!timeline)
         return nullptr;
-    
-    // text clip don't band with media item
-    {
-        TextClip * new_clip = new TextClip(0, 0, 0, std::string(""), std::string(""), handle);
-        if (new_clip)
-        {
-            Clip::Load(new_clip, value);
-            // load text info
-            if (value.contains("Text"))
-            {
-                auto& val = value["Text"];
-                if (val.is_string()) new_clip->mText = val.get<imgui_json::string>();
-            }
-            if (value.contains("TrackStyle"))
-            {
-                auto& val = value["TrackStyle"];
-                if (val.is_boolean()) new_clip->mTrackStyle = val.get<imgui_json::boolean>();
-            }
-            if (value.contains("Name"))
-            {
-                auto& val = value["Name"];
-                if (val.is_string()) new_clip->mFontName = val.get<imgui_json::string>();
-            }
-            if (value.contains("ScaleLink"))
-            {
-                auto& val = value["ScaleLink"];
-                if (val.is_boolean()) new_clip->mScaleSettingLink = val.get<imgui_json::boolean>();
-            }
-            if (value.contains("ScaleX"))
-            {
-                auto& val = value["ScaleX"];
-                if (val.is_number()) new_clip->mFontScaleX = val.get<imgui_json::number>();
-            }
-            if (value.contains("ScaleY"))
-            {
-                auto& val = value["ScaleY"];
-                if (val.is_number()) new_clip->mFontScaleY = val.get<imgui_json::number>();
-            }
-            if (value.contains("Spacing"))
-            {
-                auto& val = value["Spacing"];
-                if (val.is_number()) new_clip->mFontSpacing = val.get<imgui_json::number>();
-            }
-            if (value.contains("AngleX"))
-            {
-                auto& val = value["AngleX"];
-                if (val.is_number()) new_clip->mFontAngleX = val.get<imgui_json::number>();
-            }
-            if (value.contains("AngleY"))
-            {
-                auto& val = value["AngleY"];
-                if (val.is_number()) new_clip->mFontAngleY = val.get<imgui_json::number>();
-            }
-            if (value.contains("AngleZ"))
-            {
-                auto& val = value["AngleZ"];
-                if (val.is_number()) new_clip->mFontAngleZ = val.get<imgui_json::number>();
-            }
-            if (value.contains("OutlineWidth"))
-            {
-                auto& val = value["OutlineWidth"];
-                if (val.is_number()) new_clip->mFontOutlineWidth = val.get<imgui_json::number>();
-            }
-            if (value.contains("Alignment"))
-            {
-                auto& val = value["Alignment"];
-                if (val.is_number()) new_clip->mFontAlignment = val.get<imgui_json::number>();
-            }
-            if (value.contains("Bold"))
-            {
-                auto& val = value["Bold"];
-                if (val.is_boolean()) new_clip->mFontBold = val.get<imgui_json::boolean>();
-            }
-            if (value.contains("Italic"))
-            {
-                auto& val = value["Italic"];
-                if (val.is_boolean()) new_clip->mFontItalic = val.get<imgui_json::boolean>();
-            }
-            if (value.contains("UnderLine"))
-            {
-                auto& val = value["UnderLine"];
-                if (val.is_boolean()) new_clip->mFontUnderLine = val.get<imgui_json::boolean>();
-            }
-            if (value.contains("StrikeOut"))
-            {
-                auto& val = value["StrikeOut"];
-                if (val.is_boolean()) new_clip->mFontStrikeOut = val.get<imgui_json::boolean>();
-            }
-            if (value.contains("OffsetX"))
-            {
-                auto& val = value["OffsetX"];
-                if (val.is_number()) new_clip->mFontOffsetH = val.get<imgui_json::number>();
-            }
-            if (value.contains("OffsetY"))
-            {
-                auto& val = value["OffsetY"];
-                if (val.is_number()) new_clip->mFontOffsetV = val.get<imgui_json::number>();
-            }
-            if (value.contains("ShadowDepth"))
-            {
-                auto& val = value["ShadowDepth"];
-                if (val.is_number()) new_clip->mFontShadowDepth = val.get<imgui_json::number>();
-            }
-            if (value.contains("PrimaryColor"))
-            {
-                auto& val = value["PrimaryColor"];
-                if (val.is_vec4()) new_clip->mFontPrimaryColor = val.get<imgui_json::vec4>();
-            }
-            if (value.contains("OutlineColor"))
-            {
-                auto& val = value["OutlineColor"];
-                if (val.is_vec4()) new_clip->mFontOutlineColor = val.get<imgui_json::vec4>();
-            }
-            if (value.contains("BackColor"))
-            {
-                auto& val = value["BackColor"];
-                if (val.is_vec4()) new_clip->mFontBackColor = val.get<imgui_json::vec4>();
-            }
+    TextClip * new_clip = new TextClip(0, 0, 0, std::string(""), std::string(""), handle);
+    if (!new_clip)
+        return nullptr;
 
-            return new_clip;
-        }
+    Clip::Load(new_clip, value);
+    // load text info
+    if (value.contains("Text"))
+    {
+        auto& val = value["Text"];
+        if (val.is_string()) new_clip->mText = val.get<imgui_json::string>();
     }
-    return nullptr;
+    if (value.contains("TrackStyle"))
+    {
+        auto& val = value["TrackStyle"];
+        if (val.is_boolean()) new_clip->mTrackStyle = val.get<imgui_json::boolean>();
+    }
+    if (value.contains("Name"))
+    {
+        auto& val = value["Name"];
+        if (val.is_string()) new_clip->mFontName = val.get<imgui_json::string>();
+    }
+    if (value.contains("ScaleLink"))
+    {
+        auto& val = value["ScaleLink"];
+        if (val.is_boolean()) new_clip->mScaleSettingLink = val.get<imgui_json::boolean>();
+    }
+    if (value.contains("ScaleX"))
+    {
+        auto& val = value["ScaleX"];
+        if (val.is_number()) new_clip->mFontScaleX = val.get<imgui_json::number>();
+    }
+    if (value.contains("ScaleY"))
+    {
+        auto& val = value["ScaleY"];
+        if (val.is_number()) new_clip->mFontScaleY = val.get<imgui_json::number>();
+    }
+    if (value.contains("Spacing"))
+    {
+        auto& val = value["Spacing"];
+        if (val.is_number()) new_clip->mFontSpacing = val.get<imgui_json::number>();
+    }
+    if (value.contains("AngleX"))
+    {
+        auto& val = value["AngleX"];
+        if (val.is_number()) new_clip->mFontAngleX = val.get<imgui_json::number>();
+    }
+    if (value.contains("AngleY"))
+    {
+        auto& val = value["AngleY"];
+        if (val.is_number()) new_clip->mFontAngleY = val.get<imgui_json::number>();
+    }
+    if (value.contains("AngleZ"))
+    {
+        auto& val = value["AngleZ"];
+        if (val.is_number()) new_clip->mFontAngleZ = val.get<imgui_json::number>();
+    }
+    if (value.contains("OutlineWidth"))
+    {
+        auto& val = value["OutlineWidth"];
+        if (val.is_number()) new_clip->mFontOutlineWidth = val.get<imgui_json::number>();
+    }
+    if (value.contains("Alignment"))
+    {
+        auto& val = value["Alignment"];
+        if (val.is_number()) new_clip->mFontAlignment = val.get<imgui_json::number>();
+    }
+    if (value.contains("Bold"))
+    {
+        auto& val = value["Bold"];
+        if (val.is_boolean()) new_clip->mFontBold = val.get<imgui_json::boolean>();
+    }
+    if (value.contains("Italic"))
+    {
+        auto& val = value["Italic"];
+        if (val.is_boolean()) new_clip->mFontItalic = val.get<imgui_json::boolean>();
+    }
+    if (value.contains("UnderLine"))
+    {
+        auto& val = value["UnderLine"];
+        if (val.is_boolean()) new_clip->mFontUnderLine = val.get<imgui_json::boolean>();
+    }
+    if (value.contains("StrikeOut"))
+    {
+        auto& val = value["StrikeOut"];
+        if (val.is_boolean()) new_clip->mFontStrikeOut = val.get<imgui_json::boolean>();
+    }
+    if (value.contains("OffsetX"))
+    {
+        auto& val = value["OffsetX"];
+        if (val.is_number()) new_clip->mFontOffsetH = val.get<imgui_json::number>();
+    }
+    if (value.contains("OffsetY"))
+    {
+        auto& val = value["OffsetY"];
+        if (val.is_number()) new_clip->mFontOffsetV = val.get<imgui_json::number>();
+    }
+    if (value.contains("ShadowDepth"))
+    {
+        auto& val = value["ShadowDepth"];
+        if (val.is_number()) new_clip->mFontShadowDepth = val.get<imgui_json::number>();
+    }
+    if (value.contains("PrimaryColor"))
+    {
+        auto& val = value["PrimaryColor"];
+        if (val.is_vec4()) new_clip->mFontPrimaryColor = val.get<imgui_json::vec4>();
+    }
+    if (value.contains("OutlineColor"))
+    {
+        auto& val = value["OutlineColor"];
+        if (val.is_vec4()) new_clip->mFontOutlineColor = val.get<imgui_json::vec4>();
+    }
+    if (value.contains("BackColor"))
+    {
+        auto& val = value["BackColor"];
+        if (val.is_vec4()) new_clip->mFontBackColor = val.get<imgui_json::vec4>();
+    }
+
+    new_clip->mIsInited = true;
+    return new_clip;
 }
 
 void TextClip::Save(imgui_json::value& value)
@@ -4305,7 +4354,6 @@ MediaTrack* MediaTrack::Load(const imgui_json::value& value, void * handle)
                 {
                     TextClip * tclip = dynamic_cast<TextClip *>(clip);
                     tclip->CreateClipHold(new_track);
-                    if (tclip->mClipHolder) tclip->mClipHolder->SetKeyPoints(tclip->mAttributeKeyPoints);
                 }
             }
         }
@@ -5135,8 +5183,6 @@ void TimeLine::MovingClip(int64_t id, int from_track_index, int to_track_index)
             }
             // and add into dst track holder
             tclip->CreateClipHold(dst_track);
-            tclip->mMediaID = dst_track->mID;
-            tclip->mName = dst_track->mName;
         }
 
         dst_track->InsertClip(clip, clip->mStart);
@@ -8781,21 +8827,16 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                         {
                             int64_t text_time = menuMouseTime;
                             timeline->AlignTime(text_time);
-                            auto& style = track->mMttReader->DefaultStyle();
                             TextClip * clip = new TextClip(text_time, text_time + 5000, track->mID, track->mName, std::string(""), timeline);
-                            auto holder = track->mMttReader->NewClip(clip->mStart, clip->mEnd - clip->mStart);
-                            clip->SetClipDefault(style);
-                            clip->mClipHolder = holder;
-                            clip->mTrack = track;
-                            holder->EnableUsingTrackStyle(clip->mTrackStyle);
+                            clip->CreateClipHold(track);
+                            clip->SetClipDefault(track->mMttReader->DefaultStyle());
                             timeline->m_Clips.push_back(clip);
-                            track->InsertClip(clip, holder->StartTime());
+                            track->InsertClip(clip, text_time);
                             track->SelectEditingClip(clip, false);
                             if (timeline->m_CallBacks.EditingClipFilter)
                             {
                                 timeline->m_CallBacks.EditingClipFilter(clip->mType, clip);
                             }
-                            //action["clip_id"] = imgui_json::number(clip->mID);
                         }
                     }
                 }

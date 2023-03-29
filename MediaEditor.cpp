@@ -7869,9 +7869,10 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
                 }
             }
             // show style control
-            if (ImGui::Checkbox("Using track style", &editing_clip->mTrackStyle))
+            bool useTrackStyle = editing_clip->mTrackStyle;
+            if (ImGui::Checkbox("Using track style", &useTrackStyle))
             {
-                if (editing_clip->mClipHolder) editing_clip->mClipHolder->EnableUsingTrackStyle(editing_clip->mTrackStyle);
+                editing_clip->EnableUsingTrackStyle(useTrackStyle);
                 force_update_preview = true;
             }
             ImGui::Separator();
@@ -9700,7 +9701,7 @@ static void MediaEditor_Initialize(void** handle)
     // GetMediaReaderLogger()->SetShowLevels(Logger::DEBUG);
     // GetSnapshotGeneratorLogger()->SetShowLevels(Logger::DEBUG);
     // GetMediaEncoderLogger()->SetShowLevels(Logger::DEBUG);
-    // GetSubtitleTrackLogger()->SetShowLevels(Logger::DEBUG);
+    GetSubtitleTrackLogger()->SetShowLevels(Logger::DEBUG);
     // GetMediaOverviewLogger()->SetShowLevels(Logger::DEBUG);
 #endif
 
