@@ -3646,7 +3646,7 @@ MediaTrack::~MediaTrack()
 {
 }
 
-bool MediaTrack::DrawTrackControlBar(ImDrawList *draw_list, ImRect rc)
+bool MediaTrack::DrawTrackControlBar(ImDrawList *draw_list, ImRect rc, std::list<imgui_json::value>* pActionList)
 {
     bool need_update = false;
     ImGuiIO &io = ImGui::GetIO();
@@ -3663,7 +3663,18 @@ bool MediaTrack::DrawTrackControlBar(ImDrawList *draw_list, ImRect rc)
     {
         bool ret = TimelineButton(draw_list, mView ? ICON_SPEAKER : ICON_SPEAKER_MUTE, ImVec2(rc.Min.x + button_size.x * button_count * 1.5 + 6, rc.Max.y - button_size.y - 2), button_size, mView ? "mute" : "voice");
         if (ret && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+        {
             mView = !mView;
+            if (pActionList)
+            {
+                imgui_json::value action;
+                action["action"] = "MUTE_TRACK";
+                action["media_type"] = imgui_json::number(MEDIA_AUDIO);
+                action["track_id"] = imgui_json::number(mID);
+                action["mute"] = imgui_json::boolean(mView);
+                pActionList->push_back(std::move(action));
+            }
+        }
         button_count ++;
     }
     else
@@ -3673,6 +3684,15 @@ bool MediaTrack::DrawTrackControlBar(ImDrawList *draw_list, ImRect rc)
         {
             mView = !mView;
             need_update = true;
+            if (pActionList)
+            {
+                imgui_json::value action;
+                action["action"] = "HIDE_TRACK";
+                action["media_type"] = imgui_json::number(MEDIA_VIDEO);
+                action["track_id"] = imgui_json::number(mID);
+                action["visible"] = imgui_json::boolean(mView);
+                pActionList->push_back(std::move(action));
+            }
         }
         button_count ++;
     }
@@ -5866,7 +5886,10 @@ ImU32 TimeLine::GetGroupColor(int64_t group_id)
     return color;
 }
 
-void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &view_rc, const ImRect &rc, const ImRect &titleRect, const ImRect &clippingTitleRect, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRec, bool is_moving, bool enable_select)
+void TimeLine::CustomDraw(
+        int index, ImDrawList *draw_list, const ImRect &view_rc, const ImRect &rc,
+        const ImRect &titleRect, const ImRect &clippingTitleRect, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRec,
+        bool is_moving, bool enable_select, std::list<imgui_json::value>* pActionList)
 {
     // view_rc: track view rect
     // rc: full track length rect
@@ -5887,7 +5910,7 @@ void TimeLine::CustomDraw(int index, ImDrawList *draw_list, const ImRect &view_r
     // draw legend
     draw_list->PushClipRect(legendRect.Min, legendRect.Max, true);
     draw_list->AddRect(legendRect.Min, legendRect.Max, COL_DEEP_DARK, 0, 0, 2);
-    auto need_seek = track->DrawTrackControlBar(draw_list, legendRect);
+    auto need_seek = track->DrawTrackControlBar(draw_list, legendRect, pActionList);
     //if (need_seek) Seek();
     draw_list->PopClipRect();
     
@@ -6955,7 +6978,14 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
         int64_t trackId = action["track_json"]["ID"].get<imgui_json::number>();
         mMtvReader->RemoveTrackById(trackId);
     }
-    else
+    else if (actionName == "HIDE_TRACK")
+    {
+        int64_t trackId = action["track_id"].get<imgui_json::number>();
+        bool visible = action["visible"].get<imgui_json::boolean>();
+        mMtvReader->SetTrackVisible(trackId, visible);
+        UpdatePreview();
+    }
+    else    
     {
         Logger::Log(Logger::WARN) << "UNHANDLED UI ACTION(Video): '" << actionName << "'." << std::endl;
     }
@@ -9061,7 +9091,10 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         // draw custom
         draw_list->PushClipRect(childFramePos, childFramePos + childFrameSize);
         for (auto &customDraw : customDraws)
-            timeline->CustomDraw(customDraw.index, draw_list, ImRect(childFramePos, childFramePos + childFrameSize), customDraw.customRect, customDraw.titleRect, customDraw.clippingTitleRect, customDraw.legendRect, customDraw.clippingRect, customDraw.legendClippingRect, bMoving, !menuIsOpened && !bCutting && editable);
+            timeline->CustomDraw(
+                    customDraw.index, draw_list, ImRect(childFramePos, childFramePos + childFrameSize), customDraw.customRect,
+                    customDraw.titleRect, customDraw.clippingTitleRect, customDraw.legendRect, customDraw.clippingRect, customDraw.legendClippingRect,
+                    bMoving, !menuIsOpened && !bCutting && editable, &actionList);
         draw_list->PopClipRect();
 
         // record moving or cropping action
