@@ -79,6 +79,6 @@ MEC uses CMake as its building system but instructions are highly dependent on y
 MEC is created by users for users and **we welcome every contribution**. There are no highly paid developers or poorly paid support personnel on the phones ready to take your call. There are only users who have seen a problem and done their best to fix it. This means MEC will always need the contributions of users like you.
 
 ## LICENSE
-MEC is **[GPLv3 licensed](LICENSE)**. You may use, distribute and copy it under the license terms.
+MEC is **[LGPLv3 licensed](LICENSE)**. You may use, distribute and copy it under the license terms.
 
 <a href="https://github.com/opencodewin/MediaEditor/graphs/contributors"><img src="docs/assets/built-by-developers.svg" height="25"></a>
