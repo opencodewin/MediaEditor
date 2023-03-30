@@ -1,20 +1,38 @@
-<img src="docs/assets/multi_view.gif" height="500"/>
+<h1 align="center">
+  <img src="docs/assets/multi_view.gif" height="500"/>
 
-<p align="center">
   <a href="LICENSE"><img alt="License" src="docs/assets/license.svg"></a>
   <a href="https://github.com/opencodewin/MediaEditor/wiki"><img alt="Documentation" src="docs/assets/code-doc.svg"></a>
   <a href="https://github.com/opencodewin/MediaEditor/pulls"><img alt="PRs Welcome" src="docs/assets/prs.svg"></a>
-  <a href="#how-to-contribute"><img alt="Contributions Welcome" src="docs/assets/contribute.svg"></a>
+  <a href="#HOW-TO-CONTRIBUTE"><img alt="Contributions Welcome" src="docs/assets/contribute.svg"></a>
   <a href="https://github.com/opencodewin/MediaEditor/commits/master"><img alt="Commits" src="docs/assets/latest.svg"></a>
-</p>
 
-<h1 align="center">
   Welcome to Media Editor Community Software!
 </h1>
 
 Media Editor Community(MEC) is a **free and open source** software for media editing. Available as a native application for **Linux, macOS and Windows operating systems**, MEC runs on most common processor architectures.
 
-## Features
+## MEC GUI COMPONENTS
+① System Sidebar &emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp; ④ Media Preview/Video/Audio/Text Editor
+
+② Media Bank/Filter Bank/Fusion Bank/Media Output &emsp;&emsp; ⑤ Timeline
+
+③ Clip Analysis Tools
+
+  <img src="docs/assets/mec_ui.jpeg" height="500" />
+
+## MEC IS ALL YOUR NEED
+
+|<div style="width:200px">Video Filter</div>|<div style="width:200px">Video Fusion</div>|
+|---|---|
+|<img src="docs/assets/11.gif" height="250" />|<img src="docs/assets/10.gif" height="250" />|
+
+|<div style="width:200px">Audio Mixing</div>|<div style="width:200px">Media Output</div>|
+|---|---|
+|<img src="docs/assets/9.gif" height="250" />|<img src="docs/assets/12.gif" height="250" />|
+
+
+## FEATURES
 **Adapt to various types of content:**
 * Import and edit videos from standard definition to 4K resolution
 * Support multiple major media formats
@@ -40,10 +58,10 @@ Media Editor Community(MEC) is a **free and open source** software for media edi
 * Multiple professional export formats, including QuickTime, Matroska, Material Exchange Format, etc.
 * Support exporting selected range of clip content.
 
-## Getting Started
+## GETTING STARTED
 MEC's developers work hard to make it support a large range of devices and operating systems. We provide final as well as development builds. To get started, head over to the **[downloads section](https://github.com/opencodewin/MediaEditor/releases)** and simply select the platform that you want to install it on. A **[quick guide](docs/addit/Quick-Start.md)** to help you get acquainted with MEC is available in our docs.
 
-## Dependencies
+## DEPENDENCIES
 Although installers are much easier to use, if you must build from 
 source, here are some tips: 
 
@@ -54,13 +72,13 @@ be sure you have the following submodules in order to run MEC successfully:
 *  blueprintsdk (https://github.com/opencodewin/blueprintsdk.git)
 *  mediacore (https://github.com/opencodewin/MediaCore.git)
 
-## Building
+## BUILDING
 MEC uses CMake as its building system but instructions are highly dependent on your operating system and target platform. **[Building from source](docs/addit/How-to-Built.md)**.
 
-## how-to-contribute
+## HOW TO CONTRIBUTE
 MEC is created by users for users and **we welcome every contribution**. There are no highly paid developers or poorly paid support personnel on the phones ready to take your call. There are only users who have seen a problem and done their best to fix it. This means MEC will always need the contributions of users like you.
 
-## License
+## LICENSE
 MEC is **[GPLv3 licensed](LICENSE)**. You may use, distribute and copy it under the license terms.
 
 <a href="https://github.com/opencodewin/MediaEditor/graphs/contributors"><img src="docs/assets/built-by-developers.svg" height="25"></a>
