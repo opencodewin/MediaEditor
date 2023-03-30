@@ -1,5 +1,5 @@
 <h1 align="center">
-  <img src="docs/assets/mec_index.jpeg" height="400"/>
+  <img src="docs/assets/multi_view.gif" height="500"/>
 </h1>
 
 <p align="center">
