@@ -1,6 +1,4 @@
-<h1 align="center">
-  <img src="docs/assets/mec_index.jpeg" height="400"/>
-</h1>
+<img src="docs/assets/multi_view.gif" height="500"/>
 
 <p align="center">
   <a href="LICENSE"><img alt="License" src="docs/assets/license.svg"></a>
