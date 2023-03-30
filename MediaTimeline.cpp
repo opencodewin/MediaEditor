@@ -3671,7 +3671,7 @@ bool MediaTrack::DrawTrackControlBar(ImDrawList *draw_list, ImRect rc, std::list
                 action["action"] = "MUTE_TRACK";
                 action["media_type"] = imgui_json::number(MEDIA_AUDIO);
                 action["track_id"] = imgui_json::number(mID);
-                action["mute"] = imgui_json::boolean(mView);
+                action["muted"] = imgui_json::boolean(!mView);
                 pActionList->push_back(std::move(action));
             }
         }
@@ -6587,6 +6587,7 @@ int TimeLine::Load(const imgui_json::value& value)
         if (IS_VIDEO(track->mType))
         {
             MediaCore::VideoTrack::Holder vidTrack = mMtvReader->AddTrack(track->mID);
+            vidTrack->SetVisible(track->mView);
             for (auto clip : track->m_Clips)
             {
                 if (IS_DUMMY(clip->mType))
@@ -6623,6 +6624,7 @@ int TimeLine::Load(const imgui_json::value& value)
         else if (IS_AUDIO(track->mType))
         {
             MediaCore::AudioTrack::Holder audTrack = mMtaReader->AddTrack(track->mID);
+            audTrack->SetMuted(!track->mView);
             for (auto clip : track->m_Clips)
             {
                 if (IS_DUMMY(clip->mType) || !clip->mMediaParser)
@@ -6985,7 +6987,7 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
         mMtvReader->SetTrackVisible(trackId, visible);
         UpdatePreview();
     }
-    else    
+    else
     {
         Logger::Log(Logger::WARN) << "UNHANDLED UI ACTION(Video): '" << actionName << "'." << std::endl;
     }
@@ -7061,6 +7063,12 @@ void TimeLine::PerformAudioAction(imgui_json::value& action)
     {
         int64_t trackId = action["track_json"]["ID"].get<imgui_json::number>();
         mMtaReader->RemoveTrackById(trackId);
+    }
+    else if (actionName == "MUTE_TRACK")
+    {
+        int64_t trackId = action["track_id"].get<imgui_json::number>();
+        bool muted = action["muted"].get<imgui_json::boolean>();
+        mMtaReader->SetTrackMuted(trackId, muted);
     }
     else
     {
@@ -7886,6 +7894,26 @@ bool TimeLine::UndoOneRecord()
             auto pTrack2 = FindTrackByID(action["track_id2"].get<imgui_json::number>());
             pTrack2->mLinkedTrack = -1;
         }
+        else if (actionName == "HIDE_TRACK")
+        {
+            int64_t trackId = action["track_id"].get<imgui_json::number>();
+            bool visible = !action["visible"].get<imgui_json::boolean>();
+            auto pTrack = FindTrackByID(trackId);
+            pTrack->mView = visible;
+            imgui_json::value undoAction = action;
+            undoAction["visible"] = visible;
+            mUiActions.push_back(std::move(undoAction));
+        }
+        else if (actionName == "MUTE_TRACK")
+        {
+            int64_t trackId = action["track_id"].get<imgui_json::number>();
+            bool muted = !action["muted"].get<imgui_json::boolean>();
+            auto pTrack = FindTrackByID(trackId);
+            pTrack->mView = !muted;
+            imgui_json::value undoAction = action;
+            undoAction["muted"] = muted;
+            mUiActions.push_back(std::move(undoAction));
+        }
         else
         {
             Logger::Log(Logger::WARN) << "Unhandled UNDO action '" << actionName << "'!" << std::endl;
@@ -8041,6 +8069,22 @@ bool TimeLine::RedoOneRecord()
             auto pTrack2 = FindTrackByID(action["track_id2"].get<imgui_json::number>());
             pTrack1->mLinkedTrack = pTrack2->mID;
             pTrack2->mLinkedTrack = pTrack1->mID;
+        }
+        else if (actionName == "HIDE_TRACK")
+        {
+            int64_t trackId = action["track_id"].get<imgui_json::number>();
+            bool visible = action["visible"].get<imgui_json::boolean>();
+            auto pTrack = FindTrackByID(trackId);
+            pTrack->mView = visible;
+            mUiActions.push_back(action);
+        }
+        else if (actionName == "MUTE_TRACK")
+        {
+            int64_t trackId = action["track_id"].get<imgui_json::number>();
+            bool muted = action["muted"].get<imgui_json::boolean>();
+            auto pTrack = FindTrackByID(trackId);
+            pTrack->mView = !muted;
+            mUiActions.push_back(action);
         }
         else
         {
