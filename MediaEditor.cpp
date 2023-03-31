@@ -4820,12 +4820,33 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                     std::string lable_id = std::string(ICON_CURVE) + " " + filter->mKeyPoints.GetCurveName(i) + " (" + std::to_string(pCount) + " keys)" + "##video_filter_curve";
                     if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
                     {
-                        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
-                        float value = filter->mKeyPoints.GetValue(i, timeline->currentTime - timeline->mVidFilterClip->mStart);
-                        ImGui::BracketSquare(true); ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0, 1.0, 0.0, 1.0)); ImGui::Text("%.2f", value); ImGui::PopStyleColor();
-                        ImGui::PushItemWidth(60);
                         float curve_min = filter->mKeyPoints.GetCurveMin(i);
                         float curve_max = filter->mKeyPoints.GetCurveMax(i);
+                        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
+                        auto curve_time = timeline->currentTime - timeline->mVidFilterClip->mStart;
+                        float curve_value = filter->mKeyPoints.GetValue(i, curve_time);
+                        ImGui::BracketSquare(true); 
+                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0, 1.0, 0.0, 1.0)); 
+                        ImGui::Text("%.2f", curve_value); 
+                        ImGui::PopStyleColor();
+                        ImGui::SameLine();
+                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0, 1.0, 0.0, 1.0)); 
+                        ImGui::Text("%s", ImGuiHelper::MillisecToString(curve_time, 3).c_str()); 
+                        ImGui::PopStyleColor();
+                        ImGui::SameLine();
+                        bool in_range = curve_time >= filter->mKeyPoints.GetMin().x && 
+                                        curve_time <= filter->mKeyPoints.GetMax().x;
+                        ImGui::BeginDisabled(!in_range);
+                        if (ImGui::Button(ICON_MD_ADS_CLICK))
+                        {
+                            auto value_range = filter->mKeyPoints.GetCurveMax(i) - filter->mKeyPoints.GetCurveMin(i);
+                            curve_value = (curve_value - filter->mKeyPoints.GetCurveMin(i)) / (value_range + FLT_EPSILON);
+                            filter->mKeyPoints.AddPoint(i, ImVec2(curve_time, curve_value), ImGui::ImCurveEdit::Smooth);
+                        }
+                        ImGui::EndDisabled();
+                        ImGui::ShowTooltipOnHover("Add key at current");
+                        
+                        ImGui::PushItemWidth(60);
                         if (ImGui::DragFloat("##curve_video_filter_min", &curve_min, 0.1f, -FLT_MAX, curve_max, "%.1f"))
                         {
                             filter->mKeyPoints.SetCurveMin(i, curve_min);
@@ -4876,7 +4897,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
                             break_loop = true;
                         } ImGui::ShowTooltipOnHover("Delete");
                         ImGui::SameLine(0, 4);
-                        if (ImGui::Button(ICON_RETURN_DEFAULT "##curve_video_filter_reset"))
+                        if (ImGui::Button(ICON_MD_ROTATE_90_DEGREES_CCW "##curve_video_filter_reset"))
                         {
                             for (int p = 0; p < pCount; p++)
                             {
@@ -5417,12 +5438,33 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
                     std::string lable_id = std::string(ICON_CURVE) + " " + fusion->mKeyPoints.GetCurveName(i) + " (" + std::to_string(pCount) + " keys)" + "##video_fusion_curve";
                     if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
                     {
-                        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
-                        float value = fusion->mKeyPoints.GetValue(i, timeline->currentTime - timeline->mVidOverlap->mStart);
-                        ImGui::BracketSquare(true); ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0, 1.0, 0.0, 1.0)); ImGui::Text("%.2f", value); ImGui::PopStyleColor();
-                        ImGui::PushItemWidth(60);
                         float curve_min = fusion->mKeyPoints.GetCurveMin(i);
                         float curve_max = fusion->mKeyPoints.GetCurveMax(i);
+                        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
+                        auto curve_time = timeline->currentTime - timeline->mVidOverlap->mStart;
+                        float curve_value = fusion->mKeyPoints.GetValue(i, curve_time);
+                        ImGui::BracketSquare(true); 
+                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0, 1.0, 0.0, 1.0)); 
+                        ImGui::Text("%.2f", curve_value); 
+                        ImGui::PopStyleColor();
+                                                ImGui::SameLine();
+                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0, 1.0, 0.0, 1.0)); 
+                        ImGui::Text("%s", ImGuiHelper::MillisecToString(curve_time, 3).c_str()); 
+                        ImGui::PopStyleColor();
+                        ImGui::SameLine();
+                        bool in_range = curve_time >= fusion->mKeyPoints.GetMin().x && 
+                                        curve_time <= fusion->mKeyPoints.GetMax().x;
+                        ImGui::BeginDisabled(!in_range);
+                        if (ImGui::Button(ICON_MD_ADS_CLICK))
+                        {
+                            auto value_range = fusion->mKeyPoints.GetCurveMax(i) - fusion->mKeyPoints.GetCurveMin(i);
+                            curve_value = (curve_value - fusion->mKeyPoints.GetCurveMin(i)) / (value_range + FLT_EPSILON);
+                            fusion->mKeyPoints.AddPoint(i, ImVec2(curve_time, curve_value), ImGui::ImCurveEdit::Smooth);
+                        }
+                        ImGui::EndDisabled();
+                        ImGui::ShowTooltipOnHover("Add key at current");
+
+                        ImGui::PushItemWidth(60);
                         if (ImGui::DragFloat("##curve_video_fusion_min", &curve_min, 0.1f, -FLT_MAX, curve_max, "%.1f"))
                         {
                             fusion->mKeyPoints.SetCurveMin(i, curve_min);
@@ -5473,7 +5515,7 @@ static void ShowVideoFusionWindow(ImDrawList *draw_list)
                             break_loop = true;
                         } ImGui::ShowTooltipOnHover("Delete");
                         ImGui::SameLine(0, 4);
-                        if (ImGui::Button(ICON_RETURN_DEFAULT "##curve_video_fusion_reset"))
+                        if (ImGui::Button(ICON_MD_ROTATE_90_DEGREES_CCW "##curve_video_fusion_reset"))
                         {
                             for (int p = 0; p < pCount; p++)
                             {
@@ -5842,12 +5884,33 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list)
                     std::string lable_id = std::string(ICON_CURVE) + " " + filter->mKeyPoints.GetCurveName(i) + " (" + std::to_string(pCount) + " keys)" + "##audio_filter_curve";
                     if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
                     {
-                        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
-                        float value = filter->mKeyPoints.GetValue(i, timeline->currentTime - timeline->mAudFilterClip->mStart);
-                        ImGui::BracketSquare(true); ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0, 1.0, 0.0, 1.0)); ImGui::Text("%.2f", value); ImGui::PopStyleColor();
-                        ImGui::PushItemWidth(60);
                         float curve_min = filter->mKeyPoints.GetCurveMin(i);
                         float curve_max = filter->mKeyPoints.GetCurveMax(i);
+                        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
+                        auto curve_time = timeline->currentTime - timeline->mAudFilterClip->mStart;
+                        float curve_value = filter->mKeyPoints.GetValue(i, curve_time);
+                        ImGui::BracketSquare(true); 
+                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0, 1.0, 0.0, 1.0)); 
+                        ImGui::Text("%.2f", curve_value); 
+                        ImGui::PopStyleColor();
+                        ImGui::SameLine();
+                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0, 1.0, 0.0, 1.0)); 
+                        ImGui::Text("%s", ImGuiHelper::MillisecToString(curve_time, 3).c_str()); 
+                        ImGui::PopStyleColor();
+                        ImGui::SameLine();
+                        bool in_range = curve_time >= filter->mKeyPoints.GetMin().x && 
+                                        curve_time <= filter->mKeyPoints.GetMax().x;
+                        ImGui::BeginDisabled(!in_range);
+                        if (ImGui::Button(ICON_MD_ADS_CLICK))
+                        {
+                            auto value_range = filter->mKeyPoints.GetCurveMax(i) - filter->mKeyPoints.GetCurveMin(i);
+                            curve_value = (curve_value - filter->mKeyPoints.GetCurveMin(i)) / (value_range + FLT_EPSILON);
+                            filter->mKeyPoints.AddPoint(i, ImVec2(curve_time, curve_value), ImGui::ImCurveEdit::Smooth);
+                        }
+                        ImGui::EndDisabled();
+                        ImGui::ShowTooltipOnHover("Add key at current");
+                        
+                        ImGui::PushItemWidth(60);
                         if (ImGui::DragFloat("##curve_audio_filter_min", &curve_min, 0.1f, -FLT_MAX, curve_max, "%.1f"))
                         {
                             filter->mKeyPoints.SetCurveMin(i, curve_min);
@@ -5898,7 +5961,7 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list)
                             break_loop = true;
                         } ImGui::ShowTooltipOnHover("Delete");
                         ImGui::SameLine(0, 4);
-                        if (ImGui::Button(ICON_RETURN_DEFAULT "##curve_audio_filter_reset"))
+                        if (ImGui::Button(ICON_MD_ROTATE_90_DEGREES_CCW "##curve_audio_filter_reset"))
                         {
                             for (int p = 0; p < pCount; p++)
                             {
@@ -6281,12 +6344,33 @@ static void ShowAudioFusionWindow(ImDrawList *draw_list)
                     std::string lable_id = std::string(ICON_CURVE) + " " + fusion->mKeyPoints.GetCurveName(i) + " (" + std::to_string(pCount) + " keys)" + "##audio_fusion_curve";
                     if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
                     {
-                        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
-                        float value = fusion->mKeyPoints.GetValue(i, timeline->currentTime - timeline->mAudOverlap->mStart);
-                        ImGui::BracketSquare(true); ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0, 1.0, 0.0, 1.0)); ImGui::Text("%.2f", value); ImGui::PopStyleColor();
-                        ImGui::PushItemWidth(60);
                         float curve_min = fusion->mKeyPoints.GetCurveMin(i);
                         float curve_max = fusion->mKeyPoints.GetCurveMax(i);
+                        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
+                        auto curve_time = timeline->currentTime - timeline->mAudOverlap->mStart;
+                        float curve_value = fusion->mKeyPoints.GetValue(i, curve_time);
+                        ImGui::BracketSquare(true); 
+                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0, 1.0, 0.0, 1.0)); 
+                        ImGui::Text("%.2f", curve_value); 
+                        ImGui::PopStyleColor();
+                        ImGui::SameLine();
+                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0, 1.0, 0.0, 1.0)); 
+                        ImGui::Text("%s", ImGuiHelper::MillisecToString(curve_time, 3).c_str()); 
+                        ImGui::PopStyleColor();
+                        ImGui::SameLine();
+                        bool in_range = curve_time >= fusion->mKeyPoints.GetMin().x && 
+                                        curve_time <= fusion->mKeyPoints.GetMax().x;
+                        ImGui::BeginDisabled(!in_range);
+                        if (ImGui::Button(ICON_MD_ADS_CLICK))
+                        {
+                            auto value_range = fusion->mKeyPoints.GetCurveMax(i) - fusion->mKeyPoints.GetCurveMin(i);
+                            curve_value = (curve_value - fusion->mKeyPoints.GetCurveMin(i)) / (value_range + FLT_EPSILON);
+                            fusion->mKeyPoints.AddPoint(i, ImVec2(curve_time, curve_value), ImGui::ImCurveEdit::Smooth);
+                        }
+                        ImGui::EndDisabled();
+                        ImGui::ShowTooltipOnHover("Add key at current");
+                        
+                        ImGui::PushItemWidth(60);
                         if (ImGui::DragFloat("##curve_audio_fusion_min", &curve_min, 0.1f, -FLT_MAX, curve_max, "%.1f"))
                         {
                             fusion->mKeyPoints.SetCurveMin(i, curve_min);
@@ -6337,7 +6421,7 @@ static void ShowAudioFusionWindow(ImDrawList *draw_list)
                             break_loop = true;
                         } ImGui::ShowTooltipOnHover("Delete");
                         ImGui::SameLine(0, 4);
-                        if (ImGui::Button(ICON_RETURN_DEFAULT "##curve_audio_fusion_reset"))
+                        if (ImGui::Button(ICON_MD_ROTATE_90_DEGREES_CCW "##curve_audio_fusion_reset"))
                         {
                             for (int p = 0; p < pCount; p++)
                             {
