@@ -10338,6 +10338,38 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             ImGui::End();
         }
     }
+    else if (MainWindowIndex == 1 && VideoEditorWindowIndex == 2)
+    {
+        // video attribute
+        if (MonitorIndexVideoFilterOrg != -1 && MonitorIndexVideoFilterOrg < platform_io.Monitors.Size)
+        {
+            std::string view_window_lable = "video_attribute_org_windows" + std::to_string(MonitorIndexVideoFilterOrg);
+            auto mon = platform_io.Monitors[MonitorIndexVideoFilterOrg];
+            ImGui::SetNextWindowPos(mon.MainPos);
+            ImGui::SetNextWindowSize(mon.MainSize);
+            ImGui::Begin(view_window_lable.c_str(), nullptr, flags | ImGuiWindowFlags_FullScreen);
+            ShowVideoWindow(timeline->mVideoFilterInputTexture, mon.MainPos, mon.MainSize);
+            ImGui::SetCursorScreenPos(mon.MainPos + ImVec2(80, 60));
+            ImGui::TextComplex("Attribute Input", 3.0f, ImVec4(0.8, 0.8, 0.8, 0.2),
+                                0.1f, ImVec4(0.8, 0.8, 0.8, 0.3),
+                                ImVec2(4, 4), ImVec4(0.0, 0.0, 0.0, 0.5));
+            ImGui::End();
+        }
+        if (MonitorIndexVideoFiltered != -1 && MonitorIndexVideoFiltered < platform_io.Monitors.Size)
+        {
+            std::string view_window_lable = "video_attribute_output_windows" + std::to_string(MonitorIndexVideoFiltered);
+            auto mon = platform_io.Monitors[MonitorIndexVideoFiltered];
+            ImGui::SetNextWindowPos(mon.MainPos);
+            ImGui::SetNextWindowSize(mon.MainSize);
+            ImGui::Begin(view_window_lable.c_str(), nullptr, flags | ImGuiWindowFlags_FullScreen);
+            ShowVideoWindow(timeline->mVideoFilterOutputTexture, mon.MainPos, mon.MainSize);
+            ImGui::SetCursorScreenPos(mon.MainPos + ImVec2(80, 60));
+            ImGui::TextComplex(timeline->bFilterOutputPreview ? "Preview Output" : "Attribute Output", 3.0f, ImVec4(0.8, 0.8, 0.8, 0.2),
+                                0.1f, ImVec4(0.8, 0.8, 0.8, 0.3),
+                                ImVec2(4, 4), ImVec4(0.0, 0.0, 0.0, 0.5));
+            ImGui::End();
+        }
+    }
 
     if (multiviewport)
     {
