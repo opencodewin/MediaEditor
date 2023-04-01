@@ -6068,13 +6068,13 @@ void TimeLine::CustomDraw(
             if (clip->bSelected)
             {
                 if (clip->bEditing)
-                    draw_list->AddRect(clip_pos_min, clip_pos_max, IM_COL32(255,0,255,224), 4, flag, 2.0f);
+                    draw_list->AddRect(clip_rect.Min, clip_rect.Max, IM_COL32(255,0,255,224), 4, flag, 2.0f);
                 else
-                    draw_list->AddRect(clip_pos_min, clip_pos_max, IM_COL32(255,0,0,224), 4, flag, 2.0f);
+                    draw_list->AddRect(clip_rect.Min, clip_rect.Max, IM_COL32(255,0,0,224), 4, flag, 2.0f);
             }
             else if (clip->bEditing)
             {
-                draw_list->AddRect(clip_pos_min, clip_pos_max, IM_COL32(0,0,255,224), 4, flag, 2.0f);
+                draw_list->AddRect(clip_rect.Min, clip_rect.Max, IM_COL32(0,0,255,224), 4, flag, 2.0f);
             }
 
             // Clip select

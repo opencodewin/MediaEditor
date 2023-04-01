@@ -10532,6 +10532,7 @@ void Application_Setup(ApplicationWindowProperty& property)
     property.docking = false;
     property.auto_merge = false;
     property.internationalize = true;
+    property.navigator = false;
     //property.using_setting_path = false;
     //property.power_save = false;
     property.font_scale = 2.0f;
