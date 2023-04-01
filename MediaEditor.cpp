@@ -3888,12 +3888,26 @@ static void ShowVideoFilterPreviewWindow(ImDrawList *draw_list, int64_t start, i
     draw_list->AddText(ImVec2(PanelRightX, PanelRightY), timeline->mIsPreviewPlaying ? COL_MARK : COL_MARK_HALF, time_str.c_str());
     ImGui::SetWindowFontScale(1.0);
 
+    // Show monitors
+    std::vector<int> org_disabled_monitor = {MonitorIndexVideoFiltered};
+    MonitorButton("video_filter_org_monitor_select", ImVec2(PanelBarPos.x + 20, PanelBarPos.y + 8), MonitorIndexVideoFilterOrg, org_disabled_monitor, false, true);
+    std::vector<int> filter_disabled_monitor = {MonitorIndexVideoFilterOrg};
+    MonitorButton("video_filter_monitor_select", ImVec2(PanelBarPos.x + PanelBarSize.x - 80, PanelBarPos.y + 8), MonitorIndexVideoFiltered, filter_disabled_monitor, false, true);
+
+    int show_video_number = 0;
+    if (MonitorIndexVideoFilterOrg == -1) show_video_number++;
+    if (MonitorIndexVideoFiltered == -1) show_video_number++;
+    if (!show_video_number)
+    {
+        ImGui::PopStyleColor(3);
+        return;
+    }
     // filter input texture area
     ImVec2 InputVideoPos = window_pos + ImVec2(4, 4);
-    ImVec2 InputVideoSize = ImVec2(window_size.x / 2 - 8, window_size.y - PanelBarSize.y - 8);
-    ImVec2 OutputVideoPos = window_pos + ImVec2(window_size.x / 2 + 4, 4);
-    ImVec2 OutputVideoSize = ImVec2(window_size.x / 2 - 8, window_size.y - PanelBarSize.y - 8);
+    ImVec2 InputVideoSize = ImVec2(window_size.x / show_video_number - 8, window_size.y - PanelBarSize.y - 8);
     ImRect InputVideoRect(InputVideoPos, InputVideoPos + InputVideoSize);
+    ImVec2 OutputVideoPos = window_pos + ImVec2((show_video_number > 1 ? window_size.x / show_video_number : 0) + 4, 4);
+    ImVec2 OutputVideoSize = ImVec2(window_size.x / show_video_number - 8, window_size.y - PanelBarSize.y - 8);
     ImRect OutVideoRect(OutputVideoPos, OutputVideoPos + OutputVideoSize);
     ImVec2 VideoZoomPos = window_pos + ImVec2(0, window_size.y - PanelBarSize.y + 4);
     if (timeline->mVidFilterClip)
@@ -3936,59 +3950,67 @@ static void ShowVideoFilterPreviewWindow(ImDrawList *draw_list, int64_t start, i
             if (timeline->currentTime < start) { timeline->Play(false, false); timeline->Seek(start); }
             if (timeline->currentTime > end) { timeline->Play(false, true); timeline->Seek(end); }
         }
+
         float pos_x = 0, pos_y = 0;
         bool draw_compare = false;
         ImVec4 tint_col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);   // No tint
         ImVec4 border_col = ImVec4(1.0f, 1.0f, 1.0f, 0.5f); // 50% opaque white
         float offset_x = 0, offset_y = 0;
         float tf_x = 0, tf_y = 0;
-        // filter input texture area
-        ShowVideoWindow(draw_list, timeline->mVideoFilterInputTexture, InputVideoPos, InputVideoSize, offset_x, offset_y, tf_x, tf_y);
-        draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32(128,128,128,128), 0, 0, 1.0);
-        if (ImGui::IsItemHovered() && timeline->mVideoFilterInputTexture)
-        {
-            float image_width = ImGui::ImGetTextureWidth(timeline->mVideoFilterInputTexture);
-            float image_height = ImGui::ImGetTextureHeight(timeline->mVideoFilterInputTexture);
-            float scale_w = image_width / (tf_x - offset_x);
-            float scale_h = image_height / (tf_y - offset_y);
-            pos_x = (io.MousePos.x - offset_x) * scale_w;
-            pos_y = (io.MousePos.y - offset_y) * scale_h;
-            if (io.MouseType == 1)
-            {
-                ImGui::RenderMouseCursor(ICON_STRAW, ImVec2(2, 12));
-                draw_list->AddRect(io.MousePos - ImVec2(2, 2), io.MousePos + ImVec2(2, 2), IM_COL32(255,0, 0,255));
 
-                auto pixel = ImGui::ImGetTexturePixel(timeline->mVideoFilterInputTexture, pos_x, pos_y);
-                if (ImGui::BeginTooltip())
-                {
-                    ImGui::ColorButton("##straw_color", ImVec4(pixel.r, pixel.g, pixel.b, pixel.a), 0, ImVec2(64,64));
-                    ImGui::Text("x:%d y:%d", (int)pos_x, (int)pos_y);
-                    ImGui::Text("R:%d G:%d B:%d A:%d", (int)(pixel.r * 255), (int)(pixel.g * 255), (int)(pixel.b * 255), (int)(pixel.a * 255));
-                    ImGui::EndTooltip();
-                }
-                if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
-                {
-                    io.MouseStrawed = true;
-                    io.MouseStrawValue = ImVec4(pixel.r, pixel.g, pixel.b, pixel.a);
-                }
-            }
-            else
+        if (MonitorIndexVideoFilterOrg == -1)
+        {
+            // filter input texture area
+            ShowVideoWindow(draw_list, timeline->mVideoFilterInputTexture, InputVideoPos, InputVideoSize, offset_x, offset_y, tf_x, tf_y);
+            draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32(128,128,128,128), 0, 0, 1.0);
+            if (ImGui::IsItemHovered() && timeline->mVideoFilterInputTexture)
             {
-                draw_compare = true;
+                float image_width = ImGui::ImGetTextureWidth(timeline->mVideoFilterInputTexture);
+                float image_height = ImGui::ImGetTextureHeight(timeline->mVideoFilterInputTexture);
+                float scale_w = image_width / (tf_x - offset_x);
+                float scale_h = image_height / (tf_y - offset_y);
+                pos_x = (io.MousePos.x - offset_x) * scale_w;
+                pos_y = (io.MousePos.y - offset_y) * scale_h;
+                if (io.MouseType == 1)
+                {
+                    ImGui::RenderMouseCursor(ICON_STRAW, ImVec2(2, 12));
+                    draw_list->AddRect(io.MousePos - ImVec2(2, 2), io.MousePos + ImVec2(2, 2), IM_COL32(255,0, 0,255));
+                    auto pixel = ImGui::ImGetTexturePixel(timeline->mVideoFilterInputTexture, pos_x, pos_y);
+                    if (ImGui::BeginTooltip())
+                    {
+                        ImGui::ColorButton("##straw_color", ImVec4(pixel.r, pixel.g, pixel.b, pixel.a), 0, ImVec2(64,64));
+                        ImGui::Text("x:%d y:%d", (int)pos_x, (int)pos_y);
+                        ImGui::Text("R:%d G:%d B:%d A:%d", (int)(pixel.r * 255), (int)(pixel.g * 255), (int)(pixel.b * 255), (int)(pixel.a * 255));
+                        ImGui::EndTooltip();
+                    }
+                    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+                    {
+                        io.MouseStrawed = true;
+                        io.MouseStrawValue = ImVec4(pixel.r, pixel.g, pixel.b, pixel.a);
+                    }
+                }
+                else
+                {
+                    draw_compare = true;
+                }
             }
         }
-        // filter output texture area
-        ShowVideoWindow(draw_list, timeline->mVideoFilterOutputTexture, OutputVideoPos, OutputVideoSize, offset_x, offset_y, tf_x, tf_y);
-        draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32(128,128,128,128), 0, 0, 1.0);
-        if (ImGui::IsItemHovered() && timeline->mVideoFilterOutputTexture)
+
+        if (MonitorIndexVideoFiltered == -1)
         {
-            float image_width = ImGui::ImGetTextureWidth(timeline->mVideoFilterOutputTexture);
-            float image_height = ImGui::ImGetTextureHeight(timeline->mVideoFilterOutputTexture);
-            float scale_w = image_width / (tf_x - offset_x);
-            float scale_h = image_height / (tf_y - offset_y);
-            pos_x = (io.MousePos.x - offset_x) * scale_w;
-            pos_y = (io.MousePos.y - offset_y) * scale_h;
-            draw_compare = true;
+            // filter output texture area
+            ShowVideoWindow(draw_list, timeline->mVideoFilterOutputTexture, OutputVideoPos, OutputVideoSize, offset_x, offset_y, tf_x, tf_y);
+            draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32(128,128,128,128), 0, 0, 1.0);
+            if (ImGui::IsItemHovered() && timeline->mVideoFilterOutputTexture)
+            {
+                float image_width = ImGui::ImGetTextureWidth(timeline->mVideoFilterOutputTexture);
+                float image_height = ImGui::ImGetTextureHeight(timeline->mVideoFilterOutputTexture);
+                float scale_w = image_width / (tf_x - offset_x);
+                float scale_h = image_height / (tf_y - offset_y);
+                pos_x = (io.MousePos.x - offset_x) * scale_w;
+                pos_y = (io.MousePos.y - offset_y) * scale_h;
+                draw_compare = true;
+            }
         }
         if (timeline->bCompare && draw_compare)
         {
@@ -4035,12 +4057,6 @@ static void ShowVideoFilterPreviewWindow(ImDrawList *draw_list, int64_t start, i
         }
     }
 
-    // Show monitors
-    std::vector<int> org_disabled_monitor = {MonitorIndexVideoFiltered};
-    MonitorButton("video_filter_org_monitor_select", ImVec2(PanelBarPos.x + 20, PanelBarPos.y + 8), MonitorIndexVideoFilterOrg, org_disabled_monitor, false, true);
-    std::vector<int> filter_disabled_monitor = {MonitorIndexVideoFilterOrg};
-    MonitorButton("video_filter_monitor_select", ImVec2(PanelBarPos.x + PanelBarSize.x - 80, PanelBarPos.y + 8), MonitorIndexVideoFiltered, filter_disabled_monitor, false, true);
-
     ImGui::PopStyleColor(3);
 
     ImGui::SetCursorScreenPos(window_pos + ImVec2(20, 10));
@@ -4061,21 +4077,21 @@ static void ShowVideoFilterPreviewWindow(ImDrawList *draw_list, int64_t start, i
 static void ShowVideoAttributeWindow(ImDrawList *draw_list)
 {
     /*
-    ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-    ┃                                 ┃                                  ┃
-    ┃                                 ┃                                  ┃
-    ┃       preview before            ┃          preview after           ┃ 
-    ┃                                 ┃                                  ┃
-    ┃                                 ┃                                  ┃ 
-    ┃                                 ┃                                  ┃ 
-    ┃                                 ┃                                  ┃ 
-    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
-    ┃                          |<  <  []  >  >|                          ┃
-    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┫
-    ┃             timeline                       ┃                       ┃
-    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫    attribute edit     ┃
-    ┃              curves                        ┃                       ┃
-    ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━┛
+    ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓  ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+    ┃                                 ┃                                  ┃  ┃                          |<  <  []  >  >|                          ┃
+    ┃                                 ┃                                  ┃  ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┫
+    ┃       preview before            ┃          preview after           ┃  ┃             timeline                       ┃                       ┃
+    ┃                                 ┃                                  ┃  ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫                       ┃
+    ┃                                 ┃                                  ┃  ┃                                            ┃                       ┃
+    ┃                                 ┃                                  ┃  ┃                                            ┃                       ┃
+    ┃                                 ┃                                  ┃  ┃              curves                        ┃                       ┃
+    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫  ┃                                            ┃    attribute edit     ┃
+    ┃                          |<  <  []  >  >|                          ┃  ┃                                            ┃                       ┃
+    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┫  ┃                                            ┃                       ┃
+    ┃             timeline                       ┃                       ┃  ┃                                            ┃                       ┃
+    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫    attribute edit     ┃  ┃                                            ┃                       ┃
+    ┃              curves                        ┃                       ┃  ┃                                            ┃                       ┃
+    ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━┛  ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━┛
     */
     ImGuiIO &io = ImGui::GetIO();
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
@@ -4108,12 +4124,17 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
     float clip_keypoint_height = window_size.y / 3 - clip_timeline_height;
     ImVec2 video_preview_pos = window_pos;
     float video_preview_height = window_size.y - clip_timeline_height - clip_keypoint_height;
+    if (MonitorIndexVideoFilterOrg != -1 && MonitorIndexVideoFiltered != -1)
+    {
+        // TODO::Dicky need relay keypoint view ?
+        video_preview_height = 48;
+    }
     float clip_setting_width = 400;
     float clip_setting_height = window_size.y - video_preview_height;
     ImVec2 clip_setting_pos = video_preview_pos + ImVec2(window_size.x - clip_setting_width, video_preview_height);
     ImVec2 clip_setting_size(clip_setting_width, clip_setting_height);
     float video_preview_width = window_size.x;
-    if (window_size.x / video_preview_height > 3.f)
+    if (window_size.x / video_preview_height > 3.f || MonitorIndexVideoFilterOrg != -1 || MonitorIndexVideoFiltered != -1)
     {
         video_preview_width = window_size.x - clip_setting_width;
         clip_setting_height = window_size.y;
@@ -4606,22 +4627,22 @@ static void ShowVideoFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
 static void ShowVideoFilterWindow(ImDrawList *draw_list)
 {
     /*
-    ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-    ┃                                 ┃                                  ┃
-    ┃                                 ┃                                  ┃
-    ┃       preview before            ┃          preview after           ┃ 
-    ┃                                 ┃                                  ┃
-    ┃                                 ┃                                  ┃ 
-    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
-    ┃                          |<  <  []  >  >|                          ┃
-    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┫
-    ┃          blueprint                         ┃                       ┃ 
-    ┃                                            ┃                       ┃ 
-    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫    filter edit        ┃ 
-    ┃             timeline                       ┃                       ┃
-    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫                       ┃
-    ┃              curves                        ┃                       ┃
-    ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━┛
+    ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓      ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓ 
+    ┃                                 ┃                                  ┃      ┃                          |<  <  []  >  >|                          ┃
+    ┃                                 ┃                                  ┃      ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┫
+    ┃       preview before            ┃          preview after           ┃      ┃                                            ┃                       ┃  
+    ┃                                 ┃                                  ┃      ┃                                            ┃                       ┃
+    ┃                                 ┃                                  ┃      ┃                                            ┃                       ┃ 
+    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫      ┃                                            ┃                       ┃ 
+    ┃                          |<  <  []  >  >|                          ┃      ┃              blueprint                     ┃                       ┃ 
+    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┫      ┃                                            ┃      filter edit      ┃ 
+    ┃             blueprint                      ┃                       ┃      ┃                                            ┃                       ┃ 
+    ┃                                            ┃                       ┃      ┃                                            ┃                       ┃ 
+    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫    filter edit        ┃      ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫                       ┃ 
+    ┃             timeline                       ┃                       ┃      ┃             timeline                       ┃                       ┃
+    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫                       ┃      ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫                       ┃
+    ┃              curves                        ┃                       ┃      ┃              curves                        ┃                       ┃
+    ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━┛      ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━┛
     */
 
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
@@ -4657,13 +4678,15 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
     float clip_keypoint_height = g_media_editor_settings.VideoFilterCurveExpanded ? 80 : 0;
     ImVec2 video_preview_pos = window_pos;
     float video_preview_height = (window_size.y - clip_timeline_height - clip_keypoint_height) * 2 / 3;
+    if (MonitorIndexVideoFilterOrg != -1 && MonitorIndexVideoFiltered != -1)
+        video_preview_height = 48;
     float video_bluepoint_height = (window_size.y - clip_timeline_height - clip_keypoint_height) - video_preview_height;
     float clip_setting_width = 400;
     float clip_setting_height = window_size.y - video_preview_height;
     ImVec2 clip_setting_pos = video_preview_pos + ImVec2(window_size.x - clip_setting_width, video_preview_height);
     ImVec2 clip_setting_size(clip_setting_width, clip_setting_height);
     float video_preview_width = window_size.x;
-    if (window_size.x / video_preview_height > 4.f)
+    if ((window_size.x / video_preview_height > 4.f) || MonitorIndexVideoFilterOrg != -1 || MonitorIndexVideoFiltered != -1)
     {
         video_preview_width = window_size.x - clip_setting_width;
         clip_setting_height = window_size.y;
