@@ -481,6 +481,7 @@ struct MediaEditorSettings
 static std::string ini_file = "Media_Editor.ini";
 static std::string icon_file;
 static std::vector<std::string> import_url;    // import file url from system drag
+static short main_mon = 0;
 static TimeLine * timeline = nullptr;
 static ImTextureID codewin_texture = nullptr;
 static ImTextureID logo_texture = nullptr;
@@ -854,6 +855,8 @@ static bool MonitorButton(const char * label, ImVec2 pos, int& monitor_index, st
             if (disabled != -1 && disabled == monitor_n)
                 disable = true;
         }
+        if (g_media_editor_settings.ExpandScope && current_monitor == monitor_n)
+            disable = true;
         ImGui::BeginDisabled(disable);
         bool selected = monitor_index == monitor_n;
         bool is_current_monitor = monitor_index == -1 && monitor_n == current_monitor;
@@ -9420,22 +9423,47 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline)
     ImGuiIO &io = ImGui::GetIO();
     auto platform_io = ImGui::GetPlatformIO();
     bool multiviewport = io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable;
-    ImGuiWindowFlags flags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings;
+    static ImGuiWindowFlags flags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoDocking;
     ImVec2 pos = ImVec2(100, 100);
+    ImVec2 size = ImVec2(1600, 800);
+    static ImVec2 full_size = size;
+    static ImVec2 full_pos = pos;
+    static bool is_full_size = false;
+    static bool change_to_full_size = false;
     if (MonitorIndexChanged)
     {
-        if (multiviewport && MonitorIndexScope != -1 && MonitorIndexScope < platform_io.Monitors.Size)
+        if (multiviewport && MonitorIndexScope != -1 && MonitorIndexScope != main_mon && MonitorIndexScope < platform_io.Monitors.Size)
         {
             auto mon = platform_io.Monitors[MonitorIndexScope];
-            pos += mon.MainPos;
+            full_pos = mon.WorkPos;
+            full_size = mon.WorkSize;
+            flags |= ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove;
+            is_full_size = true;
+            change_to_full_size = true;
+        }
+        else
+        {
+            flags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoDocking;
+            is_full_size = false;
         }
         ImGui::SetNextWindowPos(pos);
         MonitorIndexChanged = false;
     }
-    ImGui::SetNextWindowSize(ImVec2(1600, 800), ImGuiCond_None);
+    if (change_to_full_size)
+    {
+        ImGui::SetNextWindowSize(size, ImGuiCond_None);
+        change_to_full_size = false;
+    }
+    else
+        ImGui::SetNextWindowSize(is_full_size ? full_size : size, ImGuiCond_None);
+    if (is_full_size) ImGui::SetNextWindowPos(full_pos);
     ImGui::Begin("ScopeView", nullptr, flags);
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
+    float scope_gap = is_full_size ? 100 : 48;
+    float scope_size = is_full_size ? (window_size.x - 32) / 4 - scope_gap : 256;
+    float col_second = window_size.y / 2 + 20;
+    ImVec2 scope_view_size = ImVec2(scope_size, scope_size);
     // add left tool bar
     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.5, 0.5, 0.5, 0.5));
@@ -9462,26 +9490,25 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline)
     // add scope UI layout
     ImVec2 view_pos = window_pos + ImVec2(32, 0);
     ImVec2 view_size = window_size - ImVec2(32, 0);
-    ImVec2 scope_view_size = ImVec2(256, 256);
     ImDrawList *draw_list = ImGui::GetWindowDrawList();
     // add video scope + audio wave
     for (int i = 0; i <= 4; i++)
     {
-        ShowMediaScopeView(i, view_pos + ImVec2(i * (256 + 48), 0), scope_view_size);
-        ImGui::SetCursorScreenPos(view_pos + ImVec2(i * (256 + 48), 256));
+        ShowMediaScopeView(i, view_pos + ImVec2(i * (scope_size + scope_gap), 0), scope_view_size);
+        ImGui::SetCursorScreenPos(view_pos + ImVec2(i * (scope_size + scope_gap), scope_size));
         ShowMediaScopeSetting(i, false);
         ImGui::SetWindowFontScale(2.0);
-        ImGui::ImAddTextVertical(draw_list, view_pos + ImVec2(i * (256 + 48) + 256, 0), IM_COL32_WHITE, ScopeWindowTabNames[i]);
+        ImGui::ImAddTextVertical(draw_list, view_pos + ImVec2(i * (scope_size + scope_gap) + scope_size, 0), IM_COL32_WHITE, ScopeWindowTabNames[i]);
         ImGui::SetWindowFontScale(1.0);
     }
     // add audio scope
     for (int i = 5; i < 10; i++)
     {
-        ShowMediaScopeView(i, view_pos + ImVec2((i - 5) * (256 + 48), 420), scope_view_size);
-        ImGui::SetCursorScreenPos(view_pos + ImVec2((i - 5) * (256 + 48), 420 + 256));
+        ShowMediaScopeView(i, view_pos + ImVec2((i - 5) * (scope_size + scope_gap), col_second), scope_view_size);
+        ImGui::SetCursorScreenPos(view_pos + ImVec2((i - 5) * (scope_size + scope_gap), col_second + scope_size));
         ShowMediaScopeSetting(i, false);
         ImGui::SetWindowFontScale(2.0);
-        ImGui::ImAddTextVertical(draw_list, view_pos + ImVec2((i - 5) * (256 + 48) + 256, 420), IM_COL32_WHITE, ScopeWindowTabNames[i]);
+        ImGui::ImAddTextVertical(draw_list, view_pos + ImVec2((i - 5) * (scope_size + scope_gap) + scope_size, col_second), IM_COL32_WHITE, ScopeWindowTabNames[i]);
         ImGui::SetWindowFontScale(1.0);
     }
 
@@ -9913,7 +9940,8 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
     static const int numControlPanelTabs = sizeof(ControlPanelTabNames)/sizeof(ControlPanelTabNames[0]);
     static const int numMainWindowTabs = sizeof(MainWindowTabNames)/sizeof(MainWindowTabNames[0]);
     bool multiviewport = io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable;
-    const ImGuiViewport* viewport = ImGui::GetMainViewport();
+    const ImGuiViewportP* viewport = (ImGuiViewportP*) ImGui::GetMainViewport();
+    main_mon = viewport->PlatformMonitor;
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
                         ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | 
                         ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoDocking;
