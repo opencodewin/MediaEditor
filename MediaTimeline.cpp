@@ -3613,8 +3613,6 @@ MediaTrack::MediaTrack(std::string name, uint32_t type, void * handle) :
     mID = timeline ? timeline->m_IDGenerator.GenerateID() : ImGui::get_current_time_usec();
     if (timeline)
     {
-        auto media_count = timeline->GetTrackCount(type);
-        media_count ++;
         if (IS_VIDEO(type))
         {
             if (name.empty()) mName = "V:"; else mName = name;
@@ -3635,7 +3633,31 @@ MediaTrack::MediaTrack(std::string name, uint32_t type, void * handle) :
             if (name.empty()) mName = "U:"; else mName = name;
             mTrackHeight = DEFAULT_TRACK_HEIGHT;
         }
-        if (name.empty()) mName += std::to_string(media_count);
+        if (name.empty())
+        {
+            auto media_count = timeline->GetTrackCount(type);
+            media_count ++;
+            auto new_name = mName + std::to_string(media_count);
+            while (timeline->FindTrackByName(new_name))
+            {
+                media_count ++;
+                new_name = mName + std::to_string(media_count);
+            }
+            mName = new_name;
+        }
+        else if (timeline->FindTrackByName(name))
+        {
+            int name_count = 1;
+            auto new_name = name + std::to_string(name_count);
+            while (timeline->FindTrackByName(new_name))
+            {
+                name_count ++;
+                new_name = name + std::to_string(name_count);
+            }
+            mName = new_name;
+        }
+        else
+            mName = name;
     }
     mAudioTrackAttribute.channel_data.clear();
     mAudioTrackAttribute.channel_data.resize(mAudioChannels);
@@ -5611,6 +5633,17 @@ MediaTrack * TimeLine::FindTrackByClipID(int64_t id)
             return clip->mID == id;
         });
         return iter_clip != track->m_Clips.end();
+    });
+    if (iter != m_Tracks.end())
+        return *iter;
+    return nullptr;
+}
+
+MediaTrack * TimeLine::FindTrackByName(std::string name)
+{
+    auto iter = std::find_if(m_Tracks.begin(), m_Tracks.end(), [name](const MediaTrack* track)
+    {
+        return track->mName == name;
     });
     if (iter != m_Tracks.end())
         return *iter;
