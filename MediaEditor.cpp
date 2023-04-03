@@ -8541,7 +8541,7 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
             }
             if (!mat_waveform.empty())
             {
-                ImGui::ImMatToTexture(mat_waveform, waveform_texture);
+                if (mat_waveform.flags & IM_MAT_FLAGS_CUSTOM_UPDATED) { ImGui::ImMatToTexture(mat_waveform, waveform_texture); mat_waveform.flags &= ~IM_MAT_FLAGS_CUSTOM_UPDATED; }
                 draw_list->AddImage(waveform_texture, scrop_rect.Min, scrop_rect.Max, g_media_editor_settings.WaveformMirror ? ImVec2(0, 1) : ImVec2(0, 0), g_media_editor_settings.WaveformMirror ? ImVec2(1, 0) : ImVec2(1, 1));
             }
             draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 0);
@@ -8622,7 +8622,7 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
             }
             if (!mat_cie.empty())
             {
-                ImGui::ImMatToTexture(mat_cie, cie_texture);
+                if (mat_cie.flags & IM_MAT_FLAGS_CUSTOM_UPDATED) { ImGui::ImMatToTexture(mat_cie, cie_texture); mat_cie.flags &= ~IM_MAT_FLAGS_CUSTOM_UPDATED; }
                 draw_list->AddImage(cie_texture, scrop_rect.Min, scrop_rect.Max, ImVec2(0, 0), ImVec2(1, 1));
             }
             draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 0);
@@ -8731,7 +8731,7 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
             }
             if (!mat_vector.empty())
             {
-                ImGui::ImMatToTexture(mat_vector, vector_texture);
+                if (mat_vector.flags & IM_MAT_FLAGS_CUSTOM_UPDATED) { ImGui::ImMatToTexture(mat_vector, vector_texture); mat_vector.flags &= ~IM_MAT_FLAGS_CUSTOM_UPDATED; }
                 draw_list->AddImage(vector_texture, scrop_rect.Min, scrop_rect.Max, ImVec2(0, 0), ImVec2(1, 1));
             }
             draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 0);
@@ -8944,7 +8944,11 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
             draw_list->PushClipRect(scrop_rect.Min, scrop_rect.Max);
             if (!timeline->mAudioAttribute.m_audio_vector.empty())
             {
-                ImGui::ImMatToTexture(timeline->mAudioAttribute.m_audio_vector, timeline->mAudioAttribute.m_audio_vector_texture);
+                if (timeline->mAudioAttribute.m_audio_vector.flags & IM_MAT_FLAGS_CUSTOM_UPDATED) 
+                {
+                    ImGui::ImMatToTexture(timeline->mAudioAttribute.m_audio_vector, timeline->mAudioAttribute.m_audio_vector_texture);
+                    timeline->mAudioAttribute.m_audio_vector.flags &= ~IM_MAT_FLAGS_CUSTOM_UPDATED;
+                }
                 draw_list->AddImage(timeline->mAudioAttribute.m_audio_vector_texture, scrop_rect.Min, scrop_rect.Max, ImVec2(0, 0), ImVec2(1, 1));
             }
             // draw graticule line
@@ -9271,7 +9275,11 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                 if (!timeline->mAudioAttribute.channel_data[i].m_Spectrogram.empty())
                 {
                     ImVec2 texture_pos = center - ImVec2(channel_view_size.y / 2, channel_view_size.x / 2);
-                    ImGui::ImMatToTexture(timeline->mAudioAttribute.channel_data[i].m_Spectrogram, timeline->mAudioAttribute.channel_data[i].texture_spectrogram);
+                    if (timeline->mAudioAttribute.channel_data[i].m_Spectrogram.flags & IM_MAT_FLAGS_CUSTOM_UPDATED)
+                    {
+                        ImGui::ImMatToTexture(timeline->mAudioAttribute.channel_data[i].m_Spectrogram, timeline->mAudioAttribute.channel_data[i].texture_spectrogram);
+                        timeline->mAudioAttribute.channel_data[i].m_Spectrogram.flags &= ~IM_MAT_FLAGS_CUSTOM_UPDATED;
+                    }
                     ImGui::ImDrawListAddImageRotate(draw_list, timeline->mAudioAttribute.channel_data[i].texture_spectrogram, texture_pos, ImVec2(channel_view_size.y, channel_view_size.x), -90.0);
                 }
             }

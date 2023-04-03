@@ -7497,6 +7497,7 @@ void TimeLine::CalculateAudioScopeData(ImGui::ImMat& mat_in)
                     auto color = ImColor::HSV(hue, 1.0, light * mAudioAttribute.mAudioSpectrogramLight);
                     last_line[n] = color;
                 }
+                channel_data.m_Spectrogram.flags |= IM_MAT_FLAGS_CUSTOM_UPDATED;
             }
         }
     }
@@ -7549,6 +7550,7 @@ void TimeLine::CalculateAudioScopeData(ImGui::ImMat& mat_in)
                 uint8_t b = ImClamp(mAudioAttribute.m_audio_vector.at<uint8_t>(x, y, 2) + 30, 0, 255);
                 mAudioAttribute.m_audio_vector.draw_dot(x, y, ImPixel(r / 255.0, g / 255.0, b / 255.0, 1.f));
             }
+            mAudioAttribute.m_audio_vector.flags |= IM_MAT_FLAGS_CUSTOM_UPDATED;
         }
     }
 }
