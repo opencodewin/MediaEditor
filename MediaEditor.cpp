@@ -3900,17 +3900,12 @@ static void ShowVideoFilterPreviewWindow(ImDrawList *draw_list, int64_t start, i
     int show_video_number = 0;
     if (MonitorIndexVideoFilterOrg == -1) show_video_number++;
     if (MonitorIndexVideoFiltered == -1) show_video_number++;
-    if (!show_video_number)
-    {
-        ImGui::PopStyleColor(3);
-        return;
-    }
     // filter input texture area
     ImVec2 InputVideoPos = window_pos + ImVec2(4, 4);
-    ImVec2 InputVideoSize = ImVec2(window_size.x / show_video_number - 8, window_size.y - PanelBarSize.y - 8);
+    ImVec2 InputVideoSize = show_video_number > 0 ? (ImVec2(window_size.x / show_video_number - 8, window_size.y - PanelBarSize.y - 8)) : ImVec2(0, 0);
     ImRect InputVideoRect(InputVideoPos, InputVideoPos + InputVideoSize);
     ImVec2 OutputVideoPos = window_pos + ImVec2((show_video_number > 1 ? window_size.x / show_video_number : 0) + 4, 4);
-    ImVec2 OutputVideoSize = ImVec2(window_size.x / show_video_number - 8, window_size.y - PanelBarSize.y - 8);
+    ImVec2 OutputVideoSize = show_video_number > 0 ? (ImVec2(window_size.x / show_video_number - 8, window_size.y - PanelBarSize.y - 8)) : ImVec2(0, 0);
     ImRect OutVideoRect(OutputVideoPos, OutputVideoPos + OutputVideoSize);
     ImVec2 VideoZoomPos = window_pos + ImVec2(0, window_size.y - PanelBarSize.y + 4);
     if (timeline->mVidFilterClip)
