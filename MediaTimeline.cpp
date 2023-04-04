@@ -3613,8 +3613,6 @@ MediaTrack::MediaTrack(std::string name, uint32_t type, void * handle) :
     mID = timeline ? timeline->m_IDGenerator.GenerateID() : ImGui::get_current_time_usec();
     if (timeline)
     {
-        auto media_count = timeline->GetTrackCount(type);
-        media_count ++;
         if (IS_VIDEO(type))
         {
             if (name.empty()) mName = "V:"; else mName = name;
@@ -3635,7 +3633,31 @@ MediaTrack::MediaTrack(std::string name, uint32_t type, void * handle) :
             if (name.empty()) mName = "U:"; else mName = name;
             mTrackHeight = DEFAULT_TRACK_HEIGHT;
         }
-        if (name.empty()) mName += std::to_string(media_count);
+        if (name.empty())
+        {
+            auto media_count = timeline->GetTrackCount(type);
+            media_count ++;
+            auto new_name = mName + std::to_string(media_count);
+            while (timeline->FindTrackByName(new_name))
+            {
+                media_count ++;
+                new_name = mName + std::to_string(media_count);
+            }
+            mName = new_name;
+        }
+        else if (timeline->FindTrackByName(name))
+        {
+            int name_count = 1;
+            auto new_name = name + std::to_string(name_count);
+            while (timeline->FindTrackByName(new_name))
+            {
+                name_count ++;
+                new_name = name + std::to_string(name_count);
+            }
+            mName = new_name;
+        }
+        else
+            mName = name;
     }
     mAudioTrackAttribute.channel_data.clear();
     mAudioTrackAttribute.channel_data.resize(mAudioChannels);
@@ -5617,6 +5639,17 @@ MediaTrack * TimeLine::FindTrackByClipID(int64_t id)
     return nullptr;
 }
 
+MediaTrack * TimeLine::FindTrackByName(std::string name)
+{
+    auto iter = std::find_if(m_Tracks.begin(), m_Tracks.end(), [name](const MediaTrack* track)
+    {
+        return track->mName == name;
+    });
+    if (iter != m_Tracks.end())
+        return *iter;
+    return nullptr;
+}
+
 MediaTrack * TimeLine::FindEmptyTrackByType(uint32_t type)
 {
     auto iter = std::find_if(m_Tracks.begin(), m_Tracks.end(), [type](const MediaTrack* track)
@@ -6068,13 +6101,13 @@ void TimeLine::CustomDraw(
             if (clip->bSelected)
             {
                 if (clip->bEditing)
-                    draw_list->AddRect(clip_pos_min, clip_pos_max, IM_COL32(255,0,255,224), 4, flag, 2.0f);
+                    draw_list->AddRect(clip_rect.Min, clip_rect.Max, IM_COL32(255,0,255,224), 4, flag, 2.0f);
                 else
-                    draw_list->AddRect(clip_pos_min, clip_pos_max, IM_COL32(255,0,0,224), 4, flag, 2.0f);
+                    draw_list->AddRect(clip_rect.Min, clip_rect.Max, IM_COL32(255,0,0,224), 4, flag, 2.0f);
             }
             else if (clip->bEditing)
             {
-                draw_list->AddRect(clip_pos_min, clip_pos_max, IM_COL32(0,0,255,224), 4, flag, 2.0f);
+                draw_list->AddRect(clip_rect.Min, clip_rect.Max, IM_COL32(0,0,255,224), 4, flag, 2.0f);
             }
 
             // Clip select
@@ -7464,6 +7497,7 @@ void TimeLine::CalculateAudioScopeData(ImGui::ImMat& mat_in)
                     auto color = ImColor::HSV(hue, 1.0, light * mAudioAttribute.mAudioSpectrogramLight);
                     last_line[n] = color;
                 }
+                channel_data.m_Spectrogram.flags |= IM_MAT_FLAGS_CUSTOM_UPDATED;
             }
         }
     }
@@ -7516,6 +7550,7 @@ void TimeLine::CalculateAudioScopeData(ImGui::ImMat& mat_in)
                 uint8_t b = ImClamp(mAudioAttribute.m_audio_vector.at<uint8_t>(x, y, 2) + 30, 0, 255);
                 mAudioAttribute.m_audio_vector.draw_dot(x, y, ImPixel(r / 255.0, g / 255.0, b / 255.0, 1.f));
             }
+            mAudioAttribute.m_audio_vector.flags |= IM_MAT_FLAGS_CUSTOM_UPDATED;
         }
     }
 }
