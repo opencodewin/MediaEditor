@@ -5385,7 +5385,7 @@ std::vector<MediaCore::CorrelativeFrame> TimeLine::GetPreviewFrame()
     }
 
     std::vector<MediaCore::CorrelativeFrame> frames;
-    const bool needPreciseFrame = !bSeeking;
+    const bool needPreciseFrame = !(bSeeking || mIsPreviewPlaying);
     mMtvReader->ReadVideoFrameEx(currentTime, frames, true, needPreciseFrame);
     if (mIsPreviewPlaying) UpdateCurrent();
     return frames;
@@ -5473,10 +5473,10 @@ void TimeLine::Seek(int64_t msPos)
         }
     }
     mPlayTriggerTp = PlayerClock::now();
-    if (mAudioRender && msPos != mPreviewResumePos)
-    {
+    if (mMtaReader && msPos != mPreviewResumePos)
         mMtaReader->SeekTo(msPos);
-    }
+    if (mMtvReader)
+        mMtvReader->SeekTo(msPos, true);
     mPreviewResumePos = msPos;
 }
 
