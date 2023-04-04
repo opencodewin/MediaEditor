@@ -4167,9 +4167,12 @@ void MediaTrack::SelectEditingOverlap(Overlap * overlap)
 void MediaTrack::CalculateAudioScopeData(ImGui::ImMat& mat_in)
 {
     ImGui::ImMat mat;
+    if (mat_in.empty() || mat_in.w < 64)
+        return;
+    int fft_size = mat_in.w  > 256 ? 256 : mat_in.w > 128 ? 128 : 64;
     if (mat_in.elempack > 1)
     {
-        mat.create_type(mat_in.w, 1, mat_in.c, mat_in.type);
+        mat.create_type(fft_size, 1, mat_in.c, mat_in.type);
         float * data = (float *)mat_in.data;
         for (int x = 0; x < mat.w; x++)
         {
@@ -4181,7 +4184,8 @@ void MediaTrack::CalculateAudioScopeData(ImGui::ImMat& mat_in)
     }
     else
     {
-        mat = mat_in;
+        //mat = mat_in;
+        mat.create_type(fft_size, 1, mat_in.c, mat_in.data, mat_in.type);
     }
     for (int i = 0; i < mat.c; i++)
     {
@@ -7446,9 +7450,12 @@ void TimeLine::SimplePcmStream::Flush()
 void TimeLine::CalculateAudioScopeData(ImGui::ImMat& mat_in)
 {
     ImGui::ImMat mat;
+    if (mat_in.empty() || mat_in.w < 64)
+        return;
+    int fft_size = mat_in.w  > 256 ? 256 : mat_in.w > 128 ? 128 : 64;
     if (mat_in.elempack > 1)
     {
-        mat.create_type(mat_in.w, 1, mat_in.c, mat_in.type);
+        mat.create_type(fft_size, 1, mat_in.c, mat_in.type);
         float * data = (float *)mat_in.data;
         for (int x = 0; x < mat.w; x++)
         {
@@ -7460,7 +7467,8 @@ void TimeLine::CalculateAudioScopeData(ImGui::ImMat& mat_in)
     }
     else
     {
-        mat = mat_in;
+        //mat = mat_in;
+        mat.create_type(fft_size, 1, mat_in.c, mat_in.data, mat_in.type);
     }
     for (int i = 0; i < mat.c; i++)
     {
@@ -7514,8 +7522,8 @@ void TimeLine::CalculateAudioScopeData(ImGui::ImMat& mat_in)
             float zoom = mAudioAttribute.mAudioVectorScale;
             float hw = mAudioAttribute.m_audio_vector.w / 2;
             float hh = mAudioAttribute.m_audio_vector.h / 2;
-            int samples = mat_in.w;
-            mAudioAttribute.m_audio_vector -= 127;
+            int samples = mat.w;
+            mAudioAttribute.m_audio_vector -= 64;
             for (int n = 0; n < samples; n++)
             {
                 float s1 = mAudioAttribute.channel_data[0].m_wave.at<float>(n, 0);
