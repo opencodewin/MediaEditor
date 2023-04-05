@@ -251,17 +251,24 @@ static bool MediaPlayer_Frame(void * handle, bool app_will_quit)
 
         float padding = style.FramePadding.x * 16;
         // add audio meter bar
-        static int left_stack = 0;
-        static int left_count = 0;
-        static int right_stack = 0;
-        static int right_count = 0;
         if (g_player->IsOpened())
         {
-            // int l_level = g_player->audio_level(0);
-            // int r_level = g_player->audio_level(1);
-            int l_level = 1, r_level = 1;
-            ImGui::UvMeter("##lhuvr", ImVec2(panel_size.x - padding, 10), &l_level, 0, 96, 200, &left_stack, &left_count);
-            ImGui::UvMeter("##rhuvr", ImVec2(panel_size.x - padding, 10), &r_level, 0, 96, 200, &right_stack, &right_count);
+            {
+                int stack = g_player->GetAudioMeterStack(0);
+                int count = g_player->GetAudioMeterCount(0);
+                int value = g_player->GetAudioMeterValue(0,  g_player->GetPlayPos() / 1000.f);
+                ImGui::UvMeter("##lhuvr", ImVec2(panel_size.x - padding, 10), &value, 0, 96, 200, &stack, &count);
+                g_player->SetAudioMeterStack(0, stack);
+                g_player->SetAudioMeterCount(0, count);
+            }
+            {
+                int stack = g_player->GetAudioMeterStack(1);
+                int count = g_player->GetAudioMeterCount(1);
+                int value = g_player->GetAudioMeterValue(1,  g_player->GetPlayPos() / 1000.f);
+                ImGui::UvMeter("##rhuvr", ImVec2(panel_size.x - padding, 10), &value, 0, 96, 200, &stack, &count);
+                g_player->SetAudioMeterStack(1, stack);
+                g_player->SetAudioMeterCount(1, count);
+            }
         }
         else
         {

@@ -1455,7 +1455,7 @@ private:
                 {
                     lock_guard<mutex> lk(m_vidfrmQLock);
                     m_vidfrmQ.pop_front();
-                    ConvertAVFrameToImMat(vidfrm, m_vidMat, (double)mts/1000);
+                    m_frmCvt.ConvertImage(vidfrm, m_vidMat, (double)mts/1000);
                     av_frame_free(&vidfrm);
                     vidIdleRun = false;
                 }
@@ -1508,7 +1508,7 @@ private:
                 if (!skipThisFrame)
                 {
                     ImGui::ImMat vidMat;
-                    ConvertAVFrameToImMat(vidfrm, vidMat, timestamp);
+                    m_frmCvt.ConvertImage(vidfrm, vidMat, timestamp);
                     vidMatCache.push_back(vidMat);
                     prevCachedTimestamp = timestamp;
                     cacheUpdated = true;
@@ -1899,6 +1899,7 @@ private:
     AudioRender* m_audrnd{nullptr};
     AudioByteStream m_audByteStream;
     std::vector<AudioAttribute> m_channel_data;
+    AVFrameToImMatConverter m_frmCvt;
 };
 
 constexpr MediaPlayer_FFImpl::TimePoint MediaPlayer_FFImpl::CLOCK_MIN = MediaPlayer_FFImpl::Clock::time_point::min();
