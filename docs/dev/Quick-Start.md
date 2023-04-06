@@ -7,7 +7,7 @@
 3. Fill "Project1" in the text input box at the bottom of the file browser;
 4. Click "OK" to create project.
 
-<img src="../source/images/create-project.gif" width="640" height="400"/>
+<img src="../source/images/create-project.gif" />
 
 ### Add clip to timeline
 1. Click "Add new media in bank" in the media bank to open the file browser;
@@ -17,21 +17,21 @@
 5. Move the mouse to the video file named "Sprite Right" in the media bank and hold down the left button, then drag the file to the timeline area. Release the left button when the yellow outline appears on the timeline edge;
 6. The video clip named "Sprite Right" has been added to the timeline. At this time, there are two tracks on the timeline, the video track V1 and the audio track A1. Each track corresponds to a clip of the same type as the track.
 
-<img src="../source/images/add-clip.gif" width="640" height="400"/>
+<img src="../source/images/add-clip.gif" />
 
 ### Play clips in the media thumbnail
 1. To View frame, click the left button on the scale-line area of the timeline to switch the time point;
 2. To play preview, click "Play" in the media thumbnail to play the video;
 3. To Quick preview, drag the green ruler-line in the scale-line area of the timeline to preview the video quickly.
 
-<img src="../source/images/preview.gif" width="640" height="400"/>
+<img src="../source/images/preview.gif" />
 
 ### Create first rough-cut
 1. Trim the video clip named "Sprite Fright", reducing the header to about 04:30.00, precision is not required. The purpose of pruning is to preserve the indentation, which can be adjusted later. Do the same with the audio clip in the video;
 2. Move the video clip named "Sprite Fright" on the track V1 to the scale-line 00:00.00. Do the same with the audio clip in the video;
 3. Cut the end part of the video clip named "Sprite Fright", which contains the producer information, at around 04:40.00. Do the same with the audio clip in the video.
 
-<img src="../source/images/rough-cut.gif" width="640" height="400"/>
+<img src="../source/images/rough-cut.gif" />
 
 ### Add music
 1. Click "Add new media in bank" in the media bank to open the file browser;
@@ -42,14 +42,14 @@
 6. The audio track A2 appears in the timeline, on which is an audio clip called "Music1";
 7. Align the tail of the audio clip named "Music1" on the tail of a video clip named "Sprite Fright" through magnetic alignment.
 
-<img src="../source/images/add-music.gif" width="640" height="400"/>
+<img src="../source/images/add-music.gif" />
 
 ### Add more clips
 1. Open File Explorer (or Finder) and go to "/Users/fans/Sources".
 2. Select multiple audio and video files, including "Cosmos Laundromat.mp4", "Music2.aac", etc.;
 3. Drag all files to the media bank and release the left button. All files are added to the media bank.
 
-<img src="../source/images/add-more-clip.gif" width="640" height="400"/>
+<img src="../source/images/add-more-clip.gif" />
 
 ### Rearrange clips
 1. Add the video clip named "Cosmos Laundromat" to video track V2 and audio track A3 of the timeline;
@@ -57,7 +57,7 @@
 3. Move the track V2 to the top of the timeline and align the header of the video clip named "Cosmos Laundromat" and the tail of the video clip named "Sprite Fright" by magnetic alignment;
 4. Add the audio clip "Music2", which is on audio track A4, to the timeline.
 
-<img src="../source/images/rearrange-clip.gif" width="640" height="400"/>
+<img src="../source/images/rearrange-clip.gif" />
 
 ### Pruning by time
 1. Scale the timeline until 08:00.00 appears in the scale-line area and align the end of the video clip named "Cosmos Laundromat" to 08:00.00;
@@ -65,7 +65,7 @@
 3. Align the end of the audio clip "Music2" to 08:00.00;
 4. Move the video clip named "Cosmos Laundromat" from the track V2 to the track V1 to form a overlapping area while keeping the tail of the video clip named "Cosmos Laundromat" aligned until 08:00.00.
 
-<img src="../source/images/pruning.gif" width="640" height="400"/>
+<img src="../source/images/pruning.gif" />
 
 ### Sound mixing
 1. Double-click any audio clip thumbnail on the timeline to enter the audio filter-editing page and then switch to the audio mixing-editing page;
@@ -73,14 +73,14 @@
 3. Change the layout of the audio PAN so that the sound is biased towards the front-channel output;
 4. Adjust the equalizer to make the audio output more vivid.
 
-<img src="../source/images/audio-mixing.gif" width="640" height="400"/>
+<img src="../source/images/audio-mixing.gif" />
 
 ### Add Fusions
 1. Press SHIFT and double-click the title area of the video clip overlapping area to enter the video fusion-editing page;
 2. Introduce a fusion from the fusion bank, as select "LuminanceMelt Transform", and then connect the flow-pin and the data-pin to make the fusion node effective;
 3. Click "Play" to preview the fusion after using "LuminanceMelt Transform" for the overlapping clip.
 
-<img src="../source/images/add-fusion.gif" width="640" height="400"/>
+<img src="../source/images/add-fusion.gif" />
 
 ### Add Filters
 1. Double-click the thumbnail of the video clip named "Sprite Fright" to enter the video filter-editing page;
@@ -88,7 +88,7 @@
 3. Change the "Sigma" parameters of the USM Sharpen node, and check the filter of different parameters in the preview window;
 4. Until the picture is clear, the degree of sharpening is moderate, and there is no visual deviation.
 
-<img src="../source/images/add-filter.gif" width="640" height="400"/>
+<img src="../source/images/add-filter.gif" />
 
 ### Output sample
 1. At around 01:00.00 before the overlapping area, set "Add mark in" through the scale-area of the timeline;
@@ -100,4 +100,4 @@
 7. Wait for the output progress bar to reach 100% to output the full sample;
 8. You can view the content of file "sample1.mp4" through the video player in the "/Users/fans/Tests" path.
 
-<img src="../source/images/output-sample.gif" width="640" height="400"/>
+<img src="../source/images/output-sample.gif" />

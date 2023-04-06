@@ -1,4 +1,4 @@
-<p align="center"><img src="docs/assets/multi_viewpoint.gif" alt="MediaEditor" height="500"></p>
+<p align="center" ><img src="docs/assets/multi_viewpoint.gif" alt="MediaEditor"></p>
 
 <h1 align="center">MediaEditor Community</h1>
 
@@ -24,9 +24,9 @@ MediaEditor Community(MEC) is a highly integrated and easy to learn application 
 
 ## FEATURES
 * Support complete timeline editing functions, including move, crop, cut, thumbnail preview, scale and delete.
-  &emsp;<img src="docs/assets/timeline.png" alt="timeline" height="200" width="950">
+  &emsp;<img src="docs/assets/timeline.png" alt="timeline">
 * Support more flexible and easily blueprint system. Blueprint💫 is represented in the form of nodes, which can handle complex functions through nodes and flows.
-  &emsp;<img src="docs/assets/blueprint.gif" alt="blueprint" height="200" width="950">
+  &emsp;<img src="docs/assets/blueprint.gif" alt="blueprint">
 * Support about 30+ built-in media filters and 60+ built-in media fusions🤖.
   &emsp;<img src="docs/assets/fusion.gif" alt="fusion">
 * Support about 10 video and audio analysis tools🍂.
@@ -52,13 +52,13 @@ MediaEditor Community(MEC) is a highly integrated and easy to learn application 
 MEC's developers work hard to make it support a large range of devices and operating systems. We provide final as well as development builds. To get started, head over to the **[downloads page💠](https://github.com/opencodewin/MediaEditor/releases)** and simply select the platform that you want to install it on. A **[quick guide📝](docs/dev/Quick-Start.md)** to help you get acquainted with MEC is available in our docs.
 
 ## SCREENSHOT
-|<div style="width:300px">Video Filter</div>|<div style="width:300px">Video Fusion</div>|
+|<div>Video Filter</div>|<div>Video Fusion</div>|
 |---|---|
-|<img src="docs/assets/video-filter.png" height="300" />|<img src="docs/assets/video-fusion.png" height="300" />|
+|<img src="docs/assets/video-filter.png" />|<img src="docs/assets/video-fusion.png" />|
 
-|<div style="width:300px">Audio Mixing</div>|<div style="width:300px">Media Output</div>|
+|<div>Audio Mixing</div>|<div>Media Output</div>|
 |---|---|
-|<img src="docs/assets/audio-mixing.png" height="300" />|<img src="docs/assets/media-output.png" height="300" />|
+|<img src="docs/assets/audio-mixing.png" />|<img src="docs/assets/media-output.png" />|
 
 ## DEPENDENCIES
 Although installers are much easier to use, if you must build from 
