@@ -26,17 +26,17 @@ MediaEditor Community(MEC) is a highly integrated and easy to learn application 
 * Support complete timeline editing functions, including move, crop, cut, thumbnail preview, scale and delete.
   &emsp;<img src="docs/assets/timeline.png" alt="timeline" height="200" width="950">
 * Support more flexible and easily blueprint system. Blueprint💫 is represented in the form of nodes, which can handle complex functions through nodes and flows.
-  &emsp;<h4>💫</h4><img src="docs/assets/blueprint.gif" alt="blueprint" height="200" width="950">
+  &emsp;<img src="docs/assets/blueprint.gif" alt="blueprint" height="200" width="950">
 * Support about 30+ built-in media filters and 60+ built-in media fusions🤖.
-  &emsp;<h4>🤖</h4><img src="docs/assets/fusion.gif" alt="fusion">
+  &emsp;<img src="docs/assets/fusion.gif" alt="fusion">
 * Support about 10 video and audio analysis tools🍂.
 
-  &emsp;🍂Video CIE&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;🍂Video Waveform&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;🍂Audio Spectrogram
+  &emsp;🍂Video CIE&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;🍂Video Waveform&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;🍂Audio Spectrogram
 
   &emsp;<img src="docs/assets/cie.gif" /><img src="docs/assets/waveform.gif" /><img src="docs/assets/spec.gif" />
 
 * Lightweight, cross platform, high-performance software, support Linux, Mac, and Windows.
-* Supports multiple audio and video codecs, including ProRes, H.264, H.265, VP9, etc.
+* Support multiple audio and video codecs, including ProRes, H.264, H.265, VP9, etc.
 * Support import and edit videos from standard definition to 4K resolution.
 * Support magnetic snapping, which can smoothly adjust adjacent clips when arranging them to eliminate gaps, conflicts, and synchronization issues.
 * Support frame-by-frame preview mode, including forward playback and reverse playback.
@@ -45,7 +45,7 @@ MediaEditor Community(MEC) is a highly integrated and easy to learn application 
 * Support audio mixing, including mixer, pan, equalizer, gate, limiter and compressor.
 * Support curve and keypoint, applied in video filter, video fusion, audio filter, audio fusion, video attribute and text subtitle.
 * Support subtitle editing, including font, position, scale, rotate, oytline width, font attribute, alignment, etc.
-* Supports customized blueprint nodes, allowing for free expansion of filter and fusion effects.
+* Support customized blueprint nodes, allowing for free expansion of filter and fusion effects.
 * Support multiple professional export formats, including QuickTime, MKV, MP4, Matroska, etc.
 
 ## GETTING STARTED
