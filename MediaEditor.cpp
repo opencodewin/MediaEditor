@@ -2131,12 +2131,15 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
                     ImGui::Button(video_icon.c_str(), ImVec2(24, 24));
                     if (ImGui::IsItemHovered() && ImGui::BeginTooltip())
                     {
-                        std::string bitrate_str = stream->bitRate >= 1000000 ? std::to_string((float)stream->bitRate / 1000000) + "Mbps" :
-                                                stream->bitRate >= 1000 ? std::to_string((float)stream->bitRate / 1000) + "Kbps" :
-                                                std::to_string(stream->bitRate) + "bps";
-                        ImGui::Text("S: %d x %d", stream->width, stream->height);
-                        ImGui::Text("B: %s", bitrate_str.c_str());
-                        ImGui::Text("F: %.3ffps", stream->avgFrameRate.den > 0 ? stream->avgFrameRate.num / stream->avgFrameRate.den : 0.0);
+                        std::string bitrate_str = stream->bitRate >= 1000000 ? "Mbps" :
+                                                stream->bitRate >= 1000 ? "Kbps" : "bps";
+                        float bitrate = stream->bitRate >= 1000000 ? (float)stream->bitRate / 1000000 : stream->bitRate >= 1000 ? (float)stream->bitRate / 1000 : stream->bitRate;
+                        ImGui::TextUnformatted("   size:"); ImGui::SameLine(); ImGui::Text("%d x %d", stream->width, stream->height);
+                        ImGui::TextUnformatted("bitrate:"); ImGui::SameLine(); ImGui::Text("%.3f %s", bitrate, bitrate_str.c_str());
+                        ImGui::TextUnformatted("    fps:"); ImGui::SameLine(); ImGui::Text("%.3f fps", stream->avgFrameRate.den > 0 ? stream->avgFrameRate.num / stream->avgFrameRate.den : 
+                                                                                                    stream->realFrameRate.den > 0 ? stream->realFrameRate.num / stream->realFrameRate.den : 0.0f);
+                        ImGui::TextUnformatted("  codec:"); ImGui::SameLine(); ImGui::Text("%s", stream->codec.c_str());
+                        ImGui::TextUnformatted(" format:"); ImGui::SameLine(); ImGui::Text("%s", stream->format.c_str());
                         ImGui::EndTooltip();
                     }
                     ImGui::SameLine(0, 0);
@@ -2160,7 +2163,15 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
                     auto audio_sample_rate = stream->sampleRate;
                     std::string audio_icon = audio_channels >= 2 ? ICON_STEREO : ICON_MONO;
                     ImGui::Button(audio_icon.c_str(), ImVec2(24, 24));
-                    ImGui::ShowTooltipOnHover("%d %s", audio_sample_rate, GetAudioChannelName(audio_channels).c_str());
+                    if (ImGui::IsItemHovered() && ImGui::BeginTooltip())
+                    {
+                        ImGui::TextUnformatted("sample rate:"); ImGui::SameLine(); ImGui::Text("%d", audio_sample_rate);
+                        ImGui::TextUnformatted("   channels:"); ImGui::SameLine(); ImGui::Text("%s", GetAudioChannelName(audio_channels).c_str());
+                        ImGui::TextUnformatted("      depth:"); ImGui::SameLine(); ImGui::Text("%d", stream->bitDepth);
+                        ImGui::TextUnformatted("      codec:"); ImGui::SameLine(); ImGui::Text("%s", stream->codec.c_str());
+                        ImGui::TextUnformatted("     format:"); ImGui::SameLine(); ImGui::Text("%s", stream->format.c_str());
+                        ImGui::EndTooltip();
+                    }
                     ImGui::SameLine(0 ,0);
                 }
             }
