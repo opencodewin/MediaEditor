@@ -31,16 +31,16 @@ MediaEditor Community(MEC) is a highly integrated and easy to learn application 
   &emsp;<img src="docs/assets/fusion.gif" alt="fusion">
 * Support about 10 video and audio analysis tools🍂.
 
-  &emsp;🍂Video CIE&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;🍂Video Waveform&emsp;&emsp;&emsp;&emsp;&emsp;🍂Audio Spectrogram
+  &emsp;🍂Video CIE&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;🍂Video Waveform&emsp;&emsp;&emsp;&emsp;&emsp;🍂Audio Spectrogram
 
   &emsp;<img src="docs/assets/cie.gif" /><img src="docs/assets/waveform.gif" /><img src="docs/assets/spec.gif" />
 
-* Lightweight, cross platform, high-performance software, support Linux, Mac, and Windows.
+* A lightweight, cross platform, high-performance software, support Linux, Mac, and Windows.
 * Support multiple audio and video codecs, including ProRes, H.264, H.265, VP9, etc.
 * Support import and edit videos from standard definition to 4K resolution.
 * Support magnetic snapping, which can smoothly adjust adjacent clips when arranging them to eliminate gaps, conflicts, and synchronization issues.
 * Support frame-by-frame preview mode, including forward playback and reverse playback.
-* Support multi-viewpoint mode, making it easy to preview and process media through multiple displays.
+* Support multi-monitor mode, making it easy to preview and process media through external monitors.
 * Support video attribute-editing, including cropping, moving, scaling and rotating video frames.
 * Support audio mixing, including mixer, pan, equalizer, gate, limiter and compressor.
 * Support curve and keypoint, applied in video filter, video fusion, audio filter, audio fusion, video attribute and text subtitle.
