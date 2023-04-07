@@ -7143,6 +7143,10 @@ void TimeLine::PerformAudioAction(imgui_json::value& action)
         int64_t trackId = action["track_json"]["ID"].get<imgui_json::number>();
         mMtaReader->RemoveTrackById(trackId);
     }
+    else if (actionName == "MOVE_TRACK")
+    {
+        // currently need to do nothing
+    }
     else if (actionName == "MUTE_TRACK")
     {
         int64_t trackId = action["track_id"].get<imgui_json::number>();
@@ -7151,7 +7155,7 @@ void TimeLine::PerformAudioAction(imgui_json::value& action)
     }
     else
     {
-        Logger::Log(Logger::WARN) << "UNHANDLED UI ACTION(Video): '" << actionName << "'." << std::endl;
+        Logger::Log(Logger::WARN) << "UNHANDLED UI ACTION(Audio): '" << actionName << "'." << std::endl;
     }
 }
 
@@ -7221,6 +7225,10 @@ void TimeLine::PerformImageAction(imgui_json::value& action)
         int64_t trackId = action["track_json"]["ID"].get<imgui_json::number>();
         mMtvReader->RemoveTrackById(trackId);
     }
+    else if (actionName == "MOVE_TRACK")
+    {
+        // currently need to do nothing
+    }
     else
     {
         Logger::Log(Logger::WARN) << "UNHANDLED UI ACTION(Image): '" << actionName << "'." << std::endl;
@@ -7238,6 +7246,10 @@ void TimeLine::PerformTextAction(imgui_json::value& action)
     {
         int64_t trackId = action["track_json"]["ID"].get<imgui_json::number>();
         mMtvReader->RemoveSubtitleTrackById(trackId);
+    }
+    else if (actionName == "MOVE_TRACK")
+    {
+        // currently need to do nothing
     }
     else
     {
