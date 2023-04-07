@@ -1112,7 +1112,7 @@ struct TimeLine
     bool RestoreTrack(imgui_json::value& action);
     int64_t DeleteTrack(int index, std::list<imgui_json::value>* pActionList);
     void SelectTrack(int index);
-    void MovingTrack(int& index, int& dst_index);
+    void MovingTrack(int& index, int& dst_index, std::list<imgui_json::value>* pActionList);
 
     void MovingClip(int64_t id, int from_track_index, int to_track_index);
     bool DeleteClip(int64_t id, std::list<imgui_json::value>* pActionList);
