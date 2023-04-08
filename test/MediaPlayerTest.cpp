@@ -3,7 +3,6 @@
 #include <imgui_helper.h>
 #include <ImGuiFileDialog.h>
 #include <imgui_extra_widget.h>
-#include "FFUtils.h"
 #include <iostream>
 #include <sstream>
 #include <fstream>
@@ -12,24 +11,101 @@
 #include <ImVulkanShader.h>
 // #include <Lut3D.h>
 #endif
+#include "MediaReader.h"
+#include "AudioRender.h"
+#include "FFUtils.h"
 #include "Log.h"
-#include "MediaPlayer.h"
 
 static std::string ini_file = "Media_Player.ini";
 static std::string bookmark_path = "bookmark.ini";
-static ImTextureID g_texture = 0;
-MediaCore::AudioRender* g_audrnd = nullptr;
-MediaPlayer* g_player = nullptr;
-#if IMGUI_VULKAN_SHADER
-ImGui::ColorConvert_vulkan * m_yuv2rgb {nullptr};
-// ImGui::LUT3D_vulkan *        m_lut3d {nullptr};
-#endif
+static bool g_isOpening = false;
+static bool g_isOpened = false;
+static bool g_useHwAccel = true;
+static int32_t g_audioStreamCount = 0;
+static int32_t g_chooseAudioIndex = -1;
+static MediaCore::MediaParser::Holder g_mediaParser;
 
-#define CheckPlayerError(funccall) \
-    if (!(funccall)) \
-    { \
-        std::cerr << g_player->GetError() << std::endl; \
+// video
+static MediaCore::MediaReader::Holder g_vidrdr;
+static double g_playStartPos = 0.f;
+static std::chrono::steady_clock::time_point g_playStartTp;
+static bool g_isPlay = false;
+static bool g_isLongCacheDur = false;
+static const std::pair<double, double> G_DurTable[] = {
+    {  5, 1 },
+    { 10, 2 },
+};
+static ImTextureID g_texture = 0;
+// audio
+static MediaCore::MediaReader::Holder g_audrdr;
+static MediaCore::AudioRender* g_audrnd = nullptr;
+const int c_audioRenderChannels = 2;
+const int c_audioRenderSampleRate = 44100;
+const MediaCore::AudioRender::PcmFormat c_audioRenderFormat = MediaCore::AudioRender::PcmFormat::FLOAT32;
+static double g_audPos = 0;
+
+static int lstack = 0, rstack = 0;
+static int lcount = 0, rcount = 0;
+static float audio_decibel_left = 0, audio_decibel_right = 0;
+
+class SimplePcmStream : public MediaCore::AudioRender::ByteStream
+{
+public:
+    SimplePcmStream(MediaCore::MediaReader::Holder audrdr) : m_audrdr(audrdr) {}
+
+    uint32_t Read(uint8_t* buff, uint32_t buffSize, bool blocking) override
+    {
+        if (!m_audrdr)
+            return 0;
+        uint32_t readSize = buffSize;
+        double pos;
+        bool eof;
+        if (!m_audrdr->ReadAudioSamples(buff, readSize, pos, eof, blocking))
+            return 0;
+        //
+        int channdels = m_audrdr->GetAudioOutChannels();
+        size_t sample_size = readSize / channdels / sizeof(float);
+        ImGui::ImMat mat;
+        int fft_size = sample_size  > 256 ? 256 : sample_size > 128 ? 128 : 64;
+        mat.create_type(fft_size, 1, channdels, IM_DT_FLOAT32);
+        float * data = (float *)buff;
+        for (int x = 0; x < mat.w; x++)
+        {
+            for (int i = 0; i < mat.c; i++)
+            {
+                mat.at<float>(x, 0, i) = data[x * mat.c + i];
+            }
+        }
+        for (int c = 0; c < mat.c; c++)
+        {
+            auto channel_data = mat.channel(c);
+            ImGui::ImRFFT((float *)channel_data.data, channel_data.w, true);
+            if (c == 0)
+            {
+                audio_decibel_left = ImGui::ImDoDecibel((float*)channel_data.data, channel_data.w);
+            }
+            else if (c == 1)
+            {
+                audio_decibel_right = ImGui::ImDoDecibel((float*)channel_data.data, channel_data.w);
+            }
+        }
+
+        g_audPos = pos;
+        return readSize;
     }
+
+    void Flush() override {}
+
+    bool GetTimestampMs(int64_t& ts) override
+    {
+        return false;
+    }
+
+private:
+    MediaCore::MediaReader::Holder m_audrdr;
+};
+static SimplePcmStream* g_pcmStream = nullptr;
+
 
 // Application Framework Functions
 static void MediaPlayer_Initialize(void** handle)
@@ -45,35 +121,25 @@ static void MediaPlayer_Initialize(void** handle)
 		docFile.close();
 	}
 #endif
-    g_audrnd = MediaCore::AudioRender::CreateInstance();
-#if !IMGUI_APPLICATION_PLATFORM_SDL2
-    if (!g_audrnd->Initialize())
-        std::cerr << g_audrnd->GetError() << std::endl;
-#endif
-
-    g_player = CreateMediaPlayer();
-    CheckPlayerError(g_player->SetAudioRender(g_audrnd));
-    // g_player->SetPreferHwDecoder(false);
-    // g_player->SetPlayMode(MediaPlayer::PlayMode::AUDIO_ONLY);
-    // g_player->SetPlayMode(MediaPlayer::PlayMode::VIDEO_ONLY);
 
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     io.IniFilename = ini_file.c_str();
-#if IMGUI_VULKAN_SHADER
-    m_yuv2rgb = new ImGui::ColorConvert_vulkan(ImGui::get_default_gpu_index());
-#endif
+    g_vidrdr = MediaCore::MediaReader::CreateInstance();
+    g_audrdr = MediaCore::MediaReader::CreateInstance();
+
+    g_pcmStream = new SimplePcmStream(g_audrdr);
+    g_audrnd = MediaCore::AudioRender::CreateInstance();
+    g_audrnd->OpenDevice(c_audioRenderSampleRate, c_audioRenderChannels, c_audioRenderFormat, g_pcmStream);
 }
 
 static void MediaPlayer_Finalize(void** handle)
 {
-#if IMGUI_VULKAN_SHADER
-    if (m_yuv2rgb) { delete m_yuv2rgb; m_yuv2rgb = nullptr; }
-    // if (m_lut3d) { delete m_lut3d; m_lut3d = nullptr; }
-#endif
+    if (g_audrnd) { g_audrnd->CloseDevice(); MediaCore::AudioRender::ReleaseInstance(&g_audrnd); }
+    if (g_pcmStream) { delete g_pcmStream; g_pcmStream = nullptr; }
     if (g_texture) { ImGui::ImDestroyTexture(g_texture); g_texture = nullptr; }
+    g_vidrdr = nullptr;
+    g_audrdr = nullptr;
 
-    ReleaseMediaPlayer(&g_player);
-    MediaCore::AudioRender::ReleaseInstance(&g_audrnd);
 #ifdef USE_BOOKMARK
 	// save bookmarks
 	std::ofstream configFileWriter(bookmark_path, std::ios::out);
@@ -89,7 +155,6 @@ static bool MediaPlayer_Frame(void * handle, bool app_will_quit)
 {
     static bool show_ctrlbar = true;
     static bool show_log_window = false; 
-    static bool force_software = false;
     static bool convert_hdr = false;
     static bool has_hdr = false;
     static bool muted = false;
@@ -99,10 +164,39 @@ static bool MediaPlayer_Frame(void * handle, bool app_will_quit)
     auto& io = ImGui::GetIO();
     const ImGuiContext& g = *GImGui;
     const ImGuiStyle& style = g.Style;
+    float playPos = 0;
+    bool isForward = false;
+    float mediaDur = 0;
     Log::Render();
 
+    if (g_vidrdr->IsOpened())
+    {
+        isForward = g_vidrdr->IsDirectionForward();
+        const MediaCore::VideoStream* vstminfo = g_vidrdr->GetVideoStream();
+        float vidDur = vstminfo ? (float)vstminfo->duration : 0;
+        mediaDur = vidDur;
+    }
+    if (g_audrdr->IsOpened())
+    {
+        if (!g_vidrdr->IsOpened())
+        {
+            isForward = g_audrdr->IsDirectionForward();
+            const MediaCore::AudioStream* astminfo = g_audrdr->GetAudioStream();
+            float audDur = astminfo ? (float)astminfo->duration : 0;
+            mediaDur = audDur;
+        }
+        playPos = g_isPlay ? g_audPos : g_playStartPos;
+    }
+    else
+    {
+        double elapsedTime = std::chrono::duration_cast<std::chrono::duration<double>>((std::chrono::steady_clock::now()-g_playStartTp)).count();
+        playPos = g_isPlay ? (isForward ? g_playStartPos+elapsedTime : g_playStartPos-elapsedTime) : g_playStartPos;
+    }
+    if (playPos < 0) playPos = 0;
+    if (playPos > mediaDur) playPos = mediaDur;
+
     // Show PlayControl panel
-    if (g_player->IsOpened() && (show_ctrlbar && io.FrameCountSinceLastInput))
+    if (g_isOpened && (show_ctrlbar && io.FrameCountSinceLastInput))
     {
         ctrlbar_hide_count++;
         if (ctrlbar_hide_count >= 100)
@@ -118,7 +212,7 @@ static bool MediaPlayer_Frame(void * handle, bool app_will_quit)
     }
 
     ImVec2 center(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.85f);
-    ImVec2 panel_size(io.DisplaySize.x - 40.0, 160);
+    ImVec2 panel_size(io.DisplaySize.x - 40.0, 120);
     ImGui::SetNextWindowPos(center, ImGuiCond_Always, ImVec2(0.5f, 0.5f));
     ImGui::SetNextWindowSize(panel_size, ImGuiCond_Always);
     ImGui::SetNextWindowBgAlpha(0.5);
@@ -144,42 +238,30 @@ static bool MediaPlayer_Frame(void * handle, bool app_will_quit)
                                                     ImGuiFileDialogFlags_Modal);
         }
         ImGui::ShowTooltipOnHover("Open Media File.");
-//         // add open camera button
-//         ImGui::SameLine();
-//         if (ImGui::Button(ICON_FA5_VIDEO, size))
-//         {
-//             if (g_texture) { ImGui::ImDestroyTexture(g_texture); g_texture = nullptr; }
-//             if (g_audio_dev) { SDL_ClearQueuedAudio(g_audio_dev); SDL_CloseAudioDevice(g_audio_dev); g_audio_dev = 0; }
-// #if IMGUI_VULKAN_SHADER
-//             if (m_lut3d) { delete m_lut3d; m_lut3d = nullptr; }
-//             has_hdr = false;
-//             convert_hdr = false;
-// #endif
-//             g_player->open("camera");
-//             g_player->play(true);
-//         }
-//         ImGui::ShowTooltipOnHover("Open Camera.");
         // add play button
         ImGui::SameLine();
         ImGui::SetWindowFontScale(org_scale * 1.5);
-        if (ImGui::Button(g_player->IsOpened() ? (g_player->IsPlaying() ? ICON_FAD_PAUSE : ICON_FAD_PLAY) : ICON_FAD_PLAY, size))
+        if (ImGui::Button(g_isOpened ? (g_isPlay ? ICON_FAD_PAUSE : ICON_FAD_PLAY) : ICON_FAD_PLAY, size))
         {
-            if (g_player->IsPlaying())
-                g_player->Pause();
+            g_isPlay = !g_isPlay;
+            if (g_isPlay)
+            {
+                if (g_vidrdr->IsSuspended())
+                    g_vidrdr->Wakeup();
+                g_playStartTp = std::chrono::steady_clock::now();
+                if (g_audrdr->IsOpened())
+                    g_audrnd->Resume();
+            }
             else
-                g_player->Play();
+            {
+                g_playStartPos = playPos;
+                if (g_audrdr->IsOpened())
+                    g_audrnd->Pause();
+            }
         }
         ImGui::ShowTooltipOnHover("Toggle Play/Pause.");
-        // // add step next button
-        // ImGui::SameLine();
-        // if (ImGui::Button(ICON_FA5_STEP_FORWARD, size))
-        // {
-        //     if (g_player->IsOpened()) g_player->step();
-        // }
-        // ImGui::ShowTooltipOnHover("Step Next Frame.");
-        // add mute button
         ImGui::SameLine();
-        if (ImGui::Button(g_player->IsOpened() ? muted ? ICON_FA_VOLUME_OFF : ICON_FA_VOLUME_HIGH : ICON_FA_VOLUME_HIGH, size))
+        if (ImGui::Button(g_isOpening ? muted ? ICON_FA_VOLUME_OFF : ICON_FA_VOLUME_HIGH : ICON_FA_VOLUME_HIGH, size))
         {
             muted = !muted;
         }
@@ -210,31 +292,13 @@ static bool MediaPlayer_Frame(void * handle, bool app_will_quit)
 
         ImGui::SameLine(); ImGui::Dummy(size);
         ImGui::SameLine(); ImGui::Dummy(size);
-        ImGui::SameLine();
-        ImGui::PushItemWidth(100);
-        float play_speed = g_player->GetPlaySpeed();
-        if (ImGui::SliderFloat("Speed", &play_speed, -2.f, 2.f, "%.1f", ImGuiSliderFlags_NoInput))
-        {
-            if (g_player->IsOpened())
-            {
-                g_player->SetPlaySpeed(play_speed);
-            }
-        }
-        ImGui::PopItemWidth();
         // add software decode button
         ImGui::SameLine();
-        if (ImGui::ToggleButton("SW", &force_software, size * 0.75))
+        if (ImGui::ToggleButton("SW", &g_useHwAccel, size * 0.75))
         {
-            g_player->SetPreferHwDecoder(!force_software);
+            g_vidrdr->EnableHwAccel(g_useHwAccel);
         }
         ImGui::ShowTooltipOnHover("Software decoder");
-        // // add HDR decode button
-        // ImGui::SameLine();
-        // if (ImGui::ToggleButton(has_hdr ? "HDR" : "SDR", &convert_hdr, size * 0.75))
-        // {
-        //     if (!has_hdr) convert_hdr = false;
-        // }
-        // ImGui::ShowTooltipOnHover("HDR decoder");
         // add show log button
         ImGui::SameLine();
         ImGui::ToggleButton(ICON_FA_LIST_UL, &show_log_window, size * 0.75);
@@ -244,53 +308,39 @@ static bool MediaPlayer_Frame(void * handle, bool app_will_quit)
         // show time info
         ImGui::SameLine(); ImGui::Dummy(size);
         ImGui::SameLine();
-        ImGui::Text("%s/%s", MillisecToString(g_player->GetPlayPos()).c_str(), MillisecToString(g_player->GetDuration()).c_str());
+        ImGui::Text("%s/%s", MillisecToString(playPos * 1000).c_str(), MillisecToString(mediaDur * 1000).c_str());
 
         ImGui::Unindent((i - 32.0f) * 0.4f);
         ImGui::Separator();
 
-        float padding = style.FramePadding.x * 16;
-        // add audio meter bar
-        if (g_player->IsOpened())
+        float padding = style.FramePadding.x * 8;
+        auto timescale_width = io.DisplaySize.x - padding;
+        if (g_isOpened)
         {
-            {
-                int stack = g_player->GetAudioMeterStack(0);
-                int count = g_player->GetAudioMeterCount(0);
-                int value = g_player->GetAudioMeterValue(0,  g_player->GetPlayPos() / 1000.f);
-                ImGui::UvMeter("##lhuvr", ImVec2(panel_size.x - padding, 10), &value, 0, 96, 200, &stack, &count);
-                g_player->SetAudioMeterStack(0, stack);
-                g_player->SetAudioMeterCount(0, count);
-            }
-            {
-                int stack = g_player->GetAudioMeterStack(1);
-                int count = g_player->GetAudioMeterCount(1);
-                int value = g_player->GetAudioMeterValue(1,  g_player->GetPlayPos() / 1000.f);
-                ImGui::UvMeter("##rhuvr", ImVec2(panel_size.x - padding, 10), &value, 0, 96, 200, &stack, &count);
-                g_player->SetAudioMeterStack(1, stack);
-                g_player->SetAudioMeterCount(1, count);
-            }
+            int decibel_left = audio_decibel_left;
+            int decibel_right = audio_decibel_right;
+            ImGui::UvMeter("##lhuvr", ImVec2(timescale_width, 10), &decibel_left, 0, 96, 200, &lstack, &lcount);
+            ImGui::UvMeter("##rhuvr", ImVec2(timescale_width, 10), &decibel_right, 0, 96, 200, &rstack, &rcount);
         }
         else
         {
             int zero_channel_level = 0;
-            ImGui::UvMeter("##lhuvr", ImVec2(panel_size.x - padding, 10), &zero_channel_level, 0, 96, 200);
-            ImGui::UvMeter("##rhuvr", ImVec2(panel_size.x - padding, 10), &zero_channel_level, 0, 96, 200);
+            ImGui::UvMeter("##lhuvr", ImVec2(timescale_width, 10), &zero_channel_level, 0, 96, 200);
+            ImGui::UvMeter("##rhuvr", ImVec2(timescale_width, 10), &zero_channel_level, 0, 96, 200);
         }
         ImGui::Separator();
-        auto timescale_width = io.DisplaySize.x - padding;
-        if (g_player->IsOpened())
+
+        ImGui::PushItemWidth(timescale_width);
+        if (g_isOpened)
         {
-            float pos = g_player->GetPlayPos() / 1000.0;
-            float duration = g_player->GetDuration() / 1000.0;
-            if (ImGui::SliderFloat("##timeline", &pos, 0.f, duration, "%.1f"))
+            if (ImGui::SliderFloat("##timeline", &playPos, 0.f, mediaDur, "%.1f"))
             {
-                // g_player->Seek(pos);
-                // g_player->Seek(pos, true);
-                g_player->SeekAsync(pos * 1000);
-            }
-            else if (g_player->IsSeeking())
-            {
-                g_player->QuitSeekAsync();
+                if (g_vidrdr->IsOpened())
+                    g_vidrdr->SeekTo(playPos);
+                if (g_audrdr->IsOpened())
+                    g_audrdr->SeekTo(playPos);
+                g_playStartPos = playPos;
+                g_playStartTp = std::chrono::steady_clock::now();
             }
         }
         else
@@ -298,28 +348,38 @@ static bool MediaPlayer_Frame(void * handle, bool app_will_quit)
             float seek_t = 0;
             ImGui::SliderFloat("##timeline", &seek_t, 0.f, 0.f, "%.1f");
         }
+        ImGui::PopItemWidth();
         ImGui::Separator();
 
-        // // add buffer extent
-        // float v_extent = g_player->video_buffer_extent();
-        // ImGui::UvMeter("##video_extent", ImVec2(200, 6), &v_extent, 0, 1.0, 200); ImGui::ShowTooltipOnHover("VB extent:%.1f%%", v_extent * 100);
-        // float a_extent = g_player->audio_buffer_extent();
-        // ImGui::UvMeter("##audio_extent", ImVec2(200, 6), &a_extent, 0, 1.0, 200); ImGui::ShowTooltipOnHover("AB extent:%.1f%%", a_extent * 100);
-        // // add buffer extent end
         ImGui::End();
     }
 
     // handle key event
-    if (g_player->IsOpened() && !io.KeyCtrl && !io.KeyShift && !io.KeyAlt && ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Space), false))
+    if (g_isOpened && !io.KeyCtrl && !io.KeyShift && !io.KeyAlt && ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Space), false))
     {
-        if (g_player->IsPlaying())
-            g_player->Pause();
+        if (g_isPlay)
+        {
+            if (g_vidrdr->IsSuspended())
+                    g_vidrdr->Wakeup();
+            g_playStartTp = std::chrono::steady_clock::now();
+            if (g_audrdr->IsOpened())
+                g_audrnd->Resume();
+        }
         else 
-            g_player->Play();
+        {
+            g_playStartPos = playPos;
+            if (g_audrdr->IsOpened())
+                g_audrnd->Pause();
+        }
     }
     if (!io.KeyCtrl && !io.KeyShift && !io.KeyAlt && ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Escape), false))
     {
-        if (g_player->IsOpened()) g_player->Close();
+        if (g_isOpened)
+        {
+            g_vidrdr->Close();
+            g_audrdr->Close();
+            g_isOpened = false;
+        }
         app_done = true;
     }
     // if (g_player->IsOpened() && !io.KeyCtrl && !io.KeyShift && !io.KeyAlt && ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_LeftArrow), true))
@@ -364,24 +424,84 @@ static bool MediaPlayer_Frame(void * handle, bool app_will_quit)
         Application_FullScreen(full_screen);
     }
 
-    // Message Boxes
+    if (g_vidrdr->IsOpened() && !g_vidrdr->IsSuspended())
+    {
+        bool eof;
+        ImGui::ImMat vmat;
+        if (g_vidrdr->ReadVideoFrame(playPos, vmat, eof))
+        {
+            bool imgValid = true;
+            if (vmat.empty())
+            {
+                imgValid = false;
+            }
+            if (imgValid &&
+                ((vmat.color_format != IM_CF_RGBA && vmat.color_format != IM_CF_ABGR) ||
+                vmat.type != IM_DT_INT8 ||
+                (vmat.device != IM_DD_CPU && vmat.device != IM_DD_VULKAN)))
+            {
+                imgValid = false;
+            }
+            if (imgValid) ImGui::ImMatToTexture(vmat, g_texture);
+        }
+        else
+        {
+        }
+    }
+    if (g_isOpening)
+    {
+        if (g_mediaParser->CheckInfoReady(MediaCore::MediaParser::MEDIA_INFO))
+        {
+            if (g_mediaParser->HasVideo())
+            {
+                g_vidrdr->EnableHwAccel(g_useHwAccel);
+                g_vidrdr->Open(g_mediaParser);
+                g_vidrdr->ConfigVideoReader(1.0f, 1.0f);
+                g_vidrdr->Start();
+            }
+            if (g_mediaParser->HasAudio())
+            {
+                g_audrdr->Open(g_mediaParser);
+                auto mediaInfo = g_mediaParser->GetMediaInfo();
+                for (auto stream : mediaInfo->streams)
+                {
+                    if (stream->type == MediaCore::MediaType::AUDIO)
+                        g_audioStreamCount++;
+                }
+                g_chooseAudioIndex = 0;
+                g_audrdr->ConfigAudioReader(c_audioRenderChannels, c_audioRenderSampleRate, "flt", g_chooseAudioIndex);
+                g_audrdr->Start();
+            }
+            if (!g_vidrdr->IsOpened() && !g_audrdr->IsOpened())
+            {
+                g_isOpened = false;
+                //Log(Error) << "Neither VIDEO nor AUDIO stream is ready for playback!" << endl;
+            }
+            else
+                g_isOpened = true;
+            g_isOpening = false;
+        }
+    }
+
+    // file dialog
     ImVec2 modal_center(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f);
     ImVec2 maxSize = ImVec2((float)io.DisplaySize.x, (float)io.DisplaySize.y);
-	ImVec2 minSize = maxSize * 0.5f;
+	ImVec2 minSize = maxSize * 0.75;
     if (ImGuiFileDialog::Instance()->Display("ChooseFileDlgKey", ImGuiWindowFlags_NoCollapse, minSize, maxSize))
 	{
         if (ImGuiFileDialog::Instance()->IsOk())
 		{
-            g_player->Close();
+            g_vidrdr->Close();
+            g_audrdr->Close();
+            g_audioStreamCount = 0;
+            g_chooseAudioIndex = -1;
             if (g_texture) { ImGui::ImDestroyTexture(g_texture); g_texture = nullptr; }
-// #if IMGUI_VULKAN_SHADER
-//             if (m_lut3d) { delete m_lut3d; m_lut3d = nullptr; }
-//             has_hdr = false;
-//             convert_hdr = false;
-// #endif
+            g_isLongCacheDur = false;
             std::string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
-            g_player->Open(filePathName);
-            g_player->Play();
+            g_mediaParser = MediaCore::MediaParser::CreateInstance();
+            g_mediaParser->Open(filePathName);
+            g_isOpened = false;
+            g_isOpening = true;
         }
         ImGuiFileDialog::Instance()->Close();
     }
@@ -392,53 +512,6 @@ static bool MediaPlayer_Frame(void * handle, bool app_will_quit)
         Log::ShowLogWindow(&show_log_window);
     }
 
-    // Video Texture Render
-    if (g_player->IsOpened())
-    {
-        ImGui::ImMat vmat = g_player->GetVideo();
-        if (!vmat.empty())
-        {
-#if IMGUI_VULKAN_SHADER
-            int video_depth = vmat.type == IM_DT_INT8 ? 8 : vmat.type == IM_DT_INT16 ? 16 : 8;
-            int video_shift = vmat.depth != 0 ? vmat.depth : vmat.type == IM_DT_INT8 ? 8 : vmat.type == IM_DT_INT16 ? 16 : 8;
-#ifdef VIDEO_FORMAT_RGBA
-            ImGui::ImGenerateOrUpdateTexture(g_texture, vmat.w, vmat.h, 4, (const unsigned char *)vmat.data);
-#else
-            ImGui::VkMat in_RGB; in_RGB.type = IM_DT_INT8;
-            in_RGB.color_format = IM_CF_ABGR;
-            m_yuv2rgb->ConvertColorFormat(vmat, in_RGB);
-            // if (vmat.color_space == IM_CS_BT2020) has_hdr = true; else has_hdr = false;
-            // int lut_mode = vmat.flags & IM_MAT_FLAGS_VIDEO_HDR_HLG ? HDRHLG_SDR709 : vmat.flags & IM_MAT_FLAGS_VIDEO_HDR_PQ ? HDRPQ_SDR709 : NO_DEFAULT;
-            ImGui::VkMat im_RGB; im_RGB.type = IM_DT_INT8;
-            // if (has_hdr && convert_hdr && lut_mode != NO_DEFAULT)
-            // {
-            //     // Convert HDR to SDR
-            //     if (!m_lut3d)
-            //     {
-            //         m_lut3d = new ImGui::LUT3D_vulkan(lut_mode, IM_INTERPOLATE_TRILINEAR, ImGui::get_default_gpu_index());
-            //     }
-            //     if (m_lut3d)
-            //     {
-            //         m_lut3d->filter(in_RGB, im_RGB);
-            //     }
-            //     else
-            //         im_RGB = in_RGB;
-            // }
-            // else
-                im_RGB = in_RGB;
-            ImGui::ImGenerateOrUpdateTexture(g_texture, im_RGB.w, im_RGB.h, im_RGB.c, (const unsigned char *)&im_RGB, true);
-#endif
-#else
-#ifdef VIDEO_FORMAT_RGBA
-            ImGui::ImGenerateOrUpdateTexture(g_texture, vmat.w, vmat.h, 4, (const unsigned char *)vmat.data);
-#endif
-#endif
-        }
-        else
-        {
-            std::cout << "Empty video ImMat at " << MillisecToString(g_player->GetPlayPos()) << std::endl;
-        }
-    }
     if (g_texture)
     {
         ImVec2 window_size = io.DisplaySize;

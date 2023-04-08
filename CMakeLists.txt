@@ -252,7 +252,6 @@ if(BUILD_TEST)
 add_executable(
     media_player_test
     test/MediaPlayerTest.cpp
-    test/MediaPlayer.cpp
     test/Log.cpp
     ${IMGUI_APP_ENTRY_SRC}
 )
