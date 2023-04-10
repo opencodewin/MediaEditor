@@ -9948,7 +9948,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
     ImGuiContext& g = *GImGui;
     if (!g_media_editor_settings.UILanguage.empty() && g.LanguageName != g_media_editor_settings.UILanguage)
         g.LanguageName = g_media_editor_settings.UILanguage;
-    std::string project_name = g_media_editor_settings.project_path.empty() ? "Untitled" : ImGuiHelper::path_filename_prefix(g_media_editor_settings.project_path);
+    static std::string project_name = g_media_editor_settings.project_path.empty() ? "Untitled" : ImGuiHelper::path_filename_prefix(g_media_editor_settings.project_path);
     const ImGuiFileDialogFlags fflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_DisableCreateDirectoryButton | ImGuiFileDialogFlags_Modal;
     const ImGuiFileDialogFlags pflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_ConfirmOverwrite | ImGuiFileDialogFlags_Modal;
     const std::string pfilters = "Project files (*.mep){.mep},.*";
@@ -10167,7 +10167,10 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
         {
             // New Project
             if (!project_need_save)
+            {
                 NewProject();
+                project_name = "Untitled";
+            }
             else if (g_media_editor_settings.project_path.empty())
             {
                 show_file_dialog = true;
@@ -10231,12 +10234,14 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
                 SaveProject(g_media_editor_settings.project_path);
                 ImGui::CloseCurrentPopup();
                 NewProject();
+                project_name = "Untitled";
             }
             ImGui::SameLine();
             if (ImGui::Button("NO", ImVec2(40, 0)))
             {
                 ImGui::CloseCurrentPopup();
                 NewProject();
+                project_name = "Untitled";
             }
             ImGui::SetItemDefaultFocus();
             ImGui::EndPopup();
@@ -10537,6 +10542,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
                 }
                 CleanProject();
                 set_context_in_splash = false;
+                project_name = ImGuiHelper::path_filename_prefix(file_path);
                 g_loading_thread = new std::thread(LoadThread, file_path, set_context_in_splash);
             }
             if (userDatas.compare("ProjectSave") == 0)
@@ -10544,6 +10550,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
                 if (file_suffix.empty())
                     file_path += ".mep";
                 SaveProject(file_path);
+                project_name = ImGuiHelper::path_filename_prefix(file_path);
             }
             if (userDatas.compare("ProjectSaveAndNew") == 0)
             {
@@ -10551,6 +10558,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
                     file_path += ".mep";
                 SaveProject(file_path);
                 NewProject();
+                project_name = "Untitled";
             }
             if (userDatas.compare("ProjectSaveQuit") == 0)
             {
