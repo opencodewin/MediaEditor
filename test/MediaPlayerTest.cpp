@@ -279,9 +279,9 @@ static bool MediaPlayer_Frame(void * handle, bool app_will_quit)
         ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
         if (ImGui::BeginPopupModal("##about", NULL, ImGuiWindowFlags_AlwaysAutoResize))
         {
-            ImGui::Text("ImGUI Media Player(GStreamer)");
+            ImGui::Text("ImGUI Media Player");
             ImGui::Separator();
-            ImGui::Text("Dicky 2021");
+            ImGui::Text("OpenCodeWin 2023");
             ImGui::Separator();
             int i = ImGui::GetCurrentWindow()->ContentSize.x;
             ImGui::Indent((i - 40.0f) * 0.5f);
@@ -502,6 +502,10 @@ static bool MediaPlayer_Frame(void * handle, bool app_will_quit)
             g_mediaParser->Open(filePathName);
             g_isOpened = false;
             g_isOpening = true;
+            if (g_isLongCacheDur)
+                g_vidrdr->SetCacheDuration(G_DurTable[1].first, G_DurTable[1].second);
+            else
+                g_vidrdr->SetCacheDuration(G_DurTable[0].first, G_DurTable[0].second);
         }
         ImGuiFileDialog::Instance()->Close();
     }

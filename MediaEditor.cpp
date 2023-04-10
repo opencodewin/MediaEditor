@@ -1791,7 +1791,7 @@ static uint32_t CheckMediaType(std::string file_suffix)
 
 static bool InsertMedia(const std::string path)
 {
-    auto file_suffix = ImGuiHelper::path_suffix(path);
+    auto file_suffix = ImGuiHelper::path_filename_suffix(path);
     auto name = ImGuiHelper::path_filename(path);
     auto type = CheckMediaType(file_suffix);
     if (timeline)
@@ -1820,7 +1820,7 @@ static bool ReloadMedia(std::string path, MediaItem* item)
     if (!timeline)
         return false;
     // first update media item
-    auto file_suffix = ImGuiHelper::path_suffix(path);
+    auto file_suffix = ImGuiHelper::path_filename_suffix(path);
     auto name = ImGuiHelper::path_filename(path);
     // check type match
     auto type = CheckMediaType(file_suffix);
@@ -9948,6 +9948,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
     ImGuiContext& g = *GImGui;
     if (!g_media_editor_settings.UILanguage.empty() && g.LanguageName != g_media_editor_settings.UILanguage)
         g.LanguageName = g_media_editor_settings.UILanguage;
+    std::string project_name = g_media_editor_settings.project_path.empty() ? "Untitled" : ImGuiHelper::path_filename_prefix(g_media_editor_settings.project_path);
     const ImGuiFileDialogFlags fflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_DisableCreateDirectoryButton | ImGuiFileDialogFlags_Modal;
     const ImGuiFileDialogFlags pflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_ConfirmOverwrite | ImGuiFileDialogFlags_Modal;
     const std::string pfilters = "Project files (*.mep){.mep},.*";
@@ -9981,6 +9982,8 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
     //if (show_debug) ImGui::ShowMetricsWindow(&show_debug);
     // for debug end
 
+    if (!logo_texture && !icon_file.empty()) logo_texture = ImGui::ImLoadTexture(icon_file.c_str());
+    if (!codewin_texture) codewin_texture = ImGui::ImCreateTexture(codewin::codewin_pixels, codewin::codewin_width, codewin::codewin_height);
     if (!set_context_in_splash)
     {
         if (g_project_loading)
@@ -9992,7 +9995,8 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             ImGui::SetNextWindowViewport(viewport->ID);
         if (ImGui::BeginPopupModal("Project Loading", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings))
         {
-            ImGui::Text("Project Loading...");
+            ImGui::Text("%s ", project_name.c_str()); ImGui::SameLine();
+            ImGui::TextUnformatted("Project Loading...");
             ImGui::Separator();
             ImGui::BufferingBar("##project_loading_bar", g_project_loading_percentage, ImVec2(400, 6), 0.75, ImGui::GetColorU32(ImGuiCol_Button), ImGui::GetColorU32(ImGuiCol_ButtonHovered));
             if (!g_project_loading) ImGui::CloseCurrentPopup();
@@ -10084,8 +10088,45 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
     g_media_editor_settings.TopViewHeight = main_height / window_size.y;
     g_media_editor_settings.BottomViewHeight = timeline_height / window_size.y;
     ImGui::PopID();
-    ImVec2 main_pos = window_pos + ImVec2(4, 0);
-    ImVec2 main_size(window_size.x, main_height + 4);
+
+    // title bar, show project info
+    ImVec2 title_pos = window_pos;
+    ImVec2 title_size = ImVec2(window_size.x, 32);
+    ImGui::GetWindowDrawList()->AddRectFilled(title_pos, title_pos + title_size, COL_DARK_TWO);
+    std::string title_str = "Project:" + project_name;
+    ImGui::SetWindowFontScale(1.2);
+    ImGui::SetCursorScreenPos(title_pos + ImVec2(16, 4));
+    if (logo_texture) { ImGui::Image(logo_texture, ImVec2(24, 24)); ImGui::SameLine(); }
+    else if (codewin_texture) { ImGui::Image(codewin_texture, ImVec2(24, 24)); ImGui::SameLine(); }
+    ImGui::TextUnformatted("Project:"); ImGui::SameLine();
+    ImGui::Text("%s", project_name.c_str());
+    ImGui::SetWindowFontScale(1.0);
+    // show meters
+    if (g_media_editor_settings.showMeters)
+    {
+        std::ostringstream oss;
+        oss << std::fixed << std::setprecision(2) << ImGui::GetIO().DeltaTime * 1000.f << "ms/frame ";
+        oss << ImGui::GetIO().Framerate << "FPS";
+#if IMGUI_VULKAN_SHADER
+        int device_count = ImGui::get_gpu_count();
+        for (int i = 0; i < device_count; i++)
+        {
+            ImGui::VulkanDevice* vkdev = ImGui::get_gpu_device(i);
+            std::string device_name = vkdev->info.device_name();
+            uint32_t gpu_memory_budget = vkdev->get_heap_budget();
+            uint32_t gpu_memory_usage = vkdev->get_heap_usage();
+            oss << " GPU[" << i << "]:" << device_name << " VRAM(" << gpu_memory_usage << "MB/" << gpu_memory_budget << "MB)";
+        }
+#endif
+        std::string meters = oss.str();
+        auto str_size = ImGui::CalcTextSize(meters.c_str());
+        auto spos = title_pos + ImVec2(title_size.x - str_size.x - 8, 8);
+        ImGui::GetWindowDrawList()->AddText(spos, IM_COL32(255,255,255,128), meters.c_str());
+    }
+
+    // main window
+    ImVec2 main_pos = window_pos + ImVec2(4, 32);
+    ImVec2 main_size(window_size.x, main_height + 4 - 32);
     ImGui::SetNextWindowPos(main_pos, ImGuiCond_Always);
     if (ImGui::BeginChild("##Top_Panel", main_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
     {
@@ -10113,9 +10154,10 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
         {
             // Open Project
             show_file_dialog = true;
+            std::string project_path = g_media_editor_settings.project_path.empty() ? "." : ImGuiHelper::path_url(g_media_editor_settings.project_path);
             ImGuiFileDialog::Instance()->OpenDialog("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Open Project File", 
                                                     pfilters.c_str(),
-                                                    ".",
+                                                    project_path.c_str(),
                                                     1, 
                                                     IGFDUserDatas("ProjectOpen"), 
                                                     fflags);
@@ -10131,7 +10173,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
                 show_file_dialog = true;
                 ImGuiFileDialog::Instance()->OpenDialog("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Save Project File", 
                                                     pfilters.c_str(),
-                                                    ".",
+                                                    "Untitled.mep",
                                                     1, 
                                                     IGFDUserDatas("ProjectSaveAndNew"), 
                                                     pflags);
@@ -10147,9 +10189,10 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
         {
             // Save Project
             show_file_dialog = true;
+            std::string project_path = g_media_editor_settings.project_path.empty() ? "Untitled.mep" : g_media_editor_settings.project_path;
             ImGuiFileDialog::Instance()->OpenDialog("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Save Project File", 
                                                     pfilters.c_str(),
-                                                    ".",
+                                                    project_path.c_str(),
                                                     1, 
                                                     IGFDUserDatas("ProjectSave"), 
                                                     pflags);
@@ -10200,8 +10243,8 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
         }
 
         // add banks window
-        ImVec2 bank_pos = window_pos + ImVec2(4 + tool_icon_size, 0);
-        ImVec2 bank_size(control_pane_width - 4 - tool_icon_size, main_window_size.y - 4);
+        ImVec2 bank_pos = window_pos + ImVec2(4 + tool_icon_size, 32);
+        ImVec2 bank_size(control_pane_width - 4 - tool_icon_size, main_window_size.y - 4 - 32);
         if (!g_media_editor_settings.ExpandScope)
             bank_size -= ImVec2(0, scope_height + 32);
         ImGui::SetNextWindowPos(bank_pos, ImGuiCond_Always);
@@ -10211,7 +10254,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             ImGui::TabLabels(numControlPanelTabs, ControlPanelTabNames, ControlPanelIndex, ControlPanelTabTooltips , false, true, nullptr, nullptr, false, false, nullptr, nullptr);
 
             // make control panel area
-            ImVec2 area_pos = window_pos + ImVec2(tool_icon_size + 4, 32);
+            ImVec2 area_pos = window_pos + ImVec2(tool_icon_size + 4, 32 + 32);
             ImGui::PushStyleColor(ImGuiCol_ChildBg, COL_DARK_ONE);
             ImGui::SetNextWindowPos(area_pos, ImGuiCond_Always);
             if (ImGui::BeginChild("##Control_Panel_content", bank_window_size - ImVec2(4, 32), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings))
@@ -10265,8 +10308,8 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             ShowMediaAnalyseWindow(timeline);
         }
 
-        ImVec2 main_sub_pos = window_pos + ImVec2(control_pane_width + 8, 0);
-        ImVec2 main_sub_size(main_width - 8, main_window_size.y - 4);
+        ImVec2 main_sub_pos = window_pos + ImVec2(control_pane_width + 8, 32);
+        ImVec2 main_sub_size(main_width - 8, main_window_size.y - 4 - 32);
         ImGui::SetNextWindowPos(main_sub_pos, ImGuiCond_Always);
         if (ImGui::BeginChild("##Main_Window", main_sub_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar))
         {
@@ -10275,28 +10318,6 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             if (ImGui::TabLabels(numMainWindowTabs, MainWindowTabNames, MainWindowIndex, MainWindowTabTooltips , false, true, nullptr, nullptr, false, false, nullptr, nullptr))
             {
                 UIPageChanged();
-            }
-            // show meters
-            if (g_media_editor_settings.showMeters)
-            {
-                std::ostringstream oss;
-                oss << std::fixed << std::setprecision(2) << ImGui::GetIO().DeltaTime * 1000.f << "ms/frame ";
-                oss << ImGui::GetIO().Framerate << "FPS";
-#if IMGUI_VULKAN_SHADER
-                int device_count = ImGui::get_gpu_count();
-                for (int i = 0; i < device_count; i++)
-                {
-                    ImGui::VulkanDevice* vkdev = ImGui::get_gpu_device(i);
-                    std::string device_name = vkdev->info.device_name();
-                    uint32_t gpu_memory_budget = vkdev->get_heap_budget();
-                    uint32_t gpu_memory_usage = vkdev->get_heap_usage();
-                    oss << " GPU[" << i << "]:" << device_name << " VRAM(" << gpu_memory_usage << "MB/" << gpu_memory_budget << "MB)";
-                }
-#endif
-                std::string meters = oss.str();
-                auto str_size = ImGui::CalcTextSize(meters.c_str());
-                auto spos = main_sub_pos + ImVec2(main_sub_size.x - str_size.x - 8, 0);
-                draw_list->AddText(spos, IM_COL32_WHITE, meters.c_str());
             }
 
             ImRect video_rect;
@@ -10567,6 +10588,7 @@ bool MediaEditor_Splash_Screen(void* handle, bool app_will_quit)
     ImGuiContext& g = *GImGui;
     if (!g_media_editor_settings.UILanguage.empty() && g.LanguageName != g_media_editor_settings.UILanguage)
         g.LanguageName = g_media_editor_settings.UILanguage;
+    std::string project_name = g_media_editor_settings.project_path.empty() ? "Untitled" : ImGuiHelper::path_filename_prefix(g_media_editor_settings.project_path);
     ImGuiCond cond = ImGuiCond_None;
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
                             ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | 
@@ -10578,11 +10600,14 @@ bool MediaEditor_Splash_Screen(void* handle, bool app_will_quit)
     bool title_finished = Show_Version(draw_list, splash_start_time);
     if (g_project_loading)
     {
-        std::string load_str = "Project Loading...";
+        std::string load_str = project_name + " Project Loading...";
         auto loading_size = ImGui::CalcTextSize(load_str.c_str());
         float xoft = (io.DisplaySize.x - loading_size.x) / 2;
         float yoft = io.DisplaySize.y - loading_size.y - 32 - 8;
-        draw_list->AddText(ImVec2(xoft, yoft), IM_COL32(255, 255, 255, 255), load_str.c_str());
+        ImGui::SetCursorPos(ImVec2(xoft, yoft));
+        ImGui::Text("%s ", project_name.c_str()); ImGui::SameLine();
+        ImGui::TextUnformatted("Project Loading...");
+        //draw_list->AddText(ImVec2(xoft, yoft), IM_COL32(255, 255, 255, 255), load_str.c_str());
         ImGui::SetCursorPos(ImVec2(4, io.DisplaySize.y - 32));
         ImGui::ProgressBar("##splash_progress", g_project_loading_percentage, 0.f, 1.f, "", ImVec2(io.DisplaySize.x - 16, 8), 
                                 ImVec4(0.3f, 0.3f, 0.8f, 1.f), ImVec4(0.1f, 0.1f, 0.2f, 1.f), ImVec4(0.f, 0.f, 0.8f, 1.f));
