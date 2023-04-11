@@ -13,8 +13,8 @@
 1. Click "Add new media in bank" in the media bank to open the file browser;
 2. Switch the directory to "/Users/fans/Resources" in the file browser;
 3. Select the "Sprite Right.mp4" file;
-4. Click "OK" to add a file to the media bank;
-5. Move the mouse to the video file named "Sprite Right" in the media bank and hold down the left button, then drag the file to the timeline area. Release the left button when the yellow outline appears on the timeline edge;
+4. Click "OK" to add a material to the media bank;
+5. Move the mouse to the video material named "Sprite Right" in the media bank and hold down the left button, then drag the file to the timeline area. Release the left button when the yellow outline appears on the timeline edge;
 6. The video clip named "Sprite Right" has been added to the timeline. At this time, there are two tracks on the timeline, the video track V1 and the audio track A1. Each track corresponds to a clip of the same type as the track.
 
 <img src="../source/images/add-clip.gif" />
@@ -37,17 +37,17 @@
 1. Click "Add new media in bank" in the media bank to open the file browser;
 2. In the file browser, switch to "/Users/fans/Sources".
 3. Select the "Music1.mp3" file.
-4. Click "OK" to add the audio file to the media bank;
+4. Click "OK" to add the audio material to the media bank;
 5. Move the mouse pointer to "Music1" in the media bank and hold down the left button. Drag the segment to the timeline area and release the left button when the yellow outline appears at the edge of the timeline;
 6. The audio track A2 appears in the timeline, on which is an audio clip called "Music1";
 7. Align the tail of the audio clip named "Music1" on the tail of a video clip named "Sprite Fright" through magnetic alignment.
 
 <img src="../source/images/add-music.gif" />
 
-### Add more clips
+### Add more materials
 1. Open File Explorer (or Finder) and go to "/Users/fans/Sources".
 2. Select multiple audio and video files, including "Cosmos Laundromat.mp4", "Music2.aac", etc.;
-3. Drag all files to the media bank and release the left button. All files are added to the media bank.
+3. Drag all files to the media bank and release the left button. All materials are added to the media bank.
 
 <img src="../source/images/add-more-clip.gif" />
 
