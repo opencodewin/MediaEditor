@@ -31,7 +31,7 @@ MediaEditor Community(MEC) is a highly integrated and easy to learn application 
   &emsp;<img src="docs/assets/fusion.gif" alt="fusion">
 * Support about 10 video and audio analysis tools🍂.
 
-  &emsp;🍂Video CIE&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;🍂Video Waveform&emsp;&emsp;&emsp;&emsp;&emsp;🍂Audio Spectrogram
+  &emsp;🍂Video CIE&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;🍂Video Waveform&emsp;&emsp;&emsp;&emsp;🍂Audio Spectrogram
 
   &emsp;<img src="docs/assets/cie.gif" /><img src="docs/assets/waveform.gif" /><img src="docs/assets/spec.gif" />
 

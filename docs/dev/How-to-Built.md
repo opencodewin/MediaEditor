@@ -1,12 +1,13 @@
-# Building Media Editor Community
+# Build MediaEditor Community
 
-## To ensure cross-platform, it's recommended to install Vulkan SDK
+## Step 1: Install additional components
+- [x] [Git](https://git-scm.com/downloads/)
 - [x] [Vulkan](https://vulkan.lunarg.com/sdk/home) is a new-generation graphics and compute API for **high-efficiency, cross-platform** access to GPUs.
 
-## Step 1: Download source code
+## Step 2: Download source code
     git clone --recurse-submodules https://github.com/opencodewin/MediaEditor.git
 
-## Step 2: Building source code
+## Step 3: Build source code
 ### Supported platforms
 Currently supported distributions are:
 -   [Microsoft Windows 10 and above](#microsoft-windows)
@@ -16,8 +17,9 @@ Currently supported distributions are:
 ### Microsoft Windows
 #### 1. Install MSYS2(Mingw64)
 - [x] [MSYS2](https://www.msys2.org) is a collection of **tools and libraries** providing you with an easy-to-use environment for **building, installing and running native Windows software**.
-#### 2. Install related packages
-    pacman -Syu && pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake git \
+
+#### 2. Install related packages. Open the MSYS2 commandline and enter
+    pacman -Syu && pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake \
         mingw-w64-x86_64-ffmpeg mingw-w64-x86_64-openmp mingw-w64-x86_64-zlib \
         mingw-w64-x86_64-glslang mingw-w64-x86_64-pkgconf mingw-w64-x86_64-spirv-tools \
         mingw-w64-x86_64-glew mingw-w64-x86_64-glfw mingw-w64-x86_64-SDL2 \
@@ -26,30 +28,33 @@ Currently supported distributions are:
 #### 3. Build MEC
     cd MediaEditor && \
     mkdir build && cd build && \
-    cmake .. && make -j8
+    cmake .. && make -j
 
 ### Ubuntu
-#### 1. Install related packages
-    sudo apt update && sudo apt install build-essential cmake git \
+#### 1. Install related packages. Open the terminal and enter
+    sudo apt update && sudo apt install build-essential cmake \
              ffmpeg libomp-dev zlib1g-dev glslang-dev pkg-config spirv-tools \
              libglew-dev libglfw3-dev libsdl2-dev libsdl2-image-dev libass-dev \
              libfontconfig-dev libfreetype-dev
 #### 2. Build MEC
     cd MediaEditor && \
     mkdir build && cd build && \
-    cmake .. && make -j8
+    cmake .. && make -j
 
 ### MacOS
 #### 1. Install Xcode Command Line Tools
     xcode-select --install
 #### 2. Install Homebrew
     /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-#### 3. Install other related packages
-    brew install cmake git ffmpeg libomp zlib glslang pkg-config \
+#### 3. Install related packages. Open the terminal and enter
+    brew install cmake ffmpeg libomp zlib glslang pkg-config \
                  spirv-tools glew glfw sdl2 sdl2_image libass fontconfig freetype
 #### 4. Build MEC
     cd MediaEditor && \
     mkdir build && cd build && \
-    cmake .. && make -j8
+    cmake .. && make -j
 
-## Step 3: Generate installation package
+## Step 4: Generate installation package
+    cmake --build . --target package
+#### The Windows platform requires NSIS v3.0.8.
+- [x] [NSIS](https://nsis.sourceforge.io/Download) is a professional open-source tool for **creating Windows installation programs**.
