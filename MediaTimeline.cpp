@@ -6761,8 +6761,9 @@ int TimeLine::Load(const imgui_json::value& value)
         amFilter->SetEqualizerParamsByIndex(&equalizerParams, i);
     }
 
+    mMtvReader->SeekTo(currentTime, true);
+    mMtaReader->SeekTo(currentTime, false);
     SyncDataLayer(true);
-    mMtaReader->SeekTo(currentTime);
     return 0;
 }
 
