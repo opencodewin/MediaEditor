@@ -30,11 +30,6 @@ static MediaCore::MediaReader::Holder g_vidrdr;
 static double g_playStartPos = 0.f;
 static std::chrono::steady_clock::time_point g_playStartTp;
 static bool g_isPlay = false;
-static bool g_isLongCacheDur = false;
-static const std::pair<double, double> G_DurTable[] = {
-    {  5, 1 },
-    { 10, 2 },
-};
 static ImTextureID g_texture = 0;
 // audio
 static MediaCore::MediaReader::Holder g_audrdr;
@@ -124,7 +119,7 @@ static void MediaPlayer_Initialize(void** handle)
 
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     io.IniFilename = ini_file.c_str();
-    g_vidrdr = MediaCore::MediaReader::CreateInstance();
+    g_vidrdr = MediaCore::MediaReader::CreateVideoInstance();
     g_audrdr = MediaCore::MediaReader::CreateInstance();
 
     g_pcmStream = new SimplePcmStream(g_audrdr);
@@ -257,6 +252,7 @@ static bool MediaPlayer_Frame(void * handle, bool app_will_quit)
                 g_playStartPos = playPos;
                 if (g_audrdr->IsOpened())
                     g_audrnd->Pause();
+                audio_decibel_left = audio_decibel_right = 0;
             }
         }
         ImGui::ShowTooltipOnHover("Toggle Play/Pause.");
@@ -496,16 +492,11 @@ static bool MediaPlayer_Frame(void * handle, bool app_will_quit)
             g_audioStreamCount = 0;
             g_chooseAudioIndex = -1;
             if (g_texture) { ImGui::ImDestroyTexture(g_texture); g_texture = nullptr; }
-            g_isLongCacheDur = false;
             std::string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
             g_mediaParser = MediaCore::MediaParser::CreateInstance();
             g_mediaParser->Open(filePathName);
             g_isOpened = false;
             g_isOpening = true;
-            if (g_isLongCacheDur)
-                g_vidrdr->SetCacheDuration(G_DurTable[1].first, G_DurTable[1].second);
-            else
-                g_vidrdr->SetCacheDuration(G_DurTable[0].first, G_DurTable[0].second);
         }
         ImGuiFileDialog::Instance()->Close();
     }
@@ -554,6 +545,7 @@ void Application_Setup(ApplicationWindowProperty& property)
     //property.power_save = false;
     property.width = 1280;
     property.height = 720;
+    property.font_scale = 1.5f;
     property.application.Application_Initialize = MediaPlayer_Initialize;
     property.application.Application_Finalize = MediaPlayer_Finalize;
     property.application.Application_Frame = MediaPlayer_Frame;

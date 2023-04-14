@@ -10126,7 +10126,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
 
     // main window
     ImVec2 main_pos = window_pos + ImVec2(4, 32);
-    ImVec2 main_size(window_size.x, main_height + 4 - 32);
+    ImVec2 main_size(window_size.x, main_height + 4); // if we need add toolbar, should add here
     ImGui::SetNextWindowPos(main_pos, ImGuiCond_Always);
     if (ImGui::BeginChild("##Top_Panel", main_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
     {
