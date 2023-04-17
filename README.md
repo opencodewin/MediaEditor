@@ -60,6 +60,46 @@ MEC's developers work hard to make it support a large range of devices and opera
 |---|---|
 |<img src="docs/assets/audio-mixing.png" />|<img src="docs/assets/media-output.png" />|
 
+## FILTERS&FUSIONS
+|<div>**Chroma Key**</div>|
+|---|
+|<img src="docs/assets/f1.jpeg" />|
+
+| | | | | |
+|-----------------|----------------|:--------------|:----------------|:--------------|
+| ALM Enhancement | CAS Sharpen    | Deband        | Deinterlace     | USM Sharpen   |
+| Bilateral Blur  | Box Blur       | Gaussian Blur | Brightness      | Color Balance |
+| Color Curve     | Color Invert   | Contrast      | Exposure        | Gamma         |
+| Hue             | Lut 3D         | Saturation    | Vibrance        | White Balance |
+| Canny Edge      | Laplacian Edge | Sobel Edge    | **Chroma Key**      | Guided Filter |
+| Flip            | HQDN3D Denoise | Gain          | Audio Equalizer |               |
+| | | | | |
+
+|<div>**Cube**</div>|
+|---|
+|<img src="docs/assets/fs1.jpeg" />|
+
+|<div>**Heart**</div>|
+|---|
+|<img src="docs/assets/fs2.jpeg" />|
+
+| | | | | |
+|-----------------|----------------|:--------------|:----------------|:--------------|
+| BookFlip       | Bounce        | PageCurl        | Swap          | DoomScreen     |
+| WindowSlice    | Wind          | Slider          | Door          | Rolls          |
+| StereoViewer   | **Cube**          | RotateScale     | Doorway       | SimpleZoom     |
+| Wipe           | BowTie        | DirectionalWarp | Move          | Radial         |
+| GridFlip       | Hexagonalize  | Mosaic          | SquaresWire   | KaleidoScope   |
+| GlitchMemories | CrossWarp     | CrazyParametric | Polar         | ButterflyWave  |
+| Perlin         | RandomSquares | BurnOut         | Dreamy        | WaterDrop      |
+| Crosshatch     | Pinwheel      | Flyeye          | **Heart**         | GlitchDisplace |
+| ZoomInCircles  | WindowBlinds  | CrossZoom       | Ripple        | PolkaDots      |
+| DreamyZoom     | Swirl         | CircleBlur      | Squeeze       | CannabisLeaf   |
+| CircleCrop     | Alpha         | Pixelize        | LinearBlur    | Fade           |
+| LuminanceMelt  | Morph         | Burn            | MultiplyBlend | ColorDistance  |
+| ColorPhase     |               |                 |               |                |
+| | | | | |
+
 ## DEPENDENCIES
 Although installers are much easier to use, if you must build from 
 source, here are some tips: 
