@@ -60,11 +60,7 @@ MEC's developers work hard to make it support a large range of devices and opera
 |---|---|
 |<img src="docs/assets/audio-mixing.png" />|<img src="docs/assets/media-output.png" />|
 
-## FILTERS&FUSIONS
-**Chroma Key**
-
-<img src="docs/assets/f1.jpeg" />
-
+## FILTERS
 | | | | | |
 |-----------------|----------------|:--------------|:----------------|:--------------|
 | ALM Enhancement | CAS Sharpen    | Deband        | Deinterlace     | USM Sharpen   |
@@ -75,14 +71,11 @@ MEC's developers work hard to make it support a large range of devices and opera
 | Flip            | HQDN3D Denoise | Gain          | Audio Equalizer |               |
 | | | | | |
 
-**Cube**
+**Chroma Key**
 
-<img src="docs/assets/fs1.jpeg" />
+<img src="docs/assets/f1.jpeg" />
 
-**Heart**
-
-<img src="docs/assets/fs2.jpeg" />
-
+## FUSIONS
 | | | | | |
 |-----------------|----------------|:--------------|:----------------|:--------------|
 | BookFlip       | Bounce        | PageCurl        | Swap          | DoomScreen     |
@@ -99,6 +92,14 @@ MEC's developers work hard to make it support a large range of devices and opera
 | LuminanceMelt  | Morph         | Burn            | MultiplyBlend | ColorDistance  |
 | ColorPhase     |               |                 |               |                |
 | | | | | |
+
+**Cube**
+
+<img src="docs/assets/fs1.jpeg" />
+
+**Heart**
+
+<img src="docs/assets/fs2.jpeg" />
 
 ## DEPENDENCIES
 Although installers are much easier to use, if you must build from 
