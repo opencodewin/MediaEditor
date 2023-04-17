@@ -61,9 +61,9 @@ MEC's developers work hard to make it support a large range of devices and opera
 |<img src="docs/assets/audio-mixing.png" />|<img src="docs/assets/media-output.png" />|
 
 ## FILTERS&FUSIONS
-|<div>**Chroma Key**</div>|
-|---|
-|<img src="docs/assets/f1.jpeg" />|
+**Chroma Key**
+
+<img src="docs/assets/f1.jpeg" />
 
 | | | | | |
 |-----------------|----------------|:--------------|:----------------|:--------------|
@@ -75,13 +75,13 @@ MEC's developers work hard to make it support a large range of devices and opera
 | Flip            | HQDN3D Denoise | Gain          | Audio Equalizer |               |
 | | | | | |
 
-|<div>**Cube**</div>|
-|---|
-|<img src="docs/assets/fs1.jpeg" />|
+**Cube**
 
-|<div>**Heart**</div>|
-|---|
-|<img src="docs/assets/fs2.jpeg" />|
+<img src="docs/assets/fs1.jpeg" />
+
+**Heart**
+
+<img src="docs/assets/fs2.jpeg" />
 
 | | | | | |
 |-----------------|----------------|:--------------|:----------------|:--------------|
