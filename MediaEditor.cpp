@@ -35,6 +35,7 @@
 #include "FFUtils.h"
 #include "FontManager.h"
 #include "Logger.h"
+#include "DebugHelper.h"
 #include <sstream>
 #include <iomanip>
 
@@ -9934,6 +9935,9 @@ static void MediaEditor_DropFromSystem(std::vector<std::string>& drops)
 
 static bool MediaEditor_Frame(void * handle, bool app_will_quit)
 {
+#if !defined(NDEBUG)
+    MediaCore::AutoSection _as("MEFrm");
+#endif
     static bool app_done = false;
     const float media_icon_size = 96; 
     const float scope_height = 256;
@@ -10589,6 +10593,18 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
     return app_done;
 }
 
+#if !defined(NDEBUG)
+static bool MediaEditor_Frame_wrapper(void * handle, bool app_will_quit)
+{
+    auto hPa = MediaCore::PerformanceAnalyzer::GetThreadLocalInstance();
+    hPa->Reset();
+    auto ret = MediaEditor_Frame(handle, app_will_quit);
+    hPa->End();
+    hPa->LogAndClearStatistics(Logger::VERBOSE);
+    return ret;
+}
+#endif
+
 bool MediaEditor_Splash_Screen(void* handle, bool app_will_quit)
 {
     static int32_t splash_start_time = ImGui::get_current_time_msec();
@@ -10683,5 +10699,9 @@ void Application_Setup(ApplicationWindowProperty& property)
     property.application.Application_Finalize = MediaEditor_Finalize;
     property.application.Application_DropFromSystem = MediaEditor_DropFromSystem;
     property.application.Application_SplashScreen = MediaEditor_Splash_Screen;
+#if defined(NDEBUG)
     property.application.Application_Frame = MediaEditor_Frame;
+#else
+    property.application.Application_Frame = MediaEditor_Frame_wrapper;
+#endif
 }

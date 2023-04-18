@@ -5359,7 +5359,7 @@ void TimeLine::UpdateCurrent()
 
 void TimeLine::UpdatePreview()
 {
-    mMtvReader->Refresh();
+    mMtvReader->Refresh(true);
     mIsPreviewNeedUpdate = true;
 }
 
