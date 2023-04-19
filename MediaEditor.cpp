@@ -374,7 +374,7 @@ struct MediaEditorSettings
     bool HistogramLog {false};
     bool HistogramSplited {true};
     bool HistogramYRGB  {true};
-    float HistogramScale {0.001};
+    float HistogramScale {0.05};
 
     // Waveform Scope tools
     bool WaveformMirror {true};
@@ -8436,7 +8436,7 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                 }
                 if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
                 {
-                    g_media_editor_settings.HistogramScale = g_media_editor_settings.HistogramLog ? 0.1 : 0.002f;
+                    g_media_editor_settings.HistogramScale = g_media_editor_settings.HistogramLog ? 0.1 : 0.05f;
                     need_update_scope = true;
                 }
             }

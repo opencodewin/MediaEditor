@@ -3877,11 +3877,11 @@ void MediaTrack::InsertClip(Clip * clip, int64_t pos, bool update, std::list<img
     {
         return _clip->mID == clip->mID;
     });
-    if (pos != -1) timeline->AlignTime(pos);
+    if (pos > 0) timeline->AlignTime(pos);
     if (iter == m_Clips.end())
     {
         int64_t length = clip->mEnd - clip->mStart;
-        clip->mStart = pos == -1 ? 0 : pos;
+        clip->mStart = pos <= 0 ? 0 : pos;
         clip->mEnd = clip->mStart + length;
         clip->ConfigViewWindow(mViewWndDur, mPixPerMs);
         clip->SetTrackHeight(mTrackHeight);
