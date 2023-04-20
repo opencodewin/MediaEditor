@@ -22,6 +22,9 @@
 
 MediaEditor Community(MEC) is a highly integrated and easy to learn application software that can be used to **create, edit, and produce** high-quality videos. The functions involve **video editing, video filters, video fusion, audio mixing, and text processing**.🌼
 
+## News
+⭐️⭐️⭐️ - 2023/4/20 MediaEditor Community first release v0.9.6 is now available; you can download binary-packages from [here](https://github.com/opencodewin/MediaEditor/releases). ⭐️⭐️⭐️
+
 ## FEATURES
 * Support complete timeline editing functions, including move, crop, cut, thumbnail preview, scale and delete.
   &emsp;<img src="docs/assets/timeline.png" alt="timeline">
