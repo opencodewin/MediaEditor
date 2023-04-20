@@ -56,6 +56,8 @@ MediaEditor Community(MEC) is a highly integrated and easy to learn application 
 ## GETTING STARTED
 MEC's developers work hard to make it support a large range of devices and operating systems. We provide final as well as development builds. To get started, head over to the **[downloads page💠](https://github.com/opencodewin/MediaEditor/releases)** and simply select the platform that you want to install it on. A **[quick guide📝](docs/dev/Quick-Start.md)** to help you get acquainted with MEC is available in our docs.
 
+⚠️⚠️⚠️ Vulkan sdk is necessary, please download and install it [here](https://vulkan.lunarg.com/sdk/home).
+
 ## SCREENSHOT
 |<div>Video Filter</div>|<div>Video Fusion</div>|
 |---|---|
