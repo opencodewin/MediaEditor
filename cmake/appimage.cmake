@@ -45,7 +45,7 @@ function(make_appimage)
     file(RENAME "${CMAKE_BINARY_DIR}/${TEMP}" "${ICON_FILE}")
 
     # use linuxdeploy to generate the appimage
-    set(ENV{OUTPUT} "${ARGS_OUTPUT_NAME}-x86_64.AppImage")
+    set(ENV{OUTPUT} "${ARGS_OUTPUT_NAME}.AppImage")
     execute_process(COMMAND ${LINUX_DEPLOY_PATH} --appdir ${APPDIR} -e ${ARGS_EXE} -d ${DESKTOP_FILE} -i ${ICON_FILE} --output appimage)
 
 endfunction()

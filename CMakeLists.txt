@@ -370,7 +370,7 @@ elseif(UNIX)
             PROJECT_DIR \"${PROJECT_SOURCE_DIR}\"
             EXE \"mec\"
             NAME \"Media Editor Community\"
-            OUTPUT_NAME \"${CPACK_PACKAGE_NAME}\"
+            OUTPUT_NAME \"${CPACK_PACKAGE_NAME}-${CPACK_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}-${CPACK_PACKAGE_VERSION}\"
             DESKTOP_SRC \"${PROJECT_SOURCE_DIR}/resources/mec.desktop\"
             ICON_SRC \"${PROJECT_SOURCE_DIR}/resources/mec_logo.png\"
             RESOURCE_FILES \"${PROJECT_SOURCE_DIR}/languages/mec_language.ini\"
