@@ -284,24 +284,24 @@ endif(BUILD_TEST)
 endif(IMGUI_APPS)
 
 ### DEFINE THE PACKAGING (OS specific)
-set(CPACK_SYSTEM_NAME  "mec")
+set(CPACK_PACKAGE_NAME  "mec")
 if (IMGUI_VULKAN)
     if (IMGUI_SDL2)
-        set(CPACK_SYSTEM_NAME  "MEC_SDL2_Vulkan")
+        set(CPACK_PACKAGE_NAME  "MEC_SDL2_Vulkan")
     elseif (IMGUI_GLFW)
-        set(CPACK_SYSTEM_NAME  "MEC_GLFW_Vulkan")
+        set(CPACK_PACKAGE_NAME  "MEC_GLFW_Vulkan")
     endif()
 elseif (IMGUI_GL3)
     if (IMGUI_SDL2)
-        set(CPACK_SYSTEM_NAME  "MEC_SDL2_OpenGL3")
+        set(CPACK_PACKAGE_NAME  "MEC_SDL2_OpenGL3")
     elseif (IMGUI_GLFW)
-        set(CPACK_SYSTEM_NAME  "MEC_GLFW_OpenGL3")
+        set(CPACK_PACKAGE_NAME  "MEC_GLFW_OpenGL3")
     endif()
 elseif (IMGUI_GL2)
     if (IMGUI_SDL2)
-        set(CPACK_SYSTEM_NAME  "MEC_SDL2_OpenGL2")
+        set(CPACK_PACKAGE_NAME  "MEC_SDL2_OpenGL2")
     elseif (IMGUI_GLFW)
-        set(CPACK_SYSTEM_NAME  "MEC_GLFW_OpenGL2")
+        set(CPACK_PACKAGE_NAME  "MEC_GLFW_OpenGL2")
     endif()
 endif()
 set(CPACK_RESOURCE_FILE_LICENSE "${PROJECT_SOURCE_DIR}/LICENSE")
@@ -314,6 +314,7 @@ set(CPACK_PACKAGE_VERSION_PATCH ${MEDIAEDITOR_VERSION_PATCH})
 
 if(IMGUI_APPS)
 if(APPLE)
+    set(CPACK_SYSTEM_NAME "macos")
     set(CMAKE_INSTALL_PREFIX ${PROJECT_BINARY_DIR})
     # Bundle target
     set(CPACK_GENERATOR DragNDrop)
@@ -362,19 +363,21 @@ if(APPLE)
     endif()
 
 elseif(UNIX)
+    set(CPACK_SYSTEM_NAME "linux")
     install(CODE "
         include(../cmake/appimage.cmake)
         make_appimage(
             PROJECT_DIR \"${PROJECT_SOURCE_DIR}\"
             EXE \"mec\"
             NAME \"Media Editor Community\"
-            OUTPUT_NAME \"${CPACK_SYSTEM_NAME}\"
+            OUTPUT_NAME \"${CPACK_PACKAGE_NAME}\"
             DESKTOP_SRC \"${PROJECT_SOURCE_DIR}/resources/mec.desktop\"
             ICON_SRC \"${PROJECT_SOURCE_DIR}/resources/mec_logo.png\"
             RESOURCE_FILES \"${PROJECT_SOURCE_DIR}/languages/mec_language.ini\"
         )
     " COMPONENT Runtime)
 elseif(WIN32)
+    set(CPACK_SYSTEM_NAME "win")
     macro(prepareNSIS_Link linkName appName params)
         #prepare start menu links
         LIST(APPEND CPACK_NSIS_CREATE_ICONS_EXTRA "  CreateShortCut '$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\${linkName}.lnk' '$INSTDIR\\\\bin\\\\${appName}.exe' '${params}'")
@@ -438,7 +441,7 @@ endif(APPLE)
 endif(IMGUI_APPS)
 
 # Package full name
-set(CPACK_PACKAGE_FILE_NAME "${CPACK_SYSTEM_NAME}")
+set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${CPACK_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}-${CPACK_PACKAGE_VERSION}")
 # To Create a package, run "cpack"
 include(CPack)
 endif (NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
