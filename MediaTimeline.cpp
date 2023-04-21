@@ -8450,6 +8450,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
     ImRect regionRect(canvas_pos, canvas_pos + timline_size);
     ImRect HorizonScrollBarRect;
     ImRect HorizonScrollHandleBarRect;
+    ImRect topRect {0, 0, 0, 0};
     static ImVec2 panningViewHorizonSource;
     static int64_t panningViewHorizonTime;
 
@@ -8503,6 +8504,10 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             ImGui::PopStyleColor();
             ImGui::PopStyleVar();
             ImGui::SetWindowFontScale(1.0);
+            if (regionRect.Contains(io.MousePos)&& ImGui::IsMouseReleased(ImGuiMouseButton_Right) && !ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Right))
+            {
+                ImGui::OpenPopup("##timeline-context-menu");
+            }
         }
     }
     else
@@ -8538,7 +8543,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         const ImRect legendAreaRect(contentMin, ImVec2(contentMin.x + legendWidth, contentMin.y + timline_size.y - (HeadHeight + 8)));
         const ImRect trackRect(ImVec2(contentMin.x + legendWidth, contentMin.y), contentMax);
         const ImRect trackAreaRect(ImVec2(contentMin.x + legendWidth, contentMin.y), ImVec2(contentMax.x, contentMin.y + timline_size.y - (HeadHeight + scrollSize + 8)));
-        const ImRect topRect(ImVec2(contentMin.x + legendWidth, canvas_pos.y), ImVec2(contentMin.x + timline_size.x, canvas_pos.y + HeadHeight));
+        topRect = ImRect(ImVec2(contentMin.x + legendWidth, canvas_pos.y), ImVec2(contentMin.x + timline_size.x, canvas_pos.y + HeadHeight));
 
         const float contentHeight = contentMax.y - contentMin.y;
         // full canvas background
@@ -8909,7 +8914,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             clipMenuEntry = -1;
             menuMouseTime = -1;
         }
-
+        
         if (ImGui::BeginPopup("##timeline-header-context-menu"))
         {
             if (headerMarkPos >= 0)
@@ -8938,118 +8943,6 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             ImGui::EndPopup();
         }
 
-        if (ImGui::BeginPopup("##timeline-context-menu"))
-        {
-            ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(255,255,255,255));
-            auto selected_clip_count = timeline->GetSelectedClipCount();
-            auto empty_track_count = timeline->GetEmptyTrackCount();
-            
-            if (ImGui::MenuItem(ICON_MEDIA_VIDEO  " Insert Empty Video Track", nullptr, nullptr))
-            {
-                insertEmptyTrackType = MEDIA_VIDEO;
-            }
-            if (ImGui::MenuItem(ICON_MEDIA_AUDIO " Insert Empty Audio Track", nullptr, nullptr))
-            {
-                insertEmptyTrackType = MEDIA_AUDIO;
-            }
-            if (ImGui::MenuItem(ICON_MEDIA_TEXT " Insert Empty Text Track", nullptr, nullptr))
-            {
-                insertEmptyTrackType = MEDIA_TEXT;
-            }
-
-            if (empty_track_count > 0)
-            {
-                if (ImGui::MenuItem(ICON_MEDIA_DELETE " Delete Empty Track", nullptr, nullptr))
-                {
-                    removeEmptyTrack = true;
-                }
-            }
-
-            if (clipMenuEntry != -1)
-            {
-                ImGui::Separator();
-                auto clip = timeline->FindClipByID(clipMenuEntry);
-                auto track = timeline->FindTrackByClipID(clip->mID);
-                bool disable_editing = IS_DUMMY(clip->mType);
-                ImGui::BeginDisabled(disable_editing);
-                if (ImGui::MenuItem(ICON_CROP " Edit Clip Attribute", nullptr, nullptr))
-                {
-                    track->SelectEditingClip(clip, false);
-                }
-                if (ImGui::MenuItem(ICON_BLUE_PRINT " Edit Clip Filter", nullptr, nullptr))
-                {
-                    track->SelectEditingClip(clip, true);
-                }
-                ImGui::EndDisabled();
-                if (ImGui::MenuItem(ICON_MEDIA_DELETE_CLIP " Delete Clip", nullptr, nullptr))
-                {
-                    delClipEntry.push_back(clipMenuEntry);
-                }
-                if (clip->mGroupID != -1 && ImGui::MenuItem(ICON_MEDIA_UNGROUP " Ungroup Clip", nullptr, nullptr))
-                {
-                    unGroupClipEntry.push_back(clipMenuEntry);
-                }
-            }
-
-            if (selected_clip_count > 0)
-            {
-                ImGui::Separator();
-                if (ImGui::MenuItem(ICON_MEDIA_DELETE_CLIP " Delete Selected", nullptr, nullptr))
-                {
-                    for (auto clip : timeline->m_Clips)
-                    {
-                        if (clip->bSelected)
-                            delClipEntry.push_back(clip->mID);
-                    }
-                }
-                if (selected_clip_count > 1 && ImGui::MenuItem(ICON_MEDIA_GROUP " Group Selected", nullptr, nullptr))
-                {
-                    for (auto clip : timeline->m_Clips)
-                    {
-                        if (clip->bSelected)
-                            groupClipEntry.push_back(clip->mID);
-                    }
-                }
-                if (ImGui::MenuItem(ICON_MEDIA_UNGROUP " Ungroup Selected", nullptr, nullptr))
-                {
-                    for (auto clip : timeline->m_Clips)
-                    {
-                        if (clip->bSelected)
-                            unGroupClipEntry.push_back(clip->mID);
-                    }
-                }
-            }
-
-            if (trackMenuEntry >= 0 && clipMenuEntry < 0)
-            {
-                auto track = timeline->m_Tracks[trackMenuEntry];
-                if (IS_TEXT(track->mType))
-                {
-                    ImGui::Separator();
-                    if (ImGui::MenuItem(ICON_MEDIA_TEXT  " Add Text", nullptr, nullptr))
-                    {
-                        if (track->mMttReader && menuMouseTime != -1)
-                        {
-                            int64_t text_time = menuMouseTime;
-                            timeline->AlignTime(text_time);
-                            TextClip * clip = new TextClip(text_time, text_time + 5000, track->mID, track->mName, std::string(""), timeline);
-                            clip->CreateClipHold(track);
-                            clip->SetClipDefault(track->mMttReader->DefaultStyle());
-                            timeline->m_Clips.push_back(clip);
-                            track->InsertClip(clip, text_time);
-                            track->SelectEditingClip(clip, false);
-                            if (timeline->m_CallBacks.EditingClipFilter)
-                            {
-                                timeline->m_CallBacks.EditingClipFilter(clip->mType, clip);
-                            }
-                        }
-                    }
-                }
-            }
-
-            ImGui::PopStyleColor();
-            ImGui::EndPopup();
-        }
         ImGui::EndChildFrame();
 
         // Horizon Scroll bar control buttons
@@ -9482,6 +9375,121 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         ImGui::PopStyleColor();
     }
     
+        
+    // handle timeline context menu
+        if (ImGui::BeginPopup("##timeline-context-menu"))
+        {
+            ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(255,255,255,255));
+            auto selected_clip_count = timeline->GetSelectedClipCount();
+            auto empty_track_count = timeline->GetEmptyTrackCount();
+            
+            if (ImGui::MenuItem(ICON_MEDIA_VIDEO  " Insert Empty Video Track", nullptr, nullptr))
+            {
+                insertEmptyTrackType = MEDIA_VIDEO;
+            }
+            if (ImGui::MenuItem(ICON_MEDIA_AUDIO " Insert Empty Audio Track", nullptr, nullptr))
+            {
+                insertEmptyTrackType = MEDIA_AUDIO;
+            }
+            if (ImGui::MenuItem(ICON_MEDIA_TEXT " Insert Empty Text Track", nullptr, nullptr))
+            {
+                insertEmptyTrackType = MEDIA_TEXT;
+            }
+
+            if (empty_track_count > 0)
+            {
+                if (ImGui::MenuItem(ICON_MEDIA_DELETE " Delete Empty Track", nullptr, nullptr))
+                {
+                    removeEmptyTrack = true;
+                }
+            }
+
+            if (clipMenuEntry != -1)
+            {
+                ImGui::Separator();
+                auto clip = timeline->FindClipByID(clipMenuEntry);
+                auto track = timeline->FindTrackByClipID(clip->mID);
+                bool disable_editing = IS_DUMMY(clip->mType);
+                ImGui::BeginDisabled(disable_editing);
+                if (ImGui::MenuItem(ICON_CROP " Edit Clip Attribute", nullptr, nullptr))
+                {
+                    track->SelectEditingClip(clip, false);
+                }
+                if (ImGui::MenuItem(ICON_BLUE_PRINT " Edit Clip Filter", nullptr, nullptr))
+                {
+                    track->SelectEditingClip(clip, true);
+                }
+                ImGui::EndDisabled();
+                if (ImGui::MenuItem(ICON_MEDIA_DELETE_CLIP " Delete Clip", nullptr, nullptr))
+                {
+                    delClipEntry.push_back(clipMenuEntry);
+                }
+                if (clip->mGroupID != -1 && ImGui::MenuItem(ICON_MEDIA_UNGROUP " Ungroup Clip", nullptr, nullptr))
+                {
+                    unGroupClipEntry.push_back(clipMenuEntry);
+                }
+            }
+
+            if (selected_clip_count > 0)
+            {
+                ImGui::Separator();
+                if (ImGui::MenuItem(ICON_MEDIA_DELETE_CLIP " Delete Selected", nullptr, nullptr))
+                {
+                    for (auto clip : timeline->m_Clips)
+                    {
+                        if (clip->bSelected)
+                            delClipEntry.push_back(clip->mID);
+                    }
+                }
+                if (selected_clip_count > 1 && ImGui::MenuItem(ICON_MEDIA_GROUP " Group Selected", nullptr, nullptr))
+                {
+                    for (auto clip : timeline->m_Clips)
+                    {
+                        if (clip->bSelected)
+                            groupClipEntry.push_back(clip->mID);
+                    }
+                }
+                if (ImGui::MenuItem(ICON_MEDIA_UNGROUP " Ungroup Selected", nullptr, nullptr))
+                {
+                    for (auto clip : timeline->m_Clips)
+                    {
+                        if (clip->bSelected)
+                            unGroupClipEntry.push_back(clip->mID);
+                    }
+                }
+            }
+
+            if (trackMenuEntry >= 0 && clipMenuEntry < 0)
+            {
+                auto track = timeline->m_Tracks[trackMenuEntry];
+                if (IS_TEXT(track->mType))
+                {
+                    ImGui::Separator();
+                    if (ImGui::MenuItem(ICON_MEDIA_TEXT  " Add Text", nullptr, nullptr))
+                    {
+                        if (track->mMttReader && menuMouseTime != -1)
+                        {
+                            int64_t text_time = menuMouseTime;
+                            timeline->AlignTime(text_time);
+                            TextClip * clip = new TextClip(text_time, text_time + 5000, track->mID, track->mName, std::string(""), timeline);
+                            clip->CreateClipHold(track);
+                            clip->SetClipDefault(track->mMttReader->DefaultStyle());
+                            timeline->m_Clips.push_back(clip);
+                            track->InsertClip(clip, text_time);
+                            track->SelectEditingClip(clip, false);
+                            if (timeline->m_CallBacks.EditingClipFilter)
+                            {
+                                timeline->m_CallBacks.EditingClipFilter(clip->mType, clip);
+                            }
+                        }
+                    }
+                }
+            }
+
+            ImGui::PopStyleColor();
+            ImGui::EndPopup();
+        }
+
     if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
     {
         auto& ongoingActions = timeline->mOngoingActions;
