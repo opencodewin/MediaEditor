@@ -10639,13 +10639,13 @@ bool MediaEditor_Splash_Screen(void* handle, bool app_will_quit)
     }
 
     ImGui::End();
-    bool should_finished = title_finished && !g_project_loading;
-    if (should_finished)
-    {
-        if (logo_texture) { ImGui::ImDestroyTexture(logo_texture); logo_texture = nullptr; }
-        if (codewin_texture) { ImGui::ImDestroyTexture(codewin_texture); codewin_texture = nullptr; }
-    }
-    return should_finished;
+    return title_finished && !g_project_loading;
+}
+
+static void MediaEditor_SplashFinalize(void** handle)
+{
+    if (logo_texture) { ImGui::ImDestroyTexture(logo_texture); logo_texture = nullptr; }
+    if (codewin_texture) { ImGui::ImDestroyTexture(codewin_texture); codewin_texture = nullptr; }
 }
 
 void Application_Setup(ApplicationWindowProperty& property)
@@ -10700,6 +10700,7 @@ void Application_Setup(ApplicationWindowProperty& property)
     property.application.Application_Finalize = MediaEditor_Finalize;
     property.application.Application_DropFromSystem = MediaEditor_DropFromSystem;
     property.application.Application_SplashScreen = MediaEditor_Splash_Screen;
+    property.application.Application_SplashFinalize = MediaEditor_SplashFinalize;
 #if defined(NDEBUG)
     property.application.Application_Frame = MediaEditor_Frame;
 #else
