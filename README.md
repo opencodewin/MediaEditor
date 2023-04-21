@@ -23,11 +23,10 @@
 MediaEditor Community(MEC) is a highly integrated and easy to learn application software that can be used to **create, edit, and produce** high-quality videos. The functions involve **video editing, video filters, video fusion, audio mixing, and text processing**.🌼
 
 ## News
-⭐️⭐️⭐️ - 2023/4/20 MediaEditor Community first release v0.9.6 is now available; you can download binary-packages from [here](https://github.com/opencodewin/MediaEditor/releases). ⭐️⭐️⭐️
+⭐️⭐️⭐️ - 2023/4/20 MediaEditor Community first release v0.9.6 is now available; you can download binary-packages from [here](https://github.com/opencodewin/MediaEditor/releases/tag/v0.9.6). ⭐️⭐️⭐️
 
 ## FEATURES
 * Support complete timeline editing functions, including move, crop, cut, thumbnail preview, scale and delete.
-
   &emsp;<img src="docs/assets/timeline.png" alt="timeline">
 * Support more flexible and easily blueprint system. Blueprint💫 is represented in the form of nodes, which can handle complex functions through nodes and flows.
   &emsp;<img src="docs/assets/blueprint.gif" alt="blueprint">
@@ -54,9 +53,15 @@ MediaEditor Community(MEC) is a highly integrated and easy to learn application 
 * Support multiple professional export formats, including QuickTime, MKV, MP4, Matroska, etc.
 
 ## GETTING STARTED
-MEC's developers work hard to make it support a large range of devices and operating systems. We provide final as well as development builds. To get started, head over to the **[downloads page💠](https://github.com/opencodewin/MediaEditor/releases)** and simply select the platform that you want to install it on. A **[quick guide📝](docs/dev/Quick-Start.md)** to help you get acquainted with MEC is available in our docs.
+MEC support as many operating systems as possible and provide release packages for those platforms. To get started, head over to the **[releases page💠](https://github.com/opencodewin/MediaEditor/releases)** and select the platform that you want to install it on. A **[quick guide📝](docs/dev/Quick-Start.md)** to help you get acquainted with MEC is available in our docs.
 
-⚠️⚠️⚠️ Vulkan sdk is necessary, please download and install it [here](https://vulkan.lunarg.com/sdk/home).
+There are two things to note:
+
+- ⚠️⚠️⚠️ Vulkan sdk is necessary, please download and install it [here](https://vulkan.lunarg.com/sdk/home).
+- ⚠️⚠️⚠️ For Ubuntu, please execute(x.x.x need to be replaced with the corresponding release version):
+``` sh
+chmod +x MEC_SDL2_OpenGL3-linux-x86_64-x.x.x.AppImage
+``` 
 
 ## SCREENSHOT
 |<div>Video Filter</div>|<div>Video Fusion</div>|
@@ -80,8 +85,7 @@ MEC's developers work hard to make it support a large range of devices and opera
 
 **Color Curve**
 
-<img src="docs/assets/color_filter.png" />
-<p align="center" ><img src="docs/assets/color_curve.png" /></p>
+<img src="docs/assets/color_curve.jpeg" />
 
 ## FUSIONS
 | | | | | |
