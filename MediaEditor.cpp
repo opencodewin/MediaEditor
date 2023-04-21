@@ -1748,6 +1748,7 @@ static inline std::string GetAudioChannelName(int channels)
 static uint32_t CheckMediaType(std::string file_suffix)
 {
     uint32_t type = MEDIA_UNKNOWN;
+    std::transform(file_suffix.begin(), file_suffix.end(), file_suffix.begin(), [](auto c) { return std::tolower(c); });
     if (!file_suffix.empty())
     {
         if ((file_suffix.compare(".mp4") == 0) ||
