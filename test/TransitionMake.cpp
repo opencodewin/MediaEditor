@@ -66,6 +66,12 @@
 #include "WindowSlice_vulkan.h"
 #include "Wipe_vulkan.h"
 #include "ZoomInCircles_vulkan.h"
+#include "Edge_vulkan.h"
+#include "StaticWipe_vulkan.h"
+#include "DirectionalScaled_vulkan.h"
+#include "Rectangle_vulkan.h"
+#include "SimpleZoomOut_vulkan.h"
+#include "RotateScaleVanish_vulkan.h"
 #include <CopyTo_vulkan.h>
 #include <unistd.h>
 std::string g_source_1;
@@ -144,7 +150,13 @@ static const char* fusion_items[] = {
     "WindowBlinds",
     "WindowSlice",
     "Wipe",
-    "ZoomInCircles"
+    "ZoomInCircles",
+    "Edge",
+    "StaticWipe",
+    "DirectionalScaled",
+    "Rectangle",
+    "SimpleZoomOut",
+    "RotateScaleVanish"
 };
 
 static void ShowVideoWindow(ImDrawList *draw_list, ImTextureID texture, ImVec2& pos, ImVec2& size, float& offset_x, float& offset_y, float& tf_x, float& tf_y, float aspectRatio, ImVec2 start = ImVec2(0.f, 0.f), ImVec2 end = ImVec2(1.f, 1.f), bool bLandscape = true)
@@ -723,6 +735,48 @@ static void transition(int col, int row, int cols, int rows, int type, ImGui::Im
             m_fusion.transition(mat_a, mat_b, mat_t, progress);
         }
         break;
+        case 61:
+        {
+            float edge_thickness = 0.001;
+            float edge_brightness = 8.0;
+            ImGui::Edge_vulkan m_fusion(0);
+            m_fusion.transition(mat_a, mat_b, mat_t, progress, edge_thickness, edge_brightness);
+        }
+        break;
+        case 62:
+        {
+            float m_span = 0.5;
+            ImGui::StaticWipe_vulkan m_fusion(0);
+            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_span, true);
+        }
+        break;
+        case 63:
+        {
+            ImVec2 m_direction  {0.0, 1.0};
+            float m_scale = 0.7;
+            ImGui::DirectionalScaled_vulkan m_fusion(0);
+            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_direction.x, m_direction.y, m_scale);
+        }
+        break;
+        case 64:
+        {
+            ImPixel m_backColor {0.0f, 0.0f, 0.0f, 1.0f};
+            ImGui::Rectangle_vulkan m_fusion(0);
+            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_backColor);
+        }
+        break;
+        case 65:
+        {
+            float m_quickness = 0.8;
+            ImGui::SimpleZoomOut_vulkan m_fusion(0);
+            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_quickness, true);
+        }
+        break;
+        case 66:
+        {
+            ImGui::RotateScaleVanish_vulkan m_fusion(0);
+            m_fusion.transition(mat_a, mat_b, mat_t, progress, true, false, false);
+        }
         default: break;
     }
     g_copy->copyTo(mat_t, result, col * mat_a.w, row * mat_a.h);
