@@ -30,7 +30,7 @@ MediaEditor Community(MEC) is a highly integrated and easy to learn application 
   &emsp;<img src="docs/assets/timeline.png" alt="timeline">
 * Support more flexible and easily blueprint system. Blueprint💫 is represented in the form of nodes, which can handle complex functions through nodes and flows.
   &emsp;<img src="docs/assets/blueprint.gif" alt="blueprint">
-* Support about 30+ built-in media filters and 60+ built-in media fusions🤖.
+* Support about 30+ built-in media filters and 65+ built-in media fusions🤖.
 
   &emsp;<img src="docs/assets/fusion.gif" alt="fusion">
 * Support about 10 video and audio analysis tools🍂.
@@ -80,7 +80,7 @@ chmod +x MEC_SDL2_OpenGL3-linux-x86_64-x.x.x.AppImage
 | **Color Curve** | Color Invert   | Contrast      | Exposure        | Gamma         |
 | Hue             | Lut 3D         | Saturation    | Vibrance        | White Balance |
 | Canny Edge      | Laplacian Edge | Sobel Edge    | Chroma Key      | Guided Filter |
-| Flip            | HQDN3D Denoise | Gain          | Audio Equalizer |               |
+| Flip            | HQDN3D Denoise | Gain          | Audio Equalizer | Star Effect   |
 | | | | | |
 
 **Color Curve**
@@ -89,20 +89,21 @@ chmod +x MEC_SDL2_OpenGL3-linux-x86_64-x.x.x.AppImage
 
 ## FUSIONS
 | | | | | |
-|-----------------|----------------|:--------------|:----------------|:--------------|
-| BookFlip        | Bounce         | PageCurl        | Swap          | DoomScreen    |
-| WindowSlice     | Wind           | Slider          | Door          | Rolls         |
-| StereoViewer    | **Cube**       | RotateScale     | Doorway       | SimpleZoom    |
-| Wipe            | BowTie         | DirectionalWarp | Move          | Radial        |
-| GridFlip        | Hexagonalize   | Mosaic          | SquaresWire   | KaleidoScope  |
-| GlitchMemories  | CrossWarp      | CrazyParametric | Polar         | ButterflyWave |
-| Perlin          | RandomSquares  | BurnOut         | Dreamy        | WaterDrop     |
-| Crosshatch      | Pinwheel       | Flyeye          | **Heart**     | GlitchDisplace|
-| ZoomInCircles   | WindowBlinds   | CrossZoom       | Ripple        | PolkaDots     |
-| DreamyZoom      | Swirl          | CircleBlur      | Squeeze       | CannabisLeaf  |
-| CircleCrop      | Alpha          | Pixelize        | LinearBlur    | Fade          |
-| LuminanceMelt   | Morph          | Burn            | MultiplyBlend | ColorDistance |
-| ColorPhase      |                |                 |               |               |
+|-----------------|----------------|:-----------------|:-----------------|:--------------|
+| BookFlip        | Bounce         | PageCurl         | Swap             | DoomScreen    |
+| WindowSlice     | Wind           | Slider           | Door             | Rolls         |
+| StereoViewer    | **Cube**       | RotateScale      | Doorway          | SimpleZoom    |
+| Wipe            | BowTie         | DirectionalWarp  | Move             | Radial        |
+| GridFlip        | Hexagonalize   | Mosaic           | SquaresWire      | KaleidoScope  |
+| GlitchMemories  | CrossWarp      | CrazyParametric  | Polar            | ButterflyWave |
+| Perlin          | RandomSquares  | BurnOut          | Dreamy           | WaterDrop     |
+| Crosshatch      | Pinwheel       | Flyeye           | **Heart**        | GlitchDisplace|
+| ZoomInCircles   | WindowBlinds   | CrossZoom        | Ripple           | PolkaDots     |
+| DreamyZoom      | Swirl          | CircleBlur       | Squeeze          | CannabisLeaf  |
+| CircleCrop      | Alpha          | Pixelize         | LinearBlur       | Fade          |
+| LuminanceMelt   | Morph          | Burn             | MultiplyBlend    | ColorDistance |
+| ColorPhase      | SimpleZoomOut  | DirectionalScaled| RotateScaleVanish| Rectangle     |
+| StaticWipe      | Edge           |                  |                  |               |
 | | | | | |
 
 **Cube**
