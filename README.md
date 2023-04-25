@@ -58,10 +58,14 @@ MEC support as many operating systems as possible and provide release packages f
 There are two things to note:
 
 - ⚠️⚠️⚠️ Vulkan sdk is necessary, please download and install it [here](https://vulkan.lunarg.com/sdk/home).
-- ⚠️⚠️⚠️ For Ubuntu, please execute(x.x.x need to be replaced with the corresponding release version):
+- ⚠️⚠️⚠️ For linux, please make the AppImage file executable by the following command:
 ``` sh
 chmod +x MEC_SDL2_OpenGL3-linux-x86_64-x.x.x.AppImage
 ``` 
+And if you're using linux distros that use fuse3, and miss libfuse.so.2 to run the AppImage file, you can install it by:
+``` sh
+sudo apt install libfuse2
+```
 
 ## SCREENSHOT
 |<div>Video Filter</div>|<div>Video Fusion</div>|
