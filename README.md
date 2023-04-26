@@ -85,6 +85,7 @@ sudo apt install libfuse2
 | Hue             | Lut 3D         | Saturation    | Vibrance        | White Balance |
 | Canny Edge      | Laplacian Edge | Sobel Edge    | Chroma Key      | Guided Filter |
 | Flip            | HQDN3D Denoise | Gain          | Audio Equalizer | Star Effect   |
+| Lighting Effect | Sway Effect    |               |                 |               |
 | | | | | |
 
 **Color Curve**
