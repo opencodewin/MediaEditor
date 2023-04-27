@@ -393,13 +393,9 @@ elseif(WIN32)
     endmacro()
 
     set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/install")
-    install(TARGETS mec
-            RUNTIME DESTINATION bin
-            LIBRARY DESTINATION bin
-            COMPONENT applications)
-
-    install( CODE "set(APPS \"${CMAKE_INSTALL_PREFIX}/bin/mec.exe\")" )
+    install( CODE "set(APPS \"${CMAKE_BINARY_DIR}/mec.exe\")" )
     install( CODE [[
+        file(REMOVE_RECURSE "${CMAKE_INSTALL_PREFIX}")
         execute_process(COMMAND ldd ${APPS} OUTPUT_VARIABLE ldd_out)
         string (REPLACE "\n" ";" ldd_out_lines "${ldd_out}")
         foreach (line ${ldd_out_lines})
@@ -420,6 +416,11 @@ elseif(WIN32)
             endif()
         endforeach()
     ]])
+
+    install(TARGETS mec
+            RUNTIME DESTINATION bin
+            LIBRARY DESTINATION bin
+            COMPONENT applications)
 
     # Install Resource File
     install(DIRECTORY  "${PROJECT_SOURCE_DIR}/languages/"
