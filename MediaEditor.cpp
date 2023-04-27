@@ -10654,7 +10654,7 @@ void Application_Setup(ApplicationWindowProperty& property)
     // add language
     property.language_path = 
 #if defined(__APPLE__)
-        exec_path + "../Resources/";
+        exec_path + "../Resources/languages/";
 #elif defined(_WIN32)
         exec_path + "../languages/";
 #elif defined(__linux__)
