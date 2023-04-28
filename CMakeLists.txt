@@ -329,7 +329,7 @@ if(APPLE)
     set(resources_dir mec.app/Contents/Resources/)
 
     # Install Resource File
-    install(FILES  "${PROJECT_SOURCE_DIR}/languages/mec_language.ini"
+    install(DIRECTORY  "${PROJECT_SOURCE_DIR}/languages"
             DESTINATION "${resources_dir}" COMPONENT Runtime)
     install(FILES  "${PROJECT_SOURCE_DIR}/resources/mec_logo.png"
             DESTINATION "${resources_dir}/" COMPONENT Runtime)
@@ -373,7 +373,7 @@ elseif(UNIX)
             OUTPUT_NAME \"${CPACK_PACKAGE_NAME}-${CPACK_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}-${CPACK_PACKAGE_VERSION}\"
             DESKTOP_SRC \"${PROJECT_SOURCE_DIR}/resources/mec.desktop\"
             ICON_SRC \"${PROJECT_SOURCE_DIR}/resources/mec_logo.png\"
-            RESOURCE_FILES \"${PROJECT_SOURCE_DIR}/languages/mec_language.ini\"
+            RESOURCE_FILES \"${PROJECT_SOURCE_DIR}/languages\"
         )
     " COMPONENT Runtime)
 elseif(WIN32)
@@ -393,13 +393,9 @@ elseif(WIN32)
     endmacro()
 
     set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/install")
-    install(TARGETS mec
-            RUNTIME DESTINATION bin
-            LIBRARY DESTINATION bin
-            COMPONENT applications)
-
-    install( CODE "set(APPS \"${CMAKE_INSTALL_PREFIX}/bin/mec.exe\")" )
+    install( CODE "set(APPS \"${CMAKE_BINARY_DIR}/mec.exe\")" )
     install( CODE [[
+        file(REMOVE_RECURSE "${CMAKE_INSTALL_PREFIX}")
         execute_process(COMMAND ldd ${APPS} OUTPUT_VARIABLE ldd_out)
         string (REPLACE "\n" ";" ldd_out_lines "${ldd_out}")
         foreach (line ${ldd_out_lines})
@@ -421,8 +417,13 @@ elseif(WIN32)
         endforeach()
     ]])
 
+    install(TARGETS mec
+            RUNTIME DESTINATION bin
+            LIBRARY DESTINATION bin
+            COMPONENT applications)
+
     # Install Resource File
-    install(FILES  "${PROJECT_SOURCE_DIR}/languages/mec_language.ini"
+    install(DIRECTORY  "${PROJECT_SOURCE_DIR}/languages/"
             DESTINATION languages COMPONENT Resource)
     install(FILES  "${PROJECT_SOURCE_DIR}/resources/mec_logo.png"
             DESTINATION resources COMPONENT Resource)
