@@ -7381,6 +7381,7 @@ MediaCore::Snapshot::Generator::Holder TimeLine::GetSnapshotGenerator(int64_t me
     if (!IS_VIDEO(mi->mMediaType) || IS_IMAGE(mi->mMediaType))
         return nullptr;
     MediaCore::Snapshot::Generator::Holder hSsGen = MediaCore::Snapshot::Generator::CreateInstance();
+    hSsGen->SetOverview(mi->mMediaOverview);
     hSsGen->EnableHwAccel(mHardwareCodec);
     if (!hSsGen->Open(mi->mMediaOverview->GetMediaParser()))
     {
