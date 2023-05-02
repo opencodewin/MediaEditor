@@ -283,6 +283,43 @@ endif(IMGUI_VULKAN_SHADER)
 endif(BUILD_TEST)
 endif(IMGUI_APPS)
 
+## build plugins
+SET(PLUGIN_DIR ${PROJECT_BINARY_DIR}/plugins/)
+macro(external_node class_path class links)
+add_library(
+    ${class}
+    SHARED
+    ${class_path}
+)
+set_property(TARGET ${class} PROPERTY POSITION_INDEPENDENT_CODE ON)
+set (LINK_LIBS
+    ${IMGUI_BLUEPRINT_SDK_LIBRARYS}
+    ${IMGUI_LIBRARYS}
+)
+if (NOT ${links} MATCHES NOLIBS)
+    set (LINK_LIBS
+        ${LINK_LIBS}
+        ${links}
+    )
+endif()
+
+target_link_libraries(
+    ${class}
+    ${LINK_LIBS}
+)
+
+set_target_properties(
+    ${class}
+    PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY "${PLUGIN_DIR}"
+    RUNTIME_OUTPUT_DIRECTORY "${PLUGIN_DIR}"
+    OUTPUT_NAME "${class}"
+    PREFIX ""
+    SUFFIX ".node"
+)
+endmacro()
+#external_node(plugins/nodes/filters/ImMatALMNode.cpp ALM NOLIBS)
+
 ### DEFINE THE PACKAGING (OS specific)
 set(CPACK_PACKAGE_NAME  "mec")
 if (IMGUI_VULKAN)
@@ -327,6 +364,7 @@ if(APPLE)
     )
     set(frameworks_dir mec.app/Contents/Frameworks/)
     set(resources_dir mec.app/Contents/Resources/)
+    set(plugin_dir mec.app/Contents/)
 
     # Install Resource File
     install(DIRECTORY  "${PROJECT_SOURCE_DIR}/languages"
@@ -334,11 +372,15 @@ if(APPLE)
     install(FILES  "${PROJECT_SOURCE_DIR}/resources/mec_logo.png"
             DESTINATION "${resources_dir}/" COMPONENT Runtime)
 
+    #install(DIRECTORY  "${PROJECT_BINARY_DIR}/plugins"
+    #        DESTINATION "${plugin_dir}" COMPONENT Runtime)
+
     # package runtime fixup bundle
     set(APPS "\${CMAKE_INSTALL_PREFIX}/mec.app")
     set(DIRS ${FRAMEWORKS_PATH})
     list (APPEND DIRS "/usr/local/lib/")
     list (APPEND DIRS "${PROJECT_BINARY_DIR}")
+    #list (APPEND DIRS "${PROJECT_BINARY_DIR}/plugins")
     INSTALL(CODE "
         include(InstallRequiredSystemLibraries)
         include(BundleUtilities)

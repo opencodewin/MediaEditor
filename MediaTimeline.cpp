@@ -2075,11 +2075,12 @@ namespace MediaTimeline
 BluePrintVideoFilter::BluePrintVideoFilter(void * handle)
     : mHandle(handle)
 {
+    TimeLine * timeline = (TimeLine *)handle;
     imgui_json::value filter_BP; 
     mBp = new BluePrint::BluePrintUI();
     BluePrint::BluePrintCallbackFunctions callbacks;
     callbacks.BluePrintOnChanged = OnBluePrintChange;
-    mBp->Initialize();
+    mBp->Initialize(nullptr, timeline ? timeline->mPluginPath.c_str() : nullptr);
     mBp->SetCallbacks(callbacks, this);
     mBp->File_New_Filter(filter_BP, "VideoFilter", "Video");
 }
@@ -4606,8 +4607,9 @@ TimeLine::TimeLine()
     {
         mAudioRender->OpenDevice(mAudioSampleRate, mAudioChannels, mAudioFormat, &mPcmStream);
     }
-
-    m_BP_UI.Initialize();
+    auto exec_path = ImGuiHelper::exec_path();
+    mPluginPath = exec_path + "/../plugins";
+    m_BP_UI.Initialize(nullptr, mPluginPath.c_str());
 
     ConfigureDataLayer();
 

@@ -942,6 +942,9 @@ struct TimeLine
 
     BluePrint::BluePrintUI m_BP_UI;         // for node catalog
 
+    // plugin setting
+    std::string mPluginPath;
+
     // sutitle Setting
     std::string mFontName;
     // Output Setting
