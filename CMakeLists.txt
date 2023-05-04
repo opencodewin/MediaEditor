@@ -283,11 +283,13 @@ endif(BUILD_TEST)
 endif(IMGUI_APPS)
 
 ## build plugins
+if(IMGUI_VULKAN_SHADER)
 add_subdirectory(plugin/nodes/filters/ALM)
 add_subdirectory(plugin/nodes/fusions/Alpha)
 add_subdirectory(plugin/nodes/effects/Lighting)
 add_subdirectory(plugin/nodes/effects/Star)
 add_subdirectory(plugin/nodes/effects/Sway)
+endif(IMGUI_VULKAN_SHADER)
 
 ### DEFINE THE PACKAGING (OS specific)
 set(CPACK_PACKAGE_NAME  "mec")
