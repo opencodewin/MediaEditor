@@ -72,7 +72,6 @@ set_target_properties(
     RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}"
 )
 endif()
-
 include_directories(
     ${IMGUI_INCLUDE_DIRS}
     ${CMAKE_CURRENT_BINARY_DIR}
@@ -267,58 +266,28 @@ target_include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-if(IMGUI_VULKAN_SHADER)
-add_executable(
-    transition_make
-    test/TransitionMake.cpp
-    ${IMGUI_APP_ENTRY_SRC}
-)
-target_link_libraries(
-    transition_make
-    ${IMGUI_LIBRARYS}
-    ${SDL2_STATIC_LDFLAGS}
-    ${SDL2_IMAGE_LIBRARY}
-)
-endif(IMGUI_VULKAN_SHADER)
+#if(IMGUI_VULKAN_SHADER)
+#add_executable(
+#    transition_make
+#    test/TransitionMake.cpp
+#    ${IMGUI_APP_ENTRY_SRC}
+#)
+#target_link_libraries(
+#    transition_make
+#    ${IMGUI_LIBRARYS}
+#    ${SDL2_STATIC_LDFLAGS}
+#    ${SDL2_IMAGE_LIBRARY}
+#)
+#endif(IMGUI_VULKAN_SHADER)
 endif(BUILD_TEST)
 endif(IMGUI_APPS)
 
 ## build plugins
-SET(PLUGIN_DIR ${PROJECT_BINARY_DIR}/plugins/)
-macro(external_node class_path class links)
-add_library(
-    ${class}
-    SHARED
-    ${class_path}
-)
-set_property(TARGET ${class} PROPERTY POSITION_INDEPENDENT_CODE ON)
-set (LINK_LIBS
-    ${IMGUI_BLUEPRINT_SDK_LIBRARYS}
-    ${IMGUI_LIBRARYS}
-)
-if (NOT ${links} MATCHES NOLIBS)
-    set (LINK_LIBS
-        ${LINK_LIBS}
-        ${links}
-    )
-endif()
-
-target_link_libraries(
-    ${class}
-    ${LINK_LIBS}
-)
-
-set_target_properties(
-    ${class}
-    PROPERTIES
-    LIBRARY_OUTPUT_DIRECTORY "${PLUGIN_DIR}"
-    RUNTIME_OUTPUT_DIRECTORY "${PLUGIN_DIR}"
-    OUTPUT_NAME "${class}"
-    PREFIX ""
-    SUFFIX ".node"
-)
-endmacro()
-#external_node(plugins/nodes/filters/ImMatALMNode.cpp ALM NOLIBS)
+add_subdirectory(plugin/nodes/filters/ALM)
+add_subdirectory(plugin/nodes/fusions/Alpha)
+add_subdirectory(plugin/nodes/effects/Lighting)
+add_subdirectory(plugin/nodes/effects/Star)
+add_subdirectory(plugin/nodes/effects/Sway)
 
 ### DEFINE THE PACKAGING (OS specific)
 set(CPACK_PACKAGE_NAME  "mec")
@@ -372,15 +341,15 @@ if(APPLE)
     install(FILES  "${PROJECT_SOURCE_DIR}/resources/mec_logo.png"
             DESTINATION "${resources_dir}/" COMPONENT Runtime)
 
-    #install(DIRECTORY  "${PROJECT_BINARY_DIR}/plugins"
-    #        DESTINATION "${plugin_dir}" COMPONENT Runtime)
+    install(DIRECTORY  "${PROJECT_BINARY_DIR}/plugins"
+            DESTINATION "${plugin_dir}" COMPONENT Runtime)
 
     # package runtime fixup bundle
     set(APPS "\${CMAKE_INSTALL_PREFIX}/mec.app")
     set(DIRS ${FRAMEWORKS_PATH})
     list (APPEND DIRS "/usr/local/lib/")
     list (APPEND DIRS "${PROJECT_BINARY_DIR}")
-    #list (APPEND DIRS "${PROJECT_BINARY_DIR}/plugins")
+    list (APPEND DIRS "${PROJECT_BINARY_DIR}/plugins")
     INSTALL(CODE "
         include(InstallRequiredSystemLibraries)
         include(BundleUtilities)

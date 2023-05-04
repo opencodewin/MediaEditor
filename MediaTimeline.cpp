@@ -2166,9 +2166,10 @@ namespace MediaTimeline
 BluePrintVideoTransition::BluePrintVideoTransition(void * handle)
     : mHandle(handle)
 {
+    TimeLine * timeline = (TimeLine *)handle;
     imgui_json::value fusion_BP; 
     mBp = new BluePrint::BluePrintUI();
-    mBp->Initialize();
+    mBp->Initialize(nullptr, timeline ? timeline->mPluginPath.c_str() : nullptr);
     BluePrint::BluePrintCallbackFunctions callbacks;
     callbacks.BluePrintOnChanged = OnBluePrintChange;
     mBp->SetCallbacks(callbacks, this);

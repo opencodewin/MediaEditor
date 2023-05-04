@@ -2,7 +2,6 @@
 .DS_Store 
 *build*
 config/*
-plugins/*
 projects/*
 .vscode/
 .cache/
