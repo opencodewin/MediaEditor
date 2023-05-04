@@ -31,7 +31,7 @@ function(make_appimage)
     # copy resource files
     file(COPY "${ARGS_RESOURCE_FILES}" DESTINATION "${APPDIR}/usr/languages/")
     file(COPY "${ARGS_ICON_SRC}" DESTINATION "${APPDIR}/usr/resources/")
-    file(COPY "${ARGS_PLUGINS}" DESTINATION "${APPDIR}/plugins")
+    file(COPY "${ARGS_PLUGINS}" DESTINATION "${APPDIR}/usr/")
 
     # prepare desktop and icon file
     file(COPY "${ARGS_DESKTOP_SRC}" DESTINATION "${CMAKE_BINARY_DIR}")
