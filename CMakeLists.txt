@@ -341,6 +341,7 @@ if(APPLE)
     install(FILES  "${PROJECT_SOURCE_DIR}/resources/mec_logo.png"
             DESTINATION "${resources_dir}/" COMPONENT Runtime)
 
+    # Install Plugins
     install(DIRECTORY  "${PROJECT_BINARY_DIR}/plugins"
             DESTINATION "${plugin_dir}" COMPONENT Runtime)
 
@@ -385,6 +386,7 @@ elseif(UNIX)
             DESKTOP_SRC \"${PROJECT_SOURCE_DIR}/resources/mec.desktop\"
             ICON_SRC \"${PROJECT_SOURCE_DIR}/resources/mec_logo.png\"
             RESOURCE_FILES \"${PROJECT_SOURCE_DIR}/languages\"
+            PLUGINS \"${PROJECT_BINARY_DIR}/plugins\"
         )
     " COMPONENT Runtime)
 elseif(WIN32)
@@ -438,6 +440,9 @@ elseif(WIN32)
             DESTINATION languages COMPONENT Resource)
     install(FILES  "${PROJECT_SOURCE_DIR}/resources/mec_logo.png"
             DESTINATION resources COMPONENT Resource)
+    # Install Plugins
+    install(DIRECTORY  "${PROJECT_BINARY_DIR}/plugins"
+            DESTINATION plugins COMPONENT Runtime)
 
     set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL OFF)
     set(CPACK_NSIS_MUI_ICON "${CMAKE_CURRENT_SOURCE_DIR}/resources/mec_logo.ico")

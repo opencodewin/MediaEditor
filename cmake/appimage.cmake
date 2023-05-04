@@ -1,6 +1,6 @@
 function(make_appimage)
 	set(optional)
-	set(args PROJECT_DIR EXE NAME OUTPUT_NAME DESKTOP_SRC ICON_SRC RESOURCE_FILES)
+	set(args PROJECT_DIR EXE NAME OUTPUT_NAME DESKTOP_SRC ICON_SRC RESOURCE_FILES PLUGINS)
 	set(list_args ASSETS)
 	cmake_parse_arguments(
 		PARSE_ARGV 0
@@ -31,7 +31,7 @@ function(make_appimage)
     # copy resource files
     file(COPY "${ARGS_RESOURCE_FILES}" DESTINATION "${APPDIR}/usr/languages/")
     file(COPY "${ARGS_ICON_SRC}" DESTINATION "${APPDIR}/usr/resources/")
-    #file(COPY "${ARGS_PROJECT_DIR}/xxx" DESTINATION "${APPDIR}/usr")
+    file(COPY "${ARGS_PLUGINS}" DESTINATION "${APPDIR}/plugins")
 
     # prepare desktop and icon file
     file(COPY "${ARGS_DESKTOP_SRC}" DESTINATION "${CMAKE_BINARY_DIR}")
