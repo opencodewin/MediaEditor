@@ -5,6 +5,7 @@
 #include <AlphaBlending_vulkan.h>
 
 #define NODE_VERSION    0x01000000
+
 namespace BluePrint
 {
 struct AlphaFusionNode final : Node

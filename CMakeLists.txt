@@ -284,8 +284,13 @@ endif(IMGUI_APPS)
 
 ## build plugins
 if(IMGUI_VULKAN_SHADER)
+#filers
 add_subdirectory(plugin/nodes/filters/ALM)
+#fusions
 add_subdirectory(plugin/nodes/fusions/Alpha)
+add_subdirectory(plugin/nodes/fusions/BookFlip)
+add_subdirectory(plugin/nodes/fusions/Blur)
+#effects
 add_subdirectory(plugin/nodes/effects/Lighting)
 add_subdirectory(plugin/nodes/effects/Star)
 add_subdirectory(plugin/nodes/effects/Sway)
