@@ -139,6 +139,7 @@ add_compile_options(-Wno-ignored-attributes -Wno-inconsistent-dllimport -Wno-dep
 #  Application
 #
 set(MEDIA_EDITOR_BINARY "mec")
+set(MEDIA_EDITOR_CLI_BINARY "mec_cli")
 set(MEDIA_EDITOR_SRCS
     MediaEditor.cpp
     MediaTimeline.cpp
@@ -182,7 +183,7 @@ target_include_directories(
     ${IMGUI_INCLUDE_DIR}
 )
 target_compile_definitions(${MEDIA_EDITOR_BINARY} PUBLIC APP_NAME="${MEDIA_EDITOR_BINARY}")
-#set_property(TARGET ${MEDIA_EDITOR_BINARY} PROPERTY CXX_STANDARD 17)
+
 set_property(TARGET ${MEDIA_EDITOR_BINARY} PROPERTY C_STANDARD 11)
 target_link_libraries(
     ${MEDIA_EDITOR_BINARY} 
@@ -192,6 +193,37 @@ target_link_libraries(
     ${MEDIACORE_LIBRARYS}
     Threads::Threads
 )
+
+# build non-bundled for debug
+add_executable(
+    ${MEDIA_EDITOR_CLI_BINARY}
+    ${MEDIA_EDITOR_SRCS}
+    ${MEDIA_EDITOR_INCS}
+)
+target_include_directories(
+    ${MEDIA_EDITOR_CLI_BINARY} PRIVATE
+    ${SDL2_INCLUDE_DIRS}
+    ${IMGUI_BLUEPRINT_INCLUDE_DIRS}
+    ${MEDIACORE_INCLUDE_DIRS}
+    ${IMGUI_INCLUDE_DIR}
+)
+target_compile_definitions(${MEDIA_EDITOR_CLI_BINARY} PUBLIC APP_NAME="${MEDIA_EDITOR_BINARY}")
+set_property(TARGET ${MEDIA_EDITOR_CLI_BINARY} PROPERTY C_STANDARD 11)
+target_link_libraries(
+    ${MEDIA_EDITOR_CLI_BINARY} 
+    LINK_PRIVATE
+    ${IMGUI_BLUEPRINT_SDK_LIBRARYS}
+    ${IMGUI_LIBRARYS}
+    ${MEDIACORE_LIBRARYS}
+    Threads::Threads
+)
+set_target_properties(
+    ${MEDIA_EDITOR_CLI_BINARY} 
+    PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/bin"
+    RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/bin"
+)
+
 # set the Info.plist file
 set(MACOSX_BUNDLE_PLIST_FILE ${CMAKE_SOURCE_DIR}/resources/Info.plist)
 set_target_properties(${MEDIA_EDITOR_BINARY} PROPERTIES MACOSX_BUNDLE_INFO_PLIST ${MACOSX_BUNDLE_PLIST_FILE})

@@ -4623,6 +4623,9 @@ TimeLine::TimeLine()
 
 TimeLine::~TimeLine()
 {
+    mMtvReader = nullptr;
+    mMtaReader = nullptr;
+    
     if (mMainPreviewTexture) { ImGui::ImDestroyTexture(mMainPreviewTexture); mMainPreviewTexture = nullptr; }
     if (mEncodingPreviewTexture) { ImGui::ImDestroyTexture(mEncodingPreviewTexture); mEncodingPreviewTexture = nullptr; }
     mAudioAttribute.channel_data.clear();
@@ -4669,9 +4672,6 @@ TimeLine::~TimeLine()
         MediaCore::AudioRender::ReleaseInstance(&mAudioRender);
         mAudioRender = nullptr;
     }
-
-    mMtvReader = nullptr;
-    mMtaReader = nullptr;
 
     if (mEncodingThread.joinable())
     {
