@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5.1)
-project(heart_node)
+project(swirl_node)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_SKIP_RPATH ON)
@@ -15,26 +15,26 @@ if (POLICY CMP0068)
 endif()
 
 add_library(
-    Heart
+    Swirl
     SHARED
-    ImMatHeartFusionNode.cpp
-    Heart_vulkan.cpp
-    Heart_vulkan.h
-    Heart_shader.h
+    ImMatSwirlFusionNode.cpp
+    Swirl_vulkan.cpp
+    Swirl_vulkan.h
+    Swirl_shader.h
 )
 
-set_property(TARGET Heart PROPERTY POSITION_INDEPENDENT_CODE ON)
+set_property(TARGET Swirl PROPERTY POSITION_INDEPENDENT_CODE ON)
 set (LINK_LIBS
     ${IMGUI_BLUEPRINT_SDK_LIBRARYS}
     ${IMGUI_LIBRARYS}
 )
 target_link_libraries(
-    Heart
+    Swirl
     ${LINK_LIBS}
 )
 
 set_target_properties(
-    Heart
+    Swirl
     PROPERTIES
     PREFIX ""
     SUFFIX ".node"

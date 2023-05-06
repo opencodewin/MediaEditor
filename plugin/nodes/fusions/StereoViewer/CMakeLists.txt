@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5.1)
-project(heart_node)
+project(stereoviewer_node)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_SKIP_RPATH ON)
@@ -15,26 +15,26 @@ if (POLICY CMP0068)
 endif()
 
 add_library(
-    Heart
+    StereoViewer
     SHARED
-    ImMatHeartFusionNode.cpp
-    Heart_vulkan.cpp
-    Heart_vulkan.h
-    Heart_shader.h
+    ImMatStereoViewerFusionNode.cpp
+    StereoViewer_vulkan.cpp
+    StereoViewer_vulkan.h
+    StereoViewer_shader.h
 )
 
-set_property(TARGET Heart PROPERTY POSITION_INDEPENDENT_CODE ON)
+set_property(TARGET StereoViewer PROPERTY POSITION_INDEPENDENT_CODE ON)
 set (LINK_LIBS
     ${IMGUI_BLUEPRINT_SDK_LIBRARYS}
     ${IMGUI_LIBRARYS}
 )
 target_link_libraries(
-    Heart
+    StereoViewer
     ${LINK_LIBS}
 )
 
 set_target_properties(
-    Heart
+    StereoViewer
     PROPERTIES
     PREFIX ""
     SUFFIX ".node"

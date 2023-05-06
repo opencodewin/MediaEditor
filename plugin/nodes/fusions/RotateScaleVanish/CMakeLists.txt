@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5.1)
-project(heart_node)
+project(rotatescalevanish_node)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_SKIP_RPATH ON)
@@ -15,26 +15,26 @@ if (POLICY CMP0068)
 endif()
 
 add_library(
-    Heart
+    RotateScaleVanish
     SHARED
-    ImMatHeartFusionNode.cpp
-    Heart_vulkan.cpp
-    Heart_vulkan.h
-    Heart_shader.h
+    ImMatRotateScaleVanishFusionNode.cpp
+    RotateScaleVanish_vulkan.cpp
+    RotateScaleVanish_vulkan.h
+    RotateScaleVanish_shader.h
 )
 
-set_property(TARGET Heart PROPERTY POSITION_INDEPENDENT_CODE ON)
+set_property(TARGET RotateScaleVanish PROPERTY POSITION_INDEPENDENT_CODE ON)
 set (LINK_LIBS
     ${IMGUI_BLUEPRINT_SDK_LIBRARYS}
     ${IMGUI_LIBRARYS}
 )
 target_link_libraries(
-    Heart
+    RotateScaleVanish
     ${LINK_LIBS}
 )
 
 set_target_properties(
-    Heart
+    RotateScaleVanish
     PROPERTIES
     PREFIX ""
     SUFFIX ".node"
