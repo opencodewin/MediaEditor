@@ -370,9 +370,10 @@ if(APPLE)
             BUNDLE  DESTINATION . COMPONENT Runtime
             RUNTIME DESTINATION bin COMPONENT Runtime
     )
+    set(bindirs mec.app/Contents/MacOS)
     set(frameworks_dir mec.app/Contents/Frameworks/)
     set(resources_dir mec.app/Contents/Resources/)
-    set(plugin_dir mec.app/Contents/)
+    set(contents_dir mec.app/Contents/)
 
     # Install Resource File
     install(DIRECTORY  "${PROJECT_SOURCE_DIR}/languages"
@@ -382,19 +383,19 @@ if(APPLE)
 
     # Install Plugins
     install(DIRECTORY  "${PROJECT_BINARY_DIR}/plugins"
-            DESTINATION "${plugin_dir}" COMPONENT Runtime)
+            DESTINATION "${contents_dir}" COMPONENT Runtime)
 
-    # package runtime fixup bundle
-    set(APPS "\${CMAKE_INSTALL_PREFIX}/mec.app")
-    set(DIRS ${FRAMEWORKS_PATH})
-    list (APPEND DIRS "/usr/local/lib/")
-    list (APPEND DIRS "${PROJECT_BINARY_DIR}")
-    list (APPEND DIRS "${PROJECT_BINARY_DIR}/plugins")
-    INSTALL(CODE "
+    INSTALL(CODE [[
+        set(plugins_dir "mec.app/Contents/plugins")
+        file(GLOB_RECURSE PLUGINS ${plugins_dir} "*.node")
+        set(APPS "${CMAKE_INSTALL_PREFIX}/mec.app")
+        set(DIRS ${FRAMEWORKS_PATH})
+        list (APPEND DIRS "/usr/local/lib/")
+        list (APPEND DIRS "${CMAKE_INSTALL_PREFIX}")
         include(InstallRequiredSystemLibraries)
         include(BundleUtilities)
-        fixup_bundle(\"${APPS}\" \"\" \"${DIRS}\")
-    " COMPONENT Runtime)
+        fixup_bundle("${APPS}" "${PLUGINS}" "${DIRS}")
+    ]])
 
     set(APPLE_CODESIGN_ENTITLEMENTS "${CMAKE_CURRENT_SOURCE_DIR}/resources/entitlements.plist")
     set(APPLE_CODESIGN_IDENTITY "" CACHE STRING "")
