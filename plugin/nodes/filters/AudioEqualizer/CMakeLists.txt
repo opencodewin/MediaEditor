@@ -28,16 +28,18 @@ if(PKG_CONFIG_FOUND)
     )
 endif(PKG_CONFIG_FOUND)
 
+set(PLUGIN AudioEqualizer)
 add_library(
-    AudioEqualizer
+    ${PLUGIN}
     SHARED
     ImMatAudioEqualizerNode.cpp
 )
-
-set_property(TARGET AudioEqualizer PROPERTY POSITION_INDEPENDENT_CODE ON)
+add_dependencies(${PLUGIN} BluePrintSDK imgui)
+set_property(TARGET ${PLUGIN} PROPERTY POSITION_INDEPENDENT_CODE ON)
 set (LINK_LIBS
-    ${IMGUI_BLUEPRINT_SDK_LIBRARYS}
-    ${IMGUI_LIBRARYS}
+    -L${CMAKE_BINARY_DIR}
+    -lBluePrintSDK
+    -limgui
 )
 
 if (FFMPEG_FOUND)
@@ -49,12 +51,12 @@ if (FFMPEG_FOUND)
 endif(FFMPEG_FOUND)
 
 target_link_libraries(
-    AudioEqualizer
+    ${PLUGIN}
     ${LINK_LIBS}
 )
 
 set_target_properties(
-    AudioEqualizer
+    ${PLUGIN}
     PROPERTIES
     PREFIX ""
     SUFFIX ".node"

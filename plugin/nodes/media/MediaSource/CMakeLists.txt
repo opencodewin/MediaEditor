@@ -28,18 +28,21 @@ if(PKG_CONFIG_FOUND)
     )
 endif(PKG_CONFIG_FOUND)
 
+set(PLUGIN MediaSource)
 add_library(
-    MediaSource
+    ${PLUGIN}
     SHARED
     ImMediaSourceNode.cpp
 )
 
-set_property(TARGET MediaSource PROPERTY POSITION_INDEPENDENT_CODE ON)
+add_dependencies(${PLUGIN} BluePrintSDK VkShader imgui)
+set_property(TARGET ${PLUGIN} PROPERTY POSITION_INDEPENDENT_CODE ON)
 set (LINK_LIBS
-    ${IMGUI_BLUEPRINT_SDK_LIBRARYS}
-    ${IMGUI_LIBRARYS}
+    -L${CMAKE_BINARY_DIR}
+    -lBluePrintSDK
+    -lVkShader
+    -limgui
 )
-
 if (FFMPEG_FOUND)
     add_compile_definitions(SDK_WITH_FFMPEG)
     set(LINK_LIBS
@@ -49,12 +52,12 @@ if (FFMPEG_FOUND)
 endif(FFMPEG_FOUND)
 
 target_link_libraries(
-    MediaSource
+    ${PLUGIN}
     ${LINK_LIBS}
 )
 
 set_target_properties(
-    MediaSource
+    ${PLUGIN}
     PROPERTIES
     PREFIX ""
     SUFFIX ".node"

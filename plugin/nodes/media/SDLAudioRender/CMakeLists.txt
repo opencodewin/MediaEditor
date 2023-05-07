@@ -14,24 +14,30 @@ if (POLICY CMP0068)
     cmake_policy(SET CMP0068 NEW)
 endif()
 
+pkg_search_module(SDL2 REQUIRED sdl2)
+
+set(PLUGIN SDLAudioRender)
 add_library(
-    SDLAudioRender
+    ${PLUGIN}
     SHARED
     ImSDLAudioRenderNode.cpp
 )
 
-set_property(TARGET SDLAudioRender PROPERTY POSITION_INDEPENDENT_CODE ON)
+add_dependencies(${PLUGIN} BluePrintSDK imgui)
+set_property(TARGET ${PLUGIN} PROPERTY POSITION_INDEPENDENT_CODE ON)
 set (LINK_LIBS
-    ${IMGUI_BLUEPRINT_SDK_LIBRARYS}
-    ${IMGUI_LIBRARYS}
+    -L${CMAKE_BINARY_DIR}
+    -lBluePrintSDK
+    -limgui
+    ${SDL2_STATIC_LDFLAGS}
 )
 target_link_libraries(
-    SDLAudioRender
+    ${PLUGIN}
     ${LINK_LIBS}
 )
 
 set_target_properties(
-    SDLAudioRender
+    ${PLUGIN}
     PROPERTIES
     PREFIX ""
     SUFFIX ".node"

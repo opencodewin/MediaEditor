@@ -14,24 +14,27 @@ if (POLICY CMP0068)
     cmake_policy(SET CMP0068 NEW)
 endif()
 
+set(PLUGIN AudioGain)
 add_library(
-    AudioGain
+    ${PLUGIN}
     SHARED
     ImMatAudioGainNode.cpp
 )
 
-set_property(TARGET AudioGain PROPERTY POSITION_INDEPENDENT_CODE ON)
+add_dependencies(${PLUGIN} BluePrintSDK imgui)
+set_property(TARGET ${PLUGIN} PROPERTY POSITION_INDEPENDENT_CODE ON)
 set (LINK_LIBS
-    ${IMGUI_BLUEPRINT_SDK_LIBRARYS}
-    ${IMGUI_LIBRARYS}
+    -L${CMAKE_BINARY_DIR}
+    -lBluePrintSDK
+    -limgui
 )
 target_link_libraries(
-    AudioGain
+    ${PLUGIN}
     ${LINK_LIBS}
 )
 
 set_target_properties(
-    AudioGain
+    ${PLUGIN}
     PROPERTIES
     PREFIX ""
     SUFFIX ".node"

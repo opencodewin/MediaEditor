@@ -14,8 +14,9 @@ if (POLICY CMP0068)
     cmake_policy(SET CMP0068 NEW)
 endif()
 
+set(PLUGIN Cube)
 add_library(
-    Cube
+    ${PLUGIN}
     SHARED
     ImMatCubeFusionNode.cpp
     Cube_vulkan.cpp
@@ -23,18 +24,21 @@ add_library(
     Cube_shader.h
 )
 
-set_property(TARGET Cube PROPERTY POSITION_INDEPENDENT_CODE ON)
+add_dependencies(${PLUGIN} BluePrintSDK VkShader imgui)
+set_property(TARGET ${PLUGIN} PROPERTY POSITION_INDEPENDENT_CODE ON)
 set (LINK_LIBS
-    ${IMGUI_BLUEPRINT_SDK_LIBRARYS}
-    ${IMGUI_LIBRARYS}
+    -L${CMAKE_BINARY_DIR}
+    -lBluePrintSDK
+    -lVkShader
+    -limgui
 )
 target_link_libraries(
-    Cube
+    ${PLUGIN}
     ${LINK_LIBS}
 )
 
 set_target_properties(
-    Cube
+    ${PLUGIN}
     PROPERTIES
     PREFIX ""
     SUFFIX ".node"

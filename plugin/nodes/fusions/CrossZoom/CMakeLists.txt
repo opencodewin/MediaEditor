@@ -14,8 +14,9 @@ if (POLICY CMP0068)
     cmake_policy(SET CMP0068 NEW)
 endif()
 
+set(PLUGIN CrossZoom)
 add_library(
-    CrossZoom
+    ${PLUGIN}
     SHARED
     ImMatCrossZoomFusionNode.cpp
     CrossZoom_vulkan.cpp
@@ -23,18 +24,21 @@ add_library(
     CrossZoom_shader.h
 )
 
-set_property(TARGET CrossZoom PROPERTY POSITION_INDEPENDENT_CODE ON)
+add_dependencies(${PLUGIN} BluePrintSDK VkShader imgui)
+set_property(TARGET ${PLUGIN} PROPERTY POSITION_INDEPENDENT_CODE ON)
 set (LINK_LIBS
-    ${IMGUI_BLUEPRINT_SDK_LIBRARYS}
-    ${IMGUI_LIBRARYS}
+    -L${CMAKE_BINARY_DIR}
+    -lBluePrintSDK
+    -lVkShader
+    -limgui
 )
 target_link_libraries(
-    CrossZoom
+    ${PLUGIN}
     ${LINK_LIBS}
 )
 
 set_target_properties(
-    CrossZoom
+    ${PLUGIN}
     PROPERTIES
     PREFIX ""
     SUFFIX ".node"

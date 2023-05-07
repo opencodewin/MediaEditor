@@ -78,8 +78,6 @@ include_directories(
     ${PROJECT_BINARY_DIR}
 )
 
-set(IMGUI_BP_SDK_MEDIA_NODE ON CACHE BOOL "build media Built-in node" FORCE)
-add_definitions(-DIMGUI_BP_SDK_MEDIA_NODE)
 add_subdirectory(blueprintsdk)
 set_target_properties(
     BluePrintSDK
@@ -320,6 +318,7 @@ add_subdirectory(plugin/nodes/media/MediaSource)
 add_subdirectory(plugin/nodes/media/SDLAudioRender)
 add_subdirectory(plugin/nodes/filters/AudioEqualizer)
 add_subdirectory(plugin/nodes/filters/AudioGain)
+add_subdirectory(plugin/nodes/fusions/AudioFade)
 if(IMGUI_VULKAN_SHADER)
 #filers
 add_subdirectory(plugin/nodes/filters/ALM)
@@ -391,7 +390,6 @@ add_subdirectory(plugin/nodes/fusions/WindowBlinds)
 add_subdirectory(plugin/nodes/fusions/WindowSlice)
 add_subdirectory(plugin/nodes/fusions/Wipe)
 add_subdirectory(plugin/nodes/fusions/ZoomInCircles)
-add_subdirectory(plugin/nodes/fusions/AudioFade)
 #effects
 add_subdirectory(plugin/nodes/effects/Lighting)
 add_subdirectory(plugin/nodes/effects/Star)
