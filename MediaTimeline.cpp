@@ -2259,11 +2259,12 @@ namespace MediaTimeline
 BluePrintAudioFilter::BluePrintAudioFilter(void * handle)
     : mHandle(handle)
 {
+    TimeLine * timeline = (TimeLine *)handle;
     imgui_json::value filter_BP; 
     mBp = new BluePrint::BluePrintUI();
     BluePrint::BluePrintCallbackFunctions callbacks;
     callbacks.BluePrintOnChanged = OnBluePrintChange;
-    mBp->Initialize();
+    mBp->Initialize(nullptr, timeline ? timeline->mPluginPath.c_str() : nullptr);
     mBp->SetCallbacks(callbacks, this);
     mBp->File_New_Filter(filter_BP, "AudioFilter", "Audio");
 }
@@ -2336,9 +2337,10 @@ namespace MediaTimeline
 BluePrintAudioTransition::BluePrintAudioTransition(void * handle)
     : mHandle(handle)
 {
+    TimeLine * timeline = (TimeLine *)handle;
     imgui_json::value fusion_BP; 
     mBp = new BluePrint::BluePrintUI();
-    mBp->Initialize();
+    mBp->Initialize(nullptr, timeline ? timeline->mPluginPath.c_str() : nullptr);
     BluePrint::BluePrintCallbackFunctions callbacks;
     callbacks.BluePrintOnChanged = OnBluePrintChange;
     mBp->SetCallbacks(callbacks, this);

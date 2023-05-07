@@ -315,6 +315,11 @@ endif(BUILD_TEST)
 endif(IMGUI_APPS)
 
 ## build plugins
+add_subdirectory(plugin/nodes/media/MatRender)
+add_subdirectory(plugin/nodes/media/MediaSource)
+add_subdirectory(plugin/nodes/media/SDLAudioRender)
+add_subdirectory(plugin/nodes/filters/AudioEqualizer)
+add_subdirectory(plugin/nodes/filters/AudioGain)
 if(IMGUI_VULKAN_SHADER)
 #filers
 add_subdirectory(plugin/nodes/filters/ALM)
@@ -386,6 +391,7 @@ add_subdirectory(plugin/nodes/fusions/WindowBlinds)
 add_subdirectory(plugin/nodes/fusions/WindowSlice)
 add_subdirectory(plugin/nodes/fusions/Wipe)
 add_subdirectory(plugin/nodes/fusions/ZoomInCircles)
+add_subdirectory(plugin/nodes/fusions/AudioFade)
 #effects
 add_subdirectory(plugin/nodes/effects/Lighting)
 add_subdirectory(plugin/nodes/effects/Star)
