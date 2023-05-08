@@ -19,7 +19,7 @@ set(PLUGIN WhiteBalance)
 add_library(
     ${PLUGIN}
     SHARED
-    ImMatWhiteBalanceNode.cpp
+    ImMatWhitebalanceNode.cpp
     WhiteBalance_vulkan.cpp
     WhiteBalance_vulkan.h
     WhiteBalance_shader.h

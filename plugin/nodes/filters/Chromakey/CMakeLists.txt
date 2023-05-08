@@ -19,7 +19,7 @@ set(PLUGIN ChromaKey)
 add_library(
     ${PLUGIN}
     SHARED
-    ImMatChromaKeyNode.cpp
+    ImMatChromakeyNode.cpp
     ChromaKey_vulkan.cpp
     ChromaKey_vulkan.h
     ChromaKey_shader.h

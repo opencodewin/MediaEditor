@@ -20,9 +20,9 @@ add_library(
     ${PLUGIN}
     SHARED
     ImMatDeinterlaceNode.cpp
-    Deinterlace_vulkan.cpp
-    Deinterlace_vulkan.h
-    Deinterlace_shader.h
+    DeInterlace_vulkan.cpp
+    DeInterlace_vulkan.h
+    DeInterlace_shader.h
 )
 
 add_dependencies(${PLUGIN} BluePrintSDK VkShader imgui)

@@ -19,7 +19,7 @@ set(PLUGIN DeBand)
 add_library(
     ${PLUGIN}
     SHARED
-    ImMatDeBandNode.cpp
+    ImMatDebandNode.cpp
     DeBand_vulkan.cpp
     DeBand_vulkan.h
     DeBand_shader.h
