@@ -226,6 +226,7 @@ set_target_properties(
 set(MACOSX_BUNDLE_PLIST_FILE ${CMAKE_SOURCE_DIR}/resources/Info.plist)
 set_target_properties(${MEDIA_EDITOR_BINARY} PROPERTIES MACOSX_BUNDLE_INFO_PLIST ${MACOSX_BUNDLE_PLIST_FILE})
 set_target_properties(${MEDIA_EDITOR_BINARY} PROPERTIES MACOSX_BUNDLE TRUE MACOSX_FRAMEWORK_IDENTIFIER com.Code-Win.mec RESOURCE "${RESOURCE_FILES}")
+
 elseif(WIN32)
 add_executable(
     ${MEDIA_EDITOR_BINARY}
@@ -251,7 +252,12 @@ target_link_libraries(
     ${IMGUI_LIBRARYS}
     Threads::Threads
 )
-else()
+add_custom_command(TARGET ${MEDIA_EDITOR_BINARY} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    "$<TARGET_PROPERTY:${MEDIA_EDITOR_BINARY},BINARY_DIR>/plugins"
+    "$<TARGET_PROPERTY:${MEDIA_EDITOR_BINARY},BINARY_DIR>/../plugins")
+
+else() # this branch is for linux
 add_executable(
     ${MEDIA_EDITOR_BINARY}
     ${MEDIA_EDITOR_SRCS}
@@ -274,6 +280,10 @@ target_link_libraries(
     ${IMGUI_LIBRARYS}
     Threads::Threads
 )
+add_custom_command(TARGET ${MEDIA_EDITOR_BINARY} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    "$<TARGET_PROPERTY:${MEDIA_EDITOR_BINARY},BINARY_DIR>/plugins"
+    "$<TARGET_PROPERTY:${MEDIA_EDITOR_BINARY},BINARY_DIR>/../plugins")
 endif(APPLE)
 
 if(BUILD_TEST)

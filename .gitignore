@@ -6,6 +6,7 @@ projects/*
 .vscode/
 .cache/
 /output
+/plugins
 *.ini
 *.node
 *.cfg
