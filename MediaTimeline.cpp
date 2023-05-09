@@ -2215,7 +2215,7 @@ int BluePrintVideoTransition::OnBluePrintChange(int type, std::string name, void
 
 MediaCore::VideoTransition::Holder BluePrintVideoTransition::Clone()
 {
-    BluePrintVideoTransition* bpTrans = new BluePrintVideoTransition;
+    BluePrintVideoTransition* bpTrans = new BluePrintVideoTransition(mHandle);
     auto bpJson = mBp->m_Document->Serialize();
     bpTrans->SetBluePrintFromJson(bpJson);
     bpTrans->SetKeyPoint(mKeyPoints);

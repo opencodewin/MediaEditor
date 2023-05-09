@@ -509,7 +509,7 @@ struct TextClip : Clip
 class BluePrintVideoFilter : public MediaCore::VideoFilter
 {
 public:
-    BluePrintVideoFilter(void * handle = nullptr);
+    BluePrintVideoFilter(void * handle);
     ~BluePrintVideoFilter();
 
     const std::string GetFilterName() const override { return "BluePrintVideoFilter"; }
@@ -533,7 +533,7 @@ private:
 class BluePrintVideoTransition : public MediaCore::VideoTransition
 {
 public:
-    BluePrintVideoTransition(void * handle = nullptr);
+    BluePrintVideoTransition(void * handle);
     ~BluePrintVideoTransition();
 
     MediaCore::VideoTransition::Holder Clone() override;
@@ -557,7 +557,7 @@ private:
 class BluePrintAudioFilter : public MediaCore::AudioFilter
 {
 public:
-    BluePrintAudioFilter(void * handle = nullptr);
+    BluePrintAudioFilter(void * handle);
     ~BluePrintAudioFilter();
     void ApplyTo(MediaCore::AudioClip* clip) override {}
     ImGui::ImMat FilterPcm(const ImGui::ImMat& amat, int64_t pos) override;
@@ -576,7 +576,7 @@ private:
 class BluePrintAudioTransition : public MediaCore::AudioTransition
 {
 public:
-    BluePrintAudioTransition(void * handle = nullptr);
+    BluePrintAudioTransition(void * handle);
     ~BluePrintAudioTransition();
     void ApplyTo(MediaCore::AudioOverlap* overlap) override { mOverlap = overlap; }
     ImGui::ImMat MixTwoAudioMats(const ImGui::ImMat& amat1, const ImGui::ImMat& amat2, int64_t pos) override;
