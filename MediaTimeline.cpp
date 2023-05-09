@@ -4601,7 +4601,7 @@ int TimeLine::OnBluePrintChange(int type, std::string name, void* handle)
     return ret;
 }
 
-TimeLine::TimeLine()
+TimeLine::TimeLine(std::string plugin_path)
     : mStart(0), mEnd(0), mPcmStream(this)
 {
     std::srand(std::time(0)); // init std::rand
@@ -4611,8 +4611,9 @@ TimeLine::TimeLine()
     {
         mAudioRender->OpenDevice(mAudioSampleRate, mAudioChannels, mAudioFormat, &mPcmStream);
     }
+
     auto exec_path = ImGuiHelper::exec_path();
-    mPluginPath = ImGuiHelper::path_parent(exec_path) + "plugins";
+    mPluginPath = plugin_path.empty() ? ImGuiHelper::path_parent(exec_path) + "plugins" : plugin_path;
     m_BP_UI.Initialize(nullptr, mPluginPath.c_str());
 
     ConfigureDataLayer();

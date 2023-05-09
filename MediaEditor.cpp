@@ -38,6 +38,7 @@
 #include "DebugHelper.h"
 #include <sstream>
 #include <iomanip>
+#include <getopt.h>
 
 #define DEFAULT_MAIN_VIEW_WIDTH     1680
 #define DEFAULT_MAIN_VIEW_HEIGHT    1024
@@ -548,6 +549,10 @@ static ImTextureID vector_texture {nullptr};
 
 static std::unordered_map<std::string, std::vector<FM::FontDescriptorHolder>> fontTable;
 static std::vector<string> fontFamilies;     // system fonts
+
+static std::string g_plugin_path = "";
+static std::string g_language_path = "";
+static std::string g_resource_path = "";
 
 static void GetVersion(int& major, int& minor, int& patch, int& build)
 {
@@ -1484,7 +1489,7 @@ static void ShowConfigure(MediaEditorSettings & config)
 // Document Framework
 static void NewTimeline()
 {
-    timeline = new TimeLine();
+    timeline = new TimeLine(g_plugin_path);
     if (timeline)
     {
         timeline->mHardwareCodec = g_media_editor_settings.HardwareCodec;
@@ -10650,9 +10655,34 @@ static void MediaEditor_SplashFinalize(void** handle)
 
 void Application_Setup(ApplicationWindowProperty& property)
 {
+    // param commandline args
+    static struct option long_options[] = {
+        { "plugin_dir", required_argument, NULL, 'p' },
+        { "language_dir", required_argument, NULL, 'l' },
+        { "resuorce_dir", required_argument, NULL, 'r' },
+        { 0, 0, 0, 0 }
+    };
+    if (property.argc > 1 && property.argv)
+    {
+        int o = -1;
+        int option_index = 0;
+        while ((o = getopt_long(property.argc, property.argv, "p:l:r:", long_options, &option_index)) != -1)
+        {
+            if (o == -1)
+                break;
+            switch (o)
+            {
+                case 'p': g_plugin_path = std::string(optarg); break;
+                case 'l': g_language_path = std::string(optarg); break;
+                case 'r': g_resource_path = std::string(optarg); break;
+                default: break;
+            }
+        }
+    }
+
     auto exec_path = ImGuiHelper::exec_path();
     // add language
-    property.language_path = 
+    property.language_path = !g_language_path.empty() ? g_language_path : 
 #if defined(__APPLE__)
         exec_path + "../Resources/languages/";
 #elif defined(_WIN32)
@@ -10663,7 +10693,7 @@ void Application_Setup(ApplicationWindowProperty& property)
         std::string();
 #endif
     icon_file = 
-    property.icon_path =  
+    property.icon_path =  !g_resource_path.empty() ? g_resource_path + "/mec_logo.png" : 
 #if defined(__APPLE__)
         exec_path + "../Resources/mec_logo.png";
 #elif defined(__linux__)
