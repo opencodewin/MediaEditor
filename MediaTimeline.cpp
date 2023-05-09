@@ -331,6 +331,7 @@ void Clip::Load(Clip * clip, const imgui_json::value& value)
         auto& val = value["Name"];
         if (val.is_string()) clip->mName = val.get<imgui_json::string>();
     }
+    clip->mLength = clip->mEnd-clip->mStart;
     // load filter bp
     if (value.contains("FilterBP"))
     {
