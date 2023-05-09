@@ -4611,7 +4611,7 @@ TimeLine::TimeLine()
         mAudioRender->OpenDevice(mAudioSampleRate, mAudioChannels, mAudioFormat, &mPcmStream);
     }
     auto exec_path = ImGuiHelper::exec_path();
-    mPluginPath = exec_path + "/../plugins";
+    mPluginPath = ImGuiHelper::path_parent(exec_path) + "plugins";
     m_BP_UI.Initialize(nullptr, mPluginPath.c_str());
 
     ConfigureDataLayer();
