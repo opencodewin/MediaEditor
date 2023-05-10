@@ -138,9 +138,9 @@ struct ColorCurveNode final : Node
                 return {};
             }
             m_device = gpu;
-            m_histogram->scope(mat_in, mMat_histogram, 256, mHistogramScale, mHistogramLog);
             ImGui::VkMat im_RGB; im_RGB.type = m_mat_data_type == IM_DT_UNDEFINED ? mat_in.type : m_mat_data_type;
             m_NodeTimeMs = m_filter->filter(mat_in, im_RGB, mMat_curve);
+            m_histogram->scope(im_RGB, mMat_histogram, 256, mHistogramScale, mHistogramLog);
             m_MatOut.SetValue(im_RGB);
         }
 

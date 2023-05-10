@@ -16,7 +16,6 @@ struct LumaFusionNode final : Node
         m_Name = "Luma Transform";
         if (blueprint)
         {
-            // load masks
             auto node_path = GetURL();
             if (!node_path.empty())
             {
@@ -31,10 +30,8 @@ struct LumaFusionNode final : Node
                         ImGui::ImLoadImageToMat(masks[i].c_str(), mat, true);
                         if (!mat.empty())
                         {
-                            m_masks.push_back(mat);
-                            ImGui::ImMat mat_snapshot = mat.resize(ImSize(64, 64));
-                            m_mask_snapshots.push_back(mat_snapshot);
                             m_mask_name.push_back(mask_names[i]);
+                            m_masks.push_back(mat);
                         }
                     }
                 }
@@ -46,6 +43,8 @@ struct LumaFusionNode final : Node
     {
         if (m_fusion) { delete m_fusion; m_fusion = nullptr; }
         m_masks.clear();
+        for (auto texture : m_mask_snapshots) { ImGui::ImDestroyTexture(texture); texture = nullptr; }
+        m_mask_snapshots.clear();
         if (m_logo) { ImGui::ImDestroyTexture(m_logo); m_logo = nullptr; }
     }
 
@@ -55,6 +54,20 @@ struct LumaFusionNode final : Node
         m_mutex.lock();
         m_MatOut.SetValue(ImGui::ImMat());
         m_mutex.unlock();
+    }
+
+    void load_mask_texture()
+    {
+        if (m_Blueprint && !m_masks.empty())
+        {
+            for (auto mask : m_masks)
+            {
+                ImGui::ImMat mat_snapshot = mask.resize(ImSize(64, 64)).gray_to_image();
+                ImTextureID texture = nullptr;
+                ImGui::ImMatToTexture(mat_snapshot, texture);
+                m_mask_snapshots.push_back(texture);
+            }
+        }
     }
 
     FlowPin Execute(Context& context, FlowPin& entryPoint, bool threading = false) override
@@ -114,6 +127,7 @@ struct LumaFusionNode final : Node
         int icon_number_pre_row = 4;
         int icon_count = 0;
         int _index = m_mask_index;
+        if (m_mask_snapshots.empty()) load_mask_texture();
         
         for (auto item = m_masks.begin(); item != m_masks.end();)
         {
@@ -123,18 +137,20 @@ struct LumaFusionNode final : Node
                 ImGui::PushID(icon_count);
                 auto row_icon_pos = icon_pos + ImVec2(i * (icon_size + icon_gap), 0);
                 ImGui::SetCursorScreenPos(row_icon_pos);
-                //ImTextureID DrawMatTexture = nullptr;
-                //ImGui::ImMatToTexture(*item, DrawMatTexture, ImSize(32, 32));
-                //ImGui::ImageButton("", DrawMatTexture, ImVec2(icon_size, icon_size));
-                if (ImGui::Button("O", draw_icon_size))
+                ImGui::InvisibleButton("##mask", draw_icon_size);
+                if (ImGui::IsItemHovered())
                 {
-                    _index = icon_count;
+                    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+                        _index = icon_count;
+                    if (ImGui::BeginTooltip())
+                    {
+                        ImGui::Text("%s", m_mask_name[icon_count].c_str());
+                        ImGui::EndTooltip();
+                    }
                 }
-                if (ImGui::IsItemHovered() && ImGui::BeginTooltip())
-                {
-                    ImGui::Text("%s", m_mask_name[icon_count].c_str());
-                    ImGui::EndTooltip();
-                }
+                ImGui::SetCursorScreenPos(row_icon_pos);
+                ImGui::Image(m_mask_snapshots[icon_count], draw_icon_size);
+
                 if (icon_count == m_mask_index)
                 {
                     ImGui::GetWindowDrawList()->AddRect(row_icon_pos, row_icon_pos + draw_icon_size, IM_COL32(255, 0, 0, 255));
@@ -215,7 +231,7 @@ private:
     int m_device        {-1};
     ImGui::Luma_vulkan * m_fusion   {nullptr};
     std::vector<ImGui::ImMat> m_masks;
-    std::vector<ImGui::ImMat> m_mask_snapshots;
+    std::vector<ImTextureID> m_mask_snapshots;
     std::vector<std::string> m_mask_name;
     int m_mask_index {0};
     mutable ImTextureID  m_logo {nullptr};

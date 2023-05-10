@@ -390,7 +390,7 @@ add_subdirectory(plugin/nodes/fusions/WindowBlinds)
 add_subdirectory(plugin/nodes/fusions/WindowSlice)
 add_subdirectory(plugin/nodes/fusions/Wipe)
 add_subdirectory(plugin/nodes/fusions/ZoomInCircles)
-#add_subdirectory(plugin/nodes/fusions/Luma) # testing
+add_subdirectory(plugin/nodes/fusions/Luma)
 #effects
 add_subdirectory(plugin/nodes/effects/Lighting)
 add_subdirectory(plugin/nodes/effects/Star)
