@@ -221,10 +221,6 @@ target_link_libraries(
     ${IMGUI_LIBRARYS}
     Threads::Threads
 )
-add_custom_command(TARGET ${MEDIA_EDITOR_BINARY} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-    "$<TARGET_PROPERTY:${MEDIA_EDITOR_BINARY},BINARY_DIR>/plugins"
-    "$<TARGET_PROPERTY:${MEDIA_EDITOR_BINARY},BINARY_DIR>/../plugins")
 
 else() # this branch is for linux
 add_executable(
@@ -249,10 +245,6 @@ target_link_libraries(
     ${IMGUI_LIBRARYS}
     Threads::Threads
 )
-add_custom_command(TARGET ${MEDIA_EDITOR_BINARY} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-    "$<TARGET_PROPERTY:${MEDIA_EDITOR_BINARY},BINARY_DIR>/plugins"
-    "$<TARGET_PROPERTY:${MEDIA_EDITOR_BINARY},BINARY_DIR>/../plugins")
 endif(APPLE)
 
 if(BUILD_TEST)
