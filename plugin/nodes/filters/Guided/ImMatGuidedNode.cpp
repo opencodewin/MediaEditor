@@ -84,7 +84,7 @@ struct GuidedNode final : Node
         bool changed = false;
         float _eps = m_eps;
         int _range = m_range;
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_NoInput;
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
         ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_EPSIn.IsLinked());

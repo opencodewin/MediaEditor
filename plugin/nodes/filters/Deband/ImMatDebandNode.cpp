@@ -90,7 +90,7 @@ struct DeBandNode final : Node
         int _range = m_range;
         float _direction = m_direction;
         bool _blur = m_blur;
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_NoInput;
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
         ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_ThresholdIn.IsLinked());

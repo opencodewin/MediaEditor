@@ -84,7 +84,7 @@ struct BilateralNode final : Node
     {
         ImGui::SetCurrentContext(ctx);
         bool changed = false;
-        ImGuiSliderFlags flags = ImGuiSliderFlags_NoInput;
+        ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
         int _ksize = m_ksize;
         float _sigma_spatial = m_sigma_spatial;
         float _sigma_color = m_sigma_color;

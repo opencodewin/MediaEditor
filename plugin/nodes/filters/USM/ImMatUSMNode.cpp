@@ -82,7 +82,7 @@ struct USMNode final : Node
     {
         ImGui::SetCurrentContext(ctx);
         bool changed = false;
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_NoInput;
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
         float _sigma = m_sigma;
         float _amount = m_amount;
         float _threshold = m_threshold;

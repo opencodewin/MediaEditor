@@ -87,7 +87,7 @@ struct MatWarpPerspectiveNode final : Node
         ImVec2 _warp_br = ImVec2(m_warp_br.x, 1 - m_warp_br.y);
         ImVec2 _warp_bl = ImVec2(m_warp_bl.x, 1 - m_warp_bl.y);
         ImInterpolateMode _mode = m_interpolation_mode;
-        const ImGuiSliderFlags flags = ImGuiSliderFlags_NoInput;
+        const ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
         const ImVec2 v_size = ImVec2(18, 100);
         ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(120);

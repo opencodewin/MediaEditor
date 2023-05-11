@@ -92,7 +92,7 @@ struct CropNode final : Node
         float _xd = m_xd;
         float _yd = m_yd;
         // TODO::Hard to get focus and input number
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_None;//ImGuiSliderFlags_NoInput;
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
         ImGui::Dummy(ImVec2(300, 8));
         ImGui::PushItemWidth(300);
         ImGui::BeginDisabled(!m_Enabled);
