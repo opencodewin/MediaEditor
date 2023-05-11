@@ -35,7 +35,8 @@
 ### ⭐️⭐️⭐️ Ubuntu
 #### 1. Install related packages. Open the terminal and enter
     sudo apt update && sudo apt install build-essential cmake \
-             ffmpeg libomp-dev zlib1g-dev glslang-dev pkg-config spirv-tools \
+             libavformat-dev libavcodec-dev libavutil-dev libavdevice-dev libswscale-dev libswresample-dev \
+             libgmp-dev libomp-dev zlib1g-dev glslang-dev pkg-config spirv-tools \
              libglew-dev libglfw3-dev libsdl2-dev libsdl2-image-dev libass-dev \
              libfontconfig-dev libfreetype-dev
 #### 2. Build MEC
