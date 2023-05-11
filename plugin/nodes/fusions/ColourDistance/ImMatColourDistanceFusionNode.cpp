@@ -78,7 +78,7 @@ struct ColourDistanceFusionNode final : Node
         ImGui::SetCurrentContext(ctx);
         bool changed = false;
         float _power = m_power;
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_NoInput;
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
         ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Power##Radial", &_power, 1.0, 10.f, "%.0f", flags);

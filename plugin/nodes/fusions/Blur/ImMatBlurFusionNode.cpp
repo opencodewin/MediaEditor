@@ -80,7 +80,7 @@ struct BlurFusionNode final : Node
         bool changed = false;
         float _intensity = m_intensity;
         int _passes = m_passes;
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_NoInput;
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
         ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Intensity##LinearBlur", &_intensity, 0.0, 1.f, "%.1f", flags);

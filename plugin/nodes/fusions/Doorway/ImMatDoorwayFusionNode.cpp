@@ -80,7 +80,7 @@ struct DoorwayFusionNode final : Node
         float _reflection = m_reflection;
         float _perspective = m_perspective;
         float _depth = m_depth;
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_NoInput;
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
         ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Reflection##Doorway", &_reflection, 0.0, 1.f, "%.1f", flags);

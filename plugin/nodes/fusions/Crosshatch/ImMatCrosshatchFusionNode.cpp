@@ -79,7 +79,7 @@ struct CrosshatchFusionNode final : Node
         bool changed = false;
         float _threshold = m_threshold;
         float _fadeEdge = m_fadeEdge;
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_NoInput;
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
         ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Threshold##Crosshatch", &_threshold, 0.0, 5.f, "%.1f", flags);

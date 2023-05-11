@@ -82,7 +82,7 @@ struct DoomScreenFusionNode final : Node
         float _frequency = m_frequency;
         float _dripScale = m_dripScale;
         int _bars = m_bars;
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_NoInput;
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput;
         ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Amplitude##DoomScreen", &_amplitude, 0.1, 10.f, "%.1f", flags);
