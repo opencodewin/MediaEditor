@@ -8772,10 +8772,6 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                                 continue;
                             if (j == 2 && bCutting && count <= 1)
                             {
-                                // draw dotted line at mouse pos
-                                ImVec2 P1(cx, canvas_pos.y + (float)HeadHeight + 8.f);
-                                ImVec2 P2(cx, canvas_pos.y + (float)HeadHeight + float(controlHeight) + 8.f);
-                                draw_list->AddLine(P1, P2, IM_COL32(0, 0, 255, 255), 2);
                                 ImGui::RenderMouseCursor(ICON_CUTTING, ImVec2(7, 0), 1.0, -90);
                             }
                             if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingHorizonScrollBar && !MovingCurrentTime && !menuIsOpened && editable)
@@ -9490,6 +9486,13 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         }
         ImGui::EndChildFrame();
 
+        // cutting line
+        if (bCutting)
+        {
+            ImVec2 P1(cx, canvas_pos.y + (float)HeadHeight + 8.f);
+            ImVec2 P2(cx, canvas_pos.y + (float)HeadHeight + float(controlHeight) + 8.f);
+            draw_list->AddLine(P1, P2, IM_COL32_WHITE, 2);
+        }
         // cursor line
         ImRect custom_view_rect(childFramePos + ImVec2(float(legendWidth), 0.f), childFramePos + childFrameSize);
         draw_list->PushClipRect(custom_view_rect.Min, custom_view_rect.Max);
