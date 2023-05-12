@@ -84,7 +84,7 @@ sudo apt install libfuse2
 | **Color Curve** | Color Invert   | Contrast      | Exposure        | Gamma         |
 | Hue             | Lut 3D         | Saturation    | Vibrance        | White Balance |
 | Canny Edge      | Laplacian Edge | Sobel Edge    | Chroma Key      | Guided Filter |
-| Flip            | HQDN3D Denoise | Gain          | Audio Equalizer | Star Effect   |
+| Flip            | HQDN3D Denoise | Audio Gain    | Audio Equalizer | Star Effect   |
 | Lighting Effect | Sway Effect    |               |                 |               |
 | | | | | |
 
@@ -108,7 +108,7 @@ sudo apt install libfuse2
 | CircleCrop      | Alpha          | Pixelize         | LinearBlur       | Fade          |
 | LuminanceMelt   | Morph          | Burn             | MultiplyBlend    | ColorDistance |
 | ColorPhase      | SimpleZoomOut  | DirectionalScaled| RotateScaleVanish| Rectangle     |
-| StaticWipe      | Edge           |                  |                  |               |
+| StaticWipe      | Edge           | Luma             | Audio Fade       |               |
 | | | | | |
 
 **Cube**
