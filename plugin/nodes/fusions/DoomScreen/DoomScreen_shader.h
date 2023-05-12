@@ -59,7 +59,7 @@ sfpvec4 transition(vec2 uv) \n\
 { \n\
     int bar = int(uv.x * (float(p.bars))); \n\
     float scale = 1.0 + pos(bar) * p.amplitude; \n\
-    float phase = p.progress * scale; \n\
+    float phase = p.progress * scale / 1.5f; \n\
     float posY = uv.y / vec2(1.0).y; \n\
     vec2 point; \n\
     sfpvec4 c; \n\
