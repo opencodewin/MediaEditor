@@ -80,7 +80,7 @@ struct LuminanceMeltFusionNode final : Node
         float _threshold = m_threshold;
         int _direction = m_direction;
         int _above = m_above;
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_NoInput;
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
         ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Threshold##LuminanceMelt", &_threshold, 0.0, 1.f, "%.1f", flags);

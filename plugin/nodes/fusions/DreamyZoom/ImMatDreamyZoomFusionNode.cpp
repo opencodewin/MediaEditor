@@ -79,7 +79,7 @@ struct DreamyZoomFusionNode final : Node
         bool changed = false;
         float _rotation = m_rotation;
         float _scale = m_scale;
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_NoInput;
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
         ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Rotation##DreamyZoom", &_rotation, 0.f, 10.f, "%.1f", flags);

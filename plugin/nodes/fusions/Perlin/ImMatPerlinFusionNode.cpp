@@ -80,7 +80,7 @@ struct PerlinFusionNode final : Node
         float _scale = m_scale;
         float _smoothness = m_smoothness;
         float _seed = m_seed;
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_NoInput;
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
         ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Scale##Perlin", &_scale, 0.0, 10.f, "%.1f", flags);

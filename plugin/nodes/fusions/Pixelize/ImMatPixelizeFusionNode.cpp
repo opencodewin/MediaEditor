@@ -79,7 +79,7 @@ struct PixelizeFusionNode final : Node
         bool changed = false;
         float _size = m_size;
         int _steps = m_steps;
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_NoInput;
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
         ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Min Size##Pixelize", &_size, 0.0, 50.f, "%.0f", flags);

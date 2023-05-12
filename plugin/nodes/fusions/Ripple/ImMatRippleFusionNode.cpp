@@ -79,7 +79,7 @@ struct RippleFusionNode final : Node
         bool changed = false;
         float _speed = m_speed;
         float _amplitude = m_amplitude;
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_NoInput;
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
         ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Speed##Ripple", &_speed, 1.f, 200.f, "%.0f", flags);

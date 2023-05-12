@@ -78,7 +78,7 @@ struct FadeFusionNode final : Node
         ImGui::SetCurrentContext(ctx);
         bool changed = false;
         int _type = m_type;
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_NoInput;
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
         ImGui::Dummy(ImVec2(100, 8));
         ImGui::PushItemWidth(100);
         ImGui::BeginDisabled(!m_Enabled);

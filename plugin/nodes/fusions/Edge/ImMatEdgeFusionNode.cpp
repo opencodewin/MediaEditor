@@ -79,7 +79,7 @@ struct EdgeFusionNode final : Node
         bool changed = false;
         float _thickness = m_thickness;
         float _brightness = m_brightness;
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_NoInput;
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
         ImGui::Dummy(ImVec2(100, 8));
         ImGui::PushItemWidth(100);
         ImGui::BeginDisabled(!m_Enabled);

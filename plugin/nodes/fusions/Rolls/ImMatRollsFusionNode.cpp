@@ -80,11 +80,11 @@ struct RollsFusionNode final : Node
         bool changed = false;
         int _type = m_roll_type;
         int _down = m_RotDown ? 1 : 0;
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_NoInput;
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
         ImGui::Dummy(ImVec2(100, 8));
         ImGui::PushItemWidth(100);
         ImGui::BeginDisabled(!m_Enabled);
-        ImGui::SliderInt("Type", &_type, 0, 4);
+        ImGui::SliderInt("Type", &_type, 0, 4, "%d", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_type##Rolls")) { _type = 0; changed = true; }
         ImGui::RadioButton("Roll Up", &_down, 0); ImGui::SameLine();
         ImGui::RadioButton("Roll Down", &_down, 1);

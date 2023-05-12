@@ -84,7 +84,7 @@ struct DirectionalWarpFusionNode final : Node
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Smoothness##DirectionalWarp", &_smoothness, 0.0, 1.f, "%.1f", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_smoothness##DirectionalWarp")) { _smoothness = 0.5f; changed = true; }
-        ImGui::SliderFloat2("Direction##DirectionalWarp", (float *)&_direction, -1.0, 1.0, "%.1f", 0);
+        ImGui::SliderFloat2("Direction##DirectionalWarp", (float *)&_direction, -1.0, 1.0, "%.1f", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_direction##DirectionalWarp")) { _direction = {1, 0}; changed = true; }
         ImGui::PopItemWidth();
         if (_smoothness != m_smoothness) { m_smoothness = _smoothness; changed = true; }

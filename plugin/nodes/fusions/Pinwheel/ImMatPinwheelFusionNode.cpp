@@ -78,7 +78,7 @@ struct PinwheelFusionNode final : Node
         ImGui::SetCurrentContext(ctx);
         bool changed = false;
         float _speed = m_speed;
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_NoInput;
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
         ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Speed##Pinwheel", &_speed, 1.f, 10.f, "%.0f", flags);

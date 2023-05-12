@@ -78,7 +78,7 @@ struct WindFusionNode final : Node
         ImGui::SetCurrentContext(ctx);
         bool changed = false;
         float _size = m_size;
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_NoInput;
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
         ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Size##Wind", &_size, 0.1, 1.f, "%.1f", flags);

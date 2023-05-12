@@ -78,7 +78,7 @@ struct RadialFusionNode final : Node
         ImGui::SetCurrentContext(ctx);
         bool changed = false;
         float _smoothness = m_smoothness;
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_NoInput;
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
         ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Smoothness##Radial", &_smoothness, 0.0, 1.f, "%.1f", flags);

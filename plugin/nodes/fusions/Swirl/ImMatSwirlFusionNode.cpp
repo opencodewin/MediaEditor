@@ -78,7 +78,7 @@ struct SwirlFusionNode final : Node
         ImGui::SetCurrentContext(ctx);
         bool changed = false;
         float _radius = m_radius;
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_NoInput;
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
         ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Radius##Swirl", &_radius, 0.1, 2.f, "%.1f", flags);

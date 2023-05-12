@@ -78,7 +78,7 @@ struct PolkaDotsFusionNode final : Node
         ImGui::SetCurrentContext(ctx);
         bool changed = false;
         float _dots = m_dots;
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_NoInput;
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
         ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Dots##PolkaDots", &_dots, 1.0, 100.f, "%.0f", flags);

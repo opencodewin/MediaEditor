@@ -79,7 +79,7 @@ struct WindowSliceFusionNode final : Node
         bool changed = false;
         float _smoothness = m_smoothness;
         float _count = m_count;
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_NoInput;
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
         ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Smoothness##WindowSlice", &_smoothness, 0.0, 1.f, "%.1f", flags);
