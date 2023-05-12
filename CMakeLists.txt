@@ -271,6 +271,7 @@ target_include_directories(
 #add_executable(
 #    transition_make
 #    test/TransitionMake.cpp
+#    plugin/nodes/fusions/Luma/Luma_vulkan.cpp
 #    ${IMGUI_APP_ENTRY_SRC}
 #)
 #target_link_libraries(

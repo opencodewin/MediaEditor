@@ -5,75 +5,11 @@
 #include <ImGuiFileDialog.h>
 #include <immat.h>
 #include <ImVulkanShader.h>
-#include "AlphaBlending_vulkan.h"
-#include "LinearBlur_vulkan.h"
-#include "BookFlip_vulkan.h"
-#include "Bounce_vulkan.h"
-#include "BowTie_vulkan.h"
-#include "Burn_vulkan.h"
-#include "BurnOut_vulkan.h"
-#include "ButterflyWave_vulkan.h"
-#include "CannabisLeaf_vulkan.h"
-#include "CircleBlur_vulkan.h"
-#include "CircleCrop_vulkan.h"
-#include "ColorPhase_vulkan.h"
-#include "ColourDistance_vulkan.h"
-#include "CrazyParametric_vulkan.h"
-#include "Crosshatch_vulkan.h"
-#include "CrossWarp_vulkan.h"
-#include "CrossZoom_vulkan.h"
-#include "Cube_vulkan.h"
-#include "DirectionalWarp_vulkan.h"
-#include "DoomScreen_vulkan.h"
-#include "Door_vulkan.h"
-#include "Doorway_vulkan.h"
-#include "Dreamy_vulkan.h"
-#include "DreamyZoom_vulkan.h"
-#include "Fade_vulkan.h"
-#include "Flyeye_vulkan.h"
-#include "GlitchDisplace_vulkan.h"
-#include "GlitchMemories_vulkan.h"
-#include "GridFlip_vulkan.h"
-#include "Heart_vulkan.h"
-#include "Hexagonalize_vulkan.h"
-#include "KaleidoScope_vulkan.h"
-#include "LuminanceMelt_vulkan.h"
-#include "Morph_vulkan.h"
-#include "Mosaic_vulkan.h"
-#include "Move_vulkan.h"
-#include "MultiplyBlend_vulkan.h"
-#include "PageCurl_vulkan.h"
-#include "Perlin_vulkan.h"
-#include "Pinwheel_vulkan.h"
-#include "Pixelize_vulkan.h"
-#include "Polar_vulkan.h"
-#include "PolkaDots_vulkan.h"
-#include "Radial_vulkan.h"
-#include "RandomSquares_vulkan.h"
-#include "Ripple_vulkan.h"
-#include "Rolls_vulkan.h"
-#include "RotateScale_vulkan.h"
-#include "SimpleZoom_vulkan.h"
-#include "Slider_vulkan.h"
-#include "SquaresWire_vulkan.h"
-#include "Squeeze_vulkan.h"
-#include "StereoViewer_vulkan.h"
-#include "Swap_vulkan.h"
-#include "Swirl_vulkan.h"
-#include "WaterDrop_vulkan.h"
-#include "Wind_vulkan.h"
-#include "WindowBlinds_vulkan.h"
-#include "WindowSlice_vulkan.h"
-#include "Wipe_vulkan.h"
-#include "ZoomInCircles_vulkan.h"
-#include "Edge_vulkan.h"
-#include "StaticWipe_vulkan.h"
-#include "DirectionalScaled_vulkan.h"
-#include "Rectangle_vulkan.h"
-#include "SimpleZoomOut_vulkan.h"
-#include "RotateScaleVanish_vulkan.h"
 #include <CopyTo_vulkan.h>
 #include <unistd.h>
+
+#include "../plugin/nodes/fusions/Luma/Luma_vulkan.h"
+
 std::string g_source_1;
 std::string g_source_2;
 std::string g_dist;
@@ -83,81 +19,12 @@ std::string g_dist_name;
 
 ImGui::ImMat g_mat_1;
 ImGui::ImMat g_mat_2;
+ImGui::ImMat g_mat_m;
 ImGui::ImMat g_mat_d;
 ImTextureID g_texture_1 = nullptr;
 ImTextureID g_texture_2 = nullptr;
 ImTextureID g_texture_d = nullptr;
 ImGui::CopyTo_vulkan * g_copy = nullptr;
-
-static const char* fusion_items[] = {
-    "AlphaBlending",
-    "Blur",
-    "BookFlip",
-    "Bounce",
-    "BowTie",
-    "Burn",
-    "BurnOut",
-    "ButterflyWave",
-    "CannabisLeaf",
-    "CircleBlur",
-    "CircleCrop",
-    "ColorPhase",
-    "ColourDistance",
-    "CrazyParametric",
-    "Crosshatch",
-    "CrossWarp",
-    "CrossZoom",
-    "Cube",
-    "DirectionalWarp",
-    "DoomScreen",
-    "Door",
-    "Doorway",
-    "Dreamy",
-    "DreamyZoom",
-    "Fade",
-    "Flyeye",
-    "GlitchDisplace",
-    "GlitchMemories",
-    "GridFlip",
-    "Heart",
-    "Hexagonalize",
-    "KaleidoScope",
-    "LuminanceMelt",
-    "Morph",
-    "Mosaic",
-    "Move",
-    "MultiplyBlend",
-    "PageCurl",
-    "Perlin",
-    "Pinwheel",
-    "Pixelize",
-    "Polar",
-    "PolkaDots",
-    "Radial",
-    "RandomSquares",
-    "Ripple",
-    "Rolls",
-    "RotateScale",
-    "SimpleZoom",
-    "Slider",
-    "SquaresWire",
-    "Squeeze",
-    "StereoViewer",
-    "Swap",
-    "Swirl",
-    "WaterDrop",
-    "Wind",
-    "WindowBlinds",
-    "WindowSlice",
-    "Wipe",
-    "ZoomInCircles",
-    "Edge",
-    "StaticWipe",
-    "DirectionalScaled",
-    "Rectangle",
-    "SimpleZoomOut",
-    "RotateScaleVanish"
-};
 
 static void ShowVideoWindow(ImDrawList *draw_list, ImTextureID texture, ImVec2& pos, ImVec2& size, float& offset_x, float& offset_y, float& tf_x, float& tf_y, float aspectRatio, ImVec2 start = ImVec2(0.f, 0.f), ImVec2 end = ImVec2(1.f, 1.f), bool bLandscape = true)
 {
@@ -259,529 +126,6 @@ static bool binary_to_compressed_c(const char* filename, const char* symbol, voi
     return true;
 }
 
-static void transition(int col, int row, int cols, int rows, int type, ImGui::ImMat& mat_a, ImGui::ImMat& mat_b, ImGui::ImMat& result)
-{
-    ImGui::ImMat mat_t;
-    mat_t.type = mat_a.type;
-    float progress = (float)(row * cols + col) / (float)(rows * cols - 1);
-    switch (type)
-    {
-        case 0:
-        {
-            ImGui::AlphaBlending_vulkan m_fusion(0);
-            float alpha = 1.0f - progress;
-            m_fusion.blend(mat_a, mat_b, mat_t, alpha);
-        }
-        break;
-        case 1:
-        {
-            float m_intensity {0.1};
-            int m_passes {6};
-            ImGui::LinearBlur_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_intensity, m_passes);
-        }
-        break;
-        case 2:
-        {
-            ImGui::BookFlip_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress);
-        }
-        break;
-        case 3:
-        {
-            ImPixel m_shadowColor {0.0f, 0.0f, 0.0f, 0.6f};
-            float m_shadow_height {0.075};
-            float m_bounces {3.f};
-            ImGui::Bounce_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_shadowColor, m_shadow_height, m_bounces);
-        }
-        break;
-        case 4:
-        {
-            ImGui::BowTieHorizontal_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, 0);
-        }
-        break;
-        case 5:
-        {
-            ImPixel m_backColor {0.9f, 0.4f, 0.2f, 1.0f};
-            ImGui::Burn_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_backColor);
-        }
-        break;
-        case 6:
-        {
-            ImPixel m_shadowColor {0.0f, 0.0f, 0.0f, 1.0f};
-            float m_smoothness {0.03};
-            ImGui::BurnOut_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_shadowColor, m_smoothness);
-        }
-        break;
-        case 7:
-        {
-            float m_amplitude   {1.f};
-            float m_waves       {10.f};
-            float m_colorSeparation {0.3f};
-            ImGui::ButterflyWave_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_amplitude, m_waves, m_colorSeparation);
-        }
-        break;
-        case 8:
-        {
-            ImGui::CannabisLeaf_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress);
-        }
-        break;
-        case 9:
-        {
-            float m_smoothness  {0.3f};
-            int m_open          {0};
-            ImGui::CircleBlur_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_smoothness, m_open);
-        }
-        break;
-        case 10:
-        {
-            ImPixel m_backColor {0.0f, 0.0f, 0.0f, 1.0f};
-            ImGui::CircleCrop_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_backColor);
-        }
-        break;
-        case 11:
-        {
-            ImPixel m_fromColor {0.0f, 0.2f, 0.4f, 0.0f};
-            ImPixel m_toColor   {0.6f, 0.8f, 1.0f, 1.0f};
-            ImGui::ColorPhase_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_fromColor, m_toColor);
-        }
-        break;
-        case 12:
-        {
-            float m_power       {5.0f};
-            ImGui::ColourDistance_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_power);
-        }
-        break;
-        case 13:
-        {
-            float m_amplitude   {60.0f};
-            float m_smoothness  {0.1f};
-            float m_pa          {2};
-            float m_pb          {1};
-            ImGui::CrazyParametric_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_amplitude, m_smoothness, m_pa, m_pb);
-        }
-        break;
-        case 14:
-        {
-            float m_threshold   {3.0f};
-            float m_fadeEdge    {0.1f};
-            ImGui::Crosshatch_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_threshold, m_fadeEdge);
-        }
-        break;
-        case 15:
-        {
-            ImGui::CrossWarp_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress);
-        }
-        break;
-        case 16:
-        {
-            float m_strength    {0.4f};
-            ImGui::CrossZoom_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_strength);
-        }
-        break;
-        case 17:
-        {
-            float m_persp       {0.6f};
-            float m_unzoom      {0.05f};
-            float m_reflection  {0.4f};
-            float m_floating    {1.0f};
-            ImGui::Cube_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_persp, m_unzoom, m_reflection, m_floating);
-        }
-        break;
-        case 18:
-        {
-            float m_smoothness   {0.5f};
-            ImVec2 m_direction   {-1.0, 1.0};
-            ImGui::DirectionalWarp_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_smoothness, m_direction.x, m_direction.y);
-        }
-        break;
-        case 19:
-        {
-            float m_amplitude   {2.f};
-            float m_noise       {0.1f};
-            float m_frequency   {0.5f};
-            float m_dripScale   {0.5f};
-            int m_bars          {10};
-            ImGui::DoomScreen_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_amplitude, m_noise, m_frequency, m_dripScale, m_bars);
-        }
-        break;
-        case 20:
-        {
-            bool m_bOpen        {true};
-            bool m_bHorizon     {true};
-            ImGui::Door_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_bOpen, m_bHorizon);
-        }
-        break;
-        case 21:
-        {
-            float m_reflection  {0.4f};
-            float m_perspective {0.2f};
-            float m_depth       {3.f};
-            ImGui::Doorway_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_reflection, m_perspective, m_depth);
-        }
-        break;
-        case 22:
-        {
-            ImGui::Dreamy_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress);
-        }
-        break;
-        case 23:
-        {
-            float m_rotation    {6.f};
-            float m_scale       {1.2f};
-            ImGui::DreamyZoom_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_rotation, m_scale);
-        }
-        break;
-        case 24:
-        {
-            ImPixel m_color {0.0f, 0.0f, 0.0f, 1.0f};
-            int m_type {1};
-            ImGui::Fade_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_type, m_color);
-        }
-        break;
-        case 25:
-        {
-            float m_size        {0.04f};
-            float m_zoom        {50.f};
-            float m_colorSeparation {0.3f};
-            ImGui::Flyeye_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_size, m_zoom, m_colorSeparation);
-        }
-        break;
-        case 26:
-        {
-            ImGui::GlitchDisplace_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress);
-        }
-        break;
-        case 27:
-        {
-            ImGui::GlitchMemories_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress);
-        }
-        break;
-        case 28:
-        {
-            ImPixel m_backColor {0.0f, 0.0f, 0.0f, 1.0f};
-            float m_pause       {0.1};
-            float m_dividerWidth {0.05};
-            float m_randomness  {0.1};
-            int m_size_x        {4};
-            int m_size_y        {4};
-            ImGui::GridFlip_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_backColor, m_pause, m_dividerWidth, m_randomness, m_size_x, m_size_y);
-        }
-        break;
-        case 29:
-        {
-            ImGui::Heart_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress);
-        }
-        break;
-        case 30:
-        {
-            float m_horizontalHexagons  {8.f};
-            int m_steps         {20};
-            ImGui::Hexagonalize_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_horizontalHexagons, m_steps);
-        }
-        break;
-        case 31:
-        {
-            float m_speed       {1.0f};
-            float m_angle       {1.0f};
-            float m_power       {1.5f};
-            ImGui::KaleidoScope_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_speed, m_angle, m_power);
-        }
-        break;
-        case 32:
-        {
-            float m_threshold   {0.8f};
-            int m_direction     {0};
-            int m_above         {0};
-            ImGui::LuminanceMelt_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_threshold, m_direction, m_above);
-        }
-        break;
-        case 33:
-        {
-            float m_strength    {0.1f};
-            ImGui::Morph_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_strength);
-        }
-        break;
-        case 34:
-        {
-            int m_size_x        {2};
-            int m_size_y        {-1};
-            ImGui::Mosaic_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_size_x, m_size_y);
-        }
-        break;
-        case 35:
-        {
-            ImVec2 m_direction   {-1.0, 1.0};
-            ImGui::Move_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_direction.x, m_direction.y);
-        }
-        break;
-        case 36:
-        {
-            ImGui::MultiplyBlend_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress);
-        }
-        break;
-        case 37:
-        {
-            ImGui::PageCurl_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress);
-        }
-        break;
-        case 38:
-        {
-            float m_scale       {4.0f};
-            float m_smoothness  {0.01f};
-            float m_seed        {12.9898f};
-            ImGui::Perlin_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_scale, m_smoothness, m_seed);
-        }
-        break;
-        case 39:
-        {
-            float m_speed       {2.f};
-            ImGui::Pinwheel_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_speed);
-        }
-        break;
-        case 40:
-        {
-            int m_size          {20};
-            int m_steps         {50};
-            ImGui::Pixelize_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_size, m_steps);
-        }
-        break;
-        case 41:
-        {
-            int m_segments      {5};
-            ImGui::Polar_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_segments);
-        }
-        break;
-        case 42:
-        {
-            float m_dots        {20.f};
-            ImGui::PolkaDots_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_dots);
-        }
-        break;
-        case 43:
-        {
-            float m_smoothness   {1.f};
-            ImGui::Radial_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_smoothness);
-        }
-        break;
-        case 44:
-        {
-            float m_smoothness  {0.5f};
-            int m_size          {10};
-            ImGui::RandomSquares_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_smoothness, m_size);
-        }
-        break;
-        case 45:
-        {
-            float m_speed       {30.f};
-            float m_amplitude   {30.f};
-            ImGui::Ripple_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_amplitude, m_speed);
-        }
-        break;
-        case 46:
-        {
-            int m_type       {0};
-            bool m_RotDown   {false};
-            ImGui::Rolls_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_RotDown, m_type);
-        }
-        break;
-        case 47:
-        {
-            float m_rotations   {1.f};
-            float m_scale       {8.0f};
-            ImPixel m_backColor {0.15f, 0.15f, 0.15f, 1.0f};
-            ImGui::RotateScale_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_backColor, m_rotations, m_scale);
-        }
-        break;
-        case 48:
-        {
-            float m_quickness   {0.8f};
-            ImGui::SimpleZoom_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_quickness);
-        }
-        break;
-        case 49:
-        {
-            int m_type {0};
-            bool m_Out {true};
-            ImGui::Slider_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_Out, m_type);
-        }
-        break;
-        case 50:
-        {
-            float m_smoothness  {1.6f};
-            int m_size          {10};
-            ImVec2 m_direction  {1.0, -0.5};
-            ImGui::SquaresWire_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_smoothness, m_size, m_direction.x, m_direction.y);
-        }
-        break;
-        case 51:
-        {
-            float m_separation  {0.04f};
-            ImGui::Squeeze_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_separation);
-        }
-        break;
-        case 52:
-        {
-            float m_zoom        {0.88f};
-            float m_corner_radius {0.22f};
-            ImGui::StereoViewer_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_zoom, m_corner_radius);
-        }
-        break;
-        case 53:
-        {
-            float m_reflection  {0.4f};
-            float m_perspective {0.2f};
-            float m_depth       {3.f};
-            ImGui::Swap_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_reflection, m_perspective, m_depth);
-        }
-        break;
-        case 54:
-        {
-            float m_radius      {1.f};
-            ImGui::Swirl_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_radius);
-        }
-        break;
-        case 55:
-        {
-            float m_speed       {30.f};
-            float m_amplitude   {30.f};
-            ImGui::WaterDrop_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_speed, m_amplitude);
-        }
-        break;
-        case 56:
-        {
-            float m_size        {0.2f};
-            ImGui::Wind_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_size);
-        }
-        break;
-        case 57:
-        {
-            ImGui::WindowBlinds_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress);
-        }
-        break;
-        case 58:
-        {
-            float m_smoothness  {1.f};
-            float m_count       {10.f};
-            ImGui::WindowSlice_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_smoothness, m_count);
-        }
-        break;
-        case 59:
-        {
-            int m_type {0};
-            ImGui::Wipe_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_type);
-        }
-        break;
-        case 60:
-        {
-            ImGui::ZoomInCircles_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress);
-        }
-        break;
-        case 61:
-        {
-            float edge_thickness = 0.001;
-            float edge_brightness = 8.0;
-            ImGui::Edge_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, edge_thickness, edge_brightness);
-        }
-        break;
-        case 62:
-        {
-            float m_span = 0.5;
-            ImGui::StaticWipe_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_span, true);
-        }
-        break;
-        case 63:
-        {
-            ImVec2 m_direction  {0.0, 1.0};
-            float m_scale = 0.7;
-            ImGui::DirectionalScaled_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_direction.x, m_direction.y, m_scale);
-        }
-        break;
-        case 64:
-        {
-            ImPixel m_backColor {0.0f, 0.0f, 0.0f, 1.0f};
-            ImGui::Rectangle_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_backColor);
-        }
-        break;
-        case 65:
-        {
-            float m_quickness = 0.8;
-            ImGui::SimpleZoomOut_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, m_quickness, true);
-        }
-        break;
-        case 66:
-        {
-            ImGui::RotateScaleVanish_vulkan m_fusion(0);
-            m_fusion.transition(mat_a, mat_b, mat_t, progress, true, false, false);
-        }
-        default: break;
-    }
-    g_copy->copyTo(mat_t, result, col * mat_a.w, row * mat_a.h);
-}
-
 // Application Framework Functions
 static void TransitionMake_SetupContext(ImGuiContext* ctx, bool in_splash)
 {
@@ -816,6 +160,22 @@ static void TransitionMake_Finalize(void** handle)
     if (g_texture_1) ImGui::ImDestroyTexture(g_texture_1);
     if (g_texture_2) ImGui::ImDestroyTexture(g_texture_2);
     if (g_texture_d) ImGui::ImDestroyTexture(g_texture_d);
+}
+
+static void transition(int col, int row, int cols, int rows, int type, ImGui::ImMat& mat_a, ImGui::ImMat& mat_b, ImGui::ImMat& result)
+{
+    ImGui::ImMat mat_t;
+    mat_t.type = mat_a.type;
+    float progress = (float)(row * cols + col) / (float)(rows * cols - 1);
+    // luma 
+    if (g_mat_m.empty())
+    {
+        load_image("/Users/dicky/Developer.localized/CodeWin/MediaEditor/plugin/nodes/fusions/Luma/masks/radial-tri.png", g_mat_m);
+    }
+    ImGui::Luma_vulkan m_fusion(0);
+    m_fusion.transition(mat_a, mat_b, g_mat_m, mat_t, progress);
+
+    g_copy->copyTo(mat_t, result, col * mat_a.w, row * mat_a.h);
 }
 
 static bool TransitionMake_Frame(void * handle, bool app_will_quit)
@@ -874,7 +234,7 @@ static bool TransitionMake_Frame(void * handle, bool app_will_quit)
 
     if (ImGui::Button("Generate"))
     {
-        if (!g_dist.empty() && !result.empty())
+        if (/*!g_dist.empty() && */!result.empty())
         {
             image_context.last_pos = 0;
             int ret = stbi_write_jpg_to_func(custom_stbi_write_mem, &image_context, result.w, result.h, result.c, result.data, output_quality);
@@ -886,11 +246,6 @@ static bool TransitionMake_Frame(void * handle, bool app_will_quit)
     }
 
     bool need_update = false;
-    if (ImGui::Combo("Fusion", &fusion_index, fusion_items, IM_ARRAYSIZE(fusion_items), 30))
-    {
-        fusion_image_index = 0;
-        need_update = true;
-    }
     if (ImGui::SliderInt("Image cols", &fusion_col_images, 2, 8))
     {
         fusion_image_index = 0;
@@ -901,9 +256,7 @@ static bool TransitionMake_Frame(void * handle, bool app_will_quit)
         fusion_image_index = 0;
         need_update = true;
     }
-
     ImGui::SliderInt("Image quality", &output_quality, 40, 100);
-
     if (!g_mat_1.empty() && !g_texture_1) ImGui::ImMatToTexture(g_mat_1, g_texture_1);
     if (!g_mat_2.empty() && !g_texture_2) ImGui::ImMatToTexture(g_mat_2, g_texture_2);
     if (!g_copy) g_copy = new ImGui::CopyTo_vulkan(0);
@@ -972,6 +325,7 @@ static bool TransitionMake_Frame(void * handle, bool app_will_quit)
         }
         ImGui::ImMatToTexture(result, g_texture_d);
     }
+
     // handle file open
     if (ImGuiFileDialog::Instance()->Display("##MediaSourceDlgKey", ImGuiWindowFlags_NoCollapse, minSize, maxSize))
     {
@@ -1016,6 +370,7 @@ static bool TransitionMake_Frame(void * handle, bool app_will_quit)
     }
 
     ImGui::End();
+
     if (app_will_quit)
     {
         if (g_texture_1) { ImGui::ImDestroyTexture(g_texture_1); g_texture_1 = nullptr; }
@@ -1025,6 +380,7 @@ static bool TransitionMake_Frame(void * handle, bool app_will_quit)
         if (data_memory) { free(data_memory); data_memory = nullptr; }
         app_done = true;
     }
+
     return app_done;
 }
 
@@ -1038,42 +394,6 @@ void Application_Setup(ApplicationWindowProperty& property)
     property.width = 1680;
     property.height = 900;
 
-    // get opt
-    if (property.argc > 1 && property.argv)
-    {
-        int o = -1;
-        const char *option_str = "1:2:o:";
-        while ((o = getopt(property.argc, property.argv, option_str)) != -1)
-        {
-            switch (o)
-            {
-                case '1': g_source_1 = std::string(optarg); break;
-                case '2': g_source_2 = std::string(optarg); break;
-                case 'o': g_dist = std::string(optarg); break;
-                default: break;
-            }
-        }
-        if (!g_source_1.empty())
-        {
-            auto pos = g_source_1.find_last_of("\\/");
-            if (pos != std::string::npos)
-                g_source_name_1 = g_source_1.substr(pos + 1);
-            load_image(g_source_1, g_mat_1);
-        }
-        if (!g_source_2.empty())
-        {
-            auto pos = g_source_2.find_last_of("\\/");
-            if (pos != std::string::npos)
-                g_source_name_2 = g_source_2.substr(pos + 1);
-            load_image(g_source_2, g_mat_2);
-        }
-        if (!g_dist.empty())
-        {
-            auto pos = g_dist.find_last_of("\\/");
-            if (pos != std::string::npos)
-                g_dist_name = g_dist.substr(pos + 1);
-        }
-    }
     property.application.Application_SetupContext = TransitionMake_SetupContext;
     property.application.Application_Finalize = TransitionMake_Finalize;
     property.application.Application_Frame = TransitionMake_Frame;
