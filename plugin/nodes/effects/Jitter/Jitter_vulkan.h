@@ -11,7 +11,6 @@ class VKSHADER_API Jitter_vulkan
 public:
     Jitter_vulkan(int gpu = 0);
     ~Jitter_vulkan();
-    void SetParam(float _edgeStrength);
 
     double effect(const ImMat& src, ImMat& dst, float playTime, float duration, float max_scale, float offset);
 

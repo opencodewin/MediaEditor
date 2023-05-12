@@ -11,7 +11,6 @@ class VKSHADER_API Sway_vulkan
 public:
     Sway_vulkan(int gpu = 0);
     ~Sway_vulkan();
-    void SetParam(float _edgeStrength);
 
     double effect(const ImMat& src, ImMat& dst, float playTime, bool horizontal);
 

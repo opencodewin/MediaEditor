@@ -11,7 +11,6 @@ class VKSHADER_API Star_vulkan
 public:
     Star_vulkan(int gpu = 0);
     ~Star_vulkan();
-    void SetParam(float _edgeStrength);
 
     double effect(const ImMat& src, ImMat& dst, float playTime, int layers, ImPixel& colour);
 

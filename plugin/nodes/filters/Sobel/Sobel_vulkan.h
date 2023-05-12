@@ -11,7 +11,6 @@ class VKSHADER_API Sobel_vulkan
 public:
     Sobel_vulkan(int gpu = 0);
     ~Sobel_vulkan();
-    void SetParam(float _edgeStrength);
 
     double filter(const ImMat& src, ImMat& dst, float edgeStrength);
 
