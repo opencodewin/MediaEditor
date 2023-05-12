@@ -93,6 +93,8 @@ struct BounceFusionNode final : Node
             m_shadowColor = _shadowColor; changed = true;
         } ImGui::SameLine(); ImGui::TextUnformatted("Shadow Color");
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_shadowColor##Bounce")) { m_shadowColor = {0.0f, 0.0f, 0.0f, 0.6f}; changed = true; }
+        if (_shadow_height != m_shadow_height) { m_shadow_height = _shadow_height; changed = true; }
+        if (_bounces != m_bounces) { m_bounces = _bounces; changed = true; }
         return m_Enabled ? changed : false;
     }
 

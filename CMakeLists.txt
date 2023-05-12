@@ -394,6 +394,7 @@ add_subdirectory(plugin/nodes/fusions/ZoomInCircles)
 add_subdirectory(plugin/nodes/fusions/Luma)
 #effects
 add_subdirectory(plugin/nodes/effects/Lighting)
+add_subdirectory(plugin/nodes/effects/Jitter)
 add_subdirectory(plugin/nodes/effects/Star)
 add_subdirectory(plugin/nodes/effects/Sway)
 endif(IMGUI_VULKAN_SHADER)
