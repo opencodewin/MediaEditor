@@ -11,7 +11,6 @@ class VKSHADER_API Lighting_vulkan
 public:
     Lighting_vulkan(int gpu = 0);
     ~Lighting_vulkan();
-    void SetParam(float _edgeStrength);
 
     double effect(const ImMat& src, ImMat& dst, float playTime, float saturation, float light);
 
