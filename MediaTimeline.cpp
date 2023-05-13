@@ -532,8 +532,11 @@ void Clip::Cutting(int64_t pos, std::list<imgui_json::value>* pActionList)
         return;
     if (IS_DUMMY(mType))
         return;
-    
+    // check if the cut position is inside the clip
     timeline->AlignTime(pos);
+    if (pos <= mStart || pos >= mEnd)
+        return;
+
     // calculate new pos
     int64_t org_end = mEnd;
     int64_t org_end_offset = mEndOffset;
@@ -5964,7 +5967,7 @@ ImU32 TimeLine::GetGroupColor(int64_t group_id)
 void TimeLine::CustomDraw(
         int index, ImDrawList *draw_list, const ImRect &view_rc, const ImRect &rc,
         const ImRect &titleRect, const ImRect &clippingTitleRect, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRec,
-        bool is_moving, bool enable_select, std::list<imgui_json::value>* pActionList)
+        bool is_moving, bool enable_select, bool is_cutting, int alignedMousePosX, std::list<imgui_json::value>* pActionList)
 {
     // view_rc: track view rect
     // rc: full track length rect
@@ -5988,7 +5991,7 @@ void TimeLine::CustomDraw(
     auto need_seek = track->DrawTrackControlBar(draw_list, legendRect, pActionList);
     //if (need_seek) Seek();
     draw_list->PopClipRect();
-    
+
     // draw clips
     for (auto clip : track->m_Clips)
     {
@@ -6181,6 +6184,13 @@ void TimeLine::CustomDraw(
                     }
                     clip->DrawTooltips();
                 }
+            }
+
+            if (is_cutting && clip->bSelected && alignedMousePosX >= 0 && clip_rect.Min.x < alignedMousePosX && clip_rect.Max.x > alignedMousePosX)
+            {
+                ImVec2 P1(alignedMousePosX, clip_rect.Min.y);
+                ImVec2 P2(alignedMousePosX, clip_rect.Max.y);
+                draw_list->AddLine(P1, P2, IM_COL32_WHITE, 2);
             }
         }
     }
@@ -8421,6 +8431,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
     int legendEntry = -1;
     int64_t mouseClip = -1;
     int64_t mouseTime = -1;
+    int alignedMousePosX = -1;
     static int64_t menuMouseTime = -1;
     std::vector<int64_t> delClipEntry;
     std::vector<int64_t> groupClipEntry;
@@ -8432,6 +8443,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
     static bool bCropping = false;
     static bool bMoving = false;
     bCutting = ImGui::IsKeyDown(ImGuiKey_LeftAlt) && (io.KeyMods == ImGuiMod_Alt);
+    int64_t doCutPos = -1;
     bool overTrackView = false;
     bool overHorizonScrollBar = false;
     bool overCustomDraw = false;
@@ -8587,6 +8599,9 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         // calculate mouse pos to time
         mouseTime = (int64_t)((cx - contentMin.x - legendWidth) / timeline->msPixelWidthTarget) + timeline->firstTime;
         //timeline->AlignTime(mouseTime);
+        auto alignedTime = mouseTime; timeline->AlignTime(alignedTime);
+        if (alignedTime >= timeline->firstTime)
+            alignedMousePosX = ((alignedTime - timeline->firstTime) * timeline->msPixelWidthTarget) + contentMin.x + legendWidth;
         menuIsOpened = ImGui::IsPopupOpen("##timeline-context-menu") || ImGui::IsPopupOpen("##timeline-header-context-menu");
 
         //header
@@ -8778,7 +8793,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                             {
                                 if (j == 2 && bCutting && count <= 1)
                                 {
-                                    clip->Cutting(mouseTime, &timeline->mUiActions);
+                                    doCutPos = mouseTime;
                                 }
                                 else
                                 {
@@ -8809,6 +8824,15 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 }
             }
             customHeight += localCustomHeight;
+        }
+        // handle cut operation
+        if (doCutPos > 0)
+        {
+            for (auto clip : timeline->m_Clips)
+            {
+                if (clip->bSelected)
+                    clip->Cutting(doCutPos, &timeline->mUiActions);
+            }
         }
 
         // check mouseEntry is below track area
@@ -9319,7 +9343,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             timeline->CustomDraw(
                     customDraw.index, draw_list, ImRect(childFramePos, childFramePos + childFrameSize), customDraw.customRect,
                     customDraw.titleRect, customDraw.clippingTitleRect, customDraw.legendRect, customDraw.clippingRect, customDraw.legendClippingRect,
-                    bMoving, !menuIsOpened && !bCutting && editable, &actionList);
+                    bMoving, !menuIsOpened && !bCutting && editable, bCutting, alignedMousePosX, &actionList);
         draw_list->PopClipRect();
 
         // record moving or cropping action
@@ -9486,13 +9510,6 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         }
         ImGui::EndChildFrame();
 
-        // cutting line
-        if (bCutting)
-        {
-            ImVec2 P1(cx, canvas_pos.y + (float)HeadHeight + 8.f);
-            ImVec2 P2(cx, canvas_pos.y + (float)HeadHeight + float(controlHeight) + 8.f);
-            draw_list->AddLine(P1, P2, IM_COL32_WHITE, 2);
-        }
         // cursor line
         ImRect custom_view_rect(childFramePos + ImVec2(float(legendWidth), 0.f), childFramePos + childFrameSize);
         draw_list->PushClipRect(custom_view_rect.Min, custom_view_rect.Max);
