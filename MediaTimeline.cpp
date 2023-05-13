@@ -8828,7 +8828,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         // handle cut operation
         if (doCutPos > 0)
         {
-            for (auto clip : timeline->m_Clips)
+            vector<Clip*> clips(timeline->m_Clips);
+            for (auto clip : clips)
             {
                 if (clip->bSelected)
                     clip->Cutting(doCutPos, &timeline->mUiActions);
