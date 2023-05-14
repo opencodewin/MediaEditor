@@ -548,6 +548,7 @@ void Clip::Cutting(int64_t pos, std::list<imgui_json::value>* pActionList)
     // crop this clip's end
     mEnd = adj_end;
     mEndOffset = adj_end_offset;
+    mLength = mEnd - mStart;
     if (pActionList)
     {
         imgui_json::value action;
@@ -5715,7 +5716,7 @@ int TimeLine::FindTrackIndexByClipID(int64_t id)
         if (track && m_Tracks[i]->mID == track->mID)
         {
             track_found = i;
-                break;
+            break;
         }
     }
     return track_found;
@@ -5967,7 +5968,7 @@ ImU32 TimeLine::GetGroupColor(int64_t group_id)
 void TimeLine::CustomDraw(
         int index, ImDrawList *draw_list, const ImRect &view_rc, const ImRect &rc,
         const ImRect &titleRect, const ImRect &clippingTitleRect, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRec,
-        bool is_moving, bool enable_select, bool is_cutting, int alignedMousePosX, std::list<imgui_json::value>* pActionList)
+        bool is_moving, bool enable_select, std::list<imgui_json::value>* pActionList)
 {
     // view_rc: track view rect
     // rc: full track length rect
@@ -6184,13 +6185,6 @@ void TimeLine::CustomDraw(
                     }
                     clip->DrawTooltips();
                 }
-            }
-
-            if (is_cutting && clip->bSelected && alignedMousePosX >= 0 && clip_rect.Min.x < alignedMousePosX && clip_rect.Max.x > alignedMousePosX)
-            {
-                ImVec2 P1(alignedMousePosX, clip_rect.Min.y);
-                ImVec2 P2(alignedMousePosX, clip_rect.Max.y);
-                draw_list->AddLine(P1, P2, IM_COL32_WHITE, 2);
             }
         }
     }
@@ -8825,16 +8819,6 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             }
             customHeight += localCustomHeight;
         }
-        // handle cut operation
-        if (doCutPos > 0)
-        {
-            vector<Clip*> clips(timeline->m_Clips);
-            for (auto clip : clips)
-            {
-                if (clip->bSelected)
-                    clip->Cutting(doCutPos, &timeline->mUiActions);
-            }
-        }
 
         // check mouseEntry is below track area
         if (mouseEntry < 0 && trackAreaRect.Contains(io.MousePos) && cy >= trackRect.Max.y)
@@ -9344,8 +9328,104 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             timeline->CustomDraw(
                     customDraw.index, draw_list, ImRect(childFramePos, childFramePos + childFrameSize), customDraw.customRect,
                     customDraw.titleRect, customDraw.clippingTitleRect, customDraw.legendRect, customDraw.clippingRect, customDraw.legendClippingRect,
-                    bMoving, !menuIsOpened && !bCutting && editable, bCutting, alignedMousePosX, &actionList);
+                    bMoving, !menuIsOpened && !bCutting && editable, &actionList);
         draw_list->PopClipRect();
+
+        // show cutting line
+        if (bCutting)
+        {
+            std::vector<Clip*> cuttingClips;
+            // 1. find track on which the mouse is hovering
+            int cutTrkIdx = -1;
+            ImRect trkRect;
+            for (auto& customDraw : customDraws)
+            {
+                if (cy >= customDraw.clippingTitleRect.Min.y && cy <= customDraw.clippingRect.Max.y)
+                {
+                    cutTrkIdx = customDraw.index;
+                    trkRect = ImRect(customDraw.clippingTitleRect.Min, customDraw.clippingRect.Max);
+                    break;
+                }
+            }
+            // 2. find clip on which the mouse is hovering
+            MediaTrack* cutTrk = nullptr;
+            Clip* hoveringClip = nullptr;
+            if (cutTrkIdx >= 0 && cutTrkIdx < timeline->m_Tracks.size())
+            {
+                cutTrk = timeline->m_Tracks[cutTrkIdx];
+                for (auto clip : cutTrk->m_Clips)
+                {
+                    if (alignedTime > clip->mStart && alignedTime < clip->mEnd)
+                    {
+                        hoveringClip = clip;
+                        break;
+                    }
+                }
+            }
+            // 3. check if the mouse is reside in an overlap
+            bool inOverlap = false;
+            if (cutTrk && hoveringClip)
+            {
+                for (auto ovlp : cutTrk->m_Overlaps)
+                {
+                    if (alignedTime >= ovlp->mStart && alignedTime <= ovlp->mEnd)
+                    {
+                        inOverlap = true;
+                        break;
+                    }
+                }
+            }
+            // 4. show cutting line in the hovering clip and clips in the same group
+            if (hoveringClip && !inOverlap)
+            {
+                cuttingClips.push_back(hoveringClip);
+                // 4.1 draw cutting line in the hovering clip
+                draw_list->AddLine({(float)alignedMousePosX, trkRect.Min.y}, {(float)alignedMousePosX, trkRect.Max.y}, IM_COL32_WHITE, 2);
+                // 4.2 draw cutting line in the clips in the same group
+                if (hoveringClip->mGroupID != -1)
+                {
+                    const auto targetGid = hoveringClip->mGroupID;
+                    auto grpIter = std::find_if(timeline->m_Groups.begin(), timeline->m_Groups.end(), [targetGid] (auto& grp) {
+                        return grp.mID == targetGid;
+                    });
+                    if (grpIter != timeline->m_Groups.end())
+                    {
+                        for (auto clipId : grpIter->m_Grouped_Clips)
+                        {
+                            if (clipId == hoveringClip->mID)
+                                continue;
+                            auto clip = timeline->FindClipByID(clipId);
+                            if (!clip) continue;
+                            if (alignedTime > clip->mStart && alignedTime < clip->mEnd)
+                            {
+                                int trkIdx = timeline->FindTrackIndexByClipID(clip->mID);
+                                if (trkIdx >= 0)
+                                {
+                                    auto cdIter = std::find_if(customDraws.begin(), customDraws.end(), [trkIdx] (auto& cd) {
+                                        return cd.index == trkIdx;
+                                    });
+                                    if (cdIter != customDraws.end())
+                                    {
+                                        cuttingClips.push_back(clip);
+                                        trkRect = ImRect(cdIter->clippingTitleRect.Min, cdIter->clippingRect.Max);
+                                        draw_list->AddLine({(float)alignedMousePosX, trkRect.Min.y}, {(float)alignedMousePosX, trkRect.Max.y}, IM_COL32_WHITE, 2);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // handle cut operation
+            if (doCutPos > 0 && !cuttingClips.empty())
+            {
+                for (auto clip : cuttingClips)
+                {
+                    clip->Cutting(doCutPos, &timeline->mUiActions);
+                }
+            }
+        }
 
         // record moving or cropping action
         if (clipClickedTriggered && clipMovingEntry != -1)

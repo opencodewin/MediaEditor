@@ -1127,7 +1127,7 @@ struct TimeLine
     void CustomDraw(
             int index, ImDrawList *draw_list, const ImRect &view_rc, const ImRect &rc,
             const ImRect &titleRect, const ImRect &clippingTitleRect, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRect,
-            bool is_moving, bool enable_select, bool is_cutting, int alignedMousePosX, std::list<imgui_json::value>* pActionList);
+            bool is_moving, bool enable_select, std::list<imgui_json::value>* pActionList);
     
     std::vector<MediaCore::CorrelativeFrame> GetPreviewFrame();
     float GetAudioLevel(int channel);
