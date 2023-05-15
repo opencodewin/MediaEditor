@@ -64,6 +64,14 @@ static void alignTime(int64_t& time, MediaCore::Ratio rate)
     }
 }
 
+static int64_t frameTime(MediaCore::Ratio rate)
+{
+    if (rate.den && rate.num)
+        return rate.den * 1000 / rate.num;
+    else
+        return 0;
+}
+
 static void frameStepTime(int64_t& time, int32_t offset, MediaCore::Ratio rate)
 {
     if (rate.den && rate.num)
@@ -675,17 +683,20 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
     std::vector<int64_t> selected_end_points;
     std::vector<int64_t> unselected_start_points;
     std::vector<int64_t> unselected_end_points;
-    for (auto clip : timeline->m_Clips)
+    if (timeline->bMovingAttract)
     {
-        if ((single && clip->mID == mID) || (!single && clip->bSelected && clip->bMoving))
+        for (auto clip : timeline->m_Clips)
         {
-            selected_start_points.push_back(clip->mStart);
-            selected_end_points.push_back(clip->mEnd);
-        }
-        else
-        {
-            unselected_start_points.push_back(clip->mStart);
-            unselected_end_points.push_back(clip->mEnd);
+            if ((single && clip->mID == mID) || (!single && clip->bSelected && clip->bMoving))
+            {
+                selected_start_points.push_back(clip->mStart);
+                selected_end_points.push_back(clip->mEnd);
+            }
+            else
+            {
+                unselected_start_points.push_back(clip->mStart);
+                unselected_end_points.push_back(clip->mEnd);
+            }
         }
     }
 
@@ -6376,6 +6387,12 @@ int TimeLine::Load(const imgui_json::value& value)
         auto& val = value["SelectLinked"];
         if (val.is_boolean()) bSelectLinked = val.get<imgui_json::boolean>();
     }
+    if (value.contains("MovingAttract"))
+    {
+        auto& val = value["MovingAttract"];
+        if (val.is_boolean()) bMovingAttract = val.get<imgui_json::boolean>();
+    }
+    
     
     if (value.contains("FontName"))
     {
@@ -6896,6 +6913,7 @@ void TimeLine::Save(imgui_json::value& value)
     value["FusionOutPreview"] = imgui_json::boolean(bFusionOutputPreview);
     value["AttributeOutPreview"] = imgui_json::boolean(bAttributeOutputPreview);
     value["SelectLinked"] = imgui_json::boolean(bSelectLinked);
+    value["MovingAttract"] = imgui_json::boolean(bMovingAttract);
     value["IDGenerateState"] = imgui_json::number(m_IDGenerator.State());
     value["FontName"] = mFontName;
     value["OutputName"] = mOutputName;
@@ -8420,6 +8438,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
     static int64_t clipMenuEntry = -1;
     static int64_t clipMovingEntry = -1;
     static int clipMovingPart = -1;
+    static float diffTime = 0;
     int delTrackEntry = -1;
     int mouseEntry = -1;
     int legendEntry = -1;
@@ -8850,8 +8869,9 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         if (clipMovingEntry != -1 && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
         {
             ImGui::CaptureMouseFromApp();
-            int64_t diffTime = int64_t(io.MouseDelta.x / timeline->msPixelWidthTarget);
-            if (std::abs(diffTime) > 0)
+            diffTime += io.MouseDelta.x / timeline->msPixelWidthTarget;
+
+            if (diffTime > frameTime(timeline->mFrameRate) || diffTime < -frameTime(timeline->mFrameRate))
             {
                 Clip * clip = timeline->FindClipByID(clipMovingEntry);
                 if (clip && clip->bSelected)
@@ -8876,6 +8896,10 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                         clip->Cropping(diffTime, 1);
                     }
                 }
+                //int64_t align_time = diffTime;
+                //timeline->AlignTime(align_time);
+                //diffTime -= align_time;
+                diffTime = 0;
             }
         }
 
@@ -8898,11 +8922,11 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             }
             else
             {
-                int64_t diffTime = int64_t(io.MouseDelta.x / timeline->msPixelWidthTarget);
-                if (timeline->mark_in + diffTime < timeline->mStart) diffTime = timeline->mark_in - timeline->mStart;
-                if (timeline->mark_out + diffTime > timeline->mEnd) diffTime = timeline->mEnd - timeline->mark_out;
-                timeline->mark_in += diffTime;
-                timeline->mark_out += diffTime;
+                int64_t diff_time = int64_t(io.MouseDelta.x / timeline->msPixelWidthTarget);
+                if (timeline->mark_in + diff_time < timeline->mStart) diff_time = timeline->mark_in - timeline->mStart;
+                if (timeline->mark_out + diff_time > timeline->mEnd) diff_time = timeline->mEnd - timeline->mark_out;
+                timeline->mark_in += diff_time;
+                timeline->mark_out += diff_time;
             }
             if (ImGui::BeginTooltip())
             {
@@ -9292,11 +9316,19 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 {
                     timeline->msPixelWidthTarget *= 0.9f;
                     timeline->msPixelWidthTarget = ImClamp(timeline->msPixelWidthTarget, minPixelWidthTarget, maxPixelWidthTarget);
+                    int64_t new_mouse_time = (int64_t)((cx - contentMin.x - legendWidth) / timeline->msPixelWidthTarget) + timeline->firstTime;
+                    int64_t offset = new_mouse_time - mouseTime;
+                    timeline->firstTime -= offset;
+                    timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
                 }
                 else if (io.MouseWheel > FLT_EPSILON)
                 {
                     timeline->msPixelWidthTarget *= 1.1f;
                     timeline->msPixelWidthTarget = ImClamp(timeline->msPixelWidthTarget, minPixelWidthTarget, maxPixelWidthTarget);
+                    int64_t new_mouse_time = (int64_t)((cx - contentMin.x - legendWidth) / timeline->msPixelWidthTarget) + timeline->firstTime;
+                    int64_t offset = new_mouse_time - mouseTime;
+                    timeline->firstTime -= offset;
+                    timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
                 }
             }
         }
@@ -10063,6 +10095,9 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
 
     if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
         timeline->mUiActions.splice(timeline->mUiActions.end(), actionList);
+    
+    if (!ImGui::IsMouseDragging(ImGuiMouseButton_Left))
+        diffTime = 0;
 
     if (!timeline->mUiActions.empty())
     {
