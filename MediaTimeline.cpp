@@ -2138,7 +2138,7 @@ ImGui::ImMat BluePrintVideoFilter::FilterImage(const ImGui::ImMat& vmat, int64_t
 {
     std::lock_guard<std::mutex> lk(mBpLock);
     ImGui::ImMat outMat(vmat);
-    if (mBp)
+    if (mBp && mBp->Blueprint_IsExecutable())
     {
         // setup bp input curve
         for (int i = 0; i < mKeyPoints.GetCurveCount(); i++)
@@ -2230,7 +2230,7 @@ MediaCore::VideoTransition::Holder BluePrintVideoTransition::Clone()
 ImGui::ImMat BluePrintVideoTransition::MixTwoImages(const ImGui::ImMat& vmat1, const ImGui::ImMat& vmat2, int64_t pos, int64_t dur)
 {
     std::lock_guard<std::mutex> lk(mBpLock);
-    if (mBp)
+    if (mBp && mBp->Blueprint_IsExecutable())
     {
         // setup bp input curve
         for (int i = 0; i < mKeyPoints.GetCurveCount(); i++)
@@ -2309,7 +2309,7 @@ ImGui::ImMat BluePrintAudioFilter::FilterPcm(const ImGui::ImMat& amat, int64_t p
 {
     std::lock_guard<std::mutex> lk(mBpLock);
     ImGui::ImMat outMat(amat);
-    if (mBp)
+    if (mBp && mBp->Blueprint_IsExecutable())
     {
         // setup bp input curve
         for (int i = 0; i < mKeyPoints.GetCurveCount(); i++)
@@ -2392,7 +2392,7 @@ int BluePrintAudioTransition::OnBluePrintChange(int type, std::string name, void
 ImGui::ImMat BluePrintAudioTransition::MixTwoAudioMats(const ImGui::ImMat& amat1, const ImGui::ImMat& amat2, int64_t pos)
 {
     std::lock_guard<std::mutex> lk(mBpLock);
-    if (mBp)
+    if (mBp && mBp->Blueprint_IsExecutable())
     {
         // setup bp input curve
         for (int i = 0; i < mKeyPoints.GetCurveCount(); i++)
