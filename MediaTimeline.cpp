@@ -9316,11 +9316,19 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 {
                     timeline->msPixelWidthTarget *= 0.9f;
                     timeline->msPixelWidthTarget = ImClamp(timeline->msPixelWidthTarget, minPixelWidthTarget, maxPixelWidthTarget);
+                    int64_t new_mouse_time = (int64_t)((cx - contentMin.x - legendWidth) / timeline->msPixelWidthTarget) + timeline->firstTime;
+                    int64_t offset = new_mouse_time - mouseTime;
+                    timeline->firstTime -= offset;
+                    timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
                 }
                 else if (io.MouseWheel > FLT_EPSILON)
                 {
                     timeline->msPixelWidthTarget *= 1.1f;
                     timeline->msPixelWidthTarget = ImClamp(timeline->msPixelWidthTarget, minPixelWidthTarget, maxPixelWidthTarget);
+                    int64_t new_mouse_time = (int64_t)((cx - contentMin.x - legendWidth) / timeline->msPixelWidthTarget) + timeline->firstTime;
+                    int64_t offset = new_mouse_time - mouseTime;
+                    timeline->firstTime -= offset;
+                    timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
                 }
             }
         }
