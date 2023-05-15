@@ -1,4 +1,4 @@
-<p align="center" ><img src="docs/assets/multi_viewpoint.gif" alt="MediaEditor"></p>
+<p align="center"><img src="docs/assets/multi_viewpoint.gif" alt="MediaEditor"></p>
 
 <h1 align="center">MediaEditor Community</h1>
 
@@ -85,7 +85,7 @@ sudo apt install libfuse2
 | Hue             | Lut 3D         | Saturation    | Vibrance        | White Balance |
 | Canny Edge      | Laplacian Edge | Sobel Edge    | Chroma Key      | Guided Filter |
 | Flip            | HQDN3D Denoise | Audio Gain    | Audio Equalizer | Star Effect   |
-| Lighting Effect | Sway Effect    |               |                 |               |
+| Lighting Effect | Sway Effect    | Jitter Effert | Soul Effert     |               |
 | | | | | |
 
 **Color Curve**
