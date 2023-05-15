@@ -1021,6 +1021,7 @@ struct TimeLine
     bool bAttributeOutputPreview = true;    // project saved
     bool bFusionOutputPreview = true;       // project saved
     bool bSelectLinked = true;              // project saved
+    bool bMovingAttract = true;             // project saved
 
     std::mutex mVidFilterClipLock;          // timeline clip mutex
     EditingVideoClip* mVidFilterClip    {nullptr};
