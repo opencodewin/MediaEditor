@@ -9601,7 +9601,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         // check current time moving
         if (movable && !MovingCurrentTime && markMovingEntry == -1 && !MovingHorizonScrollBar && clipMovingEntry == -1 && timeline->currentTime >= 0 && topRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left))
         {
-            MovingCurrentTime = true;
+            if (!timeline->bSeeking)
+                MovingCurrentTime = true;
         }
         if (MovingCurrentTime && duration)
         {
