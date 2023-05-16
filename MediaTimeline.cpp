@@ -687,15 +687,19 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
     {
         for (auto clip : timeline->m_Clips)
         {
+            // align clip end to timeline frame rate
+            int64_t _start = clip->mStart;
+            int64_t _end = clip->mEnd;
+            timeline->AlignTime(_end);
             if ((single && clip->mID == mID) || (!single && clip->bSelected && clip->bMoving))
             {
-                selected_start_points.push_back(clip->mStart);
-                selected_end_points.push_back(clip->mEnd);
+                selected_start_points.push_back(_start);
+                selected_end_points.push_back(_end);
             }
             else
             {
-                unselected_start_points.push_back(clip->mStart);
-                unselected_end_points.push_back(clip->mEnd);
+                unselected_start_points.push_back(_start);
+                unselected_end_points.push_back(_end);
             }
         }
     }
@@ -9609,7 +9613,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         // check current time moving
         if (movable && !MovingCurrentTime && markMovingEntry == -1 && !MovingHorizonScrollBar && clipMovingEntry == -1 && timeline->currentTime >= 0 && topRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left))
         {
-            MovingCurrentTime = true;
+            if (!timeline->bSeeking)
+                MovingCurrentTime = true;
         }
         if (MovingCurrentTime && duration)
         {
