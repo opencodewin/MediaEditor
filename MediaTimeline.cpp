@@ -7003,6 +7003,7 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
     {
 #if UI_PERFORMANCE_ANALYSIS
         MediaCore::AutoSection _as("UiAct_AddVidClip");
+        auto hPa = MediaCore::PerformanceAnalyzer::GetThreadLocalInstance();
 #endif
         int64_t trackId = action["to_track_id"].get<imgui_json::number>();
         MediaCore::VideoTrack::Holder vidTrack = mMtvReader->GetTrackById(trackId, true);
@@ -7034,7 +7035,11 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
             attribute->SetKeyPoint(vidclip->mAttributeKeyPoints);
         }
         vidTrack->InsertClip(vidClip);
+#if UI_PERFORMANCE_ANALYSIS
+        hPa->PushAndSectionStart("UpdatePreview");
         UpdatePreview();
+        hPa->PopSection();
+#endif
     }
     else if (actionName == "REMOVE_CLIP")
     {
@@ -7118,6 +7123,7 @@ void TimeLine::PerformAudioAction(imgui_json::value& action)
     {
 #if UI_PERFORMANCE_ANALYSIS
         MediaCore::AutoSection _as("UiAct_AddAudClip");
+        auto hPa = MediaCore::PerformanceAnalyzer::GetThreadLocalInstance();
 #endif
         int64_t trackId = action["to_track_id"].get<imgui_json::number>();
         MediaCore::AudioTrack::Holder audTrack = mMtaReader->GetTrackById(trackId, true);
@@ -7133,7 +7139,11 @@ void TimeLine::PerformAudioAction(imgui_json::value& action)
         MediaCore::AudioFilter::Holder hFilter(bpaf);
         audClip->SetFilter(hFilter);
         audTrack->InsertClip(audClip);
+#if UI_PERFORMANCE_ANALYSIS
+        hPa->PushAndSectionStart("MtaRefresh");
         mMtaReader->Refresh();
+        hPa->PopSection();
+#endif
     }
     else if (actionName == "REMOVE_CLIP")
     {
