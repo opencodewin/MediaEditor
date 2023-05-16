@@ -3919,6 +3919,7 @@ void MediaTrack::InsertClip(Clip * clip, int64_t pos, bool update, std::list<img
             action["action"] = "ADD_CLIP";
             action["media_type"] = imgui_json::number(clip->mType);
             action["to_track_id"] = imgui_json::number(mID);
+            action["is_cutting"] = imgui_json::boolean(timeline->mIsCutting);
             imgui_json::value clipJson;
             clip->Save(clipJson);
             action["clip_json"] = clipJson;
@@ -6793,6 +6794,7 @@ int TimeLine::Load(const imgui_json::value& value)
     }
 
     mMtvReader->SeekTo(currentTime, true);
+    mMtaReader->UpdateDuration();
     mMtaReader->SeekTo(currentTime, false);
     SyncDataLayer(true);
     return 0;
@@ -7035,11 +7037,7 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
             attribute->SetKeyPoint(vidclip->mAttributeKeyPoints);
         }
         vidTrack->InsertClip(vidClip);
-#if UI_PERFORMANCE_ANALYSIS
-        hPa->PushAndSectionStart("UpdatePreview");
         UpdatePreview();
-        hPa->PopSection();
-#endif
     }
     else if (actionName == "REMOVE_CLIP")
     {
@@ -7073,6 +7071,10 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
     }
     else if (actionName == "CROP_CLIP")
     {
+#if UI_PERFORMANCE_ANALYSIS
+        MediaCore::AutoSection _as("UiAct_CropVidClip");
+        auto hPa = MediaCore::PerformanceAnalyzer::GetThreadLocalInstance();
+#endif
         int64_t trackId = action["from_track_id"].get<imgui_json::number>();
         MediaCore::VideoTrack::Holder vidTrack = mMtvReader->GetTrackById(trackId);
         int64_t clipId = action["clip_id"].get<imgui_json::number>();
@@ -7139,11 +7141,10 @@ void TimeLine::PerformAudioAction(imgui_json::value& action)
         MediaCore::AudioFilter::Holder hFilter(bpaf);
         audClip->SetFilter(hFilter);
         audTrack->InsertClip(audClip);
-#if UI_PERFORMANCE_ANALYSIS
-        hPa->PushAndSectionStart("MtaRefresh");
         mMtaReader->Refresh();
-        hPa->PopSection();
-#endif
+        bool bIsCutting = action["is_cutting"].get<imgui_json::boolean>();
+        if (!bIsCutting)
+            mMtaReader->UpdateDuration();
     }
     else if (actionName == "REMOVE_CLIP")
     {
@@ -7177,6 +7178,10 @@ void TimeLine::PerformAudioAction(imgui_json::value& action)
     }
     else if (actionName == "CROP_CLIP")
     {
+#if UI_PERFORMANCE_ANALYSIS
+        MediaCore::AutoSection _as("UiAct_CropAudClip");
+        auto hPa = MediaCore::PerformanceAnalyzer::GetThreadLocalInstance();
+#endif
         int64_t trackId = action["from_track_id"].get<imgui_json::number>();
         MediaCore::AudioTrack::Holder audTrack = mMtaReader->GetTrackById(trackId);
         int64_t clipId = action["clip_id"].get<imgui_json::number>();
@@ -7953,6 +7958,7 @@ bool TimeLine::UndoOneRecord()
             undoAction["media_type"] = action["media_type"];
             undoAction["to_track_id"] = action["from_track_id"];
             undoAction["clip_json"] = action["clip_json"];
+            undoAction["is_cutting"] = action["is_cutting"];
             mUiActions.push_back(std::move(undoAction));
         }
         else if (actionName == "MOVE_CLIP")
@@ -8474,10 +8480,9 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
     bool removeEmptyTrack = false;
     int insertEmptyTrackType = MEDIA_UNKNOWN;
     static bool menuIsOpened = false;
-    static bool bCutting = false;
     static bool bCropping = false;
     static bool bMoving = false;
-    bCutting = ImGui::IsKeyDown(ImGuiKey_LeftAlt) && (io.KeyMods == ImGuiMod_Alt);
+    timeline->mIsCutting = ImGui::IsKeyDown(ImGuiKey_LeftAlt) && (io.KeyMods == ImGuiMod_Alt);
     int64_t doCutPos = -1;
     bool overTrackView = false;
     bool overHorizonScrollBar = false;
@@ -8819,13 +8824,13 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                                 continue;
                             if (!ImRect(childFramePos, childFramePos + childFrameSize).Contains(io.MousePos))
                                 continue;
-                            if (j == 2 && bCutting && count <= 1)
+                            if (j == 2 && timeline->mIsCutting && count <= 1)
                             {
                                 ImGui::RenderMouseCursor(ICON_CUTTING, ImVec2(7, 0), 1.0, -90);
                             }
                             if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingHorizonScrollBar && !MovingCurrentTime && !menuIsOpened && editable)
                             {
-                                if (j == 2 && bCutting && count <= 1)
+                                if (j == 2 && timeline->mIsCutting && count <= 1)
                                 {
                                     doCutPos = mouseTime;
                                 }
@@ -8958,7 +8963,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             }
         }
 
-        if (trackAreaRect.Contains(io.MousePos) && editable && !menuIsOpened && !bCropping && !bCutting && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+        if (trackAreaRect.Contains(io.MousePos) && editable && !menuIsOpened && !bCropping && !timeline->mIsCutting && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
             timeline->Click(mouseEntry, mouseTime);
 
         if (trackAreaRect.Contains(io.MousePos) && ImGui::IsMouseReleased(ImGuiMouseButton_Right) && !ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Right))
@@ -8972,7 +8977,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             ImGui::OpenPopup("##timeline-context-menu");
             menuIsOpened = true;
         }
-        if (HeaderAreaRect.Contains(io.MousePos) && !menuIsOpened && !bCropping && !bCutting && ImGui::IsMouseDown(ImGuiMouseButton_Right))
+        if (HeaderAreaRect.Contains(io.MousePos) && !menuIsOpened && !bCropping && !timeline->mIsCutting && ImGui::IsMouseDown(ImGuiMouseButton_Right))
         {
             headerMarkPos = io.MousePos.x;
             ImGui::OpenPopup("##timeline-header-context-menu");
@@ -9381,11 +9386,11 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             timeline->CustomDraw(
                     customDraw.index, draw_list, ImRect(childFramePos, childFramePos + childFrameSize), customDraw.customRect,
                     customDraw.titleRect, customDraw.clippingTitleRect, customDraw.legendRect, customDraw.clippingRect, customDraw.legendClippingRect,
-                    bMoving, !menuIsOpened && !bCutting && editable, &actionList);
+                    bMoving, !menuIsOpened && !timeline->mIsCutting && editable, &actionList);
         draw_list->PopClipRect();
 
         // show cutting line
-        if (bCutting)
+        if (timeline->mIsCutting)
         {
             std::vector<Clip*> cuttingClips;
             // 1. find track on which the mouse is hovering

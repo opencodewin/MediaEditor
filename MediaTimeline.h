@@ -1040,6 +1040,7 @@ struct TimeLine
     using PlayerClock = std::chrono::steady_clock;
     PlayerClock::time_point mPlayTriggerTp;
 
+    bool mIsCutting {false};
     imgui_json::array mOngoingActions;
     std::list<imgui_json::value> mUiActions;
     void PrintActionList(const std::string& title, const std::list<imgui_json::value>& actionList);
