@@ -132,6 +132,7 @@ endif(PKG_CONFIG_FOUND)
 
 macro_display_feature_log()
 
+option(UI_PERFORMANCE_ANALYSIS "Enable time analysis code to monitor UI actions." OFF)
 add_compile_options(-Wno-ignored-attributes -Wno-inconsistent-dllimport -Wno-deprecated-declarations)
 #
 #  Application
@@ -180,6 +181,9 @@ target_include_directories(
     ${IMGUI_INCLUDE_DIR}
 )
 target_compile_definitions(${MEDIA_EDITOR_BINARY} PUBLIC APP_NAME="${MEDIA_EDITOR_BINARY}")
+if (UI_PERFORMANCE_ANALYSIS)
+target_compile_definitions(${MEDIA_EDITOR_BINARY} PRIVATE UI_PERFORMANCE_ANALYSIS=1)
+endif(UI_PERFORMANCE_ANALYSIS)
 
 set_property(TARGET ${MEDIA_EDITOR_BINARY} PROPERTY C_STANDARD 11)
 target_link_libraries(
@@ -211,6 +215,9 @@ target_include_directories(
     ${MEDIACORE_INCLUDE_DIRS}
 )
 target_compile_definitions(${MEDIA_EDITOR_BINARY} PUBLIC APP_NAME="${MEDIA_EDITOR_BINARY}")
+if (UI_PERFORMANCE_ANALYSIS)
+target_compile_definitions(${MEDIA_EDITOR_BINARY} PRIVATE UI_PERFORMANCE_ANALYSIS=1)
+endif(UI_PERFORMANCE_ANALYSIS)
 #set_property(TARGET ${MEDIA_EDITOR_BINARY} PROPERTY CXX_STANDARD 17)
 set_property(TARGET ${MEDIA_EDITOR_BINARY} PROPERTY C_STANDARD 11)
 target_link_libraries(
@@ -235,6 +242,9 @@ target_include_directories(
     ${IMGUI_INCLUDE_DIR}
 )
 target_compile_definitions(${MEDIA_EDITOR_BINARY} PUBLIC APP_NAME="${MEDIA_EDITOR_BINARY}")
+if (UI_PERFORMANCE_ANALYSIS)
+target_compile_definitions(${MEDIA_EDITOR_BINARY} PRIVATE UI_PERFORMANCE_ANALYSIS=1)
+endif(UI_PERFORMANCE_ANALYSIS)
 #set_property(TARGET ${MEDIA_EDITOR_BINARY} PROPERTY CXX_STANDARD 17)
 set_property(TARGET ${MEDIA_EDITOR_BINARY} PROPERTY C_STANDARD 11)
 target_link_libraries(

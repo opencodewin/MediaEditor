@@ -2096,7 +2096,7 @@ BluePrintVideoFilter::BluePrintVideoFilter(void * handle)
     mBp = new BluePrint::BluePrintUI();
     BluePrint::BluePrintCallbackFunctions callbacks;
     callbacks.BluePrintOnChanged = OnBluePrintChange;
-    mBp->Initialize(nullptr, timeline ? timeline->mPluginPath.c_str() : nullptr);
+    mBp->Initialize();
     mBp->SetCallbacks(callbacks, this);
     mBp->File_New_Filter(filter_BP, "VideoFilter", "Video");
 }
@@ -2185,7 +2185,7 @@ BluePrintVideoTransition::BluePrintVideoTransition(void * handle)
     TimeLine * timeline = (TimeLine *)handle;
     imgui_json::value fusion_BP; 
     mBp = new BluePrint::BluePrintUI();
-    mBp->Initialize(nullptr, timeline ? timeline->mPluginPath.c_str() : nullptr);
+    mBp->Initialize();
     BluePrint::BluePrintCallbackFunctions callbacks;
     callbacks.BluePrintOnChanged = OnBluePrintChange;
     mBp->SetCallbacks(callbacks, this);
@@ -2280,7 +2280,7 @@ BluePrintAudioFilter::BluePrintAudioFilter(void * handle)
     mBp = new BluePrint::BluePrintUI();
     BluePrint::BluePrintCallbackFunctions callbacks;
     callbacks.BluePrintOnChanged = OnBluePrintChange;
-    mBp->Initialize(nullptr, timeline ? timeline->mPluginPath.c_str() : nullptr);
+    mBp->Initialize();
     mBp->SetCallbacks(callbacks, this);
     mBp->File_New_Filter(filter_BP, "AudioFilter", "Audio");
 }
@@ -2356,7 +2356,7 @@ BluePrintAudioTransition::BluePrintAudioTransition(void * handle)
     TimeLine * timeline = (TimeLine *)handle;
     imgui_json::value fusion_BP; 
     mBp = new BluePrint::BluePrintUI();
-    mBp->Initialize(nullptr, timeline ? timeline->mPluginPath.c_str() : nullptr);
+    mBp->Initialize();
     BluePrint::BluePrintCallbackFunctions callbacks;
     callbacks.BluePrintOnChanged = OnBluePrintChange;
     mBp->SetCallbacks(callbacks, this);
@@ -4628,8 +4628,7 @@ TimeLine::TimeLine(std::string plugin_path)
     }
 
     auto exec_path = ImGuiHelper::exec_path();
-    mPluginPath = plugin_path.empty() ? ImGuiHelper::path_parent(exec_path) + "plugins" : plugin_path;
-    m_BP_UI.Initialize(nullptr, mPluginPath.c_str());
+    m_BP_UI.Initialize();
 
     ConfigureDataLayer();
 
@@ -6956,6 +6955,9 @@ void TimeLine::PrintActionList(const std::string& title, const imgui_json::array
 
 void TimeLine::PerformUiActions()
 {
+#if UI_PERFORMANCE_ANALYSIS
+    MediaCore::AutoSection _as("PerfUiActs");
+#endif
     if (mUiActions.empty())
         return;
 
@@ -6995,6 +6997,9 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
     std::string actionName = action["action"].get<imgui_json::string>();
     if (actionName == "ADD_CLIP")
     {
+#if UI_PERFORMANCE_ANALYSIS
+        MediaCore::AutoSection _as("UiAct_AddVidClip");
+#endif
         int64_t trackId = action["to_track_id"].get<imgui_json::number>();
         MediaCore::VideoTrack::Holder vidTrack = mMtvReader->GetTrackById(trackId, true);
         int64_t clipId = action["clip_json"]["ID"].get<imgui_json::number>();
@@ -7107,6 +7112,9 @@ void TimeLine::PerformAudioAction(imgui_json::value& action)
     std::string actionName = action["action"].get<imgui_json::string>();
     if (actionName == "ADD_CLIP")
     {
+#if UI_PERFORMANCE_ANALYSIS
+        MediaCore::AutoSection _as("UiAct_AddAudClip");
+#endif
         int64_t trackId = action["to_track_id"].get<imgui_json::number>();
         MediaCore::AudioTrack::Holder audTrack = mMtaReader->GetTrackById(trackId, true);
         int64_t clipId = action["clip_json"]["ID"].get<imgui_json::number>();

@@ -9941,7 +9941,7 @@ static void MediaEditor_DropFromSystem(std::vector<std::string>& drops)
 
 static bool MediaEditor_Frame(void * handle, bool app_will_quit)
 {
-#if defined(UI_PERFORMANCE_ANALYSIS)
+#if UI_PERFORMANCE_ANALYSIS
     MediaCore::AutoSection _as("MEFrm");
 #endif
     static bool app_done = false;
@@ -10599,14 +10599,16 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
     return app_done;
 }
 
-#if defined(UI_PERFORMANCE_ANALYSIS)
+#if UI_PERFORMANCE_ANALYSIS
 static bool MediaEditor_Frame_wrapper(void * handle, bool app_will_quit)
 {
     auto hPa = MediaCore::PerformanceAnalyzer::GetThreadLocalInstance();
     hPa->Reset();
     auto ret = MediaEditor_Frame(handle, app_will_quit);
-    hPa->End();
-    hPa->LogAndClearStatistics(Logger::VERBOSE);
+    auto tspan = hPa->End();
+    // if 'Application_Frame' takes more than 33 millisec, the refresh rate will drop below 30fps
+    if (MediaCore::CountElapsedMillisec(tspan.first, tspan.second) > 33)
+        hPa->LogAndClearStatistics(Logger::INFO);
     return ret;
 }
 #endif
@@ -10731,9 +10733,15 @@ void Application_Setup(ApplicationWindowProperty& property)
     property.application.Application_DropFromSystem = MediaEditor_DropFromSystem;
     property.application.Application_SplashScreen = MediaEditor_Splash_Screen;
     property.application.Application_SplashFinalize = MediaEditor_SplashFinalize;
-#if defined(UI_PERFORMANCE_ANALYSIS)
+#if UI_PERFORMANCE_ANALYSIS
     property.application.Application_Frame = MediaEditor_Frame_wrapper;
 #else
     property.application.Application_Frame = MediaEditor_Frame;
 #endif
+
+    if (g_plugin_path.empty())
+        g_plugin_path = ImGuiHelper::path_parent(exec_path) + "plugins";
+    std::vector<std::string> plugin_paths;
+    plugin_paths.push_back(g_plugin_path);
+    BluePrint::BluePrintUI::LoadPlugins(plugin_paths);
 }
