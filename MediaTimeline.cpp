@@ -5354,11 +5354,18 @@ void TimeLine::DeleteOverlap(int64_t id)
 
 void TimeLine::UpdateCurrent()
 {
+    if (bSeeking)
+        return;
     if (!mIsPreviewForward)
     {
         if (currentTime < firstTime + visibleTime / 2)
         {
-            firstTime = currentTime - visibleTime / 2;
+            //firstTime = currentTime - visibleTime / 2;
+            auto step = (firstTime + visibleTime / 2 - currentTime) / 4;
+            if (step <= visibleTime / 32)
+                firstTime = currentTime - visibleTime / 2;
+            else
+                firstTime -= step;
         }
         else if (currentTime > firstTime + visibleTime)
         {
@@ -5373,7 +5380,12 @@ void TimeLine::UpdateCurrent()
         }
         else if (currentTime > firstTime + visibleTime / 2)
         {
-            firstTime = currentTime - visibleTime / 2;
+            //firstTime = currentTime - visibleTime / 2;
+            auto step = (currentTime - firstTime - visibleTime / 2) / 4;
+            if (step <= visibleTime / 32)
+                firstTime = currentTime - visibleTime / 2;
+            else
+                firstTime += step;
         }
         else if (currentTime < firstTime)
         {
@@ -9625,23 +9637,22 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         ImGui::PopClipRect();
 
         // check current time moving
-        if (movable && !MovingCurrentTime && markMovingEntry == -1 && !MovingHorizonScrollBar && clipMovingEntry == -1 && timeline->currentTime >= 0 && topRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left))
+        if (isFocused && movable && !MovingCurrentTime && markMovingEntry == -1 && !MovingHorizonScrollBar && clipMovingEntry == -1 && timeline->currentTime >= 0 && topRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left))
         {
-            if (!timeline->bSeeking && isFocused)
-                MovingCurrentTime = true;
+            MovingCurrentTime = true;
         }
         if (MovingCurrentTime && duration)
         {
-            auto old_time = timeline->currentTime;
-            timeline->currentTime = (int64_t)((io.MousePos.x - topRect.Min.x) / timeline->msPixelWidthTarget) + timeline->firstTime;
-            timeline->AlignTime(timeline->currentTime);
-            if (timeline->currentTime < timeline->GetStart())
-                timeline->currentTime = timeline->GetStart();
-            if (timeline->currentTime >= timeline->GetEnd())
-                timeline->currentTime = timeline->GetEnd();
-            //if (old_time != timeline->currentTime)
-            //    timeline->Seek(); // call seek event
-            timeline->Seek(timeline->currentTime);
+            if (!timeline->mIsPreviewPlaying || !timeline->bSeeking || ImGui::IsMouseDragging(ImGuiMouseButton_Left))
+            {
+                timeline->currentTime = (int64_t)((io.MousePos.x - topRect.Min.x) / timeline->msPixelWidthTarget) + timeline->firstTime;
+                timeline->AlignTime(timeline->currentTime);
+                if (timeline->currentTime < timeline->GetStart())
+                    timeline->currentTime = timeline->GetStart();
+                if (timeline->currentTime >= timeline->GetEnd())
+                    timeline->currentTime = timeline->GetEnd();
+                timeline->Seek(timeline->currentTime);
+            }
         }
         if (timeline->bSeeking && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
         {
