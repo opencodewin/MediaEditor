@@ -9944,6 +9944,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
 #if defined(UI_PERFORMANCE_ANALYSIS)
     MediaCore::AutoSection _as("MEFrm");
 #endif
+    static bool first_display = true;
     static bool app_done = false;
     const float media_icon_size = 96; 
     const float scope_height = 256;
@@ -9984,7 +9985,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
         ImGui::SetNextWindowPos(ImVec2(0, 0));
         ImGui::SetNextWindowSize(io.DisplaySize, ImGuiCond_None);
     }
-    ImGui::SetNextWindowFocus();
+    if (first_display) { ImGui::SetNextWindowFocus(); first_display = false; }
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_GrabRounding, 12.0f);
     UpdateBreathing();
