@@ -9984,6 +9984,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
         ImGui::SetNextWindowPos(ImVec2(0, 0));
         ImGui::SetNextWindowSize(io.DisplaySize, ImGuiCond_None);
     }
+    ImGui::SetNextWindowFocus();
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_GrabRounding, 12.0f);
     UpdateBreathing();
