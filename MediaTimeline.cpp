@@ -8534,7 +8534,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
     //draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DARK_TWO);
 
     ImGui::BeginGroup();
-    bool isFocused = ImGui::IsWindowFocused();
+    bool isFocused = ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows);
 
     ImGui::SetCursorScreenPos(canvas_pos);
     if ((expanded && !*expanded) || !trackCount)
@@ -9622,7 +9622,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         // check current time moving
         if (movable && !MovingCurrentTime && markMovingEntry == -1 && !MovingHorizonScrollBar && clipMovingEntry == -1 && timeline->currentTime >= 0 && topRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left))
         {
-            if (!timeline->bSeeking)
+            if (!timeline->bSeeking && isFocused)
                 MovingCurrentTime = true;
         }
         if (MovingCurrentTime && duration)
@@ -10246,7 +10246,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     editingClip->lastTime = editingClip->firstTime + editingClip->visibleTime;
 
     ImGui::BeginGroup();
-    bool isFocused = ImGui::IsWindowFocused();
+    bool isFocused = ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows);
     {
         ImGui::SetCursorScreenPos(canvas_pos);
         ImVec2 headerSize(timline_size.x, (float)header_height);
@@ -10509,7 +10509,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         // time metric
         ImGui::SetCursorScreenPos(topRect.Min);
         ImGui::BeginChildFrame(ImGui::GetCurrentWindow()->GetID("#timeline metric"), topRect.GetSize(), ImGuiWindowFlags_NoScrollbar);
-        if (!MovingCurrentTime && !MovingHorizonScrollBar && currentTime >= 0 && topRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && !menuIsOpened && !mouse_hold)
+        if (!MovingCurrentTime && !MovingHorizonScrollBar && currentTime >= 0 && topRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && !menuIsOpened && !mouse_hold && isFocused)
         {
             MovingCurrentTime = true;
             editingClip->bSeeking = true;
@@ -10642,7 +10642,7 @@ bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int64_t CurrentTime, int 
     int cx = (int)(io.MousePos.x);
     int cy = (int)(io.MousePos.y);
     static bool MovingCurrentTime = false;
-    bool isFocused = ImGui::IsWindowFocused();
+    bool isFocused = ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows);
     int64_t duration = ImMax(overlap->mOvlp->mEnd-overlap->mOvlp->mStart, (int64_t)1);
     int64_t start = 0;
     int64_t end = start + duration;
