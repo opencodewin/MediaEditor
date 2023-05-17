@@ -62,7 +62,8 @@ struct LumaFusionNode final : Node
         {
             for (auto mask : m_masks)
             {
-                ImGui::ImMat mat_snapshot = mask.resize(ImSize(64, 64)).gray_to_image();
+                auto small_mat = ImGui::MatResize(mask, ImSize(64, 64));
+                ImGui::ImMat mat_snapshot = ImGui::GrayToImage(small_mat);
                 ImTextureID texture = nullptr;
                 ImGui::ImMatToTexture(mat_snapshot, texture);
                 m_mask_snapshots.push_back(texture);
