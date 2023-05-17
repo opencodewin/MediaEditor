@@ -2495,6 +2495,9 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
     else
     {
         mSsGen = MediaCore::Snapshot::Generator::CreateInstance();
+        MediaItem* mi = timeline->FindMediaItemByID(vidclip->mMediaID);
+        if (mi && mi->mMediaOverview)
+            mSsGen->SetOverview(mi->mMediaOverview);
         if (!mSsGen)
         {
             Logger::Log(Logger::Error) << "Create Editing Video Clip FAILED!" << std::endl;
@@ -3095,6 +3098,9 @@ EditingVideoOverlap::EditingVideoOverlap(Overlap* ovlp)
         else
         {
             mSsGen1 = MediaCore::Snapshot::Generator::CreateInstance();
+            MediaItem* mi = timeline->FindMediaItemByID(vidclip1->mMediaID);
+            if (mi && mi->mMediaOverview)
+                mSsGen1->SetOverview(mi->mMediaOverview);
             if (timeline) mSsGen1->EnableHwAccel(timeline->mHardwareCodec);
             if (!mSsGen1->Open(vidclip1->mSsViewer->GetMediaParser()))
                 throw std::runtime_error("FAILED to open the snapshot generator for the 1st video clip!");
@@ -3114,6 +3120,9 @@ EditingVideoOverlap::EditingVideoOverlap(Overlap* ovlp)
         else
         {
             mSsGen2 = MediaCore::Snapshot::Generator::CreateInstance();
+            MediaItem* mi = timeline->FindMediaItemByID(vidclip2->mMediaID);
+            if (mi && mi->mMediaOverview)
+                mSsGen2->SetOverview(mi->mMediaOverview);
             if (timeline) mSsGen2->EnableHwAccel(timeline->mHardwareCodec);
             if (!mSsGen2->Open(vidclip2->mSsViewer->GetMediaParser()))
                 throw std::runtime_error("FAILED to open the snapshot generator for the 2nd video clip!");
@@ -7347,6 +7356,7 @@ void TimeLine::SyncDataLayer(bool forceRefresh)
     while (vidTrackIter != mMtvReader->TrackListEnd())
     {
         auto& vidTrack = *vidTrackIter++;
+        vidTrack->UpdateClipState();
         auto ovlpIter = vidTrack->OverlapListBegin();
         while (ovlpIter != vidTrack->OverlapListEnd())
         {
