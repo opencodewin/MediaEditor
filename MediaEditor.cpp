@@ -2288,116 +2288,122 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
     return item;
 }
 
-static void ShowMediaBankWindow(ImDrawList *draw_list, float media_icon_size)
+static void ShowMediaBankWindow(ImDrawList *_draw_list, float media_icon_size)
 {
     ImGuiIO& io = ImGui::GetIO();
     bool multiviewport = io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable;
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
     static std::vector<std::string> failed_items;
-    ImVec2 window_pos = ImGui::GetWindowPos();
-    ImVec2 window_size = ImGui::GetWindowSize();
-    ImVec2 contant_size = ImGui::GetContentRegionAvail();
-    ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
-    ImGui::SetWindowFontScale(2.5);
-    ImGui::Indent(20);
-    ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
-    ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
-    draw_list->AddText(window_pos + ImVec2(8, 0), COL_GRAY_TEXT, "Media Bank");
-    ImGui::PopStyleColor();
-    ImGui::PopStyleVar();
-    ImGui::SetWindowFontScale(1.0);
-
+    
     if (!timeline)
         return;
 
-    if (timeline->media_items.empty())
+    if (ImGui::BeginChild("##Media_bank_content", ImGui::GetWindowSize() - ImVec2(4, 4), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings))
     {
-        ImGui::SetWindowFontScale(2.0);
-        //ImGui::Indent(20);
+        ImVec2 window_pos = ImGui::GetWindowPos();
+        ImVec2 window_size = ImGui::GetWindowSize();
+        ImDrawList * draw_list = ImGui::GetWindowDrawList();
+        
+        ImVec2 contant_size = ImGui::GetContentRegionAvail();
+        ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
+        ImGui::SetWindowFontScale(2.5);
+        ImGui::Indent(20);
         ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
         ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
-        ImU32 text_color = IM_COL32(ui_breathing * 255, ui_breathing * 255, ui_breathing * 255, 255);
-        draw_list->AddText(window_pos + ImVec2(128,  48), COL_GRAY_TEXT, "Please Click");
-        draw_list->AddText(window_pos + ImVec2(128,  80), text_color, "<-- Here");
-        draw_list->AddText(window_pos + ImVec2(128, 112), COL_GRAY_TEXT, "To Add Media");
-        draw_list->AddText(window_pos + ImVec2( 10, 144), COL_GRAY_TEXT, "Or Drag Files From Brower");
+        draw_list->AddText(window_pos + ImVec2(8, 0), COL_GRAY_TEXT, "Media Bank");
         ImGui::PopStyleColor();
         ImGui::PopStyleVar();
         ImGui::SetWindowFontScale(1.0);
-    }
-    // Show Media Icons
-    ImGui::SetCursorPos({20, 20});
-    int icon_number_pre_row = window_size.x / (media_icon_size + 24);
-    // insert empty icon for add media
-    auto icon_pos = ImGui::GetCursorScreenPos() + ImVec2(0, 24);
-    InsertMediaAddIcon(draw_list, icon_pos, media_icon_size);
-    bool media_add_icon = true;
-    for (auto item = timeline->media_items.begin(); item != timeline->media_items.end();)
-    {
-        if (!media_add_icon) icon_pos = ImGui::GetCursorScreenPos() + ImVec2(0, 24);
-        for (int i = media_add_icon ? 1 : 0; i < icon_number_pre_row; i++)
+        if (timeline->media_items.empty())
         {
-            auto row_icon_pos = icon_pos + ImVec2(i * (media_icon_size + 24), 0);
-            item = InsertMediaIcon(item, draw_list, row_icon_pos, media_icon_size);
+            ImGui::SetWindowFontScale(2.0);
+            //ImGui::Indent(20);
+            ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
+            ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
+            ImU32 text_color = IM_COL32(ui_breathing * 255, ui_breathing * 255, ui_breathing * 255, 255);
+            draw_list->AddText(window_pos + ImVec2(128,  48), COL_GRAY_TEXT, "Please Click");
+            draw_list->AddText(window_pos + ImVec2(128,  80), text_color, "<-- Here");
+            draw_list->AddText(window_pos + ImVec2(128, 112), COL_GRAY_TEXT, "To Add Media");
+            draw_list->AddText(window_pos + ImVec2( 10, 144), COL_GRAY_TEXT, "Or Drag Files From Brower");
+            ImGui::PopStyleColor();
+            ImGui::PopStyleVar();
+            ImGui::SetWindowFontScale(1.0);
+        }
+        // Show Media Icons
+        ImGui::SetCursorPos({20, 20});
+        int icon_number_pre_row = window_size.x / (media_icon_size + 24);
+        // insert empty icon for add media
+        auto icon_pos = ImGui::GetCursorScreenPos() + ImVec2(0, 24);
+        InsertMediaAddIcon(draw_list, icon_pos, media_icon_size);
+        bool media_add_icon = true;
+        for (auto item = timeline->media_items.begin(); item != timeline->media_items.end();)
+        {
+            if (!media_add_icon) icon_pos = ImGui::GetCursorScreenPos() + ImVec2(0, 24);
+            for (int i = media_add_icon ? 1 : 0; i < icon_number_pre_row; i++)
+            {
+                auto row_icon_pos = icon_pos + ImVec2(i * (media_icon_size + 24), 0);
+                item = InsertMediaIcon(item, draw_list, row_icon_pos, media_icon_size);
+                if (item == timeline->media_items.end())
+                    break;
+            }
+            media_add_icon = false;
             if (item == timeline->media_items.end())
                 break;
+            ImGui::SetCursorScreenPos(icon_pos + ImVec2(0, media_icon_size));
         }
-        media_add_icon = false;
-        if (item == timeline->media_items.end())
-            break;
-        ImGui::SetCursorScreenPos(icon_pos + ImVec2(0, media_icon_size));
-    }
 
-    ImGui::Dummy(ImVec2(0, 24));
+        ImGui::Dummy(ImVec2(0, 24));
 
-    // Handle drag drop from system
-    ImGui::SetCursorScreenPos(window_pos);
-    ImGui::InvisibleButton("media_bank_view", contant_size);
-    if (ImGui::BeginDragDropTarget())
-    {
-        if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("FILES"))
+        // Handle drag drop from system
+        ImGui::SetCursorScreenPos(window_pos);
+        ImGui::InvisibleButton("media_bank_view", contant_size);
+        if (ImGui::BeginDragDropTarget())
         {
-            if (timeline)
+            if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("FILES"))
             {
-                for (auto path : import_url)
+                if (timeline)
                 {
-                    auto ret = InsertMedia(path);
-                    if (!ret)
+                    for (auto path : import_url)
                     {
-                        auto filename = ImGuiHelper::path_filename(path);
-                        failed_items.push_back(filename);
+                        auto ret = InsertMedia(path);
+                        if (!ret)
+                        {
+                            auto filename = ImGuiHelper::path_filename(path);
+                            failed_items.push_back(filename);
+                        }
+                        else
+                        {
+                            pfd::notify("Import File Succeed", path, pfd::icon::info);
+                        }
                     }
-                    else
+                    import_url.clear();
+                    if (!failed_items.empty())
                     {
-                        pfd::notify("Import File Succeed", path, pfd::icon::info);
+                        ImGui::OpenPopup("Failed loading media", ImGuiPopupFlags_AnyPopup);
                     }
-                }
-                import_url.clear();
-                if (!failed_items.empty())
-                {
-                    ImGui::OpenPopup("Failed loading media", ImGuiPopupFlags_AnyPopup);
                 }
             }
+            ImGui::EndDragDropTarget();
         }
-        ImGui::EndDragDropTarget();
-    }
 
-    if (multiviewport)
-        ImGui::SetNextWindowViewport(viewport->ID);
-    if (ImGui::BeginPopupModal("Failed loading media", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings))
-    {
-        ImGui::TextUnformatted("Can't load following Media:");
-        for (auto name : failed_items)
+        if (multiviewport)
+            ImGui::SetNextWindowViewport(viewport->ID);
+        if (ImGui::BeginPopupModal("Failed loading media", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings))
         {
-            ImGui::Text("%s", name.c_str());
+            ImGui::TextUnformatted("Can't load following Media:");
+            for (auto name : failed_items)
+            {
+                ImGui::Text("%s", name.c_str());
+            }
+            if (ImGui::Button("OK", ImVec2(60, 0)))
+            {
+                failed_items.clear();
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::EndPopup();
         }
-        if (ImGui::Button("OK", ImVec2(60, 0)))
-        {
-            failed_items.clear();
-            ImGui::CloseCurrentPopup();
-        }
-        ImGui::EndPopup();
     }
+    ImGui::EndChild();
 }
 
 /****************************************************************************************
@@ -2405,242 +2411,263 @@ static void ShowMediaBankWindow(ImDrawList *draw_list, float media_icon_size)
  * Transition Bank window
  *
  ***************************************************************************************/
-static void ShowFusionBankIconWindow(ImDrawList *draw_list)
+static void ShowFusionBankIconWindow(ImDrawList *_draw_list)
 {
-    ImVec2 fusion_icon_size{96, 54};
     ImGuiIO& io = ImGui::GetIO();
-    ImVec2 window_pos = ImGui::GetWindowPos();
-    ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
-    ImGui::SetWindowFontScale(2.5);
-    ImGui::Indent(20);
-    ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
-    ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
-    draw_list->AddText(window_pos + ImVec2(8, 0), COL_GRAY_TEXT, "Fusion Bank");
-    ImGui::PopStyleColor();
-    ImGui::PopStyleVar();
-    ImGui::SetWindowFontScale(1.0);
+    bool multiviewport = io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable;
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
+    ImVec2 fusion_icon_size{96, 54};
 
     if (!timeline)
         return;
-    // Show Fusion Icons
-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-    ImGui::SetCursorPos({20, 20});
-    if (timeline->m_BP_UI.m_Document)
+
+    if (ImGui::BeginChild("##Fusion_bank_icon_content", ImGui::GetWindowSize() - ImVec2(4, 4), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings))
     {
-        auto &bp = timeline->m_BP_UI.m_Document->m_Blueprint;
-        auto node_reg = bp.GetNodeRegistry();
-        //for (auto type : node_reg->GetTypes())
-        for (auto node : node_reg->GetNodes())
-        {
-            auto catalog = BluePrint::GetCatalogInfo(node->GetCatalog());
-            if (catalog.size() < 2 || catalog[0].compare("Fusion") != 0)
-                continue;
-            auto type = node->GetTypeInfo();
-            std::string drag_type = "Fusion_drag_drop_" + catalog[1];
-            ImGui::Dummy(ImVec2(0, 16));
-            auto icon_pos = ImGui::GetCursorScreenPos();
-            ImVec2 icon_size = fusion_icon_size;
-            // Draw Shadow for Icon
-            draw_list->AddRectFilled(icon_pos + ImVec2(6, 6), icon_pos + ImVec2(6, 6) + icon_size, IM_COL32(32, 32, 32, 255));
-            draw_list->AddRectFilled(icon_pos + ImVec2(4, 4), icon_pos + ImVec2(4, 4) + icon_size, IM_COL32(48, 48, 72, 255));
-            draw_list->AddRectFilled(icon_pos + ImVec2(2, 2), icon_pos + ImVec2(2, 2) + icon_size, IM_COL32(64, 64, 96, 255));
-            draw_list->AddRectFilled(icon_pos, icon_pos + icon_size, COL_BLACK_DARK);
-            ImGui::InvisibleButton(type.m_Name.c_str(), icon_size);
-            if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
-            {
-                ImGui::SetDragDropPayload(drag_type.c_str(), node, sizeof(BluePrint::Node));
-                ImGui::TextUnformatted(ICON_BANK " Add Fusion");
-                ImGui::TextUnformatted(type.m_Name.c_str());
-                ImGui::EndDragDropSource();
-            }
-            if (ImGui::IsItemHovered())
-            {
-                // Show help tooltip
-                if (timeline->mShowHelpTooltips && !ImGui::IsDragDropActive() && ImGui::BeginTooltip())
-                {
-                    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5f);
-                    ImGui::TextUnformatted("Help:");
-                    ImGui::TextUnformatted("    Drag fusion to blue print");
-                    ImGui::PopStyleVar();
-                    ImGui::EndTooltip();                }
-            }
-            ImGui::SetCursorScreenPos(icon_pos + ImVec2(2, 2));
-            node->DrawNodeLogo(ImGui::GetCurrentContext(), fusion_icon_size); 
-            float gap = (icon_size.y - ImGui::GetFontSize()) / 2.0f;
-            ImGui::SetCursorScreenPos(icon_pos + ImVec2(icon_size.x + 8, gap));
-            ImGui::Button(type.m_Name.c_str(), ImVec2(0, 32));
-            ImGui::Spacing();
-        }
-    }
-    ImGui::PopStyleColor();
-}
+        ImVec2 window_pos = ImGui::GetWindowPos();
+        ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
+        ImDrawList * draw_list = ImGui::GetWindowDrawList();
 
-static void ShowFusionBankTreeWindow(ImDrawList *draw_list)
-{
-    ImVec2 window_pos = ImGui::GetWindowPos();
-    ImVec2 window_size = ImGui::GetWindowSize();
-    ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
-    const ImVec2 item_size(window_size.x, 32);
-    ImGui::SetWindowFontScale(2.5);
-    ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
-    ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
-    draw_list->AddText(window_pos + ImVec2(8, 0), COL_GRAY_TEXT, "Fusion Bank");
-    ImGui::PopStyleColor();
-    ImGui::PopStyleVar();
-    ImGui::SetWindowFontScale(1.0);
-    
-    // Show Fusion Tree
-    if (timeline->m_BP_UI.m_Document)
-    {
-        std::vector<const BluePrint::Node*> fusions;
-        auto &bp = timeline->m_BP_UI.m_Document->m_Blueprint;
-        auto node_reg = bp.GetNodeRegistry();
-        // find all fusions
-        for (auto node : node_reg->GetNodes())
-        {
-            auto catalog = BluePrint::GetCatalogInfo(node->GetCatalog());
-            if (!catalog.size() || catalog[0].compare("Fusion") != 0)
-                continue;
-            fusions.push_back(node);
-        }
-
-        // make fusion type as tree
-        ImGui::ImTree fusion_tree;
-        fusion_tree.name = "Fusion";
-        for (auto node : fusions)
-        {
-            auto catalog = BluePrint::GetCatalogInfo(node->GetCatalog());
-            if (!catalog.size())
-                continue;
-            auto type = node->GetTypeInfo();
-            if (catalog.size() > 1)
-            {
-                auto children = fusion_tree.FindChildren(catalog[1]);
-                if (!children)
-                {
-                    ImGui::ImTree subtree(catalog[1]);
-                    if (catalog.size() > 2)
-                    {
-                        ImGui::ImTree sub_sub_tree(catalog[2]);
-                        ImGui::ImTree end_sub(type.m_Name, (void *)node);
-                        sub_sub_tree.childrens.push_back(end_sub);
-                        subtree.childrens.push_back(sub_sub_tree);
-                    }
-                    else
-                    {
-                        ImGui::ImTree end_sub(type.m_Name, (void *)node);
-                        subtree.childrens.push_back(end_sub);
-                    }
-
-                    fusion_tree.childrens.push_back(subtree);
-                }
-                else
-                {
-                    if (catalog.size() > 2)
-                    {
-                        auto sub_children = children->FindChildren(catalog[2]);
-                        if (!sub_children)
-                        {
-                            ImGui::ImTree subtree(catalog[2]);
-                            ImGui::ImTree end_sub(type.m_Name, (void *)node);
-                            subtree.childrens.push_back(end_sub);
-                            children->childrens.push_back(subtree);
-                        }
-                        else
-                        {
-                            ImGui::ImTree end_sub(type.m_Name, (void *)node);
-                            sub_children->childrens.push_back(end_sub);
-                        }
-                    }
-                    else
-                    {
-                        ImGui::ImTree end_sub(type.m_Name, (void *)node);
-                        children->childrens.push_back(end_sub);
-                    }
-                }
-            }
-            else
-            {
-                ImGui::ImTree end_sub(type.m_Name, (void *)node);
-                fusion_tree.childrens.push_back(end_sub);
-            }
-        }
-
-        auto AddFusion = [&](void* data)
-        {
-            const BluePrint::Node* node = (const BluePrint::Node*)data;
-            if (!node) return;
-            auto type = node->GetTypeInfo();
-            auto catalog = BluePrint::GetCatalogInfo(type.m_Catalog);
-            if (catalog.size() < 2 || catalog[0].compare("Fusion") != 0)
-                return;
-            std::string drag_type = "Fusion_drag_drop_" + catalog[1];
-            auto icon_pos = ImGui::GetCursorScreenPos();
-            ImVec2 icon_size = ImVec2(56, 32);
-            ImGui::InvisibleButton(type.m_Name.c_str(), icon_size);
-            if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
-            {
-                ImGui::SetDragDropPayload(drag_type.c_str(), node, sizeof(BluePrint::Node));
-                ImGui::TextUnformatted(ICON_BANK " Add Fusion");
-                ImGui::TextUnformatted(type.m_Name.c_str());
-                ImGui::EndDragDropSource();
-            }
-            if (ImGui::IsItemHovered())
-            {
-                // Show help tooltip
-                if (timeline->mShowHelpTooltips && !ImGui::IsDragDropActive() && ImGui::BeginTooltip())
-                {
-                    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5f);
-                    ImGui::TextUnformatted("Help:");
-                    ImGui::TextUnformatted("    Drag fusion to blue print");
-                    ImGui::PopStyleVar();
-                    ImGui::EndTooltip();
-                }
-            }
-            ImGui::SetCursorScreenPos(icon_pos);
-            node->DrawNodeLogo(ImGui::GetCurrentContext(), icon_size);
-            ImGui::SameLine();
-            ImGui::Button(type.m_Name.c_str(), ImVec2(0, 32));
-        };
-
-        // draw fusion tree
+        ImGui::SetWindowFontScale(2.5);
+        ImGui::Indent(20);
+        ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
+        ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
+        draw_list->AddText(window_pos + ImVec2(8, 0), COL_GRAY_TEXT, "Fusion Bank");
+        ImGui::PopStyleColor();
+        ImGui::PopStyleVar();
+        ImGui::SetWindowFontScale(1.0);
+        // Show Fusion Icons
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-        for (auto sub : fusion_tree.childrens)
+        ImGui::SetCursorPos({20, 20});
+        if (timeline->m_BP_UI.m_Document)
         {
-            ImGui::SetNextItemOpen(true, ImGuiCond_Once);
-            if (sub.data)
+            auto &bp = timeline->m_BP_UI.m_Document->m_Blueprint;
+            auto node_reg = bp.GetNodeRegistry();
+            //for (auto type : node_reg->GetTypes())
+            for (auto node : node_reg->GetNodes())
             {
-                AddFusion(sub.data);
-            }
-            else if (ImGui::TreeNode(sub.name.c_str()))
-            {
-                for (auto sub_sub : sub.childrens)
+                auto catalog = BluePrint::GetCatalogInfo(node->GetCatalog());
+                if (catalog.size() < 2 || catalog[0].compare("Fusion") != 0)
+                    continue;
+                auto type = node->GetTypeInfo();
+                std::string drag_type = "Fusion_drag_drop_" + catalog[1];
+                ImGui::Dummy(ImVec2(0, 16));
+                auto icon_pos = ImGui::GetCursorScreenPos();
+                ImVec2 icon_size = fusion_icon_size;
+                // Draw Shadow for Icon
+                draw_list->AddRectFilled(icon_pos + ImVec2(6, 6), icon_pos + ImVec2(6, 6) + icon_size, IM_COL32(32, 32, 32, 255));
+                draw_list->AddRectFilled(icon_pos + ImVec2(4, 4), icon_pos + ImVec2(4, 4) + icon_size, IM_COL32(48, 48, 72, 255));
+                draw_list->AddRectFilled(icon_pos + ImVec2(2, 2), icon_pos + ImVec2(2, 2) + icon_size, IM_COL32(64, 64, 96, 255));
+                draw_list->AddRectFilled(icon_pos, icon_pos + icon_size, COL_BLACK_DARK);
+                ImGui::InvisibleButton(type.m_Name.c_str(), icon_size);
+                if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
                 {
-                    ImGui::SetNextItemOpen(true, ImGuiCond_Once);
-                    if (sub_sub.data)
-                    {
-                        AddFusion(sub_sub.data);
-                    }
-                    else if (ImGui::TreeNode(sub_sub.name.c_str()))
-                    {
-                        ImGui::SetNextItemOpen(true, ImGuiCond_Once);
-                        for (auto end : sub_sub.childrens)
-                        {
-                            if (!end.data)
-                                continue;
-                            else
-                            {
-                                AddFusion(end.data);
-                            }
-                        }   
-                        ImGui::TreePop();
-                    }
+                    ImGui::SetDragDropPayload(drag_type.c_str(), node, sizeof(BluePrint::Node));
+                    ImGui::TextUnformatted(ICON_BANK " Add Fusion");
+                    ImGui::TextUnformatted(type.m_Name.c_str());
+                    ImGui::EndDragDropSource();
                 }
-                ImGui::TreePop();
+                if (ImGui::IsItemHovered())
+                {
+                    // Show help tooltip
+                    if (timeline->mShowHelpTooltips && !ImGui::IsDragDropActive() && ImGui::BeginTooltip())
+                    {
+                        ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5f);
+                        ImGui::TextUnformatted("Help:");
+                        ImGui::TextUnformatted("    Drag fusion to blue print");
+                        ImGui::PopStyleVar();
+                        ImGui::EndTooltip();                }
+                }
+                ImGui::SetCursorScreenPos(icon_pos + ImVec2(2, 2));
+                node->DrawNodeLogo(ImGui::GetCurrentContext(), fusion_icon_size); 
+                float gap = (icon_size.y - ImGui::GetFontSize()) / 2.0f;
+                ImGui::SetCursorScreenPos(icon_pos + ImVec2(icon_size.x + 8, gap));
+                ImGui::Button(type.m_Name.c_str(), ImVec2(0, 32));
+                ImGui::Spacing();
             }
         }
         ImGui::PopStyleColor();
     }
+    ImGui::EndChild();
+}
+
+static void ShowFusionBankTreeWindow(ImDrawList *_draw_list)
+{
+    ImGuiIO& io = ImGui::GetIO();
+    bool multiviewport = io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable;
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
+
+    if (!timeline)
+        return;
+    
+    if (ImGui::BeginChild("##Fusion_bank_tree_content", ImGui::GetWindowSize() - ImVec2(4, 4), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings))
+    {
+        ImVec2 window_pos = ImGui::GetWindowPos();
+        ImVec2 window_size = ImGui::GetWindowSize();
+        ImDrawList * draw_list = ImGui::GetWindowDrawList();
+
+        ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
+        const ImVec2 item_size(window_size.x, 32);
+        ImGui::SetWindowFontScale(2.5);
+        ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
+        ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
+        draw_list->AddText(window_pos + ImVec2(8, 0), COL_GRAY_TEXT, "Fusion Bank");
+        ImGui::PopStyleColor();
+        ImGui::PopStyleVar();
+        ImGui::SetWindowFontScale(1.0);
+        // Show Fusion Tree
+        if (timeline->m_BP_UI.m_Document)
+        {
+            std::vector<const BluePrint::Node*> fusions;
+            auto &bp = timeline->m_BP_UI.m_Document->m_Blueprint;
+            auto node_reg = bp.GetNodeRegistry();
+            // find all fusions
+            for (auto node : node_reg->GetNodes())
+            {
+                auto catalog = BluePrint::GetCatalogInfo(node->GetCatalog());
+                if (!catalog.size() || catalog[0].compare("Fusion") != 0)
+                    continue;
+                fusions.push_back(node);
+            }
+
+            // make fusion type as tree
+            ImGui::ImTree fusion_tree;
+            fusion_tree.name = "Fusion";
+            for (auto node : fusions)
+            {
+                auto catalog = BluePrint::GetCatalogInfo(node->GetCatalog());
+                if (!catalog.size())
+                    continue;
+                auto type = node->GetTypeInfo();
+                if (catalog.size() > 1)
+                {
+                    auto children = fusion_tree.FindChildren(catalog[1]);
+                    if (!children)
+                    {
+                        ImGui::ImTree subtree(catalog[1]);
+                        if (catalog.size() > 2)
+                        {
+                            ImGui::ImTree sub_sub_tree(catalog[2]);
+                            ImGui::ImTree end_sub(type.m_Name, (void *)node);
+                            sub_sub_tree.childrens.push_back(end_sub);
+                            subtree.childrens.push_back(sub_sub_tree);
+                        }
+                        else
+                        {
+                            ImGui::ImTree end_sub(type.m_Name, (void *)node);
+                            subtree.childrens.push_back(end_sub);
+                        }
+
+                        fusion_tree.childrens.push_back(subtree);
+                    }
+                    else
+                    {
+                        if (catalog.size() > 2)
+                        {
+                            auto sub_children = children->FindChildren(catalog[2]);
+                            if (!sub_children)
+                            {
+                                ImGui::ImTree subtree(catalog[2]);
+                                ImGui::ImTree end_sub(type.m_Name, (void *)node);
+                                subtree.childrens.push_back(end_sub);
+                                children->childrens.push_back(subtree);
+                            }
+                            else
+                            {
+                                ImGui::ImTree end_sub(type.m_Name, (void *)node);
+                                sub_children->childrens.push_back(end_sub);
+                            }
+                        }
+                        else
+                        {
+                            ImGui::ImTree end_sub(type.m_Name, (void *)node);
+                            children->childrens.push_back(end_sub);
+                        }
+                    }
+                }
+                else
+                {
+                    ImGui::ImTree end_sub(type.m_Name, (void *)node);
+                    fusion_tree.childrens.push_back(end_sub);
+                }
+            }
+
+            auto AddFusion = [&](void* data)
+            {
+                const BluePrint::Node* node = (const BluePrint::Node*)data;
+                if (!node) return;
+                auto type = node->GetTypeInfo();
+                auto catalog = BluePrint::GetCatalogInfo(type.m_Catalog);
+                if (catalog.size() < 2 || catalog[0].compare("Fusion") != 0)
+                    return;
+                std::string drag_type = "Fusion_drag_drop_" + catalog[1];
+                auto icon_pos = ImGui::GetCursorScreenPos();
+                ImVec2 icon_size = ImVec2(56, 32);
+                ImGui::InvisibleButton(type.m_Name.c_str(), icon_size);
+                if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
+                {
+                    ImGui::SetDragDropPayload(drag_type.c_str(), node, sizeof(BluePrint::Node));
+                    ImGui::TextUnformatted(ICON_BANK " Add Fusion");
+                    ImGui::TextUnformatted(type.m_Name.c_str());
+                    ImGui::EndDragDropSource();
+                }
+                if (ImGui::IsItemHovered())
+                {
+                    // Show help tooltip
+                    if (timeline->mShowHelpTooltips && !ImGui::IsDragDropActive() && ImGui::BeginTooltip())
+                    {
+                        ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5f);
+                        ImGui::TextUnformatted("Help:");
+                        ImGui::TextUnformatted("    Drag fusion to blue print");
+                        ImGui::PopStyleVar();
+                        ImGui::EndTooltip();
+                    }
+                }
+                ImGui::SetCursorScreenPos(icon_pos);
+                node->DrawNodeLogo(ImGui::GetCurrentContext(), icon_size);
+                ImGui::SameLine();
+                ImGui::Button(type.m_Name.c_str(), ImVec2(0, 32));
+            };
+
+            // draw fusion tree
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+            for (auto sub : fusion_tree.childrens)
+            {
+                ImGui::SetNextItemOpen(true, ImGuiCond_Once);
+                if (sub.data)
+                {
+                    AddFusion(sub.data);
+                }
+                else if (ImGui::TreeNode(sub.name.c_str()))
+                {
+                    for (auto sub_sub : sub.childrens)
+                    {
+                        ImGui::SetNextItemOpen(true, ImGuiCond_Once);
+                        if (sub_sub.data)
+                        {
+                            AddFusion(sub_sub.data);
+                        }
+                        else if (ImGui::TreeNode(sub_sub.name.c_str()))
+                        {
+                            ImGui::SetNextItemOpen(true, ImGuiCond_Once);
+                            for (auto end : sub_sub.childrens)
+                            {
+                                if (!end.data)
+                                    continue;
+                                else
+                                {
+                                    AddFusion(end.data);
+                                }
+                            }   
+                            ImGui::TreePop();
+                        }
+                    }
+                    ImGui::TreePop();
+                }
+            }
+            ImGui::PopStyleColor();
+        }
+    }
+    ImGui::EndChild();
 }
 
 /****************************************************************************************
@@ -2648,242 +2675,263 @@ static void ShowFusionBankTreeWindow(ImDrawList *draw_list)
  * Filters Bank window
  *
  ***************************************************************************************/
-static void ShowFilterBankIconWindow(ImDrawList *draw_list)
+static void ShowFilterBankIconWindow(ImDrawList *_draw_list)
 {
-    float filter_icon_size = 48;
     ImGuiIO& io = ImGui::GetIO();
-    ImVec2 window_pos = ImGui::GetWindowPos();
-    ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
-    ImGui::SetWindowFontScale(2.5);
-    ImGui::Indent(20);
-    ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
-    ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
-    draw_list->AddText(window_pos + ImVec2(8, 0), COL_GRAY_TEXT, "Filters Bank");
-    ImGui::PopStyleColor();
-    ImGui::PopStyleVar();
-    ImGui::SetWindowFontScale(1.0);
+    bool multiviewport = io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable;
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
+    float filter_icon_size = 48;
 
     if (!timeline)
         return;
-    // Show Filter Icons
-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-    ImGui::SetCursorPos({20, 20});
-    if (timeline->m_BP_UI.m_Document)
+
+    if (ImGui::BeginChild("##Filter_bank_icon_content", ImGui::GetWindowSize() - ImVec2(4, 4), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings))
     {
-        auto &bp = timeline->m_BP_UI.m_Document->m_Blueprint;
-        auto node_reg = bp.GetNodeRegistry();
-        for (auto node : node_reg->GetNodes())
-        {
-            auto catalog = BluePrint::GetCatalogInfo(node->GetCatalog());
-            if (catalog.size() < 2 || catalog[0].compare("Filter") != 0)
-                continue;
-            auto type = node->GetTypeInfo();
-            std::string drag_type = "Filter_drag_drop_" + catalog[1];
-            ImGui::Dummy(ImVec2(0, 16));
-            auto icon_pos = ImGui::GetCursorScreenPos();
-            ImVec2 icon_size = ImVec2(filter_icon_size, filter_icon_size);
-            // Draw Shadow for Icon
-            draw_list->AddRectFilled(icon_pos + ImVec2(6, 6), icon_pos + ImVec2(6, 6) + icon_size, IM_COL32(32, 32, 32, 255));
-            draw_list->AddRectFilled(icon_pos + ImVec2(4, 4), icon_pos + ImVec2(4, 4) + icon_size, IM_COL32(48, 48, 72, 255));
-            draw_list->AddRectFilled(icon_pos + ImVec2(2, 2), icon_pos + ImVec2(2, 2) + icon_size, IM_COL32(64, 64, 96, 255));
-            draw_list->AddRectFilled(icon_pos, icon_pos + icon_size, COL_BLACK_DARK);
-            ImGui::InvisibleButton(type.m_Name.c_str(), icon_size);
-            if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
-            {
-                ImGui::SetDragDropPayload(drag_type.c_str(), node, sizeof(BluePrint::Node));
-                ImGui::TextUnformatted(ICON_BANK " Add Filter");
-                ImGui::TextUnformatted(type.m_Name.c_str());
-                ImGui::EndDragDropSource();
-            }
-            if (ImGui::IsItemHovered())
-            {
-                // Show help tooltip
-                if (timeline->mShowHelpTooltips && !ImGui::IsDragDropActive() && ImGui::BeginTooltip())
-                {
-                    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5f);
-                    ImGui::TextUnformatted("Help:");
-                    ImGui::TextUnformatted("    Drag filter to blue print");
-                    ImGui::PopStyleVar();
-                    ImGui::EndTooltip();
-                }
-            }
-            ImGui::SetCursorScreenPos(icon_pos + ImVec2(2, 2));
-            node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(filter_icon_size, filter_icon_size)); 
-            float gap = (icon_size.y - ImGui::GetFontSize()) / 2.0f;
-            ImGui::SetCursorScreenPos(icon_pos + ImVec2(icon_size.x + 8, gap));
-            ImGui::Button(type.m_Name.c_str(), ImVec2(0, 32));
-            ImGui::Spacing();
-        }
-    }
-    ImGui::PopStyleColor();
-}
+        ImVec2 window_pos = ImGui::GetWindowPos();
+        ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
+        ImDrawList * draw_list = ImGui::GetWindowDrawList();
+        ImGui::SetWindowFontScale(2.5);
+        ImGui::Indent(20);
+        ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
+        ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
+        draw_list->AddText(window_pos + ImVec2(8, 0), COL_GRAY_TEXT, "Filters Bank");
+        ImGui::PopStyleColor();
+        ImGui::PopStyleVar();
+        ImGui::SetWindowFontScale(1.0);
 
-static void ShowFilterBankTreeWindow(ImDrawList *draw_list)
-{
-    ImVec2 window_pos = ImGui::GetWindowPos();
-    ImVec2 window_size = ImGui::GetWindowSize();
-    ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
-    const ImVec2 item_size(window_size.x, 32);
-    ImGui::SetWindowFontScale(2.5);
-    ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
-    ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
-    draw_list->AddText(window_pos + ImVec2(8, 0), COL_GRAY_TEXT, "Filters Bank");
-    ImGui::PopStyleColor();
-    ImGui::PopStyleVar();
-    ImGui::SetWindowFontScale(1.0);
-
-    // Show Filter Tree
-    if (timeline->m_BP_UI.m_Document)
-    {
-        std::vector<const BluePrint::Node*> filters;
-        auto bp = timeline->m_BP_UI.m_Document->m_Blueprint;
-        auto node_reg = bp.GetNodeRegistry();
-        // find all filters
-        for (auto node : node_reg->GetNodes())
-        {
-            auto catalog = BluePrint::GetCatalogInfo(node->GetCatalog());
-            if (!catalog.size() || catalog[0].compare("Filter") != 0)
-                continue;
-            filters.push_back(node);
-        }
-
-        // make filter type as tree
-        ImGui::ImTree filter_tree;
-        filter_tree.name = "Filters";
-        for (auto node : filters)
-        {
-            auto catalog = BluePrint::GetCatalogInfo(node->GetCatalog());
-            if (!catalog.size())
-                continue;
-            auto type = node->GetTypeInfo();
-            if (catalog.size() > 1)
-            {
-                auto children = filter_tree.FindChildren(catalog[1]);
-                if (!children)
-                {
-                    ImGui::ImTree subtree(catalog[1]);
-                    if (catalog.size() > 2)
-                    {
-                        ImGui::ImTree sub_sub_tree(catalog[2]);
-                        ImGui::ImTree end_sub(type.m_Name, (void *)node);
-                        sub_sub_tree.childrens.push_back(end_sub);
-                        subtree.childrens.push_back(sub_sub_tree);
-                    }
-                    else
-                    {
-                        ImGui::ImTree end_sub(type.m_Name, (void *)node);
-                        subtree.childrens.push_back(end_sub);
-                    }
-
-                    filter_tree.childrens.push_back(subtree);
-                }
-                else
-                {
-                    if (catalog.size() > 2)
-                    {
-                        auto sub_children = children->FindChildren(catalog[2]);
-                        if (!sub_children)
-                        {
-                            ImGui::ImTree subtree(catalog[2]);
-                            ImGui::ImTree end_sub(type.m_Name, (void *)node);
-                            subtree.childrens.push_back(end_sub);
-                            children->childrens.push_back(subtree);
-                        }
-                        else
-                        {
-                            ImGui::ImTree end_sub(type.m_Name, (void *)node);
-                            sub_children->childrens.push_back(end_sub);
-                        }
-                    }
-                    else
-                    {
-                        ImGui::ImTree end_sub(type.m_Name, (void *)node);
-                        children->childrens.push_back(end_sub);
-                    }
-                }
-            }
-            else
-            {
-                ImGui::ImTree end_sub(type.m_Name, (void *)node);
-                filter_tree.childrens.push_back(end_sub);
-            }
-        }
-
-        auto AddFilter = [&](void* data)
-        {
-            const BluePrint::Node* node = (const BluePrint::Node*)data;
-            if (!node) return;
-            auto type = node->GetTypeInfo();
-            auto catalog = BluePrint::GetCatalogInfo(type.m_Catalog);
-            if (catalog.size() < 2 || catalog[0].compare("Filter") != 0)
-                return;
-            std::string drag_type = "Filter_drag_drop_" + catalog[1];
-            auto icon_pos = ImGui::GetCursorScreenPos();
-            ImVec2 icon_size = ImVec2(32, 32);
-            ImGui::InvisibleButton(type.m_Name.c_str(), icon_size);
-            if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
-            {
-                ImGui::SetDragDropPayload(drag_type.c_str(), node, sizeof(BluePrint::Node));
-                ImGui::TextUnformatted(ICON_BANK " Add Filter");
-                ImGui::TextUnformatted(type.m_Name.c_str());
-                ImGui::EndDragDropSource();
-            }
-            if (ImGui::IsItemHovered())
-            {
-                // Show help tooltip
-                if (timeline->mShowHelpTooltips && !ImGui::IsDragDropActive() && ImGui::BeginTooltip())
-                {
-                    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5f);
-                    ImGui::TextUnformatted("Help:");
-                    ImGui::TextUnformatted("    Drag filter to blue print");
-                    ImGui::PopStyleVar();
-                    ImGui::EndTooltip();
-                }
-            }
-            ImGui::SetCursorScreenPos(icon_pos);
-            node->DrawNodeLogo(ImGui::GetCurrentContext(), icon_size);
-            ImGui::SameLine();
-            ImGui::Button(type.m_Name.c_str(), ImVec2(0, 32));
-        };
-
-        // draw filter tree
+        // Show Filter Icons
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-        for (auto sub : filter_tree.childrens)
+        ImGui::SetCursorPos({20, 20});
+        if (timeline->m_BP_UI.m_Document)
         {
-            ImGui::SetNextItemOpen(true, ImGuiCond_Once);
-            if (sub.data)
+            auto &bp = timeline->m_BP_UI.m_Document->m_Blueprint;
+            auto node_reg = bp.GetNodeRegistry();
+            for (auto node : node_reg->GetNodes())
             {
-                AddFilter(sub.data);
-            }
-            else if (ImGui::TreeNode(sub.name.c_str()))
-            {
-                for (auto sub_sub : sub.childrens)
+                auto catalog = BluePrint::GetCatalogInfo(node->GetCatalog());
+                if (catalog.size() < 2 || catalog[0].compare("Filter") != 0)
+                    continue;
+                auto type = node->GetTypeInfo();
+                std::string drag_type = "Filter_drag_drop_" + catalog[1];
+                ImGui::Dummy(ImVec2(0, 16));
+                auto icon_pos = ImGui::GetCursorScreenPos();
+                ImVec2 icon_size = ImVec2(filter_icon_size, filter_icon_size);
+                // Draw Shadow for Icon
+                draw_list->AddRectFilled(icon_pos + ImVec2(6, 6), icon_pos + ImVec2(6, 6) + icon_size, IM_COL32(32, 32, 32, 255));
+                draw_list->AddRectFilled(icon_pos + ImVec2(4, 4), icon_pos + ImVec2(4, 4) + icon_size, IM_COL32(48, 48, 72, 255));
+                draw_list->AddRectFilled(icon_pos + ImVec2(2, 2), icon_pos + ImVec2(2, 2) + icon_size, IM_COL32(64, 64, 96, 255));
+                draw_list->AddRectFilled(icon_pos, icon_pos + icon_size, COL_BLACK_DARK);
+                ImGui::InvisibleButton(type.m_Name.c_str(), icon_size);
+                if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
                 {
-                    ImGui::SetNextItemOpen(true, ImGuiCond_Once);
-                    if (sub_sub.data)
+                    ImGui::SetDragDropPayload(drag_type.c_str(), node, sizeof(BluePrint::Node));
+                    ImGui::TextUnformatted(ICON_BANK " Add Filter");
+                    ImGui::TextUnformatted(type.m_Name.c_str());
+                    ImGui::EndDragDropSource();
+                }
+                if (ImGui::IsItemHovered())
+                {
+                    // Show help tooltip
+                    if (timeline->mShowHelpTooltips && !ImGui::IsDragDropActive() && ImGui::BeginTooltip())
                     {
-                        AddFilter(sub_sub.data);
-                    }
-                    else if (ImGui::TreeNode(sub_sub.name.c_str()))
-                    {
-                        ImGui::SetNextItemOpen(true, ImGuiCond_Once);
-                        for (auto end : sub_sub.childrens)
-                        {
-                            if (!end.data)
-                                continue;
-                            else
-                            {
-                                AddFilter(end.data);
-                            }
-                        }   
-                        ImGui::TreePop();
+                        ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5f);
+                        ImGui::TextUnformatted("Help:");
+                        ImGui::TextUnformatted("    Drag filter to blue print");
+                        ImGui::PopStyleVar();
+                        ImGui::EndTooltip();
                     }
                 }
-                ImGui::TreePop();
+                ImGui::SetCursorScreenPos(icon_pos + ImVec2(2, 2));
+                node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(filter_icon_size, filter_icon_size)); 
+                float gap = (icon_size.y - ImGui::GetFontSize()) / 2.0f;
+                ImGui::SetCursorScreenPos(icon_pos + ImVec2(icon_size.x + 8, gap));
+                ImGui::Button(type.m_Name.c_str(), ImVec2(0, 32));
+                ImGui::Spacing();
             }
         }
         ImGui::PopStyleColor();
     }
+    ImGui::EndChild();
+}
+
+static void ShowFilterBankTreeWindow(ImDrawList *_draw_list)
+{
+    ImGuiIO& io = ImGui::GetIO();
+    bool multiviewport = io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable;
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
+
+    if (!timeline)
+        return;
+
+    if (ImGui::BeginChild("##Filter_bank_tree_content", ImGui::GetWindowSize() - ImVec2(4, 4), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings))
+    {
+        ImVec2 window_pos = ImGui::GetWindowPos();
+        ImVec2 window_size = ImGui::GetWindowSize();
+        ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
+        ImDrawList * draw_list = ImGui::GetWindowDrawList();
+        const ImVec2 item_size(window_size.x, 32);
+        ImGui::SetWindowFontScale(2.5);
+        ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
+        ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
+        draw_list->AddText(window_pos + ImVec2(8, 0), COL_GRAY_TEXT, "Filters Bank");
+        ImGui::PopStyleColor();
+        ImGui::PopStyleVar();
+        ImGui::SetWindowFontScale(1.0);
+
+        // Show Filter Tree
+        if (timeline->m_BP_UI.m_Document)
+        {
+            std::vector<const BluePrint::Node*> filters;
+            auto bp = timeline->m_BP_UI.m_Document->m_Blueprint;
+            auto node_reg = bp.GetNodeRegistry();
+            // find all filters
+            for (auto node : node_reg->GetNodes())
+            {
+                auto catalog = BluePrint::GetCatalogInfo(node->GetCatalog());
+                if (!catalog.size() || catalog[0].compare("Filter") != 0)
+                    continue;
+                filters.push_back(node);
+            }
+
+            // make filter type as tree
+            ImGui::ImTree filter_tree;
+            filter_tree.name = "Filters";
+            for (auto node : filters)
+            {
+                auto catalog = BluePrint::GetCatalogInfo(node->GetCatalog());
+                if (!catalog.size())
+                    continue;
+                auto type = node->GetTypeInfo();
+                if (catalog.size() > 1)
+                {
+                    auto children = filter_tree.FindChildren(catalog[1]);
+                    if (!children)
+                    {
+                        ImGui::ImTree subtree(catalog[1]);
+                        if (catalog.size() > 2)
+                        {
+                            ImGui::ImTree sub_sub_tree(catalog[2]);
+                            ImGui::ImTree end_sub(type.m_Name, (void *)node);
+                            sub_sub_tree.childrens.push_back(end_sub);
+                            subtree.childrens.push_back(sub_sub_tree);
+                        }
+                        else
+                        {
+                            ImGui::ImTree end_sub(type.m_Name, (void *)node);
+                            subtree.childrens.push_back(end_sub);
+                        }
+
+                        filter_tree.childrens.push_back(subtree);
+                    }
+                    else
+                    {
+                        if (catalog.size() > 2)
+                        {
+                            auto sub_children = children->FindChildren(catalog[2]);
+                            if (!sub_children)
+                            {
+                                ImGui::ImTree subtree(catalog[2]);
+                                ImGui::ImTree end_sub(type.m_Name, (void *)node);
+                                subtree.childrens.push_back(end_sub);
+                                children->childrens.push_back(subtree);
+                            }
+                            else
+                            {
+                                ImGui::ImTree end_sub(type.m_Name, (void *)node);
+                                sub_children->childrens.push_back(end_sub);
+                            }
+                        }
+                        else
+                        {
+                            ImGui::ImTree end_sub(type.m_Name, (void *)node);
+                            children->childrens.push_back(end_sub);
+                        }
+                    }
+                }
+                else
+                {
+                    ImGui::ImTree end_sub(type.m_Name, (void *)node);
+                    filter_tree.childrens.push_back(end_sub);
+                }
+            }
+
+            auto AddFilter = [&](void* data)
+            {
+                const BluePrint::Node* node = (const BluePrint::Node*)data;
+                if (!node) return;
+                auto type = node->GetTypeInfo();
+                auto catalog = BluePrint::GetCatalogInfo(type.m_Catalog);
+                if (catalog.size() < 2 || catalog[0].compare("Filter") != 0)
+                    return;
+                std::string drag_type = "Filter_drag_drop_" + catalog[1];
+                auto icon_pos = ImGui::GetCursorScreenPos();
+                ImVec2 icon_size = ImVec2(32, 32);
+                ImGui::InvisibleButton(type.m_Name.c_str(), icon_size);
+                if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
+                {
+                    ImGui::SetDragDropPayload(drag_type.c_str(), node, sizeof(BluePrint::Node));
+                    ImGui::TextUnformatted(ICON_BANK " Add Filter");
+                    ImGui::TextUnformatted(type.m_Name.c_str());
+                    ImGui::EndDragDropSource();
+                }
+                if (ImGui::IsItemHovered())
+                {
+                    // Show help tooltip
+                    if (timeline->mShowHelpTooltips && !ImGui::IsDragDropActive() && ImGui::BeginTooltip())
+                    {
+                        ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5f);
+                        ImGui::TextUnformatted("Help:");
+                        ImGui::TextUnformatted("    Drag filter to blue print");
+                        ImGui::PopStyleVar();
+                        ImGui::EndTooltip();
+                    }
+                }
+                ImGui::SetCursorScreenPos(icon_pos);
+                node->DrawNodeLogo(ImGui::GetCurrentContext(), icon_size);
+                ImGui::SameLine();
+                ImGui::Button(type.m_Name.c_str(), ImVec2(0, 32));
+            };
+
+            // draw filter tree
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+            for (auto sub : filter_tree.childrens)
+            {
+                ImGui::SetNextItemOpen(true, ImGuiCond_Once);
+                if (sub.data)
+                {
+                    AddFilter(sub.data);
+                }
+                else if (ImGui::TreeNode(sub.name.c_str()))
+                {
+                    for (auto sub_sub : sub.childrens)
+                    {
+                        ImGui::SetNextItemOpen(true, ImGuiCond_Once);
+                        if (sub_sub.data)
+                        {
+                            AddFilter(sub_sub.data);
+                        }
+                        else if (ImGui::TreeNode(sub_sub.name.c_str()))
+                        {
+                            ImGui::SetNextItemOpen(true, ImGuiCond_Once);
+                            for (auto end : sub_sub.childrens)
+                            {
+                                if (!end.data)
+                                    continue;
+                                else
+                                {
+                                    AddFilter(end.data);
+                                }
+                            }   
+                            ImGui::TreePop();
+                        }
+                    }
+                    ImGui::TreePop();
+                }
+            }
+            ImGui::PopStyleColor();
+        }
+    }
+    ImGui::EndChild();
 }
 
 /****************************************************************************************
@@ -2891,619 +2939,626 @@ static void ShowFilterBankTreeWindow(ImDrawList *draw_list)
  * Media Output window
  *
  ***************************************************************************************/
-static void ShowMediaOutputWindow(ImDrawList *draw_list)
+static void ShowMediaOutputWindow(ImDrawList *_draw_list)
 {
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     bool multiviewport = io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable;
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
-    ImVec2 window_pos = ImGui::GetWindowPos();
-    ImVec2 window_size = ImGui::GetWindowSize();
-    ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
-    const ImVec2 item_size(window_size.x, 32);
-    ImGui::SetWindowFontScale(2.5);
-    ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
-    ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
-    draw_list->AddText(window_pos + ImVec2(8, 0), COL_GRAY_TEXT, "Media Output");
     static int encoder_stage = 0; // 0:unknown 1:encoding 2:finished
     static double encoder_start = -1, encoder_end = -1, encode_duration = -1;
-    ImGui::PopStyleColor();
-    ImGui::PopStyleVar();
-    ImGui::SetWindowFontScale(1.0);
+
     if (!timeline)
         return;
 
-    ImGui::SetCursorPos({20, 50});
-    ImGui::SetWindowFontScale(1.2);
-    if (ImGui::ColoredButton(ICON_MAKE_VIDEO " Make Video", ImVec2(window_size.x - 40, 48.f), IM_COL32(255, 255, 255, 255), IM_COL32(50, 220, 60, 255), IM_COL32(69, 150, 70, 255),10.0f))
+    if (ImGui::BeginChild("##Media_output_content", ImGui::GetWindowSize() - ImVec2(4, 4), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings))
     {
-        g_encoderConfigErrorMessage.clear();
-        encoder_stage = 0;
-        encoder_end = encoder_start = encode_duration = -1;
-        ImGui::OpenPopup("Make Media##MakeVideoDlyKey", ImGuiPopupFlags_AnyPopup);
-    }
-    ImGui::SetWindowFontScale(1.0);
+        ImVec2 window_pos = ImGui::GetWindowPos();
+        ImVec2 window_size = ImGui::GetWindowSize();
+        ImDrawList * draw_list = ImGui::GetWindowDrawList();
+        ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
+        const ImVec2 item_size(window_size.x, 32);
+        ImGui::SetWindowFontScale(2.5);
+        ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
+        ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
+        draw_list->AddText(window_pos + ImVec2(8, 0), COL_GRAY_TEXT, "Media Output");
+        ImGui::PopStyleColor();
+        ImGui::PopStyleVar();
+        ImGui::SetWindowFontScale(1.0);
 
-    if (ImGui::BeginChild("##Subcp01"))
-    {
-        ImGui::Dummy(ImVec2(0, 20));
-        string value = timeline->mOutputName;
-        if (ImGui::InputText("File Name##output_file_name_string_value", (char*)value.data(), value.size() + 1, ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackResize, [](ImGuiInputTextCallbackData* data) -> int
+        ImGui::SetCursorPos({20, 50});
+        ImGui::SetWindowFontScale(1.2);
+        if (ImGui::ColoredButton(ICON_MAKE_VIDEO " Make Video", ImVec2(window_size.x - 40, 48.f), IM_COL32(255, 255, 255, 255), IM_COL32(50, 220, 60, 255), IM_COL32(69, 150, 70, 255),10.0f))
         {
-            if (data->EventFlag == ImGuiInputTextFlags_CallbackResize)
-            {
-                auto& stringValue = *static_cast<string*>(data->UserData);
-                ImVector<char>* my_str = (ImVector<char>*)data->UserData;
-                IM_ASSERT(stringValue.data() == data->Buf);
-                stringValue.resize(data->BufSize);
-                data->Buf = (char*)stringValue.data();
-            }
-            else if (data->EventFlag == ImGuiInputTextFlags_CallbackEdit)
-            {
-                auto& stringValue = *static_cast<string*>(data->UserData);
-                stringValue = std::string(data->Buf);
-            }
-            return 0;
-        }, &value))
-        {
-            value.resize(strlen(value.c_str()));
-            if (timeline->mOutputName.compare(value) != 0)
-            {
-                timeline->mOutputName = value;
-            }
+            g_encoderConfigErrorMessage.clear();
+            encoder_stage = 0;
+            encoder_end = encoder_start = encode_duration = -1;
+            ImGui::OpenPopup("Make Media##MakeVideoDlyKey", ImGuiPopupFlags_AnyPopup);
         }
-        value = timeline->mOutputPath;
-        if (ImGui::InputText("File Path##output_file_path_string_value", (char*)value.data(), value.size() + 1, ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackResize, [](ImGuiInputTextCallbackData* data) -> int
-        {
-            if (data->EventFlag == ImGuiInputTextFlags_CallbackResize)
-            {
-                auto& stringValue = *static_cast<string*>(data->UserData);
-                ImVector<char>* my_str = (ImVector<char>*)data->UserData;
-                IM_ASSERT(stringValue.data() == data->Buf);
-                stringValue.resize(data->BufSize);
-                data->Buf = (char*)stringValue.data();
-            }
-            else if (data->EventFlag == ImGuiInputTextFlags_CallbackEdit)
-            {
-                auto& stringValue = *static_cast<string*>(data->UserData);
-                stringValue = std::string(data->Buf);
-            }
-            return 0;
-        }, &value))
-        {
-            value.resize(strlen(value.c_str()));
-            if (timeline->mOutputPath.compare(value) != 0)
-            {
-                timeline->mOutputPath = value;
-            }
-        }
-        if (ImGui::IsItemHovered() && !timeline->mOutputPath.empty() && ImGui::BeginTooltip())
-        {
-            ImGui::TextUnformatted(timeline->mOutputPath.c_str());
-            ImGui::EndTooltip();
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("...##output_path_browse"))
-        {
-            ImGuiFileDialog::Instance()->OpenDialog("##MediaEditOutputPathDlgKey", ICON_IGFD_FOLDER_OPEN " Output Path", 
-                                                    nullptr,
-                                                    timeline->mOutputPath.empty() ? "." : timeline->mOutputPath,
-                                                    1, 
-                                                    IGFDUserDatas("OutputPath"), 
-                                                    ImGuiFileDialogFlags_ShowBookmark | 
-                                                    ImGuiFileDialogFlags_CaseInsensitiveExtention |
-                                                    ImGuiFileDialogFlags_Modal);
-        }
+        ImGui::SetWindowFontScale(1.0);
 
-        // Format Setting
-        auto format_getter = [](void* data, int idx, const char** out_text){
-            output_format * formats = (output_format *)data;
-            *out_text = formats[idx].name.c_str();
-            return true;
-        };
-        ImGui::Combo("File Format##file_format", &g_media_editor_settings.OutputFormatIndex, format_getter, (void *)OutFormats, IM_ARRAYSIZE(OutFormats));
-
-        // Video Setting
-        ImGui::Dummy(ImVec2(0, 20));
-        ImGui::Checkbox("Export Video##export_video", &timeline->bExportVideo);
-        ImGui::Separator();
-        if (timeline->bExportVideo) ImGui::BeginDisabled(false); else ImGui::BeginDisabled(true);
-        bool has_bit_rate = false;
-        bool has_gop_size = false;
-        bool has_b_frame = false;
-        auto codec_getter = [](void* data, int idx, const char** out_text){
-            output_codec * codecs = (output_codec *)data;
-            *out_text = codecs[idx].name.c_str();
-            return true;
-        };
-        auto codec_type_getter = [](void* data, int idx, const char** out_text){
-            std::vector<MediaCore::MediaEncoder::Description> * codecs = (std::vector<MediaCore::MediaEncoder::Description>*)data;
-            *out_text = codecs->at(idx).longName.c_str();
-            return true;
-        };
-        auto codec_option_getter = [](void* data, int idx, const char** out_text){
-            std::vector<MediaCore::MediaEncoder::Option::EnumValue> * profiles = (std::vector<MediaCore::MediaEncoder::Option::EnumValue>*)data;
-            *out_text = profiles->at(idx).name.c_str();
-            return true;
-        };
-        auto color_getter = [](void* data, int idx, const char** out_text){
-            output_color * color = (output_color *)data;
-            *out_text = color[idx].name.c_str();
-            return true;
-        };
-        // video codec select
-        if (ImGui::Combo("Codec##video_codec", &g_media_editor_settings.OutputVideoCodecIndex, codec_getter, (void *)OutputVideoCodec, IM_ARRAYSIZE(OutputVideoCodec)))
+        if (ImGui::BeginChild("##Subcp01"))
         {
-            g_vidEncSelChanged = true;
-            g_media_editor_settings.OutputVideoCodecTypeIndex = 0;  // reset codec type if we change codec
-            g_media_editor_settings.OutputVideoCodecProfileIndex = -1;
-            g_media_editor_settings.OutputVideoCodecPresetIndex = -1;
-            g_media_editor_settings.OutputVideoCodecTuneIndex = -1;
-            g_media_editor_settings.OutputVideoCodecCompressionIndex = -1;
-        }
-
-        // video codec type select
-        if (OutputVideoCodec[g_media_editor_settings.OutputVideoCodecIndex].name.compare("Uncompressed") == 0)
-        {
-            ImGui::Combo("Codec Type##uncompressed_video_codec", &g_media_editor_settings.OutputVideoCodecTypeIndex, codec_getter, (void *)OutputVideoCodecUncompressed, IM_ARRAYSIZE(OutputVideoCodecUncompressed));
-        }
-        else
-        {
-            if (g_vidEncSelChanged)
+            ImGui::Dummy(ImVec2(0, 20));
+            string value = timeline->mOutputName;
+            if (ImGui::InputText("File Name##output_file_name_string_value", (char*)value.data(), value.size() + 1, ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackResize, [](ImGuiInputTextCallbackData* data) -> int
             {
-                string codecHint = OutputVideoCodec[g_media_editor_settings.OutputVideoCodecIndex].codec;
-                if (!MediaCore::MediaEncoder::FindEncoder(codecHint, g_currVidEncDescList))
+                if (data->EventFlag == ImGuiInputTextFlags_CallbackResize)
                 {
-                    g_currVidEncDescList.clear();
+                    auto& stringValue = *static_cast<string*>(data->UserData);
+                    ImVector<char>* my_str = (ImVector<char>*)data->UserData;
+                    IM_ASSERT(stringValue.data() == data->Buf);
+                    stringValue.resize(data->BufSize);
+                    data->Buf = (char*)stringValue.data();
                 }
-                g_vidEncSelChanged = false;
-            }
-            if (ImGui::Combo("Codec Type##video_codec_type", &g_media_editor_settings.OutputVideoCodecTypeIndex, codec_type_getter, (void *)&g_currVidEncDescList, g_currVidEncDescList.size()))
+                else if (data->EventFlag == ImGuiInputTextFlags_CallbackEdit)
+                {
+                    auto& stringValue = *static_cast<string*>(data->UserData);
+                    stringValue = std::string(data->Buf);
+                }
+                return 0;
+            }, &value))
             {
+                value.resize(strlen(value.c_str()));
+                if (timeline->mOutputName.compare(value) != 0)
+                {
+                    timeline->mOutputName = value;
+                }
+            }
+            value = timeline->mOutputPath;
+            if (ImGui::InputText("File Path##output_file_path_string_value", (char*)value.data(), value.size() + 1, ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackResize, [](ImGuiInputTextCallbackData* data) -> int
+            {
+                if (data->EventFlag == ImGuiInputTextFlags_CallbackResize)
+                {
+                    auto& stringValue = *static_cast<string*>(data->UserData);
+                    ImVector<char>* my_str = (ImVector<char>*)data->UserData;
+                    IM_ASSERT(stringValue.data() == data->Buf);
+                    stringValue.resize(data->BufSize);
+                    data->Buf = (char*)stringValue.data();
+                }
+                else if (data->EventFlag == ImGuiInputTextFlags_CallbackEdit)
+                {
+                    auto& stringValue = *static_cast<string*>(data->UserData);
+                    stringValue = std::string(data->Buf);
+                }
+                return 0;
+            }, &value))
+            {
+                value.resize(strlen(value.c_str()));
+                if (timeline->mOutputPath.compare(value) != 0)
+                {
+                    timeline->mOutputPath = value;
+                }
+            }
+            if (ImGui::IsItemHovered() && !timeline->mOutputPath.empty() && ImGui::BeginTooltip())
+            {
+                ImGui::TextUnformatted(timeline->mOutputPath.c_str());
+                ImGui::EndTooltip();
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("...##output_path_browse"))
+            {
+                ImGuiFileDialog::Instance()->OpenDialog("##MediaEditOutputPathDlgKey", ICON_IGFD_FOLDER_OPEN " Output Path", 
+                                                        nullptr,
+                                                        timeline->mOutputPath.empty() ? "." : timeline->mOutputPath,
+                                                        1, 
+                                                        IGFDUserDatas("OutputPath"), 
+                                                        ImGuiFileDialogFlags_ShowBookmark | 
+                                                        ImGuiFileDialogFlags_CaseInsensitiveExtention |
+                                                        ImGuiFileDialogFlags_Modal);
+            }
+
+            // Format Setting
+            auto format_getter = [](void* data, int idx, const char** out_text){
+                output_format * formats = (output_format *)data;
+                *out_text = formats[idx].name.c_str();
+                return true;
+            };
+            ImGui::Combo("File Format##file_format", &g_media_editor_settings.OutputFormatIndex, format_getter, (void *)OutFormats, IM_ARRAYSIZE(OutFormats));
+
+            // Video Setting
+            ImGui::Dummy(ImVec2(0, 20));
+            ImGui::Checkbox("Export Video##export_video", &timeline->bExportVideo);
+            ImGui::Separator();
+            if (timeline->bExportVideo) ImGui::BeginDisabled(false); else ImGui::BeginDisabled(true);
+            bool has_bit_rate = false;
+            bool has_gop_size = false;
+            bool has_b_frame = false;
+            auto codec_getter = [](void* data, int idx, const char** out_text){
+                output_codec * codecs = (output_codec *)data;
+                *out_text = codecs[idx].name.c_str();
+                return true;
+            };
+            auto codec_type_getter = [](void* data, int idx, const char** out_text){
+                std::vector<MediaCore::MediaEncoder::Description> * codecs = (std::vector<MediaCore::MediaEncoder::Description>*)data;
+                *out_text = codecs->at(idx).longName.c_str();
+                return true;
+            };
+            auto codec_option_getter = [](void* data, int idx, const char** out_text){
+                std::vector<MediaCore::MediaEncoder::Option::EnumValue> * profiles = (std::vector<MediaCore::MediaEncoder::Option::EnumValue>*)data;
+                *out_text = profiles->at(idx).name.c_str();
+                return true;
+            };
+            auto color_getter = [](void* data, int idx, const char** out_text){
+                output_color * color = (output_color *)data;
+                *out_text = color[idx].name.c_str();
+                return true;
+            };
+            // video codec select
+            if (ImGui::Combo("Codec##video_codec", &g_media_editor_settings.OutputVideoCodecIndex, codec_getter, (void *)OutputVideoCodec, IM_ARRAYSIZE(OutputVideoCodec)))
+            {
+                g_vidEncSelChanged = true;
+                g_media_editor_settings.OutputVideoCodecTypeIndex = 0;  // reset codec type if we change codec
                 g_media_editor_settings.OutputVideoCodecProfileIndex = -1;
                 g_media_editor_settings.OutputVideoCodecPresetIndex = -1;
                 g_media_editor_settings.OutputVideoCodecTuneIndex = -1;
                 g_media_editor_settings.OutputVideoCodecCompressionIndex = -1;
             }
 
-            if (!g_currVidEncDescList.empty())
+            // video codec type select
+            if (OutputVideoCodec[g_media_editor_settings.OutputVideoCodecIndex].name.compare("Uncompressed") == 0)
             {
-                if (g_currVidEncDescList[g_media_editor_settings.OutputVideoCodecTypeIndex].codecName.compare("libx264") == 0 ||
-                    g_currVidEncDescList[g_media_editor_settings.OutputVideoCodecTypeIndex].codecName.compare("libx264rgb") == 0)
+                ImGui::Combo("Codec Type##uncompressed_video_codec", &g_media_editor_settings.OutputVideoCodecTypeIndex, codec_getter, (void *)OutputVideoCodecUncompressed, IM_ARRAYSIZE(OutputVideoCodecUncompressed));
+            }
+            else
+            {
+                if (g_vidEncSelChanged)
                 {
-                    // libx264 setting
-                    if (g_media_editor_settings.OutputVideoCodecProfileIndex == -1) g_media_editor_settings.OutputVideoCodecProfileIndex = 1;
-                    if (g_media_editor_settings.OutputVideoCodecPresetIndex == -1) g_media_editor_settings.OutputVideoCodecPresetIndex = 5;
-                    if (g_media_editor_settings.OutputVideoCodecTuneIndex == -1) g_media_editor_settings.OutputVideoCodecTuneIndex = 0;
-                    ImGui::Combo("Codec Profile##x264_profile", &g_media_editor_settings.OutputVideoCodecProfileIndex, x264_profile, IM_ARRAYSIZE(x264_profile));
-                    ImGui::Combo("Codec Preset##x264_preset", &g_media_editor_settings.OutputVideoCodecPresetIndex, x264_preset, IM_ARRAYSIZE(x264_preset));
-                    ImGui::Combo("Codec Tune##x264_Tune", &g_media_editor_settings.OutputVideoCodecTuneIndex, x264_tune, IM_ARRAYSIZE(x264_tune));
-                    has_bit_rate = has_gop_size = has_b_frame = true;
-                }
-                else if (g_currVidEncDescList[g_media_editor_settings.OutputVideoCodecTypeIndex].codecName.compare("libx265") == 0)
-                {
-                    // libx265 setting
-                    if (g_media_editor_settings.OutputVideoCodecProfileIndex == -1) g_media_editor_settings.OutputVideoCodecProfileIndex = 0;
-                    if (g_media_editor_settings.OutputVideoCodecPresetIndex == -1) g_media_editor_settings.OutputVideoCodecPresetIndex = 5;
-                    if (g_media_editor_settings.OutputVideoCodecTuneIndex == -1) g_media_editor_settings.OutputVideoCodecTuneIndex = 4;
-                    ImGui::Combo("Codec Profile##x265_profile", &g_media_editor_settings.OutputVideoCodecProfileIndex, x265_profile, IM_ARRAYSIZE(x265_profile));
-                    ImGui::Combo("Codec Preset##x265_preset", &g_media_editor_settings.OutputVideoCodecPresetIndex, x265_preset, IM_ARRAYSIZE(x265_preset));
-                    ImGui::Combo("Codec Tune##x265_Tune", &g_media_editor_settings.OutputVideoCodecTuneIndex, x265_tune, IM_ARRAYSIZE(x265_tune));
-                    has_bit_rate = has_gop_size = has_b_frame = true;
-                }
-                else if (g_currVidEncDescList[g_media_editor_settings.OutputVideoCodecTypeIndex].codecName.compare("h264_videotoolbox") == 0)
-                {
-                    if (g_media_editor_settings.OutputVideoCodecProfileIndex == -1) g_media_editor_settings.OutputVideoCodecProfileIndex = 0;
-                    ImGui::Combo("Codec Profile##v264_profile", &g_media_editor_settings.OutputVideoCodecProfileIndex, v264_profile, IM_ARRAYSIZE(v264_profile));
-                    has_bit_rate = has_gop_size = has_b_frame = true;
-                }
-                else if (g_currVidEncDescList[g_media_editor_settings.OutputVideoCodecTypeIndex].codecName.compare("hevc_videotoolbox") == 0)
-                {
-                    if (g_media_editor_settings.OutputVideoCodecProfileIndex == -1) g_media_editor_settings.OutputVideoCodecProfileIndex = 0;
-                    ImGui::Combo("Codec Profile##v265_profile", &g_media_editor_settings.OutputVideoCodecProfileIndex, v265_profile, IM_ARRAYSIZE(v265_profile));
-                    has_bit_rate = has_gop_size = has_b_frame = true;
-                }
-                else
-                {
-                    for (auto opt : g_currVidEncDescList[g_media_editor_settings.OutputVideoCodecTypeIndex].optDescList)
+                    string codecHint = OutputVideoCodec[g_media_editor_settings.OutputVideoCodecIndex].codec;
+                    if (!MediaCore::MediaEncoder::FindEncoder(codecHint, g_currVidEncDescList))
                     {
-                        if (opt.name.compare("profile") == 0)
+                        g_currVidEncDescList.clear();
+                    }
+                    g_vidEncSelChanged = false;
+                }
+                if (ImGui::Combo("Codec Type##video_codec_type", &g_media_editor_settings.OutputVideoCodecTypeIndex, codec_type_getter, (void *)&g_currVidEncDescList, g_currVidEncDescList.size()))
+                {
+                    g_media_editor_settings.OutputVideoCodecProfileIndex = -1;
+                    g_media_editor_settings.OutputVideoCodecPresetIndex = -1;
+                    g_media_editor_settings.OutputVideoCodecTuneIndex = -1;
+                    g_media_editor_settings.OutputVideoCodecCompressionIndex = -1;
+                }
+
+                if (!g_currVidEncDescList.empty())
+                {
+                    if (g_currVidEncDescList[g_media_editor_settings.OutputVideoCodecTypeIndex].codecName.compare("libx264") == 0 ||
+                        g_currVidEncDescList[g_media_editor_settings.OutputVideoCodecTypeIndex].codecName.compare("libx264rgb") == 0)
+                    {
+                        // libx264 setting
+                        if (g_media_editor_settings.OutputVideoCodecProfileIndex == -1) g_media_editor_settings.OutputVideoCodecProfileIndex = 1;
+                        if (g_media_editor_settings.OutputVideoCodecPresetIndex == -1) g_media_editor_settings.OutputVideoCodecPresetIndex = 5;
+                        if (g_media_editor_settings.OutputVideoCodecTuneIndex == -1) g_media_editor_settings.OutputVideoCodecTuneIndex = 0;
+                        ImGui::Combo("Codec Profile##x264_profile", &g_media_editor_settings.OutputVideoCodecProfileIndex, x264_profile, IM_ARRAYSIZE(x264_profile));
+                        ImGui::Combo("Codec Preset##x264_preset", &g_media_editor_settings.OutputVideoCodecPresetIndex, x264_preset, IM_ARRAYSIZE(x264_preset));
+                        ImGui::Combo("Codec Tune##x264_Tune", &g_media_editor_settings.OutputVideoCodecTuneIndex, x264_tune, IM_ARRAYSIZE(x264_tune));
+                        has_bit_rate = has_gop_size = has_b_frame = true;
+                    }
+                    else if (g_currVidEncDescList[g_media_editor_settings.OutputVideoCodecTypeIndex].codecName.compare("libx265") == 0)
+                    {
+                        // libx265 setting
+                        if (g_media_editor_settings.OutputVideoCodecProfileIndex == -1) g_media_editor_settings.OutputVideoCodecProfileIndex = 0;
+                        if (g_media_editor_settings.OutputVideoCodecPresetIndex == -1) g_media_editor_settings.OutputVideoCodecPresetIndex = 5;
+                        if (g_media_editor_settings.OutputVideoCodecTuneIndex == -1) g_media_editor_settings.OutputVideoCodecTuneIndex = 4;
+                        ImGui::Combo("Codec Profile##x265_profile", &g_media_editor_settings.OutputVideoCodecProfileIndex, x265_profile, IM_ARRAYSIZE(x265_profile));
+                        ImGui::Combo("Codec Preset##x265_preset", &g_media_editor_settings.OutputVideoCodecPresetIndex, x265_preset, IM_ARRAYSIZE(x265_preset));
+                        ImGui::Combo("Codec Tune##x265_Tune", &g_media_editor_settings.OutputVideoCodecTuneIndex, x265_tune, IM_ARRAYSIZE(x265_tune));
+                        has_bit_rate = has_gop_size = has_b_frame = true;
+                    }
+                    else if (g_currVidEncDescList[g_media_editor_settings.OutputVideoCodecTypeIndex].codecName.compare("h264_videotoolbox") == 0)
+                    {
+                        if (g_media_editor_settings.OutputVideoCodecProfileIndex == -1) g_media_editor_settings.OutputVideoCodecProfileIndex = 0;
+                        ImGui::Combo("Codec Profile##v264_profile", &g_media_editor_settings.OutputVideoCodecProfileIndex, v264_profile, IM_ARRAYSIZE(v264_profile));
+                        has_bit_rate = has_gop_size = has_b_frame = true;
+                    }
+                    else if (g_currVidEncDescList[g_media_editor_settings.OutputVideoCodecTypeIndex].codecName.compare("hevc_videotoolbox") == 0)
+                    {
+                        if (g_media_editor_settings.OutputVideoCodecProfileIndex == -1) g_media_editor_settings.OutputVideoCodecProfileIndex = 0;
+                        ImGui::Combo("Codec Profile##v265_profile", &g_media_editor_settings.OutputVideoCodecProfileIndex, v265_profile, IM_ARRAYSIZE(v265_profile));
+                        has_bit_rate = has_gop_size = has_b_frame = true;
+                    }
+                    else
+                    {
+                        for (auto opt : g_currVidEncDescList[g_media_editor_settings.OutputVideoCodecTypeIndex].optDescList)
                         {
-                            if (g_media_editor_settings.OutputVideoCodecProfileIndex == -1)
+                            if (opt.name.compare("profile") == 0)
                             {
-                                for (int i = 0; i < opt.enumValues.size(); i++)
+                                if (g_media_editor_settings.OutputVideoCodecProfileIndex == -1)
                                 {
-                                    if (opt.defaultValue.numval.i64 == opt.enumValues[i].value)
+                                    for (int i = 0; i < opt.enumValues.size(); i++)
                                     {
-                                        g_media_editor_settings.OutputVideoCodecProfileIndex = i;
-                                        break;
+                                        if (opt.defaultValue.numval.i64 == opt.enumValues[i].value)
+                                        {
+                                            g_media_editor_settings.OutputVideoCodecProfileIndex = i;
+                                            break;
+                                        }
                                     }
                                 }
+                                ImGui::Combo("Codec Profile##video_codec_profile", &g_media_editor_settings.OutputVideoCodecProfileIndex, codec_option_getter, (void *)&opt.enumValues, opt.enumValues.size());
                             }
-                            ImGui::Combo("Codec Profile##video_codec_profile", &g_media_editor_settings.OutputVideoCodecProfileIndex, codec_option_getter, (void *)&opt.enumValues, opt.enumValues.size());
-                        }
-                        if (opt.name.compare("tune") == 0)
-                        {
-                            if (g_media_editor_settings.OutputVideoCodecTuneIndex == -1)
+                            if (opt.name.compare("tune") == 0)
                             {
-                                for (int i = 0; i < opt.enumValues.size(); i++)
+                                if (g_media_editor_settings.OutputVideoCodecTuneIndex == -1)
                                 {
-                                    if (opt.defaultValue.numval.i64 == opt.enumValues[i].value)
+                                    for (int i = 0; i < opt.enumValues.size(); i++)
                                     {
-                                        g_media_editor_settings.OutputVideoCodecTuneIndex = i;
-                                        break;
+                                        if (opt.defaultValue.numval.i64 == opt.enumValues[i].value)
+                                        {
+                                            g_media_editor_settings.OutputVideoCodecTuneIndex = i;
+                                            break;
+                                        }
                                     }
                                 }
+                                ImGui::Combo("Codec Tune##video_codec_tune", &g_media_editor_settings.OutputVideoCodecTuneIndex, codec_option_getter, (void *)&opt.enumValues, opt.enumValues.size());
                             }
-                            ImGui::Combo("Codec Tune##video_codec_tune", &g_media_editor_settings.OutputVideoCodecTuneIndex, codec_option_getter, (void *)&opt.enumValues, opt.enumValues.size());
-                        }
-                        if (opt.name.compare("preset") == 0 || opt.name.compare("usage") == 0)
-                        {
-                            if (g_media_editor_settings.OutputVideoCodecPresetIndex == -1)
+                            if (opt.name.compare("preset") == 0 || opt.name.compare("usage") == 0)
                             {
-                                for (int i = 0; i < opt.enumValues.size(); i++)
+                                if (g_media_editor_settings.OutputVideoCodecPresetIndex == -1)
                                 {
-                                    if (opt.defaultValue.numval.i64 == opt.enumValues[i].value)
+                                    for (int i = 0; i < opt.enumValues.size(); i++)
                                     {
-                                        g_media_editor_settings.OutputVideoCodecPresetIndex = i;
-                                        break;
+                                        if (opt.defaultValue.numval.i64 == opt.enumValues[i].value)
+                                        {
+                                            g_media_editor_settings.OutputVideoCodecPresetIndex = i;
+                                            break;
+                                        }
                                     }
                                 }
+                                ImGui::Combo("Codec Preset##video_codec_preset", &g_media_editor_settings.OutputVideoCodecPresetIndex, codec_option_getter, (void *)&opt.enumValues, opt.enumValues.size());
                             }
-                            ImGui::Combo("Codec Preset##video_codec_preset", &g_media_editor_settings.OutputVideoCodecPresetIndex, codec_option_getter, (void *)&opt.enumValues, opt.enumValues.size());
-                        }
-                        if (opt.name.compare("compression") == 0 || opt.name.compare("compression_algo") == 0)
-                        {
-                            if (g_media_editor_settings.OutputVideoCodecCompressionIndex == -1)
+                            if (opt.name.compare("compression") == 0 || opt.name.compare("compression_algo") == 0)
                             {
-                                for (int i = 0; i < opt.enumValues.size(); i++)
+                                if (g_media_editor_settings.OutputVideoCodecCompressionIndex == -1)
                                 {
-                                    if (opt.defaultValue.numval.i64 == opt.enumValues[i].value)
+                                    for (int i = 0; i < opt.enumValues.size(); i++)
                                     {
-                                        g_media_editor_settings.OutputVideoCodecCompressionIndex = i;
-                                        break;
+                                        if (opt.defaultValue.numval.i64 == opt.enumValues[i].value)
+                                        {
+                                            g_media_editor_settings.OutputVideoCodecCompressionIndex = i;
+                                            break;
+                                        }
                                     }
                                 }
+                                ImGui::Combo("Codec Compression##video_codec_compression", &g_media_editor_settings.OutputVideoCodecCompressionIndex, codec_option_getter, (void *)&opt.enumValues, opt.enumValues.size());
                             }
-                            ImGui::Combo("Codec Compression##video_codec_compression", &g_media_editor_settings.OutputVideoCodecCompressionIndex, codec_option_getter, (void *)&opt.enumValues, opt.enumValues.size());
-                        }
-                        if (opt.tag.compare("gop size") == 0) has_gop_size = true;
-                        if (opt.tag.compare("b frames") == 0) has_b_frame = true;
-                        if (has_gop_size || has_b_frame)
-                        {
-                            has_bit_rate = true;
+                            if (opt.tag.compare("gop size") == 0) has_gop_size = true;
+                            if (opt.tag.compare("b frames") == 0) has_b_frame = true;
+                            if (has_gop_size || has_b_frame)
+                            {
+                                has_bit_rate = true;
+                            }
                         }
                     }
                 }
             }
-        }
 
-        // Video codec global
-        ImGui::TextUnformatted("Video Setting: "); ImGui::SameLine(0.f, 0.f);
-        static char buf_res_x[64] = {0}; snprintf(buf_res_x, 64, "%d", g_media_editor_settings.OutputVideoResolutionWidth);
-        static char buf_res_y[64] = {0}; snprintf(buf_res_y, 64, "%d", g_media_editor_settings.OutputVideoResolutionHeight);
-        static char buf_par_x[64] = {0}; snprintf(buf_par_x, 64, "%d", g_media_editor_settings.OutputVideoPixelAspectRatio.num);
-        static char buf_par_y[64] = {0}; snprintf(buf_par_y, 64, "%d", g_media_editor_settings.OutputVideoPixelAspectRatio.den);
-        static char buf_fmr_x[64] = {0}; snprintf(buf_fmr_x, 64, "%d", g_media_editor_settings.OutputVideoFrameRate.num);
-        static char buf_fmr_y[64] = {0}; snprintf(buf_fmr_y, 64, "%d", g_media_editor_settings.OutputVideoFrameRate.den);
+            // Video codec global
+            ImGui::TextUnformatted("Video Setting: "); ImGui::SameLine(0.f, 0.f);
+            static char buf_res_x[64] = {0}; snprintf(buf_res_x, 64, "%d", g_media_editor_settings.OutputVideoResolutionWidth);
+            static char buf_res_y[64] = {0}; snprintf(buf_res_y, 64, "%d", g_media_editor_settings.OutputVideoResolutionHeight);
+            static char buf_par_x[64] = {0}; snprintf(buf_par_x, 64, "%d", g_media_editor_settings.OutputVideoPixelAspectRatio.num);
+            static char buf_par_y[64] = {0}; snprintf(buf_par_y, 64, "%d", g_media_editor_settings.OutputVideoPixelAspectRatio.den);
+            static char buf_fmr_x[64] = {0}; snprintf(buf_fmr_x, 64, "%d", g_media_editor_settings.OutputVideoFrameRate.num);
+            static char buf_fmr_y[64] = {0}; snprintf(buf_fmr_y, 64, "%d", g_media_editor_settings.OutputVideoFrameRate.den);
 
-        ImGui::Checkbox("as Timeline##video_setting", &g_media_editor_settings.OutputVideoSettingAsTimeline);
-        if (g_media_editor_settings.OutputVideoSettingAsTimeline)
-        {
-            g_media_editor_settings.OutputVideoResolutionIndex = GetResolutionIndex(g_media_editor_settings.VideoWidth, g_media_editor_settings.VideoHeight);
-            g_media_editor_settings.OutputVideoResolutionWidth = g_media_editor_settings.VideoWidth;
-            g_media_editor_settings.OutputVideoResolutionHeight = g_media_editor_settings.VideoHeight;
-            g_media_editor_settings.OutputVideoPixelAspectRatioIndex = GetPixelAspectRatioIndex(g_media_editor_settings.PixelAspectRatio);
-            g_media_editor_settings.OutputVideoPixelAspectRatio = g_media_editor_settings.PixelAspectRatio;
-            g_media_editor_settings.OutputVideoFrameRateIndex = GetVideoFrameIndex(g_media_editor_settings.VideoFrameRate);
-            g_media_editor_settings.OutputVideoFrameRate = g_media_editor_settings.VideoFrameRate;
-            g_media_editor_settings.OutputColorSpaceIndex = g_media_editor_settings.ColorSpaceIndex;
-            g_media_editor_settings.OutputColorTransferIndex = g_media_editor_settings.ColorTransferIndex;
-        }
-        ImGui::BeginDisabled(g_media_editor_settings.OutputVideoSettingAsTimeline);
-            if (ImGui::Combo("Resolution", &g_media_editor_settings.OutputVideoResolutionIndex, resolution_items, IM_ARRAYSIZE(resolution_items)))
+            ImGui::Checkbox("as Timeline##video_setting", &g_media_editor_settings.OutputVideoSettingAsTimeline);
+            if (g_media_editor_settings.OutputVideoSettingAsTimeline)
             {
-                SetResolution(g_media_editor_settings.OutputVideoResolutionWidth, g_media_editor_settings.OutputVideoResolutionHeight, g_media_editor_settings.OutputVideoResolutionIndex);
+                g_media_editor_settings.OutputVideoResolutionIndex = GetResolutionIndex(g_media_editor_settings.VideoWidth, g_media_editor_settings.VideoHeight);
+                g_media_editor_settings.OutputVideoResolutionWidth = g_media_editor_settings.VideoWidth;
+                g_media_editor_settings.OutputVideoResolutionHeight = g_media_editor_settings.VideoHeight;
+                g_media_editor_settings.OutputVideoPixelAspectRatioIndex = GetPixelAspectRatioIndex(g_media_editor_settings.PixelAspectRatio);
+                g_media_editor_settings.OutputVideoPixelAspectRatio = g_media_editor_settings.PixelAspectRatio;
+                g_media_editor_settings.OutputVideoFrameRateIndex = GetVideoFrameIndex(g_media_editor_settings.VideoFrameRate);
+                g_media_editor_settings.OutputVideoFrameRate = g_media_editor_settings.VideoFrameRate;
+                g_media_editor_settings.OutputColorSpaceIndex = g_media_editor_settings.ColorSpaceIndex;
+                g_media_editor_settings.OutputColorTransferIndex = g_media_editor_settings.ColorTransferIndex;
             }
-            ImGui::BeginDisabled(g_media_editor_settings.OutputVideoResolutionIndex != 0);
-                ImGui::PushItemWidth(60);
-                ImGui::InputText("##Output_Resolution_x", buf_res_x, 64, ImGuiInputTextFlags_CharsDecimal);
-                ImGui::SameLine();
-                ImGui::TextUnformatted("X");
-                ImGui::SameLine();
-                ImGui::InputText("##Output_Resolution_y", buf_res_y, 64, ImGuiInputTextFlags_CharsDecimal);
-                ImGui::PopItemWidth();
-            ImGui::EndDisabled(); // disable if resolution not custom
-            if (g_media_editor_settings.OutputVideoResolutionIndex == 0)
-            {
-                g_media_editor_settings.OutputVideoResolutionWidth = atoi(buf_res_x);
-                g_media_editor_settings.OutputVideoResolutionHeight = atoi(buf_res_y);
-            }
-
-            if (ImGui::Combo("Pixel Aspect Ratio", &g_media_editor_settings.OutputVideoPixelAspectRatioIndex, pixel_aspect_items, IM_ARRAYSIZE(pixel_aspect_items)))
-            {
-                SetPixelAspectRatio(g_media_editor_settings.OutputVideoPixelAspectRatio, g_media_editor_settings.OutputVideoPixelAspectRatioIndex);
-            }
-            ImGui::BeginDisabled(g_media_editor_settings.OutputVideoPixelAspectRatioIndex != 0);
-                ImGui::PushItemWidth(60);
-                ImGui::InputText("##OutputPixelAspectRatio_x", buf_par_x, 64, ImGuiInputTextFlags_CharsDecimal);
-                ImGui::SameLine();
-                ImGui::TextUnformatted(":");
-                ImGui::SameLine();
-                ImGui::InputText("##OutputPixelAspectRatio_y", buf_par_y, 64, ImGuiInputTextFlags_CharsDecimal);
-                ImGui::PopItemWidth();
-            ImGui::EndDisabled(); // disable if pixel aspact ratio is not custom
-            if (g_media_editor_settings.OutputVideoPixelAspectRatioIndex == 0)
-            {
-                g_media_editor_settings.OutputVideoPixelAspectRatio.num = atoi(buf_par_x);
-                g_media_editor_settings.OutputVideoPixelAspectRatio.den = atoi(buf_par_y);
-            }
-
-            if (ImGui::Combo("Video Frame Rate", &g_media_editor_settings.OutputVideoFrameRateIndex, frame_rate_items, IM_ARRAYSIZE(frame_rate_items)))
-            {
-                SetVideoFrameRate(g_media_editor_settings.OutputVideoFrameRate, g_media_editor_settings.OutputVideoFrameRateIndex);
-            }
-            ImGui::BeginDisabled(g_media_editor_settings.OutputVideoFrameRateIndex != 0);
-                ImGui::PushItemWidth(60);
-                ImGui::InputText("##OutputVideoFrameRate_x", buf_fmr_x, 64, ImGuiInputTextFlags_CharsDecimal);
-                ImGui::SameLine();
-                ImGui::TextUnformatted(":");
-                ImGui::SameLine();
-                ImGui::InputText("##OutputVideoFrameRate_y", buf_fmr_y, 64, ImGuiInputTextFlags_CharsDecimal);
-                ImGui::PopItemWidth();
-            ImGui::EndDisabled(); // disable if frame rate is not custom
-            if (g_media_editor_settings.OutputVideoFrameRateIndex == 0)
-            {
-                g_media_editor_settings.OutputVideoFrameRate.num = atoi(buf_fmr_x);
-                g_media_editor_settings.OutputVideoFrameRate.den = atoi(buf_fmr_y);
-            }
-            ImGui::Combo("Color Space", &g_media_editor_settings.OutputColorSpaceIndex, color_getter, (void *)&ColorSpace ,IM_ARRAYSIZE(ColorSpace));
-            ImGui::Combo("Color Transfer", &g_media_editor_settings.OutputColorTransferIndex, color_getter, (void *)&ColorTransfer ,IM_ARRAYSIZE(ColorTransfer));
-        ImGui::EndDisabled(); // disable if param as timline
-
-        if (has_bit_rate)
-        {
-            if (g_media_editor_settings.OutputVideoBitrate == -1)
-            {
-                g_media_editor_settings.OutputVideoBitrate = 
-                    (int64_t)g_media_editor_settings.OutputVideoResolutionWidth * (int64_t)g_media_editor_settings.OutputVideoResolutionHeight *
-                    (int64_t)g_media_editor_settings.OutputVideoFrameRate.num / (int64_t)g_media_editor_settings.OutputVideoFrameRate.den / 10;
-            }
-
-            ImGui::InputInt("Bitrate##video", &g_media_editor_settings.OutputVideoBitrate, 1000, 1000000, ImGuiInputTextFlags_EnterReturnsTrue);
-            ImGui::Combo("Bitrate Strategy##video", &g_media_editor_settings.OutputVideoBitrateStrategyindex, "CBR\0VBR\0");
-        }
-        else
-            g_media_editor_settings.OutputVideoBitrate = -1;
-        if (has_gop_size)
-        {
-            if (g_media_editor_settings.OutputVideoGOPSize == -1)
-                g_media_editor_settings.OutputVideoGOPSize = 12;
-            ImGui::InputInt("GOP Size##video", &g_media_editor_settings.OutputVideoGOPSize, 1, 1, ImGuiInputTextFlags_EnterReturnsTrue);
-        }
-        else
-            g_media_editor_settings.OutputVideoGOPSize = -1;
-        if (has_b_frame)
-        {
-            if (g_media_editor_settings.OutputVideoBFrames == 0)
-                g_media_editor_settings.OutputVideoBFrames = 2;
-            ImGui::InputInt("B Frames##video", &g_media_editor_settings.OutputVideoBFrames, 1, 1, ImGuiInputTextFlags_EnterReturnsTrue);
-        }
-        else
-            g_media_editor_settings.OutputVideoBFrames = 0;
-        ImGui::EndDisabled(); // disable if disable video
-        ImGui::Separator();
-
-        // Audio Setting
-        ImGui::Dummy(ImVec2(0, 20));
-        ImGui::Checkbox("Export Audio##export_audio", &timeline->bExportAudio);
-        ImGui::Separator();
-        if (timeline->bExportAudio) ImGui::BeginDisabled(false); else ImGui::BeginDisabled(true);
-        
-        // audio codec select
-        if (ImGui::Combo("Codec##audio_codec", &g_media_editor_settings.OutputAudioCodecIndex, codec_getter, (void *)OutputAudioCodec, IM_ARRAYSIZE(OutputAudioCodec)))
-        {
-            g_audEncSelChanged = true;
-            g_media_editor_settings.OutputAudioCodecTypeIndex = 0;  // reset codec type if we change codec
-        }
-        // audio codec type select
-        if (OutputAudioCodec[g_media_editor_settings.OutputAudioCodecIndex].name.compare("PCM") == 0)
-        {
-            ImGui::Combo("Codec Type##pcm_audio_codec", &g_media_editor_settings.OutputAudioCodecTypeIndex, codec_getter, (void *)OutputAudioCodecPCM, IM_ARRAYSIZE(OutputAudioCodecPCM));
-        }
-        else
-        {
-            if (g_audEncSelChanged)
-            {
-                std::string codecHint = OutputAudioCodec[g_media_editor_settings.OutputAudioCodecIndex].codec;
-                if (!MediaCore::MediaEncoder::FindEncoder(codecHint, g_currAudEncDescList))
+            ImGui::BeginDisabled(g_media_editor_settings.OutputVideoSettingAsTimeline);
+                if (ImGui::Combo("Resolution", &g_media_editor_settings.OutputVideoResolutionIndex, resolution_items, IM_ARRAYSIZE(resolution_items)))
                 {
-                    g_currAudEncDescList.clear();
+                    SetResolution(g_media_editor_settings.OutputVideoResolutionWidth, g_media_editor_settings.OutputVideoResolutionHeight, g_media_editor_settings.OutputVideoResolutionIndex);
                 }
-                g_audEncSelChanged = false;
-            }
+                ImGui::BeginDisabled(g_media_editor_settings.OutputVideoResolutionIndex != 0);
+                    ImGui::PushItemWidth(60);
+                    ImGui::InputText("##Output_Resolution_x", buf_res_x, 64, ImGuiInputTextFlags_CharsDecimal);
+                    ImGui::SameLine();
+                    ImGui::TextUnformatted("X");
+                    ImGui::SameLine();
+                    ImGui::InputText("##Output_Resolution_y", buf_res_y, 64, ImGuiInputTextFlags_CharsDecimal);
+                    ImGui::PopItemWidth();
+                ImGui::EndDisabled(); // disable if resolution not custom
+                if (g_media_editor_settings.OutputVideoResolutionIndex == 0)
+                {
+                    g_media_editor_settings.OutputVideoResolutionWidth = atoi(buf_res_x);
+                    g_media_editor_settings.OutputVideoResolutionHeight = atoi(buf_res_y);
+                }
 
-            ImGui::Combo("Codec Type##audio_codec_type", &g_media_editor_settings.OutputAudioCodecTypeIndex, codec_type_getter, (void *)&g_currAudEncDescList, g_currAudEncDescList.size());
-        }
-        // Audio codec global
-        ImGui::TextUnformatted("Audio Setting: "); ImGui::SameLine(0.f, 0.f);
-        ImGui::Checkbox("as Timeline##audio_setting", &g_media_editor_settings.OutputAudioSettingAsTimeline);
-        if (g_media_editor_settings.OutputAudioSettingAsTimeline)
-        {
-            g_media_editor_settings.OutputAudioSampleRateIndex = GetSampleRateIndex(g_media_editor_settings.AudioSampleRate);
-            g_media_editor_settings.OutputAudioSampleRate = g_media_editor_settings.AudioSampleRate;
-            g_media_editor_settings.OutputAudioChannelsIndex = GetChannelIndex(g_media_editor_settings.AudioChannels);
-            g_media_editor_settings.OutputAudioChannels = g_media_editor_settings.AudioChannels;
-        }
-        ImGui::BeginDisabled(g_media_editor_settings.OutputAudioSettingAsTimeline);
-        if (ImGui::Combo("Audio Sample Rate", &g_media_editor_settings.OutputAudioSampleRateIndex, audio_sample_rate_items, IM_ARRAYSIZE(audio_sample_rate_items)))
-        {
-            SetSampleRate(g_media_editor_settings.OutputAudioSampleRate, g_media_editor_settings.OutputAudioSampleRateIndex);
-        }
-        if (ImGui::Combo("Audio Channels", &g_media_editor_settings.OutputAudioChannelsIndex, audio_channels_items, IM_ARRAYSIZE(audio_channels_items)))
-        {
-            SetAudioChannel(g_media_editor_settings.OutputAudioChannels, g_media_editor_settings.OutputAudioChannelsIndex);
-        }
-        ImGui::EndDisabled(); // disable if param as timline
-        ImGui::EndDisabled(); // disable if no audio
-        ImGui::Separator();
-    }
-    ImGui::EndChild();
+                if (ImGui::Combo("Pixel Aspect Ratio", &g_media_editor_settings.OutputVideoPixelAspectRatioIndex, pixel_aspect_items, IM_ARRAYSIZE(pixel_aspect_items)))
+                {
+                    SetPixelAspectRatio(g_media_editor_settings.OutputVideoPixelAspectRatio, g_media_editor_settings.OutputVideoPixelAspectRatioIndex);
+                }
+                ImGui::BeginDisabled(g_media_editor_settings.OutputVideoPixelAspectRatioIndex != 0);
+                    ImGui::PushItemWidth(60);
+                    ImGui::InputText("##OutputPixelAspectRatio_x", buf_par_x, 64, ImGuiInputTextFlags_CharsDecimal);
+                    ImGui::SameLine();
+                    ImGui::TextUnformatted(":");
+                    ImGui::SameLine();
+                    ImGui::InputText("##OutputPixelAspectRatio_y", buf_par_y, 64, ImGuiInputTextFlags_CharsDecimal);
+                    ImGui::PopItemWidth();
+                ImGui::EndDisabled(); // disable if pixel aspact ratio is not custom
+                if (g_media_editor_settings.OutputVideoPixelAspectRatioIndex == 0)
+                {
+                    g_media_editor_settings.OutputVideoPixelAspectRatio.num = atoi(buf_par_x);
+                    g_media_editor_settings.OutputVideoPixelAspectRatio.den = atoi(buf_par_y);
+                }
 
-    // Make Media dialog
-    if (multiviewport)
-        ImGui::SetNextWindowViewport(viewport->ID);
-    if (ImGui::BeginPopupModal("Make Media##MakeVideoDlyKey", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings))
-    {
-        ImGui::TextUnformatted("Output path:"); ImGui::SameLine(0, 10);
-        std::string fullpath = timeline->mOutputPath+"/"+timeline->mOutputName
-            +"."+OutFormats[g_media_editor_settings.OutputFormatIndex].suffix;
-        ImGui::Text("%s", fullpath.c_str());
-        ImVec2 preview_size = ImVec2(640, 360);
-        ImVec2 preview_pos = ImGui::GetCursorScreenPos();
-        float pos_x = 0, pos_y = 0;
-        if (timeline->mIsEncoding)
+                if (ImGui::Combo("Video Frame Rate", &g_media_editor_settings.OutputVideoFrameRateIndex, frame_rate_items, IM_ARRAYSIZE(frame_rate_items)))
+                {
+                    SetVideoFrameRate(g_media_editor_settings.OutputVideoFrameRate, g_media_editor_settings.OutputVideoFrameRateIndex);
+                }
+                ImGui::BeginDisabled(g_media_editor_settings.OutputVideoFrameRateIndex != 0);
+                    ImGui::PushItemWidth(60);
+                    ImGui::InputText("##OutputVideoFrameRate_x", buf_fmr_x, 64, ImGuiInputTextFlags_CharsDecimal);
+                    ImGui::SameLine();
+                    ImGui::TextUnformatted(":");
+                    ImGui::SameLine();
+                    ImGui::InputText("##OutputVideoFrameRate_y", buf_fmr_y, 64, ImGuiInputTextFlags_CharsDecimal);
+                    ImGui::PopItemWidth();
+                ImGui::EndDisabled(); // disable if frame rate is not custom
+                if (g_media_editor_settings.OutputVideoFrameRateIndex == 0)
+                {
+                    g_media_editor_settings.OutputVideoFrameRate.num = atoi(buf_fmr_x);
+                    g_media_editor_settings.OutputVideoFrameRate.den = atoi(buf_fmr_y);
+                }
+                ImGui::Combo("Color Space", &g_media_editor_settings.OutputColorSpaceIndex, color_getter, (void *)&ColorSpace ,IM_ARRAYSIZE(ColorSpace));
+                ImGui::Combo("Color Transfer", &g_media_editor_settings.OutputColorTransferIndex, color_getter, (void *)&ColorTransfer ,IM_ARRAYSIZE(ColorTransfer));
+            ImGui::EndDisabled(); // disable if param as timline
+
+            if (has_bit_rate)
+            {
+                if (g_media_editor_settings.OutputVideoBitrate == -1)
+                {
+                    g_media_editor_settings.OutputVideoBitrate = 
+                        (int64_t)g_media_editor_settings.OutputVideoResolutionWidth * (int64_t)g_media_editor_settings.OutputVideoResolutionHeight *
+                        (int64_t)g_media_editor_settings.OutputVideoFrameRate.num / (int64_t)g_media_editor_settings.OutputVideoFrameRate.den / 10;
+                }
+
+                ImGui::InputInt("Bitrate##video", &g_media_editor_settings.OutputVideoBitrate, 1000, 1000000, ImGuiInputTextFlags_EnterReturnsTrue);
+                ImGui::Combo("Bitrate Strategy##video", &g_media_editor_settings.OutputVideoBitrateStrategyindex, "CBR\0VBR\0");
+            }
+            else
+                g_media_editor_settings.OutputVideoBitrate = -1;
+            if (has_gop_size)
+            {
+                if (g_media_editor_settings.OutputVideoGOPSize == -1)
+                    g_media_editor_settings.OutputVideoGOPSize = 12;
+                ImGui::InputInt("GOP Size##video", &g_media_editor_settings.OutputVideoGOPSize, 1, 1, ImGuiInputTextFlags_EnterReturnsTrue);
+            }
+            else
+                g_media_editor_settings.OutputVideoGOPSize = -1;
+            if (has_b_frame)
+            {
+                if (g_media_editor_settings.OutputVideoBFrames == 0)
+                    g_media_editor_settings.OutputVideoBFrames = 2;
+                ImGui::InputInt("B Frames##video", &g_media_editor_settings.OutputVideoBFrames, 1, 1, ImGuiInputTextFlags_EnterReturnsTrue);
+            }
+            else
+                g_media_editor_settings.OutputVideoBFrames = 0;
+            ImGui::EndDisabled(); // disable if disable video
+            ImGui::Separator();
+
+            // Audio Setting
+            ImGui::Dummy(ImVec2(0, 20));
+            ImGui::Checkbox("Export Audio##export_audio", &timeline->bExportAudio);
+            ImGui::Separator();
+            if (timeline->bExportAudio) ImGui::BeginDisabled(false); else ImGui::BeginDisabled(true);
+
+            // audio codec select
+            if (ImGui::Combo("Codec##audio_codec", &g_media_editor_settings.OutputAudioCodecIndex, codec_getter, (void *)OutputAudioCodec, IM_ARRAYSIZE(OutputAudioCodec)))
+            {
+                g_audEncSelChanged = true;
+                g_media_editor_settings.OutputAudioCodecTypeIndex = 0;  // reset codec type if we change codec
+            }
+            // audio codec type select
+            if (OutputAudioCodec[g_media_editor_settings.OutputAudioCodecIndex].name.compare("PCM") == 0)
+            {
+                ImGui::Combo("Codec Type##pcm_audio_codec", &g_media_editor_settings.OutputAudioCodecTypeIndex, codec_getter, (void *)OutputAudioCodecPCM, IM_ARRAYSIZE(OutputAudioCodecPCM));
+            }
+            else
+            {
+                if (g_audEncSelChanged)
+                {
+                    std::string codecHint = OutputAudioCodec[g_media_editor_settings.OutputAudioCodecIndex].codec;
+                    if (!MediaCore::MediaEncoder::FindEncoder(codecHint, g_currAudEncDescList))
+                    {
+                        g_currAudEncDescList.clear();
+                    }
+                    g_audEncSelChanged = false;
+                }
+
+                ImGui::Combo("Codec Type##audio_codec_type", &g_media_editor_settings.OutputAudioCodecTypeIndex, codec_type_getter, (void *)&g_currAudEncDescList, g_currAudEncDescList.size());
+            }
+            // Audio codec global
+            ImGui::TextUnformatted("Audio Setting: "); ImGui::SameLine(0.f, 0.f);
+            ImGui::Checkbox("as Timeline##audio_setting", &g_media_editor_settings.OutputAudioSettingAsTimeline);
+            if (g_media_editor_settings.OutputAudioSettingAsTimeline)
+            {
+                g_media_editor_settings.OutputAudioSampleRateIndex = GetSampleRateIndex(g_media_editor_settings.AudioSampleRate);
+                g_media_editor_settings.OutputAudioSampleRate = g_media_editor_settings.AudioSampleRate;
+                g_media_editor_settings.OutputAudioChannelsIndex = GetChannelIndex(g_media_editor_settings.AudioChannels);
+                g_media_editor_settings.OutputAudioChannels = g_media_editor_settings.AudioChannels;
+            }
+            ImGui::BeginDisabled(g_media_editor_settings.OutputAudioSettingAsTimeline);
+            if (ImGui::Combo("Audio Sample Rate", &g_media_editor_settings.OutputAudioSampleRateIndex, audio_sample_rate_items, IM_ARRAYSIZE(audio_sample_rate_items)))
+            {
+                SetSampleRate(g_media_editor_settings.OutputAudioSampleRate, g_media_editor_settings.OutputAudioSampleRateIndex);
+            }
+            if (ImGui::Combo("Audio Channels", &g_media_editor_settings.OutputAudioChannelsIndex, audio_channels_items, IM_ARRAYSIZE(audio_channels_items)))
+            {
+                SetAudioChannel(g_media_editor_settings.OutputAudioChannels, g_media_editor_settings.OutputAudioChannelsIndex);
+            }
+            ImGui::EndDisabled(); // disable if param as timline
+            ImGui::EndDisabled(); // disable if no audio
+            ImGui::Separator();
+        }
+        ImGui::EndChild();
+
+        // Make Media dialog
+        if (multiviewport)
+            ImGui::SetNextWindowViewport(viewport->ID);
+        if (ImGui::BeginPopupModal("Make Media##MakeVideoDlyKey", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings))
         {
-            ImGui::ImMat encMatV;
+            ImGui::TextUnformatted("Output path:"); ImGui::SameLine(0, 10);
+            std::string fullpath = timeline->mOutputPath+"/"+timeline->mOutputName
+                +"."+OutFormats[g_media_editor_settings.OutputFormatIndex].suffix;
+            ImGui::Text("%s", fullpath.c_str());
+            ImVec2 preview_size = ImVec2(640, 360);
+            ImVec2 preview_pos = ImGui::GetCursorScreenPos();
+            float pos_x = 0, pos_y = 0;
+            if (timeline->mIsEncoding)
             {
-                std::lock_guard<std::mutex> lk(timeline->mEncodingMutex);
-                encMatV = timeline->mEncodingVFrame;
+                ImGui::ImMat encMatV;
+                {
+                    std::lock_guard<std::mutex> lk(timeline->mEncodingMutex);
+                    encMatV = timeline->mEncodingVFrame;
+                }
+                if (!encMatV.empty())
+                {
+                    ImGui::ImMatToTexture(encMatV, timeline->mEncodingPreviewTexture);
+                }
+                if (timeline->mEncodingPreviewTexture)
+                {
+                    ShowVideoWindow(timeline->mEncodingPreviewTexture, preview_pos, preview_size);
+                }
+                else
+                {
+                    ImGui::Dummy(preview_size);
+                }
             }
-            if (!encMatV.empty())
-            {
-                ImGui::ImMatToTexture(encMatV, timeline->mEncodingPreviewTexture);
-            }
-            if (timeline->mEncodingPreviewTexture)
+            else if (timeline->mEncodingPreviewTexture)
             {
                 ShowVideoWindow(timeline->mEncodingPreviewTexture, preview_pos, preview_size);
+            }
+            else if (timeline->mMainPreviewTexture)
+            {
+                ShowVideoWindow(timeline->mMainPreviewTexture, preview_pos, preview_size);
             }
             else
             {
                 ImGui::Dummy(preview_size);
             }
-        }
-        else if (timeline->mEncodingPreviewTexture)
-        {
-            ShowVideoWindow(timeline->mEncodingPreviewTexture, preview_pos, preview_size);
-        }
-        else if (timeline->mMainPreviewTexture)
-        {
-            ShowVideoWindow(timeline->mMainPreviewTexture, preview_pos, preview_size);
-        }
-        else
-        {
-            ImGui::Dummy(preview_size);
-        }
-        if (timeline->mIsEncoding)
-            ImGui::SpinnerDnaDots("SpinnerEncoding", 12, 3, ImColor(255, 255, 255), 8, 8, 0.25f, true);
-        else
-            ImGui::Dummy(ImVec2(32, 32));
-        ImGui::SameLine();
-        ImGui::ProgressBar("##encoding_progress",timeline->mEncodingProgress, 0.f, 1.f, "%1.1f%%", ImVec2(540, 16), 
-                                ImVec4(1.f, 1.f, 1.f, 1.f), ImVec4(0.f, 0.f, 0.f, 1.f), ImVec4(1.f, 1.f, 1.f, 1.f));
-
-        auto valid_duration = timeline->ValidDuration();
-
-        if (encoder_stage == 2 && encode_duration > 0)
-        {
-            ImGui::TextUnformatted("Encoding finished. Spend Time:"); ImGui::SameLine();
-            ImGui::Text("%s", ImGuiHelper::MillisecToString(encode_duration * 1000, 3).c_str());
-            ImGui::SameLine();
-            ImGui::TextUnformatted("Speed:"); ImGui::SameLine();
-            float encoding_speed = timeline->mEncodingDuration / (encode_duration + FLT_EPSILON);
-            ImGui::Text("%.2fx", encoding_speed);
-        }
-        else if (timeline->mIsEncoding)
-        {
-            encoder_end = ImGui::get_current_time();
-            encode_duration = encoder_end - encoder_start;
-            float encoding_time = timeline->mEncodingProgress * timeline->mEncodingDuration;
-            float encoding_speed = encoding_time / (encode_duration + FLT_EPSILON);
-            float estimated_time = (1.f - timeline->mEncodingProgress) * timeline->mEncodingDuration / (encoding_speed + FLT_EPSILON);
-            ImGui::TextUnformatted("Speed:"); ImGui::SameLine(); ImGui::Text("%.2fx", encoding_speed); ImGui::SameLine();
-            ImGui::TextUnformatted("Estimated:"); ImGui::SameLine(); ImGui::Text("%s", ImGuiHelper::MillisecToString(estimated_time * 1000, 1).c_str());
-        }
-        else
-        {
-            ImGui::TextUnformatted("Output duration:");
-            ImGui::SameLine();
-            ImGui::Text("%s", ImGuiHelper::MillisecToString(valid_duration, 2).c_str());
-        }
-
-        const ImVec2 btnPaddingSize { 30, 14 };
-        std::string btnText;
-        ImVec2 btnTxtSize;
-        btnText = "Ok";
-        btnTxtSize = ImGui::CalcTextSize(btnText.c_str());
-        ImGui::BeginDisabled(timeline->mIsEncoding);
-        if (ImGui::Button(btnText.c_str(), btnTxtSize + btnPaddingSize))
-        {
-            if (timeline->mEncodingPreviewTexture) { ImGui::ImDestroyTexture(timeline->mEncodingPreviewTexture); timeline->mEncodingPreviewTexture = nullptr; }
-            ImGui::CloseCurrentPopup();
-        }
-        ImGui::EndDisabled();
-        ImGui::SameLine();
-        
-        btnText = timeline->mIsEncoding ? "Stop encoding" : "Start encoding";
-        btnTxtSize = ImGui::CalcTextSize(btnText.c_str());
-        if (encoder_stage != 2 && ImGui::Button(btnText.c_str(), btnTxtSize + btnPaddingSize))
-        {
             if (timeline->mIsEncoding)
+                ImGui::SpinnerDnaDots("SpinnerEncoding", 12, 3, ImColor(255, 255, 255), 8, 8, 0.25f, true);
+            else
+                ImGui::Dummy(ImVec2(32, 32));
+            ImGui::SameLine();
+            ImGui::ProgressBar("##encoding_progress",timeline->mEncodingProgress, 0.f, 1.f, "%1.1f%%", ImVec2(540, 16), 
+                                    ImVec4(1.f, 1.f, 1.f, 1.f), ImVec4(0.f, 0.f, 0.f, 1.f), ImVec4(1.f, 1.f, 1.f, 1.f));
+
+            auto valid_duration = timeline->ValidDuration();
+
+            if (encoder_stage == 2 && encode_duration > 0)
             {
-                timeline->StopEncoding();
-                encoder_stage = 2;
+                ImGui::TextUnformatted("Encoding finished. Spend Time:"); ImGui::SameLine();
+                ImGui::Text("%s", ImGuiHelper::MillisecToString(encode_duration * 1000, 3).c_str());
+                ImGui::SameLine();
+                ImGui::TextUnformatted("Speed:"); ImGui::SameLine();
+                float encoding_speed = timeline->mEncodingDuration / (encode_duration + FLT_EPSILON);
+                ImGui::Text("%.2fx", encoding_speed);
             }
-            else if (valid_duration > 0)
+            else if (timeline->mIsEncoding)
             {
-                // config encoders
-                TimeLine::VideoEncoderParams vidEncParams;
-                vidEncParams.codecName = g_currVidEncDescList[g_media_editor_settings.OutputVideoCodecTypeIndex].codecName;
-                vidEncParams.width = g_media_editor_settings.OutputVideoResolutionWidth;
-                vidEncParams.height = g_media_editor_settings.OutputVideoResolutionHeight;
-                vidEncParams.frameRate = g_media_editor_settings.OutputVideoFrameRate;
-                vidEncParams.bitRate = g_media_editor_settings.OutputVideoBitrate;
-                TimeLine::AudioEncoderParams audEncParams;
-                audEncParams.codecName = g_currAudEncDescList[g_media_editor_settings.OutputAudioCodecTypeIndex].codecName;
-                audEncParams.channels = g_media_editor_settings.OutputAudioChannels;
-                audEncParams.sampleRate = g_media_editor_settings.OutputAudioSampleRate;
-                audEncParams.bitRate = 128000;
-                if (timeline->ConfigEncoder(fullpath, vidEncParams, audEncParams, g_encoderConfigErrorMessage))
+                encoder_end = ImGui::get_current_time();
+                encode_duration = encoder_end - encoder_start;
+                float encoding_time = timeline->mEncodingProgress * timeline->mEncodingDuration;
+                float encoding_speed = encoding_time / (encode_duration + FLT_EPSILON);
+                float estimated_time = (1.f - timeline->mEncodingProgress) * timeline->mEncodingDuration / (encoding_speed + FLT_EPSILON);
+                ImGui::TextUnformatted("Speed:"); ImGui::SameLine(); ImGui::Text("%.2fx", encoding_speed); ImGui::SameLine();
+                ImGui::TextUnformatted("Estimated:"); ImGui::SameLine(); ImGui::Text("%s", ImGuiHelper::MillisecToString(estimated_time * 1000, 1).c_str());
+            }
+            else
+            {
+                ImGui::TextUnformatted("Output duration:");
+                ImGui::SameLine();
+                ImGui::Text("%s", ImGuiHelper::MillisecToString(valid_duration, 2).c_str());
+            }
+
+            const ImVec2 btnPaddingSize { 30, 14 };
+            std::string btnText;
+            ImVec2 btnTxtSize;
+            btnText = "Ok";
+            btnTxtSize = ImGui::CalcTextSize(btnText.c_str());
+            ImGui::BeginDisabled(timeline->mIsEncoding);
+            if (ImGui::Button(btnText.c_str(), btnTxtSize + btnPaddingSize))
+            {
+                if (timeline->mEncodingPreviewTexture) { ImGui::ImDestroyTexture(timeline->mEncodingPreviewTexture); timeline->mEncodingPreviewTexture = nullptr; }
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::EndDisabled();
+            ImGui::SameLine();
+
+            btnText = timeline->mIsEncoding ? "Stop encoding" : "Start encoding";
+            btnTxtSize = ImGui::CalcTextSize(btnText.c_str());
+            if (encoder_stage != 2 && ImGui::Button(btnText.c_str(), btnTxtSize + btnPaddingSize))
+            {
+                if (timeline->mIsEncoding)
                 {
-                    timeline->StartEncoding();
-                    encode_duration = -1;
-                    encoder_start = ImGui::get_current_time();
-                    encoder_stage = 1;
+                    timeline->StopEncoding();
+                    encoder_stage = 2;
+                }
+                else if (valid_duration > 0)
+                {
+                    // config encoders
+                    TimeLine::VideoEncoderParams vidEncParams;
+                    vidEncParams.codecName = g_currVidEncDescList[g_media_editor_settings.OutputVideoCodecTypeIndex].codecName;
+                    vidEncParams.width = g_media_editor_settings.OutputVideoResolutionWidth;
+                    vidEncParams.height = g_media_editor_settings.OutputVideoResolutionHeight;
+                    vidEncParams.frameRate = g_media_editor_settings.OutputVideoFrameRate;
+                    vidEncParams.bitRate = g_media_editor_settings.OutputVideoBitrate;
+                    TimeLine::AudioEncoderParams audEncParams;
+                    audEncParams.codecName = g_currAudEncDescList[g_media_editor_settings.OutputAudioCodecTypeIndex].codecName;
+                    audEncParams.channels = g_media_editor_settings.OutputAudioChannels;
+                    audEncParams.sampleRate = g_media_editor_settings.OutputAudioSampleRate;
+                    audEncParams.bitRate = 128000;
+                    if (timeline->ConfigEncoder(fullpath, vidEncParams, audEncParams, g_encoderConfigErrorMessage))
+                    {
+                        timeline->StartEncoding();
+                        encode_duration = -1;
+                        encoder_start = ImGui::get_current_time();
+                        encoder_stage = 1;
+                    }
                 }
             }
-        }
-        if (timeline->mark_in != -1 && timeline->mark_out != -1 && encoder_stage != 2)
-        {
-            ImGui::SameLine();
-            ImGui::BeginDisabled(timeline->mIsEncoding);
-            ImGui::Checkbox("Encoding in mark range", &timeline->mEncodingInRange);
-            ImGui::EndDisabled();
-        }
-        else
-        {
-            timeline->mEncodingInRange = false;
-        }
-        if (!g_encoderConfigErrorMessage.empty())
-        {
-            ImGui::TextColored({1., 0.2, 0.2, 1.}, "%s", g_encoderConfigErrorMessage.c_str());
-        }
+            if (timeline->mark_in != -1 && timeline->mark_out != -1 && encoder_stage != 2)
+            {
+                ImGui::SameLine();
+                ImGui::BeginDisabled(timeline->mIsEncoding);
+                ImGui::Checkbox("Encoding in mark range", &timeline->mEncodingInRange);
+                ImGui::EndDisabled();
+            }
+            else
+            {
+                timeline->mEncodingInRange = false;
+            }
+            if (!g_encoderConfigErrorMessage.empty())
+            {
+                ImGui::TextColored({1., 0.2, 0.2, 1.}, "%s", g_encoderConfigErrorMessage.c_str());
+            }
 
-        if (!timeline->mEncodeProcErrMsg.empty())
-        {
-            ImGui::TextColored({1., 0.5, 0.5, 1.}, "%s", timeline->mEncodeProcErrMsg.c_str());
-        }
+            if (!timeline->mEncodeProcErrMsg.empty())
+            {
+                ImGui::TextColored({1., 0.5, 0.5, 1.}, "%s", timeline->mEncodeProcErrMsg.c_str());
+            }
 
-        if (!timeline->mIsEncoding && encoder_start > 0)
-        {
-            encoder_end = encoder_start = -1;
-            encoder_stage = 2;
+            if (!timeline->mIsEncoding && encoder_start > 0)
+            {
+                encoder_end = encoder_start = -1;
+                encoder_stage = 2;
+            }
+            ImGui::EndPopup();
         }
-        ImGui::EndPopup();
     }
-
+    ImGui::EndChild();
+    
     // File dialog
     ImVec2 minSize = ImVec2(600, 600);
 	ImVec2 maxSize = ImVec2(FLT_MAX, FLT_MAX);
