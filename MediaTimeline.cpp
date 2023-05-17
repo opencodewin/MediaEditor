@@ -7357,8 +7357,9 @@ void TimeLine::SyncDataLayer(bool forceRefresh)
     {
         auto& vidTrack = *vidTrackIter++;
         vidTrack->UpdateClipState();
-        auto ovlpIter = vidTrack->OverlapListBegin();
-        while (ovlpIter != vidTrack->OverlapListEnd())
+        auto ovlpList = vidTrack->GetOverlapList();
+        auto ovlpIter = ovlpList.begin();
+        while (ovlpIter != ovlpList.end())
         {
             auto& vidOvlp = *ovlpIter++;
             const int64_t frontClipId = vidOvlp->FrontClip()->Id();
