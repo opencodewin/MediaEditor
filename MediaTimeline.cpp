@@ -530,7 +530,7 @@ int64_t Clip::Cropping(int64_t diff, int type)
     return new_diff;
 }
 
-void Clip::Cutting(int64_t pos, std::list<imgui_json::value>* pActionList)
+void Clip::Cutting(int64_t pos, int64_t gid, std::list<imgui_json::value>* pActionList)
 {
     TimeLine * timeline = (TimeLine *)mHandle;
     if (!timeline)
@@ -576,7 +576,7 @@ void Clip::Cutting(int64_t pos, std::list<imgui_json::value>* pActionList)
     int64_t newClipId = -1;
     if ((newClipId = timeline->AddNewClip(mMediaID, mType, track->mID,
             new_start, new_start_offset, org_end, org_end_offset,
-            mGroupID, -1, pActionList)) >= 0)
+            gid, -1, pActionList)) >= 0)
     {
         // update curve
         if (timeline->mVidFilterClip && timeline->mVidFilterClip->mID == mID)
@@ -9501,9 +9501,11 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             // handle cut operation
             if (doCutPos > 0 && !cuttingClips.empty())
             {
+                ClipGroup newGroup(timeline);
+                timeline->m_Groups.push_back(newGroup);
                 for (auto clip : cuttingClips)
                 {
-                    clip->Cutting(doCutPos, &timeline->mUiActions);
+                    clip->Cutting(doCutPos, newGroup.mID, &timeline->mUiActions);
                 }
             }
         }

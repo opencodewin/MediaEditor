@@ -374,7 +374,7 @@ struct Clip
 
     virtual int64_t Moving(int64_t diff, int mouse_track);
     virtual int64_t Cropping(int64_t diff, int type);
-    void Cutting(int64_t pos, std::list<imgui_json::value>* pActionList);
+    void Cutting(int64_t pos, int64_t gid, std::list<imgui_json::value>* pActionList);
     bool isLinkedWith(Clip * clip);
     
     virtual void ConfigViewWindow(int64_t wndDur, float pixPerMs) { mViewWndDur = wndDur; mPixPerMs = pixPerMs; }
