@@ -7748,12 +7748,13 @@ void TimeLine::StartEncoding()
 
 void TimeLine::StopEncoding()
 {
-    if (!mEncodingThread.joinable())
-        return;
     mQuitEncoding = true;
-    mEncodingThread.join();
-    mEncodingThread = std::thread();
-
+    if (mEncodingThread.joinable())
+    {
+        mEncodingThread.join();
+        mEncodingThread = std::thread();
+    }
+    mIsEncoding = false;
     mEncMtvReader = nullptr;
     mEncMtaReader = nullptr;
 }
@@ -7860,10 +7861,10 @@ void TimeLine::_EncodeProc()
             else
             {
                 amat.release();
-                {
-                    std::lock_guard<std::mutex> lk(mEncodingMutex);
-                    mEncodingAFrame = amat;
-                }
+                // {
+                //     std::lock_guard<std::mutex> lk(mEncodingMutex);
+                //     mEncodingAFrame = amat;
+                // }
                 if (!mEncoder->EncodeAudioSamples(amat))
                 {
                     std::ostringstream oss;

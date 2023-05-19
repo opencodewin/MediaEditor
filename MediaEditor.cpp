@@ -3490,7 +3490,9 @@ static void ShowMediaOutputWindow(ImDrawList *_draw_list)
             ImGui::BeginDisabled(timeline->mIsEncoding);
             if (ImGui::Button(btnText.c_str(), btnTxtSize + btnPaddingSize))
             {
+                timeline->StopEncoding();
                 if (timeline->mEncodingPreviewTexture) { ImGui::ImDestroyTexture(timeline->mEncodingPreviewTexture); timeline->mEncodingPreviewTexture = nullptr; }
+                timeline->mEncoder = nullptr;
                 ImGui::CloseCurrentPopup();
             }
             ImGui::EndDisabled();
