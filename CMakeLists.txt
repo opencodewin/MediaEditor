@@ -487,11 +487,12 @@ if(APPLE)
     else()
         message(STATUS "Using Sign ID: " ${APPLE_CODESIGN_IDENTITY})
         install(CODE "
+                message(STATUS \"Sign code with: \" \"${APPLE_CODESIGN_IDENTITY}\")
                 execute_process(COMMAND
                 codesign -vvv --deep --force
                 --entitlements \"${APPLE_CODESIGN_ENTITLEMENTS}\"
                 --sign \"${APPLE_CODESIGN_IDENTITY}\"
-                \"${APPS}\" )
+                \"mec.app\" )
                 "
                 COMPONENT Runtime
         )
