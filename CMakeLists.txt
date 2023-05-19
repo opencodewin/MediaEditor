@@ -480,11 +480,12 @@ if(APPLE)
     ]])
 
     set(APPLE_CODESIGN_ENTITLEMENTS "${CMAKE_CURRENT_SOURCE_DIR}/resources/entitlements.plist")
-    set(APPLE_CODESIGN_IDENTITY "" CACHE STRING "")
+    set(APPLE_CODESIGN_IDENTITY "Apple Development Identity" CACHE STRING "Please Input Apple Development Codesign ID")
     string(LENGTH "${APPLE_CODESIGN_IDENTITY}" APPLE_CODESIGN_IDENTITY_LENGHT)
-    if( ${APPLE_CODESIGN_IDENTITY_LENGHT} LESS 40 )
+    if( "${APPLE_CODESIGN_IDENTITY}" STREQUAL "Apple Development Identity" OR APPLE_CODESIGN_IDENTITY_LENGHT LESS 20)
         message(STATUS "Not signing bundle. Specify APPLE_CODESIGN_IDENTITY to cmake before running cpack to sign")
     else()
+        message(STATUS "Using Sign ID: " ${APPLE_CODESIGN_IDENTITY})
         install(CODE "
                 execute_process(COMMAND
                 codesign -vvv --deep --force
