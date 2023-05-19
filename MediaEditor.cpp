@@ -2008,7 +2008,7 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
     
     if ((*item)->mValid)
     {
-        if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
+        if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_PreviewTooltipKeepViewport))
         {
             ImGui::SetDragDropPayload("Media_drag_drop", *item, sizeof(MediaItem));
             ImGui::TextUnformatted((*item)->mName.c_str());

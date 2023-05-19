@@ -9553,7 +9553,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         bool movable = true;
         if ((timeline->mVidFilterClip && timeline->mVidFilterClip->bSeeking) ||
             (timeline->mAudFilterClip && timeline->mAudFilterClip->bSeeking) ||
-            menuIsOpened || !editable)
+            menuIsOpened || !editable ||
+            ImGui::IsDragDropActive())
         {
             movable = false;
         }
@@ -9578,7 +9579,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             }
             
             ImRect handle_rect(HeaderAreaRect.Min + ImVec2(mark_in_offset, 0), HeaderAreaRect.Min + ImVec2(mark_in_offset + 8, 8));
-            if (handle_rect.Contains(io.MousePos))
+            if (movable && handle_rect.Contains(io.MousePos))
             {
                 draw_list->AddCircleFilled(HeaderAreaRect.Min + ImVec2(mark_in_offset + 2, 4), 4, COL_MARK_DOT_LIGHT);
                 if (ImGui::IsMouseDown(ImGuiMouseButton_Left) && markMovingEntry == -1)
@@ -9609,7 +9610,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             }
             
             ImRect handle_rect(HeaderAreaRect.Min + ImVec2(mark_out_offset - 4, 0), HeaderAreaRect.Min + ImVec2(mark_out_offset + 4, 8));
-            if (handle_rect.Contains(io.MousePos))
+            if (movable && handle_rect.Contains(io.MousePos))
             {
                 draw_list->AddCircleFilled(HeaderAreaRect.Min + ImVec2(mark_out_offset + 2, 4), 4, COL_MARK_DOT_LIGHT);
                 if (ImGui::IsMouseDown(ImGuiMouseButton_Left) && markMovingEntry == -1)
@@ -9640,7 +9641,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         if (timeline->mark_in == -1 || timeline->mark_out == -1)
             mark_in_view = false;
         
-        if (mark_in_view && mark_rect.Contains(io.MousePos))
+        if (movable && mark_in_view && mark_rect.Contains(io.MousePos))
         {
             if (ImGui::IsMouseDown(ImGuiMouseButton_Left) && markMovingEntry == -1)
             {
@@ -9684,6 +9685,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             draw_list->AddLine(ImVec2(cursorOffset, contentMin.y), ImVec2(cursorOffset, contentMin.y + trackRect.Max.y - scrollSize), COL_CURSOR_LINE, cursorWidth);
         }
         draw_list->PopClipRect();
+
         // alignment line
         draw_list->PushClipRect(custom_view_rect.Min, custom_view_rect.Max);
         if (timeline->mConnectedPoints >= timeline->firstTime && timeline->mConnectedPoints <= timeline->firstTime + timeline->visibleTime)
@@ -9693,6 +9695,21 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             draw_list->AddLine(ImVec2(lineOffset, contentMin.y), ImVec2(lineOffset, contentMax.y), IM_COL32(255, 255, 255, 255), cursorWidth);
         }
         draw_list->PopClipRect();
+
+        // drag drop line
+        if (ImGui::IsDragDropActive() && custom_view_rect.Contains(io.MousePos))
+        {
+            draw_list->PushClipRect(custom_view_rect.Min, custom_view_rect.Max);
+            static const float cursorWidth = 2.f;
+            float lineOffset = contentMin.x + legendWidth + (mouseTime - timeline->firstTime) * timeline->msPixelWidthTarget + 1;
+            draw_list->AddLine(ImVec2(lineOffset, contentMin.y), ImVec2(lineOffset, contentMax.y+ trackRect.Max.y - scrollSize), IM_COL32(255, 255, 0, 255), cursorWidth);
+            draw_list->PopClipRect();
+            if (ImGui::BeginTooltip())
+            {
+                ImGui::Text("[< %s", ImGuiHelper::MillisecToString(mouseTime, 3).c_str());
+                ImGui::EndTooltip();
+            }
+        }
 
         ImGui::PopStyleColor();
     }
@@ -10366,7 +10383,6 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
             menuIsOpened = true;
         }
 
-        // handle menu
         if (!menuIsOpened)
         {
             menuMouseTime = -1;
