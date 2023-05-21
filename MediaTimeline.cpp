@@ -8506,6 +8506,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
     static bool menuIsOpened = false;
     static bool bCropping = false;
     static bool bMoving = false;
+    static bool bInsertNewTrack = false;
+    static int InsertHeight = 0;
     timeline->mIsCutting = ImGui::IsKeyDown(ImGuiKey_LeftAlt) && (io.KeyMods == ImGuiMod_Alt);
     int64_t doCutPos = -1;
     bool overTrackView = false;
@@ -9311,6 +9313,12 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             offset = ImClamp(offset, 0.f, VerticalScrollMax);
             ImGui::SetScrollY(VerticalWindow, offset);
         }
+        if (bInsertNewTrack)
+        {
+            ImGui::SetScrollY(VerticalWindow, VerticalScrollMax + InsertHeight);
+            bInsertNewTrack = false;
+            InsertHeight = 0;
+        }
 
         // handle mouse wheel event
         if (regionRect.Contains(io.MousePos) && !menuIsOpened && editable)
@@ -9847,6 +9855,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                     {
                         int newTrackIndex = timeline->NewTrack("", MEDIA_VIDEO, true, -1, -1, &actionList);
                         insertTrack = timeline->m_Tracks[newTrackIndex];
+                        bInsertNewTrack = true;
+                        InsertHeight += insertTrack->mTrackHeight + trackHeadHeight;
                     }
                     insertTrack->InsertClip(new_image_clip, mouseTime, true, &actionList);
                 }
@@ -9859,6 +9869,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                     {
                         int newTrackIndex = timeline->NewTrack("", MEDIA_AUDIO, true, -1, -1, &actionList);
                         insertTrack = timeline->m_Tracks[newTrackIndex];
+                        bInsertNewTrack = true;
+                        InsertHeight += insertTrack->mTrackHeight + trackHeadHeight;
                     }
                     insertTrack->InsertClip(new_audio_clip, mouseTime, true, &actionList);
                 } 
@@ -9891,6 +9903,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                             timeline->mEnd = newTrack->mMttReader->Duration() + 1000;
                         }
                     }
+                    bInsertNewTrack = true;
+                    InsertHeight += newTrack->mTrackHeight + trackHeadHeight;
                 }
                 else  // add a video clip
                 {
@@ -9913,6 +9927,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                         {
                             int newTrackIndex = timeline->NewTrack("", MEDIA_VIDEO, true, -1, -1, &actionList);
                             videoTrack = timeline->m_Tracks[newTrackIndex];
+                            bInsertNewTrack = true;
+                            InsertHeight += videoTrack->mTrackHeight + trackHeadHeight;
                         }
                         videoTrack->InsertClip(new_video_clip, mouseTime, true, &actionList);
                     }
@@ -9996,6 +10012,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                             {
                                 int newTrackIndex = timeline->NewTrack("", MEDIA_AUDIO, true, -1, -1, &actionList);
                                 audioTrack = timeline->m_Tracks[newTrackIndex];
+                                bInsertNewTrack = true;
+                                InsertHeight += audioTrack->mTrackHeight + trackHeadHeight;
                             }
                             audioTrack->InsertClip(new_audio_clip, mouseTime, true, &actionList);
                             if (videoTrack)
@@ -10075,13 +10093,19 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
     // handle insert event
     if (IS_VIDEO(insertEmptyTrackType))
     {
-        timeline->NewTrack("", MEDIA_VIDEO, true, -1, -1, &timeline->mUiActions);
+        int newTrackIndex = timeline->NewTrack("", MEDIA_VIDEO, true, -1, -1, &timeline->mUiActions);
+        MediaTrack * newTrack = timeline->m_Tracks[newTrackIndex];
         ret = true;
+        bInsertNewTrack = true;
+        InsertHeight += newTrack->mTrackHeight + trackHeadHeight;
     }
     else if (IS_AUDIO(insertEmptyTrackType))
     {
-        timeline->NewTrack("", MEDIA_AUDIO, true, -1, -1, &timeline->mUiActions);
+        int newTrackIndex = timeline->NewTrack("", MEDIA_AUDIO, true, -1, -1, &timeline->mUiActions);
+        MediaTrack * newTrack = timeline->m_Tracks[newTrackIndex];
         ret = true;
+        bInsertNewTrack = true;
+        InsertHeight += newTrack->mTrackHeight + trackHeadHeight;
     }
     else if (IS_TEXT(insertEmptyTrackType))
     {
@@ -10092,6 +10116,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         newTrack->mMttReader->SetFrameSize(timeline->GetPreviewWidth(), timeline->GetPreviewHeight());
         newTrack->mMttReader->EnableFullSizeOutput(false);
         ret = true;
+        bInsertNewTrack = true;
+        InsertHeight += newTrack->mTrackHeight + trackHeadHeight;
     }
     
     // handle group event
