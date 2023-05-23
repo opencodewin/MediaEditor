@@ -318,6 +318,7 @@ struct ColorCurveNode final : Node
                 auto cp = ImGui::ImSpline::Position(splines[index], t);
                 auto diff = curve_pos - cp;
                 diff *= scope_view_size;
+                auto length = sqrtf(diff.x * diff.x + diff.y * diff.y);
                 // handle drag point
                 if (ImGui::IsMouseDragging(ImGuiMouseButton_Left) && dragging_dot != -1)
                 {
@@ -332,7 +333,7 @@ struct ColorCurveNode final : Node
                     mCurve[mEditIndex][dragging_dot].y = ImClamp(mCurve[mEditIndex][dragging_dot].y, 0.f, 1.f);
                     curve_changed = true;
                 }
-                else if (diff.len() <= 8)
+                else if (length <= 8)
                 {
                     draw_list->AddCircle(pos + cp * scope_view_size, 5, IM_COL32(255, 255, 0, 128), 0, 3);
                     if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
