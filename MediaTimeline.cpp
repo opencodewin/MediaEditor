@@ -2124,17 +2124,23 @@ int BluePrintVideoFilter::OnBluePrintChange(int type, std::string name, void* ha
     TimeLine * timeline = (TimeLine *)filter->mHandle;
     if (name.compare("VideoFilter") == 0)
     {
+        bool needUpdateView = false;
         if (type == BluePrint::BP_CB_Link ||
             type == BluePrint::BP_CB_Unlink ||
             type == BluePrint::BP_CB_NODE_DELETED)
         {
-            if (timeline) timeline->UpdatePreview();
+            needUpdateView = true;
             ret = BluePrint::BP_CBR_AutoLink;
         }
         else if (type == BluePrint::BP_CB_PARAM_CHANGED ||
                 type == BluePrint::BP_CB_SETTING_CHANGED)
         {
-            if (timeline) timeline->UpdatePreview();
+            needUpdateView = true;
+        }
+        if (needUpdateView && timeline)
+        {
+            std::vector<int64_t> trackIds = { filter->mTrackId };
+            timeline->RefreshTrackView(trackIds);
         }
     }
     return ret;
@@ -5406,7 +5412,13 @@ void TimeLine::UpdateCurrent()
 
 void TimeLine::UpdatePreview()
 {
-    mMtvReader->Refresh(true);
+    mMtvReader->Refresh();
+    mIsPreviewNeedUpdate = true;
+}
+
+void TimeLine::RefreshTrackView(const vector<int64_t>& trackIds)
+{
+    mMtvReader->RefreshTrackView(trackIds);
     mIsPreviewNeedUpdate = true;
 }
 
@@ -5572,7 +5584,7 @@ void TimeLine::Seek(int64_t msPos)
         if (mMtaReader)
             mMtaReader->SeekTo(msPos, true);
         if (mMtvReader)
-            mMtvReader->SeekTo(msPos, true);
+            mMtvReader->ConsecutiveSeek(msPos);
         mPreviewResumePos = msPos;
     }
 }
@@ -5590,6 +5602,8 @@ void TimeLine::StopSeek()
         }
         if (mMtaReader)
             mMtaReader->SeekTo(mPreviewResumePos, false);
+        if (mMtvReader)
+            mMtvReader->StopConsecutiveSeek();
         mPlayTriggerTp = PlayerClock::now();
     }
 }
@@ -6814,7 +6828,7 @@ int TimeLine::Load(const imgui_json::value& value)
         amFilter->SetEqualizerParamsByIndex(&equalizerParams, i);
     }
 
-    mMtvReader->SeekTo(currentTime, true);
+    mMtvReader->SeekTo(currentTime);
     mMtaReader->UpdateDuration();
     mMtaReader->SeekTo(currentTime, false);
     SyncDataLayer(true);
