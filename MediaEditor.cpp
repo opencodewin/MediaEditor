@@ -487,9 +487,14 @@ static short main_mon = 0;
 static TimeLine * timeline = nullptr;
 static ImTextureID codewin_texture = nullptr;
 static ImTextureID logo_texture = nullptr;
-static std::thread * g_loading_thread {nullptr};
+static std::thread * g_loading_project_thread {nullptr};
 static bool g_project_loading {false};
 static float g_project_loading_percentage {0};
+static std::thread * g_loading_plugin_thread {nullptr};
+static bool g_plugin_loading {false};
+static float g_plugin_loading_percentage {0};
+static int g_plugin_loading_current_index {0};
+static std::string g_plugin_loading_message;
 static ImGui::TabLabelStyle * tab_style = &ImGui::TabLabelStyle::Get();
 static MediaEditorSettings g_media_editor_settings;
 static MediaEditorSettings g_new_setting;
@@ -1538,8 +1543,13 @@ static void NewProject()
     project_need_save = true;
 }
 
-static void LoadThread(std::string path, bool in_splash)
+static void LoadProjectThread(std::string path, bool in_splash)
 {
+    // waiting plugin loading
+    while (g_plugin_loading)
+    {
+        ImGui::sleep(100);
+    }
     g_project_loading = true;
     g_project_loading_percentage = 0;
     Logger::Log(Logger::DEBUG) << "[Project] Load project from file!!!" << std::endl;
@@ -9866,7 +9876,7 @@ static void MediaEditor_SetupContext(ImGuiContext* ctx, bool in_splash)
         if (!g_media_editor_settings.project_path.empty())
         {
             CleanProject();
-            g_loading_thread = new std::thread(LoadThread, g_media_editor_settings.project_path, set_context_in_splash);
+            g_loading_project_thread = new std::thread(LoadProjectThread, g_media_editor_settings.project_path, set_context_in_splash);
         }
         else
         {
@@ -10604,15 +10614,15 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
                 }
                 if (g_project_loading)
                 {
-                    if (g_loading_thread && g_loading_thread->joinable())
-                        g_loading_thread->join();
+                    if (g_loading_project_thread && g_loading_project_thread->joinable())
+                        g_loading_project_thread->join();
                     g_project_loading = false;
-                    g_loading_thread = nullptr;
+                    g_loading_project_thread = nullptr;
                 }
                 CleanProject();
                 set_context_in_splash = false;
                 project_name = ImGuiHelper::path_filename_prefix(file_path);
-                g_loading_thread = new std::thread(LoadThread, file_path, set_context_in_splash);
+                g_loading_project_thread = new std::thread(LoadProjectThread, file_path, set_context_in_splash);
             }
             if (userDatas.compare("ProjectSave") == 0)
             {
@@ -10672,9 +10682,21 @@ static bool MediaEditor_Frame_wrapper(void * handle, bool app_will_quit)
 }
 #endif
 
+static void LoadPluginThread()
+{
+    Logger::Log(Logger::DEBUG) << "[Plugin] Load Plugins from path!!!" << std::endl;
+    std::vector<std::string> plugin_paths;
+    plugin_paths.push_back(g_plugin_path);
+    int plugins = BluePrint::BluePrintUI::CheckPlugins(plugin_paths);
+    BluePrint::BluePrintUI::LoadPlugins(plugin_paths, g_plugin_loading_current_index, g_plugin_loading_message);
+    g_plugin_loading_message = "Plugin load finished!!!";
+    g_plugin_loading = false;
+}
+
 bool MediaEditor_Splash_Screen(void* handle, bool app_will_quit)
 {
     static int32_t splash_start_time = ImGui::get_current_time_msec();
+    static bool is_plugin_loaded = false;
     auto& io = ImGui::GetIO();
     ImGuiContext& g = *GImGui;
     if (!g_media_editor_settings.UILanguage.empty() && g.LanguageName != g_media_editor_settings.UILanguage)
@@ -10689,23 +10711,40 @@ bool MediaEditor_Splash_Screen(void* handle, bool app_will_quit)
     ImGui::Begin("MediaEditor Splash", nullptr, flags);
     auto draw_list = ImGui::GetWindowDrawList();
     bool title_finished = Show_Version(draw_list, splash_start_time);
-    if (g_project_loading)
+    if (!is_plugin_loaded)
     {
-        std::string load_str = project_name + " Project Loading...";
+        g_plugin_loading = true;
+        g_loading_plugin_thread = new std::thread(LoadPluginThread);
+        is_plugin_loaded = true;
+    }
+    std::string load_str;
+    if (g_plugin_loading)
+    {
+        load_str = "Loading Plugin:" + g_plugin_loading_message;
+        auto loading_size = ImGui::CalcTextSize(load_str.c_str());
+        float xoft = 4;
+        float yoft = io.DisplaySize.y - loading_size.y - 32 - 8;
+        ImGui::SetCursorPos(ImVec2(xoft, yoft));
+        ImGui::TextUnformatted("Loading Plugin:"); ImGui::SameLine();
+        ImGui::Text("%s", g_plugin_loading_message.c_str());
+    }
+    else if (g_project_loading)
+    {
+        load_str = project_name + " Project Loading...";
         auto loading_size = ImGui::CalcTextSize(load_str.c_str());
         float xoft = (io.DisplaySize.x - loading_size.x) / 2;
         float yoft = io.DisplaySize.y - loading_size.y - 32 - 8;
         ImGui::SetCursorPos(ImVec2(xoft, yoft));
         ImGui::Text("%s ", project_name.c_str()); ImGui::SameLine();
         ImGui::TextUnformatted("Project Loading...");
-        //draw_list->AddText(ImVec2(xoft, yoft), IM_COL32(255, 255, 255, 255), load_str.c_str());
-        ImGui::SetCursorPos(ImVec2(4, io.DisplaySize.y - 32));
-        ImGui::ProgressBar("##splash_progress", g_project_loading_percentage, 0.f, 1.f, "", ImVec2(io.DisplaySize.x - 16, 8), 
-                                ImVec4(0.3f, 0.3f, 0.8f, 1.f), ImVec4(0.1f, 0.1f, 0.2f, 1.f), ImVec4(0.f, 0.f, 0.8f, 1.f));
     }
 
+    ImGui::SetCursorPos(ImVec2(4, io.DisplaySize.y - 32));
+    ImGui::ProgressBar("##splash_progress", g_project_loading_percentage, 0.f, 1.f, "", ImVec2(io.DisplaySize.x - 16, 8), 
+                        ImVec4(0.3f, 0.3f, 0.8f, 1.f), ImVec4(0.1f, 0.1f, 0.2f, 1.f), ImVec4(0.f, 0.f, 0.8f, 1.f));
+
     ImGui::End();
-    return title_finished && !g_project_loading;
+    return title_finished && !g_project_loading && !g_plugin_loading;
 }
 
 static void MediaEditor_SplashFinalize(void** handle)
@@ -10800,7 +10839,4 @@ void Application_Setup(ApplicationWindowProperty& property)
 
     if (g_plugin_path.empty())
         g_plugin_path = ImGuiHelper::path_parent(exec_path) + "plugins";
-    std::vector<std::string> plugin_paths;
-    plugin_paths.push_back(g_plugin_path);
-    BluePrint::BluePrintUI::LoadPlugins(plugin_paths);
 }
