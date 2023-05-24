@@ -2187,13 +2187,13 @@ BluePrintVideoTransition::BluePrintVideoTransition(void * handle)
     : mHandle(handle)
 {
     TimeLine * timeline = (TimeLine *)handle;
-    imgui_json::value fusion_BP; 
+    imgui_json::value transition_BP; 
     mBp = new BluePrint::BluePrintUI();
     mBp->Initialize();
     BluePrint::BluePrintCallbackFunctions callbacks;
     callbacks.BluePrintOnChanged = OnBluePrintChange;
     mBp->SetCallbacks(callbacks, this);
-    mBp->File_New_Fusion(fusion_BP, "VideoFusion", "Video");
+    mBp->File_New_Transition(transition_BP, "VideoTransition", "Video");
 }
 
 BluePrintVideoTransition::~BluePrintVideoTransition()
@@ -2210,10 +2210,10 @@ int BluePrintVideoTransition::OnBluePrintChange(int type, std::string name, void
     int ret = BluePrint::BP_CBR_Nothing;
     if (!handle)
         return BluePrint::BP_CBR_Unknown;
-    BluePrintVideoTransition * fusion = (BluePrintVideoTransition *)handle;
-    if (!fusion) return ret;
-    TimeLine * timeline = (TimeLine *)fusion->mHandle;
-    if (name.compare("VideoFusion") == 0)
+    BluePrintVideoTransition * transition = (BluePrintVideoTransition *)handle;
+    if (!transition) return ret;
+    TimeLine * timeline = (TimeLine *)transition->mHandle;
+    if (name.compare("VideoTransition") == 0)
     {
         if (type == BluePrint::BP_CB_Link ||
             type == BluePrint::BP_CB_Unlink ||
@@ -2252,11 +2252,11 @@ ImGui::ImMat BluePrintVideoTransition::MixTwoImages(const ImGui::ImMat& vmat1, c
         {
             auto name = mKeyPoints.GetCurveName(i);
             auto value = mKeyPoints.GetValue(i, pos - mOverlap->Start());
-            mBp->Blueprint_SetFusion(name, value);
+            mBp->Blueprint_SetTransition(name, value);
         }
         ImGui::ImMat inMat1(vmat1), inMat2(vmat2);
         ImGui::ImMat outMat;
-        mBp->Blueprint_RunFusion(inMat1, inMat2, outMat, pos - mOverlap->Start(), dur);
+        mBp->Blueprint_RunTransition(inMat1, inMat2, outMat, pos - mOverlap->Start(), dur);
         return outMat;
     }
     return vmat1;
@@ -2265,7 +2265,7 @@ ImGui::ImMat BluePrintVideoTransition::MixTwoImages(const ImGui::ImMat& vmat1, c
 void BluePrintVideoTransition::SetBluePrintFromJson(imgui_json::value& bpJson)
 {
     // Logger::Log(Logger::DEBUG) << "Create bp transition from json " << bpJson.dump() << std::endl;
-    mBp->File_New_Fusion(bpJson, "VideoFusion", "Video");
+    mBp->File_New_Transition(bpJson, "VideoTransition", "Video");
     if (!mBp->Blueprint_IsValid())
     {
         mBp->Finalize();
@@ -2358,13 +2358,13 @@ BluePrintAudioTransition::BluePrintAudioTransition(void * handle)
     : mHandle(handle)
 {
     TimeLine * timeline = (TimeLine *)handle;
-    imgui_json::value fusion_BP; 
+    imgui_json::value transition_BP; 
     mBp = new BluePrint::BluePrintUI();
     mBp->Initialize();
     BluePrint::BluePrintCallbackFunctions callbacks;
     callbacks.BluePrintOnChanged = OnBluePrintChange;
     mBp->SetCallbacks(callbacks, this);
-    mBp->File_New_Fusion(fusion_BP, "AudioFusion", "Audio");
+    mBp->File_New_Transition(transition_BP, "AudioTransition", "Audio");
 }
 
 BluePrintAudioTransition::~BluePrintAudioTransition()
@@ -2381,10 +2381,10 @@ int BluePrintAudioTransition::OnBluePrintChange(int type, std::string name, void
     int ret = BluePrint::BP_CBR_Nothing;
     if (!handle)
         return BluePrint::BP_CBR_Unknown;
-    BluePrintAudioTransition * fusion = (BluePrintAudioTransition *)handle;
-    if (!fusion) return ret;
-    TimeLine * timeline = (TimeLine *)fusion->mHandle;
-    if (name.compare("AudioFusion") == 0)
+    BluePrintAudioTransition * transition = (BluePrintAudioTransition *)handle;
+    if (!transition) return ret;
+    TimeLine * timeline = (TimeLine *)transition->mHandle;
+    if (name.compare("AudioTransition") == 0)
     {
         if (type == BluePrint::BP_CB_Link ||
             type == BluePrint::BP_CB_Unlink ||
@@ -2414,11 +2414,11 @@ ImGui::ImMat BluePrintAudioTransition::MixTwoAudioMats(const ImGui::ImMat& amat1
         {
             auto name = mKeyPoints.GetCurveName(i);
             auto value = mKeyPoints.GetValue(i, pos - mOverlap->Start());
-            mBp->Blueprint_SetFusion(name, value);
+            mBp->Blueprint_SetTransition(name, value);
         }
         ImGui::ImMat inMat1(amat1), inMat2(amat2);
         ImGui::ImMat outMat;
-        mBp->Blueprint_RunFusion(inMat1, inMat2, outMat, pos - mOverlap->Start(), mOverlap->End() - mOverlap->Start());
+        mBp->Blueprint_RunTransition(inMat1, inMat2, outMat, pos - mOverlap->Start(), mOverlap->End() - mOverlap->Start());
         return outMat;
     }
     return amat1;
@@ -2427,7 +2427,7 @@ ImGui::ImMat BluePrintAudioTransition::MixTwoAudioMats(const ImGui::ImMat& amat1
 void BluePrintAudioTransition::SetBluePrintFromJson(imgui_json::value& bpJson)
 {
     // Logger::Log(Logger::DEBUG) << "Create bp transition from json " << bpJson.dump() << std::endl;
-    mBp->File_New_Fusion(bpJson, "AudioFusion", "Audio");
+    mBp->File_New_Transition(bpJson, "AudioTransition", "Audio");
     if (!mBp->Blueprint_IsValid())
     {
         mBp->Finalize();
@@ -2921,8 +2921,8 @@ Overlap::Overlap(int64_t start, int64_t end, int64_t clip_first, int64_t clip_se
     m_Clip.first = clip_first;
     m_Clip.second = clip_second;
     mHandle = handle;
-    mFusionKeyPoints.SetMin({0.f, 0.f});
-    mFusionKeyPoints.SetMax(ImVec2(end - start, 1.f), true);
+    mTransitionKeyPoints.SetMin({0.f, 0.f});
+    mTransitionKeyPoints.SetMax(ImVec2(end - start, 1.f), true);
 }
 
 Overlap::~Overlap()
@@ -2965,9 +2965,9 @@ void Overlap::Update(int64_t start, int64_t start_clip_id, int64_t end, int64_t 
         auto hOvlp = timeline->mMtvReader->GetOverlapById(mID);
         if (hOvlp)
         {
-            auto fusion = dynamic_cast<BluePrintVideoTransition *>(hOvlp->GetTransition().get());
-            if (fusion)
-                fusion->mKeyPoints.SetMax(ImVec2(mEnd - mStart, 1.f), true);
+            auto transition = dynamic_cast<BluePrintVideoTransition *>(hOvlp->GetTransition().get());
+            if (transition)
+                transition->mKeyPoints.SetMax(ImVec2(mEnd - mStart, 1.f), true);
         }
     }
     else if (IS_AUDIO(mType))
@@ -2975,12 +2975,12 @@ void Overlap::Update(int64_t start, int64_t start_clip_id, int64_t end, int64_t 
         auto hOvlp = timeline->mMtaReader->GetOverlapById(mID);
         if (hOvlp)
         {
-            auto fusion = dynamic_cast<BluePrintAudioTransition *>(hOvlp->GetTransition().get());
-            if (fusion)
-                fusion->mKeyPoints.SetMax(ImVec2(mEnd - mStart, 1.f), true);
+            auto transition = dynamic_cast<BluePrintAudioTransition *>(hOvlp->GetTransition().get());
+            if (transition)
+                transition->mKeyPoints.SetMax(ImVec2(mEnd - mStart, 1.f), true);
         }
     }
-    mFusionKeyPoints.SetMax(ImVec2(mEnd - mStart, 1.f), true);
+    mTransitionKeyPoints.SetMax(ImVec2(mEnd - mStart, 1.f), true);
 }
 
 void Overlap::Seek()
@@ -3039,17 +3039,17 @@ Overlap* Overlap::Load(const imgui_json::value& value, void * handle)
             auto& val = value["Editing"];
             if (val.is_boolean()) new_overlap->bEditing = val.get<imgui_json::boolean>();
         }
-        // load fusion bp
-        if (value.contains("FusionBP"))
+        // load transition bp
+        if (value.contains("TransitionBP"))
         {
-            auto& val = value["FusionBP"];
-            if (val.is_object()) new_overlap->mFusionBP = val;
+            auto& val = value["TransitionBP"];
+            if (val.is_object()) new_overlap->mTransitionBP = val;
         }
         // load curve
         if (value.contains("KeyPoint"))
         {
             auto& keypoint = value["KeyPoint"];
-            new_overlap->mFusionKeyPoints.Load(keypoint);
+            new_overlap->mTransitionKeyPoints.Load(keypoint);
         }
     }
     return new_overlap;
@@ -3066,15 +3066,15 @@ void Overlap::Save(imgui_json::value& value)
     value["Current"] = imgui_json::number(mCurrent);
     value["Editing"] = imgui_json::boolean(bEditing);
 
-    // save overlap fusion bp
-    if (mFusionBP.is_object())
+    // save overlap transition bp
+    if (mTransitionBP.is_object())
     {
-        value["FusionBP"] = mFusionBP;
+        value["TransitionBP"] = mTransitionBP;
     }
 
     // save curve setting
     imgui_json::value keypoint;
-    mFusionKeyPoints.Save(keypoint);
+    mTransitionKeyPoints.Save(keypoint);
     value["KeyPoint"] = keypoint;
 }
 } // namespace MediaTimeline
@@ -3139,12 +3139,12 @@ EditingVideoOverlap::EditingVideoOverlap(Overlap* ovlp)
         
         auto hOvlp = timeline->mMtvReader->GetOverlapById(mOvlp->mID);
         IM_ASSERT(hOvlp);
-        mFusion = dynamic_cast<BluePrintVideoTransition *>(hOvlp->GetTransition().get());
-        if (!mFusion)
+        mTransition = dynamic_cast<BluePrintVideoTransition *>(hOvlp->GetTransition().get());
+        if (!mTransition)
         {
-            mFusion = new BluePrintVideoTransition(timeline);
-            mFusion->SetKeyPoint(mOvlp->mFusionKeyPoints);
-            MediaCore::VideoTransition::Holder hTrans(mFusion);
+            mTransition = new BluePrintVideoTransition(timeline);
+            mTransition->SetKeyPoint(mOvlp->mTransitionKeyPoints);
+            MediaCore::VideoTransition::Holder hTrans(mTransition);
             hOvlp->SetTransition(hTrans);
         }
         mClipFirstFrameRate = mClip1->mClipFrameRate;
@@ -3162,7 +3162,7 @@ EditingVideoOverlap::~EditingVideoOverlap()
     mViewer2 = nullptr;
     mSsGen1 = nullptr;
     mSsGen2 = nullptr;
-    mFusion = nullptr;
+    mTransition = nullptr;
 }
 
 void EditingVideoOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom)
@@ -3423,10 +3423,10 @@ void EditingVideoOverlap::Save()
     auto overlap = timeline->FindOverlapByID(mOvlp->mID);
     if (!overlap)
         return;
-    if (mFusion && mFusion->mBp && mFusion->mBp->Blueprint_IsValid())
+    if (mTransition && mTransition->mBp && mTransition->mBp->Blueprint_IsValid())
     {
-        overlap->mFusionBP = mFusion->mBp->m_Document->Serialize();
-        overlap->mFusionKeyPoints = mFusion->mKeyPoints;
+        overlap->mTransitionBP = mTransition->mBp->m_Document->Serialize();
+        overlap->mTransitionKeyPoints = mTransition->mKeyPoints;
     }
     timeline->UpdatePreview();
 }
@@ -3450,12 +3450,12 @@ EditingAudioOverlap::EditingAudioOverlap(Overlap* ovlp)
         mDuration = mEnd - mStart;
         auto hOvlp = timeline->mMtaReader->GetOverlapById(mOvlp->mID);
         IM_ASSERT(hOvlp);
-        mFusion = dynamic_cast<BluePrintAudioTransition *>(hOvlp->GetTransition().get());
-        if (!mFusion)
+        mTransition = dynamic_cast<BluePrintAudioTransition *>(hOvlp->GetTransition().get());
+        if (!mTransition)
         {
-            mFusion = new BluePrintAudioTransition(timeline);
-            mFusion->SetKeyPoint(mOvlp->mFusionKeyPoints);
-            MediaCore::AudioTransition::Holder hTrans(mFusion);
+            mTransition = new BluePrintAudioTransition(timeline);
+            mTransition->SetKeyPoint(mOvlp->mTransitionKeyPoints);
+            MediaCore::AudioTransition::Holder hTrans(mTransition);
             hOvlp->SetTransition(hTrans);
         }
     }
@@ -3467,7 +3467,7 @@ EditingAudioOverlap::EditingAudioOverlap(Overlap* ovlp)
 
 EditingAudioOverlap::~EditingAudioOverlap()
 {
-    mFusion = nullptr;
+    mTransition = nullptr;
 }
 
 void EditingAudioOverlap::Seek(int64_t pos)
@@ -3629,10 +3629,10 @@ void EditingAudioOverlap::Save()
     auto overlap = timeline->FindOverlapByID(mOvlp->mID);
     if (!overlap)
         return;
-    if (mFusion && mFusion->mBp && mFusion->mBp->Blueprint_IsValid())
+    if (mTransition && mTransition->mBp && mTransition->mBp->Blueprint_IsValid())
     {
-        overlap->mFusionBP = mFusion->mBp->m_Document->Serialize();
-        overlap->mFusionKeyPoints = mFusion->mKeyPoints;
+        overlap->mTransitionBP = mTransition->mBp->m_Document->Serialize();
+        overlap->mTransitionKeyPoints = mTransition->mKeyPoints;
     }
 }
 
@@ -4148,20 +4148,20 @@ void MediaTrack::SelectEditingOverlap(Overlap * overlap)
             if (IS_VIDEO(clip_first->mType) && 
                 IS_VIDEO(clip_second->mType) &&
                 timeline->mVidOverlap &&
-                timeline->mVidOverlap->mFusion &&
-                timeline->mVidOverlap->mFusion->mBp &&
-                timeline->mVidOverlap->mFusion->mBp->Blueprint_IsValid())
+                timeline->mVidOverlap->mTransition &&
+                timeline->mVidOverlap->mTransition->mBp &&
+                timeline->mVidOverlap->mTransition->mBp->Blueprint_IsValid())
             {
-                editing_overlap->mFusionBP = timeline->mVidOverlap->mFusion->mBp->m_Document->Serialize();
+                editing_overlap->mTransitionBP = timeline->mVidOverlap->mTransition->mBp->m_Document->Serialize();
             }
             if (IS_AUDIO(clip_first->mType) && 
                 IS_AUDIO(clip_second->mType) &&
                 timeline->mAudOverlap &&
-                timeline->mAudOverlap->mFusion &&
-                timeline->mAudOverlap->mFusion->mBp &&
-                timeline->mAudOverlap->mFusion->mBp->Blueprint_IsValid())
+                timeline->mAudOverlap->mTransition &&
+                timeline->mAudOverlap->mTransition->mBp &&
+                timeline->mAudOverlap->mTransition->mBp->Blueprint_IsValid())
             {
-                editing_overlap->mFusionBP = timeline->mAudOverlap->mFusion->mBp->m_Document->Serialize();
+                editing_overlap->mTransitionBP = timeline->mAudOverlap->mTransition->mBp->m_Document->Serialize();
             }
         }
         if (timeline->mVidOverlap)
@@ -4172,9 +4172,9 @@ void MediaTrack::SelectEditingOverlap(Overlap * overlap)
         {
             delete timeline->mVidOverlap;
             timeline->mVidOverlap = nullptr;
-            if (timeline->mVideoFusionInputFirstTexture) { ImGui::ImDestroyTexture(timeline->mVideoFusionInputFirstTexture); timeline->mVideoFusionInputFirstTexture = nullptr; }
-            if (timeline->mVideoFusionInputSecondTexture) { ImGui::ImDestroyTexture(timeline->mVideoFusionInputSecondTexture); timeline->mVideoFusionInputSecondTexture = nullptr; }
-            if (timeline->mVideoFusionOutputTexture) { ImGui::ImDestroyTexture(timeline->mVideoFusionOutputTexture); timeline->mVideoFusionOutputTexture = nullptr;  }
+            if (timeline->mVideoTransitionInputFirstTexture) { ImGui::ImDestroyTexture(timeline->mVideoTransitionInputFirstTexture); timeline->mVideoTransitionInputFirstTexture = nullptr; }
+            if (timeline->mVideoTransitionInputSecondTexture) { ImGui::ImDestroyTexture(timeline->mVideoTransitionInputSecondTexture); timeline->mVideoTransitionInputSecondTexture = nullptr; }
+            if (timeline->mVideoTransitionOutputTexture) { ImGui::ImDestroyTexture(timeline->mVideoTransitionOutputTexture); timeline->mVideoTransitionOutputTexture = nullptr;  }
         }
     }
 
@@ -4600,7 +4600,7 @@ int TimeLine::OnBluePrintChange(int type, std::string name, void* handle)
         {
         }
     }
-    if (name.compare("VideoFusion") == 0)
+    if (name.compare("VideoTransition") == 0)
     {
         if (type == BluePrint::BP_CB_Link ||
             type == BluePrint::BP_CB_Unlink ||
@@ -4674,9 +4674,9 @@ TimeLine::~TimeLine()
     if (mVideoFilterInputTexture) { ImGui::ImDestroyTexture(mVideoFilterInputTexture); mVideoFilterInputTexture = nullptr; }
     if (mVideoFilterOutputTexture) { ImGui::ImDestroyTexture(mVideoFilterOutputTexture); mVideoFilterOutputTexture = nullptr;  }
 
-    if (mVideoFusionInputFirstTexture) { ImGui::ImDestroyTexture(mVideoFusionInputFirstTexture); mVideoFusionInputFirstTexture = nullptr; }
-    if (mVideoFusionInputSecondTexture) { ImGui::ImDestroyTexture(mVideoFusionInputSecondTexture); mVideoFusionInputSecondTexture = nullptr; }
-    if (mVideoFusionOutputTexture) { ImGui::ImDestroyTexture(mVideoFusionOutputTexture); mVideoFusionOutputTexture = nullptr;  }
+    if (mVideoTransitionInputFirstTexture) { ImGui::ImDestroyTexture(mVideoTransitionInputFirstTexture); mVideoTransitionInputFirstTexture = nullptr; }
+    if (mVideoTransitionInputSecondTexture) { ImGui::ImDestroyTexture(mVideoTransitionInputSecondTexture); mVideoTransitionInputSecondTexture = nullptr; }
+    if (mVideoTransitionOutputTexture) { ImGui::ImDestroyTexture(mVideoTransitionOutputTexture); mVideoTransitionOutputTexture = nullptr;  }
 
     if (mVidFilterClip)
     {
@@ -6397,10 +6397,10 @@ int TimeLine::Load(const imgui_json::value& value)
         auto& val = value["FilterOutPreview"];
         if (val.is_boolean()) bFilterOutputPreview = val.get<imgui_json::boolean>();
     }
-    if (value.contains("FusionOutPreview"))
+    if (value.contains("TransitionOutPreview"))
     {
-        auto& val = value["FusionOutPreview"];
-        if (val.is_boolean()) bFusionOutputPreview = val.get<imgui_json::boolean>();
+        auto& val = value["TransitionOutPreview"];
+        if (val.is_boolean()) bTransitionOutputPreview = val.get<imgui_json::boolean>();
     }
     if (value.contains("AttributeOutPreview"))
     {
@@ -6936,7 +6936,7 @@ void TimeLine::Save(imgui_json::value& value)
     value["Loop"] = imgui_json::boolean(bLoop);
     value["Compare"] = imgui_json::boolean(bCompare);
     value["FilterOutPreview"] = imgui_json::boolean(bFilterOutputPreview);
-    value["FusionOutPreview"] = imgui_json::boolean(bFusionOutputPreview);
+    value["TransitionOutPreview"] = imgui_json::boolean(bTransitionOutputPreview);
     value["AttributeOutPreview"] = imgui_json::boolean(bAttributeOutputPreview);
     value["SelectLinked"] = imgui_json::boolean(bSelectLinked);
     value["MovingAttract"] = imgui_json::boolean(bMovingAttract);
@@ -7374,8 +7374,8 @@ void TimeLine::SyncDataLayer(bool forceRefresh)
                     {
                         vidOvlp->SetId(ovlp->mID);
                         BluePrintVideoTransition* bpvt = new BluePrintVideoTransition(this);
-                        bpvt->SetBluePrintFromJson(ovlp->mFusionBP);
-                        bpvt->SetKeyPoint(ovlp->mFusionKeyPoints);
+                        bpvt->SetBluePrintFromJson(ovlp->mTransitionBP);
+                        bpvt->SetKeyPoint(ovlp->mTransitionKeyPoints);
                         MediaCore::VideoTransition::Holder hTrans(bpvt);
                         vidOvlp->SetTransition(hTrans);
                         needUpdatePreview = true;
@@ -7412,8 +7412,8 @@ void TimeLine::SyncDataLayer(bool forceRefresh)
                     {
                         audOvlp->SetId(ovlp->mID);
                         BluePrintAudioTransition* bpat = new BluePrintAudioTransition(this);
-                        bpat->SetBluePrintFromJson(ovlp->mFusionBP);
-                        bpat->SetKeyPoint(ovlp->mFusionKeyPoints);
+                        bpat->SetBluePrintFromJson(ovlp->mTransitionBP);
+                        bpat->SetKeyPoint(ovlp->mTransitionKeyPoints);
                         MediaCore::AudioTransition::Holder hTrans(bpat);
                         audOvlp->SetTransition(hTrans);
                         needRefreshAudio = true;
@@ -10686,7 +10686,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
 }
 
 /***********************************************************************************************************
- * Draw Fusion Timeline
+ * Draw Transition Timeline
  ***********************************************************************************************************/
 bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int64_t CurrentTime, int header_height, int custom_height)
 {

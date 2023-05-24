@@ -35,7 +35,7 @@ sfpmat3 matrix_mat_x2r = { \n\
     {sfp(-0.9692f), sfp( 1.8760f), sfp( 0.0416f)}, \n\
     {sfp( 0.0556f), sfp(-0.2040f), sfp( 1.0570f)}, \n\
 }; \n\
-sfpvec3 Transform(sfpvec3 rgb, float gamma) \n\
+sfpvec3 gamma_trans(sfpvec3 rgb, float gamma) \n\
 { \n\
     sfpvec3 _gamma = {sfp(0.9f / gamma), sfp(0.9f / gamma), sfp(0.9f / gamma)}; \n\
     rgb = sfp(1.099f) * pow(rgb, _gamma) - sfp(0.099f); \n\
@@ -64,7 +64,7 @@ sfpvec4 alm(int x, int y) \n\
     xyz.y = sfp(p.strength) * _log / log_pow / sfp(0.301029995663981f); \n\
     xyz.x = xyz.y / yy * xx; \n\
     xyz.z = xyz.y / yy * (sfp(1.0f) - xx - yy); \n\
-    sfpvec3 rgb = Transform(xyz_to_rgb(xyz), p.gamma); \n\
+    sfpvec3 rgb = gamma_trans(xyz_to_rgb(xyz), p.gamma); \n\
     return sfpvec4(rgb, rgba.a); \n\
 } \
 "

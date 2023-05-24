@@ -75,12 +75,12 @@
 
 <img src="images/audio-mixing.gif" />
 
-### Add Fusions
-1. Press SHIFT and double-click the title area of the video clip overlapping area to enter the video fusion-editing page;
-2. Introduce a fusion from the fusion bank, as select "LuminanceMelt Transform", and then connect the flow-pin and the data-pin to make the fusion node effective;
-3. Click "Play" to preview the fusion after using "LuminanceMelt Transform" for the overlapping clip.
+### Add Transitions
+1. Press SHIFT and double-click the title area of the video clip overlapping area to enter the video transition-editing page;
+2. Introduce a transition from the transition bank, as select "LuminanceMelt Transform", and then connect the flow-pin and the data-pin to make the transition node effective;
+3. Click "Play" to preview the transition after using "LuminanceMelt Transform" for the overlapping clip.
 
-<img src="images/add-fusion.gif" />
+<img src="images/add-transition.gif" />
 
 ### Add Filters
 1. Double-click the thumbnail of the video clip named "Sprite Fright" to enter the video filter-editing page;

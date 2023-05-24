@@ -20,12 +20,12 @@
 
 <h2 align="center">⭐️ Welcome to MediaEditor Community Software! ⭐️</h2>
 
-MediaEditor Community(MEC) is a highly integrated and easy to learn application software that can be used to **create, edit, and produce** high-quality videos. The functions involve **video editing, video filters, video fusion, audio mixing, and text processing**.🌼
+MediaEditor Community(MEC) is a highly integrated and easy to learn application software that can be used to **create, edit, and produce** high-quality videos. The functions involve **video editing, video filters, video transition, audio mixing, and text processing**.🌼
 
 ## News
 ### **⭐️⭐️⭐️ - 2023/05/19 [v0.9.7](https://github.com/opencodewin/MediaEditor/releases/tag/v0.9.7) is release.**
-  - 🔥 Supported plugin, which can expand filters, fusions, effects and AI, according to your own needs.
-  - 💡 More effect and fusion node.
+  - 🔥 Supported plugin, which can expand filters, transitions, effects and AI, according to your own needs.
+  - 💡 More effect and transition node.
   - 💡 More convenient way of UI operations.
   - 💡 Some known bugs fixed and optimizations of core features.
 
@@ -36,9 +36,9 @@ MediaEditor Community(MEC) is a highly integrated and easy to learn application 
   &emsp;<img src="docs/assets/timeline.png" alt="timeline">
 * Support more flexible and easily blueprint system. Blueprint💫 is represented in the form of nodes, which can handle complex functions through nodes and flows.
   &emsp;<img src="docs/assets/blueprint.gif" alt="blueprint">
-* Support about 30+ built-in media filters and 65+ built-in media fusions🤖.
+* Support about 30+ built-in media filters and 65+ built-in media transitions🤖.
 
-  &emsp;<img src="docs/assets/fusion.gif" alt="fusion">
+  &emsp;<img src="docs/assets/transition.gif" alt="transition">
 * Support about 10 video and audio analysis tools🍂.
 
   &emsp;🍂Video CIE&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;🍂Video Waveform&emsp;&emsp;&emsp;&emsp;🍂Audio Spectrogram
@@ -53,9 +53,9 @@ MediaEditor Community(MEC) is a highly integrated and easy to learn application 
 * Support multi-monitor mode, making it easy to preview and process media through external monitors.
 * Support video attribute-editing, including cropping, moving, scaling and rotating video frames.
 * Support audio mixing, including mixer, pan, equalizer, gate, limiter and compressor.
-* Support curve and keypoint, applied in video filter, video fusion, audio filter, audio fusion, video attribute and text subtitle.
+* Support curve and keypoint, applied in video filter, video transition, audio filter, audio transition, video attribute and text subtitle.
 * Support subtitle editing, including font, position, scale, rotate, oytline width, font attribute, alignment, etc.
-* Support customized blueprint nodes, allowing for free expansion of filter and fusion effects.
+* Support customized blueprint nodes, allowing for free expansion of filter and transition effects.
 * Support multiple professional export formats, including QuickTime, MKV, MP4, Matroska, etc.
 
 ## GETTING STARTED
@@ -74,9 +74,9 @@ sudo apt install libfuse2
 ```
 
 ## SCREENSHOT
-|<div>Video Filter</div>|<div>Video Fusion</div>|
+|<div>Video Filter</div>|<div>Video Transition</div>|
 |---|---|
-|<img src="docs/assets/video-filter.png" />|<img src="docs/assets/video-fusion.png" />|
+|<img src="docs/assets/video-filter.png" />|<img src="docs/assets/video-transition.png" />|
 
 |<div>Audio Mixing</div>|<div>Media Output</div>|
 |---|---|
@@ -98,7 +98,7 @@ sudo apt install libfuse2
 
 <img src="docs/assets/color_curve.jpeg" />
 
-## FUSIONS
+## TRANSITIONS
 | | | | | |
 |-----------------|----------------|:-----------------|:-----------------|:--------------|
 | BookFlip        | Bounce         | PageCurl         | Swap             | DoomScreen    |

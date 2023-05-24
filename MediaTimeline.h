@@ -324,8 +324,8 @@ struct Overlap
     bool bSeeking                   {false};    // overlap is seeking
     bool bEditing                   {false};    // overlap is editing, project saved
     std::pair<int64_t, int64_t>     m_Clip;     // overlaped clip's pair, project saved
-    imgui_json::value mFusionBP;                // overlap transion blueprint, project saved
-    ImGui::KeyPointEditor mFusionKeyPoints;     // overlap key points, project saved
+    imgui_json::value mTransitionBP;            // overlap transion blueprint, project saved
+    ImGui::KeyPointEditor mTransitionKeyPoints; // overlap key points, project saved
     void * mHandle                  {nullptr};  // overlap belong to timeline 
     Overlap(int64_t start, int64_t end, int64_t clip_first, int64_t clip_second, uint32_t type, void* handle);
     ~Overlap();
@@ -708,7 +708,7 @@ struct EditingVideoOverlap : BaseEditingOverlap
     MediaCore::Ratio mClipFirstFrameRate {25, 1};     // overlap clip first Frame rate
     MediaCore::Ratio mClipSecondFrameRate {25, 1};     // overlap clip second Frame rate
 
-    BluePrintVideoTransition* mFusion{nullptr};
+    BluePrintVideoTransition* mTransition{nullptr};
 
 public:
     EditingVideoOverlap(Overlap* ovlp);
@@ -726,7 +726,7 @@ public:
 struct EditingAudioOverlap : BaseEditingOverlap
 {
     AudioClip *mClip1, *mClip2;
-    BluePrintAudioTransition* mFusion{nullptr};
+    BluePrintAudioTransition* mTransition{nullptr};
 
 public:
     EditingAudioOverlap(Overlap* ovlp);
@@ -1016,7 +1016,7 @@ struct TimeLine
     bool bCompare = false;                  // project saved
     bool bFilterOutputPreview = true;       // project saved
     bool bAttributeOutputPreview = true;    // project saved
-    bool bFusionOutputPreview = true;       // project saved
+    bool bTransitionOutputPreview = true;   // project saved
     bool bSelectLinked = true;              // project saved
     bool bMovingAttract = true;             // project saved
 
@@ -1024,9 +1024,9 @@ struct TimeLine
     EditingVideoClip* mVidFilterClip    {nullptr};
     std::mutex mAudFilterClipLock;          // timeline clip mutex
     EditingAudioClip* mAudFilterClip    {nullptr};
-    std::mutex mVidFusionLock;              // timeline overlap mutex
+    std::mutex mVidTransitionLock;          // timeline overlap mutex
     EditingVideoOverlap* mVidOverlap    {nullptr};
-    std::mutex mAudFusionLock;              // timeline overlap mutex
+    std::mutex mAudTransitionLock;          // timeline overlap mutex
     EditingAudioOverlap* mAudOverlap    {nullptr};
 
     MediaCore::MultiTrackVideoReader::Holder mMtvReader;
@@ -1090,9 +1090,9 @@ struct TimeLine
     ImTextureID mVideoFilterInputTexture {nullptr};  // clip video filter input texture
     ImTextureID mVideoFilterOutputTexture {nullptr};  // clip video filter output texture
 
-    ImTextureID mVideoFusionInputFirstTexture {nullptr};    // clip video fusion first input texture
-    ImTextureID mVideoFusionInputSecondTexture {nullptr};   // clip video fusion second input texture
-    ImTextureID mVideoFusionOutputTexture {nullptr};        // clip video fusion output texture
+    ImTextureID mVideoTransitionInputFirstTexture {nullptr};    // clip video transition first input texture
+    ImTextureID mVideoTransitionInputSecondTexture {nullptr};   // clip video transition second input texture
+    ImTextureID mVideoTransitionOutputTexture {nullptr};        // clip video transition output texture
 
     TimeLineCallbackFunctions  m_CallBacks;
 

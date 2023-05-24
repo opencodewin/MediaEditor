@@ -8,7 +8,7 @@
 #include <CopyTo_vulkan.h>
 #include <unistd.h>
 
-#include "../plugin/nodes/fusions/Luma/Luma_vulkan.h"
+#include "../plugin/nodes/transitions/Luma/Luma_vulkan.h"
 
 std::string g_source_1;
 std::string g_source_2;
@@ -170,10 +170,10 @@ static void transition(int col, int row, int cols, int rows, int type, ImGui::Im
     // luma 
     if (g_mat_m.empty())
     {
-        load_image("/Users/dicky/Developer.localized/CodeWin/MediaEditor/plugin/nodes/fusions/Luma/masks/radial-tri.png", g_mat_m);
+        load_image("/Users/dicky/Developer.localized/CodeWin/MediaEditor/plugin/nodes/transitions/Luma/masks/radial-tri.png", g_mat_m);
     }
-    ImGui::Luma_vulkan m_fusion(0);
-    m_fusion.transition(mat_a, mat_b, g_mat_m, mat_t, progress);
+    ImGui::Luma_vulkan m_transition(0);
+    m_transition.transition(mat_a, mat_b, g_mat_m, mat_t, progress);
 
     g_copy->copyTo(mat_t, result, col * mat_a.w, row * mat_a.h);
 }
@@ -182,10 +182,10 @@ static bool TransitionMake_Frame(void * handle, bool app_will_quit)
 {
     bool app_done = false;
     auto& io = ImGui::GetIO();
-    static int fusion_index = 0;
-    static int fusion_col_images = 4;
-    static int fusion_row_images = 4;
-    static int fusion_image_index = 0;
+    static int transition_index = 0;
+    static int transition_col_images = 4;
+    static int transition_row_images = 4;
+    static int transition_image_index = 0;
     static int output_quality = 90;
     static void * data_memory = nullptr;
     static stbi_mem_context image_context {0, nullptr};
@@ -240,20 +240,20 @@ static bool TransitionMake_Frame(void * handle, bool app_will_quit)
             int ret = stbi_write_jpg_to_func(custom_stbi_write_mem, &image_context, result.w, result.h, result.c, result.data, output_quality);
             if (ret)
             {
-                binary_to_compressed_c("/Users/dicky/Desktop/logo.cpp", "logo", image_context.context, image_context.last_pos, g_mat_1.w, g_mat_1.h, fusion_col_images, fusion_row_images);
+                binary_to_compressed_c("/Users/dicky/Desktop/logo.cpp", "logo", image_context.context, image_context.last_pos, g_mat_1.w, g_mat_1.h, transition_col_images, transition_row_images);
             }
         }
     }
 
     bool need_update = false;
-    if (ImGui::SliderInt("Image cols", &fusion_col_images, 2, 8))
+    if (ImGui::SliderInt("Image cols", &transition_col_images, 2, 8))
     {
-        fusion_image_index = 0;
+        transition_image_index = 0;
         need_update = true;
     }
-    if (ImGui::SliderInt("Image rows", &fusion_row_images, 2, 8))
+    if (ImGui::SliderInt("Image rows", &transition_row_images, 2, 8))
     {
-        fusion_image_index = 0;
+        transition_image_index = 0;
         need_update = true;
     }
     ImGui::SliderInt("Image quality", &output_quality, 40, 100);
@@ -299,28 +299,28 @@ static bool TransitionMake_Frame(void * handle, bool app_will_quit)
     if (g_texture_d)
     {
         ImGui::SetCursorScreenPos(DistVideoPos);
-        int col = (fusion_image_index / 4) % fusion_col_images;
-        int row = (fusion_image_index / 4) / fusion_col_images;
-        float start_x = (float)col / (float)fusion_col_images;
-        float start_y = (float)row / (float)fusion_row_images;
-        ShowVideoWindow(draw_list, g_texture_d, DistVideoPos, DistVideoSize, offset_x, offset_y, tf_x, tf_y, (float)g_mat_1.w / (float)g_mat_1.h, ImVec2(start_x, start_y), ImVec2(start_x + 1.f / (float)fusion_col_images, start_y + 1.f / (float)fusion_row_images));
+        int col = (transition_image_index / 4) % transition_col_images;
+        int row = (transition_image_index / 4) / transition_col_images;
+        float start_x = (float)col / (float)transition_col_images;
+        float start_y = (float)row / (float)transition_row_images;
+        ShowVideoWindow(draw_list, g_texture_d, DistVideoPos, DistVideoSize, offset_x, offset_y, tf_x, tf_y, (float)g_mat_1.w / (float)g_mat_1.h, ImVec2(start_x, start_y), ImVec2(start_x + 1.f / (float)transition_col_images, start_y + 1.f / (float)transition_row_images));
         draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32(128,128,128,128), 0, 0, 1.0);
 
-        fusion_image_index ++; if (fusion_image_index >= fusion_col_images * fusion_row_images * 4) fusion_image_index = 0;
+        transition_image_index ++; if (transition_image_index >= transition_col_images * transition_row_images * 4) transition_image_index = 0;
 
         ShowVideoWindow(draw_list, g_texture_d, DistImagePos, DistImageSize, offset_x, offset_y, tf_x, tf_y, (float)ImGui::ImGetTextureWidth(g_texture_d) / (float)ImGui::ImGetTextureHeight(g_texture_d));
         draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32(128,128,128,128), 0, 0, 1.0);
     }
 
-    // prepare for fusion
+    // prepare for transition
     if (!g_mat_1.empty() && !g_mat_2.empty() && !g_texture_d)
     {
-        result.create_type(g_mat_1.w * fusion_col_images, g_mat_1.h * fusion_row_images, 4, IM_DT_INT8);
-        for (int h = 0; h < fusion_row_images; h++)
+        result.create_type(g_mat_1.w * transition_col_images, g_mat_1.h * transition_row_images, 4, IM_DT_INT8);
+        for (int h = 0; h < transition_row_images; h++)
         {
-            for (int w = 0; w < fusion_col_images; w++)
+            for (int w = 0; w < transition_col_images; w++)
             {
-                transition(w, h, fusion_col_images, fusion_row_images, fusion_index, g_mat_1, g_mat_2, result);
+                transition(w, h, transition_col_images, transition_row_images, transition_index, g_mat_1, g_mat_2, result);
             }
         }
         ImGui::ImMatToTexture(result, g_texture_d);
