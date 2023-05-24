@@ -492,6 +492,7 @@ static bool g_project_loading {false};
 static float g_project_loading_percentage {0};
 static std::thread * g_loading_plugin_thread {nullptr};
 static bool g_plugin_loading {false};
+static bool g_plugin_loaded {false};
 static float g_plugin_loading_percentage {0};
 static int g_plugin_loading_current_index {0};
 static std::string g_plugin_loading_message;
@@ -1546,7 +1547,7 @@ static void NewProject()
 static void LoadProjectThread(std::string path, bool in_splash)
 {
     // waiting plugin loading
-    while (g_plugin_loading)
+    while (g_plugin_loading || !g_plugin_loaded)
     {
         ImGui::sleep(100);
     }
@@ -10696,7 +10697,6 @@ static void LoadPluginThread()
 bool MediaEditor_Splash_Screen(void* handle, bool app_will_quit)
 {
     static int32_t splash_start_time = ImGui::get_current_time_msec();
-    static bool is_plugin_loaded = false;
     auto& io = ImGui::GetIO();
     ImGuiContext& g = *GImGui;
     if (!g_media_editor_settings.UILanguage.empty() && g.LanguageName != g_media_editor_settings.UILanguage)
@@ -10711,11 +10711,11 @@ bool MediaEditor_Splash_Screen(void* handle, bool app_will_quit)
     ImGui::Begin("MediaEditor Splash", nullptr, flags);
     auto draw_list = ImGui::GetWindowDrawList();
     bool title_finished = Show_Version(draw_list, splash_start_time);
-    if (!is_plugin_loaded)
+    if (!g_plugin_loaded)
     {
         g_plugin_loading = true;
         g_loading_plugin_thread = new std::thread(LoadPluginThread);
-        is_plugin_loaded = true;
+        g_plugin_loaded = true;
     }
     std::string load_str;
     if (g_plugin_loading)

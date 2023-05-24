@@ -333,6 +333,7 @@ add_subdirectory(plugin/nodes/filters/Vibrance)
 add_subdirectory(plugin/nodes/filters/WarpAffine)
 add_subdirectory(plugin/nodes/filters/WarpPerspective)
 add_subdirectory(plugin/nodes/filters/Whitebalance)
+add_subdirectory(plugin/nodes/filters/SmartDenoise)
 #transitions
 add_subdirectory(plugin/nodes/transitions/Alpha)
 add_subdirectory(plugin/nodes/transitions/BookFlip)
