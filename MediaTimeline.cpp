@@ -7791,6 +7791,7 @@ void TimeLine::_EncodeProc()
     double encpos = 0;
     double enc_start = (double)mEncoding_start / 1000;
     double enc_end = (double)mEncoding_end / 1000;
+    if (mEncMtvReader) mEncMtvReader->SeekTo(mEncoding_start);
     if (mEncMtaReader) mEncMtaReader->SeekTo(mEncoding_start);
     while (!mQuitEncoding && (!vidInputEof || !audInputEof))
     {
