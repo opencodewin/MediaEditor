@@ -3783,7 +3783,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImR
         }
     }
 
-    if (start > 0 && end > 0)
+    if (start >= 0 && end >= 0)
     {
         if (timeline->mIsPreviewPlaying && (timeline->currentTime < start || timeline->currentTime > end))
         {
