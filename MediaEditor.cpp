@@ -3634,8 +3634,10 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImR
     }
     ImGui::ShowTooltipOnHover("Step Prev");
 
-    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - (32 + 8) * 1, PanelButtonY));
-    if (ImGui::RotateButton(ICON_PLAY_BACKWARD "##preview_reverse", ImVec2(32, 32), 180))
+    bool isForwordPlaying = timeline ? (timeline->mIsPreviewPlaying && timeline->mIsPreviewForward) : false;
+    bool isBackwardPlaying = (timeline && !isForwordPlaying) ? (timeline->mIsPreviewPlaying && !timeline->mIsPreviewForward) : false;
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - (32 + 8) * 1 + 6, PanelButtonY + 5));
+    if (ImGui::RotateCheckButton(ICON_PLAY_BACKWARD "##preview_reverse", &isBackwardPlaying, ImVec4(0.5, 0.5, 0.0, 1.0), 180))
     {
         if (timeline)
         {
@@ -3649,11 +3651,12 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImR
     if (ImGui::Button(ICON_STOP "##preview_stop", ImVec2(32, 32)))
     {
         if (timeline) timeline->Play(false, true);
+        isForwordPlaying = false;
     }
     ImGui::ShowTooltipOnHover("Stop");
 
-    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8, PanelButtonY));
-    if (ImGui::Button(ICON_PLAY_FORWARD "##preview_play", ImVec2(32, 32)))
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 6, PanelButtonY + 5));
+    if (ImGui::CheckButton(ICON_PLAY_FORWARD "##preview_play", &isForwordPlaying, ImVec4(0.5, 0.5, 0.0, 1.0)))
     {
         if (timeline)
         {
@@ -3894,8 +3897,10 @@ static void ShowVideoFilterPreviewWindow(ImDrawList *draw_list, int64_t start, i
     }
     ImGui::ShowTooltipOnHover("Step Prev");
 
-    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - (32 + 8) * 1, PanelButtonY));
-    if (ImGui::RotateButton(ICON_PLAY_BACKWARD "##preview_reverse", ImVec2(32, 32), 180))
+    bool isForwordPlaying = timeline ? (timeline->mIsPreviewPlaying && timeline->mIsPreviewForward) : false;
+    bool isBackwardPlaying = (timeline && !isForwordPlaying) ? (timeline->mIsPreviewPlaying && !timeline->mIsPreviewForward) : false;
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - (32 + 8) * 1 + 6, PanelButtonY + 5));
+    if (ImGui::RotateCheckButton(ICON_PLAY_BACKWARD "##preview_reverse", &isBackwardPlaying, ImVec4(0.5, 0.5, 0.0, 1.0), 180))
     {
         if (timeline && timeline->mVidFilterClip)
         {
@@ -3910,11 +3915,12 @@ static void ShowVideoFilterPreviewWindow(ImDrawList *draw_list, int64_t start, i
     {
         if (timeline)
             timeline->Play(false, true);
+        isForwordPlaying = false;
     }
     ImGui::ShowTooltipOnHover("Stop");
 
-    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + (32 + 8) * 0, PanelButtonY));
-    if (ImGui::Button(ICON_PLAY_FORWARD "##preview_play", ImVec2(32, 32)))
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + (32 + 8) * 0 + 6, PanelButtonY + 5));
+    if (ImGui::CheckButton(ICON_PLAY_FORWARD "##preview_play", &isForwordPlaying, ImVec4(0.5, 0.5, 0.0, 1.0)))
     {
         if (timeline && timeline->mVidFilterClip)
         {
@@ -5174,8 +5180,10 @@ static void ShowVideoTransitionPreviewWindow(ImDrawList *draw_list)
         }
     } ImGui::ShowTooltipOnHover("Step Prev");
     
-    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - (32 + 8) * 1, PanelButtonY));
-    if (ImGui::RotateButton(ICON_PLAY_BACKWARD "##video_transition_reverse", ImVec2(32, 32), 180))
+    bool isForwordPlaying = timeline ? (timeline->mIsPreviewPlaying && timeline->mIsPreviewForward) : false;
+    bool isBackwardPlaying = (timeline && !isForwordPlaying) ? (timeline->mIsPreviewPlaying && !timeline->mIsPreviewForward) : false;
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - (32 + 8) * 1 + 6, PanelButtonY + 5));
+    if (ImGui::RotateCheckButton(ICON_PLAY_BACKWARD "##video_transition_reverse", &isBackwardPlaying, ImVec4(0.5, 0.5, 0.0, 1.0), 180))
     {
         if (timeline && timeline->mVidOverlap)
         {
@@ -5189,10 +5197,11 @@ static void ShowVideoTransitionPreviewWindow(ImDrawList *draw_list)
     {
         if (timeline)
             timeline->Play(false, true);
+        isForwordPlaying = false;
     } ImGui::ShowTooltipOnHover("Stop");
     
-    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8, PanelButtonY));
-    if (ImGui::Button(ICON_PLAY_FORWARD "##video_transition_play", ImVec2(32, 32)))
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 6, PanelButtonY + 5));
+    if (ImGui::CheckButton(ICON_PLAY_FORWARD "##video_transition_play", &isForwordPlaying, ImVec4(0.5, 0.5, 0.0, 1.0)))
     {
         if (timeline && timeline->mVidOverlap)
         {
