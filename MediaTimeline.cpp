@@ -5594,14 +5594,14 @@ void TimeLine::StopSeek()
     if (bSeeking)
     {
         bSeeking = false;
+        if (mMtaReader)
+            mMtaReader->SeekTo(mPreviewResumePos, false);
         if (mAudioRender)
         {
             if (!mIsPreviewPlaying)
                 mAudioRender->Pause();
             mAudioRender->Flush();
         }
-        if (mMtaReader)
-            mMtaReader->SeekTo(mPreviewResumePos, false);
         if (mMtvReader)
             mMtvReader->StopConsecutiveSeek();
         mPlayTriggerTp = PlayerClock::now();
