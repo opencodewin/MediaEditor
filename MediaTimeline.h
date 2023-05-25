@@ -210,6 +210,8 @@
 #define COL_CURSOR_LINE     IM_COL32(  0, 255,   0, 128)
 #define COL_CURSOR_TEXT_BG  IM_COL32(  0, 128,   0, 144)
 #define COL_CURSOR_TEXT     IM_COL32(  0, 255,   0, 255)
+#define COL_CURSOR_TEXT_BG2 IM_COL32(128, 128,   0, 128)
+#define COL_CURSOR_TEXT2    IM_COL32(255, 255,   0, 255)
 #define COL_CURSOR_ARROW_R  IM_COL32(255,   0,   0, 192)
 #define COL_CURSOR_LINE_R   IM_COL32(255,   0,   0, 128)
 #define COL_CURSOR_TEXT_BR  IM_COL32(128,   0,   0, 144)
@@ -359,6 +361,7 @@ struct Clip
     float mPixPerMs             {0};
     int mTrackHeight            {0};
     bool bMoving                {false};            // clip is moving
+    bool bHovered               {false};            // clip is under mouse
 
     imgui_json::value mFilterBP;                    // clip filter blue print, project saved
     ImGui::KeyPointEditor mFilterKeyPoints;         // clip key points, project saved

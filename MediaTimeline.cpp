@@ -639,7 +639,8 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
         return index;
     
     ImGuiIO &io = ImGui::GetIO();
-    bool single = ImGui::IsKeyDown(ImGuiKey_LeftCtrl) && (io.KeyMods == ImGuiMod_Ctrl);
+    // [shortcut]: left ctrl into single moving status
+    bool single = ImGui::IsKeyDown(ImGuiKey_LeftCtrl);
 
     int track_index = timeline->FindTrackIndexByClipID(mID);
     int64_t length = mEnd - mStart;
@@ -6195,11 +6196,13 @@ void TimeLine::CustomDraw(
             // Clip select
             if (enable_select)
             {
-                if (clip_rect.Contains(io.MousePos) )
+                //if (clip_rect.Contains(io.MousePos) )
+                if (clip->bHovered)
                 {
                     draw_list->AddRect(clip_rect.Min, clip_rect.Max, IM_COL32(255,255,255,255), 4, flag, 2.0f);
-                    const bool is_shift_key_only = (io.KeyMods == ImGuiModFlags_Shift);
-                    bool appand = (ImGui::IsKeyDown(ImGuiKey_LeftShift) || ImGui::IsKeyDown(ImGuiKey_RightShift)) && is_shift_key_only;
+                    // [shortcut]: shift+a for appand select
+                    //const bool is_shift_key_only = (io.KeyMods == ImGuiModFlags_Shift);
+                    bool appand = (ImGui::IsKeyDown(ImGuiKey_LeftShift) || ImGui::IsKeyDown(ImGuiKey_RightShift)) && ImGui::IsKeyDown(ImGuiKey_A);
                     bool can_be_select = false;
                     if (is_moving && !clip->bSelected)
                         can_be_select = true;
@@ -6215,6 +6218,7 @@ void TimeLine::CustomDraw(
                     }
                     else if (track->mExpanded && clip_area_rect.Contains(io.MousePos) && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
                     {
+                        // [shortcut]: shift + double left click to attribute page
                         bool b_attr_editing = ImGui::IsKeyDown(ImGuiKey_LeftShift) && (io.KeyMods == ImGuiModFlags_Shift);
                         if (!IS_DUMMY(clip->mType))
                             track->SelectEditingClip(clip, !b_attr_editing);
@@ -8494,7 +8498,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
     int delTrackEntry = -1;
     int mouseEntry = -1;
     int legendEntry = -1;
-    int64_t mouseClip = -1;
+    std::vector<int64_t> mouseClip; // may have 2 clips(overlap area)
     int64_t mouseTime = -1;
     int alignedMousePosX = -1;
     static int64_t menuMouseTime = -1;
@@ -8508,6 +8512,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
     static bool bMoving = false;
     static bool bInsertNewTrack = false;
     static int InsertHeight = 0;
+    // [shortcut]: left alt only for cutting clip
     timeline->mIsCutting = ImGui::IsKeyDown(ImGuiKey_LeftAlt) && (io.KeyMods == ImGuiMod_Alt);
     int64_t doCutPos = -1;
     bool overTrackView = false;
@@ -8815,18 +8820,34 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             }
 
             // Ensure grabable handles and find selected clip
+            for (auto clip : timeline->m_Clips)  clip->bHovered = false; // clear clip hovered status
             if (mouseTime != -1 && mouseEntry >= 0 && mouseEntry < timeline->m_Tracks.size())
             {
                 MediaTrack * track = timeline->m_Tracks[mouseEntry];
-                if (track && !track->mLocked)
+                if (track)
                 {
-                    int count = 0;
-                    auto clip = track->FindClips(mouseTime, count);
-                    if (clip && clipMovingEntry == -1)
+                    Clip * mouse_clip = nullptr;
+                    // [shortcut]: left shift swap top/bottom clip if overlaped
+                    bool swap_clip = ImGui::IsKeyDown(ImGuiKey_LeftShift);
+                    mouseClip.clear();
+                    // it should be at most 2 clips under mouse
+                    for (auto clip : track->m_Clips)
+                    {
+                        if (clip->mStart <= mouseTime && clip->mEnd >= mouseTime)
+                        {
+                            mouseClip.push_back(clip->mID);
+                        }
+                    }
+                    if (!mouseClip.empty())
+                    {
+                        if (mouseClip.size() == 1 || !swap_clip) { mouse_clip = timeline->FindClipByID(mouseClip[0]); mouse_clip->bHovered = true; }
+                        else if (mouseClip.size() == 2 && swap_clip) { mouse_clip = timeline->FindClipByID(mouseClip[1]); mouse_clip->bHovered = true; }
+                    }
+                    if (mouse_clip && clipMovingEntry == -1)
                     {
                         // check clip moving part
-                        ImVec2 clipP1(pos.x + clip->mStart * timeline->msPixelWidthTarget, pos.y + 2);
-                        ImVec2 clipP2(pos.x + clip->mEnd * timeline->msPixelWidthTarget, pos.y + trackHeadHeight - 2 + localCustomHeight);
+                        ImVec2 clipP1(pos.x + mouse_clip->mStart * timeline->msPixelWidthTarget, pos.y + 2);
+                        ImVec2 clipP2(pos.x + mouse_clip->mEnd * timeline->msPixelWidthTarget, pos.y + trackHeadHeight - 2 + localCustomHeight);
                         const float max_handle_width = clipP2.x - clipP1.x / 3.0f;
                         const float min_handle_width = ImMin(10.0f, max_handle_width);
                         const float handle_width = ImClamp(timeline->msPixelWidthTarget / 2.0f, min_handle_width, max_handle_width);
@@ -8845,24 +8866,27 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                         }
                         for (int j = 0; j < 3; j++)
                         {
+                            // j == 0 : left crop rect
+                            // j == 1 : right crop rect
+                            // j == 2 : cutting rect
                             ImRect &rc = rects[j];
                             if (!rc.Contains(io.MousePos))
                                 continue;
                             if (!ImRect(childFramePos, childFramePos + childFrameSize).Contains(io.MousePos))
                                 continue;
-                            if (j == 2 && timeline->mIsCutting && count <= 1)
+                            if (j == 2 && timeline->mIsCutting && mouseClip.size() <= 1)
                             {
                                 ImGui::RenderMouseCursor(ICON_CUTTING, ImVec2(7, 0), 1.0, -90);
                             }
                             if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingHorizonScrollBar && !MovingCurrentTime && !menuIsOpened && editable)
                             {
-                                if (j == 2 && timeline->mIsCutting && count <= 1)
+                                if (j == 2 && timeline->mIsCutting && mouseClip.size() <= 1)
                                 {
                                     doCutPos = mouseTime;
                                 }
                                 else
                                 {
-                                    clipMovingEntry = clip->mID;
+                                    clipMovingEntry = mouse_clip->mID;
                                     clipMovingPart = j + 1;
                                     if (j <= 1)
                                     {
@@ -8873,17 +8897,6 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                                 }
                                 break;
                             }
-                        }
-                    }
-                }
-                if (track)
-                {
-                    for (auto clip : track->m_Clips)
-                    {
-                        if (clip->mStart <= mouseTime && clip->mEnd >= mouseTime)
-                        {
-                            mouseClip = clip->mID;
-                            break;
                         }
                     }
                 }
@@ -8994,8 +9007,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
 
         if (trackAreaRect.Contains(io.MousePos) && ImGui::IsMouseReleased(ImGuiMouseButton_Right) && !ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Right))
         {
-            if (mouseClip != -1)
-                clipMenuEntry = mouseClip;
+            if (!mouseClip.empty())
+                clipMenuEntry = mouseClip[0];
             if (mouseEntry >= 0)
                 trackMenuEntry = mouseEntry;
             if (mouseTime != -1)
@@ -9162,7 +9175,11 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             ImGui::PopStyleColor();
             ImGui::EndPopup();
         }
-        ImGui::EndChildFrame();
+
+        // add a gap to bottom
+        ImGui::Dummy(ImVec2(0, trackHeadHeight * 2));
+
+        ImGui::EndChildFrame(); // finished track view
 
         // Horizon Scroll bar control buttons
         auto horizon_scroll_pos = ImGui::GetCursorScreenPos();
@@ -9705,7 +9722,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         }
         draw_list->PopClipRect();
 
-        // drag drop line
+        // drag drop line and time indicate
         if (ImGui::IsDragDropActive() && custom_view_rect.Contains(io.MousePos))
         {
             draw_list->PushClipRect(custom_view_rect.Min, custom_view_rect.Max);
@@ -9713,11 +9730,14 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             float lineOffset = contentMin.x + legendWidth + (mouseTime - timeline->firstTime) * timeline->msPixelWidthTarget + 1;
             draw_list->AddLine(ImVec2(lineOffset, contentMin.y), ImVec2(lineOffset, contentMax.y+ trackRect.Max.y - scrollSize), IM_COL32(255, 255, 0, 255), cursorWidth);
             draw_list->PopClipRect();
-            if (ImGui::BeginTooltip())
-            {
-                ImGui::Text("[< %s", ImGuiHelper::MillisecToString(mouseTime, 3).c_str());
-                ImGui::EndTooltip();
-            }
+            ImGui::SetWindowFontScale(0.8);
+            auto time_str = ImGuiHelper::MillisecToString(mouseTime, 2);
+            ImVec2 str_size = ImGui::CalcTextSize(time_str.c_str(), nullptr, true);
+            float strOffset = contentMin.x + legendWidth + (mouseTime - timeline->firstTime) * timeline->msPixelWidthTarget - str_size.x * 0.5f + 1;
+            ImVec2 str_pos = ImVec2(strOffset, canvas_pos.y);
+            draw_list->AddRectFilled(str_pos + ImVec2(-3, 0), str_pos + str_size + ImVec2(3, 3), COL_CURSOR_TEXT_BG2, 2.0, ImDrawFlags_RoundCornersAll);
+            draw_list->AddText(str_pos, COL_CURSOR_TEXT2, time_str.c_str());
+            ImGui::SetWindowFontScale(1.0);
         }
 
         ImGui::PopStyleColor();
@@ -9790,9 +9810,9 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
     if (timeline->mShowHelpTooltips && !ImGui::IsDragDropActive())
     {
         ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5f);
-        if (mouseTime != -1 && mouseClip != -1 && mouseEntry >= 0 && mouseEntry < timeline->m_Tracks.size())
+        if (mouseTime != -1 && !mouseClip.empty() && mouseEntry >= 0 && mouseEntry < timeline->m_Tracks.size())
         {
-            if (mouseClip != -1 && !bMoving && ImGui::BeginTooltip())
+            if (!mouseClip.empty() && !bMoving && ImGui::BeginTooltip())
             {
                 ImGui::TextUnformatted("Help:");
                 ImGui::TextUnformatted("    Left button click to select clip");
