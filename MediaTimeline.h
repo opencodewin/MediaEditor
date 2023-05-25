@@ -517,7 +517,7 @@ public:
 
     const std::string GetFilterName() const override { return "BluePrintVideoFilter"; }
     MediaCore::VideoFilter::Holder Clone() override;
-    void ApplyTo(MediaCore::VideoClip* clip) override {}
+    void ApplyTo(MediaCore::VideoClip* clip) override { mTrackId = clip->TrackId(); }
     ImGui::ImMat FilterImage(const ImGui::ImMat& vmat, int64_t pos) override;
 
     void SetBluePrintFromJson(imgui_json::value& bpJson);
@@ -531,6 +531,7 @@ private:
     static int OnBluePrintChange(int type, std::string name, void* handle);
     std::mutex mBpLock;
     void * mHandle {nullptr};
+    int64_t mTrackId {-1};
 };
 
 class BluePrintVideoTransition : public MediaCore::VideoTransition
@@ -1143,6 +1144,7 @@ struct TimeLine
     void ToEnd();
     void UpdateCurrent();
     void UpdatePreview();
+    void RefreshTrackView(const vector<int64_t>& trackIds);
     int64_t ValidDuration();
 
     MediaCore::AudioRender* mAudioRender {nullptr};                // audio render(SDL)
