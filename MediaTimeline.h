@@ -252,14 +252,14 @@ namespace MediaTimeline
 #define MEDIA_SUBTYPE_TEXT_SUBTITLE 0x00110000
 #define MEDIA_CUSTOM                0x10000000
 
-#define IS_DUMMY(t)     (t & MEDIA_DUMMY)
-#define IS_VIDEO(t)     (t & MEDIA_VIDEO)
-#define IS_AUDIO(t)     (t & MEDIA_AUDIO)
-#define IS_IMAGE(t)     ((t & MEDIA_SUBTYPE_VIDEO_IMAGE) == MEDIA_SUBTYPE_VIDEO_IMAGE)
-#define IS_TEXT(t)      (t & MEDIA_TEXT)
-#define IS_SUBTITLE(t)  ((t & MEDIA_SUBTYPE_TEXT_SUBTITLE) == MEDIA_SUBTYPE_TEXT_SUBTITLE)
-#define IS_MIDI(t)      ((t & MEDIA_SUBTYPE_AUDIO_MIDI) == MEDIA_SUBTYPE_AUDIO_MIDI)
-#define IS_SAME_TYPE(t1, t2) (t1 & t2)
+#define IS_DUMMY(t)     ((t) & MEDIA_DUMMY)
+#define IS_VIDEO(t)     ((t) & MEDIA_VIDEO)
+#define IS_AUDIO(t)     ((t) & MEDIA_AUDIO)
+#define IS_IMAGE(t)     (((t) & MEDIA_SUBTYPE_VIDEO_IMAGE) == MEDIA_SUBTYPE_VIDEO_IMAGE)
+#define IS_TEXT(t)      ((t) & MEDIA_TEXT)
+#define IS_SUBTITLE(t)  (((t) & MEDIA_SUBTYPE_TEXT_SUBTITLE) == MEDIA_SUBTYPE_TEXT_SUBTITLE)
+#define IS_MIDI(t)      (((t) & MEDIA_SUBTYPE_AUDIO_MIDI) == MEDIA_SUBTYPE_AUDIO_MIDI)
+#define IS_SAME_TYPE(t1, t2) ((t1) & (t2))
 
 enum AudioVectorScopeMode  : int
 {
@@ -1118,7 +1118,7 @@ struct TimeLine
     bool RestoreTrack(imgui_json::value& action);
     int64_t DeleteTrack(int index, std::list<imgui_json::value>* pActionList);
     void SelectTrack(int index);
-    void MovingTrack(int& index, int& dst_index, std::list<imgui_json::value>* pActionList);
+    void MovingTrack(int index, int dst_index, std::list<imgui_json::value>* pActionList);
 
     void MovingClip(int64_t id, int from_track_index, int to_track_index);
     bool DeleteClip(int64_t id, std::list<imgui_json::value>* pActionList);

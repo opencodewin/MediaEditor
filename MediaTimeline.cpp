@@ -5216,41 +5216,95 @@ bool TimeLine::RestoreTrack(imgui_json::value& action)
     return true;
 }
 
-void TimeLine::MovingTrack(int& index, int& dst_index, std::list<imgui_json::value>* pActionList)
+void TimeLine::MovingTrack(int index, int dst_index, std::list<imgui_json::value>* pActionList)
 {
     auto iter = m_Tracks.begin() + index;
     auto iter_dst = dst_index == -2 ? m_Tracks.end() - 1 : m_Tracks.begin() + dst_index;
-    if (dst_index == -2 && iter == m_Tracks.end() - 1)
+    if (iter == iter_dst)
     {
         return;
     }
 
-    if (pActionList)
+    if (pActionList && IS_VIDEO((*iter)->mType))
     {
-        imgui_json::value action;
-        action["action"] = "MOVE_TRACK";
-        if (dst_index < index)
+        bool isInsertAfterDst = iter < iter_dst ? true : false;
+        int64_t insertAfterId = -1;
+        auto iter_insert = iter_dst;
+        if (isInsertAfterDst)
         {
-            action["media_type"] = imgui_json::number((*iter_dst)->mType);
-            action["track_id1"] = imgui_json::number((*iter_dst)->mID);
-            action["media_type2"] = imgui_json::number((*iter)->mType);
-            action["track_id2"] = imgui_json::number((*iter)->mID);
+            while (iter_insert != m_Tracks.begin() && !IS_VIDEO((*iter_insert)->mType))
+                iter_insert--;
+            if (IS_VIDEO((*iter_insert)->mType))
+                insertAfterId = (*iter_insert)->mID;
+            else
+                insertAfterId = -2;
         }
         else
         {
-            action["media_type"] = imgui_json::number((*iter)->mType);
-            action["track_id1"] = imgui_json::number((*iter)->mID);
-            action["media_type2"] = imgui_json::number((*iter_dst)->mType);
-            action["track_id2"] = imgui_json::number((*iter_dst)->mID);
+            if (iter_insert == m_Tracks.begin())
+                insertAfterId = -2;
+            else
+            {
+                iter_insert--;
+                while (iter_insert != m_Tracks.begin() && !IS_VIDEO((*iter_insert)->mType))
+                    iter_insert--;
+                if (IS_VIDEO((*iter_insert)->mType))
+                    insertAfterId = (*iter_insert)->mID;
+                else
+                    insertAfterId = -2;
+            }
         }
-        pActionList->push_back(std::move(action));
+        if (iter_insert != iter)
+        {
+            auto iter_next = iter_insert;
+            if (insertAfterId >= 0)
+                iter_next++;
+            while (iter_next != m_Tracks.end() && !IS_VIDEO((*iter_next)->mType))
+                iter_next++;
+            if (iter_next != iter)
+            {
+                imgui_json::value action;
+                action["action"] = "MOVE_TRACK";
+                action["media_type"] = imgui_json::number((*iter)->mType);
+                action["track_id1"] = imgui_json::number((*iter)->mID);
+                action["track_id2"] = imgui_json::number(insertAfterId);
+                pActionList->push_back(std::move(action));
+            }
+        }
     }
 
     // do we need change other type of media?
-    MediaTrack * tmp = *iter;
-    *iter = *iter_dst;
-    *iter_dst = tmp;
-    index = dst_index;
+    auto temp = *iter;
+    if (iter > iter_dst)
+    {
+        auto iter_prev = iter-1;
+        do {
+            *iter = *iter_prev;
+            if (iter_prev != iter_dst)
+            {
+                iter = iter_prev;
+                iter_prev--;
+            }
+            else
+                break;
+        } while (true);
+        *iter_dst = temp;
+    }
+    else
+    {
+        auto iter_next = iter+1;
+        do {
+            *iter = *iter_next;
+            if (iter_next != iter_dst)
+            {
+                iter = iter_next;
+                iter_next++;
+            }
+            else
+                break;
+        } while (true);
+        *iter_dst = temp;
+    }
 }
 
 void TimeLine::MovingClip(int64_t id, int from_track_index, int to_track_index)
@@ -7135,14 +7189,10 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
     }
     else if (actionName == "MOVE_TRACK")
     {
-        uint32_t track_type2 = action["media_type2"].get<imgui_json::number>();
-        if (IS_VIDEO(track_type2))
-        {
-            int64_t trackId1 = action["track_id1"].get<imgui_json::number>();
-            int64_t trackId2 = action["track_id2"].get<imgui_json::number>();
-            mMtvReader->ChangeTrackViewOrder(trackId1, trackId2);
-            UpdatePreview();
-        }
+        int64_t trackId1 = action["track_id1"].get<imgui_json::number>();
+        int64_t trackId2 = action["track_id2"].get<imgui_json::number>();
+        mMtvReader->ChangeTrackViewOrder(trackId1, trackId2);
+        UpdatePreview();
     }
     else if (actionName == "HIDE_TRACK")
     {
@@ -7975,9 +8025,8 @@ bool TimeLine::UndoOneRecord()
             MovingTrack(index, indexDst, nullptr);
             imgui_json::value undoAction;
             undoAction["action"] = "MOVE_TRACK";
-            undoAction["media_type"] = action["media_type2"];
+            undoAction["media_type"] = action["media_type"];
             undoAction["track_id1"] = action["track_id2"];
-            undoAction["media_type2"] = action["media_type"];
             undoAction["track_id2"] = action["track_id1"];
             mUiActions.push_back(std::move(undoAction));
         }
