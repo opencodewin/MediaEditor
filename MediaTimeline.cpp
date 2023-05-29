@@ -8504,6 +8504,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
     static bool MovingVerticalScrollBar = false;
     static bool MovingCurrentTime = false;
     static int trackMovingEntry = -1;
+    static bool bTrackMoving = false;
     static int trackEntry = -1;
     static int trackMenuEntry = -1;
     static int64_t clipMenuEntry = -1;
@@ -8524,7 +8525,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
     int insertEmptyTrackType = MEDIA_UNKNOWN;
     static bool menuIsOpened = false;
     static bool bCropping = false;
-    static bool bMoving = false;
+    static bool bClipMoving = false;
     static bool bInsertNewTrack = false;
     static int InsertHeight = 0;
     // [shortcut]: left alt only for cutting clip
@@ -8929,6 +8930,23 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         if (trackMovingEntry != -1 && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
         {
             ImGui::CaptureMouseFromApp();
+            bTrackMoving = true;
+            trackEntry = -1;
+            ImGui::SetNextWindowViewport(ImGui::GetWindowViewport()->ID);
+            ImGui::SetNextWindowPos(ImVec2(legendRect.Min.x + 8, cy - trackHeadHeight));
+            if (ImGui::BeginTooltip())
+            {
+                MediaTrack *track = timeline->m_Tracks[trackMovingEntry];
+                size_t localCustomHeight = track->mExpanded ? track->mTrackHeight : 0;
+                ImRect rc(ImVec2(0, 0), ImVec2(float(legendWidth), float(localCustomHeight + trackHeadHeight)));
+                ImGui::InvisibleButton("track_moving", rc.GetSize());
+                ImGui::SetCursorPos(ImVec2(4, 0));
+                ImGui::Text("%s", track->mName.c_str());
+                ImGui::EndTooltip();
+            }
+        }
+        if (bTrackMoving && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+        {
             if (cy > legendAreaRect.Min.y && cy < legendAreaRect.Max.y)
             {
                 trackEntry = legendEntry;
@@ -8937,12 +8955,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                     trackEntry = -2; // end of tracks
                 }
             }
-            //if (ImGui::BeginTooltip())
-            //{
-            //    ImGui::Text("Draging track:%s", std::to_string(trackMovingEntry).c_str());
-            //    ImGui::Text("currrent track:%s", std::to_string(trackEntry).c_str());
-            //    ImGui::EndTooltip();
-            //}
+            bTrackMoving = false;
         }
 
         // clip cropping or moving
@@ -8958,7 +8971,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 {
                     if (clipMovingPart == 3)
                     {
-                        bMoving = true;
+                        bClipMoving = true;
                         ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeAll);
                         // whole slot moving
                         int dst_entry = clip->Moving(diffTime, mouseEntry);
@@ -9450,7 +9463,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             timeline->CustomDraw(
                     customDraw.index, draw_list, ImRect(childFramePos, childFramePos + childFrameSize), customDraw.customRect,
                     customDraw.titleRect, customDraw.clippingTitleRect, customDraw.legendRect, customDraw.clippingRect, customDraw.legendClippingRect,
-                    bMoving, !menuIsOpened && !timeline->mIsCutting && editable, &actionList);
+                    bClipMoving, !menuIsOpened && !timeline->mIsCutting && editable, &actionList);
         draw_list->PopClipRect();
 
         // show cutting line
@@ -9812,11 +9825,12 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
 
         clipMovingEntry = -1;
         clipMovingPart = -1;
-        trackMovingEntry = -1;
         markMovingEntry = -1;
-        trackEntry = -1;
+        //trackEntry = -1;
+        //trackMovingEntry = -1;
         bCropping = false;
-        bMoving = false;
+        bClipMoving = false;
+        bTrackMoving = false;
         timeline->mConnectedPoints = -1;
         ImGui::CaptureMouseFromApp(false);
     }
@@ -9827,7 +9841,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5f);
         if (mouseTime != -1 && !mouseClip.empty() && mouseEntry >= 0 && mouseEntry < timeline->m_Tracks.size())
         {
-            if (!mouseClip.empty() && !bMoving && ImGui::BeginTooltip())
+            if (!mouseClip.empty() && !bClipMoving && ImGui::BeginTooltip())
             {
                 ImGui::TextUnformatted("Help:");
                 ImGui::TextUnformatted("    Left button click to select clip");
@@ -9839,14 +9853,14 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 ImGui::TextUnformatted("    Hold left Alt/Option key to cut clip");
                 ImGui::EndTooltip();
             }
-            else if (bMoving && ImGui::BeginTooltip())
+            else if (bClipMoving && ImGui::BeginTooltip())
             {
                 ImGui::TextUnformatted("Help:");
                 ImGui::TextUnformatted("    Hold left Command/Win key to single select");
                 ImGui::EndTooltip();
             }
         }
-        if ((overTrackView || overHorizonScrollBar) && !bMoving && ImGui::BeginTooltip())
+        if ((overTrackView || overHorizonScrollBar) && !bClipMoving && ImGui::BeginTooltip())
         {
             ImGui::TextUnformatted("Help:");
             ImGui::TextUnformatted("    Mouse wheel up/down zooming timeline");
@@ -10179,6 +10193,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
     {
         timeline->MovingTrack(trackMovingEntry, trackEntry, &timeline->mUiActions);
         ret = true;
+        trackMovingEntry = -1;
+        trackEntry = -1;
     }
 
     // for debug
