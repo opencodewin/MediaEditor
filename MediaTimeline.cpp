@@ -3717,8 +3717,8 @@ bool MediaTrack::DrawTrackControlBar(ImDrawList *draw_list, ImRect rc, std::list
 {
     bool need_update = false;
     ImGuiIO &io = ImGui::GetIO();
-    if (mExpanded) draw_list->AddText(rc.Min + ImVec2(4, 0), IM_COL32_WHITE, mName.c_str());
     ImVec2 button_size = ImVec2(12, 12);
+    if (mExpanded) ImGui::ImAddTextRolling(draw_list, NULL, 0, rc.Min + ImVec2(4, 0), ImVec2(rc.GetSize().x - 16, 16), IM_COL32_WHITE, 5, mName.c_str());
     int button_count = 0;
     {
         bool ret = TimelineButton(draw_list, mLocked ? ICON_LOCKED : ICON_UNLOCK, ImVec2(rc.Min.x + button_size.x * button_count * 1.5 + 6, rc.Max.y - button_size.y - 2), button_size, mLocked ? "unlock" : "lock");
@@ -3763,6 +3763,7 @@ bool MediaTrack::DrawTrackControlBar(ImDrawList *draw_list, ImRect rc, std::list
         }
         button_count ++;
     }
+    if (!mExpanded) ImGui::ImAddTextRolling(draw_list, NULL, button_size.y, rc.Min + ImVec2(8 + button_count * 1.5 * button_size.x, 0), ImVec2(rc.GetSize().x - 24 - button_count * 1.5 * button_size.x, 16), IM_COL32_WHITE, 5, mName.c_str());
     return need_update;
 }
 
@@ -8948,14 +8949,24 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             trackEntry = -1;
             ImGui::SetNextWindowViewport(ImGui::GetWindowViewport()->ID);
             ImGui::SetNextWindowPos(ImVec2(legendRect.Min.x + 8, cy - trackHeadHeight));
+            ImGui::SetNextWindowBgAlpha(0.25);
             if (ImGui::BeginTooltip())
             {
+                ImVec2 button_size = ImVec2(12, 12);
                 MediaTrack *track = timeline->m_Tracks[trackMovingEntry];
-                size_t localCustomHeight = track->mExpanded ? track->mTrackHeight : 0;
-                ImRect rc(ImVec2(0, 0), ImVec2(float(legendWidth), float(localCustomHeight + trackHeadHeight)));
-                ImGui::InvisibleButton("track_moving", rc.GetSize());
-                ImGui::SetCursorPos(ImVec2(4, 0));
-                ImGui::Text("%s", track->mName.c_str());
+                size_t localCustomHeight = track->mExpanded ? track->mTrackHeight : 12;
+                ImRect rc(ImVec2(0, 0), ImVec2(float(legendWidth), float(localCustomHeight)));
+                int button_count = 0;
+                ImGui::SetWindowFontScale(0.75);
+                ImGui::TextUnformatted(track->mLocked ? ICON_LOCKED : ICON_UNLOCK);
+                button_count ++;
+                ImGui::SameLine();
+                if (IS_AUDIO(track->mType)) { ImGui::TextUnformatted(track->mView ? ICON_SPEAKER : ICON_SPEAKER_MUTE); }
+                else { ImGui::TextUnformatted(track->mView ? ICON_VIEW : ICON_VIEW_DISABLE); }
+                button_count ++;
+                ImGui::SameLine();
+                ImGui::ImAddTextRolling(track->mName.c_str(), ImVec2(rc.GetSize().x - 24 - button_count * 1.5 * button_size.x, 16), 5);
+                ImGui::SetWindowFontScale(1.0);
                 ImGui::EndTooltip();
             }
         }
