@@ -5492,11 +5492,13 @@ std::vector<MediaCore::CorrelativeFrame> TimeLine::GetPreviewFrame()
         {
             int64_t bufferedDur = mMtaReader->SizeToDuration(mAudioRender->GetBufferedDataSize());
             previewPos = mIsPreviewForward ? auddataPos-bufferedDur : auddataPos+bufferedDur;
+            if (previewPos < 0) previewPos = 0;
         }
         else
         {
             int64_t elapsedTime = (int64_t)(std::chrono::duration_cast<std::chrono::duration<double>>((PlayerClock::now()-mPlayTriggerTp)).count()*1000);
             previewPos = mIsPreviewPlaying ? (mIsPreviewForward ? mPreviewResumePos+elapsedTime : mPreviewResumePos-elapsedTime) : mPreviewResumePos;
+            if (previewPos < 0) previewPos = 0;
         }
     }
     else
@@ -7617,6 +7619,8 @@ uint32_t TimeLine::SimplePcmStream::Read(uint8_t* buff, uint32_t buffSize, bool 
                 return 0;
             // main audio out
             m_amat = amats[0].frame;
+            // if (!m_amat.empty())
+            //     Logger::Log(Logger::INFO) << "=======> m_amat.timestamp=" << m_amat.time_stamp << std::endl;
             if (m_owner->mAudioAttribute.audio_mutex.try_lock())
             {
                 m_owner->CalculateAudioScopeData(m_amat);
