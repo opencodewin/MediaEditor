@@ -7239,10 +7239,8 @@ void TimeLine::PerformAudioAction(imgui_json::value& action)
         MediaCore::AudioFilter::Holder hFilter(bpaf);
         audClip->SetFilter(hFilter);
         audTrack->InsertClip(audClip);
-        mMtaReader->Refresh();
         bool bIsCutting = action["is_cutting"].get<imgui_json::boolean>();
-        if (!bIsCutting)
-            mMtaReader->UpdateDuration();
+        mMtaReader->Refresh(!bIsCutting);
     }
     else if (actionName == "REMOVE_CLIP")
     {
