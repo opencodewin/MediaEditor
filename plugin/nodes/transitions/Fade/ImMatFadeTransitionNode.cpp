@@ -110,9 +110,9 @@ struct FadeTransitionNode final : Node
             if (val.is_number()) 
                 m_mat_data_type = (ImDataType)val.get<imgui_json::number>();
         }
-        if (value.contains("type"))
+        if (value.contains("fade_type"))
         { 
-            auto& val = value["type"];
+            auto& val = value["fade_type"];
             if (val.is_boolean())
                 m_type = val.get<imgui_json::boolean>();
         }
@@ -132,7 +132,7 @@ struct FadeTransitionNode final : Node
     {
         Node::Save(value, MapID);
         value["mat_type"] = imgui_json::number(m_mat_data_type);
-        value["type"] = imgui_json::boolean(m_type);
+        value["fade_type"] = imgui_json::boolean(m_type);
         value["color"] = imgui_json::vec4(ImVec4(m_color.r, m_color.g, m_color.b, m_color.a));
     }
 

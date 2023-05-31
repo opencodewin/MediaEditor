@@ -2958,6 +2958,39 @@ bool Overlap::IsOverlapValid()
     return true;
 }
 
+bool Overlap::IsOverlapEmpty()
+{
+    bool empty = true;
+    if (mTransitionBP.is_object() && mTransitionBP.contains("document"))
+    {
+        auto& doc = mTransitionBP["document"];
+        if (doc.is_object() && doc.contains("blueprint"))
+        {
+            auto& bp = doc["blueprint"];
+            if (bp.is_object())
+            {
+                const imgui_json::array* nodeArray = nullptr;
+                if (imgui_json::GetPtrTo(bp, "nodes", nodeArray))
+                {
+                    for (auto& nodeValue : *nodeArray)
+                    {
+                        std::string type;
+                        if (imgui_json::GetTo<imgui_json::string>(nodeValue, "type", type))
+                        {
+                            if (type != "Entry" && type !="Exit")
+                            {
+                                empty = false;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return empty;
+}
+
 void Overlap::Update(int64_t start, int64_t start_clip_id, int64_t end, int64_t end_clip_id)
 {
     TimeLine * timeline = (TimeLine *)mHandle;
@@ -6304,7 +6337,6 @@ void TimeLine::CustomDraw(
     }
 
     // draw overlap
-    draw_list->PushClipRect(clippingTitleRect.Min, clippingTitleRect.Max, true);
     for (auto overlap : track->m_Overlaps)
     {
         bool draw_overlap = false;
@@ -6346,6 +6378,8 @@ void TimeLine::CustomDraw(
 
         if (draw_overlap && cursor_end > cursor_start)
         {
+            bool isOverlapEmpty = overlap->IsOverlapEmpty();
+            draw_list->PushClipRect(clippingTitleRect.Min, clippingTitleRect.Max, true);
             if (overlap->bEditing)
             {
                 draw_list->AddRect(overlap_pos_min, overlap_pos_max, IM_COL32(255, 0, 255, 255), 4, ImDrawFlags_RoundCornersAll, 2.f);
@@ -6362,9 +6396,26 @@ void TimeLine::CustomDraw(
                 draw_list->AddRectFilled(overlap_pos_min, overlap_pos_max, IM_COL32(128,32,32,128), 4, ImDrawFlags_RoundCornersAll);
             draw_list->AddLine(overlap_pos_min, overlap_pos_max, IM_COL32(0, 0, 0, 255));
             draw_list->AddLine(ImVec2(overlap_pos_max.x, overlap_pos_min.y), ImVec2(overlap_pos_min.x, overlap_pos_max.y), IM_COL32(0, 0, 0, 255));
+            draw_list->PopClipRect();
+            
+            ImRect overlap_clip_rect = overlap_rect;
+            if (track->mExpanded)
+            {
+                overlap_clip_rect.Min.y = clippingRect.Min.y;
+                overlap_clip_rect.Max.y = clippingRect.Max.y;
+            }
+            draw_list->AddRect(overlap_clip_rect.Min, overlap_clip_rect.Max, IM_COL32(255,255,32,255), 4, ImDrawFlags_RoundCornersAll);
+            std::string Overlap_icon = overlap->bEditing ? std::string(ICON_BP_EDITING) : !isOverlapEmpty ? std::string(ICON_BP_VALID) : std::string();
+            if (!Overlap_icon.empty())
+            {
+                float icon_scale = std::min(overlap_clip_rect.GetSize().x, overlap_clip_rect.GetSize().y) / ImGui::GetFontSize();
+                auto icon_size = ImGui::CalcTextSize(Overlap_icon.c_str());
+                float start_offset_x = std::max((overlap_clip_rect.GetSize().x - icon_size.x) / 2, 0.f);
+                float start_offset_y = std::max((overlap_clip_rect.GetSize().y - icon_size.y) / 2, 0.f);
+                draw_list->AddText(overlap_clip_rect.Min + ImVec2(start_offset_x, start_offset_y), isOverlapEmpty ? IM_COL32(255, 0, 0, 255) : IM_COL32_WHITE, Overlap_icon.c_str());
+            }
         }
     }
-    draw_list->PopClipRect();
 }
 
 int TimeLine::Load(const imgui_json::value& value)

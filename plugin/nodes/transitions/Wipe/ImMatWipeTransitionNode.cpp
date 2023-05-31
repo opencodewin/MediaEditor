@@ -103,9 +103,9 @@ struct WipeTransitionNode final : Node
             if (val.is_number()) 
                 m_mat_data_type = (ImDataType)val.get<imgui_json::number>();
         }
-        if (value.contains("type"))
+        if (value.contains("wipe_type"))
         {
-            auto& val = value["type"];
+            auto& val = value["wipe_type"];
             if (val.is_number()) 
                 m_type = val.get<imgui_json::number>();
         }
@@ -116,7 +116,7 @@ struct WipeTransitionNode final : Node
     {
         Node::Save(value, MapID);
         value["mat_type"] = imgui_json::number(m_mat_data_type);
-        value["type"] = imgui_json::number(m_type);
+        value["wipe_type"] = imgui_json::number(m_type);
     }
 
     void DrawNodeLogo(ImGuiContext * ctx, ImVec2 size) const override
