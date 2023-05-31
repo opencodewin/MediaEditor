@@ -107,6 +107,8 @@
 #define ICON_DELETE         u8"\ue92b"
 #define ICON_CURVE          u8"\ue463"
 #define ICON_MAKE_VIDEO     u8"\ue52a"
+#define ICON_BP_VALID       u8"\ueb5b"
+#define ICON_BP_EDITING     u8"\uf044"
 
 #define ICON_FONT_BOLD      u8"\ue238"
 #define ICON_FONT_ITALIC    u8"\ue23f"
@@ -333,6 +335,7 @@ struct Overlap
     ~Overlap();
 
     bool IsOverlapValid();
+    bool IsOverlapEmpty();
     void Update(int64_t start, int64_t start_clip_id, int64_t end, int64_t end_clip_id);
     void Seek();
     static Overlap * Load(const imgui_json::value& value, void * handle);
