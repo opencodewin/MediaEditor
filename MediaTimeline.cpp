@@ -8844,7 +8844,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             // Ensure grabable handles for track
             if (legendEntry != -1 && legendEntry < timeline->m_Tracks.size())
             {
-                if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingHorizonScrollBar && !MovingCurrentTime && !menuIsOpened && editable)
+                if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGui::IsMouseDragging(ImGuiMouseButton_Left) && !MovingHorizonScrollBar && !MovingCurrentTime && !menuIsOpened && editable)
                 {
                     trackMovingEntry = legendEntry;
                 }
@@ -10214,12 +10214,19 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
     }
 
     // handle track moving
-    if (trackMovingEntry != -1 && trackEntry != -1 && trackMovingEntry != trackEntry)
+    if (trackMovingEntry != -1)
     {
-        timeline->MovingTrack(trackMovingEntry, trackEntry, &timeline->mUiActions);
-        ret = true;
-        trackMovingEntry = -1;
-        trackEntry = -1;
+        if (trackEntry != -1 && trackMovingEntry != trackEntry)
+        {
+            timeline->MovingTrack(trackMovingEntry, trackEntry, &timeline->mUiActions);
+            ret = true;
+            trackMovingEntry = -1;
+            trackEntry = -1;
+        }
+        else if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+        {
+            trackMovingEntry = -1;
+        }
     }
 
     // for debug
