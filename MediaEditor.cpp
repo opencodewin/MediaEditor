@@ -591,7 +591,10 @@ static bool UIPageChanged()
         Logger::Log(Logger::DEBUG) << "[Changed page] leaving video preview page!!!" << std::endl;
         need_update_scope = true;
         if (timeline)
+        {
+            timeline->bPreviewing = false;
             timeline->Play(false);
+        }
     }
     if (LastMainWindowIndex == 1 && LastVideoEditorWindowIndex == 0 && (
         MainWindowIndex != 1 || VideoEditorWindowIndex != 0))
@@ -605,6 +608,7 @@ static bool UIPageChanged()
             timeline->mVidFilterClipLock.unlock();
             updated = true;
             need_update_scope = true;
+            timeline->bEditingFilter = false;
         }
     }
     if (LastMainWindowIndex == 1 && LastVideoEditorWindowIndex == 1 && (
@@ -619,6 +623,7 @@ static bool UIPageChanged()
             timeline->mVidTransitionLock.unlock();
             updated = true;
             need_update_scope = true;
+            timeline->bEditingOverlap = false;
         }
     }
     if (LastMainWindowIndex == 1 && LastVideoEditorWindowIndex == 2 && (
@@ -633,6 +638,7 @@ static bool UIPageChanged()
             timeline->mVidFilterClipLock.unlock();
             updated = true;
             need_update_scope = true;
+            timeline->bEditingAttribute = false;
         }
     }
     if (LastMainWindowIndex == 2 && LastAudioEditorWindowIndex == 0 && (
@@ -645,6 +651,7 @@ static bool UIPageChanged()
             timeline->mAudFilterClipLock.lock();
             timeline->mAudFilterClip->Save();
             timeline->mAudFilterClipLock.unlock();
+            timeline->bEditingFilter = false;
         }
         updated = true;
     }
@@ -653,12 +660,20 @@ static bool UIPageChanged()
     {
         // we leave audio transition windows, stop transition play, check unsaved bp
         Logger::Log(Logger::DEBUG) << "[Changed page] leaving audio transition page!!!" << std::endl;
+        if (timeline)
+        {
+            timeline->bEditingOverlap = false;
+        }
     }
 
     if (LastMainWindowIndex == 3 && MainWindowIndex != 3)
     {
         // we leave text editor windows
         Logger::Log(Logger::DEBUG) << "[Changed page] leaving Text editor page!!!" << std::endl;
+        if (timeline)
+        {
+            timeline->bEditingText = false;
+        }
     }
 
     if (MainWindowIndex == 1 && VideoEditorWindowIndex == 0 && (
@@ -666,6 +681,10 @@ static bool UIPageChanged()
     {
         // we enter video filter windows
         Logger::Log(Logger::DEBUG) << "[Changed page] Enter video filter page!!!" << std::endl;
+        if (timeline)
+        {
+            timeline->bEditingFilter = true;
+        }
     }
 
     if (MainWindowIndex == 1 && VideoEditorWindowIndex == 1 && (
@@ -673,6 +692,10 @@ static bool UIPageChanged()
     {
         // we enter video transition windows
         Logger::Log(Logger::DEBUG) << "[Changed page] Enter video transition page!!!" << std::endl;
+        if (timeline)
+        {
+            timeline->bEditingOverlap = true;
+        }
     }
 
     if (MainWindowIndex == 1 && VideoEditorWindowIndex == 2 && (
@@ -680,6 +703,10 @@ static bool UIPageChanged()
     {
         // we enter video attribute windows
         Logger::Log(Logger::DEBUG) << "[Changed page] Enter video attribute page!!!" << std::endl;
+        if (timeline)
+        {
+            timeline->bEditingAttribute = true;
+        }
     }
 
     if (MainWindowIndex == 2 && AudioEditorWindowIndex == 0 && (
@@ -687,6 +714,10 @@ static bool UIPageChanged()
     {
         // we enter audio filter windows
         Logger::Log(Logger::DEBUG) << "[Changed page] Enter audio filter page!!!" << std::endl;
+        if (timeline)
+        {
+            timeline->bEditingFilter = true;
+        }
     }
 
     if (MainWindowIndex == 2 && AudioEditorWindowIndex == 1 && (
@@ -694,12 +725,20 @@ static bool UIPageChanged()
     {
         // we enter audio transition windows
         Logger::Log(Logger::DEBUG) << "[Changed page] Enter audio transition page!!!" << std::endl;
+        if (timeline)
+        {
+            timeline->bEditingOverlap = true;
+        }
     }
 
     if (MainWindowIndex == 3 && LastMainWindowIndex != 3)
     {
         // we enter text editor windows
         Logger::Log(Logger::DEBUG) << "[Changed page] Enter text editor page!!!" << std::endl;
+        if (timeline)
+        {
+            timeline->bEditingText = true;
+        }
     }
     
     LastMainWindowIndex = MainWindowIndex;
@@ -771,11 +810,13 @@ static bool ExpendButton(ImDrawList *draw_list, ImVec2 pos, bool expand = true)
     ImRect delRect(pos, ImVec2(pos.x + 16, pos.y + 16));
     bool overDel = delRect.Contains(io.MousePos);
     ImU32 delColor = IM_COL32_WHITE;
-    float midy = pos.y + 16 / 2 - 0.5f;
-    float midx = pos.x + 16 / 2 - 0.5f;
-    draw_list->AddRect(delRect.Min, delRect.Max, delColor, 4);
-    draw_list->AddLine(ImVec2(delRect.Min.x + 3, midy), ImVec2(delRect.Max.x - 4, midy), delColor, 2);
-    if (expand) draw_list->AddLine(ImVec2(midx, delRect.Min.y + 3), ImVec2(midx, delRect.Max.y - 4), delColor, 2);
+    ImVec2 tra = pos + ImVec2(2, 2);
+    ImVec2 trb = tra + ImVec2(0, 12);
+    ImVec2 trc = tra + ImVec2(12, 6);
+    ImVec2 trd = tra + ImVec2(12, 0);
+    ImVec2 tre = tra + ImVec2(6, 12);
+    if (!expand) draw_list->AddTriangleFilled(tra, trd, tre, delColor);
+    else draw_list->AddTriangleFilled(tra, trb, trc, delColor);
     return overDel;
 }
 
@@ -10448,7 +10489,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
     if (ImGui::BeginChild("##Timeline", panel_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings))
     {
         ImDrawList *draw_list = ImGui::GetWindowDrawList();
-        bool overExpanded = ExpendButton(draw_list, ImVec2(panel_pos.x + 2, panel_pos.y + 2), !_expanded);
+        bool overExpanded = ExpendButton(draw_list, ImVec2(panel_pos.x + 8, panel_pos.y + 2), !_expanded);
         if (overExpanded && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
             _expanded = !_expanded;
         ImGui::SetCursorScreenPos(panel_pos + ImVec2(32, 0));

@@ -43,7 +43,7 @@
 #define ICON_MEDIA_PREVIEW  u8"\ue04a"
 #define ICON_MEDIA_VIDEO    u8"\ue04b"
 #define ICON_MEDIA_AUDIO    u8"\ue050"
-#define ICON_MEDIA_WAVE     u8"\ue495"
+#define ICON_MEDIA_WAVE     u8"\ue4e8"        //u8"\ue495"
 #define ICON_MEDIA_IMAGE    u8"\ue3f4"
 #define ICON_MEDIA_TEXT     u8"\ue8e2"
 #define ICON_MEDIA_DIAGNOSIS u8"\uf551"
@@ -109,6 +109,8 @@
 #define ICON_MAKE_VIDEO     u8"\ue52a"
 #define ICON_BP_VALID       u8"\ueb5b"
 #define ICON_BP_EDITING     u8"\uf044"
+#define ICON_TRACK_ZIP      u8"\ueacf"
+#define ICON_TRACK_UNZIP    u8"\uead0"
 
 #define ICON_FONT_BOLD      u8"\ue238"
 #define ICON_FONT_ITALIC    u8"\ue23f"
@@ -1019,6 +1021,12 @@ struct TimeLine
 
     bool bSeeking = false;
     bool bPreviewZoom = false;
+    bool bEditingOverlap = false;           // indicate UI at Overlap editing page
+    bool bEditingFilter = false;            // indicate UI at Filter editing page
+    bool bEditingAttribute = false;         // indicate UI at Attribute editing page
+    bool bEditingText = false;              // indicate UI at Text editing page
+    bool bEditingAudioMix = false;          // indicate UI at Audio mixing page
+    bool bPreviewing = false;               // indicate UI at Preview page 
     bool bLoop = false;                     // project saved
     bool bCompare = false;                  // project saved
     bool bFilterOutputPreview = true;       // project saved
