@@ -10704,7 +10704,7 @@ static void LoadPluginThread()
     std::vector<std::string> plugin_paths;
     plugin_paths.push_back(g_plugin_path);
     int plugins = BluePrint::BluePrintUI::CheckPlugins(plugin_paths);
-    BluePrint::BluePrintUI::LoadPlugins(plugin_paths, g_plugin_loading_current_index, g_plugin_loading_message);
+    BluePrint::BluePrintUI::LoadPlugins(plugin_paths, g_plugin_loading_current_index, g_plugin_loading_message, g_plugin_loading_percentage, plugins);
     g_plugin_loading_message = "Plugin load finished!!!";
     g_plugin_loading = false;
 }
@@ -10754,15 +10754,16 @@ bool MediaEditor_Splash_Screen(void* handle, bool app_will_quit)
         ImGui::TextUnformatted("Project Loading...");
     }
 
+    float percentage = std::min(g_plugin_loading_percentage * 0.5 + g_project_loading_percentage * 0.5, 1.0);
     ImGui::SetCursorPos(ImVec2(4, io.DisplaySize.y - 32));
-    ImGui::ProgressBar("##splash_progress", g_project_loading_percentage, 0.f, 1.f, "", ImVec2(io.DisplaySize.x - 16, 8), 
+    ImGui::ProgressBar("##splash_progress", percentage, 0.f, 1.f, "", ImVec2(io.DisplaySize.x - 16, 8), 
                         ImVec4(0.3f, 0.3f, 0.8f, 1.f), ImVec4(0.1f, 0.1f, 0.2f, 1.f), ImVec4(0.f, 0.f, 0.8f, 1.f));
 
     ImGui::End();
     return title_finished && !g_project_loading && !g_plugin_loading;
 }
 
-static void MediaEditor_SplashFinalize(void** handle)
+static void MediaEditor_Splash_Finalize(void** handle)
 {
     if (logo_texture) { ImGui::ImDestroyTexture(logo_texture); logo_texture = nullptr; }
     if (codewin_texture) { ImGui::ImDestroyTexture(codewin_texture); codewin_texture = nullptr; }
@@ -10845,7 +10846,7 @@ void Application_Setup(ApplicationWindowProperty& property)
     property.application.Application_Finalize = MediaEditor_Finalize;
     property.application.Application_DropFromSystem = MediaEditor_DropFromSystem;
     property.application.Application_SplashScreen = MediaEditor_Splash_Screen;
-    property.application.Application_SplashFinalize = MediaEditor_SplashFinalize;
+    property.application.Application_SplashFinalize = MediaEditor_Splash_Finalize;
 #if UI_PERFORMANCE_ANALYSIS
     property.application.Application_Frame = MediaEditor_Frame_wrapper;
 #else
