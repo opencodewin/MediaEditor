@@ -3796,7 +3796,14 @@ bool MediaTrack::DrawTrackControlBar(ImDrawList *draw_list, ImRect rc, std::list
         }
         button_count ++;
     }
+    // draw zip button
+    bool ret = TimelineButton(draw_list, mExpanded ? ICON_TRACK_ZIP : ICON_TRACK_UNZIP, ImVec2(rc.Max.x - 14, rc.Min.y + 2), ImVec2(14, 14), mExpanded ? "zip" : "unzip");
+    if (ret && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+    {
+        mExpanded = !mExpanded;
+    }
     if (!mExpanded) ImGui::ImAddTextRolling(draw_list, NULL, button_size.y, rc.Min + ImVec2(8 + button_count * 1.5 * button_size.x, 0), ImVec2(rc.GetSize().x - 24 - button_count * 1.5 * button_size.x, 16), IM_COL32_WHITE, 5, mName.c_str());
+
     return need_update;
 }
 
@@ -4815,23 +4822,6 @@ void TimeLine::Click(int index, int64_t time)
 
 void TimeLine::DoubleClick(int index, int64_t time)
 {
-    if (index >= 0 && index < m_Tracks.size())
-    {
-        bool click_empty_space = true;
-        auto current_track = m_Tracks[index];
-        for (auto overlap : m_Overlaps)
-        {
-            if (overlap->mStart <= time && overlap->mEnd >= time)
-            {
-                click_empty_space = false;
-                break;
-            }
-        }
-        if (click_empty_space)
-        {
-            current_track->mExpanded = !current_track->mExpanded;
-        }
-    }
 }
 
 void TimeLine::SelectTrack(int index)
@@ -6135,6 +6125,30 @@ void TimeLine::CustomDraw(
     // draw legend
     draw_list->PushClipRect(legendRect.Min, legendRect.Max, true);
     draw_list->AddRect(legendRect.Min, legendRect.Max, COL_DEEP_DARK, 0, 0, 2);
+    // TODO::Dicky need indicate track type and track status such as linked
+    std::string back_icon = IS_VIDEO(track->mType) ? std::string(ICON_MEDIA_VIDEO) : 
+                            IS_AUDIO(track->mType) ? std::string(ICON_MEDIA_WAVE) : 
+                            IS_TEXT(track->mType) ? std::string(ICON_MEDIA_TEXT) :
+                            IS_MIDI(track->mType) ? std::string(ICON_MEDIA_AUDIO) : std::string();
+    ImU32 back_icon_color = !track->mView ? IM_COL32(64, 64, 64, 128) :
+                            track->mLocked ? IM_COL32(128, 64, 64, 128) : 
+                            IM_COL32(128, 128, 255, 128);
+
+    if (!back_icon.empty())
+    {
+        float back_icon_scale = std::min(legendRect.GetSize().x, legendRect.GetSize().y) / ImGui::GetFontSize();
+        ImGui::SetWindowFontScale(back_icon_scale * 0.75);
+        ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 1.f);
+        ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.0, 0.0, 0.0, 1.0));
+        auto back_icon_size = ImGui::CalcTextSize(back_icon.c_str());
+        float start_offset_x = std::max((legendRect.GetSize().x - back_icon_size.x) / 2, 0.f);
+        float start_offset_y = std::max((legendRect.GetSize().y - back_icon_size.y) / 2, 0.f);
+        draw_list->AddText(legendRect.Min + ImVec2(start_offset_x, start_offset_y), back_icon_color, back_icon.c_str());
+        ImGui::PopStyleColor();
+        ImGui::PopStyleVar();
+        ImGui::SetWindowFontScale(1.0f);
+    }
+
     auto need_seek = track->DrawTrackControlBar(draw_list, legendRect, pActionList);
     //if (need_seek) Seek();
     draw_list->PopClipRect();
@@ -6325,7 +6339,7 @@ void TimeLine::CustomDraw(
                         SelectTrack(index);
                         mouse_clicked = true;
                     }
-                    else if (track->mExpanded && clip_area_rect.Contains(io.MousePos) && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+                    else if (track->mExpanded && clip_rect.Contains(io.MousePos) && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
                     {
                         // [shortcut]: shift + double left click to attribute page
                         bool b_attr_editing = ImGui::IsKeyDown(ImGuiKey_LeftShift) && (io.KeyMods == ImGuiModFlags_Shift);
@@ -6373,6 +6387,13 @@ void TimeLine::CustomDraw(
         ImVec2 overlap_pos_max = ImVec2(cursor_end, clippingTitleRect.Max.y);
         // Check if overlap is outof view rect then don't draw
         ImRect overlap_rect(overlap_pos_min, overlap_pos_max);
+        ImRect overlap_clip_rect = overlap_rect;
+        if (track->mExpanded)
+        {
+            overlap_clip_rect.Min.y = clippingRect.Min.y;
+            overlap_clip_rect.Max.y = clippingRect.Max.y;
+        }
+
         if (!overlap_rect.Overlaps(view_rc))
         {
             draw_overlap = false;
@@ -6386,7 +6407,7 @@ void TimeLine::CustomDraw(
             {
                 draw_list->AddRect(overlap_pos_min, overlap_pos_max, IM_COL32(255, 0, 255, 255), 4, ImDrawFlags_RoundCornersAll, 2.f);
             }
-            if (overlap_rect.Contains(io.MousePos))
+            if (overlap_rect.Contains(io.MousePos) || overlap_clip_rect.Contains(io.MousePos))
             {
                 draw_list->AddRectFilled(overlap_pos_min, overlap_pos_max, IM_COL32(255,32,32,128), 4, ImDrawFlags_RoundCornersAll);
                 if (enable_select && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
@@ -6400,14 +6421,8 @@ void TimeLine::CustomDraw(
             draw_list->AddLine(ImVec2(overlap_pos_max.x, overlap_pos_min.y), ImVec2(overlap_pos_min.x, overlap_pos_max.y), IM_COL32(0, 0, 0, 255));
             draw_list->PopClipRect();
             
-            ImRect overlap_clip_rect = overlap_rect;
-            if (track->mExpanded)
-            {
-                overlap_clip_rect.Min.y = clippingRect.Min.y;
-                overlap_clip_rect.Max.y = clippingRect.Max.y;
-            }
             draw_list->AddRect(overlap_clip_rect.Min, overlap_clip_rect.Max, IM_COL32(255,255,32,255), 4, ImDrawFlags_RoundCornersAll);
-            std::string Overlap_icon = overlap->bEditing ? std::string(ICON_BP_EDITING) : !isOverlapEmpty ? std::string(ICON_BP_VALID) : std::string();
+            std::string Overlap_icon = (overlap->bEditing && bEditingOverlap) ? std::string(ICON_BP_EDITING) : !isOverlapEmpty ? std::string(ICON_BP_VALID) : std::string();
             if (!Overlap_icon.empty())
             {
                 float icon_scale = std::min(overlap_clip_rect.GetSize().x, overlap_clip_rect.GetSize().y) / ImGui::GetFontSize();
@@ -8848,7 +8863,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             auto itemCustomHeight = timeline->GetCustomHeight(i);
             ImVec2 button_size = ImVec2(14, 14);
             ImVec2 tpos(contentMin.x, contentMin.y + i * trackHeadHeight + customHeight);
-            bool is_delete = TimelineButton(draw_list, ICON_TRASH, ImVec2(contentMin.x + legendWidth - button_size.x - 4, tpos.y + 2), button_size, "delete");
+            bool is_delete = TimelineButton(draw_list, ICON_TRASH, ImVec2(contentMin.x + legendWidth - button_size.x - 12 - 4, tpos.y + 2), button_size, "delete");
             if (is_delete && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
                 delTrackEntry = i;
             customHeight += itemCustomHeight;
@@ -8877,11 +8892,6 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             {
                 draw_list->AddRectFilled(slotP1, slotP3, slotColorHalf, 0);
                 draw_list->AddRectFilled(slotP1, slotP2, slotColor, 0);
-            }
-            if (ImRect(slotP1, slotP2).Contains(io.MousePos))
-            {
-                if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
-                    timeline->DoubleClick(i, mouseTime);
             }
             if (ImRect(slotP1, slotP3).Contains(io.MousePos))
             {
