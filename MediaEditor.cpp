@@ -337,6 +337,7 @@ const std::string ffilters = "All Support Files (" + video_file_dis + " " + audi
                                                     image_filter + "," +
                                                     text_filter + "," +
                                                     ".*";
+const std::string pfilters = "Project files (*.mep){.mep},.*";
                                                     
 struct MediaEditorSettings
 {
@@ -10085,7 +10086,6 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
     static std::string project_name = g_media_editor_settings.project_path.empty() ? "Untitled" : ImGuiHelper::path_filename_prefix(g_media_editor_settings.project_path);
     const ImGuiFileDialogFlags fflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_DisableCreateDirectoryButton | ImGuiFileDialogFlags_Modal;
     const ImGuiFileDialogFlags pflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_ConfirmOverwrite | ImGuiFileDialogFlags_Modal;
-    const std::string pfilters = "Project files (*.mep){.mep,},.*";
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     static const int numControlPanelTabs = sizeof(ControlPanelTabNames)/sizeof(ControlPanelTabNames[0]);
     static const int numMainWindowTabs = sizeof(MainWindowTabNames)/sizeof(MainWindowTabNames[0]);
