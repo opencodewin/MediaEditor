@@ -3732,12 +3732,11 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImR
     if (loop_button)
     {
         bool loop = timeline ? timeline->bLoop : false;
-        ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + (32 + 8) * 3, PanelButtonY + 4));
-        if (ImGui::Button(loop ? ICON_LOOP : ICON_LOOP_ONE "##preview_loop", ImVec2(32, 32)))
+        ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + (32 + 8) * 3, PanelButtonY + 4 + 3));
+        if (ImGui::CheckButton(ICON_LOOP_ONE "##preview_loop", &loop, ImVec4(0.5, 0.5, 0.0, 1.0)))
         {
             if (timeline)
             {
-                loop = !loop;
                 timeline->Loop(loop);
             }
         }
@@ -3747,7 +3746,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImR
     if (zoom_button)
     {
         bool zoom = timeline ? timeline->bPreviewZoom : false;
-        ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + (32 + 8) * 4, PanelButtonY + 8));
+        ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + (32 + 8) * 4, PanelButtonY + 8 - 3));
         if (ImGui::CheckButton(ICON_ZOOM "##preview_zoom", &zoom, ImVec4(0.5, 0.5, 0.0, 1.0)))
         {
             timeline->bPreviewZoom = zoom;
@@ -4012,7 +4011,7 @@ static void ShowVideoFilterPreviewWindow(ImDrawList *draw_list, int64_t start, i
         ImGui::ShowTooltipOnHover(timeline->bFilterOutputPreview ? "Filter Out" : "Preview Out");
     }
 
-    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + (32 + 8) * 5, PanelButtonY + 6));
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + (32 + 8) * 5, PanelButtonY + 6 - 2));
     ImGui::CheckButton(ICON_COMPARE "##video_filter_compare", &timeline->bCompare, ImVec4(0.5, 0.5, 0.0, 1.0));
     ImGui::ShowTooltipOnHover("Zoom Compare");
 
