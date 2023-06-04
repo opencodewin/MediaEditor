@@ -821,13 +821,10 @@ static bool ExpendButton(ImDrawList *draw_list, ImVec2 pos, bool expand = true)
     return overDel;
 }
 
-static void ShowVideoWindow(ImDrawList *draw_list, ImTextureID texture, ImVec2 pos, ImVec2 size, float& offset_x, float& offset_y, float& tf_x, float& tf_y, bool bLandscape = true)
+static void ShowVideoWindow(ImDrawList *draw_list, ImTextureID texture, ImVec2 pos, ImVec2 size, std::string title, float title_size, float& offset_x, float& offset_y, float& tf_x, float& tf_y, bool bLandscape = true)
 {
     if (texture)
-    {
-        ImGui::SetCursorScreenPos(pos);
-        ImGui::InvisibleButton(("##video_window" + std::to_string((long long)texture)).c_str(), size);
-        
+    {        
         float texture_width = ImGui::ImGetTextureWidth(texture);
         float texture_height = ImGui::ImGetTextureHeight(texture);
         float aspectRatioTexture = texture_width / texture_height;
@@ -872,14 +869,23 @@ static void ShowVideoWindow(ImDrawList *draw_list, ImTextureID texture, ImVec2 p
         );
         tf_x = offset_x + adj_w;
         tf_y = offset_y + adj_h;
+        if (!title.empty() && title_size > 0)
+        {
+            ImGui::SetCursorScreenPos(ImVec2(offset_x, offset_y) + ImVec2(20, 10));
+            ImGui::TextComplex(title.c_str(), title_size, ImVec4(0.8, 0.8, 0.8, 0.2),
+                                0.1f, ImVec4(0.8, 0.8, 0.8, 0.1),
+                                ImVec2(4, 4), ImVec4(0.0, 0.0, 0.0, 0.1));
+        }
+        ImGui::SetCursorScreenPos(pos);
+        ImGui::InvisibleButton(("##video_window" + std::to_string((long long)texture)).c_str(), size);
     }
 }
 
-static void ShowVideoWindow(ImTextureID texture, ImVec2 pos, ImVec2 size)
+static void ShowVideoWindow(ImTextureID texture, ImVec2 pos, ImVec2 size, std::string title = std::string(), float title_size = 0.f)
 {
     float offset_x = 0, offset_y = 0;
     float tf_x = 0, tf_y = 0;
-    ShowVideoWindow(ImGui::GetWindowDrawList(), texture, pos, size, offset_x, offset_y, tf_x, tf_y);
+    ShowVideoWindow(ImGui::GetWindowDrawList(), texture, pos, size, title, title_size, offset_x, offset_y, tf_x, tf_y);
 }
 
 static void CalculateVideoScope(ImGui::ImMat& mat)
@@ -3481,7 +3487,7 @@ static void ShowMediaOutputWindow(ImDrawList *_draw_list)
                 }
                 if (timeline->mEncodingPreviewTexture)
                 {
-                    ShowVideoWindow(timeline->mEncodingPreviewTexture, preview_pos, preview_size);
+                    ShowVideoWindow(timeline->mEncodingPreviewTexture, preview_pos, preview_size, "Encoding...", 1.f);
                 }
                 else
                 {
@@ -3636,7 +3642,7 @@ static void ShowMediaOutputWindow(ImDrawList *_draw_list)
  * Media Preview window
  *
  ***************************************************************************************/
-static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImRect& video_rect, int64_t start = -1, int64_t end = -1, bool audio_bar = true, bool monitors = true, bool force_update = false, bool small = false, bool zoom_button = true, bool loop_button = true)
+static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, float title_size, ImRect& video_rect, int64_t start = -1, int64_t end = -1, bool audio_bar = true, bool monitors = true, bool force_update = false, bool small = false, bool zoom_button = true, bool loop_button = true)
 {
     // preview control pannel
     ImGuiIO& io = ImGui::GetIO();
@@ -3840,7 +3846,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImR
     float tf_x = 0, tf_y = 0;
     ImVec2 scale_range = ImVec2(2.0 / timeline->mPreviewScale, 8.0 / timeline->mPreviewScale);
     static float texture_zoom = scale_range.x;
-    ShowVideoWindow(draw_list, timeline->mMainPreviewTexture, PreviewPos, PreviewSize, offset_x, offset_y, tf_x, tf_y);
+    ShowVideoWindow(draw_list, timeline->mMainPreviewTexture, PreviewPos, PreviewSize, title, title_size, offset_x, offset_y, tf_x, tf_y);
     if (ImGui::IsItemHovered() && timeline->bPreviewZoom && timeline->mMainPreviewTexture)
     {
         ImVec4 tint_col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);   // No tint
@@ -3861,6 +3867,8 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImR
         ImGui::SetNextWindowBgAlpha(1.0);
         if (ImGui::BeginTooltip())
         {
+            ImGui::TextUnformatted("Magnifying: Mouse wheel up to zoom in, down to zoom out");
+            ImGui::SameLine(); ImGui::Text("(%.2fx)", texture_zoom);
             ImVec2 uv0 = ImVec2((region_x) / image_width, (region_y) / image_height);
             ImVec2 uv1 = ImVec2((region_x + region_sz) / image_width, (region_y + region_sz) / image_height);
             ImGui::Image(timeline->mMainPreviewTexture, ImVec2(region_sz * texture_zoom, region_sz * texture_zoom), uv0, uv1, tint_col, border_col);
@@ -3887,14 +3895,6 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImR
     }
 
     ImGui::PopStyleColor(3);
-
-    if (!title.empty())
-    {
-        ImGui::SetCursorScreenPos(window_pos + ImVec2(20, 10));
-        ImGui::TextComplex(title.c_str(), 2.0f, ImVec4(0.8, 0.8, 0.8, 0.2),
-                            0.1f, ImVec4(0.8, 0.8, 0.8, 0.3),
-                            ImVec2(4, 4), ImVec4(0.0, 0.0, 0.0, 0.5));
-    }
 }
 
 /****************************************************************************************
@@ -4004,7 +4004,7 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, int64_t start, int64_t
         {
             timeline->UpdatePreview();
         }
-        ImGui::ShowTooltipOnHover(timeline->bAttributeOutputPreview ? "Attribute Out" : "Preview Out");
+        ImGui::ShowTooltipOnHover(timeline->bAttributeOutputPreview ? "Attribute Output" : "Preview Output");
     }
     else
     {
@@ -4013,7 +4013,7 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, int64_t start, int64_t
         {
             timeline->UpdatePreview();
         }
-        ImGui::ShowTooltipOnHover(timeline->bFilterOutputPreview ? "Filter Out" : "Preview Out");
+        ImGui::ShowTooltipOnHover(timeline->bFilterOutputPreview ? "Filter Output" : "Preview Output");
     }
 
     ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + (32 + 8) * 5, PanelButtonY + 6 - 2));
@@ -4065,6 +4065,7 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, int64_t start, int64_t
         float region_sz = 360.0f / texture_zoom;
         std::pair<ImGui::ImMat, ImGui::ImMat> pair;
         bool ret = false;
+        bool is_preview_image = attribute ? timeline->bAttributeOutputPreview : timeline->bFilterOutputPreview;
         if (attribute)
             ret = timeline->mVidFilterClip->GetFrame(pair, timeline->bAttributeOutputPreview, attribute);
         else
@@ -4096,7 +4097,7 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, int64_t start, int64_t
         if (MonitorIndexVideoFilterOrg == -1)
         {
             // filter input texture area
-            ShowVideoWindow(draw_list, timeline->mVideoFilterInputTexture, InputVideoPos, InputVideoSize, offset_x, offset_y, tf_x, tf_y);
+            ShowVideoWindow(draw_list, timeline->mVideoFilterInputTexture, InputVideoPos, InputVideoSize, "Original", 1.5f, offset_x, offset_y, tf_x, tf_y);
             draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32(128,128,128,128), 0, 0, 1.0);
             if (ImGui::IsItemHovered() && timeline->mVideoFilterInputTexture)
             {
@@ -4134,7 +4135,7 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, int64_t start, int64_t
         if (MonitorIndexVideoFiltered == -1)
         {
             // filter output texture area
-            ShowVideoWindow(draw_list, timeline->mVideoFilterOutputTexture, OutputVideoPos, OutputVideoSize, offset_x, offset_y, tf_x, tf_y);
+            ShowVideoWindow(draw_list, timeline->mVideoFilterOutputTexture, OutputVideoPos, OutputVideoSize, is_preview_image ? "Preview Output" : attribute ? "Attribute Output" : "Filter Output", 1.5f, offset_x, offset_y, tf_x, tf_y);
             draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32(128,128,128,128), 0, 0, 1.0);
             if (ImGui::IsItemHovered() && timeline->mVideoFilterOutputTexture)
             {
@@ -4163,6 +4164,8 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, int64_t start, int64_t
                 ImGui::SetNextWindowBgAlpha(1.0);
                 if (ImGui::BeginTooltip())
                 {
+                    ImGui::TextUnformatted("Compare View: Mouse wheel up to zoom in, down to zoom out");
+                    ImGui::SameLine(); ImGui::Text("(%.2fx)", texture_zoom);
                     ImVec2 uv0 = ImVec2((region_x) / image_width, (region_y) / image_height);
                     ImVec2 uv1 = ImVec2((region_x + region_sz) / image_width, (region_y + region_sz) / image_height);
                     ImGui::Image(timeline->mVideoFilterInputTexture, ImVec2(region_sz * texture_zoom, region_sz * texture_zoom), uv0, uv1, tint_col, border_col);
@@ -5295,7 +5298,7 @@ static void ShowVideoTransitionPreviewWindow(ImDrawList *draw_list)
     {
         timeline->UpdatePreview();
     }
-    ImGui::ShowTooltipOnHover(timeline->bTransitionOutputPreview ? "Transition Out" : "Preview Out");
+    ImGui::ShowTooltipOnHover(timeline->bTransitionOutputPreview ? "Transition Output" : "Preview Output");
 
     // Time stamp on left of control panel
     auto PanelRightX = PanelBarPos.x + window_size.x - 300;
@@ -5336,13 +5339,13 @@ static void ShowVideoTransitionPreviewWindow(ImDrawList *draw_list)
         float offset_x = 0, offset_y = 0;
         float tf_x = 0, tf_y = 0;
         // transition first input texture area
-        ShowVideoWindow(draw_list, timeline->mVideoTransitionInputFirstTexture, InputFirstVideoPos, InputFirstVideoSize, offset_x, offset_y, tf_x, tf_y);
+        ShowVideoWindow(draw_list, timeline->mVideoTransitionInputFirstTexture, InputFirstVideoPos, InputFirstVideoSize, "1", 1.2f, offset_x, offset_y, tf_x, tf_y);
         draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32(128,128,128,128), 0, 0, 1.0);
         // transition second input texture area
-        ShowVideoWindow(draw_list, timeline->mVideoTransitionInputSecondTexture, InputSecondVideoPos, InputSecondVideoSize, offset_x, offset_y, tf_x, tf_y);
+        ShowVideoWindow(draw_list, timeline->mVideoTransitionInputSecondTexture, InputSecondVideoPos, InputSecondVideoSize, "2", 1.2f, offset_x, offset_y, tf_x, tf_y);
         draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32(128,128,128,128), 0, 0, 1.0);
         // filter output texture area
-        ShowVideoWindow(draw_list, timeline->mVideoTransitionOutputTexture, OutputVideoPos, OutputVideoSize, offset_x, offset_y, tf_x, tf_y);
+        ShowVideoWindow(draw_list, timeline->mVideoTransitionOutputTexture, OutputVideoPos, OutputVideoSize, timeline->bTransitionOutputPreview ? "Transition Output" : "Preview Output", 1.5f, offset_x, offset_y, tf_x, tf_y);
         draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32(192, 192, 192, 128), 0, 0, 2.0);
         if (timeline->mIsPreviewPlaying && (timeline->currentTime < timeline->mVidOverlap->mStart || timeline->currentTime > timeline->mVidOverlap->mEnd))
         {
@@ -5958,7 +5961,7 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list, ImRect title_rect)
         ImVec2 audio_view_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 audio_view_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(audio_view_window_pos, audio_view_window_pos + audio_view_window_size, COL_DEEP_DARK);
-        ShowMediaPreviewWindow(draw_list, "", video_rect, editing_clip ? editing_clip->mStart : -1, editing_clip ? editing_clip->mEnd : -1, true, false, false);
+        ShowMediaPreviewWindow(draw_list, "Audio Filter", 1.5f, video_rect, editing_clip ? editing_clip->mStart : -1, editing_clip ? editing_clip->mEnd : -1, true, false, false);
     }
     ImGui::EndChild();
 
@@ -6395,7 +6398,7 @@ static void ShowAudioTransitionWindow(ImDrawList *draw_list, ImRect title_rect)
         ImVec2 audio_view_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 audio_view_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(audio_view_window_pos, audio_view_window_pos + audio_view_window_size, COL_DEEP_DARK);
-        ShowMediaPreviewWindow(draw_list, "", video_rect, editing_overlap ? editing_overlap->mStart : -1, editing_overlap ? editing_overlap->mEnd : -1, true, false, false);
+        ShowMediaPreviewWindow(draw_list, "Audio Transition", 1.5f, video_rect, editing_overlap ? editing_overlap->mStart : -1, editing_overlap ? editing_overlap->mEnd : -1, true, false, false);
     }
     ImGui::EndChild();
 
@@ -6951,13 +6954,13 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list, ImRect title_rect)
 
     // draw preview UI
     ImGui::SetCursorScreenPos(preview_pos);
-    if (ImGui::BeginChild("##audio_preview", preview_size, false, setting_child_flags))
+    if (ImGui::BeginChild("##audio_mixing_preview", preview_size, false, setting_child_flags))
     {
         ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DEEP_DARK);
         ImRect video_rect;
-        ShowMediaPreviewWindow(draw_list, "Preview", video_rect, timeline->mStart, timeline->mEnd, false, false, false, true, false, false);
+        ShowMediaPreviewWindow(draw_list, "Audio Mixing", 1.5f, video_rect, timeline->mStart, timeline->mEnd, false, false, false, true, false, false);
     }
     ImGui::EndChild();
 
@@ -8249,7 +8252,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list, ImRect title_rect)
     {
         const float resize_handel_radius = 2;
         const ImVec2 handle_size(resize_handel_radius, resize_handel_radius);
-        ShowMediaPreviewWindow(draw_list, "Text Preview", video_rect, editing_clip ? editing_clip->mStart : -1, editing_clip ? editing_clip->mEnd : -1, false, false, force_update_preview || MovingTextPos);
+        ShowMediaPreviewWindow(draw_list, "Text Preview", 2.f, video_rect, editing_clip ? editing_clip->mStart : -1, editing_clip ? editing_clip->mEnd : -1, false, false, force_update_preview || MovingTextPos);
         // show test rect on preview view and add UI editor
         draw_list->PushClipRect(video_rect.Min, video_rect.Max);
         if (editing_clip && current_image.Valid() && timeline->currentTime >= editing_clip->mStart && timeline->currentTime <= editing_clip->mEnd)
@@ -10535,7 +10538,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             {
                 switch (MainWindowIndex)
                 {
-                    case 0: ShowMediaPreviewWindow(draw_list, "Preview", video_rect); break;
+                    case 0: ShowMediaPreviewWindow(draw_list, "Preview", 3.f, video_rect); break;
                     case 1: ShowVideoEditorWindow(draw_list, title_rect); break;
                     case 2: ShowAudioEditorWindow(draw_list, title_rect); break;
                     case 3: ShowTextEditorWindow(draw_list, title_rect); break;
@@ -10592,11 +10595,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             ImGui::SetNextWindowPos(mon.MainPos);
             ImGui::SetNextWindowSize(mon.MainSize);
             ImGui::Begin(preview_window_lable.c_str(), nullptr, flags | ImGuiWindowFlags_FullScreen);
-            ShowVideoWindow(timeline->mMainPreviewTexture, mon.MainPos, mon.MainSize);
-            ImGui::SetCursorScreenPos(mon.MainPos + ImVec2(80, 60));
-            ImGui::TextComplex("Preview", 3.0f, ImVec4(0.8, 0.8, 0.8, 0.2),
-                                0.1f, ImVec4(0.8, 0.8, 0.8, 0.3),
-                                ImVec2(4, 4), ImVec4(0.0, 0.0, 0.0, 0.5));
+            ShowVideoWindow(timeline->mMainPreviewTexture, mon.MainPos, mon.MainSize, "Preview", 3.f);
             ImGui::End();
         }
     }
@@ -10610,11 +10609,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             ImGui::SetNextWindowPos(mon.MainPos);
             ImGui::SetNextWindowSize(mon.MainSize);
             ImGui::Begin(view_window_lable.c_str(), nullptr, flags | ImGuiWindowFlags_FullScreen);
-            ShowVideoWindow(timeline->mVideoFilterInputTexture, mon.MainPos, mon.MainSize);
-            ImGui::SetCursorScreenPos(mon.MainPos + ImVec2(80, 60));
-            ImGui::TextComplex("Filter Input", 3.0f, ImVec4(0.8, 0.8, 0.8, 0.2),
-                                0.1f, ImVec4(0.8, 0.8, 0.8, 0.3),
-                                ImVec2(4, 4), ImVec4(0.0, 0.0, 0.0, 0.5));
+            ShowVideoWindow(timeline->mVideoFilterInputTexture, mon.MainPos, mon.MainSize, "Original", 3.f);
             ImGui::End();
         }
         if (MonitorIndexVideoFiltered != -1 && MonitorIndexVideoFiltered < platform_io.Monitors.Size)
@@ -10624,11 +10619,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             ImGui::SetNextWindowPos(mon.MainPos);
             ImGui::SetNextWindowSize(mon.MainSize);
             ImGui::Begin(view_window_lable.c_str(), nullptr, flags | ImGuiWindowFlags_FullScreen);
-            ShowVideoWindow(timeline->mVideoFilterOutputTexture, mon.MainPos, mon.MainSize);
-            ImGui::SetCursorScreenPos(mon.MainPos + ImVec2(80, 60));
-            ImGui::TextComplex(timeline->bFilterOutputPreview ? "Preview Output" : "Filter Output", 3.0f, ImVec4(0.8, 0.8, 0.8, 0.2),
-                                0.1f, ImVec4(0.8, 0.8, 0.8, 0.3),
-                                ImVec2(4, 4), ImVec4(0.0, 0.0, 0.0, 0.5));
+            ShowVideoWindow(timeline->mVideoFilterOutputTexture, mon.MainPos, mon.MainSize, timeline->bFilterOutputPreview ? "Preview Output" : "Filter Output", 3.f);
             ImGui::End();
         }
     }
@@ -10642,11 +10633,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             ImGui::SetNextWindowPos(mon.MainPos);
             ImGui::SetNextWindowSize(mon.MainSize);
             ImGui::Begin(view_window_lable.c_str(), nullptr, flags | ImGuiWindowFlags_FullScreen);
-            ShowVideoWindow(timeline->mVideoFilterInputTexture, mon.MainPos, mon.MainSize);
-            ImGui::SetCursorScreenPos(mon.MainPos + ImVec2(80, 60));
-            ImGui::TextComplex("Attribute Input", 3.0f, ImVec4(0.8, 0.8, 0.8, 0.2),
-                                0.1f, ImVec4(0.8, 0.8, 0.8, 0.3),
-                                ImVec2(4, 4), ImVec4(0.0, 0.0, 0.0, 0.5));
+            ShowVideoWindow(timeline->mVideoFilterInputTexture, mon.MainPos, mon.MainSize, "Original", 3.f);
             ImGui::End();
         }
         if (MonitorIndexVideoFiltered != -1 && MonitorIndexVideoFiltered < platform_io.Monitors.Size)
@@ -10656,11 +10643,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             ImGui::SetNextWindowPos(mon.MainPos);
             ImGui::SetNextWindowSize(mon.MainSize);
             ImGui::Begin(view_window_lable.c_str(), nullptr, flags | ImGuiWindowFlags_FullScreen);
-            ShowVideoWindow(timeline->mVideoFilterOutputTexture, mon.MainPos, mon.MainSize);
-            ImGui::SetCursorScreenPos(mon.MainPos + ImVec2(80, 60));
-            ImGui::TextComplex(timeline->bFilterOutputPreview ? "Preview Output" : "Attribute Output", 3.0f, ImVec4(0.8, 0.8, 0.8, 0.2),
-                                0.1f, ImVec4(0.8, 0.8, 0.8, 0.3),
-                                ImVec2(4, 4), ImVec4(0.0, 0.0, 0.0, 0.5));
+            ShowVideoWindow(timeline->mVideoFilterOutputTexture, mon.MainPos, mon.MainSize, timeline->bFilterOutputPreview ? "Preview Output" : "Attribute Output", 3.f);
             ImGui::End();
         }
     }
