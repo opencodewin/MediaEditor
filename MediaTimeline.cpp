@@ -8553,7 +8553,9 @@ namespace MediaTimeline
 bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
 {
     /************************************************************************************************************
-    * [-]------------------------------------ header area ----------------------------------------------------- +
+    * [v]------------------------------------ header area ----------------------------------------------------- +
+    *                                                [] [] [] | [] [] [] [] | []  [] | [] [] [] [] [] [] [] []  +
+    * --------------------------------------------------------------------------------------------------------- +
     *                    |  0    5    10 v   15    20 <rule bar> 30     35      40      45       50       55    c
     * ___________________|_______________|_____________________________________________________________________ a
     s | title     [+][-] |               |          Item bar                                                    n
@@ -8576,10 +8578,11 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
     ImGuiIO &io = ImGui::GetIO();
     int cx = (int)(io.MousePos.x);
     int cy = (int)(io.MousePos.y);
-    int scrollSize = 16;
-    int trackHeadHeight = 16;
-    int HeadHeight = 28;
-    int legendWidth = 200;
+    const int toolbar_height = 24;
+    const int scrollSize = 16;
+    const int trackHeadHeight = 16;
+    const int HeadHeight = 28;
+    const int legendWidth = 200;
     int trackCount = timeline->GetTrackCount();
     int64_t duration = ImMax(timeline->GetEnd() - timeline->GetStart(), (int64_t)1);
     ImVector<TimelineCustomDraw> customDraws;
@@ -8721,10 +8724,18 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
     else
     {
         // normal view
+        // ToolBar view
+        ImVec2 toolBarSize(timline_size.x - 4.f, (float)toolbar_height);
+        ImRect ToolBarAreaRect(canvas_pos, canvas_pos + toolBarSize);
+        ImGui::InvisibleButton("toolBar", toolBarSize);
+        // draw ToolBar bg
+        draw_list->AddRectFilled(ToolBarAreaRect.Min, ToolBarAreaRect.Max, COL_DARK_PANEL, 0);
+        // TODO::Dicky Add Toolbar
+
         ImVec2 headerSize(timline_size.x - 4.f, (float)HeadHeight);
         ImVec2 HorizonScrollBarSize(timline_size.x, scrollSize);
         ImVec2 VerticalScrollBarSize(scrollSize / 2, canvas_size.y - scrollSize - HeadHeight);
-        ImRect HeaderAreaRect(canvas_pos + ImVec2(legendWidth, 0), canvas_pos + headerSize);
+        ImRect HeaderAreaRect(canvas_pos + ImVec2(legendWidth, toolbar_height), canvas_pos + headerSize + ImVec2(0, toolbar_height));
         ImGui::InvisibleButton("topBar", headerSize);
 
         // draw Header bg
@@ -8738,7 +8749,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         
         ImGui::PushStyleColor(ImGuiCol_FrameBg, 0);
         ImVec2 childFramePos = ImGui::GetCursorScreenPos();
-        ImVec2 childFrameSize(timline_size.x, timline_size.y - 8.0f - headerSize.y - HorizonScrollBarSize.y);
+        ImVec2 childFrameSize(timline_size.x, timline_size.y - 8.0f - toolBarSize.y - headerSize.y - HorizonScrollBarSize.y);
         ImGui::BeginChildFrame(ImGui::GetID("timeline_Tracks"), childFrameSize, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
         auto VerticalScrollPos = ImGui::GetScrollY();
         auto VerticalScrollMax = ImGui::GetScrollMaxY();
@@ -8751,7 +8762,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         const ImRect legendAreaRect(contentMin, ImVec2(contentMin.x + legendWidth, contentMin.y + timline_size.y - (HeadHeight + 8)));
         const ImRect trackRect(ImVec2(contentMin.x + legendWidth, contentMin.y), contentMax);
         const ImRect trackAreaRect(ImVec2(contentMin.x + legendWidth, contentMin.y), ImVec2(contentMax.x, contentMin.y + timline_size.y - (HeadHeight + scrollSize + 8)));
-        const ImRect topRect(ImVec2(contentMin.x + legendWidth, canvas_pos.y), ImVec2(contentMin.x + timline_size.x, canvas_pos.y + HeadHeight));
+        const ImRect timeMeterRect(ImVec2(contentMin.x + legendWidth, HeaderAreaRect.Min.y), ImVec2(contentMin.x + timline_size.x, HeaderAreaRect.Min.y + HeadHeight));
 
         const float contentHeight = contentMax.y - contentMin.y;
         // full canvas background
@@ -8793,13 +8804,13 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             int timeEnd = baseIndex ? regionHeight : HeadHeight - 8;
             if (px <= (timline_size.x + contentMin.x) && px >= (contentMin.x + legendWidth))
             {
-                draw_list->AddLine(ImVec2((float)px, canvas_pos.y + (float)timeStart), ImVec2((float)px, canvas_pos.y + (float)timeEnd - 1), halfIndex ? COL_MARK : COL_MARK_HALF, halfIndex ? 2 : 1);
+                draw_list->AddLine(ImVec2((float)px, HeaderAreaRect.Min.y + (float)timeStart), ImVec2((float)px, HeaderAreaRect.Min.y + (float)timeEnd - 1), halfIndex ? COL_MARK : COL_MARK_HALF, halfIndex ? 2 : 1);
             }
             if (baseIndex && px > (contentMin.x + legendWidth))
             {
                 auto time_str = ImGuiHelper::MillisecToString(i, 2);
                 ImGui::SetWindowFontScale(0.8);
-                draw_list->AddText(ImVec2((float)px + 3.f, canvas_pos.y + 8), COL_RULE_TEXT, time_str.c_str());
+                draw_list->AddText(ImVec2((float)px + 3.f, HeaderAreaRect.Min.y + 8), COL_RULE_TEXT, time_str.c_str());
                 ImGui::SetWindowFontScale(1.0);
             }
         };
@@ -8825,12 +8836,13 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         {
             const float arrowWidth = draw_list->_Data->FontSize;
             float arrowOffset = contentMin.x + legendWidth + (timeline->currentTime - timeline->firstTime) * timeline->msPixelWidthTarget - arrowWidth * 0.5f + 1;
-            ImGui::RenderArrow(draw_list, ImVec2(arrowOffset, canvas_pos.y), COL_CURSOR_ARROW, ImGuiDir_Down);
+            ImGui::RenderArrow(draw_list, ImVec2(arrowOffset, HeaderAreaRect.Min.y), COL_CURSOR_ARROW, ImGuiDir_Down);
             ImGui::SetWindowFontScale(0.8);
             auto time_str = ImGuiHelper::MillisecToString(timeline->currentTime, 2);
             ImVec2 str_size = ImGui::CalcTextSize(time_str.c_str(), nullptr, true);
             float strOffset = contentMin.x + legendWidth + (timeline->currentTime - timeline->firstTime) * timeline->msPixelWidthTarget - str_size.x * 0.5f + 1;
-            ImVec2 str_pos = ImVec2(strOffset, canvas_pos.y + 10);
+            if (strOffset + str_size.x > contentMax.x) strOffset = contentMax.x - str_size.x;
+            ImVec2 str_pos = ImVec2(strOffset, HeaderAreaRect.Min.y + 10);
             draw_list->AddRectFilled(str_pos + ImVec2(-3, 0), str_pos + str_size + ImVec2(3, 3), COL_CURSOR_TEXT_BG, 2.0, ImDrawFlags_RoundCornersAll);
             draw_list->AddText(str_pos, COL_CURSOR_TEXT, time_str.c_str());
             ImGui::SetWindowFontScale(1.0);
@@ -9088,7 +9100,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         if (markMovingEntry != -1 && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
         {
             ImGui::CaptureMouseFromApp();
-            int64_t mouse_time = (int64_t)((io.MousePos.x - topRect.Min.x) / timeline->msPixelWidthTarget) + timeline->firstTime;
+            int64_t mouse_time = (int64_t)((io.MousePos.x - timeMeterRect.Min.x) / timeline->msPixelWidthTarget) + timeline->firstTime;
             if (markMovingEntry == 0)
             {
                 timeline->mark_in = mouse_time;
@@ -9155,7 +9167,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         {
             if (headerMarkPos >= 0)
             {
-                int64_t mouse_time = (int64_t)((headerMarkPos - topRect.Min.x) / timeline->msPixelWidthTarget) + timeline->firstTime;
+                int64_t mouse_time = (int64_t)((headerMarkPos - timeMeterRect.Min.x) / timeline->msPixelWidthTarget) + timeline->firstTime;
                 if (ImGui::MenuItem("+ Add mark in", nullptr, nullptr))
                 {
                     if (timeline->mark_out != -1 && mouse_time > timeline->mark_out)
@@ -9456,7 +9468,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         // handle mouse wheel event
         if (regionRect.Contains(io.MousePos) && !menuIsOpened && editable)
         {
-            if (topRect.Contains(io.MousePos))
+            if (timeMeterRect.Contains(io.MousePos))
             {
                 overTopBar = true;
             }
@@ -9700,8 +9712,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         {
             movable = false;
         }
-        ImGui::SetCursorScreenPos(topRect.Min);
-        ImGui::BeginChildFrame(ImGui::GetCurrentWindow()->GetID("#timeline metric"), topRect.GetSize(), ImGuiWindowFlags_NoScrollbar);
+        ImGui::SetCursorScreenPos(timeMeterRect.Min);
+        ImGui::BeginChildFrame(ImGui::GetCurrentWindow()->GetID("#timeline metric"), timeMeterRect.GetSize(), ImGuiWindowFlags_NoScrollbar);
 
         // draw mark range for timeline header bar and draw shadow out of mark range 
         ImGui::PushClipRect(HeaderAreaRect.Min, HeaderAreaRect.Min + ImVec2(trackAreaRect.GetWidth() + 8, contentMin.y + timline_size.y - scrollSize), false);
@@ -9793,7 +9805,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         ImGui::PopClipRect();
 
         // check current time moving
-        if (isFocused && movable && !MovingCurrentTime && markMovingEntry == -1 && !MovingHorizonScrollBar && clipMovingEntry == -1 && timeline->currentTime >= 0 && topRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left))
+        if (isFocused && movable && !MovingCurrentTime && markMovingEntry == -1 && !MovingHorizonScrollBar && clipMovingEntry == -1 && timeline->currentTime >= 0 && timeMeterRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left))
         {
             MovingCurrentTime = true;
         }
@@ -9801,8 +9813,12 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         {
             if (!timeline->mIsPreviewPlaying || !timeline->bSeeking || ImGui::IsMouseDragging(ImGuiMouseButton_Left))
             {
-                timeline->currentTime = (int64_t)((io.MousePos.x - topRect.Min.x) / timeline->msPixelWidthTarget) + timeline->firstTime;
+                timeline->currentTime = (int64_t)((io.MousePos.x - timeMeterRect.Min.x) / timeline->msPixelWidthTarget) + timeline->firstTime;
                 timeline->AlignTime(timeline->currentTime);
+                if (timeline->currentTime < timeline->firstTime)
+                    timeline->firstTime = timeline->currentTime;
+                if (timeline->currentTime > timeline->lastTime)
+                    timeline->firstTime = timeline->currentTime - timeline->visibleTime;
                 if (timeline->currentTime < timeline->GetStart())
                     timeline->currentTime = timeline->GetStart();
                 if (timeline->currentTime >= timeline->GetEnd())
@@ -10758,7 +10774,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         }
         ImGui::EndChildFrame();
         
-        // handle playing curses move
+        // handle playing cursor move
         if (main_timeline->mIsPreviewPlaying) editingClip->UpdateCurrent(main_timeline->mIsPreviewForward, currentTime);
         
         // draw cursor
