@@ -3487,7 +3487,7 @@ static void ShowMediaOutputWindow(ImDrawList *_draw_list)
                 }
                 if (timeline->mEncodingPreviewTexture)
                 {
-                    ShowVideoWindow(timeline->mEncodingPreviewTexture, preview_pos, preview_size, "Encoding...", 1.f);
+                    ShowVideoWindow(timeline->mEncodingPreviewTexture, preview_pos, preview_size, "Encoding...", 1.5f);
                 }
                 else
                 {
