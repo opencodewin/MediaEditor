@@ -1325,7 +1325,8 @@ static void ShowConfigure(MediaEditorSettings & config)
     static const int numConfigureTabs = sizeof(ConfigureTabNames)/sizeof(ConfigureTabNames[0]);
     if (ImGui::BeginChild("##ConfigureView", ImVec2(800, 600), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
     {
-        ImGui::TabLabels(numConfigureTabs, ConfigureTabNames, ConfigureIndex, nullptr , false, false, nullptr, nullptr, false, false, nullptr, nullptr);
+        ImVec2 table_size;
+        ImGui::TabLabels(numConfigureTabs, ConfigureTabNames, ConfigureIndex, table_size, nullptr , false, false, nullptr, nullptr, false, false, nullptr, nullptr);
         switch (ConfigureIndex)
         {
             case 0:
@@ -3887,18 +3888,21 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, ImR
 
     ImGui::PopStyleColor(3);
 
-    ImGui::SetCursorScreenPos(window_pos + ImVec2(40, 30));
-    ImGui::TextComplex(title.c_str(), 2.0f, ImVec4(0.8, 0.8, 0.8, 0.2),
-                        0.1f, ImVec4(0.8, 0.8, 0.8, 0.3),
-                        ImVec2(4, 4), ImVec4(0.0, 0.0, 0.0, 0.5));
+    if (!title.empty())
+    {
+        ImGui::SetCursorScreenPos(window_pos + ImVec2(20, 10));
+        ImGui::TextComplex(title.c_str(), 2.0f, ImVec4(0.8, 0.8, 0.8, 0.2),
+                            0.1f, ImVec4(0.8, 0.8, 0.8, 0.3),
+                            ImVec2(4, 4), ImVec4(0.0, 0.0, 0.0, 0.5));
+    }
 }
 
 /****************************************************************************************
  * 
- * Media Filter Preview window
+ * Media Preview window
  *
  ***************************************************************************************/
-static void ShowVideoFilterPreviewWindow(ImDrawList *draw_list, int64_t start, int64_t end, bool attribute = false)
+static void ShowVideoPreviewWindow(ImDrawList *draw_list, int64_t start, int64_t end, bool attribute = false)
 {
     // preview control pannel
     ImGuiIO& io = ImGui::GetIO();
@@ -4189,23 +4193,13 @@ static void ShowVideoFilterPreviewWindow(ImDrawList *draw_list, int64_t start, i
     }
 
     ImGui::PopStyleColor(3);
-
-    ImGui::SetCursorScreenPos(window_pos + ImVec2(20, 10));
-    if (attribute)
-        ImGui::TextComplex("Video Attribute", 2.0f, ImVec4(0.8, 0.8, 0.8, 0.2),
-                        0.1f, ImVec4(0.8, 0.8, 0.8, 0.3),
-                        ImVec2(2, 2), ImVec4(0.0, 0.0, 0.0, 0.5));
-    else
-        ImGui::TextComplex("Video Filter", 2.0f, ImVec4(0.8, 0.8, 0.8, 0.2),
-                        0.1f, ImVec4(0.8, 0.8, 0.8, 0.3),
-                        ImVec2(2, 2), ImVec4(0.0, 0.0, 0.0, 0.5));
 }
 /****************************************************************************************
  * 
  * Video Editor windows
  *
  ***************************************************************************************/
-static void ShowVideoAttributeWindow(ImDrawList *draw_list)
+static void ShowVideoAttributeWindow(ImDrawList *draw_list, ImRect title_rect)
 {
     /*
     ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓  ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
@@ -4224,6 +4218,17 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
     ┃              curves                        ┃                       ┃  ┃                                            ┃                       ┃
     ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━┛  ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━┛
     */
+    // draw page title
+    ImGui::SetWindowFontScale(1.8);
+    ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 1.0f);
+    ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.7, 0.2, 0.7));
+    auto title_size = ImGui::CalcTextSize("Video Attribute");
+    float str_offset = title_rect.Max.x - title_size.x - 16;
+    draw_list->AddText(ImVec2(str_offset, title_rect.Min.y), IM_COL32(255, 255, 255, 255), "Video Attribute");
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar();
+    ImGui::SetWindowFontScale(1.0);
+
     ImGuiIO &io = ImGui::GetIO();
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
@@ -4290,8 +4295,8 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list)
         ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DEEP_DARK);
-        if (editing_clip) ShowVideoFilterPreviewWindow(draw_list, editing_clip->mStart, editing_clip->mEnd, true);
-        else ShowVideoFilterPreviewWindow(draw_list, timeline->GetStart(), timeline->GetEnd(), true);
+        if (editing_clip) ShowVideoPreviewWindow(draw_list, editing_clip->mStart, editing_clip->mEnd, true);
+        else ShowVideoPreviewWindow(draw_list, timeline->GetStart(), timeline->GetEnd(), true);
     }
     ImGui::EndChild();
 
@@ -4758,7 +4763,7 @@ static void ShowVideoFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
     }
 }
 
-static void ShowVideoFilterWindow(ImDrawList *draw_list)
+static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
 {
     /*
     ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓      ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓ 
@@ -4778,6 +4783,17 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
     ┃              curves                        ┃                       ┃      ┃              curves                        ┃                       ┃
     ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━┛      ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━┛
     */
+
+    // draw page title
+    ImGui::SetWindowFontScale(1.8);
+    ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 1.0f);
+    ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.7, 0.2, 0.7));
+    auto title_size = ImGui::CalcTextSize("Video Filter");
+    float str_offset = title_rect.Max.x - title_size.x - 16;
+    draw_list->AddText(ImVec2(str_offset, title_rect.Min.y), IM_COL32(255, 255, 255, 255), "Video Filter");
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar();
+    ImGui::SetWindowFontScale(1.0);
 
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
@@ -4849,8 +4865,8 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list)
         ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DEEP_DARK);
-        if (editing_clip) ShowVideoFilterPreviewWindow(draw_list, editing_clip->mStart, editing_clip->mEnd);
-        else ShowVideoFilterPreviewWindow(draw_list, timeline->GetStart(), timeline->GetEnd());
+        if (editing_clip) ShowVideoPreviewWindow(draw_list, editing_clip->mStart, editing_clip->mEnd);
+        else ShowVideoPreviewWindow(draw_list, timeline->GetStart(), timeline->GetEnd());
     }
     ImGui::EndChild();
 
@@ -5339,7 +5355,7 @@ static void ShowVideoTransitionPreviewWindow(ImDrawList *draw_list)
     ImGui::PopStyleColor(3);
 }
 
-static void ShowVideoTransitionWindow(ImDrawList *draw_list)
+static void ShowVideoTransitionWindow(ImDrawList *draw_list, ImRect title_rect)
 {
     /*
     ┏━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┓
@@ -5353,12 +5369,23 @@ static void ShowVideoTransitionWindow(ImDrawList *draw_list)
     ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┫
     ┃          blueprint                         ┃                       ┃ 
     ┃                                            ┃                       ┃ 
-    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫    transition edit        ┃ 
+    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫    transition edit    ┃ 
     ┃             timeline                       ┃                       ┃
     ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫                       ┃
     ┃              curves                        ┃                       ┃
     ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━┛
     */
+
+    // draw page title
+    ImGui::SetWindowFontScale(1.8);
+    ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 1.0f);
+    ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.7, 0.2, 0.7));
+    auto title_size = ImGui::CalcTextSize("Video Transition");
+    float str_offset = title_rect.Max.x - title_size.x - 16;
+    draw_list->AddText(ImVec2(str_offset, title_rect.Min.y), IM_COL32(255, 255, 255, 255), "Video Transition");
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar();
+    ImGui::SetWindowFontScale(1.0);
 
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
@@ -5772,7 +5799,7 @@ static void ShowVideoTransitionWindow(ImDrawList *draw_list)
     ImGui::EndChild();
 }
 
-static void ShowVideoEditorWindow(ImDrawList *draw_list)
+static void ShowVideoEditorWindow(ImDrawList *draw_list, ImRect title_rect)
 {
     float labelWidth = ImGui::CalcVerticalTabLabelsWidth() + 4;
     ImVec2 clip_window_pos = ImGui::GetCursorScreenPos();
@@ -5790,9 +5817,9 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list)
         draw_list->AddRectFilled(editor_view_window_pos, editor_view_window_pos + editor_view_window_size, COL_DARK_ONE);
         switch (VideoEditorWindowIndex)
         {
-            case 0: ShowVideoFilterWindow(draw_list); break;
-            case 1: ShowVideoTransitionWindow(draw_list); break;
-            case 2: ShowVideoAttributeWindow(draw_list); break;
+            case 0: ShowVideoFilterWindow(draw_list, title_rect); break;
+            case 1: ShowVideoTransitionWindow(draw_list, title_rect); break;
+            case 2: ShowVideoAttributeWindow(draw_list, title_rect); break;
             default: break;
         }
     }
@@ -5839,7 +5866,7 @@ static void ShowAudioFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
     }
 }
 
-static void ShowAudioFilterWindow(ImDrawList *draw_list)
+static void ShowAudioFilterWindow(ImDrawList *draw_list, ImRect title_rect)
 {
     /*
     ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┓
@@ -5858,6 +5885,16 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list)
     ┃              curves                        ┃                       ┃
     ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━┛
     */
+    // draw page title
+    ImGui::SetWindowFontScale(1.8);
+    ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 1.0f);
+    ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.7, 0.2, 0.7));
+    auto title_size = ImGui::CalcTextSize("Audio Filter");
+    float str_offset = title_rect.Max.x - title_size.x - 16;
+    draw_list->AddText(ImVec2(str_offset, title_rect.Min.y), IM_COL32(255, 255, 255, 255), "Audio Filter");
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar();
+    ImGui::SetWindowFontScale(1.0);
 
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
@@ -5921,7 +5958,7 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list)
         ImVec2 audio_view_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 audio_view_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(audio_view_window_pos, audio_view_window_pos + audio_view_window_size, COL_DEEP_DARK);
-        ShowMediaPreviewWindow(draw_list, "Audio Filter", video_rect, editing_clip ? editing_clip->mStart : -1, editing_clip ? editing_clip->mEnd : -1, true, false, false);
+        ShowMediaPreviewWindow(draw_list, "", video_rect, editing_clip ? editing_clip->mStart : -1, editing_clip ? editing_clip->mEnd : -1, true, false, false);
     }
     ImGui::EndChild();
 
@@ -6255,7 +6292,7 @@ static void ShowAudioTransitionBluePrintWindow(ImDrawList *draw_list, Overlap * 
     }
 }
 
-static void ShowAudioTransitionWindow(ImDrawList *draw_list)
+static void ShowAudioTransitionWindow(ImDrawList *draw_list, ImRect title_rect)
 {
     /*
     ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┓
@@ -6274,6 +6311,17 @@ static void ShowAudioTransitionWindow(ImDrawList *draw_list)
     ┃              curves                        ┃                       ┃
     ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━┛
     */
+    // draw page title
+    ImGui::SetWindowFontScale(1.8);
+    ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 1.0f);
+    ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.7, 0.2, 0.7));
+    auto title_size = ImGui::CalcTextSize("Audio Transition");
+    float str_offset = title_rect.Max.x - title_size.x - 16;
+    draw_list->AddText(ImVec2(str_offset, title_rect.Min.y), IM_COL32(255, 255, 255, 255), "Audio Transition");
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar();
+    ImGui::SetWindowFontScale(1.0);
+
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
     draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
@@ -6347,7 +6395,7 @@ static void ShowAudioTransitionWindow(ImDrawList *draw_list)
         ImVec2 audio_view_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 audio_view_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(audio_view_window_pos, audio_view_window_pos + audio_view_window_size, COL_DEEP_DARK);
-        ShowMediaPreviewWindow(draw_list, "Audio Transition", video_rect, editing_overlap ? editing_overlap->mStart : -1, editing_overlap ? editing_overlap->mEnd : -1, true, false, false);
+        ShowMediaPreviewWindow(draw_list, "", video_rect, editing_overlap ? editing_overlap->mStart : -1, editing_overlap ? editing_overlap->mEnd : -1, true, false, false);
     }
     ImGui::EndChild();
 
@@ -6679,7 +6727,7 @@ static void ShowAudioTransitionWindow(ImDrawList *draw_list)
     ImGui::EndChild();
 }
 
-static void ShowAudioMixingWindow(ImDrawList *draw_list)
+static void ShowAudioMixingWindow(ImDrawList *draw_list, ImRect title_rect)
 {
     /*
     ┏━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┓
@@ -6696,6 +6744,17 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list)
     ┃              ┃             ┃          ┃          ┃               ┃
     ┗━━━━━━━━━━━━━━┻━━━━━━━━━━━━━┻━━━━━━━━━━┻━━━━━━━━━━┻━━━━━━━━━━━━━━━┛
     */
+    // draw page title
+    ImGui::SetWindowFontScale(1.8);
+    ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 1.0f);
+    ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.7, 0.2, 0.7));
+    auto title_size = ImGui::CalcTextSize("Audio Mixer");
+    float str_offset = title_rect.Max.x - title_size.x - 16;
+    draw_list->AddText(ImVec2(str_offset, title_rect.Min.y), IM_COL32(255, 255, 255, 255), "Audio Mixer");
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar();
+    ImGui::SetWindowFontScale(1.0);
+    
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
     draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
@@ -7137,7 +7196,7 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list)
     ImGui::PopStyleColor();
 }
 
-static void ShowAudioEditorWindow(ImDrawList *draw_list)
+static void ShowAudioEditorWindow(ImDrawList *draw_list, ImRect title_rect)
 {
     float labelWidth = ImGui::CalcVerticalTabLabelsWidth() + 4;
     ImVec2 clip_window_pos = ImGui::GetCursorScreenPos();
@@ -7155,9 +7214,9 @@ static void ShowAudioEditorWindow(ImDrawList *draw_list)
         draw_list->AddRectFilled(editor_view_window_pos, editor_view_window_pos + editor_view_window_size, COL_DARK_ONE);
         switch (AudioEditorWindowIndex)
         {
-            case 0: ShowAudioFilterWindow(draw_list); break;
-            case 1: ShowAudioTransitionWindow(draw_list); break;
-            case 2: ShowAudioMixingWindow(draw_list); break;
+            case 0: ShowAudioFilterWindow(draw_list, title_rect); break;
+            case 1: ShowAudioTransitionWindow(draw_list, title_rect); break;
+            case 2: ShowAudioMixingWindow(draw_list, title_rect); break;
             default: break;
         }
     }
@@ -8029,7 +8088,7 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
     return update_preview;
 }
 
-static void ShowTextEditorWindow(ImDrawList *draw_list)
+static void ShowTextEditorWindow(ImDrawList *draw_list, ImRect title_rect)
 {
     /*
     ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┓
@@ -8151,7 +8210,8 @@ static void ShowTextEditorWindow(ImDrawList *draw_list)
             ImVec2 style_view_size(style_window_size.x, window_size.y - style_view_pos.y);
             if (ImGui::BeginChild("##text_sytle_window", style_view_size - ImVec2(8, 0), false, child_flags))
             {
-                if (ImGui::TabLabels(numTabs, TextEditorTabNames, StyleWindowIndex, nullptr , false, true, nullptr, nullptr, false, false, nullptr, nullptr))
+                ImVec2 table_size;
+                if (ImGui::TabLabels(numTabs, TextEditorTabNames, StyleWindowIndex, table_size, nullptr , false, true, nullptr, nullptr, false, false, nullptr, nullptr))
                 {
                 }
 
@@ -10391,7 +10451,10 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
         if (ImGui::BeginChild("##Control_Panel_Window", bank_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
         {
             ImVec2 bank_window_size = ImGui::GetWindowSize();
-            ImGui::TabLabels(numControlPanelTabs, ControlPanelTabNames, ControlPanelIndex, ControlPanelTabTooltips , false, true, nullptr, nullptr, false, false, nullptr, nullptr);
+            ImVec2 table_size;
+            if (ImGui::TabLabels(numControlPanelTabs, ControlPanelTabNames, ControlPanelIndex, table_size, ControlPanelTabTooltips , false, true, nullptr, nullptr, false, false, nullptr, nullptr))
+            {
+            }
 
             // make control panel area
             ImVec2 area_pos = window_pos + ImVec2(tool_icon_size + 4, 32 + 32);
@@ -10455,10 +10518,14 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
         {
             // full background
             ImDrawList *draw_list = ImGui::GetWindowDrawList();
-            if (ImGui::TabLabels(numMainWindowTabs, MainWindowTabNames, MainWindowIndex, MainWindowTabTooltips , false, true, nullptr, nullptr, false, false, nullptr, nullptr))
+            ImVec2 table_size;
+            if (ImGui::TabLabels(numMainWindowTabs, MainWindowTabNames, MainWindowIndex, table_size, MainWindowTabTooltips, false, true, nullptr, nullptr, false, false, nullptr, nullptr))
             {
                 UIPageChanged();
             }
+            
+            ImRect title_rect(main_sub_pos + ImVec2(table_size.x, 0), main_sub_pos + ImVec2(main_sub_size.x, table_size.y));
+            //draw_list->AddRectFilled(title_rect.Min, title_rect.Max, IM_COL32_WHITE);
 
             ImRect video_rect;
             auto wmin = main_sub_pos + ImVec2(0, 32);
@@ -10469,9 +10536,9 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
                 switch (MainWindowIndex)
                 {
                     case 0: ShowMediaPreviewWindow(draw_list, "Preview", video_rect); break;
-                    case 1: ShowVideoEditorWindow(draw_list); break;
-                    case 2: ShowAudioEditorWindow(draw_list); break;
-                    case 3: ShowTextEditorWindow(draw_list); break;
+                    case 1: ShowVideoEditorWindow(draw_list, title_rect); break;
+                    case 2: ShowAudioEditorWindow(draw_list, title_rect); break;
+                    case 3: ShowTextEditorWindow(draw_list, title_rect); break;
                     default: break;
                 }
             }
