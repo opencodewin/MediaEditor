@@ -4302,6 +4302,15 @@ float MediaTrack::GetAudioLevel(int channel)
     return 0;
 }
 
+void MediaTrack::SetAudioLevel(int channel, float level)
+{
+    if (IS_AUDIO(mType))
+    {
+        if (channel < mAudioTrackAttribute.channel_data.size())
+            mAudioTrackAttribute.channel_data[channel].m_decibel = level;
+    }
+}
+
 MediaTrack* MediaTrack::Load(const imgui_json::value& value, void * handle)
 {
     uint32_t type = MEDIA_UNKNOWN;
@@ -5596,6 +5605,12 @@ float TimeLine::GetAudioLevel(int channel)
     return 0;
 }
 
+void TimeLine::SetAudioLevel(int channel, float level)
+{
+    if (channel < mAudioAttribute.channel_data.size())
+        mAudioAttribute.channel_data[channel].m_decibel = level;
+}
+
 int TimeLine::GetSelectedClipCount()
 {
     int count = 0;
@@ -5644,14 +5659,10 @@ void TimeLine::Play(bool play, bool forward)
             mPreviewResumePos = currentTime;
             if (mAudioRender)
                 mAudioRender->Pause();
-            for (auto& audio : mAudioAttribute.channel_data) audio.m_decibel = 0;
+            for (int i = 0; i < mAudioAttribute.channel_data.size(); i++) SetAudioLevel(i, 0);
             for (auto track : m_Tracks)
             {
-                if (IS_AUDIO(track->mType))
-                {
-                    for (auto& track_audio : track->mAudioTrackAttribute.channel_data)
-                        track_audio.m_decibel = 0;
-                }
+                for (int i = 0; i < track->mAudioTrackAttribute.channel_data.size(); i++) track->SetAudioLevel(i, 0);
             }
         }
     }
@@ -5695,6 +5706,14 @@ void TimeLine::StopSeek()
         if (mMtvReader)
             mMtvReader->StopConsecutiveSeek();
         mPlayTriggerTp = PlayerClock::now();
+    }
+    if (!mIsPreviewPlaying)
+    {
+        for (int i = 0; i < mAudioAttribute.channel_data.size(); i++) SetAudioLevel(i, 0);
+        for (auto track : m_Tracks)
+        {
+            for (int i = 0; i < track->mAudioTrackAttribute.channel_data.size(); i++) track->SetAudioLevel(i, 0);
+        }
     }
 }
 

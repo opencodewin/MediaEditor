@@ -44,6 +44,7 @@
 #define ICON_MEDIA_VIDEO    u8"\ue04b"
 #define ICON_MEDIA_AUDIO    u8"\ue050"
 #define ICON_MEDIA_WAVE     u8"\ue4e8"        //u8"\ue495"
+#define ICON_MEDIA_MIDI     u8"\ue48f"
 #define ICON_MEDIA_IMAGE    u8"\ue3f4"
 #define ICON_MEDIA_TEXT     u8"\ue8e2"
 #define ICON_MEDIA_DIAGNOSIS u8"\uf551"
@@ -187,6 +188,10 @@
 
 #define ICON_SETTING_LINK   u8"\uf0c1"
 #define ICON_SETTING_UNLINK u8"\uf127"
+
+#define ICON_EVENT_VIEW     u8"\ue8d7"
+#define ICON_EVENT_HIDE     u8"\ue89d"
+#define ICON_ENEVT_CHANNEL_ADD u8"\ue97b"
 
 #define ICON_ERROR_MEDIA    u8"\ue160"
 #define ICON_ERROR_FRAME    u8"\uf410"
@@ -872,6 +877,7 @@ struct MediaTrack
     
     void CalculateAudioScopeData(ImGui::ImMat& mat_in);
     float GetAudioLevel(int channel);
+    void SetAudioLevel(int channel, float level);
 
     void Update();                                  // update track clip include clip order and overlap area
     static MediaTrack* Load(const imgui_json::value& value, void * handle);
@@ -1145,6 +1151,7 @@ struct TimeLine
     
     std::vector<MediaCore::CorrelativeFrame> GetPreviewFrame();
     float GetAudioLevel(int channel);
+    void SetAudioLevel(int channel, float level);
 
     void Play(bool play, bool forward = true);
     void Seek(int64_t msPos);
