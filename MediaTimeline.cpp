@@ -3748,7 +3748,7 @@ MediaTrack::~MediaTrack()
 
 bool MediaTrack::DrawTrackControlBar(ImDrawList *draw_list, ImRect rc, std::list<imgui_json::value>* pActionList)
 {
-    bool need_update = false;
+    bool is_Hovered = false;
     ImGuiIO &io = ImGui::GetIO();
     ImVec2 button_size = ImVec2(12, 12);
     if (mExpanded) ImGui::ImAddTextRolling(draw_list, NULL, 0, rc.Min + ImVec2(4, 0), ImVec2(rc.GetSize().x - 16, 16), IM_COL32_WHITE, 5, mName.c_str());
@@ -3757,8 +3757,10 @@ bool MediaTrack::DrawTrackControlBar(ImDrawList *draw_list, ImRect rc, std::list
         bool ret = TimelineButton(draw_list, mLocked ? ICON_LOCKED : ICON_UNLOCK, ImVec2(rc.Min.x + button_size.x * button_count * 1.5 + 6, rc.Max.y - button_size.y - 2), button_size, mLocked ? "unlock" : "lock");
         if (ret && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
             mLocked = !mLocked;
+        is_Hovered |= ret;
         button_count ++;
     }
+
     if (IS_AUDIO(mType))
     {
         bool ret = TimelineButton(draw_list, mView ? ICON_SPEAKER : ICON_SPEAKER_MUTE, ImVec2(rc.Min.x + button_size.x * button_count * 1.5 + 6, rc.Max.y - button_size.y - 2), button_size, mView ? "mute" : "voice");
@@ -3775,6 +3777,7 @@ bool MediaTrack::DrawTrackControlBar(ImDrawList *draw_list, ImRect rc, std::list
                 pActionList->push_back(std::move(action));
             }
         }
+        is_Hovered |= ret;
         button_count ++;
     }
     else
@@ -3783,7 +3786,6 @@ bool MediaTrack::DrawTrackControlBar(ImDrawList *draw_list, ImRect rc, std::list
         if (ret && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
         {
             mView = !mView;
-            need_update = true;
             if (pActionList)
             {
                 imgui_json::value action;
@@ -3795,6 +3797,7 @@ bool MediaTrack::DrawTrackControlBar(ImDrawList *draw_list, ImRect rc, std::list
             }
         }
         button_count ++;
+        is_Hovered |= ret;
     }
     // draw zip button
     bool ret = TimelineButton(draw_list, mExpanded ? ICON_TRACK_ZIP : ICON_TRACK_UNZIP, ImVec2(rc.Max.x - 14, rc.Min.y + 2), ImVec2(14, 14), mExpanded ? "zip" : "unzip");
@@ -3803,8 +3806,9 @@ bool MediaTrack::DrawTrackControlBar(ImDrawList *draw_list, ImRect rc, std::list
         mExpanded = !mExpanded;
     }
     if (!mExpanded) ImGui::ImAddTextRolling(draw_list, NULL, button_size.y, rc.Min + ImVec2(8 + button_count * 1.5 * button_size.x, 0), ImVec2(rc.GetSize().x - 24 - button_count * 1.5 * button_size.x, 16), IM_COL32_WHITE, 5, mName.c_str());
+    is_Hovered |= ret;
 
-    return need_update;
+    return is_Hovered;
 }
 
 void MediaTrack::Update()
@@ -6149,8 +6153,7 @@ void TimeLine::CustomDraw(
         ImGui::SetWindowFontScale(1.0f);
     }
 
-    auto need_seek = track->DrawTrackControlBar(draw_list, legendRect, pActionList);
-    //if (need_seek) Seek();
+    auto is_control_hovered = track->DrawTrackControlBar(draw_list, legendRect, pActionList);
     draw_list->PopClipRect();
 
     // draw clips
@@ -6432,6 +6435,11 @@ void TimeLine::CustomDraw(
                 draw_list->AddText(overlap_clip_rect.Min + ImVec2(start_offset_x, start_offset_y), isOverlapEmpty ? IM_COL32(255, 0, 0, 255) : IM_COL32_WHITE, Overlap_icon.c_str());
             }
         }
+    }
+
+    if (!is_control_hovered && legendRect.Contains(io.MousePos) && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+    {
+        track->mExpanded = !track->mExpanded;
     }
 }
 
