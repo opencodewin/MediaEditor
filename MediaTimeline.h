@@ -290,8 +290,7 @@ struct MediaItem
     std::string mName;
     std::string mPath;
     bool mValid {false};                    // Media source is valid
-    int64_t mStart  {0};                    // whole Media start in ms
-    int64_t mEnd    {0};                    // whole Media end in ms
+    int64_t mSrcLength  {0};                // whole Media end in ms
     MediaCore::Overview::Holder mMediaOverview;
     uint32_t mMediaType {MEDIA_UNKNOWN};
     std::vector<ImTextureID> mMediaThumbnail;
@@ -352,11 +351,6 @@ struct Clip
     uint32_t mType              {MEDIA_UNKNOWN};    // clip type, project saved
     std::string mName;                              // clip name, project saved
     std::string mPath;                              // clip media path, project saved
-    int64_t mStart              {0};                // clip start time in timeline, project saved
-    int64_t mEnd                {0};                // clip end time in timeline, project saved
-    int64_t mStartOffset        {0};                // clip start time in media, project saved
-    int64_t mEndOffset          {0};                // clip end time in media, project saved
-    int64_t mLength             {0};                // clip length, = mEnd - mStart
     bool bSelected              {false};            // clip is selected, project saved
     bool bEditing               {false};            // clip is Editing by double click selected, project saved
     std::mutex mLock;                               // clip mutex, not using yet
@@ -392,6 +386,23 @@ struct Clip
     virtual void DrawTooltips() {};
     static void Load(Clip * clip, const imgui_json::value& value);
     virtual void Save(imgui_json::value& value) = 0;
+
+    int64_t Start() const { return mStart; }
+    int64_t End() const { return mEnd; }
+    int64_t Length() const { return mEnd-mStart; }
+    int64_t StartOffset() const { return mStartOffset; }
+    int64_t EndOffset() const { return mEndOffset; }
+    bool IsInClipRange(int64_t pos) const { return pos >= mStart && pos < mEnd; }
+
+    void ChangeStart(int64_t pos);
+    void ChangeStartOffset(int64_t newOffset);
+    void ChangeEndOffset(int64_t newOffset);
+
+private:
+    int64_t mStart              {0};                // clip start time in timeline, project saved
+    int64_t mEnd                {0};                // clip end time in timeline, project saved
+    int64_t mStartOffset        {0};                // clip start time in media, project saved
+    int64_t mEndOffset          {0};                // clip end time in media, project saved
 };
 
 struct VideoClip : Clip
@@ -442,6 +453,8 @@ struct VideoClip : Clip
 private:
     float mSnapWidth                {0};
     float mSnapHeight               {0};
+    int64_t mSrcLength              {0};                // media source duration
+    int32_t mAlignmentPadding       {0};                // for alignment of the clip length, according to the timeline framerate
     int64_t mClipViewStartPos;
     std::vector<MediaCore::Snapshot::Image::Holder> mSnapImages;
 };
@@ -463,6 +476,10 @@ struct AudioClip : Clip
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect) override;
     static Clip * Load(const imgui_json::value& value, void * handle);
     void Save(imgui_json::value& value) override;
+
+private:
+    int64_t mSrcLength              {0};                // media source duration
+    int32_t mAlignmentPadding       {0};                // for alignment of the clip length, according to the timeline framerate
 };
 
 struct TextClip : Clip
@@ -859,7 +876,6 @@ struct MediaTrack
     bool DrawTrackControlBar(ImDrawList *draw_list, ImRect rc, std::list<imgui_json::value>* pActionList);
     bool CanInsertClip(Clip * clip, int64_t pos);
     void InsertClip(Clip * clip, int64_t pos = 0, bool update = true, std::list<imgui_json::value>* pActionList = nullptr);
-    void PushBackClip(Clip * clip);
     void SelectClip(Clip * clip, bool appand);
     void SelectEditingClip(Clip * clip, bool filter_editing = false);
     void SelectEditingOverlap(Overlap * overlap);
@@ -1120,7 +1136,8 @@ struct TimeLine
     size_t GetCustomHeight(int index) { return (index < m_Tracks.size() && m_Tracks[index]->mExpanded) ? m_Tracks[index]->mTrackHeight : 0; }
     void Update();
     void UpdateRange();
-    void AlignTime(int64_t& time);
+    void AlignTime(int64_t& time, bool useCeil = false);
+    std::pair<int64_t, int64_t> AlignClipPosition(const std::pair<int64_t, int64_t>& startAndLength);  // (start, length) => aligned (start, end)
 
     int GetTrackCount() const { return (int)m_Tracks.size(); }
     int GetTrackCount(uint32_t type);

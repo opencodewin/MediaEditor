@@ -55,11 +55,13 @@ static bool TimelineButton(ImDrawList *draw_list, const char * label, ImVec2 pos
     return overButton;
 }
 
-static void alignTime(int64_t& time, MediaCore::Ratio rate)
+static void alignTime(int64_t& time, MediaCore::Ratio rate, bool useCeil = false)
 {
     if (rate.den && rate.num)
     {
-        int64_t frame_index = (int64_t)floor((double)time * (double)rate.num / (double)rate.den / 1000.0);
+        int64_t frame_index = useCeil ?
+                (int64_t)ceil((double)time * (double)rate.num / (double)rate.den / 1000.0) :
+                (int64_t)floor((double)time * (double)rate.num / (double)rate.den / 1000.0);
         time = frame_index * 1000 * rate.den / rate.num;
     }
 }
@@ -169,10 +171,6 @@ void MediaItem::UpdateItem(const std::string& name, const std::string& path, voi
 {
     TimeLine * timeline = (TimeLine *)handle;
     ReleaseItem();
-    auto old_name = mName;
-    auto old_path = mPath;
-    auto old_start = mStart;
-    auto old_end = mEnd;
     mName = name;
     mPath = path;
     mMediaOverview = MediaCore::Overview::CreateInstance();
@@ -180,45 +178,23 @@ void MediaItem::UpdateItem(const std::string& name, const std::string& path, voi
     {
         mMediaOverview->EnableHwAccel(timeline->mHardwareCodec);
     }
-    if (!path.empty() && mMediaOverview)
+    if (!path.empty())
     {
-        mMediaOverview->SetSnapshotResizeFactor(0.05, 0.05);
-        mMediaOverview->Open(path, 50);
-    }
-    if (mMediaOverview && mMediaOverview->IsOpened())
-    {
-        mStart = 0;
-        if (mMediaOverview->HasVideo())
+        if (IS_TEXT(mMediaType))
         {
-            if (IS_IMAGE(mMediaType))
-            {
-                mEnd = 5000;
-            }
-            else
-            {
-                mMediaOverview->GetMediaParser()->EnableParseInfo(MediaCore::MediaParser::VIDEO_SEEK_POINTS);
-                mEnd = mMediaOverview->GetVideoDuration();
-            }
-        }
-        else if (mMediaOverview->HasAudio())
-        {
-            mEnd = mMediaOverview->GetMediaInfo()->duration * 1000;
+            if (ImGuiHelper::file_exists(mPath))
+                mValid = true;
         }
         else
         {
-            mEnd = 5000;
+            mMediaOverview->SetSnapshotResizeFactor(0.05, 0.05);
+            mMediaOverview->Open(path, 50);
+            if (mMediaOverview->IsOpened())
+            {
+                mSrcLength = mMediaOverview->GetMediaInfo()->duration * 1000;
+                mValid = true;
+            }
         }
-        if ((old_start !=0 && mStart != old_start) || (old_end != 0 && mEnd != old_end))
-        {
-            ReleaseItem();
-            return;
-        }
-        mValid = true;
-    }
-    else if (mMediaOverview && IS_TEXT(mMediaType))
-    {
-        if (ImGuiHelper::file_exists(mPath))
-            mValid = true;
     }
 }
 
@@ -230,6 +206,7 @@ void MediaItem::ReleaseItem()
         ImGui::ImDestroyTexture(thumb); 
         thumb = nullptr;
     }
+    mSrcLength = 0;
     mValid = false;
 }
 
@@ -267,15 +244,14 @@ Clip::Clip(int64_t start, int64_t end, int64_t id, MediaCore::MediaParser::Holde
     TimeLine * timeline = (TimeLine *)handle;
     mID = timeline ? timeline->m_IDGenerator.GenerateID() : ImGui::get_current_time_usec();
     mMediaID = id;
-    mStart = start; 
+    mStart = start;
     mEnd = end;
-    mLength = end - start;
     mHandle = handle;
     mMediaParser = mediaParser;
     mFilterKeyPoints.SetMin({0.f, 0.f});
-    mFilterKeyPoints.SetMax(ImVec2(mLength, 1.f), true);
+    mFilterKeyPoints.SetMax(ImVec2(Length(), 1.f), true);
     mAttributeKeyPoints.SetMin({0.f, 0.f});
-    mAttributeKeyPoints.SetMax(ImVec2(mLength, 1.f), true);
+    mAttributeKeyPoints.SetMax(ImVec2(Length(), 1.f), true);
 }
 
 Clip::~Clip()
@@ -339,7 +315,6 @@ void Clip::Load(Clip * clip, const imgui_json::value& value)
         auto& val = value["Name"];
         if (val.is_string()) clip->mName = val.get<imgui_json::string>();
     }
-    clip->mLength = clip->mEnd-clip->mStart;
     // load filter bp
     if (value.contains("FilterBP"))
     {
@@ -400,134 +375,118 @@ int64_t Clip::Cropping(int64_t diff, int type)
     int64_t new_diff = 0;
     TimeLine * timeline = (TimeLine *)mHandle;
     if (!timeline)
-        return new_diff;
+        return 0;
     auto track = timeline->FindTrackByClipID(mID);
     if (!track || track->mLocked)
-        return new_diff;
+        return 0;
     if (IS_DUMMY(mType))
-        return new_diff;
-    timeline->AlignTime(diff);
-    float frame_duration = (timeline->mFrameRate.den > 0 && timeline->mFrameRate.num > 0) ? timeline->mFrameRate.den * 1000.0 / timeline->mFrameRate.num : 40;
+        return 0;
+
+    int64_t length = Length();
+    // cropping start
     if (type == 0)
     {
-        // cropping start
+        // for clips that have length limitation
         if ((IS_VIDEO(mType) && !IS_IMAGE(mType)) || IS_AUDIO(mType))
         {
-            // audio video stream have length limit
-            if (mStart + diff < mEnd - ceil(frame_duration) && mStart + diff >= timeline->mStart)
-            {
-                if (mStartOffset + diff >= 0)
-                {
-                    new_diff = diff;
-                    mStart += diff;
-                    mStartOffset += diff;
-                }
-                else if (abs(mStartOffset + diff) <= abs(diff))
-                {
-                    new_diff = diff + abs(mStartOffset + diff);
-                    mStart += new_diff;
-                    mStartOffset += new_diff;
-                }
-            }
-            else if (mEnd - mStart - ceil(frame_duration) < diff)
-            {
-                new_diff = mEnd - mStart - ceil(frame_duration);
-                mStart += new_diff;
-                mStartOffset += new_diff;
-            }
+            if (diff+mStartOffset < 0)
+                diff = -mStartOffset;  // mStartOffset can NOT be NEGATIVE
+            else if (diff >= length)
+                diff = length-1;
+            int64_t newStart = mStart+diff;
+            timeline->AlignTime(newStart);
+            diff = newStart-mStart;
+            int64_t newStartOffset = mStartOffset+diff;
+            assert(newStartOffset >= 0);
+            int64_t newLength = length-diff;
+            assert(newLength > 0);
+
+            mStart = newStart;
+            mStartOffset = newStartOffset;
         }
+        // for clips that have no length limitation
         else
         {
-            // others have not length limit
-            if (mStart + diff < mEnd - ceil(frame_duration) && mStart + diff >= timeline->mStart)
-            {
-                new_diff = diff;
-                mStart += diff;
-            }
-            else if (mEnd - mStart - ceil(frame_duration) < diff)
-            {
-                new_diff = mEnd - mStart - ceil(frame_duration);
-                mStart += new_diff;
-            }
+            if (diff >= length)
+                diff = length-1;
+            int64_t newStart = mStart+diff;
+            timeline->AlignTime(newStart);
+            diff = newStart-mStart;
+            int64_t newLength = length-diff;
+            assert(newLength > 0);
+
+            mStart = newStart;
         }
     }
+    // cropping end
     else
     {
-        // cropping end
+        // for clips that have length limitation
         if ((IS_VIDEO(mType) && !IS_IMAGE(mType)) || IS_AUDIO(mType))
         {
-            // audio video stream have length limit
-            if (mEnd + diff > mStart + ceil(frame_duration))
-            {
-                if (mEndOffset - diff >= 0)
-                {
-                    new_diff = diff;
-                    mEnd += new_diff;
-                    mEndOffset -= new_diff;
-                }
-                else if (abs(mEndOffset - diff) <= abs(diff))
-                {
-                    new_diff = diff - abs(mEndOffset - diff);
-                    mEnd += new_diff;
-                    mEndOffset -= new_diff;
-                }
-            }
-            else if (mEnd - mStart - ceil(frame_duration) < abs(diff))
-            {
-                new_diff = mStart - mEnd + ceil(frame_duration);
-                mEnd += new_diff;
-                mEndOffset -= new_diff;
-            }
+            if (mEndOffset-diff < 0)
+                diff = mEndOffset;  // mEndOffset can NOT be NEGATIVE
+            else if (diff <= -length)
+                diff = -length+1;
+            int64_t newEnd = mStart+length+diff;
+            timeline->AlignTime(newEnd, true);
+            diff = newEnd-End();
+            int64_t newEndOffset = mEndOffset-diff;
+            assert(newEndOffset >= 0);
+            int64_t newLength = length+diff;
+            assert(newLength > 0);
+
+            mEnd = newEnd;
+            mEndOffset = newEndOffset;
         }
+        // for clips that have no length limitation
         else
         {
-            // others have not length limit
-            if (mEnd + diff > mStart + ceil(frame_duration))
-            {
-                new_diff = diff;
-                mEnd += new_diff;
-            }
-            else if (mEnd - mStart - ceil(frame_duration) < abs(diff))
-            {
-                new_diff = mStart - mEnd + ceil(frame_duration);
-                mEnd += new_diff;
-            }
+            if (diff <= -length)
+                diff = -length+1;
+            int64_t newEnd = mStart+length+diff;
+            timeline->AlignTime(newEnd);
+            diff = newEnd-End();
+            int64_t newLength = length+diff;
+            assert(newLength > 0);
+
+            mEnd = newEnd;
         }
     }
     
     if (timeline->mVidFilterClip && timeline->mVidFilterClip->mID == mID)
     {
-        timeline->mVidFilterClip->mStart = mStart;
-        timeline->mVidFilterClip->mEnd = mEnd;
+        timeline->mVidFilterClip->mStart = Start();
+        timeline->mVidFilterClip->mEnd = End();
         if (timeline->mVidFilterClip->mFilter)
         {
-            timeline->mVidFilterClip->mFilter->mKeyPoints.SetRangeX(0, mEnd - mStart, true);
+            timeline->mVidFilterClip->mFilter->mKeyPoints.SetRangeX(0, Length(), true);
             mFilterKeyPoints = timeline->mVidFilterClip->mFilter->mKeyPoints;
         }
         if (timeline->mVidFilterClip->mAttribute)
         {
-            timeline->mVidFilterClip->mAttribute->GetKeyPoint()->SetRangeX(0, mEnd - mStart, true);
+            timeline->mVidFilterClip->mAttribute->GetKeyPoint()->SetRangeX(0, Length(), true);
             mAttributeKeyPoints = *timeline->mVidFilterClip->mAttribute->GetKeyPoint();
         }
     }
     else if (timeline->mAudFilterClip && timeline->mAudFilterClip->mID == mID)
     {
-        timeline->mAudFilterClip->mStart = mStart;
-        timeline->mAudFilterClip->mEnd = mEnd;
+        timeline->mAudFilterClip->mStart = Start();
+        timeline->mAudFilterClip->mEnd = End();
         if (timeline->mAudFilterClip->mFilter)
         {
-            timeline->mAudFilterClip->mFilter->mKeyPoints.SetRangeX(0, mEnd - mStart, true);
+            timeline->mAudFilterClip->mFilter->mKeyPoints.SetRangeX(0, Length(), true);
             mFilterKeyPoints = timeline->mAudFilterClip->mFilter->mKeyPoints;
         }
     }
     else
     {
-        mFilterKeyPoints.SetRangeX(0, mEnd - mStart, true);
-        mAttributeKeyPoints.SetRangeX(0, mEnd - mStart, true);
+        mFilterKeyPoints.SetRangeX(0, Length(), true);
+        mAttributeKeyPoints.SetRangeX(0, Length(), true);
     }
     track->Update();
     timeline->UpdateRange();
-    return new_diff;
+    return diff;
 }
 
 void Clip::Cutting(int64_t pos, int64_t gid, std::list<imgui_json::value>* pActionList)
@@ -556,7 +515,6 @@ void Clip::Cutting(int64_t pos, int64_t gid, std::list<imgui_json::value>* pActi
     // crop this clip's end
     mEnd = adj_end;
     mEndOffset = adj_end_offset;
-    mLength = mEnd - mStart;
     if (pActionList)
     {
         imgui_json::value action;
@@ -1001,6 +959,33 @@ bool Clip::isLinkedWith(Clip * clip)
 
     return false;
 }
+
+void Clip::ChangeStart(int64_t pos)
+{
+    if (pos == mStart)
+        return;
+    const int64_t length = Length();
+    mStart = pos;
+    mEnd = pos+length;
+}
+
+void Clip::ChangeStartOffset(int64_t newOffset)
+{
+    if (newOffset == mStartOffset)
+        return;
+    assert(newOffset >= 0 && newOffset-mStartOffset < Length());
+    mStart += newOffset-mStartOffset;
+    mStartOffset = newOffset;
+}
+
+void Clip::ChangeEndOffset(int64_t newOffset)
+{
+    if (newOffset == mEndOffset)
+        return;
+    assert(newOffset >= 0 && newOffset-mEndOffset < Length());
+    mEnd -= newOffset-mEndOffset;
+    mEndOffset = newOffset;
+}
 } // namespace MediaTimeline
 
 namespace MediaTimeline
@@ -1009,6 +994,11 @@ namespace MediaTimeline
 VideoClip::VideoClip(int64_t start, int64_t end, int64_t id, std::string name, MediaCore::MediaParser::Holder hParser, MediaCore::Snapshot::Viewer::Holder hViewer, void* handle)
     : Clip(start, end, id, hParser, handle)
 {
+    if (hParser)
+    {
+        mSrcLength = (int64_t)(hParser->GetMediaInfo()->duration*1000);
+        mAlignmentPadding = Length()-mSrcLength;
+    }
     if (handle && hViewer)
     {
         mSsViewer = hViewer;
@@ -1108,7 +1098,7 @@ void VideoClip::UpdateClip(MediaCore::MediaParser::Holder hParser, MediaCore::Sn
             mType |= MEDIA_DUMMY;
             return;
         }
-        if (mEnd - mStart > duration)
+        if (Length() > duration)
         {
             viewer->Release();
             mType |= MEDIA_DUMMY;
@@ -1195,9 +1185,10 @@ Clip* VideoClip::Load(const imgui_json::value& value, void * handle)
     {
         // media is in bank
         VideoClip * new_clip = nullptr;
+        auto clipRange = timeline->AlignClipPosition({0, item->mSrcLength});
         if (!item->mValid)
         {
-            new_clip = new VideoClip(item->mStart, item->mEnd, item->mID, item->mName, handle);
+            new_clip = new VideoClip(clipRange.first, clipRange.second, item->mID, item->mName, handle);
             if (IS_IMAGE(item->mMediaType))
                 new_clip->mType |= MEDIA_SUBTYPE_VIDEO_IMAGE;
             else
@@ -1205,7 +1196,7 @@ Clip* VideoClip::Load(const imgui_json::value& value, void * handle)
         }
         else if (IS_IMAGE(item->mMediaType))
         {
-            new_clip = new VideoClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, handle);
+            new_clip = new VideoClip(clipRange.first, clipRange.second, item->mID, item->mName, item->mMediaOverview, handle);
         }
         else
         {
@@ -1218,7 +1209,7 @@ Clip* VideoClip::Load(const imgui_json::value& value, void * handle)
             }
 
             hViewer = hSsGen->CreateViewer();
-            new_clip = new VideoClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview->GetMediaParser(), hViewer, handle);
+            new_clip = new VideoClip(clipRange.first, clipRange.second, item->mID, item->mName, item->mMediaOverview->GetMediaParser(), hViewer, handle);
         }
         if (new_clip)
         {
@@ -1329,9 +1320,9 @@ void VideoClip::SetTrackHeight(int trackHeight)
 
 void VideoClip::SetViewWindowStart(int64_t millisec)
 {
-    mClipViewStartPos = mStartOffset;
-    if (millisec > mStart)
-        mClipViewStartPos += millisec-mStart;
+    mClipViewStartPos = StartOffset();
+    if (millisec > Start())
+        mClipViewStartPos += millisec-Start();
     if (!IS_DUMMY(mType) && !IS_IMAGE(mType))
     {
         if (!mSsViewer->GetSnapshots((double)mClipViewStartPos/1000, mSnapImages))
@@ -1518,6 +1509,11 @@ namespace MediaTimeline
 AudioClip::AudioClip(int64_t start, int64_t end, int64_t id, std::string name, MediaCore::Overview::Holder overview, void* handle)
     : Clip(start, end, id, overview->GetMediaParser(), handle), mOverview(overview)
 {
+    if (mMediaParser)
+    {
+        mSrcLength = (int64_t)(mMediaParser->GetMediaInfo()->duration*1000);
+        mAlignmentPadding = Length()-mSrcLength;
+    }
     if (handle && mMediaParser)
     {
         mType = MEDIA_AUDIO;
@@ -1567,7 +1563,7 @@ void AudioClip::UpdateClip(MediaCore::Overview::Holder overview, int64_t duratio
             mType |= MEDIA_DUMMY;
             return;
         }
-        if (mEnd - mStart > duration)
+        if (Length() > duration)
         {
             mType |= MEDIA_DUMMY;
             return;
@@ -1609,11 +1605,11 @@ void AudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
         drawList->AddRect(leftTop, rightBottom, IM_COL32_BLACK);
         float wave_range = fmax(fabs(mWaveform->minSample), fabs(mWaveform->maxSample));
         int sampleSize = mWaveform->pcm[0].size();
-        int64_t start_time = std::max(mStart, timeline->firstTime);
-        int64_t end_time = std::min(mEnd, timeline->lastTime);
-        int start_offset = (int)((double)(mStartOffset) / 1000.f / mWaveform->aggregateDuration);
-        if (mStart < timeline->firstTime)
-            start_offset = (int)((double)(timeline->firstTime - mStart + mStartOffset) / 1000.f / mWaveform->aggregateDuration);
+        int64_t start_time = std::max(Start(), timeline->firstTime);
+        int64_t end_time = std::min(End(), timeline->lastTime);
+        int start_offset = (int)((double)StartOffset() / 1000.f / mWaveform->aggregateDuration);
+        if (Start() < timeline->firstTime)
+            start_offset = (int)((double)(timeline->firstTime - Start() + StartOffset()) / 1000.f / mWaveform->aggregateDuration);
         start_offset = std::max(start_offset, 0);
         int window_length = (int)((double)(end_time - start_time) / 1000.f / mWaveform->aggregateDuration);
         window_length = std::min(window_length, sampleSize);
@@ -1683,10 +1679,11 @@ Clip * AudioClip::Load(const imgui_json::value& value, void * handle)
     if (item)
     {
         AudioClip * new_clip = nullptr;
+        auto clipRange = timeline->AlignClipPosition({0, item->mSrcLength});
         if (item->mValid)
-            new_clip = new AudioClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, handle);
+            new_clip = new AudioClip(clipRange.first, clipRange.second, item->mID, item->mName, item->mMediaOverview, handle);
         else
-            new_clip = new AudioClip(item->mStart, item->mEnd, item->mID, item->mName, handle);
+            new_clip = new AudioClip(clipRange.first, clipRange.second, item->mID, item->mName, handle);
         if (new_clip)
         {
             Clip::Load(new_clip, value);
@@ -1857,7 +1854,7 @@ void TextClip::CreateClipHold(void * _track)
     MediaTrack * track = (MediaTrack *)_track;
     if (!track || !track->mMttReader)
         return;
-    mClipHolder = track->mMttReader->NewClip(mStart, mEnd - mStart);
+    mClipHolder = track->mMttReader->NewClip(Start(), Length());
     mTrack = track;
     mMediaID = track->mID;
     mName = track->mName;
@@ -1898,7 +1895,7 @@ int64_t TextClip::Moving(int64_t diff, int mouse_track)
     auto ret = Clip::Moving(diff, mouse_track);
     MediaTrack * track = (MediaTrack*)mTrack;
     if (track && track->mMttReader)
-        track->mMttReader->ChangeClipTime(mClipHolder, mStart, mEnd - mStart);
+        track->mMttReader->ChangeClipTime(mClipHolder, Start(), Length());
     return ret;
 }
 
@@ -1907,7 +1904,7 @@ int64_t TextClip::Cropping(int64_t diff, int type)
     auto ret = Clip::Cropping(diff, type);
     MediaTrack * track = (MediaTrack*)mTrack;
     if (track && track->mMttReader)
-        track->mMttReader->ChangeClipTime(mClipHolder, mStart, mEnd - mStart);
+        track->mMttReader->ChangeClipTime(mClipHolder, Start(), Length());
     return ret;
 }
 
@@ -2481,7 +2478,7 @@ void BaseEditingClip::UpdateCurrent(bool forward, int64_t currentTime)
 namespace MediaTimeline
 {
 EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
-    : BaseEditingClip(vidclip->mID, vidclip->mType, vidclip->mStart, vidclip->mEnd, vidclip->mStartOffset, vidclip->mEndOffset, vidclip->mHandle)
+    : BaseEditingClip(vidclip->mID, vidclip->mType, vidclip->Start(), vidclip->End(), vidclip->StartOffset(), vidclip->EndOffset(), vidclip->mHandle)
 {
     TimeLine * timeline = (TimeLine *)vidclip->mHandle;
     mDuration = mEnd-mStart;
@@ -2559,14 +2556,14 @@ EditingVideoClip::~EditingVideoClip()
 
 void EditingVideoClip::UpdateClipRange(Clip* clip)
 {
-    if (mStart != clip->mStart)
-        mStart = clip->mStart;
-    if (mEnd != clip->mEnd)
-        mEnd = clip->mEnd;
-    if (mStartOffset != clip->mStartOffset || mEndOffset != clip->mEndOffset)
+    if (mStart != clip->Start())
+        mStart = clip->Start();
+    if (mEnd != clip->End())
+        mEnd = clip->End();
+    if (mStartOffset != clip->StartOffset() || mEndOffset != clip->EndOffset())
     {
-        mStartOffset = clip->mStartOffset;
-        mEndOffset = clip->mEndOffset;
+        mStartOffset = clip->StartOffset();
+        mEndOffset = clip->StartOffset();
         mDuration = mEnd - mStart;
     }
     
@@ -2775,7 +2772,7 @@ void EditingVideoClip::CalcDisplayParams(int64_t viewWndDur)
 namespace MediaTimeline
 {
 EditingAudioClip::EditingAudioClip(AudioClip* audclip)
-    : BaseEditingClip(audclip->mID, audclip->mType, audclip->mStart, audclip->mEnd, audclip->mStartOffset, audclip->mEndOffset, audclip->mHandle)
+    : BaseEditingClip(audclip->mID, audclip->mType, audclip->Start(), audclip->End(), audclip->StartOffset(), audclip->EndOffset(), audclip->mHandle)
 {
     TimeLine * timeline = (TimeLine *)audclip->mHandle;
     mDuration = mEnd-mStart;
@@ -2859,7 +2856,7 @@ void EditingAudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, 
     float wave_range = fmax(fabs(waveform->minSample), fabs(waveform->maxSample));
     int64_t start_time = firstTime; //clip->mStart;
     int64_t end_time = firstTime + visibleTime; //clip->mEnd;
-    int start_offset = (int)((double)(clip->mStartOffset + firstTime) / 1000.f / waveform->aggregateDuration);
+    int start_offset = (int)((double)(clip->StartOffset() + firstTime) / 1000.f / waveform->aggregateDuration);
     auto window_size = rightBottom - leftTop;
     window_size.y /= waveform->pcm.size();
     int window_length = (int)((double)(end_time - start_time) / 1000.f / waveform->aggregateDuration);
@@ -2951,8 +2948,8 @@ bool Overlap::IsOverlapValid()
     if (!track_start || !track_end || track_start->mID != track_end->mID)
         return false;
     
-    if (clip_start->mEnd <= clip_end->mStart ||
-        clip_end->mEnd <= clip_start->mStart)
+    if (clip_start->End() <= clip_end->Start() ||
+        clip_end->End() <= clip_start->Start())
         return false;
     
     return true;
@@ -3132,7 +3129,7 @@ EditingVideoOverlap::EditingVideoOverlap(Overlap* ovlp)
         mClip1 = vidclip1; mClip2 = vidclip2;
         if (IS_IMAGE(mClip1->mType))
         {
-            m_StartOffset.first = ovlp->mStart - vidclip1->mStart;
+            m_StartOffset.first = ovlp->mStart - vidclip1->Start();
             if (vidclip1->mImgTexture) mImgTexture1 = vidclip1->mImgTexture;
         }
         else
@@ -3148,13 +3145,13 @@ EditingVideoOverlap::EditingVideoOverlap(Overlap* ovlp)
             float snapshot_scale1 = video1_info->height > 0 ? 50.f / (float)video1_info->height : 0.05;
             mSsGen1->SetCacheFactor(1.0);
             mSsGen1->SetSnapshotResizeFactor(snapshot_scale1, snapshot_scale1);
-            m_StartOffset.first = vidclip1->mStartOffset + ovlp->mStart - vidclip1->mStart;
+            m_StartOffset.first = vidclip1->StartOffset() + ovlp->mStart - vidclip1->Start();
             mViewer1 = mSsGen1->CreateViewer(m_StartOffset.first);
         }
 
         if (IS_IMAGE(mClip2->mType))
         {
-            m_StartOffset.second = ovlp->mStart - vidclip2->mStart;
+            m_StartOffset.second = ovlp->mStart - vidclip2->Start();
             if (vidclip2->mImgTexture) mImgTexture2 = vidclip2->mImgTexture;
         }
         else
@@ -3170,7 +3167,7 @@ EditingVideoOverlap::EditingVideoOverlap(Overlap* ovlp)
             float snapshot_scale2 = video2_info->height > 0 ? 50.f / (float)video2_info->height : 0.05;
             mSsGen2->SetCacheFactor(1.0);
             mSsGen2->SetSnapshotResizeFactor(snapshot_scale2, snapshot_scale2);
-            m_StartOffset.second = vidclip2->mStartOffset + ovlp->mStart - vidclip2->mStart;
+            m_StartOffset.second = vidclip2->StartOffset() + ovlp->mStart - vidclip2->Start();
             mViewer2 = mSsGen2->CreateViewer(m_StartOffset.second);
         }
         mStart = ovlp->mStart;
@@ -3259,7 +3256,7 @@ void EditingVideoOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
     std::vector<MediaCore::Snapshot::Image::Holder> snapImages1;
     if (mViewer1)
     {
-        m_StartOffset.first = mClip1->mStartOffset + mOvlp->mStart - mClip1->mStart;
+        m_StartOffset.first = mClip1->StartOffset() + mOvlp->mStart - mClip1->Start();
         if (!mViewer1->GetSnapshots((double)m_StartOffset.first / 1000, snapImages1))
         {
             Logger::Log(Logger::Error) << mViewer1->GetError() << std::endl;
@@ -3270,7 +3267,7 @@ void EditingVideoOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
     std::vector<MediaCore::Snapshot::Image::Holder> snapImages2;
     if (mViewer2)
     {
-        m_StartOffset.second = mClip2->mStartOffset + mOvlp->mStart - mClip2->mStart;
+        m_StartOffset.second = mClip2->StartOffset() + mOvlp->mStart - mClip2->Start();
         if (!mViewer2->GetSnapshots((double)m_StartOffset.second / 1000, snapImages2))
         {
             Logger::Log(Logger::Error) << mViewer2->GetError() << std::endl;
@@ -3483,8 +3480,8 @@ EditingAudioOverlap::EditingAudioOverlap(Overlap* ovlp)
     if (audclip1 && audclip2)
     {
         mClip1 = audclip1; mClip2 = audclip2;
-        m_StartOffset.first = audclip1->mStartOffset + ovlp->mStart - audclip1->mStart;
-        m_StartOffset.second = audclip2->mStartOffset + ovlp->mStart - audclip2->mStart;
+        m_StartOffset.first = audclip1->StartOffset() + ovlp->mStart - audclip1->Start();
+        m_StartOffset.second = audclip2->StartOffset() + ovlp->mStart - audclip2->Start();
         mStart = ovlp->mStart;
         mEnd = ovlp->mEnd;
         mDuration = mEnd - mStart;
@@ -3553,10 +3550,10 @@ void EditingAudioOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
 
         MediaCore::Overview::Waveform::Holder waveform = mClip1->mWaveform;
         float wave_range = fmax(fabs(waveform->minSample), fabs(waveform->maxSample));
-        int64_t start_time = std::max(mClip1->mStart, mStart);
-        int64_t end_time = std::min(mClip1->mEnd, mEnd);
+        int64_t start_time = std::max(mClip1->Start(), mStart);
+        int64_t end_time = std::min(mClip1->End(), mEnd);
         IM_ASSERT(start_time <= end_time);
-        int start_offset = (int)((double)((mStart - mClip1->mStart)) / 1000.f / waveform->aggregateDuration);
+        int start_offset = (int)((double)((mStart - mClip1->Start())) / 1000.f / waveform->aggregateDuration);
         start_offset = std::max(start_offset, 0);
         auto clip_window_size = window_size;
         clip_window_size.y /= waveform->pcm.size();
@@ -3609,10 +3606,10 @@ void EditingAudioOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
 
         MediaCore::Overview::Waveform::Holder waveform = mClip2->mWaveform;
         float wave_range = fmax(fabs(waveform->minSample), fabs(waveform->maxSample));
-        int64_t start_time = std::max(mClip2->mStart, mStart);
-        int64_t end_time = std::min(mClip2->mEnd, mEnd);
+        int64_t start_time = std::max(mClip2->Start(), mStart);
+        int64_t end_time = std::min(mClip2->End(), mEnd);
         IM_ASSERT(start_time <= end_time);
-        int start_offset = (int)((double)((mStart - mClip2->mStart)) / 1000.f / waveform->aggregateDuration);
+        int start_offset = (int)((double)((mStart - mClip2->Start())) / 1000.f / waveform->aggregateDuration);
         start_offset = std::max(start_offset, 0);
         auto clip_window_size = window_size;
         clip_window_size.y /= waveform->pcm.size();
@@ -3814,7 +3811,7 @@ void MediaTrack::Update()
         return;
     // sort m_Clips by clip start time
     std::sort(m_Clips.begin(), m_Clips.end(), [](const Clip *a, const Clip* b){
-        return a->mStart < b->mStart;
+        return a->Start() < b->Start();
     });
     
     // check all overlaps
@@ -3835,11 +3832,11 @@ void MediaTrack::Update()
     {
         for (auto next = iter + 1; next != m_Clips.end(); next++)
         {
-            if ((*iter)->mEnd >= (*next)->mStart)
+            if ((*iter)->End() >= (*next)->Start())
             {
                 // it is a overlap area
-                int64_t start = std::max((*next)->mStart, (*iter)->mStart);
-                int64_t end = std::min((*iter)->mEnd, (*next)->mEnd);
+                int64_t start = std::max((*next)->Start(), (*iter)->Start());
+                int64_t end = std::min((*iter)->End(), (*next)->End());
                 if (end > start)
                 {
                     // check it is in exist overlaps
@@ -3912,20 +3909,6 @@ void MediaTrack::DeleteClip(int64_t id)
     }
 }
 
-void MediaTrack::PushBackClip(Clip * clip)
-{
-    if (m_Clips.size() > 0)
-    {
-        int64_t length = clip->mEnd - clip->mStart;
-        auto last_clip = m_Clips.end() - 1;
-        clip->mStart = (*last_clip)->mEnd;
-        clip->mEnd = clip->mStart + length;
-    }
-    clip->ConfigViewWindow(mViewWndDur, mPixPerMs);
-    clip->SetTrackHeight(mTrackHeight);
-    m_Clips.push_back(clip);
-}
-
 bool MediaTrack::CanInsertClip(Clip * clip, int64_t pos)
 {
     bool can_insert_clip = true;
@@ -3937,8 +3920,8 @@ bool MediaTrack::CanInsertClip(Clip * clip, int64_t pos)
     {
         for (auto overlap : m_Overlaps)
         {
-            if ((overlap->mStart >= pos && overlap->mStart <= pos + clip->mLength) || 
-                (overlap->mEnd >= pos && overlap->mEnd <= pos + clip->mLength))
+            if ((overlap->mStart >= pos && overlap->mStart <= pos + clip->Length()) || 
+                (overlap->mEnd >= pos && overlap->mEnd <= pos + clip->Length()))
             {
                 can_insert_clip = false;
                 break;
@@ -3958,17 +3941,16 @@ void MediaTrack::InsertClip(Clip * clip, int64_t pos, bool update, std::list<img
     {
         return _clip->mID == clip->mID;
     });
-    if (pos > 0) timeline->AlignTime(pos);
+    if (pos < 0) pos = 0;
+    timeline->AlignTime(pos);
+    clip->ChangeStart(pos);
     if (iter == m_Clips.end())
     {
-        int64_t length = clip->mEnd - clip->mStart;
-        clip->mStart = pos <= 0 ? 0 : pos;
-        clip->mEnd = clip->mStart + length;
         clip->ConfigViewWindow(mViewWndDur, mPixPerMs);
         clip->SetTrackHeight(mTrackHeight);
         // Set keypoint
-        clip->mFilterKeyPoints.SetRangeX(0, clip->mEnd - clip->mStart, true);
-        clip->mAttributeKeyPoints.SetRangeX(0, clip->mEnd - clip->mStart, true);
+        clip->mFilterKeyPoints.SetRangeX(0, clip->Length(), true);
+        clip->mAttributeKeyPoints.SetRangeX(0, clip->Length(), true);
         m_Clips.push_back(clip);
         if (pActionList)
         {
@@ -4033,7 +4015,7 @@ Clip * MediaTrack::FindClips(int64_t time, int& count)
     std::vector<Clip *> select_clips;
     for (auto clip : m_Clips)
     {
-        if (clip->mStart <= time && clip->mEnd >= time)
+        if (clip->Start() <= time && clip->End() >= time)
         {
             clips.push_back(clip);
             if (clip->bSelected)
@@ -4042,14 +4024,14 @@ Clip * MediaTrack::FindClips(int64_t time, int& count)
     }
     for (auto clip : select_clips)
     {
-        if (!ret_clip || ret_clip->mEnd - ret_clip->mStart > clip->mEnd - clip->mStart)
+        if (!ret_clip || ret_clip->Length() > clip->Length())
             ret_clip = clip;
     }
     if (!ret_clip)
     {
         for (auto clip : clips)
         {
-            if (!ret_clip || ret_clip->mEnd - ret_clip->mStart > clip->mEnd - clip->mStart)
+            if (!ret_clip || ret_clip->Length() > clip->Length())
                 ret_clip = clip;
         }
     }
@@ -4103,8 +4085,8 @@ void MediaTrack::SelectEditingClip(Clip * clip, bool filter_editing)
     {
         updated = timeline->m_CallBacks.EditingClipAttribute(clip->mType, clip);
     }
-    if (timeline->currentTime < clip->mStart || timeline->currentTime > clip->mEnd || timeline->currentTime < timeline->firstTime || timeline->currentTime > timeline->lastTime)
-        timeline->Seek(clip->mStart);
+    if (!clip->IsInClipRange(timeline->currentTime) || timeline->currentTime < timeline->firstTime || timeline->currentTime > timeline->lastTime)
+        timeline->Seek(clip->Start());
 
     // find old editing clip and reset BP
     auto editing_clip = timeline->FindEditingClip();
@@ -4760,9 +4742,19 @@ TimeLine::~TimeLine()
     mEncoder = nullptr;
 }
 
-void TimeLine::AlignTime(int64_t& time)
+void TimeLine::AlignTime(int64_t& time, bool useCeil)
 {
-    alignTime(time, mFrameRate);
+    alignTime(time, mFrameRate, useCeil);
+}
+
+std::pair<int64_t, int64_t> TimeLine::AlignClipPosition(const std::pair<int64_t, int64_t>& startAndLength)
+{
+    int64_t start = startAndLength.first;
+    int64_t length = startAndLength.second;
+    alignTime(start, mFrameRate);
+    int64_t end = start+length;
+    alignTime(end, mFrameRate, true);
+    return {start, end};
 }
 
 void TimeLine::UpdateRange()
@@ -4771,10 +4763,10 @@ void TimeLine::UpdateRange()
     int64_t end_max = INT64_MIN;
     for (auto clip : m_Clips)
     {
-        if (clip->mStart < start_min)
-            start_min = clip->mStart;
-        if (clip->mEnd > end_max)
-            end_max = clip->mEnd;
+        if (clip->Start() < start_min)
+            start_min = clip->Start();
+        if (clip->End() > end_max)
+            end_max = clip->End();
     }
     if (start_min < mStart)
         mStart = ImMax(start_min, (int64_t)0);
@@ -4803,7 +4795,7 @@ void TimeLine::Click(int index, int64_t time)
         auto current_track = m_Tracks[index];
         for (auto clip : current_track->m_Clips)
         {
-            if (clip->mStart <= time && clip->mEnd >= time)
+            if (clip->IsInClipRange(time))
             {
                 click_empty_space = false;
                 break;
@@ -5183,9 +5175,9 @@ bool TimeLine::RestoreTrack(imgui_json::value& action)
                 continue;
             MediaCore::VideoClip::Holder hVidClip;
             if (IS_IMAGE(c->mType))
-                hVidClip = hVidTrk->AddNewClip(c->mID, c->mMediaParser, c->mStart, c->mEnd-c->mStart, 0, 0);
+                hVidClip = hVidTrk->AddImageClip(c->mID, c->mMediaParser, c->Start(), c->Length());
             else
-                hVidClip = hVidTrk->AddNewClip(c->mID, c->mMediaParser, c->mStart, c->mStartOffset, c->mEndOffset, currentTime-c->mStart);
+                hVidClip = hVidTrk->AddVideoClip(c->mID, c->mMediaParser, c->Start(), c->End(), c->StartOffset(), c->EndOffset(), currentTime-c->Start());
             BluePrintVideoFilter* bpvf = new BluePrintVideoFilter(this);
             bpvf->SetBluePrintFromJson(c->mFilterBP);
             bpvf->SetKeyPoint(c->mFilterKeyPoints);
@@ -5219,7 +5211,7 @@ bool TimeLine::RestoreTrack(imgui_json::value& action)
                 continue;
             MediaCore::AudioClip::Holder hAudClip = hAudTrk->AddNewClip(
                 c->mID, c->mMediaParser,
-                c->mStart, c->mStartOffset, c->mEndOffset);
+                c->Start(), c->End(), c->StartOffset(), c->EndOffset());
             BluePrintAudioFilter* bpaf = new BluePrintAudioFilter(this);
             bpaf->SetBluePrintFromJson(c->mFilterBP);
             bpaf->SetKeyPoint(c->mFilterKeyPoints);
@@ -5376,7 +5368,7 @@ void TimeLine::MovingClip(int64_t id, int from_track_index, int to_track_index)
             tclip->CreateClipHold(dst_track);
         }
 
-        dst_track->InsertClip(clip, clip->mStart);
+        dst_track->InsertClip(clip, clip->Start());
     }
 }
 
@@ -5908,10 +5900,10 @@ int64_t TimeLine::NextClipStart(Clip * clip)
     if (!clip) return next_start;
     auto iter = std::find_if(m_Clips.begin(), m_Clips.end(), [clip](const Clip* _clip)
     {
-        return _clip->mStart >= clip->mEnd;
+        return _clip->Start() >= clip->End();
     });
     if (iter != m_Clips.end())
-        next_start = (*iter)->mStart;
+        next_start = (*iter)->Start();
     return next_start;
 }
 
@@ -5920,10 +5912,10 @@ int64_t TimeLine::NextClipStart(int64_t pos)
     int64_t next_start = -1;
     auto iter = std::find_if(m_Clips.begin(), m_Clips.end(), [pos](const Clip* _clip)
     {
-        return _clip->mStart > pos;
+        return _clip->Start() > pos;
     });
     if (iter != m_Clips.end())
-        next_start = (*iter)->mStart;
+        next_start = (*iter)->Start();
     return next_start;
 }
 
@@ -6161,7 +6153,7 @@ void TimeLine::CustomDraw(
         float cursor_start = 0;
         float cursor_end  = 0;
         ImDrawFlags flag = ImDrawFlags_RoundCornersNone;
-        if (clip->mStart <= firstTime && clip->mEnd > firstTime && clip->mEnd <= viewEndTime)
+        if (clip->IsInClipRange(firstTime) && clip->End() <= viewEndTime)
         {
             /***********************************************************
              *         ----------------------------------------
@@ -6169,35 +6161,35 @@ void TimeLine::CustomDraw(
              *         ----------------------------------------
             ************************************************************/
             cursor_start = clippingRect.Min.x;
-            cursor_end = clippingRect.Min.x + (clip->mEnd - firstTime) * msPixelWidthTarget;
+            cursor_end = clippingRect.Min.x + (clip->End() - firstTime) * msPixelWidthTarget;
             draw_clip = true;
             flag |= ImDrawFlags_RoundCornersRight;
         }
-        else if (clip->mStart >= firstTime && clip->mEnd <= viewEndTime)
+        else if (clip->Start() >= firstTime && clip->End() <= viewEndTime)
         {
             /***********************************************************
              *         ----------------------------------------
              *                  |XXXXXXXXXXXXXXXXXXXXXX|
              *         ----------------------------------------
             ************************************************************/
-            cursor_start = clippingRect.Min.x + (clip->mStart - firstTime) * msPixelWidthTarget;
-            cursor_end = clippingRect.Min.x + (clip->mEnd - firstTime) * msPixelWidthTarget;
+            cursor_start = clippingRect.Min.x + (clip->Start() - firstTime) * msPixelWidthTarget;
+            cursor_end = clippingRect.Min.x + (clip->End() - firstTime) * msPixelWidthTarget;
             draw_clip = true;
             flag |= ImDrawFlags_RoundCornersAll;
         }
-        else if (clip->mStart >= firstTime && clip->mStart < viewEndTime && clip->mEnd >= viewEndTime)
+        else if (clip->Start() >= firstTime && clip->IsInClipRange(viewEndTime))
         {
             /***********************************************************
              *         ----------------------------------------
              *                         |XXXXXXXXXXXXXXXXXXXXXX|XXXXXXXXX
              *         ----------------------------------------
             ************************************************************/
-            cursor_start = clippingRect.Min.x + (clip->mStart - firstTime) * msPixelWidthTarget;
+            cursor_start = clippingRect.Min.x + (clip->Start() - firstTime) * msPixelWidthTarget;
             cursor_end = clippingRect.Max.x;
             draw_clip = true;
             flag |= ImDrawFlags_RoundCornersLeft;
         }
-        else if (clip->mStart <= firstTime && clip->mEnd >= viewEndTime)
+        else if (clip->Start() <= firstTime && clip->End() >= viewEndTime)
         {
             /***********************************************************
              *         ----------------------------------------
@@ -6208,9 +6200,9 @@ void TimeLine::CustomDraw(
             cursor_end  = clippingRect.Max.x;
             draw_clip = true;
         }
-        if (clip->mStart == firstTime)
+        if (clip->Start() == firstTime)
             flag |= ImDrawFlags_RoundCornersLeft;
-        if (clip->mEnd == viewEndTime)
+        if (clip->End() == viewEndTime)
             flag |= ImDrawFlags_RoundCornersRight;
 
         ImVec2 clip_title_pos_min = ImVec2(cursor_start, clippingTitleRect.Min.y);
@@ -6263,7 +6255,7 @@ void TimeLine::CustomDraw(
                 for (int p = 0; p < keypoint_filter->GetCurvePointCount(i); p++)
                 {
                     auto point = keypoint_filter->GetPoint(i, p);
-                    auto pos = point.point.x + clip->mStart;
+                    auto pos = point.point.x + clip->Start();
                     if (pos >= firstTime && pos <= viewEndTime)
                     {
                         ImVec2 center = ImVec2(clippingRect.Min.x + (pos - firstTime) * msPixelWidthTarget, clip_title_pos_min.y + (clip_title_pos_max.y - clip_title_pos_min.y) / 2);
@@ -6284,7 +6276,7 @@ void TimeLine::CustomDraw(
                 for (int p = 0; p < keypoint_attribute->GetCurvePointCount(i); p++)
                 {
                     auto point = keypoint_attribute->GetPoint(i, p);
-                    auto pos = point.point.x + clip->mStart;
+                    auto pos = point.point.x + clip->Start();
                     if (pos >= firstTime && pos <= viewEndTime)
                     {
                         ImVec2 center = ImVec2(clippingRect.Min.x + (pos - firstTime) * msPixelWidthTarget, clip_title_pos_min.y + (clip_title_pos_max.y - clip_title_pos_min.y) / 2);
@@ -6861,9 +6853,9 @@ int TimeLine::Load(const imgui_json::value& value)
                     continue;
                 MediaCore::VideoClip::Holder hVidClip;
                 if (IS_IMAGE(clip->mType))
-                    hVidClip = vidTrack->AddNewClip(clip->mID, clip->mMediaParser, clip->mStart, clip->mEnd-clip->mStart, 0, 0);
+                    hVidClip = vidTrack->AddImageClip(clip->mID, clip->mMediaParser, clip->Start(), clip->Length());
                 else
-                    hVidClip = vidTrack->AddNewClip(clip->mID, clip->mMediaParser, clip->mStart, clip->mStartOffset, clip->mEndOffset, currentTime-clip->mStart);
+                    hVidClip = vidTrack->AddVideoClip(clip->mID, clip->mMediaParser, clip->Start(), clip->End(), clip->StartOffset(), clip->EndOffset(), currentTime-clip->Start());
 
                 BluePrintVideoFilter* bpvf = new BluePrintVideoFilter(this);
                 bpvf->SetBluePrintFromJson(clip->mFilterBP);
@@ -6898,7 +6890,7 @@ int TimeLine::Load(const imgui_json::value& value)
                     continue;
                 MediaCore::AudioClip::Holder hAudClip = audTrack->AddNewClip(
                     clip->mID, clip->mMediaParser,
-                    clip->mStart, clip->mStartOffset, clip->mEndOffset);
+                    clip->Start(), clip->End(), clip->StartOffset(), clip->EndOffset());
                 BluePrintAudioFilter* bpaf = new BluePrintAudioFilter(this);
                 bpaf->SetBluePrintFromJson(clip->mFilterBP);
                 bpaf->SetKeyPoint(clip->mFilterKeyPoints);
@@ -7181,7 +7173,7 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
         MediaCore::VideoClip::Holder vidClip = MediaCore::VideoClip::CreateVideoInstance(
             clip->mID, clip->mMediaParser,
             vidTrack->OutWidth(), vidTrack->OutHeight(), vidTrack->FrameRate(),
-            clip->mStart, clip->mStartOffset, clip->mEndOffset, currentTime-clip->mStart, vidTrack->Direction());
+            clip->Start(), clip->End(), clip->StartOffset(), clip->EndOffset(), currentTime-clip->Start(), vidTrack->Direction());
         BluePrintVideoFilter* bpvf = new BluePrintVideoFilter(this);
         bpvf->SetBluePrintFromJson(clip->mFilterBP);
         bpvf->SetKeyPoint(clip->mFilterKeyPoints);
@@ -7300,7 +7292,7 @@ void TimeLine::PerformAudioAction(imgui_json::value& action)
         MediaCore::AudioClip::Holder audClip = MediaCore::AudioClip::CreateInstance(
             clip->mID, clip->mMediaParser,
             audTrack->OutChannels(), audTrack->OutSampleRate(), audTrack->OutSampleFormat(),
-            clip->mStart, clip->mStartOffset, clip->mEndOffset);
+            clip->Start(), clip->End(), clip->StartOffset(), clip->EndOffset());
         BluePrintAudioFilter* bpaf = new BluePrintAudioFilter(this);
         bpaf->SetBluePrintFromJson(clip->mFilterBP);
         bpaf->SetKeyPoint(clip->mFilterKeyPoints);
@@ -7391,7 +7383,7 @@ void TimeLine::PerformImageAction(imgui_json::value& action)
         Clip* clip = FindClipByID(clipId);
         MediaCore::VideoClip::Holder imgClip = MediaCore::VideoClip::CreateImageInstance(
             clip->mID, clip->mMediaParser,
-            vidTrack->OutWidth(), vidTrack->OutHeight(), clip->mStart, clip->mLength);
+            vidTrack->OutWidth(), vidTrack->OutHeight(), clip->Start(), clip->Length());
         vidTrack->InsertClip(imgClip);
         UpdatePreview();
     }
@@ -8131,8 +8123,7 @@ bool TimeLine::UndoOneRecord()
                 }
             }
             Clip* clip = FindClipByID(clipId);
-            clip->mStart = orgStart;
-            clip->mEnd = clip->mStart+clip->mLength;
+            clip->ChangeStart(orgStart);
             MovingClip(clipId, toTrackIndex, fromTrackIndex);
             Update();
 
@@ -8334,8 +8325,7 @@ bool TimeLine::RedoOneRecord()
                 }
             }
             Clip* clip = FindClipByID(clipId);
-            clip->mStart = newStart;
-            clip->mEnd = newStart+clip->mLength;
+            clip->ChangeStart(newStart);
             MovingClip(clipId, fromTrackIndex, toTrackIndex);
             Update();
 
@@ -8455,7 +8445,7 @@ int64_t TimeLine::AddNewClip(const imgui_json::value& clip_json, int64_t track_i
         break;
     }
     m_Clips.push_back(newClip);
-    track->InsertClip(newClip, newClip->mStart, true, pActionList);
+    track->InsertClip(newClip, newClip->Start(), true, pActionList);
 
     int64_t groupId = clip_json["GroupID"].get<imgui_json::number>();
     if (groupId != -1)
@@ -8494,19 +8484,18 @@ int64_t TimeLine::AddNewClip(
         MediaCore::Snapshot::Viewer::Holder hViewer;
         MediaCore::Snapshot::Generator::Holder hSsGen = GetSnapshotGenerator(item->mID);
         if (hSsGen) hViewer = hSsGen->CreateViewer();
-        newClip = new VideoClip(item->mStart, item->mEnd, item->mID, item->mName+":Video", item->mMediaOverview->GetMediaParser(), hViewer, this);
+        auto clipRange = AlignClipPosition({0, item->mSrcLength});
+        newClip = new VideoClip(clipRange.first, clipRange.second, item->mID, item->mName+":Video", item->mMediaOverview->GetMediaParser(), hViewer, this);
     }
     else if (IS_IMAGE(media_type))
     {
-        newClip = new VideoClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, this);
+        auto clipRange = AlignClipPosition({0, 5000});
+        newClip = new VideoClip(clipRange.first, clipRange.second, item->mID, item->mName, item->mMediaOverview, this);
     }
     else if (IS_AUDIO(media_type))
     {
-        newClip = new AudioClip(item->mStart, item->mEnd, item->mID, item->mName+":Audio", item->mMediaOverview, this);
-    }
-    else if (IS_TEXT(media_type))
-    {
-        newClip = new TextClip(start, end, track->mID, track->mName, "", this);
+        auto clipRange = AlignClipPosition({0, item->mSrcLength});
+        newClip = new AudioClip(clipRange.first, clipRange.second, item->mID, item->mName+":Audio", item->mMediaOverview, this);
     }
     else
     {
@@ -8516,19 +8505,12 @@ int64_t TimeLine::AddNewClip(
 
     if (clip_id != -1)
         newClip->mID = clip_id;
-    newClip->mStart = start;
-    if (IS_IMAGE(media_type) || IS_TEXT(media_type))
+    if (!IS_IMAGE(media_type) && !IS_TEXT(media_type))
     {
-        newClip->mStartOffset = 0;
-        newClip->mEndOffset = 0;
+        newClip->ChangeStartOffset(start_offset);
+        newClip->ChangeEndOffset(end_offset);
     }
-    else
-    {
-        newClip->mStartOffset = start_offset;
-        newClip->mEndOffset = end_offset;
-    }
-    newClip->mLength -= start_offset+end_offset;
-    newClip->mEnd = start+newClip->mLength;
+    newClip->ChangeStart(start);
     m_Clips.push_back(newClip);
     track->InsertClip(newClip, start, true, pActionList);
     if (group_id != -1)
@@ -8939,7 +8921,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                     // it should be at most 2 clips under mouse
                     for (auto clip : track->m_Clips)
                     {
-                        if (clip->mStart <= mouseTime && clip->mEnd >= mouseTime)
+                        if (clip->IsInClipRange(mouseTime))
                         {
                             mouseClip.push_back(clip->mID);
                         }
@@ -8952,8 +8934,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                     if (mouse_clip && clipMovingEntry == -1)
                     {
                         // check clip moving part
-                        ImVec2 clipP1(pos.x + mouse_clip->mStart * timeline->msPixelWidthTarget, pos.y + 2);
-                        ImVec2 clipP2(pos.x + mouse_clip->mEnd * timeline->msPixelWidthTarget, pos.y + trackHeadHeight - 2 + localCustomHeight);
+                        ImVec2 clipP1(pos.x + mouse_clip->Start() * timeline->msPixelWidthTarget, pos.y + 2);
+                        ImVec2 clipP2(pos.x + mouse_clip->End() * timeline->msPixelWidthTarget, pos.y + trackHeadHeight - 2 + localCustomHeight);
                         const float max_handle_width = clipP2.x - clipP1.x / 3.0f;
                         const float min_handle_width = ImMin(10.0f, max_handle_width);
                         const float handle_width = ImClamp(timeline->msPixelWidthTarget / 2.0f, min_handle_width, max_handle_width);
@@ -9283,13 +9265,12 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                     {
                         if (track->mMttReader && menuMouseTime != -1)
                         {
-                            int64_t text_time = menuMouseTime;
-                            timeline->AlignTime(text_time);
-                            TextClip * clip = new TextClip(text_time, text_time + 5000, track->mID, track->mName, std::string(""), timeline);
+                            auto clipRange = timeline->AlignClipPosition({menuMouseTime, 5000});
+                            TextClip * clip = new TextClip(clipRange.first, clipRange.second, track->mID, track->mName, std::string(""), timeline);
                             clip->CreateClipHold(track);
                             clip->SetClipDefault(track->mMttReader->DefaultStyle());
                             timeline->m_Clips.push_back(clip);
-                            track->InsertClip(clip, text_time);
+                            track->InsertClip(clip, clipRange.first);
                             track->SelectEditingClip(clip, false);
                             if (timeline->m_CallBacks.EditingClipFilter)
                             {
@@ -9590,7 +9571,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 cutTrk = timeline->m_Tracks[cutTrkIdx];
                 for (auto clip : cutTrk->m_Clips)
                 {
-                    if (alignedTime > clip->mStart && alignedTime < clip->mEnd)
+                    if (clip->IsInClipRange(alignedTime))
                     {
                         hoveringClip = clip;
                         break;
@@ -9631,7 +9612,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                                 continue;
                             auto clip = timeline->FindClipByID(clipId);
                             if (!clip) continue;
-                            if (alignedTime > clip->mStart && alignedTime < clip->mEnd)
+                            if (clip->IsInClipRange(alignedTime))
                             {
                                 int trkIdx = timeline->FindTrackIndexByClipID(clip->mID);
                                 if (trkIdx >= 0)
@@ -9674,10 +9655,10 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             ongoingAction["clip_id"] = imgui_json::number(clip->mID);
             ongoingAction["media_type"] = imgui_json::number(clip->mType);
             ongoingAction["from_track_id"] = imgui_json::number(track->mID);
-            ongoingAction["org_start"] = imgui_json::number(clip->mStart);
-            ongoingAction["org_end"] = imgui_json::number(clip->mEnd);
-            ongoingAction["org_start_offset"] = imgui_json::number(clip->mStartOffset);
-            ongoingAction["org_end_offset"] = imgui_json::number(clip->mEndOffset);
+            ongoingAction["org_start"] = imgui_json::number(clip->Start());
+            ongoingAction["org_end"] = imgui_json::number(clip->End());
+            ongoingAction["org_start_offset"] = imgui_json::number(clip->StartOffset());
+            ongoingAction["org_end_offset"] = imgui_json::number(clip->EndOffset());
             timeline->mOngoingActions.push_back(std::move(ongoingAction));
             int selectCnt = 0;
             for (auto pclip : timeline->m_Clips)
@@ -9697,7 +9678,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                     ongoingAction["media_type"] = imgui_json::number(pClip->mType);
                     MediaTrack* track = timeline->FindTrackByClipID(pClip->mID);
                     ongoingAction["from_track_id"] = imgui_json::number(track->mID);
-                    ongoingAction["org_start"] = imgui_json::number(pClip->mStart);
+                    ongoingAction["org_start"] = imgui_json::number(pClip->Start());
                     timeline->mOngoingActions.push_back(std::move(ongoingAction));
                 }
             }
@@ -9890,10 +9871,10 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                     int64_t orgStart = action["org_start"].get<imgui_json::number>();
                     int64_t fromTrackId = action["from_track_id"].get<imgui_json::number>();
                     auto toTrack = timeline->FindTrackByClipID(clipId);
-                    if (fromTrackId != toTrack->mID || orgStart != clip->mStart)
+                    if (fromTrackId != toTrack->mID || orgStart != clip->Start())
                     {
                         action["to_track_id"] = imgui_json::number(toTrack->mID);
-                        action["new_start"] = imgui_json::number(clip->mStart);
+                        action["new_start"] = imgui_json::number(clip->Start());
                         actionList.push_back(std::move(action));
                     }
                     else
@@ -9907,13 +9888,13 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                     int64_t orgEndOffset = action["org_end_offset"].get<imgui_json::number>();
                     int64_t orgStart = action["org_start"].get<imgui_json::number>();
                     int64_t orgEnd = action["org_end"].get<imgui_json::number>();
-                    if (orgStartOffset != clip->mStartOffset || orgEndOffset != clip->mEndOffset ||
-                        orgStart != clip->mStart || orgEnd != clip->mEnd)
+                    if (orgStartOffset != clip->StartOffset() || orgEndOffset != clip->EndOffset() ||
+                        orgStart != clip->Start() || orgEnd != clip->End())
                     {
-                        action["new_start_offset"] = imgui_json::number(clip->mStartOffset);
-                        action["new_end_offset"] = imgui_json::number(clip->mEndOffset);
-                        action["new_start"] = imgui_json::number(clip->mStart);
-                        action["new_end"] = imgui_json::number(clip->mEnd);
+                        action["new_start_offset"] = imgui_json::number(clip->StartOffset());
+                        action["new_end_offset"] = imgui_json::number(clip->EndOffset());
+                        action["new_start"] = imgui_json::number(clip->Start());
+                        action["new_end"] = imgui_json::number(clip->End());
                         actionList.push_back(std::move(action));
                     }
                     else
@@ -9999,9 +9980,10 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             MediaItem * item = (MediaItem*)payload->Data;
             if (item)
             {
+                auto clipRange = timeline->AlignClipPosition({0, item->mSrcLength});
                 if (IS_IMAGE(item->mMediaType))
                 {
-                    VideoClip * new_image_clip = new VideoClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, timeline);
+                    VideoClip * new_image_clip = new VideoClip(clipRange.first, clipRange.second, item->mID, item->mName, item->mMediaOverview, timeline);
                     timeline->m_Clips.push_back(new_image_clip);
                     MediaTrack* insertTrack = track;
                     if (!track || !track->CanInsertClip(new_image_clip, mouseTime))
@@ -10015,7 +9997,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 }
                 else if (IS_AUDIO(item->mMediaType))
                 {
-                    AudioClip * new_audio_clip = new AudioClip(item->mStart, item->mEnd, item->mID, item->mName, item->mMediaOverview, timeline);
+                    AudioClip * new_audio_clip = new AudioClip(clipRange.first, clipRange.second, item->mID, item->mName, item->mMediaOverview, timeline);
                     timeline->m_Clips.push_back(new_audio_clip);
                     MediaTrack* insertTrack = track;
                     if (!track || !track->CanInsertClip(new_audio_clip, mouseTime))
@@ -10073,7 +10055,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                         MediaCore::Snapshot::Viewer::Holder hViewer;
                         MediaCore::Snapshot::Generator::Holder hSsGen = timeline->GetSnapshotGenerator(item->mID);
                         if (hSsGen) hViewer = hSsGen->CreateViewer();
-                        new_video_clip = new VideoClip(item->mStart, item->mEnd, item->mID, item->mName + ":Video", item->mMediaOverview->GetMediaParser(), hViewer, timeline);
+                        new_video_clip = new VideoClip(clipRange.first, clipRange.second, item->mID, item->mName + ":Video", item->mMediaOverview->GetMediaParser(), hViewer, timeline);
                         timeline->m_Clips.push_back(new_video_clip);
                         videoTrack = track;
                         if (!track || !track->CanInsertClip(new_video_clip, mouseTime))
@@ -10087,7 +10069,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                     }
                     if (audio_stream)
                     {
-                        new_audio_clip = new AudioClip(item->mStart, item->mEnd, item->mID, item->mName + ":Audio", item->mMediaOverview, timeline);
+                        new_audio_clip = new AudioClip(clipRange.first, clipRange.second, item->mID, item->mName + ":Audio", item->mMediaOverview, timeline);
                         timeline->m_Clips.push_back(new_audio_clip);
                         if (!create_new_track)
                         {

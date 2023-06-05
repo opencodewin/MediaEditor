@@ -1660,25 +1660,6 @@ static void LoadProjectThread(std::string path, bool in_splash)
             
             item = new MediaItem(name, path, type, timeline);
             if (id != -1) item->mID = id;
-            if (!item->mValid)
-            {
-                if (media.contains("start"))
-                {
-                    auto& val = media["start"];
-                    if (val.is_number())
-                    {
-                        item->mStart = val.get<imgui_json::number>();
-                    }
-                }
-                if (media.contains("end"))
-                {
-                    auto& val = media["end"];
-                    if (val.is_number())
-                    {
-                        item->mEnd = val.get<imgui_json::number>();
-                    }
-                }
-            }
             timeline->media_items.push_back(item);
             g_project_loading_percentage += percentage;
         }
@@ -1746,8 +1727,6 @@ static void SaveProject(std::string path)
         item["name"] = media->mName;
         item["path"] = media->mPath;
         item["type"] = imgui_json::number(media->mMediaType);
-        item["start"] = imgui_json::number(media->mStart);
-        item["end"] = imgui_json::number(media->mEnd);
         media_bank.push_back(item);
     }
     g_project["MediaBank"] = media_bank;
@@ -1895,8 +1874,6 @@ static bool ReloadMedia(std::string path, MediaItem* item)
         return false;
     auto old_name = item->mName;
     auto old_path = item->mPath;
-    auto old_start = item->mStart;
-    auto old_end = item->mEnd;
     item->UpdateItem(name, path, timeline);
     if (item->mValid)
     {
@@ -1919,7 +1896,7 @@ static bool ReloadMedia(std::string path, MediaItem* item)
                     if (hSsGen)
                     {
                         hViewer = hSsGen->CreateViewer();
-                        new_clip->UpdateClip(item->mMediaOverview->GetMediaParser(), hViewer, item->mEnd - item->mStart);
+                        new_clip->UpdateClip(item->mMediaOverview->GetMediaParser(), hViewer, item->mSrcLength);
                     }
                     // update video snapshot
                     if (!IS_DUMMY(new_clip->mType))
@@ -1928,7 +1905,7 @@ static bool ReloadMedia(std::string path, MediaItem* item)
                 else if (IS_AUDIO(clip->mType))
                 {
                     AudioClip * new_clip = (AudioClip *)clip;
-                    new_clip->UpdateClip(item->mMediaOverview, item->mEnd - item->mStart);
+                    new_clip->UpdateClip(item->mMediaOverview, item->mSrcLength);
                 }
                 else if (IS_TEXT(clip->mType))
                 {
@@ -1945,9 +1922,9 @@ static bool ReloadMedia(std::string path, MediaItem* item)
                         {
                             MediaCore::VideoClip::Holder hVidClip;
                             if (IS_IMAGE(clip->mType))
-                                hVidClip = vidTrack->AddNewClip(clip->mID, clip->mMediaParser, clip->mStart, clip->mEnd-clip->mStart, 0, 0);
+                                hVidClip = vidTrack->AddImageClip(clip->mID, clip->mMediaParser, clip->Start(), clip->Length());
                             else
-                                hVidClip = vidTrack->AddNewClip(clip->mID, clip->mMediaParser, clip->mStart, clip->mStartOffset, clip->mEndOffset, timeline->currentTime - clip->mStart);
+                                hVidClip = vidTrack->AddVideoClip(clip->mID, clip->mMediaParser, clip->Start(), clip->End(), clip->StartOffset(), clip->EndOffset(), timeline->currentTime - clip->Start());
                         
                             BluePrintVideoFilter* bpvf = new BluePrintVideoFilter(timeline);
                             bpvf->SetBluePrintFromJson(clip->mFilterBP);
@@ -1978,7 +1955,7 @@ static bool ReloadMedia(std::string path, MediaItem* item)
                         MediaCore::AudioTrack::Holder audTrack = timeline->mMtaReader->GetTrackById(track->mID);
                         if (audTrack)
                         {
-                            MediaCore::AudioClip::Holder hAudClip = audTrack->AddNewClip(clip->mID, clip->mMediaParser, clip->mStart, clip->mStartOffset, clip->mEndOffset);
+                            MediaCore::AudioClip::Holder hAudClip = audTrack->AddNewClip(clip->mID, clip->mMediaParser, clip->Start(), clip->End(), clip->StartOffset(), clip->EndOffset());
                             BluePrintAudioFilter* bpaf = new BluePrintAudioFilter(timeline);
                             bpaf->SetBluePrintFromJson(clip->mFilterBP);
                             bpaf->SetKeyPoint(clip->mFilterKeyPoints);
@@ -2005,8 +1982,6 @@ static bool ReloadMedia(std::string path, MediaItem* item)
             item->ReleaseItem();
             item->mName = old_name;
             item->mPath = old_path;
-            item->mStart = old_start;
-            item->mEnd = old_end;
         }
         // update preview
         timeline->UpdatePreview();
@@ -2016,8 +1991,6 @@ static bool ReloadMedia(std::string path, MediaItem* item)
         item->ReleaseItem();
         item->mName = old_name;
         item->mPath = old_path;
-        item->mStart = old_start;
-        item->mEnd = old_end;
         return false;
     }
     return updated;
@@ -4298,7 +4271,7 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list, ImRect title_rect)
         ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DEEP_DARK);
-        if (editing_clip) ShowVideoPreviewWindow(draw_list, editing_clip->mStart, editing_clip->mEnd, true);
+        if (editing_clip) ShowVideoPreviewWindow(draw_list, editing_clip->Start(), editing_clip->End(), true);
         else ShowVideoPreviewWindow(draw_list, timeline->GetStart(), timeline->GetEnd(), true);
     }
     ImGui::EndChild();
@@ -4332,7 +4305,7 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list, ImRect title_rect)
                     ImU32 color; ImGui::RandomColor(color, 1.f);
                     auto curve_index = attribute_keypoint->AddCurve(name, ImGui::ImCurveEdit::Smooth, color, true, _min, _max, _default);
                     attribute_keypoint->AddPoint(curve_index, ImVec2(0, _min), ImGui::ImCurveEdit::Smooth);
-                    attribute_keypoint->AddPoint(curve_index, ImVec2(editing_clip->mEnd - editing_clip->mStart, _max), ImGui::ImCurveEdit::Smooth);
+                    attribute_keypoint->AddPoint(curve_index, ImVec2(editing_clip->Length(), _max), ImGui::ImCurveEdit::Smooth);
                     attribute_keypoint->SetCurvePointDefault(curve_index, 0);
                     attribute_keypoint->SetCurvePointDefault(curve_index, 1);
                 }
@@ -4868,7 +4841,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
         ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DEEP_DARK);
-        if (editing_clip) ShowVideoPreviewWindow(draw_list, editing_clip->mStart, editing_clip->mEnd);
+        if (editing_clip) ShowVideoPreviewWindow(draw_list, editing_clip->Start(), editing_clip->End());
         else ShowVideoPreviewWindow(draw_list, timeline->GetStart(), timeline->GetEnd());
     }
     ImGui::EndChild();
@@ -4930,7 +4903,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
                     ImU32 color; ImGui::RandomColor(color, 1.f);
                     auto curve_index = filter->mKeyPoints.AddCurve(name, ImGui::ImCurveEdit::Smooth, color, true, _min, _max, _default);
                     filter->mKeyPoints.AddPoint(curve_index, ImVec2(/*editing_clip->mStart*/ 0, _min), ImGui::ImCurveEdit::Smooth);
-                    filter->mKeyPoints.AddPoint(curve_index, ImVec2(editing_clip->mEnd - editing_clip->mStart, _max), ImGui::ImCurveEdit::Smooth);
+                    filter->mKeyPoints.AddPoint(curve_index, ImVec2(editing_clip->Length(), _max), ImGui::ImCurveEdit::Smooth);
                     filter->mKeyPoints.SetCurvePointDefault(curve_index, 0);
                     filter->mKeyPoints.SetCurvePointDefault(curve_index, 1);
                     if (blueprint)
@@ -5961,7 +5934,7 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list, ImRect title_rect)
         ImVec2 audio_view_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 audio_view_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(audio_view_window_pos, audio_view_window_pos + audio_view_window_size, COL_DEEP_DARK);
-        ShowMediaPreviewWindow(draw_list, "Audio Filter", 1.5f, video_rect, editing_clip ? editing_clip->mStart : -1, editing_clip ? editing_clip->mEnd : -1, true, false, false);
+        ShowMediaPreviewWindow(draw_list, "Audio Filter", 1.5f, video_rect, editing_clip ? editing_clip->Start() : -1, editing_clip ? editing_clip->End() : -1, true, false, false);
     }
     ImGui::EndChild();
 
@@ -6019,7 +5992,7 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list, ImRect title_rect)
                     ImU32 color; ImGui::RandomColor(color, 1.f);
                     auto curve_index = filter->mKeyPoints.AddCurve(name, ImGui::ImCurveEdit::Smooth, color, true, _min, _max, _default);
                     filter->mKeyPoints.AddPoint(curve_index, ImVec2(0, _min), ImGui::ImCurveEdit::Smooth);
-                    filter->mKeyPoints.AddPoint(curve_index, ImVec2(editing_clip->mEnd - editing_clip->mStart, _max), ImGui::ImCurveEdit::Smooth);
+                    filter->mKeyPoints.AddPoint(curve_index, ImVec2(editing_clip->Length(), _max), ImGui::ImCurveEdit::Smooth);
                     filter->mKeyPoints.SetCurvePointDefault(curve_index, 0);
                     filter->mKeyPoints.SetCurvePointDefault(curve_index, 1);
                     if (blueprint)
@@ -7266,7 +7239,7 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
             if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
             {
                 ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
-                float value = key_point->GetValue(index, timeline->currentTime - clip->mStart);
+                float value = key_point->GetValue(index, timeline->currentTime - clip->Start());
                 ImGui::BracketSquare(true); ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0, 1.0, 0.0, 1.0)); ImGui::Text("%.2f", value); ImGui::PopStyleColor();
                 
                 ImGui::PushItemWidth(60);
@@ -8135,7 +8108,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list, ImRect title_rect)
     else if (editing_clip && editing_clip->mClipHolder)
     {
         editing_track = (MediaTrack *)editing_clip->mTrack;
-        current_image = editing_clip->mClipHolder->Image(timeline->currentTime-editing_clip->mStart);
+        current_image = editing_clip->mClipHolder->Image(timeline->currentTime-editing_clip->Start());
         default_size = ImVec2((float)current_image.Area().w / (float)timeline->GetPreviewWidth(), (float)current_image.Area().h / (float)timeline->GetPreviewHeight());
         editing_clip->mFontPosX = (float)current_image.Area().x / (float)timeline->GetPreviewWidth();
         editing_clip->mFontPosY = (float)current_image.Area().y / (float)timeline->GetPreviewHeight();
@@ -8163,8 +8136,8 @@ static void ShowTextEditorWindow(ImDrawList *draw_list, ImRect title_rect)
         if (editing_clip)
         {
             // show clip time
-            auto start_time_str = std::string(ICON_CLIP_START) + " " + ImGuiHelper::MillisecToString(editing_clip->mStart, 3);
-            auto end_time_str = ImGuiHelper::MillisecToString(editing_clip->mEnd, 3) + " " + std::string(ICON_CLIP_END);
+            auto start_time_str = std::string(ICON_CLIP_START) + " " + ImGuiHelper::MillisecToString(editing_clip->Start(), 3);
+            auto end_time_str = ImGuiHelper::MillisecToString(editing_clip->End(), 3) + " " + std::string(ICON_CLIP_END);
             auto start_time_str_size = ImGui::CalcTextSize(start_time_str.c_str());
             auto end_time_str_size = ImGui::CalcTextSize(end_time_str.c_str());
             float time_str_offset = (style_window_size.x - start_time_str_size.x - end_time_str_size.x - 30) / 2;
@@ -8225,7 +8198,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list, ImRect title_rect)
                     if (StyleWindowIndex == 0)
                     {
                         // clip style
-                        bool bEnabled = timeline->currentTime >= editing_clip->mStart && timeline->currentTime <= editing_clip->mEnd;
+                        bool bEnabled = editing_clip->IsInClipRange(timeline->currentTime);
                         ImGui::BeginDisabled(editing_clip->mTrackStyle || !bEnabled);
                         force_update_preview |= edit_text_clip_style(draw_list, editing_clip, style_setting_window_size, default_size);
                         ImGui::EndDisabled();
@@ -8252,10 +8225,10 @@ static void ShowTextEditorWindow(ImDrawList *draw_list, ImRect title_rect)
     {
         const float resize_handel_radius = 2;
         const ImVec2 handle_size(resize_handel_radius, resize_handel_radius);
-        ShowMediaPreviewWindow(draw_list, "Text Preview", 2.f, video_rect, editing_clip ? editing_clip->mStart : -1, editing_clip ? editing_clip->mEnd : -1, false, false, force_update_preview || MovingTextPos);
+        ShowMediaPreviewWindow(draw_list, "Text Preview", 2.f, video_rect, editing_clip ? editing_clip->Start() : -1, editing_clip ? editing_clip->End() : -1, false, false, force_update_preview || MovingTextPos);
         // show test rect on preview view and add UI editor
         draw_list->PushClipRect(video_rect.Min, video_rect.Max);
-        if (editing_clip && current_image.Valid() && timeline->currentTime >= editing_clip->mStart && timeline->currentTime <= editing_clip->mEnd)
+        if (editing_clip && current_image.Valid() && editing_clip->IsInClipRange(timeline->currentTime))
         {
             ImVec2 text_pos_min = ImVec2(editing_clip->mFontPosX * video_rect.GetWidth(), editing_clip->mFontPosY * video_rect.GetHeight());
             ImVec2 text_pos_max = text_pos_min + ImVec2(default_size.x * video_rect.GetWidth(), default_size.y * video_rect.GetHeight());
@@ -8343,7 +8316,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list, ImRect title_rect)
             if (StyleWindowIndex == 0 && editing_clip)
             {
                 bool _changed = false;
-                float current_time = timeline->currentTime - editing_clip->mStart;
+                float current_time = timeline->currentTime - editing_clip->Start();
                 auto keyPointsPtr = &editing_clip->mAttributeKeyPoints;
                 mouse_hold |= ImGui::ImCurveEdit::Edit( nullptr,
                                                         keyPointsPtr,
@@ -8355,7 +8328,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list, ImRect title_rect)
                                                         nullptr, // clippingRect
                                                         &_changed
                                                         );
-                current_time += editing_clip->mStart;
+                current_time += editing_clip->Start();
                 if ((int64_t)current_time != timeline->currentTime) { timeline->Seek(current_time); }
                 if (_changed && editing_clip->mClipHolder) { editing_clip->mClipHolder->SetKeyPoints(editing_clip->mAttributeKeyPoints); timeline->UpdatePreview(); }
             }
