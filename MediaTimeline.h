@@ -1143,7 +1143,7 @@ struct TimeLine
     void Update();
     void UpdateRange();
     void AlignTime(int64_t& time, bool useCeil = false);
-    std::pair<int64_t, int64_t> AlignClipPosition(const std::pair<int64_t, int64_t>& startAndLength);  // (start, length) => aligned (start, end)
+    std::pair<int64_t, int64_t> AlignClipRange(const std::pair<int64_t, int64_t>& startAndLength);  // (start, length) => aligned (start, end)
 
     int GetTrackCount() const { return (int)m_Tracks.size(); }
     int GetTrackCount(uint32_t type);

@@ -1185,7 +1185,7 @@ Clip* VideoClip::Load(const imgui_json::value& value, void * handle)
     {
         // media is in bank
         VideoClip * new_clip = nullptr;
-        auto clipRange = timeline->AlignClipPosition({0, item->mSrcLength});
+        auto clipRange = timeline->AlignClipRange({0, item->mSrcLength});
         if (!item->mValid)
         {
             new_clip = new VideoClip(clipRange.first, clipRange.second, item->mID, item->mName, handle);
@@ -1679,7 +1679,7 @@ Clip * AudioClip::Load(const imgui_json::value& value, void * handle)
     if (item)
     {
         AudioClip * new_clip = nullptr;
-        auto clipRange = timeline->AlignClipPosition({0, item->mSrcLength});
+        auto clipRange = timeline->AlignClipRange({0, item->mSrcLength});
         if (item->mValid)
             new_clip = new AudioClip(clipRange.first, clipRange.second, item->mID, item->mName, item->mMediaOverview, handle);
         else
@@ -4760,7 +4760,7 @@ void TimeLine::AlignTime(int64_t& time, bool useCeil)
     alignTime(time, mFrameRate, useCeil);
 }
 
-std::pair<int64_t, int64_t> TimeLine::AlignClipPosition(const std::pair<int64_t, int64_t>& startAndLength)
+std::pair<int64_t, int64_t> TimeLine::AlignClipRange(const std::pair<int64_t, int64_t>& startAndLength)
 {
     int64_t start = startAndLength.first;
     int64_t length = startAndLength.second;
@@ -8511,17 +8511,17 @@ int64_t TimeLine::AddNewClip(
         MediaCore::Snapshot::Viewer::Holder hViewer;
         MediaCore::Snapshot::Generator::Holder hSsGen = GetSnapshotGenerator(item->mID);
         if (hSsGen) hViewer = hSsGen->CreateViewer();
-        auto clipRange = AlignClipPosition({0, item->mSrcLength});
+        auto clipRange = AlignClipRange({0, item->mSrcLength});
         newClip = new VideoClip(clipRange.first, clipRange.second, item->mID, item->mName+":Video", item->mMediaOverview->GetMediaParser(), hViewer, this);
     }
     else if (IS_IMAGE(media_type))
     {
-        auto clipRange = AlignClipPosition({0, 5000});
+        auto clipRange = AlignClipRange({0, 5000});
         newClip = new VideoClip(clipRange.first, clipRange.second, item->mID, item->mName, item->mMediaOverview, this);
     }
     else if (IS_AUDIO(media_type))
     {
-        auto clipRange = AlignClipPosition({0, item->mSrcLength});
+        auto clipRange = AlignClipRange({0, item->mSrcLength});
         newClip = new AudioClip(clipRange.first, clipRange.second, item->mID, item->mName+":Audio", item->mMediaOverview, this);
     }
     else
@@ -9292,7 +9292,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                     {
                         if (track->mMttReader && menuMouseTime != -1)
                         {
-                            auto clipRange = timeline->AlignClipPosition({menuMouseTime, 5000});
+                            auto clipRange = timeline->AlignClipRange({menuMouseTime, 5000});
                             TextClip * clip = new TextClip(clipRange.first, clipRange.second, track->mID, track->mName, std::string(""), timeline);
                             clip->CreateClipHold(track);
                             clip->SetClipDefault(track->mMttReader->DefaultStyle());
@@ -10007,7 +10007,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             MediaItem * item = (MediaItem*)payload->Data;
             if (item)
             {
-                auto clipRange = timeline->AlignClipPosition({0, item->mSrcLength});
+                auto clipRange = timeline->AlignClipRange({0, item->mSrcLength});
                 if (IS_IMAGE(item->mMediaType))
                 {
                     VideoClip * new_image_clip = new VideoClip(clipRange.first, clipRange.second, item->mID, item->mName, item->mMediaOverview, timeline);
