@@ -260,6 +260,19 @@ static const char* MainWindowTabTooltips[] =
 #define SCOPE_AUDIO_DB_LEVEL    (1<<8)
 #define SCOPE_AUDIO_SPECTROGRAM (1<<9)
 
+static const char* ScopeWindowTabIcon[] = {
+    ICON_HISTOGRAM,
+    ICON_WAVEFORM,
+    ICON_CIE,
+    ICON_VECTOR,
+    ICON_WAVE,
+    ICON_AUDIOVECTOR,
+    ICON_FFT,
+    ICON_DB,
+    ICON_DB_LEVEL,
+    ICON_SPECTROGRAM,
+};
+
 static const char* ScopeWindowTabNames[] = {
     ICON_HISTOGRAM " Video Histogram",
     ICON_WAVEFORM " Video Waveform",
@@ -371,7 +384,8 @@ struct MediaEditorSettings
     int BankViewStyle {0};                  // Bank view style type, 0 = icons, 1 = tree vide, and ... 
     bool ShowHelpTooltips {false};          // Show UI help tool tips
 
-    bool ExpandScope {false};
+    bool ExpandScope {true};
+    bool SeparateScope {false};
     // Histogram Scope tools
     bool HistogramLog {false};
     bool HistogramSplited {true};
@@ -805,19 +819,24 @@ static int EditingOverlap(int type, void* handle)
 }
 
 // Utils functions
-static bool ExpendButton(ImDrawList *draw_list, ImVec2 pos, bool expand = true)
+static bool ExpendButton(ImDrawList *draw_list, ImVec2 pos, bool expand = true, bool icon_mirror = false)
 {
     ImGuiIO &io = ImGui::GetIO();
     ImRect delRect(pos, ImVec2(pos.x + 16, pos.y + 16));
     bool overDel = delRect.Contains(io.MousePos);
     ImU32 delColor = IM_COL32_WHITE;
-    ImVec2 tra = pos + ImVec2(2, 2);
-    ImVec2 trb = tra + ImVec2(0, 12);
-    ImVec2 trc = tra + ImVec2(12, 6);
-    ImVec2 trd = tra + ImVec2(12, 0);
-    ImVec2 tre = tra + ImVec2(6, 12);
-    if (!expand) draw_list->AddTriangleFilled(tra, trd, tre, delColor);
-    else draw_list->AddTriangleFilled(tra, trb, trc, delColor);
+    //        a ----- c
+    //        | \   / |
+    //        |   e   |
+    //        | /   \ |
+    //        b ----- d
+    ImVec2 tra = pos + ImVec2(0, 0);
+    ImVec2 trb = pos + ImVec2(0, 16);
+    ImVec2 trc = pos + ImVec2(16, 0);
+    ImVec2 trd = pos + ImVec2(16, 16);
+    ImVec2 tre = pos + ImVec2(8, 8);
+    if (!expand) icon_mirror ? draw_list->AddTriangleFilled(trc, trd, tre, delColor) : draw_list->AddTriangleFilled(tra, trb, tre, delColor);
+    else draw_list->AddTriangleFilled(tra, tre, trc, delColor);
     return overDel;
 }
 
@@ -915,13 +934,13 @@ static bool MonitorButton(const char * label, ImVec2 pos, int& monitor_index, st
             if (disabled != -1 && disabled == monitor_n)
                 disable = true;
         }
-        if (g_media_editor_settings.ExpandScope && current_monitor == monitor_n)
+        if (g_media_editor_settings.SeparateScope && current_monitor == monitor_n)
             disable = true;
         ImGui::BeginDisabled(disable);
         bool selected = monitor_index == monitor_n;
         bool is_current_monitor = monitor_index == -1 && monitor_n == current_monitor;
         if (show_main) selected |= is_current_monitor;
-        std::string icon_str = (is_current_monitor && !show_main) ? g_media_editor_settings.ExpandScope ? ICON_DRAWING_PIN : ICON_EXPANMD : monitor_icons[monitor_n];
+        std::string icon_str = (is_current_monitor && !show_main) ? g_media_editor_settings.SeparateScope ? ICON_DRAWING_PIN : ICON_EXPANMD : monitor_icons[monitor_n];
         std::string monitor_label = icon_str + "##monitor_index" + std::string(label);
         if (ImGui::CheckButton(monitor_label.c_str(), &selected, ImVec4(0.2, 0.5, 0.2, 1.0)))
         {
@@ -9496,7 +9515,7 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
     }
 }
 
-static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
+static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expand, bool *spread)
 {
     ImGuiIO &io = ImGui::GetIO();
     bool multiviewport = io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable;
@@ -9511,7 +9530,12 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
     ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.2, 0.2, 0.2, 1.0));
 
     // global control bar
-    auto pos = window_pos + ImVec2(window_size.x - 64, 0);
+    auto pos = window_pos + ImVec2(window_size.x - 32, 0);
+    bool overExpanded = ExpendButton(draw_list, ImVec2(pos.x + 8, pos.y + 2), *expand, true);
+    if (overExpanded && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+        *expand = !*expand;
+    
+    pos = window_pos + ImVec2(window_size.x - 64, 0);
     std::vector<int> disabled_monitor;
     if (MainWindowIndex == 0)
         disabled_monitor.push_back(MonitorIndexPreviewVideo);
@@ -9523,79 +9547,94 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expanded)
     MonitorButton("scope_monitor", pos, MonitorIndexScope, disabled_monitor, false, false, true);
     if (MonitorIndexChanged)
     {
-        g_media_editor_settings.ExpandScope = true;
+        g_media_editor_settings.SeparateScope = true;
     }
 
-    ImVec2 main_scope_pos = window_pos;
-    if (expanded && !*expanded)
+    if (expand && !*expand)
     {
-        main_scope_pos += ImVec2((window_size.x - scope_view_size.x) / 2, 0);
-    }
-
-    ImGui::SetCursorScreenPos(main_scope_pos);
-    if (ImGui::Button(ICON_MORE "##select_scope#main"))
-    {
-        ImGui::OpenPopup("##select_scope_view#main");
-    }
-    ImGui::SameLine();
-    if (ImGui::Button(ICON_SETTING "##setting_scope#main"))
-    {
-        ImGui::OpenPopup("##setting_scope_view#main");
-    }
-    if (multiviewport)
-        ImGui::SetNextWindowViewport(viewport->ID);
-    
-    if (ImGui::BeginPopup("##select_scope_view#main"))
-    {
-        for (int i = 0; i < IM_ARRAYSIZE(ScopeWindowTabNames); i++)
-            if (ImGui::Selectable(ScopeWindowTabNames[i]))
-            {
-                g_media_editor_settings.ScopeWindowIndex = i;
-                need_update_scope = true;
-            }
-        ImGui::EndPopup();
-    }
-    if (ImGui::BeginPopup("##setting_scope_view#main"))
-    {
-        ShowMediaScopeSetting(g_media_editor_settings.ScopeWindowIndex);
-        ImGui::EndPopup();
-    }
-
-    ShowMediaScopeView(g_media_editor_settings.ScopeWindowIndex, main_scope_pos + ImVec2(0, 16 + 8), scope_view_size);
-
-    if (expanded && *expanded)
-    {
-        ImVec2 expand_scope_pos = window_pos + ImVec2(scope_view_size.x + 16, 0);
-        ImGui::SetCursorScreenPos(expand_scope_pos);
-        if (ImGui::Button(ICON_MORE "##select_scope#expand"))
+        draw_list->AddText(nullptr, 24.f, window_pos, IM_COL32_WHITE, ScopeWindowTabIcon[g_media_editor_settings.ScopeWindowIndex]);
+        if (spread && *spread)
         {
-            ImGui::OpenPopup("##select_scope_view#expand");
+            draw_list->AddText(nullptr, 24.f, window_pos + ImVec2(window_size.x / 2, 0), IM_COL32_WHITE, ScopeWindowTabIcon[g_media_editor_settings.ScopeWindowExpandIndex]);
+        }
+    }
+    else
+    {
+        
+        ImVec2 main_scope_pos = window_pos;
+        if (spread && !*spread)
+        {
+            main_scope_pos += ImVec2((window_size.x - scope_view_size.x) / 2, 0);
+        }
+
+        draw_list->AddText(nullptr, 24.f, main_scope_pos, IM_COL32_WHITE, ScopeWindowTabIcon[g_media_editor_settings.ScopeWindowIndex]);
+        
+        ImGui::SetCursorScreenPos(main_scope_pos + ImVec2(32, 0));
+
+        if (ImGui::Button(ICON_MORE "##select_scope#main"))
+        {
+            ImGui::OpenPopup("##select_scope_view#main");
         }
         ImGui::SameLine();
-        if (ImGui::Button(ICON_SETTING "##setting_scope#expand"))
+        if (ImGui::Button(ICON_SETTING "##setting_scope#main"))
         {
-            ImGui::OpenPopup("##setting_scope_view#expand");
+            ImGui::OpenPopup("##setting_scope_view#main");
         }
         if (multiviewport)
             ImGui::SetNextWindowViewport(viewport->ID);
-        if (ImGui::BeginPopup("##select_scope_view#expand"))
+
+        if (ImGui::BeginPopup("##select_scope_view#main"))
         {
             for (int i = 0; i < IM_ARRAYSIZE(ScopeWindowTabNames); i++)
                 if (ImGui::Selectable(ScopeWindowTabNames[i]))
                 {
-                    g_media_editor_settings.ScopeWindowExpandIndex = i;
+                    g_media_editor_settings.ScopeWindowIndex = i;
                     need_update_scope = true;
                 }
             ImGui::EndPopup();
         }
-        if (ImGui::BeginPopup("##setting_scope_view#expand"))
+        if (ImGui::BeginPopup("##setting_scope_view#main"))
         {
-            ShowMediaScopeSetting(g_media_editor_settings.ScopeWindowExpandIndex);
+            ShowMediaScopeSetting(g_media_editor_settings.ScopeWindowIndex);
             ImGui::EndPopup();
         }
-        ShowMediaScopeView(g_media_editor_settings.ScopeWindowExpandIndex, expand_scope_pos + ImVec2(0, 16 + 8), scope_view_size);
-    }
 
+        ShowMediaScopeView(g_media_editor_settings.ScopeWindowIndex, main_scope_pos + ImVec2(0, 16 + 8), scope_view_size);
+
+        if (spread && *spread)
+        {
+            ImVec2 expand_scope_pos = window_pos + ImVec2(scope_view_size.x + 16, 0);
+            draw_list->AddText(nullptr, 24.f, expand_scope_pos, IM_COL32_WHITE, ScopeWindowTabIcon[g_media_editor_settings.ScopeWindowExpandIndex]);
+            ImGui::SetCursorScreenPos(expand_scope_pos + ImVec2(32, 0));
+            if (ImGui::Button(ICON_MORE "##select_scope#expand"))
+            {
+                ImGui::OpenPopup("##select_scope_view#expand");
+            }
+            ImGui::SameLine();
+            if (ImGui::Button(ICON_SETTING "##setting_scope#expand"))
+            {
+                ImGui::OpenPopup("##setting_scope_view#expand");
+            }
+            if (multiviewport)
+                ImGui::SetNextWindowViewport(viewport->ID);
+            if (ImGui::BeginPopup("##select_scope_view#expand"))
+            {
+                for (int i = 0; i < IM_ARRAYSIZE(ScopeWindowTabNames); i++)
+                    if (ImGui::Selectable(ScopeWindowTabNames[i]))
+                    {
+                        g_media_editor_settings.ScopeWindowExpandIndex = i;
+                        need_update_scope = true;
+                    }
+                ImGui::EndPopup();
+            }
+            if (ImGui::BeginPopup("##setting_scope_view#expand"))
+            {
+                ShowMediaScopeSetting(g_media_editor_settings.ScopeWindowExpandIndex);
+                ImGui::EndPopup();
+            }
+            ShowMediaScopeView(g_media_editor_settings.ScopeWindowExpandIndex, expand_scope_pos + ImVec2(0, 16 + 8), scope_view_size);
+        }
+    }
     ImGui::PopStyleColor(3);
 }
 
@@ -9651,7 +9690,7 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline)
     ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.2, 0.2, 0.2, 1.0));
     if (ImGui::Button(ICON_DRAWING_PIN "##unexpand_scope"))
     {
-        g_media_editor_settings.ExpandScope = false;
+        g_media_editor_settings.SeparateScope = false;
         MonitorIndexScope = -1;
     }
     if (multiviewport)
@@ -9773,6 +9812,7 @@ static void MediaEditor_SetupContext(ImGuiContext* ctx, bool in_splash)
         else if (sscanf(line, "BankViewStyle=%d", &val_int) == 1) { setting->BankViewStyle = val_int; }
         else if (sscanf(line, "ShowHelpTips=%d", &val_int) == 1) { setting->ShowHelpTooltips = val_int == 1; }
         else if (sscanf(line, "ExpandScope=%d", &val_int) == 1) { setting->ExpandScope = val_int == 1; }
+        else if (sscanf(line, "SeparateScope=%d", &val_int) == 1) { setting->SeparateScope = val_int == 1; }
         else if (sscanf(line, "HistogramLogView=%d", &val_int) == 1) { setting->HistogramLog = val_int == 1; }
         else if (sscanf(line, "HistogramSplited=%d", &val_int) == 1) { setting->HistogramSplited = val_int == 1; }
         else if (sscanf(line, "HistogramYRGB=%d", &val_int) == 1) { setting->HistogramYRGB = val_int == 1; }
@@ -9886,6 +9926,7 @@ static void MediaEditor_SetupContext(ImGuiContext* ctx, bool in_splash)
         out_buf->appendf("BankViewStyle=%d\n", g_media_editor_settings.BankViewStyle);
         out_buf->appendf("ShowHelpTips=%d\n", g_media_editor_settings.ShowHelpTooltips ? 1 : 0);
         out_buf->appendf("ExpandScope=%d\n", g_media_editor_settings.ExpandScope ? 1 : 0);
+        out_buf->appendf("SeparateScope=%d\n", g_media_editor_settings.SeparateScope ? 1 : 0);
         out_buf->appendf("HistogramLogView=%d\n", g_media_editor_settings.HistogramLog ? 1 : 0);
         out_buf->appendf("HistogramSplited=%d\n", g_media_editor_settings.HistogramSplited ? 1 : 0);
         out_buf->appendf("HistogramYRGB=%d\n", g_media_editor_settings.HistogramYRGB ? 1 : 0);
@@ -10421,8 +10462,8 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
         // add banks window
         ImVec2 bank_pos = window_pos + ImVec2(4 + tool_icon_size, 32);
         ImVec2 bank_size(control_pane_width - 4 - tool_icon_size, main_window_size.y - 4 - 32);
-        if (!g_media_editor_settings.ExpandScope)
-            bank_size -= ImVec2(0, scope_height + 32);
+        if (!g_media_editor_settings.SeparateScope)
+            bank_size -= g_media_editor_settings.ExpandScope ? ImVec2(0, scope_height + 32) : ImVec2(0, 16);
         ImGui::SetNextWindowPos(bank_pos, ImGuiCond_Always);
         if (ImGui::BeginChild("##Control_Panel_Window", bank_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
         {
@@ -10466,17 +10507,17 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             ImGui::PopStyleColor();
         }
         ImGui::EndChild();
-        if (!g_media_editor_settings.ExpandScope)
+        if (!g_media_editor_settings.SeparateScope)
         {
-            bool _expanded = bank_size.x >= scope_height * 2 + 32;
+            bool spread = bank_size.x >= scope_height * 2 + 32;
             ImVec2 scope_pos = bank_pos + ImVec2(0, bank_size.y);
             ImVec2 scope_size = ImVec2(bank_size.x, scope_height + 32);
             ImGui::SetNextWindowPos(scope_pos, ImGuiCond_Always);
             if (ImGui::BeginChild("##Scope_View", scope_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings))
             {
-                ShowMediaAnalyseWindow(timeline, &_expanded);
+                ShowMediaAnalyseWindow(timeline, &g_media_editor_settings.ExpandScope, &spread);
                 scope_flags = 1 << g_media_editor_settings.ScopeWindowIndex;
-                if (_expanded)
+                if (spread)
                     scope_flags |= 1 << g_media_editor_settings.ScopeWindowExpandIndex;
             }
             ImGui::EndChild();
