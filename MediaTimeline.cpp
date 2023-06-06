@@ -23,6 +23,7 @@
 #include <cmath>
 #include <sstream>
 #include <iomanip>
+#include "SysUtils.h"
 #include "Logger.h"
 #include "DebugHelper.h"
 
@@ -7907,6 +7908,7 @@ void TimeLine::StartEncoding()
     mQuitEncoding = false;
     mIsEncoding = true;
     mEncodingThread = std::thread(&TimeLine::_EncodeProc, this);
+    SysUtils::SetThreadName(mEncodingThread, "TL-EncProc");
 }
 
 void TimeLine::StopEncoding()
