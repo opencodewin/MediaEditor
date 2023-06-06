@@ -3749,7 +3749,7 @@ bool MediaTrack::DrawTrackControlBar(ImDrawList *draw_list, ImRect rc, std::list
     bool is_Hovered = false;
     ImGuiIO &io = ImGui::GetIO();
     ImVec2 button_size = ImVec2(12, 12);
-    if (mExpanded) ImGui::ImAddTextRolling(draw_list, NULL, 0, rc.Min + ImVec2(4, 0), ImVec2(rc.GetSize().x - 16, 16), IM_COL32_WHITE, 5, mName.c_str());
+    if (mExpanded) ImGui::AddTextRolling(draw_list, NULL, 0, rc.Min + ImVec2(4, 0), ImVec2(rc.GetSize().x - 16, 16), IM_COL32_WHITE, 5, mName.c_str());
     int button_count = 0;
     {
         bool ret = TimelineButton(draw_list, mLocked ? ICON_LOCKED : ICON_UNLOCK, ImVec2(rc.Min.x + button_size.x * button_count * 1.5 + 6, rc.Max.y - button_size.y - 2), button_size, mLocked ? "unlock" : "lock");
@@ -3803,7 +3803,7 @@ bool MediaTrack::DrawTrackControlBar(ImDrawList *draw_list, ImRect rc, std::list
     {
         mExpanded = !mExpanded;
     }
-    if (!mExpanded) ImGui::ImAddTextRolling(draw_list, NULL, button_size.y, rc.Min + ImVec2(8 + button_count * 1.5 * button_size.x, 0), ImVec2(rc.GetSize().x - 24 - button_count * 1.5 * button_size.x, 16), IM_COL32_WHITE, 5, mName.c_str());
+    if (!mExpanded) ImGui::AddTextRolling(draw_list, NULL, button_size.y, rc.Min + ImVec2(8 + button_count * 1.5 * button_size.x, 0), ImVec2(rc.GetSize().x - 24 - button_count * 1.5 * button_size.x, 16), IM_COL32_WHITE, 5, mName.c_str());
     is_Hovered |= ret;
 
     return is_Hovered;
@@ -6154,14 +6154,14 @@ void TimeLine::CustomDraw(
     {
         float back_icon_scale = std::min(legendRect.GetSize().x, legendRect.GetSize().y) / ImGui::GetFontSize();
         ImGui::SetWindowFontScale(back_icon_scale * 0.75);
-        ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 1.f);
-        ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.0, 0.0, 0.0, 1.0));
+        //ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 1.f);
+        //ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.0, 0.0, 0.0, 1.0));
         auto back_icon_size = ImGui::CalcTextSize(back_icon.c_str());
         float start_offset_x = std::max((legendRect.GetSize().x - back_icon_size.x) / 2, 0.f);
         float start_offset_y = std::max((legendRect.GetSize().y - back_icon_size.y) / 2, 0.f);
         draw_list->AddText(legendRect.Min + ImVec2(start_offset_x, start_offset_y), back_icon_color, back_icon.c_str());
-        ImGui::PopStyleColor();
-        ImGui::PopStyleVar();
+        //ImGui::PopStyleColor();
+        //ImGui::PopStyleVar();
         ImGui::SetWindowFontScale(1.0f);
     }
 
@@ -8700,11 +8700,11 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             std::string tips_string = "Please Drag Media Here";
             auto string_width = ImGui::CalcTextSize(tips_string.c_str());
             auto tips_pos = pos_center - string_width / 2;
-            ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
-            ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
+            //ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
+            //ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
             draw_list->AddText(tips_pos, IM_COL32(255, 255, 255, 128), tips_string.c_str());
-            ImGui::PopStyleColor();
-            ImGui::PopStyleVar();
+            //ImGui::PopStyleColor();
+            //ImGui::PopStyleVar();
             ImGui::SetWindowFontScale(1.0);
             if (regionRect.Contains(io.MousePos) && ImGui::IsMouseReleased(ImGuiMouseButton_Right) && !ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Right))
             {
@@ -9050,7 +9050,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 else { ImGui::TextUnformatted(track->mView ? ICON_VIEW : ICON_VIEW_DISABLE); }
                 button_count ++;
                 ImGui::SameLine();
-                ImGui::ImAddTextRolling(track->mName.c_str(), ImVec2(rc.GetSize().x - 24 - button_count * 1.5 * button_size.x, 16), 5);
+                ImGui::AddTextRolling(track->mName.c_str(), ImVec2(rc.GetSize().x - 24 - button_count * 1.5 * button_size.x, 16), 5);
                 ImGui::SetWindowFontScale(1.0);
                 ImGui::EndTooltip();
             }
@@ -10407,11 +10407,11 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         std::string tips_string = "Please Select Clip by Double Click From Main Timeline";
         auto string_width = ImGui::CalcTextSize(tips_string.c_str());
         auto tips_pos = pos_center - string_width / 2;
-        ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
-        ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
+        //ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
+        //ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
         draw_list->AddText(tips_pos, IM_COL32(255, 255, 255, 128), tips_string.c_str());
-        ImGui::PopStyleColor();
-        ImGui::PopStyleVar();
+        //ImGui::PopStyleColor();
+        //ImGui::PopStyleVar();
         ImGui::SetWindowFontScale(1);
         return ret;
     }
@@ -10883,11 +10883,11 @@ bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int64_t CurrentTime, int 
         std::string tips_string = "Please Select Overlap by Double Click From Main Timeline";
         auto string_width = ImGui::CalcTextSize(tips_string.c_str());
         auto tips_pos = pos_center - string_width / 2;
-        ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
-        ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
+        //ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
+        //ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
         draw_list->AddText(tips_pos, IM_COL32(255, 255, 255, 128), tips_string.c_str());
-        ImGui::PopStyleColor();
-        ImGui::PopStyleVar();
+        //ImGui::PopStyleColor();
+        //ImGui::PopStyleVar();
         return ret;
     }
     ImGuiIO &io = ImGui::GetIO();

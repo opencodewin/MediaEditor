@@ -1009,15 +1009,15 @@ static bool Show_Version(ImDrawList* draw_list, int32_t start_time)
     {
         float title_alpha = ImMin((float)(current_time - start_time) / 5000.f, 1.f);
         ImGui::SetWindowFontScale(4.0);
-        ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphShadowOffset, ImVec2(4, 4));
-        ImGui::PushStyleColor(ImGuiCol_TexGlyphShadow, ImVec4(0.0, 0.0, 0.0, 1.0));
+        //ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphShadowOffset, ImVec2(4, 4));
+        //ImGui::PushStyleColor(ImGuiCol_TexGlyphShadow, ImVec4(0.0, 0.0, 0.0, 1.0));
         std::string str = "Media Editor";
         auto mark_size = ImGui::CalcTextSize(str.c_str());
         float xoft = (logo_texture ? 32 + 256 : 0) + (window_size.x - mark_size.x - (logo_texture ? 256 : 0)) / 2;
         float yoft = (window_size.y - mark_size.y - 32) / 2 - 32;
         ImGui::GetWindowDrawList()->AddText(window_pos + ImVec2(xoft, yoft), IM_COL32(255, 255, 255, title_alpha * 255), str.c_str());
-        ImGui::PopStyleColor();
-        ImGui::PopStyleVar();
+        //ImGui::PopStyleColor();
+        //ImGui::PopStyleVar();
         ImGui::SetWindowFontScale(2.0);
         std::string cstr = "Community";
         auto csize = ImGui::CalcTextSize(cstr.c_str());
@@ -2360,25 +2360,25 @@ static void ShowMediaBankWindow(ImDrawList *_draw_list, float media_icon_size)
         ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
         ImGui::SetWindowFontScale(2.5);
         ImGui::Indent(20);
-        ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
-        ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
+        //ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
+        //ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
         draw_list->AddText(window_pos + ImVec2(8, 0), COL_GRAY_TEXT, "Media Bank");
-        ImGui::PopStyleColor();
-        ImGui::PopStyleVar();
+        //ImGui::PopStyleColor();
+        //ImGui::PopStyleVar();
         ImGui::SetWindowFontScale(1.0);
         if (timeline->media_items.empty())
         {
             ImGui::SetWindowFontScale(2.0);
             //ImGui::Indent(20);
-            ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
-            ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
+            //ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
+            //ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
             ImU32 text_color = IM_COL32(ui_breathing * 255, ui_breathing * 255, ui_breathing * 255, 255);
             draw_list->AddText(window_pos + ImVec2(128,  48), COL_GRAY_TEXT, "Please Click");
             draw_list->AddText(window_pos + ImVec2(128,  80), text_color, "<-- Here");
             draw_list->AddText(window_pos + ImVec2(128, 112), COL_GRAY_TEXT, "To Add Media");
             draw_list->AddText(window_pos + ImVec2( 10, 144), COL_GRAY_TEXT, "Or Drag Files From Brower");
-            ImGui::PopStyleColor();
-            ImGui::PopStyleVar();
+            //ImGui::PopStyleColor();
+            //ImGui::PopStyleVar();
             ImGui::SetWindowFontScale(1.0);
         }
         // Show Media Icons
@@ -2481,11 +2481,11 @@ static void ShowTransitionBankIconWindow(ImDrawList *_draw_list)
 
         ImGui::SetWindowFontScale(2.5);
         ImGui::Indent(20);
-        ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
-        ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
+        //ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
+        //ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
         draw_list->AddText(window_pos + ImVec2(8, 0), COL_GRAY_TEXT, "Transition Bank");
-        ImGui::PopStyleColor();
-        ImGui::PopStyleVar();
+        //ImGui::PopStyleColor();
+        //ImGui::PopStyleVar();
         ImGui::SetWindowFontScale(1.0);
         // Show Transition Icons
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
@@ -2560,11 +2560,11 @@ static void ShowTransitionBankTreeWindow(ImDrawList *_draw_list)
         ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
         const ImVec2 item_size(window_size.x, 32);
         ImGui::SetWindowFontScale(2.5);
-        ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
-        ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
+        //ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
+        //ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
         draw_list->AddText(window_pos + ImVec2(8, 0), COL_GRAY_TEXT, "Transition Bank");
-        ImGui::PopStyleColor();
-        ImGui::PopStyleVar();
+        //ImGui::PopStyleColor();
+        //ImGui::PopStyleVar();
         ImGui::SetWindowFontScale(1.0);
         // Show Transition Tree
         if (timeline->m_BP_UI.m_Document)
@@ -2744,11 +2744,11 @@ static void ShowFilterBankIconWindow(ImDrawList *_draw_list)
         ImDrawList * draw_list = ImGui::GetWindowDrawList();
         ImGui::SetWindowFontScale(2.5);
         ImGui::Indent(20);
-        ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
-        ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
+        //ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
+        //ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
         draw_list->AddText(window_pos + ImVec2(8, 0), COL_GRAY_TEXT, "Filters Bank");
-        ImGui::PopStyleColor();
-        ImGui::PopStyleVar();
+        //ImGui::PopStyleColor();
+        //ImGui::PopStyleVar();
         ImGui::SetWindowFontScale(1.0);
 
         // Show Filter Icons
@@ -2823,11 +2823,11 @@ static void ShowFilterBankTreeWindow(ImDrawList *_draw_list)
         ImDrawList * draw_list = ImGui::GetWindowDrawList();
         const ImVec2 item_size(window_size.x, 32);
         ImGui::SetWindowFontScale(2.5);
-        ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
-        ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
+        //ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
+        //ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
         draw_list->AddText(window_pos + ImVec2(8, 0), COL_GRAY_TEXT, "Filters Bank");
-        ImGui::PopStyleColor();
-        ImGui::PopStyleVar();
+        //ImGui::PopStyleColor();
+        //ImGui::PopStyleVar();
         ImGui::SetWindowFontScale(1.0);
 
         // Show Filter Tree
@@ -3010,11 +3010,11 @@ static void ShowMediaOutputWindow(ImDrawList *_draw_list)
         ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
         const ImVec2 item_size(window_size.x, 32);
         ImGui::SetWindowFontScale(2.5);
-        ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
-        ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
+        //ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
+        //ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
         draw_list->AddText(window_pos + ImVec2(8, 0), COL_GRAY_TEXT, "Media Output");
-        ImGui::PopStyleColor();
-        ImGui::PopStyleVar();
+        //ImGui::PopStyleColor();
+        //ImGui::PopStyleVar();
         ImGui::SetWindowFontScale(1.0);
 
         ImGui::SetCursorPos({20, 50});
@@ -4215,13 +4215,13 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list, ImRect title_rect)
     */
     // draw page title
     ImGui::SetWindowFontScale(1.8);
-    ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 1.0f);
-    ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.7, 0.2, 0.7));
+    //ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 1.0f);
+    //ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.7, 0.2, 0.7));
     auto title_size = ImGui::CalcTextSize("Video Attribute");
     float str_offset = title_rect.Max.x - title_size.x - 16;
     draw_list->AddText(ImVec2(str_offset, title_rect.Min.y), IM_COL32(255, 255, 255, 255), "Video Attribute");
-    ImGui::PopStyleColor();
-    ImGui::PopStyleVar();
+    //ImGui::PopStyleColor();
+    //ImGui::PopStyleVar();
     ImGui::SetWindowFontScale(1.0);
 
     ImGuiIO &io = ImGui::GetIO();
@@ -4781,13 +4781,13 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
 
     // draw page title
     ImGui::SetWindowFontScale(1.8);
-    ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 1.0f);
-    ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.7, 0.2, 0.7));
+    //ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 1.0f);
+    //ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.7, 0.2, 0.7));
     auto title_size = ImGui::CalcTextSize("Video Filter");
     float str_offset = title_rect.Max.x - title_size.x - 16;
     draw_list->AddText(ImVec2(str_offset, title_rect.Min.y), IM_COL32(255, 255, 255, 255), "Video Filter");
-    ImGui::PopStyleColor();
-    ImGui::PopStyleVar();
+    //ImGui::PopStyleColor();
+    //ImGui::PopStyleVar();
     ImGui::SetWindowFontScale(1.0);
 
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
@@ -5373,13 +5373,13 @@ static void ShowVideoTransitionWindow(ImDrawList *draw_list, ImRect title_rect)
 
     // draw page title
     ImGui::SetWindowFontScale(1.8);
-    ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 1.0f);
-    ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.7, 0.2, 0.7));
+    //ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 1.0f);
+    //ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.7, 0.2, 0.7));
     auto title_size = ImGui::CalcTextSize("Video Transition");
     float str_offset = title_rect.Max.x - title_size.x - 16;
     draw_list->AddText(ImVec2(str_offset, title_rect.Min.y), IM_COL32(255, 255, 255, 255), "Video Transition");
-    ImGui::PopStyleColor();
-    ImGui::PopStyleVar();
+    //ImGui::PopStyleColor();
+    //ImGui::PopStyleVar();
     ImGui::SetWindowFontScale(1.0);
 
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
@@ -5882,13 +5882,13 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list, ImRect title_rect)
     */
     // draw page title
     ImGui::SetWindowFontScale(1.8);
-    ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 1.0f);
-    ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.7, 0.2, 0.7));
+    //ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 1.0f);
+    //ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.7, 0.2, 0.7));
     auto title_size = ImGui::CalcTextSize("Audio Filter");
     float str_offset = title_rect.Max.x - title_size.x - 16;
     draw_list->AddText(ImVec2(str_offset, title_rect.Min.y), IM_COL32(255, 255, 255, 255), "Audio Filter");
-    ImGui::PopStyleColor();
-    ImGui::PopStyleVar();
+    //ImGui::PopStyleColor();
+    //ImGui::PopStyleVar();
     ImGui::SetWindowFontScale(1.0);
 
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
@@ -6308,13 +6308,13 @@ static void ShowAudioTransitionWindow(ImDrawList *draw_list, ImRect title_rect)
     */
     // draw page title
     ImGui::SetWindowFontScale(1.8);
-    ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 1.0f);
-    ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.7, 0.2, 0.7));
+    //ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 1.0f);
+    //ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.7, 0.2, 0.7));
     auto title_size = ImGui::CalcTextSize("Audio Transition");
     float str_offset = title_rect.Max.x - title_size.x - 16;
     draw_list->AddText(ImVec2(str_offset, title_rect.Min.y), IM_COL32(255, 255, 255, 255), "Audio Transition");
-    ImGui::PopStyleColor();
-    ImGui::PopStyleVar();
+    //ImGui::PopStyleColor();
+    //ImGui::PopStyleVar();
     ImGui::SetWindowFontScale(1.0);
 
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
@@ -6741,13 +6741,13 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list, ImRect title_rect)
     */
     // draw page title
     ImGui::SetWindowFontScale(1.8);
-    ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 1.0f);
-    ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.7, 0.2, 0.7));
+    //ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 1.0f);
+    //ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.7, 0.2, 0.7));
     auto title_size = ImGui::CalcTextSize("Audio Mixer");
     float str_offset = title_rect.Max.x - title_size.x - 16;
     draw_list->AddText(ImVec2(str_offset, title_rect.Min.y), IM_COL32(255, 255, 255, 255), "Audio Mixer");
-    ImGui::PopStyleColor();
-    ImGui::PopStyleVar();
+    //ImGui::PopStyleColor();
+    //ImGui::PopStyleVar();
     ImGui::SetWindowFontScale(1.0);
     
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
@@ -8756,7 +8756,7 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                     draw_list->AddLine(p0, p1, COL_GRATICULE_DARK, 1);
                 else
                 {
-                    ImGui::ImDrawListAddLineDashed(draw_list, p0, p1, COL_GRATICULE_DARK, 1, 100);
+                    ImGui::AddLineDashed(draw_list, p0, p1, COL_GRATICULE_DARK, 1, 100);
                 }
                 ImVec2 vp0 = scrop_rect.Min + ImVec2(i * waveform_vstep, 0);
                 ImVec2 vp1 = scrop_rect.Min + ImVec2(i * waveform_vstep, 10);
@@ -8869,7 +8869,7 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                 draw_list->AddText(scrop_rect.Min + ImVec2(size.x - 18, size.y - i * cie_step - 6), COL_GRATICULE, mark);
             }
             ImGui::SetWindowFontScale(1.0);
-            ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphShadowOffset, ImVec2(1, 1));
+            //ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphShadowOffset, ImVec2(1, 1));
             if (m_cie)
             {
                 ImVec2 white_point;
@@ -8883,7 +8883,7 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                 m_cie->GetGreenPoint((ImGui::ColorsSystems)g_media_editor_settings.CIEGamuts, size.x, size.y, &green_point_gamuts.x, &green_point_gamuts.y);
                 draw_list->AddText(scrop_rect.Min + green_point_gamuts, COL_GRATICULE, color_system_items[g_media_editor_settings.CIEGamuts]);
             }
-            ImGui::PopStyleVar();
+            //ImGui::PopStyleVar();
             draw_list->PopClipRect();
             ImGui::EndGroup();
 #endif
@@ -9477,7 +9477,7 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                         ImGui::ImMatToTexture(timeline->mAudioAttribute.channel_data[i].m_Spectrogram, timeline->mAudioAttribute.channel_data[i].texture_spectrogram);
                         timeline->mAudioAttribute.channel_data[i].m_Spectrogram.flags &= ~IM_MAT_FLAGS_CUSTOM_UPDATED;
                     }
-                    ImGui::ImDrawListAddImageRotate(draw_list, timeline->mAudioAttribute.channel_data[i].texture_spectrogram, texture_pos, ImVec2(channel_view_size.y, channel_view_size.x), -90.0);
+                    ImGui::AddImageRotate(draw_list, timeline->mAudioAttribute.channel_data[i].texture_spectrogram, texture_pos, ImVec2(channel_view_size.y, channel_view_size.x), -90.0);
                 }
             }
             // draw bar mark
@@ -9718,7 +9718,7 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline)
         ImGui::SetCursorScreenPos(view_pos + ImVec2(i * (scope_size + scope_gap), scope_size));
         ShowMediaScopeSetting(i, false);
         ImGui::SetWindowFontScale(2.0);
-        ImGui::ImAddTextVertical(draw_list, view_pos + ImVec2(i * (scope_size + scope_gap) + scope_size, 0), IM_COL32_WHITE, ScopeWindowTabNames[i]);
+        ImGui::AddTextVertical(draw_list, view_pos + ImVec2(i * (scope_size + scope_gap) + scope_size, 0), IM_COL32_WHITE, ScopeWindowTabNames[i]);
         ImGui::SetWindowFontScale(1.0);
     }
     // add audio scope
@@ -9728,7 +9728,7 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline)
         ImGui::SetCursorScreenPos(view_pos + ImVec2((i - 5) * (scope_size + scope_gap), col_second + scope_size));
         ShowMediaScopeSetting(i, false);
         ImGui::SetWindowFontScale(2.0);
-        ImGui::ImAddTextVertical(draw_list, view_pos + ImVec2((i - 5) * (scope_size + scope_gap) + scope_size, col_second), IM_COL32_WHITE, ScopeWindowTabNames[i]);
+        ImGui::AddTextVertical(draw_list, view_pos + ImVec2((i - 5) * (scope_size + scope_gap) + scope_size, col_second), IM_COL32_WHITE, ScopeWindowTabNames[i]);
         ImGui::SetWindowFontScale(1.0);
     }
 
