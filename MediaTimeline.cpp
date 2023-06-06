@@ -6154,15 +6154,11 @@ void TimeLine::CustomDraw(
     {
         float back_icon_scale = std::min(legendRect.GetSize().x, legendRect.GetSize().y) / ImGui::GetFontSize();
         ImGui::SetWindowFontScale(back_icon_scale * 0.75);
-        //ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 1.f);
-        //ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.0, 0.0, 0.0, 1.0));
         auto back_icon_size = ImGui::CalcTextSize(back_icon.c_str());
         float start_offset_x = std::max((legendRect.GetSize().x - back_icon_size.x) / 2, 0.f);
         float start_offset_y = std::max((legendRect.GetSize().y - back_icon_size.y) / 2, 0.f);
-        draw_list->AddText(legendRect.Min + ImVec2(start_offset_x, start_offset_y), back_icon_color, back_icon.c_str());
-        //ImGui::PopStyleColor();
-        //ImGui::PopStyleVar();
         ImGui::SetWindowFontScale(1.0f);
+        ImGui::AddTextComplex(draw_list, legendRect.Min + ImVec2(start_offset_x, start_offset_y), back_icon.c_str(), back_icon_scale * 0.75, back_icon_color, 1.0f, IM_COL32(0, 0, 0, 255));
     }
 
     auto is_control_hovered = track->DrawTrackControlBar(draw_list, legendRect, pActionList);
@@ -8700,12 +8696,9 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             std::string tips_string = "Please Drag Media Here";
             auto string_width = ImGui::CalcTextSize(tips_string.c_str());
             auto tips_pos = pos_center - string_width / 2;
-            //ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
-            //ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
-            draw_list->AddText(tips_pos, IM_COL32(255, 255, 255, 128), tips_string.c_str());
-            //ImGui::PopStyleColor();
-            //ImGui::PopStyleVar();
             ImGui::SetWindowFontScale(1.0);
+            ImGui::AddTextComplex(draw_list, tips_pos, tips_string.c_str(), 4.f, IM_COL32(255, 255, 255, 128), 0.5f, IM_COL32(56, 56, 56, 192));
+
             if (regionRect.Contains(io.MousePos) && ImGui::IsMouseReleased(ImGuiMouseButton_Right) && !ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Right))
             {
                 ImGui::OpenPopup("##empty-timeline-context-menu");
@@ -10407,12 +10400,8 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         std::string tips_string = "Please Select Clip by Double Click From Main Timeline";
         auto string_width = ImGui::CalcTextSize(tips_string.c_str());
         auto tips_pos = pos_center - string_width / 2;
-        //ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
-        //ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
-        draw_list->AddText(tips_pos, IM_COL32(255, 255, 255, 128), tips_string.c_str());
-        //ImGui::PopStyleColor();
-        //ImGui::PopStyleVar();
         ImGui::SetWindowFontScale(1);
+        ImGui::AddTextComplex(draw_list, tips_pos, tips_string.c_str(), 2.f, IM_COL32(255, 255, 255, 128), 0.5f, IM_COL32(56, 56, 56, 192));
         return ret;
     }
     ImGuiIO &io = ImGui::GetIO();
@@ -10883,11 +10872,8 @@ bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int64_t CurrentTime, int 
         std::string tips_string = "Please Select Overlap by Double Click From Main Timeline";
         auto string_width = ImGui::CalcTextSize(tips_string.c_str());
         auto tips_pos = pos_center - string_width / 2;
-        //ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphOutlineWidth, 0.5f);
-        //ImGui::PushStyleColor(ImGuiCol_TexGlyphOutline, ImVec4(0.2, 0.2, 0.2, 0.7));
-        draw_list->AddText(tips_pos, IM_COL32(255, 255, 255, 128), tips_string.c_str());
-        //ImGui::PopStyleColor();
-        //ImGui::PopStyleVar();
+        ImGui::SetWindowFontScale(1.0);
+        ImGui::AddTextComplex(draw_list, tips_pos, tips_string.c_str(), 2.f, IM_COL32(255, 255, 255, 128), 0.5f, IM_COL32(56, 56, 56, 192));
         return ret;
     }
     ImGuiIO &io = ImGui::GetIO();

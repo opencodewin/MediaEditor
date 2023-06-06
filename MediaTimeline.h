@@ -239,6 +239,8 @@
 #define COL_MARK_DOT        IM_COL32(170, 170, 170, 224)
 #define COL_MARK_DOT_LIGHT  IM_COL32(255, 255, 255, 224)
 #define COL_ERROR_MEDIA     IM_COL32(160,   0,   0, 224)
+#define COL_TITLE_COLOR     IM_COL32(192, 192, 192, 255)
+#define COL_TITLE_OUTLINE   IM_COL32( 32,  32, 192, 128)
 
 #define HALF_COLOR(c)       (c & 0xFFFFFF) | 0x40000000;
 #define TIMELINE_OVER_LENGTH    5000        // add 5 seconds end of timeline
