@@ -7198,8 +7198,7 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
         int64_t clipId = action["clip_json"]["ID"].get<imgui_json::number>();
         Clip* clip = FindClipByID(clipId);
         MediaCore::VideoClip::Holder vidClip = MediaCore::VideoClip::CreateVideoInstance(
-            clip->mID, clip->mMediaParser,
-            vidTrack->OutWidth(), vidTrack->OutHeight(), vidTrack->FrameRate(),
+            clip->mID, clip->mMediaParser, mMtvReader->GetSharedSettings(),
             clip->Start(), clip->End(), clip->StartOffset(), clip->EndOffset(), currentTime-clip->Start(), vidTrack->Direction());
         BluePrintVideoFilter* bpvf = new BluePrintVideoFilter(this);
         bpvf->SetBluePrintFromJson(clip->mFilterBP);
@@ -7409,8 +7408,8 @@ void TimeLine::PerformImageAction(imgui_json::value& action)
         int64_t clipId = action["clip_json"]["ID"].get<imgui_json::number>();
         Clip* clip = FindClipByID(clipId);
         MediaCore::VideoClip::Holder imgClip = MediaCore::VideoClip::CreateImageInstance(
-            clip->mID, clip->mMediaParser,
-            vidTrack->OutWidth(), vidTrack->OutHeight(), clip->Start(), clip->Length());
+            clip->mID, clip->mMediaParser, mMtvReader->GetSharedSettings(),
+            clip->Start(), clip->Length());
         vidTrack->InsertClip(imgClip);
         UpdatePreview();
     }
