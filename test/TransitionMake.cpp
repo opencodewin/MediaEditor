@@ -8,7 +8,7 @@
 #include <CopyTo_vulkan.h>
 #include <unistd.h>
 
-#include "../plugin/nodes/transitions/Luma/Luma_vulkan.h"
+#include "../plugin/nodes/transitions/Dissolve/Dissolve_vulkan.h"
 
 std::string g_source_1;
 std::string g_source_2;
@@ -168,12 +168,13 @@ static void transition(int col, int row, int cols, int rows, int type, ImGui::Im
     mat_t.type = mat_a.type;
     float progress = (float)(row * cols + col) / (float)(rows * cols - 1);
     // luma 
-    if (g_mat_m.empty())
-    {
-        load_image("/Users/dicky/Developer.localized/CodeWin/MediaEditor/plugin/nodes/transitions/Luma/masks/radial-tri.png", g_mat_m);
-    }
-    ImGui::Luma_vulkan m_transition(0);
-    m_transition.transition(mat_a, mat_b, g_mat_m, mat_t, progress);
+    //if (g_mat_m.empty())
+    //{
+    //    load_image("/Users/dicky/Developer.localized/CodeWin/MediaEditor/plugin/nodes/transitions/Luma/masks/radial-tri.png", g_mat_m);
+    //}
+    // Dissolve 
+    ImGui::Dissolve_vulkan m_transition(0);
+    m_transition.transition(mat_a, mat_b, mat_t, progress, ImPixel(1.0, 0.0, 0.0, 1.0), ImPixel(0.9, 0.2, 0.2, 1.0), 0.1, 5.0, 1.0);
 
     g_copy->copyTo(mat_t, result, col * mat_a.w, row * mat_a.h);
 }
