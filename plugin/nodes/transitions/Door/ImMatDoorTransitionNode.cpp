@@ -131,7 +131,7 @@ struct DoorTransitionNode final : Node
         value["horizon"] = imgui_json::boolean(m_bHorizon);
     }
 
-    void DrawNodeLogo(ImGuiContext * ctx, ImVec2 size) const override
+    void DrawNodeLogo(ImGuiContext * ctx, ImVec2 size, std::string logo) const override
     {
         if (ctx) ImGui::SetCurrentContext(ctx); // External Node must set context
         // if show icon then we using u8"\ue8ea"

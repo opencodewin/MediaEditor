@@ -186,22 +186,9 @@ struct ChromaKeyNode final : Node
         value["chroma_color"] = imgui_json::vec4(ImVec4(m_chromaColor.r, m_chromaColor.g, m_chromaColor.b, m_chromaColor.a));
     }
 
-    void DrawNodeLogo(ImGuiContext * ctx, ImVec2 size) const override
+    void DrawNodeLogo(ImGuiContext * ctx, ImVec2 size, std::string logo) const override
     {
-        if (ctx) ImGui::SetCurrentContext(ctx); // External Node must set context
-        float font_size = ImGui::GetFontSize();
-        float size_min = size.x > size.y ? size.y : size.x;
-        ImGui::SetWindowFontScale((size_min - 16) / font_size);
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0));
-        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0, 0, 0, 0));
-#if IMGUI_ICONS
-        ImGui::Button((std::string(u8"\ue2ca") + "##" + std::to_string(m_ID)).c_str(), size);
-#else
-        ImGui::Button((std::string("F") + "##" + std::to_string(m_ID)).c_str(), size);
-#endif
-        ImGui::PopStyleColor(3);
-        ImGui::SetWindowFontScale(1.0);
+        Node::DrawNodeLogo(ctx, size, std::string(u8"\ue2ca"));
     }
 
     span<Pin*> GetInputPins() override { return m_InputPins; }

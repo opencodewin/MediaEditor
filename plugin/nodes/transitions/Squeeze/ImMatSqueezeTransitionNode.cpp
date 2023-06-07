@@ -116,7 +116,7 @@ struct SqueezeTransitionNode final : Node
         value["separation"] = imgui_json::number(m_separation);
     }
 
-    void DrawNodeLogo(ImGuiContext * ctx, ImVec2 size) const override
+    void DrawNodeLogo(ImGuiContext * ctx, ImVec2 size, std::string logo) const override
     {
         if (ctx) ImGui::SetCurrentContext(ctx); // External Node must set context
         // if show icon then we using u8"\ue8ed"

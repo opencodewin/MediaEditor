@@ -158,22 +158,9 @@ struct SoulEffectNode final : Node
         value["max_alpha"] = imgui_json::number(m_max_alpha);
     }
 
-    void DrawNodeLogo(ImGuiContext * ctx, ImVec2 size) const override
+    void DrawNodeLogo(ImGuiContext * ctx, ImVec2 size, std::string logo) const override
     {
-        if (ctx) ImGui::SetCurrentContext(ctx); // External Node must set context
-        float font_size = ImGui::GetFontSize();
-        float size_min = size.x > size.y ? size.y : size.x;
-        ImGui::SetWindowFontScale((size_min - 16) / font_size);
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0));
-        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0, 0, 0, 0));
-#if IMGUI_ICONS
-        ImGui::Button((std::string(u8"\ue162") + "##" + std::to_string(m_ID)).c_str(), size);
-#else
-        ImGui::Button((std::string("F") + "##" + std::to_string(m_ID)).c_str(), size);
-#endif
-        ImGui::PopStyleColor(3);
-        ImGui::SetWindowFontScale(1.0);
+        Node::DrawNodeLogo(ctx, size, std::string(u8"\ue162"));
     }
 
     span<Pin*> GetInputPins() override { return m_InputPins; }

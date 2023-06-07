@@ -171,7 +171,7 @@ struct DissolveTransitionNode final : Node
         value["hotColor"] = imgui_json::vec4(ImVec4(m_hotColor.r, m_hotColor.g, m_hotColor.b, m_hotColor.a));
     }
 
-    void DrawNodeLogo(ImGuiContext * ctx, ImVec2 size) const override
+    void DrawNodeLogo(ImGuiContext * ctx, ImVec2 size, std::string logo) const override
     {
         if (ctx) ImGui::SetCurrentContext(ctx); // External Node must set context
         // if show icon then we using u8"\uf50A"
