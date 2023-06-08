@@ -251,7 +251,7 @@ namespace MediaTimeline
 #define DEFAULT_VIDEO_TRACK_HEIGHT  32
 #define DEFAULT_AUDIO_TRACK_HEIGHT  20
 #define DEFAULT_TEXT_TRACK_HEIGHT   20
-
+#define DEFAULT_EVENT_TRACK_HEIGHT  20
 
 #define MEDIA_UNKNOWN               0
 #define MEDIA_DUMMY                 0x00000001
@@ -261,6 +261,7 @@ namespace MediaTimeline
 #define MEDIA_SUBTYPE_AUDIO_MIDI    0x00001100
 #define MEDIA_TEXT                  0x00100000
 #define MEDIA_SUBTYPE_TEXT_SUBTITLE 0x00110000
+#define MEDIA_EVENT                 0x01000000
 #define MEDIA_CUSTOM                0x10000000
 
 #define IS_DUMMY(t)     ((t) & MEDIA_DUMMY)
