@@ -1173,14 +1173,14 @@ struct TimeLine
     void SetAudioLevel(int channel, float level);
 
     void Play(bool play, bool forward = true);
-    void Seek(int64_t msPos);
+    void Seek(int64_t msPos, bool enterSeekingState = true);
     void StopSeek();
     void Step(bool forward = true);
     void Loop(bool loop);
     void ToStart();
     void ToEnd();
     void UpdateCurrent();
-    void UpdatePreview();
+    void UpdatePreview(bool updateDuration = true);
     void RefreshTrackView(const vector<int64_t>& trackIds);
     int64_t ValidDuration();
 

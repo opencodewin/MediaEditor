@@ -53,7 +53,7 @@ public:
         if (!m_audrdr)
             return 0;
         uint32_t readSize = buffSize;
-        double pos;
+        int64_t pos;
         bool eof;
         if (!m_audrdr->ReadAudioSamples(buff, readSize, pos, eof, blocking))
             return 0;
@@ -85,7 +85,7 @@ public:
             }
         }
 
-        g_audPos = pos;
+        g_audPos = (double)pos/1000;
         return readSize;
     }
 
@@ -331,10 +331,11 @@ static bool MediaPlayer_Frame(void * handle, bool app_will_quit)
         {
             if (ImGui::SliderFloat("##timeline", &playPos, 0.f, mediaDur, "%.1f"))
             {
+                int64_t seekPos = playPos*1000;
                 if (g_vidrdr->IsOpened())
-                    g_vidrdr->SeekTo(playPos);
+                    g_vidrdr->SeekTo(seekPos);
                 if (g_audrdr->IsOpened())
-                    g_audrdr->SeekTo(playPos);
+                    g_audrdr->SeekTo(seekPos);
                 g_playStartPos = playPos;
                 g_playStartTp = std::chrono::steady_clock::now();
             }
@@ -424,7 +425,8 @@ static bool MediaPlayer_Frame(void * handle, bool app_will_quit)
     {
         bool eof;
         ImGui::ImMat vmat;
-        if (g_vidrdr->ReadVideoFrame(playPos, vmat, eof))
+        int64_t readPos = (int64_t)(playPos*1000);
+        if (g_vidrdr->ReadVideoFrame(readPos, vmat, eof))
         {
             bool imgValid = true;
             if (vmat.empty())

@@ -529,6 +529,7 @@ void Clip::Cutting(int64_t pos, int64_t gid, std::list<imgui_json::value>* pActi
         action["org_end_offset"] = imgui_json::number(org_end_offset);
         action["new_end"] = imgui_json::number(mEnd);
         action["new_end_offset"] = imgui_json::number(mEndOffset);
+        action["is_cutting"] = imgui_json::boolean(true);
         pActionList->push_back(std::move(action));
     }
     // and add a new clip start at this clip's end
@@ -3963,7 +3964,8 @@ void MediaTrack::InsertClip(Clip * clip, int64_t pos, bool update, std::list<img
             action["action"] = "ADD_CLIP";
             action["media_type"] = imgui_json::number(clip->mType);
             action["to_track_id"] = imgui_json::number(mID);
-            action["is_cutting"] = imgui_json::boolean(timeline->mIsCutting);
+            if (timeline->mIsCutting)
+                action["is_cutting"] = imgui_json::boolean(true);
             imgui_json::value clipJson;
             clip->Save(clipJson);
             action["clip_json"] = clipJson;
@@ -5500,9 +5502,9 @@ void TimeLine::UpdateCurrent()
     if (firstTime < 0) firstTime = 0;
 }
 
-void TimeLine::UpdatePreview()
+void TimeLine::UpdatePreview(bool updateDuration)
 {
-    mMtvReader->Refresh();
+    mMtvReader->Refresh(updateDuration);
     mIsPreviewNeedUpdate = true;
 }
 
@@ -5625,12 +5627,20 @@ void TimeLine::Play(bool play, bool forward)
     }
     if (forward != mIsPreviewForward)
     {
-        mMtvReader->SetDirection(forward);
-        mMtaReader->SetDirection(forward);
+        if (mAudioRender)
+        {
+            mAudioRender->Pause();
+            mAudioRender->Flush();
+        }
+        mMtvReader->SetDirection(forward, currentTime);
+        mMtaReader->SetDirection(forward, currentTime);
         mIsPreviewForward = forward;
         mPlayTriggerTp = PlayerClock::now();
         mPreviewResumePos = currentTime;
-        needSeekAudio = true;
+        if (mAudioRender)
+        {
+            mAudioRender->Resume();
+        }
     }
     if (needSeekAudio && mAudioRender)
     {
@@ -5661,26 +5671,35 @@ void TimeLine::Play(bool play, bool forward)
     }
 }
 
-void TimeLine::Seek(int64_t msPos)
+void TimeLine::Seek(int64_t msPos, bool enterSeekingState)
 {
-    bool beginSeek = false;
-    if (!bSeeking)
+    if (enterSeekingState && !bSeeking)
     {
         // begin to seek
         bSeeking = true;
-        beginSeek = true;
         if (mAudioRender && !mIsPreviewPlaying)
             mAudioRender->Resume();
     }
-    if (beginSeek || msPos != mPreviewResumePos)
+    else if (msPos == mPreviewResumePos)
+        return;
+
+    if (bSeeking)
     {
         mPlayTriggerTp = PlayerClock::now();
         if (mMtaReader)
             mMtaReader->SeekTo(msPos, true);
         if (mMtvReader)
             mMtvReader->ConsecutiveSeek(msPos);
-        mPreviewResumePos = msPos;
     }
+    else
+    {
+        mPlayTriggerTp = PlayerClock::now();
+        if (mMtaReader)
+            mMtaReader->SeekTo(msPos, false);
+        if (mMtvReader)
+            mMtvReader->SeekTo(msPos);
+    }
+    mPreviewResumePos = msPos;
 }
 
 void TimeLine::StopSeek()
@@ -7219,7 +7238,8 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
             attribute->SetKeyPoint(vidclip->mAttributeKeyPoints);
         }
         vidTrack->InsertClip(vidClip);
-        UpdatePreview();
+        bool bIsCutting = action.contains("is_cutting");
+        UpdatePreview(!bIsCutting);
     }
     else if (actionName == "REMOVE_CLIP")
     {
@@ -7227,7 +7247,8 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
         MediaCore::VideoTrack::Holder vidTrack = mMtvReader->GetTrackById(trackId);
         int64_t clipId = action["clip_json"]["ID"].get<imgui_json::number>();
         vidTrack->RemoveClipById(clipId);
-        UpdatePreview();
+        bool bIsCutting = action.contains("is_cutting");
+        UpdatePreview(!bIsCutting);
     }
     else if (actionName == "MOVE_CLIP")
     {
@@ -7263,7 +7284,8 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
         int64_t newStartOffset = action["new_start_offset"].get<imgui_json::number>();
         int64_t newEndOffset = action["new_end_offset"].get<imgui_json::number>();
         vidTrack->ChangeClipRange(clipId, newStartOffset, newEndOffset);
-        UpdatePreview();
+        bool bIsCutting = action.contains("is_cutting");
+        UpdatePreview(!bIsCutting);
     }
     else if (actionName == "ADD_TRACK")
     {
@@ -7322,7 +7344,7 @@ void TimeLine::PerformAudioAction(imgui_json::value& action)
         MediaCore::AudioFilter::Holder hFilter(bpaf);
         audClip->SetFilter(hFilter);
         audTrack->InsertClip(audClip);
-        bool bIsCutting = action["is_cutting"].get<imgui_json::boolean>();
+        bool bIsCutting = action.contains("is_cutting");
         mMtaReader->Refresh(!bIsCutting);
     }
     else if (actionName == "REMOVE_CLIP")
@@ -7331,7 +7353,8 @@ void TimeLine::PerformAudioAction(imgui_json::value& action)
         MediaCore::AudioTrack::Holder audTrack = mMtaReader->GetTrackById(trackId);
         int64_t clipId = action["clip_json"]["ID"].get<imgui_json::number>();
         audTrack->RemoveClipById(clipId);
-        mMtaReader->Refresh();
+        bool bIsCutting = action.contains("is_cutting");
+        mMtaReader->Refresh(!bIsCutting);
     }
     else if (actionName == "MOVE_CLIP")
     {
@@ -7367,7 +7390,8 @@ void TimeLine::PerformAudioAction(imgui_json::value& action)
         int64_t newStartOffset = action["new_start_offset"].get<imgui_json::number>();
         int64_t newEndOffset = action["new_end_offset"].get<imgui_json::number>();
         audTrack->ChangeClipRange(clipId, newStartOffset, newEndOffset);
-        mMtaReader->Refresh();
+        bool bIsCutting = action.contains("is_cutting");
+        mMtaReader->Refresh(!bIsCutting);
     }
     else if (actionName == "ADD_TRACK")
     {
@@ -8108,6 +8132,8 @@ bool TimeLine::UndoOneRecord()
             undoAction["media_type"] = action["media_type"];
             undoAction["from_track_id"] = action["to_track_id"];
             undoAction["clip_json"] = action["clip_json"];
+            if (action.contains("is_cutting"))
+                undoAction["is_cutting"] = imgui_json::boolean(true);
             mUiActions.push_back(std::move(undoAction));
         }
         else if (actionName == "REMOVE_CLIP")
@@ -8119,7 +8145,6 @@ bool TimeLine::UndoOneRecord()
             undoAction["media_type"] = action["media_type"];
             undoAction["to_track_id"] = action["from_track_id"];
             undoAction["clip_json"] = action["clip_json"];
-            undoAction["is_cutting"] = action["is_cutting"];
             mUiActions.push_back(std::move(undoAction));
         }
         else if (actionName == "MOVE_CLIP")
@@ -8202,6 +8227,8 @@ bool TimeLine::UndoOneRecord()
             undoAction["new_start"] = action["org_start"];
             undoAction["org_end"] = action["new_end"];
             undoAction["new_end"] = action["org_end"];
+            if (action.contains("is_cutting"))
+                undoAction["is_cutting"] = imgui_json::boolean(true);
             mUiActions.push_back(std::move(undoAction));
         }
         else if (actionName == "ADD_GROUP")
@@ -8352,7 +8379,6 @@ bool TimeLine::RedoOneRecord()
             clip->ChangeStart(newStart);
             MovingClip(clipId, fromTrackIndex, toTrackIndex);
             Update();
-
             mUiActions.push_back(action);
         }
         else if (actionName == "CROP_CLIP")
@@ -8382,7 +8408,6 @@ bool TimeLine::RedoOneRecord()
                 clip->Cropping(startDiff, 0);
             if (endDiff)
                 clip->Cropping(endDiff, 1);
-
             mUiActions.push_back(action);
         }
         else if (actionName == "ADD_GROUP")
