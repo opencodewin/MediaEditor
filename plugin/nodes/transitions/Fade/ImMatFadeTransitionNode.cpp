@@ -136,7 +136,7 @@ struct FadeTransitionNode final : Node
         value["color"] = imgui_json::vec4(ImVec4(m_color.r, m_color.g, m_color.b, m_color.a));
     }
 
-    void DrawNodeLogo(ImGuiContext * ctx, ImVec2 size) const override
+    void DrawNodeLogo(ImGuiContext * ctx, ImVec2 size, std::string logo) const override
     {
         if (ctx) ImGui::SetCurrentContext(ctx); // External Node must set context
         // if show icon then we using u8"\ue3e8"

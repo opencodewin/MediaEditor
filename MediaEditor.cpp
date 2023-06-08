@@ -8799,6 +8799,8 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                 draw_list->AddText(scrop_rect.Min + ImVec2(size.x - 18, size.y - i * cie_step - 6), COL_GRATICULE, mark);
             }
             ImGui::SetWindowFontScale(1.0);
+            ImGui::PushStyleVar(ImGuiStyleVar_TexGlyphShadowOffset, ImVec2(1, 1));
+            ImGui::PushStyleColor(ImGuiCol_TexGlyphShadow, ImGui::ColorConvertU32ToFloat4(IM_COL32_BLACK));
             if (m_cie)
             {
                 ImVec2 white_point;
@@ -8807,13 +8809,13 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                 draw_list->AddCircle(scrop_rect.Min + white_point, 2, IM_COL32_BLACK, 0, 1);
                 ImVec2 green_point_system;
                 m_cie->GetGreenPoint((ImGui::ColorsSystems)g_media_editor_settings.CIEColorSystem, size.x, size.y, &green_point_system.x, &green_point_system.y);
-                ImGui::AddTextComplex(draw_list, scrop_rect.Min + green_point_system, color_system_items[g_media_editor_settings.CIEColorSystem], 1.0,
-                                    IM_COL32_WHITE, 0.f, 0, ImVec2(1, 1), IM_COL32_BLACK);
+                draw_list->AddText(scrop_rect.Min + green_point_system, IM_COL32_WHITE, color_system_items[g_media_editor_settings.CIEColorSystem]);
                 ImVec2 green_point_gamuts;
                 m_cie->GetGreenPoint((ImGui::ColorsSystems)g_media_editor_settings.CIEGamuts, size.x, size.y, &green_point_gamuts.x, &green_point_gamuts.y);
-                ImGui::AddTextComplex(draw_list, scrop_rect.Min + green_point_gamuts, color_system_items[g_media_editor_settings.CIEGamuts], 1.0,
-                                    IM_COL32_WHITE, 0.f, 0, ImVec2(1, 1), IM_COL32_BLACK);
+                draw_list->AddText(scrop_rect.Min + green_point_gamuts, IM_COL32_WHITE, color_system_items[g_media_editor_settings.CIEGamuts]);
             }
+            ImGui::PopStyleColor();
+            ImGui::PopStyleVar();
             draw_list->PopClipRect();
             ImGui::EndGroup();
 #endif

@@ -132,7 +132,7 @@ struct BurnOutTransitionNode final : Node
         value["shadowColor"] = imgui_json::vec4(ImVec4(m_shadowColor.r, m_shadowColor.g, m_shadowColor.b, m_shadowColor.a));
     }
 
-    void DrawNodeLogo(ImGuiContext * ctx, ImVec2 size) const override
+    void DrawNodeLogo(ImGuiContext * ctx, ImVec2 size, std::string logo) const override
     {
         if (ctx) ImGui::SetCurrentContext(ctx); // External Node must set context
         // if show icon then we using u8"\uf50A"

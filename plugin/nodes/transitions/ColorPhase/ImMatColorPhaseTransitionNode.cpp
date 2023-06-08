@@ -133,7 +133,7 @@ struct ColorPhaseTransitionNode final : Node
         value["toColor"] = imgui_json::vec4(ImVec4(m_toColor.r, m_toColor.g, m_toColor.b, m_toColor.a));
     }
 
-    void DrawNodeLogo(ImGuiContext * ctx, ImVec2 size) const override
+    void DrawNodeLogo(ImGuiContext * ctx, ImVec2 size, std::string logo) const override
     {
         if (ctx) ImGui::SetCurrentContext(ctx); // External Node must set context
         // if show icon then we using u8"\ue162"

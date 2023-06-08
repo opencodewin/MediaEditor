@@ -281,7 +281,7 @@ target_include_directories(
 #add_executable(
 #    transition_make
 #    test/TransitionMake.cpp
-#    plugin/nodes/transitions/Luma/Luma_vulkan.cpp
+#    plugin/nodes/transitions/Dissolve/Dissolve_vulkan.cpp
 #    ${IMGUI_APP_ENTRY_SRC}
 #)
 #target_link_libraries(
@@ -291,6 +291,7 @@ target_include_directories(
 #    ${SDL2_IMAGE_LIBRARY}
 #)
 #endif(IMGUI_VULKAN_SHADER)
+
 endif(BUILD_TEST)
 endif(IMGUI_APPS)
 
@@ -403,6 +404,7 @@ add_subdirectory(plugin/nodes/transitions/WindowSlice)
 add_subdirectory(plugin/nodes/transitions/Wipe)
 add_subdirectory(plugin/nodes/transitions/ZoomInCircles)
 add_subdirectory(plugin/nodes/transitions/Luma)
+add_subdirectory(plugin/nodes/transitions/Dissolve)
 #effects
 add_subdirectory(plugin/nodes/effects/Lighting)
 add_subdirectory(plugin/nodes/effects/Jitter)

@@ -189,7 +189,7 @@ void MediaItem::UpdateItem(const std::string& name, const std::string& path, voi
         else
         {
             mMediaOverview->SetSnapshotResizeFactor(0.05, 0.05);
-            mMediaOverview->Open(path, 50);
+            mMediaOverview->Open(path, 20);
             if (mMediaOverview->IsOpened())
             {
                 mSrcLength = mMediaOverview->GetMediaInfo()->duration * 1000;
@@ -8790,7 +8790,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         const ImRect legendAreaRect(contentMin, ImVec2(contentMin.x + legendWidth, contentMin.y + timline_size.y - (HeadHeight + 8)));
         const ImRect trackRect(ImVec2(contentMin.x + legendWidth, contentMin.y), contentMax);
         const ImRect trackAreaRect(ImVec2(contentMin.x + legendWidth, contentMin.y), ImVec2(contentMax.x, contentMin.y + timline_size.y - (HeadHeight + scrollSize + 8)));
-        const ImRect timeMeterRect(ImVec2(contentMin.x + legendWidth, HeaderAreaRect.Min.y), ImVec2(contentMin.x + timline_size.x, HeaderAreaRect.Min.y + HeadHeight));
+        const ImRect timeMeterRect(ImVec2(contentMin.x + legendWidth, HeaderAreaRect.Min.y), ImVec2(contentMin.x + timline_size.x, HeaderAreaRect.Min.y + HeadHeight + 8));
 
         const float contentHeight = contentMax.y - contentMin.y;
         // full canvas background
@@ -9851,6 +9851,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 if (timeline->currentTime >= timeline->GetEnd())
                     timeline->currentTime = timeline->GetEnd();
                 timeline->Seek(timeline->currentTime);
+                timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
             }
         }
         if (timeline->bSeeking && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
