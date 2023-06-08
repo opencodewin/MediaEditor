@@ -2571,18 +2571,6 @@ void EditingVideoClip::UpdateClipRange(Clip* clip)
     
 }
 
-void EditingVideoClip::Seek(int64_t pos)
-{
-    TimeLine * timeline = (TimeLine *)mHandle;
-    if (!timeline)
-        return;
-    timeline->Seek(pos);
-}
-
-void EditingVideoClip::Step(bool forward, int64_t step)
-{
-}
-
 void EditingVideoClip::Save()
 {
     TimeLine * timeline = (TimeLine *)mHandle;
@@ -2804,17 +2792,6 @@ EditingAudioClip::~EditingAudioClip()
 {}
 
 void EditingAudioClip::UpdateClipRange(Clip* clip)
-{}
-
-void EditingAudioClip::Seek(int64_t pos)
-{
-    TimeLine * timeline = (TimeLine *)mHandle;
-    if (!timeline)
-        return;
-    timeline->Seek(pos);
-}
-
-void EditingAudioClip::Step(bool forward, int64_t step)
 {}
 
 void EditingAudioClip::Save()
@@ -3400,7 +3377,7 @@ void EditingVideoOverlap::Seek(int64_t pos)
     TimeLine* timeline = (TimeLine*)(mOvlp->mHandle);
     if (!timeline)
         return;
-    timeline->Seek(pos);
+    timeline->Seek(pos, true);
 }
 
 void EditingVideoOverlap::Step(bool forward, int64_t step)
@@ -9850,7 +9827,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                     timeline->currentTime = timeline->GetStart();
                 if (timeline->currentTime >= timeline->GetEnd())
                     timeline->currentTime = timeline->GetEnd();
-                timeline->Seek(timeline->currentTime);
+                timeline->Seek(timeline->currentTime, true);
                 timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
             }
         }
@@ -10790,7 +10767,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                 currentTime = editingClip->firstTime;
             if (currentTime > editingClip->lastTime)
                 currentTime = editingClip->lastTime;
-            main_timeline->Seek(currentTime + start);
+            main_timeline->Seek(currentTime + start, true);
         }
         if (editingClip->bSeeking && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
         {

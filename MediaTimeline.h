@@ -655,8 +655,6 @@ struct BaseEditingClip
 
     virtual void CalcDisplayParams(int64_t viewWndDur) = 0;
     virtual void UpdateClipRange(Clip* clip) = 0;
-    virtual void Seek(int64_t pos) = 0;
-    virtual void Step(bool forward, int64_t step = 0) = 0;
     virtual void Save() = 0;
     virtual bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame = true, bool attribute = false) = 0;
     virtual void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom) = 0;
@@ -683,8 +681,6 @@ public:
 
     void CalcDisplayParams(int64_t viewWndDur) override;
     void UpdateClipRange(Clip* clip) override;
-    void Seek(int64_t pos) override;
-    void Step(bool forward, int64_t step = 0) override;
     void Save() override;
     bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame = true, bool attribute = false) override;
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom) override;
@@ -705,8 +701,6 @@ public:
 
     void CalcDisplayParams(int64_t viewWndDur) override;
     void UpdateClipRange(Clip* clip) override;
-    void Seek(int64_t pos) override;
-    void Step(bool forward, int64_t step = 0) override;
     void Save() override;
     bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame = true, bool attribute = false) override;
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom) override;
@@ -1174,7 +1168,7 @@ struct TimeLine
     void SetAudioLevel(int channel, float level);
 
     void Play(bool play, bool forward = true);
-    void Seek(int64_t msPos, bool enterSeekingState = true);
+    void Seek(int64_t msPos, bool enterSeekingState = false);
     void StopSeek();
     void Step(bool forward = true);
     void Loop(bool loop);
