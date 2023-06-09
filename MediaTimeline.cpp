@@ -238,6 +238,106 @@ void MediaItem::UpdateThumbnail()
 namespace MediaTimeline
 {
 /***********************************************************************************************************
+ * Event Struct Member Functions
+ ***********************************************************************************************************/
+Event::Event(int64_t start, int64_t end, int64_t id, int index, void* handle)
+{
+    TimeLine * timeline = (TimeLine *)handle;
+    mID = timeline ? timeline->m_IDGenerator.GenerateID() : ImGui::get_current_time_usec();
+    mStart = start;
+    mEnd = end;
+    mClipID = id;
+    mIndex = index;
+    mHandle = handle;
+    mEventKeyPoints.SetMin({0.f, 0.f});
+    mEventKeyPoints.SetMax(ImVec2(mEnd-mStart, 1.f), true);
+}
+
+Event::~Event()
+{
+}
+
+Event * Event::Load(const imgui_json::value& value, void * handle)
+{
+    int64_t id = -1;
+    int64_t clip_id = -1;
+    int64_t start = -1;
+    int64_t end = -1;
+    int index = -1;
+    if (value.contains("ID"))
+    {
+        auto& val = value["ID"];
+        if (val.is_number()) id = val.get<imgui_json::number>();
+    }
+    if (value.contains("ClipID"))
+    {
+        auto& val = value["ClipID"];
+        if (val.is_number()) clip_id = val.get<imgui_json::number>();
+    }
+    if (value.contains("Start"))
+    {
+        auto& val = value["Start"];
+        if (val.is_number()) start = val.get<imgui_json::number>();
+    }
+    if (value.contains("End"))
+    {
+        auto& val = value["End"];
+        if (val.is_number()) end = val.get<imgui_json::number>();
+    }
+    if (value.contains("Index"))
+    {
+        auto& val = value["Index"];
+        if (val.is_number()) index = val.get<imgui_json::number>();
+    }
+    
+    if (id <= 0 || start < 0 || end < 0 || end <= start || index < 0)
+        return nullptr;
+
+    Event * event = new Event(start, end, clip_id, index, handle);
+    if (!event) return nullptr;
+
+    event->mID = id;
+    // load Event bp
+    if (value.contains("EventBP"))
+    {
+        auto& val = value["EventBP"];
+        if (val.is_object()) event->mEventBP = val;
+    }
+
+    // load Event curve
+    if (value.contains("EventKeyPoints"))
+    {
+        auto& keypoint = value["EventKeyPoints"];
+        event->mEventKeyPoints.Load(keypoint);
+    }
+    return event;
+}
+
+void Event::Save(imgui_json::value& value)
+{
+    value["ID"] = imgui_json::number(mID);
+    value["ClipID"] = imgui_json::number(mClipID);
+    value["Start"] = imgui_json::number(mStart);
+    value["End"] = imgui_json::number(mEnd);
+    value["Index"] = imgui_json::number(mIndex);
+
+    // save event bp
+    if (mEventBP.is_object())
+    {
+        value["EventBP"] = mEventBP;
+    }
+
+    // save event curve setting
+    imgui_json::value event_keypoint;
+    mEventKeyPoints.Save(event_keypoint);
+    value["EventKeyPoints"] = event_keypoint;
+}
+
+} //namespace MediaTimeline
+
+namespace MediaTimeline
+{
+/***********************************************************************************************************
  * Clip Struct Member Functions
  ***********************************************************************************************************/
 Clip::Clip(int64_t start, int64_t end, int64_t id, MediaCore::MediaParser::Holder mediaParser, void * handle)
@@ -336,6 +436,18 @@ void Clip::Load(Clip * clip, const imgui_json::value& value)
         auto& keypoint = value["AttributeKeyPoint"];
         clip->mAttributeKeyPoints.Load(keypoint);
     }
+
+    // load event
+    const imgui_json::array* eventArray = nullptr;
+    if (imgui_json::GetPtrTo(value, "Events", eventArray))
+    {
+        for (auto& event : *eventArray)
+        {
+            Event * pevent = Event::Load(event, clip->mHandle);
+            if (pevent)
+                clip->mEvents.push_back(pevent);
+        }
+    }
 }
 
 void Clip::Save(imgui_json::value& value)
@@ -369,6 +481,16 @@ void Clip::Save(imgui_json::value& value)
     imgui_json::value attribute_keypoint;
     mAttributeKeyPoints.Save(attribute_keypoint);
     value["AttributeKeyPoint"] = attribute_keypoint;
+
+    // save event
+    imgui_json::value events;
+    for (auto event : mEvents)
+    {
+        imgui_json::value e;
+        event->Save(e);
+        events.push_back(e);
+    }
+    if (mEvents.size() > 0) value["Events"] = events;
 }
 
 int64_t Clip::Cropping(int64_t diff, int type)
@@ -6575,8 +6697,7 @@ int TimeLine::Load(const imgui_json::value& value)
         auto& val = value["MovingAttract"];
         if (val.is_boolean()) bMovingAttract = val.get<imgui_json::boolean>();
     }
-    
-    
+
     if (value.contains("FontName"))
     {
         auto& val = value["FontName"];
@@ -8659,6 +8780,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
 
     static float headerMarkPos = -1;
     static int markMovingEntry = -1;
+    static int64_t markMovingShift = 0;
 
     float minPixelWidthTarget = ImMin(timeline->msPixelWidthTarget, (float)(timline_size.x - legendWidth) / (float)duration);
     float frame_duration = (timeline->mFrameRate.den > 0 && timeline->mFrameRate.num > 0) ? timeline->mFrameRate.den * 1000.0 / timeline->mFrameRate.num : 40;
@@ -9102,29 +9224,52 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         }
 
         // mark moving
-        if (markMovingEntry != -1 && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
+        if (markMovingEntry != -1 && !MovingCurrentTime && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
         {
             ImGui::CaptureMouseFromApp();
             int64_t mouse_time = (int64_t)((io.MousePos.x - timeMeterRect.Min.x) / timeline->msPixelWidthTarget) + timeline->firstTime;
             if (markMovingEntry == 0)
             {
                 timeline->mark_in = mouse_time;
-                if (timeline->mark_in < 0) timeline->mark_in = 0;
+                if (timeline->mark_in < timeline->GetStart()) timeline->mark_in = timeline->GetStart();
                 if (timeline->mark_in >= timeline->mark_out) timeline->mark_out = -1;
+                if (timeline->mark_in < timeline->firstTime)
+                    timeline->firstTime = timeline->mark_in;
+                if (timeline->mark_in > timeline->lastTime)
+                    timeline->firstTime = timeline->mark_in - timeline->visibleTime;
+                timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
             }
             else if (markMovingEntry == 1)
             {
                 timeline->mark_out = mouse_time;
-                if (timeline->mark_out < 0) timeline->mark_out = 0;
+                if (timeline->mark_out > timeline->GetEnd()) timeline->mark_out = timeline->GetEnd();
                 if (timeline->mark_out <= timeline->mark_in) timeline->mark_in = -1;
+                if (timeline->mark_out < timeline->firstTime)
+                    timeline->firstTime = timeline->mark_out;
+                if (timeline->mark_out > timeline->lastTime)
+                    timeline->firstTime = timeline->mark_out - timeline->visibleTime;
+                timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
             }
             else
             {
-                int64_t diff_time = int64_t(io.MouseDelta.x / timeline->msPixelWidthTarget);
-                if (timeline->mark_in + diff_time < timeline->mStart) diff_time = timeline->mark_in - timeline->mStart;
-                if (timeline->mark_out + diff_time > timeline->mEnd) diff_time = timeline->mEnd - timeline->mark_out;
-                timeline->mark_in += diff_time;
-                timeline->mark_out += diff_time;
+                int64_t mark_duration = timeline->mark_out - timeline->mark_in;
+                timeline->mark_in = mouseTime - markMovingShift;
+                timeline->mark_out = timeline->mark_in + mark_duration;
+                if (timeline->mark_in < timeline->GetStart())
+                {
+                    timeline->mark_in = timeline->GetStart();
+                    timeline->mark_out = timeline->mark_in + mark_duration;
+                }
+                if (timeline->mark_out > timeline->mEnd)
+                {
+                    timeline->mark_out = timeline->GetEnd();
+                    timeline->mark_in = timeline->mark_out - mark_duration;
+                }
+                if (timeline->mark_in < timeline->firstTime)
+                    timeline->firstTime = timeline->mark_in;
+                if (timeline->mark_out > timeline->lastTime)
+                    timeline->firstTime = timeline->mark_out - timeline->visibleTime;
+                timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
             }
             if (ImGui::BeginTooltip())
             {
@@ -9743,6 +9888,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 if (ImGui::IsMouseDown(ImGuiMouseButton_Left) && markMovingEntry == -1)
                 {
                     markMovingEntry = 0;
+                    markMovingShift = 0;
                 }
             }
             else
@@ -9774,6 +9920,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 if (ImGui::IsMouseDown(ImGuiMouseButton_Left) && markMovingEntry == -1)
                 {
                     markMovingEntry = 1;
+                    markMovingShift = 0;
                 }
             }
             else
@@ -9804,6 +9951,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             if (ImGui::IsMouseDown(ImGuiMouseButton_Left) && markMovingEntry == -1)
             {
                 markMovingEntry = 2;
+                markMovingShift = mouseTime - timeline->mark_in;
             }
         }
         ImGui::PopClipRect();
@@ -9935,6 +10083,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         clipMovingEntry = -1;
         clipMovingPart = -1;
         markMovingEntry = -1;
+        markMovingShift = 0;
         //trackEntry = -1;
         //trackMovingEntry = -1;
         bCropping = false;

@@ -4709,23 +4709,41 @@ static void ShowVideoFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
 
 static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
 {
-    /*
+    /*                       with preview                                                              without preview
     ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓      ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓ 
     ┃                                 ┃                                  ┃      ┃                          |<  <  []  >  >|                          ┃
     ┃                                 ┃                                  ┃      ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┫
-    ┃       preview before            ┃          preview after           ┃      ┃                                            ┃                       ┃  
-    ┃                                 ┃                                  ┃      ┃                                            ┃                       ┃
-    ┃                                 ┃                                  ┃      ┃                                            ┃                       ┃ 
-    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫      ┃                                            ┃                       ┃ 
-    ┃                          |<  <  []  >  >|                          ┃      ┃              blueprint                     ┃                       ┃ 
-    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┫      ┃                                            ┃      filter edit      ┃ 
-    ┃             blueprint                      ┃                       ┃      ┃                                            ┃                       ┃ 
-    ┃                                            ┃                       ┃      ┃                                            ┃                       ┃ 
-    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫    filter edit        ┃      ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫                       ┃ 
-    ┃             timeline                       ┃                       ┃      ┃             timeline                       ┃                       ┃
-    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫                       ┃      ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫                       ┃
-    ┃              curves                        ┃                       ┃      ┃              curves                        ┃                       ┃
+    ┃       preview before            ┃          preview after           ┃      ┃              timeline                      ┃   > event             ┃  
+    ┃                                 ┃                                  ┃      ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫    |> filter          ┃
+    ┃                                 ┃                                  ┃      ┃              event track                   ┃      > filter edit    ┃ 
+    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫      ┃                  .                         ┃        .              ┃ 
+    ┃                          |<  <  []  >  >|                          ┃      ┃                  .                         ┃        .              ┃ 
+    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┫      ┃                  .                         ┃      > effect edit    ┃ 
+    ┃             timeline                       ┃   > event             ┃      ┃                  .                         ┃        .              ┃ 
+    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫    |> filter          ┃      ┃                  .                         ┃        .              ┃ 
+    ┃              event track                   ┃      > filter edit    ┃      ┃              event track                   ┃      .                ┃ 
+    ┃              event track                   ┃        .              ┃      ┃                  .                         ┃      .                ┃
+    ┃                                            ┃        .              ┃      ┃                                            ┃                       ┃
+    ┃                                            ┃      .                ┃      ┃                                            ┃                       ┃
     ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━┛      ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━┛
+                        with blueprint edit
+    ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓  
+    ┃    []--[]--                                                      x ┃  
+    ┃             \                                                      ┃  
+    ┃               \- []                                                ┃  
+    ┃                                                                    ┃  
+    ┃                                                                    ┃  
+    ┃                                                                    ┃  
+    ┃                                                                    ┃  
+    ┃                                                                    ┃  
+    ┃                                                                    ┃  
+    ┃                                                                    ┃  
+    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┫  
+    ┃             timeline                       ┃   > event             ┃  
+    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫    |> filter          ┃  
+    ┃              event track                   ┃      > filter edit    ┃  
+    ┃              event track                   ┃        .              ┃  
+    ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━┛  
     */
 
     // draw page title
@@ -9447,9 +9465,10 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
     }
 }
 
-static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expand, bool *spread)
+static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expand, bool spread)
 {
     ImGuiIO &io = ImGui::GetIO();
+    static bool last_spread = false;
     bool multiviewport = io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable;
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
     ImDrawList *draw_list = ImGui::GetWindowDrawList();
@@ -9465,7 +9484,18 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expand, bool *sprea
     auto pos = window_pos + ImVec2(window_size.x - 32, 0);
     bool overExpanded = ExpendButton(draw_list, ImVec2(pos.x + 8, pos.y + 2), *expand, true);
     if (overExpanded && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+    {
         *expand = !*expand;
+        if (expand && timeline)
+            timeline->UpdatePreview();
+    }
+
+    if (last_spread != spread)
+    {
+        if (expand && timeline)
+            timeline->UpdatePreview();
+        last_spread = spread;
+    }
     
     pos = window_pos + ImVec2(window_size.x - 64, 0);
     std::vector<int> disabled_monitor;
@@ -9485,7 +9515,7 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expand, bool *sprea
     if (expand && !*expand)
     {
         draw_list->AddText(nullptr, 24.f, window_pos, IM_COL32_WHITE, ScopeWindowTabIcon[g_media_editor_settings.ScopeWindowIndex]);
-        if (spread && *spread)
+        if (spread)
         {
             draw_list->AddText(nullptr, 24.f, window_pos + ImVec2(window_size.x / 2, 0), IM_COL32_WHITE, ScopeWindowTabIcon[g_media_editor_settings.ScopeWindowExpandIndex]);
         }
@@ -9494,7 +9524,7 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expand, bool *sprea
     {
         
         ImVec2 main_scope_pos = window_pos;
-        if (spread && !*spread)
+        if (!spread)
         {
             main_scope_pos += ImVec2((window_size.x - scope_view_size.x) / 2, 0);
         }
@@ -9533,7 +9563,7 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expand, bool *sprea
 
         ShowMediaScopeView(g_media_editor_settings.ScopeWindowIndex, main_scope_pos + ImVec2(0, 16 + 8), scope_view_size);
 
-        if (spread && *spread)
+        if (spread)
         {
             ImVec2 expand_scope_pos = window_pos + ImVec2(scope_view_size.x + 16, 0);
             draw_list->AddText(nullptr, 24.f, expand_scope_pos, IM_COL32_WHITE, ScopeWindowTabIcon[g_media_editor_settings.ScopeWindowExpandIndex]);
@@ -10253,7 +10283,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
     ImVec2 main_pos = window_pos + ImVec2(4, 32);
     ImVec2 main_size(window_size.x, main_height + 4); // if we need add toolbar, should add here
     ImGui::SetNextWindowPos(main_pos, ImGuiCond_Always);
-    if (ImGui::BeginChild("##Top_Panel", main_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+    if (ImGui::BeginChild("##Top_Panel", main_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings))
     {
         ImVec2 main_window_size = ImGui::GetWindowSize();
         ImGui::PushID("##Control_Panel_Main");
@@ -10428,10 +10458,16 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             ImGui::SetNextWindowPos(scope_pos, ImGuiCond_Always);
             if (ImGui::BeginChild("##Scope_View", scope_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings))
             {
-                ShowMediaAnalyseWindow(timeline, &g_media_editor_settings.ExpandScope, &spread);
-                scope_flags = 1 << g_media_editor_settings.ScopeWindowIndex;
-                if (spread)
-                    scope_flags |= 1 << g_media_editor_settings.ScopeWindowExpandIndex;
+                ShowMediaAnalyseWindow(timeline, &g_media_editor_settings.ExpandScope, spread);
+                if (!g_media_editor_settings.ExpandScope)
+                {
+                    scope_flags = 0;
+                }
+                else
+                {
+                    scope_flags = 1 << g_media_editor_settings.ScopeWindowIndex;
+                    if (spread) scope_flags |= 1 << g_media_editor_settings.ScopeWindowExpandIndex;
+                }
             }
             ImGui::EndChild();
         }
