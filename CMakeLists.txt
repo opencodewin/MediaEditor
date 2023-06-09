@@ -141,6 +141,7 @@ set(MEDIA_EDITOR_BINARY "mec")
 set(MEDIA_EDITOR_SRCS
     MediaEditor.cpp
     MediaTimeline.cpp
+    EventStackFilter.cpp
     ${IMGUI_APP_ENTRY_SRC}
 )
 

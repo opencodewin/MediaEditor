@@ -458,6 +458,9 @@ struct VideoClip : Clip
     static Clip * Load(const imgui_json::value& value, void * handle);
     void Save(imgui_json::value& value) override;
 
+    void SyncFilterWithDataLayer(MediaCore::VideoClip::Holder hClip);
+    void SyncAttributesWithDataLayer(MediaCore::VideoClip::Holder hClip);
+
 private:
     float mSnapWidth                {0};
     float mSnapHeight               {0};
@@ -547,7 +550,9 @@ public:
 
     const std::string GetFilterName() const override { return "BluePrintVideoFilter"; }
     MediaCore::VideoFilter::Holder Clone() override;
-    void ApplyTo(MediaCore::VideoClip* clip) override { mTrackId = clip->TrackId(); }
+    void ApplyTo(MediaCore::VideoClip* clip) override { m_pClip = clip; }
+    const MediaCore::VideoClip* GetVideoClip() const override { return m_pClip; }
+    void UpdateClipRange() override;
     ImGui::ImMat FilterImage(const ImGui::ImMat& vmat, int64_t pos) override;
 
     void SetBluePrintFromJson(imgui_json::value& bpJson);
@@ -561,7 +566,7 @@ private:
     static int OnBluePrintChange(int type, std::string name, void* handle);
     std::mutex mBpLock;
     void * mHandle {nullptr};
-    int64_t mTrackId {-1};
+    MediaCore::VideoClip* m_pClip {nullptr};
 };
 
 class BluePrintVideoTransition : public MediaCore::VideoTransition
@@ -672,7 +677,10 @@ struct EditingVideoClip : BaseEditingClip
     // for image clip
     ImTextureID mImgTexture     {0};
 
-    BluePrintVideoFilter * mFilter {nullptr};
+    MediaCore::VideoFilter* mFilter {nullptr};
+    BluePrint::BluePrintUI* mFilterBp {nullptr};
+    ImGui::KeyPointEditor* mFilterKp {nullptr};
+
     MediaCore::VideoTransformFilterHolder mAttribute {nullptr};
 
 public:
@@ -1118,6 +1126,7 @@ struct TimeLine
     
     // BP CallBacks
     static int OnBluePrintChange(int type, std::string name, void* handle);
+    int OnVideoFilterBluePrintChange(int type, std::string name, void* handle);
 
     ImTextureID mMainPreviewTexture {nullptr};  // main preview texture
 

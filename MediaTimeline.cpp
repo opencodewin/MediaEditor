@@ -23,6 +23,7 @@
 #include <cmath>
 #include <sstream>
 #include <iomanip>
+#include "EventStackFilter.h"
 #include "SysUtils.h"
 #include "Logger.h"
 #include "DebugHelper.h"
@@ -461,8 +462,19 @@ int64_t Clip::Cropping(int64_t diff, int type)
         timeline->mVidFilterClip->mEnd = End();
         if (timeline->mVidFilterClip->mFilter)
         {
-            timeline->mVidFilterClip->mFilter->mKeyPoints.SetRangeX(0, Length(), true);
-            mFilterKeyPoints = timeline->mVidFilterClip->mFilter->mKeyPoints;
+            auto pFilter = timeline->mVidFilterClip->mFilter;
+            auto filterName = pFilter->GetFilterName();
+            if (filterName == "BluePrintVideoFilter")
+            {
+                BluePrintVideoFilter* pBpvf = dynamic_cast<BluePrintVideoFilter*>(pFilter);
+                pBpvf->mKeyPoints.SetRangeX(0, Length(), true);
+                mFilterKeyPoints = pBpvf->mKeyPoints;
+            }
+            else if (filterName == "EventStackFilter")
+            {
+                auto pEsf = dynamic_cast<MEC::EventStackFilter*>(pFilter);
+                // TODO: handle cropping here
+            }
         }
         if (timeline->mVidFilterClip->mAttribute)
         {
@@ -545,8 +557,8 @@ void Clip::Cutting(int64_t pos, int64_t gid, std::list<imgui_json::value>* pActi
             timeline->mVidFilterClip->mEnd = mEnd;
             if (timeline->mVidFilterClip->mFilter)
             {
-                timeline->mVidFilterClip->mFilter->mKeyPoints.SetRangeX(0, mEnd - mStart, true);
-                mFilterKeyPoints = timeline->mVidFilterClip->mFilter->mKeyPoints;
+                timeline->mVidFilterClip->mFilter->UpdateClipRange();
+                mFilterKeyPoints.SetRangeX(0, mEnd - mStart, true);
             }
             if (timeline->mVidFilterClip->mAttribute)
             {
@@ -1503,6 +1515,43 @@ void VideoClip::Save(imgui_json::value& value)
 
     value["RotationAngle"] = imgui_json::number(mRotationAngle);
 }
+
+void VideoClip::SyncFilterWithDataLayer(MediaCore::VideoClip::Holder hClip)
+{
+    if (mFilterBP.contains("name") && mFilterBP["name"].is_string() && mFilterBP["name"].get<imgui_json::string>() == "EventStackFilter")
+    {
+        // load 'EventStackFilter'
+        auto hFilter = MEC::EventStackFilter::LoadFromJson(mFilterBP);
+        hClip->SetFilter(hFilter);
+    }
+    else
+    {
+        BluePrintVideoFilter* bpvf = new BluePrintVideoFilter(mHandle);
+        bpvf->SetBluePrintFromJson(mFilterBP);
+        bpvf->SetKeyPoint(mFilterKeyPoints);
+        MediaCore::VideoFilter::Holder hFilter(bpvf);
+        hClip->SetFilter(hFilter);
+    }
+}
+
+void VideoClip::SyncAttributesWithDataLayer(MediaCore::VideoClip::Holder hClip)
+{
+    auto attribute = hClip->GetTransformFilter();
+    if (attribute)
+    {
+        attribute->SetScaleType(mScaleType);
+        attribute->SetScaleH(mScaleH);
+        attribute->SetScaleV(mScaleV);
+        attribute->SetPositionOffsetH(mPositionOffsetH);
+        attribute->SetPositionOffsetV(mPositionOffsetV);
+        attribute->SetRotationAngle(mRotationAngle);
+        attribute->SetCropMarginL(mCropMarginL);
+        attribute->SetCropMarginT(mCropMarginT);
+        attribute->SetCropMarginR(mCropMarginR);
+        attribute->SetCropMarginB(mCropMarginB);
+        attribute->SetKeyPoint(mAttributeKeyPoints);
+    }
+}
 } // namespace MediaTimeline
 
 namespace MediaTimeline
@@ -2101,7 +2150,7 @@ BluePrintVideoFilter::BluePrintVideoFilter(void * handle)
     BluePrint::BluePrintCallbackFunctions callbacks;
     callbacks.BluePrintOnChanged = OnBluePrintChange;
     mBp->Initialize();
-    mBp->SetCallbacks(callbacks, this);
+    mBp->SetCallbacks(callbacks, reinterpret_cast<void*>(static_cast<MediaCore::VideoFilter*>(this)));
     mBp->File_New_Filter(filter_BP, "VideoFilter", "Video");
 }
 
@@ -2116,31 +2165,36 @@ BluePrintVideoFilter::~BluePrintVideoFilter()
 
 int BluePrintVideoFilter::OnBluePrintChange(int type, std::string name, void* handle)
 {
-    int ret = BluePrint::BP_CBR_Nothing;
-    if (!handle)
+    MediaCore::VideoFilter* pFilter = reinterpret_cast<MediaCore::VideoFilter*>(handle);
+    if (!pFilter)
         return BluePrint::BP_CBR_Unknown;
-    BluePrintVideoFilter * filter = (BluePrintVideoFilter *)handle;
-    if (!filter) return ret;
-    TimeLine * timeline = (TimeLine *)filter->mHandle;
-    if (name.compare("VideoFilter") == 0)
+    int ret = BluePrint::BP_CBR_Nothing;
+    auto filterName = pFilter->GetFilterName();
+    if (filterName == "BluePrintVideoFilter")
     {
-        bool needUpdateView = false;
-        if (type == BluePrint::BP_CB_Link ||
-            type == BluePrint::BP_CB_Unlink ||
-            type == BluePrint::BP_CB_NODE_DELETED)
+        BluePrintVideoFilter* pBpvf = dynamic_cast<BluePrintVideoFilter*>(pFilter);
+        TimeLine * timeline = (TimeLine *)pBpvf->mHandle;
+        if (name.compare("VideoFilter") == 0)
         {
-            needUpdateView = true;
-            ret = BluePrint::BP_CBR_AutoLink;
-        }
-        else if (type == BluePrint::BP_CB_PARAM_CHANGED ||
-                type == BluePrint::BP_CB_SETTING_CHANGED)
-        {
-            needUpdateView = true;
-        }
-        if (needUpdateView && timeline)
-        {
-            std::vector<int64_t> trackIds = { filter->mTrackId };
-            timeline->RefreshTrackView(trackIds);
+            bool needUpdateView = false;
+            if (type == BluePrint::BP_CB_Link ||
+                type == BluePrint::BP_CB_Unlink ||
+                type == BluePrint::BP_CB_NODE_DELETED)
+            {
+                needUpdateView = true;
+                ret = BluePrint::BP_CBR_AutoLink;
+            }
+            else if (type == BluePrint::BP_CB_PARAM_CHANGED ||
+                    type == BluePrint::BP_CB_SETTING_CHANGED)
+            {
+                needUpdateView = true;
+            }
+            if (needUpdateView && timeline)
+            {
+                auto trackId = pBpvf->GetVideoClip()->TrackId();
+                std::vector<int64_t> trackIds = { trackId };
+                timeline->RefreshTrackView(trackIds);
+            }
         }
     }
     return ret;
@@ -2153,6 +2207,11 @@ MediaCore::VideoFilter::Holder BluePrintVideoFilter::Clone()
     bpFilter->SetBluePrintFromJson(bpJson);
     bpFilter->SetKeyPoint(mKeyPoints);
     return MediaCore::VideoFilter::Holder(bpFilter);
+}
+
+void BluePrintVideoFilter::UpdateClipRange()
+{
+    mKeyPoints.SetRangeX(0, m_pClip->Duration(), true);
 }
 
 ImGui::ImMat BluePrintVideoFilter::FilterImage(const ImGui::ImMat& vmat, int64_t pos)
@@ -2524,29 +2583,44 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
 
     auto hClip = timeline->mMtvReader->GetClipById(vidclip->mID);
     IM_ASSERT(hClip);
-    mFilter = dynamic_cast<BluePrintVideoFilter *>(hClip->GetFilter().get());
+    mFilter = hClip->GetFilter().get();
     if (!mFilter)
     {
-        mFilter = new BluePrintVideoFilter(timeline);
-        mFilter->SetKeyPoint(vidclip->mFilterKeyPoints);
-        MediaCore::VideoFilter::Holder hFilter(mFilter);
+        MediaCore::VideoFilter::Holder hFilter;
+#if 1
+        auto pBpvf = new BluePrintVideoFilter(timeline);
+        pBpvf->SetKeyPoint(vidclip->mFilterKeyPoints);
+        hFilter = MediaCore::VideoFilter::Holder(pBpvf);
+#else
+        hFilter = MEC::EventStackFilter::CreateInstance();
+        auto pEsf = dynamic_cast<MEC::EventStackFilter*>(hFilter.get());
+        BluePrint::BluePrintCallbackFunctions bpCallbacks;
+        bpCallbacks.BluePrintOnChanged = std::bind(&TimeLine::OnVideoFilterBluePrintChange, timeline, _1, _2, _3);
+        pEsf->AddNewEvent(0, 0, hClip->Duration(), bpCallbacks);
+        pEsf->SetEditingEvent(0);
+#endif
         hClip->SetFilter(hFilter);
+        mFilter = hFilter.get();
+    }
+    auto filterName = mFilter->GetFilterName();
+    if (filterName == "BluePrintVideoFilter")
+    {
+        auto pBpvf = dynamic_cast<BluePrintVideoFilter*>(mFilter);
+        mFilterBp = pBpvf->mBp;
+        mFilterKp = &pBpvf->mKeyPoints;
+    }
+    else if (filterName == "EventStackFilter")
+    {
+        auto pEsf = dynamic_cast<MEC::EventStackFilter*>(mFilter);
+        auto editingEvent = pEsf->GetEditingEvent();
+        if (editingEvent)
+        {
+            mFilterBp = editingEvent->GetBp();
+            mFilterKp = editingEvent->GetKeyPoint();
+        }
     }
     mAttribute = hClip->GetTransformFilter();
-    if (mAttribute)
-    {
-        mAttribute->SetScaleType(vidclip->mScaleType);
-        mAttribute->SetScaleH(vidclip->mScaleH);
-        mAttribute->SetScaleV(vidclip->mScaleV);
-        mAttribute->SetPositionOffsetH(vidclip->mPositionOffsetH);
-        mAttribute->SetPositionOffsetV(vidclip->mPositionOffsetV);
-        mAttribute->SetRotationAngle(vidclip->mRotationAngle);
-        mAttribute->SetCropMarginL(vidclip->mCropMarginL);
-        mAttribute->SetCropMarginT(vidclip->mCropMarginT);
-        mAttribute->SetCropMarginR(vidclip->mCropMarginR);
-        mAttribute->SetCropMarginB(vidclip->mCropMarginB);
-        mAttribute->SetKeyPoint(vidclip->mAttributeKeyPoints);
-    }
+    vidclip->SyncAttributesWithDataLayer(hClip);
 }
 
 EditingVideoClip::~EditingVideoClip()
@@ -2583,10 +2657,10 @@ void EditingVideoClip::Save()
     clip->lastTime = lastTime;
     clip->visibleTime = visibleTime;
     clip->msPixelWidthTarget = msPixelWidthTarget;
-    if (mFilter && mFilter->mBp && mFilter->mBp->Blueprint_IsValid())
+    if (mFilterBp && mFilterBp->Blueprint_IsValid())
     {
-        clip->mFilterBP = mFilter->mBp->m_Document->Serialize();
-        clip->mFilterKeyPoints = mFilter->mKeyPoints;
+        clip->mFilterBP = mFilterBp->m_Document->Serialize();
+        clip->mFilterKeyPoints = *mFilterKp;
     }
     if (mAttribute)
     {
@@ -4081,8 +4155,8 @@ void MediaTrack::SelectEditingClip(Clip * clip, bool filter_editing)
             if (IS_VIDEO(editing_clip->mType) &&
                 timeline->mVidFilterClip &&
                 timeline->mVidFilterClip->mFilter &&
-                timeline->mVidFilterClip->mFilter->mBp &&
-                timeline->mVidFilterClip->mFilter->mBp->Blueprint_IsValid())
+                timeline->mVidFilterClip->mFilterBp &&
+                timeline->mVidFilterClip->mFilterBp->Blueprint_IsValid())
                 return;
             if (IS_AUDIO(editing_clip->mType) &&
                 timeline->mAudFilterClip &&
@@ -5171,27 +5245,9 @@ bool TimeLine::RestoreTrack(imgui_json::value& action)
                 hVidClip = hVidTrk->AddImageClip(c->mID, c->mMediaParser, c->Start(), c->Length());
             else
                 hVidClip = hVidTrk->AddVideoClip(c->mID, c->mMediaParser, c->Start(), c->End(), c->StartOffset(), c->EndOffset(), currentTime-c->Start());
-            BluePrintVideoFilter* bpvf = new BluePrintVideoFilter(this);
-            bpvf->SetBluePrintFromJson(c->mFilterBP);
-            bpvf->SetKeyPoint(c->mFilterKeyPoints);
-            MediaCore::VideoFilter::Holder hFilter(bpvf);
-            hVidClip->SetFilter(hFilter);
-            auto attribute = hVidClip->GetTransformFilter();
-            if (attribute)
-            {
-                VideoClip* vidclip = (VideoClip*)c;
-                attribute->SetScaleType(vidclip->mScaleType);
-                attribute->SetScaleH(vidclip->mScaleH);
-                attribute->SetScaleV(vidclip->mScaleV);
-                attribute->SetPositionOffsetH(vidclip->mPositionOffsetH);
-                attribute->SetPositionOffsetV(vidclip->mPositionOffsetV);
-                attribute->SetRotationAngle(vidclip->mRotationAngle);
-                attribute->SetCropMarginL(vidclip->mCropMarginL);
-                attribute->SetCropMarginT(vidclip->mCropMarginT);
-                attribute->SetCropMarginR(vidclip->mCropMarginR);
-                attribute->SetCropMarginB(vidclip->mCropMarginB);
-                attribute->SetKeyPoint(vidclip->mAttributeKeyPoints);
-            }
+            VideoClip* vclip = dynamic_cast<VideoClip*>(c);
+            vclip->SyncFilterWithDataLayer(hVidClip);
+            vclip->SyncAttributesWithDataLayer(hVidClip);
         }
         UpdatePreview();
     }
@@ -6258,7 +6314,7 @@ void TimeLine::CustomDraw(
             ImGui::KeyPointEditor* keypoint_filter = &clip->mFilterKeyPoints;
             if (mVidFilterClip && mVidFilterClip->mID == clip->mID && mVidFilterClip->mFilter)
             {
-                keypoint_filter = &mVidFilterClip->mFilter->mKeyPoints;
+                keypoint_filter = mVidFilterClip->mFilterKp;
             }
             else if (mAudFilterClip && mAudFilterClip->mID == clip->mID && mAudFilterClip->mFilter)
             {
@@ -6876,28 +6932,9 @@ int TimeLine::Load(const imgui_json::value& value)
                     hVidClip = vidTrack->AddImageClip(clip->mID, clip->mMediaParser, clip->Start(), clip->Length());
                 else
                     hVidClip = vidTrack->AddVideoClip(clip->mID, clip->mMediaParser, clip->Start(), clip->End(), clip->StartOffset(), clip->EndOffset(), currentTime-clip->Start());
-
-                BluePrintVideoFilter* bpvf = new BluePrintVideoFilter(this);
-                bpvf->SetBluePrintFromJson(clip->mFilterBP);
-                bpvf->SetKeyPoint(clip->mFilterKeyPoints);
-                MediaCore::VideoFilter::Holder hFilter(bpvf);
-                hVidClip->SetFilter(hFilter);
-                auto attribute = hVidClip->GetTransformFilter();
-                if (attribute)
-                {
-                    VideoClip * vidclip = (VideoClip *)clip;
-                    attribute->SetScaleType(vidclip->mScaleType);
-                    attribute->SetScaleH(vidclip->mScaleH);
-                    attribute->SetScaleV(vidclip->mScaleV);
-                    attribute->SetPositionOffsetH(vidclip->mPositionOffsetH);
-                    attribute->SetPositionOffsetV(vidclip->mPositionOffsetV);
-                    attribute->SetRotationAngle(vidclip->mRotationAngle);
-                    attribute->SetCropMarginL(vidclip->mCropMarginL);
-                    attribute->SetCropMarginT(vidclip->mCropMarginT);
-                    attribute->SetCropMarginR(vidclip->mCropMarginR);
-                    attribute->SetCropMarginB(vidclip->mCropMarginB);
-                    attribute->SetKeyPoint(vidclip->mAttributeKeyPoints);
-                }
+                VideoClip* vclip = dynamic_cast<VideoClip*>(clip);
+                vclip->SyncFilterWithDataLayer(hVidClip);
+                vclip->SyncAttributesWithDataLayer(hVidClip);
             }
         }
         else if (IS_AUDIO(track->mType))
@@ -7190,31 +7227,13 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
         MediaCore::VideoTrack::Holder vidTrack = mMtvReader->GetTrackById(trackId, true);
         int64_t clipId = action["clip_json"]["ID"].get<imgui_json::number>();
         Clip* clip = FindClipByID(clipId);
-        MediaCore::VideoClip::Holder vidClip = MediaCore::VideoClip::CreateVideoInstance(
+        MediaCore::VideoClip::Holder hVidClip = MediaCore::VideoClip::CreateVideoInstance(
             clip->mID, clip->mMediaParser, mMtvReader->GetSharedSettings(),
             clip->Start(), clip->End(), clip->StartOffset(), clip->EndOffset(), currentTime-clip->Start(), vidTrack->Direction());
-        BluePrintVideoFilter* bpvf = new BluePrintVideoFilter(this);
-        bpvf->SetBluePrintFromJson(clip->mFilterBP);
-        bpvf->SetKeyPoint(clip->mFilterKeyPoints);
-        MediaCore::VideoFilter::Holder hFilter(bpvf);
-        vidClip->SetFilter(hFilter);
-        auto attribute = vidClip->GetTransformFilter();
-        if (attribute)
-        {
-            VideoClip * vidclip = (VideoClip *)clip;
-            attribute->SetScaleType(vidclip->mScaleType);
-            attribute->SetScaleH(vidclip->mScaleH);
-            attribute->SetScaleV(vidclip->mScaleV);
-            attribute->SetPositionOffsetH(vidclip->mPositionOffsetH);
-            attribute->SetPositionOffsetV(vidclip->mPositionOffsetV);
-            attribute->SetRotationAngle(vidclip->mRotationAngle);
-            attribute->SetCropMarginL(vidclip->mCropMarginL);
-            attribute->SetCropMarginT(vidclip->mCropMarginT);
-            attribute->SetCropMarginR(vidclip->mCropMarginR);
-            attribute->SetCropMarginB(vidclip->mCropMarginB);
-            attribute->SetKeyPoint(vidclip->mAttributeKeyPoints);
-        }
-        vidTrack->InsertClip(vidClip);
+        VideoClip* vclip = dynamic_cast<VideoClip*>(clip);
+        vclip->SyncFilterWithDataLayer(hVidClip);
+        vclip->SyncAttributesWithDataLayer(hVidClip);
+        vidTrack->InsertClip(hVidClip);
         bool bIsCutting = action.contains("is_cutting");
         UpdatePreview(!bIsCutting);
     }
@@ -7492,6 +7511,43 @@ void TimeLine::PerformTextAction(imgui_json::value& action)
     {
         Logger::Log(Logger::WARN) << "UNHANDLED UI ACTION(Text): '" << actionName << "'." << std::endl;
     }
+}
+
+int TimeLine::OnVideoFilterBluePrintChange(int type, std::string name, void* handle)
+{
+    MediaCore::VideoFilter* pFilter = reinterpret_cast<MediaCore::VideoFilter*>(handle);
+    if (!pFilter)
+        return BluePrint::BP_CBR_Unknown;
+
+    int ret = BluePrint::BP_CBR_Nothing;
+    auto filterName = pFilter->GetFilterName();
+    if (filterName == "EventStackFilter")
+    {
+        MEC::EventStackFilter* pEsf = dynamic_cast<MEC::EventStackFilter*>(pFilter);
+        if (name.compare("VideoFilter") == 0)
+        {
+            bool needUpdateView = false;
+            if (type == BluePrint::BP_CB_Link ||
+                type == BluePrint::BP_CB_Unlink ||
+                type == BluePrint::BP_CB_NODE_DELETED)
+            {
+                needUpdateView = true;
+                ret = BluePrint::BP_CBR_AutoLink;
+            }
+            else if (type == BluePrint::BP_CB_PARAM_CHANGED ||
+                    type == BluePrint::BP_CB_SETTING_CHANGED)
+            {
+                needUpdateView = true;
+            }
+            if (needUpdateView)
+            {
+                auto trackId = pEsf->GetVideoClip()->TrackId();
+                std::vector<int64_t> trackIds = { trackId };
+                RefreshTrackView(trackIds);
+            }
+        }
+    }
+    return ret;
 }
 
 void TimeLine::ConfigureDataLayer()
