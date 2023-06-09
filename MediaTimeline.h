@@ -271,6 +271,7 @@ namespace MediaTimeline
 #define IS_TEXT(t)      ((t) & MEDIA_TEXT)
 #define IS_SUBTITLE(t)  (((t) & MEDIA_SUBTYPE_TEXT_SUBTITLE) == MEDIA_SUBTYPE_TEXT_SUBTITLE)
 #define IS_MIDI(t)      (((t) & MEDIA_SUBTYPE_AUDIO_MIDI) == MEDIA_SUBTYPE_AUDIO_MIDI)
+#define IS_EVENT(t)     (t & MEDIA_EVENT)
 #define IS_SAME_TYPE(t1, t2) ((t1) & (t2))
 
 enum AudioVectorScopeMode  : int
@@ -351,6 +352,24 @@ struct Overlap
     void Save(imgui_json::value& value);
 };
 
+struct Event
+{
+    int64_t mID                     {-1};       // Event ID, project saved
+    int64_t mClipID                 {-1};       // Clip ID, -1 means event belong to timeline, project saved
+    int64_t mStart                  {0};        // Event start time at clip, project saved
+    int64_t mEnd                    {0};        // Event end time at clip, project saved
+    int     mIndex                  {-1};       // Event layer index, for clip layer index means event order, for track means effect track order
+    imgui_json::value mEventBP;                 // Event transion blueprint, project saved
+    ImGui::KeyPointEditor mEventKeyPoints;      // Event key points, project saved
+    void * mHandle                  {nullptr};  // Event belong to timeline
+    
+    Event(int64_t start, int64_t end, int64_t id, int index, void* handle);
+    ~Event();
+
+    static Event * Load(const imgui_json::value& value, void * handle);
+    void Save(imgui_json::value& value);
+};
+
 struct Clip
 {
     int64_t mID                 {-1};               // clip ID, project saved
@@ -370,9 +389,11 @@ struct Clip
     bool bMoving                {false};            // clip is moving
     bool bHovered               {false};            // clip is under mouse
 
-    imgui_json::value mFilterBP;                    // clip filter blue print, project saved
-    ImGui::KeyPointEditor mFilterKeyPoints;         // clip key points, project saved
-    ImGui::KeyPointEditor mAttributeKeyPoints;      // clip key points, project saved
+    imgui_json::value           mFilterBP;          // clip filter blue print, project saved
+    ImGui::KeyPointEditor       mFilterKeyPoints;   // clip key points, project saved
+    ImGui::KeyPointEditor       mAttributeKeyPoints;// clip key points, project saved
+
+    std::vector<Event*>         mEvents;            // clip events, includeing filters/events, project saved
 
     int64_t firstTime = 0;
     int64_t lastTime = 0;
