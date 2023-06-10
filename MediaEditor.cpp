@@ -10273,6 +10273,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             oss << " GPU[" << i << "]:" << device_name << " VRAM(" << gpu_memory_usage << "MB/" << gpu_memory_budget << "MB)";
         }
 #endif
+        oss << " T:" << ImGui::ImGetTextureCount();
         std::string meters = oss.str();
         auto str_size = ImGui::CalcTextSize(meters.c_str());
         auto spos = title_pos + ImVec2(title_size.x - str_size.x - 8, 8);
