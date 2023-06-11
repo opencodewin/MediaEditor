@@ -10262,15 +10262,18 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
         std::ostringstream oss;
         oss << std::fixed << std::setprecision(2) << ImGui::GetIO().DeltaTime * 1000.f << "ms/frame ";
         oss << ImGui::GetIO().Framerate << "FPS";
-#if IMGUI_VULKAN_SHADER
+#if 0
         int device_count = ImGui::get_gpu_count();
         for (int i = 0; i < device_count; i++)
         {
             ImGui::VulkanDevice* vkdev = ImGui::get_gpu_device(i);
+            oss << " GPU[" << i << "]";
             std::string device_name = vkdev->info.device_name();
-            uint32_t gpu_memory_budget = vkdev->get_heap_budget();
+            oss << ":" << device_name;
             uint32_t gpu_memory_usage = vkdev->get_heap_usage();
-            oss << " GPU[" << i << "]:" << device_name << " VRAM(" << gpu_memory_usage << "MB/" << gpu_memory_budget << "MB)";
+            oss << " VRAM(" << gpu_memory_usage << "MB";
+            uint32_t gpu_memory_budget = vkdev->get_heap_budget();
+            oss << "/" << gpu_memory_budget << "MB)";
         }
 #endif
         oss << " T:" << ImGui::ImGetTextureCount();
