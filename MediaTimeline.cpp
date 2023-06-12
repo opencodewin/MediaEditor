@@ -1659,7 +1659,7 @@ void VideoClip::SyncFilterWithDataLayer(MediaCore::VideoClip::Holder hClip, bool
         {
             MEC::EventStackFilter* pEsf = dynamic_cast<MEC::EventStackFilter*>(hNewFilter.get());
             pEsf->SetTimelineHandle(mHandle);
-            if (!isNewFilter)
+            if (isNewFilter)
                 pEsf->AddNewEvent(0, 0, hClip->Duration(), 0);
             pEsf->SetEditingEvent(0);
             hClip->SetFilter(hNewFilter);
