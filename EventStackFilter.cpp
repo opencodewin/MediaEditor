@@ -2,7 +2,6 @@
 #include <functional>
 #include <sstream>
 #include "EventStackFilter.h"
-#include "Logger.h"
 
 using namespace std;
 using namespace MediaCore;
@@ -13,7 +12,11 @@ namespace MEC
 class EventStackFilter_Impl : public EventStackFilter
 {
 public:
-    EventStackFilter_Impl() {}
+    EventStackFilter_Impl(const BluePrint::BluePrintCallbackFunctions& bpCallbacks)
+        : m_bpCallbacks(bpCallbacks)
+    {
+        m_logger = GetLogger("EventStackFilter");
+    }
 
     virtual ~EventStackFilter_Impl()
     {
@@ -39,6 +42,14 @@ public:
     void ApplyTo(VideoClip* clip) override
     {
         m_pClip = clip;
+        auto clipId = clip->Id();
+        ostringstream tagOss; tagOss << clipId;
+        auto idstr = tagOss.str();
+        if (idstr.size() > 4)
+            idstr = idstr.substr(idstr.size()-4);
+        tagOss.str(""); tagOss << "ESF#" << idstr;
+        auto loggerName = tagOss.str();
+        m_logger = GetLogger(loggerName);
     }
 
     void UpdateClipRange() override
@@ -78,8 +89,7 @@ public:
         return *iter;
     }
 
-    Event* AddNewEvent(int64_t id, int64_t start, int64_t end, int32_t z,
-            const BluePrint::BluePrintCallbackFunctions& bpCallbacks) override
+    Event* AddNewEvent(int64_t id, int64_t start, int64_t end, int32_t z) override
     {
         if (start == end)
         {
@@ -105,7 +115,7 @@ public:
             return nullptr;
         }
 
-        Event* pNewEvent = new Event_Impl(this, id, start, end, z, bpCallbacks);
+        Event* pNewEvent = new Event_Impl(this, id, start, end, z, m_bpCallbacks);
         m_eventList.push_back(pNewEvent);
         m_eventList.sort(EVENT_COMPARATOR);
         return pNewEvent;
@@ -223,10 +233,22 @@ public:
             eventJsonAry.push_back(pEvt->SaveAsJson());
         }
         json["events"] = eventJsonAry;
+        m_logger->Log(DEBUG) << "Save filter-json : " << json.dump() << std::endl;
         return std::move(json);
     }
 
+    void SetTimelineHandle(void* handle) override
+    {
+        m_tlHandle = handle;
+    }
+
+    void* GetTimelineHandle() const override
+    {
+        return m_tlHandle;
+    }
+
     string GetError() const override { return m_errMsg; }
+    void SetLogLevel(Level l) override { m_logger->SetShowLevels(l); }
 
 public:
     class Event_Impl : public EventStackFilter::Event
@@ -261,11 +283,12 @@ public:
             }
         }
 
-        static Event_Impl* LoadFromJson(EventStackFilter_Impl* owner, const imgui_json::value& bpJson);
+        static Event_Impl* LoadFromJson(EventStackFilter_Impl* owner, const imgui_json::value& bpJson, const BluePrint::BluePrintCallbackFunctions& bpCallbacks);
 
         int64_t Id() const override { return m_id; }
         int64_t Start() const override { return m_start; }
         int64_t End() const override { return m_end; }
+        int64_t Length() const override { return m_end-m_start; }
         int32_t Z() const override { return m_z; }
         bool IsInRange(int64_t pos) const override { return pos >= m_start && pos < m_end; }
         BluePrint::BluePrintUI* GetBp() override { return m_pBp; }
@@ -278,7 +301,20 @@ public:
 
         ImGui::ImMat FilterImage(const ImGui::ImMat& vmat, int64_t pos) override
         {
-            return vmat;
+            ImGui::ImMat outMat(vmat);
+            if (m_pBp->Blueprint_IsExecutable())
+            {
+                // setup bp input curve
+                for (int i = 0; i < m_pKp->GetCurveCount(); i++)
+                {
+                    auto name = m_pKp->GetCurveName(i);
+                    auto value = m_pKp->GetValue(i, pos);
+                    m_pBp->Blueprint_SetFilter(name, value);
+                }
+                ImGui::ImMat inMat(vmat);
+                m_pBp->Blueprint_RunFilter(inMat, outMat);
+            }
+            return outMat;
         }
 
         bool ChangeRange(int64_t start, int64_t end) override
@@ -346,6 +382,8 @@ public:
                 return false;
             }
         }
+        m_eventList.push_back(pEvent);
+        m_eventList.sort(EVENT_COMPARATOR);
         return true;
     }
 
@@ -353,9 +391,12 @@ private:
     static function<bool(Event*, Event*)> EVENT_COMPARATOR;
 
 private:
+    ALogger* m_logger;
     VideoClip* m_pClip{nullptr};
     list<Event*> m_eventList;
     int64_t m_editingEventId{-1};
+    BluePrint::BluePrintCallbackFunctions m_bpCallbacks;
+    void* m_tlHandle{nullptr};
     string m_errMsg;
 };
 
@@ -372,8 +413,10 @@ function<bool (EventStackFilter::Event*, EventStackFilter::Event*)> EventStackFi
 [] (EventStackFilter::Event* a, EventStackFilter::Event* b)
 { return a->Z() < b->Z() || (a->Z() == b->Z() && a->Start() < b->Start()); };
 
-EventStackFilter_Impl::Event_Impl* EventStackFilter_Impl::Event_Impl::LoadFromJson(EventStackFilter_Impl* owner, const imgui_json::value& eventJson)
+EventStackFilter_Impl::Event_Impl* EventStackFilter_Impl::Event_Impl::LoadFromJson(
+        EventStackFilter_Impl* owner, const imgui_json::value& eventJson, const BluePrint::BluePrintCallbackFunctions& bpCallbacks)
 {
+    owner->m_logger->Log(DEBUG) << "Load EventJson : " << eventJson.dump() << endl;
     EventStackFilter_Impl::Event_Impl* pEvent = new EventStackFilter_Impl::Event_Impl(owner);
     string itemName = "id";
     if (eventJson.contains(itemName) && eventJson[itemName].is_number())
@@ -422,6 +465,9 @@ EventStackFilter_Impl::Event_Impl* EventStackFilter_Impl::Event_Impl::LoadFromJs
     itemName = "bp";
     if (eventJson.contains(itemName))
     {
+        pEvent->m_pBp = new BluePrint::BluePrintUI();
+        pEvent->m_pBp->Initialize();
+        pEvent->m_pBp->SetCallbacks(bpCallbacks, reinterpret_cast<void*>(static_cast<MediaCore::VideoFilter*>(owner)));
         auto bpJson = eventJson[itemName];
         pEvent->m_pBp->File_New_Filter(bpJson, "VideoFilter", "Video");
         if (!pEvent->m_pBp->Blueprint_IsValid())
@@ -440,7 +486,9 @@ EventStackFilter_Impl::Event_Impl* EventStackFilter_Impl::Event_Impl::LoadFromJs
     itemName = "kp";
     if (eventJson.contains(itemName))
     {
+        pEvent->m_pKp = new ImGui::KeyPointEditor();
         pEvent->m_pKp->Load(eventJson[itemName]);
+        pEvent->m_pKp->SetRangeX(0, pEvent->Length(), true);
     }
     else
     {
@@ -456,25 +504,25 @@ static const auto EVENT_STACK_FILTER_DELETER = [] (VideoFilter* p) {
     delete ptr;
 };
 
-VideoFilter::Holder EventStackFilter::CreateInstance()
+VideoFilter::Holder EventStackFilter::CreateInstance(const BluePrint::BluePrintCallbackFunctions& bpCallbacks)
 {
-    return VideoFilter::Holder(new EventStackFilter_Impl(), EVENT_STACK_FILTER_DELETER);
+    return VideoFilter::Holder(new EventStackFilter_Impl(bpCallbacks), EVENT_STACK_FILTER_DELETER);
 }
 
-VideoFilter::Holder EventStackFilter::LoadFromJson(const imgui_json::value& json)
+VideoFilter::Holder EventStackFilter::LoadFromJson(const imgui_json::value& json, const BluePrint::BluePrintCallbackFunctions& bpCallbacks)
 {
     if (!json.contains("name") || !json["name"].is_string())
         return nullptr;
     string filterName = json["name"].get<imgui_json::string>();
     if (filterName != "EventStackFilter")
         return nullptr;
-    auto pFilter = new EventStackFilter_Impl();
+    auto pFilter = new EventStackFilter_Impl(bpCallbacks);
     if (json.contains("events") && json["events"].is_array())
     {
         auto& evtAry = json["events"].get<imgui_json::array>();
         for (auto& evtJson : evtAry)
         {
-            auto pEvent = EventStackFilter_Impl::Event_Impl::LoadFromJson(pFilter, evtJson);
+            auto pEvent = EventStackFilter_Impl::Event_Impl::LoadFromJson(pFilter, evtJson, bpCallbacks);
             if (!pEvent)
             {
                 Log(Error) << "FAILED to create EventStackFilter::Event isntance from Json! Error is '" << pFilter->GetError() << "'." << endl;

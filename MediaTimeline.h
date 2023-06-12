@@ -389,7 +389,7 @@ struct Clip
     bool bMoving                {false};            // clip is moving
     bool bHovered               {false};            // clip is under mouse
 
-    imgui_json::value           mFilterBP;          // clip filter blue print, project saved
+    imgui_json::value           mFilterJson;        // clip filter blue print, project saved
     ImGui::KeyPointEditor       mFilterKeyPoints;   // clip key points, project saved
     ImGui::KeyPointEditor       mAttributeKeyPoints;// clip key points, project saved
 
@@ -479,7 +479,7 @@ struct VideoClip : Clip
     static Clip * Load(const imgui_json::value& value, void * handle);
     void Save(imgui_json::value& value) override;
 
-    void SyncFilterWithDataLayer(MediaCore::VideoClip::Holder hClip);
+    void SyncFilterWithDataLayer(MediaCore::VideoClip::Holder hClip, bool createNewIfNotExist = false);
     void SyncAttributesWithDataLayer(MediaCore::VideoClip::Holder hClip);
 
 private:
@@ -563,6 +563,9 @@ struct TextClip : Clip
     void* mTrack {nullptr};
 };
 
+#define USE_EVENTSTACK_FILTER 1
+
+#if !USE_EVENTSTACK_FILTER
 class BluePrintVideoFilter : public MediaCore::VideoFilter
 {
 public:
@@ -589,6 +592,7 @@ private:
     void * mHandle {nullptr};
     MediaCore::VideoClip* m_pClip {nullptr};
 };
+#endif
 
 class BluePrintVideoTransition : public MediaCore::VideoTransition
 {
@@ -1147,7 +1151,7 @@ struct TimeLine
     
     // BP CallBacks
     static int OnBluePrintChange(int type, std::string name, void* handle);
-    int OnVideoFilterBluePrintChange(int type, std::string name, void* handle);
+    static int OnVideoFilterBluePrintChange(int type, std::string name, void* handle);
 
     ImTextureID mMainPreviewTexture {nullptr};  // main preview texture
 

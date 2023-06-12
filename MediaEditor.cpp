@@ -1954,7 +1954,7 @@ static bool ReloadMedia(std::string path, MediaItem* item)
                         {
                             MediaCore::AudioClip::Holder hAudClip = audTrack->AddNewClip(clip->mID, clip->mMediaParser, clip->Start(), clip->End(), clip->StartOffset(), clip->EndOffset());
                             BluePrintAudioFilter* bpaf = new BluePrintAudioFilter(timeline);
-                            bpaf->SetBluePrintFromJson(clip->mFilterBP);
+                            bpaf->SetBluePrintFromJson(clip->mFilterJson);
                             bpaf->SetKeyPoint(clip->mFilterKeyPoints);
                             MediaCore::AudioFilter::Holder hFilter(bpaf);
                             hAudClip->SetFilter(hFilter);
@@ -4660,18 +4660,21 @@ static void ShowVideoFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
     MediaCore::VideoFilter* pFilter = timeline->mVidFilterClip->mFilter;
     auto filterName = pFilter->GetFilterName();
     BluePrint::BluePrintUI* pBp = nullptr;
-    if (filterName == "BluePrintVideoFilter")
-    {
-        BluePrintVideoFilter* pBpvf = dynamic_cast<BluePrintVideoFilter*>(pFilter);
-        pBp = pBpvf->mBp;
-    }
-    else if (filterName == "EventStackFilter")
+#if USE_EVENTSTACK_FILTER
+    if (filterName == "EventStackFilter")
     {
         MEC::EventStackFilter* pEsf = dynamic_cast<MEC::EventStackFilter*>(pFilter);
         auto editingEvent = pEsf->GetEditingEvent();
         if (editingEvent)
             pBp = editingEvent->GetBp();
     }
+#else
+    if (filterName == "BluePrintVideoFilter")
+    {
+        BluePrintVideoFilter* pBpvf = dynamic_cast<BluePrintVideoFilter*>(pFilter);
+        pBp = pBpvf->mBp;
+    }
+#endif
 
     if (pBp)
     {
