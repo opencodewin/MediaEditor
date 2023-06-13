@@ -208,6 +208,8 @@
 #define COL_SLOT_DEFAULT    IM_COL32( 80,  80, 100, 255)
 #define COL_SLOT_ODD        IM_COL32( 58,  58,  58, 255)
 #define COL_SLOT_EVEN       IM_COL32( 64,  64,  64, 255)
+#define COL_EVENT_ODD       IM_COL32( 16,  16,  16, 255)
+#define COL_EVENT_EVEN      IM_COL32( 24,  24,  24, 255)
 #define COL_SLOT_SELECTED   IM_COL32(255,  64,  64, 255)
 #define COL_SLOT_V_LINE     IM_COL32( 32,  32,  32,  96)
 #define COL_SLIDER_BG       IM_COL32( 32,  32,  48, 255)
@@ -370,6 +372,18 @@ struct Event
     void Save(imgui_json::value& value);
 };
 
+struct EventTrack
+{
+    EventTrack(int64_t id, void* handle);
+    int64_t mID             {-1};               // event track ID, project saved
+    int64_t mClipID         {-1};               // event belong to clip ID, project saved
+    std::vector<Event *> m_Events;              // track clips, project saved(id only)
+    void * mHandle          {nullptr};          // Event track belong to timeline
+    
+    static EventTrack* Load(const imgui_json::value& value, void * handle);
+    void Save(imgui_json::value& value);
+};
+
 struct Clip
 {
     int64_t mID                 {-1};               // clip ID, project saved
@@ -394,6 +408,7 @@ struct Clip
     ImGui::KeyPointEditor       mAttributeKeyPoints;// clip key points, project saved
 
     std::vector<Event*>         mEvents;            // clip events, includeing filters/events, project saved
+    std::vector<EventTrack*>    mEventTracks;       // clip event tracks, contain event IDs only, project saved
 
     int64_t firstTime = 0;
     int64_t lastTime = 0;
@@ -415,6 +430,8 @@ struct Clip
     virtual void DrawTooltips() {};
     static void Load(Clip * clip, const imgui_json::value& value);
     virtual void Save(imgui_json::value& value) = 0;
+
+    Event* FindEventByID(int64_t event_id);
 
     int64_t Start() const { return mStart; }
     int64_t End() const { return mEnd; }
@@ -681,6 +698,7 @@ struct BaseEditingClip
         : mID(id), mType(type), mStart(start), mEnd(end), mStartOffset(startOffset), mEndOffset(endOffset), mHandle(handle)
     {}
 
+    Clip * GetClip();
     void UpdateCurrent(bool forward, int64_t currentTime);
 
     virtual void CalcDisplayParams(int64_t viewWndDur) = 0;
@@ -1253,5 +1271,6 @@ struct TimeLine
 
 bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable = true);
 bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, int64_t CurrentTime, int header_height, int custom_height, int curve_height, ImGui::KeyPointEditor* key_point);
+bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, int64_t CurrentTime, int header_height, int custom_height);
 bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int64_t CurrentTime, int header_height, int custom_height);
 } // namespace MediaTimeline

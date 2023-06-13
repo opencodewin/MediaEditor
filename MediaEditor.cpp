@@ -4736,7 +4736,7 @@ static bool DrawVideoFilterTimelineWindow()
 {
     ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
     ImVec2 sub_window_size = ImGui::GetWindowSize();
-    return DrawClipTimeLine(timeline, timeline->mVidFilterClip, timeline->currentTime, 30, 50, 0, nullptr);
+    return DrawClipTimeLine(timeline, timeline->mVidFilterClip, timeline->currentTime, 30, 50);
 }
 
 static void DrawVideoFilterBlueprintWindow(ImDrawList *draw_list, Clip * editing_clip)
