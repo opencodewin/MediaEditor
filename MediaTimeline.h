@@ -376,7 +376,8 @@ struct EventTrack
 {
     EventTrack(int64_t id, void* handle);
     int64_t mID             {-1};               // event track ID, project saved
-    int64_t mClipID         {-1};               // event belong to clip ID, project saved
+    int64_t mClipID         {-1};               // event track belong to clip ID, project saved
+    bool    mExpanded       {false};            // event track is expanded for curve, project saved
     std::vector<Event *> m_Events;              // track clips, project saved(id only)
     void * mHandle          {nullptr};          // Event track belong to timeline
     

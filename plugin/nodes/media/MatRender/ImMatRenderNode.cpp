@@ -138,7 +138,7 @@ struct MatRenderNode final : Node
         else if (entryPoint.m_ID == m_Enter.m_ID)
         {
             auto mat = context.GetPinValue<ImGui::ImMat>(m_Mat);
-            if (!mat.empty() && mat.flags & IM_MAT_FLAGS_VIDEO_FRAME)
+            if (!mat.empty() && (mat.flags & IM_MAT_FLAGS_VIDEO_FRAME || mat.flags & IM_MAT_FLAGS_IMAGE_FRAME))
             {
                 m_mutex.lock();
 #if IMGUI_VULKAN_SHADER

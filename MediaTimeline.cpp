@@ -266,6 +266,11 @@ EventTrack* EventTrack::Load(const imgui_json::value& value, void * handle)
             auto& val = value["ID"];
             if (val.is_number()) new_track->mID = val.get<imgui_json::number>();
         }
+        if (value.contains("Expanded"))
+        {
+            auto& val = value["Expanded"];
+            if (val.is_boolean()) new_track->mExpanded = val.get<imgui_json::boolean>();
+        }
         // load and check event into track
         const imgui_json::array* eventIDArray = nullptr;
         if (imgui_json::GetPtrTo(value, "EventIDS", eventIDArray))
@@ -286,7 +291,17 @@ EventTrack* EventTrack::Load(const imgui_json::value& value, void * handle)
 
 void EventTrack::Save(imgui_json::value& value)
 {
-
+    value["ID"] = imgui_json::number(mID);
+    value["ClipID"] = imgui_json::number(mClipID);
+    value["Expanded"] = imgui_json::boolean(mExpanded);
+    // save event ids
+    imgui_json::value events;
+    for (auto event : m_Events)
+    {
+        imgui_json::value event_id_value = imgui_json::number(event->mID);
+        events.push_back(event_id_value);
+    }
+    if (m_Events.size() > 0) value["EventIDS"] = events;
 }
 /***********************************************************************************************************
  * Event Struct Member Functions
