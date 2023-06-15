@@ -255,6 +255,8 @@ namespace MediaTimeline
 #define DEFAULT_TEXT_TRACK_HEIGHT   20
 #define DEFAULT_EVENT_TRACK_HEIGHT  20
 
+#define VIDEO_SNAPSHOT_GRID_TEXTURE_POOL_NAME   "VideoSnapshotGridTexturePool"
+
 #define MEDIA_UNKNOWN               0
 #define MEDIA_DUMMY                 0x00000001
 #define MEDIA_VIDEO                 0x00000100
@@ -1014,6 +1016,7 @@ struct TimeLine
     MediaCore::Ratio mFrameRate {25, 1};    // timeline Media Frame rate, project saved, configured
     int mMaxCachedVideoFrame {MAX_VIDEO_CACHE_FRAMES};  // timeline Media Video Frame cache size, project saved, configured
     float mSnapShotWidth        {60.0};
+    RenderUtils::TextureManager::Holder mTxMgr;
 
     int mAudioChannels {2};                 // timeline audio channels, project saved, configured
     int mAudioSampleRate {44100};           // timeline audio sample rate, project saved, configured
