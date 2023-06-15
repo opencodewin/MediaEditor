@@ -845,7 +845,7 @@ static bool ExpendButton(ImDrawList *draw_list, ImVec2 pos, bool expand = true, 
     return overDel;
 }
 
-static void ShowVideoWindow(ImDrawList *draw_list, ImTextureID texture, ImVec2 pos, ImVec2 size, std::string title, float title_size, float& offset_x, float& offset_y, float& tf_x, float& tf_y, bool bLandscape = true)
+static void ShowVideoWindow(ImDrawList *draw_list, ImTextureID texture, ImVec2 pos, ImVec2 size, std::string title, float title_size, float& offset_x, float& offset_y, float& tf_x, float& tf_y, bool bLandscape = true, bool out_border = false)
 {
     if (texture)
     {        
@@ -884,13 +884,21 @@ static void ShowVideoWindow(ImDrawList *draw_list, ImTextureID texture, ImVec2 p
         offset_x = pos.x + tf_x;
         offset_y = pos.y + tf_y;
         draw_list->AddRectFilled(ImVec2(offset_x, offset_y), ImVec2(offset_x + adj_w, offset_y + adj_h), IM_COL32_BLACK);
-        draw_list->AddImage(
-            texture,
-            ImVec2(offset_x, offset_y),
-            ImVec2(offset_x + adj_w, offset_y + adj_h),
-            ImVec2(0, 0),
-            ImVec2(1, 1)
-        );
+        if (!out_border)
+        {
+            draw_list->AddImage(
+                texture,
+                ImVec2(offset_x, offset_y),
+                ImVec2(offset_x + adj_w, offset_y + adj_h),
+                ImVec2(0, 0),
+                ImVec2(1, 1)
+            );
+        }
+        else
+        {
+            draw_list->AddLine(ImVec2(offset_x, offset_y), ImVec2(offset_x + adj_w, offset_y + adj_h), IM_COL32(255, 0, 0, 255));
+            draw_list->AddLine(ImVec2(offset_x + adj_w, offset_y), ImVec2(offset_x, offset_y + adj_h), IM_COL32(255, 0, 0, 255));
+        }
         tf_x = offset_x + adj_w;
         tf_y = offset_y + adj_h;
         if (!title.empty() && title_size > 0)
@@ -905,11 +913,11 @@ static void ShowVideoWindow(ImDrawList *draw_list, ImTextureID texture, ImVec2 p
     }
 }
 
-static void ShowVideoWindow(ImTextureID texture, ImVec2 pos, ImVec2 size, std::string title = std::string(), float title_size = 0.f)
+static void ShowVideoWindow(ImTextureID texture, ImVec2 pos, ImVec2 size, std::string title = std::string(), float title_size = 0.f, bool out_border = false)
 {
     float offset_x = 0, offset_y = 0;
     float tf_x = 0, tf_y = 0;
-    ShowVideoWindow(ImGui::GetWindowDrawList(), texture, pos, size, title, title_size, offset_x, offset_y, tf_x, tf_y);
+    ShowVideoWindow(ImGui::GetWindowDrawList(), texture, pos, size, title, title_size, offset_x, offset_y, tf_x, tf_y, true, out_border);
 }
 
 static void CalculateVideoScope(ImGui::ImMat& mat)
@@ -3583,6 +3591,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, flo
     ImVec2 PanelBarPos = window_pos + window_size - ImVec2(window_size.x, 48);
     ImVec2 PanelBarSize = ImVec2(window_size.x, 48);
     draw_list->AddRectFilled(PanelBarPos, PanelBarPos + PanelBarSize, COL_DARK_PANEL);
+    bool out_of_border = false;
 
     // Preview buttons Stop button is center of Panel bar
     auto PanelCenterX = PanelBarPos.x + window_size.x / 2;
@@ -3764,11 +3773,15 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, flo
 
     if (start >= 0 && end >= 0)
     {
-        if (timeline->mIsPreviewPlaying && (timeline->currentTime < start || timeline->currentTime > end))
+        if (timeline->currentTime < start || timeline->currentTime > end)
         {
+            out_of_border = true;
             // reach clip border
-            if (timeline->currentTime < start) { timeline->Play(false, false); timeline->Seek(start); }
-            if (timeline->currentTime > end) { timeline->Play(false, true); timeline->Seek(end); }
+            if (timeline->mIsPreviewPlaying)
+            {
+                if (timeline->currentTime < start) { timeline->Play(false, false); timeline->Seek(start); }
+                if (timeline->currentTime > end) { timeline->Play(false, true); timeline->Seek(end); }
+            }
         }
     }
 
@@ -3777,8 +3790,8 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, flo
     float tf_x = 0, tf_y = 0;
     ImVec2 scale_range = ImVec2(2.0 / timeline->mPreviewScale, 8.0 / timeline->mPreviewScale);
     static float texture_zoom = scale_range.x;
-    ShowVideoWindow(draw_list, timeline->mMainPreviewTexture, PreviewPos, PreviewSize, title, title_size, offset_x, offset_y, tf_x, tf_y);
-    if (ImGui::IsItemHovered() && timeline->bPreviewZoom && timeline->mMainPreviewTexture)
+    ShowVideoWindow(draw_list, timeline->mMainPreviewTexture, PreviewPos, PreviewSize, title, title_size, offset_x, offset_y, tf_x, tf_y, true, out_of_border);
+    if (!out_of_border && ImGui::IsItemHovered() && timeline->bPreviewZoom && timeline->mMainPreviewTexture)
     {
         ImVec4 tint_col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);   // No tint
         ImVec4 border_col = ImVec4(1.0f, 1.0f, 1.0f, 0.5f); // 50% opaque white
@@ -3847,6 +3860,7 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, int64_t start, int64_t
     // Preview buttons Stop button is center of Panel bar
     auto PanelCenterX = PanelBarPos.x + window_size.x / 2;
     auto PanelButtonY = PanelBarPos.y + 8;
+    bool out_of_border = false;
 
     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0.5));
@@ -4019,11 +4033,16 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, int64_t start, int64_t
             timeline->mLastFrameTime = output_timestamp;
             timeline->mIsPreviewNeedUpdate = false;
         }
-        if (timeline->mIsPreviewPlaying && (timeline->currentTime < start || timeline->currentTime > end))
+
+        if (timeline->currentTime < start || timeline->currentTime > end)
         {
+            out_of_border = true;
             // reach clip border
-            if (timeline->currentTime < start) { timeline->Play(false, false); timeline->Seek(start); }
-            if (timeline->currentTime > end) { timeline->Play(false, true); timeline->Seek(end); }
+            if (timeline->mIsPreviewPlaying)
+            {
+                if (timeline->currentTime < start) { timeline->Play(false, false); timeline->Seek(start); }
+                if (timeline->currentTime > end) { timeline->Play(false, true); timeline->Seek(end); }
+            }
         }
 
         float pos_x = 0, pos_y = 0;
@@ -4036,9 +4055,9 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, int64_t start, int64_t
         if (MonitorIndexVideoFilterOrg == -1)
         {
             // filter input texture area
-            ShowVideoWindow(draw_list, timeline->mVideoFilterInputTexture, InputVideoPos, InputVideoSize, "Original", 1.5f, offset_x, offset_y, tf_x, tf_y);
+            ShowVideoWindow(draw_list, timeline->mVideoFilterInputTexture, InputVideoPos, InputVideoSize, "Original", 1.5f, offset_x, offset_y, tf_x, tf_y, true, out_of_border);
             draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32(128,128,128,128), 0, 0, 1.0);
-            if (ImGui::IsItemHovered() && timeline->mVideoFilterInputTexture)
+            if (!out_of_border && ImGui::IsItemHovered() && timeline->mVideoFilterInputTexture)
             {
                 float image_width = ImGui::ImGetTextureWidth(timeline->mVideoFilterInputTexture);
                 float image_height = ImGui::ImGetTextureHeight(timeline->mVideoFilterInputTexture);
@@ -4074,9 +4093,9 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, int64_t start, int64_t
         if (MonitorIndexVideoFiltered == -1)
         {
             // filter output texture area
-            ShowVideoWindow(draw_list, timeline->mVideoFilterOutputTexture, OutputVideoPos, OutputVideoSize, is_preview_image ? "Preview Output" : attribute ? "Attribute Output" : "Filter Output", 1.5f, offset_x, offset_y, tf_x, tf_y);
+            ShowVideoWindow(draw_list, timeline->mVideoFilterOutputTexture, OutputVideoPos, OutputVideoSize, is_preview_image ? "Preview Output" : attribute ? "Attribute Output" : "Filter Output", 1.5f, offset_x, offset_y, tf_x, tf_y, true, out_of_border);
             draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32(128,128,128,128), 0, 0, 1.0);
-            if (ImGui::IsItemHovered() && timeline->mVideoFilterOutputTexture)
+            if (!out_of_border && ImGui::IsItemHovered() && timeline->mVideoFilterOutputTexture)
             {
                 float image_width = ImGui::ImGetTextureWidth(timeline->mVideoFilterOutputTexture);
                 float image_height = ImGui::ImGetTextureHeight(timeline->mVideoFilterOutputTexture);
@@ -5445,7 +5464,7 @@ static void ShowVideoTransitionPreviewWindow(ImDrawList *draw_list)
     ImVec2 PanelBarPos = window_pos + ImVec2(0, (window_size.y - 36));
     ImVec2 PanelBarSize = ImVec2(window_size.x, 36);
     draw_list->AddRectFilled(PanelBarPos, PanelBarPos + PanelBarSize, COL_DARK_PANEL);
-    
+    bool out_of_border = false;
     // Preview buttons Stop button is center of Panel bar
     auto PanelCenterX = PanelBarPos.x + window_size.x / 2;
     auto PanelButtonY = PanelBarPos.y + 2;
@@ -5561,21 +5580,26 @@ static void ShowVideoTransitionPreviewWindow(ImDrawList *draw_list)
         ImVec4 border_col = ImVec4(1.0f, 1.0f, 1.0f, 0.5f); // 50% opaque white
         float offset_x = 0, offset_y = 0;
         float tf_x = 0, tf_y = 0;
+        if (timeline->currentTime < timeline->mVidOverlap->mStart || timeline->currentTime > timeline->mVidOverlap->mEnd)
+        {
+            out_of_border = true;
+            // reach clip border
+            if (timeline->mIsPreviewPlaying)
+            {
+                if (timeline->currentTime < timeline->mVidOverlap->mStart) { timeline->Play(false, false); timeline->Seek(timeline->mVidOverlap->mStart); }
+                if (timeline->currentTime > timeline->mVidOverlap->mEnd) { timeline->Play(false, true); timeline->Seek(timeline->mVidOverlap->mEnd); }
+            }
+        }
         // transition first input texture area
-        ShowVideoWindow(draw_list, timeline->mVideoTransitionInputFirstTexture, InputFirstVideoPos, InputFirstVideoSize, "1", 1.2f, offset_x, offset_y, tf_x, tf_y);
+        ShowVideoWindow(draw_list, timeline->mVideoTransitionInputFirstTexture, InputFirstVideoPos, InputFirstVideoSize, "1", 1.2f, offset_x, offset_y, tf_x, tf_y, true, out_of_border);
         draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32(128,128,128,128), 0, 0, 1.0);
         // transition second input texture area
-        ShowVideoWindow(draw_list, timeline->mVideoTransitionInputSecondTexture, InputSecondVideoPos, InputSecondVideoSize, "2", 1.2f, offset_x, offset_y, tf_x, tf_y);
+        ShowVideoWindow(draw_list, timeline->mVideoTransitionInputSecondTexture, InputSecondVideoPos, InputSecondVideoSize, "2", 1.2f, offset_x, offset_y, tf_x, tf_y, true, out_of_border);
         draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32(128,128,128,128), 0, 0, 1.0);
         // filter output texture area
-        ShowVideoWindow(draw_list, timeline->mVideoTransitionOutputTexture, OutputVideoPos, OutputVideoSize, timeline->bTransitionOutputPreview ? "Transition Output" : "Preview Output", 1.5f, offset_x, offset_y, tf_x, tf_y);
+        ShowVideoWindow(draw_list, timeline->mVideoTransitionOutputTexture, OutputVideoPos, OutputVideoSize, timeline->bTransitionOutputPreview ? "Transition Output" : "Preview Output", 1.5f, offset_x, offset_y, tf_x, tf_y, true, out_of_border);
         draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32(192, 192, 192, 128), 0, 0, 2.0);
-        if (timeline->mIsPreviewPlaying && (timeline->currentTime < timeline->mVidOverlap->mStart || timeline->currentTime > timeline->mVidOverlap->mEnd))
-        {
-            // reach clip border
-            if (timeline->currentTime < timeline->mVidOverlap->mStart) { timeline->Play(false, false); timeline->Seek(timeline->mVidOverlap->mStart); }
-            if (timeline->currentTime > timeline->mVidOverlap->mEnd) { timeline->Play(false, true); timeline->Seek(timeline->mVidOverlap->mEnd); }
-        }
+        
     }
     
     ImGui::PopStyleColor(3);
