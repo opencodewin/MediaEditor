@@ -33,6 +33,7 @@
 #include "MediaTimeline.h"
 #include "EventStackFilter.h"
 #include "MediaEncoder.h"
+#include "TextureManager.h"
 #include "FFUtils.h"
 #include "FontManager.h"
 #include "Logger.h"
@@ -10070,6 +10071,7 @@ static void MediaEditor_Finalize(void** handle)
 
     ImPlot::DestroyContext();
     MediaCore::ReleaseSubtitleLibrary();
+    RenderUtils::TextureManager::ReleaseDefaultInstance();
 }
 
 static void MediaEditor_DropFromSystem(std::vector<std::string>& drops)
@@ -10741,6 +10743,10 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
     {
         mouse_hold = false;
     }
+
+    auto txmgr = RenderUtils::TextureManager::GetDefaultInstance();
+    txmgr->UpdateTextureState();
+    // Logger::Log(Logger::DEBUG) << txmgr.get() << std::endl;
     return app_done;
 }
 

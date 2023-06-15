@@ -25,6 +25,7 @@
 #include <iomanip>
 #include "EventStackFilter.h"
 #include "SysUtils.h"
+#include "TextureManager.h"
 #include "Logger.h"
 #include "DebugHelper.h"
 
@@ -1451,7 +1452,8 @@ void VideoClip::SetViewWindowStart(int64_t millisec)
     {
         if (!mSsViewer->GetSnapshots((double)mClipViewStartPos/1000, mSnapImages))
             throw std::runtime_error(mSsViewer->GetError());
-        mSsViewer->UpdateSnapshotTexture(mSnapImages);
+        auto txmgr = ((TimeLine*)mHandle)->mTxMgr;
+        mSsViewer->UpdateSnapshotTexture(mSnapImages, txmgr, VIDEO_SNAPSHOT_GRID_TEXTURE_POOL_NAME);
     }
 }
 
@@ -1542,11 +1544,16 @@ void VideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
                 snapDispWidth = rightBottom.x - snapLeftTop.x;
                 uvMax.x = snapDispWidth / mSnapWidth;
             }
-            if (img->mTextureReady)
+
+            auto hTx = img->mTextureReady ? img->mhTx : nullptr;
+            auto tid = hTx ? hTx->TextureID() : nullptr;
+            if (tid)
             {
-                ImTextureID tid = *(img->mTextureHolder);
-                MediaCore::Snapshot::GetLogger()->Log(Logger::VERBOSE) << "[1]\t\t display tid=" << tid << std::endl;
-                drawList->AddImage(tid, snapLeftTop, {snapLeftTop.x + snapDispWidth, rightBottom.y}, uvMin, uvMax);
+                auto roiRect = hTx->GetDisplayRoi();
+                auto roiSize = roiRect.Size();
+                RenderUtils::Vec2<float> uvMin2(uvMin.x, uvMin.y), uvMax2(uvMax.x, uvMax.y);
+                uvMin2 = roiRect.lt+roiSize*uvMin2; uvMax2 = roiRect.lt+roiSize*uvMax2;
+                drawList->AddImage(tid, snapLeftTop, {snapLeftTop.x + snapDispWidth, rightBottom.y}, uvMin2, uvMax2);
             }
             else
             {
@@ -1625,10 +1632,6 @@ void VideoClip::Save(imgui_json::value& value)
 
     value["RotationAngle"] = imgui_json::number(mRotationAngle);
 }
-
-using std::placeholders::_1;
-using std::placeholders::_2;
-using std::placeholders::_3;
 
 void VideoClip::SyncFilterWithDataLayer(MediaCore::VideoClip::Holder hClip, bool createNewIfNotExist)
 {
@@ -2931,7 +2934,8 @@ void EditingVideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, 
             Logger::Log(Logger::Error) << mSsViewer->GetError() << std::endl;
             return;
         }
-        mSsViewer->UpdateSnapshotTexture(snapImages);
+        auto txmgr = ((TimeLine*)mHandle)->mTxMgr;
+        mSsViewer->UpdateSnapshotTexture(snapImages, txmgr, VIDEO_SNAPSHOT_GRID_TEXTURE_POOL_NAME);
 
         ImVec2 imgLeftTop = leftTop;
         for (int i = 0; i < snapImages.size(); i++)
@@ -2952,8 +2956,16 @@ void EditingVideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, 
                 uvMax.x = snapDispWidth / mSnapSize.x;
             }
 
-            if (img->mTextureReady)
-                drawList->AddImage(*(img->mTextureHolder), imgLeftTop, {imgLeftTop.x + snapDispWidth, rightBottom.y}, uvMin, uvMax);
+            auto hTx = img->mTextureReady ? img->mhTx : nullptr;
+            auto tid = hTx ? hTx->TextureID() : nullptr;
+            if (tid)
+            {
+                auto roiRect = hTx->GetDisplayRoi();
+                auto roiSize = roiRect.Size();
+                RenderUtils::Vec2<float> uvMin2(uvMin.x, uvMin.y), uvMax2(uvMax.x, uvMax.y);
+                uvMin2 = roiRect.lt+roiSize*uvMin2; uvMax2 = roiRect.lt+roiSize*uvMax2;
+                drawList->AddImage(tid, imgLeftTop, {imgLeftTop.x + snapDispWidth, rightBottom.y}, uvMin2, uvMax2);
+            }
             else
             {
                 drawList->AddRectFilled(imgLeftTop, {imgLeftTop.x + snapDispWidth, rightBottom.y}, IM_COL32_BLACK);
@@ -3459,6 +3471,7 @@ void EditingVideoOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
     CalcDisplayParams();
 
     // get snapshot images
+    auto txmgr = ((TimeLine*)(mOvlp->mHandle))->mTxMgr;
     std::vector<MediaCore::Snapshot::Image::Holder> snapImages1;
     if (mViewer1)
     {
@@ -3468,7 +3481,7 @@ void EditingVideoOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
             Logger::Log(Logger::Error) << mViewer1->GetError() << std::endl;
             return;
         }
-        mViewer1->UpdateSnapshotTexture(snapImages1);
+        mViewer1->UpdateSnapshotTexture(snapImages1, txmgr, VIDEO_SNAPSHOT_GRID_TEXTURE_POOL_NAME);
     }
     std::vector<MediaCore::Snapshot::Image::Holder> snapImages2;
     if (mViewer2)
@@ -3479,7 +3492,7 @@ void EditingVideoOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
             Logger::Log(Logger::Error) << mViewer2->GetError() << std::endl;
             return;
         }
-        mViewer2->UpdateSnapshotTexture(snapImages2);
+        mViewer2->UpdateSnapshotTexture(snapImages2, txmgr, VIDEO_SNAPSHOT_GRID_TEXTURE_POOL_NAME);
     }
 
     // draw snapshot images
@@ -3496,10 +3509,17 @@ void EditingVideoOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
                 snapDispSize.x = rightBottom.x - imgLeftTop.x;
                 uvMax.x = snapDispSize.x / mSnapSize.x;
             }
-            if (imgIter1 != snapImages1.end() && (*imgIter1)->mTextureReady)
+
+            auto snapImg = *imgIter1++;
+            auto hTx = snapImg&&snapImg->mTextureReady ? snapImg->mhTx : nullptr;
+            auto tid = hTx ? hTx->TextureID() : nullptr;
+            if (tid)
             {
-                auto& img = *imgIter1++;
-                drawList->AddImage(*(img->mTextureHolder), imgLeftTop, imgLeftTop + snapDispSize, uvMin, uvMax);
+                auto roiRect = hTx->GetDisplayRoi();
+                auto roiSize = roiRect.Size();
+                RenderUtils::Vec2<float> uvMin2(uvMin.x, uvMin.y), uvMax2(uvMax.x, uvMax.y);
+                uvMin2 = roiRect.lt+roiSize*uvMin2; uvMax2 = roiRect.lt+roiSize*uvMax2;
+                drawList->AddImage(tid, imgLeftTop, imgLeftTop + snapDispSize, uvMin2, uvMax2);
             }
             else
             {
@@ -3549,10 +3569,16 @@ void EditingVideoOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
                 uvMax.x = snapDispSize.x / mSnapSize.x;
             }
             ImVec2 img2LeftTop = {imgLeftTop.x, imgLeftTop.y+mSnapSize.y};
-            if (imgIter2 != snapImages2.end() && (*imgIter2)->mTextureReady)
+            auto snapImg = *imgIter2++;
+            auto hTx = snapImg&&snapImg->mTextureReady ? snapImg->mhTx : nullptr;
+            auto tid = hTx ? hTx->TextureID() : nullptr;
+            if (tid)
             {
-                auto& img = *imgIter2++;
-                drawList->AddImage(*(img->mTextureHolder), img2LeftTop, img2LeftTop + snapDispSize, uvMin, uvMax);
+                auto roiRect = hTx->GetDisplayRoi();
+                auto roiSize = roiRect.Size();
+                RenderUtils::Vec2<float> uvMin2(uvMin.x, uvMin.y), uvMax2(uvMax.x, uvMax.y);
+                uvMin2 = roiRect.lt+roiSize*uvMin2; uvMax2 = roiRect.lt+roiSize*uvMax2;
+                drawList->AddImage(tid, img2LeftTop, img2LeftTop + snapDispSize, uvMin2, uvMax2);
             }
             else
             {
@@ -4884,6 +4910,11 @@ TimeLine::TimeLine(std::string plugin_path)
     : mStart(0), mEnd(0), mPcmStream(this)
 {
     std::srand(std::time(0)); // init std::rand
+
+    mTxMgr = RenderUtils::TextureManager::GetDefaultInstance();
+    RenderUtils::Vec2<int32_t> snapshotGridTextureSize = {DEFAULT_VIDEO_TRACK_HEIGHT*16/9, DEFAULT_VIDEO_TRACK_HEIGHT};
+    if (!mTxMgr->CreateGridTexturePool(VIDEO_SNAPSHOT_GRID_TEXTURE_POOL_NAME, snapshotGridTextureSize, IM_DT_INT8, {8, 8}, 1))
+        Logger::Log(Logger::Error) << "FAILED to create grid texture pool '" << VIDEO_SNAPSHOT_GRID_TEXTURE_POOL_NAME << "'! Error is '" << mTxMgr->GetError() << "'." << std::endl;
 
     mAudioRender = MediaCore::AudioRender::CreateInstance();
     if (mAudioRender)
