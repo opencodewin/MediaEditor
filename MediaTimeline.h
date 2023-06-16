@@ -403,6 +403,9 @@ struct EventTrack
 
     void DrawContent(ImDrawList *draw_list, ImRect rect, int event_height, int64_t view_start, int64_t view_end, float pixelWidthMS);
     void SelectEvent(Event * event, bool appand);
+    Event* FindPreviousEvent(int64_t id);
+    Event* FindNextEvent(int64_t id);
+    void Update();
 };
 
 struct Clip
@@ -463,7 +466,8 @@ struct Clip
     bool IsInClipRange(int64_t pos) const { return pos >= mStart && pos < mEnd; }
     
     int AddEventTrack();
-    Event* AddEvent(int track, int64_t start, int64_t duration);
+    Event* AddEvent(int track, int64_t start, int64_t duration);        // TODO::need add event content
+    //Event* AppandEvent();                                               // TODO::need add event content
 
     void ChangeStart(int64_t pos);
     void ChangeStartOffset(int64_t newOffset);

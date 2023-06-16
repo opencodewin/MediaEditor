@@ -396,6 +396,8 @@ void EventTrack::DrawContent(ImDrawList *draw_list, ImRect rect, int event_heigh
         {
             if (event->bSelected)
                 draw_list->AddRect(event_pos_min, event_pos_max, IM_COL32(255,0,0,224), 4, flag, 2.0f);
+            else
+                draw_list->AddRect(event_pos_min, event_pos_max, IM_COL32(128,128,255,224), 4, flag, 2.0f);
             draw_list->AddRectFilled(event_pos_min, event_pos_max, event->bHovered ? IM_COL32(64, 64, 192, 128) : IM_COL32(32, 32, 192, 128), 4, flag);
             if (event->bHovered)
             {
@@ -440,6 +442,39 @@ void EventTrack::SelectEvent(Event * event, bool appand)
     }
     event->bSelected = selected;
 }
+
+void EventTrack::Update()
+{
+    // sort m_Events by start time
+    std::sort(m_Events.begin(), m_Events.end(), [](const Event *a, const Event* b) {
+        return a->mStart < b->mStart;
+    });
+}
+
+Event* EventTrack::FindPreviousEvent(int64_t id)
+{
+    Event * found_event = nullptr;
+    auto iter = std::find_if(m_Events.begin(), m_Events.end(), [id](const Event* e) {
+        return e->mID == id;
+    });
+    if (iter == m_Events.begin() || iter == m_Events.end())
+        return found_event;
+    found_event = *(iter - 1);
+    return found_event;
+}
+
+Event* EventTrack::FindNextEvent(int64_t id)
+{
+    Event * found_event = nullptr;
+    auto iter = std::find_if(m_Events.begin(), m_Events.end(), [id](const Event* e) {
+        return e->mID == id;
+    });
+    if (iter == m_Events.end() || iter == m_Events.end() - 1)
+        return found_event;
+    found_event = *(iter + 1);
+    return found_event;
+}
+
 /***********************************************************************************************************
  * Event Struct Member Functions
  ***********************************************************************************************************/
@@ -543,15 +578,36 @@ void Event::Moving(int64_t diff)
     if (!timeline) return;
     auto clip = timeline->FindClipByID(mClipID);
     if (!clip) return;
+    if (mIndex < 0 || mIndex >= clip->mEventTracks.size()) return;
+    auto track = clip->mEventTracks[mIndex];
     int64_t length = mEnd - mStart;
     bMoving = true;
-    mStart += diff;
+    auto new_diff = diff;
+    auto prev_event = track->FindPreviousEvent(mID);
+    auto next_event = track->FindNextEvent(mID);
+    if (diff < 0)
+    {
+        // moving backward
+        if (prev_event && mStart + diff < prev_event->mEnd)
+            new_diff = prev_event->mEnd - mStart;
+    }
+    else
+    {
+        // moving forward
+        if (next_event && mEnd + diff > next_event->mStart)
+            new_diff = next_event->mStart - mEnd;
+    }
+    mStart += new_diff;
     if (mStart < 0) mStart = 0;
     if (mStart + length > clip->Length())
         mStart = clip->Length() - length;
+
     alignTime(mStart, clip->frame_duration);
     mEnd = mStart + length;
-    timeline->Update();
+
+    track->Update();
+    // TODO:: allow event moving cross event ?
+
     bMoving = false;
 }
 
@@ -561,12 +617,21 @@ int64_t Event::Cropping(int64_t diff, int type)
     if (!timeline) return 0;
     auto clip = timeline->FindClipByID(mClipID);
     if (!clip) return 0;
-    int64_t new_diff;
+    if (mIndex < 0 || mIndex >= clip->mEventTracks.size()) return 0;
+    auto track = clip->mEventTracks[mIndex];
+    int64_t new_diff = diff;
+    auto prev_event = track->FindPreviousEvent(mID);
+    auto next_event = track->FindNextEvent(mID);
     // cropping start
     if (type == 0)
     {
-        new_diff = mStart;
-        mStart += diff;
+        if (diff < 0)
+        {
+            // crop backward
+            if (prev_event && mStart + diff < prev_event->mEnd)
+                new_diff = prev_event->mEnd - mStart;
+        }
+        mStart += new_diff;
         if (mStart < 0) mStart = 0;
         if (mStart >= mEnd) mStart = mEnd - clip->frame_duration;
         alignTime(mStart, clip->frame_duration);
@@ -575,14 +640,19 @@ int64_t Event::Cropping(int64_t diff, int type)
     // cropping end
     else
     {
-        new_diff = mEnd;
-        mEnd += diff;
+        if (diff > 0)
+        {
+            // crop forward
+            if (next_event && mEnd + diff > next_event->mStart)
+                new_diff = next_event->mStart - mEnd;
+        }
+        mEnd += new_diff;
         if (mEnd > clip->Length()) mEnd = clip->Length();
         if (mEnd <= mStart) mEnd = mStart + clip->frame_duration;
         alignTime(mEnd, clip->frame_duration);
         new_diff = mEnd - new_diff;
     }
-    // TODO::Dicky need update event curve
+    // TODO::   need update event curve
     return new_diff;
 }
 
@@ -1395,6 +1465,7 @@ Event* Clip::AddEvent(int track, int64_t start, int64_t duration)
     {
         mEvents.push_back(event);
         mEventTracks[track]->m_Events.push_back(event);
+        mEventTracks[track]->Update();
     }
     return event;
 }
@@ -11546,6 +11617,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     int64_t mouseTime = -1;
     static int64_t menuMouseTime = -1;
     int mouseEntry = -1;
+    Event * mouseEvent = nullptr;
     static ImVec2 menuMousePos = ImVec2(-1, -1);
     static bool mouse_hold = false;
     bool overHorizonScrollBar = false;
@@ -11942,6 +12014,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                         if (event->IsInEventRange(mouseTime))
                         {
                             event->bHovered = true;
+                            mouseEvent = event;
                             if (eventMovingEntry == -1)
                             {
                                 // check event moving part
@@ -12062,7 +12135,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                     drawList->PushClipRect(trackAreaRect.Min, trackAreaRect.Max);
                     static const float cursorWidth = 2.f;
                     float lineOffset = track_pos.x + (mouseTime - editingClip->firstTime) * editingClip->msPixelWidthTarget + 1;
-                    drawList->AddLine(ImVec2(lineOffset, contentMin.y), ImVec2(lineOffset, track_current.y), IM_COL32(255, 255, 0, 255), cursorWidth);
+                    drawList->AddLine(ImVec2(lineOffset, contentMin.y), ImVec2(lineOffset, track_current.y), mouseEvent ? IM_COL32(255, 0, 0, 255) : IM_COL32(255, 255, 0, 255), cursorWidth);
                     drawList->PopClipRect();
                     ImGui::SetWindowFontScale(0.8);
                     auto time_str = ImGuiHelper::MillisecToString(mouseTime, 2);
@@ -12091,7 +12164,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                                 auto event = clip->AddEvent(new_track, mouseTime, _duration);
                             }
                         }
-                        else
+                        else if (!mouseEvent)
                         {
                             // insert event on exist track
                             int64_t _duration = ImMin((int64_t)5000, clip->Length() - mouseTime);
