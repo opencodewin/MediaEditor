@@ -304,6 +304,131 @@ void EventTrack::Save(imgui_json::value& value)
     }
     if (m_Events.size() > 0) value["EventIDS"] = events;
 }
+
+void EventTrack::DrawContent(ImDrawList *draw_list, ImRect rect, int event_height, int64_t view_start, int64_t view_end, float pixelWidthMS)
+{
+    ImGui::PushClipRect(rect.Min, rect.Max, true);
+    ImGui::SetCursorScreenPos(rect.Min);
+    bool mouse_clicked = false;
+    // draw events
+    for (auto event : m_Events)
+    {
+        bool draw_event = false;
+        float cursor_start = 0;
+        float cursor_end  = 0;
+        ImDrawFlags flag = ImDrawFlags_RoundCornersNone;
+        if (event->IsInEventRange(view_start) && event->mEnd <= view_end)
+        {
+            /***********************************************************
+             *         ----------------------------------------
+             * XXXXXXXX|XXXXXXXXXXXXXXXXXXXXXX|
+             *         ----------------------------------------
+            ************************************************************/
+            cursor_start = rect.Min.x;
+            cursor_end = rect.Min.x + (event->mEnd - view_start) * pixelWidthMS;
+            draw_event = true;
+            flag |= ImDrawFlags_RoundCornersRight;
+        }
+        else if (event->mStart >= view_start && event->mEnd <= view_end)
+        {
+            /***********************************************************
+             *         ----------------------------------------
+             *                  |XXXXXXXXXXXXXXXXXXXXXX|
+             *         ----------------------------------------
+            ************************************************************/
+            cursor_start = rect.Min.x + (event->mStart - view_start) * pixelWidthMS;
+            cursor_end = rect.Min.x + (event->mEnd - view_start) * pixelWidthMS;
+            draw_event = true;
+            flag |= ImDrawFlags_RoundCornersAll;
+        }
+        else if (event->mStart >= view_start && event->IsInEventRange(view_end))
+        {
+            /***********************************************************
+             *         ----------------------------------------
+             *                         |XXXXXXXXXXXXXXXXXXXXXX|XXXXXXXXX
+             *         ----------------------------------------
+            ************************************************************/
+            cursor_start = rect.Min.x + (event->mStart - view_start) * pixelWidthMS;
+            cursor_end = rect.Max.x;
+            draw_event = true;
+            flag |= ImDrawFlags_RoundCornersLeft;
+        }
+        else if (event->mStart <= view_start && event->mEnd >= view_end)
+        {
+            /***********************************************************
+             *         ----------------------------------------
+             *  XXXXXXX|XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX|XXXXXXXX
+             *         ----------------------------------------
+            ************************************************************/
+            cursor_start = rect.Min.x;
+            cursor_end  = rect.Max.x;
+            draw_event = true;
+        }
+        if (event->mStart == view_start)
+            flag |= ImDrawFlags_RoundCornersLeft;
+        if (event->mEnd == view_end)
+            flag |= ImDrawFlags_RoundCornersRight;
+        ImVec2 event_pos_min = ImVec2(cursor_start, rect.Min.y);
+        ImVec2 event_pos_max = ImVec2(cursor_end, rect.Min.y + event_height);
+        if (mExpanded)
+        {
+            // TODO::Dicky show event curve editor
+        }
+
+        ImRect event_rect(event_pos_min, event_pos_max);
+        if (!event_rect.Overlaps(rect))
+        {
+            draw_event = false;
+        }
+
+        if (draw_event && cursor_end > cursor_start)
+        {
+            if (event->bSelected)
+                draw_list->AddRect(event_pos_min, event_pos_max, IM_COL32(255,0,0,224), 4, flag, 2.0f);
+            draw_list->AddRectFilled(event_pos_min, event_pos_max, event->bHovered ? IM_COL32(64, 64, 192, 128) : IM_COL32(32, 32, 192, 128), 4, flag);
+            if (event->bHovered)
+            {
+                if (!mouse_clicked && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+                {
+                    SelectEvent(event, false);
+                    mouse_clicked = true;
+                }
+                else if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+                {
+                    mExpanded = !mExpanded;
+                }
+                event->DrawTooltips();
+            }
+        }
+    }
+    ImGui::PopClipRect();
+}
+
+void EventTrack::SelectEvent(Event * event, bool appand)
+{
+    TimeLine * timeline = (TimeLine *)mHandle;
+    if (!timeline || !event)
+        return;
+    auto clip = timeline->FindClipByID(mClipID);
+    if (!clip)
+        return;
+    bool selected = true;
+    if (appand && event->bSelected)
+    {
+        selected = false;
+    }
+    for (auto _event : clip->mEvents)
+    {
+        if (_event->mID != event->mID)
+        {
+            if (!appand)
+            {
+                _event->bSelected = !selected;
+            }
+        }
+    }
+    event->bSelected = selected;
+}
 /***********************************************************************************************************
  * Event Struct Member Functions
  ***********************************************************************************************************/
@@ -398,6 +523,53 @@ void Event::Save(imgui_json::value& value)
     imgui_json::value event_keypoint;
     mEventKeyPoints.Save(event_keypoint);
     value["EventKeyPoints"] = event_keypoint;
+}
+
+void Event::Moving(int64_t diff)
+{
+    ImGuiIO &io = ImGui::GetIO();
+    TimeLine * timeline = (TimeLine *)mHandle;
+    if (!timeline) return;
+    auto clip = timeline->FindClipByID(mClipID);
+    if (!clip) return;
+    int64_t length = mEnd - mStart;
+    bMoving = true;
+    mStart += diff;
+    if (mStart < 0) mStart = 0;
+    if (mStart + length > clip->Length())
+        mStart = clip->Length() - length;
+    mEnd = mStart + length;
+    timeline->Update();
+    bMoving = false;
+}
+
+int64_t Event::Cropping(int64_t diff, int type)
+{
+    TimeLine * timeline = (TimeLine *)mHandle;
+    if (!timeline) return 0;
+    auto clip = timeline->FindClipByID(mClipID);
+    if (!clip) return 0;
+    // cropping start
+    if (type == 0)
+    {
+        mStart += diff;
+        if (mStart < 0) mStart = 0;
+        if (mStart >= mEnd) mStart = mEnd - frameTime(timeline->mFrameRate);
+    }
+    // cropping end
+    else
+    {
+        mEnd += diff;
+        if (mEnd > clip->Length()) mEnd = clip->Length();
+        if (mEnd <= mStart) mEnd = mStart + frameTime(timeline->mFrameRate);
+    }
+    // TODO::Dicky need update event curve
+    return diff;
+}
+
+void Event::DrawTooltips()
+{
+
 }
 
 } //namespace MediaTimeline
@@ -572,7 +744,7 @@ void Clip::Save(imgui_json::value& value)
     }
     if (mEvents.size() > 0) value["Events"] = events;
 
-    // save media track
+    // save event track
     imgui_json::value event_tracks;
     for (auto track : mEventTracks)
     {
@@ -1183,6 +1355,29 @@ bool Clip::isLinkedWith(Clip * clip)
         return true;
 
     return false;
+}
+
+int Clip::AddEventTrack()
+{
+    EventTrack* track = new EventTrack(mID, mHandle);
+    if (track)
+    {
+        mEventTracks.push_back(track);
+    }
+    return mEventTracks.size() - 1;;
+}
+
+Event* Clip::AddEvent(int track, int64_t start, int64_t duration)
+{
+    if (track >= mEventTracks.size())
+        return nullptr;
+    Event* event = new Event(start, start + duration, mID, track, mHandle);
+    if (event)
+    {
+        mEvents.push_back(event);
+        mEventTracks[track]->m_Events.push_back(event);
+    }
+    return event;
 }
 
 void Clip::ChangeStart(int64_t pos)
@@ -8937,8 +9132,6 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
     *************************************************************************************************************/
     bool ret = false;
     ImGuiIO &io = ImGui::GetIO();
-    int cx = (int)(io.MousePos.x);
-    int cy = (int)(io.MousePos.y);
     const int toolbar_height = 24;
     const int scrollSize = 16;
     const int trackHeadHeight = 16;
@@ -9137,7 +9330,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         // for debug end
 
         // calculate mouse pos to time
-        mouseTime = (int64_t)((cx - contentMin.x - legendWidth) / timeline->msPixelWidthTarget) + timeline->firstTime;
+        mouseTime = (int64_t)((io.MousePos.x - contentMin.x - legendWidth) / timeline->msPixelWidthTarget) + timeline->firstTime;
         //timeline->AlignTime(mouseTime);
         auto alignedTime = mouseTime; timeline->AlignTime(alignedTime);
         if (alignedTime >= timeline->firstTime)
@@ -9218,7 +9411,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             size_t localCustomHeight = timeline->GetCustomHeight(i);
             ImVec2 pos = ImVec2(contentMin.x + legendWidth, contentMin.y + trackHeadHeight * i + 1 + customHeight);
             ImVec2 sz = ImVec2(timline_size.x + contentMin.x, pos.y + trackHeadHeight - 1 + localCustomHeight);
-            if (cy >= pos.y && cy < pos.y + (trackHeadHeight + localCustomHeight) && clipMovingEntry == -1 && cx > contentMin.x && cx < contentMin.x + timline_size.x)
+            if (io.MousePos.y >= pos.y && io.MousePos.y < pos.y + (trackHeadHeight + localCustomHeight) && clipMovingEntry == -1 && io.MousePos.x > contentMin.x && io.MousePos.x < contentMin.x + timline_size.x)
             {
                 col += IM_COL32(8, 16, 32, 128);
                 pos.x -= legendWidth;
@@ -9370,7 +9563,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         }
 
         // check mouseEntry is below track area
-        if (mouseEntry < 0 && trackAreaRect.Contains(io.MousePos) && cy >= trackRect.Max.y)
+        if (mouseEntry < 0 && trackAreaRect.Contains(io.MousePos) && io.MousePos.y >= trackRect.Max.y)
         {
             mouseEntry = -2;
         }
@@ -9382,7 +9575,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             bTrackMoving = true;
             trackEntry = -1;
             ImGui::SetNextWindowViewport(ImGui::GetWindowViewport()->ID);
-            ImGui::SetNextWindowPos(ImVec2(legendRect.Min.x + 8, cy - trackHeadHeight));
+            ImGui::SetNextWindowPos(ImVec2(legendRect.Min.x + 8, io.MousePos.y - trackHeadHeight));
             ImGui::SetNextWindowBgAlpha(0.25);
             if (ImGui::BeginTooltip())
             {
@@ -9406,10 +9599,10 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         }
         if (bTrackMoving && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
         {
-            if (cy > legendAreaRect.Min.y && cy < legendAreaRect.Max.y)
+            if (io.MousePos.y > legendAreaRect.Min.y && io.MousePos.y < legendAreaRect.Max.y)
             {
                 trackEntry = legendEntry;
-                if (trackEntry == -1 && cy >= legendRect.Max.y)
+                if (trackEntry == -1 && io.MousePos.y >= legendRect.Max.y)
                 {
                     trackEntry = -2; // end of tracks
                 }
@@ -9900,7 +10093,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 {
                     timeline->msPixelWidthTarget *= 0.9f;
                     timeline->msPixelWidthTarget = ImClamp(timeline->msPixelWidthTarget, minPixelWidthTarget, maxPixelWidthTarget);
-                    int64_t new_mouse_time = (int64_t)((cx - contentMin.x - legendWidth) / timeline->msPixelWidthTarget) + timeline->firstTime;
+                    int64_t new_mouse_time = (int64_t)((io.MousePos.x - contentMin.x - legendWidth) / timeline->msPixelWidthTarget) + timeline->firstTime;
                     int64_t offset = new_mouse_time - mouseTime;
                     timeline->firstTime -= offset;
                     timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
@@ -9909,7 +10102,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 {
                     timeline->msPixelWidthTarget *= 1.1f;
                     timeline->msPixelWidthTarget = ImClamp(timeline->msPixelWidthTarget, minPixelWidthTarget, maxPixelWidthTarget);
-                    int64_t new_mouse_time = (int64_t)((cx - contentMin.x - legendWidth) / timeline->msPixelWidthTarget) + timeline->firstTime;
+                    int64_t new_mouse_time = (int64_t)((io.MousePos.x - contentMin.x - legendWidth) / timeline->msPixelWidthTarget) + timeline->firstTime;
                     int64_t offset = new_mouse_time - mouseTime;
                     timeline->firstTime -= offset;
                     timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
@@ -9956,7 +10149,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             ImRect trkRect;
             for (auto& customDraw : customDraws)
             {
-                if (cy >= customDraw.clippingTitleRect.Min.y && cy <= customDraw.clippingRect.Max.y)
+                if (io.MousePos.y >= customDraw.clippingTitleRect.Min.y && io.MousePos.y <= customDraw.clippingRect.Max.y)
                 {
                     cutTrkIdx = customDraw.index;
                     trkRect = ImRect(customDraw.clippingTitleRect.Min, customDraw.clippingRect.Max);
@@ -10242,19 +10435,23 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         // drag drop line and time indicate
         if (ImGui::IsDragDropActive() && custom_view_rect.Contains(io.MousePos))
         {
-            draw_list->PushClipRect(custom_view_rect.Min, custom_view_rect.Max);
-            static const float cursorWidth = 2.f;
-            float lineOffset = contentMin.x + legendWidth + (mouseTime - timeline->firstTime) * timeline->msPixelWidthTarget + 1;
-            draw_list->AddLine(ImVec2(lineOffset, contentMin.y), ImVec2(lineOffset, contentMax.y+ trackRect.Max.y - scrollSize), IM_COL32(255, 255, 0, 255), cursorWidth);
-            draw_list->PopClipRect();
-            ImGui::SetWindowFontScale(0.8);
-            auto time_str = ImGuiHelper::MillisecToString(mouseTime, 2);
-            ImVec2 str_size = ImGui::CalcTextSize(time_str.c_str(), nullptr, true);
-            float strOffset = contentMin.x + legendWidth + (mouseTime - timeline->firstTime) * timeline->msPixelWidthTarget - str_size.x * 0.5f + 1;
-            ImVec2 str_pos = ImVec2(strOffset, canvas_pos.y);
-            draw_list->AddRectFilled(str_pos + ImVec2(-3, 0), str_pos + str_size + ImVec2(3, 3), COL_CURSOR_TEXT_BG2, 2.0, ImDrawFlags_RoundCornersAll);
-            draw_list->AddText(str_pos, COL_CURSOR_TEXT2, time_str.c_str());
-            ImGui::SetWindowFontScale(1.0);
+            auto _payload = ImGui::GetDragDropPayload();
+            if (_payload && _payload->IsDataType("Media_drag_drop"))
+            {
+                draw_list->PushClipRect(custom_view_rect.Min, custom_view_rect.Max);
+                static const float cursorWidth = 2.f;
+                float lineOffset = contentMin.x + legendWidth + (mouseTime - timeline->firstTime) * timeline->msPixelWidthTarget + 1;
+                draw_list->AddLine(ImVec2(lineOffset, contentMin.y), ImVec2(lineOffset, contentMax.y+ trackRect.Max.y - scrollSize), IM_COL32(255, 255, 0, 255), cursorWidth);
+                draw_list->PopClipRect();
+                ImGui::SetWindowFontScale(0.8);
+                auto time_str = ImGuiHelper::MillisecToString(mouseTime, 2);
+                ImVec2 str_size = ImGui::CalcTextSize(time_str.c_str(), nullptr, true);
+                float strOffset = contentMin.x + legendWidth + (mouseTime - timeline->firstTime) * timeline->msPixelWidthTarget - str_size.x * 0.5f + 1;
+                ImVec2 str_pos = ImVec2(strOffset, canvas_pos.y);
+                draw_list->AddRectFilled(str_pos + ImVec2(-3, 0), str_pos + str_size + ImVec2(3, 3), COL_CURSOR_TEXT_BG2, 2.0, ImDrawFlags_RoundCornersAll);
+                draw_list->AddText(str_pos, COL_CURSOR_TEXT2, time_str.c_str());
+                ImGui::SetWindowFontScale(1.0);
+            }
         }
 
         ImGui::PopStyleColor();
@@ -10788,8 +10985,6 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         return false;
     }
     ImGuiIO &io = ImGui::GetIO();
-    int cx = (int)(io.MousePos.x);
-    int cy = (int)(io.MousePos.y);
     int scrollSize = 12;
     int64_t start = editingClip->mStart;
     int64_t end = editingClip->mEnd;
@@ -10892,7 +11087,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         draw_list->AddRectFilled(canvas_pos + ImVec2(0, header_height), canvas_pos + ImVec2(0, header_height) + timline_size - ImVec2(0, header_height + scrollSize), COL_CANVAS_BG, 0);
 
         // calculate mouse pos to time
-        mouseTime = (int64_t)((cx - contentMin.x) / editingClip->msPixelWidthTarget) + editingClip->firstTime;
+        mouseTime = (int64_t)((io.MousePos.x - contentMin.x) / editingClip->msPixelWidthTarget) + editingClip->firstTime;
         main_timeline->AlignTime(mouseTime);
         menuIsOpened = ImGui::IsPopupOpen("##clip_timeline-context-menu");
 
@@ -11108,7 +11303,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                 {
                     editingClip->msPixelWidthTarget *= 0.9f;
                     editingClip->msPixelWidthTarget = ImClamp(editingClip->msPixelWidthTarget, minPixelWidthTarget, maxPixelWidthTarget);
-                    int64_t new_mouse_time = (int64_t)((cx - contentMin.x) / editingClip->msPixelWidthTarget) + editingClip->firstTime;
+                    int64_t new_mouse_time = (int64_t)((io.MousePos.x - contentMin.x) / editingClip->msPixelWidthTarget) + editingClip->firstTime;
                     int64_t offset = new_mouse_time - mouseTime;
                     editingClip->firstTime -= offset;
                     editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
@@ -11117,7 +11312,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                 {
                     editingClip->msPixelWidthTarget *= 1.1f;
                     editingClip->msPixelWidthTarget = ImClamp(editingClip->msPixelWidthTarget, minPixelWidthTarget, maxPixelWidthTarget);
-                    int64_t new_mouse_time = (int64_t)((cx - contentMin.x) / editingClip->msPixelWidthTarget) + editingClip->firstTime;
+                    int64_t new_mouse_time = (int64_t)((io.MousePos.x - contentMin.x) / editingClip->msPixelWidthTarget) + editingClip->firstTime;
                     int64_t offset = new_mouse_time - mouseTime;
                     editingClip->firstTime -= offset;
                     editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
@@ -11260,6 +11455,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     int cy = (int)(io.MousePos.y);
     const int scrollSize = 12;
     const int trackHeight = 16;
+    const int curveHeight = 64;
     const int toolbarHeight = 24;
     int64_t start = editingClip->mStart;
     int64_t end = editingClip->mEnd;
@@ -11279,6 +11475,12 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     bool overTopBar = false;
     bool overTrackView = false;
     float frame_duration = 40;
+
+    static int64_t eventMovingEntry = -1;
+    static int eventMovingPart = -1;
+    static float diffTime = 0;
+    static bool bCropping = false;
+    static bool bEventMoving = false;
 
     // draw toolbar
     ImVec2 toolbar_pos = window_pos;
@@ -11351,8 +11553,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         const ImVec2 contentMin = childFramePos;
         const ImVec2 contentMax = childFramePos + childFrameSize;
         const ImRect contentRect(contentMin, contentMax);
-        const ImRect trackAreaRect(contentMin + ImVec2(0, header_height + toolbarHeight), window_pos + window_size - ImVec2(0, scrollSize));
-        
+        const ImRect trackAreaRect(contentMin + ImVec2(0, custom_height), window_pos + window_size - ImVec2(0, scrollSize));
         const ImRect topRect(ImVec2(contentMin.x, canvas_pos.y), ImVec2(contentMin.x + timline_size.x, canvas_pos.y + header_height));
         const float contentHeight = contentMax.y - contentMin.y;
         // full canvas background
@@ -11360,7 +11561,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
 
         // calculate mouse pos to time
         mouseTime = (int64_t)((cx - contentMin.x) / editingClip->msPixelWidthTarget) + editingClip->firstTime;
-        main_timeline->AlignTime(mouseTime);
+        //main_timeline->AlignTime(mouseTime);
         menuIsOpened = ImGui::IsPopupOpen("##clip_timeline-context-menu");
 
         //header
@@ -11481,6 +11682,23 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         bool inHorizonScrollHandle = HorizonScrollHandleBarRect.Contains(io.MousePos);
         draw_list->AddRectFilled(HorizonScrollHandleBarMin, HorizonScrollHandleBarMax, (inHorizonScrollBar || MovingHorizonScrollBar) ? COL_SLIDER_IN : COL_SLIDER_MOVING, 6);
 
+        if (topRect.Contains(io.MousePos))
+        {
+            overTopBar = true;
+        }
+        if (contentRect.Contains(io.MousePos))
+        {
+            overCustomDraw = true;
+        }
+        if (HorizonScrollBarRect.Contains(io.MousePos))
+        {
+            overHorizonScrollBar = true;
+        }
+        if (trackAreaRect.Contains(io.MousePos))
+        {
+            overTrackView = true;
+        }
+
         if (MovingHorizonScrollBar)
         {
             if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
@@ -11513,22 +11731,6 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         // handle mouse wheel event
         if (regionRect.Contains(io.MousePos) && !menuIsOpened)
         {
-            if (topRect.Contains(io.MousePos))
-            {
-                overTopBar = true;
-            }
-            if (contentRect.Contains(io.MousePos))
-            {
-                overCustomDraw = true;
-            }
-            if (HorizonScrollBarRect.Contains(io.MousePos))
-            {
-                overHorizonScrollBar = true;
-            }
-            if (trackAreaRect.Contains(io.MousePos))
-            {
-                overTrackView = true;
-            }
             if (overCustomDraw || overHorizonScrollBar || overTopBar || overTrackView)
             {
                 // left-right wheel over blank area, moving canvas view
@@ -11632,50 +11834,194 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         if (ImGui::BeginChild("##clip_event_tracks", trackAreaRect.GetSize(), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoScrollWithMouse))
         {
             auto trackview_pos = ImGui::GetCursorPos();
-            ImVec2 contant_size = ImGui::GetContentRegionAvail();
             ImDrawList * drawList = ImGui::GetWindowDrawList();
             ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
-            // handle drag a filter here
-            ImGui::SetCursorScreenPos(trackAreaRect.Min + ImVec2(3, 3));
-            ImGui::InvisibleButton("clip_event_tracks_view", trackAreaRect.GetSize() - ImVec2(6, 6));
-            if (ImGui::BeginDragDropTarget())
-            {
-                if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("Filter_drag_drop_Video"))
-                {
-                    const BluePrint::Node * node = (const BluePrint::Node *)payload->Data;
-                    if (node)
-                    {
-                        //pBp->Edit_Insert(node->GetTypeID());
-                        fprintf(stderr, "drop a node here\n");
-                    }
-                }
-                ImGui::EndDragDropTarget();
-            }
 
             // show tracks
-            auto tracks = editingClip->GetClip()->mEventTracks;
+            int mouse_track_index = -1;
+            auto clip = editingClip->GetClip();
+            auto tracks = clip->mEventTracks;
             ImGui::SetCursorPos({0, 0});
             auto track_pos = ImGui::GetCursorScreenPos();
             auto track_current = track_pos;
-            int draw_track_count = ImMax<int>(trackAreaRect.GetSize().y / trackHeight, tracks.size());
-            for (int i = 0; i < draw_track_count; i++)
+            int current_index = 0;
+            for (auto event : clip->mEvents)  event->bHovered = false;
+
+            for ( auto track : tracks)
             {
-                unsigned int col = (i & 1) ? COL_EVENT_ODD : COL_EVENT_EVEN;
-                drawList->AddRectFilled(track_current, track_current + event_track_size, col);
+                ImVec2 track_size = ImVec2(event_track_size.x, trackHeight + (track->mExpanded ? curveHeight : 0));
+                ImRect track_area = ImRect(track_current, track_current + track_size);
+                ImVec2 pos = ImVec2(track_current.x - editingClip->firstTime * editingClip->msPixelWidthTarget, track_current.y);
+                bool is_mouse_hovered = track_area.Contains(io.MousePos);
+                unsigned int col = is_mouse_hovered ? COL_EVENT_HOVERED : (current_index & 1) ? COL_EVENT_ODD : COL_EVENT_EVEN;
+                drawList->AddRectFilled(track_area.Min, track_area.Max, col);
                 ImGui::SetCursorScreenPos(track_current);
-                ImGui::InvisibleButton("##event_track", event_track_size);
-                if (i < tracks.size())
+                ImGui::InvisibleButton("##event_track", track_size);
+                if (is_mouse_hovered)
                 {
-                    // TODO::Dicky draw track
+                    for (auto event : track->m_Events)
+                    {
+                        if (event->IsInEventRange(mouseTime))
+                        {
+                            event->bHovered = true;
+                            if (eventMovingEntry == -1)
+                            {
+                                // check event moving part
+                                ImVec2 eventP1(pos.x + event->mStart * editingClip->msPixelWidthTarget, pos.y);
+                                ImVec2 eventP2(pos.x + event->mEnd * editingClip->msPixelWidthTarget, pos.y + trackHeight);
+                                const float max_handle_width = eventP2.x - eventP1.x / 3.0f;
+                                const float min_handle_width = ImMin(10.0f, max_handle_width);
+                                const float handle_width = ImClamp(editingClip->msPixelWidthTarget / 2.0f, min_handle_width, max_handle_width);
+                                ImRect rects[3] = {ImRect(eventP1, ImVec2(eventP1.x + handle_width, eventP2.y)), ImRect(ImVec2(eventP2.x - handle_width, eventP1.y), eventP2), ImRect(eventP1 + ImVec2(handle_width, 0), eventP2 - ImVec2(handle_width, 0))};
+                                for (int j = 1; j >= 0; j--)
+                                {
+                                    int flags = j == 0 ? ImDrawFlags_RoundCornersLeft : ImDrawFlags_RoundCornersRight;
+                                    ImRect &rc = rects[j];
+                                    if (!rc.Contains(io.MousePos))
+                                        continue;
+                                    if (j == 0)
+                                        ImGui::RenderMouseCursor(ICON_CROPPING_LEFT, ImVec2(4, 0));
+                                    else
+                                        ImGui::RenderMouseCursor(ICON_CROPPING_RIGHT, ImVec2(12, 0));
+                                    drawList->AddRectFilled(rc.Min, rc.Max, IM_COL32(255,255,0,255), 4, flags);
+                                }
+                                for (int j = 0; j < 3; j++)
+                                {
+                                    // j == 0 : left crop rect
+                                    // j == 1 : right crop rect
+                                    // j == 2 : moving rect
+                                    ImRect &rc = rects[j];
+                                    if (!rc.Contains(io.MousePos))
+                                        continue;
+                                    if (ImGui::IsMouseDown(ImGuiMouseButton_Left))
+                                    {
+                                        eventMovingEntry = event->mID;
+                                        eventMovingPart = j + 1;
+                                        if (j <= 1)
+                                        {
+                                            bCropping = true;
+                                            if (j == 0)
+                                                ImGui::RenderMouseCursor(ICON_CROPPING_LEFT, ImVec2(4, 0));
+                                            else
+                                                ImGui::RenderMouseCursor(ICON_CROPPING_RIGHT, ImVec2(12, 0));
+                                            //ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    mouse_track_index = current_index;
                 }
+                track->DrawContent(drawList, ImRect(track_current, track_current + track_size), trackHeight, editingClip->firstTime, editingClip->lastTime, editingClip->msPixelWidthTarget);
+                
+                track_current += ImVec2(0, track_size.y);
+                current_index ++;
+            }
+
+            // draw empty track if has space
+            while (track_current.y + event_track_size.y < track_pos.y + trackAreaRect.GetSize().y)
+            {
+                ImRect track_area = ImRect(track_current, track_current + event_track_size);
+                bool is_mouse_hovered = track_area.Contains(io.MousePos);
+                unsigned int col = is_mouse_hovered ? COL_EVENT_HOVERED : (current_index & 1) ? COL_EVENT_ODD : COL_EVENT_EVEN;
+                drawList->AddRectFilled(track_area.Min, track_area.Max, col);
+                ImGui::SetCursorScreenPos(track_current);
+                ImGui::InvisibleButton("##empty_event_track", event_track_size);
+                if (is_mouse_hovered) mouse_track_index = current_index;
                 track_current += ImVec2(0, event_track_size.y);
+                current_index ++;
             }
 
             if (currentTime >= editingClip->firstTime && currentTime <= editingClip->lastTime)
             {
                 // draw cursor line
                 float cursorOffset = track_pos.x + (currentTime - editingClip->firstTime) * editingClip->msPixelWidthTarget - 0.5f;
-                drawList->AddLine(ImVec2(cursorOffset, track_pos.y), ImVec2(cursorOffset, track_pos.y + draw_track_count * trackHeight), COL_CURSOR_LINE_R, cursorWidth);
+                drawList->AddLine(ImVec2(cursorOffset, track_pos.y), ImVec2(cursorOffset, track_current.y), COL_CURSOR_LINE_R, cursorWidth);
+            }
+
+            // event cropping or moving
+            if (eventMovingEntry != -1 && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
+            {
+                ImGui::CaptureMouseFromApp();
+                diffTime += io.MouseDelta.x / editingClip->msPixelWidthTarget;
+                if (diffTime > frameTime(main_timeline->mFrameRate) || diffTime < -frameTime(main_timeline->mFrameRate))
+                {
+                    auto event = clip->FindEventByID(eventMovingEntry);
+                    if (event && event->bSelected)
+                    {
+                        if (eventMovingPart == 3)
+                        {
+                            // whole slot moving
+                            bEventMoving = true;
+                            ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeAll);
+                            event->Moving(diffTime);
+                        }
+                        else if (eventMovingPart & 1)
+                        {
+                            // event left moving
+                            event->Cropping(diffTime, 0);
+                        }
+                        else if (eventMovingPart & 2)
+                        {
+                            // event right moving
+                            event->Cropping(diffTime, 1);
+                        }
+                    }
+                    diffTime = 0;
+                }
+            }
+
+            // handle drag a filter here
+            ImGui::SetCursorScreenPos(trackAreaRect.Min + ImVec2(3, 3));
+            ImGui::InvisibleButton("clip_event_tracks_view", trackAreaRect.GetSize() - ImVec2(6, 6));
+            if (ImGui::BeginDragDropTarget())
+            {
+                // drag drop line and time indicate
+                auto _payload = ImGui::GetDragDropPayload();
+                if (_payload && _payload->IsDataType("Filter_drag_drop_Video"))
+                {
+                    drawList->PushClipRect(trackAreaRect.Min, trackAreaRect.Max);
+                    static const float cursorWidth = 2.f;
+                    float lineOffset = track_pos.x + (mouseTime - editingClip->firstTime) * editingClip->msPixelWidthTarget + 1;
+                    drawList->AddLine(ImVec2(lineOffset, contentMin.y), ImVec2(lineOffset, track_current.y), IM_COL32(255, 255, 0, 255), cursorWidth);
+                    drawList->PopClipRect();
+                    ImGui::SetWindowFontScale(0.8);
+                    auto time_str = ImGuiHelper::MillisecToString(mouseTime, 2);
+                    ImVec2 str_size = ImGui::CalcTextSize(time_str.c_str(), nullptr, true);
+                    float strOffset = track_pos.x + (mouseTime - editingClip->firstTime) * editingClip->msPixelWidthTarget - str_size.x * 0.5f + 1;
+                    ImVec2 str_pos = ImVec2(strOffset, track_pos.y);
+                    drawList->AddRectFilled(str_pos + ImVec2(-3, 0), str_pos + str_size + ImVec2(3, 3), COL_CURSOR_TEXT_BG2, 2.0, ImDrawFlags_RoundCornersAll);
+                    drawList->AddText(str_pos, COL_CURSOR_TEXT2, time_str.c_str());
+                    ImGui::SetWindowFontScale(1.0);
+                }
+
+                if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("Filter_drag_drop_Video"))
+                {
+                    const BluePrint::Node * node = (const BluePrint::Node *)payload->Data;
+                    if (node)
+                    {
+                        //pBp->Edit_Insert(node->GetTypeID());
+                        //fprintf(stderr, "drop a node here\n");
+                        if (mouse_track_index == -1 || mouse_track_index >= tracks.size() || tracks.empty())
+                        {
+                            // need add new event track
+                            auto new_track = clip->AddEventTrack();
+                            if (new_track >= 0)
+                            {
+                                int64_t _duration = ImMin((int64_t)5000, clip->Length() - mouseTime);
+                                auto event = clip->AddEvent(new_track, mouseTime, _duration);
+                            }
+                        }
+                        else
+                        {
+                            // insert event on exist track
+                            int64_t _duration = ImMin((int64_t)5000, clip->Length() - mouseTime);
+                            auto event = clip->AddEvent(mouse_track_index, mouseTime, _duration);
+                        }
+                    }
+                }
+                ImGui::EndDragDropTarget();
             }
         }
         ImGui::EndChild();
@@ -11685,6 +12031,11 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
     {
         mouse_hold = false;
+        bCropping = false;
+        bEventMoving = false;
+        eventMovingEntry = -1;
+        eventMovingPart = -1;
+        ImGui::CaptureMouseFromApp(false);
     }
     return mouse_hold;
 }

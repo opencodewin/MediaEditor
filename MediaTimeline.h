@@ -210,6 +210,7 @@
 #define COL_SLOT_EVEN       IM_COL32( 64,  64,  64, 255)
 #define COL_EVENT_ODD       IM_COL32( 16,  16,  16, 255)
 #define COL_EVENT_EVEN      IM_COL32( 24,  24,  24, 255)
+#define COL_EVENT_HOVERED   IM_COL32( 32,  32,  32, 255)
 #define COL_SLOT_SELECTED   IM_COL32(255,  64,  64, 255)
 #define COL_SLOT_V_LINE     IM_COL32( 32,  32,  32,  96)
 #define COL_SLIDER_BG       IM_COL32( 32,  32,  48, 255)
@@ -363,6 +364,11 @@ struct Event
     int64_t mStart                  {0};        // Event start time at clip, project saved
     int64_t mEnd                    {0};        // Event end time at clip, project saved
     int     mIndex                  {-1};       // Event layer index, for clip layer index means event order, for track means effect track order
+    
+    bool bSelected               {false};    // Event is selected
+    bool bMoving                {false};            // clip is moving
+    bool bHovered               {false};            // clip is under mouse
+
     imgui_json::value mEventBP;                 // Event transion blueprint, project saved
     ImGui::KeyPointEditor mEventKeyPoints;      // Event key points, project saved
     void * mHandle                  {nullptr};  // Event belong to timeline
@@ -372,6 +378,12 @@ struct Event
 
     static Event * Load(const imgui_json::value& value, void * handle);
     void Save(imgui_json::value& value);
+
+    bool IsInEventRange(int64_t pos) const { return pos >= mStart && pos < mEnd; }
+    void DrawTooltips();
+
+    void Moving(int64_t diff);
+    int64_t Cropping(int64_t diff, int type);
 };
 
 struct EventTrack
@@ -385,6 +397,9 @@ struct EventTrack
     
     static EventTrack* Load(const imgui_json::value& value, void * handle);
     void Save(imgui_json::value& value);
+
+    void DrawContent(ImDrawList *draw_list, ImRect rect, int event_height, int64_t view_start, int64_t view_end, float pixelWidthMS);
+    void SelectEvent(Event * event, bool appand);
 };
 
 struct Clip
@@ -442,6 +457,9 @@ struct Clip
     int64_t StartOffset() const { return mStartOffset; }
     int64_t EndOffset() const { return mEndOffset; }
     bool IsInClipRange(int64_t pos) const { return pos >= mStart && pos < mEnd; }
+    
+    int AddEventTrack();
+    Event* AddEvent(int track, int64_t start, int64_t duration);
 
     void ChangeStart(int64_t pos);
     void ChangeStartOffset(int64_t newOffset);
