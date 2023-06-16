@@ -846,7 +846,7 @@ static bool ExpendButton(ImDrawList *draw_list, ImVec2 pos, bool expand = true, 
     return overDel;
 }
 
-static void ShowVideoWindow(ImDrawList *draw_list, ImTextureID texture, ImVec2 pos, ImVec2 size, std::string title, float title_size, float& offset_x, float& offset_y, float& tf_x, float& tf_y, bool bLandscape = true, bool out_border = false)
+static void ShowVideoWindow(ImDrawList *draw_list, ImTextureID texture, ImVec2 pos, ImVec2 size, std::string title, float title_size, float& offset_x, float& offset_y, float& tf_x, float& tf_y, bool bLandscape = true, bool out_border = false, const ImVec2& uvMin = ImVec2(0, 0), const ImVec2& uvMax = ImVec2(1, 1))
 {
     if (texture)
     {        
@@ -891,8 +891,8 @@ static void ShowVideoWindow(ImDrawList *draw_list, ImTextureID texture, ImVec2 p
                 texture,
                 ImVec2(offset_x, offset_y),
                 ImVec2(offset_x + adj_w, offset_y + adj_h),
-                ImVec2(0, 0),
-                ImVec2(1, 1)
+                uvMin,
+                uvMax
             );
         }
         else
@@ -914,11 +914,11 @@ static void ShowVideoWindow(ImDrawList *draw_list, ImTextureID texture, ImVec2 p
     }
 }
 
-static void ShowVideoWindow(ImTextureID texture, ImVec2 pos, ImVec2 size, std::string title = std::string(), float title_size = 0.f, bool out_border = false)
+static void ShowVideoWindow(ImTextureID texture, ImVec2 pos, ImVec2 size, std::string title = std::string(), float title_size = 0.f, bool out_border = false, const ImVec2& uvMin = ImVec2(0, 0), const ImVec2& uvMax = ImVec2(1, 1))
 {
     float offset_x = 0, offset_y = 0;
     float tf_x = 0, tf_y = 0;
-    ShowVideoWindow(ImGui::GetWindowDrawList(), texture, pos, size, title, title_size, offset_x, offset_y, tf_x, tf_y, true, out_border);
+    ShowVideoWindow(ImGui::GetWindowDrawList(), texture, pos, size, title, title_size, offset_x, offset_y, tf_x, tf_y, true, out_border, uvMin, uvMax);
 }
 
 static void CalculateVideoScope(ImGui::ImMat& mat)
@@ -2037,7 +2037,6 @@ static bool InsertMediaAddIcon(ImDrawList *draw_list, ImVec2 icon_pos, float med
 
 static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem *>::iterator item, ImDrawList *draw_list, ImVec2 icon_pos, float media_icon_size)
 {
-    ImTextureID texture = nullptr;
     ImGuiIO& io = ImGui::GetIO();
     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
     (*item)->UpdateThumbnail();
@@ -2057,13 +2056,14 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
             ImGui::TextUnformatted((*item)->mName.c_str());
             if (!(*item)->mMediaThumbnail.empty() && (*item)->mMediaThumbnail[0])
             {
-                auto tex_w = ImGui::ImGetTextureWidth((*item)->mMediaThumbnail[0]);
-                auto tex_h = ImGui::ImGetTextureHeight((*item)->mMediaThumbnail[0]);
-                float aspectRatio = (float)tex_w / (float)tex_h;
-                ImGui::Image((*item)->mMediaThumbnail[0], ImVec2(icon_size.x, icon_size.y / aspectRatio));
+                const auto vidstm = (*item)->mMediaOverview->GetVideoStream();
+                float aspectRatio = (float)vidstm->width / (float)vidstm->height;
+                auto tid = (*item)->mMediaThumbnail[0]->TextureID();
+                ImGui::Image(tid, ImVec2(icon_size.x, icon_size.y / aspectRatio));
             }
             ImGui::EndDragDropSource();
         }
+        RenderUtils::ManagedTexture::Holder hTx;
         if (ImGui::IsItemHovered())
         {
             float pos_x = io.MousePos.x - icon_pos.x;
@@ -2074,7 +2074,7 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
                 texture_index = 0;
             if (!(*item)->mMediaThumbnail.empty())
             {
-                texture = (*item)->mMediaThumbnail[texture_index];
+                hTx = (*item)->mMediaThumbnail[texture_index];
             }
 
             // Show help tooltip
@@ -2091,15 +2091,16 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
         else if (!(*item)->mMediaThumbnail.empty())
         {
             if ((*item)->mMediaThumbnail.size() > 1)
-                texture = (*item)->mMediaThumbnail[1];
+                hTx = (*item)->mMediaThumbnail[1];
             else
-                texture = (*item)->mMediaThumbnail[0];
+                hTx = (*item)->mMediaThumbnail[0];
         }
 
         ImGui::SetCursorScreenPos(icon_pos);
-        if (texture)
+        if (hTx)
         {
-            ShowVideoWindow(texture, icon_pos + ImVec2(4, 16), icon_size - ImVec2(4, 32));
+            auto roiRect = hTx->GetDisplayRoi();
+            ShowVideoWindow(hTx->TextureID(), icon_pos + ImVec2(4, 16), icon_size - ImVec2(4, 32), "", 0.f, false, roiRect.lt, roiRect.rb);
         }
         else
         {

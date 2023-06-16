@@ -256,6 +256,7 @@ namespace MediaTimeline
 #define DEFAULT_TEXT_TRACK_HEIGHT   20
 #define DEFAULT_EVENT_TRACK_HEIGHT  20
 
+#define VIDEOITEM_OVERVIEW_GRID_TEXTURE_POOL_NAME           "VideoItemOverviewGridTexturePool"
 #define VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME           "VideoClipSnapshotGridTexturePool"
 #define EDITING_VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME   "EditingVideoClipSnapshotGridTexturePool"
 
@@ -308,7 +309,8 @@ struct MediaItem
     int64_t mSrcLength  {0};                // whole Media end in ms
     MediaCore::Overview::Holder mMediaOverview;
     uint32_t mMediaType {MEDIA_UNKNOWN};
-    std::vector<ImTextureID> mMediaThumbnail;
+    RenderUtils::TextureManager::Holder mTxMgr;
+    std::vector<RenderUtils::ManagedTexture::Holder> mMediaThumbnail;
     MediaItem(const std::string& name, const std::string& path, uint32_t type, void* handle);
     ~MediaItem();
     void UpdateItem(const std::string& name, const std::string& path, void* handle);

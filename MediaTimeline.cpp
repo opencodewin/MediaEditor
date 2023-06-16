@@ -157,17 +157,14 @@ MediaItem::MediaItem(const std::string& name, const std::string& path, uint32_t 
     TimeLine * timeline = (TimeLine *)handle;
     mID = timeline ? timeline->m_IDGenerator.GenerateID() : ImGui::get_current_time_usec();
     mMediaType = type;
+    mTxMgr = timeline->mTxMgr;
     UpdateItem(name, path, handle);
 }
 
 MediaItem::~MediaItem()
 {
     mMediaOverview = nullptr;
-    for (auto thumb : mMediaThumbnail)
-    {
-        ImGui::ImDestroyTexture(thumb); 
-        thumb = nullptr;
-    }
+    mMediaThumbnail.clear();
 }
 
 void MediaItem::UpdateItem(const std::string& name, const std::string& path, void* handle)
@@ -190,7 +187,11 @@ void MediaItem::UpdateItem(const std::string& name, const std::string& path, voi
         }
         else
         {
-            mMediaOverview->SetSnapshotResizeFactor(0.05, 0.05);
+            RenderUtils::Vec2<int32_t> txSize; ImDataType ssDtype;
+            if (mTxMgr->GetTexturePoolAttributes(VIDEOITEM_OVERVIEW_GRID_TEXTURE_POOL_NAME, txSize, ssDtype))
+                mMediaOverview->SetSnapshotSize(txSize.x, txSize.y);
+            else
+                mMediaOverview->SetSnapshotResizeFactor(0.05, 0.05);
             mMediaOverview->Open(path, 20);
             if (mMediaOverview->IsOpened())
             {
@@ -204,11 +205,7 @@ void MediaItem::UpdateItem(const std::string& name, const std::string& path, voi
 void MediaItem::ReleaseItem()
 {
     mMediaOverview = nullptr;
-    for (auto thumb : mMediaThumbnail)
-    {
-        ImGui::ImDestroyTexture(thumb); 
-        thumb = nullptr;
-    }
+    mMediaThumbnail.clear();
     mSrcLength = 0;
     mValid = false;
 }
@@ -227,9 +224,12 @@ void MediaItem::UpdateThumbnail()
             {
                 if (i >= mMediaThumbnail.size() && !snapshots[i].empty())
                 {
-                    ImTextureID thumb = nullptr;
-                    ImMatToTexture(snapshots[i], thumb);
-                    mMediaThumbnail.push_back(thumb);
+                    auto hTx = mTxMgr->GetGridTextureFromPool(VIDEOITEM_OVERVIEW_GRID_TEXTURE_POOL_NAME);
+                    if (hTx)
+                    {
+                        hTx->RenderMatToTexture(snapshots[i]);
+                        mMediaThumbnail.push_back(hTx);
+                    }
                 }
             }
         }
@@ -3027,8 +3027,16 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
         }
 
         mSsGen->SetCacheFactor(1);
-        float snapshot_scale = mHeight > 0 ? 50.f / (float)mHeight : 0.05;
-        mSsGen->SetSnapshotResizeFactor(snapshot_scale, snapshot_scale);
+        RenderUtils::Vec2<int32_t> txSize; ImDataType ssDtype;
+        if (timeline->mTxMgr->GetTexturePoolAttributes(EDITING_VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME, txSize, ssDtype))
+        {
+            mSsGen->SetSnapshotSize(txSize.x, txSize.y);
+        }
+        else
+        {
+            float snapshot_scale = mHeight > 0 ? 50.f / (float)mHeight : 0.05;
+            mSsGen->SetSnapshotResizeFactor(snapshot_scale, snapshot_scale);
+        }
         mSsViewer = mSsGen->CreateViewer((double)mStartOffset / 1000);
     }
 
@@ -3663,10 +3671,18 @@ EditingVideoOverlap::EditingVideoOverlap(Overlap* ovlp)
             if (timeline) mSsGen1->EnableHwAccel(timeline->mHardwareCodec);
             if (!mSsGen1->Open(vidclip1->mSsViewer->GetMediaParser()))
                 throw std::runtime_error("FAILED to open the snapshot generator for the 1st video clip!");
-            auto video1_info = vidclip1->mSsViewer->GetMediaParser()->GetBestVideoStream();
-            float snapshot_scale1 = video1_info->height > 0 ? 50.f / (float)video1_info->height : 0.05;
             mSsGen1->SetCacheFactor(1.0);
-            mSsGen1->SetSnapshotResizeFactor(snapshot_scale1, snapshot_scale1);
+            RenderUtils::Vec2<int32_t> txSize; ImDataType ssDtype;
+            if (timeline->mTxMgr->GetTexturePoolAttributes(EDITING_VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME, txSize, ssDtype))
+            {
+                mSsGen1->SetSnapshotSize(txSize.x, txSize.y);
+            }
+            else
+            {
+                auto video1_info = vidclip1->mSsViewer->GetMediaParser()->GetBestVideoStream();
+                float snapshot_scale1 = video1_info->height > 0 ? 50.f / (float)video1_info->height : 0.05;
+                mSsGen1->SetSnapshotResizeFactor(snapshot_scale1, snapshot_scale1);
+            }
             m_StartOffset.first = vidclip1->StartOffset() + ovlp->mStart - vidclip1->Start();
             mViewer1 = mSsGen1->CreateViewer(m_StartOffset.first);
         }
@@ -3685,10 +3701,18 @@ EditingVideoOverlap::EditingVideoOverlap(Overlap* ovlp)
             if (timeline) mSsGen2->EnableHwAccel(timeline->mHardwareCodec);
             if (!mSsGen2->Open(vidclip2->mSsViewer->GetMediaParser()))
                 throw std::runtime_error("FAILED to open the snapshot generator for the 2nd video clip!");
-            auto video2_info = vidclip2->mSsViewer->GetMediaParser()->GetBestVideoStream();
-            float snapshot_scale2 = video2_info->height > 0 ? 50.f / (float)video2_info->height : 0.05;
             mSsGen2->SetCacheFactor(1.0);
-            mSsGen2->SetSnapshotResizeFactor(snapshot_scale2, snapshot_scale2);
+            RenderUtils::Vec2<int32_t> txSize; ImDataType ssDtype;
+            if (timeline->mTxMgr->GetTexturePoolAttributes(EDITING_VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME, txSize, ssDtype))
+            {
+                mSsGen2->SetSnapshotSize(txSize.x, txSize.y);
+            }
+            else
+            {
+                auto video2_info = vidclip2->mSsViewer->GetMediaParser()->GetBestVideoStream();
+                float snapshot_scale2 = video2_info->height > 0 ? 50.f / (float)video2_info->height : 0.05;
+                mSsGen2->SetSnapshotResizeFactor(snapshot_scale2, snapshot_scale2);
+            }
             m_StartOffset.second = vidclip2->StartOffset() + ovlp->mStart - vidclip2->Start();
             mViewer2 = mSsGen2->CreateViewer(m_StartOffset.second);
         }
@@ -5216,7 +5240,11 @@ TimeLine::TimeLine(std::string plugin_path)
     std::srand(std::time(0)); // init std::rand
 
     mTxMgr = RenderUtils::TextureManager::GetDefaultInstance();
-    RenderUtils::Vec2<int32_t> snapshotGridTextureSize = {DEFAULT_VIDEO_TRACK_HEIGHT*16/9, DEFAULT_VIDEO_TRACK_HEIGHT};
+    RenderUtils::Vec2<int32_t> snapshotGridTextureSize;
+    snapshotGridTextureSize = {48*16/9, 48};
+    if (!mTxMgr->CreateGridTexturePool(VIDEOITEM_OVERVIEW_GRID_TEXTURE_POOL_NAME, snapshotGridTextureSize, IM_DT_INT8, {8, 8}, 1))
+        Logger::Log(Logger::Error) << "FAILED to create grid texture pool '" << VIDEOITEM_OVERVIEW_GRID_TEXTURE_POOL_NAME << "'! Error is '" << mTxMgr->GetError() << "'." << std::endl;
+    snapshotGridTextureSize = {DEFAULT_VIDEO_TRACK_HEIGHT*16/9, DEFAULT_VIDEO_TRACK_HEIGHT};
     if (!mTxMgr->CreateGridTexturePool(VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME, snapshotGridTextureSize, IM_DT_INT8, {8, 8}, 1))
         Logger::Log(Logger::Error) << "FAILED to create grid texture pool '" << VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME << "'! Error is '" << mTxMgr->GetError() << "'." << std::endl;
     snapshotGridTextureSize = {50*16/9, 50};
@@ -8177,9 +8205,17 @@ MediaCore::Snapshot::Generator::Holder TimeLine::GetSnapshotGenerator(int64_t me
         Logger::Log(Logger::Error) << hSsGen->GetError() << std::endl;
         return nullptr;
     }
-    auto video_info = mi->mMediaOverview->GetMediaParser()->GetBestVideoStream();
-    float snapshot_scale = video_info->height > 0 ? DEFAULT_VIDEO_TRACK_HEIGHT / (float)video_info->height : 0.05;
-    hSsGen->SetSnapshotResizeFactor(snapshot_scale, snapshot_scale);
+    RenderUtils::Vec2<int32_t> txSize; ImDataType ssDtype;
+    if (mTxMgr->GetTexturePoolAttributes(VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME, txSize, ssDtype))
+    {
+        hSsGen->SetSnapshotSize(txSize.x, txSize.y);
+    }
+    else
+    {
+        auto video_info = mi->mMediaOverview->GetMediaParser()->GetBestVideoStream();
+        float snapshot_scale = video_info->height > 0 ? DEFAULT_VIDEO_TRACK_HEIGHT / (float)video_info->height : 0.05;
+        hSsGen->SetSnapshotResizeFactor(snapshot_scale, snapshot_scale);
+    }
     hSsGen->SetCacheFactor(9);
     if (visibleTime > 0 && msPixelWidthTarget > 0)
     {
