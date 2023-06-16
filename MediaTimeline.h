@@ -429,6 +429,7 @@ struct Clip
     std::vector<Event*>         mEvents;            // clip events, includeing filters/events, project saved
     std::vector<EventTrack*>    mEventTracks;       // clip event tracks, contain event IDs only, project saved
 
+    int64_t frame_duration {0};
     int64_t firstTime = 0;
     int64_t lastTime = 0;
     int64_t visibleTime = 0;

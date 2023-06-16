@@ -69,6 +69,17 @@ static void alignTime(int64_t& time, MediaCore::Ratio rate, bool useCeil = false
     }
 }
 
+static void alignTime(int64_t& time, int64_t frame_time, bool useCeil = false)
+{
+    if (frame_time > 0)
+    {
+        int64_t frame_index = useCeil ?
+                (int64_t)ceil((double)time / (double)frame_time) :
+                (int64_t)floor((double)time / (double)frame_time);
+        time = frame_index * frame_time;
+    }
+}
+
 static int64_t frameTime(MediaCore::Ratio rate)
 {
     if (rate.den && rate.num)
@@ -538,6 +549,7 @@ void Event::Moving(int64_t diff)
     if (mStart < 0) mStart = 0;
     if (mStart + length > clip->Length())
         mStart = clip->Length() - length;
+    alignTime(mStart, clip->frame_duration);
     mEnd = mStart + length;
     timeline->Update();
     bMoving = false;
@@ -549,22 +561,29 @@ int64_t Event::Cropping(int64_t diff, int type)
     if (!timeline) return 0;
     auto clip = timeline->FindClipByID(mClipID);
     if (!clip) return 0;
+    int64_t new_diff;
     // cropping start
     if (type == 0)
     {
+        new_diff = mStart;
         mStart += diff;
         if (mStart < 0) mStart = 0;
-        if (mStart >= mEnd) mStart = mEnd - frameTime(timeline->mFrameRate);
+        if (mStart >= mEnd) mStart = mEnd - clip->frame_duration;
+        alignTime(mStart, clip->frame_duration);
+        new_diff = mStart - new_diff;
     }
     // cropping end
     else
     {
+        new_diff = mEnd;
         mEnd += diff;
         if (mEnd > clip->Length()) mEnd = clip->Length();
-        if (mEnd <= mStart) mEnd = mStart + frameTime(timeline->mFrameRate);
+        if (mEnd <= mStart) mEnd = mStart + clip->frame_duration;
+        alignTime(mEnd, clip->frame_duration);
+        new_diff = mEnd - new_diff;
     }
     // TODO::Dicky need update event curve
-    return diff;
+    return new_diff;
 }
 
 void Event::DrawTooltips()
@@ -1437,6 +1456,20 @@ VideoClip::VideoClip(int64_t start, int64_t end, int64_t id, std::string name, M
         mWidth = video_stream->width;
         mHeight = video_stream->height;
         mPath = info->url;
+        if (video_stream->avgFrameRate.den > 0 && video_stream->avgFrameRate.num > 0)
+        {
+            mClipFrameRate = video_stream->avgFrameRate;
+        }
+        else if (video_stream->realFrameRate.den > 0 && video_stream->realFrameRate.num > 0)
+        {
+            mClipFrameRate = video_stream->realFrameRate;
+        }
+        else if (handle)
+        {
+            TimeLine * timeline = (TimeLine *)handle;
+            mClipFrameRate = timeline->mFrameRate;
+        }
+        frame_duration = (mClipFrameRate.den > 0 && mClipFrameRate.num > 0) ? mClipFrameRate.den * 1000.0 / mClipFrameRate.num : 40;
     }
 }
 
@@ -1458,6 +1491,8 @@ VideoClip::VideoClip(int64_t start, int64_t end, int64_t id, std::string name, M
         TimeLine * timeline = (TimeLine *)handle;
         mWidth = video_stream->width;
         mHeight = video_stream->height;
+        mClipFrameRate = timeline->mFrameRate;
+        frame_duration = (mClipFrameRate.den > 0 && mClipFrameRate.num > 0) ? mClipFrameRate.den * 1000.0 / mClipFrameRate.num : 40;
         int _width = 0, _height = 0;
         std::vector<ImGui::ImMat> snap_images;
         if (mOverview->GetSnapshots(snap_images))
@@ -2018,6 +2053,8 @@ AudioClip::AudioClip(int64_t start, int64_t end, int64_t id, std::string name, M
             mType |= MEDIA_DUMMY;
             return;
         }
+        TimeLine * timeline = (TimeLine *)mHandle;
+        frame_duration = (timeline->mFrameRate.den > 0 && timeline->mFrameRate.num > 0) ? timeline->mFrameRate.den * 1000.0 / timeline->mFrameRate.num : 40;
         mAudioSampleRate = audio_stream->sampleRate;
         mAudioChannels = audio_stream->channels;
         mPath = info->url;
@@ -2228,6 +2265,8 @@ TextClip::TextClip(int64_t start, int64_t end, int64_t id, std::string name, std
         mName = name;
         mText = text;
         mTrackStyle = true;
+        TimeLine * timeline = (TimeLine *)mHandle;
+        frame_duration = (timeline->mFrameRate.den > 0 && timeline->mFrameRate.num > 0) ? timeline->mFrameRate.den * 1000.0 / timeline->mFrameRate.num : 40;
     }
 }
 
@@ -11531,7 +11570,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     else if (editingClip->firstTime + editingClip->visibleTime > duration)
     {
         editingClip->firstTime = duration - editingClip->visibleTime;
-        main_timeline->AlignTime(editingClip->firstTime);
+        alignTime(editingClip->firstTime, frame_duration);
         editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
     }
     editingClip->lastTime = editingClip->firstTime + editingClip->visibleTime;
@@ -11564,7 +11603,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
 
         // calculate mouse pos to time
         mouseTime = (int64_t)((cx - contentMin.x) / editingClip->msPixelWidthTarget) + editingClip->firstTime;
-        //main_timeline->AlignTime(mouseTime);
+        //alignTime(mouseTime, frame_duration);
         menuIsOpened = ImGui::IsPopupOpen("##clip_timeline-context-menu");
 
         //header
@@ -11639,7 +11678,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                 {
                     int64_t new_visible_time = (int64_t)floorf((timline_size.x) / editingClip->msPixelWidthTarget);
                     editingClip->firstTime = menuMouseTime - new_visible_time / 2;
-                    main_timeline->AlignTime(editingClip->firstTime);
+                    alignTime(editingClip->firstTime, frame_duration);
                     editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - new_visible_time, (int64_t)0));
                 }
             }
@@ -11651,7 +11690,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
             if (ImGui::MenuItem(ICON_CURRENT_TIME " Current Time", nullptr, nullptr))
             {
                 editingClip->firstTime = currentTime - editingClip->visibleTime / 2;
-                main_timeline->AlignTime(editingClip->firstTime);
+                alignTime(editingClip->firstTime, frame_duration);
                 editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
             }
 
@@ -11712,7 +11751,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
             {
                 float msPerPixelInBar = HorizonBarPos / (float)editingClip->visibleTime;
                 editingClip->firstTime = int((io.MousePos.x - panningViewHorizonSource.x) / msPerPixelInBar) - panningViewHorizonTime;
-                main_timeline->AlignTime(editingClip->firstTime);
+                alignTime(editingClip->firstTime, frame_duration);
                 editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
             }
         }
@@ -11727,7 +11766,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         {
             float msPerPixelInBar = HorizonBarPos / (float)editingClip->visibleTime;
             editingClip->firstTime = int((io.MousePos.x - contentMin.x) / msPerPixelInBar);
-            main_timeline->AlignTime(editingClip->firstTime);
+            alignTime(editingClip->firstTime, frame_duration);
             editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
         }
 
@@ -11740,13 +11779,13 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                 if (io.MouseWheelH < -FLT_EPSILON)
                 {
                     editingClip->firstTime -= editingClip->visibleTime / view_frames;
-                    main_timeline->AlignTime(editingClip->firstTime);
+                    alignTime(editingClip->firstTime, frame_duration);
                     editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
                 }
                 else if (io.MouseWheelH > FLT_EPSILON)
                 {
                     editingClip->firstTime += editingClip->visibleTime / view_frames;
-                    main_timeline->AlignTime(editingClip->firstTime);
+                    alignTime(editingClip->firstTime, frame_duration);
                     editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
                 }
                 // up-down wheel over scrollbar, scale canvas view
@@ -11786,7 +11825,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         {
             auto old_time = currentTime;
             currentTime = (int64_t)((io.MousePos.x - topRect.Min.x) / editingClip->msPixelWidthTarget) + editingClip->firstTime;
-            main_timeline->AlignTime(currentTime);
+            alignTime(currentTime, frame_duration);
             if (currentTime < editingClip->firstTime)
                 editingClip->firstTime = currentTime;
             if (currentTime > editingClip->lastTime)
