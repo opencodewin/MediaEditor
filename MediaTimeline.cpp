@@ -1748,7 +1748,7 @@ void VideoClip::SetViewWindowStart(int64_t millisec)
         if (!mSsViewer->GetSnapshots((double)mClipViewStartPos/1000, mSnapImages))
             throw std::runtime_error(mSsViewer->GetError());
         auto txmgr = ((TimeLine*)mHandle)->mTxMgr;
-        mSsViewer->UpdateSnapshotTexture(mSnapImages, txmgr, VIDEO_SNAPSHOT_GRID_TEXTURE_POOL_NAME);
+        mSsViewer->UpdateSnapshotTexture(mSnapImages, txmgr, VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME);
     }
 }
 
@@ -3238,7 +3238,7 @@ void EditingVideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, 
             return;
         }
         auto txmgr = ((TimeLine*)mHandle)->mTxMgr;
-        mSsViewer->UpdateSnapshotTexture(snapImages, txmgr, VIDEO_SNAPSHOT_GRID_TEXTURE_POOL_NAME);
+        mSsViewer->UpdateSnapshotTexture(snapImages, txmgr, EDITING_VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME);
 
         ImVec2 imgLeftTop = leftTop;
         for (int i = 0; i < snapImages.size(); i++)
@@ -3785,7 +3785,7 @@ void EditingVideoOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
             Logger::Log(Logger::Error) << mViewer1->GetError() << std::endl;
             return;
         }
-        mViewer1->UpdateSnapshotTexture(snapImages1, txmgr, VIDEO_SNAPSHOT_GRID_TEXTURE_POOL_NAME);
+        mViewer1->UpdateSnapshotTexture(snapImages1, txmgr, EDITING_VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME);
     }
     std::vector<MediaCore::Snapshot::Image::Holder> snapImages2;
     if (mViewer2)
@@ -3796,7 +3796,7 @@ void EditingVideoOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
             Logger::Log(Logger::Error) << mViewer2->GetError() << std::endl;
             return;
         }
-        mViewer2->UpdateSnapshotTexture(snapImages2, txmgr, VIDEO_SNAPSHOT_GRID_TEXTURE_POOL_NAME);
+        mViewer2->UpdateSnapshotTexture(snapImages2, txmgr, EDITING_VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME);
     }
 
     // draw snapshot images
@@ -5217,8 +5217,11 @@ TimeLine::TimeLine(std::string plugin_path)
 
     mTxMgr = RenderUtils::TextureManager::GetDefaultInstance();
     RenderUtils::Vec2<int32_t> snapshotGridTextureSize = {DEFAULT_VIDEO_TRACK_HEIGHT*16/9, DEFAULT_VIDEO_TRACK_HEIGHT};
-    if (!mTxMgr->CreateGridTexturePool(VIDEO_SNAPSHOT_GRID_TEXTURE_POOL_NAME, snapshotGridTextureSize, IM_DT_INT8, {8, 8}, 1))
-        Logger::Log(Logger::Error) << "FAILED to create grid texture pool '" << VIDEO_SNAPSHOT_GRID_TEXTURE_POOL_NAME << "'! Error is '" << mTxMgr->GetError() << "'." << std::endl;
+    if (!mTxMgr->CreateGridTexturePool(VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME, snapshotGridTextureSize, IM_DT_INT8, {8, 8}, 1))
+        Logger::Log(Logger::Error) << "FAILED to create grid texture pool '" << VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME << "'! Error is '" << mTxMgr->GetError() << "'." << std::endl;
+    snapshotGridTextureSize = {50*16/9, 50};
+    if (!mTxMgr->CreateGridTexturePool(EDITING_VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME, snapshotGridTextureSize, IM_DT_INT8, {8, 8}, 1))
+        Logger::Log(Logger::Error) << "FAILED to create grid texture pool '" << EDITING_VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME << "'! Error is '" << mTxMgr->GetError() << "'." << std::endl;
 
     mAudioRender = MediaCore::AudioRender::CreateInstance();
     if (mAudioRender)

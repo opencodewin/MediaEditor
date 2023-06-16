@@ -256,7 +256,8 @@ namespace MediaTimeline
 #define DEFAULT_TEXT_TRACK_HEIGHT   20
 #define DEFAULT_EVENT_TRACK_HEIGHT  20
 
-#define VIDEO_SNAPSHOT_GRID_TEXTURE_POOL_NAME   "VideoSnapshotGridTexturePool"
+#define VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME           "VideoClipSnapshotGridTexturePool"
+#define EDITING_VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME   "EditingVideoClipSnapshotGridTexturePool"
 
 #define MEDIA_UNKNOWN               0
 #define MEDIA_DUMMY                 0x00000001
