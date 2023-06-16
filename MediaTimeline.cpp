@@ -475,6 +475,19 @@ Event* EventTrack::FindNextEvent(int64_t id)
     return found_event;
 }
 
+int64_t EventTrack::FindEventSpace(int64_t time)
+{
+    int64_t space = -1;
+    for (auto event : m_Events)
+    {
+        if (event->mStart >= time)
+        {
+            space = event->mStart - time;
+            break;
+        }
+    }
+    return space;
+}
 /***********************************************************************************************************
  * Event Struct Member Functions
  ***********************************************************************************************************/
@@ -1456,7 +1469,7 @@ int Clip::AddEventTrack()
     return mEventTracks.size() - 1;;
 }
 
-Event* Clip::AddEvent(int track, int64_t start, int64_t duration)
+Event* Clip::AddEvent(int track, int64_t start, int64_t duration, void* data)
 {
     if (track >= mEventTracks.size())
         return nullptr;
@@ -1468,6 +1481,11 @@ Event* Clip::AddEvent(int track, int64_t start, int64_t duration)
         mEventTracks[track]->Update();
     }
     return event;
+}
+
+bool Clip::AppendEvent(Event * event, void* data)
+{
+    return false;
 }
 
 void Clip::ChangeStart(int64_t pos)
@@ -12161,14 +12179,23 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                             if (new_track >= 0)
                             {
                                 int64_t _duration = ImMin((int64_t)5000, clip->Length() - mouseTime);
-                                auto event = clip->AddEvent(new_track, mouseTime, _duration);
+                                auto event = clip->AddEvent(new_track, mouseTime, _duration, (void *)node);
                             }
                         }
                         else if (!mouseEvent)
                         {
                             // insert event on exist track
-                            int64_t _duration = ImMin((int64_t)5000, clip->Length() - mouseTime);
-                            auto event = clip->AddEvent(mouse_track_index, mouseTime, _duration);
+                            // check next event start time to decide duration
+                            auto track = clip->mEventTracks[mouse_track_index];
+                            auto _max_duration = track->FindEventSpace(mouseTime);
+                            int64_t _duration = _max_duration == -1 ? ImMin((int64_t)5000, clip->Length() - mouseTime) : 
+                                                ImMin((int64_t)5000, _max_duration);
+                            auto event = clip->AddEvent(mouse_track_index, mouseTime, _duration, (void *)node);
+                        }
+                        else if (mouseEvent)
+                        {
+                            // append event on exist event
+                            auto appended = clip->AppendEvent(mouseEvent, (void *)node);
                         }
                     }
                 }

@@ -405,6 +405,7 @@ struct EventTrack
     void SelectEvent(Event * event, bool appand);
     Event* FindPreviousEvent(int64_t id);
     Event* FindNextEvent(int64_t id);
+    int64_t FindEventSpace(int64_t time);
     void Update();
 };
 
@@ -466,8 +467,8 @@ struct Clip
     bool IsInClipRange(int64_t pos) const { return pos >= mStart && pos < mEnd; }
     
     int AddEventTrack();
-    Event* AddEvent(int track, int64_t start, int64_t duration);        // TODO::need add event content
-    //Event* AppandEvent();                                               // TODO::need add event content
+    Event* AddEvent(int track, int64_t start, int64_t duration, void* data);
+    bool AppendEvent(Event * event, void* data);
 
     void ChangeStart(int64_t pos);
     void ChangeStartOffset(int64_t newOffset);
