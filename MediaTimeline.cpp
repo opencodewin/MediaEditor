@@ -203,7 +203,7 @@ void MediaItem::UpdateItem(const std::string& name, const std::string& path, voi
                 mMediaOverview->SetSnapshotSize(txSize.x, txSize.y);
             else
                 mMediaOverview->SetSnapshotResizeFactor(0.05, 0.05);
-            mMediaOverview->Open(path, 20);
+            mMediaOverview->Open(path, 64);
             if (mMediaOverview->IsOpened())
             {
                 mSrcLength = mMediaOverview->GetMediaInfo()->duration * 1000;
@@ -8255,7 +8255,7 @@ MediaCore::Snapshot::Generator::Holder TimeLine::GetSnapshotGenerator(int64_t me
         float snapshot_scale = video_info->height > 0 ? DEFAULT_VIDEO_TRACK_HEIGHT / (float)video_info->height : 0.05;
         hSsGen->SetSnapshotResizeFactor(snapshot_scale, snapshot_scale);
     }
-    hSsGen->SetCacheFactor(9);
+    hSsGen->SetCacheFactor(3);
     if (visibleTime > 0 && msPixelWidthTarget > 0)
     {
         const MediaCore::VideoStream* video_stream = hSsGen->GetVideoStream();
