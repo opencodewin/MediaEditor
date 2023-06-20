@@ -2,17 +2,17 @@
 #include <imgui_json.h>
 #include <imgui_extra_widget.h>
 #include <ImVulkanShader.h>
-#include "SmudgeBlur_vulkan.h"
+#include "PixeLate_vulkan.h"
 #define NODE_VERSION    0x01000000
 
 namespace BluePrint
 {
-struct SmudgeBlurEffectNode final : Node
+struct PixeLateEffectNode final : Node
 {
-    BP_NODE_WITH_NAME(SmudgeBlurEffectNode, "SmudgeBlur Effect", "CodeWin", NODE_VERSION, VERSION_BLUEPRINT_API, NodeType::External, NodeStyle::Default, "Filter#Video#Effect")
-    SmudgeBlurEffectNode(BP* blueprint): Node(blueprint) { m_Name = "SmudgeBlur Effect"; }
+    BP_NODE_WITH_NAME(PixeLateEffectNode, "PixeLate Effect", "CodeWin", NODE_VERSION, VERSION_BLUEPRINT_API, NodeType::External, NodeStyle::Default, "Filter#Video#Effect")
+    PixeLateEffectNode(BP* blueprint): Node(blueprint) { m_Name = "PixeLate Effect"; }
 
-    ~SmudgeBlurEffectNode()
+    ~PixeLateEffectNode()
     {
         if (m_effect) { delete m_effect; m_effect = nullptr; }
     }
@@ -40,7 +40,7 @@ struct SmudgeBlurEffectNode final : Node
             if (!m_effect || gpu != m_device)
             {
                 if (m_effect) { delete m_effect; m_effect = nullptr; }
-                m_effect = new ImGui::SmudgeBlur_vulkan(gpu);
+                m_effect = new ImGui::PixeLate_vulkan(gpu);
             }
             if (!m_effect)
             {
@@ -48,7 +48,7 @@ struct SmudgeBlurEffectNode final : Node
             }
             m_device = gpu;
             ImGui::VkMat im_RGB; im_RGB.type = m_mat_data_type == IM_DT_UNDEFINED ? mat_in.type : m_mat_data_type;
-            m_NodeTimeMs = m_effect->effect(mat_in, im_RGB, m_radius, m_iterations);
+            m_NodeTimeMs = m_effect->effect(mat_in, im_RGB, m_radius);
             m_MatOut.SetValue(im_RGB);
         }
         return m_Exit;
@@ -83,20 +83,16 @@ struct SmudgeBlurEffectNode final : Node
         ImGui::SetCurrentContext(ctx);
         bool changed = false;
         float _radius = m_radius;
-        float _iterations = m_iterations;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
         ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_RadiusIn.IsLinked());
-        ImGui::SliderFloat("Radius##SmudgeBlur", &_radius, 0.0, 0.05f, "%.3f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_radius##SmudgeBlur")) { _radius = 0.05f; changed = true; }
-        if (key) ImGui::ImCurveEditKey("##add_curve_radius##SmudgeBlur", key, "radius##SmudgeBlur", 0.0f, 100.f, 1.f);
+        ImGui::SliderFloat("Radius##PixeLate", &_radius, 0.01f, 1.f, "%.2f", flags);
+        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_radius##PixeLate")) { _radius = 0.4f; changed = true; }
+        if (key) ImGui::ImCurveEditKey("##add_curve_radius##PixeLate", key, "radius##PixeLate", 0.0f, 100.f, 1.f);
         ImGui::EndDisabled();
-        ImGui::SliderFloat("Iterations##SmudgeBlur", &_iterations, 16.f, 40.f, "%.0f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_iterations##SmudgeBlur")) { _iterations = 16.f; changed = true; }
         ImGui::PopItemWidth();
         if (_radius != m_radius) { m_radius = _radius; changed = true; }
-        if (_iterations != m_iterations) { m_iterations = _iterations; changed = true; }
         return m_Enabled ? changed : false;
     }
 
@@ -118,12 +114,6 @@ struct SmudgeBlurEffectNode final : Node
             if (val.is_number()) 
                 m_radius = val.get<imgui_json::number>();
         }
-        if (value.contains("iterations"))
-        {
-            auto& val = value["iterations"];
-            if (val.is_number()) 
-                m_iterations = val.get<imgui_json::number>();
-        }
         return ret;
     }
 
@@ -132,7 +122,6 @@ struct SmudgeBlurEffectNode final : Node
         Node::Save(value, MapID);
         value["mat_type"] = imgui_json::number(m_mat_data_type);
         value["radius"] = imgui_json::number(m_radius);
-        value["iterations"] = imgui_json::number(m_iterations);
     }
 
     void DrawNodeLogo(ImGuiContext * ctx, ImVec2 size, std::string logo) const override
@@ -159,10 +148,9 @@ struct SmudgeBlurEffectNode final : Node
 private:
     ImDataType m_mat_data_type {IM_DT_UNDEFINED};
     int m_device            {-1};
-    float m_radius          {0.05f};
-    float m_iterations      {16.f};
-    ImGui::SmudgeBlur_vulkan * m_effect   {nullptr};
+    float m_radius          {0.4f};
+    ImGui::PixeLate_vulkan * m_effect   {nullptr};
 };
 } // namespace BluePrint
 
-BP_NODE_DYNAMIC_WITH_NAME(SmudgeBlurEffectNode, "SmudgeBlur Effect", "CodeWin", NODE_VERSION, VERSION_BLUEPRINT_API, BluePrint::NodeType::External, BluePrint::NodeStyle::Default, "Filter#Video#Effect")
+BP_NODE_DYNAMIC_WITH_NAME(PixeLateEffectNode, "PixeLate Effect", "CodeWin", NODE_VERSION, VERSION_BLUEPRINT_API, BluePrint::NodeType::External, BluePrint::NodeStyle::Default, "Filter#Video#Effect")

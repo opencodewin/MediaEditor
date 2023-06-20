@@ -418,6 +418,7 @@ add_subdirectory(plugin/nodes/effects/Star)
 add_subdirectory(plugin/nodes/effects/Soul)
 add_subdirectory(plugin/nodes/effects/Sway)
 add_subdirectory(plugin/nodes/effects/SmudgeBlur)
+add_subdirectory(plugin/nodes/effects/PixeLate)
 endif(IMGUI_VULKAN_SHADER)
 
 ### DEFINE THE PACKAGING (OS specific)
