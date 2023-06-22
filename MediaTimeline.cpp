@@ -584,7 +584,7 @@ void Event::Save(imgui_json::value& value)
     value["EventKeyPoints"] = event_keypoint;
 }
 
-void Event::Moving(int64_t diff)
+void Event::Moving(int64_t diff, int64_t mouse)
 {
     ImGuiIO &io = ImGui::GetIO();
     TimeLine * timeline = (TimeLine *)mHandle;
@@ -602,13 +602,45 @@ void Event::Moving(int64_t diff)
     {
         // moving backward
         if (prev_event && mStart + diff < prev_event->mEnd)
-            new_diff = prev_event->mEnd - mStart;
+        {
+            if (mouse < prev_event->mStart)
+            {
+                int64_t space = 0;
+                auto pprev_event = track->FindPreviousEvent(prev_event->mID);
+                if (pprev_event)
+                    space = prev_event->mStart - pprev_event->mEnd;
+                else
+                    space = prev_event->mStart;
+                if (space >= length)
+                    new_diff = prev_event->mStart - length - mStart;
+                else
+                    new_diff = prev_event->mEnd - mStart;
+            }
+            else
+                new_diff = prev_event->mEnd - mStart;
+        }
     }
     else
     {
         // moving forward
         if (next_event && mEnd + diff > next_event->mStart)
-            new_diff = next_event->mStart - mEnd;
+        {
+            if (mouse > next_event->mEnd)
+            {
+                int64_t space = 0;
+                auto nnext_event = track->FindNextEvent(next_event->mID);
+                if (nnext_event)
+                    space = nnext_event->mStart - next_event->mEnd;
+                else
+                    space = clip->Length() - next_event->mEnd;
+                if (space >= length)
+                    new_diff = next_event->mEnd - mStart;
+                else
+                    new_diff = next_event->mStart - mEnd;
+            }
+            else
+                new_diff = next_event->mStart - mEnd;
+        }
     }
     mStart += new_diff;
     if (mStart < 0) mStart = 0;
@@ -617,10 +649,7 @@ void Event::Moving(int64_t diff)
 
     alignTime(mStart, clip->frame_duration);
     mEnd = mStart + length;
-
     track->Update();
-    // TODO:: allow event moving cross event ?
-
     bMoving = false;
 }
 
@@ -9670,57 +9699,70 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                     }
                     if (mouse_clip && clipMovingEntry == -1)
                     {
-                        // check clip moving part
-                        ImVec2 clipP1(pos.x + mouse_clip->Start() * timeline->msPixelWidthTarget, pos.y + 2);
-                        ImVec2 clipP2(pos.x + mouse_clip->End() * timeline->msPixelWidthTarget, pos.y + trackHeadHeight - 2 + localCustomHeight);
-                        const float max_handle_width = clipP2.x - clipP1.x / 3.0f;
-                        const float min_handle_width = ImMin(10.0f, max_handle_width);
-                        const float handle_width = ImClamp(timeline->msPixelWidthTarget / 2.0f, min_handle_width, max_handle_width);
-                        ImRect rects[3] = {ImRect(clipP1, ImVec2(clipP1.x + handle_width, clipP2.y)), ImRect(ImVec2(clipP2.x - handle_width, clipP1.y), clipP2), ImRect(clipP1 + ImVec2(handle_width, 0), clipP2 - ImVec2(handle_width, 0))};
-
-                        for (int j = 1; j >= 0; j--)
+                        auto clip_view_width = mouse_clip->Length() * timeline->msPixelWidthTarget;
+                        if (clip_view_width <= 20)
                         {
-                            ImRect &rc = rects[j];
-                            if (!rc.Contains(io.MousePos))
-                                continue;
-                            if (j == 0)
-                                ImGui::RenderMouseCursor(ICON_CROPPING_LEFT, ImVec2(4, 0));
-                            else
-                                ImGui::RenderMouseCursor(ICON_CROPPING_RIGHT, ImVec2(12, 0));
-                            draw_list->AddRectFilled(rc.Min, rc.Max, IM_COL32(255,0,0,255), 0);
-                        }
-                        for (int j = 0; j < 3; j++)
-                        {
-                            // j == 0 : left crop rect
-                            // j == 1 : right crop rect
-                            // j == 2 : cutting rect
-                            ImRect &rc = rects[j];
-                            if (!rc.Contains(io.MousePos))
-                                continue;
-                            if (!ImRect(childFramePos, childFramePos + childFrameSize).Contains(io.MousePos))
-                                continue;
-                            if (j == 2 && timeline->mIsCutting && mouseClip.size() <= 1)
-                            {
-                                ImGui::RenderMouseCursor(ICON_CUTTING, ImVec2(7, 0), 1.0, -90);
-                            }
+                            // clip is too small, don't dropping
                             if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingHorizonScrollBar && !MovingCurrentTime && !menuIsOpened && editable)
                             {
+                                clipMovingEntry = mouse_clip->mID;
+                                clipMovingPart = 3;
+                            }
+                        }
+                        else
+                        {
+                            // check clip moving part
+                            ImVec2 clipP1(pos.x + mouse_clip->Start() * timeline->msPixelWidthTarget, pos.y + 2);
+                            ImVec2 clipP2(pos.x + mouse_clip->End() * timeline->msPixelWidthTarget, pos.y + trackHeadHeight - 2 + localCustomHeight);
+                            const float max_handle_width = clipP2.x - clipP1.x / 3.0f;
+                            const float min_handle_width = ImMin(10.0f, max_handle_width);
+                            const float handle_width = ImClamp(timeline->msPixelWidthTarget / 2.0f, min_handle_width, max_handle_width);
+                            ImRect rects[3] = {ImRect(clipP1, ImVec2(clipP1.x + handle_width, clipP2.y)), ImRect(ImVec2(clipP2.x - handle_width, clipP1.y), clipP2), ImRect(clipP1 + ImVec2(handle_width, 0), clipP2 - ImVec2(handle_width, 0))};
+
+                            for (int j = 1; j >= 0; j--)
+                            {
+                                ImRect &rc = rects[j];
+                                if (!rc.Contains(io.MousePos))
+                                    continue;
+                                if (j == 0)
+                                    ImGui::RenderMouseCursor(ICON_CROPPING_LEFT, ImVec2(4, 0));
+                                else
+                                    ImGui::RenderMouseCursor(ICON_CROPPING_RIGHT, ImVec2(12, 0));
+                                draw_list->AddRectFilled(rc.Min, rc.Max, IM_COL32(255,0,0,255), 0);
+                            }
+                            for (int j = 0; j < 3; j++)
+                            {
+                                // j == 0 : left crop rect
+                                // j == 1 : right crop rect
+                                // j == 2 : cutting rect
+                                ImRect &rc = rects[j];
+                                if (!rc.Contains(io.MousePos))
+                                    continue;
+                                if (!ImRect(childFramePos, childFramePos + childFrameSize).Contains(io.MousePos))
+                                    continue;
                                 if (j == 2 && timeline->mIsCutting && mouseClip.size() <= 1)
                                 {
-                                    doCutPos = mouseTime;
+                                    ImGui::RenderMouseCursor(ICON_CUTTING, ImVec2(7, 0), 1.0, -90);
                                 }
-                                else
+                                if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingHorizonScrollBar && !MovingCurrentTime && !menuIsOpened && editable)
                                 {
-                                    clipMovingEntry = mouse_clip->mID;
-                                    clipMovingPart = j + 1;
-                                    if (j <= 1)
+                                    if (j == 2 && timeline->mIsCutting && mouseClip.size() <= 1)
                                     {
-                                        bCropping = true;
-                                        ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
+                                        doCutPos = mouseTime;
                                     }
-                                    clipClickedTriggered = true;
+                                    else
+                                    {
+                                        clipMovingEntry = mouse_clip->mID;
+                                        clipMovingPart = j + 1;
+                                        if (j <= 1)
+                                        {
+                                            bCropping = true;
+                                            ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
+                                        }
+                                        clipClickedTriggered = true;
+                                    }
+                                    break;
                                 }
-                                break;
                             }
                         }
                     }
@@ -12033,47 +12075,61 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                         {
                             event->bHovered = true;
                             mouseEvent = event;
+                            auto event_view_width = event->Length() * editingClip->msPixelWidthTarget;
                             if (eventMovingEntry == -1)
                             {
-                                // check event moving part
-                                ImVec2 eventP1(pos.x + event->mStart * editingClip->msPixelWidthTarget, pos.y);
-                                ImVec2 eventP2(pos.x + event->mEnd * editingClip->msPixelWidthTarget, pos.y + trackHeight);
-                                const float max_handle_width = eventP2.x - eventP1.x / 3.0f;
-                                const float min_handle_width = ImMin(10.0f, max_handle_width);
-                                const float handle_width = ImClamp(editingClip->msPixelWidthTarget / 2.0f, min_handle_width, max_handle_width);
-                                ImRect rects[3] = {ImRect(eventP1, ImVec2(eventP1.x + handle_width, eventP2.y)), ImRect(ImVec2(eventP2.x - handle_width, eventP1.y), eventP2), ImRect(eventP1 + ImVec2(handle_width, 0), eventP2 - ImVec2(handle_width, 0))};
-                                for (int j = 1; j >= 0; j--)
+                                if (event_view_width <= 20)
                                 {
-                                    int flags = j == 0 ? ImDrawFlags_RoundCornersLeft : ImDrawFlags_RoundCornersRight;
-                                    ImRect &rc = rects[j];
-                                    if (!rc.Contains(io.MousePos))
-                                        continue;
-                                    if (j == 0)
-                                        ImGui::RenderMouseCursor(ICON_CROPPING_LEFT, ImVec2(4, 0));
-                                    else
-                                        ImGui::RenderMouseCursor(ICON_CROPPING_RIGHT, ImVec2(12, 0));
-                                    drawList->AddRectFilled(rc.Min, rc.Max, IM_COL32(255,255,0,255), 4, flags);
-                                }
-                                for (int j = 0; j < 3; j++)
-                                {
-                                    // j == 0 : left crop rect
-                                    // j == 1 : right crop rect
-                                    // j == 2 : moving rect
-                                    ImRect &rc = rects[j];
-                                    if (!rc.Contains(io.MousePos))
-                                        continue;
+                                    // event is too small, don't dropping
                                     if (ImGui::IsMouseDown(ImGuiMouseButton_Left))
                                     {
                                         eventMovingEntry = event->mID;
-                                        eventMovingPart = j + 1;
-                                        if (j <= 1)
+                                        eventMovingPart = 3;
+                                        bCropping = false;
+                                    }
+                                }
+                                else
+                                {
+                                    // check event moving part
+                                    ImVec2 eventP1(pos.x + event->mStart * editingClip->msPixelWidthTarget, pos.y);
+                                    ImVec2 eventP2(pos.x + event->mEnd * editingClip->msPixelWidthTarget, pos.y + trackHeight);
+                                    const float max_handle_width = eventP2.x - eventP1.x / 3.0f;
+                                    const float min_handle_width = ImMin(10.0f, max_handle_width);
+                                    const float handle_width = ImClamp(editingClip->msPixelWidthTarget / 2.0f, min_handle_width, max_handle_width);
+                                    ImRect rects[3] = {ImRect(eventP1, ImVec2(eventP1.x + handle_width, eventP2.y)), ImRect(ImVec2(eventP2.x - handle_width, eventP1.y), eventP2), ImRect(eventP1 + ImVec2(handle_width, 0), eventP2 - ImVec2(handle_width, 0))};
+                                    for (int j = 1; j >= 0; j--)
+                                    {
+                                        int flags = j == 0 ? ImDrawFlags_RoundCornersLeft : ImDrawFlags_RoundCornersRight;
+                                        ImRect &rc = rects[j];
+                                        if (!rc.Contains(io.MousePos))
+                                            continue;
+                                        if (j == 0)
+                                            ImGui::RenderMouseCursor(ICON_CROPPING_LEFT, ImVec2(4, 0));
+                                        else
+                                            ImGui::RenderMouseCursor(ICON_CROPPING_RIGHT, ImVec2(12, 0));
+                                        drawList->AddRectFilled(rc.Min, rc.Max, IM_COL32(255,255,0,255), 4, flags);
+                                    }
+                                    for (int j = 0; j < 3; j++)
+                                    {
+                                        // j == 0 : left crop rect
+                                        // j == 1 : right crop rect
+                                        // j == 2 : moving rect
+                                        ImRect &rc = rects[j];
+                                        if (!rc.Contains(io.MousePos))
+                                            continue;
+                                        if (ImGui::IsMouseDown(ImGuiMouseButton_Left))
                                         {
-                                            bCropping = true;
-                                            if (j == 0)
-                                                ImGui::RenderMouseCursor(ICON_CROPPING_LEFT, ImVec2(4, 0));
-                                            else
-                                                ImGui::RenderMouseCursor(ICON_CROPPING_RIGHT, ImVec2(12, 0));
-                                            //ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
+                                            eventMovingEntry = event->mID;
+                                            eventMovingPart = j + 1;
+                                            if (j <= 1)
+                                            {
+                                                bCropping = true;
+                                                if (j == 0)
+                                                    ImGui::RenderMouseCursor(ICON_CROPPING_LEFT, ImVec2(4, 0));
+                                                else
+                                                    ImGui::RenderMouseCursor(ICON_CROPPING_RIGHT, ImVec2(12, 0));
+                                                //ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
+                                            }
                                         }
                                     }
                                 }
@@ -12124,7 +12180,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                             // whole slot moving
                             bEventMoving = true;
                             ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeAll);
-                            event->Moving(diffTime);
+                            event->Moving(diffTime, mouseTime);
                         }
                         else if (eventMovingPart & 1)
                         {

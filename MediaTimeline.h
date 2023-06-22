@@ -367,6 +367,7 @@ struct Event
     int64_t mStart                  {0};        // Event start time at clip, project saved
     int64_t mEnd                    {0};        // Event end time at clip, project saved
     int     mIndex                  {-1};       // Event layer index, for clip layer index means event order, for track means effect track order
+    int64_t Length() const { return mEnd - mStart; }
     
     bool bSelected               {false};    // Event is selected
     bool bMoving                {false};            // clip is moving
@@ -385,7 +386,7 @@ struct Event
     bool IsInEventRange(int64_t pos) const { return pos >= mStart && pos < mEnd; }
     void DrawTooltips();
 
-    void Moving(int64_t diff);
+    void Moving(int64_t diff, int64_t mouse);
     int64_t Cropping(int64_t diff, int type);
 };
 
