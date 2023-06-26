@@ -36,7 +36,7 @@ MediaEditor Community(MEC) is a highly integrated and easy to learn application 
   &emsp;<img src="docs/assets/timeline.png" alt="timeline">
 * Support more flexible and easily blueprint system. Blueprint💫 is represented in the form of nodes, which can handle complex functions through nodes and flows.
   &emsp;<img src="docs/assets/blueprint.gif" alt="blueprint">
-* Support about 30+ built-in media filters and 65+ built-in media transitions🤖.
+* Support about 45+ built-in media filters and 70+ built-in media transitions🤖.
 
   &emsp;<img src="docs/assets/transition.gif" alt="transition">
 * Support about 10 video and audio analysis tools🍂.
@@ -84,14 +84,17 @@ sudo apt install libfuse2
 
 ## FILTERS
 | | | | | |
-|-----------------|----------------|:--------------|:----------------|:--------------|
-| ALM Enhancement | CAS Sharpen    | Deband        | Deinterlace     | USM Sharpen   |
-| Bilateral Blur  | Box Blur       | Gaussian Blur | Brightness      | Color Balance |
-| **Color Curve** | Color Invert   | Contrast      | Exposure        | Gamma         |
-| Hue             | Lut 3D         | Saturation    | Vibrance        | White Balance |
-| Canny Edge      | Laplacian Edge | Sobel Edge    | Chroma Key      | Guided Filter |
-| Flip            | HQDN3D Denoise | Audio Gain    | Audio Equalizer | Star Effect   |
-| Lighting Effect | Sway Effect    | Jitter Effert | Soul Effert     |               |
+|------------------|-----------------|:--------------|:----------------|:---------------|
+| ALM Enhancement  | Audio Equalizer | Audio Gain    | Bilateral Blur  | Binary         |
+| Box Blur         | Brightness      | Canny Edge    | CAS Sharpen     | Chroma Key     |
+| Color Balance    | **Color Curve** | Color Invert  | Contrast        | Crop           |
+| Deband           | Deinterlace     | Dilation      | Erosion         | Exposure       |
+| Flip             | Gamma           | Gaussian Blur | Guided Filter   | HQDN3D Denoise |
+| Hue              | Laplacian Edge  | Lut 3D        | SmartDenoise    | Sobel Edge     |
+| USM Sharpen      | Vibrance        | WarpAffine    | WarpPerspective | White Balance  |
+| BarrelDistortion | Distortion      | Jitter        | Kuwahara        | Lighting       |
+| PixeLate         | RadicalBlur     | SmudgeBlur    | Soul            | Star           |
+| Sway             | WaterRipple     | | | |
 | | | | | |
 
 **Color Curve**
@@ -100,21 +103,21 @@ sudo apt install libfuse2
 
 ## TRANSITIONS
 | | | | | |
-|-----------------|----------------|:-----------------|:-----------------|:--------------|
-| BookFlip        | Bounce         | PageCurl         | Swap             | DoomScreen    |
-| WindowSlice     | Wind           | Slider           | Door             | Rolls         |
-| StereoViewer    | **Cube**       | RotateScale      | Doorway          | SimpleZoom    |
-| Wipe            | BowTie         | DirectionalWarp  | Move             | Radial        |
-| GridFlip        | Hexagonalize   | Mosaic           | SquaresWire      | KaleidoScope  |
-| GlitchMemories  | CrossWarp      | CrazyParametric  | Polar            | ButterflyWave |
-| Perlin          | RandomSquares  | BurnOut          | Dreamy           | WaterDrop     |
-| Crosshatch      | Pinwheel       | Flyeye           | **Heart**        | GlitchDisplace|
-| ZoomInCircles   | WindowBlinds   | CrossZoom        | Ripple           | PolkaDots     |
-| DreamyZoom      | Swirl          | CircleBlur       | Squeeze          | CannabisLeaf  |
-| CircleCrop      | Alpha          | Pixelize         | LinearBlur       | Fade          |
-| LuminanceMelt   | Morph          | Burn             | MultiplyBlend    | ColorDistance |
-| ColorPhase      | SimpleZoomOut  | DirectionalScaled| RotateScaleVanish| Rectangle     |
-| StaticWipe      | Edge           | Luma             | Audio Fade       |               |
+|-----------------|----------------|:-----------------|:-----------------|:------------------|
+| Alpha           | AudioFade      | LinearBlur       | BookFlip         | Bounce            |
+| BowTie          | Burn           | BurnOut          | ButterflyWave    | CannabisLeaf      |
+| CircleBlur      | CircleCrop     | ColorPhase       | ColorDistance    | CrazyParametric   |
+| Crosshatch      | CrossWarp      | CrossZoom        | **Cube**         | DirectionalScaled |
+| DirectionalWarp | Dissolve       | DoomScreen       | Door             | Doorway           |
+| Dreamy          | DreamyZoom     | Edge             | Fade             | Flyeye            |
+| GlitchDisplace  | GlitchMemories | GridFlip         | **Heart**        | Hexagonalize      |
+| KaleidoScope    | Luma           | LuminanceMelt    | Morph            | Mosaic            |
+| Move            | MultiplyBlend  | PageCurl         | Perlin           | Pinwheel          |
+| Pixelize        | Polar          | PolkaDots        | Radial           | RandomSquares     |
+| Rectangle       | Ripple         | Rolls            | RotateScale      | RotateScaleVanish |
+| SimpleZoom      | SimpleZoomOut  | Slider           | SquaresWire      | Squeeze           |
+| StaticWipe      | StereoViewer   | Swap             | Swirl            | WaterDrop         |
+| Wind            | WindowBlinds   | WindowSlice      | Wipe             | ZoomInCircles     |
 | | | | | |
 
 **Cube**
