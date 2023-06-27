@@ -424,6 +424,7 @@ add_subdirectory(plugin/nodes/effects/Distortion)
 add_subdirectory(plugin/nodes/effects/BarrelDistortion)
 add_subdirectory(plugin/nodes/effects/Kuwahara)
 add_subdirectory(plugin/nodes/effects/WaterRipple)
+add_subdirectory(plugin/nodes/effects/Glass)
 endif(IMGUI_VULKAN_SHADER)
 
 ### DEFINE THE PACKAGING (OS specific)
