@@ -290,11 +290,11 @@ EventTrack* EventTrack::Load(const imgui_json::value& value, void * handle)
             for (auto& id_val : *eventIDArray)
             {
                 int64_t event_id = id_val.get<imgui_json::number>();
-                Event * event = clip->FindEventByID(event_id);
-                if (event)
-                {
-                    new_track->m_Events.push_back(event);
-                }
+                //Event * event = clip->FindEventByID(event_id);
+                //if (event)
+                //{
+                //    new_track->m_Events.push_back(event);
+                //}
             }
         }
     }
@@ -307,13 +307,13 @@ void EventTrack::Save(imgui_json::value& value)
     value["ClipID"] = imgui_json::number(mClipID);
     value["Expanded"] = imgui_json::boolean(mExpanded);
     // save event ids
-    imgui_json::value events;
-    for (auto event : m_Events)
-    {
-        imgui_json::value event_id_value = imgui_json::number(event->mID);
-        events.push_back(event_id_value);
-    }
-    if (m_Events.size() > 0) value["EventIDS"] = events;
+    //imgui_json::value events;
+    //for (auto event : m_Events)
+    //{
+    //    imgui_json::value event_id_value = imgui_json::number(event->mID);
+    //    events.push_back(event_id_value);
+    //}
+    //if (m_Events.size() > 0) value["EventIDS"] = events;
 }
 
 void EventTrack::DrawContent(ImDrawList *draw_list, ImRect rect, int event_height, int64_t view_start, int64_t view_end, float pixelWidthMS)
@@ -321,6 +321,7 @@ void EventTrack::DrawContent(ImDrawList *draw_list, ImRect rect, int event_heigh
     ImGui::PushClipRect(rect.Min, rect.Max, true);
     ImGui::SetCursorScreenPos(rect.Min);
     bool mouse_clicked = false;
+
     // draw events
     for (auto event : m_Events)
     {
@@ -328,7 +329,7 @@ void EventTrack::DrawContent(ImDrawList *draw_list, ImRect rect, int event_heigh
         float cursor_start = 0;
         float cursor_end  = 0;
         ImDrawFlags flag = ImDrawFlags_RoundCornersNone;
-        if (event->IsInEventRange(view_start) && event->mEnd <= view_end)
+        if (event->IsInRange(view_start) && event->End() <= view_end)
         {
             /***********************************************************
              *         ----------------------------------------
@@ -336,35 +337,35 @@ void EventTrack::DrawContent(ImDrawList *draw_list, ImRect rect, int event_heigh
              *         ----------------------------------------
             ************************************************************/
             cursor_start = rect.Min.x;
-            cursor_end = rect.Min.x + (event->mEnd - view_start) * pixelWidthMS;
+            cursor_end = rect.Min.x + (event->End() - view_start) * pixelWidthMS;
             draw_event = true;
             flag |= ImDrawFlags_RoundCornersRight;
         }
-        else if (event->mStart >= view_start && event->mEnd <= view_end)
+        else if (event->Start() >= view_start && event->End() <= view_end)
         {
             /***********************************************************
              *         ----------------------------------------
              *                  |XXXXXXXXXXXXXXXXXXXXXX|
              *         ----------------------------------------
             ************************************************************/
-            cursor_start = rect.Min.x + (event->mStart - view_start) * pixelWidthMS;
-            cursor_end = rect.Min.x + (event->mEnd - view_start) * pixelWidthMS;
+            cursor_start = rect.Min.x + (event->Start() - view_start) * pixelWidthMS;
+            cursor_end = rect.Min.x + (event->End() - view_start) * pixelWidthMS;
             draw_event = true;
             flag |= ImDrawFlags_RoundCornersAll;
         }
-        else if (event->mStart >= view_start && event->IsInEventRange(view_end))
+        else if (event->Start() >= view_start && event->IsInRange(view_end))
         {
             /***********************************************************
              *         ----------------------------------------
              *                         |XXXXXXXXXXXXXXXXXXXXXX|XXXXXXXXX
              *         ----------------------------------------
             ************************************************************/
-            cursor_start = rect.Min.x + (event->mStart - view_start) * pixelWidthMS;
+            cursor_start = rect.Min.x + (event->Start() - view_start) * pixelWidthMS;
             cursor_end = rect.Max.x;
             draw_event = true;
             flag |= ImDrawFlags_RoundCornersLeft;
         }
-        else if (event->mStart <= view_start && event->mEnd >= view_end)
+        else if (event->Start() <= view_start && event->End() >= view_end)
         {
             /***********************************************************
              *         ----------------------------------------
@@ -375,9 +376,9 @@ void EventTrack::DrawContent(ImDrawList *draw_list, ImRect rect, int event_heigh
             cursor_end  = rect.Max.x;
             draw_event = true;
         }
-        if (event->mStart == view_start)
+        if (event->Start() == view_start)
             flag |= ImDrawFlags_RoundCornersLeft;
-        if (event->mEnd == view_end)
+        if (event->End() == view_end)
             flag |= ImDrawFlags_RoundCornersRight;
         ImVec2 event_pos_min = ImVec2(cursor_start, rect.Min.y);
         ImVec2 event_pos_max = ImVec2(cursor_end, rect.Min.y + event_height);
@@ -394,12 +395,14 @@ void EventTrack::DrawContent(ImDrawList *draw_list, ImRect rect, int event_heigh
 
         if (draw_event && cursor_end > cursor_start)
         {
-            if (event->bSelected)
+            bool is_select = event->Status() & EVENT_SELECTED;
+            bool is_hovered = event->Status() & EVENT_HOVERED;
+            if (is_select)
                 draw_list->AddRect(event_pos_min, event_pos_max, IM_COL32(255,0,0,224), 4, flag, 2.0f);
             else
                 draw_list->AddRect(event_pos_min, event_pos_max, IM_COL32(128,128,255,224), 4, flag, 2.0f);
-            draw_list->AddRectFilled(event_pos_min, event_pos_max, event->bHovered ? IM_COL32(64, 64, 192, 128) : IM_COL32(32, 32, 192, 128), 4, flag);
-            if (event->bHovered)
+            draw_list->AddRectFilled(event_pos_min, event_pos_max, is_hovered ? IM_COL32(64, 64, 192, 128) : IM_COL32(32, 32, 192, 128), 4, flag);
+            if (is_hovered)
             {
                 if (!mouse_clicked && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
                 {
@@ -410,14 +413,15 @@ void EventTrack::DrawContent(ImDrawList *draw_list, ImRect rect, int event_heigh
                 {
                     mExpanded = !mExpanded;
                 }
-                event->DrawTooltips();
+                //event->DrawTooltips();
             }
         }
     }
+
     ImGui::PopClipRect();
 }
 
-void EventTrack::SelectEvent(Event * event, bool appand)
+void EventTrack::SelectEvent(MEC::Event * event, bool appand)
 {
     TimeLine * timeline = (TimeLine *)mHandle;
     if (!timeline || !event)
@@ -425,59 +429,66 @@ void EventTrack::SelectEvent(Event * event, bool appand)
     auto clip = timeline->FindClipByID(mClipID);
     if (!clip)
         return;
+
     bool selected = true;
-    if (appand && event->bSelected)
+    bool is_selected = event->Status() & EVENT_SELECTED;
+    if (appand && is_selected)
     {
         selected = false;
     }
     for (auto _event : clip->mEvents)
     {
-        if (_event->mID != event->mID)
+        if (_event->Id() != event->Id())
         {
             if (!appand)
             {
-                _event->bSelected = !selected;
+                _event->SetStatus(EVENT_SELECTED_BIT, selected ? 0 : 1);
             }
         }
     }
-    event->bSelected = selected;
+    event->SetStatus(EVENT_SELECTED_BIT, selected ? 1 : 0);
 }
 
 void EventTrack::Update()
 {
     // sort m_Events by start time
-    std::sort(m_Events.begin(), m_Events.end(), [](const Event *a, const Event* b) {
-        return a->mStart < b->mStart;
-    });
+    //std::sort(m_Events.begin(), m_Events.end(), [](const Event *a, const Event* b) {
+    //    return a->mStart < b->mStart;
+    //});
 }
 
-Event* EventTrack::FindPreviousEvent(int64_t id)
+MEC::Event* EventTrack::FindPreviousEvent(int64_t id)
 {
-    Event * found_event = nullptr;
+    MEC::Event * found_event = nullptr;
+#if 0
     auto iter = std::find_if(m_Events.begin(), m_Events.end(), [id](const Event* e) {
         return e->mID == id;
     });
     if (iter == m_Events.begin() || iter == m_Events.end())
         return found_event;
     found_event = *(iter - 1);
+#endif
     return found_event;
 }
 
-Event* EventTrack::FindNextEvent(int64_t id)
+MEC::Event* EventTrack::FindNextEvent(int64_t id)
 {
-    Event * found_event = nullptr;
+    MEC::Event * found_event = nullptr;
+#if 0
     auto iter = std::find_if(m_Events.begin(), m_Events.end(), [id](const Event* e) {
         return e->mID == id;
     });
     if (iter == m_Events.end() || iter == m_Events.end() - 1)
         return found_event;
     found_event = *(iter + 1);
+#endif
     return found_event;
 }
 
 int64_t EventTrack::FindEventSpace(int64_t time)
 {
     int64_t space = -1;
+#if 0
     for (auto event : m_Events)
     {
         if (event->mStart >= time)
@@ -486,8 +497,11 @@ int64_t EventTrack::FindEventSpace(int64_t time)
             break;
         }
     }
+#endif
     return space;
 }
+
+#if 0
 /***********************************************************************************************************
  * Event Struct Member Functions
  ***********************************************************************************************************/
@@ -702,7 +716,7 @@ void Event::DrawTooltips()
 {
 
 }
-
+#endif
 } //namespace MediaTimeline
 
 namespace MediaTimeline
@@ -808,16 +822,16 @@ void Clip::Load(Clip * clip, const imgui_json::value& value)
     }
 
     // load event
-    const imgui_json::array* eventArray = nullptr;
-    if (imgui_json::GetPtrTo(value, "Events", eventArray))
-    {
-        for (auto& event : *eventArray)
-        {
-            Event * pevent = Event::Load(event, clip->mHandle);
-            if (pevent)
-                clip->mEvents.push_back(pevent);
-        }
-    }
+    //const imgui_json::array* eventArray = nullptr;
+    //if (imgui_json::GetPtrTo(value, "Events", eventArray))
+    //{
+    //    for (auto& event : *eventArray)
+    //    {
+    //        Event * pevent = Event::Load(event, clip->mHandle);
+    //        if (pevent)
+    //            clip->mEvents.push_back(pevent);
+    //    }
+    //}
     // load event event
     const imgui_json::array* eventTrackArray = nullptr;
     if (imgui_json::GetPtrTo(value, "EventTracks", eventTrackArray))
@@ -866,14 +880,14 @@ void Clip::Save(imgui_json::value& value)
     value["AttributeKeyPoint"] = attribute_keypoint;
 
     // save event
-    imgui_json::value events;
-    for (auto event : mEvents)
-    {
-        imgui_json::value e;
-        event->Save(e);
-        events.push_back(e);
-    }
-    if (mEvents.size() > 0) value["Events"] = events;
+    //imgui_json::value events;
+    //for (auto event : mEvents)
+    //{
+    //    imgui_json::value e;
+    //    event->Save(e);
+    //    events.push_back(e);
+    //}
+    //if (mEvents.size() > 0) value["Events"] = events;
 
     // save event track
     imgui_json::value event_tracks;
@@ -887,14 +901,16 @@ void Clip::Save(imgui_json::value& value)
 
 }
 
-Event * Clip::FindEventByID(int64_t id)
+ MEC::Event * Clip::FindEventByID(int64_t id)
 {
+#if 0
     auto iter = std::find_if(mEvents.begin(), mEvents.end(), [id](const Event* event)
     {
         return event->mID == id;
     });
     if (iter != mEvents.end())
         return *iter;
+#endif
     return nullptr;
 }
 
@@ -1498,10 +1514,11 @@ int Clip::AddEventTrack()
     return mEventTracks.size() - 1;;
 }
 
-Event* Clip::AddEvent(int track, int64_t start, int64_t duration, void* data)
+MEC::Event* Clip::AddEvent(int track, int64_t start, int64_t duration, void* data)
 {
-    if (track >= mEventTracks.size())
+    if (track >= mEventTracks.size() || !data)
         return nullptr;
+#if 0
     Event* event = new Event(start, start + duration, mID, track, mHandle);
     if (event)
     {
@@ -1510,10 +1527,15 @@ Event* Clip::AddEvent(int track, int64_t start, int64_t duration, void* data)
         mEventTracks[track]->Update();
     }
     return event;
+#else
+    return nullptr;
+#endif
 }
 
-bool Clip::AppendEvent(Event * event, void* data)
+bool Clip::AppendEvent(MEC::Event * event, void* data)
 {
+	if (!event || !data)
+        return false;
     return false;
 }
 
@@ -11677,7 +11699,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     int64_t mouseTime = -1;
     static int64_t menuMouseTime = -1;
     int mouseEntry = -1;
-    Event * mouseEvent = nullptr;
+    MEC::Event * mouseEvent = nullptr;
     static ImVec2 menuMousePos = ImVec2(-1, -1);
     static bool mouse_hold = false;
     bool overHorizonScrollBar = false;
@@ -12055,7 +12077,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
             auto track_pos = ImGui::GetCursorScreenPos();
             auto track_current = track_pos;
             int current_index = 0;
-            for (auto event : clip->mEvents)  event->bHovered = false;
+            //for (auto event : clip->mEvents)  event->bHovered = false;
 
             for ( auto track : tracks)
             {
@@ -12069,6 +12091,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                 ImGui::InvisibleButton("##event_track", track_size);
                 if (is_mouse_hovered)
                 {
+#if 0
                     for (auto event : track->m_Events)
                     {
                         if (event->IsInEventRange(mouseTime))
@@ -12136,6 +12159,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                             }
                         }
                     }
+#endif
                     mouse_track_index = current_index;
                 }
                 track->DrawContent(drawList, ImRect(track_current, track_current + track_size), trackHeight, editingClip->firstTime, editingClip->lastTime, editingClip->msPixelWidthTarget);
@@ -12149,7 +12173,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
             {
                 ImRect track_area = ImRect(track_current, track_current + event_track_size);
                 bool is_mouse_hovered = track_area.Contains(io.MousePos);
-                unsigned int col = is_mouse_hovered ? COL_EVENT_HOVERED : (current_index & 1) ? COL_EVENT_ODD : COL_EVENT_EVEN;
+                unsigned int col = /*is_mouse_hovered ? COL_EVENT_HOVERED :*/ (current_index & 1) ? COL_EVENT_ODD_DARK : COL_EVENT_EVEN_DARK;
                 drawList->AddRectFilled(track_area.Min, track_area.Max, col);
                 ImGui::SetCursorScreenPos(track_current);
                 ImGui::InvisibleButton("##empty_event_track", event_track_size);
@@ -12172,6 +12196,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                 diffTime += io.MouseDelta.x / editingClip->msPixelWidthTarget;
                 if (diffTime > frameTime(main_timeline->mFrameRate) || diffTime < -frameTime(main_timeline->mFrameRate))
                 {
+#if 0
                     auto event = clip->FindEventByID(eventMovingEntry);
                     if (event && event->bSelected)
                     {
@@ -12193,6 +12218,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                             event->Cropping(diffTime, 1);
                         }
                     }
+#endif
                     diffTime = 0;
                 }
             }

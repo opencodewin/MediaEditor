@@ -286,6 +286,7 @@ public:
         int64_t End() const override { return m_end; }
         int64_t Length() const override { return m_end-m_start; }
         int32_t Z() const override { return m_z; }
+        uint32_t Status() const override { return m_status; }
         bool IsInRange(int64_t pos) const override { return pos >= m_start && pos < m_end; }
         BluePrint::BluePrintUI* GetBp() override { return m_pBp; }
         ImGui::KeyPointEditor* GetKeyPoint() override { return m_pKp; }
@@ -328,6 +329,16 @@ public:
             return static_cast<EventStack*>(m_owner);
         }
 
+        void SetStatus(uint32_t status) override
+        {
+            m_status = status;
+        }
+
+        void SetStatus(int bit, int val) override
+        {
+            m_status = (m_status & ~(1UL << bit)) | (val << bit);
+        }
+
         string GetError() const override
         {
             return m_owner->GetError();
@@ -358,6 +369,7 @@ public:
         int64_t m_start;
         int64_t m_end;
         int32_t m_z;
+        uint32_t m_status{0};
     };
 
     static const function<void(Event*)> VIDEO_EVENT_DELETER;

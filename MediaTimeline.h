@@ -29,6 +29,7 @@
 #include "AudioRender.h"
 #include "SubtitleTrack.h"
 #include "UI.h"
+#include "Event.h"
 #include <thread>
 #include <string>
 #include <vector>
@@ -208,9 +209,11 @@
 #define COL_SLOT_DEFAULT    IM_COL32( 80,  80, 100, 255)
 #define COL_SLOT_ODD        IM_COL32( 58,  58,  58, 255)
 #define COL_SLOT_EVEN       IM_COL32( 64,  64,  64, 255)
-#define COL_EVENT_ODD       IM_COL32( 16,  16,  16, 255)
-#define COL_EVENT_EVEN      IM_COL32( 24,  24,  24, 255)
-#define COL_EVENT_HOVERED   IM_COL32( 32,  32,  32, 255)
+#define COL_EVENT_ODD       IM_COL32( 24,  24,  24, 255)
+#define COL_EVENT_EVEN      IM_COL32( 32,  32,  32, 255)
+#define COL_EVENT_ODD_DARK  IM_COL32( 10,  10,  10, 255)
+#define COL_EVENT_EVEN_DARK IM_COL32( 18,  18,  18, 255)
+#define COL_EVENT_HOVERED   IM_COL32( 48,  48,  48, 255)
 #define COL_SLOT_SELECTED   IM_COL32(255,  64,  64, 255)
 #define COL_SLOT_V_LINE     IM_COL32( 32,  32,  32,  96)
 #define COL_SLIDER_BG       IM_COL32( 32,  32,  48, 255)
@@ -360,6 +363,7 @@ struct Overlap
     void Save(imgui_json::value& value);
 };
 
+/*
 struct Event
 {
     int64_t mID                     {-1};       // Event ID, project saved
@@ -389,23 +393,29 @@ struct Event
     void Moving(int64_t diff, int64_t mouse);
     int64_t Cropping(int64_t diff, int type);
 };
+*/
 
 struct EventTrack
 {
+#define EVENT_SELECTED_BIT  0
+#define EVENT_HOVERED_BIT   1
+#define EVENT_SELECTED      (1UL << EVENT_SELECTED_BIT)
+#define EVENT_HOVERED       (1UL << EVENT_HOVERED_BIT)
+
     EventTrack(int64_t id, void* handle);
     int64_t mID             {-1};               // event track ID, project saved
     int64_t mClipID         {-1};               // event track belong to clip ID, project saved
     bool    mExpanded       {false};            // event track is expanded for curve, project saved
-    std::vector<Event *> m_Events;              // track clips, project saved(id only)
+    std::vector<MEC::Event *> m_Events;              // track clips, project saved(id only)
     void * mHandle          {nullptr};          // Event track belong to timeline
     
     static EventTrack* Load(const imgui_json::value& value, void * handle);
     void Save(imgui_json::value& value);
 
     void DrawContent(ImDrawList *draw_list, ImRect rect, int event_height, int64_t view_start, int64_t view_end, float pixelWidthMS);
-    void SelectEvent(Event * event, bool appand);
-    Event* FindPreviousEvent(int64_t id);
-    Event* FindNextEvent(int64_t id);
+    void SelectEvent(MEC::Event * event, bool appand);
+    MEC::Event* FindPreviousEvent(int64_t id);
+    MEC::Event* FindNextEvent(int64_t id);
     int64_t FindEventSpace(int64_t time);
     void Update();
 };
@@ -433,7 +443,7 @@ struct Clip
     ImGui::KeyPointEditor       mFilterKeyPoints;   // clip key points, project saved
     ImGui::KeyPointEditor       mAttributeKeyPoints;// clip key points, project saved
 
-    std::vector<Event*>         mEvents;            // clip events, includeing filters/events, project saved
+    //std::vector<Event*>         mEvents;            // clip events, includeing filters/events, project saved
     std::vector<EventTrack*>    mEventTracks;       // clip event tracks, contain event IDs only, project saved
 
     int64_t frame_duration {0};
@@ -458,7 +468,7 @@ struct Clip
     static void Load(Clip * clip, const imgui_json::value& value);
     virtual void Save(imgui_json::value& value) = 0;
 
-    Event* FindEventByID(int64_t event_id);
+    MEC::Event* FindEventByID(int64_t event_id);
 
     int64_t Start() const { return mStart; }
     int64_t End() const { return mEnd; }
@@ -468,8 +478,8 @@ struct Clip
     bool IsInClipRange(int64_t pos) const { return pos >= mStart && pos < mEnd; }
     
     int AddEventTrack();
-    Event* AddEvent(int track, int64_t start, int64_t duration, void* data);
-    bool AppendEvent(Event * event, void* data);
+    MEC::Event* AddEvent(int track, int64_t start, int64_t duration, void* data);
+    bool AppendEvent(MEC::Event * event, void* data);
 
     void ChangeStart(int64_t pos);
     void ChangeStartOffset(int64_t newOffset);

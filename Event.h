@@ -17,11 +17,14 @@ namespace MEC
         virtual int64_t End() const = 0;
         virtual int64_t Length() const = 0;
         virtual int32_t Z() const = 0;
+        virtual uint32_t Status() const = 0;
         virtual bool IsInRange(int64_t pos) const = 0;
         virtual BluePrint::BluePrintUI* GetBp() = 0;
         virtual ImGui::KeyPointEditor* GetKeyPoint() = 0;
         virtual bool ChangeRange(int64_t start, int64_t end) = 0;
         virtual bool Move(int64_t start, int32_t z) = 0;
+        virtual void SetStatus(uint32_t status) = 0;
+        virtual void SetStatus(int bit, int val) = 0;
         virtual std::string GetError() const = 0;
     };
 }
