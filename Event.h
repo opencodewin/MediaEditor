@@ -3,6 +3,7 @@
 #include <memory>
 #include <functional>
 #include "UI.h"
+#include "imgui_curve.h"
 
 namespace MEC
 {

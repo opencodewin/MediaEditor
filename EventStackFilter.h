@@ -2,7 +2,6 @@
 #include <list>
 #include "Event.h"
 #include "VideoClip.h"
-#include "imgui_curve.h"
 #include "imgui_json.h"
 #include "Logger.h"
 
@@ -25,6 +24,8 @@ namespace MEC
         virtual bool MoveEvent(int64_t id, int64_t start, int32_t z) = 0;
         virtual bool SetEditingEvent(int64_t id) = 0;
         virtual Event::Holder GetEditingEvent() = 0;
+        virtual std::list<Event::Holder> GetEventList() const = 0;
+        virtual std::list<Event::Holder> GetEventListByZ(int32_t z) const = 0;
         virtual void SetTimelineHandle(void* handle) = 0;
         virtual void* GetTimelineHandle() const = 0;
         virtual std::string GetError() const = 0;

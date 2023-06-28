@@ -217,6 +217,22 @@ public:
         return GetEvent(m_editingEventId);
     }
 
+    list<Event::Holder> GetEventList() const override
+    {
+        list<Event::Holder> eventList(m_eventList);
+        return eventList;
+    }
+
+    list<Event::Holder> GetEventListByZ(int32_t z) const override
+    {
+        list<Event::Holder> eventList;
+        for (auto& e : m_eventList)
+        {
+            if (e->Z() == z)
+                eventList.push_back(e);
+        }
+        return eventList;
+    }
 
     imgui_json::value SaveAsJson() const override
     {
