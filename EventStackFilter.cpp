@@ -92,6 +92,13 @@ public:
             m_errMsg = "IVALID arguments! 'start' and 'end' CANNOT be IDENTICAL.";
             return nullptr;
         }
+        auto hDupEvt = GetEvent(id);
+        if (hDupEvt)
+        {
+            ostringstream oss; oss << "IVALID arguments! Event with id '" << id << "' already exists.";
+            m_errMsg = oss.str();
+            return nullptr;
+        }
         if (end < start)
         {
             auto tmp = end; end = start; start = tmp;
