@@ -4696,7 +4696,7 @@ static void ShowVideoFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
 #if USE_EVENTSTACK_FILTER
     if (filterName == "EventStackFilter")
     {
-        MEC::EventStackFilter* pEsf = dynamic_cast<MEC::EventStackFilter*>(pFilter);
+        MEC::VideoEventStackFilter* pEsf = dynamic_cast<MEC::VideoEventStackFilter*>(pFilter);
         auto editingEvent = pEsf->GetEditingEvent();
         if (editingEvent)
             pBp = editingEvent->GetBp();

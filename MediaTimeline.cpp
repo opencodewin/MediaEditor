@@ -2100,15 +2100,15 @@ void VideoClip::SyncFilterWithDataLayer(MediaCore::VideoClip::Holder hClip, bool
         MediaCore::VideoFilter::Holder hNewFilter;
         bool isNewFilter = false;
         if (isEventStackFilter)
-            hNewFilter = MEC::EventStackFilter::LoadFromJson(mFilterJson, bpCallbacks);
+            hNewFilter = MEC::VideoEventStackFilter::LoadFromJson(mFilterJson, bpCallbacks);
         else
         {
-            hNewFilter = MEC::EventStackFilter::CreateInstance(bpCallbacks);
+            hNewFilter = MEC::VideoEventStackFilter::CreateInstance(bpCallbacks);
             isNewFilter = true;
         }
         if (hNewFilter)
         {
-            MEC::EventStackFilter* pEsf = dynamic_cast<MEC::EventStackFilter*>(hNewFilter.get());
+            MEC::VideoEventStackFilter* pEsf = dynamic_cast<MEC::VideoEventStackFilter*>(hNewFilter.get());
             pEsf->SetTimelineHandle(mHandle);
             if (isNewFilter)
                 pEsf->AddNewEvent(0, 0, hClip->Duration(), 0);
@@ -3212,7 +3212,7 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
 #if USE_EVENTSTACK_FILTER
         if (filterName == "EventStackFilter")
         {
-            auto pEsf = dynamic_cast<MEC::EventStackFilter*>(mFilter);
+            auto pEsf = dynamic_cast<MEC::VideoEventStackFilter*>(mFilter);
             auto editingEvent = pEsf->GetEditingEvent();
             if (editingEvent)
             {
@@ -3274,7 +3274,7 @@ void EditingVideoClip::Save()
         auto filterName = mFilter->GetFilterName();
         if (filterName == "EventStackFilter")
         {
-            MEC::EventStackFilter* pEsf = dynamic_cast<MEC::EventStackFilter*>(mFilter);
+            MEC::VideoEventStackFilter* pEsf = dynamic_cast<MEC::VideoEventStackFilter*>(mFilter);
             clip->mFilterJson = pEsf->SaveAsJson();
         }
     }
@@ -8198,7 +8198,7 @@ int TimeLine::OnVideoFilterBluePrintChange(int type, std::string name, void* han
     auto filterName = pFilter->GetFilterName();
     if (filterName == "EventStackFilter")
     {
-        MEC::EventStackFilter* pEsf = dynamic_cast<MEC::EventStackFilter*>(pFilter);
+        MEC::VideoEventStackFilter* pEsf = dynamic_cast<MEC::VideoEventStackFilter*>(pFilter);
         if (name.compare("VideoFilter") == 0)
         {
             bool needUpdateView = false;

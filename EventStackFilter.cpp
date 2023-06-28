@@ -9,23 +9,18 @@ using namespace Logger;
 
 namespace MEC
 {
-class EventStackFilter_Impl : public EventStackFilter
+class VideoEventStackFilter_Impl : public VideoEventStackFilter
 {
 public:
-    EventStackFilter_Impl(const BluePrint::BluePrintCallbackFunctions& bpCallbacks)
+    VideoEventStackFilter_Impl(const BluePrint::BluePrintCallbackFunctions& bpCallbacks)
         : m_bpCallbacks(bpCallbacks)
     {
         m_logger = GetLogger("EventStackFilter");
     }
 
-    virtual ~EventStackFilter_Impl()
+    virtual ~VideoEventStackFilter_Impl()
     {
         m_pClip = nullptr;
-        for (auto e : m_eventList)
-        {
-            Event_Impl* ptr = dynamic_cast<Event_Impl*>(e);
-            delete ptr;
-        }
         m_eventList.clear();
     }
 
@@ -59,23 +54,24 @@ public:
 
     ImGui::ImMat FilterImage(const ImGui::ImMat& vmat, int64_t pos) override
     {
-        list<Event*> effectiveEvents;
+        list<Event::Holder> effectiveEvents;
         for (auto e : m_eventList)
         {
             if (e->IsInRange(pos))
                 effectiveEvents.push_back(e);
         }
         ImGui::ImMat outM = vmat;
-        for (auto e : effectiveEvents)
+        for (auto& e : effectiveEvents)
         {
-            outM = e->FilterImage(outM, pos-e->Start());
+            VideoEvent_Impl* pEvtImpl = dynamic_cast<VideoEvent_Impl*>(e.get());
+            outM = pEvtImpl->FilterImage(outM, pos-pEvtImpl->Start());
         }
         return outM;
     }
 
     const VideoClip* GetVideoClip() const override { return m_pClip; }
 
-    Event* GetEvent(int64_t id) override
+    Event::Holder GetEvent(int64_t id) override
     {
         auto iter = find_if(m_eventList.begin(), m_eventList.end(), [id] (auto e) {
             return e->Id() == id;
@@ -89,7 +85,7 @@ public:
         return *iter;
     }
 
-    Event* AddNewEvent(int64_t id, int64_t start, int64_t end, int32_t z) override
+    Event::Holder AddNewEvent(int64_t id, int64_t start, int64_t end, int32_t z) override
     {
         if (start == end)
         {
@@ -101,9 +97,9 @@ public:
             auto tmp = end; end = start; start = tmp;
         }
         bool hasOverlap = false;
-        for (auto e : m_eventList)
+        for (auto& e : m_eventList)
         {
-            if (Event::CheckEventOverlapped(e, start, end, z))
+            if (Event::CheckEventOverlapped(*e, start, end, z))
             {
                 hasOverlap = true;
                 break;
@@ -115,10 +111,11 @@ public:
             return nullptr;
         }
 
-        Event* pNewEvent = new Event_Impl(this, id, start, end, z, m_bpCallbacks);
-        m_eventList.push_back(pNewEvent);
-        m_eventList.sort(EVENT_COMPARATOR);
-        return pNewEvent;
+        auto pEvtImpl = new VideoEvent_Impl(this, id, start, end, z, m_bpCallbacks);
+        Event::Holder hEvt(pEvtImpl, VIDEO_EVENT_DELETER);
+        m_eventList.push_back(hEvt);
+        m_eventList.sort(EVENTLIST_COMPARATOR);
+        return hEvt;
     }
 
     void RemoveEvent(int64_t id) override
@@ -128,9 +125,6 @@ public:
         });
         if (iter != m_eventList.end())
         {
-            auto e = *iter;
-            Event_Impl* ptr = dynamic_cast<Event_Impl*>(e);
-            delete ptr;
             m_eventList.erase(iter);
         }
     }
@@ -146,16 +140,17 @@ public:
         {
             auto tmp = end; end = start; start = tmp;
         }
-        Event_Impl* pEvt = dynamic_cast<Event_Impl*>(GetEvent(id));
-        if (!pEvt)
+        auto hEvt = GetEvent(id);
+        if (!hEvt)
             return false;
-        auto z = pEvt->Z();
+        VideoEvent_Impl* pEvtImpl = dynamic_cast<VideoEvent_Impl*>(hEvt.get());
+        auto z = pEvtImpl->Z();
         bool hasOverlap = false;
-        for (auto e : m_eventList)
+        for (auto& e : m_eventList)
         {
             if (e->Id() == id)
                 continue;
-            if (Event::CheckEventOverlapped(e, start, end, z))
+            if (Event::CheckEventOverlapped(*e, start, end, z))
             {
                 hasOverlap = true;
                 break;
@@ -166,25 +161,26 @@ public:
             m_errMsg = "INVALID arguments! Event range has overlap with the existing ones.";
             return false;
         }
-        pEvt->SetStart(start);
-        pEvt->SetEnd(end);
-        pEvt->UpdateKeyPointRange();
-        m_eventList.sort(EVENT_COMPARATOR);
+        pEvtImpl->SetStart(start);
+        pEvtImpl->SetEnd(end);
+        pEvtImpl->UpdateKeyPointRange();
+        m_eventList.sort(EVENTLIST_COMPARATOR);
         return true;
     }
 
     bool MoveEvent(int64_t id, int64_t start, int32_t z) override
     {
-        Event_Impl* pEvt = dynamic_cast<Event_Impl*>(GetEvent(id));
-        if (!pEvt)
+        auto hEvt = GetEvent(id);
+        if (!hEvt)
             return false;
-        auto end = pEvt->End()+(start-pEvt->Start());
+        VideoEvent_Impl* pEvtImpl = dynamic_cast<VideoEvent_Impl*>(hEvt.get());
+        auto end = pEvtImpl->End()+(start-pEvtImpl->Start());
         bool hasOverlap = false;
         for (auto e : m_eventList)
         {
             if (e->Id() == id)
                 continue;
-            if (Event::CheckEventOverlapped(e, start, end, z))
+            if (Event::CheckEventOverlapped(*e, start, end, z))
             {
                 hasOverlap = true;
                 break;
@@ -195,10 +191,10 @@ public:
             m_errMsg = "INVALID arguments! Event range has overlap with the existing ones.";
             return false;
         }
-        pEvt->SetStart(start);
-        pEvt->SetEnd(end);
-        pEvt->SetZ(z);
-        m_eventList.sort(EVENT_COMPARATOR);
+        pEvtImpl->SetStart(start);
+        pEvtImpl->SetEnd(end);
+        pEvtImpl->SetZ(z);
+        m_eventList.sort(EVENTLIST_COMPARATOR);
         return true;
     }
 
@@ -216,7 +212,7 @@ public:
         return true;
     }
 
-    Event* GetEditingEvent() override
+    Event::Holder GetEditingEvent() override
     {
         return GetEvent(m_editingEventId);
     }
@@ -227,10 +223,10 @@ public:
         imgui_json::value json;
         json["name"] = imgui_json::string(GetFilterName());
         imgui_json::array eventJsonAry;
-        for (auto e : m_eventList)
+        for (auto& e : m_eventList)
         {
-            Event_Impl* pEvt = dynamic_cast<Event_Impl*>(e);
-            eventJsonAry.push_back(pEvt->SaveAsJson());
+            VideoEvent_Impl* pEvtImpl = dynamic_cast<VideoEvent_Impl*>(e.get());
+            eventJsonAry.push_back(pEvtImpl->SaveAsJson());
         }
         json["events"] = eventJsonAry;
         m_logger->Log(DEBUG) << "Save filter-json : " << json.dump() << std::endl;
@@ -251,10 +247,10 @@ public:
     void SetLogLevel(Level l) override { m_logger->SetShowLevels(l); }
 
 public:
-    class Event_Impl : public EventStackFilter::Event
+    class VideoEvent_Impl : public VideoEvent
     {
     public:
-        Event_Impl(EventStackFilter_Impl* owner, int64_t id, int64_t start, int64_t end, int32_t z,
+        VideoEvent_Impl(VideoEventStackFilter_Impl* owner, int64_t id, int64_t start, int64_t end, int32_t z,
             const BluePrint::BluePrintCallbackFunctions& bpCallbacks)
             : m_owner(owner), m_id(id), m_start(start), m_end(end), m_z(z)
         {
@@ -268,7 +264,7 @@ public:
             m_pBp->File_New_Filter(emptyJson, "VideoFilter", "Video");
         }
 
-        virtual ~Event_Impl()
+        virtual ~VideoEvent_Impl()
         {
             if (m_pBp) 
             {
@@ -283,7 +279,7 @@ public:
             }
         }
 
-        static Event_Impl* LoadFromJson(EventStackFilter_Impl* owner, const imgui_json::value& bpJson, const BluePrint::BluePrintCallbackFunctions& bpCallbacks);
+        static Event::Holder LoadFromJson(VideoEventStackFilter_Impl* owner, const imgui_json::value& bpJson, const BluePrint::BluePrintCallbackFunctions& bpCallbacks);
 
         int64_t Id() const override { return m_id; }
         int64_t Start() const override { return m_start; }
@@ -327,9 +323,9 @@ public:
             return m_owner->MoveEvent(m_id, start, z);
         }
 
-        EventStackFilter* GetOwner() override
+        EventStack* GetOwner() override
         {
-            return static_cast<EventStackFilter*>(m_owner);
+            return static_cast<EventStack*>(m_owner);
         }
 
         string GetError() const override
@@ -352,10 +348,10 @@ public:
         }
 
     private:
-        Event_Impl(EventStackFilter_Impl* owner) : m_owner(owner) {}
+        VideoEvent_Impl(VideoEventStackFilter_Impl* owner) : m_owner(owner) {}
 
     private:
-        EventStackFilter_Impl* m_owner;
+        VideoEventStackFilter_Impl* m_owner;
         int64_t m_id{-1};
         BluePrint::BluePrintUI* m_pBp{nullptr};
         ImGui::KeyPointEditor* m_pKp{nullptr};
@@ -364,17 +360,19 @@ public:
         int32_t m_z;
     };
 
-    bool EnrollEvent(Event_Impl* pEvent)
+    static const function<void(Event*)> VIDEO_EVENT_DELETER;
+
+    bool EnrollEvent(Event::Holder hEvt)
     {
-        for (auto e : m_eventList)
+        for (auto& e : m_eventList)
         {
-            if (e->Id() == pEvent->Id())
+            if (e->Id() == hEvt->Id())
             {
-                ostringstream oss; oss << "Duplicated id! Already contained an event with id '" << pEvent->Id() << "'.";
+                ostringstream oss; oss << "Duplicated id! Already contained an event with id '" << hEvt->Id() << "'.";
                 m_errMsg = oss.str();
                 return false;
             }
-            bool hasOverlap = Event::CheckEventOverlapped(e, pEvent->Start(), pEvent->End(), pEvent->Z());
+            bool hasOverlap = Event::CheckEventOverlapped(*e, hEvt->Start(), hEvt->End(), hEvt->Z());
             if (hasOverlap)
             {
                 ostringstream oss; oss << "Can not enroll this event! It has overlap with the existing ones.";
@@ -382,147 +380,136 @@ public:
                 return false;
             }
         }
-        m_eventList.push_back(pEvent);
-        m_eventList.sort(EVENT_COMPARATOR);
+        m_eventList.push_back(hEvt);
+        m_eventList.sort(EVENTLIST_COMPARATOR);
         return true;
     }
 
 private:
-    static function<bool(Event*, Event*)> EVENT_COMPARATOR;
+    static function<bool(const Event::Holder&,const Event::Holder&)> EVENTLIST_COMPARATOR;
 
 private:
     ALogger* m_logger;
     VideoClip* m_pClip{nullptr};
-    list<Event*> m_eventList;
+    list<Event::Holder> m_eventList;
     int64_t m_editingEventId{-1};
     BluePrint::BluePrintCallbackFunctions m_bpCallbacks;
     void* m_tlHandle{nullptr};
     string m_errMsg;
 };
 
-bool EventStackFilter::Event::CheckEventOverlapped(const EventStackFilter::Event* e, int64_t start, int64_t end, int32_t z)
-{
-    if (z == e->Z() &&
-       (start >= e->Start() && start < e->End() || end > e->Start() && end <= e->End() ||
-        start < e->Start() && end > e->End()))
-        return true;
-    return false;
-}
+function<bool(const Event::Holder&,const Event::Holder&)> VideoEventStackFilter_Impl::EVENTLIST_COMPARATOR = [] (const Event::Holder& a, const Event::Holder& b)
+{ return Event::EVENT_ORDER_COMPARATOR(*a, *b); };
 
-function<bool (EventStackFilter::Event*, EventStackFilter::Event*)> EventStackFilter_Impl::EVENT_COMPARATOR =
-[] (EventStackFilter::Event* a, EventStackFilter::Event* b)
-{ return a->Z() < b->Z() || (a->Z() == b->Z() && a->Start() < b->Start()); };
-
-EventStackFilter_Impl::Event_Impl* EventStackFilter_Impl::Event_Impl::LoadFromJson(
-        EventStackFilter_Impl* owner, const imgui_json::value& eventJson, const BluePrint::BluePrintCallbackFunctions& bpCallbacks)
+Event::Holder VideoEventStackFilter_Impl::VideoEvent_Impl::LoadFromJson(
+        VideoEventStackFilter_Impl* owner, const imgui_json::value& eventJson, const BluePrint::BluePrintCallbackFunctions& bpCallbacks)
 {
     owner->m_logger->Log(DEBUG) << "Load EventJson : " << eventJson.dump() << endl;
-    EventStackFilter_Impl::Event_Impl* pEvent = new EventStackFilter_Impl::Event_Impl(owner);
+    auto pEvtImpl = new VideoEventStackFilter_Impl::VideoEvent_Impl(owner);
+    Event::Holder hEvt(pEvtImpl, VIDEO_EVENT_DELETER);
     string itemName = "id";
     if (eventJson.contains(itemName) && eventJson[itemName].is_number())
     {
-        pEvent->m_id = eventJson[itemName].get<imgui_json::number>();
+        pEvtImpl->m_id = eventJson[itemName].get<imgui_json::number>();
     }
     else
     {
         owner->m_errMsg = "BAD event json! Missing '"+itemName+"'.";
-        delete pEvent;
         return nullptr;
     }
     itemName = "start";
     if (eventJson.contains(itemName) && eventJson[itemName].is_number())
     {
-        pEvent->m_start = eventJson[itemName].get<imgui_json::number>();
+        pEvtImpl->m_start = eventJson[itemName].get<imgui_json::number>();
     }
     else
     {
         owner->m_errMsg = "BAD event json! Missing '"+itemName+"'.";
-        delete pEvent;
         return nullptr;
     }
     itemName = "end";
     if (eventJson.contains(itemName) && eventJson[itemName].is_number())
     {
-        pEvent->m_end = eventJson[itemName].get<imgui_json::number>();
+        pEvtImpl->m_end = eventJson[itemName].get<imgui_json::number>();
     }
     else
     {
         owner->m_errMsg = "BAD event json! Missing '"+itemName+"'.";
-        delete pEvent;
         return nullptr;
     }
     itemName = "z";
     if (eventJson.contains(itemName) && eventJson[itemName].is_number())
     {
-        pEvent->m_z = eventJson[itemName].get<imgui_json::number>();
+        pEvtImpl->m_z = eventJson[itemName].get<imgui_json::number>();
     }
     else
     {
         owner->m_errMsg = "BAD event json! Missing '"+itemName+"'.";
-        delete pEvent;
         return nullptr;
     }
     itemName = "bp";
     if (eventJson.contains(itemName))
     {
-        pEvent->m_pBp = new BluePrint::BluePrintUI();
-        pEvent->m_pBp->Initialize();
-        pEvent->m_pBp->SetCallbacks(bpCallbacks, reinterpret_cast<void*>(static_cast<MediaCore::VideoFilter*>(owner)));
+        auto pBp = pEvtImpl->m_pBp = new BluePrint::BluePrintUI();
+        pBp->Initialize();
+        pBp->SetCallbacks(bpCallbacks, reinterpret_cast<void*>(static_cast<MediaCore::VideoFilter*>(owner)));
         auto bpJson = eventJson[itemName];
-        pEvent->m_pBp->File_New_Filter(bpJson, "VideoFilter", "Video");
-        if (!pEvent->m_pBp->Blueprint_IsValid())
+        pBp->File_New_Filter(bpJson, "VideoFilter", "Video");
+        if (!pBp->Blueprint_IsValid())
         {
             owner->m_errMsg = "BAD event json! Invalid blueprint json.";
-            delete pEvent;
             return nullptr;
         }
     }
     else
     {
         owner->m_errMsg = "BAD event json! Missing '"+itemName+"'.";
-        delete pEvent;
         return nullptr;
     }
     itemName = "kp";
     if (eventJson.contains(itemName))
     {
-        pEvent->m_pKp = new ImGui::KeyPointEditor();
-        pEvent->m_pKp->Load(eventJson[itemName]);
-        pEvent->m_pKp->SetRangeX(0, pEvent->Length(), true);
+        auto pKp = pEvtImpl->m_pKp = new ImGui::KeyPointEditor();
+        pKp->Load(eventJson[itemName]);
+        pKp->SetRangeX(0, pEvtImpl->Length(), true);
     }
     else
     {
         owner->m_errMsg = "BAD event json! Missing '"+itemName+"'.";
-        delete pEvent;
         return nullptr;
     }
-    return pEvent;
+    return hEvt;
 }
 
-static const auto EVENT_STACK_FILTER_DELETER = [] (VideoFilter* p) {
-    EventStackFilter_Impl* ptr = dynamic_cast<EventStackFilter_Impl*>(p);
+const function<void(Event*)> VideoEventStackFilter_Impl::VIDEO_EVENT_DELETER = [] (Event* p) {
+    VideoEventStackFilter_Impl::VideoEvent_Impl* ptr = dynamic_cast<VideoEventStackFilter_Impl::VideoEvent_Impl*>(p);
     delete ptr;
 };
 
-VideoFilter::Holder EventStackFilter::CreateInstance(const BluePrint::BluePrintCallbackFunctions& bpCallbacks)
+static const auto VIDEO_EVENT_STACK_FILTER_DELETER = [] (VideoFilter* p) {
+    VideoEventStackFilter_Impl* ptr = dynamic_cast<VideoEventStackFilter_Impl*>(p);
+    delete ptr;
+};
+
+VideoFilter::Holder VideoEventStackFilter::CreateInstance(const BluePrint::BluePrintCallbackFunctions& bpCallbacks)
 {
-    return VideoFilter::Holder(new EventStackFilter_Impl(bpCallbacks), EVENT_STACK_FILTER_DELETER);
+    return VideoFilter::Holder(new VideoEventStackFilter_Impl(bpCallbacks), VIDEO_EVENT_STACK_FILTER_DELETER);
 }
 
-VideoFilter::Holder EventStackFilter::LoadFromJson(const imgui_json::value& json, const BluePrint::BluePrintCallbackFunctions& bpCallbacks)
+VideoFilter::Holder VideoEventStackFilter::LoadFromJson(const imgui_json::value& json, const BluePrint::BluePrintCallbackFunctions& bpCallbacks)
 {
     if (!json.contains("name") || !json["name"].is_string())
         return nullptr;
     string filterName = json["name"].get<imgui_json::string>();
     if (filterName != "EventStackFilter")
         return nullptr;
-    auto pFilter = new EventStackFilter_Impl(bpCallbacks);
+    auto pFilter = new VideoEventStackFilter_Impl(bpCallbacks);
     if (json.contains("events") && json["events"].is_array())
     {
         auto& evtAry = json["events"].get<imgui_json::array>();
         for (auto& evtJson : evtAry)
         {
-            auto pEvent = EventStackFilter_Impl::Event_Impl::LoadFromJson(pFilter, evtJson, bpCallbacks);
+            auto pEvent = VideoEventStackFilter_Impl::VideoEvent_Impl::LoadFromJson(pFilter, evtJson, bpCallbacks);
             if (!pEvent)
             {
                 Log(Error) << "FAILED to create EventStackFilter::Event isntance from Json! Error is '" << pFilter->GetError() << "'." << endl;
@@ -539,6 +526,6 @@ VideoFilter::Holder EventStackFilter::LoadFromJson(const imgui_json::value& json
     }
     if (!pFilter)
         return nullptr;
-    return VideoFilter::Holder(pFilter, EVENT_STACK_FILTER_DELETER);
+    return VideoFilter::Holder(pFilter, VIDEO_EVENT_STACK_FILTER_DELETER);
 }
 }
