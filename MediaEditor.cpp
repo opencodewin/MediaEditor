@@ -3517,6 +3517,33 @@ static void ShowMediaOutputWindow(ImDrawList *_draw_list)
                     vidEncParams.height = g_media_editor_settings.OutputVideoResolutionHeight;
                     vidEncParams.frameRate = g_media_editor_settings.OutputVideoFrameRate;
                     vidEncParams.bitRate = g_media_editor_settings.OutputVideoBitrate;
+                    auto outColorspaceValue = ColorSpace[g_media_editor_settings.OutputColorSpaceIndex].tag;
+                    switch (outColorspaceValue)
+                    {
+                    case AVCOL_SPC_BT709:
+                        vidEncParams.extraOpts.push_back({"color_primaries", MediaCore::Value((int)AVCOL_PRI_BT709)});
+                        break;
+                    case AVCOL_SPC_FCC:
+                        vidEncParams.extraOpts.push_back({"color_primaries", MediaCore::Value((int)AVCOL_PRI_BT470M)});
+                        break;
+                    case AVCOL_SPC_BT470BG:
+                        vidEncParams.extraOpts.push_back({"color_primaries", MediaCore::Value((int)AVCOL_PRI_BT470BG)});
+                        break;
+                    case AVCOL_SPC_SMPTE170M:
+                        vidEncParams.extraOpts.push_back({"color_primaries", MediaCore::Value((int)AVCOL_PRI_SMPTE170M)});
+                        break;
+                    case AVCOL_SPC_SMPTE240M:
+                        vidEncParams.extraOpts.push_back({"color_primaries", MediaCore::Value((int)AVCOL_PRI_SMPTE240M)});
+                        break;
+                    case AVCOL_SPC_BT2020_NCL:
+                    case AVCOL_SPC_BT2020_CL:
+                        vidEncParams.extraOpts.push_back({"color_primaries", MediaCore::Value((int)AVCOL_PRI_BT2020)});
+                        break;
+                    default:
+                        vidEncParams.extraOpts.push_back({"color_primaries", MediaCore::Value((int)AVCOL_PRI_UNSPECIFIED)});
+                    }
+                    vidEncParams.extraOpts.push_back({"colorspace", MediaCore::Value((int)outColorspaceValue)});
+                    vidEncParams.extraOpts.push_back({"color_trc", MediaCore::Value((int)(ColorTransfer[g_media_editor_settings.OutputColorTransferIndex].tag))});
                     TimeLine::AudioEncoderParams audEncParams;
                     audEncParams.codecName = g_currAudEncDescList[g_media_editor_settings.OutputAudioCodecTypeIndex].codecName;
                     audEncParams.channels = g_media_editor_settings.OutputAudioChannels;
