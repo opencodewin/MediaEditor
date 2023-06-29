@@ -17,4 +17,10 @@ function<bool(const Event&,const Event&)> Event::EVENT_ORDER_COMPARATOR = [] (co
 {
     return a.Z() < b.Z() || (a.Z() == b.Z() && a.Start() < b.Start());
 };
+
+ostream& operator<<(ostream& os, const Event& e)
+{
+    os << "{\"id\":" << e.Id() << ", \"start\":" << e.Start() << ", \"end\":" << e.End() << ", \"length\":" << e.Length() << "}";
+    return os;
+}
 }

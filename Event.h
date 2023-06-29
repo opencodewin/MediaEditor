@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <memory>
 #include <functional>
+#include <ostream>
 #include "UI.h"
 #include "imgui_curve.h"
 
@@ -27,5 +28,7 @@ namespace MEC
         virtual void SetStatus(uint32_t status) = 0;
         virtual void SetStatus(int bit, int val) = 0;
         virtual std::string GetError() const = 0;
+
+        friend std::ostream& operator<<(std::ostream& os, const Event& e);
     };
 }

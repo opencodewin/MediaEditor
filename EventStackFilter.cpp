@@ -563,4 +563,21 @@ VideoFilter::Holder VideoEventStackFilter::LoadFromJson(const imgui_json::value&
         return nullptr;
     return VideoFilter::Holder(pFilter, VIDEO_EVENT_STACK_FILTER_DELETER);
 }
+
+ostream& operator<<(ostream& os, const EventStack& estk)
+{
+    auto eventList = estk.GetEventList();
+    if (eventList.empty())
+    {
+        os << "[(empty)]";
+        return os;
+    }
+    os << "[";
+    for (auto& e : eventList)
+    {
+        os << *e << ", ";
+    }
+    os << "]";
+    return os;
+}
 }

@@ -30,6 +30,8 @@ namespace MEC
         virtual void* GetTimelineHandle() const = 0;
         virtual std::string GetError() const = 0;
         virtual void SetLogLevel(Logger::Level l) = 0;
+
+        friend std::ostream& operator<<(std::ostream& os, const EventStack& e);
     };
 
     struct VideoEventStackFilter : public MediaCore::VideoFilter, EventStack
