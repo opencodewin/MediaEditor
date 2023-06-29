@@ -290,11 +290,7 @@ EventTrack* EventTrack::Load(const imgui_json::value& value, void * handle)
             for (auto& id_val : *eventIDArray)
             {
                 int64_t event_id = id_val.get<imgui_json::number>();
-                //Event * event = clip->FindEventByID(event_id);
-                //if (event)
-                //{
-                //    new_track->m_Events.push_back(event);
-                //}
+                new_track->m_Events.push_back(event_id);
             }
         }
     }
@@ -307,28 +303,37 @@ void EventTrack::Save(imgui_json::value& value)
     value["ClipID"] = imgui_json::number(mClipID);
     value["Expanded"] = imgui_json::boolean(mExpanded);
     // save event ids
-    //imgui_json::value events;
-    //for (auto event : m_Events)
-    //{
-    //    imgui_json::value event_id_value = imgui_json::number(event->mID);
-    //    events.push_back(event_id_value);
-    //}
-    //if (m_Events.size() > 0) value["EventIDS"] = events;
+    imgui_json::value events;
+    for (auto event : m_Events)
+    {
+        imgui_json::value event_id_value = imgui_json::number(event);
+        events.push_back(event_id_value);
+    }
+    if (m_Events.size() > 0) value["EventIDS"] = events;
 }
 
 void EventTrack::DrawContent(ImDrawList *draw_list, ImRect rect, int event_height, int64_t view_start, int64_t view_end, float pixelWidthMS)
 {
+    TimeLine * timeline = (TimeLine *)mHandle;
+    if (!timeline)
+        return;
+    auto clip = timeline->FindClipByID(mClipID);
+    if (!clip || !clip->mEventStack)
+        return;
+
     ImGui::PushClipRect(rect.Min, rect.Max, true);
     ImGui::SetCursorScreenPos(rect.Min);
     bool mouse_clicked = false;
 
     // draw events
-    for (auto event : m_Events)
+    for (auto event_id : m_Events)
     {
         bool draw_event = false;
         float cursor_start = 0;
         float cursor_end  = 0;
         ImDrawFlags flag = ImDrawFlags_RoundCornersNone;
+        auto event = clip->mEventStack->GetEvent(event_id);
+        if (!event) continue;
         if (event->IsInRange(view_start) && event->End() <= view_end)
         {
             /***********************************************************
@@ -421,7 +426,7 @@ void EventTrack::DrawContent(ImDrawList *draw_list, ImRect rect, int event_heigh
     ImGui::PopClipRect();
 }
 
-void EventTrack::SelectEvent(MEC::Event * event, bool appand)
+void EventTrack::SelectEvent(MEC::Event::Holder event, bool appand)
 {
     TimeLine * timeline = (TimeLine *)mHandle;
     if (!timeline || !event)
@@ -436,287 +441,97 @@ void EventTrack::SelectEvent(MEC::Event * event, bool appand)
     {
         selected = false;
     }
-    for (auto _event : clip->mEvents)
+
+    if (clip->mEventStack)
     {
-        if (_event->Id() != event->Id())
+        auto event_list = clip->mEventStack->GetEventList();
+        for (auto _event : event_list)
         {
-            if (!appand)
+            if (_event->Id() != event->Id())
             {
-                _event->SetStatus(EVENT_SELECTED_BIT, selected ? 0 : 1);
+                if (!appand)
+                {
+                    _event->SetStatus(EVENT_SELECTED_BIT, selected ? 0 : 1);
+                }
             }
         }
     }
     event->SetStatus(EVENT_SELECTED_BIT, selected ? 1 : 0);
 }
 
-void EventTrack::Update()
+MEC::Event::Holder EventTrack::FindPreviousEvent(int64_t id)
 {
-    // sort m_Events by start time
-    //std::sort(m_Events.begin(), m_Events.end(), [](const Event *a, const Event* b) {
-    //    return a->mStart < b->mStart;
-    //});
-}
+    MEC::Event::Holder found_event = nullptr;
+    TimeLine * timeline = (TimeLine *)mHandle;
+    if (!timeline) return found_event;
+    auto clip = timeline->FindClipByID(mClipID);
+    if (!clip) return found_event;
+    auto event = clip->FindEventByID(id);
+    if (!event) return found_event;
 
-MEC::Event* EventTrack::FindPreviousEvent(int64_t id)
-{
-    MEC::Event * found_event = nullptr;
-#if 0
-    auto iter = std::find_if(m_Events.begin(), m_Events.end(), [id](const Event* e) {
-        return e->mID == id;
+    auto iter = std::find_if(m_Events.begin(), m_Events.end(), [id](const int64_t e) {
+        return e == id;
     });
     if (iter == m_Events.begin() || iter == m_Events.end())
         return found_event;
-    found_event = *(iter - 1);
-#endif
+    found_event = clip->FindEventByID(*(iter - 1));
     return found_event;
 }
 
-MEC::Event* EventTrack::FindNextEvent(int64_t id)
+MEC::Event::Holder EventTrack::FindNextEvent(int64_t id)
 {
-    MEC::Event * found_event = nullptr;
-#if 0
-    auto iter = std::find_if(m_Events.begin(), m_Events.end(), [id](const Event* e) {
-        return e->mID == id;
+    MEC::Event::Holder found_event = nullptr;
+    TimeLine * timeline = (TimeLine *)mHandle;
+    if (!timeline) return found_event;
+    auto clip = timeline->FindClipByID(mClipID);
+    if (!clip) return found_event;
+    auto event = clip->FindEventByID(id);
+    if (!event) return found_event;
+
+    auto iter = std::find_if(m_Events.begin(), m_Events.end(), [id](const int64_t e) {
+        return e == id;
     });
     if (iter == m_Events.end() || iter == m_Events.end() - 1)
         return found_event;
-    found_event = *(iter + 1);
-#endif
+    found_event = clip->FindEventByID(*(iter + 1));
     return found_event;
 }
 
 int64_t EventTrack::FindEventSpace(int64_t time)
 {
     int64_t space = -1;
-#if 0
-    for (auto event : m_Events)
+    TimeLine * timeline = (TimeLine *)mHandle;
+    if (!timeline) return space;
+    auto clip = timeline->FindClipByID(mClipID);
+    if (!clip) return space;
+    for (auto event_id : m_Events)
     {
-        if (event->mStart >= time)
+        auto event = clip->FindEventByID(event_id);
+        if (event && event->Start() >= time)
         {
-            space = event->mStart - time;
+            space = event->Start() - time;
             break;
         }
     }
-#endif
     return space;
 }
 
-#if 0
-/***********************************************************************************************************
- * Event Struct Member Functions
- ***********************************************************************************************************/
-Event::Event(int64_t start, int64_t end, int64_t id, int index, void* handle)
+void EventTrack::Update()
 {
-    TimeLine * timeline = (TimeLine *)handle;
-    mID = timeline ? timeline->m_IDGenerator.GenerateID() : ImGui::get_current_time_usec();
-    mStart = start;
-    mEnd = end;
-    mClipID = id;
-    mIndex = index;
-    mHandle = handle;
-    mEventKeyPoints.SetMin({0.f, 0.f});
-    mEventKeyPoints.SetMax(ImVec2(mEnd-mStart, 1.f), true);
-}
-
-Event::~Event()
-{
-}
-
-Event * Event::Load(const imgui_json::value& value, void * handle)
-{
-    int64_t id = -1;
-    int64_t clip_id = -1;
-    int64_t start = -1;
-    int64_t end = -1;
-    int index = -1;
-    if (value.contains("ID"))
-    {
-        auto& val = value["ID"];
-        if (val.is_number()) id = val.get<imgui_json::number>();
-    }
-    if (value.contains("ClipID"))
-    {
-        auto& val = value["ClipID"];
-        if (val.is_number()) clip_id = val.get<imgui_json::number>();
-    }
-    if (value.contains("Start"))
-    {
-        auto& val = value["Start"];
-        if (val.is_number()) start = val.get<imgui_json::number>();
-    }
-    if (value.contains("End"))
-    {
-        auto& val = value["End"];
-        if (val.is_number()) end = val.get<imgui_json::number>();
-    }
-    if (value.contains("Index"))
-    {
-        auto& val = value["Index"];
-        if (val.is_number()) index = val.get<imgui_json::number>();
-    }
-    
-    if (id <= 0 || start < 0 || end < 0 || end <= start || index < 0)
-        return nullptr;
-
-    Event * event = new Event(start, end, clip_id, index, handle);
-    if (!event) return nullptr;
-
-    event->mID = id;
-    // load Event bp
-    if (value.contains("EventBP"))
-    {
-        auto& val = value["EventBP"];
-        if (val.is_object()) event->mEventBP = val;
-    }
-
-    // load Event curve
-    if (value.contains("EventKeyPoints"))
-    {
-        auto& keypoint = value["EventKeyPoints"];
-        event->mEventKeyPoints.Load(keypoint);
-    }
-    return event;
-}
-
-void Event::Save(imgui_json::value& value)
-{
-    value["ID"] = imgui_json::number(mID);
-    value["ClipID"] = imgui_json::number(mClipID);
-    value["Start"] = imgui_json::number(mStart);
-    value["End"] = imgui_json::number(mEnd);
-    value["Index"] = imgui_json::number(mIndex);
-
-    // save event bp
-    if (mEventBP.is_object())
-    {
-        value["EventBP"] = mEventBP;
-    }
-
-    // save event curve setting
-    imgui_json::value event_keypoint;
-    mEventKeyPoints.Save(event_keypoint);
-    value["EventKeyPoints"] = event_keypoint;
-}
-
-void Event::Moving(int64_t diff, int64_t mouse)
-{
-    ImGuiIO &io = ImGui::GetIO();
     TimeLine * timeline = (TimeLine *)mHandle;
     if (!timeline) return;
     auto clip = timeline->FindClipByID(mClipID);
     if (!clip) return;
-    if (mIndex < 0 || mIndex >= clip->mEventTracks.size()) return;
-    auto track = clip->mEventTracks[mIndex];
-    int64_t length = mEnd - mStart;
-    bMoving = true;
-    auto new_diff = diff;
-    auto prev_event = track->FindPreviousEvent(mID);
-    auto next_event = track->FindNextEvent(mID);
-    if (diff < 0)
-    {
-        // moving backward
-        if (prev_event && mStart + diff < prev_event->mEnd)
-        {
-            if (mouse < prev_event->mStart)
-            {
-                int64_t space = 0;
-                auto pprev_event = track->FindPreviousEvent(prev_event->mID);
-                if (pprev_event)
-                    space = prev_event->mStart - pprev_event->mEnd;
-                else
-                    space = prev_event->mStart;
-                if (space >= length)
-                    new_diff = prev_event->mStart - length - mStart;
-                else
-                    new_diff = prev_event->mEnd - mStart;
-            }
-            else
-                new_diff = prev_event->mEnd - mStart;
-        }
-    }
-    else
-    {
-        // moving forward
-        if (next_event && mEnd + diff > next_event->mStart)
-        {
-            if (mouse > next_event->mEnd)
-            {
-                int64_t space = 0;
-                auto nnext_event = track->FindNextEvent(next_event->mID);
-                if (nnext_event)
-                    space = nnext_event->mStart - next_event->mEnd;
-                else
-                    space = clip->Length() - next_event->mEnd;
-                if (space >= length)
-                    new_diff = next_event->mEnd - mStart;
-                else
-                    new_diff = next_event->mStart - mEnd;
-            }
-            else
-                new_diff = next_event->mStart - mEnd;
-        }
-    }
-    mStart += new_diff;
-    if (mStart < 0) mStart = 0;
-    if (mStart + length > clip->Length())
-        mStart = clip->Length() - length;
-
-    alignTime(mStart, clip->frame_duration);
-    mEnd = mStart + length;
-    track->Update();
-    bMoving = false;
+    // sort m_Events by start time
+    std::sort(m_Events.begin(), m_Events.end(), [clip](const int64_t a, const int64_t b) {
+        auto a_event = clip->FindEventByID(a);
+        auto b_event = clip->FindEventByID(b);
+        if (a_event && b_event)
+            return a_event->Start() < b_event->Start();
+        else
+            return false;
+    });
 }
-
-int64_t Event::Cropping(int64_t diff, int type)
-{
-    TimeLine * timeline = (TimeLine *)mHandle;
-    if (!timeline) return 0;
-    auto clip = timeline->FindClipByID(mClipID);
-    if (!clip) return 0;
-    if (mIndex < 0 || mIndex >= clip->mEventTracks.size()) return 0;
-    auto track = clip->mEventTracks[mIndex];
-    int64_t new_diff = diff;
-    auto prev_event = track->FindPreviousEvent(mID);
-    auto next_event = track->FindNextEvent(mID);
-    // cropping start
-    if (type == 0)
-    {
-        if (diff < 0)
-        {
-            // crop backward
-            if (prev_event && mStart + diff < prev_event->mEnd)
-                new_diff = prev_event->mEnd - mStart;
-        }
-        mStart += new_diff;
-        if (mStart < 0) mStart = 0;
-        if (mStart >= mEnd) mStart = mEnd - clip->frame_duration;
-        alignTime(mStart, clip->frame_duration);
-        new_diff = mStart - new_diff;
-    }
-    // cropping end
-    else
-    {
-        if (diff > 0)
-        {
-            // crop forward
-            if (next_event && mEnd + diff > next_event->mStart)
-                new_diff = next_event->mStart - mEnd;
-        }
-        mEnd += new_diff;
-        if (mEnd > clip->Length()) mEnd = clip->Length();
-        if (mEnd <= mStart) mEnd = mStart + clip->frame_duration;
-        alignTime(mEnd, clip->frame_duration);
-        new_diff = mEnd - new_diff;
-    }
-    // TODO::   need update event curve
-    return new_diff;
-}
-
-void Event::DrawTooltips()
-{
-
-}
-#endif
 } //namespace MediaTimeline
 
 namespace MediaTimeline
@@ -821,18 +636,7 @@ void Clip::Load(Clip * clip, const imgui_json::value& value)
         clip->mAttributeKeyPoints.Load(keypoint);
     }
 
-    // load event
-    //const imgui_json::array* eventArray = nullptr;
-    //if (imgui_json::GetPtrTo(value, "Events", eventArray))
-    //{
-    //    for (auto& event : *eventArray)
-    //    {
-    //        Event * pevent = Event::Load(event, clip->mHandle);
-    //        if (pevent)
-    //            clip->mEvents.push_back(pevent);
-    //    }
-    //}
-    // load event event
+    // load event track
     const imgui_json::array* eventTrackArray = nullptr;
     if (imgui_json::GetPtrTo(value, "EventTracks", eventTrackArray))
     {
@@ -879,16 +683,6 @@ void Clip::Save(imgui_json::value& value)
     mAttributeKeyPoints.Save(attribute_keypoint);
     value["AttributeKeyPoint"] = attribute_keypoint;
 
-    // save event
-    //imgui_json::value events;
-    //for (auto event : mEvents)
-    //{
-    //    imgui_json::value e;
-    //    event->Save(e);
-    //    events.push_back(e);
-    //}
-    //if (mEvents.size() > 0) value["Events"] = events;
-
     // save event track
     imgui_json::value event_tracks;
     for (auto track : mEventTracks)
@@ -899,19 +693,6 @@ void Clip::Save(imgui_json::value& value)
     }
     if (mEventTracks.size() > 0) value["EventTracks"] = event_tracks;
 
-}
-
- MEC::Event * Clip::FindEventByID(int64_t id)
-{
-#if 0
-    auto iter = std::find_if(mEvents.begin(), mEvents.end(), [id](const Event* event)
-    {
-        return event->mID == id;
-    });
-    if (iter != mEvents.end())
-        return *iter;
-#endif
-    return nullptr;
 }
 
 int64_t Clip::Cropping(int64_t diff, int type)
@@ -1514,28 +1295,35 @@ int Clip::AddEventTrack()
     return mEventTracks.size() - 1;;
 }
 
-MEC::Event* Clip::AddEvent(int track, int64_t start, int64_t duration, void* data)
+bool Clip::AddEvent(int track, int64_t start, int64_t duration, void* data)
 {
-    if (track >= mEventTracks.size() || !data)
-        return nullptr;
-#if 0
-    Event* event = new Event(start, start + duration, mID, track, mHandle);
-    if (event)
+    if (!mEventStack || track >= mEventTracks.size() || !data)
+        return false;
+    TimeLine * timeline = (TimeLine *)mHandle;
+    int64_t id = timeline ? timeline->m_IDGenerator.GenerateID() : ImGui::get_current_time_usec();
+
+    auto event = mEventStack->AddNewEvent(id, start, start + duration, track);
+    if (!event)
     {
-        mEvents.push_back(event);
-        mEventTracks[track]->m_Events.push_back(event);
-        mEventTracks[track]->Update();
+        auto err_str = mEventStack->GetError();
+        return false;
     }
-    return event;
-#else
-    return nullptr;
-#endif
+    // Create BP and set node into BP
+    auto event_bp = event->GetBp();
+    if (event_bp)
+    {
+        
+    }
+
+    mEventTracks[track]->m_Events.push_back(event->Id());
+    return true;
 }
 
-bool Clip::AppendEvent(MEC::Event * event, void* data)
+bool Clip::AppendEvent(MEC::Event::Holder event, void* data)
 {
-	if (!event || !data)
+	if (!mEventStack || !event || !data)
         return false;
+    // TODO::Dicky need add node into event's BP
     return false;
 }
 
@@ -1565,6 +1353,129 @@ void Clip::ChangeEndOffset(int64_t newOffset)
     mEnd -= newOffset-mEndOffset;
     mEndOffset = newOffset;
 }
+
+// clip event editing
+MEC::Event::Holder Clip::FindEventByID(int64_t id)
+{
+    if (!mEventStack)
+        return nullptr;
+    return mEventStack->GetEvent(id);
+}
+
+void Clip::EventMoving(int64_t event_id, int64_t diff, int64_t mouse)
+{
+    auto event = FindEventByID(event_id);
+    if (!event || !(event->Status() & EVENT_SELECTED)) return;
+    auto index = event->Z();
+    if (index < 0 || index >= mEventTracks.size()) return;
+    auto track = mEventTracks[index];
+    int64_t length = event->Length();
+    auto new_diff = diff;
+    auto prev_event = track->FindPreviousEvent(event->Id());
+    auto next_event = track->FindNextEvent(event->Id());
+
+    if (diff < 0)
+    {
+        // moving backward
+        if (prev_event && event->Start() + diff < prev_event->End())
+        {
+            if (mouse < prev_event->Start())
+            {
+                int64_t space = 0;
+                auto pprev_event = track->FindPreviousEvent(prev_event->Id());
+                if (pprev_event)
+                    space = prev_event->Start() - pprev_event->End();
+                else
+                    space = prev_event->Start();
+                if (space >= length)
+                    new_diff = prev_event->Start() - length - event->Start();
+                else
+                    new_diff = prev_event->End() - event->Start();
+            }
+            else
+                new_diff = prev_event->End() - event->Start();
+        }
+    }
+    else
+    {
+        // moving forward
+        if (next_event && event->End() + diff > next_event->Start())
+        {
+            if (mouse > next_event->End())
+            {
+                int64_t space = 0;
+                auto nnext_event = track->FindNextEvent(next_event->Id());
+                if (nnext_event)
+                    space = nnext_event->Start() - next_event->End();
+                else
+                    space = Length() - next_event->End();
+                if (space >= length)
+                    new_diff = next_event->End() - event->Start();
+                else
+                    new_diff = next_event->Start() - event->End();
+            }
+            else
+                new_diff = next_event->Start() - event->End();
+        }
+    }
+    auto new_start = event->Start() + new_diff;
+    if (new_start < 0) new_start = 0;
+    if (new_start + length > Length())
+        new_start = Length() - length;
+    alignTime(new_start, frame_duration);
+    //auto new_end = new_start + length;
+    //event->ChangeRange(new_start, new_end);
+    event->Move(new_start, index);
+    track->Update();
+}
+
+int64_t Clip::EventCropping(int64_t event_id, int64_t diff, int type)
+{
+    auto event = FindEventByID(event_id);
+    if (!event || !(event->Status() & EVENT_SELECTED)) return 0;
+    auto index = event->Z();
+    if (index < 0 || index >= mEventTracks.size()) return 0;
+    auto track = mEventTracks[index];
+    int64_t new_diff = diff;
+    auto prev_event = track->FindPreviousEvent(event->Id());
+    auto next_event = track->FindNextEvent(event->Id());
+    if (type == 0)
+    {
+        // cropping start
+        if (diff < 0)
+        {
+            // crop backward
+            if (prev_event && event->Start() + diff < prev_event->End())
+                new_diff = prev_event->End() - event->Start();
+        }
+        auto new_start = event->Start() + new_diff;
+        if (new_start < 0) new_start = 0;
+        if (new_start >= event->End()) new_start = event->End() - frame_duration;
+        alignTime(new_start, frame_duration);
+        new_diff = new_start - new_diff;
+        event->ChangeRange(new_start, event->End());
+    }
+    else
+    {
+        // cropping end
+        if (diff > 0)
+        {
+            // crop forward
+            if (next_event && event->End() + diff > next_event->Start())
+                new_diff = next_event->Start() - event->End();
+        }
+        auto new_end = event->End() + new_diff;
+        if (new_end > Length()) new_end = Length();
+        if (new_end <= event->Start()) new_end = event->Start() + frame_duration;
+        alignTime(new_end, frame_duration);
+        new_diff = new_end - new_diff;
+        event->ChangeRange(event->Start(), new_end);
+    }
+    // TODO::   need update event curve
+    track->Update();
+    return new_diff;
+}
+
 } // namespace MediaTimeline
 
 namespace MediaTimeline
@@ -2132,10 +2043,13 @@ void VideoClip::SyncFilterWithDataLayer(MediaCore::VideoClip::Holder hClip, bool
         {
             MEC::VideoEventStackFilter* pEsf = dynamic_cast<MEC::VideoEventStackFilter*>(hNewFilter.get());
             pEsf->SetTimelineHandle(mHandle);
+#ifdef USING_OLD_UI
             if (isNewFilter)
                 pEsf->AddNewEvent(0, 0, hClip->Duration(), 0);
             pEsf->SetEditingEvent(0);
+#endif
             hClip->SetFilter(hNewFilter);
+            mEventStack = static_cast<MEC::EventStack*>(pEsf);
         }
         else
         {
@@ -3291,6 +3205,7 @@ void EditingVideoClip::Save()
     clip->visibleTime = visibleTime;
     clip->msPixelWidthTarget = msPixelWidthTarget;
 #if USE_EVENTSTACK_FILTER
+#ifdef USING_OLD_UI
     if (mFilterBp && mFilterBp->Blueprint_IsValid())
     {
         auto filterName = mFilter->GetFilterName();
@@ -3300,6 +3215,17 @@ void EditingVideoClip::Save()
             clip->mFilterJson = pEsf->SaveAsJson();
         }
     }
+#else
+    if (mFilter)
+    {
+        auto filterName = mFilter->GetFilterName();
+        if (filterName == "EventStackFilter")
+        {
+            MEC::VideoEventStackFilter* pEsf = dynamic_cast<MEC::VideoEventStackFilter*>(mFilter);
+            clip->mFilterJson = pEsf->SaveAsJson();
+        }
+    }
+#endif
 #else
     if (mFilterBp && mFilterBp->Blueprint_IsValid())
     {
@@ -7008,6 +6934,7 @@ void TimeLine::CustomDraw(
             draw_list->PushClipRect(clip_title_pos_min, clip_title_pos_max, true);
             draw_list->AddText(clip_title_pos_min + ImVec2(4, 0), IM_COL32_WHITE, IS_TEXT(clip->mType) ? "T" : clip->mName.c_str());
             
+#ifdef USING_OLD_UI
             // add clip filter curve point
             ImGui::KeyPointEditor* keypoint_filter = &clip->mFilterKeyPoints;
             if (mVidFilterClip && mVidFilterClip->mID == clip->mID && mVidFilterClip->mFilter)
@@ -7018,17 +6945,20 @@ void TimeLine::CustomDraw(
             {
                 keypoint_filter = &mAudFilterClip->mFilter->mKeyPoints;
             }
-            for (int i = 0; i < keypoint_filter->GetCurveCount(); i++)
+            if (keypoint_filter)
             {
-                auto curve_color = keypoint_filter->GetCurveColor(i);
-                for (int p = 0; p < keypoint_filter->GetCurvePointCount(i); p++)
+                for (int i = 0; i < keypoint_filter->GetCurveCount(); i++)
                 {
-                    auto point = keypoint_filter->GetPoint(i, p);
-                    auto pos = point.point.x + clip->Start();
-                    if (pos >= firstTime && pos <= viewEndTime)
+                    auto curve_color = keypoint_filter->GetCurveColor(i);
+                    for (int p = 0; p < keypoint_filter->GetCurvePointCount(i); p++)
                     {
-                        ImVec2 center = ImVec2(clippingRect.Min.x + (pos - firstTime) * msPixelWidthTarget, clip_title_pos_min.y + (clip_title_pos_max.y - clip_title_pos_min.y) / 2);
-                        draw_list->AddCircle(center, 3, curve_color, 0, 2);
+                        auto point = keypoint_filter->GetPoint(i, p);
+                        auto pos = point.point.x + clip->Start();
+                        if (pos >= firstTime && pos <= viewEndTime)
+                        {
+                            ImVec2 center = ImVec2(clippingRect.Min.x + (pos - firstTime) * msPixelWidthTarget, clip_title_pos_min.y + (clip_title_pos_max.y - clip_title_pos_min.y) / 2);
+                            draw_list->AddCircle(center, 3, curve_color, 0, 2);
+                        }
                     }
                 }
             }
@@ -7039,21 +6969,24 @@ void TimeLine::CustomDraw(
             {
                 keypoint_attribute = mVidFilterClip->mAttribute->GetKeyPoint();
             }
-            for (int i = 0; i < keypoint_attribute->GetCurveCount(); i++)
+            if (keypoint_attribute)
             {
-                auto curve_color = keypoint_attribute->GetCurveColor(i);
-                for (int p = 0; p < keypoint_attribute->GetCurvePointCount(i); p++)
+                for (int i = 0; i < keypoint_attribute->GetCurveCount(); i++)
                 {
-                    auto point = keypoint_attribute->GetPoint(i, p);
-                    auto pos = point.point.x + clip->Start();
-                    if (pos >= firstTime && pos <= viewEndTime)
+                    auto curve_color = keypoint_attribute->GetCurveColor(i);
+                    for (int p = 0; p < keypoint_attribute->GetCurvePointCount(i); p++)
                     {
-                        ImVec2 center = ImVec2(clippingRect.Min.x + (pos - firstTime) * msPixelWidthTarget, clip_title_pos_min.y + (clip_title_pos_max.y - clip_title_pos_min.y) / 2);
-                        draw_list->AddRect(center - ImVec2(3, 3), center + ImVec2(3, 3), curve_color, 0, 2);
+                        auto point = keypoint_attribute->GetPoint(i, p);
+                        auto pos = point.point.x + clip->Start();
+                        if (pos >= firstTime && pos <= viewEndTime)
+                        {
+                            ImVec2 center = ImVec2(clippingRect.Min.x + (pos - firstTime) * msPixelWidthTarget, clip_title_pos_min.y + (clip_title_pos_max.y - clip_title_pos_min.y) / 2);
+                            draw_list->AddRect(center - ImVec2(3, 3), center + ImVec2(3, 3), curve_color, 0, 2);
+                        }
                     }
                 }
             }
-
+#endif
             draw_list->PopClipRect();
 
             // draw custom view
@@ -11699,7 +11632,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     int64_t mouseTime = -1;
     static int64_t menuMouseTime = -1;
     int mouseEntry = -1;
-    MEC::Event * mouseEvent = nullptr;
+    MEC::Event::Holder mouseEvent = nullptr;
     static ImVec2 menuMousePos = ImVec2(-1, -1);
     static bool mouse_hold = false;
     bool overHorizonScrollBar = false;
@@ -12077,8 +12010,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
             auto track_pos = ImGui::GetCursorScreenPos();
             auto track_current = track_pos;
             int current_index = 0;
-            //for (auto event : clip->mEvents)  event->bHovered = false;
-
+            for (auto event : clip->mEventStack->GetEventList())  event->SetStatus(EVENT_HOVERED_BIT, 0); // clear clip hovered status
             for ( auto track : tracks)
             {
                 ImVec2 track_size = ImVec2(event_track_size.x, trackHeight + (track->mExpanded ? curveHeight : 0));
@@ -12091,12 +12023,13 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                 ImGui::InvisibleButton("##event_track", track_size);
                 if (is_mouse_hovered)
                 {
-#if 0
-                    for (auto event : track->m_Events)
+                    for (auto event_id : track->m_Events)
                     {
-                        if (event->IsInEventRange(mouseTime))
+                        auto event = clip->mEventStack->GetEvent(event_id);
+                        if (!event) continue;
+                        if (event->IsInRange(mouseTime))
                         {
-                            event->bHovered = true;
+                            event->SetStatus(EVENT_HOVERED_BIT, 1);
                             mouseEvent = event;
                             auto event_view_width = event->Length() * editingClip->msPixelWidthTarget;
                             if (eventMovingEntry == -1)
@@ -12106,7 +12039,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                                     // event is too small, don't dropping
                                     if (ImGui::IsMouseDown(ImGuiMouseButton_Left))
                                     {
-                                        eventMovingEntry = event->mID;
+                                        eventMovingEntry = event->Id();
                                         eventMovingPart = 3;
                                         bCropping = false;
                                     }
@@ -12114,8 +12047,8 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                                 else
                                 {
                                     // check event moving part
-                                    ImVec2 eventP1(pos.x + event->mStart * editingClip->msPixelWidthTarget, pos.y);
-                                    ImVec2 eventP2(pos.x + event->mEnd * editingClip->msPixelWidthTarget, pos.y + trackHeight);
+                                    ImVec2 eventP1(pos.x + event->Start() * editingClip->msPixelWidthTarget, pos.y);
+                                    ImVec2 eventP2(pos.x + event->End() * editingClip->msPixelWidthTarget, pos.y + trackHeight);
                                     const float max_handle_width = eventP2.x - eventP1.x / 3.0f;
                                     const float min_handle_width = ImMin(10.0f, max_handle_width);
                                     const float handle_width = ImClamp(editingClip->msPixelWidthTarget / 2.0f, min_handle_width, max_handle_width);
@@ -12142,7 +12075,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                                             continue;
                                         if (ImGui::IsMouseDown(ImGuiMouseButton_Left))
                                         {
-                                            eventMovingEntry = event->mID;
+                                            eventMovingEntry = event->Id();
                                             eventMovingPart = j + 1;
                                             if (j <= 1)
                                             {
@@ -12159,7 +12092,6 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                             }
                         }
                     }
-#endif
                     mouse_track_index = current_index;
                 }
                 track->DrawContent(drawList, ImRect(track_current, track_current + track_size), trackHeight, editingClip->firstTime, editingClip->lastTime, editingClip->msPixelWidthTarget);
@@ -12196,29 +12128,18 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                 diffTime += io.MouseDelta.x / editingClip->msPixelWidthTarget;
                 if (diffTime > frameTime(main_timeline->mFrameRate) || diffTime < -frameTime(main_timeline->mFrameRate))
                 {
-#if 0
-                    auto event = clip->FindEventByID(eventMovingEntry);
-                    if (event && event->bSelected)
+                    if (eventMovingPart == 3)
                     {
-                        if (eventMovingPart == 3)
-                        {
-                            // whole slot moving
-                            bEventMoving = true;
-                            ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeAll);
-                            event->Moving(diffTime, mouseTime);
-                        }
-                        else if (eventMovingPart & 1)
-                        {
-                            // event left moving
-                            event->Cropping(diffTime, 0);
-                        }
-                        else if (eventMovingPart & 2)
-                        {
-                            // event right moving
-                            event->Cropping(diffTime, 1);
-                        }
+                        clip->EventMoving(eventMovingEntry, diffTime, mouseTime);
                     }
-#endif
+                    else if (eventMovingPart & 1)
+                    {
+                        clip->EventCropping(eventMovingEntry, diffTime, 0);
+                    }
+                    else if (eventMovingPart & 2)
+                    {
+                        clip->EventCropping(eventMovingEntry, diffTime, 1);
+                    }
                     diffTime = 0;
                 }
             }

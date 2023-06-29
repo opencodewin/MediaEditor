@@ -4875,7 +4875,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
         editing_clip = nullptr;
     }
 
-#if 0
+#ifndef USING_OLD_UI
     if (editing_clip)
     {
         if (timeline->mVidFilterClip)
@@ -10588,7 +10588,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
         std::ostringstream oss;
         oss << std::fixed << std::setprecision(2) << ImGui::GetIO().DeltaTime * 1000.f << "ms/frame ";
         oss << ImGui::GetIO().Framerate << "FPS";
-#if 0
+#ifdef SHOW_GPU_INFO
         int device_count = ImGui::get_gpu_count();
         for (int i = 0; i < device_count; i++)
         {

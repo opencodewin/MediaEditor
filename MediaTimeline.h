@@ -30,11 +30,14 @@
 #include "SubtitleTrack.h"
 #include "UI.h"
 #include "Event.h"
+#include "EventStackFilter.h"
 #include <thread>
 #include <string>
 #include <vector>
 #include <list>
 #include <chrono>
+
+#define USING_OLD_UI
 
 #define ICON_MEDIA_TIMELINE u8"\uf538"
 #define ICON_MEDIA_BANK     u8"\ue907"
@@ -363,38 +366,6 @@ struct Overlap
     void Save(imgui_json::value& value);
 };
 
-/*
-struct Event
-{
-    int64_t mID                     {-1};       // Event ID, project saved
-    int64_t mClipID                 {-1};       // Clip ID, -1 means event belong to timeline, project saved
-    int64_t mStart                  {0};        // Event start time at clip, project saved
-    int64_t mEnd                    {0};        // Event end time at clip, project saved
-    int     mIndex                  {-1};       // Event layer index, for clip layer index means event order, for track means effect track order
-    int64_t Length() const { return mEnd - mStart; }
-    
-    bool bSelected               {false};    // Event is selected
-    bool bMoving                {false};            // clip is moving
-    bool bHovered               {false};            // clip is under mouse
-
-    imgui_json::value mEventBP;                 // Event transion blueprint, project saved
-    ImGui::KeyPointEditor mEventKeyPoints;      // Event key points, project saved
-    void * mHandle                  {nullptr};  // Event belong to timeline
-    
-    Event(int64_t start, int64_t end, int64_t id, int index, void* handle);
-    ~Event();
-
-    static Event * Load(const imgui_json::value& value, void * handle);
-    void Save(imgui_json::value& value);
-
-    bool IsInEventRange(int64_t pos) const { return pos >= mStart && pos < mEnd; }
-    void DrawTooltips();
-
-    void Moving(int64_t diff, int64_t mouse);
-    int64_t Cropping(int64_t diff, int type);
-};
-*/
-
 struct EventTrack
 {
 #define EVENT_SELECTED_BIT  0
@@ -406,16 +377,16 @@ struct EventTrack
     int64_t mID             {-1};               // event track ID, project saved
     int64_t mClipID         {-1};               // event track belong to clip ID, project saved
     bool    mExpanded       {false};            // event track is expanded for curve, project saved
-    std::vector<MEC::Event *> m_Events;              // track clips, project saved(id only)
+    std::vector<int64_t> m_Events;              // track clips, project saved(id only)
     void * mHandle          {nullptr};          // Event track belong to timeline
     
     static EventTrack* Load(const imgui_json::value& value, void * handle);
     void Save(imgui_json::value& value);
 
     void DrawContent(ImDrawList *draw_list, ImRect rect, int event_height, int64_t view_start, int64_t view_end, float pixelWidthMS);
-    void SelectEvent(MEC::Event * event, bool appand);
-    MEC::Event* FindPreviousEvent(int64_t id);
-    MEC::Event* FindNextEvent(int64_t id);
+    void SelectEvent(MEC::Event::Holder event, bool appand);
+    MEC::Event::Holder FindPreviousEvent(int64_t id);
+    MEC::Event::Holder FindNextEvent(int64_t id);
     int64_t FindEventSpace(int64_t time);
     void Update();
 };
@@ -443,7 +414,7 @@ struct Clip
     ImGui::KeyPointEditor       mFilterKeyPoints;   // clip key points, project saved
     ImGui::KeyPointEditor       mAttributeKeyPoints;// clip key points, project saved
 
-    //std::vector<Event*>         mEvents;            // clip events, includeing filters/events, project saved
+    MEC::EventStack*            mEventStack {nullptr};// clip event srack,
     std::vector<EventTrack*>    mEventTracks;       // clip event tracks, contain event IDs only, project saved
 
     int64_t frame_duration {0};
@@ -468,7 +439,9 @@ struct Clip
     static void Load(Clip * clip, const imgui_json::value& value);
     virtual void Save(imgui_json::value& value) = 0;
 
-    MEC::Event* FindEventByID(int64_t event_id);
+    MEC::Event::Holder FindEventByID(int64_t event_id);
+    void EventMoving(int64_t event_id, int64_t diff, int64_t mouse);
+    int64_t EventCropping(int64_t event_id, int64_t diff, int type);
 
     int64_t Start() const { return mStart; }
     int64_t End() const { return mEnd; }
@@ -478,8 +451,8 @@ struct Clip
     bool IsInClipRange(int64_t pos) const { return pos >= mStart && pos < mEnd; }
     
     int AddEventTrack();
-    MEC::Event* AddEvent(int track, int64_t start, int64_t duration, void* data);
-    bool AppendEvent(MEC::Event * event, void* data);
+    bool AddEvent(int track, int64_t start, int64_t duration, void* data);
+    bool AppendEvent(MEC::Event::Holder event, void* data);
 
     void ChangeStart(int64_t pos);
     void ChangeStartOffset(int64_t newOffset);
