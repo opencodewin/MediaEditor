@@ -1301,8 +1301,10 @@ bool Clip::AddEvent(int track, int64_t start, int64_t duration, void* data)
         return false;
     TimeLine * timeline = (TimeLine *)mHandle;
     int64_t id = timeline ? timeline->m_IDGenerator.GenerateID() : ImGui::get_current_time_usec();
-
-    auto event = mEventStack->AddNewEvent(id, start, start + duration, track);
+    auto end = start + duration;
+    alignTime(start, frame_duration);
+    alignTime(end, frame_duration);
+    auto event = mEventStack->AddNewEvent(id, start, end, track);
     if (!event)
     {
         auto err_str = mEventStack->GetError();
