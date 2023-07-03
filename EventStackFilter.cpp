@@ -391,7 +391,7 @@ public:
         ImGui::KeyPointEditor* m_pKp{nullptr};
         int64_t m_start;
         int64_t m_end;
-        int32_t m_z;
+        int32_t m_z{-1};
         uint32_t m_status{0};
     };
 

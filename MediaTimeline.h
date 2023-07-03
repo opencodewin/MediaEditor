@@ -440,6 +440,9 @@ struct Clip
     virtual void Save(imgui_json::value& value) = 0;
 
     MEC::Event::Holder FindEventByID(int64_t event_id);
+    MEC::Event::Holder FindSelectedEvent();
+    bool hasSelectedEvent();
+
     void EventMoving(int64_t event_id, int64_t diff, int64_t mouse);
     int64_t EventCropping(int64_t event_id, int64_t diff, int type);
 
@@ -453,6 +456,7 @@ struct Clip
     int AddEventTrack();
     bool AddEvent(int track, int64_t start, int64_t duration, void* data);
     bool AppendEvent(MEC::Event::Holder event, void* data);
+    bool DeleteEvent(int64_t event_id);
 
     void ChangeStart(int64_t pos);
     void ChangeStartOffset(int64_t newOffset);
@@ -1286,6 +1290,6 @@ struct TimeLine
 
 bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable = true);
 bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, int64_t CurrentTime, int header_height, int custom_height, int curve_height, ImGui::KeyPointEditor* key_point);
-bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, int64_t CurrentTime, int header_height, int custom_height);
+bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, int64_t CurrentTime, int header_height, int custom_height, bool& show_BP);
 bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int64_t CurrentTime, int header_height, int custom_height);
 } // namespace MediaTimeline

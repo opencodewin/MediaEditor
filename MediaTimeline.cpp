@@ -457,6 +457,10 @@ void EventTrack::SelectEvent(MEC::Event::Holder event, bool appand)
         }
     }
     event->SetStatus(EVENT_SELECTED_BIT, selected ? 1 : 0);
+    if (clip->mEventStack)
+    {
+        clip->mEventStack->SetEditingEvent(selected ? event->Id() : -1);
+    }
 }
 
 MEC::Event::Holder EventTrack::FindPreviousEvent(int64_t id)
@@ -1311,13 +1315,49 @@ bool Clip::AddEvent(int track, int64_t start, int64_t duration, void* data)
         return false;
     }
     // Create BP and set node into BP
+    BluePrint::Node* node = static_cast<BluePrint::Node*>(data);
     auto event_bp = event->GetBp();
     if (event_bp)
     {
-        
+        if (event_bp->Blueprint_AppendNode(node->GetTypeID()))
+        {
+            mEventTracks[track]->m_Events.push_back(event->Id());
+            return true;
+        }
+        else
+        {
+            mEventStack->RemoveEvent(event->Id());
+            return false;
+        }
     }
 
-    mEventTracks[track]->m_Events.push_back(event->Id());
+    return false;
+}
+
+bool Clip::DeleteEvent(int64_t event_id)
+{
+    if (!mEventStack)
+        return false;
+    auto event = FindEventByID(event_id);
+    if (!event)
+        return false;
+    int track_index = event->Z();
+    if (track_index < 0 || track_index >= mEventTracks.size())
+        return false;
+    // remove event from track
+    auto track = mEventTracks[track_index];
+    if (!track)
+        return false;
+    for (auto event_iter = track->m_Events.begin(); event_iter != track->m_Events.end();)
+    {
+        if (*event_iter == event_id)
+        {
+            event_iter = track->m_Events.erase(event_iter);
+        }
+        else
+            event_iter++;
+    }
+    mEventStack->RemoveEvent(event_id);
     return true;
 }
 
@@ -1325,7 +1365,21 @@ bool Clip::AppendEvent(MEC::Event::Holder event, void* data)
 {
 	if (!mEventStack || !event || !data)
         return false;
-    // TODO::Dicky need add node into event's BP
+
+    BluePrint::Node* node = static_cast<BluePrint::Node*>(data);
+    auto event_bp = event->GetBp();
+    if (event_bp)
+    {
+        if (event_bp->Blueprint_AppendNode(node->GetTypeID()))
+        {
+            return true;
+        }
+        else
+        {
+            mEventStack->RemoveEvent(event->Id());
+            return false;
+        }
+    }
     return false;
 }
 
@@ -1362,6 +1416,30 @@ MEC::Event::Holder Clip::FindEventByID(int64_t id)
     if (!mEventStack)
         return nullptr;
     return mEventStack->GetEvent(id);
+}
+
+MEC::Event::Holder Clip::FindSelectedEvent()
+{
+    if (!mEventStack)
+        return nullptr;
+    for (auto event : mEventStack->GetEventList())
+    {
+        if (event->Status() & EVENT_SELECTED)
+            return event;
+    }
+    return nullptr;
+}
+
+bool Clip::hasSelectedEvent()
+{
+    if (!mEventStack)
+        return false;
+    for (auto event : mEventStack->GetEventList())
+    {
+        if (event->Status() & EVENT_SELECTED)
+            return true;
+    }
+    return false;
 }
 
 void Clip::EventMoving(int64_t event_id, int64_t diff, int64_t mouse)
@@ -1441,6 +1519,7 @@ int64_t Clip::EventCropping(int64_t event_id, int64_t diff, int type)
     int64_t new_diff = diff;
     auto prev_event = track->FindPreviousEvent(event->Id());
     auto next_event = track->FindNextEvent(event->Id());
+
     if (type == 0)
     {
         // cropping start
@@ -2717,7 +2796,9 @@ int BluePrintVideoFilter::OnBluePrintChange(int type, std::string name, void* ha
             bool needUpdateView = false;
             if (type == BluePrint::BP_CB_Link ||
                 type == BluePrint::BP_CB_Unlink ||
-                type == BluePrint::BP_CB_NODE_DELETED)
+                type == BluePrint::BP_CB_NODE_DELETED ||
+                type == BluePrint::BP_CB_NODE_APPEND ||
+                type == BluePrint::BP_CB_NODE_INSERT)
             {
                 needUpdateView = true;
                 ret = BluePrint::BP_CBR_AutoLink;
@@ -2821,7 +2902,9 @@ int BluePrintVideoTransition::OnBluePrintChange(int type, std::string name, void
     {
         if (type == BluePrint::BP_CB_Link ||
             type == BluePrint::BP_CB_Unlink ||
-            type == BluePrint::BP_CB_NODE_DELETED)
+            type == BluePrint::BP_CB_NODE_DELETED ||
+            type == BluePrint::BP_CB_NODE_APPEND ||
+            type == BluePrint::BP_CB_NODE_INSERT)
         {
             // need update
             if (timeline) timeline->UpdatePreview();
@@ -2910,7 +2993,9 @@ int BluePrintAudioFilter::OnBluePrintChange(int type, std::string name, void* ha
     {
         if (type == BluePrint::BP_CB_Link ||
             type == BluePrint::BP_CB_Unlink ||
-            type == BluePrint::BP_CB_NODE_DELETED)
+            type == BluePrint::BP_CB_NODE_DELETED ||
+            type == BluePrint::BP_CB_NODE_APPEND ||
+            type == BluePrint::BP_CB_NODE_INSERT)
         {
             if (timeline) timeline->UpdatePreview();
             ret = BluePrint::BP_CBR_AutoLink;
@@ -2992,7 +3077,9 @@ int BluePrintAudioTransition::OnBluePrintChange(int type, std::string name, void
     {
         if (type == BluePrint::BP_CB_Link ||
             type == BluePrint::BP_CB_Unlink ||
-            type == BluePrint::BP_CB_NODE_DELETED)
+            type == BluePrint::BP_CB_NODE_DELETED ||
+            type == BluePrint::BP_CB_NODE_APPEND ||
+            type == BluePrint::BP_CB_NODE_INSERT)
         {
             // need update
             if (timeline) timeline->UpdatePreview();
@@ -5302,7 +5389,9 @@ int TimeLine::OnBluePrintChange(int type, std::string name, void* handle)
     {
         if (type == BluePrint::BP_CB_Link ||
             type == BluePrint::BP_CB_Unlink ||
-            type == BluePrint::BP_CB_NODE_DELETED)
+            type == BluePrint::BP_CB_NODE_DELETED ||
+            type == BluePrint::BP_CB_NODE_APPEND ||
+            type == BluePrint::BP_CB_NODE_INSERT)
         {
             ret = BluePrint::BP_CBR_AutoLink;
         }
@@ -5315,7 +5404,9 @@ int TimeLine::OnBluePrintChange(int type, std::string name, void* handle)
     {
         if (type == BluePrint::BP_CB_Link ||
             type == BluePrint::BP_CB_Unlink ||
-            type == BluePrint::BP_CB_NODE_DELETED)
+            type == BluePrint::BP_CB_NODE_DELETED ||
+            type == BluePrint::BP_CB_NODE_APPEND ||
+            type == BluePrint::BP_CB_NODE_INSERT)
         {
             ret = BluePrint::BP_CBR_AutoLink;
         }
@@ -5328,7 +5419,9 @@ int TimeLine::OnBluePrintChange(int type, std::string name, void* handle)
     {
         if (type == BluePrint::BP_CB_Link ||
             type == BluePrint::BP_CB_Unlink ||
-            type == BluePrint::BP_CB_NODE_DELETED)
+            type == BluePrint::BP_CB_NODE_DELETED ||
+            type == BluePrint::BP_CB_NODE_APPEND ||
+            type == BluePrint::BP_CB_NODE_INSERT)
         {
             ret = BluePrint::BP_CBR_AutoLink;
         }
@@ -8161,7 +8254,9 @@ int TimeLine::OnVideoFilterBluePrintChange(int type, std::string name, void* han
             bool needUpdateView = false;
             if (type == BluePrint::BP_CB_Link ||
                 type == BluePrint::BP_CB_Unlink ||
-                type == BluePrint::BP_CB_NODE_DELETED)
+                type == BluePrint::BP_CB_NODE_DELETED ||
+                type == BluePrint::BP_CB_NODE_APPEND ||
+                type == BluePrint::BP_CB_NODE_INSERT)
             {
                 needUpdateView = true;
                 ret = BluePrint::BP_CBR_AutoLink;
@@ -11587,7 +11682,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     return mouse_hold;
 }
 
-bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, int64_t CurrentTime, int header_height, int custom_height)
+bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, int64_t CurrentTime, int header_height, int custom_height, bool& show_BP)
 {
     /***************************************************************************************
     |------------------------------------------------------------------------------------- 
@@ -11648,16 +11743,122 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     static float diffTime = 0;
     static bool bCropping = false;
     static bool bEventMoving = false;
+    auto clip = editingClip->GetClip();
 
     // draw toolbar
+    bool has_selected_event = clip->hasSelectedEvent();
     ImVec2 toolbar_pos = window_pos;
     ImVec2 toolbar_size = ImVec2(window_size.x, toolbarHeight);
     draw_list->AddRectFilled(toolbar_pos, toolbar_pos + toolbar_size, COL_DARK_ONE, 0);
-    ImGui::InvisibleButton("clip_toolBar", toolbar_size);
+    //ImGui::InvisibleButton("clip_toolBar", toolbar_size);
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.2, 0.2, 0.2, 0.5));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.5, 0.5, 0.5, 1.0));
+    ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(0.7, 0.7, 0.7, 1.0));
 
-    ImVec2 canvas_pos = ImGui::GetCursorScreenPos();
+    ImGui::BeginDisabled(!has_selected_event);
+    ImGui::SetCursorScreenPos(toolbar_pos + ImVec2(0, 4));
+    if (ImGui::CheckButton(ICON_BLUE_PRINT "##clip_timeline_show_bp", &show_BP, ImVec4(0.5, 0.5, 0.0, 1.0), true))
+    {
+
+    }
+    ImGui::ShowTooltipOnHover("Show BluePrint");
+
+    ImGui::SameLine();
+    ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
+
+    ImGui::SameLine();
+    if (ImGui::Button(ICON_MEDIA_DELETE_CLIP "##clip_timeline_delete_event"))
+    {
+        // TODO::Dicky delete event need be confirmed
+        clip->DeleteEvent(clip->FindSelectedEvent()->Id());
+        has_selected_event = false;
+    }
+    ImGui::ShowTooltipOnHover("Delete Event");
+    ImGui::SameLine();
+    if (ImGui::Button(ICON_MD_CONTENT_CUT "##clip_timeline_cut_event"))
+    {
+        // TODO::Dicky cut event
+    }
+    ImGui::ShowTooltipOnHover("Cut Event");
+    ImGui::SameLine();
+    if (ImGui::Button(ICON_MD_CONTENT_PASTE "##clip_timeline_paste_event"))
+    {
+        // TODO::Dicky paste event
+    }
+    ImGui::ShowTooltipOnHover("Paste Event");
+    ImGui::SameLine();
+    if (ImGui::Button(ICON_NODE_COPY "##clip_timeline_copy_event"))
+    {
+        // TODO::Dicky copy event
+    }
+    ImGui::ShowTooltipOnHover("Copy Event");
+    ImGui::EndDisabled();
+
+    ImGui::SameLine();
+    ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
+
+    ImGui::SameLine();
+    if (ImGui::Button(ICON_MD_UNDO "##clip_timeline_undo"))
+    {
+        // TODO::Dicky undo
+    }
+    ImGui::ShowTooltipOnHover("Undo");
+
+    ImGui::SameLine();
+    if (ImGui::Button(ICON_MD_REDO "##clip_timeline_redo"))
+    {
+        // TODO::Dicky redo
+    }
+    ImGui::ShowTooltipOnHover("Redo");
+
+    ImGui::SameLine();
+    ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
+
+    ImGui::SameLine();
+    if (ImGui::Button(ICON_SLIDER_FRAME "##clip_timeline_frame_accuracy"))
+    {
+        // TODO::Dicky frame accuracy
+    }
+    ImGui::ShowTooltipOnHover("Frame accuracy");
+
+    ImGui::SameLine();
+    if (ImGui::Button(ICON_SLIDER_CLIP "##clip_timeline_clip_accuracy"))
+    {
+        // TODO::Dicky clip accuracy
+    }
+    ImGui::ShowTooltipOnHover("Clip accuracy");
+
+    ImGui::SameLine();
+    ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
+
+    ImGui::SameLine();
+    if (ImGui::Button(ICON_CURRENT_TIME "##clip_timeline_current_time"))
+    {
+        // TODO::Dicky jump to current time
+    }
+    ImGui::ShowTooltipOnHover("Current time");
+
+    ImGui::SameLine();
+    if (ImGui::RotateButton(ICON_MD_EXIT_TO_APP "##clip_timeline_prev_event", ImVec2(0, 0), 180))
+    {
+        // TODO::Dicky jump to previous event
+    }
+    ImGui::ShowTooltipOnHover("Previous event");
+
+    ImGui::SameLine();
+    if (ImGui::Button(ICON_MD_EXIT_TO_APP "##clip_timeline_next_event"))
+    {
+        // TODO::Dicky jump to next event
+    }
+    ImGui::ShowTooltipOnHover("Next event");
+
+    ImGui::PopStyleColor(4);
+
+    ImGui::SetCursorScreenPos(toolbar_pos + ImVec2(0, toolbarHeight));
+    ImVec2 canvas_pos = window_pos + ImVec2(0, toolbarHeight); //ImGui::GetCursorScreenPos();
     ImVec2 canvas_size = ImGui::GetContentRegionAvail();
-    ImVec2 timline_size = canvas_size; 
+    ImVec2 timline_size = canvas_size;
     ImVec2 event_track_size = ImVec2(canvas_size.x, trackHeight);
     float minPixelWidthTarget = (float)(timline_size.x) / (float)duration;
     float maxPixelWidthTarget = 20.f;
@@ -12006,7 +12207,6 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
 
             // show tracks
             int mouse_track_index = -1;
-            auto clip = editingClip->GetClip();
             auto tracks = clip->mEventTracks;
             ImGui::SetCursorPos({0, 0});
             auto track_pos = ImGui::GetCursorScreenPos();
@@ -12034,7 +12234,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                             event->SetStatus(EVENT_HOVERED_BIT, 1);
                             mouseEvent = event;
                             auto event_view_width = event->Length() * editingClip->msPixelWidthTarget;
-                            if (eventMovingEntry == -1)
+                            if (eventMovingEntry == -1 && !ImGui::IsDragDropActive())
                             {
                                 if (event_view_width <= 20)
                                 {
@@ -12107,7 +12307,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
             {
                 ImRect track_area = ImRect(track_current, track_current + event_track_size);
                 bool is_mouse_hovered = track_area.Contains(io.MousePos);
-                unsigned int col = /*is_mouse_hovered ? COL_EVENT_HOVERED :*/ (current_index & 1) ? COL_EVENT_ODD_DARK : COL_EVENT_EVEN_DARK;
+                unsigned int col = /*is_mouse_hovered ? COL_EVENT_HOVERED :*/ (current_index & 1) ? COL_EVENT_ODD : COL_EVENT_EVEN;
                 drawList->AddRectFilled(track_area.Min, track_area.Max, col);
                 ImGui::SetCursorScreenPos(track_current);
                 ImGui::InvisibleButton("##empty_event_track", event_track_size);

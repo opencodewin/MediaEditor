@@ -4727,6 +4727,15 @@ static void ShowVideoFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
         auto editingEvent = pEsf->GetEditingEvent();
         if (editingEvent)
             pBp = editingEvent->GetBp();
+        else
+        {
+            auto selected_event = clip->FindSelectedEvent();
+            if (selected_event)
+            {
+                pEsf->SetEditingEvent(selected_event->Id());
+                pBp = selected_event->GetBp();
+            }
+        }
     }
 #else
     if (filterName == "BluePrintVideoFilter")
@@ -4780,11 +4789,11 @@ static void DrawVideoFilterPreviewWindow(ImDrawList *draw_list, Clip * editing_c
     else ShowVideoPreviewWindow(draw_list, timeline->GetStart(), timeline->GetEnd(), false, is_vertical);
 }
 
-static bool DrawVideoFilterTimelineWindow()
+static bool DrawVideoFilterTimelineWindow(bool& show_BP)
 {
     ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
     ImVec2 sub_window_size = ImGui::GetWindowSize();
-    return DrawClipTimeLine(timeline, timeline->mVidFilterClip, timeline->currentTime, 30, 50);
+    return DrawClipTimeLine(timeline, timeline->mVidFilterClip, timeline->currentTime, 30, 50, show_BP);
 }
 
 static void DrawVideoFilterBlueprintWindow(ImDrawList *draw_list, Clip * editing_clip)
@@ -4917,7 +4926,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
             if (ImGui::BeginChild("timeline", ImVec2(timeline_width - 4, window_size.y), false))
             {
                 //ImGui::Text("timeline");
-                mouse_hold |= DrawVideoFilterTimelineWindow();
+                mouse_hold |= DrawVideoFilterTimelineWindow(show_blueprint);
             }
             ImGui::EndChild();
             ImGui::SameLine();
@@ -4950,7 +4959,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
                 if (ImGui::BeginChild("timeline", ImVec2(timeline_width - 4, timeline_height - 8), false))
                 {
                     //ImGui::Text("timeline");
-                    mouse_hold |= DrawVideoFilterTimelineWindow();
+                    mouse_hold |= DrawVideoFilterTimelineWindow(show_blueprint);
                 }
                 ImGui::EndChild();
             }
@@ -4983,7 +4992,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
             if (ImGui::BeginChild("timeline", ImVec2(timeline_width - 4, timeline_height - 8), false))
             {
                 //ImGui::Text("timeline");
-                mouse_hold |= DrawVideoFilterTimelineWindow();
+                mouse_hold |= DrawVideoFilterTimelineWindow(show_blueprint);
             }
             ImGui::EndChild();
             ImGui::SameLine();
@@ -5019,7 +5028,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
                 if (ImGui::BeginChild("timeline", ImVec2(timeline_width - 4, timeline_height - 8), false))
                 {
                     //ImGui::Text("timeline");
-                    mouse_hold |= DrawVideoFilterTimelineWindow();
+                    mouse_hold |= DrawVideoFilterTimelineWindow(show_blueprint);
                 }
                 ImGui::EndChild();
                 ImGui::SameLine();
@@ -5069,7 +5078,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
                 if (ImGui::BeginChild("timeline", ImVec2(timeline_width - 4, timeline_height - 8), false))
                 {
                     //ImGui::Text("timeline");
-                    mouse_hold |= DrawVideoFilterTimelineWindow();
+                    mouse_hold |= DrawVideoFilterTimelineWindow(show_blueprint);
                 }
                 ImGui::EndChild();
                 ImGui::SameLine();
