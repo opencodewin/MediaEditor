@@ -4765,7 +4765,7 @@ static void ShowVideoFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
                 const BluePrint::Node * node = (const BluePrint::Node *)payload->Data;
                 if (node)
                 {
-                    pBp->Edit_Insert(node->GetTypeID());
+                    pBp->Blueprint_AppendNode(node->GetTypeID());
                 }
             }
             ImGui::EndDragDropTarget();
@@ -4776,6 +4776,18 @@ static void ShowVideoFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
             pBp->Frame(true, true, clip != nullptr, BluePrint::BluePrintFlag::BluePrintFlag_Filter);
         }
         ImGui::EndChild();
+    }
+    else
+    {
+        ImVec2 window_pos = ImGui::GetCursorScreenPos();
+        ImVec2 window_size = ImGui::GetWindowSize();
+        ImGui::SetWindowFontScale(2);
+        auto pos_center = window_pos + window_size / 2;
+        std::string tips_string = "Please Select event from event Timeline";
+        auto string_width = ImGui::CalcTextSize(tips_string.c_str());
+        auto tips_pos = pos_center - string_width / 2;
+        ImGui::SetWindowFontScale(1);
+        ImGui::AddTextComplex(draw_list, tips_pos, tips_string.c_str(), 2.f, IM_COL32(255, 255, 255, 128), 0.5f, IM_COL32(56, 56, 56, 192));
     }
 }
 

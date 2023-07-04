@@ -11745,12 +11745,58 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     static bool bEventMoving = false;
     auto clip = editingClip->GetClip();
 
-    // draw toolbar
     bool has_selected_event = clip->hasSelectedEvent();
     ImVec2 toolbar_pos = window_pos;
     ImVec2 toolbar_size = ImVec2(window_size.x, toolbarHeight);
+    
+    ImVec2 canvas_pos = window_pos + ImVec2(0, toolbarHeight); //ImGui::GetCursorScreenPos();
+    ImVec2 canvas_size = ImGui::GetContentRegionAvail();
+    canvas_size.y -= toolbarHeight;
+    ImVec2 timline_size = canvas_size;
+    ImVec2 event_track_size = ImVec2(canvas_size.x, trackHeight);
+    float minPixelWidthTarget = (float)(timline_size.x) / (float)duration;
+    float maxPixelWidthTarget = 20.f;
+    int view_frames = 16;
+    if (IS_VIDEO(editingClip->mType))
+    {
+        EditingVideoClip * video_clip = (EditingVideoClip *)editingClip;
+        frame_duration = (video_clip->mClipFrameRate.den > 0 && video_clip->mClipFrameRate.num > 0) ? video_clip->mClipFrameRate.den * 1000.0 / video_clip->mClipFrameRate.num : 40;
+        maxPixelWidthTarget = (video_clip->mSnapSize.x > 0 ? video_clip->mSnapSize.x : 60.f) / frame_duration;
+        view_frames = video_clip->mSnapSize.x > 0 ? (window_size.x / video_clip->mSnapSize.x) : 16;
+    }
+    else if (IS_AUDIO(editingClip->mType))
+    {
+        frame_duration = (main_timeline->mFrameRate.den > 0 && main_timeline->mFrameRate.num > 0) ? main_timeline->mFrameRate.den * 1000.0 / main_timeline->mFrameRate.num : 40;
+        maxPixelWidthTarget = 40.f / frame_duration;
+        view_frames = window_size.x / 40.f;
+    }
+    if (editingClip->msPixelWidthTarget < 0) editingClip->msPixelWidthTarget = minPixelWidthTarget;
+
+    int64_t newVisibleTime = (int64_t)floorf((timline_size.x) / editingClip->msPixelWidthTarget);
+    editingClip->CalcDisplayParams(newVisibleTime);
+    const float HorizonBarWidthRatio = ImMin(editingClip->visibleTime / (float)duration, 1.f);
+    const float HorizonBarWidthInPixels = std::max(HorizonBarWidthRatio * (timline_size.x), (float)scrollSize);
+    const float HorizonBarPos = HorizonBarWidthRatio * (timline_size.x);
+    ImRect regionRect(canvas_pos, canvas_pos + timline_size);
+    ImRect HorizonScrollBarRect;
+    ImRect HorizonScrollHandleBarRect;
+    static ImVec2 panningViewHorizonSource;
+    static int64_t panningViewHorizonTime;
+
+    editingClip->msPixelWidthTarget = ImClamp(editingClip->msPixelWidthTarget, minPixelWidthTarget, maxPixelWidthTarget);
+
+    if (editingClip->visibleTime >= duration)
+        editingClip->firstTime = 0;
+    else if (editingClip->firstTime + editingClip->visibleTime > duration)
+    {
+        editingClip->firstTime = duration - editingClip->visibleTime;
+        alignTime(editingClip->firstTime, frame_duration);
+        editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
+    }
+    editingClip->lastTime = editingClip->firstTime + editingClip->visibleTime;
+
+    // draw toolbar
     draw_list->AddRectFilled(toolbar_pos, toolbar_pos + toolbar_size, COL_DARK_ONE, 0);
-    //ImGui::InvisibleButton("clip_toolBar", toolbar_size);
     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.2, 0.2, 0.2, 0.5));
     ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.5, 0.5, 0.5, 1.0));
@@ -11818,14 +11864,19 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     ImGui::SameLine();
     if (ImGui::Button(ICON_SLIDER_FRAME "##clip_timeline_frame_accuracy"))
     {
-        // TODO::Dicky frame accuracy
+        editingClip->msPixelWidthTarget = maxPixelWidthTarget;
+        int64_t new_visible_time = (int64_t)floorf((timline_size.x) / editingClip->msPixelWidthTarget);
+        editingClip->firstTime = currentTime - new_visible_time / 2;
+        alignTime(editingClip->firstTime, frame_duration);
+        editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - new_visible_time, (int64_t)0));
     }
     ImGui::ShowTooltipOnHover("Frame accuracy");
 
     ImGui::SameLine();
     if (ImGui::Button(ICON_SLIDER_CLIP "##clip_timeline_clip_accuracy"))
     {
-        // TODO::Dicky clip accuracy
+        editingClip->msPixelWidthTarget = minPixelWidthTarget;
+        editingClip->firstTime = 0;
     }
     ImGui::ShowTooltipOnHover("Clip accuracy");
 
@@ -11835,7 +11886,9 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     ImGui::SameLine();
     if (ImGui::Button(ICON_CURRENT_TIME "##clip_timeline_current_time"))
     {
-        // TODO::Dicky jump to current time
+        editingClip->firstTime = currentTime - editingClip->visibleTime / 2;
+        alignTime(editingClip->firstTime, frame_duration);
+        editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
     }
     ImGui::ShowTooltipOnHover("Current time");
 
@@ -11855,52 +11908,8 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
 
     ImGui::PopStyleColor(4);
 
+    // draw clip timeline
     ImGui::SetCursorScreenPos(toolbar_pos + ImVec2(0, toolbarHeight));
-    ImVec2 canvas_pos = window_pos + ImVec2(0, toolbarHeight); //ImGui::GetCursorScreenPos();
-    ImVec2 canvas_size = ImGui::GetContentRegionAvail();
-    ImVec2 timline_size = canvas_size;
-    ImVec2 event_track_size = ImVec2(canvas_size.x, trackHeight);
-    float minPixelWidthTarget = (float)(timline_size.x) / (float)duration;
-    float maxPixelWidthTarget = 20.f;
-    int view_frames = 16;
-    if (IS_VIDEO(editingClip->mType))
-    {
-        EditingVideoClip * video_clip = (EditingVideoClip *)editingClip;
-        frame_duration = (video_clip->mClipFrameRate.den > 0 && video_clip->mClipFrameRate.num > 0) ? video_clip->mClipFrameRate.den * 1000.0 / video_clip->mClipFrameRate.num : 40;
-        maxPixelWidthTarget = (video_clip->mSnapSize.x > 0 ? video_clip->mSnapSize.x : 60.f) / frame_duration;
-        view_frames = video_clip->mSnapSize.x > 0 ? (window_size.x / video_clip->mSnapSize.x) : 16;
-    }
-    else if (IS_AUDIO(editingClip->mType))
-    {
-        frame_duration = (main_timeline->mFrameRate.den > 0 && main_timeline->mFrameRate.num > 0) ? main_timeline->mFrameRate.den * 1000.0 / main_timeline->mFrameRate.num : 40;
-        maxPixelWidthTarget = 40.f / frame_duration;
-        view_frames = window_size.x / 40.f;
-    }
-    if (editingClip->msPixelWidthTarget < 0) editingClip->msPixelWidthTarget = minPixelWidthTarget;
-
-    int64_t newVisibleTime = (int64_t)floorf((timline_size.x) / editingClip->msPixelWidthTarget);
-    editingClip->CalcDisplayParams(newVisibleTime);
-    const float HorizonBarWidthRatio = ImMin(editingClip->visibleTime / (float)duration, 1.f);
-    const float HorizonBarWidthInPixels = std::max(HorizonBarWidthRatio * (timline_size.x), (float)scrollSize);
-    const float HorizonBarPos = HorizonBarWidthRatio * (timline_size.x);
-    ImRect regionRect(canvas_pos, canvas_pos + timline_size);
-    ImRect HorizonScrollBarRect;
-    ImRect HorizonScrollHandleBarRect;
-    static ImVec2 panningViewHorizonSource;
-    static int64_t panningViewHorizonTime;
-
-    editingClip->msPixelWidthTarget = ImClamp(editingClip->msPixelWidthTarget, minPixelWidthTarget, maxPixelWidthTarget);
-
-    if (editingClip->visibleTime >= duration)
-        editingClip->firstTime = 0;
-    else if (editingClip->firstTime + editingClip->visibleTime > duration)
-    {
-        editingClip->firstTime = duration - editingClip->visibleTime;
-        alignTime(editingClip->firstTime, frame_duration);
-        editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
-    }
-    editingClip->lastTime = editingClip->firstTime + editingClip->visibleTime;
-
     ImGui::BeginGroup();
     bool isFocused = ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows);
     {
