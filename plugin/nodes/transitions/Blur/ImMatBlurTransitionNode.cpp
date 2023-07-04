@@ -81,7 +81,6 @@ struct BlurTransitionNode final : Node
         float _intensity = m_intensity;
         int _passes = m_passes;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
-        ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Intensity##LinearBlur", &_intensity, 0.0, 1.f, "%.1f", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_intensity##LinearBlur")) { _intensity = 0.1f; changed = true; }

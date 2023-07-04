@@ -79,7 +79,6 @@ struct WipeTransitionNode final : Node
         bool changed = false;
         int _type = m_type;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_NoInput;
-        ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::RadioButton("Right", &_type, 0); ImGui::SameLine();
         ImGui::RadioButton("Left", &_type, 1); ImGui::SameLine();

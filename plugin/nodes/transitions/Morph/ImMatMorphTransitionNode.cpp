@@ -79,7 +79,6 @@ struct MorphTransitionNode final : Node
         bool changed = false;
         float _strength = m_strength;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
-        ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Strength##Radial", &_strength, 0.0, 1.f, "%.1f", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_strength##Radial")) { _strength = 0.1f; changed = true; }

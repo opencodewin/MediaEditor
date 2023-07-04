@@ -87,7 +87,6 @@ struct JitterEffectNode final : Node
         float _max_scale = m_max_scale;
         float _offset = m_offset;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
-        ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_TimeIn.IsLinked());
         ImGui::SliderFloat("Time##Jitter", &_time, 0.1, 8.f, "%.2f", flags);

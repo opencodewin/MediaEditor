@@ -439,13 +439,6 @@ struct Clip
     static void Load(Clip * clip, const imgui_json::value& value);
     virtual void Save(imgui_json::value& value) = 0;
 
-    MEC::Event::Holder FindEventByID(int64_t event_id);
-    MEC::Event::Holder FindSelectedEvent();
-    bool hasSelectedEvent();
-
-    void EventMoving(int64_t event_id, int64_t diff, int64_t mouse);
-    int64_t EventCropping(int64_t event_id, int64_t diff, int type);
-
     int64_t Start() const { return mStart; }
     int64_t End() const { return mEnd; }
     int64_t Length() const { return mEnd-mStart; }
@@ -454,9 +447,15 @@ struct Clip
     bool IsInClipRange(int64_t pos) const { return pos >= mStart && pos < mEnd; }
     
     int AddEventTrack();
+    MEC::Event::Holder FindEventByID(int64_t event_id);
+    MEC::Event::Holder FindSelectedEvent();
+    bool hasSelectedEvent();
+    void EventMoving(int64_t event_id, int64_t diff, int64_t mouse);
+    int64_t EventCropping(int64_t event_id, int64_t diff, int type);
     bool AddEvent(int track, int64_t start, int64_t duration, void* data);
     bool AppendEvent(MEC::Event::Holder event, void* data);
-    bool DeleteEvent(int64_t event_id);
+    bool DeleteEvent(MEC::Event::Holder event);
+    void SelectEvent(MEC::Event::Holder event, bool appand = false);
 
     void ChangeStart(int64_t pos);
     void ChangeStartOffset(int64_t newOffset);

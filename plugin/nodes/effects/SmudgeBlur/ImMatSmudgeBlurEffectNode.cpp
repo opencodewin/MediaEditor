@@ -85,7 +85,6 @@ struct SmudgeBlurEffectNode final : Node
         float _radius = m_radius;
         float _iterations = m_iterations;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
-        ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_RadiusIn.IsLinked());
         ImGui::SliderFloat("Radius##SmudgeBlur", &_radius, 0.0, 0.05f, "%.3f", flags);

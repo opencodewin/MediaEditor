@@ -79,8 +79,7 @@ struct BowTieTransitionNode final : Node
         bool changed = false;
         int horizon = m_bHorizon ? 0 : 1;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_NoInput;
-        ImGui::Dummy(ImVec2(100, 8));
-        ImGui::PushItemWidth(100);
+        ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled);
         ImGui::RadioButton("Horizon", &horizon, 0); ImGui::SameLine();
         ImGui::RadioButton("Vertical", &horizon, 1);

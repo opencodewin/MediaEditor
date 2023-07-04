@@ -87,7 +87,6 @@ struct WaterRippleEffectNode final : Node
         float _amount = m_amount;
         float _speed = m_speed;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
-        ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_TimeIn.IsLinked());
         ImGui::SliderFloat("Time##WaterRipple", &_time, 0.0, 10.f, "%.2f", flags);

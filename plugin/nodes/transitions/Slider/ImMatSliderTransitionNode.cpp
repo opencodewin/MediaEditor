@@ -81,8 +81,7 @@ struct SliderTransitionNode final : Node
         int _type = m_slider_type;
         int _in = m_out ? 0 : 1;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
-        ImGui::Dummy(ImVec2(100, 8));
-        ImGui::PushItemWidth(100);
+        ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled);
         ImGui::SliderInt("Type", &_type, 0, 8, "%d", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_type##Slider")) { _type = 0; changed = true; }

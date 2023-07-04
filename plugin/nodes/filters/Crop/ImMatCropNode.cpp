@@ -93,8 +93,7 @@ struct CropNode final : Node
         float _yd = m_yd;
         // TODO::Hard to get focus and input number
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
-        ImGui::Dummy(ImVec2(300, 8));
-        ImGui::PushItemWidth(300);
+        ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled);
         ImGui::SliderFloat("x1##Crop", &_x1, 0.f, 1.f, "%.02f", flags);
         ImGui::SameLine(320); if (ImGui::Button(ICON_RESET "##reset_x1##Crop")) { _x1 = 0.f; changed = true; }

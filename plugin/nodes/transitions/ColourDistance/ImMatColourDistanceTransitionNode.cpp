@@ -79,7 +79,6 @@ struct ColourDistanceTransitionNode final : Node
         bool changed = false;
         float _power = m_power;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
-        ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Power##Radial", &_power, 1.0, 10.f, "%.0f", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_power##ColourDistance")) { _power = 5.0f; changed = true; }

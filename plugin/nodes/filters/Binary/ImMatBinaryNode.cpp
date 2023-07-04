@@ -85,8 +85,7 @@ struct BinaryNode final : Node
         ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
         float _min = m_min;
         float _max = m_max;
-        ImGui::Dummy(ImVec2(180, 8));
-        ImGui::PushItemWidth(180);
+        ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_MinIn.IsLinked());
         ImGui::SliderFloat("Threshold min##Binary", &_min, 0.f, 1.f, "%.2f", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_min##Binary")) { _min = 0.f; changed = true; }

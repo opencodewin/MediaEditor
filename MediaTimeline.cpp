@@ -1334,12 +1334,9 @@ bool Clip::AddEvent(int track, int64_t start, int64_t duration, void* data)
     return false;
 }
 
-bool Clip::DeleteEvent(int64_t event_id)
+bool Clip::DeleteEvent(MEC::Event::Holder event)
 {
-    if (!mEventStack)
-        return false;
-    auto event = FindEventByID(event_id);
-    if (!event)
+    if (!mEventStack || !event)
         return false;
     int track_index = event->Z();
     if (track_index < 0 || track_index >= mEventTracks.size())
@@ -1350,14 +1347,14 @@ bool Clip::DeleteEvent(int64_t event_id)
         return false;
     for (auto event_iter = track->m_Events.begin(); event_iter != track->m_Events.end();)
     {
-        if (*event_iter == event_id)
+        if (*event_iter == event->Id())
         {
             event_iter = track->m_Events.erase(event_iter);
         }
         else
             event_iter++;
     }
-    mEventStack->RemoveEvent(event_id);
+    mEventStack->RemoveEvent(event->Id());
     return true;
 }
 
@@ -1381,6 +1378,32 @@ bool Clip::AppendEvent(MEC::Event::Holder event, void* data)
         }
     }
     return false;
+}
+
+void Clip::SelectEvent(MEC::Event::Holder event, bool appand)
+{
+    if (!mEventStack || !event)
+        return;
+    bool selected = true;
+    bool is_selected = event->Status() & EVENT_SELECTED;
+    if (appand && is_selected)
+    {
+        selected = false;
+    }
+
+    auto event_list = mEventStack->GetEventList();
+    for (auto _event : event_list)
+    {
+        if (_event->Id() != event->Id())
+        {
+            if (!appand)
+            {
+                _event->SetStatus(EVENT_SELECTED_BIT, selected ? 0 : 1);
+            }
+        }
+    }
+    event->SetStatus(EVENT_SELECTED_BIT, selected ? 1 : 0);
+    mEventStack->SetEditingEvent(selected ? event->Id() : -1);
 }
 
 void Clip::ChangeStart(int64_t pos)
@@ -11802,7 +11825,6 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.5, 0.5, 0.5, 1.0));
     ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(0.7, 0.7, 0.7, 1.0));
 
-    ImGui::BeginDisabled(!has_selected_event);
     ImGui::SetCursorScreenPos(toolbar_pos + ImVec2(0, 4));
     if (ImGui::CheckButton(ICON_BLUE_PRINT "##clip_timeline_show_bp", &show_BP, ImVec4(0.5, 0.5, 0.0, 1.0), true))
     {
@@ -11813,11 +11835,12 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     ImGui::SameLine();
     ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
 
+    ImGui::BeginDisabled(!has_selected_event);
     ImGui::SameLine();
     if (ImGui::Button(ICON_MEDIA_DELETE_CLIP "##clip_timeline_delete_event"))
     {
         // TODO::Dicky delete event need be confirmed
-        clip->DeleteEvent(clip->FindSelectedEvent()->Id());
+        clip->DeleteEvent(clip->FindSelectedEvent());
         has_selected_event = false;
     }
     ImGui::ShowTooltipOnHover("Delete Event");
@@ -11907,6 +11930,8 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     ImGui::ShowTooltipOnHover("Next event");
 
     ImGui::PopStyleColor(4);
+
+    draw_list->AddLine(canvas_pos + ImVec2(2, 0), canvas_pos + ImVec2(canvas_size.x - 4, 0), IM_COL32(255, 255, 255, 128));
 
     // draw clip timeline
     ImGui::SetCursorScreenPos(toolbar_pos + ImVec2(0, toolbarHeight));
@@ -12410,6 +12435,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                         {
                             // append event on exist event
                             auto appended = clip->AppendEvent(mouseEvent, (void *)node);
+                            if (appended) clip->SelectEvent(mouseEvent);
                         }
                     }
                 }

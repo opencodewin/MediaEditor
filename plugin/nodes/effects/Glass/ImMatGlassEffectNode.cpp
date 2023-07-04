@@ -84,7 +84,6 @@ struct GlassEffectNode final : Node
         bool changed = false;
         float _scale = m_scale;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
-        ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_ScaleIn.IsLinked());
         ImGui::SliderFloat("Scale##Glass", &_scale, 0.0, 30.f, "%.0f", flags);

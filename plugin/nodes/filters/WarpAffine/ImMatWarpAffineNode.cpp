@@ -112,7 +112,6 @@ struct MatWarpAffineNode final : Node
         float _crop_b = m_crop_b;
         ImInterpolateMode _mode = m_interpolation_mode;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
-        ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled);
         ImGui::SliderFloat("scale", &_scale, 0.f, 4.f, "%.1f", flags);

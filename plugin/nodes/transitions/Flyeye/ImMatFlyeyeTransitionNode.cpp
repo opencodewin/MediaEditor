@@ -81,7 +81,6 @@ struct FlyeyeTransitionNode final : Node
         float _zoom = m_zoom;
         float _colorSeparation = m_colorSeparation;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
-        ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Size##Flyeye", &_size, 0.0, 1.f, "%.2f", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_size##Flyeye")) { _size = 0.04f; changed = true; }

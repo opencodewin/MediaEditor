@@ -81,7 +81,6 @@ struct DoorwayTransitionNode final : Node
         float _perspective = m_perspective;
         float _depth = m_depth;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
-        ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Reflection##Doorway", &_reflection, 0.0, 1.f, "%.1f", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_reflection##Doorway")) { _reflection = 0.4f; changed = true; }

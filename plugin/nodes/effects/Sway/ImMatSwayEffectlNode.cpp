@@ -84,7 +84,6 @@ struct SwayEffectNode final : Node
         bool changed = false;
         float _time = m_time;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
-        ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_TimeIn.IsLinked());
         ImGui::SliderFloat("Time##Sway", &_time, 0.1, 8.f, "%.2f", flags);

@@ -86,7 +86,6 @@ struct StarEffectNode final : Node
         int _layers = m_layers;
         ImPixel _color = m_color;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
-        ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_TimeIn.IsLinked());
         ImGui::SliderFloat("Time##Star", &_time, 0.1, 8.f, "%.2f", flags);

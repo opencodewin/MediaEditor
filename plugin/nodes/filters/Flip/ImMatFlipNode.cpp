@@ -81,7 +81,6 @@ struct FlipNode final : Node
         bool changed = false;
         bool _bx = m_bx;
         bool _by = m_by;
-        ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled);
         ImGui::TextUnformatted("X Flip");ImGui::SameLine();

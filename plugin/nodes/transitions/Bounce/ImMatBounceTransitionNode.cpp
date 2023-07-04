@@ -81,7 +81,6 @@ struct BounceTransitionNode final : Node
         float _bounces = m_bounces;
         ImPixel _shadowColor = m_shadowColor;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
-        ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("ShadowHeight##Bounce", &_shadow_height, 0.0, 0.3f, "%.3f", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_shadow_height##Bounce")) { _shadow_height = 0.075f; changed = true; }

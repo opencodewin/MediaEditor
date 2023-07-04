@@ -79,7 +79,6 @@ struct PinwheelTransitionNode final : Node
         bool changed = false;
         float _speed = m_speed;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
-        ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Speed##Pinwheel", &_speed, 1.f, 10.f, "%.0f", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_speed##Pinwheel")) { _speed = 2.f; changed = true; }

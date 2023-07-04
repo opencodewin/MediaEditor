@@ -88,10 +88,9 @@ struct GammaNode final : Node
         bool changed = false;
         float val = m_gamma;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_NoInput;
-        ImGui::Dummy(ImVec2(300, 8));
-        ImGui::PushItemWidth(300);
+        ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_GammaIn.IsLinked());
-        ImGui::GammaSelector("##slider_gamma##Gamma", ImVec2(300, 20), &val, 1.0f, 0.f, 4.f, zoom);
+        ImGui::GammaSelector("##slider_gamma##Gamma", ImVec2(200, 20), &val, 1.0f, 0.f, 4.f, zoom);
         if (key) ImGui::ImCurveEditKey("##add_curve_gamma##Gamma", key, "gamma##Gamma", 0.f, 4.f, 1.f);
         ImGui::EndDisabled();
         ImGui::PopItemWidth();

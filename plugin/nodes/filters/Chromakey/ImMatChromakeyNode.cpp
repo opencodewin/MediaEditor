@@ -87,7 +87,6 @@ struct ChromaKeyNode final : Node
         float _alphaScale = m_alphaScale;
         ImPixel _chromaColor = m_chromaColor;
         _chromaColor.a = m_alphaExponent;
-        ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled);
         ImGui::Checkbox("Alpha Output##ChromaKey",&_alpha_only);

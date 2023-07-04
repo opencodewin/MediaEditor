@@ -79,7 +79,6 @@ struct PolkaDotsTransitionNode final : Node
         bool changed = false;
         float _dots = m_dots;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
-        ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Dots##PolkaDots", &_dots, 1.0, 100.f, "%.0f", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_dots##PolkaDots")) { _dots = 20.f; changed = true; }

@@ -76,7 +76,6 @@ struct DilationNode final : Node
         ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
         bool changed = false;
         int _ksz = m_ksz;
-        ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled);
         ImGui::SliderInt("Kernel Size##Dilation", &_ksz, 1, 30, "%d", flags);

@@ -85,7 +85,6 @@ struct BarrelDistortionEffectNode final : Node
         float _scale = m_scale;
         float _pow = m_pow;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
-        ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_ScaleIn.IsLinked());
         ImGui::SliderFloat("Scale##BarrelDistortion", &_scale, 0.0, 3.f, "%.2f", flags);

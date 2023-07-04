@@ -80,7 +80,6 @@ struct DirectionalWarpTransitionNode final : Node
         float _smoothness = m_smoothness;
         ImVec2 _direction = m_direction;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
-        ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Smoothness##DirectionalWarp", &_smoothness, 0.0, 1.f, "%.1f", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_smoothness##DirectionalWarp")) { _smoothness = 0.5f; changed = true; }

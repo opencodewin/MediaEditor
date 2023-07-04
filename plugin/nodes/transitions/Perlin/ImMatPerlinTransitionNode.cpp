@@ -81,7 +81,6 @@ struct PerlinTransitionNode final : Node
         float _smoothness = m_smoothness;
         float _seed = m_seed;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
-        ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Scale##Perlin", &_scale, 0.0, 10.f, "%.1f", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_scale##Perlin")) { _scale = 4.f; changed = true; }

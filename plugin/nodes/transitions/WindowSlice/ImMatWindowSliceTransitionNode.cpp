@@ -80,7 +80,6 @@ struct WindowSliceTransitionNode final : Node
         float _smoothness = m_smoothness;
         float _count = m_count;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
-        ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Smoothness##WindowSlice", &_smoothness, 0.0, 1.f, "%.1f", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_smoothness##WindowSlice")) { _smoothness = 1.f; changed = true; }

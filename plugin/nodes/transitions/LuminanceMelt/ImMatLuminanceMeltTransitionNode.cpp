@@ -81,7 +81,6 @@ struct LuminanceMeltTransitionNode final : Node
         int _direction = m_direction;
         int _above = m_above;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
-        ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Threshold##LuminanceMelt", &_threshold, 0.0, 1.f, "%.1f", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_threshold##LuminanceMelt")) { _threshold = 0.8f; changed = true; }

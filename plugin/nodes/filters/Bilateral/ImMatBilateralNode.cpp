@@ -88,8 +88,7 @@ struct BilateralNode final : Node
         int _ksize = m_ksize;
         float _sigma_spatial = m_sigma_spatial;
         float _sigma_color = m_sigma_color;
-        ImGui::Dummy(ImVec2(180, 8));
-        ImGui::PushItemWidth(180);
+        ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_SizeIn.IsLinked());
         ImGui::SliderInt("Kernel Size##Bilateral", &_ksize, 2, 20, "%d", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_size##Bilateral")) { _ksize = 5; changed = true; }

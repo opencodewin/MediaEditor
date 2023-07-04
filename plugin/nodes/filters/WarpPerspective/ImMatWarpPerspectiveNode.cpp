@@ -89,7 +89,6 @@ struct MatWarpPerspectiveNode final : Node
         ImInterpolateMode _mode = m_interpolation_mode;
         const ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
         const ImVec2 v_size = ImVec2(18, 100);
-        ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(120);
         ImGui::BeginDisabled(!m_Enabled);
         ImGui::SliderFloat("##TL x", &_warp_tl.x, 0.f, 1.f, "", flags);

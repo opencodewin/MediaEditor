@@ -81,7 +81,6 @@ struct RotateScaleVanishTransitionNode final : Node
         bool _reverse_effect = m_reverse_effect;
         bool _reverse_rotation = m_reverse_rotation;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_NoInput;
-        ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::Checkbox("Second fade in##RotateScaleVanish",&_fade_in_second);
         ImGui::Checkbox("Reverse Effect##RotateScaleVanish",&_reverse_effect);

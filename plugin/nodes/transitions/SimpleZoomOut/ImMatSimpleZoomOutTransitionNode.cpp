@@ -80,7 +80,6 @@ struct SimpleZoomOutTransitionNode final : Node
         float _quickness = m_quickness;
         bool _fade = m_fade;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
-        ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Quickness##SimpleZoomOut", &_quickness, 0.1, 3.f, "%.1f", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_quickness##SimpleZoomOut")) { _quickness = 0.8f; changed = true; }

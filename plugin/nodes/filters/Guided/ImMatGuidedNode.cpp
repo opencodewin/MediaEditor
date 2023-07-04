@@ -85,7 +85,6 @@ struct GuidedNode final : Node
         float _eps = m_eps;
         int _range = m_range;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
-        ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_EPSIn.IsLinked());
         ImGui::SliderFloat("EPS##GuidedFilter", &_eps, 0.000001, 0.001f, "%.6f", flags);

@@ -76,7 +76,6 @@ struct AudioGainNode final : Node
         bool changed = false;
         float val = m_gain;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
-        ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_GainIn.IsLinked());
         ImGui::SliderFloat("##slider_gain##Gain", &val, 0.0, 2.f, "%.2f", flags);

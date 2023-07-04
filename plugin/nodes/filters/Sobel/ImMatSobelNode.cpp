@@ -85,7 +85,6 @@ struct SobelNode final : Node
         bool changed = false;
         float _strength = m_strength;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
-        ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_StrengthIn.IsLinked());
         ImGui::SliderFloat("Strength##Sobel", &_strength, 0.1, 8.f, "%.2f", flags);

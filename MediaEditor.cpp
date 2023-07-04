@@ -4816,6 +4816,58 @@ static void DrawVideoFilterBlueprintWindow(ImDrawList *draw_list, Clip * editing
     ShowVideoFilterBluePrintWindow(draw_list, editing_clip);
 }
 
+static void DrawVideoFilterEventWindow(ImDrawList *draw_list, Clip * editing_clip)
+{
+    ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+    ImVec2 sub_window_size = ImGui::GetWindowSize();
+    if (!editing_clip || !editing_clip->mEventStack)
+        return;
+
+    auto event_list = editing_clip->mEventStack->GetEventList();
+    for (auto event : event_list)
+    {
+        std::string event_label = ImGuiHelper::MillisecToString(event->Start(), 3) + " -> " + ImGuiHelper::MillisecToString(event->End(), 3) + "##clip_event##" + std::to_string(event->Id());
+        if (ImGui::TreeNodeEx(event_label.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
+        {
+            auto pBP = event->GetBp();
+            if (pBP)
+            {
+                auto nodes = pBP->m_Document->m_Blueprint.GetNodes();
+                for (auto node : nodes)
+                {
+                    auto type = node->GetTypeInfo().m_Type;
+                    if (type == BluePrint::NodeType::EntryPoint || type == BluePrint::NodeType::ExitPoint)
+                        continue;
+                    if (!node->CustomLayout())
+                        continue;
+                    auto label_name = node->m_Name;
+                    std::string lable_id = label_name + "##video_transition_node" + "@" + std::to_string(node->m_ID);
+                    node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(50, 28));
+                    ImGui::SameLine(60);
+                    if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
+                    {
+                        ImGui::ImCurveEdit::keys key;
+                        key.m_id = node->m_ID;
+                        if (node->DrawCustomLayout(ImGui::GetCurrentContext(), 1.0, ImVec2(0, 0), &key))
+                        {
+                            node->m_NeedUpdate = true;
+                            timeline->UpdatePreview();
+                        }
+                        if (!key.name.empty())
+                        {
+                            // TODO::Dicky
+                            //addCurve(key.name, key.m_min, key.m_max, key.m_default);
+                        }
+                        //
+                        ImGui::TreePop();
+                    }
+                }
+            }
+            ImGui::TreePop();
+        }
+    }
+}
+
 static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
 {
     /*                1. with preview(2 Splitters)                                                   2. without preview(1 Splitter)
@@ -4944,7 +4996,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
             ImGui::SameLine();
             if (ImGui::BeginChild("event list", ImVec2(event_list_width - 4, window_size.y), false))
             {
-                ImGui::Text("event list");
+                DrawVideoFilterEventWindow(draw_list, editing_clip);
             }
             ImGui::EndChild();
         }
@@ -4963,14 +5015,12 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
                 g_media_editor_settings.clip_timeline_height = timeline_height / window_size.y;
                 if (ImGui::BeginChild("preview", ImVec2(timeline_width - 4, preview_height - 4), false))
                 {
-                    //ImGui::Text("preview");
                     DrawVideoFilterPreviewWindow(draw_list, editing_clip);
                 }
                 ImGui::EndChild();
                 ImGui::Dummy(ImVec2(0, 4));
                 if (ImGui::BeginChild("timeline", ImVec2(timeline_width - 4, timeline_height - 8), false))
                 {
-                    //ImGui::Text("timeline");
                     mouse_hold |= DrawVideoFilterTimelineWindow(show_blueprint);
                 }
                 ImGui::EndChild();
@@ -4979,7 +5029,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
             ImGui::SameLine();
             if (ImGui::BeginChild("event list", ImVec2(event_list_width - 8, window_size.y), false))
             {
-                ImGui::Text("event list");
+                DrawVideoFilterEventWindow(draw_list, editing_clip);
             }
             ImGui::EndChild();
         }
@@ -4992,7 +5042,6 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
             g_media_editor_settings.clip_timeline_height = timeline_height / window_size.y;
             if (ImGui::BeginChild("preview", ImVec2(window_size.x, preview_height - 4), false))
             {
-                //ImGui::Text("preview");
                 DrawVideoFilterPreviewWindow(draw_list, editing_clip);
             }
             ImGui::EndChild();
@@ -5003,14 +5052,13 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
             ImGui::Dummy(ImVec2(0, 4));
             if (ImGui::BeginChild("timeline", ImVec2(timeline_width - 4, timeline_height - 8), false))
             {
-                //ImGui::Text("timeline");
                 mouse_hold |= DrawVideoFilterTimelineWindow(show_blueprint);
             }
             ImGui::EndChild();
             ImGui::SameLine();
             if (ImGui::BeginChild("event list", ImVec2(event_list_width - 4, timeline_height - 8), false))
             {
-                ImGui::Text("event list");
+                DrawVideoFilterEventWindow(draw_list, editing_clip);
             }
             ImGui::EndChild();
         }
@@ -5026,7 +5074,6 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
             g_media_editor_settings.clip_timeline_height = timeline_height / window_size.y;
             if (ImGui::BeginChild("blue print", ImVec2(window_size.x, preview_height - 4), false))
             {
-                //ImGui::Text("blue print");
                 DrawVideoFilterBlueprintWindow(draw_list, editing_clip);
             }
             ImGui::EndChild();
@@ -5039,14 +5086,13 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
                 g_media_editor_settings.clip_timeline_width = timeline_width / window_size.x;
                 if (ImGui::BeginChild("timeline", ImVec2(timeline_width - 4, timeline_height - 8), false))
                 {
-                    //ImGui::Text("timeline");
                     mouse_hold |= DrawVideoFilterTimelineWindow(show_blueprint);
                 }
                 ImGui::EndChild();
                 ImGui::SameLine();
                 if (ImGui::BeginChild("event list", ImVec2(event_list_width - 4, timeline_height - 8), false))
                 {
-                    ImGui::Text("event list");
+                    DrawVideoFilterEventWindow(draw_list, editing_clip);
                 }
                 ImGui::EndChild();
                 }
@@ -5067,14 +5113,12 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
                 g_media_editor_settings.clip_timeline_width = blue_width / window_size.x;
                 if (ImGui::BeginChild("blue print", ImVec2(blue_width - 4, preview_height - 4), false))
                 {
-                    //ImGui::Text("blue print");
                     DrawVideoFilterBlueprintWindow(draw_list, editing_clip);
                 }
                 ImGui::EndChild();
                 ImGui::SameLine();
                 if (ImGui::BeginChild("preview", ImVec2(preview_width - 4, preview_height - 4), false))
                 {
-                    //ImGui::Text("preview");
                     DrawVideoFilterPreviewWindow(draw_list, editing_clip);
                 }
                 ImGui::EndChild();
@@ -5089,14 +5133,13 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
                 g_media_editor_settings.clip_timeline_width = timeline_width / window_size.x;
                 if (ImGui::BeginChild("timeline", ImVec2(timeline_width - 4, timeline_height - 8), false))
                 {
-                    //ImGui::Text("timeline");
                     mouse_hold |= DrawVideoFilterTimelineWindow(show_blueprint);
                 }
                 ImGui::EndChild();
                 ImGui::SameLine();
                 if (ImGui::BeginChild("event list", ImVec2(event_list_width - 4, timeline_height - 8), false))
                 {
-                    ImGui::Text("event list");
+                    DrawVideoFilterEventWindow(draw_list, editing_clip);
                 }
                 ImGui::EndChild();
             }

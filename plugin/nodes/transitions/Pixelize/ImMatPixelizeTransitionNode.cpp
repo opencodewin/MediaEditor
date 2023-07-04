@@ -80,7 +80,6 @@ struct PixelizeTransitionNode final : Node
         float _size = m_size;
         int _steps = m_steps;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
-        ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Min Size##Pixelize", &_size, 0.0, 50.f, "%.0f", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_size##Pixelize")) { _size = 20; changed = true; }

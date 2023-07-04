@@ -84,7 +84,6 @@ struct GridFlipTransitionNode final : Node
         int size_y = m_size_y;
         ImPixel _backColor = m_backColor;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
-        ImGui::Dummy(ImVec2(200, 8));
         ImGui::BeginDisabled(!m_Enabled);
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Pause##GridFlip", &_pause, 0.1, 1.f, "%.1f", flags);

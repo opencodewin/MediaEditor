@@ -87,7 +87,6 @@ struct RadicalBlurEffectNode final : Node
         float _intensity = m_intensity;
         float _count = m_count;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
-        ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_RadiusIn.IsLinked());
         ImGui::SliderFloat("Radius##RadicalBlur", &_radius, 0.0, 1.f, "%.2f", flags);

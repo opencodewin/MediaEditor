@@ -92,7 +92,6 @@ struct BoxBlurNode final : Node
         int _Size = m_Size;
         int _iteration = m_iteration;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
-        ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_SizeIn.IsLinked());
         ImGui::SliderInt("Size##Box", &_Size, 1, 20, "%d", flags);

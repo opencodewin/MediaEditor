@@ -97,7 +97,6 @@ struct SmartDenoiseNode final : Node
         float _ksigma = m_ksigma;
         float _threshold = m_threshold;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
-        ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_SigmaIn.IsLinked());
         ImGui::SliderFloat("Sigma##SmartDenoise", &_sigma, 0.02f, 8.f, "%.2f", flags);

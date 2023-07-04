@@ -80,7 +80,6 @@ struct BurnOutTransitionNode final : Node
         float _smoothness = m_smoothness;
         ImPixel _shadowColor = m_shadowColor;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
-        ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Smoothness##BurnOut", &_smoothness, 0.0, 1.0f, "%.2f", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_smoothness##BurnOut")) { _smoothness = 0.03f; changed = true; }

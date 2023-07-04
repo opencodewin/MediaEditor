@@ -79,7 +79,6 @@ struct PolarTransitionNode final : Node
         bool changed = false;
         int _segments = m_segments;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
-        ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::SliderInt("Segments##Polar", &_segments, 3, 20, "%d", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_segments##Polar")) { _segments = 5; changed = true; }

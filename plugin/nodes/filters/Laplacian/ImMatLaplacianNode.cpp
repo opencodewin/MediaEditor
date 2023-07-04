@@ -86,7 +86,6 @@ struct LaplacianNode final : Node
         bool changed = false;
         int _Strength = m_Strength;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
-        ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_StrengthIn.IsLinked());
         ImGui::SliderInt("Strength##Laplacian", &_Strength, 0, 20, "%d", flags);

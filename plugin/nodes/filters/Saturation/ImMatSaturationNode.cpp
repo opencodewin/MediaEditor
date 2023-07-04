@@ -88,10 +88,9 @@ struct SaturationNode final : Node
         bool changed = false;
         float val = m_saturation - 1.0;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_NoInput;
-        ImGui::Dummy(ImVec2(300, 8));
-        ImGui::PushItemWidth(300);
+        ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_SaturationIn.IsLinked());
-        ImGui::SaturationSelector("##slider_saturation##Saturation", ImVec2(300, 40), &val, 0.0f, -1.f, 1.f, zoom, 32, 1.0f, true);
+        ImGui::SaturationSelector("##slider_saturation##Saturation", ImVec2(200, 40), &val, 0.0f, -1.f, 1.f, zoom, 32, 1.0f, true);
         if (key) ImGui::ImCurveEditKey("##add_curve_saturation##Saturation", key, "saturation##Saturation", -1.f, 1.f, 0.f);
         ImGui::EndDisabled();
         ImGui::PopItemWidth();

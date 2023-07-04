@@ -83,7 +83,6 @@ struct DissolveTransitionNode final : Node
         ImPixel _spreadColor = m_spreadColor;
         ImPixel _hotColor = m_hotColor;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
-        ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Line Width##Dissolve", &_lineWidth, 0.0, 0.2f, "%.2f", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_lineWidth##Dissolve")) { _lineWidth = 0.05f; changed = true; }

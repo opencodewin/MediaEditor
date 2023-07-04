@@ -83,7 +83,6 @@ struct DoomScreenTransitionNode final : Node
         float _dripScale = m_dripScale;
         int _bars = m_bars;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput;
-        ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Amplitude##DoomScreen", &_amplitude, 0.1, 10.f, "%.1f", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_amplitude##DoomScreen")) { _amplitude = 2.f; changed = true; }

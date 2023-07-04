@@ -928,8 +928,6 @@ struct MediaSourceNode final : Node
                 m_need_update = true;
             }
         }
-        ImGui::Dummy(ImVec2(300, 8));
-
         string str_current_time = PrintTimeStamp(m_current_pts);
         string str_total_time = PrintTimeStamp(m_total_time);
         ImGui::Text("%s / %s", str_current_time.c_str(), str_total_time.c_str());

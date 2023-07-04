@@ -88,10 +88,9 @@ struct ExposureNode final : Node
         bool changed = false;
         float val = m_exposure;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_NoInput;
-        ImGui::Dummy(ImVec2(300, 8));
-        ImGui::PushItemWidth(300);
+        ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_ExposureIn.IsLinked());
-        ImGui::LumianceSelector("##slider_exposure##Exposure", ImVec2(300, 20), &val, 0.0f, -2.f, 2.f, zoom);
+        ImGui::LumianceSelector("##slider_exposure##Exposure", ImVec2(200, 20), &val, 0.0f, -2.f, 2.f, zoom);
         if (key) ImGui::ImCurveEditKey("##add_curve_exposure##Exposure", key, "exposure##Exposure", -2.f, 2.f, 0.f);
         ImGui::EndDisabled();
         ImGui::PopItemWidth();

@@ -80,7 +80,6 @@ struct DirectionalScaledTransitionNode final : Node
         float _scale = m_scale;
         ImVec2 _direction = m_direction;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
-        ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Scale##DirectionalScaled", &_scale, 0.0, 1.f, "%.1f", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_scale##DirectionalScaled")) { _scale = 0.7f; changed = true; }

@@ -81,8 +81,7 @@ struct MoveTransitionNode final : Node
         bool changed = false;
         ImVec2 _direction = m_direction;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
-        ImGui::Dummy(ImVec2(100, 8));
-        ImGui::PushItemWidth(100);
+        ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled);
         ImGui::SliderFloat2("Direction##Move", (float *)&_direction, -1.0, 1.0, "%.1f", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_direction##Move")) { _direction = {1, 0}; changed = true; }

@@ -254,7 +254,6 @@ struct Lut3DNode final : Node
         // Draw custom layout
         bool changed = false;
         int lut_mode = m_lut_mode;
-        ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled);
         ImGui::TextUnformatted("Please using Node Setting to change mode");

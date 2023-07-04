@@ -88,10 +88,9 @@ struct ContrastNode final : Node
         bool changed = false;
         float val = m_contrast;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_NoInput;
-        ImGui::Dummy(ImVec2(300, 8));
-        ImGui::PushItemWidth(300);
+        ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_ContrastIn.IsLinked());
-        ImGui::ContrastSelector("##slider_contrast##Contrast", ImVec2(300, 20), &val, 1.0, zoom);
+        ImGui::ContrastSelector("##slider_contrast##Contrast", ImVec2(200, 20), &val, 1.0, zoom);
         if (key) ImGui::ImCurveEditKey("##add_curve_contrast##Contrast", key, "contrast##Contrast", 0.f, 4.f, 1.f);
         ImGui::EndDisabled();
         ImGui::PopItemWidth();

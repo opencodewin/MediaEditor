@@ -84,7 +84,6 @@ struct PixeLateEffectNode final : Node
         bool changed = false;
         float _radius = m_radius;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
-        ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_RadiusIn.IsLinked());
         ImGui::SliderFloat("Radius##PixeLate", &_radius, 0.01f, 1.f, "%.2f", flags);

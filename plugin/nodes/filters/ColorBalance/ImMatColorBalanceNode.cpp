@@ -80,7 +80,6 @@ struct ColorBalanceNode final : Node
         ImVec4 _highlights = m_highlights;
         bool _preserve_lightness = m_preserve_lightness;
         bool _ganged = m_ganged;
-        ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled);
         static ImVec2 offset = ImVec2(0, 0);

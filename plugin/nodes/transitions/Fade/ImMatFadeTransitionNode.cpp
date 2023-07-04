@@ -79,8 +79,7 @@ struct FadeTransitionNode final : Node
         bool changed = false;
         int _type = m_type;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
-        ImGui::Dummy(ImVec2(100, 8));
-        ImGui::PushItemWidth(100);
+        ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled);
         ImGui::RadioButton("Normal", &_type, 0); ImGui::SameLine();
         ImGui::RadioButton("Colorful", &_type, 1); ImGui::SameLine();

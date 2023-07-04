@@ -80,7 +80,6 @@ struct MosaicTransitionNode final : Node
         int size_x = m_size_x;
         int size_y = m_size_y;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
-        ImGui::Dummy(ImVec2(200, 8));
         ImGui::BeginDisabled(!m_Enabled);
         ImGui::PushItemWidth(200);
         ImGui::SliderInt("Size X##Mosaic", &size_x, -5, 5, "%d", flags);

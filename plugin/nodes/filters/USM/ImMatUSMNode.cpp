@@ -86,7 +86,6 @@ struct USMNode final : Node
         float _sigma = m_sigma;
         float _amount = m_amount;
         float _threshold = m_threshold;
-        ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_SigmaIn.IsLinked());
         ImGui::SliderFloat("Sigma##USM", &_sigma, 0, 10.f, "%.1f", flags);

@@ -88,10 +88,9 @@ struct BrightnessNode final : Node
         bool changed = false;
         float val = m_brightness;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_NoInput;
-        ImGui::Dummy(ImVec2(300, 8));
-        ImGui::PushItemWidth(300);
+        ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_BrightnessIn.IsLinked());
-        ImGui::LumianceSelector("##slider_brightness##Brightness", ImVec2(300, 20), &val, 0.0f, -1.f, 1.f, zoom);
+        ImGui::LumianceSelector("##slider_brightness##Brightness", ImVec2(200, 20), &val, 0.0f, -1.f, 1.f, zoom);
         if (key) ImGui::ImCurveEditKey("##add_curve_brightness##Brightness", key, "brightness##Brightness", -1.f, 1.f, 0.f);
         ImGui::EndDisabled();
         ImGui::PopItemWidth();

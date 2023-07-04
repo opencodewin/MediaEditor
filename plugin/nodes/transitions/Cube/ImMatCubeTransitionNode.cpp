@@ -82,7 +82,6 @@ struct CubeTransitionNode final : Node
         float _unzoom = m_unzoom;
         float _floating = m_floating;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
-        ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Reflection##Cube", &_reflection, 0.0, 1.f, "%.1f", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_reflection##Cube")) { _reflection = 0.4f; changed = true; }

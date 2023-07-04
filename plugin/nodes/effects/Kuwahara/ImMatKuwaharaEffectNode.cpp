@@ -84,7 +84,6 @@ struct KuwaharaEffectNode final : Node
         bool changed = false;
         float _scale = m_scale;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
-        ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_ScaleIn.IsLinked());
         ImGui::SliderFloat("Scale##Kuwahara", &_scale, 2.f, 10.f, "%.0f", flags);

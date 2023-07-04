@@ -88,10 +88,9 @@ struct WhiteBalanceNode final : Node
         bool changed = false;
         float val = m_temperature;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_NoInput;
-        ImGui::Dummy(ImVec2(300, 8));
-        ImGui::PushItemWidth(300);
+        ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_TemperatureIn.IsLinked());
-        ImGui::TemperatureSelector("##slider_temperature##Temperature", ImVec2(300, 20), &val, 5000.0f, 2000.f, 8000.f, zoom);
+        ImGui::TemperatureSelector("##slider_temperature##Temperature", ImVec2(200, 20), &val, 5000.0f, 2000.f, 8000.f, zoom);
         if (key) ImGui::ImCurveEditKey("##add_curve_temperature##Temperature", key, "temperature##Temperature", 2000.f, 8000.f, 5000.f);
         ImGui::EndDisabled();
         ImGui::PopItemWidth();

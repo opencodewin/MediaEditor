@@ -80,8 +80,7 @@ struct EdgeTransitionNode final : Node
         float _thickness = m_thickness;
         float _brightness = m_brightness;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
-        ImGui::Dummy(ImVec2(100, 8));
-        ImGui::PushItemWidth(100);
+        ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled);
         ImGui::SliderFloat("Thickness##Edge", &_thickness, 0.001, 0.01f, "%.3f", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_thickness##Edge")) { _thickness = 0.001f; changed = true; }

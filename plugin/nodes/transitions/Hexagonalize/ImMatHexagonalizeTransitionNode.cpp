@@ -80,7 +80,6 @@ struct HexagonalizeTransitionNode final : Node
         float _horizontalHexagons = m_horizontalHexagons;
         int _steps = m_steps;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
-        ImGui::Dummy(ImVec2(200, 8));
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("X Hexagons##Hexagonalize", &_horizontalHexagons, 0.0, 50.f, "%.0f", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_horizontalHexagons##Hexagonalize")) { _horizontalHexagons = 20.f; changed = true; }

@@ -88,10 +88,9 @@ struct HueNode final : Node
         static float featherLeft = 0.125f;
 		static float featherRight = 0.125f;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_NoInput;
-        ImGui::Dummy(ImVec2(300, 8));
-        ImGui::PushItemWidth(300);
+        ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_HueIn.IsLinked());
-        ImGui::HueSelector("##slideer_hue##Hue", ImVec2(300, 20), &val, &hue_width, &featherLeft, &featherRight, 0.0f, zoom, 64, 1.0f, 0.0f);
+        ImGui::HueSelector("##slideer_hue##Hue", ImVec2(200, 20), &val, &hue_width, &featherLeft, &featherRight, 0.0f, zoom, 64, 1.0f, 0.0f);
         if (key) ImGui::ImCurveEditKey("##add_curve_hue##Hue", key, "hue##Hue", 0.f, 360.f, 0.f);
         ImGui::EndDisabled();
         ImGui::PopItemWidth();
