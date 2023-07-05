@@ -89,7 +89,7 @@ struct CasNode final : Node
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_StrengthIn.IsLinked());
         ImGui::SliderFloat("Strength##CAS", &_strength, 0, 1.f, "%.2f", flags);
-        ImGui::SameLine();  if (ImGui::Button(ICON_RESET "##reset_strength##CAS")) { _strength = 0.f; changed = true; }
+        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_strength##CAS")) { _strength = 0.f; changed = true; }
         if (key) ImGui::ImCurveEditKey("##add_curve_strength##CAS", key, "strength##CAS", 0.f, 1.f, 0.9f);
         ImGui::EndDisabled();
         ImGui::PopItemWidth();

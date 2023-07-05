@@ -4826,41 +4826,67 @@ static void DrawVideoFilterEventWindow(ImDrawList *draw_list, Clip * editing_cli
     auto event_list = editing_clip->mEventStack->GetEventList();
     for (auto event : event_list)
     {
+        bool is_selected = event->Status() & EVENT_SELECTED;
         std::string event_label = ImGuiHelper::MillisecToString(event->Start(), 3) + " -> " + ImGuiHelper::MillisecToString(event->End(), 3) + "##clip_event##" + std::to_string(event->Id());
-        if (ImGui::TreeNodeEx(event_label.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
+        std::string event_drag_drop_label = "##event_tree##" + std::to_string(event->Id());
+        if (ImGui::TreeNodeEx(event_label.c_str(), ImGuiTreeNodeFlags_DefaultOpen | (is_selected ? ImGuiTreeNodeFlags_Selected : ImGuiTreeNodeFlags_None)))
         {
             auto pBP = event->GetBp();
             if (pBP)
             {
                 auto nodes = pBP->m_Document->m_Blueprint.GetNodes();
+                bool need_redraw = false;
                 for (auto node : nodes)
                 {
+                    if (need_redraw)
+                        break;
                     auto type = node->GetTypeInfo().m_Type;
                     if (type == BluePrint::NodeType::EntryPoint || type == BluePrint::NodeType::ExitPoint)
                         continue;
                     if (!node->CustomLayout())
                         continue;
                     auto label_name = node->m_Name;
-                    std::string lable_id = label_name + "##video_transition_node" + "@" + std::to_string(node->m_ID);
+                    std::string lable_id = label_name + "##video_filter_node" + "@" + std::to_string(node->m_ID);
                     node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(50, 28));
                     ImGui::SameLine(60);
-                    if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
+                    bool tree_open = ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen);
+                    if (ImGui::BeginDragDropSource())
+                    {
+                        ImGui::SetDragDropPayload(event_drag_drop_label.c_str(), node, sizeof(BluePrint::Node));
+                        ImGui::TextUnformatted(node->m_Name.c_str());
+                        ImGui::EndDragDropSource();
+                    }
+                    if (ImGui::BeginDragDropTarget())
+                    {
+                        if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(event_drag_drop_label.c_str()))
+                        {
+                            BluePrint::Node* src_node = (BluePrint::Node*)payload->Data;
+                            if (src_node)
+                            {
+                                pBP->Blueprint_SwapNode(src_node->m_ID, node->m_ID);
+                                need_redraw = true;
+                            }
+                        }
+                        ImGui::EndDragDropTarget();
+                    }
+                    if (tree_open && !need_redraw)
                     {
                         ImGui::ImCurveEdit::keys key;
                         key.m_id = node->m_ID;
+                        ImGui::Indent(20);
                         if (node->DrawCustomLayout(ImGui::GetCurrentContext(), 1.0, ImVec2(0, 0), &key))
                         {
                             node->m_NeedUpdate = true;
                             timeline->UpdatePreview();
                         }
+                        ImGui::Indent(-20);
                         if (!key.name.empty())
                         {
                             // TODO::Dicky
                             //addCurve(key.name, key.m_min, key.m_max, key.m_default);
                         }
-                        //
-                        ImGui::TreePop();
                     }
+                    if (tree_open) ImGui::TreePop();
                 }
             }
             ImGui::TreePop();

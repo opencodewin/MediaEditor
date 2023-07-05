@@ -366,13 +366,13 @@ struct Overlap
     void Save(imgui_json::value& value);
 };
 
-struct EventTrack
-{
 #define EVENT_SELECTED_BIT  0
 #define EVENT_HOVERED_BIT   1
 #define EVENT_SELECTED      (1UL << EVENT_SELECTED_BIT)
 #define EVENT_HOVERED       (1UL << EVENT_HOVERED_BIT)
 
+struct EventTrack
+{
     EventTrack(int64_t id, void* handle);
     int64_t mID             {-1};               // event track ID, project saved
     int64_t mClipID         {-1};               // event track belong to clip ID, project saved
