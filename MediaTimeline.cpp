@@ -6283,7 +6283,7 @@ void TimeLine::UpdatePreview(bool updateDuration)
     mIsPreviewNeedUpdate = true;
 }
 
-void TimeLine::RefreshTrackView(const vector<int64_t>& trackIds)
+void TimeLine::RefreshTrackView(const std::unordered_set<int64_t>& trackIds)
 {
     mMtvReader->RefreshTrackView(trackIds);
     mIsPreviewNeedUpdate = true;
@@ -8272,6 +8272,7 @@ int TimeLine::OnVideoFilterBluePrintChange(int type, std::string name, void* han
     if (filterName == "EventStackFilter")
     {
         MEC::VideoEventStackFilter* pEsf = dynamic_cast<MEC::VideoEventStackFilter*>(pFilter);
+        TimeLine* timeline = (TimeLine*)pEsf->GetTimelineHandle();
         if (name.compare("VideoFilter") == 0)
         {
             bool needUpdateView = false;
@@ -8289,12 +8290,14 @@ int TimeLine::OnVideoFilterBluePrintChange(int type, std::string name, void* han
             {
                 needUpdateView = true;
             }
+            else
+            {
+                Logger::Log(Logger::WARN) << "---> Ignore 'OnVideoFilterBluePrintChange' change type " << type << "." << std::endl;
+            }
             if (needUpdateView)
             {
                 auto trackId = pEsf->GetVideoClip()->TrackId();
-                std::vector<int64_t> trackIds = { trackId };
-                TimeLine* timeline = (TimeLine*)pEsf->GetTimelineHandle();
-                timeline->RefreshTrackView(trackIds);
+                timeline->mNeedUpdateTrackIds.insert(trackId);
             }
         }
     }

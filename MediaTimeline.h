@@ -35,6 +35,7 @@
 #include <string>
 #include <vector>
 #include <list>
+#include <unordered_set>
 #include <chrono>
 
 #define USING_OLD_UI
@@ -1142,6 +1143,7 @@ struct TimeLine
     int64_t mLastFrameTime                  {-1};
     using PlayerClock = std::chrono::steady_clock;
     PlayerClock::time_point mPlayTriggerTp;
+    std::unordered_set<int64_t> mNeedUpdateTrackIds;
 
     bool mIsCutting {false};
     imgui_json::array mOngoingActions;
@@ -1246,7 +1248,7 @@ struct TimeLine
     void ToEnd();
     void UpdateCurrent();
     void UpdatePreview(bool updateDuration = true);
-    void RefreshTrackView(const vector<int64_t>& trackIds);
+    void RefreshTrackView(const std::unordered_set<int64_t>& trackIds);
     int64_t ValidDuration();
 
     MediaCore::AudioRender* mAudioRender {nullptr};                // audio render(SDL)

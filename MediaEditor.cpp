@@ -5530,6 +5530,11 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
     }
     ImGui::EndChild();
 #endif
+    if (!timeline->mNeedUpdateTrackIds.empty())
+    {
+        timeline->RefreshTrackView(timeline->mNeedUpdateTrackIds);
+        timeline->mNeedUpdateTrackIds.clear();
+    }
 }
 
 /****************************************************************************************
