@@ -1355,6 +1355,9 @@ bool Clip::DeleteEvent(MEC::Event::Holder event)
     int track_index = event->Z();
     if (track_index < 0 || track_index >= mEventTracks.size())
         return false;
+    TimeLine * timeline = (TimeLine *)mHandle;
+    if (!timeline)
+        return false;
     // remove event from track
     auto track = mEventTracks[track_index];
     if (!track)
@@ -1369,6 +1372,8 @@ bool Clip::DeleteEvent(MEC::Event::Holder event)
             event_iter++;
     }
     mEventStack->RemoveEvent(event->Id());
+    auto clip_track = timeline->FindTrackByClipID(mID);
+    if (clip_track) timeline->RefreshTrackView({clip_track->mID});
     return true;
 }
 

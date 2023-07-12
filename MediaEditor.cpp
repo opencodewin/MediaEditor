@@ -4878,8 +4878,9 @@ static void DrawVideoFilterEventWindow(ImDrawList *draw_list, Clip * editing_cli
                         ImGui::Indent(20);
                         if (node->DrawCustomLayout(ImGui::GetCurrentContext(), 1.0, ImVec2(0, 0), &key))
                         {
+                            auto track = timeline->FindTrackByClipID(editing_clip->mID);
+                            if (track) timeline->RefreshTrackView({track->mID});
                             node->m_NeedUpdate = true;
-                            timeline->UpdatePreview();
                         }
                         ImGui::Indent(-20);
                         if (!key.name.empty())
