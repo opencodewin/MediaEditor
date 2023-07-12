@@ -4880,7 +4880,7 @@ static void DrawVideoFilterEventWindow(ImDrawList *draw_list, Clip * editing_cli
                         {
                             auto track = timeline->FindTrackByClipID(editing_clip->mID);
                             if (track) timeline->RefreshTrackView({track->mID});
-                            node->m_NeedUpdate = true;
+                            pBP->Blueprint_UpdateNode(node->m_ID);
                         }
                         ImGui::Indent(-20);
                         if (!key.name.empty())
@@ -5516,8 +5516,8 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
                             key.m_id = node->m_ID;
                             if (node->DrawCustomLayout(ImGui::GetCurrentContext(), 1.0, ImVec2(0, 0), &key))
                             {
-                                node->m_NeedUpdate = true;
                                 timeline->RefreshTrackView({trackId});
+                                blueprint->Blueprint_UpdateNode(node->m_ID);
                             }
                             if (!key.name.empty())
                             {
@@ -6154,8 +6154,8 @@ static void ShowVideoTransitionWindow(ImDrawList *draw_list, ImRect title_rect)
                             key.m_id = node->m_ID;
                             if (node->DrawCustomLayout(ImGui::GetCurrentContext(), 1.0, ImVec2(0, 0), &key))
                             {
-                                node->m_NeedUpdate = true;
                                 timeline->UpdatePreview();
+                                blueprint->Blueprint_UpdateNode(node->m_ID);
                             }
                             if (!key.name.empty())
                             {
@@ -6607,8 +6607,8 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list, ImRect title_rect)
                             key.m_id = node->m_ID;
                             if (node->DrawCustomLayout(ImGui::GetCurrentContext(), 1.0, ImVec2(0, 0), &key))
                             {
-                                node->m_NeedUpdate = true;
                                 timeline->UpdatePreview();
+                                blueprint->Blueprint_UpdateNode(node->m_ID);
                             }
                             if (!key.name.empty())
                             {
@@ -7074,8 +7074,8 @@ static void ShowAudioTransitionWindow(ImDrawList *draw_list, ImRect title_rect)
                             key.m_id = node->m_ID;
                             if (node->DrawCustomLayout(ImGui::GetCurrentContext(), 1.0, ImVec2(0, 0), &key))
                             {
-                                node->m_NeedUpdate = true;
                                 timeline->UpdatePreview();
+                                blueprint->Blueprint_UpdateNode(node->m_ID);
                             }
                             if (!key.name.empty())
                             {

@@ -190,6 +190,7 @@
 #define ICON_SPECTROGRAM    u8"\ue4a0"
 #define ICON_DRAWING_PIN    u8"\uf08d"
 #define ICON_EXPANMD        u8"\uf0b2"
+#define ICON_EXPAND_ROTATE  u8"\ue94f"
 
 #define ICON_SETTING_LINK   u8"\uf0c1"
 #define ICON_SETTING_UNLINK u8"\uf127"

@@ -11884,6 +11884,12 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         // TODO::Dicky copy event
     }
     ImGui::ShowTooltipOnHover("Copy Event");
+    ImGui::SameLine();
+    if (ImGui::RotateButton(ICON_EXPAND_ROTATE "##clip_timeline_expand_event", ImVec2(0, 0), -90))
+    {
+        // TODO::Dicky expand event to clip range
+    }
+    ImGui::ShowTooltipOnHover("Expand Event");
     ImGui::EndDisabled();
 
     ImGui::SameLine();
