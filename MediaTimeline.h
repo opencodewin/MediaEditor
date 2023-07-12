@@ -384,7 +384,7 @@ struct EventTrack
     static EventTrack* Load(const imgui_json::value& value, void * handle);
     void Save(imgui_json::value& value);
 
-    void DrawContent(ImDrawList *draw_list, ImRect rect, int event_height, int64_t view_start, int64_t view_end, float pixelWidthMS);
+    void DrawContent(ImDrawList *draw_list, ImRect rect, int event_height, int curve_height, int64_t view_start, int64_t view_end, float pixelWidthMS);
     void SelectEvent(MEC::Event::Holder event, bool appand);
     MEC::Event::Holder FindPreviousEvent(int64_t id);
     MEC::Event::Holder FindNextEvent(int64_t id);

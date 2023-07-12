@@ -1445,7 +1445,8 @@ static void ShowConfigure(MediaEditorSettings & config)
                 if (pixel_aspect_index == 0)
                 {
                     config.PixelAspectRatio.num = atoi(buf_par_x);
-                    config.PixelAspectRatio.den = atoi(buf_par_y); // TODO::Dicky need check den != 0
+                    config.PixelAspectRatio.den = atoi(buf_par_y);
+                    if (config.PixelAspectRatio.den) config.PixelAspectRatio.den = 1;
                 }
 
                 if (ImGui::Combo("Video Frame Rate", &frame_rate_index, frame_rate_items, IM_ARRAYSIZE(frame_rate_items)))
@@ -1464,7 +1465,8 @@ static void ShowConfigure(MediaEditorSettings & config)
                 if (frame_rate_index == 0)
                 {
                     config.VideoFrameRate.num = atoi(buf_fmr_x);
-                    config.VideoFrameRate.den = atoi(buf_fmr_y); // TODO::Dicky need check den != 0
+                    config.VideoFrameRate.den = atoi(buf_fmr_y);
+                    if (config.VideoFrameRate.den == 0) config.VideoFrameRate.den = 1;
                 }
 
                 auto color_getter = [](void* data, int idx, const char** out_text){
@@ -4882,7 +4884,7 @@ static void DrawVideoFilterEventWindow(ImDrawList *draw_list, Clip * editing_cli
                         ImGui::Indent(-20);
                         if (!key.name.empty())
                         {
-                            // TODO::Dicky
+                            // TODO::Dicky add curve
                             //addCurve(key.name, key.m_min, key.m_max, key.m_default);
                         }
                     }
