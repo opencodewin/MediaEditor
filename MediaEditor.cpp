@@ -4826,12 +4826,29 @@ static void DrawVideoFilterEventWindow(ImDrawList *draw_list, Clip * editing_cli
         return;
 
     auto event_list = editing_clip->mEventStack->GetEventList();
+    if (event_list.empty())
+    {
+        ImGui::SetWindowFontScale(2);
+        auto pos_center = sub_window_pos + sub_window_size / 2;
+        std::string tips_string = "Please add event first";
+        auto string_width = ImGui::CalcTextSize(tips_string.c_str());
+        auto tips_pos = pos_center - string_width / 2;
+        ImGui::SetWindowFontScale(1);
+        ImGui::AddTextComplex(draw_list, tips_pos, tips_string.c_str(), 2.f, IM_COL32(255, 255, 255, 128), 0.5f, IM_COL32(56, 56, 56, 192));
+        return;
+    }
+    auto update_track = [&](BluePrint::BluePrintUI* pBP, BluePrint::Node* node)
+    {
+        auto track = timeline->FindTrackByClipID(editing_clip->mID);
+        if (track) timeline->RefreshTrackView({track->mID});
+        pBP->Blueprint_UpdateNode(node->m_ID);
+    };
     for (auto event : event_list)
     {
         bool is_selected = event->Status() & EVENT_SELECTED;
         std::string event_label = ImGuiHelper::MillisecToString(event->Start(), 3) + " -> " + ImGuiHelper::MillisecToString(event->End(), 3) + "##clip_event##" + std::to_string(event->Id());
         std::string event_drag_drop_label = "##event_tree##" + std::to_string(event->Id());
-        if (ImGui::TreeNodeEx(event_label.c_str(), ImGuiTreeNodeFlags_DefaultOpen | (is_selected ? ImGuiTreeNodeFlags_Selected : ImGuiTreeNodeFlags_None)))
+        if (ImGui::TreeNodeEx(event_label.c_str(), ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanFullWidth | (is_selected ? ImGuiTreeNodeFlags_Selected : ImGuiTreeNodeFlags_None)))
         {
             auto pBP = event->GetBp();
             if (pBP)
@@ -4844,8 +4861,6 @@ static void DrawVideoFilterEventWindow(ImDrawList *draw_list, Clip * editing_cli
                         break;
                     auto type = node->GetTypeInfo().m_Type;
                     if (type == BluePrint::NodeType::EntryPoint || type == BluePrint::NodeType::ExitPoint)
-                        continue;
-                    if (!node->CustomLayout())
                         continue;
                     auto label_name = node->m_Name;
                     std::string lable_id = label_name + "##video_filter_node" + "@" + std::to_string(node->m_ID);
@@ -4871,6 +4886,19 @@ static void DrawVideoFilterEventWindow(ImDrawList *draw_list, Clip * editing_cli
                         }
                         ImGui::EndDragDropTarget();
                     }
+                    ImGui::SameLine(0, 100);
+                    if (ImGui::Button(node->m_Enabled ? ICON_ENABLE : ICON_DISABLE "##event_list_editor_disable_node"))
+                    {
+                        node->m_Enabled = !node->m_Enabled;
+                        update_track(pBP, node);
+                    }
+                    ImGui::ShowTooltipOnHover(node->m_Enabled ? "Disable Node" : "Enable Node");
+                    ImGui::SameLine();
+                    if (ImGui::Button(ICON_DELETE "##event_list_editor_delete_node"))
+                    {
+                        // TODO::Dicky Add delete node here and need_redraw = true
+                    }
+                    ImGui::ShowTooltipOnHover("Delete Node");
                     if (tree_open && !need_redraw)
                     {
                         ImGui::ImCurveEdit::keys key;
@@ -4878,9 +4906,7 @@ static void DrawVideoFilterEventWindow(ImDrawList *draw_list, Clip * editing_cli
                         ImGui::Indent(20);
                         if (node->DrawCustomLayout(ImGui::GetCurrentContext(), 1.0, ImVec2(0, 0), &key))
                         {
-                            auto track = timeline->FindTrackByClipID(editing_clip->mID);
-                            if (track) timeline->RefreshTrackView({track->mID});
-                            pBP->Blueprint_UpdateNode(node->m_ID);
+                            update_track(pBP, node);
                         }
                         ImGui::Indent(-20);
                         if (!key.name.empty())

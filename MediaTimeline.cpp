@@ -540,6 +540,8 @@ void EventTrack::Update()
     if (!timeline) return;
     auto clip = timeline->FindClipByID(mClipID);
     if (!clip) return;
+    auto clip_track = timeline->FindTrackByClipID(clip->mID);
+    if (clip_track) timeline->RefreshTrackView({clip_track->mID});
     // sort m_Events by start time
     std::sort(m_Events.begin(), m_Events.end(), [clip](const int64_t a, const int64_t b) {
         auto a_event = clip->FindEventByID(a);
