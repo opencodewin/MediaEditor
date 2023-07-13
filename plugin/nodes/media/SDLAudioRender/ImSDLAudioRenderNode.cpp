@@ -300,7 +300,7 @@ static void sdl_audio_callback(void *opaque, Uint8 *stream, int len)
         {
             auto mat = node->m_queue.at(0);
             node->m_current_pts = mat.time_stamp;
-            int data_size = node->m_audio_data_type == IM_DT_FLOAT32 || node->m_audio_data_type == IM_DT_INT32 ? 4 : node->m_audio_data_type == IM_DT_INT16 ? 2 : 1;
+            int data_size = node->m_audio_data_type == IM_DT_FLOAT32 || node->m_audio_data_type == IM_DT_INT32 ? 4 : node->m_audio_data_type == IM_DT_INT16 || node->m_audio_data_type == IM_DT_INT16_BE ? 2 : 1;
             for (int i = 0; i < mat.w; i++)
             {
                 for (int c = 0; c < mat.c; c++)

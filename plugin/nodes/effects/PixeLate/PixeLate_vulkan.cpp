@@ -42,12 +42,12 @@ void PixeLate_vulkan::upload_param(const VkMat& src, VkMat& dst, float radius)
 {
     std::vector<VkMat> bindings(8);
     if      (dst.type == IM_DT_INT8)     bindings[0] = dst;
-    else if (dst.type == IM_DT_INT16)    bindings[1] = dst;
+    else if (dst.type == IM_DT_INT16 || dst.type == IM_DT_INT16_BE)    bindings[1] = dst;
     else if (dst.type == IM_DT_FLOAT16)  bindings[2] = dst;
     else if (dst.type == IM_DT_FLOAT32)  bindings[3] = dst;
 
     if      (src.type == IM_DT_INT8)      bindings[4] = src;
-    else if (src.type == IM_DT_INT16)     bindings[5] = src;
+    else if (src.type == IM_DT_INT16 || src.type == IM_DT_INT16_BE)     bindings[5] = src;
     else if (src.type == IM_DT_FLOAT16)   bindings[6] = src;
     else if (src.type == IM_DT_FLOAT32)   bindings[7] = src;
     std::vector<vk_constant_type> constants(11);

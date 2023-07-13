@@ -123,7 +123,7 @@ void USM_vulkan::upload_param(const VkMat& src, VkMat& dst, float _sigma, float 
     else if (vk_column.type == IM_DT_FLOAT32)  column_bindings[3] = vk_column;
 
     if      (src.type == IM_DT_INT8)     column_bindings[4] = src;
-    else if (src.type == IM_DT_INT16)    column_bindings[5] = src;
+    else if (src.type == IM_DT_INT16 || src.type == IM_DT_INT16_BE)    column_bindings[5] = src;
     else if (src.type == IM_DT_FLOAT16)  column_bindings[6] = src;
     else if (src.type == IM_DT_FLOAT32)  column_bindings[7] = src;
     column_bindings[8] = vk_kernel;
@@ -146,12 +146,12 @@ void USM_vulkan::upload_param(const VkMat& src, VkMat& dst, float _sigma, float 
     row_constants[13].i = yanchor;
     std::vector<VkMat> row_bindings(9);
     if      (vk_blur.type == IM_DT_INT8)     row_bindings[0] = vk_blur;
-    else if (vk_blur.type == IM_DT_INT16)    row_bindings[1] = vk_blur;
+    else if (vk_blur.type == IM_DT_INT16 || vk_blur.type == IM_DT_INT16_BE)    row_bindings[1] = vk_blur;
     else if (vk_blur.type == IM_DT_FLOAT16)  row_bindings[2] = vk_blur;
     else if (vk_blur.type == IM_DT_FLOAT32)  row_bindings[3] = vk_blur;
 
     if      (vk_column.type == IM_DT_INT8)     row_bindings[4] = vk_column;
-    else if (vk_column.type == IM_DT_INT16)    row_bindings[5] = vk_column;
+    else if (vk_column.type == IM_DT_INT16 || vk_column.type == IM_DT_INT16_BE)    row_bindings[5] = vk_column;
     else if (vk_column.type == IM_DT_FLOAT16)  row_bindings[6] = vk_column;
     else if (vk_column.type == IM_DT_FLOAT32)  row_bindings[7] = vk_column;
     row_bindings[8] = vk_kernel;
@@ -159,17 +159,17 @@ void USM_vulkan::upload_param(const VkMat& src, VkMat& dst, float _sigma, float 
 
     std::vector<VkMat> usm_bindings(12);
     if      (dst.type == IM_DT_INT8)     usm_bindings[0] = dst;
-    else if (dst.type == IM_DT_INT16)    usm_bindings[1] = dst;
+    else if (dst.type == IM_DT_INT16 || dst.type == IM_DT_INT16_BE)    usm_bindings[1] = dst;
     else if (dst.type == IM_DT_FLOAT16)  usm_bindings[2] = dst;
     else if (dst.type == IM_DT_FLOAT32)  usm_bindings[3] = dst;
 
     if      (src.type == IM_DT_INT8)     usm_bindings[4] = src;
-    else if (src.type == IM_DT_INT16)    usm_bindings[5] = src;
+    else if (src.type == IM_DT_INT16 || src.type == IM_DT_INT16_BE)    usm_bindings[5] = src;
     else if (src.type == IM_DT_FLOAT16)  usm_bindings[6] = src;
     else if (src.type == IM_DT_FLOAT32)  usm_bindings[7] = src;
 
     if      (vk_blur.type == IM_DT_INT8)     usm_bindings[8] = vk_blur;
-    else if (vk_blur.type == IM_DT_INT16)    usm_bindings[9] = vk_blur;
+    else if (vk_blur.type == IM_DT_INT16 || vk_blur.type == IM_DT_INT16_BE)    usm_bindings[9] = vk_blur;
     else if (vk_blur.type == IM_DT_FLOAT16)  usm_bindings[10] = vk_blur;
     else if (vk_blur.type == IM_DT_FLOAT32)  usm_bindings[11] = vk_blur;
 

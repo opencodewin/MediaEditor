@@ -160,8 +160,8 @@ struct MatRenderNode final : Node
                 {
                     if (mat.c == 1)
                     {
-                        int video_depth = mat.type == IM_DT_INT8 ? 8 : mat.type == IM_DT_INT16 ? 16 : 8;
-                        int video_shift = mat.depth != 0 ? mat.depth : mat.type == IM_DT_INT8 ? 8 : mat.type == IM_DT_INT16 ? 16 : 8;
+                        int video_depth = mat.type == IM_DT_INT8 ? 8 : mat.type == IM_DT_INT16 || mat.type == IM_DT_INT16_BE ? 16 : 8;
+                        int video_shift = mat.depth != 0 ? mat.depth : mat.type == IM_DT_INT8 ? 8 : mat.type == IM_DT_INT16 || mat.type == IM_DT_INT16_BE ? 16 : 8;
                         if (mat.flags & IM_MAT_FLAGS_VIDEO_FRAME_UV)
                             mat.color_format = IM_CF_NV12;
                         ImGui::VkMat in_mat = mat;

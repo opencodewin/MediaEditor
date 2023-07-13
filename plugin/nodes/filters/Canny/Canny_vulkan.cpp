@@ -137,12 +137,12 @@ void Canny_vulkan::upload_param(const VkMat& src, VkMat& dst, int _blurRadius, f
 
     std::vector<VkMat> column_bindings(9);
     if      (vk_column.type == IM_DT_INT8)     column_bindings[0] = vk_column;
-    else if (vk_column.type == IM_DT_INT16)    column_bindings[1] = vk_column;
+    else if (vk_column.type == IM_DT_INT16 || vk_column.type == IM_DT_INT16_BE)    column_bindings[1] = vk_column;
     else if (vk_column.type == IM_DT_FLOAT16)  column_bindings[2] = vk_column;
     else if (vk_column.type == IM_DT_FLOAT32)  column_bindings[3] = vk_column;
 
     if      (src.type == IM_DT_INT8)     column_bindings[4] = src;
-    else if (src.type == IM_DT_INT16)    column_bindings[5] = src;
+    else if (src.type == IM_DT_INT16 || src.type == IM_DT_INT16_BE)    column_bindings[5] = src;
     else if (src.type == IM_DT_FLOAT16)  column_bindings[6] = src;
     else if (src.type == IM_DT_FLOAT32)  column_bindings[7] = src;
     column_bindings[8] = vk_kernel;
@@ -166,12 +166,12 @@ void Canny_vulkan::upload_param(const VkMat& src, VkMat& dst, int _blurRadius, f
 
     std::vector<VkMat> row_bindings(9);
     if      (vk_blur.type == IM_DT_INT8)     row_bindings[0] = vk_blur;
-    else if (vk_blur.type == IM_DT_INT16)    row_bindings[1] = vk_blur;
+    else if (vk_blur.type == IM_DT_INT16 || vk_blur.type == IM_DT_INT16_BE)    row_bindings[1] = vk_blur;
     else if (vk_blur.type == IM_DT_FLOAT16)  row_bindings[2] = vk_blur;
     else if (vk_blur.type == IM_DT_FLOAT32)  row_bindings[3] = vk_blur;
 
     if      (vk_column.type == IM_DT_INT8)     row_bindings[4] = vk_column;
-    else if (vk_column.type == IM_DT_INT16)    row_bindings[5] = vk_column;
+    else if (vk_column.type == IM_DT_INT16 || vk_column.type == IM_DT_INT16_BE)    row_bindings[5] = vk_column;
     else if (vk_column.type == IM_DT_FLOAT16)  row_bindings[6] = vk_column;
     else if (vk_column.type == IM_DT_FLOAT32)  row_bindings[7] = vk_column;
     row_bindings[8] = vk_kernel;
@@ -179,12 +179,12 @@ void Canny_vulkan::upload_param(const VkMat& src, VkMat& dst, int _blurRadius, f
 
     std::vector<VkMat> sobel_bindings(8);
     if      (vk_bobel.type == IM_DT_INT8)     sobel_bindings[0] = vk_bobel;
-    else if (vk_bobel.type == IM_DT_INT16)    sobel_bindings[1] = vk_bobel;
+    else if (vk_bobel.type == IM_DT_INT16 || vk_bobel.type == IM_DT_INT16_BE)    sobel_bindings[1] = vk_bobel;
     else if (vk_bobel.type == IM_DT_FLOAT16)  sobel_bindings[2] = vk_bobel;
     else if (vk_bobel.type == IM_DT_FLOAT32)  sobel_bindings[3] = vk_bobel;
 
     if      (vk_blur.type == IM_DT_INT8)     sobel_bindings[4] = vk_blur;
-    else if (vk_blur.type == IM_DT_INT16)    sobel_bindings[5] = vk_blur;
+    else if (vk_blur.type == IM_DT_INT16 || vk_blur.type == IM_DT_INT16_BE)    sobel_bindings[5] = vk_blur;
     else if (vk_blur.type == IM_DT_FLOAT16)  sobel_bindings[6] = vk_blur;
     else if (vk_blur.type == IM_DT_FLOAT32)  sobel_bindings[7] = vk_blur;
 
@@ -204,12 +204,12 @@ void Canny_vulkan::upload_param(const VkMat& src, VkMat& dst, int _blurRadius, f
 
     std::vector<VkMat> nms_bindings(8);
     if      (vk_nms.type == IM_DT_INT8)     nms_bindings[0] = vk_nms;
-    else if (vk_nms.type == IM_DT_INT16)    nms_bindings[1] = vk_nms;
+    else if (vk_nms.type == IM_DT_INT16 || vk_nms.type == IM_DT_INT16_BE)    nms_bindings[1] = vk_nms;
     else if (vk_nms.type == IM_DT_FLOAT16)  nms_bindings[2] = vk_nms;
     else if (vk_nms.type == IM_DT_FLOAT32)  nms_bindings[3] = vk_nms;
 
     if      (vk_bobel.type == IM_DT_INT8)     nms_bindings[4] = vk_bobel;
-    else if (vk_bobel.type == IM_DT_INT16)    nms_bindings[5] = vk_bobel;
+    else if (vk_bobel.type == IM_DT_INT16 || vk_bobel.type == IM_DT_INT16_BE)    nms_bindings[5] = vk_bobel;
     else if (vk_bobel.type == IM_DT_FLOAT16)  nms_bindings[6] = vk_bobel;
     else if (vk_bobel.type == IM_DT_FLOAT32)  nms_bindings[7] = vk_bobel;
     std::vector<vk_constant_type> nms_constants(12);
@@ -229,17 +229,17 @@ void Canny_vulkan::upload_param(const VkMat& src, VkMat& dst, int _blurRadius, f
 
     std::vector<VkMat> canny_bindings(12);
     if      (dst.type == IM_DT_INT8)     canny_bindings[0] = dst;
-    else if (dst.type == IM_DT_INT16)    canny_bindings[1] = dst;
+    else if (dst.type == IM_DT_INT16 || dst.type == IM_DT_INT16_BE)    canny_bindings[1] = dst;
     else if (dst.type == IM_DT_FLOAT16)  canny_bindings[2] = dst;
     else if (dst.type == IM_DT_FLOAT32)  canny_bindings[3] = dst;
 
     if      (src.type == IM_DT_INT8)     canny_bindings[4] = src;
-    else if (src.type == IM_DT_INT16)    canny_bindings[5] = src;
+    else if (src.type == IM_DT_INT16 || src.type == IM_DT_INT16_BE)    canny_bindings[5] = src;
     else if (src.type == IM_DT_FLOAT16)  canny_bindings[6] = src;
     else if (src.type == IM_DT_FLOAT32)  canny_bindings[7] = src;
 
     if      (vk_nms.type == IM_DT_INT8)     canny_bindings[8] = vk_nms;
-    else if (vk_nms.type == IM_DT_INT16)    canny_bindings[9] = vk_nms;
+    else if (vk_nms.type == IM_DT_INT16 || vk_nms.type == IM_DT_INT16_BE)    canny_bindings[9] = vk_nms;
     else if (vk_nms.type == IM_DT_FLOAT16)  canny_bindings[10] = vk_nms;
     else if (vk_nms.type == IM_DT_FLOAT32)  canny_bindings[11] = vk_nms;
 
