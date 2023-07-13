@@ -190,6 +190,7 @@
 #define ICON_SPECTROGRAM    u8"\ue4a0"
 #define ICON_DRAWING_PIN    u8"\uf08d"
 #define ICON_EXPANMD        u8"\uf0b2"
+#define ICON_EXPAND_ROTATE  u8"\ue94f"
 
 #define ICON_SETTING_LINK   u8"\uf0c1"
 #define ICON_SETTING_UNLINK u8"\uf127"
@@ -384,7 +385,7 @@ struct EventTrack
     static EventTrack* Load(const imgui_json::value& value, void * handle);
     void Save(imgui_json::value& value);
 
-    void DrawContent(ImDrawList *draw_list, ImRect rect, int event_height, int64_t view_start, int64_t view_end, float pixelWidthMS);
+    void DrawContent(ImDrawList *draw_list, ImRect rect, int event_height, int curve_height, int64_t view_start, int64_t view_end, float pixelWidthMS);
     void SelectEvent(MEC::Event::Holder event, bool appand);
     MEC::Event::Holder FindPreviousEvent(int64_t id);
     MEC::Event::Holder FindNextEvent(int64_t id);

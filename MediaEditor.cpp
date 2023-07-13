@@ -1445,7 +1445,8 @@ static void ShowConfigure(MediaEditorSettings & config)
                 if (pixel_aspect_index == 0)
                 {
                     config.PixelAspectRatio.num = atoi(buf_par_x);
-                    config.PixelAspectRatio.den = atoi(buf_par_y); // TODO::Dicky need check den != 0
+                    config.PixelAspectRatio.den = atoi(buf_par_y);
+                    if (config.PixelAspectRatio.den) config.PixelAspectRatio.den = 1;
                 }
 
                 if (ImGui::Combo("Video Frame Rate", &frame_rate_index, frame_rate_items, IM_ARRAYSIZE(frame_rate_items)))
@@ -1464,7 +1465,8 @@ static void ShowConfigure(MediaEditorSettings & config)
                 if (frame_rate_index == 0)
                 {
                     config.VideoFrameRate.num = atoi(buf_fmr_x);
-                    config.VideoFrameRate.den = atoi(buf_fmr_y); // TODO::Dicky need check den != 0
+                    config.VideoFrameRate.den = atoi(buf_fmr_y);
+                    if (config.VideoFrameRate.den == 0) config.VideoFrameRate.den = 1;
                 }
 
                 auto color_getter = [](void* data, int idx, const char** out_text){
@@ -4876,13 +4878,14 @@ static void DrawVideoFilterEventWindow(ImDrawList *draw_list, Clip * editing_cli
                         ImGui::Indent(20);
                         if (node->DrawCustomLayout(ImGui::GetCurrentContext(), 1.0, ImVec2(0, 0), &key))
                         {
-                            node->m_NeedUpdate = true;
-                            timeline->UpdatePreview();
+                            auto track = timeline->FindTrackByClipID(editing_clip->mID);
+                            if (track) timeline->RefreshTrackView({track->mID});
+                            pBP->Blueprint_UpdateNode(node->m_ID);
                         }
                         ImGui::Indent(-20);
                         if (!key.name.empty())
                         {
-                            // TODO::Dicky
+                            // TODO::Dicky add curve
                             //addCurve(key.name, key.m_min, key.m_max, key.m_default);
                         }
                     }
@@ -5513,8 +5516,8 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
                             key.m_id = node->m_ID;
                             if (node->DrawCustomLayout(ImGui::GetCurrentContext(), 1.0, ImVec2(0, 0), &key))
                             {
-                                node->m_NeedUpdate = true;
                                 timeline->RefreshTrackView({trackId});
+                                blueprint->Blueprint_UpdateNode(node->m_ID);
                             }
                             if (!key.name.empty())
                             {
@@ -6151,8 +6154,8 @@ static void ShowVideoTransitionWindow(ImDrawList *draw_list, ImRect title_rect)
                             key.m_id = node->m_ID;
                             if (node->DrawCustomLayout(ImGui::GetCurrentContext(), 1.0, ImVec2(0, 0), &key))
                             {
-                                node->m_NeedUpdate = true;
                                 timeline->UpdatePreview();
+                                blueprint->Blueprint_UpdateNode(node->m_ID);
                             }
                             if (!key.name.empty())
                             {
@@ -6604,8 +6607,8 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list, ImRect title_rect)
                             key.m_id = node->m_ID;
                             if (node->DrawCustomLayout(ImGui::GetCurrentContext(), 1.0, ImVec2(0, 0), &key))
                             {
-                                node->m_NeedUpdate = true;
                                 timeline->UpdatePreview();
+                                blueprint->Blueprint_UpdateNode(node->m_ID);
                             }
                             if (!key.name.empty())
                             {
@@ -7071,8 +7074,8 @@ static void ShowAudioTransitionWindow(ImDrawList *draw_list, ImRect title_rect)
                             key.m_id = node->m_ID;
                             if (node->DrawCustomLayout(ImGui::GetCurrentContext(), 1.0, ImVec2(0, 0), &key))
                             {
-                                node->m_NeedUpdate = true;
                                 timeline->UpdatePreview();
+                                blueprint->Blueprint_UpdateNode(node->m_ID);
                             }
                             if (!key.name.empty())
                             {

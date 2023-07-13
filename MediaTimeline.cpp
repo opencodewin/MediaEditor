@@ -312,7 +312,7 @@ void EventTrack::Save(imgui_json::value& value)
     if (m_Events.size() > 0) value["EventIDS"] = events;
 }
 
-void EventTrack::DrawContent(ImDrawList *draw_list, ImRect rect, int event_height, int64_t view_start, int64_t view_end, float pixelWidthMS)
+void EventTrack::DrawContent(ImDrawList *draw_list, ImRect rect, int event_height, int curve_height, int64_t view_start, int64_t view_end, float pixelWidthMS)
 {
     TimeLine * timeline = (TimeLine *)mHandle;
     if (!timeline)
@@ -324,6 +324,7 @@ void EventTrack::DrawContent(ImDrawList *draw_list, ImRect rect, int event_heigh
     ImGui::PushClipRect(rect.Min, rect.Max, true);
     ImGui::SetCursorScreenPos(rect.Min);
     bool mouse_clicked = false;
+    bool mouse_hold = false;
 
     // draw events
     for (auto event_id : m_Events)
@@ -387,11 +388,6 @@ void EventTrack::DrawContent(ImDrawList *draw_list, ImRect rect, int event_heigh
             flag |= ImDrawFlags_RoundCornersRight;
         ImVec2 event_pos_min = ImVec2(cursor_start, rect.Min.y);
         ImVec2 event_pos_max = ImVec2(cursor_end, rect.Min.y + event_height);
-        if (mExpanded)
-        {
-            // TODO::Dicky show event curve editor
-        }
-
         ImRect event_rect(event_pos_min, event_pos_max);
         if (!event_rect.Overlaps(rect))
         {
@@ -420,6 +416,24 @@ void EventTrack::DrawContent(ImDrawList *draw_list, ImRect rect, int event_heigh
                 }
                 //event->DrawTooltips();
             }
+        }
+        if (mExpanded && draw_event)
+        {
+            ImVec2 curve_pos_min = event_pos_min + ImVec2(0, event_height);
+            ImVec2 curve_pos_max = event_pos_max + ImVec2(0, curve_height);
+            ImRect curve_rect(curve_pos_min, curve_pos_max);
+            ImGui::SetCursorScreenPos(curve_pos_min);
+            ImGui::PushID(event_id);
+            if (ImGui::BeginChild("##event_curve", curve_rect.GetSize(), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+            {
+                ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+                ImVec2 sub_window_size = ImGui::GetWindowSize();
+                draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_ONE);
+                bool _changed = false;
+                // TODO::Dicky show event curve editor
+            }
+            ImGui::EndChild();
+            ImGui::PopID();
         }
     }
 
@@ -1341,6 +1355,9 @@ bool Clip::DeleteEvent(MEC::Event::Holder event)
     int track_index = event->Z();
     if (track_index < 0 || track_index >= mEventTracks.size())
         return false;
+    TimeLine * timeline = (TimeLine *)mHandle;
+    if (!timeline)
+        return false;
     // remove event from track
     auto track = mEventTracks[track_index];
     if (!track)
@@ -1355,6 +1372,8 @@ bool Clip::DeleteEvent(MEC::Event::Holder event)
             event_iter++;
     }
     mEventStack->RemoveEvent(event->Id());
+    auto clip_track = timeline->FindTrackByClipID(mID);
+    if (clip_track) timeline->RefreshTrackView({clip_track->mID});
     return true;
 }
 
@@ -11741,7 +11760,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     int cx = (int)(io.MousePos.x);
     int cy = (int)(io.MousePos.y);
     const int scrollSize = 12;
-    const int trackHeight = 16;
+    const int trackHeight = 24;
     const int curveHeight = 64;
     const int toolbarHeight = 24;
     int64_t start = editingClip->mStart;
@@ -11865,6 +11884,12 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         // TODO::Dicky copy event
     }
     ImGui::ShowTooltipOnHover("Copy Event");
+    ImGui::SameLine();
+    if (ImGui::RotateButton(ICON_EXPAND_ROTATE "##clip_timeline_expand_event", ImVec2(0, 0), -90))
+    {
+        // TODO::Dicky expand event to clip range
+    }
+    ImGui::ShowTooltipOnHover("Expand Event");
     ImGui::EndDisabled();
 
     ImGui::SameLine();
@@ -12333,7 +12358,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                     }
                     mouse_track_index = current_index;
                 }
-                track->DrawContent(drawList, ImRect(track_current, track_current + track_size), trackHeight, editingClip->firstTime, editingClip->lastTime, editingClip->msPixelWidthTarget);
+                track->DrawContent(drawList, ImRect(track_current, track_current + track_size), trackHeight, curveHeight, editingClip->firstTime, editingClip->lastTime, editingClip->msPixelWidthTarget);
                 
                 track_current += ImVec2(0, track_size.y);
                 current_index ++;
@@ -12412,15 +12437,14 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                     const BluePrint::Node * node = (const BluePrint::Node *)payload->Data;
                     if (node)
                     {
-                        //pBp->Edit_Insert(node->GetTypeID());
-                        //fprintf(stderr, "drop a node here\n");
+                        int64_t min_duration = 30 / editingClip->msPixelWidthTarget;
                         if (mouse_track_index == -1 || mouse_track_index >= tracks.size() || tracks.empty())
                         {
                             // need add new event track
                             auto new_track = clip->AddEventTrack();
                             if (new_track >= 0)
                             {
-                                int64_t _duration = ImMin((int64_t)5000, clip->Length() - mouseTime);
+                                int64_t _duration = ImMin(min_duration, clip->Length() - mouseTime);
                                 auto event = clip->AddEvent(new_track, mouseTime, _duration, (void *)node);
                             }
                         }
@@ -12430,8 +12454,8 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                             // check next event start time to decide duration
                             auto track = clip->mEventTracks[mouse_track_index];
                             auto _max_duration = track->FindEventSpace(mouseTime);
-                            int64_t _duration = _max_duration == -1 ? ImMin((int64_t)5000, clip->Length() - mouseTime) : 
-                                                ImMin((int64_t)5000, _max_duration);
+                            int64_t _duration = _max_duration == -1 ? ImMin(min_duration, clip->Length() - mouseTime) : 
+                                                ImMin(min_duration, _max_duration);
                             auto event = clip->AddEvent(mouse_track_index, mouseTime, _duration, (void *)node);
                         }
                         else if (mouseEvent)
