@@ -82,7 +82,7 @@ void Guided_vulkan::upload_param(const VkMat& src, VkMat& dst, int r, float eps)
     vk_tex5.create_type(src.w, src.h, src.c, IM_DT_FLOAT16, opt.blob_vkallocator);
     std::vector<VkMat> to_matting_bindings(7);
     if      (src.type == IM_DT_INT8)     to_matting_bindings[0] = src;
-    else if (src.type == IM_DT_INT16)    to_matting_bindings[1] = src;
+    else if (src.type == IM_DT_INT16 || src.type == IM_DT_INT16_BE)    to_matting_bindings[1] = src;
     else if (src.type == IM_DT_FLOAT16)  to_matting_bindings[2] = src;
     else if (src.type == IM_DT_FLOAT32)  to_matting_bindings[3] = src;
     to_matting_bindings[4] = vk_tex2;
@@ -135,12 +135,12 @@ void Guided_vulkan::upload_param(const VkMat& src, VkMat& dst, int r, float eps)
 
     std::vector<VkMat> matting_bindings(9);
     if      (dst.type == IM_DT_INT8)     matting_bindings[0] = dst;
-    else if (dst.type == IM_DT_INT16)    matting_bindings[1] = dst;
+    else if (dst.type == IM_DT_INT16 || dst.type == IM_DT_INT16_BE)    matting_bindings[1] = dst;
     else if (dst.type == IM_DT_FLOAT16)  matting_bindings[2] = dst;
     else if (dst.type == IM_DT_FLOAT32)  matting_bindings[3] = dst;
 
     if      (src.type == IM_DT_INT8)     matting_bindings[4] = src;
-    else if (src.type == IM_DT_INT16)    matting_bindings[5] = src;
+    else if (src.type == IM_DT_INT16 || src.type == IM_DT_INT16_BE)    matting_bindings[5] = src;
     else if (src.type == IM_DT_FLOAT16)  matting_bindings[6] = src;
     else if (src.type == IM_DT_FLOAT32)  matting_bindings[7] = src;
     matting_bindings[8] = vk_box5;

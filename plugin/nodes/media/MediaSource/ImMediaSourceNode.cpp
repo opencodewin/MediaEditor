@@ -29,8 +29,46 @@ extern "C" {
 }
 #endif
 
+#define ISRGB(format)   \
+    (format == AV_PIX_FMT_RGB24 || \
+    format == AV_PIX_FMT_BGR24 || \
+    format == AV_PIX_FMT_BGR8 || \
+    format == AV_PIX_FMT_BGR4 || \
+    format == AV_PIX_FMT_BGR4_BYTE || \
+    format == AV_PIX_FMT_RGB8 || \
+    format == AV_PIX_FMT_RGB4 || \
+    format == AV_PIX_FMT_RGB4_BYTE || \
+    format == AV_PIX_FMT_ARGB || \
+    format == AV_PIX_FMT_RGBA || \
+    format == AV_PIX_FMT_ABGR || \
+    format == AV_PIX_FMT_BGRA || \
+    format == AV_PIX_FMT_RGB48BE || \
+    format == AV_PIX_FMT_RGB48LE || \
+    format == AV_PIX_FMT_RGB565BE || \
+    format == AV_PIX_FMT_RGB565LE || \
+    format == AV_PIX_FMT_RGB555BE || \
+    format == AV_PIX_FMT_RGB555LE || \
+    format == AV_PIX_FMT_BGR565BE || \
+    format == AV_PIX_FMT_BGR565LE || \
+    format == AV_PIX_FMT_BGR555BE || \
+    format == AV_PIX_FMT_BGR555LE || \
+    format == AV_PIX_FMT_RGB444LE || \
+    format == AV_PIX_FMT_RGB444BE || \
+    format == AV_PIX_FMT_BGR444LE || \
+    format == AV_PIX_FMT_BGR444BE || \
+    format == AV_PIX_FMT_BGR48BE || \
+    format == AV_PIX_FMT_BGR48LE || \
+    format == AV_PIX_FMT_RGBA64BE || \
+    format == AV_PIX_FMT_RGBA64LE || \
+    format == AV_PIX_FMT_BGRA64BE || \
+    format == AV_PIX_FMT_BGRA64LE || \
+    format == AV_PIX_FMT_0RGB || \
+    format == AV_PIX_FMT_RGB0 || \
+    format == AV_PIX_FMT_0BGR || \
+    format == AV_PIX_FMT_BGR0)
+
 #define ISYUV420P(format)   \
-(format == AV_PIX_FMT_YUV420P || \
+    (format == AV_PIX_FMT_YUV420P || \
     format == AV_PIX_FMT_YUVJ420P || \
     format == AV_PIX_FMT_YUV420P9 || \
     format == AV_PIX_FMT_YUV420P10 || \
@@ -69,6 +107,21 @@ extern "C" {
     format == AV_PIX_FMT_NV24 || \
     format == AV_PIX_FMT_NV42 || \
     format == AV_PIX_FMT_NV20)
+
+#define ISBE(format) \
+    (format == AV_PIX_FMT_RGB48BE || \
+    format == AV_PIX_FMT_RGB565BE || \
+    format == AV_PIX_FMT_RGB555BE || \
+    format == AV_PIX_FMT_BGR565BE || \
+    format == AV_PIX_FMT_BGR555BE || \
+    format == AV_PIX_FMT_RGB444BE || \
+    format == AV_PIX_FMT_BGR444BE || \
+    format == AV_PIX_FMT_BGR48BE || \
+    format == AV_PIX_FMT_RGBA64BE || \
+    format == AV_PIX_FMT_BGRA64BE || \
+    format == AV_PIX_FMT_NV20BE || \
+    format == AV_PIX_FMT_P010BE || \
+    format == AV_PIX_FMT_P016BE)
 
 static inline std::string PrintTimeStamp(double time_stamp)
 {
@@ -436,274 +489,161 @@ struct MediaSourceNode final : Node
         ImColorFormat color_format = ISYUV420P(tmp_frame->format) ? IM_CF_YUV420 :
                                     ISYUV422P(tmp_frame->format) ? IM_CF_YUV422 :
                                     ISYUV444P(tmp_frame->format) ? IM_CF_YUV444 :
-                                    ISNV12(tmp_frame->format) ? video_depth == 10 ? IM_CF_P010LE : IM_CF_NV12 : IM_CF_YUV420;
+                                    ISNV12(tmp_frame->format) ? video_depth == 10 ? IM_CF_P010LE : IM_CF_NV12 : 
+                                    ISRGB(tmp_frame->format) ? IM_CF_RGBA : IM_CF_YUV420;
+
+        bool is_yuv = IM_ISYUV(color_format);
+        bool is_rgb = IM_ISRGB(color_format);
+        bool is_be = ISBE(tmp_frame->format);
 
         AVRational tb = stream->m_stream->time_base;
         int64_t time_stamp = stream->m_frame->best_effort_timestamp;
         double current_video_pts = (time_stamp == AV_NOPTS_VALUE) ? NAN : time_stamp * av_q2d(tb);
         
-        int out_w = tmp_frame->linesize[0] / (desc->comp[0].step > 0 ? desc->comp[0].step : 1);
-        int out_h = tmp_frame->height;
-        int UV_shift_w = ISYUV420P(tmp_frame->format) || ISYUV422P(tmp_frame->format) ? 1 : 0;
-        int UV_shift_h = ISYUV420P(tmp_frame->format) || ISNV12(tmp_frame->format) ? 1 : 0;
-        m_mutex.lock();
+        if (is_yuv)
+        {
+            int out_w = tmp_frame->linesize[0] / (desc->comp[0].step > 0 ? desc->comp[0].step : 1);
+            int out_h = tmp_frame->height;
+            int UV_shift_w = ISYUV420P(tmp_frame->format) || ISYUV422P(tmp_frame->format) ? 1 : 0;
+            int UV_shift_h = ISYUV420P(tmp_frame->format) || ISNV12(tmp_frame->format) ? 1 : 0;
+            m_mutex.lock();
         
-        // using separated mat to convert color from AVFrame, prevent copy frame one time
-        ImGui::ImMat mat_Y, mat_U, mat_V;
-        mat_Y.create_type(out_w, out_h, 1, tmp_frame->data[0], data_shift ? IM_DT_INT16 : IM_DT_INT8);
-        mat_U.create_type(out_w >> UV_shift_w, out_h >> UV_shift_h, 1, tmp_frame->data[1], data_shift ? IM_DT_INT16 : IM_DT_INT8);
-        if (!ISNV12(tmp_frame->format))
-            mat_V.create_type(out_w >> UV_shift_w, out_h >> UV_shift_h, 1, tmp_frame->data[2], data_shift ? IM_DT_INT16 : IM_DT_INT8);
-        mat_Y.time_stamp = current_video_pts;
-        mat_Y.color_space = color_space;
-        mat_Y.color_range = color_range;
-        mat_Y.color_format = color_format;
-        mat_Y.depth = video_depth;
-        mat_Y.flags = IM_MAT_FLAGS_VIDEO_FRAME;
-        if (stream->m_frame->pict_type == AV_PICTURE_TYPE_I) mat_Y.flags |= IM_MAT_FLAGS_VIDEO_FRAME_I;
-        if (stream->m_frame->pict_type == AV_PICTURE_TYPE_P) mat_Y.flags |= IM_MAT_FLAGS_VIDEO_FRAME_P;
-        if (stream->m_frame->pict_type == AV_PICTURE_TYPE_B) mat_Y.flags |= IM_MAT_FLAGS_VIDEO_FRAME_B;
-        if (stream->m_frame->interlaced_frame) mat_Y.flags |= IM_MAT_FLAGS_VIDEO_INTERLACED;
+            // using separated mat to convert color from AVFrame, prevent copy frame one time
+            ImGui::ImMat mat_Y, mat_U, mat_V;
+            mat_Y.create_type(out_w, out_h, 1, tmp_frame->data[0], data_shift ? IM_DT_INT16 : IM_DT_INT8);
+            mat_U.create_type(out_w >> UV_shift_w, out_h >> UV_shift_h, 1, tmp_frame->data[1], data_shift ? IM_DT_INT16 : IM_DT_INT8);
+            if (!ISNV12(tmp_frame->format))
+                mat_V.create_type(out_w >> UV_shift_w, out_h >> UV_shift_h, 1, tmp_frame->data[2], data_shift ? IM_DT_INT16 : IM_DT_INT8);
+            mat_Y.time_stamp = current_video_pts;
+            mat_Y.color_space = color_space;
+            mat_Y.color_range = color_range;
+            mat_Y.color_format = color_format;
+            mat_Y.depth = video_depth;
+            mat_Y.flags = IM_MAT_FLAGS_VIDEO_FRAME;
+            if (stream->m_frame->pict_type == AV_PICTURE_TYPE_I) mat_Y.flags |= IM_MAT_FLAGS_VIDEO_FRAME_I;
+            if (stream->m_frame->pict_type == AV_PICTURE_TYPE_P) mat_Y.flags |= IM_MAT_FLAGS_VIDEO_FRAME_P;
+            if (stream->m_frame->pict_type == AV_PICTURE_TYPE_B) mat_Y.flags |= IM_MAT_FLAGS_VIDEO_FRAME_B;
+            if (stream->m_frame->interlaced_frame) mat_Y.flags |= IM_MAT_FLAGS_VIDEO_INTERLACED;
 
 #if IMGUI_VULKAN_SHADER
-        if (!stream->m_yuv2rgb)
-        {
-            int gpu = m_device == IM_DD_CPU ? -1 : ImGui::get_default_gpu_index();
-            stream->m_yuv2rgb = new ImGui::ColorConvert_vulkan(gpu);
             if (!stream->m_yuv2rgb)
             {
-                return -1;
+                int gpu = m_device == IM_DD_CPU ? -1 : ImGui::get_default_gpu_index();
+                stream->m_yuv2rgb = new ImGui::ColorConvert_vulkan(gpu);
+                if (!stream->m_yuv2rgb)
+                {
+                    m_mutex.unlock();
+                    return -1;
+                }
             }
-        }
-        if (stream->m_yuv2rgb)
-        {
-            ImGui::ImMat im_RGB;
-            im_RGB.type = m_mat_data_type == IM_DT_UNDEFINED ? mat_Y.type : m_mat_data_type;
-            im_RGB.color_format = IM_CF_ABGR;
-            im_RGB.w = mat_Y.w;
-            im_RGB.h = mat_Y.h;
-            if (m_device == 0)
+            if (stream->m_yuv2rgb)
             {
-                im_RGB.device = IM_DD_VULKAN;
+                ImGui::ImMat im_RGB;
+                im_RGB.type = m_mat_data_type == IM_DT_UNDEFINED ? mat_Y.type : m_mat_data_type;
+                im_RGB.color_format = IM_CF_ABGR;
+                im_RGB.w = mat_Y.w;
+                im_RGB.h = mat_Y.h;
+                if (m_device == 0)
+                {
+                    im_RGB.device = IM_DD_VULKAN;
+                }
+                stream->m_yuv2rgb->YUV2RGBA(mat_Y, mat_U, mat_V, im_RGB);
+                im_RGB.flags = mat_Y.flags;
+                im_RGB.time_stamp = current_video_pts;
+                im_RGB.color_space = color_space;
+                im_RGB.color_range = color_range;
+                im_RGB.depth = video_depth;
+                im_RGB.rate = {stream->m_stream->avg_frame_rate.num, stream->m_stream->avg_frame_rate.den};
+                auto pin = (MatPin*)stream->m_mat;
+                if (pin) pin->SetValue(im_RGB);
             }
-            stream->m_yuv2rgb->YUV2RGBA(mat_Y, mat_U, mat_V, im_RGB);
-            im_RGB.flags = mat_Y.flags;
-            im_RGB.time_stamp = current_video_pts;
-            im_RGB.color_space = color_space;
-            im_RGB.color_range = color_range;
-            im_RGB.depth = video_depth;
-            im_RGB.rate = {stream->m_stream->avg_frame_rate.num, stream->m_stream->avg_frame_rate.den};
-            auto pin = (MatPin*)stream->m_mat;
-            if (pin) pin->SetValue(im_RGB);
-        }
 #else
-        // ffmpeg swscale
-        if (!stream->m_img_convert_ctx)
-        {
-            AVPixelFormat format =  mat_Y.color_format == IM_CF_YUV420 ? (video_depth > 8 ? AV_PIX_FMT_YUV420P10 : AV_PIX_FMT_YUV420P) :
-                                    mat_Y.color_format == IM_CF_YUV422 ? (video_depth > 8 ? AV_PIX_FMT_YUV422P10 : AV_PIX_FMT_YUV422P) :
-                                    mat_Y.color_format == IM_CF_YUV444 ? (video_depth > 8 ? AV_PIX_FMT_YUV444P10 : AV_PIX_FMT_YUV444P) :
-                                    mat_Y.color_format == IM_CF_NV12 ? (video_depth > 8 ? AV_PIX_FMT_P010LE : AV_PIX_FMT_NV12) :
-                                    AV_PIX_FMT_YUV420P;
-            stream->m_img_convert_ctx = sws_getCachedContext(
-                                stream->m_img_convert_ctx,
-                                mat_Y.w,
-                                mat_Y.h,
-                                (AVPixelFormat)tmp_frame->format,
-                                mat_Y.w,
-                                mat_Y.h,
-                                AV_PIX_FMT_RGBA,
-                                SWS_BICUBIC,
-                                NULL, NULL, NULL);
-        }
-        if (stream->m_img_convert_ctx)
-        {
-            ImGui::ImMat im_RGB(mat_Y.w, mat_Y.h, 4, 1u);
-            uint8_t *dst_data[] = { (uint8_t *)im_RGB.data };
-            int dst_linesize[] = { mat_Y.w * 4 }; // how many for 16 bits?
-            sws_scale(
-                stream->m_img_convert_ctx,
-                tmp_frame->data,
-                tmp_frame->linesize,
-                0, mat_Y.h,
-                dst_data,
-                dst_linesize
-            );
-            im_RGB.flags = mat_Y.flags;
-            im_RGB.type = IM_DT_INT8;
-            im_RGB.time_stamp = current_video_pts;
-            im_RGB.color_space = color_space;
-            im_RGB.color_range = color_range;
-            im_RGB.depth = video_depth;
-            im_RGB.rate = {stream->m_stream->avg_frame_rate.num, stream->m_stream->avg_frame_rate.den};
-            auto pin = (MatPin*)stream->m_mat;
-            if (pin) pin->SetValue(im_RGB);
-        }
+            // ffmpeg swscale
+            if (!stream->m_img_convert_ctx)
+            {
+                AVPixelFormat format =  mat_Y.color_format == IM_CF_YUV420 ? (video_depth > 8 ? AV_PIX_FMT_YUV420P10 : AV_PIX_FMT_YUV420P) :
+                                        mat_Y.color_format == IM_CF_YUV422 ? (video_depth > 8 ? AV_PIX_FMT_YUV422P10 : AV_PIX_FMT_YUV422P) :
+                                        mat_Y.color_format == IM_CF_YUV444 ? (video_depth > 8 ? AV_PIX_FMT_YUV444P10 : AV_PIX_FMT_YUV444P) :
+                                        mat_Y.color_format == IM_CF_NV12 ? (video_depth > 8 ? AV_PIX_FMT_P010LE : AV_PIX_FMT_NV12) :
+                                        AV_PIX_FMT_YUV420P;
+                stream->m_img_convert_ctx = sws_getCachedContext(
+                                    stream->m_img_convert_ctx,
+                                    mat_Y.w,
+                                    mat_Y.h,
+                                    (AVPixelFormat)tmp_frame->format,
+                                    mat_Y.w,
+                                    mat_Y.h,
+                                    AV_PIX_FMT_RGBA,
+                                    SWS_BICUBIC,
+                                    NULL, NULL, NULL);
+            }
+            if (stream->m_img_convert_ctx)
+            {
+                ImGui::ImMat im_RGB(mat_Y.w, mat_Y.h, 4, 1u);
+                uint8_t *dst_data[] = { (uint8_t *)im_RGB.data };
+                int dst_linesize[] = { mat_Y.w * 4 }; // how many for 16 bits?
+                sws_scale(
+                    stream->m_img_convert_ctx,
+                    tmp_frame->data,
+                    tmp_frame->linesize,
+                    0, mat_Y.h,
+                    dst_data,
+                    dst_linesize
+                );
+                im_RGB.flags = mat_Y.flags;
+                im_RGB.type = IM_DT_INT8;
+                im_RGB.time_stamp = current_video_pts;
+                im_RGB.color_space = color_space;
+                im_RGB.color_range = color_range;
+                im_RGB.depth = video_depth;
+                im_RGB.rate = {stream->m_stream->avg_frame_rate.num, stream->m_stream->avg_frame_rate.den};
+                auto pin = (MatPin*)stream->m_mat;
+                if (pin) pin->SetValue(im_RGB);
+            }
 #endif
-/*
-        // using single ImGui::ImMat as color convert source, it is need extra copy from AVFrame
-        ImGui::ImMat mat_V;
-        int channels = ISYUV444P(tmp_frame->format) ? 3 : 2;
-        mat_V.create_type(out_w, out_h, channels, data_shift ? IM_DT_INT16 : IM_DT_INT8);
-        ImGui::ImMat mat_Y = mat_V.channel(0);
-        {
-            uint8_t* src_data = tmp_frame->data[0];
-            uint8_t* dst_data = (uint8_t*)mat_Y.data;
-            for (int i = 0; i < out_h; i++)
-            {
-                memcpy(dst_data, src_data, out_w << data_shift);
-                src_data += tmp_frame->linesize[0];
-                dst_data += out_w << data_shift;
-            }
+            m_mutex.unlock();
         }
-        if (mat_V.c == 2)
+        else if (is_rgb)
         {
-            ImGui::ImMat mat_CbCr = mat_V.channel(1);
-            if (ISNV12(tmp_frame->format))
-            {
-                uint8_t* src_data = tmp_frame->data[1];
-                uint8_t* dst_data = (uint8_t*)mat_CbCr.data;
-                for (int i = 0; i < out_h >> UV_shift_h; i++)
-                {
-                    memcpy(dst_data, src_data, (out_w >> UV_shift_w) << data_shift);
-                    src_data += tmp_frame->linesize[1];
-                    dst_data += (out_w >> UV_shift_w) << data_shift;
-                }
-            }
-            else
-            {
-                uint8_t* cr_data = tmp_frame->data[1];
-                uint8_t* cr_dst_data = (uint8_t*)mat_CbCr.data;
-                uint8_t* cb_data = tmp_frame->data[2];
-                uint8_t* cb_dst_data = (uint8_t*)mat_CbCr.data + (((out_w >> UV_shift_w) * (out_h >> UV_shift_h)) << data_shift);
-                for (int i = 0; i < out_h >> UV_shift_h; i++)
-                {
-                    memcpy(cr_dst_data, cr_data, (out_w >> UV_shift_w) << data_shift);
-                    cr_data += tmp_frame->linesize[1];
-                    cr_dst_data += (out_w >> UV_shift_w) << data_shift;
-                    memcpy(cb_dst_data, cb_data, (out_w >> UV_shift_w) << data_shift);
-                    cb_data += tmp_frame->linesize[2];
-                    cb_dst_data += (out_w >> UV_shift_w) << data_shift;
-                }
-            }
-        }
-        else
-        {
-            // YUV444
-            ImGui::ImMat mat_Cb = mat_V.channel(1);
-            ImGui::ImMat mat_Cr = mat_V.channel(2);
-            uint8_t* cr_data = tmp_frame->data[1];
-            uint8_t* cr_dst_data = (uint8_t*)mat_Cb.data;
-            uint8_t* cb_data = tmp_frame->data[2];
-            uint8_t* cb_dst_data = (uint8_t*)mat_Cr.data;
-            for (int i = 0; i < out_h >> UV_shift_h; i++)
-            {
-                memcpy(cr_dst_data, cr_data, (out_w >> UV_shift_w) << data_shift);
-                cr_data += tmp_frame->linesize[1];
-                cr_dst_data += (out_w >> UV_shift_w) << data_shift;
-                memcpy(cb_dst_data, cb_data, (out_w >> UV_shift_w) << data_shift);
-                cb_data += tmp_frame->linesize[2];
-                cb_dst_data += (out_w >> UV_shift_w) << data_shift;
-            }
-        }
-        mat_V.time_stamp = current_video_pts;
-        mat_V.color_space = color_space;
-        mat_V.color_range = color_range;
-        mat_V.color_format = color_format;
-        mat_V.depth = video_depth;
-        mat_V.flags = IM_MAT_FLAGS_VIDEO_FRAME;
-        if (stream->m_frame->pict_type == AV_PICTURE_TYPE_I) mat_V.flags |= IM_MAT_FLAGS_VIDEO_FRAME_I;
-        if (stream->m_frame->pict_type == AV_PICTURE_TYPE_P) mat_V.flags |= IM_MAT_FLAGS_VIDEO_FRAME_P;
-        if (stream->m_frame->pict_type == AV_PICTURE_TYPE_B) mat_V.flags |= IM_MAT_FLAGS_VIDEO_FRAME_B;
-        if (stream->m_frame->interlaced_frame) mat_V.flags |= IM_MAT_FLAGS_VIDEO_INTERLACED;
-        
+            ImGui::ImMat mat_in;
+            mat_in.create_type(tmp_frame->width, tmp_frame->height, desc->nb_components, tmp_frame->data[0], data_shift ? (is_be ? IM_DT_INT16_BE : IM_DT_INT16) /*IM_DT_INT16*/ : IM_DT_INT8);
+            m_mutex.lock();
 #if IMGUI_VULKAN_SHADER
-        if (!stream->m_yuv2rgb)
-        {
-            int gpu = m_device == IM_DD_CPU ? -1 : ImGui::get_default_gpu_index();
-            stream->m_yuv2rgb = new ImGui::ColorConvert_vulkan(gpu);
             if (!stream->m_yuv2rgb)
             {
-                return -1;
+                int gpu = m_device == IM_DD_CPU ? -1 : ImGui::get_default_gpu_index();
+                stream->m_yuv2rgb = new ImGui::ColorConvert_vulkan(gpu);
+                if (!stream->m_yuv2rgb)
+                {
+                    m_mutex.unlock();
+                    return -1;
+                }
             }
-        }
-        if (stream->m_yuv2rgb)
-        {
-            ImGui::ImMat im_RGB;
-            im_RGB.type = m_mat_data_type == IM_DT_UNDEFINED ? mat_V.type : m_mat_data_type;
-            im_RGB.color_format = IM_CF_ABGR;
-            im_RGB.w = mat_V.w;
-            im_RGB.h = mat_V.h;
-            if (m_device == 0)
+            if (stream->m_yuv2rgb)
             {
-                im_RGB.device = IM_DD_VULKAN;
+                ImGui::ImMat im_RGB;
+                im_RGB.type = m_mat_data_type == IM_DT_UNDEFINED ? IM_DT_INT8 : m_mat_data_type;
+                im_RGB.color_format = IM_CF_ABGR;
+                im_RGB.w = mat_in.w;
+                im_RGB.h = mat_in.h;
+                if (m_device == 0)
+                {
+                    im_RGB.device = IM_DD_VULKAN;
+                }
+                stream->m_yuv2rgb->Conv(mat_in, im_RGB);
+                im_RGB.flags = IM_MAT_FLAGS_VIDEO_FRAME;
+                im_RGB.time_stamp = current_video_pts;
+                im_RGB.color_space = color_space;
+                im_RGB.color_range = color_range;
+                im_RGB.depth = video_depth;
+                im_RGB.rate = {stream->m_stream->avg_frame_rate.num, stream->m_stream->avg_frame_rate.den};
+                auto pin = (MatPin*)stream->m_mat;
+                if (pin) pin->SetValue(im_RGB);
             }
-            
-            stream->m_yuv2rgb->ConvertColorFormat(mat_V, im_RGB, IM_INTERPOLATE_BILINEAR);
-            im_RGB.flags = mat_V.flags;
-            im_RGB.time_stamp = current_video_pts;
-            im_RGB.color_space = color_space;
-            im_RGB.color_range = color_range;
-            im_RGB.depth = video_depth;
-            im_RGB.rate = {stream->m_stream->avg_frame_rate.num, stream->m_stream->avg_frame_rate.den};
-            auto pin = (MatPin*)stream->m_mat;
-            if (pin) pin->SetValue(im_RGB);
-        }
-#else
-        // ffmpeg swscale
-        if (!stream->m_img_convert_ctx)
-        {
-            AVPixelFormat format =  mat_V.color_format == IM_CF_YUV420 ? (video_depth > 8 ? AV_PIX_FMT_YUV420P10 : AV_PIX_FMT_YUV420P) :
-                                    mat_V.color_format == IM_CF_YUV422 ? (video_depth > 8 ? AV_PIX_FMT_YUV422P10 : AV_PIX_FMT_YUV422P) :
-                                    mat_V.color_format == IM_CF_YUV444 ? (video_depth > 8 ? AV_PIX_FMT_YUV444P10 : AV_PIX_FMT_YUV444P) :
-                                    mat_V.color_format == IM_CF_NV12 ? (video_depth > 8 ? AV_PIX_FMT_P010LE : AV_PIX_FMT_NV12) :
-                                    AV_PIX_FMT_YUV420P;
-            stream->m_img_convert_ctx = sws_getCachedContext(
-                                stream->m_img_convert_ctx,
-                                mat_V.w,
-                                mat_V.h,
-                                format,
-                                mat_V.w,
-                                mat_V.h,
-                                AV_PIX_FMT_RGBA,
-                                SWS_BICUBIC,
-                                NULL, NULL, NULL);
-        }
-        if (stream->m_img_convert_ctx)
-        {
-            ImGui::ImMat MatY = mat_V.channel(0);
-            ImGui::ImMat MatU = mat_V.channel(1);
-            ImGui::ImMat MatV = mat_V.channel(2);
-            int mat_u_width = MatU.w >> (mat_V.color_format == IM_CF_YUV420 ? 1 : 0);
-            int mat_v_width = MatV.w >> (mat_V.color_format == IM_CF_YUV420 ? 1 : 0);
-            int data_shift = video_depth > 8 ? 2 : 1;
-            ImGui::ImMat im_RGB(mat_V.w, mat_V.h, 4, 1u);
-            uint8_t *src_data[] = { (uint8_t *)MatY.data, (uint8_t *)MatU.data, (uint8_t *)MatV.data };
-            int src_linesize[] = {MatY.w * data_shift, mat_u_width * data_shift, mat_v_width * data_shift}; // how many for 16 bits?
-            uint8_t *dst_data[] = { (uint8_t *)im_RGB.data };
-            int dst_linesize[] = { mat_V.w * 4 }; // how many for 16 bits?
-            sws_scale(
-                stream->m_img_convert_ctx,
-                src_data,
-                src_linesize,
-                0, mat_V.h,
-                dst_data,
-                dst_linesize
-            );
-            im_RGB.flags = mat_V.flags;
-            im_RGB.type = IM_DT_INT8;
-            im_RGB.flags = mat_V.flags;
-            im_RGB.time_stamp = current_video_pts;
-            im_RGB.color_space = color_space;
-            im_RGB.color_range = color_range;
-            im_RGB.depth = video_depth;
-            im_RGB.rate = {stream->m_stream->avg_frame_rate.num, stream->m_stream->avg_frame_rate.den};
-            auto pin = (MatPin*)stream->m_mat;
-            if (pin) pin->SetValue(im_RGB);
-        }
 #endif
-*/
-        m_mutex.unlock();
+            m_mutex.unlock();
+        }
+        
         av_frame_free(&sw_frame);
         m_current_pts = current_video_pts;
         return 0;

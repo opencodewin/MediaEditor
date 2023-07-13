@@ -134,7 +134,7 @@ void ChromaKey_vulkan::upload_param(const VkMat& src, VkMat& dst,
 
     std::vector<VkMat> bindings(5);
     if      (src.type == IM_DT_INT8)     bindings[0] = src;
-    else if (src.type == IM_DT_INT16)    bindings[1] = src;
+    else if (src.type == IM_DT_INT16 || src.type == IM_DT_INT16_BE)    bindings[1] = src;
     else if (src.type == IM_DT_FLOAT16)  bindings[2] = src;
     else if (src.type == IM_DT_FLOAT32)  bindings[3] = src;
     bindings[4] = alpha_mat;
@@ -164,12 +164,12 @@ void ChromaKey_vulkan::upload_param(const VkMat& src, VkMat& dst,
     column_blur_alpha_mat.create_like(alpha_mat, opt.blob_vkallocator);
     std::vector<VkMat> column_blur_bindings(9);
     if      (column_blur_alpha_mat.type == IM_DT_INT8)     column_blur_bindings[0] = column_blur_alpha_mat;
-    else if (column_blur_alpha_mat.type == IM_DT_INT16)    column_blur_bindings[1] = column_blur_alpha_mat;
+    else if (column_blur_alpha_mat.type == IM_DT_INT16 || column_blur_alpha_mat.type == IM_DT_INT16_BE)    column_blur_bindings[1] = column_blur_alpha_mat;
     else if (column_blur_alpha_mat.type == IM_DT_FLOAT16)  column_blur_bindings[2] = column_blur_alpha_mat;
     else if (column_blur_alpha_mat.type == IM_DT_FLOAT32)  column_blur_bindings[3] = column_blur_alpha_mat;
 
     if      (alpha_mat.type == IM_DT_INT8)      column_blur_bindings[4] = alpha_mat;
-    else if (alpha_mat.type == IM_DT_INT16)     column_blur_bindings[5] = alpha_mat;
+    else if (alpha_mat.type == IM_DT_INT16 || alpha_mat.type == IM_DT_INT16_BE)     column_blur_bindings[5] = alpha_mat;
     else if (alpha_mat.type == IM_DT_FLOAT16)   column_blur_bindings[6] = alpha_mat;
     else if (alpha_mat.type == IM_DT_FLOAT32)   column_blur_bindings[7] = alpha_mat;
     column_blur_bindings[8] = vk_kernel;
@@ -195,12 +195,12 @@ void ChromaKey_vulkan::upload_param(const VkMat& src, VkMat& dst,
     blur_alpha_mat.create_like(alpha_mat, opt.blob_vkallocator);
     std::vector<VkMat> row_blur_bindings(9);
     if      (blur_alpha_mat.type == IM_DT_INT8)     row_blur_bindings[0] = blur_alpha_mat;
-    else if (blur_alpha_mat.type == IM_DT_INT16)    row_blur_bindings[1] = blur_alpha_mat;
+    else if (blur_alpha_mat.type == IM_DT_INT16 || blur_alpha_mat.type == IM_DT_INT16_BE)    row_blur_bindings[1] = blur_alpha_mat;
     else if (blur_alpha_mat.type == IM_DT_FLOAT16)  row_blur_bindings[2] = blur_alpha_mat;
     else if (blur_alpha_mat.type == IM_DT_FLOAT32)  row_blur_bindings[3] = blur_alpha_mat;
 
     if      (column_blur_alpha_mat.type == IM_DT_INT8)      row_blur_bindings[4] = column_blur_alpha_mat;
-    else if (column_blur_alpha_mat.type == IM_DT_INT16)     row_blur_bindings[5] = column_blur_alpha_mat;
+    else if (column_blur_alpha_mat.type == IM_DT_INT16 || column_blur_alpha_mat.type == IM_DT_INT16_BE)     row_blur_bindings[5] = column_blur_alpha_mat;
     else if (column_blur_alpha_mat.type == IM_DT_FLOAT16)   row_blur_bindings[6] = column_blur_alpha_mat;
     else if (column_blur_alpha_mat.type == IM_DT_FLOAT32)   row_blur_bindings[7] = column_blur_alpha_mat;
     row_blur_bindings[8] = vk_kernel;
@@ -261,11 +261,11 @@ void ChromaKey_vulkan::upload_param(const VkMat& src, VkMat& dst,
 */
     std::vector<VkMat> despill_bindings(9);
     if      (dst.type == IM_DT_INT8)     despill_bindings[0] = dst;
-    else if (dst.type == IM_DT_INT16)    despill_bindings[1] = dst;
+    else if (dst.type == IM_DT_INT16 || dst.type == IM_DT_INT16_BE)    despill_bindings[1] = dst;
     else if (dst.type == IM_DT_FLOAT16)  despill_bindings[2] = dst;
     else if (dst.type == IM_DT_FLOAT32)  despill_bindings[3] = dst;
     if      (src.type == IM_DT_INT8)     despill_bindings[4] = src;
-    else if (src.type == IM_DT_INT16)    despill_bindings[5] = src;
+    else if (src.type == IM_DT_INT16 || src.type == IM_DT_INT16_BE)    despill_bindings[5] = src;
     else if (src.type == IM_DT_FLOAT16)  despill_bindings[6] = src;
     else if (src.type == IM_DT_FLOAT32)  despill_bindings[7] = src;
     despill_bindings[8] = blur_alpha_mat;
