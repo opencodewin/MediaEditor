@@ -4861,8 +4861,8 @@ static void DrawVideoFilterEventWindow(ImDrawList *draw_list, Clip * editing_cli
                     {
                         ImU32 color; ImGui::RandomColor(color, 1.f);
                         auto curve_index = pKP->AddCurve(name, ImGui::ImCurveEdit::Smooth, color, true, _min, _max, _default);
-                        pKP->AddPoint(curve_index, ImVec2(event->Start(), _min), ImGui::ImCurveEdit::Smooth);
-                        pKP->AddPoint(curve_index, ImVec2(event->End(), _max), ImGui::ImCurveEdit::Smooth);
+                        pKP->AddPoint(curve_index, ImVec2(0, _min), ImGui::ImCurveEdit::Smooth);
+                        pKP->AddPoint(curve_index, ImVec2(event->End() - event->Start(), _max), ImGui::ImCurveEdit::Smooth);
                         pKP->SetCurvePointDefault(curve_index, 0);
                         pKP->SetCurvePointDefault(curve_index, 1);
                         if (pBP)
