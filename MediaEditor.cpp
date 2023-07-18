@@ -4896,7 +4896,11 @@ static void DrawVideoFilterEventWindow(ImDrawList *draw_list, Clip * editing_cli
                     ImGui::SameLine();
                     if (ImGui::Button(ICON_DELETE "##event_list_editor_delete_node"))
                     {
-                        // TODO::Dicky Add delete node here and need_redraw = true
+                        // TODO::Dicky delete node need be confirmed
+                        auto track = timeline->FindTrackByClipID(node->m_ID);
+                        pBP->Blueprint_DeleteNode(node->m_ID);
+                        if (track) timeline->RefreshTrackView({track->mID});
+                        need_redraw = true;
                     }
                     ImGui::ShowTooltipOnHover("Delete Node");
                     if (tree_open && !need_redraw)
