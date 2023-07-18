@@ -325,6 +325,7 @@ void EventTrack::DrawContent(ImDrawList *draw_list, ImRect rect, int event_heigh
     ImGui::SetCursorScreenPos(rect.Min);
     bool mouse_clicked = false;
     bool mouse_hold = false;
+    bool curve_hovered = false;
 
     // draw events
     for (auto event_id : m_Events)
@@ -420,10 +421,6 @@ void EventTrack::DrawContent(ImDrawList *draw_list, ImRect rect, int event_heigh
                     SelectEvent(event, false);
                     mouse_clicked = true;
                 }
-                else if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && event_rect.Contains(ImGui::GetMousePos()))
-                {
-                    mExpanded = !mExpanded;
-                }
                 //event->DrawTooltips();
             }
         }
@@ -432,6 +429,7 @@ void EventTrack::DrawContent(ImDrawList *draw_list, ImRect rect, int event_heigh
             ImVec2 curve_pos_min = event_pos_min + ImVec2(0, event_height);
             ImVec2 curve_pos_max = event_pos_max + ImVec2(0, curve_height);
             ImRect curve_rect(curve_pos_min, curve_pos_max);
+            curve_hovered = curve_rect.Contains(ImGui::GetMousePos());
             ImGui::SetCursorScreenPos(curve_pos_min);
             ImGui::PushID(event_id);
             if (ImGui::BeginChild("##event_curve", curve_rect.GetSize(), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
@@ -449,7 +447,7 @@ void EventTrack::DrawContent(ImDrawList *draw_list, ImRect rect, int event_heigh
                                                         pKP,
                                                         sub_window_size, 
                                                         ImGui::GetID("##video_filter_event_keypoint_editor"),
-                                                        true, // editable, need check later
+                                                        true, // editable, TODO::Dicky need check later
                                                         current_time,
                                                         curve_start,
                                                         curve_end,
@@ -464,6 +462,11 @@ void EventTrack::DrawContent(ImDrawList *draw_list, ImRect rect, int event_heigh
             ImGui::PopID();
         }
     }
+
+    if (m_Events.empty())
+        mExpanded = false;
+    else if (rect.Contains(ImGui::GetMousePos()) && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && !curve_hovered)
+        mExpanded = !mExpanded;
 
     ImGui::PopClipRect();
 }
