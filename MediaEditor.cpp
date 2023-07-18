@@ -4851,6 +4851,33 @@ static void DrawVideoFilterEventWindow(ImDrawList *draw_list, Clip * editing_cli
         if (ImGui::TreeNodeEx(event_label.c_str(), ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanFullWidth | (is_selected ? ImGuiTreeNodeFlags_Selected : ImGuiTreeNodeFlags_None)))
         {
             auto pBP = event->GetBp();
+            auto pKP = event->GetKeyPoint();
+            auto addCurve = [&](BluePrint::Node* node, std::string name, float _min, float _max, float _default)
+            {
+                if (pKP)
+                {
+                    auto found = pKP->GetCurveIndex(name);
+                    if (found == -1)
+                    {
+                        ImU32 color; ImGui::RandomColor(color, 1.f);
+                        auto curve_index = pKP->AddCurve(name, ImGui::ImCurveEdit::Smooth, color, true, _min, _max, _default);
+                        pKP->AddPoint(curve_index, ImVec2(event->Start(), _min), ImGui::ImCurveEdit::Smooth);
+                        pKP->AddPoint(curve_index, ImVec2(event->End(), _max), ImGui::ImCurveEdit::Smooth);
+                        pKP->SetCurvePointDefault(curve_index, 0);
+                        pKP->SetCurvePointDefault(curve_index, 1);
+                        if (pBP)
+                        {
+                            auto entry_node = pBP->FindEntryPointNode();
+                            if (entry_node)
+                            {
+                                entry_node->InsertOutputPin(BluePrint::PinType::Float, name);
+                                // TODO::Dicky auto link with curve's pin
+                            }
+                            update_track(pBP, node);
+                        }
+                    }
+                }
+            };
             if (pBP)
             {
                 auto nodes = pBP->m_Document->m_Blueprint.GetNodes();
@@ -4915,8 +4942,9 @@ static void DrawVideoFilterEventWindow(ImDrawList *draw_list, Clip * editing_cli
                         ImGui::Indent(-20);
                         if (!key.name.empty())
                         {
-                            // TODO::Dicky add curve
-                            //addCurve(key.name, key.m_min, key.m_max, key.m_default);
+                            addCurve(node, key.name, key.m_min, key.m_max, key.m_default);
+                            auto track = timeline->FindTrackByClipID(node->m_ID);
+                            if (track) timeline->RefreshTrackView({track->mID});
                         }
                     }
                     if (tree_open) ImGui::TreePop();

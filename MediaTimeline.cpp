@@ -330,6 +330,8 @@ void EventTrack::DrawContent(ImDrawList *draw_list, ImRect rect, int event_heigh
     for (auto event_id : m_Events)
     {
         bool draw_event = false;
+        int64_t curve_start = 0;
+        int64_t curve_end = 0;
         float cursor_start = 0;
         float cursor_end  = 0;
         ImDrawFlags flag = ImDrawFlags_RoundCornersNone;
@@ -344,6 +346,8 @@ void EventTrack::DrawContent(ImDrawList *draw_list, ImRect rect, int event_heigh
             ************************************************************/
             cursor_start = rect.Min.x;
             cursor_end = rect.Min.x + (event->End() - view_start) * pixelWidthMS;
+            curve_start = view_start - event->Start();
+            curve_end = event->End() - event->Start();
             draw_event = true;
             flag |= ImDrawFlags_RoundCornersRight;
         }
@@ -356,6 +360,8 @@ void EventTrack::DrawContent(ImDrawList *draw_list, ImRect rect, int event_heigh
             ************************************************************/
             cursor_start = rect.Min.x + (event->Start() - view_start) * pixelWidthMS;
             cursor_end = rect.Min.x + (event->End() - view_start) * pixelWidthMS;
+            curve_start = 0;
+            curve_end = event->End() - event->Start();
             draw_event = true;
             flag |= ImDrawFlags_RoundCornersAll;
         }
@@ -368,6 +374,8 @@ void EventTrack::DrawContent(ImDrawList *draw_list, ImRect rect, int event_heigh
             ************************************************************/
             cursor_start = rect.Min.x + (event->Start() - view_start) * pixelWidthMS;
             cursor_end = rect.Max.x;
+            curve_start = 0;
+            curve_end = view_end - event->Start();
             draw_event = true;
             flag |= ImDrawFlags_RoundCornersLeft;
         }
@@ -380,6 +388,8 @@ void EventTrack::DrawContent(ImDrawList *draw_list, ImRect rect, int event_heigh
             ************************************************************/
             cursor_start = rect.Min.x;
             cursor_end  = rect.Max.x;
+            curve_start = view_start - event->Start();
+            curve_end = view_end - event->Start();
             draw_event = true;
         }
         if (event->Start() == view_start)
@@ -410,7 +420,7 @@ void EventTrack::DrawContent(ImDrawList *draw_list, ImRect rect, int event_heigh
                     SelectEvent(event, false);
                     mouse_clicked = true;
                 }
-                else if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+                else if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && event_rect.Contains(ImGui::GetMousePos()))
                 {
                     mExpanded = !mExpanded;
                 }
@@ -430,7 +440,25 @@ void EventTrack::DrawContent(ImDrawList *draw_list, ImRect rect, int event_heigh
                 ImVec2 sub_window_size = ImGui::GetWindowSize();
                 draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_ONE);
                 bool _changed = false;
-                // TODO::Dicky show event curve editor
+                auto pKP = event->GetKeyPoint();
+                if (pKP)
+                {
+                    float current_time = timeline->currentTime - clip->Start();
+                    pKP->SetCurveAlign(ImVec2(clip->frame_duration, -1.0));
+                    mouse_hold |= ImGui::ImCurveEdit::Edit( nullptr,
+                                                        pKP,
+                                                        sub_window_size, 
+                                                        ImGui::GetID("##video_filter_event_keypoint_editor"),
+                                                        true, // editable, need check later
+                                                        current_time,
+                                                        curve_start,
+                                                        curve_end,
+                                                        CURVE_EDIT_FLAG_VALUE_LIMITED | CURVE_EDIT_FLAG_MOVE_CURVE | CURVE_EDIT_FLAG_KEEP_BEGIN_END | CURVE_EDIT_FLAG_DOCK_BEGIN_END, 
+                                                        nullptr, // clippingRect
+                                                        &_changed
+                                                        );
+                    if (_changed) timeline->UpdatePreview();
+                }
             }
             ImGui::EndChild();
             ImGui::PopID();
