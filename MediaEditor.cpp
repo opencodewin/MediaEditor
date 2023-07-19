@@ -4852,7 +4852,7 @@ static void DrawVideoFilterEventWindow(ImDrawList *draw_list, Clip * editing_cli
         {
             auto pBP = event->GetBp();
             auto pKP = event->GetKeyPoint();
-            auto addCurve = [&](BluePrint::Node* node, std::string name, float _min, float _max, float _default)
+            auto addCurve = [&](BluePrint::Node* node, std::string name, float _min, float _max, float _default, int64_t pin_id)
             {
                 if (pKP)
                 {
@@ -4860,7 +4860,7 @@ static void DrawVideoFilterEventWindow(ImDrawList *draw_list, Clip * editing_cli
                     if (found == -1)
                     {
                         ImU32 color; ImGui::RandomColor(color, 1.f);
-                        auto curve_index = pKP->AddCurve(name, ImGui::ImCurveEdit::Smooth, color, true, _min, _max, _default);
+                        auto curve_index = pKP->AddCurve(name, ImGui::ImCurveEdit::Smooth, color, true, _min, _max, _default, node->m_ID, pin_id);
                         pKP->AddPoint(curve_index, ImVec2(0, _min), ImGui::ImCurveEdit::Smooth);
                         pKP->AddPoint(curve_index, ImVec2(event->End() - event->Start(), _max), ImGui::ImCurveEdit::Smooth);
                         pKP->SetCurvePointDefault(curve_index, 0);
@@ -4870,16 +4870,48 @@ static void DrawVideoFilterEventWindow(ImDrawList *draw_list, Clip * editing_cli
                             auto entry_node = pBP->FindEntryPointNode();
                             if (entry_node)
                             {
-                                entry_node->InsertOutputPin(BluePrint::PinType::Float, name);
-                                // TODO::Dicky auto link with curve's pin
+                                auto pin = entry_node->InsertOutputPin(BluePrint::PinType::Float, name);
+                                if (pin && pin_id != -1)
+                                {
+                                    auto link_pin = pBP->m_Document->m_Blueprint.FindPin(pin_id);
+                                    if (link_pin) link_pin->LinkTo(*pin);
+                                }
                             }
                             update_track(pBP, node);
                         }
                     }
                 }
             };
+            auto delCurve = [&](BluePrint::Node* node, std::string name, int64_t pin_id)
+            {
+                if (pKP)
+                {
+                    auto found = pKP->GetCurveIndex(name);
+                    if (found != -1)
+                    {
+                        pKP->DeleteCurve(found);
+                        if (pBP && pin_id != -1)
+                        {
+                            auto link_pin = pBP->m_Document->m_Blueprint.FindPin(pin_id);
+                            if (link_pin) link_pin->Unlink();
+                            auto entry_node = pBP->FindEntryPointNode();
+                            if (entry_node)
+                            {
+                                auto pin = entry_node->FindPin(name);
+                                if (pin && pin->m_LinkFrom.empty())
+                                {
+                                    entry_node->DeleteOutputPin(name);
+                                }
+                            }
+                        }
+                    }
+                }
+            };
             if (pBP)
             {
+                static const char* buttons[] = { "Delete", "Cancel", NULL };
+                static ImGui::MsgBox msgbox;
+                msgbox.Init("Delete Warning?", ICON_MD_WARNING, "Are you really really sure you want to delete node?", buttons, false);
                 auto nodes = pBP->m_Document->m_Blueprint.GetNodes();
                 bool need_redraw = false;
                 for (auto node : nodes)
@@ -4923,11 +4955,7 @@ static void DrawVideoFilterEventWindow(ImDrawList *draw_list, Clip * editing_cli
                     ImGui::SameLine();
                     if (ImGui::Button(ICON_DELETE "##event_list_editor_delete_node"))
                     {
-                        // TODO::Dicky delete node need be confirmed
-                        auto track = timeline->FindTrackByClipID(node->m_ID);
-                        pBP->Blueprint_DeleteNode(node->m_ID);
-                        if (track) timeline->RefreshTrackView({track->mID});
-                        need_redraw = true;
+                        ImGui::OpenPopup("Delete Warning?");
                     }
                     ImGui::ShowTooltipOnHover("Delete Node");
                     if (tree_open && !need_redraw)
@@ -4942,10 +4970,28 @@ static void DrawVideoFilterEventWindow(ImDrawList *draw_list, Clip * editing_cli
                         ImGui::Indent(-20);
                         if (!key.name.empty())
                         {
-                            addCurve(node, key.name, key.m_min, key.m_max, key.m_default);
-                            auto track = timeline->FindTrackByClipID(node->m_ID);
-                            if (track) timeline->RefreshTrackView({track->mID});
+                            if (key.checked)
+                                addCurve(node, key.name, key.m_min, key.m_max, key.m_default, key.m_sub_id);
+                            else
+                                delCurve(node, key.name, key.m_sub_id);
                         }
+                    }
+                    int selected = msgbox.Draw();
+                    if (selected == 1)
+                    {
+                        if (pKP)
+                        {
+                            int found = -1;
+                            while ((found = pKP->GetCurveIndex(node->m_ID)) != -1)
+                            {
+                                auto key = pKP->GetCurveKey(found);
+                                if (key) delCurve(node, key->name, key->m_sub_id);
+                            }
+                        }
+                        auto track = timeline->FindTrackByClipID(node->m_ID);
+                        pBP->Blueprint_DeleteNode(node->m_ID);
+                        if (track) timeline->RefreshTrackView({track->mID});
+                        need_redraw = true;
                     }
                     if (tree_open) ImGui::TreePop();
                 }

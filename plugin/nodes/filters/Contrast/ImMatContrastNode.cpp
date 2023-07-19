@@ -4,7 +4,7 @@
 #include <ImVulkanShader.h>
 #include <Contrast_vulkan.h>
 
-#define NODE_VERSION    0x01000000
+#define NODE_VERSION    0x01000100
 
 namespace BluePrint
 {
@@ -91,7 +91,10 @@ struct ContrastNode final : Node
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_ContrastIn.IsLinked());
         ImGui::ContrastSelector("##slider_contrast##Contrast", ImVec2(200, 20), &val, 1.0, zoom);
-        if (key) ImGui::ImCurveEditKey("##add_curve_contrast##Contrast", key, "contrast##Contrast", 0.f, 4.f, 1.f);
+        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_contrast##Contrast")) { val = 1.0; changed = true; }
+        ImGui::EndDisabled();
+        ImGui::BeginDisabled(!m_Enabled);
+        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_contrast##Contrast", key, m_ContrastIn.IsLinked(), "contrast##Contrast@" + std::to_string(m_ID), 0.f, 4.f, 1.f, m_ContrastIn.m_ID);
         ImGui::EndDisabled();
         ImGui::PopItemWidth();
         if (val != m_contrast) { m_contrast = val; changed = true; }
