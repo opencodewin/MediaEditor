@@ -90,12 +90,16 @@ struct GaussianBlurNode final : Node
         ImGui::BeginDisabled(!m_Enabled || m_SigmaIn.IsLinked());
         ImGui::SliderFloat("Sigma##GaussianBlur", &_sigma, 0.0, 10.f, "%.1f", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_sigma##GaussianBlur")) { _sigma = 0; changed = true; }
-        if (key) ImGui::ImCurveEditKey("##add_curve_sigma##GaussianBlur", key, "sigma##GaussianBlur", 0.f, 10.f, 0.f);
+        ImGui::EndDisabled();
+        ImGui::BeginDisabled(!m_Enabled);
+        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_sigma##GaussianBlur", key, m_SigmaIn.IsLinked(), "sigma##GaussianBlur@" + std::to_string(m_ID), 0.f, 10.f, 0.f, m_SigmaIn.m_ID);
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled || m_RadiusIn.IsLinked());
         ImGui::SliderInt("Radius##GaussianBlur", &_blurRadius, 0, 20, "%d", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_radius##GaussianBlur")) { _blurRadius = 3; changed = true; }
-        if (key) ImGui::ImCurveEditKey("##add_curve_radius##GaussianBlur", key, "radius##GaussianBlur", 0.f, 20.f, 3.f);
+        ImGui::EndDisabled();
+        ImGui::BeginDisabled(!m_Enabled);
+        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_radius##GaussianBlur", key, m_RadiusIn.IsLinked(), "radius##GaussianBlur@" + std::to_string(m_ID), 0.f, 20.f, 3.f, m_RadiusIn.m_ID);
         ImGui::EndDisabled();
         ImGui::PopItemWidth();
         if (_sigma != m_sigma) { m_sigma = _sigma; changed = true; }

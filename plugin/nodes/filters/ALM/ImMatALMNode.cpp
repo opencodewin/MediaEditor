@@ -3,7 +3,7 @@
 #include <ImVulkanShader.h>
 #include "ALM_vulkan.h"
 
-#define NODE_VERSION    0x01000000
+#define NODE_VERSION    0x01000100
 
 namespace BluePrint
 {
@@ -91,17 +91,23 @@ struct AlmNode final : Node
         ImGui::BeginDisabled(!m_Enabled || m_StrengthIn.IsLinked());
         ImGui::SliderFloat("Strength##ALM", &_strength, 0, 1.f, "%.2f", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_strength##ALM")) { _strength = 0.5; changed = true; }
-        if (key) ImGui::ImCurveEditKey("##add_curve_strength##ALM", key, "strength##ALM", 0.f, 1.f, 0.5f);
+        ImGui::EndDisabled();
+        ImGui::BeginDisabled(!m_Enabled);
+        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_strength##ALM", key, m_StrengthIn.IsLinked(), "strength##ALM" + std::to_string(m_ID), 0.f, 1.f, 0.5f, m_StrengthIn.m_ID);
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled || m_BiasIn.IsLinked());
         ImGui::SliderFloat("Bias##ALM", &_bias, 0, 1.f, "%.2f", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_bias##ALM")) { _bias = 0.7; changed = true; }
-        if (key) ImGui::ImCurveEditKey("##add_curve_bias##ALM", key, "bias##ALM", 0.f, 1.f, 0.7f);
+        ImGui::EndDisabled();
+        ImGui::BeginDisabled(!m_Enabled);
+        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_bias##ALM", key, m_BiasIn.IsLinked(), "bias##ALM" + std::to_string(m_ID), 0.f, 1.f, 0.7f, m_BiasIn.m_ID);
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled || m_GammaIn.IsLinked());
         ImGui::SliderFloat("Gamma##ALM", &_gamma, 0, 4.f, "%.2f", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_gamma##ALM")) { _gamma = 2.2; changed = true; }
-        if (key) ImGui::ImCurveEditKey("##add_curve_gamma##ALM", key, "gamma##ALM", 0.f, 4.f, 2.2f);
+        ImGui::EndDisabled();
+        ImGui::BeginDisabled(!m_Enabled);
+        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_gamma##ALM", key, m_GammaIn.IsLinked(), "gamma##ALM" + std::to_string(m_ID), 0.f, 4.f, 2.2f, m_GammaIn.m_ID);
         ImGui::EndDisabled();
         ImGui::PopItemWidth();
         if (_strength != m_strength) { m_strength = _strength; changed = true; }

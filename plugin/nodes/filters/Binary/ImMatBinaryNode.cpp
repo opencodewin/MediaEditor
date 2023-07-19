@@ -89,12 +89,16 @@ struct BinaryNode final : Node
         ImGui::BeginDisabled(!m_Enabled || m_MinIn.IsLinked());
         ImGui::SliderFloat("Threshold min##Binary", &_min, 0.f, 1.f, "%.2f", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_min##Binary")) { _min = 0.f; changed = true; }
-        if (key) ImGui::ImCurveEditKey("##add_curve_min##Binary", key, "threshold min##Binary", 0.f, 1.f, 0.f);
+        ImGui::EndDisabled();
+        ImGui::BeginDisabled(!m_Enabled);
+        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_min##Binary", key, m_MinIn.IsLinked(), "threshold min##Binary@" + std::to_string(m_ID), 0.f, 1.f, 0.f, m_MinIn.m_ID);
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled || m_MaxIn.IsLinked());
         ImGui::SliderFloat("Threshold max##Binary", &_max, 0.f, 1.f, "%.2f", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_max##Binary")) { _max = 1.f; changed = true; }
-        if (key) ImGui::ImCurveEditKey("##add_curve_max##Binary", key, "threshold min##Binary", 0.f, 1.f, 1.f);
+        ImGui::EndDisabled();
+        ImGui::BeginDisabled(!m_Enabled);
+        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_max##Binary", key, m_MaxIn.IsLinked(), "threshold min##Binary@" + std::to_string(m_ID), 0.f, 1.f, 1.f, m_MaxIn.m_ID);
         ImGui::EndDisabled();
         ImGui::PopItemWidth();
         if (_min != m_min) { m_min = _min; changed = true; }

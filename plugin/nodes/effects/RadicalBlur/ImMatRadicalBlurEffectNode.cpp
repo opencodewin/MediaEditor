@@ -91,7 +91,9 @@ struct RadicalBlurEffectNode final : Node
         ImGui::BeginDisabled(!m_Enabled || m_RadiusIn.IsLinked());
         ImGui::SliderFloat("Radius##RadicalBlur", &_radius, 0.0, 1.f, "%.2f", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_radius##RadicalBlur")) { _radius = 0.38f; changed = true; }
-        if (key) ImGui::ImCurveEditKey("##add_curve_radius##RadicalBlur", key, "radius##RadicalBlur", 0.0f, 100.f, 1.f);
+        ImGui::EndDisabled();
+        ImGui::BeginDisabled(!m_Enabled);
+        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_radius##RadicalBlur", key, m_RadiusIn.IsLinked(), "radius##RadicalBlur@" + std::to_string(m_ID), 0.0f, 100.f, 1.f, m_RadiusIn.m_ID);
         ImGui::EndDisabled();
         ImGui::SliderFloat("Dist##RadicalBlur", &_dist, 0.0, 1.f, "%.2f", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_dist##RadicalBlur")) { _dist = 0.25f; changed = true; }

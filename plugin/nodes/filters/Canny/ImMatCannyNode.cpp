@@ -91,17 +91,23 @@ struct CannyNode final : Node
         ImGui::BeginDisabled(!m_Enabled || m_RadiusIn.IsLinked());
         ImGui::SliderInt("Blur Radius##Canny", &_blurRadius, 0, 10, "%d", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_radius##Canny")) { _blurRadius = 3; changed = true; }
-        if (key) ImGui::ImCurveEditKey("##add_curve_radius##Canny", key, "radius##Canny", 0.f, 10.f, 3.f);
+        ImGui::EndDisabled();
+        ImGui::BeginDisabled(!m_Enabled);
+        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_radius##Canny", key, m_RadiusIn.IsLinked(), "radius##Canny@" + std::to_string(m_ID), 0.f, 10.f, 3.f, m_RadiusIn.m_ID);
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled || m_MinIn.IsLinked());
         ImGui::SliderFloat("Min Threshold##Canny", &_minThreshold, 0, 1.f, "%.2f", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_min##Canny")) { _minThreshold = 0.1; changed = true; }
-        if (key) ImGui::ImCurveEditKey("##add_curve_min##Canny", key, "min##Canny", 0.f, 1.f, 0.1f);
+        ImGui::EndDisabled();
+        ImGui::BeginDisabled(!m_Enabled);
+        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_min##Canny", key, m_MinIn.IsLinked(), "min##Canny@" + std::to_string(m_ID), 0.f, 1.f, 0.1f, m_MinIn.m_ID);
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled || m_MaxIn.IsLinked());
         ImGui::SliderFloat("Max Threshold##Canny", &_maxThreshold, _minThreshold, 1.f, "%.2f", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_max##Canny")) { _maxThreshold = 0.45; changed = true; }
-        if (key) ImGui::ImCurveEditKey("##add_curve_max##Canny", key, "max##Canny", 0.f, 1.f, 0.45f);
+        ImGui::EndDisabled();
+        ImGui::BeginDisabled(!m_Enabled);
+        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_max##Canny", key, m_MaxIn.IsLinked(), "max##Canny@" + std::to_string(m_ID), 0.f, 1.f, 0.45f, m_MaxIn.m_ID);
         ImGui::EndDisabled();
         ImGui::PopItemWidth();
         if (m_blurRadius != _blurRadius) { m_blurRadius = _blurRadius; changed = true; }

@@ -91,7 +91,10 @@ struct HueNode final : Node
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_HueIn.IsLinked());
         ImGui::HueSelector("##slideer_hue##Hue", ImVec2(200, 20), &val, &hue_width, &featherLeft, &featherRight, 0.0f, zoom, 64, 1.0f, 0.0f);
-        if (key) ImGui::ImCurveEditKey("##add_curve_hue##Hue", key, "hue##Hue", 0.f, 360.f, 0.f);
+        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_hue##Hue")) { val = 0.0; changed = true; }
+        ImGui::EndDisabled();
+        ImGui::BeginDisabled(!m_Enabled);
+        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_hue##Hue", key, m_HueIn.IsLinked(), "hue##Hue@" + std::to_string(m_ID), 0.f, 360.f, 0.f, m_HueIn.m_ID);
         ImGui::EndDisabled();
         ImGui::PopItemWidth();
         if (val != m_hue / 360.f) 

@@ -91,7 +91,10 @@ struct BrightnessNode final : Node
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_BrightnessIn.IsLinked());
         ImGui::LumianceSelector("##slider_brightness##Brightness", ImVec2(200, 20), &val, 0.0f, -1.f, 1.f, zoom);
-        if (key) ImGui::ImCurveEditKey("##add_curve_brightness##Brightness", key, "brightness##Brightness", -1.f, 1.f, 0.f);
+        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_brightness##Brightness")) { val = 0.0; changed = true; }
+        ImGui::EndDisabled();
+        ImGui::BeginDisabled(!m_Enabled);
+        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_brightness##Brightness", key, m_BrightnessIn.IsLinked(), "brightness##Brightness@" + std::to_string(m_ID), -1.f, 1.f, 0.f, m_BrightnessIn.m_ID);
         ImGui::EndDisabled();
         ImGui::PopItemWidth();
         if (val != m_brightness) { m_brightness = val; changed = true; }

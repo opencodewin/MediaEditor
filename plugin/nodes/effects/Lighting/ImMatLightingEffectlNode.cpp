@@ -90,7 +90,9 @@ struct LightingEffectNode final : Node
         ImGui::BeginDisabled(!m_Enabled || m_TimeIn.IsLinked());
         ImGui::SliderFloat("Time##Lighting", &_time, 0.1, 8.f, "%.2f", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_time##Lighting")) { _time = 0.f; changed = true; }
-        if (key) ImGui::ImCurveEditKey("##add_curve_time##Lighting", key, "time##Lighting", 0.0f, 100.f, 1.f);
+        ImGui::EndDisabled();
+        ImGui::BeginDisabled(!m_Enabled);
+        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_time##Lighting", key, m_TimeIn.IsLinked(), "time##Lighting@" + std::to_string(m_ID), 0.0f, 100.f, 1.f, m_TimeIn.m_ID);
         ImGui::EndDisabled();
         ImGui::SliderFloat("Saturation##Lighting", &_saturation, 0.0, 1.f, "%.2f", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_saturation##Lighting")) { _saturation = 0.3f; changed = true; }
