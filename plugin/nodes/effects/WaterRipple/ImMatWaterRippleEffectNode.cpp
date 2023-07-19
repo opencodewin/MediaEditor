@@ -91,7 +91,9 @@ struct WaterRippleEffectNode final : Node
         ImGui::BeginDisabled(!m_Enabled || m_TimeIn.IsLinked());
         ImGui::SliderFloat("Time##WaterRipple", &_time, 0.0, 10.f, "%.2f", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_time##WaterRipple")) { _time = 10.f; changed = true; }
-        if (key) ImGui::ImCurveEditKey("##add_curve_time##WaterRipple", key, "time##WaterRipple", 0.0f, 100.f, 1.f);
+        ImGui::EndDisabled();
+        ImGui::BeginDisabled(!m_Enabled);
+        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_time##WaterRipple", key, m_TimeIn.IsLinked(), "time##WaterRipple@" + std::to_string(m_ID), 0.0f, 100.f, 1.f, m_TimeIn.m_ID);
         ImGui::EndDisabled();
         ImGui::SliderFloat("Freq##WaterRipple", &_freq, 0.0, 40.f, "%.0f", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_freq##WaterRipple")) { _freq = 24.f; changed = true; }

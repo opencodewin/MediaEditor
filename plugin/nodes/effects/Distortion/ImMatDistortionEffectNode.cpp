@@ -88,7 +88,9 @@ struct DistortionEffectNode final : Node
         ImGui::BeginDisabled(!m_Enabled || m_ScaleIn.IsLinked());
         ImGui::SliderFloat("Scale##Distortion", &_scale, 0.0, 1.f, "%.2f", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_scale##Distortion")) { _scale = 0.5f; changed = true; }
-        if (key) ImGui::ImCurveEditKey("##add_curve_scale##Distortion", key, "scale##Distortion", 0.0f, 100.f, 1.f);
+        ImGui::EndDisabled();
+        ImGui::BeginDisabled(!m_Enabled);
+        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_scale##Distortion", key, m_ScaleIn.IsLinked(), "scale##Distortion@" + std::to_string(m_ID), 0.0f, 100.f, 1.f, m_ScaleIn.m_ID);
         ImGui::EndDisabled();
         ImGui::PopItemWidth();
         if (_scale != m_scale) { m_scale = _scale; changed = true; }
