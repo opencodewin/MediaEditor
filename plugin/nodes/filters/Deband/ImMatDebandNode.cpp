@@ -95,17 +95,23 @@ struct DeBandNode final : Node
         ImGui::BeginDisabled(!m_Enabled || m_ThresholdIn.IsLinked());
         ImGui::SliderFloat("Threshold##DeBand", &_threshold, 0, 0.05f, "%.3f", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_threshold##DeBand")) { _threshold = 0.05f; changed = true; }
-        if (key) ImGui::ImCurveEditKey("##add_curve_threshold##DeBand", key, "threshold##DeBand", 0.f, 0.05f, 0.01f);
+        ImGui::EndDisabled();
+        ImGui::BeginDisabled(!m_Enabled);
+        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_threshold##DeBand", key, m_ThresholdIn.IsLinked(), "threshold##DeBand@" + std::to_string(m_ID), 0.f, 0.05f, 0.01f, m_ThresholdIn.m_ID);
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled || m_RangeIn.IsLinked());
         ImGui::SliderInt("Range##DeBand", &_range, 0, 64, "%.d", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_range##DeBand")) { _range = 16.f; changed = true; }
-        if (key) ImGui::ImCurveEditKey("##add_curve_range##DeBand", key, "range##DeBand", 0.f, 64.f, 16.f);
+        ImGui::EndDisabled();
+        ImGui::BeginDisabled(!m_Enabled);
+        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_range##DeBand", key, m_RangeIn.IsLinked(), "range##DeBand@" + std::to_string(m_ID), 0.f, 64.f, 16.f, m_RangeIn.m_ID);
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled || m_DirectionIn.IsLinked());
         ImGui::SliderFloat("Direction##DeBand", &_direction, 0.f, 4.f, "%.2f", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_direction##DeBand")) { _direction = 2.f; changed = true; }
-        if (key) ImGui::ImCurveEditKey("##add_curve_direction##DeBand", key, "direction##DeBand", 0.f, 4.f, 2.f);
+        ImGui::EndDisabled();
+        ImGui::BeginDisabled(!m_Enabled);
+        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_direction##DeBand", key, m_DirectionIn.IsLinked(), "direction##DeBand@" + std::to_string(m_ID), 0.f, 4.f, 2.f, m_DirectionIn.m_ID);
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         ImGui::TextUnformatted("Blur:");ImGui::SameLine();

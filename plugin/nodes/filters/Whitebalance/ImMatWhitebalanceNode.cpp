@@ -91,7 +91,10 @@ struct WhiteBalanceNode final : Node
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_TemperatureIn.IsLinked());
         ImGui::TemperatureSelector("##slider_temperature##Temperature", ImVec2(200, 20), &val, 5000.0f, 2000.f, 8000.f, zoom);
-        if (key) ImGui::ImCurveEditKey("##add_curve_temperature##Temperature", key, "temperature##Temperature", 2000.f, 8000.f, 5000.f);
+        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_temperature##Temperature")) { val = 5000.0; changed = true; }
+        ImGui::EndDisabled();
+        ImGui::BeginDisabled(!m_Enabled);
+        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_temperature##Temperature", key, m_TemperatureIn.IsLinked(), "temperature##Temperature@" + std::to_string(m_ID), 2000.f, 8000.f, 5000.f, m_TemperatureIn.m_ID);
         ImGui::EndDisabled();
         ImGui::PopItemWidth();
         if (val != m_temperature) { m_temperature = val; changed = true; }
