@@ -17,7 +17,8 @@ layout (push_constant) uniform parameter \n\
     int out_format; \n\
     int out_type; \n\
     \n\
-    float time; \n\
+    float progress; \n\
+    float speed; \n\
     float layers; \n\
     \n\
     float red; \n\
@@ -73,7 +74,7 @@ vec3 StarFieldLayer(vec2 uv, float rotAngle) \n\
     vec2 gv = fract(uv) - 0.5; \n\
     vec2 id = floor(uv); \n\
 \n\
-    float deltaTimeTwinkle = p.time * 0.35; \n\
+    float deltaTimeTwinkle = p.progress; \n\
 \n\
     for (int y = -1; y <= 1; y++) \n\
     { \n\
@@ -111,9 +112,9 @@ void main() \n\
     if (gx >= p.out_w || gy >= p.out_h) \n\
         return; \n\
     vec2 tuv = vec2(float(gl_GlobalInvocationID.x) / float(p.out_w - 1), float(gl_GlobalInvocationID.y) / float(p.out_h - 1)); \n\
-    float deltaTime = p.time * 0.01; \n\
+    float deltaTime = p.progress * p.speed * 0.01; \n\
     vec3 col = vec3(0.f); \n\
-    float rotAngle = p.time * 0.09f; \n\
+    float rotAngle = p.progress * p.speed * 0.09f; \n\
     for (float i = 0.0; i < 1.0; i += (1.0 / p.layers)) \n\
     { \n\
         float layerDepth = fract(i + deltaTime); \n\

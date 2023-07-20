@@ -12,7 +12,7 @@ public:
     Star_vulkan(int gpu = 0);
     ~Star_vulkan();
 
-    double effect(const ImMat& src, ImMat& dst, float playTime, int layers, ImPixel& colour);
+    double effect(const ImMat& src, ImMat& dst, float progress, float speed, int layers, ImPixel& colour);
 
 private:
     const VulkanDevice* vkdev   {nullptr};
@@ -21,6 +21,6 @@ private:
     VkCompute * cmd             {nullptr};
 
 private:
-    void upload_param(const VkMat& src, VkMat& dst, float playTime, int layers, ImPixel& colour);
+    void upload_param(const VkMat& src, VkMat& dst, float progress, float speed, int layers, ImPixel& colour);
 };
 } // namespace ImGui

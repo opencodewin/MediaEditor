@@ -2067,6 +2067,7 @@ void VideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
         for (int i = 0; i < mSnapImages.size(); i++)
         {
             auto& img = mSnapImages[i];
+            if (!img) continue;
             ImVec2 uvMin(0, 0), uvMax(1, 1);
             float snapDispWidth = img->mTimestampMs >= mClipViewStartPos ? mSnapWidth : mSnapWidth - (mClipViewStartPos - img->mTimestampMs) * mPixPerMs;
             if (img->mTimestampMs < mClipViewStartPos)

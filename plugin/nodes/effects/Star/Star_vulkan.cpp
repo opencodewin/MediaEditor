@@ -38,7 +38,7 @@ Star_vulkan::~Star_vulkan()
     }
 }
 
-void Star_vulkan::upload_param(const VkMat& src, VkMat& dst, float playTime, int layers, ImPixel& colour)
+void Star_vulkan::upload_param(const VkMat& src, VkMat& dst, float progress, float speed, int layers, ImPixel& colour)
 {
     std::vector<VkMat> bindings(8);
     if      (dst.type == IM_DT_INT8)     bindings[0] = dst;
@@ -50,7 +50,7 @@ void Star_vulkan::upload_param(const VkMat& src, VkMat& dst, float playTime, int
     else if (src.type == IM_DT_INT16 || src.type == IM_DT_INT16_BE)     bindings[5] = src;
     else if (src.type == IM_DT_FLOAT16)   bindings[6] = src;
     else if (src.type == IM_DT_FLOAT32)   bindings[7] = src;
-    std::vector<vk_constant_type> constants(16);
+    std::vector<vk_constant_type> constants(17);
     constants[0].i = src.w;
     constants[1].i = src.h;
     constants[2].i = src.c;
@@ -61,16 +61,17 @@ void Star_vulkan::upload_param(const VkMat& src, VkMat& dst, float playTime, int
     constants[7].i = dst.c;
     constants[8].i = dst.color_format;
     constants[9].i = dst.type;
-    constants[10].f = playTime;
-    constants[11].f = layers;
-    constants[12].f = colour.r;
-    constants[13].f = colour.g;
-    constants[14].f = colour.b;
-    constants[15].f = colour.a;
+    constants[10].f = progress;
+    constants[11].f = speed;
+    constants[12].f = layers;
+    constants[13].f = colour.r;
+    constants[14].f = colour.g;
+    constants[15].f = colour.b;
+    constants[16].f = colour.a;
     cmd->record_pipeline(pipe, bindings, constants, dst);
 }
 
-double Star_vulkan::effect(const ImMat& src, ImMat& dst, float playTime, int layers, ImPixel& colour)
+double Star_vulkan::effect(const ImMat& src, ImMat& dst, float progress, float speed, int layers, ImPixel& colour)
 {
     double ret = 0.0;
     if (!vkdev || !pipe || !cmd)
@@ -95,7 +96,7 @@ double Star_vulkan::effect(const ImMat& src, ImMat& dst, float playTime, int lay
     cmd->benchmark_start();
 #endif
 
-    upload_param(src_gpu, dst_gpu, playTime, layers, colour);
+    upload_param(src_gpu, dst_gpu, progress, speed, layers, colour);
 
 #ifdef VULKAN_SHADER_BENCHMARK
     cmd->benchmark_end();

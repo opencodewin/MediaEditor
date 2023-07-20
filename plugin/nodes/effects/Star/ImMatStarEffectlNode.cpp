@@ -28,7 +28,10 @@ struct StarEffectNode final : Node
     FlowPin Execute(Context& context, FlowPin& entryPoint, bool threading = false) override
     {
         auto mat_in = context.GetPinValue<ImGui::ImMat>(m_MatIn);
-        if (m_TimeIn.IsLinked()) m_time = context.GetPinValue<float>(m_TimeIn);
+        if (m_SpeedIn.IsLinked()) m_speed = context.GetPinValue<float>(m_SpeedIn);
+        auto time_stamp = m_Blueprint->GetTimeStamp();
+        auto durturn = m_Blueprint->GetDurtion();
+        float time = (durturn > 0 && time_stamp > 0) ?  (float)time_stamp / (float)durturn : 1.0f;
         if (!mat_in.empty())
         {
             int gpu = mat_in.device == IM_DD_VULKAN ? mat_in.device_number : ImGui::get_default_gpu_index();
@@ -48,7 +51,7 @@ struct StarEffectNode final : Node
             }
             m_device = gpu;
             ImGui::VkMat im_RGB; im_RGB.type = m_mat_data_type == IM_DT_UNDEFINED ? mat_in.type : m_mat_data_type;
-            m_NodeTimeMs = m_effect->effect(mat_in, im_RGB, m_time, m_layers, m_color);
+            m_NodeTimeMs = m_effect->effect(mat_in, im_RGB, time, m_speed, m_layers, m_color);
             m_MatOut.SetValue(im_RGB);
         }
         return m_Exit;
@@ -56,9 +59,9 @@ struct StarEffectNode final : Node
 
     void WasUnlinked(const Pin& receiver, const Pin& provider) override
     {
-        if (receiver.m_ID == m_TimeIn.m_ID)
+        if (receiver.m_ID == m_SpeedIn.m_ID)
         {
-            m_TimeIn.SetValue(m_time);
+            m_SpeedIn.SetValue(m_speed);
         }
     }
 
@@ -82,19 +85,19 @@ struct StarEffectNode final : Node
     {
         ImGui::SetCurrentContext(ctx);
         bool changed = false;
-        float _time = m_time;
+        float _speed = m_speed;
         int _layers = m_layers;
         ImPixel _color = m_color;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
         ImGui::PushItemWidth(200);
-        ImGui::BeginDisabled(!m_Enabled || m_TimeIn.IsLinked());
-        ImGui::SliderFloat("Time##Star", &_time, 0.1, 8.f, "%.2f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_time##Star")) { _time = 0.f; changed = true; }
+        ImGui::BeginDisabled(!m_Enabled || m_SpeedIn.IsLinked());
+        ImGui::SliderFloat("Speed##Star", &_speed, 0.0, 100.f, "%.0f", flags);
+        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_speed##Star")) { _speed = 10.f; changed = true; }
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
-        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_time##Star", key, m_TimeIn.IsLinked(), "time##Star@" + std::to_string(m_ID), 0.0f, 100.f, 1.f, m_TimeIn.m_ID);
+        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_speed##Star", key, m_SpeedIn.IsLinked(), "speed##Star@" + std::to_string(m_ID), 0.0f, 100.f, 1.f, m_SpeedIn.m_ID);
         ImGui::EndDisabled();
-        ImGui::SliderInt("Layers##Star", &_layers, 1, 20, "%d", flags);
+        ImGui::SliderInt("Layers##Star", &_layers, 2, 20, "%d", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_layers##Star")) { _layers = 2; changed = true; }
         ImGui::PopItemWidth();
         if (ImGui::ColorEdit4("Color##Star", (float*)&_color, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar))
@@ -102,7 +105,7 @@ struct StarEffectNode final : Node
             m_color = _color; changed = true;
         } ImGui::SameLine(); ImGui::TextUnformatted("Shadow Color");
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_color##DStar")) { m_color = {1.0f, 0.1f, 0.9f, 1.0f}; changed = true; }
-        if (_time != m_time) { m_time = _time; changed = true; }
+        if (_speed != m_speed) { m_speed = _speed; changed = true; }
         if (_layers != m_layers) { m_layers = _layers; changed = true; }
         return m_Enabled ? changed : false;
     }
@@ -119,11 +122,11 @@ struct StarEffectNode final : Node
             if (val.is_number()) 
                 m_mat_data_type = (ImDataType)val.get<imgui_json::number>();
         }
-        if (value.contains("time"))
+        if (value.contains("speed"))
         {
-            auto& val = value["time"];
+            auto& val = value["speed"];
             if (val.is_number()) 
-                m_time = val.get<imgui_json::number>();
+                m_speed = val.get<imgui_json::number>();
         }
         if (value.contains("layers"))
         {
@@ -147,7 +150,7 @@ struct StarEffectNode final : Node
     {
         Node::Save(value, MapID);
         value["mat_type"] = imgui_json::number(m_mat_data_type);
-        value["time"] = imgui_json::number(m_time);
+        value["speed"] = imgui_json::number(m_speed);
         value["layers"] = imgui_json::number(m_layers);
         value["color"] = imgui_json::vec4(ImVec4(m_color.r, m_color.g, m_color.b, m_color.a));
     }
@@ -167,16 +170,16 @@ struct StarEffectNode final : Node
     FlowPin   m_Enter   = { this, "Enter" };
     FlowPin   m_Exit    = { this, "Exit" };
     MatPin    m_MatIn   = { this, "In" };
-    FloatPin  m_TimeIn  = { this, "Time" };
+    FloatPin  m_SpeedIn = { this, "Speed" };
     MatPin    m_MatOut  = { this, "Out" };
 
-    Pin* m_InputPins[3] = { &m_Enter, &m_MatIn, &m_TimeIn };
+    Pin* m_InputPins[3] = { &m_Enter, &m_MatIn, &m_SpeedIn };
     Pin* m_OutputPins[2] = { &m_Exit, &m_MatOut };
 
 private:
     ImDataType m_mat_data_type {IM_DT_UNDEFINED};
     int m_device            {-1};
-    float m_time            {0.f};
+    float m_speed           {10.f};
     int m_layers            {2};
     ImPixel m_color         {1.0f, 0.1f, 0.9f, 1.0f};
     ImGui::Star_vulkan * m_effect   {nullptr};
