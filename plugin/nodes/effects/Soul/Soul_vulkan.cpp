@@ -38,7 +38,7 @@ Soul_vulkan::~Soul_vulkan()
     }
 }
 
-void Soul_vulkan::upload_param(const VkMat& src, VkMat& dst, float playTime, float duration, float max_scale, float max_alpha)
+void Soul_vulkan::upload_param(const VkMat& src, VkMat& dst, float progress, int count, float max_scale, float max_alpha, bool shrink)
 {
     std::vector<VkMat> bindings(8);
     if      (dst.type == IM_DT_INT8)     bindings[0] = dst;
@@ -50,7 +50,7 @@ void Soul_vulkan::upload_param(const VkMat& src, VkMat& dst, float playTime, flo
     else if (src.type == IM_DT_INT16 || src.type == IM_DT_INT16_BE)     bindings[5] = src;
     else if (src.type == IM_DT_FLOAT16)   bindings[6] = src;
     else if (src.type == IM_DT_FLOAT32)   bindings[7] = src;
-    std::vector<vk_constant_type> constants(14);
+    std::vector<vk_constant_type> constants(15);
     constants[0].i = src.w;
     constants[1].i = src.h;
     constants[2].i = src.c;
@@ -61,14 +61,15 @@ void Soul_vulkan::upload_param(const VkMat& src, VkMat& dst, float playTime, flo
     constants[7].i = dst.c;
     constants[8].i = dst.color_format;
     constants[9].i = dst.type;
-    constants[10].f = playTime;
-    constants[11].f = duration;
+    constants[10].f = progress;
+    constants[11].i = count > 0 ? count : 1;
     constants[12].f = max_scale;
     constants[13].f = max_alpha;
+    constants[14].i = shrink ? 1 : 0;
     cmd->record_pipeline(pipe, bindings, constants, dst);
 }
 
-double Soul_vulkan::effect(const ImMat& src, ImMat& dst, float playTime, float duration, float max_scale, float max_alpha)
+double Soul_vulkan::effect(const ImMat& src, ImMat& dst, float progress, int count, float max_scale, float max_alpha, bool shrink)
 {
     double ret = 0.0;
     if (!vkdev || !pipe || !cmd)
@@ -93,7 +94,7 @@ double Soul_vulkan::effect(const ImMat& src, ImMat& dst, float playTime, float d
     cmd->benchmark_start();
 #endif
 
-    upload_param(src_gpu, dst_gpu, playTime, duration, max_scale, max_alpha);
+    upload_param(src_gpu, dst_gpu, progress, count, max_scale, max_alpha, shrink);
 
 #ifdef VULKAN_SHADER_BENCHMARK
     cmd->benchmark_end();
