@@ -38,7 +38,7 @@ WaterRipple_vulkan::~WaterRipple_vulkan()
     }
 }
 
-void WaterRipple_vulkan::upload_param(const VkMat& src, VkMat& dst, float time, float freq, float amount, float speed)
+void WaterRipple_vulkan::upload_param(const VkMat& src, VkMat& dst, float freq, float amount)
 {
     std::vector<VkMat> bindings(8);
     if      (dst.type == IM_DT_INT8)     bindings[0] = dst;
@@ -50,7 +50,7 @@ void WaterRipple_vulkan::upload_param(const VkMat& src, VkMat& dst, float time, 
     else if (src.type == IM_DT_INT16 || src.type == IM_DT_INT16_BE)     bindings[5] = src;
     else if (src.type == IM_DT_FLOAT16)   bindings[6] = src;
     else if (src.type == IM_DT_FLOAT32)   bindings[7] = src;
-    std::vector<vk_constant_type> constants(14);
+    std::vector<vk_constant_type> constants(12);
     constants[0].i = src.w;
     constants[1].i = src.h;
     constants[2].i = src.c;
@@ -61,14 +61,12 @@ void WaterRipple_vulkan::upload_param(const VkMat& src, VkMat& dst, float time, 
     constants[7].i = dst.c;
     constants[8].i = dst.color_format;
     constants[9].i = dst.type;
-    constants[10].f = time;
-    constants[11].f = freq;
-    constants[12].f = amount;
-    constants[13].f = speed;
+    constants[10].f = freq;
+    constants[11].f = amount;
     cmd->record_pipeline(pipe, bindings, constants, dst);
 }
 
-double WaterRipple_vulkan::effect(const ImMat& src, ImMat& dst, float time, float freq, float amount, float speed)
+double WaterRipple_vulkan::effect(const ImMat& src, ImMat& dst, float freq, float amount)
 {
     double ret = 0.0;
     if (!vkdev || !pipe || !cmd)
@@ -93,7 +91,7 @@ double WaterRipple_vulkan::effect(const ImMat& src, ImMat& dst, float time, floa
     cmd->benchmark_start();
 #endif
 
-    upload_param(src_gpu, dst_gpu, time, freq, amount, speed);
+    upload_param(src_gpu, dst_gpu, freq, amount);
 
 #ifdef VULKAN_SHADER_BENCHMARK
     cmd->benchmark_end();

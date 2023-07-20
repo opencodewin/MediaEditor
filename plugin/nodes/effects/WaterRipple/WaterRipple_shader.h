@@ -17,10 +17,8 @@ layout (push_constant) uniform parameter \n\
     int out_format; \n\
     int out_type; \n\
     \n\
-    float time; \n\
     float freq; \n\
     float amount; \n\
-    float speed; \n\
 } p; \
 "
 
@@ -36,7 +34,7 @@ void main() \n\
     vec2 uv = vec2(float(gl_GlobalInvocationID.x) / float(p.out_w - 1), float(gl_GlobalInvocationID.y) / float(p.out_h - 1)); \n\
     vec2 direction = uv - center; \n\
     float len = length(direction); \n\
-    vec2 uv_new = uv + direction * p.amount * abs(cos(len * p.freq - p.time * p.speed)) / len; \n\
+    vec2 uv_new = uv + direction * p.amount * abs(sin(len * p.freq)) / len; \n\
     sfpvec4 rgba = load_rgba(int(uv_new.x * (p.w - 1)), int(uv_new.y * (p.h - 1)), p.w, p.h, p.cstep, p.in_format, p.in_type); \n\
     store_rgba(rgba, gx, gy, p.out_w, p.out_h, p.out_cstep, p.out_format, p.out_type); \n\
 } \n\

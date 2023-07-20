@@ -11,7 +11,7 @@ class VKSHADER_API WaterRipple_vulkan
 public:
     WaterRipple_vulkan(int gpu = 0);
     ~WaterRipple_vulkan();
-    double effect(const ImMat& src, ImMat& dst, float time, float freq, float amount, float speed);
+    double effect(const ImMat& src, ImMat& dst, float freq, float amount);
 
 private:
     const VulkanDevice* vkdev   {nullptr};
@@ -20,6 +20,6 @@ private:
     VkCompute * cmd             {nullptr};
 
 private:
-    void upload_param(const VkMat& src, VkMat& dst, float time, float freq, float amount, float speed);
+    void upload_param(const VkMat& src, VkMat& dst, float freq, float amount);
 };
 } // namespace ImGui
