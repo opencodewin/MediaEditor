@@ -17,8 +17,8 @@ layout (push_constant) uniform parameter \n\
     int out_format; \n\
     int out_type; \n\
     \n\
-    float time; \n\
-    \n\
+    float progress; \n\
+    int count; \n\
     float saturation; \n\
     float light; \n\
 } p; \
@@ -141,8 +141,8 @@ void main() \n\
     if (gx >= p.out_w || gy >= p.out_h) \n\
         return; \n\
     vec2 tuv = vec2(float(gl_GlobalInvocationID.x) / float(p.out_w - 1), float(gl_GlobalInvocationID.y) / float(p.out_h - 1)); \n\
-    float duration = 1.0; \n\
-    float progress = mod(p.time, duration) / duration; // 0~1 \n\
+    float duration = 1.f / float(p.count); \n\
+    float progress = mod(p.progress, duration) / duration; // 0~1 \n\
     float amplitude = abs(sin(progress * (PI / duration))); \n\
     float hue = amplitude * 360.0 / 360.0; \n\
     float value = p.saturation / 10.0; \n\

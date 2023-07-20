@@ -28,7 +28,9 @@ struct LightingEffectNode final : Node
     FlowPin Execute(Context& context, FlowPin& entryPoint, bool threading = false) override
     {
         auto mat_in = context.GetPinValue<ImGui::ImMat>(m_MatIn);
-        if (m_TimeIn.IsLinked()) m_time = context.GetPinValue<float>(m_TimeIn);
+        auto time_stamp = m_Blueprint->GetTimeStamp();
+        auto durturn = m_Blueprint->GetDurtion();
+        float time = (durturn > 0 && time_stamp > 0) ?  (float)time_stamp / (float)durturn : 1.0f;
         if (!mat_in.empty())
         {
             int gpu = mat_in.device == IM_DD_VULKAN ? mat_in.device_number : ImGui::get_default_gpu_index();
@@ -48,18 +50,10 @@ struct LightingEffectNode final : Node
             }
             m_device = gpu;
             ImGui::VkMat im_RGB; im_RGB.type = m_mat_data_type == IM_DT_UNDEFINED ? mat_in.type : m_mat_data_type;
-            m_NodeTimeMs = m_effect->effect(mat_in, im_RGB, m_time, m_saturation, m_light);
+            m_NodeTimeMs = m_effect->effect(mat_in, im_RGB, time, m_count, m_saturation, m_light);
             m_MatOut.SetValue(im_RGB);
         }
         return m_Exit;
-    }
-
-    void WasUnlinked(const Pin& receiver, const Pin& provider) override
-    {
-        if (receiver.m_ID == m_TimeIn.m_ID)
-        {
-            m_TimeIn.SetValue(m_time);
-        }
     }
 
     void DrawSettingLayout(ImGuiContext * ctx) override
@@ -82,24 +76,21 @@ struct LightingEffectNode final : Node
     {
         ImGui::SetCurrentContext(ctx);
         bool changed = false;
-        float _time = m_time;
+        int _count = m_count;
         float _saturation = m_saturation;
         float _light = m_light;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
         ImGui::PushItemWidth(200);
-        ImGui::BeginDisabled(!m_Enabled || m_TimeIn.IsLinked());
-        ImGui::SliderFloat("Time##Lighting", &_time, 0.1, 8.f, "%.2f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_time##Lighting")) { _time = 0.f; changed = true; }
-        ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
-        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_time##Lighting", key, m_TimeIn.IsLinked(), "time##Lighting@" + std::to_string(m_ID), 0.0f, 100.f, 1.f, m_TimeIn.m_ID);
-        ImGui::EndDisabled();
+        ImGui::SliderInt("Count##Lighting", &_count, 1, 10, "%d", flags);
+        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_count##Lighting")) { _count = 1; changed = true; }
         ImGui::SliderFloat("Saturation##Lighting", &_saturation, 0.0, 1.f, "%.2f", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_saturation##Lighting")) { _saturation = 0.3f; changed = true; }
         ImGui::SliderFloat("Lighting##Lighting", &_light, 0.0, 1.f, "%.2f", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_light##Lighting")) { _light = 0.3f; changed = true; }
+        ImGui::EndDisabled();
         ImGui::PopItemWidth();
-        if (_time != m_time) { m_time = _time; changed = true; }
+        if (_count != m_count) { m_count = _count; changed = true; }
         if (_saturation != m_saturation) { m_saturation = _saturation; changed = true; }
         if (_light != m_light) { m_light = _light; changed = true; }
         return m_Enabled ? changed : false;
@@ -117,11 +108,11 @@ struct LightingEffectNode final : Node
             if (val.is_number()) 
                 m_mat_data_type = (ImDataType)val.get<imgui_json::number>();
         }
-        if (value.contains("time"))
+        if (value.contains("count"))
         {
-            auto& val = value["time"];
+            auto& val = value["count"];
             if (val.is_number()) 
-                m_time = val.get<imgui_json::number>();
+                m_count = val.get<imgui_json::number>();
         }
         if (value.contains("saturation"))
         {
@@ -142,7 +133,7 @@ struct LightingEffectNode final : Node
     {
         Node::Save(value, MapID);
         value["mat_type"] = imgui_json::number(m_mat_data_type);
-        value["time"] = imgui_json::number(m_time);
+        value["count"] = imgui_json::number(m_count);
         value["saturation"] = imgui_json::number(m_saturation);
         value["light"] = imgui_json::number(m_light);
     }
@@ -162,16 +153,15 @@ struct LightingEffectNode final : Node
     FlowPin   m_Enter   = { this, "Enter" };
     FlowPin   m_Exit    = { this, "Exit" };
     MatPin    m_MatIn   = { this, "In" };
-    FloatPin  m_TimeIn  = { this, "Time" };
     MatPin    m_MatOut  = { this, "Out" };
 
-    Pin* m_InputPins[3] = { &m_Enter, &m_MatIn, &m_TimeIn };
+    Pin* m_InputPins[2] = { &m_Enter, &m_MatIn };
     Pin* m_OutputPins[2] = { &m_Exit, &m_MatOut };
 
 private:
     ImDataType m_mat_data_type {IM_DT_UNDEFINED};
     int m_device            {-1};
-    float m_time            {0.f};
+    int m_count             {1};
     float m_saturation      {0.3f};
     float m_light           {0.f};
     ImGui::Lighting_vulkan * m_effect   {nullptr};

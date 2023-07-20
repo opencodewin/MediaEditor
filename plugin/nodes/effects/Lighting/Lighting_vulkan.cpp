@@ -38,7 +38,7 @@ Lighting_vulkan::~Lighting_vulkan()
     }
 }
 
-void Lighting_vulkan::upload_param(const VkMat& src, VkMat& dst, float playTime, float saturation, float light)
+void Lighting_vulkan::upload_param(const VkMat& src, VkMat& dst, float progress, int count, float saturation, float light)
 {
     std::vector<VkMat> bindings(8);
     if      (dst.type == IM_DT_INT8)     bindings[0] = dst;
@@ -50,7 +50,7 @@ void Lighting_vulkan::upload_param(const VkMat& src, VkMat& dst, float playTime,
     else if (src.type == IM_DT_INT16 || src.type == IM_DT_INT16_BE)     bindings[5] = src;
     else if (src.type == IM_DT_FLOAT16)   bindings[6] = src;
     else if (src.type == IM_DT_FLOAT32)   bindings[7] = src;
-    std::vector<vk_constant_type> constants(13);
+    std::vector<vk_constant_type> constants(14);
     constants[0].i = src.w;
     constants[1].i = src.h;
     constants[2].i = src.c;
@@ -61,13 +61,14 @@ void Lighting_vulkan::upload_param(const VkMat& src, VkMat& dst, float playTime,
     constants[7].i = dst.c;
     constants[8].i = dst.color_format;
     constants[9].i = dst.type;
-    constants[10].f = playTime;
-    constants[11].f = saturation;
-    constants[12].f = light;
+    constants[10].f = progress;
+    constants[11].i = count;
+    constants[12].f = saturation;
+    constants[13].f = light;
     cmd->record_pipeline(pipe, bindings, constants, dst);
 }
 
-double Lighting_vulkan::effect(const ImMat& src, ImMat& dst, float playTime, float saturation, float light)
+double Lighting_vulkan::effect(const ImMat& src, ImMat& dst, float progress, int count, float saturation, float light)
 {
     double ret = 0.0;
     if (!vkdev || !pipe || !cmd)
@@ -92,7 +93,7 @@ double Lighting_vulkan::effect(const ImMat& src, ImMat& dst, float playTime, flo
     cmd->benchmark_start();
 #endif
 
-    upload_param(src_gpu, dst_gpu, playTime, saturation, light);
+    upload_param(src_gpu, dst_gpu, progress, count, saturation, light);
 
 #ifdef VULKAN_SHADER_BENCHMARK
     cmd->benchmark_end();
