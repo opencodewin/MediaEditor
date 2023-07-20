@@ -4911,7 +4911,7 @@ static void DrawVideoFilterEventWindow(ImDrawList *draw_list, Clip * editing_cli
             {
                 static const char* buttons[] = { "Delete", "Cancel", NULL };
                 static ImGui::MsgBox msgbox;
-                msgbox.Init("Delete Warning?", ICON_MD_WARNING, "Are you really really sure you want to delete node?", buttons, false);
+                msgbox.Init("Delete Node?", ICON_MD_WARNING, "Are you really really sure you want to delete node?", buttons, false);
                 auto nodes = pBP->m_Document->m_Blueprint.GetNodes();
                 bool need_redraw = false;
                 for (auto node : nodes)
@@ -4955,7 +4955,7 @@ static void DrawVideoFilterEventWindow(ImDrawList *draw_list, Clip * editing_cli
                     ImGui::SameLine();
                     if (ImGui::Button(ICON_DELETE "##event_list_editor_delete_node"))
                     {
-                        ImGui::OpenPopup("Delete Warning?");
+                        ImGui::OpenPopup("Delete Node?");
                     }
                     ImGui::ShowTooltipOnHover("Delete Node");
                     if (tree_open && !need_redraw)
@@ -4976,8 +4976,8 @@ static void DrawVideoFilterEventWindow(ImDrawList *draw_list, Clip * editing_cli
                                 delCurve(node, key.name, key.m_sub_id);
                         }
                     }
-                    int selected = msgbox.Draw();
-                    if (selected == 1)
+                    // Handle node delete
+                    if (msgbox.Draw() == 1)
                     {
                         if (pKP)
                         {

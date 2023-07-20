@@ -11777,6 +11777,9 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     ImDrawList *draw_list = ImGui::GetWindowDrawList();
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
+    static const char* buttons[] = { "Delete", "Cancel", NULL };
+    static ImGui::MsgBox msgbox;
+    msgbox.Init("Delete Event?", ICON_MD_WARNING, "Are you really really sure you want to delete event?", buttons, false);
 
     if (!editingClip)
     {
@@ -11814,6 +11817,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     bool overCustomDraw = false;
     bool overTopBar = false;
     bool overTrackView = false;
+    bool popupDialog = false;
     float frame_duration = 40;
 
     static int64_t eventMovingEntry = -1;
@@ -11894,9 +11898,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     ImGui::SameLine();
     if (ImGui::Button(ICON_MEDIA_DELETE_CLIP "##clip_timeline_delete_event"))
     {
-        // TODO::Dicky delete event need be confirmed
-        clip->DeleteEvent(clip->FindSelectedEvent());
-        has_selected_event = false;
+        ImGui::OpenPopup("Delete Event?");
     }
     ImGui::ShowTooltipOnHover("Delete Event");
     ImGui::SameLine();
@@ -11993,6 +11995,14 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     ImGui::PopStyleColor(4);
 
     draw_list->AddLine(canvas_pos + ImVec2(2, 0), canvas_pos + ImVec2(canvas_size.x - 4, 0), IM_COL32(255, 255, 255, 128));
+    
+    // Handle event delete
+    if (msgbox.Draw() == 1)
+    {
+        clip->DeleteEvent(clip->FindSelectedEvent());
+        has_selected_event = false;
+    }
+    popupDialog = ImGui::IsPopupOpen("Delete Event?");
 
     // draw clip timeline
     ImGui::SetCursorScreenPos(toolbar_pos + ImVec2(0, toolbarHeight));
@@ -12192,7 +12202,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         }
 
         // handle mouse wheel event
-        if (regionRect.Contains(io.MousePos) && !menuIsOpened)
+        if (regionRect.Contains(io.MousePos) && !menuIsOpened && !popupDialog)
         {
             if (overCustomDraw || overHorizonScrollBar || overTopBar || overTrackView)
             {
@@ -12237,7 +12247,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         ImGui::PopClipRect();
 
         // time cursor
-        if (!MovingCurrentTime && !MovingHorizonScrollBar && currentTime >= 0 && topRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && !menuIsOpened && !mouse_hold && isFocused)
+        if (!MovingCurrentTime && !MovingHorizonScrollBar && currentTime >= 0 && topRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && !menuIsOpened && !popupDialog && !mouse_hold && isFocused)
         {
             MovingCurrentTime = true;
             editingClip->bSeeking = true;
