@@ -38,7 +38,7 @@ Sway_vulkan::~Sway_vulkan()
     }
 }
 
-void Sway_vulkan::upload_param(const VkMat& src, VkMat& dst, float playTime, bool horizontal)
+void Sway_vulkan::upload_param(const VkMat& src, VkMat& dst, float speed, float strength, float density, bool horizontal)
 {
     std::vector<VkMat> bindings(8);
     if      (dst.type == IM_DT_INT8)     bindings[0] = dst;
@@ -50,7 +50,7 @@ void Sway_vulkan::upload_param(const VkMat& src, VkMat& dst, float playTime, boo
     else if (src.type == IM_DT_INT16 || src.type == IM_DT_INT16_BE)     bindings[5] = src;
     else if (src.type == IM_DT_FLOAT16)   bindings[6] = src;
     else if (src.type == IM_DT_FLOAT32)   bindings[7] = src;
-    std::vector<vk_constant_type> constants(12);
+    std::vector<vk_constant_type> constants(14);
     constants[0].i = src.w;
     constants[1].i = src.h;
     constants[2].i = src.c;
@@ -61,12 +61,14 @@ void Sway_vulkan::upload_param(const VkMat& src, VkMat& dst, float playTime, boo
     constants[7].i = dst.c;
     constants[8].i = dst.color_format;
     constants[9].i = dst.type;
-    constants[10].f = playTime;
-    constants[11].i = horizontal ? 1 : 0;
+    constants[10].f = speed;
+    constants[11].f = strength;
+    constants[12].f = density;
+    constants[13].i = horizontal ? 1 : 0;
     cmd->record_pipeline(pipe, bindings, constants, dst);
 }
 
-double Sway_vulkan::effect(const ImMat& src, ImMat& dst, float playTime, bool horizontal)
+double Sway_vulkan::effect(const ImMat& src, ImMat& dst, float speed, float strength, float density, bool horizontal)
 {
     double ret = 0.0;
     if (!vkdev || !pipe || !cmd)
@@ -91,7 +93,7 @@ double Sway_vulkan::effect(const ImMat& src, ImMat& dst, float playTime, bool ho
     cmd->benchmark_start();
 #endif
 
-    upload_param(src_gpu, dst_gpu, playTime, horizontal);
+    upload_param(src_gpu, dst_gpu, speed, strength, density, horizontal);
 
 #ifdef VULKAN_SHADER_BENCHMARK
     cmd->benchmark_end();

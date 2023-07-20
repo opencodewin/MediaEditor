@@ -2922,7 +2922,7 @@ ImGui::ImMat BluePrintVideoFilter::FilterImage(const ImGui::ImMat& vmat, int64_t
             mBp->Blueprint_SetFilter(name, value);
         }
         ImGui::ImMat inMat(vmat);
-        mBp->Blueprint_RunFilter(inMat, outMat);
+        mBp->Blueprint_RunFilter(inMat, outMat, pos, 0); // TODO::Dicky Need send durtion
     }
     return outMat;
 }
@@ -3084,7 +3084,7 @@ int BluePrintAudioFilter::OnBluePrintChange(int type, std::string name, void* ha
     return ret;
 }
 
-ImGui::ImMat BluePrintAudioFilter::FilterPcm(const ImGui::ImMat& amat, int64_t pos)
+ImGui::ImMat BluePrintAudioFilter::FilterPcm(const ImGui::ImMat& amat, int64_t pos, int64_t dur)
 {
     std::lock_guard<std::mutex> lk(mBpLock);
     ImGui::ImMat outMat(amat);
@@ -3098,7 +3098,7 @@ ImGui::ImMat BluePrintAudioFilter::FilterPcm(const ImGui::ImMat& amat, int64_t p
             mBp->Blueprint_SetFilter(name, value);
         }
         ImGui::ImMat inMat(amat);
-        mBp->Blueprint_RunFilter(inMat, outMat);
+        mBp->Blueprint_RunFilter(inMat, outMat, pos, dur);
     }
     return outMat;
 }
