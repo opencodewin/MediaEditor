@@ -5516,7 +5516,7 @@ TimeLine::TimeLine(std::string plugin_path)
 
     mTxMgr = RenderUtils::TextureManager::GetDefaultInstance();
     RenderUtils::Vec2<int32_t> snapshotGridTextureSize;
-    snapshotGridTextureSize = {48*16/9, 48};
+    snapshotGridTextureSize = {64*16/9, 64};
     if (!mTxMgr->CreateGridTexturePool(VIDEOITEM_OVERVIEW_GRID_TEXTURE_POOL_NAME, snapshotGridTextureSize, IM_DT_INT8, {8, 8}, 1))
         Logger::Log(Logger::Error) << "FAILED to create grid texture pool '" << VIDEOITEM_OVERVIEW_GRID_TEXTURE_POOL_NAME << "'! Error is '" << mTxMgr->GetError() << "'." << std::endl;
     snapshotGridTextureSize = {DEFAULT_VIDEO_TRACK_HEIGHT*16/9, DEFAULT_VIDEO_TRACK_HEIGHT};
