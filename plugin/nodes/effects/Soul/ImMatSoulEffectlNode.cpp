@@ -109,7 +109,7 @@ struct SoulEffectNode final : Node
             if (val.is_number()) 
                 m_mat_data_type = (ImDataType)val.get<imgui_json::number>();
         }
-        if (value.contains("time"))
+        if (value.contains("count"))
         {
             auto& val = value["count"];
             if (val.is_number()) 

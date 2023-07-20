@@ -12,7 +12,7 @@ public:
     Jitter_vulkan(int gpu = 0);
     ~Jitter_vulkan();
 
-    double effect(const ImMat& src, ImMat& dst, float playTime, float duration, float max_scale, float offset);
+    double effect(const ImMat& src, ImMat& dst, float progress, int count, float max_scale, float offset, bool shrink);
 
 private:
     const VulkanDevice* vkdev   {nullptr};
@@ -21,6 +21,6 @@ private:
     VkCompute * cmd             {nullptr};
 
 private:
-    void upload_param(const VkMat& src, VkMat& dst, float playTime, float duration, float max_scale, float offset);
+    void upload_param(const VkMat& src, VkMat& dst, float progress, int count, float max_scale, float offset, bool shrink);
 };
 } // namespace ImGui

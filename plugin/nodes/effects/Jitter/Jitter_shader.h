@@ -17,10 +17,11 @@ layout (push_constant) uniform parameter \n\
     int out_format; \n\
     int out_type; \n\
     \n\
-    float time; \n\
-    float duration; \n\
+    float progress; \n\
+    int count; \n\
     float max_scale; \n\
     float offset; \n\
+    int shrink; \n\
 } p; \
 "
 
@@ -37,7 +38,9 @@ void main() \n\
     if (gx >= p.out_w || gy >= p.out_h) \n\
         return; \n\
     vec2 uv = vec2(float(gl_GlobalInvocationID.x) / float(p.out_w - 1), float(gl_GlobalInvocationID.y) / float(p.out_h - 1)); \n\
-    float progress = mod(p.time, p.duration) / p.duration; // 0~1 \n\
+    float duration = 1.f / float(p.count); \n\
+    float progress = mod(p.progress, duration) / duration; // 0 ~ 1 \n\
+    if (p.shrink == 1 && progress > 0.5) progress = 1.0 - progress; \n\
     vec2 offsetCoords = vec2(p.offset, p.offset) * progress; \n\
     float scale = 1.0 + (p.max_scale - 1.0) * progress; \n\
     vec2 ScaleTextureCoords = clamp(vec2(0.5, 0.5) + (uv - vec2(0.5, 0.5)) / scale, vec2(0, 0), vec2(1.0, 1.0)); \n\

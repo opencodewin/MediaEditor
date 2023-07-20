@@ -3,7 +3,7 @@
 #include <imgui_extra_widget.h>
 #include <ImVulkanShader.h>
 #include "Jitter_vulkan.h"
-#define NODE_VERSION    0x01000000
+#define NODE_VERSION    0x01000100
 
 namespace BluePrint
 {
@@ -28,7 +28,9 @@ struct JitterEffectNode final : Node
     FlowPin Execute(Context& context, FlowPin& entryPoint, bool threading = false) override
     {
         auto mat_in = context.GetPinValue<ImGui::ImMat>(m_MatIn);
-        if (m_TimeIn.IsLinked()) m_time = context.GetPinValue<float>(m_TimeIn);
+        auto time_stamp = m_Blueprint->GetTimeStamp();
+        auto durturn = m_Blueprint->GetDurtion();
+        float time = (durturn > 0 && time_stamp > 0) ?  (float)time_stamp / (float)durturn : 1.0f;
         if (!mat_in.empty())
         {
             int gpu = mat_in.device == IM_DD_VULKAN ? mat_in.device_number : ImGui::get_default_gpu_index();
@@ -48,18 +50,10 @@ struct JitterEffectNode final : Node
             }
             m_device = gpu;
             ImGui::VkMat im_RGB; im_RGB.type = m_mat_data_type == IM_DT_UNDEFINED ? mat_in.type : m_mat_data_type;
-            m_NodeTimeMs = m_effect->effect(mat_in, im_RGB, m_time, m_duration, m_max_scale, m_offset);
+            m_NodeTimeMs = m_effect->effect(mat_in, im_RGB, time, m_count, m_max_scale, m_offset, m_shrink);
             m_MatOut.SetValue(im_RGB);
         }
         return m_Exit;
-    }
-
-    void WasUnlinked(const Pin& receiver, const Pin& provider) override
-    {
-        if (receiver.m_ID == m_TimeIn.m_ID)
-        {
-            m_TimeIn.SetValue(m_time);
-        }
     }
 
     void DrawSettingLayout(ImGuiContext * ctx) override
@@ -82,29 +76,22 @@ struct JitterEffectNode final : Node
     {
         ImGui::SetCurrentContext(ctx);
         bool changed = false;
-        float _time = m_time;
-        float _duration = m_duration;
+        int _count = m_count;
         float _max_scale = m_max_scale;
         float _offset = m_offset;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
         ImGui::PushItemWidth(200);
-        ImGui::BeginDisabled(!m_Enabled || m_TimeIn.IsLinked());
-        ImGui::SliderFloat("Time##Jitter", &_time, 0.1, 8.f, "%.2f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_time##Jitter")) { _time = 0.f; changed = true; }
-        ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
-        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_time##Jitter", key, m_TimeIn.IsLinked(), "time##Jitter@" + std::to_string(m_ID), 0.0f, 100.f, 1.f, m_TimeIn.m_ID);
-        ImGui::EndDisabled();
-        ImGui::SliderFloat("Duration##Jitter", &_duration, 0.01, 1.f, "%.2f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_duration##Jitter")) { _duration = 0.1f; changed = true; }
+        ImGui::SliderInt("Count##Jitter", &_count, 1, 10, "%d", flags);
+        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_count##Jitter")) { _count = 1; changed = true; }
         ImGui::SliderFloat("Max Scale##Jitter", &_max_scale, 1.f, 2.f, "%.1f", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_max_scale##Jitter")) { _max_scale = 1.1f; changed = true; }
         ImGui::SliderFloat("Offset##Jitter", &_offset, 0.f, 0.1f, "%.2f", flags);
         ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_offset##Jitter")) { _offset = 0.02f; changed = true; }
-        
+        if (ImGui::Checkbox("Shrink##Jitter", &m_shrink)) { changed = true; }
+        ImGui::EndDisabled();
         ImGui::PopItemWidth();
-        if (_time != m_time) { m_time = _time; changed = true; }
-        if (_duration != m_duration) { m_duration = _duration; changed = true; }
+        if (_count != m_count) { m_count = _count; changed = true; }
         if (_max_scale != m_max_scale) { m_max_scale = _max_scale; changed = true; }
         if (_offset != m_offset) { m_offset = _offset; changed = true; }
         return m_Enabled ? changed : false;
@@ -122,17 +109,11 @@ struct JitterEffectNode final : Node
             if (val.is_number()) 
                 m_mat_data_type = (ImDataType)val.get<imgui_json::number>();
         }
-        if (value.contains("time"))
+        if (value.contains("count"))
         {
-            auto& val = value["time"];
+            auto& val = value["count"];
             if (val.is_number()) 
-                m_time = val.get<imgui_json::number>();
-        }
-        if (value.contains("duration"))
-        {
-            auto& val = value["duration"];
-            if (val.is_number()) 
-                m_duration = val.get<imgui_json::number>();
+                m_count = val.get<imgui_json::number>();
         }
         if (value.contains("max_scale"))
         {
@@ -146,6 +127,12 @@ struct JitterEffectNode final : Node
             if (val.is_number()) 
                 m_offset = val.get<imgui_json::number>();
         }
+        if (value.contains("shrink"))
+        {
+            auto& val = value["shrink"];
+            if (val.is_boolean()) 
+                m_shrink = val.get<imgui_json::boolean>();
+        }
         return ret;
     }
 
@@ -153,10 +140,10 @@ struct JitterEffectNode final : Node
     {
         Node::Save(value, MapID);
         value["mat_type"] = imgui_json::number(m_mat_data_type);
-        value["time"] = imgui_json::number(m_time);
-        value["duration"] = imgui_json::number(m_duration);
+        value["count"] = imgui_json::number(m_count);
         value["max_scale"] = imgui_json::number(m_max_scale);
         value["offset"] = imgui_json::number(m_offset);
+        value["shrink"] = imgui_json::boolean(m_shrink);
     }
 
     void DrawNodeLogo(ImGuiContext * ctx, ImVec2 size, std::string logo) const override
@@ -174,19 +161,18 @@ struct JitterEffectNode final : Node
     FlowPin   m_Enter   = { this, "Enter" };
     FlowPin   m_Exit    = { this, "Exit" };
     MatPin    m_MatIn   = { this, "In" };
-    FloatPin  m_TimeIn  = { this, "Time" };
     MatPin    m_MatOut  = { this, "Out" };
 
-    Pin* m_InputPins[3] = { &m_Enter, &m_MatIn, &m_TimeIn };
+    Pin* m_InputPins[2] = { &m_Enter, &m_MatIn };
     Pin* m_OutputPins[2] = { &m_Exit, &m_MatOut };
 
 private:
     ImDataType m_mat_data_type {IM_DT_UNDEFINED};
     int m_device            {-1};
-    float m_time            {0.f};
-    float m_duration        {0.1};
+    int m_count             {1};
     float m_max_scale       {1.1};
     float m_offset          {0.02};
+    bool m_shrink           {false};
     ImGui::Jitter_vulkan * m_effect   {nullptr};
 };
 } // namespace BluePrint
