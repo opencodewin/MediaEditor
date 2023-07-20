@@ -660,7 +660,7 @@ public:
     BluePrintAudioFilter(void * handle);
     ~BluePrintAudioFilter();
     void ApplyTo(MediaCore::AudioClip* clip) override {}
-    ImGui::ImMat FilterPcm(const ImGui::ImMat& amat, int64_t pos) override;
+    ImGui::ImMat FilterPcm(const ImGui::ImMat& amat, int64_t pos, int64_t dur) override;
 
     void SetBluePrintFromJson(imgui_json::value& bpJson);
     void SetKeyPoint(ImGui::KeyPointEditor &keypoint) { mKeyPoints = keypoint; };

@@ -332,7 +332,7 @@ public:
                     m_pBp->Blueprint_SetFilter(name, value);
                 }
                 ImGui::ImMat inMat(vmat);
-                m_pBp->Blueprint_RunFilter(inMat, outMat);
+                m_pBp->Blueprint_RunFilter(inMat, outMat, pos, Length());
             }
             return outMat;
         }

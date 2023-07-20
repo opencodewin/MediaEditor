@@ -12,7 +12,7 @@ public:
     Sway_vulkan(int gpu = 0);
     ~Sway_vulkan();
 
-    double effect(const ImMat& src, ImMat& dst, float playTime, bool horizontal);
+    double effect(const ImMat& src, ImMat& dst, float speed, float strength, float density, bool horizontal);
 
 private:
     const VulkanDevice* vkdev   {nullptr};
@@ -21,6 +21,6 @@ private:
     VkCompute * cmd             {nullptr};
 
 private:
-    void upload_param(const VkMat& src, VkMat& dst, float playTime, bool horizontal);
+    void upload_param(const VkMat& src, VkMat& dst, float speed, float strength, float density, bool horizontal);
 };
 } // namespace ImGui

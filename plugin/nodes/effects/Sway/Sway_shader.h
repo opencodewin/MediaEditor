@@ -17,7 +17,9 @@ layout (push_constant) uniform parameter \n\
     int out_format; \n\
     int out_type; \n\
     \n\
-    float time; \n\
+    float speed; \n\
+    float strength; \n\
+    float density; \n\
     int horizontal; \n\
 } p; \
 "
@@ -31,7 +33,7 @@ void main() \n\
     if (gx >= p.out_w || gy >= p.out_h) \n\
         return; \n\
     vec2 uv = vec2(float(gl_GlobalInvocationID.x) / float(p.out_w - 1), float(gl_GlobalInvocationID.y) / float(p.out_h - 1)); \n\
-    float waveu = sin((uv.y + p.time) * 20.0) * 0.015; \n\
+    float waveu = sin((uv.y + p.speed) * p.density) * p.strength / 1000.f;\n\
     uv += vec2(p.horizontal == 1 ? waveu : 0, p.horizontal == 1 ? 0 : waveu); \n\
     uv = clamp(uv, vec2(0, 0), vec2(1.0, 1.0)); \n\
     sfpvec4 rgba = load_rgba(int(uv.x * (p.w - 1)), int(uv.y * (p.h - 1)), p.w, p.h, p.cstep, p.in_format, p.in_type); \n\
