@@ -2067,23 +2067,22 @@ void VideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
         for (int i = 0; i < mSnapImages.size(); i++)
         {
             auto& img = mSnapImages[i];
-            if (!img) continue;
+            if (!img.hDispData) continue;
             ImVec2 uvMin(0, 0), uvMax(1, 1);
-            float snapDispWidth = img->mTimestampMs >= mClipViewStartPos ? mSnapWidth : mSnapWidth - (mClipViewStartPos - img->mTimestampMs) * mPixPerMs;
-            if (img->mTimestampMs < mClipViewStartPos)
+            float snapDispWidth = img.ssTimestampMs >= mClipViewStartPos ? mSnapWidth : mSnapWidth - (mClipViewStartPos - img.ssTimestampMs) * mPixPerMs;
+            if (img.ssTimestampMs < mClipViewStartPos)
             {
-                snapDispWidth = mSnapWidth - (mClipViewStartPos - img->mTimestampMs) * mPixPerMs;
+                snapDispWidth = mSnapWidth - (mClipViewStartPos - img.ssTimestampMs) * mPixPerMs;
                 uvMin.x = 1 - snapDispWidth / mSnapWidth;
             }
-            if (snapDispWidth <= 0)
-                continue;
+            if (snapDispWidth <= 0) continue;
             if (snapLeftTop.x+snapDispWidth >= rightBottom.x)
             {
                 snapDispWidth = rightBottom.x - snapLeftTop.x;
                 uvMax.x = snapDispWidth / mSnapWidth;
             }
 
-            auto hTx = img->mTextureReady ? img->mhTx : nullptr;
+            auto hTx = img.hDispData->mTextureReady ? img.hDispData->mhTx : nullptr;
             auto tid = hTx ? hTx->TextureID() : nullptr;
             if (tid)
             {
@@ -3509,7 +3508,7 @@ void EditingVideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, 
             mSnapSize.x = mSnapSize.y * vidStream->width / vidStream->height;
         }
 
-        std::vector<MediaCore::Snapshot::Image::Holder> snapImages;
+        std::vector<MediaCore::Snapshot::Image> snapImages;
         if (!mSsViewer->GetSnapshots((double)(mStartOffset + firstTime) / 1000, snapImages))
         {
             Logger::Log(Logger::Error) << mSsViewer->GetError() << std::endl;
@@ -3523,10 +3522,10 @@ void EditingVideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, 
         {
             auto& img = snapImages[i];
             ImVec2 uvMin{0, 0}, uvMax{1, 1};
-            float snapDispWidth = img->mTimestampMs >= mStartOffset + firstTime ? mSnapSize.x : mSnapSize.x - (mStartOffset + firstTime - img->mTimestampMs) * msPixelWidthTarget;
-            if (img->mTimestampMs < mStartOffset + firstTime)
+            float snapDispWidth = img.ssTimestampMs >= mStartOffset + firstTime ? mSnapSize.x : mSnapSize.x - (mStartOffset + firstTime - img.ssTimestampMs) * msPixelWidthTarget;
+            if (img.ssTimestampMs < mStartOffset + firstTime)
             {
-                snapDispWidth = mSnapSize.x - (mStartOffset + firstTime - img->mTimestampMs) * msPixelWidthTarget;
+                snapDispWidth = mSnapSize.x - (mStartOffset + firstTime - img.ssTimestampMs) * msPixelWidthTarget;
                 uvMin.x = 1 - snapDispWidth / mSnapSize.x;
             }
             if (snapDispWidth <= 0)
@@ -3537,7 +3536,7 @@ void EditingVideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, 
                 uvMax.x = snapDispWidth / mSnapSize.x;
             }
 
-            auto hTx = img->mTextureReady ? img->mhTx : nullptr;
+            auto hTx = img.hDispData->mTextureReady ? img.hDispData->mhTx : nullptr;
             auto tid = hTx ? hTx->TextureID() : nullptr;
             if (tid)
             {
@@ -4070,7 +4069,7 @@ void EditingVideoOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
 
     // get snapshot images
     auto txmgr = ((TimeLine*)(mOvlp->mHandle))->mTxMgr;
-    std::vector<MediaCore::Snapshot::Image::Holder> snapImages1;
+    std::vector<MediaCore::Snapshot::Image> snapImages1;
     if (mViewer1)
     {
         m_StartOffset.first = mClip1->StartOffset() + mOvlp->mStart - mClip1->Start();
@@ -4081,7 +4080,7 @@ void EditingVideoOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
         }
         mViewer1->UpdateSnapshotTexture(snapImages1, txmgr, EDITING_VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME);
     }
-    std::vector<MediaCore::Snapshot::Image::Holder> snapImages2;
+    std::vector<MediaCore::Snapshot::Image> snapImages2;
     if (mViewer2)
     {
         m_StartOffset.second = mClip2->StartOffset() + mOvlp->mStart - mClip2->Start();
@@ -4109,7 +4108,7 @@ void EditingVideoOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
             }
 
             auto snapImg = *imgIter1++;
-            auto hTx = snapImg&&snapImg->mTextureReady ? snapImg->mhTx : nullptr;
+            auto hTx = snapImg.hDispData&&snapImg.hDispData->mTextureReady ? snapImg.hDispData->mhTx : nullptr;
             auto tid = hTx ? hTx->TextureID() : nullptr;
             if (tid)
             {
@@ -4168,7 +4167,7 @@ void EditingVideoOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
             }
             ImVec2 img2LeftTop = {imgLeftTop.x, imgLeftTop.y+mSnapSize.y};
             auto snapImg = *imgIter2++;
-            auto hTx = snapImg&&snapImg->mTextureReady ? snapImg->mhTx : nullptr;
+            auto hTx = snapImg.hDispData&&snapImg.hDispData->mTextureReady ? snapImg.hDispData->mhTx : nullptr;
             auto tid = hTx ? hTx->TextureID() : nullptr;
             if (tid)
             {

@@ -38,7 +38,7 @@
 #include <unordered_set>
 #include <chrono>
 
-#define USING_OLD_UI
+// #define USING_OLD_UI
 
 #define ICON_MEDIA_TIMELINE u8"\uf538"
 #define ICON_MEDIA_BANK     u8"\ue907"
@@ -524,7 +524,7 @@ private:
     int64_t mSrcLength              {0};                // media source duration
     int32_t mAlignmentPadding       {0};                // for alignment of the clip length, according to the timeline framerate
     int64_t mClipViewStartPos;
-    std::vector<MediaCore::Snapshot::Image::Holder> mSnapImages;
+    std::vector<MediaCore::Snapshot::Image> mSnapImages;
 };
 
 struct AudioClip : Clip
