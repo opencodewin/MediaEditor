@@ -704,6 +704,8 @@ static bool UIPageChanged()
         Logger::Log(Logger::DEBUG) << "[Changed page] Enter video filter page!!!" << std::endl;
         if (timeline)
         {
+            updated = true;
+            need_update_scope = true;
             timeline->bEditingFilter = true;
         }
     }
@@ -715,6 +717,8 @@ static bool UIPageChanged()
         Logger::Log(Logger::DEBUG) << "[Changed page] Enter video transition page!!!" << std::endl;
         if (timeline)
         {
+            updated = true;
+            need_update_scope = true;
             timeline->bEditingOverlap = true;
         }
     }
@@ -726,6 +730,8 @@ static bool UIPageChanged()
         Logger::Log(Logger::DEBUG) << "[Changed page] Enter video attribute page!!!" << std::endl;
         if (timeline)
         {
+            updated = true;
+            need_update_scope = true;
             timeline->bEditingAttribute = true;
         }
     }
@@ -4927,7 +4933,7 @@ static void DrawVideoFilterEventWindow(ImDrawList *draw_list, Clip * editing_cli
                     ImGui::PushID(i);
                     auto pCount = keypoint->GetCurvePointCount(i);
                     std::string lable_id = std::string(ICON_CURVE) + " " + keypoint->GetCurveName(i) + " (" + std::to_string(pCount) + " keys)" + "##video_event_curve";
-                    if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_None))
+                    if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
                     {
                         float curve_min = keypoint->GetCurveMin(i);
                         float curve_max = keypoint->GetCurveMax(i);
