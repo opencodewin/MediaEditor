@@ -78,24 +78,33 @@ struct BarrelDistortionEffectNode final : Node
     bool CustomLayout() const override { return true; }
     bool Skippable() const override { return true; }
 
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key) override
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key, bool embedded) override
     {
         ImGui::SetCurrentContext(ctx);
+        float setting_offset = 320;
+        if (!embedded)
+        {
+            ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 sub_window_size = ImGui::GetWindowSize();
+            setting_offset = sub_window_size.x - 80;
+        }
         bool changed = false;
         float _scale = m_scale;
         float _pow = m_pow;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_ScaleIn.IsLinked());
         ImGui::SliderFloat("Scale##BarrelDistortion", &_scale, 0.0, 3.f, "%.2f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_scale##BarrelDistortion")) { _scale = 1.5f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_scale##BarrelDistortion")) { _scale = 1.5f; changed = true; }
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_scale##BarrelDistortion", key, m_ScaleIn.IsLinked(), "scale##BarrelDistortion@" + std::to_string(m_ID), 0.0f, 100.f, 1.f, m_ScaleIn.m_ID);
         ImGui::EndDisabled();
         ImGui::SliderFloat("Pow##BarrelDistortion", &_pow, 0.0, 1.5f, "%.2f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_pow##BarrelDistortion")) { _pow = 0.25f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_pow##BarrelDistortion")) { _pow = 0.25f; changed = true; }
         ImGui::PopItemWidth();
+        ImGui::PopStyleColor();
         if (_scale != m_scale) { m_scale = _scale; changed = true; }
         if (_pow != m_pow) { m_pow = _pow; changed = true; }
         return m_Enabled ? changed : false;

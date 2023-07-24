@@ -74,24 +74,33 @@ struct SliderTransitionNode final : Node
     bool CustomLayout() const override { return true; }
     bool Skippable() const override { return true; }
 
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key) override
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key, bool embedded) override
     {
         ImGui::SetCurrentContext(ctx);
+        float setting_offset = 320;
+        if (!embedded)
+        {
+            ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 sub_window_size = ImGui::GetWindowSize();
+            setting_offset = sub_window_size.x - 80;
+        }
         bool changed = false;
         int _type = m_slider_type;
         int _in = m_out ? 0 : 1;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled);
         ImGui::SliderInt("Type", &_type, 0, 8, "%d", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_type##Slider")) { _type = 0; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_type##Slider")) { _type = 0; changed = true; }
         ImGui::RadioButton("Slider In", &_in, 0); ImGui::SameLine();
         ImGui::RadioButton("Slider Out", &_in, 1);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_inout##Slider")) { _in = 0; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_inout##Slider")) { _in = 0; changed = true; }
         if (_type != m_slider_type) { m_slider_type = _type; changed = true; }
         if ((m_out && _in != 0) || (!m_out && _in != 1)) { m_out = _in == 0; changed = true; };
         ImGui::EndDisabled();
         ImGui::PopItemWidth();
+        ImGui::PopStyleColor();
         return changed;
     }
 

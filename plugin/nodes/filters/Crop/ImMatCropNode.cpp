@@ -81,9 +81,16 @@ struct CropNode final : Node
     bool CustomLayout() const override { return true; }
     bool Skippable() const override { return true; }
 
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key) override
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key, bool embedded) override
     {
         ImGui::SetCurrentContext(ctx);
+        float setting_offset = 320;
+        if (!embedded)
+        {
+            ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 sub_window_size = ImGui::GetWindowSize();
+            setting_offset = sub_window_size.x - 80;
+        }
         bool changed = false;
         float _x1 = m_x1;
         float _y1 = m_y1;
@@ -93,21 +100,23 @@ struct CropNode final : Node
         float _yd = m_yd;
         // TODO::Hard to get focus and input number
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled);
         ImGui::SliderFloat("x1##Crop", &_x1, 0.f, 1.f, "%.02f", flags);
-        ImGui::SameLine(320); if (ImGui::Button(ICON_RESET "##reset_x1##Crop")) { _x1 = 0.f; changed = true; }
+        ImGui::SameLine(setting_offset); if (ImGui::Button(ICON_RESET "##reset_x1##Crop")) { _x1 = 0.f; changed = true; }
         ImGui::SliderFloat("y1##Crop", &_y1, 0.f, 1.f, "%.02f", flags);
-        ImGui::SameLine(320); if (ImGui::Button(ICON_RESET "##reset_y1##Crop")) { _y1 = 0.f; changed = true; }
+        ImGui::SameLine(setting_offset); if (ImGui::Button(ICON_RESET "##reset_y1##Crop")) { _y1 = 0.f; changed = true; }
         ImGui::SliderFloat("x2##Crop", &_x2, _x1, 1.0f, "%.02f", flags);
-        ImGui::SameLine(320); if (ImGui::Button(ICON_RESET "##reset_x2##Crop")) { _x2 = 1.f; changed = true; }
+        ImGui::SameLine(setting_offset); if (ImGui::Button(ICON_RESET "##reset_x2##Crop")) { _x2 = 1.f; changed = true; }
         ImGui::SliderFloat("y2##Crop", &_y2, _y1, 1.f, "%.02f", flags);
-        ImGui::SameLine(320); if (ImGui::Button(ICON_RESET "##reset_y2##Crop")) { _y2 = 1.f; changed = true; }
+        ImGui::SameLine(setting_offset); if (ImGui::Button(ICON_RESET "##reset_y2##Crop")) { _y2 = 1.f; changed = true; }
         ImGui::SliderFloat("xd##Crop", &_xd, -1.f, 1.f, "%.02f", flags);
-        ImGui::SameLine(320); if (ImGui::Button(ICON_RESET "##reset_xd##Crop")) { _xd = 0.0f; changed = true; }
+        ImGui::SameLine(setting_offset); if (ImGui::Button(ICON_RESET "##reset_xd##Crop")) { _xd = 0.0f; changed = true; }
         ImGui::SliderFloat("yd##Crop", &_yd, -1.f, 1.f, "%.02f", flags);
-        ImGui::SameLine(320); if (ImGui::Button(ICON_RESET "##reset_yd##Crop")) { _yd = 0.0f; changed = true; }
+        ImGui::SameLine(setting_offset); if (ImGui::Button(ICON_RESET "##reset_yd##Crop")) { _yd = 0.0f; changed = true; }
         ImGui::PopItemWidth();
+        ImGui::PopStyleColor();
         if (_x1 != m_x1) { m_x1 = _x1; changed = true; }
         if (_y1 != m_y1) { m_y1 = _y1; changed = true; }
         if (_x2 != m_x2) { m_x2 = _x2; changed = true; }

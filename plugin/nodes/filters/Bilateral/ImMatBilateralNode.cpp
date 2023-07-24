@@ -80,37 +80,46 @@ struct BilateralNode final : Node
     bool CustomLayout() const override { return true; }
     bool Skippable() const override { return true; }
 
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key) override
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key, bool embedded) override
     {
         ImGui::SetCurrentContext(ctx);
+        float setting_offset = 320;
+        if (!embedded)
+        {
+            ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 sub_window_size = ImGui::GetWindowSize();
+            setting_offset = sub_window_size.x - 80;
+        }
         bool changed = false;
         ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
         int _ksize = m_ksize;
         float _sigma_spatial = m_sigma_spatial;
         float _sigma_color = m_sigma_color;
+        ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_SizeIn.IsLinked());
         ImGui::SliderInt("Kernel Size##Bilateral", &_ksize, 2, 20, "%d", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_size##Bilateral")) { _ksize = 5; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_size##Bilateral")) { _ksize = 5; changed = true; }
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_size##Bilateral", key, m_SizeIn.IsLinked(), "size##Bilateral@" + std::to_string(m_ID), 2.f, 20.f, 5.f, m_SizeIn.m_ID);
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled || m_SigmaSpatialIn.IsLinked());
         ImGui::SliderFloat("Sigma Spatial##Bilateral", &_sigma_spatial, 0.f, 100.f, "%.2f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_sigma_spatial##Bilateral")) { _sigma_spatial = 10.f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_sigma_spatial##Bilateral")) { _sigma_spatial = 10.f; changed = true; }
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_sigma_spatial##Bilateral", key, m_SigmaSpatialIn.IsLinked(), "sigma spatial##Bilateral@" + std::to_string(m_ID), 0.f, 100.f, 10.f, m_SigmaSpatialIn.m_ID);
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled || m_SigmaColorIn.IsLinked());
         ImGui::SliderFloat("Sigma Color##Bilateral", &_sigma_color, 0.f, 100.f, "%.2f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_sigma_color##Bilateral")) { _sigma_color = 10.f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_sigma_color##Bilateral")) { _sigma_color = 10.f; changed = true; }
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_sigma_color##Bilateral", key, m_SigmaColorIn.IsLinked(), "sigma color##Bilateral@" + std::to_string(m_ID), 0.f, 100.f, 10.f, m_SigmaColorIn.m_ID);
         ImGui::EndDisabled();
         ImGui::PopItemWidth();
+        ImGui::PopStyleColor();
         if (_ksize != m_ksize) { m_ksize = _ksize; changed = true; }
         if (_sigma_spatial != m_sigma_spatial) { m_sigma_spatial = _sigma_spatial; changed = true; }
         if (_sigma_color != m_sigma_color) { m_sigma_color = _sigma_color; changed = true; }

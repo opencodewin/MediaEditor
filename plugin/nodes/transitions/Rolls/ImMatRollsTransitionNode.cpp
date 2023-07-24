@@ -74,24 +74,33 @@ struct RollsTransitionNode final : Node
     bool CustomLayout() const override { return true; }
     bool Skippable() const override { return true; }
 
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key) override
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key, bool embedded) override
     {
         ImGui::SetCurrentContext(ctx);
+        float setting_offset = 320;
+        if (!embedded)
+        {
+            ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 sub_window_size = ImGui::GetWindowSize();
+            setting_offset = sub_window_size.x - 80;
+        }
         bool changed = false;
         int _type = m_roll_type;
         int _down = m_RotDown ? 1 : 0;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled);
         ImGui::SliderInt("Type", &_type, 0, 4, "%d", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_type##Rolls")) { _type = 0; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_type##Rolls")) { _type = 0; changed = true; }
         ImGui::RadioButton("Roll Up", &_down, 0); ImGui::SameLine();
         ImGui::RadioButton("Roll Down", &_down, 1);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_updown##Rolls")) { _down = 0; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_updown##Rolls")) { _down = 0; changed = true; }
         if (_type != m_roll_type) { m_roll_type = _type; changed = true; }
         if ((m_RotDown && _down != 1) || (!m_RotDown && _down != 0)) { m_RotDown = _down == 1; changed = true; };
         ImGui::EndDisabled();
         ImGui::PopItemWidth();
+        ImGui::PopStyleColor();
         return changed;
     }
 

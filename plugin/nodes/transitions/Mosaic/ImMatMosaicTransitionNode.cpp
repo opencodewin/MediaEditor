@@ -73,20 +73,29 @@ struct MosaicTransitionNode final : Node
     bool CustomLayout() const override { return true; }
     bool Skippable() const override { return true; }
 
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key) override
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key, bool embedded) override
     {
         ImGui::SetCurrentContext(ctx);
+        float setting_offset = 320;
+        if (!embedded)
+        {
+            ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 sub_window_size = ImGui::GetWindowSize();
+            setting_offset = sub_window_size.x - 80;
+        }
         bool changed = false;
         int size_x = m_size_x;
         int size_y = m_size_y;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
         ImGui::BeginDisabled(!m_Enabled);
+        ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::SliderInt("Size X##Mosaic", &size_x, -5, 5, "%d", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_size_x##Mosaic")) { size_x = 2; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_size_x##Mosaic")) { size_x = 2; changed = true; }
         ImGui::SliderInt("Size Y##Mosaic", &size_y, -5, 5, "%d", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_size_y##Mosaic")) { size_y = -1; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_size_y##Mosaic")) { size_y = -1; changed = true; }
         ImGui::PopItemWidth();
+        ImGui::PopStyleColor();
         ImGui::EndDisabled();
         if (size_x != m_size_x) { m_size_x = size_x; changed = true; }
         if (size_y != m_size_y) { m_size_y = size_y; changed = true; }

@@ -73,22 +73,31 @@ struct PerlinTransitionNode final : Node
     bool CustomLayout() const override { return true; }
     bool Skippable() const override { return true; }
 
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key) override
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key, bool embedded) override
     {
         ImGui::SetCurrentContext(ctx);
+        float setting_offset = 320;
+        if (!embedded)
+        {
+            ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 sub_window_size = ImGui::GetWindowSize();
+            setting_offset = sub_window_size.x - 80;
+        }
         bool changed = false;
         float _scale = m_scale;
         float _smoothness = m_smoothness;
         float _seed = m_seed;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Scale##Perlin", &_scale, 0.0, 10.f, "%.1f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_scale##Perlin")) { _scale = 4.f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_scale##Perlin")) { _scale = 4.f; changed = true; }
         ImGui::SliderFloat("Smoothness##Perlin", &_smoothness, 0.0, 1.f, "%.2f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_smoothness##Perlin")) { _smoothness = 0.01f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_smoothness##Perlin")) { _smoothness = 0.01f; changed = true; }
         ImGui::SliderFloat("Seed##Perlin", &_seed, 0.0, 1000.f, "%.2f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_seed##Perlin")) { _seed = 12.9898f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_seed##Perlin")) { _seed = 12.9898f; changed = true; }
         ImGui::PopItemWidth();
+        ImGui::PopStyleColor();
         if (_scale != m_scale) { m_scale = _scale; changed = true; }
         if (_smoothness != m_smoothness) { m_smoothness = _smoothness; changed = true; }
         if (_seed != m_seed) { m_seed = _seed; changed = true; }

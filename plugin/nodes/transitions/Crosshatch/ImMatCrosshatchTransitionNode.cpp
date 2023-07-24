@@ -73,19 +73,28 @@ struct CrosshatchTransitionNode final : Node
     bool CustomLayout() const override { return true; }
     bool Skippable() const override { return true; }
 
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key) override
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key, bool embedded) override
     {
         ImGui::SetCurrentContext(ctx);
+        float setting_offset = 320;
+        if (!embedded)
+        {
+            ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 sub_window_size = ImGui::GetWindowSize();
+            setting_offset = sub_window_size.x - 80;
+        }
         bool changed = false;
         float _threshold = m_threshold;
         float _fadeEdge = m_fadeEdge;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Threshold##Crosshatch", &_threshold, 0.0, 5.f, "%.1f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_threshold##Crosshatch")) { _threshold = 3.0f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_threshold##Crosshatch")) { _threshold = 3.0f; changed = true; }
         ImGui::SliderFloat("FadeEdge##Crosshatch", &_fadeEdge, 0.0, 1.f, "%.1f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_fadeEdge##Crosshatch")) { _fadeEdge = 3.0f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_fadeEdge##Crosshatch")) { _fadeEdge = 3.0f; changed = true; }
         ImGui::PopItemWidth();
+        ImGui::PopStyleColor();
         if (_threshold != m_threshold) { m_threshold = _threshold; changed = true; }
         if (_fadeEdge != m_fadeEdge) { m_fadeEdge = _fadeEdge; changed = true; }
         return m_Enabled ? changed : false;

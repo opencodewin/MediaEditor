@@ -73,9 +73,16 @@ struct DissolveTransitionNode final : Node
     bool CustomLayout() const override { return true; }
     bool Skippable() const override { return true; }
 
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key) override
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key, bool embedded) override
     {
         ImGui::SetCurrentContext(ctx);
+        float setting_offset = 320;
+        if (!embedded)
+        {
+            ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 sub_window_size = ImGui::GetWindowSize();
+            setting_offset = sub_window_size.x - 80;
+        }
         bool changed = false;
         float _lineWidth = m_lineWidth;
         float _pow = m_pow;
@@ -83,25 +90,26 @@ struct DissolveTransitionNode final : Node
         ImPixel _spreadColor = m_spreadColor;
         ImPixel _hotColor = m_hotColor;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Line Width##Dissolve", &_lineWidth, 0.0, 0.2f, "%.2f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_lineWidth##Dissolve")) { _lineWidth = 0.05f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_lineWidth##Dissolve")) { _lineWidth = 0.05f; changed = true; }
         ImGui::SliderFloat("Pow##Dissolve", &_pow, 0.0, 10.0f, "%.1f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_pow##Dissolve")) { _pow = 5.f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_pow##Dissolve")) { _pow = 5.f; changed = true; }
         ImGui::SliderFloat("Intensity##Dissolve", &_intensity, 0.0, 2.0f, "%.1f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_intensity##Dissolve")) { _intensity = 1.f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_intensity##Dissolve")) { _intensity = 1.f; changed = true; }
         ImGui::PopItemWidth();
         if (ImGui::ColorEdit4("Spread Color##Dissolve", (float*)&_spreadColor, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar))
         {
             m_spreadColor = _spreadColor; changed = true;
         } ImGui::SameLine(); ImGui::TextUnformatted("Spread Color");
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_spreadColor##Dissolve")) { m_spreadColor = {1.0f, 0.0f, 0.0f, 1.0f}; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_spreadColor##Dissolve")) { m_spreadColor = {1.0f, 0.0f, 0.0f, 1.0f}; changed = true; }
         if (ImGui::ColorEdit4("Hot Color##Dissolve", (float*)&_hotColor, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar))
         {
             m_hotColor = _hotColor; changed = true;
         } ImGui::SameLine(); ImGui::TextUnformatted("Hot Color");
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_hotColor##Dissolve")) { m_hotColor = {0.9f, 0.9f, 0.2f, 1.0f}; changed = true; }
-
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_hotColor##Dissolve")) { m_hotColor = {0.9f, 0.9f, 0.2f, 1.0f}; changed = true; }
+        ImGui::PopStyleColor();
         if (_lineWidth != m_lineWidth) { m_lineWidth = _lineWidth; changed = true; }
         if (_pow != m_pow) { m_pow = _pow; changed = true; }
         if (_intensity != m_intensity) { m_intensity = _intensity; changed = true; }

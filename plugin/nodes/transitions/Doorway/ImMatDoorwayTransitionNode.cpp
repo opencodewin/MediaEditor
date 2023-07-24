@@ -73,22 +73,31 @@ struct DoorwayTransitionNode final : Node
     bool CustomLayout() const override { return true; }
     bool Skippable() const override { return true; }
 
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key) override
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key, bool embedded) override
     {
         ImGui::SetCurrentContext(ctx);
+        float setting_offset = 320;
+        if (!embedded)
+        {
+            ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 sub_window_size = ImGui::GetWindowSize();
+            setting_offset = sub_window_size.x - 80;
+        }
         bool changed = false;
         float _reflection = m_reflection;
         float _perspective = m_perspective;
         float _depth = m_depth;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Reflection##Doorway", &_reflection, 0.0, 1.f, "%.1f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_reflection##Doorway")) { _reflection = 0.4f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_reflection##Doorway")) { _reflection = 0.4f; changed = true; }
         ImGui::SliderFloat("Perspective##Doorway", &_perspective, 0.0, 1.f, "%.1f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_perspective##Doorway")) { _perspective = 0.2f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_perspective##Doorway")) { _perspective = 0.2f; changed = true; }
         ImGui::SliderFloat("Depth##Doorway", &_depth, 1.0, 10.f, "%.1f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_depth##Doorway")) { _depth = 3.0f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_depth##Doorway")) { _depth = 3.0f; changed = true; }
         ImGui::PopItemWidth();
+        ImGui::PopStyleColor();
         if (_reflection != m_reflection) { m_reflection = _reflection; changed = true; }
         if (_perspective != m_perspective) { m_perspective = _perspective; changed = true; }
         if (_depth != m_depth) { m_depth = _depth; changed = true; }

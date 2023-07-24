@@ -73,22 +73,31 @@ struct FlyeyeTransitionNode final : Node
     bool CustomLayout() const override { return true; }
     bool Skippable() const override { return true; }
 
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key) override
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key, bool embedded) override
     {
         ImGui::SetCurrentContext(ctx);
+        float setting_offset = 320;
+        if (!embedded)
+        {
+            ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 sub_window_size = ImGui::GetWindowSize();
+            setting_offset = sub_window_size.x - 80;
+        }
         bool changed = false;
         float _size = m_size;
         float _zoom = m_zoom;
         float _colorSeparation = m_colorSeparation;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Size##Flyeye", &_size, 0.0, 1.f, "%.2f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_size##Flyeye")) { _size = 0.04f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_size##Flyeye")) { _size = 0.04f; changed = true; }
         ImGui::SliderFloat("Zoom##Flyeye", &_zoom, 0.0, 100.f, "%.1f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_zoom##Flyeye")) { _zoom = 50.f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_zoom##Flyeye")) { _zoom = 50.f; changed = true; }
         ImGui::SliderFloat("Separation##Flyeye", &_colorSeparation, 0.0, 1.f, "%.1f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_colorSeparation##Flyeye")) { _colorSeparation = 0.3f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_colorSeparation##Flyeye")) { _colorSeparation = 0.3f; changed = true; }
         ImGui::PopItemWidth();
+        ImGui::PopStyleColor();
         if (_size != m_size) { m_size = _size; changed = true; }
         if (_zoom != m_zoom) { m_zoom = _zoom; changed = true; }
         if (_colorSeparation != m_colorSeparation) { m_colorSeparation = _colorSeparation; changed = true; }

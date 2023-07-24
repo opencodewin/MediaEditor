@@ -72,25 +72,34 @@ struct JitterEffectNode final : Node
     bool CustomLayout() const override { return true; }
     bool Skippable() const override { return true; }
 
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key) override
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key, bool embedded) override
     {
         ImGui::SetCurrentContext(ctx);
+        float setting_offset = 320;
+        if (!embedded)
+        {
+            ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 sub_window_size = ImGui::GetWindowSize();
+            setting_offset = sub_window_size.x - 80;
+        }
         bool changed = false;
         int _count = m_count;
         float _max_scale = m_max_scale;
         float _offset = m_offset;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled);
         ImGui::SliderInt("Count##Jitter", &_count, 1, 10, "%d", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_count##Jitter")) { _count = 1; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_count##Jitter")) { _count = 1; changed = true; }
         ImGui::SliderFloat("Max Scale##Jitter", &_max_scale, 1.f, 2.f, "%.1f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_max_scale##Jitter")) { _max_scale = 1.1f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_max_scale##Jitter")) { _max_scale = 1.1f; changed = true; }
         ImGui::SliderFloat("Offset##Jitter", &_offset, 0.f, 0.1f, "%.2f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_offset##Jitter")) { _offset = 0.02f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_offset##Jitter")) { _offset = 0.02f; changed = true; }
         if (ImGui::Checkbox("Shrink##Jitter", &m_shrink)) { changed = true; }
         ImGui::EndDisabled();
         ImGui::PopItemWidth();
+        ImGui::PopStyleColor();
         if (_count != m_count) { m_count = _count; changed = true; }
         if (_max_scale != m_max_scale) { m_max_scale = _max_scale; changed = true; }
         if (_offset != m_offset) { m_offset = _offset; changed = true; }

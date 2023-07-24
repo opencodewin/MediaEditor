@@ -84,9 +84,16 @@ struct HQDN3DNode final : Node
     bool CustomLayout() const override { return true; }
     bool Skippable() const override { return true; }
 
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key) override
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key, bool embedded) override
     {
         ImGui::SetCurrentContext(ctx);
+        float setting_offset = 320;
+        if (!embedded)
+        {
+            ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 sub_window_size = ImGui::GetWindowSize();
+            setting_offset = sub_window_size.x - 80;
+        }
         bool changed = false;
         float _lum_spac = m_lum_spac;
         float _chrom_spac = m_chrom_spac;
@@ -94,36 +101,38 @@ struct HQDN3DNode final : Node
         float _chrom_tmp = m_chrom_tmp;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
         ImGui::Dummy(ImVec2(160, 8));
-        ImGui::PushItemWidth(160);
+        ImGui::PushStyleColor(ImGuiCol_Button, 0);
+        ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_LumSpatialIn.IsLinked());
         ImGui::SliderFloat("Luma Spatial##HQDN3D", &_lum_spac, 0, 50.f, "%.1f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_luma_spatial##HQDN3D")) { _lum_spac = 6.f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_luma_spatial##HQDN3D")) { _lum_spac = 6.f; changed = true; }
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_luma_spatial##HQDN3D", key,  m_LumSpatialIn.IsLinked(), "luma spatial##HQDN3D@" + std::to_string(m_ID), 0.f, 50.f, 6.f, m_LumSpatialIn.m_ID);
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled || m_ChromaSpatialIn.IsLinked());
         ImGui::SliderFloat("Chroma Spatial##HQDN3D", &_chrom_spac, 0, 50.f, "%.1f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_chroma_spatial##HQDN3D")) { _chrom_spac = 4.f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_chroma_spatial##HQDN3D")) { _chrom_spac = 4.f; changed = true; }
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_chroma_spatial##HQDN3D", key, m_ChromaSpatialIn.IsLinked(), "chroma spatial##HQDN3D@" + std::to_string(m_ID), 0.f, 50.f, 4.f, m_ChromaSpatialIn.m_ID);
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled || m_LumTemporalIn.IsLinked());
         ImGui::SliderFloat("Luma Temporal##HQDN3D", &_lum_tmp, 0, 50.f, "%.1f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_luma_temporal##HQDN3D")) { _lum_tmp = 4.5f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_luma_temporal##HQDN3D")) { _lum_tmp = 4.5f; changed = true; }
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_luma_temporal##HQDN3D", key, m_LumTemporalIn.IsLinked(), "luma temporal##HQDN3D@" + std::to_string(m_ID), 0.f, 50.f, 4.5f, m_LumTemporalIn.m_ID);
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled || m_ChromaTemporalIn.IsLinked());
         ImGui::SliderFloat("Chroma Temporal##HQDN3D", &_chrom_tmp, 0, 50.f, "%.1f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_chroma_temporal##HQDN3D")) { _chrom_tmp = 3.375f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_chroma_temporal##HQDN3D")) { _chrom_tmp = 3.375f; changed = true; }
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_chroma_temporal##HQDN3D", key, m_ChromaTemporalIn.IsLinked(), "chroma temporal##HQDN3D@" + std::to_string(m_ID), 0.f, 50.f, 3.375f, m_ChromaTemporalIn.m_ID);
         ImGui::EndDisabled();
         ImGui::PopItemWidth();
+        ImGui::PopStyleColor();
         if (_lum_spac != m_lum_spac) { m_lum_spac = _lum_spac; changed = true; }
         if (_chrom_spac != m_chrom_spac) { m_chrom_spac = _chrom_spac; changed = true; }
         if (_lum_tmp != m_lum_tmp) { m_lum_tmp = _lum_tmp; changed = true; }

@@ -78,29 +78,38 @@ struct GuidedNode final : Node
     bool CustomLayout() const override { return true; }
     bool Skippable() const override { return true; }
 
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key) override
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key, bool embedded) override
     {
         ImGui::SetCurrentContext(ctx);
+        float setting_offset = 320;
+        if (!embedded)
+        {
+            ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 sub_window_size = ImGui::GetWindowSize();
+            setting_offset = sub_window_size.x - 80;
+        }
         bool changed = false;
         float _eps = m_eps;
         int _range = m_range;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_EPSIn.IsLinked());
         ImGui::SliderFloat("EPS##GuidedFilter", &_eps, 0.000001, 0.001f, "%.6f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_eps##GuidedFilter")) { _eps = 0.0001; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_eps##GuidedFilter")) { _eps = 0.0001; changed = true; }
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_eps##GuidedFilter", key, m_EPSIn.IsLinked(), "eps##GuidedFilter@" + std::to_string(m_ID), 0.000001f, 0.001f, 0.0001f, m_EPSIn.m_ID);
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled || m_RangeIn.IsLinked());
         ImGui::SliderInt("Range##GuidedFilter", &_range, 0, 30, "%.d", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_range##GuidedFilter")) { _range = 4; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_range##GuidedFilter")) { _range = 4; changed = true; }
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_range##GuidedFilter", key, m_RangeIn.IsLinked(), "range##GuidedFilter@" + std::to_string(m_ID), 0.f, 30.f, 4.f, m_RangeIn.m_ID);
         ImGui::EndDisabled();
         ImGui::PopItemWidth();
+        ImGui::PopStyleColor();
         if (_eps != m_eps) { m_eps = _eps; changed = true; }
         if (_range != m_range) { m_range = _range; changed = true; }
         

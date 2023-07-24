@@ -74,19 +74,28 @@ struct BlurTransitionNode final : Node
     bool CustomLayout() const override { return true; }
     bool Skippable() const override { return true; }
 
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key) override
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key, bool embedded) override
     {
         ImGui::SetCurrentContext(ctx);
+        float setting_offset = 320;
+        if (!embedded)
+        {
+            ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 sub_window_size = ImGui::GetWindowSize();
+            setting_offset = sub_window_size.x - 80;
+        }
         bool changed = false;
         float _intensity = m_intensity;
         int _passes = m_passes;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Intensity##LinearBlur", &_intensity, 0.0, 1.f, "%.1f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_intensity##LinearBlur")) { _intensity = 0.1f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_intensity##LinearBlur")) { _intensity = 0.1f; changed = true; }
         ImGui::SliderInt("Passes##LinearBlur", &_passes, 1, 10, "%d", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_passes##LinearBlur")) { _passes = 6; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_passes##LinearBlur")) { _passes = 6; changed = true; }
         ImGui::PopItemWidth();
+        ImGui::PopStyleColor();
         if (_intensity != m_intensity) { m_intensity = _intensity; changed = true; }
         if (_passes != m_passes) { m_passes = _passes; changed = true; }
         return m_Enabled ? changed : false;

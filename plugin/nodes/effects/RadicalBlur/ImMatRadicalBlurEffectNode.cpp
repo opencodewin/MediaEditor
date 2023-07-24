@@ -78,30 +78,39 @@ struct RadicalBlurEffectNode final : Node
     bool CustomLayout() const override { return true; }
     bool Skippable() const override { return true; }
 
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key) override
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key, bool embedded) override
     {
         ImGui::SetCurrentContext(ctx);
+        float setting_offset = 320;
+        if (!embedded)
+        {
+            ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 sub_window_size = ImGui::GetWindowSize();
+            setting_offset = sub_window_size.x - 80;
+        }
         bool changed = false;
         float _radius = m_radius;
         float _dist = m_dist;
         float _intensity = m_intensity;
         float _count = m_count;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_RadiusIn.IsLinked());
         ImGui::SliderFloat("Radius##RadicalBlur", &_radius, 0.0, 1.f, "%.2f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_radius##RadicalBlur")) { _radius = 0.38f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_radius##RadicalBlur")) { _radius = 0.38f; changed = true; }
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_radius##RadicalBlur", key, m_RadiusIn.IsLinked(), "radius##RadicalBlur@" + std::to_string(m_ID), 0.0f, 100.f, 1.f, m_RadiusIn.m_ID);
         ImGui::EndDisabled();
         ImGui::SliderFloat("Dist##RadicalBlur", &_dist, 0.0, 1.f, "%.2f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_dist##RadicalBlur")) { _dist = 0.25f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_dist##RadicalBlur")) { _dist = 0.25f; changed = true; }
         ImGui::SliderFloat("Intensity##RadicalBlur", &_intensity, 0.0, 1.f, "%.0f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_intensity##RadicalBlur")) { _intensity = 1.f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_intensity##RadicalBlur")) { _intensity = 1.f; changed = true; }
         ImGui::SliderFloat("Count##RadicalBlur", &_count, 1.f, 40.f, "%.0f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_count##RadicalBlur")) { _count = 40.f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_count##RadicalBlur")) { _count = 40.f; changed = true; }
         ImGui::PopItemWidth();
+        ImGui::PopStyleColor();
         if (_radius != m_radius) { m_radius = _radius; changed = true; }
         if (_dist != m_dist) { m_dist = _dist; changed = true; }
         if (_intensity != m_intensity) { m_intensity = _intensity; changed = true; }

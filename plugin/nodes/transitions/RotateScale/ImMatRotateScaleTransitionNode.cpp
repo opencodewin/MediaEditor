@@ -73,25 +73,34 @@ struct RotateScaleTransitionNode final : Node
     bool CustomLayout() const override { return true; }
     bool Skippable() const override { return true; }
 
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key) override
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key, bool embedded) override
     {
         ImGui::SetCurrentContext(ctx);
+        float setting_offset = 320;
+        if (!embedded)
+        {
+            ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 sub_window_size = ImGui::GetWindowSize();
+            setting_offset = sub_window_size.x - 80;
+        }
         bool changed = false;
         float _rotations = m_rotations;
         float _scale = m_scale;
         ImPixel _backColor = m_backColor;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Rotations##RotateScale", &_rotations, 1.f, 1.f, "%.1f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_rotations##Ripple")) { _rotations = 1.f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_rotations##Ripple")) { _rotations = 1.f; changed = true; }
         ImGui::SliderFloat("Scale##RotateScale", &_scale, 1.f, 20.f, "%.1f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_scale##Ripple")) { _scale = 8.f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_scale##Ripple")) { _scale = 8.f; changed = true; }
         ImGui::PopItemWidth();
         if (ImGui::ColorEdit4("BackColor##RotateScale", (float*)&_backColor, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar))
         {
             m_backColor = _backColor; changed = true;
         } ImGui::SameLine(); ImGui::TextUnformatted("Back Color");
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_backcolor##RotateScale")) { m_backColor = {0.0f, 0.0f, 0.0f, 1.0f}; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_backcolor##RotateScale")) { m_backColor = {0.0f, 0.0f, 0.0f, 1.0f}; changed = true; }
+        ImGui::PopStyleColor();
         if (_rotations != m_rotations) { m_rotations = _rotations; changed = true; }
         if (_scale != m_scale) { m_scale = _scale; changed = true; }
         return m_Enabled ? changed : false;

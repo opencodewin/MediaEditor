@@ -73,9 +73,16 @@ struct GridFlipTransitionNode final : Node
     bool CustomLayout() const override { return true; }
     bool Skippable() const override { return true; }
 
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key) override
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key, bool embedded) override
     {
         ImGui::SetCurrentContext(ctx);
+        float setting_offset = 320;
+        if (!embedded)
+        {
+            ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 sub_window_size = ImGui::GetWindowSize();
+            setting_offset = sub_window_size.x - 80;
+        }
         bool changed = false;
         float _pause = m_pause;
         float _dividerWidth = m_dividerWidth;
@@ -85,23 +92,25 @@ struct GridFlipTransitionNode final : Node
         ImPixel _backColor = m_backColor;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
         ImGui::BeginDisabled(!m_Enabled);
+        ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Pause##GridFlip", &_pause, 0.1, 1.f, "%.1f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_pause##GridFlip")) { _pause = 0.1f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_pause##GridFlip")) { _pause = 0.1f; changed = true; }
         ImGui::SliderFloat("Divider##GridFlip", &_dividerWidth, 0.f, 1.f, "%.2f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_divider##GridFlip")) { _dividerWidth = 0.05f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_divider##GridFlip")) { _dividerWidth = 0.05f; changed = true; }
         ImGui::SliderFloat("Randomness##GridFlip", &_randomness, 0.1, 1.f, "%.1f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_randomness##GridFlip")) { _randomness = 0.1f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_randomness##GridFlip")) { _randomness = 0.1f; changed = true; }
         ImGui::SliderInt("Size X##GridFlip", &size_x, 1, 10, "%d", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_size_x##GridFlip")) { size_x = 4; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_size_x##GridFlip")) { size_x = 4; changed = true; }
         ImGui::SliderInt("Size Y##GridFlip", &size_y, 1, 10, "%d", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_size_y##GridFlip")) { size_y = 4; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_size_y##GridFlip")) { size_y = 4; changed = true; }
         ImGui::PopItemWidth();
         if (ImGui::ColorEdit4("BackColor##GridFlip", (float*)&_backColor, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar))
         {
             m_backColor = _backColor; changed = true;
         } ImGui::SameLine(); ImGui::TextUnformatted("Back Color");
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_backcolor##GridFlip")) { m_backColor = {0.0f, 0.0f, 0.0f, 1.0f}; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_backcolor##GridFlip")) { m_backColor = {0.0f, 0.0f, 0.0f, 1.0f}; changed = true; }
+        ImGui::PopStyleColor();
         ImGui::EndDisabled();
         if (_pause != m_pause) { m_pause = _pause; changed = true; }
         if (_dividerWidth != m_dividerWidth) { m_dividerWidth = _dividerWidth; changed = true; }

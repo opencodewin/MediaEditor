@@ -73,16 +73,25 @@ struct CircleCropTransitionNode final : Node
     bool CustomLayout() const override { return true; }
     bool Skippable() const override { return true; }
 
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key) override
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key, bool embedded) override
     {
         ImGui::SetCurrentContext(ctx);
+        float setting_offset = 320;
+        if (!embedded)
+        {
+            ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 sub_window_size = ImGui::GetWindowSize();
+            setting_offset = sub_window_size.x - 80;
+        }
         bool changed = false;
         ImPixel _backColor = m_backColor;
+        ImGui::PushStyleColor(ImGuiCol_Button, 0);
         if (ImGui::ColorEdit4("BackColor##CircleCrop", (float*)&_backColor, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar))
         {
             m_backColor = _backColor; changed = true;
         } ImGui::SameLine(); ImGui::TextUnformatted("Back Color");
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_backcolor##CircleCrop")) { m_backColor = {0.0f, 0.0f, 0.0f, 1.0f}; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_backcolor##CircleCrop")) { m_backColor = {0.0f, 0.0f, 0.0f, 1.0f}; changed = true; }
+        ImGui::PopStyleColor();
         return m_Enabled ? changed : false;
     }
 

@@ -4837,6 +4837,9 @@ static void DrawVideoFilterEventWindow(ImDrawList *draw_list, Clip * editing_cli
         ImGui::AddTextComplex(draw_list, tips_pos, tips_string.c_str(), 2.f, IM_COL32(255, 255, 255, 128), 0.5f, IM_COL32(56, 56, 56, 192));
         return;
     }
+    char ** curve_type_list = nullptr;
+    auto curve_type_count = ImGui::ImCurveEdit::GetCurveTypeName(curve_type_list);
+
     auto update_track = [&](BluePrint::BluePrintUI* pBP, BluePrint::Node* node)
     {
         auto track = timeline->FindTrackByClipID(editing_clip->mID);
@@ -4903,8 +4906,137 @@ static void DrawVideoFilterEventWindow(ImDrawList *draw_list, Clip * editing_cli
                                     entry_node->DeleteOutputPin(name);
                                 }
                             }
+                            update_track(pBP, node);
                         }
                     }
+                }
+            };
+            auto editCurve = [&](ImGui::KeyPointEditor* keypoint, BluePrint::Node* node)
+            {
+                if (!keypoint || !node) return;
+                MediaTimeline::MediaTrack * track = node ? timeline->FindTrackByClipID(node->m_ID) : nullptr;
+                for (int i = 0; i < keypoint->GetCurveCount(); i++)
+                {
+                    bool break_loop = false;
+                    if (keypoint->GetCurveID(i) != node->m_ID)
+                        continue;
+                    ImGui::PushID(i);
+                    auto pCount = keypoint->GetCurvePointCount(i);
+                    std::string lable_id = std::string(ICON_CURVE) + " " + keypoint->GetCurveName(i) + " (" + std::to_string(pCount) + " keys)" + "##video_event_curve";
+                    if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
+                    {
+                        float curve_min = keypoint->GetCurveMin(i);
+                        float curve_max = keypoint->GetCurveMax(i);
+                        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
+                        auto curve_time = timeline->currentTime - timeline->mVidFilterClip->mStart;
+                        float curve_value = keypoint->GetValue(i, curve_time);
+                        ImGui::BracketSquare(true); 
+                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0, 1.0, 0.0, 1.0)); 
+                        ImGui::Text("%.2f", curve_value); 
+                        ImGui::PopStyleColor();
+                        ImGui::SameLine();
+                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0, 1.0, 0.0, 1.0)); 
+                        ImGui::Text("%s", ImGuiHelper::MillisecToString(curve_time, 3).c_str()); 
+                        ImGui::PopStyleColor();
+                        ImGui::SameLine();
+                        bool in_range = curve_time >= keypoint->GetMin().x && 
+                                        curve_time <= keypoint->GetMax().x;
+                        ImGui::BeginDisabled(!in_range);
+                        if (ImGui::Button(ICON_MD_ADS_CLICK))
+                        {
+                            auto value_range = keypoint->GetCurveMax(i) - keypoint->GetCurveMin(i);
+                            curve_value = (curve_value - keypoint->GetCurveMin(i)) / (value_range + FLT_EPSILON);
+                            keypoint->AddPoint(i, ImVec2(curve_time, curve_value), ImGui::ImCurveEdit::Smooth);
+                        }
+                        ImGui::EndDisabled();
+                        ImGui::ShowTooltipOnHover("Add key at current");
+
+                        ImGui::PushItemWidth(60);
+                        if (ImGui::DragFloat("##curve_video_filter_min", &curve_min, 0.1f, -FLT_MAX, curve_max, "%.1f"))
+                        {
+                            keypoint->SetCurveMin(i, curve_min);
+                            if (track) timeline->RefreshTrackView({track->mID});
+                        } ImGui::ShowTooltipOnHover("Min");
+                        ImGui::SameLine(0, 8);
+                        if (ImGui::DragFloat("##curve_video_filter_max", &curve_max, 0.1f, curve_min, FLT_MAX, "%.1f"))
+                        {
+                            keypoint->SetCurveMax(i, curve_max);
+                            if (track) timeline->RefreshTrackView({track->mID});
+                        } ImGui::ShowTooltipOnHover("Max");
+                        ImGui::SameLine(0, 8);
+                        float curve_default = keypoint->GetCurveDefault(i);
+                        if (ImGui::DragFloat("##curve_video_filter_default", &curve_default, 0.1f, curve_min, curve_max, "%.1f"))
+                        {
+                            keypoint->SetCurveDefault(i, curve_default);
+                            if (track) timeline->RefreshTrackView({track->mID});
+                        } ImGui::ShowTooltipOnHover("Default");
+                        ImGui::PopItemWidth();
+
+                        ImGui::SameLine(0, 8);
+                        ImGui::SetWindowFontScale(0.75);
+                        auto curve_color = ImGui::ColorConvertU32ToFloat4(keypoint->GetCurveColor(i));
+                        if (ImGui::ColorEdit4("##curve_video_filter_color", (float*)&curve_color, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar))
+                        {
+                            keypoint->SetCurveColor(i, ImGui::ColorConvertFloat4ToU32(curve_color));
+                        } ImGui::ShowTooltipOnHover("Curve Color");
+                        ImGui::SetWindowFontScale(1.0);
+                        ImGui::SameLine(0, 4);
+                        bool is_visiable = keypoint->IsVisible(i);
+                        if (ImGui::Button(is_visiable ? ICON_WATCH : ICON_UNWATCH "##curve_video_filter_visiable"))
+                        {
+                            is_visiable = !is_visiable;
+                            keypoint->SetCurveVisible(i, is_visiable);
+                        } ImGui::ShowTooltipOnHover( is_visiable ? "Hide" : "Show");
+                        ImGui::SameLine(0, 4);
+                        if (ImGui::Button(ICON_MD_ROTATE_90_DEGREES_CCW "##curve_video_filter_reset"))
+                        {
+                            for (int p = 0; p < pCount; p++)
+                            {
+                                keypoint->SetCurvePointDefault(i, p);
+                            }
+                            if (track) timeline->RefreshTrackView({track->mID});
+                        } ImGui::ShowTooltipOnHover("Reset");
+                        if (!break_loop)
+                        {
+                            // list points
+                            for (int p = 0; p < pCount; p++)
+                            {
+                                bool is_disabled = false;
+                                ImGui::PushID(p);
+                                ImGui::PushItemWidth(96);
+                                auto point = keypoint->GetPoint(i, p);
+                                ImGui::Diamond(false);
+                                if (p == 0 || p == pCount - 1)
+                                    is_disabled = true;
+                                ImGui::BeginDisabled(is_disabled);
+                                if (ImGui::DragTimeMS("##curve_video_filter_point_x", &point.point.x, keypoint->GetMax().x / 1000.f, keypoint->GetMin().x, keypoint->GetMax().x, 2))
+                                {
+                                    keypoint->EditPoint(i, p, point.point, point.type);
+                                    if (track) timeline->RefreshTrackView({track->mID});
+                                }
+                                ImGui::EndDisabled();
+                                ImGui::SameLine();
+                                auto speed = fabs(keypoint->GetCurveMax(i) - keypoint->GetCurveMin(i)) / 500;
+                                if (ImGui::DragFloat("##curve_video_filter_point_y", &point.point.y, speed, keypoint->GetCurveMin(i), keypoint->GetCurveMax(i), "%.2f"))
+                                {
+                                    keypoint->EditPoint(i, p, point.point, point.type);
+                                    if (track) timeline->RefreshTrackView({track->mID});
+                                }
+                                ImGui::SameLine();
+                                if (ImGui::Combo("##curve_video_filter_type", (int*)&point.type, curve_type_list, curve_type_count))
+                                {
+                                    keypoint->EditPoint(i, p, point.point, point.type);
+                                    if (track) timeline->RefreshTrackView({track->mID});
+                                }
+                                ImGui::PopItemWidth();
+                                ImGui::PopID();
+                            }
+                        }
+                        ImGui::PopStyleColor();
+                        ImGui::TreePop();
+                    }
+                    ImGui::PopID();
+                    if (break_loop) break;
                 }
             };
             if (pBP)
@@ -4912,6 +5044,7 @@ static void DrawVideoFilterEventWindow(ImDrawList *draw_list, Clip * editing_cli
                 static const char* buttons[] = { "Delete", "Cancel", NULL };
                 static ImGui::MsgBox msgbox;
                 msgbox.Init("Delete Node?", ICON_MD_WARNING, "Are you really really sure you want to delete node?", buttons, false);
+                
                 auto nodes = pBP->m_Document->m_Blueprint.GetNodes();
                 bool need_redraw = false;
                 for (auto node : nodes)
@@ -4923,6 +5056,7 @@ static void DrawVideoFilterEventWindow(ImDrawList *draw_list, Clip * editing_cli
                         continue;
                     auto label_name = node->m_Name;
                     std::string lable_id = label_name + "##video_filter_node" + "@" + std::to_string(node->m_ID);
+                    auto node_pos = ImGui::GetCursorScreenPos();
                     node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(50, 28));
                     ImGui::SameLine(60);
                     bool tree_open = ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen);
@@ -4945,8 +5079,8 @@ static void DrawVideoFilterEventWindow(ImDrawList *draw_list, Clip * editing_cli
                         }
                         ImGui::EndDragDropTarget();
                     }
-                    ImGui::SameLine(0, 100);
-                    if (ImGui::Button(node->m_Enabled ? ICON_ENABLE : ICON_DISABLE "##event_list_editor_disable_node"))
+                    ImGui::SetCursorScreenPos(ImVec2(sub_window_pos.x + sub_window_size.x - 80, node_pos.y));
+                    if (ImGui::Button(node->m_Enabled ? ICON_VIEW : ICON_VIEW_DISABLE "##event_list_editor_disable_node"))
                     {
                         node->m_Enabled = !node->m_Enabled;
                         update_track(pBP, node);
@@ -4963,7 +5097,7 @@ static void DrawVideoFilterEventWindow(ImDrawList *draw_list, Clip * editing_cli
                         ImGui::ImCurveEdit::keys key;
                         key.m_id = node->m_ID;
                         ImGui::Indent(20);
-                        if (node->DrawCustomLayout(ImGui::GetCurrentContext(), 1.0, ImVec2(0, 0), &key))
+                        if (node->DrawCustomLayout(ImGui::GetCurrentContext(), 1.0, ImVec2(0, 0), &key, false))
                         {
                             update_track(pBP, node);
                         }
@@ -4976,6 +5110,10 @@ static void DrawVideoFilterEventWindow(ImDrawList *draw_list, Clip * editing_cli
                                 delCurve(node, key.name, key.m_sub_id);
                         }
                     }
+                    
+                    // list curve
+                    editCurve(pKP, node);
+
                     // Handle node delete
                     if (msgbox.Draw() == 1)
                     {
@@ -5105,6 +5243,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
     // blueprint_rect: only has when we show event's bp, and aways on left top of window, same width with timeline
     ImRect preview_rect, preview_control_rect, timeline_rect, event_list_rect, blueprint_rect;
 
+    const float event_min_width = 480;
     bool is_splitter_hold = false;
     static bool show_blueprint = false;
     int preview_count = 0;
@@ -5118,7 +5257,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
             // 1 Splitter vertically only(chart 2)
             float timeline_width = window_size.x * g_media_editor_settings.clip_timeline_width;
             float event_list_width = window_size.x - timeline_width;
-            is_splitter_hold |= ImGui::Splitter(true, 4.0f, &timeline_width, &event_list_width, window_size.x * 0.5, window_size.x * 0.2);
+            is_splitter_hold |= ImGui::Splitter(true, 4.0f, &timeline_width, &event_list_width, window_size.x * 0.5, event_min_width/*window_size.x * 0.2*/);
             g_media_editor_settings.clip_timeline_width = timeline_width / window_size.x;
             if (ImGui::BeginChild("timeline", ImVec2(timeline_width - 4, window_size.y), false))
             {
@@ -5138,7 +5277,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
             // 2 Splitters, vertically first, then horizontal(chart 4)
             float timeline_width = window_size.x * g_media_editor_settings.clip_timeline_width;
             float event_list_width = window_size.x - timeline_width;
-            is_splitter_hold |= ImGui::Splitter(true, 4.0f, &timeline_width, &event_list_width, window_size.x * 0.5, window_size.x * 0.2);
+            is_splitter_hold |= ImGui::Splitter(true, 4.0f, &timeline_width, &event_list_width, window_size.x * 0.5, event_min_width/*window_size.x * 0.2*/);
             g_media_editor_settings.clip_timeline_width = timeline_width / window_size.x;
             if (ImGui::BeginChild("timeline&preview", ImVec2(timeline_width - 4, window_size.y), false))
             {
@@ -5180,7 +5319,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
             ImGui::EndChild();
             float timeline_width = window_size.x * g_media_editor_settings.clip_timeline_width;
             float event_list_width = window_size.x - timeline_width;
-            is_splitter_hold |= ImGui::Splitter(true, 4.0f, &timeline_width, &event_list_width, window_size.x * 0.5, window_size.x * 0.2);
+            is_splitter_hold |= ImGui::Splitter(true, 4.0f, &timeline_width, &event_list_width, window_size.x * 0.5, event_min_width/*window_size.x * 0.2*/);
             g_media_editor_settings.clip_timeline_width = timeline_width / window_size.x;
             ImGui::Dummy(ImVec2(0, 4));
             if (ImGui::BeginChild("timeline", ImVec2(timeline_width - 4, timeline_height - 8), false))
@@ -5215,7 +5354,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
             {
                 float timeline_width = window_size.x * g_media_editor_settings.clip_timeline_width;
                 float event_list_width = window_size.x - timeline_width;
-                is_splitter_hold |= ImGui::Splitter(true, 4.0f, &timeline_width, &event_list_width, window_size.x * 0.5, window_size.x * 0.2);
+                is_splitter_hold |= ImGui::Splitter(true, 4.0f, &timeline_width, &event_list_width, window_size.x * 0.5, event_min_width/*window_size.x * 0.2*/);
                 g_media_editor_settings.clip_timeline_width = timeline_width / window_size.x;
                 if (ImGui::BeginChild("timeline", ImVec2(timeline_width - 4, timeline_height - 8), false))
                 {
@@ -5262,7 +5401,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
             {
                 float timeline_width = window_size.x * g_media_editor_settings.clip_timeline_width;
                 float event_list_width = window_size.x - timeline_width;
-                is_splitter_hold |= ImGui::Splitter(true, 4.0f, &timeline_width, &event_list_width, window_size.x * 0.5, window_size.x * 0.2);
+                is_splitter_hold |= ImGui::Splitter(true, 4.0f, &timeline_width, &event_list_width, window_size.x * 0.5, event_min_width/*window_size.x * 0.2*/);
                 g_media_editor_settings.clip_timeline_width = timeline_width / window_size.x;
                 if (ImGui::BeginChild("timeline", ImVec2(timeline_width - 4, timeline_height - 8), false))
                 {
@@ -5618,7 +5757,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
                         {
                             ImGui::ImCurveEdit::keys key;
                             key.m_id = node->m_ID;
-                            if (node->DrawCustomLayout(ImGui::GetCurrentContext(), 1.0, ImVec2(0, 0), &key))
+                            if (node->DrawCustomLayout(ImGui::GetCurrentContext(), 1.0, ImVec2(0, 0), &key, false))
                             {
                                 timeline->RefreshTrackView({trackId});
                                 blueprint->Blueprint_UpdateNode(node->m_ID);
@@ -6256,7 +6395,7 @@ static void ShowVideoTransitionWindow(ImDrawList *draw_list, ImRect title_rect)
                         {
                             ImGui::ImCurveEdit::keys key;
                             key.m_id = node->m_ID;
-                            if (node->DrawCustomLayout(ImGui::GetCurrentContext(), 1.0, ImVec2(0, 0), &key))
+                            if (node->DrawCustomLayout(ImGui::GetCurrentContext(), 1.0, ImVec2(0, 0), &key, false))
                             {
                                 timeline->UpdatePreview();
                                 blueprint->Blueprint_UpdateNode(node->m_ID);
@@ -6709,7 +6848,7 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list, ImRect title_rect)
                         {
                             ImGui::ImCurveEdit::keys key;
                             key.m_id = node->m_ID;
-                            if (node->DrawCustomLayout(ImGui::GetCurrentContext(), 1.0, ImVec2(0, 0), &key))
+                            if (node->DrawCustomLayout(ImGui::GetCurrentContext(), 1.0, ImVec2(0, 0), &key, false))
                             {
                                 timeline->UpdatePreview();
                                 blueprint->Blueprint_UpdateNode(node->m_ID);
@@ -7176,7 +7315,7 @@ static void ShowAudioTransitionWindow(ImDrawList *draw_list, ImRect title_rect)
                         {
                             ImGui::ImCurveEdit::keys key;
                             key.m_id = node->m_ID;
-                            if (node->DrawCustomLayout(ImGui::GetCurrentContext(), 1.0, ImVec2(0, 0), &key))
+                            if (node->DrawCustomLayout(ImGui::GetCurrentContext(), 1.0, ImVec2(0, 0), &key, false))
                             {
                                 timeline->UpdatePreview();
                                 blueprint->Blueprint_UpdateNode(node->m_ID);

@@ -73,18 +73,27 @@ struct StaticWipeTransitionNode final : Node
     bool CustomLayout() const override { return true; }
     bool Skippable() const override { return true; }
 
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key) override
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key, bool embedded) override
     {
         ImGui::SetCurrentContext(ctx);
+        float setting_offset = 320;
+        if (!embedded)
+        {
+            ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 sub_window_size = ImGui::GetWindowSize();
+            setting_offset = sub_window_size.x - 80;
+        }
         bool changed = false;
         float _span = m_span;
         bool _UpToDown = m_UpToDown;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Max Span##StaticWipe", &_span, 0.1, 1.f, "%.1f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_span##StaticWipe")) { _span = 0.5f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_span##StaticWipe")) { _span = 0.5f; changed = true; }
         ImGui::Checkbox("Up to Down##StaticWipe",&_UpToDown);
         ImGui::PopItemWidth();
+        ImGui::PopStyleColor();
         if (_span != m_span) { m_span = _span; changed = true; }
         if (_UpToDown != m_UpToDown) { m_UpToDown = _UpToDown; changed = true; }
         return m_Enabled ? changed : false;
