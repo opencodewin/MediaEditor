@@ -4855,9 +4855,18 @@ static void DrawVideoFilterEventWindow(ImDrawList *draw_list, Clip * editing_cli
     for (auto event : event_list)
     {
         bool is_selected = event->Status() & EVENT_SELECTED;
+        bool is_in_range = event->End() > 0 && event->Start() < editing_clip->Length();
         std::string event_label = ImGuiHelper::MillisecToString(event->Start(), 3) + " -> " + ImGuiHelper::MillisecToString(event->End(), 3) + "##clip_event##" + std::to_string(event->Id());
         std::string event_drag_drop_label = "##event_tree##" + std::to_string(event->Id());
-        if (ImGui::TreeNodeEx(event_label.c_str(), ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanFullWidth | (is_selected ? ImGuiTreeNodeFlags_Selected : ImGuiTreeNodeFlags_None)))
+        if (!is_in_range)
+        {
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0, 0.0, 0.0, 1.0));
+            ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0.3, 0.0, 0.0, 1.0));
+            ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(0.3, 0.0, 0.0, 1.0));
+        }
+        bool event_tree_open = ImGui::TreeNodeEx(event_label.c_str(), ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanFullWidth | (is_selected ? ImGuiTreeNodeFlags_Selected : ImGuiTreeNodeFlags_None));
+        if (!is_in_range) ImGui::PopStyleColor(3);
+        if (event_tree_open)
         {
             ImGui::Unindent(ImGui::GetTreeNodeToLabelSpacing());
             auto pBP = event->GetBp();
