@@ -2,17 +2,17 @@
 #include <imgui_json.h>
 #include <imgui_extra_widget.h>
 #include <ImVulkanShader.h>
-#include "Kuwahara_vulkan.h"
+#include "Distortion_vulkan.h"
 #define NODE_VERSION    0x01000000
 
 namespace BluePrint
 {
-struct KuwaharaEffectNode final : Node
+struct DistortionEffectNode final : Node
 {
-    BP_NODE_WITH_NAME(KuwaharaEffectNode, "Kuwahara Effect", "CodeWin", NODE_VERSION, VERSION_BLUEPRINT_API, NodeType::External, NodeStyle::Default, "Filter#Video#Effect")
-    KuwaharaEffectNode(BP* blueprint): Node(blueprint) { m_Name = "Kuwahara Effect"; }
+    BP_NODE_WITH_NAME(DistortionEffectNode, "Pincushion", "CodeWin", NODE_VERSION, VERSION_BLUEPRINT_API, NodeType::External, NodeStyle::Default, "Filter#Video#Distortion")
+    DistortionEffectNode(BP* blueprint): Node(blueprint) { m_Name = "Pincushion"; }
 
-    ~KuwaharaEffectNode()
+    ~DistortionEffectNode()
     {
         if (m_effect) { delete m_effect; m_effect = nullptr; }
     }
@@ -40,7 +40,7 @@ struct KuwaharaEffectNode final : Node
             if (!m_effect || gpu != m_device)
             {
                 if (m_effect) { delete m_effect; m_effect = nullptr; }
-                m_effect = new ImGui::Kuwahara_vulkan(gpu);
+                m_effect = new ImGui::Distortion_vulkan(gpu);
             }
             if (!m_effect)
             {
@@ -94,11 +94,11 @@ struct KuwaharaEffectNode final : Node
         ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_ScaleIn.IsLinked());
-        ImGui::SliderFloat("Scale##Kuwahara", &_scale, 2.f, 10.f, "%.0f", flags);
-        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_scale##Kuwahara")) { _scale = 2.f; changed = true; }
+        ImGui::SliderFloat("Scale##Distortion", &_scale, 0.0, 1.f, "%.2f", flags);
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_scale##Distortion")) { _scale = 0.5f; changed = true; }
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
-        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_scale##Kuwahara", key, m_ScaleIn.IsLinked(), "scale##Kuwahara@" + std::to_string(m_ID), 0.0f, 100.f, 1.f, m_ScaleIn.m_ID);
+        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_scale##Distortion", key, m_ScaleIn.IsLinked(), "scale##Distortion@" + std::to_string(m_ID), 0.0f, 100.f, 1.f, m_ScaleIn.m_ID);
         ImGui::EndDisabled();
         ImGui::PopItemWidth();
         ImGui::PopStyleColor();
@@ -136,7 +136,7 @@ struct KuwaharaEffectNode final : Node
 
     void DrawNodeLogo(ImGuiContext * ctx, ImVec2 size, std::string logo) const override
     {
-        Node::DrawNodeLogo(ctx, size, std::string(u8"\uf198"));
+        Node::DrawNodeLogo(ctx, size, std::string(u8"\uef60"));
     }
 
     span<Pin*> GetInputPins() override { return m_InputPins; }
@@ -158,9 +158,9 @@ struct KuwaharaEffectNode final : Node
 private:
     ImDataType m_mat_data_type {IM_DT_UNDEFINED};
     int m_device            {-1};
-    float m_scale           {2.f};
-    ImGui::Kuwahara_vulkan * m_effect   {nullptr};
+    float m_scale           {0.5f};
+    ImGui::Distortion_vulkan * m_effect   {nullptr};
 };
 } // namespace BluePrint
 
-BP_NODE_DYNAMIC_WITH_NAME(KuwaharaEffectNode, "Kuwahara Effect", "CodeWin", NODE_VERSION, VERSION_BLUEPRINT_API, BluePrint::NodeType::External, BluePrint::NodeStyle::Default, "Filter#Video#Effect")
+BP_NODE_DYNAMIC_WITH_NAME(DistortionEffectNode, "Pincushion", "CodeWin", NODE_VERSION, VERSION_BLUEPRINT_API, BluePrint::NodeType::External, BluePrint::NodeStyle::Default, "Filter#Video#Distortion")

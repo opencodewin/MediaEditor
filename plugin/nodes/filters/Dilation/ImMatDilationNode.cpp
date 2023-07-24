@@ -125,7 +125,7 @@ struct DilationNode final : Node
 
     void DrawNodeLogo(ImGuiContext * ctx, ImVec2 size, std::string logo) const override
     {
-        Node::DrawNodeLogo(ctx, size, std::string(u8"\uea37"));
+        Node::DrawNodeLogo(ctx, size, std::string(u8"\ue9ca"));
     }
 
     span<Pin*> GetInputPins() override { return m_InputPins; }

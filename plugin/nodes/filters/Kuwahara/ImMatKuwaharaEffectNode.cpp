@@ -2,17 +2,17 @@
 #include <imgui_json.h>
 #include <imgui_extra_widget.h>
 #include <ImVulkanShader.h>
-#include "RadicalBlur_vulkan.h"
+#include "Kuwahara_vulkan.h"
 #define NODE_VERSION    0x01000000
 
 namespace BluePrint
 {
-struct RadicalBlurEffectNode final : Node
+struct KuwaharaEffectNode final : Node
 {
-    BP_NODE_WITH_NAME(RadicalBlurEffectNode, "RadicalBlur Effect", "CodeWin", NODE_VERSION, VERSION_BLUEPRINT_API, NodeType::External, NodeStyle::Default, "Filter#Video#Effect")
-    RadicalBlurEffectNode(BP* blueprint): Node(blueprint) { m_Name = "RadicalBlur Effect"; }
+    BP_NODE_WITH_NAME(KuwaharaEffectNode, "Kuwahara", "CodeWin", NODE_VERSION, VERSION_BLUEPRINT_API, NodeType::External, NodeStyle::Default, "Filter#Video#Stylization")
+    KuwaharaEffectNode(BP* blueprint): Node(blueprint) { m_Name = "Kuwahara"; }
 
-    ~RadicalBlurEffectNode()
+    ~KuwaharaEffectNode()
     {
         if (m_effect) { delete m_effect; m_effect = nullptr; }
     }
@@ -28,7 +28,7 @@ struct RadicalBlurEffectNode final : Node
     FlowPin Execute(Context& context, FlowPin& entryPoint, bool threading = false) override
     {
         auto mat_in = context.GetPinValue<ImGui::ImMat>(m_MatIn);
-        if (m_RadiusIn.IsLinked()) m_radius = context.GetPinValue<float>(m_RadiusIn);
+        if (m_ScaleIn.IsLinked()) m_scale = context.GetPinValue<float>(m_ScaleIn);
         if (!mat_in.empty())
         {
             int gpu = mat_in.device == IM_DD_VULKAN ? mat_in.device_number : ImGui::get_default_gpu_index();
@@ -40,7 +40,7 @@ struct RadicalBlurEffectNode final : Node
             if (!m_effect || gpu != m_device)
             {
                 if (m_effect) { delete m_effect; m_effect = nullptr; }
-                m_effect = new ImGui::RadicalBlur_vulkan(gpu);
+                m_effect = new ImGui::Kuwahara_vulkan(gpu);
             }
             if (!m_effect)
             {
@@ -48,7 +48,7 @@ struct RadicalBlurEffectNode final : Node
             }
             m_device = gpu;
             ImGui::VkMat im_RGB; im_RGB.type = m_mat_data_type == IM_DT_UNDEFINED ? mat_in.type : m_mat_data_type;
-            m_NodeTimeMs = m_effect->effect(mat_in, im_RGB, m_radius, m_dist, m_intensity, m_count);
+            m_NodeTimeMs = m_effect->effect(mat_in, im_RGB, m_scale);
             m_MatOut.SetValue(im_RGB);
         }
         return m_Exit;
@@ -56,9 +56,9 @@ struct RadicalBlurEffectNode final : Node
 
     void WasUnlinked(const Pin& receiver, const Pin& provider) override
     {
-        if (receiver.m_ID == m_RadiusIn.m_ID)
+        if (receiver.m_ID == m_ScaleIn.m_ID)
         {
-            m_RadiusIn.SetValue(m_radius);
+            m_ScaleIn.SetValue(m_scale);
         }
     }
 
@@ -89,32 +89,20 @@ struct RadicalBlurEffectNode final : Node
             setting_offset = sub_window_size.x - 80;
         }
         bool changed = false;
-        float _radius = m_radius;
-        float _dist = m_dist;
-        float _intensity = m_intensity;
-        float _count = m_count;
+        float _scale = m_scale;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
         ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
-        ImGui::BeginDisabled(!m_Enabled || m_RadiusIn.IsLinked());
-        ImGui::SliderFloat("Radius##RadicalBlur", &_radius, 0.0, 1.f, "%.2f", flags);
-        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_radius##RadicalBlur")) { _radius = 0.38f; changed = true; }
+        ImGui::BeginDisabled(!m_Enabled || m_ScaleIn.IsLinked());
+        ImGui::SliderFloat("Scale##Kuwahara", &_scale, 2.f, 10.f, "%.0f", flags);
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_scale##Kuwahara")) { _scale = 2.f; changed = true; }
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
-        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_radius##RadicalBlur", key, m_RadiusIn.IsLinked(), "radius##RadicalBlur@" + std::to_string(m_ID), 0.0f, 100.f, 1.f, m_RadiusIn.m_ID);
+        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_scale##Kuwahara", key, m_ScaleIn.IsLinked(), "scale##Kuwahara@" + std::to_string(m_ID), 0.0f, 100.f, 1.f, m_ScaleIn.m_ID);
         ImGui::EndDisabled();
-        ImGui::SliderFloat("Dist##RadicalBlur", &_dist, 0.0, 1.f, "%.2f", flags);
-        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_dist##RadicalBlur")) { _dist = 0.25f; changed = true; }
-        ImGui::SliderFloat("Intensity##RadicalBlur", &_intensity, 0.0, 1.f, "%.0f", flags);
-        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_intensity##RadicalBlur")) { _intensity = 1.f; changed = true; }
-        ImGui::SliderFloat("Count##RadicalBlur", &_count, 1.f, 40.f, "%.0f", flags);
-        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_count##RadicalBlur")) { _count = 40.f; changed = true; }
         ImGui::PopItemWidth();
         ImGui::PopStyleColor();
-        if (_radius != m_radius) { m_radius = _radius; changed = true; }
-        if (_dist != m_dist) { m_dist = _dist; changed = true; }
-        if (_intensity != m_intensity) { m_intensity = _intensity; changed = true; }
-        if (_count != m_count) { m_count = _count; changed = true; }
+        if (_scale != m_scale) { m_scale = _scale; changed = true; }
         return m_Enabled ? changed : false;
     }
 
@@ -130,29 +118,11 @@ struct RadicalBlurEffectNode final : Node
             if (val.is_number()) 
                 m_mat_data_type = (ImDataType)val.get<imgui_json::number>();
         }
-        if (value.contains("radius"))
+        if (value.contains("scale"))
         {
-            auto& val = value["radius"];
+            auto& val = value["scale"];
             if (val.is_number()) 
-                m_radius = val.get<imgui_json::number>();
-        }
-        if (value.contains("dist"))
-        {
-            auto& val = value["dist"];
-            if (val.is_number()) 
-                m_dist = val.get<imgui_json::number>();
-        }
-        if (value.contains("intensity"))
-        {
-            auto& val = value["intensity"];
-            if (val.is_number()) 
-                m_intensity = val.get<imgui_json::number>();
-        }
-        if (value.contains("count"))
-        {
-            auto& val = value["count"];
-            if (val.is_number()) 
-                m_count = val.get<imgui_json::number>();
+                m_scale = val.get<imgui_json::number>();
         }
         return ret;
     }
@@ -161,15 +131,12 @@ struct RadicalBlurEffectNode final : Node
     {
         Node::Save(value, MapID);
         value["mat_type"] = imgui_json::number(m_mat_data_type);
-        value["radius"] = imgui_json::number(m_radius);
-        value["dist"] = imgui_json::number(m_dist);
-        value["intensity"] = imgui_json::number(m_intensity);
-        value["count"] = imgui_json::number(m_count);
+        value["scale"] = imgui_json::number(m_scale);
     }
 
     void DrawNodeLogo(ImGuiContext * ctx, ImVec2 size, std::string logo) const override
     {
-        Node::DrawNodeLogo(ctx, size, std::string(u8"\uf198"));
+        Node::DrawNodeLogo(ctx, size, std::string(u8"\uf1a2"));
     }
 
     span<Pin*> GetInputPins() override { return m_InputPins; }
@@ -182,21 +149,18 @@ struct RadicalBlurEffectNode final : Node
     FlowPin   m_Enter   = { this, "Enter" };
     FlowPin   m_Exit    = { this, "Exit" };
     MatPin    m_MatIn   = { this, "In" };
-    FloatPin  m_RadiusIn  = { this, "Radius" };
+    FloatPin  m_ScaleIn  = { this, "Scale" };
     MatPin    m_MatOut  = { this, "Out" };
 
-    Pin* m_InputPins[3] = { &m_Enter, &m_MatIn, &m_RadiusIn };
+    Pin* m_InputPins[3] = { &m_Enter, &m_MatIn, &m_ScaleIn };
     Pin* m_OutputPins[2] = { &m_Exit, &m_MatOut };
 
 private:
     ImDataType m_mat_data_type {IM_DT_UNDEFINED};
     int m_device            {-1};
-    float m_radius          {0.38f};
-    float m_dist            {0.25f};
-    float m_intensity       {1.f};
-    float m_count           {40.f};
-    ImGui::RadicalBlur_vulkan * m_effect   {nullptr};
+    float m_scale           {2.f};
+    ImGui::Kuwahara_vulkan * m_effect   {nullptr};
 };
 } // namespace BluePrint
 
-BP_NODE_DYNAMIC_WITH_NAME(RadicalBlurEffectNode, "RadicalBlur Effect", "CodeWin", NODE_VERSION, VERSION_BLUEPRINT_API, BluePrint::NodeType::External, BluePrint::NodeStyle::Default, "Filter#Video#Effect")
+BP_NODE_DYNAMIC_WITH_NAME(KuwaharaEffectNode, "Kuwahara", "CodeWin", NODE_VERSION, VERSION_BLUEPRINT_API, BluePrint::NodeType::External, BluePrint::NodeStyle::Default, "Filter#Video#Stylization")

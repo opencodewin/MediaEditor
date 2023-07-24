@@ -2,17 +2,17 @@
 #include <imgui_json.h>
 #include <imgui_extra_widget.h>
 #include <ImVulkanShader.h>
-#include "Glass_vulkan.h"
+#include "BarrelDistortion_vulkan.h"
 #define NODE_VERSION    0x01000000
 
 namespace BluePrint
 {
-struct GlassEffectNode final : Node
+struct BarrelDistortionEffectNode final : Node
 {
-    BP_NODE_WITH_NAME(GlassEffectNode, "Glass Effect", "CodeWin", NODE_VERSION, VERSION_BLUEPRINT_API, NodeType::External, NodeStyle::Default, "Filter#Video#Effect")
-    GlassEffectNode(BP* blueprint): Node(blueprint) { m_Name = "Glass Effect"; }
+    BP_NODE_WITH_NAME(BarrelDistortionEffectNode, "Barrel", "CodeWin", NODE_VERSION, VERSION_BLUEPRINT_API, NodeType::External, NodeStyle::Default, "Filter#Video#Distortion")
+    BarrelDistortionEffectNode(BP* blueprint): Node(blueprint) { m_Name = "Barrel"; }
 
-    ~GlassEffectNode()
+    ~BarrelDistortionEffectNode()
     {
         if (m_effect) { delete m_effect; m_effect = nullptr; }
     }
@@ -40,7 +40,7 @@ struct GlassEffectNode final : Node
             if (!m_effect || gpu != m_device)
             {
                 if (m_effect) { delete m_effect; m_effect = nullptr; }
-                m_effect = new ImGui::Glass_vulkan(gpu);
+                m_effect = new ImGui::BarrelDistortion_vulkan(gpu);
             }
             if (!m_effect)
             {
@@ -48,7 +48,7 @@ struct GlassEffectNode final : Node
             }
             m_device = gpu;
             ImGui::VkMat im_RGB; im_RGB.type = m_mat_data_type == IM_DT_UNDEFINED ? mat_in.type : m_mat_data_type;
-            m_NodeTimeMs = m_effect->effect(mat_in, im_RGB, m_scale);
+            m_NodeTimeMs = m_effect->effect(mat_in, im_RGB, m_scale, m_pow);
             m_MatOut.SetValue(im_RGB);
         }
         return m_Exit;
@@ -90,19 +90,23 @@ struct GlassEffectNode final : Node
         }
         bool changed = false;
         float _scale = m_scale;
+        float _pow = m_pow;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
         ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_ScaleIn.IsLinked());
-        ImGui::SliderFloat("Scale##Glass", &_scale, 0.0, 30.f, "%.0f", flags);
-        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_scale##Glass")) { _scale = 20.f; changed = true; }
+        ImGui::SliderFloat("Scale##BarrelDistortion", &_scale, 0.0, 3.f, "%.2f", flags);
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_scale##BarrelDistortion")) { _scale = 1.5f; changed = true; }
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
-        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_scale##Glass", key, m_ScaleIn.IsLinked(), "scale##Glass@" + std::to_string(m_ID), 0.0f, 100.f, 1.f, m_ScaleIn.m_ID);
+        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_scale##BarrelDistortion", key, m_ScaleIn.IsLinked(), "scale##BarrelDistortion@" + std::to_string(m_ID), 0.0f, 100.f, 1.f, m_ScaleIn.m_ID);
         ImGui::EndDisabled();
+        ImGui::SliderFloat("Pow##BarrelDistortion", &_pow, 0.0, 1.5f, "%.2f", flags);
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_pow##BarrelDistortion")) { _pow = 0.25f; changed = true; }
         ImGui::PopItemWidth();
         ImGui::PopStyleColor();
         if (_scale != m_scale) { m_scale = _scale; changed = true; }
+        if (_pow != m_pow) { m_pow = _pow; changed = true; }
         return m_Enabled ? changed : false;
     }
 
@@ -124,6 +128,12 @@ struct GlassEffectNode final : Node
             if (val.is_number()) 
                 m_scale = val.get<imgui_json::number>();
         }
+        if (value.contains("pow"))
+        {
+            auto& val = value["pow"];
+            if (val.is_number()) 
+                m_pow = val.get<imgui_json::number>();
+        }
         return ret;
     }
 
@@ -132,11 +142,12 @@ struct GlassEffectNode final : Node
         Node::Save(value, MapID);
         value["mat_type"] = imgui_json::number(m_mat_data_type);
         value["scale"] = imgui_json::number(m_scale);
+        value["pow"] = imgui_json::number(m_pow);
     }
 
     void DrawNodeLogo(ImGuiContext * ctx, ImVec2 size, std::string logo) const override
     {
-        Node::DrawNodeLogo(ctx, size, std::string(u8"\uf198"));
+        Node::DrawNodeLogo(ctx, size, std::string(u8"\uef62"));
     }
 
     span<Pin*> GetInputPins() override { return m_InputPins; }
@@ -158,9 +169,10 @@ struct GlassEffectNode final : Node
 private:
     ImDataType m_mat_data_type {IM_DT_UNDEFINED};
     int m_device            {-1};
-    float m_scale           {20.f};
-    ImGui::Glass_vulkan * m_effect   {nullptr};
+    float m_scale           {1.5f};
+    float m_pow             {0.25f};
+    ImGui::BarrelDistortion_vulkan * m_effect   {nullptr};
 };
 } // namespace BluePrint
 
-BP_NODE_DYNAMIC_WITH_NAME(GlassEffectNode, "Glass Effect", "CodeWin", NODE_VERSION, VERSION_BLUEPRINT_API, BluePrint::NodeType::External, BluePrint::NodeStyle::Default, "Filter#Video#Effect")
+BP_NODE_DYNAMIC_WITH_NAME(BarrelDistortionEffectNode, "Barrel", "CodeWin", NODE_VERSION, VERSION_BLUEPRINT_API, BluePrint::NodeType::External, BluePrint::NodeStyle::Default, "Filter#Video#Distortion")
