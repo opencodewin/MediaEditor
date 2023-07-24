@@ -9580,7 +9580,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             }
             if (ImGui::BeginPopup("##empty-timeline-context-menu"))
             {
-                ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(255,255,255,255));
+                ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(1.0,1.0,1.0,1.0));
             
                 if (ImGui::MenuItem(ICON_MEDIA_VIDEO  " Insert Empty Video Track", nullptr, nullptr))
                 {
@@ -10107,7 +10107,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
 
         if (ImGui::BeginPopup("##timeline-context-menu"))
         {
-            ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(255,255,255,255));
+            ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(1.0,1.0,1.0,1.0));
             auto selected_clip_count = timeline->GetSelectedClipCount();
             auto empty_track_count = timeline->GetEmptyTrackCount();
             

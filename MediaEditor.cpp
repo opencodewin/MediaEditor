@@ -4442,7 +4442,7 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list, ImRect title_rect)
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_BLACK_DARK);
         if (timeline->mVidFilterClip && attribute)
         {
-            ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(255,255,255,255));
+            ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(1.0,1.0,1.0,1.0));
             ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
             ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.5, 0.5, 0.5, 0.5));
             ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(1.0, 1.0, 1.0, 1.0));
@@ -4853,6 +4853,7 @@ static void DrawVideoFilterEventWindow(ImDrawList *draw_list, Clip * editing_cli
         std::string event_drag_drop_label = "##event_tree##" + std::to_string(event->Id());
         if (ImGui::TreeNodeEx(event_label.c_str(), ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanFullWidth | (is_selected ? ImGuiTreeNodeFlags_Selected : ImGuiTreeNodeFlags_None)))
         {
+            ImGui::Unindent(ImGui::GetTreeNodeToLabelSpacing());
             auto pBP = event->GetBp();
             auto pKP = event->GetKeyPoint();
             auto addCurve = [&](BluePrint::Node* node, std::string name, float _min, float _max, float _default, int64_t pin_id)
@@ -4914,6 +4915,9 @@ static void DrawVideoFilterEventWindow(ImDrawList *draw_list, Clip * editing_cli
             auto editCurve = [&](ImGui::KeyPointEditor* keypoint, BluePrint::Node* node)
             {
                 if (!keypoint || !node) return;
+                if (keypoint->GetCurveCount() <= 0) return;
+                ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(0.2,0.2,1.0,0.5));
+                ImGui::Separator();
                 MediaTimeline::MediaTrack * track = node ? timeline->FindTrackByClipID(node->m_ID) : nullptr;
                 for (int i = 0; i < keypoint->GetCurveCount(); i++)
                 {
@@ -4923,24 +4927,30 @@ static void DrawVideoFilterEventWindow(ImDrawList *draw_list, Clip * editing_cli
                     ImGui::PushID(i);
                     auto pCount = keypoint->GetCurvePointCount(i);
                     std::string lable_id = std::string(ICON_CURVE) + " " + keypoint->GetCurveName(i) + " (" + std::to_string(pCount) + " keys)" + "##video_event_curve";
-                    if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
+                    if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_None))
                     {
                         float curve_min = keypoint->GetCurveMin(i);
                         float curve_max = keypoint->GetCurveMax(i);
                         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
-                        auto curve_time = timeline->currentTime - timeline->mVidFilterClip->mStart;
+                        auto curve_time = timeline->currentTime - timeline->mVidFilterClip->mStart - event->Start();
                         float curve_value = keypoint->GetValue(i, curve_time);
+                        bool in_range = curve_time >= keypoint->GetMin().x && 
+                                        curve_time <= keypoint->GetMax().x;
                         ImGui::BracketSquare(true); 
                         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0, 1.0, 0.0, 1.0)); 
-                        ImGui::Text("%.2f", curve_value); 
+                        if (in_range) ImGui::Text("%.2f", curve_value); 
+                        else ImGui::TextUnformatted("--.--");
+                        ImGui::PopStyleColor();
+                        ImGui::SameLine();
+                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3, 0.3, 1.0, 1.0)); 
+                        if (in_range) ImGui::Text("%s", ImGuiHelper::MillisecToString(curve_time + event->Start(), 3).c_str()); 
+                        else ImGui::TextUnformatted("--:--.--");
                         ImGui::PopStyleColor();
                         ImGui::SameLine();
                         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0, 1.0, 0.0, 1.0)); 
-                        ImGui::Text("%s", ImGuiHelper::MillisecToString(curve_time, 3).c_str()); 
+                        ImGui::Text("%s", ImGuiHelper::MillisecToString(timeline->currentTime, 3).c_str()); 
                         ImGui::PopStyleColor();
                         ImGui::SameLine();
-                        bool in_range = curve_time >= keypoint->GetMin().x && 
-                                        curve_time <= keypoint->GetMax().x;
                         ImGui::BeginDisabled(!in_range);
                         if (ImGui::Button(ICON_MD_ADS_CLICK))
                         {
@@ -5005,12 +5015,16 @@ static void DrawVideoFilterEventWindow(ImDrawList *draw_list, Clip * editing_cli
                                 ImGui::PushID(p);
                                 ImGui::PushItemWidth(96);
                                 auto point = keypoint->GetPoint(i, p);
-                                ImGui::Diamond(false);
+                                ImGui::Diamond(true, true);
                                 if (p == 0 || p == pCount - 1)
                                     is_disabled = true;
                                 ImGui::BeginDisabled(is_disabled);
-                                if (ImGui::DragTimeMS("##curve_video_filter_point_x", &point.point.x, keypoint->GetMax().x / 1000.f, keypoint->GetMin().x, keypoint->GetMax().x, 2))
+                                float point_min = keypoint->GetMin().x + event->Start();
+                                float point_max = keypoint->GetMax().x + event->Start();
+                                float point_current = point.point.x + event->Start();
+                                if (ImGui::DragTimeMS("##curve_video_filter_point_x", &point_current, point_max / 1000.f, point_min, point_max, 2))
                                 {
+                                    point.point.x = point_current - event->Start();
                                     keypoint->EditPoint(i, p, point.point, point.type);
                                     if (track) timeline->RefreshTrackView({track->mID});
                                 }
@@ -5038,6 +5052,8 @@ static void DrawVideoFilterEventWindow(ImDrawList *draw_list, Clip * editing_cli
                     ImGui::PopID();
                     if (break_loop) break;
                 }
+                ImGui::Separator();
+                ImGui::PopStyleColor();
             };
             if (pBP)
             {
@@ -5058,7 +5074,7 @@ static void DrawVideoFilterEventWindow(ImDrawList *draw_list, Clip * editing_cli
                     std::string lable_id = label_name + "##video_filter_node" + "@" + std::to_string(node->m_ID);
                     auto node_pos = ImGui::GetCursorScreenPos();
                     node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(50, 28));
-                    ImGui::SameLine(60);
+                    ImGui::SameLine(30);
                     bool tree_open = ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen);
                     if (ImGui::BeginDragDropSource())
                     {
@@ -5109,10 +5125,9 @@ static void DrawVideoFilterEventWindow(ImDrawList *draw_list, Clip * editing_cli
                             else
                                 delCurve(node, key.name, key.m_sub_id);
                         }
+                        // list curve
+                        editCurve(pKP, node);
                     }
-                    
-                    // list curve
-                    editCurve(pKP, node);
 
                     // Handle node delete
                     if (msgbox.Draw() == 1)
@@ -5134,8 +5149,12 @@ static void DrawVideoFilterEventWindow(ImDrawList *draw_list, Clip * editing_cli
                     if (tree_open) ImGui::TreePop();
                 }
             }
+            ImGui::Indent(ImGui::GetTreeNodeToLabelSpacing());
             ImGui::TreePop();
         }
+        ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(1.0,1.0,1.0,0.75));
+        ImGui::Separator();
+        ImGui::PopStyleColor();
     }
 }
 
