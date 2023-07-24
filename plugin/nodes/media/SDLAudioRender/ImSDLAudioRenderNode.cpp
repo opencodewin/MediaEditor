@@ -172,7 +172,7 @@ struct SDLAudioRenderNode final : Node
 
     bool CustomLayout() const override { return true; }
 
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key) override
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key, bool embedded) override
     {
         int preview_width = 200;
         ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0, 0, 0, 1.0));

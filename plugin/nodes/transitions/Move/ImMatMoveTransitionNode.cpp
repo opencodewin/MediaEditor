@@ -75,19 +75,28 @@ struct MoveTransitionNode final : Node
     bool CustomLayout() const override { return true; }
     bool Skippable() const override { return true; }
 
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key) override
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key, bool embedded) override
     {
         ImGui::SetCurrentContext(ctx);
+        float setting_offset = 320;
+        if (!embedded)
+        {
+            ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 sub_window_size = ImGui::GetWindowSize();
+            setting_offset = sub_window_size.x - 80;
+        }
         bool changed = false;
         ImVec2 _direction = m_direction;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled);
         ImGui::SliderFloat2("Direction##Move", (float *)&_direction, -1.0, 1.0, "%.1f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_direction##Move")) { _direction = {1, 0}; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_direction##Move")) { _direction = {1, 0}; changed = true; }
         if (_direction.x != m_direction.x || _direction.y != m_direction.y) { m_direction = _direction; changed = true; }
         ImGui::EndDisabled();
         ImGui::PopItemWidth();
+        ImGui::PopStyleColor();
         return changed;
     }
 

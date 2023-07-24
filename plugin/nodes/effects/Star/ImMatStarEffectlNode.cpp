@@ -81,30 +81,39 @@ struct StarEffectNode final : Node
     bool CustomLayout() const override { return true; }
     bool Skippable() const override { return true; }
 
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key) override
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key, bool embedded) override
     {
         ImGui::SetCurrentContext(ctx);
+        float setting_offset = 320;
+        if (!embedded)
+        {
+            ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 sub_window_size = ImGui::GetWindowSize();
+            setting_offset = sub_window_size.x - 80;
+        }
         bool changed = false;
         float _speed = m_speed;
         int _layers = m_layers;
         ImPixel _color = m_color;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_SpeedIn.IsLinked());
         ImGui::SliderFloat("Speed##Star", &_speed, 0.0, 100.f, "%.0f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_speed##Star")) { _speed = 10.f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_speed##Star")) { _speed = 10.f; changed = true; }
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_speed##Star", key, m_SpeedIn.IsLinked(), "speed##Star@" + std::to_string(m_ID), 0.0f, 100.f, 1.f, m_SpeedIn.m_ID);
         ImGui::EndDisabled();
         ImGui::SliderInt("Layers##Star", &_layers, 2, 20, "%d", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_layers##Star")) { _layers = 2; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_layers##Star")) { _layers = 2; changed = true; }
         ImGui::PopItemWidth();
         if (ImGui::ColorEdit4("Color##Star", (float*)&_color, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar))
         {
             m_color = _color; changed = true;
         } ImGui::SameLine(); ImGui::TextUnformatted("Shadow Color");
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_color##DStar")) { m_color = {1.0f, 0.1f, 0.9f, 1.0f}; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_color##DStar")) { m_color = {1.0f, 0.1f, 0.9f, 1.0f}; changed = true; }
+        ImGui::PopStyleColor();
         if (_speed != m_speed) { m_speed = _speed; changed = true; }
         if (_layers != m_layers) { m_layers = _layers; changed = true; }
         return m_Enabled ? changed : false;

@@ -79,37 +79,46 @@ struct AlmNode final : Node
     bool CustomLayout() const override { return true; }
     bool Skippable() const override { return true; }
 
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key) override
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key, bool embedded) override
     {
         ImGui::SetCurrentContext(ctx);
+        float setting_offset = 320;
+        if (!embedded)
+        {
+            ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 sub_window_size = ImGui::GetWindowSize();
+            setting_offset = sub_window_size.x - 80;
+        }
         bool changed = false;
         float _strength = m_strength;
         float _bias = m_bias;
         float _gamma = m_gamma;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_StrengthIn.IsLinked());
         ImGui::SliderFloat("Strength##ALM", &_strength, 0, 1.f, "%.2f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_strength##ALM")) { _strength = 0.5; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_strength##ALM")) { _strength = 0.5; changed = true; }
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_strength##ALM", key, m_StrengthIn.IsLinked(), "strength##ALM" + std::to_string(m_ID), 0.f, 1.f, 0.5f, m_StrengthIn.m_ID);
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled || m_BiasIn.IsLinked());
         ImGui::SliderFloat("Bias##ALM", &_bias, 0, 1.f, "%.2f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_bias##ALM")) { _bias = 0.7; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_bias##ALM")) { _bias = 0.7; changed = true; }
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_bias##ALM", key, m_BiasIn.IsLinked(), "bias##ALM" + std::to_string(m_ID), 0.f, 1.f, 0.7f, m_BiasIn.m_ID);
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled || m_GammaIn.IsLinked());
         ImGui::SliderFloat("Gamma##ALM", &_gamma, 0, 4.f, "%.2f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_gamma##ALM")) { _gamma = 2.2; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_gamma##ALM")) { _gamma = 2.2; changed = true; }
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_gamma##ALM", key, m_GammaIn.IsLinked(), "gamma##ALM" + std::to_string(m_ID), 0.f, 4.f, 2.2f, m_GammaIn.m_ID);
         ImGui::EndDisabled();
         ImGui::PopItemWidth();
+        ImGui::PopStyleColor();
         if (_strength != m_strength) { m_strength = _strength; changed = true; }
         if (_bias != m_bias) { m_bias = _bias; changed = true; }
         if (_gamma != m_gamma) { m_gamma = _gamma; changed = true; }

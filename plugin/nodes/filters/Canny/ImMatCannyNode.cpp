@@ -78,38 +78,47 @@ struct CannyNode final : Node
     bool CustomLayout() const override { return true; }
     bool Skippable() const override { return true; }
 
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key) override
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key, bool embedded) override
     {
         ImGui::SetCurrentContext(ctx);
+        float setting_offset = 320;
+        if (!embedded)
+        {
+            ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 sub_window_size = ImGui::GetWindowSize();
+            setting_offset = sub_window_size.x - 80;
+        }
         bool changed = false;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
         int _blurRadius = m_blurRadius;
         float _minThreshold = m_minThreshold;
         float _maxThreshold = m_maxThreshold;
         ImGui::Dummy(ImVec2(160, 8));
+        ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(160);
         ImGui::BeginDisabled(!m_Enabled || m_RadiusIn.IsLinked());
         ImGui::SliderInt("Blur Radius##Canny", &_blurRadius, 0, 10, "%d", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_radius##Canny")) { _blurRadius = 3; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_radius##Canny")) { _blurRadius = 3; changed = true; }
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_radius##Canny", key, m_RadiusIn.IsLinked(), "radius##Canny@" + std::to_string(m_ID), 0.f, 10.f, 3.f, m_RadiusIn.m_ID);
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled || m_MinIn.IsLinked());
         ImGui::SliderFloat("Min Threshold##Canny", &_minThreshold, 0, 1.f, "%.2f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_min##Canny")) { _minThreshold = 0.1; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_min##Canny")) { _minThreshold = 0.1; changed = true; }
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_min##Canny", key, m_MinIn.IsLinked(), "min##Canny@" + std::to_string(m_ID), 0.f, 1.f, 0.1f, m_MinIn.m_ID);
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled || m_MaxIn.IsLinked());
         ImGui::SliderFloat("Max Threshold##Canny", &_maxThreshold, _minThreshold, 1.f, "%.2f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_max##Canny")) { _maxThreshold = 0.45; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_max##Canny")) { _maxThreshold = 0.45; changed = true; }
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_max##Canny", key, m_MaxIn.IsLinked(), "max##Canny@" + std::to_string(m_ID), 0.f, 1.f, 0.45f, m_MaxIn.m_ID);
         ImGui::EndDisabled();
         ImGui::PopItemWidth();
+        ImGui::PopStyleColor();
         if (m_blurRadius != _blurRadius) { m_blurRadius = _blurRadius; changed = true; }
         if (m_minThreshold != _minThreshold) { m_minThreshold = _minThreshold; changed = true; }
         if (m_maxThreshold != _maxThreshold) { m_maxThreshold = _maxThreshold; changed= true; }

@@ -73,16 +73,25 @@ struct RadialTransitionNode final : Node
     bool CustomLayout() const override { return true; }
     bool Skippable() const override { return true; }
 
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key) override
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key, bool embedded) override
     {
         ImGui::SetCurrentContext(ctx);
+        float setting_offset = 320;
+        if (!embedded)
+        {
+            ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 sub_window_size = ImGui::GetWindowSize();
+            setting_offset = sub_window_size.x - 80;
+        }
         bool changed = false;
         float _smoothness = m_smoothness;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Smoothness##Radial", &_smoothness, 0.0, 1.f, "%.1f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_smoothness##Radial")) { _smoothness = 1.f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_smoothness##Radial")) { _smoothness = 1.f; changed = true; }
         ImGui::PopItemWidth();
+        ImGui::PopStyleColor();
         if (_smoothness != m_smoothness) { m_smoothness = _smoothness; changed = true; }
         return m_Enabled ? changed : false;
     }

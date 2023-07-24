@@ -82,33 +82,41 @@ struct DeBandNode final : Node
     bool CustomLayout() const override { return true; }
     bool Skippable() const override { return true; }
 
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key) override
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key, bool embedded) override
     {
         ImGui::SetCurrentContext(ctx);
+        float setting_offset = 320;
+        if (!embedded)
+        {
+            ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 sub_window_size = ImGui::GetWindowSize();
+            setting_offset = sub_window_size.x - 80;
+        }
         bool changed = false;
         float _threshold = m_threshold;
         int _range = m_range;
         float _direction = m_direction;
         bool _blur = m_blur;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_ThresholdIn.IsLinked());
         ImGui::SliderFloat("Threshold##DeBand", &_threshold, 0, 0.05f, "%.3f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_threshold##DeBand")) { _threshold = 0.05f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_threshold##DeBand")) { _threshold = 0.05f; changed = true; }
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_threshold##DeBand", key, m_ThresholdIn.IsLinked(), "threshold##DeBand@" + std::to_string(m_ID), 0.f, 0.05f, 0.01f, m_ThresholdIn.m_ID);
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled || m_RangeIn.IsLinked());
         ImGui::SliderInt("Range##DeBand", &_range, 0, 64, "%.d", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_range##DeBand")) { _range = 16.f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_range##DeBand")) { _range = 16.f; changed = true; }
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_range##DeBand", key, m_RangeIn.IsLinked(), "range##DeBand@" + std::to_string(m_ID), 0.f, 64.f, 16.f, m_RangeIn.m_ID);
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled || m_DirectionIn.IsLinked());
         ImGui::SliderFloat("Direction##DeBand", &_direction, 0.f, 4.f, "%.2f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_direction##DeBand")) { _direction = 2.f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_direction##DeBand")) { _direction = 2.f; changed = true; }
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_direction##DeBand", key, m_DirectionIn.IsLinked(), "direction##DeBand@" + std::to_string(m_ID), 0.f, 4.f, 2.f, m_DirectionIn.m_ID);
@@ -118,6 +126,7 @@ struct DeBandNode final : Node
         ImGui::ToggleButton("##Blur##DeBand",&_blur);
         ImGui::EndDisabled();
         ImGui::PopItemWidth();
+        ImGui::PopStyleColor();
         if (_threshold != m_threshold) { m_threshold = _threshold; changed = true; }
         if (_range != m_range) { m_range = _range; changed = true; }
         if (_direction != m_direction) { m_direction = _direction; changed = true; }

@@ -96,9 +96,16 @@ struct MatWarpAffineNode final : Node
     bool CustomLayout() const override { return true; }
     bool Skippable() const override { return true; }
 
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key) override
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key, bool embedded) override
     {
         ImGui::SetCurrentContext(ctx);
+        float setting_offset = 320;
+        if (!embedded)
+        {
+            ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 sub_window_size = ImGui::GetWindowSize();
+            setting_offset = sub_window_size.x - 80;
+        }
         bool changed = false;
         float _scale = m_scale;
         float _angle = m_angle;
@@ -112,29 +119,30 @@ struct MatWarpAffineNode final : Node
         float _crop_b = m_crop_b;
         ImInterpolateMode _mode = m_interpolation_mode;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled);
         ImGui::SliderFloat("scale", &_scale, 0.f, 4.f, "%.1f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_scale##WarpAffine")) { _scale = 0.f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_scale##WarpAffine")) { _scale = 0.f; changed = true; }
         ImGui::SliderFloat("angle", &_angle, -360.f, 360.f, "%.2f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_angle##WarpAffine")) { _angle = 0.f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_angle##WarpAffine")) { _angle = 0.f; changed = true; }
         ImGui::SliderFloat("scale x", &_scale_x, 0.1f, 8.f, "%.2f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_scale_x##WarpAffine")) { _scale_x = 1.f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_scale_x##WarpAffine")) { _scale_x = 1.f; changed = true; }
         ImGui::SliderFloat("scale y", &_scale_y, 0.1f, 8.f, "%.2f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_scale_y##WarpAffine")) { _scale_y = 1.f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_scale_y##WarpAffine")) { _scale_y = 1.f; changed = true; }
         ImGui::SliderFloat("offet x", &_offset_x, -1.f, 1.f, "%.2f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_offset_x##WarpAffine")) { _offset_x = 0.f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_offset_x##WarpAffine")) { _offset_x = 0.f; changed = true; }
         ImGui::SliderFloat("offet y", &_offset_y, -1.f, 1.f, "%.2f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_offset_y##WarpAffine")) { _offset_y = 0.f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_offset_y##WarpAffine")) { _offset_y = 0.f; changed = true; }
 
         ImGui::SliderFloat("crop L", &_crop_l, 0.f, 1.f, "%.2f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_crop_l##WarpAffine")) { _crop_l = 0.f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_crop_l##WarpAffine")) { _crop_l = 0.f; changed = true; }
         ImGui::SliderFloat("crop T", &_crop_t, 0.f, 1.f, "%.2f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_crop_t##WarpAffine")) { _crop_t = 0.f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_crop_t##WarpAffine")) { _crop_t = 0.f; changed = true; }
         ImGui::SliderFloat("crop R", &_crop_r, 0.f, 1.f, "%.2f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_crop_r##WarpAffine")) { _crop_r = 0.f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_crop_r##WarpAffine")) { _crop_r = 0.f; changed = true; }
         ImGui::SliderFloat("crop B", &_crop_b, 0.f, 1.f, "%.2f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_crop_b##WarpAffine")) { _crop_b = 0.f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_crop_b##WarpAffine")) { _crop_b = 0.f; changed = true; }
 
         ImGui::RadioButton("Nearest",   (int *)&_mode, IM_INTERPOLATE_NEAREST); ImGui::SameLine();
         ImGui::RadioButton("Bilinear",  (int *)&_mode, IM_INTERPOLATE_BILINEAR); ImGui::SameLine();
@@ -142,6 +150,7 @@ struct MatWarpAffineNode final : Node
 
         ImGui::EndDisabled();
         ImGui::PopItemWidth();
+        ImGui::PopStyleColor();
         if (_scale != m_scale) { m_scale = _scale; changed = true; }
         if (_angle != m_angle) { m_angle = _angle; changed = true; }
         if (_scale_x != m_scale_x) { m_scale_x = _scale_x; changed = true; }

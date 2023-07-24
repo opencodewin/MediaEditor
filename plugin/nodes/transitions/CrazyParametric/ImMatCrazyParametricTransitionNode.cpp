@@ -73,25 +73,34 @@ struct CrazyParametricTransitionNode final : Node
     bool CustomLayout() const override { return true; }
     bool Skippable() const override { return true; }
 
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key) override
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key, bool embedded) override
     {
         ImGui::SetCurrentContext(ctx);
+        float setting_offset = 320;
+        if (!embedded)
+        {
+            ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 sub_window_size = ImGui::GetWindowSize();
+            setting_offset = sub_window_size.x - 80;
+        }
         bool changed = false;
         float _amplitude = m_amplitude;
         float _smoothness = m_smoothness;
         float _pa = m_pa;
         float _pb = m_pb;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Amplitude##CrazyParametric", &_amplitude, 1.0, 200.f, "%.0f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_amplitude##CrazyParametric")) { _amplitude = 120.0f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_amplitude##CrazyParametric")) { _amplitude = 120.0f; changed = true; }
         ImGui::SliderFloat("Smoothness##CrazyParametric", &_smoothness, 0.0, 1.f, "%.1f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_smoothness##CrazyParametric")) { _smoothness = 0.1f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_smoothness##CrazyParametric")) { _smoothness = 0.1f; changed = true; }
         ImGui::SliderFloat("PA##CrazyParametric", &_pa, 1.0, 10.f, "%.1f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_pa##CrazyParametric")) { _pa = 4.0f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_pa##CrazyParametric")) { _pa = 4.0f; changed = true; }
         ImGui::SliderFloat("PB##CrazyParametric", &_pb, 1.0, 10.f, "%.1f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_pb##CrazyParametric")) { _pb = 1.0f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_pb##CrazyParametric")) { _pb = 1.0f; changed = true; }
         ImGui::PopItemWidth();
+        ImGui::PopStyleColor();
         if (_amplitude != m_amplitude) { m_amplitude = _amplitude; changed = true; }
         if (_smoothness != m_smoothness) { m_smoothness = _smoothness; changed = true; }
         if (_pa != m_pa) { m_pa = _pa; changed = true; }

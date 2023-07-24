@@ -82,21 +82,29 @@ struct SaturationNode final : Node
     bool CustomLayout() const override { return true; }
     bool Skippable() const override { return true; }
 
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key) override
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key, bool embedded) override
     {
         ImGui::SetCurrentContext(ctx);
+        float setting_offset = 320;
+        if (!embedded)
+        {
+            ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 sub_window_size = ImGui::GetWindowSize();
+            setting_offset = sub_window_size.x - 80;
+        }
         bool changed = false;
         float val = m_saturation - 1.0;
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_NoInput;
+        ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_SaturationIn.IsLinked());
         ImGui::SaturationSelector("##slider_saturation##Saturation", ImVec2(200, 40), &val, 0.0f, -1.f, 1.f, zoom, 32, 1.0f, true);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_saturation##Saturation")) { val = 0.0; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_saturation##Saturation")) { val = 0.0; changed = true; }
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_saturation##Saturation", key, m_SaturationIn.IsLinked(), "saturation##Saturation@" + std::to_string(m_ID), -1.f, 1.f, 0.f, m_SaturationIn.m_ID);
         ImGui::EndDisabled();
         ImGui::PopItemWidth();
+        ImGui::PopStyleColor();
         if (val != m_saturation - 1.0) { m_saturation = val + 1.0; changed = true; }
         return m_Enabled ? changed : false;
     }

@@ -82,21 +82,29 @@ struct ExposureNode final : Node
     bool CustomLayout() const override { return true; }
     bool Skippable() const override { return true; }
 
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key) override
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key, bool embedded) override
     {
         ImGui::SetCurrentContext(ctx);
+        float setting_offset = 320;
+        if (!embedded)
+        {
+            ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 sub_window_size = ImGui::GetWindowSize();
+            setting_offset = sub_window_size.x - 80;
+        }
         bool changed = false;
         float val = m_exposure;
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_NoInput;
+        ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_ExposureIn.IsLinked());
         ImGui::LumianceSelector("##slider_exposure##Exposure", ImVec2(200, 20), &val, 0.0f, -2.f, 2.f, zoom);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_exposure##Exposure")) { val = 0.0; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_exposure##Exposure")) { val = 0.0; changed = true; }
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_exposure##Exposure", key, m_ExposureIn.IsLinked(), "exposure##Exposure@" + std::to_string(m_ID), -2.f, 2.f, 0.f, m_ExposureIn.m_ID);
         ImGui::EndDisabled();
         ImGui::PopItemWidth();
+        ImGui::PopStyleColor();
         if (val != m_exposure) { m_exposure = val; changed = true; }
         return m_Enabled ? changed : false;
     }

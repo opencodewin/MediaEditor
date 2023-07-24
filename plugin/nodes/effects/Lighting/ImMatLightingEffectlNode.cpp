@@ -72,24 +72,33 @@ struct LightingEffectNode final : Node
     bool CustomLayout() const override { return true; }
     bool Skippable() const override { return true; }
 
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key) override
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key, bool embedded) override
     {
         ImGui::SetCurrentContext(ctx);
+        float setting_offset = 320;
+        if (!embedded)
+        {
+            ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 sub_window_size = ImGui::GetWindowSize();
+            setting_offset = sub_window_size.x - 80;
+        }
         bool changed = false;
         int _count = m_count;
         float _saturation = m_saturation;
         float _light = m_light;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled);
         ImGui::SliderInt("Count##Lighting", &_count, 1, 10, "%d", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_count##Lighting")) { _count = 1; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_count##Lighting")) { _count = 1; changed = true; }
         ImGui::SliderFloat("Saturation##Lighting", &_saturation, 0.0, 1.f, "%.2f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_saturation##Lighting")) { _saturation = 0.3f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_saturation##Lighting")) { _saturation = 0.3f; changed = true; }
         ImGui::SliderFloat("Lighting##Lighting", &_light, 0.0, 1.f, "%.2f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_light##Lighting")) { _light = 0.3f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_light##Lighting")) { _light = 0.3f; changed = true; }
         ImGui::EndDisabled();
         ImGui::PopItemWidth();
+        ImGui::PopStyleColor();
         if (_count != m_count) { m_count = _count; changed = true; }
         if (_saturation != m_saturation) { m_saturation = _saturation; changed = true; }
         if (_light != m_light) { m_light = _light; changed = true; }

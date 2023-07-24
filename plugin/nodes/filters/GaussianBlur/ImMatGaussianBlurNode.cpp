@@ -79,29 +79,38 @@ struct GaussianBlurNode final : Node
     bool CustomLayout() const override { return true; }
     bool Skippable() const override { return true; }
 
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key) override
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key, bool embedded) override
     {
         ImGui::SetCurrentContext(ctx);
+        float setting_offset = 320;
+        if (!embedded)
+        {
+            ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 sub_window_size = ImGui::GetWindowSize();
+            setting_offset = sub_window_size.x - 80;
+        }
         bool changed = false;
         float _sigma = m_sigma;
         int _blurRadius = m_blurRadius;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_SigmaIn.IsLinked());
         ImGui::SliderFloat("Sigma##GaussianBlur", &_sigma, 0.0, 10.f, "%.1f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_sigma##GaussianBlur")) { _sigma = 0; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_sigma##GaussianBlur")) { _sigma = 0; changed = true; }
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_sigma##GaussianBlur", key, m_SigmaIn.IsLinked(), "sigma##GaussianBlur@" + std::to_string(m_ID), 0.f, 10.f, 0.f, m_SigmaIn.m_ID);
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled || m_RadiusIn.IsLinked());
         ImGui::SliderInt("Radius##GaussianBlur", &_blurRadius, 0, 20, "%d", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_radius##GaussianBlur")) { _blurRadius = 3; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_radius##GaussianBlur")) { _blurRadius = 3; changed = true; }
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_radius##GaussianBlur", key, m_RadiusIn.IsLinked(), "radius##GaussianBlur@" + std::to_string(m_ID), 0.f, 20.f, 3.f, m_RadiusIn.m_ID);
         ImGui::EndDisabled();
         ImGui::PopItemWidth();
+        ImGui::PopStyleColor();
         if (_sigma != m_sigma) { m_sigma = _sigma; changed = true; }
         if (_blurRadius != m_blurRadius) { m_blurRadius = _blurRadius; changed = true; }
         return m_Enabled ? changed : false;

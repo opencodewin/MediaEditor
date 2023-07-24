@@ -73,19 +73,28 @@ struct StereoViewerTransitionNode final : Node
     bool CustomLayout() const override { return true; }
     bool Skippable() const override { return true; }
 
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key) override
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key, bool embedded) override
     {
         ImGui::SetCurrentContext(ctx);
+        float setting_offset = 320;
+        if (!embedded)
+        {
+            ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 sub_window_size = ImGui::GetWindowSize();
+            setting_offset = sub_window_size.x - 80;
+        }
         bool changed = false;
         float _zoom = m_zoom;
         float _corner_radius = m_corner_radius;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Zoom##StereoView", &_zoom, 0.5, 1.f, "%.2f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_zoom##StereoView")) { _zoom = 0.88f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_zoom##StereoView")) { _zoom = 0.88f; changed = true; }
         ImGui::SliderFloat("Corner Radius##StereoView", &_corner_radius, 0.0, 1.f, "%.2f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_corner_radius##StereoView")) { _corner_radius = 0.22f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_corner_radius##StereoView")) { _corner_radius = 0.22f; changed = true; }
         ImGui::PopItemWidth();
+        ImGui::PopStyleColor();
         if (_zoom != m_zoom) { m_zoom = _zoom; changed = true; }
         if (_corner_radius != m_corner_radius) { m_corner_radius = _corner_radius; changed = true; }
         return m_Enabled ? changed : false;

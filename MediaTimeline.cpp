@@ -429,14 +429,14 @@ void EventTrack::DrawContent(ImDrawList *draw_list, ImRect rect, int event_heigh
             ImVec2 curve_pos_min = event_pos_min + ImVec2(0, event_height);
             ImVec2 curve_pos_max = event_pos_max + ImVec2(0, curve_height);
             ImRect curve_rect(curve_pos_min, curve_pos_max);
-            curve_hovered = curve_rect.Contains(ImGui::GetMousePos());
+            curve_hovered |= curve_rect.Contains(ImGui::GetMousePos());
             ImGui::SetCursorScreenPos(curve_pos_min);
             ImGui::PushID(event_id);
             if (ImGui::BeginChild("##event_curve", curve_rect.GetSize(), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
             {
                 ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
                 ImVec2 sub_window_size = ImGui::GetWindowSize();
-                draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_ONE);
+                draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_BLACK_DARK);
                 bool _changed = false;
                 auto pKP = event->GetKeyPoint();
                 if (pKP)

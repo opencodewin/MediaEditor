@@ -73,19 +73,28 @@ struct DreamyZoomTransitionNode final : Node
     bool CustomLayout() const override { return true; }
     bool Skippable() const override { return true; }
 
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key) override
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key, bool embedded) override
     {
         ImGui::SetCurrentContext(ctx);
+        float setting_offset = 320;
+        if (!embedded)
+        {
+            ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 sub_window_size = ImGui::GetWindowSize();
+            setting_offset = sub_window_size.x - 80;
+        }
         bool changed = false;
         float _rotation = m_rotation;
         float _scale = m_scale;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Rotation##DreamyZoom", &_rotation, 0.f, 10.f, "%.1f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_rotation##DreamyZoom")) { _rotation = 6.f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_rotation##DreamyZoom")) { _rotation = 6.f; changed = true; }
         ImGui::SliderFloat("Scale##DreamyZoom", &_scale, 1.f, 10.f, "%.1f", flags);
-        ImGui::SameLine(320);  if (ImGui::Button(ICON_RESET "##reset_scale##DreamyZoom")) { _scale = 1.2f; changed = true; }
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_scale##DreamyZoom")) { _scale = 1.2f; changed = true; }
         ImGui::PopItemWidth();
+        ImGui::PopStyleColor();
         if (_rotation != m_rotation) { m_rotation = _rotation; changed = true; }
         if (_scale != m_scale) { m_scale = _scale; changed = true; }
         return m_Enabled ? changed : false;
