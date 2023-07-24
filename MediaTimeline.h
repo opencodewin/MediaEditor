@@ -416,7 +416,7 @@ struct Clip
     ImGui::KeyPointEditor       mFilterKeyPoints;   // clip key points, project saved
     ImGui::KeyPointEditor       mAttributeKeyPoints;// clip key points, project saved
 
-    MEC::EventStack*            mEventStack {nullptr};// clip event srack,
+    MEC::EventStack*            mEventStack {nullptr};// clip event stack,
     std::vector<EventTrack*>    mEventTracks;       // clip event tracks, contain event IDs only, project saved
 
     int64_t frame_duration {0};

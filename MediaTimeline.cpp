@@ -748,7 +748,6 @@ void Clip::Save(imgui_json::value& value)
 
 int64_t Clip::Cropping(int64_t diff, int type)
 {
-    int64_t new_diff = 0;
     TimeLine * timeline = (TimeLine *)mHandle;
     if (!timeline)
         return 0;
@@ -759,20 +758,21 @@ int64_t Clip::Cropping(int64_t diff, int type)
         return 0;
 
     int64_t length = Length();
+    int64_t old_offset = mStartOffset;
     // cropping start
     if (type == 0)
     {
         // for clips that have length limitation
         if ((IS_VIDEO(mType) && !IS_IMAGE(mType)) || IS_AUDIO(mType))
         {
-            if (diff+mStartOffset < 0)
+            if (diff + mStartOffset < 0)
                 diff = -mStartOffset;  // mStartOffset can NOT be NEGATIVE
             else if (diff >= length)
                 diff = length-1;
-            int64_t newStart = mStart+diff;
+            int64_t newStart = mStart + diff;
             timeline->AlignTime(newStart);
             diff = newStart-mStart;
-            int64_t newStartOffset = mStartOffset+diff;
+            int64_t newStartOffset = mStartOffset + diff;
             assert(newStartOffset >= 0);
             int64_t newLength = length-diff;
             assert(newLength > 0);
@@ -861,6 +861,19 @@ int64_t Clip::Cropping(int64_t diff, int type)
     }
     track->Update();
     timeline->UpdateRange();
+    // update clip's event time range
+    if (mEventStack && type == 0)
+    {
+        auto event_list = mEventStack->GetEventList();
+        for (auto event : event_list)
+        {
+            auto event_length = event->Length();
+            auto absolute_start = event->Start() + old_offset;
+            auto new_start = absolute_start - mStartOffset;
+            auto new_end = new_start + event_length;
+            event->ChangeRange(new_start, new_end);
+        }
+    }
     return diff;
 }
 
