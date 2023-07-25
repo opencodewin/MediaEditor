@@ -404,6 +404,10 @@ void EventTrack::DrawContent(ImDrawList *draw_list, ImRect rect, int event_heigh
         {
             draw_event = false;
         }
+        if (event_rect.GetWidth() < 1)
+        {
+            draw_event = false;
+        }
 
         if (draw_event && cursor_end > cursor_start)
         {
