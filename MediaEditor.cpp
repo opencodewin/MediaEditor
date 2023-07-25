@@ -4831,6 +4831,13 @@ static void DrawVideoFilterEventWindow(ImDrawList *draw_list, Clip * editing_cli
     if (!editing_clip || !editing_clip->mEventStack)
         return;
 
+    static const char* buttons[] = { "Delete", "Cancel", NULL };
+    static ImGui::MsgBox msgbox_event;
+    msgbox_event.Init("Delete Event?", ICON_MD_WARNING, "Are you really really sure you want to delete event?", buttons, false);
+
+    static ImGui::MsgBox msgbox_node;
+    msgbox_node.Init("Delete Node?", ICON_MD_WARNING, "Are you really really sure you want to delete node?", buttons, false);
+
     auto event_list = editing_clip->mEventStack->GetEventList();
     if (event_list.empty())
     {
@@ -4864,8 +4871,22 @@ static void DrawVideoFilterEventWindow(ImDrawList *draw_list, Clip * editing_cli
             ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0.3, 0.0, 0.0, 1.0));
             ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(0.3, 0.0, 0.0, 1.0));
         }
-        bool event_tree_open = ImGui::TreeNodeEx(event_label.c_str(), ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanFullWidth | (is_selected ? ImGuiTreeNodeFlags_Selected : ImGuiTreeNodeFlags_None));
-        if (!is_in_range) ImGui::PopStyleColor(3);
+        else
+        {
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0, 1.0, 1.0, 1.0));
+            ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0.4, 0.4, 1.0, 1.0));
+            ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(0.2, 0.2, 1.0, 1.0));
+        }
+        auto tree_pos = ImGui::GetCursorScreenPos();
+        ImGui::Circle(is_selected);
+        bool event_tree_open = ImGui::TreeNodeEx(event_label.c_str(), ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanFullWidth | ImGuiTreeNodeFlags_AllowOverlap | (is_selected ? ImGuiTreeNodeFlags_Selected : ImGuiTreeNodeFlags_None));
+        ImGui::PopStyleColor(3);
+        ImGui::SetCursorScreenPos(ImVec2(sub_window_pos.x + sub_window_size.x - 48, tree_pos.y));
+        if (ImGui::Button(ICON_DELETE "##event_list_editor_delete_event"))
+        {
+            ImGui::OpenPopup("Delete Event?");
+        }
+        ImGui::ShowTooltipOnHover("Delete Event");
         if (event_tree_open)
         {
             ImGui::Unindent(ImGui::GetTreeNodeToLabelSpacing());
@@ -4956,15 +4977,18 @@ static void DrawVideoFilterEventWindow(ImDrawList *draw_list, Clip * editing_cli
                         if (in_range) ImGui::Text("%.2f", curve_value); 
                         else ImGui::TextUnformatted("--.--");
                         ImGui::PopStyleColor();
+                        ImGui::ShowTooltipOnHover("Current value");
                         ImGui::SameLine();
                         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3, 0.3, 1.0, 1.0)); 
                         if (in_range) ImGui::Text("%s", ImGuiHelper::MillisecToString(curve_time + event->Start(), 3).c_str()); 
                         else ImGui::TextUnformatted("--:--.--");
                         ImGui::PopStyleColor();
+                        ImGui::ShowTooltipOnHover("Clip time");
                         ImGui::SameLine();
                         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0, 1.0, 0.0, 1.0)); 
-                        ImGui::Text("%s", ImGuiHelper::MillisecToString(timeline->currentTime, 3).c_str()); 
+                        ImGui::Text("%s", ImGuiHelper::MillisecToString(timeline->currentTime, 3).c_str());
                         ImGui::PopStyleColor();
+                        ImGui::ShowTooltipOnHover("Main time");
                         ImGui::SameLine();
                         ImGui::BeginDisabled(!in_range);
                         if (ImGui::Button(ICON_MD_ADS_CLICK))
@@ -5071,11 +5095,7 @@ static void DrawVideoFilterEventWindow(ImDrawList *draw_list, Clip * editing_cli
                 ImGui::PopStyleColor();
             };
             if (pBP)
-            {
-                static const char* buttons[] = { "Delete", "Cancel", NULL };
-                static ImGui::MsgBox msgbox;
-                msgbox.Init("Delete Node?", ICON_MD_WARNING, "Are you really really sure you want to delete node?", buttons, false);
-                
+            {                
                 auto nodes = pBP->m_Document->m_Blueprint.GetNodes();
                 bool need_redraw = false;
                 for (auto node : nodes)
@@ -5088,9 +5108,13 @@ static void DrawVideoFilterEventWindow(ImDrawList *draw_list, Clip * editing_cli
                     auto label_name = node->m_Name;
                     std::string lable_id = label_name + "##video_filter_node" + "@" + std::to_string(node->m_ID);
                     auto node_pos = ImGui::GetCursorScreenPos();
-                    node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(50, 28));
+                    node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(60, 30));
                     ImGui::SameLine(30);
-                    bool tree_open = ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen);
+                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0, 1.0, 1.0, 1.0));
+                    ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0.2, 0.5, 0.2, 1.0));
+                    ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(0.1, 0.5, 0.1, 1.0));
+                    bool tree_open = ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanFullWidth | ImGuiTreeNodeFlags_AllowOverlap);
+                    ImGui::PopStyleColor(3);
                     if (ImGui::BeginDragDropSource())
                     {
                         ImGui::SetDragDropPayload(event_drag_drop_label.c_str(), node, sizeof(BluePrint::Node));
@@ -5145,7 +5169,7 @@ static void DrawVideoFilterEventWindow(ImDrawList *draw_list, Clip * editing_cli
                     }
 
                     // Handle node delete
-                    if (msgbox.Draw() == 1)
+                    if (msgbox_node.Draw() == 1)
                     {
                         if (pKP)
                         {
@@ -5163,6 +5187,11 @@ static void DrawVideoFilterEventWindow(ImDrawList *draw_list, Clip * editing_cli
                     }
                     if (tree_open) ImGui::TreePop();
                 }
+            }
+            // Handle event delete
+            if (msgbox_event.Draw() == 1)
+            {
+                editing_clip->DeleteEvent(event);
             }
             ImGui::Indent(ImGui::GetTreeNodeToLabelSpacing());
             ImGui::TreePop();
