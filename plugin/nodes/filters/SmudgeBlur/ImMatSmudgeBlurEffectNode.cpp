@@ -99,7 +99,7 @@ struct SmudgeBlurEffectNode final : Node
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_radius##SmudgeBlur")) { _radius = 0.05f; changed = true; }
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
-        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_radius##SmudgeBlur", key, m_RadiusIn.IsLinked(), "radius##SmudgeBlur@" + std::to_string(m_ID), 0.0f, 100.f, 1.f, m_RadiusIn.m_ID);
+        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_radius##SmudgeBlur", key, m_RadiusIn.IsLinked(), "radius##SmudgeBlur@" + std::to_string(m_ID), 0.0f, 0.05f, 0.05f, m_RadiusIn.m_ID);
         ImGui::EndDisabled();
         ImGui::SliderFloat("Iterations##SmudgeBlur", &_iterations, 16.f, 40.f, "%.0f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_iterations##SmudgeBlur")) { _iterations = 16.f; changed = true; }

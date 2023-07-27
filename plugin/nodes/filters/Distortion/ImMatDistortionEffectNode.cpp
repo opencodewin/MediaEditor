@@ -98,7 +98,7 @@ struct DistortionEffectNode final : Node
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_scale##Distortion")) { _scale = 0.5f; changed = true; }
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
-        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_scale##Distortion", key, m_ScaleIn.IsLinked(), "scale##Distortion@" + std::to_string(m_ID), 0.0f, 100.f, 1.f, m_ScaleIn.m_ID);
+        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_scale##Distortion", key, m_ScaleIn.IsLinked(), "scale##Distortion@" + std::to_string(m_ID), 0.0f, 1.f, 0.5f, m_ScaleIn.m_ID);
         ImGui::EndDisabled();
         ImGui::PopItemWidth();
         ImGui::PopStyleColor();
