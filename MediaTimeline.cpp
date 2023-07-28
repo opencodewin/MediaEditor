@@ -2479,19 +2479,24 @@ void AudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
             ImPlot::PopStyleColor();
             ImPlot::PopStyleVar(2);
 #else
-            start_offset = start_offset / sample_stride * sample_stride; // align start_offset
-            ImGui::PushStyleColor(ImGuiCol_FrameBg, 0);
-            ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.4f, 0.4f, 0.8f, 1.0f));
-            ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.3f, 0.3f, 0.8f, 0.5f));
-            std::string plot_max_id = id_string + "_line_max";
-            std::string plot_min_id = id_string + "_line_min";
-            ImGui::ImMat plot_frame_max, plot_frame_min;
-            waveFrameResample(&mWaveform->pcm[0][0], sample_stride, draw_size.x, start_offset, sampleSize, zoom, plot_frame_max, plot_frame_min);
             ImGui::SetCursorScreenPos(customViewStart);
-            ImGui::PlotLinesEx(plot_max_id.c_str(), (float *)plot_frame_max.data, plot_frame_max.w, 0, nullptr, -wave_range, wave_range, draw_size, sizeof(float), false, true);
-            ImGui::SetCursorScreenPos(customViewStart);
-            ImGui::PlotLinesEx(plot_min_id.c_str(), (float *)plot_frame_min.data, plot_frame_min.w, 0, nullptr, -wave_range, wave_range, draw_size, sizeof(float), false, true);
-            ImGui::PopStyleColor(3);
+            if (ImGui::BeginChild(id_string.c_str(), window_size, false, ImGuiWindowFlags_NoScrollbar))
+            {
+                start_offset = start_offset / sample_stride * sample_stride; // align start_offset
+                ImGui::PushStyleColor(ImGuiCol_FrameBg, 0);
+                ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.4f, 0.4f, 0.8f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.3f, 0.3f, 0.8f, 0.5f));
+                std::string plot_max_id = id_string + "_line_max";
+                std::string plot_min_id = id_string + "_line_min";
+                ImGui::ImMat plot_frame_max, plot_frame_min;
+                waveFrameResample(&mWaveform->pcm[0][0], sample_stride, draw_size.x, start_offset, sampleSize, zoom, plot_frame_max, plot_frame_min);
+                ImGui::SetCursorScreenPos(customViewStart);
+                ImGui::PlotLinesEx(plot_max_id.c_str(), (float *)plot_frame_max.data, plot_frame_max.w, 0, nullptr, -wave_range, wave_range, draw_size, sizeof(float), false, true);
+                ImGui::SetCursorScreenPos(customViewStart);
+                ImGui::PlotLinesEx(plot_min_id.c_str(), (float *)plot_frame_min.data, plot_frame_min.w, 0, nullptr, -wave_range, wave_range, draw_size, sizeof(float), false, true);
+                ImGui::PopStyleColor(3);
+            }
+            ImGui::EndChild();
 #endif
             drawList->PopClipRect();
         }        
@@ -3785,19 +3790,23 @@ void EditingAudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, 
         ImPlot::PopStyleColor();
         ImPlot::PopStyleVar(2);
 #else
-        start_offset = start_offset / sample_stride * sample_stride; // align start_offset
-        ImGui::PushStyleColor(ImGuiCol_FrameBg, 0);
-        ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.4f, 0.8f, 0.4f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.3f, 0.8f, 0.3f, 0.5f));
-        std::string plot_max_id = id_string + "_line_max";
-        std::string plot_min_id = id_string + "_line_min";
-        ImGui::ImMat plot_frame_max, plot_frame_min;
-        waveFrameResample(&mWaveform->pcm[i][0], sample_stride, window_size.x, start_offset, sampleSize, zoom, plot_frame_max, plot_frame_min);
-        ImGui::SetCursorScreenPos(leftTop + ImVec2(0, i * window_size.y));
-        ImGui::PlotLinesEx(plot_max_id.c_str(), (float *)plot_frame_max.data, plot_frame_max.w, 0, nullptr, -wave_range, wave_range, window_size, sizeof(float), false, true);
-        ImGui::SetCursorScreenPos(leftTop + ImVec2(0, i * window_size.y));
-        ImGui::PlotLinesEx(plot_min_id.c_str(), (float *)plot_frame_min.data, plot_frame_min.w, 0, nullptr, -wave_range, wave_range, window_size, sizeof(float), false, true);
-        ImGui::PopStyleColor(3);
+        if (ImGui::BeginChild(id_string.c_str(), window_size, false, ImGuiWindowFlags_NoScrollbar))
+        {
+            start_offset = start_offset / sample_stride * sample_stride; // align start_offset
+            ImGui::PushStyleColor(ImGuiCol_FrameBg, 0);
+            ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.4f, 0.8f, 0.4f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.3f, 0.8f, 0.3f, 0.5f));
+            std::string plot_max_id = id_string + "_line_max";
+            std::string plot_min_id = id_string + "_line_min";
+            ImGui::ImMat plot_frame_max, plot_frame_min;
+            waveFrameResample(&mWaveform->pcm[i][0], sample_stride, window_size.x, start_offset, sampleSize, zoom, plot_frame_max, plot_frame_min);
+            ImGui::SetCursorScreenPos(leftTop + ImVec2(0, i * window_size.y));
+            ImGui::PlotLinesEx(plot_max_id.c_str(), (float *)plot_frame_max.data, plot_frame_max.w, 0, nullptr, -wave_range, wave_range, window_size, sizeof(float), false, true);
+            ImGui::SetCursorScreenPos(leftTop + ImVec2(0, i * window_size.y));
+            ImGui::PlotLinesEx(plot_min_id.c_str(), (float *)plot_frame_min.data, plot_frame_min.w, 0, nullptr, -wave_range, wave_range, window_size, sizeof(float), false, true);
+            ImGui::PopStyleColor(3);
+        }
+        ImGui::EndChild();
 #endif
     }
     ImGui::PopStyleVar();
@@ -4510,15 +4519,19 @@ void EditingAudioOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
                 ImPlot::EndPlot();
             }
 #else
-            start_offset = start_offset / sample_stride * sample_stride; // align start_offset
-            std::string plot_max_id = id_string + "_line_max";
-            std::string plot_min_id = id_string + "_line_min";
-            ImGui::ImMat plot_frame_max, plot_frame_min;
-            waveFrameResample(&waveform->pcm[i][0], sample_stride, clip_window_size.x, start_offset, sampleSize, zoom, plot_frame_max, plot_frame_min);
-            ImGui::SetCursorScreenPos(leftTop + ImVec2(0, i * clip_window_size.y));
-            ImGui::PlotLinesEx(plot_max_id.c_str(), (float *)plot_frame_max.data, plot_frame_max.w, 0, nullptr, -wave_range, wave_range, clip_window_size, sizeof(float), false, true);
-            ImGui::SetCursorScreenPos(leftTop + ImVec2(0, i * clip_window_size.y));
-            ImGui::PlotLinesEx(plot_min_id.c_str(), (float *)plot_frame_min.data, plot_frame_min.w, 0, nullptr, -wave_range, wave_range, clip_window_size, sizeof(float), false, true);
+            if (ImGui::BeginChild(id_string.c_str(), clip_window_size, false, ImGuiWindowFlags_NoScrollbar))
+            {
+                start_offset = start_offset / sample_stride * sample_stride; // align start_offset
+                std::string plot_max_id = id_string + "_line_max";
+                std::string plot_min_id = id_string + "_line_min";
+                ImGui::ImMat plot_frame_max, plot_frame_min;
+                waveFrameResample(&waveform->pcm[i][0], sample_stride, clip_window_size.x, start_offset, sampleSize, zoom, plot_frame_max, plot_frame_min);
+                ImGui::SetCursorScreenPos(leftTop + ImVec2(0, i * clip_window_size.y));
+                ImGui::PlotLinesEx(plot_max_id.c_str(), (float *)plot_frame_max.data, plot_frame_max.w, 0, nullptr, -wave_range, wave_range, clip_window_size, sizeof(float), false, true);
+                ImGui::SetCursorScreenPos(leftTop + ImVec2(0, i * clip_window_size.y));
+                ImGui::PlotLinesEx(plot_min_id.c_str(), (float *)plot_frame_min.data, plot_frame_min.w, 0, nullptr, -wave_range, wave_range, clip_window_size, sizeof(float), false, true);
+            }
+            ImGui::EndChild();
 #endif
             if (i > 0)
                 drawList->AddLine(leftTop + ImVec2(0, clip_window_size.y * i), leftTop + ImVec2(clip_window_size.x, clip_window_size.y * i), IM_COL32(64, 64, 64, 255));
@@ -4566,15 +4579,19 @@ void EditingAudioOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
                 ImPlot::EndPlot();
             }
 #else
-            start_offset = start_offset / sample_stride * sample_stride; // align start_offset
-            std::string plot_max_id = id_string + "_line_max";
-            std::string plot_min_id = id_string + "_line_min";
-            ImGui::ImMat plot_frame_max, plot_frame_min;
-            waveFrameResample(&waveform->pcm[i][0], sample_stride, clip_window_size.x, start_offset, sampleSize, zoom, plot_frame_max, plot_frame_min);
-            ImGui::SetCursorScreenPos(clip2_pos + ImVec2(0, i * clip_window_size.y));
-            ImGui::PlotLinesEx(plot_max_id.c_str(), (float *)plot_frame_max.data, plot_frame_max.w, 0, nullptr, -wave_range, wave_range, clip_window_size, sizeof(float), false, true);
-            ImGui::SetCursorScreenPos(clip2_pos + ImVec2(0, i * clip_window_size.y));
-            ImGui::PlotLinesEx(plot_min_id.c_str(), (float *)plot_frame_min.data, plot_frame_min.w, 0, nullptr, -wave_range, wave_range, clip_window_size, sizeof(float), false, true);
+            if (ImGui::BeginChild(id_string.c_str(), clip_window_size, false, ImGuiWindowFlags_NoScrollbar))
+            {
+                start_offset = start_offset / sample_stride * sample_stride; // align start_offset
+                std::string plot_max_id = id_string + "_line_max";
+                std::string plot_min_id = id_string + "_line_min";
+                ImGui::ImMat plot_frame_max, plot_frame_min;
+                waveFrameResample(&waveform->pcm[i][0], sample_stride, clip_window_size.x, start_offset, sampleSize, zoom, plot_frame_max, plot_frame_min);
+                ImGui::SetCursorScreenPos(clip2_pos + ImVec2(0, i * clip_window_size.y));
+                ImGui::PlotLinesEx(plot_max_id.c_str(), (float *)plot_frame_max.data, plot_frame_max.w, 0, nullptr, -wave_range, wave_range, clip_window_size, sizeof(float), false, true);
+                ImGui::SetCursorScreenPos(clip2_pos + ImVec2(0, i * clip_window_size.y));
+                ImGui::PlotLinesEx(plot_min_id.c_str(), (float *)plot_frame_min.data, plot_frame_min.w, 0, nullptr, -wave_range, wave_range, clip_window_size, sizeof(float), false, true);
+            }
+            ImGui::EndChild();
 #endif
             if (i > 0)
                 drawList->AddLine(clip2_pos + ImVec2(0, clip_window_size.y * i), clip2_pos + ImVec2(clip_window_size.x, clip_window_size.y * i), IM_COL32(64, 64, 64, 255));

@@ -11035,6 +11035,8 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
         }
 #endif
         oss << " T:" << ImGui::ImGetTextureCount();
+        oss << " V:" << io.MetricsRenderVertices;
+        oss << " I:" << io.MetricsRenderIndices;
         std::string meters = oss.str();
         auto str_size = ImGui::CalcTextSize(meters.c_str());
         auto spos = title_pos + ImVec2(title_size.x - str_size.x - 8, 8);
