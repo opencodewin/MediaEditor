@@ -99,7 +99,7 @@ struct BarrelDistortionEffectNode final : Node
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_scale##BarrelDistortion")) { _scale = 1.5f; changed = true; }
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
-        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_scale##BarrelDistortion", key, m_ScaleIn.IsLinked(), "scale##BarrelDistortion@" + std::to_string(m_ID), 0.0f, 100.f, 1.f, m_ScaleIn.m_ID);
+        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_scale##BarrelDistortion", key, m_ScaleIn.IsLinked(), "scale##BarrelDistortion@" + std::to_string(m_ID), 0.0f, 3.f, 1.5f, m_ScaleIn.m_ID);
         ImGui::EndDisabled();
         ImGui::SliderFloat("Pow##BarrelDistortion", &_pow, 0.0, 1.5f, "%.2f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_pow##BarrelDistortion")) { _pow = 0.25f; changed = true; }

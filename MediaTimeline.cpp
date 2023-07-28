@@ -2463,7 +2463,7 @@ void AudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
             if (sample_stride <= 0) sample_stride = 1;
             int min_zoom = ImMax(window_length >> 13, 16);
             int zoom = ImMin(sample_stride, min_zoom);
-            ImGui::PushClipRect(leftTop, rightBottom, true);
+            drawList->PushClipRect(leftTop, rightBottom, true);
 #if AUDIO_WAVEFORM_IMPLOT
             start_offset = start_offset / zoom * zoom; // align start_offset
             ImGui::SetCursorScreenPos(customViewStart);

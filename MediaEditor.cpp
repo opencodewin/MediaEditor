@@ -10364,7 +10364,11 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline)
     else
         ImGui::SetNextWindowSize(is_full_size ? full_size : size, ImGuiCond_None);
     if (is_full_size) ImGui::SetNextWindowPos(full_pos);
-    ImGui::Begin("ScopeView", nullptr, flags);
+    if (!ImGui::Begin("ScopeView", nullptr, flags))
+    {
+        ImGui::End();
+        return;
+    }
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
     float scope_gap = is_full_size ? 100 : 48;
@@ -10420,6 +10424,7 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline)
     }
 
     ImGui::PopStyleColor(3);
+
     ImGui::End();
 }
 
@@ -11291,8 +11296,8 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             auto mon = platform_io.Monitors[MonitorIndexPreviewVideo];
             ImGui::SetNextWindowPos(mon.MainPos);
             ImGui::SetNextWindowSize(mon.MainSize);
-            ImGui::Begin(preview_window_lable.c_str(), nullptr, flags | ImGuiWindowFlags_FullScreen);
-            ShowVideoWindow(timeline->mMainPreviewTexture, mon.MainPos, mon.MainSize, "Preview", 3.f);
+            if (ImGui::Begin(preview_window_lable.c_str(), nullptr, flags | ImGuiWindowFlags_FullScreen))
+                ShowVideoWindow(timeline->mMainPreviewTexture, mon.MainPos, mon.MainSize, "Preview", 3.f);
             ImGui::End();
         }
     }
@@ -11305,8 +11310,8 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             auto mon = platform_io.Monitors[MonitorIndexVideoFilterOrg];
             ImGui::SetNextWindowPos(mon.MainPos);
             ImGui::SetNextWindowSize(mon.MainSize);
-            ImGui::Begin(view_window_lable.c_str(), nullptr, flags | ImGuiWindowFlags_FullScreen);
-            ShowVideoWindow(timeline->mVideoFilterInputTexture, mon.MainPos, mon.MainSize, "Original", 3.f);
+            if (ImGui::Begin(view_window_lable.c_str(), nullptr, flags | ImGuiWindowFlags_FullScreen))
+                ShowVideoWindow(timeline->mVideoFilterInputTexture, mon.MainPos, mon.MainSize, "Original", 3.f);
             ImGui::End();
         }
         if (MonitorIndexVideoFiltered != -1 && MonitorIndexVideoFiltered < platform_io.Monitors.Size)
@@ -11315,8 +11320,8 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             auto mon = platform_io.Monitors[MonitorIndexVideoFiltered];
             ImGui::SetNextWindowPos(mon.MainPos);
             ImGui::SetNextWindowSize(mon.MainSize);
-            ImGui::Begin(view_window_lable.c_str(), nullptr, flags | ImGuiWindowFlags_FullScreen);
-            ShowVideoWindow(timeline->mVideoFilterOutputTexture, mon.MainPos, mon.MainSize, timeline->bFilterOutputPreview ? "Preview Output" : "Filter Output", 3.f);
+            if (ImGui::Begin(view_window_lable.c_str(), nullptr, flags | ImGuiWindowFlags_FullScreen))
+                ShowVideoWindow(timeline->mVideoFilterOutputTexture, mon.MainPos, mon.MainSize, timeline->bFilterOutputPreview ? "Preview Output" : "Filter Output", 3.f);
             ImGui::End();
         }
     }
@@ -11329,8 +11334,8 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             auto mon = platform_io.Monitors[MonitorIndexVideoFilterOrg];
             ImGui::SetNextWindowPos(mon.MainPos);
             ImGui::SetNextWindowSize(mon.MainSize);
-            ImGui::Begin(view_window_lable.c_str(), nullptr, flags | ImGuiWindowFlags_FullScreen);
-            ShowVideoWindow(timeline->mVideoFilterInputTexture, mon.MainPos, mon.MainSize, "Original", 3.f);
+            if (ImGui::Begin(view_window_lable.c_str(), nullptr, flags | ImGuiWindowFlags_FullScreen))
+                ShowVideoWindow(timeline->mVideoFilterInputTexture, mon.MainPos, mon.MainSize, "Original", 3.f);
             ImGui::End();
         }
         if (MonitorIndexVideoFiltered != -1 && MonitorIndexVideoFiltered < platform_io.Monitors.Size)
@@ -11339,8 +11344,8 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             auto mon = platform_io.Monitors[MonitorIndexVideoFiltered];
             ImGui::SetNextWindowPos(mon.MainPos);
             ImGui::SetNextWindowSize(mon.MainSize);
-            ImGui::Begin(view_window_lable.c_str(), nullptr, flags | ImGuiWindowFlags_FullScreen);
-            ShowVideoWindow(timeline->mVideoFilterOutputTexture, mon.MainPos, mon.MainSize, timeline->bFilterOutputPreview ? "Preview Output" : "Attribute Output", 3.f);
+            if (ImGui::Begin(view_window_lable.c_str(), nullptr, flags | ImGuiWindowFlags_FullScreen))
+                ShowVideoWindow(timeline->mVideoFilterOutputTexture, mon.MainPos, mon.MainSize, timeline->bFilterOutputPreview ? "Preview Output" : "Attribute Output", 3.f);
             ImGui::End();
         }
     }
