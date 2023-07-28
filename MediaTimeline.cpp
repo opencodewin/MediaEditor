@@ -29,8 +29,6 @@
 #include "Logger.h"
 #include "DebugHelper.h"
 
-#define AUDIO_WAVEFORM_IMPLOT   0
-
 const MediaTimeline::audio_band_config DEFAULT_BAND_CFG[10] = {
     { 32,       32,         0 },        { 64,       64,         0 },
     { 125,      125,        0 },        { 250,      250,        0 },
@@ -2464,7 +2462,7 @@ void AudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
             int min_zoom = ImMax(window_length >> 13, 16);
             int zoom = ImMin(sample_stride, min_zoom);
             drawList->PushClipRect(leftTop, rightBottom, true);
-#if AUDIO_WAVEFORM_IMPLOT
+#if PLOT_IMPLOT
             start_offset = start_offset / zoom * zoom; // align start_offset
             ImGui::SetCursorScreenPos(customViewStart);
             ImPlot::PushStyleVar(ImPlotStyleVar_PlotPadding, {0, 0});
@@ -3771,7 +3769,7 @@ void EditingAudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, 
         if (sample_stride <= 0) sample_stride = 1;
         int min_zoom = ImMax(window_length >> 13, 16);
         int zoom = ImMin(sample_stride, min_zoom);
-#if AUDIO_WAVEFORM_IMPLOT
+#if PLOT_IMPLOT
         start_offset = start_offset / zoom * zoom; // align start_offset
         ImPlot::PushStyleVar(ImPlotStyleVar_PlotPadding, {0, 0});
         ImPlot::PushStyleVar(ImPlotStyleVar_PlotBorderSize, 0.f);
@@ -4501,7 +4499,7 @@ void EditingAudioOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
             if (sample_stride <= 0) sample_stride = 1;
             int min_zoom = ImMax(window_length >> 13, 16);
             int zoom = ImMin(sample_stride, min_zoom);
-#if AUDIO_WAVEFORM_IMPLOT
+#if PLOT_IMPLOT
             start_offset = start_offset / zoom * zoom; // align start_offset
             if (ImPlot::BeginPlot(id_string.c_str(), clip_window_size, ImPlotFlags_CanvasOnly | ImPlotFlags_NoFrame | ImPlotFlags_NoInputs))
             {
@@ -4557,7 +4555,7 @@ void EditingAudioOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
             if (sample_stride <= 0) sample_stride = 1;
             int min_zoom = ImMax(window_length >> 13, 16);
             int zoom = ImMin(sample_stride, min_zoom);
-#if AUDIO_WAVEFORM_IMPLOT
+#if PLOT_IMPLOT
             start_offset = start_offset / zoom * zoom; // align start_offset
             if (ImPlot::BeginPlot(id_string.c_str(), clip_window_size, ImPlotFlags_CanvasOnly | ImPlotFlags_NoFrame | ImPlotFlags_NoInputs))
             {

@@ -42,6 +42,7 @@
 #include <iomanip>
 #include <getopt.h>
 
+//#define DEBUG_IMGUI
 #define DEFAULT_MAIN_VIEW_WIDTH     1680
 #define DEFAULT_MAIN_VIEW_HEIGHT    1024
 
@@ -2132,7 +2133,10 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
                         ImVec2 plot_size(wave_size.x, channel_height);
                         int sampleSize = wavefrom->pcm[i].size();
                         std::string id_string = "##BankWaveform@" + std::to_string((*item)->mID) + "@" + std::to_string(i);
+#if PLOT_IMPLOT
+#else
                         ImGui::PlotLinesEx(id_string.c_str(), &wavefrom->pcm[i][0], sampleSize, 0, nullptr, -wave_range / 2, wave_range / 2, plot_size, sizeof(float), false);
+#endif
                     }
                     ImGui::PopStyleColor(2);
                 }
@@ -9309,6 +9313,8 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                 auto gmat = mat_histogram.channel(1);
                 auto bmat = mat_histogram.channel(2);
                 auto ymat = mat_histogram.channel(3);
+#if PLOT_IMPLOT
+#else
                 ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(1.f, 0.f, 0.f, 1.0f));
                 ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(1.f, 0.f, 0.f, 0.3f));
                 ImGui::PlotLinesEx("##rh", &((float *)rmat.data)[1], mat_histogram.w - 1, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(size.x, size.y / height_scale), 4, false, true);
@@ -9323,13 +9329,17 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                 ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.f, 0.f, 1.f, 0.3f));
                 ImGui::PlotLinesEx("##bh", &((float *)bmat.data)[1], mat_histogram.w - 1, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(size.x, size.y / height_scale), 4, false, true);
                 ImGui::PopStyleColor(2);
+#endif
                 if (g_media_editor_settings.HistogramYRGB)
                 {
                     ImGui::SetCursorScreenPos(pos + ImVec2(0, height_offset * 3));
+#if PLOT_IMPLOT
+#else
                     ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(1.f, 1.f, 1.f, 1.0f));
                     ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(1.f, 1.f, 1.f, 0.3f));
                     ImGui::PlotLinesEx("##yh", &((float *)ymat.data)[1], mat_histogram.w - 1, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(size.x, size.y / height_scale), 4, false, true);
                     ImGui::PopStyleColor(2);
+#endif
                 }
                 ImGui::PopStyleColor();
             }
@@ -9761,7 +9771,10 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                 if (!timeline->mAudioAttribute.channel_data[i].m_wave.empty())
                 {
                     ImGui::PushID(i);
+#if PLOT_IMPLOT
+#else
                     ImGui::PlotLinesEx("##wave", (float *)timeline->mAudioAttribute.channel_data[i].m_wave.data, timeline->mAudioAttribute.channel_data[i].m_wave.w, 0, nullptr, -1.0 / g_media_editor_settings.AudioWaveScale , 1.0 / g_media_editor_settings.AudioWaveScale, channel_view_size, 4, false, false);
+#endif
                     ImGui::PopID();
                 }
                 draw_list->AddRect(channel_min, channel_max, COL_SLIDER_HANDLE, 0);
@@ -9934,7 +9947,10 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                 if (!timeline->mAudioAttribute.channel_data[i].m_fft.empty())
                 {
                     ImGui::PushID(i);
+#if PLOT_IMPLOT
+#else
                     ImGui::PlotLinesEx("##fft", (float *)timeline->mAudioAttribute.channel_data[i].m_fft.data, timeline->mAudioAttribute.channel_data[i].m_fft.w, 0, nullptr, 0.0, 1.0 / g_media_editor_settings.AudioFFTScale, channel_view_size, 4, false, true);
+#endif
                     ImGui::PopID();
                 }
                 draw_list->AddRect(channel_min, channel_max, COL_SLIDER_HANDLE, 0);
@@ -10014,7 +10030,10 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                     ImGui::PushID(i);
                     ImGui::ImMat db_mat_inv = timeline->mAudioAttribute.channel_data[i].m_db.clone();
                     db_mat_inv += 90.f;
+#if PLOT_IMPLOT
+#else
                     ImGui::PlotLinesEx("##db", (float *)db_mat_inv.data,db_mat_inv.w, 0, nullptr, 0.f, 90.f / g_media_editor_settings.AudioDBScale, channel_view_size, 4, false, true);
+#endif
                     ImGui::PopID();
                 }
                 draw_list->AddRect(channel_min, channel_max, COL_SLIDER_HANDLE, 0);
@@ -10042,10 +10061,13 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                 ImVec2 channel_min = pos + ImVec2(0, channel_view_size.y * i);
                 ImVec2 channel_max = pos + ImVec2(channel_view_size.x, channel_view_size.y * i);
                 ImGui::PushID(i);
+#if PLOT_IMPLOT
+#else
                 if (!timeline->mAudioAttribute.channel_data[i].m_DBShort.empty() && g_media_editor_settings.AudioDBLevelShort == 1)
                     ImGui::PlotHistogram("##db_level", (float *)timeline->mAudioAttribute.channel_data[i].m_DBShort.data, timeline->mAudioAttribute.channel_data[i].m_DBShort.w, 0, nullptr, 0, 100, channel_view_size, 4);
                 else if (!timeline->mAudioAttribute.channel_data[i].m_DBLong.empty() && g_media_editor_settings.AudioDBLevelShort == 0)
                     ImGui::PlotHistogram("##db_level", (float *)timeline->mAudioAttribute.channel_data[i].m_DBLong.data, timeline->mAudioAttribute.channel_data[i].m_DBLong.w, 0, nullptr, 0, 100, channel_view_size, 4);
+#endif
                 ImGui::PopID();
                 draw_list->AddRect(channel_min, channel_max, COL_SLIDER_HANDLE, 0);
             }
@@ -10350,7 +10372,6 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline)
         }
         else
         {
-            flags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoDocking;
             is_full_size = false;
         }
         ImGui::SetNextWindowPos(pos);
@@ -10402,6 +10423,7 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline)
     ImVec2 view_pos = window_pos + ImVec2(32, 0);
     ImVec2 view_size = window_size - ImVec2(32, 0);
     ImDrawList *draw_list = ImGui::GetWindowDrawList();
+
     // add video scope + audio wave
     for (int i = 0; i <= 4; i++)
     {
@@ -10412,6 +10434,7 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline)
         ImGui::AddTextVertical(draw_list, view_pos + ImVec2(i * (scope_size + scope_gap) + scope_size, 0), IM_COL32_WHITE, ScopeWindowTabNames[i]);
         ImGui::SetWindowFontScale(1.0);
     }
+
     // add audio scope
     for (int i = 5; i < 10; i++)
     {
@@ -10868,9 +10891,9 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
     ImGui::PushStyleVar(ImGuiStyleVar_GrabRounding, 12.0f);
     UpdateBreathing();
     ImGui::Begin("Main Editor", nullptr, flags);
-    // for debug
-    //if (show_debug) ImGui::ShowMetricsWindow(&show_debug);
-    // for debug end
+#ifdef DEBUG_IMGUI
+    if (show_debug) ImGui::ShowMetricsWindow(&show_debug);
+#endif
 
     if (!logo_texture && !icon_file.empty()) logo_texture = ImGui::ImLoadTexture(icon_file.c_str());
     if (!codewin_texture) codewin_texture = ImGui::ImCreateTexture(codewin::codewin_pixels, codewin::codewin_width, codewin::codewin_height);
@@ -11102,14 +11125,14 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             show_configure = true;
         }
         ImGui::ShowTooltipOnHover("Configure");
-/*
+#ifdef DEBUG_IMGUI
         if (ImGui::Button(ICON_UI_DEBUG "##UIDebug", ImVec2(tool_icon_size, tool_icon_size)))
         {
             // open debug window
             show_debug = !show_debug;
         }
         ImGui::ShowTooltipOnHover("UI Debug");
-*/
+#endif
 
         if (ImGui::Button(ICON_FA_POWER_OFF "##Quit", ImVec2(tool_icon_size, tool_icon_size)))
         {

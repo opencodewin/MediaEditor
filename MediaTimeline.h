@@ -38,6 +38,7 @@
 #include <unordered_set>
 #include <chrono>
 
+#define PLOT_IMPLOT   0
 #define USING_OLD_UI
 
 #define ICON_MEDIA_TIMELINE u8"\uf538"
@@ -142,7 +143,7 @@
 
 #define ICON_CROPED         u8"\ue3e8"
 #define ICON_SCALED         u8"\ue433"
-#define ICON_UI_DEBUG       u8"\uf085"
+#define ICON_UI_DEBUG       u8"\ue868"
 
 #define ICON_1K             u8"\ue95c"
 #define ICON_1K_PLUS        u8"\ue95d"
