@@ -2,7 +2,6 @@
 #include <list>
 #include "Event.h"
 #include "VideoClip.h"
-#include "imgui_json.h"
 #include "Logger.h"
 
 namespace MEC
@@ -19,6 +18,7 @@ namespace MEC
     {
         virtual Event::Holder GetEvent(int64_t id) = 0;
         virtual Event::Holder AddNewEvent(int64_t id, int64_t start, int64_t end, int32_t z) = 0;
+        virtual Event::Holder RestoreEventFromJson(const imgui_json::value& eventJson) = 0;
         virtual void RemoveEvent(int64_t id) = 0;
         virtual bool ChangeEventRange(int64_t id, int64_t start, int64_t end) = 0;
         virtual bool MoveEvent(int64_t id, int64_t start, int32_t z) = 0;

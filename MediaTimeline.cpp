@@ -868,14 +868,26 @@ int64_t Clip::Cropping(int64_t diff, int type)
     // update clip's event time range
     if (mEventStack && type == 0)
     {
-        auto event_list = mEventStack->GetEventList();
-        for (auto event : event_list)
+        auto eventList = mEventStack->GetEventList();
+        if (diff > 0)
         {
-            auto event_length = event->Length();
-            auto absolute_start = event->Start() + old_offset;
-            auto new_start = absolute_start - mStartOffset;
-            auto new_end = new_start + event_length;
-            event->ChangeRange(new_start, new_end);
+            auto evtIter = eventList.begin();
+            while (evtIter != eventList.end())
+            {
+                auto& event = *evtIter++;
+                auto new_start = event->Start() - diff;
+                event->Move(new_start, event->Z());
+            }
+        }
+        else
+        {
+            auto evtIter = eventList.rbegin();
+            while (evtIter != eventList.rend())
+            {
+                auto& event = *evtIter++;
+                auto new_start = event->Start() - diff;
+                event->Move(new_start, event->Z());
+            }
         }
     }
     return diff;
@@ -1363,42 +1375,77 @@ int Clip::AddEventTrack()
     return mEventTracks.size() - 1;;
 }
 
-bool Clip::AddEvent(int track, int64_t start, int64_t duration, void* data)
+bool Clip::AddEvent(int64_t id, int evtTrackIndex, int64_t start, int64_t duration, const BluePrint::Node* node, std::list<imgui_json::value>* pActionList)
 {
-    if (!mEventStack || track >= mEventTracks.size() || !data)
+    if (!node)
+        return false;
+    return AddEvent(id, evtTrackIndex, start, duration, node->GetTypeID(), node->GetName(), pActionList);
+}
+
+bool Clip::AddEvent(int64_t id, int evtTrackIndex, int64_t start, int64_t duration, ID_TYPE nodeTypeId, const std::string& nodeName, std::list<imgui_json::value>* pActionList)
+{
+    if (!mEventStack || evtTrackIndex >= mEventTracks.size())
         return false;
     TimeLine * timeline = (TimeLine *)mHandle;
-    int64_t id = timeline ? timeline->m_IDGenerator.GenerateID() : ImGui::get_current_time_usec();
+    if (id == -1)
+        id = timeline ? timeline->m_IDGenerator.GenerateID() : ImGui::get_current_time_usec();
     auto end = start + duration;
     alignTime(start, frame_duration);
     alignTime(end, frame_duration);
-    auto event = mEventStack->AddNewEvent(id, start, end, track);
+    auto event = mEventStack->AddNewEvent(id, start, end, evtTrackIndex);
     if (!event)
     {
         auto err_str = mEventStack->GetError();
         return false;
     }
     // Create BP and set node into BP
-    BluePrint::Node* node = static_cast<BluePrint::Node*>(data);
     auto event_bp = event->GetBp();
     if (event_bp)
     {
-        if (event_bp->Blueprint_AppendNode(node->GetTypeID()))
+        if (event_bp->Blueprint_AppendNode(nodeTypeId))
         {
-            mEventTracks[track]->m_Events.push_back(event->Id());
-            return true;
+            mEventTracks[evtTrackIndex]->m_Events.push_back(event->Id());
+            auto pTrack = timeline->FindTrackByClipID(mID);
+            timeline->RefreshTrackView({ pTrack->mID });
         }
         else
         {
             mEventStack->RemoveEvent(event->Id());
+            Logger::Log(Logger::Error) << "FAILED to invoke 'Blueprint_AppendNode()' to add new node of type '" << nodeName << "'!" << std::endl;
             return false;
         }
     }
 
-    return false;
+    if (pActionList)
+    {
+        imgui_json::value action;
+        action["action"] = "ADD_EVENT";
+        action["media_type"] = imgui_json::number(mType);
+        action["clip_id"] = imgui_json::number(mID);
+        action["event_id"] = imgui_json::number(id);
+        action["event_z"] = imgui_json::number(evtTrackIndex);
+        action["event_start"] = imgui_json::number(start);
+        action["event_end"] = imgui_json::number(end);
+        action["node_type_id"] = imgui_json::number(nodeTypeId);
+        action["node_name"] = imgui_json::string(nodeName);
+        pActionList->push_back(std::move(action));
+    }
+
+    return true;
 }
 
-bool Clip::DeleteEvent(MEC::Event::Holder event)
+bool Clip::DeleteEvent(int64_t evtId, std::list<imgui_json::value>* pActionList)
+{
+    if (!mEventStack)
+        return false;
+    auto hEvent = mEventStack->GetEvent(evtId);
+    if (!hEvent)
+        return false;
+    return DeleteEvent(hEvent, pActionList);
+}
+
+
+bool Clip::DeleteEvent(MEC::Event::Holder event, std::list<imgui_json::value>* pActionList)
 {
     if (!mEventStack || !event)
         return false;
@@ -1421,6 +1468,18 @@ bool Clip::DeleteEvent(MEC::Event::Holder event)
         else
             event_iter++;
     }
+
+    if (pActionList)
+    {
+        imgui_json::value action;
+        action["action"] = "DELETE_EVENT";
+        action["media_type"] = imgui_json::number(mType);
+        action["clip_id"] = imgui_json::number(mID);
+        action["event_id"] = imgui_json::number(event->Id());
+        action["event_json"] = event->SaveAsJson();
+        pActionList->push_back(std::move(action));
+    }
+
     mEventStack->RemoveEvent(event->Id());
     auto clip_track = timeline->FindTrackByClipID(mID);
     if (clip_track) timeline->RefreshTrackView({clip_track->mID});
@@ -1534,7 +1593,7 @@ bool Clip::hasSelectedEvent()
     return false;
 }
 
-void Clip::EventMoving(int64_t event_id, int64_t diff, int64_t mouse)
+void Clip::EventMoving(int64_t event_id, int64_t diff, int64_t mouse, std::list<imgui_json::value>* pActionList)
 {
     auto event = FindEventByID(event_id);
     if (!event || !(event->Status() & EVENT_SELECTED)) return;
@@ -1590,18 +1649,29 @@ void Clip::EventMoving(int64_t event_id, int64_t diff, int64_t mouse)
                 new_diff = next_event->Start() - event->End();
         }
     }
-    auto new_start = event->Start() + new_diff;
+    auto old_start = event->Start();
+    auto new_start = old_start + new_diff;
     if (new_start < 0) new_start = 0;
     if (new_start + length > Length())
         new_start = Length() - length;
     alignTime(new_start, frame_duration);
-    //auto new_end = new_start + length;
-    //event->ChangeRange(new_start, new_end);
     event->Move(new_start, index);
     track->Update();
+
+    if (pActionList)
+    {
+        imgui_json::value action;
+        action["action"] = "MOVE_EVENT";
+        action["media_type"] = imgui_json::number(mType);
+        action["clip_id"] = imgui_json::number(mID);
+        action["event_id"] = imgui_json::number(event_id);
+        action["event_start_old"] = imgui_json::number(old_start);
+        action["event_z_old"] = imgui_json::number(index);
+        pActionList->push_back(std::move(action));
+    }
 }
 
-int64_t Clip::EventCropping(int64_t event_id, int64_t diff, int type)
+int64_t Clip::EventCropping(int64_t event_id, int64_t diff, int type, std::list<imgui_json::value>* pActionList)
 {
     auto event = FindEventByID(event_id);
     if (!event || !(event->Status() & EVENT_SELECTED)) return 0;
@@ -1611,6 +1681,8 @@ int64_t Clip::EventCropping(int64_t event_id, int64_t diff, int type)
     int64_t new_diff = diff;
     auto prev_event = track->FindPreviousEvent(event->Id());
     auto next_event = track->FindNextEvent(event->Id());
+    const auto oldStart = event->Start();
+    const auto oldEnd = event->End();
 
     if (type == 0)
     {
@@ -1646,6 +1718,18 @@ int64_t Clip::EventCropping(int64_t event_id, int64_t diff, int type)
     }
     // TODO::   need update event curve
     track->Update();
+
+    if (pActionList)
+    {
+        imgui_json::value action;
+        action["action"] = "CROP_EVENT";
+        action["media_type"] = imgui_json::number(mType);
+        action["clip_id"] = imgui_json::number(mID);
+        action["event_id"] = imgui_json::number(event_id);
+        action["event_start_old"] = imgui_json::number(oldStart);
+        action["event_end_old"] = imgui_json::number(oldEnd);
+        pActionList->push_back(std::move(action));
+    }
     return new_diff;
 }
 
@@ -8128,6 +8212,10 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
         mMtvReader->SetTrackVisible(trackId, visible);
         UpdatePreview();
     }
+    else if (actionName == "ADD_EVENT" || actionName == "DELETE_EVENT" || actionName == "MOVE_EVENT" || actionName == "CROP_EVENT")
+    {
+        // skip handle these actions
+    }
     else
     {
         Logger::Log(Logger::WARN) << "UNHANDLED UI ACTION(Video): '" << actionName << "'." << std::endl;
@@ -9065,8 +9153,8 @@ bool TimeLine::UndoOneRecord()
                 int64_t orgEndOffset = action["org_end_offset"].get<imgui_json::number>();
                 int64_t newStartOffset = action["new_start_offset"].get<imgui_json::number>();
                 int64_t newEndOffset = action["new_end_offset"].get<imgui_json::number>();
-                startDiff = newStartOffset-orgStartOffset;
-                endDiff = newEndOffset-orgEndOffset;
+                startDiff = orgStartOffset-newStartOffset;
+                endDiff = orgEndOffset-newEndOffset;
             }
             else
             {
@@ -9155,6 +9243,51 @@ bool TimeLine::UndoOneRecord()
             imgui_json::value undoAction = action;
             undoAction["muted"] = muted;
             mUiActions.push_back(std::move(undoAction));
+        }
+        else if (actionName == "ADD_EVENT")
+        {
+            int64_t clipId = action["clip_id"].get<imgui_json::number>();
+            Clip* pClip = FindClipByID(clipId);
+            int64_t evtId = action["event_id"].get<imgui_json::number>();
+            pClip->DeleteEvent(evtId, nullptr);
+        }
+        else if (actionName == "DELETE_EVENT")
+        {
+            int64_t clipId = action["clip_id"].get<imgui_json::number>();
+            Clip* pClip = FindClipByID(clipId);
+            auto hEvent = pClip->mEventStack->RestoreEventFromJson(action["event_json"]);
+            if (hEvent)
+            {
+                pClip->mEventTracks[hEvent->Z()]->m_Events.push_back(hEvent->Id());
+                auto pTrack = FindTrackByClipID(pClip->mID);
+                RefreshTrackView({ pTrack->mID });
+            }
+            else
+            {
+                Logger::Log(Logger::WARN) << "FAILED to restore Event from json " << action["event_json"].dump() << "!" << std::endl;
+            }
+        }
+        else if (actionName == "MOVE_EVENT")
+        {
+            int64_t clipId = action["clip_id"].get<imgui_json::number>();
+            Clip* pClip = FindClipByID(clipId);
+            int64_t evtId = action["event_id"].get<imgui_json::number>();
+            int64_t oldStart = action["event_start_old"].get<imgui_json::number>();
+            int32_t oldZ = action["event_z_old"].get<imgui_json::number>();
+            pClip->mEventStack->MoveEvent(evtId, oldStart, oldZ);
+            auto pTrack = FindTrackByClipID(clipId);
+            RefreshTrackView({ pTrack->mID });
+        }
+        else if (actionName == "CROP_EVENT")
+        {
+            int64_t clipId = action["clip_id"].get<imgui_json::number>();
+            Clip* pClip = FindClipByID(clipId);
+            int64_t evtId = action["event_id"].get<imgui_json::number>();
+            int64_t oldStart = action["event_start_old"].get<imgui_json::number>();
+            int32_t oldEnd = action["event_end_old"].get<imgui_json::number>();
+            pClip->mEventStack->ChangeEventRange(evtId, oldStart, oldEnd);
+            auto pTrack = FindTrackByClipID(clipId);
+            RefreshTrackView({ pTrack->mID });
         }
         else
         {
@@ -9330,6 +9463,47 @@ bool TimeLine::RedoOneRecord()
             auto pTrack = FindTrackByID(trackId);
             pTrack->mView = !muted;
             mUiActions.push_back(action);
+        }
+        else if (actionName == "ADD_EVENT")
+        {
+            int64_t clipId = action["clip_id"].get<imgui_json::number>();
+            Clip* pClip = FindClipByID(clipId);
+            int64_t evtId = action["event_id"].get<imgui_json::number>();
+            int64_t evtStart = action["event_start"].get<imgui_json::number>();
+            int64_t evtEnd = action["event_end"].get<imgui_json::number>();
+            int32_t evtZ = action["event_z"].get<imgui_json::number>();
+            ID_TYPE nodeTypeId = action["node_type_id"].get<imgui_json::number>();
+            std::string nodeName = action["node_name"].get<imgui_json::string>();
+            pClip->AddEvent(evtId, evtZ, evtStart, evtEnd-evtStart, nodeTypeId, nodeName, nullptr);
+        }
+        else if (actionName == "DELETE_EVENT")
+        {
+            int64_t clipId = action["clip_id"].get<imgui_json::number>();
+            Clip* pClip = FindClipByID(clipId);
+            int64_t evtId = action["event_id"].get<imgui_json::number>();
+            pClip->DeleteEvent(evtId, nullptr);
+        }
+        else if (actionName == "MOVE_EVENT")
+        {
+            int64_t clipId = action["clip_id"].get<imgui_json::number>();
+            Clip* pClip = FindClipByID(clipId);
+            int64_t evtId = action["event_id"].get<imgui_json::number>();
+            int64_t newStart = action["event_start_new"].get<imgui_json::number>();
+            int32_t newZ = action["event_z_new"].get<imgui_json::number>();
+            pClip->mEventStack->MoveEvent(evtId, newStart, newZ);
+            auto pTrack = FindTrackByClipID(clipId);
+            RefreshTrackView({ pTrack->mID });
+        }
+        else if (actionName == "CROP_EVENT")
+        {
+            int64_t clipId = action["clip_id"].get<imgui_json::number>();
+            Clip* pClip = FindClipByID(clipId);
+            int64_t evtId = action["event_id"].get<imgui_json::number>();
+            int64_t newStart = action["event_start_new"].get<imgui_json::number>();
+            int32_t newEnd = action["event_end_new"].get<imgui_json::number>();
+            pClip->mEventStack->ChangeEventRange(evtId, newStart, newEnd);
+            auto pTrack = FindTrackByClipID(clipId);
+            RefreshTrackView({ pTrack->mID });
         }
         else
         {
@@ -10816,7 +10990,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
     if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
     {
         auto& ongoingActions = timeline->mOngoingActions;
-        if (clipMovingEntry != -1 && !ongoingActions.empty())
+        if (!ongoingActions.empty())
         {
             for (auto& action : ongoingActions)
             {
@@ -10856,6 +11030,44 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                     }
                     else
                         Logger::Log(Logger::VERBOSE) << "-- Unchanged CROP action DISCARDED --" << std::endl;
+                }
+                else if (actionName == "MOVE_EVENT")
+                {
+                    int64_t clipId = action["clip_id"].get<imgui_json::number>();
+                    int64_t evtId = action["event_id"].get<imgui_json::number>();
+                    int64_t oldStart = action["event_start_old"].get<imgui_json::number>();
+                    int32_t oldZ = action["event_z_old"].get<imgui_json::number>();
+                    auto pClip = timeline->FindClipByID(clipId);
+                    auto hEvent = pClip->mEventStack->GetEvent(evtId);
+                    int64_t newStart = hEvent->Start();
+                    int32_t newZ = hEvent->Z();
+                    if (newStart != oldStart || newZ != oldZ)
+                    {
+                        action["event_start_new"] = imgui_json::number(newStart);
+                        action["event_z_new"] = imgui_json::number(newZ);
+                        actionList.push_back(std::move(action));
+                    }
+                    else
+                        Logger::Log(Logger::VERBOSE) << "-- Unchanged MOVE_EVENT action DISCARDED --" << std::endl;
+                }
+                else if (actionName == "CROP_EVENT")
+                {
+                    int64_t clipId = action["clip_id"].get<imgui_json::number>();
+                    int64_t evtId = action["event_id"].get<imgui_json::number>();
+                    int64_t oldStart = action["event_start_old"].get<imgui_json::number>();
+                    int32_t oldEnd = action["event_end_old"].get<imgui_json::number>();
+                    auto pClip = timeline->FindClipByID(clipId);
+                    auto hEvent = pClip->mEventStack->GetEvent(evtId);
+                    int64_t newStart = hEvent->Start();
+                    int32_t newEnd = hEvent->End();
+                    if (newStart != oldStart || newEnd != oldEnd)
+                    {
+                        action["event_start_new"] = imgui_json::number(newStart);
+                        action["event_end_new"] = imgui_json::number(newEnd);
+                        actionList.push_back(std::move(action));
+                    }
+                    else
+                        Logger::Log(Logger::VERBOSE) << "-- Unchanged MOVE_EVENT action DISCARDED --" << std::endl;
                 }
                 else
                 {
@@ -11842,6 +12054,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     static float diffTime = 0;
     static bool bCropping = false;
     static bool bEventMoving = false;
+    static bool bNewDragOp = false;
     auto clip = editingClip->GetClip();
 
     bool has_selected_event = clip->hasSelectedEvent();
@@ -12016,7 +12229,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     // Handle event delete
     if (msgbox.Draw() == 1)
     {
-        clip->DeleteEvent(clip->FindSelectedEvent());
+        clip->DeleteEvent(clip->FindSelectedEvent(), &main_timeline->mUiActions);
         has_selected_event = false;
     }
     popupDialog = ImGui::IsPopupOpen("Delete Event?");
@@ -12320,6 +12533,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         ImGui::PopStyleColor();
 
         // event track
+        auto prevEventMovingPart = eventMovingPart;
         ImGui::SetCursorScreenPos(trackAreaRect.Min);
         if (ImGui::BeginChild("##clip_event_tracks", trackAreaRect.GetSize(), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoScrollWithMouse))
         {
@@ -12423,6 +12637,8 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                 track_current += ImVec2(0, track_size.y);
                 current_index ++;
             }
+            if (prevEventMovingPart != eventMovingPart)
+                bNewDragOp = true;
 
             // draw empty track if has space
             while (track_current.y + event_track_size.y < track_pos.y + trackAreaRect.GetSize().y)
@@ -12452,17 +12668,23 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                 diffTime += io.MouseDelta.x / editingClip->msPixelWidthTarget;
                 if (diffTime > frameTime(main_timeline->mFrameRate) || diffTime < -frameTime(main_timeline->mFrameRate))
                 {
+                    std::list<imgui_json::value>* pActionList = nullptr;
+                    if (bNewDragOp)
+                    {
+                        pActionList = &main_timeline->mOngoingActions;
+                        bNewDragOp = false;
+                    }
                     if (eventMovingPart == 3)
                     {
-                        clip->EventMoving(eventMovingEntry, diffTime, mouseTime);
+                        clip->EventMoving(eventMovingEntry, diffTime, mouseTime, pActionList);
                     }
                     else if (eventMovingPart & 1)
                     {
-                        clip->EventCropping(eventMovingEntry, diffTime, 0);
+                        clip->EventCropping(eventMovingEntry, diffTime, 0, pActionList);
                     }
                     else if (eventMovingPart & 2)
                     {
-                        clip->EventCropping(eventMovingEntry, diffTime, 1);
+                        clip->EventCropping(eventMovingEntry, diffTime, 1, pActionList);
                     }
                     diffTime = 0;
                 }
@@ -12505,7 +12727,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                             if (new_track >= 0)
                             {
                                 int64_t _duration = ImMin(min_duration, clip->Length() - mouseTime);
-                                auto event = clip->AddEvent(new_track, mouseTime, _duration, (void *)node);
+                                auto event = clip->AddEvent(-1, new_track, mouseTime, _duration, node, &main_timeline->mUiActions);
                             }
                         }
                         else if (!mouseEvent)
@@ -12516,7 +12738,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                             auto _max_duration = track->FindEventSpace(mouseTime);
                             int64_t _duration = _max_duration == -1 ? ImMin(min_duration, clip->Length() - mouseTime) : 
                                                 ImMin(min_duration, _max_duration);
-                            auto event = clip->AddEvent(mouse_track_index, mouseTime, _duration, (void *)node);
+                            auto event = clip->AddEvent(-1, mouse_track_index, mouseTime, _duration, node, &main_timeline->mUiActions);
                         }
                         else if (mouseEvent)
                         {
@@ -12540,6 +12762,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         bEventMoving = false;
         eventMovingEntry = -1;
         eventMovingPart = -1;
+        bNewDragOp = false;
         ImGui::CaptureMouseFromApp(false);
     }
     return mouse_hold;

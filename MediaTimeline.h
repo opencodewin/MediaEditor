@@ -452,11 +452,13 @@ struct Clip
     MEC::Event::Holder FindEventByID(int64_t event_id);
     MEC::Event::Holder FindSelectedEvent();
     bool hasSelectedEvent();
-    void EventMoving(int64_t event_id, int64_t diff, int64_t mouse);
-    int64_t EventCropping(int64_t event_id, int64_t diff, int type);
-    bool AddEvent(int track, int64_t start, int64_t duration, void* data);
+    void EventMoving(int64_t event_id, int64_t diff, int64_t mouse, std::list<imgui_json::value>* pActionList);
+    int64_t EventCropping(int64_t event_id, int64_t diff, int type, std::list<imgui_json::value>* pActionList);
+    bool AddEvent(int64_t id, int evtTrackIndex, int64_t start, int64_t duration, const BluePrint::Node* node, std::list<imgui_json::value>* pActionList);
+    bool AddEvent(int64_t id, int evtTrackIndex, int64_t start, int64_t duration, ID_TYPE nodeTypeId, const std::string& nodeName, std::list<imgui_json::value>* pActionList);
     bool AppendEvent(MEC::Event::Holder event, void* data);
-    bool DeleteEvent(MEC::Event::Holder event);
+    bool DeleteEvent(int64_t evtId, std::list<imgui_json::value>* pActionList);
+    bool DeleteEvent(MEC::Event::Holder event, std::list<imgui_json::value>* pActionList);
     void SelectEvent(MEC::Event::Holder event, bool appand = false);
 
     void ChangeStart(int64_t pos);
@@ -1147,7 +1149,7 @@ struct TimeLine
     std::unordered_set<int64_t> mNeedUpdateTrackIds;
 
     bool mIsCutting {false};
-    imgui_json::array mOngoingActions;
+    std::list<imgui_json::value> mOngoingActions;
     std::list<imgui_json::value> mUiActions;
     void PrintActionList(const std::string& title, const std::list<imgui_json::value>& actionList);
     void PrintActionList(const std::string& title, const imgui_json::array& actionList);

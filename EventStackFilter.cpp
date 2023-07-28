@@ -125,6 +125,16 @@ public:
         return hEvt;
     }
 
+    Event::Holder RestoreEventFromJson(const imgui_json::value& eventJson) override
+    {
+        auto hEvent = VideoEvent_Impl::LoadFromJson(this, eventJson, m_bpCallbacks);
+        if (!hEvent)
+            return nullptr;
+        if (!EnrollEvent(hEvent))
+            return nullptr;
+        return hEvent;
+    }
+
     void RemoveEvent(int64_t id) override
     {
         auto iter = find_if(m_eventList.begin(), m_eventList.end(), [id] (auto e) {
@@ -367,7 +377,7 @@ public:
             return m_owner->GetError();
         }        
 
-        imgui_json::value SaveAsJson() const
+        imgui_json::value SaveAsJson() const override
         {
             imgui_json::value json;
             json["id"] = imgui_json::number(m_id);

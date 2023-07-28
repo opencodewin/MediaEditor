@@ -5191,7 +5191,7 @@ static void DrawVideoFilterEventWindow(ImDrawList *draw_list, Clip * editing_cli
             // Handle event delete
             if (msgbox_event.Draw() == 1)
             {
-                editing_clip->DeleteEvent(event);
+                editing_clip->DeleteEvent(event, &timeline->mUiActions);
             }
             ImGui::Indent(ImGui::GetTreeNodeToLabelSpacing());
             ImGui::TreePop();
