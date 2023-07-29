@@ -310,7 +310,7 @@ void EventTrack::Save(imgui_json::value& value)
     if (m_Events.size() > 0) value["EventIDS"] = events;
 }
 
-void EventTrack::DrawContent(ImDrawList *draw_list, ImRect rect, int event_height, int curve_height, int64_t view_start, int64_t view_end, float pixelWidthMS)
+void EventTrack::DrawContent(ImDrawList *draw_list, ImRect rect, int event_height, int curve_height, int64_t view_start, int64_t view_end, float pixelWidthMS, bool editable)
 {
     TimeLine * timeline = (TimeLine *)mHandle;
     if (!timeline)
@@ -416,7 +416,7 @@ void EventTrack::DrawContent(ImDrawList *draw_list, ImRect rect, int event_heigh
             else
                 draw_list->AddRect(event_pos_min, event_pos_max, IM_COL32(128,128,255,224), 4, flag, 2.0f);
             draw_list->AddRectFilled(event_pos_min, event_pos_max, is_hovered ? IM_COL32(64, 64, 192, 128) : IM_COL32(32, 32, 192, 128), 4, flag);
-            if (is_hovered)
+            if (is_hovered && editable)
             {
                 if (!mouse_clicked && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
                 {
@@ -449,7 +449,7 @@ void EventTrack::DrawContent(ImDrawList *draw_list, ImRect rect, int event_heigh
                                                         pKP,
                                                         sub_window_size, 
                                                         ImGui::GetID("##video_filter_event_keypoint_editor"),
-                                                        true, // editable, TODO::Dicky need check later
+                                                        editable,
                                                         current_time,
                                                         curve_start,
                                                         curve_end,
@@ -12548,6 +12548,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         ImGui::PopStyleColor();
 
         // event track
+        bool event_editable = !MovingCurrentTime && !ImGui::IsDragDropActive() && !menuIsOpened;
         auto prevEventMovingPart = eventMovingPart;
         ImGui::SetCursorScreenPos(trackAreaRect.Min);
         if (ImGui::BeginChild("##clip_event_tracks", trackAreaRect.GetSize(), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoScrollWithMouse))
@@ -12574,7 +12575,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                 drawList->AddRectFilled(track_area.Min, track_area.Max, col);
                 ImGui::SetCursorScreenPos(track_current);
                 ImGui::InvisibleButton("##event_track", track_size);
-                if (is_mouse_hovered)
+                if (is_mouse_hovered && event_editable)
                 {
                     for (auto event_id : track->m_Events)
                     {
@@ -12585,7 +12586,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                             event->SetStatus(EVENT_HOVERED_BIT, 1);
                             mouseEvent = event;
                             auto event_view_width = event->Length() * editingClip->msPixelWidthTarget;
-                            if (eventMovingEntry == -1 && !ImGui::IsDragDropActive())
+                            if (eventMovingEntry == -1)
                             {
                                 if (event_view_width <= 20)
                                 {
@@ -12647,7 +12648,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                     }
                     mouse_track_index = current_index;
                 }
-                track->DrawContent(drawList, ImRect(track_current, track_current + track_size), trackHeight, curveHeight, editingClip->firstTime, editingClip->lastTime, editingClip->msPixelWidthTarget);
+                track->DrawContent(drawList, ImRect(track_current, track_current + track_size), trackHeight, curveHeight, editingClip->firstTime, editingClip->lastTime, editingClip->msPixelWidthTarget, event_editable);
                 
                 track_current += ImVec2(0, track_size.y);
                 current_index ++;
