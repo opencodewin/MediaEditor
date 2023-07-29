@@ -9069,6 +9069,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list, ImRect title_rect)
 static void ShowMediaScopeSetting(int index, bool show_tooltips = true)
 {
     ImGui::BeginGroup();
+    const auto viewport = ImGui::GetWindowViewport();
     ImGui::PushItemWidth(200);
     switch (index)
     {
@@ -9126,14 +9127,17 @@ static void ShowMediaScopeSetting(int index, bool show_tooltips = true)
             {
                 cie_setting_changed = true;
             }
+            ImGui::SetNextWindowViewport(viewport->ID);
             if (ImGui::Combo("Color System", (int *)&g_media_editor_settings.CIEColorSystem, color_system_items, IM_ARRAYSIZE(color_system_items)))
             {
                 cie_setting_changed = true;
             }
+            ImGui::SetNextWindowViewport(viewport->ID);
             if (ImGui::Combo("Cie System", (int *)&g_media_editor_settings.CIEMode, cie_system_items, IM_ARRAYSIZE(cie_system_items)))
             {
                 cie_setting_changed = true;
             }
+            ImGui::SetNextWindowViewport(viewport->ID);
             if (ImGui::Combo("Show Gamut", (int *)&g_media_editor_settings.CIEGamuts, color_system_items, IM_ARRAYSIZE(color_system_items)))
             {
                 cie_setting_changed = true;
@@ -9197,6 +9201,7 @@ static void ShowMediaScopeSetting(int index, bool show_tooltips = true)
                 ImGui::TextDisabled("%s", "Mouse wheel up/down on scope view also");
                 ImGui::TextDisabled("%s", "Mouse left double click return default");
             }
+            ImGui::SetNextWindowViewport(viewport->ID);
             if (ImGui::Combo("Vector Mode", (int *)&g_media_editor_settings.AudioVectorMode, audio_vector_mode_items, IM_ARRAYSIZE(audio_vector_mode_items)))
             {
                 timeline->mAudioAttribute.mAudioVectorMode = g_media_editor_settings.AudioVectorMode;
