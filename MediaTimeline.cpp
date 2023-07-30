@@ -871,7 +871,7 @@ int64_t Clip::Cropping(int64_t diff, int type)
     return diff;
 }
 
-void Clip::Cutting(int64_t pos, int64_t gid, std::list<imgui_json::value>* pActionList)
+void Clip::Cutting(int64_t pos, int64_t gid, int64_t newClipId, std::list<imgui_json::value>* pActionList)
 {
     TimeLine * timeline = (TimeLine *)mHandle;
     if (!timeline)
@@ -898,10 +898,9 @@ void Clip::Cutting(int64_t pos, int64_t gid, std::list<imgui_json::value>* pActi
     mEnd = adj_end;
     mEndOffset = adj_end_offset;
     // and add a new clip start at this clip's end
-    int64_t newClipId = -1;
     if ((newClipId = timeline->AddNewClip(mMediaID, mType, track->mID,
             new_start, new_start_offset, org_end, org_end_offset,
-            gid, -1, nullptr)) >= 0)
+            gid, newClipId, nullptr)) >= 0)
     {
         // update curve
         if (timeline->mVidFilterClip && timeline->mVidFilterClip->mID == mID)
@@ -9573,7 +9572,8 @@ bool TimeLine::RedoOneRecord()
             auto pUiClip = FindClipByID(clipId);
             int64_t cutPos = action["cut_pos"].get<imgui_json::number>();
             int64_t gid = action["group_id"].get<imgui_json::number>();
-            pUiClip->Cutting(cutPos, gid, nullptr);
+            int64_t newClipId = action["new_clip_id"].get<imgui_json::number>();
+            pUiClip->Cutting(cutPos, gid, newClipId);
             mUiActions.push_back(action);
         }
         else if (actionName == "ADD_GROUP")
@@ -10928,7 +10928,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 timeline->m_Groups.push_back(newGroup);
                 for (auto clip : cuttingClips)
                 {
-                    clip->Cutting(doCutPos, newGroup.mID, &timeline->mUiActions);
+                    clip->Cutting(doCutPos, newGroup.mID, -1, &timeline->mUiActions);
                 }
             }
         }
