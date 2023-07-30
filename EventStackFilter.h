@@ -22,6 +22,7 @@ namespace MEC
         virtual void RemoveEvent(int64_t id) = 0;
         virtual bool ChangeEventRange(int64_t id, int64_t start, int64_t end) = 0;
         virtual bool MoveEvent(int64_t id, int64_t start, int32_t z) = 0;
+        virtual bool MoveAllEvents(int64_t offset) = 0;
         virtual bool SetEditingEvent(int64_t id) = 0;
         virtual Event::Holder GetEditingEvent() = 0;
         virtual std::list<Event::Holder> GetEventList() const = 0;
@@ -39,5 +40,6 @@ namespace MEC
         static MediaCore::VideoFilter::Holder CreateInstance(const BluePrint::BluePrintCallbackFunctions& bpCallbacks);
         static MediaCore::VideoFilter::Holder LoadFromJson(const imgui_json::value& json, const BluePrint::BluePrintCallbackFunctions& bpCallbacks);
         virtual imgui_json::value SaveAsJson() const = 0;
+        virtual void SetBluePrintCallbacks(const BluePrint::BluePrintCallbackFunctions& bpCallbacks) = 0;
     };
 }

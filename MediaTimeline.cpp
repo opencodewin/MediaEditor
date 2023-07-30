@@ -866,27 +866,7 @@ int64_t Clip::Cropping(int64_t diff, int type)
     // update clip's event time range
     if (mEventStack && type == 0)
     {
-        auto eventList = mEventStack->GetEventList();
-        if (diff > 0)
-        {
-            auto evtIter = eventList.begin();
-            while (evtIter != eventList.end())
-            {
-                auto& event = *evtIter++;
-                auto new_start = event->Start() - diff;
-                event->Move(new_start, event->Z());
-            }
-        }
-        else
-        {
-            auto evtIter = eventList.rbegin();
-            while (evtIter != eventList.rend())
-            {
-                auto& event = *evtIter++;
-                auto new_start = event->Start() - diff;
-                event->Move(new_start, event->Z());
-            }
-        }
+        mEventStack->MoveAllEvents(-diff);
     }
     return diff;
 }
@@ -917,27 +897,11 @@ void Clip::Cutting(int64_t pos, int64_t gid, std::list<imgui_json::value>* pActi
     // crop this clip's end
     mEnd = adj_end;
     mEndOffset = adj_end_offset;
-    if (pActionList)
-    {
-        imgui_json::value action;
-        action["action"] = "CROP_CLIP";
-        action["media_type"] = imgui_json::number(mType);
-        action["clip_id"] = imgui_json::number(mID);
-        action["from_track_id"] = imgui_json::number(track->mID);
-        action["new_start"] = action["org_start"] = imgui_json::number(mStart);
-        action["new_start_offset"] = action["org_start_offset"] = imgui_json::number(mStartOffset);
-        action["org_end"] = imgui_json::number(org_end);
-        action["org_end_offset"] = imgui_json::number(org_end_offset);
-        action["new_end"] = imgui_json::number(mEnd);
-        action["new_end_offset"] = imgui_json::number(mEndOffset);
-        action["is_cutting"] = imgui_json::boolean(true);
-        pActionList->push_back(std::move(action));
-    }
     // and add a new clip start at this clip's end
     int64_t newClipId = -1;
     if ((newClipId = timeline->AddNewClip(mMediaID, mType, track->mID,
             new_start, new_start_offset, org_end, org_end_offset,
-            gid, -1, pActionList)) >= 0)
+            gid, -1, nullptr)) >= 0)
     {
         // update curve
         if (timeline->mVidFilterClip && timeline->mVidFilterClip->mID == mID)
@@ -985,6 +949,20 @@ void Clip::Cutting(int64_t pos, int64_t gid, std::list<imgui_json::value>* pActi
         }
     }
     timeline->Update();
+
+    if (pActionList)
+    {
+        imgui_json::value action;
+        action["action"] = "CUT_CLIP";
+        action["media_type"] = imgui_json::number(mType);
+        action["clip_id"] = imgui_json::number(mID);
+        action["track_id"] = imgui_json::number(track->mID);
+        action["cut_pos"] = imgui_json::number(pos);
+        action["org_end"] = imgui_json::number(org_end);
+        action["new_clip_id"] = imgui_json::number(newClipId);
+        action["group_id"] = imgui_json::number(gid);
+        pActionList->push_back(std::move(action));
+    }
 }
 
 int64_t Clip::Moving(int64_t diff, int mouse_track)
@@ -2317,6 +2295,30 @@ void VideoClip::SyncFilterWithDataLayer(MediaCore::VideoClip::Holder hClip, bool
         MediaCore::VideoFilter::Holder hFilter(bpvf);
         hClip->SetFilter(hFilter);
 #endif
+    }
+    else if (hFilter && mFilterJson.is_null())
+    {
+        auto filterName = hFilter->GetFilterName();
+        if (filterName == "EventStackFilter")
+        {
+            MEC::VideoEventStackFilter* pEsf = dynamic_cast<MEC::VideoEventStackFilter*>(hFilter.get());
+            pEsf->SetTimelineHandle(mHandle);
+            mFilterJson = pEsf->SaveAsJson();
+            mEventStack = static_cast<MEC::EventStack*>(pEsf);
+            auto eventList = mEventStack->GetEventList();
+            mEventTracks.clear();
+            for (auto& e : eventList)
+            {
+                const auto z = e->Z();
+                while (z >= mEventTracks.size())
+                    AddEventTrack();
+                mEventTracks[z]->m_Events.push_back(e->Id());
+            }
+        }
+        else
+        {
+            Logger::Log(Logger::WARN) << "UNHANDLED filter type '" << filterName << "'!" << std::endl;
+        }
     }
 }
 
@@ -4890,8 +4892,6 @@ void MediaTrack::InsertClip(Clip * clip, int64_t pos, bool update, std::list<img
             action["action"] = "ADD_CLIP";
             action["media_type"] = imgui_json::number(clip->mType);
             action["to_track_id"] = imgui_json::number(mID);
-            if (timeline->mIsCutting)
-                action["is_cutting"] = imgui_json::boolean(true);
             imgui_json::value clipJson;
             clip->Save(clipJson);
             action["clip_json"] = clipJson;
@@ -8133,8 +8133,10 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
         vclip->SyncFilterWithDataLayer(hVidClip);
         vclip->SyncAttributesWithDataLayer(hVidClip);
         vidTrack->InsertClip(hVidClip);
-        bool bIsCutting = action.contains("is_cutting");
-        UpdatePreview(!bIsCutting);
+        bool updateDuration = true;
+        if (action.contains("update_duration"))
+            updateDuration = action["update_duration"].get<imgui_json::boolean>();
+        UpdatePreview(updateDuration);
     }
     else if (actionName == "REMOVE_CLIP")
     {
@@ -8142,8 +8144,10 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
         MediaCore::VideoTrack::Holder vidTrack = mMtvReader->GetTrackById(trackId);
         int64_t clipId = action["clip_json"]["ID"].get<imgui_json::number>();
         vidTrack->RemoveClipById(clipId);
-        bool bIsCutting = action.contains("is_cutting");
-        UpdatePreview(!bIsCutting);
+        bool updateDuration = true;
+        if (action.contains("update_duration"))
+            updateDuration = action["update_duration"].get<imgui_json::boolean>();
+        UpdatePreview(updateDuration);
     }
     else if (actionName == "MOVE_CLIP")
     {
@@ -8179,8 +8183,48 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
         int64_t newStartOffset = action["new_start_offset"].get<imgui_json::number>();
         int64_t newEndOffset = action["new_end_offset"].get<imgui_json::number>();
         vidTrack->ChangeClipRange(clipId, newStartOffset, newEndOffset);
-        bool bIsCutting = action.contains("is_cutting");
-        UpdatePreview(!bIsCutting);
+        bool updateDuration = true;
+        if (action.contains("update_duration"))
+            updateDuration = action["update_duration"].get<imgui_json::boolean>();
+        UpdatePreview(updateDuration);
+    }
+    else if (actionName == "CUT_CLIP")
+    {
+        int64_t trackId = action["track_id"].get<imgui_json::number>();
+        auto hVidTrk = mMtvReader->GetTrackById(trackId);
+        int64_t clipId = action["clip_id"].get<imgui_json::number>();
+        auto hClip = hVidTrk->GetClipById(clipId);
+        int64_t cutPos = action["cut_pos"].get<imgui_json::number>();
+        int64_t newClipStart = cutPos;
+        int64_t newClipEnd = hClip->End();
+        int64_t newClipStartOffset = hClip->StartOffset()+cutPos-hClip->Start();
+        int64_t newClipEndOffset = hClip->EndOffset();
+        hVidTrk->ChangeClipRange(clipId, hClip->StartOffset(), hClip->EndOffset()+hClip->End()-cutPos);
+        int64_t newClipId = action["new_clip_id"].get<imgui_json::number>();
+        MediaCore::VideoClip::Holder hNewClip = MediaCore::VideoClip::CreateVideoInstance(
+            newClipId, hClip->GetMediaParser(), mMtvReader->GetSharedSettings(),
+            newClipStart, newClipEnd, newClipStartOffset, newClipEndOffset, currentTime-newClipStart, hVidTrk->Direction());
+        auto hNewFilter = hClip->GetFilter()->Clone();
+        if (hNewFilter)
+        {
+            const auto filterName = hNewFilter->GetFilterName();
+            if (filterName == "EventStackFilter")
+            {
+                MEC::VideoEventStackFilter* pEsf = dynamic_cast<MEC::VideoEventStackFilter*>(hNewFilter.get());
+                BluePrint::BluePrintCallbackFunctions bpCallbacks;
+                bpCallbacks.BluePrintOnChanged = TimeLine::OnVideoFilterBluePrintChange;
+                pEsf->SetBluePrintCallbacks(bpCallbacks);
+                pEsf->MoveAllEvents(hClip->Start()-cutPos);
+            }
+            else
+                Logger::Log(Logger::WARN) << "UNHANDLED video filter type '" << filterName << "'." << std::endl;
+            hNewClip->SetFilter(hNewFilter);
+        }
+        auto pUiClip = dynamic_cast<VideoClip*>(FindClipByID(newClipId));
+        pUiClip->SyncFilterWithDataLayer(hNewClip);
+        pUiClip->SyncAttributesWithDataLayer(hNewClip);
+        hVidTrk->InsertClip(hNewClip);
+        UpdatePreview(false);
     }
     else if (actionName == "ADD_TRACK")
     {
@@ -8243,8 +8287,10 @@ void TimeLine::PerformAudioAction(imgui_json::value& action)
         MediaCore::AudioFilter::Holder hFilter(bpaf);
         audClip->SetFilter(hFilter);
         audTrack->InsertClip(audClip);
-        bool bIsCutting = action.contains("is_cutting");
-        mMtaReader->Refresh(!bIsCutting);
+        bool updateDuration = true;
+        if (action.contains("update_duration"))
+            updateDuration = action["update_duration"].get<imgui_json::boolean>();
+        mMtaReader->Refresh(updateDuration);
     }
     else if (actionName == "REMOVE_CLIP")
     {
@@ -8252,8 +8298,10 @@ void TimeLine::PerformAudioAction(imgui_json::value& action)
         MediaCore::AudioTrack::Holder audTrack = mMtaReader->GetTrackById(trackId);
         int64_t clipId = action["clip_json"]["ID"].get<imgui_json::number>();
         audTrack->RemoveClipById(clipId);
-        bool bIsCutting = action.contains("is_cutting");
-        mMtaReader->Refresh(!bIsCutting);
+        bool updateDuration = true;
+        if (action.contains("update_duration"))
+            updateDuration = action["update_duration"].get<imgui_json::boolean>();
+        mMtaReader->Refresh(updateDuration);
     }
     else if (actionName == "MOVE_CLIP")
     {
@@ -8289,8 +8337,36 @@ void TimeLine::PerformAudioAction(imgui_json::value& action)
         int64_t newStartOffset = action["new_start_offset"].get<imgui_json::number>();
         int64_t newEndOffset = action["new_end_offset"].get<imgui_json::number>();
         audTrack->ChangeClipRange(clipId, newStartOffset, newEndOffset);
-        bool bIsCutting = action.contains("is_cutting");
-        mMtaReader->Refresh(!bIsCutting);
+        bool updateDuration = true;
+        if (action.contains("update_duration"))
+            updateDuration = action["update_duration"].get<imgui_json::boolean>();
+        mMtaReader->Refresh(updateDuration);
+    }
+    else if (actionName == "CUT_CLIP")
+    {
+        int64_t trackId = action["track_id"].get<imgui_json::number>();
+        auto hAudTrk = mMtaReader->GetTrackById(trackId);
+        int64_t clipId = action["clip_id"].get<imgui_json::number>();
+        auto hClip = hAudTrk->GetClipById(clipId);
+        int64_t cutPos = action["cut_pos"].get<imgui_json::number>();
+        int64_t newClipStart = cutPos;
+        int64_t newClipEnd = hClip->End();
+        int64_t newClipStartOffset = hClip->StartOffset()+cutPos-hClip->Start();
+        int64_t newClipEndOffset = hClip->EndOffset();
+        hAudTrk->ChangeClipRange(clipId, hClip->StartOffset(), hClip->EndOffset()+hClip->End()-cutPos);
+        int64_t newClipId = action["new_clip_id"].get<imgui_json::number>();
+        MediaCore::AudioClip::Holder hNewClip = MediaCore::AudioClip::CreateInstance(
+            newClipId, hClip->GetMediaParser(),
+            hAudTrk->OutChannels(), hAudTrk->OutSampleRate(), hAudTrk->OutSampleFormat(),
+            newClipStart, newClipEnd, newClipStartOffset, newClipEndOffset);
+        auto pUiClip = dynamic_cast<AudioClip*>(FindClipByID(newClipId));
+        BluePrintAudioFilter* bpaf = new BluePrintAudioFilter(this);
+        bpaf->SetBluePrintFromJson(pUiClip->mFilterJson);
+        bpaf->SetKeyPoint(pUiClip->mFilterKeyPoints);
+        MediaCore::AudioFilter::Holder hFilter(bpaf);
+        hNewClip->SetFilter(hFilter);
+        hAudTrk->InsertClip(hNewClip);
+        mMtaReader->Refresh(false);
     }
     else if (actionName == "ADD_TRACK")
     {
@@ -8372,6 +8448,42 @@ void TimeLine::PerformImageAction(imgui_json::value& action)
         int64_t newEnd = action["new_end"].get<imgui_json::number>();
         vidTrack->ChangeClipRange(clipId, newStart, newEnd);
         UpdatePreview();
+    }
+    else if (actionName == "CUT_CLIP")
+    {
+        int64_t trackId = action["track_id"].get<imgui_json::number>();
+        auto hVidTrk = mMtvReader->GetTrackById(trackId);
+        int64_t clipId = action["clip_id"].get<imgui_json::number>();
+        auto hClip = hVidTrk->GetClipById(clipId);
+        int64_t cutPos = action["cut_pos"].get<imgui_json::number>();
+        int64_t newClipStart = cutPos;
+        int64_t newClipLength = hClip->End()-cutPos;
+        hVidTrk->ChangeClipRange(clipId, hClip->Start(), cutPos);
+        int64_t newClipId = action["new_clip_id"].get<imgui_json::number>();
+        MediaCore::VideoClip::Holder hNewClip = MediaCore::VideoClip::CreateImageInstance(
+            newClipId, hClip->GetMediaParser(), mMtvReader->GetSharedSettings(),
+            newClipStart, newClipLength);
+        auto hNewFilter = hClip->GetFilter()->Clone();
+        if (hNewFilter)
+        {
+            const auto filterName = hNewFilter->GetFilterName();
+            if (filterName == "EventStackFilter")
+            {
+                MEC::VideoEventStackFilter* pEsf = dynamic_cast<MEC::VideoEventStackFilter*>(hNewFilter.get());
+                BluePrint::BluePrintCallbackFunctions bpCallbacks;
+                bpCallbacks.BluePrintOnChanged = TimeLine::OnVideoFilterBluePrintChange;
+                pEsf->SetBluePrintCallbacks(bpCallbacks);
+                pEsf->MoveAllEvents(hClip->Start()-cutPos);
+            }
+            else
+                Logger::Log(Logger::WARN) << "UNHANDLED video filter type '" << filterName << "'." << std::endl;
+            hNewClip->SetFilter(hNewFilter);
+        }
+        auto pUiClip = dynamic_cast<VideoClip*>(FindClipByID(newClipId));
+        pUiClip->SyncFilterWithDataLayer(hNewClip);
+        pUiClip->SyncAttributesWithDataLayer(hNewClip);
+        hVidTrk->InsertClip(hNewClip);
+        UpdatePreview(false);
     }
     else if (actionName == "ADD_TRACK")
     {
@@ -9086,8 +9198,6 @@ bool TimeLine::UndoOneRecord()
             undoAction["media_type"] = action["media_type"];
             undoAction["from_track_id"] = action["to_track_id"];
             undoAction["clip_json"] = action["clip_json"];
-            if (action.contains("is_cutting"))
-                undoAction["is_cutting"] = imgui_json::boolean(true);
             mUiActions.push_back(std::move(undoAction));
         }
         else if (actionName == "REMOVE_CLIP")
@@ -9165,7 +9275,7 @@ bool TimeLine::UndoOneRecord()
             }
             if (startDiff != 0)
                 clip->Cropping(startDiff, 0);
-            if (endDiff)
+            if (endDiff != 0)
                 clip->Cropping(endDiff, 1);
 
             imgui_json::value undoAction;
@@ -9181,8 +9291,39 @@ bool TimeLine::UndoOneRecord()
             undoAction["new_start"] = action["org_start"];
             undoAction["org_end"] = action["new_end"];
             undoAction["new_end"] = action["org_end"];
-            if (action.contains("is_cutting"))
-                undoAction["is_cutting"] = imgui_json::boolean(true);
+            mUiActions.push_back(std::move(undoAction));
+        }
+        else if (actionName == "CUT_CLIP")
+        {
+            int64_t newClipId = action["new_clip_id"].get<imgui_json::number>();
+            auto pUiClip = FindClipByID(newClipId);
+            imgui_json::value clipJson;
+            pUiClip->Save(clipJson);
+            imgui_json::value undoAction;
+            undoAction["action"] = "REMOVE_CLIP";
+            undoAction["media_type"] = action["media_type"];
+            undoAction["from_track_id"] = action["track_id"];
+            undoAction["clip_json"] = clipJson;
+            undoAction["update_duration"] = imgui_json::boolean(false);
+            mUiActions.push_back(std::move(undoAction));
+            DeleteClip(newClipId, nullptr);
+
+            int64_t clipId = action["clip_id"].get<imgui_json::number>();
+            int64_t cutPos = action["cut_pos"].get<imgui_json::number>();
+            int64_t orgEnd = action["org_end"].get<imgui_json::number>();
+            int64_t endDiff = orgEnd-cutPos;
+            pUiClip = FindClipByID(clipId);
+            pUiClip->Cropping(endDiff, 1);
+            undoAction = imgui_json::value();
+            undoAction["action"] = "CROP_CLIP";
+            undoAction["clip_id"] = action["clip_id"];
+            undoAction["media_type"] = action["media_type"];
+            undoAction["from_track_id"] = action["track_id"];
+            undoAction["new_start"] = imgui_json::number(pUiClip->Start());
+            undoAction["new_end"] = imgui_json::number(pUiClip->End());
+            undoAction["new_start_offset"] = imgui_json::number(pUiClip->StartOffset());
+            undoAction["new_end_offset"] = imgui_json::number(pUiClip->EndOffset());
+            undoAction["update_duration"] = imgui_json::boolean(false);
             mUiActions.push_back(std::move(undoAction));
         }
         else if (actionName == "ADD_GROUP")
@@ -9407,6 +9548,15 @@ bool TimeLine::RedoOneRecord()
                 clip->Cropping(startDiff, 0);
             if (endDiff)
                 clip->Cropping(endDiff, 1);
+            mUiActions.push_back(action);
+        }
+        else if (actionName == "CUT_CLIP")
+        {
+            int64_t clipId = action["clip_id"].get<imgui_json::number>();
+            auto pUiClip = FindClipByID(clipId);
+            int64_t cutPos = action["cut_pos"].get<imgui_json::number>();
+            int64_t gid = action["group_id"].get<imgui_json::number>();
+            pUiClip->Cutting(cutPos, gid, nullptr);
             mUiActions.push_back(action);
         }
         else if (actionName == "ADD_GROUP")

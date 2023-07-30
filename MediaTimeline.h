@@ -39,7 +39,7 @@
 #include <chrono>
 
 #define PLOT_IMPLOT   0
-#define USING_OLD_UI
+// #define USING_OLD_UI
 
 #define ICON_MEDIA_TIMELINE u8"\uf538"
 #define ICON_MEDIA_BANK     u8"\ue907"

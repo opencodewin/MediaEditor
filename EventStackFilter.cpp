@@ -31,7 +31,9 @@ public:
 
     Holder Clone() override
     {
-        return nullptr;
+        imgui_json::value filterJson = SaveAsJson();
+        BluePrint::BluePrintCallbackFunctions bpCallbacks;
+        return LoadFromJson(filterJson, bpCallbacks);
     }
 
     void ApplyTo(VideoClip* clip) override
@@ -215,6 +217,19 @@ public:
         return true;
     }
 
+    bool MoveAllEvents(int64_t offset) override
+    {
+        for (auto e : m_eventList)
+        {
+            VideoEvent_Impl* pEvtImpl = dynamic_cast<VideoEvent_Impl*>(e.get());
+            auto newStart = pEvtImpl->Start()+offset;
+            auto newEnd = pEvtImpl->End()+offset;
+            pEvtImpl->SetStart(newStart);
+            pEvtImpl->SetEnd(newEnd);
+        }
+        return true;
+    }
+
     bool SetEditingEvent(int64_t id) override
     {
         if (id == -1)
@@ -264,6 +279,16 @@ public:
         json["events"] = eventJsonAry;
         m_logger->Log(DEBUG) << "Save filter-json : " << json.dump() << std::endl;
         return std::move(json);
+    }
+
+    void SetBluePrintCallbacks(const BluePrint::BluePrintCallbackFunctions& bpCallbacks) override
+    {
+        for (auto& hEvent : m_eventList)
+        {
+            auto pEvt = dynamic_cast<VideoEvent_Impl*>(hEvent.get());
+            pEvt->SetBluePrintCallbacks(bpCallbacks);
+        }
+        m_bpCallbacks = bpCallbacks;
     }
 
     void SetTimelineHandle(void* handle) override
@@ -370,6 +395,11 @@ public:
         void SetStatus(int bit, int val) override
         {
             m_status = (m_status & ~(1UL << bit)) | (val << bit);
+        }
+
+        void SetBluePrintCallbacks(const BluePrint::BluePrintCallbackFunctions& bpCallbacks)
+        {
+            m_pBp->SetCallbacks(bpCallbacks, reinterpret_cast<void*>(static_cast<MediaCore::VideoFilter*>(m_owner)));
         }
 
         string GetError() const override
