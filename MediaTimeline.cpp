@@ -137,46 +137,6 @@ static bool waveFrameResample(float * wave, int samples, int size, int start_off
     return min_max;
 }
 
-static void PlotWaveform(ImGui::ImMat& mat, float * data, int values_count, int values_offset, float scale_min, float scale_max, ImVec2 frame_size, bool filled = false)
-{
-    if (values_count < 2) return;
-    if (mat.empty() || mat.w != (int)frame_size.x || mat.h != (int)frame_size.y)
-    {
-        mat.create_type(frame_size.x, frame_size.y, 4);
-        mat.elempack = 4;
-    }
-    auto values_getter = [](void* d, int idx){
-        const float v = *(const float*)(const void*)((const unsigned char*)d + (size_t)idx * sizeof(float));
-        return v;
-    };
-    int res_w = ImMin((int)frame_size.x, values_count) - 1;
-    int item_count = values_count - 1;
-    const float t_step = 1.0f / (float)res_w;
-    const float inv_scale = (scale_min == scale_max) ? 0.0f : (1.0f / (scale_max - scale_min));
-    float v0 = values_getter(data, (0 + values_offset) % values_count);
-    float t0 = 0.0f;
-    ImVec2 tp0 = ImVec2( t0, 1.0f - ImSaturate((v0 - scale_min) * inv_scale) );                       // Point in the normalized space of our target rectangle
-    float histogram_zero_line_t = (scale_min * scale_max < 0.0f) ? (1 + scale_min * inv_scale) : (scale_min < 0.0f ? 0.0f : 1.0f);   // Where does the zero line stands
-    for (int n = 0; n < res_w; n++)
-    {
-        const float t1 = t0 + t_step;
-        int v1_idx = (int)(t0 * item_count + 0.5f);
-        if (v1_idx < 0) v1_idx = 0;
-        if (v1_idx > values_count) v1_idx = values_count;
-        const float v1 = values_getter(data, (v1_idx + values_offset + 1) % values_count);
-        const ImVec2 tp1 = ImVec2( t1, 1.0f - ImSaturate((v1 - scale_min) * inv_scale) );
-        ImVec2 pos0 = ImLerp(ImVec2(0, 0), frame_size, tp0);
-        ImVec2 pos1 = ImLerp(ImVec2(0, 0), frame_size, tp1);
-        mat.draw_line(ImPoint(pos0.x, pos0.y), ImPoint(pos1.x, pos1.y), 0.5, ImPixel(0.0, 1.0, 0.0, 1.0));
-        if (filled)
-        {
-            ImVec2 _pos1 = ImLerp(ImVec2(0, 0), frame_size, ImVec2(tp1.x, histogram_zero_line_t));
-            mat.draw_line(ImPoint(pos0.x, pos0.y), ImPoint(pos0.x, _pos1.y), 0.5, ImPixel(0.0, 0.5, 0.0, 0.5));
-        }
-        t0 = t1;
-        tp0 = tp1;
-    }
-}
 namespace MediaTimeline
 {
 /***********************************************************************************************************
@@ -2527,15 +2487,18 @@ void AudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
             start_offset = start_offset / sample_stride * sample_stride; // align start_offset
             ImGui::ImMat plot_frame_max, plot_frame_min;
             auto filled = waveFrameResample(&mWaveform->pcm[0][0], sample_stride, draw_size.x, start_offset, sampleSize, zoom, plot_frame_max, plot_frame_min);
+            ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.4f, 0.4f, 1.0f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.3f, 0.3f, 0.8f, 0.5f));
             if (filled)
             {
-                PlotWaveform(plot_mat, (float *)plot_frame_max.data, plot_frame_max.w, 0, -wave_range, wave_range, draw_size, filled);
-                PlotWaveform(plot_mat, (float *)plot_frame_min.data, plot_frame_min.w, 0, -wave_range, wave_range, draw_size, filled);
+                ImGui::PlotMat(plot_mat, (float *)plot_frame_max.data, plot_frame_max.w, 0, -wave_range, wave_range, draw_size, sizeof(float), filled);
+                ImGui::PlotMat(plot_mat, (float *)plot_frame_min.data, plot_frame_min.w, 0, -wave_range, wave_range, draw_size, sizeof(float), filled);
             }
             else
             {
-                PlotWaveform(plot_mat, (float *)plot_frame_min.data, plot_frame_min.w, 0, -wave_range, wave_range, draw_size, filled);
+                ImGui::PlotMat(plot_mat, (float *)plot_frame_min.data, plot_frame_min.w, 0, -wave_range, wave_range, draw_size, sizeof(float), filled);
             }
+            ImGui::PopStyleColor(2);
             ImMatToTexture(plot_mat, mWaveformTexture);
             drawList->AddImage(mWaveformTexture, customViewStart, customViewStart + window_size, ImVec2(0, 0), ImVec2(1, 1));
 #else
@@ -3773,7 +3736,10 @@ EditingAudioClip::EditingAudioClip(AudioClip* audclip)
 }
 
 EditingAudioClip::~EditingAudioClip()
-{}
+{
+    for (auto texture : mWaveformTextures) ImGui::ImDestroyTexture(texture);
+    mWaveformTextures.clear();
+}
 
 void EditingAudioClip::UpdateClipRange(Clip* clip)
 {}
@@ -3849,6 +3815,27 @@ void EditingAudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, 
         }
         ImPlot::PopStyleColor();
         ImPlot::PopStyleVar(2);
+#elif PLOT_TEXTURE
+        ImGui::ImMat plot_mat;
+        start_offset = start_offset / sample_stride * sample_stride; // align start_offset
+        ImGui::ImMat plot_frame_max, plot_frame_min;
+        auto filled = waveFrameResample(&mWaveform->pcm[i][0], sample_stride, window_size.x, start_offset, sampleSize, zoom, plot_frame_max, plot_frame_min);
+        ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.4f, 0.8f, 0.4f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.3f, 0.8f, 0.3f, 0.5f));
+        if (filled)
+        {
+            ImGui::PlotMat(plot_mat, (float *)plot_frame_max.data, plot_frame_max.w, 0, -wave_range, wave_range, window_size, sizeof(float), filled);
+            ImGui::PlotMat(plot_mat, (float *)plot_frame_min.data, plot_frame_min.w, 0, -wave_range, wave_range, window_size, sizeof(float), filled);
+        }
+        else
+        {
+            ImGui::PlotMat(plot_mat, (float *)plot_frame_min.data, plot_frame_min.w, 0, -wave_range, wave_range, window_size, sizeof(float), filled);
+        }
+        ImGui::PopStyleColor(2);
+        ImTextureID texture = mWaveformTextures.size() > i ? mWaveformTextures[i] : nullptr;
+        ImMatToTexture(plot_mat, texture);
+        if (mWaveformTextures.size() <= i) mWaveformTextures.push_back(texture);
+        drawList->AddImage(texture, leftTop + ImVec2(0, i * window_size.y), leftTop + ImVec2(0, i * window_size.y) + window_size, ImVec2(0, 0), ImVec2(1, 1));
 #else
         if (ImGui::BeginChild(id_string.c_str(), window_size, false, ImGuiWindowFlags_NoScrollbar))
         {
@@ -4501,6 +4488,10 @@ EditingAudioOverlap::EditingAudioOverlap(Overlap* ovlp)
 
 EditingAudioOverlap::~EditingAudioOverlap()
 {
+    for (auto texture : mClip1WaveformTextures) ImGui::ImDestroyTexture(texture);
+    for (auto texture : mClip2WaveformTextures) ImGui::ImDestroyTexture(texture);
+    mClip1WaveformTextures.clear();
+    mClip2WaveformTextures.clear();
     mTransition = nullptr;
 }
 
@@ -4578,6 +4569,24 @@ void EditingAudioOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
                 ImPlot::PlotLine(plot_id.c_str(), &waveform->pcm[i][start_offset], window_length / zoom, 1.0, 0.0, 0, 0, sizeof(float) * zoom);
                 ImPlot::EndPlot();
             }
+#elif PLOT_TEXTURE
+            ImGui::ImMat plot_mat;
+            start_offset = start_offset / sample_stride * sample_stride; // align start_offset
+            ImGui::ImMat plot_frame_max, plot_frame_min;
+            auto filled = waveFrameResample(&waveform->pcm[i][0], sample_stride, clip_window_size.x, start_offset, sampleSize, zoom, plot_frame_max, plot_frame_min);
+            if (filled)
+            {
+                ImGui::PlotMat(plot_mat, (float *)plot_frame_max.data, plot_frame_max.w, 0, -wave_range, wave_range, clip_window_size, sizeof(float), filled);
+                ImGui::PlotMat(plot_mat, (float *)plot_frame_min.data, plot_frame_min.w, 0, -wave_range, wave_range, clip_window_size, sizeof(float), filled);
+            }
+            else
+            {
+                ImGui::PlotMat(plot_mat, (float *)plot_frame_min.data, plot_frame_min.w, 0, -wave_range, wave_range, clip_window_size, sizeof(float), filled);
+            }
+            ImTextureID texture = mClip1WaveformTextures.size() > i ? mClip1WaveformTextures[i] : nullptr;
+            ImMatToTexture(plot_mat, texture);
+            if (mClip1WaveformTextures.size() <= i) mClip1WaveformTextures.push_back(texture);
+            drawList->AddImage(texture, leftTop + ImVec2(0, i * clip_window_size.y), leftTop + ImVec2(0, i * clip_window_size.y) + clip_window_size, ImVec2(0, 0), ImVec2(1, 1));
 #else
             if (ImGui::BeginChild(id_string.c_str(), clip_window_size, false, ImGuiWindowFlags_NoScrollbar))
             {
@@ -4638,6 +4647,24 @@ void EditingAudioOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
                 ImPlot::PlotLine(plot_id.c_str(), &waveform->pcm[i][start_offset], window_length / zoom, 1.0, 0.0, 0, 0, sizeof(float) * zoom);
                 ImPlot::EndPlot();
             }
+#elif PLOT_TEXTURE
+            ImGui::ImMat plot_mat;
+            start_offset = start_offset / sample_stride * sample_stride; // align start_offset
+            ImGui::ImMat plot_frame_max, plot_frame_min;
+            auto filled = waveFrameResample(&waveform->pcm[i][0], sample_stride, clip_window_size.x, start_offset, sampleSize, zoom, plot_frame_max, plot_frame_min);
+            if (filled)
+            {
+                ImGui::PlotMat(plot_mat, (float *)plot_frame_max.data, plot_frame_max.w, 0, -wave_range, wave_range, clip_window_size, sizeof(float), filled);
+                ImGui::PlotMat(plot_mat, (float *)plot_frame_min.data, plot_frame_min.w, 0, -wave_range, wave_range, clip_window_size, sizeof(float), filled);
+            }
+            else
+            {
+                ImGui::PlotMat(plot_mat, (float *)plot_frame_min.data, plot_frame_min.w, 0, -wave_range, wave_range, clip_window_size, sizeof(float), filled);
+            }
+            ImTextureID texture = mClip2WaveformTextures.size() > i ? mClip2WaveformTextures[i] : nullptr;
+            ImMatToTexture(plot_mat, texture);
+            if (mClip2WaveformTextures.size() <= i) mClip2WaveformTextures.push_back(texture);
+            drawList->AddImage(texture, clip2_pos + ImVec2(0, i * clip_window_size.y), clip2_pos + ImVec2(0, i * clip_window_size.y) + clip_window_size, ImVec2(0, 0), ImVec2(1, 1));
 #else
             if (ImGui::BeginChild(id_string.c_str(), clip_window_size, false, ImGuiWindowFlags_NoScrollbar))
             {

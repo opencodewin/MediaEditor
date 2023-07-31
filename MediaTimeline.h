@@ -767,6 +767,7 @@ struct EditingAudioClip : BaseEditingClip
     int mAudioSampleRate {44100};
     MediaCore::AudioRender::PcmFormat mAudioFormat {MediaCore::AudioRender::PcmFormat::FLOAT32};
     MediaCore::Overview::Waveform::Holder mWaveform {nullptr};
+    std::vector<ImTextureID> mWaveformTextures;
 
     BluePrintAudioFilter * mFilter {nullptr};
 
@@ -830,6 +831,9 @@ struct EditingAudioOverlap : BaseEditingOverlap
 {
     AudioClip *mClip1, *mClip2;
     BluePrintAudioTransition* mTransition{nullptr};
+
+    std::vector<ImTextureID> mClip1WaveformTextures;
+    std::vector<ImTextureID> mClip2WaveformTextures;
 
 public:
     EditingAudioOverlap(Overlap* ovlp);
