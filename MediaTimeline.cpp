@@ -3821,26 +3821,33 @@ void EditingAudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, 
         ImPlot::PopStyleColor();
         ImPlot::PopStyleVar(2);
 #elif PLOT_TEXTURE
-        ImGui::ImMat plot_mat;
-        start_offset = start_offset / sample_stride * sample_stride; // align start_offset
-        ImGui::ImMat plot_frame_max, plot_frame_min;
-        auto filled = waveFrameResample(&mWaveform->pcm[i][0], sample_stride, window_size.x, start_offset, sampleSize, zoom, plot_frame_max, plot_frame_min);
-        ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.4f, 0.8f, 0.4f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.3f, 0.8f, 0.3f, 0.5f));
-        if (filled)
-        {
-            ImGui::PlotMat(plot_mat, (float *)plot_frame_max.data, plot_frame_max.w, 0, -wave_range, wave_range, window_size, sizeof(float), filled);
-            ImGui::PlotMat(plot_mat, (float *)plot_frame_min.data, plot_frame_min.w, 0, -wave_range, wave_range, window_size, sizeof(float), filled);
-        }
-        else
-        {
-            ImGui::PlotMat(plot_mat, (float *)plot_frame_min.data, plot_frame_min.w, 0, -wave_range, wave_range, window_size, sizeof(float), filled);
-        }
-        ImGui::PopStyleColor(2);
         ImTextureID texture = mWaveformTextures.size() > i ? mWaveformTextures[i] : nullptr;
-        ImMatToTexture(plot_mat, texture);
-        if (mWaveformTextures.size() <= i) mWaveformTextures.push_back(texture);
-        drawList->AddImage(texture, leftTop + ImVec2(0, i * window_size.y), leftTop + ImVec2(0, i * window_size.y) + window_size, ImVec2(0, 0), ImVec2(1, 1));
+        if (!texture || updated)
+        {
+            ImGui::ImMat plot_mat;
+            start_offset = start_offset / sample_stride * sample_stride; // align start_offset
+            ImGui::ImMat plot_frame_max, plot_frame_min;
+            auto filled = waveFrameResample(&mWaveform->pcm[i][0], sample_stride, window_size.x, start_offset, sampleSize, zoom, plot_frame_max, plot_frame_min);
+            ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.4f, 0.8f, 0.4f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.3f, 0.8f, 0.3f, 0.5f));
+            if (filled)
+            {
+                ImGui::PlotMat(plot_mat, (float *)plot_frame_max.data, plot_frame_max.w, 0, -wave_range, wave_range, window_size, sizeof(float), filled, true);
+                ImGui::PlotMat(plot_mat, (float *)plot_frame_min.data, plot_frame_min.w, 0, -wave_range, wave_range, window_size, sizeof(float), filled, true);
+            }
+            else
+            {
+                ImGui::PlotMat(plot_mat, (float *)plot_frame_min.data, plot_frame_min.w, 0, -wave_range, wave_range, window_size, sizeof(float), filled);
+            }
+            ImGui::PopStyleColor(2);
+            ImMatToTexture(plot_mat, texture);
+            if (texture)
+            {
+                if (mWaveformTextures.size() <= i) mWaveformTextures.push_back(texture);
+                else mWaveformTextures[i] = texture;
+            }
+        }
+        if (texture) drawList->AddImage(texture, leftTop + ImVec2(0, i * window_size.y), leftTop + ImVec2(0, i * window_size.y) + window_size, ImVec2(0, 0), ImVec2(1, 1));
 #else
         if (ImGui::BeginChild(id_string.c_str(), window_size, false, ImGuiWindowFlags_NoScrollbar))
         {
@@ -4575,23 +4582,30 @@ void EditingAudioOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
                 ImPlot::EndPlot();
             }
 #elif PLOT_TEXTURE
-            ImGui::ImMat plot_mat;
-            start_offset = start_offset / sample_stride * sample_stride; // align start_offset
-            ImGui::ImMat plot_frame_max, plot_frame_min;
-            auto filled = waveFrameResample(&waveform->pcm[i][0], sample_stride, clip_window_size.x, start_offset, sampleSize, zoom, plot_frame_max, plot_frame_min);
-            if (filled)
-            {
-                ImGui::PlotMat(plot_mat, (float *)plot_frame_max.data, plot_frame_max.w, 0, -wave_range, wave_range, clip_window_size, sizeof(float), filled);
-                ImGui::PlotMat(plot_mat, (float *)plot_frame_min.data, plot_frame_min.w, 0, -wave_range, wave_range, clip_window_size, sizeof(float), filled);
-            }
-            else
-            {
-                ImGui::PlotMat(plot_mat, (float *)plot_frame_min.data, plot_frame_min.w, 0, -wave_range, wave_range, clip_window_size, sizeof(float), filled);
-            }
             ImTextureID texture = mClip1WaveformTextures.size() > i ? mClip1WaveformTextures[i] : nullptr;
-            ImMatToTexture(plot_mat, texture);
-            if (mClip1WaveformTextures.size() <= i) mClip1WaveformTextures.push_back(texture);
-            drawList->AddImage(texture, leftTop + ImVec2(0, i * clip_window_size.y), leftTop + ImVec2(0, i * clip_window_size.y) + clip_window_size, ImVec2(0, 0), ImVec2(1, 1));
+            if (!texture || updated)
+            {
+                ImGui::ImMat plot_mat;
+                start_offset = start_offset / sample_stride * sample_stride; // align start_offset
+                ImGui::ImMat plot_frame_max, plot_frame_min;
+                auto filled = waveFrameResample(&waveform->pcm[i][0], sample_stride, clip_window_size.x, start_offset, sampleSize, zoom, plot_frame_max, plot_frame_min);
+                if (filled)
+                {
+                    ImGui::PlotMat(plot_mat, (float *)plot_frame_max.data, plot_frame_max.w, 0, -wave_range, wave_range, clip_window_size, sizeof(float), filled, true);
+                    ImGui::PlotMat(plot_mat, (float *)plot_frame_min.data, plot_frame_min.w, 0, -wave_range, wave_range, clip_window_size, sizeof(float), filled, true);
+                }
+                else
+                {
+                    ImGui::PlotMat(plot_mat, (float *)plot_frame_min.data, plot_frame_min.w, 0, -wave_range, wave_range, clip_window_size, sizeof(float), filled);
+                }
+                ImMatToTexture(plot_mat, texture);
+                if (texture)
+                {
+                    if(mClip1WaveformTextures.size() <= i) mClip1WaveformTextures.push_back(texture);
+                    else mClip1WaveformTextures[i] = texture;
+                }
+            }
+            if (texture) drawList->AddImage(texture, leftTop + ImVec2(0, i * clip_window_size.y), leftTop + ImVec2(0, i * clip_window_size.y) + clip_window_size, ImVec2(0, 0), ImVec2(1, 1));
 #else
             if (ImGui::BeginChild(id_string.c_str(), clip_window_size, false, ImGuiWindowFlags_NoScrollbar))
             {
@@ -4653,23 +4667,30 @@ void EditingAudioOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
                 ImPlot::EndPlot();
             }
 #elif PLOT_TEXTURE
-            ImGui::ImMat plot_mat;
-            start_offset = start_offset / sample_stride * sample_stride; // align start_offset
-            ImGui::ImMat plot_frame_max, plot_frame_min;
-            auto filled = waveFrameResample(&waveform->pcm[i][0], sample_stride, clip_window_size.x, start_offset, sampleSize, zoom, plot_frame_max, plot_frame_min);
-            if (filled)
-            {
-                ImGui::PlotMat(plot_mat, (float *)plot_frame_max.data, plot_frame_max.w, 0, -wave_range, wave_range, clip_window_size, sizeof(float), filled);
-                ImGui::PlotMat(plot_mat, (float *)plot_frame_min.data, plot_frame_min.w, 0, -wave_range, wave_range, clip_window_size, sizeof(float), filled);
-            }
-            else
-            {
-                ImGui::PlotMat(plot_mat, (float *)plot_frame_min.data, plot_frame_min.w, 0, -wave_range, wave_range, clip_window_size, sizeof(float), filled);
-            }
             ImTextureID texture = mClip2WaveformTextures.size() > i ? mClip2WaveformTextures[i] : nullptr;
-            ImMatToTexture(plot_mat, texture);
-            if (mClip2WaveformTextures.size() <= i) mClip2WaveformTextures.push_back(texture);
-            drawList->AddImage(texture, clip2_pos + ImVec2(0, i * clip_window_size.y), clip2_pos + ImVec2(0, i * clip_window_size.y) + clip_window_size, ImVec2(0, 0), ImVec2(1, 1));
+            if (!texture || updated)
+            {
+                ImGui::ImMat plot_mat;
+                start_offset = start_offset / sample_stride * sample_stride; // align start_offset
+                ImGui::ImMat plot_frame_max, plot_frame_min;
+                auto filled = waveFrameResample(&waveform->pcm[i][0], sample_stride, clip_window_size.x, start_offset, sampleSize, zoom, plot_frame_max, plot_frame_min);
+                if (filled)
+                {
+                    ImGui::PlotMat(plot_mat, (float *)plot_frame_max.data, plot_frame_max.w, 0, -wave_range, wave_range, clip_window_size, sizeof(float), filled, true);
+                    ImGui::PlotMat(plot_mat, (float *)plot_frame_min.data, plot_frame_min.w, 0, -wave_range, wave_range, clip_window_size, sizeof(float), filled, true);
+                }
+                else
+                {
+                    ImGui::PlotMat(plot_mat, (float *)plot_frame_min.data, plot_frame_min.w, 0, -wave_range, wave_range, clip_window_size, sizeof(float), filled);
+                }
+                ImMatToTexture(plot_mat, texture);
+                if (texture)
+                {
+                    if(mClip2WaveformTextures.size() <= i) mClip2WaveformTextures.push_back(texture);
+                    else mClip2WaveformTextures[i] = texture;
+                }
+            }
+            if (texture) drawList->AddImage(texture, clip2_pos + ImVec2(0, i * clip_window_size.y), clip2_pos + ImVec2(0, i * clip_window_size.y) + clip_window_size, ImVec2(0, 0), ImVec2(1, 1));
 #else
             if (ImGui::BeginChild(id_string.c_str(), clip_window_size, false, ImGuiWindowFlags_NoScrollbar))
             {
@@ -9945,6 +9966,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
     bool removeEmptyTrack = false;
     int insertEmptyTrackType = MEDIA_UNKNOWN;
     static int64_t lastFirstTime = -1;
+    static int64_t lastVisiableTime = -1;
     static bool menuIsOpened = false;
     static bool bCropping = false;
     static bool bClipMoving = false;
@@ -10007,8 +10029,10 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
 
     // draw backbround
     //draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DARK_TWO);
-    if (lastFirstTime != -1 && lastFirstTime != timeline->lastTime) changed = true;
-    lastFirstTime = timeline->lastTime;
+    if (lastFirstTime != -1 && lastFirstTime != timeline->firstTime) changed = true;
+    if (lastVisiableTime != -1 && lastVisiableTime != newVisibleTime) changed = true;
+    lastFirstTime = timeline->firstTime;
+    lastVisiableTime = newVisibleTime;
 
     ImGui::BeginGroup();
     bool isFocused = ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows);
@@ -11840,7 +11864,9 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     ImDrawList *draw_list = ImGui::GetWindowDrawList();
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
-
+    static int64_t lastFirstTime = -1;
+    static int64_t lastVisiableTime = -1;
+    bool changed = false;
     if (!editingClip)
     {
         ImGui::SetWindowFontScale(2);
@@ -11915,13 +11941,22 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
 
     editingClip->msPixelWidthTarget = ImClamp(editingClip->msPixelWidthTarget, minPixelWidthTarget, maxPixelWidthTarget);
 
-    if (editingClip->visibleTime >= duration)
+    if (lastFirstTime != -1 && lastFirstTime != editingClip->firstTime) changed = true;
+    if (lastVisiableTime != -1 && lastVisiableTime != newVisibleTime) changed = true;
+    lastFirstTime = editingClip->firstTime;
+    lastVisiableTime = newVisibleTime;
+
+    if (editingClip->visibleTime > duration)
+    {
         editingClip->firstTime = 0;
+        changed = true;
+    }
     else if (editingClip->firstTime + editingClip->visibleTime > duration)
     {
         editingClip->firstTime = duration - editingClip->visibleTime;
         main_timeline->AlignTime(editingClip->firstTime);
         editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
+        changed = true;
     }
     editingClip->lastTime = editingClip->firstTime + editingClip->visibleTime;
 
@@ -12034,18 +12069,21 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                     editingClip->firstTime = menuMouseTime - new_visible_time / 2;
                     main_timeline->AlignTime(editingClip->firstTime);
                     editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - new_visible_time, (int64_t)0));
+                    changed = true;
                 }
             }
             if (ImGui::MenuItem(ICON_SLIDER_CLIP " Clip accuracy", nullptr, nullptr))
             {
                 editingClip->msPixelWidthTarget = minPixelWidthTarget;
                 editingClip->firstTime = 0;
+                changed = true;
             }
             if (ImGui::MenuItem(ICON_CURRENT_TIME " Current Time", nullptr, nullptr))
             {
                 editingClip->firstTime = currentTime - editingClip->visibleTime / 2;
                 main_timeline->AlignTime(editingClip->firstTime);
                 editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
+                changed = true;
             }
 
             if (HeaderAreaRect.Contains(menuMousePos))
@@ -12068,6 +12106,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                     editingClip->firstTime = currentTime - editingClip->visibleTime / 2;
                     main_timeline->AlignTime(editingClip->firstTime);
                     editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
+                    changed = true;
                 }
                 if (ImGui::MenuItem(ICON_CROPPING_LEFT " Prev key", nullptr, nullptr))
                 {
@@ -12077,6 +12116,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                     editingClip->firstTime = currentTime - editingClip->visibleTime / 2;
                     main_timeline->AlignTime(editingClip->firstTime);
                     editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
+                    changed = true;
                 }
             }
 
@@ -12114,6 +12154,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                 editingClip->firstTime = int((io.MousePos.x - panningViewHorizonSource.x) / msPerPixelInBar) - panningViewHorizonTime;
                 main_timeline->AlignTime(editingClip->firstTime);
                 editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
+                changed = true;
             }
         }
         else if (inHorizonScrollHandle && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingCurrentTime && !menuIsOpened && !mouse_hold)
@@ -12129,6 +12170,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
             editingClip->firstTime = int((io.MousePos.x - contentMin.x) / msPerPixelInBar);
             main_timeline->AlignTime(editingClip->firstTime);
             editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
+            changed = true;
         }
 
         // handle mouse wheel event
@@ -12159,12 +12201,14 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                     editingClip->firstTime -= editingClip->visibleTime / view_frames;
                     main_timeline->AlignTime(editingClip->firstTime);
                     editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
+                    changed = true;
                 }
                 else if (io.MouseWheelH > FLT_EPSILON)
                 {
                     editingClip->firstTime += editingClip->visibleTime / view_frames;
                     main_timeline->AlignTime(editingClip->firstTime);
                     editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
+                    changed = true;
                 }
                 // up-down wheel over scrollbar, scale canvas view
                 else if (io.MouseWheel < -FLT_EPSILON && editingClip->visibleTime <= duration)
@@ -12175,6 +12219,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                     int64_t offset = new_mouse_time - mouseTime;
                     editingClip->firstTime -= offset;
                     editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
+                    changed = true;
                 }
                 else if (io.MouseWheel > FLT_EPSILON)
                 {
@@ -12184,13 +12229,14 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                     int64_t offset = new_mouse_time - mouseTime;
                     editingClip->firstTime -= offset;
                     editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
+                    changed = true;
                 }
             }
         }
 
         // draw clip content
         ImGui::PushClipRect(contentMin, contentMax, true);
-        editingClip->DrawContent(draw_list, contentMin, contentMax);
+        editingClip->DrawContent(draw_list, contentMin, contentMax, changed);
         ImGui::PopClipRect();
 
         // time cursor
@@ -13084,10 +13130,12 @@ bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int64_t CurrentTime, int 
     |               |                                                                      s                                           
     |_______________|_____________________________________________________________________ |    
     ***************************************************************************************/
-    bool ret = false;
     ImDrawList *draw_list = ImGui::GetWindowDrawList();
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
+    static int64_t lastDuration = -1;
+    static int lastWindowWidth = -1;
+    bool changed = false;
     if (!overlap)
     {
         ImGui::SetWindowFontScale(2);
@@ -13097,7 +13145,7 @@ bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int64_t CurrentTime, int 
         auto tips_pos = pos_center - string_width / 2;
         ImGui::SetWindowFontScale(1.0);
         ImGui::AddTextComplex(draw_list, tips_pos, tips_string.c_str(), 2.f, IM_COL32(255, 255, 255, 128), 0.5f, IM_COL32(56, 56, 56, 192));
-        return ret;
+        return changed;
     }
     ImGuiIO &io = ImGui::GetIO();
     int cx = (int)(io.MousePos.x);
@@ -13107,6 +13155,10 @@ bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int64_t CurrentTime, int 
     int64_t duration = ImMax(overlap->mOvlp->mEnd-overlap->mOvlp->mStart, (int64_t)1);
     int64_t start = 0;
     int64_t end = start + duration;
+    if (lastDuration != -1 && lastDuration != duration) changed = true;
+    if (lastWindowWidth != -1 && lastWindowWidth != (int)window_size.x) changed = true;
+    lastDuration = duration;
+    lastWindowWidth = (int)window_size.x;
 
     ImGui::BeginGroup();
     ImRect regionRect(window_pos + ImVec2(0, header_height), window_pos + window_size);
@@ -13196,7 +13248,7 @@ bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int64_t CurrentTime, int 
     // snapshot
     ImVec2 contentMin(window_pos.x, window_pos.y + (float)header_height);
     ImVec2 contentMax(window_pos.x + window_size.x, window_pos.y + (float)header_height + float(custom_height) * 2);
-    overlap->DrawContent(draw_list, contentMin, contentMax);
+    overlap->DrawContent(draw_list, contentMin, contentMax, changed);
 
     // cursor line
     draw_list->PushClipRect(custom_view_rect.Min, custom_view_rect.Max);
@@ -13205,6 +13257,6 @@ bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int64_t CurrentTime, int 
     draw_list->AddLine(ImVec2(cursorOffset, contentMin.y), ImVec2(cursorOffset, contentMax.y), COL_CURSOR_LINE_R, cursorWidth);
     draw_list->PopClipRect();
     ImGui::EndGroup();
-    return ret;
+    return changed;
 }
 } // namespace MediaTimeline/Main Timeline
