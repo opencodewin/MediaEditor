@@ -25,6 +25,7 @@ namespace MEC
         virtual BluePrint::BluePrintUI* GetBp() = 0;
         virtual ImGui::KeyPointEditor* GetKeyPoint() = 0;
         virtual bool ChangeRange(int64_t start, int64_t end) = 0;
+        virtual void ChangeId(int64_t id) = 0;
         virtual bool Move(int64_t start, int32_t z) = 0;
         virtual void SetStatus(uint32_t status) = 0;
         virtual void SetStatus(int bit, int val) = 0;

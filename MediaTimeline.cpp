@@ -8231,6 +8231,10 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
                 bpCallbacks.BluePrintOnChanged = TimeLine::OnVideoFilterBluePrintChange;
                 pEsf->SetBluePrintCallbacks(bpCallbacks);
                 pEsf->MoveAllEvents(hClip->Start()-cutPos);
+                // generate new ids for cloned events
+                auto eventList = pEsf->GetEventList();
+                for (auto& e : eventList)
+                    e->ChangeId(m_IDGenerator.GenerateID());
             }
             else
                 Logger::Log(Logger::WARN) << "UNHANDLED video filter type '" << filterName << "'." << std::endl;
@@ -8490,6 +8494,10 @@ void TimeLine::PerformImageAction(imgui_json::value& action)
                 bpCallbacks.BluePrintOnChanged = TimeLine::OnVideoFilterBluePrintChange;
                 pEsf->SetBluePrintCallbacks(bpCallbacks);
                 pEsf->MoveAllEvents(hClip->Start()-cutPos);
+                // generate new ids for cloned events
+                auto eventList = pEsf->GetEventList();
+                for (auto& e : eventList)
+                    e->ChangeId(m_IDGenerator.GenerateID());
             }
             else
                 Logger::Log(Logger::WARN) << "UNHANDLED video filter type '" << filterName << "'." << std::endl;

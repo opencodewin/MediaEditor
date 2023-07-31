@@ -372,6 +372,11 @@ public:
             return outMat;
         }
 
+        void ChangeId(int64_t id) override
+        {
+            m_id = id;
+        }
+
         bool ChangeRange(int64_t start, int64_t end) override
         {
             return m_owner->ChangeEventRange(m_id, start, end);
