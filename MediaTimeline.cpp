@@ -174,6 +174,8 @@ MediaItem::MediaItem(const std::string& name, const std::string& path, uint32_t 
 
 MediaItem::~MediaItem()
 {
+    for (auto texture : mWaveformTextures) ImGui::ImDestroyTexture(texture);
+    mWaveformTextures.clear();
     mMediaOverview = nullptr;
     mMediaThumbnail.clear();
 }
@@ -2072,7 +2074,7 @@ void VideoClip::SetViewWindowStart(int64_t millisec)
     }
 }
 
-void VideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect)
+void VideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect, bool updated)
 {
     if (IS_DUMMY(mType))
     {
@@ -2416,7 +2418,7 @@ void AudioClip::UpdateClip(MediaCore::Overview::Holder overview, int64_t duratio
     }
 }
 
-void AudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect)
+void AudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect, bool updated)
 {
     TimeLine * timeline = (TimeLine *)mHandle;
     if (!timeline)
@@ -2440,7 +2442,7 @@ void AudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
         return;
 
     ImVec2 draw_size = rightBottom - leftTop;
-    // TODO::Dicky opt more for audio waveform draw
+
     if (mWaveform->pcm.size() > 0)
     {
         std::string id_string = "##Waveform@" + std::to_string(mID);
@@ -2483,24 +2485,27 @@ void AudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
             ImPlot::PopStyleColor();
             ImPlot::PopStyleVar(2);
 #elif PLOT_TEXTURE
-            ImGui::ImMat plot_mat;
-            start_offset = start_offset / sample_stride * sample_stride; // align start_offset
-            ImGui::ImMat plot_frame_max, plot_frame_min;
-            auto filled = waveFrameResample(&mWaveform->pcm[0][0], sample_stride, draw_size.x, start_offset, sampleSize, zoom, plot_frame_max, plot_frame_min);
-            ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.4f, 0.4f, 1.0f, 1.0f));
-            ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.3f, 0.3f, 0.8f, 0.5f));
-            if (filled)
+            if (!mWaveformTexture || updated)
             {
-                ImGui::PlotMat(plot_mat, (float *)plot_frame_max.data, plot_frame_max.w, 0, -wave_range, wave_range, draw_size, sizeof(float), filled);
-                ImGui::PlotMat(plot_mat, (float *)plot_frame_min.data, plot_frame_min.w, 0, -wave_range, wave_range, draw_size, sizeof(float), filled);
+                ImGui::ImMat plot_mat;
+                start_offset = start_offset / sample_stride * sample_stride; // align start_offset
+                ImGui::ImMat plot_frame_max, plot_frame_min;
+                auto filled = waveFrameResample(&mWaveform->pcm[0][0], sample_stride, draw_size.x, start_offset, sampleSize, zoom, plot_frame_max, plot_frame_min);
+                ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.4f, 0.4f, 1.0f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.3f, 0.3f, 0.8f, 0.5f));
+                if (filled)
+                {
+                    ImGui::PlotMat(plot_mat, (float *)plot_frame_max.data, plot_frame_max.w, 0, -wave_range, wave_range, draw_size, sizeof(float), filled);
+                    ImGui::PlotMat(plot_mat, (float *)plot_frame_min.data, plot_frame_min.w, 0, -wave_range, wave_range, draw_size, sizeof(float), filled);
+                }
+                else
+                {
+                    ImGui::PlotMat(plot_mat, (float *)plot_frame_min.data, plot_frame_min.w, 0, -wave_range, wave_range, draw_size, sizeof(float), filled);
+                }
+                ImGui::PopStyleColor(2);
+                ImMatToTexture(plot_mat, mWaveformTexture);
             }
-            else
-            {
-                ImGui::PlotMat(plot_mat, (float *)plot_frame_min.data, plot_frame_min.w, 0, -wave_range, wave_range, draw_size, sizeof(float), filled);
-            }
-            ImGui::PopStyleColor(2);
-            ImMatToTexture(plot_mat, mWaveformTexture);
-            drawList->AddImage(mWaveformTexture, customViewStart, customViewStart + window_size, ImVec2(0, 0), ImVec2(1, 1));
+            if (mWaveformTexture) drawList->AddImage(mWaveformTexture, customViewStart, customViewStart + window_size, ImVec2(0, 0), ImVec2(1, 1));
 #else
             ImGui::SetCursorScreenPos(customViewStart);
             if (ImGui::BeginChild(id_string.c_str(), window_size, false, ImGuiWindowFlags_NoScrollbar))
@@ -2777,7 +2782,7 @@ int64_t TextClip::Cropping(int64_t diff, int type)
     return ret;
 }
 
-void TextClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect)
+void TextClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect, bool updated)
 {
     drawList->AddRectFilled(leftTop, rightBottom, IM_COL32(16, 16, 16, 255));
     drawList->PushClipRect(leftTop, rightBottom, true);
@@ -3578,7 +3583,7 @@ bool EditingVideoClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_fr
     return ret;
 }
 
-void EditingVideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom)
+void EditingVideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, bool updated)
 {
     if (mImgTexture)
     {
@@ -3768,7 +3773,7 @@ bool EditingAudioClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_fr
     return false;
 }
 
-void EditingAudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom)
+void EditingAudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, bool updated)
 {
     TimeLine * timeline = (TimeLine *)mHandle;
     if (!timeline)
@@ -4172,7 +4177,7 @@ EditingVideoOverlap::~EditingVideoOverlap()
     mTransition = nullptr;
 }
 
-void EditingVideoOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom)
+void EditingVideoOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, bool updated)
 {
     // update display params
     bool ovlpRngChanged = mOvlp->mStart != mStart || mOvlp->mEnd != mEnd;
@@ -4507,7 +4512,7 @@ void EditingAudioOverlap::Step(bool forward, int64_t step)
 {
 }
 
-void EditingAudioOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom)
+void EditingAudioOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, bool updated)
 {
     // update display params
     bool ovlpRngChanged = mOvlp->mStart != mStart || mOvlp->mEnd != mEnd;
@@ -7167,7 +7172,7 @@ ImU32 TimeLine::GetGroupColor(int64_t group_id)
 void TimeLine::CustomDraw(
         int index, ImDrawList *draw_list, const ImRect &view_rc, const ImRect &rc,
         const ImRect &titleRect, const ImRect &clippingTitleRect, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRec,
-        bool is_moving, bool enable_select, std::list<imgui_json::value>* pActionList)
+        bool is_moving, bool enable_select, bool is_updated, std::list<imgui_json::value>* pActionList)
 {
     // view_rc: track view rect
     // rc: full track length rect
@@ -7365,7 +7370,7 @@ void TimeLine::CustomDraw(
             {
                 // can't using draw_list->PushClipRect, maybe all PushClipRect with screen pos/size need change to ImGui::PushClipRect
                 ImGui::PushClipRect(clippingRect.Min, clippingRect.Max, true);
-                clip->DrawContent(draw_list, clip_pos_min, clip_pos_max, clippingRect);
+                clip->DrawContent(draw_list, clip_pos_min, clip_pos_max, clippingRect, is_updated);
                 ImGui::PopClipRect();
             }
 
@@ -9906,7 +9911,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
     *                     [     <==slider==>                                                                  ] +
     ++++++++++++++++++++++++++++++++++++++++ canvas width +++++++++++++++++++++++++++++++++++++++++++++++++++++++
     *************************************************************************************************************/
-    bool ret = false;
+    bool changed = false;
     ImGuiIO &io = ImGui::GetIO();
     const int toolbar_height = 24;
     const int scrollSize = 16;
@@ -9939,6 +9944,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
     std::vector<int64_t> unGroupClipEntry;
     bool removeEmptyTrack = false;
     int insertEmptyTrackType = MEDIA_UNKNOWN;
+    static int64_t lastFirstTime = -1;
     static bool menuIsOpened = false;
     static bool bCropping = false;
     static bool bClipMoving = false;
@@ -9963,7 +9969,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
     ImVec2 canvas_size = ImGui::GetContentRegionAvail() - ImVec2(8, 0); // Resize canvas to what's available
     ImVec2 timline_size = canvas_size - ImVec2(scrollSize / 2, 0);     // add Vertical Scroll
     if (timline_size.y - trackHeadHeight - scrollSize - 8 <= 0)
-        return ret;
+        return changed;
     // zoom in/out    
     int64_t newVisibleTime = (int64_t)floorf((timline_size.x - legendWidth) / timeline->msPixelWidthTarget);
     timeline->ConfigSnapshotWindow(newVisibleTime);
@@ -10001,6 +10007,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
 
     // draw backbround
     //draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DARK_TWO);
+    if (lastFirstTime != -1 && lastFirstTime != timeline->lastTime) changed = true;
+    lastFirstTime = timeline->lastTime;
 
     ImGui::BeginGroup();
     bool isFocused = ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows);
@@ -10072,7 +10080,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         if (!trackCount) 
         {
             ImGui::EndGroup();
-            return ret;
+            return changed;
         }
         
         ImGui::PushStyleColor(ImGuiCol_FrameBg, 0);
@@ -10397,6 +10405,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 }
             }
             bTrackMoving = false;
+            changed = true;
         }
 
         // clip cropping or moving
@@ -10434,6 +10443,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 //timeline->AlignTime(align_time);
                 //diffTime -= align_time;
                 diffTime = 0;
+                changed = true;
             }
         }
 
@@ -10492,6 +10502,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 ImGui::Text("Dur:%s", ImGuiHelper::MillisecToString(timeline->mark_out - timeline->mark_in, 2).c_str());
                 ImGui::EndTooltip();
             }
+            changed = true;
         }
 
         if (trackAreaRect.Contains(io.MousePos) && editable && !menuIsOpened && !bCropping && !timeline->mIsCutting && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
@@ -10538,6 +10549,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                         timeline->mark_out = -1;
                     timeline->mark_in = mouse_time;
                     headerMarkPos = -1;
+                    changed = true;
                 }
                 if (ImGui::MenuItem("+ Add mark out", nullptr, nullptr))
                 {
@@ -10545,11 +10557,13 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                         timeline->mark_in = -1;
                     timeline->mark_out = mouse_time;
                     headerMarkPos = -1;
+                    changed = true;
                 }
                 if (ImGui::MenuItem("- Delete mark point", nullptr, nullptr))
                 {
                     timeline->mark_in = timeline->mark_out = -1;
                     headerMarkPos = -1;
+                    changed = true;
                 }
             }
             ImGui::EndPopup();
@@ -10579,6 +10593,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 if (ImGui::MenuItem(ICON_MEDIA_DELETE " Delete Empty Track", nullptr, nullptr))
                 {
                     removeEmptyTrack = true;
+                    changed = true;
                 }
             }
 
@@ -10592,19 +10607,23 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 if (ImGui::MenuItem(ICON_CROP " Edit Clip Attribute", nullptr, nullptr))
                 {
                     track->SelectEditingClip(clip, false);
+                    changed = true;
                 }
                 if (ImGui::MenuItem(ICON_BLUE_PRINT " Edit Clip Filter", nullptr, nullptr))
                 {
                     track->SelectEditingClip(clip, true);
+                    changed = true;
                 }
                 ImGui::EndDisabled();
                 if (ImGui::MenuItem(ICON_MEDIA_DELETE_CLIP " Delete Clip", nullptr, nullptr))
                 {
                     delClipEntry.push_back(clipMenuEntry);
+                    changed = true;
                 }
                 if (clip->mGroupID != -1 && ImGui::MenuItem(ICON_MEDIA_UNGROUP " Ungroup Clip", nullptr, nullptr))
                 {
                     unGroupClipEntry.push_back(clipMenuEntry);
+                    changed = true;
                 }
             }
 
@@ -10616,7 +10635,10 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                     for (auto clip : timeline->m_Clips)
                     {
                         if (clip->bSelected)
+                        {
                             delClipEntry.push_back(clip->mID);
+                            changed = true;
+                        }
                     }
                 }
                 if (selected_clip_count > 1 && ImGui::MenuItem(ICON_MEDIA_GROUP " Group Selected", nullptr, nullptr))
@@ -10624,7 +10646,10 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                     for (auto clip : timeline->m_Clips)
                     {
                         if (clip->bSelected)
+                        {
                             groupClipEntry.push_back(clip->mID);
+                            changed = true;
+                        }
                     }
                 }
                 if (ImGui::MenuItem(ICON_MEDIA_UNGROUP " Ungroup Selected", nullptr, nullptr))
@@ -10632,7 +10657,10 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                     for (auto clip : timeline->m_Clips)
                     {
                         if (clip->bSelected)
+                        {
                             unGroupClipEntry.push_back(clip->mID);
+                            changed = true;
+                        }
                     }
                 }
             }
@@ -10682,6 +10710,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         {
             timeline->firstTime = timeline->GetEnd() - timeline->visibleTime;
             timeline->AlignTime(timeline->firstTime);
+            changed = true;
         }
         ImGui::ShowTooltipOnHover("Slider to End");
 
@@ -10690,6 +10719,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         if (ImGui::Button(ICON_SLIDER_MAXIMUM "##slider_maximum", ImVec2(16, 16)))
         {
             timeline->msPixelWidthTarget = maxPixelWidthTarget;
+            changed = true;
         }
         ImGui::ShowTooltipOnHover("Maximum Slider");
 
@@ -10700,6 +10730,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             timeline->msPixelWidthTarget *= 2.0f;
             if (timeline->msPixelWidthTarget > maxPixelWidthTarget)
                 timeline->msPixelWidthTarget = maxPixelWidthTarget;
+            changed = true;
         }
         ImGui::ShowTooltipOnHover("Slider Zoom In");
 
@@ -10710,6 +10741,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             timeline->msPixelWidthTarget *= 0.5f;
             if (timeline->msPixelWidthTarget < minPixelWidthTarget)
                 timeline->msPixelWidthTarget = minPixelWidthTarget;
+            changed = true;
         }
         ImGui::ShowTooltipOnHover("Slider Zoom Out");
 
@@ -10719,6 +10751,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         {
             timeline->msPixelWidthTarget = minPixelWidthTarget;
             timeline->firstTime = timeline->GetStart();
+            changed = true;
         }
         ImGui::ShowTooltipOnHover("Minimum Slider");
 
@@ -10728,6 +10761,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         {
             timeline->firstTime = timeline->GetStart();
             timeline->AlignTime(timeline->firstTime);
+            changed = true;
         }
         ImGui::ShowTooltipOnHover("Slider to Start");
         ImGui::SetWindowFontScale(1.0);
@@ -10761,6 +10795,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 timeline->firstTime = int((io.MousePos.x - panningViewHorizonSource.x) / msPerPixelInBar) - panningViewHorizonTime;
                 timeline->AlignTime(timeline->firstTime);
                 timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
+                changed = true;
             }
         }
         else if (inHorizonScrollHandle && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingCurrentTime && clipMovingEntry == -1 && !menuIsOpened && editable)
@@ -10776,6 +10811,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             timeline->firstTime = int((io.MousePos.x - legendWidth - contentMin.x) / msPerPixelInBar);
             timeline->AlignTime(timeline->firstTime);
             timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
+            changed = true;
         }
 
         // Vertical Scroll bar
@@ -10870,12 +10906,14 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                     timeline->firstTime -= timeline->visibleTime / view_frames;
                     timeline->AlignTime(timeline->firstTime);
                     timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
+                    changed = true;
                 }
                 else if (io.MouseWheelH > FLT_EPSILON)
                 {
                     timeline->firstTime += timeline->visibleTime / view_frames;
                     timeline->AlignTime(timeline->firstTime);
                     timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
+                    changed = true;
                 }
                 // up-down wheel over scrollbar, scale canvas view
                 else if (io.MouseWheel < -FLT_EPSILON && timeline->visibleTime <= timeline->GetEnd())
@@ -10886,6 +10924,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                     int64_t offset = new_mouse_time - mouseTime;
                     timeline->firstTime -= offset;
                     timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
+                    changed = true;
                 }
                 else if (io.MouseWheel > FLT_EPSILON)
                 {
@@ -10895,6 +10934,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                     int64_t offset = new_mouse_time - mouseTime;
                     timeline->firstTime -= offset;
                     timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
+                    changed = true;
                 }
             }
         }
@@ -10926,7 +10966,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             timeline->CustomDraw(
                     customDraw.index, draw_list, ImRect(childFramePos, childFramePos + childFrameSize), customDraw.customRect,
                     customDraw.titleRect, customDraw.clippingTitleRect, customDraw.legendRect, customDraw.clippingRect, customDraw.legendClippingRect,
-                    bClipMoving, !menuIsOpened && !timeline->mIsCutting && editable, &actionList);
+                    bClipMoving, !menuIsOpened && !timeline->mIsCutting && editable, changed, &actionList);
         draw_list->PopClipRect();
 
         // show cutting line
@@ -11191,6 +11231,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                     timeline->currentTime = timeline->GetEnd();
                 timeline->Seek(timeline->currentTime, true);
                 timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
+                changed = true;
             }
         }
         if (timeline->bSeeking && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
@@ -11595,7 +11636,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                     // TODO::Dicky add subtitle stream here?
                 }
                 timeline->Update();
-                ret = true;
+                changed = true;
             }
         }
         ImGui::EndDragDropTarget();
@@ -11607,7 +11648,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         if (timeline->DeleteClip(clipId, &timeline->mUiActions))
         {
             timeline->Update();
-            ret = true;
+            changed = true;
         }
     }
     if (delTrackEntry != -1)
@@ -11620,9 +11661,9 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             imgui_json::value action;
             int64_t delTrackId = timeline->DeleteTrack(delTrackEntry, &timeline->mUiActions);
             if (delTrackId != -1)
-                ret = true;
+                changed = true;
         }
-        if (ret)
+        if (changed)
             timeline->Update();
     }
     if (removeEmptyTrack)
@@ -11643,7 +11684,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 int64_t delTrackId = timeline->DeleteTrack(index, &timeline->mUiActions);
                 if (delTrackId != -1)
                 {
-                    ret = true;
+                    changed = true;
                     trackNum = timeline->m_Tracks.size();
                 }
             }
@@ -11659,7 +11700,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
     {
         int newTrackIndex = timeline->NewTrack("", MEDIA_VIDEO, true, -1, -1, &timeline->mUiActions);
         MediaTrack * newTrack = timeline->m_Tracks[newTrackIndex];
-        ret = true;
+        changed = true;
         bInsertNewTrack = true;
         InsertHeight += newTrack->mTrackHeight + trackHeadHeight;
     }
@@ -11667,7 +11708,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
     {
         int newTrackIndex = timeline->NewTrack("", MEDIA_AUDIO, true, -1, -1, &timeline->mUiActions);
         MediaTrack * newTrack = timeline->m_Tracks[newTrackIndex];
-        ret = true;
+        changed = true;
         bInsertNewTrack = true;
         InsertHeight += newTrack->mTrackHeight + trackHeadHeight;
     }
@@ -11679,7 +11720,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         newTrack->mMttReader->SetFont(timeline->mFontName);
         newTrack->mMttReader->SetFrameSize(timeline->GetPreviewWidth(), timeline->GetPreviewHeight());
         newTrack->mMttReader->EnableFullSizeOutput(false);
-        ret = true;
+        changed = true;
         bInsertNewTrack = true;
         InsertHeight += newTrack->mTrackHeight + trackHeadHeight;
     }
@@ -11693,14 +11734,14 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             auto clip = timeline->FindClipByID(clip_id);
             timeline->AddClipIntoGroup(clip, new_gourp_id, &timeline->mUiActions);
         }
-        ret = true;
+        changed = true;
     }
 
     for (auto clip_id : unGroupClipEntry)
     {
         auto clip = timeline->FindClipByID(clip_id);
         timeline->DeleteClipFromGroup(clip, clip->mGroupID, &timeline->mUiActions);
-        ret = true;
+        changed = true;
     }
 
     // handle track moving
@@ -11709,7 +11750,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         if (trackEntry != -1 && trackMovingEntry != trackEntry)
         {
             timeline->MovingTrack(trackMovingEntry, trackEntry, &timeline->mUiActions);
-            ret = true;
+            changed = true;
             trackMovingEntry = -1;
             trackEntry = -1;
         }
@@ -11778,9 +11819,9 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
 
         // perform actions
         timeline->PerformUiActions();
-        ret = true;
+        changed = true;
     }
-    return ret;
+    return changed;
 }
 
 /***********************************************************************************************************

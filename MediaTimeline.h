@@ -321,6 +321,7 @@ struct MediaItem
     uint32_t mMediaType {MEDIA_UNKNOWN};
     RenderUtils::TextureManager::Holder mTxMgr;
     std::vector<RenderUtils::ManagedTexture::Holder> mMediaThumbnail;
+    std::vector<ImTextureID> mWaveformTextures;
     MediaItem(const std::string& name, const std::string& path, uint32_t type, void* handle);
     ~MediaItem();
     void UpdateItem(const std::string& name, const std::string& path, void* handle);
@@ -438,7 +439,7 @@ struct Clip
     virtual void ConfigViewWindow(int64_t wndDur, float pixPerMs) { mViewWndDur = wndDur; mPixPerMs = pixPerMs; }
     virtual void SetTrackHeight(int trackHeight) { mTrackHeight = trackHeight; }
     virtual void SetViewWindowStart(int64_t millisec) {}
-    virtual void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect) { drawList->AddRect(leftTop, rightBottom, IM_COL32_BLACK); }
+    virtual void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect, bool updated = false) { drawList->AddRect(leftTop, rightBottom, IM_COL32_BLACK); }
     virtual void DrawTooltips() {};
     static void Load(Clip * clip, const imgui_json::value& value);
     virtual void Save(imgui_json::value& value) = 0;
@@ -514,7 +515,7 @@ struct VideoClip : Clip
     void ConfigViewWindow(int64_t wndDur, float pixPerMs) override;
     void SetTrackHeight(int trackHeight) override;
     void SetViewWindowStart(int64_t millisec) override;
-    void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect) override;
+    void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect, bool updated = false) override;
 
     static Clip * Load(const imgui_json::value& value, void * handle);
     void Save(imgui_json::value& value) override;
@@ -546,7 +547,7 @@ struct AudioClip : Clip
 
     void UpdateClip(MediaCore::Overview::Holder overview, int64_t duration);
 
-    void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect) override;
+    void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect, bool updated = false) override;
     static Clip * Load(const imgui_json::value& value, void * handle);
     void Save(imgui_json::value& value) override;
 
@@ -565,7 +566,7 @@ struct TextClip : Clip
     void SyncClipAttributes();
     void EnableUsingTrackStyle(bool enable);
 
-    void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect) override;
+    void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect, bool updated = false) override;
     void DrawTooltips() override;
     int64_t Moving(int64_t diff, int mouse_track) override;
     int64_t Cropping(int64_t diff, int type) override;
@@ -729,7 +730,7 @@ struct BaseEditingClip
     virtual void UpdateClipRange(Clip* clip) = 0;
     virtual void Save() = 0;
     virtual bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame = true, bool attribute = false) = 0;
-    virtual void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom) = 0;
+    virtual void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, bool updated = false) = 0;
 };
 
 struct EditingVideoClip : BaseEditingClip
@@ -758,7 +759,7 @@ public:
     void UpdateClipRange(Clip* clip) override;
     void Save() override;
     bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame = true, bool attribute = false) override;
-    void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom) override;
+    void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, bool updated = false) override;
 };
 
 struct EditingAudioClip : BaseEditingClip
@@ -779,7 +780,7 @@ public:
     void UpdateClipRange(Clip* clip) override;
     void Save() override;
     bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame = true, bool attribute = false) override;
-    void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom) override;
+    void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, bool updated = false) override;
 };
 
 struct BaseEditingOverlap
@@ -797,7 +798,7 @@ struct BaseEditingOverlap
     virtual void Seek(int64_t pos) = 0;
     virtual void Step(bool forward, int64_t step = 0) = 0;
     virtual bool GetFrame(std::pair<std::pair<ImGui::ImMat, ImGui::ImMat>, ImGui::ImMat>& in_out_frame, bool preview_frame = true) = 0;
-    virtual void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom) = 0;
+    virtual void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, bool updated = false) = 0;
     virtual void Save() = 0;
 };
 
@@ -821,7 +822,7 @@ public:
     void Seek(int64_t pos) override;
     void Step(bool forward, int64_t step = 0) override;
     bool GetFrame(std::pair<std::pair<ImGui::ImMat, ImGui::ImMat>, ImGui::ImMat>& in_out_frame, bool preview_frame = true) override;
-    void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom) override;
+    void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, bool updated = false) override;
     void Save() override;
 
     void CalcDisplayParams();
@@ -842,7 +843,7 @@ public:
     void Seek(int64_t pos) override;
     void Step(bool forward, int64_t step = 0) override;
     bool GetFrame(std::pair<std::pair<ImGui::ImMat, ImGui::ImMat>, ImGui::ImMat>& in_out_frame, bool preview_frame = true) override { return false; }
-    void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom) override;
+    void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, bool updated = false) override;
     void Save() override;
 };
 
@@ -1243,7 +1244,7 @@ struct TimeLine
     void CustomDraw(
             int index, ImDrawList *draw_list, const ImRect &view_rc, const ImRect &rc,
             const ImRect &titleRect, const ImRect &clippingTitleRect, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRect,
-            bool is_moving, bool enable_select, std::list<imgui_json::value>* pActionList);
+            bool is_moving, bool enable_select, bool is_updated, std::list<imgui_json::value>* pActionList);
     
     std::vector<MediaCore::CorrelativeFrame> GetPreviewFrame();
     float GetAudioLevel(int channel);

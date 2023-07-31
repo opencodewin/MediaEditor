@@ -2129,12 +2129,30 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
                     ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.f, 1.f, 0.f, 1.0f));
                     for (int i = 0; i < channels; i++)
                     {
-                        ImGui::SetCursorScreenPos(wave_pos + ImVec2(0, i * channel_height));
                         ImVec2 plot_size(wave_size.x, channel_height);
                         int sampleSize = wavefrom->pcm[i].size();
-                        std::string id_string = "##BankWaveform@" + std::to_string((*item)->mID) + "@" + std::to_string(i);
 #if PLOT_TEXTURE
+                        ImGui::ImMat plot_mat;
+                        ImTextureID texture = (*item)->mWaveformTextures.size() > i ? (*item)->mWaveformTextures[i] : nullptr;
+                        if (!texture)
+                        {
+                            ImGui::PlotMat(plot_mat, &wavefrom->pcm[i][0], sampleSize, 0, -wave_range / 2, wave_range / 2, plot_size, sizeof(float), false, 1.0);
+                            ImMatToTexture(plot_mat, texture);
+                            (*item)->mWaveformTextures.push_back(texture);
+                        }
+                        else if (!wavefrom->parseDone)
+                        {
+                            ImGui::PlotMat(plot_mat, &wavefrom->pcm[i][0], sampleSize, 0, -wave_range / 2, wave_range / 2, plot_size, sizeof(float), false, 1.0);
+                            ImMatToTexture(plot_mat, texture);
+                        }
+
+                        if (texture)
+                        {
+                            draw_list->AddImage(texture, wave_pos + ImVec2(0, i * channel_height), wave_pos + ImVec2(0, i * channel_height) + plot_size, ImVec2(0, 0), ImVec2(1, 1));
+                        }
 #else
+                        ImGui::SetCursorScreenPos(wave_pos + ImVec2(0, i * channel_height));
+                        std::string id_string = "##BankWaveform@" + std::to_string((*item)->mID) + "@" + std::to_string(i);
                         ImGui::PlotLinesEx(id_string.c_str(), &wavefrom->pcm[i][0], sampleSize, 0, nullptr, -wave_range / 2, wave_range / 2, plot_size, sizeof(float), false);
 #endif
                     }
@@ -9318,8 +9336,8 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                 auto gmat = mat_histogram.channel(1);
                 auto bmat = mat_histogram.channel(2);
                 auto ymat = mat_histogram.channel(3);
-#if PLOT_TEXTURE
-#else
+//#if PLOT_TEXTURE
+//#else
                 ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(1.f, 0.f, 0.f, 1.0f));
                 ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(1.f, 0.f, 0.f, 0.3f));
                 ImGui::PlotLinesEx("##rh", &((float *)rmat.data)[1], mat_histogram.w - 1, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(size.x, size.y / height_scale), 4, false, true);
@@ -9334,17 +9352,17 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                 ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.f, 0.f, 1.f, 0.3f));
                 ImGui::PlotLinesEx("##bh", &((float *)bmat.data)[1], mat_histogram.w - 1, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(size.x, size.y / height_scale), 4, false, true);
                 ImGui::PopStyleColor(2);
-#endif
+//#endif
                 if (g_media_editor_settings.HistogramYRGB)
                 {
                     ImGui::SetCursorScreenPos(pos + ImVec2(0, height_offset * 3));
-#if PLOT_TEXTURE
-#else
+//#if PLOT_TEXTURE
+//#else
                     ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(1.f, 1.f, 1.f, 1.0f));
                     ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(1.f, 1.f, 1.f, 0.3f));
                     ImGui::PlotLinesEx("##yh", &((float *)ymat.data)[1], mat_histogram.w - 1, 0, nullptr, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(size.x, size.y / height_scale), 4, false, true);
                     ImGui::PopStyleColor(2);
-#endif
+//#endif
                 }
                 ImGui::PopStyleColor();
             }
@@ -9776,10 +9794,10 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                 if (!timeline->mAudioAttribute.channel_data[i].m_wave.empty())
                 {
                     ImGui::PushID(i);
-#if PLOT_TEXTURE
-#else
+//#if PLOT_TEXTURE
+//#else
                     ImGui::PlotLinesEx("##wave", (float *)timeline->mAudioAttribute.channel_data[i].m_wave.data, timeline->mAudioAttribute.channel_data[i].m_wave.w, 0, nullptr, -1.0 / g_media_editor_settings.AudioWaveScale , 1.0 / g_media_editor_settings.AudioWaveScale, channel_view_size, 4, false, false);
-#endif
+//#endif
                     ImGui::PopID();
                 }
                 draw_list->AddRect(channel_min, channel_max, COL_SLIDER_HANDLE, 0);
@@ -9952,10 +9970,10 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                 if (!timeline->mAudioAttribute.channel_data[i].m_fft.empty())
                 {
                     ImGui::PushID(i);
-#if PLOT_TEXTURE
-#else
+//#if PLOT_TEXTURE
+//#else
                     ImGui::PlotLinesEx("##fft", (float *)timeline->mAudioAttribute.channel_data[i].m_fft.data, timeline->mAudioAttribute.channel_data[i].m_fft.w, 0, nullptr, 0.0, 1.0 / g_media_editor_settings.AudioFFTScale, channel_view_size, 4, false, true);
-#endif
+//#endif
                     ImGui::PopID();
                 }
                 draw_list->AddRect(channel_min, channel_max, COL_SLIDER_HANDLE, 0);
@@ -10035,10 +10053,10 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                     ImGui::PushID(i);
                     ImGui::ImMat db_mat_inv = timeline->mAudioAttribute.channel_data[i].m_db.clone();
                     db_mat_inv += 90.f;
-#if PLOT_TEXTURE
-#else
+//#if PLOT_TEXTURE
+//#else
                     ImGui::PlotLinesEx("##db", (float *)db_mat_inv.data,db_mat_inv.w, 0, nullptr, 0.f, 90.f / g_media_editor_settings.AudioDBScale, channel_view_size, 4, false, true);
-#endif
+//#endif
                     ImGui::PopID();
                 }
                 draw_list->AddRect(channel_min, channel_max, COL_SLIDER_HANDLE, 0);
@@ -10066,13 +10084,13 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                 ImVec2 channel_min = pos + ImVec2(0, channel_view_size.y * i);
                 ImVec2 channel_max = pos + ImVec2(channel_view_size.x, channel_view_size.y * i);
                 ImGui::PushID(i);
-#if PLOT_TEXTURE
-#else
+//#if PLOT_TEXTURE
+//#else
                 if (!timeline->mAudioAttribute.channel_data[i].m_DBShort.empty() && g_media_editor_settings.AudioDBLevelShort == 1)
                     ImGui::PlotHistogram("##db_level", (float *)timeline->mAudioAttribute.channel_data[i].m_DBShort.data, timeline->mAudioAttribute.channel_data[i].m_DBShort.w, 0, nullptr, 0, 100, channel_view_size, 4);
                 else if (!timeline->mAudioAttribute.channel_data[i].m_DBLong.empty() && g_media_editor_settings.AudioDBLevelShort == 0)
                     ImGui::PlotHistogram("##db_level", (float *)timeline->mAudioAttribute.channel_data[i].m_DBLong.data, timeline->mAudioAttribute.channel_data[i].m_DBLong.w, 0, nullptr, 0, 100, channel_view_size, 4);
-#endif
+//#endif
                 ImGui::PopID();
                 draw_list->AddRect(channel_min, channel_max, COL_SLIDER_HANDLE, 0);
             }
