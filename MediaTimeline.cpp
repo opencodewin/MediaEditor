@@ -96,8 +96,9 @@ static void frameStepTime(int64_t& time, int32_t offset, MediaCore::Ratio rate)
     }
 }
 
-static void waveFrameResample(float * wave, int samples, int size, int start_offset, int size_max, int zoom, ImGui::ImMat& plot_frame_max, ImGui::ImMat& plot_frame_min)
+static bool waveFrameResample(float * wave, int samples, int size, int start_offset, int size_max, int zoom, ImGui::ImMat& plot_frame_max, ImGui::ImMat& plot_frame_min)
 {
+    bool min_max = samples > 16;
     plot_frame_max.create_type(size, 1, 1, IM_DT_FLOAT32);
     plot_frame_min.create_type(size, 1, 1, IM_DT_FLOAT32);
     float * out_channel_data_max = (float *)plot_frame_max.data;
@@ -106,7 +107,7 @@ static void waveFrameResample(float * wave, int samples, int size, int start_off
     {
         float max_val = -FLT_MAX;
         float min_val = FLT_MAX;
-        if (samples <= 32)
+        if (!min_max)
         {
             if (i * samples + start_offset < size_max)
                 min_val = max_val = wave[i * samples + start_offset];
@@ -133,8 +134,49 @@ static void waveFrameResample(float * wave, int samples, int size, int start_off
         out_channel_data_max[i] = ImMin(max_val, 1.f);
         out_channel_data_min[i] = ImMax(min_val, -1.f);
     }
+    return min_max;
 }
 
+static void PlotWaveform(ImGui::ImMat& mat, float * data, int values_count, int values_offset, float scale_min, float scale_max, ImVec2 frame_size, bool filled = false)
+{
+    if (values_count < 2) return;
+    if (mat.empty() || mat.w != (int)frame_size.x || mat.h != (int)frame_size.y)
+    {
+        mat.create_type(frame_size.x, frame_size.y, 4);
+        mat.elempack = 4;
+    }
+    auto values_getter = [](void* d, int idx){
+        const float v = *(const float*)(const void*)((const unsigned char*)d + (size_t)idx * sizeof(float));
+        return v;
+    };
+    int res_w = ImMin((int)frame_size.x, values_count) - 1;
+    int item_count = values_count - 1;
+    const float t_step = 1.0f / (float)res_w;
+    const float inv_scale = (scale_min == scale_max) ? 0.0f : (1.0f / (scale_max - scale_min));
+    float v0 = values_getter(data, (0 + values_offset) % values_count);
+    float t0 = 0.0f;
+    ImVec2 tp0 = ImVec2( t0, 1.0f - ImSaturate((v0 - scale_min) * inv_scale) );                       // Point in the normalized space of our target rectangle
+    float histogram_zero_line_t = (scale_min * scale_max < 0.0f) ? (1 + scale_min * inv_scale) : (scale_min < 0.0f ? 0.0f : 1.0f);   // Where does the zero line stands
+    for (int n = 0; n < res_w; n++)
+    {
+        const float t1 = t0 + t_step;
+        int v1_idx = (int)(t0 * item_count + 0.5f);
+        if (v1_idx < 0) v1_idx = 0;
+        if (v1_idx > values_count) v1_idx = values_count;
+        const float v1 = values_getter(data, (v1_idx + values_offset + 1) % values_count);
+        const ImVec2 tp1 = ImVec2( t1, 1.0f - ImSaturate((v1 - scale_min) * inv_scale) );
+        ImVec2 pos0 = ImLerp(ImVec2(0, 0), frame_size, tp0);
+        ImVec2 pos1 = ImLerp(ImVec2(0, 0), frame_size, tp1);
+        mat.draw_line(ImPoint(pos0.x, pos0.y), ImPoint(pos1.x, pos1.y), 0.5, ImPixel(0.0, 1.0, 0.0, 1.0));
+        if (filled)
+        {
+            ImVec2 _pos1 = ImLerp(ImVec2(0, 0), frame_size, ImVec2(tp1.x, histogram_zero_line_t));
+            mat.draw_line(ImPoint(pos0.x, pos0.y), ImPoint(pos0.x, _pos1.y), 0.5, ImPixel(0.0, 0.5, 0.0, 0.5));
+        }
+        t0 = t1;
+        tp0 = tp1;
+    }
+}
 namespace MediaTimeline
 {
 /***********************************************************************************************************
@@ -2381,6 +2423,7 @@ AudioClip::AudioClip(int64_t start, int64_t end, int64_t id, std::string name, v
 
 AudioClip::~AudioClip()
 {
+    if (mWaveformTexture) { ImGui::ImDestroyTexture(mWaveformTexture); mWaveformTexture = nullptr; }
 }
 
 void AudioClip::UpdateClip(MediaCore::Overview::Holder overview, int64_t duration)
@@ -2479,6 +2522,22 @@ void AudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
             }
             ImPlot::PopStyleColor();
             ImPlot::PopStyleVar(2);
+#elif PLOT_TEXTURE
+            ImGui::ImMat plot_mat;
+            start_offset = start_offset / sample_stride * sample_stride; // align start_offset
+            ImGui::ImMat plot_frame_max, plot_frame_min;
+            auto filled = waveFrameResample(&mWaveform->pcm[0][0], sample_stride, draw_size.x, start_offset, sampleSize, zoom, plot_frame_max, plot_frame_min);
+            if (filled)
+            {
+                PlotWaveform(plot_mat, (float *)plot_frame_max.data, plot_frame_max.w, 0, -wave_range, wave_range, draw_size, filled);
+                PlotWaveform(plot_mat, (float *)plot_frame_min.data, plot_frame_min.w, 0, -wave_range, wave_range, draw_size, filled);
+            }
+            else
+            {
+                PlotWaveform(plot_mat, (float *)plot_frame_min.data, plot_frame_min.w, 0, -wave_range, wave_range, draw_size, filled);
+            }
+            ImMatToTexture(plot_mat, mWaveformTexture);
+            drawList->AddImage(mWaveformTexture, customViewStart, customViewStart + window_size, ImVec2(0, 0), ImVec2(1, 1));
 #else
             ImGui::SetCursorScreenPos(customViewStart);
             if (ImGui::BeginChild(id_string.c_str(), window_size, false, ImGuiWindowFlags_NoScrollbar))
@@ -12733,7 +12792,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                 drawList->AddRectFilled(track_area.Min, track_area.Max, col);
                 ImGui::SetCursorScreenPos(track_current);
                 ImGui::InvisibleButton("##event_track", track_size);
-                if (is_mouse_hovered && event_editable)
+                if (is_mouse_hovered)
                 {
                     for (auto event_id : track->m_Events)
                     {
@@ -12756,7 +12815,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                                         bCropping = false;
                                     }
                                 }
-                                else
+                                else if (event_editable)
                                 {
                                     // check event moving part
                                     ImVec2 eventP1(pos.x + event->Start() * editingClip->msPixelWidthTarget, pos.y);

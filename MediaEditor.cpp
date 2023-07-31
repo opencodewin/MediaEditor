@@ -9672,7 +9672,7 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                 draw_list->AddLine(center_point + p0, center_point + p1, COL_GRATICULE_DARK);
             }
 
-              auto draw_mark = [&](ImVec2 point, const char * mark)
+            auto draw_mark = [&](ImVec2 point, const char * mark)
             {
                 float rect_size = 12;
                 auto p0 = center_point + point - ImVec2(rect_size, rect_size);

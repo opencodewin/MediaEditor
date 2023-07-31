@@ -39,7 +39,8 @@
 #include <chrono>
 
 #define PLOT_IMPLOT   0
-// #define USING_OLD_UI
+#define PLOT_TEXTURE  0
+#define USING_OLD_UI
 
 #define ICON_MEDIA_TIMELINE u8"\uf538"
 #define ICON_MEDIA_BANK     u8"\ue907"
@@ -486,7 +487,7 @@ struct VideoClip : Clip
     int mHeight         {0};        // image height, project saved
     int mColorFormat    {0};        // image color format, project saved
     MediaCore::Overview::Holder mOverview;
-    ImTextureID mImgTexture     {0};
+    ImTextureID mImgTexture     {nullptr};
 
     // attribute
     MediaCore::ScaleType mScaleType {MediaCore::ScaleType::SCALE_TYPE__FIT}; // clip attribute scale type, project saved
@@ -537,6 +538,7 @@ struct AudioClip : Clip
     MediaCore::AudioRender::PcmFormat mAudioFormat {MediaCore::AudioRender::PcmFormat::FLOAT32}; // clip audio type, project saved
     MediaCore::Overview::Waveform::Holder mWaveform {nullptr};  // clip audio snapshot
     MediaCore::Overview::Holder mOverview;
+    ImTextureID mWaveformTexture {nullptr}; // clip waveform texture
 
     AudioClip(int64_t start, int64_t end, int64_t id, std::string name, MediaCore::Overview::Holder overview, void* handle);
     AudioClip(int64_t start, int64_t end, int64_t id, std::string name, void* handle);
