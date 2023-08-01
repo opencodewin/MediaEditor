@@ -298,6 +298,7 @@ endif(BUILD_TEST)
 endif(IMGUI_APPS)
 
 ## build plugins
+
 add_subdirectory(plugin/nodes/media/SDLAudioRender)
 add_subdirectory(plugin/nodes/filters/AudioEqualizer)
 add_subdirectory(plugin/nodes/filters/AudioGain)
