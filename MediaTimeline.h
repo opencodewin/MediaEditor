@@ -1199,7 +1199,8 @@ struct TimeLine
     
     // BP CallBacks
     static int OnBluePrintChange(int type, std::string name, void* handle);
-    static int OnVideoFilterBluePrintChange(int type, std::string name, void* handle);
+    // This callback can only be assigned to a EventStackFilter, since it will interpret the 'handle' as a 'MEC::EventStackFilterContext' pointer
+    static int OnEventStackFilterBpChanged(int type, std::string name, void* handle);
 
     ImTextureID mMainPreviewTexture {nullptr};  // main preview texture
 

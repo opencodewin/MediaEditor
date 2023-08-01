@@ -1470,15 +1470,11 @@ bool Clip::AppendEvent(MEC::Event::Holder event, void* data)
 
     BluePrint::Node* node = static_cast<BluePrint::Node*>(data);
     auto event_bp = event->GetBp();
+    ID_TYPE newNodeId = 0;
     if (event_bp)
     {
-        if (event_bp->Blueprint_AppendNode(node->GetTypeID()))
+        if (!event_bp->Blueprint_AppendNode(node->GetTypeID(), &newNodeId))
         {
-            return true;
-        }
-        else
-        {
-            mEventStack->RemoveEvent(event->Id());
             return false;
         }
     }
@@ -2262,7 +2258,7 @@ void VideoClip::SyncFilterWithDataLayer(MediaCore::VideoClip::Holder hClip, bool
                 isEventStackFilter = true;
         }
         BluePrint::BluePrintCallbackFunctions bpCallbacks;
-        bpCallbacks.BluePrintOnChanged = TimeLine::OnVideoFilterBluePrintChange;
+        bpCallbacks.BluePrintOnChanged = TimeLine::OnEventStackFilterBpChanged;
         // load 'EventStackFilter'
         MediaCore::VideoFilter::Holder hNewFilter;
         bool isNewFilter = false;
@@ -8187,6 +8183,9 @@ void TimeLine::PerformUiActions()
     PrintActionList("UiActions", mUiActions);
     for (auto& action : mUiActions)
     {
+        if (action["action"].get<imgui_json::string>() == "BP_OPERATION")
+            continue;
+
         uint32_t mediaType = MEDIA_UNKNOWN;
         if (action.contains("media_type"))
             mediaType = action["media_type"].get<imgui_json::number>();
@@ -8314,7 +8313,7 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
             {
                 MEC::VideoEventStackFilter* pEsf = dynamic_cast<MEC::VideoEventStackFilter*>(hNewFilter.get());
                 BluePrint::BluePrintCallbackFunctions bpCallbacks;
-                bpCallbacks.BluePrintOnChanged = TimeLine::OnVideoFilterBluePrintChange;
+                bpCallbacks.BluePrintOnChanged = TimeLine::OnEventStackFilterBpChanged;
                 pEsf->SetBluePrintCallbacks(bpCallbacks);
                 pEsf->MoveAllEvents(hClip->Start()-cutPos);
                 // generate new ids for cloned events
@@ -8577,7 +8576,7 @@ void TimeLine::PerformImageAction(imgui_json::value& action)
             {
                 MEC::VideoEventStackFilter* pEsf = dynamic_cast<MEC::VideoEventStackFilter*>(hNewFilter.get());
                 BluePrint::BluePrintCallbackFunctions bpCallbacks;
-                bpCallbacks.BluePrintOnChanged = TimeLine::OnVideoFilterBluePrintChange;
+                bpCallbacks.BluePrintOnChanged = TimeLine::OnEventStackFilterBpChanged;
                 pEsf->SetBluePrintCallbacks(bpCallbacks);
                 pEsf->MoveAllEvents(hClip->Start()-cutPos);
                 // generate new ids for cloned events
@@ -8638,49 +8637,56 @@ void TimeLine::PerformTextAction(imgui_json::value& action)
     }
 }
 
-int TimeLine::OnVideoFilterBluePrintChange(int type, std::string name, void* handle)
+int TimeLine::OnEventStackFilterBpChanged(int type, std::string name, void* handle)
 {
-    MediaCore::VideoFilter* pFilter = reinterpret_cast<MediaCore::VideoFilter*>(handle);
-    if (!pFilter)
+    auto pFilterCtx = reinterpret_cast<MEC::EventStackFilterContext*>(handle);
+    if (!pFilterCtx)
         return BluePrint::BP_CBR_Unknown;
 
     int ret = BluePrint::BP_CBR_Nothing;
-    auto filterName = pFilter->GetFilterName();
-    if (filterName == "EventStackFilter")
+    MEC::VideoEventStackFilter* pEsf = reinterpret_cast<MEC::VideoEventStackFilter*>(pFilterCtx->pFilterPtr);
+    TimeLine* timeline = (TimeLine*)pEsf->GetTimelineHandle();
+    MEC::Event* pEvt = reinterpret_cast<MEC::Event*>(pFilterCtx->pEventPtr);
+    bool needUpdateView = false;
+    if (type == BluePrint::BP_CB_Link ||
+        type == BluePrint::BP_CB_Unlink ||
+        type == BluePrint::BP_CB_NODE_DELETED ||
+        type == BluePrint::BP_CB_NODE_APPEND ||
+        type == BluePrint::BP_CB_NODE_INSERT)
     {
-        MEC::VideoEventStackFilter* pEsf = dynamic_cast<MEC::VideoEventStackFilter*>(pFilter);
-        TimeLine* timeline = (TimeLine*)pEsf->GetTimelineHandle();
-        if (name.compare("VideoFilter") == 0)
+        needUpdateView = true;
+        ret = BluePrint::BP_CBR_AutoLink;
+    }
+    else if (type == BluePrint::BP_CB_PARAM_CHANGED ||
+            type == BluePrint::BP_CB_SETTING_CHANGED)
+    {
+        needUpdateView = true;
+    }
+    else if (type == BluePrint::BP_CB_OPERATION_DONE)
+    {
+        auto pBp = pEvt->GetBp();
+        imgui_json::value opRecord = pBp->Blueprint_GetOpRecord();
+        if (opRecord.contains("operation") && opRecord.contains("before_op_state") && opRecord.contains("after_op_state"))
         {
-            bool needUpdateView = false;
-            if (type == BluePrint::BP_CB_Link ||
-                type == BluePrint::BP_CB_Unlink ||
-                type == BluePrint::BP_CB_NODE_DELETED ||
-                type == BluePrint::BP_CB_NODE_APPEND ||
-                type == BluePrint::BP_CB_NODE_INSERT)
-            {
-                needUpdateView = true;
-                ret = BluePrint::BP_CBR_AutoLink;
-            }
-            else if (type == BluePrint::BP_CB_PARAM_CHANGED ||
-                    type == BluePrint::BP_CB_SETTING_CHANGED)
-            {
-                needUpdateView = true;
-            }
-            else
-            {
-                Logger::Log(Logger::WARN) << "---> Ignore 'OnVideoFilterBluePrintChange' change type " << type << "." << std::endl;
-            }
-            if (needUpdateView)
-            {
-                auto trackId = pEsf->GetVideoClip()->TrackId();
-                timeline->mNeedUpdateTrackIds.insert(trackId);
-            }
+            imgui_json::value action;
+            action["action"] = "BP_OPERATION";
+            action["media_type"] = imgui_json::number(MEDIA_VIDEO);
+            action["clip_id"] = imgui_json::number(pEsf->GetVideoClip()->Id());
+            action["event_id"] = imgui_json::number(pEvt->Id());
+            action["bp_operation"] = opRecord["operation"];
+            action["before_op_state"] = opRecord["before_op_state"];
+            action["after_op_state"] = opRecord["after_op_state"];
+            timeline->mUiActions.push_back(std::move(action));
         }
     }
     else
     {
-        Logger::Log(Logger::WARN) << "! 'OnVideoFilterBluePrintChange' invoked by unknown video filter name '" << filterName << "' !" << std::endl;
+        Logger::Log(Logger::WARN) << "---> Ignore 'OnEventStackFilterBpChanged' change type " << type << "." << std::endl;
+    }
+    if (needUpdateView)
+    {
+        auto trackId = pEsf->GetVideoClip()->TrackId();
+        timeline->mNeedUpdateTrackIds.insert(trackId);
     }
     return ret;
 }
@@ -9538,6 +9544,19 @@ bool TimeLine::UndoOneRecord()
             auto pTrack = FindTrackByClipID(clipId);
             RefreshTrackView({ pTrack->mID });
         }
+        else if (actionName == "BP_OPERATION")
+        {
+            int64_t clipId = action["clip_id"].get<imgui_json::number>();
+            auto pUiClip = FindClipByID(clipId);
+            int64_t evtId = action["event_id"].get<imgui_json::number>();
+            auto hEvent = pUiClip->mEventStack->GetEvent(evtId);
+            auto pBp = hEvent->GetBp();
+            uint32_t mediaType = action["media_type"].get<imgui_json::number>();
+            pBp->File_New_Filter(action["before_op_state"], "EventBp",
+                    IS_VIDEO(mediaType) ? "Video" : IS_AUDIO(mediaType) ? "Audio" : IS_TEXT(mediaType) ? "Text" : "");
+            auto pUiTrack = FindTrackByClipID(clipId);
+            RefreshTrackView({ pUiTrack->mID });
+        }
         else
         {
             Logger::Log(Logger::WARN) << "Unhandled UNDO action '" << actionName << "'!" << std::endl;
@@ -9763,6 +9782,19 @@ bool TimeLine::RedoOneRecord()
             pClip->mEventStack->ChangeEventRange(evtId, newStart, newEnd);
             auto pTrack = FindTrackByClipID(clipId);
             RefreshTrackView({ pTrack->mID });
+        }
+        else if (actionName == "BP_OPERATION")
+        {
+            int64_t clipId = action["clip_id"].get<imgui_json::number>();
+            auto pUiClip = FindClipByID(clipId);
+            int64_t evtId = action["event_id"].get<imgui_json::number>();
+            auto hEvent = pUiClip->mEventStack->GetEvent(evtId);
+            auto pBp = hEvent->GetBp();
+            uint32_t mediaType = action["media_type"].get<imgui_json::number>();
+            pBp->File_New_Filter(action["after_op_state"], "EventBp",
+                    IS_VIDEO(mediaType) ? "Video" : IS_AUDIO(mediaType) ? "Audio" : IS_TEXT(mediaType) ? "Text" : "");
+            auto pUiTrack = FindTrackByClipID(clipId);
+            RefreshTrackView({ pUiTrack->mID });
         }
         else
         {
@@ -11769,6 +11801,32 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
 
     if (!timeline->mUiActions.empty())
     {
+        // preprocess
+        {
+            // 1. remove BP_OPERATION actions if ADD_EVENT is present
+            bool acAddEventPresent = false;
+            for (auto& action : timeline->mUiActions)
+            {
+                if (action["action"].get<imgui_json::string>() == "ADD_EVENT")
+                {
+                    acAddEventPresent = true;
+                    break;
+                }
+            }
+            if (acAddEventPresent)
+            {
+                auto iter = timeline->mUiActions.begin();
+                while (iter != timeline->mUiActions.end())
+                {
+                    auto& action = *iter;
+                    if (action["action"].get<imgui_json::string>() == "BP_OPERATION")
+                        iter = timeline->mUiActions.erase(iter);
+                    else
+                        iter++;
+                }
+            }
+        }
+
         // add to history record list
         imgui_json::value historyRecord;
         historyRecord["time"] = ImGui::get_current_time();

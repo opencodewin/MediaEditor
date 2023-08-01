@@ -310,16 +310,18 @@ public:
     public:
         VideoEvent_Impl(VideoEventStackFilter_Impl* owner, int64_t id, int64_t start, int64_t end, int32_t z,
             const BluePrint::BluePrintCallbackFunctions& bpCallbacks)
-            : m_owner(owner), m_id(id), m_start(start), m_end(end), m_z(z)
+            : m_owner(owner)
+            , m_filterCtx({reinterpret_cast<void*>(static_cast<VideoEventStackFilter*>(owner)), reinterpret_cast<void*>(static_cast<Event*>(this))})
+            , m_id(id), m_start(start), m_end(end), m_z(z)
         {
             m_pKp = new ImGui::KeyPointEditor();
             m_pKp->SetRangeX(0, end-start, true);
 
             m_pBp = new BluePrint::BluePrintUI();
             m_pBp->Initialize();
-            m_pBp->SetCallbacks(bpCallbacks, reinterpret_cast<void*>(static_cast<MediaCore::VideoFilter*>(owner)));
+            m_pBp->SetCallbacks(bpCallbacks, reinterpret_cast<void*>(&m_filterCtx));
             imgui_json::value emptyJson;
-            m_pBp->File_New_Filter(emptyJson, "VideoFilter", "Video");
+            m_pBp->File_New_Filter(emptyJson, "EventBp", "Video");
         }
 
         virtual ~VideoEvent_Impl()
@@ -404,7 +406,7 @@ public:
 
         void SetBluePrintCallbacks(const BluePrint::BluePrintCallbackFunctions& bpCallbacks)
         {
-            m_pBp->SetCallbacks(bpCallbacks, reinterpret_cast<void*>(static_cast<MediaCore::VideoFilter*>(m_owner)));
+            m_pBp->SetCallbacks(bpCallbacks, reinterpret_cast<void*>(&m_filterCtx));
         }
 
         string GetError() const override
@@ -427,10 +429,14 @@ public:
         }
 
     private:
-        VideoEvent_Impl(VideoEventStackFilter_Impl* owner) : m_owner(owner) {}
+        VideoEvent_Impl(VideoEventStackFilter_Impl* owner)
+            : m_owner(owner)
+            , m_filterCtx({reinterpret_cast<void*>(static_cast<VideoEventStackFilter*>(owner)), reinterpret_cast<void*>(static_cast<Event*>(this))})
+        {}
 
     private:
         VideoEventStackFilter_Impl* m_owner;
+        EventStackFilterContext m_filterCtx;
         int64_t m_id{-1};
         BluePrint::BluePrintUI* m_pBp{nullptr};
         ImGui::KeyPointEditor* m_pKp{nullptr};
@@ -532,9 +538,9 @@ Event::Holder VideoEventStackFilter_Impl::VideoEvent_Impl::LoadFromJson(
     {
         auto pBp = pEvtImpl->m_pBp = new BluePrint::BluePrintUI();
         pBp->Initialize();
-        pBp->SetCallbacks(bpCallbacks, reinterpret_cast<void*>(static_cast<MediaCore::VideoFilter*>(owner)));
+        pBp->SetCallbacks(bpCallbacks, reinterpret_cast<void*>(&pEvtImpl->m_filterCtx));
         auto bpJson = eventJson[itemName];
-        pBp->File_New_Filter(bpJson, "VideoFilter", "Video");
+        pBp->File_New_Filter(bpJson, "EventBp", "Video");
         if (!pBp->Blueprint_IsValid())
         {
             owner->m_errMsg = "BAD event json! Invalid blueprint json.";

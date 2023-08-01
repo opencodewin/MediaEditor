@@ -4732,20 +4732,21 @@ static void ShowVideoFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
     MediaCore::VideoFilter* pFilter = timeline->mVidFilterClip->mFilter;
     auto filterName = pFilter->GetFilterName();
     BluePrint::BluePrintUI* pBp = nullptr;
+    MEC::Event::Holder hTargetEvent;
 #if USE_EVENTSTACK_FILTER
     if (filterName == "EventStackFilter")
     {
         MEC::VideoEventStackFilter* pEsf = dynamic_cast<MEC::VideoEventStackFilter*>(pFilter);
-        auto editingEvent = pEsf->GetEditingEvent();
-        if (editingEvent)
-            pBp = editingEvent->GetBp();
+        hTargetEvent = pEsf->GetEditingEvent();
+        if (hTargetEvent)
+            pBp = hTargetEvent->GetBp();
         else
         {
-            auto selected_event = clip->FindSelectedEvent();
-            if (selected_event)
+            hTargetEvent = clip->FindSelectedEvent();
+            if (hTargetEvent)
             {
-                pEsf->SetEditingEvent(selected_event->Id());
-                pBp = selected_event->GetBp();
+                pEsf->SetEditingEvent(hTargetEvent->Id());
+                pBp = hTargetEvent->GetBp();
             }
         }
     }
@@ -4774,10 +4775,9 @@ static void ShowVideoFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
         {
             if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("Filter_drag_drop_Video"))
             {
-                const BluePrint::Node * node = (const BluePrint::Node *)payload->Data;
-                if (node)
+                if (payload->Data)
                 {
-                    pBp->Blueprint_AppendNode(node->GetTypeID());
+                    clip->AppendEvent(hTargetEvent, payload->Data);
                 }
             }
             ImGui::EndDragDropTarget();

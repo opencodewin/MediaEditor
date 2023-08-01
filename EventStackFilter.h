@@ -42,4 +42,10 @@ namespace MEC
         virtual imgui_json::value SaveAsJson() const = 0;
         virtual void SetBluePrintCallbacks(const BluePrint::BluePrintCallbackFunctions& bpCallbacks) = 0;
     };
+
+    struct EventStackFilterContext
+    {
+        void* pFilterPtr{nullptr};
+        void* pEventPtr{nullptr};
+    };
 }
