@@ -362,13 +362,13 @@ struct MediaEditorSettings
     float BottomViewHeight {0.4};           // Bottom view height percentage
     float ControlPanelWidth {0.3};          // Control panel view width percentage
     float MainViewWidth {0.7};              // Main view width percentage
-    bool BottomViewExpanded {true};         // Timeline/Scope view expended
-    bool VideoFilterCurveExpanded {true};   // Video filter curve view expended
-    bool VideoTransitionCurveExpanded {true};   // Video Transition curve view expended
-    bool AudioFilterCurveExpanded {true};   // Audio filter curve view expended
-    bool AudioTransitionCurveExpanded {true};   // audio Transition curve view expended
-    bool TextCurveExpanded {true};          // Text curve view expended
-    float OldBottomViewHeight {0.4};        // Old Bottom view height, recorde at non-expended
+    bool BottomViewExpanded {true};         // Timeline/Scope view expanded
+    bool VideoFilterCurveExpanded {true};   // Video filter curve view expanded
+    bool VideoTransitionCurveExpanded {true};   // Video Transition curve view expanded
+    bool AudioFilterCurveExpanded {true};   // Audio filter curve view expanded
+    bool AudioTransitionCurveExpanded {true};   // audio Transition curve view expanded
+    bool TextCurveExpanded {true};          // Text curve view expanded
+    float OldBottomViewHeight {0.4};        // Old Bottom view height, recorde at non-expanded
     bool showMeters {true};                 // show fps/GPU usage at top right of windows
 
     bool HardwareCodec {true};              // try HW codec
@@ -565,6 +565,7 @@ static bool need_update_scope {false};
 static bool need_update_preview {false};
 
 static ImGui::ImMat mat_histogram;
+static ImGui::ImMat histogram_mat;
 static ImTextureID histogram_texture {nullptr};
 
 static ImGui::ImMat mat_video_waveform;
@@ -837,7 +838,7 @@ static int EditingOverlap(int type, void* handle)
 }
 
 // Utils functions
-static bool ExpendButton(ImDrawList *draw_list, ImVec2 pos, bool expand = true, bool icon_mirror = false)
+static bool ExpandButton(ImDrawList *draw_list, ImVec2 pos, bool expand = true, bool icon_mirror = false)
 {
     ImGuiIO &io = ImGui::GetIO();
     ImRect delRect(pos, ImVec2(pos.x + 16, pos.y + 16));
@@ -9330,8 +9331,11 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                     need_update_scope = true;
                 }
             }
-            ImGui::ImMat plot_mat;
-            plot_mat.create_type(size.x, size.y, 4); plot_mat.elempack = 4;
+
+            if (histogram_mat.empty())
+                histogram_mat.create(size.x, size.y, 4, (size_t)1, 4);
+            else
+                histogram_mat.fill((int8_t)0);
             if (!mat_histogram.empty())
             {
 
@@ -9347,21 +9351,21 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                 {
                     ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(1.f, 0.f, 0.f, 1.0f));
                     ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(1.f, 0.f, 0.f, 0.6f));
-                    ImGui::PlotMat(plot_mat, &((float *)rmat.data)[1], mat_histogram.w - 1, 0, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(size.x, size.y / height_scale), sizeof(float), true);
+                    ImGui::PlotMat(histogram_mat, &((float *)rmat.data)[1], mat_histogram.w - 1, 0, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(size.x, size.y / height_scale), sizeof(float), true);
                     ImGui::PopStyleColor(2);
                     ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.f, 1.f, 0.f, 1.0f));
                     ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.f, 1.f, 0.f, 0.6f));
-                    ImGui::PlotMat(plot_mat, ImVec2(0, height_offset), &((float *)gmat.data)[1], mat_histogram.w - 1, 0, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(size.x, size.y / height_scale), sizeof(float), true);
+                    ImGui::PlotMat(histogram_mat, ImVec2(0, height_offset), &((float *)gmat.data)[1], mat_histogram.w - 1, 0, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(size.x, size.y / height_scale), sizeof(float), true);
                     ImGui::PopStyleColor(2);
                     ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.f, 0.f, 1.f, 1.0f));
                     ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.f, 0.f, 1.f, 0.6f));
-                    ImGui::PlotMat(plot_mat, ImVec2(0, height_offset * 2), &((float *)bmat.data)[1], mat_histogram.w - 1, 0, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(size.x, size.y / height_scale), sizeof(float), true);
+                    ImGui::PlotMat(histogram_mat, ImVec2(0, height_offset * 2), &((float *)bmat.data)[1], mat_histogram.w - 1, 0, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(size.x, size.y / height_scale), sizeof(float), true);
                     ImGui::PopStyleColor(2);
                     if (g_media_editor_settings.HistogramYRGB)
                     {
                         ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(1.f, 1.f, 1.f, 1.0f));
                         ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(1.f, 1.f, 1.f, 0.6f));
-                        ImGui::PlotMat(plot_mat, ImVec2(0, height_offset * 3), &((float *)ymat.data)[1], mat_histogram.w - 1, 0, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(size.x, size.y / height_scale), sizeof(float), true);
+                        ImGui::PlotMat(histogram_mat, ImVec2(0, height_offset * 3), &((float *)ymat.data)[1], mat_histogram.w - 1, 0, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(size.x, size.y / height_scale), sizeof(float), true);
                         ImGui::PopStyleColor(2);
                     }
                 }
@@ -9379,26 +9383,26 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
             {
                 ImVec2 p0 = ImVec2(i * histogram_step, 0);
                 ImVec2 p1 = ImVec2(i * histogram_step, scrop_rect.Max.y);
-                plot_mat.draw_line(Vec2Point(p0), Vec2Point(p1), U32Color(COL_GRATICULE_DARK));
+                histogram_mat.draw_line(Vec2Point(p0), Vec2Point(p1), U32Color(COL_GRATICULE_DARK));
             }
             for (int i = 0; i < histogram_seg; i++)
             {
                 ImVec2 pr0 = ImVec2(0, (size.y / graticule_scale) - i * histogram_vstep);
                 ImVec2 pr1 = ImVec2(scrop_rect.Max.x, (size.y / graticule_scale) - i * histogram_vstep);
-                plot_mat.draw_line(Vec2Point(pr0), Vec2Point(pr1), U32Color(g_media_editor_settings.HistogramSplited ? IM_COL32(255, 128, 0, 128) : COL_GRATICULE_DARK));
+                histogram_mat.draw_line(Vec2Point(pr0), Vec2Point(pr1), U32Color(g_media_editor_settings.HistogramSplited ? IM_COL32(255, 128, 0, 128) : COL_GRATICULE_DARK));
                 if (g_media_editor_settings.HistogramSplited)
                 {
                     ImVec2 pg0 = ImVec2(0, size.y / graticule_scale) + ImVec2(0, (size.y / graticule_scale) - i * histogram_vstep);
                     ImVec2 pg1 = ImVec2(0, size.y / graticule_scale) + ImVec2(scrop_rect.Max.x, (size.y / graticule_scale) - i * histogram_vstep);
-                    plot_mat.draw_line(Vec2Point(pg0), Vec2Point(pg1), U32Color(IM_COL32(128, 255, 0, 128)));
+                    histogram_mat.draw_line(Vec2Point(pg0), Vec2Point(pg1), U32Color(IM_COL32(128, 255, 0, 128)));
                     ImVec2 pb0 = ImVec2(0, size.y * 2 / graticule_scale) + ImVec2(0, (size.y / graticule_scale) - i * histogram_vstep);
                     ImVec2 pb1 = ImVec2(0, size.y * 2 / graticule_scale) + ImVec2(scrop_rect.Max.x, (size.y / graticule_scale) - i * histogram_vstep);
-                    plot_mat.draw_line(Vec2Point(pb0), Vec2Point(pb1), U32Color(IM_COL32(128, 128, 255, 128)));
+                    histogram_mat.draw_line(Vec2Point(pb0), Vec2Point(pb1), U32Color(IM_COL32(128, 128, 255, 128)));
                     if (g_media_editor_settings.HistogramYRGB)
                     {
                         ImVec2 pw0 = ImVec2(0, size.y * 3 / graticule_scale) + ImVec2(0, (size.y / graticule_scale) - i * histogram_vstep);
                         ImVec2 pw1 = ImVec2(0, size.y * 3 / graticule_scale) + ImVec2(scrop_rect.Max.x, (size.y / graticule_scale) - i * histogram_vstep);
-                        plot_mat.draw_line(Vec2Point(pw0), Vec2Point(pw1), U32Color(IM_COL32(255, 255, 255, 128)));
+                        histogram_mat.draw_line(Vec2Point(pw0), Vec2Point(pw1), U32Color(IM_COL32(255, 255, 255, 128)));
                     }
                 }
             }
@@ -9406,9 +9410,9 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
             {
                 ImVec2 p0 = ImVec2(i * histogram_sub_vstep, 0);
                 ImVec2 p1 = ImVec2(i * histogram_sub_vstep, 5);
-                plot_mat.draw_line(Vec2Point(p0), Vec2Point(p1), U32Color(COL_GRATICULE));
+                histogram_mat.draw_line(Vec2Point(p0), Vec2Point(p1), U32Color(COL_GRATICULE));
             }
-            ImMatToTexture(plot_mat, histogram_texture);
+            ImMatToTexture(histogram_mat, histogram_texture);
             if (histogram_texture) draw_list->AddImage(histogram_texture, pos, pos + size, ImVec2(0, 0), ImVec2(1, 1));
             draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 0);
             ImGui::EndGroup();
@@ -10252,16 +10256,6 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expand, bool spread
     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.5, 0.5, 0.5, 0.5));
     ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.2, 0.2, 0.2, 1.0));
-
-    // global control bar
-    //auto pos = window_pos + ImVec2(window_size.x - 32, 0);
-    //bool overExpanded = ExpendButton(draw_list, ImVec2(pos.x + 8, pos.y + 2), *expand, true);
-    //if (overExpanded && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
-    //{
-    //    *expand = !*expand;
-    //    if (expand && timeline)
-    //        timeline->UpdatePreview();
-    //}
 
     if (last_spread != spread)
     {
@@ -11249,9 +11243,13 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             bool spread = bank_size.x >= scope_height * 2 + 32;
             ImVec2 scope_pos = bank_pos + ImVec2(0, bank_size.y);
             ImVec2 scope_size = ImVec2(bank_size.x, scope_height + 32);
+            ImDrawList *draw_list = ImGui::GetWindowDrawList();
             ImGui::SetNextWindowPos(scope_pos, ImGuiCond_Always);
             if (ImGui::BeginChild("##Scope_View", scope_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings))
             {
+                bool overExpanded = ExpandButton(draw_list, ImVec2(scope_pos.x - 24, scope_pos.y + 2), g_media_editor_settings.ExpandScope);
+                if (overExpanded && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+                    g_media_editor_settings.ExpandScope = !g_media_editor_settings.ExpandScope;
                 ShowMediaAnalyseWindow(timeline, &g_media_editor_settings.ExpandScope, spread);
                 if (!g_media_editor_settings.ExpandScope)
                 {
@@ -11315,7 +11313,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
     if (ImGui::BeginChild("##Timeline", panel_size, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings))
     {
         ImDrawList *draw_list = ImGui::GetWindowDrawList();
-        bool overExpanded = ExpendButton(draw_list, ImVec2(panel_pos.x + 8, panel_pos.y + 2), !_expanded);
+        bool overExpanded = ExpandButton(draw_list, ImVec2(panel_pos.x + 8, panel_pos.y + 2), _expanded);
         if (overExpanded && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
             _expanded = !_expanded;
         ImGui::SetCursorScreenPos(panel_pos + ImVec2(32, 0));
