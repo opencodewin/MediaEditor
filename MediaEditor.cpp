@@ -2076,8 +2076,10 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
             {
                 const auto vidstm = (*item)->mMediaOverview->GetVideoStream();
                 float aspectRatio = (float)vidstm->width / (float)vidstm->height;
-                auto tid = (*item)->mMediaThumbnail[0]->TextureID();
-                ImGui::Image(tid, ImVec2(icon_size.x, icon_size.y / aspectRatio));
+                auto hTx = (*item)->mMediaThumbnail[0];
+                auto tid = hTx->TextureID();
+                auto roiRect = hTx->GetDisplayRoi();
+                ImGui::Image(tid, ImVec2(icon_size.x, icon_size.y / aspectRatio), roiRect.lt, roiRect.rb);
             }
             ImGui::EndDragDropSource();
         }
