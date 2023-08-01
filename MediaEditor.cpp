@@ -577,8 +577,11 @@ static ImTextureID cie_texture {nullptr};
 static ImGui::ImMat mat_vector;
 static ImTextureID vector_texture {nullptr};
 
+static ImGui::ImMat wave_mat;
 static ImTextureID wave_texture {nullptr};
+static ImGui::ImMat fft_mat;
 static ImTextureID fft_texture {nullptr};
+static ImGui::ImMat db_mat;
 static ImTextureID db_texture {nullptr};
 
 static std::unordered_map<std::string, std::vector<FM::FontDescriptorHolder>> fontTable;
@@ -9770,8 +9773,10 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
             draw_list->PushClipRect(scrop_rect.Min, scrop_rect.Max);
             ImVec2 channel_view_size = ImVec2(size.x, size.y / timeline->mAudioAttribute.channel_data.size());
             ImGui::SetCursorScreenPos(pos);
-            ImGui::ImMat plot_mat;
-            plot_mat.create_type(size.x, size.y, 4); plot_mat.elempack = 4;
+            if (wave_mat.empty())
+                wave_mat.create(size.x, size.y, 4, (size_t)1, 4);
+            else
+                wave_mat.fill((int8_t)0);
             ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.f, 1.f, 0.f, 1.0f));
             ImGui::PushStyleColor(ImGuiCol_FrameBg, 0);
             ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
@@ -9808,13 +9813,13 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                 }
                 if (!timeline->mAudioAttribute.channel_data[i].m_wave.empty())
                 {
-                    ImGui::PlotMat(plot_mat, ImVec2(0, channel_view_size.y * i), (float *)timeline->mAudioAttribute.channel_data[i].m_wave.data, timeline->mAudioAttribute.channel_data[i].m_wave.w, 0, -1.0 / g_media_editor_settings.AudioWaveScale , 1.0 / g_media_editor_settings.AudioWaveScale, channel_view_size, sizeof(float), false);
+                    ImGui::PlotMat(wave_mat, ImVec2(0, channel_view_size.y * i), (float *)timeline->mAudioAttribute.channel_data[i].m_wave.data, timeline->mAudioAttribute.channel_data[i].m_wave.w, 0, -1.0 / g_media_editor_settings.AudioWaveScale , 1.0 / g_media_editor_settings.AudioWaveScale, channel_view_size, sizeof(float), false);
                 }
                 draw_list->AddRect(channel_min, channel_max, COL_SLIDER_HANDLE, 0);
             }
             ImGui::PopStyleVar();
             ImGui::PopStyleColor(2);
-            ImMatToTexture(plot_mat, wave_texture);
+            ImMatToTexture(wave_mat, wave_texture);
             if (wave_texture) draw_list->AddImage(wave_texture, pos, pos + size, ImVec2(0, 0), ImVec2(1, 1));
             draw_list->PopClipRect();
             ImGui::EndGroup();
@@ -9953,8 +9958,10 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
             draw_list->PushClipRect(scrop_rect.Min, scrop_rect.Max);
             ImVec2 channel_view_size = ImVec2(size.x, size.y / timeline->mAudioAttribute.channel_data.size());
             ImGui::SetCursorScreenPos(pos);
-            ImGui::ImMat plot_mat;
-            plot_mat.create_type(size.x, size.y, 4); plot_mat.elempack = 4;
+            if (fft_mat.empty())
+                fft_mat.create(size.x, size.y, 4, (size_t)1, 4);
+            else
+                fft_mat.fill((int8_t)0);
             ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(1.f, 1.f, 1.f, 1.0f));
             ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(1.0f, 1.0f, 1.0f, 0.5f));
             ImGui::PushStyleColor(ImGuiCol_FrameBg, 0);
@@ -9972,24 +9979,24 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                 {
                     ImVec2 gp1 = p1 - ImVec2(0, grid_height * x);
                     ImVec2 gp2 = gp1 + ImVec2(channel_view_size.x, 0);
-                    plot_mat.draw_line(Vec2Point(gp1), Vec2Point(gp2), U32Color(COL_GRAY_GRATICULE));
+                    fft_mat.draw_line(Vec2Point(gp1), Vec2Point(gp2), U32Color(COL_GRAY_GRATICULE));
                 }
                 auto vgrid_number = channel_view_size.x / grid_height;
                 for (int x = 0; x < vgrid_number; x++)
                 {
                     ImVec2 gp1 = p1 + ImVec2(grid_height * x, 0);
                     ImVec2 gp2 = gp1 - ImVec2(0, grid_height * (grid_number - 1));
-                    plot_mat.draw_line(Vec2Point(gp1), Vec2Point(gp2), U32Color(COL_GRAY_GRATICULE));
+                    fft_mat.draw_line(Vec2Point(gp1), Vec2Point(gp2), U32Color(COL_GRAY_GRATICULE));
                 }
                 if (!timeline->mAudioAttribute.channel_data[i].m_fft.empty())
                 {
-                    ImGui::PlotMat(plot_mat, ImVec2(0, channel_view_size.y * i), (float *)timeline->mAudioAttribute.channel_data[i].m_fft.data, timeline->mAudioAttribute.channel_data[i].m_fft.w, 0, 0.0, 1.0 / g_media_editor_settings.AudioFFTScale, channel_view_size, sizeof(float), true);
+                    ImGui::PlotMat(fft_mat, ImVec2(0, channel_view_size.y * i), (float *)timeline->mAudioAttribute.channel_data[i].m_fft.data, timeline->mAudioAttribute.channel_data[i].m_fft.w, 0, 0.0, 1.0 / g_media_editor_settings.AudioFFTScale, channel_view_size, sizeof(float), true);
                 }
                 draw_list->AddRect(channel_min, channel_max, COL_SLIDER_HANDLE, 0);
             }
             ImGui::PopStyleVar();
             ImGui::PopStyleColor(3);
-            ImMatToTexture(plot_mat, fft_texture);
+            ImMatToTexture(fft_mat, fft_texture);
             if (fft_texture) draw_list->AddImage(fft_texture, pos, pos + size, ImVec2(0, 0), ImVec2(1, 1));
             draw_list->PopClipRect();
             ImGui::EndGroup();
@@ -10033,8 +10040,10 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
             draw_list->PushClipRect(scrop_rect.Min, scrop_rect.Max);
             ImVec2 channel_view_size = ImVec2(size.x, size.y / timeline->mAudioAttribute.channel_data.size());
             ImGui::SetCursorScreenPos(pos);
-            ImGui::ImMat plot_mat;
-            plot_mat.create_type(size.x, size.y, 4); plot_mat.elempack = 4;
+            if (db_mat.empty())
+                db_mat.create(size.x, size.y, 4, (size_t)1, 4);
+            else
+                db_mat.fill((int8_t)0);
             ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(1.f, 1.f, 1.f, 1.0f));
             ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(1.0f, 1.0f, 1.0f, 0.5f));
             ImGui::PushStyleColor(ImGuiCol_FrameBg, 0);
@@ -10052,26 +10061,26 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                 {
                     ImVec2 gp1 = p1 - ImVec2(0, grid_height * x);
                     ImVec2 gp2 = gp1 + ImVec2(channel_view_size.x, 0);
-                    plot_mat.draw_line(Vec2Point(gp1), Vec2Point(gp2), U32Color(COL_GRAY_GRATICULE));
+                    db_mat.draw_line(Vec2Point(gp1), Vec2Point(gp2), U32Color(COL_GRAY_GRATICULE));
                 }
                 auto vgrid_number = channel_view_size.x / grid_height;
                 for (int x = 0; x < vgrid_number; x++)
                 {
                     ImVec2 gp1 = p1 + ImVec2(grid_height * x, 0);
                     ImVec2 gp2 = gp1 - ImVec2(0, grid_height * (grid_number - 1));
-                    plot_mat.draw_line(Vec2Point(gp1), Vec2Point(gp2), U32Color(COL_GRAY_GRATICULE));
+                    db_mat.draw_line(Vec2Point(gp1), Vec2Point(gp2), U32Color(COL_GRAY_GRATICULE));
                 }
                 if (!timeline->mAudioAttribute.channel_data[i].m_db.empty())
                 {
                     ImGui::ImMat db_mat_inv = timeline->mAudioAttribute.channel_data[i].m_db.clone();
                     db_mat_inv += 90.f;
-                    ImGui::PlotMat(plot_mat, ImVec2(0, channel_view_size.y * i), (float *)db_mat_inv.data,db_mat_inv.w, 0, 0.f, 90.f / g_media_editor_settings.AudioDBScale, channel_view_size, sizeof(float), true);
+                    ImGui::PlotMat(db_mat, ImVec2(0, channel_view_size.y * i), (float *)db_mat_inv.data,db_mat_inv.w, 0, 0.f, 90.f / g_media_editor_settings.AudioDBScale, channel_view_size, sizeof(float), true);
                 }
                 draw_list->AddRect(channel_min, channel_max, COL_SLIDER_HANDLE, 0);
             }
             ImGui::PopStyleVar();
             ImGui::PopStyleColor(3);
-            ImMatToTexture(plot_mat, db_texture);
+            ImMatToTexture(db_mat, db_texture);
             if (db_texture) draw_list->AddImage(db_texture, pos, pos + size, ImVec2(0, 0), ImVec2(1, 1));
             draw_list->PopClipRect();
             ImGui::EndGroup();
