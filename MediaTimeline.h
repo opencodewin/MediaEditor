@@ -39,7 +39,7 @@
 #include <chrono>
 
 #define PLOT_IMPLOT   0
-#define PLOT_TEXTURE  0
+#define PLOT_TEXTURE  1
 #define USING_OLD_UI
 
 #define ICON_MEDIA_TIMELINE u8"\uf538"
