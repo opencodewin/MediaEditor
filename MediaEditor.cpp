@@ -948,7 +948,7 @@ static void CalculateVideoScope(ImGui::ImMat& mat)
     need_update_scope = false;
 }
 
-static bool MonitorButton(const char * label, ImVec2 pos, int& monitor_index, std::vector<int> disabled_index, bool vertical = false, bool show_main = true, bool check_change = false)
+static bool MonitorButton(const char * label, ImVec2 pos, int& monitor_index, std::vector<int> disabled_index)
 {
     static std::string monitor_icons[] = {ICON_ONE, ICON_TWO, ICON_THREE, ICON_FOUR, ICON_FIVE, ICON_SIX, ICON_SEVEN, ICON_EIGHT, ICON_NINE};
     auto platform_io = ImGui::GetPlatformIO();
@@ -956,66 +956,72 @@ static bool MonitorButton(const char * label, ImVec2 pos, int& monitor_index, st
     auto current_monitor = viewport->PlatformMonitor;
     int org_index = monitor_index;
     ImGui::SetCursorScreenPos(pos);
-
-    //static int item_current = 0;
-    //if (ImGui::BeginCombo("##monitor_test", "ICON_ONE\0ICON_TWO\0ICON_THREE\0ICON_FOUR\0ICON_FIVE\0\0", ImGuiComboFlags_NoArrowButton))
-    //{
-    //    ImGui::EndCombo();
-    //}
-    //ImGui::Combo("##test", &item_current, "ICON_ONE\ICON_TWO\ICON_THREE\ICON_FOUR\ICON_FIVE\0\0");
-
-#if 1
-    for (int monitor_n = 0; monitor_n < platform_io.Monitors.Size; monitor_n++)
+    auto show_monitor_tooltips = [&](int index)
     {
-        bool disable = false;
-        for (auto disabled : disabled_index)
+        ImGuiPlatformMonitor& mon = index >= 0 ? platform_io.Monitors[index] : platform_io.Monitors[current_monitor];
+        ImGui::SetNextWindowViewport(viewport->ID);
+        if (ImGui::BeginTooltip())
         {
-            if (disabled != -1 && disabled == monitor_n)
-                disable = true;
+            ImGui::BulletText("Monitor #%d:", index + 1);
+            ImGui::Text("DPI %.0f", mon.DpiScale * 100.0f);
+            ImGui::Text("MainSize (%.0f,%.0f)", mon.MainSize.x, mon.MainSize.y);
+            ImGui::Text("WorkSize (%.0f,%.0f)", mon.WorkSize.x, mon.WorkSize.y);
+            ImGui::Text("MainMin (%.0f,%.0f)",  mon.MainPos.x,  mon.MainPos.y);
+            ImGui::Text("MainMax (%.0f,%.0f)",  mon.MainPos.x + mon.MainSize.x, mon.MainPos.y + mon.MainSize.y);
+            ImGui::Text("WorkMin (%.0f,%.0f)",  mon.WorkPos.x,  mon.WorkPos.y);
+            ImGui::Text("WorkMax (%.0f,%.0f)",  mon.WorkPos.x + mon.WorkSize.x, mon.WorkPos.y + mon.WorkSize.y);
+            ImGui::EndTooltip();
         }
-        if (g_media_editor_settings.SeparateScope && current_monitor == monitor_n)
-            disable = true;
-        ImGui::BeginDisabled(disable);
-        bool selected = monitor_index == monitor_n;
-        bool is_current_monitor = monitor_index == -1 && monitor_n == current_monitor;
-        if (show_main) selected |= is_current_monitor;
-        std::string icon_str = (is_current_monitor && !show_main) ? g_media_editor_settings.SeparateScope ? ICON_DRAWING_PIN : ICON_EXPANMD : monitor_icons[monitor_n];
-        std::string monitor_label = icon_str + "##monitor_index" + std::string(label);
-        if (ImGui::CheckButton(monitor_label.c_str(), &selected, ImVec4(0.2, 0.5, 0.2, 1.0)))
+    };
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, 0);
+    ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0.2, 0.7, 0.2, 1.0));
+    ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0.2, 0.5, 0.2, 1.0));
+    ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.2, 0.7, 0.2, 1.0));
+    ImGui::PushItemWidth(24);
+    std::string selected_label = monitor_icons[monitor_index < 0 ? current_monitor : monitor_index];
+    if (ImGui::BeginCombo(label, selected_label.c_str(), ImGuiComboFlags_NoArrowButton))
+    {
+        for (int i = 0; i < platform_io.Monitors.Size; i++)
         {
-            if (monitor_n == current_monitor)
-            { 
-                monitor_index = -1;
-            }
-            else
+            bool is_selected = monitor_icons[i] == selected_label;
+            bool is_disable = false;
+            for (auto disabled : disabled_index)
             {
-                monitor_index = monitor_n;
+                if (disabled != -1 && disabled == i)
+                    is_disable = true;
             }
-            if (check_change) MonitorIndexChanged = true;
-        }
-        ImGui::EndDisabled();
-        if (ImGui::IsItemHovered())
-        {
-            ImGuiPlatformMonitor& mon = platform_io.Monitors[monitor_n];
-            ImGui::SetNextWindowViewport(viewport->ID);
-            if (ImGui::BeginTooltip())
+            if (g_media_editor_settings.SeparateScope && current_monitor == i)
+                is_disable = true;
+            
+            //if (is_disable) continue;
+            ImGui::BeginDisabled(is_disable);
+            if (ImGui::Selectable(monitor_icons[i].c_str(), is_selected))
             {
-                ImGui::BulletText("Monitor #%d:", monitor_n);
-                ImGui::Text("DPI %.0f", mon.DpiScale * 100.0f);
-                ImGui::Text("MainSize (%.0f,%.0f)", mon.MainSize.x, mon.MainSize.y);
-                ImGui::Text("WorkSize (%.0f,%.0f)", mon.WorkSize.x, mon.WorkSize.y);
-                ImGui::Text("MainMin (%.0f,%.0f)",  mon.MainPos.x,  mon.MainPos.y);
-                ImGui::Text("MainMax (%.0f,%.0f)",  mon.MainPos.x + mon.MainSize.x, mon.MainPos.y + mon.MainSize.y);
-                ImGui::Text("WorkMin (%.0f,%.0f)",  mon.WorkPos.x,  mon.WorkPos.y);
-                ImGui::Text("WorkMax (%.0f,%.0f)",  mon.WorkPos.x + mon.WorkSize.x, mon.WorkPos.y + mon.WorkSize.y);
-                ImGui::EndTooltip();
+                if (i == current_monitor)
+                    monitor_index = -1;
+                else
+                    monitor_index = i;
+                MonitorIndexChanged = true;
+            }
+            ImGui::EndDisabled();
+
+            if (is_selected)
+            {
+                ImGui::SetItemDefaultFocus();
+            }
+            if (ImGui::IsItemHovered())
+            {
+                show_monitor_tooltips(i);
             }
         }
-        auto icon_height = 32;//ImGui::GetTextLineHeight();
-        if (!vertical) ImGui::SameLine();
-        else ImGui::SetCursorScreenPos(pos + ImVec2(0, icon_height * (monitor_n + 1)));
+        ImGui::EndCombo();
     }
-#endif
+    ImGui::PopItemWidth();
+    ImGui::PopStyleColor(4);
+    if (ImGui::IsItemHovered())
+    {
+        show_monitor_tooltips(monitor_index);
+    }
     return monitor_index != org_index;
 }
 
@@ -3912,7 +3918,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, flo
     {
         // Show monitors
         std::vector<int> disabled_monitor;
-        MonitorButton("preview_monitor_select", ImVec2(PanelBarPos.x + 20, PanelBarPos.y + 16), MonitorIndexPreviewVideo, disabled_monitor, false, true);
+        MonitorButton("##preview_monitor_select", ImVec2(PanelBarPos.x + 20, PanelBarPos.y + 16), MonitorIndexPreviewVideo, disabled_monitor);
     }
 
     ImGui::PopStyleColor(3);
@@ -4028,7 +4034,7 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, int64_t start, int64_t
 
     if (attribute)
     {
-        ImGui::SetCursorScreenPos(ImVec2(PanelBarPos.x + PanelBarSize.x - button_gap * 2 - 32, PanelButtonY));
+        ImGui::SetCursorScreenPos(ImVec2(PanelBarPos.x + PanelBarSize.x - button_gap * 2 - 64, PanelButtonY));
         if (ImGui::RotateCheckButton(timeline->bAttributeOutputPreview ? ICON_MEDIA_PREVIEW : ICON_FILTER "##video_filter_output_preview", &timeline->bAttributeOutputPreview, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive), 0, button_size))
         {
             timeline->UpdatePreview();
@@ -4037,7 +4043,7 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, int64_t start, int64_t
     }
     else
     {
-        ImGui::SetCursorScreenPos(ImVec2(PanelBarPos.x + PanelBarSize.x - button_gap * 2 - 32, PanelButtonY));
+        ImGui::SetCursorScreenPos(ImVec2(PanelBarPos.x + PanelBarSize.x - button_gap * 2 - 64, PanelButtonY));
         if (ImGui::RotateCheckButton(timeline->bFilterOutputPreview ? ICON_MEDIA_PREVIEW : ICON_FILTER "##video_filter_output_preview", &timeline->bFilterOutputPreview, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive), 0, button_size))
         {
             timeline->UpdatePreview();
@@ -4045,12 +4051,12 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, int64_t start, int64_t
         ImGui::ShowTooltipOnHover(timeline->bFilterOutputPreview ? "Filter Output" : "Preview Output");
     }
 
-    ImGui::SetCursorScreenPos(ImVec2(PanelBarPos.x + PanelBarSize.x - button_gap * 1 - 32, PanelButtonY));
+    ImGui::SetCursorScreenPos(ImVec2(PanelBarPos.x + PanelBarSize.x - button_gap * 1 - 64, PanelButtonY));
     ImGui::RotateCheckButton(ICON_COMPARE "##video_filter_compare", &timeline->bCompare, ImVec4(0.5, 0.5, 0.0, 1.0), 0, button_size);
     ImGui::ShowTooltipOnHover("Zoom Compare");
 
     // Time stamp on left of control panel
-    auto PanelRightX = PanelBarPos.x + 32;
+    auto PanelRightX = PanelBarPos.x + 48;
     auto PanelRightY = PanelBarPos.y + (is_small_window ? 8 : 12);
     auto time_str = ImGuiHelper::MillisecToString(timeline->currentTime, 3);
     ImGui::SetWindowFontScale(is_small_window ? 1.2 : 1.5);
@@ -4058,10 +4064,10 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, int64_t start, int64_t
     ImGui::SetWindowFontScale(1.0);
 
     // Show monitors
-    //std::vector<int> org_disabled_monitor = {MonitorIndexVideoFiltered};
-    //MonitorButton("video_filter_org_monitor_select", ImVec2(PanelBarPos.x + 20, PanelBarPos.y + 8), MonitorIndexVideoFilterOrg, org_disabled_monitor, false, true);
-    //std::vector<int> filter_disabled_monitor = {MonitorIndexVideoFilterOrg};
-    //MonitorButton("video_filter_monitor_select", ImVec2(PanelBarPos.x + PanelBarSize.x - 80, PanelBarPos.y + 8), MonitorIndexVideoFiltered, filter_disabled_monitor, false, true);
+    std::vector<int> org_disabled_monitor = {MonitorIndexVideoFiltered};
+    MonitorButton("##video_filter_org_monitor_select", ImVec2(PanelBarPos.x + 8, PanelRightY), MonitorIndexVideoFilterOrg, org_disabled_monitor);
+    std::vector<int> filter_disabled_monitor = {MonitorIndexVideoFilterOrg};
+    MonitorButton("##video_filter_monitor_select", ImVec2(PanelBarPos.x + PanelBarSize.x - 8 - b_size, PanelRightY), MonitorIndexVideoFiltered, filter_disabled_monitor);
 
     int show_video_number = 0;
     if (MonitorIndexVideoFilterOrg == -1) show_video_number++;
@@ -10289,8 +10295,8 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expand, bool spread
         disabled_monitor.push_back(MonitorIndexVideoFilterOrg);
         disabled_monitor.push_back(MonitorIndexVideoFiltered);
     }
-    MonitorButton("scope_monitor", pos, MonitorIndexScope, disabled_monitor, false, false, true);
-    if (MonitorIndexChanged)
+    ImGui::SetCursorScreenPos(pos);
+    if (ImGui::Button(ICON_EXPANMD "##scope_expand"))
     {
         g_media_editor_settings.SeparateScope = true;
     }
@@ -10453,7 +10459,7 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline)
             disabled_monitor.push_back(MonitorIndexVideoFilterOrg);
             disabled_monitor.push_back(MonitorIndexVideoFiltered);
         }
-        MonitorButton("scope_monitor", pos, MonitorIndexScope, disabled_monitor, true, true, true);
+        MonitorButton("##scope_monitor", pos, MonitorIndexScope, disabled_monitor);
     }
 
     // add scope UI layout

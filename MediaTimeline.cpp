@@ -7216,7 +7216,7 @@ void TimeLine::CustomDraw(
             }
             else if (mAudFilterClip && mAudFilterClip->mID == clip->mID && mAudFilterClip->mFilter)
             {
-                keypoint_filter = &mAudFilterClip->mFilter->mKeyPoints;
+                keypoint_filter = mAudFilterClip->mFilterKp;
             }
             if (keypoint_filter)
             {
