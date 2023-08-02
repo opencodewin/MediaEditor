@@ -9,12 +9,15 @@
 
 namespace MEC
 {
+    struct EventStack;
+
     struct Event
     {
         using Holder = std::shared_ptr<Event>;
         static bool CheckEventOverlapped(const Event& e, int64_t start, int64_t end, int32_t z);
         static std::function<bool(const Event&,const Event&)> EVENT_ORDER_COMPARATOR;
 
+        virtual EventStack* GetOwner() = 0;
         virtual int64_t Id() const = 0;
         virtual int64_t Start() const = 0;
         virtual int64_t End() const = 0;

@@ -2,16 +2,19 @@
 #include <list>
 #include "Event.h"
 #include "VideoClip.h"
+#include "AudioClip.h"
 #include "Logger.h"
 
 namespace MEC
 {
-    struct EventStack;
-
-    struct VideoEvent : public Event
+    struct VideoEvent : virtual Event
     {
         virtual ImGui::ImMat FilterImage(const ImGui::ImMat& vmat, int64_t pos) = 0;
-        virtual EventStack* GetOwner() = 0;
+    };
+
+    struct AudioEvent : virtual Event
+    {
+        virtual ImGui::ImMat FilterPcm(const ImGui::ImMat& amat, int64_t pos, int64_t dur) = 0;
     };
 
     struct EventStack
@@ -35,10 +38,18 @@ namespace MEC
         friend std::ostream& operator<<(std::ostream& os, const EventStack& e);
     };
 
-    struct VideoEventStackFilter : public MediaCore::VideoFilter, EventStack
+    struct VideoEventStackFilter : MediaCore::VideoFilter, virtual EventStack
     {
         static MediaCore::VideoFilter::Holder CreateInstance(const BluePrint::BluePrintCallbackFunctions& bpCallbacks);
         static MediaCore::VideoFilter::Holder LoadFromJson(const imgui_json::value& json, const BluePrint::BluePrintCallbackFunctions& bpCallbacks);
+        virtual imgui_json::value SaveAsJson() const = 0;
+        virtual void SetBluePrintCallbacks(const BluePrint::BluePrintCallbackFunctions& bpCallbacks) = 0;
+    };
+
+    struct AudioEventStackFilter : MediaCore::AudioFilter, virtual EventStack
+    {
+        static MediaCore::AudioFilter::Holder CreateInstance(const BluePrint::BluePrintCallbackFunctions& bpCallbacks);
+        static MediaCore::AudioFilter::Holder LoadFromJson(const imgui_json::value& json, const BluePrint::BluePrintCallbackFunctions& bpCallbacks);
         virtual imgui_json::value SaveAsJson() const = 0;
         virtual void SetBluePrintCallbacks(const BluePrint::BluePrintCallbackFunctions& bpCallbacks) = 0;
     };

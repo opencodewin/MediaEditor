@@ -856,8 +856,7 @@ int64_t Clip::Cropping(int64_t diff, int type)
         timeline->mAudFilterClip->mEnd = End();
         if (timeline->mAudFilterClip->mFilter)
         {
-            timeline->mAudFilterClip->mFilter->mKeyPoints.SetRangeX(0, Length(), true);
-            mFilterKeyPoints = timeline->mAudFilterClip->mFilter->mKeyPoints;
+            mFilterKeyPoints.SetRangeX(0, Length(), true);
         }
     }
     else
@@ -928,8 +927,7 @@ void Clip::Cutting(int64_t pos, int64_t gid, int64_t newClipId, std::list<imgui_
             timeline->mAudFilterClip->mEnd = mEnd;
             if (timeline->mAudFilterClip->mFilter)
             {
-                timeline->mAudFilterClip->mFilter->mKeyPoints.SetRangeX(0, mEnd - mStart, true);
-                mFilterKeyPoints = timeline->mAudFilterClip->mFilter->mKeyPoints;
+                mFilterKeyPoints.SetRangeX(0, mEnd - mStart, true);
             }
         }
         else
@@ -2251,7 +2249,6 @@ void VideoClip::SyncFilterWithDataLayer(MediaCore::VideoClip::Holder hClip, bool
     auto hFilter = hClip->GetFilter();
     if (!hFilter && (createNewIfNotExist || !mFilterJson.is_null()))
     {
-#if USE_EVENTSTACK_FILTER
         bool isEventStackFilter = false;
         if (mFilterJson.contains("name") && mFilterJson["name"].is_string())
         {
@@ -2260,7 +2257,7 @@ void VideoClip::SyncFilterWithDataLayer(MediaCore::VideoClip::Holder hClip, bool
                 isEventStackFilter = true;
         }
         BluePrint::BluePrintCallbackFunctions bpCallbacks;
-        bpCallbacks.BluePrintOnChanged = TimeLine::OnEventStackFilterBpChanged;
+        bpCallbacks.BluePrintOnChanged = TimeLine::OnVideoEventStackFilterBpChanged;
         // load 'EventStackFilter'
         MediaCore::VideoFilter::Holder hNewFilter;
         bool isNewFilter = false;
@@ -2287,13 +2284,6 @@ void VideoClip::SyncFilterWithDataLayer(MediaCore::VideoClip::Holder hClip, bool
         {
             Logger::Log(Logger::WARN) << "! FAILED to create new 'EventStackFilter' instance !" << std::endl;
         }
-#else
-        BluePrintVideoFilter* bpvf = new BluePrintVideoFilter(mHandle);
-        bpvf->SetBluePrintFromJson(mFilterJson);
-        bpvf->SetKeyPoint(mFilterKeyPoints);
-        MediaCore::VideoFilter::Holder hFilter(bpvf);
-        hClip->SetFilter(hFilter);
-#endif
     }
     else if (hFilter && mFilterJson.is_null())
     {
@@ -2588,6 +2578,74 @@ void AudioClip::Save(imgui_json::value& value)
     value["Channels"] = imgui_json::number(mAudioChannels);
     value["SampleRate"] = imgui_json::number(mAudioSampleRate);
     value["Format"] = imgui_json::number(mAudioFormat);
+}
+
+void AudioClip::SyncFilterWithDataLayer(MediaCore::AudioClip::Holder hClip, bool createNewIfNotExist)
+{
+    auto hFilter = hClip->GetFilter();
+    if (!hFilter && (createNewIfNotExist || !mFilterJson.is_null()))
+    {
+        bool isEventStackFilter = false;
+        if (mFilterJson.contains("name") && mFilterJson["name"].is_string())
+        {
+            auto& filterName = mFilterJson["name"].get<imgui_json::string>();
+            if (filterName == "EventStackFilter")
+                isEventStackFilter = true;
+        }
+        BluePrint::BluePrintCallbackFunctions bpCallbacks;
+        bpCallbacks.BluePrintOnChanged = TimeLine::OnAudioEventStackFilterBpChanged;
+        // load 'EventStackFilter'
+        MediaCore::AudioFilter::Holder hNewFilter;
+        bool isNewFilter = false;
+        if (isEventStackFilter)
+            hNewFilter = MEC::AudioEventStackFilter::LoadFromJson(mFilterJson, bpCallbacks);
+        else
+        {
+            hNewFilter = MEC::AudioEventStackFilter::CreateInstance(bpCallbacks);
+            isNewFilter = true;
+        }
+        if (hNewFilter)
+        {
+            MEC::AudioEventStackFilter* pEsf = dynamic_cast<MEC::AudioEventStackFilter*>(hNewFilter.get());
+            pEsf->SetTimelineHandle(mHandle);
+// wyvern: Still enable the following since UI is not changed to EventStackFilter editing type
+// #ifdef USING_OLD_UI
+            if (isNewFilter)
+                pEsf->AddNewEvent(0, 0, hClip->Duration(), 0);
+            pEsf->SetEditingEvent(0);
+// #endif
+            hClip->SetFilter(hNewFilter);
+            mEventStack = static_cast<MEC::EventStack*>(pEsf);
+        }
+        else
+        {
+            Logger::Log(Logger::WARN) << "! FAILED to create new 'EventStackFilter' instance !" << std::endl;
+        }
+    }
+    else if (hFilter && mFilterJson.is_null())
+    {
+        auto filterName = hFilter->GetFilterName();
+        if (filterName == "EventStackFilter")
+        {
+            MEC::AudioEventStackFilter* pEsf = dynamic_cast<MEC::AudioEventStackFilter*>(hFilter.get());
+            pEsf->SetTimelineHandle(mHandle);
+            mFilterJson = pEsf->SaveAsJson();
+            mEventStack = static_cast<MEC::EventStack*>(pEsf);
+            auto eventList = mEventStack->GetEventList();
+            mEventTracks.clear();
+            for (auto& e : eventList)
+            {
+                const auto z = e->Z();
+                while (z >= mEventTracks.size())
+                    AddEventTrack();
+                mEventTracks[z]->m_Events.push_back(e->Id());
+            }
+        }
+        else
+        {
+            Logger::Log(Logger::WARN) << "UNHANDLED filter type '" << filterName << "'!" << std::endl;
+        }
+    }
 }
 } // namespace MediaTimeline
 
@@ -2957,117 +3015,6 @@ void TextClip::Save(imgui_json::value& value)
 }
 } // namespace MediaTimeline
 
-#if !USE_EVENTSTACK_FILTER
-namespace MediaTimeline
-{
-// BluePrintVideoFilter class
-BluePrintVideoFilter::BluePrintVideoFilter(void * handle)
-    : mHandle(handle)
-{
-    TimeLine * timeline = (TimeLine *)handle;
-    imgui_json::value filter_BP; 
-    mBp = new BluePrint::BluePrintUI();
-    BluePrint::BluePrintCallbackFunctions callbacks;
-    callbacks.BluePrintOnChanged = OnBluePrintChange;
-    mBp->Initialize();
-    mBp->SetCallbacks(callbacks, reinterpret_cast<void*>(static_cast<MediaCore::VideoFilter*>(this)));
-    mBp->File_New_Filter(filter_BP, "VideoFilter", "Video");
-}
-
-BluePrintVideoFilter::~BluePrintVideoFilter()
-{
-    if (mBp) 
-    {
-        mBp->Finalize(); 
-        delete mBp;
-    }
-}
-
-int BluePrintVideoFilter::OnBluePrintChange(int type, std::string name, void* handle)
-{
-    MediaCore::VideoFilter* pFilter = reinterpret_cast<MediaCore::VideoFilter*>(handle);
-    if (!pFilter)
-        return BluePrint::BP_CBR_Unknown;
-    int ret = BluePrint::BP_CBR_Nothing;
-    auto filterName = pFilter->GetFilterName();
-    if (filterName == "BluePrintVideoFilter")
-    {
-        BluePrintVideoFilter* pBpvf = dynamic_cast<BluePrintVideoFilter*>(pFilter);
-        TimeLine * timeline = (TimeLine *)pBpvf->mHandle;
-        if (name.compare("VideoFilter") == 0)
-        {
-            bool needUpdateView = false;
-            if (type == BluePrint::BP_CB_Link ||
-                type == BluePrint::BP_CB_Unlink ||
-                type == BluePrint::BP_CB_NODE_DELETED ||
-                type == BluePrint::BP_CB_NODE_APPEND ||
-                type == BluePrint::BP_CB_NODE_INSERT)
-            {
-                needUpdateView = true;
-                ret = BluePrint::BP_CBR_AutoLink;
-            }
-            else if (type == BluePrint::BP_CB_PARAM_CHANGED ||
-                    type == BluePrint::BP_CB_SETTING_CHANGED)
-            {
-                needUpdateView = true;
-            }
-            if (needUpdateView && timeline)
-            {
-                auto trackId = pBpvf->GetVideoClip()->TrackId();
-                std::vector<int64_t> trackIds = { trackId };
-                timeline->RefreshTrackView(trackIds);
-            }
-        }
-    }
-    return ret;
-}
-
-MediaCore::VideoFilter::Holder BluePrintVideoFilter::Clone()
-{
-    BluePrintVideoFilter* bpFilter = new BluePrintVideoFilter(mHandle);
-    auto bpJson = mBp->m_Document->Serialize();
-    bpFilter->SetBluePrintFromJson(bpJson);
-    bpFilter->SetKeyPoint(mKeyPoints);
-    return MediaCore::VideoFilter::Holder(bpFilter);
-}
-
-void BluePrintVideoFilter::UpdateClipRange()
-{
-    mKeyPoints.SetRangeX(0, m_pClip->Duration(), true);
-}
-
-ImGui::ImMat BluePrintVideoFilter::FilterImage(const ImGui::ImMat& vmat, int64_t pos)
-{
-    std::lock_guard<std::mutex> lk(mBpLock);
-    ImGui::ImMat outMat(vmat);
-    if (mBp && mBp->Blueprint_IsExecutable())
-    {
-        // setup bp input curve
-        for (int i = 0; i < mKeyPoints.GetCurveCount(); i++)
-        {
-            auto name = mKeyPoints.GetCurveName(i);
-            auto value = mKeyPoints.GetValue(i, pos);
-            mBp->Blueprint_SetFilter(name, value);
-        }
-        ImGui::ImMat inMat(vmat);
-        mBp->Blueprint_RunFilter(inMat, outMat, pos, 0); // TODO::Dicky Need send durtion
-    }
-    return outMat;
-}
-
-void BluePrintVideoFilter::SetBluePrintFromJson(imgui_json::value& bpJson)
-{
-    // Logger::Log(Logger::DEBUG) << "Create bp filter from json " << bpJson.dump() << std::endl;
-    mBp->File_New_Filter(bpJson, "VideoFilter", "Video");
-    if (!mBp->Blueprint_IsValid())
-    {
-        mBp->Finalize();
-        return;
-    }
-}
-} // namespace MediaTimeline
-#endif
-
 namespace MediaTimeline
 {
 // BluePrintVideoTransition class
@@ -3156,85 +3103,6 @@ void BluePrintVideoTransition::SetBluePrintFromJson(imgui_json::value& bpJson)
 {
     // Logger::Log(Logger::DEBUG) << "Create bp transition from json " << bpJson.dump() << std::endl;
     mBp->File_New_Transition(bpJson, "VideoTransition", "Video");
-    if (!mBp->Blueprint_IsValid())
-    {
-        mBp->Finalize();
-        return;
-    }
-}
-} // namespace MediaTimeline
-
-namespace MediaTimeline
-{
-BluePrintAudioFilter::BluePrintAudioFilter(void * handle)
-    : mHandle(handle)
-{
-    TimeLine * timeline = (TimeLine *)handle;
-    imgui_json::value filter_BP; 
-    mBp = new BluePrint::BluePrintUI();
-    BluePrint::BluePrintCallbackFunctions callbacks;
-    callbacks.BluePrintOnChanged = OnBluePrintChange;
-    mBp->Initialize();
-    mBp->SetCallbacks(callbacks, this);
-    mBp->File_New_Filter(filter_BP, "AudioFilter", "Audio");
-}
-
-BluePrintAudioFilter::~BluePrintAudioFilter()
-{
-    if (mBp) { mBp->Finalize();  delete mBp; mBp = nullptr; }
-}
-
-int BluePrintAudioFilter::OnBluePrintChange(int type, std::string name, void* handle)
-{
-    int ret = BluePrint::BP_CBR_Nothing;
-    if (!handle)
-        return BluePrint::BP_CBR_Unknown;
-    BluePrintAudioFilter * filter = (BluePrintAudioFilter *)handle;
-    if (!filter) return ret;
-    TimeLine * timeline = (TimeLine *)filter->mHandle;
-    if (name.compare("AudioFilter") == 0)
-    {
-        if (type == BluePrint::BP_CB_Link ||
-            type == BluePrint::BP_CB_Unlink ||
-            type == BluePrint::BP_CB_NODE_DELETED ||
-            type == BluePrint::BP_CB_NODE_APPEND ||
-            type == BluePrint::BP_CB_NODE_INSERT)
-        {
-            if (timeline) timeline->UpdatePreview();
-            ret = BluePrint::BP_CBR_AutoLink;
-        }
-        else if (type == BluePrint::BP_CB_PARAM_CHANGED ||
-                type == BluePrint::BP_CB_SETTING_CHANGED)
-        {
-            if (timeline) timeline->UpdatePreview();
-        }
-    }
-    return ret;
-}
-
-ImGui::ImMat BluePrintAudioFilter::FilterPcm(const ImGui::ImMat& amat, int64_t pos, int64_t dur)
-{
-    std::lock_guard<std::mutex> lk(mBpLock);
-    ImGui::ImMat outMat(amat);
-    if (mBp && mBp->Blueprint_IsExecutable())
-    {
-        // setup bp input curve
-        for (int i = 0; i < mKeyPoints.GetCurveCount(); i++)
-        {
-            auto name = mKeyPoints.GetCurveName(i);
-            auto value = mKeyPoints.GetValue(i, pos);
-            mBp->Blueprint_SetFilter(name, value);
-        }
-        ImGui::ImMat inMat(amat);
-        mBp->Blueprint_RunFilter(inMat, outMat, pos, dur);
-    }
-    return outMat;
-}
-
-void BluePrintAudioFilter::SetBluePrintFromJson(imgui_json::value& bpJson)
-{
-    // Logger::Log(Logger::DEBUG) << "Create bp filter from json " << bpJson.dump() << std::endl;
-    mBp->File_New_Filter(bpJson, "AudioFilter", "Audio");
     if (!mBp->Blueprint_IsValid())
     {
         mBp->Finalize();
@@ -3437,7 +3305,6 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
     {
         mFilter = hFilter.get();
         auto filterName = hFilter->GetFilterName();
-#if USE_EVENTSTACK_FILTER
         if (filterName == "EventStackFilter")
         {
             auto pEsf = dynamic_cast<MEC::VideoEventStackFilter*>(mFilter);
@@ -3449,14 +3316,6 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
                 mFilterKp = editingEvent->GetKeyPoint();
             }
         }
-#else
-        if (filterName == "BluePrintVideoFilter")
-        {
-            auto pBpvf = dynamic_cast<BluePrintVideoFilter*>(mFilter);
-            mFilterBp = pBpvf->mBp;
-            mFilterKp = &pBpvf->mKeyPoints;
-        }
-#endif
     }
     mAttribute = hClip->GetTransformFilter();
     vidclip->SyncAttributesWithDataLayer(hClip);
@@ -3467,6 +3326,8 @@ EditingVideoClip::~EditingVideoClip()
     mSsViewer = nullptr;
     mSsGen = nullptr;
     mFilter = nullptr;
+    mFilterBp = nullptr;
+    mFilterKp = nullptr;
 }
 
 void EditingVideoClip::UpdateClipRange(Clip* clip)
@@ -3481,7 +3342,6 @@ void EditingVideoClip::UpdateClipRange(Clip* clip)
         mEndOffset = clip->StartOffset();
         mDuration = mEnd - mStart;
     }
-    
 }
 
 void EditingVideoClip::Save()
@@ -3496,7 +3356,6 @@ void EditingVideoClip::Save()
     clip->lastTime = lastTime;
     clip->visibleTime = visibleTime;
     clip->msPixelWidthTarget = msPixelWidthTarget;
-#if USE_EVENTSTACK_FILTER
 #ifdef USING_OLD_UI
     if (mFilterBp && mFilterBp->Blueprint_IsValid())
     {
@@ -3516,13 +3375,6 @@ void EditingVideoClip::Save()
             MEC::VideoEventStackFilter* pEsf = dynamic_cast<MEC::VideoEventStackFilter*>(mFilter);
             clip->mFilterJson = pEsf->SaveAsJson();
         }
-    }
-#endif
-#else
-    if (mFilterBp && mFilterBp->Blueprint_IsValid())
-    {
-        clip->mFilterJson = mFilterBp->m_Document->Serialize();
-        clip->mFilterKeyPoints = *mFilterKp;
     }
 #endif
     if (mAttribute)
@@ -3725,14 +3577,27 @@ EditingAudioClip::EditingAudioClip(AudioClip* audclip)
         throw std::invalid_argument("Clip duration is negative!");
     auto hClip = timeline->mMtaReader->GetClipById(audclip->mID);
     IM_ASSERT(hClip);
-    mFilter = dynamic_cast<BluePrintAudioFilter *>(hClip->GetFilter().get());
-
-    if (!mFilter)
+    auto hFilter = hClip->GetFilter();
+    if (!hFilter)
     {
-        mFilter = new BluePrintAudioFilter(timeline);
-        mFilter->SetKeyPoint(audclip->mFilterKeyPoints);
-        MediaCore::AudioFilter::Holder hFilter(mFilter);
-        hClip->SetFilter(hFilter);
+        audclip->SyncFilterWithDataLayer(hClip, true);
+        hFilter = hClip->GetFilter();
+    }
+    if (hFilter)
+    {
+        mFilter = hFilter.get();
+        auto filterName = hFilter->GetFilterName();
+        if (filterName == "EventStackFilter")
+        {
+            auto pEsf = dynamic_cast<MEC::AudioEventStackFilter*>(mFilter);
+            auto editingEvent = pEsf->GetEditingEvent();
+            if (editingEvent)
+            {
+                mFilterBp = editingEvent->GetBp();
+                auto filterJson = mFilterBp->m_Document->Serialize();
+                mFilterKp = editingEvent->GetKeyPoint();
+            }
+        }
     }
 }
 
@@ -3740,10 +3605,24 @@ EditingAudioClip::~EditingAudioClip()
 {
     for (auto texture : mWaveformTextures) ImGui::ImDestroyTexture(texture);
     mWaveformTextures.clear();
+    mFilter = nullptr;
+    mFilterBp = nullptr;
+    mFilterKp = nullptr;
 }
 
 void EditingAudioClip::UpdateClipRange(Clip* clip)
-{}
+{
+    if (mStart != clip->Start())
+        mStart = clip->Start();
+    if (mEnd != clip->End())
+        mEnd = clip->End();
+    if (mStartOffset != clip->StartOffset() || mEndOffset != clip->EndOffset())
+    {
+        mStartOffset = clip->StartOffset();
+        mEndOffset = clip->StartOffset();
+        mDuration = mEnd - mStart;
+    }
+}
 
 void EditingAudioClip::Save()
 {
@@ -3757,10 +3636,14 @@ void EditingAudioClip::Save()
     clip->lastTime = lastTime;
     clip->visibleTime = visibleTime;
     clip->msPixelWidthTarget = msPixelWidthTarget;
-    if (mFilter && mFilter->mBp && mFilter->mBp->Blueprint_IsValid())
+    if (mFilter)
     {
-        clip->mFilterJson = mFilter->mBp->m_Document->Serialize();
-        clip->mFilterKeyPoints = mFilter->mKeyPoints;
+        auto filterName = mFilter->GetFilterName();
+        if (filterName == "EventStackFilter")
+        {
+            MEC::AudioEventStackFilter* pEsf = dynamic_cast<MEC::AudioEventStackFilter*>(mFilter);
+            clip->mFilterJson = pEsf->SaveAsJson();
+        }
     }
 }
 
@@ -5160,8 +5043,8 @@ void MediaTrack::SelectEditingClip(Clip * clip, bool filter_editing)
             if (IS_AUDIO(editing_clip->mType) &&
                 timeline->mAudFilterClip &&
                 timeline->mAudFilterClip->mFilter &&
-                timeline->mAudFilterClip->mFilter->mBp &&
-                timeline->mAudFilterClip->mFilter->mBp->Blueprint_IsValid())
+                timeline->mAudFilterClip->mFilterBp &&
+                timeline->mAudFilterClip->mFilterBp->Blueprint_IsValid())
                 return;
         }
     }
@@ -6278,11 +6161,8 @@ bool TimeLine::RestoreTrack(imgui_json::value& action)
             MediaCore::AudioClip::Holder hAudClip = hAudTrk->AddNewClip(
                 c->mID, c->mMediaParser,
                 c->Start(), c->End(), c->StartOffset(), c->EndOffset());
-            BluePrintAudioFilter* bpaf = new BluePrintAudioFilter(this);
-            bpaf->SetBluePrintFromJson(c->mFilterJson);
-            bpaf->SetKeyPoint(c->mFilterKeyPoints);
-            MediaCore::AudioFilter::Holder hFilter(bpaf);
-            hAudClip->SetFilter(hFilter);
+            AudioClip* aclip = dynamic_cast<AudioClip*>(c);
+            aclip->SyncFilterWithDataLayer(hAudClip);
         }
         // audio attribute
         auto aeFilter = hAudTrk->GetAudioEffectFilter();
@@ -7971,11 +7851,8 @@ int TimeLine::Load(const imgui_json::value& value)
                 MediaCore::AudioClip::Holder hAudClip = audTrack->AddNewClip(
                     clip->mID, clip->mMediaParser,
                     clip->Start(), clip->End(), clip->StartOffset(), clip->EndOffset());
-                BluePrintAudioFilter* bpaf = new BluePrintAudioFilter(this);
-                bpaf->SetBluePrintFromJson(clip->mFilterJson);
-                bpaf->SetKeyPoint(clip->mFilterKeyPoints);
-                MediaCore::AudioFilter::Holder hFilter(bpaf);
-                hAudClip->SetFilter(hFilter);
+                AudioClip* aclip = dynamic_cast<AudioClip*>(clip);
+                aclip->SyncFilterWithDataLayer(hAudClip);
             }
             // audio attribute
             auto aeFilter = audTrack->GetAudioEffectFilter();
@@ -8339,7 +8216,7 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
             {
                 MEC::VideoEventStackFilter* pEsf = dynamic_cast<MEC::VideoEventStackFilter*>(hNewFilter.get());
                 BluePrint::BluePrintCallbackFunctions bpCallbacks;
-                bpCallbacks.BluePrintOnChanged = TimeLine::OnEventStackFilterBpChanged;
+                bpCallbacks.BluePrintOnChanged = TimeLine::OnVideoEventStackFilterBpChanged;
                 pEsf->SetBluePrintCallbacks(bpCallbacks);
                 pEsf->MoveAllEvents(hClip->Start()-cutPos);
                 // generate new ids for cloned events
@@ -8408,16 +8285,13 @@ void TimeLine::PerformAudioAction(imgui_json::value& action)
         MediaCore::AudioTrack::Holder audTrack = mMtaReader->GetTrackById(trackId, true);
         int64_t clipId = action["clip_json"]["ID"].get<imgui_json::number>();
         Clip* clip = FindClipByID(clipId);
-        MediaCore::AudioClip::Holder audClip = MediaCore::AudioClip::CreateInstance(
+        MediaCore::AudioClip::Holder hAudClip = MediaCore::AudioClip::CreateInstance(
             clip->mID, clip->mMediaParser,
             audTrack->OutChannels(), audTrack->OutSampleRate(), audTrack->OutSampleFormat(),
             clip->Start(), clip->End(), clip->StartOffset(), clip->EndOffset());
-        BluePrintAudioFilter* bpaf = new BluePrintAudioFilter(this);
-        bpaf->SetBluePrintFromJson(clip->mFilterJson);
-        bpaf->SetKeyPoint(clip->mFilterKeyPoints);
-        MediaCore::AudioFilter::Holder hFilter(bpaf);
-        audClip->SetFilter(hFilter);
-        audTrack->InsertClip(audClip);
+        AudioClip* aclip = dynamic_cast<AudioClip*>(clip);
+        aclip->SyncFilterWithDataLayer(hAudClip);
+        audTrack->InsertClip(hAudClip);
         bool updateDuration = true;
         if (action.contains("update_duration"))
             updateDuration = action["update_duration"].get<imgui_json::boolean>();
@@ -8490,12 +8364,28 @@ void TimeLine::PerformAudioAction(imgui_json::value& action)
             newClipId, hClip->GetMediaParser(),
             hAudTrk->OutChannels(), hAudTrk->OutSampleRate(), hAudTrk->OutSampleFormat(),
             newClipStart, newClipEnd, newClipStartOffset, newClipEndOffset);
+        auto hNewFilter = hClip->GetFilter()->Clone();
+        if (hNewFilter)
+        {
+            const auto filterName = hNewFilter->GetFilterName();
+            if (filterName == "EventStackFilter")
+            {
+                MEC::AudioEventStackFilter* pEsf = dynamic_cast<MEC::AudioEventStackFilter*>(hNewFilter.get());
+                BluePrint::BluePrintCallbackFunctions bpCallbacks;
+                bpCallbacks.BluePrintOnChanged = TimeLine::OnAudioEventStackFilterBpChanged;
+                pEsf->SetBluePrintCallbacks(bpCallbacks);
+                pEsf->MoveAllEvents(hClip->Start()-cutPos);
+                // generate new ids for cloned events
+                auto eventList = pEsf->GetEventList();
+                for (auto& e : eventList)
+                    e->ChangeId(m_IDGenerator.GenerateID());
+            }
+            else
+                Logger::Log(Logger::WARN) << "UNHANDLED audio filter type '" << filterName << "'." << std::endl;
+            hNewClip->SetFilter(hNewFilter);
+        }
         auto pUiClip = dynamic_cast<AudioClip*>(FindClipByID(newClipId));
-        BluePrintAudioFilter* bpaf = new BluePrintAudioFilter(this);
-        bpaf->SetBluePrintFromJson(pUiClip->mFilterJson);
-        bpaf->SetKeyPoint(pUiClip->mFilterKeyPoints);
-        MediaCore::AudioFilter::Holder hFilter(bpaf);
-        hNewClip->SetFilter(hFilter);
+        pUiClip->SyncFilterWithDataLayer(hNewClip);
         hAudTrk->InsertClip(hNewClip);
         mMtaReader->Refresh(false);
     }
@@ -8602,7 +8492,7 @@ void TimeLine::PerformImageAction(imgui_json::value& action)
             {
                 MEC::VideoEventStackFilter* pEsf = dynamic_cast<MEC::VideoEventStackFilter*>(hNewFilter.get());
                 BluePrint::BluePrintCallbackFunctions bpCallbacks;
-                bpCallbacks.BluePrintOnChanged = TimeLine::OnEventStackFilterBpChanged;
+                bpCallbacks.BluePrintOnChanged = TimeLine::OnVideoEventStackFilterBpChanged;
                 pEsf->SetBluePrintCallbacks(bpCallbacks);
                 pEsf->MoveAllEvents(hClip->Start()-cutPos);
                 // generate new ids for cloned events
@@ -8663,14 +8553,14 @@ void TimeLine::PerformTextAction(imgui_json::value& action)
     }
 }
 
-int TimeLine::OnEventStackFilterBpChanged(int type, std::string name, void* handle)
+int TimeLine::OnVideoEventStackFilterBpChanged(int type, std::string name, void* handle)
 {
     auto pFilterCtx = reinterpret_cast<MEC::EventStackFilterContext*>(handle);
     if (!pFilterCtx)
         return BluePrint::BP_CBR_Unknown;
 
     int ret = BluePrint::BP_CBR_Nothing;
-    MEC::VideoEventStackFilter* pEsf = reinterpret_cast<MEC::VideoEventStackFilter*>(pFilterCtx->pFilterPtr);
+    MEC::VideoEventStackFilter* pEsf = dynamic_cast<MEC::VideoEventStackFilter*>(reinterpret_cast<MEC::EventStack*>(pFilterCtx->pFilterPtr));
     TimeLine* timeline = (TimeLine*)pEsf->GetTimelineHandle();
     MEC::Event* pEvt = reinterpret_cast<MEC::Event*>(pFilterCtx->pEventPtr);
     bool needUpdateView = false;
@@ -8707,12 +8597,47 @@ int TimeLine::OnEventStackFilterBpChanged(int type, std::string name, void* hand
     }
     else
     {
-        Logger::Log(Logger::WARN) << "---> Ignore 'OnEventStackFilterBpChanged' change type " << type << "." << std::endl;
+        Logger::Log(Logger::WARN) << "---> Ignore 'OnVideoEventStackFilterBpChanged' change type " << type << "." << std::endl;
     }
     if (needUpdateView)
     {
-        auto trackId = pEsf->GetVideoClip()->TrackId();
+        auto pClip = pEsf->GetVideoClip();
+        auto trackId = pClip->TrackId();
         timeline->mNeedUpdateTrackIds.insert(trackId);
+    }
+    return ret;
+}
+
+int TimeLine::OnAudioEventStackFilterBpChanged(int type, std::string name, void* handle)
+{
+    auto pFilterCtx = reinterpret_cast<MEC::EventStackFilterContext*>(handle);
+    if (!pFilterCtx)
+        return BluePrint::BP_CBR_Unknown;
+
+    int ret = BluePrint::BP_CBR_Nothing;
+    MEC::AudioEventStackFilter* pEsf = dynamic_cast<MEC::AudioEventStackFilter*>(reinterpret_cast<MEC::EventStack*>(pFilterCtx->pFilterPtr));
+    TimeLine* timeline = (TimeLine*)pEsf->GetTimelineHandle();
+    MEC::Event* pEvt = reinterpret_cast<MEC::Event*>(pFilterCtx->pEventPtr);
+    if (type == BluePrint::BP_CB_OPERATION_DONE)
+    {
+        auto pBp = pEvt->GetBp();
+        imgui_json::value opRecord = pBp->Blueprint_GetOpRecord();
+        if (opRecord.contains("operation") && opRecord.contains("before_op_state") && opRecord.contains("after_op_state"))
+        {
+            imgui_json::value action;
+            action["action"] = "BP_OPERATION";
+            action["media_type"] = imgui_json::number(MEDIA_AUDIO);
+            action["clip_id"] = imgui_json::number(pEsf->GetAudioClip()->Id());
+            action["event_id"] = imgui_json::number(pEvt->Id());
+            action["bp_operation"] = opRecord["operation"];
+            action["before_op_state"] = opRecord["before_op_state"];
+            action["after_op_state"] = opRecord["after_op_state"];
+            timeline->mUiActions.push_back(std::move(action));
+        }
+    }
+    else
+    {
+        Logger::Log(Logger::WARN) << "---> Ignore 'OnAudioEventStackFilterBpChanged' change type " << type << "." << std::endl;
     }
     return ret;
 }

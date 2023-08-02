@@ -1994,11 +1994,8 @@ static bool ReloadMedia(std::string path, MediaItem* item)
                         if (audTrack)
                         {
                             MediaCore::AudioClip::Holder hAudClip = audTrack->AddNewClip(clip->mID, clip->mMediaParser, clip->Start(), clip->End(), clip->StartOffset(), clip->EndOffset());
-                            BluePrintAudioFilter* bpaf = new BluePrintAudioFilter(timeline);
-                            bpaf->SetBluePrintFromJson(clip->mFilterJson);
-                            bpaf->SetKeyPoint(clip->mFilterKeyPoints);
-                            MediaCore::AudioFilter::Holder hFilter(bpaf);
-                            hAudClip->SetFilter(hFilter);
+                            AudioClip* aclip = dynamic_cast<AudioClip*>(clip);
+                            aclip->SyncFilterWithDataLayer(hAudClip);
                             // audio attribute
                             auto aeFilter = audTrack->GetAudioEffectFilter();
                             // gain
@@ -4779,7 +4776,6 @@ static void ShowVideoFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
     auto filterName = pFilter->GetFilterName();
     BluePrint::BluePrintUI* pBp = nullptr;
     MEC::Event::Holder hTargetEvent;
-#if USE_EVENTSTACK_FILTER
     if (filterName == "EventStackFilter")
     {
         MEC::VideoEventStackFilter* pEsf = dynamic_cast<MEC::VideoEventStackFilter*>(pFilter);
@@ -4796,13 +4792,6 @@ static void ShowVideoFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
             }
         }
     }
-#else
-    if (filterName == "BluePrintVideoFilter")
-    {
-        BluePrintVideoFilter* pBpvf = dynamic_cast<BluePrintVideoFilter*>(pFilter);
-        pBp = pBpvf->mBp;
-    }
-#endif
 
     if (pBp)
     {
@@ -5531,7 +5520,6 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
             ImGui::EndChild();
         }
     }
-    
 #else
     if (editing_clip)
     {
@@ -6561,27 +6549,27 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list, ImRect title_rect)
  ***************************************************************************************/
 static void ShowAudioFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
 {
-    if (timeline && timeline->mAudFilterClip && timeline->mAudFilterClip->mFilter && timeline->mAudFilterClip->mFilter->mBp)
+    if (timeline && timeline->mAudFilterClip && timeline->mAudFilterClip->mFilter && timeline->mAudFilterClip->mFilterBp)
     {
-        if (clip && !timeline->mAudFilterClip->mFilter->mBp->m_Document->m_Blueprint.IsOpened())
+        if (clip && !timeline->mAudFilterClip->mFilterBp->m_Document->m_Blueprint.IsOpened())
         {
             auto track = timeline->FindTrackByClipID(clip->mID);
             if (track)
                 track->SelectEditingClip(clip, true);
-            timeline->mAudFilterClip->mFilter->mBp->View_ZoomToContent();
+            timeline->mAudFilterClip->mFilterBp->View_ZoomToContent();
         }
         ImVec2 window_pos = ImGui::GetCursorScreenPos();
         ImVec2 window_size = ImGui::GetWindowSize();
         ImGui::SetCursorScreenPos(window_pos + ImVec2(3, 3));
         ImGui::InvisibleButton("audio_editor_blueprint_back_view", window_size - ImVec2(6, 6));
-        if (ImGui::BeginDragDropTarget() && timeline->mAudFilterClip->mFilter->mBp->Blueprint_IsValid())
+        if (ImGui::BeginDragDropTarget() && timeline->mAudFilterClip->mFilterBp->Blueprint_IsValid())
         {
             if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("Filter_drag_drop_Audio"))
             {
                 const BluePrint::Node * node = (const BluePrint::Node *)payload->Data;
                 if (node)
                 {
-                    timeline->mAudFilterClip->mFilter->mBp->Edit_Insert(node->GetTypeID());
+                    timeline->mAudFilterClip->mFilterBp->Edit_Insert(node->GetTypeID());
                 }
             }
             ImGui::EndDragDropTarget();
@@ -6589,7 +6577,7 @@ static void ShowAudioFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
         ImGui::SetCursorScreenPos(window_pos + ImVec2(1, 1));
         if (ImGui::BeginChild("##audio_editor_blueprint", window_size - ImVec2(2, 2), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
         {
-            timeline->mAudFilterClip->mFilter->mBp->Frame(true, true, clip != nullptr, BluePrint::BluePrintFlag::BluePrintFlag_Filter);
+            timeline->mAudFilterClip->mFilterBp->Frame(true, true, clip != nullptr, BluePrint::BluePrintFlag::BluePrintFlag_Filter);
         }
         ImGui::EndChild();
     }
@@ -6629,8 +6617,8 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list, ImRect title_rect)
     if (!timeline)
         return;
 
-    BluePrintAudioFilter * filter = nullptr;
     BluePrint::BluePrintUI* blueprint = nullptr;
+    ImGui::KeyPointEditor* keypoint = nullptr;
 
     Clip * editing_clip = timeline->FindEditingClip();
     if (editing_clip && editing_clip->mType != MEDIA_AUDIO)
@@ -6648,8 +6636,8 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list, ImRect title_rect)
                 timeline->mAudFilterClip = new EditingAudioClip((AudioClip*)editing_clip);
             timeline->mAudFilterClipLock.unlock();
         }
-        filter = timeline->mAudFilterClip->mFilter;
-        blueprint = filter ? filter->mBp : nullptr;
+        blueprint = timeline->mAudFilterClip->mFilterBp;
+        keypoint = timeline->mAudFilterClip->mFilterKp;
     }
 
     float clip_header_height = 30 + 12;
@@ -6693,7 +6681,7 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list, ImRect title_rect)
         ImVec2 clip_timeline_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 clip_timeline_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(clip_timeline_window_pos, clip_timeline_window_pos + clip_timeline_window_size, COL_DARK_TWO);
-        mouse_hold |= DrawClipTimeLine(timeline, timeline->mAudFilterClip, timeline->currentTime, clip_header_height, clip_timeline_height - clip_header_height - 12, clip_keypoint_height, filter ? &filter->mKeyPoints : nullptr);
+        mouse_hold |= DrawClipTimeLine(timeline, timeline->mAudFilterClip, timeline->currentTime, clip_header_height, clip_timeline_height - clip_header_height - 12, clip_keypoint_height, keypoint);
     }
     ImGui::EndChild();
 
@@ -6733,17 +6721,17 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list, ImRect title_rect)
     {
         auto addCurve = [&](std::string name, float _min, float _max, float _default)
         {
-            if (filter)
+            if (keypoint)
             {
-                auto found = filter->mKeyPoints.GetCurveIndex(name);
+                auto found = keypoint->GetCurveIndex(name);
                 if (found == -1)
                 {
                     ImU32 color; ImGui::RandomColor(color, 1.f);
-                    auto curve_index = filter->mKeyPoints.AddCurve(name, ImGui::ImCurveEdit::Smooth, color, true, _min, _max, _default);
-                    filter->mKeyPoints.AddPoint(curve_index, ImVec2(0, _min), ImGui::ImCurveEdit::Smooth);
-                    filter->mKeyPoints.AddPoint(curve_index, ImVec2(editing_clip->Length(), _max), ImGui::ImCurveEdit::Smooth);
-                    filter->mKeyPoints.SetCurvePointDefault(curve_index, 0);
-                    filter->mKeyPoints.SetCurvePointDefault(curve_index, 1);
+                    auto curve_index = keypoint->AddCurve(name, ImGui::ImCurveEdit::Smooth, color, true, _min, _max, _default);
+                    keypoint->AddPoint(curve_index, ImVec2(0, _min), ImGui::ImCurveEdit::Smooth);
+                    keypoint->AddPoint(curve_index, ImVec2(editing_clip->Length(), _max), ImGui::ImCurveEdit::Smooth);
+                    keypoint->SetCurvePointDefault(curve_index, 0);
+                    keypoint->SetCurvePointDefault(curve_index, 1);
                     if (blueprint)
                     {
                         auto entry_node = blueprint->FindEntryPointNode();
@@ -6756,7 +6744,7 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list, ImRect title_rect)
         ImVec2 sub_window_pos = ImGui::GetWindowPos(); // we need draw background with scroll view
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_BLACK_DARK);
-        if (timeline->mAudFilterClip && filter)
+        if (timeline->mAudFilterClip && keypoint)
         {
             // Filter curve setting
             if (ImGui::TreeNodeEx("Curve Setting##audio_filter", ImGuiTreeNodeFlags_DefaultOpen))
@@ -6801,19 +6789,19 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list, ImRect title_rect)
                 ImGui::EndDisabled();
 
                 // list curves
-                for (int i = 0; i < filter->mKeyPoints.GetCurveCount(); i++)
+                for (int i = 0; i < keypoint->GetCurveCount(); i++)
                 {
                     bool break_loop = false;
                     ImGui::PushID(i);
-                    auto pCount = filter->mKeyPoints.GetCurvePointCount(i);
-                    std::string lable_id = std::string(ICON_CURVE) + " " + filter->mKeyPoints.GetCurveName(i) + " (" + std::to_string(pCount) + " keys)" + "##audio_filter_curve";
+                    auto pCount = keypoint->GetCurvePointCount(i);
+                    std::string lable_id = std::string(ICON_CURVE) + " " + keypoint->GetCurveName(i) + " (" + std::to_string(pCount) + " keys)" + "##audio_filter_curve";
                     if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
                     {
-                        float curve_min = filter->mKeyPoints.GetCurveMin(i);
-                        float curve_max = filter->mKeyPoints.GetCurveMax(i);
+                        float curve_min = keypoint->GetCurveMin(i);
+                        float curve_max = keypoint->GetCurveMax(i);
                         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
                         auto curve_time = timeline->currentTime - timeline->mAudFilterClip->mStart;
-                        float curve_value = filter->mKeyPoints.GetValue(i, curve_time);
+                        float curve_value = keypoint->GetValue(i, curve_time);
                         ImGui::BracketSquare(true); 
                         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0, 1.0, 0.0, 1.0)); 
                         ImGui::Text("%.2f", curve_value); 
@@ -6823,14 +6811,14 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list, ImRect title_rect)
                         ImGui::Text("%s", ImGuiHelper::MillisecToString(curve_time, 3).c_str()); 
                         ImGui::PopStyleColor();
                         ImGui::SameLine();
-                        bool in_range = curve_time >= filter->mKeyPoints.GetMin().x && 
-                                        curve_time <= filter->mKeyPoints.GetMax().x;
+                        bool in_range = curve_time >= keypoint->GetMin().x && 
+                                        curve_time <= keypoint->GetMax().x;
                         ImGui::BeginDisabled(!in_range);
                         if (ImGui::Button(ICON_MD_ADS_CLICK))
                         {
-                            auto value_range = filter->mKeyPoints.GetCurveMax(i) - filter->mKeyPoints.GetCurveMin(i);
-                            curve_value = (curve_value - filter->mKeyPoints.GetCurveMin(i)) / (value_range + FLT_EPSILON);
-                            filter->mKeyPoints.AddPoint(i, ImVec2(curve_time, curve_value), ImGui::ImCurveEdit::Smooth);
+                            auto value_range = keypoint->GetCurveMax(i) - keypoint->GetCurveMin(i);
+                            curve_value = (curve_value - keypoint->GetCurveMin(i)) / (value_range + FLT_EPSILON);
+                            keypoint->AddPoint(i, ImVec2(curve_time, curve_value), ImGui::ImCurveEdit::Smooth);
                         }
                         ImGui::EndDisabled();
                         ImGui::ShowTooltipOnHover("Add key at current");
@@ -6838,51 +6826,51 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list, ImRect title_rect)
                         ImGui::PushItemWidth(60);
                         if (ImGui::DragFloat("##curve_audio_filter_min", &curve_min, 0.1f, -FLT_MAX, curve_max, "%.1f"))
                         {
-                            filter->mKeyPoints.SetCurveMin(i, curve_min);
+                            keypoint->SetCurveMin(i, curve_min);
                             timeline->UpdatePreview();
                         } ImGui::ShowTooltipOnHover("Min");
                         ImGui::SameLine(0, 8);
                         if (ImGui::DragFloat("##curve_audio_filter_max", &curve_max, 0.1f, curve_min, FLT_MAX, "%.1f"))
                         {
-                            filter->mKeyPoints.SetCurveMax(i, curve_max);
+                            keypoint->SetCurveMax(i, curve_max);
                             timeline->UpdatePreview();
                         } ImGui::ShowTooltipOnHover("Max");
                         ImGui::SameLine(0, 8);
-                        float curve_default = filter->mKeyPoints.GetCurveDefault(i);
+                        float curve_default = keypoint->GetCurveDefault(i);
                         if (ImGui::DragFloat("##curve_audio_filter_default", &curve_default, 0.1f, curve_min, curve_max, "%.1f"))
                         {
-                            filter->mKeyPoints.SetCurveDefault(i, curve_default);
+                            keypoint->SetCurveDefault(i, curve_default);
                             timeline->UpdatePreview();
                         } ImGui::ShowTooltipOnHover("Default");
                         ImGui::PopItemWidth();
                         
                         ImGui::SameLine(0, 8);
                         ImGui::SetWindowFontScale(0.75);
-                        auto curve_color = ImGui::ColorConvertU32ToFloat4(filter->mKeyPoints.GetCurveColor(i));
+                        auto curve_color = ImGui::ColorConvertU32ToFloat4(keypoint->GetCurveColor(i));
                         if (ImGui::ColorEdit4("##curve_audio_filter_color", (float*)&curve_color, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar))
                         {
-                            filter->mKeyPoints.SetCurveColor(i, ImGui::ColorConvertFloat4ToU32(curve_color));
+                            keypoint->SetCurveColor(i, ImGui::ColorConvertFloat4ToU32(curve_color));
                         } ImGui::ShowTooltipOnHover("Curve Color");
                         ImGui::SetWindowFontScale(1.0);
                         ImGui::SameLine(0, 4);
-                        bool is_visiable = filter->mKeyPoints.IsVisible(i);
+                        bool is_visiable = keypoint->IsVisible(i);
                         if (ImGui::Button(is_visiable ? ICON_WATCH : ICON_UNWATCH "##curve_audio_filter_visiable"))
                         {
                             is_visiable = !is_visiable;
-                            filter->mKeyPoints.SetCurveVisible(i, is_visiable);
+                            keypoint->SetCurveVisible(i, is_visiable);
                         } ImGui::ShowTooltipOnHover( is_visiable ? "Hide" : "Show");
                         ImGui::SameLine(0, 4);
                         if (ImGui::Button(ICON_DELETE "##curve_audio_filter_delete"))
                         {
                             // delete blueprint entry node pin
-                            auto pin_name = filter->mKeyPoints.GetCurveName(i);
+                            auto pin_name = keypoint->GetCurveName(i);
                             if (blueprint)
                             {
                                 auto entry_node = blueprint->FindEntryPointNode();
                                 if (entry_node) entry_node->DeleteOutputPin(pin_name);
                                 timeline->UpdatePreview();
                             }
-                            filter->mKeyPoints.DeleteCurve(i);
+                            keypoint->DeleteCurve(i);
                             break_loop = true;
                         } ImGui::ShowTooltipOnHover("Delete");
                         ImGui::SameLine(0, 4);
@@ -6890,7 +6878,7 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list, ImRect title_rect)
                         {
                             for (int p = 0; p < pCount; p++)
                             {
-                                filter->mKeyPoints.SetCurvePointDefault(i, p);
+                                keypoint->SetCurvePointDefault(i, p);
                             }
                             timeline->UpdatePreview();
                         } ImGui::ShowTooltipOnHover("Reset");
@@ -6903,28 +6891,28 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list, ImRect title_rect)
                                 bool is_disabled = false;
                                 ImGui::PushID(p);
                                 ImGui::PushItemWidth(96);
-                                auto point = filter->mKeyPoints.GetPoint(i, p);
+                                auto point = keypoint->GetPoint(i, p);
                                 ImGui::Diamond(false);
                                 if (p == 0 || p == pCount - 1)
                                     is_disabled = true;
                                 ImGui::BeginDisabled(is_disabled);
-                                if (ImGui::DragTimeMS("##curve_audio_filter_point_x", &point.point.x, filter->mKeyPoints.GetMax().x / 1000.f, filter->mKeyPoints.GetMin().x, filter->mKeyPoints.GetMax().x, 2))
+                                if (ImGui::DragTimeMS("##curve_audio_filter_point_x", &point.point.x, keypoint->GetMax().x / 1000.f, keypoint->GetMin().x, keypoint->GetMax().x, 2))
                                 {
-                                    filter->mKeyPoints.EditPoint(i, p, point.point, point.type);
+                                    keypoint->EditPoint(i, p, point.point, point.type);
                                     timeline->UpdatePreview();
                                 }
                                 ImGui::EndDisabled();
                                 ImGui::SameLine();
-                                auto speed = fabs(filter->mKeyPoints.GetCurveMax(i) - filter->mKeyPoints.GetCurveMin(i)) / 500;
-                                if (ImGui::DragFloat("##curve_audio_filter_point_y", &point.point.y, speed, filter->mKeyPoints.GetCurveMin(i), filter->mKeyPoints.GetCurveMax(i), "%.2f"))
+                                auto speed = fabs(keypoint->GetCurveMax(i) - keypoint->GetCurveMin(i)) / 500;
+                                if (ImGui::DragFloat("##curve_audio_filter_point_y", &point.point.y, speed, keypoint->GetCurveMin(i), keypoint->GetCurveMax(i), "%.2f"))
                                 {
-                                    filter->mKeyPoints.EditPoint(i, p, point.point, point.type);
+                                    keypoint->EditPoint(i, p, point.point, point.type);
                                     timeline->UpdatePreview();
                                 }
                                 ImGui::SameLine();
                                 if (ImGui::Combo("##curve_audio_filter_type", (int*)&point.type, curve_type_list, curve_type_count))
                                 {
-                                    filter->mKeyPoints.EditPoint(i, p, point.point, point.type);
+                                    keypoint->EditPoint(i, p, point.point, point.type);
                                     timeline->UpdatePreview();
                                 }
                                 ImGui::PopItemWidth();

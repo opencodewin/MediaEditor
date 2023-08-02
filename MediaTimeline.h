@@ -551,6 +551,8 @@ struct AudioClip : Clip
     static Clip * Load(const imgui_json::value& value, void * handle);
     void Save(imgui_json::value& value) override;
 
+    void SyncFilterWithDataLayer(MediaCore::AudioClip::Holder hClip, bool createNewIfNotExist = false);
+
 private:
     int64_t mSrcLength              {0};                // media source duration
     int32_t mAlignmentPadding       {0};                // for alignment of the clip length, according to the timeline framerate
@@ -605,37 +607,6 @@ struct TextClip : Clip
     void* mTrack {nullptr};
 };
 
-#define USE_EVENTSTACK_FILTER 1
-
-#if !USE_EVENTSTACK_FILTER
-class BluePrintVideoFilter : public MediaCore::VideoFilter
-{
-public:
-    BluePrintVideoFilter(void * handle);
-    ~BluePrintVideoFilter();
-
-    const std::string GetFilterName() const override { return "BluePrintVideoFilter"; }
-    MediaCore::VideoFilter::Holder Clone() override;
-    void ApplyTo(MediaCore::VideoClip* clip) override { m_pClip = clip; }
-    const MediaCore::VideoClip* GetVideoClip() const override { return m_pClip; }
-    void UpdateClipRange() override;
-    ImGui::ImMat FilterImage(const ImGui::ImMat& vmat, int64_t pos) override;
-
-    void SetBluePrintFromJson(imgui_json::value& bpJson);
-    void SetKeyPoint(ImGui::KeyPointEditor &keypoint) { mKeyPoints = keypoint; };
-
-public:
-    BluePrint::BluePrintUI* mBp {nullptr};
-    ImGui::KeyPointEditor mKeyPoints;
-
-private:
-    static int OnBluePrintChange(int type, std::string name, void* handle);
-    std::mutex mBpLock;
-    void * mHandle {nullptr};
-    MediaCore::VideoClip* m_pClip {nullptr};
-};
-#endif
-
 class BluePrintVideoTransition : public MediaCore::VideoTransition
 {
 public:
@@ -656,25 +627,6 @@ public:
 private:
     static int OnBluePrintChange(int type, std::string name, void* handle);
     MediaCore::VideoOverlap* mOverlap;
-    std::mutex mBpLock;
-    void * mHandle {nullptr};
-};
-
-class BluePrintAudioFilter : public MediaCore::AudioFilter
-{
-public:
-    BluePrintAudioFilter(void * handle);
-    ~BluePrintAudioFilter();
-    void ApplyTo(MediaCore::AudioClip* clip) override {}
-    ImGui::ImMat FilterPcm(const ImGui::ImMat& amat, int64_t pos, int64_t dur) override;
-
-    void SetBluePrintFromJson(imgui_json::value& bpJson);
-    void SetKeyPoint(ImGui::KeyPointEditor &keypoint) { mKeyPoints = keypoint; };
-public:
-    BluePrint::BluePrintUI* mBp {nullptr};
-    ImGui::KeyPointEditor mKeyPoints;
-private:
-    static int OnBluePrintChange(int type, std::string name, void* handle);
     std::mutex mBpLock;
     void * mHandle {nullptr};
 };
@@ -770,7 +722,9 @@ struct EditingAudioClip : BaseEditingClip
     MediaCore::Overview::Waveform::Holder mWaveform {nullptr};
     std::vector<ImTextureID> mWaveformTextures;
 
-    BluePrintAudioFilter * mFilter {nullptr};
+    MediaCore::AudioFilter* mFilter {nullptr};
+    BluePrint::BluePrintUI* mFilterBp {nullptr};
+    ImGui::KeyPointEditor* mFilterKp {nullptr};
 
 public:
     EditingAudioClip(AudioClip* vidclip);
@@ -1201,7 +1155,8 @@ struct TimeLine
     // BP CallBacks
     static int OnBluePrintChange(int type, std::string name, void* handle);
     // This callback can only be assigned to a EventStackFilter, since it will interpret the 'handle' as a 'MEC::EventStackFilterContext' pointer
-    static int OnEventStackFilterBpChanged(int type, std::string name, void* handle);
+    static int OnVideoEventStackFilterBpChanged(int type, std::string name, void* handle);
+    static int OnAudioEventStackFilterBpChanged(int type, std::string name, void* handle);
 
     ImTextureID mMainPreviewTexture {nullptr};  // main preview texture
 
