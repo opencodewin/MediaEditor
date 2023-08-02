@@ -2481,7 +2481,7 @@ void AudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
             ImPlot::PopStyleColor();
             ImPlot::PopStyleVar(2);
 #elif PLOT_TEXTURE
-            if (!mWaveformTexture || updated)
+            if (!mWaveformTexture || updated || !mWaveform->parseDone)
             {
                 ImGui::ImMat plot_mat;
                 start_offset = start_offset / sample_stride * sample_stride; // align start_offset
@@ -3818,7 +3818,7 @@ void EditingAudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, 
         ImPlot::PopStyleVar(2);
 #elif PLOT_TEXTURE
         ImTextureID texture = mWaveformTextures.size() > i ? mWaveformTextures[i] : nullptr;
-        if (!texture || updated)
+        if (!texture || updated || !waveform->parseDone)
         {
             ImGui::ImMat plot_mat;
             start_offset = start_offset / sample_stride * sample_stride; // align start_offset
@@ -4579,7 +4579,7 @@ void EditingAudioOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
             }
 #elif PLOT_TEXTURE
             ImTextureID texture = mClip1WaveformTextures.size() > i ? mClip1WaveformTextures[i] : nullptr;
-            if (!texture || updated)
+            if (!texture || updated || !waveform->parseDone)
             {
                 ImGui::ImMat plot_mat;
                 start_offset = start_offset / sample_stride * sample_stride; // align start_offset
@@ -4664,7 +4664,7 @@ void EditingAudioOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
             }
 #elif PLOT_TEXTURE
             ImTextureID texture = mClip2WaveformTextures.size() > i ? mClip2WaveformTextures[i] : nullptr;
-            if (!texture || updated)
+            if (!texture || updated || !waveform->parseDone)
             {
                 ImGui::ImMat plot_mat;
                 start_offset = start_offset / sample_stride * sample_stride; // align start_offset

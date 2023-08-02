@@ -10383,7 +10383,7 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline)
     ImGuiIO &io = ImGui::GetIO();
     auto platform_io = ImGui::GetPlatformIO();
     bool multiviewport = io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable;
-    static ImGuiWindowFlags flags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoDocking;
+    static ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoDocking;
     ImVec2 pos = ImVec2(100, 100);
     ImVec2 size = ImVec2(1600, 800);
     static ImVec2 full_size = size;
@@ -10431,6 +10431,7 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline)
     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.5, 0.5, 0.5, 0.5));
     ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.2, 0.2, 0.2, 1.0));
+
     if (ImGui::Button(ICON_DRAWING_PIN "##unexpand_scope"))
     {
         g_media_editor_settings.SeparateScope = false;
