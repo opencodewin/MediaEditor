@@ -956,6 +956,15 @@ static bool MonitorButton(const char * label, ImVec2 pos, int& monitor_index, st
     auto current_monitor = viewport->PlatformMonitor;
     int org_index = monitor_index;
     ImGui::SetCursorScreenPos(pos);
+
+    //static int item_current = 0;
+    //if (ImGui::BeginCombo("##monitor_test", "ICON_ONE\0ICON_TWO\0ICON_THREE\0ICON_FOUR\0ICON_FIVE\0\0", ImGuiComboFlags_NoArrowButton))
+    //{
+    //    ImGui::EndCombo();
+    //}
+    //ImGui::Combo("##test", &item_current, "ICON_ONE\ICON_TWO\ICON_THREE\ICON_FOUR\ICON_FIVE\0\0");
+
+#if 1
     for (int monitor_n = 0; monitor_n < platform_io.Monitors.Size; monitor_n++)
     {
         bool disable = false;
@@ -1006,6 +1015,7 @@ static bool MonitorButton(const char * label, ImVec2 pos, int& monitor_index, st
         if (!vertical) ImGui::SameLine();
         else ImGui::SetCursorScreenPos(pos + ImVec2(0, icon_height * (monitor_n + 1)));
     }
+#endif
     return monitor_index != org_index;
 }
 
@@ -3923,21 +3933,28 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, int64_t start, int64_t
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
     draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
-    ImVec2 PanelBarPos = window_pos + window_size - ImVec2(window_size.x, 48);
-    ImVec2 PanelBarSize = ImVec2(window_size.x, 48);
+    bool is_small_window = window_size.x < 512;
+    int bar_height = is_small_window ? 32 : 48;
+    int bar_y_offset = is_small_window ? 4 : 8;
+    ImVec2 PanelBarPos = window_pos + window_size - ImVec2(window_size.x, bar_height);
+    ImVec2 PanelBarSize = ImVec2(window_size.x, bar_height);
     draw_list->AddRectFilled(PanelBarPos, PanelBarPos + PanelBarSize, COL_DARK_PANEL);
 
     // Preview buttons Stop button is center of Panel bar
     auto PanelCenterX = PanelBarPos.x + window_size.x / 2;
-    auto PanelButtonY = PanelBarPos.y + 8;
+    auto PanelButtonY = PanelBarPos.y + bar_y_offset;
     bool out_of_border = false;
 
     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0.5));
     ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.2, 0.2, 0.2, 1.0));
+    const int b_size = is_small_window ? 24 : 32;
+    const int b_gap = is_small_window ? 2 : 8;
+    const int button_gap = b_size + b_gap;
+    const ImVec2 button_size = ImVec2(b_size, b_size);
 
-    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - (32 + 8) * 3, PanelButtonY));
-    if (ImGui::Button(ICON_TO_START "##preview_tostart", ImVec2(32, 32)))
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - b_size / 2 - button_gap * 3, PanelButtonY));
+    if (ImGui::Button(ICON_TO_START "##preview_tostart", button_size))
     {
         if (timeline && timeline->mVidFilterClip)
         {
@@ -3946,8 +3963,8 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, int64_t start, int64_t
     }
     ImGui::ShowTooltipOnHover("To Start");
 
-    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - (32 + 8) * 2, PanelButtonY));
-    if (ImGui::Button(ICON_STEP_BACKWARD "##preview_step_backward", ImVec2(32, 32)))
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - b_size / 2 - button_gap * 2, PanelButtonY));
+    if (ImGui::Button(ICON_STEP_BACKWARD "##preview_step_backward", button_size))
     {
         if (timeline && timeline->mVidFilterClip)
         {
@@ -3959,8 +3976,8 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, int64_t start, int64_t
 
     bool isForwordPlaying = timeline ? (timeline->mIsPreviewPlaying && timeline->mIsPreviewForward) : false;
     bool isBackwardPlaying = (timeline && !isForwordPlaying) ? (timeline->mIsPreviewPlaying && !timeline->mIsPreviewForward) : false;
-    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - (32 + 8) * 1 + 6, PanelButtonY + 5));
-    if (ImGui::RotateCheckButton(ICON_PLAY_BACKWARD "##preview_reverse", &isBackwardPlaying, ImVec4(0.5, 0.5, 0.0, 1.0), 180))
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - b_size / 2 - button_gap * 1, PanelButtonY));
+    if (ImGui::RotateCheckButton(ICON_PLAY_BACKWARD "##preview_reverse", &isBackwardPlaying, ImVec4(0.5, 0.5, 0.0, 1.0), 180, button_size))
     {
         if (timeline && timeline->mVidFilterClip)
         {
@@ -3970,8 +3987,8 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, int64_t start, int64_t
     }
     ImGui::ShowTooltipOnHover("Reverse");
 
-    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - (32 + 8) * 0, PanelButtonY));
-    if (ImGui::Button(ICON_STOP "##preview_stop", ImVec2(32, 32)))
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - b_size / 2 - button_gap * 0, PanelButtonY));
+    if (ImGui::Button(ICON_STOP "##preview_stop", button_size))
     {
         if (timeline)
             timeline->Play(false, true);
@@ -3979,8 +3996,8 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, int64_t start, int64_t
     }
     ImGui::ShowTooltipOnHover("Stop");
 
-    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + (32 + 8) * 0 + 6, PanelButtonY + 5));
-    if (ImGui::CheckButton(ICON_PLAY_FORWARD "##preview_play", &isForwordPlaying, ImVec4(0.5, 0.5, 0.0, 1.0)))
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + b_size / 2 + b_gap + button_gap * 0, PanelButtonY));
+    if (ImGui::RotateCheckButton(ICON_PLAY_FORWARD "##preview_play", &isForwordPlaying, ImVec4(0.5, 0.5, 0.0, 1.0), 0, button_size))
     {
         if (timeline && timeline->mVidFilterClip)
         {
@@ -3990,8 +4007,8 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, int64_t start, int64_t
     }
     ImGui::ShowTooltipOnHover("Play");
 
-    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + (32 + 8) * 1, PanelButtonY));
-    if (ImGui::Button(ICON_STEP_FORWARD "##preview_step_forward", ImVec2(32, 32)))
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + b_size / 2 + b_gap + button_gap * 1, PanelButtonY));
+    if (ImGui::Button(ICON_STEP_FORWARD "##preview_step_forward", button_size))
     {
         if (timeline && timeline->mVidFilterClip)
         {
@@ -4001,8 +4018,8 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, int64_t start, int64_t
     }
     ImGui::ShowTooltipOnHover("Step Next");
 
-    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + (32 + 8) * 2, PanelButtonY));
-    if (ImGui::Button(ICON_TO_END "##preview_toend", ImVec2(32, 32)))
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + b_size / 2 + b_gap + button_gap * 2, PanelButtonY));
+    if (ImGui::Button(ICON_TO_END "##preview_toend", button_size))
     {
         if (timeline && timeline->mVidFilterClip)
         {
@@ -4014,8 +4031,8 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, int64_t start, int64_t
 
     if (attribute)
     {
-        ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + (32 + 8) * 4, PanelButtonY + 6));
-        if (ImGui::CheckButton(timeline->bAttributeOutputPreview ? ICON_MEDIA_PREVIEW : ICON_FILTER "##video_filter_output_preview", &timeline->bAttributeOutputPreview, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive)))
+        ImGui::SetCursorScreenPos(ImVec2(PanelBarPos.x + PanelBarSize.x - button_gap * 2 - 32, PanelButtonY));
+        if (ImGui::RotateCheckButton(timeline->bAttributeOutputPreview ? ICON_MEDIA_PREVIEW : ICON_FILTER "##video_filter_output_preview", &timeline->bAttributeOutputPreview, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive), 0, button_size))
         {
             timeline->UpdatePreview();
         }
@@ -4023,37 +4040,37 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, int64_t start, int64_t
     }
     else
     {
-        ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + (32 + 8) * 4, PanelButtonY + 6));
-        if (ImGui::CheckButton(timeline->bFilterOutputPreview ? ICON_MEDIA_PREVIEW : ICON_FILTER "##video_filter_output_preview", &timeline->bFilterOutputPreview, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive)))
+        ImGui::SetCursorScreenPos(ImVec2(PanelBarPos.x + PanelBarSize.x - button_gap * 2 - 32, PanelButtonY));
+        if (ImGui::RotateCheckButton(timeline->bFilterOutputPreview ? ICON_MEDIA_PREVIEW : ICON_FILTER "##video_filter_output_preview", &timeline->bFilterOutputPreview, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive), 0, button_size))
         {
             timeline->UpdatePreview();
         }
         ImGui::ShowTooltipOnHover(timeline->bFilterOutputPreview ? "Filter Output" : "Preview Output");
     }
 
-    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + (32 + 8) * 5, PanelButtonY + 6 - 2));
-    ImGui::CheckButton(ICON_COMPARE "##video_filter_compare", &timeline->bCompare, ImVec4(0.5, 0.5, 0.0, 1.0));
+    ImGui::SetCursorScreenPos(ImVec2(PanelBarPos.x + PanelBarSize.x - button_gap * 1 - 32, PanelButtonY));
+    ImGui::RotateCheckButton(ICON_COMPARE "##video_filter_compare", &timeline->bCompare, ImVec4(0.5, 0.5, 0.0, 1.0), 0, button_size);
     ImGui::ShowTooltipOnHover("Zoom Compare");
 
     // Time stamp on left of control panel
-    auto PanelRightX = PanelBarPos.x + window_size.x - 300;
-    auto PanelRightY = PanelBarPos.y + 8;
+    auto PanelRightX = PanelBarPos.x + 32;
+    auto PanelRightY = PanelBarPos.y + (is_small_window ? 8 : 12);
     auto time_str = ImGuiHelper::MillisecToString(timeline->currentTime, 3);
-    ImGui::SetWindowFontScale(1.5);
-    draw_list->AddText(ImVec2(PanelRightX, PanelRightY), timeline->mIsPreviewPlaying ? COL_MARK : COL_MARK_HALF, time_str.c_str());
+    ImGui::SetWindowFontScale(is_small_window ? 1.2 : 1.5);
+    draw_list->AddText(ImVec2(PanelRightX, PanelRightY), timeline->mIsPreviewPlaying ? IM_COL32_WHITE : COL_MARK, time_str.c_str());
     ImGui::SetWindowFontScale(1.0);
 
     // Show monitors
-    std::vector<int> org_disabled_monitor = {MonitorIndexVideoFiltered};
-    MonitorButton("video_filter_org_monitor_select", ImVec2(PanelBarPos.x + 20, PanelBarPos.y + 8), MonitorIndexVideoFilterOrg, org_disabled_monitor, false, true);
-    std::vector<int> filter_disabled_monitor = {MonitorIndexVideoFilterOrg};
-    MonitorButton("video_filter_monitor_select", ImVec2(PanelBarPos.x + PanelBarSize.x - 80, PanelBarPos.y + 8), MonitorIndexVideoFiltered, filter_disabled_monitor, false, true);
+    //std::vector<int> org_disabled_monitor = {MonitorIndexVideoFiltered};
+    //MonitorButton("video_filter_org_monitor_select", ImVec2(PanelBarPos.x + 20, PanelBarPos.y + 8), MonitorIndexVideoFilterOrg, org_disabled_monitor, false, true);
+    //std::vector<int> filter_disabled_monitor = {MonitorIndexVideoFilterOrg};
+    //MonitorButton("video_filter_monitor_select", ImVec2(PanelBarPos.x + PanelBarSize.x - 80, PanelBarPos.y + 8), MonitorIndexVideoFiltered, filter_disabled_monitor, false, true);
 
     int show_video_number = 0;
     if (MonitorIndexVideoFilterOrg == -1) show_video_number++;
     if (MonitorIndexVideoFiltered == -1) show_video_number++;
-    // filter input texture area
 
+    // filter input texture area
     ImVec2 InputVideoPos = window_pos + ImVec2(4, 4);
     ImVec2 InputVideoSize = show_video_number > 0 ? (ImVec2(window_size.x / show_video_number - 8, window_size.y - PanelBarSize.y - 8)) : ImVec2(0, 0);
     ImVec2 OutputVideoPos = window_pos + ImVec2((show_video_number > 1 ? window_size.x / show_video_number : 0) + 4, 4);
@@ -5339,7 +5356,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
     // blueprint_rect: only has when we show event's bp, and aways on left top of window, same width with timeline
     ImRect preview_rect, preview_control_rect, timeline_rect, event_list_rect, blueprint_rect;
 
-    const float event_min_width = 480;
+    const float event_min_width = 440;
     bool is_splitter_hold = false;
     static bool show_blueprint = false;
     int preview_count = 0;
@@ -5477,7 +5494,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
             {
                 float blue_width = window_size.x * g_media_editor_settings.clip_timeline_width;
                 float preview_width = window_size.x - blue_width;
-                is_splitter_hold |= ImGui::Splitter(true, 4.0f, &blue_width, &preview_width, window_size.x * 0.5, window_size.x * 0.2);
+                is_splitter_hold |= ImGui::Splitter(true, 4.0f, &blue_width, &preview_width, window_size.x * 0.5, event_min_width /*window_size.x * 0.2*/);
                 g_media_editor_settings.clip_timeline_width = blue_width / window_size.x;
                 if (ImGui::BeginChild("blue print", ImVec2(blue_width - 4, preview_height - 4), false))
                 {
