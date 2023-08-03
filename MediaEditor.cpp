@@ -4267,6 +4267,125 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, int64_t start, int64_t
 }
 /****************************************************************************************
  * 
+ * Filter Blueprint windows
+ *
+ ***************************************************************************************/
+static void ShowFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
+{
+    if (!clip)
+        return;
+    
+    bool is_audio_clip = IS_AUDIO(clip->mType);
+    bool is_video_clip = IS_VIDEO(clip->mType);
+    if (!timeline || (!is_audio_clip && !is_video_clip))
+        return;
+
+    if (is_audio_clip && (!timeline->mAudFilterClip || !timeline->mAudFilterClip->mFilter))
+        return;
+    
+    if (!is_video_clip && (!timeline->mAudFilterClip || !timeline->mAudFilterClip->mFilter))
+        return;
+
+    BluePrint::BluePrintUI* pBp = nullptr;
+    MEC::Event::Holder hTargetEvent;
+
+    if (is_audio_clip)
+    {
+        MediaCore::AudioFilter* pFilter = timeline->mAudFilterClip->mFilter;
+        auto filterName = pFilter->GetFilterName();
+        if (filterName == "EventStackFilter")
+        {
+            MEC::AudioEventStackFilter* pEsf = dynamic_cast<MEC::AudioEventStackFilter*>(pFilter);
+            hTargetEvent = pEsf->GetEditingEvent();
+            if (hTargetEvent)
+                pBp = hTargetEvent->GetBp();
+            else
+            {
+                hTargetEvent = clip->FindSelectedEvent();
+                if (hTargetEvent)
+                {
+                    pEsf->SetEditingEvent(hTargetEvent->Id());
+                    pBp = hTargetEvent->GetBp();
+                }
+            }
+        }
+    }
+    if (is_video_clip)
+    {
+        MediaCore::VideoFilter* pFilter = timeline->mVidFilterClip->mFilter;
+        auto filterName = pFilter->GetFilterName();
+        if (filterName == "EventStackFilter")
+        {
+            MEC::VideoEventStackFilter* pEsf = dynamic_cast<MEC::VideoEventStackFilter*>(pFilter);
+            hTargetEvent = pEsf->GetEditingEvent();
+            if (hTargetEvent)
+                pBp = hTargetEvent->GetBp();
+            else
+            {
+                hTargetEvent = clip->FindSelectedEvent();
+                if (hTargetEvent)
+                {
+                    pEsf->SetEditingEvent(hTargetEvent->Id());
+                    pBp = hTargetEvent->GetBp();
+                }
+            }
+        }
+    }
+    if (pBp)
+    {
+        if (clip && !pBp->m_Document->m_Blueprint.IsOpened())
+        {
+            auto track = timeline->FindTrackByClipID(clip->mID);
+            if (track)
+                track->SelectEditingClip(clip, true);
+            pBp->View_ZoomToContent();
+        }
+        ImVec2 window_pos = ImGui::GetCursorScreenPos();
+        ImVec2 window_size = ImGui::GetWindowSize();
+        ImGui::SetCursorScreenPos(window_pos + ImVec2(3, 3));
+        ImGui::InvisibleButton("editor_blueprint_back_view", window_size - ImVec2(6, 6));
+        if (ImGui::BeginDragDropTarget() && pBp->Blueprint_IsValid())
+        {
+            if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(is_audio_clip ? "Filter_drag_drop_Audio" : "Filter_drag_drop_Video"))
+            {
+                if (payload->Data)
+                {
+                    clip->AppendEvent(hTargetEvent, payload->Data);
+                }
+            }
+            ImGui::EndDragDropTarget();
+        }
+        ImGui::SetCursorScreenPos(window_pos + ImVec2(1, 1));
+        if (ImGui::BeginChild("##filter_editor_blueprint", window_size - ImVec2(2, 2), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
+        {
+            pBp->Frame(true, true, clip != nullptr, BluePrint::BluePrintFlag::BluePrintFlag_Filter);
+        }
+        ImGui::EndChild();
+    }
+    else
+    {
+        ImVec2 window_pos = ImGui::GetCursorScreenPos();
+        ImVec2 window_size = ImGui::GetWindowSize();
+        ImGui::SetWindowFontScale(2);
+        auto pos_center = window_pos + window_size / 2;
+        std::string tips_string = "Please Select event from event Timeline";
+        auto string_width = ImGui::CalcTextSize(tips_string.c_str());
+        auto tips_pos = pos_center - string_width / 2;
+        ImGui::SetWindowFontScale(1);
+        ImGui::AddTextComplex(draw_list, tips_pos, tips_string.c_str(), 2.f, IM_COL32(255, 255, 255, 128), 0.5f, IM_COL32(56, 56, 56, 192));
+    }
+}
+
+static void DrawFilterBlueprintWindow(ImDrawList *draw_list, Clip * editing_clip)
+{
+    ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+    ImVec2 sub_window_size = ImGui::GetWindowSize();
+    draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_ONE);
+    ShowFilterBluePrintWindow(draw_list, editing_clip);
+}
+
+/****************************************************************************************
+ * 
  * Video Editor windows
  *
  ***************************************************************************************/
@@ -4794,76 +4913,6 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list, ImRect title_rect)
  * Video Filter window
  *
  ***************************************************************************************/
-static void ShowVideoFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
-{
-    if (!timeline || !timeline->mVidFilterClip || !timeline->mVidFilterClip->mFilter)
-        return;
-    MediaCore::VideoFilter* pFilter = timeline->mVidFilterClip->mFilter;
-    auto filterName = pFilter->GetFilterName();
-    BluePrint::BluePrintUI* pBp = nullptr;
-    MEC::Event::Holder hTargetEvent;
-    if (filterName == "EventStackFilter")
-    {
-        MEC::VideoEventStackFilter* pEsf = dynamic_cast<MEC::VideoEventStackFilter*>(pFilter);
-        hTargetEvent = pEsf->GetEditingEvent();
-        if (hTargetEvent)
-            pBp = hTargetEvent->GetBp();
-        else
-        {
-            hTargetEvent = clip->FindSelectedEvent();
-            if (hTargetEvent)
-            {
-                pEsf->SetEditingEvent(hTargetEvent->Id());
-                pBp = hTargetEvent->GetBp();
-            }
-        }
-    }
-
-    if (pBp)
-    {
-        if (clip && !pBp->m_Document->m_Blueprint.IsOpened())
-        {
-            auto track = timeline->FindTrackByClipID(clip->mID);
-            if (track)
-                track->SelectEditingClip(clip, true);
-            pBp->View_ZoomToContent();
-        }
-        ImVec2 window_pos = ImGui::GetCursorScreenPos();
-        ImVec2 window_size = ImGui::GetWindowSize();
-        ImGui::SetCursorScreenPos(window_pos + ImVec2(3, 3));
-        ImGui::InvisibleButton("video_editor_blueprint_back_view", window_size - ImVec2(6, 6));
-        if (ImGui::BeginDragDropTarget() && pBp->Blueprint_IsValid())
-        {
-            if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("Filter_drag_drop_Video"))
-            {
-                if (payload->Data)
-                {
-                    clip->AppendEvent(hTargetEvent, payload->Data);
-                }
-            }
-            ImGui::EndDragDropTarget();
-        }
-        ImGui::SetCursorScreenPos(window_pos + ImVec2(1, 1));
-        if (ImGui::BeginChild("##video_editor_blueprint", window_size - ImVec2(2, 2), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
-        {
-            pBp->Frame(true, true, clip != nullptr, BluePrint::BluePrintFlag::BluePrintFlag_Filter);
-        }
-        ImGui::EndChild();
-    }
-    else
-    {
-        ImVec2 window_pos = ImGui::GetCursorScreenPos();
-        ImVec2 window_size = ImGui::GetWindowSize();
-        ImGui::SetWindowFontScale(2);
-        auto pos_center = window_pos + window_size / 2;
-        std::string tips_string = "Please Select event from event Timeline";
-        auto string_width = ImGui::CalcTextSize(tips_string.c_str());
-        auto tips_pos = pos_center - string_width / 2;
-        ImGui::SetWindowFontScale(1);
-        ImGui::AddTextComplex(draw_list, tips_pos, tips_string.c_str(), 2.f, IM_COL32(255, 255, 255, 128), 0.5f, IM_COL32(56, 56, 56, 192));
-    }
-}
-
 static void DrawVideoFilterPreviewWindow(ImDrawList *draw_list, Clip * editing_clip)
 {
     ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
@@ -4879,14 +4928,6 @@ static bool DrawVideoFilterTimelineWindow(bool& show_BP)
     ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
     ImVec2 sub_window_size = ImGui::GetWindowSize();
     return DrawClipTimeLine(timeline, timeline->mVidFilterClip, timeline->currentTime, 30, 50, show_BP);
-}
-
-static void DrawVideoFilterBlueprintWindow(ImDrawList *draw_list, Clip * editing_clip)
-{
-    ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
-    ImVec2 sub_window_size = ImGui::GetWindowSize();
-    draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_ONE);
-    ShowVideoFilterBluePrintWindow(draw_list, editing_clip);
 }
 
 static void DrawVideoFilterEventWindow(ImDrawList *draw_list, Clip * editing_clip)
@@ -5483,7 +5524,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
             g_media_editor_settings.video_clip_timeline_height = timeline_height / window_size.y;
             if (ImGui::BeginChild("video_blue_print", ImVec2(window_size.x, preview_height - 4), false))
             {
-                DrawVideoFilterBlueprintWindow(draw_list, editing_clip);
+                DrawFilterBlueprintWindow(draw_list, editing_clip);
             }
             ImGui::EndChild();
             ImGui::Dummy(ImVec2(0, 4));
@@ -5522,7 +5563,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
                 g_media_editor_settings.video_clip_timeline_width = blue_width / window_size.x;
                 if (ImGui::BeginChild("blue print", ImVec2(blue_width - 4, preview_height - 4), false))
                 {
-                    DrawVideoFilterBlueprintWindow(draw_list, editing_clip);
+                    DrawFilterBlueprintWindow(draw_list, editing_clip);
                 }
                 ImGui::EndChild();
                 ImGui::SameLine();
@@ -5606,7 +5647,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
         ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_ONE);
-        ShowVideoFilterBluePrintWindow(draw_list, editing_clip);
+        ShowFilterBluePrintWindow(draw_list, editing_clip);
     }
     ImGui::EndChild();
 
@@ -6566,75 +6607,6 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list, ImRect title_rect)
  * Audio Editor windows
  *
  ***************************************************************************************/
-static void ShowAudioFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
-{
-    if (!timeline || !timeline->mAudFilterClip || !timeline->mAudFilterClip->mFilter)
-        return;
-    MediaCore::AudioFilter* pFilter = timeline->mAudFilterClip->mFilter;
-    auto filterName = pFilter->GetFilterName();
-    BluePrint::BluePrintUI* pBp = nullptr;
-    MEC::Event::Holder hTargetEvent;
-    if (filterName == "EventStackFilter")
-    {
-        MEC::AudioEventStackFilter* pEsf = dynamic_cast<MEC::AudioEventStackFilter*>(pFilter);
-        hTargetEvent = pEsf->GetEditingEvent();
-        if (hTargetEvent)
-            pBp = hTargetEvent->GetBp();
-        else
-        {
-            hTargetEvent = clip->FindSelectedEvent();
-            if (hTargetEvent)
-            {
-                pEsf->SetEditingEvent(hTargetEvent->Id());
-                pBp = hTargetEvent->GetBp();
-            }
-        }
-    }
-    if (pBp)
-    {
-        if (clip && !pBp->m_Document->m_Blueprint.IsOpened())
-        {
-            auto track = timeline->FindTrackByClipID(clip->mID);
-            if (track)
-                track->SelectEditingClip(clip, true);
-            pBp->View_ZoomToContent();
-        }
-        ImVec2 window_pos = ImGui::GetCursorScreenPos();
-        ImVec2 window_size = ImGui::GetWindowSize();
-        ImGui::SetCursorScreenPos(window_pos + ImVec2(3, 3));
-        ImGui::InvisibleButton("audio_editor_blueprint_back_view", window_size - ImVec2(6, 6));
-        if (ImGui::BeginDragDropTarget() && pBp->Blueprint_IsValid())
-        {
-            if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("Filter_drag_drop_Audio"))
-            {
-                if (payload->Data)
-                {
-                    clip->AppendEvent(hTargetEvent, payload->Data);
-                }
-            }
-            ImGui::EndDragDropTarget();
-        }
-        ImGui::SetCursorScreenPos(window_pos + ImVec2(1, 1));
-        if (ImGui::BeginChild("##audio_editor_blueprint", window_size - ImVec2(2, 2), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
-        {
-            pBp->Frame(true, true, clip != nullptr, BluePrint::BluePrintFlag::BluePrintFlag_Filter);
-        }
-        ImGui::EndChild();
-    }
-    else
-    {
-        ImVec2 window_pos = ImGui::GetCursorScreenPos();
-        ImVec2 window_size = ImGui::GetWindowSize();
-        ImGui::SetWindowFontScale(2);
-        auto pos_center = window_pos + window_size / 2;
-        std::string tips_string = "Please Select event from event Timeline";
-        auto string_width = ImGui::CalcTextSize(tips_string.c_str());
-        auto tips_pos = pos_center - string_width / 2;
-        ImGui::SetWindowFontScale(1);
-        ImGui::AddTextComplex(draw_list, tips_pos, tips_string.c_str(), 2.f, IM_COL32(255, 255, 255, 128), 0.5f, IM_COL32(56, 56, 56, 192));
-    }
-}
-
 static void DrawAudioFilterPreviewWindow(ImDrawList *draw_list, Clip * editing_clip, bool control_only = false)
 {
     ImRect video_rect;
@@ -6644,87 +6616,61 @@ static void DrawAudioFilterPreviewWindow(ImDrawList *draw_list, Clip * editing_c
     ShowMediaPreviewWindow(draw_list, "Audio Filter", 1.5f, video_rect, editing_clip ? editing_clip->Start() : -1, editing_clip ? editing_clip->End() : -1, true, true, false, false, false, control_only);
 }
 
-static void DrawAudioFilterBlueprintWindow(ImDrawList *draw_list, Clip * editing_clip)
+static bool DrawAudioFilterTimelineWindow(bool& show_BP)
 {
     ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
     ImVec2 sub_window_size = ImGui::GetWindowSize();
-    draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_ONE);
-    ShowAudioFilterBluePrintWindow(draw_list, editing_clip);
+    return DrawClipTimeLine(timeline, timeline->mAudFilterClip, timeline->currentTime, 30, 50, show_BP);
+}
+
+static void DrawAudioFilterEventWindow(ImDrawList *draw_list, Clip * editing_clip)
+{
+    ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+    ImVec2 sub_window_size = ImGui::GetWindowSize();
+    if (!editing_clip || !editing_clip->mEventStack)
+        return;
+    // TODO::Dicky
+    ImGui::TextUnformatted("Audio filter event editor");
 }
 
 static void ShowAudioFilterWindow(ImDrawList *draw_list, ImRect title_rect)
 {
     /*
-                1. with blueprint edit(3 Splitters)                       
-    ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┓    
-    ┃    []--[]--                                ║                       ┃    
-    ┃             \                              ║                       ┃    
-    ┃               \- []                        ║                       ┃    
-    ┃                                            ║                       ┃    
-    ┃                                            ║       preview         ┃    
-    ┃                                            ║                       ┃    
-    ┃                                            ║                       ┃    
-    ┃                                            ║                       ┃    
-    ┃                                            ╟━━━━━━━━━━━━━━━━━━━━━━━┫    
-    ┃                                            ║    |<  <  []  >  >|   ┃    
-    ┣════════════════════════════════════════════╬═══════════════════════┫    
-    ┃             timeline                       ║   > event             ┃    
-    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╢    |> filter          ┃    
-    ┃              [ event ]                     ║      > filter edit    ┃    
-    ┃              [ curve ]                     ║        .              ┃    
-    ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━┛ 
-                2. with blueprint edit without preview(2 Splitters)                       
-    ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┓    
-    ┃    []--[]--                                ║    |<  <  []  >  >|   ┃    
-    ┃             \                              ╟━━━━━━━━━━━━━━━━━━━━━━━┫     
-    ┃               \- []                        ║   > event             ┃    
-    ┃                                            ║     |> filter         ┃    
-    ┃                                            ║      > filter edit    ┃    
-    ┃                                            ║        .              ┃    
-    ┃                                            ║        .              ┃    
-    ┃                                            ║      > effect edit    ┃    
-    ┃                                            ║        .              ┃    
-    ┃                                            ║        .              ┃    
-    ┣════════════════════════════════════════════╢      .                ┃    
-    ┃             timeline                       ║      .                ┃    
-    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╢     |> filter         ┃    
-    ┃              [ event ]                     ║       > filter edit   ┃    
-    ┃              [ curve ]                     ║        .              ┃    
-    ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━┛ 
-                3. without blueprint(2 Splitter)
-    ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┓
-    ┃              timeline                      ║                       ┃
-    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╢                       ┃
-    ┃              event track                   ║                       ┃
-    ┃               [event]                      ║                       ┃
-    ┃              event track                   ║       preview         ┃
-    ┃               [event]                      ║                       ┃
-    ┃               [curve]                      ╟━━━━━━━━━━━━━━━━━━━━━━━┫
-    ┃                  .                         ║    |<  <  []  >  >|   ┃
-    ┃                  .                         ╟═══════════════════════┫
-    ┃                  .                         ║    > event            ┃
-    ┃              event track                   ║      |> filter        ┃
-    ┃                  .                         ║       > filter edit   ┃
-    ┃                                            ║        .              ┃
-    ┃                                            ║        .              ┃
-    ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━┛ 
-                4. without preview and blueprint(1 Splitter)
-    ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┓
-    ┃              timeline                      ║    |<  <  []  >  >|   ┃
-    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╟━━━━━━━━━━━━━━━━━━━━━━━┫ 
-    ┃              event track                   ║   > event             ┃
-    ┃                  .                         ║    |> filter          ┃
-    ┃              event track                   ║      > filter edit    ┃
-    ┃               [event]                      ║        .              ┃
-    ┃               [curve]                      ║        .              ┃
-    ┃                  .                         ║      > effect edit    ┃
-    ┃                  .                         ║        .              ┃
-    ┃                  .                         ║        .              ┃
-    ┃              event track                   ║      .                ┃
-    ┃                  .                         ║      .                ┃
-    ┃                                            ║                       ┃
-    ┃                                            ║                       ┃
-    ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━┛
+                1. with blueprint edit(3 Splitters)                                       2. with blueprint edit without preview(2 Splitters)         
+    ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┓    ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┓      
+    ┃    []--[]--                                ║                       ┃    ┃    []--[]--                                ║    |<  <  []  >  >|   ┃      
+    ┃             \                              ║                       ┃    ┃             \                              ╟━━━━━━━━━━━━━━━━━━━━━━━┫      
+    ┃               \- []                        ║                       ┃    ┃               \- []                        ║   > event             ┃      
+    ┃                                            ║                       ┃    ┃                                            ║     |> filter         ┃      
+    ┃                                            ║       preview         ┃    ┃                                            ║      > filter edit    ┃      
+    ┃                                            ║                       ┃    ┃                                            ║        .              ┃      
+    ┃                                            ║                       ┃    ┃                                            ║        .              ┃      
+    ┃                                            ║                       ┃    ┃                                            ║      > effect edit    ┃      
+    ┃                                            ╟━━━━━━━━━━━━━━━━━━━━━━━┫    ┃                                            ║        .              ┃      
+    ┃                                            ║    |<  <  []  >  >|   ┃    ┃                                            ║        .              ┃      
+    ┣════════════════════════════════════════════╬═══════════════════════┫    ┣════════════════════════════════════════════╢      .                ┃      
+    ┃             timeline                       ║   > event             ┃    ┃             timeline                       ║      .                ┃      
+    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╢    |> filter          ┃    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╢     |> filter         ┃      
+    ┃              [ event ]                     ║      > filter edit    ┃    ┃              [ event ]                     ║       > filter edit   ┃      
+    ┃              [ curve ]                     ║        .              ┃    ┃              [ curve ]                     ║        .              ┃      
+    ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━┛    ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━┛  
+                3. without blueprint(2 Splitter)                                          4. without preview and blueprint(1 Splitter)  
+    ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┓    ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┓
+    ┃              timeline                      ║                       ┃    ┃              timeline                      ║    |<  <  []  >  >|   ┃
+    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╢                       ┃    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╟━━━━━━━━━━━━━━━━━━━━━━━┫
+    ┃              event track                   ║                       ┃    ┃              event track                   ║   > event             ┃
+    ┃               [event]                      ║                       ┃    ┃                  .                         ║    |> filter          ┃
+    ┃              event track                   ║       preview         ┃    ┃              event track                   ║      > filter edit    ┃
+    ┃               [event]                      ║                       ┃    ┃               [event]                      ║        .              ┃
+    ┃               [curve]                      ╟━━━━━━━━━━━━━━━━━━━━━━━┫    ┃               [curve]                      ║        .              ┃
+    ┃                  .                         ║    |<  <  []  >  >|   ┃    ┃                  .                         ║      > effect edit    ┃
+    ┃                  .                         ╟═══════════════════════┫    ┃                  .                         ║        .              ┃
+    ┃                  .                         ║    > event            ┃    ┃                  .                         ║        .              ┃
+    ┃              event track                   ║      |> filter        ┃    ┃              event track                   ║      .                ┃
+    ┃                  .                         ║       > filter edit   ┃    ┃                  .                         ║      .                ┃
+    ┃                                            ║        .              ┃    ┃                                            ║                       ┃
+    ┃                                            ║        .              ┃    ┃                                            ║                       ┃
+    ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━┛    ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━┛ 
     */
     // draw page title
     ImGui::SetWindowFontScale(1.8);
@@ -6774,7 +6720,7 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list, ImRect title_rect)
     ImRect preview_rect, preview_control_rect, timeline_rect, event_list_rect, blueprint_rect;
     const float event_min_width = 440;
     bool is_splitter_hold = false;
-    static bool show_blueprint = true;
+    static bool show_blueprint = false;
     int preview_count = 0;
     if (MonitorIndexPreviewVideo == -1) preview_count ++;
     if (!show_blueprint)
@@ -6788,8 +6734,7 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list, ImRect title_rect)
             g_media_editor_settings.audio_clip_timeline_width = timeline_width / window_size.x;
             if (ImGui::BeginChild("audio_timeline", ImVec2(timeline_width - 4, window_size.y), false))
             {
-                ImGui::TextUnformatted("audio_timeline");
-                //mouse_hold |= DrawVideoFilterTimelineWindow(show_blueprint);
+                mouse_hold |= DrawAudioFilterTimelineWindow(show_blueprint);
             }
             ImGui::EndChild();
             ImGui::SameLine();
@@ -6804,8 +6749,8 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list, ImRect title_rect)
                 ImGui::Dummy(ImVec2(0, 4));
                 if (ImGui::BeginChild("audio_event_list", ImVec2(event_list_width - 4, window_size.y - 48), false))
                 {
-                    ImGui::TextUnformatted("audio_event_list");
-                    //DrawVideoFilterEventWindow(draw_list, editing_clip);
+                    //ImGui::TextUnformatted("audio_event_list");
+                    DrawAudioFilterEventWindow(draw_list, editing_clip);
                 }
                 ImGui::EndChild();
             }
@@ -6820,8 +6765,7 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list, ImRect title_rect)
             g_media_editor_settings.audio_clip_timeline_width = timeline_width / window_size.x;
             if (ImGui::BeginChild("audio_timeline", ImVec2(timeline_width - 4, window_size.y), false))
             {
-                ImGui::TextUnformatted("audio_timeline");
-                //mouse_hold |= DrawVideoFilterTimelineWindow(show_blueprint);
+                mouse_hold |= DrawAudioFilterTimelineWindow(show_blueprint);
             }
             ImGui::EndChild();
             ImGui::SameLine();
@@ -6839,8 +6783,8 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list, ImRect title_rect)
                 ImGui::Dummy(ImVec2(0, 4));
                 if (ImGui::BeginChild("audio_event_list", ImVec2(event_list_width - 4, timeline_height - 8), false))
                 {
-                    ImGui::TextUnformatted("audio_event_list");
-                    //DrawVideoFilterEventWindow(draw_list, editing_clip);
+                    //ImGui::TextUnformatted("audio_event_list");
+                    DrawAudioFilterEventWindow(draw_list, editing_clip);
                 }
                 ImGui::EndChild();
             }
@@ -6864,14 +6808,12 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list, ImRect title_rect)
                 g_media_editor_settings.audio_clip_timeline_height = timeline_height / window_size.y;
                 if (ImGui::BeginChild("audio_blue_print", ImVec2(timeline_width - 4, blueprint_height - 4), false))
                 {
-                    //ImGui::TextUnformatted("audio_blue_print");
-                    DrawAudioFilterBlueprintWindow(draw_list, editing_clip);
+                    DrawFilterBlueprintWindow(draw_list, editing_clip);
                 }
                 ImGui::EndChild();
                 if (ImGui::BeginChild("audio_timeline", ImVec2(timeline_width - 4, timeline_height - 8), false))
                 {
-                    ImGui::TextUnformatted("audio_timeline");
-                    //mouse_hold |= DrawVideoFilterTimelineWindow(show_blueprint);
+                    mouse_hold |= DrawAudioFilterTimelineWindow(show_blueprint);
                 }
                 ImGui::EndChild();
             }
@@ -6882,15 +6824,13 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list, ImRect title_rect)
                 // show preview window with tool bar only
                 if (ImGui::BeginChild("audio_preview_tool_bar", ImVec2(event_list_width - 4, 48), false))
                 {
-                    //ImGui::TextUnformatted("audio_preview_tool_bar");
                     DrawAudioFilterPreviewWindow(draw_list, editing_clip, true);
                 }
                 ImGui::EndChild();
                 ImGui::Dummy(ImVec2(0, 4));
                 if (ImGui::BeginChild("audio_event_list", ImVec2(event_list_width - 4, window_size.y - 48), false))
                 {
-                    ImGui::TextUnformatted("audio_event_list");
-                    //DrawVideoFilterEventWindow(draw_list, editing_clip);
+                    DrawAudioFilterEventWindow(draw_list, editing_clip);
                 }
                 ImGui::EndChild();
             }
@@ -6911,14 +6851,12 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list, ImRect title_rect)
                 g_media_editor_settings.audio_clip_timeline_height = timeline_height / window_size.y;
                 if (ImGui::BeginChild("audio_blue_print", ImVec2(timeline_width - 4, blueprint_height - 4), false))
                 {
-                    //ImGui::TextUnformatted("audio_blue_print");
-                    DrawAudioFilterBlueprintWindow(draw_list, editing_clip);
+                    DrawFilterBlueprintWindow(draw_list, editing_clip);
                 }
                 ImGui::EndChild();
                 if (ImGui::BeginChild("audio_timeline", ImVec2(timeline_width - 4, timeline_height - 8), false))
                 {
-                    ImGui::TextUnformatted("audio_timeline");
-                    //mouse_hold |= DrawVideoFilterTimelineWindow(show_blueprint);
+                    mouse_hold |= DrawAudioFilterTimelineWindow(show_blueprint);
                 }
                 ImGui::EndChild();
             }
@@ -6932,16 +6870,13 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list, ImRect title_rect)
                 g_media_editor_settings.audio_clip_timeline_height = timeline_height / window_size.y;
                 if (ImGui::BeginChild("audio_preview", ImVec2(event_list_width - 4, preview_height - 4), false))
                 {
-                    //ImGui::TextUnformatted("audio_preview");
-                    //DrawVideoFilterPreviewWindow(draw_list, editing_clip);
                     DrawAudioFilterPreviewWindow(draw_list, editing_clip);
                 }
                 ImGui::EndChild();
                 ImGui::Dummy(ImVec2(0, 4));
                 if (ImGui::BeginChild("audio_event_list", ImVec2(event_list_width - 4, timeline_height - 48), false))
                 {
-                    ImGui::TextUnformatted("audio_event_list");
-                    //DrawVideoFilterEventWindow(draw_list, editing_clip);
+                    DrawAudioFilterEventWindow(draw_list, editing_clip);
                 }
                 ImGui::EndChild();
             }
@@ -7020,7 +6955,7 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list, ImRect title_rect)
         ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_ONE);
-        ShowAudioFilterBluePrintWindow(draw_list, editing_clip);
+        ShowFilterBluePrintWindow(draw_list, editing_clip);
     }
     ImGui::EndChild();
 

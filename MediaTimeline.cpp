@@ -13026,7 +13026,9 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
             {
                 // drag drop line and time indicate
                 auto _payload = ImGui::GetDragDropPayload();
-                if (_payload && _payload->IsDataType("Filter_drag_drop_Video"))
+                if (_payload && 
+                    (IS_VIDEO(editingClip->mType) && _payload->IsDataType("Filter_drag_drop_Video")) ||
+                    (IS_AUDIO(editingClip->mType) && _payload->IsDataType("Filter_drag_drop_Audio")) )
                 {
                     drawList->PushClipRect(trackAreaRect.Min, trackAreaRect.Max);
                     static const float cursorWidth = 2.f;
@@ -13043,7 +13045,8 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                     ImGui::SetWindowFontScale(1.0);
                 }
 
-                if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("Filter_drag_drop_Video"))
+                if (const ImGuiPayload* payload =   IS_VIDEO(editingClip->mType) ? ImGui::AcceptDragDropPayload("Filter_drag_drop_Video") :
+                                                    IS_AUDIO(editingClip->mType) ? ImGui::AcceptDragDropPayload("Filter_drag_drop_Audio") : nullptr)
                 {
                     const BluePrint::Node * node = (const BluePrint::Node *)payload->Data;
                     if (node)
