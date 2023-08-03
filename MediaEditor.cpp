@@ -3917,7 +3917,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, flo
     if (monitors)
     {
         // Show monitors
-        std::vector<int> disabled_monitor;
+        std::vector<int> disabled_monitor = {MonitorIndexScope};
         MonitorButton("##preview_monitor_select", ImVec2(PanelBarPos.x + 20, PanelBarPos.y + 16), MonitorIndexPreviewVideo, disabled_monitor);
     }
 
@@ -4064,9 +4064,9 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, int64_t start, int64_t
     ImGui::SetWindowFontScale(1.0);
 
     // Show monitors
-    std::vector<int> org_disabled_monitor = {MonitorIndexVideoFiltered};
+    std::vector<int> org_disabled_monitor = {MonitorIndexVideoFiltered, MonitorIndexScope};
     MonitorButton("##video_filter_org_monitor_select", ImVec2(PanelBarPos.x + 8, PanelRightY), MonitorIndexVideoFilterOrg, org_disabled_monitor);
-    std::vector<int> filter_disabled_monitor = {MonitorIndexVideoFilterOrg};
+    std::vector<int> filter_disabled_monitor = {MonitorIndexVideoFilterOrg, MonitorIndexScope};
     MonitorButton("##video_filter_monitor_select", ImVec2(PanelBarPos.x + PanelBarSize.x - 8 - b_size, PanelRightY), MonitorIndexVideoFiltered, filter_disabled_monitor);
 
     int show_video_number = 0;
