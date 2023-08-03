@@ -388,8 +388,13 @@ struct MediaEditorSettings
     bool ShowHelpTooltips {false};          // Show UI help tool tips
 
     // clip filter editor layout
-    float clip_timeline_height {0.5};       // clip filter view timelime height
-    float clip_timeline_width {0.5};        // clip filter view timeline width
+    float video_clip_timeline_height {0.5}; // video clip filter view timelime height
+    float video_clip_timeline_width {0.5};  // video clip filter view timeline width
+
+    // clip filter editor layout
+    float audio_clip_timeline_height {0.5}; // audio clip filter view timelime height
+    float audio_clip_timeline_width {0.5};  // audio clip filter view timeline width
+
 
     bool ExpandScope {true};
     bool SeparateScope {false};
@@ -3667,28 +3672,35 @@ static void ShowMediaOutputWindow(ImDrawList *_draw_list)
  * Media Preview window
  *
  ***************************************************************************************/
-static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, float title_size, ImRect& video_rect, int64_t start = -1, int64_t end = -1, bool audio_bar = true, bool monitors = true, bool force_update = false, bool small = false, bool zoom_button = true, bool loop_button = true)
+static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, float title_size, ImRect& video_rect, int64_t start = -1, int64_t end = -1, bool audio_bar = true, bool monitors = true, bool force_update = false, bool zoom_button = true, bool loop_button = true, bool control_only = false)
 {
     // preview control pannel
     ImGuiIO& io = ImGui::GetIO();
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
     draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
-    ImVec2 PanelBarPos = window_pos + window_size - ImVec2(window_size.x, 48);
-    ImVec2 PanelBarSize = ImVec2(window_size.x, 48);
+    bool is_small_window = window_size.x < 540;
+    int bar_height = is_small_window ? 32 : 48;
+    int bar_y_offset = is_small_window ? 4 : 8;
+    ImVec2 PanelBarPos = window_pos + (control_only ? ImVec2(0, 0) : window_size - ImVec2(window_size.x, bar_height));
+    ImVec2 PanelBarSize = ImVec2(window_size.x, bar_height);
     draw_list->AddRectFilled(PanelBarPos, PanelBarPos + PanelBarSize, COL_DARK_PANEL);
     bool out_of_border = false;
 
     // Preview buttons Stop button is center of Panel bar
     auto PanelCenterX = PanelBarPos.x + window_size.x / 2;
-    auto PanelButtonY = PanelBarPos.y + 8;
+    auto PanelButtonY = PanelBarPos.y + bar_y_offset;
 
     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0.5));
     ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.2, 0.2, 0.2, 1.0));
+    const int b_size = is_small_window ? 24 : 32;
+    const int b_gap = is_small_window ? 2 : 8;
+    const int button_gap = b_size + b_gap;
+    const ImVec2 button_size = ImVec2(b_size, b_size);
 
-    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - (32 + 8) * 3, PanelButtonY));
-    if (ImGui::Button(ICON_TO_START "##preview_tostart", ImVec2(32, 32)))
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - b_size / 2 - button_gap * 3, PanelButtonY));
+    if (ImGui::Button(ICON_TO_START "##preview_tostart", button_size))
     {
         if (timeline)
         {
@@ -3698,8 +3710,8 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, flo
     }
     ImGui::ShowTooltipOnHover("To Start");
 
-    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - (32 + 8) * 2, PanelButtonY));
-    if (ImGui::Button(ICON_STEP_BACKWARD "##preview_step_backward", ImVec2(32, 32)))
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - b_size / 2 - button_gap * 2, PanelButtonY));
+    if (ImGui::Button(ICON_STEP_BACKWARD "##preview_step_backward", button_size))
     {
         if (timeline)
         {
@@ -3711,8 +3723,9 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, flo
 
     bool isForwordPlaying = timeline ? (timeline->mIsPreviewPlaying && timeline->mIsPreviewForward) : false;
     bool isBackwardPlaying = (timeline && !isForwordPlaying) ? (timeline->mIsPreviewPlaying && !timeline->mIsPreviewForward) : false;
-    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - (32 + 8) * 1 + 6, PanelButtonY + 5));
-    if (ImGui::RotateCheckButton(ICON_PLAY_BACKWARD "##preview_reverse", &isBackwardPlaying, ImVec4(0.5, 0.5, 0.0, 1.0), 180))
+    
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - b_size / 2 - button_gap * 1, PanelButtonY));
+    if (ImGui::RotateCheckButton(ICON_PLAY_BACKWARD "##preview_reverse", &isBackwardPlaying, ImVec4(0.5, 0.5, 0.0, 1.0), 180, button_size))
     {
         if (timeline)
         {
@@ -3722,16 +3735,16 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, flo
     }
     ImGui::ShowTooltipOnHover("Reverse");
 
-    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16, PanelButtonY));
-    if (ImGui::Button(ICON_STOP "##preview_stop", ImVec2(32, 32)))
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - b_size / 2 - button_gap * 0, PanelButtonY));
+    if (ImGui::Button(ICON_STOP "##preview_stop", button_size))
     {
         if (timeline) timeline->Play(false, true);
         isForwordPlaying = false;
     }
     ImGui::ShowTooltipOnHover("Stop");
 
-    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 6, PanelButtonY + 5));
-    if (ImGui::CheckButton(ICON_PLAY_FORWARD "##preview_play", &isForwordPlaying, ImVec4(0.5, 0.5, 0.0, 1.0)))
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + b_size / 2  + b_gap + button_gap * 0, PanelButtonY));
+    if (ImGui::RotateCheckButton(ICON_PLAY_FORWARD "##preview_play", &isForwordPlaying, ImVec4(0.5, 0.5, 0.0, 1.0), 0, button_size))
     {
         if (timeline)
         {
@@ -3741,8 +3754,8 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, flo
     }
     ImGui::ShowTooltipOnHover("Play");
 
-    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + (32 + 8) * 1, PanelButtonY));
-    if (ImGui::Button(ICON_STEP_FORWARD "##preview_step_forward", ImVec2(32, 32)))
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + b_size / 2 + b_gap + button_gap * 1, PanelButtonY));
+    if (ImGui::Button(ICON_STEP_FORWARD "##preview_step_forward", button_size))
     {
         if (timeline)
         {
@@ -3752,8 +3765,8 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, flo
     }
     ImGui::ShowTooltipOnHover("Step Next");
 
-    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + (32 + 8) * 2, PanelButtonY));
-    if (ImGui::Button(ICON_TO_END "##preview_toend", ImVec2(32, 32)))
+    ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + b_size / 2  + b_gap + button_gap * 2, PanelButtonY));
+    if (ImGui::Button(ICON_TO_END "##preview_toend", button_size))
     {
         if (timeline)
         {
@@ -3766,8 +3779,8 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, flo
     if (loop_button)
     {
         bool loop = timeline ? timeline->bLoop : false;
-        ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + (32 + 8) * 3, PanelButtonY + 4 + 3));
-        if (ImGui::CheckButton(ICON_LOOP_ONE "##preview_loop", &loop, ImVec4(0.5, 0.5, 0.0, 1.0)))
+        ImGui::SetCursorScreenPos(ImVec2(PanelBarPos.x + PanelBarSize.x - button_gap * 2 - 64, PanelButtonY));
+        if (ImGui::RotateCheckButton(ICON_LOOP_ONE "##preview_loop", &loop, ImVec4(0.5, 0.5, 0.0, 1.0), 0, button_size))
         {
             if (timeline)
             {
@@ -3780,30 +3793,29 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, flo
     if (zoom_button)
     {
         bool zoom = timeline ? timeline->bPreviewZoom : false;
-        ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + (32 + 8) * 4, PanelButtonY + 8 - 3));
-        if (ImGui::CheckButton(ICON_ZOOM "##preview_zoom", &zoom, ImVec4(0.5, 0.5, 0.0, 1.0)))
+        ImGui::SetCursorScreenPos(ImVec2(PanelBarPos.x + PanelBarSize.x - button_gap * 1 - 64, PanelButtonY));
+        if (ImGui::RotateCheckButton(ICON_ZOOM "##preview_zoom", &zoom, ImVec4(0.5, 0.5, 0.0, 1.0), 0, button_size))
         {
             timeline->bPreviewZoom = zoom;
         }
         ImGui::ShowTooltipOnHover("Magnifying");
     }
 
-
     // Time stamp on left of control panel
-    auto PanelRightX = PanelBarPos.x + window_size.x - (small ? 60 : 150);
-    auto PanelRightY = PanelBarPos.y + (small ? 16 : 8);
+    auto PanelRightX = PanelBarPos.x + 48;
+    auto PanelRightY = PanelBarPos.y + (is_small_window ? 8 : 12);
     auto time_str = ImGuiHelper::MillisecToString(timeline->currentTime, 3);
-    ImGui::SetWindowFontScale(small ? 1.0 : 1.5);
-    draw_list->AddText(ImVec2(PanelRightX, PanelRightY), timeline->mIsPreviewPlaying ? COL_MARK : COL_MARK_HALF, time_str.c_str());
+    ImGui::SetWindowFontScale(is_small_window ? 1.2 : 1.5);
+    draw_list->AddText(ImVec2(PanelRightX, PanelRightY), timeline->mIsPreviewPlaying ? IM_COL32_WHITE : COL_MARK, time_str.c_str());
     ImGui::SetWindowFontScale(1.0);
 
     // audio meters
-    if (audio_bar)
+    if (audio_bar && !control_only)
     {
         ImVec2 AudioMeterPos;
         ImVec2 AudioMeterSize;
         AudioMeterPos = window_pos + ImVec2(window_size.x - 70, 16);
-        AudioMeterSize = ImVec2(32, window_size.y - 48 - 16 - 8);
+        AudioMeterSize = ImVec2(32, window_size.y - bar_height - 16 - 8);
         ImVec2 AudioUVLeftPos = AudioMeterPos + ImVec2(36, 0);
         ImVec2 AudioUVLeftSize = ImVec2(12, AudioMeterSize.y);
         ImVec2 AudioUVRightPos = AudioMeterPos + ImVec2(36 + 16, 0);
@@ -3841,7 +3853,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, flo
     ImVec2 PreviewPos;
     ImVec2 PreviewSize;
     PreviewPos = window_pos + ImVec2(8, 8);
-    PreviewSize = window_size - ImVec2(16 + (audio_bar ? 64 : 0), 16 + 48);
+    PreviewSize = window_size - ImVec2(16 + (audio_bar ? 64 : 0), 16 + bar_height);
     auto frames = timeline->GetPreviewFrame();
     ImGui::ImMat frame;
     if (!frames.empty())
@@ -3871,57 +3883,60 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, flo
         }
     }
 
-    float pos_x = 0, pos_y = 0;
-    float offset_x = 0, offset_y = 0;
-    float tf_x = 0, tf_y = 0;
-    ImVec2 scale_range = ImVec2(2.0 / timeline->mPreviewScale, 8.0 / timeline->mPreviewScale);
-    static float texture_zoom = scale_range.x;
-    ShowVideoWindow(draw_list, timeline->mMainPreviewTexture, PreviewPos, PreviewSize, title, title_size, offset_x, offset_y, tf_x, tf_y, true, out_of_border);
-    if (!out_of_border && ImGui::IsItemHovered() && timeline->bPreviewZoom && timeline->mMainPreviewTexture)
+    if (!control_only)
     {
-        ImVec4 tint_col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);   // No tint
-        ImVec4 border_col = ImVec4(1.0f, 1.0f, 1.0f, 0.5f); // 50% opaque white
-        float region_sz = 480.0f / texture_zoom;
-        float image_width = ImGui::ImGetTextureWidth(timeline->mMainPreviewTexture);
-        float image_height = ImGui::ImGetTextureHeight(timeline->mMainPreviewTexture);
-        float scale_w = image_width / (tf_x - offset_x);
-        float scale_h = image_height / (tf_y - offset_y);
-        pos_x = (io.MousePos.x - offset_x) * scale_w;
-        pos_y = (io.MousePos.y - offset_y) * scale_h;
-        float region_x = pos_x - region_sz * 0.5f;
-        float region_y = pos_y - region_sz * 0.5f;
-        if (region_x < 0.0f) { region_x = 0.0f; }
-        else if (region_x > image_width - region_sz) { region_x = image_width - region_sz; }
-        if (region_y < 0.0f) { region_y = 0.0f; }
-        else if (region_y > image_height - region_sz) { region_y = image_height - region_sz; }
-        ImGui::SetNextWindowBgAlpha(1.0);
-        if (ImGui::BeginTooltip())
+        float pos_x = 0, pos_y = 0;
+        float offset_x = 0, offset_y = 0;
+        float tf_x = 0, tf_y = 0;
+        ImVec2 scale_range = ImVec2(2.0 / timeline->mPreviewScale, 8.0 / timeline->mPreviewScale);
+        static float texture_zoom = scale_range.x;
+        ShowVideoWindow(draw_list, timeline->mMainPreviewTexture, PreviewPos, PreviewSize, title, title_size, offset_x, offset_y, tf_x, tf_y, true, out_of_border);
+        if (!out_of_border && ImGui::IsItemHovered() && timeline->bPreviewZoom && timeline->mMainPreviewTexture)
         {
-            ImGui::TextUnformatted("Magnifying: Mouse wheel up to zoom in, down to zoom out");
-            ImGui::SameLine(); ImGui::Text("(%.2fx)", texture_zoom);
-            ImVec2 uv0 = ImVec2((region_x) / image_width, (region_y) / image_height);
-            ImVec2 uv1 = ImVec2((region_x + region_sz) / image_width, (region_y + region_sz) / image_height);
-            ImGui::Image(timeline->mMainPreviewTexture, ImVec2(region_sz * texture_zoom, region_sz * texture_zoom), uv0, uv1, tint_col, border_col);
-            ImGui::EndTooltip();
+            ImVec4 tint_col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);   // No tint
+            ImVec4 border_col = ImVec4(1.0f, 1.0f, 1.0f, 0.5f); // 50% opaque white
+            float region_sz = 480.0f / texture_zoom;
+            float image_width = ImGui::ImGetTextureWidth(timeline->mMainPreviewTexture);
+            float image_height = ImGui::ImGetTextureHeight(timeline->mMainPreviewTexture);
+            float scale_w = image_width / (tf_x - offset_x);
+            float scale_h = image_height / (tf_y - offset_y);
+            pos_x = (io.MousePos.x - offset_x) * scale_w;
+            pos_y = (io.MousePos.y - offset_y) * scale_h;
+            float region_x = pos_x - region_sz * 0.5f;
+            float region_y = pos_y - region_sz * 0.5f;
+            if (region_x < 0.0f) { region_x = 0.0f; }
+            else if (region_x > image_width - region_sz) { region_x = image_width - region_sz; }
+            if (region_y < 0.0f) { region_y = 0.0f; }
+            else if (region_y > image_height - region_sz) { region_y = image_height - region_sz; }
+            ImGui::SetNextWindowBgAlpha(1.0);
+            if (ImGui::BeginTooltip())
+            {
+                ImGui::TextUnformatted("Magnifying: Mouse wheel up to zoom in, down to zoom out");
+                ImGui::SameLine(); ImGui::Text("(%.2fx)", texture_zoom);
+                ImVec2 uv0 = ImVec2((region_x) / image_width, (region_y) / image_height);
+                ImVec2 uv1 = ImVec2((region_x + region_sz) / image_width, (region_y + region_sz) / image_height);
+                ImGui::Image(timeline->mMainPreviewTexture, ImVec2(region_sz * texture_zoom, region_sz * texture_zoom), uv0, uv1, tint_col, border_col);
+                ImGui::EndTooltip();
+            }
+            if (io.MouseWheel < -FLT_EPSILON)
+            {
+                texture_zoom *= 0.9;
+                if (texture_zoom < scale_range.x) texture_zoom = scale_range.x;
+            }
+            else if (io.MouseWheel > FLT_EPSILON)
+            {
+                texture_zoom *= 1.1;
+                if (texture_zoom > scale_range.y) texture_zoom = scale_range.y;
+            }
         }
-        if (io.MouseWheel < -FLT_EPSILON)
-        {
-            texture_zoom *= 0.9;
-            if (texture_zoom < scale_range.x) texture_zoom = scale_range.x;
-        }
-        else if (io.MouseWheel > FLT_EPSILON)
-        {
-            texture_zoom *= 1.1;
-            if (texture_zoom > scale_range.y) texture_zoom = scale_range.y;
-        }
+        video_rect.Min = ImVec2(offset_x, offset_y);
+        video_rect.Max = ImVec2(tf_x, tf_y);
     }
-    video_rect.Min = ImVec2(offset_x, offset_y);
-    video_rect.Max = ImVec2(tf_x, tf_y);
     if (monitors)
     {
         // Show monitors
         std::vector<int> disabled_monitor = {MonitorIndexScope};
-        MonitorButton("##preview_monitor_select", ImVec2(PanelBarPos.x + 20, PanelBarPos.y + 16), MonitorIndexPreviewVideo, disabled_monitor);
+        MonitorButton("##preview_monitor_select", ImVec2(PanelBarPos.x + 8, PanelBarPos.y + (is_small_window ? 8 : 12)), MonitorIndexPreviewVideo, disabled_monitor);
     }
 
     ImGui::PopStyleColor(3);
@@ -3982,6 +3997,7 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, int64_t start, int64_t
 
     bool isForwordPlaying = timeline ? (timeline->mIsPreviewPlaying && timeline->mIsPreviewForward) : false;
     bool isBackwardPlaying = (timeline && !isForwordPlaying) ? (timeline->mIsPreviewPlaying && !timeline->mIsPreviewForward) : false;
+    
     ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - b_size / 2 - button_gap * 1, PanelButtonY));
     if (ImGui::RotateCheckButton(ICON_PLAY_BACKWARD "##preview_reverse", &isBackwardPlaying, ImVec4(0.5, 0.5, 0.0, 1.0), 180, button_size))
     {
@@ -5262,7 +5278,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
     ┃                                 ┃                                  ┃      ┃              event track                   ║      > filter edit    ┃ 
     ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫      ┃               [event]                      ║        .              ┃ 
     ┃                          |<  <  []  >  >|                          ┃      ┃               [curve]                      ║        .              ┃ 
-    ┣════════════════════════════════════════════╦═══════════════════════┫      ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╢      > effect edit    ┃ 
+    ┣════════════════════════════════════════════╦═══════════════════════┫      ┃                  .                         ║      > effect edit    ┃ 
     ┃             timeline                       ║   > event             ┃      ┃                  .                         ║        .              ┃ 
     ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╢    |> filter          ┃      ┃                  .                         ║        .              ┃ 
     ┃              event track                   ║      > filter edit    ┃      ┃              event track                   ║      .                ┃ 
@@ -5331,7 +5347,6 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
         editing_clip = nullptr;
     }
 
-#ifndef USING_OLD_UI
     if (editing_clip)
     {
         if (timeline->mVidFilterClip)
@@ -5347,6 +5362,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
         auto track = timeline->FindTrackByClipID(editing_clip->mID);
         if (track) trackId = track->mID;
     }
+#ifndef USING_OLD_UI
     // every type for area rect
     // preview_rect: could be (0, 0, 0, 0)
     // preview_control_rect: if preview_rect is exist, width shoule equ preview_rect.width, otherwise, alway on top and same width with window
@@ -5367,19 +5383,19 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
         if (preview_count == 0)
         {
             // 1 Splitter vertically only(chart 2)
-            float timeline_width = window_size.x * g_media_editor_settings.clip_timeline_width;
+            float timeline_width = window_size.x * g_media_editor_settings.video_clip_timeline_width;
             float event_list_width = window_size.x - timeline_width;
             is_splitter_hold |= ImGui::Splitter(true, 4.0f, &timeline_width, &event_list_width, window_size.x * 0.5, event_min_width/*window_size.x * 0.2*/);
-            g_media_editor_settings.clip_timeline_width = timeline_width / window_size.x;
-            if (ImGui::BeginChild("timeline&preview_tool_bar", ImVec2(timeline_width - 4, window_size.y), false))
+            g_media_editor_settings.video_clip_timeline_width = timeline_width / window_size.x;
+            if (ImGui::BeginChild("video_timeline&preview_tool_bar", ImVec2(timeline_width - 4, window_size.y), false))
             {
                 // show preview window with tool bar only
-                if (ImGui::BeginChild("preview_tool_bar", ImVec2(timeline_width - 4, 48), false))
+                if (ImGui::BeginChild("video_preview_tool_bar", ImVec2(timeline_width - 4, 48), false))
                 {
                     DrawVideoFilterPreviewWindow(draw_list, editing_clip);
                 }
                 ImGui::EndChild();
-                if (ImGui::BeginChild("timeline", ImVec2(timeline_width - 4, window_size.y - 48), false))
+                if (ImGui::BeginChild("video_timeline", ImVec2(timeline_width - 4, window_size.y - 48), false))
                 {
                     mouse_hold |= DrawVideoFilterTimelineWindow(show_blueprint);
                 }
@@ -5387,32 +5403,32 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
             }
             ImGui::EndChild();
             ImGui::SameLine();
-            if (ImGui::BeginChild("event list", ImVec2(event_list_width - 4, window_size.y), false))
+            if (ImGui::BeginChild("video_event_list", ImVec2(event_list_width - 4, window_size.y), false))
             {
                 DrawVideoFilterEventWindow(draw_list, editing_clip);
             }
             ImGui::EndChild();
         }
-        else if (preview_count < 2 || g_media_editor_settings.clip_timeline_height > 0.66)
+        else if (preview_count < 2 || g_media_editor_settings.video_clip_timeline_height > 0.66)
         {
             // 2 Splitters, vertically first, then horizontal(chart 4)
-            float timeline_width = window_size.x * g_media_editor_settings.clip_timeline_width;
+            float timeline_width = window_size.x * g_media_editor_settings.video_clip_timeline_width;
             float event_list_width = window_size.x - timeline_width;
             is_splitter_hold |= ImGui::Splitter(true, 4.0f, &timeline_width, &event_list_width, window_size.x * 0.5, event_min_width/*window_size.x * 0.2*/);
-            g_media_editor_settings.clip_timeline_width = timeline_width / window_size.x;
-            if (ImGui::BeginChild("timeline&preview", ImVec2(timeline_width - 4, window_size.y), false))
+            g_media_editor_settings.video_clip_timeline_width = timeline_width / window_size.x;
+            if (ImGui::BeginChild("video_timeline&preview", ImVec2(timeline_width - 4, window_size.y), false))
             {
-                float timeline_height = window_size.y * g_media_editor_settings.clip_timeline_height;
+                float timeline_height = window_size.y * g_media_editor_settings.video_clip_timeline_height;
                 float preview_height = window_size.y - timeline_height;
                 is_splitter_hold |= ImGui::Splitter(false, 4.0f, &preview_height, &timeline_height, window_size.y * 0.3, window_size.y * 0.3);
-                g_media_editor_settings.clip_timeline_height = timeline_height / window_size.y;
-                if (ImGui::BeginChild("preview", ImVec2(timeline_width - 4, preview_height - 4), false))
+                g_media_editor_settings.video_clip_timeline_height = timeline_height / window_size.y;
+                if (ImGui::BeginChild("video_preview", ImVec2(timeline_width - 4, preview_height - 4), false))
                 {
                     DrawVideoFilterPreviewWindow(draw_list, editing_clip);
                 }
                 ImGui::EndChild();
                 ImGui::Dummy(ImVec2(0, 4));
-                if (ImGui::BeginChild("timeline", ImVec2(timeline_width - 4, timeline_height - 8), false))
+                if (ImGui::BeginChild("video_timeline", ImVec2(timeline_width - 4, timeline_height - 8), false))
                 {
                     mouse_hold |= DrawVideoFilterTimelineWindow(show_blueprint);
                 }
@@ -5420,7 +5436,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
             }
             ImGui::EndChild();
             ImGui::SameLine();
-            if (ImGui::BeginChild("event list", ImVec2(event_list_width - 8, window_size.y), false))
+            if (ImGui::BeginChild("video_event_list", ImVec2(event_list_width - 8, window_size.y), false))
             {
                 DrawVideoFilterEventWindow(draw_list, editing_clip);
             }
@@ -5429,27 +5445,27 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
         else
         {
             // 2 Splitters, horizontal first, then vertically(chart 1)
-            float timeline_height = window_size.y * g_media_editor_settings.clip_timeline_height;
+            float timeline_height = window_size.y * g_media_editor_settings.video_clip_timeline_height;
             float preview_height = window_size.y - timeline_height;
             is_splitter_hold |= ImGui::Splitter(false, 4.0f, &preview_height, &timeline_height, window_size.y * 0.3, window_size.y * 0.3);
-            g_media_editor_settings.clip_timeline_height = timeline_height / window_size.y;
-            if (ImGui::BeginChild("preview", ImVec2(window_size.x, preview_height - 4), false))
+            g_media_editor_settings.video_clip_timeline_height = timeline_height / window_size.y;
+            if (ImGui::BeginChild("video_preview", ImVec2(window_size.x, preview_height - 4), false))
             {
                 DrawVideoFilterPreviewWindow(draw_list, editing_clip);
             }
             ImGui::EndChild();
-            float timeline_width = window_size.x * g_media_editor_settings.clip_timeline_width;
+            float timeline_width = window_size.x * g_media_editor_settings.video_clip_timeline_width;
             float event_list_width = window_size.x - timeline_width;
             is_splitter_hold |= ImGui::Splitter(true, 4.0f, &timeline_width, &event_list_width, window_size.x * 0.5, event_min_width/*window_size.x * 0.2*/);
-            g_media_editor_settings.clip_timeline_width = timeline_width / window_size.x;
+            g_media_editor_settings.video_clip_timeline_width = timeline_width / window_size.x;
             ImGui::Dummy(ImVec2(0, 4));
-            if (ImGui::BeginChild("timeline", ImVec2(timeline_width - 4, timeline_height - 8), false))
+            if (ImGui::BeginChild("video_timeline", ImVec2(timeline_width - 4, timeline_height - 8), false))
             {
                 mouse_hold |= DrawVideoFilterTimelineWindow(show_blueprint);
             }
             ImGui::EndChild();
             ImGui::SameLine();
-            if (ImGui::BeginChild("event list", ImVec2(event_list_width - 4, timeline_height - 8), false))
+            if (ImGui::BeginChild("video_event_list", ImVec2(event_list_width - 4, timeline_height - 8), false))
             {
                 DrawVideoFilterEventWindow(draw_list, editing_clip);
             }
@@ -5461,22 +5477,22 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
         if (preview_count == 0)
         {
             // 2 Splitters, horizontal first, then vertically(chart 5)
-            float timeline_height = window_size.y * g_media_editor_settings.clip_timeline_height;
+            float timeline_height = window_size.y * g_media_editor_settings.video_clip_timeline_height;
             float preview_height = window_size.y - timeline_height;
             is_splitter_hold |= ImGui::Splitter(false, 4.0f, &preview_height, &timeline_height, window_size.y * 0.5, window_size.y * 0.3);
-            g_media_editor_settings.clip_timeline_height = timeline_height / window_size.y;
-            if (ImGui::BeginChild("blue print", ImVec2(window_size.x, preview_height - 4), false))
+            g_media_editor_settings.video_clip_timeline_height = timeline_height / window_size.y;
+            if (ImGui::BeginChild("video_blue_print", ImVec2(window_size.x, preview_height - 4), false))
             {
                 DrawVideoFilterBlueprintWindow(draw_list, editing_clip);
             }
             ImGui::EndChild();
             ImGui::Dummy(ImVec2(0, 4));
-            if (ImGui::BeginChild("timeline&event_list", ImVec2(window_size.x, timeline_height - 8), false))
+            if (ImGui::BeginChild("video_timeline&event_list", ImVec2(window_size.x, timeline_height - 8), false))
             {
-                float timeline_width = window_size.x * g_media_editor_settings.clip_timeline_width;
+                float timeline_width = window_size.x * g_media_editor_settings.video_clip_timeline_width;
                 float event_list_width = window_size.x - timeline_width;
                 is_splitter_hold |= ImGui::Splitter(true, 4.0f, &timeline_width, &event_list_width, window_size.x * 0.5, event_min_width/*window_size.x * 0.2*/);
-                g_media_editor_settings.clip_timeline_width = timeline_width / window_size.x;
+                g_media_editor_settings.video_clip_timeline_width = timeline_width / window_size.x;
                 if (ImGui::BeginChild("timeline", ImVec2(timeline_width - 4, timeline_height - 8), false))
                 {
                     mouse_hold |= DrawVideoFilterTimelineWindow(show_blueprint);
@@ -5494,16 +5510,16 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
         else
         {
             // 3 Splitters, horizontal first, then 2 vertically(chart 3)
-            float timeline_height = window_size.y * g_media_editor_settings.clip_timeline_height;
+            float timeline_height = window_size.y * g_media_editor_settings.video_clip_timeline_height;
             float preview_height = window_size.y - timeline_height;
             is_splitter_hold |= ImGui::Splitter(false, 4.0f, &preview_height, &timeline_height, window_size.y * 0.5, window_size.y * 0.3);
-            g_media_editor_settings.clip_timeline_height = timeline_height / window_size.y;
+            g_media_editor_settings.video_clip_timeline_height = timeline_height / window_size.y;
             if (ImGui::BeginChild("blue print&preview", ImVec2(window_size.x, preview_height - 4), false))
             {
-                float blue_width = window_size.x * g_media_editor_settings.clip_timeline_width;
+                float blue_width = window_size.x * g_media_editor_settings.video_clip_timeline_width;
                 float preview_width = window_size.x - blue_width;
                 is_splitter_hold |= ImGui::Splitter(true, 4.0f, &blue_width, &preview_width, window_size.x * 0.5, event_min_width /*window_size.x * 0.2*/);
-                g_media_editor_settings.clip_timeline_width = blue_width / window_size.x;
+                g_media_editor_settings.video_clip_timeline_width = blue_width / window_size.x;
                 if (ImGui::BeginChild("blue print", ImVec2(blue_width - 4, preview_height - 4), false))
                 {
                     DrawVideoFilterBlueprintWindow(draw_list, editing_clip);
@@ -5520,10 +5536,10 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
             ImGui::Dummy(ImVec2(0, 4));
             if (ImGui::BeginChild("timeline&event_list", ImVec2(window_size.x, timeline_height - 8), false))
             {
-                float timeline_width = window_size.x * g_media_editor_settings.clip_timeline_width;
+                float timeline_width = window_size.x * g_media_editor_settings.video_clip_timeline_width;
                 float event_list_width = window_size.x - timeline_width;
                 is_splitter_hold |= ImGui::Splitter(true, 4.0f, &timeline_width, &event_list_width, window_size.x * 0.5, event_min_width/*window_size.x * 0.2*/);
-                g_media_editor_settings.clip_timeline_width = timeline_width / window_size.x;
+                g_media_editor_settings.video_clip_timeline_width = timeline_width / window_size.x;
                 if (ImGui::BeginChild("timeline", ImVec2(timeline_width - 4, timeline_height - 8), false))
                 {
                     mouse_hold |= DrawVideoFilterTimelineWindow(show_blueprint);
@@ -5540,22 +5556,6 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
         }
     }
 #else
-    if (editing_clip)
-    {
-        if (timeline->mVidFilterClip)
-        {
-            timeline->mVidFilterClip->UpdateClipRange(editing_clip);
-        }
-        else
-        {
-            timeline->mVidFilterClip = new EditingVideoClip((VideoClip*)editing_clip);
-        }
-        blueprint = timeline->mVidFilterClip->mFilterBp;
-        keypoint = timeline->mVidFilterClip->mFilterKp;
-        auto track = timeline->FindTrackByClipID(editing_clip->mID);
-        if (track) trackId = track->mID;
-    }
-
     float clip_timeline_height = 30 + 50 + 12;
     float clip_keypoint_height = g_media_editor_settings.VideoFilterCurveExpanded ? 80 : 0;
     ImVec2 video_preview_pos = window_pos;
@@ -6602,23 +6602,87 @@ static void ShowAudioFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
     }
 }
 
+static void DrawAudioFilterPreviewWindow(ImDrawList *draw_list, Clip * editing_clip, bool control_only = false)
+{
+    ImRect video_rect;
+    ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+    ImVec2 sub_window_size = ImGui::GetWindowSize();
+    draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DEEP_DARK);
+    ShowMediaPreviewWindow(draw_list, "Audio Filter", 1.5f, video_rect, editing_clip ? editing_clip->Start() : -1, editing_clip ? editing_clip->End() : -1, true, true, false, false, false, control_only);
+}
+
 static void ShowAudioFilterWindow(ImDrawList *draw_list, ImRect title_rect)
 {
     /*
+                1. with blueprint edit(3 Splitters)                       
+    ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┓    
+    ┃    []--[]--                                ║                       ┃    
+    ┃             \                              ║                       ┃    
+    ┃               \- []                        ║                       ┃    
+    ┃                                            ║                       ┃    
+    ┃                                            ║       preview         ┃    
+    ┃                                            ║                       ┃    
+    ┃                                            ║                       ┃    
+    ┃                                            ║                       ┃    
+    ┃                                            ╟━━━━━━━━━━━━━━━━━━━━━━━┫    
+    ┃                                            ║    |<  <  []  >  >|   ┃    
+    ┣════════════════════════════════════════════╬═══════════════════════┫    
+    ┃             timeline                       ║   > event             ┃    
+    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╢    |> filter          ┃    
+    ┃              [ event ]                     ║      > filter edit    ┃    
+    ┃              [ curve ]                     ║        .              ┃    
+    ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━┛ 
+                2. with blueprint edit without preview(2 Splitters)                       
+    ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┓    
+    ┃    []--[]--                                ║    |<  <  []  >  >|   ┃    
+    ┃             \                              ╟━━━━━━━━━━━━━━━━━━━━━━━┫     
+    ┃               \- []                        ║   > event             ┃    
+    ┃                                            ║     |> filter         ┃    
+    ┃                                            ║      > filter edit    ┃    
+    ┃                                            ║        .              ┃    
+    ┃                                            ║        .              ┃    
+    ┃                                            ║      > effect edit    ┃    
+    ┃                                            ║        .              ┃    
+    ┃                                            ║        .              ┃    
+    ┣════════════════════════════════════════════╢      .                ┃    
+    ┃             timeline                       ║      .                ┃    
+    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╢     |> filter         ┃    
+    ┃              [ event ]                     ║       > filter edit   ┃    
+    ┃              [ curve ]                     ║        .              ┃    
+    ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━┛ 
+                3. without blueprint(2 Splitter)
     ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┓
-    ┃                                            ┃                       ┃
-    ┃                                            ┃   blueprint area      ┃
-    ┃                                            ┃                       ┃
-    ┃               preview                      ┃                       ┃
-    ┃                                            ┃                       ┃ 
-    ┃                                            ┃                       ┃ 
-    ┃                                            ┣━━━━━━━━━━━━━━━━━━━━━━━┫ 
-    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫                       ┃ 
-    ┃             |<  <  []  >  >|               ┃    filter edit        ┃ 
-    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫                       ┃
-    ┃             timeline                       ┃                       ┃
-    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫                       ┃
-    ┃              curves                        ┃                       ┃
+    ┃              timeline                      ║                       ┃
+    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╢                       ┃
+    ┃              event track                   ║                       ┃
+    ┃               [event]                      ║                       ┃
+    ┃              event track                   ║       preview         ┃
+    ┃               [event]                      ║                       ┃
+    ┃               [curve]                      ╟━━━━━━━━━━━━━━━━━━━━━━━┫
+    ┃                  .                         ║    |<  <  []  >  >|   ┃
+    ┃                  .                         ╟═══════════════════════┫
+    ┃                  .                         ║    > event            ┃
+    ┃              event track                   ║      |> filter        ┃
+    ┃                  .                         ║       > filter edit   ┃
+    ┃                                            ║        .              ┃
+    ┃                                            ║        .              ┃
+    ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━┛ 
+                4. without preview and blueprint(1 Splitter)
+    ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┓
+    ┃              timeline                      ║    |<  <  []  >  >|   ┃
+    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╟━━━━━━━━━━━━━━━━━━━━━━━┫ 
+    ┃              event track                   ║   > event             ┃
+    ┃                  .                         ║    |> filter          ┃
+    ┃              event track                   ║      > filter edit    ┃
+    ┃               [event]                      ║        .              ┃
+    ┃               [curve]                      ║        .              ┃
+    ┃                  .                         ║      > effect edit    ┃
+    ┃                  .                         ║        .              ┃
+    ┃                  .                         ║        .              ┃
+    ┃              event track                   ║      .                ┃
+    ┃                  .                         ║      .                ┃
+    ┃                                            ║                       ┃
+    ┃                                            ║                       ┃
     ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━┛
     */
     // draw page title
@@ -6659,6 +6723,193 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list, ImRect title_rect)
         keypoint = timeline->mAudFilterClip->mFilterKp;
     }
 
+#ifndef USING_OLD_UI
+    // every type for area rect
+    // preview_rect: right top of event window
+    // preview_control_rect: if preview_rect is exist, width shoule equ preview_rect.width, otherwise, alway on top and same width with window
+    // timeline_rect: always bottom left of window, include event_track, timeline_height = 30(head height) + 50(clip height) + 12
+    // event_list_rect: always bottom right of window
+    // blueprint_rect: only has when we show event's bp, and aways on left top of window, same width with timeline
+    ImRect preview_rect, preview_control_rect, timeline_rect, event_list_rect, blueprint_rect;
+    const float event_min_width = 440;
+    bool is_splitter_hold = false;
+    static bool show_blueprint = false;
+    int preview_count = 0;
+    if (MonitorIndexPreviewVideo == -1) preview_count ++;
+    if (!show_blueprint)
+    {
+        if (preview_count == 0)
+        {
+            // 1 Splitter without preview and blueprint vertically only(chart 4)
+            float timeline_width = window_size.x * g_media_editor_settings.audio_clip_timeline_width;
+            float event_list_width = window_size.x - timeline_width;
+            is_splitter_hold |= ImGui::Splitter(true, 4.0f, &timeline_width, &event_list_width, window_size.x * 0.5, event_min_width/*window_size.x * 0.2*/);
+            g_media_editor_settings.audio_clip_timeline_width = timeline_width / window_size.x;
+            if (ImGui::BeginChild("audio_timeline", ImVec2(timeline_width - 4, window_size.y), false))
+            {
+                ImGui::TextUnformatted("audio_timeline");
+                //mouse_hold |= DrawVideoFilterTimelineWindow(show_blueprint);
+            }
+            ImGui::EndChild();
+            ImGui::SameLine();
+            if (ImGui::BeginChild("audio_event_list&preview_tool_bar", ImVec2(event_list_width - 4, window_size.y), false))
+            {
+                // show preview window with tool bar only
+                if (ImGui::BeginChild("audio_preview_tool_bar", ImVec2(event_list_width - 4, 48), false))
+                {
+                    //ImGui::TextUnformatted("audio_preview_tool_bar");
+                    DrawAudioFilterPreviewWindow(draw_list, editing_clip, true);
+                }
+                ImGui::EndChild();
+                ImGui::Dummy(ImVec2(0, 4));
+                if (ImGui::BeginChild("audio_event_list", ImVec2(event_list_width - 4, window_size.y - 48), false))
+                {
+                    ImGui::TextUnformatted("audio_event_list");
+                    //DrawVideoFilterEventWindow(draw_list, editing_clip);
+                }
+                ImGui::EndChild();
+            }
+            ImGui::EndChild();
+        }
+        else
+        {
+            // 2 Splitter preview without blueprint vertically first (chart 3)
+            float timeline_width = window_size.x * g_media_editor_settings.audio_clip_timeline_width;
+            float event_list_width = window_size.x - timeline_width;
+            is_splitter_hold |= ImGui::Splitter(true, 4.0f, &timeline_width, &event_list_width, window_size.x * 0.5, event_min_width/*window_size.x * 0.2*/);
+            g_media_editor_settings.audio_clip_timeline_width = timeline_width / window_size.x;
+            if (ImGui::BeginChild("audio_timeline", ImVec2(timeline_width - 4, window_size.y), false))
+            {
+                ImGui::TextUnformatted("audio_timeline");
+                //mouse_hold |= DrawVideoFilterTimelineWindow(show_blueprint);
+            }
+            ImGui::EndChild();
+            ImGui::SameLine();
+            if (ImGui::BeginChild("audio_preview&event_list", ImVec2(event_list_width - 8, window_size.y), false))
+            {
+                float timeline_height = window_size.y * g_media_editor_settings.audio_clip_timeline_height;
+                float preview_height = window_size.y - timeline_height;
+                is_splitter_hold |= ImGui::Splitter(false, 4.0f, &preview_height, &timeline_height, window_size.y * 0.3, window_size.y * 0.3);
+                g_media_editor_settings.audio_clip_timeline_height = timeline_height / window_size.y;
+                if (ImGui::BeginChild("audio_preview", ImVec2(event_list_width - 4, preview_height - 4), false))
+                {
+                    //ImGui::TextUnformatted("audio_preview");
+                    DrawAudioFilterPreviewWindow(draw_list, editing_clip);
+                }
+                ImGui::EndChild();
+                ImGui::Dummy(ImVec2(0, 4));
+                if (ImGui::BeginChild("audio_event_list", ImVec2(event_list_width - 4, timeline_height - 8), false))
+                {
+                    ImGui::TextUnformatted("audio_event_list");
+                    //DrawVideoFilterEventWindow(draw_list, editing_clip);
+                }
+                ImGui::EndChild();
+            }
+            ImGui::EndChild();
+        }
+    }
+    else
+    {
+        if (preview_count == 0)
+        {
+            // 2 Splitters with blueprint edit without preview vertically first (chart 2)
+            float timeline_width = window_size.x * g_media_editor_settings.audio_clip_timeline_width;
+            float event_list_width = window_size.x - timeline_width;
+            is_splitter_hold |= ImGui::Splitter(true, 4.0f, &timeline_width, &event_list_width, window_size.x * 0.5, event_min_width/*window_size.x * 0.2*/);
+            g_media_editor_settings.audio_clip_timeline_width = timeline_width / window_size.x;
+            if (ImGui::BeginChild("audio_blue_print&timeline", ImVec2(timeline_width - 4, window_size.y), false))
+            {
+                float timeline_height = window_size.y * g_media_editor_settings.audio_clip_timeline_height;
+                float blueprint_height = window_size.y - timeline_height;
+                is_splitter_hold |= ImGui::Splitter(false, 4.0f, &blueprint_height, &timeline_height, window_size.y * 0.3, window_size.y * 0.3);
+                g_media_editor_settings.audio_clip_timeline_height = timeline_height / window_size.y;
+                if (ImGui::BeginChild("audio_blue_print", ImVec2(window_size.x, blueprint_height - 4), false))
+                {
+                    ImGui::TextUnformatted("audio_blue_print");
+                    //DrawVideoFilterBlueprintWindow(draw_list, editing_clip);
+                }
+                ImGui::EndChild();
+                if (ImGui::BeginChild("audio_timeline", ImVec2(timeline_width - 4, timeline_height - 8), false))
+                {
+                    ImGui::TextUnformatted("audio_timeline");
+                    //mouse_hold |= DrawVideoFilterTimelineWindow(show_blueprint);
+                }
+                ImGui::EndChild();
+            }
+            ImGui::EndChild();
+            ImGui::SameLine();
+            if (ImGui::BeginChild("audio_preview_var&event_list", ImVec2(event_list_width - 4, window_size.y - 8), false))
+            {
+                // show preview window with tool bar only
+                if (ImGui::BeginChild("audio_preview_tool_bar", ImVec2(event_list_width - 4, 48), false))
+                {
+                    //ImGui::TextUnformatted("audio_preview_tool_bar");
+                    DrawAudioFilterPreviewWindow(draw_list, editing_clip, true);
+                }
+                ImGui::EndChild();
+                ImGui::Dummy(ImVec2(0, 4));
+                if (ImGui::BeginChild("audio_event_list", ImVec2(event_list_width - 4, window_size.y - 48), false))
+                {
+                    ImGui::TextUnformatted("audio_event_list");
+                    //DrawVideoFilterEventWindow(draw_list, editing_clip);
+                }
+                ImGui::EndChild();
+            }
+            ImGui::EndChild();
+        }
+        else
+        {
+            // 3 Splitters with blueprint edit vertically first (chart 1)
+            float timeline_width = window_size.x * g_media_editor_settings.audio_clip_timeline_width;
+            float event_list_width = window_size.x - timeline_width;
+            is_splitter_hold |= ImGui::Splitter(true, 4.0f, &timeline_width, &event_list_width, window_size.x * 0.5, event_min_width/*window_size.x * 0.2*/);
+            g_media_editor_settings.audio_clip_timeline_width = timeline_width / window_size.x;
+            if (ImGui::BeginChild("audio_blue_print&timeline", ImVec2(timeline_width - 4, window_size.y), false))
+            {
+                float timeline_height = window_size.y * g_media_editor_settings.audio_clip_timeline_height;
+                float blueprint_height = window_size.y - timeline_height;
+                is_splitter_hold |= ImGui::Splitter(false, 4.0f, &blueprint_height, &timeline_height, window_size.y * 0.3, window_size.y * 0.3);
+                g_media_editor_settings.audio_clip_timeline_height = timeline_height / window_size.y;
+                if (ImGui::BeginChild("audio_blue_print", ImVec2(window_size.x, blueprint_height - 4), false))
+                {
+                    ImGui::TextUnformatted("audio_blue_print");
+                    //DrawVideoFilterBlueprintWindow(draw_list, editing_clip);
+                }
+                ImGui::EndChild();
+                if (ImGui::BeginChild("audio_timeline", ImVec2(timeline_width - 4, timeline_height - 8), false))
+                {
+                    ImGui::TextUnformatted("audio_timeline");
+                    //mouse_hold |= DrawVideoFilterTimelineWindow(show_blueprint);
+                }
+                ImGui::EndChild();
+            }
+            ImGui::EndChild();
+            ImGui::SameLine();
+            if (ImGui::BeginChild("audio_preview&event_list", ImVec2(event_list_width - 4, window_size.y), false))
+            {
+                float timeline_height = window_size.y * g_media_editor_settings.audio_clip_timeline_height;
+                float preview_height = window_size.y - timeline_height;
+                is_splitter_hold |= ImGui::Splitter(false, 4.0f, &preview_height, &timeline_height, window_size.y * 0.3, window_size.y * 0.3);
+                g_media_editor_settings.audio_clip_timeline_height = timeline_height / window_size.y;
+                if (ImGui::BeginChild("audio_preview", ImVec2(event_list_width - 4, preview_height - 4), false))
+                {
+                    //ImGui::TextUnformatted("audio_preview");
+                    //DrawVideoFilterPreviewWindow(draw_list, editing_clip);
+                    DrawAudioFilterPreviewWindow(draw_list, editing_clip);
+                }
+                ImGui::EndChild();
+                ImGui::Dummy(ImVec2(0, 4));
+                if (ImGui::BeginChild("audio_event_list", ImVec2(event_list_width - 4, timeline_height - 48), false))
+                {
+                    ImGui::TextUnformatted("audio_event_list");
+                    //DrawVideoFilterEventWindow(draw_list, editing_clip);
+                }
+                ImGui::EndChild();
+            }
+            ImGui::EndChild();
+        }
+    }
+#else
     float clip_header_height = 30 + 12;
     float clip_channel_height = 50;
     float clip_timeline_height = clip_header_height;
@@ -6986,6 +7237,7 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list, ImRect title_rect)
         }
     }
     ImGui::EndChild();
+#endif
 }
 
 static void ShowAudioTransitionBluePrintWindow(ImDrawList *draw_list, Overlap * overlap)
@@ -7681,7 +7933,7 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list, ImRect title_rect)
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DEEP_DARK);
         ImRect video_rect;
-        ShowMediaPreviewWindow(draw_list, "Audio Mixing", 1.5f, video_rect, timeline->mStart, timeline->mEnd, false, false, false, true, false, false);
+        ShowMediaPreviewWindow(draw_list, "Audio Mixing", 1.5f, video_rect, timeline->mStart, timeline->mEnd, false, false, false, false, false);
     }
     ImGui::EndChild();
 
@@ -10568,8 +10820,10 @@ static void MediaEditor_SetupContext(ImGuiContext* ctx, bool in_splash)
         else if (sscanf(line, "AudioFormat=%d", &val_int) == 1) { setting->AudioFormat = val_int; }
         else if (sscanf(line, "BankViewStyle=%d", &val_int) == 1) { setting->BankViewStyle = val_int; }
         else if (sscanf(line, "ShowHelpTips=%d", &val_int) == 1) { setting->ShowHelpTooltips = val_int == 1; }
-        else if (sscanf(line, "ClipTimelineHeight=%f", &val_float) == 1) { setting->clip_timeline_height = val_float; }
-        else if (sscanf(line, "ClipTimelineWidth=%f", &val_float) == 1) { setting->clip_timeline_width = val_float; }
+        else if (sscanf(line, "VideoClipTimelineHeight=%f", &val_float) == 1) { setting->video_clip_timeline_height = val_float; }
+        else if (sscanf(line, "VideoClipTimelineWidth=%f", &val_float) == 1) { setting->video_clip_timeline_width = val_float; }
+        else if (sscanf(line, "AudioClipTimelineHeight=%f", &val_float) == 1) { setting->audio_clip_timeline_height = val_float; }
+        else if (sscanf(line, "AudioClipTimelineWidth=%f", &val_float) == 1) { setting->audio_clip_timeline_width = val_float; }
         else if (sscanf(line, "ExpandScope=%d", &val_int) == 1) { setting->ExpandScope = val_int == 1; }
         else if (sscanf(line, "SeparateScope=%d", &val_int) == 1) { setting->SeparateScope = val_int == 1; }
         else if (sscanf(line, "HistogramLogView=%d", &val_int) == 1) { setting->HistogramLog = val_int == 1; }
@@ -10684,8 +10938,8 @@ static void MediaEditor_SetupContext(ImGuiContext* ctx, bool in_splash)
         out_buf->appendf("AudioFormat=%d\n", g_media_editor_settings.AudioFormat);
         out_buf->appendf("BankViewStyle=%d\n", g_media_editor_settings.BankViewStyle);
         out_buf->appendf("ShowHelpTips=%d\n", g_media_editor_settings.ShowHelpTooltips ? 1 : 0);
-        out_buf->appendf("ClipTimelineHeight=%f\n", g_media_editor_settings.clip_timeline_height);
-        out_buf->appendf("ClipTimelineWidth=%f\n", g_media_editor_settings.clip_timeline_width);
+        out_buf->appendf("VideoClipTimelineHeight=%f\n", g_media_editor_settings.video_clip_timeline_height);
+        out_buf->appendf("VideoClipTimelineWidth=%f\n", g_media_editor_settings.video_clip_timeline_width);
         out_buf->appendf("ExpandScope=%d\n", g_media_editor_settings.ExpandScope ? 1 : 0);
         out_buf->appendf("SeparateScope=%d\n", g_media_editor_settings.SeparateScope ? 1 : 0);
         out_buf->appendf("HistogramLogView=%d\n", g_media_editor_settings.HistogramLog ? 1 : 0);
